@@ -5,7 +5,7 @@ import { DeployFunction } from 'hardhat-deploy/dist/types'
 
 /* Imports: Internal */
 import { getContractFromArtifact } from '../src/hardhat-deploy-ethers'
-import { addressNames } from '../src'
+import { unmanagedNames } from '../src'
 
 const deployFn: DeployFunction = async (hre) => {
   const { deployer } = await hre.getNamedAccounts()
@@ -20,14 +20,14 @@ const deployFn: DeployFunction = async (hre) => {
   // First get relevant contract references.
   const AddressDictator = await getContractFromArtifact(
     hre,
-    addressNames.addressDictator,
+    unmanagedNames.addressDictator,
     {
       signerOrProvider: deployer,
     }
   )
   const Lib_AddressManager = await getContractFromArtifact(
     hre,
-    addressNames.addressManager
+    unmanagedNames.addressManager
   )
   const namedAddresses: Array<{ name: string; addr: string }> =
     await AddressDictator.getNamedAddresses()

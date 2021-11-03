@@ -7,39 +7,26 @@ import {
   deployAndPostDeploy,
   getContractFromArtifact,
 } from '../src/hardhat-deploy-ethers'
-import { addressNames } from '../src'
+import { managedNames, unmanagedNames } from '../src'
 import { predeploys } from '../src/predeploys'
 
 const deployFn: DeployFunction = async (hre) => {
   const Lib_AddressManager = await getContractFromArtifact(
     hre,
-    addressNames.addressManager
+    unmanagedNames.addressManager
   )
-
-  const allContractNames = [
-    'ChainStorageContainer-CTC-batches',
-    'ChainStorageContainer-SCC-batches',
-    'CanonicalTransactionChain',
-    'StateCommitmentChain',
-    'BondManager',
-    'OVM_L1CrossDomainMessenger',
-    'Proxy__OVM_L1CrossDomainMessenger',
-    'Proxy__OVM_L1StandardBridge',
-  ]
 
   let namesAndAddresses: {
     name: string
     address: string
   }[] = await Promise.all(
-    Object.values(addressNames)
-      .filter((val) => allContractNames.includes(val))
-      .map(async (name) => {
-        return {
-          name,
-          // todo: fix this by divvying up contracts
-          address: (await getContractFromArtifact(hre, name)).address,
-        }
-      })
+    Object.values(managedNames).map(async (name) => {
+      return {
+        name,
+        // todo: fix this by divvying up contracts
+        address: (await getContractFromArtifact(hre, name)).address,
+      }
+    })
   )
 
   // Add non-deployed addresses to the Address Dictator arguments.
@@ -55,13 +42,13 @@ const deployFn: DeployFunction = async (hre) => {
     // OVM_Sequencer is the address allowed to submit "Sequencer" blocks to the
     // CanonicalTransactionChain.
     {
-      name: addressNames.sequencer,
+      name: managedNames.sequencer,
       address: (hre as any).deployConfig.ovmSequencerAddress,
     },
     // OVM_Proposer is the address allowed to submit state roots (transaction results) to the
     // StateCommitmentChain.
     {
-      name: addressNames.proposer,
+      name: managedNames.proposer,
       address: (hre as any).deployConfig.ovmProposerAddress,
     },
   ]
@@ -80,7 +67,7 @@ const deployFn: DeployFunction = async (hre) => {
 
   await deployAndPostDeploy({
     hre,
-    name: addressNames.addressDictator,
+    name: unmanagedNames.addressDictator,
     contract: 'AddressDictator',
     args: [
       Lib_AddressManager.address,

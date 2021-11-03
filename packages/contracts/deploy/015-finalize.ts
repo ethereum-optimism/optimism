@@ -4,7 +4,7 @@ import { hexStringEquals, awaitCondition } from '@eth-optimism/core-utils'
 
 /* Imports: Internal */
 import { getContractFromArtifact } from '../src/hardhat-deploy-ethers'
-import { addressNames } from '../src'
+import { unmanagedNames } from '../src'
 
 const deployFn: DeployFunction = async (hre) => {
   const { deployer } = await hre.getNamedAccounts()

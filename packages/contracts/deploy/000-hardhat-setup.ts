@@ -7,7 +7,7 @@ import {
   sendImpersonatedTx,
   BIG_BALANCE,
 } from '../src/hardhat-deploy-ethers'
-import { addressNames } from '../src'
+import { unmanagedNames } from '../src'
 import { awaitCondition } from '@eth-optimism/core-utils'
 
 const deployFn: DeployFunction = async (hre) => {
@@ -25,7 +25,7 @@ const deployFn: DeployFunction = async (hre) => {
   // Get a reference to the AddressManager contract.
   const Lib_AddressManager = await getContractFromArtifact(
     hre,
-    addressNames.addressManager
+    unmanagedNames.addressManager
   )
 
   // Transfer ownership of the AddressManager to the deployer.

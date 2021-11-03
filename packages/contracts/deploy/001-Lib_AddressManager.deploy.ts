@@ -1,5 +1,5 @@
 /* Imports: Internal */
-import { addressNames } from '../src'
+import { unmanagedNames } from '../src'
 
 /* Imports: External */
 import { DeployFunction } from 'hardhat-deploy/dist/types'
@@ -8,7 +8,7 @@ const deployFn: DeployFunction = async (hre) => {
   const { deploy } = hre.deployments
   const { deployer } = await hre.getNamedAccounts()
 
-  await deploy(addressNames.addressManager, {
+  await deploy(unmanagedNames.addressManager, {
     from: deployer,
     args: [],
     log: true,

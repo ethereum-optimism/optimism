@@ -2,16 +2,11 @@ type addrNames = {
   [key: string]: string
 }
 
-// todo: split up
 /**
- * This object defines the correct names to be used in the Address Manager and deployment artifacts.
+ * For contracts and accounts listed in the Address Manager, this object defines the correct names to be used in
+ * the Address Manager and deployment artifacts.
  */
-export const addressNames: addrNames = {
-  addressManager: 'Lib_AddressManager',
-  sequencer: 'OVM_Sequencer',
-  proposer: 'OVM_Proposer',
-  addressDictator: 'AddressDictator',
-  chugsplashDictator: 'ChugsplashDictator',
+export const managedNames: addrNames = {
   storageContainerCtc: 'ChainStorageContainer-CTC-batches',
   storageContainerScc: 'ChainStorageContainer-SCC-batches',
   canonicalTransactionChain: 'CanonicalTransactionChain',
@@ -20,4 +15,16 @@ export const addressNames: addrNames = {
   implL1CrossDomainMessenger: 'OVM_L1CrossDomainMessenger',
   proxyL1CrossDomainMessenger: 'Proxy__OVM_L1CrossDomainMessenger',
   proxyL1StandardBridge: 'Proxy__OVM_L1StandardBridge',
+}
+
+/**
+ * For contracts not listed in the Address Manager, this object defines the correct names to be used
+ * in deployment artifacts.
+ */
+export const unmanagedNames: addrNames = {
+  addressDictator: 'AddressDictator',
+  chugsplashDictator: 'ChugsplashDictator',
+  addressManager: 'Lib_AddressManager',
+  sequencer: 'OVM_Sequencer',
+  proposer: 'OVM_Proposer',
 }

@@ -4,7 +4,7 @@ import { hexStringEquals, awaitCondition } from '@eth-optimism/core-utils'
 
 /* Imports: Internal */
 import { getContractFromArtifact } from '../src/hardhat-deploy-ethers'
-import { addressNames } from '../src'
+import { managedNames, unmanagedNames } from '../src'
 
 const deployFn: DeployFunction = async (hre) => {
   const { deployer } = await hre.getNamedAccounts()
@@ -17,7 +17,7 @@ const deployFn: DeployFunction = async (hre) => {
   // recover from so let's just ignore it for now.
   const Proxy__OVM_L1CrossDomainMessenger = await getContractFromArtifact(
     hre,
-    addressNames.proxyL1CrossDomainMessenger,
+    managedNames.proxyL1CrossDomainMessenger,
     {
       iface: 'L1CrossDomainMessenger',
       signerOrProvider: deployer,
@@ -26,7 +26,7 @@ const deployFn: DeployFunction = async (hre) => {
 
   const Lib_AddressManager = await getContractFromArtifact(
     hre,
-    addressNames.addressManager
+    unmanagedNames.addressManager
   )
 
   await Proxy__OVM_L1CrossDomainMessenger.initialize(Lib_AddressManager.address)
