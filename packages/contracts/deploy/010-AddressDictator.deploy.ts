@@ -7,12 +7,13 @@ import {
   deployAndPostDeploy,
   getContractFromArtifact,
 } from '../src/hardhat-deploy-ethers'
+import { addressNames } from '../src'
 import { predeploys } from '../src/predeploys'
 
 const deployFn: DeployFunction = async (hre) => {
   const Lib_AddressManager = await getContractFromArtifact(
     hre,
-    'Lib_AddressManager'
+    addressNames.addressManager
   )
 
   const allContractNames = [
@@ -30,12 +31,15 @@ const deployFn: DeployFunction = async (hre) => {
     name: string
     address: string
   }[] = await Promise.all(
-    allContractNames.map(async (name) => {
-      return {
-        name,
-        address: (await getContractFromArtifact(hre, name)).address,
-      }
-    })
+    Object.values(addressNames)
+      .filter((val) => allContractNames.includes(val))
+      .map(async (name) => {
+        return {
+          name,
+          // todo: fix this by divvying up contracts
+          address: (await getContractFromArtifact(hre, name)).address,
+        }
+      })
   )
 
   // Add non-deployed addresses to the Address Dictator arguments.
@@ -51,13 +55,13 @@ const deployFn: DeployFunction = async (hre) => {
     // OVM_Sequencer is the address allowed to submit "Sequencer" blocks to the
     // CanonicalTransactionChain.
     {
-      name: 'OVM_Sequencer',
+      name: addressNames.sequencer,
       address: (hre as any).deployConfig.ovmSequencerAddress,
     },
     // OVM_Proposer is the address allowed to submit state roots (transaction results) to the
     // StateCommitmentChain.
     {
-      name: 'OVM_Proposer',
+      name: addressNames.proposer,
       address: (hre as any).deployConfig.ovmProposerAddress,
     },
   ]
@@ -76,7 +80,7 @@ const deployFn: DeployFunction = async (hre) => {
 
   await deployAndPostDeploy({
     hre,
-    name: 'AddressDictator',
+    name: addressNames.addressDictator,
     contract: 'AddressDictator',
     args: [
       Lib_AddressManager.address,

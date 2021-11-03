@@ -118,6 +118,7 @@ describe('CanonicalTransactionChain', () => {
     const queue = await Factory__ChainStorageContainer.deploy(
       AddressManager.address,
       'CanonicalTransactionChain'
+      addressNames.canonicalTransactionChain
     )
 
     await AddressManager.setAddress(
@@ -126,7 +127,7 @@ describe('CanonicalTransactionChain', () => {
     )
 
     await AddressManager.setAddress(
-      'CanonicalTransactionChain',
+      addressNames.canonicalTransactionChain,
       CanonicalTransactionChain.address
     )
   })

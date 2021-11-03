@@ -9,6 +9,7 @@ import { normalizeHardhatNetworkAccountsConfig } from 'hardhat/internal/core/pro
 
 /* Imports: Internal */
 import { getContractFromArtifact } from '../src/hardhat-deploy-ethers'
+import { addressNames } from '../src'
 
 // This is a TEMPORARY way to fund the default hardhat accounts on L2. The better way to do this is
 // to make a modification to hardhat-ovm. However, I don't have the time right now to figure the
@@ -19,7 +20,7 @@ const deployFn: DeployFunction = async (hre) => {
   if (chainId === defaultHardhatNetworkParams.chainId) {
     const L1StandardBridge = await getContractFromArtifact(
       hre,
-      'Proxy__OVM_L1StandardBridge',
+      addressNames.proxyL1StandardBridge,
       {
         iface: 'L1StandardBridge',
       }
