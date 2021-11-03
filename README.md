@@ -52,7 +52,7 @@ process done with hash 0x5c45998dfbf9ce70bcbb80574ed7a622922d2c775e0a2331fe5a8b8
 
 On chain / in MIPS, we have two oracles
 
-* Input(index) -> value
+* InputHash() -> hash        # this is a hash of the initial custom state of the system
 * Preimage(hash) -> value    # hash(value) == hash
 
 We generate the Preimages in x86 using geth RPC
