@@ -174,22 +174,6 @@ export const waitForL2Geth = async (
   return injectL2Context(provider)
 }
 
-export const awaitCondition = async (
-  cond: () => Promise<boolean>,
-  rate = 1000,
-  attempts = 10
-) => {
-  for (let i = 0; i < attempts; i++) {
-    const ok = await cond()
-    if (ok) {
-      return
-    }
-
-    await sleep(rate)
-  }
-  throw new Error('Timed out.')
-}
-
 export const gasPriceForL2 = async () => {
   if (isLiveNetwork()) {
     return Promise.resolve(BigNumber.from(10000))
