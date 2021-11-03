@@ -23,8 +23,8 @@ jobs:
       contracts: ${{ steps.packages.outputs.contracts }}
       replica-healthcheck: ${{ steps.packages.outputs.replica-healthcheck }}
       canary-docker-tag: ${{ steps.docker-image-name.outputs.canary-docker-tag }}
-      proxyd: ${{ steps.canary-publish.outputs.proxyd }}
-      rpc-proxy : ${{ steps.canary-publish.outputs.rpc-proxy }}
+      proxyd: ${{ steps.packages.outputs.proxyd }}
+      rpc-proxy : ${{ steps.packages.outputs.rpc-proxy }}
 
     steps:
       - name: Check out source code
