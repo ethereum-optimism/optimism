@@ -9,6 +9,7 @@ import {
   getContractFromArtifact,
   deployAndVerifyAndThen,
 } from '../src/hardhat-deploy-ethers'
+import { names } from '../src'
 
 const deployFn: DeployFunction = async (hre) => {
   const Proxy__OVM_L1StandardBridge = await getContractFromArtifact(
@@ -22,13 +23,12 @@ const deployFn: DeployFunction = async (hre) => {
 
   const Proxy__OVM_L1CrossDomainMessenger = await getContractFromArtifact(
     hre,
-    'Proxy__OVM_L1CrossDomainMessenger'
+    names.managed.contracts.Proxy__OVM_L1CrossDomainMessenger
   )
 
   await deployAndVerifyAndThen({
     hre,
-    name: 'ChugSplashDictator',
-    contract: 'ChugSplashDictator',
+    name: names.unmanaged.ChugSplashDictator,
     args: [
       Proxy__OVM_L1StandardBridge.address,
       (hre as any).deployConfig.ovmAddressManagerOwner,

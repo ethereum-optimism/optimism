@@ -23,6 +23,7 @@ import {
   getEthTime,
   getNextBlockNumber,
 } from '../../../helpers'
+import { names } from '../../../../src'
 
 const ELEMENT_TEST_SIZES = [1, 2, 4, 8, 16]
 const MAX_GAS_LIMIT = 8_000_000
@@ -113,10 +114,6 @@ describe('CanonicalTransactionChain', () => {
       AddressManager.address,
       'CanonicalTransactionChain'
     )
-    await Factory__ChainStorageContainer.deploy(
-      AddressManager.address,
-      'CanonicalTransactionChain'
-    )
 
     await AddressManager.setAddress(
       'ChainStorageContainer-CTC-batches',
@@ -124,7 +121,7 @@ describe('CanonicalTransactionChain', () => {
     )
 
     await AddressManager.setAddress(
-      'CanonicalTransactionChain',
+      names.managed.contracts.CanonicalTransactionChain,
       CanonicalTransactionChain.address
     )
   })
