@@ -6,16 +6,17 @@ import {
   deployAndVerifyAndThen,
   getContractFromArtifact,
 } from '../src/hardhat-deploy-ethers'
+import { names } from '../src'
 
 const deployFn: DeployFunction = async (hre) => {
   const Lib_AddressManager = await getContractFromArtifact(
     hre,
-    'Lib_AddressManager'
+    names.unmanaged.Lib_AddressManager
   )
 
   await deployAndVerifyAndThen({
     hre,
-    name: 'CanonicalTransactionChain',
+    name: names.managed.contracts.CanonicalTransactionChain,
     args: [
       Lib_AddressManager.address,
       (hre as any).deployConfig.ctcMaxTransactionGasLimit,

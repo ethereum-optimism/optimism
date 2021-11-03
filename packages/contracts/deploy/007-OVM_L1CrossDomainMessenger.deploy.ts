@@ -7,16 +7,17 @@ import {
   deployAndVerifyAndThen,
   getContractFromArtifact,
 } from '../src/hardhat-deploy-ethers'
+import { names } from '../src'
 
 const deployFn: DeployFunction = async (hre) => {
   const Lib_AddressManager = await getContractFromArtifact(
     hre,
-    'Lib_AddressManager'
+    names.unmanaged.Lib_AddressManager
   )
 
   await deployAndVerifyAndThen({
     hre,
-    name: 'OVM_L1CrossDomainMessenger',
+    name: names.managed.contracts.OVM_L1CrossDomainMessenger,
     contract: 'L1CrossDomainMessenger',
     args: [],
     postDeployAction: async (contract) => {
