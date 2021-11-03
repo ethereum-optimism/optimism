@@ -329,12 +329,12 @@ jobs:
           username: ${{ secrets.DOCKERHUB_ACCESS_TOKEN_USERNAME }}
           password: ${{ secrets.DOCKERHUB_ACCESS_TOKEN_SECRET }}
 
-      - name: Set env
-        run: |
-          echo "GITDATE=$(date)" >> $GITHUB_ENV
-          echo "GITCOMMIT=$(git rev-parse HEAD)" >> $GITHUB_ENV
-          echo "GITVERSION=$(jq -r .version ./go/proxyd/package.json) >> $GITHUB_ENV
-          env | sort
+      # - name: Set env
+      #   run: |
+      #     echo "GITDATE=$(date)" >> $GITHUB_ENV
+      #     echo "GITCOMMIT=$(git rev-parse HEAD)" >> $GITHUB_ENV
+      #     echo "GITVERSION=$(jq -r .version ./go/proxyd/package.json) >> $GITHUB_ENV
+      #     env | sort
 
       - name: Build and push
         uses: docker/build-push-action@v2
