@@ -332,6 +332,9 @@ jobs:
       - name: Set env
         run: |
           echo "GITDATE=$(date)" >> $GITHUB_ENV
+          echo "GITCOMMIT=$(git rev-parse HEAD)" >> $GITHUB_ENV
+          echo "GITVERSION=$(jq -r .version ./go/proxyd/package.json) >> $GITHUB_ENV
+          env | sort
 
       - name: Build and push
         uses: docker/build-push-action@v2
@@ -340,9 +343,6 @@ jobs:
           file: ./go/proxyd/Dockerfile
           push: true
           tags: ethereumoptimism/proxyd:${{ needs.canary-publish.outputs.proxyd }}
-          build-args: |
-             GITCOMMIT=$GITHUB_SHA
-             GITDATE=$GITDATE
 
   rpc-proxy:
     name: Publish rpc-proxy Version ${{ needs.canary-publish.outputs.canary-docker-tag }}

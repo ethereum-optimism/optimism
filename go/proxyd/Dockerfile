@@ -1,27 +1,21 @@
-FROM golang:1.17.2-alpine3.14 AS builder
+FROM golang:1.17.2-alpine3.13 AS builder
 
 ARG GITCOMMIT=docker
 ARG GITDATE=docker
 ARG GITVERSION=docker
 
-RUN apk add make jq && \
-    mkdir -p /app
+RUN apk add make jq git
 
 WORKDIR /app
-COPY go.mod /app
-COPY go.sum /app
-COPY cmd /app/cmd
-COPY *.go /app/
-COPY package.json /app
-COPY Makefile /app
+COPY ./go/proxyd /app
 
-RUN make proxyd GITCOMMIT=$GITCOMMIT GITDATE=$GITDATE
+RUN make proxyd
 
 FROM alpine:3.14.2
 
 EXPOSE 8080
 
-VOLUME /etc/proxyd.toml
+VOLUME /etc/proxyd
 
 COPY --from=builder /app/bin/proxyd /bin/proxyd
-CMD ["/bin/proxyd", "/etc/proxyd.toml"]
+CMD ["/bin/proxyd", "/etc/proxyd/proxyd.toml"]
