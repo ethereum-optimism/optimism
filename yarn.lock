@@ -511,7 +511,7 @@
     ethers "^5.4.5"
     lodash "^4.17.21"
 
-"@eth-optimism/smock@^1.1.10":
+"@eth-optimism/smock@1.1.10":
   version "1.1.10"
   resolved "https://registry.yarnpkg.com/@eth-optimism/smock/-/smock-1.1.10.tgz#98a6eefc994ccf707f52ab06849468f3cc57bdb7"
   integrity sha512-XPx1x9odF/noTBHzIhRgL9ihhr769WgUhf9dOm6X7bjSWRAVsII3IqbdB4ssPycaoSuNSmv8HG1xTLgfgcyOYw==
