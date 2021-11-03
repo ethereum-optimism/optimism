@@ -2,14 +2,13 @@ import { expect } from 'chai'
 
 /* Imports: External */
 import { Contract, ContractFactory } from 'ethers'
-import { applyL1ToL2Alias } from '@eth-optimism/core-utils'
+import { applyL1ToL2Alias, awaitCondition } from '@eth-optimism/core-utils'
 
 /* Imports: Internal */
 import simpleStorageJson from '../artifacts/contracts/SimpleStorage.sol/SimpleStorage.json'
 import l2ReverterJson from '../artifacts/contracts/Reverter.sol/Reverter.json'
 import { Direction } from './shared/watcher-utils'
 import { OptimismEnv } from './shared/env'
-import { awaitCondition } from '@eth-optimism/core-utils'
 
 describe('Basic L1<>L2 Communication', async () => {
   let Factory__L1SimpleStorage: ContractFactory
