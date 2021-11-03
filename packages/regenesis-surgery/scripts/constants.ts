@@ -114,6 +114,12 @@ export const WETH_TRANSFER_ADDRESSES = [
   '0xF6A47B24e80D12Ac7d3b5Cef67B912BCd3377333',
   // Rubicon Mainnet exchange
   '0x7a512d3609211e719737E82c7bb7271eC05Da70d',
+  // Rubicon Mainnet bathUSDC
+  '0xe0e112e8f33d3f437D1F895cbb1A456836125952',
+  // Rubicon Mainnet bathDAI
+  '0x60daEC2Fc9d2e0de0577A5C708BcaDBA1458A833',
+  // Rubicon Mainnet bathUSDT
+  '0xfFBD695bf246c514110f5DAe3Fa88B8c2f42c411',
   // Rubicon Kovan bathETH
   '0x5790AedddfB25663f7dd58261De8E96274A82BAd',
   // Rubicon Kovan bathETH-USDC
