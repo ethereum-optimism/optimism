@@ -2,4 +2,4 @@
 '@eth-optimism/core-utils': patch
 ---
 
-Add GenesisJsonProvider
+Add bytes32ify

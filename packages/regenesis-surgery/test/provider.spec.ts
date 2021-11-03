@@ -1,8 +1,11 @@
-import { expect } from './setup'
+import { expect } from '@eth-optimism/core-utils/test/setup'
 import { ethers, BigNumber } from 'ethers'
-import { GenesisJsonProvider } from '../src/provider'
-import { Genesis } from '../src/types'
-import { remove0x, add0x } from '../src/common/hex-strings'
+import { GenesisJsonProvider } from './provider'
+import { Genesis } from '@eth-optimism/core-utils/src/types'
+import {
+  remove0x,
+  add0x,
+} from '@eth-optimism/core-utils/src/common/hex-strings'
 import { KECCAK256_RLP_S, KECCAK256_NULL_S } from 'ethereumjs-util'
 
 const account = '0x66a84544bed4ca45b3c024776812abf87728fbaf'
@@ -109,5 +112,10 @@ describe.only('GenesisJsonProvider', () => {
     const proof = await provider.send('eth_getProof', ['0x'])
     expect(proof.codeHash).to.eq(add0x(KECCAK256_NULL_S))
     expect(proof.storageHash).to.eq(add0x(KECCAK256_RLP_S))
+  })
+
+  it('should also initialize correctly with state dump', async () => {
+    provider = new GenesisJsonProvider(genesis.alloc)
+    expect(provider).to.be.instanceOf(GenesisJsonProvider)
   })
 })
