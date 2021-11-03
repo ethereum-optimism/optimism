@@ -15,6 +15,7 @@ const networks = {
   4: 'rinkeby',
   5: 'goerli',
   42: 'kovan',
+  42069: 'mainnet-trial',
 }
 
 const publicDeployments = ['mainnet', 'mainnet-trial', 'kovan', 'kovan-trial']
