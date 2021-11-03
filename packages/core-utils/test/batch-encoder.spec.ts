@@ -1,11 +1,11 @@
-import '../setup'
+import './setup'
 
 /* Internal Imports */
 import {
   encodeAppendSequencerBatch,
   decodeAppendSequencerBatch,
   sequencerBatch,
-} from '../../src'
+} from '../src'
 import { expect } from 'chai'
 
 describe('BatchEncoder', () => {
@@ -43,7 +43,7 @@ describe('BatchEncoder', () => {
 
     it('should work with mainnet calldata', () => {
       // eslint-disable-next-line @typescript-eslint/no-var-requires
-      const data = require('../fixtures/appendSequencerBatch.json')
+      const data = require('./fixtures/appendSequencerBatch.json')
       for (const calldata of data.calldata) {
         const decoded = sequencerBatch.decode(calldata)
         const encoded = sequencerBatch.encode(decoded)

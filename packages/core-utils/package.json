@@ -17,8 +17,8 @@
     "lint:check": "eslint .",
     "lint:fix": "yarn lint:check --fix",
     "pre-commit": "lint-staged",
-    "test": "ts-mocha test/**/*.spec.ts",
-    "test:coverage": "nyc ts-mocha test/**/*.spec.ts && nyc merge .nyc_output coverage.json"
+    "test": "ts-mocha test/*.spec.ts",
+    "test:coverage": "nyc ts-mocha test/*.spec.ts && nyc merge .nyc_output coverage.json"
   },
   "devDependencies": {
     "@types/chai": "^4.2.18",
@@ -46,6 +46,7 @@
   },
   "dependencies": {
     "@ethersproject/abstract-provider": "^5.4.1",
+    "@ethersproject/bytes": "^5.5.0",
     "@ethersproject/providers": "^5.4.5",
     "chai": "^4.3.4",
     "ethers": "^5.4.5",

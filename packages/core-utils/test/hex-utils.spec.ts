@@ -1,4 +1,4 @@
-import { expect } from '../setup'
+import { expect } from './setup'
 import { BigNumber } from 'ethers'
 
 /* Imports: Internal */
@@ -9,7 +9,7 @@ import {
   fromHexString,
   toHexString,
   padHexString,
-} from '../../src'
+} from '../src'
 
 describe('remove0x', () => {
   it('should return undefined', () => {

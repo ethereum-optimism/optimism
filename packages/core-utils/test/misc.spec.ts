@@ -1,7 +1,7 @@
-import { expect } from '../setup'
+import { expect } from './setup'
 
 /* Imports: Internal */
-import { sleep } from '../../src'
+import { sleep } from '../src'
 
 describe('sleep', async () => {
   it('should return wait input amount of ms', async () => {
