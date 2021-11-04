@@ -329,12 +329,11 @@ jobs:
           username: ${{ secrets.DOCKERHUB_ACCESS_TOKEN_USERNAME }}
           password: ${{ secrets.DOCKERHUB_ACCESS_TOKEN_SECRET }}
 
-      - name: Set env
+      - name: Set build args
+        id: build_args
         run: |
-          echo "GITDATE=$(date)" >> $GITHUB_ENV
-          echo "GITCOMMIT=$(git rev-parse HEAD)" >> $GITHUB_ENV
-          echo "GITVERSION=$(jq -r .version ./go/proxyd/package.json)" >> $GITHUB_ENV
-          env | sort
+          echo ::set-output name=GITDATE::"$(date +%d-%m-%Y)"
+          echo ::set-output name=GITVERSION::$(jq -r .version ./go/proxyd/package.json)
 
       - name: Build and push
         uses: docker/build-push-action@v2
@@ -344,9 +343,9 @@ jobs:
           push: true
           tags: ethereumoptimism/proxyd:${{ needs.canary-publish.outputs.proxyd }}
           build-args: |
-            GITDATE=$GITDATE
-            GITCOMMIT=$GITCOMMIT
-            GITVERSION=$GITVERSION
+            GITDATE=${{ steps.build_args.outputs.GITDATE }}
+            GITCOMMIT=$GITHUB_SHA
+            GITVERSION=${{ steps.build_args.outputs.GITVERSION }}
 
   rpc-proxy:
     name: Publish rpc-proxy Version ${{ needs.canary-publish.outputs.canary-docker-tag }}
