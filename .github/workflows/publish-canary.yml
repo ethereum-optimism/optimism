@@ -333,7 +333,7 @@ jobs:
         run: |
           echo "GITDATE=$(date)" >> $GITHUB_ENV
           echo "GITCOMMIT=$(git rev-parse HEAD)" >> $GITHUB_ENV
-          echo "GITVERSION=$(jq -r .version ./go/proxyd/package.json) >> $GITHUB_ENV
+          echo "GITVERSION=$(jq -r .version ./go/proxyd/package.json)" >> $GITHUB_ENV
           env | sort
 
       - name: Build and push
