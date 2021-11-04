@@ -31,6 +31,9 @@
     "@types/shelljs": "^0.8.8",
     "@typescript-eslint/eslint-plugin": "^4.26.0",
     "@typescript-eslint/parser": "^4.26.0",
+    "@uniswap/v3-core": "1.0.0",
+    "@uniswap/v3-periphery": "^1.0.1",
+    "@uniswap/v3-sdk": "^3.6.2",
     "babel-eslint": "^10.1.0",
     "chai": "^4.3.4",
     "chai-as-promised": "^7.1.1",
@@ -50,10 +53,11 @@
     "ethers": "^5.4.5",
     "hardhat": "^2.3.0",
     "hardhat-gas-reporter": "^1.0.4",
+    "lint-staged": "11.0.0",
     "mocha": "^8.4.0",
     "rimraf": "^3.0.2",
     "shelljs": "^0.8.4",
     "typescript": "^4.3.5",
-    "lint-staged": "11.0.0"
+    "uniswap-v3-deploy-plugin": "^0.1.0"
   }
 }
