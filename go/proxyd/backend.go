@@ -5,16 +5,19 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/ethereum/go-ethereum/log"
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promauto"
 	"io"
 	"io/ioutil"
 	"math"
 	"math/rand"
 	"net/http"
+	"regexp"
+	"strconv"
 	"sync/atomic"
 	"time"
+
+	"github.com/ethereum/go-ethereum/log"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 )
 
 const (
@@ -41,16 +44,31 @@ var (
 		Help:      "Count of backend errors.",
 	}, []string{
 		"backend_name",
-    "method_name",
+		"method_name",
 	})
 
+	backendMethodErrorsCtr = promauto.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "proxyd",
+		Name:      "backend_method_errors_total",
+		Help:      "Count of backend method errors.",
+	}, []string{
+		"error_code",
+	})
+
+	backendMethodErrors = promauto.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "proxyd",
+		Name:      "backend_method_errors",
+		Help:      "Backend method errors.",
+	}, []string{
+		"error_type",
+	})
 	backendPermanentErrorsCtr = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "proxyd",
 		Name:      "backend_permanent_errors_total",
 		Help:      "Count of backend errors that mark a backend as offline.",
 	}, []string{
 		"backend_name",
-    "method_name",
+		"method_name",
 	})
 
 	backendResponseTimeSummary = promauto.NewSummaryVec(prometheus.SummaryOpts{
@@ -164,6 +182,10 @@ func (b *Backend) doForward(rpcReq *RPCReq) ([]byte, error) {
 	}
 
 	httpReq, err := http.NewRequest("POST", b.baseURL, bytes.NewReader(body))
+
+	// Required when connecting directly to geth
+	httpReq.Header.Add("Content-type", "application/json")
+
 	if err != nil {
 		backendErrorsCtr.WithLabelValues(b.Name, rpcReq.Method).Inc()
 		return nil, wrapErr(err, "error creating backend request")
@@ -193,14 +215,49 @@ func (b *Backend) doForward(rpcReq *RPCReq) ([]byte, error) {
 		backendErrorsCtr.WithLabelValues(b.Name, rpcReq.Method).Inc()
 		return nil, wrapErr(err, "error reading response body")
 	}
+	var responseBody RPCResponse
+	err = json.Unmarshal(resB, &responseBody)
+	if err != nil {
+		return nil, wrapErr(err, "error unmarshaling response from forward")
+	}
+	go processReponse(responseBody)
 
 	return resB, nil
+}
+func processReponse(response RPCResponse) {
+	noneTooLowRegex := regexp.MustCompile(`nonce too low`)
+	gasPriceTooHighRegex := regexp.MustCompile(`gas price too high`)
+	gasPriceTooLowRegex := regexp.MustCompile(`gas price too low`)
+	invalidParametersRegex := regexp.MustCompile(`invalid parameters`)
+
+	if response.Error.Code < 0 {
+		log.Warn("Upstream returned an error", "message", response.Error.Message, "error", response.Error.Code)
+		backendMethodErrorsCtr.WithLabelValues(strconv.Itoa(response.Error.Code)).Inc()
+		switch {
+		case noneTooLowRegex.MatchString(response.Error.Message):
+			backendMethodErrors.WithLabelValues("low-nonce").Inc()
+		case gasPriceTooHighRegex.MatchString(response.Error.Message):
+			backendMethodErrors.WithLabelValues("high-gas").Inc()
+		case gasPriceTooLowRegex.MatchString(response.Error.Message):
+			backendMethodErrors.WithLabelValues("low-gas").Inc()
+		case invalidParametersRegex.MatchString(response.Error.Message):
+			backendMethodErrors.WithLabelValues("invalid-parameters").Inc()
+		}
+	}
 }
 
 type BackendGroup struct {
 	Name     string
 	backends []*Backend
 	i        int64
+}
+
+type RPCResponse struct {
+	Error struct {
+		Code    int
+		Message string
+	}
+	Result string
 }
 
 func (b *BackendGroup) Forward(rpcReq *RPCReq) (*RPCRes, error) {
