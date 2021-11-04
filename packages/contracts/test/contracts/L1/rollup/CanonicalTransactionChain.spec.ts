@@ -2,12 +2,11 @@ import { expect } from '../../../setup'
 
 /* External Imports */
 import { ethers } from 'hardhat'
-import { Signer, ContractFactory, Contract, BigNumber, constants } from 'ethers'
+import { Signer, ContractFactory, Contract } from 'ethers'
 import { smockit, MockContract } from '@eth-optimism/smock'
 import {
   AppendSequencerBatchParams,
   encodeAppendSequencerBatch,
-  remove0x,
 } from '@eth-optimism/core-utils'
 import { TransactionResponse } from '@ethersproject/abstract-provider'
 import { keccak256 } from 'ethers/lib/utils'
@@ -24,7 +23,6 @@ import {
   getEthTime,
   getNextBlockNumber,
 } from '../../../helpers'
-import { predeploys } from '../../../../src'
 
 const ELEMENT_TEST_SIZES = [1, 2, 4, 8, 16]
 const MAX_GAS_LIMIT = 8_000_000
@@ -115,7 +113,7 @@ describe('CanonicalTransactionChain', () => {
       AddressManager.address,
       'CanonicalTransactionChain'
     )
-    const queue = await Factory__ChainStorageContainer.deploy(
+    await Factory__ChainStorageContainer.deploy(
       AddressManager.address,
       'CanonicalTransactionChain'
     )
@@ -146,8 +144,7 @@ describe('CanonicalTransactionChain', () => {
           addressManagerOwner
         ).setGasParams(newGasDivisor, newEnqueueGasCost)
 
-        const l2GasDiscountDivisor =
-          await CanonicalTransactionChain.l2GasDiscountDivisor()
+        await CanonicalTransactionChain.l2GasDiscountDivisor()
         const enqueueL2GasPrepaid =
           await CanonicalTransactionChain.enqueueL2GasPrepaid()
         expect(enqueueL2GasPrepaid).to.equal(newGasDivisor * newEnqueueGasCost)

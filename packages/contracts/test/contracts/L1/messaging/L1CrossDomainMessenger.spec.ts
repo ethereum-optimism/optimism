@@ -27,7 +27,6 @@ import {
   setEthTime,
 } from '../../../helpers'
 import { predeploys } from '../../../../src'
-import { keccak256 } from 'ethers/lib/utils'
 
 const MAX_GAS_LIMIT = 8_000_000
 
@@ -113,7 +112,7 @@ describe('L1CrossDomainMessenger', () => {
       AddressManager.address,
       'CanonicalTransactionChain'
     )
-    const queue = await Factory__ChainStorageContainer.deploy(
+    await Factory__ChainStorageContainer.deploy(
       AddressManager.address,
       'CanonicalTransactionChain'
     )

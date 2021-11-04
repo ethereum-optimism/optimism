@@ -1,6 +1,5 @@
 /* Imports: External */
 import { hexStringEquals, awaitCondition } from '@eth-optimism/core-utils'
-import { ethers } from 'hardhat'
 import { DeployFunction } from 'hardhat-deploy/dist/types'
 
 /* Imports: Internal */

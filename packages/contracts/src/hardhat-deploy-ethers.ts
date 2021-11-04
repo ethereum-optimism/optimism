@@ -2,11 +2,7 @@
 import { ethers, Contract } from 'ethers'
 import { Provider } from '@ethersproject/abstract-provider'
 import { Signer } from '@ethersproject/abstract-signer'
-import {
-  sleep,
-  hexStringEquals,
-  awaitCondition,
-} from '@eth-optimism/core-utils'
+import { sleep, awaitCondition } from '@eth-optimism/core-utils'
 import { HttpNetworkConfig } from 'hardhat/types'
 
 export const deployAndPostDeploy = async ({
