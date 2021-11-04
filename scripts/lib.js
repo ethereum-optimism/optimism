@@ -27,7 +27,6 @@ async function getTrieNodesForCall(c, cdat, preimages) {
         to:c.address,
         data:calldata
       });
-      console.log(ret)
       break
     } catch(e) {
       const missing = e.toString().split("'")[1]

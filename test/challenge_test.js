@@ -38,6 +38,7 @@ describe("Challenge contract", function () {
     for (n of nodes) {
       await mm.AddTrieNode(n)
     }
-    await c.InitiateChallenge(...args)
-  })
+    let ret = await c.InitiateChallenge(...args)
+    console.log(await ret.wait())
+  }).timeout(60000)
 })
