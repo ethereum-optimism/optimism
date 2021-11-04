@@ -1,4 +1,4 @@
-import { Signer, utils, ethers, PopulatedTransaction } from 'ethers'
+import { Signer, ethers, PopulatedTransaction } from 'ethers'
 import {
   TransactionReceipt,
   TransactionResponse,

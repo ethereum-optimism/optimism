@@ -14,7 +14,6 @@ import {
   StateDump,
   SurgeryConfigs,
   GenesisFile,
-  SupportedNetworks,
 } from './types'
 import { UNISWAP_V3_FACTORY_ADDRESS } from './constants'
 

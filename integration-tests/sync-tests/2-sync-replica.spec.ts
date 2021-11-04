@@ -1,4 +1,4 @@
-import chai, { expect } from 'chai'
+import { expect } from 'chai'
 import { Wallet, Contract, ContractFactory, providers } from 'ethers'
 import { ethers } from 'hardhat'
 import { injectL2Context } from '@eth-optimism/core-utils'
