@@ -318,6 +318,46 @@ func (s *SyncService) initializeLatestL1(ctcDeployHeight *big.Int) error {
 		}
 		// No error, the queue element was found
 		queueIndex = enqueue.GetMeta().QueueIndex
+	} else {
+		log.Info("Found latest queue index", "queue-index", *queueIndex)
+		// The queue index is defined. Work backwards from the tip
+		// to make sure that the indexed queue index is the latest
+		// enqueued transaction
+		block := s.bc.CurrentBlock()
+		for {
+			// There are no blocks in the chain
+			// This should never happen
+			if block == nil {
+				log.Warn("Found no genesis block when fixing queue index")
+				break
+			}
+			num := block.Number().Uint64()
+			// Handle the genesis block
+			if num == 0 {
+				log.Info("Hit genesis block when fixing queue index")
+				queueIndex = nil
+				break
+			}
+			txs := block.Transactions()
+			// This should never happen
+			if len(txs) != 1 {
+				log.Warn("Found block with unexpected number of txs", "count", len(txs), "height", num)
+				break
+			}
+			tx := txs[0]
+			qi := tx.GetMeta().QueueIndex
+			// When the queue index is set
+			if qi != nil {
+				if qi == queueIndex {
+					log.Info("Found correct staring queue index", "queue-index", qi)
+				} else {
+					log.Info("Found incorrect staring queue index, fixing", "old", queueIndex, "new", qi)
+					queueIndex = qi
+				}
+				break
+			}
+			block = s.bc.GetBlockByNumber(num - 1)
+		}
 	}
 	s.SetLatestEnqueueIndex(queueIndex)
 	return nil
@@ -793,10 +833,15 @@ func (s *SyncService) applyTransactionToTip(tx *types.Transaction) error {
 			tx.SetIndex(*index + 1)
 		}
 	}
+
+	// On restart, these values are repaired to handle
+	// the case where the index is updated but the
+	// transaction isn't yet added to the chain
 	s.SetLatestIndex(tx.GetMeta().Index)
 	if tx.GetMeta().QueueIndex != nil {
 		s.SetLatestEnqueueIndex(tx.GetMeta().QueueIndex)
 	}
+
 	// The index was set above so it is safe to dereference
 	log.Debug("Applying transaction to tip", "index", *tx.GetMeta().Index, "hash", tx.Hash().Hex(), "origin", tx.QueueOrigin().String())
 
