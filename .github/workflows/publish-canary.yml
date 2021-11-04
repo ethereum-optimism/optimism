@@ -334,6 +334,7 @@ jobs:
         run: |
           echo ::set-output name=GITDATE::"$(date +%d-%m-%Y)"
           echo ::set-output name=GITVERSION::$(jq -r .version ./go/proxyd/package.json)
+          echo ::set-output name=GITCOMMIT::"$GITHUB_SHA"
 
       - name: Build and push
         uses: docker/build-push-action@v2
@@ -344,7 +345,7 @@ jobs:
           tags: ethereumoptimism/proxyd:${{ needs.canary-publish.outputs.proxyd }}
           build-args: |
             GITDATE=${{ steps.build_args.outputs.GITDATE }}
-            GITCOMMIT=$GITHUB_SHA
+            GITCOMMIT=${{ steps.build_args.outputs.GITCOMMIT }}
             GITVERSION=${{ steps.build_args.outputs.GITVERSION }}
 
   rpc-proxy:
