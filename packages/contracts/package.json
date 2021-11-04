@@ -49,7 +49,6 @@
     "@eth-optimism/core-utils": "0.6.1",
     "@ethersproject/abstract-provider": "^5.4.1",
     "@ethersproject/abstract-signer": "^5.4.1",
-    "@ethersproject/contracts": "^5.4.1",
     "@ethersproject/hardware-wallets": "^5.4.0"
   },
   "devDependencies": {
@@ -76,10 +75,12 @@
     "directory-tree": "^2.2.7",
     "dotenv": "^10.0.0",
     "eslint": "^7.27.0",
+    "eslint-config-prettier": "^8.3.0",
     "eslint-plugin-ban": "^1.5.2",
     "eslint-plugin-import": "^2.23.4",
     "eslint-plugin-jsdoc": "^35.1.2",
     "eslint-plugin-prefer-arrow": "^1.2.3",
+    "eslint-plugin-prettier": "^3.4.0",
     "eslint-plugin-react": "^7.24.0",
     "eslint-plugin-unicorn": "^32.0.1",
     "ethereum-waffle": "^3.3.0",
