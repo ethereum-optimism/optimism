@@ -23,8 +23,8 @@ jobs:
       contracts: ${{ steps.packages.outputs.contracts }}
       replica-healthcheck: ${{ steps.packages.outputs.replica-healthcheck }}
       canary-docker-tag: ${{ steps.docker-image-name.outputs.canary-docker-tag }}
-      proxyd: ${{ steps.canary-publish.outputs.proxyd }}
-      rpc-proxy : ${{ steps.canary-publish.outputs.rpc-proxy }}
+      proxyd: ${{ steps.packages.outputs.proxyd }}
+      rpc-proxy : ${{ steps.packages.outputs.rpc-proxy }}
 
     steps:
       - name: Check out source code
@@ -315,7 +315,7 @@ jobs:
     name: Publish proxyd Version ${{ needs.canary-publish.outputs.canary-docker-tag }}
     needs: canary-publish
     if: needs.canary-publish.outputs.proxyd != ''
-    runs-on: ubuntu:latest
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout
@@ -329,26 +329,30 @@ jobs:
           username: ${{ secrets.DOCKERHUB_ACCESS_TOKEN_USERNAME }}
           password: ${{ secrets.DOCKERHUB_ACCESS_TOKEN_SECRET }}
 
-      - name: Set env
+      - name: Set build args
+        id: build_args
         run: |
-          echo "GITDATE=$(date)" >> $GITHUB_ENV"
+          echo ::set-output name=GITDATE::"$(date +%d-%m-%Y)"
+          echo ::set-output name=GITVERSION::$(jq -r .version ./go/proxyd/package.json)
+          echo ::set-output name=GITCOMMIT::"$GITHUB_SHA"
 
       - name: Build and push
         uses: docker/build-push-action@v2
         with:
-          context: ./go/proxyd
-          file: ./Dockerfile
+          context: .
+          file: ./go/proxyd/Dockerfile
           push: true
           tags: ethereumoptimism/proxyd:${{ needs.canary-publish.outputs.proxyd }}
           build-args: |
-             GITCOMMIT=$GITHUB_SHA
-             GITDATE=$GITDATE
+            GITDATE=${{ steps.build_args.outputs.GITDATE }}
+            GITCOMMIT=${{ steps.build_args.outputs.GITCOMMIT }}
+            GITVERSION=${{ steps.build_args.outputs.GITVERSION }}
 
   rpc-proxy:
     name: Publish rpc-proxy Version ${{ needs.canary-publish.outputs.canary-docker-tag }}
     needs: canary-publish
     if: needs.canary-publish.outputs.rpc-proxy != ''
-    runs-on: ubuntu:latest
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout
