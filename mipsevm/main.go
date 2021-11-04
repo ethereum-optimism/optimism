@@ -9,9 +9,9 @@ import (
 	uc "github.com/unicorn-engine/unicorn/bindings/go/unicorn"
 )
 
-func WriteCheckpoint(ram map[uint32](uint32), fn string) {
+func WriteCheckpoint(ram map[uint32](uint32), fn string, step int) {
 	trieroot := RamToTrie(ram)
-	dat := TrieToJson(trieroot)
+	dat := TrieToJson(trieroot, step)
 	fmt.Printf("writing %s len %d with root %s\n", fn, len(dat), trieroot)
 	ioutil.WriteFile(fn, dat, 0644)
 }
@@ -32,7 +32,7 @@ func main() {
 		if step%10000000 == 0 {
 			SyncRegs(mu, ram)
 			fn := fmt.Sprintf("%s/checkpoint_%d.json", root, step)
-			WriteCheckpoint(ram, fn)
+			WriteCheckpoint(ram, fn, step)
 		}
 		lastStep = step
 	})
@@ -40,7 +40,7 @@ func main() {
 	ZeroRegisters(ram)
 	// not ready for golden yet
 	LoadMappedFileUnicorn(mu, "mipigo/minigeth.bin", ram, 0)
-	WriteCheckpoint(ram, "/tmp/cannon/golden.json")
+	WriteCheckpoint(ram, "/tmp/cannon/golden.json", -1)
 	if root == "" {
 		fmt.Println("exiting early without a block number")
 		os.Exit(0)
@@ -50,7 +50,7 @@ func main() {
 
 	mu.Start(0, 0x5ead0004)
 	SyncRegs(mu, ram)
-	WriteCheckpoint(ram, fmt.Sprintf("%s/checkpoint_%d.json", root, lastStep))
+	WriteCheckpoint(ram, fmt.Sprintf("%s/checkpoint_final.json", root), lastStep)
 
 	// step 2 (optional), validate each 1 million chunk in EVM
 

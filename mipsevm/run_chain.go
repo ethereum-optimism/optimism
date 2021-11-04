@@ -116,7 +116,7 @@ func RunFull() {
 	root := RamToTrie(ram)
 	//ParseNode(root, 0)
 
-	ioutil.WriteFile("/tmp/cannon/trie.json", TrieToJson(root), 0644)
+	ioutil.WriteFile("/tmp/cannon/trie.json", TrieToJson(root, -1), 0644)
 
 	for k, v := range Preimages {
 		fmt.Println("AddTrieNode", k)

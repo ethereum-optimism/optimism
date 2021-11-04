@@ -19,11 +19,12 @@ var Preimages = make(map[common.Hash][]byte)
 
 type Jtree struct {
 	Root      common.Hash            `json:"root"`
+	Step      int                    `json:"step"`
 	Preimages map[common.Hash][]byte `json:"preimages"`
 }
 
-func TrieToJson(root common.Hash) []byte {
-	b, err := json.Marshal(Jtree{Preimages: Preimages, Root: root})
+func TrieToJson(root common.Hash, step int) []byte {
+	b, err := json.Marshal(Jtree{Preimages: Preimages, Step: step, Root: root})
 	check(err)
 	return b
 }
