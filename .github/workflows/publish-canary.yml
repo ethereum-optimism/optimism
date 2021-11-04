@@ -343,6 +343,10 @@ jobs:
           file: ./go/proxyd/Dockerfile
           push: true
           tags: ethereumoptimism/proxyd:${{ needs.canary-publish.outputs.proxyd }}
+          build-args: |
+            GITDATE=$GITDATE
+            GITCOMMIT=$GITCOMMIT
+            GITVERSION=$GITVERSION
 
   rpc-proxy:
     name: Publish rpc-proxy Version ${{ needs.canary-publish.outputs.canary-docker-tag }}
