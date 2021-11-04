@@ -4,7 +4,7 @@ on: [push, pull_request]
 
 jobs:
   unit:
-    name: MIPS EVM matches unicorn
+    name: Challenge on block 13284469
     runs-on: ubuntu-latest
     steps:
     - name: Checkout Code

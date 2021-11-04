@@ -33,4 +33,4 @@ jobs:
         cd mipigo
         ./build.sh
     - name: All MIPS EVM tests
-      run: cd mipsevm && go test
+      run: cd mipsevm && go test -v
