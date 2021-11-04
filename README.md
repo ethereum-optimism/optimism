@@ -20,6 +20,12 @@ mipigo -- minigeth compiled for MIPS. Outputs a MIPS binary that's run and mappe
 mipsevm -- A MIPS runtime in the EVM (see also contracts/)
 ```
 
+## TODO
+* Support fast generation of a specific state from the checkpoints
+** Load into Unicorn/evm from the trie
+* Write binary search "responder"
+* Deploy to cheapETH!
+
 ## Usage
 ```
 # verify the transition from 13284469 -> 13284470

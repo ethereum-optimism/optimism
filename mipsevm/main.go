@@ -46,6 +46,7 @@ func main() {
 		os.Exit(0)
 	}
 
+	// TODO: this is actually step 0->1. Renumber as appropriate
 	LoadMappedFileUnicorn(mu, fmt.Sprintf("%s/input", root), ram, 0x30000000)
 
 	mu.Start(0, 0x5ead0004)
