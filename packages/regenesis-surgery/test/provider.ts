@@ -16,6 +16,7 @@ import {
   Listener,
 } from '@ethersproject/abstract-provider'
 import { KECCAK256_RLP_S, KECCAK256_NULL_S } from 'ethereumjs-util'
+import path from 'path'
 
 import { bytes32ify, remove0x, add0x } from '@eth-optimism/core-utils'
 
@@ -63,7 +64,7 @@ export class GenesisJsonProvider implements AbstractProvider {
   constructor(dump: string | Genesis | State) {
     let input
     if (typeof dump === 'string') {
-      input = require(dump)
+      input = require(path.resolve(dump))
     } else if (typeof dump === 'object') {
       input = dump
     }
@@ -73,6 +74,8 @@ export class GenesisJsonProvider implements AbstractProvider {
     if (this.state === null) {
       throw new Error('Must initialize with genesis or state object')
     }
+
+    this._isProvider = false
   }
 
   async getBalance(
@@ -81,7 +84,7 @@ export class GenesisJsonProvider implements AbstractProvider {
   ): Promise<BigNumber> {
     const address = remove0x(addressOrName)
     const account = this.state[address]
-    if (!account) {
+    if (!account || account.balance === '') {
       return BigNumber.from(0)
     }
     return BigNumber.from(account.balance)
@@ -96,7 +99,10 @@ export class GenesisJsonProvider implements AbstractProvider {
     if (!account) {
       return 0
     }
-    return account.nonce
+    if (typeof account.nonce === 'number') {
+      return account.nonce
+    }
+    return 0
   }
 
   async getCode(addressOrName: string, blockTag?: BlockTag): Promise<string> {
@@ -105,7 +111,10 @@ export class GenesisJsonProvider implements AbstractProvider {
     if (!account) {
       return '0x'
     }
-    return add0x(account.code)
+    if (typeof account.code === 'string') {
+      return add0x(account.code)
+    }
+    return '0x'
   }
 
   async getStorageAt(
