@@ -1,18 +1,13 @@
-const { expect } = require("chai");
-const fs = require("fs");
+const { expect } = require("chai")
+const fs = require("fs")
+const { deploy } = require("../scripts/lib")
 
 // golden minigeth.bin hash
 const goldenRoot = "0x1f6285b6d372ee187815a8580d1af3ab348cea34abbee18a8e13272454a4c4af"
 
 describe("Challenge contract", function () {
   beforeEach(async function () {
-    // this mips can be reused for other challenges
-    const MIPS = await ethers.getContractFactory("MIPS")
-    const m = await MIPS.deploy()
-    mm = await ethers.getContractAt("MIPSMemory", await m.m())
-
-    const Challenge = await ethers.getContractFactory("Challenge")
-    c = await Challenge.deploy(m.address, goldenRoot)
+    [c, m, mm] = await deploy()
   })
   it("challenge contract deploys", async function() {
     console.log("Challenge deployed at", c.address)
