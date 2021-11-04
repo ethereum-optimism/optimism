@@ -23,6 +23,17 @@
     "@types/express": "^4.17.12",
     "@types/node": "^15.12.2",
     "@types/node-cron": "^2.0.4",
+    "@typescript-eslint/eslint-plugin": "^4.26.0",
+    "@typescript-eslint/parser": "^4.26.0",
+    "babel-eslint": "^10.1.0",
+    "chai": "^4.3.4",
+    "eslint-config-prettier": "^8.3.0",
+    "eslint-plugin-import": "^2.23.4",
+    "eslint-plugin-jsdoc": "^35.1.2",
+    "eslint-plugin-prefer-arrow": "^1.2.3",
+    "eslint-plugin-prettier": "^3.4.0",
+    "eslint-plugin-react": "^7.24.0",
+    "eslint-plugin-unicorn": "^32.0.1",
     "supertest": "^6.1.4",
     "ts-mocha": "^8.0.0",
     "ts-node": "^10.0.0",
@@ -31,12 +42,12 @@
   "dependencies": {
     "@eth-optimism/common-ts": "0.1.5",
     "@eth-optimism/core-utils": "0.6.0",
-    "ethers": "^5.4.5",
     "dotenv": "^10.0.0",
+    "ethers": "^5.4.5",
     "express": "^4.17.1",
     "express-prom-bundle": "^6.3.6",
+    "lint-staged": "11.0.0",
     "node-cron": "^3.0.0",
-    "prom-client": "^13.1.0",
-    "lint-staged": "11.0.0"
+    "prom-client": "^13.1.0"
   }
 }
