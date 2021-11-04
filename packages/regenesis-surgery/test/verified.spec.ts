@@ -1,11 +1,15 @@
 /* eslint-disable @typescript-eslint/no-empty-function */
-import { expect, env, NUM_ACCOUNTS_DIVISOR } from '../setup'
-import { AccountType } from '../../scripts/types'
+import { expect, env, NUM_ACCOUNTS_DIVISOR } from './setup'
+import { AccountType } from '../scripts/types'
 
 describe('verified', () => {
+  let verified
   before(async () => {
-    const verified = env.getAccountsByType(AccountType.VERIFIED)
+    await env.init()
+    verified = env.getAccountsByType(AccountType.VERIFIED)
+  })
 
+  it('accounts', async () => {
     for (const [i, account] of verified.entries()) {
       if (i % NUM_ACCOUNTS_DIVISOR === 0) {
         const preBytecode = await env.preL2Provider.getCode(account.address)
@@ -41,6 +45,4 @@ describe('verified', () => {
       }
     }
   })
-
-  it('stub', async () => {})
 })
