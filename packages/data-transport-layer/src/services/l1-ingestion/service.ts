@@ -1,9 +1,9 @@
 /* Imports: External */
 import { fromHexString, FallbackProvider } from '@eth-optimism/core-utils'
 import { BaseService, Metrics } from '@eth-optimism/common-ts'
-import { StaticJsonRpcProvider, BaseProvider } from '@ethersproject/providers'
+import {  BaseProvider } from '@ethersproject/providers'
 import { LevelUp } from 'levelup'
-import { ethers, constants } from 'ethers'
+import { constants } from 'ethers'
 import { Gauge, Counter } from 'prom-client'
 
 /* Imports: Internal */
@@ -20,7 +20,7 @@ import { handleEventsTransactionEnqueued } from './handlers/transaction-enqueued
 import { handleEventsSequencerBatchAppended } from './handlers/sequencer-batch-appended'
 import { handleEventsStateBatchAppended } from './handlers/state-batch-appended'
 import { L1DataTransportServiceOptions } from '../main/service'
-import { MissingElementError, EventName } from './handlers/errors'
+import { MissingElementError } from './handlers/errors'
 
 interface L1IngestionMetrics {
   highestSyncedL1Block: Gauge<string>
@@ -108,7 +108,9 @@ export class L1IngestionService extends BaseService<L1IngestionServiceOptions> {
     this.l1IngestionMetrics = registerMetrics(this.metrics)
 
     if (typeof this.options.l1RpcProvider === 'string') {
-      this.state.l1RpcProvider = FallbackProvider(this.options.l1RpcProvider)
+      this.state.l1RpcProvider = FallbackProvider(this.options.l1RpcProvider, {
+        'User-Agent': 'data-transport-layer',
+      })
     } else {
       this.state.l1RpcProvider = this.options.l1RpcProvider
     }

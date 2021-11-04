@@ -139,9 +139,10 @@ export const run = async () => {
   )
 
   const getSequencerSigner = async (): Promise<Signer> => {
-    const l1Provider = new StaticJsonRpcProvider(
-      requiredEnvVars.L1_NODE_WEB3_URL
-    )
+    const l1Provider = new StaticJsonRpcProvider({
+      url: requiredEnvVars.L1_NODE_WEB3_URL,
+      headers: { 'User-Agent': 'batch-submitter' },
+    })
 
     if (useHardhat) {
       if (!DEBUG_IMPERSONATE_SEQUENCER_ADDRESS) {
@@ -166,9 +167,10 @@ export const run = async () => {
   }
 
   const getProposerSigner = async (): Promise<Signer> => {
-    const l1Provider = new StaticJsonRpcProvider(
-      requiredEnvVars.L1_NODE_WEB3_URL
-    )
+    const l1Provider = new StaticJsonRpcProvider({
+      url: requiredEnvVars.L1_NODE_WEB3_URL,
+      headers: { 'User-Agent': 'batch-submitter' },
+    })
 
     if (useHardhat) {
       if (!DEBUG_IMPERSONATE_PROPOSER_ADDRESS) {
@@ -204,10 +206,6 @@ export const run = async () => {
   const MIN_GAS_PRICE_IN_GWEI = config.uint(
     'min-gas-price-in-gwei',
     parseInt(env.MIN_GAS_PRICE_IN_GWEI, 10) || 0
-  )
-  const MAX_GAS_PRICE_IN_GWEI = config.uint(
-    'max-gas-price-in-gwei',
-    parseInt(env.MAX_GAS_PRICE_IN_GWEI, 10) || 70
   )
   const GAS_RETRY_INCREMENT = config.uint(
     'gas-retry-increment',
@@ -348,7 +346,10 @@ export const run = async () => {
   const clearPendingTxs = requiredEnvVars.CLEAR_PENDING_TXS
 
   const l2Provider = injectL2Context(
-    new StaticJsonRpcProvider(requiredEnvVars.L2_NODE_WEB3_URL)
+    new StaticJsonRpcProvider({
+      url: requiredEnvVars.L2_NODE_WEB3_URL,
+      headers: { 'User-Agent': 'batch-submitter' },
+    })
   )
 
   const sequencerSigner: Signer = await getSequencerSigner()
