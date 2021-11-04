@@ -3,6 +3,11 @@ const fs = require("fs")
 const { deploy } = require("../scripts/lib")
 
 describe("Challenge contract", function () {
+  if (!fs.existsSync("/tmp/cannon/golden.json")) {
+    console.log("golden file doesn't exist, skipping test")
+    return
+  }
+
   beforeEach(async function () {
     [c, m, mm] = await deploy()
   })
