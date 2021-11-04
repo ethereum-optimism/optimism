@@ -16,7 +16,7 @@ jobs:
     - name: Build minigeth
       run: |
         (cd minigeth/ && go build)
-        mkdir -p /tmp/eth
+        mkdir -p /tmp/cannon
     - name: Test block 13284491 (0 tx)
       run: minigeth/go-ethereum 13284491
     - name: Test block 13284469 (few tx)

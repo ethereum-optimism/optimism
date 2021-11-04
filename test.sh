@@ -1,6 +1,6 @@
 #!/bin/bash -e
 (cd minigeth/ && go build)
-mkdir -p /tmp/eth
+mkdir -p /tmp/cannon
 
 # london starts at 12965000
 BLOCK=$1

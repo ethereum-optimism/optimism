@@ -1,6 +1,6 @@
 #!/bin/bash -e
 (cd minigeth/ && go build)
-mkdir -p /tmp/eth
+mkdir -p /tmp/cannon
 
 # 0 tx:         13284491
 # low tx:       13284469

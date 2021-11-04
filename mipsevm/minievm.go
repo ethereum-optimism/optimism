@@ -124,6 +124,7 @@ func (s *StateDB) GetState(fakeaddr common.Address, hash common.Hash) common.Has
 					binary.BigEndian.PutUint32(oracle_hash[i:i+4], ram[0x30001000+i])
 				}
 				hash := common.BytesToHash(oracle_hash)
+				// TODO: this is wrong, need root
 				key := fmt.Sprintf("/tmp/eth/%s", hash)
 				value, _ := ioutil.ReadFile(key)
 

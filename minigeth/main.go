@@ -49,7 +49,8 @@ func main() {
 		pkwtrie := trie.NewStackTrie(pkw)
 
 		blockNumber, _ := strconv.Atoi(os.Args[1])
-		oracle.SetRoot(fmt.Sprintf("/tmp/eth/%d", blockNumber))
+		// TODO: get the chainid
+		oracle.SetRoot(fmt.Sprintf("/tmp/cannon/0_%d", blockNumber))
 		oracle.PrefetchBlock(big.NewInt(int64(blockNumber)), true, nil)
 		oracle.PrefetchBlock(big.NewInt(int64(blockNumber)+1), false, pkwtrie)
 		hash, err := pkwtrie.Commit()

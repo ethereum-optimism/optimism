@@ -1,8 +1,14 @@
 const { deploy } = require("../scripts/lib")
+const fs = require("fs")
 
 async function main() {
-  var [c, m, mm] = await deploy()
-  console.log("deployed at", c.address, m.address, mm.address)
+  let [c, m, mm] = await deploy()
+  let json = {
+    "Challenge": c.address,
+    "MIPS": m.address,
+    "MIPSMemory": mm.address,
+  }
+  console.log("deployed", json)
 }
 
 main()

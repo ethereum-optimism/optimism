@@ -95,7 +95,8 @@ func LoadData(dat []byte, ram map[uint32](uint32), base uint32) {
 }
 
 func LoadMappedFile(fn string, ram map[uint32](uint32), base uint32) {
-	dat, _ := ioutil.ReadFile(fn)
+	dat, err := ioutil.ReadFile(fn)
+	check(err)
 	LoadData(dat, ram, base)
 }
 
@@ -115,7 +116,7 @@ func RunFull() {
 	root := RamToTrie(ram)
 	//ParseNode(root, 0)
 
-	ioutil.WriteFile("/tmp/eth/trie.json", TrieToJson(root), 0644)
+	ioutil.WriteFile("/tmp/cannon/trie.json", TrieToJson(root), 0644)
 
 	for k, v := range Preimages {
 		fmt.Println("AddTrieNode", k)

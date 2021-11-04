@@ -19,7 +19,7 @@ func TestTrie(t *testing.T) {
 
 	dat := TrieToJson(root)
 	fmt.Println("serialized length is", len(dat))
-	ioutil.WriteFile("/tmp/eth/ramtrie.json", dat, 0644)
+	ioutil.WriteFile("/tmp/cannon/ramtrie.json", dat, 0644)
 }
 
 func printRoot(ram map[uint32](uint32)) {

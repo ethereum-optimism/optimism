@@ -34,7 +34,7 @@ func TestCompareUnicornEvm(t *testing.T) {
 
 	evmram := make(map[uint32](uint32))
 	LoadMappedFile(fn, evmram, 0)
-	inputFile := fmt.Sprintf("/tmp/eth/%d", 13284469)
+	inputFile := fmt.Sprintf("/tmp/cannon/%d_%d", 0, 13284469)
 	LoadMappedFile(inputFile, evmram, 0x30000000)
 	// init registers to 0 in evm
 	for i := uint32(0xC0000000); i < 0xC0000000+36*4; i += 4 {

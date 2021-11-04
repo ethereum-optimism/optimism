@@ -16,7 +16,7 @@ func WriteCheckpoint(ram map[uint32](uint32), root string, step int) {
 }
 
 func main() {
-	root := fmt.Sprintf("/tmp/eth/%d", 13284469)
+	root := fmt.Sprintf("/tmp/cannon/%d_%d", 0, 13284469)
 	// step 1, generate the checkpoints every million steps using unicorn
 	ram := make(map[uint32](uint32))
 

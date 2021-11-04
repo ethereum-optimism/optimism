@@ -14,7 +14,7 @@ import (
 )
 
 var preimages = make(map[common.Hash][]byte)
-var root = "/tmp/eth"
+var root = "/tmp/cannon"
 
 func SetRoot(newRoot string) {
 	root = newRoot

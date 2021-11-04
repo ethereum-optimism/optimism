@@ -159,14 +159,15 @@ func GetHookedUnicorn(root string, ram map[uint32](uint32), callback func(int, u
 }
 
 func LoadMappedFileUnicorn(mu uc.Unicorn, fn string, ram map[uint32](uint32), base uint32) {
-	dat, _ := ioutil.ReadFile(fn)
+	dat, err := ioutil.ReadFile(fn)
+	check(err)
 	LoadData(dat, ram, base)
 	mu.MemWrite(uint64(base), dat)
 }
 
 // reimplement simple.py in go
 func RunUnicorn(fn string, ram map[uint32](uint32), checkIO bool, callback func(int, uc.Unicorn, map[uint32](uint32))) {
-	root := "/tmp/eth/13284469"
+	root := "/tmp/cannon/0_13284469"
 	mu := GetHookedUnicorn(root, ram, callback)
 
 	// loop forever to match EVM

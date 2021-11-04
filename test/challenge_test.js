@@ -25,8 +25,8 @@ describe("Challenge contract", function () {
     const assertionRoot = "0x9e0261efe4509912b8862f3d45a0cb8404b99b239247df9c55871bd3844cebbd"
 
     const finalSystemState = "0xf02b4450a07d492c17b4b554851f0dcb12192e2439a507b12fcea8f801a596a6"
-    let startTrie = JSON.parse(fs.readFileSync("/tmp/eth/13284469/checkpoint_-1.json"))
-    let finalTrie = JSON.parse(fs.readFileSync("/tmp/eth/13284469/checkpoint_85059435.json"))
+    let startTrie = JSON.parse(fs.readFileSync("/tmp/cannon/0_13284469/checkpoint_-1.json"))
+    let finalTrie = JSON.parse(fs.readFileSync("/tmp/cannon/0_13284469/checkpoint_85059435.json"))
 
     while (1) {
       try {
