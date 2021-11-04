@@ -9,6 +9,7 @@ async function main() {
     "MIPSMemory": mm.address,
   }
   console.log("deployed", json)
+  fs.writeFileSync("/tmp/cannon/deployed.json", JSON.stringify(json))
 }
 
 main()

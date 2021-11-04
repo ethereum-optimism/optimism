@@ -2,9 +2,6 @@ const { expect } = require("chai")
 const fs = require("fs")
 const { deploy } = require("../scripts/lib")
 
-// golden minigeth.bin hash
-const goldenRoot = "0x1f6285b6d372ee187815a8580d1af3ab348cea34abbee18a8e13272454a4c4af"
-
 describe("Challenge contract", function () {
   beforeEach(async function () {
     [c, m, mm] = await deploy()
@@ -23,13 +20,14 @@ describe("Challenge contract", function () {
     const blockNp1Rlp = blockNp1.header.serialize()
 
     const assertionRoot = "0x9e0261efe4509912b8862f3d45a0cb8404b99b239247df9c55871bd3844cebbd"
-
-    const finalSystemState = "0xf02b4450a07d492c17b4b554851f0dcb12192e2439a507b12fcea8f801a596a6"
-    let startTrie = JSON.parse(fs.readFileSync("/tmp/cannon/0_13284469/checkpoint_-1.json"))
+    let startTrie = JSON.parse(fs.readFileSync("/tmp/cannon/golden.json"))
     let finalTrie = JSON.parse(fs.readFileSync("/tmp/cannon/0_13284469/checkpoint_85059435.json"))
+    const finalSystemState = finalTrie['root']
 
     while (1) {
       try {
+        // TODO: make this eth call?
+        // needs something like InitiateChallengeWithTrieNodes
         await c.InitiateChallenge(blockNumberN, blockNp1Rlp, assertionRoot, finalSystemState, 1)
         break
       } catch(e) {
