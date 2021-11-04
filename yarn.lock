@@ -3059,13 +3059,6 @@
     "@types/bn.js" "*"
     "@types/underscore" "*"
 
-"@types/workerpool@^6.0.0":
-  version "6.1.0"
-  resolved "https://registry.yarnpkg.com/@types/workerpool/-/workerpool-6.1.0.tgz#16c3b9d3c62a8f6e6ad2e4d6212a68130f0cd3b1"
-  integrity sha512-C+J/c1BHyc351xJuiH2Jbe+V9hjf5mCzRP0UK4KEpF5SpuU+vJ/FC5GLZsCU/PJpp/3I6Uwtfm3DG7Lmrb7LOQ==
-  dependencies:
-    "@types/node" "*"
-
 "@typescript-eslint/eslint-plugin@^4.26.0":
   version "4.29.3"
   resolved "https://registry.yarnpkg.com/@typescript-eslint/eslint-plugin/-/eslint-plugin-4.29.3.tgz#95cb8029a8bd8bd9c7f4ab95074a7cb2115adefa"
