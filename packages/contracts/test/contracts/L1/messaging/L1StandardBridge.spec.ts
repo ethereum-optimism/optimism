@@ -31,13 +31,12 @@ describe('L1StandardBridge', () => {
   let aliceAddress
 
   // we can just make up this string since it's on the "other" Layer
-  let Mock__OVM_ETH: MockContract
   let Factory__L1ERC20: ContractFactory
   let IL2ERC20Bridge: Interface
   before(async () => {
     ;[l1MessengerImpersonator, alice, bob] = await ethers.getSigners()
 
-    Mock__OVM_ETH = await smockit(await ethers.getContractFactory('OVM_ETH'))
+    await smockit(await ethers.getContractFactory('OVM_ETH'))
 
     // deploy an ERC20 contract on L1
     Factory__L1ERC20 = await smoddit(

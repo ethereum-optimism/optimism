@@ -75,10 +75,7 @@ export class GenesisJsonProvider implements AbstractProvider {
     }
   }
 
-  async getBalance(
-    addressOrName: string,
-    blockTag?: BlockTag
-  ): Promise<BigNumber> {
+  async getBalance(addressOrName: string): Promise<BigNumber> {
     const address = remove0x(addressOrName)
     const account = this.state[address]
     if (!account) {
@@ -87,10 +84,7 @@ export class GenesisJsonProvider implements AbstractProvider {
     return BigNumber.from(account.balance)
   }
 
-  async getTransactionCount(
-    addressOrName: string,
-    blockTag?: BlockTag
-  ): Promise<number> {
+  async getTransactionCount(addressOrName: string): Promise<number> {
     const address = remove0x(addressOrName)
     const account = this.state[address]
     if (!account) {
@@ -99,7 +93,7 @@ export class GenesisJsonProvider implements AbstractProvider {
     return account.nonce
   }
 
-  async getCode(addressOrName: string, blockTag?: BlockTag): Promise<string> {
+  async getCode(addressOrName: string): Promise<string> {
     const address = remove0x(addressOrName)
     const account = this.state[address]
     if (!account) {
@@ -110,8 +104,7 @@ export class GenesisJsonProvider implements AbstractProvider {
 
   async getStorageAt(
     addressOrName: string,
-    position: BigNumber | number,
-    blockTag?: BlockTag
+    position: BigNumber | number
   ): Promise<string> {
     const address = remove0x(addressOrName)
     const account = this.state[address]
@@ -130,7 +123,9 @@ export class GenesisJsonProvider implements AbstractProvider {
     transaction: Deferrable<TransactionRequest>,
     blockTag?: BlockTag | Promise<BlockTag>
   ): Promise<string> {
-    throw new Error('Unsupported Method: call')
+    throw new Error(
+      `Unsupported Method: call with args: transaction - ${transaction}, blockTag - ${blockTag}`
+    )
   }
 
   async send(method: string, args: Array<any>): Promise<any> {
@@ -177,73 +172,101 @@ export class GenesisJsonProvider implements AbstractProvider {
   async sendTransaction(
     signedTransaction: string | Promise<string>
   ): Promise<TransactionResponse> {
-    throw new Error('Unsupported Method: sendTransaction')
+    throw new Error(
+      `Unsupported Method: sendTransaction with args: transaction - ${signedTransaction}`
+    )
   }
 
-  async estimateGas(
-    transaction: Deferrable<TransactionRequest>
-  ): Promise<BigNumber> {
+  async estimateGas(): Promise<BigNumber> {
     return BigNumber.from(0)
   }
 
   async getBlock(
     blockHashOrBlockTag: BlockTag | string | Promise<BlockTag | string>
   ): Promise<Block> {
-    throw new Error('Unsupported Method: getBlock')
+    throw new Error(
+      `Unsupported Method: getBlock with args blockHashOrBlockTag - ${blockHashOrBlockTag}`
+    )
   }
   async getBlockWithTransactions(
     blockHashOrBlockTag: BlockTag | string | Promise<BlockTag | string>
   ): Promise<BlockWithTransactions> {
-    throw new Error('Unsupported Method: getBlockWithTransactions')
+    throw new Error(
+      `Unsupported Method: getBlockWithTransactions with args blockHashOrBlockTag - ${blockHashOrBlockTag}`
+    )
   }
   async getTransaction(transactionHash: string): Promise<TransactionResponse> {
-    throw new Error('Unsupported Method: getTransaction')
+    throw new Error(
+      `Unsupported Method: getTransaction with args transactionHash - ${transactionHash}`
+    )
   }
   async getTransactionReceipt(
     transactionHash: string
   ): Promise<TransactionReceipt> {
-    throw new Error('Unsupported Method: getTransactionReceipt')
+    throw new Error(
+      `Unsupported Method: getTransactionReceipt with args transactionHash - ${transactionHash}`
+    )
   }
 
   async getLogs(filter: Filter): Promise<Array<Log>> {
-    throw new Error('Unsupported Method: getLogs')
+    throw new Error(`Unsupported Method: getLogs with args filter - ${filter}`)
   }
 
   async resolveName(name: string | Promise<string>): Promise<null | string> {
-    throw new Error('Unsupported Method: resolveName')
+    throw new Error(`Unsupported Method: resolveName with args name - ${name}`)
   }
   async lookupAddress(
     address: string | Promise<string>
   ): Promise<null | string> {
-    throw new Error('Unsupported Method: lookupAddress')
+    throw new Error(
+      `Unsupported Method: lookupAddress with args address - ${address}`
+    )
   }
 
   on(eventName: EventType, listener: Listener): Provider {
-    throw new Error('Unsupported Method: on')
+    throw new Error(
+      `Unsupported Method: on  with args eventName - ${eventName}, listener - ${listener}`
+    )
   }
   once(eventName: EventType, listener: Listener): Provider {
-    throw new Error('Unsupported Method: once')
+    throw new Error(
+      `Unsupported Method: once with args eventName - ${eventName}, listener - ${listener}`
+    )
   }
   emit(eventName: EventType, ...args: Array<any>): boolean {
-    throw new Error('Unsupported Method: emit')
+    throw new Error(
+      `Unsupported Method: emit  with args eventName - ${eventName}, args - ${args}`
+    )
   }
   listenerCount(eventName?: EventType): number {
-    throw new Error('Unsupported Method: listenerCount')
+    throw new Error(
+      `Unsupported Method: listenerCount with args eventName - ${eventName}`
+    )
   }
   listeners(eventName?: EventType): Array<Listener> {
-    throw new Error('Unsupported Method: listeners')
+    throw new Error(
+      `Unsupported Method: listeners  with args eventName - ${eventName}`
+    )
   }
   off(eventName: EventType, listener?: Listener): Provider {
-    throw new Error('Unsupported Method: off')
+    throw new Error(
+      `Unsupported Method: off with args eventName - ${eventName}, listener - ${listener}`
+    )
   }
   removeAllListeners(eventName?: EventType): Provider {
-    throw new Error('Unsupported Method: removeAllListeners')
+    throw new Error(
+      `Unsupported Method: removeAllListeners with args eventName - ${eventName}`
+    )
   }
   addListener(eventName: EventType, listener: Listener): Provider {
-    throw new Error('Unsupported Method: addListener')
+    throw new Error(
+      `Unsupported Method: addListener with args eventName - ${eventName}, listener - ${listener}`
+    )
   }
   removeListener(eventName: EventType, listener: Listener): Provider {
-    throw new Error('Unsupported Method: removeListener')
+    throw new Error(
+      `Unsupported Method: removeListener with args eventName - ${eventName}, listener - ${listener}`
+    )
   }
 
   async waitForTransaction(
@@ -251,7 +274,9 @@ export class GenesisJsonProvider implements AbstractProvider {
     confirmations?: number,
     timeout?: number
   ): Promise<TransactionReceipt> {
-    throw new Error('Unsupported Method: waitForTransaction')
+    throw new Error(
+      `Unsupported Method: waitForTransaction with args transactionHash - ${transactionHash}, confirmations - ${confirmations}, timeout - ${timeout}`
+    )
   }
 
   readonly _isProvider: boolean

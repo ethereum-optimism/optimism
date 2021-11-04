@@ -3,14 +3,9 @@ import chaiAsPromised from 'chai-as-promised'
 chai.use(chaiAsPromised)
 
 /* Imports: External */
-import { ethers, BigNumber, Contract, utils } from 'ethers'
-import { sleep } from '@eth-optimism/core-utils'
+import { BigNumber, utils } from 'ethers'
 import { serialize } from '@ethersproject/transactions'
-import {
-  predeploys,
-  getContractInterface,
-  getContractFactory,
-} from '@eth-optimism/contracts'
+import { predeploys, getContractFactory } from '@eth-optimism/contracts'
 
 /* Imports: Internal */
 import { isLiveNetwork } from './shared/utils'
@@ -165,8 +160,6 @@ describe('Fee Payment Integration Tests', async () => {
     const l1FeeWallet = await env.sequencerFeeVault.l1FeeWallet()
     const balanceBefore = await env.l1Wallet.provider.getBalance(l1FeeWallet)
     const withdrawalAmount = await env.sequencerFeeVault.MIN_WITHDRAWAL_AMOUNT()
-
-    const l2WalletBalance = await env.l2Wallet.getBalance()
 
     // Transfer the minimum required to withdraw.
     const tx = await env.l2Wallet.sendTransaction({

@@ -42,7 +42,7 @@ task('whitelist')
     predeploys.OVM_DeployerWhitelist,
     types.string
   )
-  .setAction(async (args, hre: any) => {
+  .setAction(async (args) => {
     const provider = new ethers.providers.JsonRpcProvider(args.contractsRpcUrl)
     let signer: ethers.Signer
     if (!args.useLedger) {

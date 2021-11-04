@@ -21,7 +21,7 @@ task('set-l2-gasprice')
     process.env.CONTRACTS_DEPLOYER_KEY,
     types.string
   )
-  .setAction(async (args, hre: any, runSuper) => {
+  .setAction(async (args) => {
     const provider = new ethers.providers.JsonRpcProvider(args.contractsRpcUrl)
     const signer = new ethers.Wallet(args.contractsDeployerKey).connect(
       provider

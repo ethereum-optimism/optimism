@@ -3,7 +3,6 @@ import { expect } from '../../../setup'
 /* External Imports */
 import { ethers } from 'hardhat'
 import { Signer, ContractFactory, Contract } from 'ethers'
-import { Interface } from 'ethers/lib/utils'
 import {
   smockit,
   MockContract,
@@ -31,7 +30,6 @@ describe('L2StandardBridge', () => {
   let bobsAddress: string
   let l2MessengerImpersonator: Signer
   let Factory__L1StandardBridge: ContractFactory
-  let IL2ERC20Bridge: Interface
   const INITIAL_TOTAL_SUPPLY = 100_000
   const ALICE_INITIAL_BALANCE = 50_000
   before(async () => {
@@ -44,7 +42,7 @@ describe('L2StandardBridge', () => {
     )
 
     // get an L2ER20Bridge Interface
-    IL2ERC20Bridge = getContractInterface('IL2ERC20Bridge')
+    getContractInterface('IL2ERC20Bridge')
   })
 
   let L2StandardBridge: Contract
