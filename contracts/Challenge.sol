@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.7.3;
+pragma experimental ABIEncoderV2;
 
 import "./lib/Lib_RLPReader.sol";
 import "hardhat/console.sol";
@@ -10,6 +11,7 @@ interface IMIPS {
 }
 
 interface IMIPSMemory {
+  function AddTrieNode(bytes calldata anything) external;
   function ReadMemory(bytes32 stateHash, uint32 addr) external view returns (uint32);
   function ReadBytes32(bytes32 stateHash, uint32 addr) external view returns (bytes32);
   function WriteMemory(bytes32 stateHash, uint32 addr, uint32 val) external returns (bytes32);
@@ -72,6 +74,22 @@ contract Challenge {
 
     // find me later
     return challengeId;
+  }
+
+  // helper function to determine what nodes we need
+  function CallWithTrieNodes(bytes calldata dat, bytes[] calldata nodes) public {
+    for (uint i = 0; i < nodes.length; i++) {
+      mem.AddTrieNode(nodes[i]);
+    }
+    (bool success, bytes memory revertData) = address(this).call(dat);
+    // TODO: better way to revert?
+    if (!success) {
+      uint256 revertDataLength = revertData.length;
+      assembly {
+          let revertDataStart := add(revertData, 32)
+          revert(revertDataStart, revertDataLength)
+      }
+    }
   }
 
   function InitiateChallenge(uint blockNumberN, bytes calldata blockHeaderNp1,

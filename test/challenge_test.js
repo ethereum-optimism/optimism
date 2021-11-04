@@ -26,23 +26,23 @@ describe("Challenge contract", function () {
 
     const assertionRoot = "0x9e0261efe4509912b8862f3d45a0cb8404b99b239247df9c55871bd3844cebbd"
     let startTrie = JSON.parse(fs.readFileSync("/tmp/cannon/golden.json"))
-    let finalTrie = JSON.parse(fs.readFileSync("/tmp/cannon/0_13284469/checkpoint_85059435.json"))
+    let finalTrie = JSON.parse(fs.readFileSync("/tmp/cannon/0_13284469/checkpoint_final.json"))
+    let preimages = Object.assign({}, startTrie['preimages'], finalTrie['preimages']);
     const finalSystemState = finalTrie['root']
+
+    let cdat = c.interface.encodeFunctionData("InitiateChallenge", [blockNumberN, blockNp1Rlp, assertionRoot, finalSystemState, 1])
 
     while (1) {
       try {
         // TODO: make this eth call?
-        // needs something like InitiateChallengeWithTrieNodes
-        await c.InitiateChallenge(blockNumberN, blockNp1Rlp, assertionRoot, finalSystemState, 1)
+        // needs something like InitiateChallengeWithTrieNodesj
+        await c.CallWithTrieNodes(cdat, [])
         break
       } catch(e) {
         const missing = e.toString().split("'")[1]
         if (missing.length == 64) {
           console.log("requested node", missing)
-          let node = startTrie['preimages']["0x"+missing]
-          if (node === undefined) {
-            node = finalTrie['preimages']["0x"+missing]
-          }
+          let node = preimages["0x"+missing]
           expect(node).to.not.be.an('undefined')
           const bin = Uint8Array.from(Buffer.from(node, 'base64').toString('binary'), c => c.charCodeAt(0))
           await mm.AddTrieNode(bin)

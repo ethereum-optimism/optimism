@@ -111,13 +111,7 @@ library Lib_MerkleTrie {
                     node[i] = bytes1(uint8(node[i]) + uint8(0x61-10));
                 }
             }
-            // Error(string)
-            bytes memory revertData = abi.encodeWithSelector(0x08c379a0, string(node));
-            uint256 revertDataLength = revertData.length;
-            assembly {
-                let revertDataStart := add(revertData, 32)
-                revert(revertDataStart, revertDataLength)
-            }
+            revert(string(node));
         }
         require(keccak256(encoded) == nodeId, "bad hash in trie lookup");
         return getRawNode(encoded);
