@@ -55,6 +55,7 @@ contract Challenge {
   // create challenge
   uint256 public lastChallengeId = 0;
 
+  event ChallengeCreate(uint256 challengeId);
   function newChallengeTrusted(bytes32 startState, bytes32 finalSystemState, uint256 stepCount) internal returns (uint256) {
     uint256 challengeId = lastChallengeId;
     Chal storage c = challenges[challengeId];
@@ -73,6 +74,7 @@ contract Challenge {
     c.R = stepCount;
 
     // find me later
+    emit ChallengeCreate(challengeId);
     return challengeId;
   }
 

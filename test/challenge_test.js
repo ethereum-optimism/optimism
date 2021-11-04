@@ -30,7 +30,7 @@ describe("Challenge contract", function () {
     let preimages = Object.assign({}, startTrie['preimages'], finalTrie['preimages']);
     const finalSystemState = finalTrie['root']
 
-    let args = [blockNumberN, blockNp1Rlp, assertionRoot, finalSystemState, 1]
+    let args = [blockNumberN, blockNp1Rlp, assertionRoot, finalSystemState, finalTrie['step']]
     let cdat = c.interface.encodeFunctionData("InitiateChallenge", args)
     let nodes = await getTrieNodesForCall(c, cdat, preimages)
 
@@ -39,6 +39,9 @@ describe("Challenge contract", function () {
       await mm.AddTrieNode(n)
     }
     let ret = await c.InitiateChallenge(...args)
-    console.log(await ret.wait())
+    let receipt = await ret.wait()
+    // ChallengeCreate event
+    let challengeId = receipt.events[0].args['challengeId'].toNumber()
+    console.log("new challenge with id", challengeId)
   }).timeout(60000)
 })
