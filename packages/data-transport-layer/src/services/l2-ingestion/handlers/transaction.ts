@@ -9,11 +9,7 @@ import {
   StateRootEntry,
   TransactionEntry,
 } from '../../../types'
-import {
-  padHexString,
-  SEQUENCER_GAS_LIMIT,
-  parseSignatureVParam,
-} from '../../../utils'
+import { padHexString, parseSignatureVParam } from '../../../utils'
 
 export const handleSequencerBlock = {
   parseBlock: async (

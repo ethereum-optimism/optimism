@@ -4,12 +4,10 @@ import { expect } from '../setup'
 import { ethers } from 'hardhat'
 import '@nomiclabs/hardhat-ethers'
 import { Signer, ContractFactory, Contract, BigNumber } from 'ethers'
-import ganache from 'ganache-core'
 import sinon from 'sinon'
-import { Web3Provider } from '@ethersproject/providers'
 
 import scc from '@eth-optimism/contracts/artifacts/contracts/L1/rollup/StateCommitmentChain.sol/StateCommitmentChain.json'
-import { getContractInterface, predeploys } from '@eth-optimism/contracts'
+import { getContractInterface } from '@eth-optimism/contracts'
 import { smockit, MockContract } from '@eth-optimism/smock'
 
 import { getContractFactory } from 'old-contracts'
@@ -27,27 +25,19 @@ import {
   StateBatchSubmitter,
   TX_BATCH_SUBMITTER_LOG_TAG,
   STATE_BATCH_SUBMITTER_LOG_TAG,
-  BatchSubmitter,
   YnatmTransactionSubmitter,
   ResubmissionConfig,
 } from '../../src'
 
-import {
-  QueueOrigin,
-  Batch,
-  Signature,
-  remove0x,
-} from '@eth-optimism/core-utils'
+import { QueueOrigin, Batch, remove0x } from '@eth-optimism/core-utils'
 import { Logger, Metrics } from '@eth-optimism/common-ts'
 
-const DUMMY_ADDRESS = '0x' + '00'.repeat(20)
 const EXAMPLE_STATE_ROOT =
   '0x16b7f83f409c7195b1f4fde5652f1b54a4477eacb6db7927691becafba5f8801'
 const MAX_GAS_LIMIT = 8_000_000
 const MAX_TX_SIZE = 100_000
 const MIN_TX_SIZE = 1_000
 const MIN_GAS_PRICE_IN_GWEI = 1
-const MAX_GAS_PRICE_IN_GWEI = 70
 const GAS_RETRY_INCREMENT = 5
 const GAS_THRESHOLD_IN_GWEI = 120
 
@@ -67,13 +57,9 @@ const getQueueElement = async (
   const nextQueueElement = await ctcContract.getQueueElement(nextQueueIndex)
   return nextQueueElement
 }
-const DUMMY_SIG: Signature = {
-  r: '11'.repeat(32),
-  s: '22'.repeat(32),
-  v: 1,
-}
 // A transaction batch submitter which skips the validate batch check
 class TransactionBatchSubmitter extends RealTransactionBatchSubmitter {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   protected async _validateBatch(batch: Batch): Promise<boolean> {
     return true
   }
@@ -250,11 +236,6 @@ describe('BatchSubmitter', () => {
 
   describe('TransactionBatchSubmitter', () => {
     describe('submitNextBatch', () => {
-      const enqueuedElements: Array<{
-        blockNumber: number
-        timestamp: number
-      }> = []
-
       let batchSubmitter
       beforeEach(async () => {
         for (let i = 1; i < 15; i++) {
@@ -488,23 +469,5 @@ describe('BatchSubmitter', () => {
         expect(parsedLogs.args._prevTotalElements.toNumber()).to.eq(0)
       })
     })
-  })
-})
-
-describe('Batch Submitter with Ganache', () => {
-  let signer
-  const server = ganache.server({
-    default_balance_ether: 420,
-    blockTime: 2_000,
-  })
-  const provider = new Web3Provider(ganache.provider())
-
-  before(async () => {
-    await server.listen(3001)
-    signer = await provider.getSigner()
-  })
-
-  after(async () => {
-    await server.close()
   })
 })

@@ -17,11 +17,7 @@ import {
   TransactionEntry,
   EventHandlerSet,
 } from '../../../types'
-import {
-  SEQUENCER_ENTRYPOINT_ADDRESS,
-  SEQUENCER_GAS_LIMIT,
-  parseSignatureVParam,
-} from '../../../utils'
+import { SEQUENCER_GAS_LIMIT, parseSignatureVParam } from '../../../utils'
 import { MissingElementError } from './errors'
 
 export const handleEventsSequencerBatchAppended: EventHandlerSet<

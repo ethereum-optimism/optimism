@@ -370,8 +370,9 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
     }
 
     let isEqual = true
-    const [queueEleHash, timestamp, blockNumber] =
-      await this.chainContract.getQueueElement(queueIndex)
+    const [, timestamp, blockNumber] = await this.chainContract.getQueueElement(
+      queueIndex
+    )
 
     // TODO: Verify queue element hash equality. The queue element hash can be computed with:
     // keccak256( abi.encode( msg.sender, _target, _gasLimit, _data))
@@ -445,7 +446,7 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
           if (nextQueueIndex >= totalQueueElements) {
             break
           }
-          const [queueEleHash, timestamp, blockNumber] =
+          const [, timestamp, blockNumber] =
             await this.chainContract.getQueueElement(nextQueueIndex)
 
           if (timestamp < ele.timestamp || blockNumber < ele.blockNumber) {
@@ -506,7 +507,7 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
         const totalQueueElements =
           pendingQueueElements + nextRemoteQueueElements
         if (nextQueueIndex < totalQueueElements) {
-          const [queueEleHash, queueTimestamp, queueBlockNumber] =
+          const [, queueTimestamp, queueBlockNumber] =
             await this.chainContract.getQueueElement(nextQueueIndex)
           latestTimestamp = queueTimestamp
           latestBlockNumber = queueBlockNumber
@@ -611,8 +612,6 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
     // convert to bytes27
     meta = meta.slice(10)
 
-    const totalElements = meta.slice(-10)
-    const nextQueueIndex = meta.slice(-20, -10)
     const lastTimestamp = parseInt(meta.slice(-30, -20), 16)
     const lastBlockNumber = parseInt(meta.slice(-40, -30), 16)
     this.logger.debug('Retrieved timestamp and block number from CTC', {
@@ -627,8 +626,9 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
     queueIndex: number,
     queueElement: BatchElement
   ): Promise<BatchElement> {
-    const [queueEleHash, timestamp, blockNumber] =
-      await this.chainContract.getQueueElement(queueIndex)
+    const [, timestamp, blockNumber] = await this.chainContract.getQueueElement(
+      queueIndex
+    )
 
     if (
       timestamp > queueElement.timestamp &&
