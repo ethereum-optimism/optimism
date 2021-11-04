@@ -276,7 +276,6 @@ describe('OVM_GasPriceOracle', () => {
 
   describe('decimals', () => {
     it('is the 5th storage slot', async () => {
-      const decimals = 6
       const slot = 5
 
       // get the storage slot value

@@ -1,6 +1,6 @@
 /* External Imports */
 import { ethers } from 'hardhat'
-import { Signer, ContractFactory, Contract, constants } from 'ethers'
+import { Signer, ContractFactory, Contract } from 'ethers'
 import { smoddit } from '@eth-optimism/smock'
 import { expectApprox } from '@eth-optimism/core-utils'
 
@@ -56,7 +56,7 @@ describe('[GAS BENCHMARK] Depositing via the standard bridge [ @skip-on-coverage
       AddressManager.address,
       'CanonicalTransactionChain'
     )
-    const queue = await Factory__ChainStorageContainer.deploy(
+    await Factory__ChainStorageContainer.deploy(
       AddressManager.address,
       'CanonicalTransactionChain'
     )

@@ -9,8 +9,8 @@ import { expectApprox } from '@eth-optimism/core-utils'
 /* Imports: Internal */
 import { Direction } from './shared/watcher-utils'
 
-import { fundUser, PROXY_SEQUENCER_ENTRYPOINT_ADDRESS } from './shared/utils'
-import { OptimismEnv, useDynamicTimeoutForWithdrawals } from './shared/env'
+import { PROXY_SEQUENCER_ENTRYPOINT_ADDRESS } from './shared/utils'
+import { OptimismEnv } from './shared/env'
 
 const DEFAULT_TEST_GAS_L1 = 330_000
 const DEFAULT_TEST_GAS_L2 = 1_300_000

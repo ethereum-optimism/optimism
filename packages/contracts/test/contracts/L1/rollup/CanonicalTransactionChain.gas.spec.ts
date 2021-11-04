@@ -1,6 +1,6 @@
 /* External Imports */
 import { ethers } from 'hardhat'
-import { Signer, ContractFactory, Contract, constants } from 'ethers'
+import { Signer, ContractFactory, Contract } from 'ethers'
 import { smockit, MockContract } from '@eth-optimism/smock'
 import {
   AppendSequencerBatchParams,
@@ -10,13 +10,11 @@ import {
 } from '@eth-optimism/core-utils'
 import { TransactionResponse } from '@ethersproject/abstract-provider'
 import { keccak256 } from 'ethers/lib/utils'
-import _ from 'lodash'
 
 /* Internal Imports */
 import {
   makeAddressManager,
   setProxyTarget,
-  FORCE_INCLUSION_PERIOD_SECONDS,
   L2_GAS_DISCOUNT_DIVISOR,
   ENQUEUE_GAS_COST,
   getEthTime,
@@ -92,7 +90,7 @@ describe('[GAS BENCHMARK] CanonicalTransactionChain [ @skip-on-coverage ]', () =
       AddressManager.address,
       'CanonicalTransactionChain'
     )
-    const queue = await Factory__ChainStorageContainer.deploy(
+    await Factory__ChainStorageContainer.deploy(
       AddressManager.address,
       'CanonicalTransactionChain'
     )

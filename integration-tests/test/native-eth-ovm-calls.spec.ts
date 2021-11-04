@@ -1,10 +1,4 @@
-import {
-  BigNumber,
-  BigNumberish,
-  Contract,
-  ContractFactory,
-  Wallet,
-} from 'ethers'
+import { BigNumber, Contract, ContractFactory, Wallet } from 'ethers'
 import { ethers } from 'hardhat'
 import chai, { expect } from 'chai'
 import {

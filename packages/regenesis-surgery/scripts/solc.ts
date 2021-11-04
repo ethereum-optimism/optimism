@@ -173,15 +173,6 @@ export const solcInput = (contract: EtherscanContract) => {
   return input
 }
 
-const compilerCache: {
-  [target: string]: {
-    [hash: string]: any
-  }
-} = {
-  ['OVM']: {},
-  ['EVM']: {},
-}
-
 const readCompilerCache = (
   target: 'evm' | 'ovm',
   hash: string

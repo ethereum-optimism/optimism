@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-empty-function */
 import { expect, env, NUM_ACCOUNTS_DIVISOR } from '../setup'
-import { AccountType, Account } from '../../scripts/types'
+import { AccountType } from '../../scripts/types'
 
 describe('verified', () => {
   before(async () => {

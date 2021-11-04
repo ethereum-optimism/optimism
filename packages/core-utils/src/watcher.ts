@@ -2,7 +2,6 @@
 import { ethers } from 'ethers'
 import { Provider, TransactionReceipt } from '@ethersproject/abstract-provider'
 
-const SENT_MESSAGE = ethers.utils.id('SentMessage(bytes)')
 const RELAYED_MESSAGE = ethers.utils.id(`RelayedMessage(bytes32)`)
 const FAILED_RELAYED_MESSAGE = ethers.utils.id(`FailedRelayedMessage(bytes32)`)
 
