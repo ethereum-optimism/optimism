@@ -100,7 +100,7 @@ class TestEnv {
         console.log('Initializing pre GenesisJsonProvider...')
         // Convert the genesis dump into a genesis file format
         const genesis = { ...this.surgeryDataSources.genesis }
-        for (const account of this.surgeryDataSources.genesisDump) {
+        for (const account of this.surgeryDataSources.dump) {
           let nonce = account.nonce
           if (typeof nonce === 'string') {
             nonce = BigNumber.from(nonce).toNumber()

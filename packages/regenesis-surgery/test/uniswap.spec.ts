@@ -74,11 +74,6 @@ describe('uniswap contracts', () => {
     })
 
     it('should have the same code as on mainnet', async () => {
-      if (!env.hasLiveProviders()) {
-        console.log('Cannot run factory tests without live provider')
-        return
-      }
-
       const l2Code = await env.postL2Provider.getCode(
         postUniswapV3Factory.address
       )
@@ -92,11 +87,6 @@ describe('uniswap contracts', () => {
 
   describe('V3 NFPM', () => {
     it('should have the same code as on mainnet', async () => {
-      if (!env.hasLiveProviders()) {
-        console.log('Cannot run factory tests without live provider')
-        return
-      }
-
       let l2Code = await env.postL2Provider.getCode(UNISWAP_V3_NFPM_ADDRESS)
       const l1Code = await env.surgeryDataSources.l1Provider.getCode(
         UNISWAP_V3_NFPM_ADDRESS
@@ -110,9 +100,24 @@ describe('uniswap contracts', () => {
   })
 
   describe('V3 pools', () => {
-    it('Pools', () => {
+    it('Pools code', () => {
+      for (const pool of env.surgeryDataSources.pools) {
+        describe(`pool at address ${pool.newAddress}`, () => {
+          it('should have the same code as on testnet', async () => {
+            const l2Code = await env.postL2Provider.getCode(pool.newAddress)
+            const l1Code = await env.surgeryDataSources.l1Provider.getCode(
+              pool.newAddress
+            )
+            expect(l2Code).to.not.equal('0x')
+            expect(l2Code).to.equal(l1Code)
+          })
+        })
+      }
+    })
+
+    it('Pools contract', () => {
       if (!env.hasLiveProviders()) {
-        console.log('Cannot run factory tests without live provider')
+        console.log('Cannot run pool contract tests without live provider')
         return
       }
       for (const pool of env.surgeryDataSources.pools) {
@@ -130,17 +135,6 @@ describe('uniswap contracts', () => {
               UNISWAP_POOL_ABI,
               env.postL2Provider
             )
-          })
-
-          it('should have the same code as on testnet', async () => {
-            const l2Code = await env.postL2Provider.getCode(
-              postPoolContract.address
-            )
-            const l1Code = await env.surgeryDataSources.l1Provider.getCode(
-              postPoolContract.address
-            )
-            expect(l2Code).to.not.equal('0x')
-            expect(l2Code).to.equal(l1Code)
           })
 
           it('should have the same storage values', async () => {
