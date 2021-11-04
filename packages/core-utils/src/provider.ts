@@ -4,6 +4,11 @@
 
 import { ethers } from 'ethers'
 import { Provider } from '@ethersproject/providers'
+import { ConnectionInfo } from '@ethersproject/web'
+
+export interface HttpHeaders {
+  [key: string]: string
+}
 
 // Copied from @ethersproject/providers since it is not
 // currently exported
@@ -24,17 +29,26 @@ export interface FallbackProviderConfig {
   weight?: number
 }
 
-export const FallbackProvider = (config: string | FallbackProviderConfig[]) => {
+export const FallbackProvider = (
+  config: string | FallbackProviderConfig[],
+  headers?: HttpHeaders
+) => {
   const configs = []
+  // Handle the case of a string of comma delimited urls
   if (typeof config === 'string') {
     const urls = config.split(',')
     for (const [i, url] of urls.entries()) {
+      const connectionInfo: ConnectionInfo = { url }
+      if (typeof headers === 'object') {
+        connectionInfo.headers = headers
+      }
       configs.push({
         priority: i,
-        provider: new ethers.providers.StaticJsonRpcProvider(url),
+        provider: new ethers.providers.StaticJsonRpcProvider(connectionInfo),
       })
     }
     return new ethers.providers.FallbackProvider(configs)
   }
+
   return new ethers.providers.FallbackProvider(config)
 }
