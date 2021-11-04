@@ -48,6 +48,7 @@
     "@ethersproject/abstract-provider": "^5.4.1",
     "@ethersproject/bytes": "^5.5.0",
     "@ethersproject/providers": "^5.4.5",
+    "@ethersproject/web": "^5.5.0",
     "chai": "^4.3.4",
     "ethers": "^5.4.5",
     "lodash": "^4.17.21"

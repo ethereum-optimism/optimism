@@ -49,7 +49,10 @@ export class HealthcheckServer {
     this.metrics = this.initMetrics()
     this.server = this.initServer()
     this.replicaProvider = injectL2Context(
-      new providers.StaticJsonRpcProvider(this.options.replicaRpcProvider)
+      new providers.StaticJsonRpcProvider({
+        url: this.options.replicaRpcProvider,
+        headers: { 'User-Agent': 'replica-healthcheck' },
+      })
     )
     if (this.options.checkTxWriteLatency) {
       this.initTxLatencyCheck()
@@ -177,7 +180,10 @@ export class HealthcheckServer {
 
   runSyncCheck = async () => {
     const sequencerProvider = injectL2Context(
-      new providers.StaticJsonRpcProvider(this.options.sequencerRpcProvider)
+      new providers.StaticJsonRpcProvider({
+        url: this.options.sequencerRpcProvider,
+        headers: { 'User-Agent': 'replica-healthcheck' },
+      })
     )
 
     // Continuously loop while replica runs
