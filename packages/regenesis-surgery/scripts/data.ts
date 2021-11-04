@@ -31,6 +31,9 @@ export const getUniswapPoolData = async (
   l2Provider: ethers.providers.BaseProvider,
   network: 'mainnet' | 'kovan'
 ): Promise<UniswapPoolData[]> => {
+  if (!network) {
+    throw new Error('Must provide network "mainnet" or "kovan"')
+  }
   const UniswapV3Factory = getUniswapV3Factory(l2Provider)
 
   const pools: UniswapPoolData[] = []
@@ -82,6 +85,13 @@ export const makePoolHashCache = (pools: UniswapPoolData[]): PoolHashCache => {
   return cache
 }
 
+const getChainId = async (
+  provider: ethers.providers.JsonRpcProvider
+): Promise<number> => {
+  const response = await provider.send('eth_chainId', [])
+  return ethers.BigNumber.from(response.result).toNumber()
+}
+
 export const loadSurgeryData = async (
   configs?: SurgeryConfigs
 ): Promise<SurgeryDataSources> => {
@@ -95,6 +105,33 @@ export const loadSurgeryData = async (
     configs = loadConfigs()
   }
 
+  // Get a reference to an ETH (mainnet) provider.
+  console.log('Connecting to ETH provider...')
+  const ethProvider = new ethers.providers.JsonRpcProvider(
+    configs.ethProviderUrl
+  )
+  const mainnetChainId = await getChainId(ethProvider)
+  if (mainnetChainId !== 1) {
+    throw new Error(
+      `Mainnet chain id incorrect, got ${mainnetChainId} and expected 1`
+    )
+  }
+
+  // Get a reference to the L2 provider so we can load pool data.
+  // Do validation on the chain id before reading data from disk
+  // because that is slow
+  console.log('Connecting to L2 provider...')
+  const l2Provider = new ethers.providers.JsonRpcProvider(configs.l2ProviderUrl)
+  const l2ChainId = await getChainId(l2Provider)
+  if (l2ChainId === 10) {
+    configs.l2NetworkName = 'mainnet'
+  } else if (l2ChainId === 69) {
+    configs.l2NetworkName = 'kovan'
+  } else {
+    throw new Error(`Unknown l2 chain id: ${l2ChainId}`)
+  }
+  console.log(`Using network ${configs.l2NetworkName}`)
+
   // Load and validate the state dump.
   console.log('Loading and validating state dump file...')
   const dump: StateDump = await readDumpFile(configs.stateDumpFilePath)
@@ -104,6 +141,12 @@ export const loadSurgeryData = async (
   // Load the genesis file.
   console.log('Loading genesis file...')
   const genesis: GenesisFile = await readGenesisFile(configs.genesisFilePath)
+  if (genesis.config.chainId !== l2ChainId) {
+    throw new Error(
+      `Genesis File at ${configs.genesisFilePath} has chain id mismatch with remote L2 node` +
+        ` got ${genesis.config.chainId} locally and ${l2ChainId} remote`
+    )
+  }
   const genesisDump: StateDump = []
   for (const [address, account] of Object.entries(genesis.alloc)) {
     genesisDump.push({
@@ -119,10 +162,6 @@ export const loadSurgeryData = async (
     configs.etherscanFilePath
   )
   console.log(`${etherscanDump.length} entries in etherscan dump`)
-
-  // Get a reference to the L2 provider so we can load pool data.
-  console.log('Connecting to L2 provider...')
-  const l2Provider = new ethers.providers.JsonRpcProvider(configs.l2ProviderUrl)
 
   // Load the pool data.
   console.log('Loading Uniswap pool data...')
@@ -140,20 +179,17 @@ export const loadSurgeryData = async (
   const ropstenProvider = new ethers.providers.JsonRpcProvider(
     configs.ropstenProviderUrl
   )
+
   const ropstenWallet = new ethers.Wallet(
     configs.ropstenPrivateKey,
     ropstenProvider
   )
-
-  // Get a reference to the L1 provider.
-  console.log('Connecting to L1 provider...')
-  const l1Provider = new ethers.providers.JsonRpcProvider(configs.l1ProviderUrl)
-
-  // Get a reference to an ETH (mainnet) provider.
-  console.log('Connecting to ETH provider...')
-  const ethProvider = new ethers.providers.JsonRpcProvider(
-    configs.ethProviderUrl
-  )
+  const ropstenChainId = await ropstenWallet.getChainId()
+  if (ropstenChainId !== 3) {
+    throw new Error(
+      `Ropsten chain id incorrect, got ${ropstenChainId} and expected 3`
+    )
+  }
 
   return {
     configs,
@@ -165,7 +201,6 @@ export const loadSurgeryData = async (
     etherscanDump,
     ropstenProvider,
     ropstenWallet,
-    l1Provider,
     l2Provider,
     ethProvider,
   }

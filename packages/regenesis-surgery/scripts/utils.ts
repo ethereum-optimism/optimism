@@ -129,9 +129,7 @@ export const loadConfigs = (): SurgeryConfigs => {
   const etherscanFilePath = reqenv('REGEN__ETHERSCAN_FILE')
   const genesisFilePath = reqenv('REGEN__GENESIS_FILE')
   const outputFilePath = reqenv('REGEN__OUTPUT_FILE')
-  const l2NetworkName = reqenv('REGEN__L2_NETWORK_NAME')
   const l2ProviderUrl = reqenv('REGEN__L2_PROVIDER_URL')
-  const l1ProviderUrl = reqenv('REGEN__L1_PROVIDER_URL')
   const ropstenProviderUrl = reqenv('REGEN__ROPSTEN_PROVIDER_URL')
   const ropstenPrivateKey = reqenv('REGEN__ROPSTEN_PRIVATE_KEY')
   const ethProviderUrl = reqenv('REGEN__ETH_PROVIDER_URL')
@@ -139,20 +137,12 @@ export const loadConfigs = (): SurgeryConfigs => {
   const startIndex = parseInt(getenv('REGEN__START_INDEX', '0'), 10)
   const endIndex = parseInt(getenv('REGEN__END_INDEX', '0'), 10) || Infinity
 
-  // Input assertions
-  assert.ok(
-    ['mainnet', 'kovan'].includes(l2NetworkName),
-    `L2_NETWORK_NAME must be one of "mainnet" or "kovan"`
-  )
-
   return {
     stateDumpFilePath,
     etherscanFilePath,
     genesisFilePath,
     outputFilePath,
-    l2NetworkName: l2NetworkName as SupportedNetworks,
     l2ProviderUrl,
-    l1ProviderUrl,
     ropstenProviderUrl,
     ropstenPrivateKey,
     ethProviderUrl,

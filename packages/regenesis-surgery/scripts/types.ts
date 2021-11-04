@@ -5,9 +5,8 @@ export interface SurgeryConfigs {
   etherscanFilePath: string
   genesisFilePath: string
   outputFilePath: string
-  l2NetworkName: SupportedNetworks
+  l2NetworkName?: SupportedNetworks
   l2ProviderUrl: string
-  l1ProviderUrl: string
   ropstenProviderUrl: string
   ropstenPrivateKey: string
   ethProviderUrl: string
@@ -99,7 +98,6 @@ export interface SurgeryDataSources {
   etherscanDump: EtherscanContract[]
   ropstenProvider: ethers.providers.JsonRpcProvider
   ropstenWallet: ethers.Wallet
-  l1Provider: ethers.providers.JsonRpcProvider
   l2Provider: ethers.providers.JsonRpcProvider
   ethProvider: ethers.providers.JsonRpcProvider
 }
