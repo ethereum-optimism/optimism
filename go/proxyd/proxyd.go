@@ -13,28 +13,35 @@ import (
 )
 
 func Start(config *Config) error {
-	backendsByName := make(map[string]*Backend)
-	groupsByName := make(map[string]*BackendGroup)
-
 	if len(config.Backends) == 0 {
 		return errors.New("must define at least one backend")
 	}
-	if len(config.BackendGroups) == 0 {
-		return errors.New("must define at least one backend group")
-	}
-	if len(config.MethodMappings) == 0 {
-		return errors.New("must define at least one method mapping")
+	if len(config.AllowedRPCMethods) == 0 {
+		return errors.New("must define at least one allowed RPC method")
 	}
 
+	allowedRPCs := NewStringSetFromStrings(config.AllowedRPCMethods)
+	allowedWSRPCs := allowedRPCs.Extend(config.AllowedWSMethods)
+
+	redis, err := NewRedis(config.Redis.URL)
+	if err != nil {
+		return err
+	}
+
+	backends := make([]*Backend, 0)
+	backendNames := make([]string, 0)
 	for name, cfg := range config.Backends {
 		opts := make([]BackendOpt, 0)
 
-		if cfg.BaseURL == "" {
-			return fmt.Errorf("must define a base URL for backend %s", name)
+		if cfg.RPCURL == "" {
+			return fmt.Errorf("must define an RPC URL for backend %s", name)
+		}
+		if cfg.WSURL == "" {
+			return fmt.Errorf("must define a WS URL for backend %s", name)
 		}
 
 		if config.BackendOptions.ResponseTimeoutSeconds != 0 {
-			timeout := time.Duration(config.BackendOptions.ResponseTimeoutSeconds) * time.Second
+			timeout := secondsToDuration(config.BackendOptions.ResponseTimeoutSeconds)
 			opts = append(opts, WithTimeout(timeout))
 		}
 		if config.BackendOptions.MaxRetries != 0 {
@@ -43,42 +50,29 @@ func Start(config *Config) error {
 		if config.BackendOptions.MaxResponseSizeBytes != 0 {
 			opts = append(opts, WithMaxResponseSize(config.BackendOptions.MaxResponseSizeBytes))
 		}
-		if config.BackendOptions.UnhealthyBackendRetryIntervalSeconds != 0 {
-			opts = append(opts, WithUnhealthyRetryInterval(config.BackendOptions.UnhealthyBackendRetryIntervalSeconds))
+		if config.BackendOptions.OutOfServiceSeconds != 0 {
+			opts = append(opts, WithOutOfServiceDuration(secondsToDuration(config.BackendOptions.OutOfServiceSeconds)))
+		}
+		if cfg.MaxRPS != 0 {
+			opts = append(opts, WithMaxRPS(cfg.MaxRPS))
+		}
+		if cfg.MaxWSConns != 0 {
+			opts = append(opts, WithMaxWSConns(cfg.MaxWSConns))
 		}
 		if cfg.Password != "" {
 			opts = append(opts, WithBasicAuth(cfg.Username, cfg.Password))
 		}
-		backendsByName[name] = NewBackend(name, cfg.BaseURL, opts...)
-		log.Info("configured backend", "name", name, "base_url", cfg.BaseURL)
+		back := NewBackend(name, cfg.RPCURL, cfg.WSURL, allowedRPCs, allowedWSRPCs, redis, opts...)
+		backends = append(backends, back)
+		backendNames = append(backendNames, name)
+		log.Info("configured backend", "name", name, "rpc_url", cfg.RPCURL, "ws_url", cfg.WSURL)
 	}
 
-	for groupName, cfg := range config.BackendGroups {
-		backs := make([]*Backend, 0)
-		for _, backName := range cfg.Backends {
-			if backendsByName[backName] == nil {
-				return fmt.Errorf("undefined backend %s", backName)
-			}
-			backs = append(backs, backendsByName[backName])
-			log.Info("configured backend group", "name", groupName)
-		}
-
-		groupsByName[groupName] = &BackendGroup{
-			Name:     groupName,
-			backends: backs,
-		}
+	backendGroup := &BackendGroup{
+		Name:     "main",
+		Backends: backends,
 	}
-
-	mappings := make(map[string]*BackendGroup)
-	for method, groupName := range config.MethodMappings {
-		if groupsByName[groupName] == nil {
-			return fmt.Errorf("undefined backend group %s", groupName)
-		}
-		mappings[method] = groupsByName[groupName]
-	}
-	methodMappings := NewMethodMapping(mappings)
-
-	srv := NewServer(methodMappings, config.Server.MaxBodySizeBytes)
+	srv := NewServer(backendGroup, config.Server.MaxBodySizeBytes)
 
 	if config.Metrics.Enabled {
 		addr := fmt.Sprintf("%s:%d", config.Metrics.Host, config.Metrics.Port)
@@ -88,6 +82,10 @@ func Start(config *Config) error {
 
 	go func() {
 		if err := srv.ListenAndServe(config.Server.Host, config.Server.Port); err != nil {
+			if errors.Is(err, http.ErrServerClosed) {
+				log.Info("server shut down")
+				return
+			}
 			log.Crit("error starting server", "err", err)
 		}
 	}()
@@ -96,5 +94,13 @@ func Start(config *Config) error {
 	signal.Notify(sig, syscall.SIGINT, syscall.SIGTERM)
 	recvSig := <-sig
 	log.Info("caught signal, shutting down", "signal", recvSig)
+	srv.Shutdown()
+	if err := redis.FlushBackendWSConns(backendNames); err != nil {
+		log.Error("error flushing backend ws conns", "err", err)
+	}
 	return nil
+}
+
+func secondsToDuration(seconds int) time.Duration {
+	return time.Duration(seconds) * time.Second
 }
