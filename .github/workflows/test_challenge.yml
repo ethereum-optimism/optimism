@@ -1,0 +1,39 @@
+name: Test Challenge
+
+on: [push, pull_request]
+
+jobs:
+  unit:
+    name: MIPS EVM matches unicorn
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v2
+    - name: Install Go + Node
+      run: |
+        sudo apt-get update
+        sudo apt-get -y --no-install-recommends install golang-1.16 nodejs npm
+    - name: Install unicorn
+      run: |
+        ./build_unicorn.sh
+    - name: Install yarn
+      run: |
+        npm install --global yarn
+        yarn install
+    - name: Build minigeth and run default block (cache)
+      run: |
+        ./run.sh 13284469
+    - name: Install Python deps
+      run: pip3 install -r mipigo/requirements.txt
+    - name: Build minigeth for embedded
+      run: |
+        cd mipigo
+        ./build.sh
+    - name: Build mipsevm
+      run: |
+        cd mipsevm
+        go build
+    - name: Generate checkpoints for 13284469
+      run: mipsevm/mipsevm 13284469
+    - name: Run test challenge
+      run: npx hardhat test test/challenge_test.js
