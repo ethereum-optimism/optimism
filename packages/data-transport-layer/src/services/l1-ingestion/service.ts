@@ -1,7 +1,7 @@
 /* Imports: External */
 import { fromHexString, FallbackProvider } from '@eth-optimism/core-utils'
 import { BaseService, Metrics } from '@eth-optimism/common-ts'
-import {  BaseProvider } from '@ethersproject/providers'
+import { BaseProvider } from '@ethersproject/providers'
 import { LevelUp } from 'levelup'
 import { constants } from 'ethers'
 import { Gauge, Counter } from 'prom-client'

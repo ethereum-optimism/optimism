@@ -89,7 +89,6 @@ describe('submitTransactionWithYNATM', async () => {
     // than our resubmission timeout
     const resubmissionTimeout = 100
     const txReceiptDelay = resubmissionTimeout * 3
-    const numConfirmations = 3
     let lastGasPrice = BigNumber.from(0)
     // Create a transaction which has a gas price that we will watch increment
     const tx = {
@@ -106,10 +105,7 @@ describe('submitTransactionWithYNATM', async () => {
         hash: 'dummy hash',
       } as TransactionResponse
     }
-    const waitForTransaction = async (
-      hash: string,
-      _numConfirmations: number
-    ): Promise<TransactionReceipt> => {
+    const waitForTransaction = async (): Promise<TransactionReceipt> => {
       await new Promise((r) => setTimeout(r, txReceiptDelay))
       return {} as TransactionReceipt
     }
@@ -117,7 +113,7 @@ describe('submitTransactionWithYNATM', async () => {
       getGasPrice: async () => ethers.BigNumber.from(0),
       sendTransaction,
       provider: {
-        waitForTransaction,
+        waitForTransaction: waitForTransaction as any,
       },
     } as Signer
     const config: ResubmissionConfig = {
