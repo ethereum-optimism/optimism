@@ -20,6 +20,12 @@ func Start(config *Config) error {
 		return errors.New("must define at least one allowed RPC method")
 	}
 
+	for authKey := range config.Authentication {
+		if authKey == "none" {
+			return errors.New("cannot use none as an auth key")
+		}
+	}
+
 	allowedRPCs := NewStringSetFromStrings(config.AllowedRPCMethods)
 	allowedWSRPCs := allowedRPCs.Extend(config.AllowedWSMethods)
 
@@ -72,7 +78,11 @@ func Start(config *Config) error {
 		Name:     "main",
 		Backends: backends,
 	}
-	srv := NewServer(backendGroup, config.Server.MaxBodySizeBytes)
+	srv := NewServer(
+		backendGroup,
+		config.Server.MaxBodySizeBytes,
+		config.Authentication,
+	)
 
 	if config.Metrics.Enabled {
 		addr := fmt.Sprintf("%s:%d", config.Metrics.Host, config.Metrics.Port)

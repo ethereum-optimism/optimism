@@ -1,6 +1,7 @@
 package proxyd
 
 import (
+	"context"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"strconv"
@@ -26,9 +27,10 @@ var (
 
 	rpcForwardsTotal = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: MetricsNamespace,
-		Name:      "rpc_backend_requests_total",
+		Name:      "rpc_forwards_total",
 		Help:      "Count of total RPC requests forwarded to each backend.",
 	}, []string{
+		"auth",
 		"backend_name",
 		"method_name",
 		"source",
@@ -39,6 +41,7 @@ var (
 		Name:      "rpc_errors_total",
 		Help:      "Count of total RPC errors.",
 	}, []string{
+		"auth",
 		"source",
 		"error_code",
 	})
@@ -53,10 +56,12 @@ var (
 		"method_name",
 	})
 
-	activeClientWsConnsGauge = promauto.NewGauge(prometheus.GaugeOpts{
+	activeClientWsConnsGauge = promauto.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: MetricsNamespace,
 		Name:      "active_client_ws_conns",
 		Help:      "Gauge of active client WS connections.",
+	}, []string{
+		"auth",
 	})
 
 	activeBackendWsConnsGauge = promauto.NewGaugeVec(prometheus.GaugeOpts{
@@ -72,6 +77,7 @@ var (
 		Name:      "unserviceable_requests_total",
 		Help:      "Count of total requests that were rejected due to no backends being available.",
 	}, []string{
+		"auth",
 		"source",
 	})
 
@@ -93,6 +99,7 @@ var (
 		Name:      "ws_messages_total",
 		Help:      "Count of total websocket messages including protocol control.",
 	}, []string{
+		"auth",
 		"backend_name",
 		"source",
 	})
@@ -106,7 +113,11 @@ var (
 	})
 )
 
-func RecordRPCError(source string, err error) {
+func RecordRedisError(source string) {
+	redisErrorsTotal.WithLabelValues(source).Inc()
+}
+
+func RecordRPCError(ctx context.Context, source string, err error) {
 	rpcErr, ok := err.(*RPCErr)
 	var code int
 	if ok {
@@ -115,17 +126,17 @@ func RecordRPCError(source string, err error) {
 		code = -1
 	}
 
-	rpcErrorsTotal.WithLabelValues(source, strconv.Itoa(code)).Inc()
+	rpcErrorsTotal.WithLabelValues(GetAuthCtx(ctx), source, strconv.Itoa(code)).Inc()
 }
 
-func RecordRedisError(source string) {
-	redisErrorsTotal.WithLabelValues(source).Inc()
+func RecordWSMessage(ctx context.Context, backendName, source string) {
+	wsMessagesTotal.WithLabelValues(GetAuthCtx(ctx), backendName, source).Inc()
 }
 
-func RecordWSMessage(backendName, source string) {
-	wsMessagesTotal.WithLabelValues(backendName, source).Inc()
+func RecordUnserviceableRequest(ctx context.Context, source string) {
+	unserviceableRequestsTotal.WithLabelValues(GetAuthCtx(ctx), source).Inc()
 }
 
-func RecordUnserviceableRequest(source string) {
-	unserviceableRequestsTotal.WithLabelValues(source).Inc()
+func RecordRPCForward(ctx context.Context, backendName, method, source string) {
+	rpcForwardsTotal.WithLabelValues(GetAuthCtx(ctx), backendName, method, source).Inc()
 }
