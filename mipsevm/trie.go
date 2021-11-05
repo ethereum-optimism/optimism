@@ -9,6 +9,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/oracle"
 	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/ethereum/go-ethereum/trie"
 )
@@ -90,7 +91,24 @@ func ParseNode(node common.Hash, depth int, callback func(common.Hash) []byte) {
 
 func RamFromTrie(root common.Hash) map[uint32](uint32) {
 	ram := make(map[uint32](uint32))
-	// TODO: write this
+
+	// load into oracle
+	pp := oracle.Preimages()
+	for k, v := range Preimages {
+		pp[k] = v
+	}
+
+	triedb := trie.Database{Root: root}
+	tt, err := trie.New(root, &triedb)
+	check(err)
+	tni := tt.NodeIterator([]byte{})
+	for tni.Next(true) {
+		if tni.Leaf() {
+			tk := binary.BigEndian.Uint32(tni.LeafKey())
+			tv := binary.BigEndian.Uint32(tni.LeafBlob())
+			ram[tk*4] = tv
+		}
+	}
 	return ram
 }
 

@@ -35,7 +35,12 @@ func TestTrie(t *testing.T) {
 		t.Fatal("preimage length mismatch")
 	}
 
-	// TODO: load memory when ready
+	// load memory
+	newram := RamFromTrie(newroot)
+
+	if !reflect.DeepEqual(ram, newram) {
+		t.Fatal("ram to/from mismatch")
+	}
 }
 
 func printRoot(ram map[uint32](uint32)) {
