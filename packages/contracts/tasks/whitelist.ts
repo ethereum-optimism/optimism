@@ -1,5 +1,6 @@
 'use strict'
 
+import fs from 'fs'
 import { ethers } from 'ethers'
 import { task } from 'hardhat/config'
 import * as types from 'hardhat/internal/core/params/argumentTypes'
@@ -10,8 +11,25 @@ import { predeploys } from '../src/predeploys'
 // Add accounts the the OVM_DeployerWhitelist
 // npx hardhat whitelist --address 0x..
 task('whitelist')
-  .addParam('address', 'Address to whitelist', undefined, types.string)
-  .addOptionalParam('transactionGasPrice', 'tx.gasPrice', undefined, types.int)
+  .addOptionalParam('address', 'Address to whitelist', undefined, types.string)
+  .addOptionalParam(
+    'addressPath',
+    'Path to a file containing the list of addresses to whitelist',
+    undefined,
+    types.string
+  )
+  .addOptionalParam(
+    'whitelistMode',
+    '"enable" if you want to whitelist the address, "disable" if you want to remove the address from the whitelist',
+    'enable',
+    types.string
+  )
+  .addOptionalParam(
+    'transactionGasPrice',
+    'Gas price to use for the whitelist transaction',
+    undefined,
+    types.int
+  )
   .addOptionalParam(
     'useLedger',
     'use a ledger for signing',
@@ -43,6 +61,18 @@ task('whitelist')
     types.string
   )
   .setAction(async (args) => {
+    if (args.whitelistMode !== 'enable' && args.whitelistMode !== 'disable') {
+      throw new Error(`Whitelist mode must be either "enable" or "disable"`)
+    }
+
+    if (args.address === undefined && args.addressPath === undefined) {
+      throw new Error(`Must provide either address or address-path`)
+    }
+
+    if (args.address !== undefined && args.addressPath !== undefined) {
+      throw new Error(`Cannot provide both address and address-path`)
+    }
+
     const provider = new ethers.providers.JsonRpcProvider(args.contractsRpcUrl)
     let signer: ethers.Signer
     if (!args.useLedger) {
@@ -72,11 +102,26 @@ task('whitelist')
       throw new Error(`Incorrect key. Owner ${owner}, Signer ${addr}`)
     }
 
-    const res = await deployerWhitelist.setWhitelistedDeployer(
-      args.address,
-      true,
-      { gasPrice: args.transactionGasPrice }
-    )
-    await res.wait()
-    console.log(`Whitelisted ${args.address}`)
+    const addresses = []
+    if (args.address !== undefined) {
+      addresses.push(args.address)
+    } else {
+      const addressFile = fs.readFileSync(args.adddressPath, 'utf8')
+      for (const line of addressFile.split('\n')) {
+        if (line !== '') {
+          addresses.push(line)
+        }
+      }
+    }
+
+    for (const address of addresses) {
+      console.log(`Changing whitelist status for address: ${address}`)
+      console.log(`New whitelist status: ${args.whitelistMode}`)
+      const res = await deployerWhitelist.setWhitelistedDeployer(
+        address,
+        true,
+        { gasPrice: args.transactionGasPrice }
+      )
+      await res.wait()
+    }
   })
