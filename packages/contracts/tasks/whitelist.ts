@@ -119,7 +119,7 @@ task('whitelist')
       console.log(`New whitelist status: ${args.whitelistMode}`)
       const res = await deployerWhitelist.setWhitelistedDeployer(
         address,
-        true,
+        args.whitelistMode === 'enable' ? true : false,
         { gasPrice: args.transactionGasPrice }
       )
       await res.wait()
