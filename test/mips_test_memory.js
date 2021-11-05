@@ -56,9 +56,9 @@ describe("MIPSMemory contract", function () {
   })
   it("bug found fuzzing 1", async function() {
     let root = "0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421"
-    root = await write(mm, root, 208, 3560962548)
-    root = await write(mm, root, 208, 1247044781)
-    root = await write(mm, root, 208, 688075632)
+    root = await write(mm, root, 0, 0)
+    root = await write(mm, root, 0, 1)
+    root = await write(mm, root, 0, 2)
   })
   /*it("fuzzing should be okay", async function() {
     let root = "0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421"
