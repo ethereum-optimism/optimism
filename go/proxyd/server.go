@@ -78,33 +78,21 @@ func (s *Server) HandleRPC(w http.ResponseWriter, r *http.Request) {
 	req, err := ParseRPCReq(io.LimitReader(r.Body, s.maxBodySize))
 	if err != nil {
 		log.Info("rejected request with bad rpc request", "source", "rpc", "err", err)
-		RecordRPCError(ctx, SourceClient, err)
+		RecordRPCError(ctx, BackendProxyd, MethodUnknown, err)
 		writeRPCError(w, nil, err)
 		return
 	}
 
 	backendRes, err := s.backends.Forward(ctx, req)
 	if err != nil {
-		if errors.Is(err, ErrNoBackends) {
-			RecordUnserviceableRequest(ctx, RPCRequestSourceHTTP)
-			RecordRPCError(ctx, SourceProxyd, err)
-		} else if errors.Is(err, ErrMethodNotWhitelisted) {
-			RecordRPCError(ctx, SourceClient, err)
-		} else {
-			RecordRPCError(ctx, SourceBackend, err)
-		}
 		log.Error("error forwarding RPC request", "method", req.Method, "err", err)
 		writeRPCError(w, req.ID, err)
 		return
 	}
-	if backendRes.IsError() {
-		RecordRPCError(ctx, SourceBackend, backendRes.Error)
-	}
-
 	enc := json.NewEncoder(w)
 	if err := enc.Encode(backendRes); err != nil {
 		log.Error("error encoding response", "err", err)
-		RecordRPCError(ctx, SourceProxyd, err)
+		RecordRPCError(ctx, BackendProxyd, req.Method, err)
 		writeRPCError(w, req.ID, err)
 		return
 	}
