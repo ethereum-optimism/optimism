@@ -1,5 +1,5 @@
 /* Imports: External */
-import { ethers } from 'ethers'
+import { ethers, Transaction } from 'ethers'
 import {
   fromHexString,
   remove0x,
@@ -388,6 +388,115 @@ export const getMessagesAndProofsForL2Transaction = async (
     const stateTrieProof = await getStateTrieProof(
       l2RpcProvider,
       l2Transaction.blockNumber,
+      predeploys.OVM_L2ToL1MessagePasser,
+      messageSlot
+    )
+
+    // State roots are published in batches to L1 and correspond 1:1 to transactions. We compute a
+    // Merkle root for these state roots so that we only need to store the minimum amount of
+    // information on-chain. So we need to create a Merkle proof for the specific state root that
+    // corresponds to this transaction.
+    const stateRootMerkleProof = getMerkleTreeProof(
+      batch.stateRoots,
+      txIndexInBatch
+    )
+
+    // We now have enough information to create the message proof.
+    const proof: CrossDomainMessageProof = {
+      stateRoot: batch.stateRoots[txIndexInBatch],
+      stateRootBatchHeader: batch.header,
+      stateRootProof: {
+        index: txIndexInBatch,
+        siblings: stateRootMerkleProof,
+      },
+      stateTrieWitness: stateTrieProof.accountProof,
+      storageTrieWitness: stateTrieProof.storageProof,
+    }
+
+    messagePairs.push({
+      message,
+      proof,
+    })
+  }
+
+  return messagePairs
+}
+
+/**
+ * Allows for proof generation of pre-regenesis L2->L1 messages, by retrieving proofs from
+ * The genesis state (block 0) of the post-regenesis chain. This is required because the
+ * history is wiped during regnesis, so old inclusion proofs would no longer work.
+ *
+ * @param l1RpcProvider L1 RPC provider.
+ * @param l2RpcProvider L2 RPC provider of the POST-REGENESIS chain.
+ * @param legacyL2Transaction A PRE-REGENESIS L2 transaction which sent some L2->L1 messages.
+ * @param legacyMessages The L2->L1 messages which were sent by the legacy L2 transaction.
+ * @param l1StateCommitmentChainAddress Address of the POST-REGENESIS StateCommitmentChain.
+ * @param l2CrossDomainMessengerAddress Address of the L2CrossDomainMessenger.
+ * @returns An array of messages sent in the transaction and a proof of inclusion for each.
+ */
+export const getLegacyProofsForL2Transaction = async (
+  l1RpcProvider: ethers.providers.JsonRpcProvider | string,
+  l2RpcProvider: ethers.providers.JsonRpcProvider | string,
+  legacyL2Transaction: Transaction,
+  legacyMessages: CrossDomainMessage[],
+  l1StateCommitmentChainAddress: string,
+  l2CrossDomainMessengerAddress: string
+): Promise<CrossDomainMessagePair[]> => {
+  if (typeof l1RpcProvider === 'string') {
+    l1RpcProvider = new ethers.providers.JsonRpcProvider(l1RpcProvider)
+  }
+
+  if (typeof l2RpcProvider === 'string') {
+    l2RpcProvider = new ethers.providers.JsonRpcProvider(l2RpcProvider)
+  }
+
+  // We will use the first ever batch submitted on the new chain
+  // Because the genesis state already contains all of those state roots, and
+  // That's the earliest we'll be able to relay the withdrawal.
+  // This is 1 and not 0 because we don't commit the genesis state.
+  const postRegenesisBlockToRelayFrom = 1
+
+  const batch = await getStateRootBatchByTransactionIndex(
+    l1RpcProvider,
+    l1StateCommitmentChainAddress,
+    postRegenesisBlockToRelayFrom - NUM_L2_GENESIS_BLOCKS
+  )
+  if (batch === null) {
+    throw new Error(
+      `unable to find first state root batch for legacy withdrawal: ${
+        legacyL2Transaction?.hash || legacyL2Transaction
+      }`
+    )
+  }
+
+  // Here the index refers to the position of the state root that corresponds to this transaction
+  // within the batch of state roots in which that state root was published.
+  // Since this is a legacy TX, we get it from 0 always.
+  // (see comment on `postRegenesisBlockToRelayFrom` above)
+  const txIndexInBatch = 0
+
+  const messagePairs: CrossDomainMessagePair[] = []
+  for (const message of legacyMessages) {
+    // We need to calculate the specific storage slot that demonstrates that this message was
+    // actually included in the L2 chain. The following calculation is based on the fact that
+    // messages are stored in the following mapping on L2:
+    // https://github.com/ethereum-optimism/optimism/blob/c84d3450225306abbb39b4e7d6d82424341df2be/packages/contracts/contracts/L2/predeploys/OVM_L2ToL1MessagePasser.sol#L23
+    // You can read more about how Solidity storage slots are computed for mappings here:
+    // https://docs.soliditylang.org/en/v0.8.4/internals/layout_in_storage.html#mappings-and-dynamic-arrays
+    const messageSlot = ethers.utils.keccak256(
+      ethers.utils.keccak256(
+        encodeCrossDomainMessage(message) +
+          remove0x(l2CrossDomainMessengerAddress)
+      ) + '00'.repeat(32)
+    )
+
+    // We need a Merkle trie proof for the given storage slot. This allows us to prove to L1 that
+    // the message was actually sent on L2.
+    // Because this is a legacy message, we just get it from index 0.
+    const stateTrieProof = await getStateTrieProof(
+      l2RpcProvider,
+      postRegenesisBlockToRelayFrom,
       predeploys.OVM_L2ToL1MessagePasser,
       messageSlot
     )
