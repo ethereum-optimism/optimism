@@ -2,16 +2,16 @@
 pragma solidity >0.5.0 <0.8.0;
 
 /* Library Imports */
-import { Lib_BytesUtils } from "./Lib_BytesUtils.sol";
-import { Lib_RLPReader } from "./Lib_RLPReader.sol";
-import { Lib_RLPWriter } from "./Lib_RLPWriter.sol";
+import { Lib_BytesUtilsGeorge } from "./Lib_BytesUtilsGeorge.sol";
+import { Lib_RLPReaderGeorge } from "./Lib_RLPReaderGeorge.sol";
+import { Lib_RLPWriterGeorge } from "./Lib_RLPWriterGeorge.sol";
 
 //import "hardhat/console.sol";
 
 /**
- * @title Lib_MerkleTrie
+ * @title Lib_MerkleTrieGeorge
  */
-library Lib_MerkleTrie {
+library Lib_MerkleTrieGeorge {
 
     /*******************
      * Data Structures *
@@ -25,7 +25,7 @@ library Lib_MerkleTrie {
 
     struct TrieNode {
         bytes encoded;
-        Lib_RLPReader.RLPItem[] decoded;
+        Lib_RLPReaderGeorge.RLPItem[] decoded;
     }
 
     function GetTrie() internal pure returns (mapping(bytes32 => bytes) storage trie) {
@@ -96,14 +96,14 @@ library Lib_MerkleTrie {
     function getRawNode(bytes memory encoded) private pure returns (TrieNode memory) {
         return TrieNode({
             encoded: encoded,
-            decoded: Lib_RLPReader.readList(encoded)
+            decoded: Lib_RLPReaderGeorge.readList(encoded)
         });
     }
 
     function getTrieNode(bytes32 nodeId) private view returns (TrieNode memory) {
         bytes memory encoded = GetTrie()[nodeId];
         if (encoded.length == 0) {
-            bytes memory node = Lib_BytesUtils.toNibbles(abi.encodePacked(nodeId));
+            bytes memory node = Lib_BytesUtilsGeorge.toNibbles(abi.encodePacked(nodeId));
             for (uint i = 0; i < node.length; i++) {
                 if (node[i] < bytes1(uint8(10))) {
                     node[i] = bytes1(uint8(node[i]) + uint8(0x30));
@@ -168,7 +168,7 @@ library Lib_MerkleTrie {
         )
     {
         bytes memory dat = _makeLeafNode(
-            Lib_BytesUtils.toNibbles(_key),
+            Lib_BytesUtilsGeorge.toNibbles(_key),
             _value).encoded;
         bytes32 ret = keccak256(dat);
         GetTrie()[ret] = dat;
@@ -206,7 +206,7 @@ library Lib_MerkleTrie {
         _proof = new TrieNode[](9);
 
         uint256 pathLength = 0;
-        bytes memory key = Lib_BytesUtils.toNibbles(_key);
+        bytes memory key = Lib_BytesUtilsGeorge.toNibbles(_key);
 
         bytes32 currentNodeID = _root;
         uint256 currentNodeLength = 32;
@@ -222,7 +222,7 @@ library Lib_MerkleTrie {
             if (currentNodeLength >= 32) {
                 currentNode = getTrieNode(currentNodeID);
             } else {
-                currentNode = getRawNode(Lib_BytesUtils.slice(abi.encodePacked(currentNodeID), 0, currentNodeLength));
+                currentNode = getRawNode(Lib_BytesUtilsGeorge.slice(abi.encodePacked(currentNodeID), 0, currentNodeLength));
             }
             _proof[pathLength] = currentNode;
             currentKeyIndex += currentKeyIncrement;
@@ -246,7 +246,7 @@ library Lib_MerkleTrie {
             } else {
                 // Nodes smaller than 31 bytes aren't hashed.
                 require(
-                    Lib_BytesUtils.toBytes32(currentNode.encoded) == currentNodeID,
+                    Lib_BytesUtilsGeorge.toBytes32(currentNode.encoded) == currentNodeID,
                     "Invalid internal node hash"
                 );
             }
@@ -260,7 +260,7 @@ library Lib_MerkleTrie {
                     // We're not at the end of the key yet.
                     // Figure out what the next node ID should be and continue.
                     uint8 branchKey = uint8(key[currentKeyIndex]);
-                    Lib_RLPReader.RLPItem memory nextNode = currentNode.decoded[branchKey];
+                    Lib_RLPReaderGeorge.RLPItem memory nextNode = currentNode.decoded[branchKey];
                     (currentNodeID, currentNodeLength) = _getNodeID(nextNode);
                     currentKeyIncrement = 1;
                     continue;
@@ -269,8 +269,8 @@ library Lib_MerkleTrie {
                 bytes memory path = _getNodePath(currentNode);
                 uint8 prefix = uint8(path[0]);
                 uint8 offset = 2 - prefix % 2;
-                bytes memory pathRemainder = Lib_BytesUtils.slice(path, offset);
-                bytes memory keyRemainder = Lib_BytesUtils.slice(key, currentKeyIndex);
+                bytes memory pathRemainder = Lib_BytesUtilsGeorge.slice(path, offset);
+                bytes memory keyRemainder = Lib_BytesUtilsGeorge.slice(key, currentKeyIndex);
                 uint256 sharedNibbleLength = _getSharedNibbleLength(pathRemainder, keyRemainder);
 
                 if (prefix == PREFIX_LEAF_EVEN || prefix == PREFIX_LEAF_ODD) {
@@ -310,7 +310,7 @@ library Lib_MerkleTrie {
 
         // If our node ID is NULL, then we're at a dead end.
         bool isFinalNode = currentNodeID == bytes32(RLP_NULL);
-        return (_proof, pathLength, Lib_BytesUtils.slice(key, currentKeyIndex), isFinalNode);
+        return (_proof, pathLength, Lib_BytesUtilsGeorge.slice(key, currentKeyIndex), isFinalNode);
     }
 
     /**
@@ -367,7 +367,7 @@ library Lib_MerkleTrie {
             if (
                 _getSharedNibbleLength(
                     _getNodeKey(lastNode),
-                    Lib_BytesUtils.slice(Lib_BytesUtils.toNibbles(_key), l)
+                    Lib_BytesUtilsGeorge.slice(Lib_BytesUtilsGeorge.toNibbles(_key), l)
                 ) == _getNodeKey(lastNode).length
                 && keyRemainder.length == 0
             ) {
@@ -394,7 +394,7 @@ library Lib_MerkleTrie {
                 // Create a new leaf node, slicing our remainder since the first byte points
                 // to our branch node.
                 newNodes[totalNewNodes] =
-                    _makeLeafNode(Lib_BytesUtils.slice(keyRemainder, 1), _value);
+                    _makeLeafNode(Lib_BytesUtilsGeorge.slice(keyRemainder, 1), _value);
                 totalNewNodes += 1;
             }
         } else {
@@ -405,13 +405,13 @@ library Lib_MerkleTrie {
             if (sharedNibbleLength != 0) {
                 // We've got some shared nibbles between the last node and our key remainder.
                 // We'll need to insert an extension node that covers these shared nibbles.
-                bytes memory nextNodeKey = Lib_BytesUtils.slice(lastNodeKey, 0, sharedNibbleLength);
+                bytes memory nextNodeKey = Lib_BytesUtilsGeorge.slice(lastNodeKey, 0, sharedNibbleLength);
                 newNodes[totalNewNodes] = _makeExtensionNode(nextNodeKey, _getNodeHash(_value), true);
                 totalNewNodes += 1;
 
                 // Cut down the keys since we've just covered these shared nibbles.
-                lastNodeKey = Lib_BytesUtils.slice(lastNodeKey, sharedNibbleLength);
-                keyRemainder = Lib_BytesUtils.slice(keyRemainder, sharedNibbleLength);
+                lastNodeKey = Lib_BytesUtilsGeorge.slice(lastNodeKey, sharedNibbleLength);
+                keyRemainder = Lib_BytesUtilsGeorge.slice(keyRemainder, sharedNibbleLength);
             }
 
             // Create an empty branch to fill in.
@@ -427,7 +427,7 @@ library Lib_MerkleTrie {
                 // We're going to modify some index of our branch.
                 uint8 branchKey = uint8(lastNodeKey[0]);
                 // Move on to the next nibble.
-                lastNodeKey = Lib_BytesUtils.slice(lastNodeKey, 1);
+                lastNodeKey = Lib_BytesUtilsGeorge.slice(lastNodeKey, 1);
 
                 if (lastNodeType == NodeType.LeafNode) {
                     // We're dealing with a leaf node.
@@ -468,7 +468,7 @@ library Lib_MerkleTrie {
                 // We've got some key remainder to work with.
                 // We'll be inserting a leaf node into the trie.
                 // First, move on to the next nibble.
-                keyRemainder = Lib_BytesUtils.slice(keyRemainder, 1);
+                keyRemainder = Lib_BytesUtilsGeorge.slice(keyRemainder, 1);
                 // Push the branch into the list of new nodes.
                 newNodes[totalNewNodes] = newBranch;
                 totalNewNodes += 1;
@@ -498,7 +498,7 @@ library Lib_MerkleTrie {
             bytes32 _updatedRoot
         )
     {
-        bytes memory key = Lib_BytesUtils.toNibbles(_key);
+        bytes memory key = Lib_BytesUtilsGeorge.toNibbles(_key);
 
         // Some variables to keep track of during iteration.
         TrieNode memory currentNode;
@@ -515,11 +515,11 @@ library Lib_MerkleTrie {
                 // Leaf nodes are already correctly encoded.
                 // Shift the key over to account for the nodes key.
                 bytes memory nodeKey = _getNodeKey(currentNode);
-                key = Lib_BytesUtils.slice(key, 0, key.length - nodeKey.length);
+                key = Lib_BytesUtilsGeorge.slice(key, 0, key.length - nodeKey.length);
             } else if (currentNodeType == NodeType.ExtensionNode) {
                 // Shift the key over to account for the nodes key.
                 bytes memory nodeKey = _getNodeKey(currentNode);
-                key = Lib_BytesUtils.slice(key, 0, key.length - nodeKey.length);
+                key = Lib_BytesUtilsGeorge.slice(key, 0, key.length - nodeKey.length);
 
                 // If this node is the last element in the path, it'll be correctly encoded
                 // and we can skip this part.
@@ -533,7 +533,7 @@ library Lib_MerkleTrie {
                 if (previousNodeHash.length > 0) {
                     // Re-encode the node based on the previous node.
                     uint8 branchKey = uint8(key[key.length - 1]);
-                    key = Lib_BytesUtils.slice(key, 0, key.length - 1);
+                    key = Lib_BytesUtilsGeorge.slice(key, 0, key.length - 1);
                     currentNode = _editBranchIndex(currentNode, branchKey, previousNodeHash);
                 }
             }
@@ -560,14 +560,14 @@ library Lib_MerkleTrie {
             TrieNode[] memory _parsed
         )
     {
-        Lib_RLPReader.RLPItem[] memory nodes = Lib_RLPReader.readList(_proof);
+        Lib_RLPReaderGeorge.RLPItem[] memory nodes = Lib_RLPReaderGeorge.readList(_proof);
         TrieNode[] memory proof = new TrieNode[](nodes.length);
 
         for (uint256 i = 0; i < nodes.length; i++) {
-            bytes memory encoded = Lib_RLPReader.readBytes(nodes[i]);
+            bytes memory encoded = Lib_RLPReaderGeorge.readBytes(nodes[i]);
             proof[i] = TrieNode({
                 encoded: encoded,
-                decoded: Lib_RLPReader.readList(encoded)
+                decoded: Lib_RLPReaderGeorge.readList(encoded)
             });
         }
 
@@ -582,7 +582,7 @@ library Lib_MerkleTrie {
      * @return _nodeID ID for the node, depending on the size of its contents.
      */
     function _getNodeID(
-        Lib_RLPReader.RLPItem memory _node
+        Lib_RLPReaderGeorge.RLPItem memory _node
     )
         private
         pure
@@ -595,13 +595,13 @@ library Lib_MerkleTrie {
 
         if (_node.length < 32) {
             // Nodes smaller than 32 bytes are RLP encoded.
-            nodeID = Lib_RLPReader.readRawBytes(_node);
+            nodeID = Lib_RLPReaderGeorge.readRawBytes(_node);
         } else {
             // Nodes 32 bytes or larger are hashed.
-            nodeID = Lib_RLPReader.readBytes(_node);
+            nodeID = Lib_RLPReaderGeorge.readBytes(_node);
         }
 
-        return (Lib_BytesUtils.toBytes32(nodeID), _node.length);
+        return (Lib_BytesUtilsGeorge.toBytes32(nodeID), _node.length);
     }
 
     /**
@@ -618,7 +618,7 @@ library Lib_MerkleTrie {
             bytes memory _path
         )
     {
-        return Lib_BytesUtils.toNibbles(Lib_RLPReader.readBytes(_node.decoded[0]));
+        return Lib_BytesUtilsGeorge.toNibbles(Lib_RLPReaderGeorge.readBytes(_node.decoded[0]));
     }
 
     /**
@@ -653,19 +653,19 @@ library Lib_MerkleTrie {
             bytes memory _value
         )
     {
-        Lib_RLPReader.RLPItem memory _in = _node.decoded[_node.decoded.length - 1];
+        Lib_RLPReaderGeorge.RLPItem memory _in = _node.decoded[_node.decoded.length - 1];
         // this is bytes only if the length is 32
         (
             uint256 itemOffset,
             uint256 itemLength,
-            Lib_RLPReader.RLPItemType itemType
-        ) = Lib_RLPReader._decodeLength(_in);
+            Lib_RLPReaderGeorge.RLPItemType itemType
+        ) = Lib_RLPReaderGeorge._decodeLength(_in);
 
-        if (itemType == Lib_RLPReader.RLPItemType.DATA_ITEM) {
-            return Lib_RLPReader._copy(_in.ptr, itemOffset, itemLength);
-        } else if (itemType == Lib_RLPReader.RLPItemType.LIST_ITEM) {
+        if (itemType == Lib_RLPReaderGeorge.RLPItemType.DATA_ITEM) {
+            return Lib_RLPReaderGeorge._copy(_in.ptr, itemOffset, itemLength);
+        } else if (itemType == Lib_RLPReaderGeorge.RLPItemType.LIST_ITEM) {
             require(_in.length < 32, "bad _getNodeValue list");
-            return Lib_RLPReader._copy(_in.ptr, 0, _in.length);
+            return Lib_RLPReaderGeorge._copy(_in.ptr, 0, _in.length);
         }
         revert("bad _getNodeValue");
     }
@@ -763,11 +763,11 @@ library Lib_MerkleTrie {
             TrieNode memory _node
         )
     {
-        bytes memory encoded = Lib_RLPWriter.writeList(_raw);
+        bytes memory encoded = Lib_RLPWriterGeorge.writeList(_raw);
 
         return TrieNode({
             encoded: encoded,
-            decoded: Lib_RLPReader.readList(encoded)
+            decoded: Lib_RLPReaderGeorge.readList(encoded)
         });
     }
 
@@ -777,7 +777,7 @@ library Lib_MerkleTrie {
      * @return _node Node as a TrieNode struct.
      */
     function _makeNode(
-        Lib_RLPReader.RLPItem[] memory _items
+        Lib_RLPReaderGeorge.RLPItem[] memory _items
     )
         private
         pure
@@ -787,7 +787,7 @@ library Lib_MerkleTrie {
     {
         bytes[] memory raw = new bytes[](_items.length);
         for (uint256 i = 0; i < _items.length; i++) {
-            raw[i] = Lib_RLPReader.readRawBytes(_items[i]);
+            raw[i] = Lib_RLPReaderGeorge.readRawBytes(_items[i]);
         }
         return _makeNode(raw);
     }
@@ -811,9 +811,9 @@ library Lib_MerkleTrie {
     {
         bytes[] memory raw = new bytes[](2);
         bytes memory key = _addHexPrefix(_key, false);
-        raw[0] = Lib_RLPWriter.writeBytes(Lib_BytesUtils.fromNibbles(key));
+        raw[0] = Lib_RLPWriterGeorge.writeBytes(Lib_BytesUtilsGeorge.fromNibbles(key));
         if (_value.length >= 32 || isBytes) {
-            raw[1] = Lib_RLPWriter.writeBytes(_value);
+            raw[1] = Lib_RLPWriterGeorge.writeBytes(_value);
         } else {
             raw[1] = _value;
         }
@@ -838,11 +838,11 @@ library Lib_MerkleTrie {
     {
         bytes[] memory raw = new bytes[](2);
         bytes memory key = _addHexPrefix(_getNodeKey(_node), false);
-        raw[0] = Lib_RLPWriter.writeBytes(Lib_BytesUtils.fromNibbles(key));
+        raw[0] = Lib_RLPWriterGeorge.writeBytes(Lib_BytesUtilsGeorge.fromNibbles(key));
         if (_value.length < 32) {
             raw[1] = _value;
         } else {
-            raw[1] = Lib_RLPWriter.writeBytes(_value);
+            raw[1] = Lib_RLPWriterGeorge.writeBytes(_value);
         }
         return _makeNode(raw);
     }
@@ -868,8 +868,8 @@ library Lib_MerkleTrie {
     {
         bytes[] memory raw = new bytes[](2);
         bytes memory key = _addHexPrefix(_key, true);
-        raw[0] = Lib_RLPWriter.writeBytes(Lib_BytesUtils.fromNibbles(key));
-        raw[1] = Lib_RLPWriter.writeBytes(_value);
+        raw[0] = Lib_RLPWriterGeorge.writeBytes(Lib_BytesUtilsGeorge.fromNibbles(key));
+        raw[1] = Lib_RLPWriterGeorge.writeBytes(_value);
         return _makeNode(raw);
     }
 
@@ -907,8 +907,8 @@ library Lib_MerkleTrie {
             TrieNode memory _updatedNode
         )
     {
-        bytes memory encoded = Lib_RLPWriter.writeBytes(_value);
-        _branch.decoded[_branch.decoded.length - 1] = Lib_RLPReader.toRLPItem(encoded);
+        bytes memory encoded = Lib_RLPWriterGeorge.writeBytes(_value);
+        _branch.decoded[_branch.decoded.length - 1] = Lib_RLPReaderGeorge.toRLPItem(encoded);
         return _makeNode(_branch.decoded);
     }
 
@@ -930,8 +930,8 @@ library Lib_MerkleTrie {
             TrieNode memory _updatedNode
         )
     {
-        bytes memory encoded = _value.length < 32 ? _value : Lib_RLPWriter.writeBytes(_value);
-        _branch.decoded[_index] = Lib_RLPReader.toRLPItem(encoded);
+        bytes memory encoded = _value.length < 32 ? _value : Lib_RLPWriterGeorge.writeBytes(_value);
+        _branch.decoded[_index] = Lib_RLPReaderGeorge.toRLPItem(encoded);
         return _makeNode(_branch.decoded);
     }
 
@@ -973,9 +973,9 @@ library Lib_MerkleTrie {
         )
     {
         if (uint8(_path[0]) % 2 == 0) {
-            return Lib_BytesUtils.slice(_path, 2);
+            return Lib_BytesUtilsGeorge.slice(_path, 2);
         } else {
-            return Lib_BytesUtils.slice(_path, 1);
+            return Lib_BytesUtilsGeorge.slice(_path, 1);
         }
     }
 

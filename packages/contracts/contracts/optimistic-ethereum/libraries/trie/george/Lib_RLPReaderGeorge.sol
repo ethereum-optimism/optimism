@@ -2,10 +2,10 @@
 pragma solidity >0.5.0 <0.8.0;
 
 /**
- * @title Lib_RLPReader
+ * @title Lib_RLPReaderGeorge
  * @dev Adapted from "RLPReader" by Hamdi Allam (hamdi.allam97@gmail.com).
  */
-library Lib_RLPReader {
+library Lib_RLPReaderGeorge {
 
     /*************
      * Constants *
@@ -355,7 +355,7 @@ library Lib_RLPReader {
 
         require(
             out == 0 || out == 1,
-            "Lib_RLPReader: Invalid RLP boolean value, must be 0 or 1"
+            "Lib_RLPReaderGeorge: Invalid RLP boolean value, must be 0 or 1"
         );
 
         return out != 0;

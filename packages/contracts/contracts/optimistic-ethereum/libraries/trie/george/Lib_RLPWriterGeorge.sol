@@ -3,10 +3,10 @@ pragma solidity >0.5.0 <0.8.0;
 pragma experimental ABIEncoderV2;
 
 /**
- * @title Lib_RLPWriter
+ * @title Lib_RLPWriterGeorge
  * @author Bakaoh (with modifications)
  */
-library Lib_RLPWriter {
+library Lib_RLPWriterGeorge {
 
     /**********************
      * Internal Functions *

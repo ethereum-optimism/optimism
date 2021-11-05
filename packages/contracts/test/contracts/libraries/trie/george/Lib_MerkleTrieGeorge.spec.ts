@@ -8,17 +8,17 @@ import { fromHexString, toHexString } from '@eth-optimism/core-utils'
 import { Trie } from 'merkle-patricia-tree/dist/baseTrie'
 
 /* Internal Imports */
-import { TrieTestGenerator } from '../../../helpers'
-import * as officialTestJson from '../../../data/json/libraries/trie/trietest.json'
-import * as officialTestAnyOrderJson from '../../../data/json/libraries/trie/trieanyorder.json'
+import { TrieTestGenerator } from '../../../../helpers'
+import * as officialTestJson from '../../../../data/json/libraries/trie/trietest.json'
+import * as officialTestAnyOrderJson from '../../../../data/json/libraries/trie/trieanyorder.json'
 
 const NODE_COUNTS = [1, 2, 32, 128]
 
-describe('Lib_MerkleTrie', () => {
-  let Lib_MerkleTrie: Contract
+describe('Lib_MerkleTrieGeorge', () => {
+  let Lib_MerkleTrieGeorge: Contract
   before(async () => {
-    Lib_MerkleTrie = await (
-      await ethers.getContractFactory('TestLib_MerkleTrie')
+    Lib_MerkleTrieGeorge = await (
+      await ethers.getContractFactory('TestLib_MerkleTrieGeorge')
     ).deploy()
   })
 
@@ -55,7 +55,7 @@ describe('Lib_MerkleTrie', () => {
           const root = trie.root
           await trie.put(key, val)
 
-          const out = await Lib_MerkleTrie.update(
+          const out = await Lib_MerkleTrieGeorge.update(
             toHexString(key),
             toHexString(val),
             toHexString(rlp.encode(proof)),
@@ -102,7 +102,7 @@ describe('Lib_MerkleTrie', () => {
           const root = trie.root
           await trie.put(key, val)
 
-          const out = await Lib_MerkleTrie.update(
+          const out = await Lib_MerkleTrieGeorge.update(
             toHexString(key),
             toHexString(val),
             toHexString(rlp.encode(proof)),
@@ -140,7 +140,7 @@ describe('Lib_MerkleTrie', () => {
             const test = await generator.makeInclusionProofTest(i)
 
             expect(
-              await Lib_MerkleTrie.verifyInclusionProof(
+              await Lib_MerkleTrieGeorge.verifyInclusionProof(
                 test.key,
                 test.val,
                 test.proof,
@@ -179,7 +179,7 @@ describe('Lib_MerkleTrie', () => {
             )
 
             expect(
-              await Lib_MerkleTrie.update(
+              await Lib_MerkleTrieGeorge.update(
                 test.key,
                 test.val,
                 test.proof,
@@ -199,7 +199,7 @@ describe('Lib_MerkleTrie', () => {
       await trie.put(fromHexString(key), fromHexString(val))
 
       expect(
-        await Lib_MerkleTrie.update(
+        await Lib_MerkleTrieGeorge.update(
           key,
           val,
           '0x', // Doesn't require a proof
@@ -231,7 +231,7 @@ describe('Lib_MerkleTrie', () => {
           it(`should correctly get the value of node #${i}`, async () => {
             const test = await generator.makeInclusionProofTest(i)
             expect(
-              await Lib_MerkleTrie.get(test.key, test.proof, test.root)
+              await Lib_MerkleTrieGeorge.get(test.key, test.proof, test.root)
             ).to.deep.equal([true, test.val])
           })
           if (i > 3) {
@@ -239,7 +239,7 @@ describe('Lib_MerkleTrie', () => {
               const test = await generator.makeInclusionProofTest(i - 1)
               const test2 = await generator.makeInclusionProofTest(i - 2)
               await expect(
-                Lib_MerkleTrie.get(test2.key, test.proof, test.root)
+                Lib_MerkleTrieGeorge.get(test2.key, test.proof, test.root)
               ).to.be.revertedWith('Invalid large internal hash')
             })
             it(`should revert when the first proof element is not the root node`, async () => {
@@ -248,7 +248,7 @@ describe('Lib_MerkleTrie', () => {
               decodedProof[0].write('abcd', 8) // change the 1st element (root) of the proof
               const badProof = rlp.encode(decodedProof as rlp.Input)
               await expect(
-                Lib_MerkleTrie.get(test.key, badProof, test.root)
+                Lib_MerkleTrieGeorge.get(test.key, badProof, test.root)
               ).to.be.revertedWith('Invalid root hash')
             })
             it(`should be false when calling get on an incorrect key`, async () => {
@@ -256,7 +256,7 @@ describe('Lib_MerkleTrie', () => {
               let newKey = test.key.slice(0, test.key.length - 8)
               newKey = newKey.concat('88888888')
               expect(
-                await Lib_MerkleTrie.get(newKey, test.proof, test.root)
+                await Lib_MerkleTrieGeorge.get(newKey, test.proof, test.root)
               ).to.deep.equal([false, '0x'])
             })
           }
@@ -283,7 +283,7 @@ describe('Lib_MerkleTrie', () => {
       test.root = ethers.utils.keccak256(toHexString(decodedProof[0]))
       const badProof = rlp.encode(decodedProof as rlp.Input)
       await expect(
-        Lib_MerkleTrie.get(test.key, badProof, test.root)
+        Lib_MerkleTrieGeorge.get(test.key, badProof, test.root)
       ).to.be.revertedWith('Received a node with an unknown prefix')
     })
   })

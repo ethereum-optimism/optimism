@@ -2,9 +2,9 @@
 pragma solidity >0.5.0 <0.8.0;
 
 /**
- * @title Lib_BytesUtils
+ * @title Lib_BytesUtilsGeorge
  */
-library Lib_BytesUtils {
+library Lib_BytesUtilsGeorge {
 
     /**********************
      * Internal Functions *
