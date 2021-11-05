@@ -106,7 +106,7 @@ task('whitelist')
     if (args.address !== undefined) {
       addresses.push(args.address)
     } else {
-      const addressFile = fs.readFileSync(args.adddressPath, 'utf8')
+      const addressFile = fs.readFileSync(args.addressPath, 'utf8')
       for (const line of addressFile.split('\n')) {
         if (line !== '') {
           addresses.push(line)
