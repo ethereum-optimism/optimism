@@ -89,7 +89,7 @@ const getChainId = async (
   provider: ethers.providers.JsonRpcProvider
 ): Promise<number> => {
   const response = await provider.send('eth_chainId', [])
-  return ethers.BigNumber.from(response.result).toNumber()
+  return ethers.BigNumber.from(response).toNumber()
 }
 
 export const loadSurgeryData = async (
@@ -142,9 +142,10 @@ export const loadSurgeryData = async (
   console.log('Loading genesis file...')
   const genesis: GenesisFile = await readGenesisFile(configs.genesisFilePath)
   if (genesis.config.chainId !== l2ChainId) {
-    throw new Error(
-      `Genesis File at ${configs.genesisFilePath} has chain id mismatch with remote L2 node` +
-        ` got ${genesis.config.chainId} locally and ${l2ChainId} remote`
+    // Don't throw here because we might need to do a staging environment with a different chain ID
+    console.log(
+      `WARNING: Genesis File at ${configs.genesisFilePath} has chain id mismatch with remote L2 node` +
+        ` got ${genesis.config.chainId} locally and ${l2ChainId} remotely`
     )
   }
   const genesisDump: StateDump = []
