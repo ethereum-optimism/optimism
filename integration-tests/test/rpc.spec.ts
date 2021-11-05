@@ -20,6 +20,8 @@ import {
   TransactionRequest,
 } from '@ethersproject/providers'
 import { solidity } from 'ethereum-waffle'
+import simpleStorageJson from '../artifacts/contracts/SimpleStorage.sol/SimpleStorage.json'
+
 chai.use(chaiAsPromised)
 chai.use(solidity)
 
@@ -400,6 +402,26 @@ describe('Basic RPC tests', () => {
     it('should fail for a reverting deploy transaction', async () => {
       await expect(provider.send('eth_estimateGas', [revertingDeployTx])).to.be
         .reverted
+    })
+  })
+
+  describe('debug_traceTransaction', () => {
+    it('should match debug_traceBlock', async () => {
+      const storage = new ContractFactory(
+        simpleStorageJson.abi,
+        simpleStorageJson.bytecode,
+        env.l2Wallet
+      )
+      const tx = (await storage.deploy()).deployTransaction
+      const receipt = await tx.wait()
+
+      const txTrace = await provider.send('debug_traceTransaction', [
+        receipt.transactionHash,
+      ])
+      const blockTrace = await provider.send('debug_traceBlockByHash', [
+        receipt.blockHash,
+      ])
+      expect(txTrace).to.deep.equal(blockTrace[0].result)
     })
   })
 
