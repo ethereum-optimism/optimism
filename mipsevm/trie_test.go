@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"io/ioutil"
+	"reflect"
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -20,6 +21,21 @@ func TestTrie(t *testing.T) {
 	dat := TrieToJson(root, -1)
 	fmt.Println("serialized length is", len(dat))
 	ioutil.WriteFile("/tmp/cannon/ramtrie.json", dat, 0644)
+
+	// load the trie
+	oldPreLen := len(Preimages)
+	Preimages = make(map[common.Hash][]byte)
+	dat, err := ioutil.ReadFile("/tmp/cannon/ramtrie.json")
+	check(err)
+	newroot, _ := TrieFromJson(dat)
+	if root != newroot {
+		t.Fatal("loaded root mismatch")
+	}
+	if len(Preimages) != oldPreLen {
+		t.Fatal("preimage length mismatch")
+	}
+
+	// TODO: load memory when ready
 }
 
 func printRoot(ram map[uint32](uint32)) {
@@ -33,6 +49,19 @@ func printTrie(ram map[uint32](uint32)) {
 	ParseNode(root, 0, func(t common.Hash) []byte {
 		return Preimages[t]
 	})
+}
+
+func TestToFromTrie(t *testing.T) {
+	ram := make(map[uint32](uint32))
+	ram[0] = 1
+	ram[4] = 2
+
+	trie := RamToTrie(ram)
+	newram := RamFromTrie(trie)
+
+	if !reflect.DeepEqual(ram, newram) {
+		t.Fatal("ram to/from mismatch")
+	}
 }
 
 func TestBuggedTrie(t *testing.T) {

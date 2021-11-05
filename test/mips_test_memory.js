@@ -67,9 +67,16 @@ describe("MIPSMemory contract", function () {
     for (var i = 0; i < 100; i++) {
       const keys = Object.keys(kv)
       const choice = Math.random()
-      if (choice < 0.5 || keys.length == 0) {
+      if (choice < 0.3 || keys.length == 0) {
         // write new key
         const key = randint(0x100)*4
+        const value = randint(0x100000000)
+        console.log("writing", key, value)
+        root = await write(mm, root, key, value)
+        kv[key] = value
+      } else if (choice < 0.5) {
+        // write new high key
+        const key = randint(0x100)*4 + 0x10000000
         const value = randint(0x100000000)
         console.log("writing", key, value)
         root = await write(mm, root, key, value)

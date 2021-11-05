@@ -29,6 +29,14 @@ func TrieToJson(root common.Hash, step int) []byte {
 	return b
 }
 
+func TrieFromJson(dat []byte) (common.Hash, int) {
+	var j Jtree
+	err := json.Unmarshal(dat, &j)
+	check(err)
+	Preimages = j.Preimages
+	return j.Root, j.Step
+}
+
 // TODO: this is copied from the oracle
 func (kw PreimageKeyValueWriter) Put(key []byte, value []byte) error {
 	hash := crypto.Keccak256Hash(value)
@@ -78,6 +86,12 @@ func ParseNode(node common.Hash, depth int, callback func(common.Hash) []byte) {
 	elems, _, err := rlp.SplitList(buf)
 	check(err)
 	ParseNodeInternal(elems, depth, callback)
+}
+
+func RamFromTrie(root common.Hash) map[uint32](uint32) {
+	ram := make(map[uint32](uint32))
+	// TODO: write this
+	return ram
 }
 
 func RamToTrie(ram map[uint32](uint32)) common.Hash {

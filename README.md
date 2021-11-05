@@ -22,7 +22,7 @@ mipsevm -- A MIPS runtime in the EVM (see also contracts/)
 
 ## TODO
 * Support fast generation of a specific state from the checkpoints
-** Load into Unicorn/evm from the trie
+  * Load into Unicorn/evm from the trie
 * Write binary search "responder"
 * Deploy to cheapETH!
 
