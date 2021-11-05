@@ -9,6 +9,9 @@ import { Lib_MerkleTrieGeorge } from "../../../optimistic-ethereum/libraries/tri
  */
 contract TestLib_MerkleTrieGeorge {
 
+    // emitting this is how we get the returned root for testing
+    event GeorgeHash(bytes32 indexed hash);
+
     function update(
         bytes memory _key,
         bytes memory _value,
@@ -19,11 +22,13 @@ contract TestLib_MerkleTrieGeorge {
             bytes32
         )
     {
-        return Lib_MerkleTrieGeorge.update(
+        bytes32 out = Lib_MerkleTrieGeorge.update(
             _key,
             _value,
             _root
         );
+        emit GeorgeHash(out);
+        return out;
     }
 
     function get(
@@ -52,9 +57,11 @@ contract TestLib_MerkleTrieGeorge {
             bytes32
         )
     {
-        return Lib_MerkleTrieGeorge.getSingleNodeRootHash(
+        bytes32 out = Lib_MerkleTrieGeorge.getSingleNodeRootHash(
             _key,
             _value
         );
+        emit GeorgeHash(out);
+        return out;
     }
 }

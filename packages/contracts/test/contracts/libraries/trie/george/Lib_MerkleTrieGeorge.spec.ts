@@ -1,4 +1,4 @@
-import { expect } from '../../../setup'
+import { expect } from '../../../../setup'
 
 /* External Imports */
 import * as rlp from 'rlp'
@@ -8,14 +8,34 @@ import { fromHexString, toHexString } from '@eth-optimism/core-utils'
 import { Trie } from 'merkle-patricia-tree/dist/baseTrie'
 
 /* Internal Imports */
-import { TrieTestGenerator } from '../../../../helpers'
+import { TrieNode, TrieTestGenerator } from '../../../../helpers'
 import * as officialTestJson from '../../../../data/json/libraries/trie/trietest.json'
 import * as officialTestAnyOrderJson from '../../../../data/json/libraries/trie/trieanyorder.json'
 
-const NODE_COUNTS = [1, 2, 32, 128]
+const NODE_COUNTS = [1, 2, 32]
+// The original also tests 128 but this makes the test timeout because we need to populate the trie.
+
+const EMPTY_MERKLE_ROOT = ethers.utils.keccak256('0x80')
 
 describe('Lib_MerkleTrieGeorge', () => {
   let Lib_MerkleTrieGeorge: Contract
+
+  const populateTrie = async (nodes: TrieNode[]): Promise<string> => {
+    let root = EMPTY_MERKLE_ROOT
+    for (const node of nodes) {
+      const tx = await Lib_MerkleTrieGeorge.update(node.key, node.val, root)
+      const receipt = await tx.wait()
+      // TODO very ugly & brittle - how to do this properly?
+      const events = receipt.events?.filter((x) => {
+        return x.event === 'GeorgeHash'
+      })
+      root = events[0].args[0]
+    }
+    return root
+  }
+
+  // IMPORTANT: because of how the storage is implemented (hash -> encoding/value), a single instance
+  // is effectively able to hold arbitrarily many Merkle trees
   before(async () => {
     Lib_MerkleTrieGeorge = await (
       await ethers.getContractFactory('TestLib_MerkleTrieGeorge')
@@ -51,18 +71,18 @@ describe('Lib_MerkleTrieGeorge', () => {
             )
           }
 
-          const proof = await Trie.createProof(trie, key)
           const root = trie.root
           await trie.put(key, val)
 
-          const out = await Lib_MerkleTrieGeorge.update(
-            toHexString(key),
-            toHexString(val),
-            toHexString(rlp.encode(proof)),
-            root
+          expect(
+            await Lib_MerkleTrieGeorge.update(
+              toHexString(key),
+              toHexString(val),
+              root
+            )
           )
-
-          expect(out).to.equal(toHexString(trie.root))
+            .to.emit(Lib_MerkleTrieGeorge, 'GeorgeHash(bytes32)')
+            .withArgs(toHexString(trie.root))
         }
 
         expect(toHexString(trie.root)).to.equal(expected)
@@ -98,18 +118,18 @@ describe('Lib_MerkleTrieGeorge', () => {
             )
           }
 
-          const proof = await Trie.createProof(trie, key)
           const root = trie.root
           await trie.put(key, val)
 
-          const out = await Lib_MerkleTrieGeorge.update(
-            toHexString(key),
-            toHexString(val),
-            toHexString(rlp.encode(proof)),
-            root
+          expect(
+            await Lib_MerkleTrieGeorge.update(
+              toHexString(key),
+              toHexString(val),
+              root
+            )
           )
-
-          expect(out).to.equal(toHexString(trie.root))
+            .to.emit(Lib_MerkleTrieGeorge, 'GeorgeHash(bytes32)')
+            .withArgs(toHexString(trie.root))
         }
 
         expect(toHexString(trie.root)).to.equal(expected)
@@ -117,41 +137,8 @@ describe('Lib_MerkleTrieGeorge', () => {
     }
   })
 
-  describe('verifyInclusionProof', () => {
-    for (const nodeCount of NODE_COUNTS) {
-      describe(`inside a trie with ${nodeCount} nodes and keys/vals of size ${nodeCount} bytes`, () => {
-        let generator: TrieTestGenerator
-        before(async () => {
-          generator = await TrieTestGenerator.fromRandom({
-            seed: `seed.incluson.${nodeCount}`,
-            nodeCount,
-            secure: false,
-            keySize: nodeCount,
-            valSize: nodeCount,
-          })
-        })
-
-        for (
-          let i = 0;
-          i < nodeCount;
-          i += nodeCount / (nodeCount > 8 ? 8 : 1)
-        ) {
-          it(`should correctly prove inclusion for node #${i}`, async () => {
-            const test = await generator.makeInclusionProofTest(i)
-
-            expect(
-              await Lib_MerkleTrieGeorge.verifyInclusionProof(
-                test.key,
-                test.val,
-                test.proof,
-                test.root
-              )
-            ).to.equal(true)
-          })
-        }
-      })
-    }
-  })
+  // Don't test `verifyInclusionProof` and `inside a trie with one node` - since George's
+  // implementation does not support passing proofs directly.
 
   describe('update', () => {
     for (const nodeCount of NODE_COUNTS) {
@@ -165,6 +152,7 @@ describe('Lib_MerkleTrieGeorge', () => {
             keySize: nodeCount,
             valSize: nodeCount,
           })
+          await populateTrie(generator._nodes)
         })
 
         for (
@@ -177,15 +165,11 @@ describe('Lib_MerkleTrieGeorge', () => {
               i,
               '0x1234123412341234'
             )
-
             expect(
-              await Lib_MerkleTrieGeorge.update(
-                test.key,
-                test.val,
-                test.proof,
-                test.root
-              )
-            ).to.equal(test.newRoot)
+              await Lib_MerkleTrieGeorge.update(test.key, test.val, test.root)
+            )
+              .to.emit(Lib_MerkleTrieGeorge, 'GeorgeHash(bytes32)')
+              .withArgs(test.newRoot)
           })
         }
       })
@@ -194,24 +178,17 @@ describe('Lib_MerkleTrieGeorge', () => {
     it('should return the single-node root hash if the trie was previously empty', async () => {
       const key = '0x1234'
       const val = '0x5678'
-
       const trie = new Trie()
       await trie.put(fromHexString(key), fromHexString(val))
-
-      expect(
-        await Lib_MerkleTrieGeorge.update(
-          key,
-          val,
-          '0x', // Doesn't require a proof
-          ethers.utils.keccak256('0x80') // Empty Merkle trie root hash
-        )
-      ).to.equal(toHexString(trie.root))
+      expect(await Lib_MerkleTrieGeorge.update(key, val, EMPTY_MERKLE_ROOT))
+        .to.emit(Lib_MerkleTrieGeorge, 'GeorgeHash(bytes32)')
+        .withArgs(toHexString(trie.root))
     })
   })
 
   describe('get', () => {
     for (const nodeCount of NODE_COUNTS) {
-      describe(`inside a trie with ${nodeCount} nodes and keys/vals of size ${nodeCount} bytes`, () => {
+      describe(`inside a trie with ${nodeCount} nodes and keys/vals of size ${nodeCount} bytes`, async () => {
         let generator: TrieTestGenerator
         before(async () => {
           generator = await TrieTestGenerator.fromRandom({
@@ -221,6 +198,7 @@ describe('Lib_MerkleTrieGeorge', () => {
             keySize: nodeCount,
             valSize: nodeCount,
           })
+          await populateTrie(generator._nodes)
         })
 
         for (
@@ -231,60 +209,21 @@ describe('Lib_MerkleTrieGeorge', () => {
           it(`should correctly get the value of node #${i}`, async () => {
             const test = await generator.makeInclusionProofTest(i)
             expect(
-              await Lib_MerkleTrieGeorge.get(test.key, test.proof, test.root)
+              await Lib_MerkleTrieGeorge.get(test.key, test.root)
             ).to.deep.equal([true, test.val])
           })
           if (i > 3) {
-            it(`should revert when the proof node does not pass the root check`, async () => {
-              const test = await generator.makeInclusionProofTest(i - 1)
-              const test2 = await generator.makeInclusionProofTest(i - 2)
-              await expect(
-                Lib_MerkleTrieGeorge.get(test2.key, test.proof, test.root)
-              ).to.be.revertedWith('Invalid large internal hash')
-            })
-            it(`should revert when the first proof element is not the root node`, async () => {
-              const test = await generator.makeInclusionProofTest(0)
-              const decodedProof = rlp.decode(test.proof)
-              decodedProof[0].write('abcd', 8) // change the 1st element (root) of the proof
-              const badProof = rlp.encode(decodedProof as rlp.Input)
-              await expect(
-                Lib_MerkleTrieGeorge.get(test.key, badProof, test.root)
-              ).to.be.revertedWith('Invalid root hash')
-            })
             it(`should be false when calling get on an incorrect key`, async () => {
               const test = await generator.makeInclusionProofTest(i - 1)
               let newKey = test.key.slice(0, test.key.length - 8)
               newKey = newKey.concat('88888888')
               expect(
-                await Lib_MerkleTrieGeorge.get(newKey, test.proof, test.root)
+                await Lib_MerkleTrieGeorge.get(newKey, test.root)
               ).to.deep.equal([false, '0x'])
             })
           }
         }
       })
     }
-  })
-
-  describe(`inside a trie with one node`, () => {
-    let generator: TrieTestGenerator
-    const nodeCount = 1
-    before(async () => {
-      generator = await TrieTestGenerator.fromRandom({
-        seed: `seed.get.${nodeCount}`,
-        nodeCount,
-        secure: false,
-      })
-    })
-
-    it(`should revert on an incorrect proof node prefix`, async () => {
-      const test = await generator.makeInclusionProofTest(0)
-      const decodedProof = rlp.decode(test.proof)
-      decodedProof[0].write('a', 3) // change the prefix
-      test.root = ethers.utils.keccak256(toHexString(decodedProof[0]))
-      const badProof = rlp.encode(decodedProof as rlp.Input)
-      await expect(
-        Lib_MerkleTrieGeorge.get(test.key, badProof, test.root)
-      ).to.be.revertedWith('Received a node with an unknown prefix')
-    })
   })
 })
