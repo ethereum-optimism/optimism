@@ -2,6 +2,7 @@
 import { DeployFunction } from 'hardhat-deploy/dist/types'
 import { ethers } from 'ethers'
 import { hexStringEquals, awaitCondition } from '@eth-optimism/core-utils'
+import { defaultHardhatNetworkParams } from 'hardhat/internal/core/config/default-config'
 
 /* Imports: Internal */
 import { getContractDefinition } from '../src/contract-defs'
@@ -45,57 +46,51 @@ const deployFn: DeployFunction = async (hre) => {
   })
   const finalOwner = await ChugSplashDictator.finalOwner()
 
-  // Check if the hardhat runtime environment has the owner of the proxy. This will only
-  // happen in CI. If this is the case, we can skip directly to transferring ownership over to the
-  // ChugSplashDictator contract.
-  const hreSigners = await hre.ethers.getSigners()
-  const hreHasOwner = hreSigners.some((signer) => {
-    return hexStringEquals(signer.address, currentOwner)
-  })
+  const messengerSlotKey = await ChugSplashDictator.messengerSlotKey()
+  const messengerSlotVal = await ChugSplashDictator.messengerSlotVal()
+  const bridgeSlotKey = await ChugSplashDictator.bridgeSlotKey()
+  const bridgeSlotVal = await ChugSplashDictator.bridgeSlotVal()
 
-  if (hreHasOwner) {
-    // Hardhat has the owner loaded into it, we can skip directly to transferOwnership.
+  console.log(`
+    The ChugSplashDictator contract (glory to Arstotzka) has been deployed.
+
+    FOLLOW THESE INSTRUCTIONS CAREFULLY!
+
+    (1) Review the storage key/value pairs below and make sure they match the expected values:
+
+        ${messengerSlotKey}:   ${messengerSlotVal}
+        ${bridgeSlotKey}:   ${bridgeSlotVal}
+
+    (2) Review the CURRENT and FINAL proxy owners and verify that these are the expected values:
+
+        Current proxy owner: (${currentOwner})
+        Final proxy owner:   (${finalOwner})
+
+        [${
+          currentOwner === finalOwner
+            ? 'THESE ARE THE SAME ADDRESSES'
+            : 'THESE ARE >>>NOT<<< THE SAME ADDRESSES'
+        }]
+
+    (3) Transfer ownership of the L1ChugSplashProxy located at (${
+      Proxy__OVM_L1StandardBridge.address
+    })
+        to the ChugSplashDictator contract located at the following address:
+
+        TRANSFER OWNERSHIP TO THE FOLLOWING ADDRESS ONLY:
+        >>>>> (${ChugSplashDictator.address}) <<<<<
+
+    (4) Wait for the deploy process to continue.
+  `)
+
+  // Check if if we're on the hardhat chain ID. This will only happen in CI. If this is the case, we
+  // can skip directly to transferring ownership over to the ChugSplashDictator contract.
+  const { chainId } = await hre.ethers.provider.getNetwork()
+  if (chainId === defaultHardhatNetworkParams.chainId) {
     const owner = await hre.ethers.getSigner(currentOwner)
     await Proxy__OVM_L1StandardBridge.connect(owner).setOwner(
       ChugSplashDictator.address
     )
-  } else {
-    const messengerSlotKey = await ChugSplashDictator.messengerSlotKey()
-    const messengerSlotVal = await ChugSplashDictator.messengerSlotVal()
-    const bridgeSlotKey = await ChugSplashDictator.bridgeSlotKey()
-    const bridgeSlotVal = await ChugSplashDictator.bridgeSlotVal()
-
-    console.log(`
-      The ChugSplashDictator contract (glory to Arstotzka) has been deployed.
-
-      FOLLOW THESE INSTRUCTIONS CAREFULLY!
-
-      (1) Review the storage key/value pairs below and make sure they match the expected values:
-
-          ${messengerSlotKey}:   ${messengerSlotVal}
-          ${bridgeSlotKey}:   ${bridgeSlotVal}
-
-      (2) Review the CURRENT and FINAL proxy owners and verify that these are the expected values:
-
-          Current proxy owner: (${currentOwner})
-          Final proxy owner:   (${finalOwner})
-
-          [${
-            currentOwner === finalOwner
-              ? 'THESE ARE THE SAME ADDRESSES'
-              : 'THESE ARE >>>NOT<<< THE SAME ADDRESSES'
-          }]
-
-      (3) Transfer ownership of the L1ChugSplashProxy located at (${
-        Proxy__OVM_L1StandardBridge.address
-      })
-          to the ChugSplashDictator contract located at the following address:
-
-          TRANSFER OWNERSHIP TO THE FOLLOWING ADDRESS ONLY:
-          >>>>> (${ChugSplashDictator.address}) <<<<<
-
-      (4) Wait for the deploy process to continue.
-    `)
   }
 
   // Wait for ownership to be transferred to the AddressDictator contract.
