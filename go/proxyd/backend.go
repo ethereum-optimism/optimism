@@ -2,6 +2,7 @@ package proxyd
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -149,7 +150,7 @@ func NewBackend(
 	return backend
 }
 
-func (b *Backend) Forward(req *RPCReq) (*RPCRes, error) {
+func (b *Backend) Forward(ctx context.Context, req *RPCReq) (*RPCRes, error) {
 	if !b.allowedRPCMethods.Has(req.Method) {
 		return nil, ErrMethodNotWhitelisted
 	}
@@ -164,7 +165,7 @@ func (b *Backend) Forward(req *RPCReq) (*RPCRes, error) {
 	// <= to account for the first attempt not technically being
 	// a retry
 	for i := 0; i <= b.maxRetries; i++ {
-		rpcForwardsTotal.WithLabelValues(b.Name, req.Method, RPCRequestSourceHTTP).Inc()
+		RecordRPCForward(ctx, b.Name, req.Method, RPCRequestSourceHTTP)
 		respTimer := prometheus.NewTimer(rpcBackendRequestDurationSumm.WithLabelValues(b.Name, req.Method))
 		resB, err := b.doForward(req)
 		if err != nil {
@@ -305,11 +306,11 @@ type BackendGroup struct {
 	Backends []*Backend
 }
 
-func (b *BackendGroup) Forward(rpcReq *RPCReq) (*RPCRes, error) {
+func (b *BackendGroup) Forward(ctx context.Context, rpcReq *RPCReq) (*RPCRes, error) {
 	rpcRequestsTotal.Inc()
 
 	for _, back := range b.Backends {
-		res, err := back.Forward(rpcReq)
+		res, err := back.Forward(ctx, rpcReq)
 		if errors.Is(err, ErrMethodNotWhitelisted) {
 			return nil, err
 		}
@@ -364,7 +365,7 @@ type WSProxier struct {
 	backendConn *websocket.Conn
 }
 
-func NewWSProxier(backend *Backend, clientConn, backendConn *websocket.Conn, ) *WSProxier {
+func NewWSProxier(backend *Backend, clientConn, backendConn *websocket.Conn) *WSProxier {
 	return &WSProxier{
 		backend:     backend,
 		clientConn:  clientConn,
@@ -372,16 +373,16 @@ func NewWSProxier(backend *Backend, clientConn, backendConn *websocket.Conn, ) *
 	}
 }
 
-func (w *WSProxier) Proxy() error {
+func (w *WSProxier) Proxy(ctx context.Context) error {
 	errC := make(chan error, 2)
-	go w.clientPump(errC)
-	go w.backendPump(errC)
+	go w.clientPump(ctx, errC)
+	go w.backendPump(ctx, errC)
 	err := <-errC
 	w.close()
 	return err
 }
 
-func (w *WSProxier) clientPump(errC chan error) {
+func (w *WSProxier) clientPump(ctx context.Context, errC chan error) {
 	for {
 		outConn := w.backendConn
 		// Block until we get a message.
@@ -392,7 +393,7 @@ func (w *WSProxier) clientPump(errC chan error) {
 			return
 		}
 
-		RecordWSMessage(w.backend.Name, SourceClient)
+		RecordWSMessage(ctx, w.backend.Name, SourceClient)
 
 		// Route control messages to the backend. These don't
 		// count towards the total RPC requests count.
@@ -417,9 +418,9 @@ func (w *WSProxier) clientPump(errC chan error) {
 			}
 			outConn = w.clientConn
 			msg = mustMarshalJSON(NewRPCErrorRes(id, err))
-			RecordRPCError(SourceClient, err)
+			RecordRPCError(ctx, SourceClient, err)
 		} else {
-			rpcForwardsTotal.WithLabelValues(w.backend.Name, req.Method, RPCRequestSourceWS).Inc()
+			RecordRPCForward(ctx, w.backend.Name, req.Method, RPCRequestSourceWS)
 		}
 
 		err = outConn.WriteMessage(msgType, msg)
@@ -430,7 +431,7 @@ func (w *WSProxier) clientPump(errC chan error) {
 	}
 }
 
-func (w *WSProxier) backendPump(errC chan error) {
+func (w *WSProxier) backendPump(ctx context.Context, errC chan error) {
 	for {
 		// Block until we get a message.
 		msgType, msg, err := w.backendConn.ReadMessage()
@@ -440,7 +441,7 @@ func (w *WSProxier) backendPump(errC chan error) {
 			return
 		}
 
-		RecordWSMessage(w.backend.Name, SourceBackend)
+		RecordWSMessage(ctx, w.backend.Name, SourceBackend)
 
 		// Route control messages directly to the client.
 		if msgType != websocket.TextMessage && msgType != websocket.BinaryMessage {
@@ -461,7 +462,7 @@ func (w *WSProxier) backendPump(errC chan error) {
 			msg = mustMarshalJSON(NewRPCErrorRes(id, err))
 		}
 		if res.IsError() {
-			RecordRPCError(SourceBackend, res.Error)
+			RecordRPCError(ctx, SourceBackend, res.Error)
 		}
 
 		err = w.clientConn.WriteMessage(msgType, msg)

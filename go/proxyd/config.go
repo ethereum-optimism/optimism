@@ -43,11 +43,12 @@ type BackendGroupsConfig map[string]*BackendGroupConfig
 type MethodMappingsConfig map[string]string
 
 type Config struct {
-	AllowedRPCMethods []string        `toml:"allowed_rpc_methods"`
-	AllowedWSMethods  []string        `toml:"allowed_ws_methods"`
-	Server            *ServerConfig   `toml:"server"`
-	Redis             *RedisConfig    `toml:"redis"`
-	Metrics           *MetricsConfig  `toml:"metrics"`
-	BackendOptions    *BackendOptions `toml:"backend_options"`
-	Backends          BackendsConfig  `toml:"backends"`
+	AllowedRPCMethods []string          `toml:"allowed_rpc_methods"`
+	AllowedWSMethods  []string          `toml:"allowed_ws_methods"`
+	Server            *ServerConfig     `toml:"server"`
+	Redis             *RedisConfig      `toml:"redis"`
+	Metrics           *MetricsConfig    `toml:"metrics"`
+	BackendOptions    *BackendOptions   `toml:"backend_options"`
+	Backends          BackendsConfig    `toml:"backends"`
+	Authentication    map[string]string `toml:"authentication"`
 }
