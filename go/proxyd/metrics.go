@@ -5,6 +5,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"strconv"
+	"strings"
 )
 
 const (
@@ -13,9 +14,10 @@ const (
 	RPCRequestSourceHTTP = "http"
 	RPCRequestSourceWS   = "ws"
 
+	BackendProxyd = "proxyd"
 	SourceClient  = "client"
 	SourceBackend = "backend"
-	SourceProxyd  = "proxyd"
+	MethodUnknown = "unknown"
 )
 
 var (
@@ -42,8 +44,20 @@ var (
 		Help:      "Count of total RPC errors.",
 	}, []string{
 		"auth",
-		"source",
+		"backend_name",
+		"method_name",
 		"error_code",
+	})
+
+	rpcSpecialErrorsTotal = promauto.NewCounterVec(prometheus.CounterOpts{
+		Namespace: MetricsNamespace,
+		Name:      "rpc_special_errors_total",
+		Help:      "Count of total special RPC errors.",
+	}, []string{
+		"auth",
+		"backend_name",
+		"method_name",
+		"error_type",
 	})
 
 	rpcBackendRequestDurationSumm = promauto.NewSummaryVec(prometheus.SummaryOpts{
@@ -78,7 +92,7 @@ var (
 		Help:      "Count of total requests that were rejected due to no backends being available.",
 	}, []string{
 		"auth",
-		"source",
+		"request_source",
 	})
 
 	httpRequestsTotal = promauto.NewCounter(prometheus.CounterOpts{
@@ -111,22 +125,30 @@ var (
 	}, []string{
 		"source",
 	})
+
+	rpcSpecialErrors = []string{
+		"nonce too low",
+		"gas price too high",
+		"gas price too low",
+		"invalid parameters",
+	}
 )
 
 func RecordRedisError(source string) {
 	redisErrorsTotal.WithLabelValues(source).Inc()
 }
 
-func RecordRPCError(ctx context.Context, source string, err error) {
+func RecordRPCError(ctx context.Context, backendName, method string, err error) {
 	rpcErr, ok := err.(*RPCErr)
 	var code int
 	if ok {
+		MaybeRecordSpecialRPCError(ctx, backendName, method, rpcErr)
 		code = rpcErr.Code
 	} else {
 		code = -1
 	}
 
-	rpcErrorsTotal.WithLabelValues(GetAuthCtx(ctx), source, strconv.Itoa(code)).Inc()
+	rpcErrorsTotal.WithLabelValues(GetAuthCtx(ctx), backendName, method, strconv.Itoa(code)).Inc()
 }
 
 func RecordWSMessage(ctx context.Context, backendName, source string) {
@@ -139,4 +161,14 @@ func RecordUnserviceableRequest(ctx context.Context, source string) {
 
 func RecordRPCForward(ctx context.Context, backendName, method, source string) {
 	rpcForwardsTotal.WithLabelValues(GetAuthCtx(ctx), backendName, method, source).Inc()
+}
+
+func MaybeRecordSpecialRPCError(ctx context.Context, backendName, method string, rpcErr *RPCErr) {
+	errMsg := strings.ToLower(rpcErr.Message)
+	for _, errStr := range rpcSpecialErrors {
+		if strings.Contains(errMsg, errStr) {
+			rpcSpecialErrorsTotal.WithLabelValues(GetAuthCtx(ctx), backendName, method, errStr).Inc()
+			return
+		}
+	}
 }

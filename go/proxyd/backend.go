@@ -152,12 +152,17 @@ func NewBackend(
 
 func (b *Backend) Forward(ctx context.Context, req *RPCReq) (*RPCRes, error) {
 	if !b.allowedRPCMethods.Has(req.Method) {
+		// use unknown below to prevent DOS vector that fills up memory
+		// with arbitrary method names.
+		RecordRPCError(ctx, b.Name, MethodUnknown, ErrMethodNotWhitelisted)
 		return nil, ErrMethodNotWhitelisted
 	}
 	if !b.Online() {
+		RecordRPCError(ctx, b.Name, req.Method, ErrBackendOffline)
 		return nil, ErrBackendOffline
 	}
 	if b.IsRateLimited() {
+		RecordRPCError(ctx, b.Name, req.Method, ErrBackendOverCapacity)
 		return nil, ErrBackendOverCapacity
 	}
 
@@ -167,22 +172,19 @@ func (b *Backend) Forward(ctx context.Context, req *RPCReq) (*RPCRes, error) {
 	for i := 0; i <= b.maxRetries; i++ {
 		RecordRPCForward(ctx, b.Name, req.Method, RPCRequestSourceHTTP)
 		respTimer := prometheus.NewTimer(rpcBackendRequestDurationSumm.WithLabelValues(b.Name, req.Method))
-		resB, err := b.doForward(req)
+		res, err := b.doForward(req)
 		if err != nil {
 			lastError = err
 			log.Warn("backend request failed, trying again", "err", err, "name", b.Name)
 			respTimer.ObserveDuration()
+			RecordRPCError(ctx, b.Name, req.Method, err)
 			time.Sleep(calcBackoff(i))
 			continue
 		}
 		respTimer.ObserveDuration()
-
-		res := new(RPCRes)
-		// don't mark the backend down if they give us a bad response body
-		if err := json.Unmarshal(resB, res); err != nil {
-			return nil, ErrBackendBadResponse
+		if res.IsError() {
+			RecordRPCError(ctx, b.Name, req.Method, res.Error)
 		}
-
 		return res, nil
 	}
 
@@ -271,7 +273,7 @@ func (b *Backend) setOffline() {
 	}
 }
 
-func (b *Backend) doForward(rpcReq *RPCReq) ([]byte, error) {
+func (b *Backend) doForward(rpcReq *RPCReq) (*RPCRes, error) {
 	body := mustMarshalJSON(rpcReq)
 
 	httpReq, err := http.NewRequest("POST", b.rpcURL, bytes.NewReader(body))
@@ -283,22 +285,30 @@ func (b *Backend) doForward(rpcReq *RPCReq) ([]byte, error) {
 		httpReq.SetBasicAuth(b.authUsername, b.authPassword)
 	}
 
-	res, err := b.client.Do(httpReq)
+	httpReq.Header.Set("content-type", "application/json")
+
+	httpRes, err := b.client.Do(httpReq)
 	if err != nil {
 		return nil, wrapErr(err, "error in backend request")
 	}
 
-	if res.StatusCode != 200 {
-		return nil, fmt.Errorf("response code %d", res.StatusCode)
+	// Alchemy returns a 400 on bad JSONs, so handle that case
+	if httpRes.StatusCode != 200 && httpRes.StatusCode != 400 {
+		return nil, fmt.Errorf("response code %d", httpRes.StatusCode)
 	}
 
-	defer res.Body.Close()
-	resB, err := ioutil.ReadAll(io.LimitReader(res.Body, b.maxResponseSize))
+	defer httpRes.Body.Close()
+	resB, err := ioutil.ReadAll(io.LimitReader(httpRes.Body, b.maxResponseSize))
 	if err != nil {
 		return nil, wrapErr(err, "error reading response body")
 	}
 
-	return resB, nil
+	res := new(RPCRes)
+	if err := json.Unmarshal(resB, res); err != nil {
+		return nil, ErrBackendBadResponse
+	}
+
+	return res, nil
 }
 
 type BackendGroup struct {
@@ -329,6 +339,7 @@ func (b *BackendGroup) Forward(ctx context.Context, rpcReq *RPCReq) (*RPCRes, er
 		return res, nil
 	}
 
+	RecordUnserviceableRequest(ctx, RPCRequestSourceHTTP)
 	return nil, ErrNoBackends
 }
 
@@ -413,12 +424,14 @@ func (w *WSProxier) clientPump(ctx context.Context, errC chan error) {
 		req, err := w.parseClientMsg(msg)
 		if err != nil {
 			var id *int
+			method := MethodUnknown
 			if req != nil {
 				id = req.ID
+				method = req.Method
 			}
 			outConn = w.clientConn
 			msg = mustMarshalJSON(NewRPCErrorRes(id, err))
-			RecordRPCError(ctx, SourceClient, err)
+			RecordRPCError(ctx, BackendProxyd, method, err)
 		} else {
 			RecordRPCForward(ctx, w.backend.Name, req.Method, RPCRequestSourceWS)
 		}
@@ -462,7 +475,7 @@ func (w *WSProxier) backendPump(ctx context.Context, errC chan error) {
 			msg = mustMarshalJSON(NewRPCErrorRes(id, err))
 		}
 		if res.IsError() {
-			RecordRPCError(ctx, SourceBackend, res.Error)
+			RecordRPCError(ctx, w.backend.Name, MethodUnknown, res.Error)
 		}
 
 		err = w.clientConn.WriteMessage(msgType, msg)
