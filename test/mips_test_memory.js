@@ -60,7 +60,7 @@ describe("MIPSMemory contract", function () {
     root = await write(mm, root, 0, 1)
     root = await write(mm, root, 0, 2)
   })
-  /*it("fuzzing should be okay", async function() {
+  it("fuzzing should be okay", async function() {
     let root = "0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421"
     let kv = {}
 
@@ -90,5 +90,5 @@ describe("MIPSMemory contract", function () {
         kv[key] = value
       }
     }
-  })*/
+  })
 })

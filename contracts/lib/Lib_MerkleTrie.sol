@@ -6,7 +6,7 @@ import { Lib_BytesUtils } from "./Lib_BytesUtils.sol";
 import { Lib_RLPReader } from "./Lib_RLPReader.sol";
 import { Lib_RLPWriter } from "./Lib_RLPWriter.sol";
 
-//import "hardhat/console.sol";
+import "hardhat/console.sol";
 
 /**
  * @title Lib_MerkleTrie
@@ -541,9 +541,15 @@ library Lib_MerkleTrie {
             previousNodeHash = _getNodeHash(currentNode.encoded);
         }
 
+        // If the root node is < 32 bytes, it won't have a stored hash
+        bytes32 encodedHash = keccak256(currentNode.encoded);
+        if (currentNode.encoded.length < 32) {
+            GetTrie()[encodedHash] = currentNode.encoded;
+        }
+
         // Current node should be the root at this point.
         // Simply return the hash of its encoding.
-        return keccak256(currentNode.encoded);
+        return encodedHash;
     }
 
     /**
