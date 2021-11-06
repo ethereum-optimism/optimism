@@ -4,7 +4,7 @@ import { hexStringEquals, awaitCondition } from '@eth-optimism/core-utils'
 
 /* Imports: Internal */
 import {
-  deployAndPostDeploy,
+  deployAndVerifyAndThen,
   getContractFromArtifact,
 } from '../src/hardhat-deploy-ethers'
 
@@ -14,7 +14,7 @@ const deployFn: DeployFunction = async (hre) => {
     'Lib_AddressManager'
   )
 
-  await deployAndPostDeploy({
+  await deployAndVerifyAndThen({
     hre,
     name: 'OVM_L1CrossDomainMessenger',
     contract: 'L1CrossDomainMessenger',

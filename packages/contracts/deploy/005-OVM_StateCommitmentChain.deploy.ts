@@ -3,7 +3,7 @@ import { DeployFunction } from 'hardhat-deploy/dist/types'
 
 /* Imports: Internal */
 import {
-  deployAndPostDeploy,
+  deployAndVerifyAndThen,
   getContractFromArtifact,
 } from '../src/hardhat-deploy-ethers'
 
@@ -13,7 +13,7 @@ const deployFn: DeployFunction = async (hre) => {
     'Lib_AddressManager'
   )
 
-  await deployAndPostDeploy({
+  await deployAndVerifyAndThen({
     hre,
     name: 'StateCommitmentChain',
     args: [
