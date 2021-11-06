@@ -24,7 +24,7 @@ func main() {
 		root = fmt.Sprintf("/tmp/cannon/%d_%d", 0, blockNumber)
 	}
 	if len(os.Args) > 2 {
-		target = strconv.Atoi(os.Args[2])
+		target, _ = strconv.Atoi(os.Args[2])
 	}
 
 	// step 1, generate the checkpoints every million steps using unicorn
@@ -33,7 +33,7 @@ func main() {
 	lastStep := 0
 	mu := GetHookedUnicorn(root, ram, func(step int, mu uc.Unicorn, ram map[uint32](uint32)) {
 		// this can be raised to 10,000,000 if the files are too large
-		if step%10000000 == 0 || (target != -1 && step == target) {
+		if step%10000000 == 0 || step == target {
 			SyncRegs(mu, ram)
 			fn := fmt.Sprintf("%s/checkpoint_%d.json", root, step)
 			WriteCheckpoint(ram, fn, step)
