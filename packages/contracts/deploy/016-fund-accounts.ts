@@ -1,22 +1,21 @@
 /* Imports: External */
 import { sleep } from '@eth-optimism/core-utils'
 import { DeployFunction } from 'hardhat-deploy/dist/types'
-import {
-  defaultHardhatNetworkHdAccountsConfigParams,
-  defaultHardhatNetworkParams,
-} from 'hardhat/internal/core/config/default-config'
+import { defaultHardhatNetworkHdAccountsConfigParams } from 'hardhat/internal/core/config/default-config'
 import { normalizeHardhatNetworkAccountsConfig } from 'hardhat/internal/core/providers/util'
 
 /* Imports: Internal */
-import { getContractFromArtifact } from '../src/hardhat-deploy-ethers'
+import {
+  getContractFromArtifact,
+  isHardhatNode,
+} from '../src/hardhat-deploy-ethers'
 
 // This is a TEMPORARY way to fund the default hardhat accounts on L2. The better way to do this is
 // to make a modification to hardhat-ovm. However, I don't have the time right now to figure the
 // details of how to make that work cleanly. This is fine in the meantime.
 const deployFn: DeployFunction = async (hre) => {
   // Only execute this step if we're on the hardhat chain ID.
-  const { chainId } = await hre.ethers.provider.getNetwork()
-  if (chainId === defaultHardhatNetworkParams.chainId) {
+  if (isHardhatNode(hre)) {
     const L1StandardBridge = await getContractFromArtifact(
       hre,
       'Proxy__OVM_L1StandardBridge',

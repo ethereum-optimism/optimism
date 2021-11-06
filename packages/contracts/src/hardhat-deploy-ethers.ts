@@ -5,7 +5,7 @@ import { Signer } from '@ethersproject/abstract-signer'
 import { sleep, awaitCondition } from '@eth-optimism/core-utils'
 import { HttpNetworkConfig } from 'hardhat/types'
 
-export const deployAndPostDeploy = async ({
+export const deployAndVerifyAndThen = async ({
   hre,
   name,
   args,
@@ -34,6 +34,22 @@ export const deployAndPostDeploy = async ({
   await hre.ethers.provider.waitForTransaction(result.transactionHash)
 
   if (result.newlyDeployed) {
+    if (!isHardhatNode(hre)) {
+      // Verification sometimes fails, even when the contract is correctly deployed and eventually
+      // verified. Possibly due to a race condition. We don't want to halt the whole deployment
+      // process just because that happens.
+      try {
+        console.log('Verifying on Etherscan...')
+        await hre.run('verify:verify', {
+          address: result.address,
+          constructorArguments: args,
+        })
+        console.log('Successfully verified')
+      } catch (error) {
+        console.log('Error when verifying bytecode on etherscan:')
+        console.log(error)
+      }
+    }
     if (postDeployAction) {
       const signer = hre.ethers.provider.getSigner(deployer)
       let abi = result.abi
@@ -217,6 +233,11 @@ export const getContractFromArtifact = async (
       signerOrProvider
     ),
   })
+}
+
+export const isHardhatNode = async (hre) => {
+  const { chainId } = await hre.ethers.provider.getNetwork()
+  return chainId === 31337
 }
 
 // Large balance to fund accounts with.

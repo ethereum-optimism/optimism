@@ -2,13 +2,13 @@
 import { DeployFunction } from 'hardhat-deploy/dist/types'
 import { ethers } from 'ethers'
 import { hexStringEquals, awaitCondition } from '@eth-optimism/core-utils'
-import { defaultHardhatNetworkParams } from 'hardhat/internal/core/config/default-config'
 
 /* Imports: Internal */
 import { getContractDefinition } from '../src/contract-defs'
 import {
   getContractFromArtifact,
-  deployAndPostDeploy,
+  deployAndVerifyAndThen,
+  isHardhatNode,
 } from '../src/hardhat-deploy-ethers'
 
 const deployFn: DeployFunction = async (hre) => {
@@ -85,8 +85,7 @@ const deployFn: DeployFunction = async (hre) => {
 
   // Check if if we're on the hardhat chain ID. This will only happen in CI. If this is the case, we
   // can skip directly to transferring ownership over to the ChugSplashDictator contract.
-  const { chainId } = await hre.ethers.provider.getNetwork()
-  if (chainId === defaultHardhatNetworkParams.chainId) {
+  if (isHardhatNode(hre)) {
     const owner = await hre.ethers.getSigner(currentOwner)
     await Proxy__OVM_L1StandardBridge.connect(owner).setOwner(
       ChugSplashDictator.address
@@ -131,7 +130,7 @@ const deployFn: DeployFunction = async (hre) => {
 
   // Deploy a copy of the implementation so it can be successfully verified on Etherscan.
   console.log(`Deploying a copy of the bridge for Etherscan verification...`)
-  await deployAndPostDeploy({
+  await deployAndVerifyAndThen({
     hre,
     name: 'L1StandardBridge_for_verification_only',
     contract: 'L1StandardBridge',
