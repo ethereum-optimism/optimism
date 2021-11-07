@@ -2,7 +2,6 @@ package main
 
 import (
 	"encoding/binary"
-	"io/ioutil"
 	"log"
 	"testing"
 
@@ -16,10 +15,9 @@ func TestUnicornCrash(t *testing.T) {
 	}
 
 	// program
-	fn := "../mipigo/test/test.bin"
-	dat, err := ioutil.ReadFile(fn)
-	if err != nil {
-		log.Fatal(err)
+	dat := make([]byte, 1490944)
+	for i := 0; i < len(dat); i++ {
+		dat[i] = 0xaa
 	}
 	mu.MemWrite(0, dat)
 
