@@ -34,6 +34,6 @@ jobs:
         cd mipsevm
         go build
     - name: Generate checkpoints for 13284469
-      run: mipsevm/mipsevm 13284469
+      run: cd mipsevm && ./mipsevm 13284469
     - name: Run test challenge
       run: npx hardhat test test/challenge_test.js

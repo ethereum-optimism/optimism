@@ -26,39 +26,56 @@ func main() {
 	if len(os.Args) > 2 {
 		target, _ = strconv.Atoi(os.Args[2])
 	}
+	evm := false
+	if len(os.Args) > 3 && os.Args[3] == "evm" {
+		evm = true
+	}
 
 	// step 1, generate the checkpoints every million steps using unicorn
 	ram := make(map[uint32](uint32))
 
-	lastStep := 0
-	mu := GetHookedUnicorn(root, ram, func(step int, mu uc.Unicorn, ram map[uint32](uint32)) {
-		// this can be raised to 10,000,000 if the files are too large
-		if step%10000000 == 0 || step == target {
-			SyncRegs(mu, ram)
-			fn := fmt.Sprintf("%s/checkpoint_%d.json", root, step)
-			WriteCheckpoint(ram, fn, step)
-			if step == target {
-				// done
-				mu.RegWrite(uc.MIPS_REG_PC, 0x5ead0004)
+	lastStep := 1
+	if evm {
+		ZeroRegisters(ram)
+		LoadMappedFile("../mipigo/minigeth.bin", ram, 0)
+		WriteCheckpoint(ram, "/tmp/cannon/golden.json", -1)
+		LoadMappedFile(fmt.Sprintf("%s/input", root), ram, 0x30000000)
+		RunWithRam(ram, target-1, 0, nil)
+		lastStep += target - 1
+		fn := fmt.Sprintf("%s/checkpoint_%d.json", root, lastStep)
+		WriteCheckpoint(ram, fn, lastStep)
+	} else {
+		mu := GetHookedUnicorn(root, ram, func(lstep int, mu uc.Unicorn, ram map[uint32](uint32)) {
+			step := lstep + 1
+			// this can be raised to 10,000,000 if the files are too large
+			if step%10000000 == 0 || step == target {
+				SyncRegs(mu, ram)
+				fn := fmt.Sprintf("%s/checkpoint_%d.json", root, step)
+				WriteCheckpoint(ram, fn, step)
+				if step == target {
+					// done
+					mu.RegWrite(uc.MIPS_REG_PC, 0x5ead0004)
+				}
 			}
-		}
-		lastStep = step
-	})
+			lastStep = step
+		})
 
-	ZeroRegisters(ram)
-	// not ready for golden yet
-	LoadMappedFileUnicorn(mu, "mipigo/minigeth.bin", ram, 0)
-	WriteCheckpoint(ram, "/tmp/cannon/golden.json", -1)
-	if root == "" {
-		fmt.Println("exiting early without a block number")
-		os.Exit(0)
+		ZeroRegisters(ram)
+		// not ready for golden yet
+		LoadMappedFileUnicorn(mu, "../mipigo/minigeth.bin", ram, 0)
+		WriteCheckpoint(ram, "/tmp/cannon/golden.json", -1)
+		if root == "" {
+			fmt.Println("exiting early without a block number")
+			os.Exit(0)
+		}
+
+		// TODO: this is actually step 0->1. Renumber as appropriate
+		LoadMappedFileUnicorn(mu, fmt.Sprintf("%s/input", root), ram, 0x30000000)
+
+		mu.Start(0, 0x5ead0004)
+		SyncRegs(mu, ram)
 	}
 
-	// TODO: this is actually step 0->1. Renumber as appropriate
-	LoadMappedFileUnicorn(mu, fmt.Sprintf("%s/input", root), ram, 0x30000000)
-
-	mu.Start(0, 0x5ead0004)
-	SyncRegs(mu, ram)
 	if target == -1 {
 		WriteCheckpoint(ram, fmt.Sprintf("%s/checkpoint_final.json", root), lastStep)
 	}
