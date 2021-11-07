@@ -52,11 +52,9 @@ The batch submitter encodes these transactions based on the rules of [block gene
 - Blocks previously inserted by the Block Producer into the Sequencer's EE will now appear in L1 Verifiers' EEs.
 - Blocks marked as sequencer-confirmed in both the Sequencer and in Replicating verifiers will now be marked as L1-confirmed.
 
-TOOD: update block-gen link once PR is merged
-
 [execution-spec]: https://github.com/ethereum/execution-specs
 [execution-engine-rpc]: https://hackmd.io/@n0ble/consensus_api_design_space
-[block-gen]: https://github.com/ethereum-optimism/optimistic-specs/pull/16
+[block-gen]: ./components/rollup_node/block_gen.md
 [exec-engine]: ./exec_engine.md
 [rollup-driver]: ./consensus_layer.md
 [sequencer-replicator]: ./sequencer_replicator.md

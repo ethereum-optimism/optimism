@@ -24,4 +24,4 @@ The core logic which the CL executes is as follows.
             - If they DO NOT match, there has been an L2 reorg. Signal the reorg, insert the correct block, and update the EE head.
 3. Wait and GOTO 1.
 
-[block-gen]: TODOPRMERGE
+[block-gen]: ./components/rollup_node/block_gen.md
