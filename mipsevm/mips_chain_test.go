@@ -15,7 +15,7 @@ func TestMipsChain(t *testing.T) {
 	ram := LoadRam()
 	root := RamToTrie(ram)
 
-	interpreter, statedb := GetInterpreter(1, true)
+	interpreter, statedb := GetInterpreter(1, true, "")
 	DeployChain(interpreter, statedb)
 
 	// load chain trie node

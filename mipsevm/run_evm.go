@@ -34,8 +34,8 @@ func GetBytecode(deployed bool) []byte {
 	}
 }
 
-func GetInterpreter(ldebug int, realState bool) (*vm.EVMInterpreter, *StateDB) {
-	statedb := NewStateDB(ldebug, realState)
+func GetInterpreter(ldebug int, realState bool, root string) (*vm.EVMInterpreter, *StateDB) {
+	statedb := NewStateDB(ldebug, realState, root)
 
 	var header types.Header
 	header.Number = big.NewInt(13284469)
@@ -52,8 +52,8 @@ func GetInterpreter(ldebug int, realState bool) (*vm.EVMInterpreter, *StateDB) {
 	return interpreter, statedb
 }
 
-func RunWithRam(lram map[uint32](uint32), steps int, debug int, lcallback func(int, map[uint32](uint32))) (uint64, error) {
-	interpreter, statedb := GetInterpreter(debug, false)
+func RunWithRam(lram map[uint32](uint32), steps int, debug int, root string, lcallback func(int, map[uint32](uint32))) (uint64, error) {
+	interpreter, statedb := GetInterpreter(debug, false, root)
 	statedb.Ram = lram
 
 	callback = lcallback

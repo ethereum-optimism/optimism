@@ -27,7 +27,7 @@ func TestSimpleEVM(t *testing.T) {
 		LoadMappedFile(fn, ram, 0)
 
 		start := time.Now()
-		remainingGas, err := RunWithRam(ram, 100, 0, nil)
+		remainingGas, err := RunWithRam(ram, 100, 0, "", nil)
 		elapsed := time.Now().Sub(start)
 
 		fmt.Println(err, remainingGas, elapsed,

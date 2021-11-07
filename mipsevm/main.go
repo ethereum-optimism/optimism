@@ -40,7 +40,7 @@ func main() {
 		LoadMappedFile("../mipigo/minigeth.bin", ram, 0)
 		WriteCheckpoint(ram, "/tmp/cannon/golden.json", -1)
 		LoadMappedFile(fmt.Sprintf("%s/input", root), ram, 0x30000000)
-		RunWithRam(ram, target-1, 0, nil)
+		RunWithRam(ram, target-1, 0, root, nil)
 		lastStep += target - 1
 		fn := fmt.Sprintf("%s/checkpoint_%d.json", root, lastStep)
 		WriteCheckpoint(ram, fn, lastStep)

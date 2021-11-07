@@ -42,7 +42,7 @@ func TestCompareUnicornEvm(t *testing.T) {
 		WriteRam(evmram, i, 0)
 	}
 
-	go RunWithRam(evmram, steps, 0, func(step int, ram map[uint32](uint32)) {
+	go RunWithRam(evmram, steps, 0, "", func(step int, ram map[uint32](uint32)) {
 		//fmt.Printf("%d evm %x\n", step, ram[0xc0000080])
 		cevm <- RegSerialize(ram)
 		done.Lock()

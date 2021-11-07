@@ -101,7 +101,7 @@ func LoadMappedFile(fn string, ram map[uint32](uint32), base uint32) {
 }
 
 func RunFull() {
-	interpreter, statedb := GetInterpreter(0, true)
+	interpreter, statedb := GetInterpreter(0, true, "")
 	DeployChain(interpreter, statedb)
 
 	ram := make(map[uint32](uint32))

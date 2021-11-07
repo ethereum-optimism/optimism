@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"math/big"
 	"os"
 	"time"
@@ -27,15 +28,17 @@ type StateDB struct {
 	PcCount      int
 	seenWrite    bool
 	useRealState bool
+	root         string
 }
 
-func NewStateDB(debug int, realState bool) *StateDB {
+func NewStateDB(debug int, realState bool, root string) *StateDB {
 	statedb := &StateDB{}
 	statedb.Bytecodes = make(map[common.Address]([]byte))
 	statedb.RealState = make(map[common.Hash](common.Hash))
 	statedb.Debug = debug
 	statedb.seenWrite = true
 	statedb.useRealState = realState
+	statedb.root = root
 	return statedb
 }
 
@@ -124,8 +127,10 @@ func (s *StateDB) GetState(fakeaddr common.Address, hash common.Hash) common.Has
 					binary.BigEndian.PutUint32(oracle_hash[i:i+4], ram[0x30001000+i])
 				}
 				hash := common.BytesToHash(oracle_hash)
-				// TODO: this is wrong, need root
-				key := fmt.Sprintf("/tmp/eth/%s", hash)
+				if s.root == "" {
+					log.Fatal("need root if using hash oracle")
+				}
+				key := fmt.Sprintf("%s/%s", s.root, hash)
 				value, _ := ioutil.ReadFile(key)
 
 				WriteRam(ram, 0x31000000, uint32(len(value)))

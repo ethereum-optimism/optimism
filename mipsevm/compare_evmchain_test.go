@@ -35,7 +35,7 @@ func TestCompareEvmChain(t *testing.T) {
 	fmt.Println("state root", root, "nodes", len(Preimages))
 
 	// deploy chain
-	interpreter, statedb := GetInterpreter(0, true)
+	interpreter, statedb := GetInterpreter(0, true, "")
 	DeployChain(interpreter, statedb)
 
 	// load chain trie node
@@ -68,7 +68,7 @@ func TestCompareEvmChain(t *testing.T) {
 	// run on evm
 	go func() {
 		for step := 0; step < totalSteps; step++ {
-			RunWithRam(ram, 1, 0, nil)
+			RunWithRam(ram, 1, 0, "", nil)
 			root = RamToTrie(ram)
 			cuni <- root
 		}
