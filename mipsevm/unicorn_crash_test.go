@@ -1,7 +1,6 @@
 package main
 
 import (
-	"encoding/binary"
 	"log"
 	"testing"
 
@@ -14,21 +13,11 @@ func TestUnicornCrash(t *testing.T) {
 		log.Fatal(err)
 	}
 
-	// program
-	dat := make([]byte, 1490944)
-	for i := 0; i < len(dat); i++ {
-		dat[i] = 0xaa
-	}
-	mu.MemWrite(0, dat)
-
-	// load into a map, without this (completely unrelated), it doesn't crash
+	// weird heap grooming (doesn't crash without this)
 	ram := make(map[uint32](uint32))
-	for i := 0; i < len(dat); i += 4 {
-		value := binary.BigEndian.Uint32(dat[i : i+4])
-		if value != 0 {
-			ram[uint32(i)] = value
-		}
+	for i := 0; i < 1490944; i += 4 {
+		ram[uint32(i)] = 0xaaaaaaaa
 	}
 
-	mu.Start(0, 0x5ead0004)
+	mu.Start(0, 4)
 }
