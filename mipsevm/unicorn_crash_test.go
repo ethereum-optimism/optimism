@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"io/ioutil"
 	"testing"
+
+	uc "github.com/unicorn-engine/unicorn/bindings/go/unicorn"
 )
 
 func TestUnicornCrash(t *testing.T) {
@@ -12,7 +14,8 @@ func TestUnicornCrash(t *testing.T) {
 	ram := make(map[uint32](uint32))
 
 	root := "/tmp/cannon/0_13284469"
-	mu := GetHookedUnicorn(root, ram, nil)
+	mu, err := uc.NewUnicorn(uc.ARCH_MIPS, uc.MODE_32|uc.MODE_BIG_ENDIAN)
+	check(err)
 
 	// program
 	dat, _ := ioutil.ReadFile(fn)
