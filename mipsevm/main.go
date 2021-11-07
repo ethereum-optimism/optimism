@@ -37,6 +37,10 @@ func main() {
 			SyncRegs(mu, ram)
 			fn := fmt.Sprintf("%s/checkpoint_%d.json", root, step)
 			WriteCheckpoint(ram, fn, step)
+			if step == target {
+				// done
+				mu.RegWrite(uc.MIPS_REG_PC, 0x5ead0004)
+			}
 		}
 		lastStep = step
 	})
@@ -55,7 +59,9 @@ func main() {
 
 	mu.Start(0, 0x5ead0004)
 	SyncRegs(mu, ram)
-	WriteCheckpoint(ram, fmt.Sprintf("%s/checkpoint_final.json", root), lastStep)
+	if target == -1 {
+		WriteCheckpoint(ram, fmt.Sprintf("%s/checkpoint_final.json", root), lastStep)
+	}
 
 	// step 2 (optional), validate each 1 million chunk in EVM
 

@@ -20,7 +20,7 @@ func check(err error) {
 	}
 }
 
-var steps int = 0
+var steps int = 1
 var heap_start uint64 = 0
 
 func WriteBytes(fd int, bytes []byte) {
