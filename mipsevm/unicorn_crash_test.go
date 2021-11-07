@@ -14,9 +14,9 @@ func TestUnicornCrash(t *testing.T) {
 	}
 
 	// weird heap grooming (doesn't crash without this)
-	ram := make(map[uint32](uint32))
-	for i := 0; i < 1490944; i += 4 {
-		ram[uint32(i)] = 0xaaaaaaaa
+	junk := make(map[uint32](uint32))
+	for i := 0; i < 1000000; i += 4 {
+		junk[uint32(i)] = 0xaaaaaaaa
 	}
 
 	mu.Start(0, 4)
