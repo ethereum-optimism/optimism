@@ -97,5 +97,5 @@ describe("MIPSMemory contract", function () {
         kv[key] = value
       }
     }
-  })
+  }).timeout(60000)
 })
