@@ -12,7 +12,6 @@ import { Lib_AddressResolver } from "../../libraries/resolver/Lib_AddressResolve
  * @dev This contract is, for now, a stub of the "real" BondManager that does nothing but
  * allow the "OVM_Proposer" to submit state root batches.
  *
- * Runtime target: EVM
  */
 contract BondManager is IBondManager, Lib_AddressResolver {
     /**

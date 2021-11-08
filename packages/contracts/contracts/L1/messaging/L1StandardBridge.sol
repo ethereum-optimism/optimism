@@ -19,7 +19,6 @@ import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.s
  * tokens that are in use on L2. It synchronizes a corresponding L2 Bridge, informing it of deposits
  * and listening to it for newly finalized withdrawals.
  *
- * Runtime target: EVM
  */
 contract L1StandardBridge is IL1StandardBridge, CrossDomainEnabled {
     using SafeERC20 for IERC20;
