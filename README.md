@@ -60,9 +60,11 @@ process done with hash 0x5c45998dfbf9ce70bcbb80574ed7a622922d2c775e0a2331fe5a8b8
 # only works for pre fork blocks
 minigeth/go-ethereum 1171895
 (cd mipsevm && ./mipsevm 1171895)
-
 npx hardhat run scripts/deploy.js
 BLOCK=1171895 npx hardhat run scripts/challenge.js
+
+(cd mipsevm && ./mipsevm 1171896 11226379)
+ID=0 BLOCK=1171896 npx hardhat run scripts/respond.js
 ```
 
 ## State Oracle API

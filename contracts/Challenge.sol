@@ -34,6 +34,7 @@ contract Challenge {
     mapping(uint256 => bytes32) assertedState;
     mapping(uint256 => bytes32) defendedState;
     address payable challenger;
+    // TODO: add the block here?
   }
   mapping(uint256 => Chal) challenges;
 
