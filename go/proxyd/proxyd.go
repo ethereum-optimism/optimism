@@ -16,9 +16,12 @@ func Start(config *Config) error {
 	if len(config.Backends) == 0 {
 		return errors.New("must define at least one backend")
 	}
-	if len(config.AllowedRPCMethods) == 0 {
-		return errors.New("must define at least one allowed RPC method")
-	}
+  if len(config.BackendGroups) == 0 {
+    return errors.New("must define at least one backend group")
+  }
+  if len(config.RPCMethodMappings) == 0 {
+    return errors.New("must define at least one RPC method mapping")
+  }
 
 	for authKey := range config.Authentication {
 		if authKey == "none" {
@@ -26,16 +29,13 @@ func Start(config *Config) error {
 		}
 	}
 
-	allowedRPCs := NewStringSetFromStrings(config.AllowedRPCMethods)
-	allowedWSRPCs := allowedRPCs.Extend(config.AllowedWSMethods)
-
 	redis, err := NewRedis(config.Redis.URL)
 	if err != nil {
 		return err
 	}
 
-	backends := make([]*Backend, 0)
 	backendNames := make([]string, 0)
+  backendsByName := make(map[string]*Backend)
 	for name, cfg := range config.Backends {
 		opts := make([]BackendOpt, 0)
 
@@ -68,18 +68,46 @@ func Start(config *Config) error {
 		if cfg.Password != "" {
 			opts = append(opts, WithBasicAuth(cfg.Username, cfg.Password))
 		}
-		back := NewBackend(name, cfg.RPCURL, cfg.WSURL, allowedRPCs, allowedWSRPCs, redis, opts...)
-		backends = append(backends, back)
+		back := NewBackend(name, cfg.RPCURL, cfg.WSURL, redis, opts...)
 		backendNames = append(backendNames, name)
+    backendsByName[name] = back
 		log.Info("configured backend", "name", name, "rpc_url", cfg.RPCURL, "ws_url", cfg.WSURL)
 	}
 
-	backendGroup := &BackendGroup{
-		Name:     "main",
-		Backends: backends,
-	}
+  backendGroups := make(map[string]*BackendGroup)
+  var wsBackendGroup *BackendGroup
+  for bgName, bg := range config.BackendGroups {
+    backends := make([]*Backend, 0)
+    for _, bName := range bg.Backends {
+      if backendsByName[bName] == nil {
+        return fmt.Errorf("backend %s is not defined", bName)
+      }
+      backends = append(backends, backendsByName[bName])
+    }
+    group := &BackendGroup{
+      Name:     bgName,
+      Backends: backends,
+    }
+    backendGroups[bgName] = group
+    if bg.WSEnabled {
+      if wsBackendGroup != nil {
+        return fmt.Errorf("cannot define more than one WS-enabled backend group")
+      }
+      wsBackendGroup = group
+    }
+  }
+
+  for _, bg := range config.RPCMethodMappings {
+    if backendGroups[bg] == nil {
+      return fmt.Errorf("undefined backend group %s", bg)
+    }
+  }
+
 	srv := NewServer(
-		backendGroup,
+    backendGroups,
+    wsBackendGroup,
+    NewStringSetFromStrings(config.WSMethodWhitelist),
+    config.RPCMethodMappings,
 		config.Server.MaxBodySizeBytes,
 		config.Authentication,
 	)

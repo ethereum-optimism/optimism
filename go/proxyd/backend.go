@@ -63,8 +63,6 @@ type Backend struct {
 	wsURL                string
 	authUsername         string
 	authPassword         string
-	allowedRPCMethods    *StringSet
-	allowedWSMethods     *StringSet
 	redis                Redis
 	client               *http.Client
 	dialer               *websocket.Dialer
@@ -124,19 +122,15 @@ func NewBackend(
 	name string,
 	rpcURL string,
 	wsURL string,
-	allowedRPCMethods *StringSet,
-	allowedWSMethods *StringSet,
 	redis Redis,
 	opts ...BackendOpt,
 ) *Backend {
 	backend := &Backend{
-		Name:              name,
-		rpcURL:            rpcURL,
-		wsURL:             wsURL,
-		allowedRPCMethods: allowedRPCMethods,
-		allowedWSMethods:  allowedWSMethods,
-		redis:             redis,
-		maxResponseSize:   math.MaxInt64,
+		Name:            name,
+		rpcURL:          rpcURL,
+		wsURL:           wsURL,
+		redis:           redis,
+		maxResponseSize: math.MaxInt64,
 		client: &http.Client{
 			Timeout: 5 * time.Second,
 		},
@@ -151,12 +145,6 @@ func NewBackend(
 }
 
 func (b *Backend) Forward(ctx context.Context, req *RPCReq) (*RPCRes, error) {
-	if !b.allowedRPCMethods.Has(req.Method) {
-		// use unknown below to prevent DOS vector that fills up memory
-		// with arbitrary method names.
-		RecordRPCError(ctx, b.Name, MethodUnknown, ErrMethodNotWhitelisted)
-		return nil, ErrMethodNotWhitelisted
-	}
 	if !b.Online() {
 		RecordRPCError(ctx, b.Name, req.Method, ErrBackendOffline)
 		return nil, ErrBackendOffline
@@ -192,7 +180,7 @@ func (b *Backend) Forward(ctx context.Context, req *RPCReq) (*RPCRes, error) {
 	return nil, wrapErr(lastError, "permanent error forwarding request")
 }
 
-func (b *Backend) ProxyWS(clientConn *websocket.Conn) (*WSProxier, error) {
+func (b *Backend) ProxyWS(clientConn *websocket.Conn, methodWhitelist *StringSet) (*WSProxier, error) {
 	if !b.Online() {
 		return nil, ErrBackendOffline
 	}
@@ -210,7 +198,7 @@ func (b *Backend) ProxyWS(clientConn *websocket.Conn) (*WSProxier, error) {
 	}
 
 	activeBackendWsConnsGauge.WithLabelValues(b.Name).Inc()
-	return NewWSProxier(b, clientConn, backendConn), nil
+	return NewWSProxier(b, clientConn, backendConn, methodWhitelist), nil
 }
 
 func (b *Backend) Online() bool {
@@ -343,9 +331,9 @@ func (b *BackendGroup) Forward(ctx context.Context, rpcReq *RPCReq) (*RPCRes, er
 	return nil, ErrNoBackends
 }
 
-func (b *BackendGroup) ProxyWS(clientConn *websocket.Conn) (*WSProxier, error) {
+func (b *BackendGroup) ProxyWS(clientConn *websocket.Conn, methodWhitelist *StringSet) (*WSProxier, error) {
 	for _, back := range b.Backends {
-		proxier, err := back.ProxyWS(clientConn)
+		proxier, err := back.ProxyWS(clientConn, methodWhitelist)
 		if errors.Is(err, ErrBackendOffline) {
 			log.Debug("skipping offline backend", "name", back.Name)
 			continue
@@ -371,16 +359,18 @@ func calcBackoff(i int) time.Duration {
 }
 
 type WSProxier struct {
-	backend     *Backend
-	clientConn  *websocket.Conn
-	backendConn *websocket.Conn
+	backend         *Backend
+	clientConn      *websocket.Conn
+	backendConn     *websocket.Conn
+	methodWhitelist *StringSet
 }
 
-func NewWSProxier(backend *Backend, clientConn, backendConn *websocket.Conn) *WSProxier {
+func NewWSProxier(backend *Backend, clientConn, backendConn *websocket.Conn, methodWhitelist *StringSet) *WSProxier {
 	return &WSProxier{
-		backend:     backend,
-		clientConn:  clientConn,
-		backendConn: backendConn,
+		backend:         backend,
+		clientConn:      clientConn,
+		backendConn:     backendConn,
+		methodWhitelist: methodWhitelist,
 	}
 }
 
@@ -502,7 +492,7 @@ func (w *WSProxier) parseClientMsg(msg []byte) (*RPCReq, error) {
 		return nil, err
 	}
 
-	if !w.backend.allowedWSMethods.Has(req.Method) {
+	if !w.methodWhitelist.Has(req.Method) {
 		log.Info("blocked request for non-whitelisted method", "source", "ws", "method", req.Method)
 		return req, ErrMethodNotWhitelisted
 	}
