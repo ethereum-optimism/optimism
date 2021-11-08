@@ -57,11 +57,13 @@ process done with hash 0x5c45998dfbf9ce70bcbb80574ed7a622922d2c775e0a2331fe5a8b8
 
 ```
 # testing on cheapeth
-npx hardhat node
-npx hardhat run scripts/deploy.js
-BLOCK=13652175 npx hardhat run scripts/challenge.js
-```
+# only works for pre fork blocks
+minigeth/go-ethereum 1171895
+(cd mipsevm && ./mipsevm 1171895)
 
+npx hardhat run scripts/deploy.js
+BLOCK=1171895 npx hardhat run scripts/challenge.js
+```
 
 ## State Oracle API
 

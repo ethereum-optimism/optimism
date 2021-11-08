@@ -68,8 +68,12 @@ async function getTrieNodesForCall(c, cdat, preimages) {
       });
       break
     } catch(e) {
-      const missing = e.toString().split("'")[1]
-      if (missing.length == 64) {
+      let missing = e.toString().split("'")[1]
+      if (missing == undefined) {
+        // other kind of error from HTTPProvider
+        missing = e.error.message.toString().split("execution reverted: ")[1]
+      }
+      if (missing !== undefined && missing.length == 64) {
         console.log("requested node", missing)
         let node = preimages["0x"+missing]
         if (node === undefined) {
