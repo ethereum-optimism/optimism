@@ -55,13 +55,19 @@ const env = cleanEnv(process.env, {
 export const l1Provider = new providers.JsonRpcProvider(env.L1_URL)
 l1Provider.pollingInterval = env.L1_POLLING_INTERVAL
 
-export const l2Provider = new providers.JsonRpcProvider(env.L2_URL)
+export const l2Provider = injectL2Context(
+  new providers.JsonRpcProvider(env.L2_URL)
+)
 l2Provider.pollingInterval = env.L2_POLLING_INTERVAL
 
-export const verifierProvider = new providers.JsonRpcProvider(env.VERIFIER_URL)
+export const verifierProvider = injectL2Context(
+  new providers.JsonRpcProvider(env.VERIFIER_URL)
+)
 verifierProvider.pollingInterval = env.VERIFIER_POLLING_INTERVAL
 
-export const replicaProvider = new providers.JsonRpcProvider(env.REPLICA_URL)
+export const replicaProvider = injectL2Context(
+  new providers.JsonRpcProvider(env.REPLICA_URL)
+)
 replicaProvider.pollingInterval = env.REPLICA_POLLING_INTERVAL
 
 // The sequencer private key which is funded on L1
