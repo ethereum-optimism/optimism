@@ -152,6 +152,7 @@ contract Challenge {
   function getProposedState(uint256 challengeId) view public returns (bytes32) {
     Chal storage c = challenges[challengeId];
     require(c.challenger != address(0), "invalid challenge");
+    uint256 stepNumber = getStepNumber(challengeId);
     return c.assertedState[stepNumber];
   }
 
