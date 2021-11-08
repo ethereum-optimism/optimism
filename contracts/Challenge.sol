@@ -149,6 +149,12 @@ contract Challenge {
     return (c.L+c.R)/2;
   }
 
+  function getProposedState(uint256 challengeId) view public returns (bytes32) {
+    Chal storage c = challenges[challengeId];
+    require(c.challenger != address(0), "invalid challenge");
+    return c.assertedState[stepNumber];
+  }
+
   function ProposeState(uint256 challengeId, bytes32 riscState) external {
     Chal storage c = challenges[challengeId];
     require(c.challenger != address(0), "invalid challenge");

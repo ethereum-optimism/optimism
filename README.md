@@ -63,8 +63,15 @@ minigeth/go-ethereum 1171895
 npx hardhat run scripts/deploy.js
 BLOCK=1171895 npx hardhat run scripts/challenge.js
 
+# "attacker" is block 1171896
+minigeth/go-ethereum 1171896
+
+ID=0 npx hardhat run scripts/respond.js
 (cd mipsevm && ./mipsevm 1171896 11226379)
-ID=0 BLOCK=1171896 npx hardhat run scripts/respond.js
+ID=0 BLOCK=1171896 PROPOSE=1 npx hardhat run scripts/respond.js
+# "defender" is real block 1171896
+(cd mipsevm && ./mipsevm 1171895 11226379)
+ID=0 BLOCK=1171895 RESPOND=1 npx hardhat run scripts/respond.js
 ```
 
 ## State Oracle API
