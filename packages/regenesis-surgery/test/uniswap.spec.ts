@@ -1,14 +1,23 @@
 import { ethers } from 'ethers'
 import { abi as UNISWAP_POOL_ABI } from '@uniswap/v3-core/artifacts/contracts/UniswapV3Pool.sol/UniswapV3Pool.json'
-import { UNISWAP_V3_NFPM_ADDRESS } from '../../scripts/constants'
-import { getUniswapV3Factory, replaceWETH } from '../../scripts/utils'
-import { expect, env } from '../setup'
-import { AccountType } from '../../scripts/types'
+import { UNISWAP_V3_NFPM_ADDRESS } from '../scripts/constants'
+import { getUniswapV3Factory, replaceWETH } from '../scripts/utils'
+import { expect, env } from './setup'
+import { AccountType } from '../scripts/types'
 
 const ERC20_ABI = ['function balanceOf(address owner) view returns (uint256)']
 
 describe('uniswap contracts', () => {
-  describe('V3 factory', () => {
+  before(async () => {
+    await env.init()
+  })
+
+  it('V3 factory', () => {
+    if (!env.hasLiveProviders()) {
+      console.log('Cannot run factory tests without live provider')
+      return
+    }
+
     let preUniswapV3Factory: ethers.Contract
     let postUniswapV3Factory: ethers.Contract
     before(async () => {
@@ -17,12 +26,22 @@ describe('uniswap contracts', () => {
     })
 
     it('should have the same owner', async () => {
+      if (!env.hasLiveProviders()) {
+        console.log('Cannot run factory tests without live provider')
+        return
+      }
+
       const preOwner = await preUniswapV3Factory.owner()
       const postOwner = await postUniswapV3Factory.owner()
       expect(preOwner).to.equal(postOwner)
     })
 
     it('should have the same feeAmountTickSpacing map values', async () => {
+      if (!env.hasLiveProviders()) {
+        console.log('Cannot run factory tests without live provider')
+        return
+      }
+
       for (const fee of [500, 3000, 10000]) {
         const preValue = await preUniswapV3Factory.feeAmountTickSpacing(fee)
         const postValue = await postUniswapV3Factory.feeAmountTickSpacing(fee)
@@ -31,6 +50,11 @@ describe('uniswap contracts', () => {
     })
 
     it('should have the right pool addresses', async () => {
+      if (!env.hasLiveProviders()) {
+        console.log('Cannot run factory tests without live provider')
+        return
+      }
+
       for (const pool of env.surgeryDataSources.pools) {
         const remotePoolAddress1 = await postUniswapV3Factory.getPool(
           pool.token0,
@@ -49,10 +73,12 @@ describe('uniswap contracts', () => {
       }
     })
 
+    // Debug this one...
     it('should have the same code as on mainnet', async () => {
-      const l2Code = await env.postL2Provider.getCode(
+      let l2Code = await env.postL2Provider.getCode(
         postUniswapV3Factory.address
       )
+      l2Code = replaceWETH(l2Code)
       const l1Code = await env.surgeryDataSources.ethProvider.getCode(
         postUniswapV3Factory.address
       )
@@ -63,12 +89,12 @@ describe('uniswap contracts', () => {
 
   describe('V3 NFPM', () => {
     it('should have the same code as on mainnet', async () => {
-      let l2Code = await env.postL2Provider.getCode(UNISWAP_V3_NFPM_ADDRESS)
-      const l1Code = await env.surgeryDataSources.ethProvider.getCode(
+      const l2Code = await env.postL2Provider.getCode(UNISWAP_V3_NFPM_ADDRESS)
+      let l1Code = await env.surgeryDataSources.ethProvider.getCode(
         UNISWAP_V3_NFPM_ADDRESS
       )
+      l1Code = replaceWETH(l1Code)
       expect(l2Code).to.not.equal('0x')
-      l2Code = replaceWETH(l2Code)
       expect(l2Code).to.equal(l1Code)
     })
 
@@ -76,7 +102,26 @@ describe('uniswap contracts', () => {
   })
 
   describe('V3 pools', () => {
-    before(async () => {
+    it('Pools code', () => {
+      for (const pool of env.surgeryDataSources.pools) {
+        describe(`pool at address ${pool.newAddress}`, () => {
+          it('should have the same code as on testnet', async () => {
+            const l2Code = await env.postL2Provider.getCode(pool.newAddress)
+            const l1Code = await env.surgeryDataSources.ropstenProvider.getCode(
+              pool.newAddress
+            )
+            expect(l2Code).to.not.equal('0x')
+            expect(l2Code).to.equal(l1Code)
+          })
+        })
+      }
+    })
+
+    it('Pools contract', () => {
+      if (!env.hasLiveProviders()) {
+        console.log('Cannot run pool contract tests without live provider')
+        return
+      }
       for (const pool of env.surgeryDataSources.pools) {
         describe(`pool at address ${pool.newAddress}`, () => {
           let prePoolContract: ethers.Contract
@@ -172,32 +217,29 @@ describe('uniswap contracts', () => {
 
       // TODO: add a test for minting positions?
     })
-
-    // Hack for dynamically generating tests based on async data.
-    // eslint-disable-next-line @typescript-eslint/no-empty-function
-    it('stub', async () => {})
   })
 
   describe('other', () => {
+    let accs
     before(async () => {
-      const accs = env.getAccountsByType(AccountType.UNISWAP_V3_OTHER)
+      accs = env.getAccountsByType(AccountType.UNISWAP_V3_OTHER)
+    })
 
+    // TODO: for some reason these tests fail
+    it('Other uniswap contracts', () => {
       for (const acc of accs) {
         describe(`uniswap contract at address ${acc.address}`, () => {
           it('should have the same code as on mainnet', async () => {
             const l2Code = await env.postL2Provider.getCode(acc.address)
-            const l1Code = await env.surgeryDataSources.ethProvider.getCode(
+            let l1Code = await env.surgeryDataSources.ethProvider.getCode(
               acc.address
             )
+            l1Code = replaceWETH(l1Code)
             expect(l2Code).to.not.equal('0x')
             expect(l2Code).to.equal(l1Code)
           })
         })
       }
     })
-
-    // Hack for dynamically generating tests based on async data.
-    // eslint-disable-next-line @typescript-eslint/no-empty-function
-    it('stub', async () => {})
   })
 })

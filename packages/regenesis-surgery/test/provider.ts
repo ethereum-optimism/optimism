@@ -16,6 +16,7 @@ import {
   Listener,
 } from '@ethersproject/abstract-provider'
 import { KECCAK256_RLP_S, KECCAK256_NULL_S } from 'ethereumjs-util'
+import path from 'path'
 
 import { bytes32ify, remove0x, add0x } from '@eth-optimism/core-utils'
 
@@ -63,7 +64,7 @@ export class GenesisJsonProvider implements AbstractProvider {
   constructor(dump: string | Genesis | State) {
     let input
     if (typeof dump === 'string') {
-      input = require(dump)
+      input = require(path.resolve(dump))
     } else if (typeof dump === 'object') {
       input = dump
     }
@@ -73,46 +74,73 @@ export class GenesisJsonProvider implements AbstractProvider {
     if (this.state === null) {
       throw new Error('Must initialize with genesis or state object')
     }
+
+    this._isProvider = false
   }
 
-  async getBalance(addressOrName: string): Promise<BigNumber> {
+  async getBalance(
+    addressOrName: string,
+    // eslint-disable-next-line
+    blockTag?: number | string
+  ): Promise<BigNumber> {
+    addressOrName = addressOrName.toLowerCase()
     const address = remove0x(addressOrName)
-    const account = this.state[address]
-    if (!account) {
+    const account = this.state[address] || this.state[addressOrName]
+    if (!account || account.balance === '') {
       return BigNumber.from(0)
     }
     return BigNumber.from(account.balance)
   }
 
-  async getTransactionCount(addressOrName: string): Promise<number> {
+  async getTransactionCount(
+    addressOrName: string,
+    // eslint-disable-next-line
+    blockTag?: number | string
+  ): Promise<number> {
+    addressOrName = addressOrName.toLowerCase()
     const address = remove0x(addressOrName)
-    const account = this.state[address]
+    const account = this.state[address] || this.state[addressOrName]
     if (!account) {
       return 0
     }
-    return account.nonce
+    if (typeof account.nonce === 'number') {
+      return account.nonce
+    }
+    if (account.nonce === '') {
+      return 0
+    }
+    if (typeof account.nonce === 'string') {
+      return BigNumber.from(account.nonce).toNumber()
+    }
+    return 0
   }
 
   async getCode(addressOrName: string): Promise<string> {
+    addressOrName = addressOrName.toLowerCase()
     const address = remove0x(addressOrName)
-    const account = this.state[address]
+    const account = this.state[address] || this.state[addressOrName]
     if (!account) {
       return '0x'
     }
-    return add0x(account.code)
+    if (typeof account.code === 'string') {
+      return add0x(account.code)
+    }
+    return '0x'
   }
 
   async getStorageAt(
     addressOrName: string,
     position: BigNumber | number
   ): Promise<string> {
+    addressOrName = addressOrName.toLowerCase()
     const address = remove0x(addressOrName)
-    const account = this.state[address]
+    const account = this.state[address] || this.state[addressOrName]
     if (!account) {
       return '0x'
     }
     const bytes32 = bytes32ify(position)
-    const storage = account.storage[remove0x(bytes32)]
+    const storage =
+      account.storage[remove0x(bytes32)] || account.storage[bytes32]
     if (!storage) {
       return '0x'
     }
@@ -135,7 +163,7 @@ export class GenesisJsonProvider implements AbstractProvider {
         if (!address) {
           throw new Error('Must pass address as first arg')
         }
-        const account = this.state[remove0x(address)]
+        const account = this.state[remove0x(address)] || this.state[address]
         // The account doesn't exist or is an EOA
         if (!account || !account.code || account.code === '0x') {
           return {
@@ -144,7 +172,7 @@ export class GenesisJsonProvider implements AbstractProvider {
           }
         }
         return {
-          codeHash: ethers.utils.keccak256('0x' + account.code),
+          codeHash: ethers.utils.keccak256(add0x(account.code)),
           storageHash: add0x(account.root),
         }
       }

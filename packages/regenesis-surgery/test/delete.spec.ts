@@ -1,13 +1,17 @@
 import { KECCAK256_RLP_S, KECCAK256_NULL_S } from 'ethereumjs-util'
 import { add0x } from '@eth-optimism/core-utils'
 import { ethers } from 'ethers'
-import { expect, env } from '../setup'
-import { AccountType } from '../../scripts/types'
+import { expect, env } from './setup'
+import { AccountType } from '../scripts/types'
 
 describe('deleted contracts', () => {
+  let accs
   before(async () => {
-    const accs = env.getAccountsByType(AccountType.DELETE)
+    await env.init()
+    accs = env.getAccountsByType(AccountType.DELETE)
+  })
 
+  it('accounts', async () => {
     for (const [i, acc] of accs.entries()) {
       describe(`account ${i}/${accs.length} (${acc.address})`, () => {
         it('should not have any code', async () => {
@@ -45,8 +49,4 @@ describe('deleted contracts', () => {
       })
     }
   })
-
-  // Hack for dynamically generating tests based on async data.
-  // eslint-disable-next-line @typescript-eslint/no-empty-function
-  it('stub', async () => {})
 })

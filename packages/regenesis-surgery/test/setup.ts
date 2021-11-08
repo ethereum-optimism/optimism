@@ -3,11 +3,12 @@ import chai = require('chai')
 import Mocha from 'mocha'
 import chaiAsPromised from 'chai-as-promised'
 import * as dotenv from 'dotenv'
-import { reqenv, getenv } from '@eth-optimism/core-utils'
-import { providers } from 'ethers'
+import { getenv, remove0x } from '@eth-optimism/core-utils'
+import { providers, BigNumber } from 'ethers'
 import { SurgeryDataSources, Account, AccountType } from '../scripts/types'
 import { loadSurgeryData } from '../scripts/data'
 import { classify } from '../scripts/classifiers'
+import { GenesisJsonProvider } from './provider'
 
 // Chai plugins go here.
 chai.use(chaiAsPromised)
@@ -20,16 +21,20 @@ dotenv.config()
 export const NUM_ACCOUNTS_DIVISOR = 4096
 
 interface TestEnvConfig {
-  preL2ProviderUrl: string
-  postL2ProviderUrl: string
+  preL2ProviderUrl: string | null
+  postL2ProviderUrl: string | null
+  postSurgeryGenesisFilePath: string
   stateDumpHeight: string | number
 }
 
 const config = (): TestEnvConfig => {
   const height = getenv('REGEN__STATE_DUMP_HEIGHT')
   return {
-    preL2ProviderUrl: reqenv('REGEN__PRE_L2_PROVIDER_URL'),
-    postL2ProviderUrl: reqenv('REGEN__POST_L2_PROVIDER_URL'),
+    // Optional config params for running against live nodes
+    preL2ProviderUrl: getenv('REGEN__PRE_L2_PROVIDER_URL'),
+    postL2ProviderUrl: getenv('REGEN__POST_L2_PROVIDER_URL'),
+    // File path to the post regenesis file to read
+    postSurgeryGenesisFilePath: getenv('REGEN__POST_GENESIS_FILE_PATH'),
     stateDumpHeight: parseInt(height, 10) || 'latest',
   }
 }
@@ -46,12 +51,12 @@ class TestEnv {
   // An L2 provider configured to be able to query a pre
   // regenesis L2 node. This node should be synced to the
   // height that the state dump was taken
-  preL2Provider: providers.StaticJsonRpcProvider
+  preL2Provider: providers.StaticJsonRpcProvider | GenesisJsonProvider
 
   // An L2 provider configured to be able to query a post
   // regenesis L2 node. This L2 node was initialized with
   // the results of the state surgery script
-  postL2Provider: providers.StaticJsonRpcProvider
+  postL2Provider: providers.StaticJsonRpcProvider | GenesisJsonProvider
 
   // The datasources used for doing state surgery
   surgeryDataSources: SurgeryDataSources
@@ -61,12 +66,27 @@ class TestEnv {
 
   constructor(opts: TestEnvConfig) {
     this.config = opts
-    this.preL2Provider = new providers.StaticJsonRpcProvider(
-      opts.preL2ProviderUrl
-    )
-    this.postL2Provider = new providers.StaticJsonRpcProvider(
-      opts.postL2ProviderUrl
-    )
+    // If the pre provider url is provided, use a json rpc provider.
+    // Otherwise, initialize a preL2Provider in the init function
+    // since it depends on suregery data sources
+    if (opts.preL2ProviderUrl) {
+      this.preL2Provider = new providers.StaticJsonRpcProvider(
+        opts.preL2ProviderUrl
+      )
+    }
+    if (opts.postL2ProviderUrl) {
+      this.postL2Provider = new providers.StaticJsonRpcProvider(
+        opts.postL2ProviderUrl
+      )
+    } else {
+      if (!opts.postSurgeryGenesisFilePath) {
+        throw new Error('Must configure REGEN__POST_GENESIS_FILE_PATH')
+      }
+      console.log('Using GenesisJsonProvider for postL2Provider')
+      this.postL2Provider = new GenesisJsonProvider(
+        opts.postSurgeryGenesisFilePath
+      )
+    }
   }
 
   // Read the big files from disk. Without bumping the size of the nodejs heap,
@@ -75,6 +95,40 @@ class TestEnv {
   async init() {
     if (this.surgeryDataSources === undefined) {
       this.surgeryDataSources = await loadSurgeryData()
+
+      if (!this.preL2Provider) {
+        console.log('Initializing pre GenesisJsonProvider...')
+        // Convert the genesis dump into a genesis file format
+        const genesis = { ...this.surgeryDataSources.genesis }
+        for (const account of this.surgeryDataSources.dump) {
+          let nonce = account.nonce
+          if (typeof nonce === 'string') {
+            if (nonce === '') {
+              nonce = 0
+            } else {
+              nonce = BigNumber.from(nonce).toNumber()
+            }
+          }
+          genesis.alloc[remove0x(account.address).toLowerCase()] = {
+            nonce,
+            balance: account.balance,
+            codeHash: remove0x(account.codeHash),
+            root: remove0x(account.root),
+            code: remove0x(account.code),
+            storage: {},
+          }
+          // Fill in the storage if it exists
+          if (account.storage) {
+            for (const [key, value] of Object.entries(account.storage)) {
+              genesis.alloc[remove0x(account.address).toLowerCase()].storage[
+                remove0x(key)
+              ] = remove0x(value)
+            }
+          }
+        }
+        // Create the pre L2 provider using the build genesis object
+        this.preL2Provider = new GenesisJsonProvider(genesis)
+      }
 
       // Classify the accounts once, this takes a while so it's better to cache it.
       console.log(`Classifying accounts...`)
@@ -86,6 +140,11 @@ class TestEnv {
         })
       }
     }
+  }
+
+  // isProvider is false when it is not live
+  hasLiveProviders(): boolean {
+    return this.postL2Provider._isProvider
   }
 
   getAccountsByType(type: AccountType) {
