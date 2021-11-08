@@ -4,7 +4,7 @@ FROM ${LOCAL_REGISTRY}/ethereumoptimism/builder:${BUILDER_TAG} AS builder
 
 FROM node:14-alpine
 
-RUN apk add --no-cache git curl python bash jq
+RUN apk add --no-cache git curl python3 bash jq
 
 WORKDIR /opt/optimism/
 
