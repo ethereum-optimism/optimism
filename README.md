@@ -53,6 +53,15 @@ receipt count 5 hash 0xa2947195971207f3654f635af06f2ab5d3a57af7a834ac88446afd3e8
 process done with hash 0x5c45998dfbf9ce70bcbb80574ed7a622922d2c775e0a2331fe5a8b8dcc99f490 -> 0x9e0261efe4509912b8862f3d45a0cb8404b99b239247df9c55871bd3844cebbd
 ```
 
+## Workflow
+
+```
+# testing on cheapeth
+npx hardhat node
+npx hardhat run scripts/deploy.js
+BLOCK=13652175 npx hardhat run scripts/challenge.js
+```
+
 
 ## State Oracle API
 

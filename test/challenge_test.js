@@ -20,7 +20,7 @@ describe("Challenge contract", function () {
     const blockchain = hardhat._node._blockchain
 
     // get data
-    const blockNumberN = (await ethers.provider.getBlockNumber())-2;
+    const blockNumberN = (await ethers.provider.getBlockNumber())-2
     const blockNp1 = blockchain._data._blocksByNumber.get(blockNumberN+1)
     const blockNp1Rlp = blockNp1.header.serialize()
 
