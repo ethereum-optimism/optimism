@@ -36,19 +36,20 @@ func main() {
 
 	lastStep := 1
 	if evm {
-		ZeroRegisters(ram)
+		// TODO: fix this
+		/*ZeroRegisters(ram)
 		LoadMappedFile("mipigo/minigeth.bin", ram, 0)
 		WriteCheckpoint(ram, "/tmp/cannon/golden.json", -1)
 		LoadMappedFile(fmt.Sprintf("%s/input", root), ram, 0x30000000)
 		RunWithRam(ram, target-1, 0, root, nil)
 		lastStep += target - 1
 		fn := fmt.Sprintf("%s/checkpoint_%d.json", root, lastStep)
-		WriteCheckpoint(ram, fn, lastStep)
+		WriteCheckpoint(ram, fn, lastStep)*/
 	} else {
-		mu := GetHookedUnicorn(root, ram, func(lstep int, mu uc.Unicorn, ram map[uint32](uint32)) {
-			step := lstep + 1
+		mu := GetHookedUnicorn(root, ram, func(step int, mu uc.Unicorn, ram map[uint32](uint32)) {
+			// it seems this runs before the actual step happens
 			// this can be raised to 10,000,000 if the files are too large
-			if step%10000000 == 0 || step == target {
+			if (target == -1 && step%10000000 == 0) || step == target {
 				SyncRegs(mu, ram)
 				fn := fmt.Sprintf("%s/checkpoint_%d.json", root, step)
 				WriteCheckpoint(ram, fn, step)
@@ -57,7 +58,8 @@ func main() {
 					mu.RegWrite(uc.MIPS_REG_PC, 0x5ead0004)
 				}
 			}
-			lastStep = step
+			// TODO: is this where the plus 1 goes?
+			lastStep = step + 1
 		})
 
 		ZeroRegisters(ram)
@@ -71,13 +73,6 @@ func main() {
 
 		// TODO: this is actually step 0->1. Renumber as appropriate
 		LoadMappedFileUnicorn(mu, fmt.Sprintf("%s/input", root), ram, 0x30000000)
-
-		if target == 0 {
-			// no actual running at step 0
-			fn := fmt.Sprintf("%s/checkpoint_%d.json", root, target)
-			WriteCheckpoint(ram, fn, target)
-			return
-		}
 
 		mu.Start(0, 0x5ead0004)
 		SyncRegs(mu, ram)

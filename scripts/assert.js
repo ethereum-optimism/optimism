@@ -42,7 +42,7 @@ async function main() {
   }
 
   let receipt = await ret.wait()
-  console.log(receipt)
+  console.log(receipt.events.map((x) => x.event))
 }
 
 main()

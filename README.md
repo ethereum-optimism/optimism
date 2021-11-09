@@ -67,6 +67,7 @@ minigeth/go-ethereum 1171895 && mipsevm/mipsevm 1171895
 minigeth/go-ethereum 10 && mipsevm/mipsevm 10
 BLOCK=1171895 npx hardhat run scripts/challenge.js
 
+# do binary search
 for i in {1..23}
 do
 ID=0 BLOCK=10 CHALLENGER=1 npx hardhat run scripts/respond.js
@@ -78,7 +79,6 @@ ID=0 BLOCK=10 CHALLENGER=1 npx hardhat run scripts/assert.js
 
 # assert as defender (passes)
 ID=0 BLOCK=1171895 npx hardhat run scripts/assert.js
-
 ```
 
 ## State Oracle API
