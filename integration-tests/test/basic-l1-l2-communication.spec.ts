@@ -9,6 +9,7 @@ import simpleStorageJson from '../artifacts/contracts/SimpleStorage.sol/SimpleSt
 import l2ReverterJson from '../artifacts/contracts/Reverter.sol/Reverter.json'
 import { Direction } from './shared/watcher-utils'
 import { OptimismEnv } from './shared/env'
+import { isMainnet } from './shared/utils'
 
 describe('Basic L1<>L2 Communication', async () => {
   let Factory__L1SimpleStorage: ContractFactory
@@ -48,7 +49,13 @@ describe('Basic L1<>L2 Communication', async () => {
   })
 
   describe('L2 => L1', () => {
-    it('should be able to perform a withdrawal from L2 -> L1', async () => {
+    it('should be able to perform a withdrawal from L2 -> L1', async function () {
+      if (await isMainnet(env)) {
+        console.log('Skipping withdrawals test on mainnet.')
+        this.skip()
+        return
+      }
+
       const value = `0x${'77'.repeat(32)}`
 
       // Send L2 -> L1 message.

@@ -33,3 +33,10 @@ You can also set environment variables on the command line instead of inside `.e
 ```bash
 L1_URL=whatever L2_URL=whatever yarn test:integration:live
 ```
+
+To run the Uniswap integration tests against a deployed set of Uniswap contracts, add the following env vars:
+
+```
+UNISWAP_POSITION_MANAGER_ADDRESS=<non fungible position manager address>
+UNISWAP_ROUTER_ADDRESS=<router address>
+```

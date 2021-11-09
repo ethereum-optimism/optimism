@@ -9,7 +9,6 @@ import {
   defaultTransactionFactory,
   fundUser,
   L2_CHAINID,
-  IS_LIVE_NETWORK,
   isLiveNetwork,
   gasPriceForL2,
 } from './shared/utils'
@@ -60,7 +59,7 @@ describe('Basic RPC tests', () => {
   describe('eth_sendRawTransaction', () => {
     it('should correctly process a valid transaction', async () => {
       const tx = defaultTransactionFactory()
-      tx.gasPrice = await gasPriceForL2()
+      tx.gasPrice = await gasPriceForL2(env)
       const nonce = await wallet.getTransactionCount()
       const result = await wallet.sendTransaction(tx)
 
@@ -74,7 +73,7 @@ describe('Basic RPC tests', () => {
     it('should not accept a transaction with the wrong chain ID', async () => {
       const tx = {
         ...defaultTransactionFactory(),
-        gasPrice: await gasPriceForL2(),
+        gasPrice: await gasPriceForL2(env),
         chainId: (await wallet.getChainId()) + 1,
       }
 
@@ -86,7 +85,7 @@ describe('Basic RPC tests', () => {
     it('should not accept a transaction without a chain ID', async () => {
       const tx = {
         ...defaultTransactionFactory(),
-        gasPrice: await gasPriceForL2(),
+        gasPrice: await gasPriceForL2(env),
         chainId: null, // Disables EIP155 transaction signing.
       }
 
@@ -98,7 +97,7 @@ describe('Basic RPC tests', () => {
     it('should accept a transaction with a value', async () => {
       const tx = {
         ...defaultTransactionFactory(),
-        gasPrice: await gasPriceForL2(),
+        gasPrice: await gasPriceForL2(env),
         chainId: await env.l2Wallet.getChainId(),
         data: '0x',
         value: ethers.utils.parseEther('0.1'),
@@ -118,7 +117,7 @@ describe('Basic RPC tests', () => {
       const balance = await env.l2Wallet.getBalance()
       const tx = {
         ...defaultTransactionFactory(),
-        gasPrice: await gasPriceForL2(),
+        gasPrice: await gasPriceForL2(env),
         chainId: await env.l2Wallet.getChainId(),
         data: '0x',
         value: balance.add(ethers.utils.parseEther('1')),
@@ -282,7 +281,7 @@ describe('Basic RPC tests', () => {
   describe('eth_getTransactionByHash', () => {
     it('should be able to get all relevant l1/l2 transaction data', async () => {
       const tx = defaultTransactionFactory()
-      tx.gasPrice = await gasPriceForL2()
+      tx.gasPrice = await gasPriceForL2(env)
       const result = await wallet.sendTransaction(tx)
       await result.wait()
 
@@ -297,7 +296,7 @@ describe('Basic RPC tests', () => {
     it('should return the block and all included transactions', async () => {
       // Send a transaction and wait for it to be mined.
       const tx = defaultTransactionFactory()
-      tx.gasPrice = await gasPriceForL2()
+      tx.gasPrice = await gasPriceForL2(env)
       const result = await wallet.sendTransaction(tx)
       const receipt = await result.wait()
 
@@ -324,7 +323,7 @@ describe('Basic RPC tests', () => {
     // other people are sending transactions to the Sequencer at the same time
     // as this test is running.
     it('should return the same result when new transactions are not applied', async function () {
-      if (IS_LIVE_NETWORK) {
+      if (isLiveNetwork()) {
         this.skip()
       }
 
