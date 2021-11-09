@@ -2,10 +2,8 @@ import { ethers } from 'ethers'
 import { abi as UNISWAP_POOL_ABI } from '@uniswap/v3-core/artifacts/contracts/UniswapV3Pool.sol/UniswapV3Pool.json'
 import { UNISWAP_V3_NFPM_ADDRESS } from '../scripts/constants'
 import { getUniswapV3Factory, replaceWETH } from '../scripts/utils'
-import { expect, env } from './setup'
+import { expect, env, ERC20_ABI } from './setup'
 import { AccountType } from '../scripts/types'
-
-const ERC20_ABI = ['function balanceOf(address owner) view returns (uint256)']
 
 describe('uniswap contracts', () => {
   before(async () => {
