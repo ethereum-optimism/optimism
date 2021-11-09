@@ -78,8 +78,8 @@ export class OptimismEnv {
 
     // fund the user if needed
     const balance = await l2Wallet.getBalance()
-    if (balance.isZero()) {
-      await fundUser(watcher, l1Bridge, utils.parseEther('20'))
+    if (balance.lt(utils.parseEther('1'))) {
+      await fundUser(watcher, l1Bridge, utils.parseEther('1').sub(balance))
     }
     const l1Messenger = getContractFactory('L1CrossDomainMessenger')
       .connect(l1Wallet)

@@ -174,7 +174,12 @@ export const waitForL2Geth = async (
   return injectL2Context(provider)
 }
 
-export const gasPriceForL2 = async () => {
+// eslint-disable-next-line @typescript-eslint/no-shadow
+export const gasPriceForL2 = async (env: OptimismEnv) => {
+  if (await isMainnet(env)) {
+    return env.l2Wallet.getGasPrice()
+  }
+
   if (isLiveNetwork()) {
     return Promise.resolve(BigNumber.from(10000))
   }
@@ -197,4 +202,10 @@ export const gasPriceForL1 = async (env: OptimismEnv) => {
     default:
       return BigNumber.from(0)
   }
+}
+
+// eslint-disable-next-line @typescript-eslint/no-shadow
+export const isMainnet = async (env: OptimismEnv) => {
+  const chainId = await env.l1Wallet.getChainId()
+  return chainId === 1
 }

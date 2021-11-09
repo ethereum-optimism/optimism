@@ -47,7 +47,7 @@ describe('Native ETH value integration tests', () => {
     const there = await wallet.sendTransaction({
       to: other.address,
       value,
-      gasPrice: await gasPriceForL2(),
+      gasPrice: await gasPriceForL2(env),
     })
     const thereReceipt = await there.wait()
     const thereGas = thereReceipt.gasUsed.mul(there.gasPrice)
@@ -65,7 +65,7 @@ describe('Native ETH value integration tests', () => {
     const backAgain = await other.sendTransaction({
       to: wallet.address,
       value: backVal,
-      gasPrice: await gasPriceForL2(),
+      gasPrice: await gasPriceForL2(env),
     })
     const backReceipt = await backAgain.wait()
     const backGas = backReceipt.gasUsed.mul(backAgain.gasPrice)
@@ -171,7 +171,7 @@ describe('Native ETH value integration tests', () => {
     it('should allow ETH to be sent', async () => {
       const sendAmount = 15
       const tx = await ValueCalls0.simpleSend(ValueCalls1.address, sendAmount, {
-        gasPrice: await gasPriceForL2(),
+        gasPrice: await gasPriceForL2(env),
       })
       await tx.wait()
 
