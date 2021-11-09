@@ -10,13 +10,14 @@ import {
   deployAndVerifyAndThen,
   isHardhatNode,
 } from '../src/hardhat-deploy-ethers'
+import { names } from '../src/address-names'
 
 const deployFn: DeployFunction = async (hre) => {
   const { deployer } = await hre.getNamedAccounts()
 
   const ChugSplashDictator = await getContractFromArtifact(
     hre,
-    'ChugSplashDictator',
+    names.unmanaged.ChugSplashDictator,
     {
       signerOrProvider: deployer,
     }
@@ -24,7 +25,7 @@ const deployFn: DeployFunction = async (hre) => {
 
   const Proxy__OVM_L1StandardBridge = await getContractFromArtifact(
     hre,
-    'Proxy__OVM_L1StandardBridge',
+    names.managed.contracts.Proxy__OVM_L1StandardBridge,
     {
       iface: 'L1ChugSplashProxy',
       signerOrProvider: deployer,

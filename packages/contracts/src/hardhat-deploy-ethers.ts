@@ -5,6 +5,15 @@ import { Signer } from '@ethersproject/abstract-signer'
 import { sleep, awaitCondition } from '@eth-optimism/core-utils'
 import { HttpNetworkConfig } from 'hardhat/types'
 
+/**
+ * @param  {Any} hre Hardhat runtime environment
+ * @param  {String} name Contract name from the names object
+ * @param  {Any[]} args Constructor arguments
+ * @param  {String} contract Name of the solidity contract
+ * @param  {String} iface Alternative interface for calling the contract
+ * @param  {Function} postDeployAction Called after deployment
+ */
+
 export const deployAndVerifyAndThen = async ({
   hre,
   name,

@@ -7,30 +7,20 @@ import {
   deployAndVerifyAndThen,
   getContractFromArtifact,
 } from '../src/hardhat-deploy-ethers'
+import { names } from '../src/address-names'
 import { predeploys } from '../src/predeploys'
 
 const deployFn: DeployFunction = async (hre) => {
   const Lib_AddressManager = await getContractFromArtifact(
     hre,
-    'Lib_AddressManager'
+    names.unmanaged.Lib_AddressManager
   )
-
-  const allContractNames = [
-    'ChainStorageContainer-CTC-batches',
-    'ChainStorageContainer-SCC-batches',
-    'CanonicalTransactionChain',
-    'StateCommitmentChain',
-    'BondManager',
-    'OVM_L1CrossDomainMessenger',
-    'Proxy__OVM_L1CrossDomainMessenger',
-    'Proxy__OVM_L1StandardBridge',
-  ]
 
   let namesAndAddresses: {
     name: string
     address: string
   }[] = await Promise.all(
-    allContractNames.map(async (name) => {
+    Object.values(names.managed.contracts).map(async (name) => {
       return {
         name,
         address: (await getContractFromArtifact(hre, name)).address,
@@ -51,13 +41,13 @@ const deployFn: DeployFunction = async (hre) => {
     // OVM_Sequencer is the address allowed to submit "Sequencer" blocks to the
     // CanonicalTransactionChain.
     {
-      name: 'OVM_Sequencer',
+      name: names.managed.accounts.OVM_Sequencer,
       address: (hre as any).deployConfig.ovmSequencerAddress,
     },
     // OVM_Proposer is the address allowed to submit state roots (transaction results) to the
     // StateCommitmentChain.
     {
-      name: 'OVM_Proposer',
+      name: names.managed.accounts.OVM_Proposer,
       address: (hre as any).deployConfig.ovmProposerAddress,
     },
   ]
@@ -76,8 +66,7 @@ const deployFn: DeployFunction = async (hre) => {
 
   await deployAndVerifyAndThen({
     hre,
-    name: 'AddressDictator',
-    contract: 'AddressDictator',
+    name: names.unmanaged.AddressDictator,
     args: [
       Lib_AddressManager.address,
       (hre as any).deployConfig.ovmAddressManagerOwner,

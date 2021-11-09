@@ -3,13 +3,14 @@ import { DeployFunction } from 'hardhat-deploy/dist/types'
 
 /* Imports: Internal */
 import { deployAndVerifyAndThen } from '../src/hardhat-deploy-ethers'
+import { names } from '../src/address-names'
 
 const deployFn: DeployFunction = async (hre) => {
   const { deployer } = await hre.getNamedAccounts()
 
   await deployAndVerifyAndThen({
     hre,
-    name: 'Proxy__OVM_L1StandardBridge',
+    name: names.managed.contracts.Proxy__OVM_L1StandardBridge,
     contract: 'L1ChugSplashProxy',
     iface: 'L1StandardBridge',
     args: [deployer],
