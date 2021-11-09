@@ -7,7 +7,7 @@ import { predeploys } from '../src/predeploys'
 import { getContractDefinition } from '../src/contract-defs'
 import {
   getContractFromArtifact,
-  deployAndPostDeploy,
+  deployAndVerifyAndThen,
 } from '../src/hardhat-deploy-ethers'
 
 const deployFn: DeployFunction = async (hre) => {
@@ -25,7 +25,7 @@ const deployFn: DeployFunction = async (hre) => {
     'Proxy__OVM_L1CrossDomainMessenger'
   )
 
-  await deployAndPostDeploy({
+  await deployAndVerifyAndThen({
     hre,
     name: 'ChugSplashDictator',
     contract: 'ChugSplashDictator',

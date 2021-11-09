@@ -4,7 +4,7 @@ import { hexStringEquals } from '@eth-optimism/core-utils'
 
 /* Imports: Internal */
 import {
-  deployAndPostDeploy,
+  deployAndVerifyAndThen,
   getContractFromArtifact,
 } from '../src/hardhat-deploy-ethers'
 import { predeploys } from '../src/predeploys'
@@ -74,7 +74,7 @@ const deployFn: DeployFunction = async (hre) => {
     return !hexStringEquals(existingAddresses[name], address)
   })
 
-  await deployAndPostDeploy({
+  await deployAndVerifyAndThen({
     hre,
     name: 'AddressDictator',
     contract: 'AddressDictator',

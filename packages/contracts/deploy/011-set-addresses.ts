@@ -1,10 +1,12 @@
 /* Imports: External */
 import { hexStringEquals, awaitCondition } from '@eth-optimism/core-utils'
 import { DeployFunction } from 'hardhat-deploy/dist/types'
-import { defaultHardhatNetworkParams } from 'hardhat/internal/core/config/default-config'
 
 /* Imports: Internal */
-import { getContractFromArtifact } from '../src/hardhat-deploy-ethers'
+import {
+  getContractFromArtifact,
+  isHardhatNode,
+} from '../src/hardhat-deploy-ethers'
 
 const deployFn: DeployFunction = async (hre) => {
   const { deployer } = await hre.getNamedAccounts()
@@ -72,11 +74,9 @@ const deployFn: DeployFunction = async (hre) => {
     (4) Wait for the deploy process to continue.
   `)
 
-  // Only execute this step if we're on the hardhat chain ID. This will only happen in CI. If this
-  // is the case, we can skip directly to transferring ownership over to the AddressDictator
-  // contract.
-  const { chainId } = await hre.ethers.provider.getNetwork()
-  if (chainId === defaultHardhatNetworkParams.chainId) {
+  // Check if if we're on the hardhat chain ID. This will only happen in CI. If this is the case, we
+  // can skip directly to transferring ownership over to the ChugSplashDictator contract.
+  if (await isHardhatNode(hre)) {
     const owner = await hre.ethers.getSigner(currentOwner)
     await Lib_AddressManager.connect(owner).transferOwnership(
       AddressDictator.address
