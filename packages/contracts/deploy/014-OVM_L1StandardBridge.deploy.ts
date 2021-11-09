@@ -10,7 +10,7 @@ import {
   deployAndVerifyAndThen,
   isHardhatNode,
 } from '../src/hardhat-deploy-ethers'
-import { names } from '../src'
+import { names } from '../src/address-names'
 
 const deployFn: DeployFunction = async (hre) => {
   const { deployer } = await hre.getNamedAccounts()

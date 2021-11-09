@@ -1,5 +1,5 @@
 /* Imports: Internal */
-import { names } from '../src'
+import { names } from '../src/address-names'
 
 /* Imports: External */
 import { DeployFunction } from 'hardhat-deploy/dist/types'

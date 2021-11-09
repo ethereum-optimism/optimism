@@ -7,7 +7,7 @@ import {
   sendImpersonatedTx,
   BIG_BALANCE,
 } from '../src/hardhat-deploy-ethers'
-import { names } from '../src'
+import { names } from '../src/address-names'
 import { awaitCondition } from '@eth-optimism/core-utils'
 
 const deployFn: DeployFunction = async (hre) => {

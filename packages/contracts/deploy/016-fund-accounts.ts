@@ -9,7 +9,7 @@ import {
   getContractFromArtifact,
   isHardhatNode,
 } from '../src/hardhat-deploy-ethers'
-import { names } from '../src'
+import { names } from '../src/address-names'
 
 // This is a TEMPORARY way to fund the default hardhat accounts on L2. The better way to do this is
 // to make a modification to hardhat-ovm. However, I don't have the time right now to figure the

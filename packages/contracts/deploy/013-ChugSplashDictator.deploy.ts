@@ -9,7 +9,7 @@ import {
   getContractFromArtifact,
   deployAndVerifyAndThen,
 } from '../src/hardhat-deploy-ethers'
-import { names } from '../src'
+import { names } from '../src/address-names'
 
 const deployFn: DeployFunction = async (hre) => {
   const Proxy__OVM_L1StandardBridge = await getContractFromArtifact(
