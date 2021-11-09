@@ -66,6 +66,7 @@ contract Challenge {
     c.challenger = msg.sender;
 
     // the state is set 
+    // NOTE: if they disagree on the start, 0->1 will fail
     c.assertedState[0] = startState;
     c.defendedState[0] = startState;
     c.assertedState[stepCount] = finalSystemState;

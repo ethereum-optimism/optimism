@@ -59,6 +59,8 @@ process done with hash 0x5c45998dfbf9ce70bcbb80574ed7a622922d2c775e0a2331fe5a8b8
 npx hardhat node --fork https://mainnet.infura.io/v3/9aa3d95b3bc440fa88ea12eaa4456161
 
 # testing on hardhat (forked mainnet)
+# challenger is pretending the block 10 transition is the transition for 1171895
+# this will conflict at the first step
 rm -rf /tmp/cannon/*
 mipsevm/mipsevm
 npx hardhat run scripts/deploy.js
