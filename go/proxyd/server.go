@@ -20,7 +20,10 @@ const (
 )
 
 type Server struct {
-	backends           *BackendGroup
+	backendGroups      map[string]*BackendGroup
+	wsBackendGroup     *BackendGroup
+	wsMethodWhitelist  *StringSet
+	rpcMethodMappings  map[string]string
 	maxBodySize        int64
 	authenticatedPaths map[string]string
 	upgrader           *websocket.Upgrader
@@ -28,12 +31,18 @@ type Server struct {
 }
 
 func NewServer(
-	backends *BackendGroup,
+	backendGroups map[string]*BackendGroup,
+	wsBackendGroup *BackendGroup,
+	wsMethodWhitelist *StringSet,
+	rpcMethodMappings map[string]string,
 	maxBodySize int64,
 	authenticatedPaths map[string]string,
 ) *Server {
 	return &Server{
-		backends:           backends,
+		backendGroups:      backendGroups,
+		wsBackendGroup:     wsBackendGroup,
+		wsMethodWhitelist:  wsMethodWhitelist,
+		rpcMethodMappings:  rpcMethodMappings,
 		maxBodySize:        maxBodySize,
 		authenticatedPaths: authenticatedPaths,
 		upgrader: &websocket.Upgrader{
@@ -83,7 +92,17 @@ func (s *Server) HandleRPC(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	backendRes, err := s.backends.Forward(ctx, req)
+  group := s.rpcMethodMappings[req.Method]
+  if group == "" {
+      // use unknown below to prevent DOS vector that fills up memory
+      // with arbitrary method names.
+      log.Info("blocked request for non-whitelisted method", "source", "ws", "method", req.Method)
+      RecordRPCError(ctx, BackendProxyd, MethodUnknown, ErrMethodNotWhitelisted)
+      writeRPCError(w, req.ID, ErrMethodNotWhitelisted)
+      return
+  }
+
+	backendRes, err := s.backendGroups[group].Forward(ctx, req)
 	if err != nil {
 		log.Error("error forwarding RPC request", "method", req.Method, "err", err)
 		writeRPCError(w, req.ID, err)
@@ -112,7 +131,7 @@ func (s *Server) HandleWS(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	proxier, err := s.backends.ProxyWS(clientConn)
+	proxier, err := s.wsBackendGroup.ProxyWS(clientConn, s.wsMethodWhitelist)
 	if err != nil {
 		if errors.Is(err, ErrNoBackends) {
 			RecordUnserviceableRequest(ctx, RPCRequestSourceWS)

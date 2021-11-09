@@ -1,14 +1,8 @@
-# List of allowed RPC methods.
-allowed_rpc_methods = [
-    "eth_call",
-    "eth_blockNumber",
-    "eth_gasPrice",
-    "eth_chainId"
-]
-
-# list of allowed WS methods. Will be combined with allowed_rpc_methods.
-allowed_ws_methods = [
-    "eth_subscribe"
+# List of WS methods to whitelist.
+ws_method_whitelist = [
+  "eth_subscribe",
+  "eth_call",
+  "eth_chainId"
 ]
 
 [server]
@@ -45,21 +39,41 @@ out_of_service_seconds = 600
 # A map of backends by name.
 [backends.infura]
 # The URL to contact the backend at.
-base_url = "url-here"
-# HTTP basic auth username to use with the backend.
+rpc_url = ""
+# The WS URL to contact the backend at.
+ws_url = ""
 username = ""
-# HTTP basic auth password to use with the backend.
 password = ""
-# Maximum RPC requests per second before rate limiting.
-# This number is global across multiple proxyd instances.
 max_rps = 3
-# Maximum number of concurrent WS connections before dropping them.
-# This number is global across multiple proxyd instances.
 max_ws_conns = 1
+
+[backends.alchemy]
+# The URL to contact the backend at.
+rpc_url = ""
+ws_url = ""
+username = ""
+password = ""
+max_rps = 3
+max_ws_conns = 1
+
+[backend_groups]
+[backend_groups.main]
+backends = ["infura"]
+# Enable WS on this backend group. There can only be one WS-enabled backend group.
+ws_enabled = true
+
+[backend_groups.alchemy]
+backends = ["alchemy"]
 
 # If the authentication group below is in the config,
 # proxyd will only accept authenticated requests.
 [authentication]
 # Mapping of auth key to alias. The alias is used to provide a human-
 # readable name for the auth key in monitoring.
-secret = "uniswap"
+secret = "test"
+
+# Mapping of methods to backend groups.
+[rpc_method_mappings]
+eth_call = "main"
+eth_chainId = "main"
+eth_blockNumber = "alchemy"
