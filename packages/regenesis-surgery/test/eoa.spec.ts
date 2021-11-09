@@ -62,11 +62,20 @@ describe('EOAs', () => {
     })
   })
 
-  // Does not exist on Kovan?
-  describe.skip('1inch deployer', () => {
+  // eslint-disable-next-line
+  describe('1inch deployer', function() {
     let eoa: Account
-    before(() => {
+    // eslint-disable-next-line
+    before(function() {
+      if (env.surgeryDataSources.configs.l2NetworkName === 'kovan') {
+        console.log('1inch deployer does not exist on optimistic kovan')
+        this.skip()
+      }
+
       eoa = env.getAccountsByType(AccountType.ONEINCH_DEPLOYER)[0]
+      if (!eoa) {
+        throw new Error('Cannot find one inch deployer')
+      }
     })
 
     it('should not have any code', async () => {
@@ -104,13 +113,13 @@ describe('EOAs', () => {
         eoa.address,
         env.config.stateDumpHeight
       )
+      expect(preNonce).to.not.eq(0)
 
       // Nonce after can come from the latest block.
       const postNonce = await env.postL2Provider.getTransactionCount(
         eoa.address
       )
-
-      expect(preNonce).to.deep.eq(postNonce)
+      expect(postNonce).to.deep.eq(0)
     })
   })
 })
