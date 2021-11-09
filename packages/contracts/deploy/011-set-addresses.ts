@@ -76,7 +76,7 @@ const deployFn: DeployFunction = async (hre) => {
 
   // Check if if we're on the hardhat chain ID. This will only happen in CI. If this is the case, we
   // can skip directly to transferring ownership over to the ChugSplashDictator contract.
-  if (isHardhatNode(hre)) {
+  if (await isHardhatNode(hre)) {
     const owner = await hre.ethers.getSigner(currentOwner)
     await Lib_AddressManager.connect(owner).transferOwnership(
       AddressDictator.address
