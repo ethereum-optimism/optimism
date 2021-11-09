@@ -1,33 +1,41 @@
 const fs = require("fs")
-const { deployed, getTrieNodesForCall } = require("../scripts/lib")
+const { deployed, getTrieNodesForCall, getTrieAtStep } = require("../scripts/lib")
 
 async function main() {
   let [c, m, mm] = await deployed()
 
   const challengeId = parseInt(process.env.ID)
+  const blockNumberN = parseInt(process.env.BLOCK)
+  const isChallenger = process.env.CHALLENGER == "1"
 
   let step = (await c.getStepNumber(challengeId)).toNumber()
-  console.log("searching step", step)
+  console.log("searching step", step, "at block", blockNumberN)
+
+  if (!(await c.isSearching(challengeId))) {
+    console.log("search is done")
+    return
+  }
 
   // see if it's proposed or not
-  //await c.getProposedState(challengeId)
-
-  const blockNumberN = parseInt(process.env.BLOCK)
-  let thisTrie = JSON.parse(fs.readFileSync("/tmp/cannon/0_"+blockNumberN.toString()+"/checkpoint_"+step.toString()+".json"))
+  const proposed = await c.getProposedState(challengeId)
+  const isProposing = proposed == "0x0000000000000000000000000000000000000000000000000000000000000000"
+  if (isProposing != isChallenger) {
+    console.log("bad challenger state")
+    return
+  }
+  console.log("isProposing", isProposing)
+  let thisTrie = getTrieAtStep(blockNumberN, step)
   const root = thisTrie['root']
   console.log("new root", root)
 
-  if (process.env.PROPOSE == "1") {
-    let ret = await c.ProposeState(challengeId, root)
-    let receipt = await ret.wait()
-    console.log(receipt)
+  let ret
+  if (isProposing) {
+    ret = await c.ProposeState(challengeId, root)
+  } else {
+    ret = await c.RespondState(challengeId, root)
   }
-
-  if (process.env.RESPOND == "1") {
-    let ret = await c.RespondState(challengeId, root)
-    let receipt = await ret.wait()
-    console.log(receipt)
-  }
+  let receipt = await ret.wait()
+  console.log("done", receipt.blockNumber)
 }
 
 main()

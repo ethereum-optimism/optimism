@@ -37,7 +37,7 @@ func main() {
 	lastStep := 1
 	if evm {
 		ZeroRegisters(ram)
-		LoadMappedFile("../mipigo/minigeth.bin", ram, 0)
+		LoadMappedFile("mipigo/minigeth.bin", ram, 0)
 		WriteCheckpoint(ram, "/tmp/cannon/golden.json", -1)
 		LoadMappedFile(fmt.Sprintf("%s/input", root), ram, 0x30000000)
 		RunWithRam(ram, target-1, 0, root, nil)
@@ -62,15 +62,22 @@ func main() {
 
 		ZeroRegisters(ram)
 		// not ready for golden yet
-		LoadMappedFileUnicorn(mu, "../mipigo/minigeth.bin", ram, 0)
-		WriteCheckpoint(ram, "/tmp/cannon/golden.json", -1)
+		LoadMappedFileUnicorn(mu, "mipigo/minigeth.bin", ram, 0)
 		if root == "" {
+			WriteCheckpoint(ram, "/tmp/cannon/golden.json", -1)
 			fmt.Println("exiting early without a block number")
 			os.Exit(0)
 		}
 
 		// TODO: this is actually step 0->1. Renumber as appropriate
 		LoadMappedFileUnicorn(mu, fmt.Sprintf("%s/input", root), ram, 0x30000000)
+
+		if target == 0 {
+			// no actual running at step 0
+			fn := fmt.Sprintf("%s/checkpoint_%d.json", root, target)
+			WriteCheckpoint(ram, fn, target)
+			return
+		}
 
 		mu.Start(0, 0x5ead0004)
 		SyncRegs(mu, ram)

@@ -15,7 +15,7 @@ try {
 
 
 module.exports = {
-  defaultNetwork: "cheapeth",
+  defaultNetwork: "hosthat",
   networks: {
     hosthat: {
       url: "http://localhost:8545/",

@@ -1,5 +1,6 @@
 const fs = require("fs")
 const rlp = require('rlp')
+const child_process = require("child_process")
 
 async function deploy() {
   const MIPS = await ethers.getContractFactory("MIPS")
@@ -91,4 +92,15 @@ async function getTrieNodesForCall(c, cdat, preimages) {
   return nodes
 }
 
-module.exports = { deploy, deployed, getTrieNodesForCall, getBlockRlp }
+function getTrieAtStep(blockNumberN, step) {
+  const fn = "/tmp/cannon/0_"+blockNumberN.toString()+"/checkpoint_"+step.toString()+".json"
+
+  if (!fs.existsSync(fn)) {
+    console.log("running mipsevm")
+    child_process.execSync("mipsevm/mipsevm "+blockNumberN.toString()+" "+step.toString(), {stdio: 'inherit'})
+  }
+
+  return JSON.parse(fs.readFileSync(fn))
+}
+
+module.exports = { deploy, deployed, getTrieNodesForCall, getBlockRlp, getTrieAtStep }

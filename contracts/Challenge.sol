@@ -143,6 +143,12 @@ contract Challenge {
 
   // binary search
 
+  function isSearching(uint256 challengeId) view public returns (bool) {
+    Chal storage c = challenges[challengeId];
+    require(c.challenger != address(0), "invalid challenge");
+    return c.L + 1 != c.R;
+  }
+
   function getStepNumber(uint256 challengeId) view public returns (uint256) {
     Chal storage c = challenges[challengeId];
     require(c.challenger != address(0), "invalid challenge");
@@ -160,6 +166,7 @@ contract Challenge {
     Chal storage c = challenges[challengeId];
     require(c.challenger != address(0), "invalid challenge");
     require(c.challenger == msg.sender, "must be challenger");
+    require(isSearching(challengeId), "must be searching");
 
     uint256 stepNumber = getStepNumber(challengeId);
     require(c.assertedState[stepNumber] == bytes32(0), "state already proposed");
@@ -170,6 +177,7 @@ contract Challenge {
     Chal storage c = challenges[challengeId];
     require(c.challenger != address(0), "invalid challenge");
     require(owner == msg.sender, "must be owner");
+    require(isSearching(challengeId), "must be searching");
 
     uint256 stepNumber = getStepNumber(challengeId);
     require(c.assertedState[stepNumber] != bytes32(0), "challenger state not proposed");
@@ -187,17 +195,22 @@ contract Challenge {
   }
 
   // final payout
+  // anyone can call these, right?
 
   event ChallengerWins(uint256 challengeId);
   event ChallengerLoses(uint256 challengeId);
+  event ChallengerLosesByDefault(uint256 challengeId);
 
   function ConfirmStateTransition(uint256 challengeId) external {
     Chal storage c = challenges[challengeId];
     require(c.challenger != address(0), "invalid challenge");
-    require(c.challenger == msg.sender, "must be challenger");
-    require(c.L + 1 == c.R, "binary search not finished");
+    //require(c.challenger == msg.sender, "must be challenger");
+    require(!isSearching(challengeId), "binary search not finished");
+    bytes32 stepState = mips.Step(c.assertedState[c.L]);
 
-    require(mips.Step(c.assertedState[c.L]) == c.assertedState[c.R], "wrong asserted state");
+    console.logBytes32(stepState);
+    console.logBytes32(c.assertedState[c.R]);
+    require(stepState == c.assertedState[c.R], "wrong asserted state for challenger");
 
     // pay out bounty!!
     c.challenger.transfer(address(this).balance);
@@ -205,18 +218,23 @@ contract Challenge {
     emit ChallengerWins(challengeId);
   }
 
-  function DenyStateTransition(uint256 challengeId, bytes32 finalRiscState) external {
+  function DenyStateTransition(uint256 challengeId) external {
     Chal storage c = challenges[challengeId];
     require(c.challenger != address(0), "invalid challenge");
-    require(owner == msg.sender, "must be owner");
-    require(c.L + 1 == c.R, "binary search not finished");
+    //require(owner == msg.sender, "must be owner");
+    require(!isSearching(challengeId), "binary search not finished");
+    bytes32 stepState = mips.Step(c.defendedState[c.L]);
 
-    require(finalRiscState != c.assertedState[c.R], "you can't agree with the challenger");
+    // NOTE: challenger can make c.defendedState[c.R] 0 if the search always went right
+    // while the challenger can't win, you can't make them lose
+    if (c.defendedState[c.R] == bytes32(0)) {
+      emit ChallengerLosesByDefault(challengeId);
+      return;
+    }
 
-    // it's 0 if you agree with all attacker states except the final one
-    // in which case, you get a free pass to submit now
-    require(c.defendedState[c.R] == finalRiscState || c.defendedState[c.R] == bytes32(0), "must be consistent with state");
-    require(mips.Step(c.defendedState[c.L]) == finalRiscState, "wrong asserted state");
+    console.logBytes32(stepState);
+    console.logBytes32(c.defendedState[c.R]);
+    require(stepState == c.defendedState[c.R], "wrong asserted state for defender");
 
     // consider the challenger mocked
     emit ChallengerLoses(challengeId);

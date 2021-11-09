@@ -6,11 +6,11 @@ async function main() {
 
   const blockNumberN = parseInt(process.env.BLOCK)
   if (isNaN(blockNumberN)) {
-    throw "usage: challenge.js <block number>"
+    throw "usage: BLOCK=<number> npx hardhat run challenge.js"
   }
   console.log("challenging block number", blockNumberN)
   // sadly this doesn't work on hosthat
-  const blockNp1 = await network.provider.send("eth_getBlockByNumber", ["0x"+(blockNumberN+1).toString(16), true])
+  const blockNp1 = await network.provider.send("eth_getBlockByNumber", ["0x"+(blockNumberN+1).toString(16), false])
   console.log(blockNp1)
   const blockNp1Rlp = getBlockRlp(blockNp1)
 
@@ -21,9 +21,9 @@ async function main() {
   /*const assertionRoot = "0x1111111111111111111111111111111111111111111111111111111111111111"
   let finalTrie = JSON.parse(fs.readFileSync("/tmp/cannon/0_"+blockNumberN.toString()+"/checkpoint_final.json"))*/
 
-  // fake for testing (it's the next block)
-  const assertionRoot = "0xb135cb00efbc2341905eafc034eca0dcec40b039a1b28860bf7c309c872e5644"
-  let finalTrie = JSON.parse(fs.readFileSync("/tmp/cannon/0_1171896/checkpoint_final.json"))
+  // we are submitting the (wrong) transition for block 10 as the attacker
+  const assertionRoot = "0x03f930c087b70f3385db68fe6bf128719e2d9a4b0a133e53b32db2fa25d345fd"
+  let finalTrie = JSON.parse(fs.readFileSync("/tmp/cannon/0_10/checkpoint_final.json"))
 
   let preimages = Object.assign({}, startTrie['preimages'], finalTrie['preimages']);
   const finalSystemState = finalTrie['root']

@@ -56,22 +56,29 @@ process done with hash 0x5c45998dfbf9ce70bcbb80574ed7a622922d2c775e0a2331fe5a8b8
 ## Workflow
 
 ```
-# testing on cheapeth
-# only works for pre fork blocks
-minigeth/go-ethereum 1171895
-(cd mipsevm && ./mipsevm 1171895)
+npx hardhat node --fork https://mainnet.infura.io/v3/9aa3d95b3bc440fa88ea12eaa4456161
+
+# testing on hardhat (forked mainnet)
+rm -rf /tmp/cannon/*
+mipsevm/mipsevm
 npx hardhat run scripts/deploy.js
+
+minigeth/go-ethereum 1171895 && mipsevm/mipsevm 1171895
+minigeth/go-ethereum 10 && mipsevm/mipsevm 10
 BLOCK=1171895 npx hardhat run scripts/challenge.js
 
-# "attacker" is block 1171896
-minigeth/go-ethereum 1171896
+for i in {1..23}
+do
+ID=0 BLOCK=10 CHALLENGER=1 npx hardhat run scripts/respond.js
+ID=0 BLOCK=1171895 npx hardhat run scripts/respond.js
+done
 
-ID=0 npx hardhat run scripts/respond.js
-(cd mipsevm && ./mipsevm 1171896 11226379)
-ID=0 BLOCK=1171896 PROPOSE=1 npx hardhat run scripts/respond.js
-# "defender" is real block 1171896
-(cd mipsevm && ./mipsevm 1171895 11226379)
-ID=0 BLOCK=1171895 RESPOND=1 npx hardhat run scripts/respond.js
+# assert as challenger (fails)
+ID=0 BLOCK=10 CHALLENGER=1 npx hardhat run scripts/assert.js
+
+# assert as defender (passes)
+ID=0 BLOCK=1171895 npx hardhat run scripts/assert.js
+
 ```
 
 ## State Oracle API
