@@ -23,7 +23,7 @@ import {
   getEthTime,
   getNextBlockNumber,
 } from '../../../helpers'
-import { names } from '../../../../src'
+import { names } from '../../../../src/address-names'
 
 const ELEMENT_TEST_SIZES = [1, 2, 4, 8, 16]
 const MAX_GAS_LIMIT = 8_000_000

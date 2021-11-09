@@ -7,7 +7,7 @@ import {
   deployAndVerifyAndThen,
   getContractFromArtifact,
 } from '../src/hardhat-deploy-ethers'
-import { names } from '../src'
+import { names } from '../src/address-names'
 
 const deployFn: DeployFunction = async (hre) => {
   const Lib_AddressManager = await getContractFromArtifact(

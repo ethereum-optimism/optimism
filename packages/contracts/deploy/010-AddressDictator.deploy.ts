@@ -7,7 +7,7 @@ import {
   deployAndVerifyAndThen,
   getContractFromArtifact,
 } from '../src/hardhat-deploy-ethers'
-import { names } from '../src'
+import { names } from '../src/address-names'
 import { predeploys } from '../src/predeploys'
 
 const deployFn: DeployFunction = async (hre) => {
