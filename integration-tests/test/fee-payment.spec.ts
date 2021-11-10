@@ -8,7 +8,7 @@ import { serialize } from '@ethersproject/transactions'
 import { predeploys, getContractFactory } from '@eth-optimism/contracts'
 
 /* Imports: Internal */
-import { isLiveNetwork } from './shared/utils'
+import {gasPriceForL2, isLiveNetwork} from './shared/utils'
 import { OptimismEnv } from './shared/env'
 import { Direction } from './shared/watcher-utils'
 
@@ -175,10 +175,12 @@ describe('Fee Payment Integration Tests', async () => {
 
     // Submit the withdrawal.
     const withdrawTx = await env.sequencerFeeVault.withdraw({
-      gasPrice: 0, // Need a gasprice of 0 or the balances will include the fee paid during this tx.
+      gasPrice: await gasPriceForL2(env), // Will be zero on HH
     })
 
     // Wait for the withdrawal to be relayed to L1.
+    await withdrawTx.wait()
+    await env.relayXDomainMessages(withdrawTx)
     await env.waitForXDomainTransaction(withdrawTx, Direction.L2ToL1)
 
     // Balance difference should be equal to old L2 balance.
