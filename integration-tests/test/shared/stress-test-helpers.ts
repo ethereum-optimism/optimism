@@ -71,7 +71,7 @@ export const executeL2ToL1Transaction = async (
         ),
         MESSAGE_GAS,
         {
-          gasPrice: gasPriceForL2(),
+          gasPrice: gasPriceForL2(env),
         }
       )
   )
@@ -90,7 +90,7 @@ export const executeL2Transaction = async (
     tx.contract
       .connect(signer)
       .functions[tx.functionName](...tx.functionParams, {
-        gasPrice: gasPriceForL2(),
+        gasPrice: gasPriceForL2(env),
       })
   )
   await result.wait()
