@@ -9,7 +9,7 @@ import { expectApprox } from '@eth-optimism/core-utils'
 /* Imports: Internal */
 import { Direction } from './shared/watcher-utils'
 
-import { PROXY_SEQUENCER_ENTRYPOINT_ADDRESS } from './shared/utils'
+import { isMainnet, PROXY_SEQUENCER_ENTRYPOINT_ADDRESS } from './shared/utils'
 import { OptimismEnv } from './shared/env'
 
 const DEFAULT_TEST_GAS_L1 = 330_000
@@ -183,7 +183,13 @@ describe('Native ETH Integration Tests', async () => {
     ).to.be.reverted
   })
 
-  it('withdraw', async () => {
+  it('withdraw', async function () {
+    if (await isMainnet(env)) {
+      console.log('Skipping withdrawals test on mainnet.')
+      this.skip()
+      return
+    }
+
     const withdrawAmount = BigNumber.from(3)
     const preBalances = await getBalances(env)
     expect(
@@ -225,7 +231,13 @@ describe('Native ETH Integration Tests', async () => {
     )
   })
 
-  it('withdrawTo', async () => {
+  it('withdrawTo', async function () {
+    if (await isMainnet(env)) {
+      console.log('Skipping withdrawals test on mainnet.')
+      this.skip()
+      return
+    }
+
     const withdrawAmount = BigNumber.from(3)
 
     const preBalances = await getBalances(env)
@@ -283,7 +295,13 @@ describe('Native ETH Integration Tests', async () => {
     )
   })
 
-  it('deposit, transfer, withdraw', async () => {
+  it('deposit, transfer, withdraw', async function () {
+    if (await isMainnet(env)) {
+      console.log('Skipping withdrawals test on mainnet.')
+      this.skip()
+      return
+    }
+
     // 1. deposit
     const amount = utils.parseEther('1')
     await env.waitForXDomainTransaction(
