@@ -4,7 +4,7 @@ import * as L2Artifact from '@eth-optimism/contracts/artifacts/contracts/standar
 import { expect } from 'chai'
 
 import { OptimismEnv } from './shared/env'
-import { isLiveNetwork } from './shared/utils'
+import { isLiveNetwork, isMainnet } from './shared/utils'
 import { Direction } from './shared/watcher-utils'
 
 describe('Bridged tokens', () => {
@@ -89,7 +89,13 @@ describe('Bridged tokens', () => {
     )
   })
 
-  it('should withdraw tokens from L2 to the depositor', async () => {
+  it('should withdraw tokens from L2 to the depositor', async function () {
+    if (await isMainnet(env)) {
+      console.log('Skipping withdrawals test on mainnet.')
+      this.skip()
+      return
+    }
+
     const tx = await env.l2Bridge.withdraw(
       L2__ERC20.address,
       500,
@@ -106,7 +112,13 @@ describe('Bridged tokens', () => {
     )
   }).timeout(isLiveNetwork() ? 300_000 : 120_000)
 
-  it('should withdraw tokens from L2 to the transfer recipient', async () => {
+  it('should withdraw tokens from L2 to the transfer recipient', async function () {
+    if (await isMainnet(env)) {
+      console.log('Skipping withdrawals test on mainnet.')
+      this.skip()
+      return
+    }
+
     const tx = await env.l2Bridge
       .connect(otherWalletL2)
       .withdraw(L2__ERC20.address, 500, 2000000, '0x')
