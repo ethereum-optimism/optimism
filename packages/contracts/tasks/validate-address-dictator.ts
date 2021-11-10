@@ -5,6 +5,7 @@ import { task } from 'hardhat/config'
 import * as types from 'hardhat/internal/core/params/argumentTypes'
 import { hexStringEquals } from '@eth-optimism/core-utils'
 import { getContractFactory } from '../src/contract-defs'
+import { getInput } from '../src/task-utils'
 
 task('validate:address-dictator')
   // Provided by the signature Requestor
@@ -38,11 +39,15 @@ task('validate:address-dictator')
   .setAction(async (args) => {
     const provider = new ethers.providers.JsonRpcProvider(args.contractsRpcUrl)
 
+    const network = await provider.getNetwork()
     console.log(
-      'Validating the deployment on chain with properties:',
-      await provider.getNetwork()
+      `
+Validating the deployment on the chain with the following values:
+- Name: ${network.name}
+- Chain ID: ${network.chainId}
+`
     )
-
+    await getInput('Does that look right (Y/n)')
     const dictatorContract = getContractFactory('AddressDictator')
       .attach(args.dictator)
       .connect(provider)
