@@ -63,6 +63,7 @@ Chain ID: ${network.chainId}`
       'kovan'
     )
 
+    // TODO: compare args.dictator to dictatorArtifact.address
     const dictatorCode = await provider.getCode(args.dictator)
     if (hexStringEquals(dictatorArtifact.deployedBytecode, dictatorCode)) {
       console.log(c.green('Deployed dictator code Looks good! 😎'))
@@ -92,4 +93,10 @@ Chain ID: ${network.chainId}`
       throw new Error('manager looks wrong')
     }
     console.log()
+
+    // TODO:
+    // Get names and addresses from the Dictator.
+    // Loop over those and compare the addresses/deployedBytecode to deployment artifacts.
+    // Verify libAddressManager where applicable.
+    // Verify other values in Post-deployment contracts checklist
   })
