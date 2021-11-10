@@ -1,6 +1,6 @@
 {
   "name": "@eth-optimism/common-ts",
-  "version": "0.1.6",
+  "version": "0.2.0",
   "main": "dist/index",
   "files": [
     "dist/*"
