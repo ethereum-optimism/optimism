@@ -7,6 +7,9 @@ import { UniswapV3Deployer } from 'uniswap-v3-deploy-plugin/dist/deployer/Uniswa
 import { OptimismEnv } from './shared/env'
 import { FeeAmount, TICK_SPACINGS } from '@uniswap/v3-sdk'
 
+import { abi as NFTABI } from '@uniswap/v3-periphery/artifacts/contracts/NonfungiblePositionManager.sol/NonfungiblePositionManager.json'
+import { abi as RouterABI } from '@uniswap/v3-periphery/artifacts/contracts/SwapRouter.sol/SwapRouter.json'
+
 chai.use(solidity)
 
 // Below methods taken from the Uniswap test suite, see
@@ -97,6 +100,27 @@ describe('Contract interactions', () => {
     let tokens: Contract[]
 
     before(async () => {
+      if (
+        process.env.UNISWAP_POSITION_MANAGER_ADDRESS &&
+        process.env.UNISWAP_ROUTER_ADDRESS
+      ) {
+        console.log('Using predeployed Uniswap. Addresses:')
+        console.log(
+          `Position manager: ${process.env.UNISWAP_POSITION_MANAGER_ADDRESS}`
+        )
+        console.log(`Router:           ${process.env.UNISWAP_ROUTER_ADDRESS}`)
+        contracts = {
+          positionManager: new Contract(
+            process.env.UNISWAP_POSITION_MANAGER_ADDRESS,
+            NFTABI
+          ).connect(env.l2Wallet),
+          router: new Contract(
+            process.env.UNISWAP_ROUTER_ADDRESS,
+            RouterABI
+          ).connect(env.l2Wallet),
+        }
+      }
+
       const tokenA = await Factory__ERC20.deploy(100000000, 'OVM1', 8, 'OVM1')
       await tokenA.deployed()
       const tokenB = await Factory__ERC20.deploy(100000000, 'OVM2', 8, 'OVM2')
@@ -118,7 +142,15 @@ describe('Contract interactions', () => {
       await tx.wait()
     })
 
-    it('should deploy the Uniswap ecosystem', async () => {
+    it('should deploy the Uniswap ecosystem', async function () {
+      if (contracts) {
+        console.log(
+          'Skipping Uniswap deployment since addresses are already defined.'
+        )
+        this.skip()
+        return
+      }
+
       contracts = await UniswapV3Deployer.deploy(env.l2Wallet)
     })
 

@@ -25,4 +25,4 @@ WORKDIR /opt/optimism/integration-tests
 COPY --from=builder /optimism/integration-tests ./
 
 COPY ./ops/scripts/integration-tests.sh ./
-ENTRYPOINT yarn test:integration
+CMD ["yarn", "test:integration"]

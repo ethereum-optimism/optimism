@@ -17,7 +17,7 @@ import {
 
 /* Imports: Artifacts */
 import simpleStorageJson from '../artifacts/contracts/SimpleStorage.sol/SimpleStorage.json'
-import { fundUser, isLiveNetwork } from './shared/utils'
+import { fundUser, isLiveNetwork, isMainnet } from './shared/utils'
 
 // Need a big timeout to allow for all transactions to be processed.
 // For some reason I can't figure out how to set the timeout on a per-suite basis
@@ -31,8 +31,13 @@ describe('stress tests', () => {
 
   const wallets: Wallet[] = []
 
-  before(async () => {
+  before(async function () {
     env = await OptimismEnv.new()
+    if (await isMainnet(env)) {
+      console.log('Skipping stress tests on mainnet.')
+      this.skip()
+      return
+    }
 
     for (let i = 0; i < numTransactions; i++) {
       wallets.push(Wallet.createRandom())

@@ -1,13 +1,6 @@
 version: "3"
 
 services:
-  # base service builder
-  builder:
-    image: ethereumoptimism/builder:${DOCKER_TAG:-latest}
-    build:
-      context: ..
-      dockerfile: ./ops/docker/Dockerfile.monorepo
-
   # this is a helper service used because there's no official hardhat image
   l1_chain:
     image: ethereumoptimism/hardhat:${DOCKER_TAG:-latest}
@@ -21,10 +14,10 @@ services:
   deployer:
     depends_on:
       - l1_chain
-    image: ethereumoptimism/deployer:${DOCKER_TAG:-latest}
     build:
       context: ..
-      dockerfile: ./ops/docker/Dockerfile.deployer
+      dockerfile: ./ops/docker/Dockerfile.packages
+      target: deployer
     entrypoint: ./deployer.sh
     environment:
         FRAUD_PROOF_WINDOW_SECONDS: 0
@@ -56,10 +49,10 @@ services:
       - l1_chain
       - deployer
       - l2geth
-    image: ethereumoptimism/data-transport-layer:${DOCKER_TAG:-latest}
     build:
       context: ..
-      dockerfile: ./ops/docker/Dockerfile.data-transport-layer
+      dockerfile: ./ops/docker/Dockerfile.packages
+      target: data-transport-layer
     # override with the dtl script and the env vars required for it
     entrypoint: ./dtl.sh
     env_file:
@@ -81,7 +74,6 @@ services:
     depends_on:
       - l1_chain
       - deployer
-    image: ethereumoptimism/l2geth:${DOCKER_TAG:-latest}
     build:
       context: ..
       dockerfile: ./ops/docker/Dockerfile.geth
@@ -109,10 +101,10 @@ services:
       - l1_chain
       - deployer
       - l2geth
-    image: ethereumoptimism/message-relayer:${DOCKER_TAG:-latest}
     build:
       context: ..
-      dockerfile: ./ops/docker/Dockerfile.message-relayer
+      dockerfile: ./ops/docker/Dockerfile.packages
+      target: relayer
     entrypoint: ./relayer.sh
     environment:
         L1_NODE_WEB3_URL: http://l1_chain:8545
@@ -129,10 +121,10 @@ services:
       - l1_chain
       - deployer
       - l2geth
-    image: ethereumoptimism/batch-submitter:${DOCKER_TAG:-latest}
     build:
       context: ..
-      dockerfile: ./ops/docker/Dockerfile.batch-submitter
+      dockerfile: ./ops/docker/Dockerfile.packages
+      target: batch-submitter
     entrypoint: ./batches.sh
     env_file:
       - ./envs/batches.env
@@ -147,7 +139,6 @@ services:
       - l1_chain
       - deployer
       - dtl
-    image: ethereumoptimism/l2geth:${DOCKER_TAG:-latest}
     deploy:
       replicas: 0
     build:
@@ -171,7 +162,6 @@ services:
   replica:
     depends_on:
       - dtl
-    image: ethereumoptimism/l2geth:${DOCKER_TAG:-latest}
     deploy:
       replicas: 0
     build:
@@ -193,12 +183,12 @@ services:
       - ${L2GETH_WS_PORT:-8550}:8546
 
   integration_tests:
-    image: ethereumoptimism/integration-tests:${DOCKER_TAG:-latest}
     deploy:
        replicas: 0
     build:
       context: ..
-      dockerfile: ./ops/docker/Dockerfile.integration-tests
+      dockerfile: ./ops/docker/Dockerfile.packages
+      target: integration-tests
     entrypoint: ./integration-tests.sh
     environment:
       L1_URL: http://l1_chain:8545
@@ -208,7 +198,6 @@ services:
       NO_NETWORK: 1
 
   gas_oracle:
-    image: ethereumoptimism/gas-oracle:${DOCKER_TAG:-latest}
     deploy:
        replicas: 0
     build:
