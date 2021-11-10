@@ -81,8 +81,14 @@ const main = async () => {
     throw new Error('Must pass L2_NODE_WEB3_URL')
   }
 
-  const l2Provider = new providers.JsonRpcProvider(L2_NODE_WEB3_URL)
-  const l1Provider = new providers.JsonRpcProvider(L1_NODE_WEB3_URL)
+  const l2Provider = new providers.StaticJsonRpcProvider({
+    url: L2_NODE_WEB3_URL,
+    headers: { 'User-Agent': 'message-relayer' },
+  })
+  const l1Provider = new providers.StaticJsonRpcProvider({
+    url: L1_NODE_WEB3_URL,
+    headers: { 'User-Agent': 'message-relayer' },
+  })
 
   let wallet: Wallet
   if (L1_WALLET_KEY) {

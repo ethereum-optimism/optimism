@@ -4,7 +4,7 @@ module.exports = {
     browser: true,
     es6: true,
   },
-  ignorePatterns: ['dist', 'packages/contracts/hardhat'],
+  ignorePatterns: ['dist', 'coverage', 'packages/contracts/hardhat'],
   extends: ['plugin:prettier/recommended'],
   parser: 'babel-eslint',
   parserOptions: {
@@ -81,6 +81,7 @@ module.exports = {
         ],
         '@typescript-eslint/type-annotation-spacing': 'off',
         '@typescript-eslint/unified-signatures': 'error',
+        '@typescript-eslint/no-unused-vars': 'error',
       },
     },
   ],

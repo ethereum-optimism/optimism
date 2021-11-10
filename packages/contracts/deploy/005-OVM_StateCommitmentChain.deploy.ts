@@ -3,19 +3,20 @@ import { DeployFunction } from 'hardhat-deploy/dist/types'
 
 /* Imports: Internal */
 import {
-  deployAndRegister,
-  getDeployedContract,
+  deployAndVerifyAndThen,
+  getContractFromArtifact,
 } from '../src/hardhat-deploy-ethers'
+import { names } from '../src/address-names'
 
 const deployFn: DeployFunction = async (hre) => {
-  const Lib_AddressManager = await getDeployedContract(
+  const Lib_AddressManager = await getContractFromArtifact(
     hre,
-    'Lib_AddressManager'
+    names.unmanaged.Lib_AddressManager
   )
 
-  await deployAndRegister({
+  await deployAndVerifyAndThen({
     hre,
-    name: 'OVM_StateCommitmentChain',
+    name: names.managed.contracts.StateCommitmentChain,
     args: [
       Lib_AddressManager.address,
       (hre as any).deployConfig.sccFraudProofWindow,
@@ -24,7 +25,6 @@ const deployFn: DeployFunction = async (hre) => {
   })
 }
 
-deployFn.dependencies = ['Lib_AddressManager']
-deployFn.tags = ['OVM_StateCommitmentChain']
+deployFn.tags = ['StateCommitmentChain', 'upgrade']
 
 export default deployFn

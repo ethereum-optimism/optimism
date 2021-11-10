@@ -8,6 +8,12 @@ The docker-compose project runs a local optimism stack.
 - docker-compose
 - make
 
+## Building the services
+
+```bash
+make build
+```
+
 ## Starting and stopping the project
 
 The base `docker-compose.yml` file will start the required components for a full stack.

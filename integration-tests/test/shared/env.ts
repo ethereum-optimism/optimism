@@ -1,5 +1,5 @@
 /* Imports: External */
-import { Contract, utils, Wallet } from 'ethers'
+import { Contract, utils, Wallet, providers } from 'ethers'
 import { TransactionResponse } from '@ethersproject/providers'
 import { getContractFactory, predeploys } from '@eth-optimism/contracts'
 import { Watcher } from '@eth-optimism/core-utils'
@@ -40,6 +40,7 @@ export class OptimismEnv {
   l2Bridge: Contract
   l2Messenger: Contract
   gasPriceOracle: Contract
+  sequencerFeeVault: Contract
 
   // The L1 <> L2 State watcher
   watcher: Watcher
@@ -47,6 +48,10 @@ export class OptimismEnv {
   // The wallets
   l1Wallet: Wallet
   l2Wallet: Wallet
+
+  // The providers
+  l1Provider: providers.JsonRpcProvider
+  l2Provider: providers.JsonRpcProvider
 
   constructor(args: any) {
     this.addressManager = args.addressManager
@@ -56,9 +61,12 @@ export class OptimismEnv {
     this.l2Bridge = args.l2Bridge
     this.l2Messenger = args.l2Messenger
     this.gasPriceOracle = args.gasPriceOracle
+    this.sequencerFeeVault = args.sequencerFeeVault
     this.watcher = args.watcher
     this.l1Wallet = args.l1Wallet
     this.l2Wallet = args.l2Wallet
+    this.l1Provider = args.l1Provider
+    this.l2Provider = args.l2Provider
     this.ctc = args.ctc
     this.scc = args.scc
   }
@@ -70,22 +78,22 @@ export class OptimismEnv {
 
     // fund the user if needed
     const balance = await l2Wallet.getBalance()
-    if (balance.isZero()) {
-      await fundUser(watcher, l1Bridge, utils.parseEther('20'))
+    if (balance.lt(utils.parseEther('1'))) {
+      await fundUser(watcher, l1Bridge, utils.parseEther('1').sub(balance))
     }
-    const l1Messenger = getContractFactory('iOVM_L1CrossDomainMessenger')
+    const l1Messenger = getContractFactory('L1CrossDomainMessenger')
       .connect(l1Wallet)
       .attach(watcher.l1.messengerAddress)
     const ovmEth = getOvmEth(l2Wallet)
     const l2Bridge = await getL2Bridge(l2Wallet)
-    const l2Messenger = getContractFactory('iOVM_L2CrossDomainMessenger')
+    const l2Messenger = getContractFactory('L2CrossDomainMessenger')
       .connect(l2Wallet)
       .attach(watcher.l2.messengerAddress)
 
     const ctcAddress = await addressManager.getAddress(
-      'OVM_CanonicalTransactionChain'
+      'CanonicalTransactionChain'
     )
-    const ctc = getContractFactory('OVM_CanonicalTransactionChain')
+    const ctc = getContractFactory('CanonicalTransactionChain')
       .connect(l1Wallet)
       .attach(ctcAddress)
 
@@ -93,12 +101,14 @@ export class OptimismEnv {
       .connect(l2Wallet)
       .attach(predeploys.OVM_GasPriceOracle)
 
-    const sccAddress = await addressManager.getAddress(
-      'OVM_StateCommitmentChain'
-    )
-    const scc = getContractFactory('OVM_StateCommitmentChain')
+    const sccAddress = await addressManager.getAddress('StateCommitmentChain')
+    const scc = getContractFactory('StateCommitmentChain')
       .connect(l1Wallet)
       .attach(sccAddress)
+
+    const sequencerFeeVault = getContractFactory('OVM_SequencerFeeVault')
+      .connect(l2Wallet)
+      .attach(predeploys.OVM_SequencerFeeVault)
 
     return new OptimismEnv({
       addressManager,
@@ -108,11 +118,14 @@ export class OptimismEnv {
       l1Messenger,
       ovmEth,
       gasPriceOracle,
+      sequencerFeeVault,
       l2Bridge,
       l2Messenger,
       watcher,
       l1Wallet,
       l2Wallet,
+      l1Provider,
+      l2Provider,
     })
   }
 
@@ -140,7 +153,7 @@ export class OptimismEnv {
           l1Provider,
           l2Provider,
           this.scc.address,
-          predeploys.OVM_L2CrossDomainMessenger,
+          predeploys.L2CrossDomainMessenger,
           tx.hash
         )
         break
@@ -171,6 +184,16 @@ export class OptimismEnv {
           if (err.message.includes('execution failed due to an exception')) {
             await sleep(5000)
           } else if (err.message.includes('Nonce too low')) {
+            await sleep(5000)
+          } else if (err.message.includes('transaction was replaced')) {
+            // this happens when we run tests in parallel
+            await sleep(5000)
+          } else if (
+            err.message.includes(
+              'another transaction with same nonce in the queue'
+            )
+          ) {
+            // this happens when we run tests in parallel
             await sleep(5000)
           } else if (
             err.message.includes('message has already been received')

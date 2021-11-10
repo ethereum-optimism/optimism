@@ -1,49 +1,120 @@
-import { expect } from 'chai'
-import { ethers } from 'hardhat'
+import chai, { expect } from 'chai'
+import { solidity } from 'ethereum-waffle'
+chai.use(solidity)
+
+/* Imports: Internal */
+import { ethers } from 'ethers'
+import { predeploys, getContractInterface } from '@eth-optimism/contracts'
 
 /* Imports: External */
-import { Contract, Wallet } from 'ethers'
 import { OptimismEnv } from './shared/env'
-import { DEFAULT_TRANSACTION } from './shared/utils'
-import { getContractInterface } from '@eth-optimism/contracts'
 
-describe('ECDSAContractAccount', () => {
-  let l2Wallet: Wallet
-
+describe('predeploys', () => {
+  let env: OptimismEnv
   before(async () => {
-    const env = await OptimismEnv.new()
-    l2Wallet = env.l2Wallet
+    env = await OptimismEnv.new()
   })
 
-  let ProxyEOA: Contract
-  let messageHash: string
-  let signature: string
+  describe('WETH9', () => {
+    let weth9: ethers.Contract
+    before(() => {
+      weth9 = new ethers.Contract(
+        predeploys.WETH9,
+        getContractInterface('WETH9'),
+        env.l2Wallet
+      )
+    })
 
-  before(async () => {
-    // Send a transaction to ensure there is a ProxyEOA deployed at l2Wallet.address
-    const result = await l2Wallet.sendTransaction(DEFAULT_TRANSACTION)
-    await result.wait()
-    ProxyEOA = new Contract(
-      l2Wallet.address,
-      getContractInterface('OVM_ECDSAContractAccount'),
-      l2Wallet
-    )
-    const message = '0x42'
-    messageHash = ethers.utils.hashMessage(message)
-    signature = await l2Wallet.signMessage(message)
+    it('should have the correct name', async () => {
+      expect(await weth9.name()).to.equal('Wrapped Ether')
+    })
+
+    it('should have the correct symbol', async () => {
+      expect(await weth9.symbol()).to.equal('WETH')
+    })
+
+    it('should have the correct decimals', async () => {
+      expect(await weth9.decimals()).to.equal(18)
+    })
   })
 
-  it('should correctly evaluate isValidSignature from this wallet', async () => {
-    const isValid = await ProxyEOA.isValidSignature(messageHash, signature)
-    expect(isValid).to.equal('0x1626ba7e')
+  describe('OVM_ETH', () => {
+    let ovmEth: ethers.Contract
+    before(() => {
+      ovmEth = new ethers.Contract(
+        predeploys.OVM_ETH,
+        getContractInterface('OVM_ETH'),
+        env.l2Wallet
+      )
+    })
+
+    it('should have the correct name', async () => {
+      expect(await ovmEth.name()).to.equal('Ether')
+    })
+
+    it('should have the correct symbol', async () => {
+      expect(await ovmEth.symbol()).to.equal('ETH')
+    })
+
+    it('should have the correct decimals', async () => {
+      expect(await ovmEth.decimals()).to.equal(18)
+    })
   })
 
-  it('should correctly evaluate isValidSignature from other wallet', async () => {
-    const otherWallet = Wallet.createRandom().connect(l2Wallet.provider)
-    const isValid = await ProxyEOA.connect(otherWallet).isValidSignature(
-      messageHash,
-      signature
-    )
-    expect(isValid).to.equal('0x1626ba7e')
+  describe('L2CrossDomainMessenger', () => {
+    let l2CrossDomainMessenger: ethers.Contract
+    before(() => {
+      l2CrossDomainMessenger = new ethers.Contract(
+        predeploys.L2CrossDomainMessenger,
+        getContractInterface('L2CrossDomainMessenger'),
+        env.l2Wallet
+      )
+    })
+
+    it('should throw when calling xDomainMessageSender', async () => {
+      await expect(
+        l2CrossDomainMessenger.xDomainMessageSender()
+      ).to.be.revertedWith('xDomainMessageSender is not set')
+    })
+  })
+
+  describe('L2StandardBridge', () => {
+    let l2StandardBridge: ethers.Contract
+    before(() => {
+      l2StandardBridge = new ethers.Contract(
+        predeploys.L2StandardBridge,
+        getContractInterface('L2StandardBridge'),
+        env.l2Wallet
+      )
+    })
+
+    it('should have the correct messenger address', async () => {
+      expect(await l2StandardBridge.messenger()).to.equal(
+        predeploys.L2CrossDomainMessenger
+      )
+    })
+
+    it('should have a nonzero bridge address', async () => {
+      expect(await l2StandardBridge.l1TokenBridge()).to.not.equal(
+        ethers.constants.AddressZero
+      )
+    })
+  })
+
+  describe('OVM_SequencerFeeVault', () => {
+    let ovmSequencerFeeVault: ethers.Contract
+    before(() => {
+      ovmSequencerFeeVault = new ethers.Contract(
+        predeploys.OVM_SequencerFeeVault,
+        getContractInterface('OVM_SequencerFeeVault'),
+        env.l2Wallet
+      )
+    })
+
+    it('should have a nonzero l1FeeWallet', async () => {
+      expect(await ovmSequencerFeeVault.l1FeeWallet()).to.not.equal(
+        ethers.constants.AddressZero
+      )
+    })
   })
 })

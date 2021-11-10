@@ -3,8 +3,8 @@ import { HardhatUserConfig } from 'hardhat/types'
 // Hardhat plugins
 import '@nomiclabs/hardhat-ethers'
 import '@nomiclabs/hardhat-waffle'
-import '@eth-optimism/hardhat-ovm'
 import 'hardhat-gas-reporter'
+import { isLiveNetwork } from './test/shared/utils'
 
 const enableGasReport = !!process.env.ENABLE_GAS_REPORT
 
@@ -12,20 +12,32 @@ const config: HardhatUserConfig = {
   networks: {
     optimism: {
       url: process.env.L2_URL || 'http://localhost:8545',
-      ovm: true,
-    },
-    'optimism-live': {
-      url: process.env.L2_URL || 'http://localhost:8545',
-      ovm: true,
-      timeout: 150000,
     },
   },
   mocha: {
-    timeout: 50000,
+    timeout: isLiveNetwork() ? 300_000 : 75_000,
   },
-  solidity: '0.7.6',
-  ovm: {
-    solcVersion: '0.7.6+commit.3b061308',
+  solidity: {
+    compilers: [
+      {
+        version: '0.7.6',
+        settings: {},
+      },
+      {
+        version: '0.8.9',
+        settings: {
+          optimizer: { enabled: true, runs: 200 },
+          metadata: {
+            bytecodeHash: 'none',
+          },
+          outputSelection: {
+            '*': {
+              '*': ['storageLayout'],
+            },
+          },
+        },
+      },
+    ],
   },
   gasReporter: {
     enabled: enableGasReport,

@@ -3,7 +3,6 @@ FROM node:14-alpine
 # bring in the config files for installing deps
 COPY [ \
     "package.json", \
-    "yarn.lock", \
     "/hardhat/" \
 ]
 

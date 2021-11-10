@@ -1,0 +1,177 @@
+{
+  "address": "0x73298186A143a54c20ae98EEE5a025bD5979De02",
+  "abi": [
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "_owner",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "nonpayable",
+      "type": "constructor"
+    },
+    {
+      "stateMutability": "payable",
+      "type": "fallback"
+    },
+    {
+      "inputs": [],
+      "name": "getImplementation",
+      "outputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "getOwner",
+      "outputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "bytes",
+          "name": "_code",
+          "type": "bytes"
+        }
+      ],
+      "name": "setCode",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "_owner",
+          "type": "address"
+        }
+      ],
+      "name": "setOwner",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "bytes32",
+          "name": "_key",
+          "type": "bytes32"
+        },
+        {
+          "internalType": "bytes32",
+          "name": "_value",
+          "type": "bytes32"
+        }
+      ],
+      "name": "setStorage",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    }
+  ],
+  "transactionHash": "0x4a81c6f70126f29ad818984d96686602636e3d7617f592aa8386dec7f2439d34",
+  "receipt": {
+    "to": null,
+    "from": "0x9C822C992b56A3bd35d16A089d99AEc870eF8d37",
+    "contractAddress": "0x73298186A143a54c20ae98EEE5a025bD5979De02",
+    "transactionIndex": 4,
+    "gasUsed": "605560",
+    "logsBloom": "0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+    "blockHash": "0x5c35c11595b92b6fe72b7e98eba9d6506067fad8d0ddaa068717db710ee9a323",
+    "transactionHash": "0x4a81c6f70126f29ad818984d96686602636e3d7617f592aa8386dec7f2439d34",
+    "logs": [],
+    "blockNumber": 5619491,
+    "cumulativeGasUsed": "844522",
+    "status": 1,
+    "byzantium": true
+  },
+  "args": [
+    "0x9C822C992b56A3bd35d16A089d99AEc870eF8d37"
+  ],
+  "solcInputHash": "fafd665d872703a6dab6b13999780370",
+  "metadata": "{\"compiler\":{\"version\":\"0.8.9+commit.e5eed63a\"},\"language\":\"Solidity\",\"output\":{\"abi\":[{\"inputs\":[{\"internalType\":\"address\",\"name\":\"_owner\",\"type\":\"address\"}],\"stateMutability\":\"nonpayable\",\"type\":\"constructor\"},{\"stateMutability\":\"payable\",\"type\":\"fallback\"},{\"inputs\":[],\"name\":\"getImplementation\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"getOwner\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"bytes\",\"name\":\"_code\",\"type\":\"bytes\"}],\"name\":\"setCode\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"_owner\",\"type\":\"address\"}],\"name\":\"setOwner\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"bytes32\",\"name\":\"_key\",\"type\":\"bytes32\"},{\"internalType\":\"bytes32\",\"name\":\"_value\",\"type\":\"bytes32\"}],\"name\":\"setStorage\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"}],\"devdoc\":{\"details\":\"Basic ChugSplash proxy contract for L1. Very close to being a normal proxy but has added functions `setCode` and `setStorage` for changing the code or storage of the contract. Nifty! Note for future developers: do NOT make anything in this contract 'public' unless you know what you're doing. Anything public can potentially have a function signature that conflicts with a signature attached to the implementation contract. Public functions SHOULD always have the 'proxyCallIfNotOwner' modifier unless there's some *really* good reason not to have that modifier. And there almost certainly is not a good reason to not have that modifier. Beware!\",\"kind\":\"dev\",\"methods\":{\"constructor\":{\"params\":{\"_owner\":\"Address of the initial contract owner.\"}},\"getImplementation()\":{\"returns\":{\"_0\":\"Implementation address.\"}},\"getOwner()\":{\"returns\":{\"_0\":\"Owner address.\"}},\"setCode(bytes)\":{\"params\":{\"_code\":\"New contract code to run inside this contract.\"}},\"setOwner(address)\":{\"params\":{\"_owner\":\"New owner of the proxy contract.\"}},\"setStorage(bytes32,bytes32)\":{\"params\":{\"_key\":\"Storage key to modify.\",\"_value\":\"New value for the storage key.\"}}},\"title\":\"L1ChugSplashProxy\",\"version\":1},\"userdoc\":{\"kind\":\"user\",\"methods\":{\"getImplementation()\":{\"notice\":\"Queries the implementation address. Can only be called by the owner OR by making an eth_call and setting the \\\"from\\\" address to address(0).\"},\"getOwner()\":{\"notice\":\"Queries the owner of the proxy contract. Can only be called by the owner OR by making an eth_call and setting the \\\"from\\\" address to address(0).\"},\"setCode(bytes)\":{\"notice\":\"Sets the code that should be running behind this proxy. Note that this scheme is a bit different from the standard proxy scheme where one would typically deploy the code separately and then set the implementation address. We're doing it this way because it gives us a lot more freedom on the client side. Can only be triggered by the contract owner.\"},\"setOwner(address)\":{\"notice\":\"Changes the owner of the proxy contract. Only callable by the owner.\"},\"setStorage(bytes32,bytes32)\":{\"notice\":\"Modifies some storage slot within the proxy contract. Gives us a lot of power to perform upgrades in a more transparent way. Only callable by the owner.\"}},\"version\":1}},\"settings\":{\"compilationTarget\":{\"contracts/chugsplash/L1ChugSplashProxy.sol\":\"L1ChugSplashProxy\"},\"evmVersion\":\"london\",\"libraries\":{},\"metadata\":{\"bytecodeHash\":\"none\",\"useLiteralContent\":true},\"optimizer\":{\"enabled\":true,\"runs\":10000},\"remappings\":[]},\"sources\":{\"contracts/chugsplash/L1ChugSplashProxy.sol\":{\"content\":\"// SPDX-License-Identifier: MIT\\npragma solidity ^0.8.9;\\n\\nimport { iL1ChugSplashDeployer } from \\\"./interfaces/iL1ChugSplashDeployer.sol\\\";\\n\\n/**\\n * @title L1ChugSplashProxy\\n * @dev Basic ChugSplash proxy contract for L1. Very close to being a normal proxy but has added\\n * functions `setCode` and `setStorage` for changing the code or storage of the contract. Nifty!\\n *\\n * Note for future developers: do NOT make anything in this contract 'public' unless you know what\\n * you're doing. Anything public can potentially have a function signature that conflicts with a\\n * signature attached to the implementation contract. Public functions SHOULD always have the\\n * 'proxyCallIfNotOwner' modifier unless there's some *really* good reason not to have that\\n * modifier. And there almost certainly is not a good reason to not have that modifier. Beware!\\n */\\ncontract L1ChugSplashProxy {\\n\\n    /*************\\n     * Constants *\\n     *************/\\n\\n    // \\\"Magic\\\" prefix. When prepended to some arbitrary bytecode and used to create a contract, the\\n    // appended bytecode will be deployed as given.\\n    bytes13 constant internal DEPLOY_CODE_PREFIX = 0x600D380380600D6000396000f3;\\n\\n    // bytes32(uint256(keccak256('eip1967.proxy.implementation')) - 1)\\n    bytes32 constant internal IMPLEMENTATION_KEY =\\n        0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc;\\n\\n    // bytes32(uint256(keccak256('eip1967.proxy.admin')) - 1)\\n    bytes32 constant internal OWNER_KEY =\\n        0xb53127684a568b3173ae13b9f8a6016e243e63b6e8ee1178d6a717850b5d6103;\\n\\n\\n    /***************\\n     * Constructor *\\n     ***************/\\n\\n    /**\\n     * @param _owner Address of the initial contract owner.\\n     */\\n    constructor(\\n        address _owner\\n    ) {\\n        _setOwner(_owner);\\n    }\\n\\n\\n    /**********************\\n     * Function Modifiers *\\n     **********************/\\n\\n    /**\\n     * Blocks a function from being called when the parent signals that the system should be paused\\n     * via an isUpgrading function.\\n     */\\n    modifier onlyWhenNotPaused() {\\n        address owner = _getOwner();\\n\\n        // We do a low-level call because there's no guarantee that the owner actually *is* an\\n        // L1ChugSplashDeployer contract and Solidity will throw errors if we do a normal call and\\n        // it turns out that it isn't the right type of contract.\\n        (bool success, bytes memory returndata) = owner.staticcall(\\n            abi.encodeWithSelector(\\n                iL1ChugSplashDeployer.isUpgrading.selector\\n            )\\n        );\\n\\n        // If the call was unsuccessful then we assume that there's no \\\"isUpgrading\\\" method and we\\n        // can just continue as normal. We also expect that the return value is exactly 32 bytes\\n        // long. If this isn't the case then we can safely ignore the result.\\n        if (success && returndata.length == 32) {\\n            // Although the expected value is a *boolean*, it's safer to decode as a uint256 in the\\n            // case that the isUpgrading function returned something other than 0 or 1. But we only\\n            // really care about the case where this value is 0 (= false).\\n            uint256 ret = abi.decode(returndata, (uint256));\\n            require(\\n                ret == 0,\\n                \\\"L1ChugSplashProxy: system is currently being upgraded\\\"\\n            );\\n        }\\n\\n        _;\\n    }\\n\\n    /**\\n     * Makes a proxy call instead of triggering the given function when the caller is either the\\n     * owner or the zero address. Caller can only ever be the zero address if this function is\\n     * being called off-chain via eth_call, which is totally fine and can be convenient for\\n     * client-side tooling. Avoids situations where the proxy and implementation share a sighash\\n     * and the proxy function ends up being called instead of the implementation one.\\n     *\\n     * Note: msg.sender == address(0) can ONLY be triggered off-chain via eth_call. If there's a\\n     * way for someone to send a transaction with msg.sender == address(0) in any real context then\\n     * we have much bigger problems. Primary reason to include this additional allowed sender is\\n     * because the owner address can be changed dynamically and we do not want clients to have to\\n     * keep track of the current owner in order to make an eth_call that doesn't trigger the\\n     * proxied contract.\\n     */\\n    modifier proxyCallIfNotOwner() {\\n        if (msg.sender == _getOwner() || msg.sender == address(0)) {\\n            _;\\n        } else {\\n            // This WILL halt the call frame on completion.\\n            _doProxyCall();\\n        }\\n    }\\n\\n\\n    /*********************\\n     * Fallback Function *\\n     *********************/\\n\\n    fallback()\\n        external\\n        payable\\n    {\\n        // Proxy call by default.\\n        _doProxyCall();\\n    }\\n\\n\\n    /********************\\n     * Public Functions *\\n     ********************/\\n\\n    /**\\n     * Sets the code that should be running behind this proxy. Note that this scheme is a bit\\n     * different from the standard proxy scheme where one would typically deploy the code\\n     * separately and then set the implementation address. We're doing it this way because it gives\\n     * us a lot more freedom on the client side. Can only be triggered by the contract owner.\\n     * @param _code New contract code to run inside this contract.\\n     */\\n    function setCode(\\n        bytes memory _code\\n    )\\n        proxyCallIfNotOwner\\n        public\\n    {\\n        // Get the code hash of the current implementation.\\n        address implementation = _getImplementation();\\n\\n        // If the code hash matches the new implementation then we return early.\\n        if (keccak256(_code) == _getAccountCodeHash(implementation)) {\\n            return;\\n        }\\n\\n        // Create the deploycode by appending the magic prefix.\\n        bytes memory deploycode = abi.encodePacked(\\n            DEPLOY_CODE_PREFIX,\\n            _code\\n        );\\n\\n        // Deploy the code and set the new implementation address.\\n        address newImplementation;\\n        assembly {\\n            newImplementation := create(0x0, add(deploycode, 0x20), mload(deploycode))\\n        }\\n\\n        // Check that the code was actually deployed correctly. I'm not sure if you can ever\\n        // actually fail this check. Should only happen if the contract creation from above runs\\n        // out of gas but this parent execution thread does NOT run out of gas. Seems like we\\n        // should be doing this check anyway though.\\n        require(\\n            _getAccountCodeHash(newImplementation) == keccak256(_code),\\n            \\\"L1ChugSplashProxy: code was not correctly deployed.\\\"\\n        );\\n\\n        _setImplementation(newImplementation);\\n    }\\n\\n    /**\\n     * Modifies some storage slot within the proxy contract. Gives us a lot of power to perform\\n     * upgrades in a more transparent way. Only callable by the owner.\\n     * @param _key Storage key to modify.\\n     * @param _value New value for the storage key.\\n     */\\n    function setStorage(\\n        bytes32 _key,\\n        bytes32 _value\\n    )\\n        proxyCallIfNotOwner\\n        public\\n    {\\n        assembly {\\n            sstore(_key, _value)\\n        }\\n    }\\n\\n    /**\\n     * Changes the owner of the proxy contract. Only callable by the owner.\\n     * @param _owner New owner of the proxy contract.\\n     */\\n    function setOwner(\\n        address _owner\\n    )\\n        proxyCallIfNotOwner\\n        public\\n    {\\n        _setOwner(_owner);\\n    }\\n\\n    /**\\n     * Queries the owner of the proxy contract. Can only be called by the owner OR by making an\\n     * eth_call and setting the \\\"from\\\" address to address(0).\\n     * @return Owner address.\\n     */\\n    function getOwner()\\n        proxyCallIfNotOwner\\n        public\\n        returns (\\n            address\\n        )\\n    {\\n        return _getOwner();\\n    }\\n\\n    /**\\n     * Queries the implementation address. Can only be called by the owner OR by making an\\n     * eth_call and setting the \\\"from\\\" address to address(0).\\n     * @return Implementation address.\\n     */\\n    function getImplementation()\\n        proxyCallIfNotOwner\\n        public\\n        returns (\\n            address\\n        )\\n    {\\n        return _getImplementation();\\n    }\\n\\n\\n    /**********************\\n     * Internal Functions *\\n     **********************/\\n\\n    /**\\n     * Sets the implementation address.\\n     * @param _implementation New implementation address.\\n     */\\n    function _setImplementation(\\n        address _implementation\\n    )\\n        internal\\n    {\\n        assembly {\\n            sstore(IMPLEMENTATION_KEY, _implementation)\\n        }\\n    }\\n\\n    /**\\n     * Queries the implementation address.\\n     * @return Implementation address.\\n     */\\n    function _getImplementation()\\n        internal\\n        view\\n        returns (\\n            address\\n        )\\n    {\\n        address implementation;\\n        assembly {\\n            implementation := sload(IMPLEMENTATION_KEY)\\n        }\\n        return implementation;\\n    }\\n\\n    /**\\n     * Changes the owner of the proxy contract.\\n     * @param _owner New owner of the proxy contract.\\n     */\\n    function _setOwner(\\n        address _owner\\n    )\\n        internal\\n    {\\n        assembly {\\n            sstore(OWNER_KEY, _owner)\\n        }\\n    }\\n\\n    /**\\n     * Queries the owner of the proxy contract.\\n     * @return Owner address.\\n     */\\n    function _getOwner()\\n        internal\\n        view\\n        returns (\\n            address\\n        )\\n    {\\n        address owner;\\n        assembly {\\n            owner := sload(OWNER_KEY)\\n        }\\n        return owner;\\n    }\\n\\n    /**\\n     * Gets the code hash for a given account.\\n     * @param _account Address of the account to get a code hash for.\\n     * @return Code hash for the account.\\n     */\\n    function _getAccountCodeHash(\\n        address _account\\n    )\\n        internal\\n        view\\n        returns (\\n            bytes32\\n        )\\n    {\\n        bytes32 codeHash;\\n        assembly {\\n            codeHash := extcodehash(_account)\\n        }\\n        return codeHash;\\n    }\\n\\n    /**\\n     * Performs the proxy call via a delegatecall.\\n     */\\n    function _doProxyCall()\\n        onlyWhenNotPaused\\n        internal\\n    {\\n        address implementation = _getImplementation();\\n\\n        require(\\n            implementation != address(0),\\n            \\\"L1ChugSplashProxy: implementation is not set yet\\\"\\n        );\\n\\n        assembly {\\n            // Copy calldata into memory at 0x0....calldatasize.\\n            calldatacopy(0x0, 0x0, calldatasize())\\n\\n            // Perform the delegatecall, make sure to pass all available gas.\\n            let success := delegatecall(gas(), implementation, 0x0, calldatasize(), 0x0, 0x0)\\n\\n            // Copy returndata into memory at 0x0....returndatasize. Note that this *will*\\n            // overwrite the calldata that we just copied into memory but that doesn't really\\n            // matter because we'll be returning in a second anyway.\\n            returndatacopy(0x0, 0x0, returndatasize())\\n\\n            // Success == 0 means a revert. We'll revert too and pass the data up.\\n            if iszero(success) {\\n                revert(0x0, returndatasize())\\n            }\\n\\n            // Otherwise we'll just return and pass the data up.\\n            return(0x0, returndatasize())\\n        }\\n    }\\n}\\n\",\"keccak256\":\"0x4664ee758bdb0f88606fdaf8d33eb7ebc9177201a517b409b25df3accc9bda06\",\"license\":\"MIT\"},\"contracts/chugsplash/interfaces/iL1ChugSplashDeployer.sol\":{\"content\":\"// SPDX-License-Identifier: MIT\\npragma solidity ^0.8.9;\\n\\n/**\\n * @title iL1ChugSplashDeployer\\n */\\ninterface iL1ChugSplashDeployer {\\n    function isUpgrading()\\n        external\\n        view\\n        returns (\\n            bool\\n        );\\n}\\n\",\"keccak256\":\"0xddd3c21649942d8812117296081351e1ab96cfbad4d5b969314170129bb6747d\",\"license\":\"MIT\"}},\"version\":1}",
+  "bytecode": "0x608060405234801561001057600080fd5b50604051610a34380380610a3483398101604081905261002f9161005d565b610057817fb53127684a568b3173ae13b9f8a6016e243e63b6e8ee1178d6a717850b5d610355565b5061008d565b60006020828403121561006f57600080fd5b81516001600160a01b038116811461008657600080fd5b9392505050565b6109988061009c6000396000f3fe60806040526004361061005a5760003560e01c8063893d20e811610043578063893d20e8146100a45780639b0b0fda146100e2578063aaf10f42146101025761005a565b806313af4035146100645780636c5d4ad014610084575b610062610117565b005b34801561007057600080fd5b5061006261007f366004610792565b6103ba565b34801561009057600080fd5b5061006261009f3660046107fe565b61044b565b3480156100b057600080fd5b506100b9610601565b60405173ffffffffffffffffffffffffffffffffffffffff909116815260200160405180910390f35b3480156100ee57600080fd5b506100626100fd3660046108cd565b610698565b34801561010e57600080fd5b506100b9610706565b60006101417fb53127684a568b3173ae13b9f8a6016e243e63b6e8ee1178d6a717850b5d61035490565b60408051600481526024810182526020810180517bffffffffffffffffffffffffffffffffffffffffffffffffffffffff167fb7947262000000000000000000000000000000000000000000000000000000001790529051919250600091829173ffffffffffffffffffffffffffffffffffffffff8516916101c3919061092a565b600060405180830381855afa9150503d80600081146101fe576040519150601f19603f3d011682016040523d82523d6000602084013e610203565b606091505b5091509150818015610216575080516020145b156102c8576000818060200190518101906102319190610936565b905080156102c6576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152603560248201527f4c314368756753706c61736850726f78793a2073797374656d2069732063757260448201527f72656e746c79206265696e67207570677261646564000000000000000000000060648201526084015b60405180910390fd5b505b60006102f27f360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc5490565b905073ffffffffffffffffffffffffffffffffffffffff8116610397576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152603060248201527f4c314368756753706c61736850726f78793a20696d706c656d656e746174696f60448201527f6e206973206e6f7420736574207965740000000000000000000000000000000060648201526084016102bd565b3660008037600080366000845af43d6000803e806103b4573d6000fd5b503d6000f35b7fb53127684a568b3173ae13b9f8a6016e243e63b6e8ee1178d6a717850b5d61035473ffffffffffffffffffffffffffffffffffffffff163373ffffffffffffffffffffffffffffffffffffffff161480610413575033155b1561044357610440817fb53127684a568b3173ae13b9f8a6016e243e63b6e8ee1178d6a717850b5d610355565b50565b610440610117565b7fb53127684a568b3173ae13b9f8a6016e243e63b6e8ee1178d6a717850b5d61035473ffffffffffffffffffffffffffffffffffffffff163373ffffffffffffffffffffffffffffffffffffffff1614806104a4575033155b156104435760006104d37f360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc5490565b9050803f8251602084012014156104e8575050565b60405160009061051e907f600d380380600d6000396000f30000000000000000000000000000000000000090859060200161094f565b604051602081830303815290604052905060008151602083016000f084516020860120909150813f146105d3576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152603360248201527f4c314368756753706c61736850726f78793a20636f646520776173206e6f742060448201527f636f72726563746c79206465706c6f7965642e0000000000000000000000000060648201526084016102bd565b6105fb817f360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc55565b50505050565b600061062b7fb53127684a568b3173ae13b9f8a6016e243e63b6e8ee1178d6a717850b5d61035490565b73ffffffffffffffffffffffffffffffffffffffff163373ffffffffffffffffffffffffffffffffffffffff161480610662575033155b1561068d57507fb53127684a568b3173ae13b9f8a6016e243e63b6e8ee1178d6a717850b5d61035490565b610695610117565b90565b7fb53127684a568b3173ae13b9f8a6016e243e63b6e8ee1178d6a717850b5d61035473ffffffffffffffffffffffffffffffffffffffff163373ffffffffffffffffffffffffffffffffffffffff1614806106f1575033155b156106fa579055565b610702610117565b5050565b60006107307fb53127684a568b3173ae13b9f8a6016e243e63b6e8ee1178d6a717850b5d61035490565b73ffffffffffffffffffffffffffffffffffffffff163373ffffffffffffffffffffffffffffffffffffffff161480610767575033155b1561068d57507f360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc5490565b6000602082840312156107a457600080fd5b813573ffffffffffffffffffffffffffffffffffffffff811681146107c857600080fd5b9392505050565b7f4e487b7100000000000000000000000000000000000000000000000000000000600052604160045260246000fd5b60006020828403121561081057600080fd5b813567ffffffffffffffff8082111561082857600080fd5b818401915084601f83011261083c57600080fd5b81358181111561084e5761084e6107cf565b604051601f82017fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0908116603f01168101908382118183101715610894576108946107cf565b816040528281528760208487010111156108ad57600080fd5b826020860160208301376000928101602001929092525095945050505050565b600080604083850312156108e057600080fd5b50508035926020909101359150565b6000815160005b8181101561091057602081850181015186830152016108f6565b8181111561091f576000828601525b509290920192915050565b60006107c882846108ef565b60006020828403121561094857600080fd5b5051919050565b7fffffffffffffffffffffffffff00000000000000000000000000000000000000831681526000610983600d8301846108ef565b94935050505056fea164736f6c6343000809000a",
+  "deployedBytecode": "0x60806040526004361061005a5760003560e01c8063893d20e811610043578063893d20e8146100a45780639b0b0fda146100e2578063aaf10f42146101025761005a565b806313af4035146100645780636c5d4ad014610084575b610062610117565b005b34801561007057600080fd5b5061006261007f366004610792565b6103ba565b34801561009057600080fd5b5061006261009f3660046107fe565b61044b565b3480156100b057600080fd5b506100b9610601565b60405173ffffffffffffffffffffffffffffffffffffffff909116815260200160405180910390f35b3480156100ee57600080fd5b506100626100fd3660046108cd565b610698565b34801561010e57600080fd5b506100b9610706565b60006101417fb53127684a568b3173ae13b9f8a6016e243e63b6e8ee1178d6a717850b5d61035490565b60408051600481526024810182526020810180517bffffffffffffffffffffffffffffffffffffffffffffffffffffffff167fb7947262000000000000000000000000000000000000000000000000000000001790529051919250600091829173ffffffffffffffffffffffffffffffffffffffff8516916101c3919061092a565b600060405180830381855afa9150503d80600081146101fe576040519150601f19603f3d011682016040523d82523d6000602084013e610203565b606091505b5091509150818015610216575080516020145b156102c8576000818060200190518101906102319190610936565b905080156102c6576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152603560248201527f4c314368756753706c61736850726f78793a2073797374656d2069732063757260448201527f72656e746c79206265696e67207570677261646564000000000000000000000060648201526084015b60405180910390fd5b505b60006102f27f360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc5490565b905073ffffffffffffffffffffffffffffffffffffffff8116610397576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152603060248201527f4c314368756753706c61736850726f78793a20696d706c656d656e746174696f60448201527f6e206973206e6f7420736574207965740000000000000000000000000000000060648201526084016102bd565b3660008037600080366000845af43d6000803e806103b4573d6000fd5b503d6000f35b7fb53127684a568b3173ae13b9f8a6016e243e63b6e8ee1178d6a717850b5d61035473ffffffffffffffffffffffffffffffffffffffff163373ffffffffffffffffffffffffffffffffffffffff161480610413575033155b1561044357610440817fb53127684a568b3173ae13b9f8a6016e243e63b6e8ee1178d6a717850b5d610355565b50565b610440610117565b7fb53127684a568b3173ae13b9f8a6016e243e63b6e8ee1178d6a717850b5d61035473ffffffffffffffffffffffffffffffffffffffff163373ffffffffffffffffffffffffffffffffffffffff1614806104a4575033155b156104435760006104d37f360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc5490565b9050803f8251602084012014156104e8575050565b60405160009061051e907f600d380380600d6000396000f30000000000000000000000000000000000000090859060200161094f565b604051602081830303815290604052905060008151602083016000f084516020860120909150813f146105d3576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152603360248201527f4c314368756753706c61736850726f78793a20636f646520776173206e6f742060448201527f636f72726563746c79206465706c6f7965642e0000000000000000000000000060648201526084016102bd565b6105fb817f360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc55565b50505050565b600061062b7fb53127684a568b3173ae13b9f8a6016e243e63b6e8ee1178d6a717850b5d61035490565b73ffffffffffffffffffffffffffffffffffffffff163373ffffffffffffffffffffffffffffffffffffffff161480610662575033155b1561068d57507fb53127684a568b3173ae13b9f8a6016e243e63b6e8ee1178d6a717850b5d61035490565b610695610117565b90565b7fb53127684a568b3173ae13b9f8a6016e243e63b6e8ee1178d6a717850b5d61035473ffffffffffffffffffffffffffffffffffffffff163373ffffffffffffffffffffffffffffffffffffffff1614806106f1575033155b156106fa579055565b610702610117565b5050565b60006107307fb53127684a568b3173ae13b9f8a6016e243e63b6e8ee1178d6a717850b5d61035490565b73ffffffffffffffffffffffffffffffffffffffff163373ffffffffffffffffffffffffffffffffffffffff161480610767575033155b1561068d57507f360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc5490565b6000602082840312156107a457600080fd5b813573ffffffffffffffffffffffffffffffffffffffff811681146107c857600080fd5b9392505050565b7f4e487b7100000000000000000000000000000000000000000000000000000000600052604160045260246000fd5b60006020828403121561081057600080fd5b813567ffffffffffffffff8082111561082857600080fd5b818401915084601f83011261083c57600080fd5b81358181111561084e5761084e6107cf565b604051601f82017fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0908116603f01168101908382118183101715610894576108946107cf565b816040528281528760208487010111156108ad57600080fd5b826020860160208301376000928101602001929092525095945050505050565b600080604083850312156108e057600080fd5b50508035926020909101359150565b6000815160005b8181101561091057602081850181015186830152016108f6565b8181111561091f576000828601525b509290920192915050565b60006107c882846108ef565b60006020828403121561094857600080fd5b5051919050565b7fffffffffffffffffffffffffff00000000000000000000000000000000000000831681526000610983600d8301846108ef565b94935050505056fea164736f6c6343000809000a",
+  "devdoc": {
+    "details": "Basic ChugSplash proxy contract for L1. Very close to being a normal proxy but has added functions `setCode` and `setStorage` for changing the code or storage of the contract. Nifty! Note for future developers: do NOT make anything in this contract 'public' unless you know what you're doing. Anything public can potentially have a function signature that conflicts with a signature attached to the implementation contract. Public functions SHOULD always have the 'proxyCallIfNotOwner' modifier unless there's some *really* good reason not to have that modifier. And there almost certainly is not a good reason to not have that modifier. Beware!",
+    "kind": "dev",
+    "methods": {
+      "constructor": {
+        "params": {
+          "_owner": "Address of the initial contract owner."
+        }
+      },
+      "getImplementation()": {
+        "returns": {
+          "_0": "Implementation address."
+        }
+      },
+      "getOwner()": {
+        "returns": {
+          "_0": "Owner address."
+        }
+      },
+      "setCode(bytes)": {
+        "params": {
+          "_code": "New contract code to run inside this contract."
+        }
+      },
+      "setOwner(address)": {
+        "params": {
+          "_owner": "New owner of the proxy contract."
+        }
+      },
+      "setStorage(bytes32,bytes32)": {
+        "params": {
+          "_key": "Storage key to modify.",
+          "_value": "New value for the storage key."
+        }
+      }
+    },
+    "title": "L1ChugSplashProxy",
+    "version": 1
+  },
+  "userdoc": {
+    "kind": "user",
+    "methods": {
+      "getImplementation()": {
+        "notice": "Queries the implementation address. Can only be called by the owner OR by making an eth_call and setting the \"from\" address to address(0)."
+      },
+      "getOwner()": {
+        "notice": "Queries the owner of the proxy contract. Can only be called by the owner OR by making an eth_call and setting the \"from\" address to address(0)."
+      },
+      "setCode(bytes)": {
+        "notice": "Sets the code that should be running behind this proxy. Note that this scheme is a bit different from the standard proxy scheme where one would typically deploy the code separately and then set the implementation address. We're doing it this way because it gives us a lot more freedom on the client side. Can only be triggered by the contract owner."
+      },
+      "setOwner(address)": {
+        "notice": "Changes the owner of the proxy contract. Only callable by the owner."
+      },
+      "setStorage(bytes32,bytes32)": {
+        "notice": "Modifies some storage slot within the proxy contract. Gives us a lot of power to perform upgrades in a more transparent way. Only callable by the owner."
+      }
+    },
+    "version": 1
+  },
+  "storageLayout": {
+    "storage": [],
+    "types": null
+  }
+}

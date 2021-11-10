@@ -1,24 +1,14 @@
 // SPDX-License-Identifier: MIT
-pragma solidity >0.5.0 <0.8.0;
-pragma experimental ABIEncoderV2;
+pragma solidity ^0.8.9;
 
 /* Library Imports */
-import { Lib_RLPReader } from "../../optimistic-ethereum/libraries/rlp/Lib_RLPReader.sol";
+import { Lib_RLPReader } from "../../libraries/rlp/Lib_RLPReader.sol";
 
 /**
  * @title TestLib_RLPReader
  */
 contract TestLib_RLPReader {
-
-    function readList(
-        bytes memory _in
-    )
-        public
-        pure
-        returns (
-            bytes[] memory
-        )
-    {
+    function readList(bytes memory _in) public pure returns (bytes[] memory) {
         Lib_RLPReader.RLPItem[] memory decoded = Lib_RLPReader.readList(_in);
         bytes[] memory out = new bytes[](decoded.length);
         for (uint256 i = 0; i < out.length; i++) {
@@ -27,75 +17,27 @@ contract TestLib_RLPReader {
         return out;
     }
 
-    function readString(
-        bytes memory _in
-    )
-        public
-        pure
-        returns (
-            string memory
-        )
-    {
+    function readString(bytes memory _in) public pure returns (string memory) {
         return Lib_RLPReader.readString(_in);
     }
 
-    function readBytes(
-        bytes memory _in
-    )
-        public
-        pure
-        returns (
-            bytes memory
-        )
-    {
+    function readBytes(bytes memory _in) public pure returns (bytes memory) {
         return Lib_RLPReader.readBytes(_in);
     }
 
-    function readBytes32(
-        bytes memory _in
-    )
-        public
-        pure
-        returns (
-            bytes32
-        )
-    {
+    function readBytes32(bytes memory _in) public pure returns (bytes32) {
         return Lib_RLPReader.readBytes32(_in);
     }
 
-    function readUint256(
-        bytes memory _in
-    )
-        public
-        pure
-        returns (
-            uint256
-        )
-    {
+    function readUint256(bytes memory _in) public pure returns (uint256) {
         return Lib_RLPReader.readUint256(_in);
     }
 
-    function readBool(
-        bytes memory _in
-    )
-        public
-        pure
-        returns (
-            bool
-        )
-    {
+    function readBool(bytes memory _in) public pure returns (bool) {
         return Lib_RLPReader.readBool(_in);
     }
 
-    function readAddress(
-        bytes memory _in
-    )
-        public
-        pure
-        returns (
-            address
-        )
-    {
+    function readAddress(bytes memory _in) public pure returns (address) {
         return Lib_RLPReader.readAddress(_in);
     }
 }

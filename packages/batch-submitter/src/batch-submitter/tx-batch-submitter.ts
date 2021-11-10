@@ -35,6 +35,7 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
   protected l2ChainId: number
   protected syncing: boolean
   private autoFixBatchOptions: AutoFixBatchOptions
+  private validateBatch: boolean
   private transactionSubmitter: TransactionSubmitter
   private gasThresholdInGwei: number
 
@@ -52,6 +53,7 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
     gasThresholdInGwei: number,
     transactionSubmitter: TransactionSubmitter,
     blockOffset: number,
+    validateBatch: boolean,
     logger: Logger,
     metrics: Metrics,
     autoFixBatchOptions: AutoFixBatchOptions = {
@@ -76,9 +78,15 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
       logger,
       metrics
     )
+    this.validateBatch = validateBatch
     this.autoFixBatchOptions = autoFixBatchOptions
     this.gasThresholdInGwei = gasThresholdInGwei
     this.transactionSubmitter = transactionSubmitter
+
+    this.logger.info('Batch validation options', {
+      autoFixBatchOptions,
+      validateBatch,
+    })
   }
 
   /*****************************
@@ -195,8 +203,17 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
       return
     }
 
-    const [batchParams, wasBatchTruncated] =
-      await this._generateSequencerBatchParams(startBlock, endBlock)
+    const params = await this._generateSequencerBatchParams(
+      startBlock,
+      endBlock
+    )
+    if (!params) {
+      throw new Error(
+        `Cannot create sequencer batch with params start ${startBlock} and end ${endBlock}`
+      )
+    }
+
+    const [batchParams, wasBatchTruncated] = params
     const batchSizeInBytes = encodeAppendSequencerBatch(batchParams).length / 2
     this.logger.debug('Sequencer batch generated', {
       batchSizeInBytes,
@@ -256,12 +273,17 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
       { concurrency: 100 }
     )
 
-    // Fix our batches if we are configured to. TODO: Remove this.
+    // Fix our batches if we are configured to. This will not
+    // modify the batch unless an autoFixBatchOption is set
     batch = await this._fixBatch(batch)
-    if (!(await this._validateBatch(batch))) {
-      this.metrics.malformedBatches.inc()
-      return
+    if (this.validateBatch) {
+      this.logger.info('Validating batch')
+      if (!(await this._validateBatch(batch))) {
+        this.metrics.malformedBatches.inc()
+        return
+      }
     }
+
     let sequencerBatchParams = await this._getSequencerBatchParams(
       startBlock,
       batch
@@ -348,8 +370,9 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
     }
 
     let isEqual = true
-    const [queueEleHash, timestamp, blockNumber] =
-      await this.chainContract.getQueueElement(queueIndex)
+    const [, timestamp, blockNumber] = await this.chainContract.getQueueElement(
+      queueIndex
+    )
 
     // TODO: Verify queue element hash equality. The queue element hash can be computed with:
     // keccak256( abi.encode( msg.sender, _target, _gasLimit, _data))
@@ -423,7 +446,7 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
           if (nextQueueIndex >= totalQueueElements) {
             break
           }
-          const [queueEleHash, timestamp, blockNumber] =
+          const [, timestamp, blockNumber] =
             await this.chainContract.getQueueElement(nextQueueIndex)
 
           if (timestamp < ele.timestamp || blockNumber < ele.blockNumber) {
@@ -484,7 +507,7 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
         const totalQueueElements =
           pendingQueueElements + nextRemoteQueueElements
         if (nextQueueIndex < totalQueueElements) {
-          const [queueEleHash, queueTimestamp, queueBlockNumber] =
+          const [, queueTimestamp, queueBlockNumber] =
             await this.chainContract.getQueueElement(nextQueueIndex)
           latestTimestamp = queueTimestamp
           latestBlockNumber = queueBlockNumber
@@ -551,12 +574,15 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
     // NOTE: It is unsafe to combine multiple autoFix options.
     // If you must combine them, manually verify the output before proceeding.
     if (this.autoFixBatchOptions.fixDoublePlayedDeposits) {
+      this.logger.info('Fixing double played deposits')
       batch = await fixDoublePlayedDeposits(batch)
     }
     if (this.autoFixBatchOptions.fixMonotonicity) {
+      this.logger.info('Fixing monotonicity')
       batch = await fixMonotonicity(batch)
     }
     if (this.autoFixBatchOptions.fixSkippedDeposits) {
+      this.logger.info('Fixing skipped deposits')
       batch = await fixSkippedDeposits(batch)
     }
     return batch
@@ -572,12 +598,11 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
       this.signer.provider
     )
 
-    const addr = await manager.getAddress(
-      'OVM_ChainStorageContainer-CTC-batches'
-    )
+    const addr = await manager.getAddress('ChainStorageContainer-CTC-batches')
+
     const container = new Contract(
       addr,
-      getNewContractInterface('iOVM_ChainStorageContainer'),
+      getNewContractInterface('IChainStorageContainer'),
       this.signer.provider
     )
 
@@ -587,8 +612,6 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
     // convert to bytes27
     meta = meta.slice(10)
 
-    const totalElements = meta.slice(-10)
-    const nextQueueIndex = meta.slice(-20, -10)
     const lastTimestamp = parseInt(meta.slice(-30, -20), 16)
     const lastBlockNumber = parseInt(meta.slice(-40, -30), 16)
     this.logger.debug('Retrieved timestamp and block number from CTC', {
@@ -603,8 +626,9 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
     queueIndex: number,
     queueElement: BatchElement
   ): Promise<BatchElement> {
-    const [queueEleHash, timestamp, blockNumber] =
-      await this.chainContract.getQueueElement(queueIndex)
+    const [, timestamp, blockNumber] = await this.chainContract.getQueueElement(
+      queueIndex
+    )
 
     if (
       timestamp > queueElement.timestamp &&

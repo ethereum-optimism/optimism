@@ -3,29 +3,29 @@ import { DeployFunction } from 'hardhat-deploy/dist/types'
 
 /* Imports: Internal */
 import {
-  deployAndRegister,
-  getDeployedContract,
+  deployAndVerifyAndThen,
+  getContractFromArtifact,
 } from '../src/hardhat-deploy-ethers'
+import { names } from '../src/address-names'
 
 const deployFn: DeployFunction = async (hre) => {
-  const Lib_AddressManager = await getDeployedContract(
+  const Lib_AddressManager = await getContractFromArtifact(
     hre,
-    'Lib_AddressManager'
+    names.unmanaged.Lib_AddressManager
   )
 
-  await deployAndRegister({
+  await deployAndVerifyAndThen({
     hre,
-    name: 'OVM_CanonicalTransactionChain',
+    name: names.managed.contracts.CanonicalTransactionChain,
     args: [
       Lib_AddressManager.address,
-      (hre as any).deployConfig.ctcForceInclusionPeriodSeconds,
-      (hre as any).deployConfig.ctcForceInclusionPeriodBlocks,
       (hre as any).deployConfig.ctcMaxTransactionGasLimit,
+      (hre as any).deployConfig.ctcL2GasDiscountDivisor,
+      (hre as any).deployConfig.ctcEnqueueGasCost,
     ],
   })
 }
 
-deployFn.dependencies = ['Lib_AddressManager']
-deployFn.tags = ['OVM_CanonicalTransactionChain']
+deployFn.tags = ['CanonicalTransactionChain', 'upgrade']
 
 export default deployFn

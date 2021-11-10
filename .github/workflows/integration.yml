@@ -37,24 +37,6 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-yarn-
 
-      - uses: actions/cache@v2
-        name: Set up layer cache
-        with:
-          path: /tmp/.buildx-cache
-          key: ${{ runner.os }}-buildx-1-${{ github.sha }}
-          restore-keys: |
-            ${{ runner.os }}-buildx-1-
-
-      - uses: docker/setup-buildx-action@master
-        name: Set up Docker Buildx
-        id: buildx
-        with:
-          version: latest
-          driver-opts: image=moby/buildkit:master,network=host
-
-      - name: Build the services
-        run: ./ops/scripts/build-ci.sh
-
       - name: Bring the stack up
         working-directory: ./ops
         run: |
@@ -73,7 +55,7 @@ jobs:
         if: failure()
         uses: jwalton/gh-docker-logs@v1
         with:
-          images: 'ethereumoptimism/builder,ethereumoptimism/hardhat,ethereumoptimism/deployer,ethereumoptimism/data-transport-layer,ethereumoptimism/l2geth,ethereumoptimism/message-relayer,ethereumoptimism/batch-submitter,ethereumoptimism/l2geth,ethereumoptimism/integration-tests'
+          images: 'ethereumoptimism/hardhat,ops_deployer,ops_dtl,ethereumoptimism/l2geth,ethereumoptimism/message-relayer,ops_batch_submitter,ethereumoptimism/l2geth,ops_integration_tests'
           dest: '/home/runner/logs'
 
       - name: Tar logs
@@ -86,11 +68,3 @@ jobs:
         with:
           name: logs.tgz
           path: ./logs.tgz
-
-      # Needed to address the following bugs:
-      # https://github.com/docker/build-push-action/issues/252
-      # https://github.com/moby/buildkit/issues/1896
-      - name: Move cache
-        run: |
-          rm -rf /tmp/.buildx-cache
-          mv /tmp/.buildx-cache-new /tmp/.buildx-cache

@@ -1,5 +1,5 @@
 /* Imports: External */
-import { BaseService, Logger, Metrics } from '@eth-optimism/common-ts'
+import { BaseService, Metrics } from '@eth-optimism/common-ts'
 import { LevelUp } from 'levelup'
 import level from 'level'
 
@@ -35,6 +35,7 @@ export interface L1DataTransportServiceOptions {
   sentryTraceRate?: number
   defaultBackend: string
   l1GasPriceBackend: string
+  l1StartHeight?: number
 }
 
 const optionSettings = {

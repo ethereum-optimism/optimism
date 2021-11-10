@@ -1,15 +1,13 @@
 import { BigNumber, Contract, ContractFactory, Wallet } from 'ethers'
 import { ethers } from 'hardhat'
 import chai, { expect } from 'chai'
-import { GWEI, fundUser, encodeSolidityRevertMessage } from './shared/utils'
+import {
+  fundUser,
+  encodeSolidityRevertMessage,
+  gasPriceForL2,
+} from './shared/utils'
 import { OptimismEnv } from './shared/env'
 import { solidity } from 'ethereum-waffle'
-import { sleep } from '../../packages/core-utils/dist'
-import {
-  getContractFactory,
-  getContractInterface,
-} from '../../packages/contracts/dist'
-import { Interface } from 'ethers/lib/utils'
 
 chai.use(solidity)
 
@@ -32,15 +30,16 @@ describe('Native ETH value integration tests', () => {
       ]
     }
 
-    const checkBalances = async (
-      expectedBalances: BigNumber[]
-    ): Promise<void> => {
-      const realBalances = await getBalances()
-      expect(realBalances[0]).to.deep.eq(expectedBalances[0])
-      expect(realBalances[1]).to.deep.eq(expectedBalances[1])
+    const expectBalancesWithinRange = (
+      bal: BigNumber,
+      lte: BigNumber,
+      gte: BigNumber
+    ) => {
+      expect(bal.lte(lte)).to.be.true
+      expect(bal.gte(gte)).to.be.true
     }
 
-    const value = 10
+    const value = ethers.utils.parseEther('0.01')
     await fundUser(env.watcher, env.l1Bridge, value, wallet.address)
 
     const initialBalances = await getBalances()
@@ -48,23 +47,40 @@ describe('Native ETH value integration tests', () => {
     const there = await wallet.sendTransaction({
       to: other.address,
       value,
-      gasPrice: 0,
+      gasPrice: await gasPriceForL2(env),
     })
-    await there.wait()
+    const thereReceipt = await there.wait()
+    const thereGas = thereReceipt.gasUsed.mul(there.gasPrice)
 
-    await checkBalances([
+    const thereBalances = await getBalances()
+    const thereWithGas = initialBalances[0].sub(value).sub(thereGas).sub(100000)
+    expectBalancesWithinRange(
+      thereBalances[0],
       initialBalances[0].sub(value),
-      initialBalances[1].add(value),
-    ])
+      thereWithGas
+    )
+    expect(initialBalances[1].add(value).eq(thereBalances[1]))
 
+    const backVal = ethers.utils.parseEther('0.005')
     const backAgain = await other.sendTransaction({
       to: wallet.address,
-      value,
-      gasPrice: 0,
+      value: backVal,
+      gasPrice: await gasPriceForL2(env),
     })
-    await backAgain.wait()
+    const backReceipt = await backAgain.wait()
+    const backGas = backReceipt.gasUsed.mul(backAgain.gasPrice)
 
-    await checkBalances(initialBalances)
+    const backBalances = await getBalances()
+    expectBalancesWithinRange(
+      backBalances[0],
+      initialBalances[0].sub(thereGas).sub(backVal),
+      initialBalances[0].sub(thereGas).sub(backVal).sub(200000)
+    )
+    expectBalancesWithinRange(
+      backBalances[1],
+      initialBalances[1].add(backVal).sub(backGas),
+      initialBalances[1].add(backVal).sub(backGas).sub(200000)
+    )
   })
 
   describe(`calls between OVM contracts with native ETH value and relevant opcodes`, async () => {
@@ -155,7 +171,7 @@ describe('Native ETH value integration tests', () => {
     it('should allow ETH to be sent', async () => {
       const sendAmount = 15
       const tx = await ValueCalls0.simpleSend(ValueCalls1.address, sendAmount, {
-        gasPrice: 0,
+        gasPrice: await gasPriceForL2(env),
       })
       await tx.wait()
 
@@ -322,121 +338,6 @@ describe('Native ETH value integration tests', () => {
 
       expect(delegatedSuccess).to.be.true
       expect(delegatedReturndata).to.deep.eq(BigNumber.from(value))
-    })
-
-    describe('Intrinsic gas for ovmCALL types', async () => {
-      let CALL_WITH_VALUE_INTRINSIC_GAS
-      let ValueGasMeasurer: Contract
-      before(async () => {
-        // Grab public variable from the EM
-        const OVM_ExecutionManager = new Contract(
-          await env.addressManager.getAddress('OVM_ExecutionManager'),
-          getContractInterface('OVM_ExecutionManager', false),
-          env.l1Wallet.provider
-        )
-        const CALL_WITH_VALUE_INTRINSIC_GAS_BIGNUM =
-          await OVM_ExecutionManager.CALL_WITH_VALUE_INTRINSIC_GAS()
-        CALL_WITH_VALUE_INTRINSIC_GAS =
-          CALL_WITH_VALUE_INTRINSIC_GAS_BIGNUM.toNumber()
-
-        const Factory__ValueGasMeasurer = await ethers.getContractFactory(
-          'ValueGasMeasurer',
-          wallet
-        )
-        ValueGasMeasurer = await Factory__ValueGasMeasurer.deploy()
-        await ValueGasMeasurer.deployTransaction.wait()
-      })
-
-      it('a call with value to an empty account consumes <= the intrinsic gas including a buffer', async () => {
-        const value = 1
-        const gasLimit = 1_000_000
-        const minimalSendGas =
-          await ValueGasMeasurer.callStatic.measureGasOfTransferingEthViaCall(
-            ethers.constants.AddressZero,
-            value,
-            gasLimit,
-            {
-              gasLimit: 2_000_000,
-            }
-          )
-
-        const buffer = 1.2
-        expect(minimalSendGas * buffer).to.be.lte(CALL_WITH_VALUE_INTRINSIC_GAS)
-      })
-
-      it('a call with value to an reverting account consumes <= the intrinsic gas including a buffer', async () => {
-        // [magic deploy prefix] . [MSTORE] (will throw exception from no stack args)
-        const AutoRevertInitcode = '0x600D380380600D6000396000f3' + '52'
-        const Factory__AutoRevert = new ContractFactory(
-          new Interface([]),
-          AutoRevertInitcode,
-          wallet
-        )
-        const AutoRevert: Contract = await Factory__AutoRevert.deploy()
-        await AutoRevert.deployTransaction.wait()
-
-        const value = 1
-        const gasLimit = 1_000_000
-        // A revert, causing the ETH to be sent back, should consume the minimal possible gas for a nonzero ETH send
-        const minimalSendGas =
-          await ValueGasMeasurer.callStatic.measureGasOfTransferingEthViaCall(
-            AutoRevert.address,
-            value,
-            gasLimit,
-            {
-              gasLimit: 2_000_000,
-            }
-          )
-
-        const buffer = 1.2
-        expect(minimalSendGas * buffer).to.be.lte(CALL_WITH_VALUE_INTRINSIC_GAS)
-      })
-
-      it('a value call passing less than the intrinsic gas should appear to revert', async () => {
-        const Factory__PayableConstant: ContractFactory =
-          await ethers.getContractFactory('PayableConstant', wallet)
-        const PayableConstant: Contract =
-          await Factory__PayableConstant.deploy()
-        await PayableConstant.deployTransaction.wait()
-
-        const sendAmount = 15
-        const [success, returndata] =
-          await ValueCalls0.callStatic.sendWithDataAndGas(
-            PayableConstant.address,
-            sendAmount,
-            PayableConstant.interface.encodeFunctionData('returnValue'),
-            CALL_WITH_VALUE_INTRINSIC_GAS - 1,
-            {
-              gasLimit: 2_000_000,
-            }
-          )
-
-        expect(success).to.eq(false)
-        expect(returndata).to.eq('0x')
-      })
-
-      it('a value call which runs out of gas does not out-of-gas the parent', async () => {
-        const Factory__TestOOG: ContractFactory =
-          await ethers.getContractFactory('TestOOG', wallet)
-        const TestOOG: Contract = await Factory__TestOOG.deploy()
-        await TestOOG.deployTransaction.wait()
-
-        const sendAmount = 15
-        // Implicitly test that this call is not rejected
-        const [success, returndata] =
-          await ValueCalls0.callStatic.sendWithDataAndGas(
-            TestOOG.address,
-            sendAmount,
-            TestOOG.interface.encodeFunctionData('runOutOfGas'),
-            CALL_WITH_VALUE_INTRINSIC_GAS * 2,
-            {
-              gasLimit: 2_000_000,
-            }
-          )
-
-        expect(success).to.eq(false)
-        expect(returndata).to.eq('0x')
-      })
     })
   })
 })

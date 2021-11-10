@@ -261,7 +261,7 @@ The logic of `appendStateBatch()` will compute the Merkle root of the batches an
 ##### `appendStateBatch()` requirements
 
 - The batch may not be empty, at least one new state root must be added
-- The `OVM_BondManager.isCollateralized(msg.sender)` must return `true`
+- The `BondManager.isCollateralized(msg.sender)` must return `true`
 - The resulting number of elements in the SCC (ie. all state commitments, not batches) must be less than or equal to the number of elements (ie. transactions) in the CTC.
 
 #### Deleting batches from the SCC

@@ -3,6 +3,7 @@ import { expect } from 'chai'
 /* Imports: External */
 import { ethers } from 'hardhat'
 import { injectL2Context } from '@eth-optimism/core-utils'
+import { predeploys } from '@eth-optimism/contracts'
 import { Contract, BigNumber } from 'ethers'
 
 /* Imports: Internal */
@@ -46,32 +47,45 @@ describe('OVM Context: Layer 2 EVM Context', () => {
     numTxs = 1
   }
 
-  it('enqueue: `block.number` and `block.timestamp` have L1 values', async () => {
+  it('enqueue: L1 contextual values are correctly set in L2', async () => {
     for (let i = 0; i < numTxs; i++) {
+      // Send a transaction from L1 to L2. This will automatically update the L1 contextual
+      // information like the L1 block number and L1 timestamp.
       const tx = await env.l1Messenger.sendMessage(
         OVMContextStorage.address,
         '0x',
         2_000_000
       )
-      const receipt = await tx.wait()
 
-      // Get the receipt
-      // The transaction did not revert
-      expect(receipt.status).to.equal(1)
-
-      await env.waitForXDomainTransaction(tx, Direction.L1ToL2)
+      // Wait for the transaction to be sent over to L2.
+      await tx.wait()
+      const pair = await env.waitForXDomainTransaction(tx, Direction.L1ToL2)
 
       // Get the L1 block that the enqueue transaction was in so that
       // the timestamp can be compared against the layer two contract
-      const block = await l1Provider.getBlock(receipt.blockNumber)
+      const l1Block = await l1Provider.getBlock(pair.receipt.blockNumber)
+      const l2Block = await l2Provider.getBlock(pair.remoteReceipt.blockNumber)
 
-      // The contact is a fallback function that keeps `block.number`
-      // and `block.timestamp` in a mapping based on an index that
-      // increments each time that there is a transaction.
-      const blockNumber = await OVMContextStorage.blockNumbers(i)
-      expect(receipt.blockNumber).to.deep.equal(blockNumber.toNumber())
+      // block.number should return the value of the L2 block number.
+      const l2BlockNumber = await OVMContextStorage.blockNumbers(i)
+      expect(l2BlockNumber.toNumber()).to.deep.equal(l2Block.number)
+
+      // L1BLOCKNUMBER opcode should return the value of the L1 block number.
+      const l1BlockNumber = await OVMContextStorage.l1BlockNumbers(i)
+      expect(l1BlockNumber.toNumber()).to.deep.equal(l1Block.number)
+
+      // L1 and L2 blocks will have the same timestamp.
       const timestamp = await OVMContextStorage.timestamps(i)
-      expect(block.timestamp).to.deep.equal(timestamp.toNumber())
+      expect(timestamp.toNumber()).to.deep.equal(l1Block.timestamp)
+      expect(timestamp.toNumber()).to.deep.equal(l2Block.timestamp)
+
+      // Difficulty should always be zero.
+      const difficulty = await OVMContextStorage.difficulty(i)
+      expect(difficulty.toNumber()).to.equal(0)
+
+      // Coinbase should always be sequencer fee vault.
+      const coinbase = await OVMContextStorage.coinbases(i)
+      expect(coinbase).to.equal(predeploys.OVM_SequencerFeeVault)
     }
   }).timeout(150000) // this specific test takes a while because it involves L1 to L2 txs
 
@@ -97,16 +111,24 @@ describe('OVM Context: Layer 2 EVM Context', () => {
             OVMMulticall.address,
             OVMMulticall.interface.encodeFunctionData('getCurrentBlockNumber'),
           ],
+          [
+            OVMMulticall.address,
+            OVMMulticall.interface.encodeFunctionData(
+              'getCurrentL1BlockNumber'
+            ),
+          ],
         ],
         { blockTag: block.number }
       )
 
       const timestamp = BigNumber.from(returnData[0])
       const blockNumber = BigNumber.from(returnData[1])
+      const l1BlockNumber = BigNumber.from(returnData[2])
       const tx = block.transactions[0] as any
 
-      expect(tx.l1BlockNumber).to.deep.equal(blockNumber.toNumber())
+      expect(tx.l1BlockNumber).to.deep.equal(l1BlockNumber.toNumber())
       expect(block.timestamp).to.deep.equal(timestamp.toNumber())
+      expect(block.number).to.deep.equal(blockNumber.toNumber())
     }
   })
 
@@ -129,7 +151,7 @@ describe('OVM Context: Layer 2 EVM Context', () => {
         ],
         [
           OVMMulticall.address,
-          OVMMulticall.interface.encodeFunctionData('getCurrentBlockNumber'),
+          OVMMulticall.interface.encodeFunctionData('getCurrentL1BlockNumber'),
         ],
       ]),
     ])

@@ -1,9 +1,9 @@
 /* Imports: External */
 import { fromHexString, FallbackProvider } from '@eth-optimism/core-utils'
 import { BaseService, Metrics } from '@eth-optimism/common-ts'
-import { StaticJsonRpcProvider, BaseProvider } from '@ethersproject/providers'
+import { BaseProvider } from '@ethersproject/providers'
 import { LevelUp } from 'levelup'
-import { ethers, constants } from 'ethers'
+import { constants } from 'ethers'
 import { Gauge, Counter } from 'prom-client'
 
 /* Imports: Internal */
@@ -20,7 +20,7 @@ import { handleEventsTransactionEnqueued } from './handlers/transaction-enqueued
 import { handleEventsSequencerBatchAppended } from './handlers/sequencer-batch-appended'
 import { handleEventsStateBatchAppended } from './handlers/state-batch-appended'
 import { L1DataTransportServiceOptions } from '../main/service'
-import { MissingElementError, EventName } from './handlers/errors'
+import { MissingElementError } from './handlers/errors'
 
 interface L1IngestionMetrics {
   highestSyncedL1Block: Gauge<string>
@@ -108,7 +108,9 @@ export class L1IngestionService extends BaseService<L1IngestionServiceOptions> {
     this.l1IngestionMetrics = registerMetrics(this.metrics)
 
     if (typeof this.options.l1RpcProvider === 'string') {
-      this.state.l1RpcProvider = FallbackProvider(this.options.l1RpcProvider)
+      this.state.l1RpcProvider = FallbackProvider(this.options.l1RpcProvider, {
+        'User-Agent': 'data-transport-layer',
+      })
     } else {
       this.state.l1RpcProvider = this.options.l1RpcProvider
     }
@@ -152,25 +154,39 @@ export class L1IngestionService extends BaseService<L1IngestionServiceOptions> {
       this.options.addressManager
     )
 
-    const startingL1BlockNumber = await this.state.db.getStartingL1Block()
-    if (startingL1BlockNumber) {
-      this.state.startingL1BlockNumber = startingL1BlockNumber
-    } else {
-      this.logger.info(
-        'Attempting to find an appropriate L1 block height to begin sync...'
-      )
-      this.state.startingL1BlockNumber = await this._findStartingL1BlockNumber()
-      this.logger.info('Starting sync', {
-        startingL1BlockNumber: this.state.startingL1BlockNumber,
-      })
-
-      await this.state.db.setStartingL1Block(this.state.startingL1BlockNumber)
+    // Look up in the database for an indexed starting L1 block
+    let startingL1BlockNumber = await this.state.db.getStartingL1Block()
+    // If there isn't an indexed starting L1 block, that means we should pull it
+    // from config and then fallback to discovering it
+    if (startingL1BlockNumber === null || startingL1BlockNumber === undefined) {
+      if (
+        this.options.l1StartHeight !== null &&
+        this.options.l1StartHeight !== undefined
+      ) {
+        startingL1BlockNumber = this.options.l1StartHeight
+      } else {
+        this.logger.info(
+          'Attempting to find an appropriate L1 block height to begin sync...'
+        )
+        startingL1BlockNumber = await this._findStartingL1BlockNumber()
+      }
     }
+
+    if (!startingL1BlockNumber) {
+      throw new Error('Cannot find starting L1 block number')
+    }
+
+    this.logger.info('Starting sync', {
+      startingL1BlockNumber,
+    })
+
+    this.state.startingL1BlockNumber = startingL1BlockNumber
+    await this.state.db.setStartingL1Block(this.state.startingL1BlockNumber)
 
     // Store the total number of submitted transactions so the server can tell clients if we're
     // done syncing or not
     const totalElements =
-      await this.state.contracts.OVM_CanonicalTransactionChain.getTotalElements()
+      await this.state.contracts.CanonicalTransactionChain.getTotalElements()
     if (totalElements > 0) {
       await this.state.db.putHighestL2BlockNumber(totalElements - 1)
     }
@@ -207,7 +223,7 @@ export class L1IngestionService extends BaseService<L1IngestionServiceOptions> {
         // using Promise.all if necessary, but I don't see a good reason to do so unless parsing is
         // really, really slow for all event types.
         await this._syncEvents(
-          'OVM_CanonicalTransactionChain',
+          'CanonicalTransactionChain',
           'TransactionEnqueued',
           highestSyncedL1Block,
           targetL1Block,
@@ -215,7 +231,7 @@ export class L1IngestionService extends BaseService<L1IngestionServiceOptions> {
         )
 
         await this._syncEvents(
-          'OVM_CanonicalTransactionChain',
+          'CanonicalTransactionChain',
           'SequencerBatchAppended',
           highestSyncedL1Block,
           targetL1Block,
@@ -223,7 +239,7 @@ export class L1IngestionService extends BaseService<L1IngestionServiceOptions> {
         )
 
         await this._syncEvents(
-          'OVM_StateCommitmentChain',
+          'StateCommitmentChain',
           'StateBatchAppended',
           highestSyncedL1Block,
           targetL1Block,

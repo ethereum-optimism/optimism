@@ -1,3 +1,8 @@
+// WARNING: DO NOT USE THIS FILE TO DEPLOY CONTRACTS TO PRODUCTION
+// WE ARE REMOVING THIS FILE IN A FUTURE RELEASE, IT IS ONLY TO BE USED AS PART OF THE LOCAL
+// DEPLOYMENT PROCESS. USE A DEPLOYMENT SCRIPT LOCATED IN scripts/deploy-scripts/ WHEN DEPLOYING
+// TO A PRODUCTION ENVIRONMENT.
+
 import { Wallet } from 'ethers'
 import path from 'path'
 import dirtree from 'directory-tree'
@@ -31,16 +36,9 @@ const parseEnv = () => {
 
   return {
     l1BlockTimeSeconds: ensure('BLOCK_TIME_SECONDS', 'number'),
-    ctcForceInclusionPeriodSeconds: ensure(
-      'FORCE_INCLUSION_PERIOD_SECONDS',
-      'number'
-    ),
     ctcMaxTransactionGasLimit: ensure('MAX_TRANSACTION_GAS_LIMIT', 'number'),
-    emMinTransactionGasLimit: ensure('MIN_TRANSACTION_GAS_LIMIT', 'number'),
-    emMaxtransactionGasLimit: ensure('MAX_TRANSACTION_GAS_LIMIT', 'number'),
-    emMaxGasPerQueuePerEpoch: ensure('MAX_GAS_PER_QUEUE_PER_EPOCH', 'number'),
-    emSecondsPerEpoch: ensure('ECONDS_PER_EPOCH', 'number'),
-    emOvmChainId: ensure('CHAIN_ID', 'number'),
+    ctcL2GasDiscountDivisor: ensure('L2_GAS_DISCOUNT_DIVISOR', 'number'),
+    ctcEnqueueGasCost: ensure('ENQUEUE_GAS_COST', 'number'),
     sccFraudProofWindow: ensure('FRAUD_PROOF_WINDOW_SECONDS', 'number'),
     sccSequencerPublishWindow: ensure(
       'SEQUENCER_PUBLISH_WINDOW_SECONDS',
@@ -50,23 +48,24 @@ const parseEnv = () => {
 }
 
 const main = async () => {
+  // Just be really verbose about this...
+  console.log(
+    `WARNING: DO NOT USE THIS FILE IN PRODUCTION! FOR LOCAL DEVELOPMENT ONLY!`
+  )
+
   const config = parseEnv()
 
   await hre.run('deploy', {
     l1BlockTimeSeconds: config.l1BlockTimeSeconds,
-    ctcForceInclusionPeriodSeconds: config.ctcForceInclusionPeriodSeconds,
     ctcMaxTransactionGasLimit: config.ctcMaxTransactionGasLimit,
-    emMinTransactionGasLimit: config.emMinTransactionGasLimit,
-    emMaxtransactionGasLimit: config.emMaxtransactionGasLimit,
-    emMaxGasPerQueuePerEpoch: config.emMaxGasPerQueuePerEpoch,
-    emSecondsPerEpoch: config.emSecondsPerEpoch,
-    emOvmChainId: config.emOvmChainId,
+    ctcL2GasDiscountDivisor: config.ctcL2GasDiscountDivisor,
+    ctcEnqueueGasCost: config.ctcEnqueueGasCost,
     sccFraudProofWindow: config.sccFraudProofWindow,
     sccSequencerPublishWindow: config.sccFraudProofWindow,
     ovmSequencerAddress: sequencer.address,
     ovmProposerAddress: sequencer.address,
-    ovmRelayerAddress: sequencer.address,
     ovmAddressManagerOwner: deployer.address,
+    numDeployConfirmations: 0,
     noCompile: process.env.NO_COMPILE ? true : false,
   })
 
@@ -75,7 +74,6 @@ const main = async () => {
   // get the hardhat-deploy stuff merged. Woot.
   const nicknames = {
     Lib_AddressManager: 'AddressManager',
-    mockOVM_BondManager: 'OVM_BondManager',
   }
 
   const contracts: any = dirtree(

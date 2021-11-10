@@ -72,6 +72,7 @@ interface RequiredEnvVars {
  * SEQUENCER_HD_PATH
  * PROPOSER_HD_PATH
  * BLOCK_OFFSET
+ * VALIDATE_TX_BATCH
  * USE_HARDHAT
  * DEBUG_IMPERSONATE_SEQUENCER_ADDRESS
  * DEBUG_IMPERSONATE_PROPOSER_ADDRESS
@@ -138,9 +139,10 @@ export const run = async () => {
   )
 
   const getSequencerSigner = async (): Promise<Signer> => {
-    const l1Provider = new StaticJsonRpcProvider(
-      requiredEnvVars.L1_NODE_WEB3_URL
-    )
+    const l1Provider = new StaticJsonRpcProvider({
+      url: requiredEnvVars.L1_NODE_WEB3_URL,
+      headers: { 'User-Agent': 'batch-submitter' },
+    })
 
     if (useHardhat) {
       if (!DEBUG_IMPERSONATE_SEQUENCER_ADDRESS) {
@@ -165,9 +167,10 @@ export const run = async () => {
   }
 
   const getProposerSigner = async (): Promise<Signer> => {
-    const l1Provider = new StaticJsonRpcProvider(
-      requiredEnvVars.L1_NODE_WEB3_URL
-    )
+    const l1Provider = new StaticJsonRpcProvider({
+      url: requiredEnvVars.L1_NODE_WEB3_URL,
+      headers: { 'User-Agent': 'batch-submitter' },
+    })
 
     if (useHardhat) {
       if (!DEBUG_IMPERSONATE_PROPOSER_ADDRESS) {
@@ -204,10 +207,6 @@ export const run = async () => {
     'min-gas-price-in-gwei',
     parseInt(env.MIN_GAS_PRICE_IN_GWEI, 10) || 0
   )
-  const MAX_GAS_PRICE_IN_GWEI = config.uint(
-    'max-gas-price-in-gwei',
-    parseInt(env.MAX_GAS_PRICE_IN_GWEI, 10) || 70
-  )
   const GAS_RETRY_INCREMENT = config.uint(
     'gas-retry-increment',
     parseInt(env.GAS_RETRY_INCREMENT, 10) || 5
@@ -242,6 +241,11 @@ export const run = async () => {
   const PROPOSER_HD_PATH = config.str(
     'proposer-hd-path',
     env.PROPOSER_HD_PATH || env.HD_PATH
+  )
+
+  const VALIDATE_TX_BATCH = config.bool(
+    'validate-tx-batch',
+    env.VALIDATE_TX_BATCH ? env.VALIDATE_TX_BATCH === 'true' : false
   )
 
   // Auto fix batch options -- TODO: Remove this very hacky config
@@ -334,10 +338,18 @@ export const run = async () => {
     }
   }
 
+  if (requiredEnvVars.MIN_L1_TX_SIZE === 0) {
+    logger.error('Must configure a MIN_L1_TX_SIZE greater than 0')
+    process.exit(1)
+  }
+
   const clearPendingTxs = requiredEnvVars.CLEAR_PENDING_TXS
 
   const l2Provider = injectL2Context(
-    new StaticJsonRpcProvider(requiredEnvVars.L2_NODE_WEB3_URL)
+    new StaticJsonRpcProvider({
+      url: requiredEnvVars.L2_NODE_WEB3_URL,
+      headers: { 'User-Agent': 'batch-submitter' },
+    })
   )
 
   const sequencerSigner: Signer = await getSequencerSigner()
@@ -382,6 +394,7 @@ export const run = async () => {
     GAS_THRESHOLD_IN_GWEI,
     txBatchTxSubmitter,
     BLOCK_OFFSET,
+    VALIDATE_TX_BATCH,
     logger.child({ name: TX_BATCH_SUBMITTER_LOG_TAG }),
     metrics,
     autoFixBatchOptions
