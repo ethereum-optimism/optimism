@@ -1,9 +1,6 @@
 build:
 	DOCKER_BUILDKIT=1 \
 	docker-compose \
-		-f docker-compose.yml build builder
-	DOCKER_BUILDKIT=1 \
-	docker-compose \
 		-f docker-compose.yml build
 .PHONY: build
 
