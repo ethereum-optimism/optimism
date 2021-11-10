@@ -1,13 +1,14 @@
 /* eslint @typescript-eslint/no-var-requires: "off" */
 import { ethers } from 'ethers'
 import { abi as UNISWAP_FACTORY_ABI } from '@uniswap/v3-core/artifacts/contracts/UniswapV3Factory.sol/UniswapV3Factory.json'
+import { Interface } from '@ethersproject/abi'
 import { parseChunked } from '@discoveryjs/json-ext'
 import { createReadStream } from 'fs'
 import * as fs from 'fs'
 import byline from 'byline'
 import * as dotenv from 'dotenv'
 import * as assert from 'assert'
-import { reqenv, getenv } from '@eth-optimism/core-utils'
+import { reqenv, getenv, remove0x } from '@eth-optimism/core-utils'
 import {
   Account,
   EtherscanContract,
@@ -112,6 +113,48 @@ export const getMappingKey = (keys: any[], slot: number) => {
     }
   }
   return key
+}
+
+// ERC20 interface
+const iface = new Interface([
+  'function balanceOf(address)',
+  'function name()',
+  'function symbol()',
+  'function decimals()',
+  'function totalSupply()',
+  'function transfer(address,uint256)',
+])
+
+// PUSH4 should prefix any 4 byte selector
+const PUSH4 = 0x63
+const erc20Sighashes = new Set()
+// Build the set of erc20 4 byte selectors
+for (const fn of Object.keys(iface.functions)) {
+  const sighash = iface.getSighash(fn)
+  erc20Sighashes.add(sighash)
+}
+
+export const isBytecodeERC20 = (bytecode: string): boolean => {
+  if (bytecode === '0x' || bytecode === undefined) {
+    return false
+  }
+  const seen = new Set()
+  const buf = Buffer.from(remove0x(bytecode), 'hex')
+  for (const [i, byte] of buf.entries()) {
+    // Track all of the observed 4 byte selectors that follow a PUSH4
+    // and are also present in the set of erc20Sighashes
+    if (byte === PUSH4) {
+      const sighash = '0x' + buf.slice(i + 1, i + 5).toString('hex')
+      if (erc20Sighashes.has(sighash)) {
+        seen.add(sighash)
+      }
+    }
+  }
+
+  // create a set that contains those elements of set
+  // erc20Sighashes that are not in set seen
+  const elements = [...erc20Sighashes].filter((x) => !seen.has(x))
+  return !elements.length
 }
 
 export const getUniswapV3Factory = (signerOrProvider: any): ethers.Contract => {

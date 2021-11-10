@@ -13,7 +13,7 @@ import {
   DELETE_CONTRACTS,
 } from './constants'
 import { Account, AccountType, SurgeryDataSources } from './types'
-import { hexStringEqual } from './utils'
+import { hexStringEqual, isBytecodeERC20 } from './utils'
 
 export const classifiers: {
   [key in AccountType]: (account: Account, data: SurgeryDataSources) => boolean
@@ -89,6 +89,9 @@ export const classifiers: {
   },
   [AccountType.VERIFIED]: (account, data) => {
     return !classifiers[AccountType.UNVERIFIED](account, data)
+  },
+  [AccountType.ERC20]: (account) => {
+    return isBytecodeERC20(account.code)
   },
 }
 

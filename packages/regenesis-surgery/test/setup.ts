@@ -7,7 +7,7 @@ import { getenv, remove0x } from '@eth-optimism/core-utils'
 import { providers, BigNumber } from 'ethers'
 import { SurgeryDataSources, Account, AccountType } from '../scripts/types'
 import { loadSurgeryData } from '../scripts/data'
-import { classify } from '../scripts/classifiers'
+import { classify, classifiers } from '../scripts/classifiers'
 import { GenesisJsonProvider } from './provider'
 
 // Chai plugins go here.
@@ -63,6 +63,9 @@ class TestEnv {
 
   // List of typed accounts in the input dump
   accounts: TypedAccount[] = []
+
+  // List of erc20 contracts in input dump
+  erc20s: Account[] = []
 
   constructor(opts: TestEnvConfig) {
     this.config = opts
@@ -138,6 +141,10 @@ class TestEnv {
           ...account,
           type: accountType,
         })
+
+        if (classifiers[AccountType.ERC20](account, this.surgeryDataSources)) {
+          this.erc20s.push(account)
+        }
       }
     }
   }

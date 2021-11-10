@@ -17,6 +17,7 @@
     "@discoveryjs/json-ext": "^0.5.3",
     "@eth-optimism/core-utils": "0.6.0",
     "@ethersproject/abstract-provider": "^5.5.1",
+    "@ethersproject/abi": "^5.5.0",
     "@ethersproject/bignumber": "^5.5.0",
     "@ethersproject/properties": "^5.5.0",
     "@ethersproject/providers": "^5.5.0",
@@ -45,7 +46,7 @@
     "mocha": "^9.1.2",
     "node-fetch": "2.6.5",
     "solc": "0.8.7-fixed",
-    "ts-node": "^10.0.0",
-    "ts-mocha": "^8.0.0"
+    "ts-mocha": "^8.0.0",
+    "ts-node": "^10.0.0"
   }
 }

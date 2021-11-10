@@ -59,6 +59,7 @@ export enum AccountType {
   UNISWAP_V3_OTHER,
   UNVERIFIED,
   VERIFIED,
+  ERC20,
 }
 
 export interface UniswapPoolData {
