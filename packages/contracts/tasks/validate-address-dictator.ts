@@ -60,7 +60,7 @@ Chain ID: ${network.chainId}`
     )
     const dictatorArtifact = getDeployedContractArtifact(
       'AddressDictator',
-      'kovan'
+      network.name
     )
 
     // TODO: compare args.dictator to dictatorArtifact.address
