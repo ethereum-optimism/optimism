@@ -5,8 +5,23 @@ import { task } from 'hardhat/config'
 import * as types from 'hardhat/internal/core/params/argumentTypes'
 import { hexStringEquals } from '@eth-optimism/core-utils'
 import { getContractFactory } from '../src/contract-defs'
-import { getDeployedContractArtifact } from '../src/contract-deployed-artifacts'
+
 import { getInput, color as c } from '../src/task-utils'
+
+const printComparison = (
+  action: string,
+  description: string,
+  value1: string,
+  value2: string
+) => {
+  console.log(action + ':')
+  if (hexStringEquals(value1, value2)) {
+    console.log(c.green(`${description} looks good! 😎`))
+  } else {
+    throw new Error(`${description} looks wrong`)
+  }
+  console.log() // Add some whitespace
+}
 
 task('validate:address-dictator')
   // Provided by the signature Requestor
@@ -38,6 +53,9 @@ task('validate:address-dictator')
     types.string
   )
   .setAction(async (args) => {
+    if (!process.env.CONTRACTS_RPC_URL) {
+      throw new Error(c.red('CONTRACTS_RPC_URL not set in your env.'))
+    }
     const provider = new ethers.providers.JsonRpcProvider(args.contractsRpcUrl)
 
     const network = await provider.getNetwork()
@@ -55,47 +73,53 @@ Chain ID: ${network.chainId}`
     }
     console.log()
 
-    console.log(
-      'Verifying AddressDictator source code against local artifacts:'
-    )
-    const dictatorArtifact = getDeployedContractArtifact(
-      'AddressDictator',
-      network.name
-    )
+    // Improvement: use the artifact in deployments/${network.name}
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const dictatorArtifact = require('../artifacts/contracts/L1/deployment/AddressDictator.sol/AddressDictator.json')
 
-    // TODO: compare args.dictator to dictatorArtifact.address
     const dictatorCode = await provider.getCode(args.dictator)
-    if (hexStringEquals(dictatorArtifact.deployedBytecode, dictatorCode)) {
-      console.log(c.green('Deployed dictator code Looks good! 😎'))
-    } else {
-      throw new Error('Deployed AddressDictator code looks wrong')
-    }
-    console.log()
+    printComparison(
+      'Verifying AddressDictator source code against local build artifacts',
+      'Deployed AddressDictator code',
+      dictatorArtifact.deployedBytecode,
+      dictatorCode
+    )
 
     const dictatorContract = getContractFactory('AddressDictator')
       .attach(args.dictator)
       .connect(provider)
 
-    console.log('Validating the finalOwner address in the dictator:')
     const finalOwner = await dictatorContract.finalOwner()
-    if (hexStringEquals(finalOwner, args.multisig)) {
-      console.log(c.green('finalOwner Looks good! 😎'))
-    } else {
-      throw new Error('finalOwner looks wrong')
-    }
-    console.log()
+    printComparison(
+      'Validating that finalOwner address in the dictator matches multisig address',
+      'finalOwner',
+      finalOwner,
+      args.multisig
+    )
 
-    console.log('Validating the AddressManager address in the dictator:')
     const manager = await dictatorContract.manager()
-    if (hexStringEquals(manager, args.manager)) {
-      console.log(c.green('manager Looks good! 😎'))
-    } else {
-      throw new Error('manager looks wrong')
-    }
-    console.log()
+    printComparison(
+      'Validating the AddressManager address in the dictator',
+      'addressManager',
+      manager,
+      args.manager
+    )
 
     // TODO:
     // Get names and addresses from the Dictator.
+    // const namedAddresses = Array<{ name: string; addr: string }> =
+    //   await dictatorContract.getNamedAddresses()
+    // for (const pair of namedAddresses) {
+    //   import dictatorArtifact from '../artifacts/contracts/L1/deployment/AddressDictator.sol/AddressDictator.json'
+    //   const dictatorCode = await provider.getCode(args.dictator)
+    //   printComparison(
+    //     'Verifying AddressDictator source code against local build artifacts',
+    //     'Deployed AddressDictator code',
+    //     dictatorArtifact.deployedBytecode,
+    //     dictatorCode
+    //   )
+    // }
+
     // Loop over those and compare the addresses/deployedBytecode to deployment artifacts.
     // Verify libAddressManager where applicable.
     // Verify other values in Post-deployment contracts checklist
