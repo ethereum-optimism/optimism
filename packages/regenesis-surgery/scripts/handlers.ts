@@ -434,4 +434,9 @@ export const handlers: {
       code: bytecode,
     }
   },
+  [AccountType.ERC20]: async (account) => {
+    throw new Error(
+      `Unexpected ERC20 classification, this should never happen: ${account.address}`
+    )
+  },
 }

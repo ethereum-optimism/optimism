@@ -49,7 +49,7 @@ const genesis: Genesis = {
   },
 }
 
-describe.only('GenesisJsonProvider', () => {
+describe('GenesisJsonProvider', () => {
   let provider
   before(() => {
     provider = new GenesisJsonProvider(genesis)
