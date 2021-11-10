@@ -5,7 +5,8 @@ import { task } from 'hardhat/config'
 import * as types from 'hardhat/internal/core/params/argumentTypes'
 import { hexStringEquals } from '@eth-optimism/core-utils'
 import { getContractFactory } from '../src/contract-defs'
-import { getInput } from '../src/task-utils'
+import { getDeployedContractArtifact } from '../src/contract-deployed-artifacts'
+import { getInput, color as c } from '../src/task-utils'
 
 task('validate:address-dictator')
   // Provided by the signature Requestor
@@ -42,12 +43,34 @@ task('validate:address-dictator')
     const network = await provider.getNetwork()
     console.log(
       `
-Validating the deployment on the chain with the following values:
-- Name: ${network.name}
-- Chain ID: ${network.chainId}
-`
+Validating the deployment on the chain with:
+Name: ${network.name}
+Chain ID: ${network.chainId}`
     )
-    await getInput('Does that look right (Y/n)')
+    const res = await getInput(c.yellow('Does that look right? (LGTM/n)\n> '))
+    if (res !== 'LGTM') {
+      throw new Error(
+        c.red('User indicated that validation was run against the wrong chain')
+      )
+    }
+    console.log()
+
+    console.log(
+      'Verifying AddressDictator source code against local artifacts:'
+    )
+    const dictatorArtifact = getDeployedContractArtifact(
+      'AddressDictator',
+      'kovan'
+    )
+
+    const dictatorCode = await provider.getCode(args.dictator)
+    if (hexStringEquals(dictatorArtifact.deployedBytecode, dictatorCode)) {
+      console.log(c.green('Deployed dictator code Looks good! 😎'))
+    } else {
+      throw new Error('Deployed AddressDictator code looks wrong')
+    }
+    console.log()
+
     const dictatorContract = getContractFactory('AddressDictator')
       .attach(args.dictator)
       .connect(provider)
@@ -55,16 +78,18 @@ Validating the deployment on the chain with the following values:
     console.log('Validating the finalOwner address in the dictator:')
     const finalOwner = await dictatorContract.finalOwner()
     if (hexStringEquals(finalOwner, args.multisig)) {
-      console.log('LGTM')
+      console.log(c.green('finalOwner Looks good! 😎'))
     } else {
-      console.log('finalOwner looks wrong')
+      throw new Error('finalOwner looks wrong')
     }
+    console.log()
 
     console.log('Validating the AddressManager address in the dictator:')
     const manager = await dictatorContract.manager()
     if (hexStringEquals(manager, args.manager)) {
-      console.log('manager LGTM')
+      console.log(c.green('manager Looks good! 😎'))
     } else {
-      console.log('manager looks wrong')
+      throw new Error('manager looks wrong')
     }
+    console.log()
   })
