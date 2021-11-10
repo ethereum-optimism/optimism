@@ -1,5 +1,6 @@
 ARG LOCAL_REGISTRY=docker.io
-FROM ${LOCAL_REGISTRY}/ethereumoptimism/builder AS builder
+ARG BUILDER_TAG=latest
+FROM ${LOCAL_REGISTRY}/ethereumoptimism/builder:${BUILDER_TAG} AS builder
 
 FROM node:14-alpine
 
@@ -22,7 +23,6 @@ COPY --from=builder /optimism/packages/contracts/package.json ./packages/contrac
 COPY --from=builder /optimism/packages/contracts/deployments ./packages/contracts/deployments
 COPY --from=builder /optimism/packages/contracts/dist ./packages/contracts/dist
 COPY --from=builder /optimism/packages/contracts/artifacts ./packages/contracts/artifacts
-COPY --from=builder /optimism/packages/contracts/artifacts-ovm ./packages/contracts/artifacts-ovm
 
 # copy the service
 WORKDIR /opt/optimism/packages/data-transport-layer

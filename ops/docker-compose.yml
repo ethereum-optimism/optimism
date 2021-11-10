@@ -1,18 +1,9 @@
-# TODO: Prefix all env vars with service name
-# TODO: Allow specifing the image tag to use
 version: "3"
 
 services:
-  # base service builder
-  builder:
-    image: ethereumoptimism/builder
-    build:
-      context: ..
-      dockerfile: ./ops/docker/Dockerfile.monorepo
-
   # this is a helper service used because there's no official hardhat image
   l1_chain:
-    image: ethereumoptimism/hardhat
+    image: ethereumoptimism/hardhat:${DOCKER_TAG:-latest}
     build:
       context: ./docker/hardhat
       dockerfile: Dockerfile
@@ -23,10 +14,10 @@ services:
   deployer:
     depends_on:
       - l1_chain
-    image: ethereumoptimism/deployer
     build:
       context: ..
-      dockerfile: ./ops/docker/Dockerfile.deployer
+      dockerfile: ./ops/docker/Dockerfile.packages
+      target: deployer
     entrypoint: ./deployer.sh
     environment:
         FRAUD_PROOF_WINDOW_SECONDS: 0
@@ -34,6 +25,18 @@ services:
         # these keys are hardhat's first 2 accounts, DO NOT use in production
         DEPLOYER_PRIVATE_KEY: "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
         SEQUENCER_PRIVATE_KEY: "0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d"
+        GAS_PRICE_ORACLE_OWNER: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
+        # setting the whitelist owner to address(0) disables the whitelist
+        WHITELIST_OWNER: "0x0000000000000000000000000000000000000000"
+        L1_FEE_WALLET_ADDRESS: "0x391716d440c151c42cdf1c95c1d83a5427bca52c"
+        L2_CHAIN_ID: 420
+        L2_BLOCK_GAS_LIMIT: 11000000
+        BLOCK_SIGNER_ADDRESS: "0x00000398232E2064F896018496b4b44b3D62751F"
+        GAS_PRICE_ORACLE_OVERHEAD: "2750"
+        GAS_PRICE_ORACLE_SCALAR: "1500000"
+        GAS_PRICE_ORACLE_L1_BASE_FEE: "1"
+        GAS_PRICE_ORACLE_GAS_PRICE: "1"
+        GAS_PRICE_ORACLE_DECIMALS: "6"
         # skip compilation when run in docker-compose, since the contracts
         # were already compiled in the builder step
         NO_COMPILE: 1
@@ -46,10 +49,10 @@ services:
       - l1_chain
       - deployer
       - l2geth
-    image: ethereumoptimism/data-transport-layer
     build:
       context: ..
-      dockerfile: ./ops/docker/Dockerfile.data-transport-layer
+      dockerfile: ./ops/docker/Dockerfile.packages
+      target: data-transport-layer
     # override with the dtl script and the env vars required for it
     entrypoint: ./dtl.sh
     env_file:
@@ -71,7 +74,6 @@ services:
     depends_on:
       - l1_chain
       - deployer
-    image: ethereumoptimism/l2geth
     build:
       context: ..
       dockerfile: ./ops/docker/Dockerfile.geth
@@ -83,12 +85,13 @@ services:
         ETH1_HTTP: http://l1_chain:8545
         ROLLUP_TIMESTAMP_REFRESH: 5s
         ROLLUP_STATE_DUMP_PATH: http://deployer:8081/state-dump.latest.json
-        # used for getting the addresses
-        URL: http://deployer:8081/addresses.json
         # connecting to the DTL
         ROLLUP_CLIENT_HTTP: http://dtl:7878
         ETH1_CTC_DEPLOYMENT_HEIGHT: 8
         RETRIES: 60
+        # no need to keep this secret, only used internally to sign blocks
+        BLOCK_SIGNER_KEY: "6587ae678cf4fc9a33000cdbf9f35226b71dcc6a4684a31203241f9bcfd55d27"
+        BLOCK_SIGNER_ADDRESS: "0x00000398232E2064F896018496b4b44b3D62751F"
     ports:
       - ${L2GETH_HTTP_PORT:-8545}:8545
       - ${L2GETH_WS_PORT:-8546}:8546
@@ -98,10 +101,10 @@ services:
       - l1_chain
       - deployer
       - l2geth
-    image: ethereumoptimism/message-relayer
     build:
       context: ..
-      dockerfile: ./ops/docker/Dockerfile.message-relayer
+      dockerfile: ./ops/docker/Dockerfile.packages
+      target: relayer
     entrypoint: ./relayer.sh
     environment:
         L1_NODE_WEB3_URL: http://l1_chain:8545
@@ -118,10 +121,10 @@ services:
       - l1_chain
       - deployer
       - l2geth
-    image: ethereumoptimism/batch-submitter
     build:
       context: ..
-      dockerfile: ./ops/docker/Dockerfile.batch-submitter
+      dockerfile: ./ops/docker/Dockerfile.packages
+      target: batch-submitter
     entrypoint: ./batches.sh
     env_file:
       - ./envs/batches.env
@@ -136,7 +139,6 @@ services:
       - l1_chain
       - deployer
       - dtl
-    image: ethereumoptimism/l2geth
     deploy:
       replicas: 0
     build:
@@ -148,7 +150,6 @@ services:
     environment:
         ETH1_HTTP: http://l1_chain:8545
         ROLLUP_STATE_DUMP_PATH: http://deployer:8081/state-dump.latest.json
-        URL: http://deployer:8081/addresses.json
         ROLLUP_CLIENT_HTTP: http://dtl:7878
         ROLLUP_BACKEND: 'l1'
         ETH1_CTC_DEPLOYMENT_HEIGHT: 8
@@ -161,7 +162,6 @@ services:
   replica:
     depends_on:
       - dtl
-    image: ethereumoptimism/l2geth
     deploy:
       replicas: 0
     build:
@@ -173,7 +173,6 @@ services:
     environment:
         ETH1_HTTP: http://l1_chain:8545
         ROLLUP_STATE_DUMP_PATH: http://deployer:8081/state-dump.latest.json
-        URL: http://deployer:8081/addresses.json
         ROLLUP_CLIENT_HTTP: http://dtl:7878
         ROLLUP_BACKEND: 'l2'
         ROLLUP_VERIFIER_ENABLE: 'true'
@@ -184,12 +183,12 @@ services:
       - ${L2GETH_WS_PORT:-8550}:8546
 
   integration_tests:
-    image: ethereumoptimism/integration-tests
     deploy:
        replicas: 0
     build:
       context: ..
-      dockerfile: ./ops/docker/Dockerfile.integration-tests
+      dockerfile: ./ops/docker/Dockerfile.packages
+      target: integration-tests
     entrypoint: ./integration-tests.sh
     environment:
       L1_URL: http://l1_chain:8545
@@ -199,7 +198,6 @@ services:
       NO_NETWORK: 1
 
   gas_oracle:
-    image: ethereumoptimism/gas-oracle
     deploy:
        replicas: 0
     build:

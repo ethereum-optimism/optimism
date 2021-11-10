@@ -1,0 +1,8 @@
+node_modules/
+build/
+solc-bin/
+outputs/
+etherscan/
+state-dumps/
+data/
+solc-cache/

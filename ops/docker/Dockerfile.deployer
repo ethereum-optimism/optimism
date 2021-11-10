@@ -1,9 +1,10 @@
 ARG LOCAL_REGISTRY=docker.io
-FROM ${LOCAL_REGISTRY}/ethereumoptimism/builder AS builder
+ARG BUILDER_TAG=latest
+FROM ${LOCAL_REGISTRY}/ethereumoptimism/builder:${BUILDER_TAG} AS builder
 
 FROM node:14-alpine
 
-RUN apk add --no-cache git curl python bash
+RUN apk add --no-cache git curl python3 bash jq
 
 WORKDIR /opt/optimism/
 
@@ -14,16 +15,13 @@ COPY --from=builder /optimism/node_modules ./node_modules
 COPY --from=builder /optimism/packages/core-utils/package.json ./packages/core-utils/package.json
 COPY --from=builder /optimism/packages/core-utils/dist ./packages/core-utils/dist
 
-COPY --from=builder /optimism/packages/hardhat-ovm/package.json ./packages/hardhat-ovm/package.json
-COPY --from=builder /optimism/packages/hardhat-ovm/dist ./packages/hardhat-ovm/dist
-
 # get the needed built artifacts
 WORKDIR /opt/optimism/packages/contracts
 COPY --from=builder /optimism/packages/contracts/dist ./dist
 COPY --from=builder /optimism/packages/contracts/*.json ./
 COPY --from=builder /optimism/packages/contracts/node_modules ./node_modules
 COPY --from=builder /optimism/packages/contracts/artifacts ./artifacts
-COPY --from=builder /optimism/packages/contracts/artifacts-ovm ./artifacts-ovm
+COPY --from=builder /optimism/packages/contracts/src ./src
 
 # get non-build artifacts from the host
 COPY packages/contracts/bin ./bin
@@ -31,7 +29,6 @@ COPY packages/contracts/contracts ./contracts
 COPY packages/contracts/hardhat.config.ts ./
 COPY packages/contracts/deploy ./deploy
 COPY packages/contracts/tasks ./tasks
-COPY packages/contracts/src ./src
 COPY packages/contracts/test/helpers/constants.ts ./test/helpers/constants.ts
 COPY packages/contracts/scripts ./scripts
 

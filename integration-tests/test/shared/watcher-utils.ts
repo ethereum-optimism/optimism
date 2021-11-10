@@ -16,7 +16,7 @@ export const initWatcher = async (
     'Proxy__OVM_L1CrossDomainMessenger'
   )
   const l2MessengerAddress = await AddressManager.getAddress(
-    'OVM_L2CrossDomainMessenger'
+    'L2CrossDomainMessenger'
   )
   return new Watcher({
     l1: {
@@ -60,6 +60,11 @@ export const waitForXDomainTransaction = async (
 
   // get the message hash which was created on the SentMessage
   const [xDomainMsgHash] = await watcher.getMessageHashesFromTx(src, tx.hash)
+
+  if (!xDomainMsgHash) {
+    throw new Error(`No x-domain message hash for tx hash ${tx.hash}, bailing.`)
+  }
+
   // Get the transaction and receipt on the remote layer
   const remoteReceipt = await watcher.getTransactionReceipt(
     dest,

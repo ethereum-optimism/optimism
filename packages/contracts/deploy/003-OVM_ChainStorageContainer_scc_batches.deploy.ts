@@ -3,25 +3,25 @@ import { DeployFunction } from 'hardhat-deploy/dist/types'
 
 /* Imports: Internal */
 import {
-  deployAndRegister,
-  getDeployedContract,
+  deployAndVerifyAndThen,
+  getContractFromArtifact,
 } from '../src/hardhat-deploy-ethers'
+import { names } from '../src/address-names'
 
 const deployFn: DeployFunction = async (hre) => {
-  const Lib_AddressManager = await getDeployedContract(
+  const Lib_AddressManager = await getContractFromArtifact(
     hre,
-    'Lib_AddressManager'
+    names.unmanaged.Lib_AddressManager
   )
 
-  await deployAndRegister({
+  await deployAndVerifyAndThen({
     hre,
-    name: 'OVM_ChainStorageContainer-SCC-batches',
-    contract: 'OVM_ChainStorageContainer',
-    args: [Lib_AddressManager.address, 'OVM_StateCommitmentChain'],
+    name: names.managed.contracts.ChainStorageContainer_SCC_batches,
+    contract: 'ChainStorageContainer',
+    args: [Lib_AddressManager.address, 'StateCommitmentChain'],
   })
 }
 
-deployFn.dependencies = ['Lib_AddressManager']
-deployFn.tags = ['OVM_ChainStorageContainer_scc_batches']
+deployFn.tags = ['ChainStorageContainer_scc_batches', 'upgrade']
 
 export default deployFn

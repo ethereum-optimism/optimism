@@ -1,5 +1,4 @@
 /* External Imports */
-import { ethers } from 'ethers'
 import { defaultAccounts } from 'ethereum-waffle'
 
 export const FORCE_INCLUSION_PERIOD_SECONDS = 600

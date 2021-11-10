@@ -17,18 +17,16 @@
     "lint:check": "eslint .",
     "lint:fix": "yarn lint:check --fix",
     "pre-commit": "lint-staged",
-    "test": "ts-mocha test/**/*.spec.ts",
-    "test:coverage": "nyc ts-mocha test/**/*.spec.ts && nyc merge .nyc_output coverage.json"
+    "test": "ts-mocha test/*.spec.ts",
+    "test:coverage": "nyc ts-mocha test/*.spec.ts && nyc merge .nyc_output coverage.json"
   },
   "devDependencies": {
     "@types/chai": "^4.2.18",
     "@types/lodash": "^4.14.168",
     "@types/mocha": "^8.2.2",
-    "@types/prettier": "^2.2.3",
     "@typescript-eslint/eslint-plugin": "^4.26.0",
     "@typescript-eslint/parser": "^4.26.0",
     "babel-eslint": "^10.1.0",
-    "chai": "^4.3.4",
     "eslint": "^7.27.0",
     "eslint-config-prettier": "^8.3.0",
     "eslint-plugin-ban": "^1.5.2",
@@ -47,7 +45,10 @@
   },
   "dependencies": {
     "@ethersproject/abstract-provider": "^5.4.1",
+    "@ethersproject/bytes": "^5.5.0",
     "@ethersproject/providers": "^5.4.5",
+    "@ethersproject/web": "^5.5.0",
+    "chai": "^4.3.4",
     "ethers": "^5.4.5",
     "lodash": "^4.17.21"
   }

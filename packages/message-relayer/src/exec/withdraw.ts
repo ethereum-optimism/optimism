@@ -36,7 +36,7 @@ const main = async () => {
 
   const l1CrossDomainMessenger = new ethers.Contract(
     l1CrossDomainMessengerAddress,
-    getContractInterface('OVM_L1CrossDomainMessenger'),
+    getContractInterface('L1CrossDomainMessenger'),
     l1Wallet
   )
 
@@ -48,7 +48,7 @@ const main = async () => {
         l1RpcProviderUrl,
         l2RpcProviderUrl,
         l1StateCommitmentChainAddress,
-        predeploys.OVM_L2CrossDomainMessenger,
+        predeploys.L2CrossDomainMessenger,
         l2TransactionHash
       )
       break

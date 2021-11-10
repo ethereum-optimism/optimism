@@ -23,6 +23,8 @@ import (
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
+	"github.com/ethereum/go-ethereum/rollup/dump"
+	"github.com/ethereum/go-ethereum/rollup/rcfg"
 )
 
 // ChainContext supports retrieving headers and consensus parameters from the
@@ -44,17 +46,36 @@ func NewEVMContext(msg Message, header *types.Header, chain ChainContext, author
 	} else {
 		beneficiary = *author
 	}
-	return vm.Context{
-		CanTransfer: CanTransfer,
-		Transfer:    Transfer,
-		GetHash:     GetHashFn(header, chain),
-		Origin:      msg.From(),
-		Coinbase:    beneficiary,
-		BlockNumber: new(big.Int).Set(header.Number),
-		Time:        new(big.Int).SetUint64(header.Time),
-		Difficulty:  new(big.Int).Set(header.Difficulty),
-		GasLimit:    header.GasLimit,
-		GasPrice:    new(big.Int).Set(msg.GasPrice()),
+	if rcfg.UsingOVM {
+		// When using the OVM, we must:
+		// - Set the BlockNumber to be the msg.L1BlockNumber
+		// - Set the Time to be the msg.L1Timestamp
+		return vm.Context{
+			CanTransfer:   CanTransfer,
+			Transfer:      Transfer,
+			GetHash:       GetHashFn(header, chain),
+			Origin:        msg.From(),
+			Coinbase:      dump.OvmFeeWallet, // Coinbase is the fee vault.
+			BlockNumber:   new(big.Int).Set(header.Number),
+			Time:          new(big.Int).SetUint64(msg.L1Timestamp()),
+			Difficulty:    new(big.Int), // Difficulty always returns zero.
+			GasLimit:      header.GasLimit,
+			GasPrice:      new(big.Int).Set(msg.GasPrice()),
+			L1BlockNumber: msg.L1BlockNumber(),
+		}
+	} else {
+		return vm.Context{
+			CanTransfer: CanTransfer,
+			Transfer:    Transfer,
+			GetHash:     GetHashFn(header, chain),
+			Origin:      msg.From(),
+			Coinbase:    beneficiary,
+			BlockNumber: new(big.Int).Set(header.Number),
+			Time:        new(big.Int).SetUint64(header.Time),
+			Difficulty:  new(big.Int).Set(header.Difficulty),
+			GasLimit:    header.GasLimit,
+			GasPrice:    new(big.Int).Set(msg.GasPrice()),
+		}
 	}
 }
 

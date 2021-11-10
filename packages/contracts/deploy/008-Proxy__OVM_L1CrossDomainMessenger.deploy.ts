@@ -2,61 +2,28 @@
 import { DeployFunction } from 'hardhat-deploy/dist/types'
 
 /* Imports: Internal */
-import { getDeployedContract } from '../src/hardhat-deploy-ethers'
+import {
+  deployAndVerifyAndThen,
+  getContractFromArtifact,
+} from '../src/hardhat-deploy-ethers'
+import { names } from '../src/address-names'
 
 const deployFn: DeployFunction = async (hre) => {
-  const { deploy } = hre.deployments
-  const { deployer } = await hre.getNamedAccounts()
-
-  const Lib_AddressManager = await getDeployedContract(
+  const Lib_AddressManager = await getContractFromArtifact(
     hre,
-    'Lib_AddressManager',
-    {
-      signerOrProvider: deployer,
-    }
+    names.unmanaged.Lib_AddressManager
   )
 
-  const result = await deploy('Proxy__OVM_L1CrossDomainMessenger', {
+  await deployAndVerifyAndThen({
+    hre,
+    name: 'Proxy__OVM_L1CrossDomainMessenger',
     contract: 'Lib_ResolvedDelegateProxy',
-    from: deployer,
+    iface: 'L1CrossDomainMessenger',
     args: [Lib_AddressManager.address, 'OVM_L1CrossDomainMessenger'],
-    log: true,
   })
-
-  if (!result.newlyDeployed) {
-    return
-  }
-
-  const Proxy__OVM_L1CrossDomainMessenger = await getDeployedContract(
-    hre,
-    'Proxy__OVM_L1CrossDomainMessenger',
-    {
-      signerOrProvider: deployer,
-      iface: 'OVM_L1CrossDomainMessenger',
-    }
-  )
-
-  await Proxy__OVM_L1CrossDomainMessenger.initialize(Lib_AddressManager.address)
-
-  const libAddressManager =
-    await Proxy__OVM_L1CrossDomainMessenger.libAddressManager()
-  if (libAddressManager !== Lib_AddressManager.address) {
-    throw new Error(
-      `\n**FATAL ERROR. THIS SHOULD NEVER HAPPEN. CHECK YOUR DEPLOYMENT.**:\n` +
-        `Proxy__OVM_L1CrossDomainMessenger could not be succesfully initialized.\n` +
-        `Attempted to set Lib_AddressManager to: ${Lib_AddressManager.address}\n` +
-        `Actual address after initialization: ${libAddressManager}\n` +
-        `This could indicate a compromised deployment.`
-    )
-  }
-
-  await Lib_AddressManager.setAddress(
-    'Proxy__OVM_L1CrossDomainMessenger',
-    result.address
-  )
 }
 
-deployFn.dependencies = ['Lib_AddressManager', 'OVM_L1CrossDomainMessenger']
+// This is kept during an upgrade. So no upgrade tag.
 deployFn.tags = ['Proxy__OVM_L1CrossDomainMessenger']
 
 export default deployFn

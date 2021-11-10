@@ -1,5 +1,5 @@
 /* Imports: External */
-import { BigNumber, constants, ethers } from 'ethers'
+import { BigNumber, ethers } from 'ethers'
 import { serialize } from '@ethersproject/transactions'
 
 /* Imports: Internal */
@@ -9,12 +9,7 @@ import {
   StateRootEntry,
   TransactionEntry,
 } from '../../../types'
-import {
-  padHexString,
-  SEQUENCER_ENTRYPOINT_ADDRESS,
-  SEQUENCER_GAS_LIMIT,
-  parseSignatureVParam,
-} from '../../../utils'
+import { padHexString, parseSignatureVParam } from '../../../utils'
 
 export const handleSequencerBlock = {
   parseBlock: async (
@@ -58,8 +53,8 @@ export const handleSequencerBlock = {
 
       transactionEntry = {
         ...transactionEntry,
-        gasLimit: `${SEQUENCER_GAS_LIMIT}`, // ?
-        target: SEQUENCER_ENTRYPOINT_ADDRESS,
+        gasLimit: BigNumber.from(0).toString(),
+        target: ethers.constants.AddressZero,
         origin: null,
         data: serialize(
           {

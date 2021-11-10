@@ -1,14 +1,13 @@
-import { Signer, Contract, providers, ethers } from 'ethers'
+import { Signer, Contract } from 'ethers'
 import { Provider } from '@ethersproject/abstract-provider'
-import { getL1ContractData, getL2ContractData } from './contract-data'
+import { getContractArtifact } from './contract-artifacts'
+import { getDeployedContractArtifact } from './contract-deployed-artifacts'
+import { predeploys } from './predeploys'
 
 export type Network = 'goerli' | 'kovan' | 'mainnet'
 interface L1Contracts {
   addressManager: Contract
   canonicalTransactionChain: Contract
-  executionManager: Contract
-  fraudVerifier: Contract
-  multiMessageRelayer: Contract
   stateCommitmentChain: Contract
   xDomainMessengerProxy: Contract
   bondManager: Contract
@@ -18,12 +17,7 @@ interface L2Contracts {
   eth: Contract
   xDomainMessenger: Contract
   messagePasser: Contract
-  messageSender: Contract
   deployerWhiteList: Contract
-  ecdsaContractAccount: Contract
-  sequencerEntrypoint: Contract
-  erc1820Registry: Contract
-  addressManager: Contract
 }
 
 /**
@@ -60,29 +54,17 @@ export const connectL1Contracts = async (
     throw Error('Must specify network: mainnet, kovan, or goerli.')
   }
 
-  const l1ContractData = getL1ContractData(network)
-
-  const toEthersContract = (data) =>
-    new Contract(data.address, data.abi, signerOrProvider)
+  const getEthersContract = (name: string) => {
+    const artifact = getDeployedContractArtifact(name, network)
+    return new Contract(artifact.address, artifact.abi, signerOrProvider)
+  }
 
   return {
-    addressManager: toEthersContract(l1ContractData.Lib_AddressManager),
-    canonicalTransactionChain: toEthersContract(
-      l1ContractData.OVM_CanonicalTransactionChain
-    ),
-    executionManager: toEthersContract(l1ContractData.OVM_ExecutionManager),
-    fraudVerifier: toEthersContract(l1ContractData.OVM_FraudVerifier),
-    multiMessageRelayer: toEthersContract(
-      l1ContractData.OVM_L1MultiMessageRelayer
-    ),
-    stateCommitmentChain: toEthersContract(
-      l1ContractData.OVM_StateCommitmentChain
-    ),
-    xDomainMessengerProxy: toEthersContract(
-      l1ContractData.Proxy__OVM_L1CrossDomainMessenger
-    ),
-    // TODO: update this with actual bond manager when its ready
-    bondManager: toEthersContract(l1ContractData.mockOVM_BondManager),
+    addressManager: getEthersContract('Lib_AddressManager'),
+    canonicalTransactionChain: getEthersContract('CanonicalTransactionChain'),
+    stateCommitmentChain: getEthersContract('StateCommitmentChain'),
+    xDomainMessengerProxy: getEthersContract('Proxy__L1CrossDomainMessenger'),
+    bondManager: getEthersContract('mockBondManager'),
   }
 }
 
@@ -93,29 +75,20 @@ export const connectL1Contracts = async (
  * @returns l2 contracts connected to signer/provider
  */
 export const connectL2Contracts = async (
-  signerOrProvider
+  signerOrProvider: any
 ): Promise<L2Contracts> => {
-  const l2ContractData = await getL2ContractData()
   checkSignerType(signerOrProvider)
 
-  const toEthersContract = (data) =>
-    new Contract(data.address, data.abi, signerOrProvider)
+  const getEthersContract = (name: string, iface?: string) => {
+    const artifact = getContractArtifact(iface || name)
+    const address = predeploys[name]
+    return new Contract(address, artifact.abi, signerOrProvider)
+  }
 
   return {
-    eth: toEthersContract(l2ContractData.OVM_ETH),
-    xDomainMessenger: toEthersContract(
-      l2ContractData.OVM_L2CrossDomainMessenger
-    ),
-    messagePasser: toEthersContract(l2ContractData.OVM_L2ToL1MessagePasser),
-    messageSender: toEthersContract(l2ContractData.OVM_L1MessageSender),
-    deployerWhiteList: toEthersContract(l2ContractData.OVM_DeployerWhitelist),
-    ecdsaContractAccount: toEthersContract(
-      l2ContractData.OVM_ECDSAContractAccount
-    ),
-    sequencerEntrypoint: toEthersContract(
-      l2ContractData.OVM_SequencerEntrypoint
-    ),
-    erc1820Registry: toEthersContract(l2ContractData.ERC1820Registry),
-    addressManager: toEthersContract(l2ContractData.Lib_AddressManager),
+    eth: getEthersContract('OVM_ETH'),
+    xDomainMessenger: getEthersContract('L2CrossDomainMessenger'),
+    messagePasser: getEthersContract('OVM_L2ToL1MessagePasser'),
+    deployerWhiteList: getEthersContract('OVM_DeployerWhitelist'),
   }
 }

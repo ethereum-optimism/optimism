@@ -43,15 +43,8 @@ with their configuration can run the command:
 
 ```bash
 $ USING_OVM=true ./build/bin/geth \
-    --rollup.addressmanagerowneraddress $ADDRESS_MANAGER_OWNER_ADDRESS \
     --rollup.clienthttp $ROLLUP_CLIENT_HTTP \
     --rollup.pollinterval 3s \
-    --eth1.networkid $LAYER1_NETWORK_ID \
-    --eth1.chainid $LAYER1_CHAIN_ID \
-    --eth1.l1standardbridgeaddress $ETH1_L1_STANDARD_BRIDGE_ADDRESS \
-    --eth1.l1crossdomainmessengeraddress $ETH1_L1_CROSS_DOMAIN_MESSENGER_ADDRESS \
-    --eth1.l1feewalletaddress $ETH1_L1_FEE_WALLET_ADDRESS \
-    --eth1.addressresolveraddress $ETH1_ADDRESS_RESOLVER_ADDRESS \
     --eth1.ctcdeploymentheight $CTC_DEPLOY_HEIGHT \
     --eth1.syncservice \
     --rpc \
@@ -61,7 +54,6 @@ $ USING_OVM=true ./build/bin/geth \
     --wsaddr "0.0.0.0" \
     --wsport 8546 \
     --wsorigins '*' \
-    --networkid 420 \
     --rpcapi 'eth,net,rollup,web3' \
     --gasprice '0' \
     --targetgaslimit '8000000' \
@@ -70,15 +62,9 @@ $ USING_OVM=true ./build/bin/geth \
     --ipcdisable
 ```
 
-The address manager owner address will be set in the layer two state at runtime.
-
 To persist the database, pass the `--datadir` with a path to the directory for
 the database to be persisted in. Without this flag, an in memory database will
 be used. To tune the log level, use the `--verbosity` flag with an integer.
-
-The initial state can be fetched via HTTPS using the flag `--rollup.statedumppath`.
-State dumps are available via the [regenesis repository](https://github.com/ethereum-optimism/regenesis).
-To use a different genesis state, pass in a path to one of the JSON files in the repository.
 
 ### Running a Verifier
 

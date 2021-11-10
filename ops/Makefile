@@ -1,3 +1,9 @@
+build:
+	DOCKER_BUILDKIT=1 \
+	docker-compose \
+		-f docker-compose.yml build
+.PHONY: build
+
 up: down
 	DOCKER_BUILDKIT=1 \
 	docker-compose \
@@ -38,3 +44,7 @@ ps-metrics:
 		-f docker-compose-metrics.yml \
 		ps
 .PHONY: ps
+
+regenesis-surgery:
+	docker build -f ./docker/Dockerfile.regenesis-surgery \
+		-t ethereumoptimism/regenesis-surgery:latest ..

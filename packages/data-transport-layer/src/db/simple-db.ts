@@ -20,7 +20,7 @@ export class SimpleDB {
     endIndex: number
   ): Promise<TEntry[] | []> {
     try {
-      return new Promise<any[]>((resolve, reject) => {
+      return new Promise<any[]>((resolve) => {
         const entries: any[] = []
         this.db
           .createValueStream({
@@ -30,7 +30,7 @@ export class SimpleDB {
           .on('data', (transaction: string) => {
             entries.push(JSON.parse(transaction))
           })
-          .on('error', (err: any) => {
+          .on('error', () => {
             resolve(null)
           })
           .on('close', () => {

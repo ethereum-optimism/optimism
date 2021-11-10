@@ -1,9 +1,10 @@
 ARG LOCAL_REGISTRY=docker.io
-FROM ${LOCAL_REGISTRY}/ethereumoptimism/builder AS builder
+ARG BUILDER_TAG=latest
+FROM ${LOCAL_REGISTRY}/ethereumoptimism/builder:${BUILDER_TAG} AS builder
 
 FROM node:14-alpine
 
-RUN apk add --no-cache git curl python bash jq
+RUN apk add --no-cache git curl python3 bash jq
 
 WORKDIR /opt/optimism/
 
@@ -17,9 +18,6 @@ COPY --from=builder /optimism/packages/core-utils/dist ./packages/core-utils/dis
 COPY --from=builder /optimism/packages/message-relayer/package.json ./packages/message-relayer/package.json
 COPY --from=builder /optimism/packages/message-relayer/dist ./packages/message-relayer/dist
 
-COPY --from=builder /optimism/packages/hardhat-ovm/package.json ./packages/hardhat-ovm/package.json
-COPY --from=builder /optimism/packages/hardhat-ovm/dist ./packages/hardhat-ovm/dist
-
 COPY --from=builder /optimism/packages/contracts ./packages/contracts
 
 # get the needed built artifacts
@@ -27,4 +25,4 @@ WORKDIR /opt/optimism/integration-tests
 COPY --from=builder /optimism/integration-tests ./
 
 COPY ./ops/scripts/integration-tests.sh ./
-ENTRYPOINT yarn test:integration
+CMD ["yarn", "test:integration"]

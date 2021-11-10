@@ -42,7 +42,7 @@ task('whitelist')
     predeploys.OVM_DeployerWhitelist,
     types.string
   )
-  .setAction(async (args, hre: any) => {
+  .setAction(async (args) => {
     const provider = new ethers.providers.JsonRpcProvider(args.contractsRpcUrl)
     let signer: ethers.Signer
     if (!args.useLedger) {
@@ -60,18 +60,12 @@ task('whitelist')
 
     const addr = await signer.getAddress()
     console.log(`Using signer: ${addr}`)
-    let owner = await deployerWhitelist.owner()
-    console.log(`OVM_DeployerWhitelist owner: ${owner}`)
-
+    const owner = await deployerWhitelist.owner()
     if (owner === '0x0000000000000000000000000000000000000000') {
-      console.log(`Initializing whitelist`)
-      const response = await deployerWhitelist.initialize(addr, false, {
-        gasPrice: args.transactionGasPrice,
-      })
-
-      const receipt = await response.wait()
-      console.log(`Initialized whitelist: ${receipt.transactionHash}`)
-      owner = await deployerWhitelist.owner()
+      console.log(`Whitelist is disabled. Exiting early.`)
+      return
+    } else {
+      console.log(`OVM_DeployerWhitelist owner: ${owner}`)
     }
 
     if (addr !== owner) {

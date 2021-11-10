@@ -19,11 +19,13 @@ package core
 import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
+	"github.com/ethereum/go-ethereum/consensus/misc"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/params"
+	"github.com/ethereum/go-ethereum/rollup/fees"
 )
 
 // StateProcessor is a basic Processor, which takes care of transitioning
@@ -60,6 +62,10 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 		allLogs  []*types.Log
 		gp       = new(GasPool).AddGas(block.GasLimit())
 	)
+	// Mutate the block and state according to any hard-fork specs
+	if p.config.DAOForkSupport && p.config.DAOForkBlock != nil && p.config.DAOForkBlock.Cmp(block.Number()) == 0 {
+		misc.ApplyDAOHardFork(statedb)
+	}
 	// Iterate over and process the individual transactions
 	for i, tx := range block.Transactions() {
 		statedb.Prepare(tx.Hash(), block.Hash(), i)
@@ -81,43 +87,31 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 // for the transaction, gas used and an error if the transaction failed,
 // indicating the block was invalid.
 func ApplyTransaction(config *params.ChainConfig, bc ChainContext, author *common.Address, gp *GasPool, statedb *state.StateDB, header *types.Header, tx *types.Transaction, usedGas *uint64, cfg vm.Config) (*types.Receipt, error) {
-	var msg Message
-	var err error
-	if !vm.UsingOVM {
-		msg, err = tx.AsMessage(types.MakeSigner(config, header.Number))
-		if err != nil {
-			return nil, err
-		}
-	} else {
-		// The transaction must be modified when running the OVM. The
-		// transaction fields that the user signs must be ABI encoded and then
-		// turned into the calldata of the transaction and the `to` field has to
-		// be updated to be the sequencer entrypoint.
-		decompressor := config.StateDump.Accounts["OVM_SequencerEntrypoint"]
-		msg, err = AsOvmMessage(tx, types.MakeSigner(config, header.Number), decompressor.Address, header.GasLimit)
-		if err != nil {
-			return nil, err
-		}
+	msg, err := tx.AsMessage(types.MakeSigner(config, header.Number))
+	if err != nil {
+		return nil, err
 	}
 	// Create a new context to be used in the EVM environment
 	context := NewEVMContext(msg, header, bc, author)
-	if vm.UsingOVM {
-		// The `NUMBER` opcode returns the L1 blocknumber instead of the L2
-		// blocknumber, so set that here. In the future, this should be
-		// implemented by adding a new property to the EVM struct
-		// `L1BlockNumber` and updating `opNumber` to return that. This
-		// will help with keeping the difference in behavior maintainable over
-		// time
-		context.BlockNumber = msg.L1BlockNumber()
-	}
 	// Create a new environment which holds all relevant information
 	// about the transaction and calling mechanisms.
 	vmenv := vm.NewEVM(context, statedb, config, cfg)
+
+	// UsingOVM
+	// Compute the fee related information that is to be included
+	// on the receipt. This must happen before the state transition
+	// to ensure that the correct information is used.
+	l1Fee, l1GasPrice, l1GasUsed, scalar, err := fees.DeriveL1GasInfo(msg, statedb)
+	if err != nil {
+		return nil, err
+	}
+
 	// Apply the transaction to the current state (included in the env)
 	_, gas, failed, err := ApplyMessage(vmenv, msg, gp)
 	if err != nil {
 		return nil, err
 	}
+
 	// Update the state with pending changes
 	var root []byte
 	if config.IsByzantium(header.Number) {
@@ -130,6 +124,10 @@ func ApplyTransaction(config *params.ChainConfig, bc ChainContext, author *commo
 	// Create a new receipt for the transaction, storing the intermediate root and gas used by the tx
 	// based on the eip phase, we're passing whether the root touch-delete accounts.
 	receipt := types.NewReceipt(root, failed, *usedGas)
+	receipt.L1GasPrice = l1GasPrice
+	receipt.L1GasUsed = l1GasUsed
+	receipt.L1Fee = l1Fee
+	receipt.FeeScalar = scalar
 	receipt.TxHash = tx.Hash()
 	receipt.GasUsed = gas
 	// if the transaction created a contract, store the creation address in the receipt.

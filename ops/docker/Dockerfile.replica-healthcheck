@@ -1,4 +1,6 @@
-FROM ethereumoptimism/builder AS builder
+ARG LOCAL_REGISTRY=docker.io
+ARG BUILDER_TAG=latest
+FROM ${LOCAL_REGISTRY}/ethereumoptimism/builder:${BUILDER_TAG} AS builder
 
 FROM node:14-alpine
 

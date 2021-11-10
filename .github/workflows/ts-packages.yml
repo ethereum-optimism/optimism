@@ -24,7 +24,7 @@ jobs:
       - name: Setup node
         uses: actions/setup-node@v1
         with:
-          node-version: '12.x'
+          node-version: '14.x'
 
       - name: Get yarn cache directory path
         id: yarn-cache-dir-path
@@ -42,6 +42,9 @@ jobs:
         # only install dependencies if there was a change in the deps
         # if: steps.yarn-cache.outputs.cache-hit != 'true'
         run: yarn install
+
+      - name: Check yarn.lock for changes
+        run: git diff --exit-code
 
       - name: Build
         run: yarn build
@@ -73,7 +76,7 @@ jobs:
       - name: Setup node
         uses: actions/setup-node@v1
         with:
-          node-version: '12.x'
+          node-version: '14.x'
 
       - name: Get yarn cache directory path
         id: yarn-cache-dir-path
@@ -97,9 +100,7 @@ jobs:
 
       - name: Test Coverage
         run: yarn test:coverage
-        # Tests are quite brittle when instrumented by Solidity Coverage.
-        # If tests pass in the Test job above, tests failing during coverage shouldn't break CI.
-        continue-on-error: true
+
       - uses: codecov/codecov-action@v1
         with:
           files: ./packages/contracts/coverage.json
@@ -158,9 +159,5 @@ jobs:
         # if: steps.yarn-cache.outputs.cache-hit != 'true'
         run: yarn install
 
-      - name: Lint JS and TS
+      - name: Lint
         run: yarn lint:check
-
-      - name: Lint Solidity
-        working-directory: ./packages/contracts
-        run: yarn lint:contracts

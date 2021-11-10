@@ -4,6 +4,7 @@ import { ethers } from 'ethers'
 /* Imports: Internal */
 import { OptimismEnv } from './env'
 import { Direction } from './watcher-utils'
+import { gasPriceForL1, gasPriceForL2, sleep } from './utils'
 
 interface TransactionParams {
   contract: ethers.Contract
@@ -14,13 +15,29 @@ interface TransactionParams {
 // Arbitrary big amount of gas for the L1<>L2 messages.
 const MESSAGE_GAS = 8_000_000
 
-export const executeL1ToL2Transactions = async (
+export const fundRandomWallet = async (
   env: OptimismEnv,
-  txs: TransactionParams[]
+  wallet: ethers.Wallet,
+  value: ethers.BigNumber
+): Promise<ethers.Wallet> => {
+  const fundTx = await env.l1Wallet.sendTransaction({
+    gasLimit: 25_000,
+    to: wallet.address,
+    gasPrice: await gasPriceForL1(env),
+    value,
+  })
+  await fundTx.wait()
+  return wallet
+}
+
+export const executeL1ToL2Transaction = async (
+  env: OptimismEnv,
+  wallet: ethers.Wallet,
+  tx: TransactionParams
 ) => {
-  for (const tx of txs) {
-    const signer = ethers.Wallet.createRandom().connect(env.l1Wallet.provider)
-    const receipt = await env.l1Messenger
+  const signer = wallet.connect(env.l1Wallet.provider)
+  const receipt = await retryOnNonceError(async () =>
+    env.l1Messenger
       .connect(signer)
       .sendMessage(
         tx.contract.address,
@@ -30,21 +47,21 @@ export const executeL1ToL2Transactions = async (
         ),
         MESSAGE_GAS,
         {
-          gasPrice: 0,
+          gasPrice: await gasPriceForL1(env),
         }
       )
-
-    await env.waitForXDomainTransaction(receipt, Direction.L1ToL2)
-  }
+  )
+  await env.waitForXDomainTransaction(receipt, Direction.L1ToL2)
 }
 
-export const executeL2ToL1Transactions = async (
+export const executeL2ToL1Transaction = async (
   env: OptimismEnv,
-  txs: TransactionParams[]
+  wallet: ethers.Wallet,
+  tx: TransactionParams
 ) => {
-  for (const tx of txs) {
-    const signer = ethers.Wallet.createRandom().connect(env.l2Wallet.provider)
-    const receipt = await env.l2Messenger
+  const signer = wallet.connect(env.l2Wallet.provider)
+  const receipt = await retryOnNonceError(() =>
+    env.l2Messenger
       .connect(signer)
       .sendMessage(
         tx.contract.address,
@@ -54,162 +71,105 @@ export const executeL2ToL1Transactions = async (
         ),
         MESSAGE_GAS,
         {
-          gasPrice: 0,
+          gasPrice: gasPriceForL2(env),
         }
       )
+  )
 
-    await env.relayXDomainMessages(receipt)
-    await env.waitForXDomainTransaction(receipt, Direction.L2ToL1)
-  }
+  await env.relayXDomainMessages(receipt)
+  await env.waitForXDomainTransaction(receipt, Direction.L2ToL1)
 }
 
-export const executeL2Transactions = async (
+export const executeL2Transaction = async (
   env: OptimismEnv,
-  txs: TransactionParams[]
+  wallet: ethers.Wallet,
+  tx: TransactionParams
 ) => {
-  for (const tx of txs) {
-    const signer = ethers.Wallet.createRandom().connect(env.l2Wallet.provider)
-    const result = await tx.contract
+  const signer = wallet.connect(env.l2Wallet.provider)
+  const result = await retryOnNonceError(() =>
+    tx.contract
       .connect(signer)
       .functions[tx.functionName](...tx.functionParams, {
-        gasPrice: 0,
+        gasPrice: gasPriceForL2(env),
       })
-    await result.wait()
-  }
+  )
+  await result.wait()
 }
 
 export const executeRepeatedL1ToL2Transactions = async (
   env: OptimismEnv,
-  tx: TransactionParams,
-  count: number
+  wallets: ethers.Wallet[],
+  tx: TransactionParams
 ) => {
-  await executeL1ToL2Transactions(
-    env,
-    [...Array(count).keys()].map(() => tx)
-  )
+  for (const wallet of wallets) {
+    await executeL1ToL2Transaction(env, wallet, tx)
+  }
 }
 
 export const executeRepeatedL2ToL1Transactions = async (
   env: OptimismEnv,
-  tx: TransactionParams,
-  count: number
+  wallets: ethers.Wallet[],
+  tx: TransactionParams
 ) => {
-  await executeL2ToL1Transactions(
-    env,
-    [...Array(count).keys()].map(() => tx)
-  )
+  for (const wallet of wallets) {
+    await executeL2ToL1Transaction(env, wallet, tx)
+  }
 }
 
 export const executeRepeatedL2Transactions = async (
   env: OptimismEnv,
-  tx: TransactionParams,
-  count: number
+  wallets: ethers.Wallet[],
+  tx: TransactionParams
 ) => {
-  await executeL2Transactions(
-    env,
-    [...Array(count).keys()].map(() => tx)
-  )
+  for (const wallet of wallets) {
+    await executeL2Transaction(env, wallet, tx)
+  }
 }
 
 export const executeL1ToL2TransactionsParallel = async (
   env: OptimismEnv,
-  txs: TransactionParams[]
+  wallets: ethers.Wallet[],
+  tx: TransactionParams
 ) => {
-  await Promise.all(
-    txs.map(async (tx) => {
-      const signer = ethers.Wallet.createRandom().connect(env.l1Wallet.provider)
-      const receipt = await env.l1Messenger
-        .connect(signer)
-        .sendMessage(
-          tx.contract.address,
-          tx.contract.interface.encodeFunctionData(
-            tx.functionName,
-            tx.functionParams
-          ),
-          MESSAGE_GAS,
-          {
-            gasPrice: 0,
-          }
-        )
-
-      await env.waitForXDomainTransaction(receipt, Direction.L1ToL2)
-    })
-  )
+  await Promise.all(wallets.map((w) => executeL1ToL2Transaction(env, w, tx)))
 }
 
 export const executeL2ToL1TransactionsParallel = async (
   env: OptimismEnv,
-  txs: TransactionParams[]
+  wallets: ethers.Wallet[],
+  tx: TransactionParams
 ) => {
-  await Promise.all(
-    txs.map(async (tx) => {
-      const signer = ethers.Wallet.createRandom().connect(env.l2Wallet.provider)
-      const receipt = await env.l2Messenger
-        .connect(signer)
-        .sendMessage(
-          tx.contract.address,
-          tx.contract.interface.encodeFunctionData(
-            tx.functionName,
-            tx.functionParams
-          ),
-          MESSAGE_GAS,
-          {
-            gasPrice: 0,
-          }
-        )
-
-      await env.relayXDomainMessages(receipt)
-      await env.waitForXDomainTransaction(receipt, Direction.L2ToL1)
-    })
-  )
+  await Promise.all(wallets.map((w) => executeL2ToL1Transaction(env, w, tx)))
 }
 
 export const executeL2TransactionsParallel = async (
   env: OptimismEnv,
-  txs: TransactionParams[]
+  wallets: ethers.Wallet[],
+  tx: TransactionParams
 ) => {
-  await Promise.all(
-    txs.map(async (tx) => {
-      const signer = ethers.Wallet.createRandom().connect(env.l2Wallet.provider)
-      const result = await tx.contract
-        .connect(signer)
-        .functions[tx.functionName](...tx.functionParams, {
-          gasPrice: 0,
-        })
-      await result.wait()
-    })
-  )
+  await Promise.all(wallets.map((w) => executeL2Transaction(env, w, tx)))
 }
 
-export const executeRepeatedL1ToL2TransactionsParallel = async (
-  env: OptimismEnv,
-  tx: TransactionParams,
-  count: number
-) => {
-  await executeL1ToL2TransactionsParallel(
-    env,
-    [...Array(count).keys()].map(() => tx)
-  )
-}
+const retryOnNonceError = async (cb: () => Promise<any>): Promise<any> => {
+  while (true) {
+    try {
+      return await cb()
+    } catch (err) {
+      const msg = err.message.toLowerCase()
 
-export const executeRepeatedL2ToL1TransactionsParallel = async (
-  env: OptimismEnv,
-  tx: TransactionParams,
-  count: number
-) => {
-  await executeL2ToL1TransactionsParallel(
-    env,
-    [...Array(count).keys()].map(() => tx)
-  )
-}
+      if (
+        msg.includes('nonce too low') ||
+        msg.includes('nonce has already been used') ||
+        msg.includes('transaction was replaced') ||
+        msg.includes('another transaction with same nonce in the queue') ||
+        msg.includes('reverted without a reason')
+      ) {
+        console.warn('Retrying transaction after nonce error.')
+        await sleep(5000)
+        continue
+      }
 
-export const executeRepeatedL2TransactionsParallel = async (
-  env: OptimismEnv,
-  tx: TransactionParams,
-  count: number
-) => {
-  await executeL2TransactionsParallel(
-    env,
-    [...Array(count).keys()].map(() => tx)
-  )
+      throw err
+    }
+  }
 }

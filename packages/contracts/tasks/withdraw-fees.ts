@@ -35,7 +35,7 @@ task('withdraw-fees')
     process.env.CONTRACTS_DEPLOYER_KEY,
     types.string
   )
-  .setAction(async (args, hre: any) => {
+  .setAction(async (args) => {
     const provider = new ethers.providers.JsonRpcProvider(args.contractsRpcUrl)
     let signer: ethers.Signer
     if (!args.useLedger) {

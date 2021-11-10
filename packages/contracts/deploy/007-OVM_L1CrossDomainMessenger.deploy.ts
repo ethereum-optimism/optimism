@@ -1,62 +1,48 @@
 /* Imports: External */
 import { DeployFunction } from 'hardhat-deploy/dist/types'
+import { hexStringEquals, awaitCondition } from '@eth-optimism/core-utils'
 
 /* Imports: Internal */
-import { getDeployedContract } from '../src/hardhat-deploy-ethers'
+import {
+  deployAndVerifyAndThen,
+  getContractFromArtifact,
+} from '../src/hardhat-deploy-ethers'
+import { names } from '../src/address-names'
 
 const deployFn: DeployFunction = async (hre) => {
-  const { deploy } = hre.deployments
-  const { deployer } = await hre.getNamedAccounts()
-
-  const Lib_AddressManager = await getDeployedContract(
+  const Lib_AddressManager = await getContractFromArtifact(
     hre,
-    'Lib_AddressManager',
-    {
-      signerOrProvider: deployer,
-    }
+    names.unmanaged.Lib_AddressManager
   )
 
-  const result = await deploy('OVM_L1CrossDomainMessenger', {
-    from: deployer,
+  await deployAndVerifyAndThen({
+    hre,
+    name: names.managed.contracts.OVM_L1CrossDomainMessenger,
+    contract: 'L1CrossDomainMessenger',
     args: [],
-    log: true,
+    postDeployAction: async (contract) => {
+      // Theoretically it's not necessary to initialize this contract since it sits behind
+      // a proxy. However, it's best practice to initialize it anyway just in case there's
+      // some unknown security hole. It also prevents another user from appearing like an
+      // official address because it managed to call the initialization function.
+      console.log(`Initializing L1CrossDomainMessenger...`)
+      await contract.initialize(Lib_AddressManager.address)
+
+      console.log(`Checking that contract was correctly initialized...`)
+      await awaitCondition(
+        async () => {
+          return hexStringEquals(
+            await contract.libAddressManager(),
+            Lib_AddressManager.address
+          )
+        },
+        5000,
+        100
+      )
+    },
   })
-
-  if (!result.newlyDeployed) {
-    return
-  }
-
-  const OVM_L1CrossDomainMessenger = await getDeployedContract(
-    hre,
-    'OVM_L1CrossDomainMessenger',
-    {
-      signerOrProvider: deployer,
-    }
-  )
-
-  // NOTE: this initialization is *not* technically required (we only need to initialize the proxy)
-  // but it feels safer to initialize this anyway. Otherwise someone else could come along and
-  // initialize this.
-  await OVM_L1CrossDomainMessenger.initialize(Lib_AddressManager.address)
-
-  const libAddressManager = await OVM_L1CrossDomainMessenger.libAddressManager()
-  if (libAddressManager !== Lib_AddressManager.address) {
-    throw new Error(
-      `\n**FATAL ERROR. THIS SHOULD NEVER HAPPEN. CHECK YOUR DEPLOYMENT.**:\n` +
-        `OVM_L1CrossDomainMessenger could not be succesfully initialized.\n` +
-        `Attempted to set Lib_AddressManager to: ${Lib_AddressManager.address}\n` +
-        `Actual address after initialization: ${libAddressManager}\n` +
-        `This could indicate a compromised deployment.`
-    )
-  }
-
-  await Lib_AddressManager.setAddress(
-    'OVM_L1CrossDomainMessenger',
-    result.address
-  )
 }
 
-deployFn.dependencies = ['Lib_AddressManager']
-deployFn.tags = ['OVM_L1CrossDomainMessenger']
+deployFn.tags = ['L1CrossDomainMessenger', 'upgrade']
 
 export default deployFn
