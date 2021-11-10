@@ -1,5 +1,28 @@
 # @eth-optimism/replica-healthcheck
 
+## 0.3.0
+
+### Minor Changes
+
+- 81ccd6e4: `regenesis/0.5.0` release
+
+### Patch Changes
+
+- 222a3eef: Add 'User-Agent' to the http headers for ethers providers
+- a98a1884: Fixes dependencies instead of using caret constraints
+- Updated dependencies [3ce62c81]
+- Updated dependencies [cee2a464]
+- Updated dependencies [222a3eef]
+- Updated dependencies [896168e2]
+- Updated dependencies [7c352b1e]
+- Updated dependencies [b70ee70c]
+- Updated dependencies [20c8969b]
+- Updated dependencies [83a449c4]
+- Updated dependencies [81ccd6e4]
+- Updated dependencies [6d32d701]
+  - @eth-optimism/core-utils@0.7.0
+  - @eth-optimism/common-ts@0.2.0
+
 ## 0.2.4
 
 ### Patch Changes

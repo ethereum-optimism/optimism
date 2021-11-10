@@ -1,5 +1,11 @@
 # @eth-optimism/common-ts
 
+## 0.2.0
+
+### Minor Changes
+
+- 81ccd6e4: `regenesis/0.5.0` release
+
 ## 0.1.6
 
 ### Patch Changes

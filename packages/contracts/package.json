@@ -1,6 +1,6 @@
 {
   "name": "@eth-optimism/contracts",
-  "version": "0.4.14",
+  "version": "0.5.0",
   "main": "dist/index",
   "files": [
     "dist/**/*.js",
@@ -46,7 +46,7 @@
     "pre-commit": "lint-staged"
   },
   "dependencies": {
-    "@eth-optimism/core-utils": "0.6.1",
+    "@eth-optimism/core-utils": "0.7.0",
     "@ethersproject/abstract-provider": "^5.4.1",
     "@ethersproject/abstract-signer": "^5.4.1",
     "@ethersproject/hardware-wallets": "^5.4.0"

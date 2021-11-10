@@ -1,5 +1,28 @@
 # @eth-optimism/integration-tests
 
+## 0.3.0
+
+### Minor Changes
+
+- e03dcead: Start refactor to new version of the OVM
+- e4a1129c: Adds aliasing to msg.sender and tx.origin to avoid xdomain attacks
+- 3f590e33: Remove the "OVM" Prefix from contract names
+- 872f5976: Removes various unused OVM contracts
+- 92c9692d: Opcode tweaks. Coinbase returns SequencerFeeVault address. Difficulty returns zero.
+- 1e63ffa0: Refactors and simplifies OVM_ETH usage
+- b56dd079: Updates the deployment process to correctly set all constants and adds more integration tests
+- 81ccd6e4: `regenesis/0.5.0` release
+- f38b8000: Removes ERC20 and WETH9 features from OVM_ETH
+- 3605b963: Adds refactored support for the L1MESSAGESENDER opcode
+
+### Patch Changes
+
+- 299a459e: Introduces a new opcode L1BLOCKNUMBER to replace old functionality where blocknumber would return the L1 block number and the L2 block number was inaccessible.
+- 343da72a: Add tests for optimistic ethereum related fields to the receipt
+- 7b761af5: Add updated fee scheme integration tests
+- b70ee70c: upgraded to solidity 0.8.9
+- a98a1884: Fixes dependencies instead of using caret constraints
+
 ## 0.2.4
 
 ### Patch Changes
