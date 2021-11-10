@@ -102,6 +102,8 @@ services:
       - l1_chain
       - deployer
       - l2geth
+    deploy:
+      replicas: 0
     build:
       context: ..
       dockerfile: ./ops/docker/Dockerfile.packages
