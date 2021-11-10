@@ -1,6 +1,6 @@
 {
   "name": "@eth-optimism/regenesis-surgery",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "author": "Optimism PBC",
   "license": "MIT",
@@ -15,7 +15,7 @@
   },
   "devDependencies": {
     "@discoveryjs/json-ext": "^0.5.3",
-    "@eth-optimism/core-utils": "0.6.0",
+    "@eth-optimism/core-utils": "0.7.0",
     "@ethersproject/abstract-provider": "^5.5.1",
     "@ethersproject/bignumber": "^5.5.0",
     "@ethersproject/properties": "^5.5.0",

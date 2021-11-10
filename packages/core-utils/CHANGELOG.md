@@ -1,5 +1,23 @@
 # @eth-optimism/core-utils
 
+## 0.7.0
+
+### Minor Changes
+
+- 896168e2: Parse optimistic ethereum specific fields on transaction receipts
+- 83a449c4: Change the expectApprox interface to allow setting an absoluteexpected deviation range
+- 81ccd6e4: `regenesis/0.5.0` release
+
+### Patch Changes
+
+- 3ce62c81: Export bnToAddress
+- cee2a464: Add awaitCondition to core utils
+- 222a3eef: Add 'User-Agent' to the http headers for ethers providers
+- 7c352b1e: Add bytes32ify
+- b70ee70c: upgraded to solidity 0.8.9
+- 20c8969b: Correctly move chai into deps instead of dev deps
+- 6d32d701: Expose lower level API for tx fees
+
 ## 0.6.1
 
 ### Patch Changes
