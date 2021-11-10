@@ -73,10 +73,9 @@ Chain ID: ${network.chainId}`
     }
     console.log()
 
-    // Improvement: use the artifact in deployments/${network.name}
+    // const dictatorArtifact = require('../artifacts/contracts/L1/deployment/AddressDictator.sol/AddressDictator.json')
     // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const dictatorArtifact = require('../artifacts/contracts/L1/deployment/AddressDictator.sol/AddressDictator.json')
-
+    const dictatorArtifact = require(`../deployments/${network.name}/AddressDictator.json`)
     const dictatorCode = await provider.getCode(args.dictator)
     printComparison(
       'Verifying AddressDictator source code against local build artifacts',
@@ -85,13 +84,14 @@ Chain ID: ${network.chainId}`
       dictatorCode
     )
 
+    // connect to the deployed AddressDictator
     const dictatorContract = getContractFactory('AddressDictator')
       .attach(args.dictator)
       .connect(provider)
 
     const finalOwner = await dictatorContract.finalOwner()
     printComparison(
-      'Validating that finalOwner address in the dictator matches multisig address',
+      'Validating that finalOwner address in the AddressDictator matches multisig address',
       'finalOwner',
       finalOwner,
       args.multisig
@@ -99,28 +99,41 @@ Chain ID: ${network.chainId}`
 
     const manager = await dictatorContract.manager()
     printComparison(
-      'Validating the AddressManager address in the dictator',
+      'Validating the AddressManager address in the AddressDictator',
       'addressManager',
       manager,
       args.manager
     )
 
-    // TODO:
     // Get names and addresses from the Dictator.
-    // const namedAddresses = Array<{ name: string; addr: string }> =
-    //   await dictatorContract.getNamedAddresses()
-    // for (const pair of namedAddresses) {
-    //   import dictatorArtifact from '../artifacts/contracts/L1/deployment/AddressDictator.sol/AddressDictator.json'
-    //   const dictatorCode = await provider.getCode(args.dictator)
-    //   printComparison(
-    //     'Verifying AddressDictator source code against local build artifacts',
-    //     'Deployed AddressDictator code',
-    //     dictatorArtifact.deployedBytecode,
-    //     dictatorCode
-    //   )
-    // }
+    const namedAddresses = await dictatorContract.getNamedAddresses()
 
+    // connect to the deployed AddressManager so we can see which are changed or unchanged.
+    const managerContract = getContractFactory('Lib_AddressManager')
+      .attach(args.manager)
+      .connect(provider)
     // Loop over those and compare the addresses/deployedBytecode to deployment artifacts.
-    // Verify libAddressManager where applicable.
+    for (const pair of namedAddresses) {
+      // Check for addresses that will not be changed:
+      const currentAddress = await managerContract.getAddress(pair.name)
+      const addressChanged = !hexStringEquals(currentAddress, pair.addr)
+      if (addressChanged) {
+        console.log(`${pair.name} address will be updated.`)
+        console.log(`Before ${currentAddress}`)
+        console.log(`After ${pair.addr}`)
+
+        // eslint-disable-next-line @typescript-eslint/no-var-requires
+        const artifact = require(`../deployments/${network.name}/${pair.name}.json`)
+        const code = await provider.getCode(pair.addr)
+        printComparison(
+          `Verifying ${pair.name} source code against local deployment artifacts`,
+          `Deployed ${pair.name} code`,
+          artifact.deployedBytecode,
+          code
+        )
+      }
+    }
+
+    // Verify libAddressManager is set properly
     // Verify other values in Post-deployment contracts checklist
   })
