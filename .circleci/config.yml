@@ -1,0 +1,28 @@
+version: 2.1
+jobs:
+  run-itests:
+    machine:
+      image: ubuntu-2004:202107-02
+      docker_layer_caching: true
+      resource_class: xlarge
+    steps:
+      - checkout
+      - run:
+          name: Bring the stack up
+          command: |
+            cd ops && docker-compose up --force-recreate --build -d
+      - run:
+          name: Wait for the sequencer
+          command: |
+            cd ops && ./scripts/wait-for-sequencer.sh
+      - run:
+          name: Run the integration tests
+          command: |
+            cd ops && docker-compose run integration_tests
+
+
+workflows:
+  monorepo-itests:
+    jobs:
+      - run-itests:
+          context: optimism
