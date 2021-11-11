@@ -502,16 +502,6 @@
     minimatch "^3.0.4"
     strip-json-comments "^3.1.1"
 
-"@eth-optimism/core-utils@0.6.0":
-  version "0.6.0"
-  resolved "https://registry.yarnpkg.com/@eth-optimism/core-utils/-/core-utils-0.6.0.tgz#e20dbdce1b3122bd6db0bc3286a4942336ff173b"
-  integrity sha512-WOia8t324ZbG6WUOFszwUGJSCCMh6dWen4fElW/OjtpmSHGTmOG9PCMxtw0wLTSR9fr/g9S7DhDpwhrN6q1QDQ==
-  dependencies:
-    "@ethersproject/abstract-provider" "^5.4.1"
-    "@ethersproject/providers" "^5.4.5"
-    ethers "^5.4.5"
-    lodash "^4.17.21"
-
 "@eth-optimism/core-utils@^0.5.1":
   version "0.5.5"
   resolved "https://registry.yarnpkg.com/@eth-optimism/core-utils/-/core-utils-0.5.5.tgz#0e2bb95b23965fb51adfb8ba6841c3afd26a6411"
