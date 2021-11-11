@@ -1,6 +1,5 @@
 {
   "name": "@eth-optimism/gas-oracle",
   "version": "0.1.0",
-  "private": true,
-  "devDependencies": {}
+  "private": true
 }
