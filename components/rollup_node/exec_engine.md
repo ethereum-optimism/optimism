@@ -12,3 +12,18 @@ The L2 execution engine is where transaction execution actually takes place, and
 4. **EIP1559 modification**: Updates to the `BASEFEE` on L2 must be handled differently, in accordance to L1 time, as L2 blocktime may not be constant. (*Note: this modification may not be necessary; L1 devs are actively discussing modification of eip-1559 to handle "gap-slots" which would solve for the same timing.*)
 5. **L1 Context Information**: The L1 blockhash, L1 blocknumber, and L1 basefee are frequently requested to be accessible within L2. *(TBD: it is possible to expose this information purely in a normal L2 contract, which is updated via the deposit TX type. This may minimize the diff more.)*
 6. **Confirmation Status**: The Execution Engine will repurpose (but not otherwise modify) the three beacon chain confirmation strengths (`finalized, safe, unsafe`) to corresponding to (`l1_finalized, l1_confirmed, sequencer_confirmed`).
+
+## Engine usage
+
+### `engine_forkchoiceUpdatedV1`
+
+TODO
+
+### `engine_getPayloadV1`
+
+TODO
+
+### `engine_executePayloadV1`
+
+TODO
+
