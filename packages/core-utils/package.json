@@ -1,14 +1,12 @@
 {
   "name": "@eth-optimism/core-utils",
   "version": "0.7.0",
+  "description": "[Optimism] Core typescript utilities",
   "main": "dist/index",
-  "files": [
-    "dist/*"
-  ],
   "types": "dist/index",
-  "repository": "git@github.com:ethereum-optimism/core-utils.git",
-  "author": "Optimism PBC",
-  "license": "MIT",
+  "files": [
+    "dist/index"
+  ],
   "scripts": {
     "all": "yarn clean && yarn build && yarn test && yarn lint:fix && yarn lint",
     "build": "tsc -p tsconfig.build.json",
@@ -19,6 +17,28 @@
     "pre-commit": "lint-staged",
     "test": "ts-mocha test/*.spec.ts",
     "test:coverage": "nyc ts-mocha test/*.spec.ts && nyc merge .nyc_output coverage.json"
+  },
+  "keywords": [
+    "optimism",
+    "ethereum",
+    "core",
+    "utils"
+  ],
+  "homepage": "https://github.com/ethereum-optimism/optimism/tree/develop/packages/core-utils#readme",
+  "license": "MIT",
+  "author": "Optimism PBC",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ethereum-optimism/optimism.git"
+  },
+  "dependencies": {
+    "@ethersproject/abstract-provider": "^5.4.1",
+    "@ethersproject/bytes": "^5.5.0",
+    "@ethersproject/providers": "^5.4.5",
+    "@ethersproject/web": "^5.5.0",
+    "chai": "^4.3.4",
+    "ethers": "^5.4.5",
+    "lodash": "^4.17.21"
   },
   "devDependencies": {
     "@types/chai": "^4.2.18",
@@ -42,14 +62,5 @@
     "prettier": "^2.3.1",
     "ts-mocha": "^8.0.0",
     "typescript": "^4.3.5"
-  },
-  "dependencies": {
-    "@ethersproject/abstract-provider": "^5.4.1",
-    "@ethersproject/bytes": "^5.5.0",
-    "@ethersproject/providers": "^5.4.5",
-    "@ethersproject/web": "^5.5.0",
-    "chai": "^4.3.4",
-    "ethers": "^5.4.5",
-    "lodash": "^4.17.21"
   }
 }

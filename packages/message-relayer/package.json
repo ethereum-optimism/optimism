@@ -1,11 +1,11 @@
 {
   "name": "@eth-optimism/message-relayer",
   "version": "0.2.1",
-  "description": "[Optimism] Cross Domain Message Relayer service",
+  "description": "[Optimism] Service for automatically relaying L2 to L1 transactions",
   "main": "dist/index",
   "types": "dist/index",
   "files": [
-    "dist/*"
+    "dist/index"
   ],
   "bin": {
     "withdraw": "./src/exec/withdraw.ts"
@@ -26,7 +26,7 @@
     "ethereum",
     "relayer"
   ],
-  "homepage": "https://github.com/ethereum-optimism/optimism-monorepo/tree/master/packages/batch-submitter#readme",
+  "homepage": "https://github.com/ethereum-optimism/optimism/tree/develop/packages/message-relayer#readme",
   "license": "MIT",
   "author": "Optimism PBC",
   "repository": {
