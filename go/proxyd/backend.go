@@ -163,7 +163,12 @@ func (b *Backend) Forward(ctx context.Context, req *RPCReq) (*RPCRes, error) {
 		res, err := b.doForward(req)
 		if err != nil {
 			lastError = err
-			log.Warn("backend request failed, trying again", "err", err, "name", b.Name)
+			log.Warn(
+				"backend request failed, trying again",
+				"name", b.Name,
+				"req_id", GetReqID(ctx),
+				"err", err,
+			)
 			respTimer.ObserveDuration()
 			RecordRPCError(ctx, b.Name, req.Method, err)
 			time.Sleep(calcBackoff(i))
@@ -172,6 +177,20 @@ func (b *Backend) Forward(ctx context.Context, req *RPCReq) (*RPCRes, error) {
 		respTimer.ObserveDuration()
 		if res.IsError() {
 			RecordRPCError(ctx, b.Name, req.Method, res.Error)
+			log.Info(
+				"backend responded with RPC error",
+				"code", res.Error.Code,
+				"msg", res.Error.Message,
+				"req_id", GetReqID(ctx),
+				"source", "rpc",
+				"auth", GetAuthCtx(ctx),
+			)
+		} else {
+			log.Info("forwarded RPC request",
+				"method", req.Method,
+				"auth", GetAuthCtx(ctx),
+				"req_id", GetReqID(ctx),
+			)
 		}
 		return res, nil
 	}
@@ -313,15 +332,31 @@ func (b *BackendGroup) Forward(ctx context.Context, rpcReq *RPCReq) (*RPCRes, er
 			return nil, err
 		}
 		if errors.Is(err, ErrBackendOffline) {
-			log.Debug("skipping offline backend", "name", back.Name)
+			log.Warn(
+				"skipping offline backend",
+				"name", back.Name,
+				"auth", GetAuthCtx(ctx),
+				"req_id", GetReqID(ctx),
+			)
 			continue
 		}
 		if errors.Is(err, ErrBackendOverCapacity) {
-			log.Debug("skipping over-capacity backend", "name", back.Name)
+			log.Warn(
+				"skipping over-capacity backend",
+				"name", back.Name,
+				"auth", GetAuthCtx(ctx),
+				"req_id", GetReqID(ctx),
+			)
 			continue
 		}
 		if err != nil {
-			log.Error("error forwarding request to backend", "err", err, "name", b.Name)
+			log.Error(
+				"error forwarding request to backend",
+				"name", b.Name,
+				"req_id", GetReqID(ctx),
+				"auth", GetAuthCtx(ctx),
+				"err", err,
+			)
 			continue
 		}
 		return res, nil
@@ -331,19 +366,35 @@ func (b *BackendGroup) Forward(ctx context.Context, rpcReq *RPCReq) (*RPCRes, er
 	return nil, ErrNoBackends
 }
 
-func (b *BackendGroup) ProxyWS(clientConn *websocket.Conn, methodWhitelist *StringSet) (*WSProxier, error) {
+func (b *BackendGroup) ProxyWS(ctx context.Context, clientConn *websocket.Conn, methodWhitelist *StringSet) (*WSProxier, error) {
 	for _, back := range b.Backends {
 		proxier, err := back.ProxyWS(clientConn, methodWhitelist)
 		if errors.Is(err, ErrBackendOffline) {
-			log.Debug("skipping offline backend", "name", back.Name)
+			log.Warn(
+				"skipping offline backend",
+				"name", back.Name,
+				"req_id", GetReqID(ctx),
+				"auth", GetAuthCtx(ctx),
+			)
 			continue
 		}
 		if errors.Is(err, ErrBackendOverCapacity) {
-			log.Debug("skipping over-capacity backend", "name", back.Name)
+			log.Warn(
+				"skipping over-capacity backend",
+				"name", back.Name,
+				"req_id", GetReqID(ctx),
+				"auth", GetAuthCtx(ctx),
+			)
 			continue
 		}
 		if err != nil {
-			log.Warn("error dialing ws backend", "name", back.Name, "err", err)
+			log.Warn(
+				"error dialing ws backend",
+				"name", back.Name,
+				"req_id", GetReqID(ctx),
+				"auth", GetAuthCtx(ctx),
+				"err", err,
+			)
 			continue
 		}
 		return proxier, nil
@@ -411,7 +462,7 @@ func (w *WSProxier) clientPump(ctx context.Context, errC chan error) {
 
 		// Don't bother sending invalid requests to the backend,
 		// just handle them here.
-		req, err := w.parseClientMsg(msg)
+		req, err := w.prepareClientMsg(msg)
 		if err != nil {
 			var id *int
 			method := MethodUnknown
@@ -419,11 +470,23 @@ func (w *WSProxier) clientPump(ctx context.Context, errC chan error) {
 				id = req.ID
 				method = req.Method
 			}
+			log.Info(
+				"error preparing client message",
+				"auth", GetAuthCtx(ctx),
+				"req_id", GetReqID(ctx),
+				"err", err,
+			)
 			outConn = w.clientConn
 			msg = mustMarshalJSON(NewRPCErrorRes(id, err))
 			RecordRPCError(ctx, BackendProxyd, method, err)
 		} else {
 			RecordRPCForward(ctx, w.backend.Name, req.Method, RPCRequestSourceWS)
+			log.Info(
+				"forwarded WS message to backend",
+				"method", req.Method,
+				"auth", GetAuthCtx(ctx),
+				"req_id", GetReqID(ctx),
+			)
 		}
 
 		err = outConn.WriteMessage(msgType, msg)
@@ -465,7 +528,21 @@ func (w *WSProxier) backendPump(ctx context.Context, errC chan error) {
 			msg = mustMarshalJSON(NewRPCErrorRes(id, err))
 		}
 		if res.IsError() {
+			log.Info(
+				"backend responded with RPC error",
+				"code", res.Error.Code,
+				"msg", res.Error.Message,
+				"source", "ws",
+				"auth", GetAuthCtx(ctx),
+				"req_id", GetReqID(ctx),
+			)
 			RecordRPCError(ctx, w.backend.Name, MethodUnknown, res.Error)
+		} else {
+			log.Info(
+				"forwarded WS message to client",
+				"auth", GetAuthCtx(ctx),
+				"req_id", GetReqID(ctx),
+			)
 		}
 
 		err = w.clientConn.WriteMessage(msgType, msg)
@@ -485,15 +562,13 @@ func (w *WSProxier) close() {
 	activeBackendWsConnsGauge.WithLabelValues(w.backend.Name).Dec()
 }
 
-func (w *WSProxier) parseClientMsg(msg []byte) (*RPCReq, error) {
+func (w *WSProxier) prepareClientMsg(msg []byte) (*RPCReq, error) {
 	req, err := ParseRPCReq(bytes.NewReader(msg))
 	if err != nil {
-		log.Warn("error parsing RPC request", "source", "ws", "err", err)
 		return nil, err
 	}
 
 	if !w.methodWhitelist.Has(req.Method) {
-		log.Info("blocked request for non-whitelisted method", "source", "ws", "method", req.Method)
 		return req, ErrMethodNotWhitelisted
 	}
 
