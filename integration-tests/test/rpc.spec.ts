@@ -102,7 +102,7 @@ describe('Basic RPC tests', () => {
         gasPrice: await gasPriceForL2(env),
         chainId: await env.l2Wallet.getChainId(),
         data: '0x',
-        value: ethers.utils.parseEther('0.1'),
+        value: ethers.utils.parseEther('0.01'),
       }
 
       const balanceBefore = await provider.getBalance(env.l2Wallet.address)
@@ -111,7 +111,7 @@ describe('Basic RPC tests', () => {
       expect(receipt.status).to.deep.equal(1)
 
       const balAfter = await provider.getBalance(env.l2Wallet.address)
-      expect(balAfter.lte(balanceBefore.sub(ethers.utils.parseEther('0.1')))).to
+      expect(balAfter.lte(balanceBefore.sub(ethers.utils.parseEther('0.01')))).to
         .be.true
     })
 
@@ -122,7 +122,7 @@ describe('Basic RPC tests', () => {
         gasPrice: await gasPriceForL2(env),
         chainId: await env.l2Wallet.getChainId(),
         data: '0x',
-        value: balance.add(ethers.utils.parseEther('1')),
+        value: balance.add(ethers.utils.parseEther('10')),
       }
 
       await expect(env.l2Wallet.sendTransaction(tx)).to.be.rejectedWith(
@@ -172,7 +172,7 @@ describe('Basic RPC tests', () => {
       ).to.be.rejectedWith('out of gas')
     })
 
-    it('should allow eth_calls with nonzero value', async () => {
+    it.skip('should allow eth_calls with nonzero value', async () => {
       // Deploy a contract to check msg.value of the call
       const Factory__ValueContext: ContractFactory =
         await ethers.getContractFactory('ValueContext', wallet)

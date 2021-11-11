@@ -34,7 +34,7 @@ describe('Contract interactions', () => {
     otherWallet = Wallet.createRandom().connect(env.l2Wallet.provider)
     await env.l2Wallet.sendTransaction({
       to: otherWallet.address,
-      value: utils.parseEther('0.1'),
+      value: utils.parseEther('0.01'),
     })
   })
 
