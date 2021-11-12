@@ -170,7 +170,7 @@ jobs:
     name: Publish proxyd Version ${{ needs.release.outputs.proxyd }}
     needs: release
     if: needs.release.outputs.proxyd != ''
-    runs-on: ubuntu:latest
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout

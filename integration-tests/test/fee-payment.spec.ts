@@ -8,7 +8,7 @@ import { serialize } from '@ethersproject/transactions'
 import { predeploys, getContractFactory } from '@eth-optimism/contracts'
 
 /* Imports: Internal */
-import {gasPriceForL2, isLiveNetwork} from './shared/utils'
+import { gasPriceForL2, isLiveNetwork } from './shared/utils'
 import { OptimismEnv } from './shared/env'
 import { Direction } from './shared/watcher-utils'
 

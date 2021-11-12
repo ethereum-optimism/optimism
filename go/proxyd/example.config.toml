@@ -4,12 +4,18 @@ ws_method_whitelist = [
   "eth_call",
   "eth_chainId"
 ]
+# Enable WS on this backend group. There can only be one WS-enabled backend group.
+ws_backend_group = "main"
 
 [server]
-# Host for the proxyd server to listen on.
-host = "0.0.0.0"
+# Host for the proxyd RPC server to listen on.
+rpc_host = "0.0.0.0"
 # Port for the above.
-port = 8080
+rpc_port = 8080
+# Host for the proxyd WS server to listen on.
+ws_host = "0.0.0.0"
+# Port for the above
+ws_port = 8085
 # Maximum client body size, in bytes, that the server will accept.
 max_body_size_bytes = 10485760
 
@@ -59,8 +65,6 @@ max_ws_conns = 1
 [backend_groups]
 [backend_groups.main]
 backends = ["infura"]
-# Enable WS on this backend group. There can only be one WS-enabled backend group.
-ws_enabled = true
 
 [backend_groups.alchemy]
 backends = ["alchemy"]

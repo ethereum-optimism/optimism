@@ -16,12 +16,12 @@ func Start(config *Config) error {
 	if len(config.Backends) == 0 {
 		return errors.New("must define at least one backend")
 	}
-  if len(config.BackendGroups) == 0 {
-    return errors.New("must define at least one backend group")
-  }
-  if len(config.RPCMethodMappings) == 0 {
-    return errors.New("must define at least one RPC method mapping")
-  }
+	if len(config.BackendGroups) == 0 {
+		return errors.New("must define at least one backend group")
+	}
+	if len(config.RPCMethodMappings) == 0 {
+		return errors.New("must define at least one RPC method mapping")
+	}
 
 	for authKey := range config.Authentication {
 		if authKey == "none" {
@@ -35,7 +35,7 @@ func Start(config *Config) error {
 	}
 
 	backendNames := make([]string, 0)
-  backendsByName := make(map[string]*Backend)
+	backendsByName := make(map[string]*Backend)
 	for name, cfg := range config.Backends {
 		opts := make([]BackendOpt, 0)
 
@@ -70,44 +70,49 @@ func Start(config *Config) error {
 		}
 		back := NewBackend(name, cfg.RPCURL, cfg.WSURL, redis, opts...)
 		backendNames = append(backendNames, name)
-    backendsByName[name] = back
+		backendsByName[name] = back
 		log.Info("configured backend", "name", name, "rpc_url", cfg.RPCURL, "ws_url", cfg.WSURL)
 	}
 
-  backendGroups := make(map[string]*BackendGroup)
+	backendGroups := make(map[string]*BackendGroup)
+	for bgName, bg := range config.BackendGroups {
+		backends := make([]*Backend, 0)
+		for _, bName := range bg.Backends {
+			if backendsByName[bName] == nil {
+				return fmt.Errorf("backend %s is not defined", bName)
+			}
+			backends = append(backends, backendsByName[bName])
+		}
+		group := &BackendGroup{
+			Name:     bgName,
+			Backends: backends,
+		}
+		backendGroups[bgName] = group
+	}
+
   var wsBackendGroup *BackendGroup
-  for bgName, bg := range config.BackendGroups {
-    backends := make([]*Backend, 0)
-    for _, bName := range bg.Backends {
-      if backendsByName[bName] == nil {
-        return fmt.Errorf("backend %s is not defined", bName)
-      }
-      backends = append(backends, backendsByName[bName])
-    }
-    group := &BackendGroup{
-      Name:     bgName,
-      Backends: backends,
-    }
-    backendGroups[bgName] = group
-    if bg.WSEnabled {
-      if wsBackendGroup != nil {
-        return fmt.Errorf("cannot define more than one WS-enabled backend group")
-      }
-      wsBackendGroup = group
+  if config.WSBackendGroup != "" {
+    wsBackendGroup = backendGroups[config.WSBackendGroup]
+    if wsBackendGroup == nil {
+      return fmt.Errorf("ws backend group %s does not exist", config.WSBackendGroup)
     }
   }
 
-  for _, bg := range config.RPCMethodMappings {
-    if backendGroups[bg] == nil {
-      return fmt.Errorf("undefined backend group %s", bg)
-    }
+  if wsBackendGroup == nil && config.Server.WSPort != 0 {
+    return fmt.Errorf("a ws port was defined, but no ws group was defined")
   }
+
+	for _, bg := range config.RPCMethodMappings {
+		if backendGroups[bg] == nil {
+			return fmt.Errorf("undefined backend group %s", bg)
+		}
+	}
 
 	srv := NewServer(
-    backendGroups,
-    wsBackendGroup,
-    NewStringSetFromStrings(config.WSMethodWhitelist),
-    config.RPCMethodMappings,
+		backendGroups,
+		wsBackendGroup,
+		NewStringSetFromStrings(config.WSMethodWhitelist),
+		config.RPCMethodMappings,
 		config.Server.MaxBodySizeBytes,
 		config.Authentication,
 	)
@@ -118,15 +123,29 @@ func Start(config *Config) error {
 		go http.ListenAndServe(addr, promhttp.Handler())
 	}
 
-	go func() {
-		if err := srv.ListenAndServe(config.Server.Host, config.Server.Port); err != nil {
-			if errors.Is(err, http.ErrServerClosed) {
-				log.Info("server shut down")
-				return
+	if config.Server.RPCPort != 0 {
+		go func() {
+			if err := srv.RPCListenAndServe(config.Server.RPCHost, config.Server.RPCPort); err != nil {
+				if errors.Is(err, http.ErrServerClosed) {
+					log.Info("RPC server shut down")
+					return
+				}
+				log.Crit("error starting RPC server", "err", err)
 			}
-			log.Crit("error starting server", "err", err)
-		}
-	}()
+		}()
+	}
+
+	if config.Server.WSPort != 0 {
+		go func() {
+			if err := srv.WSListenAndServe(config.Server.WSHost, config.Server.WSPort); err != nil {
+				if errors.Is(err, http.ErrServerClosed) {
+					log.Info("WS server shut down")
+					return
+				}
+				log.Crit("error starting WS server", "err", err)
+			}
+		}()
+	}
 
 	sig := make(chan os.Signal, 1)
 	signal.Notify(sig, syscall.SIGINT, syscall.SIGTERM)
