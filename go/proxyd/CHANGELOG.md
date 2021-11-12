@@ -1,5 +1,11 @@
 # @eth-optimism/proxyd
 
+## 3.0.0
+
+### Major Changes
+
+- abe231bf: Make endpoints match Geth, better logging
+
 ## 2.0.0
 
 ### Major Changes

@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.1
+
+### Patch Changes
+
+- c0fc7fee: Add AddressDictator validation script
+
 ## 0.5.0
 
 ### Minor Changes
