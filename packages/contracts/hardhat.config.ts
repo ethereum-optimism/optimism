@@ -26,9 +26,7 @@ import 'hardhat-gas-reporter'
 dotenv.config()
 
 const enableGasReport = !!process.env.ENABLE_GAS_REPORT
-const privateKey =
-  process.env.PRIVATE_KEY ||
-  '0x0000000000000000000000000000000000000000000000000000000000000000' // this is to avoid hardhat error
+const privateKey = process.env.PRIVATE_KEY || '0x' + '11'.repeat(32) // this is to avoid hardhat error
 
 const config: HardhatUserConfig = {
   networks: {
