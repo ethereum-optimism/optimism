@@ -17,9 +17,9 @@
     "pre-commit": "lint-staged"
   },
   "devDependencies": {
-    "@eth-optimism/contracts": "0.5.0",
+    "@eth-optimism/contracts": "0.5.1",
     "@eth-optimism/core-utils": "0.7.0",
-    "@eth-optimism/message-relayer": "0.2.0",
+    "@eth-optimism/message-relayer": "0.2.1",
     "@ethersproject/providers": "^5.4.5",
     "@ethersproject/transactions": "^5.4.0",
     "@nomiclabs/hardhat-ethers": "^2.0.2",
