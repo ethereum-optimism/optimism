@@ -2,7 +2,7 @@
 import { Contract, utils, Wallet, providers } from 'ethers'
 import { TransactionResponse } from '@ethersproject/providers'
 import { getContractFactory, predeploys } from '@eth-optimism/contracts'
-import { Watcher } from '@eth-optimism/core-utils'
+import { Watcher } from '@eth-optimism/sdk'
 import { getMessagesAndProofsForL2Transaction } from '@eth-optimism/message-relayer'
 
 /* Imports: Internal */

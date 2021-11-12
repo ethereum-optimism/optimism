@@ -13,6 +13,7 @@ RUN apt-get update -y && apt-get install -y git curl jq python3
 # us to cache the installation steps
 WORKDIR /optimism
 COPY *.json yarn.lock ./
+COPY packages/sdk/package.json ./packages/sdk/package.json
 COPY packages/core-utils/package.json ./packages/core-utils/package.json
 COPY packages/common-ts/package.json ./packages/common-ts/package.json
 COPY packages/contracts/package.json ./packages/contracts/package.json

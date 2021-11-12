@@ -1,6 +1,5 @@
 export * from './coders'
 export * from './common'
-export * from './watcher'
 export * from './l2context'
 export * from './batches'
 export * from './bcfg'

@@ -13,7 +13,8 @@ import {
   getContractInterface,
   predeploys,
 } from '@eth-optimism/contracts'
-import { injectL2Context, remove0x, Watcher } from '@eth-optimism/core-utils'
+import { injectL2Context, remove0x } from '@eth-optimism/core-utils'
+import { Watcher } from '@eth-optimism/sdk'
 import { cleanEnv, str, num, bool } from 'envalid'
 import dotenv from 'dotenv'
 

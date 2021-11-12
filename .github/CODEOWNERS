@@ -9,7 +9,6 @@
 # ops/                                @tynes @karlfloersch
 # packages/core-utils/                @smartcontracts @annieke @ben-chain
 # packages/common-ts/                 @annieke
-# packages/core-utils/src/watcher.ts  @K-Ho
 # packages/message-relayer/           @K-Ho
 # packages/batch-submitter/           @annieke @karlfloersch
 # packages/data-transport-layer/      @annieke
