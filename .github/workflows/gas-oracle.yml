@@ -12,11 +12,6 @@ on:
   pull_request:
     paths:
       - 'go/gas-oracle/**'
-    branches:
-      - 'master'
-      - 'develop'
-      - '*rc'
-      - 'regenesis/*'
   workflow_dispatch:
 
 defaults:
