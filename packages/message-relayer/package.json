@@ -1,6 +1,6 @@
 {
   "name": "@eth-optimism/message-relayer",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "[Optimism] Cross Domain Message Relayer service",
   "main": "dist/index",
   "types": "dist/index",
@@ -35,7 +35,7 @@
   },
   "dependencies": {
     "@eth-optimism/common-ts": "0.2.0",
-    "@eth-optimism/contracts": "0.5.0",
+    "@eth-optimism/contracts": "0.5.1",
     "@eth-optimism/core-utils": "0.7.0",
     "@sentry/node": "^6.3.1",
     "bcfg": "^0.1.6",
