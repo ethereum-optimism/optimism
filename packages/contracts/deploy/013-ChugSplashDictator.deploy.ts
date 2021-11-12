@@ -8,7 +8,7 @@ import { getContractDefinition } from '../src/contract-defs'
 import {
   getContractFromArtifact,
   deployAndVerifyAndThen,
-} from '../src/hardhat-deploy-ethers'
+} from '../src/deploy-utils'
 import { names } from '../src/address-names'
 
 const deployFn: DeployFunction = async (hre) => {

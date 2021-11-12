@@ -3,7 +3,7 @@ import { DeployFunction } from 'hardhat-deploy/dist/types'
 import { hexStringEquals, awaitCondition } from '@eth-optimism/core-utils'
 
 /* Imports: Internal */
-import { getContractFromArtifact } from '../src/hardhat-deploy-ethers'
+import { getContractFromArtifact } from '../src/deploy-utils'
 
 const deployFn: DeployFunction = async (hre) => {
   const { deployer } = await hre.getNamedAccounts()

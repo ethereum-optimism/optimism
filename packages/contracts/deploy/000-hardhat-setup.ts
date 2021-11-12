@@ -6,7 +6,7 @@ import {
   fundAccount,
   sendImpersonatedTx,
   BIG_BALANCE,
-} from '../src/hardhat-deploy-ethers'
+} from '../src/deploy-utils'
 import { names } from '../src/address-names'
 import { awaitCondition } from '@eth-optimism/core-utils'
 
