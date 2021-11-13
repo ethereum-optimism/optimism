@@ -11,7 +11,7 @@
 
 ## TL;DR
 
-This is the primary place where [Optimism](https://optimism.io) works on stuff related to [Optimistic Ethereum](https://research.paradigm.xyz/optimism).
+This is the primary place where [Optimism](https://optimism.io) works on stuff related to [Optimistic Ethereum](https://optimistic.etherscan.io/).
 
 ## Documentation
 
@@ -19,27 +19,29 @@ Extensive documentation is available [here](http://community.optimism.io/).
 
 ## Community
 
-* [Come hang on discord](https://discord.optimism.io)
+Come hang on our very active [discord](https://discord.optimism.io) 🔴✨
 
 ## Contributing
 
 Read through [CONTRIBUTING.md](./CONTRIBUTING.md) for a general overview of our contribution process.
+Then check out our list of [good first issues](https://github.com/ethereum-optimism/optimism/contribute) to find something fun to work on!
 
 ## Directory Structure
 
-* [`packages`](./packages): Contains all the typescript packages and contracts
-  * [`contracts`](./packages/contracts): Solidity smart contracts implementing the OVM
-  * [`core-utils`](./packages/core-utils): Low-level utilities and encoding packages
-  * [`common-ts`](./packages/common-ts): Common tools for TypeScript code that runs in Node
-  * [`data-transport-layer`](./packages/data-transport-layer): Event indexer, allowing the `l2geth` node to access L1 data
-  * [`batch-submitter`](./packages/batch-submitter): Daemon for submitting L2 transaction and state root batches to L1
-  * [`message-relayer`](./packages/message-relayer): Service for relaying L2 messages to L1
-  * [`replica-healthcheck`](./packages/replica-healthcheck): Service to monitor the health of different replica deployments
-* [`l2geth`](./l2geth): Fork of [go-ethereum v1.9.10](https://github.com/ethereum/go-ethereum/tree/v1.9.10) implementing the [OVM](https://research.paradigm.xyz/optimism#optimistic-geth).
-* [`integration-tests`](./integration-tests): Integration tests between a L1 testnet, `l2geth`,
-* [`ops`](./ops): Contains Dockerfiles for containerizing each service involved in the protocol,
-as well as a docker-compose file for bringing up local testnets easily
-
+<pre>
+root
+├── <a href="./packages">packages</a>
+│   ├── <a href="./packages/contracts">contracts</a>: L1 and L2 smart contracts for Optimistic Ethereum
+│   └── <a href="./packages/core-utils">core-utils</a>: Low-level utilities that make building Optimistic Ethereum easier
+│   └── <a href="./packages/common-ts">common-ts</a>: Common tools for building apps in TypeScript
+│   └── <a href="./packages/data-transport-layer">data-transport-layer</a>: Service for indexing Optimistic Ethereum-related L1 data
+│   └── <a href="./packages/batch-submitter">batch-submitter</a>: Service for submitting batches of transactions and results to L1
+│   └── <a href="./packages/message-relayer">message-relayer</a>: Tool for automatically relaying L1<>L2 messages in development
+│   └── <a href="./packages/replica-healthcheck">replica-healthcheck</a>: Service for monitoring the health of a replica node
+├── <a href="./l2geth">l2geth</a>: Optimistic Ethereum client software, a fork of <a href="https://github.com/ethereum/go-ethereum/tree/v1.9.10">geth v1.9.10</a>
+├── <a href="./integration-tests">integration-tests</a>: Various integration tests for an Optimistic Ethereum network
+└── <a href="./ops">ops</a>: Tools for running Optimistic Ethereum nodes and networks
+</pre>
 
 ## Branching Model and Releases
 
