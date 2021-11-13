@@ -2686,15 +2686,18 @@
   dependencies:
     ethers "^5.0.2"
 
-"@typechain/ethers-v5@^7.0.1":
-  version "7.0.1"
-  resolved "https://registry.yarnpkg.com/@typechain/ethers-v5/-/ethers-v5-7.0.1.tgz#f9ae60ae5bd9e8ea8a996f66244147e8e74034ae"
-  integrity sha512-mXEJ7LG0pOYO+MRPkHtbf30Ey9X2KAsU0wkeoVvjQIn7iAY6tB3k3s+82bbmJAUMyENbQ04RDOZit36CgSG6Gg==
+"@typechain/ethers-v5@^8.0.2":
+  version "8.0.2"
+  resolved "https://registry.yarnpkg.com/@typechain/ethers-v5/-/ethers-v5-8.0.2.tgz#0f2cc0db1513cb02e3e78929139216b153c9d2c0"
+  integrity sha512-oRMA3X5UWrsUiNb/lFTusa8xBpw6CckOHAk7sZBHeDQh4tAp+ZU24wdwdURcOtPnagzdCv5Dvl1qlD038brf1A==
+  dependencies:
+    lodash "^4.17.15"
+    ts-essentials "^7.0.1"
 
-"@typechain/hardhat@^2.3.0":
-  version "2.3.0"
-  resolved "https://registry.yarnpkg.com/@typechain/hardhat/-/hardhat-2.3.0.tgz#dc7f29281637b38b77c7c046ae82700703395d0f"
-  integrity sha512-zERrtNol86L4DX60ktnXxP7Cq8rSZHPaQvsChyiQQVuvVs2FTLm24Yi+MYnfsIdbUBIXZG7SxDWhtCF5I0tJNQ==
+"@typechain/hardhat@^3.0.0":
+  version "3.0.0"
+  resolved "https://registry.yarnpkg.com/@typechain/hardhat/-/hardhat-3.0.0.tgz#a94396855506d42b98d6e7c09f87ca14180d6c64"
+  integrity sha512-FpnIIXkDXm54XCHI/Z2iOet7h1MrFSvZfuljX9Uzc6FEjEfb01Tuzu8ywe2iquD3g5JXqovgdv+M54L/2Z6jkg==
   dependencies:
     fs-extra "^9.1.0"
 
@@ -15170,10 +15173,10 @@ typechain@^3.0.0:
     ts-essentials "^6.0.3"
     ts-generator "^0.1.1"
 
-typechain@^5.1.0:
-  version "5.1.2"
-  resolved "https://registry.yarnpkg.com/typechain/-/typechain-5.1.2.tgz#c8784d6155a8e69397ca47f438a3b4fb2aa939da"
-  integrity sha512-FuaCxJd7BD3ZAjVJoO+D6TnqKey3pQdsqOBsC83RKYWKli5BDhdf0TPkwfyjt20TUlZvOzJifz+lDwXsRkiSKA==
+typechain@^6.0.2:
+  version "6.0.2"
+  resolved "https://registry.yarnpkg.com/typechain/-/typechain-6.0.2.tgz#0a1d6328aa934dfd66c8941cd94c1d3491cc34f0"
+  integrity sha512-fphYQ2+r5z38eq02qr4KjgU9/Xdda8Cj+eV2QHSRXhDPyhEVv+ln9123iGjjDLEhGyROb3DQkbvjm3Dl0GtUeQ==
   dependencies:
     "@types/prettier" "^2.1.1"
     command-line-args "^4.0.7"
