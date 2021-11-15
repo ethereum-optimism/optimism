@@ -23,7 +23,7 @@
     "build:contracts": "hardhat compile --show-stack-traces",
     "build:dump": "ts-node bin/take-dump.ts",
     "autogen:markdown": "node scripts/generate-markdown.js",
-    "autogen:artifacts": "node scripts/generate-artifacts.js && node scripts/generate-deployed-artifacts.js",
+    "autogen:artifacts": "node scripts/generate-artifacts.js && ts-node scripts/generate-deployed-artifacts.ts",
     "test": "yarn test:contracts",
     "test:contracts": "hardhat test --show-stack-traces",
     "test:coverage": "NODE_OPTIONS=--max_old_space_size=8192 hardhat coverage && istanbul check-coverage --statements 88 --branches 76 --functions 84 --lines 88",
