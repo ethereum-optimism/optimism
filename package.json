@@ -58,12 +58,9 @@
   "dependencies": {
     "@changesets/cli": "^2.16.0",
     "@codechecks/client": "^0.1.11",
-    "@ethersproject/abi": "^5.0.0",
+    "@ethersproject/abi": "^5",
     "@ethersproject/abstract-signer": "^5",
-    "@ethersproject/bytes": "^5.0.0",
-    "@ethersproject/providers": "^5.0.0",
     "@nomiclabs/ethereumjs-vm": "^4",
-    "@types/node": "*",
     "ethers": "^5.4.5"
   }
 }

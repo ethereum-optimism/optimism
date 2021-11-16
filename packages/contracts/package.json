@@ -47,9 +47,16 @@
   },
   "dependencies": {
     "@eth-optimism/core-utils": "0.7.0",
+    "@eth-optimism/smock": "1.1.10",
+    "@ethersproject/abi": "^5",
     "@ethersproject/abstract-provider": "^5.4.1",
-    "@ethersproject/abstract-signer": "^5.4.1",
-    "@ethersproject/hardware-wallets": "^5.4.0"
+    "@ethersproject/abstract-signer": "^5",
+    "@ethersproject/bytes": "^5.0.0",
+    "@ethersproject/hardware-wallets": "^5.4.0",
+    "@ethersproject/providers": "^5.0.0",
+    "@nomiclabs/ethereumjs-vm": "^4",
+    "@types/node": "^16.11.7",
+    "ethers": "^5.4.5"
   },
   "devDependencies": {
     "@codechecks/client": "^0.1.11",
