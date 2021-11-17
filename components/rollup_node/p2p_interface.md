@@ -29,7 +29,7 @@ Common representations of network identity:
 
 #### Structure
 
-The Ethereum Node Record (ENR) for an Optimism rollup node must contain keyed values:
+The Ethereum Node Record (ENR) for an Optimism rollup node must contain the following values, identified by unique keys:
 
 - An IPv4 address (`ip` field) and/or IPv6 address (`ip6` field).
 - A TCP port (`tcp` field) representing the local libp2p listening port.
@@ -40,12 +40,13 @@ The `optimism` value is encoded as the concatenation of:
 - chain ID (`varint`)
 - fork ID (`varint`)
 
-Note that DiscV5 is a shared DHT: the L1 consensus and execution nodes, as well as testnet nodes,
+Note that DiscV5 is a shared DHT (Distributed Hash Table): the L1 consensus and execution nodes, as well as testnet nodes,
 and even external IOT nodes, all communicate records in this large common DHT.
+This makes it more difficult to censor the discovery of node records.
 
 The discovery process in Optimism is a pipeline of node records:
-1. Fill the table with `FINDNODES` if necessary
-2. Pull additional records with searches to random Node IDs if necessary
+1. Fill the table with `FINDNODES` if necessary (Performed by Discv5 library)
+2. Pull additional records with searches to random Node IDs if necessary (e.g. iterate [`RandomNodes()`][discv5-random-nodes] in Go implementation)
 3. Pull records from the DiscV5 module when looking for peers
 4. Check if the record contains the `optimism` entry, verify it matches the chain ID and current or future fork number
 5. If not already connected, and not recently disconnected or put on deny-list, attempt to dial.
@@ -80,7 +81,7 @@ used to negotiate sub-protocols supported in LibP2P peers. Multistream-select 2.
 
 #### Identify
 
-LibP2P offers a minimal identification module to share client version and language.
+LibP2P offers a minimal identification module to share client version and programming language.
 This is optional and can be disabled for enhanced privacy.
 It also includes the same protocol information, which can speed up initial connections.
 
@@ -193,6 +194,7 @@ TODO: GossipSub per-topic scoring to fine-tune incentives for ideal propagation 
 [consensus-layer]: ./consensus_layer.md
 [libp2p]: https://libp2p.io/
 [discv5]: https://github.com/ethereum/devp2p/blob/master/discv5/discv5.md
+[discv5-random-nodes]: https://pkg.go.dev/github.com/ethereum/go-ethereum@v1.10.12/p2p/discover#UDPv5.RandomNodes
 [eth2-p2p]: https://github.com/ethereum/consensus-specs/blob/dev/specs/phase0/p2p-interface.md
 [libp2p-noise]: https://github.com/libp2p/specs/tree/master/noise
 [multistream-select]: https://github.com/multiformats/multistream-select/

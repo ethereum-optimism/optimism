@@ -30,8 +30,14 @@ There are two primary classes of rollup nodes, corresponding to different config
 **Both** update their coupled execution-engine with L2 blocks and fork-choice instructions, to maintain their view of the rollup state.
 
 Optionally the sequencer(s) may share the L2 blocks via the L2 p2p network before the L1 can confirm them,
-which verifiers can optionally use to sync to the very tip (marked "unsafe" in JSON-RPC) of the rollup.
-This enables permissionless L1-like latency for users, but not canonical until available on the L1.
+which verifiers can optionally use to sync to the very tip of the rollup.
+This enables permissionless L1-like latency for users, but not the default until available on the L1.
+
+The User JSON-RPC exposes these levels of confirmation,
+matching the labels in the [Engine API specifications][engine-forkchoice-unsafe-safe-finalized]:
+- `unsafe`: when the data is not yet on L1, but known through L2 P2P propagation
+- `safe` ("latest" is an alias to this): when the data has been seen to be published to L1, but not undisputed yet
+- `finalized`: when the data is irreversibly canonical
 
 ## Services
 
@@ -107,6 +113,7 @@ ultimately the L1 chain determines the canonical rollup chain.
 [the-merge]: https://eips.ethereum.org/EIPS/eip-3675
 [EIP-2718]: https://eips.ethereum.org/EIPS/eip-2718
 [EIP-4396]: https://eips.ethereum.org/EIPS/eip-4396
+[engine-forkchoice-unsafe-safe-finalized]: https://github.com/ethereum/execution-apis/blob/main/src/engine/specification.md#forkchoicestatev1
 [block-gen]: ./block_gen.md
 [exec-engine]: ./exec_engine.md
 [rollup-driver]: ./consensus_layer.md
