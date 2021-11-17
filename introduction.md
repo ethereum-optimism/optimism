@@ -37,9 +37,9 @@ In order to scale Ethereum without sacrificing security, we must preserve 3 crit
 1. **Liveness** - Anyone must be able to extend the rollup chain by sending transactions at any time.
     - There are two ways transactions can be sent to the rollup chain: 1) via the sequencer, and 2) directly on layer 1. The sequencer provides low latency & low cost transactions, while sending transactions directly to layer 1 provides censorship resistance.
 2. **Availability** - Anyone must be able to download the rollup chain.
-    - All information required to generate the chain is embedded into layer 1 blocks. That way as long as the layer 1 chain is available, so is the rollup.
+    - All information required to derive the chain is embedded into layer 1 blocks. That way as long as the layer 1 chain is available, so is the rollup.
 3. **Validity** - All transactions must be correctly executed and all withdrawals correctly processed.
-    - The rollup state and withdrawals are managed on an L1 contract called the `Block Hash Oracle`. This oracle is guaranteed to _only_ finalize correct (ie. valid) rollup block hashes given a **single honest verifier** assumption. If there is ever an invalid block hash asserted on layer 1, an honest verifier will prove it is invalid and win a bond.
+    - The rollup state and withdrawals are managed on an L1 contract called the `L2 State Oracle`. This oracle is guaranteed to _only_ finalize correct (ie. valid) rollup block hashes given a **single honest verifier** assumption. If there is ever an invalid block hash asserted on layer 1, an honest verifier will prove it is invalid and win a bond.
 
 **Footnote**: There are two main ways to enforce validity of a rollup: fraud proofs (optimistic rollup) and validity proofs (zkRollup). For the purposes of this spec we only focus on fraud proofs but it is worth noting that validity proofs can also be plugged in once they have been made feasible.
 
@@ -96,7 +96,7 @@ Links to components mentioned in this diagram:
 - Rollup Node (WIP)
 - Execution Engine (WIP)
 - Sequencer Batch Submitter (WIP)
-- L2 Block Hash Oracle (WIP)
+- L2 State Oracle (WIP)
 - Block Hash Assertion Submitter (WIP)
 - Fraud Proof VM (WIP)
 
@@ -109,7 +109,7 @@ Just as important as depositing, it is critical that users can withdraw from the
 Links to components mentioned in this diagram:
 
 - Rollup Feeds (WIP)
-- Block Hash Oracle (WIP)
+- L2 State Oracle (WIP)
 - Bridge (WIP)
 
 
@@ -123,7 +123,7 @@ Links to components mentioned in this diagram:
 
 - Rollup Node (WIP)
 - Execution Engine (WIP)
-- L2 Block Hash Oracle (WIP)
+- L2 State Oracle (WIP)
 - Challenger Agent (WIP)
 - Fraud Proof VM (WIP)
 

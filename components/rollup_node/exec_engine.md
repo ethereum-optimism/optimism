@@ -2,7 +2,7 @@
 
 ## Overview
 
-The L2 execution engine is where transaction execution actually takes place, and is where all L2 state is held. Its goal is to be as similar to L1 nodes as possible by using the Eth2 Merge Engine API. In normal Eth2, the consensus node sends execution payloads (essentially eth1 blocks, without proof of work) from the beacon chain into the engine. In Optimistic Ethereum, the Rollup Driver (and perhaps other components, depending on the type of Rollup Node) sends L2 blocks that are canonically generated from L1 into the engine.
+The L2 execution engine is where transaction execution actually takes place, and is where all L2 state is held. Its goal is to be as similar to L1 nodes as possible by using the Eth2 Merge Engine API. In normal Eth2, the consensus node sends execution payloads (essentially eth1 blocks, without proof of work) from the beacon chain into the engine. In Optimistic Ethereum, the Rollup Driver (and perhaps other components, depending on the type of Rollup Node) sends L2 blocks that are canonically derived from L1 into the engine.
 
 ## Differences between L1 and L2 EE
 

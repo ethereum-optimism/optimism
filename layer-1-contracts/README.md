@@ -5,7 +5,7 @@ We want our ORU contracts to be built in compliance with the following goals:
 - A **pluggable state machine** which:
     - allows separation of concerns and parallelizable work
     - is fully stateless, i.e. all state transitions can be expressed in the form `bytes32 _inputHash, bytes _witness => bytes32 _outputhash` and are only dependent on the immediately preceding pre-state
-- A cryptoeconomic **L2 Block Oracle** which:
+- A cryptoeconomic **L2 State Oracle** which:
     - Provides a cryptoeconomic mechanism to propose, assert, challenge, and finalize optimistic states of the L2 machine
         - Does NOT require that the entire execution trace is provable, just the execution output
             - i.e. an honest party may not necessarily ever post a hash of the full trace

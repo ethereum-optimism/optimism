@@ -4,7 +4,7 @@ The consensus module of Optimistic Ethereum.
 
 ## Summary
 
-The Rollup Node is a consensus client that determines the latest state of the rollup. It reads state from L1, and possibly the sequencer, to compute the L2 state. The [block generation spec][block-gen] defines the rules by which L1 state is converted into L2 blocks.
+The Rollup Node is a consensus client that determines the latest state of the rollup. It reads state from L1, and possibly the sequencer, to compute the L2 state. The [block derivation spec][block-derivation] defines the rules by which L1 state is converted into L2 blocks.
 
 ## Types of Rollup Nodes
 There are two primary classes of rollup nodes, corresponding to different configurations of the software stack.
@@ -30,7 +30,7 @@ One of the main goal of the rollup client is to use the execution engine without
 
 ### [Rollup Driver][rollup-driver]
 
-The rollup driver connects to an L1 node, and tracks the feed data comprising of deposits and sequencer batches. Based on the rules of [block generation][block-gen], it is able to compute sets ("epochs") of L2 blocks as a stateless, pure function of ranges of L1 blocks.
+The rollup driver connects to an L1 node, and tracks the feed data comprising of deposits and sequencer batches. Based on the rules of [block derivation][block-derivation], it is able to compute sets ("epochs") of L2 blocks as a stateless, pure function of ranges of L1 blocks.
 
 While connected to the Execution Engine, it uses the Engine API to progress the L2 state as new data comes in from L1. The rollup driver will reorganize the L2 state if it detects a difference between the EE and what's on L1, and provides a way for other services to subscribe to reorgs.
 
@@ -48,13 +48,13 @@ The block producer service is run by the sequencer to progress the L2 state in a
 
 The batch submitter takes the pending blocks which have been inserted into the sequencer's L2 state by the block producer, and sends corresponding transactions in batches to L1.
 
-The batch submitter encodes these transactions based on the rules of [block generation][block-gen], effectively as the reverse of the process carried out by the rollup driver. As a result:
+The batch submitter encodes these transactions based on the rules of [block derivation][block-derivation], effectively as the reverse of the process carried out by the rollup driver. As a result:
 - Blocks previously inserted by the Block Producer into the Sequencer's EE will now appear in L1 Verifiers' EEs.
 - Blocks marked as sequencer-confirmed in both the Sequencer and in Replicating verifiers will now be marked as L1-confirmed.
 
 [execution-spec]: https://github.com/ethereum/execution-specs
 [execution-engine-rpc]: https://hackmd.io/@n0ble/consensus_api_design_space
-[block-gen]: ./components/rollup_node/block_gen.md
+[block-derivation]: ./components/rollup_node/block_derivation.md
 [exec-engine]: ./exec_engine.md
 [rollup-driver]: ./consensus_layer.md
 [sequencer-replicator]: ./sequencer_replicator.md
