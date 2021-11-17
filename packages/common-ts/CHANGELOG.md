@@ -1,5 +1,11 @@
 # @eth-optimism/common-ts
 
+## 0.2.1
+
+### Patch Changes
+
+- 243f33e5: Standardize package json file format
+
 ## 0.2.0
 
 ### Minor Changes

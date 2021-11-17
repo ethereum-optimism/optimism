@@ -1,5 +1,11 @@
 # @eth-optimism/core-utils
 
+## 0.7.1
+
+### Patch Changes
+
+- 243f33e5: Standardize package json file format
+
 ## 0.7.0
 
 ### Minor Changes
