@@ -19,7 +19,6 @@ import { IChainStorageContainer } from "./IChainStorageContainer.sol";
  * 2. Stores queued transactions for the Canonical Transaction Chain
  * 3. Stores chain state batches for the State Commitment Chain
  *
- * Runtime target: EVM
  */
 contract ChainStorageContainer is IChainStorageContainer, Lib_AddressResolver {
     /*************

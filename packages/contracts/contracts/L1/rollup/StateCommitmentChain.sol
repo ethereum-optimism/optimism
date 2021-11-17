@@ -19,7 +19,6 @@ import { IChainStorageContainer } from "./IChainStorageContainer.sol";
  * Elements here have a 1:1 correspondence with transactions in the CTC, and should be the unique
  * state root calculated off-chain by applying the canonical transactions one by one.
  *
- * Runtime target: EVM
  */
 contract StateCommitmentChain is IStateCommitmentChain, Lib_AddressResolver {
     /*************

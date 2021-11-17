@@ -18,7 +18,6 @@ import { IChainStorageContainer } from "./IChainStorageContainer.sol";
  * The CTC also allows any account to 'enqueue' an L2 transaction, which will require that the
  * Sequencer will eventually append it to the rollup state.
  *
- * Runtime target: EVM
  */
 contract CanonicalTransactionChain is ICanonicalTransactionChain, Lib_AddressResolver {
     /*************
