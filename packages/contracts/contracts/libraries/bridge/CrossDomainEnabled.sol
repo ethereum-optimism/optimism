@@ -9,7 +9,6 @@ import { ICrossDomainMessenger } from "./ICrossDomainMessenger.sol";
  * @dev Helper contract for contracts performing cross-domain communications
  *
  * Compiler used: defined by inheriting contract
- * Runtime target: defined by inheriting contract
  */
 contract CrossDomainEnabled {
     /*************

@@ -1,9 +1,13 @@
 {
+  "private": true,
   "name": "@eth-optimism/regenesis-surgery",
   "version": "0.2.0",
-  "private": true,
-  "author": "Optimism PBC",
-  "license": "MIT",
+  "description": "[Optimism] Tooling for managing the OVM 1.0 to OVM 2.0 upgrade",
+  "main": "dist/index",
+  "types": "dist/index",
+  "files": [
+    "dist/index"
+  ],
   "scripts": {
     "clean": "rimraf ./dist ./tsconfig.build.tsbuildinfo",
     "lint": "yarn run lint:fix && yarn run lint:check",
@@ -12,6 +16,19 @@
     "pre-commit": "lint-staged",
     "test:surgery": "ts-mocha --timeout 50000000 test/*",
     "start": "ts-node ./scripts/surgery.ts"
+  },
+  "keywords": [
+    "optimism",
+    "ethereum",
+    "regenesis",
+    "surgery"
+  ],
+  "homepage": "https://github.com/ethereum-optimism/optimism/tree/develop/packages/regenesis-surgery#readme",
+  "license": "MIT",
+  "author": "Optimism PBC",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ethereum-optimism/optimism.git"
   },
   "devDependencies": {
     "@discoveryjs/json-ext": "^0.5.3",

@@ -360,6 +360,9 @@ export const run = async () => {
   // If the sequencer & proposer are the same, use a single wallet
   if (sequencerAddress === proposerAddress) {
     proposerSigner = sequencerSigner
+    throw new Error(
+      'Sequencer and proposer have the same address, multiple transactions may be sent with the same nonce.'
+    )
   }
 
   logger.info('Configured batch submitter addresses', {

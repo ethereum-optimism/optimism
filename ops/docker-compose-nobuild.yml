@@ -17,9 +17,10 @@ services:
     environment:
         FRAUD_PROOF_WINDOW_SECONDS: 0
         L1_NODE_WEB3_URL: http://l1_chain:8545
-        # these keys are hardhat's first 2 accounts, DO NOT use in production
+        # these keys are hardhat's first 3 accounts, DO NOT use in production
         DEPLOYER_PRIVATE_KEY: "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
         SEQUENCER_PRIVATE_KEY: "0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d"
+        PROPOSER_PRIVATE_KEY: "0x5de4111afa1a4b94908f83103eb1f1706367c2e68ca870fc3fb9a804cdab365a"
         GAS_PRICE_ORACLE_OWNER: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
         # setting the whitelist owner to address(0) disables the whitelist
         WHITELIST_OWNER: "0x0000000000000000000000000000000000000000"
@@ -93,6 +94,7 @@ services:
         L2_NODE_WEB3_URL: http://l2geth:8545
         URL: http://deployer:8081/addresses.json
         SEQUENCER_PRIVATE_KEY: "0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d"
+        PROPOSER_PRIVATE_KEY: "0x5de4111afa1a4b94908f83103eb1f1706367c2e68ca870fc3fb9a804cdab365a"
 
   verifier:
     depends_on:
