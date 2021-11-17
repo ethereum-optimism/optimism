@@ -8,9 +8,9 @@ for maximum compatibility and minimal complexity.
 ## Summary
 
 The Rollup Node is a consensus client that tracks the rollup:
-- Fork-choice: following L1
+- Fork-choice: following L1, a reorg on L1 results in a reorg of L2
 - Input Data: deposits and sequencer data extracted from L1
-- Latest blocks: optimistically via L2 p2p, overrideable by L1
+- Latest blocks: propagate optimistically via p2p interface, overrideable by L1
 
 The input data and forkchoice information collected from L1 (and optimistically via p2p)
 are then forwarded to the execution-layer, also known as "execution engine",
@@ -24,8 +24,8 @@ The design is minimalist:
 
 There are two primary classes of rollup nodes, corresponding to different configurations of the software stack.
 
-1. **Sequencer**: Accepts user-sent and deposit transactions, orders them into L2 blocks, and submits them to L1 in batches.
-2. **Verifier**: Watches L1 feeds, reconstructs L2 block inputs, and inserts them into the EE to determine the canonical L2 state.
+1. **Sequencer**: Accepts user-sent and deposit transactions, orders them into L2 blocks, and [submits them in batches][batch-submitter] to L1.
+2. **Verifier**: Watches L1 feeds, [reconstructs L2 blocks from inputs][block-gen], and inserts them into the EE to determine the canonical L2 state.
 
 **Both** update their coupled execution-engine with L2 blocks and fork-choice instructions, to maintain their view of the rollup state.
 
@@ -38,6 +38,8 @@ This enables permissionless L1-like latency for users, but not canonical until a
 ### L2 Execution Engine
 
 The [Execution Engine][exec-engine] (EE) is *separated from the rollup node*, following the separated consensus/execution layer design of L1.
+
+Execution tasks of the engine include EVM execution, transaction-pool and state sync.
 The rollup node communicates to the engine via the [Engine JSON-RPC interface][engine-api]
 (Secured and separated from the regular user JSON-RPC).
 
@@ -67,9 +69,10 @@ The [Block Producer][block-producer] is an optional service to run as sequencer,
 to progress the L2 state in advance of batch submission.
 
 When tasked to produce a new rollup block, the rollup node adds `PayloadAttributesV1` to the `engine_forkchoiceUpdated`
-call to instruct the engine to start sequencing a block of pending contents from the transaction pool.
+call (see [Engine api][engine-API]) to instruct the engine to start sequencing a block of pending contents from the transaction pool.
 
-This execution block is then retrieved with `engine_getPayload`, to then be pushed to L1 for availability,
+This execution block is then retrieved with `engine_getPayload`, to then be pushed to L1 for availability by the
+[Batch submitter][batch-submitter] (optionally packed together with other L2 blocks),
 and optionally directly the L2 network for faster tip updates.
 
 ### Batch Submitter
@@ -83,16 +86,20 @@ The batch submitter encodes these transactions based on the rules of [block deri
 
 ### P2P Interface
 
-The [P2P Interface][p2p-interface] service enables verifiers to stay in sync with the tip of the rollup with lower latency, and sequencers to distribute the server work.
+The [P2P Interface][p2p-interface] service offers an additional method of syncing the latest L2 blocks,
+faster than the L1 can make them available.
 
-Staying in sync with the tip requires rollup nodes to learn about data more directly, faster than the L1 can make them available.
-
-This is solved with an optimistic process:
+This is implemented with an optimistic process:
 1. Sequencer publishes the L2 block through a lightweight L2 P2P network (single gossip topic)
 2. Verifier listens on the P2P network, verifies sequencer signature, and applies the block to their L2 EE.
 3. If the data cannot be confirmed on L1, or if conflicting data is confirmed, then the bad L2 block is reorganized away.
 
-The amount of L2 blocks that can be optimistically applied to the L2 EE is constrained by the supported reorg-depth by the execution engine:
+This service is optional: while the worst-case data-retrieval is covered by L1 in the same way, the happy-path improves:
+- Verifiers can stay in sync with the tip of the rollup with lower latency
+- Sequencers can distribute the server work
+
+The amount of L2 blocks that can be optimistically applied to the L2 EE is constrained
+by the supported reorg-depth by the execution engine, to preserve the ability to process reorgs of the L2 by L1:
 ultimately the L1 chain determines the canonical rollup chain.
 
 
@@ -100,8 +107,9 @@ ultimately the L1 chain determines the canonical rollup chain.
 [the-merge]: https://eips.ethereum.org/EIPS/eip-3675
 [EIP-2718]: https://eips.ethereum.org/EIPS/eip-2718
 [EIP-4396]: https://eips.ethereum.org/EIPS/eip-4396
-[block-gen]: ./components/rollup_node/block_gen.md
+[block-gen]: ./block_gen.md
 [exec-engine]: ./exec_engine.md
 [rollup-driver]: ./consensus_layer.md
 [block-producer]: ./block_producer.md
 [batch-submitter]: ./batch_submitter.md
+[p2p-interface]: ./p2p_interface.md
