@@ -1,7 +1,9 @@
 {
   "name": "@eth-optimism/contracts",
   "version": "0.5.1",
+  "description": "[Optimism] L1 and L2 smart contracts for Optimistic Ethereum",
   "main": "dist/index",
+  "types": "dist/index",
   "files": [
     "dist/**/*.js",
     "dist/**/*.d.ts",
@@ -14,9 +16,6 @@
     "libraries",
     "standards"
   ],
-  "types": "dist/index",
-  "author": "Optimism PBC",
-  "license": "MIT",
   "scripts": {
     "build": "yarn build:contracts && yarn autogen:artifacts && yarn build:typescript",
     "build:typescript": "tsc -p ./tsconfig.build.json",
@@ -44,6 +43,19 @@
     "prepack": "yarn prepublishOnly",
     "postpack": "yarn postpublish",
     "pre-commit": "lint-staged"
+  },
+  "keywords": [
+    "optimism",
+    "ethereum",
+    "contracts",
+    "solidity"
+  ],
+  "homepage": "https://github.com/ethereum-optimism/optimism/tree/develop/packages/contracts#readme",
+  "license": "MIT",
+  "author": "Optimism PBC",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ethereum-optimism/optimism.git"
   },
   "dependencies": {
     "@eth-optimism/core-utils": "0.7.0",

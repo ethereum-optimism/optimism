@@ -1,10 +1,8 @@
 {
+  "private": true,
   "name": "@eth-optimism/integration-tests",
   "version": "0.3.0",
-  "description": "[Optimism] Integration Tests",
-  "private": true,
-  "author": "Optimism PBC",
-  "license": "MIT",
+  "description": "[Optimism] Integration tests",
   "scripts": {
     "lint": "yarn lint:fix && yarn lint:check",
     "lint:fix": "yarn lint:check --fix",
@@ -15,6 +13,19 @@
     "test:sync": "hardhat --network optimism test sync-tests/*.spec.ts --no-compile",
     "clean": "rimraf cache artifacts",
     "pre-commit": "lint-staged"
+  },
+  "keywords": [
+    "optimism",
+    "ethereum",
+    "integration",
+    "tests"
+  ],
+  "homepage": "https://github.com/ethereum-optimism/optimism/tree/develop/packages/integration-tests#readme",
+  "license": "MIT",
+  "author": "Optimism PBC",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ethereum-optimism/optimism.git"
   },
   "devDependencies": {
     "@eth-optimism/contracts": "0.5.1",

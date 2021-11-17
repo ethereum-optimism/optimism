@@ -1,14 +1,13 @@
 {
+  "private": true,
   "name": "@eth-optimism/data-transport-layer",
   "version": "0.5.1",
-  "private": true,
+  "description": "[Optimism] Service for shuttling data from L1 into L2",
   "main": "dist/index",
+  "types": "dist/index",
   "files": [
     "dist/index"
   ],
-  "types": "dist/index",
-  "author": "Optimism PBC",
-  "license": "MIT",
   "scripts": {
     "clean": "rimraf ./dist ./tsconfig.build.tsbuildinfo",
     "clean:db": "rimraf ./db",
@@ -21,6 +20,20 @@
     "test:coverage": "nyc hardhat --config test/config/hardhat.config.ts test && nyc merge .nyc_output coverage.json",
     "build": "tsc -p tsconfig.build.json",
     "pre-commit": "lint-staged"
+  },
+  "keywords": [
+    "optimism",
+    "ethereum",
+    "data",
+    "transport",
+    "layer"
+  ],
+  "homepage": "https://github.com/ethereum-optimism/optimism/tree/develop/packages/data-transport-layer#readme",
+  "license": "MIT",
+  "author": "Optimism PBC",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ethereum-optimism/optimism.git"
   },
   "dependencies": {
     "@eth-optimism/common-ts": "0.2.0",
