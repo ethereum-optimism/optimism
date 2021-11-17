@@ -2,13 +2,6 @@
 
 The logic which is used to derive the rollup chain from an L1 availability layer.
 
-## Glossary
-
-- **Feed**: An append only list of available data.
-- **Deposit Feed**: The feed which consists of deposits, each element in this feed will be used to derive a "deposit block".
-- **Sequencer Feed**: The feed which consists of sequencer submitted blocks, each element in this feed will be used to derive a "sequencer block".
-- **Rollup Blockchain**: The rollup blocks derived by performing the rollup's state transition function over all inputs sourced from the various feeds.
-
 ## Summary
 
 The rollup chain can be deterministically derived given an L1 Ethereum chain. The fact that the entire rollup chain can be derived based on L1 blocks is _what makes OE a rollup_. This process can be represented as:
