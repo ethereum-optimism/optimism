@@ -145,7 +145,22 @@ export class L2IngestionService extends BaseService<L2IngestionServiceOptions> {
           await sleep(this.options.pollingInterval)
         }
       } catch (err) {
-        if (!this.running || this.options.dangerouslyCatchAllErrors) {
+        if (err.message.includes('missing transaction entry')) {
+          this.logger.warn('recovering from a missing transaction', {
+            message: err.toString(),
+          })
+
+          const lastGoodTransaction =
+            await this.state.db.getLatestUnconfirmedTransaction()
+
+          if (lastGoodTransaction === null) {
+            throw new Error(`unable to recover from missing transaction`)
+          }
+
+          this.logger.warn('recovered from a missing transaction', {
+            lastGoodTransactionIndex: lastGoodTransaction.index,
+          })
+        } else if (!this.running || this.options.dangerouslyCatchAllErrors) {
           this.logger.error('Caught an unhandled error', {
             message: err.toString(),
             stack: err.stack,

@@ -110,6 +110,18 @@ export const handleSequencerBlock = {
     },
     db: TransportDB
   ): Promise<void> => {
+    // Defend against situations where we somehow miss a transaction during sync
+    if (entry.transactionEntry.index > 0) {
+      const prevTransactionEntry = await db.getUnconfirmedTransactionByIndex(
+        entry.transactionEntry.index - 1
+      )
+
+      // We should *always* have a previous transaction here.
+      if (prevTransactionEntry === null) {
+        throw new Error('missing transaction entry in L2 sync')
+      }
+    }
+
     // Having separate indices for confirmed/unconfirmed means we never have to worry about
     // accidentally overwriting a confirmed transaction with an unconfirmed one. Unconfirmed
     // transactions are purely extra information.
