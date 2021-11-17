@@ -1,5 +1,15 @@
 # @eth-optimism/message-relayer
 
+## 0.2.2
+
+### Patch Changes
+
+- 243f33e5: Standardize package json file format
+- Updated dependencies [243f33e5]
+  - @eth-optimism/common-ts@0.2.1
+  - @eth-optimism/contracts@0.5.2
+  - @eth-optimism/core-utils@0.7.1
+
 ## 0.2.1
 
 ### Patch Changes

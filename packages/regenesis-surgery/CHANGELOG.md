@@ -1,6 +1,13 @@
 # @eth-optimism/regenesis-surgery
 
+## 0.2.1
+
+### Patch Changes
+
+- 243f33e5: Standardize package json file format
+
 ## 0.2.0
+
 ### Minor Changes
 
 - 8148d2fb: Add regenesis-surgery package and event-indexer script
