@@ -31,6 +31,7 @@
     "@eth-optimism/contracts": "0.5.4",
     "@eth-optimism/core-utils": "0.7.2",
     "@eth-optimism/message-relayer": "0.2.4",
+    "@ethersproject/abstract-provider": "^5.5.1",
     "@ethersproject/providers": "^5.4.5",
     "@ethersproject/transactions": "^5.4.0",
     "@nomiclabs/hardhat-ethers": "^2.0.2",

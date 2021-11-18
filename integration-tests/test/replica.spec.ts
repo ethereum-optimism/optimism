@@ -1,6 +1,7 @@
 import { OptimismEnv } from './shared/env'
 import { defaultTransactionFactory, gasPriceForL2, sleep } from './shared/utils'
 import { expect } from 'chai'
+import { TransactionReceipt } from '@ethersproject/abstract-provider'
 
 describe('Replica Tests', () => {
   let env: OptimismEnv
@@ -12,10 +13,10 @@ describe('Replica Tests', () => {
   describe('Matching blocks', () => {
     it('should sync a transaction', async () => {
       const tx = defaultTransactionFactory()
-      tx.gasPrice = await gasPriceForL2()
+      tx.gasPrice = await gasPriceForL2(env)
       const result = await env.l2Wallet.sendTransaction(tx)
 
-      let receipt
+      let receipt: TransactionReceipt
       while (!receipt) {
         receipt = await env.replicaProvider.getTransactionReceipt(result.hash)
         await sleep(200)
@@ -37,13 +38,13 @@ describe('Replica Tests', () => {
       const tx = {
         ...defaultTransactionFactory(),
         nonce: await env.l2Wallet.getTransactionCount(),
-        gasPrice: await gasPriceForL2(),
+        gasPrice: await gasPriceForL2(env),
         chainId: null, // Disables EIP155 transaction signing.
       }
       const signed = await env.l2Wallet.signTransaction(tx)
       const result = await env.l2Provider.sendTransaction(signed)
 
-      let receipt
+      let receipt: TransactionReceipt
       while (!receipt) {
         receipt = await env.replicaProvider.getTransactionReceipt(result.hash)
         await sleep(200)
