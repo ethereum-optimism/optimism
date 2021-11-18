@@ -6,7 +6,7 @@ import { hexStringEquals } from '@eth-optimism/core-utils'
 import {
   deployAndVerifyAndThen,
   getContractFromArtifact,
-} from '../src/hardhat-deploy-ethers'
+} from '../src/deploy-utils'
 import { names } from '../src/address-names'
 import { predeploys } from '../src/predeploys'
 

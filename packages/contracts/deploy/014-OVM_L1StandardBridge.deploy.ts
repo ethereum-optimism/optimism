@@ -9,7 +9,7 @@ import {
   getContractFromArtifact,
   deployAndVerifyAndThen,
   isHardhatNode,
-} from '../src/hardhat-deploy-ethers'
+} from '../src/deploy-utils'
 import { names } from '../src/address-names'
 
 const deployFn: DeployFunction = async (hre) => {

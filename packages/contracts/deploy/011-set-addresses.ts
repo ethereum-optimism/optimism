@@ -3,10 +3,7 @@ import { hexStringEquals, awaitCondition } from '@eth-optimism/core-utils'
 import { DeployFunction } from 'hardhat-deploy/dist/types'
 
 /* Imports: Internal */
-import {
-  getContractFromArtifact,
-  isHardhatNode,
-} from '../src/hardhat-deploy-ethers'
+import { getContractFromArtifact, isHardhatNode } from '../src/deploy-utils'
 import { names } from '../src/address-names'
 
 const deployFn: DeployFunction = async (hre) => {

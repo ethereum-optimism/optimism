@@ -103,8 +103,16 @@ export const getAdvancedContract = (opts: {
   for (const fnName of Object.keys(contract.functions)) {
     const fn = contract[fnName].bind(contract)
     ;(contract as any)[fnName] = async (...args: any) => {
+      // We want to use the gas price that has been configured at the beginning of the deployment.
+      // However, if the function being triggered is a "constant" (static) function, then we don't
+      // want to provide a gas price because we're prone to getting insufficient balance errors.
+      let gasPrice = opts.hre.deployConfig.gasPrice || undefined
+      if (contract.interface.getFunction(fnName).constant) {
+        gasPrice = 0
+      }
+
       const tx = await fn(...args, {
-        gasPrice: opts.hre.deployConfig.gasprice || undefined,
+        gasPrice,
       })
 
       if (typeof tx !== 'object' || typeof tx.wait !== 'function') {
