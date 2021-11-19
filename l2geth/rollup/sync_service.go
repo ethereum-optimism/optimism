@@ -806,9 +806,9 @@ func (s *SyncService) applyTransactionToTip(tx *types.Transaction) error {
 	// Note that Ethereum Layer one consensus rules dictate that the timestamp
 	// must be strictly increasing between blocks, so no need to check both the
 	// timestamp and the blocknumber.
+	ts := s.GetLatestL1Timestamp()
+	bn := s.GetLatestL1BlockNumber()
 	if tx.L1Timestamp() == 0 {
-		ts := s.GetLatestL1Timestamp()
-		bn := s.GetLatestL1BlockNumber()
 		tx.SetL1Timestamp(ts)
 		tx.SetL1BlockNumber(bn)
 	} else if tx.L1Timestamp() > s.GetLatestL1Timestamp() {
@@ -816,17 +816,15 @@ func (s *SyncService) applyTransactionToTip(tx *types.Transaction) error {
 		// service's locally maintained timestamp, update the timestamp and
 		// blocknumber to equal that of the transaction's. This should happen
 		// with `enqueue` transactions.
-		ts := tx.L1Timestamp()
-		bn := tx.L1BlockNumber()
-		s.SetLatestL1Timestamp(ts)
-		s.SetLatestL1BlockNumber(bn.Uint64())
-		log.Debug("Updating OVM context based on new transaction", "timestamp", ts, "blocknumber", bn.Uint64(), "queue-origin", tx.QueueOrigin())
+		s.SetLatestL1Timestamp(tx.L1Timestamp())
+		s.SetLatestL1BlockNumber(tx.L1BlockNumber().Uint64())
+		log.Debug("Updating OVM context based on new transaction", "timestamp", ts, "blocknumber", tx.L1BlockNumber().Uint64(), "queue-origin", tx.QueueOrigin())
 	} else if tx.L1Timestamp() < s.GetLatestL1Timestamp() {
 		log.Error("Timestamp monotonicity violation", "hash", tx.Hash().Hex())
 	}
 
+	index := s.GetLatestIndex()
 	if tx.GetMeta().Index == nil {
-		index := s.GetLatestIndex()
 		if index == nil {
 			tx.SetIndex(0)
 		} else {
@@ -846,21 +844,36 @@ func (s *SyncService) applyTransactionToTip(tx *types.Transaction) error {
 	log.Debug("Applying transaction to tip", "index", *tx.GetMeta().Index, "hash", tx.Hash().Hex(), "origin", tx.QueueOrigin().String())
 
 	txs := types.Transactions{tx}
-	s.txFeed.Send(core.NewTxsEvent{Txs: txs})
+	errCh := make(chan error, 1)
+	s.txFeed.Send(core.NewTxsEvent{
+		Txs:   txs,
+		ErrCh: errCh,
+	})
 	// Block until the transaction has been added to the chain
 	log.Trace("Waiting for transaction to be added to chain", "hash", tx.Hash().Hex())
-	<-s.chainHeadCh
 
-	// Update the cache when the transaction is from the owner
-	// of the gas price oracle
-	sender, _ := types.Sender(s.signer, tx)
-	owner := s.GasPriceOracleOwnerAddress()
-	if owner != nil && sender == *owner {
-		if err := s.updateGasPriceOracleCache(nil); err != nil {
-			return err
+	select {
+	case err := <-errCh:
+		log.Error("Got error waiting for transaction to be added to chain", "msg", err)
+		s.SetLatestL1Timestamp(ts)
+		s.SetLatestL1BlockNumber(bn)
+		s.SetLatestIndex(index)
+		return err
+	case <-s.chainHeadCh:
+		// Update the cache when the transaction is from the owner
+		// of the gas price oracle
+		sender, _ := types.Sender(s.signer, tx)
+		owner := s.GasPriceOracleOwnerAddress()
+		if owner != nil && sender == *owner {
+			if err := s.updateGasPriceOracleCache(nil); err != nil {
+				s.SetLatestL1Timestamp(ts)
+				s.SetLatestL1BlockNumber(bn)
+				s.SetLatestIndex(index)
+				return err
+			}
 		}
+		return nil
 	}
-	return nil
 }
 
 // applyBatchedTransaction applies transactions that were batched to layer one.
