@@ -836,7 +836,6 @@ func (s *SyncService) applyTransactionToTip(tx *types.Transaction) error {
 	// the case where the index is updated but the
 	// transaction isn't yet added to the chain
 	s.SetLatestIndex(tx.GetMeta().Index)
-  enqueueIndex := s.GetLatestEnqueueIndex()
 	if tx.GetMeta().QueueIndex != nil {
 		s.SetLatestEnqueueIndex(tx.GetMeta().QueueIndex)
 	}
@@ -859,7 +858,6 @@ func (s *SyncService) applyTransactionToTip(tx *types.Transaction) error {
     s.SetLatestL1Timestamp(ts)
     s.SetLatestL1BlockNumber(bn)
     s.SetLatestIndex(index)
-    s.SetLatestEnqueueIndex(enqueueIndex)
 		return err
 	case <-s.chainHeadCh:
 		// Update the cache when the transaction is from the owner
@@ -871,7 +869,6 @@ func (s *SyncService) applyTransactionToTip(tx *types.Transaction) error {
         s.SetLatestL1Timestamp(ts)
         s.SetLatestL1BlockNumber(bn)
         s.SetLatestIndex(index)
-        s.SetLatestEnqueueIndex(enqueueIndex)
 				return err
 			}
 		}
