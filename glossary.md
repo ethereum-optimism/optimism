@@ -8,7 +8,7 @@ An Ethereum network with its own native security mechanism (ie. proof of work, p
 
 A network that derives its security from a layer one.
 
-### State Root Oracle
+### L2 State Root Oracle
 
 A smart contract on L1, providing access to historical L1 block hashes. The existence of this contract makes it possible to prove the existence of a particular L2 state root within a previous L1 block.
 
