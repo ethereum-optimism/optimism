@@ -1,1 +1,0 @@
-# Fraud Proof Witness Generator
