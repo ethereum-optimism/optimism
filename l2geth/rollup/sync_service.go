@@ -846,21 +846,30 @@ func (s *SyncService) applyTransactionToTip(tx *types.Transaction) error {
 	log.Debug("Applying transaction to tip", "index", *tx.GetMeta().Index, "hash", tx.Hash().Hex(), "origin", tx.QueueOrigin().String())
 
 	txs := types.Transactions{tx}
-	s.txFeed.Send(core.NewTxsEvent{Txs: txs})
+	errCh := make(chan error, 1)
+	s.txFeed.Send(core.NewTxsEvent{
+		Txs:   txs,
+		ErrCh: errCh,
+	})
 	// Block until the transaction has been added to the chain
 	log.Trace("Waiting for transaction to be added to chain", "hash", tx.Hash().Hex())
-	<-s.chainHeadCh
 
-	// Update the cache when the transaction is from the owner
-	// of the gas price oracle
-	sender, _ := types.Sender(s.signer, tx)
-	owner := s.GasPriceOracleOwnerAddress()
-	if owner != nil && sender == *owner {
-		if err := s.updateGasPriceOracleCache(nil); err != nil {
-			return err
+	select {
+	case err := <-errCh:
+		log.Error("Got error waiting for transaction to be added to chain", "msg", err)
+		return err
+	case <-s.chainHeadCh:
+		// Update the cache when the transaction is from the owner
+		// of the gas price oracle
+		sender, _ := types.Sender(s.signer, tx)
+		owner := s.GasPriceOracleOwnerAddress()
+		if owner != nil && sender == *owner {
+			if err := s.updateGasPriceOracleCache(nil); err != nil {
+				return err
+			}
 		}
+		return nil
 	}
-	return nil
 }
 
 // applyBatchedTransaction applies transactions that were batched to layer one.
