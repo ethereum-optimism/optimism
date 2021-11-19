@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.5.3
+
+### Patch Changes
+
+- b9049406: Use a gas price of zero for static calls in the deploy process
+- a8b14a7d: Adds additional deploy step to transfer messenger ownership
+
 ## 0.5.2
 
 ### Patch Changes
