@@ -1,11 +1,12 @@
-#!/usr/bin/env node
-const path = require('path')
-const glob = require('glob')
-const fs = require('fs')
+import path from 'path'
+import glob from 'glob'
+import fs from 'fs'
 
-;(async () => {
-  console.log(`writing deployed contract artifacts typescript file`)
-
+/**
+ * Script for automatically generating a TypeScript file for retrieving deploy artifact JSON files.
+ * We do this to make sure that this package remains browser compatible.
+ */
+const main = async () => {
   let content = `
   /* eslint-disable */
   /*
@@ -51,14 +52,12 @@ const fs = require('fs')
   content += `
   export const getDeployedContractArtifact = (name: string, network: string): any => {
     return {
-      ${artifactNames
-        .map((artifactName) => {
-          return `${artifactName}: ${artifactName}`
-        })
-        .join(',\n')}
+      ${artifactNames.join(',\n')}
     }[(network + '__' + name).replace(/-/g, '_')]
   }
   `
 
   fs.writeFileSync(`./src/contract-deployed-artifacts.ts`, content)
-})().catch(console.error)
+}
+
+main()
