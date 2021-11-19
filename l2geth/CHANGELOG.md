@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.1
+
+### Patch Changes
+
+- 7f2898ba: Fixes deadlock
+
 ## 0.5.0
 
 ### Minor Changes
