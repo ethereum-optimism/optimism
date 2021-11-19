@@ -806,9 +806,9 @@ func (s *SyncService) applyTransactionToTip(tx *types.Transaction) error {
 	// Note that Ethereum Layer one consensus rules dictate that the timestamp
 	// must be strictly increasing between blocks, so no need to check both the
 	// timestamp and the blocknumber.
+  ts := s.GetLatestL1Timestamp()
+  bn := s.GetLatestL1BlockNumber()
 	if tx.L1Timestamp() == 0 {
-		ts := s.GetLatestL1Timestamp()
-		bn := s.GetLatestL1BlockNumber()
 		tx.SetL1Timestamp(ts)
 		tx.SetL1BlockNumber(bn)
 	} else if tx.L1Timestamp() > s.GetLatestL1Timestamp() {
@@ -816,17 +816,15 @@ func (s *SyncService) applyTransactionToTip(tx *types.Transaction) error {
 		// service's locally maintained timestamp, update the timestamp and
 		// blocknumber to equal that of the transaction's. This should happen
 		// with `enqueue` transactions.
-		ts := tx.L1Timestamp()
-		bn := tx.L1BlockNumber()
-		s.SetLatestL1Timestamp(ts)
-		s.SetLatestL1BlockNumber(bn.Uint64())
+		s.SetLatestL1Timestamp(tx.L1Timestamp())
+		s.SetLatestL1BlockNumber(tx.L1BlockNumber().Uint64())
 		log.Debug("Updating OVM context based on new transaction", "timestamp", ts, "blocknumber", bn.Uint64(), "queue-origin", tx.QueueOrigin())
 	} else if tx.L1Timestamp() < s.GetLatestL1Timestamp() {
 		log.Error("Timestamp monotonicity violation", "hash", tx.Hash().Hex())
 	}
 
+  index := s.GetLatestIndex()
 	if tx.GetMeta().Index == nil {
-		index := s.GetLatestIndex()
 		if index == nil {
 			tx.SetIndex(0)
 		} else {
@@ -838,6 +836,7 @@ func (s *SyncService) applyTransactionToTip(tx *types.Transaction) error {
 	// the case where the index is updated but the
 	// transaction isn't yet added to the chain
 	s.SetLatestIndex(tx.GetMeta().Index)
+  enqueueIndex := s.GetLatestEnqueueIndex()
 	if tx.GetMeta().QueueIndex != nil {
 		s.SetLatestEnqueueIndex(tx.GetMeta().QueueIndex)
 	}
@@ -857,6 +856,10 @@ func (s *SyncService) applyTransactionToTip(tx *types.Transaction) error {
 	select {
 	case err := <-errCh:
 		log.Error("Got error waiting for transaction to be added to chain", "msg", err)
+    s.SetLatestL1Timestamp(ts)
+    s.SetLatestL1BlockNumber(bn)
+    s.SetLatestIndex(index)
+    s.SetLatestEnqueueIndex(enqueueIndex)
 		return err
 	case <-s.chainHeadCh:
 		// Update the cache when the transaction is from the owner
@@ -865,6 +868,10 @@ func (s *SyncService) applyTransactionToTip(tx *types.Transaction) error {
 		owner := s.GasPriceOracleOwnerAddress()
 		if owner != nil && sender == *owner {
 			if err := s.updateGasPriceOracleCache(nil); err != nil {
+        s.SetLatestL1Timestamp(ts)
+        s.SetLatestL1BlockNumber(bn)
+        s.SetLatestIndex(index)
+        s.SetLatestEnqueueIndex(enqueueIndex)
 				return err
 			}
 		}
