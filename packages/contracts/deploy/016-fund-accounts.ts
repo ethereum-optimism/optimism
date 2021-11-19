@@ -5,10 +5,7 @@ import { defaultHardhatNetworkHdAccountsConfigParams } from 'hardhat/internal/co
 import { normalizeHardhatNetworkAccountsConfig } from 'hardhat/internal/core/providers/util'
 
 /* Imports: Internal */
-import {
-  getContractFromArtifact,
-  isHardhatNode,
-} from '../src/hardhat-deploy-ethers'
+import { getContractFromArtifact, isHardhatNode } from '../src/deploy-utils'
 import { names } from '../src/address-names'
 
 // This is a TEMPORARY way to fund the default hardhat accounts on L2. The better way to do this is

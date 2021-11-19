@@ -3,13 +3,11 @@ import { DeployFunction } from 'hardhat-deploy/dist/types'
 import { hexStringEquals, awaitCondition } from '@eth-optimism/core-utils'
 
 /* Imports: Internal */
-import { getContractFromArtifact } from '../src/hardhat-deploy-ethers'
+import { getContractFromArtifact } from '../src/deploy-utils'
 import { names } from '../src/address-names'
 
 const deployFn: DeployFunction = async (hre) => {
   const { deployer } = await hre.getNamedAccounts()
-
-  console.log(`Initializing Proxy__L1CrossDomainMessenger...`)
 
   // There's a risk that we could get front-run during a fresh deployment, which would brick this
   // contract and require that the proxy be re-deployed. We will not have this risk once we move
@@ -29,6 +27,7 @@ const deployFn: DeployFunction = async (hre) => {
     names.unmanaged.Lib_AddressManager
   )
 
+  console.log(`Initializing Proxy__OVM_L1CrossDomainMessenger...`)
   await Proxy__OVM_L1CrossDomainMessenger.initialize(Lib_AddressManager.address)
 
   console.log(`Checking that contract was correctly initialized...`)
@@ -37,6 +36,22 @@ const deployFn: DeployFunction = async (hre) => {
       return hexStringEquals(
         await Proxy__OVM_L1CrossDomainMessenger.libAddressManager(),
         Lib_AddressManager.address
+      )
+    },
+    5000,
+    100
+  )
+
+  console.log(`Setting Proxy__OVM_L1CrossDomainMessenger owner...`)
+  const owner = (hre as any).deployConfig.ovmAddressManagerOwner
+  await Proxy__OVM_L1CrossDomainMessenger.transferOwnership(owner)
+
+  console.log(`Checking that the contract owner was correctly set...`)
+  await awaitCondition(
+    async () => {
+      return hexStringEquals(
+        await Proxy__OVM_L1CrossDomainMessenger.owner(),
+        owner
       )
     },
     5000,

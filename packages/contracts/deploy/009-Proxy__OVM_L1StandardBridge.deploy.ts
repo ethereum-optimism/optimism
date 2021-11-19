@@ -2,7 +2,7 @@
 import { DeployFunction } from 'hardhat-deploy/dist/types'
 
 /* Imports: Internal */
-import { deployAndVerifyAndThen } from '../src/hardhat-deploy-ethers'
+import { deployAndVerifyAndThen } from '../src/deploy-utils'
 import { names } from '../src/address-names'
 
 const deployFn: DeployFunction = async (hre) => {

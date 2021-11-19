@@ -5,13 +5,15 @@ import chaiAsPromised from 'chai-as-promised'
 import * as dotenv from 'dotenv'
 import { getenv, remove0x } from '@eth-optimism/core-utils'
 import { providers, BigNumber } from 'ethers'
+import { solidity } from 'ethereum-waffle'
 import { SurgeryDataSources, Account, AccountType } from '../scripts/types'
 import { loadSurgeryData } from '../scripts/data'
-import { classify } from '../scripts/classifiers'
+import { classify, classifiers } from '../scripts/classifiers'
 import { GenesisJsonProvider } from './provider'
 
 // Chai plugins go here.
 chai.use(chaiAsPromised)
+chai.use(solidity)
 
 const should = chai.should()
 const expect = chai.expect
@@ -19,6 +21,9 @@ const expect = chai.expect
 dotenv.config()
 
 export const NUM_ACCOUNTS_DIVISOR = 4096
+export const ERC20_ABI = [
+  'function balanceOf(address owner) view returns (uint256)',
+]
 
 interface TestEnvConfig {
   preL2ProviderUrl: string | null
@@ -63,6 +68,9 @@ class TestEnv {
 
   // List of typed accounts in the input dump
   accounts: TypedAccount[] = []
+
+  // List of erc20 contracts in input dump
+  erc20s: Account[] = []
 
   constructor(opts: TestEnvConfig) {
     this.config = opts
@@ -138,6 +146,10 @@ class TestEnv {
           ...account,
           type: accountType,
         })
+
+        if (classifiers[AccountType.ERC20](account, this.surgeryDataSources)) {
+          this.erc20s.push(account)
+        }
       }
     }
   }
