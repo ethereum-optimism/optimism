@@ -6,7 +6,7 @@ An Ethereum network with its own native security mechanism (ie. proof of work, p
 
 ### Layer 2 (L2)
 
-The Optimistic Ethereum Network.
+A network that derives its security from a layer one.
 
 ### State Root Oracle
 
