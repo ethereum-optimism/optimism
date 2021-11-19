@@ -267,7 +267,7 @@ jobs:
           context: .
           file: ./ops/docker/Dockerfile.monorepo
           push: true
-          tags: ethereumoptimism/builder:${{ needs.release.outputs.builder }},ethereumoptimism/builder:latest
+          tags: ethereumoptimism/builder:latest
 
   message-relayer:
     name: Publish Message Relayer Version ${{ needs.builder.outputs.message-relayer }}
