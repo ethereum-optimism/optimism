@@ -818,7 +818,7 @@ func (s *SyncService) applyTransactionToTip(tx *types.Transaction) error {
 		// with `enqueue` transactions.
 		s.SetLatestL1Timestamp(tx.L1Timestamp())
 		s.SetLatestL1BlockNumber(tx.L1BlockNumber().Uint64())
-		log.Debug("Updating OVM context based on new transaction", "timestamp", ts, "blocknumber", bn.Uint64(), "queue-origin", tx.QueueOrigin())
+		log.Debug("Updating OVM context based on new transaction", "timestamp", ts, "blocknumber", tx.L1BlockNumber().Uint64(), "queue-origin", tx.QueueOrigin())
 	} else if tx.L1Timestamp() < s.GetLatestL1Timestamp() {
 		log.Error("Timestamp monotonicity violation", "hash", tx.Hash().Hex())
 	}
