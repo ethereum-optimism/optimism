@@ -506,7 +506,10 @@ func (w *worker) mainLoop() {
 				}
 				w.pendingMu.Unlock()
 			} else {
-				log.Debug("Problem committing transaction", "msg", err)
+				log.Error("Problem committing transaction", "msg", err)
+				if ev.ErrCh != nil {
+					ev.ErrCh <- err
+				}
 			}
 
 		case ev := <-w.txsCh:
@@ -781,6 +784,11 @@ func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coin
 	}
 
 	var coalescedLogs []*types.Log
+	// UsingOVM
+	// Keep track of the number of transactions being added to the block.
+	// Blocks should only have a single transaction. This value is used to
+	// compute a success return value
+	var txCount int
 
 	for {
 		// In the following three cases, we will interrupt the execution of the transaction.
@@ -813,6 +821,8 @@ func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coin
 		if tx == nil {
 			break
 		}
+
+		txCount++
 
 		// Error may be ignored here. The error has already been checked
 		// during transaction acceptance is the transaction pool.
@@ -881,7 +891,7 @@ func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coin
 	if interrupt != nil {
 		w.resubmitAdjustCh <- &intervalAdjust{inc: false}
 	}
-	return false
+	return txCount == 0
 }
 
 // commitNewTx is an OVM addition that mines a block with a single tx in it.
