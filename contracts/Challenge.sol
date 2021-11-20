@@ -34,7 +34,7 @@ contract Challenge {
     mapping(uint256 => bytes32) assertedState;
     mapping(uint256 => bytes32) defendedState;
     address payable challenger;
-    // TODO: add the block here?
+    uint256 blockNumberN;
   }
   mapping(uint256 => Chal) challenges;
 
@@ -57,7 +57,7 @@ contract Challenge {
   uint256 public lastChallengeId = 0;
 
   event ChallengeCreate(uint256 challengeId);
-  function newChallengeTrusted(bytes32 startState, bytes32 finalSystemState, uint256 stepCount) internal returns (uint256) {
+  function newChallengeTrusted(uint256 blockNumberN, bytes32 startState, bytes32 finalSystemState, uint256 stepCount) internal returns (uint256) {
     uint256 challengeId = lastChallengeId;
     Chal storage c = challenges[challengeId];
     lastChallengeId += 1;
@@ -66,6 +66,7 @@ contract Challenge {
     c.challenger = msg.sender;
 
     // the state is set 
+    c.blockNumberN = blockNumberN;
     // NOTE: if they disagree on the start, 0->1 will fail
     c.assertedState[0] = startState;
     c.defendedState[0] = startState;
@@ -139,7 +140,7 @@ contract Challenge {
     require(mem.ReadMemory(finalSystemState, 0x30000800) == 0x1337f00d, "state is not outputted");
     require(mem.ReadBytes32(finalSystemState, 0x30000804) == assertionRoot, "you are claiming a different state root in machine");
 
-    return newChallengeTrusted(startState, finalSystemState, stepCount);
+    return newChallengeTrusted(blockNumberN, startState, finalSystemState, stepCount);
   }
 
   // binary search
