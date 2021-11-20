@@ -14,10 +14,25 @@ contract MIPSMemory {
 
   // TODO: replace with mapping(bytes32 => mapping(uint, bytes4))
   // to only save the part we care about
-  mapping(bytes32 => bytes) public preimage;
+  struct Preimage {
+    uint length;
+    mapping(uint => uint64) data;
+  }
 
-  function AddPreimage(bytes calldata anything) public {
-    preimage[keccak256(anything)] = anything;
+  mapping(bytes32 => Preimage) public preimage;
+
+  function AddPreimage(bytes calldata anything, uint offset) public {
+    require(offset & 3 == 0, "offset must be 32-bit aligned");
+    uint len = anything.length;
+    require(offset < len, "offset can't be longer than input");
+    Preimage storage p = preimage[keccak256(anything)];
+    require(p.length == 0 || p.length == len, "length is somehow wrong");
+    p.length = len;
+    p.data[offset] = (1 << 32) |
+                     (uint32(uint8(anything[offset+0])) << 24) |
+                     (uint32(uint8(anything[offset+1])) << 16) |
+                     (uint32(uint8(anything[offset+2])) << 8) |
+                     (uint32(uint8(anything[offset+3])) << 0);
   }
 
   // one per owner (at a time)
@@ -75,18 +90,24 @@ contract MIPSMemory {
     return Lib_MerkleTrie.update(tb(addr>>2), tb(value), stateHash);
   }
 
-  event DidStep(bytes32 stateHash);
-  function WriteMemoryWithReceipt(bytes32 stateHash, uint32 addr, uint32 value) public {
-    bytes32 newStateHash = WriteMemory(stateHash, addr, value);
-    emit DidStep(newStateHash);
-  }
-
   function WriteBytes32(bytes32 stateHash, uint32 addr, bytes32 val) public returns (bytes32) {
     for (uint32 i = 0; i < 32; i += 4) {
       uint256 tv = uint256(val>>(224-(i*8)));
       stateHash = WriteMemory(stateHash, addr+i, uint32(tv));
     }
     return stateHash;
+  }
+
+  // TODO: refactor writeMemory function to not need these
+  event DidStep(bytes32 stateHash);
+  function WriteMemoryWithReceipt(bytes32 stateHash, uint32 addr, uint32 value) public {
+    bytes32 newStateHash = WriteMemory(stateHash, addr, value);
+    emit DidStep(newStateHash);
+  }
+
+  function WriteBytes32WithReceipt(bytes32 stateHash, uint32 addr, bytes32 value) public {
+    bytes32 newStateHash = WriteBytes32(stateHash, addr, value);
+    emit DidStep(newStateHash);
   }
 
   // needed for preimage oracle
@@ -114,14 +135,9 @@ contract MIPSMemory {
         return uint32(preimage[pihash].length);
       }
       uint offset = addr-0x31000004;
-      uint8 a0 = uint8(preimage[pihash][offset]);
-      uint8 a1 = uint8(preimage[pihash][offset+1]);
-      uint8 a2 = uint8(preimage[pihash][offset+2]);
-      uint8 a3 = uint8(preimage[pihash][offset+3]);
-      return (uint32(a0) << 24) |
-             (uint32(a1) << 16) |
-             (uint32(a2) << 8) |
-             (uint32(a3) << 0);
+      uint64 data = preimage[pihash].data[offset];
+      require(data > 0, "offset must be loaded in");
+      return uint32(data);
     }
 
     bool exists;

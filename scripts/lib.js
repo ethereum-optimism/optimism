@@ -103,4 +103,21 @@ function getTrieAtStep(blockNumberN, step) {
   return JSON.parse(fs.readFileSync(fn))
 }
 
-module.exports = { deploy, deployed, getTrieNodesForCall, getBlockRlp, getTrieAtStep }
+
+async function writeMemory(mm, root, addr, data, bytes32=false) {
+  if (bytes32) {
+    ret = await mm.WriteBytes32WithReceipt(root, addr, data)
+  } else {
+    ret = await mm.WriteMemoryWithReceipt(root, addr, data)
+  }
+  const receipt = await ret.wait()
+  for (l of receipt.logs) {
+    if (l.topics[0] == "0x86b89b5c9818dbbf520dd979a5f250d357508fe11b9511d4a43fd9bc6aa1be70") {
+      root = l.data
+    }
+  }
+  console.log("new hash", root)
+  return root
+}
+
+module.exports = { deploy, deployed, getTrieNodesForCall, getBlockRlp, getTrieAtStep, writeMemory }

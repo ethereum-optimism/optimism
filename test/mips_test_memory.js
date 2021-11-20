@@ -1,16 +1,5 @@
 const { expect } = require("chai");
-
-async function write(mm, root, addr, data) {
-  ret = await mm.WriteMemoryWithReceipt(root, addr, data)
-  const receipt = await ret.wait()
-  for (l of receipt.logs) {
-    if (l.topics[0] == "0x86b89b5c9818dbbf520dd979a5f250d357508fe11b9511d4a43fd9bc6aa1be70") {
-      root = l.data
-    }
-  }
-  console.log("new hash", root)
-  return root
-}
+const { writeMemory } = require("../scripts/lib")
 
 function randint(n) {
   return Math.floor(Math.random() * n)
@@ -25,8 +14,8 @@ describe("MIPSMemory contract", function () {
   it("write from new should work", async function() {
     let root = "0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421"
 
-    root = await write(mm, root, 0, 1)
-    root = await write(mm, root, 4, 2)
+    root = await writeMemory(mm, root, 0, 1)
+    root = await writeMemory(mm, root, 4, 2)
 
     expect(await mm.ReadMemory(root, 0)).to.equal(1)
     expect(await mm.ReadMemory(root, 4)).to.equal(2)
@@ -35,9 +24,9 @@ describe("MIPSMemory contract", function () {
     await mm.AddTrieNode(new Uint8Array([0x80]))
     let root = "0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421"
 
-    root = await write(mm, root, 0, 1)
-    root = await write(mm, root, 4, 2)
-    root = await write(mm, root, 0x40, 3)
+    root = await writeMemory(mm, root, 0, 1)
+    root = await writeMemory(mm, root, 4, 2)
+    root = await writeMemory(mm, root, 0x40, 3)
 
     expect(await mm.ReadMemory(root, 0)).to.equal(1)
     expect(await mm.ReadMemory(root, 4)).to.equal(2)
@@ -46,9 +35,9 @@ describe("MIPSMemory contract", function () {
   it("write other three should work", async function() {
     let root = "0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421"
 
-    root = await write(mm, root, 0x7fffd00c, 1)
-    root = await write(mm, root, 0x7fffd010, 2)
-    root = await write(mm, root, 0x7fffcffc, 3)
+    root = await writeMemory(mm, root, 0x7fffd00c, 1)
+    root = await writeMemory(mm, root, 0x7fffd010, 2)
+    root = await writeMemory(mm, root, 0x7fffcffc, 3)
 
     expect(await mm.ReadMemory(root, 0x7fffd00c)).to.equal(1)
     expect(await mm.ReadMemory(root, 0x7fffd010)).to.equal(2)
@@ -56,9 +45,9 @@ describe("MIPSMemory contract", function () {
   })
   it("bug found fuzzing 1", async function() {
     let root = "0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421"
-    root = await write(mm, root, 0, 0)
-    root = await write(mm, root, 0, 1)
-    root = await write(mm, root, 0, 2)
+    root = await writeMemory(mm, root, 0, 0)
+    root = await writeMemory(mm, root, 0, 1)
+    root = await writeMemory(mm, root, 0, 2)
   })
   it("fuzzing should be okay", async function() {
     let root = "0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421"
@@ -72,14 +61,14 @@ describe("MIPSMemory contract", function () {
         const key = randint(0x100)*4
         const value = randint(0x100000000)
         console.log("writing", key, value)
-        root = await write(mm, root, key, value)
+        root = await writeMemory(mm, root, key, value)
         kv[key] = value
       } else if (choice < 0.5) {
         // write new high key
         const key = randint(0x100)*4 + 0x10000000
         const value = randint(0x100000000)
         console.log("writing", key, value)
-        root = await write(mm, root, key, value)
+        root = await writeMemory(mm, root, key, value)
         kv[key] = value
       } else if (choice > 0.7) {
         // read old key
@@ -93,7 +82,7 @@ describe("MIPSMemory contract", function () {
         const key = keys[idx]
         const value = randint(0x100000000)
         console.log("writing", key, value)
-        root = await write(mm, root, key, value)
+        root = await writeMemory(mm, root, key, value)
         kv[key] = value
       }
     }
