@@ -1,6 +1,9 @@
 const { keccak256 } = require("@ethersproject/keccak256");
 const { expect } = require("chai");
 
+const empty = [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0];
+const endEmpty = [0x1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,"0x8000000000000000"];
+
 describe("MIPSMemory contract", function () {
   it("Keccak should work", async function () {
     const [owner] = await ethers.getSigners();
@@ -9,20 +12,22 @@ describe("MIPSMemory contract", function () {
     const mm = await MIPSMemory.deploy();
     console.log("deployed at", mm.address, "by", owner.address);
 
-    await mm.AddLargePreimageInit();
+    await mm.AddLargePreimageInit(0);
     console.log("preimage initted");
 
+    // empty
+    expect(await mm.AddLargePreimageFinal(endEmpty)).to.equal(keccak256(new Uint8Array(0)));
+
     // block size is 136
-    //const a = ["0x0100000000000000",0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0x80];
-    const a = [0x1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,"0x8000000000000000"];
-    await mm.AddLargePreimageUpdate(a);
+    await mm.AddLargePreimageUpdate(empty);
+
+    const hash = await mm.AddLargePreimageFinal(endEmpty);
     console.log("preimage updated");
 
     /*var tst1 = await mm.largePreimage(owner.address, 0);
     console.log(tst);*/
 
-    const hash = await mm.AddLargePreimageFinal();
-    const realhash = keccak256(new Uint8Array(0));
+    const realhash = keccak256(new Uint8Array(136));
     console.log("comp hash is", hash);
     console.log("real hash is", realhash);
     expect(hash).to.equal(realhash);

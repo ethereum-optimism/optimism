@@ -36,13 +36,19 @@ contract MIPSMemory {
   }
 
   // one per owner (at a time)
-  mapping(address => uint64[25]) public largePreimage;
-  // TODO: also track the offset into the largePreimage to know what to store
 
-  function AddLargePreimageInit() public {
+  struct LargePreimage {
+    uint offset;
+  }
+  mapping(address => LargePreimage) public largePreimage;
+  // sadly due to soldiity limitations this can't be in the LargePreimage struct
+  mapping(address => uint64[25]) public largePreimageState;
+
+  function AddLargePreimageInit(uint offset) public {
     Lib_Keccak256.CTX memory c;
     Lib_Keccak256.keccak_init(c);
-    largePreimage[msg.sender] = c.A;
+    largePreimageState[msg.sender] = c.A;
+    largePreimage[msg.sender].offset = offset;
   }
 
   // TODO: input 136 bytes, as many times as you'd like
@@ -50,18 +56,26 @@ contract MIPSMemory {
   function AddLargePreimageUpdate(uint64[17] calldata data) public {
     // sha3_process_block
     Lib_Keccak256.CTX memory c;
-    c.A = largePreimage[msg.sender];
+    c.A = largePreimageState[msg.sender];
     for (uint i = 0; i < 17; i++) {
       c.A[i] ^= data[i];
     }
     Lib_Keccak256.sha3_permutation(c);
-    largePreimage[msg.sender] = c.A;
+    largePreimageState[msg.sender] = c.A;
   }
 
   // TODO: input <136 bytes and do the end of hash | 0x01 / | 0x80
-  function AddLargePreimageFinal() public view returns (bytes32) {
+  function AddLargePreimageFinal(uint64[17] calldata data) public view returns (bytes32) {
     Lib_Keccak256.CTX memory c;
-    c.A = largePreimage[msg.sender];
+    c.A = largePreimageState[msg.sender];
+
+    // TODO: check data is valid as the final block
+    // maybe even modify it
+    for (uint i = 0; i < 17; i++) {
+      c.A[i] ^= data[i];
+    }
+    Lib_Keccak256.sha3_permutation(c);
+
     // TODO: do this properly and save the hash
     // when this is updated, it won't be "view"
     return Lib_Keccak256.get_hash(c);
