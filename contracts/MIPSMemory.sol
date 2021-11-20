@@ -29,10 +29,10 @@ contract MIPSMemory {
     require(p.length == 0 || p.length == len, "length is somehow wrong");
     p.length = len;
     p.data[offset] = (1 << 32) |
-                     (uint32(uint8(anything[offset+0])) << 24) |
-                     (uint32(uint8(anything[offset+1])) << 16) |
-                     (uint32(uint8(anything[offset+2])) << 8) |
-                     (uint32(uint8(anything[offset+3])) << 0);
+                     ((len <= (offset+0) ? 0 : uint32(uint8(anything[offset+0]))) << 24) |
+                     ((len <= (offset+1) ? 0 : uint32(uint8(anything[offset+1]))) << 16) |
+                     ((len <= (offset+2) ? 0 : uint32(uint8(anything[offset+2]))) << 8) |
+                     ((len <= (offset+3) ? 0 : uint32(uint8(anything[offset+3]))) << 0);
   }
 
   // one per owner (at a time)
@@ -131,12 +131,16 @@ contract MIPSMemory {
     // MMIO preimage oracle
     if (addr >= 0x31000000 && addr < 0x32000000) {
       bytes32 pihash = ReadBytes32(stateHash, 0x30001000);
+      if (pihash == keccak256("")) {
+        // both the length and any data are 0
+        return 0;
+      }
       if (addr == 0x31000000) {
         return uint32(preimage[pihash].length);
       }
       uint offset = addr-0x31000004;
       uint64 data = preimage[pihash].data[offset];
-      require(data > 0, "offset must be loaded in");
+      require(data > 0, "offset not loaded");
       return uint32(data);
     }
 

@@ -3,6 +3,7 @@
     "@nomiclabs/hardhat-ethers": "^2.0.2",
     "@types/node": "^16.9.2",
     "chai": "^4.3.4",
+    "ethereum-waffle": "^3.4.0",
     "ethers": "^5.4.7",
     "hardhat": "^2.6.4",
     "hardhat-gas-reporter": "^1.0.4",
