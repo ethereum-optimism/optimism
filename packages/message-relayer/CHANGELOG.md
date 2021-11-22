@@ -1,5 +1,14 @@
 # @eth-optimism/message-relayer
 
+## 0.2.4
+
+### Patch Changes
+
+- 8e634b49: Fix package JSON issues
+- Updated dependencies [8e634b49]
+  - @eth-optimism/core-utils@0.7.2
+  - @eth-optimism/contracts@0.5.4
+
 ## 0.2.3
 
 ### Patch Changes

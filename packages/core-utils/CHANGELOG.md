@@ -1,5 +1,11 @@
 # @eth-optimism/core-utils
 
+## 0.7.2
+
+### Patch Changes
+
+- 8e634b49: Fix package JSON issues
+
 ## 0.7.1
 
 ### Patch Changes
