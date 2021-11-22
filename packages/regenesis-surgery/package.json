@@ -1,7 +1,7 @@
 {
   "private": true,
   "name": "@eth-optimism/regenesis-surgery",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "[Optimism] Tooling for managing the OVM 1.0 to OVM 2.0 upgrade",
   "main": "dist/index",
   "types": "dist/index",
@@ -32,7 +32,7 @@
   },
   "devDependencies": {
     "@discoveryjs/json-ext": "^0.5.3",
-    "@eth-optimism/core-utils": "0.7.1",
+    "@eth-optimism/core-utils": "0.7.2",
     "@ethersproject/abstract-provider": "^5.5.1",
     "@ethersproject/abi": "^5.5.0",
     "@ethersproject/bignumber": "^5.5.0",

@@ -1,5 +1,11 @@
 # @eth-optimism/regenesis-surgery
 
+## 0.2.2
+
+### Patch Changes
+
+- 8e634b49: Fix package JSON issues
+
 ## 0.2.1
 
 ### Patch Changes

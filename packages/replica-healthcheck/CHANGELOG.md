@@ -1,5 +1,13 @@
 # @eth-optimism/replica-healthcheck
 
+## 0.3.2
+
+### Patch Changes
+
+- 8e634b49: Fix package JSON issues
+- Updated dependencies [8e634b49]
+  - @eth-optimism/core-utils@0.7.2
+
 ## 0.3.1
 
 ### Patch Changes
