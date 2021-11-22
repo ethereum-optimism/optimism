@@ -7,7 +7,7 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/urfave/cli"
 
-	"github.com/ethereum-optimism/go/batch-submitter/flags"
+	"github.com/ethereum-optimism/optimism/go/batch-submitter/flags"
 )
 
 var (

@@ -1,4 +1,4 @@
-module github.com/ethereum-optimism/go/batch-submitter
+module github.com/ethereum-optimism/optimism/go/batch-submitter
 
 go 1.16
 
