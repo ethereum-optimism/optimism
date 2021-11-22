@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"time"
 
+	l2ethclient "github.com/ethereum-optimism/optimism/l2geth/ethclient"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
@@ -57,7 +58,7 @@ type BatchSubmitter struct {
 	ctx              context.Context
 	cfg              Config
 	l1Client         *ethclient.Client
-	l2Client         *ethclient.Client
+	l2Client         *l2ethclient.Client
 	sequencerPrivKey *ecdsa.PrivateKey
 	proposerPrivKey  *ecdsa.PrivateKey
 	ctcAddress       common.Address
@@ -118,14 +119,14 @@ func NewBatchSubmitter(cfg Config, gitVersion string) (*BatchSubmitter, error) {
 		return nil, err
 	}
 
-	// Connect to L1 and L2 providers. Perform these lastsince they are the
+	// Connect to L1 and L2 providers. Perform these last since they are the
 	// most expensive.
-	l1Client, err := dialEthClientWithTimeout(ctx, cfg.L1EthRpc)
+	l1Client, err := dialL1EthClientWithTimeout(ctx, cfg.L1EthRpc)
 	if err != nil {
 		return nil, err
 	}
 
-	l2Client, err := dialEthClientWithTimeout(ctx, cfg.L2EthRpc)
+	l2Client, err := dialL2EthClientWithTimeout(ctx, cfg.L2EthRpc)
 	if err != nil {
 		return nil, err
 	}
@@ -191,16 +192,28 @@ func runMetricsServer(hostname string, port uint64) {
 	_ = http.ListenAndServe(metricsAddr, nil)
 }
 
-// dialEthClientWithTimeout attempts to dial the L1 or L2 provider using the
+// dialL1EthClientWithTimeout attempts to dial the L1 provider using the
 // provided URL. If the dial doesn't complete within defaultDialTimeout seconds,
 // this method will return an error.
-func dialEthClientWithTimeout(ctx context.Context, url string) (
+func dialL1EthClientWithTimeout(ctx context.Context, url string) (
 	*ethclient.Client, error) {
 
 	ctxt, cancel := context.WithTimeout(ctx, defaultDialTimeout)
 	defer cancel()
 
 	return ethclient.DialContext(ctxt, url)
+}
+
+// dialL2EthClientWithTimeout attempts to dial the L2 provider using the
+// provided URL. If the dial doesn't complete within defaultDialTimeout seconds,
+// this method will return an error.
+func dialL2EthClientWithTimeout(ctx context.Context, url string) (
+	*l2ethclient.Client, error) {
+
+	ctxt, cancel := context.WithTimeout(ctx, defaultDialTimeout)
+	defer cancel()
+
+	return l2ethclient.DialContext(ctxt, url)
 }
 
 // traceRateToFloat64 converts a time.Duration into a valid float64 for the
