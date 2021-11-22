@@ -5,7 +5,7 @@
   "main": "dist/index",
   "types": "dist/index",
   "files": [
-    "dist/index"
+    "dist/*"
   ],
   "bin": {
     "withdraw": "./src/exec/withdraw.ts"
