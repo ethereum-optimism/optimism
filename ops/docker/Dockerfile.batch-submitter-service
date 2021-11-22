@@ -1,0 +1,18 @@
+FROM golang:1.15-alpine3.13 as builder
+
+RUN apk add --no-cache make gcc musl-dev linux-headers git jq bash
+
+COPY ./l2geth /l2geth
+COPY ./go/batch-submitter/go.mod ./go/batch-submitter/go.sum /go/batch-submitter/
+WORKDIR /go/batch-submitter
+RUN go mod graph | grep -v l2geth | awk '{if ($1 !~ "@") print $2}' | xargs -n 1 go get
+COPY ./go/batch-submitter/ ./
+RUN make
+
+FROM alpine:3.13
+
+RUN apk add --no-cache ca-certificates jq curl
+COPY --from=builder /go/batch-submitter/batch-submitter /usr/local/bin/
+
+COPY ./ops/scripts/batch-submitter.sh .
+ENTRYPOINT ["batch-submitter"]
