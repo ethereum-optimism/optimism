@@ -22,11 +22,11 @@ import (
 	"os"
 	"strings"
 
-	"github.com/ethereum/go-ethereum/internal/ethapi"
-	"github.com/ethereum/go-ethereum/log"
-	"github.com/ethereum/go-ethereum/signer/core"
-	"github.com/ethereum/go-ethereum/signer/rules/deps"
-	"github.com/ethereum/go-ethereum/signer/storage"
+	"github.com/ethereum-optimism/optimism/l2geth/internal/ethapi"
+	"github.com/ethereum-optimism/optimism/l2geth/log"
+	"github.com/ethereum-optimism/optimism/l2geth/signer/core"
+	"github.com/ethereum-optimism/optimism/l2geth/signer/rules/deps"
+	"github.com/ethereum-optimism/optimism/l2geth/signer/storage"
 	"github.com/robertkrimen/otto"
 )
 

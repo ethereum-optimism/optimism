@@ -24,14 +24,14 @@ import (
 	"runtime"
 	"time"
 
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/consensus/ethash"
-	"github.com/ethereum/go-ethereum/core"
-	"github.com/ethereum/go-ethereum/eth/downloader"
-	"github.com/ethereum/go-ethereum/eth/gasprice"
-	"github.com/ethereum/go-ethereum/miner"
-	"github.com/ethereum/go-ethereum/params"
-	"github.com/ethereum/go-ethereum/rollup"
+	"github.com/ethereum-optimism/optimism/l2geth/common"
+	"github.com/ethereum-optimism/optimism/l2geth/consensus/ethash"
+	"github.com/ethereum-optimism/optimism/l2geth/core"
+	"github.com/ethereum-optimism/optimism/l2geth/eth/downloader"
+	"github.com/ethereum-optimism/optimism/l2geth/eth/gasprice"
+	"github.com/ethereum-optimism/optimism/l2geth/miner"
+	"github.com/ethereum-optimism/optimism/l2geth/params"
+	"github.com/ethereum-optimism/optimism/l2geth/rollup"
 )
 
 // DefaultConfig contains default settings for use on the Ethereum main net.
@@ -64,7 +64,7 @@ var DefaultConfig = Config{
 	},
 	Rollup: rollup.Config{
 		// The max size of a transaction that is sent over the p2p network is 128kb
-		// https://github.com/ethereum/go-ethereum/blob/c2d2f4ed8f232bb11663a1b01a2e578aa22f24bd/core/tx_pool.go#L51
+		// https://github.com/ethereum-optimism/optimism/l2geth/blob/c2d2f4ed8f232bb11663a1b01a2e578aa22f24bd/core/tx_pool.go#L51
 		// The batch overhead is:
 		// 4 bytes function selector
 		// 5 bytes shouldStartAtElement

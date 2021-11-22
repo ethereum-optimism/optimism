@@ -26,17 +26,17 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/ethereum/go-ethereum/accounts"
-	"github.com/ethereum/go-ethereum/accounts/external"
-	"github.com/ethereum/go-ethereum/accounts/keystore"
-	"github.com/ethereum/go-ethereum/accounts/scwallet"
-	"github.com/ethereum/go-ethereum/accounts/usbwallet"
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/log"
-	"github.com/ethereum/go-ethereum/p2p"
-	"github.com/ethereum/go-ethereum/p2p/enode"
-	"github.com/ethereum/go-ethereum/rpc"
+	"github.com/ethereum-optimism/optimism/l2geth/accounts"
+	"github.com/ethereum-optimism/optimism/l2geth/accounts/external"
+	"github.com/ethereum-optimism/optimism/l2geth/accounts/keystore"
+	"github.com/ethereum-optimism/optimism/l2geth/accounts/scwallet"
+	"github.com/ethereum-optimism/optimism/l2geth/accounts/usbwallet"
+	"github.com/ethereum-optimism/optimism/l2geth/common"
+	"github.com/ethereum-optimism/optimism/l2geth/crypto"
+	"github.com/ethereum-optimism/optimism/l2geth/log"
+	"github.com/ethereum-optimism/optimism/l2geth/p2p"
+	"github.com/ethereum-optimism/optimism/l2geth/p2p/enode"
+	"github.com/ethereum-optimism/optimism/l2geth/rpc"
 )
 
 const (

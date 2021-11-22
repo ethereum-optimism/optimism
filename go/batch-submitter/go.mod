@@ -3,6 +3,7 @@ module github.com/ethereum-optimism/go/batch-submitter
 go 1.16
 
 require (
+	github.com/btcsuite/btcd v0.22.0-beta // indirect
 	github.com/decred/dcrd/hdkeychain/v3 v3.0.0
 	github.com/ethereum/go-ethereum v1.10.11
 	github.com/getsentry/sentry-go v0.11.0

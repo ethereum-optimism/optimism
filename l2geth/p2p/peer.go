@@ -25,13 +25,13 @@ import (
 	"sync"
 	"time"
 
-	"github.com/ethereum/go-ethereum/common/mclock"
-	"github.com/ethereum/go-ethereum/event"
-	"github.com/ethereum/go-ethereum/log"
-	"github.com/ethereum/go-ethereum/metrics"
-	"github.com/ethereum/go-ethereum/p2p/enode"
-	"github.com/ethereum/go-ethereum/p2p/enr"
-	"github.com/ethereum/go-ethereum/rlp"
+	"github.com/ethereum-optimism/optimism/l2geth/common/mclock"
+	"github.com/ethereum-optimism/optimism/l2geth/event"
+	"github.com/ethereum-optimism/optimism/l2geth/log"
+	"github.com/ethereum-optimism/optimism/l2geth/metrics"
+	"github.com/ethereum-optimism/optimism/l2geth/p2p/enode"
+	"github.com/ethereum-optimism/optimism/l2geth/p2p/enr"
+	"github.com/ethereum-optimism/optimism/l2geth/rlp"
 )
 
 var (
