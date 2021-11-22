@@ -6,7 +6,7 @@
   "main": "dist/index",
   "types": "dist/index",
   "files": [
-    "dist/index"
+    "dist/*"
   ],
   "scripts": {
     "clean": "rimraf ./dist ./tsconfig.build.tsbuildinfo",
