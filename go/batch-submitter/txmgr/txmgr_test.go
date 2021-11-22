@@ -83,7 +83,7 @@ type testHarness struct {
 // configuration.
 func newTestHarnessWithConfig(cfg txmgr.Config) *testHarness {
 	backend := newMockBackend()
-	mgr := txmgr.NewSimpleTxManager(cfg, backend)
+	mgr := txmgr.NewSimpleTxManager("TEST", cfg, backend)
 
 	return &testHarness{
 		cfg:     cfg,
