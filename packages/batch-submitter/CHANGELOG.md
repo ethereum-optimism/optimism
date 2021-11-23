@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.5
+
+### Patch Changes
+
+- 85f68bd3: Immediately reject on nonce errors to stop falling behind
+
 ## 0.4.4
 
 ### Patch Changes
