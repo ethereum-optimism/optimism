@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.6
+
+### Patch Changes
+
+- 39607e7c: Trigger release of the batch submitter with yatm retry fix
+
 ## 0.4.5
 
 ### Patch Changes
