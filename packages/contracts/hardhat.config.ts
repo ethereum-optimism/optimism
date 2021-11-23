@@ -20,6 +20,7 @@ import './tasks/validate-address-dictator'
 import './tasks/validate-chugsplash-dictator'
 import './tasks/whitelist'
 import './tasks/withdraw-fees'
+import './tasks/fetch-batches'
 import 'hardhat-gas-reporter'
 
 // Load environment variables from .env
