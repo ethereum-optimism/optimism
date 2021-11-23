@@ -33,7 +33,7 @@
     "lint:contracts:check": "yarn solhint -f table 'contracts/**/*.sol'",
     "lint:check": "yarn lint:contracts:check && yarn lint:ts:check",
     "lint:ts:fix": "eslint --fix .",
-    "lint:contracts:fix": "yarn prettier --write 'contracts/**/*.sol'",
+    "lint:contracts:fix": "prettier --write 'contracts/**/*.sol'",
     "lint:fix": "yarn lint:contracts:fix && yarn lint:ts:fix",
     "lint": "yarn lint:fix && yarn lint:check",
     "clean": "rm -rf ./dist ./artifacts ./cache ./coverage ./tsconfig.build.tsbuildinfo",
@@ -58,6 +58,7 @@
     "url": "https://github.com/ethereum-optimism/optimism.git"
   },
   "dependencies": {
+    "@eth-optimism/chugsplash": "^0.1.0",
     "@eth-optimism/core-utils": "0.7.2",
     "@ethersproject/abstract-provider": "^5.4.1",
     "@ethersproject/abstract-signer": "^5.4.1",

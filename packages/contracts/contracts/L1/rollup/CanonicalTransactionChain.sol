@@ -4,7 +4,6 @@ pragma solidity ^0.8.9;
 /* Library Imports */
 import { AddressAliasHelper } from "../../standards/AddressAliasHelper.sol";
 import { Lib_OVMCodec } from "../../libraries/codec/Lib_OVMCodec.sol";
-import { Lib_AddressResolver } from "../../libraries/resolver/Lib_AddressResolver.sol";
 
 /* Interface Imports */
 import { ICanonicalTransactionChain } from "./ICanonicalTransactionChain.sol";
@@ -19,7 +18,7 @@ import { IChainStorageContainer } from "./IChainStorageContainer.sol";
  * Sequencer will eventually append it to the rollup state.
  *
  */
-contract CanonicalTransactionChain is ICanonicalTransactionChain, Lib_AddressResolver {
+contract CanonicalTransactionChain is ICanonicalTransactionChain {
     /*************
      * Constants *
      *************/
@@ -49,6 +48,8 @@ contract CanonicalTransactionChain is ICanonicalTransactionChain, Lib_AddressRes
      *************/
 
     uint256 public maxTransactionGasLimit;
+    IChainStorageContainer public batches;
+    address public sequencer;
 
     /***************
      * Queue State *
@@ -57,66 +58,9 @@ contract CanonicalTransactionChain is ICanonicalTransactionChain, Lib_AddressRes
     uint40 private _nextQueueIndex; // index of the first queue element not yet included
     Lib_OVMCodec.QueueElement[] queueElements;
 
-    /***************
-     * Constructor *
-     ***************/
-
-    constructor(
-        address _libAddressManager,
-        uint256 _maxTransactionGasLimit,
-        uint256 _l2GasDiscountDivisor,
-        uint256 _enqueueGasCost
-    ) Lib_AddressResolver(_libAddressManager) {
-        maxTransactionGasLimit = _maxTransactionGasLimit;
-        l2GasDiscountDivisor = _l2GasDiscountDivisor;
-        enqueueGasCost = _enqueueGasCost;
-        enqueueL2GasPrepaid = _l2GasDiscountDivisor * _enqueueGasCost;
-    }
-
-    /**********************
-     * Function Modifiers *
-     **********************/
-
-    /**
-     * Modifier to enforce that, if configured, only the Burn Admin may
-     * successfully call a method.
-     */
-    modifier onlyBurnAdmin() {
-        require(msg.sender == libAddressManager.owner(), "Only callable by the Burn Admin.");
-        _;
-    }
-
-    /*******************************
-     * Authorized Setter Functions *
-     *******************************/
-
-    /**
-     * Allows the Burn Admin to update the parameters which determine the amount of gas to burn.
-     * The value of enqueueL2GasPrepaid is immediately updated as well.
-     */
-    function setGasParams(uint256 _l2GasDiscountDivisor, uint256 _enqueueGasCost)
-        external
-        onlyBurnAdmin
-    {
-        enqueueGasCost = _enqueueGasCost;
-        l2GasDiscountDivisor = _l2GasDiscountDivisor;
-        // See the comment in enqueue() for the rationale behind this formula.
-        enqueueL2GasPrepaid = _l2GasDiscountDivisor * _enqueueGasCost;
-
-        emit L2GasParamsUpdated(l2GasDiscountDivisor, enqueueGasCost, enqueueL2GasPrepaid);
-    }
-
     /********************
      * Public Functions *
      ********************/
-
-    /**
-     * Accesses the batch storage container.
-     * @return Reference to the batch storage container.
-     */
-    function batches() public view returns (IChainStorageContainer) {
-        return IChainStorageContainer(resolve("ChainStorageContainer-CTC-batches"));
-    }
 
     /**
      * Retrieves the total number of elements submitted.
@@ -132,7 +76,7 @@ contract CanonicalTransactionChain is ICanonicalTransactionChain, Lib_AddressRes
      * @return _totalBatches Total submitted batches.
      */
     function getTotalBatches() public view returns (uint256 _totalBatches) {
-        return batches().length();
+        return batches.length();
     }
 
     /**
@@ -288,10 +232,7 @@ contract CanonicalTransactionChain is ICanonicalTransactionChain, Lib_AddressRes
             "Actual batch start index does not match expected start index."
         );
 
-        require(
-            msg.sender == resolve("OVM_Sequencer"),
-            "Function can only be called by the Sequencer."
-        );
+        require(msg.sender == sequencer, "Function can only be called by the Sequencer.");
 
         uint40 nextTransactionPtr = uint40(
             BATCH_CONTEXT_START_POS + BATCH_CONTEXT_SIZE * numContexts
@@ -413,7 +354,7 @@ contract CanonicalTransactionChain is ICanonicalTransactionChain, Lib_AddressRes
             uint40
         )
     {
-        bytes27 extraData = batches().getGlobalMetadata();
+        bytes27 extraData = batches.getGlobalMetadata();
 
         uint40 totalElements;
         uint40 nextQueueIndex;
@@ -486,7 +427,7 @@ contract CanonicalTransactionChain is ICanonicalTransactionChain, Lib_AddressRes
         uint40 _timestamp,
         uint40 _blockNumber
     ) internal {
-        IChainStorageContainer batchesRef = batches();
+        IChainStorageContainer batchesRef = batches;
         (uint40 totalElements, uint40 nextQueueIndex, , ) = _getBatchExtraData();
 
         Lib_OVMCodec.ChainBatchHeader memory header = Lib_OVMCodec.ChainBatchHeader({

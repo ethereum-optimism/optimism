@@ -36,22 +36,8 @@ contract L1StandardBridge is IL1StandardBridge, CrossDomainEnabled {
      * Constructor *
      ***************/
 
-    // This contract lives behind a proxy, so the constructor parameters will go unused.
+    // Only used to satisfy the Solidity compiler.
     constructor() CrossDomainEnabled(address(0)) {}
-
-    /******************
-     * Initialization *
-     ******************/
-
-    /**
-     * @param _l1messenger L1 Messenger address being used for cross-chain communications.
-     * @param _l2TokenBridge L2 standard bridge address.
-     */
-    function initialize(address _l1messenger, address _l2TokenBridge) public {
-        require(messenger == address(0), "Contract has already been initialized.");
-        messenger = _l1messenger;
-        l2TokenBridge = _l2TokenBridge;
-    }
 
     /**************
      * Depositing *
