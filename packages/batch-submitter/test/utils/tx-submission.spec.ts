@@ -124,4 +124,41 @@ describe('submitTransactionWithYNATM', async () => {
     }
     await submitTransactionWithYNATM(tx, signer, config, 0, nullHooks)
   })
+
+  it('should immediately reject if a nonce error is encountered', async () => {
+    const tx = {
+      gasPrice: BigNumber.from(1),
+      data: 'hello world!',
+    } as ethers.PopulatedTransaction
+
+    let txCount = 0
+    const waitForTransaction = async (): Promise<TransactionReceipt> => {
+      return {} as TransactionReceipt
+    }
+    const sendTransaction = async () => {
+      txCount++
+      throw new Error('Transaction nonce is too low.')
+    }
+    const signer = {
+      getGasPrice: async () => BigNumber.from(1),
+      sendTransaction: sendTransaction as any,
+      provider: {
+        waitForTransaction: waitForTransaction as any,
+      },
+    } as Signer
+
+    const config: ResubmissionConfig = {
+      resubmissionTimeout: 100,
+      minGasPriceInGwei: 0,
+      maxGasPriceInGwei: 1000,
+      gasRetryIncrement: 1,
+    }
+    try {
+      await submitTransactionWithYNATM(tx, signer, config, 0, nullHooks)
+    } catch (e) {
+      expect(txCount).to.equal(1)
+      return
+    }
+    expect.fail('Expected an error.')
+  })
 })
