@@ -28,6 +28,21 @@ const getGasPriceInGwei = async (signer: Signer): Promise<number> => {
   )
 }
 
+export const ynatmRejectOn = (e) => {
+  // taken almost verbatim from the readme,
+  // see https://github.com/ethereum-optimism/ynatm.
+  // immediately rejects on reverts and nonce errors
+  const errMsg = e.toString().toLowerCase()
+  const conditions = ['revert', 'nonce']
+  for (const cond of conditions) {
+    if (errMsg.includes(cond)) {
+      return true
+    }
+  }
+
+  return false
+}
+
 export const submitTransactionWithYNATM = async (
   tx: PopulatedTransaction,
   signer: Signer,
@@ -55,6 +70,7 @@ export const submitTransactionWithYNATM = async (
     maxGasPrice: ynatm.toGwei(config.maxGasPriceInGwei),
     gasPriceScalingFunction: ynatm.LINEAR(config.gasRetryIncrement),
     delay: config.resubmissionTimeout,
+    rejectImmediatelyOnCondition: ynatmRejectOn,
   })
   return receipt
 }
