@@ -40,7 +40,7 @@ end
 return false
 `
 
-type Redis interface {
+type RateLimiter interface {
 	IsBackendOnline(name string) (bool, error)
 	SetBackendOffline(name string, duration time.Duration) error
 	IncBackendRPS(name string) (int, error)
@@ -49,14 +49,14 @@ type Redis interface {
 	FlushBackendWSConns(names []string) error
 }
 
-type RedisImpl struct {
+type RedisRateLimiter struct {
 	rdb       *redis.Client
 	randID    string
 	touchKeys map[string]time.Duration
 	tkMtx     sync.Mutex
 }
 
-func NewRedis(url string) (Redis, error) {
+func NewRedisRateLimiter(url string) (RateLimiter, error) {
 	opts, err := redis.ParseURL(url)
 	if err != nil {
 		return nil, err
@@ -65,7 +65,7 @@ func NewRedis(url string) (Redis, error) {
 	if err := rdb.Ping(context.Background()).Err(); err != nil {
 		return nil, wrapErr(err, "error connecting to redis")
 	}
-	out := &RedisImpl{
+	out := &RedisRateLimiter{
 		rdb:       rdb,
 		randID:    randStr(20),
 		touchKeys: make(map[string]time.Duration),
@@ -74,7 +74,7 @@ func NewRedis(url string) (Redis, error) {
 	return out, nil
 }
 
-func (r *RedisImpl) IsBackendOnline(name string) (bool, error) {
+func (r *RedisRateLimiter) IsBackendOnline(name string) (bool, error) {
 	exists, err := r.rdb.Exists(context.Background(), fmt.Sprintf("backend:%s:offline", name)).Result()
 	if err != nil {
 		RecordRedisError("IsBackendOnline")
@@ -84,7 +84,7 @@ func (r *RedisImpl) IsBackendOnline(name string) (bool, error) {
 	return exists == 0, nil
 }
 
-func (r *RedisImpl) SetBackendOffline(name string, duration time.Duration) error {
+func (r *RedisRateLimiter) SetBackendOffline(name string, duration time.Duration) error {
 	err := r.rdb.SetEX(
 		context.Background(),
 		fmt.Sprintf("backend:%s:offline", name),
@@ -98,7 +98,7 @@ func (r *RedisImpl) SetBackendOffline(name string, duration time.Duration) error
 	return nil
 }
 
-func (r *RedisImpl) IncBackendRPS(name string) (int, error) {
+func (r *RedisRateLimiter) IncBackendRPS(name string) (int, error) {
 	cmd := r.rdb.Eval(
 		context.Background(),
 		MaxRPSScript,
@@ -112,7 +112,7 @@ func (r *RedisImpl) IncBackendRPS(name string) (int, error) {
 	return rps, nil
 }
 
-func (r *RedisImpl) IncBackendWSConns(name string, max int) (bool, error) {
+func (r *RedisRateLimiter) IncBackendWSConns(name string, max int) (bool, error) {
 	connsKey := fmt.Sprintf("proxy:%s:wsconns:%s", r.randID, name)
 	r.tkMtx.Lock()
 	r.touchKeys[connsKey] = 5 * time.Minute
@@ -138,7 +138,7 @@ func (r *RedisImpl) IncBackendWSConns(name string, max int) (bool, error) {
 	return incremented, nil
 }
 
-func (r *RedisImpl) DecBackendWSConns(name string) error {
+func (r *RedisRateLimiter) DecBackendWSConns(name string) error {
 	connsKey := fmt.Sprintf("proxy:%s:wsconns:%s", r.randID, name)
 	err := r.rdb.Decr(context.Background(), connsKey).Err()
 	if err != nil {
@@ -148,7 +148,7 @@ func (r *RedisImpl) DecBackendWSConns(name string) error {
 	return nil
 }
 
-func (r *RedisImpl) FlushBackendWSConns(names []string) error {
+func (r *RedisRateLimiter) FlushBackendWSConns(names []string) error {
 	ctx := context.Background()
 	for _, name := range names {
 		connsKey := fmt.Sprintf("proxy:%s:wsconns:%s", r.randID, name)
@@ -168,7 +168,7 @@ func (r *RedisImpl) FlushBackendWSConns(names []string) error {
 	return nil
 }
 
-func (r *RedisImpl) touch() {
+func (r *RedisRateLimiter) touch() {
 	for {
 		r.tkMtx.Lock()
 		for key, dur := range r.touchKeys {
@@ -179,6 +179,76 @@ func (r *RedisImpl) touch() {
 		}
 		r.tkMtx.Unlock()
 		time.Sleep(5 * time.Second)
+	}
+}
+
+type LocalRateLimiter struct {
+	deadBackends   map[string]time.Time
+	backendRPS     map[string]int
+	backendWSConns map[string]int
+	mtx            sync.RWMutex
+}
+
+func NewLocalRateLimiter() *LocalRateLimiter {
+	out := &LocalRateLimiter{
+		deadBackends:   make(map[string]time.Time),
+		backendRPS:     make(map[string]int),
+		backendWSConns: make(map[string]int),
+	}
+	go out.clear()
+	return out
+}
+
+func (l *LocalRateLimiter) IsBackendOnline(name string) (bool, error) {
+	l.mtx.RLock()
+	defer l.mtx.RUnlock()
+	return l.deadBackends[name].Before(time.Now()), nil
+}
+
+func (l *LocalRateLimiter) SetBackendOffline(name string, duration time.Duration) error {
+	l.mtx.Lock()
+	defer l.mtx.Unlock()
+	l.deadBackends[name] = time.Now().Add(duration)
+	return nil
+}
+
+func (l *LocalRateLimiter) IncBackendRPS(name string) (int, error) {
+	l.mtx.Lock()
+	defer l.mtx.Unlock()
+	l.backendRPS[name] += 1
+	return l.backendRPS[name], nil
+}
+
+func (l *LocalRateLimiter) IncBackendWSConns(name string, max int) (bool, error) {
+	l.mtx.Lock()
+	defer l.mtx.Unlock()
+	if l.backendWSConns[name] == max {
+		return false, nil
+	}
+	l.backendWSConns[name] += 1
+	return true, nil
+}
+
+func (l *LocalRateLimiter) DecBackendWSConns(name string) error {
+	l.mtx.Lock()
+	defer l.mtx.Unlock()
+	if l.backendWSConns[name] == 0 {
+		return nil
+	}
+	l.backendWSConns[name] -= 1
+	return nil
+}
+
+func (l *LocalRateLimiter) FlushBackendWSConns(names []string) error {
+	return nil
+}
+
+func (l *LocalRateLimiter) clear() {
+	for {
+		time.Sleep(time.Second)
+		l.mtx.Lock()
+		l.backendRPS = make(map[string]int)
+		l.mtx.Unlock()
 	}
 }
 

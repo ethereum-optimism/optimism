@@ -37,7 +37,7 @@ type BackendConfig struct {
 type BackendsConfig map[string]*BackendConfig
 
 type BackendGroupConfig struct {
-	Backends  []string `toml:"backends"`
+	Backends []string `toml:"backends"`
 }
 
 type BackendGroupsConfig map[string]*BackendGroupConfig

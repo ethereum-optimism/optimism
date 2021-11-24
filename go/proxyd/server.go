@@ -12,6 +12,7 @@ import (
 	"github.com/rs/cors"
 	"io"
 	"net/http"
+	"strconv"
 	"time"
 )
 
@@ -105,7 +106,12 @@ func (s *Server) HandleRPC(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	log.Info("received RPC request", "req_id", GetReqID(ctx), "auth", GetAuthCtx(ctx))
+	log.Info(
+		"received RPC request",
+		"req_id", GetReqID(ctx),
+		"auth", GetAuthCtx(ctx),
+		"user_agent", r.Header.Get("user-agent"),
+	)
 
 	req, err := ParseRPCReq(io.LimitReader(r.Body, s.maxBodySize))
 	if err != nil {
@@ -200,6 +206,7 @@ func (s *Server) populateContext(w http.ResponseWriter, r *http.Request) context
 		// but someone sends in an auth key anyway
 		if authorization != "" {
 			log.Info("blocked authenticated request against unauthenticated proxy")
+			httpResponseCodesTotal.WithLabelValues("404").Inc()
 			w.WriteHeader(404)
 			return nil
 		}
@@ -212,6 +219,7 @@ func (s *Server) populateContext(w http.ResponseWriter, r *http.Request) context
 
 	if authorization == "" || s.authenticatedPaths[authorization] == "" {
 		log.Info("blocked unauthorized request", "authorization", authorization)
+		httpResponseCodesTotal.WithLabelValues("401").Inc()
 		w.WriteHeader(401)
 		return nil
 	}
@@ -225,21 +233,29 @@ func (s *Server) populateContext(w http.ResponseWriter, r *http.Request) context
 }
 
 func writeRPCError(w http.ResponseWriter, id *int, err error) {
-	enc := json.NewEncoder(w)
-	w.WriteHeader(200)
-
-	var body *RPCRes
+	var res *RPCRes
 	if r, ok := err.(*RPCErr); ok {
-		body = NewRPCErrorRes(id, r)
+		res = NewRPCErrorRes(id, r)
 	} else {
-		body = NewRPCErrorRes(id, &RPCErr{
+		res = NewRPCErrorRes(id, &RPCErr{
 			Code:    JSONRPCErrorInternal,
 			Message: "internal error",
 		})
 	}
-	if err := enc.Encode(body); err != nil {
-		log.Error("error writing rpc error", "err", err)
+	writeRPCRes(w, res)
+}
+
+func writeRPCRes(w http.ResponseWriter, res *RPCRes) {
+	statusCode := 200
+	if res.IsError() && res.Error.HTTPErrorCode != 0 {
+		statusCode = res.Error.HTTPErrorCode
 	}
+	w.WriteHeader(statusCode)
+	enc := json.NewEncoder(w)
+	if err := enc.Encode(res); err != nil {
+		log.Error("error writing rpc response", "err", err)
+	}
+	httpResponseCodesTotal.WithLabelValues(strconv.Itoa(statusCode)).Inc()
 }
 
 func instrumentedHdlr(h http.Handler) http.HandlerFunc {
