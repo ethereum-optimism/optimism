@@ -11,6 +11,7 @@
     "lint:check": "eslint .",
     "build": "hardhat compile",
     "test:integration": "hardhat --network optimism test",
+    "test:actor": "IS_LIVE_NETWORK=true ts-node actor-tests/lib/runner.ts",
     "test:integration:live": "NO_NETWORK=true IS_LIVE_NETWORK=true hardhat --network optimism test",
     "test:sync": "hardhat --network optimism test sync-tests/*.spec.ts --no-compile",
     "clean": "rimraf cache artifacts",
@@ -59,5 +60,9 @@
     "shelljs": "^0.8.4",
     "typescript": "^4.3.5",
     "uniswap-v3-deploy-plugin": "^0.1.0"
+  },
+  "dependencies": {
+    "async-mutex": "^0.3.2",
+    "prom-client": "^14.0.1"
   }
 }

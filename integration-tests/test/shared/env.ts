@@ -16,7 +16,6 @@ import {
   getOvmEth,
   getL1Bridge,
   getL2Bridge,
-  IS_LIVE_NETWORK,
   sleep,
 } from './utils'
 import {
@@ -206,35 +205,4 @@ export class OptimismEnv {
       }
     }
   }
-}
-
-/**
- * Sets the timeout of a test based on the challenge period of the current network. If the
- * challenge period is greater than 60s (e.g., on Mainnet) then we skip this test entirely.
- *
- * @param testctx Function context of the test to modify (i.e. `this` when inside a test).
- * @param env Optimism environment used to resolve the StateCommitmentChain.
- */
-export const useDynamicTimeoutForWithdrawals = async (
-  testctx: any,
-  env: OptimismEnv
-) => {
-  if (!IS_LIVE_NETWORK) {
-    return
-  }
-
-  const challengePeriod = await env.scc.FRAUD_PROOF_WINDOW()
-  if (challengePeriod.gt(60)) {
-    console.log(
-      `WARNING: challenge period is greater than 60s (${challengePeriod.toString()}s), skipping test`
-    )
-    testctx.skip()
-  }
-
-  // 60s for state root batch to be published + (challenge period x 4)
-  const timeoutMs = 60000 + challengePeriod.toNumber() * 1000 * 4
-  console.log(
-    `NOTICE: inside a withdrawal test on a prod network, dynamically setting timeout to ${timeoutMs}ms`
-  )
-  testctx.timeout(timeoutMs)
 }
