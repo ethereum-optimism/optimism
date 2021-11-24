@@ -271,6 +271,9 @@ func NewGasPriceOracle(cfg *Config) (*GasPriceOracle, error) {
 	if err != nil {
 		return nil, err
 	}
+	// getGasUsedByBlockFn is used by the GasPriceUpdater
+	// to fetch the amount of gas that a block has used
+	getGasUsedByBlockFn := wrapGetGasUsedByBlock(l2Client)
 
 	log.Info("Creating GasPriceUpdater", "epochStartBlockNumber", epochStartBlockNumber,
 		"averageBlockGasLimitPerEpoch", cfg.averageBlockGasLimitPerEpoch,
@@ -282,6 +285,7 @@ func NewGasPriceOracle(cfg *Config) (*GasPriceOracle, error) {
 		cfg.averageBlockGasLimitPerEpoch,
 		cfg.epochLengthSeconds,
 		getLatestBlockNumberFn,
+		getGasUsedByBlockFn,
 		updateL2GasPriceFn,
 	)
 
