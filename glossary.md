@@ -2,7 +2,7 @@
 
 ### Layer 1 (L1)
 
-An Ethereum network with its own native security mechanism (ie. proof of work, proof of stake or proof of authority).
+An Ethereum network with its own native security mechanism (e.g., proof of work, proof of stake or proof of authority).
 
 ### Layer 2 (L2)
 
