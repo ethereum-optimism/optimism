@@ -16,7 +16,7 @@ type GasPriceUpdater struct {
 	mu                     *sync.RWMutex
 	gasPricer              *GasPricer
 	epochStartBlockNumber  uint64
-	averageBlockGasLimit   float64
+	averageBlockGasLimit   uint64
 	epochLengthSeconds     uint64
 	getLatestBlockNumberFn GetLatestBlockNumberFn
 	getGasUsedByBlockFn    GetGasUsedByBlockFn
@@ -26,7 +26,7 @@ type GasPriceUpdater struct {
 func NewGasPriceUpdater(
 	gasPricer *GasPricer,
 	epochStartBlockNumber uint64,
-	averageBlockGasLimit float64,
+	averageBlockGasLimit uint64,
 	epochLengthSeconds uint64,
 	getLatestBlockNumberFn GetLatestBlockNumberFn,
 	getGasUsedByBlockFn GetGasUsedByBlockFn,

@@ -16,7 +16,7 @@ func makeTestGasPricerAndUpdater(curPrice uint64) (*GasPricer, *GasPriceUpdater,
 	gpsTarget := 3300000.0
 	getGasTarget := func() float64 { return gpsTarget }
 	epochLengthSeconds := uint64(10)
-	averageBlockGasLimit := 11000000.0
+	averageBlockGasLimit := uint64(11000000)
 	// Based on our 10 second epoch, we are targetting 3 blocks per epoch.
 	gasPricer, err := NewGasPricer(curPrice, 1, getGasTarget, 10)
 	if err != nil {
@@ -33,7 +33,7 @@ func makeTestGasPricerAndUpdater(curPrice uint64) (*GasPricer, *GasPriceUpdater,
 	// This is paramaterized based on 3 blocks per epoch, where each uses
 	// the average block gas limit plus an additional bit of gas added
 	getGasUsedByBlockFn := func(number *big.Int) (uint64, error) {
-		return uint64(averageBlockGasLimit)*3/epochLengthSeconds + 1, nil
+		return averageBlockGasLimit*3/epochLengthSeconds + 1, nil
 	}
 
 	startBlock, _ := getLatestBlockNumber()
