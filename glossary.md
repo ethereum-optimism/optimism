@@ -19,7 +19,7 @@ All of the data necessary to reconstruct the history and state of L2 is containe
 ### Epoch
 
 A continuous sequence of 0 or more L2 blocks. There is a one to one correspondence between L2 Epochs, and L1 blocks.
-
+A continuous sequence of L2 blocks, including a single deposit block, followed by 0 or more L2 blocks. There is a one to one correspondence between L2 Epochs, and L1 blocks.```
 **Example usage:** "Epoch 20 corresponds to L1 block 637, epoch 21 corresponds to block 638, etc".
 
 ### Feeds
