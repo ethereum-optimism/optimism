@@ -1,9 +1,14 @@
 # The Optimistic Ethereum Spec
 
-This repository holds the work-in-progress specification for a "Simple Optimistic Rollup"; a minimum viable
-version of the Optimistic Ethereum protocol.
+This repository holds the work-in-progress specification for the next version of
+Optimistic Ethereum.
 
-A more detailed, though potentially out of date specification can be found on the `alpha` branch.
+This spec is developped iteratively, specifying a rollup of increasing
+complexity. The current stage specifies a "rollup" whose only transactions are
+deposits (L2 transactions submitted on L1).
+
+A more detailed, though potentially out of date specification can be found on
+the `alpha` branch.
 
 ## Work in Progress
 
