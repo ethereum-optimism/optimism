@@ -12,11 +12,6 @@ on:
   pull_request:
     paths:
       - 'go/batch-submitter/*'
-    branches:
-      - 'master'
-      - 'develop'
-      - '*rc'
-      - 'regenesis/*'
   workflow_dispatch:
 
 defaults:
@@ -31,7 +26,7 @@ jobs:
       - name: Install Go
         uses: actions/setup-go@v2
         with:
-          go-version: 1.16.x 
+          go-version: 1.16.x
 
       - name: Checkout code
         uses: actions/checkout@v2
@@ -40,4 +35,4 @@ jobs:
         run: make
 
       - name: Test
-        run: make test 
+        run: make test

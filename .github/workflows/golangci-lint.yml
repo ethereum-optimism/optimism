@@ -13,11 +13,6 @@ on:
     paths:
       - 'go/gas-oracle/**'
       - 'go/batch-submitter/**'
-    branches:
-      - 'master'
-      - 'develop'
-      - '*rc'
-      - 'regenesis/*'
 jobs:
   golangci:
     name: lint
