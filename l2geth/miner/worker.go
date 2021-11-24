@@ -1076,6 +1076,15 @@ func (w *worker) commit(uncles []*types.Header, interval func(), start time.Time
 	if err != nil {
 		return err
 	}
+
+	// As a sanity check, ensure all new blocks have exactly one
+	// transaction. This check is done here just in case any of our
+	// higher-evel checks failed to catch empty blocks passed to commit.
+	txs := block.Transactions()
+	if len(txs) != 1 {
+		return fmt.Errorf("Block created with %d transactions rather than 1 at %d", len(txs), block.NumberU64())
+	}
+
 	if w.isRunning() {
 		if interval != nil {
 			interval()
@@ -1092,10 +1101,6 @@ func (w *worker) commit(uncles []*types.Header, interval func(), start time.Time
 			}
 			feesEth := new(big.Float).Quo(new(big.Float).SetInt(feesWei), new(big.Float).SetInt(big.NewInt(params.Ether)))
 
-			txs := block.Transactions()
-			if len(txs) != 1 {
-				return fmt.Errorf("Block created with not %d transactions at %d", len(txs), block.NumberU64())
-			}
 			tx := txs[0]
 			bn := tx.L1BlockNumber()
 			if bn == nil {
