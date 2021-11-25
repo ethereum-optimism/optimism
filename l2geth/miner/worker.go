@@ -879,6 +879,20 @@ func (w *worker) commitTransactionsWithError(txs *types.TransactionsByPriceAndNo
 			log.Debug("Transaction failed, account skipped", "hash", tx.Hash(), "err", err)
 			txs.Shift()
 		}
+
+		// UsingOVM
+		// Return specific execution errors directly to the user to
+		// avoid returning the generic ErrCannotCommitTxnErr. It is safe
+		// to return the error directly since l2geth only processes at
+		// most one transaction per block. Currently, we map
+		// ErrNonceTooHigh to ErrNonceTooLow to match the behavior of
+		// the mempool, but this mapping will be removed at a later
+		// point once we decided to expose ErrNonceTooHigh to users.
+		if err == core.ErrNonceTooHigh {
+			return core.ErrNonceTooLow
+		} else if err != nil {
+			return err
+		}
 	}
 
 	if !w.isRunning() && len(coalescedLogs) > 0 {
