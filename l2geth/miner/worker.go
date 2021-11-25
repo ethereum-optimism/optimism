@@ -352,7 +352,7 @@ func (w *worker) newWorkLoop(recommit time.Duration) {
 		select {
 		case <-w.startCh:
 			clearPending(w.chain.CurrentBlock().NumberU64())
-			commit(false, commitInterruptNewHead)
+			commit(true, commitInterruptNewHead)
 
 		// Remove this code for the OVM implementation. It is responsible for
 		// cleaning up memory with the call to `clearPending`, so be sure to
