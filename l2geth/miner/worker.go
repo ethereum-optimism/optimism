@@ -457,7 +457,7 @@ func (w *worker) mainLoop() {
 						uncles = append(uncles, uncle.Header())
 						return false
 					})
-					w.commit(uncles, nil, true, start)
+					w.commit(uncles, nil, start)
 				}
 			}
 		// Read from the sync service and mine single txs
@@ -955,7 +955,7 @@ func (w *worker) commitNewTx(tx *types.Transaction) error {
 	if w.commitTransactions(txs, w.coinbase, nil) {
 		return errors.New("Cannot commit transaction in miner")
 	}
-	return w.commit(nil, w.fullTaskHook, true, tstart)
+	return w.commit(nil, w.fullTaskHook, tstart)
 }
 
 // commitNewWork generates several new sealing tasks based on the parent block.
@@ -1066,12 +1066,12 @@ func (w *worker) commitNewWork(interrupt *int32, timestamp int64) {
 			return
 		}
 	}
-	w.commit(uncles, w.fullTaskHook, true, tstart)
+	w.commit(uncles, w.fullTaskHook, tstart)
 }
 
 // commit runs any post-transaction state modifications, assembles the final block
 // and commits new work if consensus engine is running.
-func (w *worker) commit(uncles []*types.Header, interval func(), update bool, start time.Time) error {
+func (w *worker) commit(uncles []*types.Header, interval func(), start time.Time) error {
 	// Deep copy receipts here to avoid interaction between different tasks.
 	receipts := make([]*types.Receipt, len(w.current.receipts))
 	for i, l := range w.current.receipts {
@@ -1115,9 +1115,7 @@ func (w *worker) commit(uncles []*types.Header, interval func(), update bool, st
 			log.Info("Worker has exited")
 		}
 	}
-	if update {
-		w.updateSnapshot()
-	}
+	w.updateSnapshot()
 	return nil
 }
 
