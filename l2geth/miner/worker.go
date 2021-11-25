@@ -77,6 +77,16 @@ const (
 	staleThreshold = 7
 )
 
+var (
+	// ErrCannotCommitTxn signals that the transaction execution failed
+	// when attempting to mine a transaction.
+	//
+	// NOTE: This error is not expected to occur in regular operation of
+	// l2geth, rather the actual execution error should be returned to the
+	// user.
+	ErrCannotCommitTxn = errors.New("Cannot commit transaction in miner")
+)
+
 // environment is the worker's current environment and holds all of the current state information.
 type environment struct {
 	signer types.Signer
@@ -773,9 +783,13 @@ func (w *worker) commitTransaction(tx *types.Transaction, coinbase common.Addres
 }
 
 func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coinbase common.Address, interrupt *int32) bool {
+	return w.commitTransactionsWithError(txs, coinbase, interrupt) != nil
+}
+
+func (w *worker) commitTransactionsWithError(txs *types.TransactionsByPriceAndNonce, coinbase common.Address, interrupt *int32) error {
 	// Short circuit if current is nil
 	if w.current == nil {
-		return true
+		return ErrCannotCommitTxn
 	}
 
 	if w.current.gasPool == nil {
@@ -803,7 +817,11 @@ func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coin
 					inc:   true,
 				}
 			}
-			return w.current.tcount == 0 || atomic.LoadInt32(interrupt) == commitInterruptNewHead
+			if w.current.tcount == 0 ||
+				atomic.LoadInt32(interrupt) == commitInterruptNewHead {
+				return ErrCannotCommitTxn
+			}
+			return nil
 		}
 		// If we don't have enough gas for any further transactions then we're done
 		if w.current.gasPool.Gas() < params.TxGas {
@@ -883,7 +901,10 @@ func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coin
 	if interrupt != nil {
 		w.resubmitAdjustCh <- &intervalAdjust{inc: false}
 	}
-	return w.current.tcount == 0
+	if w.current.tcount == 0 {
+		return ErrCannotCommitTxn
+	}
+	return nil
 }
 
 // commitNewTx is an OVM addition that mines a block with a single tx in it.
@@ -945,8 +966,8 @@ func (w *worker) commitNewTx(tx *types.Transaction) error {
 	acc, _ := types.Sender(w.current.signer, tx)
 	transactions[acc] = types.Transactions{tx}
 	txs := types.NewTransactionsByPriceAndNonce(w.current.signer, transactions)
-	if w.commitTransactions(txs, w.coinbase, nil) {
-		return errors.New("Cannot commit transaction in miner")
+	if err := w.commitTransactionsWithError(txs, w.coinbase, nil); err != nil {
+		return err
 	}
 	return w.commit(nil, w.fullTaskHook, tstart)
 }
