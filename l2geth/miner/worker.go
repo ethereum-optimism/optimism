@@ -110,7 +110,6 @@ const (
 // newWorkReq represents a request for new sealing work submitting with relative interrupt notifier.
 type newWorkReq struct {
 	interrupt *int32
-	noempty   bool
 	timestamp int64
 }
 
@@ -307,12 +306,12 @@ func (w *worker) newWorkLoop(recommit time.Duration) {
 	<-timer.C // discard the initial tick
 
 	// commit aborts in-flight transaction execution with given signal and resubmits a new one.
-	commit := func(noempty bool, s int32) {
+	commit := func(s int32) {
 		if interrupt != nil {
 			atomic.StoreInt32(interrupt, s)
 		}
 		interrupt = new(int32)
-		w.newWorkCh <- &newWorkReq{interrupt: interrupt, noempty: noempty, timestamp: timestamp}
+		w.newWorkCh <- &newWorkReq{interrupt: interrupt, timestamp: timestamp}
 		timer.Reset(recommit)
 		atomic.StoreInt32(&w.newTxs, 0)
 	}
@@ -352,7 +351,7 @@ func (w *worker) newWorkLoop(recommit time.Duration) {
 		select {
 		case <-w.startCh:
 			clearPending(w.chain.CurrentBlock().NumberU64())
-			commit(true, commitInterruptNewHead)
+			commit(commitInterruptNewHead)
 
 		// Remove this code for the OVM implementation. It is responsible for
 		// cleaning up memory with the call to `clearPending`, so be sure to
@@ -361,7 +360,7 @@ func (w *worker) newWorkLoop(recommit time.Duration) {
 			case <-w.chainHeadCh:
 				clearPending(head.Block.NumberU64())
 				timestamp = time.Now().Unix()
-				commit(false, commitInterruptNewHead)
+				commit(commitInterruptNewHead)
 		*/
 
 		case <-timer.C:
@@ -373,7 +372,7 @@ func (w *worker) newWorkLoop(recommit time.Duration) {
 					timer.Reset(recommit)
 					continue
 				}
-				commit(true, commitInterruptResubmit)
+				commit(commitInterruptResubmit)
 			}
 
 		case interval := <-w.resubmitIntervalCh:
@@ -421,7 +420,7 @@ func (w *worker) mainLoop() {
 	for {
 		select {
 		case req := <-w.newWorkCh:
-			w.commitNewWork(req.interrupt, req.noempty, req.timestamp)
+			w.commitNewWork(req.interrupt, req.timestamp)
 
 		case ev := <-w.chainSideCh:
 			// Short circuit for duplicate side blocks
@@ -544,7 +543,7 @@ func (w *worker) mainLoop() {
 				// If clique is running in dev mode(period is 0), disable
 				// advance sealing here.
 				if w.chainConfig.Clique != nil && w.chainConfig.Clique.Period == 0 {
-					w.commitNewWork(nil, true, time.Now().Unix())
+					w.commitNewWork(nil, time.Now().Unix())
 				}
 			}
 			atomic.AddInt32(&w.newTxs, int32(len(ev.Txs)))
@@ -960,7 +959,7 @@ func (w *worker) commitNewTx(tx *types.Transaction) error {
 }
 
 // commitNewWork generates several new sealing tasks based on the parent block.
-func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) {
+func (w *worker) commitNewWork(interrupt *int32, timestamp int64) {
 	w.mu.RLock()
 	defer w.mu.RUnlock()
 
@@ -1035,12 +1034,6 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) 
 	// Prefer to locally generated uncle
 	commitUncles(w.localUncles)
 	commitUncles(w.remoteUncles)
-
-	if !noempty {
-		// Create an empty block based on temporary copied state for sealing in advance without waiting block
-		// execution finished.
-		w.commit(uncles, nil, false, tstart)
-	}
 
 	// Fill the block with all available pending transactions.
 	pending, err := w.eth.TxPool().Pending()
