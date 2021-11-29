@@ -52,6 +52,12 @@ username = ""
 password = ""
 max_rps = 3
 max_ws_conns = 1
+# Path to a custom root CA.
+ca_file = ""
+# Path to a custom client cert file.
+client_cert_file = ""
+# Path to a custom client key file.
+client_key_file = ""
 
 [backends.alchemy]
 # The URL to contact the backend at.

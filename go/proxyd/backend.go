@@ -3,6 +3,7 @@ package proxyd
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -127,6 +128,15 @@ func WithMaxWSConns(maxConns int) BackendOpt {
 	}
 }
 
+func WithTLSConfig(tlsConfig *tls.Config) BackendOpt {
+	return func(b *Backend) {
+		if b.client.Transport == nil {
+			b.client.Transport = &http.Transport{}
+		}
+		b.client.Transport.(*http.Transport).TLSClientConfig = tlsConfig
+	}
+}
+
 func NewBackend(
 	name string,
 	rpcURL string,
@@ -188,6 +198,7 @@ func (b *Backend) Forward(ctx context.Context, req *RPCReq) (*RPCRes, error) {
 			RecordRPCError(ctx, b.Name, req.Method, res.Error)
 			log.Info(
 				"backend responded with RPC error",
+				"backend", b.Name,
 				"code", res.Error.Code,
 				"msg", res.Error.Message,
 				"req_id", GetReqID(ctx),
@@ -196,6 +207,7 @@ func (b *Backend) Forward(ctx context.Context, req *RPCReq) (*RPCRes, error) {
 			)
 		} else {
 			log.Info("forwarded RPC request",
+				"backend", b.Name,
 				"method", req.Method,
 				"auth", GetAuthCtx(ctx),
 				"req_id", GetReqID(ctx),
