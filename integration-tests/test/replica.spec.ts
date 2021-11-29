@@ -1,5 +1,10 @@
 import { OptimismEnv } from './shared/env'
-import { defaultTransactionFactory, gasPriceForL2, sleep } from './shared/utils'
+import {
+  defaultTransactionFactory,
+  gasPriceForL2,
+  sleep,
+  isLiveNetwork,
+} from './shared/utils'
 import { expect } from 'chai'
 import { TransactionReceipt } from '@ethersproject/abstract-provider'
 
@@ -11,6 +16,11 @@ describe('Replica Tests', () => {
   })
 
   describe('Matching blocks', () => {
+    if (isLiveNetwork()) {
+      console.log('Skipping replica tests on live network')
+      return
+    }
+
     it('should sync a transaction', async () => {
       const tx = defaultTransactionFactory()
       tx.gasPrice = await gasPriceForL2(env)
