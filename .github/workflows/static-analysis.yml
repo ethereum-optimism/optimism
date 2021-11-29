@@ -58,4 +58,4 @@ jobs:
         working-directory: ./packages/contracts
         shell: bash
         run: yarn test:slither
-        continue-on-error: true
+        continue-on-error: false
