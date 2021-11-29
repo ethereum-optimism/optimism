@@ -1,6 +1,7 @@
 package proxyd
 
 import (
+	"crypto/tls"
 	"errors"
 	"fmt"
 	"github.com/ethereum/go-ethereum/log"
@@ -74,6 +75,14 @@ func Start(config *Config) error {
 		}
 		if cfg.Password != "" {
 			opts = append(opts, WithBasicAuth(cfg.Username, cfg.Password))
+		}
+		tlsConfig, err := configureBackendTLS(cfg)
+		if err != nil {
+			return err
+		}
+		if tlsConfig != nil {
+			log.Info("using custom TLS config for backend", "name", name)
+			opts = append(opts, WithTLSConfig(tlsConfig))
 		}
 		back := NewBackend(name, cfg.RPCURL, cfg.WSURL, lim, opts...)
 		backendNames = append(backendNames, name)
@@ -167,4 +176,25 @@ func Start(config *Config) error {
 
 func secondsToDuration(seconds int) time.Duration {
 	return time.Duration(seconds) * time.Second
+}
+
+func configureBackendTLS(cfg *BackendConfig) (*tls.Config, error) {
+	if cfg.CAFile == "" {
+		return nil, nil
+	}
+
+	tlsConfig, err := CreateTLSClient(cfg.CAFile)
+	if err != nil {
+		return nil, err
+	}
+
+	if cfg.ClientCertFile != "" && cfg.ClientKeyFile != "" {
+		cert, err := ParseKeyPair(cfg.ClientCertFile, cfg.ClientKeyFile)
+		if err != nil {
+			return nil, err
+		}
+		tlsConfig.Certificates = []tls.Certificate{cert}
+	}
+
+	return tlsConfig, nil
 }
