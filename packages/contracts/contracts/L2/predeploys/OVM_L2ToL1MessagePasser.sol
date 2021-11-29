@@ -26,6 +26,7 @@ contract OVM_L2ToL1MessagePasser is iOVM_L2ToL1MessagePasser {
      * Passes a message to L1.
      * @param _message Message to pass to L1.
      */
+    // slither-disable-next-line external-function
     function passMessageToL1(bytes memory _message) public {
         // Note: although this function is public, only messages sent from the
         // L2CrossDomainMessenger will be relayed by the L1CrossDomainMessenger.

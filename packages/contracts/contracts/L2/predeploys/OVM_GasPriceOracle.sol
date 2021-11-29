@@ -60,6 +60,7 @@ contract OVM_GasPriceOracle is Ownable {
      * Allows the owner to modify the l2 gas price.
      * @param _gasPrice New l2 gas price.
      */
+    // slither-disable-next-line external-function
     function setGasPrice(uint256 _gasPrice) public onlyOwner {
         gasPrice = _gasPrice;
         emit GasPriceUpdated(_gasPrice);
@@ -69,6 +70,7 @@ contract OVM_GasPriceOracle is Ownable {
      * Allows the owner to modify the l1 base fee.
      * @param _baseFee New l1 base fee
      */
+    // slither-disable-next-line external-function
     function setL1BaseFee(uint256 _baseFee) public onlyOwner {
         l1BaseFee = _baseFee;
         emit L1BaseFeeUpdated(_baseFee);
@@ -78,6 +80,7 @@ contract OVM_GasPriceOracle is Ownable {
      * Allows the owner to modify the overhead.
      * @param _overhead New overhead
      */
+    // slither-disable-next-line external-function
     function setOverhead(uint256 _overhead) public onlyOwner {
         overhead = _overhead;
         emit OverheadUpdated(_overhead);
@@ -87,6 +90,7 @@ contract OVM_GasPriceOracle is Ownable {
      * Allows the owner to modify the scalar.
      * @param _scalar New scalar
      */
+    // slither-disable-next-line external-function
     function setScalar(uint256 _scalar) public onlyOwner {
         scalar = _scalar;
         emit ScalarUpdated(_scalar);
@@ -96,6 +100,7 @@ contract OVM_GasPriceOracle is Ownable {
      * Allows the owner to modify the decimals.
      * @param _decimals New decimals
      */
+    // slither-disable-next-line external-function
     function setDecimals(uint256 _decimals) public onlyOwner {
         decimals = _decimals;
         emit DecimalsUpdated(_decimals);
@@ -108,6 +113,7 @@ contract OVM_GasPriceOracle is Ownable {
      * @param _data Unsigned RLP encoded tx, 6 elements
      * @return L1 fee that should be paid for the tx
      */
+    // slither-disable-next-line external-function
     function getL1Fee(bytes memory _data) public view returns (uint256) {
         uint256 l1GasUsed = getL1GasUsed(_data);
         uint256 l1Fee = l1GasUsed * l1BaseFee;

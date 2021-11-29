@@ -20,7 +20,9 @@ contract L2StandardERC20 is IL2StandardERC20, ERC20 {
         string memory _name,
         string memory _symbol
     ) ERC20(_name, _symbol) {
+        // slither-disable-next-line missing-zero-check
         l1Token = _l1Token;
+        // slither-disable-next-line missing-zero-check
         l2Bridge = _l2Bridge;
     }
 
@@ -29,6 +31,7 @@ contract L2StandardERC20 is IL2StandardERC20, ERC20 {
         _;
     }
 
+    // slither-disable-next-line external-function
     function supportsInterface(bytes4 _interfaceId) public pure returns (bool) {
         bytes4 firstSupportedInterface = bytes4(keccak256("supportsInterface(bytes4)")); // ERC165
         bytes4 secondSupportedInterface = IL2StandardERC20.l1Token.selector ^
@@ -37,12 +40,14 @@ contract L2StandardERC20 is IL2StandardERC20, ERC20 {
         return _interfaceId == firstSupportedInterface || _interfaceId == secondSupportedInterface;
     }
 
+    // slither-disable-next-line external-function
     function mint(address _to, uint256 _amount) public virtual onlyL2Bridge {
         _mint(_to, _amount);
 
         emit Mint(_to, _amount);
     }
 
+    // slither-disable-next-line external-function
     function burn(address _from, uint256 _amount) public virtual onlyL2Bridge {
         _burn(_from, _amount);
 

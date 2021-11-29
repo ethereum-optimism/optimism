@@ -34,6 +34,7 @@ contract L2CrossDomainMessenger is IL2CrossDomainMessenger {
      ***************/
 
     constructor(address _l1CrossDomainMessenger) {
+        // slither-disable-next-line missing-zero-check
         l1CrossDomainMessenger = _l1CrossDomainMessenger;
     }
 
@@ -41,6 +42,7 @@ contract L2CrossDomainMessenger is IL2CrossDomainMessenger {
      * Public Functions *
      ********************/
 
+    // slither-disable-next-line external-function
     function xDomainMessageSender() public view returns (address) {
         require(
             xDomainMsgSender != Lib_DefaultValues.DEFAULT_XDOMAIN_SENDER,
@@ -55,6 +57,7 @@ contract L2CrossDomainMessenger is IL2CrossDomainMessenger {
      * @param _message Message to send to the target.
      * @param _gasLimit Gas limit for the provided message.
      */
+    // slither-disable-next-line external-function
     function sendMessage(
         address _target,
         bytes memory _message,
@@ -70,12 +73,16 @@ contract L2CrossDomainMessenger is IL2CrossDomainMessenger {
         sentMessages[keccak256(xDomainCalldata)] = true;
 
         // Actually send the message.
+        // slither-disable-next-line reentrancy-no-eth
+        // slither-disable-next-line reentrancy-events
         iOVM_L2ToL1MessagePasser(Lib_PredeployAddresses.L2_TO_L1_MESSAGE_PASSER).passMessageToL1(
             xDomainCalldata
         );
 
         // Emit an event before we bump the nonce or the nonce will be off by one.
+        // slither-disable-next-line reentrancy-events
         emit SentMessage(_target, msg.sender, _message, messageNonce, _gasLimit);
+        // slither-disable-next-line reentrancy-no-eth
         messageNonce += 1;
     }
 
@@ -83,6 +90,7 @@ contract L2CrossDomainMessenger is IL2CrossDomainMessenger {
      * Relays a cross domain message to a contract.
      * @inheritdoc IL2CrossDomainMessenger
      */
+    // slither-disable-next-line external-function
     function relayMessage(
         address _target,
         address _sender,
@@ -103,6 +111,7 @@ contract L2CrossDomainMessenger is IL2CrossDomainMessenger {
 
         bytes32 xDomainCalldataHash = keccak256(xDomainCalldata);
 
+        // slither-disable-next-line boolean-equal
         require(
             successfulMessages[xDomainCalldataHash] == false,
             "Provided message has already been received."
@@ -117,16 +126,25 @@ contract L2CrossDomainMessenger is IL2CrossDomainMessenger {
             return;
         }
 
+        // slither-disable-next-line missing-zero-check
         xDomainMsgSender = _sender;
+        // slither-disable-next-line reentrancy-no-eth
+        // slither-disable-next-line reentrancy-events
+        // slither-disable-next-line reentrancy-benign
         (bool success, ) = _target.call(_message);
+        // slither-disable-next-line reentrancy-benign
         xDomainMsgSender = Lib_DefaultValues.DEFAULT_XDOMAIN_SENDER;
 
         // Mark the message as received if the call was successful. Ensures that a message can be
         // relayed multiple times in the case that the call reverted.
+        // slither-disable-next-line boolean-equal
         if (success == true) {
+            // slither-disable-next-line reentrancy-no-eth
             successfulMessages[xDomainCalldataHash] = true;
+            // slither-disable-next-line reentrancy-events
             emit RelayedMessage(xDomainCalldataHash);
         } else {
+            // slither-disable-next-line reentrancy-events
             emit FailedRelayedMessage(xDomainCalldataHash);
         }
 
@@ -134,6 +152,7 @@ contract L2CrossDomainMessenger is IL2CrossDomainMessenger {
         // user. Gives us an easy way to pay relayers for their work.
         bytes32 relayId = keccak256(abi.encodePacked(xDomainCalldata, msg.sender, block.number));
 
+        // slither-disable-next-line reentrancy-benign
         relayedMessages[relayId] = true;
     }
 }

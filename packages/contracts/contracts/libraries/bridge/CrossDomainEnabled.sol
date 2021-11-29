@@ -26,6 +26,7 @@ contract CrossDomainEnabled {
      * @param _messenger Address of the CrossDomainMessenger on the current layer.
      */
     constructor(address _messenger) {
+        // slither-disable-next-line missing-zero-check
         messenger = _messenger;
     }
 
@@ -77,6 +78,8 @@ contract CrossDomainEnabled {
         uint32 _gasLimit,
         bytes memory _message
     ) internal {
+        // slither-disable-next-line reentrancy-events
+        // slither-disable-next-line reentrancy-benign
         getCrossDomainMessenger().sendMessage(_crossDomainTarget, _message, _gasLimit);
     }
 }
