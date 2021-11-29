@@ -55,7 +55,7 @@ jobs:
         if: failure()
         uses: jwalton/gh-docker-logs@v1
         with:
-          images: 'ethereumoptimism/hardhat,ops_deployer,ops_dtl,ethereumoptimism/l2geth,ethereumoptimism/message-relayer,ops_batch_submitter,ethereumoptimism/l2geth,ops_integration_tests'
+          images: 'ethereumoptimism/hardhat,ops_deployer,ops_dtl,ops_l2geth,ethereumoptimism/message-relayer,ops_batch_submitter,ops_replica,ops_integration_tests'
           dest: '/home/runner/logs'
 
       - name: Tar logs
