@@ -1,5 +1,11 @@
 # @eth-optimism/gas-oracle
 
+## 0.1.2
+
+### Patch Changes
+
+- 5a3996ec: Fixed gas-oacle tx/not_significant metric name
+
 ## 0.1.1
 
 ### Patch Changes

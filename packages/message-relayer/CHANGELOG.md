@@ -1,5 +1,11 @@
 # @eth-optimism/message-relayer
 
+## 0.2.6
+
+### Patch Changes
+
+- 6b73a94a: Fix dockerfile
+
 ## 0.2.5
 
 ### Patch Changes
