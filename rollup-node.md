@@ -1,0 +1,284 @@
+# Rollup Node Specification
+
+<!-- All glossary references in this file. -->
+[rollup node]: /glossary.md#rollup-node
+[derivation]: /glossary.md#L2-chain-derivation
+[L2 derivation inputs]: /glossary.md#L2-derivation-inputs
+[payload attributes]: /glossary.md#payload-attributes
+[block]: /glossary.md#block
+[execution engine]: /glossary.md#execution-engine
+[reorg]: /glossary.md#re-organization
+[block gossip]: /glossary.md#block-gossip
+[rollup driver]: /glossary.md#rollup-driver
+[deposits]: /glossary.md#deposits
+[deposit-feed]: /glossary.md#L2-deposit-feed-contract
+[L2 chain inception]: /glossary.md#L2-chain-inception
+
+The [rollup node] is the component responsible for [deriving the L2
+chain][derivation] from L1 blocks. This process happens in two steps:
+
+1. Read [L2 derivation inputs] from L1 and generate [payload attributes] (essentially
+   [a block without output properties][block]).
+2. Pass the payload attributes to the [execution engine], so that [output block
+   properties][block] may be computed.
+
+While this process is conceptually a pure function from the L1 chain to the L2
+chain, it is in practice incremental. The L2 chain changes whenever new L1
+blocks (and hence new L2 derivation inputs) are added to the L1 chain, or
+whenever the L1 chain [re-organizes][reorg].
+
+Additionally, the rollup node is responsible for [block gossip], i.e.
+transmitting the L2 blocks it derives over a peer-to-peer network.
+
+The part of the rollup node that derives the L2 chain is called the [rollup
+driver]. This document is mostly concerned with the specification of the rollup
+driver, while block gossip is [specified in a separate document][gossip-spec].
+
+[gossip-spec]: TODO
+
+> **TODO LINK** block gossip spec
+
+## L2 Chain Derivation
+[l2-chain-derivation]: #l2-chain-derivation
+
+This section specifies how the [rollup driver] derives one L2 block from every
+L1 block. The L2 block will carry the L1 block attributes (as a *[L1 attributes
+transaction]*) well as all L2 transactions deposited by users in the L1 block
+(*[deposits]*).
+
+[L1 attributes transaction]: /glossary.md#l1-attributes-transaction
+
+### From L2 derivation inputs to payload attributes
+
+[payload-attr]: #From-L2-derivation-inputs-to-payload-attributes
+[`PayloadAttributesOPV1`]: #From-L2-derivation-inputs-to-payload-attributes
+
+The rollup reads the following [L2 derivation inputs] for each L1 block:
+
+- L1 block attributes
+   - block number
+   - timestamp
+   - basefee
+- [deposits]
+
+A deposit is an L2 transaction that has been submitted on L1, via a transaction
+sent to the [L2 deposit feed contract][deposit-feed].
+
+While deposits are notably (but not only) used to "deposit" (bridge) ETH and
+tokens to L2, the word *deposit* should be understood as "a transaction
+*deposited* to L2".
+
+The L1 attributes are read from the L1 block header, while deposits are read
+from the block's log entries. Refer to the [**L2 deposit feed contract
+specification**][deposit-feed] for details on how deposits are encoded as
+log entries.
+
+[deposit-feed-spec]: TODO
+
+> **TODO LINK** deposit feed contract specification
+
+From these L2 derivation inputs, the rollup node constructs an expanded version
+of the [Engine API PayloadAttributesV1 object][PayloadAttributesV1]:
+
+[PayloadAttributesV1]: https://github.com/ethereum/execution-apis/blob/main/src/engine/specification.md#payloadattributesv1
+
+```
+PayloadAttributesOPV1: {
+	timestamp: QUANTITY
+	random: DATA (32 bytes)
+	suggestedFeeRecipient: DATA (20 bytes)
+	transactions: array of DATA
+}
+```
+
+The type notation used here refers to the [HEX value encoding] used by the
+[Ethereum JSON-RPC API specification][JSON-RPC-API], as this structure will need to
+be sent over JSON-RPC. `array` refers to a JSON array.
+
+[HEX value encoding]: https://eth.wiki/json-rpc/API#hex-value-encoding
+[JSON-RPC-API]: https://eth.wiki/json-rpc/API
+
+The object properties must be set as follows:
+
+- `timestamp` is set to the current [unix time] (number of elapsed seconds since
+  00:00:00 UTC on 1 January 1970), rounded to the closest multiple of 2 seconds.
+- `random` is currently set to all zero bytes. After [the merge][merge], the randomness
+  value exposed for the L1 block will be copied in this property.
+- `suggestedFeeRecipient` is set to an address where the sequencer would like to
+  direct the fees
+- `transactions` is an array of transactions, RLP-encoded in the [EIP-2718]
+  format (i.e. as a sequence of a single byte and a byte array), of the allowed
+  types. We specify how to select the transactions below.
+
+[unix type]: https://en.wikipedia.org/wiki/Unix_time
+[merge]: https://ethereum.org/en/eth2/merge/
+[EIP-2718]: https://eips.ethereum.org/EIPS/eip-2718
+
+> For details on RLP encoding, refer to the yellow paper, or look at [this
+> hyperlinked implementation][encode-tx].
+
+[encode-tx]: https://github.com/norswap/nanoeth/blob/cc5d94a349c90627024f3cd629a2d830008fec72/src/com/norswap/nanoeth/transactions/Transaction.java#L84-L130
+
+In particular, we allow the following two transaction types:
+- [EIP-1559]: the current "regular" Ethereum L1 transaction type, which
+  separates gas fees between a base fee and a tip
+- the *[L1 attributes transaction]*, see below
+
+[EIP-1559]: https://eips.ethereum.org/EIPS/eip-1559
+
+Historical Optimistic Ethereum transactions also include [EIP-155] transactions,
+which are not accepted by the network anymore. This is not an [EIP-2718] typed
+transaction, but can be distinguished from those by the fact that their
+RLP-encoding's first byte will always be `>= 0xC0`.
+
+[EIP-155]: https://eips.ethereum.org/EIPS/eip-155
+
+#### Payload Transaction Format
+
+The `transactions` array is filled with the deposits, prefixed by the (single)
+[L1 attributes transaction]. The deposits (which must be similarly RLP-encoded)
+are simply copied byte-for-byte — it is the role of the [execution engine] to
+reject invalidly-formatted transactions.
+
+> **TODO** must offer some precisions on the format of deposits: sender,
+> receivers both in-tx-as-encoded, and on-L2-tx. What about the fees?
+
+The Optimistic Ethereum specific *[L1 attributes transaction]* has the following
+[EIP-2718]-compatible format: `0x7E || [block_number, timestamp, basefee]`
+where:
+
+- `0x7E` is the transaction type identifier. It is selected because transaction
+  type identifiers are currently allowed to go up to `0x7F`. Picking a high
+  identifier minimizes the risk that the identifier will be used by Ethereum in
+  the future. We don't pick `0x7F` itself in case it becomes used for a
+  variable-length encoding scheme.
+- `block_number` is the L1 block number as a 64-bit integer (4 bytes)
+- `timestamp` is the L1 block timestamp as a 64-bit integer (4 bytes)
+- `basefee` is the L1 block basefee as a 64-bit integer (4 bytes)
+
+When included in the `transactions` array, this transaction should be
+RLP-encoded in the same way as other transactions.
+
+Here is an example valid `PayloadAttributesOPV1` object, which contains an L1
+attributes transaction as well as a single deposit:
+
+```js
+{
+  timestamp: "0x61a6336f",
+  random: "0xde5dff2b0982ecbbd38081eb8f4aed0525140dc1c1d56f995b4fa801a3f2649e",
+  suggestedFeeRecipient: "0xAb5801a7D398351b8bE11C439e05C5B3259aeC9B",
+  transactions: [
+    "TODO specify L1 attribute transaction",
+    "0x02f87101058459682f0085199c82cc0082520894ab5801a7d398351b8be11c439e05c5b3259aec9b8609184e72a00080c080a0a6d217a91ea344fc09f740f104f764d71bb1ca9a8e159117d2d27091ea5fce91a04cf5add5f5b7d791a2c4663ab488cb581df800fe0910aa755099ba466b49fd69"
+  ]
+}
+```
+
+### Building the L2 block with the execution engine
+[calling-exec-engine]: #building-the-L2-block-with-the-execution-engine
+
+The Optimistic Ethereum [execution engine] is [specified in its own
+document][execution-engine-spec].
+
+This section defines how the rollup driver must interact with the execution
+engine's in order to convert [payload attributes] into L2 blocks.
+
+> **TODO** This section probably includes too much redundant details that will
+> need to be removed once the execution engine spec is up.
+
+Optimistic Ethereum's execution engine API is built upon [Ethereum's Engine API
+specification][eth-engine-api], with a couple of modifications. That
+specification builds upon [Ethereum's JSON-RPC API specification][JSON-RPC-API],
+which itself builds upon the [JSON-RPC specification][JSON-RPC].
+
+[eth-engine-api]: https://github.com/ethereum/execution-apis/blob/main/src/engine/specification.md
+[JSON-RPC]: https://www.jsonrpc.org/specification
+
+In particular, the [Ethereum's Engine API specification][eth-engine-api]
+specifies a [JSON-RPC] endpoint with a number of JSON-RPC (REST) routes, which
+are the means through which the rollup driver interacts with the execution
+engine.
+
+Instead of calling [`engine_forkchoiceUpdatedV1`], the rollup driver must call
+the new [`engine_forkchoiceUpdatedOPV1`] route. This has the same signature,
+except that:
+
+[`engine_forkchoiceUpdatedV1`]: https://github.com/ethereum/execution-apis/blob/main/src/engine/specification.md#engine_forkchoiceupdatedv1
+[`engine_forkchoiceUpdatedOPV1`]: TODO
+
+> **TODO LINK** forkchoiceUpdatedOPV1 from spec
+
+- it takes a [`PayloadAttributesOPV1`] object as input instead of
+  [`PayloadAttributesV1`]. The execution engine must include the valid
+  transactions supplied in this object in the block, in the same order as they
+  were supplied, and only those. See the [previous section][payload-attr] for
+  the specification of how the properties must be set.
+
+- we repurpose the [`ForkchoiceStateV1`] structure with the following property
+  semantics:
+  - `headBlockHash`: block hash of the last block of the L2 chain, according to
+    the rollup driver.
+  - `safeBlockHash`: same as `headBlockHash`.
+  - `finalizedBlockHash`: the hash of the block whose number is
+    `number(headBlockHash) - FINALIZATION_DELAY_BLOCKS` if the number of that
+    block is `>= L2_CHAIN_INCEPTION`, 0 otherwise (where
+    `FINALIZATION_DELAY_BLOCKS == 43200` (approximately 7 days worth of L1
+    blocks) and `L2_CHAIN_INCEPTION` is the [L2 chain inception] (the number of
+    the first L1 block for which an L2 block was produced).
+
+[`ForkchoiceStateV1`]: https://github.com/ethereum/execution-apis/blob/main/src/engine/specification.md#ForkchoiceStateV1
+
+> **Note:** the properties of this `ForkchoiceStateV1` can be used to anchor queries
+> to the regular (non-engine-API) JSON-RPC endpoint of the execution engine.
+> [See here for more information.][L2-JSON-RPC-API]
+
+[L2-JSON-RPC-API]: TODO
+
+> **TODO LINK** L2 JSON RPC API (might be the same as [L1's][JSON-RPC-API])
+
+The `payloadID` returned by [`engine_forkchoiceUpdatedOPV1`] can then be passed
+to [`engine_getPayloadV1`] in order to obtain an [`ExecutionPayloadV1`], which
+fully defines a new L2 block.
+
+[`engine_getPayloadV1`]: https://github.com/ethereum/execution-apis/blob/main/src/engine/specification.md#engine_getpayloadv1
+[`ExecutionPayloadV1`]: https://github.com/ethereum/execution-apis/blob/main/src/engine/specification.md#executionpayloadv1
+
+## Handling L1 Re-Orgs
+
+The [previous section on L2 chain derivation][l2-chain-derivation] assumes
+linear progression of the L1 chain. It is also applicable for batch processing,
+meaning that any given point in time, the canonical L2 chain is given by
+processing the whole L1 chain since the [L2 chain inception].
+
+The L1 chain may occasionally re-organize, meaning the head of the L1 chain
+changes to a block that is not the child of the previous head but rather one of
+its "cousins" (i.e. the descendant of an ancestor of the previous head). In
+those case, the rollup driver must:
+
+1. Locate the *common ancestor*, a block that is an ancestor of both the
+   previous and new head.
+2. Isolate the range of L1 blocks \]common ancestor, ..., new head\].
+3. For each such block, call [`engine_forkchoiceUpdatedOPV1`] and
+   [`engine_getPayloadV1`].
+   - Fill the [`PayloadAttributesOPV1`] object according to [the section on payload attributes][payload-attr].
+   - Fill the [``ForkchoiceStateV1`] object according to the [the section on the
+     execution engine][calling-exec-engine], but set `headBlockHash` to the hash
+     of the last processed L2 block (use the hash of the common ancestor
+     initially) instead of the last L2 chain head. `safeBlockHash` and
+     `finalizedBlockHash` must be updated accordingly.
+
+> Note that post-[merge], the L1 chain will offer finalization guarantees
+> meaning that it won't be able to re-org more than `FINALIZATION_DELAY_BLOCKS`
+> in the past, hence preserving our finalization guarantees.
+
+> **TODO** Enunciate our finalization guarantees.
+
+> **TODO** Must enunciate error cases more precisely, as well as state what
+> should be impossible and should cause the node to stop deriving the L2 chain.
+
+## Block Gossip
+
+Another responsability of the rollup node is to transmit the L2 blocks it
+derives from the L1 chain to other L2 nodes via a process called *block gossip*.
+
+This is specified in [a separate document][gossip-spec].
