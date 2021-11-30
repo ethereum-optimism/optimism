@@ -84,16 +84,19 @@ describe('Basic RPC tests', () => {
       ).to.be.rejectedWith('invalid transaction: invalid sender')
     })
 
-    it('should not accept a transaction without a chain ID', async () => {
+    it('should accept a transaction without a chain ID', async () => {
       const tx = {
         ...defaultTransactionFactory(),
+        nonce: await wallet.getTransactionCount(),
         gasPrice: await gasPriceForL2(env),
         chainId: null, // Disables EIP155 transaction signing.
       }
+      const signed = await wallet.signTransaction(tx)
+      const response = await provider.sendTransaction(signed)
 
-      await expect(
-        provider.sendTransaction(await wallet.signTransaction(tx))
-      ).to.be.rejectedWith('Cannot submit unprotected transaction')
+      expect(response.chainId).to.equal(0)
+      const v = response.v
+      expect(v === 27 || v === 28).to.be.true
     })
 
     it('should accept a transaction with a value', async () => {

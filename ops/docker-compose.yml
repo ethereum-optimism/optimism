@@ -165,7 +165,7 @@ services:
     depends_on:
       - dtl
     deploy:
-      replicas: 0
+      replicas: 1
     build:
       context: ..
       dockerfile: ./ops/docker/Dockerfile.geth
@@ -181,8 +181,8 @@ services:
         ETH1_CTC_DEPLOYMENT_HEIGHT: 8
         RETRIES: 60
     ports:
-      - ${L2GETH_HTTP_PORT:-8549}:8545
-      - ${L2GETH_WS_PORT:-8550}:8546
+      - ${REPLICA_HTTP_PORT:-8549}:8545
+      - ${REPLICA_WS_PORT:-8550}:8546
 
   integration_tests:
     deploy:
@@ -195,6 +195,8 @@ services:
     environment:
       L1_URL: http://l1_chain:8545
       L2_URL: http://l2geth:8545
+      REPLICA_URL: http://replica:8545
+      VERIFIER_URL: http://verifier:8545
       URL: http://deployer:8081/addresses.json
       ENABLE_GAS_REPORT: 1
       NO_NETWORK: 1
