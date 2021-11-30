@@ -57,6 +57,6 @@ CMD ["yarn", "test:integration"]
 
 
 FROM base as relayer
-WORKDIR /opt/optimism/packages/message-relayer
+WORKDIR /optimism/packages/message-relayer
 COPY ./ops/scripts/relayer.sh .
-ENTRYPOINT ["npm", "run", "start"]
+CMD ["npm", "run", "start"]
