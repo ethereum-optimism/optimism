@@ -199,9 +199,7 @@ contract L1CrossDomainMessenger is
         );
 
         xDomainMsgSender = _sender;
-        // slither-disable-next-line reentrancy-no-eth
-        // slither-disable-next-line reentrancy-events
-        // slither-disable-next-line reentrancy-benign
+        // slither-disable-next-line reentrancy-no-eth, reentrancy-events, reentrancy-benign
         (bool success, ) = _target.call(_message);
         // slither-disable-next-line reentrancy-benign
         xDomainMsgSender = Lib_DefaultValues.DEFAULT_XDOMAIN_SENDER;

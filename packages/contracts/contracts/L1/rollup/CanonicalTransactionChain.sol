@@ -358,8 +358,7 @@ contract CanonicalTransactionChain is ICanonicalTransactionChain, Lib_AddressRes
         }
 
         // Cache the previous blockhash to ensure all transaction data can be retrieved efficiently.
-        // slither-disable-next-line reentrancy-no-eth
-        // slither-disable-next-line reentrancy-events
+        // slither-disable-next-line reentrancy-no-eth, reentrancy-events
         _appendBatch(
             blockhash(block.number - 1),
             totalElementsToAppend,
@@ -528,8 +527,7 @@ contract CanonicalTransactionChain is ICanonicalTransactionChain, Lib_AddressRes
             _blockNumber
         );
 
-        // slither-disable-next-line reentrancy-no-eth
-        // slither-disable-next-line reentrancy-events
+        // slither-disable-next-line reentrancy-no-eth, reentrancy-events
         batchesRef.push(batchHeaderHash, latestBatchContext);
     }
 }

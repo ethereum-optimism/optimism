@@ -183,8 +183,7 @@ contract L1StandardBridge is IL1StandardBridge, CrossDomainEnabled {
         // When a deposit is initiated on L1, the L1 Bridge transfers the funds to itself for future
         // withdrawals. safeTransferFrom also checks if the contract has code, so this will fail if
         // _from is an EOA or address(0).
-        // slither-disable-next-line reentrancy-events
-        // slither-disable-next-line reentrancy-benign
+        // slither-disable-next-line reentrancy-events, reentrancy-benign
         IERC20(_l1Token).safeTransferFrom(_from, address(this), _amount);
 
         // Construct calldata for _l2Token.finalizeDeposit(_to, _amount)
@@ -199,8 +198,7 @@ contract L1StandardBridge is IL1StandardBridge, CrossDomainEnabled {
         );
 
         // Send calldata into L2
-        // slither-disable-next-line reentrancy-events
-        // slither-disable-next-line reentrancy-benign
+        // slither-disable-next-line reentrancy-events, reentrancy-benign
         sendCrossDomainMessage(l2TokenBridge, _l2Gas, message);
 
         // slither-disable-next-line reentrancy-benign

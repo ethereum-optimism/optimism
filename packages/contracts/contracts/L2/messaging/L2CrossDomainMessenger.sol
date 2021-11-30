@@ -72,8 +72,7 @@ contract L2CrossDomainMessenger is IL2CrossDomainMessenger {
         sentMessages[keccak256(xDomainCalldata)] = true;
 
         // Actually send the message.
-        // slither-disable-next-line reentrancy-no-eth
-        // slither-disable-next-line reentrancy-events
+        // slither-disable-next-line reentrancy-no-eth, reentrancy-events
         iOVM_L2ToL1MessagePasser(Lib_PredeployAddresses.L2_TO_L1_MESSAGE_PASSER).passMessageToL1(
             xDomainCalldata
         );
@@ -125,9 +124,7 @@ contract L2CrossDomainMessenger is IL2CrossDomainMessenger {
         }
 
         xDomainMsgSender = _sender;
-        // slither-disable-next-line reentrancy-no-eth
-        // slither-disable-next-line reentrancy-events
-        // slither-disable-next-line reentrancy-benign
+        // slither-disable-next-line reentrancy-no-eth, reentrancy-events, reentrancy-benign
         (bool success, ) = _target.call(_message);
         // slither-disable-next-line reentrancy-benign
         xDomainMsgSender = Lib_DefaultValues.DEFAULT_XDOMAIN_SENDER;
