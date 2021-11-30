@@ -1,5 +1,11 @@
 # @eth-optimism/integration-tests
 
+## 0.3.2
+
+### Patch Changes
+
+- d141095c: Allow for unprotected transactions
+
 ## 0.3.1
 
 ### Patch Changes

@@ -1,5 +1,14 @@
 # data transport layer
 
+## 0.5.5
+
+### Patch Changes
+
+- 128e0f84: Handle unprotected transactions
+- Updated dependencies [584cbc25]
+  - @eth-optimism/core-utils@0.7.3
+  - @eth-optimism/contracts@0.5.5
+
 ## 0.5.4
 
 ### Patch Changes

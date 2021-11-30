@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.2
+
+### Patch Changes
+
+- d141095c: Allow for unprotected transactions
+
 ## 0.5.1
 
 ### Patch Changes
