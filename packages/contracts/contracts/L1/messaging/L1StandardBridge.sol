@@ -50,9 +50,7 @@ contract L1StandardBridge is IL1StandardBridge, CrossDomainEnabled {
     // slither-disable-next-line external-function
     function initialize(address _l1messenger, address _l2TokenBridge) public {
         require(messenger == address(0), "Contract has already been initialized.");
-        // slither-disable-next-line missing-zero-check
         messenger = _l1messenger;
-        // slither-disable-next-line missing-zero-check
         l2TokenBridge = _l2TokenBridge;
     }
 
@@ -226,7 +224,6 @@ contract L1StandardBridge is IL1StandardBridge, CrossDomainEnabled {
         bytes calldata _data
     ) external onlyFromCrossDomainAccount(l2TokenBridge) {
         // slither-disable-next-line reentrancy-events
-        // slither-disable-next-line missing-zero-check
         (bool success, ) = _to.call{ value: _amount }(new bytes(0));
         require(success, "TransferHelper::safeTransferETH: ETH transfer failed");
 

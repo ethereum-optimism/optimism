@@ -176,7 +176,6 @@ contract L1CrossDomainMessenger is
             _messageNonce
         );
 
-        // slither-disable-next-line boolean-equal
         require(
             _verifyXDomainMessage(xDomainCalldata, _proof) == true,
             "Provided message could not be verified."
@@ -184,13 +183,11 @@ contract L1CrossDomainMessenger is
 
         bytes32 xDomainCalldataHash = keccak256(xDomainCalldata);
 
-        // slither-disable-next-line boolean-equal
         require(
             successfulMessages[xDomainCalldataHash] == false,
             "Provided message has already been received."
         );
 
-        // slither-disable-next-line boolean-equal
         require(
             blockedMessages[xDomainCalldataHash] == false,
             "Provided message has been blocked."
@@ -201,7 +198,6 @@ contract L1CrossDomainMessenger is
             "Cannot send L2->L1 messages to L1 system contracts."
         );
 
-        // slither-disable-next-line missing-zero-check
         xDomainMsgSender = _sender;
         // slither-disable-next-line reentrancy-no-eth
         // slither-disable-next-line reentrancy-events
@@ -212,7 +208,6 @@ contract L1CrossDomainMessenger is
 
         // Mark the message as received if the call was successful. Ensures that a message can be
         // relayed multiple times in the case that the call reverted.
-        // slither-disable-next-line boolean-equal
         if (success == true) {
             // slither-disable-next-line reentrancy-no-eth
             successfulMessages[xDomainCalldataHash] = true;
@@ -299,7 +294,6 @@ contract L1CrossDomainMessenger is
      * @param _proof Message inclusion proof.
      * @return Whether or not the provided proof is valid.
      */
-    // slither-disable-next-line boolean-equal
     function _verifyStateRootProof(L2MessageInclusionProof memory _proof)
         internal
         view
@@ -346,7 +340,6 @@ contract L1CrossDomainMessenger is
             _proof.stateRoot
         );
 
-        // slither-disable-next-line boolean-equal
         require(
             exists == true,
             "Message passing predeploy has not been initialized or invalid proof provided."

@@ -37,7 +37,6 @@ contract OVM_SequencerFeeVault {
      * the genesis block. This is ONLY for testing purposes.
      */
     constructor(address _l1FeeWallet) {
-        // slither-disable-next-line missing-zero-check
         l1FeeWallet = _l1FeeWallet;
     }
 

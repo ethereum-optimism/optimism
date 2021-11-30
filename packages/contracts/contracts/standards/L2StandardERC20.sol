@@ -20,9 +20,7 @@ contract L2StandardERC20 is IL2StandardERC20, ERC20 {
         string memory _name,
         string memory _symbol
     ) ERC20(_name, _symbol) {
-        // slither-disable-next-line missing-zero-check
         l1Token = _l1Token;
-        // slither-disable-next-line missing-zero-check
         l2Bridge = _l2Bridge;
     }
 

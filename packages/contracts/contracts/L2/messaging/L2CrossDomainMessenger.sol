@@ -34,7 +34,6 @@ contract L2CrossDomainMessenger is IL2CrossDomainMessenger {
      ***************/
 
     constructor(address _l1CrossDomainMessenger) {
-        // slither-disable-next-line missing-zero-check
         l1CrossDomainMessenger = _l1CrossDomainMessenger;
     }
 
@@ -111,7 +110,6 @@ contract L2CrossDomainMessenger is IL2CrossDomainMessenger {
 
         bytes32 xDomainCalldataHash = keccak256(xDomainCalldata);
 
-        // slither-disable-next-line boolean-equal
         require(
             successfulMessages[xDomainCalldataHash] == false,
             "Provided message has already been received."
@@ -126,7 +124,6 @@ contract L2CrossDomainMessenger is IL2CrossDomainMessenger {
             return;
         }
 
-        // slither-disable-next-line missing-zero-check
         xDomainMsgSender = _sender;
         // slither-disable-next-line reentrancy-no-eth
         // slither-disable-next-line reentrancy-events
@@ -137,7 +134,6 @@ contract L2CrossDomainMessenger is IL2CrossDomainMessenger {
 
         // Mark the message as received if the call was successful. Ensures that a message can be
         // relayed multiple times in the case that the call reverted.
-        // slither-disable-next-line boolean-equal
         if (success == true) {
             // slither-disable-next-line reentrancy-no-eth
             successfulMessages[xDomainCalldataHash] = true;

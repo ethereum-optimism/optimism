@@ -41,7 +41,6 @@ contract L2StandardBridge is IL2ERC20Bridge, CrossDomainEnabled {
     constructor(address _l2CrossDomainMessenger, address _l1TokenBridge)
         CrossDomainEnabled(_l2CrossDomainMessenger)
     {
-        // slither-disable-next-line missing-zero-check
         l1TokenBridge = _l1TokenBridge;
     }
 

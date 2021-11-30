@@ -50,7 +50,6 @@ contract Lib_ResolvedDelegateProxy {
         // slither-disable-next-line controlled-delegatecall
         (bool success, bytes memory returndata) = target.delegatecall(msg.data);
 
-        // slither-disable-next-line boolean-equal
         if (success == true) {
             assembly {
                 return(add(returndata, 0x20), mload(returndata))

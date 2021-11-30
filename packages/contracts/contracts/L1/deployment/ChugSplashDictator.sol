@@ -38,7 +38,6 @@ contract ChugSplashDictator is iL1ChugSplashDeployer {
         bytes32 _bridgeSlotVal
     ) {
         target = _target;
-        // slither-disable-next-line missing-zero-check
         finalOwner = _finalOwner;
         codeHash = _codeHash;
         messengerSlotKey = _messengerSlotKey;

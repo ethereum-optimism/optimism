@@ -26,7 +26,6 @@ contract CrossDomainEnabled {
      * @param _messenger Address of the CrossDomainMessenger on the current layer.
      */
     constructor(address _messenger) {
-        // slither-disable-next-line missing-zero-check
         messenger = _messenger;
     }
 

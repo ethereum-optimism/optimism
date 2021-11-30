@@ -44,7 +44,6 @@ contract AddressDictator {
         address[] memory _addresses
     ) {
         manager = _manager;
-        // slither-disable-next-line missing-zero-check
         finalOwner = _finalOwner;
         require(
             _names.length == _addresses.length,
