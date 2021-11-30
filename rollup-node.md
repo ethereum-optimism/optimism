@@ -222,7 +222,7 @@ except that:
   - `finalizedBlockHash`: the hash of the block whose number is
     `number(headBlockHash) - FINALIZATION_DELAY_BLOCKS` if the number of that
     block is `>= L2_CHAIN_INCEPTION`, 0 otherwise (where
-    `FINALIZATION_DELAY_BLOCKS == 43200` (approximately 7 days worth of L1
+    `FINALIZATION_DELAY_BLOCKS == 50400` (approximately 7 days worth of L1
     blocks) and `L2_CHAIN_INCEPTION` is the [L2 chain inception] (the number of
     the first L1 block for which an L2 block was produced).
 
@@ -261,7 +261,7 @@ those case, the rollup driver must:
 3. For each such block, call [`engine_forkchoiceUpdatedOPV1`] and
    [`engine_getPayloadV1`].
    - Fill the [`PayloadAttributesOPV1`] object according to [the section on payload attributes][payload-attr].
-   - Fill the [``ForkchoiceStateV1`] object according to the [the section on the
+   - Fill the [`ForkchoiceStateV1`] object according to the [the section on the
      execution engine][calling-exec-engine], but set `headBlockHash` to the hash
      of the last processed L2 block (use the hash of the common ancestor
      initially) instead of the last L2 chain head. `safeBlockHash` and
@@ -279,6 +279,7 @@ those case, the rollup driver must:
 ## Block Gossip
 
 Another responsability of the rollup node is to transmit the L2 blocks it
-derives from the L1 chain to other L2 nodes via a process called *block gossip*.
+derives from the L1 chain to other L2 nodes via a process called *[block
+gossip]*.
 
 This is specified in [a separate document][gossip-spec].
