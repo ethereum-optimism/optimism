@@ -1,5 +1,12 @@
 # @eth-optimism/proxyd
 
+## 3.1.1
+
+### Patch Changes
+
+- b8802054: Trigger release of proxyd
+- 34fcb277: Bump proxyd to test release build workflow
+
 ## 3.1.0
 
 ### Minor Changes
