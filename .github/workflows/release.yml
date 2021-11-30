@@ -207,7 +207,7 @@ jobs:
     name: Publish rpc-proxy Version ${{ needs.release.outputs.rpc-proxy }}
     needs: release
     if: needs.release.outputs.rpc-proxy != ''
-    runs-on: ubuntu:latest
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout
