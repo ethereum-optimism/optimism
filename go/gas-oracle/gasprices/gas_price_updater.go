@@ -2,6 +2,7 @@ package gasprices
 
 import (
 	"errors"
+	"math/big"
 	"sync"
 
 	"github.com/ethereum/go-ethereum/log"
@@ -9,33 +10,26 @@ import (
 
 type GetLatestBlockNumberFn func() (uint64, error)
 type UpdateL2GasPriceFn func(uint64) error
+type GetGasUsedByBlockFn func(*big.Int) (uint64, error)
 
 type GasPriceUpdater struct {
 	mu                     *sync.RWMutex
 	gasPricer              *GasPricer
 	epochStartBlockNumber  uint64
-	averageBlockGasLimit   float64
+	averageBlockGasLimit   uint64
 	epochLengthSeconds     uint64
 	getLatestBlockNumberFn GetLatestBlockNumberFn
+	getGasUsedByBlockFn    GetGasUsedByBlockFn
 	updateL2GasPriceFn     UpdateL2GasPriceFn
-}
-
-func GetAverageGasPerSecond(
-	epochStartBlockNumber uint64,
-	latestBlockNumber uint64,
-	epochLengthSeconds uint64,
-	averageBlockGasLimit uint64,
-) float64 {
-	blocksPassed := latestBlockNumber - epochStartBlockNumber
-	return float64(blocksPassed * averageBlockGasLimit / epochLengthSeconds)
 }
 
 func NewGasPriceUpdater(
 	gasPricer *GasPricer,
 	epochStartBlockNumber uint64,
-	averageBlockGasLimit float64,
+	averageBlockGasLimit uint64,
 	epochLengthSeconds uint64,
 	getLatestBlockNumberFn GetLatestBlockNumberFn,
+	getGasUsedByBlockFn GetGasUsedByBlockFn,
 	updateL2GasPriceFn UpdateL2GasPriceFn,
 ) (*GasPriceUpdater, error) {
 	if averageBlockGasLimit < 1 {
@@ -51,6 +45,7 @@ func NewGasPriceUpdater(
 		epochLengthSeconds:     epochLengthSeconds,
 		averageBlockGasLimit:   averageBlockGasLimit,
 		getLatestBlockNumberFn: getLatestBlockNumberFn,
+		getGasUsedByBlockFn:    getGasUsedByBlockFn,
 		updateL2GasPriceFn:     updateL2GasPriceFn,
 	}, nil
 }
@@ -63,16 +58,29 @@ func (g *GasPriceUpdater) UpdateGasPrice() error {
 	if err != nil {
 		return err
 	}
-	if latestBlockNumber < uint64(g.epochStartBlockNumber) {
+	if latestBlockNumber < g.epochStartBlockNumber {
 		return errors.New("Latest block number less than the last epoch's block number")
 	}
-	averageGasPerSecond := GetAverageGasPerSecond(
-		g.epochStartBlockNumber,
-		latestBlockNumber,
-		uint64(g.epochLengthSeconds),
-		uint64(g.averageBlockGasLimit),
-	)
-	log.Debug("UpdateGasPrice", "averageGasPerSecond", averageGasPerSecond, "current-price", g.gasPricer.curPrice)
+
+	if latestBlockNumber == g.epochStartBlockNumber {
+		log.Debug("latest block number is equal to epoch start block number", "number", latestBlockNumber)
+		return nil
+	}
+
+	// Accumulate the amount of gas that has been used in the epoch
+	totalGasUsed := uint64(0)
+	for i := g.epochStartBlockNumber + 1; i <= latestBlockNumber; i++ {
+		gasUsed, err := g.getGasUsedByBlockFn(new(big.Int).SetUint64(i))
+		log.Trace("fetching gas used", "height", i, "gas-used", gasUsed, "total-gas", totalGasUsed)
+		if err != nil {
+			return err
+		}
+		totalGasUsed += gasUsed
+	}
+
+	averageGasPerSecond := float64(totalGasUsed / g.epochLengthSeconds)
+
+	log.Debug("UpdateGasPrice", "average-gas-per-second", averageGasPerSecond, "current-price", g.gasPricer.curPrice)
 	_, err = g.gasPricer.CompleteEpoch(averageGasPerSecond)
 	if err != nil {
 		return err
