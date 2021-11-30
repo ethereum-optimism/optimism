@@ -25,8 +25,9 @@ func (r *RPCRes) IsError() bool {
 }
 
 type RPCErr struct {
-	Code    int    `json:"code"`
-	Message string `json:"message"`
+	Code          int    `json:"code"`
+	Message       string `json:"message"`
+	HTTPErrorCode int    `json:"-"`
 }
 
 func (r *RPCErr) Error() string {

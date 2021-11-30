@@ -1,6 +1,5 @@
 name: geth unit tests
 
-
 on:
   push:
     paths:
@@ -13,11 +12,6 @@ on:
   pull_request:
     paths:
       - 'l2geth/**'
-    branches:
-      - 'master'
-      - 'develop'
-      - '*rc'
-      - 'regenesis/*'
   workflow_dispatch:
 
 defaults:

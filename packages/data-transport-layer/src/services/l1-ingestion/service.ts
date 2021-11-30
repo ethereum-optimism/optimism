@@ -1,6 +1,7 @@
 /* Imports: External */
 import { fromHexString, FallbackProvider } from '@eth-optimism/core-utils'
 import { BaseService, Metrics } from '@eth-optimism/common-ts'
+import { TypedEvent } from '@eth-optimism/contracts/dist/types/common'
 import { BaseProvider } from '@ethersproject/providers'
 import { LevelUp } from 'levelup'
 import { constants } from 'ethers'
@@ -15,7 +16,7 @@ import {
   loadContract,
   validators,
 } from '../../utils'
-import { TypedEthersEvent, EventHandlerSet } from '../../types'
+import { EventHandlerSet } from '../../types'
 import { handleEventsTransactionEnqueued } from './handlers/transaction-enqueued'
 import { handleEventsSequencerBatchAppended } from './handlers/sequencer-batch-appended'
 import { handleEventsStateBatchAppended } from './handlers/state-batch-appended'
@@ -389,9 +390,7 @@ export class L1IngestionService extends BaseService<L1IngestionServiceOptions> {
 
     for (const eventRange of eventRanges) {
       // Find all relevant events within the range.
-      const events: TypedEthersEvent<any>[] = await this.state.contracts[
-        contractName
-      ]
+      const events: TypedEvent[] = await this.state.contracts[contractName]
         .attach(eventRange.address)
         .queryFilter(
           this.state.contracts[contractName].filters[eventName](),

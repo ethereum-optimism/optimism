@@ -13,9 +13,17 @@ RUN make proxyd
 
 FROM alpine:3.14.2
 
+COPY ./go/proxyd/entrypoint.sh /bin/entrypoint.sh
+
+RUN apk update && \
+    apk add ca-certificates && \
+    chmod +x /bin/entrypoint.sh
+
 EXPOSE 8080
 
 VOLUME /etc/proxyd
 
 COPY --from=builder /app/bin/proxyd /bin/proxyd
+
+ENTRYPOINT ["/bin/entrypoint.sh"]
 CMD ["/bin/proxyd", "/etc/proxyd/proxyd.toml"]

@@ -1,6 +1,6 @@
 /* Imports: External */
+import { StateBatchAppendedEvent } from '@eth-optimism/contracts/dist/types/StateCommitmentChain'
 import { getContractFactory } from '@eth-optimism/contracts'
-import { EventArgsStateBatchAppended } from '@eth-optimism/core-utils'
 import { BigNumber } from 'ethers'
 
 /* Imports: Internal */
@@ -14,7 +14,7 @@ import {
 import { MissingElementError } from './errors'
 
 export const handleEventsStateBatchAppended: EventHandlerSet<
-  EventArgsStateBatchAppended,
+  StateBatchAppendedEvent,
   StateBatchAppendedExtraData,
   StateBatchAppendedParsedEvent
 > = {

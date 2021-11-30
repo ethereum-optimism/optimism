@@ -1,6 +1,7 @@
 package proxyd
 
 import (
+	"crypto/tls"
 	"errors"
 	"fmt"
 	"github.com/ethereum/go-ethereum/log"
@@ -29,9 +30,16 @@ func Start(config *Config) error {
 		}
 	}
 
-	redis, err := NewRedis(config.Redis.URL)
-	if err != nil {
-		return err
+	var lim RateLimiter
+	var err error
+	if config.Redis == nil {
+		log.Warn("redis is not configured, using local rate limiter")
+		lim = NewLocalRateLimiter()
+	} else {
+		lim, err = NewRedisRateLimiter(config.Redis.URL)
+		if err != nil {
+			return err
+		}
 	}
 
 	backendNames := make([]string, 0)
@@ -68,7 +76,15 @@ func Start(config *Config) error {
 		if cfg.Password != "" {
 			opts = append(opts, WithBasicAuth(cfg.Username, cfg.Password))
 		}
-		back := NewBackend(name, cfg.RPCURL, cfg.WSURL, redis, opts...)
+		tlsConfig, err := configureBackendTLS(cfg)
+		if err != nil {
+			return err
+		}
+		if tlsConfig != nil {
+			log.Info("using custom TLS config for backend", "name", name)
+			opts = append(opts, WithTLSConfig(tlsConfig))
+		}
+		back := NewBackend(name, cfg.RPCURL, cfg.WSURL, lim, opts...)
 		backendNames = append(backendNames, name)
 		backendsByName[name] = back
 		log.Info("configured backend", "name", name, "rpc_url", cfg.RPCURL, "ws_url", cfg.WSURL)
@@ -90,17 +106,17 @@ func Start(config *Config) error {
 		backendGroups[bgName] = group
 	}
 
-  var wsBackendGroup *BackendGroup
-  if config.WSBackendGroup != "" {
-    wsBackendGroup = backendGroups[config.WSBackendGroup]
-    if wsBackendGroup == nil {
-      return fmt.Errorf("ws backend group %s does not exist", config.WSBackendGroup)
-    }
-  }
+	var wsBackendGroup *BackendGroup
+	if config.WSBackendGroup != "" {
+		wsBackendGroup = backendGroups[config.WSBackendGroup]
+		if wsBackendGroup == nil {
+			return fmt.Errorf("ws backend group %s does not exist", config.WSBackendGroup)
+		}
+	}
 
-  if wsBackendGroup == nil && config.Server.WSPort != 0 {
-    return fmt.Errorf("a ws port was defined, but no ws group was defined")
-  }
+	if wsBackendGroup == nil && config.Server.WSPort != 0 {
+		return fmt.Errorf("a ws port was defined, but no ws group was defined")
+	}
 
 	for _, bg := range config.RPCMethodMappings {
 		if backendGroups[bg] == nil {
@@ -152,7 +168,7 @@ func Start(config *Config) error {
 	recvSig := <-sig
 	log.Info("caught signal, shutting down", "signal", recvSig)
 	srv.Shutdown()
-	if err := redis.FlushBackendWSConns(backendNames); err != nil {
+	if err := lim.FlushBackendWSConns(backendNames); err != nil {
 		log.Error("error flushing backend ws conns", "err", err)
 	}
 	return nil
@@ -160,4 +176,25 @@ func Start(config *Config) error {
 
 func secondsToDuration(seconds int) time.Duration {
 	return time.Duration(seconds) * time.Second
+}
+
+func configureBackendTLS(cfg *BackendConfig) (*tls.Config, error) {
+	if cfg.CAFile == "" {
+		return nil, nil
+	}
+
+	tlsConfig, err := CreateTLSClient(cfg.CAFile)
+	if err != nil {
+		return nil, err
+	}
+
+	if cfg.ClientCertFile != "" && cfg.ClientKeyFile != "" {
+		cert, err := ParseKeyPair(cfg.ClientCertFile, cfg.ClientKeyFile)
+		if err != nil {
+			return nil, err
+		}
+		tlsConfig.Certificates = []tls.Certificate{cert}
+	}
+
+	return tlsConfig, nil
 }

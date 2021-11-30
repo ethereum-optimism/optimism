@@ -1,5 +1,6 @@
 import { BaseProvider } from '@ethersproject/providers'
-import { BigNumber, Event } from 'ethers'
+import { BigNumber } from 'ethers'
+import { TypedEvent } from '@eth-optimism/contracts/dist/types/common'
 
 import { TransportDB } from '../db/transport-db'
 import {
@@ -9,29 +10,29 @@ import {
   StateRootEntry,
 } from './database-types'
 
-export type TypedEthersEvent<T> = Event & {
-  args: T
-}
-
-export type GetExtraDataHandler<TEventArgs, TExtraData> = (
-  event?: TypedEthersEvent<TEventArgs>,
+export type GetExtraDataHandler<TEvent extends TypedEvent, TExtraData> = (
+  event?: TEvent,
   l1RpcProvider?: BaseProvider
 ) => Promise<TExtraData>
 
-export type ParseEventHandler<TEventArgs, TExtraData, TParsedEvent> = (
-  event: TypedEthersEvent<TEventArgs>,
-  extraData: TExtraData,
-  l2ChainId: number
-) => TParsedEvent
+export type ParseEventHandler<
+  TEvent extends TypedEvent,
+  TExtraData,
+  TParsedEvent
+> = (event: TEvent, extraData: TExtraData, l2ChainId: number) => TParsedEvent
 
 export type StoreEventHandler<TParsedEvent> = (
   parsedEvent: TParsedEvent,
   db: TransportDB
 ) => Promise<void>
 
-export interface EventHandlerSet<TEventArgs, TExtraData, TParsedEvent> {
-  getExtraData: GetExtraDataHandler<TEventArgs, TExtraData>
-  parseEvent: ParseEventHandler<TEventArgs, TExtraData, TParsedEvent>
+export interface EventHandlerSet<
+  TEvent extends TypedEvent,
+  TExtraData,
+  TParsedEvent
+> {
+  getExtraData: GetExtraDataHandler<TEvent, TExtraData>
+  parseEvent: ParseEventHandler<TEvent, TExtraData, TParsedEvent>
   storeEvent: StoreEventHandler<TParsedEvent>
 }
 

@@ -38,6 +38,17 @@ var (
 		"source",
 	})
 
+	rpcBackendHTTPResponseCodesTotal = promauto.NewCounterVec(prometheus.CounterOpts{
+		Namespace: MetricsNamespace,
+		Name:      "rpc_backend_http_response_codes_total",
+		Help:      "Count of total backend responses by HTTP status code.",
+	}, []string{
+		"auth",
+		"backend_name",
+		"method_name",
+		"status_code",
+	})
+
 	rpcErrorsTotal = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: MetricsNamespace,
 		Name:      "rpc_errors_total",
@@ -99,6 +110,14 @@ var (
 		Namespace: MetricsNamespace,
 		Name:      "http_requests_total",
 		Help:      "Count of total HTTP requests.",
+	})
+
+	httpResponseCodesTotal = promauto.NewCounterVec(prometheus.CounterOpts{
+		Namespace: MetricsNamespace,
+		Name:      "http_response_codes_total",
+		Help:      "Count of total HTTP response codes.",
+	}, []string{
+		"status_code",
 	})
 
 	httpRequestDurationSumm = promauto.NewSummary(prometheus.SummaryOpts{

@@ -3,6 +3,7 @@ package proxyd
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -14,6 +15,7 @@ import (
 	"math"
 	"math/rand"
 	"net/http"
+	"strconv"
 	"time"
 )
 
@@ -24,36 +26,44 @@ const (
 
 var (
 	ErrInvalidRequest = &RPCErr{
-		Code:    -32601,
-		Message: "invalid request",
+		Code:          -32601,
+		Message:       "invalid request",
+		HTTPErrorCode: 400,
 	}
 	ErrParseErr = &RPCErr{
-		Code:    -32700,
-		Message: "parse error",
+		Code:          -32700,
+		Message:       "parse error",
+		HTTPErrorCode: 400,
 	}
 	ErrInternal = &RPCErr{
-		Code:    JSONRPCErrorInternal,
-		Message: "internal error",
+		Code:          JSONRPCErrorInternal,
+		Message:       "internal error",
+		HTTPErrorCode: 500,
 	}
 	ErrMethodNotWhitelisted = &RPCErr{
-		Code:    JSONRPCErrorInternal - 1,
-		Message: "rpc method is not whitelisted",
+		Code:          JSONRPCErrorInternal - 1,
+		Message:       "rpc method is not whitelisted",
+		HTTPErrorCode: 403,
 	}
 	ErrBackendOffline = &RPCErr{
-		Code:    JSONRPCErrorInternal - 10,
-		Message: "backend offline",
+		Code:          JSONRPCErrorInternal - 10,
+		Message:       "backend offline",
+		HTTPErrorCode: 503,
 	}
 	ErrNoBackends = &RPCErr{
-		Code:    JSONRPCErrorInternal - 11,
-		Message: "no backends available for method",
+		Code:          JSONRPCErrorInternal - 11,
+		Message:       "no backends available for method",
+		HTTPErrorCode: 503,
 	}
 	ErrBackendOverCapacity = &RPCErr{
-		Code:    JSONRPCErrorInternal - 12,
-		Message: "backend is over capacity",
+		Code:          JSONRPCErrorInternal - 12,
+		Message:       "backend is over capacity",
+		HTTPErrorCode: 429,
 	}
 	ErrBackendBadResponse = &RPCErr{
-		Code:    JSONRPCErrorInternal - 13,
-		Message: "backend returned an invalid response",
+		Code:          JSONRPCErrorInternal - 13,
+		Message:       "backend returned an invalid response",
+		HTTPErrorCode: 500,
 	}
 )
 
@@ -63,7 +73,7 @@ type Backend struct {
 	wsURL                string
 	authUsername         string
 	authPassword         string
-	redis                Redis
+	rateLimiter          RateLimiter
 	client               *http.Client
 	dialer               *websocket.Dialer
 	maxRetries           int
@@ -118,18 +128,27 @@ func WithMaxWSConns(maxConns int) BackendOpt {
 	}
 }
 
+func WithTLSConfig(tlsConfig *tls.Config) BackendOpt {
+	return func(b *Backend) {
+		if b.client.Transport == nil {
+			b.client.Transport = &http.Transport{}
+		}
+		b.client.Transport.(*http.Transport).TLSClientConfig = tlsConfig
+	}
+}
+
 func NewBackend(
 	name string,
 	rpcURL string,
 	wsURL string,
-	redis Redis,
+	rateLimiter RateLimiter,
 	opts ...BackendOpt,
 ) *Backend {
 	backend := &Backend{
 		Name:            name,
 		rpcURL:          rpcURL,
 		wsURL:           wsURL,
-		redis:           redis,
+		rateLimiter:     rateLimiter,
 		maxResponseSize: math.MaxInt64,
 		client: &http.Client{
 			Timeout: 5 * time.Second,
@@ -160,7 +179,7 @@ func (b *Backend) Forward(ctx context.Context, req *RPCReq) (*RPCRes, error) {
 	for i := 0; i <= b.maxRetries; i++ {
 		RecordRPCForward(ctx, b.Name, req.Method, RPCRequestSourceHTTP)
 		respTimer := prometheus.NewTimer(rpcBackendRequestDurationSumm.WithLabelValues(b.Name, req.Method))
-		res, err := b.doForward(req)
+		res, err := b.doForward(ctx, req)
 		if err != nil {
 			lastError = err
 			log.Warn(
@@ -179,6 +198,7 @@ func (b *Backend) Forward(ctx context.Context, req *RPCReq) (*RPCRes, error) {
 			RecordRPCError(ctx, b.Name, req.Method, res.Error)
 			log.Info(
 				"backend responded with RPC error",
+				"backend", b.Name,
 				"code", res.Error.Code,
 				"msg", res.Error.Message,
 				"req_id", GetReqID(ctx),
@@ -187,6 +207,7 @@ func (b *Backend) Forward(ctx context.Context, req *RPCReq) (*RPCRes, error) {
 			)
 		} else {
 			log.Info("forwarded RPC request",
+				"backend", b.Name,
 				"method", req.Method,
 				"auth", GetAuthCtx(ctx),
 				"req_id", GetReqID(ctx),
@@ -210,7 +231,7 @@ func (b *Backend) ProxyWS(clientConn *websocket.Conn, methodWhitelist *StringSet
 	backendConn, _, err := b.dialer.Dial(b.wsURL, nil)
 	if err != nil {
 		b.setOffline()
-		if err := b.redis.DecBackendWSConns(b.Name); err != nil {
+		if err := b.rateLimiter.DecBackendWSConns(b.Name); err != nil {
 			log.Error("error decrementing backend ws conns", "name", b.Name, "err", err)
 		}
 		return nil, wrapErr(err, "error dialing backend")
@@ -221,7 +242,7 @@ func (b *Backend) ProxyWS(clientConn *websocket.Conn, methodWhitelist *StringSet
 }
 
 func (b *Backend) Online() bool {
-	online, err := b.redis.IsBackendOnline(b.Name)
+	online, err := b.rateLimiter.IsBackendOnline(b.Name)
 	if err != nil {
 		log.Warn(
 			"error getting backend availability, assuming it is offline",
@@ -238,7 +259,7 @@ func (b *Backend) IsRateLimited() bool {
 		return false
 	}
 
-	usedLimit, err := b.redis.IncBackendRPS(b.Name)
+	usedLimit, err := b.rateLimiter.IncBackendRPS(b.Name)
 	if err != nil {
 		log.Error(
 			"error getting backend used rate limit, assuming limit is exhausted",
@@ -256,7 +277,7 @@ func (b *Backend) IsWSSaturated() bool {
 		return false
 	}
 
-	incremented, err := b.redis.IncBackendWSConns(b.Name, b.maxWSConns)
+	incremented, err := b.rateLimiter.IncBackendWSConns(b.Name, b.maxWSConns)
 	if err != nil {
 		log.Error(
 			"error getting backend used ws conns, assuming limit is exhausted",
@@ -270,7 +291,7 @@ func (b *Backend) IsWSSaturated() bool {
 }
 
 func (b *Backend) setOffline() {
-	err := b.redis.SetBackendOffline(b.Name, b.outOfServiceInterval)
+	err := b.rateLimiter.SetBackendOffline(b.Name, b.outOfServiceInterval)
 	if err != nil {
 		log.Warn(
 			"error setting backend offline",
@@ -280,7 +301,7 @@ func (b *Backend) setOffline() {
 	}
 }
 
-func (b *Backend) doForward(rpcReq *RPCReq) (*RPCRes, error) {
+func (b *Backend) doForward(ctx context.Context, rpcReq *RPCReq) (*RPCRes, error) {
 	body := mustMarshalJSON(rpcReq)
 
 	httpReq, err := http.NewRequest("POST", b.rpcURL, bytes.NewReader(body))
@@ -299,6 +320,13 @@ func (b *Backend) doForward(rpcReq *RPCReq) (*RPCRes, error) {
 		return nil, wrapErr(err, "error in backend request")
 	}
 
+	rpcBackendHTTPResponseCodesTotal.WithLabelValues(
+		GetAuthCtx(ctx),
+		b.Name,
+		rpcReq.Method,
+		strconv.Itoa(httpRes.StatusCode),
+	).Inc()
+
 	// Alchemy returns a 400 on bad JSONs, so handle that case
 	if httpRes.StatusCode != 200 && httpRes.StatusCode != 400 {
 		return nil, fmt.Errorf("response code %d", httpRes.StatusCode)
@@ -313,6 +341,12 @@ func (b *Backend) doForward(rpcReq *RPCReq) (*RPCRes, error) {
 	res := new(RPCRes)
 	if err := json.Unmarshal(resB, res); err != nil {
 		return nil, ErrBackendBadResponse
+	}
+
+	// capture the HTTP status code in the response. this will only
+	// ever be 400 given the status check on line 318 above.
+	if httpRes.StatusCode != 200 {
+		res.Error.HTTPErrorCode = httpRes.StatusCode
 	}
 
 	return res, nil
@@ -556,7 +590,7 @@ func (w *WSProxier) backendPump(ctx context.Context, errC chan error) {
 func (w *WSProxier) close() {
 	w.clientConn.Close()
 	w.backendConn.Close()
-	if err := w.backend.redis.DecBackendWSConns(w.backend.Name); err != nil {
+	if err := w.backend.rateLimiter.DecBackendWSConns(w.backend.Name); err != nil {
 		log.Error("error decrementing backend ws conns", "name", w.backend.Name, "err", err)
 	}
 	activeBackendWsConnsGauge.WithLabelValues(w.backend.Name).Dec()

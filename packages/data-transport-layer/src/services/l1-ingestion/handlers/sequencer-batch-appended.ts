@@ -5,8 +5,8 @@ import {
   fromHexString,
   toHexString,
   toRpcHexString,
-  EventArgsSequencerBatchAppended,
 } from '@eth-optimism/core-utils'
+import { SequencerBatchAppendedEvent } from '@eth-optimism/contracts/dist/types/CanonicalTransactionChain'
 
 /* Imports: Internal */
 import {
@@ -21,7 +21,7 @@ import { SEQUENCER_GAS_LIMIT, parseSignatureVParam } from '../../../utils'
 import { MissingElementError } from './errors'
 
 export const handleEventsSequencerBatchAppended: EventHandlerSet<
-  EventArgsSequencerBatchAppended,
+  SequencerBatchAppendedEvent,
   SequencerBatchAppendedExtraData,
   SequencerBatchAppendedParsedEvent
 > = {
