@@ -52,6 +52,17 @@ A Makefile has been provided for convience. The following targets are available.
 - make up-metrics
 - make down-metrics
 
+## Cross domain communication
+
+By default, the `message-relayer` service is turned off. This means that
+any tests must manually submit withdrawals. The `message-relayer` will
+automatically look for withdrawals and submit the proofs. To run with the
+`message-relayer` on, use the command:
+
+```bash
+$ docker-compose up --scale relayer=1
+```
+
 ## Authentication
 
 Influxdb has authentication disabled.
