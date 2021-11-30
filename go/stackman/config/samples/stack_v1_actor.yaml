@@ -1,0 +1,6 @@
+apiVersion: stack.optimism-stacks.net/v1
+kind: Actor
+metadata:
+  name: actor-sample
+spec:
+  # Add fields here

@@ -4,6 +4,8 @@ import { HardhatUserConfig } from 'hardhat/types'
 import '@nomiclabs/hardhat-ethers'
 import '@nomiclabs/hardhat-waffle'
 import 'hardhat-gas-reporter'
+import './tasks/accounts'
+import './tasks/contracts'
 import { isLiveNetwork } from './test/shared/utils'
 
 const enableGasReport = !!process.env.ENABLE_GAS_REPORT

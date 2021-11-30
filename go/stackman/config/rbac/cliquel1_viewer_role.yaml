@@ -1,0 +1,20 @@
+# permissions for end users to view cliquel1s.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: cliquel1-viewer-role
+rules:
+- apiGroups:
+  - stack.optimism-stacks.net
+  resources:
+  - cliquel1s
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - stack.optimism-stacks.net
+  resources:
+  - cliquel1s/status
+  verbs:
+  - get

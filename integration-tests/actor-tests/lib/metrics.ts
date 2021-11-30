@@ -1,5 +1,7 @@
 import fs from 'fs'
 import client from 'prom-client'
+import http from 'http'
+import url from 'url'
 
 export const metricsRegistry = new client.Registry()
 
@@ -52,4 +54,19 @@ export const dumpMetrics = async (filename: string) => {
   await fs.promises.writeFile(filename, metrics, {
     flag: 'w+',
   })
+}
+
+export const serveMetrics = (port: number) => {
+  const server = http.createServer(async (req, res) => {
+    const route = url.parse(req.url).pathname
+    if (route !== '/metrics') {
+      res.writeHead(404)
+      res.end()
+      return
+    }
+
+    res.setHeader('Content-Type', metricsRegistry.contentType)
+    res.end(await metricsRegistry.metrics())
+  })
+  server.listen(port)
 }
