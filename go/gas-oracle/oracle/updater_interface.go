@@ -18,7 +18,7 @@ import (
 
 var (
 	txSendCounter           = metrics.NewRegisteredCounter("tx/send", ometrics.DefaultRegistry)
-	txNotSignificantCounter = metrics.NewRegisteredCounter("tx/not-significant", ometrics.DefaultRegistry)
+	txNotSignificantCounter = metrics.NewRegisteredCounter("tx/not_significant", ometrics.DefaultRegistry)
 	gasPriceGauge           = metrics.NewRegisteredGauge("gas_price", ometrics.DefaultRegistry)
 	txConfTimer             = metrics.NewRegisteredTimer("tx/confirmed", ometrics.DefaultRegistry)
 	txSendTimer             = metrics.NewRegisteredTimer("tx/send", ometrics.DefaultRegistry)
