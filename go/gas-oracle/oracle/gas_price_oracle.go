@@ -196,7 +196,7 @@ func NewGasPriceOracle(cfg *Config) (*GasPriceOracle, error) {
 	address := cfg.gasPriceOracleAddress
 	contract, err := bindings.NewGasPriceOracle(address, l2Client)
 	if err != nil {
-		return nil, err
+		return nil, wrapErr(err, "error creating contract binding")
 	}
 
 	// Fetch the current gas price to use as the current price
@@ -204,7 +204,7 @@ func NewGasPriceOracle(cfg *Config) (*GasPriceOracle, error) {
 		Context: context.Background(),
 	})
 	if err != nil {
-		return nil, err
+		return nil, wrapErr(err, "error getting current gas price")
 	}
 
 	// Create a gas pricer for the gas price updater
@@ -226,11 +226,11 @@ func NewGasPriceOracle(cfg *Config) (*GasPriceOracle, error) {
 
 	l2ChainID, err := l2Client.ChainID(context.Background())
 	if err != nil {
-		return nil, err
+		return nil, wrapErr(err, "error getting l2 chain ID")
 	}
 	l1ChainID, err := l1Client.ChainID(context.Background())
 	if err != nil {
-		return nil, err
+		return nil, wrapErr(err, "error getting l1 chain ID")
 	}
 
 	if cfg.l2ChainID != nil {
@@ -325,4 +325,8 @@ func ensureConnection(client *ethclient.Client) error {
 		}
 	}
 	return nil
+}
+
+func wrapErr(err error, msg string) error {
+	return fmt.Errorf("%s: %w", msg, err)
 }

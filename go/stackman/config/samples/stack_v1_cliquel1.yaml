@@ -1,0 +1,6 @@
+apiVersion: stack.optimism-stacks.net/v1
+kind: CliqueL1
+metadata:
+  name: cliquel1-sample
+spec:
+  # Add fields here
