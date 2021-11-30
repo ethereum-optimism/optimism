@@ -1,5 +1,15 @@
 # @eth-optimism/proxyd
 
+## 3.1.0
+
+### Minor Changes
+
+- da6138fd: Updated metrics, support local rate limiter
+
+### Patch Changes
+
+- 6c7f483b: Add support for additional SSL certificates in Docker container
+
 ## 3.0.0
 
 ### Major Changes

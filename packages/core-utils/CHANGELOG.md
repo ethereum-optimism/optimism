@@ -1,5 +1,11 @@
 # @eth-optimism/core-utils
 
+## 0.7.3
+
+### Patch Changes
+
+- 584cbc25: Clean up the L1 => L2 address aliasing utilities
+
 ## 0.7.2
 
 ### Patch Changes
