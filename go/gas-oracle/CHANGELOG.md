@@ -1,5 +1,11 @@
 # @eth-optimism/gas-oracle
 
+## 0.1.1
+
+### Patch Changes
+
+- e4067d4c: Fix the gas oracle gas price prometheus metric
+
 ## 0.1.0
 
 ### Minor Changes
