@@ -39,9 +39,12 @@ contract CanonicalTransactionChain is ICanonicalTransactionChain, Lib_AddressRes
 
     // Encoding-related (all in bytes)
     uint256 internal constant BATCH_CONTEXT_SIZE = 16;
+    // slither-disable-next-line unused-state
     uint256 internal constant BATCH_CONTEXT_LENGTH_POS = 12;
     uint256 internal constant BATCH_CONTEXT_START_POS = 15;
+    // slither-disable-next-line unused-state
     uint256 internal constant TX_DATA_HEADER_SIZE = 3;
+    // slither-disable-next-line unused-state
     uint256 internal constant BYTES_TILL_TX_DATA = 65;
 
     /*************
@@ -131,6 +134,7 @@ contract CanonicalTransactionChain is ICanonicalTransactionChain, Lib_AddressRes
      * Retrieves the total number of batches submitted.
      * @return _totalBatches Total submitted batches.
      */
+    // slither-disable-next-line external-function
     function getTotalBatches() public view returns (uint256 _totalBatches) {
         return batches().length();
     }
@@ -139,6 +143,7 @@ contract CanonicalTransactionChain is ICanonicalTransactionChain, Lib_AddressRes
      * Returns the index of the next element to be enqueued.
      * @return Index for the next queue element.
      */
+    // slither-disable-next-line external-function
     function getNextQueueIndex() public view returns (uint40) {
         return _nextQueueIndex;
     }
@@ -147,6 +152,7 @@ contract CanonicalTransactionChain is ICanonicalTransactionChain, Lib_AddressRes
      * Returns the timestamp of the last transaction.
      * @return Timestamp for the last transaction.
      */
+    // slither-disable-next-line external-function
     function getLastTimestamp() public view returns (uint40) {
         (, , uint40 lastTimestamp, ) = _getBatchExtraData();
         return lastTimestamp;
@@ -156,6 +162,7 @@ contract CanonicalTransactionChain is ICanonicalTransactionChain, Lib_AddressRes
      * Returns the blocknumber of the last transaction.
      * @return Blocknumber for the last transaction.
      */
+    // slither-disable-next-line external-function
     function getLastBlockNumber() public view returns (uint40) {
         (, , , uint40 lastBlockNumber) = _getBatchExtraData();
         return lastBlockNumber;
@@ -166,6 +173,7 @@ contract CanonicalTransactionChain is ICanonicalTransactionChain, Lib_AddressRes
      * @param _index Index of the queue element to access.
      * @return _element Queue element at the given index.
      */
+    // slither-disable-next-line external-function
     function getQueueElement(uint256 _index)
         public
         view
@@ -178,6 +186,7 @@ contract CanonicalTransactionChain is ICanonicalTransactionChain, Lib_AddressRes
      * Get the number of queue elements which have not yet been included.
      * @return Number of pending queue elements.
      */
+    // slither-disable-next-line external-function
     function getNumPendingQueueElements() public view returns (uint40) {
         return uint40(queueElements.length) - _nextQueueIndex;
     }
@@ -187,6 +196,7 @@ contract CanonicalTransactionChain is ICanonicalTransactionChain, Lib_AddressRes
      * both pending and canonical transactions.
      * @return Length of the queue.
      */
+    // slither-disable-next-line external-function
     function getQueueLength() public view returns (uint40) {
         return uint40(queueElements.length);
     }
@@ -348,6 +358,7 @@ contract CanonicalTransactionChain is ICanonicalTransactionChain, Lib_AddressRes
         }
 
         // Cache the previous blockhash to ensure all transaction data can be retrieved efficiently.
+        // slither-disable-next-line reentrancy-no-eth, reentrancy-events
         _appendBatch(
             blockhash(block.number - 1),
             totalElementsToAppend,
@@ -356,6 +367,7 @@ contract CanonicalTransactionChain is ICanonicalTransactionChain, Lib_AddressRes
             blockNumber
         );
 
+        // slither-disable-next-line reentrancy-events
         emit SequencerBatchAppended(
             nextQueueIndex - numQueuedTransactions,
             numQueuedTransactions,
@@ -363,6 +375,7 @@ contract CanonicalTransactionChain is ICanonicalTransactionChain, Lib_AddressRes
         );
 
         // Update the _nextQueueIndex storage variable.
+        // slither-disable-next-line reentrancy-no-eth
         _nextQueueIndex = nextQueueIndex;
     }
 
@@ -377,6 +390,7 @@ contract CanonicalTransactionChain is ICanonicalTransactionChain, Lib_AddressRes
      */
     function _getBatchContext(uint256 _index) internal pure returns (BatchContext memory) {
         uint256 contextPtr = 15 + _index * BATCH_CONTEXT_SIZE;
+        // slither-disable-next-line similar-names
         uint256 numSequencedTransactions;
         uint256 numSubsequentQueueTransactions;
         uint256 ctxTimestamp;
@@ -513,6 +527,7 @@ contract CanonicalTransactionChain is ICanonicalTransactionChain, Lib_AddressRes
             _blockNumber
         );
 
+        // slither-disable-next-line reentrancy-no-eth, reentrancy-events
         batchesRef.push(batchHeaderHash, latestBatchContext);
     }
 }

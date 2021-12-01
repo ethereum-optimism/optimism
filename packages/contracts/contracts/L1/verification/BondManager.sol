@@ -25,6 +25,7 @@ contract BondManager is IBondManager, Lib_AddressResolver {
      * @param _who Address to check.
      * @return true if the address is properly collateralized, false otherwise.
      */
+    // slither-disable-next-line external-function
     function isCollateralized(address _who) public view returns (bool) {
         // Only authenticate sequencer to submit state root batches.
         return _who == resolve("OVM_Proposer");

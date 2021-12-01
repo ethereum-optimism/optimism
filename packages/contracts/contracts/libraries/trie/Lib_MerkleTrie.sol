@@ -285,6 +285,7 @@ library Lib_MerkleTrie {
      */
     function _getNewPath(
         TrieNode[] memory _path,
+        // slither-disable-next-line variable-scope
         uint256 _pathLength,
         bytes memory _key,
         bytes memory _keyRemainder,
@@ -458,8 +459,10 @@ library Lib_MerkleTrie {
         bytes memory key = Lib_BytesUtils.toNibbles(_key);
 
         // Some variables to keep track of during iteration.
+        // slither-disable-next-line uninitialized-local
         TrieNode memory currentNode;
         NodeType currentNodeType;
+        // slither-disable-next-line uninitialized-local
         bytes memory previousNodeHash;
 
         // Run through the path backwards to rebuild our root hash.

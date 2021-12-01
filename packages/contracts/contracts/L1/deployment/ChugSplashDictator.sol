@@ -14,6 +14,7 @@ contract ChugSplashDictator is iL1ChugSplashDeployer {
      * Variables *
      *************/
 
+    // slither-disable-next-line constable-states
     bool public isUpgrading = true;
     L1ChugSplashProxy public target;
     address public finalOwner;

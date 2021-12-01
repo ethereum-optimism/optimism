@@ -77,6 +77,7 @@ contract CrossDomainEnabled {
         uint32 _gasLimit,
         bytes memory _message
     ) internal {
+        // slither-disable-next-line reentrancy-events, reentrancy-benign
         getCrossDomainMessenger().sendMessage(_crossDomainTarget, _message, _gasLimit);
     }
 }
