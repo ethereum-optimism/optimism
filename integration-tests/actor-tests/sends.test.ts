@@ -34,5 +34,8 @@ actor('Value sender', () => {
       })
     })
     expect(await randWallet.getBalance()).to.deep.equal(BigNumber.from(0x42))
+    await b.bench('withdraw funds', async () => {
+      // do the withdrawal
+    })
   })
 })

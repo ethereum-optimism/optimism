@@ -120,7 +120,18 @@ export class Runner {
     const metricLabels = {
       actor_name: sanitizeForMetrics(this.actor.name),
     }
+
     while (true) {
+      const now = performance.now()
+
+      if (
+        (opts.runs && i === opts.runs) ||
+        (opts.runFor && now - benchStart >= opts.runFor)
+      ) {
+        this.logger.log(`Worker exited.`)
+        break
+      }
+
       try {
         await this.actor.run(this.stepper, ctx)
       } catch (e) {
@@ -134,7 +145,6 @@ export class Runner {
         continue
       }
 
-      const now = performance.now()
       successfulActorRunsTotal.inc(metricLabels)
 
       i++
@@ -147,14 +157,6 @@ export class Runner {
         const runningFor = Math.floor(now - benchStart)
         this.logger.log(`Running for ${runningFor} of ${opts.runFor} ms.`)
         lastDurPrint = now
-      }
-
-      if (
-        (opts.runs && i === opts.runs) ||
-        (opts.runFor && now - benchStart >= opts.runFor)
-      ) {
-        this.logger.log(`Worker exited.`)
-        break
       }
 
       if (opts.thinkTime > 0) {
