@@ -9,6 +9,7 @@ import {
   failedBenchRunsTotal,
 } from './metrics'
 import { ActorLogger, WorkerLogger } from './logger'
+import { performance } from 'perf_hooks'
 
 // eslint-disable-next-line @typescript-eslint/no-empty-function
 const asyncNoop = async () => {}
