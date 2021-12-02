@@ -57,20 +57,14 @@ is not a child of the previous head.
 L1 re-orgs can happen because of network conditions or attacks. L2 re-orgs are a
 consequence of L1 re-orgs, mediated via [L2 chain derivation][derivation].
 
-## Precompiled Contract ("Precompile")
-[precompile]: /glossary.md#precompiled-contract-precompile
+## Predeployed Contract ("Predeploy")
+[predeploy]: /glossary.md#predeployed-contract-predeploy
 
-A contract that exists on chain but consumes no storage, and whose invocation
-does not need to result in the execution of EVM bytecode. Instead, its behaviour
-is defined by specification.
+A contract that was deployed on-chain at genesis (i.e. at the start of the chain).
 
-Ethereum L1 precompiles are specified in Appendix E of the [yellow
-paper][yellow].
+Optimistic Ethereum has the following pre-compiles:
 
-Optimistic Ethereum exposes all of Ethereum's precompiles, and adds the
-following precompiles:
-
-- [L1 Attributes Precompiled Contract][l1-attr-precompile]
+- [L1 Attributes Predeployed Contract][l1-attr-predeploy]
 
 --------------------------------------------------------------------------------
 
@@ -149,7 +143,7 @@ A transaction with an Optimistic-Ethereum-specific transaction type, that is
 used to register the L1 block attributes (number, timestamp, ...) on L2.
 
 The L1 attributes for a given L1 block can be read on L2 from the [L1 Attributes
-Precompiled Contract][l1-attr-precompile].
+Predeployed Contract][l1-attr-predeploy].
 
 cf. [L1 attributes transaction format](/rollup-node.md#payload-transaction-format)
 (in the section on [payload attributes])
@@ -158,15 +152,15 @@ cf. [L1 attributes transaction format](/rollup-node.md#payload-transaction-forma
 > **TODO** We might wish to make this a "normal transaction" if deposits end up
 > not carrying a signature.
 
-## L1 Attributes Precompiled Contract
-[l1-attr-precompile]: /glossary.md#l1-attributes-precompiled-contract
+## L1 Attributes Predeployed Contract
+[l1-attr-predeploy]: /glossary.md#l1-attributes-predeployed-contract
 
-A [precompiled contract][precompile] on L2 that can be used to retrieve the L1
+A [predeployed contract][predeploy] on L2 that can be used to retrieve the L1
 block attributes of L1 blocks with a given block number or a given block hash.
 
-cf. [L1 Attributes Precompiled Contract Specification](TODO)
+cf. [L1 Attributes Predeployed Contract Specification](TODO)
 
-> **TODO LINK** L1 attributes precompiled contract spec
+> **TODO LINK** L1 attributes predeployed contract spec
 
 ## Deposits
 [deposits]: /glossary.md#deposits
