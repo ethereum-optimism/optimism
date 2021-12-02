@@ -68,16 +68,16 @@ The rollup reads the following [L2 derivation inputs] for each L1 block:
 [random]: https://eips.ethereum.org/EIPS/eip-4399
 
 A deposit is an L2 transaction that has been submitted on L1, via a transaction
-sent to the [L2 deposit feed contract][deposit-feed].
+sent to the [deposit feed contract][deposit-feed].
 
 While deposits are notably (but not only) used to "deposit" (bridge) ETH and
 tokens to L2, the word *deposit* should be understood as "a transaction
 *deposited* to L2".
 
 The L1 attributes are read from the L1 block header, while deposits are read
-from the block's log entries. Refer to the [**L2 deposit feed contract
-specification**][deposit-feed] for details on how deposits are encoded as
-log entries.
+from the block's log entries. Refer to the [**deposit feed contract
+specification**][deposit-feed] for details on how deposits are encoded as log
+entries.
 
 [deposit-feed-spec]: TODO
 

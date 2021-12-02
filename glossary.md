@@ -160,7 +160,7 @@ cf. [L1 Attributes Predeployed Contract Specification](TODO)
 [deposits]: /glossary.md#deposits
 
 A deposit is an L2 transaction that has been submitted on L1, via a transaction
-sent to the [L2 deposit feed contract][deposit-feed].
+sent to the [deposit feed contract][deposit-feed].
 
 While deposits are notably (but not only) used to "deposit" (bridge) ETH and
 tokens to L2, the word *deposit* should be understood as "a transaction
@@ -168,11 +168,11 @@ tokens to L2, the word *deposit* should be understood as "a transaction
 
 Deposits are one kind of [L2 derivation input][deriv-input].
 
-## L2 Deposit Feed Contract
-[deposit-feed]: /glossary.md#L2-deposit-feed-contract
+## Deposit Feed Contract
+[deposit-feed]: /glossary.md#deposit-feed-contract
 
-A contract to which [EOAs][EOA] and contracts may send [deposits]. The deposits
-are emitted as log records (in Solidity, these are called *events*) for
+An [L1] contract to which [EOAs][EOA] and contracts may send [deposits]. The
+deposits are emitted as log records (in Solidity, these are called *events*) for
 consumption by [rollup nodes][rollup node].
 
 Advanced note: the deposits are not stored in calldata because they can be send
@@ -180,7 +180,7 @@ by contracts, in which case the calldata is part of the execution, but its value
 is not captured in one of the [Merkle roots][Merkle root] included in the L1
 block.
 
-cf. [L2 Deposit Feed Contract Specification](TODO)
+cf. [Deposit Feed Contract Specification](TODO)
 
 > **TODO LINK** deposit feed contract specification
 
