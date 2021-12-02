@@ -27,7 +27,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ethereum/go-ethereum/params"
+	"github.com/ethereum-optimism/optimism/l2geth/params"
 )
 
 const (

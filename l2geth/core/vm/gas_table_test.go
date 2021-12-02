@@ -21,11 +21,11 @@ import (
 	"math/big"
 	"testing"
 
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/ethereum/go-ethereum/core/rawdb"
-	"github.com/ethereum/go-ethereum/core/state"
-	"github.com/ethereum/go-ethereum/params"
+	"github.com/ethereum-optimism/optimism/l2geth/common"
+	"github.com/ethereum-optimism/optimism/l2geth/common/hexutil"
+	"github.com/ethereum-optimism/optimism/l2geth/core/rawdb"
+	"github.com/ethereum-optimism/optimism/l2geth/core/state"
+	"github.com/ethereum-optimism/optimism/l2geth/params"
 )
 
 func TestMemoryGasCost(t *testing.T) {

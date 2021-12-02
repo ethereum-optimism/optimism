@@ -25,7 +25,7 @@ import (
 	"io/ioutil"
 	"os"
 
-	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum-optimism/optimism/l2geth/log"
 )
 
 type storedCredential struct {

@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	batchsubmitter "github.com/ethereum-optimism/go/batch-submitter"
+	batchsubmitter "github.com/ethereum-optimism/optimism/go/batch-submitter"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/stretchr/testify/require"

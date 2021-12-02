@@ -23,7 +23,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum-optimism/optimism/l2geth/common"
 )
 
 // precompiledTest defines the input/output pairs for precompiled contract tests.

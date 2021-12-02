@@ -29,16 +29,16 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ethereum/go-ethereum"
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/consensus/ethash"
-	"github.com/ethereum/go-ethereum/core"
-	"github.com/ethereum/go-ethereum/core/rawdb"
-	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/eth"
-	"github.com/ethereum/go-ethereum/node"
-	"github.com/ethereum/go-ethereum/params"
+	"github.com/ethereum-optimism/optimism/l2geth"
+	"github.com/ethereum-optimism/optimism/l2geth/common"
+	"github.com/ethereum-optimism/optimism/l2geth/consensus/ethash"
+	"github.com/ethereum-optimism/optimism/l2geth/core"
+	"github.com/ethereum-optimism/optimism/l2geth/core/rawdb"
+	"github.com/ethereum-optimism/optimism/l2geth/core/types"
+	"github.com/ethereum-optimism/optimism/l2geth/crypto"
+	"github.com/ethereum-optimism/optimism/l2geth/eth"
+	"github.com/ethereum-optimism/optimism/l2geth/node"
+	"github.com/ethereum-optimism/optimism/l2geth/params"
 )
 
 // Verify that Client implements the ethereum interfaces.
