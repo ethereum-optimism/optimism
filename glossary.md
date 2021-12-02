@@ -7,7 +7,7 @@
 ## Layer 1 (L1)
 [L1]: /glossary.md#layer-1-L1
 
-Refers the Ethereum blockchain, used used in contrast to [layer 2][L2], which
+Refers the Ethereum blockchain, used in contrast to [layer 2][L2], which
 refers to Optimistic Ethereum.
 
 ## Layer 2 (L2)
@@ -17,7 +17,7 @@ Refers to the Optimistic Ethereum blockchain (specified in this repository),
 used in contrast to [layer 1][L1], which refers to the Ethereum blockchain.
 
 ## Block
-[block]: /glossary.md#layer-1-L1
+[block]: /glossary.md#block
 
 Can refer to an [L1] block, or to an [L2] block, which are structured similarly.
 
@@ -42,9 +42,9 @@ users, as opposed to contract addresses.
 [Merkle root]: /glossary.md#merkle-roots
 
 The Merkle root is the root hash of a [Merkle Patricia tree] (MPT). A MPT is a
-[trie], which is a tree tree structure that maps keys to values. The root hash
-of a MPT is a commitment to the contents of the tree, which allows a proof to be
-constructed for any key-value mapping encoded in the tree. Such a proof is
+sparse [trie], which is a tree-like structure that maps keys to values. The root
+hash of a MPT is a commitment to the contents of the tree, which allows a proof
+to be constructed for any key-value mapping encoded in the tree. Such a proof is
 called a Merkle proof, and can be verified against the Merkle root.
 
 ## Chain Re-Organization
@@ -133,16 +133,14 @@ inputs][deriv-inputs] found on L1, which are then passed to the [execution
 engine] to construct L2 blocks.
 
 "Payload attributes" is a term that originates and is specified in the [Ethereum
-Engine API specification][engine-api].
+Engine API specification][engine-api], which we extend in this specification.
 
-In addition to the [specified][engine-api] `timestamp`, `random`and
-`suggestedFeeRecipient` fields, we add a field to specify the transactions that
-the execution engine must include in the block and execute.
+cf. [Execution Engine Specification](TODO)
 
-> **TODO** The transaction field must be specified.
+> **TODO LINK** execution engine specification
 
-Payload attributes were historically called "L2 block inputs" and you might
-still hear some people using this term.
+Payload attributes were historically called "L2 block inputs" in the L2 spec and
+you might still hear some people using this term.
 
 ## L1 Attributes Transaction
 [l1-attributes-tx]: /glossary.md#l1-attributes-transaction
@@ -157,6 +155,8 @@ cf. [L1 attributes transaction format](/rollup-node.md#payload-transaction-forma
 (in the section on [payload attributes])
 
 > **TODO** We might want to move this the format spec to the execution engine.
+> **TODO** We might wish to make this a "normal transaction" if deposits end up
+> not carrying a signature.
 
 ## L1 Attributes Precompiled Contract
 [l1-attr-precompile]: /glossary.md#l1-attributes-precompiled-contract

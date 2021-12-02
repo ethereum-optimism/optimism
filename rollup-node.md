@@ -23,9 +23,10 @@ chain][derivation] from L1 blocks. This process happens in two steps:
    properties][block] may be computed.
 
 While this process is conceptually a pure function from the L1 chain to the L2
-chain, it is in practice incremental. The L2 chain changes whenever new L1
-blocks (and hence new L2 derivation inputs) are added to the L1 chain, or
-whenever the L1 chain [re-organizes][reorg].
+chain, it is in practice incremental. The L2 chain is extended whenever new L1
+blocks (and hence new L2 derivation inputs) are added to the L1 chain.
+Similarly, the L2 chain re-organizes whenever the L1 chain
+[re-organizes][reorg].
 
 Additionally, the rollup node is responsible for [block gossip], i.e.
 transmitting the L2 blocks it derives over a peer-to-peer network.
@@ -108,15 +109,15 @@ The object properties must be set as follows:
 - `random` is set to the *random* L1 block attribute
 - `suggestedFeeRecipient` is set to an address where the sequencer would like to
   direct the fees
-- `transactions` is an array of transactions, RLP-encoded in the [EIP-2718]
-  format (i.e. as a sequence of a single byte and a byte array).
+- `transactions` is an array of transactions, encoded in the [EIP-2718] format
+  (i.e. as a single byte defining the transaction type, concatenated with an
+  opaque byte array whose meaning depends on the type).
+
+> **TODO** we need to handle non-EIP-2718 transactions too
 
 [unix type]: https://en.wikipedia.org/wiki/Unix_time
 [merge]: https://ethereum.org/en/eth2/merge/
 [EIP-2718]: https://eips.ethereum.org/EIPS/eip-2718
-
-> For details on RLP encoding, refer to the yellow paper, or look at [this
-> hyperlinked implementation][encode-tx] (which covers up to the London L1 hard fork).
 
 [encode-tx]: https://github.com/norswap/nanoeth/blob/cc5d94a349c90627024f3cd629a2d830008fec72/src/com/norswap/nanoeth/transactions/Transaction.java#L84-L130
 
@@ -126,9 +127,9 @@ be an *[L1 attributes transaction]* (see below).
 #### Payload Transaction Format
 
 The `transactions` array is filled with the deposits, prefixed by the (single)
-[L1 attributes transaction]. The deposits (which must be similarly RLP-encoded)
-are simply copied byte-for-byte — it is the role of the [execution engine] to
-reject invalidly-formatted transactions.
+[L1 attributes transaction]. The deposits are simply copied byte-for-byte — it
+is the role of the [execution engine] to reject invalidly-formatted
+transactions.
 
 > **TODO** must offer some precisions on the format of deposits: sender,
 > receivers both in-tx-as-encoded, and on-L2-tx. What about the fees?
@@ -148,6 +149,8 @@ where:
 
 When included in the `transactions` array, this transaction should be
 RLP-encoded in the same way as other transactions.
+
+> **TODO** move this section into a doc specific to the execution-engine
 
 Here is an example valid `PayloadAttributesOPV1` object, which contains an L1
 attributes transaction as well as a single deposit:
@@ -185,9 +188,8 @@ which itself builds upon the [JSON-RPC specification][JSON-RPC].
 [JSON-RPC]: https://www.jsonrpc.org/specification
 
 In particular, the [Ethereum's Engine API specification][eth-engine-api]
-specifies a [JSON-RPC] endpoint with a number of JSON-RPC (REST) routes, which
-are the means through which the rollup driver interacts with the execution
-engine.
+specifies a [JSON-RPC] endpoint with a number of JSON-RPC routes, which are the
+means through which the rollup driver interacts with the execution engine.
 
 Instead of calling [`engine_forkchoiceUpdatedV1`], the rollup driver must call
 the new [`engine_forkchoiceUpdatedOPV1`] route. This has the same signature,
@@ -247,11 +249,11 @@ those case, the rollup driver must:
 
 1. Locate the *common ancestor*, a block that is an ancestor of both the
    previous and new head.
-2. Isolate the range of L1 blocks \]common ancestor, ..., new head\].
+2. Isolate the range of L1 blocks `]common ancestor, ..., new head]`.
 3. For each such block, call [`engine_forkchoiceUpdatedOPV1`] and
    [`engine_getPayloadV1`].
    - Fill the [`PayloadAttributesOPV1`] object according to [the section on payload attributes][payload-attr].
-   - Fill the [`ForkchoiceStateV1`] object according to the [the section on the
+   - Fill the [`ForkchoiceStateV1`] object according to [the section on the
      execution engine][calling-exec-engine], but set `headBlockHash` to the hash
      of the last processed L2 block (use the hash of the common ancestor
      initially) instead of the last L2 chain head. `safeBlockHash` and
@@ -272,4 +274,4 @@ Another responsability of the rollup node is to transmit the L2 blocks it
 derives from the L1 chain to other L2 nodes via a process called *[block
 gossip]*.
 
-This is specified in [a separate document][gossip-spec].
+This is specified in the [Block Gossip Specification][gossip-spec].
