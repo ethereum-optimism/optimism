@@ -29,8 +29,8 @@ found in code comments [here][nano-header], or in the [Ethereum yellow paper
 It is useful to distinguish between input block properties, which are known
 before executing the transactions in the block, and output bblock properties,
 which are derived after executing the block's transactions. These include
-various [Merkle roots][Merkle root] for the L2 state and for log events emitted
-during the execution.
+various [Merkle roots][Merkle root] that notably commit to the L2 state and to
+the log events emitted during the execution.
 
 ## EOA
 [EOA]: /glossary.md#EOA
@@ -192,7 +192,7 @@ cf. [L2 Deposit Feed Contract Specification](TODO)
 [execution engine]: /glossary.md#execution-engine
 
 The execution engine is responsible for executing transactions in blocks and
-computing the resulting state roots, log roots and block hash.
+computing the resulting state roots, receipts roots and block hash.
 
 Both L1 (post-[merge]) and L2 have an execution engine.
 
