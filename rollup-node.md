@@ -59,7 +59,10 @@ The rollup reads the following [L2 derivation inputs] for each L1 block:
    - block number
    - timestamp
    - basefee
+   - *random* (the output of the [`RANDOM` opcode][random])
 - [deposits]
+
+[random]: https://eips.ethereum.org/EIPS/eip-4399
 
 A deposit is an L2 transaction that has been submitted on L1, via a transaction
 sent to the [L2 deposit feed contract][deposit-feed].
@@ -102,8 +105,7 @@ The object properties must be set as follows:
 
 - `timestamp` is set to the current [unix time] (number of elapsed seconds since
   00:00:00 UTC on 1 January 1970), rounded to the closest multiple of 2 seconds.
-- `random` is currently set to all zero bytes. After [the merge][merge], the randomness
-  value exposed for the L1 block will be copied in this property.
+- `random` is set to the *random* L1 block attribute
 - `suggestedFeeRecipient` is set to an address where the sequencer would like to
   direct the fees
 - `transactions` is an array of transactions, RLP-encoded in the [EIP-2718]
@@ -118,7 +120,7 @@ The object properties must be set as follows:
 
 [encode-tx]: https://github.com/norswap/nanoeth/blob/cc5d94a349c90627024f3cd629a2d830008fec72/src/com/norswap/nanoeth/transactions/Transaction.java#L84-L130
 
-The [EIP-2718] transactions must have a transaction type that is valid or L1, or
+The [EIP-2718] transactions must have a transaction type that is valid on L1, or
 be an *[L1 attributes transaction]* (see below).
 
 #### Payload Transaction Format
