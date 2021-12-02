@@ -19,6 +19,7 @@ COPY --from=builder /optimism/packages/core-utils/dist ./packages/core-utils/dis
 WORKDIR /opt/optimism/packages/contracts
 COPY --from=builder /optimism/packages/contracts/dist ./dist
 COPY --from=builder /optimism/packages/contracts/*.json ./
+COPY --from=builder /optimism/packages/contracts/deployments ./deployments
 COPY --from=builder /optimism/packages/contracts/node_modules ./node_modules
 COPY --from=builder /optimism/packages/contracts/artifacts ./artifacts
 COPY --from=builder /optimism/packages/contracts/src ./src
