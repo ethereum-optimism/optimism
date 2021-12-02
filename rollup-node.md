@@ -173,8 +173,12 @@ attributes transaction as well as a single deposit:
 ### Building the L2 block with the execution engine
 [calling-exec-engine]: #building-the-L2-block-with-the-execution-engine
 
-The Optimistic Ethereum [execution engine] is [specified in its own
-document][execution-engine-spec].
+The Optimistic Ethereum [execution engine] is specified in the [Execution Engine
+Specification].
+
+> **TODO LINK** execution engine spec
+
+[Execution Engine Specification]: TODO
 
 This section defines how the rollup driver must interact with the execution
 engine's in order to convert [payload attributes] into L2 blocks.
@@ -204,10 +208,11 @@ except that:
 > **TODO LINK** forkchoiceUpdatedOPV1 from spec
 
 - it takes a [`PayloadAttributesOPV1`] object as input instead of
-  [`PayloadAttributesV1`]. The execution engine must include the valid
-  transactions supplied in this object in the block, in the same order as they
-  were supplied, and only those. See the [previous section][payload-attr] for
-  the specification of how the properties must be set.
+  [`PayloadAttributesV1`][PayloadAttributesV1]. The execution engine must
+  include the valid transactions supplied in this object in the block, in the
+  same order as they were supplied, and only those. See the [previous
+  section][payload-attr] for the specification of how the properties must be
+  set.
 
 - we repurpose the [`ForkchoiceStateV1`] structure with the following property
   semantics:
@@ -219,7 +224,8 @@ except that:
     block is `>= L2_CHAIN_INCEPTION`, 0 otherwise (where
     `FINALIZATION_DELAY_BLOCKS == 50400` (approximately 7 days worth of L1
     blocks) and `L2_CHAIN_INCEPTION` is the [L2 chain inception] (the number of
-    the first L1 block for which an L2 block was produced).
+    the first L1 block for which an L2 block was produced). See the
+    [Finalization Guarantees][finalization] section for more details.
 
 [`ForkchoiceStateV1`]: https://github.com/ethereum/execution-apis/blob/main/src/engine/specification.md#ForkchoiceStateV1
 
