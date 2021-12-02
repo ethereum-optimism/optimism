@@ -1,5 +1,0 @@
-{
-  // Enable all markdownlint rules
-  // https://github.com/DavidAnson/markdownlint/blob/main/doc/Rules.md
-  "default": true
-}
