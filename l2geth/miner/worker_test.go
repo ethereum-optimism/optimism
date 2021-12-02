@@ -328,15 +328,35 @@ func TestStreamUncleBlock(t *testing.T) {
 	taskIndex := 0
 	w.newTaskHook = func(task *task) {
 		if task.block.NumberU64() == 2 {
-			// The first task is an empty task, the second
-			// one has 1 pending tx, the third one has 1 tx
-			// and 1 uncle.
-			if taskIndex == 2 {
+			// The first task has 1 pending tx, the second one has 1
+			// tx and 1 uncle.
+			numTxs := len(task.block.Transactions())
+			numUncles := len(task.block.Uncles())
+
+			switch taskIndex {
+			case 0:
+				if numTxs != 1 {
+					t.Errorf("expected 1 tx in first task, got: %d", numTxs)
+				}
+				if numUncles != 0 {
+					t.Errorf("expected no uncles in first task, got: %d", numUncles)
+				}
+
+			case 1:
+				if numTxs != 1 {
+					t.Errorf("expected 1 tx in second task, got: %d", numTxs)
+				}
+				if numUncles != 1 {
+					t.Errorf("expected 1 uncle in second task, got: %d", numUncles)
+				}
 				have := task.block.Header().UncleHash
 				want := types.CalcUncleHash([]*types.Header{b.uncleBlock.Header()})
 				if have != want {
 					t.Errorf("uncle hash mismatch: have %s, want %s", have.Hex(), want.Hex())
 				}
+
+			default:
+				t.Errorf("only expected two tasks")
 			}
 			taskCh <- struct{}{}
 			taskIndex += 1
@@ -350,12 +370,10 @@ func TestStreamUncleBlock(t *testing.T) {
 	}
 	w.start()
 
-	for i := 0; i < 2; i += 1 {
-		select {
-		case <-taskCh:
-		case <-time.NewTimer(time.Second).C:
-			t.Error("new task timeout")
-		}
+	select {
+	case <-taskCh:
+	case <-time.NewTimer(time.Second).C:
+		t.Error("new task timeout")
 	}
 
 	w.postSideBlock(core.ChainSideEvent{Block: b.uncleBlock})
