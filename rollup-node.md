@@ -233,6 +233,9 @@ except that:
 > to the regular (non-engine-API) JSON-RPC endpoint of the execution engine.
 > [See here for more information.][L2-JSON-RPC-API]
 
+> **TODO** specify the behaviour in case the resulting object reports `"SYNCING"`
+> or an error
+
 [L2-JSON-RPC-API]: TODO
 
 > **TODO LINK** L2 JSON RPC API (might be the same as [L1's][JSON-RPC-API])
@@ -243,6 +246,8 @@ fully defines a new L2 block.
 
 [`engine_getPayloadV1`]: https://github.com/ethereum/execution-apis/blob/main/src/engine/specification.md#engine_getpayloadv1
 [`ExecutionPayloadV1`]: https://github.com/ethereum/execution-apis/blob/main/src/engine/specification.md#executionpayloadv1
+
+> **TODO** specify the behaviour in case the resulting object reports an error
 
 ## Handling L1 Re-Orgs
 [l1-reorgs]: #handling-L1-re-orgs
