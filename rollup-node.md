@@ -32,6 +32,15 @@ The part of the rollup node that derives the L2 chain is called the [rollup
 driver]. This document is currently only concerned with the specification of the
 rollup driver.
 
+## Table of Contents
+
+- [L2 Chain Derivation][l2-chain-derivation]
+  - [From L2 derivation inputs to payload attributes][payload-attr]
+  - [Payload Transaction Format][payload-format]
+  - [Building the L2 block with the execution engine][calling-exec-engine]
+- [Handling L1 Re-Orgs][l1-reorgs]
+- [Finalization Guarantees][finalization]
+
 ## L2 Chain Derivation
 [l2-chain-derivation]: #l2-chain-derivation
 
@@ -43,8 +52,8 @@ transaction]*) well as all L2 transactions deposited by users in the L1 block
 [L1 attributes transaction]: /glossary.md#l1-attributes-transaction
 
 ### From L2 derivation inputs to payload attributes
-
 [payload-attr]: #From-L2-derivation-inputs-to-payload-attributes
+
 [`PayloadAttributesOPV1`]: #From-L2-derivation-inputs-to-payload-attributes
 
 The rollup reads the following [L2 derivation inputs] for each L1 block:
@@ -118,6 +127,7 @@ The [EIP-2718] transactions must have a transaction type that is valid on L1, or
 be an *[L1 attributes transaction]* (see below).
 
 #### Payload Transaction Format
+[payload-format]: #payload-transaction-format
 
 The `transactions` array is filled with the deposits, prefixed by the (single)
 [L1 attributes transaction]. The deposits are simply copied byte-for-byte — it
@@ -229,6 +239,7 @@ fully defines a new L2 block.
 [`ExecutionPayloadV1`]: https://github.com/ethereum/execution-apis/blob/main/src/engine/specification.md#executionpayloadv1
 
 ## Handling L1 Re-Orgs
+[l1-reorgs]: #handling-L1-re-orgs
 
 The [previous section on L2 chain derivation][l2-chain-derivation] assumes
 linear progression of the L1 chain. It is also applicable for batch processing,
@@ -256,7 +267,19 @@ those case, the rollup driver must:
 > meaning that it won't be able to re-org more than `FINALIZATION_DELAY_BLOCKS`
 > in the past, hence preserving our finalization guarantees.
 
-> **TODO** Enunciate our finalization guarantees.
-
 > **TODO** Must enunciate error cases more precisely, as well as state what
 > should be impossible and should cause the node to stop deriving the L2 chain.
+
+## Finalization Guarantees
+[finalization]: #finalization-guarantees
+
+As already alluded to in the section on [interacting with the execution
+engine][calling-exec-engine], an L2 block is considered *finalized* after a
+delay of `FINALIZATION_DELAY_BLOCKS == 50400` blocks after the L1 block that
+generated it. This is a duration of approximately 7 days worth of L1 blocks.
+
+L1 Ethereum [reaches finality approximately every 12 minutes][l1-finality], so
+these L2 blocks can safely be considered to be final: they will never disappear
+from the chain's history because of a re-org.
+
+[l1-finality]: https://www.paradigm.xyz/2021/07/ethereum-reorgs-after-the-merge/
