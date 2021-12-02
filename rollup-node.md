@@ -107,31 +107,19 @@ The object properties must be set as follows:
 - `suggestedFeeRecipient` is set to an address where the sequencer would like to
   direct the fees
 - `transactions` is an array of transactions, RLP-encoded in the [EIP-2718]
-  format (i.e. as a sequence of a single byte and a byte array), of the allowed
-  types. We specify how to select the transactions below.
+  format (i.e. as a sequence of a single byte and a byte array).
 
 [unix type]: https://en.wikipedia.org/wiki/Unix_time
 [merge]: https://ethereum.org/en/eth2/merge/
 [EIP-2718]: https://eips.ethereum.org/EIPS/eip-2718
 
 > For details on RLP encoding, refer to the yellow paper, or look at [this
-> hyperlinked implementation][encode-tx].
+> hyperlinked implementation][encode-tx] (which covers up to the London L1 hard fork).
 
 [encode-tx]: https://github.com/norswap/nanoeth/blob/cc5d94a349c90627024f3cd629a2d830008fec72/src/com/norswap/nanoeth/transactions/Transaction.java#L84-L130
 
-In particular, we allow the following two transaction types:
-- [EIP-1559]: the current "regular" Ethereum L1 transaction type, which
-  separates gas fees between a base fee and a tip
-- the *[L1 attributes transaction]*, see below
-
-[EIP-1559]: https://eips.ethereum.org/EIPS/eip-1559
-
-Historical Optimistic Ethereum transactions also include [EIP-155] transactions,
-which are not accepted by the network anymore. This is not an [EIP-2718] typed
-transaction, but can be distinguished from those by the fact that their
-RLP-encoding's first byte will always be `>= 0xC0`.
-
-[EIP-155]: https://eips.ethereum.org/EIPS/eip-155
+The [EIP-2718] transactions must have a transaction type that is valid or L1, or
+be an *[L1 attributes transaction]* (see below).
 
 #### Payload Transaction Format
 
