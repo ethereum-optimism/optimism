@@ -28,16 +28,9 @@ blocks (and hence new L2 derivation inputs) are added to the L1 chain.
 Similarly, the L2 chain re-organizes whenever the L1 chain
 [re-organizes][reorg].
 
-Additionally, the rollup node is responsible for [block gossip], i.e.
-transmitting the L2 blocks it derives over a peer-to-peer network.
-
 The part of the rollup node that derives the L2 chain is called the [rollup
-driver]. This document is mostly concerned with the specification of the rollup
-driver, while block gossip is [specified in a separate document][gossip-spec].
-
-[gossip-spec]: TODO
-
-> **TODO LINK** block gossip spec
+driver]. This document is currently only concerned with the specification of the
+rollup driver.
 
 ## L2 Chain Derivation
 [l2-chain-derivation]: #l2-chain-derivation
@@ -267,11 +260,3 @@ those case, the rollup driver must:
 
 > **TODO** Must enunciate error cases more precisely, as well as state what
 > should be impossible and should cause the node to stop deriving the L2 chain.
-
-## Block Gossip
-
-Another responsability of the rollup node is to transmit the L2 blocks it
-derives from the L1 chain to other L2 nodes via a process called *[block
-gossip]*.
-
-This is specified in the [Block Gossip Specification][gossip-spec].

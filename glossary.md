@@ -82,13 +82,7 @@ The rollup node is responsible for [deriving the L2 chain][derivation] from the
 [L2 derivation inputs][deriv-inputs] available on L1. This is done by its
 [rollup driver] component.
 
-The rollup node is also responsible for [block gossip], the process of
-transmitting the L2 blocks it derives over a peer-to-peer network.
-
 - cf. [Rollup Node Specification](/rollup-node.md)
-- cf. [Block Gossip Specification](TODO)
-
-> **TODO LINK** block gossip spec
 
 ## Rollup Driver
 [rollup driver]: /glossary.md#rollup-driver
@@ -189,15 +183,6 @@ block.
 cf. [L2 Deposit Feed Contract Specification](TODO)
 
 > **TODO LINK** deposit feed contract specification
-
-## Block Gossip
-[block gossip]: /glossary.md#block-gossip
-
-Block gossip is a [rollup node] component responsible for transmitting the L2
-blocks derived by the rollup node over a peer-to-peer network.
-
-> Note that block gossip is not useful in the current deposit-only model, but
-> will become useful in later stages of the specification process.
 
 --------------------------------------------------------------------------------
 
