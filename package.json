@@ -1,0 +1,17 @@
+{
+  "name": "@eth-optimism/specs-2",
+  "version": "0.4.0",
+  "license": "MIT",
+  "private": true,
+  "devDependencies": {
+    "lint-staged": "11.0.0",
+    "markdownlint": "^0.24.0",
+    "markdownlint-cli2": "^0.3.2"
+  },
+  "scripts": {
+    "lint": "yarn lint:fix && yarn lint:check",
+    "lint:fix": "markdownlint-cli2-fix '**/*.md' '#node_modules'",
+    "lint:check": "markdownlint-cli2 '**/*.md' '#node_modules'"
+  }
+}
+
