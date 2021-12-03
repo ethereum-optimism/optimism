@@ -1,5 +1,11 @@
 # @eth-optimism/proxyd
 
+## 3.1.2
+
+### Patch Changes
+
+- 1b79aa62: Release proxyd
+
 ## 3.1.1
 
 ### Patch Changes
