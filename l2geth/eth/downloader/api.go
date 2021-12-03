@@ -20,9 +20,9 @@ import (
 	"context"
 	"sync"
 
-	ethereum "github.com/ethereum/go-ethereum"
-	"github.com/ethereum/go-ethereum/event"
-	"github.com/ethereum/go-ethereum/rpc"
+	ethereum "github.com/ethereum-optimism/optimism/l2geth"
+	"github.com/ethereum-optimism/optimism/l2geth/event"
+	"github.com/ethereum-optimism/optimism/l2geth/rpc"
 )
 
 // PublicDownloaderAPI provides an API which gives information about the current synchronisation status.

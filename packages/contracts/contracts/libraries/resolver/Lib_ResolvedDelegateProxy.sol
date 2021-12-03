@@ -47,6 +47,7 @@ contract Lib_ResolvedDelegateProxy {
 
         require(target != address(0), "Target address must be initialized.");
 
+        // slither-disable-next-line controlled-delegatecall
         (bool success, bytes memory returndata) = target.delegatecall(msg.data);
 
         if (success == true) {

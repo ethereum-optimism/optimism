@@ -4,7 +4,7 @@ import (
 	"math/big"
 	"os"
 
-	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum-optimism/optimism/l2geth/common"
 )
 
 // UsingOVM is used to enable or disable functionality necessary for the OVM.

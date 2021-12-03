@@ -52,8 +52,10 @@ func (p *GasPricer) CalcNextEpochGasPrice(avgGasPerSecondLastEpoch float64) (uin
 	}
 	// The percent difference between our current average gas & our target gas
 	proportionOfTarget := avgGasPerSecondLastEpoch / targetGasPerSecond
+
 	log.Trace("Calculating next epoch gas price", "proportionOfTarget", proportionOfTarget,
 		"avgGasPerSecondLastEpoch", avgGasPerSecondLastEpoch, "targetGasPerSecond", targetGasPerSecond)
+
 	// The percent that we should adjust the gas price to reach our target gas
 	proportionToChangeBy := 0.0
 	if proportionOfTarget >= 1 { // If average avgGasPerSecondLastEpoch is GREATER than our target
@@ -61,10 +63,13 @@ func (p *GasPricer) CalcNextEpochGasPrice(avgGasPerSecondLastEpoch float64) (uin
 	} else {
 		proportionToChangeBy = math.Max(proportionOfTarget, 1-p.maxChangePerEpoch)
 	}
+
 	updated := float64(max(1, p.curPrice)) * proportionToChangeBy
 	result := max(p.floorPrice, uint64(math.Ceil(updated)))
+
 	log.Debug("Calculated next epoch gas price", "proportionToChangeBy", proportionToChangeBy,
 		"proportionOfTarget", proportionOfTarget, "result", result)
+
 	return result, nil
 }
 

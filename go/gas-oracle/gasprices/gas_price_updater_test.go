@@ -1,6 +1,7 @@
 package gasprices
 
 import (
+	"math/big"
 	"testing"
 )
 
@@ -10,29 +11,12 @@ type MockEpoch struct {
 	postHook    func(prevGasPrice uint64, gasPriceUpdater *GasPriceUpdater)
 }
 
-func TestGetAverageGasPerSecond(t *testing.T) {
-	// Let's sanity check this function with some simple inputs.
-	// A 10 block epoch
-	epochStartBlockNumber := 10
-	latestBlockNumber := 20
-	// That lasts 10 seconds (1 block per second)
-	epochLengthSeconds := 10
-	// And each block has a gas limit of 1
-	averageBlockGasLimit := 1
-	// We expect a gas per second to be 1!
-	expectedGps := 1.0
-	gps := GetAverageGasPerSecond(uint64(epochStartBlockNumber), uint64(latestBlockNumber), uint64(epochLengthSeconds), uint64(averageBlockGasLimit))
-	if gps != expectedGps {
-		t.Fatalf("Gas per second not calculated correctly. Got: %v expected: %v", gps, expectedGps)
-	}
-}
-
 // Return a gas pricer that targets 3 blocks per epoch & 10% max change per epoch.
 func makeTestGasPricerAndUpdater(curPrice uint64) (*GasPricer, *GasPriceUpdater, func(uint64), error) {
 	gpsTarget := 3300000.0
 	getGasTarget := func() float64 { return gpsTarget }
 	epochLengthSeconds := uint64(10)
-	averageBlockGasLimit := 11000000.0
+	averageBlockGasLimit := uint64(11000000)
 	// Based on our 10 second epoch, we are targetting 3 blocks per epoch.
 	gasPricer, err := NewGasPricer(curPrice, 1, getGasTarget, 10)
 	if err != nil {
@@ -46,6 +30,12 @@ func makeTestGasPricerAndUpdater(curPrice uint64) (*GasPricer, *GasPriceUpdater,
 		return nil
 	}
 
+	// This is paramaterized based on 3 blocks per epoch, where each uses
+	// the average block gas limit plus an additional bit of gas added
+	getGasUsedByBlockFn := func(number *big.Int) (uint64, error) {
+		return averageBlockGasLimit*3/epochLengthSeconds + 1, nil
+	}
+
 	startBlock, _ := getLatestBlockNumber()
 	gasUpdater, err := NewGasPriceUpdater(
 		gasPricer,
@@ -53,6 +43,7 @@ func makeTestGasPricerAndUpdater(curPrice uint64) (*GasPricer, *GasPriceUpdater,
 		averageBlockGasLimit,
 		epochLengthSeconds,
 		getLatestBlockNumber,
+		getGasUsedByBlockFn,
 		updateL2GasPrice,
 	)
 	if err != nil {
@@ -127,7 +118,7 @@ func TestUsageOfGasPriceUpdater(t *testing.T) {
 			postHook: func(prevGasPrice uint64, gasPriceUpdater *GasPriceUpdater) {
 				curPrice := gasPriceUpdater.gasPricer.curPrice
 				if prevGasPrice >= curPrice {
-					t.Fatalf("Expected gas price to increase.")
+					t.Fatalf("Expected gas price to increase. Got %d, was %d", curPrice, prevGasPrice)
 				}
 			},
 		},
@@ -143,7 +134,7 @@ func TestUsageOfGasPriceUpdater(t *testing.T) {
 			postHook: func(prevGasPrice uint64, gasPriceUpdater *GasPriceUpdater) {
 				curPrice := gasPriceUpdater.gasPricer.curPrice
 				if prevGasPrice != curPrice {
-					t.Fatalf("Expected gas price to stablize.")
+					t.Fatalf("Expected gas price to stablize. Got %d, was %d", curPrice, prevGasPrice)
 				}
 			},
 		},

@@ -38,6 +38,19 @@ func wrapGetLatestBlockNumberFn(backend bind.ContractBackend) func() (uint64, er
 	}
 }
 
+// wrapGetGasUsedByBlock is used by the GasPriceUpdater to get
+// the amount of gas used by a particular block. This is used to
+// track gas usage over time
+func wrapGetGasUsedByBlock(backend bind.ContractBackend) func(*big.Int) (uint64, error) {
+	return func(number *big.Int) (uint64, error) {
+		block, err := backend.HeaderByNumber(context.Background(), number)
+		if err != nil {
+			return 0, err
+		}
+		return block.GasUsed, nil
+	}
+}
+
 // DeployContractBackend represents the union of the
 // DeployBackend and the ContractBackend
 type DeployContractBackend interface {

@@ -55,6 +55,7 @@ contract OVM_DeployerWhitelist {
      * Updates the owner of this contract.
      * @param _owner Address of the new owner.
      */
+    // slither-disable-next-line external-function
     function setOwner(address _owner) public onlyOwner {
         // Prevent users from setting the whitelist owner to address(0) except via
         // enableArbitraryContractDeployment. If you want to burn the whitelist owner, send it to

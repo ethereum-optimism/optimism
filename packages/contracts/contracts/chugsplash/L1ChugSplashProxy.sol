@@ -88,6 +88,7 @@ contract L1ChugSplashProxy {
      * keep track of the current owner in order to make an eth_call that doesn't trigger the
      * proxied contract.
      */
+    // slither-disable-next-line incorrect-modifier
     modifier proxyCallIfNotOwner() {
         if (msg.sender == _getOwner() || msg.sender == address(0)) {
             _;
@@ -101,6 +102,7 @@ contract L1ChugSplashProxy {
      * Fallback Function *
      *********************/
 
+    // slither-disable-next-line locked-ether
     fallback() external payable {
         // Proxy call by default.
         _doProxyCall();
@@ -117,6 +119,7 @@ contract L1ChugSplashProxy {
      * us a lot more freedom on the client side. Can only be triggered by the contract owner.
      * @param _code New contract code to run inside this contract.
      */
+    // slither-disable-next-line external-function
     function setCode(bytes memory _code) public proxyCallIfNotOwner {
         // Get the code hash of the current implementation.
         address implementation = _getImplementation();
@@ -153,6 +156,7 @@ contract L1ChugSplashProxy {
      * @param _key Storage key to modify.
      * @param _value New value for the storage key.
      */
+    // slither-disable-next-line external-function
     function setStorage(bytes32 _key, bytes32 _value) public proxyCallIfNotOwner {
         assembly {
             sstore(_key, _value)
@@ -163,6 +167,7 @@ contract L1ChugSplashProxy {
      * Changes the owner of the proxy contract. Only callable by the owner.
      * @param _owner New owner of the proxy contract.
      */
+    // slither-disable-next-line external-function
     function setOwner(address _owner) public proxyCallIfNotOwner {
         _setOwner(_owner);
     }
@@ -172,6 +177,7 @@ contract L1ChugSplashProxy {
      * eth_call and setting the "from" address to address(0).
      * @return Owner address.
      */
+    // slither-disable-next-line external-function
     function getOwner() public proxyCallIfNotOwner returns (address) {
         return _getOwner();
     }
@@ -181,6 +187,7 @@ contract L1ChugSplashProxy {
      * eth_call and setting the "from" address to address(0).
      * @return Implementation address.
      */
+    // slither-disable-next-line external-function
     function getImplementation() public proxyCallIfNotOwner returns (address) {
         return _getImplementation();
     }

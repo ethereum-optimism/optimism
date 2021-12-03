@@ -30,8 +30,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ethereum/go-ethereum/accounts/keystore"
-	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum-optimism/optimism/l2geth/accounts/keystore"
+	"github.com/ethereum-optimism/optimism/l2geth/core/types"
 )
 
 // Tests that the account management snippets work correctly.

@@ -285,6 +285,7 @@ library Lib_RLPReader {
         } else if (prefix <= 0xb7) {
             // Short string.
 
+            // slither-disable-next-line variable-scope
             uint256 strLen = prefix - 0x80;
 
             require(_in.length > strLen, "Invalid RLP short string.");
@@ -307,6 +308,7 @@ library Lib_RLPReader {
             return (1 + lenOfStrLen, strLen, RLPItemType.DATA_ITEM);
         } else if (prefix <= 0xf7) {
             // Short list.
+            // slither-disable-next-line variable-scope
             uint256 listLen = prefix - 0xc0;
 
             require(_in.length > listLen, "Invalid RLP short list.");

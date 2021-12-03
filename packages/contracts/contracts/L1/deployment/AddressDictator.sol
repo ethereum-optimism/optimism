@@ -62,6 +62,7 @@ contract AddressDictator {
      * Called to finalize the transfer, this function is callable by anyone, but will only result in
      * an upgrade if this contract is the owner Address Manager.
      */
+    // slither-disable-next-line calls-loop
     function setAddresses() external {
         for (uint256 i = 0; i < namedAddresses.length; i++) {
             manager.setAddress(namedAddresses[i].name, namedAddresses[i].addr);

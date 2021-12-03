@@ -74,6 +74,7 @@ contract StateCommitmentChain is IStateCommitmentChain, Lib_AddressResolver {
     /**
      * @inheritdoc IStateCommitmentChain
      */
+    // slither-disable-next-line external-function
     function getLastSequencerTimestamp() public view returns (uint256 _lastSequencerTimestamp) {
         (, uint40 lastSequencerTimestamp) = _getBatchExtraData();
         return uint256(lastSequencerTimestamp);
@@ -82,6 +83,7 @@ contract StateCommitmentChain is IStateCommitmentChain, Lib_AddressResolver {
     /**
      * @inheritdoc IStateCommitmentChain
      */
+    // slither-disable-next-line external-function
     function appendStateBatch(bytes32[] memory _batch, uint256 _shouldStartAtElement) public {
         // Fail fast in to make sure our batch roots aren't accidentally made fraudulent by the
         // publication of batches by some other user.
@@ -112,6 +114,7 @@ contract StateCommitmentChain is IStateCommitmentChain, Lib_AddressResolver {
     /**
      * @inheritdoc IStateCommitmentChain
      */
+    // slither-disable-next-line external-function
     function deleteStateBatch(Lib_OVMCodec.ChainBatchHeader memory _batchHeader) public {
         require(
             msg.sender == resolve("OVM_FraudVerifier"),
@@ -131,6 +134,7 @@ contract StateCommitmentChain is IStateCommitmentChain, Lib_AddressResolver {
     /**
      * @inheritdoc IStateCommitmentChain
      */
+    // slither-disable-next-line external-function
     function verifyStateCommitment(
         bytes32 _element,
         Lib_OVMCodec.ChainBatchHeader memory _batchHeader,
@@ -277,11 +281,13 @@ contract StateCommitmentChain is IStateCommitmentChain, Lib_AddressResolver {
 
         require(_isValidBatchHeader(_batchHeader), "Invalid batch header.");
 
+        // slither-disable-next-line reentrancy-events
         batches().deleteElementsAfterInclusive(
             _batchHeader.batchIndex,
             _makeBatchExtraData(uint40(_batchHeader.prevTotalElements), 0)
         );
 
+        // slither-disable-next-line reentrancy-events
         emit StateBatchDeleted(_batchHeader.batchIndex, _batchHeader.batchRoot);
     }
 

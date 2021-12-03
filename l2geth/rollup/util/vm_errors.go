@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/ethereum/go-ethereum/accounts/abi"
+	"github.com/ethereum-optimism/optimism/l2geth/accounts/abi"
 )
 
 var codec abi.ABI

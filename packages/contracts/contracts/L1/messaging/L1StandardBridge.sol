@@ -47,6 +47,7 @@ contract L1StandardBridge is IL1StandardBridge, CrossDomainEnabled {
      * @param _l1messenger L1 Messenger address being used for cross-chain communications.
      * @param _l2TokenBridge L2 standard bridge address.
      */
+    // slither-disable-next-line external-function
     function initialize(address _l1messenger, address _l2TokenBridge) public {
         require(messenger == address(0), "Contract has already been initialized.");
         messenger = _l1messenger;
@@ -122,8 +123,10 @@ contract L1StandardBridge is IL1StandardBridge, CrossDomainEnabled {
         );
 
         // Send calldata into L2
+        // slither-disable-next-line reentrancy-events
         sendCrossDomainMessage(l2TokenBridge, _l2Gas, message);
 
+        // slither-disable-next-line reentrancy-events
         emit ETHDepositInitiated(_from, _to, msg.value, _data);
     }
 
@@ -180,6 +183,7 @@ contract L1StandardBridge is IL1StandardBridge, CrossDomainEnabled {
         // When a deposit is initiated on L1, the L1 Bridge transfers the funds to itself for future
         // withdrawals. safeTransferFrom also checks if the contract has code, so this will fail if
         // _from is an EOA or address(0).
+        // slither-disable-next-line reentrancy-events, reentrancy-benign
         IERC20(_l1Token).safeTransferFrom(_from, address(this), _amount);
 
         // Construct calldata for _l2Token.finalizeDeposit(_to, _amount)
@@ -194,10 +198,13 @@ contract L1StandardBridge is IL1StandardBridge, CrossDomainEnabled {
         );
 
         // Send calldata into L2
+        // slither-disable-next-line reentrancy-events, reentrancy-benign
         sendCrossDomainMessage(l2TokenBridge, _l2Gas, message);
 
+        // slither-disable-next-line reentrancy-benign
         deposits[_l1Token][_l2Token] = deposits[_l1Token][_l2Token] + _amount;
 
+        // slither-disable-next-line reentrancy-events
         emit ERC20DepositInitiated(_l1Token, _l2Token, _from, _to, _amount, _data);
     }
 
@@ -214,9 +221,11 @@ contract L1StandardBridge is IL1StandardBridge, CrossDomainEnabled {
         uint256 _amount,
         bytes calldata _data
     ) external onlyFromCrossDomainAccount(l2TokenBridge) {
+        // slither-disable-next-line reentrancy-events
         (bool success, ) = _to.call{ value: _amount }(new bytes(0));
         require(success, "TransferHelper::safeTransferETH: ETH transfer failed");
 
+        // slither-disable-next-line reentrancy-events
         emit ETHWithdrawalFinalized(_from, _to, _amount, _data);
     }
 
@@ -234,8 +243,10 @@ contract L1StandardBridge is IL1StandardBridge, CrossDomainEnabled {
         deposits[_l1Token][_l2Token] = deposits[_l1Token][_l2Token] - _amount;
 
         // When a withdrawal is finalized on L1, the L1 Bridge transfers the funds to the withdrawer
+        // slither-disable-next-line reentrancy-events
         IERC20(_l1Token).safeTransfer(_to, _amount);
 
+        // slither-disable-next-line reentrancy-events
         emit ERC20WithdrawalFinalized(_l1Token, _l2Token, _from, _to, _amount, _data);
     }
 

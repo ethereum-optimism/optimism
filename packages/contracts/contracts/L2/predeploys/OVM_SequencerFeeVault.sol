@@ -44,12 +44,14 @@ contract OVM_SequencerFeeVault {
      * Fallback *
      ************/
 
+    // slither-disable-next-line locked-ether
     receive() external payable {}
 
     /********************
      * Public Functions *
      ********************/
 
+    // slither-disable-next-line external-function
     function withdraw() public {
         require(
             address(this).balance >= MIN_WITHDRAWAL_AMOUNT,
