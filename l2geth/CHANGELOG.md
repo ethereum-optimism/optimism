@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.5.3
+
+### Patch Changes
+
+- 5febe10f: fixes empty block detection and removes empty worker tasks
+- 272d20d6: renames l2geth package name to github.com/ethereum-optimism/optimism/l2geth
+
 ## 0.5.2
 
 ### Patch Changes
