@@ -1,5 +1,11 @@
 # @eth-optimism/integration-tests
 
+## 0.3.3
+
+### Patch Changes
+
+- 0ab37fc9: Update to node.js version 16
+
 ## 0.3.2
 
 ### Patch Changes

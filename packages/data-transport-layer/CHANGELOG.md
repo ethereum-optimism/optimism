@@ -1,5 +1,11 @@
 # data transport layer
 
+## 0.5.6
+
+### Patch Changes
+
+- 0ab37fc9: Update to node.js version 16
+
 ## 0.5.5
 
 ### Patch Changes

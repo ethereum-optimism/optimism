@@ -1,5 +1,11 @@
 # @eth-optimism/message-relayer
 
+## 0.2.7
+
+### Patch Changes
+
+- 0ab37fc9: Update to node.js version 16
+
 ## 0.2.6
 
 ### Patch Changes
