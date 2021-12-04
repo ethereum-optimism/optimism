@@ -11,10 +11,11 @@ import (
 type GetTargetGasPerSecond func() float64
 
 type GasPricer struct {
-	curPrice              uint64
-	floorPrice            uint64
-	getTargetGasPerSecond GetTargetGasPerSecond
-	maxChangePerEpoch     float64
+	curPrice                 uint64
+	avgGasPerSecondLastEpoch float64
+	floorPrice               uint64
+	getTargetGasPerSecond    GetTargetGasPerSecond
+	maxChangePerEpoch        float64
 }
 
 // LinearInterpolation can be used to dynamically update target gas per second
@@ -80,6 +81,7 @@ func (p *GasPricer) CompleteEpoch(avgGasPerSecondLastEpoch float64) (uint64, err
 		return gp, err
 	}
 	p.curPrice = gp
+	p.avgGasPerSecondLastEpoch = avgGasPerSecondLastEpoch
 	return gp, nil
 }
 
