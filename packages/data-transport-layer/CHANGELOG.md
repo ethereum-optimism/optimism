@@ -1,5 +1,11 @@
 # data transport layer
 
+## 0.5.7
+
+### Patch Changes
+
+- 57d5b8f9: Build docker images with node.js version 16
+
 ## 0.5.6
 
 ### Patch Changes
