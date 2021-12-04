@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.8
+
+### Patch Changes
+
+- 0ab37fc9: Update to node.js version 16
+
 ## 0.4.7
 
 ### Patch Changes
