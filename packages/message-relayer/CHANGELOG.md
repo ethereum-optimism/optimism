@@ -1,5 +1,11 @@
 # @eth-optimism/message-relayer
 
+## 0.2.8
+
+### Patch Changes
+
+- 57d5b8f9: Build docker images with node.js version 16
+
 ## 0.2.7
 
 ### Patch Changes
