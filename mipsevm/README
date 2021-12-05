@@ -2,6 +2,7 @@ Running MIPS processor on chain
 
 Tests from https://github.com/grantae/OpenMIPS/tree/master/software/test/macro/tests
 Licensed GPLv3
+Requires https://github.com/sergev/LiteBSD/releases/download/tools/gcc-4.8.1-mips-macosx.tgz to build
 
 Instruction set used by minigeth, 55 instructions:
 ['addi', 'addiu', 'addu', 'and', 'andi',
