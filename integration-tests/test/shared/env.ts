@@ -13,6 +13,7 @@ import {
   replicaProvider,
   l1Wallet,
   l2Wallet,
+  gasPriceOracleWallet,
   fundUser,
   getOvmEth,
   getL1Bridge,
@@ -100,7 +101,7 @@ export class OptimismEnv {
       .attach(ctcAddress)
 
     const gasPriceOracle = getContractFactory('OVM_GasPriceOracle')
-      .connect(l2Wallet)
+      .connect(gasPriceOracleWallet)
       .attach(predeploys.OVM_GasPriceOracle)
 
     const sccAddress = await addressManager.getAddress('StateCommitmentChain')
