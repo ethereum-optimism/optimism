@@ -1,5 +1,11 @@
 # data transport layer
 
+## 0.5.8
+
+### Patch Changes
+
+- f13fdaf4: Cleanly catch sigterm, sigint and sigkill
+
 ## 0.5.7
 
 ### Patch Changes
