@@ -1,5 +1,11 @@
 package proxyd
 
+import (
+	"fmt"
+	"os"
+	"strings"
+)
+
 type ServerConfig struct {
 	RPCHost          string `toml:"rpc_host"`
 	RPCPort          int    `toml:"rpc_port"`
@@ -26,11 +32,11 @@ type BackendOptions struct {
 }
 
 type BackendConfig struct {
-	Username   string `toml:"username"`
-	Password   string `toml:"password"`
-	RPCURL     string `toml:"rpc_url"`
-	WSURL      string `toml:"ws_url"`
-	MaxRPS     int    `toml:"max_rps"`
+	Username       string `toml:"username"`
+	Password       string `toml:"password"`
+	RPCURL         string `toml:"rpc_url"`
+	WSURL          string `toml:"ws_url"`
+	MaxRPS         int    `toml:"max_rps"`
 	MaxWSConns     int    `toml:"max_ws_conns"`
 	CAFile         string `toml:"ca_file"`
 	ClientCertFile string `toml:"client_cert_file"`
@@ -58,4 +64,20 @@ type Config struct {
 	BackendGroups     BackendGroupsConfig `toml:"backend_groups"`
 	RPCMethodMappings map[string]string   `toml:"rpc_method_mappings"`
 	WSMethodWhitelist []string            `toml:"ws_method_whitelist"`
+}
+
+func ReadFromEnvOrConfig(value string) (string, error) {
+	if strings.HasPrefix(value, "$") {
+		envValue := os.Getenv(strings.TrimPrefix(value, "$"))
+		if envValue == "" {
+			return "", fmt.Errorf("config env var %s not found", value)
+		}
+		return envValue, nil
+	}
+
+	if strings.HasPrefix(value, "\\") {
+		return strings.TrimPrefix(value, "\\"), nil
+	}
+
+	return value, nil
 }
