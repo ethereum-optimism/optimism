@@ -1,5 +1,11 @@
 # @eth-optimism/gas-oracle
 
+## 0.1.4
+
+### Patch Changes
+
+- 9eed33c4: fix rounding error in average gas/epoch calculation
+
 ## 0.1.3
 
 ### Patch Changes
