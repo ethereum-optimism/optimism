@@ -20,7 +20,7 @@ func CreateTLSClient(ca string) (*tls.Config, error) {
 	}
 
 	return &tls.Config{
-		RootCAs:      roots,
+		RootCAs: roots,
 	}, nil
 }
 

@@ -53,6 +53,15 @@ type ethNetwork = 'mainnet' | 'kovan' | 'goerli'
       sentryTraceRate: config.ufloat('sentry-trace-rate', 0.05),
     })
 
+    const stop = async (signal) => {
+      console.log(`"{"msg": "${signal} - Stopping data-transport layer"}"`)
+      await service.stop()
+      process.exit()
+    }
+
+    process.on('SIGTERM', stop)
+    process.on('SIGINT', stop)
+
     await service.start()
   } catch (err) {
     console.error(

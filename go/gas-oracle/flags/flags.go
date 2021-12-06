@@ -77,7 +77,7 @@ var (
 		Usage:  "max percent change of gas price per second",
 		EnvVar: "GAS_PRICE_ORACLE_MAX_PERCENT_CHANGE_PER_EPOCH",
 	}
-	AverageBlockGasLimitPerEpochFlag = cli.Float64Flag{
+	AverageBlockGasLimitPerEpochFlag = cli.Uint64Flag{
 		Name:   "average-block-gas-limit-per-epoch",
 		Value:  11_000_000,
 		Usage:  "average block gas limit per epoch",
