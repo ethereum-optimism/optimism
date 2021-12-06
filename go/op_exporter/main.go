@@ -41,6 +41,10 @@ var (
 		"wait.minutes",
 		"Number of minutes to wait for the next block before marking provider unhealthy.",
 	).Default("10").Int()
+	sequencerPollingSeconds = kingpin.Flag(
+		"sequencer.polling",
+		"Number of seconds to wait between sequencer polling cycles.",
+	).Default("30").Int()
 	enableK8sQuery = kingpin.Flag(
 		"k8s.enable",
 		"Enable kubernetes info lookup.",
@@ -191,7 +195,7 @@ func getBlockNumber(health *healthCheck) {
 
 			health.mu.Unlock()
 		}
-		time.Sleep(time.Duration(30) * time.Second)
+		time.Sleep(time.Duration(*sequencerPollingSeconds) * time.Second)
 	}
 }
 
