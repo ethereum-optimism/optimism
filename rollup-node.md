@@ -3,7 +3,6 @@
 <!-- All glossary references in this file. -->
 [rollup node]: /glossary.md#rollup-node
 [derivation]: /glossary.md#L2-chain-derivation
-[L2 derivation inputs]: /glossary.md#L2-derivation-inputs
 [payload attributes]: /glossary.md#payload-attributes
 [block]: /glossary.md#block
 [execution engine]: /glossary.md#execution-engine
@@ -13,20 +12,21 @@
 [deposits]: /glossary.md#deposits
 [deposit-feed]: /glossary.md#L2-deposit-feed-contract
 [L2 chain inception]: /glossary.md#L2-chain-inception
+[receipts]: /glossary.md#receipt
 
 The [rollup node] is the component responsible for [deriving the L2
-chain][derivation] from L1 blocks. This process happens in two steps:
+chain][derivation] from L1 blocks (and their associated [receipts]). This process
+happens in two steps:
 
-1. Read [L2 derivation inputs] from L1 and generate [payload attributes] (essentially
-   [a block without output properties][block]).
+1. Read from L1 blocks and associated receipts, in order to generate [payload
+   attributes] (essentially [a block without output properties][block]).
 2. Pass the payload attributes to the [execution engine], so that [output block
    properties][block] may be computed.
 
 While this process is conceptually a pure function from the L1 chain to the L2
 chain, it is in practice incremental. The L2 chain is extended whenever new L1
-blocks (and hence new L2 derivation inputs) are added to the L1 chain.
-Similarly, the L2 chain re-organizes whenever the L1 chain
-[re-organizes][reorg].
+blocks are added to the L1 chain. Similarly, the L2 chain re-organizes whenever
+the L1 chain [re-organizes][reorg].
 
 The part of the rollup node that derives the L2 chain is called the [rollup
 driver]. This document is currently only concerned with the specification of the
@@ -35,7 +35,7 @@ rollup driver.
 ## Table of Contents
 
 - [L2 Chain Derivation][l2-chain-derivation]
-  - [From L2 derivation inputs to payload attributes][payload-attr]
+  - [From L1 blocks to payload attributes][payload-attr]
   - [Payload Transaction Format][payload-format]
   - [Building the L2 block with the execution engine][calling-exec-engine]
 - [Handling L1 Re-Orgs][l1-reorgs]
@@ -51,12 +51,11 @@ transaction]*) well as all L2 transactions deposited by users in the L1 block
 
 [L1 attributes transaction]: /glossary.md#l1-attributes-transaction
 
-### From L2 derivation inputs to payload attributes
-[payload-attr]: #From-L2-derivation-inputs-to-payload-attributes
+### From L1 blocks to payload attributes
+[payload-attr]: #From-L1-blocks-to-payload-attributes
+[`PayloadAttributesOPV1`]: #From-L1-blocks-to-payload-attributes
 
-[`PayloadAttributesOPV1`]: #From-L2-derivation-inputs-to-payload-attributes
-
-The rollup reads the following [L2 derivation inputs] for each L1 block:
+The rollup reads the following data from each L1 block:
 
 - L1 block attributes
    - block number
@@ -75,7 +74,7 @@ tokens to L2, the word *deposit* should be understood as "a transaction
 *deposited* to L2".
 
 The L1 attributes are read from the L1 block header, while deposits are read
-from the block's log entries. Refer to the [**deposit feed contract
+from the block's [receipts]. Refer to the [**deposit feed contract
 specification**][deposit-feed] for details on how deposits are encoded as log
 entries.
 
@@ -83,7 +82,7 @@ entries.
 
 > **TODO LINK** deposit feed contract specification
 
-From these L2 derivation inputs, the rollup node constructs an expanded version
+From the data read from , the rollup node constructs an expanded version
 of the [Engine API PayloadAttributesV1 object][PayloadAttributesV1]:
 
 [PayloadAttributesV1]: https://github.com/ethereum/execution-apis/blob/main/src/engine/specification.md#payloadattributesv1
