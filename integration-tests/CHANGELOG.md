@@ -1,5 +1,11 @@
 # @eth-optimism/integration-tests
 
+## 0.4.0
+
+### Minor Changes
+
+- 3ce64804: Add actor tests
+
 ## 0.3.3
 
 ### Patch Changes
