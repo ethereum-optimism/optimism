@@ -1,5 +1,11 @@
 # @eth-optimism/proxyd
 
+## 3.2.0
+
+### Minor Changes
+
+- 73484138: Adds ability to specify env vars in config
+
 ## 3.1.2
 
 ### Patch Changes
