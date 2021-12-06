@@ -44,8 +44,8 @@ rollup driver.
 ## L2 Chain Derivation
 [l2-chain-derivation]: #l2-chain-derivation
 
-This section specifies how the [rollup driver] derives one L2 block from every
-L1 block. The L2 block will carry the L1 block attributes (as a *[L1 attributes
+This section specifies how the [rollup driver] derives one L2 block per every L1
+block. The L2 block will carry the L1 block attributes (as a *[L1 attributes
 transaction]*) well as all L2 transactions deposited by users in the L1 block
 (*[deposits]*).
 
@@ -67,8 +67,8 @@ The rollup reads the following [L2 derivation inputs] for each L1 block:
 
 [random]: https://eips.ethereum.org/EIPS/eip-4399
 
-A deposit is an L2 transaction that has been submitted on L1, via a transaction
-sent to the [deposit feed contract][deposit-feed].
+A deposit is an L2 transaction that has been submitted on L1, via a call sent to
+the [deposit feed contract][deposit-feed].
 
 While deposits are notably (but not only) used to "deposit" (bridge) ETH and
 tokens to L2, the word *deposit* should be understood as "a transaction
@@ -108,6 +108,7 @@ The object properties must be set as follows:
 
 - `timestamp` is set to the current [unix time] (number of elapsed seconds since
   00:00:00 UTC on 1 January 1970), rounded to the closest multiple of 2 seconds.
+  No two blocks may have the same timestamp.
 - `random` is set to the *random* L1 block attribute
 - `suggestedFeeRecipient` is set to an address where the sequencer would like to
   direct the fees

@@ -27,7 +27,7 @@ found in code comments [here][nano-header], or in the [Ethereum yellow paper
 (pdf)][yellow], section 4.3.
 
 It is useful to distinguish between input block properties, which are known
-before executing the transactions in the block, and output bblock properties,
+before executing the transactions in the block, and output block properties,
 which are derived after executing the block's transactions. These include
 various [Merkle roots][Merkle root] that notably commit to the L2 state and to
 the log events emitted during the execution.
@@ -60,9 +60,9 @@ consequence of L1 re-orgs, mediated via [L2 chain derivation][derivation].
 ## Predeployed Contract ("Predeploy")
 [predeploy]: /glossary.md#predeployed-contract-predeploy
 
-A contract that was deployed on-chain at genesis (i.e. at the start of the chain).
+A contract placed in the L2 genesis state (i.e. at the start of the chain).
 
-Optimistic Ethereum has the following pre-compiles:
+Optimistic Ethereum has the following predeploys:
 
 - [L1 Attributes Predeployed Contract][l1-attr-predeploy]
 
