@@ -1,0 +1,121 @@
+{
+	"tests": [
+		{
+			"name": "empty batch",
+			"hex_encoding": "0000000000000000000000",
+			"should_start_at_element": 0,
+			"total_elements_to_append": 0,
+			"contexts": null,
+			"txs": null
+		},
+		{
+			"name": "single tx",
+			"hex_encoding": "000000000100000100000000000ac9808080808080808080",
+			"should_start_at_element": 1,
+			"total_elements_to_append": 1,
+			"contexts": null,
+			"txs": [
+				"c9808080808080808080"
+			]
+		},
+		{
+			"name": "multiple txs",
+			"hex_encoding": "000000000100000400000000000ac980808080808080808000000ac980808080808080808000000ac980808080808080808000000ac9808080808080808080",
+			"should_start_at_element": 1,
+			"total_elements_to_append": 4,
+			"contexts": null,
+			"txs": [
+				"c9808080808080808080",
+				"c9808080808080808080",
+				"c9808080808080808080",
+				"c9808080808080808080"
+			]
+		},
+		{
+			"name": "single context",
+			"hex_encoding": "0000000001000000000001000102030405060708090a0b0c0d0e0f",
+			"should_start_at_element": 1,
+			"total_elements_to_append": 0,
+			"contexts": [
+				{
+					"num_sequenced_txs": 258,
+					"num_subsequent_queue_txs": 197637,
+					"timestamp": 25887770890,
+					"block_number": 47446822415
+				}
+			],
+			"txs": null
+		},
+		{
+			"name": "multiple contexts",
+			"hex_encoding": "0000000001000000000004000102030405060708090a0b0c0d0e0f000102030405060708090a0b0c0d0e0f000102030405060708090a0b0c0d0e0f000102030405060708090a0b0c0d0e0f",
+			"should_start_at_element": 1,
+			"total_elements_to_append": 0,
+			"contexts": [
+				{
+					"num_sequenced_txs": 258,
+					"num_subsequent_queue_txs": 197637,
+					"timestamp": 25887770890,
+					"block_number": 47446822415
+				},
+				{
+					"num_sequenced_txs": 258,
+					"num_subsequent_queue_txs": 197637,
+					"timestamp": 25887770890,
+					"block_number": 47446822415
+				},
+				{
+					"num_sequenced_txs": 258,
+					"num_subsequent_queue_txs": 197637,
+					"timestamp": 25887770890,
+					"block_number": 47446822415
+				},
+				{
+					"num_sequenced_txs": 258,
+					"num_subsequent_queue_txs": 197637,
+					"timestamp": 25887770890,
+					"block_number": 47446822415
+				}
+			],
+			"txs": null
+		},
+		{
+			"name": "complex",
+			"hex_encoding": "0102030405060708000004000102030405060708090a0b0c0d0e0f000102030405060708090a0b0c0d0e0f000102030405060708090a0b0c0d0e0f000102030405060708090a0b0c0d0e0f00000ac980808080808080808000000ac980808080808080808000000ac980808080808080808000000ac9808080808080808080",
+			"should_start_at_element": 4328719365,
+			"total_elements_to_append": 395016,
+			"contexts": [
+				{
+					"num_sequenced_txs": 258,
+					"num_subsequent_queue_txs": 197637,
+					"timestamp": 25887770890,
+					"block_number": 47446822415
+				},
+				{
+					"num_sequenced_txs": 258,
+					"num_subsequent_queue_txs": 197637,
+					"timestamp": 25887770890,
+					"block_number": 47446822415
+				},
+				{
+					"num_sequenced_txs": 258,
+					"num_subsequent_queue_txs": 197637,
+					"timestamp": 25887770890,
+					"block_number": 47446822415
+				},
+				{
+					"num_sequenced_txs": 258,
+					"num_subsequent_queue_txs": 197637,
+					"timestamp": 25887770890,
+					"block_number": 47446822415
+				}
+			],
+			"txs": [
+				"c9808080808080808080",
+				"c9808080808080808080",
+				"c9808080808080808080",
+				"c9808080808080808080"
+			]
+		}
+	]
+}

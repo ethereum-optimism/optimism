@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.4.9
+
+### Patch Changes
+
+- 57d5b8f9: Build docker images with node.js version 16
+
+## 0.4.8
+
+### Patch Changes
+
+- 0ab37fc9: Update to node.js version 16
+
 ## 0.4.7
 
 ### Patch Changes

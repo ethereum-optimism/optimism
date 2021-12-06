@@ -25,7 +25,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum-optimism/optimism/l2geth/log"
 )
 
 // ipcListen will create a Unix socket on the given endpoint.

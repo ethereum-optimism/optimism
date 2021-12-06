@@ -1,7 +1,7 @@
 {
   "private": true,
   "name": "@eth-optimism/integration-tests",
-  "version": "0.3.2",
+  "version": "0.3.3",
   "description": "[Optimism] Integration tests",
   "scripts": {
     "lint": "yarn lint:fix && yarn lint:check",
@@ -30,7 +30,7 @@
   "devDependencies": {
     "@eth-optimism/contracts": "0.5.5",
     "@eth-optimism/core-utils": "0.7.3",
-    "@eth-optimism/message-relayer": "0.2.6",
+    "@eth-optimism/message-relayer": "0.2.8",
     "@ethersproject/abstract-provider": "^5.5.1",
     "@ethersproject/providers": "^5.4.5",
     "@ethersproject/transactions": "^5.4.0",

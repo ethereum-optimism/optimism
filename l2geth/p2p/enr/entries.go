@@ -21,7 +21,7 @@ import (
 	"io"
 	"net"
 
-	"github.com/ethereum/go-ethereum/rlp"
+	"github.com/ethereum-optimism/optimism/l2geth/rlp"
 )
 
 // Entry is implemented by known node record entry types.

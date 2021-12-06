@@ -13,7 +13,7 @@ type MockEpoch struct {
 
 // Return a gas pricer that targets 3 blocks per epoch & 10% max change per epoch.
 func makeTestGasPricerAndUpdater(curPrice uint64) (*GasPricer, *GasPriceUpdater, func(uint64), error) {
-	gpsTarget := 3300000.0
+	gpsTarget := 990000.3
 	getGasTarget := func() float64 { return gpsTarget }
 	epochLengthSeconds := uint64(10)
 	averageBlockGasLimit := uint64(11000000)
@@ -135,6 +135,13 @@ func TestUsageOfGasPriceUpdater(t *testing.T) {
 				curPrice := gasPriceUpdater.gasPricer.curPrice
 				if prevGasPrice != curPrice {
 					t.Fatalf("Expected gas price to stablize. Got %d, was %d", curPrice, prevGasPrice)
+				}
+
+				targetGps := gasPriceUpdater.gasPricer.getTargetGasPerSecond()
+				averageGps := gasPriceUpdater.gasPricer.avgGasPerSecondLastEpoch
+				if targetGps != averageGps {
+					t.Fatalf("Average gas/second (%f) did not converge to target (%f)",
+						averageGps, targetGps)
 				}
 			},
 		},

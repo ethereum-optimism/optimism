@@ -40,7 +40,7 @@ import (
 	"io"
 	"sort"
 
-	"github.com/ethereum/go-ethereum/rlp"
+	"github.com/ethereum-optimism/optimism/l2geth/rlp"
 )
 
 const SizeLimit = 300 // maximum encoded size of a node record in bytes

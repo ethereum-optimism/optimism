@@ -4,7 +4,7 @@
 # ### BASE: Install deps
 # We do not use Alpine because there's a regression causing it to be very slow
 # when used with typescript/hardhat: https://github.com/nomiclabs/hardhat/issues/1219
-FROM node:14-buster-slim as node
+FROM node:16-buster-slim as node
 RUN apt-get update -y && apt-get install -y git
 
 # Pre-download the compilers so that they do not need to be downloaded inside
@@ -37,7 +37,7 @@ COPY integration-tests/package.json ./integration-tests/package.json
 RUN yarn install --frozen-lockfile
 
 ### BUILDER: Builds the typescript
-FROM node
+FROM node:16
 
 WORKDIR /optimism
 

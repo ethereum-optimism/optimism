@@ -19,9 +19,9 @@ package state
 import (
 	"fmt"
 
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/ethdb"
-	"github.com/ethereum/go-ethereum/trie"
+	"github.com/ethereum-optimism/optimism/l2geth/common"
+	"github.com/ethereum-optimism/optimism/l2geth/ethdb"
+	"github.com/ethereum-optimism/optimism/l2geth/trie"
 	lru "github.com/hashicorp/golang-lru"
 )
 

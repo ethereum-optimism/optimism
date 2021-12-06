@@ -1,7 +1,7 @@
 {
   "private": true,
   "name": "@eth-optimism/batch-submitter",
-  "version": "0.4.7",
+  "version": "0.4.9",
   "description": "[Optimism] Service for submitting transactions and transaction results",
   "main": "dist/index",
   "types": "dist/index",

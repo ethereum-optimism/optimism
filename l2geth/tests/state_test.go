@@ -23,7 +23,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/ethereum/go-ethereum/core/vm"
+	"github.com/ethereum-optimism/optimism/l2geth/core/vm"
 )
 
 func TestState(t *testing.T) {

@@ -1,5 +1,11 @@
 # @eth-optimism/gas-oracle
 
+## 0.1.3
+
+### Patch Changes
+
+- 3af7ce3f: Meter gas usage based on gas used in block instead of assuming max gas usage per block
+
 ## 0.1.2
 
 ### Patch Changes

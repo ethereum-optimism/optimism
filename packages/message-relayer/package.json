@@ -1,6 +1,6 @@
 {
   "name": "@eth-optimism/message-relayer",
-  "version": "0.2.6",
+  "version": "0.2.8",
   "description": "[Optimism] Service for automatically relaying L2 to L1 transactions",
   "main": "dist/index",
   "types": "dist/index",
