@@ -49,6 +49,13 @@ test:
   sltiu $v0, $t5, 1 
 
 # data at 0x31000004
+  lw $t0, 4($s1)
+  lui $t4, 0x6865
+  ori $t4, 0x6c6c
+  subu $t5, $t0, $t4
+  sltiu $v1, $t5, 1
+
+  and $v0, $v0, $v1
 
 # save results
   lui     $s0, 0xbfff         # Load the base address 0xbffffff0
