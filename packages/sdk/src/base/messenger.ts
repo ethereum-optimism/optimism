@@ -9,7 +9,7 @@ import {
   NumberLike,
   CrossChainMessageRequest,
 } from './types'
-import { ICrossChainProvider } from './provider'
+import { ICrossChainProvider } from './cross-chain-provider'
 
 export interface ICrossChainMessenger {
   /**

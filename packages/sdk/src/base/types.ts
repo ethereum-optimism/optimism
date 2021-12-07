@@ -119,6 +119,13 @@ export interface StateRootBatch {
 }
 
 /**
+ * Utility type for deep partials.
+ */
+export type DeepPartial<T> = {
+  [P in keyof T]?: DeepPartial<T[P]>
+}
+
+/**
  * Different allowable network names.
  * TODO: Maybe we need to add a way to specify a custom network name.
  */

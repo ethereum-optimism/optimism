@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 import { ethers, BigNumber, Contract, Event } from 'ethers'
 import {
   TransactionReceipt,
@@ -21,6 +22,7 @@ import {
   MessageReceipt,
   MessageReceiptStatus,
   NetworkName,
+  DeepPartial,
 } from '../base'
 import {
   ErrMultipleSuccessfulRelays,
@@ -44,16 +46,23 @@ export class CrossChainProvider implements ICrossChainProvider {
   public contracts: OEContracts
   public network: NetworkName
 
-  constructor(opts: { l1Provider: ProviderLike; l2Provider: ProviderLike }) {
+  constructor(opts: {
+    l1Provider: ProviderLike
+    l2Provider: ProviderLike
+    contracts?: DeepPartial<OEContracts>
+  }) {
     this.l1Provider = toProvider(opts.l1Provider)
     this.l2Provider = toProvider(opts.l2Provider)
 
-    // Handle contract connections
-    this.contracts.l2.L2CrossDomainMessenger = new Contract(
-      predeploys.L2CrossDomainMessenger,
-      getContractInterface('L2CrossDomainMessenger'),
-      this.l2Provider
-    )
+    // TODO: Verify this
+    this.contracts = opts.contracts as OEContracts
+
+    // // Handle contract connections for anything that wasn't explicitly provided.
+    // this.contracts.l2.L2CrossDomainMessenger = new Contract(
+    //   predeploys.L2CrossDomainMessenger,
+    //   getContractInterface('L2CrossDomainMessenger'),
+    //   this.l2Provider
+    // )
   }
 
   public async getMessagesByTransaction(
@@ -119,7 +128,7 @@ export class CrossChainProvider implements ICrossChainProvider {
     fromBlock?: NumberLike,
     toBlock?: NumberLike
   ): Promise<CrossChainMessage[]> {
-    throw new Error('Method not implemented.')
+    throw new Error('Not implemented')
   }
 
   public async getTokenBridgeMessagesByAddress(
@@ -342,7 +351,9 @@ export class CrossChainProvider implements ICrossChainProvider {
 
   public async estimateMessageExecutionGas(
     message: MessageLike
-  ): Promise<BigNumber> {}
+  ): Promise<BigNumber> {
+    throw new Error('Not implemented')
+  }
 
   public async estimateMessageWaitTimeSeconds(
     message: MessageLike

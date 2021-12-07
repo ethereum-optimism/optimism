@@ -3,6 +3,7 @@ import {
   TransactionReceipt,
   TransactionResponse,
 } from '@ethersproject/abstract-provider'
+import { getContractInterface } from '@eth-optimism/contracts'
 import { ethers } from 'ethers'
 import { ProviderLike, TransactionLike, CrossChainMessage } from '../base'
 
@@ -14,7 +15,10 @@ import { ProviderLike, TransactionLike, CrossChainMessage } from '../base'
  * @returns Canonical encoding of the message.
  */
 export const encodeCrossChainMessage = (message: CrossChainMessage): string => {
-  throw new Error('Not implemented')
+  return getContractInterface('L2CrossDomainMessenger').encodeFunctionData(
+    'relayMessage',
+    [message.target, message.sender, message.message, message.messageNonce]
+  )
 }
 
 /**
@@ -26,7 +30,10 @@ export const encodeCrossChainMessage = (message: CrossChainMessage): string => {
  * @returns Canonical hash of the message.
  */
 export const hashCrossChainMessage = (message: CrossChainMessage): string => {
-  throw new Error('Not implemented')
+  return ethers.utils.solidityKeccak256(
+    ['bytes'],
+    [encodeCrossChainMessage(message)]
+  )
 }
 
 /**

@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 import { Provider, TransactionRequest } from '@ethersproject/abstract-provider'
 import { BigNumber } from 'ethers'
 

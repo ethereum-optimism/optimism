@@ -1,4 +1,3 @@
 export * from './messenger'
-export * from './provider'
+export * from './cross-chain-provider'
 export * from './types'
-export * from './utils'

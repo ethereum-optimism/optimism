@@ -1,2 +1,2 @@
-export * from './watcher'
 export * from './base'
+export * from './impl'
