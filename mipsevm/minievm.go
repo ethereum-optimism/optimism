@@ -127,11 +127,15 @@ func (s *StateDB) GetState(fakeaddr common.Address, hash common.Hash) common.Has
 					binary.BigEndian.PutUint32(oracle_hash[i:i+4], ram[0x30001000+i])
 				}
 				hash := common.BytesToHash(oracle_hash)
+
 				if s.root == "" {
-					log.Fatal("need root if using hash oracle")
+					log.Fatal("need root if using oracle for ", hash)
 				}
 				key := fmt.Sprintf("%s/%s", s.root, hash)
-				value, _ := ioutil.ReadFile(key)
+				value, err := ioutil.ReadFile(key)
+        if err != nil {
+          log.Fatal(err)
+        }
 
 				WriteRam(ram, 0x31000000, uint32(len(value)))
 				value = append(value, 0, 0, 0)
