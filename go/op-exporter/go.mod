@@ -1,4 +1,4 @@
-module github.com/ethereum-optimism/optimism/go/op_exporter
+module github.com/ethereum-optimism/optimism/go/op-exporter
 
 go 1.16
 
