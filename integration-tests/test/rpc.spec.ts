@@ -72,6 +72,32 @@ describe('Basic RPC tests', () => {
       expect(result.data).to.equal(tx.data)
     })
 
+    it('should reject a transaction with a too low of nonce', async () => {
+      const tx = {
+        ...defaultTransactionFactory(),
+        gasPrice: await gasPriceForL2(env),
+        nonce: (await wallet.getTransactionCount()) - 1,
+      }
+
+      const signed = await wallet.signTransaction(tx)
+      await expect(provider.sendTransaction(signed)).to.be.rejectedWith(
+        'invalid transaction: nonce too low'
+      )
+    })
+
+    it('should reject a transaction with a too high of a nonce', async () => {
+      const tx = {
+        ...defaultTransactionFactory(),
+        gasPrice: await gasPriceForL2(env),
+        nonce: (await wallet.getTransactionCount()) + 10,
+      }
+
+      const signed = await wallet.signTransaction(tx)
+      await expect(provider.sendTransaction(signed)).to.be.rejectedWith(
+        'invalid transaction: nonce too high'
+      )
+    })
+
     it('should not accept a transaction with the wrong chain ID', async () => {
       const tx = {
         ...defaultTransactionFactory(),
