@@ -11,6 +11,18 @@ import (
 
 // go test -run TestTrie
 
+func TestToTrie(t *testing.T) {
+	ram := make(map[uint32](uint32))
+	LoadMappedFile("test/bin/oracle.bin", ram, 0)
+	ZeroRegisters(ram)
+	ram[0xC000007C] = 0x5EAD0000
+	root := RamToTrie(ram)
+
+	dat := TrieToJson(root, -1)
+	fmt.Println("serialized length is", len(dat))
+	ioutil.WriteFile("/tmp/cannon/oracletest.json", dat, 0644)
+}
+
 func TestTrie(t *testing.T) {
 	ram := make(map[uint32](uint32))
 	LoadMappedFile("../mipigo/test/test.bin", ram, 0)
