@@ -58,6 +58,6 @@ describe("MIPS contract", function () {
     }
     expect(out1).to.equal(1)
     expect(out2).to.equal(1)
-  });
+  }).timeout(60000);
 
 });
