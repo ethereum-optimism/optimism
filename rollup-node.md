@@ -42,6 +42,7 @@ rollup driver.
 - [Finalization Guarantees][finalization]
 
 ## L2 Chain Derivation
+
 [l2-chain-derivation]: #l2-chain-derivation
 
 This section specifies how the [rollup driver] derives one L2 block per every L1
@@ -52,16 +53,17 @@ transaction]*) well as all L2 transactions deposited by users in the L1 block
 [L1 attributes transaction]: /glossary.md#l1-attributes-transaction
 
 ### From L1 blocks to payload attributes
+
 [payload-attr]: #From-L1-blocks-to-payload-attributes
 [`PayloadAttributesOPV1`]: #From-L1-blocks-to-payload-attributes
 
 The rollup reads the following data from each L1 block:
 
 - L1 block attributes
-   - block number
-   - timestamp
-   - basefee
-   - *random* (the output of the [`RANDOM` opcode][random])
+  - block number
+  - timestamp
+  - basefee
+  - *random* (the output of the [`RANDOM` opcode][random])
 - [deposits]
 
 [random]: https://eips.ethereum.org/EIPS/eip-4399
@@ -87,12 +89,12 @@ of the [Engine API PayloadAttributesV1 object][PayloadAttributesV1]:
 
 [PayloadAttributesV1]: https://github.com/ethereum/execution-apis/blob/main/src/engine/specification.md#payloadattributesv1
 
-```
+```js
 PayloadAttributesOPV1: {
-	timestamp: QUANTITY
-	random: DATA (32 bytes)
-	suggestedFeeRecipient: DATA (20 bytes)
-	transactions: array of DATA
+    timestamp: QUANTITY
+    random: DATA (32 bytes)
+    suggestedFeeRecipient: DATA (20 bytes)
+    transactions: array of DATA
 }
 ```
 
@@ -127,6 +129,7 @@ The [EIP-2718] transactions must have a transaction type that is valid on L1, or
 be an *[L1 attributes transaction]* (see below).
 
 #### Payload Transaction Format
+
 [payload-format]: #payload-transaction-format
 
 The `transactions` array is filled with the deposits, prefixed by the (single)
@@ -171,6 +174,7 @@ attributes transaction as well as a single deposit:
 ```
 
 ### Building the L2 block with the execution engine
+
 [calling-exec-engine]: #building-the-L2-block-with-the-execution-engine
 
 The Optimistic Ethereum [execution engine] is specified in the [Execution Engine
@@ -250,6 +254,7 @@ fully defines a new L2 block.
 > **TODO** specify the behaviour in case the resulting object reports an error
 
 ## Handling L1 Re-Orgs
+
 [l1-reorgs]: #handling-L1-re-orgs
 
 The [previous section on L2 chain derivation][l2-chain-derivation] assumes
@@ -282,6 +287,7 @@ those case, the rollup driver must:
 > should be impossible and should cause the node to stop deriving the L2 chain.
 
 ## Finalization Guarantees
+
 [finalization]: #finalization-guarantees
 
 As already alluded to in the section on [interacting with the execution
