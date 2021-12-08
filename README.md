@@ -70,10 +70,10 @@ ID=0 BLOCK=1171895 npx hardhat run scripts/assert.js --network hosthat
 
 ## State Oracle API
 
-On chain / in MIPS, we have two oracles
+On chain / in MIPS, we have two simple oracles
 
-* InputHash() -> hash        # this is a hash of the initial custom state of the system
-* Preimage(hash) -> value    # hash(value) == hash
+* InputHash() -> hash
+* Preimage(hash) -> value
 
 We generate the Preimages in x86 using geth RPC
 
