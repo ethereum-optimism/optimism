@@ -5,7 +5,6 @@ import {
 } from '@ethersproject/abstract-provider'
 import {
   MessageLike,
-  AddressLike,
   NumberLike,
   CrossChainMessageRequest,
   L1ToL2Overrides,
@@ -68,20 +67,6 @@ export interface ICrossChainMessenger {
   ): Promise<TransactionResponse>
 
   /**
-   * Deposits some tokens into the L2 chain.
-   *
-   * @param token Address of the token to deposit.
-   * @param amount Amount of the token to deposit.
-   * @param overrides Optional transaction overrides.
-   * @returns Transaction response for the deposit transaction.
-   */
-  depositTokens(
-    token: AddressLike,
-    amount: NumberLike,
-    overrides?: L1ToL2Overrides
-  ): Promise<TransactionResponse>
-
-  /**
    * Deposits some ETH into the L2 chain.
    *
    * @param amount Amount of ETH to deposit (in wei).
@@ -91,20 +76,6 @@ export interface ICrossChainMessenger {
   depositETH(
     amount: NumberLike,
     overrides?: L1ToL2Overrides
-  ): Promise<TransactionResponse>
-
-  /**
-   * Withdraws some tokens back to the L1 chain.
-   *
-   * @param token Address of the token to withdraw.
-   * @param amount Amount of the token to withdraw.
-   * @param overrides Optional transaction overrides.
-   * @returns Transaction response for the withdraw transaction.
-   */
-  withdrawTokens(
-    token: AddressLike,
-    amount: NumberLike,
-    overrides?: Overrides
   ): Promise<TransactionResponse>
 
   /**
@@ -167,20 +138,6 @@ export interface ICrossChainMessenger {
     ): Promise<TransactionRequest>
 
     /**
-     * Generates a transaction for depositing some tokens into the L2 chain.
-     *
-     * @param token Address of the token to deposit.
-     * @param amount Amount of the token to deposit.
-     * @param overrides Optional transaction overrides.
-     * @returns Transaction that can be signed and executed to deposit the tokens.
-     */
-    depositTokens(
-      token: AddressLike,
-      amount: NumberLike,
-      overrides?: L1ToL2Overrides
-    ): Promise<TransactionResponse>
-
-    /**
      * Generates a transaction for depositing some ETH into the L2 chain.
      *
      * @param amount Amount of ETH to deposit.
@@ -190,20 +147,6 @@ export interface ICrossChainMessenger {
     depositETH(
       amount: NumberLike,
       overrides?: L1ToL2Overrides
-    ): Promise<TransactionRequest>
-
-    /**
-     * Generates a transaction for withdrawing some tokens back to the L1 chain.
-     *
-     * @param token Address of the token to withdraw.
-     * @param amount Amount of the token to withdraw.
-     * @param overrides Optional transaction overrides.
-     * @returns Transaction that can be signed and executed to withdraw the tokens.
-     */
-    withdrawTokens(
-      token: AddressLike,
-      amount: NumberLike,
-      overrides?: Overrides
     ): Promise<TransactionRequest>
 
     /**
@@ -263,20 +206,6 @@ export interface ICrossChainMessenger {
     ): Promise<TransactionRequest>
 
     /**
-     * Estimates gas required to deposit some tokens into the L2 chain.
-     *
-     * @param token Address of the token to deposit.
-     * @param amount Amount of the token to deposit.
-     * @param overrides Optional transaction overrides.
-     * @returns Transaction that can be signed and executed to deposit the tokens.
-     */
-    depositTokens(
-      token: AddressLike,
-      amount: NumberLike,
-      overrides?: L1ToL2Overrides
-    ): Promise<TransactionResponse>
-
-    /**
      * Estimates gas required to deposit some ETH into the L2 chain.
      *
      * @param amount Amount of ETH to deposit.
@@ -286,20 +215,6 @@ export interface ICrossChainMessenger {
     depositETH(
       amount: NumberLike,
       overrides?: L1ToL2Overrides
-    ): Promise<TransactionRequest>
-
-    /**
-     * Estimates gas required to withdraw some tokens back to the L1 chain.
-     *
-     * @param token Address of the token to withdraw.
-     * @param amount Amount of the token to withdraw.
-     * @param overrides Optional transaction overrides.
-     * @returns Transaction that can be signed and executed to withdraw the tokens.
-     */
-    withdrawTokens(
-      token: AddressLike,
-      amount: NumberLike,
-      overrides?: Overrides
     ): Promise<TransactionRequest>
 
     /**
