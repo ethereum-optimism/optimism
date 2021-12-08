@@ -49,6 +49,13 @@ export enum MessageStatus {
   UNCONFIRMED_L1_TO_L2_MESSAGE,
 
   /**
+   * Message is an L1 to L2 message and the transaction to execute the message failed.
+   * When this status is returned, you will need to resend the L1 to L2 message, probably with a
+   * higher gas limit.
+   */
+  FAILED_L1_TO_L2_MESSAGE,
+
+  /**
    * Message is an L2 to L1 message and no state root has been published yet.
    */
   STATE_ROOT_NOT_PUBLISHED,
