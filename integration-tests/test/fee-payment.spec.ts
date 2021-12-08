@@ -8,7 +8,7 @@ import { serialize } from '@ethersproject/transactions'
 import { predeploys, getContractFactory } from '@eth-optimism/contracts'
 
 /* Imports: Internal */
-import { gasPriceForL2, isLiveNetwork } from './shared/utils'
+import { isLiveNetwork } from './shared/utils'
 import { OptimismEnv } from './shared/env'
 import { Direction } from './shared/watcher-utils'
 
@@ -173,10 +173,7 @@ describe('Fee Payment Integration Tests', async () => {
       env.sequencerFeeVault.address
     )
 
-    // Submit the withdrawal.
-    const withdrawTx = await env.sequencerFeeVault.withdraw({
-      gasPrice: await gasPriceForL2(env), // Will be zero on HH
-    })
+    const withdrawTx = await env.sequencerFeeVault.withdraw()
 
     // Wait for the withdrawal to be relayed to L1.
     await withdrawTx.wait()

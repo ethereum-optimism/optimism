@@ -47,6 +47,10 @@ const env = cleanEnv(process.env, {
   ADDRESS_MANAGER: str({
     default: '0x5FbDB2315678afecb367f032d93F642f64180aa3',
   }),
+  GAS_PRICE_ORACLE_PRIVATE_KEY: str({
+    default:
+      '0x8b3a350cf5c34c9194ca85829a2df0ec3153be0318b5e2d3348e872092edffba',
+  }),
   L2_CHAINID: num({ default: 420 }),
   IS_LIVE_NETWORK: bool({ default: false }),
 })
@@ -76,6 +80,12 @@ export const l1Wallet = new Wallet(env.PRIVATE_KEY, l1Provider)
 // A random private key which should always be funded with deposits from L1 -> L2
 // if it's using non-0 gas price
 export const l2Wallet = l1Wallet.connect(l2Provider)
+
+// The owner of the GasPriceOracle on L2
+export const gasPriceOracleWallet = new Wallet(
+  env.GAS_PRICE_ORACLE_PRIVATE_KEY,
+  l2Provider
+)
 
 // Predeploys
 export const PROXY_SEQUENCER_ENTRYPOINT_ADDRESS =
@@ -182,14 +192,17 @@ export const waitForL2Geth = async (
 
 // eslint-disable-next-line @typescript-eslint/no-shadow
 export const gasPriceForL2 = async (env: OptimismEnv) => {
-  if (await isMainnet(env)) {
+  // The integration tests enforce fees on L2
+  // which run against hardhat on L1. Update if
+  // geth --dev is adopted for L1
+  const chainId = await env.l1Wallet.getChainId()
+  if ((await isMainnet(env)) || chainId === 31337) {
     return env.l2Wallet.getGasPrice()
   }
 
   if (isLiveNetwork()) {
     return Promise.resolve(BigNumber.from(10000))
   }
-
   return Promise.resolve(BigNumber.from(0))
 }
 

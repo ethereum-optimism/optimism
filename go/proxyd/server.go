@@ -232,7 +232,7 @@ func (s *Server) populateContext(w http.ResponseWriter, r *http.Request) context
 	)
 }
 
-func writeRPCError(w http.ResponseWriter, id *int, err error) {
+func writeRPCError(w http.ResponseWriter, id json.RawMessage, err error) {
 	var res *RPCRes
 	if r, ok := err.(*RPCErr); ok {
 		res = NewRPCErrorRes(id, r)

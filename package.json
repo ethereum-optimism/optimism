@@ -12,6 +12,7 @@
       "go/gas-oracle",
       "go/batch-submitter",
       "go/proxyd",
+      "go/op-exporter",
       "ops/docker/rpc-proxy",
       "ops/docker/hardhat"
     ],
