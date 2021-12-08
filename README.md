@@ -30,14 +30,16 @@ mipsevm -- A MIPS runtime in the EVM (see also contracts/)
 (cd minigeth/ && go build)
 mkdir -p /tmp/cannon
 
-# compute the transition from 13284469 -> 13284470
+# compute the transition from 13284469 -> 13284470 on PC
 minigeth/go-ethereum 13284469
+
+# write out the golden MIPS minigeth start state
+mipsevm/mipsevm
 
 # generate MIPS checkpoints for 13284469 -> 13284470
 mipsevm/mipsevm 13284469
 
-# write out the golden start state and deploy the contracts
-mipsevm/mipsevm
+# deploy the MIPS and challenge contracts
 npx hardhat run scripts/deploy.js
 ```
 
