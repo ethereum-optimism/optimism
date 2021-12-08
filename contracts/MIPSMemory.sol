@@ -5,15 +5,12 @@ import "./lib/Lib_Keccak256.sol";
 import "./lib/Lib_MerkleTrie.sol";
 
 contract MIPSMemory {
-  // TODO: the trie library should read and write from this as appropriate
   mapping(bytes32 => bytes) public trie;
 
   function AddTrieNode(bytes calldata anything) public {
     Lib_MerkleTrie.GetTrie()[keccak256(anything)] = anything;
   }
 
-  // TODO: replace with mapping(bytes32 => mapping(uint, bytes4))
-  // to only save the part we care about
   struct Preimage {
     uint length;
     mapping(uint => uint64) data;
@@ -77,7 +74,6 @@ contract MIPSMemory {
     largePreimage[msg.sender].len += 136;
   }
 
-  // TODO: input <136 bytes and do the end of hash | 0x01 / | 0x80
   function AddLargePreimageFinal(bytes calldata idat) public view returns (bytes32, uint, uint32) {
     require(idat.length < 136, "final must be less than 136");
     int offset = int(largePreimage[msg.sender].offset) - int(largePreimage[msg.sender].len);
