@@ -9,7 +9,7 @@ It's half geth, half of what I think truebit was supposed to be. When it's done,
 * It's Go code
 * ...that runs an EVM
 * ...emulating a MIPS machine
-* ...with compiled Go code
+* ...running compiled Go code
 * ...that runs an EVM
 
 ## Directory Layout
