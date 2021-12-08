@@ -1,6 +1,29 @@
 # Glossary
 
-------------------------------------------------------------------------------------------------------------------------
+## Table of Contents
+- [Glossary](#glossary)
+- [General Terms](#general-terms)
+  - [Layer 1 (L1)](#layer-1-l1)
+  - [Layer 2 (L2)](#layer-2-l2)
+  - [Block](#block)
+  - [EOA](#eoa)
+  - [Merkle Root](#merkle-root)
+  - [Chain Re-Organization](#chain-re-organization)
+  - [Predeployed Contract ("Predeploy")](#predeployed-contract-predeploy)
+  - [Receipt](#receipt)
+- [L2 Chain Concepts](#l2-chain-concepts)
+  - [L2 Chain Inception](#l2-chain-inception)
+  - [Rollup Node](#rollup-node)
+  - [Rollup Driver](#rollup-driver)
+  - [L2 Chain Derivation](#l2-chain-derivation)
+  - [L2 Derivation Inputs](#l2-derivation-inputs)
+  - [Payload Attributes](#payload-attributes)
+  - [L1 Attributes Transaction](#l1-attributes-transaction)
+  - [L1 Attributes Predeployed Contract](#l1-attributes-predeployed-contract)
+  - [Deposits](#deposits)
+  - [Deposit Feed Contract](#deposit-feed-contract)
+- [Execution Engine Concepts](#execution-engine-concepts)
+  - [Execution Engine](#execution-engine)
 
 # General Terms
 
