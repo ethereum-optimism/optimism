@@ -90,6 +90,20 @@ library Lib_Keccak256 {
     }
   }
 
+  function sha3_xor_input(CTX memory c, bytes memory dat) internal pure {
+    for (uint i = 0; i < 17; i++) {
+      uint bo = i*8;
+      c.A[i] ^= uint64(uint8(dat[bo+7])) << 56 |
+                uint64(uint8(dat[bo+6])) << 48 |
+                uint64(uint8(dat[bo+5])) << 40 |
+                uint64(uint8(dat[bo+4])) << 32 |
+                uint64(uint8(dat[bo+3])) << 24 |
+                uint64(uint8(dat[bo+2])) << 16 |
+                uint64(uint8(dat[bo+1])) << 8 |
+                uint64(uint8(dat[bo+0])) << 0;
+    }
+  }
+
   function sha3_permutation(CTX memory c) internal pure {
     uint round;
     for (round = 0; round < 24; round++) {

@@ -53,27 +53,30 @@ contract MIPSMemory {
 
   // TODO: input 136 bytes, as many times as you'd like
   // Uses about 1M gas, 7352 gas/byte
-  function AddLargePreimageUpdate(uint64[17] calldata data) public {
+  function AddLargePreimageUpdate(bytes calldata dat) public {
+    require(dat.length == 136, "update must be in multiples of 136");
     // sha3_process_block
     Lib_Keccak256.CTX memory c;
     c.A = largePreimageState[msg.sender];
-    for (uint i = 0; i < 17; i++) {
-      c.A[i] ^= data[i];
-    }
+    Lib_Keccak256.sha3_xor_input(c, dat);
     Lib_Keccak256.sha3_permutation(c);
     largePreimageState[msg.sender] = c.A;
   }
 
   // TODO: input <136 bytes and do the end of hash | 0x01 / | 0x80
-  function AddLargePreimageFinal(uint64[17] calldata data) public view returns (bytes32) {
+  function AddLargePreimageFinal(bytes calldata dat) public view returns (bytes32) {
+    require(dat.length < 136, "final must be less than 136");
     Lib_Keccak256.CTX memory c;
     c.A = largePreimageState[msg.sender];
 
-    // TODO: check data is valid as the final block
-    // maybe even modify it
-    for (uint i = 0; i < 17; i++) {
-      c.A[i] ^= data[i];
+    bytes memory fdat = new bytes(136);
+    for (uint i = 0; i < dat.length; i++) {
+      fdat[i] = dat[i];
     }
+    fdat[135] = bytes1(uint8(0x80));
+    fdat[dat.length] |= bytes1(uint8(0x1));
+
+    Lib_Keccak256.sha3_xor_input(c, fdat);
     Lib_Keccak256.sha3_permutation(c);
 
     // TODO: do this properly and save the hash
