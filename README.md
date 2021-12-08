@@ -34,7 +34,7 @@ minigeth/go-ethereum 13284469
 mipsevm/mipsevm 13284469
 ```
 
-## Workflow
+## Full Challenge / Response
 
 ```
 npx hardhat node --fork https://mainnet.infura.io/v3/9aa3d95b3bc440fa88ea12eaa4456161
