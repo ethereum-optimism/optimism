@@ -40,12 +40,16 @@ describe("MIPSMemory contract", function () {
     await mm.AddLargePreimageInit(4)
 
     let dat = new TextEncoder("utf-8").encode("hello world")
+    let dathash = keccak256(dat)
     const tst = await mm.AddLargePreimageFinal(dat)
-    expect(tst[0]).to.equal(keccak256(dat))
+    expect(tst[0]).to.equal(dathash)
     expect(tst[1].toNumber()).to.equal(11)
     expect(tst[2]).to.equal(0x6f20776f)
-    console.log(tst)
 
     await mm.AddLargePreimageFinalSaved(dat)
+
+    let ret = await mm.GetPreimage(dathash, 4)
+    expect(ret[0].toNumber()).to.equal(11)
+    expect(ret[1]).to.equal(0x6f20776f)
   })
 });

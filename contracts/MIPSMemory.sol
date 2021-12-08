@@ -18,6 +18,12 @@ contract MIPSMemory {
 
   mapping(bytes32 => Preimage) public preimage;
 
+  function GetPreimage(bytes32 outhash, uint offset) public view returns (uint, uint32) {
+    uint64 data = preimage[outhash].data[offset];
+    require(data > 0, "offset not loaded");
+    return (preimage[outhash].length, uint32(data));
+  }
+
   function AddPreimage(bytes calldata anything, uint offset) public {
     require(offset & 3 == 0, "offset must be 32-bit aligned");
     uint len = anything.length;
