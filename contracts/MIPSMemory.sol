@@ -58,8 +58,8 @@ contract MIPSMemory {
     largePreimage[msg.sender].len = 0;
   }
 
-  // TODO: input 136 bytes, as many times as you'd like
-  // Uses about 1M gas, 7352 gas/byte
+  // input 136 bytes, as many times as you'd like
+  // Uses about 500k gas, 3435 gas/byte
   function AddLargePreimageUpdate(bytes calldata dat) public {
     require(dat.length == 136, "update must be in multiples of 136");
     // sha3_process_block
@@ -82,8 +82,6 @@ contract MIPSMemory {
     require(offset < int(idat.length), "offset must be less than length");
     Lib_Keccak256.CTX memory c;
     c.A = largePreimageState[msg.sender];
-
-    console.log(idat.length);
 
     bytes memory dat = new bytes(136);
     for (uint i = 0; i < idat.length; i++) {
