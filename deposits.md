@@ -103,6 +103,25 @@ interface L1BlockValues {
 "Deposited Transactions" are derived from logs emitted by the [Deposit Feed
 contract][deposit-feed-contract] on L1.
 
+When an L1 Transaction Deposit is executed the nonce is incremented. In the context of a deposit
+  only roll up, this is not required for transaction ordering or replay prevention, however it
+  maintains consistency with the use of nonces during contract creation. It may also be simplify
+  integration with downstream tooling (such as wallets and block explorers).
+
+Rather, authorization is outsourced to the [L1 Deposit Feed contract][deposit-feed-contract], and the [Block Derivation][/glossary.md#L2-chain-derivation] process.
+
+
+- increment nonce
+- signature validation is handled by L1
+- a state transition requiring a transaction not
+- mints ETH on L2
+- validity:
+  - inclusion of an un
+
+
+
+<!-- the transaction that submits the deposit is authenticated, and so block derivation can confidently include the deposit on L2, given that the sender is authenticated on L1. -->
+
 ### Deposit Feed Contract
 
 [deposit-feed-contract]: #deposit-feed-contract
@@ -112,7 +131,8 @@ the `TransactionDeposited` event(s) emitted by the Deposit Feed contract.
 
 The Deposit Feed handles two special cases:
 
-1. A `to` value of `bytes20(0)`, which results in a contract creation on L2.
+1. A contract creation deposit, which is indicated by setting the `isCreation` flag to `true`.
+   In the event that the `to` address is non-zero, the contract will revert.
 2. A call from a contract account, in which case the `from` value is transformed to its L2 alias.
    This prevents attacks in which a contract on L1 has the same address as a contract on L2 but
    doesn't have the same code. We can safely ignore this for EOAs because they're guaranteed to have
@@ -123,16 +143,12 @@ A solidity like pseudocode implementation demonstrates the functionality:
 
 ```solidity
 contract DepositFeed {
+
   event TransactionDeposited(
     address indexed from,
     address indexed to,
     uint256 value,
-    bytes _data
-  );
-
-  event TransactionDeposited(
-    address indexed from,
-    uint256 value,
+    bool isCreation,
     bytes _data
   );
 
@@ -148,17 +164,14 @@ contract DepositFeed {
         from = msg.sender + 0x1111000000000000000000000000000000001111;
     }
 
-    if(_to == address(0)) {
-        emit TransactionDeposited(
-          msg.sender,
-          value,
-          initCode
-        );
+    if(isCreation && _to != address(0)) {
+        revert('Contract creation deposits must not specify a recipient address.');
     } else {
       emit TransactionDeposited(
         msg.sender,
         to,
         value,
+        isCreation,
         initCode
       );
     }
