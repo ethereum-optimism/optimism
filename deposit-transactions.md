@@ -1,14 +1,18 @@
-# Deposit Transactions
+# Deposits
 
-Although the L2 execution engine is nearly identical to that of L1, an important difference is the
-introduction of a new 'Deposit' Transaction Type. Deposit transactions have the following notable
-distinctions from existing transaction types:
+<!-- All glossary references in this file. -->
+[transaction-type]: /glossary.md#transaction-type
 
-1. They are initiated by the System as part of the protocol.
-2. Do not require signature validation.
+Deposits are transactions initiated on L1, and executed on L2. This document outlines a new
+[Transaction Type][transaction-type] for deposits. It also describes how deposits are initiated on
+L1, along with the authorization and validation conditions on L2.
 
-## Deposit Transaction Type
+## The Deposit Transaction Type
 
+Deposit transactions have the following notable distinctions from existing transaction types:
+
+1. They are initiated by the system as part of the protocol.
+2. They do not require signature validation.
 We define a new [EIP-2718] compatible transaction type with the prefix `0x7E`, and the following
 fields:
 
