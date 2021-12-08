@@ -14,7 +14,7 @@ and introduce L1 information to enshrined contracts in the execution state.
 
 > **TODO**: implement deposit spec doc
 
-[deposit-spec]: ./deposits#transaction-type
+[deposit-spec]: ./deposits#deposit-transaction-type
 
 ### Deposit boundaries
 

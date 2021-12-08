@@ -72,7 +72,7 @@ understood as "a transaction *deposited* to L2".
 The L1 attributes are read from the L1 block header, while deposits are read from the block's [receipts]. Refer to the
 [**deposit feed contract specification**][deposit-feed] for details on how deposits are encoded as log entries.
 
-[deposit-feed-spec]: TODO
+[deposit-feed-spec]: [/deposits.md#deposit-feed-contract]
 
 > **TODO LINK** deposit feed contract specification
 
