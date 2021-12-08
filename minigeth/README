@@ -1,49 +1,9 @@
 The pieces of geth needed to verify a block
 
-Stubbed files are:
-core/blockchain.go
-core/state/statedb.go
-consensus/ethash/fake_ethash.go
+See `../sync_minigeth.sh`, most of this is just geth and we can copy many of the files
 
-// See https://medium.com/@eiki1212/ethereum-state-trie-architecture-explained-a30237009d4e
-// Or better picture https://i.stack.imgur.com/afWDt.jpg
-Types needed for the oracle:
+The database has been abstracted in the `oracle/`, this does not use leveldb
 
-// Account is the Ethereum consensus representation of accounts.
-// These objects are stored in the main account trie.
-type Account struct {
-	Nonce    uint64
-	Balance  *big.Int
-	Root     common.Hash // merkle root of the storage trie
-	CodeHash []byte
-}
+Running on PC, it fetches all the required pieces of state from RPC.
 
-// TODO: oracle for
-//   GetProvedBlockHeader(blockNumber, blockHash) -> Types.block
-//   GetProvedTransactions(blockNumber, transactionHash) -> []Types.transaction
-//   GetProvedAccountBytes(blockNumber, stateRoot, addr) -> rlpAccount
-//   GetProvedCodeBytes(blockNumber, addr, codehash) -> []byte
-//   GetProvedStorage(blockNumber, addr, root, key) -> common.Hash
-// These functions access the backend oracle, and will assert if the proof is bad
-
-The oracle ensures a correct output given the input, these are the high level methods
-
-GetUnproved...need to be written also
-
-# diving in more
-
-Custom: 
-consensus/ethash/fake_ethash.go
-core/fake_blockchain.go
-core/state/database.go
-trie/database.go
-oracle
-main.go
-
-Minor mods (add prefetches):
-core/state/statedb.go
-core/state/state_object.go
-
-
-
-
+Running on MIPS, it uses the oracle MMIO interface to get state based on hash.
