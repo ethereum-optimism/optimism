@@ -1,5 +1,13 @@
 # @eth-optimism/integration-tests
 
+## 0.4.1
+
+### Patch Changes
+
+- a8013127: Remove sync-tests as coverage lives in itests now
+- b1fa3f33: Enforce fees in docker-compose setup and test cases for fee too low and fee too high
+- 4559a824: Pass through starting block height to dtl
+
 ## 0.4.0
 
 ### Minor Changes

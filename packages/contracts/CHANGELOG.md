@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.5.6
+
+### Patch Changes
+
+- bbd42e03: Add config checks to validation script
+- 453f0774: Copy the deployments directory into the deployer docker image
+
 ## 0.5.5
 
 ### Patch Changes
