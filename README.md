@@ -1,6 +1,7 @@
 <!--![cannon](https://upload.wikimedia.org/wikipedia/commons/8/80/Cannon%2C_Château_du_Haut-Koenigsbourg%2C_France.jpg)-->
-![cannon](https://cdn1.epicgames.com/ue/product/Featured/SCIFIWEAPONBUNDLE_featured-894x488-83fbc936b6d86edcbbe892b1a6780224.png)
+<!--![cannon](https://cdn1.epicgames.com/ue/product/Featured/SCIFIWEAPONBUNDLE_featured-894x488-83fbc936b6d86edcbbe892b1a6780224.png)-->
 <!--![cannon](https://static.wikia.nocookie.net/ageofempires/images/8/80/Bombard_cannon_aoe2DE.png/revision/latest/top-crop/width/360/height/360?cb=20200331021834)-->
+![cannon](https://paradacreativa.es/wp-content/uploads/2021/05/Canon-orbital-GTA-01.jpg)
 
 The cannon (cannon cannon cannon) is an on chain interactive fraud prover
 
@@ -19,12 +20,6 @@ minigeth -- A standalone "geth" capable of computing a block transition
 mipigo -- minigeth compiled for MIPS. Outputs a MIPS binary that's run and mapped at 0x0
 mipsevm -- A MIPS runtime in the EVM (see also contracts/)
 ```
-
-## TODO
-* Support fast generation of a specific state from the checkpoints
-  * Load into Unicorn/evm from the trie
-* Write binary search "responder"
-* Deploy to cheapETH!
 
 ## Usage
 ```
@@ -102,7 +97,3 @@ These are NOP in the VM
 ## License
 
 All my code is MIT license, minigeth is LGPL3. Being developed under contract for @optimismPBC
-
-# Very important TODO
-
-TODO: update to picture of increasingly futuristic cannon as it starts to work
