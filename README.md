@@ -23,7 +23,10 @@ mipsevm -- A MIPS runtime in the EVM (see also contracts/)
 
 ## Usage
 ```
-# build
+# build minigeth for MIPS
+(cd mipigo && pip3 install -r requirements.txt && ./build.sh)
+
+# build minigeth for PC
 (cd minigeth/ && go build)
 mkdir -p /tmp/cannon
 
