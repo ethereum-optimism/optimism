@@ -18,7 +18,7 @@ describe("MIPSMemory contract", function () {
       console.log("test size", n)
       expect((await mm.AddLargePreimageFinal(test))[0]).to.equal(keccak256(test));
     }
-    await tl(0)
+    await tl(1)
     await tl(100)
     await tl(134)
     await tl(135)

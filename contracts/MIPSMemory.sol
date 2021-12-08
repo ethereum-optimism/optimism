@@ -62,11 +62,7 @@ contract MIPSMemory {
 
     int offset = int(largePreimage[msg.sender].offset) - int(largePreimage[msg.sender].len);
     if (offset >= 0 && offset < 136) {
-      largePreimage[msg.sender].data =
-        uint32(uint8(dat[uint256(offset)+0])) << 24 |
-        uint32(uint8(dat[uint256(offset)+1])) << 16 |
-        uint32(uint8(dat[uint256(offset)+2])) << 8 |
-        uint32(uint8(dat[uint256(offset)+3])) << 0;
+      largePreimage[msg.sender].data = fbo(dat, uint(offset));
     }
     Lib_Keccak256.sha3_xor_input(c, dat);
     Lib_Keccak256.sha3_permutation(c);
@@ -77,7 +73,7 @@ contract MIPSMemory {
   function AddLargePreimageFinal(bytes calldata idat) public view returns (bytes32, uint, uint32) {
     require(idat.length < 136, "final must be less than 136");
     int offset = int(largePreimage[msg.sender].offset) - int(largePreimage[msg.sender].len);
-    require(offset < idat.length, "offset must be less than length");
+    require(offset < int(idat.length), "offset must be less than length");
     Lib_Keccak256.CTX memory c;
     c.A = largePreimageState[msg.sender];
 
@@ -90,12 +86,7 @@ contract MIPSMemory {
     uint len = largePreimage[msg.sender].len + idat.length;
     uint32 data = largePreimage[msg.sender].data;
     if (offset >= 0) {
-      // comes from this block
-      data = 
-        uint32(uint8(dat[uint256(offset)+0])) << 24 |
-        uint32(uint8(dat[uint256(offset)+1])) << 16 |
-        uint32(uint8(dat[uint256(offset)+2])) << 8 |
-        uint32(uint8(dat[uint256(offset)+3])) << 0;
+      data = fbo(dat, uint(offset));
     }
     dat[135] = bytes1(uint8(0x80));
     dat[idat.length] |= bytes1(uint8(0x1));
@@ -135,6 +126,14 @@ contract MIPSMemory {
                  uint32(uint8(dat[1])) << 16 |
                  uint32(uint8(dat[2])) << 8 |
                  uint32(uint8(dat[3]));
+    return ret;
+  }
+
+  function fbo(bytes memory dat, uint offset) internal pure returns (uint32) {
+    uint32 ret = uint32(uint8(dat[offset+0])) << 24 |
+                 uint32(uint8(dat[offset+1])) << 16 |
+                 uint32(uint8(dat[offset+2])) << 8 |
+                 uint32(uint8(dat[offset+3]));
     return ret;
   }
 
