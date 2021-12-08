@@ -39,16 +39,20 @@ contract MIPSMemory {
 
   struct LargePreimage {
     uint offset;
+    uint len;
+    uint32 data;
   }
   mapping(address => LargePreimage) public largePreimage;
   // sadly due to soldiity limitations this can't be in the LargePreimage struct
   mapping(address => uint64[25]) public largePreimageState;
 
   function AddLargePreimageInit(uint offset) public {
+    require(offset & 3 == 0, "offset must be 32-bit aligned");
     Lib_Keccak256.CTX memory c;
     Lib_Keccak256.keccak_init(c);
     largePreimageState[msg.sender] = c.A;
     largePreimage[msg.sender].offset = offset;
+    largePreimage[msg.sender].len = 0;
   }
 
   // TODO: input 136 bytes, as many times as you'd like
@@ -58,30 +62,66 @@ contract MIPSMemory {
     // sha3_process_block
     Lib_Keccak256.CTX memory c;
     c.A = largePreimageState[msg.sender];
+
+    int offset = int(largePreimage[msg.sender].offset) - int(largePreimage[msg.sender].len);
+    if (offset >= 0 && offset < 136) {
+      largePreimage[msg.sender].data =
+        uint32(uint8(dat[uint256(offset)+0])) << 24 |
+        uint32(uint8(dat[uint256(offset)+1])) << 16 |
+        uint32(uint8(dat[uint256(offset)+2])) << 8 |
+        uint32(uint8(dat[uint256(offset)+3])) << 0;
+    }
     Lib_Keccak256.sha3_xor_input(c, dat);
     Lib_Keccak256.sha3_permutation(c);
     largePreimageState[msg.sender] = c.A;
+    largePreimage[msg.sender].len += 136;
   }
 
   // TODO: input <136 bytes and do the end of hash | 0x01 / | 0x80
-  function AddLargePreimageFinal(bytes calldata dat) public view returns (bytes32) {
-    require(dat.length < 136, "final must be less than 136");
+  function AddLargePreimageFinal(bytes calldata idat) public view returns (bytes32, uint, uint32) {
+    require(idat.length < 136, "final must be less than 136");
+    int offset = int(largePreimage[msg.sender].offset) - int(largePreimage[msg.sender].len);
+    require(offset < 136, "offset must be less than 136");
     Lib_Keccak256.CTX memory c;
     c.A = largePreimageState[msg.sender];
 
-    bytes memory fdat = new bytes(136);
-    for (uint i = 0; i < dat.length; i++) {
-      fdat[i] = dat[i];
-    }
-    fdat[135] = bytes1(uint8(0x80));
-    fdat[dat.length] |= bytes1(uint8(0x1));
+    console.log(idat.length);
 
-    Lib_Keccak256.sha3_xor_input(c, fdat);
+    bytes memory dat = new bytes(136);
+    for (uint i = 0; i < idat.length; i++) {
+      dat[i] = idat[i];
+    }
+    uint len = largePreimage[msg.sender].len + idat.length;
+    uint32 data = largePreimage[msg.sender].data;
+    if (offset >= 0) {
+      // comes from this block
+      data = 
+        uint32(uint8(dat[uint256(offset)+0])) << 24 |
+        uint32(uint8(dat[uint256(offset)+1])) << 16 |
+        uint32(uint8(dat[uint256(offset)+2])) << 8 |
+        uint32(uint8(dat[uint256(offset)+3])) << 0;
+    }
+    dat[135] = bytes1(uint8(0x80));
+    dat[idat.length] |= bytes1(uint8(0x1));
+
+    Lib_Keccak256.sha3_xor_input(c, dat);
     Lib_Keccak256.sha3_permutation(c);
 
-    // TODO: do this properly and save the hash
-    // when this is updated, it won't be "view"
-    return Lib_Keccak256.get_hash(c);
+    bytes32 outhash = Lib_Keccak256.get_hash(c);
+    return (outhash, len, data);
+  }
+
+  function AddLargePreimageFinalSaved(bytes calldata idat) public {
+    bytes32 outhash;
+    uint len;
+    uint32 data;
+    (outhash, len, data) = AddLargePreimageFinal(idat);
+
+    Preimage storage p = preimage[outhash];
+    require(p.length == 0 || p.length == len, "length is somehow wrong");
+    require(largePreimage[msg.sender].offset < len, "offset is beyond length");
+    p.length = len;
+    p.data[largePreimage[msg.sender].offset] = (1 << 32) | data;
   }
 
   function tb(uint32 dat) internal pure returns (bytes memory) {
