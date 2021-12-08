@@ -77,7 +77,7 @@ contract MIPSMemory {
   function AddLargePreimageFinal(bytes calldata idat) public view returns (bytes32, uint, uint32) {
     require(idat.length < 136, "final must be less than 136");
     int offset = int(largePreimage[msg.sender].offset) - int(largePreimage[msg.sender].len);
-    require(offset < 136, "offset must be less than 136");
+    require(offset < idat.length, "offset must be less than length");
     Lib_Keccak256.CTX memory c;
     c.A = largePreimageState[msg.sender];
 
@@ -115,7 +115,7 @@ contract MIPSMemory {
 
     Preimage storage p = preimage[outhash];
     require(p.length == 0 || p.length == len, "length is somehow wrong");
-    require(largePreimage[msg.sender].offset < len, "offset is beyond length");
+    require(largePreimage[msg.sender].offset < len, "offset is somehow beyond length");
     p.length = len;
     p.data[largePreimage[msg.sender].offset] = (1 << 32) | data;
   }
