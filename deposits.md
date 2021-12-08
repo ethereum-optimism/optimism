@@ -1,8 +1,5 @@
 # Deposits
 
-<!-- All glossary references in this file. -->
-[transaction-type]: /glossary.md#transaction-type
-
 Deposits are transactions initiated on L1, and executed on L2. This document outlines a new
 [Transaction Type][transaction-type] for deposits. It also describes how deposits are initiated on
 L1, along with the authorization and validation conditions on L2.
@@ -11,12 +8,11 @@ L1, along with the authorization and validation conditions on L2.
 
 Deposit transactions have the following notable distinctions from existing transaction types:
 
-1. They are initiated by the system as part of the protocol.
-2. They do not require signature validation.
-We define a new [EIP-2718] compatible transaction type with the prefix `0x7E`, and the following
-fields:
+1. They are derived from Layer 1 blocks, and must be included as part of the protocol.
+2. They do not include signature validation (see [Deposited Transactions][deposited-transactions] for the rationale).
 
-[EIP-2718]: <https://eips.ethereum.org/EIPS/eip-2718>
+We define a new [EIP-2718] compatible transaction type with the prefix `0x7E`.  and the following
+fields:
 
 <!-- ToDo: set to more GoLang like type defs? -->
 - `address to`
@@ -24,10 +20,8 @@ fields:
 - `uint256 value`
 - `bytes data`
 
-This transaction type contains a subset of the fields used in [EIP-155], but does not include
-signature information.
+This is a subset of the fields used in [EIP-155], but does not include signature information.
 
-[EIP-155]: https://eips.ethereum.org/EIPS/eip-155
 We select `0x7E` because transaction type identifiers are currently allowed to go up to `0x7F`.
 Picking a high identifier minimizes the risk that the identifier will be used by Ethereum in the
 future. We don't pick `0x7F` itself in case it becomes used for a variable-length encoding scheme.
@@ -38,19 +32,22 @@ MUST be the [L1 Attributes Deposit Transaction][l1-attributes-deposit-transactio
 dynamic array of [Deposited Transactions][deposited-transactions] submitted to the Deposit Feed
 contract by accounts on L1.
 
-## L1 Attributes Deposit Transaction
+> **TODO** Specify deposit block
 
-[l1-attributes-deposit-transaction]: #l1-attributes-deposit-transaction
 
-This transaction is a call to the [Layer 1 Attributes Predeploy][l1-attributes-predeploy] contract.
+## L1 Attributes Deposit
+
+[l1-attributes-deposit]: #l1-attributes-deposit
+
+This is a deposit sent to the [Layer 1 Attributes Predeploy][l1-attributes-predeploy] contract.
 
 This transaction MUST have the following values:
 
-1. `from` is the Depositor Account `0xdeaddeaddeaddeaddeaddeaddeaddeaddead0001`.
-1. `to` is `0x4200000000000000000000000000000000000014` (the address of the L1 attributes predeploy
+1. `from` is the L1 Attributes Depositor Account `0xdeaddeaddeaddeaddeaddeaddeaddeaddead0001`.
+2. `to` is `0x4200000000000000000000000000000000000014` (the address of the L1 Attributes Predeploy
    contract).
-1. `value` is `0`
-1. `data` is an abi encoded call to the [L1 Attributes Predeploy] contract's `setL1BlockValues()`
+3. `value` is `0`
+4. `data` is an abi encoded call to the [L1 Attributes Predeploy] contract's `setL1BlockValues()`
    function with correct values associated with the corresponding L1 block.
 
 ## Special Accounts on L2
@@ -82,7 +79,6 @@ the [Depositor Account].
 The contract has the following solidity interface, and can be interacted with according to the
 [contract ABI specification][ABI].
 
-[ABI]: https://docs.soliditylang.org/en/v0.8.10/abi-spec.html
 
 ```solidity
 interface L1BlockValues {
@@ -101,9 +97,8 @@ interface L1BlockValues {
 }
 ```
 
-## Deposited Transactions
-
-[deposited-transactions]: #deposited-transactions
+## L1 Transaction Deposits
+[l1-transaction-deposits]: #l1-transaction-deposits
 
 "Deposited Transactions" are derived from logs emitted by the [Deposit Feed
 contract][deposit-feed-contract] on L1.
@@ -117,7 +112,7 @@ the `TransactionDeposited` event(s) emitted by the Deposit Feed contract.
 
 The Deposit Feed handles two special cases:
 
-1. A `to` value of `0`, which results in a contract creation on L2.
+1. A `to` value of `bytes20(0)`, which results in a contract creation on L2.
 2. A call from a contract account, in which case the `from` value is transformed to its L2 alias.
    This prevents attacks in which a contract on L1 has the same address as a contract on L2 but
    doesn't have the same code. We can safely ignore this for EOAs because they're guaranteed to have
@@ -170,3 +165,12 @@ contract DepositFeed {
   }
 }
 ```
+
+
+<!-- All glossary references in this file. -->
+[transaction-type]: /glossary.md#transaction-type
+
+<!-- External links -->
+[EIP-2718]: https://eips.ethereum.org/EIPS/eip-2718
+[ABI]: https://docs.soliditylang.org/en/v0.8.10/abi-spec.html
+
