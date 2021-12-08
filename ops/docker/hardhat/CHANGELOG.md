@@ -1,5 +1,12 @@
 # @eth-optimism/hardhat-node
 
+## 0.1.2
+
+### Patch Changes
+
+- 72a325f6: Add fork mode config to ethereumoptimism/hardhat docker image
+- 50e2f6ff: Update to hardhat@2.7.0
+
 ## 0.1.1
 
 ### Patch Changes
