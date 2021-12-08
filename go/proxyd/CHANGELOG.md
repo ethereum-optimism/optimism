@@ -1,5 +1,11 @@
 # @eth-optimism/proxyd
 
+## 3.3.0
+
+### Minor Changes
+
+- 7b7ffd2e: Allows string RPC ids on proxyd
+
 ## 3.2.0
 
 ### Minor Changes

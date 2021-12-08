@@ -1,5 +1,13 @@
 # @eth-optimism/message-relayer
 
+## 0.2.9
+
+### Patch Changes
+
+- Updated dependencies [bbd42e03]
+- Updated dependencies [453f0774]
+  - @eth-optimism/contracts@0.5.6
+
 ## 0.2.8
 
 ### Patch Changes
