@@ -12,8 +12,6 @@ is implemented by the engine, see the [deposit specification][deposit-spec].
 This type of transaction can mint L2 ETH, run EVM,
 and introduce L1 information to enshrined contracts in the execution state.
 
-> **TODO**: implement deposit spec doc
-
 [deposit-spec]: ./deposits#deposit-transaction-type
 
 ### Deposit boundaries
@@ -61,7 +59,7 @@ This `transactions` field is an optional JSON field:
   Utilized by sequencers (if enabled) to consume the transaction pool.
 - If present and non-empty: the payload MUST only be produced with this exact list of transactions.
   Utilized by [rollup driver][rollup-driver] to compute full block payloads based on deterministic inputs.
-  
+
 > **TODO**: derivation function spec in rollup node doc or separate driver doc
 
 [rollup-driver]: ./rollup-driver.md
