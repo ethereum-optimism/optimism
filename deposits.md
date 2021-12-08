@@ -166,8 +166,9 @@ contract DepositFeed {
   function depositTransaction(
     address to,
     uint256 value,
+    bool isCreation,
     bytes memory _data
-  ) external {
+  ) external payable {
     address from;
     if (msg.sender == tx.origin) {
         from = msg.sender;
@@ -181,7 +182,7 @@ contract DepositFeed {
       emit TransactionDeposited(
         msg.sender,
         to,
-        value,
+        msg.value,
         isCreation,
         initCode
       );
