@@ -47,9 +47,15 @@ describe("MIPSMemory contract", function () {
     expect(tst[2]).to.equal(0x6f20776f)
 
     await mm.AddLargePreimageFinalSaved(dat)
+    await mm.AddPreimage(dat, 0)
 
     let ret = await mm.GetPreimage(dathash, 4)
     expect(ret[0].toNumber()).to.equal(11)
     expect(ret[1]).to.equal(0x6f20776f)
+
+    // other type
+    ret = await mm.GetPreimage(dathash, 0)
+    expect(ret[0].toNumber()).to.equal(11)
+    expect(ret[1]).to.equal(0x68656c6c)
   })
 });
