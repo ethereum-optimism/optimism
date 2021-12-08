@@ -28,6 +28,9 @@ This transaction type contains a subset of the fields used in [EIP-155], but doe
 signature information.
 
 [EIP-155]: https://eips.ethereum.org/EIPS/eip-155
+We select `0x7E` because transaction type identifiers are currently allowed to go up to `0x7F`.
+Picking a high identifier minimizes the risk that the identifier will be used by Ethereum in the
+future. We don't pick `0x7F` itself in case it becomes used for a variable-length encoding scheme.
 
 Although in practice we define only one new Transaction Type we can distinguish between two distinct
 transactions which occur in the deposit block, based on their positioning. The first transaction

@@ -129,9 +129,7 @@ are simply copied byte-for-byte — it is the role of the [execution engine] to 
 The Optimistic Ethereum specific *[L1 attributes transaction]* has the following [EIP-2718]-compatible format: `0x7E ||
 [block_number, timestamp, basefee]` where:
 
-- `0x7E` is the transaction type identifier. It is selected because transaction type identifiers are currently allowed
-  to go up to `0x7F`. Picking a high identifier minimizes the risk that the identifier will be used by Ethereum in the
-  future. We don't pick `0x7F` itself in case it becomes used for a variable-length encoding scheme.
+- `0x7E` is the transaction type identifier.
 - `block_number` is the L1 block number as a 64-bit integer (4 bytes)
 - `timestamp` is the L1 block timestamp as a 64-bit integer (4 bytes)
 - `basefee` is the L1 block basefee as a 64-bit integer (4 bytes)
