@@ -4,20 +4,21 @@ import (
 	"encoding/json"
 	"io"
 	"io/ioutil"
+	"strings"
 )
 
 type RPCReq struct {
 	JSONRPC string          `json:"jsonrpc"`
 	Method  string          `json:"method"`
 	Params  json.RawMessage `json:"params"`
-	ID      *int            `json:"id"`
+	ID      json.RawMessage `json:"id"`
 }
 
 type RPCRes struct {
-	JSONRPC string      `json:"jsonrpc"`
-	Result  interface{} `json:"result,omitempty"`
-	Error   *RPCErr     `json:"error,omitempty"`
-	ID      *int        `json:"id"`
+	JSONRPC string          `json:"jsonrpc"`
+	Result  interface{}     `json:"result,omitempty"`
+	Error   *RPCErr         `json:"error,omitempty"`
+	ID      json.RawMessage `json:"id"`
 }
 
 func (r *RPCRes) IsError() bool {
@@ -34,6 +35,17 @@ func (r *RPCErr) Error() string {
 	return r.Message
 }
 
+func IsValidID(id json.RawMessage) bool {
+	// handle the case where the ID is a string
+	if strings.HasPrefix(string(id), "\"") && strings.HasSuffix(string(id), "\"") {
+		return len(id) > 2
+	}
+
+	// technically allows a boolean/null ID, but so does Geth
+	// https://github.com/ethereum/go-ethereum/blob/master/rpc/json.go#L72
+	return len(id) > 0 && id[0] != '{' && id[0] != '['
+}
+
 func ParseRPCReq(r io.Reader) (*RPCReq, error) {
 	body, err := ioutil.ReadAll(r)
 	if err != nil {
@@ -46,11 +58,15 @@ func ParseRPCReq(r io.Reader) (*RPCReq, error) {
 	}
 
 	if req.JSONRPC != JSONRPCVersion {
-		return nil, ErrInvalidRequest
+		return nil, ErrInvalidRequest("invalid JSON-RPC version")
 	}
 
 	if req.Method == "" {
-		return nil, ErrInvalidRequest
+		return nil, ErrInvalidRequest("no method specified")
+	}
+
+	if !IsValidID(req.ID) {
+		return nil, ErrInvalidRequest("invalid ID")
 	}
 
 	return req, nil
@@ -70,7 +86,7 @@ func ParseRPCRes(r io.Reader) (*RPCRes, error) {
 	return res, nil
 }
 
-func NewRPCErrorRes(id *int, err error) *RPCRes {
+func NewRPCErrorRes(id json.RawMessage, err error) *RPCRes {
 	var rpcErr *RPCErr
 	if rr, ok := err.(*RPCErr); ok {
 		rpcErr = rr
