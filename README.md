@@ -32,36 +32,40 @@ minigeth/go-ethereum 13284469
 
 # generate MIPS checkpoints for 13284469 -> 13284470
 mipsevm/mipsevm 13284469
+
+# write out the golden start state and deploy the contracts
+mipsevm/mipsevm
+npx hardhat run scripts/deploy.js
 ```
 
 ## Full Challenge / Response
 
 ```
+# testing on hardhat (forked mainnet)
 npx hardhat node --fork https://mainnet.infura.io/v3/9aa3d95b3bc440fa88ea12eaa4456161
 
-# testing on hardhat (forked mainnet)
 # challenger is pretending the block 10 transition is the transition for 1171895
 # this will conflict at the first step
 rm -rf /tmp/cannon/*
 mipsevm/mipsevm
-npx hardhat run scripts/deploy.js
+npx hardhat run scripts/deploy.js --network hosthat
 
 minigeth/go-ethereum 1171895 && mipsevm/mipsevm 1171895
 minigeth/go-ethereum 10 && mipsevm/mipsevm 10
-BLOCK=1171895 npx hardhat run scripts/challenge.js
+BLOCK=1171895 npx hardhat run scripts/challenge.js --network hosthat
 
 # do binary search
 for i in {1..23}
 do
-ID=0 BLOCK=10 CHALLENGER=1 npx hardhat run scripts/respond.js
-ID=0 BLOCK=1171895 npx hardhat run scripts/respond.js
+ID=0 BLOCK=10 CHALLENGER=1 npx hardhat run scripts/respond.js --network hosthat
+ID=0 BLOCK=1171895 npx hardhat run scripts/respond.js --network hosthat
 done
 
 # assert as challenger (fails)
-ID=0 BLOCK=10 CHALLENGER=1 npx hardhat run scripts/assert.js
+ID=0 BLOCK=10 CHALLENGER=1 npx hardhat run scripts/assert.js --network hosthat
 
 # assert as defender (passes)
-ID=0 BLOCK=1171895 npx hardhat run scripts/assert.js
+ID=0 BLOCK=1171895 npx hardhat run scripts/assert.js --network hosthat
 ```
 
 ## State Oracle API
