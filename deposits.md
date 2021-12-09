@@ -21,6 +21,7 @@ fields:
 - `address from`
 - `uint256 value`
 - `bytes data`
+- `uint256 gasLimit`
 
 This is a subset of the fields used in [EIP-155], but does not include signature information.
 
@@ -66,6 +67,7 @@ This transaction MUST have the following values:
    contract).
 3. `value` is `0`
 4. `data` is an abi encoded call to the [L1 Attributes Predeploy] contract's `setL1BlockValues()`
+4. `gasLimit` is set to the maximum available.
    function with correct values associated with the corresponding L1 block.
 
 ## Special Accounts on L2
@@ -130,6 +132,7 @@ contract][deposit-feed-contract] on L1.
   2. `null` in which case a contract is created.
 3. `value` is unchanged from the emitted value.
 4. `data` is unchanged from the emitted value, and is handled as either calldata or initialization code depending on the value of `to`.
+4. `gaslimit` is unchanged from the emitted value.
 
 ### Deposit Feed Contract
 
@@ -159,6 +162,7 @@ contract DepositFeed {
     address indexed from,
     address indexed to,
     uint256 value,
+    uint256 gasLimit,
     bool isCreation,
     bytes _data
   );
@@ -166,6 +170,7 @@ contract DepositFeed {
   function depositTransaction(
     address to,
     uint256 value,
+    uint256 gasLimit,
     bool isCreation,
     bytes memory _data
   ) external payable {
