@@ -94,7 +94,7 @@ The type notation used here refers to the [HEX value encoding] used by the [Ethe
 specification][JSON-RPC-API], as this structure will need to be sent over JSON-RPC. `array` refers to a JSON array.
 
 [HEX value encoding]: https://eth.wiki/json-rpc/API#hex-value-encoding
-[JSON-RPC-API]: https://eth.wiki/json-rpc/API
+[JSON-RPC-API]: https://github.com/ethereum/execution-apis
 
 The object properties must be set as follows:
 
