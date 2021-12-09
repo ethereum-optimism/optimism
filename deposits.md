@@ -16,7 +16,6 @@ Deposit transactions have the following notable distinctions from existing trans
 We define a new [EIP-2718] compatible transaction type with the prefix `0x7E`.  and the following
 fields:
 
-<!-- ToDo: set to more GoLang like type defs? -->
 - `address to`
 - `address from`
 - `uint256 value`
@@ -45,14 +44,30 @@ As noted above, the Deposit Transaction Type does not include a signature for va
 authorization is handled by the [L1 Deposit Feed contract][deposit-feed-contract] and the
 [Block Derivation][/glossary.md#L2-chain-derivation] process itself.
 
-### Nonce handling
+### Execution
+
+First, the balance of the `from` account MUST be increased by the amount of `value`.
+
+Then, the execution environment for a deposit transaction is initialized based on the transactions
+values, in exactly the same manner as it would be for an EIP-155 transaction.
+
+
+
+Specifically, a new EVM call frame targeting the `to` address is created with values initialized as
+follows:
+
+- `CALLER` and `ORIGIN` set to `from`
+- `context.calldata` set to `data`
+- `context.gas` set to `gasLimit`
+- `context.value` set to `value`
+
+#### Nonce handling
 
 Despite the lack of signature validation, we still increment the nonce of the `from` account when an
 Deposit Transaction is executed. In the context of a deposit-only roll up, this is not necessary
 for transaction ordering or replay prevention, however it maintains consistency with the use of
 nonces during contract creation. It may also simplify integration with downstream tooling (such
 as wallets and block explorers).
-
 
 ## L1 Attributes Deposit
 
@@ -66,8 +81,8 @@ This transaction MUST have the following values:
 2. `to` is `0x4200000000000000000000000000000000000014` (the address of the L1 Attributes Predeploy
    contract).
 3. `value` is `0`
-4. `data` is an abi encoded call to the [L1 Attributes Predeploy] contract's `setL1BlockValues()`
 4. `gasLimit` is set to the maximum available.
+5. `data` is an abi encoded call to the [L1 Attributes Predeploy] contract's `setL1BlockValues()`
    function with correct values associated with the corresponding L1 block.
 
 ## Special Accounts on L2
@@ -131,8 +146,8 @@ contract][deposit-feed-contract] on L1.
   1. any 20-byte address (including the zero-address)
   2. `null` in which case a contract is created.
 3. `value` is unchanged from the emitted value.
-4. `data` is unchanged from the emitted value, and is handled as either calldata or initialization code depending on the value of `to`.
 4. `gaslimit` is unchanged from the emitted value.
+5. `data` is unchanged from the emitted value. Depending on the value of `to` it is handled as either calldata or initialization code depending on the value of `to`.
 
 ### Deposit Feed Contract
 
@@ -145,11 +160,12 @@ The Deposit Feed handles two special cases:
 
 1. A contract creation deposit, which is indicated by setting the `isCreation` flag to `true`.
    In the event that the `to` address is non-zero, the contract will revert.
-2. A call from a contract account, in which case the `from` value is transformed to its L2 alias.
-   This prevents attacks in which a contract on L1 has the same address as a contract on L2 but
-   doesn't have the same code. We can safely ignore this for EOAs because they're guaranteed to have
-   the same "code" (i.e. no code at all). This also makes it possible for users to interact with
-   contracts on L2 even when the Sequencer is down.
+2. A call from a contract account, in which case the `from` value is transformed to its L2 alias (by
+   adding `0x1111000000000000000000000000000000001111`). This prevents attacks in which a contract
+   on L1 has the same address as a contract on L2 but doesn't have the same code. We can safely
+   ignore this for EOAs because they're guaranteed to have the same "code" (i.e. no code at all).
+   This also makes it possible for users to interact with contracts on L2 even when the Sequencer is
+   down.
 
 > **TODO** Define if/how ETH withdrawals occur.
 
