@@ -1,6 +1,4 @@
-import chai, { expect } from 'chai'
-import { solidity } from 'ethereum-waffle'
-chai.use(solidity)
+import { expect } from './shared/setup'
 
 /* Imports: Internal */
 import { ethers } from 'ethers'
