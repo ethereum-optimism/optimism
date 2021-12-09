@@ -74,7 +74,7 @@ The L1 attributes are read from the L1 block header, while deposits are read fro
 [deposit-feed-spec]: deposits.md
 
 From the data read from L1, the rollup node constructs an expanded version of the [Engine API PayloadAttributesV1
-object][PayloadAttributesV1]:
+object][PayloadAttributesV1], which includes an additional `transactions` field:
 
 [PayloadAttributesV1]: https://github.com/ethereum/execution-apis/blob/main/src/engine/specification.md#payloadattributesv1
 
@@ -158,9 +158,7 @@ deposit:
 
 The Optimistic Ethereum [execution engine] is specified in the [Execution Engine Specification].
 
-> **TODO LINK** execution engine spec
-
-[Execution Engine Specification]: TODO
+[Execution Engine Specification]: exec-engine.md
 
 This section defines how the rollup driver must interact with the execution engine's in order to convert [payload
 attributes] into L2 blocks.
@@ -182,9 +180,7 @@ Instead of calling [`engine_forkchoiceUpdatedV1`], the rollup driver must call t
 route. This has the same signature, except that:
 
 [`engine_forkchoiceUpdatedV1`]: https://github.com/ethereum/execution-apis/blob/main/src/engine/specification.md#engine_forkchoiceupdatedv1
-[`engine_forkchoiceUpdatedOPV1`]: TODO
-
-> **TODO LINK** forkchoiceUpdatedOPV1 from spec
+[`engine_forkchoiceUpdatedOPV1`]: exec-engine.md#engine_forkchoiceupdatedv1
 
 - it takes a [`PayloadAttributesOPV1`] object as input instead of [`PayloadAttributesV1`][PayloadAttributesV1]. The
   execution engine must include the valid transactions supplied in this object in the block, in the same order as they
@@ -205,8 +201,6 @@ route. This has the same signature, except that:
 > **Note:** the properties of this `ForkchoiceStateV1` can be used to anchor queries to the regular (non-engine-API)
 > JSON-RPC endpoint of the execution engine. [See here for more information.][L2-JSON-RPC-API]
 
-> **TODO** specify the behaviour in case the resulting object reports `"SYNCING"` or an error
-
 [L2-JSON-RPC-API]: TODO
 
 > **TODO LINK** L2 JSON RPC API (might be the same as [L1's][JSON-RPC-API])
@@ -214,10 +208,24 @@ route. This has the same signature, except that:
 The `payloadID` returned by [`engine_forkchoiceUpdatedOPV1`] can then be passed to [`engine_getPayloadV1`] in order to
 obtain an [`ExecutionPayloadV1`], which fully defines a new L2 block.
 
-[`engine_getPayloadV1`]: https://github.com/ethereum/execution-apis/blob/main/src/engine/specification.md#engine_getpayloadv1
-[`ExecutionPayloadV1`]: https://github.com/ethereum/execution-apis/blob/main/src/engine/specification.md#executionpayloadv1
+The rollup driver must then instruct the execution engine to execute the block by calling [`engine_executePayloadV1`].
+This returns the new L2 block hash.
 
-> **TODO** specify the behaviour in case the resulting object reports an error
+All invocations of [`engine_forkchoiceUpdatedOPV1`], [`engine_getPayloadV1`] and [`engine_executePayloadV1`] by the
+rollup driver should not result in errors assuming conformity with the specification. Said otherwise, all errors are
+implementation concerns and it is up to them to handle them (e.g. by retrying, or by stopping the chain derivation and
+requiring manual user intervention).
+
+The following scenarios are assimilated to errors:
+
+- [`engine_forkchoiceUpdateOPV1`] returning a `status` of "`SYNCING`" instead of "`SUCCESS`" whenever passed a
+  `headBlockHash` that it retrieved from a previous call to [`engine_executePayloadV1`].
+- [`engine_executePayloadV1`] returning a `status` of "`SYNCING`" or `"INVALID"` whenever passed an execution payload
+  that was obtained by a previous call to [`engine_getPayloadV1`].
+
+[`engine_getPayloadV1`]: exec-engine.md#engine_executepayloadv1
+[`ExecutionPayloadV1`]: https://github.com/ethereum/execution-apis/blob/main/src/engine/specification.md#executionpayloadv1
+[`engine_executePayloadV1`]: exec-engine.md#engine_executepayloadv1
 
 ## Handling L1 Re-Orgs
 
@@ -227,23 +235,35 @@ The [previous section on L2 chain derivation][l2-chain-derivation] assumes linea
 also applicable for batch processing, meaning that any given point in time, the canonical L2 chain is given by
 processing the whole L1 chain since the [L2 chain inception].
 
-The L1 chain may occasionally re-organize, meaning the head of the L1 chain changes to a block that is not the child of
-the previous head but rather one of its "cousins" (i.e. the descendant of an ancestor of the previous head). In those
-case, the rollup driver must:
+> By itself, the previous section fully specifies the behaviour of the rollup driver. **The current section is
+> non-specificative** but shows how L1 re-orgs can be handled in practice.
 
-1. Locate the *common ancestor*, a block that is an ancestor of both the previous and new head.
-2. Isolate the range of L1 blocks `]common ancestor, ..., new head]`.
-3. For each such block, call [`engine_forkchoiceUpdatedOPV1`] and [`engine_getPayloadV1`].
+In practice, the L1 chain is processed incrementally. However, the L1 chain may occasionally re-organize, meaning the
+head of the L1 chain changes to a block that is not the child of the previous head but rather one of its "cousins" (i.e.
+the descendant of an ancestor of the previous head). In those case, the rollup driver must:
+
+1. Call [`engine_forkchoiceUpdatedOPV1`] for the new L2 chain head
+    - Pass `null` for the `payloadAttributes` parameter.
+    - Fill the [`ForkchoiceStateV1`] object according to [the section on the execution engine][calling-exec-engine], but
+      set `headBlockHash` to the hash of the new L2 chain head. `safeBlockHash` and `finalizedBlockHash` must be updated
+      accordingly.
+2. If the call returns `"SUCCESS"`, we are done: the execution engine retrieved all the new L2 blocks via [block sync].
+3. Otherwise the call returns `"SYNCING"`, and we must derive the new blocks ourselves. Start by locating the *common
+   ancestor*, a block that is an ancestor of both the previous and new head.
+4. Isolate the range of L1 blocks `]common ancestor, ..., new head]`.
+5. For each such block, call [`engine_forkchoiceUpdatedOPV1`], [`engine_getPayloadV1`], and [`engine_executePayloadV1`].
    - Fill the [`PayloadAttributesOPV1`] object according to [the section on payload attributes][payload-attr].
    - Fill the [`ForkchoiceStateV1`] object according to [the section on the execution engine][calling-exec-engine], but
      set `headBlockHash` to the hash of the last processed L2 block (use the hash of the common ancestor initially)
      instead of the last L2 chain head. `safeBlockHash` and `finalizedBlockHash` must be updated accordingly.
 
-> Note that post-[merge], the L1 chain will offer finalization guarantees meaning that it won't be able to re-org more
-> than `FINALIZATION_DELAY_BLOCKS` in the past, hence preserving our finalization guarantees.
+[block sync]: https://github.com/ethereum-optimism/optimistic-specs/blob/main/exec-engine.md#sync
 
-> **TODO** Must enunciate error cases more precisely, as well as state what should be impossible and should cause the
-> node to stop deriving the L2 chain.
+> Note that post-[merge], the L1 chain will offer finalization guarantees meaning that it won't be able to re-org more
+> than `FINALIZATION_DELAY_BLOCKS == 50400` in the past, hence preserving our finalization guarantees.
+
+Just like before, the meaning of errors returned by RPC calls is unspecified and must be handled at the implementer's
+discretion, while remaining compatible with the specification.
 
 ## Finalization Guarantees
 
