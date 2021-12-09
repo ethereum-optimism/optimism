@@ -137,9 +137,7 @@ passed to the [execution engine] to construct L2 blocks.
 "Payload attributes" is a term that originates and is specified in the [Ethereum Engine API specification][engine-api],
 which we extend in this specification.
 
-cf. [Execution Engine Specification](TODO)
-
-> **TODO LINK** execution engine specification
+cf. [Execution Engine Specification](exec-engine.md)
 
 Payload attributes were historically called "L2 block inputs" in the L2 spec and you might still hear some people using
 this term.
@@ -196,9 +194,7 @@ Advanced note: the deposits are not stored in calldata because they can be send 
 is part of the execution, but its value is not captured in one of the [Merkle roots][Merkle root] included in the L1
 block.
 
-cf. [Deposit Feed Contract Specification](TODO)
-
-> **TODO LINK** deposit feed contract specification
+cf. [Deposits Specification](deposits.md)
 
 ------------------------------------------------------------------------------------------------------------------------
 

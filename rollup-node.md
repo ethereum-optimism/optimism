@@ -63,8 +63,7 @@ The rollup reads the following data from each L1 block:
 
 [random]: https://eips.ethereum.org/EIPS/eip-4399
 
-A deposit is an L2 transaction that has been submitted on L1, via a call sent to the [deposit feed
-contract][deposit-feed].
+A deposit is an L2 transaction that has been submitted on L1, via a call to the [deposit feed contract][deposit-feed].
 
 While deposits are notably (but not only) used to "deposit" (bridge) ETH and tokens to L2, the word *deposit* should be
 understood as "a transaction *deposited* to L2".
@@ -72,11 +71,9 @@ understood as "a transaction *deposited* to L2".
 The L1 attributes are read from the L1 block header, while deposits are read from the block's [receipts]. Refer to the
 [**deposit feed contract specification**][deposit-feed] for details on how deposits are encoded as log entries.
 
-[deposit-feed-spec]: TODO
+[deposit-feed-spec]: deposits.md
 
-> **TODO LINK** deposit feed contract specification
-
-From the data read from , the rollup node constructs an expanded version of the [Engine API PayloadAttributesV1
+From the data read from L1, the rollup node constructs an expanded version of the [Engine API PayloadAttributesV1
 object][PayloadAttributesV1]:
 
 [PayloadAttributesV1]: https://github.com/ethereum/execution-apis/blob/main/src/engine/specification.md#payloadattributesv1
