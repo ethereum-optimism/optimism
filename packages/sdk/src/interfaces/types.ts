@@ -107,6 +107,14 @@ export interface CrossChainMessage {
 }
 
 /**
+ * Convenience type for when you don't care which direction the message is going in.
+ */
+export type DirectionlessCrossChainMessage = Omit<
+  CrossChainMessage,
+  'direction'
+>
+
+/**
  * Describes a token withdrawal or deposit, along with the underlying raw cross chain message
  * behind the deposit or withdrawal.
  */
@@ -188,7 +196,7 @@ export type MessageLike =
 /**
  * Stuff that can be coerced into a provider.
  */
-export type ProviderLike = string | Provider
+export type ProviderLike = string | Provider | any
 
 /**
  * Stuff that can be coerced into a signer.

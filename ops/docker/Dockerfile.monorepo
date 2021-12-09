@@ -24,6 +24,7 @@ FROM node as builder
 WORKDIR /optimism
 COPY .git ./.git
 COPY *.json yarn.lock ./
+COPY packages/sdk/package.json ./packages/sdk/package.json
 COPY packages/core-utils/package.json ./packages/core-utils/package.json
 COPY packages/common-ts/package.json ./packages/common-ts/package.json
 COPY packages/contracts/package.json ./packages/contracts/package.json

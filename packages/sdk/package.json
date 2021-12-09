@@ -14,7 +14,9 @@
     "lint": "yarn lint:fix && yarn lint:check",
     "lint:check": "eslint .",
     "lint:fix": "yarn lint:check --fix",
-    "pre-commit": "lint-staged"
+    "pre-commit": "lint-staged",
+    "test": "hardhat test",
+    "test:coverage": "nyc hardhat test && nyc merge .nyc_output coverage.json"
   },
   "keywords": [
     "optimism",
