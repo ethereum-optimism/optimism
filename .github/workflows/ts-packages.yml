@@ -49,6 +49,18 @@ jobs:
       - name: Build
         run: yarn build
 
+      - name: Chack solidity contracts for warnings
+        run:  |
+          for f in ./artifacts/build-info/*.json;
+          do
+            cat $f | jq --exit-status '.output.errors | length == 0'
+            if [ $? -eq 1 ]
+            then
+              echo "Please first clean warnings in solidity contracts"
+              exit 1
+            fi
+          done
+
       - name: Test
         run: yarn test
         env:
