@@ -1,6 +1,6 @@
 # Deposits
 
-Deposits are transactions initiated on L1, and executed on L2. This document outlines a new
+Deposits are transactions which are initiated on L1, and executed on L2. This document outlines a new
 [Transaction Type][transaction-type] for deposits. It also describes how deposits are initiated on
 L1, along with the authorization and validation conditions on L2.
 
@@ -11,9 +11,9 @@ L1, along with the authorization and validation conditions on L2.
 Deposit transactions have the following notable distinctions from existing transaction types:
 
 1. They are derived from Layer 1 blocks, and must be included as part of the protocol.
-2. They do not include signature validation (see [Deposited Transactions][deposited-transactions] for the rationale).
+2. They do not include signature validation (see [L1 Transaction deposits][#l1-transaction-deposits] for the rationale).
 
-We define a new [EIP-2718] compatible transaction type with the prefix `0x7E`.  and the following
+We define a new [EIP-2718] compatible transaction type with the prefix `0x7E`, and the following
 fields:
 
 - `address to`
@@ -30,9 +30,9 @@ future. We don't pick `0x7F` itself in case it becomes used for a variable-lengt
 
 Although in practice we define only one new Transaction Type we can distinguish between two distinct
 transactions which occur in the deposit block, based on their positioning. The first transaction
-MUST be the [L1 Attributes Deposit Transaction][l1-attributes-deposit-transaction], followed by a
-dynamic array of [Deposited Transactions][deposited-transactions] submitted to the Deposit Feed
-contract by accounts on L1.
+MUST be a [L1 attributes deposit][l1-attributes-deposit], followed by a an array of zero-or-more
+[L1 transaction deposits][l1-transaction-deposits] submitted to the Deposit Feed contract by
+accounts on L1.
 
 > **TODO** Specify and link to deposit blocks
 
@@ -42,16 +42,19 @@ contract by accounts on L1.
 
 As noted above, the Deposit Transaction Type does not include a signature for validation. Rather,
 authorization is handled by the [L1 Deposit Feed contract][deposit-feed-contract] and the
-[Block Derivation][/glossary.md#L2-chain-derivation] process itself.
+[L2 chain Derivation][derivation] process itself.
+
+If a Deposit Transaction is included which is not derived using the correct derivation algorithm,
+the resulting state transition would be invalid.
 
 ### Execution
 
+In order to execute a deposit transaction:
+
 First, the balance of the `from` account MUST be increased by the amount of `value`.
 
-Then, the execution environment for a deposit transaction is initialized based on the transactions
+Then, the execution environment for a deposit transaction is initialized based on the transaction's
 values, in exactly the same manner as it would be for an EIP-155 transaction.
-
-
 
 Specifically, a new EVM call frame targeting the `to` address is created with values initialized as
 follows:
@@ -63,7 +66,7 @@ follows:
 
 #### Nonce handling
 
-Despite the lack of signature validation, we still increment the nonce of the `from` account when an
+Despite the lack of signature validation, we still increment the nonce of the `from` account when a
 Deposit Transaction is executed. In the context of a deposit-only roll up, this is not necessary
 for transaction ordering or replay prevention, however it maintains consistency with the use of
 nonces during contract creation. It may also simplify integration with downstream tooling (such
@@ -97,7 +100,7 @@ The L1 Attributes Deposit Transaction involves two special purpose accounts:
 [l1-attributes-depositor-account]: #l1-attributes-depositor-account
 
 The Depositor Account is an EOA with no known private key. It has the address
-`0xdeaddeaddeaddeaddeaddeaddeaddeaddead0001`. Its value returned by the `CALLER` and `ORIGIN`
+`0xdeaddeaddeaddeaddeaddeaddeaddeaddead0001`. Its value is returned by the `CALLER` and `ORIGIN`
 opcodes during execution of the L1 Attributes Deposit Transaction.
 
 ### L1 Attributes Predeploy
@@ -113,7 +116,6 @@ the [Depositor Account].
 
 The contract has the following solidity interface, and can be interacted with according to the
 [contract ABI specification][ABI].
-
 
 ```solidity
 interface L1BlockValues {
@@ -141,13 +143,15 @@ L1 Transaction Deposits are [Deposit Transactions][deposit-transaction-type] gen
 corresponding `TransactionDeposited` event emitted by the [Deposit Feed
 contract][deposit-feed-contract] on L1.
 
-1. `from` is unchanged from the emitted value (though it may have been transformed to an alias in the Deposit Feed contract).
+1. `from` is unchanged from the emitted value (though it may have been transformed to an alias in
+   the Deposit Feed contract).
 2. `to` may be either:
-  1. any 20-byte address (including the zero-address)
-  2. `null` in which case a contract is created.
+    1. any 20-byte address (including the zero-address)
+    2. `null` in which case a contract is created.
 3. `value` is unchanged from the emitted value.
 4. `gaslimit` is unchanged from the emitted value.
-5. `data` is unchanged from the emitted value. Depending on the value of `to` it is handled as either calldata or initialization code depending on the value of `to`.
+5. `data` is unchanged from the emitted value. Depending on the value of `to` it is handled as
+   either calldata or initialization code depending on the value of `to`.
 
 ### Deposit Feed Contract
 
@@ -169,7 +173,7 @@ The Deposit Feed handles two special cases:
 
 > **TODO** Define if/how ETH withdrawals occur.
 
-A solidity like pseudocode implementation demonstrates the functionality:
+A solidity-like pseudocode implementation demonstrates the functionality:
 
 ```solidity
 contract DepositFeed {
@@ -212,7 +216,6 @@ contract DepositFeed {
 }
 ```
 
-
 <!-- All glossary references in this file. -->
 [transaction-type]: /glossary.md#transaction-type
 [derivation]:  /glossary.md#L2-chain-derivation
@@ -220,4 +223,3 @@ contract DepositFeed {
 <!-- External links -->
 [EIP-2718]: https://eips.ethereum.org/EIPS/eip-2718
 [ABI]: https://docs.soliditylang.org/en/v0.8.10/abi-spec.html
-

@@ -1,6 +1,7 @@
 # Glossary
 
 ## Table of Contents
+
 - [Glossary](#glossary)
 - [General Terms](#general-terms)
   - [Layer 1 (L1)](#layer-1-l1)
@@ -101,14 +102,12 @@ transaction in the block.
 
 Receipts are specified in the [yellow paper (pdf)][yellow] section 4.3.1.
 
-
 ## Transaction Type
 
 [transaction-type]: /glossary.md#transaction-type
 
 Ethereum provides a mechanism (as described in [EIP-2718]) for defining different transaction types.
 Different transaction types can contain different payloads, and be handled differently by the protocol.
-
 
 [EIP-2718]: https://eips.ethereum.org/EIPS/eip-2718
 
