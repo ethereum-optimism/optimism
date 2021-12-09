@@ -197,7 +197,7 @@ jobs:
             GITVERSION=${{ steps.build_args.outputs.GITVERSION }}
 
   op-exporter:
-    name: Publish op-exporter Version ${{ needs.release.outputs.canary-docker-tag }}
+    name: Publish op-exporter Version ${{ needs.release.outputs.op-exporter}}
     needs: release
     if: needs.release.outputs.op-exporter != ''
     runs-on: ubuntu-latest
@@ -227,7 +227,7 @@ jobs:
           context: .
           file: ./ops/docker/Dockerfile.op-exporter
           push: true
-          tags: ethereumoptimism/op-exporter:${{ needs.canary-publish.outputs.op-exporter }}
+          tags: ethereumoptimism/op-exporter:${{ needs.release.outputs.op-exporter }}
           build-args: |
             GITDATE=${{ steps.build_args.outputs.GITDATE }}
             GITCOMMIT=${{ steps.build_args.outputs.GITCOMMIT }}
