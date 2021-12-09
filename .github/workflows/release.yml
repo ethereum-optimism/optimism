@@ -227,7 +227,7 @@ jobs:
           context: .
           file: ./ops/docker/Dockerfile.op-exporter
           push: true
-          tags: ethereumoptimism/op-exporter:${{ needs.release.outputs.op-exporter }}
+          tags: ethereumoptimism/op-exporter:${{ needs.release.outputs.op-exporter }},ethereumoptimism/op-exporter:latest
           build-args: |
             GITDATE=${{ steps.build_args.outputs.GITDATE }}
             GITCOMMIT=${{ steps.build_args.outputs.GITCOMMIT }}
