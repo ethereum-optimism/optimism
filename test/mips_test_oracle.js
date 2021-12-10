@@ -34,7 +34,7 @@ describe("MIPSMemory oracle", function () {
     expect(await mm.ReadMemory(root, 0x31000008)).to.equal(0xaabbccdd)
 
     // offset 0 isn't loaded
-    await expect(mm.ReadMemory(root, 0x31000004)).to.be.revertedWith("offset not loaded")
+    await expect(mm.ReadMemory(root, 0x31000004)).to.be.reverted;
   })
 
   it("misaligned oracle", async function() {
