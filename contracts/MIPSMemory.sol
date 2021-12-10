@@ -6,8 +6,6 @@ import "./lib/Lib_MerkleTrie.sol";
 import { Lib_BytesUtils } from "./lib/Lib_BytesUtils.sol";
 
 contract MIPSMemory {
-  mapping(bytes32 => bytes) public trie;
-
   function AddTrieNode(bytes calldata anything) public {
     Lib_MerkleTrie.GetTrie()[keccak256(anything)] = anything;
   }
