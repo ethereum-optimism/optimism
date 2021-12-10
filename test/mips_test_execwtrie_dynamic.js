@@ -59,7 +59,7 @@ describe("Exec with trie dynamic", function () {
       root = await dynamicExecWithTrie(c, m, mm, root, trieAdd['preimages'], null)
       console.log(i, root)
     }
-  })
+  }).timeout(120000)
   
   it("oracle should work", async function () {
     let root = trieOracle['root']
@@ -74,5 +74,5 @@ describe("Exec with trie dynamic", function () {
     }
     expect(out1).to.equal(1)
     expect(out2).to.equal(1)
-  }).timeout(120000)
+  }).timeout(300000)
 })
