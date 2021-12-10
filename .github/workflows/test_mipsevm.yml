@@ -22,10 +22,11 @@ jobs:
         yarn install
     - name: Hardhat Compile
       run: npx hardhat compile
-    - name: Build minigeth and run default block (cache)
+    - name: Build minigeth and run blocks 13284469 and 13284491
       run: |
         (cd minigeth/ && go build)
         mkdir -p /tmp/cannon
+        minigeth/go-ethereum 13284469
         minigeth/go-ethereum 13284491
     - name: Install Python deps
       run: pip3 install -r mipigo/requirements.txt
