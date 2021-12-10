@@ -49,6 +49,13 @@ export enum MessageStatus {
   UNCONFIRMED_L1_TO_L2_MESSAGE,
 
   /**
+   * Message is an L1 to L2 message and the transaction to execute the message failed.
+   * When this status is returned, you will need to resend the L1 to L2 message, probably with a
+   * higher gas limit.
+   */
+  FAILED_L1_TO_L2_MESSAGE,
+
+  /**
    * Message is an L2 to L1 message and no state root has been published yet.
    */
   STATE_ROOT_NOT_PUBLISHED,
@@ -98,6 +105,14 @@ export interface CrossChainMessage {
   message: string
   messageNonce: number
 }
+
+/**
+ * Convenience type for when you don't care which direction the message is going in.
+ */
+export type DirectionlessCrossChainMessage = Omit<
+  CrossChainMessage,
+  'direction'
+>
 
 /**
  * Describes a token withdrawal or deposit, along with the underlying raw cross chain message
@@ -181,7 +196,7 @@ export type MessageLike =
 /**
  * Stuff that can be coerced into a provider.
  */
-export type ProviderLike = string | Provider
+export type ProviderLike = string | Provider | any
 
 /**
  * Stuff that can be coerced into a signer.

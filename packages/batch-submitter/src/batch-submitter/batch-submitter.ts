@@ -31,6 +31,7 @@ interface BatchSubmitterMetrics {
   batchesSubmitted: Counter<string>
   failedSubmissions: Counter<string>
   malformedBatches: Counter<string>
+  batchTxBuildTime: Gauge<string>
 }
 
 export abstract class BatchSubmitter {
@@ -291,6 +292,11 @@ export abstract class BatchSubmitter {
       malformedBatches: new metrics.client.Counter({
         name: 'malformed_batches',
         help: 'Count of malformed batches',
+        registers: [metrics.registry],
+      }),
+      batchTxBuildTime: new metrics.client.Gauge({
+        name: 'batch_tx_build_time',
+        help: 'Time to construct batch transaction',
         registers: [metrics.registry],
       }),
     }
