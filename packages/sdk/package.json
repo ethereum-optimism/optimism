@@ -1,6 +1,6 @@
 {
   "name": "@eth-optimism/sdk",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "description": "[Optimism] Tools for working with Optimistic Ethereum",
   "main": "dist/index",
   "types": "dist/index",
@@ -60,7 +60,7 @@
     "typescript": "^4.3.5"
   },
   "dependencies": {
-    "@eth-optimism/contracts": "0.5.6",
+    "@eth-optimism/contracts": "0.5.7",
     "@eth-optimism/core-utils": "0.7.3",
     "@ethersproject/abstract-provider": "^5.5.1",
     "@ethersproject/abstract-signer": "^5.5.0",
