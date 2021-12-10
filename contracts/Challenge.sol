@@ -82,11 +82,11 @@ contract Challenge {
   }
 
   // helper function to determine what nodes we need
-  function CallWithTrieNodes(bytes calldata dat, bytes[] calldata nodes) public {
+  function CallWithTrieNodes(address target, bytes calldata dat, bytes[] calldata nodes) public {
     for (uint i = 0; i < nodes.length; i++) {
       mem.AddTrieNode(nodes[i]);
     }
-    (bool success, bytes memory revertData) = address(this).call(dat);
+    (bool success, bytes memory revertData) = target.call(dat);
     // TODO: better way to revert?
     if (!success) {
       uint256 revertDataLength = revertData.length;

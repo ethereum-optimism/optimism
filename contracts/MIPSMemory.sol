@@ -3,6 +3,7 @@ pragma solidity ^0.7.3;
 
 import "./lib/Lib_Keccak256.sol";
 import "./lib/Lib_MerkleTrie.sol";
+import { Lib_BytesUtils } from "./lib/Lib_BytesUtils.sol";
 
 contract MIPSMemory {
   mapping(bytes32 => bytes) public trie;
@@ -12,16 +13,39 @@ contract MIPSMemory {
   }
 
   struct Preimage {
-    uint length;
+    uint64 length;
     mapping(uint => uint64) data;
   }
 
   mapping(bytes32 => Preimage) public preimage;
 
-  function GetPreimage(bytes32 outhash, uint offset) public view returns (uint, uint32) {
+  // TODO: can share code with getTrieNode
+  function MissingPreimageRevert(bytes32 outhash, uint offset) internal pure {
+    bytes memory node = Lib_BytesUtils.toNibbles(abi.encodePacked(outhash, offset));
+    for (uint i = 0; i < node.length; i++) {
+      if (node[i] < bytes1(uint8(10))) {
+        node[i] = bytes1(uint8(node[i]) + uint8(0x30));
+      } else {
+        node[i] = bytes1(uint8(node[i]) + uint8(0x61-10));
+      }
+    }
+    revert(string(node));
+  }
+
+  function GetPreimageLength(bytes32 outhash) public view returns (uint32) {
+    uint64 data = preimage[outhash].length;
+    if (data == 0) {
+      MissingPreimageRevert(outhash, 0);
+    }
+    return uint32(data);
+  }
+
+  function GetPreimage(bytes32 outhash, uint offset) public view returns (uint32) {
     uint64 data = preimage[outhash].data[offset];
-    require(data > 0, "offset not loaded");
-    return (preimage[outhash].length, uint32(data));
+    if (data == 0) {
+      MissingPreimageRevert(outhash, offset);
+    }
+    return uint32(data);
   }
 
   function AddPreimage(bytes calldata anything, uint offset) public {
@@ -29,8 +53,8 @@ contract MIPSMemory {
     uint len = anything.length;
     require(offset < len, "offset can't be longer than input");
     Preimage storage p = preimage[keccak256(anything)];
-    require(p.length == 0 || p.length == len, "length is somehow wrong");
-    p.length = len;
+    require(p.length == 0 || uint32(p.length) == len, "length is somehow wrong");
+    p.length = (1 << 32) | uint64(uint32(len));
     p.data[offset] = (1 << 32) |
                      ((len <= (offset+0) ? 0 : uint32(uint8(anything[offset+0]))) << 24) |
                      ((len <= (offset+1) ? 0 : uint32(uint8(anything[offset+1]))) << 16) |
@@ -76,7 +100,7 @@ contract MIPSMemory {
     largePreimage[msg.sender].len += 136;
   }
 
-  function AddLargePreimageFinal(bytes calldata idat) public view returns (bytes32, uint, uint32) {
+  function AddLargePreimageFinal(bytes calldata idat) public view returns (bytes32, uint32, uint32) {
     require(idat.length < 136, "final must be less than 136");
     int offset = int(largePreimage[msg.sender].offset) - int(largePreimage[msg.sender].len);
     require(offset < int(idat.length), "offset must be less than length");
@@ -99,19 +123,20 @@ contract MIPSMemory {
     Lib_Keccak256.sha3_permutation(c);
 
     bytes32 outhash = Lib_Keccak256.get_hash(c);
-    return (outhash, len, data);
+    require(len < 0x10000000, "max length is 32-bit");
+    return (outhash, uint32(len), data);
   }
 
   function AddLargePreimageFinalSaved(bytes calldata idat) public {
     bytes32 outhash;
-    uint len;
+    uint32 len;
     uint32 data;
     (outhash, len, data) = AddLargePreimageFinal(idat);
 
     Preimage storage p = preimage[outhash];
-    require(p.length == 0 || p.length == len, "length is somehow wrong");
+    require(p.length == 0 || uint32(p.length) == len, "length is somehow wrong");
     require(largePreimage[msg.sender].offset < len, "offset is somehow beyond length");
-    p.length = len;
+    p.length = (1 << 32) | uint64(len);
     p.data[largePreimage[msg.sender].offset] = (1 << 32) | data;
   }
 
@@ -192,12 +217,9 @@ contract MIPSMemory {
         return 0;
       }
       if (addr == 0x31000000) {
-        return uint32(preimage[pihash].length);
+        return uint32(GetPreimageLength(pihash));
       }
-      uint offset = addr-0x31000004;
-      uint64 data = preimage[pihash].data[offset];
-      require(data > 0, "offset not loaded");
-      return uint32(data);
+      return GetPreimage(pihash, addr-0x31000004);
     }
 
     bool exists;

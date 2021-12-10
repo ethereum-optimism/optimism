@@ -30,7 +30,7 @@ async function main() {
 
   let args = [blockNumberN, blockNp1Rlp, assertionRoot, finalSystemState, finalTrie['step']]
   let cdat = c.interface.encodeFunctionData("InitiateChallenge", args)
-  let nodes = await getTrieNodesForCall(c, cdat, preimages)
+  let nodes = await getTrieNodesForCall(c, c.address, dat, preimages)
 
   // run "on chain"
   for (n of nodes) {

@@ -43,19 +43,21 @@ describe("MIPSMemory contract", function () {
     let dathash = keccak256(dat)
     const tst = await mm.AddLargePreimageFinal(dat)
     expect(tst[0]).to.equal(dathash)
-    expect(tst[1].toNumber()).to.equal(11)
+    expect(tst[1]).to.equal(11)
     expect(tst[2]).to.equal(0x6f20776f)
 
     await mm.AddLargePreimageFinalSaved(dat)
     await mm.AddPreimage(dat, 0)
 
+    let retl = await mm.GetPreimageLength(dathash)
     let ret = await mm.GetPreimage(dathash, 4)
-    expect(ret[0].toNumber()).to.equal(11)
-    expect(ret[1]).to.equal(0x6f20776f)
+    expect(retl).to.equal(11)
+    expect(ret).to.equal(0x6f20776f)
 
     // other type
+    retl = await mm.GetPreimageLength(dathash)
     ret = await mm.GetPreimage(dathash, 0)
-    expect(ret[0].toNumber()).to.equal(11)
-    expect(ret[1]).to.equal(0x68656c6c)
+    expect(retl).to.equal(11)
+    expect(ret).to.equal(0x68656c6c)
   })
 });

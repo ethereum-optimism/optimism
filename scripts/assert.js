@@ -29,7 +29,7 @@ async function main() {
   let finalTrie = getTrieAtStep(blockNumberN, step+1)
   let preimages = Object.assign({}, startTrie['preimages'], finalTrie['preimages']);
 
-  let nodes = await getTrieNodesForCall(c, cdat, preimages)
+  let nodes = await getTrieNodesForCall(c, c.address, cdat, preimages)
   for (n of nodes) {
     await mm.AddTrieNode(n)
   }
