@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.4.11
+
+### Patch Changes
+
+- 3eb5590b: adds batchTxBuildTime gauge
+- Updated dependencies [b6f89fad]
+  - @eth-optimism/contracts@0.5.7
+
 ## 0.4.10
 
 ### Patch Changes
