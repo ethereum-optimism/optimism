@@ -1,6 +1,32 @@
 # Glossary
 
-------------------------------------------------------------------------------------------------------------------------
+## Table of Contents
+
+- [General Terms](#general-terms)
+  - [Layer 1 (L1)](#layer-1-l1)
+  - [Layer 2 (L2)](#layer-2-l2)
+  - [Block](#block)
+  - [EOA](#eoa)
+  - [Merkle Root](#merkle-root)
+  - [Chain Re-Organization](#chain-re-organization)
+  - [Predeployed Contract ("Predeploy")](#predeployed-contract-predeploy)
+  - [Receipt](#receipt)
+  - [Transaction Type](#transaction-type)
+- [L2 Chain Concepts](#l2-chain-concepts)
+      - [Address Aliasing](#address-aliasing)
+  - [L2 Chain Inception](#l2-chain-inception)
+  - [Rollup Node](#rollup-node)
+  - [Rollup Driver](#rollup-driver)
+  - [L2 Chain Derivation](#l2-chain-derivation)
+  - [L2 Derivation Inputs](#l2-derivation-inputs)
+  - [Payload Attributes](#payload-attributes)
+  - [L1 Attributes Transaction](#l1-attributes-transaction)
+  - [L1 Attributes Predeployed Contract](#l1-attributes-predeployed-contract)
+  - [Deposits](#deposits)
+  - [Deposit Transaction Type](#deposit-transaction-type)
+  - [Deposit Feed Contract](#deposit-feed-contract)
+- [Execution Engine Concepts](#execution-engine-concepts)
+  - [Execution Engine](#execution-engine)
 
 # General Terms
 
@@ -78,9 +104,27 @@ transaction in the block.
 
 Receipts are specified in the [yellow paper (pdf)][yellow] section 4.3.1.
 
+## Transaction Type
+
+[transaction-type]: /glossary.md#transaction-type
+
+Ethereum provides a mechanism (as described in [EIP-2718]) for defining different transaction types.
+Different transaction types can contain different payloads, and be handled differently by the protocol.
+
+[EIP-2718]: https://eips.ethereum.org/EIPS/eip-2718
+
 ------------------------------------------------------------------------------------------------------------------------
 
 # L2 Chain Concepts
+
+## Address Aliasing
+
+[address-aliasing]: /glossary.md#address-aliasing
+
+When a contract submits a [deposit] from L1 to L2, it's address (as returned by `ORIGIN` and `CALLER`)
+ will be aliased with a modified representation of the address of a contract.
+
+- cf. [Deposit Specification](/deposits.md#address-aliasing)
 
 ## L2 Chain Inception
 
@@ -185,6 +229,13 @@ understood as "a transaction *deposited* to L2".
 
 Deposits are one kind of [L2 derivation input][deriv-input].
 
+## Deposit Transaction Type
+
+[deposit-tx-type]: /glossary.md#deposit-transaction-type
+
+The deposit transaction type is an [EIP-2718] [transaction type][transaction-type], which specifies
+the input fields and correct handling of a [deposit][deposits].
+
 ## Deposit Feed Contract
 
 [deposit-feed]: /glossary.md#deposit-feed-contract
@@ -206,7 +257,7 @@ cf. [Deposit Feed Contract Specification](TODO)
 
 ## Execution Engine
 
-[execution engine]: /glossary.md#execution-engine
+[execution-engine]: /glossary.md#execution-engine
 
 The execution engine is responsible for executing transactions in blocks and computing the resulting state roots,
 receipts roots and block hash.
@@ -220,6 +271,8 @@ On L2, the executed blocks are freshly minted by the execution engine at the req
 transactions [derived from L1 blocks][derivations].
 
 In these specifications, "execution engine" always refer to the L2 execution engine, unless otherwise specified.
+
+- cf. [Execution Engine Specification](/exec-engine.md)
 
 <!-- External Links -->
 [Merkle Patricia tree]: https://github.com/norswap/nanoeth/blob/d4c0c89cc774d4225d16970aa44c74114c1cfa63/src/com/norswap/nanoeth/trees/patricia/README.md
