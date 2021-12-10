@@ -106,12 +106,6 @@ var (
 		"request_source",
 	})
 
-	httpRequestsTotal = promauto.NewCounter(prometheus.CounterOpts{
-		Namespace: MetricsNamespace,
-		Name:      "http_requests_total",
-		Help:      "Count of total HTTP requests.",
-	})
-
 	httpResponseCodesTotal = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: MetricsNamespace,
 		Name:      "http_response_codes_total",

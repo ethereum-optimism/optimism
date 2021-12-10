@@ -389,7 +389,7 @@ func (b *BackendGroup) Forward(ctx context.Context, rpcReq *RPCReq) (*RPCRes, er
 		if err != nil {
 			log.Error(
 				"error forwarding request to backend",
-				"name", b.Name,
+				"name", back.Name,
 				"req_id", GetReqID(ctx),
 				"auth", GetAuthCtx(ctx),
 				"err", err,
@@ -442,7 +442,7 @@ func (b *BackendGroup) ProxyWS(ctx context.Context, clientConn *websocket.Conn, 
 
 func calcBackoff(i int) time.Duration {
 	jitter := float64(rand.Int63n(250))
-	ms := math.Min(math.Pow(2, float64(i))*1000+jitter, 10000)
+	ms := math.Min(math.Pow(2, float64(i))*1000+jitter, 3000)
 	return time.Duration(ms) * time.Millisecond
 }
 
