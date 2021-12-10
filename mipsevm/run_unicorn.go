@@ -84,7 +84,7 @@ func GetHookedUnicorn(root string, ram map[uint32](uint32), callback func(int, u
 			hash := common.BytesToHash(oracle_hash)
 			key := fmt.Sprintf("%s/%s", root, hash)
 			value, err := ioutil.ReadFile(key)
-      check(err)
+			check(err)
 
 			tmp := []byte{0, 0, 0, 0}
 			binary.BigEndian.PutUint32(tmp, uint32(len(value)))
@@ -181,7 +181,7 @@ func RunUnicorn(fn string, ram map[uint32](uint32), checkIO bool, callback func(
 
 	// inputs
 	inputs, err := ioutil.ReadFile(fmt.Sprintf("%s/input", root))
-  check(err)
+	check(err)
 
 	mu.MemWrite(0x30000000, inputs[0:0xc0])
 
@@ -195,7 +195,7 @@ func RunUnicorn(fn string, ram map[uint32](uint32), checkIO bool, callback func(
 
 	if checkIO {
 		outputs, err := ioutil.ReadFile(fmt.Sprintf("%s/output", root))
-    check(err)
+		check(err)
 		real := append([]byte{0x13, 0x37, 0xf0, 0x0d}, outputs...)
 		output, _ := mu.MemRead(0x30000800, 0x44)
 		if bytes.Compare(real, output) != 0 {

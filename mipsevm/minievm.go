@@ -133,9 +133,9 @@ func (s *StateDB) GetState(fakeaddr common.Address, hash common.Hash) common.Has
 				}
 				key := fmt.Sprintf("%s/%s", s.root, hash)
 				value, err := ioutil.ReadFile(key)
-        if err != nil {
-          log.Fatal(err)
-        }
+				if err != nil {
+					log.Fatal(err)
+				}
 
 				WriteRam(ram, 0x31000000, uint32(len(value)))
 				value = append(value, 0, 0, 0)
