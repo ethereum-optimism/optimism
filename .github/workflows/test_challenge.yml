@@ -20,9 +20,11 @@ jobs:
       run: |
         npm install --global yarn
         yarn install
-    - name: Build minigeth and run default block (cache)
+    - name: Build minigeth and run block 13284469 (builds preimage cache)
       run: |
-        ./run_block.sh 13284469
+        (cd minigeth/ && go build)
+        mkdir -p /tmp/cannon
+        minigeth/go-ethereum 13284469
     - name: Install Python deps
       run: pip3 install -r mipigo/requirements.txt
     - name: Build minigeth for embedded
