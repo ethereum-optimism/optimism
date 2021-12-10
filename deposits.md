@@ -39,11 +39,17 @@ Picking a high identifier minimizes the risk that the identifier will be used be
 transaction type on the L1 chain in the future. We don't pick `0x7F` itself in case it becomes used
 for a variable-length encoding scheme.
 
+### Uses of the Deposit Transaction Type
+
 Although in practice we define only one new transaction type we can distinguish between two distinct
-transactions which occur in the deposit block, based on their positioning. The first transaction
-MUST be a [L1 attributes deposit][l1-attributes-deposit], followed by a an array of zero-or-more
-[L1 transaction deposits][l1-transaction-deposits] submitted to the deposit feed contract by
-accounts on L1.
+situations which occur in the deposit block, based on their positioning.
+
+1. The first transaction MUST be a [L1 attributes deposit][l1-attributes-deposit], followed by
+2. an array of zero-or-more [L1 transaction deposits][l1-transaction-deposits] submitted to the
+deposit feed contract on L1.
+
+The rationale for creating only one new transaction type is to minimize both
+modifications to L1 client software and complexity in general.
 
 > **TODO** Specify and link to deposit blocks
 
