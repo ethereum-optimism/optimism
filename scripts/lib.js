@@ -56,6 +56,14 @@ async function deployed() {
   return [c,m,mm]
 }
 
+class MissingHashError extends Error {
+  constructor(hash, offset) {
+    super("hash is missing")
+    this.hash = hash
+    this.offset = offset
+  }
+}
+
 async function getTrieNodesForCall(c, caddress, cdat, preimages) {
   let nodes = []
   while (1) {
@@ -83,6 +91,11 @@ async function getTrieNodesForCall(c, caddress, cdat, preimages) {
         const bin = Uint8Array.from(Buffer.from(node, 'base64').toString('binary'), c => c.charCodeAt(0))
         nodes.push(bin)
         continue
+      } else if (missing !== undefined && missing.length == 128) {
+        let hash = missing.slice(0, 64)
+        let offset = parseInt(missing.slice(64, 128), 16)
+        console.log("requested hash oracle", hash, offset)
+        throw new MissingHashError(hash, offset)
       } else {
         console.log(e)
         break
@@ -120,4 +133,4 @@ async function writeMemory(mm, root, addr, data, bytes32=false) {
   return root
 }
 
-module.exports = { deploy, deployed, getTrieNodesForCall, getBlockRlp, getTrieAtStep, writeMemory }
+module.exports = { deploy, deployed, getTrieNodesForCall, getBlockRlp, getTrieAtStep, writeMemory, MissingHashError }
