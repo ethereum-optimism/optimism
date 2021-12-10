@@ -56,7 +56,7 @@ describe("Exec with trie dynamic", function () {
   it("add should work", async function () {
     let root = trieAdd['root']
     for (let i = 0; i < 12; i++) {
-      root = await dynamicExecWithTrie(c, m, mm, root, trieAdd['preimages'], nil)
+      root = await dynamicExecWithTrie(c, m, mm, root, trieAdd['preimages'], null)
       console.log(i, root)
     }
   })

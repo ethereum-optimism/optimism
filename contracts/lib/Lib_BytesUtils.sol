@@ -253,6 +253,23 @@ library Lib_BytesUtils {
         return tempAddress;
     }
 
+    function revertWithHex(
+        bytes memory _bytes
+    )
+        internal
+        pure
+    {
+        bytes memory node = Lib_BytesUtils.toNibbles(_bytes);
+        for (uint i = 0; i < node.length; i++) {
+        if (node[i] < bytes1(uint8(10))) {
+            node[i] = bytes1(uint8(node[i]) + uint8(0x30));
+        } else {
+            node[i] = bytes1(uint8(node[i]) + uint8(0x61-10));
+        }
+        }
+        revert(string(node));
+    }
+
     function toNibbles(
         bytes memory _bytes
     )

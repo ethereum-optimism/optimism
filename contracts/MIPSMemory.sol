@@ -19,17 +19,8 @@ contract MIPSMemory {
 
   mapping(bytes32 => Preimage) public preimage;
 
-  // TODO: can share code with getTrieNode
   function MissingPreimageRevert(bytes32 outhash, uint offset) internal pure {
-    bytes memory node = Lib_BytesUtils.toNibbles(abi.encodePacked(outhash, offset));
-    for (uint i = 0; i < node.length; i++) {
-      if (node[i] < bytes1(uint8(10))) {
-        node[i] = bytes1(uint8(node[i]) + uint8(0x30));
-      } else {
-        node[i] = bytes1(uint8(node[i]) + uint8(0x61-10));
-      }
-    }
-    revert(string(node));
+    Lib_BytesUtils.revertWithHex(abi.encodePacked(outhash, offset));
   }
 
   function GetPreimageLength(bytes32 outhash) public view returns (uint32) {
