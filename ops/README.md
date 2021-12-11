@@ -124,3 +124,23 @@ DATA_TRANSPORT_LAYER__POLLING_INTERVAL=100
 ROLLUP_POLL_INTERVAL_FLAG=500ms
 ```
 - [./envs/geth.env#L8](./envs/geth.env#L8)
+
+## Running from the mainnet fork
+
+It's possible to run L1 node from the existing chain. While doing so, you need to remember about configuring `dtl` starting block to avoid full blockchain scan.
+
+`l1_chain.env`:
+
+```
+FORK_URL=...
+FORK_STARTING_BLOCK=...
+...
+```
+
+`dtl.env`:
+
+```
+...
+DATA_TRANSPORT_LAYER__L1_START_HEIGHT=<most likely should be the same as FORK_STARTING_BLOCK>
+...
+```
