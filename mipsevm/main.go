@@ -58,7 +58,6 @@ func main() {
 					mu.RegWrite(uc.MIPS_REG_PC, 0x5ead0004)
 				}
 			}
-			// TODO: is this where the plus 1 goes?
 			lastStep = step + 1
 		})
 

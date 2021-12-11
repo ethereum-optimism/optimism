@@ -21,9 +21,9 @@ async function main() {
   /*const assertionRoot = "0x1111111111111111111111111111111111111111111111111111111111111111"
   let finalTrie = JSON.parse(fs.readFileSync("/tmp/cannon/0_"+blockNumberN.toString()+"/checkpoint_final.json"))*/
 
-  // we are submitting the (wrong) transition for block 10 as the attacker
-  const assertionRoot = "0x03f930c087b70f3385db68fe6bf128719e2d9a4b0a133e53b32db2fa25d345fd"
-  let finalTrie = JSON.parse(fs.readFileSync("/tmp/cannon/0_10/checkpoint_final.json"))
+  // we are submitting the (wrong) transition for block 13284469 as the attacker
+  const assertionRoot = "0xb0b8fc0cf929b8b7a1a31059e1dfb321e78ff0dfe5912d5c615beaf37ec608e7"
+  let finalTrie = JSON.parse(fs.readFileSync("/tmp/cannon/0_13284491/checkpoint_final.json"))
 
   let preimages = Object.assign({}, startTrie['preimages'], finalTrie['preimages']);
   const finalSystemState = finalTrie['root']
