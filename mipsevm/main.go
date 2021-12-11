@@ -49,7 +49,7 @@ func main() {
 		mu := GetHookedUnicorn(root, ram, func(step int, mu uc.Unicorn, ram map[uint32](uint32)) {
 			// it seems this runs before the actual step happens
 			// this can be raised to 10,000,000 if the files are too large
-			if (target == -1 && step%10000000 == 0) || step == target {
+			if (target == -1 && step%100000000 == 0) || step == target {
 				SyncRegs(mu, ram)
 				fn := fmt.Sprintf("%s/checkpoint_%d.json", root, step)
 				WriteCheckpoint(ram, fn, step)
