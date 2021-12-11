@@ -16,10 +16,10 @@ It's half geth, half of what I think truebit was supposed to be. It can prove L1
 ## Directory Layout
 
 ```
-contracts -- A Merkleized MIPS processor on chain + the challenge logic
 minigeth -- A standalone "geth" capable of computing a block transition
 mipigo -- minigeth compiled for MIPS. Outputs a MIPS binary that's run and mapped at 0x0
-mipsevm -- A MIPS runtime in the EVM
+mipsevm -- A MIPS runtime in the EVM (works with contracts)
+contracts -- A Merkleized MIPS processor on chain + the challenge logic
 ```
 
 ## Usage
