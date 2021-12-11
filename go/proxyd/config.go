@@ -27,7 +27,7 @@ type MetricsConfig struct {
 type BackendOptions struct {
 	ResponseTimeoutSeconds int   `toml:"response_timeout_seconds"`
 	MaxResponseSizeBytes   int64 `toml:"max_response_size_bytes"`
-	MaxRetries             int   `toml:"backend_retries"`
+	MaxRetries             int   `toml:"max_retries"`
 	OutOfServiceSeconds    int   `toml:"out_of_service_seconds"`
 }
 
