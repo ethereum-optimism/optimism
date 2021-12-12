@@ -1,3 +1,6 @@
 [submodule "tests"]
 	path = l2geth/tests/testdata
 	url = https://github.com/ethereum/tests
+[submodule "integration-tests/actor-tests/synthetix"]
+	path = integration-tests/actor-tests/synthetix
+	url = git@github.com:Synthetixio/synthetix.git
