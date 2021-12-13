@@ -1,0 +1,19 @@
+services:
+  batch_submitter:
+    depends_on:
+      - l1_chain
+      - deployer
+      - l2geth
+    build:
+      context: ..
+      dockerfile: ./ops/docker/Dockerfile.packages
+      target: batch-submitter
+    entrypoint: ./batches.sh
+    env_file:
+      - ./envs/batches.env
+    environment:
+        L1_NODE_WEB3_URL: http://l1_chain:8545
+        L2_NODE_WEB3_URL: http://l2geth:8545
+        URL: http://deployer:8081/addresses.json
+        SEQUENCER_PRIVATE_KEY: "0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d"
+        PROPOSER_PRIVATE_KEY: "0x5de4111afa1a4b94908f83103eb1f1706367c2e68ca870fc3fb9a804cdab365a"

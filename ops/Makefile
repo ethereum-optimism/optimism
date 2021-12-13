@@ -1,46 +1,45 @@
+BATCH_SUBMITTER ?= docker-compose.ts-batch-submitter.yml
+DOCKER_COMPOSE_CMD := docker-compose \
+	-f docker-compose.yml \
+	-f $(BATCH_SUBMITTER)
+
 build:
 	DOCKER_BUILDKIT=1 \
-	docker-compose \
-		-f docker-compose.yml build
+	$(DOCKER_COMPOSE_CMD) \
+		build
 .PHONY: build
 
 up: down
 	DOCKER_BUILDKIT=1 \
-	docker-compose \
-		-f docker-compose.yml \
+	$(DOCKER_COMPOSE_CMD) \
 		up --build --detach
 .PHONY: up
 
 down:
-	docker-compose \
-		-f docker-compose.yml \
+	$(DOCKER_COMPOSE_CMD) \
 		down
 .PHONY: down
 
 ps:
-	docker-compose \
-		-f docker-compose.yml \
+	$(DOCKER_COMPOSE_CMD) \
 		ps
 .PHONY: ps
 
 up-metrics: down-metrics
 	DOCKER_BUILDKIT=1 \
-	docker-compose \
-		-f docker-compose.yml \
+	$(DOCKER_COMPOSE_CMD) \
 		-f docker-compose-metrics.yml \
 		up --build --detach
 .PHONY: up-metrics
 
 down-metrics:
-	docker-compose \
-		-f docker-compose.yml \
+	$(DOCKER_COMPOSE_CMD) \
 		-f docker-compose-metrics.yml \
 		down
 .PHONY: down-metrics
 
 ps-metrics:
-	docker-compose \
-		-f docker-compose.yml \
+	$(DOCKER_COMPOSE_CMD) \
 		-f docker-compose-metrics.yml \
 		ps
 .PHONY: ps
