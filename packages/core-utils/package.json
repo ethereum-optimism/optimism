@@ -12,7 +12,7 @@
     "build": "tsc -p tsconfig.build.json",
     "clean": "rimraf dist/ ./tsconfig.build.tsbuildinfo",
     "lint": "yarn lint:fix && yarn lint:check",
-    "lint:check": "eslint .",
+    "lint:check": "eslint . --max-warnings=0",
     "lint:fix": "yarn lint:check --fix",
     "pre-commit": "lint-staged",
     "test": "ts-mocha test/*.spec.ts",

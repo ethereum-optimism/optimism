@@ -87,7 +87,10 @@ actor('Uniswap swapper', () => {
       let tx = await token.transfer(wallet.address, 1000000)
       await tx.wait()
       const boundToken = token.connect(wallet)
-      tx = await boundToken.approve(contracts.positionManager.address, 1000000000)
+      tx = await boundToken.approve(
+        contracts.positionManager.address,
+        1000000000
+      )
       await tx.wait()
       tx = await boundToken.approve(contracts.router.address, 1000000000)
       await tx.wait()

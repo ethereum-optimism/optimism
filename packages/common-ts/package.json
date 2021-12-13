@@ -11,7 +11,7 @@
     "all": "yarn clean && yarn build && yarn test && yarn lint:fix && yarn lint",
     "build": "tsc -p tsconfig.build.json",
     "clean": "rimraf dist/ ./tsconfig.build.tsbuildinfo",
-    "lint:check": "eslint .",
+    "lint:check": "eslint . --max-warnings=0",
     "lint:fix": "yarn lint:check --fix",
     "lint": "yarn lint:fix && yarn lint:check",
     "pre-commit": "lint-staged",

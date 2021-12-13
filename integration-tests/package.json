@@ -6,7 +6,7 @@
   "scripts": {
     "lint": "yarn lint:fix && yarn lint:check",
     "lint:fix": "yarn lint:check --fix",
-    "lint:check": "eslint .",
+    "lint:check": "eslint . --max-warnings=0",
     "build": "hardhat compile",
     "test:integration": "hardhat --network optimism test",
     "test:actor": "IS_LIVE_NETWORK=true ts-node actor-tests/lib/runner.ts",
