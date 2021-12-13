@@ -11,6 +11,12 @@ import (
 	l2rlp "github.com/ethereum-optimism/optimism/l2geth/rlp"
 )
 
+const (
+	// TxLenSize is the number of bytes used to represent the size of a
+	// serialized sequencer transaction.
+	TxLenSize = 3
+)
+
 var byteOrder = binary.BigEndian
 
 // BatchContext denotes a range of transactions that belong the same batch. It
@@ -111,7 +117,7 @@ func (p *AppendSequencerBatchParams) Write(w *bytes.Buffer) error {
 
 	// Write each length-prefixed tx.
 	for _, tx := range p.Txs {
-		writeUint64(w, uint64(tx.Size()), 3)
+		writeUint64(w, uint64(tx.Size()), TxLenSize)
 		_, _ = w.Write(tx.RawTx()) // can't fail for bytes.Buffer
 	}
 
@@ -166,7 +172,7 @@ func (p *AppendSequencerBatchParams) Read(r io.Reader) error {
 	// from the encoding, loop until the stream is consumed.
 	for {
 		var txLen uint64
-		err := readUint64(r, &txLen, 3)
+		err := readUint64(r, &txLen, TxLenSize)
 		// Getting an EOF when reading the txLen expected for a cleanly
 		// encoded object. Silece the error and return success.
 		if err == io.EOF {

@@ -3,7 +3,6 @@ package sequencer
 import (
 	"context"
 	"crypto/ecdsa"
-	"encoding/hex"
 	"fmt"
 	"math/big"
 	"strings"
@@ -11,7 +10,6 @@ import (
 
 	"github.com/ethereum-optimism/optimism/go/batch-submitter/bindings/ctc"
 	"github.com/ethereum-optimism/optimism/go/batch-submitter/metrics"
-	l2types "github.com/ethereum-optimism/optimism/l2geth/core/types"
 	l2ethclient "github.com/ethereum-optimism/optimism/l2geth/ethclient"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
@@ -147,22 +145,33 @@ func (d *Driver) SubmitBatchTx(
 
 	batchTxBuildStart := time.Now()
 
-	var blocks []*l2types.Block
+	var (
+		batchElements []BatchElement
+		totalTxSize   uint64
+	)
 	for i := new(big.Int).Set(start); i.Cmp(end) < 0; i.Add(i, bigOne) {
 		block, err := d.cfg.L2Client.BlockByNumber(ctx, i)
 		if err != nil {
 			return nil, err
 		}
 
-		blocks = append(blocks, block)
+		// For each sequencer transaction, update our running total with the
+		// size of the transaction.
+		batchElement := BatchElementFromBlock(block)
+		if batchElement.IsSequencerTx() {
+			// Abort once the total size estimate is greater than the maximum
+			// configured size. This is a conservative estimate, as the total
+			// calldata size will be greater when batch contexts are included.
+			// Below this set will be further whittled until the raw call data
+			// size also adheres to this constraint.
+			txLen := batchElement.Tx.Size()
+			if totalTxSize+uint64(TxLenSize+txLen) > d.cfg.MaxTxSize {
+				break
+			}
+			totalTxSize += uint64(TxLenSize + txLen)
+		}
 
-		// TODO(conner): remove when moving to multiple blocks
-		break //nolint
-	}
-
-	var batchElements = make([]BatchElement, 0, len(blocks))
-	for _, block := range blocks {
-		batchElements = append(batchElements, BatchElementFromBlock(block))
+		batchElements = append(batchElements, batchElement)
 	}
 
 	shouldStartAt := start.Uint64()
@@ -174,8 +183,6 @@ func (d *Driver) SubmitBatchTx(
 			return nil, err
 		}
 
-		log.Info(name+" batch params", "params", fmt.Sprintf("%#v", batchParams))
-
 		batchArguments, err := batchParams.Serialize()
 		if err != nil {
 			return nil, err
@@ -184,16 +191,20 @@ func (d *Driver) SubmitBatchTx(
 		appendSequencerBatchID := d.ctcABI.Methods[appendSequencerBatchMethodName].ID
 		batchCallData := append(appendSequencerBatchID, batchArguments...)
 
+		// Continue pruning until calldata size is less than configured max.
 		if uint64(len(batchCallData)) > d.cfg.MaxTxSize {
-			panic("call data too large")
+			newBatchElementsLen := (len(batchElements) * 9) / 10
+			batchElements = batchElements[:newBatchElementsLen]
+			continue
 		}
 
 		// Record the batch_tx_build_time.
 		batchTxBuildTime := float64(time.Since(batchTxBuildStart) / time.Millisecond)
 		d.metrics.BatchTxBuildTime.Set(batchTxBuildTime)
-		d.metrics.NumTxPerBatch.Observe(float64(len(blocks)))
+		d.metrics.NumTxPerBatch.Observe(float64(len(batchElements)))
 
-		log.Info(name+" batch call data", "data", hex.EncodeToString(batchCallData))
+		log.Info(name+" batch constructed", "num_txs", len(batchElements),
+			"length", len(batchCallData))
 
 		opts, err := bind.NewKeyedTransactorWithChainID(
 			d.cfg.PrivKey, d.cfg.ChainID,
