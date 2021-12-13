@@ -19,7 +19,7 @@ describe('CrossChainProvider', () => {
   describe('getMessagesByTransaction', () => {
     describe('when a direction is specified', () => {
       describe('when the transaction exists', () => {
-        describe('when thetransaction has messages', () => {
+        describe('when the transaction has messages', () => {
           for (const n of [1, 2, 4, 8]) {
             it(`should find ${n} messages when the transaction emits ${n} messages`, () => {})
           }
@@ -156,6 +156,10 @@ describe('CrossChainProvider', () => {
         })
       })
     })
+
+    describe('when the message does not exist', () => {
+      it('should throw an error', () => {})
+    })
   })
 
   describe('getMessageReceipt', () => {
@@ -176,6 +180,10 @@ describe('CrossChainProvider', () => {
     describe('when the message has not been relayed', () => {
       it('should return null', () => {})
     })
+
+    describe('when the message does not exist', () => {
+      it('should throw an error', () => {})
+    })
   })
 
   describe('waitForMessageReciept', () => {
@@ -193,16 +201,14 @@ describe('CrossChainProvider', () => {
         it('should throw an error if the timeout is reached', () => {})
       })
     })
+
+    describe('when the message does not exist', () => {
+      it('should throw an error', () => {})
+    })
   })
 
-  describe('estimateMessageExecutionGas', () => {
-    describe('when the message is an L1 => L2 message', () => {
-      it('should perform a gas estimation of the L2 action', () => {})
-    })
-
-    describe('when the message is an L2 => L1 message', () => {
-      it('should perform a gas estimation of the L1 action, including the cost of the proof', () => {})
-    })
+  describe('estimateL2MessageGasLimit', () => {
+    it('should perform a gas estimation of the L2 action', () => {})
   })
 
   describe('estimateMessageWaitTimeBlocks', () => {
@@ -219,7 +225,7 @@ describe('CrossChainProvider', () => {
 
       describe('when the message is an L2 => L1 message', () => {
         describe('when the state root has not been published', () => {
-          it('should return null', () => {})
+          it('should return the estimated blocks until the state root will be published and pass the challenge period', () => {})
         })
 
         describe('when the state root is within the challenge period', () => {

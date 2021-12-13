@@ -5,56 +5,20 @@ describe('CrossChainERC20Pair', () => {
   describe('construction', () => {
     it('should have a messenger', () => {})
 
-    describe('when only an L1 token is provided', () => {
-      describe('when the token is a standard bridge token', () => {
-        it('should resolve an L2 token from the token list', () => {})
-      })
-
-      describe('when the token is ETH', () => {
-        it('should resolve the L2 ETH token address', () => {})
-      })
-
-      describe('when the token is SNX', () => {
-        it('should resolve the L2 SNX token address', () => {})
-      })
-
-      describe('when the token is DAI', () => {
-        it('should resolve the L2 DAI token address', () => {})
-      })
-
-      describe('when the token is not a standard token or a special token', () => {
-        it('should throw an error', () => {})
-      })
+    describe('when the token is a standard bridge token', () => {
+      it('should resolve the correct bridge', () => {})
     })
 
-    describe('when only an L2 token is provided', () => {
-      describe('when the token is a standard bridge token', () => {
-        it('should resolve an L1 token from the token list', () => {})
-      })
-
-      describe('when the token is ETH', () => {
-        it('should resolve the L1 ETH token address', () => {})
-      })
-
-      describe('when the token is SNX', () => {
-        it('should resolve the L1 SNX token address', () => {})
-      })
-
-      describe('when the token is DAI', () => {
-        it('should resolve the L1 DAI token address', () => {})
-      })
-
-      describe('when the token is not a standard token or a special token', () => {
-        it('should throw an error', () => {})
-      })
+    describe('when the token is SNX', () => {
+      it('should resolve the correct bridge', () => {})
     })
 
-    describe('when both an L1 token and an L2 token are provided', () => {
-      it('should attach both instances', () => {})
+    describe('when the token is DAI', () => {
+      it('should resolve the correct bridge', () => {})
     })
 
-    describe('when neither an L1 token or an L2 token are provided', () => {
-      it('should throw an error', () => {})
+    describe('when a custom adapter is provided', () => {
+      it('should use the custom adapter', () => {})
     })
   })
 
@@ -121,11 +85,11 @@ describe('CrossChainERC20Pair', () => {
   })
 
   describe('estimateGas', () => {
-    describe('estimateGas', () => {
+    describe('deposit', () => {
       it('should estimate gas required for the transaction', () => {})
     })
 
-    describe('estimateGas', () => {
+    describe('withdraw', () => {
       it('should estimate gas required for the transaction', () => {})
     })
   })
