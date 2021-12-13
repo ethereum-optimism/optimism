@@ -119,8 +119,6 @@ func NewBatchSubmitter(cfg Config, gitVersion string) (*BatchSubmitter, error) {
 
 	log.Root().SetHandler(log.LvlFilterHandler(logLevel, logHandler))
 
-	log.Info("Config", "config", fmt.Sprintf("%#v", cfg))
-
 	// Parse sequencer private key and CTC contract address.
 	sequencerPrivKey, ctcAddress, err := parseWalletPrivKeyAndContractAddr(
 		"Sequencer", cfg.Mnemonic, cfg.SequencerHDPath,
@@ -171,7 +169,7 @@ func NewBatchSubmitter(cfg Config, gitVersion string) (*BatchSubmitter, error) {
 	var batchTxService *Service
 	if cfg.RunTxBatchSubmitter {
 		batchTxDriver, err := sequencer.NewDriver(sequencer.Config{
-			Name:        "SEQUENCER",
+			Name:        "Sequencer",
 			L1Client:    l1Client,
 			L2Client:    l2Client,
 			BlockOffset: cfg.BlockOffset,
@@ -196,7 +194,7 @@ func NewBatchSubmitter(cfg Config, gitVersion string) (*BatchSubmitter, error) {
 	var batchStateService *Service
 	if cfg.RunStateBatchSubmitter {
 		batchStateDriver, err := proposer.NewDriver(proposer.Config{
-			Name:        "PROPOSER",
+			Name:        "Proposer",
 			L1Client:    l1Client,
 			L2Client:    l2Client,
 			BlockOffset: cfg.BlockOffset,

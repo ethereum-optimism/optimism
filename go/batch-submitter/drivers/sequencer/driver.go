@@ -7,8 +7,10 @@ import (
 	"fmt"
 	"math/big"
 	"strings"
+	"time"
 
 	"github.com/ethereum-optimism/optimism/go/batch-submitter/bindings/ctc"
+	"github.com/ethereum-optimism/optimism/go/batch-submitter/metrics"
 	l2types "github.com/ethereum-optimism/optimism/l2geth/core/types"
 	l2ethclient "github.com/ethereum-optimism/optimism/l2geth/ethclient"
 	"github.com/ethereum/go-ethereum/accounts/abi"
@@ -43,6 +45,7 @@ type Driver struct {
 	rawCtcContract *bind.BoundContract
 	walletAddr     common.Address
 	ctcABI         *abi.ABI
+	metrics        *metrics.Metrics
 }
 
 func NewDriver(cfg Config) (*Driver, error) {
@@ -78,6 +81,7 @@ func NewDriver(cfg Config) (*Driver, error) {
 		rawCtcContract: rawCtcContract,
 		walletAddr:     walletAddr,
 		ctcABI:         ctcABI,
+		metrics:        metrics.NewMetrics(cfg.Name),
 	}, nil
 }
 
@@ -89,6 +93,11 @@ func (d *Driver) Name() string {
 // WalletAddr is the wallet address used to pay for batch transaction fees.
 func (d *Driver) WalletAddr() common.Address {
 	return d.walletAddr
+}
+
+// Metrics returns the subservice telemetry object.
+func (d *Driver) Metrics() *metrics.Metrics {
+	return d.metrics
 }
 
 // GetBatchBlockRange returns the start and end L2 block heights that need to be
@@ -136,6 +145,8 @@ func (d *Driver) SubmitBatchTx(
 	log.Info(name+" submitting batch tx", "start", start, "end", end,
 		"gasPrice", gasPrice)
 
+	batchTxBuildStart := time.Now()
+
 	var blocks []*l2types.Block
 	for i := new(big.Int).Set(start); i.Cmp(end) < 0; i.Add(i, bigOne) {
 		block, err := d.cfg.L2Client.BlockByNumber(ctx, i)
@@ -175,6 +186,11 @@ func (d *Driver) SubmitBatchTx(
 	if uint64(len(batchCallData)) > d.cfg.MaxTxSize {
 		panic("call data too large")
 	}
+
+	// Record the batch_tx_build_time.
+	batchTxBuildTime := float64(time.Since(batchTxBuildStart) / time.Millisecond)
+	d.metrics.BatchTxBuildTime.Set(batchTxBuildTime)
+	d.metrics.NumTxPerBatch.Observe(float64(len(blocks)))
 
 	log.Info(name+" batch call data", "data", hex.EncodeToString(batchCallData))
 
