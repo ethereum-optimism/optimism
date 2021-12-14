@@ -248,7 +248,7 @@ the descendant of an ancestor of the previous head). In those case, the rollup d
 2. If the call returns `"SUCCESS"`, we are done: the execution engine retrieved all the new L2 blocks via [block sync].
 3. Otherwise the call returns `"SYNCING"`, and we must derive the new blocks ourselves. Start by locating the *common
    ancestor*, a block that is an ancestor of both the previous and new head.
-4. Isolate the range of L1 blocks `]common ancestor, ..., new head]`.
+4. Isolate the range of L1 blocks from `common ancestor` (excluded) to `new head` (included).
 5. For each such block, call [`engine_forkchoiceUpdatedOPV1`], [`engine_getPayloadV1`], and [`engine_executePayloadV1`].
    - Fill the [`PayloadAttributesOPV1`] object according to [the section on payload attributes][payload-attr].
    - Fill the [`ForkchoiceStateV1`] object according to [the section on the execution engine][calling-exec-engine], but
