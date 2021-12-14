@@ -166,43 +166,45 @@ func (d *Driver) SubmitBatchTx(
 	}
 
 	shouldStartAt := start.Uint64()
-	batchParams, err := GenSequencerBatchParams(
-		shouldStartAt, d.cfg.BlockOffset, batchElements,
-	)
-	if err != nil {
-		return nil, err
+	for {
+		batchParams, err := GenSequencerBatchParams(
+			shouldStartAt, d.cfg.BlockOffset, batchElements,
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		log.Info(name+" batch params", "params", fmt.Sprintf("%#v", batchParams))
+
+		batchArguments, err := batchParams.Serialize()
+		if err != nil {
+			return nil, err
+		}
+
+		appendSequencerBatchID := d.ctcABI.Methods[appendSequencerBatchMethodName].ID
+		batchCallData := append(appendSequencerBatchID, batchArguments...)
+
+		if uint64(len(batchCallData)) > d.cfg.MaxTxSize {
+			panic("call data too large")
+		}
+
+		// Record the batch_tx_build_time.
+		batchTxBuildTime := float64(time.Since(batchTxBuildStart) / time.Millisecond)
+		d.metrics.BatchTxBuildTime.Set(batchTxBuildTime)
+		d.metrics.NumTxPerBatch.Observe(float64(len(blocks)))
+
+		log.Info(name+" batch call data", "data", hex.EncodeToString(batchCallData))
+
+		opts, err := bind.NewKeyedTransactorWithChainID(
+			d.cfg.PrivKey, d.cfg.ChainID,
+		)
+		if err != nil {
+			return nil, err
+		}
+		opts.Nonce = nonce
+		opts.Context = ctx
+		opts.GasPrice = gasPrice
+
+		return d.rawCtcContract.RawTransact(opts, batchCallData)
 	}
-
-	log.Info(name+" batch params", "params", fmt.Sprintf("%#v", batchParams))
-
-	batchArguments, err := batchParams.Serialize()
-	if err != nil {
-		return nil, err
-	}
-
-	appendSequencerBatchID := d.ctcABI.Methods[appendSequencerBatchMethodName].ID
-	batchCallData := append(appendSequencerBatchID, batchArguments...)
-
-	if uint64(len(batchCallData)) > d.cfg.MaxTxSize {
-		panic("call data too large")
-	}
-
-	// Record the batch_tx_build_time.
-	batchTxBuildTime := float64(time.Since(batchTxBuildStart) / time.Millisecond)
-	d.metrics.BatchTxBuildTime.Set(batchTxBuildTime)
-	d.metrics.NumTxPerBatch.Observe(float64(len(blocks)))
-
-	log.Info(name+" batch call data", "data", hex.EncodeToString(batchCallData))
-
-	opts, err := bind.NewKeyedTransactorWithChainID(
-		d.cfg.PrivKey, d.cfg.ChainID,
-	)
-	if err != nil {
-		return nil, err
-	}
-	opts.Nonce = nonce
-	opts.Context = ctx
-	opts.GasPrice = gasPrice
-
-	return d.rawCtcContract.RawTransact(opts, batchCallData)
 }
