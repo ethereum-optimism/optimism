@@ -2,10 +2,11 @@ package proxyd
 
 import (
 	"context"
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promauto"
 	"strconv"
 	"strings"
+
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 )
 
 const (
@@ -144,6 +145,7 @@ var (
 		"gas price too high",
 		"gas price too low",
 		"invalid parameters",
+		"exceeds block gas limit",
 	}
 )
 
