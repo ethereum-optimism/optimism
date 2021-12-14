@@ -1,5 +1,11 @@
 # @eth-optimism/proxyd
 
+## 3.4.0
+
+### Minor Changes
+
+- 4b56ed84: Various proxyd fixes
+
 ## 3.3.0
 
 ### Minor Changes
