@@ -7,6 +7,7 @@ package types
 import (
 	"bytes"
 	"encoding/binary"
+	"fmt"
 	"math/big"
 
 	"github.com/ethereum-optimism/optimism/l2geth/common"
@@ -28,6 +29,19 @@ func (q QueueOrigin) String() string {
 		return "l1"
 	default:
 		return ""
+	}
+}
+
+func (q *QueueOrigin) UnmarshalJSON(b []byte) error {
+	switch string(b) {
+	case "\"sequencer\"":
+		*q = QueueOriginSequencer
+		return nil
+	case "\"l1\"":
+		*q = QueueOriginL1ToL2
+		return nil
+	default:
+		return fmt.Errorf("Unknown QueueOrigin: %q", b)
 	}
 }
 

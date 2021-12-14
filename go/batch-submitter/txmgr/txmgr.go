@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"math/big"
+	"strings"
 	"sync"
 	"time"
 
@@ -25,6 +26,8 @@ type SendTxFunc = func(
 
 // Config houses parameters for altering the behavior of a SimpleTxManager.
 type Config struct {
+	Name string
+
 	// MinGasPrice is the minimum gas price (in gwei). This is used as the
 	// initial publication attempt.
 	MinGasPrice *big.Int
@@ -78,13 +81,17 @@ type ReceiptSource interface {
 // SimpleTxManager is a implementation of TxManager that performs linear fee
 // bumping of a tx until it confirms.
 type SimpleTxManager struct {
+	name    string
 	cfg     Config
 	backend ReceiptSource
 }
 
 // NewSimpleTxManager initializes a new SimpleTxManager with the passed Config.
-func NewSimpleTxManager(cfg Config, backend ReceiptSource) *SimpleTxManager {
+func NewSimpleTxManager(
+	name string, cfg Config, backend ReceiptSource) *SimpleTxManager {
+
 	return &SimpleTxManager{
+		name:    name,
 		cfg:     cfg,
 		backend: backend,
 	}
@@ -98,6 +105,8 @@ func NewSimpleTxManager(cfg Config, backend ReceiptSource) *SimpleTxManager {
 // NOTE: Send should be called by AT MOST one caller at a time.
 func (m *SimpleTxManager) Send(
 	ctx context.Context, sendTx SendTxFunc) (*types.Receipt, error) {
+
+	name := m.name
 
 	// Initialize a wait group to track any spawned goroutines, and ensure
 	// we properly clean up any dangling resources this method generates.
@@ -121,14 +130,18 @@ func (m *SimpleTxManager) Send(
 		// Sign and publish transaction with current gas price.
 		tx, err := sendTx(ctxc, gasPrice)
 		if err != nil {
-			log.Error("Unable to publish transaction",
+			if err == context.Canceled ||
+				strings.Contains(err.Error(), "context canceled") {
+				return
+			}
+			log.Error(name+" unable to publish transaction",
 				"gas_price", gasPrice, "err", err)
 			// TODO(conner): add retry?
 			return
 		}
 
 		txHash := tx.Hash()
-		log.Info("Transaction published successfully", "hash", txHash,
+		log.Info(name+" transaction published successfully", "hash", txHash,
 			"gas_price", gasPrice)
 
 		// Wait for the transaction to be mined, reporting the receipt
@@ -137,7 +150,7 @@ func (m *SimpleTxManager) Send(
 			ctxc, m.backend, tx, m.cfg.ReceiptQueryInterval,
 		)
 		if err != nil {
-			log.Trace("Send tx failed", "hash", txHash,
+			log.Debug(name+" send tx failed", "hash", txHash,
 				"gas_price", gasPrice, "err", err)
 		}
 		if receipt != nil {
@@ -145,7 +158,7 @@ func (m *SimpleTxManager) Send(
 			// if more than one receipt is discovered.
 			select {
 			case receiptChan <- receipt:
-				log.Trace("Send tx succeeded", "hash", txHash,
+				log.Trace(name+" send tx succeeded", "hash", txHash,
 					"gas_price", gasPrice)
 			default:
 			}

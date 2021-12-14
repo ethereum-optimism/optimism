@@ -145,15 +145,13 @@ export interface ICrossChainProvider {
   ): Promise<MessageReceipt>
 
   /**
-   * Estimates the amount of gas required to fully execute a given message. Behavior of this
-   * function depends on the direction of the message. If the message is an L1 to L2 message,
-   * then this will estimate the amount of gas required to execute the message on L2. If the
-   * message is an L2 to L1 message, then this estimate will also include the amount of gas
-   * required to execute the Merkle Patricia Trie proof on L1.
+   * Estimates the amount of gas required to fully execute a given message on L2. Only applies to
+   * L1 => L2 messages. You would supply this gas limit when sending the message to L2.
    *
    * @param message Message get a gas estimate for.
+   * @returns Estimates L2 gas limit.
    */
-  estimateMessageExecutionGas(message: MessageLike): Promise<BigNumber>
+  estimateL2MessageGasLimit(message: MessageLike): Promise<BigNumber>
 
   /**
    * Returns the estimated amount of time before the message can be executed. When this is a
