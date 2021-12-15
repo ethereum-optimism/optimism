@@ -7,6 +7,8 @@ services:
     build:
       context: ./docker/hardhat
       dockerfile: Dockerfile
+    env_file:
+      -  ./envs/l1_chain.env
     ports:
         # expose the service to the host for integration testing
       - ${L1CHAIN_HTTP_PORT:-9545}:8545
@@ -26,12 +28,13 @@ services:
         DEPLOYER_PRIVATE_KEY: "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
         SEQUENCER_PRIVATE_KEY: "0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d"
         PROPOSER_PRIVATE_KEY: "0x5de4111afa1a4b94908f83103eb1f1706367c2e68ca870fc3fb9a804cdab365a"
-        GAS_PRICE_ORACLE_OWNER: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
+        # Default hardhat account 5
+        GAS_PRICE_ORACLE_OWNER: "0x9965507d1a55bcc2695c58ba16fb37d819b0a4dc"
         # setting the whitelist owner to address(0) disables the whitelist
         WHITELIST_OWNER: "0x0000000000000000000000000000000000000000"
         L1_FEE_WALLET_ADDRESS: "0x391716d440c151c42cdf1c95c1d83a5427bca52c"
         L2_CHAIN_ID: 420
-        L2_BLOCK_GAS_LIMIT: 11000000
+        L2_BLOCK_GAS_LIMIT: 15000000
         BLOCK_SIGNER_ADDRESS: "0x00000398232E2064F896018496b4b44b3D62751F"
         GAS_PRICE_ORACLE_OVERHEAD: "2750"
         GAS_PRICE_ORACLE_SCALAR: "1500000"
@@ -119,25 +122,6 @@ services:
         POLLING_INTERVAL: 500
         GET_LOGS_INTERVAL: 500
 
-  batch_submitter:
-    depends_on:
-      - l1_chain
-      - deployer
-      - l2geth
-    build:
-      context: ..
-      dockerfile: ./ops/docker/Dockerfile.packages
-      target: batch-submitter
-    entrypoint: ./batches.sh
-    env_file:
-      - ./envs/batches.env
-    environment:
-        L1_NODE_WEB3_URL: http://l1_chain:8545
-        L2_NODE_WEB3_URL: http://l2geth:8545
-        URL: http://deployer:8081/addresses.json
-        SEQUENCER_PRIVATE_KEY: "0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d"
-        PROPOSER_PRIVATE_KEY: "0x5de4111afa1a4b94908f83103eb1f1706367c2e68ca870fc3fb9a804cdab365a"
-
   verifier:
     depends_on:
       - l1_chain
@@ -212,4 +196,5 @@ services:
     entrypoint: ./gas-oracle.sh
     environment:
       GAS_PRICE_ORACLE_ETHEREUM_HTTP_URL: http://l2geth:8545
-      GAS_PRICE_ORACLE_PRIVATE_KEY: "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
+      # Default hardhat account 5
+      GAS_PRICE_ORACLE_PRIVATE_KEY: "0x8b3a350cf5c34c9194ca85829a2df0ec3153be0318b5e2d3348e872092edffba"

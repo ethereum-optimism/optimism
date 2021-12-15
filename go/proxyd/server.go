@@ -117,7 +117,7 @@ func (s *Server) HandleRPC(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		log.Info("rejected request with bad rpc request", "source", "rpc", "err", err)
 		RecordRPCError(ctx, BackendProxyd, MethodUnknown, err)
-		writeRPCError(w, nil, err)
+		writeRPCError(ctx, w, nil, err)
 		return
 	}
 
@@ -132,7 +132,7 @@ func (s *Server) HandleRPC(w http.ResponseWriter, r *http.Request) {
 			"method", req.Method,
 		)
 		RecordRPCError(ctx, BackendProxyd, MethodUnknown, ErrMethodNotWhitelisted)
-		writeRPCError(w, req.ID, ErrMethodNotWhitelisted)
+		writeRPCError(ctx, w, req.ID, ErrMethodNotWhitelisted)
 		return
 	}
 
@@ -144,21 +144,11 @@ func (s *Server) HandleRPC(w http.ResponseWriter, r *http.Request) {
 			"req_id", GetReqID(ctx),
 			"err", err,
 		)
-		writeRPCError(w, req.ID, err)
+		writeRPCError(ctx, w, req.ID, err)
 		return
 	}
 
-	enc := json.NewEncoder(w)
-	if err := enc.Encode(backendRes); err != nil {
-		log.Error(
-			"error encoding response",
-			"req_id", GetReqID(ctx),
-			"err", err,
-		)
-		RecordRPCError(ctx, BackendProxyd, req.Method, err)
-		writeRPCError(w, req.ID, err)
-		return
-	}
+	writeRPCRes(ctx, w, backendRes)
 }
 
 func (s *Server) HandleWS(w http.ResponseWriter, r *http.Request) {
@@ -232,20 +222,17 @@ func (s *Server) populateContext(w http.ResponseWriter, r *http.Request) context
 	)
 }
 
-func writeRPCError(w http.ResponseWriter, id *int, err error) {
+func writeRPCError(ctx context.Context, w http.ResponseWriter, id json.RawMessage, err error) {
 	var res *RPCRes
 	if r, ok := err.(*RPCErr); ok {
 		res = NewRPCErrorRes(id, r)
 	} else {
-		res = NewRPCErrorRes(id, &RPCErr{
-			Code:    JSONRPCErrorInternal,
-			Message: "internal error",
-		})
+		res = NewRPCErrorRes(id, ErrInternal)
 	}
-	writeRPCRes(w, res)
+	writeRPCRes(ctx, w, res)
 }
 
-func writeRPCRes(w http.ResponseWriter, res *RPCRes) {
+func writeRPCRes(ctx context.Context, w http.ResponseWriter, res *RPCRes) {
 	statusCode := 200
 	if res.IsError() && res.Error.HTTPErrorCode != 0 {
 		statusCode = res.Error.HTTPErrorCode
@@ -254,13 +241,14 @@ func writeRPCRes(w http.ResponseWriter, res *RPCRes) {
 	enc := json.NewEncoder(w)
 	if err := enc.Encode(res); err != nil {
 		log.Error("error writing rpc response", "err", err)
+		RecordRPCError(ctx, BackendProxyd, MethodUnknown, err)
+		return
 	}
 	httpResponseCodesTotal.WithLabelValues(strconv.Itoa(statusCode)).Inc()
 }
 
 func instrumentedHdlr(h http.Handler) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		httpRequestsTotal.Inc()
 		respTimer := prometheus.NewTimer(httpRequestDurationSumm)
 		h.ServeHTTP(w, r)
 		respTimer.ObserveDuration()

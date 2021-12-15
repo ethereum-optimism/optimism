@@ -1,5 +1,23 @@
 # @eth-optimism/proxyd
 
+## 3.4.0
+
+### Minor Changes
+
+- 4b56ed84: Various proxyd fixes
+
+## 3.3.0
+
+### Minor Changes
+
+- 7b7ffd2e: Allows string RPC ids on proxyd
+
+## 3.2.0
+
+### Minor Changes
+
+- 73484138: Adds ability to specify env vars in config
+
 ## 3.1.2
 
 ### Patch Changes

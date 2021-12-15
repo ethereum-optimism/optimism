@@ -3,6 +3,12 @@
   "compilerOptions": {
       "resolveJsonModule": true
   },
-  "include": ["./test", "sync-tests/*.ts", "./artifacts/**/*.json"],
+  "include": [
+    "./test",
+    "sync-tests/*.ts",
+    "./actor-tests/**/*.ts",
+    "./artifacts/**/*.json",
+    "./package.json"
+  ],
   "files": ["./hardhat.config.ts"]
 }

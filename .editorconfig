@@ -11,3 +11,7 @@ trim_trailing_whitespace = true
 
 [*.sol]
 indent_size = 4
+
+[*.go]
+indent_size = 4
+indent_style = tab

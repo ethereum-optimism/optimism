@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.4
+
+### Patch Changes
+
+- d205c1d6: surface sequencer low-level sequencer execution errors
+
 ## 0.5.3
 
 ### Patch Changes

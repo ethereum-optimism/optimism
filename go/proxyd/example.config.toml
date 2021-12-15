@@ -44,11 +44,15 @@ out_of_service_seconds = 600
 [backends]
 # A map of backends by name.
 [backends.infura]
-# The URL to contact the backend at.
+# The URL to contact the backend at. Will be read from the environment
+# if an environment variable prefixed with $ is provided.
 rpc_url = ""
-# The WS URL to contact the backend at.
+# The WS URL to contact the backend at. Will be read from the environment
+# if an environment variable prefixed with $ is provided.
 ws_url = ""
 username = ""
+# An HTTP Basic password to authenticate with the backend. Will be read from
+# the environment if an environment variable prefixed with $ is provided.
 password = ""
 max_rps = 3
 max_ws_conns = 1
@@ -60,7 +64,6 @@ client_cert_file = ""
 client_key_file = ""
 
 [backends.alchemy]
-# The URL to contact the backend at.
 rpc_url = ""
 ws_url = ""
 username = ""
@@ -79,7 +82,10 @@ backends = ["alchemy"]
 # proxyd will only accept authenticated requests.
 [authentication]
 # Mapping of auth key to alias. The alias is used to provide a human-
-# readable name for the auth key in monitoring.
+# readable name for the auth key in monitoring. The auth key will be
+# read from the environment if an environment variable prefixed with $
+# is provided. Note that you will need to quote the environment variable
+# in order for it to be value TOML, e.g. "$FOO_AUTH_KEY" = "foo_alias".
 secret = "test"
 
 # Mapping of methods to backend groups.

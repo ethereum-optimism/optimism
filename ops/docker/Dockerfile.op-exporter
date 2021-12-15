@@ -1,0 +1,12 @@
+FROM golang:1.16 as builder
+
+ADD ./go/op-exporter /app/
+WORKDIR /app/
+RUN make build
+
+FROM alpine:latest
+RUN apk --no-cache add ca-certificates
+WORKDIR /root/
+COPY --from=builder /app/op-exporter /usr/local/bin/
+ENTRYPOINT ["op-exporter"]
+CMD ["--help"]

@@ -47,10 +47,18 @@ func Start(config *Config) error {
 	for name, cfg := range config.Backends {
 		opts := make([]BackendOpt, 0)
 
-		if cfg.RPCURL == "" {
+		rpcURL, err := ReadFromEnvOrConfig(cfg.RPCURL)
+		if err != nil {
+			return err
+		}
+		wsURL, err := ReadFromEnvOrConfig(cfg.WSURL)
+		if err != nil {
+			return err
+		}
+		if rpcURL == "" {
 			return fmt.Errorf("must define an RPC URL for backend %s", name)
 		}
-		if cfg.WSURL == "" {
+		if wsURL == "" {
 			return fmt.Errorf("must define a WS URL for backend %s", name)
 		}
 
@@ -74,7 +82,11 @@ func Start(config *Config) error {
 			opts = append(opts, WithMaxWSConns(cfg.MaxWSConns))
 		}
 		if cfg.Password != "" {
-			opts = append(opts, WithBasicAuth(cfg.Username, cfg.Password))
+			passwordVal, err := ReadFromEnvOrConfig(cfg.Password)
+			if err != nil {
+				return err
+			}
+			opts = append(opts, WithBasicAuth(cfg.Username, passwordVal))
 		}
 		tlsConfig, err := configureBackendTLS(cfg)
 		if err != nil {
@@ -84,10 +96,10 @@ func Start(config *Config) error {
 			log.Info("using custom TLS config for backend", "name", name)
 			opts = append(opts, WithTLSConfig(tlsConfig))
 		}
-		back := NewBackend(name, cfg.RPCURL, cfg.WSURL, lim, opts...)
+		back := NewBackend(name, rpcURL, wsURL, lim, opts...)
 		backendNames = append(backendNames, name)
 		backendsByName[name] = back
-		log.Info("configured backend", "name", name, "rpc_url", cfg.RPCURL, "ws_url", cfg.WSURL)
+		log.Info("configured backend", "name", name, "rpc_url", rpcURL, "ws_url", wsURL)
 	}
 
 	backendGroups := make(map[string]*BackendGroup)
@@ -124,13 +136,26 @@ func Start(config *Config) error {
 		}
 	}
 
+	var resolvedAuth map[string]string
+
+	if config.Authentication != nil {
+		resolvedAuth = make(map[string]string)
+		for secret, alias := range config.Authentication {
+			resolvedSecret, err := ReadFromEnvOrConfig(secret)
+			if err != nil {
+				return err
+			}
+			resolvedAuth[resolvedSecret] = alias
+		}
+	}
+
 	srv := NewServer(
 		backendGroups,
 		wsBackendGroup,
 		NewStringSetFromStrings(config.WSMethodWhitelist),
 		config.RPCMethodMappings,
 		config.Server.MaxBodySizeBytes,
-		config.Authentication,
+		resolvedAuth,
 	)
 
 	if config.Metrics.Enabled {

@@ -140,6 +140,45 @@ describe('Basic RPC tests', () => {
         'gas required exceeds allowance'
       )
     })
+
+    it('should reject a transaction with too low of a fee', async () => {
+      if (isLiveNetwork()) {
+        console.log('Skipping too low of a fee test on live network')
+        return
+      }
+
+      const gasPrice = await env.gasPriceOracle.gasPrice()
+      await env.gasPriceOracle.setGasPrice(1000)
+
+      const tx = {
+        ...defaultTransactionFactory(),
+        gasPrice: 1,
+      }
+
+      await expect(env.l2Wallet.sendTransaction(tx)).to.be.rejectedWith(
+        `gas price too low: 1 wei, use at least tx.gasPrice = 1000 wei`
+      )
+      // Reset the gas price to its original price
+      await env.gasPriceOracle.setGasPrice(gasPrice)
+    })
+
+    it('should reject a transaction with too high of a fee', async () => {
+      if (isLiveNetwork()) {
+        console.log('Skpping too high of a fee test on live network')
+        return
+      }
+
+      const gasPrice = await env.gasPriceOracle.gasPrice()
+      const largeGasPrice = gasPrice.mul(10)
+      const tx = {
+        ...defaultTransactionFactory(),
+        gasPrice: largeGasPrice,
+      }
+      await expect(env.l2Wallet.sendTransaction(tx)).to.be.rejectedWith(
+        `gas price too high: ${largeGasPrice.toString()} wei, use at most ` +
+          `tx.gasPrice = ${gasPrice.toString()} wei`
+      )
+    })
   })
 
   describe('eth_call', () => {

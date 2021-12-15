@@ -30,9 +30,9 @@ export const color = Object.fromEntries(
   ])
 )
 
-export const getArtifact = (name: string) => {
-  // Paths to artifacts relative to artifacts/contracts
-  const locations = {
+// helper for finding the right artifact from the deployed name
+const locateArtifact = (name: string) => {
+  return {
     'ChainStorageContainer-CTC-batches':
       'L1/rollup/ChainStorageContainer.sol/ChainStorageContainer.json',
     'ChainStorageContainer-SCC-batches':
@@ -48,9 +48,12 @@ export const getArtifact = (name: string) => {
       'libraries/resolver/Lib_ResolvedDelegateProxy.sol/Lib_ResolvedDelegateProxy.json',
     Proxy__OVM_L1StandardBridge:
       'chugsplash/L1ChugSplashProxy.sol/L1ChugSplashProxy.json',
-  }
+  }[name]
+}
+
+export const getArtifactFromManagedName = (name: string) => {
   // eslint-disable-next-line @typescript-eslint/no-var-requires
-  return require(`../artifacts/contracts/${locations[name]}`)
+  return require(`../artifacts/contracts/${locateArtifact(name)}`)
 }
 
 export const getEtherscanUrl = (network, address: string) => {
@@ -63,26 +66,32 @@ const truncateLongString = (value: string): string => {
   return value.length > 66 ? `${value.slice(0, 66)}...` : value
 }
 
+export const printSectionHead = (msg: string) => {
+  console.log(color.cyan(msg))
+  console.log(
+    color.cyan('='.repeat(Math.max(...msg.split('\n').map((s) => s.length))))
+  )
+}
+
 export const printComparison = (
   action: string,
   description: string,
-  expected: { name: string; value: string },
-  deployed: { name: string; value: string }
+  expected: { name: string; value: any },
+  deployed: { name: string; value: any }
 ) => {
-  console.log(action + ':')
+  console.log(`\n${action}:`)
   if (hexStringEquals(expected.value, deployed.value)) {
     console.log(
-      color.green(
-        `${expected.name}: ${truncateLongString(expected.value)}
-      matches
-${deployed.name}: ${truncateLongString(deployed.value)}`
-      )
+      color.green(`${expected.name}: ${truncateLongString(expected.value)}`)
+    )
+    console.log('matches')
+    console.log(
+      color.green(`${deployed.name}: ${truncateLongString(deployed.value)}`)
     )
     console.log(color.green(`${description} looks good! 😎`))
   } else {
-    throw new Error(`${description} looks wrong.
-    ${expected.value}\ndoes not match\n${deployed.value}.
-    `)
+    throw new Error(
+      `${description} looks wrong. ${expected.value}\ndoes not match\n${deployed.value}.`
+    )
   }
-  console.log() // Add some whitespace
 }

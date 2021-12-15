@@ -25,11 +25,6 @@ const (
 )
 
 var (
-	ErrInvalidRequest = &RPCErr{
-		Code:          -32601,
-		Message:       "invalid request",
-		HTTPErrorCode: 400,
-	}
 	ErrParseErr = &RPCErr{
 		Code:          -32700,
 		Message:       "parse error",
@@ -66,6 +61,14 @@ var (
 		HTTPErrorCode: 500,
 	}
 )
+
+func ErrInvalidRequest(msg string) *RPCErr {
+	return &RPCErr{
+		Code:          -32601,
+		Message:       msg,
+		HTTPErrorCode: 400,
+	}
+}
 
 type Backend struct {
 	Name                 string
@@ -386,7 +389,7 @@ func (b *BackendGroup) Forward(ctx context.Context, rpcReq *RPCReq) (*RPCRes, er
 		if err != nil {
 			log.Error(
 				"error forwarding request to backend",
-				"name", b.Name,
+				"name", back.Name,
 				"req_id", GetReqID(ctx),
 				"auth", GetAuthCtx(ctx),
 				"err", err,
@@ -439,7 +442,7 @@ func (b *BackendGroup) ProxyWS(ctx context.Context, clientConn *websocket.Conn, 
 
 func calcBackoff(i int) time.Duration {
 	jitter := float64(rand.Int63n(250))
-	ms := math.Min(math.Pow(2, float64(i))*1000+jitter, 10000)
+	ms := math.Min(math.Pow(2, float64(i))*1000+jitter, 3000)
 	return time.Duration(ms) * time.Millisecond
 }
 
@@ -498,7 +501,7 @@ func (w *WSProxier) clientPump(ctx context.Context, errC chan error) {
 		// just handle them here.
 		req, err := w.prepareClientMsg(msg)
 		if err != nil {
-			var id *int
+			var id json.RawMessage
 			method := MethodUnknown
 			if req != nil {
 				id = req.ID
@@ -555,7 +558,7 @@ func (w *WSProxier) backendPump(ctx context.Context, errC chan error) {
 
 		res, err := w.parseBackendMsg(msg)
 		if err != nil {
-			var id *int
+			var id json.RawMessage
 			if res != nil {
 				id = res.ID
 			}

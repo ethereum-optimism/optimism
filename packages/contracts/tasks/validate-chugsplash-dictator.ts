@@ -3,13 +3,14 @@
 import { ethers } from 'ethers'
 import { task } from 'hardhat/config'
 import * as types from 'hardhat/internal/core/params/argumentTypes'
-import { getContractFactory } from '../src/contract-defs'
+import { getContractFactory, getContractDefinition } from '../src/contract-defs'
 
 import {
   getInput,
   color as c,
   getEtherscanUrl,
   printComparison,
+  printSectionHead,
 } from '../src/validation-utils'
 
 task('validate:chugsplash-dictator')
@@ -54,24 +55,24 @@ task('validate:chugsplash-dictator')
       )})`
     )
     await getInput(c.yellow('OK? Hit enter to continue.'))
+    console.log()
 
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const dictatorArtifact = require('../artifacts/contracts/L1/deployment/ChugSplashDictator.sol/ChugSplashDictator.json')
+    const dictatorArtifact = getContractDefinition('ChugSplashDictator')
     const dictatorCode = await provider.getCode(args.dictator)
-    console.log(
-      c.cyan(`
-Now validating the Chugsplash Dictator deployment at\n${getEtherscanUrl(
+    printSectionHead(
+      `Validate the Chugsplash Dictator deployment at\n${getEtherscanUrl(
         network,
         args.dictator
-      )}`)
+      )}`
     )
     printComparison(
-      'Comparing deployed ChugSplashDictator bytecode against local build artifacts',
+      'Compare the deployed ChugSplashDictator bytecode against local build artifacts',
       'Deployed ChugSplashDictator code',
       { name: 'Compiled bytecode', value: dictatorArtifact.deployedBytecode },
       { name: 'Deployed bytecode', value: dictatorCode }
     )
     await getInput(c.yellow('OK? Hit enter to continue.'))
+    console.log()
 
     console.log(
       c.cyan("The next 4 checks will validate the ChugSplashDictator's config")
@@ -82,12 +83,13 @@ Now validating the Chugsplash Dictator deployment at\n${getEtherscanUrl(
       .connect(provider)
     const finalOwner = await dictatorContract.finalOwner()
     printComparison(
-      '1. Comparing the finalOwner address in the ChugSplashDictator to the multisig address',
+      'Compare the finalOwner address in the ChugSplashDictator to the multisig address',
       'finalOwner',
       { name: 'multisig address', value: args.multisig },
       { name: 'finalOwner      ', value: finalOwner }
     )
     await getInput(c.yellow('OK? Hit enter to continue.'))
+    console.log()
 
     const dictatorMessengerSlotKey = await dictatorContract.messengerSlotKey()
     const dictatorMessengerSlotVal = await dictatorContract.messengerSlotVal()
@@ -96,7 +98,7 @@ Now validating the Chugsplash Dictator deployment at\n${getEtherscanUrl(
       dictatorMessengerSlotKey
     )
     printComparison(
-      '2. Comparing the messenger slot key/value to be set, with the current values in the proxy',
+      'Compare the Messenger slot key/value to be set, with the current values in the proxy',
       `Storage slot key ${dictatorMessengerSlotKey}`,
       {
         name: `Value in the proxy at slot key\n${dictatorMessengerSlotKey}`,
@@ -108,6 +110,7 @@ Now validating the Chugsplash Dictator deployment at\n${getEtherscanUrl(
       }
     )
     await getInput(c.yellow('OK? Hit enter to continue.'))
+    console.log()
 
     const dictatorBridgeSlotKey = await dictatorContract.bridgeSlotKey()
     const dictatorBridgeSlotVal = await dictatorContract.bridgeSlotVal()
@@ -116,7 +119,7 @@ Now validating the Chugsplash Dictator deployment at\n${getEtherscanUrl(
       dictatorBridgeSlotKey
     )
     printComparison(
-      '3. Comparing the _Bridge_ slot key/value to be set, with the current values in the proxy',
+      'Compare the Bridge slot key/value to be set, with the current values in the proxy',
       `Storage slot key ${dictatorBridgeSlotKey}`,
       {
         name: `Value currently in the proxy at slot key\n${dictatorBridgeSlotKey}`,
@@ -128,15 +131,15 @@ Now validating the Chugsplash Dictator deployment at\n${getEtherscanUrl(
       }
     )
     await getInput(c.yellow('OK? Hit enter to continue.'))
+    console.log()
 
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const bridgeArtifact = require('../artifacts/contracts/L1/messaging/L1StandardBridge.sol/L1StandardBridge.json')
+    const bridgeArtifact = getContractDefinition('L1StandardBridge')
     const expectedCodeHash = ethers.utils.keccak256(
       bridgeArtifact.deployedBytecode
     )
     const actualCodeHash = await dictatorContract.codeHash()
     printComparison(
-      "4. Comparing the Dictator's codeHash against hash of the local L1StandardBridge build artifacts",
+      "Compare the Dictator's codeHash against hash of the local L1StandardBridge build artifacts",
       "Dictator's codeHash",
       {
         name: 'Expected codeHash',
@@ -148,5 +151,6 @@ Now validating the Chugsplash Dictator deployment at\n${getEtherscanUrl(
       }
     )
     await getInput(c.yellow('OK? Hit enter to continue.'))
+    console.log()
     console.log(c.green('Chugsplash Dictator Validation complete!'))
   })

@@ -9,7 +9,7 @@ Then, run:
 yarn build
 ```
 
-## Running tests
+## Running integration tests
 
 ### Testing a live network
 
@@ -40,3 +40,12 @@ To run the Uniswap integration tests against a deployed set of Uniswap contracts
 UNISWAP_POSITION_MANAGER_ADDRESS=<non fungible position manager address>
 UNISWAP_ROUTER_ADDRESS=<router address>
 ```
+
+
+## Running actor tests
+
+Actor tests use the same environment variables as the integration tests, so set up your `.env` file if you haven't
+already. Then, run `yarn test:actor <args>` to run the tests. Note that it will be **very expensive** to run the actor
+tests against mainnet, and that the tests can take a while to complete.
+
+See [actor-tests/README.md](actor-tests/README.md) for information on actor tests. 

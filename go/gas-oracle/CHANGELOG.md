@@ -1,5 +1,17 @@
 # @eth-optimism/gas-oracle
 
+## 0.1.5
+
+### Patch Changes
+
+- 40b6c5bd: Update the flag parsing of the average block gas limit
+
+## 0.1.4
+
+### Patch Changes
+
+- 9eed33c4: fix rounding error in average gas/epoch calculation
+
 ## 0.1.3
 
 ### Patch Changes

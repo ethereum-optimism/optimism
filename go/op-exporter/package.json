@@ -1,0 +1,6 @@
+{
+  "name": "@eth-optimism/op-exporter",
+  "version": "0.5.2",
+  "private": true,
+  "devDependencies": {}
+}
