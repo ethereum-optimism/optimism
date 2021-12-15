@@ -1,0 +1,36 @@
+{
+    "methods": {
+        "applyL1ToL2Alias": {
+            "stateMutability": "pure",
+            "code": "function applyL1ToL2Alias(address _address) external pure returns (address)",
+            "inputs": {
+                "_address": {
+                    "type": "address"
+                }
+            },
+            "outputs": {
+                "_0": {
+                    "type": "address"
+                }
+            }
+        },
+        "undoL1ToL2Alias": {
+            "stateMutability": "pure",
+            "code": "function undoL1ToL2Alias(address _address) external pure returns (address)",
+            "inputs": {
+                "_address": {
+                    "type": "address"
+                }
+            },
+            "outputs": {
+                "_0": {
+                    "type": "address"
+                }
+            }
+        }
+    },
+    "events": {},
+    "errors": {},
+    "title": "TestLib_AddressAliasHelper",
+    "name": "TestLib_AddressAliasHelper"
+}

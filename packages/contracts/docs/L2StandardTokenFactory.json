@@ -1,0 +1,43 @@
+{
+    "methods": {
+        "createStandardL2Token": {
+            "stateMutability": "nonpayable",
+            "code": "function createStandardL2Token(address _l1Token, string _name, string _symbol) external nonpayable",
+            "inputs": {
+                "_l1Token": {
+                    "type": "address",
+                    "description": "Address of the corresponding L1 token."
+                },
+                "_name": {
+                    "type": "string",
+                    "description": "ERC20 name."
+                },
+                "_symbol": {
+                    "type": "string",
+                    "description": "ERC20 symbol."
+                }
+            },
+            "outputs": {},
+            "details": "Creates an instance of the standard ERC20 token on L2."
+        }
+    },
+    "events": {
+        "StandardL2TokenCreated": {
+            "code": "event StandardL2TokenCreated(address indexed _l1Token, address indexed _l2Token)",
+            "inputs": {
+                "_l1Token": {
+                    "type": "address",
+                    "indexed": true
+                },
+                "_l2Token": {
+                    "type": "address",
+                    "indexed": true
+                }
+            }
+        }
+    },
+    "errors": {},
+    "title": "L2StandardTokenFactory",
+    "details": "Factory contract for creating standard L2 token representations of L1 ERC20s compatible with and working on the standard bridge.",
+    "name": "L2StandardTokenFactory"
+}

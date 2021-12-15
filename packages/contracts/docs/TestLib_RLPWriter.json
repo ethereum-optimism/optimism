@@ -1,0 +1,106 @@
+{
+    "methods": {
+        "writeAddress": {
+            "stateMutability": "pure",
+            "code": "function writeAddress(address _in) external pure returns (bytes _out)",
+            "inputs": {
+                "_in": {
+                    "type": "address"
+                }
+            },
+            "outputs": {
+                "_out": {
+                    "type": "bytes"
+                }
+            }
+        },
+        "writeAddressWithTaintedMemory": {
+            "stateMutability": "nonpayable",
+            "code": "function writeAddressWithTaintedMemory(address _in) external nonpayable returns (bytes _out)",
+            "inputs": {
+                "_in": {
+                    "type": "address"
+                }
+            },
+            "outputs": {
+                "_out": {
+                    "type": "bytes"
+                }
+            }
+        },
+        "writeBool": {
+            "stateMutability": "pure",
+            "code": "function writeBool(bool _in) external pure returns (bytes _out)",
+            "inputs": {
+                "_in": {
+                    "type": "bool"
+                }
+            },
+            "outputs": {
+                "_out": {
+                    "type": "bytes"
+                }
+            }
+        },
+        "writeBytes": {
+            "stateMutability": "pure",
+            "code": "function writeBytes(bytes _in) external pure returns (bytes _out)",
+            "inputs": {
+                "_in": {
+                    "type": "bytes"
+                }
+            },
+            "outputs": {
+                "_out": {
+                    "type": "bytes"
+                }
+            }
+        },
+        "writeList": {
+            "stateMutability": "pure",
+            "code": "function writeList(bytes[] _in) external pure returns (bytes _out)",
+            "inputs": {
+                "_in": {
+                    "type": "bytes[]"
+                }
+            },
+            "outputs": {
+                "_out": {
+                    "type": "bytes"
+                }
+            }
+        },
+        "writeString": {
+            "stateMutability": "pure",
+            "code": "function writeString(string _in) external pure returns (bytes _out)",
+            "inputs": {
+                "_in": {
+                    "type": "string"
+                }
+            },
+            "outputs": {
+                "_out": {
+                    "type": "bytes"
+                }
+            }
+        },
+        "writeUint": {
+            "stateMutability": "pure",
+            "code": "function writeUint(uint256 _in) external pure returns (bytes _out)",
+            "inputs": {
+                "_in": {
+                    "type": "uint256"
+                }
+            },
+            "outputs": {
+                "_out": {
+                    "type": "bytes"
+                }
+            }
+        }
+    },
+    "events": {},
+    "errors": {},
+    "title": "TestLib_RLPWriter",
+    "name": "TestLib_RLPWriter"
+}

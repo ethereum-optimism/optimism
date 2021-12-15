@@ -1,0 +1,177 @@
+{
+    "methods": {
+        "allowance": {
+            "stateMutability": "view",
+            "code": "function allowance(address owner, address spender) external view returns (uint256)",
+            "inputs": {
+                "owner": {
+                    "type": "address"
+                },
+                "spender": {
+                    "type": "address"
+                }
+            },
+            "outputs": {
+                "_0": {
+                    "type": "uint256"
+                }
+            },
+            "details": "Returns the remaining number of tokens that `spender` will be allowed to spend on behalf of `owner` through {transferFrom}. This is zero by default. This value changes when {approve} or {transferFrom} are called."
+        },
+        "approve": {
+            "stateMutability": "nonpayable",
+            "code": "function approve(address spender, uint256 amount) external nonpayable returns (bool)",
+            "inputs": {
+                "spender": {
+                    "type": "address"
+                },
+                "amount": {
+                    "type": "uint256"
+                }
+            },
+            "outputs": {
+                "_0": {
+                    "type": "bool"
+                }
+            },
+            "details": "Sets `amount` as the allowance of `spender` over the caller's tokens. Returns a boolean value indicating whether the operation succeeded. IMPORTANT: Beware that changing an allowance with this method brings the risk that someone may use both the old and the new allowance by unfortunate transaction ordering. One possible solution to mitigate this race condition is to first reduce the spender's allowance to 0 and set the desired value afterwards: https://github.com/ethereum/EIPs/issues/20#issuecomment-263524729 Emits an {Approval} event."
+        },
+        "balanceOf": {
+            "stateMutability": "view",
+            "code": "function balanceOf(address account) external view returns (uint256)",
+            "inputs": {
+                "account": {
+                    "type": "address"
+                }
+            },
+            "outputs": {
+                "_0": {
+                    "type": "uint256"
+                }
+            },
+            "details": "Returns the amount of tokens owned by `account`."
+        },
+        "decimals": {
+            "stateMutability": "view",
+            "code": "function decimals() external view returns (uint8)",
+            "inputs": {},
+            "outputs": {
+                "_0": {
+                    "type": "uint8"
+                }
+            },
+            "details": "Returns the decimals places of the token."
+        },
+        "name": {
+            "stateMutability": "view",
+            "code": "function name() external view returns (string)",
+            "inputs": {},
+            "outputs": {
+                "_0": {
+                    "type": "string"
+                }
+            },
+            "details": "Returns the name of the token."
+        },
+        "symbol": {
+            "stateMutability": "view",
+            "code": "function symbol() external view returns (string)",
+            "inputs": {},
+            "outputs": {
+                "_0": {
+                    "type": "string"
+                }
+            },
+            "details": "Returns the symbol of the token."
+        },
+        "totalSupply": {
+            "stateMutability": "view",
+            "code": "function totalSupply() external view returns (uint256)",
+            "inputs": {},
+            "outputs": {
+                "_0": {
+                    "type": "uint256"
+                }
+            },
+            "details": "Returns the amount of tokens in existence."
+        },
+        "transfer": {
+            "stateMutability": "nonpayable",
+            "code": "function transfer(address recipient, uint256 amount) external nonpayable returns (bool)",
+            "inputs": {
+                "recipient": {
+                    "type": "address"
+                },
+                "amount": {
+                    "type": "uint256"
+                }
+            },
+            "outputs": {
+                "_0": {
+                    "type": "bool"
+                }
+            },
+            "details": "Moves `amount` tokens from the caller's account to `recipient`. Returns a boolean value indicating whether the operation succeeded. Emits a {Transfer} event."
+        },
+        "transferFrom": {
+            "stateMutability": "nonpayable",
+            "code": "function transferFrom(address sender, address recipient, uint256 amount) external nonpayable returns (bool)",
+            "inputs": {
+                "sender": {
+                    "type": "address"
+                },
+                "recipient": {
+                    "type": "address"
+                },
+                "amount": {
+                    "type": "uint256"
+                }
+            },
+            "outputs": {
+                "_0": {
+                    "type": "bool"
+                }
+            },
+            "details": "Moves `amount` tokens from `sender` to `recipient` using the allowance mechanism. `amount` is then deducted from the caller's allowance. Returns a boolean value indicating whether the operation succeeded. Emits a {Transfer} event."
+        }
+    },
+    "events": {
+        "Approval": {
+            "code": "event Approval(address indexed owner, address indexed spender, uint256 value)",
+            "inputs": {
+                "owner": {
+                    "type": "address",
+                    "indexed": true
+                },
+                "spender": {
+                    "type": "address",
+                    "indexed": true
+                },
+                "value": {
+                    "type": "uint256",
+                    "indexed": false
+                }
+            }
+        },
+        "Transfer": {
+            "code": "event Transfer(address indexed from, address indexed to, uint256 value)",
+            "inputs": {
+                "from": {
+                    "type": "address",
+                    "indexed": true
+                },
+                "to": {
+                    "type": "address",
+                    "indexed": true
+                },
+                "value": {
+                    "type": "uint256",
+                    "indexed": false
+                }
+            }
+        }
+    },
+    "errors": {},
+    "details": "Interface for the optional metadata functions from the ERC20 standard. _Available since v4.1._",
+    "name": "IERC20Metadata"
+}

@@ -1,0 +1,24 @@
+{
+    "methods": {
+        "measureCallGas": {
+            "stateMutability": "nonpayable",
+            "code": "function measureCallGas(address _target, bytes _data) external nonpayable returns (uint256)",
+            "inputs": {
+                "_target": {
+                    "type": "address"
+                },
+                "_data": {
+                    "type": "bytes"
+                }
+            },
+            "outputs": {
+                "_0": {
+                    "type": "uint256"
+                }
+            }
+        }
+    },
+    "events": {},
+    "errors": {},
+    "name": "Helper_GasMeasurer"
+}

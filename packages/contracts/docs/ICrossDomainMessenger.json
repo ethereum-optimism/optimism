@@ -1,0 +1,82 @@
+{
+    "methods": {
+        "sendMessage": {
+            "stateMutability": "nonpayable",
+            "code": "function sendMessage(address _target, bytes _message, uint32 _gasLimit) external nonpayable",
+            "inputs": {
+                "_target": {
+                    "type": "address",
+                    "description": "Target contract address."
+                },
+                "_message": {
+                    "type": "bytes",
+                    "description": "Message to send to the target."
+                },
+                "_gasLimit": {
+                    "type": "uint32",
+                    "description": "Gas limit for the provided message."
+                }
+            },
+            "outputs": {},
+            "notice": "Sends a cross domain message to the target messenger."
+        },
+        "xDomainMessageSender": {
+            "stateMutability": "view",
+            "code": "function xDomainMessageSender() external view returns (address)",
+            "inputs": {},
+            "outputs": {
+                "_0": {
+                    "type": "address"
+                }
+            }
+        }
+    },
+    "events": {
+        "FailedRelayedMessage": {
+            "code": "event FailedRelayedMessage(bytes32 indexed msgHash)",
+            "inputs": {
+                "msgHash": {
+                    "type": "bytes32",
+                    "indexed": true
+                }
+            }
+        },
+        "RelayedMessage": {
+            "code": "event RelayedMessage(bytes32 indexed msgHash)",
+            "inputs": {
+                "msgHash": {
+                    "type": "bytes32",
+                    "indexed": true
+                }
+            }
+        },
+        "SentMessage": {
+            "code": "event SentMessage(address indexed target, address sender, bytes message, uint256 messageNonce, uint256 gasLimit)",
+            "inputs": {
+                "target": {
+                    "type": "address",
+                    "indexed": true
+                },
+                "sender": {
+                    "type": "address",
+                    "indexed": false
+                },
+                "message": {
+                    "type": "bytes",
+                    "indexed": false
+                },
+                "messageNonce": {
+                    "type": "uint256",
+                    "indexed": false
+                },
+                "gasLimit": {
+                    "type": "uint256",
+                    "indexed": false
+                }
+            }
+        }
+    },
+    "errors": {},
+    "title": "ICrossDomainMessenger",
+    "name": "ICrossDomainMessenger"
+}

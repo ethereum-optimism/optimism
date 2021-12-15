@@ -1,0 +1,138 @@
+{
+    "methods": {
+        "concat": {
+            "stateMutability": "pure",
+            "code": "function concat(bytes _preBytes, bytes _postBytes) external pure returns (bytes)",
+            "inputs": {
+                "_preBytes": {
+                    "type": "bytes"
+                },
+                "_postBytes": {
+                    "type": "bytes"
+                }
+            },
+            "outputs": {
+                "_0": {
+                    "type": "bytes"
+                }
+            }
+        },
+        "equal": {
+            "stateMutability": "pure",
+            "code": "function equal(bytes _bytes, bytes _other) external pure returns (bool)",
+            "inputs": {
+                "_bytes": {
+                    "type": "bytes"
+                },
+                "_other": {
+                    "type": "bytes"
+                }
+            },
+            "outputs": {
+                "_0": {
+                    "type": "bool"
+                }
+            }
+        },
+        "fromNibbles": {
+            "stateMutability": "pure",
+            "code": "function fromNibbles(bytes _bytes) external pure returns (bytes)",
+            "inputs": {
+                "_bytes": {
+                    "type": "bytes"
+                }
+            },
+            "outputs": {
+                "_0": {
+                    "type": "bytes"
+                }
+            }
+        },
+        "slice": {
+            "stateMutability": "pure",
+            "code": "function slice(bytes _bytes, uint256 _start, uint256 _length) external pure returns (bytes)",
+            "inputs": {
+                "_bytes": {
+                    "type": "bytes"
+                },
+                "_start": {
+                    "type": "uint256"
+                },
+                "_length": {
+                    "type": "uint256"
+                }
+            },
+            "outputs": {
+                "_0": {
+                    "type": "bytes"
+                }
+            }
+        },
+        "sliceWithTaintedMemory": {
+            "stateMutability": "nonpayable",
+            "code": "function sliceWithTaintedMemory(bytes _bytes, uint256 _start, uint256 _length) external nonpayable returns (bytes)",
+            "inputs": {
+                "_bytes": {
+                    "type": "bytes"
+                },
+                "_start": {
+                    "type": "uint256"
+                },
+                "_length": {
+                    "type": "uint256"
+                }
+            },
+            "outputs": {
+                "_0": {
+                    "type": "bytes"
+                }
+            }
+        },
+        "toBytes32": {
+            "stateMutability": "pure",
+            "code": "function toBytes32(bytes _bytes) external pure returns (bytes32)",
+            "inputs": {
+                "_bytes": {
+                    "type": "bytes"
+                }
+            },
+            "outputs": {
+                "_0": {
+                    "type": "bytes32"
+                }
+            }
+        },
+        "toNibbles": {
+            "stateMutability": "pure",
+            "code": "function toNibbles(bytes _bytes) external pure returns (bytes)",
+            "inputs": {
+                "_bytes": {
+                    "type": "bytes"
+                }
+            },
+            "outputs": {
+                "_0": {
+                    "type": "bytes"
+                }
+            }
+        },
+        "toUint256": {
+            "stateMutability": "pure",
+            "code": "function toUint256(bytes _bytes) external pure returns (uint256)",
+            "inputs": {
+                "_bytes": {
+                    "type": "bytes"
+                }
+            },
+            "outputs": {
+                "_0": {
+                    "type": "uint256"
+                }
+            }
+        }
+    },
+    "events": {},
+    "errors": {},
+    "title": "TestLib_BytesUtils",
+    "name": "TestLib_BytesUtils"
+}

@@ -1,0 +1,212 @@
+{
+    "methods": {
+        "FRAUD_PROOF_WINDOW": {
+            "stateMutability": "view",
+            "code": "function FRAUD_PROOF_WINDOW() external view returns (uint256)",
+            "inputs": {},
+            "outputs": {
+                "_0": {
+                    "type": "uint256"
+                }
+            }
+        },
+        "SEQUENCER_PUBLISH_WINDOW": {
+            "stateMutability": "view",
+            "code": "function SEQUENCER_PUBLISH_WINDOW() external view returns (uint256)",
+            "inputs": {},
+            "outputs": {
+                "_0": {
+                    "type": "uint256"
+                }
+            }
+        },
+        "appendStateBatch": {
+            "stateMutability": "nonpayable",
+            "code": "function appendStateBatch(bytes32[] _batch, uint256 _shouldStartAtElement) external nonpayable",
+            "inputs": {
+                "_batch": {
+                    "type": "bytes32[]",
+                    "description": "Batch of state roots."
+                },
+                "_shouldStartAtElement": {
+                    "type": "uint256",
+                    "description": "Index of the element at which this batch should start."
+                }
+            },
+            "outputs": {},
+            "notice": "Appends a batch of state roots to the chain."
+        },
+        "batches": {
+            "stateMutability": "view",
+            "code": "function batches() external view returns (contract IChainStorageContainer)",
+            "inputs": {},
+            "outputs": {
+                "_0": {
+                    "type": "contract IChainStorageContainer",
+                    "description": "Reference to the batch storage container."
+                }
+            },
+            "notice": "Accesses the batch storage container."
+        },
+        "deleteStateBatch": {
+            "stateMutability": "nonpayable",
+            "code": "function deleteStateBatch(Lib_OVMCodec.ChainBatchHeader _batchHeader) external nonpayable",
+            "inputs": {
+                "_batchHeader": {
+                    "type": "Lib_OVMCodec.ChainBatchHeader",
+                    "description": "Header of the batch to start deleting from."
+                }
+            },
+            "outputs": {},
+            "notice": "Deletes all state roots after (and including) a given batch."
+        },
+        "getLastSequencerTimestamp": {
+            "stateMutability": "view",
+            "code": "function getLastSequencerTimestamp() external view returns (uint256 _lastSequencerTimestamp)",
+            "inputs": {},
+            "outputs": {
+                "_lastSequencerTimestamp": {
+                    "type": "uint256",
+                    "description": "Last sequencer batch timestamp."
+                }
+            },
+            "notice": "Retrieves the timestamp of the last batch submitted by the sequencer."
+        },
+        "getTotalBatches": {
+            "stateMutability": "view",
+            "code": "function getTotalBatches() external view returns (uint256 _totalBatches)",
+            "inputs": {},
+            "outputs": {
+                "_totalBatches": {
+                    "type": "uint256",
+                    "description": "Total submitted batches."
+                }
+            },
+            "notice": "Retrieves the total number of batches submitted."
+        },
+        "getTotalElements": {
+            "stateMutability": "view",
+            "code": "function getTotalElements() external view returns (uint256 _totalElements)",
+            "inputs": {},
+            "outputs": {
+                "_totalElements": {
+                    "type": "uint256",
+                    "description": "Total submitted elements."
+                }
+            },
+            "notice": "Retrieves the total number of elements submitted."
+        },
+        "insideFraudProofWindow": {
+            "stateMutability": "view",
+            "code": "function insideFraudProofWindow(Lib_OVMCodec.ChainBatchHeader _batchHeader) external view returns (bool _inside)",
+            "inputs": {
+                "_batchHeader": {
+                    "type": "Lib_OVMCodec.ChainBatchHeader",
+                    "description": "Header of the batch to check."
+                }
+            },
+            "outputs": {
+                "_inside": {
+                    "type": "bool",
+                    "description": "Whether or not the batch is inside the fraud proof window."
+                }
+            },
+            "notice": "Checks whether a given batch is still inside its fraud proof window."
+        },
+        "libAddressManager": {
+            "stateMutability": "view",
+            "code": "function libAddressManager() external view returns (contract Lib_AddressManager)",
+            "inputs": {},
+            "outputs": {
+                "_0": {
+                    "type": "contract Lib_AddressManager"
+                }
+            }
+        },
+        "resolve": {
+            "stateMutability": "view",
+            "code": "function resolve(string _name) external view returns (address)",
+            "inputs": {
+                "_name": {
+                    "type": "string",
+                    "description": "Name to resolve an address for."
+                }
+            },
+            "outputs": {
+                "_0": {
+                    "type": "address",
+                    "description": "Address associated with the given name."
+                }
+            },
+            "notice": "Resolves the address associated with a given name."
+        },
+        "verifyStateCommitment": {
+            "stateMutability": "view",
+            "code": "function verifyStateCommitment(bytes32 _element, Lib_OVMCodec.ChainBatchHeader _batchHeader, Lib_OVMCodec.ChainInclusionProof _proof) external view returns (bool)",
+            "inputs": {
+                "_element": {
+                    "type": "bytes32",
+                    "description": "Hash of the element to verify a proof for."
+                },
+                "_batchHeader": {
+                    "type": "Lib_OVMCodec.ChainBatchHeader",
+                    "description": "Header of the batch in which the element was included."
+                },
+                "_proof": {
+                    "type": "Lib_OVMCodec.ChainInclusionProof",
+                    "description": "Merkle inclusion proof for the element."
+                }
+            },
+            "outputs": {
+                "_0": {
+                    "type": "bool"
+                }
+            },
+            "notice": "Verifies a batch inclusion proof."
+        }
+    },
+    "events": {
+        "StateBatchAppended": {
+            "code": "event StateBatchAppended(uint256 indexed _batchIndex, bytes32 _batchRoot, uint256 _batchSize, uint256 _prevTotalElements, bytes _extraData)",
+            "inputs": {
+                "_batchIndex": {
+                    "type": "uint256",
+                    "indexed": true
+                },
+                "_batchRoot": {
+                    "type": "bytes32",
+                    "indexed": false
+                },
+                "_batchSize": {
+                    "type": "uint256",
+                    "indexed": false
+                },
+                "_prevTotalElements": {
+                    "type": "uint256",
+                    "indexed": false
+                },
+                "_extraData": {
+                    "type": "bytes",
+                    "indexed": false
+                }
+            }
+        },
+        "StateBatchDeleted": {
+            "code": "event StateBatchDeleted(uint256 indexed _batchIndex, bytes32 _batchRoot)",
+            "inputs": {
+                "_batchIndex": {
+                    "type": "uint256",
+                    "indexed": true
+                },
+                "_batchRoot": {
+                    "type": "bytes32",
+                    "indexed": false
+                }
+            }
+        }
+    },
+    "errors": {},
+    "title": "StateCommitmentChain",
+    "details": "The State Commitment Chain (SCC) contract contains a list of proposed state roots which Proposers assert to be a result of each transaction in the Canonical Transaction Chain (CTC). Elements here have a 1:1 correspondence with transactions in the CTC, and should be the unique state root calculated off-chain by applying the canonical transactions one by one.",
+    "name": "StateCommitmentChain"
+}

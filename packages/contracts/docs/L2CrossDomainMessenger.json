@@ -1,0 +1,169 @@
+{
+    "methods": {
+        "l1CrossDomainMessenger": {
+            "stateMutability": "view",
+            "code": "function l1CrossDomainMessenger() external view returns (address)",
+            "inputs": {},
+            "outputs": {
+                "_0": {
+                    "type": "address"
+                }
+            }
+        },
+        "messageNonce": {
+            "stateMutability": "view",
+            "code": "function messageNonce() external view returns (uint256)",
+            "inputs": {},
+            "outputs": {
+                "_0": {
+                    "type": "uint256"
+                }
+            }
+        },
+        "relayMessage": {
+            "stateMutability": "nonpayable",
+            "code": "function relayMessage(address _target, address _sender, bytes _message, uint256 _messageNonce) external nonpayable",
+            "inputs": {
+                "_target": {
+                    "type": "address",
+                    "description": "Target contract address."
+                },
+                "_sender": {
+                    "type": "address",
+                    "description": "Message sender address."
+                },
+                "_message": {
+                    "type": "bytes",
+                    "description": "Message to send to the target."
+                },
+                "_messageNonce": {
+                    "type": "uint256",
+                    "description": "Nonce for the provided message."
+                }
+            },
+            "outputs": {},
+            "notice": "Relays a cross domain message to a contract."
+        },
+        "relayedMessages": {
+            "stateMutability": "view",
+            "code": "function relayedMessages(bytes32) external view returns (bool)",
+            "inputs": {
+                "_0": {
+                    "type": "bytes32"
+                }
+            },
+            "outputs": {
+                "_0": {
+                    "type": "bool"
+                }
+            }
+        },
+        "sendMessage": {
+            "stateMutability": "nonpayable",
+            "code": "function sendMessage(address _target, bytes _message, uint32 _gasLimit) external nonpayable",
+            "inputs": {
+                "_target": {
+                    "type": "address",
+                    "description": "Target contract address."
+                },
+                "_message": {
+                    "type": "bytes",
+                    "description": "Message to send to the target."
+                },
+                "_gasLimit": {
+                    "type": "uint32",
+                    "description": "Gas limit for the provided message."
+                }
+            },
+            "outputs": {},
+            "notice": "Sends a cross domain message to the target messenger."
+        },
+        "sentMessages": {
+            "stateMutability": "view",
+            "code": "function sentMessages(bytes32) external view returns (bool)",
+            "inputs": {
+                "_0": {
+                    "type": "bytes32"
+                }
+            },
+            "outputs": {
+                "_0": {
+                    "type": "bool"
+                }
+            }
+        },
+        "successfulMessages": {
+            "stateMutability": "view",
+            "code": "function successfulMessages(bytes32) external view returns (bool)",
+            "inputs": {
+                "_0": {
+                    "type": "bytes32"
+                }
+            },
+            "outputs": {
+                "_0": {
+                    "type": "bool"
+                }
+            }
+        },
+        "xDomainMessageSender": {
+            "stateMutability": "view",
+            "code": "function xDomainMessageSender() external view returns (address)",
+            "inputs": {},
+            "outputs": {
+                "_0": {
+                    "type": "address"
+                }
+            }
+        }
+    },
+    "events": {
+        "FailedRelayedMessage": {
+            "code": "event FailedRelayedMessage(bytes32 indexed msgHash)",
+            "inputs": {
+                "msgHash": {
+                    "type": "bytes32",
+                    "indexed": true
+                }
+            }
+        },
+        "RelayedMessage": {
+            "code": "event RelayedMessage(bytes32 indexed msgHash)",
+            "inputs": {
+                "msgHash": {
+                    "type": "bytes32",
+                    "indexed": true
+                }
+            }
+        },
+        "SentMessage": {
+            "code": "event SentMessage(address indexed target, address sender, bytes message, uint256 messageNonce, uint256 gasLimit)",
+            "inputs": {
+                "target": {
+                    "type": "address",
+                    "indexed": true
+                },
+                "sender": {
+                    "type": "address",
+                    "indexed": false
+                },
+                "message": {
+                    "type": "bytes",
+                    "indexed": false
+                },
+                "messageNonce": {
+                    "type": "uint256",
+                    "indexed": false
+                },
+                "gasLimit": {
+                    "type": "uint256",
+                    "indexed": false
+                }
+            }
+        }
+    },
+    "errors": {},
+    "title": "L2CrossDomainMessenger",
+    "details": "The L2 Cross Domain Messenger contract sends messages from L2 to L1, and is the entry point for L2 messages sent via the L1 Cross Domain Messenger.",
+    "name": "L2CrossDomainMessenger"
+}

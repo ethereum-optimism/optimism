@@ -61,7 +61,8 @@
     "@eth-optimism/core-utils": "0.7.3",
     "@ethersproject/abstract-provider": "^5.4.1",
     "@ethersproject/abstract-signer": "^5.4.1",
-    "@ethersproject/hardware-wallets": "^5.4.0"
+    "@ethersproject/hardware-wallets": "^5.4.0",
+    "@primitivefi/hardhat-dodoc": "^0.1.3"
   },
   "devDependencies": {
     "@codechecks/client": "^0.1.11",

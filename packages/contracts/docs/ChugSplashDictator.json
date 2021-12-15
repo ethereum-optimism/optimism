@@ -1,0 +1,106 @@
+{
+    "methods": {
+        "bridgeSlotKey": {
+            "stateMutability": "view",
+            "code": "function bridgeSlotKey() external view returns (bytes32)",
+            "inputs": {},
+            "outputs": {
+                "_0": {
+                    "type": "bytes32"
+                }
+            }
+        },
+        "bridgeSlotVal": {
+            "stateMutability": "view",
+            "code": "function bridgeSlotVal() external view returns (bytes32)",
+            "inputs": {},
+            "outputs": {
+                "_0": {
+                    "type": "bytes32"
+                }
+            }
+        },
+        "codeHash": {
+            "stateMutability": "view",
+            "code": "function codeHash() external view returns (bytes32)",
+            "inputs": {},
+            "outputs": {
+                "_0": {
+                    "type": "bytes32"
+                }
+            }
+        },
+        "doActions": {
+            "stateMutability": "nonpayable",
+            "code": "function doActions(bytes _code) external nonpayable",
+            "inputs": {
+                "_code": {
+                    "type": "bytes"
+                }
+            },
+            "outputs": {}
+        },
+        "finalOwner": {
+            "stateMutability": "view",
+            "code": "function finalOwner() external view returns (address)",
+            "inputs": {},
+            "outputs": {
+                "_0": {
+                    "type": "address"
+                }
+            }
+        },
+        "isUpgrading": {
+            "stateMutability": "view",
+            "code": "function isUpgrading() external view returns (bool)",
+            "inputs": {},
+            "outputs": {
+                "_0": {
+                    "type": "bool"
+                }
+            }
+        },
+        "messengerSlotKey": {
+            "stateMutability": "view",
+            "code": "function messengerSlotKey() external view returns (bytes32)",
+            "inputs": {},
+            "outputs": {
+                "_0": {
+                    "type": "bytes32"
+                }
+            }
+        },
+        "messengerSlotVal": {
+            "stateMutability": "view",
+            "code": "function messengerSlotVal() external view returns (bytes32)",
+            "inputs": {},
+            "outputs": {
+                "_0": {
+                    "type": "bytes32"
+                }
+            }
+        },
+        "returnOwnership": {
+            "stateMutability": "nonpayable",
+            "code": "function returnOwnership() external nonpayable",
+            "inputs": {},
+            "outputs": {},
+            "notice": "Transfers ownership of this contract to the finalOwner. Only callable by the finalOwner, which is intended to be our multisig. This function shouldn't be necessary, but it gives a sense of reassurance that we can recover if something really surprising goes wrong."
+        },
+        "target": {
+            "stateMutability": "view",
+            "code": "function target() external view returns (contract L1ChugSplashProxy)",
+            "inputs": {},
+            "outputs": {
+                "_0": {
+                    "type": "contract L1ChugSplashProxy"
+                }
+            }
+        }
+    },
+    "events": {},
+    "errors": {},
+    "title": "ChugSplashDictator",
+    "details": "Like the AddressDictator, but specifically for the Proxy__OVM_L1StandardBridge. We're      working on a generalized version of this but this is good enough for the moment.",
+    "name": "ChugSplashDictator"
+}

@@ -1,0 +1,75 @@
+{
+    "methods": {
+        "deleteElementsAfterInclusive": {
+            "stateMutability": "nonpayable",
+            "code": "function deleteElementsAfterInclusive(uint40 _index) external nonpayable",
+            "inputs": {
+                "_index": {
+                    "type": "uint40"
+                }
+            },
+            "outputs": {}
+        },
+        "get": {
+            "stateMutability": "view",
+            "code": "function get(uint256 _index) external view returns (bytes32)",
+            "inputs": {
+                "_index": {
+                    "type": "uint256"
+                }
+            },
+            "outputs": {
+                "_0": {
+                    "type": "bytes32"
+                }
+            }
+        },
+        "getExtraData": {
+            "stateMutability": "view",
+            "code": "function getExtraData() external view returns (bytes27)",
+            "inputs": {},
+            "outputs": {
+                "_0": {
+                    "type": "bytes27"
+                }
+            }
+        },
+        "getLength": {
+            "stateMutability": "view",
+            "code": "function getLength() external view returns (uint40)",
+            "inputs": {},
+            "outputs": {
+                "_0": {
+                    "type": "uint40"
+                }
+            }
+        },
+        "push": {
+            "stateMutability": "nonpayable",
+            "code": "function push(bytes32 _value, bytes27 _extraData) external nonpayable",
+            "inputs": {
+                "_value": {
+                    "type": "bytes32"
+                },
+                "_extraData": {
+                    "type": "bytes27"
+                }
+            },
+            "outputs": {}
+        },
+        "setExtraData": {
+            "stateMutability": "nonpayable",
+            "code": "function setExtraData(bytes27 _extraData) external nonpayable",
+            "inputs": {
+                "_extraData": {
+                    "type": "bytes27"
+                }
+            },
+            "outputs": {}
+        }
+    },
+    "events": {},
+    "errors": {},
+    "title": "TestLib_Buffer",
+    "name": "TestLib_Buffer"
+}

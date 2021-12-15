@@ -1,0 +1,53 @@
+{
+    "methods": {
+        "isCollateralized": {
+            "stateMutability": "view",
+            "code": "function isCollateralized(address _who) external view returns (bool)",
+            "inputs": {
+                "_who": {
+                    "type": "address",
+                    "description": "Address to check."
+                }
+            },
+            "outputs": {
+                "_0": {
+                    "type": "bool",
+                    "description": "true if the address is properly collateralized, false otherwise."
+                }
+            },
+            "notice": "Checks whether a given address is properly collateralized and can perform actions within the system."
+        },
+        "libAddressManager": {
+            "stateMutability": "view",
+            "code": "function libAddressManager() external view returns (contract Lib_AddressManager)",
+            "inputs": {},
+            "outputs": {
+                "_0": {
+                    "type": "contract Lib_AddressManager"
+                }
+            }
+        },
+        "resolve": {
+            "stateMutability": "view",
+            "code": "function resolve(string _name) external view returns (address)",
+            "inputs": {
+                "_name": {
+                    "type": "string",
+                    "description": "Name to resolve an address for."
+                }
+            },
+            "outputs": {
+                "_0": {
+                    "type": "address",
+                    "description": "Address associated with the given name."
+                }
+            },
+            "notice": "Resolves the address associated with a given name."
+        }
+    },
+    "events": {},
+    "errors": {},
+    "title": "BondManager",
+    "details": "This contract is, for now, a stub of the \"real\" BondManager that does nothing but allow the \"OVM_Proposer\" to submit state root batches.",
+    "name": "BondManager"
+}

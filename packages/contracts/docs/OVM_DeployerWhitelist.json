@@ -1,0 +1,121 @@
+{
+    "methods": {
+        "enableArbitraryContractDeployment": {
+            "stateMutability": "nonpayable",
+            "code": "function enableArbitraryContractDeployment() external nonpayable",
+            "inputs": {},
+            "outputs": {},
+            "notice": "Permanently enables arbitrary contract deployment and deletes the owner."
+        },
+        "isDeployerAllowed": {
+            "stateMutability": "view",
+            "code": "function isDeployerAllowed(address _deployer) external view returns (bool)",
+            "inputs": {
+                "_deployer": {
+                    "type": "address",
+                    "description": "Address to check."
+                }
+            },
+            "outputs": {
+                "_0": {
+                    "type": "bool",
+                    "description": "_allowed Whether or not the address can deploy contracts."
+                }
+            },
+            "notice": "Checks whether an address is allowed to deploy contracts."
+        },
+        "owner": {
+            "stateMutability": "view",
+            "code": "function owner() external view returns (address)",
+            "inputs": {},
+            "outputs": {
+                "_0": {
+                    "type": "address"
+                }
+            }
+        },
+        "setOwner": {
+            "stateMutability": "nonpayable",
+            "code": "function setOwner(address _owner) external nonpayable",
+            "inputs": {
+                "_owner": {
+                    "type": "address",
+                    "description": "Address of the new owner."
+                }
+            },
+            "outputs": {},
+            "notice": "Updates the owner of this contract."
+        },
+        "setWhitelistedDeployer": {
+            "stateMutability": "nonpayable",
+            "code": "function setWhitelistedDeployer(address _deployer, bool _isWhitelisted) external nonpayable",
+            "inputs": {
+                "_deployer": {
+                    "type": "address",
+                    "description": "Address to update permissions for."
+                },
+                "_isWhitelisted": {
+                    "type": "bool",
+                    "description": "Whether or not the address is whitelisted."
+                }
+            },
+            "outputs": {},
+            "notice": "Adds or removes an address from the deployment whitelist."
+        },
+        "whitelist": {
+            "stateMutability": "view",
+            "code": "function whitelist(address) external view returns (bool)",
+            "inputs": {
+                "_0": {
+                    "type": "address"
+                }
+            },
+            "outputs": {
+                "_0": {
+                    "type": "bool"
+                }
+            }
+        }
+    },
+    "events": {
+        "OwnerChanged": {
+            "code": "event OwnerChanged(address oldOwner, address newOwner)",
+            "inputs": {
+                "oldOwner": {
+                    "type": "address",
+                    "indexed": false
+                },
+                "newOwner": {
+                    "type": "address",
+                    "indexed": false
+                }
+            }
+        },
+        "WhitelistDisabled": {
+            "code": "event WhitelistDisabled(address oldOwner)",
+            "inputs": {
+                "oldOwner": {
+                    "type": "address",
+                    "indexed": false
+                }
+            }
+        },
+        "WhitelistStatusChanged": {
+            "code": "event WhitelistStatusChanged(address deployer, bool whitelisted)",
+            "inputs": {
+                "deployer": {
+                    "type": "address",
+                    "indexed": false
+                },
+                "whitelisted": {
+                    "type": "bool",
+                    "indexed": false
+                }
+            }
+        }
+    },
+    "errors": {},
+    "title": "OVM_DeployerWhitelist",
+    "details": "The Deployer Whitelist is a temporary predeploy used to provide additional safety during the initial phases of our mainnet roll out. It is owned by the Optimism team, and defines accounts which are allowed to deploy contracts on Layer2. The Execution Manager will only allow an ovmCREATE or ovmCREATE2 operation to proceed if the deployer's address whitelisted.",
+    "name": "OVM_DeployerWhitelist"
+}

@@ -1,0 +1,22 @@
+{
+    "methods": {
+        "isCollateralized": {
+            "stateMutability": "view",
+            "code": "function isCollateralized(address _who) external view returns (bool)",
+            "inputs": {
+                "_who": {
+                    "type": "address"
+                }
+            },
+            "outputs": {
+                "_0": {
+                    "type": "bool"
+                }
+            }
+        }
+    },
+    "events": {},
+    "errors": {},
+    "title": "IBondManager",
+    "name": "IBondManager"
+}

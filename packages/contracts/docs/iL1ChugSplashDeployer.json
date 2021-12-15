@@ -1,0 +1,18 @@
+{
+    "methods": {
+        "isUpgrading": {
+            "stateMutability": "view",
+            "code": "function isUpgrading() external view returns (bool)",
+            "inputs": {},
+            "outputs": {
+                "_0": {
+                    "type": "bool"
+                }
+            }
+        }
+    },
+    "events": {},
+    "errors": {},
+    "title": "iL1ChugSplashDeployer",
+    "name": "iL1ChugSplashDeployer"
+}

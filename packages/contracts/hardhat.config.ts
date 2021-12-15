@@ -21,6 +21,7 @@ import './tasks/validate-chugsplash-dictator'
 import './tasks/whitelist'
 import './tasks/withdraw-fees'
 import 'hardhat-gas-reporter'
+import '@primitivefi/hardhat-dodoc';
 
 // Load environment variables from .env
 dotenv.config()
@@ -108,6 +109,10 @@ const config: HardhatUserConfig = {
   etherscan: {
     apiKey: process.env.ETHERSCAN_API_KEY,
   },
+  dodoc: {
+    runOnCompile: true,
+    testMode: false,
+  }
 }
 
 if (

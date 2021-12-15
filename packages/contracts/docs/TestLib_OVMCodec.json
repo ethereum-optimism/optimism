@@ -1,0 +1,36 @@
+{
+    "methods": {
+        "encodeTransaction": {
+            "stateMutability": "pure",
+            "code": "function encodeTransaction(Lib_OVMCodec.Transaction _transaction) external pure returns (bytes _encoded)",
+            "inputs": {
+                "_transaction": {
+                    "type": "Lib_OVMCodec.Transaction"
+                }
+            },
+            "outputs": {
+                "_encoded": {
+                    "type": "bytes"
+                }
+            }
+        },
+        "hashTransaction": {
+            "stateMutability": "pure",
+            "code": "function hashTransaction(Lib_OVMCodec.Transaction _transaction) external pure returns (bytes32 _hash)",
+            "inputs": {
+                "_transaction": {
+                    "type": "Lib_OVMCodec.Transaction"
+                }
+            },
+            "outputs": {
+                "_hash": {
+                    "type": "bytes32"
+                }
+            }
+        }
+    },
+    "events": {},
+    "errors": {},
+    "title": "TestLib_OVMCodec",
+    "name": "TestLib_OVMCodec"
+}

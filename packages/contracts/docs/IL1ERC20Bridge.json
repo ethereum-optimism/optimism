@@ -1,0 +1,171 @@
+{
+    "methods": {
+        "depositERC20": {
+            "stateMutability": "nonpayable",
+            "code": "function depositERC20(address _l1Token, address _l2Token, uint256 _amount, uint32 _l2Gas, bytes _data) external nonpayable",
+            "inputs": {
+                "_l1Token": {
+                    "type": "address",
+                    "description": "Address of the L1 ERC20 we are depositing"
+                },
+                "_l2Token": {
+                    "type": "address",
+                    "description": "Address of the L1 respective L2 ERC20"
+                },
+                "_amount": {
+                    "type": "uint256",
+                    "description": "Amount of the ERC20 to deposit"
+                },
+                "_l2Gas": {
+                    "type": "uint32",
+                    "description": "Gas limit required to complete the deposit on L2."
+                },
+                "_data": {
+                    "type": "bytes",
+                    "description": "Optional data to forward to L2. This data is provided        solely as a convenience for external contracts. Aside from enforcing a maximum        length, these contracts provide no guarantees about its content."
+                }
+            },
+            "outputs": {},
+            "details": "deposit an amount of the ERC20 to the caller's balance on L2."
+        },
+        "depositERC20To": {
+            "stateMutability": "nonpayable",
+            "code": "function depositERC20To(address _l1Token, address _l2Token, address _to, uint256 _amount, uint32 _l2Gas, bytes _data) external nonpayable",
+            "inputs": {
+                "_l1Token": {
+                    "type": "address",
+                    "description": "Address of the L1 ERC20 we are depositing"
+                },
+                "_l2Token": {
+                    "type": "address",
+                    "description": "Address of the L1 respective L2 ERC20"
+                },
+                "_to": {
+                    "type": "address",
+                    "description": "L2 address to credit the withdrawal to."
+                },
+                "_amount": {
+                    "type": "uint256",
+                    "description": "Amount of the ERC20 to deposit."
+                },
+                "_l2Gas": {
+                    "type": "uint32",
+                    "description": "Gas limit required to complete the deposit on L2."
+                },
+                "_data": {
+                    "type": "bytes",
+                    "description": "Optional data to forward to L2. This data is provided        solely as a convenience for external contracts. Aside from enforcing a maximum        length, these contracts provide no guarantees about its content."
+                }
+            },
+            "outputs": {},
+            "details": "deposit an amount of ERC20 to a recipient's balance on L2."
+        },
+        "finalizeERC20Withdrawal": {
+            "stateMutability": "nonpayable",
+            "code": "function finalizeERC20Withdrawal(address _l1Token, address _l2Token, address _from, address _to, uint256 _amount, bytes _data) external nonpayable",
+            "inputs": {
+                "_l1Token": {
+                    "type": "address",
+                    "description": "Address of L1 token to finalizeWithdrawal for."
+                },
+                "_l2Token": {
+                    "type": "address",
+                    "description": "Address of L2 token where withdrawal was initiated."
+                },
+                "_from": {
+                    "type": "address",
+                    "description": "L2 address initiating the transfer."
+                },
+                "_to": {
+                    "type": "address",
+                    "description": "L1 address to credit the withdrawal to."
+                },
+                "_amount": {
+                    "type": "uint256",
+                    "description": "Amount of the ERC20 to deposit."
+                },
+                "_data": {
+                    "type": "bytes",
+                    "description": "Data provided by the sender on L2. This data is provided   solely as a convenience for external contracts. Aside from enforcing a maximum   length, these contracts provide no guarantees about its content."
+                }
+            },
+            "outputs": {},
+            "details": "Complete a withdrawal from L2 to L1, and credit funds to the recipient's balance of the L1 ERC20 token. This call will fail if the initialized withdrawal from L2 has not been finalized."
+        },
+        "l2TokenBridge": {
+            "stateMutability": "nonpayable",
+            "code": "function l2TokenBridge() external nonpayable returns (address)",
+            "inputs": {},
+            "outputs": {
+                "_0": {
+                    "type": "address",
+                    "description": "Address of the corresponding L2 bridge contract."
+                }
+            },
+            "details": "get the address of the corresponding L2 bridge contract."
+        }
+    },
+    "events": {
+        "ERC20DepositInitiated": {
+            "code": "event ERC20DepositInitiated(address indexed _l1Token, address indexed _l2Token, address indexed _from, address _to, uint256 _amount, bytes _data)",
+            "inputs": {
+                "_l1Token": {
+                    "type": "address",
+                    "indexed": true
+                },
+                "_l2Token": {
+                    "type": "address",
+                    "indexed": true
+                },
+                "_from": {
+                    "type": "address",
+                    "indexed": true
+                },
+                "_to": {
+                    "type": "address",
+                    "indexed": false
+                },
+                "_amount": {
+                    "type": "uint256",
+                    "indexed": false
+                },
+                "_data": {
+                    "type": "bytes",
+                    "indexed": false
+                }
+            }
+        },
+        "ERC20WithdrawalFinalized": {
+            "code": "event ERC20WithdrawalFinalized(address indexed _l1Token, address indexed _l2Token, address indexed _from, address _to, uint256 _amount, bytes _data)",
+            "inputs": {
+                "_l1Token": {
+                    "type": "address",
+                    "indexed": true
+                },
+                "_l2Token": {
+                    "type": "address",
+                    "indexed": true
+                },
+                "_from": {
+                    "type": "address",
+                    "indexed": true
+                },
+                "_to": {
+                    "type": "address",
+                    "indexed": false
+                },
+                "_amount": {
+                    "type": "uint256",
+                    "indexed": false
+                },
+                "_data": {
+                    "type": "bytes",
+                    "indexed": false
+                }
+            }
+        }
+    },
+    "errors": {},
+    "title": "IL1ERC20Bridge",
+    "name": "IL1ERC20Bridge"
+}

@@ -1,0 +1,64 @@
+{
+    "methods": {
+        "fromAddress": {
+            "stateMutability": "pure",
+            "code": "function fromAddress(address _in) external pure returns (bytes32 _out)",
+            "inputs": {
+                "_in": {
+                    "type": "address"
+                }
+            },
+            "outputs": {
+                "_out": {
+                    "type": "bytes32"
+                }
+            }
+        },
+        "fromBool": {
+            "stateMutability": "pure",
+            "code": "function fromBool(bool _in) external pure returns (bytes32 _out)",
+            "inputs": {
+                "_in": {
+                    "type": "bool"
+                }
+            },
+            "outputs": {
+                "_out": {
+                    "type": "bytes32"
+                }
+            }
+        },
+        "toAddress": {
+            "stateMutability": "pure",
+            "code": "function toAddress(bytes32 _in) external pure returns (address _out)",
+            "inputs": {
+                "_in": {
+                    "type": "bytes32"
+                }
+            },
+            "outputs": {
+                "_out": {
+                    "type": "address"
+                }
+            }
+        },
+        "toBool": {
+            "stateMutability": "pure",
+            "code": "function toBool(bytes32 _in) external pure returns (bool _out)",
+            "inputs": {
+                "_in": {
+                    "type": "bytes32"
+                }
+            },
+            "outputs": {
+                "_out": {
+                    "type": "bool"
+                }
+            }
+        }
+    },
+    "events": {},
+    "errors": {},
+    "title": "TestLib_Byte32Utils",
+    "name": "TestLib_Bytes32Utils"
+}

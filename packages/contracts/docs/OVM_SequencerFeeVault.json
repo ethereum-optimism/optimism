@@ -1,0 +1,35 @@
+{
+    "methods": {
+        "MIN_WITHDRAWAL_AMOUNT": {
+            "stateMutability": "view",
+            "code": "function MIN_WITHDRAWAL_AMOUNT() external view returns (uint256)",
+            "inputs": {},
+            "outputs": {
+                "_0": {
+                    "type": "uint256"
+                }
+            }
+        },
+        "l1FeeWallet": {
+            "stateMutability": "view",
+            "code": "function l1FeeWallet() external view returns (address)",
+            "inputs": {},
+            "outputs": {
+                "_0": {
+                    "type": "address"
+                }
+            }
+        },
+        "withdraw": {
+            "stateMutability": "nonpayable",
+            "code": "function withdraw() external nonpayable",
+            "inputs": {},
+            "outputs": {}
+        }
+    },
+    "events": {},
+    "errors": {},
+    "title": "OVM_SequencerFeeVault",
+    "details": "Simple holding contract for fees paid to the Sequencer. Likely to be replaced in the future but \"good enough for now\".",
+    "name": "OVM_SequencerFeeVault"
+}

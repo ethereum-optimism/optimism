@@ -1,0 +1,17 @@
+{
+    "methods": {
+        "setTarget": {
+            "stateMutability": "nonpayable",
+            "code": "function setTarget(address _target) external nonpayable",
+            "inputs": {
+                "_target": {
+                    "type": "address"
+                }
+            },
+            "outputs": {}
+        }
+    },
+    "events": {},
+    "errors": {},
+    "name": "Helper_SimpleProxy"
+}

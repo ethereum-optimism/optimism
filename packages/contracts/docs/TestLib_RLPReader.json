@@ -1,0 +1,106 @@
+{
+    "methods": {
+        "readAddress": {
+            "stateMutability": "pure",
+            "code": "function readAddress(bytes _in) external pure returns (address)",
+            "inputs": {
+                "_in": {
+                    "type": "bytes"
+                }
+            },
+            "outputs": {
+                "_0": {
+                    "type": "address"
+                }
+            }
+        },
+        "readBool": {
+            "stateMutability": "pure",
+            "code": "function readBool(bytes _in) external pure returns (bool)",
+            "inputs": {
+                "_in": {
+                    "type": "bytes"
+                }
+            },
+            "outputs": {
+                "_0": {
+                    "type": "bool"
+                }
+            }
+        },
+        "readBytes": {
+            "stateMutability": "pure",
+            "code": "function readBytes(bytes _in) external pure returns (bytes)",
+            "inputs": {
+                "_in": {
+                    "type": "bytes"
+                }
+            },
+            "outputs": {
+                "_0": {
+                    "type": "bytes"
+                }
+            }
+        },
+        "readBytes32": {
+            "stateMutability": "pure",
+            "code": "function readBytes32(bytes _in) external pure returns (bytes32)",
+            "inputs": {
+                "_in": {
+                    "type": "bytes"
+                }
+            },
+            "outputs": {
+                "_0": {
+                    "type": "bytes32"
+                }
+            }
+        },
+        "readList": {
+            "stateMutability": "pure",
+            "code": "function readList(bytes _in) external pure returns (bytes[])",
+            "inputs": {
+                "_in": {
+                    "type": "bytes"
+                }
+            },
+            "outputs": {
+                "_0": {
+                    "type": "bytes[]"
+                }
+            }
+        },
+        "readString": {
+            "stateMutability": "pure",
+            "code": "function readString(bytes _in) external pure returns (string)",
+            "inputs": {
+                "_in": {
+                    "type": "bytes"
+                }
+            },
+            "outputs": {
+                "_0": {
+                    "type": "string"
+                }
+            }
+        },
+        "readUint256": {
+            "stateMutability": "pure",
+            "code": "function readUint256(bytes _in) external pure returns (uint256)",
+            "inputs": {
+                "_in": {
+                    "type": "bytes"
+                }
+            },
+            "outputs": {
+                "_0": {
+                    "type": "uint256"
+                }
+            }
+        }
+    },
+    "events": {},
+    "errors": {},
+    "title": "TestLib_RLPReader",
+    "name": "TestLib_RLPReader"
+}

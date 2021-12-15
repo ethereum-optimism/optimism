@@ -1,0 +1,180 @@
+{
+    "methods": {
+        "allowance": {
+            "stateMutability": "view",
+            "code": "function allowance(address, address) external view returns (uint256)",
+            "inputs": {
+                "_0": {
+                    "type": "address"
+                },
+                "_1": {
+                    "type": "address"
+                }
+            },
+            "outputs": {
+                "_0": {
+                    "type": "uint256"
+                }
+            }
+        },
+        "approve": {
+            "stateMutability": "nonpayable",
+            "code": "function approve(address spender, uint256 value) external nonpayable returns (bool)",
+            "inputs": {
+                "spender": {
+                    "type": "address"
+                },
+                "value": {
+                    "type": "uint256"
+                }
+            },
+            "outputs": {
+                "_0": {
+                    "type": "bool"
+                }
+            }
+        },
+        "balanceOf": {
+            "stateMutability": "view",
+            "code": "function balanceOf(address) external view returns (uint256)",
+            "inputs": {
+                "_0": {
+                    "type": "address"
+                }
+            },
+            "outputs": {
+                "_0": {
+                    "type": "uint256"
+                }
+            }
+        },
+        "decimals": {
+            "stateMutability": "view",
+            "code": "function decimals() external view returns (uint8)",
+            "inputs": {},
+            "outputs": {
+                "_0": {
+                    "type": "uint8"
+                }
+            }
+        },
+        "mint": {
+            "stateMutability": "nonpayable",
+            "code": "function mint(address to, uint256 value) external nonpayable",
+            "inputs": {
+                "to": {
+                    "type": "address"
+                },
+                "value": {
+                    "type": "uint256"
+                }
+            },
+            "outputs": {}
+        },
+        "name": {
+            "stateMutability": "view",
+            "code": "function name() external view returns (string)",
+            "inputs": {},
+            "outputs": {
+                "_0": {
+                    "type": "string"
+                }
+            }
+        },
+        "symbol": {
+            "stateMutability": "view",
+            "code": "function symbol() external view returns (string)",
+            "inputs": {},
+            "outputs": {
+                "_0": {
+                    "type": "string"
+                }
+            }
+        },
+        "totalSupply": {
+            "stateMutability": "view",
+            "code": "function totalSupply() external view returns (uint256)",
+            "inputs": {},
+            "outputs": {
+                "_0": {
+                    "type": "uint256"
+                }
+            }
+        },
+        "transfer": {
+            "stateMutability": "nonpayable",
+            "code": "function transfer(address to, uint256 value) external nonpayable returns (bool)",
+            "inputs": {
+                "to": {
+                    "type": "address"
+                },
+                "value": {
+                    "type": "uint256"
+                }
+            },
+            "outputs": {
+                "_0": {
+                    "type": "bool"
+                }
+            }
+        },
+        "transferFrom": {
+            "stateMutability": "nonpayable",
+            "code": "function transferFrom(address from, address to, uint256 value) external nonpayable returns (bool)",
+            "inputs": {
+                "from": {
+                    "type": "address"
+                },
+                "to": {
+                    "type": "address"
+                },
+                "value": {
+                    "type": "uint256"
+                }
+            },
+            "outputs": {
+                "_0": {
+                    "type": "bool"
+                }
+            }
+        }
+    },
+    "events": {
+        "Approval": {
+            "code": "event Approval(address indexed owner, address indexed spender, uint256 value)",
+            "inputs": {
+                "owner": {
+                    "type": "address",
+                    "indexed": true
+                },
+                "spender": {
+                    "type": "address",
+                    "indexed": true
+                },
+                "value": {
+                    "type": "uint256",
+                    "indexed": false
+                }
+            }
+        },
+        "Transfer": {
+            "code": "event Transfer(address indexed from, address indexed to, uint256 value)",
+            "inputs": {
+                "from": {
+                    "type": "address",
+                    "indexed": true
+                },
+                "to": {
+                    "type": "address",
+                    "indexed": true
+                },
+                "value": {
+                    "type": "uint256",
+                    "indexed": false
+                }
+            }
+        }
+    },
+    "errors": {},
+    "name": "TestERC20"
+}
