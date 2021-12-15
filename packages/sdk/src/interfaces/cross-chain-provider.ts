@@ -34,11 +34,6 @@ export interface ICrossChainProvider {
   l1ChainId: number
 
   /**
-   * Chain ID for the L2 network.
-   */
-  l2ChainId: number
-
-  /**
    * Contract objects attached to their respective providers and addresses.
    */
   contracts: OEContracts
@@ -129,9 +124,9 @@ export interface ICrossChainProvider {
    *
    * @param message Message to wait for.
    * @param opts Options to pass to the waiting function.
-   * - `confirmations` (number): Number of transaction confirmations to wait for before returning.
-   * - `pollIntervalMs` (number): Number of milliseconds to wait between polling for the receipt.
-   * - `loopsBeforeTimeout` (number): Number of times to poll before timing out.
+   * @param opts.confirmations Number of transaction confirmations to wait for before returning.
+   * @param opts.pollIntervalMs Number of milliseconds to wait between polling for the receipt.
+   * @param opts.timeoutMs Milliseconds to wait before timing out.
    * @returns CrossChainMessage receipt including receipt of the transaction that relayed the
    * given message.
    */
@@ -140,7 +135,7 @@ export interface ICrossChainProvider {
     opts?: {
       confirmations?: number
       pollIntervalMs?: number
-      loopsBeforeTimeout?: number
+      timeoutMs?: number
     }
   ): Promise<MessageReceipt>
 

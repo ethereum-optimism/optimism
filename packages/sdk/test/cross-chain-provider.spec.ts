@@ -3,16 +3,52 @@ import './setup'
 
 describe('CrossChainProvider', () => {
   describe('construction', () => {
-    describe('basic construction (given L1 and L2 providers)', () => {
-      it('should have an l1Provider', () => {})
+    describe('when given an ethers provider for the L1 provider', () => {
+      it('should use the provider as the L1 provider', () => {})
+    })
 
-      it('should have an l2Provider', () => {})
+    describe('when given an ethers provider for the L2 provider', () => {
+      it('should use the provider as the L2 provider', () => {})
+    })
 
-      it('should have an l1ChainId', () => {})
+    describe('when given a string as the L1 provider', () => {
+      it('should create a JSON-RPC provider for the L1 provider', () => {})
+    })
 
-      it('should have an l2ChainId', () => {})
+    describe('when given a string as the L2 provider', () => {
+      it('should create a JSON-RPC provider for the L2 provider', () => {})
+    })
 
-      it('should have all contract connections', () => {})
+    describe('when no custom contract addresses are provided', () => {
+      describe('when given a known chain ID', () => {
+        it('should use the contract addresses for the known chain ID', () => {})
+      })
+
+      describe('when given an unknown chain ID', () => {
+        it('should throw an error', () => {})
+      })
+    })
+
+    describe('when custom contract addresses are provided', () => {
+      describe('when given a known chain ID', () => {
+        it('should use known addresses except where custom addresses are given', () => {})
+      })
+
+      describe('when given an unknown chain ID', () => {
+        describe('when all L1 addresses are provided', () => {
+          describe('when not all L2 addresses are provided', () => {
+            it('should use the custom L1 addresses and the default L2 addresses', () => {})
+          })
+
+          describe('when all L2 addresses are provided', () => {
+            it('should use the custom addresses everywhere', () => {})
+          })
+        })
+
+        describe('when not all L1 addresses are provided', () => {
+          it('should throw an error', () => {})
+        })
+      })
     })
   })
 
@@ -152,7 +188,7 @@ describe('CrossChainProvider', () => {
         })
 
         describe('when the message has not been relayed', () => {
-          it('should return a status of READY_FOR_RELAY')
+          it('should return a status of READY_FOR_RELAY', () => {})
         })
       })
     })
