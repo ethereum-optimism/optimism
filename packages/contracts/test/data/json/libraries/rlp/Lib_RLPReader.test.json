@@ -22,6 +22,12 @@
                     "0x02"
                 ],
                 "revert": true
+            },
+            "input value > 1 length (should revert)": {
+                "in": [
+                    "0x0101"
+                ],
+                "revert": "Invalid RLP boolean value."
             }
         },
         "readAddress": {
@@ -32,6 +38,26 @@
                 "out": [
                     "0x1212121212121212121212121212121212121212"
                 ]
+            },
+            "address length = 1": {
+                "in": [
+                    "0x12"
+                ],
+                "out": [
+                    "0x0000000000000000000000000000000000000000"
+                ]
+            },
+            "invalid address length > 21 (should revert)": {
+                "in": [
+                    "0x94121212121212121212121212121212121212121212121212"
+                ],
+                "revert": "Invalid RLP address length."
+            },
+            "invalid address length < 21 (should revert)": {
+                "in": [
+                    "0x94121212121212121212121212"
+                ],
+                "revert": "Invalid RLP address length."
             }
         },
         "readBytes": {
@@ -58,6 +84,26 @@
                 "out": [
                     "0x7f"
                 ]
+            },
+            "invalid bytes value, 0xb7 < prefix < 0xbf (should revert)": {
+                "in": [
+                    "0xb9"
+                ],
+                "revert": "Invalid RLP long string length."
+            },
+            "invalid bytes value, prefix > 0xf7 (should revert)": {
+                "in": [
+                    "0xff"
+                ],
+                "revert": "Invalid RLP long list length."
+            }
+        },
+        "readBytes32": {
+            "invalid length > 33 (should revert)": {
+                "in": [
+                    "0x11110000000000000000000000000000000000000000000000000000000000000000"
+                ],
+                "revert": "Invalid RLP bytes32 length."
             }
         },
         "readString": {
@@ -354,6 +400,12 @@
             "nonOptimalLongLengthArray2": {
                 "in": ["0xb801ff"],
                 "revert": "Invalid RLP list value."
+            },
+            "invalid list value, 0x7f < prefix < 0xb7 (should revert)": {
+                "in": [
+                    "0x91"
+                ],
+                "revert": "Invalid RLP short string."
             }
         }
     }
