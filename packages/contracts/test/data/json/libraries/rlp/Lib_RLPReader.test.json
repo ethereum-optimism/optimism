@@ -85,6 +85,12 @@
                     "0x7f"
                 ]
             },
+            "should revert if input is a list item": {
+                "in": [
+                    "0xc7c0c1c0c3c0c1c0"
+                ],
+                "revert": "Invalid RLP bytes value."
+            },
             "invalid bytes value, 0xb7 < prefix < 0xbf (should revert)": {
                 "in": [
                     "0xb9"
@@ -99,6 +105,12 @@
             }
         },
         "readBytes32": {
+            "should revert if input is a list item": {
+                "in": [
+                    "0xc7c0c1c0c3c0c1c0"
+                ],
+                "revert": "Invalid RLP bytes32 value."
+            },
             "invalid length > 33 (should revert)": {
                 "in": [
                     "0x11110000000000000000000000000000000000000000000000000000000000000000"
@@ -383,7 +395,7 @@
             },
             "leadingZerosInLongLengthArray1": {
                 "in": ["0xb90040000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f"],
-                "revert": "Invalid LP list value."
+                "revert": "Invalid RLP list value."
             },
             "leadingZerosInLongLengthArray2": {
                 "in": ["0xb800"],
