@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.5
+
+### Patch Changes
+
+- 2924845d: expose ErrNonceTooHigh from miner
+
 ## 0.5.4
 
 ### Patch Changes
