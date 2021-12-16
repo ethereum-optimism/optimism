@@ -1,8 +1,0 @@
-{
-    "methods": {},
-    "events": {},
-    "errors": {},
-    "title": "Lib_Buffer",
-    "details": "This library implements a bytes32 storage array with some additional gas-optimized functionality. In particular, it encodes its length as a uint40, and tightly packs this with an overwritable \"extra data\" field so we can store more information with a single SSTORE.",
-    "name": "Lib_Buffer"
-}

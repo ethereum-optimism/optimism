@@ -21,7 +21,7 @@ import './tasks/validate-chugsplash-dictator'
 import './tasks/whitelist'
 import './tasks/withdraw-fees'
 import 'hardhat-gas-reporter'
-import '@primitivefi/hardhat-dodoc';
+import '@primitivefi/hardhat-dodoc'
 import './tasks/validate-output'
 
 // Load environment variables from .env
@@ -29,6 +29,29 @@ dotenv.config()
 
 const enableGasReport = !!process.env.ENABLE_GAS_REPORT
 const privateKey = process.env.PRIVATE_KEY || '0x' + '11'.repeat(32) // this is to avoid hardhat error
+
+// Will be moved to a separate package
+declare module 'hardhat/types/config' {
+  export interface HardhatUserConfig {
+    outputChecks?: {
+      include?: string[]
+      exclude?: string[]
+      runOnCompile?: boolean
+      errorMode?: boolean
+      checks?: any[]
+    }
+  }
+
+  export interface HardhatConfig {
+    outputChecks: {
+      include: string[]
+      exclude: string[]
+      runOnCompile: boolean
+      errorMode: boolean
+      checks: any[]
+    }
+  }
+}
 
 const config: HardhatUserConfig = {
   networks: {
@@ -112,8 +135,27 @@ const config: HardhatUserConfig = {
   },
   dodoc: {
     runOnCompile: true,
-    testMode: false,
-  }
+    exclude: [
+      'Helper_GasMeasurer',
+      'Helper_SimpleProxy',
+      'TestERC20',
+      'TestLib_CrossDomainUtils',
+      'TestLib_OVMCodec',
+      'TestLib_RLPReader',
+      'TestLib_RLPWriter',
+      'TestLib_AddressAliasHelper',
+      'TestLib_MerkleTrie',
+      'TestLib_SecureMerkleTrie',
+      'TestLib_Buffer',
+      'TestLib_Bytes32Utils',
+      'TestLib_BytesUtils',
+      'TestLib_MerkleTree',
+    ],
+  },
+  outputChecks: {
+    runOnCompile: true,
+    exclude: ['contracts/test-helpers', 'contracts/test-libraries'],
+  },
 }
 
 if (

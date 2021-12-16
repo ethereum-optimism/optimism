@@ -1,24 +1,49 @@
-/* eslint-disable guard-for-in, max-len, no-await-in-loop, no-restricted-syntax */
-import { task } from 'hardhat/config'
-import { CompilerOutputContractWithDocumentation } from '@primitivefi/hardhat-dodoc/dist/src/dodocTypes'
+'use strict'
+
+import { task, extendConfig } from 'hardhat/config'
+
 import { TASK_COMPILE } from 'hardhat/builtin-tasks/task-names'
-import chalk from "chalk";
+import chalk from 'chalk'
+import 'hardhat/types/config'
+import {
+  HardhatConfig,
+  HardhatUserConfig,
+  CompilerOutputContract,
+} from 'hardhat/types'
 
-// import { CompilerOutputContractWithDocumentation, Doc } from './dodocTypes';
-// import { decodeAbi } from './abiDecoder';
-// import './type-extensions';
+declare module 'hardhat/types/config' {
+  export interface HardhatUserConfig {
+    outputChecks?: {
+      include?: string[]
+      exclude?: string[]
+      runOnCompile?: boolean
+      errorMode?: boolean
+      checks?: any[]
+    }
+  }
 
-// TODO:
-// extendConfig((config: HardhatConfig, userConfig: Readonly<HardhatUserConfig>) => {
-//   // eslint-disable-next-line no-param-reassign
-//   config.outputChecks = {
-//     error: userConfig.outputChecks?.error || false,
-//     checks: userConfig.outputChecks?.checks || [],
-//     include: userConfig.outputChecks?.include || [],
-//     exclude: userConfig.outputChecks?.exclude || [],
-//     runOnCompile: userConfig.outputChecks?.runOnCompile !== undefined ? userConfig.outputChecks?.runOnCompile : true,
-//   };
-// });
+  export interface HardhatConfig {
+    outputChecks: {
+      include: string[]
+      exclude: string[]
+      runOnCompile: boolean
+      errorMode: boolean
+      checks: any[]
+    }
+  }
+}
+
+extendConfig(
+  (config: HardhatConfig, userConfig: Readonly<HardhatUserConfig>) => {
+    config.outputChecks = {
+      errorMode: userConfig.outputChecks?.errorMode || false,
+      checks: userConfig.outputChecks?.checks || [],
+      include: userConfig.outputChecks?.include || [],
+      exclude: userConfig.outputChecks?.exclude || [],
+      runOnCompile: userConfig.outputChecks?.runOnCompile || false,
+    }
+  }
+)
 
 interface ErrorInfo {
   type: ErrorInfo
@@ -32,11 +57,93 @@ enum ErrorType {
   MissingTitle,
   MissingDetails,
   CompilationWarning,
-
   // User Docs
   MissingUserDoc,
   // Dev Docs
   MissingDevDoc,
+}
+
+declare interface ErrorUserdocArrayItem {
+  notice?: string
+}
+
+export interface ErrorDevdocArrayItem {
+  details?: string
+  params?: {
+    [key: string]: string
+  }
+}
+
+export interface CompilerOutputContractWithDocumentation
+  extends CompilerOutputContract {
+  devdoc?: {
+    author?: string
+    details?: string
+    title?: string
+    errors?: {
+      [key: string]: ErrorDevdocArrayItem[]
+    }
+    events?: {
+      [key: string]: {
+        details: string
+        params: {
+          [key: string]: string
+        }
+      }
+    }
+    methods?: {
+      [key: string]: {
+        details?: string
+        params: {
+          [key: string]: string
+        }
+        returns: {
+          [key: string]: string
+        }
+      }
+    }
+    returns?: {
+      [key: string]: {
+        details?: string
+        params: {
+          [key: string]: string
+        }
+      }
+    }
+    stateVariables?: {
+      [key: string]: {
+        details?: string
+        params: {
+          [key: string]: string
+        }
+        returns: {
+          [key: string]: string
+        }
+      }
+    }
+  }
+  userdoc?: {
+    errors?: {
+      [key: string]: ErrorUserdocArrayItem[]
+    }
+    events?: {
+      [key: string]: {
+        notice: string
+      }
+    }
+    methods?: {
+      [key: string]: {
+        notice: string
+      }
+    }
+    notice?: string
+  }
+}
+
+export interface CompilerOutputWithDocsAndPath
+  extends CompilerOutputContractWithDocumentation {
+  filePath: string
+  fileName: string
 }
 
 const setupErrors =
@@ -64,17 +171,11 @@ const setupErrors =
       }
     }
 
-    return `Error: ${typeToMessage()}\n   @ ${fileName} \n   --> ${fileSource}\n`
+    return `Comments Error: ${typeToMessage()}\n   @ ${fileName} \n   --> ${fileSource}\n`
   }
 
-type CompilerOutputWithDocsAndPath = CompilerOutputContractWithDocumentation & {
-  filePath: string
-  fileName: string
-}
-
-// Custom task triggered when COMPILE is called
 task(TASK_COMPILE, async (args, hre, runSuper) => {
-  // const config = hre.config.outputChecks;
+  const config = hre.config.outputChecks
 
   // Updates the compiler settings
   for (const compiler of hre.config.solidity.compilers) {
@@ -85,21 +186,16 @@ task(TASK_COMPILE, async (args, hre, runSuper) => {
   // Calls the actual COMPILE task
   await runSuper()
 
-  // if (!config.runOnCompile) {
-  //   return;
-  // }
+  if (!config.runOnCompile) {
+    return
+  }
 
   // Loops through all the qualified names to get all the compiled contracts
   const getBuildInfo = async (
     qualifiedName: string
   ): Promise<CompilerOutputWithDocsAndPath | undefined> => {
     const [source, name] = qualifiedName.split(':')
-    // TODO:
-    // Checks if the documentation has to be generated for this contract
-    // if (
-    //   (config.include.length === 0 || config.include.includes(name))
-    //   && !config.exclude.includes(name)
-    // ) {
+
     const contractBuildInfo = await hre.artifacts.getBuildInfo(qualifiedName)
     const info: CompilerOutputContractWithDocumentation =
       contractBuildInfo?.output.contracts[source][name]
@@ -109,7 +205,7 @@ task(TASK_COMPILE, async (args, hre, runSuper) => {
       filePath: source,
       fileName: name,
     } as CompilerOutputWithDocsAndPath
-    // }
+
     return undefined
   }
 
@@ -191,6 +287,7 @@ task(TASK_COMPILE, async (args, hre, runSuper) => {
     }
 
     if (Array.isArray(info.abi)) {
+      // Loops through the abi and for each function/event/var check in the user/dev doc.
       info.abi.forEach((entity) => {
         if (entity.type === 'constructor') {
           checkConstructor(entity)
@@ -204,8 +301,6 @@ task(TASK_COMPILE, async (args, hre, runSuper) => {
 
     // TODO: check for userDoc.errors
 
-    // Loop through the abi and for each function/event/var check in the user/dev doc.
-
     return foundErrors
   }
 
@@ -213,9 +308,15 @@ task(TASK_COMPILE, async (args, hre, runSuper) => {
 
   const allContracts = await hre.artifacts.getAllFullyQualifiedNames()
   // console.log("allContracts", allContracts);
-  const qualifiedNames = allContracts.filter((str) =>
-    str.startsWith('contracts')
-  )
+  const qualifiedNames = allContracts
+    .filter((str) => str.startsWith('contracts'))
+    .filter((path) => {
+      // Checks if this contact is included
+      const includesPath = config.include.some((str) => path.includes(str))
+      const excludesPath = config.exclude.some((str) => path.includes(str))
+
+      return (config.include.length === 0 || includesPath) && !excludesPath
+    })
   console.log('qualifiedNames', qualifiedNames)
 
   // 1. Setup
@@ -241,7 +342,7 @@ task(TASK_COMPILE, async (args, hre, runSuper) => {
 
       if (errorsInfo && errorsInfo.length > 0) {
         ;(errorsInfo as ErrorInfo[]).forEach((erIn) => {
-          if ((level === 'error')) {
+          if (level === 'error') {
             console.error(chalk.red(erIn.text))
           } else {
             console.warn(chalk.yellow(erIn.text))
@@ -251,15 +352,12 @@ task(TASK_COMPILE, async (args, hre, runSuper) => {
     })
   }
 
-  // if throwing is enabled -> throw
-  if (false) {
-    // Loop through and console.error
-    // & throw
+  if (config.errorMode) {
     printErrors('error')
     throw new Error('Missing Natspec Comments')
   }
 
   printErrors()
 
-  console.log('✅ All Doc Checks are passing')
+  console.log('✅ All Contracts have been checked for missing Natspec comments')
 })
