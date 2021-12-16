@@ -7,6 +7,8 @@ import {
   OEContractsLike,
   OEL2ContractsLike,
   AddressLike,
+  CustomBridges,
+  CustomBridgesLike,
 } from '../interfaces'
 import { toAddress } from './coercion'
 import { DeepPartial } from './type-utils'
@@ -34,6 +36,18 @@ const NAME_REMAPPING = {
   AddressManager: 'Lib_AddressManager',
   OVM_L1BlockNumber: 'iOVM_L1BlockNumber',
   WETH: 'WETH9',
+}
+
+/**
+ * Mapping of L1 chain IDs to the list of custom bridge addresses for each chain.
+ */
+export const CUSTOM_BRIDGE_ADDRESSES: {
+  [l1ChainId: number]: CustomBridgesLike
+} = {
+  1: {
+    l1: {},
+    l2: {},
+  },
 }
 
 /**
@@ -189,4 +203,60 @@ export const getAllOEContracts = (
     l1: l1Contracts,
     l2: l2Contracts,
   }
+}
+
+/**
+ * Gets a series of custom bridges for the given L1 chain ID.
+ *
+ * @param l1ChainId L1 chain ID for the L1 network where the custom bridges are deployed.
+ * @param opts Additional options for connecting to the custom bridges.
+ * @param opts.l1SignerOrProvider Signer or provider to connect to the L1 contracts.
+ * @param opts.l2SignerOrProvider Signer or provider to connect to the L2 contracts.
+ * @param opts.overrides Custom contract address overrides for L1 or L2 contracts.
+ * @returns An object containing ethers.Contract objects connected to the appropriate addresses on
+ * both L1 and L2.
+ */
+export const getCustomBridges = (
+  l1ChainId: number,
+  opts: {
+    l1SignerOrProvider?: ethers.Signer | ethers.providers.Provider
+    l2SignerOrProvider?: ethers.Signer | ethers.providers.Provider
+    overrides?: Partial<CustomBridgesLike>
+  } = {}
+): CustomBridges => {
+  const addresses = CUSTOM_BRIDGE_ADDRESSES[l1ChainId] || {
+    l1: {},
+    l2: {},
+  }
+  for (const [contractName, contractAddress] of Object.entries(
+    opts.overrides?.l1 || {}
+  )) {
+    addresses.l1[contractName] = contractAddress
+  }
+  for (const [contractName, contractAddress] of Object.entries(
+    opts.overrides?.l2 || {}
+  )) {
+    addresses.l2[contractName] = contractAddress
+  }
+
+  const bridges = {
+    l1: {},
+    l2: {},
+  }
+  for (const [contractName, contractAddress] of Object.entries(addresses.l1)) {
+    bridges.l1[contractName] = new Contract(
+      toAddress(contractAddress),
+      getContractInterface('IL1ERC20Bridge'),
+      opts.l1SignerOrProvider
+    )
+  }
+  for (const [contractName, contractAddress] of Object.entries(addresses.l2)) {
+    bridges.l2[contractName] = new Contract(
+      toAddress(contractAddress),
+      getContractInterface('IL2ERC20Bridge'),
+      opts.l2SignerOrProvider
+    )
+  }
+
+  return bridges
 }

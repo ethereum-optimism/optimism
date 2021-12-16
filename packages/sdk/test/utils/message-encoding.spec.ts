@@ -3,8 +3,7 @@ import { Contract, Signer } from 'ethers'
 import { ethers } from 'hardhat'
 import { getContractFactory } from '@eth-optimism/contracts'
 import {
-  CrossChainMessage,
-  MessageDirection,
+  CoreCrossChainMessage,
   encodeCrossChainMessage,
   hashCrossChainMessage,
 } from '../../src'
@@ -25,8 +24,7 @@ describe('message encoding utils', () => {
     })
 
     it('should properly encode a message', async () => {
-      const message: CrossChainMessage = {
-        direction: MessageDirection.L1_TO_L2,
+      const message: CoreCrossChainMessage = {
         target: '0x' + '11'.repeat(20),
         sender: '0x' + '22'.repeat(20),
         message: '0x' + '1234'.repeat(32),
@@ -53,8 +51,7 @@ describe('message encoding utils', () => {
     })
 
     it('should properly hash a message', async () => {
-      const message: CrossChainMessage = {
-        direction: MessageDirection.L1_TO_L2,
+      const message: CoreCrossChainMessage = {
         target: '0x' + '11'.repeat(20),
         sender: '0x' + '22'.repeat(20),
         message: '0x' + '1234'.repeat(32),

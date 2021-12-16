@@ -11,6 +11,7 @@ import {
   TokenBridgeMessage,
   OEContracts,
   MessageReceipt,
+  CustomBridges,
 } from './types'
 
 /**
@@ -37,6 +38,11 @@ export interface ICrossChainProvider {
    * Contract objects attached to their respective providers and addresses.
    */
   contracts: OEContracts
+
+  /**
+   * List of custom bridges for the given network.
+   */
+  bridges: CustomBridges
 
   /**
    * Retrieves all cross chain messages sent within a given transaction.
@@ -80,7 +86,7 @@ export interface ICrossChainProvider {
   /**
    * Finds all cross chain messages that correspond to token deposits or withdrawals sent by a
    * particular address. Useful for finding deposits/withdrawals because the sender of the message
-   * will appear to be the StandardBridge contract and not the actual end user. Returns
+   * will appear to be the StandardBridge contract and not the actual end user.
    *
    * @param address Address to search for messages from.
    * @param opts Options object.
@@ -96,6 +102,44 @@ export interface ICrossChainProvider {
     address: AddressLike,
     opts?: {
       direction?: MessageDirection
+      fromBlock?: BlockTag
+      toBlock?: BlockTag
+    }
+  ): Promise<TokenBridgeMessage[]>
+
+  /**
+   * Alias for getTokenBridgeMessagesByAddress with a drection of L1_TO_L2.
+   *
+   * @param address Address to search for messages from.
+   * @param opts Options object.
+   * @param opts.fromBlock Block to start searching for messages from. If not provided, will start
+   * from the first block (block #0).
+   * @param opts.toBlock Block to stop searching for messages at. If not provided, will stop at the
+   * latest known block ("latest").
+   * @returns All deposit token bridge messages sent by the given address.
+   */
+  getDepositsByAddress(
+    address: AddressLike,
+    opts?: {
+      fromBlock?: BlockTag
+      toBlock?: BlockTag
+    }
+  ): Promise<TokenBridgeMessage[]>
+
+  /**
+   * Alias for getTokenBridgeMessagesByAddress with a drection of L2_TO_L1.
+   *
+   * @param address Address to search for messages from.
+   * @param opts Options object.
+   * @param opts.fromBlock Block to start searching for messages from. If not provided, will start
+   * from the first block (block #0).
+   * @param opts.toBlock Block to stop searching for messages at. If not provided, will stop at the
+   * latest known block ("latest").
+   * @returns All withdrawal token bridge messages sent by the given address.
+   */
+  getWithdrawalsByAddress(
+    address: AddressLike,
+    opts?: {
       fromBlock?: BlockTag
       toBlock?: BlockTag
     }

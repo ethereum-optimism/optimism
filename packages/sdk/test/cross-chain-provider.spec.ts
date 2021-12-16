@@ -263,13 +263,16 @@ describe('CrossChainProvider', () => {
                 direction: MessageDirection.L1_TO_L2,
               })
               expect(found).to.deep.equal(
-                messages.map((message) => {
+                messages.map((message, i) => {
                   return {
                     direction: MessageDirection.L1_TO_L2,
                     sender: message.sender,
                     target: message.target,
                     message: message.message,
                     messageNonce: ethers.BigNumber.from(message.messageNonce),
+                    logIndex: i,
+                    blockNumber: tx.blockNumber,
+                    transactionHash: tx.hash,
                   }
                 })
               )
@@ -317,13 +320,16 @@ describe('CrossChainProvider', () => {
               const tx = await l1Messenger.triggerSentMessageEvents(messages)
               const found = await provider.getMessagesByTransaction(tx)
               expect(found).to.deep.equal(
-                messages.map((message) => {
+                messages.map((message, i) => {
                   return {
                     direction: MessageDirection.L1_TO_L2,
                     sender: message.sender,
                     target: message.target,
                     message: message.message,
                     messageNonce: ethers.BigNumber.from(message.messageNonce),
+                    logIndex: i,
+                    blockNumber: tx.blockNumber,
+                    transactionHash: tx.hash,
                   }
                 })
               )
@@ -397,26 +403,244 @@ describe('CrossChainProvider', () => {
   })
 
   describe('getTokenBridgeMessagesByAddress', () => {
+    let l1Bridge: Contract
+    let l2Bridge: Contract
+    let l1Messenger: Contract
+    let l2Messenger: Contract
+    let provider: CrossChainProvider
+    beforeEach(async () => {
+      l1Messenger = (await (
+        await ethers.getContractFactory('MockMessenger')
+      ).deploy()) as any
+      l2Messenger = (await (
+        await ethers.getContractFactory('MockMessenger')
+      ).deploy()) as any
+      l1Bridge = (await (
+        await ethers.getContractFactory('MockBridge')
+      ).deploy(l1Messenger.address)) as any
+      l2Bridge = (await (
+        await ethers.getContractFactory('MockBridge')
+      ).deploy(l2Messenger.address)) as any
+
+      provider = new CrossChainProvider({
+        l1Provider: ethers.provider,
+        l2Provider: ethers.provider,
+        l1ChainId: 31337,
+        contracts: {
+          l1: {
+            L1CrossDomainMessenger: l1Messenger.address,
+            L1StandardBridge: l1Bridge.address,
+          },
+          l2: {
+            L2CrossDomainMessenger: l2Messenger.address,
+            L2StandardBridge: l2Bridge.address,
+          },
+        },
+      })
+    })
+
     describe('when the address has made deposits or withdrawals', () => {
       describe('when a direction of L1 => L2 is specified', () => {
-        it('should find all deposits made by the address', () => {})
+        it('should find all deposits made by the address', async () => {
+          const from = '0x' + '99'.repeat(20)
+
+          const deposit = {
+            l1Token: '0x' + '11'.repeat(20),
+            l2Token: '0x' + '22'.repeat(20),
+            from,
+            to: '0x' + '44'.repeat(20),
+            amount: ethers.BigNumber.from(1234),
+            data: '0x1234',
+          }
+
+          const withdrawal = {
+            l1Token: '0x' + '12'.repeat(20),
+            l2Token: '0x' + '23'.repeat(20),
+            from,
+            to: '0x' + '45'.repeat(20),
+            amount: ethers.BigNumber.from(5678),
+            data: '0x5678',
+          }
+
+          await l1Bridge.emitERC20DepositInitiated(deposit)
+          await l2Bridge.emitWithdrawalInitiated(withdrawal)
+
+          const found = await provider.getTokenBridgeMessagesByAddress(from, {
+            direction: MessageDirection.L1_TO_L2,
+          })
+
+          expect(found.length).to.equal(1)
+          expect(found[0].amount).to.deep.equal(deposit.amount)
+          expect(found[0].data).to.deep.equal(deposit.data)
+          expect(found[0].direction).to.equal(MessageDirection.L1_TO_L2)
+          expect(found[0].l1Token).to.deep.equal(deposit.l1Token)
+          expect(found[0].l2Token).to.deep.equal(deposit.l2Token)
+          expect(found[0].from).to.deep.equal(deposit.from)
+          expect(found[0].to).to.deep.equal(deposit.to)
+        })
       })
 
       describe('when a direction of L2 => L1 is specified', () => {
-        it('should find all withdrawals made by the address', () => {})
+        it('should find all withdrawals made by the address', async () => {
+          const from = '0x' + '99'.repeat(20)
+
+          const deposit = {
+            l1Token: '0x' + '11'.repeat(20),
+            l2Token: '0x' + '22'.repeat(20),
+            from,
+            to: '0x' + '44'.repeat(20),
+            amount: ethers.BigNumber.from(1234),
+            data: '0x1234',
+          }
+
+          const withdrawal = {
+            l1Token: '0x' + '12'.repeat(20),
+            l2Token: '0x' + '23'.repeat(20),
+            from,
+            to: '0x' + '45'.repeat(20),
+            amount: ethers.BigNumber.from(5678),
+            data: '0x5678',
+          }
+
+          await l1Bridge.emitERC20DepositInitiated(deposit)
+          await l2Bridge.emitWithdrawalInitiated(withdrawal)
+
+          const found = await provider.getTokenBridgeMessagesByAddress(from, {
+            direction: MessageDirection.L2_TO_L1,
+          })
+
+          expect(found.length).to.equal(1)
+          expect(found[0].amount).to.deep.equal(withdrawal.amount)
+          expect(found[0].data).to.deep.equal(withdrawal.data)
+          expect(found[0].direction).to.equal(MessageDirection.L2_TO_L1)
+          expect(found[0].l1Token).to.deep.equal(withdrawal.l1Token)
+          expect(found[0].l2Token).to.deep.equal(withdrawal.l2Token)
+          expect(found[0].from).to.deep.equal(withdrawal.from)
+          expect(found[0].to).to.deep.equal(withdrawal.to)
+        })
+      })
+
+      describe('when no direction is specified', () => {
+        it('should find all deposits and withdrawals made by the address', async () => {
+          const from = '0x' + '99'.repeat(20)
+
+          const deposit = {
+            l1Token: '0x' + '11'.repeat(20),
+            l2Token: '0x' + '22'.repeat(20),
+            from,
+            to: '0x' + '44'.repeat(20),
+            amount: ethers.BigNumber.from(1234),
+            data: '0x1234',
+          }
+
+          const withdrawal = {
+            l1Token: '0x' + '12'.repeat(20),
+            l2Token: '0x' + '23'.repeat(20),
+            from,
+            to: '0x' + '45'.repeat(20),
+            amount: ethers.BigNumber.from(5678),
+            data: '0x5678',
+          }
+
+          await l1Bridge.emitERC20DepositInitiated(deposit)
+          await l2Bridge.emitWithdrawalInitiated(withdrawal)
+
+          const found = await provider.getTokenBridgeMessagesByAddress(from)
+
+          expect(found.length).to.equal(2)
+
+          // Check the deposit (deposits get searched first)
+          expect(found[0].amount).to.deep.equal(deposit.amount)
+          expect(found[0].data).to.deep.equal(deposit.data)
+          expect(found[0].direction).to.equal(MessageDirection.L1_TO_L2)
+          expect(found[0].l1Token).to.deep.equal(deposit.l1Token)
+          expect(found[0].l2Token).to.deep.equal(deposit.l2Token)
+          expect(found[0].from).to.deep.equal(deposit.from)
+          expect(found[0].to).to.deep.equal(deposit.to)
+
+          // Check the withdrawal
+          expect(found[1].amount).to.deep.equal(withdrawal.amount)
+          expect(found[1].data).to.deep.equal(withdrawal.data)
+          expect(found[1].direction).to.equal(MessageDirection.L2_TO_L1)
+          expect(found[1].l1Token).to.deep.equal(withdrawal.l1Token)
+          expect(found[1].l2Token).to.deep.equal(withdrawal.l2Token)
+          expect(found[1].from).to.deep.equal(withdrawal.from)
+          expect(found[1].to).to.deep.equal(withdrawal.to)
+        })
       })
 
       describe('when a block range is specified', () => {
-        it('should find all deposits or withdrawals within the block range', () => {})
-      })
+        describe('when a direction is specified', () => {
+          it('should find all deposits or withdrawals only in the given direction and within the block range', async () => {
+            const from = '0x' + '99'.repeat(20)
 
-      describe('when both a direction and a block range are specified', () => {
-        it('should find all deposits or withdrawals only in the given direction and within the block range', () => {})
+            const deposit1 = {
+              l1Token: '0x' + '11'.repeat(20),
+              l2Token: '0x' + '22'.repeat(20),
+              from,
+              to: '0x' + '44'.repeat(20),
+              amount: ethers.BigNumber.from(1234),
+              data: '0x1234',
+            }
+
+            const deposit2 = {
+              l1Token: '0x' + '33'.repeat(20),
+              l2Token: '0x' + '44'.repeat(20),
+              from,
+              to: '0x' + '55'.repeat(20),
+              amount: ethers.BigNumber.from(1234),
+              data: '0x1234',
+            }
+
+            const withdrawal = {
+              l1Token: '0x' + '12'.repeat(20),
+              l2Token: '0x' + '23'.repeat(20),
+              from,
+              to: '0x' + '45'.repeat(20),
+              amount: ethers.BigNumber.from(5678),
+              data: '0x5678',
+            }
+
+            await l1Bridge.emitERC20DepositInitiated(deposit1)
+            const tx = await l1Bridge.emitERC20DepositInitiated(deposit2)
+            await l2Bridge.emitWithdrawalInitiated(withdrawal)
+
+            const found = await provider.getTokenBridgeMessagesByAddress(from, {
+              direction: MessageDirection.L1_TO_L2,
+              fromBlock: tx.blockNumber,
+            })
+
+            expect(found.length).to.equal(1)
+            expect(found[0].amount).to.deep.equal(deposit2.amount)
+            expect(found[0].data).to.deep.equal(deposit2.data)
+            expect(found[0].direction).to.equal(MessageDirection.L1_TO_L2)
+            expect(found[0].l1Token).to.deep.equal(deposit2.l1Token)
+            expect(found[0].l2Token).to.deep.equal(deposit2.l2Token)
+            expect(found[0].from).to.deep.equal(deposit2.from)
+            expect(found[0].to).to.deep.equal(deposit2.to)
+          })
+        })
+
+        describe('when a direction is not specified', () => {
+          it('should throw an error', async () => {
+            const from = '0x' + '99'.repeat(20)
+            await expect(
+              provider.getTokenBridgeMessagesByAddress(from, {
+                fromBlock: 0,
+                toBlock: 100,
+              })
+            ).to.be.rejectedWith('direction must be specified')
+          })
+        })
       })
     })
 
     describe('when the address has not made any deposits or withdrawals', () => {
-      it('should find nothing', () => {})
+      it('should find nothing', async () => {
+        const from = '0x' + '99'.repeat(20)
+        const found = await provider.getTokenBridgeMessagesByAddress(from)
+        expect(found).to.deep.equal([])
+      })
     })
   })
 
