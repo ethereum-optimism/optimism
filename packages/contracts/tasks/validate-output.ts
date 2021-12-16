@@ -2,6 +2,7 @@
 import { task } from 'hardhat/config'
 import { CompilerOutputContractWithDocumentation } from '@primitivefi/hardhat-dodoc/dist/src/dodocTypes'
 import { TASK_COMPILE } from 'hardhat/builtin-tasks/task-names'
+import chalk from "chalk";
 
 // import { CompilerOutputContractWithDocumentation, Doc } from './dodocTypes';
 // import { decodeAbi } from './abiDecoder';
@@ -63,7 +64,7 @@ const setupErrors =
       }
     }
 
-    return `Error in ${fileName} at path: ${fileSource}\n ---> ${typeToMessage()}`
+    return `Error: ${typeToMessage()}\n   @ ${fileName} \n   --> ${fileSource}\n`
   }
 
 type CompilerOutputWithDocsAndPath = CompilerOutputContractWithDocumentation & {
@@ -88,16 +89,7 @@ task(TASK_COMPILE, async (args, hre, runSuper) => {
   //   return;
   // }
 
-  console.log('<<< Starting Output Checks >>> ')
-
-  const allContracts = await hre.artifacts.getAllFullyQualifiedNames()
-  // console.log("allContracts", allContracts);
-  const qualifiedNames = allContracts.filter((str) =>
-    str.startsWith('contracts')
-  )
-  console.log('qualifiedNames', qualifiedNames)
   // Loops through all the qualified names to get all the compiled contracts
-
   const getBuildInfo = async (
     qualifiedName: string
   ): Promise<CompilerOutputWithDocsAndPath | undefined> => {
@@ -217,6 +209,15 @@ task(TASK_COMPILE, async (args, hre, runSuper) => {
     return foundErrors
   }
 
+  console.log('<<< Starting Output Checks >>> ')
+
+  const allContracts = await hre.artifacts.getAllFullyQualifiedNames()
+  // console.log("allContracts", allContracts);
+  const qualifiedNames = allContracts.filter((str) =>
+    str.startsWith('contracts')
+  )
+  console.log('qualifiedNames', qualifiedNames)
+
   // 1. Setup
   const buildInfo: CompilerOutputWithDocsAndPath[] = (
     await Promise.all(qualifiedNames.map(getBuildInfo))
@@ -225,7 +226,6 @@ task(TASK_COMPILE, async (args, hre, runSuper) => {
   // 2. Check
   const errors = buildInfo.reduce((foundErrors, info) => {
     const docErrors = checkForErrors(info)
-    console.log('DOC ERRORS: ', docErrors)
 
     if (docErrors && docErrors.length > 0) {
       foundErrors[info.filePath] = docErrors
@@ -242,9 +242,9 @@ task(TASK_COMPILE, async (args, hre, runSuper) => {
       if (errorsInfo && errorsInfo.length > 0) {
         ;(errorsInfo as ErrorInfo[]).forEach((erIn) => {
           if ((level === 'error')) {
-            console.error(erIn.text)
+            console.error(chalk.red(erIn.text))
           } else {
-            console.warn(erIn.text)
+            console.warn(chalk.yellow(erIn.text))
           }
         })
       }

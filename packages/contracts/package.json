@@ -42,7 +42,8 @@
     "postpublish": "rimraf chugsplash L1 L2 libraries standards",
     "prepack": "yarn prepublishOnly",
     "postpack": "yarn postpublish",
-    "pre-commit": "lint-staged"
+    "pre-commit": "lint-staged",
+    "docify": "ts-node scripts/generate-docs.ts"
   },
   "keywords": [
     "optimism",
@@ -62,7 +63,8 @@
     "@ethersproject/abstract-provider": "^5.4.1",
     "@ethersproject/abstract-signer": "^5.4.1",
     "@ethersproject/hardware-wallets": "^5.4.0",
-    "@primitivefi/hardhat-dodoc": "^0.1.3"
+    "@primitivefi/hardhat-dodoc": "^0.1.3",
+    "chalk": "^4.1.2"
   },
   "devDependencies": {
     "@codechecks/client": "^0.1.11",
