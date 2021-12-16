@@ -1,37 +1,301 @@
 /* eslint-disable @typescript-eslint/no-empty-function */
-import './setup'
+import { expect } from './setup'
+import { Provider } from '@ethersproject/abstract-provider'
+import { Contract } from 'ethers'
+import { ethers } from 'hardhat'
+import {
+  CrossChainProvider,
+  MessageDirection,
+  CONTRACT_ADDRESSES,
+} from '../src'
 
 describe('CrossChainProvider', () => {
   describe('construction', () => {
-    describe('basic construction (given L1 and L2 providers)', () => {
-      it('should have an l1Provider', () => {})
+    describe('when given an ethers provider for the L1 provider', () => {
+      it('should use the provider as the L1 provider', () => {
+        const provider = new CrossChainProvider({
+          l1Provider: ethers.provider,
+          l2Provider: ethers.provider,
+          l1ChainId: 1,
+        })
 
-      it('should have an l2Provider', () => {})
+        expect(provider.l1Provider).to.equal(ethers.provider)
+      })
+    })
 
-      it('should have an l1ChainId', () => {})
+    describe('when given an ethers provider for the L2 provider', () => {
+      it('should use the provider as the L2 provider', () => {
+        const provider = new CrossChainProvider({
+          l1Provider: ethers.provider,
+          l2Provider: ethers.provider,
+          l1ChainId: 1,
+        })
 
-      it('should have an l2ChainId', () => {})
+        expect(provider.l2Provider).to.equal(ethers.provider)
+      })
+    })
 
-      it('should have all contract connections', () => {})
+    describe('when given a string as the L1 provider', () => {
+      it('should create a JSON-RPC provider for the L1 provider', () => {
+        const provider = new CrossChainProvider({
+          l1Provider: 'https://localhost:8545',
+          l2Provider: ethers.provider,
+          l1ChainId: 1,
+        })
+
+        expect(Provider.isProvider(provider.l1Provider)).to.be.true
+      })
+    })
+
+    describe('when given a string as the L2 provider', () => {
+      it('should create a JSON-RPC provider for the L2 provider', () => {
+        const provider = new CrossChainProvider({
+          l1Provider: ethers.provider,
+          l2Provider: 'https://localhost:8545',
+          l1ChainId: 1,
+        })
+
+        expect(Provider.isProvider(provider.l2Provider)).to.be.true
+      })
+    })
+
+    describe('when no custom contract addresses are provided', () => {
+      describe('when given a known chain ID', () => {
+        it('should use the contract addresses for the known chain ID', () => {
+          const provider = new CrossChainProvider({
+            l1Provider: ethers.provider,
+            l2Provider: 'https://localhost:8545',
+            l1ChainId: 1,
+          })
+
+          const addresses = CONTRACT_ADDRESSES[1]
+          for (const [contractName, contractAddress] of Object.entries(
+            addresses.l1
+          )) {
+            const contract = provider.contracts.l1[contractName]
+            expect(contract.address).to.equal(contractAddress)
+          }
+          for (const [contractName, contractAddress] of Object.entries(
+            addresses.l2
+          )) {
+            const contract = provider.contracts.l2[contractName]
+            expect(contract.address).to.equal(contractAddress)
+          }
+        })
+      })
+
+      describe('when given an unknown chain ID', () => {
+        it('should throw an error', () => {
+          expect(() => {
+            new CrossChainProvider({
+              l1Provider: ethers.provider,
+              l2Provider: 'https://localhost:8545',
+              l1ChainId: 1234,
+            })
+          }).to.throw()
+        })
+      })
+    })
+
+    describe('when custom contract addresses are provided', () => {
+      describe('when given a known chain ID', () => {
+        it('should use known addresses except where custom addresses are given', () => {
+          const overrides = {
+            l1: {
+              L1CrossDomainMessenger: '0x' + '11'.repeat(20),
+            },
+            l2: {
+              L2CrossDomainMessenger: '0x' + '22'.repeat(20),
+            },
+          }
+          const provider = new CrossChainProvider({
+            l1Provider: ethers.provider,
+            l2Provider: 'https://localhost:8545',
+            l1ChainId: 1,
+            contracts: overrides,
+          })
+
+          const addresses = CONTRACT_ADDRESSES[1]
+          for (const [contractName, contractAddress] of Object.entries(
+            addresses.l1
+          )) {
+            if (overrides.l1[contractName]) {
+              const contract = provider.contracts.l1[contractName]
+              expect(contract.address).to.equal(overrides.l1[contractName])
+            } else {
+              const contract = provider.contracts.l1[contractName]
+              expect(contract.address).to.equal(contractAddress)
+            }
+          }
+          for (const [contractName, contractAddress] of Object.entries(
+            addresses.l2
+          )) {
+            if (overrides.l2[contractName]) {
+              const contract = provider.contracts.l2[contractName]
+              expect(contract.address).to.equal(overrides.l2[contractName])
+            } else {
+              const contract = provider.contracts.l2[contractName]
+              expect(contract.address).to.equal(contractAddress)
+            }
+          }
+        })
+      })
+
+      describe('when given an unknown chain ID', () => {
+        describe('when all L1 addresses are provided', () => {
+          it('should use custom addresses where provided', () => {
+            const overrides = {
+              l1: {
+                AddressManager: '0x' + '11'.repeat(20),
+                L1CrossDomainMessenger: '0x' + '12'.repeat(20),
+                L1StandardBridge: '0x' + '13'.repeat(20),
+                StateCommitmentChain: '0x' + '14'.repeat(20),
+                CanonicalTransactionChain: '0x' + '15'.repeat(20),
+                BondManager: '0x' + '16'.repeat(20),
+              },
+              l2: {
+                L2CrossDomainMessenger: '0x' + '22'.repeat(20),
+              },
+            }
+            const provider = new CrossChainProvider({
+              l1Provider: ethers.provider,
+              l2Provider: 'https://localhost:8545',
+              l1ChainId: 1234,
+              contracts: overrides,
+            })
+
+            const addresses = CONTRACT_ADDRESSES[1]
+            for (const [contractName, contractAddress] of Object.entries(
+              addresses.l1
+            )) {
+              if (overrides.l1[contractName]) {
+                const contract = provider.contracts.l1[contractName]
+                expect(contract.address).to.equal(overrides.l1[contractName])
+              } else {
+                const contract = provider.contracts.l1[contractName]
+                expect(contract.address).to.equal(contractAddress)
+              }
+            }
+            for (const [contractName, contractAddress] of Object.entries(
+              addresses.l2
+            )) {
+              if (overrides.l2[contractName]) {
+                const contract = provider.contracts.l2[contractName]
+                expect(contract.address).to.equal(overrides.l2[contractName])
+              } else {
+                const contract = provider.contracts.l2[contractName]
+                expect(contract.address).to.equal(contractAddress)
+              }
+            }
+          })
+        })
+
+        describe('when not all L1 addresses are provided', () => {
+          it('should throw an error', () => {
+            expect(() => {
+              new CrossChainProvider({
+                l1Provider: ethers.provider,
+                l2Provider: 'https://localhost:8545',
+                l1ChainId: 1234,
+                contracts: {
+                  l1: {
+                    // Missing some required L1 addresses
+                    AddressManager: '0x' + '11'.repeat(20),
+                    L1CrossDomainMessenger: '0x' + '12'.repeat(20),
+                    L1StandardBridge: '0x' + '13'.repeat(20),
+                  },
+                  l2: {
+                    L2CrossDomainMessenger: '0x' + '22'.repeat(20),
+                  },
+                },
+              })
+            }).to.throw()
+          })
+        })
+      })
     })
   })
 
   describe('getMessagesByTransaction', () => {
+    let l1Messenger: Contract
+    let l2Messenger: Contract
+    let provider: CrossChainProvider
+    beforeEach(async () => {
+      l1Messenger = (await (
+        await ethers.getContractFactory('MockMessenger')
+      ).deploy()) as any
+      l2Messenger = (await (
+        await ethers.getContractFactory('MockMessenger')
+      ).deploy()) as any
+
+      provider = new CrossChainProvider({
+        l1Provider: ethers.provider,
+        l2Provider: ethers.provider,
+        l1ChainId: 31337,
+        contracts: {
+          l1: {
+            L1CrossDomainMessenger: l1Messenger.address,
+          },
+          l2: {
+            L2CrossDomainMessenger: l2Messenger.address,
+          },
+        },
+      })
+    })
+
     describe('when a direction is specified', () => {
       describe('when the transaction exists', () => {
         describe('when the transaction has messages', () => {
           for (const n of [1, 2, 4, 8]) {
-            it(`should find ${n} messages when the transaction emits ${n} messages`, () => {})
+            it(`should find ${n} messages when the transaction emits ${n} messages`, async () => {
+              const messages = [...Array(n)].map(() => {
+                return {
+                  target: '0x' + '11'.repeat(20),
+                  sender: '0x' + '22'.repeat(20),
+                  message: '0x' + '33'.repeat(64),
+                  messageNonce: 1234,
+                  gasLimit: 100000,
+                }
+              })
+
+              const tx = await l1Messenger.triggerSentMessageEvents(messages)
+              const found = await provider.getMessagesByTransaction(tx, {
+                direction: MessageDirection.L1_TO_L2,
+              })
+              expect(found).to.deep.equal(
+                messages.map((message) => {
+                  return {
+                    direction: MessageDirection.L1_TO_L2,
+                    sender: message.sender,
+                    target: message.target,
+                    message: message.message,
+                    messageNonce: ethers.BigNumber.from(message.messageNonce),
+                  }
+                })
+              )
+            })
           }
         })
 
         describe('when the transaction has no messages', () => {
-          it('should find nothing', () => {})
+          it('should find nothing', async () => {
+            const tx = await l1Messenger.doNothing()
+            const found = await provider.getMessagesByTransaction(tx, {
+              direction: MessageDirection.L1_TO_L2,
+            })
+            expect(found).to.deep.equal([])
+          })
         })
       })
 
-      describe('when the transaction does not exist', () => {
-        it('should throw an error', () => {})
+      describe('when the transaction does not exist in the specified direction', () => {
+        it('should throw an error', async () => {
+          await expect(
+            provider.getMessagesByTransaction('0x' + '11'.repeat(32), {
+              direction: MessageDirection.L1_TO_L2,
+            })
+          ).to.be.rejectedWith('unable to find transaction receipt')
+        })
       })
     })
 
@@ -39,33 +303,71 @@ describe('CrossChainProvider', () => {
       describe('when the transaction exists only on L1', () => {
         describe('when the transaction has messages', () => {
           for (const n of [1, 2, 4, 8]) {
-            it(`should find ${n} messages when the transaction emits ${n} messages`, () => {})
+            it(`should find ${n} messages when the transaction emits ${n} messages`, async () => {
+              const messages = [...Array(n)].map(() => {
+                return {
+                  target: '0x' + '11'.repeat(20),
+                  sender: '0x' + '22'.repeat(20),
+                  message: '0x' + '33'.repeat(64),
+                  messageNonce: 1234,
+                  gasLimit: 100000,
+                }
+              })
+
+              const tx = await l1Messenger.triggerSentMessageEvents(messages)
+              const found = await provider.getMessagesByTransaction(tx)
+              expect(found).to.deep.equal(
+                messages.map((message) => {
+                  return {
+                    direction: MessageDirection.L1_TO_L2,
+                    sender: message.sender,
+                    target: message.target,
+                    message: message.message,
+                    messageNonce: ethers.BigNumber.from(message.messageNonce),
+                  }
+                })
+              )
+            })
           }
         })
 
         describe('when the transaction has no messages', () => {
-          it('should find nothing', () => {})
+          it('should find nothing', async () => {
+            const tx = await l1Messenger.doNothing()
+            const found = await provider.getMessagesByTransaction(tx)
+            expect(found).to.deep.equal([])
+          })
         })
       })
 
       describe('when the transaction exists only on L2', () => {
         describe('when the transaction has messages', () => {
           for (const n of [1, 2, 4, 8]) {
-            it(`should find ${n} messages when the transaction emits ${n} messages`, () => {})
+            it(`should find ${n} messages when the transaction emits ${n} messages`, () => {
+              // TODO: Need support for simulating more than one network.
+            })
           }
         })
 
         describe('when the transaction has no messages', () => {
-          it('should find nothing', () => {})
+          it('should find nothing', () => {
+            // TODO: Need support for simulating more than one network.
+          })
         })
       })
 
       describe('when the transaction does not exist', () => {
-        it('should throw an error', () => {})
+        it('should throw an error', async () => {
+          await expect(
+            provider.getMessagesByTransaction('0x' + '11'.repeat(32))
+          ).to.be.rejectedWith('unable to find transaction receipt')
+        })
       })
 
       describe('when the transaction exists on both L1 and L2', () => {
-        it('should throw an error', () => {})
+        it('should throw an error', async () => {
+          // TODO: Need support for simulating more than one network.
+        })
       })
     })
   })
@@ -152,7 +454,7 @@ describe('CrossChainProvider', () => {
         })
 
         describe('when the message has not been relayed', () => {
-          it('should return a status of READY_FOR_RELAY')
+          it('should return a status of READY_FOR_RELAY', () => {})
         })
       })
     })
