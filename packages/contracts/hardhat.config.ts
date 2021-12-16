@@ -22,6 +22,7 @@ import './tasks/whitelist'
 import './tasks/withdraw-fees'
 import 'hardhat-gas-reporter'
 import '@primitivefi/hardhat-dodoc';
+import './tasks/validate-output'
 
 // Load environment variables from .env
 dotenv.config()
