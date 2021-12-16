@@ -10,6 +10,15 @@ import {
   HardhatUserConfig,
   CompilerOutputContract,
 } from 'hardhat/types'
+import { BuildInfo } from 'hardhat/src/types/artifacts'
+
+export interface Checks {
+  title?: boolean // default: true,
+  details?: boolean // default: true,
+  compilationWarnings?: boolean // default: true,
+  missingUserDoc?: boolean // default: true,
+  missingDevDoc?: boolean // default: true,
+}
 
 declare module 'hardhat/types/config' {
   export interface HardhatUserConfig {
@@ -18,7 +27,7 @@ declare module 'hardhat/types/config' {
       exclude?: string[]
       runOnCompile?: boolean
       errorMode?: boolean
-      checks?: any[]
+      checks?: Checks
     }
   }
 
@@ -28,7 +37,7 @@ declare module 'hardhat/types/config' {
       exclude: string[]
       runOnCompile: boolean
       errorMode: boolean
-      checks: any[]
+      checks: Checks
     }
   }
 }
@@ -37,7 +46,14 @@ extendConfig(
   (config: HardhatConfig, userConfig: Readonly<HardhatUserConfig>) => {
     config.outputChecks = {
       errorMode: userConfig.outputChecks?.errorMode || false,
-      checks: userConfig.outputChecks?.checks || [],
+      checks: {
+        title: true,
+        details: true,
+        compilationWarnings: true,
+        missingUserDoc: true,
+        missingDevDoc: true,
+        ...(userConfig.outputChecks?.checks || {}),
+      },
       include: userConfig.outputChecks?.include || [],
       exclude: userConfig.outputChecks?.exclude || [],
       runOnCompile: userConfig.outputChecks?.runOnCompile || false,
@@ -46,7 +62,7 @@ extendConfig(
 )
 
 interface ErrorInfo {
-  type: ErrorInfo
+  type: ErrorType
   text: string
   at: string
   filePath: string
@@ -156,7 +172,7 @@ const setupErrors =
         case ErrorType.MissingDetails:
           return 'Contract is missing details'
         case ErrorType.CompilationWarning:
-          return ''
+          return `Compilation warnings: \n ${extraData} `
 
         // User DOCS
         case ErrorType.MissingUserDoc:
@@ -171,7 +187,9 @@ const setupErrors =
       }
     }
 
-    return `Comments Error: ${typeToMessage()}\n   @ ${fileName} \n   --> ${fileSource}\n`
+    return `${
+      errorType !== ErrorType.CompilationWarning ? 'Comments Error' : ''
+    }: ${typeToMessage()}\n   @ ${fileName} \n   --> ${fileSource}\n`
   }
 
 task(TASK_COMPILE, async (args, hre, runSuper) => {
@@ -190,15 +208,21 @@ task(TASK_COMPILE, async (args, hre, runSuper) => {
     return
   }
 
-  // Loops through all the qualified names to get all the compiled contracts
   const getBuildInfo = async (
+    qualifiedName: string
+  ): Promise<BuildInfo | undefined> => {
+    return hre.artifacts.getBuildInfo(qualifiedName)
+  }
+
+  // Loops through all the qualified names to get all the compiled contracts
+  const getContractBuildInfo = async (
     qualifiedName: string
   ): Promise<CompilerOutputWithDocsAndPath | undefined> => {
     const [source, name] = qualifiedName.split(':')
 
-    const contractBuildInfo = await hre.artifacts.getBuildInfo(qualifiedName)
+    const build = await getBuildInfo(qualifiedName)
     const info: CompilerOutputContractWithDocumentation =
-      contractBuildInfo?.output.contracts[source][name]
+      build?.output.contracts[source][name]
 
     return {
       ...info,
@@ -211,6 +235,7 @@ task(TASK_COMPILE, async (args, hre, runSuper) => {
 
   const checkForErrors = (info: CompilerOutputWithDocsAndPath): ErrorInfo[] => {
     const foundErrors = []
+    const getErrorText = setupErrors(info.filePath, info.fileName)
 
     const addError = (errorType: ErrorType, extraData?: any) => {
       const text = getErrorText(errorType, extraData)
@@ -246,43 +271,49 @@ task(TASK_COMPILE, async (args, hre, runSuper) => {
     }
 
     const checkEvent = (entity) => {
-      const userDocEntry = findByName(info.userdoc.events, entity.name)
+      if (config.checks.missingUserDoc) {
+        const userDocEntry = findByName(info.userdoc.events, entity.name)
 
-      if (!userDocEntry || !userDocEntry.notice) {
-        addError(ErrorType.MissingUserDoc, `Event: (${entity.name})`)
+        if (!userDocEntry || !userDocEntry.notice) {
+          addError(ErrorType.MissingUserDoc, `Event: (${entity.name})`)
+        }
       }
+      if (config.checks.missingDevDoc) {
+        const devDocEntry = findByName(info.devdoc.events, entity.name)
 
-      const devDocEntry = findByName(info.devdoc.events, entity.name)
-
-      // TODO: Extend with checks for params, returns
-      if (!devDocEntry) {
-        addError(ErrorType.MissingUserDoc, `Event: (${entity.name})`)
+        // TODO: Extend with checks for params, returns
+        if (!devDocEntry) {
+          addError(ErrorType.MissingUserDoc, `Event: (${entity.name})`)
+        }
       }
     }
 
     const checkFunction = (entity) => {
-      const userDocEntry = findByName(info.userdoc.methods, entity.name)
+      if (config.checks.missingUserDoc) {
+        const userDocEntry = findByName(info.userdoc.methods, entity.name)
 
-      if (!userDocEntry || !userDocEntry.notice) {
-        addError(ErrorType.MissingUserDoc, `Function: (${entity.name})`)
+        if (!userDocEntry || !userDocEntry.notice) {
+          addError(ErrorType.MissingUserDoc, `Function: (${entity.name})`)
+        }
       }
+      if (config.checks.missingDevDoc) {
+        const devDocEntryFunc = findByName(info.devdoc.methods, entity.name)
+        const devDocEntryVar = findByName(
+          info.devdoc.stateVariables,
+          entity.name
+        )
 
-      const devDocEntryFunc = findByName(info.devdoc.methods, entity.name)
-      const devDocEntryVar = findByName(info.devdoc.stateVariables, entity.name)
-
-      // TODO: Extend with checks for params, returns
-      if (!devDocEntryFunc && !devDocEntryVar) {
-        addError(ErrorType.MissingUserDoc, `Function: (${entity.name})`)
+        // TODO: Extend with checks for params, returns
+        if (!devDocEntryFunc && !devDocEntryVar) {
+          addError(ErrorType.MissingUserDoc, `Function: (${entity.name})`)
+        }
       }
     }
 
-    // ErrorInfo: Missing
-    const getErrorText = setupErrors(info.filePath, info.fileName)
-
-    if (!info.devdoc.title) {
+    if (config.checks.title && !info.devdoc.title) {
       addError(ErrorType.MissingTitle)
     }
-    if (!info.devdoc.details) {
+    if (config.checks.details && !info.devdoc.details) {
       addError(ErrorType.MissingDetails)
     }
 
@@ -320,12 +351,16 @@ task(TASK_COMPILE, async (args, hre, runSuper) => {
   console.log('qualifiedNames', qualifiedNames)
 
   // 1. Setup
-  const buildInfo: CompilerOutputWithDocsAndPath[] = (
+  const buildInfo: BuildInfo[] = (
     await Promise.all(qualifiedNames.map(getBuildInfo))
   ).filter((inf) => inf !== undefined)
 
+  const contractBuildInfo: CompilerOutputWithDocsAndPath[] = (
+    await Promise.all(qualifiedNames.map(getContractBuildInfo))
+  ).filter((inf) => inf !== undefined)
+
   // 2. Check
-  const errors = buildInfo.reduce((foundErrors, info) => {
+  const errors = contractBuildInfo.reduce((foundErrors, info) => {
     const docErrors = checkForErrors(info)
 
     if (docErrors && docErrors.length > 0) {
@@ -335,13 +370,42 @@ task(TASK_COMPILE, async (args, hre, runSuper) => {
     return foundErrors
   }, {} as { [file: string]: ErrorInfo[] })
 
+  // Check for CompilationWarning
+  if (config.checks.compilationWarnings) {
+    for (const bi of buildInfo) {
+      const outputErrors = (bi.output as any).errors
+      if (outputErrors && outputErrors.length > 0) {
+        outputErrors.forEach((err) => {
+          if (!errors[err.sourceLocation.file]) {
+            errors[err.sourceLocation.file] = []
+          }
+          const filePath = err.sourceLocation.file
+          const fileComponents = filePath.split('/')
+          const fileName = fileComponents[fileComponents.length - 1]
+
+          errors[err.sourceLocation.file].push({
+            text: setupErrors(filePath, fileName)(
+              ErrorType.CompilationWarning,
+              err.formattedMessage
+            ),
+            type: ErrorType.CompilationWarning,
+            at: '',
+            filePath,
+            fileName,
+          })
+        })
+        break
+      }
+    }
+  }
+
   // 3. Act
   const printErrors = (level: 'error' | 'warn' = 'warn') => {
     Object.keys(errors).forEach((file) => {
       const errorsInfo = errors[file]
 
       if (errorsInfo && errorsInfo.length > 0) {
-        ;(errorsInfo as ErrorInfo[]).forEach((erIn) => {
+        errorsInfo.forEach((erIn) => {
           if (level === 'error') {
             console.error(chalk.red(erIn.text))
           } else {
