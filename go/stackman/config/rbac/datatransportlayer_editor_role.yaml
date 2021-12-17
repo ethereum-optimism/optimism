@@ -1,0 +1,24 @@
+# permissions for end users to edit datatransportlayers.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: datatransportlayer-editor-role
+rules:
+- apiGroups:
+  - stack.optimism-stacks.net
+  resources:
+  - datatransportlayers
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - stack.optimism-stacks.net
+  resources:
+  - datatransportlayers/status
+  verbs:
+  - get

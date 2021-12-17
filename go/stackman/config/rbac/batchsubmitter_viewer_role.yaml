@@ -1,0 +1,20 @@
+# permissions for end users to view batchsubmitters.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: batchsubmitter-viewer-role
+rules:
+- apiGroups:
+  - stack.optimism-stacks.net
+  resources:
+  - batchsubmitters
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - stack.optimism-stacks.net
+  resources:
+  - batchsubmitters/status
+  verbs:
+  - get
