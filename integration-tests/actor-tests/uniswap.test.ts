@@ -1,21 +1,15 @@
-import { BigNumber, Contract, utils, Wallet, ContractFactory } from 'ethers'
+import { Contract, utils, Wallet } from 'ethers'
 import { actor, run, setupActor, setupRun } from './lib/convenience'
 import { OptimismEnv } from '../test/shared/env'
-import { UniswapV3Deployer } from 'uniswap-v3-deploy-plugin/dist/deployer/UniswapV3Deployer'
-import { FeeAmount, TICK_SPACINGS } from '@uniswap/v3-sdk'
+import { FeeAmount } from '@uniswap/v3-sdk'
 import ERC20 from '../artifacts/contracts/ERC20.sol/ERC20.json'
+import { abi as NFTABI } from '@uniswap/v3-periphery/artifacts/contracts/NonfungiblePositionManager.sol/NonfungiblePositionManager.json'
+import { abi as RouterABI } from '@uniswap/v3-periphery/artifacts/contracts/SwapRouter.sol/SwapRouter.json'
 
 interface Context {
   contracts: { [name: string]: Contract }
   wallet: Wallet
 }
-
-// Below methods taken from the Uniswap test suite, see
-// https://github.com/Uniswap/v3-periphery/blob/main/test/shared/ticks.ts
-export const getMinTick = (tickSpacing: number) =>
-  Math.ceil(-887272 / tickSpacing) * tickSpacing
-export const getMaxTick = (tickSpacing: number) =>
-  Math.floor(887272 / tickSpacing) * tickSpacing
 
 actor('Uniswap swapper', () => {
   let env: OptimismEnv
@@ -27,52 +21,29 @@ actor('Uniswap swapper', () => {
   setupActor(async () => {
     env = await OptimismEnv.new()
 
-    const factory = new ContractFactory(ERC20.abi, ERC20.bytecode, env.l2Wallet)
-    const tokenA = await factory.deploy(1000000000, 'OVM1', 8, 'OVM1')
-    await tokenA.deployed()
-    const tokenB = await factory.deploy(1000000000, 'OVM2', 8, 'OVM2')
-    await tokenB.deployed()
-
-    tokens =
-      tokenA.address < tokenB.address ? [tokenA, tokenB] : [tokenB, tokenA]
-    contracts = await UniswapV3Deployer.deploy(env.l2Wallet)
-
-    let tx
-    for (const token of tokens) {
-      tx = await token.approve(contracts.positionManager.address, 1000000000)
-      await tx.wait()
-      tx = await token.approve(contracts.router.address, 1000000000)
-      await tx.wait()
+    contracts = {
+      positionManager: new Contract(
+        process.env.UNISWAP_POSITION_MANAGER_ADDRESS,
+        NFTABI
+      ).connect(env.l2Wallet),
+      router: new Contract(
+        process.env.UNISWAP_ROUTER_ADDRESS,
+        RouterABI
+      ).connect(env.l2Wallet),
     }
 
-    tx = await contracts.positionManager.createAndInitializePoolIfNecessary(
-      tokens[0].address,
-      tokens[1].address,
-      FeeAmount.MEDIUM,
-      // initial ratio of 1/1
-      BigNumber.from('79228162514264337593543950336')
-    )
-    await tx.wait()
-
-    tx = await contracts.positionManager.mint(
-      {
-        token0: tokens[0].address,
-        token1: tokens[1].address,
-        tickLower: getMinTick(TICK_SPACINGS[FeeAmount.MEDIUM]),
-        tickUpper: getMaxTick(TICK_SPACINGS[FeeAmount.MEDIUM]),
-        fee: FeeAmount.MEDIUM,
-        recipient: env.l2Wallet.address,
-        amount0Desired: 100000000,
-        amount1Desired: 100000000,
-        amount0Min: 0,
-        amount1Min: 0,
-        deadline: Date.now() * 2,
-      },
-      {
-        gasLimit: 10000000,
-      }
-    )
-    await tx.wait()
+    tokens = [
+      new Contract(process.env.UNISWAP_TOKEN_0_ADDRESS, ERC20.abi).connect(
+        env.l2Wallet
+      ),
+      new Contract(process.env.UNISWAP_TOKEN_1_ADDRESS, ERC20.abi).connect(
+        env.l2Wallet
+      ),
+    ]
+    tokens =
+      tokens[0].address.toLowerCase() < tokens[1].address.toLowerCase()
+        ? [tokens[0], tokens[1]]
+        : [tokens[1], tokens[0]]
   })
 
   setupRun(async () => {
