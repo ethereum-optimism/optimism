@@ -93,6 +93,6 @@ These are NOP in the VM
 
 ## License
 
-All my code is MIT license, minigeth is LGPL3. Being developed under contract for @optimismPBC
+Most of this code is MIT licensed, minigeth is LGPL3.
 
 Note: This code is unaudited. It in NO WAY should be used to secure any money until a lot more testing and auditing are done. I have deployed this nowhere, have advised against deploying it, and make no guarantees of security of ANY KIND.
