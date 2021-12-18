@@ -271,14 +271,14 @@ task(TASK_COMPILE, async (args, hre, runSuper) => {
     }
 
     const checkEvent = (entity) => {
-      if (config.checks.missingUserDoc) {
+      if (config.checks.missingUserDoc && info.userdoc) {
         const userDocEntry = findByName(info.userdoc.events, entity.name)
 
         if (!userDocEntry || !userDocEntry.notice) {
           addError(ErrorType.MissingUserDoc, `Event: (${entity.name})`)
         }
       }
-      if (config.checks.missingDevDoc) {
+      if (config.checks.missingDevDoc && info.devdoc) {
         const devDocEntry = findByName(info.devdoc.events, entity.name)
 
         // TODO: Extend with checks for params, returns
@@ -289,14 +289,14 @@ task(TASK_COMPILE, async (args, hre, runSuper) => {
     }
 
     const checkFunction = (entity) => {
-      if (config.checks.missingUserDoc) {
+      if (config.checks.missingUserDoc && info.userdoc) {
         const userDocEntry = findByName(info.userdoc.methods, entity.name)
 
         if (!userDocEntry || !userDocEntry.notice) {
           addError(ErrorType.MissingUserDoc, `Function: (${entity.name})`)
         }
       }
-      if (config.checks.missingDevDoc) {
+      if (config.checks.missingDevDoc && info.devdoc) {
         const devDocEntryFunc = findByName(info.devdoc.methods, entity.name)
         const devDocEntryVar = findByName(
           info.devdoc.stateVariables,
@@ -310,10 +310,10 @@ task(TASK_COMPILE, async (args, hre, runSuper) => {
       }
     }
 
-    if (config.checks.title && !info.devdoc.title) {
+    if (config.checks.title && !info.devdoc?.title) {
       addError(ErrorType.MissingTitle)
     }
-    if (config.checks.details && !info.devdoc.details) {
+    if (config.checks.details && !info.devdoc?.details) {
       addError(ErrorType.MissingDetails)
     }
 
@@ -416,7 +416,7 @@ task(TASK_COMPILE, async (args, hre, runSuper) => {
     })
   }
 
-  if (config.errorMode) {
+  if (config.errorMode && Object.keys(errors).length > 0) {
     printErrors('error')
     throw new Error('Missing Natspec Comments')
   }
