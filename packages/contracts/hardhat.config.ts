@@ -22,44 +22,13 @@ import './tasks/whitelist'
 import './tasks/withdraw-fees'
 import 'hardhat-gas-reporter'
 import '@primitivefi/hardhat-dodoc'
-import './tasks/validate-output'
+import 'hardhat-output-validator'
 
 // Load environment variables from .env
 dotenv.config()
 
 const enableGasReport = !!process.env.ENABLE_GAS_REPORT
 const privateKey = process.env.PRIVATE_KEY || '0x' + '11'.repeat(32) // this is to avoid hardhat error
-
-// Will be moved to a separate package
-export interface Checks {
-  title?: boolean // default: true,
-  details?: boolean // default: true,
-  compilationWarnings?: boolean // default: true,
-  missingUserDoc?: boolean // default: true,
-  missingDevDoc?: boolean // default: true,
-}
-
-declare module 'hardhat/types/config' {
-  export interface HardhatUserConfig {
-    outputChecks?: {
-      include?: string[]
-      exclude?: string[]
-      runOnCompile?: boolean
-      errorMode?: boolean
-      checks?: Checks
-    }
-  }
-
-  export interface HardhatConfig {
-    outputChecks: {
-      include: string[]
-      exclude: string[]
-      runOnCompile: boolean
-      errorMode: boolean
-      checks: Checks
-    }
-  }
-}
 
 const config: HardhatUserConfig = {
   networks: {
@@ -160,7 +129,7 @@ const config: HardhatUserConfig = {
       'TestLib_MerkleTree',
     ],
   },
-  outputChecks: {
+  outputValidator: {
     runOnCompile: true,
     errorMode: true,
     exclude: ['contracts/test-helpers', 'contracts/test-libraries'],
