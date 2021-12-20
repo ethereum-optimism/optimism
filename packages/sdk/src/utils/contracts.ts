@@ -44,9 +44,33 @@ const NAME_REMAPPING = {
 export const CUSTOM_BRIDGE_ADDRESSES: {
   [l1ChainId: number]: CustomBridgesLike
 } = {
+  // TODO: Maybe we can pull these automatically from the token list?
+  // Alternatively, check against the token list in CI.
   1: {
-    l1: {},
-    l2: {},
+    l1: {
+      SNX: '0xCd9D4988C0AE61887B075bA77f08cbFAd2b65068',
+      DAI: '0x10E6593CDda8c58a1d0f14C5164B376352a55f2F',
+      BitBTC: '0xaBA2c5F108F7E820C049D5Af70B16ac266c8f128',
+    },
+    l2: {
+      SNX: '0x3f87Ff1de58128eF8FCb4c807eFD776E1aC72E51',
+      DAI: '0x467194771dAe2967Aef3ECbEDD3Bf9a310C76C65',
+      BitBTC: '0x158F513096923fF2d3aab2BcF4478536de6725e2',
+    },
+  },
+  42: {
+    l1: {
+      SNX: '0xD134Db47DDF5A6feB245452af17cCAf92ee53D3c',
+      DAI: '0xb415e822C4983ecD6B1c1596e8a5f976cf6CD9e3',
+      BitBTC: '0x0b651A42F32069d62d5ECf4f2a7e5Bd3E9438746',
+      USX: '0x40E862341b2416345F02c41Ac70df08525150dC7',
+    },
+    l2: {
+      SNX: '0x5C3f51CEd0C2F6157e2be67c029264D6C44bfe42',
+      DAI: '0x467194771dAe2967Aef3ECbEDD3Bf9a310C76C65',
+      BitBTC: '0x0CFb46528a7002a7D8877a5F7a69b9AaF1A9058e',
+      USX: '0xB4d37826b14Cd3CB7257A2A5094507d701fe715f',
+    },
   },
 }
 
