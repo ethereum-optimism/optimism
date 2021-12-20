@@ -6,10 +6,10 @@ import (
 	"os"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/go/l2geth-exporter/l1contracts"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
-	"github.com/optimisticben/optimism/go/l2geth-exporter/l1contracts"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
@@ -19,19 +19,21 @@ func main() {
 		listenAddress = ":9100"
 	}
 
-	gethUrl := os.Getenv("GETH_URL")
-	if gethUrl == "" {
-		log.Error("GETH_URL environmental variable is required")
+	log.Root().SetHandler(log.CallerFileHandler(log.StdoutHandler))
+
+	l1Url := os.Getenv("L1_URL")
+	if l1Url == "" {
+		log.Error("L1_URL environmental variable is required")
 		os.Exit(1)
 	}
-	ovmCtcAddress := os.Getenv("OVM_CTC_ADDRESS")
-	if ovmCtcAddress == "" {
-		log.Error("OVM_CTC_ADDRESS environmental variable is required")
+	ctcAddress := os.Getenv("CTC_ADDRESS")
+	if ctcAddress == "" {
+		log.Error("CTC_ADDRESS environmental variable is required")
 		os.Exit(1)
 	}
-	client, err := ethclient.Dial(gethUrl)
+	client, err := ethclient.Dial(l1Url)
 	if err != nil {
-		log.Error("Problem connecting to GETH: %s", err)
+		log.Error("Problem connecting to L1: %s", err)
 	}
 
 	http.Handle("/metrics", promhttp.Handler())
@@ -44,17 +46,17 @@ func main() {
 		</body>
 		</html>`))
 	})
-	go getCTCTotalElements(ovmCtcAddress, client)
+	go getCTCTotalElements(ctcAddress, client)
 
-	log.Info("Listening on", listenAddress)
+	log.Info("Program starting", "listenAddress", listenAddress, "GETH_URL", l1Url, "CTC_ADDRESS", ctcAddress)
 	if err := http.ListenAndServe(listenAddress, nil); err != nil {
-		log.Error("Can't start http server: %s", err)
+		log.Error("Can't start http server", "error", err)
 	}
 
 }
 
 func getCTCTotalElements(address string, client *ethclient.Client) {
-	ovmCTC := l1contracts.OVMCTC{
+	ctc := l1contracts.CTC{
 		Address: common.HexToAddress(address),
 		Client:  client,
 	}
@@ -62,16 +64,18 @@ func getCTCTotalElements(address string, client *ethclient.Client) {
 	ticker := time.NewTicker(30 * time.Second)
 	defer ticker.Stop()
 	for {
-		<-ticker.C
-
-		totalElements, err := ovmCTC.GetTotalElements()
+		totalElements, err := ctc.GetTotalElements()
 		if err != nil {
-			log.Error("Error calling GetTotalElements: %s", err)
+			ctcTotalElementsCallSuccess.Set(0)
+			log.Error("Error calling GetTotalElements", "error", err)
 			continue
 		}
+		ctcTotalElementsCallSuccess.Set(1)
 		totalElementsFloat, _ := new(big.Float).SetInt(totalElements).Float64()
-		ovmctcTotalElements.WithLabelValues(
+		ctcTotalElements.WithLabelValues(
 			"latest").Set(totalElementsFloat)
+
+		<-ticker.C
 
 	}
 }

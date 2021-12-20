@@ -6,15 +6,21 @@ import (
 
 //Define the metrics we wish to expose
 var (
-	ovmctcTotalElements = prometheus.NewGaugeVec(
+	ctcTotalElements = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
-			Name: "ovmctc_total_elements",
-			Help: "OVM CTC GetTotalElements value."},
+			Name: "l2geth_ctc_total_elements",
+			Help: "CTC GetTotalElements value."},
 		[]string{"state"},
+	)
+	ctcTotalElementsCallSuccess = prometheus.NewGauge(
+		prometheus.GaugeOpts{
+			Name: "l2geth_ctc_total_elements_call_success",
+			Help: "CTC GetTotalElements call success."},
 	)
 )
 
 func init() {
 	//Register metrics with prometheus
-	prometheus.MustRegister(ovmctcTotalElements)
+	prometheus.MustRegister(ctcTotalElements)
+	prometheus.MustRegister(ctcTotalElementsCallSuccess)
 }

@@ -1,16 +1,19 @@
 SHELL := /bin/bash
 
-GITCOMMIT := $(shell git rev-parse HEAD)
-GITDATE := $(shell git show -s --format='%ct')
-GITVERSION := $(shell cat package.json | jq .version)
+VERSION := `git describe --abbrev=0`
+GITCOMMIT := `git rev-parse HEAD`
+BUILDDATE := `date +%Y-%m-%d`
+BUILDUSER := `whoami`
 
 LDFLAGSSTRING +=-X main.GitCommit=$(GITCOMMIT)
 LDFLAGSSTRING +=-X main.GitDate=$(GITDATE)
 LDFLAGSSTRING +=-X main.GitVersion=$(GITVERSION)
 LDFLAGS :=-ldflags "$(LDFLAGSSTRING)"
 
-l2geth-exporter:
-	env GO111MODULE=on go build $(LDFLAGS)
+all: build
+
+build:
+	CGO_ENABLED=0 go build $(LDFLAGS)
 
 clean:
 	rm l2geth-exporter
@@ -24,15 +27,15 @@ lint:
 binding:
 	$(eval temp := $(shell mktemp))
 
-	cat ../../packages/contracts/deployments/mainnet/OVM_CanonicalTransactionChain.json \
+	cat ../../packages/contracts/deployments/mainnet/CanonicalTransactionChain.json \
 		| jq -r .bytecode > $(temp)
 
-	cat ../../packages/contracts/deployments/mainnet/OVM_CanonicalTransactionChain.json \
+	cat ../../packages/contracts/deployments/mainnet/CanonicalTransactionChain.json \
 		| jq .abi \
 		| abigen --pkg bindings \
 		--abi - \
-		--out bindings/OVM_CanonicalTransactionChain.go \
-		--type OVMCanonicalTransactionChain \
+		--out bindings/CanonicalTransactionChain.go \
+		--type CanonicalTransactionChain \
 		--bin $(temp)
 
 	rm $(temp)
