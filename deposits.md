@@ -168,7 +168,7 @@ L1 transaction deposits are [deposit transactions][deposit-transaction-type] gen
 corresponding `TransactionDeposited` event emitted by the [deposit feed
 contract][deposit-feed-contract] on L1.
 
-1. `from` is unchanged from the emitted value (though it may have been transformed to an  in
+1. `from` is unchanged from the emitted value (though it may have been transformed to an alias in
    the deposit feed contract).
 2. `to` may be either:
     1. any 20-byte address (including the zero-address)
@@ -189,52 +189,9 @@ The deposit feed handles two special cases:
 
 1. A contract creation deposit, which is indicated by setting the `isCreation` flag to `true`.
    In the event that the `to` address is non-zero, the contract will revert.
-2. A call from a contract account, in which case the `from` value is transformed to its L2 .
+2. A call from a contract account, in which case the `from` value is transformed to its L2 [alias][address-aliasing].
 
 > **TODO** Define if/how ETH withdrawals occur.
-
-A solidity-like pseudocode implementation demonstrates the functionality:
-
-```solidity
-contract DepositFeed {
-
-  event TransactionDeposited(
-    address indexed from,
-    address indexed to,
-    uint256 value,
-    uint256 gasLimit,
-    bool isCreation,
-    bytes _data
-  );
-
-  function depositTransaction(
-    address to,
-    uint256 value,
-    uint256 gasLimit,
-    bool isCreation,
-    bytes memory _data
-  ) external payable {
-    address from;
-    if (msg.sender == tx.origin) {
-        from = msg.sender;
-    } else {
-        from = msg.sender + 0x1111000000000000000000000000000000001111;
-    }
-
-    if(isCreation && _to != address(0)) {
-        revert('Contract creation deposits must not specify a recipient address.');
-    } else {
-      emit TransactionDeposited(
-        msg.sender,
-        to,
-        msg.value,
-        isCreation,
-        initCode
-      );
-    }
-  }
-}
-```
 
 #### Address aliasing
 
@@ -245,3 +202,9 @@ If the caller is not a contract, the address will be ed by adding
 has the same address as a contract on L2 but doesn't have the same code. We can safely ignore
 this for EOAs because they're guaranteed to have the same "code" (i.e. no code at all). This also
 makes it possible for users to interact with contracts on L2 even when the Sequencer is down.
+
+#### Reference Implementation
+
+A reference implementation of the Deposit Feed contract can be found in [DepositFeed.sol].
+
+[DepositFeed.sol]: /packages/contracts/contracts/DepositFeed.sol
