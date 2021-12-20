@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"math/big"
 	"net/http"
 	"os"
@@ -11,6 +12,10 @@ import (
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+)
+
+var (
+	l1TimeoutSeconds = 5
 )
 
 func main() {
@@ -64,17 +69,20 @@ func getCTCTotalElements(address string, client *ethclient.Client) {
 	ticker := time.NewTicker(30 * time.Second)
 	defer ticker.Stop()
 	for {
-		totalElements, err := ctc.GetTotalElements()
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second*time.Duration(l1TimeoutSeconds))
+		totalElements, err := ctc.GetTotalElements(ctx)
 		if err != nil {
 			ctcTotalElementsCallSuccess.Set(0)
 			log.Error("Error calling GetTotalElements", "error", err)
+			cancel()
 			continue
 		}
 		ctcTotalElementsCallSuccess.Set(1)
 		totalElementsFloat, _ := new(big.Float).SetInt(totalElements).Float64()
 		ctcTotalElements.WithLabelValues(
 			"latest").Set(totalElementsFloat)
-
+		log.Info("ctc updated", "ctcTotalElements", totalElementsFloat)
+		ctx.Done()
 		<-ticker.C
 
 	}

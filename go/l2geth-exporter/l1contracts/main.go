@@ -12,12 +12,11 @@ import (
 
 // CTC interacts with the OVM CTC contract
 type CTC struct {
-	Ctx     context.Context
 	Address common.Address
 	Client  *ethclient.Client
 }
 
-func (ctc *CTC) GetTotalElements() (*big.Int, error) {
+func (ctc *CTC) GetTotalElements(ctx context.Context) (*big.Int, error) {
 
 	contract, err := bindings.NewCanonicalTransactionChainCaller(ctc.Address, ctc.Client)
 	if err != nil {
@@ -25,7 +24,7 @@ func (ctc *CTC) GetTotalElements() (*big.Int, error) {
 	}
 
 	totalElements, err := contract.GetTotalElements(&bind.CallOpts{
-		Context: ctc.Ctx,
+		Context: ctx,
 	})
 	if err != nil {
 		return nil, err
