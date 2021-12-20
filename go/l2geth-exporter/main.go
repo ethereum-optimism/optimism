@@ -82,7 +82,7 @@ func getCTCTotalElements(address string, client *ethclient.Client) {
 		ctcTotalElements.WithLabelValues(
 			"latest").Set(totalElementsFloat)
 		log.Info("ctc updated", "ctcTotalElements", totalElementsFloat)
-		ctx.Done()
+		cancel()
 		<-ticker.C
 
 	}
