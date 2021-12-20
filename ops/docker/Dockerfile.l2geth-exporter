@@ -1,0 +1,12 @@
+FROM golang:1.16 as builder
+
+ADD ./go/l2geth-exporter /app/
+WORKDIR /app/
+RUN make build
+
+FROM alpine:latest
+RUN apk --no-cache add ca-certificates
+WORKDIR /root/
+COPY --from=builder /app/l2geth-exporter /usr/local/bin/
+ENTRYPOINT ["l2geth-exporter"]
+CMD ["--help"]
