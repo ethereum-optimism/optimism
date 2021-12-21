@@ -34,4 +34,4 @@ COPY packages/contracts/test/helpers/constants.ts ./test/helpers/constants.ts
 COPY packages/contracts/scripts ./scripts
 
 COPY ./ops/scripts/deployer.sh .
-ENTRYPOINT yarn run deploy
+CMD ./ops/scripts/deployer.sh
