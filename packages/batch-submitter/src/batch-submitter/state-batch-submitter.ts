@@ -154,7 +154,6 @@ export class StateBatchSubmitter extends BatchSubmitter {
     startBlock: number,
     endBlock: number
   ): Promise<TransactionReceipt> {
-
     const batchTxBuildStart = performance.now()
 
     const batch = await this._generateStateCommitmentBatch(startBlock, endBlock)
