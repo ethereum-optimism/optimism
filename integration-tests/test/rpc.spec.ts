@@ -1,8 +1,9 @@
+import { expect } from './shared/setup'
+
 import { expectApprox, injectL2Context } from '@eth-optimism/core-utils'
 import { Wallet, BigNumber, Contract, ContractFactory } from 'ethers'
 import { serialize } from '@ethersproject/transactions'
 import { ethers } from 'hardhat'
-import chai, { expect } from 'chai'
 import {
   sleep,
   l2Provider,
@@ -12,17 +13,12 @@ import {
   isLiveNetwork,
   gasPriceForL2,
 } from './shared/utils'
-import chaiAsPromised from 'chai-as-promised'
 import { OptimismEnv } from './shared/env'
 import {
   TransactionReceipt,
   TransactionRequest,
 } from '@ethersproject/providers'
-import { solidity } from 'ethereum-waffle'
 import simpleStorageJson from '../artifacts/contracts/SimpleStorage.sol/SimpleStorage.json'
-
-chai.use(chaiAsPromised)
-chai.use(solidity)
 
 describe('Basic RPC tests', () => {
   let env: OptimismEnv

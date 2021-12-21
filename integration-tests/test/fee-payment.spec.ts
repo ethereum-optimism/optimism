@@ -1,6 +1,4 @@
-import chai, { expect } from 'chai'
-import chaiAsPromised from 'chai-as-promised'
-chai.use(chaiAsPromised)
+import { expect } from './shared/setup'
 
 /* Imports: External */
 import { BigNumber, utils } from 'ethers'
