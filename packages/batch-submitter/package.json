@@ -15,7 +15,7 @@
     "lint": "yarn lint:fix && yarn lint:check",
     "pre-commit": "lint-staged",
     "lint:fix": "yarn lint:check --fix",
-    "lint:check": "eslint .",
+    "lint:check": "eslint . --max-warnings=0",
     "test": "hardhat test --show-stack-traces",
     "test:coverage": "nyc hardhat test && nyc merge .nyc_output coverage.json"
   },
