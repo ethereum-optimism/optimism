@@ -68,6 +68,30 @@ export interface OEContractsLike {
 }
 
 /**
+ * Represents list of custom bridges.
+ */
+export interface CustomBridges {
+  l1: {
+    [name: string]: Contract
+  }
+  l2: {
+    [name: string]: Contract
+  }
+}
+
+/**
+ * Something that looks like the list of custom bridges.
+ */
+export interface CustomBridgesLike {
+  l1: {
+    [K in keyof CustomBridges['l1']]: AddressLike
+  }
+  l2: {
+    [K in keyof CustomBridges['l2']]: AddressLike
+  }
+}
+
+/**
  * Enum describing the status of a message.
  */
 export enum MessageStatus {
@@ -123,11 +147,9 @@ export interface CrossChainMessageRequest {
 }
 
 /**
- * Describes a message that is sent between L1 and L2. Direction determines where the message was
- * sent from and where it's being sent to.
+ * Core components of a cross chain message.
  */
-export interface CrossChainMessage {
-  direction: MessageDirection
+export interface CoreCrossChainMessage {
   sender: string
   target: string
   message: string
@@ -135,12 +157,15 @@ export interface CrossChainMessage {
 }
 
 /**
- * Convenience type for when you don't care which direction the message is going in.
+ * Describes a message that is sent between L1 and L2. Direction determines where the message was
+ * sent from and where it's being sent to.
  */
-export type DirectionlessCrossChainMessage = Omit<
-  CrossChainMessage,
-  'direction'
->
+export interface CrossChainMessage extends CoreCrossChainMessage {
+  direction: MessageDirection
+  logIndex: number
+  blockNumber: number
+  transactionHash: string
+}
 
 /**
  * Describes a token withdrawal or deposit, along with the underlying raw cross chain message
@@ -153,7 +178,10 @@ export interface TokenBridgeMessage {
   l1Token: string
   l2Token: string
   amount: BigNumber
-  raw: CrossChainMessage
+  data: string
+  logIndex: number
+  blockNumber: number
+  transactionHash: string
 }
 
 /**

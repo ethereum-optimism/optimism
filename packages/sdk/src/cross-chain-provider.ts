@@ -4,7 +4,7 @@ import {
   BlockTag,
   TransactionReceipt,
 } from '@ethersproject/abstract-provider'
-import { BigNumber } from 'ethers'
+import { ethers, BigNumber, Event } from 'ethers'
 import {
   ICrossChainProvider,
   OEContracts,
@@ -19,6 +19,8 @@ import {
   MessageStatus,
   TokenBridgeMessage,
   MessageReceipt,
+  CustomBridges,
+  CustomBridgesLike,
 } from './interfaces'
 import {
   toProvider,
@@ -26,6 +28,7 @@ import {
   toTransactionHash,
   DeepPartial,
   getAllOEContracts,
+  getCustomBridges,
 } from './utils'
 
 export class CrossChainProvider implements ICrossChainProvider {
@@ -33,6 +36,7 @@ export class CrossChainProvider implements ICrossChainProvider {
   public l2Provider: Provider
   public l1ChainId: number
   public contracts: OEContracts
+  public bridges: CustomBridges
 
   /**
    * Creates a new CrossChainProvider instance.
@@ -48,6 +52,7 @@ export class CrossChainProvider implements ICrossChainProvider {
     l2Provider: ProviderLike
     l1ChainId: NumberLike
     contracts?: DeepPartial<OEContractsLike>
+    bridges?: Partial<CustomBridgesLike>
   }) {
     this.l1Provider = toProvider(opts.l1Provider)
     this.l2Provider = toProvider(opts.l2Provider)
@@ -56,6 +61,11 @@ export class CrossChainProvider implements ICrossChainProvider {
       l1SignerOrProvider: this.l1Provider,
       l2SignerOrProvider: this.l2Provider,
       overrides: opts.contracts,
+    })
+    this.bridges = getCustomBridges(this.l1ChainId, {
+      l1SignerOrProvider: this.l1Provider,
+      l2SignerOrProvider: this.l2Provider,
+      overrides: opts.bridges,
     })
   }
 
@@ -115,6 +125,9 @@ export class CrossChainProvider implements ICrossChainProvider {
           sender: parsed.args.sender,
           message: parsed.args.message,
           messageNonce: parsed.args.messageNonce,
+          logIndex: log.logIndex,
+          blockNumber: log.blockNumber,
+          transactionHash: log.transactionHash,
         }
       })
   }
@@ -132,13 +145,137 @@ export class CrossChainProvider implements ICrossChainProvider {
 
   public async getTokenBridgeMessagesByAddress(
     address: AddressLike,
-    opts?: {
+    opts: {
       direction?: MessageDirection
       fromBlock?: BlockTag
       toBlock?: BlockTag
-    }
+    } = {}
   ): Promise<TokenBridgeMessage[]> {
-    throw new Error('Not implemented')
+    const parseTokenEvent = (
+      event: Event,
+      dir: MessageDirection
+    ): TokenBridgeMessage => {
+      return {
+        direction: dir,
+        from: event.args._from,
+        to: event.args._to,
+        l1Token: event.args._l1Token || ethers.constants.AddressZero,
+        l2Token: event.args._l2Token || this.contracts.l2.OVM_ETH.address,
+        amount: event.args._amount,
+        data: event.args._data,
+        logIndex: event.logIndex,
+        blockNumber: event.blockNumber,
+        transactionHash: event.transactionHash,
+      }
+    }
+
+    // Make sure you provide a direction if you specify a block range. Block ranges don't make
+    // sense to use on both chains at the same time.
+    if (opts.fromBlock !== undefined || opts.toBlock !== undefined) {
+      if (opts.direction === undefined) {
+        throw new Error('direction must be specified when using a block range')
+      }
+    }
+
+    // Keep track of all of the messages triggered by the address in question.
+    // We'll add messages to this list as we find them, based on the direction that the user has
+    // requested we find messages in. If the user hasn't requested a direction, we find messages in
+    // both directions.
+    const messages: TokenBridgeMessage[] = []
+
+    // First find all messages in the L1 to L2 direction.
+    if (
+      opts.direction === undefined ||
+      opts.direction === MessageDirection.L1_TO_L2
+    ) {
+      // Find all ETH deposit events and push them into the messages array.
+      const ethDepositEvents =
+        await this.contracts.l1.L1StandardBridge.queryFilter(
+          this.contracts.l1.L1StandardBridge.filters.ETHDepositInitiated(
+            address
+          ),
+          opts.fromBlock,
+          opts.toBlock
+        )
+      for (const event of ethDepositEvents) {
+        messages.push(parseTokenEvent(event, MessageDirection.L1_TO_L2))
+      }
+
+      // Send an event query for every L1 bridge, this will return an array of arrays.
+      const erc20DepositEventSets = await Promise.all(
+        [
+          this.contracts.l1.L1StandardBridge,
+          ...Object.values(this.bridges.l1),
+        ].map(async (bridge) => {
+          return bridge.queryFilter(
+            bridge.filters.ERC20DepositInitiated(undefined, undefined, address),
+            opts.fromBlock,
+            opts.toBlock
+          )
+        })
+      )
+
+      for (const erc20DepositEvents of erc20DepositEventSets) {
+        for (const event of erc20DepositEvents) {
+          messages.push(parseTokenEvent(event, MessageDirection.L1_TO_L2))
+        }
+      }
+    }
+
+    // Next find all messages in the L2 to L1 direction.
+    if (
+      opts.direction === undefined ||
+      opts.direction === MessageDirection.L2_TO_L1
+    ) {
+      // ETH withdrawals and ERC20 withdrawals are the same event on L2.
+      // Send an event query for every L2 bridge, this will return an array of arrays.
+      const withdrawalEventSets = await Promise.all(
+        [
+          this.contracts.l2.L2StandardBridge,
+          ...Object.values(this.bridges.l2),
+        ].map(async (bridge) => {
+          return bridge.queryFilter(
+            bridge.filters.WithdrawalInitiated(undefined, undefined, address),
+            opts.fromBlock,
+            opts.toBlock
+          )
+        })
+      )
+
+      for (const withdrawalEvents of withdrawalEventSets) {
+        for (const event of withdrawalEvents) {
+          messages.push(parseTokenEvent(event, MessageDirection.L2_TO_L1))
+        }
+      }
+    }
+
+    return messages
+  }
+
+  public async getDepositsByAddress(
+    address: AddressLike,
+    opts: {
+      fromBlock?: BlockTag
+      toBlock?: BlockTag
+    } = {}
+  ): Promise<TokenBridgeMessage[]> {
+    return this.getTokenBridgeMessagesByAddress(address, {
+      ...opts,
+      direction: MessageDirection.L1_TO_L2,
+    })
+  }
+
+  public async getWithdrawalsByAddress(
+    address: AddressLike,
+    opts: {
+      fromBlock?: BlockTag
+      toBlock?: BlockTag
+    } = {}
+  ): Promise<TokenBridgeMessage[]> {
+    return this.getTokenBridgeMessagesByAddress(address, {
+      ...opts,
+      direction: MessageDirection.L2_TO_L1,
+    })
   }
 
   public async getMessageStatus(message: MessageLike): Promise<MessageStatus> {

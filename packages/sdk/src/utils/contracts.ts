@@ -7,6 +7,8 @@ import {
   OEContractsLike,
   OEL2ContractsLike,
   AddressLike,
+  CustomBridges,
+  CustomBridgesLike,
 } from '../interfaces'
 import { toAddress } from './coercion'
 import { DeepPartial } from './type-utils'
@@ -34,6 +36,42 @@ const NAME_REMAPPING = {
   AddressManager: 'Lib_AddressManager',
   OVM_L1BlockNumber: 'iOVM_L1BlockNumber',
   WETH: 'WETH9',
+}
+
+/**
+ * Mapping of L1 chain IDs to the list of custom bridge addresses for each chain.
+ */
+export const CUSTOM_BRIDGE_ADDRESSES: {
+  [l1ChainId: number]: CustomBridgesLike
+} = {
+  // TODO: Maybe we can pull these automatically from the token list?
+  // Alternatively, check against the token list in CI.
+  1: {
+    l1: {
+      SNX: '0xCd9D4988C0AE61887B075bA77f08cbFAd2b65068',
+      DAI: '0x10E6593CDda8c58a1d0f14C5164B376352a55f2F',
+      BitBTC: '0xaBA2c5F108F7E820C049D5Af70B16ac266c8f128',
+    },
+    l2: {
+      SNX: '0x3f87Ff1de58128eF8FCb4c807eFD776E1aC72E51',
+      DAI: '0x467194771dAe2967Aef3ECbEDD3Bf9a310C76C65',
+      BitBTC: '0x158F513096923fF2d3aab2BcF4478536de6725e2',
+    },
+  },
+  42: {
+    l1: {
+      SNX: '0xD134Db47DDF5A6feB245452af17cCAf92ee53D3c',
+      DAI: '0xb415e822C4983ecD6B1c1596e8a5f976cf6CD9e3',
+      BitBTC: '0x0b651A42F32069d62d5ECf4f2a7e5Bd3E9438746',
+      USX: '0x40E862341b2416345F02c41Ac70df08525150dC7',
+    },
+    l2: {
+      SNX: '0x5C3f51CEd0C2F6157e2be67c029264D6C44bfe42',
+      DAI: '0x467194771dAe2967Aef3ECbEDD3Bf9a310C76C65',
+      BitBTC: '0x0CFb46528a7002a7D8877a5F7a69b9AaF1A9058e',
+      USX: '0xB4d37826b14Cd3CB7257A2A5094507d701fe715f',
+    },
+  },
 }
 
 /**
@@ -189,4 +227,60 @@ export const getAllOEContracts = (
     l1: l1Contracts,
     l2: l2Contracts,
   }
+}
+
+/**
+ * Gets a series of custom bridges for the given L1 chain ID.
+ *
+ * @param l1ChainId L1 chain ID for the L1 network where the custom bridges are deployed.
+ * @param opts Additional options for connecting to the custom bridges.
+ * @param opts.l1SignerOrProvider Signer or provider to connect to the L1 contracts.
+ * @param opts.l2SignerOrProvider Signer or provider to connect to the L2 contracts.
+ * @param opts.overrides Custom contract address overrides for L1 or L2 contracts.
+ * @returns An object containing ethers.Contract objects connected to the appropriate addresses on
+ * both L1 and L2.
+ */
+export const getCustomBridges = (
+  l1ChainId: number,
+  opts: {
+    l1SignerOrProvider?: ethers.Signer | ethers.providers.Provider
+    l2SignerOrProvider?: ethers.Signer | ethers.providers.Provider
+    overrides?: Partial<CustomBridgesLike>
+  } = {}
+): CustomBridges => {
+  const addresses = CUSTOM_BRIDGE_ADDRESSES[l1ChainId] || {
+    l1: {},
+    l2: {},
+  }
+  for (const [contractName, contractAddress] of Object.entries(
+    opts.overrides?.l1 || {}
+  )) {
+    addresses.l1[contractName] = contractAddress
+  }
+  for (const [contractName, contractAddress] of Object.entries(
+    opts.overrides?.l2 || {}
+  )) {
+    addresses.l2[contractName] = contractAddress
+  }
+
+  const bridges = {
+    l1: {},
+    l2: {},
+  }
+  for (const [contractName, contractAddress] of Object.entries(addresses.l1)) {
+    bridges.l1[contractName] = new Contract(
+      toAddress(contractAddress),
+      getContractInterface('IL1ERC20Bridge'),
+      opts.l1SignerOrProvider
+    )
+  }
+  for (const [contractName, contractAddress] of Object.entries(addresses.l2)) {
+    bridges.l2[contractName] = new Contract(
+      toAddress(contractAddress),
+      getContractInterface('IL2ERC20Bridge'),
+      opts.l2SignerOrProvider
+    )
+  }
+
+  return bridges
 }

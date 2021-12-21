@@ -28,17 +28,23 @@ contract MockMessenger is ICrossDomainMessenger {
         return;
     }
 
+    function triggerSentMessageEvent(
+        SentMessageEventParams memory _params
+    ) public {
+        emit SentMessage(
+            _params.target,
+            _params.sender,
+            _params.message,
+            _params.messageNonce,
+            _params.gasLimit
+        );
+    }
+
     function triggerSentMessageEvents(
         SentMessageEventParams[] memory _params
     ) public {
         for (uint256 i = 0; i < _params.length; i++) {
-            emit SentMessage(
-                _params[i].target,
-                _params[i].sender,
-                _params[i].message,
-                _params[i].messageNonce,
-                _params[i].gasLimit
-            );
+            triggerSentMessageEvent(_params[i]);
         }
     }
 
