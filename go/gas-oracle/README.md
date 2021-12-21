@@ -40,7 +40,7 @@ options.
 
 ```
 NAME:
-   gas-oracle - Remotely Control the Optimistic Ethereum Gas Price
+   gas-oracle - Remotely Control the Optimism Gas Price
 
 USAGE:
    gas-oracle [global options] command [command options] [arguments...]
@@ -49,7 +49,7 @@ VERSION:
    0.0.0-1.10.4-stable
 
 DESCRIPTION:
-   Configure with a private key and an Optimistic Ethereum HTTP endpoint to send transactions that update the L2 gas price.
+   Configure with a private key and an Optimism HTTP endpoint to send transactions that update the L2 gas price.
 
 COMMANDS:
      help, h  Shows a list of commands or help for one command

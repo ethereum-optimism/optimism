@@ -2,7 +2,7 @@
 
 # @eth-optimism/sdk
 
-The `@eth-optimism/sdk` package provides a set of tools for interacting with Optimistic Ethereum.
+The `@eth-optimism/sdk` package provides a set of tools for interacting with Optimism.
 
 ## NOTICE
 

@@ -98,7 +98,7 @@ Use the above commands to recompile the packages.
 
 ### Building the rest of the system
 
-If you want to run an Optimistic Ethereum node OR **if you want to run the integration tests**, you'll need to build the rest of the system.
+If you want to run an Optimism node OR **if you want to run the integration tests**, you'll need to build the rest of the system.
 
 ```bash
 cd ops

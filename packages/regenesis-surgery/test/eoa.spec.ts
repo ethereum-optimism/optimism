@@ -68,7 +68,7 @@ describe('EOAs', () => {
     // eslint-disable-next-line
     before(function() {
       if (env.surgeryDataSources.configs.l2NetworkName === 'kovan') {
-        console.log('1inch deployer does not exist on optimistic kovan')
+        console.log('1inch deployer does not exist on Optimism Kovan')
         this.skip()
       }
 

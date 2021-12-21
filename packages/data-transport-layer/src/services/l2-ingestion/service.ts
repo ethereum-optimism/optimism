@@ -121,7 +121,7 @@ export class L2IngestionService extends BaseService<L2IngestionServiceOptions> {
         }
 
         this.logger.info(
-          'Synchronizing unconfirmed transactions from Layer 2 (Optimistic Ethereum)',
+          'Synchronizing unconfirmed transactions from Layer 2 (Optimism)',
           {
             fromBlock: highestSyncedL2BlockNumber,
             toBlock: targetL2Block,

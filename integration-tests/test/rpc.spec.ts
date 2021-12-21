@@ -286,7 +286,7 @@ describe('Basic RPC tests', () => {
       expect(receipt.status).to.eq(0)
     })
 
-    // Optimistic Ethereum special fields on the receipt
+    // Optimism special fields on the receipt
     it('includes L1 gas price and L1 gas used', async () => {
       const tx = await env.l2Wallet.populateTransaction({
         to: env.l2Wallet.address,
