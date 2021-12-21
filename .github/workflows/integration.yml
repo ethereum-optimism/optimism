@@ -18,6 +18,9 @@ jobs:
         image: registry:2
         ports:
           - 5000:5000
+    strategy:
+      matrix:
+        batch-submitter: [ts-batch-submitter, go-batch-submitter]
     env:
         DOCKER_BUILDKIT: 1
         COMPOSE_DOCKER_CLI_BUILD: 1
@@ -41,7 +44,7 @@ jobs:
         working-directory: ./ops
         run: |
           ./scripts/stats.sh &
-          docker-compose up -d
+          docker-compose -f docker-compose.yml -f docker-compose.${{ matrix.batch-submitter }}.yml up -d
 
       - name: Wait for the Sequencer node
         working-directory: ./ops

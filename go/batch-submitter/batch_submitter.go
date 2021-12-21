@@ -4,11 +4,16 @@ import (
 	"context"
 	"crypto/ecdsa"
 	"fmt"
+	"math/big"
 	"net/http"
 	"os"
 	"strconv"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/go/batch-submitter/drivers/proposer"
+	"github.com/ethereum-optimism/optimism/go/batch-submitter/drivers/sequencer"
+	"github.com/ethereum-optimism/optimism/go/batch-submitter/txmgr"
+	l2ethclient "github.com/ethereum-optimism/optimism/l2geth/ethclient"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
@@ -41,11 +46,24 @@ func Main(gitVersion string) func(ctx *cli.Context) error {
 			defer sentry.Flush(2 * time.Second)
 		}
 
-		_, err = NewBatchSubmitter(cfg, gitVersion)
+		log.Info("Initializing batch submitter")
+
+		batchSubmitter, err := NewBatchSubmitter(cfg, gitVersion)
 		if err != nil {
 			log.Error("Unable to create batch submitter", "error", err)
 			return err
 		}
+
+		log.Info("Starting batch submitter")
+
+		if err := batchSubmitter.Start(); err != nil {
+			return err
+		}
+		defer batchSubmitter.Stop()
+
+		log.Info("Batch submitter started")
+
+		<-(chan struct{})(nil)
 
 		return nil
 	}
@@ -57,11 +75,14 @@ type BatchSubmitter struct {
 	ctx              context.Context
 	cfg              Config
 	l1Client         *ethclient.Client
-	l2Client         *ethclient.Client
+	l2Client         *l2ethclient.Client
 	sequencerPrivKey *ecdsa.PrivateKey
 	proposerPrivKey  *ecdsa.PrivateKey
 	ctcAddress       common.Address
 	sccAddress       common.Address
+
+	batchTxService    *Service
+	batchStateService *Service
 }
 
 // NewBatchSubmitter initializes the BatchSubmitter, gathering any resources
@@ -98,8 +119,6 @@ func NewBatchSubmitter(cfg Config, gitVersion string) (*BatchSubmitter, error) {
 
 	log.Root().SetHandler(log.LvlFilterHandler(logLevel, logHandler))
 
-	log.Info("Config", "config", fmt.Sprintf("%#v", cfg))
-
 	// Parse sequencer private key and CTC contract address.
 	sequencerPrivKey, ctcAddress, err := parseWalletPrivKeyAndContractAddr(
 		"Sequencer", cfg.Mnemonic, cfg.SequencerHDPath,
@@ -118,14 +137,14 @@ func NewBatchSubmitter(cfg Config, gitVersion string) (*BatchSubmitter, error) {
 		return nil, err
 	}
 
-	// Connect to L1 and L2 providers. Perform these lastsince they are the
+	// Connect to L1 and L2 providers. Perform these last since they are the
 	// most expensive.
-	l1Client, err := dialEthClientWithTimeout(ctx, cfg.L1EthRpc)
+	l1Client, err := dialL1EthClientWithTimeout(ctx, cfg.L1EthRpc)
 	if err != nil {
 		return nil, err
 	}
 
-	l2Client, err := dialEthClientWithTimeout(ctx, cfg.L2EthRpc)
+	l2Client, err := dialL2EthClientWithTimeout(ctx, cfg.L2EthRpc)
 	if err != nil {
 		return nil, err
 	}
@@ -134,16 +153,105 @@ func NewBatchSubmitter(cfg Config, gitVersion string) (*BatchSubmitter, error) {
 		go runMetricsServer(cfg.MetricsHostname, cfg.MetricsPort)
 	}
 
+	chainID, err := l1Client.ChainID(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	txManagerConfig := txmgr.Config{
+		MinGasPrice:          gasPriceFromGwei(1),
+		MaxGasPrice:          gasPriceFromGwei(cfg.MaxGasPriceInGwei),
+		GasRetryIncrement:    gasPriceFromGwei(cfg.GasRetryIncrement),
+		ResubmissionTimeout:  cfg.ResubmissionTimeout,
+		ReceiptQueryInterval: time.Second,
+	}
+
+	var batchTxService *Service
+	if cfg.RunTxBatchSubmitter {
+		batchTxDriver, err := sequencer.NewDriver(sequencer.Config{
+			Name:        "Sequencer",
+			L1Client:    l1Client,
+			L2Client:    l2Client,
+			BlockOffset: cfg.BlockOffset,
+			MaxTxSize:   cfg.MaxL1TxSize,
+			CTCAddr:     ctcAddress,
+			ChainID:     chainID,
+			PrivKey:     sequencerPrivKey,
+		})
+		if err != nil {
+			return nil, err
+		}
+
+		batchTxService = NewService(ServiceConfig{
+			Context:         ctx,
+			Driver:          batchTxDriver,
+			PollInterval:    cfg.PollInterval,
+			L1Client:        l1Client,
+			TxManagerConfig: txManagerConfig,
+		})
+	}
+
+	var batchStateService *Service
+	if cfg.RunStateBatchSubmitter {
+		batchStateDriver, err := proposer.NewDriver(proposer.Config{
+			Name:        "Proposer",
+			L1Client:    l1Client,
+			L2Client:    l2Client,
+			BlockOffset: cfg.BlockOffset,
+			MaxTxSize:   cfg.MaxL1TxSize,
+			SCCAddr:     sccAddress,
+			CTCAddr:     ctcAddress,
+			ChainID:     chainID,
+			PrivKey:     proposerPrivKey,
+		})
+		if err != nil {
+			return nil, err
+		}
+
+		batchStateService = NewService(ServiceConfig{
+			Context:         ctx,
+			Driver:          batchStateDriver,
+			PollInterval:    cfg.PollInterval,
+			L1Client:        l1Client,
+			TxManagerConfig: txManagerConfig,
+		})
+	}
+
 	return &BatchSubmitter{
-		ctx:              ctx,
-		cfg:              cfg,
-		l1Client:         l1Client,
-		l2Client:         l2Client,
-		sequencerPrivKey: sequencerPrivKey,
-		proposerPrivKey:  proposerPrivKey,
-		ctcAddress:       ctcAddress,
-		sccAddress:       sccAddress,
+		ctx:               ctx,
+		cfg:               cfg,
+		l1Client:          l1Client,
+		l2Client:          l2Client,
+		sequencerPrivKey:  sequencerPrivKey,
+		proposerPrivKey:   proposerPrivKey,
+		ctcAddress:        ctcAddress,
+		sccAddress:        sccAddress,
+		batchTxService:    batchTxService,
+		batchStateService: batchStateService,
 	}, nil
+}
+
+func (b *BatchSubmitter) Start() error {
+	if b.cfg.RunTxBatchSubmitter {
+		if err := b.batchTxService.Start(); err != nil {
+			return err
+		}
+	}
+	if b.cfg.RunStateBatchSubmitter {
+		if err := b.batchStateService.Start(); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (b *BatchSubmitter) Stop() {
+	if b.cfg.RunTxBatchSubmitter {
+		_ = b.batchTxService.Stop()
+	}
+	if b.cfg.RunStateBatchSubmitter {
+		_ = b.batchStateService.Stop()
+	}
 }
 
 // parseWalletPrivKeyAndContractAddr returns the wallet private key to use for
@@ -185,22 +293,34 @@ func parseWalletPrivKeyAndContractAddr(
 // NOTE: This method MUST be run as a goroutine.
 func runMetricsServer(hostname string, port uint64) {
 	metricsPortStr := strconv.FormatUint(port, 10)
-	metricsAddr := fmt.Sprintf("%s: %s", hostname, metricsPortStr)
+	metricsAddr := fmt.Sprintf("%s:%s", hostname, metricsPortStr)
 
 	http.Handle("/metrics", promhttp.Handler())
 	_ = http.ListenAndServe(metricsAddr, nil)
 }
 
-// dialEthClientWithTimeout attempts to dial the L1 or L2 provider using the
+// dialL1EthClientWithTimeout attempts to dial the L1 provider using the
 // provided URL. If the dial doesn't complete within defaultDialTimeout seconds,
 // this method will return an error.
-func dialEthClientWithTimeout(ctx context.Context, url string) (
+func dialL1EthClientWithTimeout(ctx context.Context, url string) (
 	*ethclient.Client, error) {
 
 	ctxt, cancel := context.WithTimeout(ctx, defaultDialTimeout)
 	defer cancel()
 
 	return ethclient.DialContext(ctxt, url)
+}
+
+// dialL2EthClientWithTimeout attempts to dial the L2 provider using the
+// provided URL. If the dial doesn't complete within defaultDialTimeout seconds,
+// this method will return an error.
+func dialL2EthClientWithTimeout(ctx context.Context, url string) (
+	*l2ethclient.Client, error) {
+
+	ctxt, cancel := context.WithTimeout(ctx, defaultDialTimeout)
+	defer cancel()
+
+	return l2ethclient.DialContext(ctxt, url)
 }
 
 // traceRateToFloat64 converts a time.Duration into a valid float64 for the
@@ -212,4 +332,8 @@ func traceRateToFloat64(rate time.Duration) float64 {
 		rate64 = 1.0
 	}
 	return rate64
+}
+
+func gasPriceFromGwei(gasPriceInGwei uint64) *big.Int {
+	return new(big.Int).SetUint64(gasPriceInGwei * 1e9)
 }

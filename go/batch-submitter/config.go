@@ -223,6 +223,10 @@ func NewConfig(ctx *cli.Context) (Config, error) {
 // ensure that it is well-formed.
 func ValidateConfig(cfg *Config) error {
 	// Sanity check log level.
+	if cfg.LogLevel == "" {
+		cfg.LogLevel = "debug"
+	}
+
 	_, err := log.LvlFromString(cfg.LogLevel)
 	if err != nil {
 		return err

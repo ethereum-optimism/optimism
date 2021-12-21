@@ -1,10 +1,11 @@
 package main
 
 import (
+	"os"
+
 	"github.com/BurntSushi/toml"
 	"github.com/ethereum-optimism/optimism/go/proxyd"
 	"github.com/ethereum/go-ethereum/log"
-	"os"
 )
 
 var (
@@ -19,7 +20,7 @@ func main() {
 	log.Root().SetHandler(
 		log.LvlFilterHandler(
 			log.LvlInfo,
-			log.StreamHandler(os.Stdout, log.TerminalFormat(true)),
+			log.StreamHandler(os.Stdout, log.JSONFormat()),
 		),
 	)
 

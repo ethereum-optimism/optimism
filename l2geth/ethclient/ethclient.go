@@ -154,6 +154,13 @@ func (ec *Client) getBlock(ctx context.Context, method string, args ...interface
 		if tx.From != nil {
 			setSenderFromServer(tx.tx, *tx.From, body.Hash)
 		}
+		meta := types.NewTransactionMeta(
+			tx.meta.L1BlockNumber, tx.meta.L1Timestamp,
+			tx.meta.L1MessageSender, tx.meta.QueueOrigin,
+			tx.meta.Index, tx.meta.QueueIndex,
+			tx.meta.RawTransaction,
+		)
+		tx.tx.SetTransactionMeta(meta)
 		txs[i] = tx.tx
 	}
 	return types.NewBlockWithHeader(head).WithBody(txs, uncles), nil
@@ -181,8 +188,29 @@ func (ec *Client) HeaderByNumber(ctx context.Context, number *big.Int) (*types.H
 }
 
 type rpcTransaction struct {
-	tx *types.Transaction
+	tx   *types.Transaction
+	meta *rpcTransactionMeta
 	txExtraInfo
+}
+
+//go:generate gencodec -type rpcTransactionMeta -field-override rpcTransactionMetaMarshaling -out gen_rpc_tx_meta_json.go
+
+type rpcTransactionMeta struct {
+	L1BlockNumber   *big.Int          `json:"l1BlockNumber"`
+	L1Timestamp     uint64            `json:"l1Timestamp"`
+	L1MessageSender *common.Address   `json:"l1MessageSender"`
+	QueueOrigin     types.QueueOrigin `json:"queueOrigin"`
+	Index           *uint64           `json:"index"`
+	QueueIndex      *uint64           `json:"queueIndex"`
+	RawTransaction  []byte            `json:"rawTransaction"`
+}
+
+type rpcTransactionMetaMarshaling struct {
+	L1BlockNumber  *hexutil.Big
+	L1Timestamp    hexutil.Uint64
+	Index          *hexutil.Uint64
+	QueueIndex     *hexutil.Uint64
+	RawTransaction hexutil.Bytes
 }
 
 type txExtraInfo struct {
@@ -193,6 +221,9 @@ type txExtraInfo struct {
 
 func (tx *rpcTransaction) UnmarshalJSON(msg []byte) error {
 	if err := json.Unmarshal(msg, &tx.tx); err != nil {
+		return err
+	}
+	if err := json.Unmarshal(msg, &tx.meta); err != nil {
 		return err
 	}
 	return json.Unmarshal(msg, &tx.txExtraInfo)

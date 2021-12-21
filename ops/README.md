@@ -22,9 +22,11 @@ Supplementing the base configuration is an additional metric enabling file, `doc
 
 Also available for testing is the `rpc-proxy` service in the `docker-compose-rpc-proxy.yml` file. It can be used to restrict what RPC methods are allowed to the Sequencer.
 
-The base stack can be started and stopped with a command like this (there is no need to specify the default docker-compose.yml)
+The base stack can be started and stopped with a command like this:
 ```
 docker-compose \
+    -f docker-compose.yml \
+    -f docker-compose.ts-batch-submitter.yml \
     up --build --detach
 ```
 
@@ -34,13 +36,17 @@ To start the stack with monitoring enabled, just add the metric composition file
 ```
 docker-compose \
     -f docker-compose.yml \
+    -f docker-compose.ts-batch-submitter.yml \
     -f docker-compose-metrics.yml \
     up --build --detach
 ```
 
 Optionally, run a verifier along the rest of the stack. Run a replica with the same command by switching the service name!
 ```
-docker-compose up --scale \
+docker-compose 
+    -f docker-compose.yml \
+    -f docker-compose.ts-batch-submitter.yml \
+    up --scale \
     verifier=1 \
     --build --detach
 ```
@@ -51,6 +57,24 @@ A Makefile has been provided for convience. The following targets are available.
 - make down
 - make up-metrics
 - make down-metrics
+
+## Using the Go Batch Submitter
+
+The existing Typescript batch submitter is in the process of being reimplemented
+in Go. During this transition, the user is required to specify which batch
+submitter to use with docker-compose.
+
+The commands above all use the Typescript batch submitter, by specifying
+`-f docker-compose.ts-batch-submitter.yml`. This can be swapped out for the go
+batch submitter by supplying `-f docker-compose.go-batch-submitter.yml` instead.
+
+Additionally, the `make` targets assume the use of the Typescript batch
+submitter. This can be overridden by setting the `BATCH_SUBMITTER` environment
+variable, e.g. `BATCH_SUBMITTER=docker-compose.go-batch-submitter.yml make up`.
+
+Once the transition is complete, specifying the desired batch submitter will be
+obsolete, and the Go batch submitter will be selected by default from the
+`docker-compose.yml` file and `Makefile`.
 
 ## Cross domain communication
 

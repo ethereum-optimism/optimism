@@ -1,0 +1,139 @@
+version: 2.1
+orbs:
+  gcp-gke: circleci/gcp-gke@1.3.0
+commands:
+  build-dockerfile:
+    parameters:
+      image-name:
+        description: Image name
+        type: string
+      target:
+        description: Dockerfile target
+        type: string
+        default: ""
+      dockerfile:
+        description: Dockerfile to use
+        type: string
+    steps:
+      - checkout
+      - setup_remote_docker:
+          version: 19.03.13
+      - run:
+          name: Build
+          command: |
+            echo -n "$STACKMAN_REPO_AUTH" | docker login -u _json_key --password-stdin https://us-east4-docker.pkg.dev
+            docker build -t "$STACKMAN_REPO/<<parameters.image-name>>:nightly" -f <<parameters.dockerfile>> <<#parameters.target>>--target <<parameters.target>><</parameters.target>> .
+            docker push "$STACKMAN_REPO/<<parameters.image-name>>:nightly"
+jobs:
+  build-dtl:
+    docker:
+      - image: cimg/base:2021.04
+    steps:
+      - build-dockerfile:
+          image-name: data-transport-layer
+          target: data-transport-layer
+          dockerfile: ./ops/docker/Dockerfile.packages
+  build-batch-submitter:
+    docker:
+      - image: cimg/base:2021.04
+    steps:
+      - build-dockerfile:
+          image-name: batch-submitter
+          target: batch-submitter
+          dockerfile: ./ops/docker/Dockerfile.packages
+  build-go-batch-submitter:
+    docker:
+      - image: cimg/base:2021.04
+    steps:
+      - build-dockerfile:
+          image-name: go-batch-submitter
+          dockerfile: ./ops/docker/Dockerfile.batch-submitter-service
+  build-deployer:
+    docker:
+      - image: cimg/base:2021.04
+    steps:
+      - build-dockerfile:
+          image-name: deployer
+          target: deployer
+          dockerfile: ./ops/docker/Dockerfile.packages
+  build-l2geth:
+    docker:
+      - image: cimg/base:2021.04
+    steps:
+      - build-dockerfile:
+          image-name: l2geth
+          dockerfile: ./ops/docker/Dockerfile.geth
+  build-gas-oracle:
+    docker:
+      - image: cimg/base:2021.04
+    steps:
+      - build-dockerfile:
+          image-name: gas-oracle
+          dockerfile: ./ops/docker/Dockerfile.gas-oracle
+  build-integration-tests:
+    docker:
+      - image: cimg/base:2021.04
+    steps:
+      - build-dockerfile:
+          image-name: integration-tests
+          target: integration-tests
+          dockerfile: ./ops/docker/Dockerfile.packages
+  deploy-nightly:
+    docker:
+      - image: cimg/base:2021.04
+    steps:
+      - gcp-gke/install
+      - gcp-gke/update-kubeconfig-with-credentials:
+          cluster: $STACKMAN_CLUSTER
+          gcloud-service-key: STACKMAN_SERVICE_KEY
+          google-compute-region: STACKMAN_COMPUTE_REGION
+          google-compute-zone: STACKMAN_COMPUTE_ZONE
+          google-project-id: STACKMAN_PROJECT_ID
+          install-kubectl: yes
+          perform-login: yes
+      - run:
+          name: Deploy
+          command: |
+            echo "Current nightly pods:"
+            kubectl get pods --namespace nightly
+            echo "Redeploying pods:"
+            kubectl rollout restart statefulset nightly-sequencer --namespace nightly
+            kubectl rollout restart statefulset nightly-go-batch-submitter --namespace nightly
+            kubectl rollout restart statefulset nightly-dtl --namespace nightly
+            kubectl rollout restart deployment nightly-gas-oracle --namespace nightly
+
+
+workflows:
+  nightly:
+    triggers:
+      - schedule:
+          cron: "0 0 * * * "
+          filters:
+            branches:
+              only:
+                - develop
+    jobs:
+      - build-dtl:
+          context: optimism
+      - build-batch-submitter:
+          context: optimism
+      - build-deployer:
+          context: optimism
+      - build-l2geth:
+          context: optimism
+      - build-gas-oracle:
+          context: optimism
+      - build-integration-tests:
+          context: optimism
+      - build-go-batch-submitter:
+          context: optimism
+      - deploy-nightly:
+          context: optimism
+          requires:
+            - build-dtl
+            - build-batch-submitter
+            - build-go-batch-submitter
+            - build-deployer
+            - build-l2geth
+            - build-gas-oracle
+            - build-integration-tests

@@ -11,7 +11,7 @@ RUN apt-get update -y && apt-get install -y git curl jq python3
 # copy over the needed configs to run the dep installation
 # note: this approach can be a bit unhandy to maintain, but it allows
 # us to cache the installation steps
-WORKDIR /optimism
+WORKDIR /opt/optimism
 COPY *.json yarn.lock ./
 COPY packages/core-utils/package.json ./packages/core-utils/package.json
 COPY packages/common-ts/package.json ./packages/common-ts/package.json
@@ -33,30 +33,30 @@ RUN yarn build
 
 
 FROM base as deployer
-WORKDIR /optimism/packages/contracts
+WORKDIR /opt/optimism/packages/contracts
 COPY ./ops/scripts/deployer.sh .
 CMD ["yarn", "run", "deploy"]
 
 
 FROM base as batch-submitter
-WORKDIR /optimism/packages/batch-submitter
+WORKDIR /opt/optimism/packages/batch-submitter
 COPY ./ops/scripts/batches.sh .
 CMD ["npm", "run", "start"]
 
 
 FROM base as data-transport-layer
-WORKDIR /optimism/packages/data-transport-layer
+WORKDIR /opt/optimism/packages/data-transport-layer
 COPY ./ops/scripts/dtl.sh .
 CMD ["node", "dist/src/services/run.js"]
 
 
 FROM base as integration-tests
-WORKDIR /optimism/integration-tests
+WORKDIR /opt/optimism/integration-tests
 COPY ./ops/scripts/integration-tests.sh ./
 CMD ["yarn", "test:integration"]
 
 
 FROM base as relayer
-WORKDIR /optimism/packages/message-relayer
+WORKDIR /opt/optimism/packages/message-relayer
 COPY ./ops/scripts/relayer.sh .
 CMD ["npm", "run", "start"]

@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.7
+
+### Patch Changes
+
+- b6f89fad: Adds a new TestLib_CrossDomainUtils so we can properly test cross chain encoding functions
+
 ## 0.5.6
 
 ### Patch Changes

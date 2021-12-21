@@ -32,7 +32,6 @@ describe('CrossChainMessenger', () => {
         it('should throw an error', () => {})
       })
 
-      // TODO: is this the behavior we want?
       describe('when the message has already been finalized', () => {
         it('should throw an error', () => {})
       })

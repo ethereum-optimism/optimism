@@ -203,6 +203,8 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
       return
     }
 
+    const batchTxBuildStart = performance.now()
+
     const params = await this._generateSequencerBatchParams(
       startBlock,
       endBlock
@@ -226,7 +228,11 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
     if (!wasBatchTruncated && !this._shouldSubmitBatch(batchSizeInBytes)) {
       return
     }
-    this.metrics.numTxPerBatch.observe(endBlock - startBlock)
+
+    const batchTxBuildEnd = performance.now()
+    this.metrics.batchTxBuildTime.set(batchTxBuildEnd - batchTxBuildStart)
+
+    this.metrics.numTxPerBatch.observe(batchParams.totalElementsToAppend)
     const l1tipHeight = await this.signer.provider.getBlockNumber()
     this.logger.debug('Submitting batch.', {
       calldata: batchParams,

@@ -7,35 +7,87 @@ import { Signer } from '@ethersproject/abstract-signer'
 import { Contract, BigNumber, Overrides } from 'ethers'
 
 /**
+ * L1 contract references.
+ */
+export interface OEL1Contracts {
+  AddressManager: Contract
+  L1CrossDomainMessenger: Contract
+  L1StandardBridge: Contract
+  StateCommitmentChain: Contract
+  CanonicalTransactionChain: Contract
+  BondManager: Contract
+}
+
+/**
+ * L2 contract references.
+ */
+export interface OEL2Contracts {
+  L2CrossDomainMessenger: Contract
+  L2StandardBridge: Contract
+  OVM_L1BlockNumber: Contract
+  OVM_L2ToL1MessagePasser: Contract
+  OVM_DeployerWhitelist: Contract
+  OVM_ETH: Contract
+  OVM_GasPriceOracle: Contract
+  OVM_SequencerFeeVault: Contract
+  WETH: Contract
+}
+
+/**
  * Represents Optimistic Ethereum contracts, assumed to be connected to their appropriate
  * providers and addresses.
  */
 export interface OEContracts {
-  /**
-   * L1 contract references.
-   */
-  l1: {
-    AddressManager: Contract
-    L1CrossDomainMessenger: Contract
-    L1StandardBridge: Contract
-    StateCommitmentChain: Contract
-    CanonicalTransactionChain: Contract
-    BondManager: Contract
-  }
+  l1: OEL1Contracts
+  l2: OEL2Contracts
+}
 
-  /**
-   * L2 contract references.
-   */
+/**
+ * Convenience type for something that looks like the L1 OE contract interface but could be
+ * addresses instead of actual contract objects.
+ */
+export type OEL1ContractsLike = {
+  [K in keyof OEL1Contracts]: AddressLike
+}
+
+/**
+ * Convenience type for something that looks like the L2 OE contract interface but could be
+ * addresses instead of actual contract objects.
+ */
+export type OEL2ContractsLike = {
+  [K in keyof OEL2Contracts]: AddressLike
+}
+
+/**
+ * Convenience type for something that looks like the OE contract interface but could be
+ * addresses instead of actual contract objects.
+ */
+export interface OEContractsLike {
+  l1: OEL1ContractsLike
+  l2: OEL2ContractsLike
+}
+
+/**
+ * Represents list of custom bridges.
+ */
+export interface CustomBridges {
+  l1: {
+    [name: string]: Contract
+  }
   l2: {
-    L2CrossDomainMessenger: Contract
-    L2StandardBridge: Contract
-    OVM_L1BlockNumber: Contract
-    OVM_L2ToL1MessagePasser: Contract
-    OVM_DeployerWhitelist: Contract
-    OVM_ETH: Contract
-    OVM_GasPriceOracle: Contract
-    OVM_SequencerFeeVault: Contract
-    WETH: Contract
+    [name: string]: Contract
+  }
+}
+
+/**
+ * Something that looks like the list of custom bridges.
+ */
+export interface CustomBridgesLike {
+  l1: {
+    [K in keyof CustomBridges['l1']]: AddressLike
+  }
+  l2: {
+    [K in keyof CustomBridges['l2']]: AddressLike
   }
 }
 
@@ -95,11 +147,9 @@ export interface CrossChainMessageRequest {
 }
 
 /**
- * Describes a message that is sent between L1 and L2. Direction determines where the message was
- * sent from and where it's being sent to.
+ * Core components of a cross chain message.
  */
-export interface CrossChainMessage {
-  direction: MessageDirection
+export interface CoreCrossChainMessage {
   sender: string
   target: string
   message: string
@@ -107,12 +157,15 @@ export interface CrossChainMessage {
 }
 
 /**
- * Convenience type for when you don't care which direction the message is going in.
+ * Describes a message that is sent between L1 and L2. Direction determines where the message was
+ * sent from and where it's being sent to.
  */
-export type DirectionlessCrossChainMessage = Omit<
-  CrossChainMessage,
-  'direction'
->
+export interface CrossChainMessage extends CoreCrossChainMessage {
+  direction: MessageDirection
+  logIndex: number
+  blockNumber: number
+  transactionHash: string
+}
 
 /**
  * Describes a token withdrawal or deposit, along with the underlying raw cross chain message
@@ -125,7 +178,10 @@ export interface TokenBridgeMessage {
   l1Token: string
   l2Token: string
   amount: BigNumber
-  raw: CrossChainMessage
+  data: string
+  logIndex: number
+  blockNumber: number
+  transactionHash: string
 }
 
 /**
@@ -162,13 +218,6 @@ export interface StateRootBatchHeader {
 export interface StateRootBatch {
   header: StateRootBatchHeader
   stateRoots: string[]
-}
-
-/**
- * Utility type for deep partials.
- */
-export type DeepPartial<T> = {
-  [P in keyof T]?: DeepPartial<T[P]>
 }
 
 /**
