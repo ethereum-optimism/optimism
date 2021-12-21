@@ -188,15 +188,14 @@ export interface TokenBridgeMessage {
  * Enum describing the status of a CrossDomainMessage message receipt.
  */
 export enum MessageReceiptStatus {
-  RELAYED_SUCCEEDED,
   RELAYED_FAILED,
+  RELAYED_SUCCEEDED,
 }
 
 /**
  * CrossDomainMessage receipt.
  */
 export interface MessageReceipt {
-  messageHash: string
   receiptStatus: MessageReceiptStatus
   transactionReceipt: TransactionReceipt
 }

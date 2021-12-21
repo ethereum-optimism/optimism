@@ -7,6 +7,8 @@ import {
   CrossChainProvider,
   MessageDirection,
   CONTRACT_ADDRESSES,
+  hashCrossChainMessage,
+  omit,
 } from '../src'
 
 describe('CrossChainProvider', () => {
@@ -644,6 +646,141 @@ describe('CrossChainProvider', () => {
     })
   })
 
+  describe('toCrossChainMessage', () => {
+    let l1Bridge: Contract
+    let l2Bridge: Contract
+    let l1Messenger: Contract
+    let l2Messenger: Contract
+    let provider: CrossChainProvider
+    beforeEach(async () => {
+      l1Messenger = (await (
+        await ethers.getContractFactory('MockMessenger')
+      ).deploy()) as any
+      l2Messenger = (await (
+        await ethers.getContractFactory('MockMessenger')
+      ).deploy()) as any
+      l1Bridge = (await (
+        await ethers.getContractFactory('MockBridge')
+      ).deploy(l1Messenger.address)) as any
+      l2Bridge = (await (
+        await ethers.getContractFactory('MockBridge')
+      ).deploy(l2Messenger.address)) as any
+
+      provider = new CrossChainProvider({
+        l1Provider: ethers.provider,
+        l2Provider: ethers.provider,
+        l1ChainId: 31337,
+        contracts: {
+          l1: {
+            L1CrossDomainMessenger: l1Messenger.address,
+            L1StandardBridge: l1Bridge.address,
+          },
+          l2: {
+            L2CrossDomainMessenger: l2Messenger.address,
+            L2StandardBridge: l2Bridge.address,
+          },
+        },
+      })
+    })
+
+    describe('when the input is a CrossChainMessage', () => {
+      it('should return the input', async () => {
+        const message = {
+          direction: MessageDirection.L1_TO_L2,
+          target: '0x' + '11'.repeat(20),
+          sender: '0x' + '22'.repeat(20),
+          message: '0x' + '33'.repeat(64),
+          messageNonce: 1234,
+          logIndex: 0,
+          blockNumber: 1234,
+          transactionHash: '0x' + '44'.repeat(32),
+        }
+
+        expect(await provider.toCrossChainMessage(message)).to.deep.equal(
+          message
+        )
+      })
+    })
+
+    describe('when the input is a TokenBridgeMessage', () => {
+      // TODO: There are some edge cases here with custom bridges that conform to the interface but
+      // not to the behavioral spec. Possibly worth testing those. For now this is probably
+      // sufficient.
+      it('should return the sent message event that came after the deposit or withdrawal', async () => {
+        const from = '0x' + '99'.repeat(20)
+        const deposit = {
+          l1Token: '0x' + '11'.repeat(20),
+          l2Token: '0x' + '22'.repeat(20),
+          from,
+          to: '0x' + '44'.repeat(20),
+          amount: ethers.BigNumber.from(1234),
+          data: '0x1234',
+        }
+
+        const tx = await l1Bridge.emitERC20DepositInitiated(deposit)
+
+        const foundCrossChainMessages = await provider.getMessagesByTransaction(
+          tx
+        )
+        const foundTokenBridgeMessages =
+          await provider.getTokenBridgeMessagesByAddress(from)
+        const resolved = await provider.toCrossChainMessage(
+          foundTokenBridgeMessages[0]
+        )
+
+        expect(resolved).to.deep.equal(foundCrossChainMessages[0])
+      })
+    })
+
+    describe('when the input is a TransactionLike', () => {
+      describe('when the transaction sent exactly one message', () => {
+        it('should return the CrossChainMessage sent in the transaction', async () => {
+          const message = {
+            target: '0x' + '11'.repeat(20),
+            sender: '0x' + '22'.repeat(20),
+            message: '0x' + '33'.repeat(64),
+            messageNonce: 1234,
+            gasLimit: 100000,
+          }
+
+          const tx = await l1Messenger.triggerSentMessageEvents([message])
+          const foundCrossChainMessages =
+            await provider.getMessagesByTransaction(tx)
+          const resolved = await provider.toCrossChainMessage(tx)
+          expect(resolved).to.deep.equal(foundCrossChainMessages[0])
+        })
+      })
+
+      describe('when the transaction sent more than one message', () => {
+        it('should throw an error', async () => {
+          const messages = [...Array(2)].map(() => {
+            return {
+              target: '0x' + '11'.repeat(20),
+              sender: '0x' + '22'.repeat(20),
+              message: '0x' + '33'.repeat(64),
+              messageNonce: 1234,
+              gasLimit: 100000,
+            }
+          })
+
+          const tx = await l1Messenger.triggerSentMessageEvents(messages)
+          await expect(provider.toCrossChainMessage(tx)).to.be.rejectedWith(
+            'expected 1 message, got 2'
+          )
+        })
+      })
+
+      describe('when the transaction sent no messages', () => {
+        it('should throw an error', async () => {
+          const tx = await l1Messenger.triggerSentMessageEvents([])
+          await expect(provider.toCrossChainMessage(tx)).to.be.rejectedWith(
+            'expected 1 message, got 0'
+          )
+        })
+      })
+    })
+  })
+
   describe('getMessageStatus', () => {
     describe('when the message is an L1 => L2 message', () => {
       describe('when the message has not been executed on L2 yet', () => {
@@ -689,27 +826,160 @@ describe('CrossChainProvider', () => {
   })
 
   describe('getMessageReceipt', () => {
+    let l1Bridge: Contract
+    let l2Bridge: Contract
+    let l1Messenger: Contract
+    let l2Messenger: Contract
+    let provider: CrossChainProvider
+    beforeEach(async () => {
+      l1Messenger = (await (
+        await ethers.getContractFactory('MockMessenger')
+      ).deploy()) as any
+      l2Messenger = (await (
+        await ethers.getContractFactory('MockMessenger')
+      ).deploy()) as any
+      l1Bridge = (await (
+        await ethers.getContractFactory('MockBridge')
+      ).deploy(l1Messenger.address)) as any
+      l2Bridge = (await (
+        await ethers.getContractFactory('MockBridge')
+      ).deploy(l2Messenger.address)) as any
+
+      provider = new CrossChainProvider({
+        l1Provider: ethers.provider,
+        l2Provider: ethers.provider,
+        l1ChainId: 31337,
+        contracts: {
+          l1: {
+            L1CrossDomainMessenger: l1Messenger.address,
+            L1StandardBridge: l1Bridge.address,
+          },
+          l2: {
+            L2CrossDomainMessenger: l2Messenger.address,
+            L2StandardBridge: l2Bridge.address,
+          },
+        },
+      })
+    })
+
     describe('when the message has been relayed', () => {
       describe('when the relay was successful', () => {
-        it('should return the receipt of the transaction that relayed the message', () => {})
+        it('should return the receipt of the transaction that relayed the message', async () => {
+          const message = {
+            direction: MessageDirection.L1_TO_L2,
+            target: '0x' + '11'.repeat(20),
+            sender: '0x' + '22'.repeat(20),
+            message: '0x' + '33'.repeat(64),
+            messageNonce: 1234,
+            logIndex: 0,
+            blockNumber: 1234,
+            transactionHash: '0x' + '44'.repeat(32),
+          }
+
+          const tx = await l2Messenger.triggerRelayedMessageEvents([
+            hashCrossChainMessage(message),
+          ])
+
+          const messageReceipt = await provider.getMessageReceipt(message)
+          expect(messageReceipt.receiptStatus).to.equal(1)
+          expect(
+            omit(messageReceipt.transactionReceipt, 'confirmations')
+          ).to.deep.equal(
+            omit(
+              await ethers.provider.getTransactionReceipt(tx.hash),
+              'confirmations'
+            )
+          )
+        })
       })
 
       describe('when the relay failed', () => {
-        it('should return the receipt of the transaction that attempted to relay the message', () => {})
+        it('should return the receipt of the transaction that attempted to relay the message', async () => {
+          const message = {
+            direction: MessageDirection.L1_TO_L2,
+            target: '0x' + '11'.repeat(20),
+            sender: '0x' + '22'.repeat(20),
+            message: '0x' + '33'.repeat(64),
+            messageNonce: 1234,
+            logIndex: 0,
+            blockNumber: 1234,
+            transactionHash: '0x' + '44'.repeat(32),
+          }
+
+          const tx = await l2Messenger.triggerFailedRelayedMessageEvents([
+            hashCrossChainMessage(message),
+          ])
+
+          const messageReceipt = await provider.getMessageReceipt(message)
+          expect(messageReceipt.receiptStatus).to.equal(0)
+          expect(
+            omit(messageReceipt.transactionReceipt, 'confirmations')
+          ).to.deep.equal(
+            omit(
+              await ethers.provider.getTransactionReceipt(tx.hash),
+              'confirmations'
+            )
+          )
+        })
       })
 
       describe('when the relay failed more than once', () => {
-        it('should return the receipt of the last transaction that attempted to relay the message', () => {})
+        it('should return the receipt of the last transaction that attempted to relay the message', async () => {
+          const message = {
+            direction: MessageDirection.L1_TO_L2,
+            target: '0x' + '11'.repeat(20),
+            sender: '0x' + '22'.repeat(20),
+            message: '0x' + '33'.repeat(64),
+            messageNonce: 1234,
+            logIndex: 0,
+            blockNumber: 1234,
+            transactionHash: '0x' + '44'.repeat(32),
+          }
+
+          await l2Messenger.triggerFailedRelayedMessageEvents([
+            hashCrossChainMessage(message),
+          ])
+
+          const tx = await l2Messenger.triggerFailedRelayedMessageEvents([
+            hashCrossChainMessage(message),
+          ])
+
+          const messageReceipt = await provider.getMessageReceipt(message)
+          expect(messageReceipt.receiptStatus).to.equal(0)
+          expect(
+            omit(messageReceipt.transactionReceipt, 'confirmations')
+          ).to.deep.equal(
+            omit(
+              await ethers.provider.getTransactionReceipt(tx.hash),
+              'confirmations'
+            )
+          )
+        })
       })
     })
 
     describe('when the message has not been relayed', () => {
-      it('should return null', () => {})
+      it('should return null', async () => {
+        const message = {
+          direction: MessageDirection.L1_TO_L2,
+          target: '0x' + '11'.repeat(20),
+          sender: '0x' + '22'.repeat(20),
+          message: '0x' + '33'.repeat(64),
+          messageNonce: 1234,
+          logIndex: 0,
+          blockNumber: 1234,
+          transactionHash: '0x' + '44'.repeat(32),
+        }
+
+        await l2Messenger.doNothing()
+
+        const messageReceipt = await provider.getMessageReceipt(message)
+        expect(messageReceipt).to.equal(null)
+      })
     })
 
-    describe('when the message does not exist', () => {
-      it('should throw an error', () => {})
-    })
+    // TODO: Go over all of these tests and remove the empty functions so we can accurately keep
+    // track of
   })
 
   describe('waitForMessageReciept', () => {
