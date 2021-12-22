@@ -131,7 +131,7 @@ const config: HardhatUserConfig = {
   },
   outputValidator: {
     runOnCompile: true,
-    errorMode: true,
+    errorMode: false,
     checks: {
       events: false,
       variables: false,
