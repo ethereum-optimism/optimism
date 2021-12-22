@@ -1,7 +1,7 @@
 {
   "name": "@eth-optimism/sdk",
   "version": "0.0.3",
-  "description": "[Optimism] Tools for working with Optimistic Ethereum",
+  "description": "[Optimism] Tools for working with Optimism",
   "main": "dist/index",
   "types": "dist/index",
   "files": [

@@ -1,4 +1,4 @@
-# Optimistic Ethereum Deployments
-- [Optimistic Ethereum (mainnet)](./mainnet#readme)
-- [Optimistic Kovan (public testnet)](./kovan#readme)
-- [Optimistic Goerli (internal devnet)](./goerli#readme)
+# Optimism Deployments
+- [Optimism (mainnet)](./mainnet#readme)
+- [Optimism Kovan (public testnet)](./kovan#readme)
+- [Optimism Goerli (internal devnet)](./goerli#readme)

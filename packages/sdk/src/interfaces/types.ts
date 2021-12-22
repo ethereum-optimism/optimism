@@ -34,7 +34,7 @@ export interface OEL2Contracts {
 }
 
 /**
- * Represents Optimistic Ethereum contracts, assumed to be connected to their appropriate
+ * Represents Optimism contracts, assumed to be connected to their appropriate
  * providers and addresses.
  */
 export interface OEContracts {
