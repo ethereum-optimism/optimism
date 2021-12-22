@@ -132,6 +132,11 @@ const config: HardhatUserConfig = {
   outputValidator: {
     runOnCompile: true,
     errorMode: true,
+    checks: {
+      devDoc: {
+        events: false,
+      },
+    },
     exclude: ['contracts/test-helpers', 'contracts/test-libraries'],
   },
 }
