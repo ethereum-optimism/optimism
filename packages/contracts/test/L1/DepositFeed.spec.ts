@@ -17,7 +17,8 @@ const decodeDepositEvent = async (
 ): Promise<{
   from: string
   to: string
-  value: BigNumber
+  depositValue: BigNumber
+  sendValue: BigNumber
   gasLimit: BigNumber
   isCreation: boolean
   data: string
@@ -30,7 +31,8 @@ const decodeDepositEvent = async (
   return {
     from: eventArgs.from,
     to: eventArgs.to,
-    value: eventArgs.value,
+    depositValue: eventArgs.depositValue,
+    sendValue: eventArgs.sendValue,
     gasLimit: eventArgs.gasLimit,
     isCreation: eventArgs.isCreation,
     data: eventArgs.data,
@@ -51,6 +53,7 @@ describe('DepositFeed', () => {
     await expect(
       depositFeed.depositTransaction(
         NON_ZERO_ADDRESS,
+        NON_ZERO_VALUE,
         NON_ZERO_GASLIMIT,
         true,
         '0x'
@@ -64,6 +67,7 @@ describe('DepositFeed', () => {
     it('when an EOA deposits a transaction with 0 value.', async () => {
       await depositFeed.depositTransaction(
         ZERO_ADDRESS,
+        ZERO_BIGNUMBER,
         NON_ZERO_GASLIMIT,
         false,
         NON_ZERO_DATA
@@ -74,7 +78,8 @@ describe('DepositFeed', () => {
       expect(eventArgs).to.deep.equal({
         from: signerAddress,
         to: ZERO_ADDRESS,
-        value: ZERO_BIGNUMBER,
+        depositValue: ZERO_BIGNUMBER,
+        sendValue: ZERO_BIGNUMBER,
         gasLimit: NON_ZERO_GASLIMIT,
         isCreation: false,
         data: NON_ZERO_DATA,
@@ -84,6 +89,7 @@ describe('DepositFeed', () => {
     it('when an EOA deposits a contract creation with 0 value.', async () => {
       await depositFeed.depositTransaction(
         ZERO_ADDRESS,
+        ZERO_BIGNUMBER,
         NON_ZERO_GASLIMIT,
         true,
         NON_ZERO_DATA
@@ -94,7 +100,8 @@ describe('DepositFeed', () => {
       expect(eventArgs).to.deep.equal({
         from: signerAddress,
         to: ZERO_ADDRESS,
-        value: ZERO_BIGNUMBER,
+        sendValue: ZERO_BIGNUMBER,
+        depositValue: ZERO_BIGNUMBER,
         gasLimit: NON_ZERO_GASLIMIT,
         isCreation: true,
         data: NON_ZERO_DATA,
@@ -110,6 +117,7 @@ describe('DepositFeed', () => {
         depositFeed.address,
         depositFeed.interface.encodeFunctionData('depositTransaction', [
           ZERO_ADDRESS,
+          ZERO_BIGNUMBER,
           NON_ZERO_GASLIMIT,
           true,
           NON_ZERO_DATA,
@@ -121,17 +129,20 @@ describe('DepositFeed', () => {
       expect(eventArgs).to.deep.equal({
         from: applyL1ToL2Alias(dummy.address),
         to: ZERO_ADDRESS,
-        value: ZERO_BIGNUMBER,
+        sendValue: ZERO_BIGNUMBER,
+        depositValue: ZERO_BIGNUMBER,
         gasLimit: NON_ZERO_GASLIMIT,
         isCreation: true,
         data: NON_ZERO_DATA,
       })
     })
+
     describe('and increase its eth balance...', async () => {
       it('when an EOA deposits a transaction with an ETH value.', async () => {
         const balBefore = await ethers.provider.getBalance(depositFeed.address)
         await depositFeed.depositTransaction(
           NON_ZERO_ADDRESS,
+          ZERO_BIGNUMBER,
           NON_ZERO_GASLIMIT,
           false,
           '0x',
@@ -147,7 +158,8 @@ describe('DepositFeed', () => {
         expect(eventArgs).to.deep.equal({
           from: signerAddress,
           to: NON_ZERO_ADDRESS,
-          value: NON_ZERO_VALUE,
+          sendValue: ZERO_BIGNUMBER,
+          depositValue: NON_ZERO_VALUE,
           gasLimit: NON_ZERO_GASLIMIT,
           isCreation: false,
           data: '0x',
@@ -158,6 +170,7 @@ describe('DepositFeed', () => {
         const balBefore = await ethers.provider.getBalance(depositFeed.address)
         await depositFeed.depositTransaction(
           ZERO_ADDRESS,
+          ZERO_BIGNUMBER,
           NON_ZERO_GASLIMIT,
           true,
           '0x',
@@ -173,7 +186,8 @@ describe('DepositFeed', () => {
         expect(eventArgs).to.deep.equal({
           from: signerAddress,
           to: ZERO_ADDRESS,
-          value: NON_ZERO_VALUE,
+          sendValue: ZERO_BIGNUMBER,
+          depositValue: NON_ZERO_VALUE,
           gasLimit: NON_ZERO_GASLIMIT,
           isCreation: true,
           data: '0x',
@@ -190,6 +204,7 @@ describe('DepositFeed', () => {
           depositFeed.address,
           depositFeed.interface.encodeFunctionData('depositTransaction', [
             ZERO_ADDRESS,
+            ZERO_BIGNUMBER,
             NON_ZERO_GASLIMIT,
             true,
             NON_ZERO_DATA,
@@ -206,7 +221,8 @@ describe('DepositFeed', () => {
         expect(eventArgs).to.deep.equal({
           from: applyL1ToL2Alias(dummy.address),
           to: ZERO_ADDRESS,
-          value: NON_ZERO_VALUE,
+          sendValue: ZERO_BIGNUMBER,
+          depositValue: NON_ZERO_VALUE,
           gasLimit: NON_ZERO_GASLIMIT,
           isCreation: true,
           data: NON_ZERO_DATA,
