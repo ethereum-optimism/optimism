@@ -1127,7 +1127,7 @@ func setRollup(ctx *cli.Context, cfg *rollup.Config) {
 		cfg.Backend = backend
 	}
 	if ctx.GlobalIsSet(RollupEnforceFeesFlag.Name) {
-		cfg.EnforceFees = true
+		cfg.EnforceFees = ctx.GlobalBool(RollupEnforceFeesFlag.Name)
 	}
 	if ctx.GlobalIsSet(RollupFeeThresholdDownFlag.Name) {
 		val := ctx.GlobalFloat64(RollupFeeThresholdDownFlag.Name)
