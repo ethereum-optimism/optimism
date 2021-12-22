@@ -142,22 +142,17 @@ The contract has the following solidity interface, and can be interacted with ac
 
 [ABI]: https://docs.soliditylang.org/en/v0.8.10/abi-spec.html
 
-```solidity
-interface L1BlockValues {
+#### Reference Implementation
 
-  function setL1BlockValues(
-    uint256 number,
-    uint256 timestamp,
-    uint256 baseFee,
-    bytes32 hash
-  ) external;
+A reference implementation of the L1 Attributes predeploy contract can be found in [L1Block.sol].
 
-  function l1Number() view;
-  function l1Timestamp() view;
-  function l1BaseFee() view;
-  function l1Hash() view;
-}
-```
+[L1Block.sol]: /packages/contracts/contracts/L1Block.sol
+
+The bytecode to add to the genesis file will be located in the `deployedBytecode` of the
+[JSON artifact file][l1-block-artifacts] corresponding to L1Block.sol.
+
+[l1-block-artifacts]: /packages/contracts/artifacts/contracts/L2/L1Block.sol/L1Block.json
+
 
 ## L1 Transaction Deposits
 
