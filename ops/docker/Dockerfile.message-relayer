@@ -28,7 +28,6 @@ COPY --from=builder /optimism/packages/contracts/artifacts ./packages/contracts/
 WORKDIR /opt/optimism/packages/message-relayer
 COPY --from=builder /optimism/packages/message-relayer/dist ./dist
 COPY --from=builder /optimism/packages/message-relayer/package.json .
-COPY --from=builder /optimism/packages/message-relayer/exec ./exec
 COPY --from=builder /optimism/packages/message-relayer/node_modules ./node_modules
 
 # copy this over in case you want to run alongside other services
