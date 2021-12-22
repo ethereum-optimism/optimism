@@ -1,5 +1,11 @@
 # @eth-optimism/message-relayer
 
+## 0.2.11
+
+### Patch Changes
+
+- 3a673322: Removed old node.js service running script
+
 ## 0.2.10
 
 ### Patch Changes

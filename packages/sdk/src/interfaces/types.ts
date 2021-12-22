@@ -34,7 +34,7 @@ export interface OEL2Contracts {
 }
 
 /**
- * Represents Optimistic Ethereum contracts, assumed to be connected to their appropriate
+ * Represents Optimism contracts, assumed to be connected to their appropriate
  * providers and addresses.
  */
 export interface OEContracts {
@@ -65,6 +65,30 @@ export type OEL2ContractsLike = {
 export interface OEContractsLike {
   l1: OEL1ContractsLike
   l2: OEL2ContractsLike
+}
+
+/**
+ * Represents list of custom bridges.
+ */
+export interface CustomBridges {
+  l1: {
+    [name: string]: Contract
+  }
+  l2: {
+    [name: string]: Contract
+  }
+}
+
+/**
+ * Something that looks like the list of custom bridges.
+ */
+export interface CustomBridgesLike {
+  l1: {
+    [K in keyof CustomBridges['l1']]: AddressLike
+  }
+  l2: {
+    [K in keyof CustomBridges['l2']]: AddressLike
+  }
 }
 
 /**
@@ -123,11 +147,9 @@ export interface CrossChainMessageRequest {
 }
 
 /**
- * Describes a message that is sent between L1 and L2. Direction determines where the message was
- * sent from and where it's being sent to.
+ * Core components of a cross chain message.
  */
-export interface CrossChainMessage {
-  direction: MessageDirection
+export interface CoreCrossChainMessage {
   sender: string
   target: string
   message: string
@@ -135,12 +157,15 @@ export interface CrossChainMessage {
 }
 
 /**
- * Convenience type for when you don't care which direction the message is going in.
+ * Describes a message that is sent between L1 and L2. Direction determines where the message was
+ * sent from and where it's being sent to.
  */
-export type DirectionlessCrossChainMessage = Omit<
-  CrossChainMessage,
-  'direction'
->
+export interface CrossChainMessage extends CoreCrossChainMessage {
+  direction: MessageDirection
+  logIndex: number
+  blockNumber: number
+  transactionHash: string
+}
 
 /**
  * Describes a token withdrawal or deposit, along with the underlying raw cross chain message
@@ -153,22 +178,24 @@ export interface TokenBridgeMessage {
   l1Token: string
   l2Token: string
   amount: BigNumber
-  raw: CrossChainMessage
+  data: string
+  logIndex: number
+  blockNumber: number
+  transactionHash: string
 }
 
 /**
  * Enum describing the status of a CrossDomainMessage message receipt.
  */
 export enum MessageReceiptStatus {
-  RELAYED_SUCCEEDED,
   RELAYED_FAILED,
+  RELAYED_SUCCEEDED,
 }
 
 /**
  * CrossDomainMessage receipt.
  */
 export interface MessageReceipt {
-  messageHash: string
   receiptStatus: MessageReceiptStatus
   transactionReceipt: TransactionReceipt
 }

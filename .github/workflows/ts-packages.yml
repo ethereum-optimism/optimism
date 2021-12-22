@@ -131,6 +131,13 @@ jobs:
           fail_ci_if_error: false
           verbose: true
           flags: message-relayer
+      - uses: codecov/codecov-action@v1
+        with:
+          files: ./packages/sdk/coverage.json
+          fail_ci_if_error: false
+          verbose: true
+          flags: sdk
+
   lint:
     name: Linting
     runs-on: ubuntu-latest

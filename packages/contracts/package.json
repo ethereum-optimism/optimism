@@ -1,7 +1,7 @@
 {
   "name": "@eth-optimism/contracts",
   "version": "0.5.7",
-  "description": "[Optimism] L1 and L2 smart contracts for Optimistic Ethereum",
+  "description": "[Optimism] L1 and L2 smart contracts for Optimism",
   "main": "dist/index",
   "types": "dist/index",
   "files": [
@@ -29,7 +29,7 @@
     "test:slither": "slither .",
     "pretest:slither": "rm -f @openzeppelin && rm -f @ens && rm -f hardhat && ln -s ../../node_modules/@openzeppelin @openzeppelin && ln -s ../../node_modules/@ens @ens && ln -s ../../node_modules/hardhat hardhat",
     "posttest:slither": "rm -f @openzeppelin && rm -f @ens && rm -f hardhat",
-    "lint:ts:check": "eslint .",
+    "lint:ts:check": "eslint . --max-warnings=0",
     "lint:contracts:check": "yarn solhint -f table 'contracts/**/*.sol'",
     "lint:check": "yarn lint:contracts:check && yarn lint:ts:check",
     "lint:ts:fix": "eslint --fix .",

@@ -6,7 +6,7 @@
   "scripts": {
     "lint": "yarn lint:fix && yarn lint:check",
     "lint:fix": "yarn lint:check --fix",
-    "lint:check": "eslint .",
+    "lint:check": "eslint . --max-warnings=0",
     "build": "hardhat compile",
     "test:integration": "hardhat --network optimism test",
     "test:actor": "IS_LIVE_NETWORK=true ts-node actor-tests/lib/runner.ts",
@@ -30,7 +30,7 @@
   "devDependencies": {
     "@eth-optimism/contracts": "0.5.7",
     "@eth-optimism/core-utils": "0.7.3",
-    "@eth-optimism/message-relayer": "0.2.10",
+    "@eth-optimism/message-relayer": "0.2.11",
     "@ethersproject/abstract-provider": "^5.5.1",
     "@ethersproject/providers": "^5.4.5",
     "@ethersproject/transactions": "^5.4.0",

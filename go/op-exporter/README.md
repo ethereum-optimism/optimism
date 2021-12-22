@@ -1,6 +1,6 @@
 # op_exporter
 
-A prometheus exporter to collect information from an Optimistic Ethereum node and serve metrics for collection
+A prometheus exporter to collect information from an Optimism node and serve metrics for collection
 
 ## Usage
 

@@ -11,6 +11,7 @@
       "specs",
       "go/gas-oracle",
       "go/batch-submitter",
+      "go/l2geth-exporter",
       "go/proxyd",
       "go/op-exporter",
       "ops/docker/rpc-proxy",

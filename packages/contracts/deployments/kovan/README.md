@@ -1,4 +1,4 @@
-# Optimistic Kovan (public testnet)
+# Optimism Kovan (public testnet)
 ## Network Info
 - **Chain ID**: 69
 - **Public RPC**: https://kovan.optimism.io

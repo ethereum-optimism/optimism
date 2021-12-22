@@ -1,4 +1,4 @@
-import { expect } from 'chai'
+import { expect } from './shared/setup'
 
 /* Imports: External */
 import { Wallet, utils, BigNumber } from 'ethers'

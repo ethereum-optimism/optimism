@@ -1,7 +1,7 @@
 {
   "name": "@eth-optimism/sdk",
   "version": "0.0.3",
-  "description": "[Optimism] Tools for working with Optimistic Ethereum",
+  "description": "[Optimism] Tools for working with Optimism",
   "main": "dist/index",
   "types": "dist/index",
   "files": [
@@ -12,7 +12,7 @@
     "build": "tsc -p tsconfig.build.json",
     "clean": "rimraf dist/ ./tsconfig.build.tsbuildinfo",
     "lint": "yarn lint:fix && yarn lint:check",
-    "lint:check": "eslint .",
+    "lint:check": "eslint . --max-warnings=0",
     "lint:fix": "yarn lint:check --fix",
     "pre-commit": "lint-staged",
     "test": "hardhat test",
