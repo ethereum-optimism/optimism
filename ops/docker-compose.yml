@@ -96,6 +96,10 @@ services:
         # no need to keep this secret, only used internally to sign blocks
         BLOCK_SIGNER_KEY: "6587ae678cf4fc9a33000cdbf9f35226b71dcc6a4684a31203241f9bcfd55d27"
         BLOCK_SIGNER_ADDRESS: "0x00000398232E2064F896018496b4b44b3D62751F"
+
+        ROLLUP_ENFORCE_FEES: ${ROLLUP_ENFORCE_FEES:-true}
+        ROLLUP_FEE_THRESHOLD_DOWN: 0.9
+        ROLLUP_FEE_THRESHOLD_UP: 1.1
     ports:
       - ${L2GETH_HTTP_PORT:-8545}:8545
       - ${L2GETH_WS_PORT:-8546}:8546
