@@ -78,6 +78,13 @@ jobs:
           image-name: integration-tests
           target: integration-tests
           dockerfile: ./ops/docker/Dockerfile.packages
+  build-proxyd:
+    docker:
+      - image: cimg/base:2021.04
+    steps:
+      - build-dockerfile:
+          image-name: proxyd
+          dockerfile: ./go/proxyd/Dockerfile
   deploy-nightly:
     docker:
       - image: cimg/base:2021.04
@@ -101,6 +108,7 @@ jobs:
             kubectl rollout restart statefulset nightly-go-batch-submitter --namespace nightly
             kubectl rollout restart statefulset nightly-dtl --namespace nightly
             kubectl rollout restart deployment nightly-gas-oracle --namespace nightly
+            kubectl rollout restart deployment edge-proxyd --namespace nightly
 
 
 workflows:
@@ -127,6 +135,8 @@ workflows:
           context: optimism
       - build-go-batch-submitter:
           context: optimism
+      - build-proxyd:
+          context: optimism
       - deploy-nightly:
           context: optimism
           requires:
@@ -137,3 +147,4 @@ workflows:
             - build-l2geth
             - build-gas-oracle
             - build-integration-tests
+            - build-proxyd
