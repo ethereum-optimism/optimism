@@ -133,9 +133,8 @@ const config: HardhatUserConfig = {
     runOnCompile: true,
     errorMode: true,
     checks: {
-      devDoc: {
-        events: false,
-      },
+      events: false,
+      variables: false,
     },
     exclude: ['contracts/test-helpers', 'contracts/test-libraries'],
   },
