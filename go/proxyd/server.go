@@ -11,6 +11,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/rs/cors"
 	"io"
+	"math"
 	"net/http"
 	"strconv"
 	"time"
@@ -41,6 +42,10 @@ func NewServer(
 	maxBodySize int64,
 	authenticatedPaths map[string]string,
 ) *Server {
+	if maxBodySize == 0 {
+		maxBodySize = math.MaxInt64
+	}
+
 	return &Server{
 		backendGroups:      backendGroups,
 		wsBackendGroup:     wsBackendGroup,

@@ -1,0 +1,17 @@
+[server]
+rpc_port = 8545
+
+[backend]
+response_timeout_seconds = 1
+
+[backends]
+[backends.good]
+rpc_url = "http://127.0.0.1:8545"
+ws_url = "ws://127.0.0.1:8545"
+
+[backend_groups]
+[backend_groups.main]
+backends = ["good"]
+
+[rpc_method_mappings]
+eth_chainId = "main"

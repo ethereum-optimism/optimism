@@ -55,10 +55,10 @@ type MethodMappingsConfig map[string]string
 
 type Config struct {
 	WSBackendGroup    string              `toml:"ws_backend_group"`
-	Server            *ServerConfig       `toml:"server"`
-	Redis             *RedisConfig        `toml:"redis"`
-	Metrics           *MetricsConfig      `toml:"metrics"`
-	BackendOptions    *BackendOptions     `toml:"backend"`
+	Server            ServerConfig        `toml:"server"`
+	Redis             RedisConfig         `toml:"redis"`
+	Metrics           MetricsConfig       `toml:"metrics"`
+	BackendOptions    BackendOptions      `toml:"backend"`
 	Backends          BackendsConfig      `toml:"backends"`
 	Authentication    map[string]string   `toml:"authentication"`
 	BackendGroups     BackendGroupsConfig `toml:"backend_groups"`
