@@ -10,4 +10,6 @@ RUN git clone -b $version https://github.com/Synthetixio/synthetix.git . \
 RUN node publish build --test-helpers -b /synthetix/build \
     && node publish build --use-ovm --test-helpers -b /synthetix/build-ovm
 
-CMD ["npx", "hardhat", "test:integration:dual", "--deploy"]
+COPY snx-start.sh /synthetix/snx-start.sh
+
+CMD ["/synthetix/snx-start.sh"]
