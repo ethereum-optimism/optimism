@@ -16,7 +16,7 @@
 function messenger() external view returns (address)
 ```
 
-
+Messenger contract used to send and recieve messages from the other domain.
 
 
 
