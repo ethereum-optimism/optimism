@@ -17,8 +17,8 @@ const decodeDepositEvent = async (
 ): Promise<{
   from: string
   to: string
-  depositValue: BigNumber
-  sendValue: BigNumber
+  mint: BigNumber
+  value: BigNumber
   gasLimit: BigNumber
   isCreation: boolean
   data: string
@@ -31,8 +31,8 @@ const decodeDepositEvent = async (
   return {
     from: eventArgs.from,
     to: eventArgs.to,
-    depositValue: eventArgs.depositValue,
-    sendValue: eventArgs.sendValue,
+    mint: eventArgs.mint,
+    value: eventArgs.value,
     gasLimit: eventArgs.gasLimit,
     isCreation: eventArgs.isCreation,
     data: eventArgs.data,
@@ -78,8 +78,8 @@ describe('DepositFeed', () => {
       expect(eventArgs).to.deep.equal({
         from: signerAddress,
         to: ZERO_ADDRESS,
-        depositValue: ZERO_BIGNUMBER,
-        sendValue: ZERO_BIGNUMBER,
+        mint: ZERO_BIGNUMBER,
+        value: ZERO_BIGNUMBER,
         gasLimit: NON_ZERO_GASLIMIT,
         isCreation: false,
         data: NON_ZERO_DATA,
@@ -100,8 +100,8 @@ describe('DepositFeed', () => {
       expect(eventArgs).to.deep.equal({
         from: signerAddress,
         to: ZERO_ADDRESS,
-        sendValue: ZERO_BIGNUMBER,
-        depositValue: ZERO_BIGNUMBER,
+        value: ZERO_BIGNUMBER,
+        mint: ZERO_BIGNUMBER,
         gasLimit: NON_ZERO_GASLIMIT,
         isCreation: true,
         data: NON_ZERO_DATA,
@@ -129,8 +129,8 @@ describe('DepositFeed', () => {
       expect(eventArgs).to.deep.equal({
         from: applyL1ToL2Alias(dummy.address),
         to: ZERO_ADDRESS,
-        sendValue: ZERO_BIGNUMBER,
-        depositValue: ZERO_BIGNUMBER,
+        value: ZERO_BIGNUMBER,
+        mint: ZERO_BIGNUMBER,
         gasLimit: NON_ZERO_GASLIMIT,
         isCreation: true,
         data: NON_ZERO_DATA,
@@ -158,8 +158,8 @@ describe('DepositFeed', () => {
         expect(eventArgs).to.deep.equal({
           from: signerAddress,
           to: NON_ZERO_ADDRESS,
-          sendValue: ZERO_BIGNUMBER,
-          depositValue: NON_ZERO_VALUE,
+          value: ZERO_BIGNUMBER,
+          mint: NON_ZERO_VALUE,
           gasLimit: NON_ZERO_GASLIMIT,
           isCreation: false,
           data: '0x',
@@ -186,8 +186,8 @@ describe('DepositFeed', () => {
         expect(eventArgs).to.deep.equal({
           from: signerAddress,
           to: ZERO_ADDRESS,
-          sendValue: ZERO_BIGNUMBER,
-          depositValue: NON_ZERO_VALUE,
+          value: ZERO_BIGNUMBER,
+          mint: NON_ZERO_VALUE,
           gasLimit: NON_ZERO_GASLIMIT,
           isCreation: true,
           data: '0x',
@@ -221,8 +221,8 @@ describe('DepositFeed', () => {
         expect(eventArgs).to.deep.equal({
           from: applyL1ToL2Alias(dummy.address),
           to: ZERO_ADDRESS,
-          sendValue: ZERO_BIGNUMBER,
-          depositValue: NON_ZERO_VALUE,
+          value: ZERO_BIGNUMBER,
+          mint: NON_ZERO_VALUE,
           gasLimit: NON_ZERO_GASLIMIT,
           isCreation: true,
           data: NON_ZERO_DATA,

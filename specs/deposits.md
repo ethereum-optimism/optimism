@@ -25,8 +25,8 @@ fields (rlp encoded in the order they appear here):
 
 - `address from`: The address of the sender account.
 - `address to`: The address of the recipient account.
-- `uint256 depositValue`: The ETH value to mint on L2.
-- `uint256 sendValue`: The ETH value to send to the recipient account.
+- `uint256 mint`: The ETH value to mint on L2.
+- `uint256 value`: The ETH value to send to the recipient account.
 - `bytes data`: The input data.
 - `uint256 gasLimit`: The gasLimit for the L2 transaction.
 
@@ -70,7 +70,7 @@ using the correct derivation algorithm, the resulting state transition would be 
 
 In order to execute a deposit transaction:
 
-First, the balance of the `from` account MUST be increased by the amount of `depositValue`.
+First, the balance of the `from` account MUST be increased by the amount of `mint`.
 
 Then, the execution environment for a deposit transaction is initialized based on the transaction's
 values, in exactly the same manner as it would be for an EIP-155 transaction.
@@ -107,8 +107,8 @@ This transaction MUST have the following values:
 [L1 Attributes depositor account][depositor-account])
 2. `to` is `0x4200000000000000000000000000000000000014` (the address of the L1 attributes predeploy
    contract).
-3. `depositValue` is `0`
-4. `sendValue` is `0`
+3. `mint` is `0`
+4. `value` is `0`
 5. `gasLimit` is set to the maximum available.
 6. `data` is an [ABI] encoded call to the [L1 attributes predeploy][predeploy] contract's `setL1BlockValues()`
    function with correct values associated with the corresponding L1 block.
@@ -171,8 +171,8 @@ contract][deposit-feed-contract] on L1.
 2. `to` may be either:
     1. any 20-byte address (including the zero-address)
     2. `null` in which case a contract is created.
-3. `depositValue` is set to the emitted value.
-4. `sendValue` is set to the emitted value.
+3. `mint` is set to the emitted value.
+4. `value` is set to the emitted value.
 5. `gaslimit` is unchanged from the emitted value.
 6. `data` is unchanged from the emitted value. Depending on the value of `to` it is handled as
    either calldata or initialization code depending on the value of `to`.
