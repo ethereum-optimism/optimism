@@ -42,7 +42,7 @@
     "prepack": "yarn prepublishOnly",
     "postpack": "yarn postpublish",
     "pre-commit": "lint-staged",
-    "docify": "ts-node scripts/generate-docs.ts"
+    "validateDocs": "hardhat validateOutput"
   },
   "keywords": [
     "optimism",
@@ -63,7 +63,7 @@
     "@ethersproject/abstract-signer": "^5.4.1",
     "@ethersproject/hardware-wallets": "^5.4.0",
     "@primitivefi/hardhat-dodoc": "^0.1.3",
-    "hardhat-output-validator": "^0.1.6"
+    "hardhat-output-validator": "^0.1.7"
   },
   "devDependencies": {
     "@codechecks/client": "^0.1.11",
