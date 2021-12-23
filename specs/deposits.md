@@ -142,22 +142,16 @@ The contract has the following solidity interface, and can be interacted with ac
 
 [ABI]: https://docs.soliditylang.org/en/v0.8.10/abi-spec.html
 
-```solidity
-interface L1BlockValues {
+#### L1 Attributes: Reference Implementation
 
-  function setL1BlockValues(
-    uint256 number,
-    uint256 timestamp,
-    uint256 baseFee,
-    bytes32 hash
-  ) external;
+A reference implementation of the L1 Attributes predeploy contract can be found in [L1Block.sol].
 
-  function l1Number() view;
-  function l1Timestamp() view;
-  function l1BaseFee() view;
-  function l1Hash() view;
-}
-```
+[L1Block.sol]: /packages/contracts/contracts/L1Block.sol
+
+The bytecode to add to the genesis file will be located in the `deployedBytecode` of the
+[JSON artifact file][l1-block-artifacts] corresponding to L1Block.sol.
+
+[l1-block-artifacts]: /packages/contracts/artifacts/contracts/L2/L1Block.sol/L1Block.json
 
 ## L1 Transaction Deposits
 
@@ -203,7 +197,7 @@ has the same address as a contract on L2 but doesn't have the same code. We can 
 this for EOAs because they're guaranteed to have the same "code" (i.e. no code at all). This also
 makes it possible for users to interact with contracts on L2 even when the Sequencer is down.
 
-#### Reference Implementation
+#### Deposit Feed: Reference Implementation
 
 A reference implementation of the Deposit Feed contract can be found in [DepositFeed.sol].
 

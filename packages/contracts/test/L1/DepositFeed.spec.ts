@@ -3,7 +3,7 @@ import { ethers } from 'hardhat'
 import { Contract, ContractFactory, Signer, BigNumber } from 'ethers'
 import { applyL1ToL2Alias } from '@eth-optimism/core-utils'
 
-import { DepositFeed__factory, DepositFeed } from '../typechain'
+import { DepositFeed__factory, DepositFeed } from '../../typechain'
 
 const ZERO_ADDRESS = '0x' + '00'.repeat(20)
 const ZERO_BIGNUMBER = BigNumber.from(0)
