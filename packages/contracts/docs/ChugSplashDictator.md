@@ -2,19 +2,32 @@
 
 
 
+
+
 > ChugSplashDictator
+
+
 
 
 
 *Like the AddressDictator, but specifically for the Proxy__OVM_L1StandardBridge. We&#39;re      working on a generalized version of this but this is good enough for the moment.*
 
+
+
 ## Methods
+
 
 ### bridgeSlotKey
 
+
 ```solidity
 function bridgeSlotKey() external view returns (bytes32)
+
 ```
+
+
+
+
 
 
 
@@ -25,13 +38,24 @@ function bridgeSlotKey() external view returns (bytes32)
 
 | Name | Type | Description |
 |---|---|---|
+
 | _0 | bytes32 | undefined
+
+
+
+
 
 ### bridgeSlotVal
 
+
 ```solidity
 function bridgeSlotVal() external view returns (bytes32)
+
 ```
+
+
+
+
 
 
 
@@ -42,13 +66,24 @@ function bridgeSlotVal() external view returns (bytes32)
 
 | Name | Type | Description |
 |---|---|---|
+
 | _0 | bytes32 | undefined
+
+
+
+
 
 ### codeHash
 
+
 ```solidity
 function codeHash() external view returns (bytes32)
+
 ```
+
+
+
+
 
 
 
@@ -59,13 +94,23 @@ function codeHash() external view returns (bytes32)
 
 | Name | Type | Description |
 |---|---|---|
+
 | _0 | bytes32 | undefined
+
+
+
+
 
 ### doActions
 
+
 ```solidity
 function doActions(bytes _code) external nonpayable
+
 ```
+
+
+
 
 
 
@@ -75,13 +120,25 @@ function doActions(bytes _code) external nonpayable
 
 | Name | Type | Description |
 |---|---|---|
+
 | _code | bytes | undefined
+
+
+
+
+
 
 ### finalOwner
 
+
 ```solidity
 function finalOwner() external view returns (address)
+
 ```
+
+
+
+
 
 
 
@@ -92,13 +149,24 @@ function finalOwner() external view returns (address)
 
 | Name | Type | Description |
 |---|---|---|
+
 | _0 | address | undefined
+
+
+
+
 
 ### isUpgrading
 
+
 ```solidity
 function isUpgrading() external view returns (bool)
+
 ```
+
+
+
+
 
 
 
@@ -109,13 +177,24 @@ function isUpgrading() external view returns (bool)
 
 | Name | Type | Description |
 |---|---|---|
+
 | _0 | bool | undefined
+
+
+
+
 
 ### messengerSlotKey
 
+
 ```solidity
 function messengerSlotKey() external view returns (bytes32)
+
 ```
+
+
+
+
 
 
 
@@ -126,13 +205,24 @@ function messengerSlotKey() external view returns (bytes32)
 
 | Name | Type | Description |
 |---|---|---|
+
 | _0 | bytes32 | undefined
+
+
+
+
 
 ### messengerSlotVal
 
+
 ```solidity
 function messengerSlotVal() external view returns (bytes32)
+
 ```
+
+
+
+
 
 
 
@@ -143,12 +233,19 @@ function messengerSlotVal() external view returns (bytes32)
 
 | Name | Type | Description |
 |---|---|---|
+
 | _0 | bytes32 | undefined
+
+
+
+
 
 ### returnOwnership
 
+
 ```solidity
 function returnOwnership() external nonpayable
+
 ```
 
 Transfers ownership of this contract to the finalOwner. Only callable by the finalOwner, which is intended to be our multisig. This function shouldn&#39;t be necessary, but it gives a sense of reassurance that we can recover if something really surprising goes wrong.
@@ -156,11 +253,22 @@ Transfers ownership of this contract to the finalOwner. Only callable by the fin
 
 
 
+
+
+
+
+
 ### target
+
 
 ```solidity
 function target() external view returns (contract L1ChugSplashProxy)
+
 ```
+
+
+
+
 
 
 
@@ -171,7 +279,15 @@ function target() external view returns (contract L1ChugSplashProxy)
 
 | Name | Type | Description |
 |---|---|---|
+
 | _0 | contract L1ChugSplashProxy | undefined
+
+
+
+
+
+
+
 
 
 

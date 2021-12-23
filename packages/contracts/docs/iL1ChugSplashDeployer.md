@@ -2,7 +2,13 @@
 
 
 
+
+
 > iL1ChugSplashDeployer
+
+
+
+
 
 
 
@@ -10,11 +16,18 @@
 
 ## Methods
 
+
 ### isUpgrading
+
 
 ```solidity
 function isUpgrading() external view returns (bool)
+
 ```
+
+
+
+
 
 
 
@@ -25,7 +38,15 @@ function isUpgrading() external view returns (bool)
 
 | Name | Type | Description |
 |---|---|---|
+
 | _0 | bool | undefined
+
+
+
+
+
+
+
 
 
 
