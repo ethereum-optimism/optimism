@@ -8603,10 +8603,10 @@ hardhat-gas-reporter@^1.0.4:
     eth-gas-reporter "^0.2.20"
     sha1 "^1.1.1"
 
-hardhat-output-validator@^0.1.11:
-  version "0.1.11"
-  resolved "https://registry.yarnpkg.com/hardhat-output-validator/-/hardhat-output-validator-0.1.11.tgz#e4d75e4e49cbbb7ef371068b5560d94c3f9b38e6"
-  integrity sha512-PNeppqU4JWLOUC2sOng/AEWEwSOP1LmTdGbFlMUhqAOh8baOrumMoIiz6i7er5LGnr7R0TxFizpiQYpKpX0Pmg==
+hardhat-output-validator@^0.1.14:
+  version "0.1.14"
+  resolved "https://registry.yarnpkg.com/hardhat-output-validator/-/hardhat-output-validator-0.1.14.tgz#3cb9c34eba08637a623c8e07f47d4d17457a7d21"
+  integrity sha512-PXLpL1mXwllz5Rmp2sC9/GH147DwKTRHtpjmOddg3aZ2dTd/S843cg/hWaF+NOrMkJ7EYNzXk2XYbf510YUTdw==
   dependencies:
     chalk "^4.1.2"
 
