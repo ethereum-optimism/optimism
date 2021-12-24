@@ -196,6 +196,11 @@ workflows:
             - optimism
             - slack
           <<: *slack-fail-post-step
+      - build-proxyd:
+          context:
+            - optimism
+            - slack
+          <<: *slack-fail-post-step
       - deploy-nightly:
           context:
             - optimism
