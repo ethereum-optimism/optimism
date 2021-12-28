@@ -4,46 +4,13 @@ import {
   TransactionReceipt,
   TransactionResponse,
 } from '@ethersproject/abstract-provider'
-import { getContractInterface } from '@eth-optimism/contracts'
-import { ethers } from 'ethers'
+import { ethers, BigNumber } from 'ethers'
 import {
   ProviderLike,
   TransactionLike,
-  DirectionlessCrossChainMessage,
-} from './interfaces'
-
-/**
- * Returns the canonical encoding of a cross chain message. This encoding is used in various
- * locations within the Optimistic Ethereum smart contracts.
- *
- * @param message Cross chain message to encode.
- * @returns Canonical encoding of the message.
- */
-export const encodeCrossChainMessage = (
-  message: DirectionlessCrossChainMessage
-): string => {
-  return getContractInterface('L2CrossDomainMessenger').encodeFunctionData(
-    'relayMessage',
-    [message.target, message.sender, message.message, message.messageNonce]
-  )
-}
-
-/**
- * Returns the canonical hash of a cross chain message. This hash is used in various locations
- * within the Optimistic Ethereum smart contracts and is the keccak256 hash of the result of
- * encodeCrossChainMessage.
- *
- * @param message Cross chain message to hash.
- * @returns Canonical hash of the message.
- */
-export const hashCrossChainMessage = (
-  message: DirectionlessCrossChainMessage
-): string => {
-  return ethers.utils.solidityKeccak256(
-    ['bytes'],
-    [encodeCrossChainMessage(message)]
-  )
-}
+  NumberLike,
+  AddressLike,
+} from '../interfaces'
 
 /**
  * Converts a ProviderLike into a provider. Assumes that if the ProviderLike is a string then
@@ -82,5 +49,31 @@ export const toTransactionHash = (transaction: TransactionLike): string => {
     return (transaction as TransactionResponse).hash
   } else {
     throw new Error('Invalid transaction')
+  }
+}
+
+/**
+ * Converts a number-like into an ethers BigNumber.
+ *
+ * @param num Number-like to convert into a BigNumber.
+ * @returns Number-like as a BigNumber.
+ */
+export const toBigNumber = (num: NumberLike): BigNumber => {
+  return ethers.BigNumber.from(num)
+}
+
+/**
+ * Converts an address-like into a 0x-prefixed address string.
+ *
+ * @param addr Address-like to convert into an address.
+ * @returns Address-like as an address.
+ */
+export const toAddress = (addr: AddressLike): string => {
+  if (typeof addr === 'string') {
+    assert(ethers.utils.isAddress(addr), 'Invalid address')
+    return ethers.utils.getAddress(addr)
+  } else {
+    assert(ethers.utils.isAddress(addr.address), 'Invalid address')
+    return ethers.utils.getAddress(addr.address)
   }
 }

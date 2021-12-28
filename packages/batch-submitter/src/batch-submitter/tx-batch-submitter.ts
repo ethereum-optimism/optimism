@@ -232,7 +232,7 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
     const batchTxBuildEnd = performance.now()
     this.metrics.batchTxBuildTime.set(batchTxBuildEnd - batchTxBuildStart)
 
-    this.metrics.numTxPerBatch.observe(endBlock - startBlock)
+    this.metrics.numTxPerBatch.observe(batchParams.totalElementsToAppend)
     const l1tipHeight = await this.signer.provider.getBlockNumber()
     this.logger.debug('Submitting batch.', {
       calldata: batchParams,

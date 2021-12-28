@@ -14,7 +14,7 @@ program
   .option('-r, --runs <n>', 'number of runs. cannot be use with -t/--time')
   .option(
     '-t, --time <ms>',
-    'how long to run in milliseconds. cannot be used with -r/--runs',
+    'how long to run in milliseconds. cannot be used with -r/--runs'
   )
   .option('-c, --concurrency <n>', 'number of concurrent workers to spawn', '1')
   .option('--think-time <n>', 'how long to wait between each run', '0')

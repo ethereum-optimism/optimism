@@ -2,7 +2,14 @@
 
 # @eth-optimism/sdk
 
-The `@eth-optimism/sdk` package provides a set of tools for interacting with Optimistic Ethereum.
+The `@eth-optimism/sdk` package provides a set of tools for interacting with Optimism.
+
+## NOTICE
+
+WARNING: This package is currently under construction.
+You can definitely try to use it, but you probably won't have a good time.
+Lots of pieces are missing.
+We will announce the 1.0.0 release on Discord and on Twitter once it's ready, keep an eye out!
 
 ## Installation
 

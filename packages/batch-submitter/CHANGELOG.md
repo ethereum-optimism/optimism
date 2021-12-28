@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.12
+
+### Patch Changes
+
+- 07f1ad01: Fix the numTxPerBatch metric
+
 ## 0.4.11
 
 ### Patch Changes

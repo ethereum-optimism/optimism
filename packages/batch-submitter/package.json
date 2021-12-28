@@ -1,7 +1,7 @@
 {
   "private": true,
   "name": "@eth-optimism/batch-submitter",
-  "version": "0.4.11",
+  "version": "0.4.12",
   "description": "[Optimism] Service for submitting transactions and transaction results",
   "main": "dist/index",
   "types": "dist/index",
@@ -15,7 +15,7 @@
     "lint": "yarn lint:fix && yarn lint:check",
     "pre-commit": "lint-staged",
     "lint:fix": "yarn lint:check --fix",
-    "lint:check": "eslint .",
+    "lint:check": "eslint . --max-warnings=0",
     "test": "hardhat test --show-stack-traces",
     "test:coverage": "nyc hardhat test && nyc merge .nyc_output coverage.json"
   },
@@ -63,7 +63,6 @@
     "chai": "^4.3.4",
     "eslint": "^7.27.0",
     "eslint-config-prettier": "^8.3.0",
-    "eslint-plugin-ban": "^1.5.2",
     "eslint-plugin-import": "^2.23.4",
     "eslint-plugin-jsdoc": "^35.1.2",
     "eslint-plugin-prefer-arrow": "^1.2.3",

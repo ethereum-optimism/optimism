@@ -11,6 +11,7 @@ import {
   TokenBridgeMessage,
   OEContracts,
   MessageReceipt,
+  CustomBridges,
 } from './types'
 
 /**
@@ -34,14 +35,14 @@ export interface ICrossChainProvider {
   l1ChainId: number
 
   /**
-   * Chain ID for the L2 network.
-   */
-  l2ChainId: number
-
-  /**
    * Contract objects attached to their respective providers and addresses.
    */
   contracts: OEContracts
+
+  /**
+   * List of custom bridges for the given network.
+   */
+  bridges: CustomBridges
 
   /**
    * Retrieves all cross chain messages sent within a given transaction.
@@ -85,7 +86,7 @@ export interface ICrossChainProvider {
   /**
    * Finds all cross chain messages that correspond to token deposits or withdrawals sent by a
    * particular address. Useful for finding deposits/withdrawals because the sender of the message
-   * will appear to be the StandardBridge contract and not the actual end user. Returns
+   * will appear to be the StandardBridge contract and not the actual end user.
    *
    * @param address Address to search for messages from.
    * @param opts Options object.
@@ -105,6 +106,56 @@ export interface ICrossChainProvider {
       toBlock?: BlockTag
     }
   ): Promise<TokenBridgeMessage[]>
+
+  /**
+   * Alias for getTokenBridgeMessagesByAddress with a drection of L1_TO_L2.
+   *
+   * @param address Address to search for messages from.
+   * @param opts Options object.
+   * @param opts.fromBlock Block to start searching for messages from. If not provided, will start
+   * from the first block (block #0).
+   * @param opts.toBlock Block to stop searching for messages at. If not provided, will stop at the
+   * latest known block ("latest").
+   * @returns All deposit token bridge messages sent by the given address.
+   */
+  getDepositsByAddress(
+    address: AddressLike,
+    opts?: {
+      fromBlock?: BlockTag
+      toBlock?: BlockTag
+    }
+  ): Promise<TokenBridgeMessage[]>
+
+  /**
+   * Alias for getTokenBridgeMessagesByAddress with a drection of L2_TO_L1.
+   *
+   * @param address Address to search for messages from.
+   * @param opts Options object.
+   * @param opts.fromBlock Block to start searching for messages from. If not provided, will start
+   * from the first block (block #0).
+   * @param opts.toBlock Block to stop searching for messages at. If not provided, will stop at the
+   * latest known block ("latest").
+   * @returns All withdrawal token bridge messages sent by the given address.
+   */
+  getWithdrawalsByAddress(
+    address: AddressLike,
+    opts?: {
+      fromBlock?: BlockTag
+      toBlock?: BlockTag
+    }
+  ): Promise<TokenBridgeMessage[]>
+
+  /**
+   * Resolves a MessageLike into a CrossChainMessage object.
+   * Unlike other coercion functions, this function is stateful and requires making additional
+   * requests. For now I'm going to keep this function here, but we could consider putting a
+   * similar function inside of utils/coercion.ts if people want to use this without having to
+   * create an entire CrossChainProvider object.
+   *
+   * @param message MessageLike to resolve into a CrossChainMessage.
+   * @returns Message coerced into a CrossChainMessage.
+   */
+  toCrossChainMessage(message: MessageLike): Promise<CrossChainMessage>
 
   /**
    * Retrieves the status of a particular message as an enum.
@@ -129,9 +180,9 @@ export interface ICrossChainProvider {
    *
    * @param message Message to wait for.
    * @param opts Options to pass to the waiting function.
-   * - `confirmations` (number): Number of transaction confirmations to wait for before returning.
-   * - `pollIntervalMs` (number): Number of milliseconds to wait between polling for the receipt.
-   * - `loopsBeforeTimeout` (number): Number of times to poll before timing out.
+   * @param opts.confirmations Number of transaction confirmations to wait for before returning.
+   * @param opts.pollIntervalMs Number of milliseconds to wait between polling for the receipt.
+   * @param opts.timeoutMs Milliseconds to wait before timing out.
    * @returns CrossChainMessage receipt including receipt of the transaction that relayed the
    * given message.
    */
@@ -140,7 +191,7 @@ export interface ICrossChainProvider {
     opts?: {
       confirmations?: number
       pollIntervalMs?: number
-      loopsBeforeTimeout?: number
+      timeoutMs?: number
     }
   ): Promise<MessageReceipt>
 

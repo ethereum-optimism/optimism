@@ -1,7 +1,7 @@
 {
   "name": "@eth-optimism/contracts",
   "version": "0.5.7",
-  "description": "[Optimism] L1 and L2 smart contracts for Optimistic Ethereum",
+  "description": "[Optimism] L1 and L2 smart contracts for Optimism",
   "main": "dist/index",
   "types": "dist/index",
   "files": [
@@ -29,7 +29,7 @@
     "test:slither": "slither .",
     "pretest:slither": "rm -f @openzeppelin && rm -f @ens && rm -f hardhat && ln -s ../../node_modules/@openzeppelin @openzeppelin && ln -s ../../node_modules/@ens @ens && ln -s ../../node_modules/hardhat hardhat",
     "posttest:slither": "rm -f @openzeppelin && rm -f @ens && rm -f hardhat",
-    "lint:ts:check": "eslint .",
+    "lint:ts:check": "eslint . --max-warnings=0",
     "lint:contracts:check": "yarn solhint -f table 'contracts/**/*.sol'",
     "lint:check": "yarn lint:contracts:check && yarn lint:ts:check",
     "lint:ts:fix": "eslint --fix .",
@@ -37,7 +37,6 @@
     "lint:fix": "yarn lint:contracts:fix && yarn lint:ts:fix",
     "lint": "yarn lint:fix && yarn lint:check",
     "clean": "rm -rf ./dist ./artifacts ./cache ./coverage ./tsconfig.build.tsbuildinfo",
-    "deploy": "ts-node bin/deploy.ts && yarn autogen:markdown",
     "prepublishOnly": "yarn copyfiles -u 1 -e \"**/test-*/**/*\" \"contracts/**/*\" ./",
     "postpublish": "rimraf chugsplash L1 L2 libraries standards",
     "prepack": "yarn prepublishOnly",
@@ -88,7 +87,6 @@
     "dotenv": "^10.0.0",
     "eslint": "^7.27.0",
     "eslint-config-prettier": "^8.3.0",
-    "eslint-plugin-ban": "^1.5.2",
     "eslint-plugin-import": "^2.23.4",
     "eslint-plugin-jsdoc": "^35.1.2",
     "eslint-plugin-prefer-arrow": "^1.2.3",

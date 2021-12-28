@@ -1,4 +1,4 @@
-# Optimistic Ethereum (mainnet)
+# Optimism (mainnet)
 ## Network Info
 - **Chain ID**: 10
 - **Public RPC**: https://mainnet.optimism.io

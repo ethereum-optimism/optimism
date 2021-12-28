@@ -26,8 +26,8 @@ func main() {
 
 	app.Version = GitVersion + "-" + params.VersionWithCommit(GitCommit, GitDate)
 	app.Name = "gas-oracle"
-	app.Usage = "Remotely Control the Optimistic Ethereum Gas Price"
-	app.Description = "Configure with a private key and an Optimistic Ethereum HTTP endpoint " +
+	app.Usage = "Remotely Control the Optimism Gas Price"
+	app.Description = "Configure with a private key and an Optimism HTTP endpoint " +
 		"to send transactions that update the L2 gas price."
 
 	// Configure the logging

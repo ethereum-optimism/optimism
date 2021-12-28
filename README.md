@@ -11,7 +11,7 @@
 
 ## TL;DR
 
-This is the primary place where [Optimism](https://optimism.io) works on stuff related to [Optimistic Ethereum](https://optimistic.etherscan.io/).
+This is where [Optimism](https://optimism.io) gets built.
 
 ## Documentation
 
@@ -31,16 +31,16 @@ Then check out our list of [good first issues](https://github.com/ethereum-optim
 <pre>
 root
 ├── <a href="./packages">packages</a>
-│   ├── <a href="./packages/contracts">contracts</a>: L1 and L2 smart contracts for Optimistic Ethereum
-│   ├── <a href="./packages/core-utils">core-utils</a>: Low-level utilities that make building Optimistic Ethereum easier
+│   ├── <a href="./packages/contracts">contracts</a>: L1 and L2 smart contracts for Optimism
+│   ├── <a href="./packages/core-utils">core-utils</a>: Low-level utilities that make building Optimism easier
 │   ├── <a href="./packages/common-ts">common-ts</a>: Common tools for building apps in TypeScript
-│   ├── <a href="./packages/data-transport-layer">data-transport-layer</a>: Service for indexing Optimistic Ethereum-related L1 data
+│   ├── <a href="./packages/data-transport-layer">data-transport-layer</a>: Service for indexing Optimism-related L1 data
 │   ├── <a href="./packages/batch-submitter">batch-submitter</a>: Service for submitting batches of transactions and results to L1
 │   ├── <a href="./packages/message-relayer">message-relayer</a>: Tool for automatically relaying L1<>L2 messages in development
 │   └── <a href="./packages/replica-healthcheck">replica-healthcheck</a>: Service for monitoring the health of a replica node
-├── <a href="./l2geth">l2geth</a>: Optimistic Ethereum client software, a fork of <a href="https://github.com/ethereum/go-ethereum/tree/v1.9.10">geth v1.9.10</a>
-├── <a href="./integration-tests">integration-tests</a>: Various integration tests for an Optimistic Ethereum network
-└── <a href="./ops">ops</a>: Tools for running Optimistic Ethereum nodes and networks
+├── <a href="./l2geth">l2geth</a>: Optimism client software, a fork of <a href="https://github.com/ethereum/go-ethereum/tree/v1.9.10">geth v1.9.10</a>
+├── <a href="./integration-tests">integration-tests</a>: Various integration tests for the Optimism network
+└── <a href="./ops">ops</a>: Tools for running Optimism nodes and networks
 </pre>
 
 ## Branching Model and Releases
@@ -64,7 +64,7 @@ Please read the linked post if you're planning to make frequent PRs into this re
 
 The `master` branch contains the code for our latest "stable" releases.
 Updates from `master` always come from the `develop` branch.
-We only ever update the `master` branch when we intend to deploy code within the `develop` to the Optimistic Ethereum mainnet.
+We only ever update the `master` branch when we intend to deploy code within the `develop` to the Optimism mainnet.
 Our update process takes the form of a PR merging the `develop` branch into the `master` branch.
 
 ### The `develop` branch
