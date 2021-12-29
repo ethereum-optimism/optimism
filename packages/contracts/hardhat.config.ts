@@ -21,6 +21,8 @@ import './tasks/validate-chugsplash-dictator'
 import './tasks/whitelist'
 import './tasks/withdraw-fees'
 import 'hardhat-gas-reporter'
+import '@primitivefi/hardhat-dodoc'
+import 'hardhat-output-validator'
 
 // Load environment variables from .env
 dotenv.config()
@@ -107,6 +109,34 @@ const config: HardhatUserConfig = {
   },
   etherscan: {
     apiKey: process.env.ETHERSCAN_API_KEY,
+  },
+  dodoc: {
+    runOnCompile: true,
+    exclude: [
+      'Helper_GasMeasurer',
+      'Helper_SimpleProxy',
+      'TestERC20',
+      'TestLib_CrossDomainUtils',
+      'TestLib_OVMCodec',
+      'TestLib_RLPReader',
+      'TestLib_RLPWriter',
+      'TestLib_AddressAliasHelper',
+      'TestLib_MerkleTrie',
+      'TestLib_SecureMerkleTrie',
+      'TestLib_Buffer',
+      'TestLib_Bytes32Utils',
+      'TestLib_BytesUtils',
+      'TestLib_MerkleTree',
+    ],
+  },
+  outputValidator: {
+    runOnCompile: true,
+    errorMode: false,
+    checks: {
+      events: false,
+      variables: false,
+    },
+    exclude: ['contracts/test-helpers', 'contracts/test-libraries'],
   },
 }
 
