@@ -22,6 +22,9 @@ packages/data-transport-layer/db
 # vim
 *.swp
 
+#jetbrains
+.idea
+
 .env
 .env*
 *.log
