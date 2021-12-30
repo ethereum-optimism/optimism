@@ -101,7 +101,7 @@
     "hardhat": "^2.3.0",
     "hardhat-deploy": "^0.9.3",
     "hardhat-gas-reporter": "^1.0.4",
-    "hardhat-output-validator": "^0.1.17",
+    "hardhat-output-validator": "^0.1.18",
     "istanbul": "^0.4.5",
     "lint-staged": "11.0.0",
     "lodash": "^4.17.21",
