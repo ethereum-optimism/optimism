@@ -1,2 +1,6 @@
 checks:
   - name: eth-gas-reporter/codechecks
+settings:
+  branches:
+    - develop
+    - master
