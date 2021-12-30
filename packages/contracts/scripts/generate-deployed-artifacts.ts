@@ -27,7 +27,7 @@ const main = async () => {
     })
 
   const artifactNames = []
-  const pattern=/\\/g;
+  const pattern = /\\/g
 
   for (const deploymentName of deploymentNames) {
     const deploymentArtifacts = glob.sync(
@@ -39,7 +39,9 @@ const main = async () => {
     )
 
     for (const artifactPath of deploymentArtifacts) {
-      const relPath = path.relative(__dirname, artifactPath).replace(pattern,"/")
+      const relPath = path
+        .relative(__dirname, artifactPath)
+        .replace(pattern, '/')
       const contractName = path.basename(artifactPath, '.json')
       const artifactName = `${deploymentName}__${contractName}`.replace(
         /-/g,

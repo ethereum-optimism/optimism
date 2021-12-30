@@ -31,8 +31,10 @@ const main = async () => {
         // eslint-disable-next-line @typescript-eslint/no-var-requires
         const artifact = require(artifactPath)
         // handles the case - '\u' (\utils folder) is considered as an unicode encoded char
-        const pattern=/\\/g;
-        const relPath = path.relative(__dirname, artifactPath).replace(pattern,"/")
+        const pattern = /\\/g
+        const relPath = path
+          .relative(__dirname, artifactPath)
+          .replace(pattern, '/')
         return `
         let ${artifact.contractName}
         try {
