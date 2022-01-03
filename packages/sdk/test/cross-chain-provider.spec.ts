@@ -977,29 +977,111 @@ describe('CrossChainProvider', () => {
         expect(messageReceipt).to.equal(null)
       })
     })
-
-    // TODO: Go over all of these tests and remove the empty functions so we can accurately keep
-    // track of
   })
 
   describe('waitForMessageReciept', () => {
+    let l2Messenger: Contract
+    let provider: CrossChainProvider
+    beforeEach(async () => {
+      l2Messenger = (await (
+        await ethers.getContractFactory('MockMessenger')
+      ).deploy()) as any
+
+      provider = new CrossChainProvider({
+        l1Provider: ethers.provider,
+        l2Provider: ethers.provider,
+        l1ChainId: 31337,
+        contracts: {
+          l2: {
+            L2CrossDomainMessenger: l2Messenger.address,
+          },
+        },
+      })
+    })
+
     describe('when the message receipt already exists', () => {
-      it('should immediately return the receipt', () => {})
+      it('should immediately return the receipt', async () => {
+        const message = {
+          direction: MessageDirection.L1_TO_L2,
+          target: '0x' + '11'.repeat(20),
+          sender: '0x' + '22'.repeat(20),
+          message: '0x' + '33'.repeat(64),
+          messageNonce: 1234,
+          logIndex: 0,
+          blockNumber: 1234,
+          transactionHash: '0x' + '44'.repeat(32),
+        }
+
+        const tx = await l2Messenger.triggerRelayedMessageEvents([
+          hashCrossChainMessage(message),
+        ])
+
+        const messageReceipt = await provider.waitForMessageReciept(message)
+        expect(messageReceipt.receiptStatus).to.equal(1)
+        expect(
+          omit(messageReceipt.transactionReceipt, 'confirmations')
+        ).to.deep.equal(
+          omit(
+            await ethers.provider.getTransactionReceipt(tx.hash),
+            'confirmations'
+          )
+        )
+      })
     })
 
     describe('when the message receipt does not exist already', () => {
       describe('when no extra options are provided', () => {
-        it('should wait for the receipt to be published', () => {})
-        it('should wait forever for the receipt if the receipt is never published', () => {})
+        it('should wait for the receipt to be published', async () => {
+          const message = {
+            direction: MessageDirection.L1_TO_L2,
+            target: '0x' + '11'.repeat(20),
+            sender: '0x' + '22'.repeat(20),
+            message: '0x' + '33'.repeat(64),
+            messageNonce: 1234,
+            logIndex: 0,
+            blockNumber: 1234,
+            transactionHash: '0x' + '44'.repeat(32),
+          }
+
+          setTimeout(async () => {
+            await l2Messenger.triggerRelayedMessageEvents([
+              hashCrossChainMessage(message),
+            ])
+          }, 5000)
+
+          const tick = Date.now()
+          const messageReceipt = await provider.waitForMessageReciept(message)
+          const tock = Date.now()
+          expect(messageReceipt.receiptStatus).to.equal(1)
+          expect(tock - tick).to.be.greaterThan(5000)
+        })
+
+        it('should wait forever for the receipt if the receipt is never published', () => {
+          // Not sure how to easily test this without introducing some sort of cancellation token
+          // I don't want the promise to loop forever and make the tests never finish.
+        })
       })
 
       describe('when a timeout is provided', () => {
-        it('should throw an error if the timeout is reached', () => {})
-      })
-    })
+        it('should throw an error if the timeout is reached', async () => {
+          const message = {
+            direction: MessageDirection.L1_TO_L2,
+            target: '0x' + '11'.repeat(20),
+            sender: '0x' + '22'.repeat(20),
+            message: '0x' + '33'.repeat(64),
+            messageNonce: 1234,
+            logIndex: 0,
+            blockNumber: 1234,
+            transactionHash: '0x' + '44'.repeat(32),
+          }
 
-    describe('when the message does not exist', () => {
-      it('should throw an error', () => {})
+          await expect(
+            provider.waitForMessageReciept(message, {
+              timeoutMs: 10000,
+            })
+          ).to.be.rejectedWith('timed out waiting for message receipt')
+        })
+      })
     })
   })
 

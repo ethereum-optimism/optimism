@@ -5,6 +5,7 @@ import {
   TransactionReceipt,
 } from '@ethersproject/abstract-provider'
 import { ethers, BigNumber, Event } from 'ethers'
+import { sleep } from '@eth-optimism/core-utils'
 import {
   ICrossChainProvider,
   OEContracts,
@@ -397,13 +398,25 @@ export class CrossChainProvider implements ICrossChainProvider {
 
   public async waitForMessageReciept(
     message: MessageLike,
-    opts?: {
+    opts: {
       confirmations?: number
       pollIntervalMs?: number
       timeoutMs?: number
-    }
+    } = {}
   ): Promise<MessageReceipt> {
-    throw new Error('Not implemented')
+    let totalTimeMs = 0
+    while (totalTimeMs < (opts.timeoutMs || Infinity)) {
+      const tick = Date.now()
+      const receipt = await this.getMessageReceipt(message)
+      if (receipt !== null) {
+        return receipt
+      } else {
+        await sleep(opts.pollIntervalMs || 4000)
+        totalTimeMs += Date.now() - tick
+      }
+    }
+
+    throw new Error(`timed out waiting for message receipt`)
   }
 
   public async estimateL2MessageGasLimit(
