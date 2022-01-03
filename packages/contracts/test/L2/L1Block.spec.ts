@@ -19,28 +19,26 @@ describe('L1Block contract', () => {
     await l1Block.deployed()
 
     depositor = await ethers.getSigner(DEPOSITOR_ACCOUNT)
-
   })
 
   it('setL1BlockValues: Should revert if not called by L1 Attributes Depositor Account', async () => {
     await expect(
       l1Block.connect(signer).setL1BlockValues(1, 2, 3, NON_ZERO_HASH)
-    ).to.be.revertedWith(
-      'Only callable by L1 Attributes Depositor Account'
-    )
+    ).to.be.revertedWith('Only callable by L1 Attributes Depositor Account')
   })
 
   describe('Should return the correct block values for:', async () => {
     before(async () => {
       await ethers.provider.send('hardhat_impersonateAccount', [
-        DEPOSITOR_ACCOUNT
+        DEPOSITOR_ACCOUNT,
       ])
       await ethers.provider.send('hardhat_setBalance', [
-        DEPOSITOR_ACCOUNT, '0xFFFFFFFFFFFF'
+        DEPOSITOR_ACCOUNT,
+        '0xFFFFFFFFFFFF',
       ])
       await l1Block.connect(depositor).setL1BlockValues(1, 2, 3, NON_ZERO_HASH)
       await ethers.provider.send('hardhat_stopImpersonatingAccount', [
-        DEPOSITOR_ACCOUNT
+        DEPOSITOR_ACCOUNT,
       ])
       l1Block.connect(signer)
     })
