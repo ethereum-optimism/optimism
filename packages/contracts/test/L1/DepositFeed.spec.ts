@@ -58,9 +58,7 @@ describe('DepositFeed', () => {
         true,
         '0x'
       )
-    ).to.be.revertedWith(
-      'Contract creation deposits must not specify a recipient address.'
-    )
+    ).to.be.revertedWith('NonZeroCreationTarget()')
   })
 
   describe('Should emit the correct log values...', async () => {
