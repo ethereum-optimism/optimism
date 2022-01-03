@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-empty-function */
 import { expect } from './setup'
 import { Provider } from '@ethersproject/abstract-provider'
 import { Contract } from 'ethers'
@@ -383,24 +382,26 @@ describe('CrossChainProvider', () => {
   describe('getMessagesByAddress', () => {
     describe('when the address has sent messages', () => {
       describe('when no direction is specified', () => {
-        it('should find all messages sent by the address', () => {})
+        it('should find all messages sent by the address')
       })
 
       describe('when a direction is specified', () => {
-        it('should find all messages only in the given direction', () => {})
+        it('should find all messages only in the given direction')
       })
 
       describe('when a block range is specified', () => {
-        it('should find all messages within the block range', () => {})
+        it('should find all messages within the block range')
       })
 
       describe('when both a direction and a block range are specified', () => {
-        it('should find all messages only in the given direction and within the block range', () => {})
+        it(
+          'should find all messages only in the given direction and within the block range'
+        )
       })
     })
 
     describe('when the address has not sent messages', () => {
-      it('should find nothing', () => {})
+      it('should find nothing')
     })
   })
 
@@ -784,44 +785,44 @@ describe('CrossChainProvider', () => {
   describe('getMessageStatus', () => {
     describe('when the message is an L1 => L2 message', () => {
       describe('when the message has not been executed on L2 yet', () => {
-        it('should return a status of UNCONFIRMED_L1_TO_L2_MESSAGE', () => {})
+        it('should return a status of UNCONFIRMED_L1_TO_L2_MESSAGE')
       })
 
       describe('when the message has been executed on L2', () => {
-        it('should return a status of RELAYED', () => {})
+        it('should return a status of RELAYED')
       })
 
       describe('when the message has been executed but failed', () => {
-        it('should return a status of FAILED_L1_TO_L2_MESSAGE', () => {})
+        it('should return a status of FAILED_L1_TO_L2_MESSAGE')
       })
     })
 
     describe('when the message is an L2 => L1 message', () => {
       describe('when the message state root has not been published', () => {
-        it('should return a status of STATE_ROOT_NOT_PUBLISHED', () => {})
+        it('should return a status of STATE_ROOT_NOT_PUBLISHED')
       })
 
       describe('when the message state root is still in the challenge period', () => {
-        it('should return a status of IN_CHALLENGE_PERIOD', () => {})
+        it('should return a status of IN_CHALLENGE_PERIOD')
       })
 
       describe('when the message is no longer in the challenge period', () => {
         describe('when the message has been relayed successfully', () => {
-          it('should return a status of RELAYED', () => {})
+          it('should return a status of RELAYED')
         })
 
         describe('when the message has been relayed but the relay failed', () => {
-          it('should return a status of READY_FOR_RELAY', () => {})
+          it('should return a status of READY_FOR_RELAY')
         })
 
         describe('when the message has not been relayed', () => {
-          it('should return a status of READY_FOR_RELAY', () => {})
+          it('should return a status of READY_FOR_RELAY')
         })
       })
     })
 
     describe('when the message does not exist', () => {
-      it('should throw an error', () => {})
+      it('should throw an error')
     })
   })
 
@@ -977,6 +978,9 @@ describe('CrossChainProvider', () => {
         expect(messageReceipt).to.equal(null)
       })
     })
+
+    // TODO: Go over all of these tests and remove the empty functions so we can accurately keep
+    // track of
   })
 
   describe('waitForMessageReciept', () => {
@@ -1086,42 +1090,50 @@ describe('CrossChainProvider', () => {
   })
 
   describe('estimateL2MessageGasLimit', () => {
-    it('should perform a gas estimation of the L2 action', () => {})
+    it('should perform a gas estimation of the L2 action')
   })
 
   describe('estimateMessageWaitTimeBlocks', () => {
     describe('when the message exists', () => {
       describe('when the message is an L1 => L2 message', () => {
         describe('when the message has not been executed on L2 yet', () => {
-          it('should return the estimated blocks until the message will be confirmed on L2', () => {})
+          it(
+            'should return the estimated blocks until the message will be confirmed on L2'
+          )
         })
 
         describe('when the message has been executed on L2', () => {
-          it('should return 0', () => {})
+          it('should return 0')
         })
       })
 
       describe('when the message is an L2 => L1 message', () => {
         describe('when the state root has not been published', () => {
-          it('should return the estimated blocks until the state root will be published and pass the challenge period', () => {})
+          it(
+            'should return the estimated blocks until the state root will be published and pass the challenge period'
+          )
         })
 
         describe('when the state root is within the challenge period', () => {
-          it('should return the estimated blocks until the state root passes the challenge period', () => {})
+          it(
+            'should return the estimated blocks until the state root passes the challenge period'
+          )
         })
 
         describe('when the state root passes the challenge period', () => {
-          it('should return 0', () => {})
+          it('should return 0')
         })
       })
     })
 
     describe('when the message does not exist', () => {
-      it('should throw an error', () => {})
+      it('should throw an error')
     })
   })
 
   describe('estimateMessageWaitTimeSeconds', () => {
-    it('should be the result of estimateMessageWaitTimeBlocks multiplied by the L1 block time', () => {})
+    it(
+      'should be the result of estimateMessageWaitTimeBlocks multiplied by the L1 block time'
+    )
   })
 })
