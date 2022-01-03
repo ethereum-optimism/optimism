@@ -23,7 +23,11 @@ describe('L1Block contract', () => {
   })
 
   it('setL1BlockValues: Should revert if not called by L1 Attributes Depositor Account', async () => {
-
+    await expect(
+      l1Block.connect(signer).setL1BlockValues(1, 2, 3, NON_ZERO_HASH)
+    ).to.be.revertedWith(
+      'Only callable by L1 Attributes Depositor Account'
+    )
   })
 
   describe('Should return the correct block values for:', async () => {
