@@ -5,6 +5,11 @@ pragma solidity 0.8.10;
  * @title DepositFeed
  */
 contract DepositFeed {
+    /**
+     * Deposits which create a new contract must set the recipient to address(0).
+     */
+    error NonZeroCreationTarget();
+
     // Constant for address aliasing
     uint160 private constant OFFSET = uint160(0x1111000000000000000000000000000000001111);
 
@@ -38,7 +43,7 @@ contract DepositFeed {
         bytes memory _data
     ) external payable {
         if (_isCreation && _to != address(0)) {
-            revert("Contract creation deposits must not specify a recipient address.");
+            revert NonZeroCreationTarget();
         }
 
         address from = msg.sender;
