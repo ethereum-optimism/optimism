@@ -20,6 +20,8 @@ import (
 	"k8s.io/client-go/kubernetes"
 )
 
+var UnknownStatus = "UNKNOWN"
+
 var (
 	listenAddress = kingpin.Flag(
 		"web.listen-address",
@@ -86,7 +88,7 @@ func main() {
 		healthy:        false,
 		updateTime:     time.Now(),
 		allowedMethods: nil,
-		version:        nil,
+		version:        &UnknownStatus,
 	}
 	http.Handle("/metrics", promhttp.Handler())
 	http.Handle("/health", healthHandler(&health))
@@ -130,8 +132,7 @@ func getSequencerVersion(health *healthCheck, client *kubernetes.Clientset) {
 		}
 		sequencerStatefulSet, err := client.AppsV1().StatefulSets(string(ns)).Get(context.TODO(), "sequencer", getOpts)
 		if err != nil {
-			unknownStatus := "UNKNOWN"
-			health.version = &unknownStatus
+			health.version = &UnknownStatus
 			log.Errorf("Unable to retrieve a sequencer StatefulSet: %s", err)
 			continue
 		}
