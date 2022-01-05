@@ -9,7 +9,6 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/go/indexer/txmgr"
 	l2ethclient "github.com/ethereum-optimism/optimism/l2geth/ethclient"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
@@ -42,22 +41,22 @@ func Main(gitVersion string) func(ctx *cli.Context) error {
 			defer sentry.Flush(2 * time.Second)
 		}
 
-		log.Info("Initializing batch submitter")
+		log.Info("Initializing indexer")
 
-		batchSubmitter, err := NewIndexer(cfg, gitVersion)
+		indexer, err := NewIndexer(cfg, gitVersion)
 		if err != nil {
-			log.Error("Unable to create batch submitter", "error", err)
+			log.Error("Unable to create indexer", "error", err)
 			return err
 		}
 
-		log.Info("Starting batch submitter")
+		log.Info("Starting indexer")
 
-		if err := batchSubmitter.Start(); err != nil {
+		if err := indexer.Start(); err != nil {
 			return err
 		}
-		defer batchSubmitter.Stop()
+		defer indexer.Stop()
 
-		log.Info("Batch submitter started")
+		log.Info("Indexer started")
 
 		<-(chan struct{})(nil)
 
@@ -129,22 +128,16 @@ func NewIndexer(cfg Config, gitVersion string) (*Indexer, error) {
 		go runMetricsServer(cfg.MetricsHostname, cfg.MetricsPort)
 	}
 
-	txManagerConfig := txmgr.Config{
-		ReceiptQueryInterval: time.Second,
-	}
-
 	syncService := NewService(ServiceConfig{
-		Context:         ctx,
-		PollInterval:    cfg.PollInterval,
-		L1Client:        l1Client,
-		TxManagerConfig: txManagerConfig,
+		Context:      ctx,
+		PollInterval: cfg.PollInterval,
+		L1Client:     l1Client,
 	})
 
 	blockHandlerService := NewService(ServiceConfig{
-		Context:         ctx,
-		PollInterval:    cfg.PollInterval,
-		L1Client:        l1Client,
-		TxManagerConfig: txManagerConfig,
+		Context:      ctx,
+		PollInterval: cfg.PollInterval,
+		L1Client:     l1Client,
 	})
 
 	return &Indexer{

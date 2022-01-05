@@ -11,7 +11,6 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
-	"github.com/ethereum/go-ethereum/log"
 )
 
 var (
@@ -60,7 +59,6 @@ type Service struct {
 	ctx    context.Context
 	cancel func()
 
-	txMgr   txmgr.TxManager
 	metrics *metrics.Metrics
 
 	wg sync.WaitGroup
@@ -69,16 +67,10 @@ type Service struct {
 func NewService(cfg ServiceConfig) *Service {
 	ctx, cancel := context.WithCancel(cfg.Context)
 
-	txMgr := txmgr.NewSimpleTxManager(
-		cfg.Driver.Name(), cfg.TxManagerConfig, cfg.L1Client,
-	)
-
 	return &Service{
-		cfg:     cfg,
-		ctx:     ctx,
-		cancel:  cancel,
-		txMgr:   txMgr,
-		metrics: cfg.Driver.Metrics(),
+		cfg:    cfg,
+		ctx:    ctx,
+		cancel: cancel,
 	}
 }
 
@@ -96,98 +88,6 @@ func (s *Service) Stop() error {
 
 func (s *Service) eventLoop() {
 	defer s.wg.Done()
-
-	name := s.cfg.Driver.Name()
-
-	for {
-		select {
-		case <-time.After(s.cfg.PollInterval):
-			// Record the submitter's current ETH balance. This is done first in
-			// case any of the remaining steps fail, we can at least have an
-			// accurate view of the submitter's balance.
-			balance, err := s.cfg.L1Client.BalanceAt(
-				s.ctx, s.cfg.Driver.WalletAddr(), nil,
-			)
-			if err != nil {
-				log.Error(name+" unable to get current balance", "err", err)
-				continue
-			}
-			s.metrics.ETHBalance.Set(weiToGwei64(balance))
-
-			// Determine the range of L2 blocks that the batch submitter has not
-			// processed, and needs to take action on.
-			log.Info(name + " fetching current block range")
-			start, end, err := s.cfg.Driver.GetBatchBlockRange(s.ctx)
-			if err != nil {
-				log.Error(name+" unable to get block range", "err", err)
-				continue
-			}
-
-			// No new updates.
-			if start.Cmp(end) == 0 {
-				log.Info(name+" no updates", "start", start, "end", end)
-				continue
-			}
-			log.Info(name+" block range", "start", start, "end", end)
-
-			// Query for the submitter's current nonce.
-			nonce64, err := s.cfg.L1Client.NonceAt(
-				s.ctx, s.cfg.Driver.WalletAddr(), nil,
-			)
-			if err != nil {
-				log.Error(name+" unable to get current nonce",
-					"err", err)
-				continue
-			}
-			nonce := new(big.Int).SetUint64(nonce64)
-
-			// Construct the transaction submission clousure that will attempt
-			// to send the next transaction at the given nonce and gas price.
-			sendTx := func(
-				ctx context.Context,
-				gasPrice *big.Int,
-			) (*types.Transaction, error) {
-				log.Info(name+" attempting batch tx", "start", start,
-					"end", end, "nonce", nonce,
-					"gasPrice", gasPrice)
-
-				tx, err := s.cfg.Driver.SubmitBatchTx(
-					ctx, start, end, nonce, gasPrice,
-				)
-				if err != nil {
-					return nil, err
-				}
-
-				s.metrics.BatchSizeInBytes.Observe(float64(tx.Size()))
-
-				return tx, nil
-			}
-
-			// Wait until one of our submitted transactions confirms. If no
-			// receipt is received it's likely our gas price was too low.
-			batchConfirmationStart := time.Now()
-			receipt, err := s.txMgr.Send(s.ctx, sendTx)
-			if err != nil {
-				log.Error(name+" unable to publish batch tx",
-					"err", err)
-				s.metrics.FailedSubmissions.Inc()
-				continue
-			}
-
-			// The transaction was successfully submitted.
-			log.Info(name+" batch tx successfully published",
-				"tx_hash", receipt.TxHash)
-			batchConfirmationTime := time.Since(batchConfirmationStart) /
-				time.Millisecond
-			s.metrics.BatchConfirmationTime.Set(float64(batchConfirmationTime))
-			s.metrics.BatchesSubmitted.Inc()
-			s.metrics.SubmissionGasUsed.Observe(float64(receipt.GasUsed))
-
-		case err := <-s.ctx.Done():
-			log.Error(name+" service shutting down", "err", err)
-			return
-		}
-	}
 }
 
 func weiToGwei64(wei *big.Int) float64 {
