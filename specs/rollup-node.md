@@ -13,6 +13,8 @@
 [deposit-feed]: /glossary.md#L2-deposit-feed-contract
 [L2 chain inception]: /glossary.md#L2-chain-inception
 [receipts]: /glossary.md#receipt
+[L1 attributes deposit]: /glossary.md#l1-attributes-deposit
+[transaction deposits]: /glossary.md#transaction-deposits
 
 The [rollup node] is the component responsible for [deriving the L2 chain][derivation] from L1 blocks (and their
 associated [receipts]). This process happens in two steps:
@@ -41,11 +43,11 @@ concerned with the specification of the rollup driver.
 
 [l2-chain-derivation]: #l2-chain-derivation
 
-This section specifies how the [rollup driver] derives one L2 block per every L1 block. The L2 block will carry the L1
-block attributes (as a *[L1 attributes transaction]*) well as all L2 transactions deposited by users in the L1 block
-(*[deposits]*).
+This section specifies how the [rollup driver] derives one L2 block per every L1 block. The L2 block will carry
+*[deposits]*, including a single *[L1 attributes deposit]* (which carries L1 block attributes) and zero or more
+*[transaction deposits]* submitted by user on L1.
 
-[L1 attributes transaction]: /glossary.md#l1-attributes-transaction
+----
 
 ### From L1 blocks to payload attributes
 
@@ -59,11 +61,12 @@ The rollup reads the following data from each L1 block:
   - timestamp
   - basefee
   - *random* (the output of the [`RANDOM` opcode][random])
-- [deposits]
+- L1 log entries emitted for [transaction deposits]
 
 [random]: https://eips.ethereum.org/EIPS/eip-4399
 
-A deposit is an L2 transaction that has been submitted on L1, via a call to the [deposit feed contract][deposit-feed].
+A [transaction deposit][transaction deposits] is an L2 transaction that has been submitted on L1, via a call to the
+[deposit feed contract][deposit-feed].
 
 While deposits are notably (but not only) used to "deposit" (bridge) ETH and tokens to L2, the word *deposit* should be
 understood as "a transaction *deposited* to L2".
@@ -99,44 +102,38 @@ The object properties must be set as follows:
   rounded to the closest multiple of 2 seconds. No two blocks may have the same timestamp.
 - `random` is set to the *random* L1 block attribute
 - `suggestedFeeRecipient` is set to an address where the sequencer would like to direct the fees
-- `transactions` is an array of transactions, encoded in the [EIP-2718] format (i.e. as a single byte defining the
-  transaction type, concatenated with an opaque byte array whose meaning depends on the type).
+- `transactions` is an array containing the [L1 attributes deposit] as well as [transaction deposits], whose format is
+  specified in the [next section][payload-format].
 
-> **TODO** we need to handle non-EIP-2718 transactions too
-
-[unix type]: https://en.wikipedia.org/wiki/Unix_time
-[merge]: https://ethereum.org/en/eth2/merge/
+[unix time]: https://en.wikipedia.org/wiki/Unix_time
+[yellow paper]: https://github.com/ethereum/yellowpaper
+[EIP-155]: https://eips.ethereum.org/EIPS/eip-155
+[EIP-1559]: https://eips.ethereum.org/EIPS/eip-1559
 [EIP-2718]: https://eips.ethereum.org/EIPS/eip-2718
+[EIP-2930]: https://eips.ethereum.org/EIPS/eip-2930
 
-[encode-tx]: https://github.com/norswap/nanoeth/blob/cc5d94a349c90627024f3cd629a2d830008fec72/src/com/norswap/nanoeth/transactions/Transaction.java#L84-L130
+----
 
-The [EIP-2718] transactions must have a transaction type that is valid on L1, or be an *[L1 attributes transaction]*
-(see below).
-
-#### Payload Transaction Format
+### Payload Transaction Format
 
 [payload-format]: #payload-transaction-format
 
-The `transactions` array is filled with the deposits, prefixed by the (single) [L1 attributes transaction]. The deposits
-are simply copied byte-for-byte — it is the role of the [execution engine] to reject invalidly-formatted transactions.
+The `transactions` array is filled with user-submitted deposits, prefixed by the (single) [L1 attributes deposit]. The
+format for deposits is described at [the top of the deposit specification][deposit-transaction-type].
 
-> **TODO** must offer some precisions on the format of deposits: sender,
-> receivers both in-tx-as-encoded, and on-L2-tx. What about the fees?
+[deposit-transaction-type]: deposits.md#the-deposit-transaction-type
 
-The Optimism-specific *[L1 attributes transaction]* has the following [EIP-2718]-compatible format: `0x7E ||
-[block_number, timestamp, basefee]` where:
+The rollup node is responsible for encoding the L1 attributes deposit based on the attributes (block number, timestamp
+and basefee) of the L1 block, as specified in the [L1 Attributes Deposit][l1-attributes-deposit-spec] section of the
+deposit specification. It must also encode the transaction deposits based on the `TransactionDeposited` event
+emitted by the deposit contract, as specified by the [L1 Transaction Deposits][l1-transaction-deposits] section of the
+same document.
 
-- `0x7E` is the transaction type identifier.
-- `block_number` is the L1 block number as a 64-bit integer (4 bytes)
-- `timestamp` is the L1 block timestamp as a 64-bit integer (4 bytes)
-- `basefee` is the L1 block basefee as a 64-bit integer (4 bytes)
+[l1-attributes-deposit-spec]: deposits.md#l1-attributes-deposit
+[l1-transaction-deposits]: deposits.md#l1-transaction-deposits
 
-When included in the `transactions` array, this transaction should be RLP-encoded in the same way as other transactions.
-
-> **TODO** move this section into a doc specific to the execution-engine
-
-Here is an example valid `PayloadAttributesOPV1` object, which contains an L1 attributes transaction as well as a single
-deposit:
+Here is an example valid `PayloadAttributesOPV1` object, which contains an L1 attributes deposit as well as a single
+transaction deposit:
 
 ```js
 {
@@ -144,11 +141,13 @@ deposit:
   random: "0xde5dff2b0982ecbbd38081eb8f4aed0525140dc1c1d56f995b4fa801a3f2649e",
   suggestedFeeRecipient: "0xAb5801a7D398351b8bE11C439e05C5B3259aeC9B",
   transactions: [
-    "TODO specify L1 attribute transaction",
+    "TODO generate abi-encoded L1 attribute deposit",
     "0x02f87101058459682f0085199c82cc0082520894ab5801a7d398351b8be11c439e05c5b3259aec9b8609184e72a00080c080a0a6d217a91ea344fc09f740f104f764d71bb1ca9a8e159117d2d27091ea5fce91a04cf5add5f5b7d791a2c4663ab488cb581df800fe0910aa755099ba466b49fd69"
   ]
 }
 ```
+
+----
 
 ### Building the L2 block with the execution engine
 
@@ -189,15 +188,15 @@ route. This has the same signature, except that:
   - `headBlockHash`: block hash of the last block of the L2 chain, according to the rollup driver.
   - `safeBlockHash`: same as `headBlockHash`.
   - `finalizedBlockHash`: the hash of the block whose number is `number(headBlockHash) - FINALIZATION_DELAY_BLOCKS` if
-    the number of that block is `>= L2_CHAIN_INCEPTION`, 0 otherwise (where `FINALIZATION_DELAY_BLOCKS == 50400`
-    (approximately 7 days worth of L1 blocks) and `L2_CHAIN_INCEPTION` is the [L2 chain inception] (the number of the
+    the number of that block is `>= L2_CHAIN_INCEPTION`, 0 otherwise (where `FINALIZATION_DELAY_BLOCKS` = 50400,
+    approximately 7 days worth of L1 blocks) and `L2_CHAIN_INCEPTION` is the [L2 chain inception] (the number of the
     first L1 block for which an L2 block was produced). See the [Finalization Guarantees][finalization] section for more
     details.
 
 [`ForkchoiceStateV1`]: https://github.com/ethereum/execution-apis/blob/main/src/engine/specification.md#ForkchoiceStateV1
 
-> **Note:** the properties of this `ForkchoiceStateV1` can be used to anchor queries to the regular (non-engine-API)
-> JSON-RPC endpoint of the execution engine. [See here for more information.][L2-JSON-RPC-API]
+> **Note:** the properties of `ForkchoiceStateV1` can be used to anchor queries to the regular (non-engine-API) JSON-RPC
+> endpoint of the execution engine. [See here for more information.][L2-JSON-RPC-API]
 
 [L2-JSON-RPC-API]: TODO
 
@@ -216,9 +215,9 @@ requiring manual user intervention).
 
 The following scenarios are assimilated to errors:
 
-- [`engine_forkchoiceUpdateOPV1`] returning a `status` of "`SYNCING`" instead of "`SUCCESS`" whenever passed a
+- [`engine_forkchoiceUpdatedOPV1`] returning a `status` of `"SYNCING"` instead of `"SUCCESS"` whenever passed a
   `headBlockHash` that it retrieved from a previous call to [`engine_executePayloadV1`].
-- [`engine_executePayloadV1`] returning a `status` of "`SYNCING`" or `"INVALID"` whenever passed an execution payload
+- [`engine_executePayloadV1`] returning a `status` of `"SYNCING"` or `"INVALID"` whenever passed an execution payload
   that was obtained by a previous call to [`engine_getPayloadV1`].
 
 [`engine_getPayloadV1`]: exec-engine.md#engine_executepayloadv1
@@ -259,6 +258,8 @@ the descendant of an ancestor of the previous head). In those case, the rollup d
 
 > Note that post-[merge], the L1 chain will offer finalization guarantees meaning that it won't be able to re-org more
 > than `FINALIZATION_DELAY_BLOCKS == 50400` in the past, hence preserving our finalization guarantees.
+
+[merge]: https://ethereum.org/en/eth2/merge/
 
 Just like before, the meaning of errors returned by RPC calls is unspecified and must be handled at the implementer's
 discretion, while remaining compatible with the specification.

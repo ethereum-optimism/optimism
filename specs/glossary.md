@@ -20,9 +20,10 @@
   - [L2 Chain Derivation](#l2-chain-derivation)
   - [L2 Derivation Inputs](#l2-derivation-inputs)
   - [Payload Attributes](#payload-attributes)
-  - [L1 Attributes Transaction](#l1-attributes-transaction)
-  - [L1 Attributes Predeployed Contract](#l1-attributes-predeployed-contract)
   - [Deposits](#deposits)
+  - [L1 Attributes Deposit](#l1-attributes-deposit)
+  - [Transaction Deposit](#transaction-deposit)
+  - [L1 Attributes Predeployed Contract](#l1-attributes-predeployed-contract)
   - [Deposit Transaction Type](#deposit-transaction-type)
   - [Deposit Feed Contract](#deposit-feed-contract)
 - [Execution Engine Concepts](#execution-engine-concepts)
@@ -186,23 +187,56 @@ cf. [Execution Engine Specification](exec-engine.md)
 Payload attributes were historically called "L2 block inputs" in the L2 spec and you might still hear some people using
 this term.
 
-## L1 Attributes Transaction
+## Deposits
 
-[l1-attributes-tx]: /glossary.md#l1-attributes-transaction
+[deposits]: /glossary.md#deposits
 
-A transaction with an Optimism-specific transaction type, that is used to register the L1 block attributes
-(number, timestamp, ...) on L2.
+A deposit is an L2 transaction derived from an L1 block.
 
-The L1 attributes for a given L1 block can be read on L2 from the [L1 Attributes Predeployed
-Contract][l1-attr-predeploy].
+There are two kinds of deposits:
 
-cf. [L1 attributes transaction format](/rollup-node.md#payload-transaction-format) (in the section on [payload
-attributes])
+- [L1 Attributes Deposit][l1-attribute-tx], which submit the L1 block's attributes to the [L1 Attributes Predeployed
+  Contract][l1-attr-predeploy].
+- [Transaction Deposits][tx-deposits], which are transaction that have been submitted on L1, via a transaction sent to
+the [deposit feed contract][deposit-feed].
 
-> **TODO** We might want to move this the format spec to the execution engine.
+While transaction deposits are notably (but not only) used to "deposit" (bridge) ETH and tokens to L2, the word
+*deposit* should be understood as "a transaction *deposited* to L2 from L1".
 
-> **TODO** We might wish to make this a "normal transaction" if deposits end up
-> not carrying a signature.
+The term *deposit* performs the double duty of referring to both:
+
+1. The transaction information submitted on L1 to the [deposit feed contract][deposit-feed]. This is a kind of [L2
+   derivation input][deriv-input].
+2. The actual L2 transaction derived from this L1 input.
+
+Deposits are specified in the [deposits specification][deposits-spec].
+
+[deposits-spec]: deposits.md
+
+## L1 Attributes Deposit
+
+[l1-attributes-deposit]: /glossary.md#l1-attributes-deposit
+
+A [deposit][deposits] that is used to register the L1 block attributes (number, timestamp, ...) on L2 via a call to the
+[L1 Attributes Predeployed Contract][l1-attr-predeploy]. That contract can then be used to read the the attributes of
+the L1 block corresponding to the current L2 block.
+
+L1 attributes deposits are specified in the [L1 Attributes Deposit][l1-attributes-tx-spec] section of the deposits
+specification.
+
+[l1-attributes-tx-spec]: deposits.md#l1-attributes-deposit
+
+## Transaction Deposits
+
+[tx-deposits]: #transaction-deposits
+
+These [deposits] are transaction that have been submitted on L1, via a transaction sent to the [deposit feed
+contract][deposit-feed].
+
+Transaction deposits are specified in the [Transaction Deposits][tx-deposits-spec] section of the deposits
+specification.
+
+[tx-deposits-spec]: deposits.md#l1-transaction-deposits
 
 ## L1 Attributes Predeployed Contract
 
@@ -214,18 +248,6 @@ block number or a given block hash.
 cf. [L1 Attributes Predeployed Contract Specification](TODO)
 
 > **TODO LINK** L1 attributes predeployed contract spec
-
-## Deposits
-
-[deposits]: /glossary.md#deposits
-
-A deposit is an L2 transaction that has been submitted on L1, via a transaction sent to the [deposit feed
-contract][deposit-feed].
-
-While deposits are notably (but not only) used to "deposit" (bridge) ETH and tokens to L2, the word *deposit* should be
-understood as "a transaction *deposited* to L2".
-
-Deposits are one kind of [L2 derivation input][deriv-input].
 
 ## Deposit Transaction Type
 
