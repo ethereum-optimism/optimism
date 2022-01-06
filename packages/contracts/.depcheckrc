@@ -1,0 +1,11 @@
+ignores: [
+  "@codechecks/client",
+  "@ethersproject/transactions",
+  "@openzeppelin/contracts",
+  "@openzeppelin/contracts-upgradeable",
+  "@typechain/ethers-v5",
+  "prettier-plugin-solidity",
+  "solhint-plugin-prettier",
+  "ts-generator",
+  "yargs",
+]
