@@ -8,7 +8,6 @@ import (
 var (
 	Version   string
 	GitCommit string
-	BuildUser string
 	BuildDate string
 	GoVersion = runtime.Version()
 )
@@ -18,5 +17,5 @@ func Info() string {
 }
 
 func BuildContext() string {
-	return fmt.Sprintf("(go=%s, user=%s, date=%s)", GoVersion, BuildUser, BuildDate)
+	return fmt.Sprintf("(go=%s, date=%s)", GoVersion, BuildDate)
 }

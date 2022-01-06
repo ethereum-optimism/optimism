@@ -24,6 +24,12 @@ var (
 			Help: "Is the sequencer healthy?"},
 		[]string{"network"},
 	)
+	opExporterVersion = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "op_exporter_version",
+			Help: "Verion of the op-exporter software"},
+		[]string{"version", "commit", "goVersion", "buildDate"},
+	)
 )
 
 func init() {
@@ -31,4 +37,6 @@ func init() {
 	prometheus.MustRegister(gasPrice)
 	prometheus.MustRegister(blockNumber)
 	prometheus.MustRegister(healthySequencer)
+	prometheus.MustRegister(opExporterVersion)
+
 }

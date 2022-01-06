@@ -1,14 +1,18 @@
 SHELL := /bin/bash
 
-VERSION := `git describe --abbrev=0`
+ifndef VERSION
+VERSION := `jq .version package.json `
+endif
+ifndef GITCOMMIT
 GITCOMMIT := `git rev-parse HEAD`
+endif
+ifndef BUILDDATE
 BUILDDATE := `date +%Y-%m-%d`
-BUILDUSER := `whoami`
+endif
 
 LDFLAGSSTRING :=-X github.com/ethereum-optimism/optimism/go/op_exporter/version.Version=$(VERSION)
 LDFLAGSSTRING +=-X github.com/ethereum-optimism/optimism/go/op_exporter/version.GitCommit=$(GITCOMMIT)
 LDFLAGSSTRING +=-X github.com/ethereum-optimism/optimism/go/op_exporter/version.BuildDate=$(BUILDDATE)
-LDFLAGSSTRING +=-X github.com/ethereum-optimism/optimism/go/op_exporter/version.BuildUser=$(BUILDUSER)
 
 LDFLAGS :=-ldflags "$(LDFLAGSSTRING)"
 
