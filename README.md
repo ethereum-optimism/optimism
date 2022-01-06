@@ -1,7 +1,7 @@
-# The Optimistic Ethereum Spec
+# The Optimism Spec
 
 This repository holds the work-in-progress specification for the next version of
-Optimistic Ethereum.
+Optimism.
 
 This spec is developped iteratively, specifying a rollup of increasing
 complexity. The current stage specifies a "rollup" whose only transactions are
@@ -18,7 +18,7 @@ Please note that this specification is currently under heavy construction.
 
 ### Basic Contributions
 
-Contributing to the Optimistic Ethereum specification is easy.
+Contributing to the Optimism specification is easy.
 
 You'll find a list of open questions and active research topics over on the
 [Discussions] page for this repo. Specific tasks and TODOs can be found on the
@@ -32,7 +32,7 @@ request].
 ### R&D Calls
 
 We hold bi-weekly R&D calls that are open to anyone interested in contributing
-to the Optimistic Ethereum spec.
+to the Optimism spec.
 
 Contact [@karlfloersch], [@protolambda], [@kelvinfichter] or [@norswap] if you'd
 like to join these calls. Please note that these calls may be recorded and

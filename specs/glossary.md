@@ -34,13 +34,13 @@
 
 [L1]: /glossary.md#layer-1-L1
 
-Refers the Ethereum blockchain, used in contrast to [layer 2][L2], which refers to Optimistic Ethereum.
+Refers the Ethereum blockchain, used in contrast to [layer 2][L2], which refers to Optimism.
 
 ## Layer 2 (L2)
 
 [L2]: /glossary.md#layer-2-L2
 
-Refers to the Optimistic Ethereum blockchain (specified in this repository), used in contrast to [layer 1][L1], which
+Refers to the Optimism blockchain (specified in this repository), used in contrast to [layer 1][L1], which
 refers to the Ethereum blockchain.
 
 ## Block
@@ -88,7 +88,7 @@ L1 re-orgs can happen because of network conditions or attacks. L2 re-orgs are a
 
 A contract placed in the L2 genesis state (i.e. at the start of the chain).
 
-Optimistic Ethereum has the following predeploys:
+Optimism has the following predeploys:
 
 - [L1 Attributes Predeployed Contract][l1-attr-predeploy]
 
@@ -190,7 +190,7 @@ this term.
 
 [l1-attributes-tx]: /glossary.md#l1-attributes-transaction
 
-A transaction with an Optimistic-Ethereum-specific transaction type, that is used to register the L1 block attributes
+A transaction with an Optimism-specific transaction type, that is used to register the L1 block attributes
 (number, timestamp, ...) on L2.
 
 The L1 attributes for a given L1 block can be read on L2 from the [L1 Attributes Predeployed

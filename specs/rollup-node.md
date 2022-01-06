@@ -123,7 +123,7 @@ are simply copied byte-for-byte — it is the role of the [execution engine] to 
 > **TODO** must offer some precisions on the format of deposits: sender,
 > receivers both in-tx-as-encoded, and on-L2-tx. What about the fees?
 
-The Optimistic Ethereum specific *[L1 attributes transaction]* has the following [EIP-2718]-compatible format: `0x7E ||
+The Optimism-specific *[L1 attributes transaction]* has the following [EIP-2718]-compatible format: `0x7E ||
 [block_number, timestamp, basefee]` where:
 
 - `0x7E` is the transaction type identifier.
@@ -154,7 +154,7 @@ deposit:
 
 [calling-exec-engine]: #building-the-L2-block-with-the-execution-engine
 
-The Optimistic Ethereum [execution engine] is specified in the [Execution Engine Specification].
+The Optimism [execution engine] is specified in the [Execution Engine Specification].
 
 [Execution Engine Specification]: exec-engine.md
 
@@ -164,7 +164,7 @@ attributes] into L2 blocks.
 > **TODO** This section probably includes too much redundant details that will
 > need to be removed once the execution engine spec is up.
 
-Optimistic Ethereum's execution engine API is built upon [Ethereum's Engine API specification][eth-engine-api], with a
+Optimism's execution engine API is built upon [Ethereum's Engine API specification][eth-engine-api], with a
 couple of modifications. That specification builds upon [Ethereum's JSON-RPC API specification][JSON-RPC-API], which
 itself builds upon the [JSON-RPC specification][JSON-RPC].
 
