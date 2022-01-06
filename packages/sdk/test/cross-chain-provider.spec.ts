@@ -983,7 +983,7 @@ describe('CrossChainProvider', () => {
     // track of
   })
 
-  describe('waitForMessageReciept', () => {
+  describe('waitForMessageReceipt', () => {
     let l2Messenger: Contract
     let provider: CrossChainProvider
     beforeEach(async () => {
@@ -1020,7 +1020,7 @@ describe('CrossChainProvider', () => {
           hashCrossChainMessage(message),
         ])
 
-        const messageReceipt = await provider.waitForMessageReciept(message)
+        const messageReceipt = await provider.waitForMessageReceipt(message)
         expect(messageReceipt.receiptStatus).to.equal(1)
         expect(
           omit(messageReceipt.transactionReceipt, 'confirmations')
@@ -1054,7 +1054,7 @@ describe('CrossChainProvider', () => {
           }, 5000)
 
           const tick = Date.now()
-          const messageReceipt = await provider.waitForMessageReciept(message)
+          const messageReceipt = await provider.waitForMessageReceipt(message)
           const tock = Date.now()
           expect(messageReceipt.receiptStatus).to.equal(1)
           expect(tock - tick).to.be.greaterThan(5000)
@@ -1080,7 +1080,7 @@ describe('CrossChainProvider', () => {
           }
 
           await expect(
-            provider.waitForMessageReciept(message, {
+            provider.waitForMessageReceipt(message, {
               timeoutMs: 10000,
             })
           ).to.be.rejectedWith('timed out waiting for message receipt')

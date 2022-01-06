@@ -396,7 +396,7 @@ export class CrossChainProvider implements ICrossChainProvider {
     return null
   }
 
-  public async waitForMessageReciept(
+  public async waitForMessageReceipt(
     message: MessageLike,
     opts: {
       confirmations?: number
