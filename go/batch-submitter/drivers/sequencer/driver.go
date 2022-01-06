@@ -175,6 +175,7 @@ func (d *Driver) SubmitBatchTx(
 	}
 
 	shouldStartAt := start.Uint64()
+	var pruneCount int
 	for {
 		batchParams, err := GenSequencerBatchParams(
 			shouldStartAt, d.cfg.BlockOffset, batchElements,
@@ -197,6 +198,7 @@ func (d *Driver) SubmitBatchTx(
 			newBatchElementsLen := (oldLen * 9) / 10
 			batchElements = batchElements[:newBatchElementsLen]
 			log.Info(name+" pruned batch", "old_num_txs", oldLen, "new_num_txs", newBatchElementsLen)
+			pruneCount++
 			continue
 		}
 
@@ -204,6 +206,7 @@ func (d *Driver) SubmitBatchTx(
 		batchTxBuildTime := float64(time.Since(batchTxBuildStart) / time.Millisecond)
 		d.metrics.BatchTxBuildTime.Set(batchTxBuildTime)
 		d.metrics.NumElementsPerBatch.Observe(float64(len(batchElements)))
+		d.metrics.BatchPruneCount.Set(float64(pruneCount))
 
 		log.Info(name+" batch constructed", "num_txs", len(batchElements), "length", len(batchCallData))
 
