@@ -6,6 +6,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"os"
+	"strings"
 	"sync"
 	"time"
 
@@ -50,7 +51,7 @@ var (
 	enableK8sQuery = kingpin.Flag(
 		"k8s.enable",
 		"Enable kubernetes info lookup.",
-	).Default("true").Bool()
+	).Default("false").Bool()
 )
 
 type healthCheck struct {
@@ -81,7 +82,8 @@ func main() {
 	log.Infoln("exporter config", *listenAddress, *rpcProvider, *networkLabel)
 	log.Infoln("Starting op_exporter", version.Info())
 	log.Infoln("Build context", version.BuildContext())
-
+	opExporterVersion.WithLabelValues(
+		strings.Trim(version.Version, "\""), version.GitCommit, version.GoVersion, version.BuildDate).Inc()
 	health := healthCheck{
 		mu:             new(sync.RWMutex),
 		height:         0,
