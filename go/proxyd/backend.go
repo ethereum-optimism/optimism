@@ -7,16 +7,18 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/ethereum/go-ethereum/log"
-	"github.com/gorilla/websocket"
-	"github.com/prometheus/client_golang/prometheus"
 	"io"
 	"io/ioutil"
 	"math"
 	"math/rand"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
+
+	"github.com/ethereum/go-ethereum/log"
+	"github.com/gorilla/websocket"
+	"github.com/prometheus/client_golang/prometheus"
 )
 
 const (
@@ -84,6 +86,7 @@ type Backend struct {
 	maxRPS               int
 	maxWSConns           int
 	outOfServiceInterval time.Duration
+	stripTrailingXFF     bool
 }
 
 type BackendOpt func(b *Backend)
@@ -137,6 +140,12 @@ func WithTLSConfig(tlsConfig *tls.Config) BackendOpt {
 			b.client.Transport = &http.Transport{}
 		}
 		b.client.Transport.(*http.Transport).TLSClientConfig = tlsConfig
+	}
+}
+
+func WithStrippedTrailingXFF() BackendOpt {
+	return func(b *Backend) {
+		b.stripTrailingXFF = true
 	}
 }
 
@@ -316,7 +325,16 @@ func (b *Backend) doForward(ctx context.Context, rpcReq *RPCReq) (*RPCRes, error
 		httpReq.SetBasicAuth(b.authUsername, b.authPassword)
 	}
 
+	xForwardedFor := GetXForwardedFor(ctx)
+	if b.stripTrailingXFF {
+		ipList := strings.Split(xForwardedFor, ",")
+		if len(ipList) > 0 {
+			xForwardedFor = ipList[0]
+		}
+	}
+
 	httpReq.Header.Set("content-type", "application/json")
+	httpReq.Header.Set("X-Forwarded-For", xForwardedFor)
 
 	httpRes, err := b.client.Do(httpReq)
 	if err != nil {

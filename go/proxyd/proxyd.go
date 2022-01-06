@@ -96,6 +96,9 @@ func Start(config *Config) error {
 			log.Info("using custom TLS config for backend", "name", name)
 			opts = append(opts, WithTLSConfig(tlsConfig))
 		}
+		if cfg.StripTrailingXFF {
+			opts = append(opts, WithStrippedTrailingXFF())
+		}
 		back := NewBackend(name, rpcURL, wsURL, lim, opts...)
 		backendNames = append(backendNames, name)
 		backendsByName[name] = back
