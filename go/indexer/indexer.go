@@ -74,8 +74,7 @@ type Indexer struct {
 	ctcAddress common.Address
 	sccAddress common.Address
 
-	syncService         *Service
-	blockHandlerService *Service
+	l1IndexingService *Service
 }
 
 // NewIndexer initializes the Indexer, gathering any resources
@@ -128,37 +127,27 @@ func NewIndexer(cfg Config, gitVersion string) (*Indexer, error) {
 		go runMetricsServer(cfg.MetricsHostname, cfg.MetricsPort)
 	}
 
-	syncService := NewService(ServiceConfig{
-		Context:      ctx,
-		PollInterval: cfg.PollInterval,
-		L1Client:     l1Client,
-	})
-
-	blockHandlerService := NewService(ServiceConfig{
-		Context:      ctx,
-		PollInterval: cfg.PollInterval,
-		L1Client:     l1Client,
+	l1IndexingService := NewService(ServiceConfig{
+		Context:  ctx,
+		L1Client: l1Client,
 	})
 
 	return &Indexer{
-		ctx:                 ctx,
-		cfg:                 cfg,
-		l1Client:            l1Client,
-		l2Client:            l2Client,
-		syncService:         syncService,
-		blockHandlerService: blockHandlerService,
+		ctx:               ctx,
+		cfg:               cfg,
+		l1Client:          l1Client,
+		l2Client:          l2Client,
+		l1IndexingService: l1IndexingService,
 	}, nil
 }
 
 func (b *Indexer) Start() error {
-	b.syncService.Start()
-	b.blockHandlerService.Start()
+	b.l1IndexingService.Start()
 	return nil
 }
 
 func (b *Indexer) Stop() {
-	b.syncService.Stop()
-	b.blockHandlerService.Stop()
+	b.l1IndexingService.Stop()
 }
 
 // runMetricsServer spins up a prometheus metrics server at the provided
