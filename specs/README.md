@@ -3,6 +3,13 @@
 This directory contains the plain english specs for Optimism, an minimal optimistic rollup protocol
 that maintains 1:1 compatibility with Ethereum.
 
+## Specification Contents
+
+- [Glossary](glossary.md)
+- [Deposits](deposits.md)
+- [Execution Engine](exec-engine.md)
+- [Rollup Node](rollup-node.md)
+
 ## Design Goals
 
 Our aim is to design a protocol specification that is:
@@ -20,12 +27,12 @@ Our aim is to design a protocol specification that is:
   (like Geth) that already runs Ethereum. An ideal optimistic rollup design should be representable
   as a *diff* against Ethereum client software.
 - **Developer Driven:** Our designs will be developer driven to ensure we are actually building
-  something that people want to use. We must constantly engage with the developers who will be using our
-  software to avoid creating a system no one wants to use.
+  something that people want to use. We must constantly engage with the developers who will be using
+  our software to avoid creating a system no one wants to use.
 - **Clear and Readable:** The specs we write are written to be read. So tight feedback loop with the
   systems team consuming the spec is also key!
-- **Secure:** This is self-evident. We cannot lose money and in a system where even a bit of downtime can
-  result in loss of funds this means everything we build must be incredibly secure.
+- **Secure:** This is self-evident. We cannot lose money and in a system where even a bit of
+  downtime can result in loss of funds this means everything we build must be incredibly secure.
 - **Decentralizable:** Everything we build must have a clear path towards decentralization. Today
   Optimism relies on OptimismPBC to function, but eventually it will be managed by a DAO and even in
   that decentralized future our system must thrive.
