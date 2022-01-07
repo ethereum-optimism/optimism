@@ -31,7 +31,7 @@ func TestBatchElementFromBlock(t *testing.T) {
 	require.Equal(t, element.Timestamp, expTime)
 	require.Equal(t, element.BlockNumber, expBlockNumber)
 	require.True(t, element.IsSequencerTx())
-	require.Equal(t, element.Tx, expTx)
+	require.Equal(t, element.Tx.Tx(), expTx)
 
 	queueMeta := l2types.NewTransactionMeta(
 		new(big.Int).SetUint64(expBlockNumber), 0, nil,

@@ -182,6 +182,7 @@ func (s *Service) eventLoop() {
 			s.metrics.BatchConfirmationTime.Set(float64(batchConfirmationTime))
 			s.metrics.BatchesSubmitted.Inc()
 			s.metrics.SubmissionGasUsed.Observe(float64(receipt.GasUsed))
+			s.metrics.SubmissionTimestamp.Observe(float64(time.Now().UnixNano() / 1e6))
 
 		case err := <-s.ctx.Done():
 			log.Error(name+" service shutting down", "err", err)

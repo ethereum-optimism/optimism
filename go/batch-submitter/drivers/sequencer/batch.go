@@ -27,7 +27,7 @@ type BatchElement struct {
 	// Tx is the optional transaction that was applied in this batch.
 	//
 	// NOTE: This field will only be populated for sequencer txs.
-	Tx *l2types.Transaction
+	Tx *CachedTx
 }
 
 // IsSequencerTx returns true if this batch contains a tx that needs to be
@@ -54,14 +54,15 @@ func BatchElementFromBlock(block *l2types.Block) BatchElement {
 	isSequencerTx := tx.QueueOrigin() == l2types.QueueOriginSequencer
 
 	// Only include sequencer txs in the returned BatchElement.
-	if !isSequencerTx {
-		tx = nil
+	var cachedTx *CachedTx
+	if isSequencerTx {
+		cachedTx = NewCachedTx(tx)
 	}
 
 	return BatchElement{
 		Timestamp:   block.Time(),
 		BlockNumber: l1BlockNumber,
-		Tx:          tx,
+		Tx:          cachedTx,
 	}
 }
 
@@ -82,7 +83,7 @@ func GenSequencerBatchParams(
 	var (
 		contexts               []BatchContext
 		groupedBlocks          []groupedBlock
-		txs                    []*l2types.Transaction
+		txs                    []*CachedTx
 		lastBlockIsSequencerTx bool
 		lastTimestamp          uint64
 		lastBlockNumber        uint64

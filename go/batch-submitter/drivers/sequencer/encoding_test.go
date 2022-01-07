@@ -297,9 +297,9 @@ func testAppendSequencerBatchParamsEncodeDecode(
 // compareTxs compares a list of two transactions, testing each pair by tx hash.
 // This is used rather than require.Equal, since there `time` metadata on the
 // decoded tx and the expected tx will differ, and can't be modified/ignored.
-func compareTxs(t *testing.T, a, b []*l2types.Transaction) {
+func compareTxs(t *testing.T, a []*l2types.Transaction, b []*sequencer.CachedTx) {
 	require.Equal(t, len(a), len(b))
 	for i, txA := range a {
-		require.Equal(t, txA.Hash(), b[i].Hash())
+		require.Equal(t, txA.Hash(), b[i].Tx().Hash())
 	}
 }
