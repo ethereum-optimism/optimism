@@ -196,7 +196,7 @@ func (d *Driver) SubmitBatchTx(
 			oldLen := len(batchElements)
 			newBatchElementsLen := (oldLen * 9) / 10
 			batchElements = batchElements[:newBatchElementsLen]
-			log.Info("pruned batch", "old_num_txs", oldLen, "new_num_txs", newBatchElementsLen)
+			log.Info(name+" pruned batch", "old_num_txs", oldLen, "new_num_txs", newBatchElementsLen)
 			continue
 		}
 
