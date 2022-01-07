@@ -5,20 +5,23 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"net/http"
+	"strconv"
+	"strings"
+	"time"
+
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/gorilla/mux"
 	"github.com/gorilla/websocket"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/rs/cors"
-	"io"
-	"net/http"
-	"strconv"
-	"time"
 )
 
 const (
-	ContextKeyAuth  = "authorization"
-	ContextKeyReqID = "req_id"
+	ContextKeyAuth          = "authorization"
+	ContextKeyReqID         = "req_id"
+	ContextKeyXForwardedFor = "x_forwarded_for"
 )
 
 type Server struct {
@@ -214,7 +217,16 @@ func (s *Server) populateContext(w http.ResponseWriter, r *http.Request) context
 		return nil
 	}
 
+	xff := r.Header.Get("X-Forwarded-For")
+	if xff == "" {
+		ipPort := strings.Split(r.RemoteAddr, ":")
+		if len(ipPort) == 2 {
+			xff = ipPort[0]
+		}
+	}
+
 	ctx := context.WithValue(r.Context(), ContextKeyAuth, s.authenticatedPaths[authorization])
+	ctx = context.WithValue(ctx, ContextKeyXForwardedFor, xff)
 	return context.WithValue(
 		ctx,
 		ContextKeyReqID,
@@ -270,4 +282,12 @@ func GetReqID(ctx context.Context) string {
 		return ""
 	}
 	return reqId
+}
+
+func GetXForwardedFor(ctx context.Context) string {
+	xff, ok := ctx.Value(ContextKeyXForwardedFor).(string)
+	if !ok {
+		return ""
+	}
+	return xff
 }
