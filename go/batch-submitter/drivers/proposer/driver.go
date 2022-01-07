@@ -10,14 +10,17 @@ import (
 	"github.com/ethereum-optimism/optimism/go/batch-submitter/bindings/ctc"
 	"github.com/ethereum-optimism/optimism/go/batch-submitter/bindings/scc"
 	"github.com/ethereum-optimism/optimism/go/batch-submitter/metrics"
-	l2types "github.com/ethereum-optimism/optimism/l2geth/core/types"
 	l2ethclient "github.com/ethereum-optimism/optimism/l2geth/ethclient"
+	"github.com/ethereum-optimism/optimism/l2geth/log"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
 )
+
+// stateRootSize is the size in bytes of a state root.
+const stateRootSize = 32
 
 var bigOne = new(big.Int).SetUint64(1) //nolint:unused
 
@@ -89,7 +92,6 @@ func (d *Driver) GetBatchBlockRange(
 	ctx context.Context) (*big.Int, *big.Int, error) {
 
 	blockOffset := new(big.Int).SetUint64(d.cfg.BlockOffset)
-	maxBatchSize := new(big.Int).SetUint64(1)
 
 	start, err := d.sccContract.GetTotalElements(&bind.CallOpts{
 		Pending: false,
@@ -100,20 +102,14 @@ func (d *Driver) GetBatchBlockRange(
 	}
 	start.Add(start, blockOffset)
 
-	totalElements, err := d.ctcContract.GetTotalElements(&bind.CallOpts{
+	end, err := d.ctcContract.GetTotalElements(&bind.CallOpts{
 		Pending: false,
 		Context: ctx,
 	})
 	if err != nil {
 		return nil, nil, err
 	}
-	totalElements.Add(totalElements, blockOffset)
-
-	// Take min(start + blockOffset + maxBatchSize, totalElements).
-	end := new(big.Int).Add(start, maxBatchSize)
-	if totalElements.Cmp(end) < 0 {
-		end.Set(totalElements)
-	}
+	end.Add(end, blockOffset)
 
 	if start.Cmp(end) > 0 {
 		return nil, nil, fmt.Errorf("invalid range, "+
@@ -130,29 +126,34 @@ func (d *Driver) SubmitBatchTx(
 	ctx context.Context,
 	start, end, nonce, gasPrice *big.Int) (*types.Transaction, error) {
 
+	name := d.cfg.Name
+
 	batchTxBuildStart := time.Now()
 
-	var blocks []*l2types.Block
+	var (
+		stateRoots         [][stateRootSize]byte
+		totalStateRootSize uint64
+	)
 	for i := new(big.Int).Set(start); i.Cmp(end) < 0; i.Add(i, bigOne) {
+		// Consume state roots until reach our maximum tx size.
+		if totalStateRootSize+stateRootSize > d.cfg.MaxTxSize {
+			break
+		}
+
 		block, err := d.cfg.L2Client.BlockByNumber(ctx, i)
 		if err != nil {
 			return nil, err
 		}
 
-		blocks = append(blocks, block)
-
-		// TODO(conner): remove when moving to multiple blocks
-		break //nolint
-	}
-
-	var stateRoots = make([][32]byte, 0, len(blocks))
-	for _, block := range blocks {
+		totalStateRootSize += stateRootSize
 		stateRoots = append(stateRoots, block.Root())
 	}
 
 	batchTxBuildTime := float64(time.Since(batchTxBuildStart) / time.Millisecond)
 	d.metrics.BatchTxBuildTime.Set(batchTxBuildTime)
-	d.metrics.NumTxPerBatch.Observe(float64(len(blocks)))
+	d.metrics.NumElementsPerBatch.Observe(float64(len(stateRoots)))
+
+	log.Info(name+" batch constructed", "num_state_roots", len(stateRoots))
 
 	opts, err := bind.NewKeyedTransactorWithChainID(
 		d.cfg.PrivKey, d.cfg.ChainID,
