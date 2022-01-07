@@ -7,8 +7,25 @@ import { predeploys } from '../src/predeploys'
 import { getContractDefinition } from '../src/contract-defs'
 
 task('set-l2-gasprice')
-  .addOptionalParam('l2GasPrice', 'Gas Price to set on L2', 0, types.int)
+  .addOptionalParam(
+    'l2GasPrice',
+    'Gas Price to set on L2',
+    undefined,
+    types.int
+  )
   .addOptionalParam('transactionGasPrice', 'tx.gasPrice', undefined, types.int)
+  .addOptionalParam(
+    'overhead',
+    'amortized additional gas used by each batch that users must pay for',
+    undefined,
+    types.int
+  )
+  .addOptionalParam(
+    'scalar',
+    'amount to scale up the gas to charge',
+    undefined,
+    types.int
+  )
   .addOptionalParam(
     'contractsRpcUrl',
     'Sequencer HTTP Endpoint',
@@ -42,15 +59,45 @@ task('set-l2-gasprice')
       throw new Error(`Incorrect key. Owner ${owner}, Signer ${addr}`)
     }
 
+    // List the current values
     const gasPrice = await GasPriceOracle.callStatic.gasPrice()
-    console.log(`Gas Price is currently ${gasPrice.toString()}`)
-    console.log(`Setting Gas Price to ${args.l2GasPrice}`)
+    const scalar = await GasPriceOracle.callStatic.scalar()
+    const overhead = await GasPriceOracle.callStatic.overhead()
 
-    const tx = await GasPriceOracle.connect(signer).setGasPrice(
-      args.l2GasPrice,
-      { gasPrice: args.transactionGasPrice }
-    )
+    console.log('Current values:')
+    console.log(`Gas Price: ${gasPrice.toString()}`)
+    console.log(`Scalar: ${scalar.toString()}`)
+    console.log(`Overhead: ${overhead.toString()}`)
 
-    const receipt = await tx.wait()
-    console.log(`Success - ${receipt.transactionHash}`)
+    if (args.l2GasPrice !== undefined) {
+      console.log(`Setting gas price to ${args.l2GasPrice}`)
+      const tx = await GasPriceOracle.connect(signer).setGasPrice(
+        args.l2GasPrice,
+        { gasPrice: args.transactionGasPrice }
+      )
+
+      const receipt = await tx.wait()
+      console.log(`Success - ${receipt.transactionHash}`)
+    }
+
+    if (args.scalar !== undefined) {
+      console.log(`Setting scalar to ${args.scalar}`)
+      const tx = await GasPriceOracle.connect(signer).setScalar(args.scalar, {
+        gasPrice: args.transactionGasPrice,
+      })
+
+      const receipt = await tx.wait()
+      console.log(`Success - ${receipt.transactionHash}`)
+    }
+
+    if (args.overhead !== undefined) {
+      console.log(`Setting overhead to ${args.overhead}`)
+      const tx = await GasPriceOracle.connect(signer).setOverhead(
+        args.overhead,
+        { gasPrice: args.transactionGasPrice }
+      )
+
+      const receipt = await tx.wait()
+      console.log(`Success - ${receipt.transactionHash}`)
+    }
   })
