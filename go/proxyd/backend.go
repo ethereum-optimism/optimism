@@ -87,6 +87,7 @@ type Backend struct {
 	maxWSConns           int
 	outOfServiceInterval time.Duration
 	stripTrailingXFF     bool
+	proxydIP             string
 }
 
 type BackendOpt func(b *Backend)
@@ -149,6 +150,12 @@ func WithStrippedTrailingXFF() BackendOpt {
 	}
 }
 
+func WithProxydIP(ip string) BackendOpt {
+	return func(b *Backend) {
+		b.proxydIP = ip
+	}
+}
+
 func NewBackend(
 	name string,
 	rpcURL string,
@@ -170,6 +177,10 @@ func NewBackend(
 
 	for _, opt := range opts {
 		opt(backend)
+	}
+
+	if !backend.stripTrailingXFF && backend.proxydIP == "" {
+		log.Warn("proxied requests' XFF header will not contain the proxyd ip address")
 	}
 
 	return backend
@@ -327,10 +338,12 @@ func (b *Backend) doForward(ctx context.Context, rpcReq *RPCReq) (*RPCRes, error
 
 	xForwardedFor := GetXForwardedFor(ctx)
 	if b.stripTrailingXFF {
-		ipList := strings.Split(xForwardedFor, ",")
+		ipList := strings.Split(xForwardedFor, ", ")
 		if len(ipList) > 0 {
 			xForwardedFor = ipList[0]
 		}
+	} else if b.proxydIP != "" {
+		xForwardedFor = fmt.Sprintf("%s, %s", xForwardedFor, b.proxydIP)
 	}
 
 	httpReq.Header.Set("content-type", "application/json")

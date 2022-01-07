@@ -99,6 +99,7 @@ func Start(config *Config) error {
 		if cfg.StripTrailingXFF {
 			opts = append(opts, WithStrippedTrailingXFF())
 		}
+		opts = append(opts, WithProxydIP(os.Getenv("PROXYD_IP")))
 		back := NewBackend(name, rpcURL, wsURL, lim, opts...)
 		backendNames = append(backendNames, name)
 		backendsByName[name] = back
