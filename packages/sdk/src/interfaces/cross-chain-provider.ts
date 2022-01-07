@@ -186,7 +186,7 @@ export interface ICrossChainProvider {
    * @returns CrossChainMessage receipt including receipt of the transaction that relayed the
    * given message.
    */
-  waitForMessageReciept(
+  waitForMessageReceipt(
     message: MessageLike,
     opts?: {
       confirmations?: number
