@@ -1,0 +1,20 @@
+# permissions for end users to view actors.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: actor-viewer-role
+rules:
+- apiGroups:
+  - stack.optimism-stacks.net
+  resources:
+  - actors
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - stack.optimism-stacks.net
+  resources:
+  - actors/status
+  verbs:
+  - get
