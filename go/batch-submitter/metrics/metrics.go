@@ -12,9 +12,9 @@ type Metrics struct {
 	// BatchSizeInBytes tracks the size of batch submission transactions.
 	BatchSizeInBytes prometheus.Histogram
 
-	// NumTxPerBatch tracks the number of L2 transactions in each batch
+	// NumElementsPerBatch tracks the number of L2 transactions in each batch
 	// submission.
-	NumTxPerBatch prometheus.Histogram
+	NumElementsPerBatch prometheus.Histogram
 
 	// SubmissionTimestamp tracks the time at which each batch was confirmed.
 	SubmissionTimestamp prometheus.Histogram
@@ -49,8 +49,8 @@ func NewMetrics(subsystem string) *Metrics {
 			Help:      "Size of batches in bytes",
 			Subsystem: subsystem,
 		}),
-		NumTxPerBatch: promauto.NewHistogram(prometheus.HistogramOpts{
-			Name:      "num_txs_per_batch",
+		NumElementsPerBatch: promauto.NewHistogram(prometheus.HistogramOpts{
+			Name:      "num_elements_per_batch",
 			Help:      "Number of transaction in each batch",
 			Subsystem: subsystem,
 		}),

@@ -193,20 +193,19 @@ func (d *Driver) SubmitBatchTx(
 
 		// Continue pruning until calldata size is less than configured max.
 		if uint64(len(batchCallData)) > d.cfg.MaxTxSize {
-			newBatchElementsLen := (len(batchElements) * 9) / 10
+			oldLen := len(batchElements)
+			newBatchElementsLen := (oldLen * 9) / 10
 			batchElements = batchElements[:newBatchElementsLen]
+			log.Info("pruned batch", "old_num_txs", oldLen, "new_num_txs", newBatchElementsLen)
 			continue
 		}
 
 		// Record the batch_tx_build_time.
 		batchTxBuildTime := float64(time.Since(batchTxBuildStart) / time.Millisecond)
 		d.metrics.BatchTxBuildTime.Set(batchTxBuildTime)
-		d.metrics.NumTxPerBatch.Observe(float64(len(batchElements)))
+		d.metrics.NumElementsPerBatch.Observe(float64(len(batchElements)))
 
-		log.Info(name+" batch constructed", "num_txs", len(batchElements),
-	batchTxBuildTime := float64(time.Since(batchTxBuildStart) / time.Millisecond)
-	d.metrics.BatchTxBuildTime.Set(batchTxBuildTime)
-			"length", len(batchCallData))
+		log.Info(name+" batch constructed", "num_txs", len(batchElements), "length", len(batchCallData))
 
 		opts, err := bind.NewKeyedTransactorWithChainID(
 			d.cfg.PrivKey, d.cfg.ChainID,

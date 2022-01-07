@@ -15,8 +15,8 @@ import (
 )
 
 var (
-	// weiToGwei is the conversion rate from wei to gwei.
-	weiToGwei = new(big.Float).SetFloat64(1e-18)
+	// weiToEth is the conversion rate from wei to ether.
+	weiToEth = new(big.Float).SetFloat64(1e-18)
 )
 
 // Driver is an interface for creating and submitting batch transactions for a
@@ -112,7 +112,7 @@ func (s *Service) eventLoop() {
 				log.Error(name+" unable to get current balance", "err", err)
 				continue
 			}
-			s.metrics.ETHBalance.Set(weiToGwei64(balance))
+			s.metrics.ETHBalance.Set(weiToEth64(balance))
 
 			// Determine the range of L2 blocks that the batch submitter has not
 			// processed, and needs to take action on.
@@ -158,6 +158,15 @@ func (s *Service) eventLoop() {
 					return nil, err
 				}
 
+				log.Info(
+					name+" submitted batch tx",
+					"start", start,
+					"end", end,
+					"nonce", nonce,
+					"tx_hash", tx.Hash(),
+					"gasPrice", gasPrice,
+				)
+
 				s.metrics.BatchSizeInBytes.Observe(float64(tx.Size()))
 
 				return tx, nil
@@ -191,9 +200,9 @@ func (s *Service) eventLoop() {
 	}
 }
 
-func weiToGwei64(wei *big.Int) float64 {
-	gwei := new(big.Float).SetInt(wei)
-	gwei.Mul(gwei, weiToGwei)
-	gwei64, _ := gwei.Float64()
-	return gwei64
+func weiToEth64(wei *big.Int) float64 {
+	eth := new(big.Float).SetInt(wei)
+	eth.Mul(eth, weiToEth)
+	eth64, _ := eth.Float64()
+	return eth64
 }

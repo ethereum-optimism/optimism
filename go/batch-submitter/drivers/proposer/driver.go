@@ -131,27 +131,27 @@ func (d *Driver) SubmitBatchTx(
 	batchTxBuildStart := time.Now()
 
 	var (
-		stateRoots         [][32]byte
+		stateRoots         [][stateRootSize]byte
 		totalStateRootSize uint64
 	)
 	for i := new(big.Int).Set(start); i.Cmp(end) < 0; i.Add(i, bigOne) {
+		// Consume state roots until reach our maximum tx size.
+		if totalStateRootSize+stateRootSize > d.cfg.MaxTxSize {
+			break
+		}
+
 		block, err := d.cfg.L2Client.BlockByNumber(ctx, i)
 		if err != nil {
 			return nil, err
 		}
 
-		// Consume state roots until reach our maximum tx size.
-		if totalStateRootSize+stateRootSize > d.cfg.MaxTxSize {
-			break
-		}
 		totalStateRootSize += stateRootSize
-
 		stateRoots = append(stateRoots, block.Root())
 	}
 
 	batchTxBuildTime := float64(time.Since(batchTxBuildStart) / time.Millisecond)
 	d.metrics.BatchTxBuildTime.Set(batchTxBuildTime)
-	d.metrics.NumTxPerBatch.Observe(float64(len(stateRoots)))
+	d.metrics.NumElementsPerBatch.Observe(float64(len(stateRoots)))
 
 	log.Info(name+" batch constructed", "num_state_roots", len(stateRoots))
 
