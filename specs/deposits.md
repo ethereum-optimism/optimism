@@ -1,12 +1,12 @@
 # Deposits
 
 <!-- All glossary references in this file. -->
-[transaction-type]: /glossary.md#transaction-type
-[derivation]:  /glossary.md#L2-chain-derivation
-[execution-engine]: /glossary.md#execution-engine
-[deposits]: /glossary.md#deposits
-[L1 attributes deposit]: /glossary.md#l1-attributes-deposit
-[transaction deposits]: /glossary.md#transaction-deposits
+[transaction-type]: glossary.md#transaction-type
+[derivation]:  glossary.md#L2-chain-derivation
+[execution-engine]: glossary.md#execution-engine
+[deposits]: glossary.md#deposits
+[L1 attributes deposit]: glossary.md#l1-attributes-deposit
+[transaction deposits]: glossary.md#transaction-deposits
 
 [Deposits] are transactions which are initiated on L1, and executed on L2. This document outlines a
 new [transaction type][transaction-type] for deposits. It also describes how deposits are initiated
@@ -159,7 +159,7 @@ The contract has the following solidity interface, and can be interacted with ac
 
 A reference implementation of the L1 Attributes predeploy contract can be found in [L1Block.sol].
 
-[L1Block.sol]: /packages/contracts/contracts/L1Block.sol
+[L1Block.sol]: /packages/contracts/contracts/L2/L1Block.sol
 
 The bytecode to add to the genesis file will be located in the `deployedBytecode` of the
 [JSON artifact file][l1-block-artifacts] corresponding to L1Block.sol.
@@ -216,4 +216,4 @@ possible for users to interact with contracts on L2 even when the Sequencer is d
 
 A reference implementation of the Deposit Feed contract can be found in [DepositFeed.sol].
 
-[DepositFeed.sol]: /packages/contracts/contracts/DepositFeed.sol
+[DepositFeed.sol]: /packages/contracts/contracts/L1/DepositFeed.sol

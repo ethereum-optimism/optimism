@@ -7,12 +7,12 @@ This document outlines the modifications, configuration and usage of a L1 execut
 The Engine interfaces abstract away transaction types with [EIP-2718][eip-2718].
 
 To support rollup functionality, processing of a new Deposit [`TransactionType`][eip-2718-transactions]
-is implemented by the engine, see the [deposit specification][deposit-spec].
+is implemented by the engine, see the [deposits specification][deposit-spec].
 
 This type of transaction can mint L2 ETH, run EVM,
 and introduce L1 information to enshrined contracts in the execution state.
 
-[deposit-spec]: ./deposits#deposit-transaction-type
+[deposit-spec]: deposits.md
 
 ### Deposit boundaries
 
@@ -62,7 +62,7 @@ This `transactions` field is an optional JSON field:
 
 > **TODO**: derivation function spec in rollup node doc or separate driver doc
 
-[rollup-driver]: ./rollup-driver.md
+[rollup-driver]: rollup-node.md
 
 ### `engine_executePayloadV1`
 

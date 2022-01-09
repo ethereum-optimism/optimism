@@ -1,20 +1,20 @@
 # Rollup Node Specification
 
 <!-- All glossary references in this file. -->
-[rollup node]: /glossary.md#rollup-node
-[derivation]: /glossary.md#L2-chain-derivation
-[payload attributes]: /glossary.md#payload-attributes
-[block]: /glossary.md#block
-[execution engine]: /glossary.md#execution-engine
-[reorg]: /glossary.md#re-organization
-[block gossip]: /glossary.md#block-gossip
-[rollup driver]: /glossary.md#rollup-driver
-[deposits]: /glossary.md#deposits
-[deposit-feed]: /glossary.md#L2-deposit-feed-contract
-[L2 chain inception]: /glossary.md#L2-chain-inception
-[receipts]: /glossary.md#receipt
-[L1 attributes deposit]: /glossary.md#l1-attributes-deposit
-[transaction deposits]: /glossary.md#transaction-deposits
+[rollup node]: glossary.md#rollup-node
+[derivation]: glossary.md#L2-chain-derivation
+[payload attributes]: glossary.md#payload-attributes
+[block]: glossary.md#block
+[execution engine]: glossary.md#execution-engine
+[reorg]: glossary.md#re-organization
+[block gossip]: glossary.md#block-gossip
+[rollup driver]: glossary.md#rollup-driver
+[deposits]: glossary.md#deposits
+[deposit-feed]: glossary.md#L2-deposit-feed-contract
+[L2 chain inception]: glossary.md#L2-chain-inception
+[receipts]: glossary.md#receipt
+[L1 attributes deposit]: glossary.md#l1-attributes-deposit
+[transaction deposits]: glossary.md#transaction-deposits
 
 The [rollup node] is the component responsible for [deriving the L2 chain][derivation] from L1 blocks (and their
 associated [receipts]). This process happens in two steps:
@@ -198,7 +198,7 @@ route. This has the same signature, except that:
 > **Note:** the properties of `ForkchoiceStateV1` can be used to anchor queries to the regular (non-engine-API) JSON-RPC
 > endpoint of the execution engine. [See here for more information.][L2-JSON-RPC-API]
 
-[L2-JSON-RPC-API]: TODO
+[L2-JSON-RPC-API]: exec-engine.md#engine-api
 
 > **TODO LINK** L2 JSON RPC API (might be the same as [L1's][JSON-RPC-API])
 
@@ -254,7 +254,7 @@ the descendant of an ancestor of the previous head). In those case, the rollup d
      set `headBlockHash` to the hash of the last processed L2 block (use the hash of the common ancestor initially)
      instead of the last L2 chain head. `safeBlockHash` and `finalizedBlockHash` must be updated accordingly.
 
-[block sync]: https://github.com/ethereum-optimism/optimistic-specs/blob/main/exec-engine.md#sync
+[block sync]: exec-engine.md#sync
 
 > Note that post-[merge], the L1 chain will offer finalization guarantees meaning that it won't be able to re-org more
 > than `FINALIZATION_DELAY_BLOCKS == 50400` in the past, hence preserving our finalization guarantees.
