@@ -116,13 +116,15 @@ func (s *Server) HandleRPC(w http.ResponseWriter, r *http.Request) {
 		"user_agent", r.Header.Get("user-agent"),
 	)
 
-	req, err := ParseRPCReq(io.LimitReader(r.Body, s.maxBodySize))
+	bodyReader := &recordLenReader{Reader: io.LimitReader(r.Body, s.maxBodySize)}
+	req, err := ParseRPCReq(bodyReader)
 	if err != nil {
 		log.Info("rejected request with bad rpc request", "source", "rpc", "err", err)
 		RecordRPCError(ctx, BackendProxyd, MethodUnknown, err)
 		writeRPCError(ctx, w, nil, err)
 		return
 	}
+	RecordRequestPayloadSize(ctx, req.Method, bodyReader.Len)
 
 	group := s.rpcMethodMappings[req.Method]
 	if group == "" {
@@ -249,14 +251,17 @@ func writeRPCRes(ctx context.Context, w http.ResponseWriter, res *RPCRes) {
 	if res.IsError() && res.Error.HTTPErrorCode != 0 {
 		statusCode = res.Error.HTTPErrorCode
 	}
+
 	w.WriteHeader(statusCode)
-	enc := json.NewEncoder(w)
+	ww := &recordLenWriter{Writer: w}
+	enc := json.NewEncoder(ww)
 	if err := enc.Encode(res); err != nil {
 		log.Error("error writing rpc response", "err", err)
 		RecordRPCError(ctx, BackendProxyd, MethodUnknown, err)
 		return
 	}
 	httpResponseCodesTotal.WithLabelValues(strconv.Itoa(statusCode)).Inc()
+	RecordResponsePayloadSize(ctx, ww.Len)
 }
 
 func instrumentedHdlr(h http.Handler) http.HandlerFunc {
@@ -290,4 +295,26 @@ func GetXForwardedFor(ctx context.Context) string {
 		return ""
 	}
 	return xff
+}
+
+type recordLenReader struct {
+	io.Reader
+	Len int
+}
+
+func (r *recordLenReader) Read(p []byte) (n int, err error) {
+	n, err = r.Reader.Read(p)
+	r.Len += n
+	return
+}
+
+type recordLenWriter struct {
+	io.Writer
+	Len int
+}
+
+func (w *recordLenWriter) Write(p []byte) (n int, err error) {
+	n, err = w.Writer.Write(p)
+	w.Len += n
+	return
 }
