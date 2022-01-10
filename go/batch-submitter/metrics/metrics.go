@@ -17,10 +17,10 @@ type Metrics struct {
 	NumElementsPerBatch prometheus.Histogram
 
 	// SubmissionTimestamp tracks the time at which each batch was confirmed.
-	SubmissionTimestamp prometheus.Histogram
+	SubmissionTimestamp prometheus.Gauge
 
 	// SubmissionGasUsed tracks the amount of gas used to submit each batch.
-	SubmissionGasUsed prometheus.Histogram
+	SubmissionGasUsed prometheus.Gauge
 
 	// BatchsSubmitted tracks the total number of successful batch submissions.
 	BatchesSubmitted prometheus.Counter
@@ -44,22 +44,37 @@ func NewMetrics(subsystem string) *Metrics {
 			Help:      "ETH balance of the batch submitter",
 			Subsystem: subsystem,
 		}),
-		BatchSizeInBytes: promauto.NewHistogram(prometheus.HistogramOpts{
-			Name:      "batch_size_in_bytes",
-			Help:      "Size of batches in bytes",
-			Subsystem: subsystem,
+		BatchSizeInBytes: promauto.NewSummary(prometheus.SummaryOpts{
+			Name:       "batch_size_bytes",
+			Help:       "Size of batches in bytes",
+			Subsystem:  subsystem,
+			Objectives: map[float64]float64{0.5: 0.05, 0.9: 0.01, 0.99: 0.001},
 		}),
 		NumElementsPerBatch: promauto.NewHistogram(prometheus.HistogramOpts{
-			Name:      "num_elements_per_batch",
-			Help:      "Number of transaction in each batch",
+			Name: "num_elements_per_batch",
+			Help: "Number of transaction in each batch",
+			Buckets: []float64{
+				250,
+				500,
+				750,
+				1000,
+				1250,
+				1500,
+				1750,
+				2000,
+				2250,
+				2500,
+				2750,
+				3000,
+			},
 			Subsystem: subsystem,
 		}),
-		SubmissionTimestamp: promauto.NewHistogram(prometheus.HistogramOpts{
+		SubmissionTimestamp: promauto.NewGauge(prometheus.GaugeOpts{
 			Name:      "submission_timestamp",
-			Help:      "Timestamp of each batch submitter submission",
+			Help:      "Timestamp of last batch submitter submission",
 			Subsystem: subsystem,
 		}),
-		SubmissionGasUsed: promauto.NewHistogram(prometheus.HistogramOpts{
+		SubmissionGasUsed: promauto.NewGauge(prometheus.GaugeOpts{
 			Name:      "submission_gas_used",
 			Help:      "Gas used to submit each batch",
 			Subsystem: subsystem,
@@ -75,12 +90,12 @@ func NewMetrics(subsystem string) *Metrics {
 			Subsystem: subsystem,
 		}),
 		BatchTxBuildTime: promauto.NewGauge(prometheus.GaugeOpts{
-			Name:      "batch_tx_build_time",
+			Name:      "batch_tx_build_time_ms",
 			Help:      "Time to construct batch transactions",
 			Subsystem: subsystem,
 		}),
 		BatchConfirmationTime: promauto.NewGauge(prometheus.GaugeOpts{
-			Name:      "batch_submitter_batch_confirmation_time",
+			Name:      "batch_submitter_batch_confirmation_time_ms",
 			Help:      "Time to confirm batch transactions",
 			Subsystem: subsystem,
 		}),
