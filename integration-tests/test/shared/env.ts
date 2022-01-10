@@ -33,6 +33,7 @@ export class OptimismEnv {
   addressManager: Contract
   l1Bridge: Contract
   l1Messenger: Contract
+  l1BlockNumber: Contract
   ctc: Contract
   scc: Contract
 
@@ -59,6 +60,7 @@ export class OptimismEnv {
     this.addressManager = args.addressManager
     this.l1Bridge = args.l1Bridge
     this.l1Messenger = args.l1Messenger
+    this.l1BlockNumber = args.l1BlockNumber
     this.ovmEth = args.ovmEth
     this.l2Bridge = args.l2Bridge
     this.l2Messenger = args.l2Messenger
@@ -113,12 +115,17 @@ export class OptimismEnv {
       .connect(l2Wallet)
       .attach(predeploys.OVM_SequencerFeeVault)
 
+    const l1BlockNumber = getContractFactory('iOVM_L1BlockNumber')
+      .connect(l2Wallet)
+      .attach(predeploys.OVM_L1BlockNumber)
+
     return new OptimismEnv({
       addressManager,
       l1Bridge,
       ctc,
       scc,
       l1Messenger,
+      l1BlockNumber,
       ovmEth,
       gasPriceOracle,
       sequencerFeeVault,
