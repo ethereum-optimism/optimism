@@ -159,10 +159,12 @@ The contract has the following solidity interface, and can be interacted with ac
 
 A reference implementation of the L1 Attributes predeploy contract can be found in [L1Block.sol].
 
-[L1Block.sol]: /packages/contracts/contracts/L2/L1Block.sol
+[L1Block.sol]: ../packages/contracts/contracts/L2/L1Block.sol
 
-The bytecode to add to the genesis file will be located in the `deployedBytecode` of the
-[JSON artifact file][l1-block-artifacts] corresponding to L1Block.sol.
+The bytecode to add to the genesis file will be located in the
+`deployedBytecode` of the [JSON artifact file][l1-block-artifacts] corresponding
+to L1Block.sol (this link will be broken unless you've built the contracts with
+`yarn build` in the `packages/contracts` directory).
 
 [l1-block-artifacts]: /packages/contracts/artifacts/contracts/L2/L1Block.sol/L1Block.json
 
@@ -216,4 +218,4 @@ possible for users to interact with contracts on L2 even when the Sequencer is d
 
 A reference implementation of the Deposit Feed contract can be found in [DepositFeed.sol].
 
-[DepositFeed.sol]: /packages/contracts/contracts/L1/DepositFeed.sol
+[DepositFeed.sol]: ../packages/contracts/contracts/L1/DepositFeed.sol
