@@ -34,6 +34,7 @@ type Server struct {
 	upgrader           *websocket.Upgrader
 	rpcServer          *http.Server
 	wsServer           *http.Server
+	rpcCache           *RPCCache
 }
 
 func NewServer(
@@ -43,6 +44,7 @@ func NewServer(
 	rpcMethodMappings map[string]string,
 	maxBodySize int64,
 	authenticatedPaths map[string]string,
+	rpcCache *RPCCache,
 ) *Server {
 	return &Server{
 		backendGroups:      backendGroups,
@@ -51,6 +53,7 @@ func NewServer(
 		rpcMethodMappings:  rpcMethodMappings,
 		maxBodySize:        maxBodySize,
 		authenticatedPaths: authenticatedPaths,
+		rpcCache:           rpcCache,
 		upgrader: &websocket.Upgrader{
 			HandshakeTimeout: 5 * time.Second,
 		},
@@ -141,7 +144,23 @@ func (s *Server) HandleRPC(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	backendRes, err := s.backendGroups[group].Forward(ctx, req)
+	var backendRes *RPCRes
+	if s.rpcCache != nil {
+		backendRes, err = s.rpcCache.GetRPC(ctx, req)
+		if err == nil && backendRes != nil {
+			writeRPCRes(ctx, w, backendRes)
+			return
+		}
+		if err != nil {
+			log.Warn(
+				"cache lookup error",
+				"req_id", GetReqID(ctx),
+				"err", err,
+			)
+		}
+	}
+
+	backendRes, err = s.backendGroups[group].Forward(ctx, req)
 	if err != nil {
 		log.Error(
 			"error forwarding RPC request",
@@ -151,6 +170,16 @@ func (s *Server) HandleRPC(w http.ResponseWriter, r *http.Request) {
 		)
 		writeRPCError(ctx, w, req.ID, err)
 		return
+	}
+
+	if s.rpcCache != nil {
+		if err = s.rpcCache.PutRPC(ctx, req, backendRes); err != nil {
+			log.Warn(
+				"cache put error",
+				"req_id", GetReqID(ctx),
+				"err", err,
+			)
+		}
 	}
 
 	writeRPCRes(ctx, w, backendRes)
