@@ -58,6 +58,15 @@ A Makefile has been provided for convience. The following targets are available.
 - make up-metrics
 - make down-metrics
 
+## Turning off L2 Fee Enforcement
+
+Fees can be turned off at runtime by setting the environment variable
+`ROLLUP_ENFORCE_FEES` to `false`.
+
+```bash
+ROLLUP_ENFORCE_FEES=false docker-compose up
+```
+
 ## Using the Go Batch Submitter
 
 The existing Typescript batch submitter is in the process of being reimplemented
