@@ -195,8 +195,8 @@ A deposit is an L2 transaction derived from an L1 block.
 
 There are two kinds of deposits:
 
-- [L1 Attributes Deposit][l1-attribute-tx], which submit the L1 block's attributes to the [L1 Attributes Predeployed
-  Contract][l1-attr-predeploy].
+- [L1 Attributes Deposit][l1-attributes-deposit], which submits the L1 block's attributes to the [L1 Attributes
+  Predeployed Contract][l1-attr-predeploy].
 - [Transaction Deposits][tx-deposits], which are transaction that have been submitted on L1, via a transaction sent to
 the [deposit feed contract][deposit-feed].
 
@@ -206,7 +206,7 @@ While transaction deposits are notably (but not only) used to "deposit" (bridge)
 The term *deposit* performs the double duty of referring to both:
 
 1. The transaction information submitted on L1 to the [deposit feed contract][deposit-feed]. This is a kind of [L2
-   derivation input][deriv-input].
+   derivation input][deriv-inputs].
 2. The actual L2 transaction derived from this L1 input.
 
 Deposits are specified in the [deposits specification][deposits-spec].
