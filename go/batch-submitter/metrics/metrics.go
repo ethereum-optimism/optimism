@@ -35,6 +35,12 @@ type Metrics struct {
 	// BatchConfirmationTime tracks the duration it takes to confirm a batch
 	// transaction.
 	BatchConfirmationTime prometheus.Gauge
+
+	// BatchPruneCount tracks the number of times a batch of sequencer
+	// transactions is pruned in order to meet the desired size requirements.
+	//
+	// NOTE: This is currently only active in the sequencer driver.
+	BatchPruneCount prometheus.Gauge
 }
 
 func NewMetrics(subsystem string) *Metrics {
@@ -97,6 +103,11 @@ func NewMetrics(subsystem string) *Metrics {
 		BatchConfirmationTime: promauto.NewGauge(prometheus.GaugeOpts{
 			Name:      "batch_submitter_batch_confirmation_time_ms",
 			Help:      "Time to confirm batch transactions",
+			Subsystem: subsystem,
+		}),
+		BatchPruneCount: promauto.NewGauge(prometheus.GaugeOpts{
+			Name:      "batch_submitter_batch_prune_count",
+			Help:      "Number of times a batch is pruned",
 			Subsystem: subsystem,
 		}),
 	}
