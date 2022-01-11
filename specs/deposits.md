@@ -146,7 +146,7 @@ certain block variables from the corresponding L1 block in storage, so that they
 during the execution of the subsequent deposited transactions.
 
 The contract implements an authorization scheme, such that it only accepts state-changing calls from
-the [depositor account].
+the [depositor account][depositor-account].
 
 The contract has the following solidity interface, and can be interacted with according to the
 [contract ABI specification][ABI].

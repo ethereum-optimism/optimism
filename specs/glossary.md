@@ -12,6 +12,7 @@
   - [Predeployed Contract ("Predeploy")](#predeployed-contract-predeploy)
   - [Receipt](#receipt)
   - [Transaction Type](#transaction-type)
+  - [Fork Choice Rule](#fork-choice-rule)
 - [L2 Chain Concepts](#l2-chain-concepts)
       - [Address Aliasing](#address-aliasing)
   - [L2 Chain Inception](#l2-chain-inception)
@@ -78,7 +79,7 @@ verified against the Merkle root.
 [reorg]: glossary.md#chain-re-organization
 
 A re-organization, or re-org for short, is whenever the head of a blockchain (its last block) changes (as dictated by
-the [fork choice rule]) to a block that is not a child of the previous head.
+the [fork choice rule][fork-choice-rule]) to a block that is not a child of the previous head.
 
 L1 re-orgs can happen because of network conditions or attacks. L2 re-orgs are a consequence of L1 re-orgs, mediated via
 [L2 chain derivation][derivation].
@@ -114,6 +115,18 @@ Different transaction types can contain different payloads, and be handled diffe
 
 [EIP-2718]: https://eips.ethereum.org/EIPS/eip-2718
 
+## Fork Choice Rule
+
+[fork-choice-rule]: glossary.md#fork-choice-rule
+
+The fork choice rule is the rule used to determined which block is to be considered as the head of a blockchain. On L1,
+this is determined by the proof of stake rules.
+
+L2 also has a fork choice rule, although the rules vary depending on wether we want the sequencer-confirmed head, the
+on-chain-confirmed head, or the on-chain-finalized head.
+
+> TODO: define and link to those concepts
+
 ------------------------------------------------------------------------------------------------------------------------
 
 # L2 Chain Concepts
@@ -122,8 +135,8 @@ Different transaction types can contain different payloads, and be handled diffe
 
 [address-aliasing]: glossary.md#address-aliasing
 
-When a contract submits a [deposit] from L1 to L2, it's address (as returned by `ORIGIN` and `CALLER`)
- will be aliased with a modified representation of the address of a contract.
+When a contract submits a [deposit][deposits] from L1 to L2, it's address (as returned by `ORIGIN` and `CALLER`) will be
+aliased with a modified representation of the address of a contract.
 
 - cf. [Deposit Specification](deposits.md#address-aliasing)
 
@@ -177,7 +190,7 @@ Chain derivation attributes include:
 [payload attributes]: glossary.md#payload-attributes
 
 This term refers to data that can be derived from [L2 chain derivation inputs][deriv-inputs] found on L1, which are then
-passed to the [execution engine] to construct L2 blocks.
+passed to the [execution engine][execution-engine] to construct L2 blocks.
 
 "Payload attributes" is a term that originates and is specified in the [Ethereum Engine API specification][engine-api],
 which we extend in this specification.
@@ -284,7 +297,7 @@ On L1, the executed blocks can come from L1 block synchronization; or from a blo
 engine (using transactions from the L1 [mempool]), at the request of the L1 consensus layer.
 
 On L2, the executed blocks are freshly minted by the execution engine at the request of the [rollup node], using
-transactions [derived from L1 blocks][derivations].
+transactions [derived from L1 blocks][derivation].
 
 In these specifications, "execution engine" always refer to the L2 execution engine, unless otherwise specified.
 
