@@ -59,7 +59,7 @@ func FindSyncStart(ctx context.Context, reference SyncReference, genesis *Genesi
 	// Search back: linear walk back from engine head. Should only be as deep as the reorg.
 	for refL2.Number > 0 {
 		// remember the canonical L1 block that builds on top of the L1 source block of the L2 parent block.
-		nextRefL1 = refL1
+		nextRefL1 = currentL1
 		refL1, refL2, parentL2, err = reference.RefByL2Hash(ctx, parentL2, genesis)
 		if err != nil {
 			// TODO: re-attempt look-up, now that we already traversed previous history?
