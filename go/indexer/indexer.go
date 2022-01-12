@@ -134,9 +134,15 @@ func NewIndexer(cfg Config, gitVersion string) (*Indexer, error) {
 		return nil, err
 	}
 
+	ctcAddress, err := ParseAddress(cfg.CTCAddress)
+	if err != nil {
+		return nil, err
+	}
+
 	l1IndexingService, err := NewService(ServiceConfig{
 		Context:            ctx,
 		L1Client:           l1Client,
+		CTCAddr:            ctcAddress,
 		DB:                 db,
 		ConfDepth:          cfg.ConfDepth,
 		MaxHeaderBatchSize: cfg.MaxHeaderBatchSize,
