@@ -3,12 +3,9 @@ package indexer
 import (
 	"context"
 	"encoding/binary"
-	"fmt"
-	"log"
 	"math/big"
 	"sync"
 
-	badger "github.com/dgraph-io/badger/v3"
 	"github.com/ethereum-optimism/optimism/go/indexer/metrics"
 	"github.com/ethereum/go-ethereum/ethclient"
 )
@@ -62,75 +59,26 @@ type Service struct {
 
 	metrics *metrics.Metrics
 
-	db *badger.DB
 	wg sync.WaitGroup
 }
 
 func NewService(cfg ServiceConfig) *Service {
 	ctx, cancel := context.WithCancel(cfg.Context)
 
-	db, err := badger.Open(badger.DefaultOptions("/tmp/optimism.indexer.db"))
-	if err != nil {
-		log.Println(err)
-	}
-
 	return &Service{
 		cfg:    cfg,
 		ctx:    ctx,
 		cancel: cancel,
-		db:     db,
 	}
 }
 
 func (s *Service) Start() error {
 	s.wg.Add(1)
-	err := s.chainSync()
-	if err != nil {
-		fmt.Println(err)
-		return nil
-	}
 	return nil
 }
 
 func (s *Service) Stop() error {
 	s.cancel()
 	s.wg.Wait()
-	s.db.Close()
 	return nil
-}
-
-func (s *Service) localHeight() (*big.Int, error) {
-	var rawHeight []byte
-	err := s.db.View(func(txn *badger.Txn) error {
-		item, err := txn.Get([]byte("tip"))
-		if err != nil {
-			return err
-		}
-		err = item.Value(func(val []byte) error {
-			rawHeight = append([]byte{}, val...)
-			return nil
-		})
-		return err
-	})
-	height := new(big.Int)
-	height.SetBytes(rawHeight)
-	return height, err
-}
-
-func (s *Service) chainSync() error {
-	defer s.wg.Done()
-
-	localHeight, err := s.localHeight()
-	if err != nil && err != badger.ErrKeyNotFound {
-		return err
-	}
-	tipHeader, err := s.cfg.L1Client.HeaderByNumber(s.cfg.Context, nil)
-	if err != nil {
-		return err
-	}
-	fmt.Printf("syncing to best height: %v; local height: %v\n", tipHeader.Number, localHeight)
-	err = s.db.Update(func(txn *badger.Txn) error {
-		return txn.Set([]byte("tip"), uint64ToBytes(tipHeader.Number.Uint64()))
-	})
-	return err
 }
