@@ -134,11 +134,14 @@ func NewIndexer(cfg Config, gitVersion string) (*Indexer, error) {
 		return nil, err
 	}
 
-	l1IndexingService := NewService(ServiceConfig{
+	l1IndexingService, err := NewService(ServiceConfig{
 		Context:  ctx,
 		L1Client: l1Client,
 		DB:       db,
 	})
+	if err != nil {
+		return nil, err
+	}
 
 	return &Indexer{
 		ctx:               ctx,
