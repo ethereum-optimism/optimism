@@ -9,7 +9,6 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/go/indexer/drivers/indexer"
 	l2ethclient "github.com/ethereum-optimism/optimism/l2geth/ethclient"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
@@ -135,22 +134,7 @@ func NewIndexer(cfg Config, gitVersion string) (*Indexer, error) {
 		return nil, err
 	}
 
-	ctcAddress, err := ParseAddress(cfg.CTCAddress)
-	if err != nil {
-		return nil, err
-	}
-
-	l1IndexingDriver, err := indexer.NewDriver(indexer.Config{
-		Name:     "Indexer",
-		L1Client: l1Client,
-		CTCAddr:  ctcAddress,
-	})
-	if err != nil {
-		return nil, err
-	}
-
 	l1IndexingService := NewService(ServiceConfig{
-		Driver:   l1IndexingDriver,
 		Context:  ctx,
 		L1Client: l1Client,
 		DB:       db,

@@ -3,12 +3,33 @@ package indexer
 import (
 	"context"
 	"encoding/binary"
+	"errors"
 	"math/big"
 	"sync"
 
+	"github.com/ethereum-optimism/optimism/go/indexer/bindings/ctc"
 	"github.com/ethereum-optimism/optimism/go/indexer/metrics"
+	"github.com/ethereum/go-ethereum"
+	"github.com/ethereum/go-ethereum/accounts/abi/bind"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
 )
+
+// errNoChainID represents the error when the chain id is not provided
+// and it cannot be remotely fetched
+var errNoChainID = errors.New("no chain id provided")
+
+// errWrongChainID represents the error when the configured chain id is not
+// correct
+var errWrongChainID = errors.New("wrong chain id provided")
+
+type Backend interface {
+	bind.ContractBackend
+	HeaderBackend
+
+	SubscribeNewHead(context.Context, chan<- *types.Header) (ethereum.Subscription, error)
+}
 
 var (
 	// weiToGwei is the conversion rate from wei to gwei.
@@ -47,16 +68,21 @@ type Driver interface {
 }
 
 type ServiceConfig struct {
-	Context  context.Context
-	Driver   Driver
-	L1Client *ethclient.Client
-	DB       *Database
+	Context            context.Context
+	L1Client           *ethclient.Client
+	ChainID            *big.Int
+	CTCAddr            common.Address
+	ConfDepth          uint64
+	MaxHeaderBatchSize uint64
+	DB                 *Database
 }
 
 type Service struct {
 	cfg    ServiceConfig
 	ctx    context.Context
 	cancel func()
+
+	ctcContract *ctc.CanonicalTransactionChain
 
 	metrics *metrics.Metrics
 
