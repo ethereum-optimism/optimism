@@ -78,6 +78,12 @@ type Config struct {
 	// events.
 	SentryTraceRate time.Duration
 
+	// StartBlockNumber is the block number to start indexing from.
+	StartBlockNumber uint64
+
+	// StartBlockHash is the block hash to start indexing from.
+	StartBlockHash string
+
 	// BlockOffset is the offset between the CTC contract start and the L2 geth
 	// blocks.
 	BlockOffset uint64
@@ -113,15 +119,17 @@ func NewConfig(ctx *cli.Context) (Config, error) {
 		CTCAddress:       ctx.GlobalString(flags.CTCAddressFlag.Name),
 		SCCAddress:       ctx.GlobalString(flags.SCCAddressFlag.Name),
 		NumConfirmations: ctx.GlobalUint64(flags.NumConfirmationsFlag.Name),
-		DBHost:           ctx.GlobalString(flags.DBHost.Name),
-		DBPort:           ctx.GlobalUint64(flags.DBPort.Name),
-		DBUser:           ctx.GlobalString(flags.DBUser.Name),
-		DBPassword:       ctx.GlobalString(flags.DBPassword.Name),
-		DBName:           ctx.GlobalString(flags.DBName.Name),
+		DBHost:           ctx.GlobalString(flags.DBHostFlag.Name),
+		DBPort:           ctx.GlobalUint64(flags.DBPortFlag.Name),
+		DBUser:           ctx.GlobalString(flags.DBUserFlag.Name),
+		DBPassword:       ctx.GlobalString(flags.DBPasswordFlag.Name),
+		DBName:           ctx.GlobalString(flags.DBNameFlag.Name),
 		/* Optional Flags */
 		SentryEnable:        ctx.GlobalBool(flags.SentryEnableFlag.Name),
 		SentryDsn:           ctx.GlobalString(flags.SentryDsnFlag.Name),
 		SentryTraceRate:     ctx.GlobalDuration(flags.SentryTraceRateFlag.Name),
+		StartBlockNumber:    ctx.GlobalUint64(flags.StartBlockNumberFlag.Name),
+		StartBlockHash:      ctx.GlobalString(flags.StartBlockHashFlag.Name),
 		BlockOffset:         ctx.GlobalUint64(flags.BlockOffsetFlag.Name),
 		ConfDepth:           ctx.GlobalUint64(flags.ConfDepthFlag.Name),
 		MaxHeaderBatchSize:  ctx.GlobalUint64(flags.MaxHeaderBatchSizeFlag.Name),

@@ -58,31 +58,31 @@ var (
 		Required: true,
 		EnvVar:   prefixEnvVar("NUM_CONFIRMATIONS"),
 	}
-	DBHost = cli.StringFlag{
+	DBHostFlag = cli.StringFlag{
 		Name:     "db-host",
 		Usage:    "Hostname of the database connection",
 		Required: true,
 		EnvVar:   prefixEnvVar("DB_HOST"),
 	}
-	DBPort = cli.Uint64Flag{
+	DBPortFlag = cli.Uint64Flag{
 		Name:     "db-port",
 		Usage:    "Port of the database connection",
 		Required: true,
 		EnvVar:   prefixEnvVar("DB_PORT"),
 	}
-	DBUser = cli.StringFlag{
+	DBUserFlag = cli.StringFlag{
 		Name:     "db-user",
 		Usage:    "Username of the database connection",
 		Required: true,
 		EnvVar:   prefixEnvVar("DB_USER"),
 	}
-	DBPassword = cli.StringFlag{
+	DBPasswordFlag = cli.StringFlag{
 		Name:     "db-password",
 		Usage:    "Password of the database connection",
 		Required: true,
 		EnvVar:   prefixEnvVar("DB_PASSWORD"),
 	}
-	DBName = cli.StringFlag{
+	DBNameFlag = cli.StringFlag{
 		Name:     "db-name",
 		Usage:    "Database name of the database connection",
 		Required: true,
@@ -113,6 +113,18 @@ var (
 		Value:  50 * time.Millisecond,
 		EnvVar: prefixEnvVar("SENTRY_TRACE_RATE"),
 	}
+	StartBlockNumberFlag = cli.Uint64Flag{
+		Name:   "start-block-number",
+		Usage:  "The block number to start indexing from. Must be use together with start block hash",
+		Value:  0,
+		EnvVar: prefixEnvVar("START_BLOCK_NUMBER"),
+	}
+	StartBlockHashFlag = cli.StringFlag{
+		Name:   "start-block-hash",
+		Usage:  "The block hash to start indexing from. Must be use together with start block number",
+		Value:  "0xd4e56740f876aef8c010b86a40d5f56745a118d0906a34e69aec8c0db1cb8fa3",
+		EnvVar: prefixEnvVar("START_BLOCK_HASH"),
+	}
 	BlockOffsetFlag = cli.Uint64Flag{
 		Name:   "block-offset",
 		Usage:  "The offset between the CTC contract start and the L2 geth blocks",
@@ -129,7 +141,7 @@ var (
 		Name:   "max-header-batch-size",
 		Usage:  "The maximum number of headers to request as a batch",
 		Value:  100,
-		EnvVar: prefixEnvVar("CONF_DEPTH"),
+		EnvVar: prefixEnvVar("MAX_HEADER_BATCH_SIZE"),
 	}
 	MetricsServerEnableFlag = cli.BoolFlag{
 		Name:   "metrics-server-enable",
@@ -158,11 +170,11 @@ var requiredFlags = []cli.Flag{
 	CTCAddressFlag,
 	SCCAddressFlag,
 	NumConfirmationsFlag,
-	DBHost,
-	DBPort,
-	DBUser,
-	DBPassword,
-	DBName,
+	DBHostFlag,
+	DBPortFlag,
+	DBUserFlag,
+	DBPasswordFlag,
+	DBNameFlag,
 }
 
 var optionalFlags = []cli.Flag{
@@ -173,6 +185,8 @@ var optionalFlags = []cli.Flag{
 	BlockOffsetFlag,
 	ConfDepthFlag,
 	MaxHeaderBatchSizeFlag,
+	StartBlockNumberFlag,
+	StartBlockHashFlag,
 	MetricsServerEnableFlag,
 	MetricsHostnameFlag,
 	MetricsPortFlag,

@@ -78,6 +78,8 @@ type ServiceConfig struct {
 	CTCAddr            common.Address
 	ConfDepth          uint64
 	MaxHeaderBatchSize uint64
+	StartBlockNumber   uint64
+	StartBlockHash     string
 	DB                 *Database
 }
 
@@ -188,8 +190,8 @@ func (s *Service) fetchBlockEventIterator(start, end uint64) (
 
 func (s *Service) Update(start uint64, newHeader *types.Header) error {
 	var lowest = BlockLocator{
-		Number: 13990900,
-		Hash:   common.HexToHash("0xe693e34c6e5f9b72d14a9526bf245ed5a0ad92d6ab09574e5cbfa260f3e3325a"),
+		Number: s.cfg.StartBlockNumber,
+		Hash:   common.HexToHash(s.cfg.StartBlockHash),
 	}
 	highestConfirmed, err := s.cfg.DB.GetHighestBlock()
 	if err != nil {
