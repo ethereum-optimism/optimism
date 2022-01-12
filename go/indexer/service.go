@@ -8,7 +8,7 @@ import (
 	"math/big"
 	"sync"
 
-	"github.com/ethereum-optimism/optimism/go/indexer/bindings"
+	"github.com/ethereum-optimism/optimism/go/indexer/bindings/ctc"
 	"github.com/ethereum-optimism/optimism/go/indexer/metrics"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
@@ -88,7 +88,7 @@ type Service struct {
 	ctx    context.Context
 	cancel func()
 
-	contract       *bindings.CanonicalTransactionChainFilterer
+	contract       *ctc.CanonicalTransactionChainFilterer
 	backend        Backend
 	headerSelector HeaderSelector
 
@@ -101,7 +101,7 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 	ctx, cancel := context.WithCancel(cfg.Context)
 
 	address := cfg.CTCAddr
-	contract, err := bindings.NewCanonicalTransactionChainFilterer(address, cfg.L1Client)
+	contract, err := ctc.NewCanonicalTransactionChainFilterer(address, cfg.L1Client)
 	if err != nil {
 		return nil, err
 	}
@@ -164,7 +164,7 @@ func (s *Service) Loop(ctx context.Context) {
 }
 
 func (s *Service) fetchBlockEventIterator(start, end uint64) (
-	*bindings.CanonicalTransactionChainTransactionEnqueuedIterator, error) {
+	*ctc.CanonicalTransactionChainTransactionEnqueuedIterator, error) {
 
 	const NUM_RETRIES = 5
 	var err error
@@ -172,7 +172,7 @@ func (s *Service) fetchBlockEventIterator(start, end uint64) (
 		ctxt, cancel := context.WithTimeout(s.ctx, DefaultConnectionTimeout)
 		defer cancel()
 
-		var iter *bindings.CanonicalTransactionChainTransactionEnqueuedIterator
+		var iter *ctc.CanonicalTransactionChainTransactionEnqueuedIterator
 		iter, err = s.contract.FilterTransactionEnqueued(&bind.FilterOpts{
 			Start:   start,
 			End:     &end,
