@@ -1,6 +1,6 @@
 # @eth-optimism/indexer-service
 
-## 0.0.2
+## 0.0.0
 ### Patch Changes
 
-- d6e0de5a: Fix metrics server
+- 44a6eb4ce: Draft
