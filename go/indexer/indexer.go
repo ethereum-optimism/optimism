@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/go/indexer/drivers/indexer"
 	l2ethclient "github.com/ethereum-optimism/optimism/l2geth/ethclient"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
@@ -24,7 +25,7 @@ const (
 	defaultDialTimeout = 5 * time.Second
 )
 
-// Main is the entrypoint into the batch submitter service. This method returns
+// Main is the entrypoint into the indexer service. This method returns
 // a closure that executes the service and blocks until the service exits. The
 // use of a closure allows the parameters bound to the top-level main package,
 // e.g. GitVersion, to be captured and used once the function is executed.
@@ -91,7 +92,7 @@ func NewIndexer(cfg Config, gitVersion string) (*Indexer, error) {
 		err := sentry.Init(sentry.ClientOptions{
 			Dsn:              cfg.SentryDsn,
 			Environment:      cfg.EthNetworkName,
-			Release:          "batch-submitter@" + gitVersion,
+			Release:          "indexer@" + gitVersion,
 			TracesSampleRate: traceRateToFloat64(cfg.SentryTraceRate),
 			Debug:            false,
 		})
@@ -134,7 +135,22 @@ func NewIndexer(cfg Config, gitVersion string) (*Indexer, error) {
 		return nil, err
 	}
 
+	ctcAddress, err := ParseAddress(cfg.CTCAddress)
+	if err != nil {
+		return nil, err
+	}
+
+	l1IndexingDriver, err := indexer.NewDriver(indexer.Config{
+		Name:     "Indexer",
+		L1Client: l1Client,
+		CTCAddr:  ctcAddress,
+	})
+	if err != nil {
+		return nil, err
+	}
+
 	l1IndexingService := NewService(ServiceConfig{
+		Driver:   l1IndexingDriver,
 		Context:  ctx,
 		L1Client: l1Client,
 		DB:       db,

@@ -11,28 +11,6 @@ import (
 )
 
 var (
-	// ErrSequencerPrivKeyOrMnemonic signals that the user tried to set both
-	// sequencer wallet derivation methods or neither of them.
-	ErrSequencerPrivKeyOrMnemonic = errors.New("either sequencer-private-key " +
-		"or mnemonic + sequencer-hd-path must be set")
-
-	// ErrProposererPrivKeyOrMnemonic signals that the user tried to set
-	// both proposer wallet derivation methods or neither of them.
-	ErrProposerPrivKeyOrMnemonic = errors.New("either proposer-private-key " +
-		"or mnemonic + proposer-hd-path must be set")
-
-	// ErrSameSequencerAndProposerHDPath signals that the user specified the
-	// same sequencer and proposer derivations paths, which otherwise would
-	// lead to the two using the same wallet.
-	ErrSameSequencerAndProposerHDPath = errors.New("sequencer-hd-path and " +
-		"proposer-hd-path must be distinct when using mnemonic")
-
-	// ErrSameSequencerAndProposerPrivKey signals that the user specified
-	// the same sequencer and proposer private keys, which otherwise would
-	// lead to the two using the same wallet.
-	ErrSameSequencerAndProposerPrivKey = errors.New("sequencer-priv-key and " +
-		"proposer-priv-key must be distinct")
-
 	// ErrSentryDSNNotSet signals that not Data Source Name was provided
 	// with which to configure Sentry logging.
 	ErrSentryDSNNotSet = errors.New("sentry-dsn must be set if use-sentry " +
