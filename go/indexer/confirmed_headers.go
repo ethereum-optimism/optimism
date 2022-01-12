@@ -2,6 +2,7 @@ package indexer
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math/big"
 	"sync"
@@ -122,15 +123,15 @@ func (f *ConfirmedHeaderSelector) NewHead(
 	return headers
 }
 
-func NewConfirmedHeaderSelector(cfg HeaderSelectorConfig) *ConfirmedHeaderSelector {
+func NewConfirmedHeaderSelector(cfg HeaderSelectorConfig) (*ConfirmedHeaderSelector, error) {
 	if cfg.ConfDepth == 0 {
-		panic("ConfDepth must be greater than zero")
+		return nil, errors.New("ConfDepth must be greater than zero")
 	}
 	if cfg.MaxBatchSize == 0 {
-		panic("MaxBatchSize must be greater than zero")
+		return nil, errors.New("MaxBatchSize must be greater than zero")
 	}
 
 	return &ConfirmedHeaderSelector{
 		cfg: cfg,
-	}
+	}, nil
 }

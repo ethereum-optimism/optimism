@@ -124,16 +124,22 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 		cfg.ChainID = chainID
 	}
 
+	confirmedHeaderSelector, err := NewConfirmedHeaderSelector(HeaderSelectorConfig{
+		ConfDepth:    cfg.ConfDepth,
+		MaxBatchSize: cfg.MaxHeaderBatchSize,
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
 	return &Service{
-		cfg:      cfg,
-		ctx:      ctx,
-		cancel:   cancel,
-		contract: contract,
-		headerSelector: NewConfirmedHeaderSelector(HeaderSelectorConfig{
-			ConfDepth:    cfg.ConfDepth,
-			MaxBatchSize: cfg.MaxHeaderBatchSize,
-		}),
-		backend: cfg.L1Client,
+		cfg:            cfg,
+		ctx:            ctx,
+		cancel:         cancel,
+		contract:       contract,
+		headerSelector: confirmedHeaderSelector,
+		backend:        cfg.L1Client,
 	}, nil
 }
 
@@ -141,7 +147,9 @@ func (s *Service) Loop(ctx context.Context) {
 	newHeads := make(chan *types.Header, 1000)
 	subscription, err := s.backend.SubscribeNewHead(s.ctx, newHeads)
 	if err != nil {
-		panic(fmt.Sprintf("unable to subscribe to new heads: %v", err))
+		fmt.Print("unable to subscribe to new heads: %v\n", err)
+		s.Stop()
+		return
 	}
 	defer subscription.Unsubscribe()
 

@@ -2,6 +2,7 @@ package indexer
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
 	"math/big"
 	"sort"
@@ -213,7 +214,7 @@ func (d *Database) GetHighestBlock() (*BlockLocator, error) {
 		}
 
 		if rows.Next() {
-			panic("number of rows should be at most 1 since LIMIT is 1")
+			return errors.New("number of rows should be at most 1 since LIMIT is 1")
 		}
 
 		highestBlock = &BlockLocator{
@@ -272,7 +273,7 @@ func (d *Database) GetIndexedBlockByHash(hash common.Hash) (*IndexedBlock, error
 		}
 
 		if rows.Next() {
-			panic("number of rows should be at most 1 since hash is pk")
+			return errors.New("number of rows should be at most 1 since hash is pk")
 		}
 
 		return nil
@@ -317,7 +318,7 @@ func (d *Database) GetEventByQueueIndex(queueIndex uint64) (*TxnEnqueuedEvent, e
 		}
 
 		if rows.Next() {
-			panic("number of rows should be at most 1 since queue_index is pk")
+			return errors.New("number of rows should be at most 1 since queue_index is pk")
 		}
 
 		event = &e
@@ -398,7 +399,7 @@ func scanTxnEnqueuedEvent(rows *sql.Rows) (TxnEnqueuedEvent, error) {
 
 	gasLimit, ok := new(big.Int).SetString(gasLimitStr, 10)
 	if !ok {
-		panic(fmt.Sprintf("Invalid gasLimit string \"%v\"", gasLimitStr))
+		return TxnEnqueuedEvent{}, errors.New(fmt.Sprintf("Invalid gasLimit string \"%v\"", gasLimitStr))
 	}
 
 	return TxnEnqueuedEvent{
