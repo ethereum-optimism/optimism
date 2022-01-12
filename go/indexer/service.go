@@ -147,7 +147,7 @@ func (s *Service) Loop(ctx context.Context) {
 	for {
 		select {
 		case header := <-newHeads:
-			log.Info("Received new header", header)
+			log.Info("Received new header", "header", header.Hash)
 			for {
 				err := s.Update(start, header)
 				if err != nil && err != errNoNewBlocks {
