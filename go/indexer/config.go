@@ -81,6 +81,15 @@ type Config struct {
 	// BlockOffset is the offset between the CTC contract start and the L2 geth
 	// blocks.
 	BlockOffset uint64
+
+	// ConfDepth is the number of confirmations after which headers are
+	// considered confirmed.
+	ConfDepth uint64
+
+	// MaxHeaderBatchSize is the maximum number of headers to request as a
+	// batch.
+	MaxHeaderBatchSize uint64
+
 	// MetricsServerEnable if true, will create a metrics client and log to
 	// Prometheus.
 	MetricsServerEnable bool
@@ -105,15 +114,17 @@ func NewConfig(ctx *cli.Context) (Config, error) {
 		SCCAddress:       ctx.GlobalString(flags.SCCAddressFlag.Name),
 		NumConfirmations: ctx.GlobalUint64(flags.NumConfirmationsFlag.Name),
 		DBHost:           ctx.GlobalString(flags.DBHost.Name),
-		DBPort:           ctx.GlobalUint64(flags.DBHost.Name),
-		DBUser:           ctx.GlobalString(flags.DBHost.Name),
-		DBPassword:       ctx.GlobalString(flags.DBHost.Name),
-		DBName:           ctx.GlobalString(flags.DBHost.Name),
+		DBPort:           ctx.GlobalUint64(flags.DBPort.Name),
+		DBUser:           ctx.GlobalString(flags.DBUser.Name),
+		DBPassword:       ctx.GlobalString(flags.DBPassword.Name),
+		DBName:           ctx.GlobalString(flags.DBName.Name),
 		/* Optional Flags */
 		SentryEnable:        ctx.GlobalBool(flags.SentryEnableFlag.Name),
 		SentryDsn:           ctx.GlobalString(flags.SentryDsnFlag.Name),
 		SentryTraceRate:     ctx.GlobalDuration(flags.SentryTraceRateFlag.Name),
 		BlockOffset:         ctx.GlobalUint64(flags.BlockOffsetFlag.Name),
+		ConfDepth:           ctx.GlobalUint64(flags.ConfDepthFlag.Name),
+		MaxHeaderBatchSize:  ctx.GlobalUint64(flags.MaxHeaderBatchSizeFlag.Name),
 		MetricsServerEnable: ctx.GlobalBool(flags.MetricsServerEnableFlag.Name),
 		MetricsHostname:     ctx.GlobalString(flags.MetricsHostnameFlag.Name),
 		MetricsPort:         ctx.GlobalUint64(flags.MetricsPortFlag.Name),

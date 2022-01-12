@@ -131,6 +131,7 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 			ConfDepth:    cfg.ConfDepth,
 			MaxBatchSize: cfg.MaxHeaderBatchSize,
 		}),
+		backend: cfg.L1Client,
 	}, nil
 }
 

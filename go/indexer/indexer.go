@@ -135,9 +135,11 @@ func NewIndexer(cfg Config, gitVersion string) (*Indexer, error) {
 	}
 
 	l1IndexingService, err := NewService(ServiceConfig{
-		Context:  ctx,
-		L1Client: l1Client,
-		DB:       db,
+		Context:            ctx,
+		L1Client:           l1Client,
+		DB:                 db,
+		ConfDepth:          cfg.ConfDepth,
+		MaxHeaderBatchSize: cfg.MaxHeaderBatchSize,
 	})
 	if err != nil {
 		return nil, err

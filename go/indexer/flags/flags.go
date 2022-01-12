@@ -119,6 +119,18 @@ var (
 		Value:  1,
 		EnvVar: prefixEnvVar("BLOCK_OFFSET"),
 	}
+	ConfDepthFlag = cli.Uint64Flag{
+		Name:   "conf-depth",
+		Usage:  "The number of confirmations after which headers are considered confirmed",
+		Value:  20,
+		EnvVar: prefixEnvVar("CONF_DEPTH"),
+	}
+	MaxHeaderBatchSizeFlag = cli.Uint64Flag{
+		Name:   "max-header-batch-size",
+		Usage:  "The maximum number of headers to request as a batch",
+		Value:  100,
+		EnvVar: prefixEnvVar("CONF_DEPTH"),
+	}
 	MetricsServerEnableFlag = cli.BoolFlag{
 		Name:   "metrics-server-enable",
 		Usage:  "Whether or not to run the embedded metrics server",
@@ -159,6 +171,8 @@ var optionalFlags = []cli.Flag{
 	SentryDsnFlag,
 	SentryTraceRateFlag,
 	BlockOffsetFlag,
+	ConfDepthFlag,
+	MaxHeaderBatchSizeFlag,
 	MetricsServerEnableFlag,
 	MetricsHostnameFlag,
 	MetricsPortFlag,
