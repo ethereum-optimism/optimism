@@ -22,6 +22,10 @@ type mockSyncReference struct {
 }
 
 func (m *mockSyncReference) RefByL1Num(ctx context.Context, l1Num uint64) (self eth.BlockID, parent eth.BlockID, err error) {
+	if l1Num >= uint64(len(m.L1)) {
+		err = ethereum.NotFound
+		return
+	}
 	self = m.L1[l1Num]
 	if l1Num > 0 {
 		parent = m.L1[l1Num-1]
@@ -118,19 +122,26 @@ func (c *syncStartTestCase) Run(t *testing.T) {
 			expectedNextRefL1Num = uint64(i)
 		}
 	}
+	if c.ExpectedNextRefL1 == 0 {
+		expectedNextRefL1Num = uint64(0)
+	}
 	expectedNextRefL1 := mockID(c.ExpectedNextRefL1, expectedNextRefL1Num)
 
-	expectedNextRefL2Num := ^uint64(0)
+	expectedRefL2Num := ^uint64(0)
 	for i, id := range c.EngineL2 {
 		if id == c.ExpectedRefL2 {
-			expectedNextRefL2Num = uint64(i)
+			expectedRefL2Num = uint64(i)
 		}
 	}
-	expectedRefL2 := mockID(c.ExpectedRefL2, expectedNextRefL2Num)
+	if c.ExpectedRefL2 == 0 {
+		expectedRefL2Num = uint64(0)
+	}
+	expectedRefL2 := mockID(c.ExpectedRefL2, expectedRefL2Num)
 
 	nextRefL1, refL2, err := FindSyncStart(context.Background(), msr, genesis)
 	if c.ExpectedErr != nil {
-		assert.Equal(t, c.ExpectedErr, err)
+		assert.Error(t, err, "got next L1 %s (%d), onto L2: %s (%d)", nextRefL1.Hash[:1], nextRefL1.Number, refL2.Hash[:1], refL2.Number)
+		assert.ErrorIs(t, err, c.ExpectedErr)
 	} else {
 		assert.NoError(t, err)
 		assert.Equal(t, expectedNextRefL1, nextRefL1, "expected %s (nr %d) but got %s (nr %d)", expectedNextRefL1.Hash[:1], expectedNextRefL1.Number, nextRefL1.Hash[:1], nextRefL1.Number)
@@ -152,6 +163,39 @@ func TestFindSyncStart(t *testing.T) {
 			ExpectedErr:       nil,
 		},
 		{
+			Name:              "extend one at a time",
+			OffsetL2:          0,
+			EngineL1:          "ab",
+			EngineL2:          "AB",
+			ActualL1:          "abcdef",
+			GenesisL2:         'A',
+			ExpectedNextRefL1: 'c',
+			ExpectedRefL2:     'B',
+			ExpectedErr:       nil,
+		},
+		{
+			Name:              "already synced",
+			OffsetL2:          0,
+			EngineL1:          "abcde",
+			EngineL2:          "ABCDE",
+			ActualL1:          "abcde",
+			GenesisL2:         'A',
+			ExpectedNextRefL1: 'e',
+			ExpectedRefL2:     'D',
+			ExpectedErr:       nil,
+		},
+		{
+			Name:              "genesis",
+			OffsetL2:          0,
+			EngineL1:          "a",
+			EngineL2:          "A",
+			ActualL1:          "a",
+			GenesisL2:         'A',
+			ExpectedNextRefL1: 'a',
+			ExpectedRefL2:     0, // actual zero hash before genesis hash
+			ExpectedErr:       nil,
+		},
+		{
 			Name:              "reorg two steps back",
 			OffsetL2:          0,
 			EngineL1:          "abc",
@@ -161,6 +205,61 @@ func TestFindSyncStart(t *testing.T) {
 			ExpectedNextRefL1: 'x',
 			ExpectedRefL2:     'A',
 			ExpectedErr:       nil,
+		},
+		{
+			Name:              "Orphan block",
+			OffsetL2:          0,
+			EngineL1:          "abcd",
+			EngineL2:          "ABCD",
+			ActualL1:          "abcx",
+			GenesisL2:         'A',
+			ExpectedNextRefL1: 'x',
+			ExpectedRefL2:     'C',
+			ExpectedErr:       nil,
+		},
+		{
+			Name:              "L2 chain ahead",
+			OffsetL2:          0,
+			EngineL1:          "abcdef",
+			EngineL2:          "ABCDEF",
+			ActualL1:          "abc",
+			GenesisL2:         'A',
+			ExpectedNextRefL1: 0,
+			ExpectedRefL2:     0,
+			ExpectedErr:       ethereum.NotFound,
+		},
+		{
+			Name:              "L2 chain ahead reorg",
+			OffsetL2:          0,
+			EngineL1:          "abcdef",
+			EngineL2:          "ABCDEF",
+			ActualL1:          "abcx",
+			GenesisL2:         'A',
+			ExpectedNextRefL1: 'x',
+			ExpectedRefL2:     'C',
+			ExpectedErr:       nil,
+		},
+		{
+			Name:              "unexpected L1 chain",
+			OffsetL2:          0,
+			EngineL1:          "abcdef",
+			EngineL2:          "ABCDEF",
+			ActualL1:          "xyz",
+			GenesisL2:         'A',
+			ExpectedNextRefL1: 0,
+			ExpectedRefL2:     0,
+			ExpectedErr:       WrongChainErr,
+		},
+		{
+			Name:              "unexpected L2 chain",
+			OffsetL2:          0,
+			EngineL1:          "abcdef",
+			EngineL2:          "ABCDEF",
+			ActualL1:          "xyz",
+			GenesisL2:         'X',
+			ExpectedNextRefL1: 0,
+			ExpectedRefL2:     0,
+			ExpectedErr:       WrongChainErr,
 		},
 		// TODO more test cases
 	}

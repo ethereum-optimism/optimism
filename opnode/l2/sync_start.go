@@ -12,6 +12,8 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 )
 
+var WrongChainErr = errors.New("wrong chain")
+
 func FindSyncStart(ctx context.Context, reference SyncReference, genesis *Genesis) (nextRefL1 eth.BlockID, refL2 eth.BlockID, err error) {
 	// 10 seconds for the whole thing (TODO: or do we want individual timeouts?)
 	ctx, cancel := context.WithTimeout(ctx, time.Second*10)
@@ -28,8 +30,15 @@ func FindSyncStart(ctx context.Context, reference SyncReference, genesis *Genesi
 	var currentL1 eth.BlockID
 	currentL1, _, err = reference.RefByL1Num(ctx, refL1.Number)
 	if err != nil {
-		err = fmt.Errorf("failed to lookup block %d in L1: %v", refL1.Number, err)
-		return
+		if !errors.Is(err, ethereum.NotFound) {
+			err = fmt.Errorf("failed to lookup block %d in L1: %w", refL1.Number, err)
+			return
+		}
+		// if the L1 did not find the block, it might be out of sync.
+		// We cannot sync from L1 in this case, but must make sure we are not in
+		// a reorg to a L1 chain with less blocks.
+		err = nil
+		currentL1 = eth.BlockID{} // empty = not found
 	}
 	if currentL1 == refL1 {
 		// L1 node has head-block of execution-engine, so we should fetch the L1 block that builds on top.
@@ -63,16 +72,25 @@ func FindSyncStart(ctx context.Context, reference SyncReference, genesis *Genesi
 		refL1, refL2, parentL2, err = reference.RefByL2Hash(ctx, parentL2, genesis)
 		if err != nil {
 			// TODO: re-attempt look-up, now that we already traversed previous history?
-			err = fmt.Errorf("failed to lookup block %s in L2: %v", refL2, err) // refL2 is previous parentL2
+			err = fmt.Errorf("failed to lookup block %s in L2: %w", refL2, err) // refL2 is previous parentL2
 			return
 		}
 		// Check if L1 source has the block that derived the L2 block we are planning to build on
 		currentL1, _, err = reference.RefByL1Num(ctx, refL1.Number)
 		if err != nil {
-			err = fmt.Errorf("failed to lookup block %d in L1: %v", refL1.Number, err)
-			return
+			if !errors.Is(err, ethereum.NotFound) {
+				err = fmt.Errorf("failed to lookup block %d in L1: %w", refL1.Number, err)
+				return
+			}
+			// again, if L1 does not have the block, then we just search if we are reorging.
+			err = nil
+			currentL1 = eth.BlockID{} // empty = not found
 		}
 		if currentL1 == refL1 {
+			// check if we had a L1 block to build on top of the common chain with
+			if nextRefL1 == (eth.BlockID{}) {
+				err = ethereum.NotFound
+			}
 			return
 		}
 		// TODO: after e.g. initial N steps, use binary search instead
@@ -81,8 +99,11 @@ func FindSyncStart(ctx context.Context, reference SyncReference, genesis *Genesi
 	// Enforce that we build on the desired genesis block.
 	// The engine might be configured for a different chain or older testnet.
 	if refL2 != genesis.L2 {
-		err = fmt.Errorf("engine was anchored at unexpected block: %s, expected %s", refL2, genesis.L2)
+		err = fmt.Errorf("unexpected L2 genesis block: %s, expected %s, %w", refL2, genesis.L2, WrongChainErr)
 		return
+	}
+	if currentL1 != genesis.L1 {
+		err = fmt.Errorf("unexpected L1 anchor block: %s, expected %s, %w", currentL1, genesis.L1, WrongChainErr)
 	}
 	// we got the correct genesis, all good, but a lot to sync!
 	return
