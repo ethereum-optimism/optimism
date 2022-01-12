@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 
+	"github.com/go-redis/redis/v8"
 	"github.com/golang/snappy"
 	lru "github.com/hashicorp/golang-lru"
 )
@@ -13,7 +14,8 @@ type Cache interface {
 	Put(ctx context.Context, key string, value string) error
 }
 
-const memoryCacheLimit = 1024 * 1024
+// assuming an average RPCRes size of 3 KB
+const memoryCacheLimit = 4096
 
 var supportedRPCMethods = map[string]bool{
 	"eth_chainId":          true,
@@ -41,6 +43,35 @@ func (c *cache) Get(ctx context.Context, key string) (string, error) {
 func (c *cache) Put(ctx context.Context, key string, value string) error {
 	c.lru.Add(key, value)
 	return nil
+}
+
+type redisCache struct {
+	rdb *redis.Client
+}
+
+func newRedisCache(url string) (*redisCache, error) {
+	opts, err := redis.ParseURL(url)
+	if err != nil {
+		return nil, err
+	}
+	rdb := redis.NewClient(opts)
+	if err := rdb.Ping(context.Background()).Err(); err != nil {
+		return nil, wrapErr(err, "error connecting to redis")
+	}
+	return &redisCache{rdb}, nil
+}
+
+func (c *redisCache) Get(ctx context.Context, key string) (string, error) {
+	val, err := c.rdb.Get(ctx, key).Result()
+	if err != nil {
+		return "", err
+	}
+	return val, nil
+}
+
+func (c *redisCache) Put(ctx context.Context, key string, value string) error {
+	err := c.rdb.Set(ctx, key, value, 0).Err()
+	return err
 }
 
 type RPCCache struct {
@@ -95,13 +126,12 @@ func (c *RPCCache) isCacheable(req *RPCReq) bool {
 		return false
 	}
 
-	var params []interface{}
-	if err := json.Unmarshal(req.Params, &params); err != nil {
-		return false
-	}
-
 	switch req.Method {
 	case "eth_getBlockByNumber":
+		var params []interface{}
+		if err := json.Unmarshal(req.Params, &params); err != nil {
+			return false
+		}
 		if len(params) != 2 {
 			return false
 		}
@@ -114,6 +144,10 @@ func (c *RPCCache) isCacheable(req *RPCReq) bool {
 		}
 
 	case "eth_getBlockRange":
+		var params []interface{}
+		if err := json.Unmarshal(req.Params, &params); err != nil {
+			return false
+		}
 		if len(params) != 3 {
 			return false
 		}

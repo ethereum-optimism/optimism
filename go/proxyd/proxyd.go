@@ -156,7 +156,16 @@ func Start(config *Config) error {
 
 	var rpcCache *RPCCache
 	if config.Cache != nil && config.Cache.Enabled {
-		rpcCache = newRPCCache(newMemoryCache())
+		var cache Cache
+		if config.Redis != nil {
+			if cache, err = newRedisCache(config.Redis.URL); err != nil {
+				return err
+			}
+		} else {
+			log.Warn("redis is not configured, using in-memory cache")
+			cache = newMemoryCache()
+		}
+		rpcCache = newRPCCache(cache)
 	}
 
 	srv := NewServer(

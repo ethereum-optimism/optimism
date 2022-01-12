@@ -172,7 +172,7 @@ func (s *Server) HandleRPC(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if s.rpcCache != nil {
+	if s.rpcCache != nil && backendRes.Error == nil {
 		if err = s.rpcCache.PutRPC(ctx, req, backendRes); err != nil {
 			log.Warn(
 				"cache put error",
