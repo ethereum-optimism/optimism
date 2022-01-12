@@ -14,7 +14,6 @@ import (
 )
 
 type EngineDriver struct {
-	Ctx context.Context
 	Log log.Logger
 	// API bindings to execution engine
 	RPC DriverAPI
@@ -73,10 +72,10 @@ func (e *EngineDriver) UpdateHead(l1Head eth.BlockID, l2Head eth.BlockID) {
 	e.l2Head = l2Head
 }
 
-func (e *EngineDriver) RequestHeadUpdate() error {
+func (e *EngineDriver) RequestHeadUpdate(ctx context.Context) error {
 	e.headLock.Lock()
 	defer e.headLock.Unlock()
-	refL1, refL2, _, err := e.SyncRef.RefByL2Num(e.Ctx, nil, &e.Genesis)
+	refL1, refL2, _, err := e.SyncRef.RefByL2Num(ctx, nil, &e.Genesis)
 	if err != nil {
 		return err
 	}
@@ -85,7 +84,7 @@ func (e *EngineDriver) RequestHeadUpdate() error {
 	return nil
 }
 
-func (e *EngineDriver) Drive(dl Downloader, l1Heads <-chan eth.HeadSignal) ethereum.Subscription {
+func (e *EngineDriver) Drive(ctx context.Context, dl Downloader, l1Heads <-chan eth.HeadSignal) ethereum.Subscription {
 	e.driveLock.Lock()
 	defer e.driveLock.Unlock()
 	if e.driveSub != nil {
@@ -130,14 +129,16 @@ func (e *EngineDriver) Drive(dl Downloader, l1Heads <-chan eth.HeadSignal) ether
 
 		for {
 			select {
-			case <-e.Ctx.Done():
-				return e.Ctx.Err()
+			case <-ctx.Done():
+				return ctx.Err()
 			case <-quit:
 				return nil
 			case <-l2HeadPollTicker.C:
-				if err := e.RequestHeadUpdate(); err != nil {
+				ctx, cancel := context.WithTimeout(ctx, time.Second*4)
+				if err := e.RequestHeadUpdate(ctx); err != nil {
 					e.Log.Error("failed to fetch L2 head info", "err", err)
 				}
+				cancel()
 				continue
 			case l1HeadSig := <-l1Heads:
 				if e.l1Head == l1HeadSig.Self {
@@ -146,7 +147,7 @@ func (e *EngineDriver) Drive(dl Downloader, l1Heads <-chan eth.HeadSignal) ether
 				}
 				if e.l1Head == l1HeadSig.Parent {
 					// Simple extend, a linear life is easy
-					if l2ID, err := DriverStep(e.Ctx, e.Log, e.RPC, dl, l1HeadSig.Self, e.l2Head, e.l2Finalized.Hash); err != nil {
+					if l2ID, err := DriverStep(ctx, e.Log, e.RPC, dl, l1HeadSig.Self, e.l2Head, e.l2Finalized.Hash); err != nil {
 						e.Log.Error("Failed to extend L2 chain with new L1 block", "l1", l1HeadSig.Self, "l2", e.l2Head, "err", err)
 						// Retry sync later
 						e.l1Target = l1HeadSig.Self
@@ -176,7 +177,7 @@ func (e *EngineDriver) Drive(dl Downloader, l1Heads <-chan eth.HeadSignal) ether
 					continue
 				}
 				e.Log.Debug("finding next sync step, engine syncing", "l2", e.l2Head, "l1", e.l1Head)
-				refL1, refL2, err := FindSyncStart(e.Ctx, e.SyncRef, &e.Genesis)
+				refL1, refL2, err := FindSyncStart(ctx, e.SyncRef, &e.Genesis)
 				if err != nil {
 					e.Log.Error("Failed to find sync starting point", "err", err)
 					continue
@@ -185,7 +186,7 @@ func (e *EngineDriver) Drive(dl Downloader, l1Heads <-chan eth.HeadSignal) ether
 					e.Log.Debug("Engine is already synced, aborting sync", "l1_head", e.l1Head, "l2_head", e.l2Head)
 					continue
 				}
-				if l2ID, err := DriverStep(e.Ctx, e.Log, e.RPC, dl, refL1, refL2, e.l2Finalized.Hash); err != nil {
+				if l2ID, err := DriverStep(ctx, e.Log, e.RPC, dl, refL1, refL2, e.l2Finalized.Hash); err != nil {
 					e.Log.Error("Failed to sync L2 chain with new L1 block", "l1", refL1, "onto_l2", refL2, "err", err)
 					continue
 				} else {
