@@ -15,8 +15,7 @@ type ServerConfig struct {
 }
 
 type CacheConfig struct {
-	Enabled    bool     `toml:"enabled"`
-	RPCMethods []string `toml:"rpc_methods"`
+	Enabled bool `toml:"enabled"`
 }
 
 type RedisConfig struct {

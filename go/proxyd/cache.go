@@ -3,7 +3,6 @@ package proxyd
 import (
 	"context"
 	"encoding/json"
-	"strings"
 
 	"github.com/golang/snappy"
 	lru "github.com/hashicorp/golang-lru"
@@ -17,10 +16,10 @@ type Cache interface {
 const memoryCacheLimit = 1024 * 1024
 
 var supportedRPCMethods = map[string]bool{
-	"eth_chainid":          true,
+	"eth_chainId":          true,
 	"net_version":          true,
-	"eth_getblockbynumber": true,
-	"eth_getblockrange":    true,
+	"eth_getBlockByNumber": true,
+	"eth_getBlockRange":    true,
 }
 
 type cache struct {
@@ -92,8 +91,7 @@ func (c *RPCCache) PutRPC(ctx context.Context, req *RPCReq, res *RPCRes) error {
 }
 
 func (c *RPCCache) isCacheable(req *RPCReq) bool {
-	method := strings.ToLower(req.Method)
-	if !supportedRPCMethods[method] {
+	if !supportedRPCMethods[req.Method] {
 		return false
 	}
 
@@ -102,8 +100,8 @@ func (c *RPCCache) isCacheable(req *RPCReq) bool {
 		return false
 	}
 
-	switch method {
-	case "eth_getblockbynumber":
+	switch req.Method {
+	case "eth_getBlockByNumber":
 		if len(params) != 2 {
 			return false
 		}
@@ -111,11 +109,11 @@ func (c *RPCCache) isCacheable(req *RPCReq) bool {
 		if !ok {
 			return false
 		}
-		if isDefaultBlockParam(blockNum) {
+		if isBlockDependentParam(blockNum) {
 			return false
 		}
 
-	case "eth_getblockrange":
+	case "eth_getBlockRange":
 		if len(params) != 3 {
 			return false
 		}
@@ -127,7 +125,7 @@ func (c *RPCCache) isCacheable(req *RPCReq) bool {
 		if !ok {
 			return false
 		}
-		if isDefaultBlockParam(startBlockNum) || isDefaultBlockParam(endBlockNum) {
+		if isBlockDependentParam(startBlockNum) || isBlockDependentParam(endBlockNum) {
 			return false
 		}
 	}
@@ -135,6 +133,6 @@ func (c *RPCCache) isCacheable(req *RPCReq) bool {
 	return true
 }
 
-func isDefaultBlockParam(s string) bool {
-	return s == "earliest" || s == "latest" || s == "pending"
+func isBlockDependentParam(s string) bool {
+	return s == "latest" || s == "pending"
 }
