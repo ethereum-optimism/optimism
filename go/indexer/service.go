@@ -50,6 +50,7 @@ type ServiceConfig struct {
 	Context  context.Context
 	Driver   Driver
 	L1Client *ethclient.Client
+	DB       *Database
 }
 
 type Service struct {
@@ -80,5 +81,8 @@ func (s *Service) Start() error {
 func (s *Service) Stop() error {
 	s.cancel()
 	s.wg.Wait()
+	if err := s.cfg.DB.Close(); err != nil {
+		return err
+	}
 	return nil
 }

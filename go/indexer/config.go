@@ -69,6 +69,21 @@ type Config struct {
 	// appending new batches.
 	NumConfirmations uint64
 
+	// Hostname of the database connection.
+	DBHost string
+
+	// Port of the database connection.
+	DBPort uint64
+
+	// Username of the database connection.
+	DBUser string
+
+	// Password of the database connection.
+	DBPassword string
+
+	// Database name of the database connection.
+	DBName string
+
 	/* Optional Params */
 
 	// LogLevel is the lowest log level that will be output.
@@ -111,6 +126,11 @@ func NewConfig(ctx *cli.Context) (Config, error) {
 		CTCAddress:       ctx.GlobalString(flags.CTCAddressFlag.Name),
 		SCCAddress:       ctx.GlobalString(flags.SCCAddressFlag.Name),
 		NumConfirmations: ctx.GlobalUint64(flags.NumConfirmationsFlag.Name),
+		DBHost:           ctx.GlobalString(flags.DBHost.Name),
+		DBPort:           ctx.GlobalUint64(flags.DBHost.Name),
+		DBUser:           ctx.GlobalString(flags.DBHost.Name),
+		DBPassword:       ctx.GlobalString(flags.DBHost.Name),
+		DBName:           ctx.GlobalString(flags.DBHost.Name),
 		/* Optional Flags */
 		SentryEnable:        ctx.GlobalBool(flags.SentryEnableFlag.Name),
 		SentryDsn:           ctx.GlobalString(flags.SentryDsnFlag.Name),

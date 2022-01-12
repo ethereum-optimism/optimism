@@ -58,6 +58,36 @@ var (
 		Required: true,
 		EnvVar:   prefixEnvVar("NUM_CONFIRMATIONS"),
 	}
+	DBHost = cli.StringFlag{
+		Name:     "db-host",
+		Usage:    "Hostname of the database connection",
+		Required: true,
+		EnvVar:   prefixEnvVar("DB_HOST"),
+	}
+	DBPort = cli.Uint64Flag{
+		Name:     "db-port",
+		Usage:    "Port of the database connection",
+		Required: true,
+		EnvVar:   prefixEnvVar("DB_PORT"),
+	}
+	DBUser = cli.StringFlag{
+		Name:     "db-user",
+		Usage:    "Username of the database connection",
+		Required: true,
+		EnvVar:   prefixEnvVar("DB_USER"),
+	}
+	DBPassword = cli.StringFlag{
+		Name:     "db-password",
+		Usage:    "Password of the database connection",
+		Required: true,
+		EnvVar:   prefixEnvVar("DB_PASSWORD"),
+	}
+	DBName = cli.StringFlag{
+		Name:     "db-name",
+		Usage:    "Database name of the database connection",
+		Required: true,
+		EnvVar:   prefixEnvVar("DB_NAME"),
+	}
 
 	/* Optional Flags */
 
@@ -116,6 +146,11 @@ var requiredFlags = []cli.Flag{
 	CTCAddressFlag,
 	SCCAddressFlag,
 	NumConfirmationsFlag,
+	DBHost,
+	DBPort,
+	DBUser,
+	DBPassword,
+	DBName,
 }
 
 var optionalFlags = []cli.Flag{

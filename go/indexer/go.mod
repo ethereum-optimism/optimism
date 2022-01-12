@@ -7,6 +7,7 @@ require (
 	github.com/ethereum-optimism/optimism/l2geth v0.0.0-20220104205740-f39387287484
 	github.com/ethereum/go-ethereum v1.10.14
 	github.com/getsentry/sentry-go v0.12.0
+	github.com/lib/pq v1.0.0
 	github.com/prometheus/client_golang v1.0.0
 	github.com/stretchr/testify v1.7.0
 	github.com/tyler-smith/go-bip39 v1.0.1-0.20181017060643-dbb3b84ba2ef
