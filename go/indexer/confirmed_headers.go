@@ -11,7 +11,7 @@ import (
 )
 
 const (
-	DefaultConnectionTimeout        = 5 * time.Second
+	DefaultConnectionTimeout        = 20 * time.Second
 	DefaultConfDepth         uint64 = 20
 	DefaultMaxBatchSize      uint64 = 100
 )

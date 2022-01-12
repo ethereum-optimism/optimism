@@ -188,8 +188,8 @@ func (s *Service) fetchBlockEventIterator(start, end uint64) (
 
 func (s *Service) Update(start uint64, newHeader *types.Header) error {
 	var lowest = BlockLocator{
-		Number: 13958617,
-		Hash:   common.HexToHash("0x32345e77bc13f269f2af9c61c9b288ba84cb7b61924810fd4ffc7b778de279be"),
+		Number: 13990900,
+		Hash:   common.HexToHash("0xe693e34c6e5f9b72d14a9526bf245ed5a0ad92d6ab09574e5cbfa260f3e3325a"),
 	}
 	highestConfirmed, err := s.cfg.DB.GetHighestBlock()
 	if err != nil {
