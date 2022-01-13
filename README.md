@@ -45,6 +45,6 @@ shared publicly (we will ask for consent before recording).
 
 ## License
 
-Specification: CC0 1.0 Universal, see [`LICENSE`](./LICENSE) file.
+Specification: CC0 1.0 Universal, see [`specs/LICENSE`](./specs/LICENSE) file.
 
-Reference implementation: MIT, see [`opnode/LICENSE`](./opnode/LICENSE) file.
+Reference software: MIT, see [`LICENSE`](./LICENSE) file.
