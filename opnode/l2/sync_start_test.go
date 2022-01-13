@@ -68,9 +68,9 @@ func mockID(id rune, num uint64) eth.BlockID {
 	return eth.BlockID{Hash: h, Number: uint64(num)}
 }
 
-func chainL1(ids string) (out []eth.BlockID) {
+func chainL1(offset uint64, ids string) (out []eth.BlockID) {
 	for i, id := range ids {
-		out = append(out, mockID(id, uint64(i)))
+		out = append(out, mockID(id, offset+uint64(i)))
 	}
 	return
 }
@@ -93,8 +93,8 @@ type syncStartTestCase struct {
 	EngineL2 string
 	ActualL1 string
 
-	GenesisL2 rune
 	GenesisL1 rune
+	GenesisL2 rune
 
 	ExpectedNextRefL1 rune
 	ExpectedRefL2     rune
@@ -103,9 +103,9 @@ type syncStartTestCase struct {
 }
 
 func (c *syncStartTestCase) Run(t *testing.T) {
-	engL1 := chainL1(c.EngineL1)
-	engL2 := chainL2(engL1[c.OffsetL2:], c.EngineL2)
-	actL1 := chainL1(c.ActualL1)
+	engL1 := chainL1(c.OffsetL2, c.EngineL1)
+	engL2 := chainL2(engL1, c.EngineL2)
+	actL1 := chainL1(0, c.ActualL1)
 
 	msr := &mockSyncReference{
 		L2: engL2,
@@ -272,7 +272,42 @@ func TestFindSyncStart(t *testing.T) {
 			ExpectedRefL2:     0,
 			ExpectedErr:       WrongChainErr,
 		},
-		// TODO more test cases
+		{
+			Name:              "offset L2 genesis extend",
+			OffsetL2:          3,
+			EngineL1:          "def",
+			EngineL2:          "DEF",
+			ActualL1:          "abcdefg",
+			GenesisL1:         'd',
+			GenesisL2:         'D',
+			ExpectedNextRefL1: 'g',
+			ExpectedRefL2:     'F',
+			ExpectedErr:       nil,
+		},
+		{
+			Name:              "offset L2 genesis reorg",
+			OffsetL2:          3,
+			EngineL1:          "defgh",
+			EngineL2:          "DEFGH",
+			ActualL1:          "abcdx",
+			GenesisL1:         'd',
+			GenesisL2:         'D',
+			ExpectedNextRefL1: 'x',
+			ExpectedRefL2:     'D',
+			ExpectedErr:       nil,
+		},
+		{
+			Name:              "reorg past offset genesis",
+			OffsetL2:          3,
+			EngineL1:          "defgh",
+			EngineL2:          "DEFGH",
+			ActualL1:          "abx",
+			GenesisL1:         'd',
+			GenesisL2:         'D',
+			ExpectedNextRefL1: 0,
+			ExpectedRefL2:     0,
+			ExpectedErr:       WrongChainErr,
+		},
 	}
 
 	for _, testCase := range testCases {
