@@ -12,4 +12,5 @@ require (
 	github.com/hashicorp/golang-lru v0.5.5-0.20210104140557-80c98217689d
 	github.com/prometheus/client_golang v1.11.0
 	github.com/rs/cors v1.8.0
+	github.com/stretchr/testify v1.7.0
 )

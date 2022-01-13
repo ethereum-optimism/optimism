@@ -155,7 +155,7 @@ func Start(config *Config) error {
 		}
 	}
 
-	var rpcCache *RPCCache
+	var rpcCache RPCCache
 	if config.Cache != nil && config.Cache.Enabled {
 		var cache Cache
 		if config.Redis != nil {
@@ -168,10 +168,10 @@ func Start(config *Config) error {
 		}
 
 		var getLatestBlockNumFn GetLatestBlockNumFn
-		if config.Cache.BlockSyncWSURL == "" {
+		if config.Cache.BlockSyncRPCURL == "" {
 			return fmt.Errorf("block sync node required for caching")
 		}
-		latestHead := newLatestBlockHead(config.Cache.BlockSyncWSURL)
+		latestHead := newLatestBlockHead(config.Cache.BlockSyncRPCURL)
 		if err := latestHead.Start(); err != nil {
 			return err
 		}

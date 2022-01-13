@@ -15,8 +15,8 @@ type ServerConfig struct {
 }
 
 type CacheConfig struct {
-	Enabled        bool   `toml:"enabled"`
-	BlockSyncWSURL string `toml:"block_sync_ws_url"`
+	Enabled         bool   `toml:"enabled"`
+	BlockSyncRPCURL string `toml:"block_sync_rpc_url"`
 }
 
 type RedisConfig struct {
