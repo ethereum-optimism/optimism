@@ -3,7 +3,6 @@ package proxyd
 import (
 	"context"
 	"encoding/json"
-	"errors"
 
 	"github.com/go-redis/redis/v8"
 	"github.com/golang/snappy"
@@ -19,11 +18,6 @@ type Cache interface {
 const (
 	memoryCacheLimit      = 4096
 	numBlockConfirmations = 50
-)
-
-var (
-	errInvalidBlockByNumberParams = errors.New("invalid eth_getBlockByNumber params")
-	errUnavailableBlockNumSyncer  = errors.New("getLatestBlockFn not set for required RPC")
 )
 
 type cache struct {
@@ -106,7 +100,11 @@ func (c *rpcCache) GetRPC(ctx context.Context, req *RPCReq) (*RPCRes, error) {
 	if handler == nil {
 		return nil, nil
 	}
-	if !handler.IsCacheable(req) {
+	cacheable, err := handler.IsCacheable(req)
+	if err != nil {
+		return nil, err
+	}
+	if !cacheable {
 		return nil, nil
 	}
 
@@ -137,10 +135,18 @@ func (c *rpcCache) PutRPC(ctx context.Context, req *RPCReq, res *RPCRes) error {
 	if handler == nil {
 		return nil
 	}
-	if !handler.IsCacheable(req) {
+	cacheable, err := handler.IsCacheable(req)
+	if err != nil {
+		return err
+	}
+	if !cacheable {
 		return nil
 	}
-	if handler.RequiresUnconfirmedBlocks(ctx, req) {
+	requiresConfirmations, err := handler.RequiresUnconfirmedBlocks(ctx, req)
+	if err != nil {
+		return err
+	}
+	if requiresConfirmations {
 		return nil
 	}
 

@@ -3,15 +3,18 @@ package proxyd
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 
 	"github.com/ethereum/go-ethereum/common/hexutil"
 )
 
+var errInvalidRPCParams = errors.New("invalid RPC params")
+
 type RPCMethodHandler interface {
 	CacheKey(req *RPCReq) string
-	IsCacheable(req *RPCReq) bool
-	RequiresUnconfirmedBlocks(ctx context.Context, req *RPCReq) bool
+	IsCacheable(req *RPCReq) (bool, error)
+	RequiresUnconfirmedBlocks(ctx context.Context, req *RPCReq) (bool, error)
 }
 
 type StaticRPCMethodHandler struct {
@@ -22,9 +25,9 @@ func (s *StaticRPCMethodHandler) CacheKey(req *RPCReq) string {
 	return fmt.Sprintf("method:%s", s.method)
 }
 
-func (s *StaticRPCMethodHandler) IsCacheable(*RPCReq) bool { return true }
-func (s *StaticRPCMethodHandler) RequiresUnconfirmedBlocks(context.Context, *RPCReq) bool {
-	return false
+func (s *StaticRPCMethodHandler) IsCacheable(*RPCReq) (bool, error) { return true, nil }
+func (s *StaticRPCMethodHandler) RequiresUnconfirmedBlocks(context.Context, *RPCReq) (bool, error) {
+	return false, nil
 }
 
 type EthGetBlockByNumberMethod struct {
@@ -39,34 +42,34 @@ func (e *EthGetBlockByNumberMethod) CacheKey(req *RPCReq) string {
 	return fmt.Sprintf("method:eth_getBlockByNumber:%s:%t", input, includeTx)
 }
 
-func (e *EthGetBlockByNumberMethod) IsCacheable(req *RPCReq) bool {
+func (e *EthGetBlockByNumberMethod) IsCacheable(req *RPCReq) (bool, error) {
 	blockNum, _, err := decodeGetBlockByNumberParams(req.Params)
 	if err != nil {
-		return false
+		return false, err
 	}
-	return !isBlockDependentParam(blockNum)
+	return !isBlockDependentParam(blockNum), nil
 }
 
-func (e *EthGetBlockByNumberMethod) RequiresUnconfirmedBlocks(ctx context.Context, req *RPCReq) bool {
+func (e *EthGetBlockByNumberMethod) RequiresUnconfirmedBlocks(ctx context.Context, req *RPCReq) (bool, error) {
 	curBlock, err := e.getLatestBlockNumFn(ctx)
 	if err != nil {
-		return false
+		return false, err
 	}
 	blockInput, _, err := decodeGetBlockByNumberParams(req.Params)
 	if err != nil {
-		return false
+		return false, err
 	}
 	if isBlockDependentParam(blockInput) {
-		return true
+		return true, nil
 	}
 	if blockInput == "earliest" {
-		return false
+		return false, nil
 	}
 	blockNum, err := decodeBlockInput(blockInput)
 	if err != nil {
-		return false
+		return false, err
 	}
-	return curBlock <= blockNum+numBlockConfirmations
+	return curBlock <= blockNum+numBlockConfirmations, nil
 }
 
 type EthGetBlockRangeMethod struct {
@@ -81,39 +84,50 @@ func (e *EthGetBlockRangeMethod) CacheKey(req *RPCReq) string {
 	return fmt.Sprintf("method:eth_getBlockRange:%s:%s:%t", start, end, includeTx)
 }
 
-func (e *EthGetBlockRangeMethod) IsCacheable(req *RPCReq) bool {
+func (e *EthGetBlockRangeMethod) IsCacheable(req *RPCReq) (bool, error) {
 	start, end, _, err := decodeGetBlockRangeParams(req.Params)
 	if err != nil {
-		return false
+		return false, err
 	}
-	return !isBlockDependentParam(start) && !isBlockDependentParam(end)
+	return !isBlockDependentParam(start) && !isBlockDependentParam(end), nil
 }
 
-func (e *EthGetBlockRangeMethod) RequiresUnconfirmedBlocks(ctx context.Context, req *RPCReq) bool {
+func (e *EthGetBlockRangeMethod) RequiresUnconfirmedBlocks(ctx context.Context, req *RPCReq) (bool, error) {
 	curBlock, err := e.getLatestBlockNumFn(ctx)
 	if err != nil {
-		return false
+		return false, err
 	}
 
 	start, end, _, err := decodeGetBlockRangeParams(req.Params)
 	if err != nil {
-		return false
+		return false, err
 	}
 	if isBlockDependentParam(start) || isBlockDependentParam(end) {
-		return true
+		return true, nil
 	}
 	if start == "earliest" && end == "earliest" {
-		return false
+		return false, nil
 	}
-	startNum, err := decodeBlockInput(start)
-	if err != nil {
-		return false
+
+	if start != "earliest" {
+		startNum, err := decodeBlockInput(start)
+		if err != nil {
+			return false, err
+		}
+		if curBlock <= startNum+numBlockConfirmations {
+			return true, nil
+		}
 	}
-	endNum, err := decodeBlockInput(end)
-	if err != nil {
-		return false
+	if end != "earliest" {
+		endNum, err := decodeBlockInput(end)
+		if err != nil {
+			return false, err
+		}
+		if curBlock <= endNum+numBlockConfirmations {
+			return true, nil
+		}
 	}
-	return curBlock <= startNum+numBlockConfirmations || curBlock <= endNum+numBlockConfirmations
+	return false, nil
 }
 
 func isBlockDependentParam(s string) bool {
@@ -126,15 +140,18 @@ func decodeGetBlockByNumberParams(params json.RawMessage) (string, bool, error) 
 		return "", false, err
 	}
 	if len(list) != 2 {
-		return "", false, errInvalidBlockByNumberParams
+		return "", false, errInvalidRPCParams
 	}
 	blockNum, ok := list[0].(string)
 	if !ok {
-		return "", false, errInvalidBlockByNumberParams
+		return "", false, errInvalidRPCParams
 	}
 	includeTx, ok := list[1].(bool)
 	if !ok {
-		return "", false, errInvalidBlockByNumberParams
+		return "", false, errInvalidRPCParams
+	}
+	if !validBlockInput(blockNum) {
+		return "", false, errInvalidRPCParams
 	}
 	return blockNum, includeTx, nil
 }
@@ -145,23 +162,34 @@ func decodeGetBlockRangeParams(params json.RawMessage) (string, string, bool, er
 		return "", "", false, err
 	}
 	if len(list) != 3 {
-		return "", "", false, errInvalidBlockByNumberParams
+		return "", "", false, errInvalidRPCParams
 	}
 	startBlockNum, ok := list[0].(string)
 	if !ok {
-		return "", "", false, errInvalidBlockByNumberParams
+		return "", "", false, errInvalidRPCParams
 	}
 	endBlockNum, ok := list[1].(string)
 	if !ok {
-		return "", "", false, errInvalidBlockByNumberParams
+		return "", "", false, errInvalidRPCParams
 	}
 	includeTx, ok := list[2].(bool)
 	if !ok {
-		return "", "", false, errInvalidBlockByNumberParams
+		return "", "", false, errInvalidRPCParams
+	}
+	if !validBlockInput(startBlockNum) || !validBlockInput(endBlockNum) {
+		return "", "", false, errInvalidRPCParams
 	}
 	return startBlockNum, endBlockNum, includeTx, nil
 }
 
 func decodeBlockInput(input string) (uint64, error) {
 	return hexutil.DecodeUint64(input)
+}
+
+func validBlockInput(input string) bool {
+	if input == "earliest" || input == "pending" || input == "latest" {
+		return true
+	}
+	_, err := decodeBlockInput(input)
+	return err == nil
 }

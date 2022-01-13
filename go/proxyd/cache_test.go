@@ -243,10 +243,10 @@ func TestRPCCacheEthGetBlockByNumberInvalidRequest(t *testing.T) {
 	}
 
 	err := cache.PutRPC(ctx, req, res)
-	require.NoError(t, err)
+	require.Error(t, err)
 
 	cachedRes, err := cache.GetRPC(ctx, req)
-	require.NoError(t, err)
+	require.Error(t, err)
 	require.Nil(t, cachedRes)
 }
 
@@ -269,7 +269,7 @@ func TestRPCCacheEthGetBlockRangeForRecentBlocks(t *testing.T) {
 			req: &RPCReq{
 				JSONRPC: "2.0",
 				Method:  "eth_getBlockRange",
-				Params:  []byte(`["0xfff", "0x1000", false]`),
+				Params:  []byte(`["0x1", "0x1000", false]`),
 				ID:      ID,
 			},
 			res: &RPCRes{
@@ -345,22 +345,49 @@ func TestRPCCacheEthGetBlockRangeInvalidRequest(t *testing.T) {
 	cache := newRPCCache(newMemoryCache(), fn)
 	ID := []byte(strconv.Itoa(1))
 
-	req := &RPCReq{
-		JSONRPC: "2.0",
-		Method:  "eth_getBlockRange",
-		Params:  []byte(`["0x1", "0x2"]`), // missing required boolean param
-		ID:      ID,
-	}
-	res := &RPCRes{
-		JSONRPC: "2.0",
-		Result:  `[{"number": "0x1"}, {"number": "0x2"}]`,
-		ID:      ID,
+	rpcs := []struct {
+		req  *RPCReq
+		res  *RPCRes
+		name string
+	}{
+		{
+			req: &RPCReq{
+				JSONRPC: "2.0",
+				Method:  "eth_getBlockRange",
+				Params:  []byte(`["0x1", "0x2"]`), // missing required boolean param
+				ID:      ID,
+			},
+			res: &RPCRes{
+				JSONRPC: "2.0",
+				Result:  `[{"number": "0x1"}, {"number": "0x2"}]`,
+				ID:      ID,
+			},
+			name: "missing boolean param",
+		},
+		{
+			req: &RPCReq{
+				JSONRPC: "2.0",
+				Method:  "eth_getBlockRange",
+				Params:  []byte(`["abc", "0x2", true]`), // invalid block hex
+				ID:      ID,
+			},
+			res: &RPCRes{
+				JSONRPC: "2.0",
+				Result:  `[{"number": "0x1"}, {"number": "0x2"}]`,
+				ID:      ID,
+			},
+			name: "invalid block hex",
+		},
 	}
 
-	err := cache.PutRPC(ctx, req, res)
-	require.NoError(t, err)
+	for _, rpc := range rpcs[1:] {
+		t.Run(rpc.name, func(t *testing.T) {
+			err := cache.PutRPC(ctx, rpc.req, rpc.res)
+			require.Error(t, err)
 
-	cachedRes, err := cache.GetRPC(ctx, req)
-	require.NoError(t, err)
-	require.Nil(t, cachedRes)
+			cachedRes, err := cache.GetRPC(ctx, rpc.req)
+			require.Error(t, err)
+			require.Nil(t, cachedRes)
+		})
+	}
 }
