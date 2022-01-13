@@ -30,6 +30,11 @@ const (
 	receiptQueueSize = 100
 )
 
+var (
+	DownloadEvictedErr = errors.New("evicted")
+	DownloadClosedErr  = errors.New("closed")
+)
+
 type downloadTask struct {
 	// Incremented when Finish is called, to check whether the task already completed (with or without error).
 	// May increment >1 when other sub-tasks fail.
@@ -78,6 +83,7 @@ type receiptTask struct {
 type Downloader interface {
 	Fetch(ctx context.Context, id eth.BlockID) (*types.Block, []*types.Receipt, error)
 	AddReceiptWorkers(n int) int
+	Close()
 }
 
 type DownloadSource interface {
@@ -94,10 +100,9 @@ type downloader struct {
 	receiptWorkers     []ethereum.Subscription
 	receiptWorkersLock sync.Mutex
 
+	// source to pull data from. Nil when downloader is closed
 	src DownloadSource
 }
-
-var downloadEvictedErr = errors.New("evicted")
 
 func NewDownloader(dlSource DownloadSource) Downloader {
 	dl := &downloader{
@@ -106,7 +111,7 @@ func NewDownloader(dlSource DownloadSource) Downloader {
 	}
 	evict := func(k, v interface{}) {
 		// stop downloading things if they were evicted (already finished items are unaffected)
-		v.(*downloadTask).Finish(wrappedErr{downloadEvictedErr})
+		v.(*downloadTask).Finish(wrappedErr{DownloadEvictedErr})
 	}
 	dl.cacheEvict, _ = lru.NewWithEvict(cacheSize, evict)
 	return dl
@@ -115,6 +120,10 @@ func NewDownloader(dlSource DownloadSource) Downloader {
 func (dl *downloader) Fetch(ctx context.Context, id eth.BlockID) (*types.Block, []*types.Receipt, error) {
 	// check if we are already working on it
 	dl.cacheLock.Lock()
+	if dl.src == nil {
+		dl.cacheLock.Unlock()
+		return nil, nil, DownloadClosedErr
+	}
 
 	var dlTask *downloadTask
 	if dlTaskIfc, ok := dl.cacheEvict.Get(id.Hash); ok {
@@ -233,4 +242,26 @@ func (dl *downloader) AddReceiptWorkers(n int) int {
 		dl.receiptWorkers = append(dl.receiptWorkers, dl.newReceiptWorker())
 	}
 	return len(dl.receiptWorkers)
+}
+
+// Close unsubscribes and removes the receipt workers, then drains all remaining tasks
+func (dl *downloader) Close() {
+	// nil the src to stop accepting new download tasks
+	dl.cacheLock.Lock()
+	if dl.src == nil {
+		return // already closed
+	}
+	dl.src = nil
+	dl.cacheLock.Unlock()
+
+	dl.receiptWorkersLock.Lock()
+	defer dl.receiptWorkersLock.Unlock()
+	for _, w := range dl.receiptWorkers {
+		w.Unsubscribe()
+	}
+	dl.receiptWorkers = dl.receiptWorkers[:0]
+	close(dl.receiptTasks)
+	for task := range dl.receiptTasks {
+		task.dest.Finish(wrappedErr{DownloadClosedErr})
+	}
 }

@@ -124,6 +124,10 @@ func TestDownloader_Fetch(t *testing.T) {
 				t.Fatal("expected error, but got none")
 			}
 		}
+		dl.Close()
+		_, _, err = dl.Fetch(context.Background(), eth.BlockID{Hash: common.Hash{0xff}, Number: 42})
+		assert.Error(t, err)
+		assert.ErrorIs(t, err, DownloadClosedErr)
 	}
 
 	testWithWorkers := func(workers int) {
