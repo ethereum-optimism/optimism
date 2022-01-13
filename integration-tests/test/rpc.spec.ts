@@ -1,7 +1,7 @@
 import { expect } from './shared/setup'
 
 import { expectApprox, injectL2Context } from '@eth-optimism/core-utils'
-import { Wallet, BigNumber, Contract, ContractFactory } from 'ethers'
+import { Wallet, BigNumber, Contract, ContractFactory, constants } from 'ethers'
 import { serialize } from '@ethersproject/transactions'
 import { ethers } from 'hardhat'
 import {
@@ -232,6 +232,53 @@ describe('Basic RPC tests', () => {
       })
 
       expect(res).to.eq(BigNumber.from(value))
+    })
+
+    // https://github.com/ethereum-optimism/optimism/issues/1998
+    it('should use address(0) as the default "from" value', async () => {
+      // Deploy a contract to check msg.caller
+      const Factory__ValueContext: ContractFactory =
+        await ethers.getContractFactory('ValueContext', wallet)
+      const ValueContext: Contract = await Factory__ValueContext.deploy()
+      await ValueContext.deployTransaction.wait()
+
+      // Do the call and check msg.sender
+      const data = ValueContext.interface.encodeFunctionData('getCaller')
+      const res = await provider.call({
+        to: ValueContext.address,
+        data,
+      })
+
+      const [paddedRes] = ValueContext.interface.decodeFunctionResult(
+        'getCaller',
+        res
+      )
+
+      expect(paddedRes).to.eq(constants.AddressZero)
+    })
+
+    it('should correctly use the "from" value', async () => {
+      // Deploy a contract to check msg.caller
+      const Factory__ValueContext: ContractFactory =
+        await ethers.getContractFactory('ValueContext', wallet)
+      const ValueContext: Contract = await Factory__ValueContext.deploy()
+      await ValueContext.deployTransaction.wait()
+
+      const from = wallet.address
+
+      // Do the call and check msg.sender
+      const data = ValueContext.interface.encodeFunctionData('getCaller')
+      const res = await provider.call({
+        to: ValueContext.address,
+        from,
+        data,
+      })
+
+      const [paddedRes] = ValueContext.interface.decodeFunctionResult(
+        'getCaller',
+        res
+      )
+      expect(paddedRes).to.eq(from)
     })
   })
 
