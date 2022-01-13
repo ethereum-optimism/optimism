@@ -18,23 +18,38 @@ import (
 	"github.com/ethereum/go-ethereum/event"
 )
 
-type blockAndReceipts struct {
-	// Track if we finished (with error or not). May increment >1 when other sub-tasks fail.
+const (
+	fetchBlockTimeout   = 10 * time.Second
+	fetchReceiptTimeout = 10 * time.Second
+	maxReceiptRetry     = 5
+
+	// 500 at 100 KB each would be 50 MB of memory for the L1 block inputs cache
+	cacheSize = 500
+
+	// Amount of receipt tasks to buffer before applying back-pressure (blocking new block-requests)
+	receiptQueueSize = 100
+)
+
+type downloadTask struct {
+	// Incremented when Finish is called, to check whether the task already completed (with or without error).
+	// May increment >1 when other sub-tasks fail.
+	//
 	// First field, aligned atomic changes.
 	finished uint32
 
-	// Count receipts to track status
-	// First field of struct for memory aligned atomic access
-	DownloadedReceipts uint32
+	// Count already downloaded receipts to track status
+	//
+	// Aligned after above field, atomic changes.
+	downloadedReceipts uint32
 
-	Block *types.Block
-	// allocated in advance, one for each transaction, nil until downloaded
-	Receipts []*types.Receipt
+	block *types.Block
+	// receipts slice is allocated in advance, one slot for each transaction, nil until downloaded
+	receipts []*types.Receipt
 
 	// stop fetching if this context is dead
 	ctx context.Context
 
-	// for other duplicate requests to get the result
+	// feed to subscribe the requests to (de-duplicate work)
 	feed event.Feed
 }
 
@@ -43,21 +58,21 @@ type wrappedErr struct {
 	error
 }
 
-func (bl *blockAndReceipts) Finish(err wrappedErr) {
+func (bl *downloadTask) Finish(err wrappedErr) {
 	if atomic.AddUint32(&bl.finished, 1) == 1 {
 		bl.feed.Send(err)
 	}
 }
 
 type receiptTask struct {
-	BlockHash common.Hash
-	TxHash    common.Hash
-	TxIndex   uint64
-	// Count the attempts we made to fetch this receipt. Block as a whole fails if we tried to many times.
-	Retry uint64
-	// Avoid concurrent Downloader cache access and pruning edge cases with receipts
-	// Keep a pointer to insert the receipt at
-	Dest *blockAndReceipts
+	blockHash common.Hash
+	txHash    common.Hash
+	txIndex   uint64
+	// Count the attempts we made to fetch this receipt. Block as a whole fails if we tried too many times.
+	retry uint64
+	// Avoid concurrent Downloader cache access and pruning edge cases with receipts.
+	// Keep a pointer to the parent task to insert the receipt into.
+	dest *downloadTask
 }
 
 type Downloader interface {
@@ -79,71 +94,70 @@ type downloader struct {
 	receiptWorkers     []ethereum.Subscription
 	receiptWorkersLock sync.Mutex
 
-	chr DownloadSource
+	src DownloadSource
 }
 
 var downloadEvictedErr = errors.New("evicted")
 
-func NewDownloader(chr DownloadSource) Downloader {
+func NewDownloader(dlSource DownloadSource) Downloader {
 	dl := &downloader{
-		receiptTasks: make(chan *receiptTask, 100),
-		chr:          chr,
+		receiptTasks: make(chan *receiptTask, receiptQueueSize),
+		src:          dlSource,
 	}
 	evict := func(k, v interface{}) {
 		// stop downloading things if they were evicted (already finished items are unaffected)
-		v.(*blockAndReceipts).Finish(wrappedErr{downloadEvictedErr})
+		v.(*downloadTask).Finish(wrappedErr{downloadEvictedErr})
 	}
-	// 500 at 100 KB each would be 50 MB of memory for the L1 block inputs cache
-	dl.cacheEvict, _ = lru.NewWithEvict(500, evict)
+	dl.cacheEvict, _ = lru.NewWithEvict(cacheSize, evict)
 	return dl
 }
 
-func (l1t *downloader) Fetch(ctx context.Context, id eth.BlockID) (*types.Block, []*types.Receipt, error) {
+func (dl *downloader) Fetch(ctx context.Context, id eth.BlockID) (*types.Block, []*types.Receipt, error) {
 	// check if we are already working on it
-	l1t.cacheLock.Lock()
+	dl.cacheLock.Lock()
 
-	var bnr *blockAndReceipts
-	if bnrIfc, ok := l1t.cacheEvict.Get(id.Hash); ok {
-		bnr = bnrIfc.(*blockAndReceipts)
-		l1t.cacheEvict.Add(id.Hash, bnr) // add it again, so it moves to the front and avoid eviction
+	var dlTask *downloadTask
+	if dlTaskIfc, ok := dl.cacheEvict.Get(id.Hash); ok {
+		dlTask = dlTaskIfc.(*downloadTask)
+		dl.cacheEvict.Add(id.Hash, dlTask) // add it again, so it moves to the front and avoid eviction
 	} else {
-		bnr = &blockAndReceipts{ctx: ctx}
-		l1t.cacheEvict.Add(id.Hash, bnr)
+		dlTask = &downloadTask{ctx: ctx}
+		dl.cacheEvict.Add(id.Hash, dlTask)
 
 		// pull the block in the background
 		go func() {
-			ctx, cancel := context.WithTimeout(ctx, time.Second*10)
+			ctx, cancel := context.WithTimeout(ctx, fetchBlockTimeout)
 			defer cancel()
-			bl, err := l1t.chr.BlockByHash(ctx, id.Hash)
+			bl, err := dl.src.BlockByHash(ctx, id.Hash)
 			if err != nil {
-				bnr.Finish(wrappedErr{fmt.Errorf("failed to download block %s: %v", id.Hash, err)})
+				dlTask.Finish(wrappedErr{fmt.Errorf("failed to download block %s: %v", id.Hash, err)})
 				return
 			}
 
 			txs := bl.Transactions()
-			bnr.Block = bl
-			bnr.Receipts = make([]*types.Receipt, len(txs))
+			dlTask.block = bl
+			dlTask.receipts = make([]*types.Receipt, len(txs))
 
 			for i, tx := range txs {
-				l1t.receiptTasks <- &receiptTask{BlockHash: id.Hash, TxHash: tx.Hash(), TxIndex: uint64(i), Dest: bnr}
+				dl.receiptTasks <- &receiptTask{blockHash: id.Hash, txHash: tx.Hash(), txIndex: uint64(i), dest: dlTask}
 			}
 
 			// no receipts to fetch? Then we are done!
 			if len(txs) == 0 {
-				bnr.Finish(wrappedErr{nil})
+				dlTask.Finish(wrappedErr{nil})
 			}
 		}()
 	}
-	l1t.cacheLock.Unlock()
+	dl.cacheLock.Unlock()
 
 	ch := make(chan wrappedErr)
-	sub := bnr.feed.Subscribe(ch)
+	sub := dlTask.feed.Subscribe(ch)
 	select {
 	case wErr := <-ch:
 		if wErr.error != nil {
 			return nil, nil, wErr.error
 		}
-		return bnr.Block, bnr.Receipts, nil
+		return dlTask.block, dlTask.receipts, nil
 	case err := <-sub.Err():
 		return nil, nil, err
 	case <-ctx.Done():
@@ -151,49 +165,51 @@ func (l1t *downloader) Fetch(ctx context.Context, id eth.BlockID) (*types.Block,
 	}
 }
 
-const maxReceiptRetry = 5
+func (dl *downloader) processTask(task *receiptTask) {
+	// scheduled tasks may be stale if other receipts of the block failed too many times
+	if task.dest.finished > 0 { // no need for locks, a very rare stale download does not hurt
+		return
+	}
+	// stop fetching when the task is cancelled or when the individual receipt times out
+	ctx, cancel := context.WithTimeout(task.dest.ctx, fetchReceiptTimeout)
+	defer cancel()
+	receipt, err := dl.src.TransactionReceipt(ctx, task.txHash)
+	if err != nil {
+		// if a single receipt fails out of the whole block, we can retry a few times.
+		if task.retry >= maxReceiptRetry {
+			// Failed to get the receipt too many times, block fails!
+			task.dest.Finish(wrappedErr{fmt.Errorf("failed to download receipt again, and reached max %d retries: %v", maxReceiptRetry, err)})
+			return
+		} else {
+			task.retry += 1
+			select {
+			case dl.receiptTasks <- task:
+				// all good, retry scheduled successfully
+				return
+			default:
+				// failed to schedule, too much receipt work, stop block to relieve pressure.
+				task.dest.Finish(wrappedErr{fmt.Errorf("receipt downloader too busy, not downloading receipt again (%d retries): %v", task.retry, err)})
+				return
+			}
+		}
+	}
+	task.dest.receipts[task.txIndex] = receipt
+	// We count the receipts we have so far (atomic, avoid parallel counting race condition)
+	total := atomic.AddUint32(&task.dest.downloadedReceipts, 1)
+	if total == uint32(len(task.dest.receipts)) {
+		// block completed without error!
+		task.dest.Finish(wrappedErr{nil})
+		return
+	}
+	// task completed, but no Finish call without other receipt tasks finishing first
+}
 
-func (l1t *downloader) newReceiptWorker() ethereum.Subscription {
+func (dl *downloader) newReceiptWorker() ethereum.Subscription {
 	return event.NewSubscription(func(quit <-chan struct{}) error {
 		for {
 			select {
-			case task := <-l1t.receiptTasks:
-				// scheduled tasks may be stale if other receipts of the block failed too many times
-				if task.Dest.finished > 0 { // no need for locks, a very rare stale download does not hurt
-					continue
-				}
-				// limit fetching to the task as a whole, and constrain to 10 seconds for receipt itself
-				ctx, cancel := context.WithTimeout(task.Dest.ctx, time.Second*10)
-				defer cancel()
-				receipt, err := l1t.chr.TransactionReceipt(ctx, task.TxHash)
-				if err != nil {
-					// if a single receipt fails out of the whole block, we can retry a few times.
-					if task.Retry >= maxReceiptRetry {
-						// Failed to get the receipt too many times, block fails!
-						task.Dest.Finish(wrappedErr{fmt.Errorf("failed to download receipt again, and reached max %d retries: %v", maxReceiptRetry, err)})
-						continue
-					} else {
-						task.Retry += 1
-						select {
-						case l1t.receiptTasks <- task:
-							// all good, retry scheduled successfully
-						default:
-							// failed to schedule, too much receipt work, stop block to relieve pressure.
-							task.Dest.Finish(wrappedErr{fmt.Errorf("receipt downloader too busy, not downloading receipt again (%d retries): %v", task.Retry, err)})
-							continue
-						}
-						continue
-					}
-				}
-				task.Dest.Receipts[task.TxIndex] = receipt
-				// We count the receipts we have so far (atomic, avoid parallel counting race condition)
-				total := atomic.AddUint32(&task.Dest.DownloadedReceipts, 1)
-				if total == uint32(len(task.Dest.Receipts)) {
-					// block completed without error!
-					task.Dest.Finish(wrappedErr{nil})
-					continue
-				}
-				// task completed, but block is not complete without other receipt tasks finishing first
+			case task := <-dl.receiptTasks:
+				dl.processTask(task)
 			case <-quit:
 				return nil
 			}
@@ -203,18 +219,18 @@ func (l1t *downloader) newReceiptWorker() ethereum.Subscription {
 
 // AddReceiptWorkers can add or remove (negative value) worker routines to parallelize receipt downloads with.
 // It returns the number of active workers.
-func (l1t *downloader) AddReceiptWorkers(n int) int {
-	l1t.receiptWorkersLock.Lock()
-	defer l1t.receiptWorkersLock.Unlock()
+func (dl *downloader) AddReceiptWorkers(n int) int {
+	dl.receiptWorkersLock.Lock()
+	defer dl.receiptWorkersLock.Unlock()
 	if n < 0 {
-		for i := 0; i < -n && len(l1t.receiptWorkers) > 0; i++ {
-			last := len(l1t.receiptWorkers) - 1
-			l1t.receiptWorkers[last].Unsubscribe()
-			l1t.receiptWorkers = l1t.receiptWorkers[:last]
+		for i := 0; i < -n && len(dl.receiptWorkers) > 0; i++ {
+			last := len(dl.receiptWorkers) - 1
+			dl.receiptWorkers[last].Unsubscribe()
+			dl.receiptWorkers = dl.receiptWorkers[:last]
 		}
 	}
 	for i := 0; i < n; i++ {
-		l1t.receiptWorkers = append(l1t.receiptWorkers, l1t.newReceiptWorker())
+		dl.receiptWorkers = append(dl.receiptWorkers, dl.newReceiptWorker())
 	}
-	return len(l1t.receiptWorkers)
+	return len(dl.receiptWorkers)
 }
