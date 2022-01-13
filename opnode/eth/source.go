@@ -10,6 +10,9 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 )
 
+// Source interfaces isolate individual ethereum.ChainReader methods,
+// and enable anonymous functions to implement them.
+
 type NewHeadSource interface {
 	SubscribeNewHead(ctx context.Context, ch chan<- *types.Header) (ethereum.Subscription, error)
 }
@@ -86,9 +89,10 @@ func (fn BlockByNumFn) BlockByNumber(ctx context.Context, number *big.Int) (*typ
 	return fn(ctx, number)
 }
 
-// CombinedL1Source balances multiple L1 sources, to shred concurrent requests to multiple endpoints
+// CombinedL1Source implements round-robin between multiple L1 sources,
+// to divide concurrent requests to multiple endpoints
 type CombinedL1Source struct {
-	i       uint64
+	i       uint32 // track the last used source
 	sources []L1Source
 }
 
@@ -99,12 +103,16 @@ func NewCombinedL1Source(sources []L1Source) L1Source {
 	return &CombinedL1Source{i: 0, sources: sources}
 }
 
+func (cs *CombinedL1Source) nextSource() L1Source {
+	return cs.sources[atomic.AddUint32(&cs.i, 1)%uint32(len(cs.sources))]
+}
+
 func (cs *CombinedL1Source) HeaderByHash(ctx context.Context, hash common.Hash) (*types.Header, error) {
-	return cs.sources[atomic.AddUint64(&cs.i, 1)%uint64(len(cs.sources))].HeaderByHash(ctx, hash)
+	return cs.nextSource().HeaderByHash(ctx, hash)
 }
 
 func (cs *CombinedL1Source) HeaderByNumber(ctx context.Context, number *big.Int) (*types.Header, error) {
-	return cs.sources[atomic.AddUint64(&cs.i, 1)%uint64(len(cs.sources))].HeaderByNumber(ctx, number)
+	return cs.nextSource().HeaderByNumber(ctx, number)
 }
 
 func (cs *CombinedL1Source) SubscribeNewHead(ctx context.Context, ch chan<- *types.Header) (ethereum.Subscription, error) {
@@ -113,11 +121,11 @@ func (cs *CombinedL1Source) SubscribeNewHead(ctx context.Context, ch chan<- *typ
 }
 
 func (cs *CombinedL1Source) TransactionReceipt(ctx context.Context, txHash common.Hash) (*types.Receipt, error) {
-	return cs.sources[atomic.AddUint64(&cs.i, 1)%uint64(len(cs.sources))].TransactionReceipt(ctx, txHash)
+	return cs.nextSource().TransactionReceipt(ctx, txHash)
 }
 
 func (cs *CombinedL1Source) BlockByHash(ctx context.Context, hash common.Hash) (*types.Block, error) {
-	return cs.sources[atomic.AddUint64(&cs.i, 1)%uint64(len(cs.sources))].BlockByHash(ctx, hash)
+	return cs.nextSource().BlockByHash(ctx, hash)
 }
 
 func (cs *CombinedL1Source) Close() {

@@ -12,6 +12,7 @@ type BlockLinkByNumber interface {
 	BlockLinkByNumber(ctx context.Context, num uint64) (self BlockID, parent BlockID, err error)
 }
 
+// BlockLinkByNumberFn implements BlockLinkByNumber to implement the interface as anonymous function
 type BlockLinkByNumberFn func(ctx context.Context, num uint64) (self BlockID, parent BlockID, err error)
 
 func (fn BlockLinkByNumberFn) BlockLinkByNumber(ctx context.Context, num uint64) (self BlockID, parent BlockID, err error) {

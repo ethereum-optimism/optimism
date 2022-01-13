@@ -13,10 +13,10 @@ type HeadSignal struct {
 	Self   BlockID
 }
 
-// HeadSignalFn is called to inform a chain with a new head
+// HeadSignalFn is used as callback function to accept head-signals
 type HeadSignalFn func(sig HeadSignal)
 
-// WatchHeadChanges wraps a new-head subscription from ChainReader to feed the given Tracker
+// WatchHeadChanges wraps a new-head subscription from NewHeadSource to feed the given Tracker
 func WatchHeadChanges(ctx context.Context, src NewHeadSource, fn HeadSignalFn) (ethereum.Subscription, error) {
 	headChanges := make(chan *types.Header, 10)
 	sub, err := src.SubscribeNewHead(ctx, headChanges)
