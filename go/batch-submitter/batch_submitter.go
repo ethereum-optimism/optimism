@@ -186,6 +186,7 @@ func NewBatchSubmitter(cfg Config, gitVersion string) (*BatchSubmitter, error) {
 			Context:         ctx,
 			Driver:          batchTxDriver,
 			PollInterval:    cfg.PollInterval,
+			ClearPendingTx:  cfg.ClearPendingTxs,
 			L1Client:        l1Client,
 			TxManagerConfig: txManagerConfig,
 		})
@@ -212,6 +213,7 @@ func NewBatchSubmitter(cfg Config, gitVersion string) (*BatchSubmitter, error) {
 			Context:         ctx,
 			Driver:          batchStateDriver,
 			PollInterval:    cfg.PollInterval,
+			ClearPendingTx:  cfg.ClearPendingTxs,
 			L1Client:        l1Client,
 			TxManagerConfig: txManagerConfig,
 		})

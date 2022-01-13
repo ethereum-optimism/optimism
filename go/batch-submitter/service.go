@@ -32,6 +32,11 @@ type Driver interface {
 	// Metrics returns the subservice telemetry object.
 	Metrics() *metrics.Metrics
 
+	// ClearPendingTx a publishes a transaction at the next available nonce in
+	// order to clear any transactions in the mempool left over from a prior
+	// running instance of the batch submitter.
+	ClearPendingTx(context.Context, txmgr.TxManager, *ethclient.Client) error
+
 	// GetBatchBlockRange returns the start and end L2 block heights that
 	// need to be processed. Note that the end value is *exclusive*,
 	// therefore if the returned values are identical nothing needs to be
@@ -51,6 +56,7 @@ type ServiceConfig struct {
 	Context         context.Context
 	Driver          Driver
 	PollInterval    time.Duration
+	ClearPendingTx  bool
 	L1Client        *ethclient.Client
 	TxManagerConfig txmgr.Config
 }
@@ -98,6 +104,19 @@ func (s *Service) eventLoop() {
 	defer s.wg.Done()
 
 	name := s.cfg.Driver.Name()
+
+	if s.cfg.ClearPendingTx {
+		const maxClearRetries = 3
+		for i := 0; i < maxClearRetries; i++ {
+			err := s.cfg.Driver.ClearPendingTx(s.ctx, s.txMgr, s.cfg.L1Client)
+			if err == nil {
+				break
+			} else if i < maxClearRetries-1 {
+				continue
+			}
+			log.Crit("Unable to confirm a clearing transaction", "err", err)
+		}
+	}
 
 	for {
 		select {

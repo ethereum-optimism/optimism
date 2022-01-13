@@ -9,7 +9,9 @@ import (
 
 	"github.com/ethereum-optimism/optimism/go/batch-submitter/bindings/ctc"
 	"github.com/ethereum-optimism/optimism/go/batch-submitter/bindings/scc"
+	"github.com/ethereum-optimism/optimism/go/batch-submitter/drivers"
 	"github.com/ethereum-optimism/optimism/go/batch-submitter/metrics"
+	"github.com/ethereum-optimism/optimism/go/batch-submitter/txmgr"
 	l2ethclient "github.com/ethereum-optimism/optimism/l2geth/ethclient"
 	"github.com/ethereum-optimism/optimism/l2geth/log"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
@@ -83,6 +85,21 @@ func (d *Driver) WalletAddr() common.Address {
 // Metrics returns the subservice telemetry object.
 func (d *Driver) Metrics() *metrics.Metrics {
 	return d.metrics
+}
+
+// ClearPendingTx a publishes a transaction at the next available nonce in order
+// to clear any transactions in the mempool left over from a prior running
+// instance of the batch submitter.
+func (d *Driver) ClearPendingTx(
+	ctx context.Context,
+	txMgr txmgr.TxManager,
+	l1Client *ethclient.Client,
+) error {
+
+	return drivers.ClearPendingTx(
+		d.cfg.Name, ctx, txMgr, l1Client, d.walletAddr, d.cfg.PrivKey,
+		d.cfg.ChainID,
+	)
 }
 
 // GetBatchBlockRange returns the start and end L2 block heights that need to be
