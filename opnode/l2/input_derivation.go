@@ -44,7 +44,7 @@ func UnmarshalLogEvent(blockNum uint64, txIndex uint64, ev *types.Log) (*types.D
 	if ev.Topics[0] != DepositEventABIHash {
 		return nil, fmt.Errorf("invalid deposit event selector: %s, expected %s", ev.Topics[0], DepositEventABIHash)
 	}
-	if len(ev.Data) < 7*32 {
+	if len(ev.Data) < 6*32 {
 		return nil, fmt.Errorf("deposit event data too small (%d bytes): %x", len(ev.Data), ev.Data)
 	}
 
