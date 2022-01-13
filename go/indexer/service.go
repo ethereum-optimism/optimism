@@ -178,7 +178,6 @@ func (s *Service) fetchBlockEventIterator(start, end uint64) (
 	var err error
 	for retry := 0; retry < NUM_RETRIES; retry++ {
 		ctxt, cancel := context.WithTimeout(s.ctx, DefaultConnectionTimeout)
-		defer cancel()
 
 		var iter *ctc.CanonicalTransactionChainTransactionEnqueuedIterator
 		iter, err = s.contract.FilterTransactionEnqueued(&bind.FilterOpts{
@@ -189,8 +188,10 @@ func (s *Service) fetchBlockEventIterator(start, end uint64) (
 		if err != nil {
 			fmt.Printf("Unable to query events for block range start=%d, end=%d; error=%v\n",
 				start, end, err)
+			cancel()
 			continue
 		}
+		cancel()
 		return iter, nil
 	}
 	return nil, err
