@@ -3,12 +3,12 @@ package indexer
 import (
 	"context"
 	"errors"
-	"fmt"
 	"math/big"
 	"sync"
 	"time"
 
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/log"
 )
 
 const (
@@ -44,7 +44,7 @@ func (f *ConfirmedHeaderSelector) NewHead(
 	number := header.Number.Uint64()
 	blockHash := header.Hash()
 
-	fmt.Printf("🎁 New block=%d hash=%s\n", number, blockHash)
+	log.Info("New block", "block", number, "hash", blockHash)
 
 	if number < f.cfg.ConfDepth {
 		return nil
@@ -53,7 +53,7 @@ func (f *ConfirmedHeaderSelector) NewHead(
 
 	minNextHeight := lowest + f.cfg.ConfDepth
 	if minNextHeight > number {
-		fmt.Printf("    🌵 Fork block=%d hash=%s\n", number, blockHash)
+		log.Info("Fork block=%d hash=%s", number, blockHash)
 		return nil
 	}
 	startHeight := lowest + 1
@@ -65,8 +65,8 @@ func (f *ConfirmedHeaderSelector) NewHead(
 
 	nHeaders := endHeight - startHeight + 1
 	if nHeaders > 1 {
-		fmt.Printf("    🏗  Loading block batch start=%d end=%d\n",
-			startHeight, endHeight)
+		log.Info("Loading block batch ",
+			"startHeight", startHeight, "endHeight", endHeight)
 	}
 
 	headers := make([]*types.Header, nHeaders)
@@ -83,8 +83,7 @@ func (f *ConfirmedHeaderSelector) NewHead(
 			bigHeight := new(big.Int).SetUint64(height)
 			header, err := backend.HeaderByNumber(ctxt, bigHeight)
 			if err != nil {
-				fmt.Printf("    ❌ Unable to load block=%d err=%v\n",
-					height, err)
+				log.Error("Unable to load block ", "block", height, "err", err)
 				return
 			}
 
@@ -93,8 +92,8 @@ func (f *ConfirmedHeaderSelector) NewHead(
 	}
 	wg.Wait()
 
-	fmt.Printf("    🔍 Verifying block range start=%d end=%d\n",
-		startHeight, endHeight)
+	log.Info("Verifying block range ",
+		"startHeight", startHeight, "endHeight", endHeight)
 
 	for i, header := range headers {
 		// Trim the returned headers if any of the lookups failed.
@@ -108,22 +107,23 @@ func (f *ConfirmedHeaderSelector) NewHead(
 		if i > 0 {
 			prevHeader := headers[i-1]
 			if prevHeader.Hash() != header.ParentHash {
-				fmt.Printf("    ⚠️  Parent hash of block=%d hash=%s does not "+
-					"connect to block=%d hash=%s", header.Number.Uint64(),
-					header.Hash(), prevHeader.Number.Uint64(), prevHeader.Hash())
+				log.Error("Parent hash does not connect to ",
+					"block", header.Number.Uint64, "hash", header.Hash(),
+					"prev", prevHeader.Number.Uint64(), "hash", prevHeader.Hash())
 				headers = headers[:i]
 				break
 			}
 		}
 
-		fmt.Printf("    ✅ Confirmed block=%d hash=%s\n",
-			header.Number.Uint64(), header.Hash())
+		log.Info("Confirmed block ",
+			"block", header.Number.Uint64(), "hash", header.Hash())
 	}
 
 	return headers
 }
 
-func NewConfirmedHeaderSelector(cfg HeaderSelectorConfig) (*ConfirmedHeaderSelector, error) {
+func NewConfirmedHeaderSelector(cfg HeaderSelectorConfig) (*ConfirmedHeaderSelector,
+	error) {
 	if cfg.ConfDepth == 0 {
 		return nil, errors.New("ConfDepth must be greater than zero")
 	}

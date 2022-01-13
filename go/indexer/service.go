@@ -147,7 +147,7 @@ func (s *Service) Loop(ctx context.Context) {
 	newHeads := make(chan *types.Header, 1000)
 	subscription, err := s.backend.SubscribeNewHead(s.ctx, newHeads)
 	if err != nil {
-		fmt.Print("unable to subscribe to new heads: %v\n", err)
+		log.Error("unable to subscribe to new heads ", "err", err)
 		s.Stop()
 		return
 	}
@@ -161,7 +161,7 @@ func (s *Service) Loop(ctx context.Context) {
 			for {
 				err := s.Update(start, header)
 				if err != nil && err != errNoNewBlocks {
-					fmt.Printf("Unable to update indexer: %v\n", err)
+					log.Error("Unable to update indexer ", "err", err)
 				}
 				break
 			}
@@ -186,8 +186,8 @@ func (s *Service) fetchBlockEventIterator(start, end uint64) (
 			Context: ctxt,
 		}, nil, nil, nil)
 		if err != nil {
-			fmt.Printf("Unable to query events for block range start=%d, end=%d; error=%v\n",
-				start, end, err)
+			log.Error("Unable to query events for block range ",
+				"start", start, "end", end, "error", err)
 			cancel()
 			continue
 		}
@@ -216,17 +216,16 @@ func (s *Service) Update(start uint64, newHeader *types.Header) error {
 	}
 
 	if lowest.Number+1 != headers[0].Number.Uint64() {
-		fmt.Printf("Block number of block=%d hash=%s does not "+
-			"immediately follow lowest block=%d hash=%s\n",
-			headers[0].Number.Uint64(), headers[0].Hash(),
-			lowest.Number, lowest.Hash)
+		log.Error("Block number does not immediately follow ",
+			"block", headers[0].Number.Uint64(), "hash", headers[0].Hash(),
+			"lowest_block", lowest.Number, "hash", lowest.Hash)
 		return nil
 	}
 
 	if lowest.Hash != headers[0].ParentHash {
-		fmt.Printf("Parent hash of block=%d hash=%s does not "+
-			"connect to lowest block=%d hash=%s\n", headers[0].Number.Uint64(),
-			headers[0].Hash(), lowest.Number, lowest.Hash)
+		log.Error("Parent hash does not connect to ",
+			"block", headers[0].Number.Uint64(), "hash",
+			"lowest_block", lowest.Number, "hash", lowest.Hash)
 		return nil
 	}
 
@@ -269,17 +268,17 @@ func (s *Service) Update(start uint64, newHeader *types.Header) error {
 
 		err := s.cfg.DB.AddIndexedBlock(block)
 		if err != nil {
-			fmt.Printf("Unable to import block=%d hash=%s err=%v "+
-				"block: %v\n", number, blockHash, err, block)
+			log.Error("Unable to import ",
+				"block", number, "hash", blockHash, "err", err, "block", block)
 			return err
 		}
 
-		fmt.Printf("Import block=%d hash=%s with %d deposits\n",
-			number, blockHash, len(block.Deposits))
+		log.Info("Imported ",
+			"block", number, "hash", blockHash, "deposits", len(block.Deposits))
 		for _, deposit := range block.Deposits {
-			fmt.Printf("Deposit: l1_tx_origin=%s target=%s "+
-				"gas_limit=%d queue_index=%d\n", deposit.L1TxOrigin,
-				deposit.Target, deposit.GasLimit, deposit.QueueIndex)
+			log.Info("Indexed deposit ",
+				"l1_tx_origin", deposit.L1TxOrigin, "target", deposit.Target,
+				"gas_limit", deposit.GasLimit, "queue_index", deposit.QueueIndex)
 		}
 	}
 
