@@ -40,11 +40,11 @@ func (h *LatestBlockHead) Start() error {
 		for {
 			select {
 			case <-ticker.C:
-				log.Trace("polling block head")
 				blockNum, err := h.getBlockNum()
 				if err != nil {
-					log.Error("failed to retrieve block head", "error", err)
+					log.Error("error retrieving latest block number", "error", err)
 				}
+				log.Trace("polling block number", "blockNum", blockNum)
 				h.mutex.Lock()
 				h.blockNum = blockNum
 				h.mutex.Unlock()
@@ -78,7 +78,9 @@ func (h *LatestBlockHead) getBlockNum() (uint64, error) {
 
 		httpRes, httpErr := h.client.Do(httpReq)
 		if httpErr != nil {
-			time.Sleep(calcBackoff(i))
+			backoff := calcBackoff(i)
+			log.Warn("http operation failed. retrying...", "error", err, "backoff", backoff)
+			time.Sleep(backoff)
 			continue
 		}
 		if httpRes.StatusCode != 200 {
