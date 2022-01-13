@@ -94,6 +94,7 @@ type syncStartTestCase struct {
 	ActualL1 string
 
 	GenesisL2 rune
+	GenesisL1 rune
 
 	ExpectedNextRefL1 rune
 	ExpectedRefL2     rune
@@ -112,7 +113,7 @@ func (c *syncStartTestCase) Run(t *testing.T) {
 	}
 
 	genesis := &Genesis{
-		L1: actL1[0],
+		L1: mockID(c.GenesisL1, c.OffsetL2),
 		L2: mockID(c.GenesisL2, 0),
 	}
 
@@ -157,6 +158,7 @@ func TestFindSyncStart(t *testing.T) {
 			EngineL1:          "ab",
 			EngineL2:          "AB",
 			ActualL1:          "abc",
+			GenesisL1:         'a',
 			GenesisL2:         'A',
 			ExpectedNextRefL1: 'c',
 			ExpectedRefL2:     'B',
@@ -168,6 +170,7 @@ func TestFindSyncStart(t *testing.T) {
 			EngineL1:          "ab",
 			EngineL2:          "AB",
 			ActualL1:          "abcdef",
+			GenesisL1:         'a',
 			GenesisL2:         'A',
 			ExpectedNextRefL1: 'c',
 			ExpectedRefL2:     'B',
@@ -179,6 +182,7 @@ func TestFindSyncStart(t *testing.T) {
 			EngineL1:          "abcde",
 			EngineL2:          "ABCDE",
 			ActualL1:          "abcde",
+			GenesisL1:         'a',
 			GenesisL2:         'A',
 			ExpectedNextRefL1: 'e',
 			ExpectedRefL2:     'D',
@@ -190,6 +194,7 @@ func TestFindSyncStart(t *testing.T) {
 			EngineL1:          "a",
 			EngineL2:          "A",
 			ActualL1:          "a",
+			GenesisL1:         'a',
 			GenesisL2:         'A',
 			ExpectedNextRefL1: 'a',
 			ExpectedRefL2:     0, // actual zero hash before genesis hash
@@ -201,6 +206,7 @@ func TestFindSyncStart(t *testing.T) {
 			EngineL1:          "abc",
 			EngineL2:          "ABC",
 			ActualL1:          "axy",
+			GenesisL1:         'a',
 			GenesisL2:         'A',
 			ExpectedNextRefL1: 'x',
 			ExpectedRefL2:     'A',
@@ -212,6 +218,7 @@ func TestFindSyncStart(t *testing.T) {
 			EngineL1:          "abcd",
 			EngineL2:          "ABCD",
 			ActualL1:          "abcx",
+			GenesisL1:         'a',
 			GenesisL2:         'A',
 			ExpectedNextRefL1: 'x',
 			ExpectedRefL2:     'C',
@@ -223,6 +230,7 @@ func TestFindSyncStart(t *testing.T) {
 			EngineL1:          "abcdef",
 			EngineL2:          "ABCDEF",
 			ActualL1:          "abc",
+			GenesisL1:         'a',
 			GenesisL2:         'A',
 			ExpectedNextRefL1: 0,
 			ExpectedRefL2:     0,
@@ -234,6 +242,7 @@ func TestFindSyncStart(t *testing.T) {
 			EngineL1:          "abcdef",
 			EngineL2:          "ABCDEF",
 			ActualL1:          "abcx",
+			GenesisL1:         'a',
 			GenesisL2:         'A',
 			ExpectedNextRefL1: 'x',
 			ExpectedRefL2:     'C',
@@ -245,6 +254,7 @@ func TestFindSyncStart(t *testing.T) {
 			EngineL1:          "abcdef",
 			EngineL2:          "ABCDEF",
 			ActualL1:          "xyz",
+			GenesisL1:         'a',
 			GenesisL2:         'A',
 			ExpectedNextRefL1: 0,
 			ExpectedRefL2:     0,
@@ -256,6 +266,7 @@ func TestFindSyncStart(t *testing.T) {
 			EngineL1:          "abcdef",
 			EngineL2:          "ABCDEF",
 			ActualL1:          "xyz",
+			GenesisL1:         'a',
 			GenesisL2:         'X',
 			ExpectedNextRefL1: 0,
 			ExpectedRefL2:     0,

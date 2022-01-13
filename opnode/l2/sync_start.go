@@ -104,6 +104,7 @@ func FindSyncStart(ctx context.Context, reference SyncReference, genesis *Genesi
 	}
 	if currentL1 != genesis.L1 {
 		err = fmt.Errorf("unexpected L1 anchor block: %s, expected %s, %w", currentL1, genesis.L1, WrongChainErr)
+		return
 	}
 	// we got the correct genesis, all good, but a lot to sync!
 	return
