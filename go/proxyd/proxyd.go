@@ -1,6 +1,7 @@
 package proxyd
 
 import (
+	"context"
 	"crypto/tls"
 	"errors"
 	"fmt"
@@ -165,7 +166,21 @@ func Start(config *Config) error {
 			log.Warn("redis is not configured, using in-memory cache")
 			cache = newMemoryCache()
 		}
-		rpcCache = newRPCCache(cache)
+
+		var getLatestBlockNumFn GetLatestBlockNumFn
+		if config.Cache.BlockSyncWSURL == "" {
+			return fmt.Errorf("block sync node required for caching")
+		}
+		latestHead := newLatestBlockHead(config.Cache.BlockSyncWSURL)
+		if err := latestHead.Start(); err != nil {
+			return err
+		}
+		defer latestHead.Stop()
+
+		getLatestBlockNumFn = func(ctx context.Context) (uint64, error) {
+			return latestHead.GetBlockNum(), nil
+		}
+		rpcCache = newRPCCache(cache, getLatestBlockNumFn)
 	}
 
 	srv := NewServer(
