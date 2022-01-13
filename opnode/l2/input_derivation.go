@@ -92,12 +92,19 @@ func UnmarshalLogEvent(blockNum uint64, txIndex uint64, ev *types.Log) (*types.D
 	var dataLen uint256.Int
 	dataLen.SetBytes(ev.Data[offset : offset+32])
 	offset += 32
-	if !dataLen.IsUint64() || dataLen.Uint64() != uint64(len(ev.Data))-offset {
-		return nil, fmt.Errorf("inconsistent data length: %s, expected %d", dataLen.String(), uint64(len(ev.Data))-offset)
+
+	if !dataLen.IsUint64() {
+		return nil, fmt.Errorf("data too large: %s", dataLen.String())
+	}
+	// The data may be padded to a multiple of 32 bytes
+	maxExpectedLen := uint64(len(ev.Data)) - offset
+	dataLenU64 := dataLen.Uint64()
+	if dataLenU64 > maxExpectedLen {
+		return nil, fmt.Errorf("data length too long: %d, expected max %d", dataLenU64, maxExpectedLen)
 	}
 
 	// remaining bytes fill the data
-	dep.Data = ev.Data[offset:]
+	dep.Data = ev.Data[offset : offset+dataLenU64]
 
 	return &dep, nil
 }

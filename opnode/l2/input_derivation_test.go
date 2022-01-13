@@ -87,6 +87,9 @@ func GenerateDepositLog(deposit *types.DepositTx) *types.Log {
 	offset += 32
 	binary.BigEndian.PutUint64(data[offset+24:offset+32], uint64(len(deposit.Data)))
 	data = append(data, deposit.Data...)
+	if len(data)%32 != 0 { // pad to multiple of 32
+		data = append(data, make([]byte, 32-(len(data)%32))...)
+	}
 
 	return GenerateLog(DepositContractAddr, topics, data)
 }
