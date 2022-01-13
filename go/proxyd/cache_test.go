@@ -380,7 +380,7 @@ func TestRPCCacheEthGetBlockRangeInvalidRequest(t *testing.T) {
 		},
 	}
 
-	for _, rpc := range rpcs[1:] {
+	for _, rpc := range rpcs {
 		t.Run(rpc.name, func(t *testing.T) {
 			err := cache.PutRPC(ctx, rpc.req, rpc.res)
 			require.Error(t, err)
