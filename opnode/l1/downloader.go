@@ -53,6 +53,8 @@ type downloadTask struct {
 
 	// stop fetching if this context is dead
 	ctx context.Context
+	// to free up resources (e.g. ongoing receipt tasks) if a downloadTask finishes prematurely
+	cancel context.CancelFunc
 
 	// feed to subscribe the requests to (de-duplicate work)
 	feed event.Feed
@@ -112,6 +114,7 @@ func NewDownloader(dlSource DownloadSource) Downloader {
 	evict := func(k, v interface{}) {
 		// stop downloading things if they were evicted (already finished items are unaffected)
 		v.(*downloadTask).Finish(wrappedErr{DownloadEvictedErr})
+		v.(*downloadTask).cancel()
 	}
 	dl.cacheEvict, _ = lru.NewWithEvict(cacheSize, evict)
 	return dl
@@ -130,7 +133,8 @@ func (dl *downloader) Fetch(ctx context.Context, id eth.BlockID) (*types.Block, 
 		dlTask = dlTaskIfc.(*downloadTask)
 		dl.cacheEvict.Add(id.Hash, dlTask) // add it again, so it moves to the front and avoid eviction
 	} else {
-		dlTask = &downloadTask{ctx: ctx}
+		ctx, cancel := context.WithCancel(ctx)
+		dlTask = &downloadTask{ctx: ctx, cancel: cancel}
 		dl.cacheEvict.Add(id.Hash, dlTask)
 
 		// pull the block in the background
