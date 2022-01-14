@@ -1,3 +1,5 @@
+[![codecov](https://codecov.io/gh/ethereum-optimism/optimistic-specs/branch/main/graph/badge.svg?token=19JPIN9XPB)](https://codecov.io/gh/ethereum-optimism/optimistic-specs)
+
 # The Optimism Spec
 
 This repository holds the work-in-progress specification for the next version of

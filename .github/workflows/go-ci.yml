@@ -25,5 +25,7 @@ jobs:
           skip-go-installation: true
           # rules: https://golangci-lint.run/usage/quick-start/
           args: -E asciicheck,goimports
-      - name: Test
-        run: go test ./...
+      - name: Test and generate coverage
+        run: go test -coverprofile=coverage.out -covermode=atomic ./...
+      - name: Upload coverage output
+        uses: codecov/codecov-action@v2
