@@ -63,7 +63,7 @@ func (h *LatestBlockHead) Start() {
 
 func (h *LatestBlockHead) getBlockNum() (uint64, error) {
 	const maxRetries = 5
-	var httpErr error
+	var err error
 
 	for i := 0; i <= maxRetries; i++ {
 		blockNum, err := h.client.BlockNumber(context.Background())
@@ -76,7 +76,7 @@ func (h *LatestBlockHead) getBlockNum() (uint64, error) {
 		return blockNum, nil
 	}
 
-	return 0, wrapErr(httpErr, "exceeded retries")
+	return 0, wrapErr(err, "exceeded retries")
 }
 
 func (h *LatestBlockHead) Stop() {
