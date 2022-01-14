@@ -43,12 +43,23 @@ type Driver interface {
 	// processed.
 	GetBatchBlockRange(ctx context.Context) (*big.Int, *big.Int, error)
 
-	// SubmitBatchTx transforms the L2 blocks between start and end into a
-	// batch transaction using the given nonce and gasPrice. The final
-	// transaction is published and returned to the call.
+	// CraftBatchTx transforms the L2 blocks between start and end into a batch
+	// transaction using the given nonce. A dummy gas price is used in the
+	// resulting transaction to use for size estimation.
+	//
+	// NOTE: This method SHOULD NOT publish the resulting transaction.
+	CraftBatchTx(
+		ctx context.Context,
+		start, end, nonce *big.Int,
+	) (*types.Transaction, error)
+
+	// SubmitBatchTx using the passed transaction as a template, signs and
+	// publishes an otherwise identical transaction after setting the provided
+	// gas price. The final transaction is returned to the caller.
 	SubmitBatchTx(
 		ctx context.Context,
-		start, end, nonce, gasPrice *big.Int,
+		tx *types.Transaction,
+		gasPrice *big.Int,
 	) (*types.Transaction, error)
 }
 
@@ -160,6 +171,15 @@ func (s *Service) eventLoop() {
 			}
 			nonce := new(big.Int).SetUint64(nonce64)
 
+			tx, err := s.cfg.Driver.CraftBatchTx(
+				s.ctx, start, end, nonce,
+			)
+			if err != nil {
+				log.Error(name+" unable to craft batch tx",
+					"err", err)
+				continue
+			}
+
 			// Construct the transaction submission clousure that will attempt
 			// to send the next transaction at the given nonce and gas price.
 			sendTx := func(
@@ -170,9 +190,7 @@ func (s *Service) eventLoop() {
 					"end", end, "nonce", nonce,
 					"gasPrice", gasPrice)
 
-				tx, err := s.cfg.Driver.SubmitBatchTx(
-					ctx, start, end, nonce, gasPrice,
-				)
+				tx, err := s.cfg.Driver.SubmitBatchTx(ctx, tx, gasPrice)
 				if err != nil {
 					return nil, err
 				}
