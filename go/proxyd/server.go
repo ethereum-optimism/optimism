@@ -34,6 +34,7 @@ type Server struct {
 	upgrader           *websocket.Upgrader
 	rpcServer          *http.Server
 	wsServer           *http.Server
+	cache              RPCCache
 }
 
 func NewServer(
@@ -43,7 +44,11 @@ func NewServer(
 	rpcMethodMappings map[string]string,
 	maxBodySize int64,
 	authenticatedPaths map[string]string,
+	cache RPCCache,
 ) *Server {
+	if cache == nil {
+		cache = &NoopRPCCache{}
+	}
 	return &Server{
 		backendGroups:      backendGroups,
 		wsBackendGroup:     wsBackendGroup,
@@ -51,6 +56,7 @@ func NewServer(
 		rpcMethodMappings:  rpcMethodMappings,
 		maxBodySize:        maxBodySize,
 		authenticatedPaths: authenticatedPaths,
+		cache:              cache,
 		upgrader: &websocket.Upgrader{
 			HandshakeTimeout: 5 * time.Second,
 		},
@@ -141,7 +147,21 @@ func (s *Server) HandleRPC(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	backendRes, err := s.backendGroups[group].Forward(ctx, req)
+	var backendRes *RPCRes
+	backendRes, err = s.cache.GetRPC(ctx, req)
+	if err == nil && backendRes != nil {
+		writeRPCRes(ctx, w, backendRes)
+		return
+	}
+	if err != nil {
+		log.Warn(
+			"cache lookup error",
+			"req_id", GetReqID(ctx),
+			"err", err,
+		)
+	}
+
+	backendRes, err = s.backendGroups[group].Forward(ctx, req)
 	if err != nil {
 		log.Error(
 			"error forwarding RPC request",
@@ -151,6 +171,16 @@ func (s *Server) HandleRPC(w http.ResponseWriter, r *http.Request) {
 		)
 		writeRPCError(ctx, w, req.ID, err)
 		return
+	}
+
+	if backendRes.Error == nil {
+		if err = s.cache.PutRPC(ctx, req, backendRes); err != nil {
+			log.Warn(
+				"cache put error",
+				"req_id", GetReqID(ctx),
+				"err", err,
+			)
+		}
 	}
 
 	writeRPCRes(ctx, w, backendRes)
@@ -317,4 +347,14 @@ func (w *recordLenWriter) Write(p []byte) (n int, err error) {
 	n, err = w.Writer.Write(p)
 	w.Len += n
 	return
+}
+
+type NoopRPCCache struct{}
+
+func (n *NoopRPCCache) GetRPC(context.Context, *RPCReq) (*RPCRes, error) {
+	return nil, nil
+}
+
+func (n *NoopRPCCache) PutRPC(context.Context, *RPCReq, *RPCRes) error {
+	return nil
 }
