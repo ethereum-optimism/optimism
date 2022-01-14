@@ -171,6 +171,7 @@ func (s *Service) eventLoop() {
 			}
 			nonce := new(big.Int).SetUint64(nonce64)
 
+			batchTxBuildStart := time.Now()
 			tx, err := s.cfg.Driver.CraftBatchTx(
 				s.ctx, start, end, nonce,
 			)
@@ -179,6 +180,8 @@ func (s *Service) eventLoop() {
 					"err", err)
 				continue
 			}
+			batchTxBuildTime := time.Since(batchTxBuildStart) / time.Millisecond
+			s.metrics.BatchTxBuildTime.Set(float64(batchTxBuildTime))
 
 			// Construct the transaction submission clousure that will attempt
 			// to send the next transaction at the given nonce and gas price.

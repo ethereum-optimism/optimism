@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"math/big"
 	"strings"
-	"time"
 
 	"github.com/ethereum-optimism/optimism/go/batch-submitter/bindings/ctc"
 	"github.com/ethereum-optimism/optimism/go/batch-submitter/bindings/scc"
@@ -167,8 +166,6 @@ func (d *Driver) CraftBatchTx(
 	log.Info(name+" crafting batch tx", "start", start, "end", end,
 		"nonce", nonce)
 
-	batchTxBuildStart := time.Now()
-
 	var (
 		stateRoots         [][stateRootSize]byte
 		totalStateRootSize uint64
@@ -188,8 +185,6 @@ func (d *Driver) CraftBatchTx(
 		stateRoots = append(stateRoots, block.Root())
 	}
 
-	batchTxBuildTime := float64(time.Since(batchTxBuildStart) / time.Millisecond)
-	d.metrics.BatchTxBuildTime.Set(batchTxBuildTime)
 	d.metrics.NumElementsPerBatch.Observe(float64(len(stateRoots)))
 
 	log.Info(name+" batch constructed", "num_state_roots", len(stateRoots))
