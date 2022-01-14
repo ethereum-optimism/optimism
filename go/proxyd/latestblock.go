@@ -66,7 +66,8 @@ func (h *LatestBlockHead) getBlockNum() (uint64, error) {
 	var err error
 
 	for i := 0; i <= maxRetries; i++ {
-		blockNum, err := h.client.BlockNumber(context.Background())
+		var blockNum uint64
+		blockNum, err = h.client.BlockNumber(context.Background())
 		if err != nil {
 			backoff := calcBackoff(i)
 			log.Warn("http operation failed. retrying...", "error", err, "backoff", backoff)
