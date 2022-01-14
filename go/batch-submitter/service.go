@@ -1,6 +1,7 @@
 package batchsubmitter
 
 import (
+	"bytes"
 	"context"
 	"math/big"
 	"sync"
@@ -183,6 +184,14 @@ func (s *Service) eventLoop() {
 			batchTxBuildTime := time.Since(batchTxBuildStart) / time.Millisecond
 			s.metrics.BatchTxBuildTime.Set(float64(batchTxBuildTime))
 
+			// Record the size of the batch transaction.
+			var txBuf bytes.Buffer
+			if err := tx.EncodeRLP(&txBuf); err != nil {
+				log.Error(name+" unable to encode batch tx", "err", err)
+				continue
+			}
+			s.metrics.BatchSizeInBytes.Observe(float64(len(txBuf.Bytes())))
+
 			// Construct the transaction submission clousure that will attempt
 			// to send the next transaction at the given nonce and gas price.
 			sendTx := func(
@@ -206,8 +215,6 @@ func (s *Service) eventLoop() {
 					"tx_hash", tx.Hash(),
 					"gasPrice", gasPrice,
 				)
-
-				s.metrics.BatchSizeInBytes.Observe(float64(tx.Size()))
 
 				return tx, nil
 			}
