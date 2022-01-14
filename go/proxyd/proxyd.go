@@ -171,10 +171,11 @@ func Start(config *Config) error {
 		if config.Cache.BlockSyncRPCURL == "" {
 			return fmt.Errorf("block sync node required for caching")
 		}
-		latestHead := newLatestBlockHead(config.Cache.BlockSyncRPCURL)
-		if err := latestHead.Start(); err != nil {
+		latestHead, err := newLatestBlockHead(config.Cache.BlockSyncRPCURL)
+		if err != nil {
 			return err
 		}
+		latestHead.Start()
 		defer latestHead.Stop()
 
 		getLatestBlockNumFn = func(ctx context.Context) (uint64, error) {
