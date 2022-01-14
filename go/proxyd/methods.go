@@ -130,6 +130,22 @@ func (e *EthGetBlockRangeMethod) RequiresUnconfirmedBlocks(ctx context.Context, 
 	return false, nil
 }
 
+type EthGasPriceMethod struct {
+	getLatestBlockNumFn GetLatestBlockNumFn
+}
+
+func (e *EthGasPriceMethod) CacheKey(key *RPCReq) string {
+	return fmt.Sprintf("method:%s", "eth_gasPrice")
+}
+
+func (e *EthGasPriceMethod) IsCacheable(req *RPCReq) (bool, error) {
+	return true, nil
+}
+
+func (e *EthGasPriceMethod) RequiresUnconfirmedBlocks(ctx context.Context, req *RPCReq) (bool, error) {
+	return false, nil
+}
+
 func isBlockDependentParam(s string) bool {
 	return s == "latest" || s == "pending"
 }

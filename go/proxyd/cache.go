@@ -3,6 +3,7 @@ package proxyd
 import (
 	"context"
 	"encoding/json"
+	"time"
 
 	"github.com/go-redis/redis/v8"
 	"github.com/golang/snappy"
@@ -89,6 +90,24 @@ type rpcCache struct {
 	handlers            map[string]RPCMethodHandler
 }
 
+type CachedRPC struct {
+	BlockNum uint64  `json:"blockNum"`
+	Res      *RPCRes `json:"res"`
+	TTL      int64   `json:"ttl"`
+}
+
+func (c *CachedRPC) Encode() []byte {
+	return mustMarshalJSON(c)
+}
+
+func (c *CachedRPC) Decode(b []byte) error {
+	return json.Unmarshal(b, c)
+}
+
+func (c *CachedRPC) Expiration() time.Time {
+	return time.Unix(0, c.TTL*int64(time.Millisecond))
+}
+
 func newRPCCache(cache Cache, getLatestBlockNumFn GetLatestBlockNumFn) RPCCache {
 	handlers := map[string]RPCMethodHandler{
 		"eth_chainId":          &StaticRPCMethodHandler{"eth_chainId"},
@@ -127,14 +146,36 @@ func (c *rpcCache) GetRPC(ctx context.Context, req *RPCReq) (*RPCRes, error) {
 		return nil, err
 	}
 
-	RecordCacheHit(req.Method)
-	res := new(RPCRes)
-	err = json.Unmarshal(val, res)
+	item := new(CachedRPC)
+	if err := json.Unmarshal(val, item); err != nil {
+		return nil, err
+	}
+	expired := item.Expiration().After(time.Now())
+	curBlockNum, err := c.getLatestBlockNumFn(ctx)
 	if err != nil {
 		return nil, err
 	}
+	if curBlockNum > item.BlockNum && expired {
+		// TODO: what to do with expired items? Ideally they shouldn't count towards recency
+		return nil, nil
+	} else if curBlockNum < item.BlockNum { // reorg?
+		return nil, nil
+	}
+
+	RecordCacheHit(req.Method)
+	res := item.Res
 	res.ID = req.ID
 	return res, nil
+
+	/*
+		res := new(RPCRes)
+		err = json.Unmarshal(val, res)
+		if err != nil {
+			return nil, err
+		}
+		res.ID = req.ID
+		return res, nil
+	*/
 }
 
 func (c *rpcCache) PutRPC(ctx context.Context, req *RPCReq, res *RPCRes) error {
@@ -157,8 +198,15 @@ func (c *rpcCache) PutRPC(ctx context.Context, req *RPCReq, res *RPCRes) error {
 		return nil
 	}
 
+	blockNum, err := c.getLatestBlockNumFn(ctx)
+	if err != nil {
+		return err
+	}
 	key := handler.CacheKey(req)
-	val := mustMarshalJSON(res)
+	item := CachedRPC{BlockNum: blockNum, Res: res, TTL: time.Now().UnixNano() / int64(time.Millisecond)}
+	val := item.Encode()
+
+	//val := mustMarshalJSON(res)
 	encodedVal := snappy.Encode(nil, val)
 	return c.cache.Put(ctx, key, string(encodedVal))
 }
