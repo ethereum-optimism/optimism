@@ -5,7 +5,7 @@ import (
 	"crypto/ecdsa"
 	"fmt"
 	"math/big"
-	"time"
+	"strings"
 
 	"github.com/ethereum-optimism/optimism/go/batch-submitter/bindings/ctc"
 	"github.com/ethereum-optimism/optimism/go/batch-submitter/bindings/scc"
@@ -14,6 +14,8 @@ import (
 	"github.com/ethereum-optimism/optimism/go/batch-submitter/txmgr"
 	l2ethclient "github.com/ethereum-optimism/optimism/l2geth/ethclient"
 	"github.com/ethereum-optimism/optimism/l2geth/log"
+	"github.com/ethereum-optimism/optimism/l2geth/params"
+	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -39,11 +41,12 @@ type Config struct {
 }
 
 type Driver struct {
-	cfg         Config
-	sccContract *scc.StateCommitmentChain
-	ctcContract *ctc.CanonicalTransactionChain
-	walletAddr  common.Address
-	metrics     *metrics.Metrics
+	cfg            Config
+	sccContract    *scc.StateCommitmentChain
+	rawSccContract *bind.BoundContract
+	ctcContract    *ctc.CanonicalTransactionChain
+	walletAddr     common.Address
+	metrics        *metrics.Metrics
 }
 
 func NewDriver(cfg Config) (*Driver, error) {
@@ -61,14 +64,26 @@ func NewDriver(cfg Config) (*Driver, error) {
 		return nil, err
 	}
 
+	parsed, err := abi.JSON(strings.NewReader(
+		scc.StateCommitmentChainABI,
+	))
+	if err != nil {
+		return nil, err
+	}
+
+	rawSccContract := bind.NewBoundContract(
+		cfg.SCCAddr, parsed, cfg.L1Client, cfg.L1Client, cfg.L1Client,
+	)
+
 	walletAddr := crypto.PubkeyToAddress(cfg.PrivKey.PublicKey)
 
 	return &Driver{
-		cfg:         cfg,
-		sccContract: sccContract,
-		ctcContract: ctcContract,
-		walletAddr:  walletAddr,
-		metrics:     metrics.NewMetrics(cfg.Name),
+		cfg:            cfg,
+		sccContract:    sccContract,
+		rawSccContract: rawSccContract,
+		ctcContract:    ctcContract,
+		walletAddr:     walletAddr,
+		metrics:        metrics.NewMetrics(cfg.Name),
 	}, nil
 }
 
@@ -136,16 +151,20 @@ func (d *Driver) GetBatchBlockRange(
 	return start, end, nil
 }
 
-// SubmitBatchTx transforms the L2 blocks between start and end into a batch
-// transaction using the given nonce and gasPrice. The final transaction is
-// published and returned to the call.
-func (d *Driver) SubmitBatchTx(
+// CraftBatchTx transforms the L2 blocks between start and end into a batch
+// transaction using the given nonce. A dummy gas price is used in the resulting
+// transaction to use for size estimation.
+//
+// NOTE: This method SHOULD NOT publish the resulting transaction.
+func (d *Driver) CraftBatchTx(
 	ctx context.Context,
-	start, end, nonce, gasPrice *big.Int) (*types.Transaction, error) {
+	start, end, nonce *big.Int,
+) (*types.Transaction, error) {
 
 	name := d.cfg.Name
 
-	batchTxBuildStart := time.Now()
+	log.Info(name+" crafting batch tx", "start", start, "end", end,
+		"nonce", nonce)
 
 	var (
 		stateRoots         [][stateRootSize]byte
@@ -166,8 +185,6 @@ func (d *Driver) SubmitBatchTx(
 		stateRoots = append(stateRoots, block.Root())
 	}
 
-	batchTxBuildTime := float64(time.Since(batchTxBuildStart) / time.Millisecond)
-	d.metrics.BatchTxBuildTime.Set(batchTxBuildTime)
 	d.metrics.NumElementsPerBatch.Observe(float64(len(stateRoots)))
 
 	log.Info(name+" batch constructed", "num_state_roots", len(stateRoots))
@@ -178,12 +195,35 @@ func (d *Driver) SubmitBatchTx(
 	if err != nil {
 		return nil, err
 	}
-	opts.Nonce = nonce
 	opts.Context = ctx
-	opts.GasPrice = gasPrice
+	opts.Nonce = nonce
+	opts.GasPrice = big.NewInt(params.GWei) // dummy
+	opts.NoSend = true
 
 	blockOffset := new(big.Int).SetUint64(d.cfg.BlockOffset)
 	offsetStartsAtIndex := new(big.Int).Sub(start, blockOffset)
 
 	return d.sccContract.AppendStateBatch(opts, stateRoots, offsetStartsAtIndex)
+}
+
+// SubmitBatchTx using the passed transaction as a template, signs and publishes
+// an otherwise identical transaction after setting the provided gas price. The
+// final transaction is returned to the caller.
+func (d *Driver) SubmitBatchTx(
+	ctx context.Context,
+	tx *types.Transaction,
+	gasPrice *big.Int,
+) (*types.Transaction, error) {
+
+	opts, err := bind.NewKeyedTransactorWithChainID(
+		d.cfg.PrivKey, d.cfg.ChainID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	opts.Context = ctx
+	opts.Nonce = new(big.Int).SetUint64(tx.Nonce())
+	opts.GasPrice = gasPrice
+
+	return d.rawSccContract.RawTransact(opts, tx.Data())
 }

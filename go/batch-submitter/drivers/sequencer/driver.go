@@ -6,13 +6,13 @@ import (
 	"fmt"
 	"math/big"
 	"strings"
-	"time"
 
 	"github.com/ethereum-optimism/optimism/go/batch-submitter/bindings/ctc"
 	"github.com/ethereum-optimism/optimism/go/batch-submitter/drivers"
 	"github.com/ethereum-optimism/optimism/go/batch-submitter/metrics"
 	"github.com/ethereum-optimism/optimism/go/batch-submitter/txmgr"
 	l2ethclient "github.com/ethereum-optimism/optimism/l2geth/ethclient"
+	"github.com/ethereum-optimism/optimism/l2geth/params"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
@@ -148,19 +148,20 @@ func (d *Driver) GetBatchBlockRange(
 	return start, end, nil
 }
 
-// SubmitBatchTx transforms the L2 blocks between start and end into a batch
-// transaction using the given nonce and gasPrice. The final transaction is
-// published and returned to the call.
-func (d *Driver) SubmitBatchTx(
+// CraftBatchTx transforms the L2 blocks between start and end into a batch
+// transaction using the given nonce. A dummy gas price is used in the resulting
+// transaction to use for size estimation.
+//
+// NOTE: This method SHOULD NOT publish the resulting transaction.
+func (d *Driver) CraftBatchTx(
 	ctx context.Context,
-	start, end, nonce, gasPrice *big.Int) (*types.Transaction, error) {
+	start, end, nonce *big.Int,
+) (*types.Transaction, error) {
 
 	name := d.cfg.Name
 
-	log.Info(name+" submitting batch tx", "start", start, "end", end,
-		"gasPrice", gasPrice)
-
-	batchTxBuildStart := time.Now()
+	log.Info(name+" crafting batch tx", "start", start, "end", end,
+		"nonce", nonce)
 
 	var (
 		batchElements []BatchElement
@@ -219,9 +220,6 @@ func (d *Driver) SubmitBatchTx(
 			continue
 		}
 
-		// Record the batch_tx_build_time.
-		batchTxBuildTime := float64(time.Since(batchTxBuildStart) / time.Millisecond)
-		d.metrics.BatchTxBuildTime.Set(batchTxBuildTime)
 		d.metrics.NumElementsPerBatch.Observe(float64(len(batchElements)))
 		d.metrics.BatchPruneCount.Set(float64(pruneCount))
 
@@ -233,10 +231,33 @@ func (d *Driver) SubmitBatchTx(
 		if err != nil {
 			return nil, err
 		}
-		opts.Nonce = nonce
 		opts.Context = ctx
-		opts.GasPrice = gasPrice
+		opts.Nonce = nonce
+		opts.GasPrice = big.NewInt(params.GWei) // dummy
+		opts.NoSend = true
 
 		return d.rawCtcContract.RawTransact(opts, batchCallData)
 	}
+}
+
+// SubmitBatchTx using the passed transaction as a template, signs and publishes
+// an otherwise identical transaction after setting the provided gas price. The
+// final transaction is returned to the caller.
+func (d *Driver) SubmitBatchTx(
+	ctx context.Context,
+	tx *types.Transaction,
+	gasPrice *big.Int,
+) (*types.Transaction, error) {
+
+	opts, err := bind.NewKeyedTransactorWithChainID(
+		d.cfg.PrivKey, d.cfg.ChainID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	opts.Context = ctx
+	opts.Nonce = new(big.Int).SetUint64(tx.Nonce())
+	opts.GasPrice = gasPrice
+
+	return d.rawCtcContract.RawTransact(opts, tx.Data())
 }

@@ -1,6 +1,7 @@
 package batchsubmitter
 
 import (
+	"bytes"
 	"context"
 	"math/big"
 	"sync"
@@ -43,12 +44,23 @@ type Driver interface {
 	// processed.
 	GetBatchBlockRange(ctx context.Context) (*big.Int, *big.Int, error)
 
-	// SubmitBatchTx transforms the L2 blocks between start and end into a
-	// batch transaction using the given nonce and gasPrice. The final
-	// transaction is published and returned to the call.
+	// CraftBatchTx transforms the L2 blocks between start and end into a batch
+	// transaction using the given nonce. A dummy gas price is used in the
+	// resulting transaction to use for size estimation.
+	//
+	// NOTE: This method SHOULD NOT publish the resulting transaction.
+	CraftBatchTx(
+		ctx context.Context,
+		start, end, nonce *big.Int,
+	) (*types.Transaction, error)
+
+	// SubmitBatchTx using the passed transaction as a template, signs and
+	// publishes an otherwise identical transaction after setting the provided
+	// gas price. The final transaction is returned to the caller.
 	SubmitBatchTx(
 		ctx context.Context,
-		start, end, nonce, gasPrice *big.Int,
+		tx *types.Transaction,
+		gasPrice *big.Int,
 	) (*types.Transaction, error)
 }
 
@@ -160,6 +172,26 @@ func (s *Service) eventLoop() {
 			}
 			nonce := new(big.Int).SetUint64(nonce64)
 
+			batchTxBuildStart := time.Now()
+			tx, err := s.cfg.Driver.CraftBatchTx(
+				s.ctx, start, end, nonce,
+			)
+			if err != nil {
+				log.Error(name+" unable to craft batch tx",
+					"err", err)
+				continue
+			}
+			batchTxBuildTime := time.Since(batchTxBuildStart) / time.Millisecond
+			s.metrics.BatchTxBuildTime.Set(float64(batchTxBuildTime))
+
+			// Record the size of the batch transaction.
+			var txBuf bytes.Buffer
+			if err := tx.EncodeRLP(&txBuf); err != nil {
+				log.Error(name+" unable to encode batch tx", "err", err)
+				continue
+			}
+			s.metrics.BatchSizeInBytes.Observe(float64(len(txBuf.Bytes())))
+
 			// Construct the transaction submission clousure that will attempt
 			// to send the next transaction at the given nonce and gas price.
 			sendTx := func(
@@ -170,9 +202,7 @@ func (s *Service) eventLoop() {
 					"end", end, "nonce", nonce,
 					"gasPrice", gasPrice)
 
-				tx, err := s.cfg.Driver.SubmitBatchTx(
-					ctx, start, end, nonce, gasPrice,
-				)
+				tx, err := s.cfg.Driver.SubmitBatchTx(ctx, tx, gasPrice)
 				if err != nil {
 					return nil, err
 				}
@@ -185,8 +215,6 @@ func (s *Service) eventLoop() {
 					"tx_hash", tx.Hash(),
 					"gasPrice", gasPrice,
 				)
-
-				s.metrics.BatchSizeInBytes.Observe(float64(tx.Size()))
 
 				return tx, nil
 			}
