@@ -1,0 +1,29 @@
+name: Go lint and test
+
+on:
+  push:
+    branches:
+      - 'main'
+      - 'staging'
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install Go
+        uses: actions/setup-go@v2
+        with:
+          go-version: ${{ matrix.go-version }}
+      - name: Checkout code
+        uses: actions/checkout@v2
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v2
+        with:
+          version: v1.43.0  # version of golangci-lint, not the action
+          skip-go-installation: true
+          # rules: https://golangci-lint.run/usage/quick-start/
+          args: -E asciicheck,goimports
+      - name: Test
+        run: go test ./...
