@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/ecdsa"
 	"fmt"
-	"math/big"
 	"net/http"
 	"os"
 	"strconv"
@@ -13,6 +12,7 @@ import (
 	"github.com/ethereum-optimism/optimism/go/batch-submitter/drivers/proposer"
 	"github.com/ethereum-optimism/optimism/go/batch-submitter/drivers/sequencer"
 	"github.com/ethereum-optimism/optimism/go/batch-submitter/txmgr"
+	"github.com/ethereum-optimism/optimism/go/batch-submitter/utils"
 	l2ethclient "github.com/ethereum-optimism/optimism/l2geth/ethclient"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -159,9 +159,9 @@ func NewBatchSubmitter(cfg Config, gitVersion string) (*BatchSubmitter, error) {
 	}
 
 	txManagerConfig := txmgr.Config{
-		MinGasPrice:          gasPriceFromGwei(1),
-		MaxGasPrice:          gasPriceFromGwei(cfg.MaxGasPriceInGwei),
-		GasRetryIncrement:    gasPriceFromGwei(cfg.GasRetryIncrement),
+		MinGasPrice:          utils.GasPriceFromGwei(1),
+		MaxGasPrice:          utils.GasPriceFromGwei(cfg.MaxGasPriceInGwei),
+		GasRetryIncrement:    utils.GasPriceFromGwei(cfg.GasRetryIncrement),
 		ResubmissionTimeout:  cfg.ResubmissionTimeout,
 		ReceiptQueryInterval: time.Second,
 	}
@@ -186,6 +186,7 @@ func NewBatchSubmitter(cfg Config, gitVersion string) (*BatchSubmitter, error) {
 			Context:         ctx,
 			Driver:          batchTxDriver,
 			PollInterval:    cfg.PollInterval,
+			ClearPendingTx:  cfg.ClearPendingTxs,
 			L1Client:        l1Client,
 			TxManagerConfig: txManagerConfig,
 		})
@@ -212,6 +213,7 @@ func NewBatchSubmitter(cfg Config, gitVersion string) (*BatchSubmitter, error) {
 			Context:         ctx,
 			Driver:          batchStateDriver,
 			PollInterval:    cfg.PollInterval,
+			ClearPendingTx:  cfg.ClearPendingTxs,
 			L1Client:        l1Client,
 			TxManagerConfig: txManagerConfig,
 		})
@@ -332,8 +334,4 @@ func traceRateToFloat64(rate time.Duration) float64 {
 		rate64 = 1.0
 	}
 	return rate64
-}
-
-func gasPriceFromGwei(gasPriceInGwei uint64) *big.Int {
-	return new(big.Int).SetUint64(gasPriceInGwei * 1e9)
 }
