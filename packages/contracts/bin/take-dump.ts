@@ -63,6 +63,8 @@ import { makeL2GenesisFile } from '../src/make-genesis'
   const l1FeeWalletAddress = env.L1_FEE_WALLET_ADDRESS
   // The L1 cross domain messenger address, used for cross domain messaging
   const l1CrossDomainMessengerAddress = env.L1_CROSS_DOMAIN_MESSENGER_ADDRESS
+  // The block height at which the berlin hardfork activates
+  const berlinBlock = parseInt(env.BERLIN_BLOCK, 10) || 0
 
   ensure(whitelistOwner, 'WHITELIST_OWNER')
   ensure(gasPriceOracleOwner, 'GAS_PRICE_ORACLE_OWNER')
@@ -72,6 +74,7 @@ import { makeL2GenesisFile } from '../src/make-genesis'
   ensure(l1StandardBridgeAddress, 'L1_STANDARD_BRIDGE_ADDRESS')
   ensure(l1FeeWalletAddress, 'L1_FEE_WALLET_ADDRESS')
   ensure(l1CrossDomainMessengerAddress, 'L1_CROSS_DOMAIN_MESSENGER_ADDRESS')
+  ensure(berlinBlock, 'BERLIN_BLOCK')
 
   // Basic warning so users know that the whitelist will be disabled if the owner is the zero address.
   if (env.WHITELIST_OWNER === '0x' + '00'.repeat(20)) {
@@ -94,6 +97,7 @@ import { makeL2GenesisFile } from '../src/make-genesis'
     l1StandardBridgeAddress,
     l1FeeWalletAddress,
     l1CrossDomainMessengerAddress,
+    berlinBlock,
   })
 
   fs.writeFileSync(outfile, JSON.stringify(genesis, null, 4))
