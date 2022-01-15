@@ -4,7 +4,7 @@ ARG GITCOMMIT=docker
 ARG GITDATE=docker
 ARG GITVERSION=docker
 
-RUN apk add make jq git
+RUN apk add make jq git gcc musl-dev linux-headers
 
 WORKDIR /app
 COPY ./go/proxyd /app
