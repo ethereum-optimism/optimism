@@ -1,4 +1,4 @@
-const { DockerComposeNetwork } = require('./shared/docker-compose')
+import { DockerComposeNetwork } from './shared/docker-compose'
 
 before(async () => {
   if (!process.env.NO_NETWORK) {
