@@ -9,6 +9,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
@@ -109,7 +110,12 @@ func Start(config *Config) (func(), error) {
 			opts = append(opts, WithStrippedTrailingXFF())
 		}
 		opts = append(opts, WithProxydIP(os.Getenv("PROXYD_IP")))
-		back := NewBackend(name, rpcURL, wsURL, lim, opts...)
+		back, err := NewBackend(name, rpcURL, wsURL, lim, opts...)
+		if err != nil {
+			return err
+		}
+		back.Start()
+		defer back.Stop()
 		backendNames = append(backendNames, name)
 		backendsByName[name] = back
 		log.Info("configured backend", "name", name, "rpc_url", rpcURL, "ws_url", wsURL)
@@ -163,7 +169,6 @@ func Start(config *Config) (func(), error) {
 	}
 
 	var rpcCache RPCCache
-	var latestHead *LatestBlockHead
 	if config.Cache.Enabled {
 		var getLatestBlockNumFn GetLatestBlockNumFn
 		if config.Cache.BlockSyncRPCURL == "" {
@@ -184,16 +189,18 @@ func Start(config *Config) (func(), error) {
 			cache = newMemoryCache()
 		}
 
-		latestHead, err = newLatestBlockHead(blockSyncRPCURL)
+		if config.Cache.BlockSyncRPCURL == "" {
+			return fmt.Errorf("block sync node config is required for caching")
+		}
+		ethClient, err := ethclient.Dial(config.Cache.BlockSyncRPCURL)
 		if err != nil {
 			return nil, err
 		}
-		latestHead.Start()
-
-		getLatestBlockNumFn = func(ctx context.Context) (uint64, error) {
-			return latestHead.GetBlockNum(), nil
-		}
-		rpcCache = newRPCCache(cache, getLatestBlockNumFn)
+		lvcCtx, lvcCancel := context.WithCancel(context.Background())
+		defer lvcCancel()
+		blockNumFn := makeGetLatestBlockNumFn(ethClient, lvcCtx.Done())
+		gasPriceFn := makeGetLatestGasPriceFn(ethClient, lvcCtx.Done())
+		rpcCache = newRPCCache(cache, blockNumFn, gasPriceFn)
 	}
 
 	srv := NewServer(
@@ -246,9 +253,7 @@ func Start(config *Config) (func(), error) {
 
 	return func() {
 		log.Info("shutting down proxyd")
-		if latestHead != nil {
-			latestHead.Stop()
-		}
+        // TODO(inphi): Stop LVCs here
 		srv.Shutdown()
 		if err := lim.FlushBackendWSConns(backendNames); err != nil {
 			log.Error("error flushing backend ws conns", "err", err)
@@ -280,4 +285,40 @@ func configureBackendTLS(cfg *BackendConfig) (*tls.Config, error) {
 	}
 
 	return tlsConfig, nil
+}
+
+func makeGetLatestBlockNumFn(client *ethclient.Client, quit <-chan struct{}) GetLatestBlockNumFn {
+	lvc := newLVC(client, func(ctx context.Context, c *ethclient.Client) (interface{}, error) {
+		return c.BlockNumber(ctx)
+	})
+	lvc.Start()
+	go func() {
+		<-quit
+		lvc.Stop()
+	}()
+	return func(ctx context.Context) (uint64, error) {
+		value := lvc.Read()
+		if value == nil {
+			return 0, fmt.Errorf("block number is unavailable")
+		}
+		return value.(uint64), nil
+	}
+}
+
+func makeGetLatestGasPriceFn(client *ethclient.Client, quit <-chan struct{}) GetLatestGasPriceFn {
+	lvc := newLVC(client, func(ctx context.Context, c *ethclient.Client) (interface{}, error) {
+		return c.SuggestGasPrice(ctx)
+	})
+	lvc.Start()
+	go func() {
+		<-lvc.quit
+		lvc.Stop()
+	}()
+	return func(ctx context.Context) (uint64, error) {
+		value := lvc.Read()
+		if value == nil {
+			return 0, fmt.Errorf("gas price is unavailable")
+		}
+		return value.(uint64), nil
+	}
 }

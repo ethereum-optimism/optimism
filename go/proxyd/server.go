@@ -218,7 +218,9 @@ func (s *Server) handleSingleRPC(ctx context.Context, req *RPCReq) *RPCRes {
 		return backendRes
 	}
 
-	backendRes, err = s.backendGroups[group].Forward(ctx, req)
+	// NOTE: We call into the specific backend here to ensure that the RPCRes is synchronized with the blockNum.
+	var blockNum uint64
+	backendRes, blockNum, err = s.backendGroups[group].Forward(ctx, req)
 	if err != nil {
 		log.Error(
 			"error forwarding RPC request",
@@ -230,7 +232,7 @@ func (s *Server) handleSingleRPC(ctx context.Context, req *RPCReq) *RPCRes {
 	}
 
 	if backendRes.Error == nil {
-		if err = s.cache.PutRPC(ctx, req, backendRes); err != nil {
+		if err = s.cache.PutRPC(ctx, req, backendRes, blockNum); err != nil {
 			log.Warn(
 				"cache put error",
 				"req_id", GetReqID(ctx),
@@ -425,6 +427,6 @@ func (n *NoopRPCCache) GetRPC(context.Context, *RPCReq) (*RPCRes, error) {
 	return nil, nil
 }
 
-func (n *NoopRPCCache) PutRPC(context.Context, *RPCReq, *RPCRes) error {
+func (n *NoopRPCCache) PutRPC(context.Context, *RPCReq, *RPCRes, uint64) error {
 	return nil
 }

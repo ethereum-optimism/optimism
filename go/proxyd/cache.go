@@ -2,23 +2,21 @@ package proxyd
 
 import (
 	"context"
-	"encoding/json"
 	"time"
 
 	"github.com/go-redis/redis/v8"
-	"github.com/golang/snappy"
 	lru "github.com/hashicorp/golang-lru"
 )
 
 type Cache interface {
 	Get(ctx context.Context, key string) (string, error)
-	Put(ctx context.Context, key string, value string) error
+	Put(ctx context.Context, key string, value string, ttl time.Duration) error
+	Remove(ctx context.Context, key string) error
 }
 
-// assuming an average RPCRes size of 3 KB
 const (
-	memoryCacheLimit      = 4096
-	numBlockConfirmations = 50
+	// assuming an average RPCRes size of 3 KB
+	memoryCacheLimit = 4096
 )
 
 type cache struct {
@@ -37,8 +35,13 @@ func (c *cache) Get(ctx context.Context, key string) (string, error) {
 	return "", nil
 }
 
-func (c *cache) Put(ctx context.Context, key string, value string) error {
+func (c *cache) Put(ctx context.Context, key string, value string, ttl time.Duration) error {
 	c.lru.Add(key, value)
+	return nil
+}
+
+func (c *cache) Remove(ctx context.Context, key string) error {
+	c.lru.Remove(key)
 	return nil
 }
 
@@ -69,7 +72,7 @@ func (c *redisCache) Get(ctx context.Context, key string) (string, error) {
 	return val, nil
 }
 
-func (c *redisCache) Put(ctx context.Context, key string, value string) error {
+func (c *redisCache) Put(ctx context.Context, key string, value string, ttl time.Duration) error {
 	err := c.rdb.Set(ctx, key, value, 0).Err()
 	if err != nil {
 		RecordRedisError("CacheSet")
@@ -77,45 +80,44 @@ func (c *redisCache) Put(ctx context.Context, key string, value string) error {
 	return err
 }
 
+func (c *redisCache) Remove(ctx context.Context, key string) error {
+	err := c.rdb.Del(ctx, key).Err()
+	return err
+}
+
 type GetLatestBlockNumFn func(ctx context.Context) (uint64, error)
+type GetLatestGasPriceFn func(ctx context.Context) (uint64, error)
 
 type RPCCache interface {
 	GetRPC(ctx context.Context, req *RPCReq) (*RPCRes, error)
-	PutRPC(ctx context.Context, req *RPCReq, res *RPCRes) error
+
+	// The blockNumberSync is used to enforce Sequential Consistency. We make the following assumptions to do this:
+	// 1. No Reorgs. Reoorgs are handled by the Cache during retrieval
+	// 2. The backend yields synchronized block numbers and RPC Responses.
+	// 2. No backend failover. If there's a failover then we may desync as we use a different backend
+	// that doesn't have our block.
+	PutRPC(ctx context.Context, req *RPCReq, res *RPCRes, blockNumberSync uint64) error
 }
 
 type rpcCache struct {
-	cache               Cache
-	getLatestBlockNumFn GetLatestBlockNumFn
-	handlers            map[string]RPCMethodHandler
+	cache    Cache
+	handlers map[string]RPCMethodHandler
 }
 
-type CachedRPC struct {
-	BlockNum uint64  `json:"blockNum"`
-	Res      *RPCRes `json:"res"`
-	TTL      int64   `json:"ttl"`
-}
-
-func (c *CachedRPC) Encode() []byte {
-	return mustMarshalJSON(c)
-}
-
-func (c *CachedRPC) Decode(b []byte) error {
-	return json.Unmarshal(b, c)
-}
-
-func (c *CachedRPC) Expiration() time.Time {
-	return time.Unix(0, c.TTL*int64(time.Millisecond))
-}
-
-func newRPCCache(cache Cache, getLatestBlockNumFn GetLatestBlockNumFn) RPCCache {
+func newRPCCache(cache Cache, getLatestBlockNumFn GetLatestBlockNumFn, getLatestGasPriceFn GetLatestGasPriceFn) RPCCache {
 	handlers := map[string]RPCMethodHandler{
-		"eth_chainId":          &StaticRPCMethodHandler{"eth_chainId"},
-		"net_version":          &StaticRPCMethodHandler{"net_version"},
-		"eth_getBlockByNumber": &EthGetBlockByNumberMethod{getLatestBlockNumFn},
-		"eth_getBlockRange":    &EthGetBlockRangeMethod{getLatestBlockNumFn},
+		"eth_chainId":          &StaticMethodHandler{},
+		"net_version":          &StaticMethodHandler{},
+		"eth_getBlockByNumber": &EthGetBlockByNumberMethodHandler{cache, getLatestBlockNumFn},
+		"eth_getBlockRange":    &EthGetBlockRangeMethodHandler{cache, getLatestBlockNumFn},
+		"eth_blockNumber":      &EthBlockNumberMethodHandler{getLatestBlockNumFn},
+		"eth_gasPrice":         &EthGasPriceMethodHandler{getLatestGasPriceFn},
+		"eth_call":             &EthCallMethodHandler{cache, getLatestBlockNumFn},
 	}
-	return &rpcCache{cache: cache, getLatestBlockNumFn: getLatestBlockNumFn, handlers: handlers}
+	return &rpcCache{
+		cache:    cache,
+		handlers: handlers,
+	}
 }
 
 func (c *rpcCache) GetRPC(ctx context.Context, req *RPCReq) (*RPCRes, error) {
@@ -123,90 +125,13 @@ func (c *rpcCache) GetRPC(ctx context.Context, req *RPCReq) (*RPCRes, error) {
 	if handler == nil {
 		return nil, nil
 	}
-	cacheable, err := handler.IsCacheable(req)
-	if err != nil {
-		return nil, err
-	}
-	if !cacheable {
-		RecordCacheMiss(req.Method)
-		return nil, nil
-	}
-
-	key := handler.CacheKey(req)
-	encodedVal, err := c.cache.Get(ctx, key)
-	if err != nil {
-		return nil, err
-	}
-	if encodedVal == "" {
-		RecordCacheMiss(req.Method)
-		return nil, nil
-	}
-	val, err := snappy.Decode(nil, []byte(encodedVal))
-	if err != nil {
-		return nil, err
-	}
-
-	item := new(CachedRPC)
-	if err := json.Unmarshal(val, item); err != nil {
-		return nil, err
-	}
-	expired := item.Expiration().After(time.Now())
-	curBlockNum, err := c.getLatestBlockNumFn(ctx)
-	if err != nil {
-		return nil, err
-	}
-	if curBlockNum > item.BlockNum && expired {
-		// TODO: what to do with expired items? Ideally they shouldn't count towards recency
-		return nil, nil
-	} else if curBlockNum < item.BlockNum { // reorg?
-		return nil, nil
-	}
-
-	RecordCacheHit(req.Method)
-	res := item.Res
-	res.ID = req.ID
-	return res, nil
-
-	/*
-		res := new(RPCRes)
-		err = json.Unmarshal(val, res)
-		if err != nil {
-			return nil, err
-		}
-		res.ID = req.ID
-		return res, nil
-	*/
+	return handler.GetRPCMethod(ctx, req)
 }
 
-func (c *rpcCache) PutRPC(ctx context.Context, req *RPCReq, res *RPCRes) error {
+func (c *rpcCache) PutRPC(ctx context.Context, req *RPCReq, res *RPCRes, blockNumberSync uint64) error {
 	handler := c.handlers[req.Method]
 	if handler == nil {
 		return nil
 	}
-	cacheable, err := handler.IsCacheable(req)
-	if err != nil {
-		return err
-	}
-	if !cacheable {
-		return nil
-	}
-	requiresConfirmations, err := handler.RequiresUnconfirmedBlocks(ctx, req)
-	if err != nil {
-		return err
-	}
-	if requiresConfirmations {
-		return nil
-	}
-
-	blockNum, err := c.getLatestBlockNumFn(ctx)
-	if err != nil {
-		return err
-	}
-	key := handler.CacheKey(req)
-	item := CachedRPC{BlockNum: blockNum, Res: res, TTL: time.Now().UnixNano() / int64(time.Millisecond)}
-	val := item.Encode()
-
-	//val := mustMarshalJSON(res)
-	encodedVal := snappy.Encode(nil, val)
-	return c.cache.Put(ctx, key, string(encodedVal))
+	return handler.PutRPCMethod(ctx, req, res, blockNumberSync)
 }
