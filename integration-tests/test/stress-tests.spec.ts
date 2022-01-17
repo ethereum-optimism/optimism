@@ -1,7 +1,8 @@
 import { expect } from './shared/setup'
 
 /* Imports: External */
-import { Contract, ContractFactory, Wallet, utils } from 'ethers'
+import { Contract, Wallet, utils } from 'ethers'
+import { ethers } from 'hardhat'
 
 /* Imports: Internal */
 import { OptimismEnv } from './shared/env'
@@ -16,7 +17,6 @@ import {
 } from './shared/stress-test-helpers'
 
 /* Imports: Artifacts */
-import simpleStorageJson from '../artifacts/contracts/SimpleStorage.sol/SimpleStorage.json'
 import { fundUser, isLiveNetwork, isMainnet } from './shared/utils'
 
 // Need a big timeout to allow for all transactions to be processed.
@@ -60,14 +60,12 @@ describe('stress tests', () => {
   let L2SimpleStorage: Contract
   let L1SimpleStorage: Contract
   beforeEach(async () => {
-    const factory__L1SimpleStorage = new ContractFactory(
-      simpleStorageJson.abi,
-      simpleStorageJson.bytecode,
+    const factory__L1SimpleStorage = await ethers.getContractFactory(
+      'SimpleStorage',
       env.l1Wallet
     )
-    const factory__L2SimpleStorage = new ContractFactory(
-      simpleStorageJson.abi,
-      simpleStorageJson.bytecode,
+    const factory__L2SimpleStorage = await ethers.getContractFactory(
+      'SimpleStorage',
       env.l2Wallet
     )
     L1SimpleStorage = await factory__L1SimpleStorage.deploy()
