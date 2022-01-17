@@ -1,9 +1,16 @@
 import { expect } from './shared/setup'
 
+/* Imports: External */
 import { expectApprox, injectL2Context } from '@eth-optimism/core-utils'
-import { Wallet, BigNumber, Contract, ContractFactory, constants } from 'ethers'
 import { serialize } from '@ethersproject/transactions'
+import {
+  TransactionReceipt,
+  TransactionRequest,
+} from '@ethersproject/providers'
+import { Wallet, BigNumber, Contract, ContractFactory, constants } from 'ethers'
 import { ethers } from 'hardhat'
+
+/* Imports: Internal */
 import {
   sleep,
   l2Provider,
@@ -14,11 +21,6 @@ import {
   gasPriceForL2,
 } from './shared/utils'
 import { OptimismEnv } from './shared/env'
-import {
-  TransactionReceipt,
-  TransactionRequest,
-} from '@ethersproject/providers'
-import simpleStorageJson from '../artifacts/contracts/SimpleStorage.sol/SimpleStorage.json'
 
 describe('Basic RPC tests', () => {
   let env: OptimismEnv
@@ -491,11 +493,11 @@ describe('Basic RPC tests', () => {
 
   describe('debug_traceTransaction', () => {
     it('should match debug_traceBlock', async () => {
-      const storage = new ContractFactory(
-        simpleStorageJson.abi,
-        simpleStorageJson.bytecode,
+      const storage = await ethers.getContractFactory(
+        'SimpleStorage',
         env.l2Wallet
       )
+
       const tx = (await storage.deploy()).deployTransaction
       const receipt = await tx.wait()
 

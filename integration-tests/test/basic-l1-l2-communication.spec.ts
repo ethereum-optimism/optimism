@@ -3,10 +3,9 @@ import { expect } from './shared/setup'
 /* Imports: External */
 import { Contract, ContractFactory } from 'ethers'
 import { applyL1ToL2Alias, awaitCondition } from '@eth-optimism/core-utils'
+import { ethers } from 'hardhat'
 
 /* Imports: Internal */
-import simpleStorageJson from '../artifacts/contracts/SimpleStorage.sol/SimpleStorage.json'
-import l2ReverterJson from '../artifacts/contracts/Reverter.sol/Reverter.json'
 import { Direction } from './shared/watcher-utils'
 import { OptimismEnv } from './shared/env'
 import { isMainnet } from './shared/utils'
@@ -22,19 +21,17 @@ describe('Basic L1<>L2 Communication', async () => {
 
   before(async () => {
     env = await OptimismEnv.new()
-    Factory__L1SimpleStorage = new ContractFactory(
-      simpleStorageJson.abi,
-      simpleStorageJson.bytecode,
+
+    Factory__L1SimpleStorage = await ethers.getContractFactory(
+      'SimpleStorage',
       env.l1Wallet
     )
-    Factory__L2SimpleStorage = new ContractFactory(
-      simpleStorageJson.abi,
-      simpleStorageJson.bytecode,
+    Factory__L2SimpleStorage = await ethers.getContractFactory(
+      'SimpleStorage',
       env.l2Wallet
     )
-    Factory__L2Reverter = new ContractFactory(
-      l2ReverterJson.abi,
-      l2ReverterJson.bytecode,
+    Factory__L2Reverter = await ethers.getContractFactory(
+      'Reverter',
       env.l2Wallet
     )
   })
