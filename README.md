@@ -24,6 +24,10 @@ contracts -- A Merkleized MIPS processor on chain + the challenge logic
 
 ## Usage
 ```
+# build unicorn
+./build_unicorn.sh
+export LIBUNICORN_PATH=$(pwd)/unicorn2/
+
 # build minigeth for MIPS
 (cd mipigo && pip3 install -r requirements.txt && ./build.sh)
 
