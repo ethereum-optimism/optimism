@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+
 	"github.com/ethereum/go-ethereum"
 
 	"github.com/ethereum-optimism/optimistic-specs/opnode/eth"

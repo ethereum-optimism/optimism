@@ -3,9 +3,10 @@ package l2
 import (
 	"context"
 	"fmt"
+	"math/big"
+
 	"github.com/ethereum-optimism/optimistic-specs/opnode/eth"
 	"github.com/ethereum/go-ethereum/common"
-	"math/big"
 )
 
 // SyncSource implements SyncReference with a L2 block sources and L1 hash-by-number source
