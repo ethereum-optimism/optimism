@@ -12,9 +12,11 @@ import (
 
 var WrongChainErr = errors.New("wrong chain")
 
+// FindSyncStart finds nextRefL1: the L1 block needed next for sync, to derive into a L2 block on top of refL2.
+// If the L1 reorgs then this will find the common history to build on top of and then follow the first step of the reorg.
 func FindSyncStart(ctx context.Context, reference SyncReference, genesis *Genesis) (nextRefL1 eth.BlockID, refL2 eth.BlockID, err error) {
-	var refL1 eth.BlockID
-	var parentL2 common.Hash
+	var refL1 eth.BlockID    // the L1 block that was derived into refL2
+	var parentL2 common.Hash // the parent of refL2
 	// Start at L2 head
 	refL1, refL2, parentL2, err = reference.RefByL2Num(ctx, nil, genesis)
 	if err != nil {
@@ -22,22 +24,22 @@ func FindSyncStart(ctx context.Context, reference SyncReference, genesis *Genesi
 		return
 	}
 	// Check if L1 source has the block
-	var currentL1 eth.BlockID
+	var currentL1 eth.BlockID // the expected L1 block at the height of refL1
 	currentL1, _, err = reference.RefByL1Num(ctx, refL1.Number)
 	if err != nil {
 		if !errors.Is(err, ethereum.NotFound) {
 			err = fmt.Errorf("failed to lookup block %d in L1: %w", refL1.Number, err)
 			return
 		}
-		// if the L1 did not find the block, it might be out of sync.
-		// We cannot sync from L1 in this case, but must make sure we are not in
-		// a reorg to a L1 chain with less blocks.
+		// If the L1 did not find the block, it might be out of sync.
+		// We cannot sync from L1 in this case, but we still traverse back to
+		// make sure we are not just in a reorg to a L1 chain with fewer blocks.
 		err = nil
 		currentL1 = eth.BlockID{} // empty = not found
 	}
 	if currentL1 == refL1 {
 		// L1 node has head-block of execution-engine, so we should fetch the L1 block that builds on top.
-		var ontoL1 eth.BlockID
+		var ontoL1 eth.BlockID // ontoL1 is the parent, to make sure we got a nextRefL1 that connects as expected.
 		nextRefL1, ontoL1, err = reference.RefByL1Num(ctx, refL1.Number+1)
 		if err != nil {
 			// If refL1 is the head block, then we might not have a next block to build on the head
