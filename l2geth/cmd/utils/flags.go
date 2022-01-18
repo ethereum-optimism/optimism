@@ -864,7 +864,6 @@ var (
 	SequencerClientHttpFlag = cli.StringFlag{
 		Name:   "sequencer.clienthttp",
 		Usage:  "HTTP endpoint for the sequencer client",
-		Value:  "http://l2geth:8545",
 		EnvVar: "SEQUENCER_CLIENT_HTTP",
 	}
 )
