@@ -4,8 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"time"
-
 	"github.com/ethereum/go-ethereum"
 
 	"github.com/ethereum-optimism/optimistic-specs/opnode/eth"
@@ -15,9 +13,6 @@ import (
 var WrongChainErr = errors.New("wrong chain")
 
 func FindSyncStart(ctx context.Context, reference SyncReference, genesis *Genesis) (nextRefL1 eth.BlockID, refL2 eth.BlockID, err error) {
-	// 10 seconds for the whole thing (TODO: or do we want individual timeouts?)
-	ctx, cancel := context.WithTimeout(ctx, time.Second*10)
-	defer cancel()
 	var refL1 eth.BlockID
 	var parentL2 common.Hash
 	// Start at L2 head

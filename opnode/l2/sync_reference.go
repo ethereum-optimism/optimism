@@ -3,11 +3,9 @@ package l2
 import (
 	"context"
 	"fmt"
-	"math/big"
-	"time"
-
 	"github.com/ethereum-optimism/optimistic-specs/opnode/eth"
 	"github.com/ethereum/go-ethereum/common"
+	"math/big"
 )
 
 // SyncSource implements SyncReference with a L2 block sources and L1 hash-by-number source
@@ -21,8 +19,6 @@ func (src SyncSource) RefByL1Num(ctx context.Context, l1Num uint64) (self eth.Bl
 }
 
 func (src SyncSource) RefByL2Num(ctx context.Context, l2Num *big.Int, genesis *Genesis) (refL1 eth.BlockID, refL2 eth.BlockID, parentL2 common.Hash, err error) {
-	ctx, cancel := context.WithTimeout(ctx, time.Second*5)
-	defer cancel()
 	refL2Block, err2 := src.L2.BlockByNumber(ctx, l2Num) // nil for latest block
 	if err2 != nil {
 		err = fmt.Errorf("failed to retrieve head L2 block: %v", err2)
@@ -32,8 +28,6 @@ func (src SyncSource) RefByL2Num(ctx context.Context, l2Num *big.Int, genesis *G
 }
 
 func (src SyncSource) RefByL2Hash(ctx context.Context, l2Hash common.Hash, genesis *Genesis) (refL1 eth.BlockID, refL2 eth.BlockID, parentL2 common.Hash, err error) {
-	ctx, cancel := context.WithTimeout(ctx, time.Second*5)
-	defer cancel()
 	refL2Block, err2 := src.L2.BlockByHash(ctx, l2Hash)
 	if err2 != nil {
 		err = fmt.Errorf("failed to retrieve head L2 block: %v", err2)
