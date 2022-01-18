@@ -3,9 +3,9 @@
 <!--![cannon](https://static.wikia.nocookie.net/ageofempires/images/8/80/Bombard_cannon_aoe2DE.png/revision/latest/top-crop/width/360/height/360?cb=20200331021834)-->
 ![cannon](https://paradacreativa.es/wp-content/uploads/2021/05/Canon-orbital-GTA-01.jpg)
 
-The cannon (cannon cannon cannon) is an on chain interactive fraud prover
+The cannon (cannon cannon cannon) is an on chain interactive dispute engine implementing EVM-equivalent fault proofs.
 
-It's half geth, half of what I think truebit was supposed to be. It can prove L1 blocks aren't fraud.
+It's half geth, half MIPS, and whole awesome.
 
 * It's Go code
 * ...that runs an EVM
