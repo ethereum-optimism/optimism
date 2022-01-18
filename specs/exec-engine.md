@@ -46,7 +46,9 @@ Within the rollup, the types of forkchoice updates translate as:
 - `finalizedBlockHash`: irreversible block hash, matches lower boundary of the dispute period.
 
 To support rollup functionality, one backwards-compatible change is introduced
-to [`engine_forkchoiceUpdatedV1`][engine_forkchoiceUpdatedV1]:
+to [`engine_forkchoiceUpdatedV1`][engine_forkchoiceUpdatedV1]: the extended `PayloadAttributesV1`
+
+#### Extended PayloadAttributesV1
 
 [`PayloadAttributesV1`][PayloadAttributesV1] is extended with a `transactions` field,
 equivalent to the `transactions` field in [`ExecutionPayloadV1`][ExecutionPayloadV1]:
