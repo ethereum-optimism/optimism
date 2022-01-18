@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.5.6
+
+### Patch Changes
+
+- 3a77bbcc: Implement updated timestamp logic
+- 3e3c07a3: changed the default address to be address(0) in `call`
+
 ## 0.5.5
 
 ### Patch Changes

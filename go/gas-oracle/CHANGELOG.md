@@ -1,5 +1,11 @@
 # @eth-optimism/gas-oracle
 
+## 0.1.6
+
+### Patch Changes
+
+- b3efb8b7: String update to change the system name from OE to Optimism
+
 ## 0.1.5
 
 ### Patch Changes

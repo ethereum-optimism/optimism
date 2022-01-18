@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.4.13
+
+### Patch Changes
+
+- 9fe09f70: Properly clear state root batch txs on startup
+- Updated dependencies [b3efb8b7]
+- Updated dependencies [279603e5]
+- Updated dependencies [b6040bb3]
+  - @eth-optimism/contracts@0.5.8
+
 ## 0.4.12
 
 ### Patch Changes
