@@ -1,5 +1,15 @@
 # @eth-optimism/message-relayer
 
+## 0.2.12
+
+### Patch Changes
+
+- e7c65ade: Fix docker build
+- Updated dependencies [b3efb8b7]
+- Updated dependencies [279603e5]
+- Updated dependencies [b6040bb3]
+  - @eth-optimism/contracts@0.5.8
+
 ## 0.2.11
 
 ### Patch Changes

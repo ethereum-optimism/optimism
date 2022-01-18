@@ -1,5 +1,13 @@
 # @eth-optimism/proxyd
 
+## 3.5.0
+
+### Minor Changes
+
+- 025a3c0d: Add request/response payload size metrics to proxyd
+- daf8db0b: cache immutable RPC responses in proxyd
+- 8aa89bf3: Add X-Forwarded-For header when proxying RPCs on proxyd
+
 ## 3.4.1
 
 ### Patch Changes
