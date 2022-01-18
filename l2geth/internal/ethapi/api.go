@@ -1659,11 +1659,8 @@ func (s *PublicTransactionPoolAPI) SendRawTransaction(ctx context.Context, encod
 		return common.Hash{}, errors.New("Cannot send raw transaction while syncing")
 	}
 
-	// Forward tx to sequencer if config is set
-	// TODO: add forwarding config
 	if s.b.IsVerifier() {
-		// TODO: replace with env var L2_URL
-		client, err := ethclient.Dial("http://l2geth:8545")
+		client, err := ethclient.Dial(s.b.SequencerClientHttp())
 		if err != nil {
 			return common.Hash{}, err
 		}
