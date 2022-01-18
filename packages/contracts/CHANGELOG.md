@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.5.8
+
+### Patch Changes
+
+- b3efb8b7: String update to change the system name from OE to Optimism
+- 279603e5: Update hardhat task for managing the gas oracle
+- b6040bb3: Remove legacy bin/deploy.ts script
+
 ## 0.5.7
 
 ### Patch Changes
