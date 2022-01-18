@@ -52,6 +52,12 @@ import (
 
 var errOVMUnsupported = errors.New("OVM: Unsupported RPC Method")
 
+const (
+	// defaultDialTimeout is default duration the service will wait on
+	// startup to make a connection to either the L1 or L2 backends.
+	defaultDialTimeout = 5 * time.Second
+)
+
 // PublicEthereumAPI provides an API to access Ethereum related information.
 // It offers only methods that operate on public data that is freely available to anyone.
 type PublicEthereumAPI struct {
@@ -1290,6 +1296,18 @@ func newRPCTransactionFromBlockHash(b *types.Block, hash common.Hash) *RPCTransa
 	return nil
 }
 
+// dialSequencerClientWithTimeout attempts to dial the Sequencer using the
+// provided URL. If the dial doesn't complete within defaultDialTimeout
+// seconds, this method will return an error.
+func dialSequencerClientWithTimeout(ctx context.Context, url string) (
+	*ethclient.Client, error) {
+
+	ctxt, cancel := context.WithTimeout(ctx, defaultDialTimeout)
+	defer cancel()
+
+	return ethclient.DialContext(ctxt, url)
+}
+
 // PublicTransactionPoolAPI exposes methods for the RPC interface
 type PublicTransactionPoolAPI struct {
 	b         Backend
@@ -1660,7 +1678,7 @@ func (s *PublicTransactionPoolAPI) SendRawTransaction(ctx context.Context, encod
 	}
 
 	if s.b.IsVerifier() {
-		client, err := ethclient.Dial(s.b.SequencerClientHttp())
+		client, err := dialSequencerClientWithTimeout(ctx, s.b.SequencerClientHttp())
 		if err != nil {
 			return common.Hash{}, err
 		}
