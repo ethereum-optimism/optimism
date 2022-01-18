@@ -1,8 +1,8 @@
-import { expect } from 'chai'
+import { expect } from './shared/setup'
 
 /* Imports: External */
 import { ethers } from 'hardhat'
-import { injectL2Context } from '@eth-optimism/core-utils'
+import { injectL2Context, expectApprox } from '@eth-optimism/core-utils'
 import { predeploys } from '@eth-optimism/contracts'
 import { Contract, BigNumber } from 'ethers'
 
@@ -74,9 +74,11 @@ describe('OVM Context: Layer 2 EVM Context', () => {
       const l1BlockNumber = await OVMContextStorage.l1BlockNumbers(i)
       expect(l1BlockNumber.toNumber()).to.deep.equal(l1Block.number)
 
-      // L1 and L2 blocks will have the same timestamp.
+      // L1 and L2 blocks will have approximately the same timestamp.
       const timestamp = await OVMContextStorage.timestamps(i)
-      expect(timestamp.toNumber()).to.deep.equal(l1Block.timestamp)
+      expectApprox(timestamp.toNumber(), l1Block.timestamp, {
+        percentUpperDeviation: 5,
+      })
       expect(timestamp.toNumber()).to.deep.equal(l2Block.timestamp)
 
       // Difficulty should always be zero.

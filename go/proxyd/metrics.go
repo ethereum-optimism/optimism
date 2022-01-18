@@ -2,10 +2,11 @@ package proxyd
 
 import (
 	"context"
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promauto"
 	"strconv"
 	"strings"
+
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 )
 
 const (
@@ -19,6 +20,8 @@ const (
 	SourceBackend = "backend"
 	MethodUnknown = "unknown"
 )
+
+var PayloadSizeBuckets = []float64{10, 50, 100, 500, 1000, 5000, 10000, 100000, 1000000}
 
 var (
 	rpcRequestsTotal = promauto.NewCounter(prometheus.CounterOpts{
@@ -139,6 +142,25 @@ var (
 		"source",
 	})
 
+	requestPayloadSizesGauge = promauto.NewHistogramVec(prometheus.HistogramOpts{
+		Namespace: MetricsNamespace,
+		Name:      "request_payload_sizes",
+		Help:      "Gauge of client request payload sizes.",
+		Buckets:   PayloadSizeBuckets,
+	}, []string{
+		"auth",
+		"method_name",
+	})
+
+	responsePayloadSizesGauge = promauto.NewHistogramVec(prometheus.HistogramOpts{
+		Namespace: MetricsNamespace,
+		Name:      "response_payload_sizes",
+		Help:      "Gauge of client response payload sizes.",
+		Buckets:   PayloadSizeBuckets,
+	}, []string{
+		"auth",
+	})
+
 	rpcSpecialErrors = []string{
 		"nonce too low",
 		"gas price too high",
@@ -184,4 +206,12 @@ func MaybeRecordSpecialRPCError(ctx context.Context, backendName, method string,
 			return
 		}
 	}
+}
+
+func RecordRequestPayloadSize(ctx context.Context, method string, payloadSize int) {
+	requestPayloadSizesGauge.WithLabelValues(GetAuthCtx(ctx), method).Observe(float64(payloadSize))
+}
+
+func RecordResponsePayloadSize(ctx context.Context, payloadSize int) {
+	responsePayloadSizesGauge.WithLabelValues(GetAuthCtx(ctx)).Observe(float64(payloadSize))
 }

@@ -1,0 +1,24 @@
+# permissions for end users to edit batchsubmitters.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: batchsubmitter-editor-role
+rules:
+- apiGroups:
+  - stack.optimism-stacks.net
+  resources:
+  - batchsubmitters
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - stack.optimism-stacks.net
+  resources:
+  - batchsubmitters/status
+  verbs:
+  - get

@@ -6,6 +6,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"os"
+	"strings"
 	"sync"
 	"time"
 
@@ -19,6 +20,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 )
+
+var UnknownStatus = "UNKNOWN"
 
 var (
 	listenAddress = kingpin.Flag(
@@ -48,7 +51,7 @@ var (
 	enableK8sQuery = kingpin.Flag(
 		"k8s.enable",
 		"Enable kubernetes info lookup.",
-	).Default("true").Bool()
+	).Default("false").Bool()
 )
 
 type healthCheck struct {
@@ -79,14 +82,15 @@ func main() {
 	log.Infoln("exporter config", *listenAddress, *rpcProvider, *networkLabel)
 	log.Infoln("Starting op_exporter", version.Info())
 	log.Infoln("Build context", version.BuildContext())
-
+	opExporterVersion.WithLabelValues(
+		strings.Trim(version.Version, "\""), version.GitCommit, version.GoVersion, version.BuildDate).Inc()
 	health := healthCheck{
 		mu:             new(sync.RWMutex),
 		height:         0,
 		healthy:        false,
 		updateTime:     time.Now(),
 		allowedMethods: nil,
-		version:        nil,
+		version:        &UnknownStatus,
 	}
 	http.Handle("/metrics", promhttp.Handler())
 	http.Handle("/health", healthHandler(&health))
@@ -130,8 +134,7 @@ func getSequencerVersion(health *healthCheck, client *kubernetes.Clientset) {
 		}
 		sequencerStatefulSet, err := client.AppsV1().StatefulSets(string(ns)).Get(context.TODO(), "sequencer", getOpts)
 		if err != nil {
-			unknownStatus := "UNKNOWN"
-			health.version = &unknownStatus
+			health.version = &UnknownStatus
 			log.Errorf("Unable to retrieve a sequencer StatefulSet: %s", err)
 			continue
 		}

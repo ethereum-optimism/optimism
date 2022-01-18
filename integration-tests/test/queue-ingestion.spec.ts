@@ -1,4 +1,4 @@
-import { expect } from 'chai'
+import { expect } from './shared/setup'
 
 /* Imports: Internal */
 import { providers } from 'ethers'

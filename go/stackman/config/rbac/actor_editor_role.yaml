@@ -1,0 +1,24 @@
+# permissions for end users to edit actors.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: actor-editor-role
+rules:
+- apiGroups:
+  - stack.optimism-stacks.net
+  resources:
+  - actors
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - stack.optimism-stacks.net
+  resources:
+  - actors/status
+  verbs:
+  - get

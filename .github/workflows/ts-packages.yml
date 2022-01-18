@@ -104,7 +104,7 @@ jobs:
       - uses: codecov/codecov-action@v1
         with:
           files: ./packages/contracts/coverage.json
-          fail_ci_if_error: false
+          fail_ci_if_error: true
           verbose: true
           flags: contracts
       - uses: codecov/codecov-action@v1

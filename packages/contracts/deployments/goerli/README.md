@@ -1,6 +1,6 @@
-# Optimistic Goerli (internal devnet)
+# Optimism Goerli (internal devnet)
 ## Notice
-Optimistic Goerli is an internal Optimism development network. You're probably looking for [Optimistic Kovan](../kovan#readme), the public Optimistic Ethereum testnet.
+Optimism Goerli is an internal Optimism development network. You're probably looking for [Optimism Kovan](../kovan#readme), the public Optimism testnet.
 ## Network Info
 - **Chain ID**: 420
 ## Layer 1 Contracts

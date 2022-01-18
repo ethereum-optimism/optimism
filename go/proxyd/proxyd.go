@@ -1,16 +1,18 @@
 package proxyd
 
 import (
+	"context"
 	"crypto/tls"
 	"errors"
 	"fmt"
-	"github.com/ethereum/go-ethereum/log"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
+
+	"github.com/ethereum/go-ethereum/log"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 func Start(config *Config) error {
@@ -96,6 +98,10 @@ func Start(config *Config) error {
 			log.Info("using custom TLS config for backend", "name", name)
 			opts = append(opts, WithTLSConfig(tlsConfig))
 		}
+		if cfg.StripTrailingXFF {
+			opts = append(opts, WithStrippedTrailingXFF())
+		}
+		opts = append(opts, WithProxydIP(os.Getenv("PROXYD_IP")))
 		back := NewBackend(name, rpcURL, wsURL, lim, opts...)
 		backendNames = append(backendNames, name)
 		backendsByName[name] = back
@@ -149,6 +155,35 @@ func Start(config *Config) error {
 		}
 	}
 
+	var rpcCache RPCCache
+	if config.Cache != nil && config.Cache.Enabled {
+		var cache Cache
+		if config.Redis != nil {
+			if cache, err = newRedisCache(config.Redis.URL); err != nil {
+				return err
+			}
+		} else {
+			log.Warn("redis is not configured, using in-memory cache")
+			cache = newMemoryCache()
+		}
+
+		var getLatestBlockNumFn GetLatestBlockNumFn
+		if config.Cache.BlockSyncRPCURL == "" {
+			return fmt.Errorf("block sync node required for caching")
+		}
+		latestHead, err := newLatestBlockHead(config.Cache.BlockSyncRPCURL)
+		if err != nil {
+			return err
+		}
+		latestHead.Start()
+		defer latestHead.Stop()
+
+		getLatestBlockNumFn = func(ctx context.Context) (uint64, error) {
+			return latestHead.GetBlockNum(), nil
+		}
+		rpcCache = newRPCCache(cache, getLatestBlockNumFn)
+	}
+
 	srv := NewServer(
 		backendGroups,
 		wsBackendGroup,
@@ -156,9 +191,10 @@ func Start(config *Config) error {
 		config.RPCMethodMappings,
 		config.Server.MaxBodySizeBytes,
 		resolvedAuth,
+		rpcCache,
 	)
 
-	if config.Metrics.Enabled {
+	if config.Metrics != nil && config.Metrics.Enabled {
 		addr := fmt.Sprintf("%s:%d", config.Metrics.Host, config.Metrics.Port)
 		log.Info("starting metrics server", "addr", addr)
 		go http.ListenAndServe(addr, promhttp.Handler())

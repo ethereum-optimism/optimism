@@ -1,4 +1,4 @@
-import { expect } from 'chai'
+import { expect } from './shared/setup'
 
 /* Imports: External */
 import { Contract, ContractFactory, Wallet, utils } from 'ethers'
@@ -210,5 +210,30 @@ describe('stress tests', () => {
         wallets.length
       )
     }).timeout(STRESS_TEST_TIMEOUT)
+  })
+
+  // These tests depend on an archive node due to the historical `eth_call`s
+  describe('Monotonicity Checks', () => {
+    it('should have monotonic timestamps and l1 blocknumbers', async () => {
+      const tip = await env.l2Provider.getBlock('latest')
+      const prev = {
+        block: await env.l2Provider.getBlock(0),
+        l1BlockNumber: await env.l1BlockNumber.getL1BlockNumber({
+          blockTag: 0,
+        }),
+      }
+      for (let i = 1; i < tip.number; i++) {
+        const block = await env.l2Provider.getBlock(i)
+        expect(block.timestamp).to.be.gte(prev.block.timestamp)
+
+        const l1BlockNumber = await env.l1BlockNumber.getL1BlockNumber({
+          blockTag: i,
+        })
+        expect(l1BlockNumber.gt(prev.l1BlockNumber))
+
+        prev.block = block
+        prev.l1BlockNumber = l1BlockNumber
+      }
+    })
   })
 })

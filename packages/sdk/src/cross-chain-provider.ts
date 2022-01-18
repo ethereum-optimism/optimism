@@ -5,6 +5,7 @@ import {
   TransactionReceipt,
 } from '@ethersproject/abstract-provider'
 import { ethers, BigNumber, Event } from 'ethers'
+import { sleep } from '@eth-optimism/core-utils'
 import {
   ICrossChainProvider,
   OEContracts,
@@ -19,6 +20,7 @@ import {
   MessageStatus,
   TokenBridgeMessage,
   MessageReceipt,
+  MessageReceiptStatus,
   CustomBridges,
   CustomBridgesLike,
 } from './interfaces'
@@ -29,6 +31,7 @@ import {
   DeepPartial,
   getAllOEContracts,
   getCustomBridges,
+  hashCrossChainMessage,
 } from './utils'
 
 export class CrossChainProvider implements ICrossChainProvider {
@@ -278,6 +281,59 @@ export class CrossChainProvider implements ICrossChainProvider {
     })
   }
 
+  public async toCrossChainMessage(
+    message: MessageLike
+  ): Promise<CrossChainMessage> {
+    // TODO: Convert these checks into proper type checks.
+    if ((message as CrossChainMessage).message) {
+      return message as CrossChainMessage
+    } else if (
+      (message as TokenBridgeMessage).l1Token &&
+      (message as TokenBridgeMessage).l2Token &&
+      (message as TokenBridgeMessage).transactionHash
+    ) {
+      const messages = await this.getMessagesByTransaction(
+        (message as TokenBridgeMessage).transactionHash
+      )
+
+      // The `messages` object corresponds to a list of SentMessage events that were triggered by
+      // the same transaction. We want to find the specific SentMessage event that corresponds to
+      // the TokenBridgeMessage (either a ETHDepositInitiated, ERC20DepositInitiated, or
+      // WithdrawalInitiated event). We expect the behavior of bridge contracts to be that these
+      // TokenBridgeMessage events are triggered and then a SentMessage event is triggered. Our
+      // goal here is therefore to find the first SentMessage event that comes after the input
+      // event.
+      const found = messages
+        .sort((a, b) => {
+          // Sort all messages in ascending order by log index.
+          return a.logIndex - b.logIndex
+        })
+        .find((m) => {
+          return m.logIndex > (message as TokenBridgeMessage).logIndex
+        })
+
+      if (!found) {
+        throw new Error(`could not find SentMessage event for message`)
+      }
+
+      return found
+    } else {
+      // TODO: Explicit TransactionLike check and throw if not TransactionLike
+      const messages = await this.getMessagesByTransaction(
+        message as TransactionLike
+      )
+
+      // We only want to treat TransactionLike objects as MessageLike if they only emit a single
+      // message (very common). It's unintuitive to treat a TransactionLike as a MessageLike if
+      // they emit more than one message (which message do you pick?), so we throw an error.
+      if (messages.length !== 1) {
+        throw new Error(`expected 1 message, got ${messages.length}`)
+      }
+
+      return messages[0]
+    }
+  }
+
   public async getMessageStatus(message: MessageLike): Promise<MessageStatus> {
     throw new Error('Not implemented')
   }
@@ -285,18 +341,82 @@ export class CrossChainProvider implements ICrossChainProvider {
   public async getMessageReceipt(
     message: MessageLike
   ): Promise<MessageReceipt> {
-    throw new Error('Not implemented')
+    const resolved = await this.toCrossChainMessage(message)
+    const messageHash = hashCrossChainMessage(resolved)
+
+    // Here we want the messenger that will receive the message, not the one that sent it.
+    const messenger =
+      resolved.direction === MessageDirection.L1_TO_L2
+        ? this.contracts.l2.L2CrossDomainMessenger
+        : this.contracts.l1.L1CrossDomainMessenger
+
+    const relayedMessageEvents = await messenger.queryFilter(
+      messenger.filters.RelayedMessage(messageHash)
+    )
+
+    // Great, we found the message. Convert it into a transaction receipt.
+    if (relayedMessageEvents.length === 1) {
+      return {
+        receiptStatus: MessageReceiptStatus.RELAYED_SUCCEEDED,
+        transactionReceipt:
+          await relayedMessageEvents[0].getTransactionReceipt(),
+      }
+    } else if (relayedMessageEvents.length > 1) {
+      // Should never happen!
+      throw new Error(`multiple successful relays for message`)
+    }
+
+    // We didn't find a transaction that relayed the message. We now attempt to find
+    // FailedRelayedMessage events instead.
+    const failedRelayedMessageEvents = await messenger.queryFilter(
+      messenger.filters.FailedRelayedMessage(messageHash)
+    )
+
+    // A transaction can fail to be relayed multiple times. We'll always return the last
+    // transaction that attempted to relay the message.
+    // TODO: Is this the best way to handle this?
+    if (failedRelayedMessageEvents.length > 0) {
+      return {
+        receiptStatus: MessageReceiptStatus.RELAYED_FAILED,
+        transactionReceipt: await failedRelayedMessageEvents[
+          failedRelayedMessageEvents.length - 1
+        ].getTransactionReceipt(),
+      }
+    }
+
+    // TODO: If the user doesn't provide enough gas then there's a chance that FailedRelayedMessage
+    // will never be triggered. We should probably fix this at the contract level by requiring a
+    // minimum amount of input gas and designing the contracts such that the gas will always be
+    // enough to trigger the event. However, for now we need a temporary way to find L1 => L2
+    // transactions that fail but don't alert us because they didn't provide enough gas.
+    // TODO: Talk with the systems and protocol team about coordinating a hard fork that fixes this
+    // on both L1 and L2.
+
+    // Just return null if we didn't find a receipt. Slightly nicer than throwing an error.
+    return null
   }
 
-  public async waitForMessageReciept(
+  public async waitForMessageReceipt(
     message: MessageLike,
-    opts?: {
+    opts: {
       confirmations?: number
       pollIntervalMs?: number
       timeoutMs?: number
-    }
+    } = {}
   ): Promise<MessageReceipt> {
-    throw new Error('Not implemented')
+    let totalTimeMs = 0
+    while (totalTimeMs < (opts.timeoutMs || Infinity)) {
+      const tick = Date.now()
+      const receipt = await this.getMessageReceipt(message)
+      if (receipt !== null) {
+        return receipt
+      } else {
+        await sleep(opts.pollIntervalMs || 4000)
+        totalTimeMs += Date.now() - tick
+      }
+    }
+
+    throw new Error(`timed out waiting for message receipt`)
   }
 
   public async estimateL2MessageGasLimit(

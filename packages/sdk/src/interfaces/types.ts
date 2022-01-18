@@ -34,7 +34,7 @@ export interface OEL2Contracts {
 }
 
 /**
- * Represents Optimistic Ethereum contracts, assumed to be connected to their appropriate
+ * Represents Optimism contracts, assumed to be connected to their appropriate
  * providers and addresses.
  */
 export interface OEContracts {
@@ -188,15 +188,14 @@ export interface TokenBridgeMessage {
  * Enum describing the status of a CrossDomainMessage message receipt.
  */
 export enum MessageReceiptStatus {
-  RELAYED_SUCCEEDED,
   RELAYED_FAILED,
+  RELAYED_SUCCEEDED,
 }
 
 /**
  * CrossDomainMessage receipt.
  */
 export interface MessageReceipt {
-  messageHash: string
   receiptStatus: MessageReceiptStatus
   transactionReceipt: TransactionReceipt
 }

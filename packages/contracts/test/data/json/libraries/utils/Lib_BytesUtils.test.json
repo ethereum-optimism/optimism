@@ -36,6 +36,14 @@
             "start > input.length": {
                 "in": ["0x12345678", 5, 1],
                 "revert":"Read out of bounds"
+            },
+            "input.length + 31 >= input.length": {
+                "in": ["0x12345678", 5, "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"],
+                "revert":"slice_overflow"
+            },
+            "input.start + input.length >= input.start": {
+                "in": ["0x12345678", "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff", 1],
+                "revert":"slice_overflow"
             }
         },
         "toBytes32": {

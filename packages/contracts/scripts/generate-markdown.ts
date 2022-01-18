@@ -16,7 +16,7 @@ interface DeploymentInfo {
 const PUBLIC_DEPLOYMENTS: DeploymentInfo[] = [
   {
     folder: 'mainnet',
-    name: 'Optimistic Ethereum (mainnet)',
+    name: 'Optimism (mainnet)',
     chainid: 10,
     rpc: 'https://mainnet.optimism.io',
     l1Explorer: 'https://etherscan.io',
@@ -24,7 +24,7 @@ const PUBLIC_DEPLOYMENTS: DeploymentInfo[] = [
   },
   {
     folder: 'kovan',
-    name: 'Optimistic Kovan (public testnet)',
+    name: 'Optimism Kovan (public testnet)',
     chainid: 69,
     rpc: 'https://kovan.optimism.io',
     l1Explorer: 'https://kovan.etherscan.io',
@@ -32,9 +32,9 @@ const PUBLIC_DEPLOYMENTS: DeploymentInfo[] = [
   },
   {
     folder: 'goerli',
-    name: 'Optimistic Goerli (internal devnet)',
+    name: 'Optimism Goerli (internal devnet)',
     chainid: 420,
-    notice: `Optimistic Goerli is an internal Optimism development network. You're probably looking for [Optimistic Kovan](../kovan#readme), the public Optimistic Ethereum testnet.`,
+    notice: `Optimism Goerli is an internal Optimism development network. You're probably looking for [Optimism Kovan](../kovan#readme), the public Optimism testnet.`,
     l1Explorer: 'https://goerli.etherscan.io',
   },
 ]
@@ -221,7 +221,7 @@ const main = async () => {
   }
 
   let primary = ``
-  primary = addline(primary, `# Optimistic Ethereum Deployments`)
+  primary = addline(primary, `# Optimism Deployments`)
   for (const deployment of PUBLIC_DEPLOYMENTS) {
     primary = addline(
       primary,

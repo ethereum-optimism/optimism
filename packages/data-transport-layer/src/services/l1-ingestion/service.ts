@@ -167,7 +167,7 @@ export class L1IngestionService extends BaseService<L1IngestionServiceOptions> {
         startingL1BlockNumber = this.options.l1StartHeight
       } else {
         this.logger.info(
-          'Attempting to find an appropriate L1 block height to begin sync...'
+          'Attempting to find an appropriate L1 block height to begin sync. This may take a long time.'
         )
         startingL1BlockNumber = await this._findStartingL1BlockNumber()
       }
@@ -453,12 +453,18 @@ export class L1IngestionService extends BaseService<L1IngestionServiceOptions> {
 
   private async _findStartingL1BlockNumber(): Promise<number> {
     const currentL1Block = await this.state.l1RpcProvider.getBlockNumber()
+    const filter =
+      this.state.contracts.Lib_AddressManager.filters.OwnershipTransferred()
 
-    for (let i = 0; i < currentL1Block; i += 1000000) {
+    for (let i = 0; i < currentL1Block; i += 2000) {
+      const start = i
+      const end = Math.min(i + 2000, currentL1Block)
+      this.logger.info(`Searching for ${filter} from ${start} to ${end}`)
+
       const events = await this.state.contracts.Lib_AddressManager.queryFilter(
-        this.state.contracts.Lib_AddressManager.filters.OwnershipTransferred(),
-        i,
-        Math.min(i + 1000000, currentL1Block)
+        filter,
+        start,
+        end
       )
 
       if (events.length > 0) {

@@ -1,15 +1,13 @@
+import { expect } from './shared/setup'
+
 import { BigNumber, Contract, ContractFactory, Wallet } from 'ethers'
 import { ethers } from 'hardhat'
-import chai, { expect } from 'chai'
 import {
   fundUser,
   encodeSolidityRevertMessage,
   gasPriceForL2,
 } from './shared/utils'
 import { OptimismEnv } from './shared/env'
-import { solidity } from 'ethereum-waffle'
-
-chai.use(solidity)
 
 describe('Native ETH value integration tests', () => {
   let env: OptimismEnv

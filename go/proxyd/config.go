@@ -14,6 +14,11 @@ type ServerConfig struct {
 	MaxBodySizeBytes int64  `toml:"max_body_size_bytes"`
 }
 
+type CacheConfig struct {
+	Enabled         bool   `toml:"enabled"`
+	BlockSyncRPCURL string `toml:"block_sync_rpc_url"`
+}
+
 type RedisConfig struct {
 	URL string `toml:"url"`
 }
@@ -32,15 +37,16 @@ type BackendOptions struct {
 }
 
 type BackendConfig struct {
-	Username       string `toml:"username"`
-	Password       string `toml:"password"`
-	RPCURL         string `toml:"rpc_url"`
-	WSURL          string `toml:"ws_url"`
-	MaxRPS         int    `toml:"max_rps"`
-	MaxWSConns     int    `toml:"max_ws_conns"`
-	CAFile         string `toml:"ca_file"`
-	ClientCertFile string `toml:"client_cert_file"`
-	ClientKeyFile  string `toml:"client_key_file"`
+	Username         string `toml:"username"`
+	Password         string `toml:"password"`
+	RPCURL           string `toml:"rpc_url"`
+	WSURL            string `toml:"ws_url"`
+	MaxRPS           int    `toml:"max_rps"`
+	MaxWSConns       int    `toml:"max_ws_conns"`
+	CAFile           string `toml:"ca_file"`
+	ClientCertFile   string `toml:"client_cert_file"`
+	ClientKeyFile    string `toml:"client_key_file"`
+	StripTrailingXFF bool   `toml:"strip_trailing_xff"`
 }
 
 type BackendsConfig map[string]*BackendConfig
@@ -56,6 +62,7 @@ type MethodMappingsConfig map[string]string
 type Config struct {
 	WSBackendGroup    string              `toml:"ws_backend_group"`
 	Server            *ServerConfig       `toml:"server"`
+	Cache             *CacheConfig        `toml:"cache"`
 	Redis             *RedisConfig        `toml:"redis"`
 	Metrics           *MetricsConfig      `toml:"metrics"`
 	BackendOptions    *BackendOptions     `toml:"backend"`

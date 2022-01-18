@@ -146,6 +146,18 @@ export interface ICrossChainProvider {
   ): Promise<TokenBridgeMessage[]>
 
   /**
+   * Resolves a MessageLike into a CrossChainMessage object.
+   * Unlike other coercion functions, this function is stateful and requires making additional
+   * requests. For now I'm going to keep this function here, but we could consider putting a
+   * similar function inside of utils/coercion.ts if people want to use this without having to
+   * create an entire CrossChainProvider object.
+   *
+   * @param message MessageLike to resolve into a CrossChainMessage.
+   * @returns Message coerced into a CrossChainMessage.
+   */
+  toCrossChainMessage(message: MessageLike): Promise<CrossChainMessage>
+
+  /**
    * Retrieves the status of a particular message as an enum.
    *
    * @param message Cross chain message to check the status of.
@@ -174,7 +186,7 @@ export interface ICrossChainProvider {
    * @returns CrossChainMessage receipt including receipt of the transaction that relayed the
    * given message.
    */
-  waitForMessageReciept(
+  waitForMessageReceipt(
     message: MessageLike,
     opts?: {
       confirmations?: number

@@ -1,6 +1,7 @@
 package batchsubmitter
 
 import (
+	"bytes"
 	"context"
 	"math/big"
 	"sync"
@@ -15,8 +16,8 @@ import (
 )
 
 var (
-	// weiToGwei is the conversion rate from wei to gwei.
-	weiToGwei = new(big.Float).SetFloat64(1e-18)
+	// weiToEth is the conversion rate from wei to ether.
+	weiToEth = new(big.Float).SetFloat64(1e-18)
 )
 
 // Driver is an interface for creating and submitting batch transactions for a
@@ -32,18 +33,34 @@ type Driver interface {
 	// Metrics returns the subservice telemetry object.
 	Metrics() *metrics.Metrics
 
+	// ClearPendingTx a publishes a transaction at the next available nonce in
+	// order to clear any transactions in the mempool left over from a prior
+	// running instance of the batch submitter.
+	ClearPendingTx(context.Context, txmgr.TxManager, *ethclient.Client) error
+
 	// GetBatchBlockRange returns the start and end L2 block heights that
 	// need to be processed. Note that the end value is *exclusive*,
 	// therefore if the returned values are identical nothing needs to be
 	// processed.
 	GetBatchBlockRange(ctx context.Context) (*big.Int, *big.Int, error)
 
-	// SubmitBatchTx transforms the L2 blocks between start and end into a
-	// batch transaction using the given nonce and gasPrice. The final
-	// transaction is published and returned to the call.
+	// CraftBatchTx transforms the L2 blocks between start and end into a batch
+	// transaction using the given nonce. A dummy gas price is used in the
+	// resulting transaction to use for size estimation.
+	//
+	// NOTE: This method SHOULD NOT publish the resulting transaction.
+	CraftBatchTx(
+		ctx context.Context,
+		start, end, nonce *big.Int,
+	) (*types.Transaction, error)
+
+	// SubmitBatchTx using the passed transaction as a template, signs and
+	// publishes an otherwise identical transaction after setting the provided
+	// gas price. The final transaction is returned to the caller.
 	SubmitBatchTx(
 		ctx context.Context,
-		start, end, nonce, gasPrice *big.Int,
+		tx *types.Transaction,
+		gasPrice *big.Int,
 	) (*types.Transaction, error)
 }
 
@@ -51,6 +68,7 @@ type ServiceConfig struct {
 	Context         context.Context
 	Driver          Driver
 	PollInterval    time.Duration
+	ClearPendingTx  bool
 	L1Client        *ethclient.Client
 	TxManagerConfig txmgr.Config
 }
@@ -99,6 +117,19 @@ func (s *Service) eventLoop() {
 
 	name := s.cfg.Driver.Name()
 
+	if s.cfg.ClearPendingTx {
+		const maxClearRetries = 3
+		for i := 0; i < maxClearRetries; i++ {
+			err := s.cfg.Driver.ClearPendingTx(s.ctx, s.txMgr, s.cfg.L1Client)
+			if err == nil {
+				break
+			} else if i < maxClearRetries-1 {
+				continue
+			}
+			log.Crit("Unable to confirm a clearing transaction", "err", err)
+		}
+	}
+
 	for {
 		select {
 		case <-time.After(s.cfg.PollInterval):
@@ -112,7 +143,7 @@ func (s *Service) eventLoop() {
 				log.Error(name+" unable to get current balance", "err", err)
 				continue
 			}
-			s.metrics.ETHBalance.Set(weiToGwei64(balance))
+			s.metrics.ETHBalance.Set(weiToEth64(balance))
 
 			// Determine the range of L2 blocks that the batch submitter has not
 			// processed, and needs to take action on.
@@ -141,6 +172,26 @@ func (s *Service) eventLoop() {
 			}
 			nonce := new(big.Int).SetUint64(nonce64)
 
+			batchTxBuildStart := time.Now()
+			tx, err := s.cfg.Driver.CraftBatchTx(
+				s.ctx, start, end, nonce,
+			)
+			if err != nil {
+				log.Error(name+" unable to craft batch tx",
+					"err", err)
+				continue
+			}
+			batchTxBuildTime := time.Since(batchTxBuildStart) / time.Millisecond
+			s.metrics.BatchTxBuildTime.Set(float64(batchTxBuildTime))
+
+			// Record the size of the batch transaction.
+			var txBuf bytes.Buffer
+			if err := tx.EncodeRLP(&txBuf); err != nil {
+				log.Error(name+" unable to encode batch tx", "err", err)
+				continue
+			}
+			s.metrics.BatchSizeInBytes.Observe(float64(len(txBuf.Bytes())))
+
 			// Construct the transaction submission clousure that will attempt
 			// to send the next transaction at the given nonce and gas price.
 			sendTx := func(
@@ -151,14 +202,19 @@ func (s *Service) eventLoop() {
 					"end", end, "nonce", nonce,
 					"gasPrice", gasPrice)
 
-				tx, err := s.cfg.Driver.SubmitBatchTx(
-					ctx, start, end, nonce, gasPrice,
-				)
+				tx, err := s.cfg.Driver.SubmitBatchTx(ctx, tx, gasPrice)
 				if err != nil {
 					return nil, err
 				}
 
-				s.metrics.BatchSizeInBytes.Observe(float64(tx.Size()))
+				log.Info(
+					name+" submitted batch tx",
+					"start", start,
+					"end", end,
+					"nonce", nonce,
+					"tx_hash", tx.Hash(),
+					"gasPrice", gasPrice,
+				)
 
 				return tx, nil
 			}
@@ -181,7 +237,8 @@ func (s *Service) eventLoop() {
 				time.Millisecond
 			s.metrics.BatchConfirmationTime.Set(float64(batchConfirmationTime))
 			s.metrics.BatchesSubmitted.Inc()
-			s.metrics.SubmissionGasUsed.Observe(float64(receipt.GasUsed))
+			s.metrics.SubmissionGasUsed.Set(float64(receipt.GasUsed))
+			s.metrics.SubmissionTimestamp.Set(float64(time.Now().UnixNano() / 1e6))
 
 		case err := <-s.ctx.Done():
 			log.Error(name+" service shutting down", "err", err)
@@ -190,9 +247,9 @@ func (s *Service) eventLoop() {
 	}
 }
 
-func weiToGwei64(wei *big.Int) float64 {
-	gwei := new(big.Float).SetInt(wei)
-	gwei.Mul(gwei, weiToGwei)
-	gwei64, _ := gwei.Float64()
-	return gwei64
+func weiToEth64(wei *big.Int) float64 {
+	eth := new(big.Float).SetInt(wei)
+	eth.Mul(eth, weiToEth)
+	eth64, _ := eth.Float64()
+	return eth64
 }

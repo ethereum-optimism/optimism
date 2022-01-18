@@ -1,0 +1,6 @@
+apiVersion: stack.optimism-stacks.net/v1
+kind: GasOracle
+metadata:
+  name: gasoracle-sample
+spec:
+  # Add fields here

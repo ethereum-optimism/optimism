@@ -1,15 +1,13 @@
+import { expect } from './shared/setup'
+
 /* Imports: External */
 import { ContractFactory } from 'ethers'
 import { ethers } from 'hardhat'
-import chai, { expect } from 'chai'
-import { solidity } from 'ethereum-waffle'
 import { predeploys } from '@eth-optimism/contracts'
 
 /* Imports: Internal */
 import { OptimismEnv } from './shared/env'
 import { l2Provider } from './shared/utils'
-
-chai.use(solidity)
 
 describe('Whitelist', async () => {
   const initialAmount = 1000

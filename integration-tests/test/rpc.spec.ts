@@ -1,8 +1,9 @@
+import { expect } from './shared/setup'
+
 import { expectApprox, injectL2Context } from '@eth-optimism/core-utils'
-import { Wallet, BigNumber, Contract, ContractFactory } from 'ethers'
+import { Wallet, BigNumber, Contract, ContractFactory, constants } from 'ethers'
 import { serialize } from '@ethersproject/transactions'
 import { ethers } from 'hardhat'
-import chai, { expect } from 'chai'
 import {
   sleep,
   l2Provider,
@@ -12,17 +13,12 @@ import {
   isLiveNetwork,
   gasPriceForL2,
 } from './shared/utils'
-import chaiAsPromised from 'chai-as-promised'
 import { OptimismEnv } from './shared/env'
 import {
   TransactionReceipt,
   TransactionRequest,
 } from '@ethersproject/providers'
-import { solidity } from 'ethereum-waffle'
 import simpleStorageJson from '../artifacts/contracts/SimpleStorage.sol/SimpleStorage.json'
-
-chai.use(chaiAsPromised)
-chai.use(solidity)
 
 describe('Basic RPC tests', () => {
   let env: OptimismEnv
@@ -237,6 +233,53 @@ describe('Basic RPC tests', () => {
 
       expect(res).to.eq(BigNumber.from(value))
     })
+
+    // https://github.com/ethereum-optimism/optimism/issues/1998
+    it('should use address(0) as the default "from" value', async () => {
+      // Deploy a contract to check msg.caller
+      const Factory__ValueContext: ContractFactory =
+        await ethers.getContractFactory('ValueContext', wallet)
+      const ValueContext: Contract = await Factory__ValueContext.deploy()
+      await ValueContext.deployTransaction.wait()
+
+      // Do the call and check msg.sender
+      const data = ValueContext.interface.encodeFunctionData('getCaller')
+      const res = await provider.call({
+        to: ValueContext.address,
+        data,
+      })
+
+      const [paddedRes] = ValueContext.interface.decodeFunctionResult(
+        'getCaller',
+        res
+      )
+
+      expect(paddedRes).to.eq(constants.AddressZero)
+    })
+
+    it('should correctly use the "from" value', async () => {
+      // Deploy a contract to check msg.caller
+      const Factory__ValueContext: ContractFactory =
+        await ethers.getContractFactory('ValueContext', wallet)
+      const ValueContext: Contract = await Factory__ValueContext.deploy()
+      await ValueContext.deployTransaction.wait()
+
+      const from = wallet.address
+
+      // Do the call and check msg.sender
+      const data = ValueContext.interface.encodeFunctionData('getCaller')
+      const res = await provider.call({
+        to: ValueContext.address,
+        from,
+        data,
+      })
+
+      const [paddedRes] = ValueContext.interface.decodeFunctionResult(
+        'getCaller',
+        res
+      )
+      expect(paddedRes).to.eq(from)
+    })
   })
 
   describe('eth_getTransactionReceipt', () => {
@@ -286,7 +329,7 @@ describe('Basic RPC tests', () => {
       expect(receipt.status).to.eq(0)
     })
 
-    // Optimistic Ethereum special fields on the receipt
+    // Optimism special fields on the receipt
     it('includes L1 gas price and L1 gas used', async () => {
       const tx = await env.l2Wallet.populateTransaction({
         to: env.l2Wallet.address,

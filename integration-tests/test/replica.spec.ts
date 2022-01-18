@@ -1,3 +1,4 @@
+import { expect } from './shared/setup'
 import { OptimismEnv } from './shared/env'
 import {
   defaultTransactionFactory,
@@ -5,7 +6,6 @@ import {
   sleep,
   isLiveNetwork,
 } from './shared/utils'
-import { expect } from 'chai'
 import { TransactionReceipt } from '@ethersproject/abstract-provider'
 
 describe('Replica Tests', () => {

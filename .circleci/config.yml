@@ -1,6 +1,38 @@
 version: 2.1
 orbs:
   gcp-gke: circleci/gcp-gke@1.3.0
+  slack: circleci/slack@4.5.1
+slack-fail-post-step: &slack-fail-post-step
+  post-steps:
+    - slack/notify:
+        channel: $SLACK_DEFAULT_CHANNEL
+        event: fail
+        custom: |
+          {
+            "text": "",
+            "blocks": [
+              {
+                "type": "section",
+                "text": {
+                  "type": "mrkdwn",
+                  "text": "🔴 Nightly build failed!"
+                }
+              },
+              {
+                "type": "actions",
+                "elements": [
+                  {
+                    "type": "button",
+                    "text": {
+                      "type": "plain_text",
+                      "text": "View Job"
+                    },
+                    "url": "${CIRCLE_BUILD_URL}"
+                  }
+                ]
+              }
+            ]
+          }
 commands:
   build-dockerfile:
     parameters:
@@ -78,6 +110,13 @@ jobs:
           image-name: integration-tests
           target: integration-tests
           dockerfile: ./ops/docker/Dockerfile.packages
+  build-proxyd:
+    docker:
+      - image: cimg/base:2021.04
+    steps:
+      - build-dockerfile:
+          image-name: proxyd
+          dockerfile: ./go/proxyd/Dockerfile
   deploy-nightly:
     docker:
       - image: cimg/base:2021.04
@@ -101,6 +140,15 @@ jobs:
             kubectl rollout restart statefulset nightly-go-batch-submitter --namespace nightly
             kubectl rollout restart statefulset nightly-dtl --namespace nightly
             kubectl rollout restart deployment nightly-gas-oracle --namespace nightly
+            kubectl rollout restart deployment edge-proxyd --namespace nightly
+  notify:
+    docker:
+      - image: cimg/base:2021.04
+    steps:
+      - run:
+          name: Success
+          command: |
+            echo "Dummy job."
 
 
 workflows:
@@ -114,21 +162,50 @@ workflows:
                 - develop
     jobs:
       - build-dtl:
-          context: optimism
+          context: 
+            - optimism
+            - slack
+          <<: *slack-fail-post-step
       - build-batch-submitter:
-          context: optimism
+          context:
+            - optimism
+            - slack
+          <<: *slack-fail-post-step
       - build-deployer:
-          context: optimism
+          context:
+            - optimism
+            - slack
+          <<: *slack-fail-post-step
       - build-l2geth:
-          context: optimism
+          context:
+            - optimism
+            - slack
+          <<: *slack-fail-post-step
       - build-gas-oracle:
-          context: optimism
+          context:
+            - optimism
+            - slack
+          <<: *slack-fail-post-step
       - build-integration-tests:
-          context: optimism
+          context:
+            - optimism
+            - slack
+          <<: *slack-fail-post-step
       - build-go-batch-submitter:
-          context: optimism
+          context:
+            - optimism
+            - slack
+          <<: *slack-fail-post-step
+      - build-proxyd:
+          context:
+            - optimism
+            - slack
+          <<: *slack-fail-post-step
       - deploy-nightly:
-          context: optimism
+          context:
+            - optimism
+            - slack
+          <<: *slack-fail-post-step
           requires:
             - build-dtl
             - build-batch-submitter
@@ -137,3 +214,37 @@ workflows:
             - build-l2geth
             - build-gas-oracle
             - build-integration-tests
+            - build-proxyd
+      - notify:
+          context: slack
+          requires:
+            - deploy-nightly
+          post-steps:
+            - slack/notify:
+                custom: |
+                  {
+                    "text": "",
+                    "blocks": [
+                      {
+                        "type": "section",
+                        "text": {
+                          "type": "mrkdwn",
+                          "text": "✅ Nightly successfully deployed."
+                        }
+                      },
+                      {
+                        "type": "actions",
+                        "elements": [
+                          {
+                            "type": "button",
+                            "text": {
+                              "type": "plain_text",
+                              "text": "View Job"
+                            },
+                            "url": "${CIRCLE_BUILD_URL}"
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                event: always

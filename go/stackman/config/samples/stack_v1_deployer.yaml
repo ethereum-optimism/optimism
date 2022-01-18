@@ -1,0 +1,6 @@
+apiVersion: stack.optimism-stacks.net/v1
+kind: Deployer
+metadata:
+  name: deployer-sample
+spec:
+  # Add fields here
