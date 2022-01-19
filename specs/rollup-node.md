@@ -32,12 +32,18 @@ concerned with the specification of the rollup driver.
 
 ## Table of Contents
 
-- [L2 Chain Derivation][l2-chain-derivation]
-  - [From L1 blocks to payload attributes][payload-attr]
-  - [Payload Transaction Format][payload-format]
-  - [Building the L2 block with the execution engine][calling-exec-engine]
-- [Handling L1 Re-Orgs][l1-reorgs]
-- [Finalization Guarantees][finalization]
+- [L2 Chain Derivation](#l2-chain-derivation)
+  - [Input derivation](#input-derivation)
+    - [L1 attributes transaction derivation](#l1-attributes-transaction-derivation)
+    - [Transaction deposits derivation](#transaction-deposits-derivation)
+    - [Payload attributes derivation](#payload-attributes-derivation)
+  - [Output derivation](#output-derivation)
+- [Completing a driver step](#completing-a-driver-step)
+  - [Execute](#execute)
+  - [Forkchoice](#forkchoice)
+- [API error handling](#api-error-handling)
+- [Handling L1 Re-Orgs](#handling-l1-re-orgs)
+- [Finalization Guarantees](#finalization-guarantees)
 
 ## L2 Chain Derivation
 
@@ -182,26 +188,28 @@ processing the whole L1 chain since the [L2 chain inception].
 > non-specificative** but shows how L1 re-orgs can be handled in practice.
 
 In practice, the L1 chain is processed incrementally. However, the L1 chain may occasionally re-organize, meaning the
-head of the L1 chain changes to a block that is not the child of the previous head but rather one of its "cousins" (i.e.
-the descendant of an ancestor of the previous head). In those case, the rollup driver must:
+head of the L1 chain changes to a block that is not the child of the previous head but rather some other descendant
+of an ancestor of the previous head. In that case, the rollup driver must first search for common ancestor, and can then
+continue deriving with the new canonical L1 block after the common point.
 
-1. Call [`engine_forkchoiceUpdatedV1`] for the new L2 chain head
-    - Pass `null` for the `payloadAttributes` parameter.
-    - Fill the [`ForkchoiceStateV1`] object according to [the section on the execution engine][calling-exec-engine], but
-      set `headBlockHash` to the hash of the new L2 chain head. `safeBlockHash` and `finalizedBlockHash` must be updated
-      accordingly.
-2. If the call returns `"SUCCESS"`, we are done: the execution engine retrieved all the new L2 blocks via [block sync].
-3. Otherwise the call returns `"SYNCING"`, and we must derive the new blocks ourselves. Start by locating the *common
-   ancestor*, a block that is an ancestor of both the previous and new head.
-4. Isolate the range of L1 blocks from `common ancestor` (excluded) to `new head` (included).
-5. For each such block, call [`engine_forkchoiceUpdatedV1`], [`engine_getPayloadV1`], and [`engine_executePayloadV1`].
-   - Fill the [`PayloadAttributesOPV1`] object according to [the section on payload attributes][payload-attr].
-   - Fill the [`ForkchoiceStateV1`] object according to [the section on the execution engine][calling-exec-engine], but
-     set `headBlockHash` to the hash of the last processed L2 block (use the hash of the common ancestor initially)
-     instead of the last L2 chain head. `safeBlockHash` and `finalizedBlockHash` must be updated accordingly.
+This sync starting point (L1 block to derive from, and L2 parent to build on) is determined by:
 
-[block sync]: exec-engine.md#sync
-[merge]: https://ethereum.org/en/eth2/merge/
+- Retrieve the head block of the engine (`refL2`), then determine the L1 block it was derived from (`refL1`),
+  and where it builds on (`parentL2`).
+- Fetch the L1 block at the same height (`currentL1`):
+  - If not found: consider this a reorg to a shorter L1 chain, continue.
+- If the L1 source considers this canonical (`currentL1 == refL1`):
+  - Find the next L1 block (it may not exist yet) and return that as `nextRefL1`, along with the `refL2`.
+    - Note: after looking up `N+1` ensure L1 has not changed during block-by-number lookups (`refL1 == nextL1_parent`).
+- While have not found a block in the engine common with the canonical chain, traverse the L2 chain back until genesis:
+  - Each step starts by caching the previous `currentL1` as `nextRefL1`.
+  - Lookup the parent by hash: Each step `refL2` should equal the previous `parentL2`.
+    `refL1` and `parentL2` are also traversed back by parsing the `refL2` block.
+  - The canonical L1 block is looked up at the same height (`currentL1`).
+    - If not found: consider this a reorg to a shorter L1 chain, continue.
+  - If the engine and canonical chain match (`refL1 == currentL1`), then return that as `nextRefL1`, along with `refL2`.
+- If there are no common blocks after genesis, check if `refL2` and `currentL1` match the expected genesis blocks.
+- If the genesis is correct, the last cached `nextRefL1` is returned, along with the L2 genesis.
 
 > Note that post-[merge], the L1 chain will offer finalization guarantees meaning that it won't be able to re-org more
 > than `FINALIZATION_DELAY_BLOCKS == 50400` in the past, hence preserving our finalization guarantees.
