@@ -1,3 +1,4 @@
 #!/bin/bash -e
 (cd ../ && npx hardhat compile > /dev/null)
-go build && ./mipsevm $@
+go build && ./mipsevm/mipsevm $@
+

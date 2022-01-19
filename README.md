@@ -24,6 +24,8 @@ contracts -- A Merkleized MIPS processor on chain + the challenge logic
 
 ## Usage
 ```
+yarn
+
 # build unicorn
 ./build_unicorn.sh
 export LIBUNICORN_PATH=$(pwd)/unicorn2/
@@ -39,10 +41,12 @@ mkdir -p /tmp/cannon
 minigeth/go-ethereum 13284469
 
 # write out the golden MIPS minigeth start state
-mipsevm/mipsevm
+yarn
+(cd mipsevm && ./evm.sh)
+./mipsevm/mipsevm
 
 # generate MIPS checkpoints for 13284469 -> 13284470
-mipsevm/mipsevm 13284469
+./mipsevm/mipsevm 13284469
 
 # deploy the MIPS and challenge contracts
 npx hardhat run scripts/deploy.js
