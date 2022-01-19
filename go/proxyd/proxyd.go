@@ -192,10 +192,12 @@ func Start(config *Config) (func(), error) {
 		if config.Cache.BlockSyncRPCURL == "" {
 			return fmt.Errorf("block sync node config is required for caching")
 		}
+		// Ideally, the BlocKSyncRPCURL should be the sequencer or a HA replica that's not far behind
 		ethClient, err := ethclient.Dial(config.Cache.BlockSyncRPCURL)
 		if err != nil {
 			return nil, err
 		}
+		defer ethClient.Close()
 		lvcCtx, lvcCancel := context.WithCancel(context.Background())
 		defer lvcCancel()
 		blockNumFn := makeGetLatestBlockNumFn(ethClient, lvcCtx.Done())

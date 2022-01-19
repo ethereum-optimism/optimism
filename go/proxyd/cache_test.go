@@ -216,6 +216,65 @@ func TestRPCCacheUnsupportedMethod(t *testing.T) {
 	require.Nil(t, cachedRes)
 }
 
+func TestRPCCacheEthGetBlockByNumber(t *testing.T) {
+	ctx := context.Background()
+
+	var blockHead uint64 = 2
+	fn := func(ctx context.Context) (uint64, error) {
+		return blockHead, nil
+	}
+	cache := newRPCCache(newMemoryCache(), fn, nil)
+	resetCache := func() { cache = newRPCCache(newMemoryCache(), fn, nil) }
+	ID := []byte(strconv.Itoa(1))
+
+	req := &RPCReq{
+		JSONRPC: "2.0",
+		Method:  "eth_getBlockByNumber",
+		Params:  []byte(`["0x1", false]`),
+		ID:      ID,
+	}
+	res := &RPCRes{
+		JSONRPC: "2.0",
+		Result:  `{"difficulty": "0x1", "number": "0x1"}`,
+		ID:      ID,
+	}
+	req2 := &RPCReq{
+		JSONRPC: "2.0",
+		Method:  "eth_getBlockByNumber",
+		Params:  []byte(`["0x2", false]`),
+		ID:      ID,
+	}
+	res2 := &RPCRes{
+		JSONRPC: "2.0",
+		Result:  `{"difficulty": "0x2", "number": "0x2"}`,
+		ID:      ID,
+	}
+
+	require.NoError(t, cache.PutRPC(ctx, req, res, blockHead))
+	require.NoError(t, cache.PutRPC(ctx, req2, res2, blockHead))
+	cachedRes, err := cache.GetRPC(ctx, req)
+	require.NoError(t, err)
+	require.Equal(t, res, cachedRes)
+	cachedRes, err = cache.GetRPC(ctx, req2)
+	require.NoError(t, err)
+	require.Equal(t, res2, cachedRes)
+
+	// scenario: stale block; ttl live
+	resetCache()
+	require.NoError(t, cache.PutRPC(ctx, req, res, blockHead-1))
+	cachedRes, err = cache.GetRPC(ctx, req)
+	require.NoError(t, err)
+	require.Equal(t, res, cachedRes)
+
+	// scenario: live block; expired ttl
+	resetCache()
+	require.NoError(t, cache.PutRPC(ctx, req, res, blockHead))
+	cacheTTL = 0 * time.Second
+	cachedRes, err = cache.GetRPC(ctx, req)
+	require.NoError(t, err)
+	require.Equal(t, res, cachedRes)
+}
+
 func TestRPCCacheEthGetBlockByNumberForRecentBlocks(t *testing.T) {
 	ctx := context.Background()
 
@@ -231,22 +290,6 @@ func TestRPCCacheEthGetBlockByNumberForRecentBlocks(t *testing.T) {
 		res  *RPCRes
 		name string
 	}{
-		/*
-			{
-				req: &RPCReq{
-					JSONRPC: "2.0",
-					Method:  "eth_getBlockByNumber",
-					Params:  []byte(`["0x1", false]`),
-					ID:      ID,
-				},
-				res: &RPCRes{
-					JSONRPC: "2.0",
-					Result:  `{"difficulty": "0x1", "number": "0x1"}`,
-					ID:      ID,
-				},
-				name: "recent block num",
-			},
-		*/
 		{
 			req: &RPCReq{
 				JSONRPC: "2.0",
@@ -471,6 +514,7 @@ func TestRPCCacheEthCall(t *testing.T) {
 		return blockHead, nil
 	}
 	cache := newRPCCache(newMemoryCache(), fn, nil)
+	resetCache := func() { cache = newRPCCache(newMemoryCache(), fn, nil) }
 	ID := []byte(strconv.Itoa(1))
 
 	req := &RPCReq{
@@ -492,6 +536,7 @@ func TestRPCCacheEthCall(t *testing.T) {
 	require.Equal(t, res, cachedRes)
 
 	// scenario: no new block, but we've exceeded cacheTTL
+	resetCache()
 	cacheTTL = 24 * time.Hour
 	err = cache.PutRPC(ctx, req, res, blockHead)
 	require.NoError(t, err)
@@ -500,6 +545,7 @@ func TestRPCCacheEthCall(t *testing.T) {
 	require.Equal(t, res, cachedRes)
 
 	// scenario: new block, but cached TTL is live
+	resetCache()
 	cacheTTL = 24 * time.Hour
 	err = cache.PutRPC(ctx, req, res, blockHead)
 	require.NoError(t, err)
@@ -508,7 +554,8 @@ func TestRPCCacheEthCall(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, res, cachedRes)
 
-	// scenario: new bloc, cache TTL exceeded; cache invalidation
+	// scenario: new block, cache TTL exceeded; cache invalidation
+	resetCache()
 	cacheTTL = 0 * time.Second
 	err = cache.PutRPC(ctx, req, res, blockHead)
 	require.NoError(t, err)

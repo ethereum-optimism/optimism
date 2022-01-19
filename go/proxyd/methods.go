@@ -320,11 +320,12 @@ func getBlockDependentCachedRPCResponse(ctx context.Context, cache Cache, getLat
 		return nil, err
 	}
 	expired := time.Now().After(item.ExpirationTime())
-	if (curBlockNum > item.BlockNum && expired) ||
-		(curBlockNum < item.BlockNum) /* desync: reorgs, backend failover */ {
+	if curBlockNum > item.BlockNum && expired {
+		// Remove the key now to avoid biasing LRU list
 		// TODO: be careful removing keys once there are multiple proxyd instances
-		err := cache.Remove(ctx, key)
-		return nil, err
+		return nil, cache.Remove(ctx, key)
+	} else if curBlockNum < item.BlockNum { /* desync: reorgs, backend failover, slow backend, etc */
+		return nil, nil
 	}
 
 	res := item.Res
