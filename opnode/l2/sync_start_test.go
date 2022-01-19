@@ -139,7 +139,7 @@ func (c *syncStartTestCase) Run(t *testing.T) {
 	}
 	expectedRefL2 := mockID(c.ExpectedRefL2, expectedRefL2Num)
 
-	nextRefL1, refL2, err := FindSyncStart(context.Background(), msr, genesis)
+	_, nextRefL1, refL2, err := FindSyncStart(context.Background(), msr, genesis)
 	if c.ExpectedErr != nil {
 		assert.Error(t, err, "got next L1 %s (%d), onto L2: %s (%d)", nextRefL1.Hash[:1], nextRefL1.Number, refL2.Hash[:1], refL2.Number)
 		assert.ErrorIs(t, err, c.ExpectedErr)

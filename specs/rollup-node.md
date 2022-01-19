@@ -58,6 +58,7 @@ First inputs are derived from L1 source data, then outputs are derived with L2 s
 The L2 block has the same format as a L1 block: a block-header and a list of transactions.
 
 The list of transaction carries:
+
 - A *[L1 attributes transaction]* (always first item)
 - L2 transactions deposited by users in the L1 block (*[deposits]*, if any)
 
@@ -86,7 +87,6 @@ These are then encoded as a [L1 attributes deposit] to update the [L1 Attributes
 [L1 attributes deposit]: deposits.md#l1-attributes-deposit
 [L1 Attributes Predeploy]: deposits.md#l1-attributes-predeploy
 
-
 #### Transaction deposits derivation
 
 A [transaction deposit][transaction deposits] is an L2 transaction that has been submitted on L1, via a call to the
@@ -114,7 +114,6 @@ The object properties must be set as follows:
 [unix time]: https://en.wikipedia.org/wiki/Unix_time
 [EIP-2718]: https://eips.ethereum.org/EIPS/eip-2718
 [EIP-2930]: https://eips.ethereum.org/EIPS/eip-2930
-
 
 ### Output derivation
 
