@@ -101,8 +101,22 @@ export const decodeAppendSequencerBatch = (
   }
 
   const transactions = []
-  for (const context of contexts) {
-    for (let i = 0; i < context.numSequencedTransactions; i++) {
+  for (let i = 0; i < contexts.length; i++) {
+    const context = contexts[i]
+
+    if (
+      i === 0 &&
+      context.blockNumber === 0 &&
+      context.timestamp === 0 &&
+      context.numSubsequentQueueTransactions === 0 &&
+      context.numSequencedTransactions === 0
+    ) {
+      b =
+        b.slice(0, offset) +
+        zlib.inflateSync(Buffer.from(b.slice(offset), 'hex')).toString('hex')
+    }
+
+    for (let j = 0; j < context.numSequencedTransactions; j++) {
       const size = b.slice(offset, offset + 6)
       offset += 6
       const raw = b.slice(offset, offset + parseInt(size, 16) * 2)
