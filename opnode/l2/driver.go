@@ -177,20 +177,20 @@ func (e *EngineDriver) Drive(ctx context.Context, dl Downloader, l1Heads <-chan 
 					continue
 				}
 				e.Log.Debug("finding next sync step, engine syncing", "l2", e.l2Head, "l1", e.l1Head)
-				refL1, refL2, err := FindSyncStart(ctx, e.SyncRef, &e.Genesis)
+				_, nextRefL1, refL2, err := FindSyncStart(ctx, e.SyncRef, &e.Genesis)
 				if err != nil {
 					e.Log.Error("Failed to find sync starting point", "err", err)
 					continue
 				}
-				if refL1 == e.l1Head {
+				if nextRefL1 == e.l1Head {
 					e.Log.Debug("Engine is already synced, aborting sync", "l1_head", e.l1Head, "l2_head", e.l2Head)
 					continue
 				}
-				if l2ID, err := DriverStep(ctx, e.Log, e.RPC, dl, refL1, refL2, e.l2Finalized.Hash); err != nil {
-					e.Log.Error("Failed to sync L2 chain with new L1 block", "l1", refL1, "onto_l2", refL2, "err", err)
+				if l2ID, err := DriverStep(ctx, e.Log, e.RPC, dl, nextRefL1, refL2, e.l2Finalized.Hash); err != nil {
+					e.Log.Error("Failed to sync L2 chain with new L1 block", "l1", nextRefL1, "onto_l2", refL2, "err", err)
 					continue
 				} else {
-					e.UpdateHead(refL1, l2ID)
+					e.UpdateHead(nextRefL1, l2ID) // l2ID is derived from the nextRefL1
 				}
 				// Successfully stepped toward target. Continue quickly if we are not there yet
 				if e.l1Head != e.l1Target {
