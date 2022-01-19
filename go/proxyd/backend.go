@@ -62,6 +62,10 @@ var (
 		Message:       "backend returned an invalid response",
 		HTTPErrorCode: 500,
 	}
+	ErrTooManyBatchRequests = &RPCErr{
+		Code:    JSONRPCErrorInternal - 14,
+		Message: "too many RPC calls in batch request",
+	}
 )
 
 func ErrInvalidRequest(msg string) *RPCErr {
@@ -631,7 +635,7 @@ func (w *WSProxier) close() {
 }
 
 func (w *WSProxier) prepareClientMsg(msg []byte) (*RPCReq, error) {
-	req, err := ParseRPCReq(bytes.NewReader(msg))
+	req, err := ParseRPCReq(msg)
 	if err != nil {
 		return nil, err
 	}

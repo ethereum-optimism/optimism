@@ -62,6 +62,7 @@ func (c *redisCache) Get(ctx context.Context, key string) (string, error) {
 	if err == redis.Nil {
 		return "", nil
 	} else if err != nil {
+		RecordRedisError("CacheGet")
 		return "", err
 	}
 	return val, nil
@@ -69,6 +70,9 @@ func (c *redisCache) Get(ctx context.Context, key string) (string, error) {
 
 func (c *redisCache) Put(ctx context.Context, key string, value string) error {
 	err := c.rdb.Set(ctx, key, value, 0).Err()
+	if err != nil {
+		RecordRedisError("CacheSet")
+	}
 	return err
 }
 
@@ -105,6 +109,7 @@ func (c *rpcCache) GetRPC(ctx context.Context, req *RPCReq) (*RPCRes, error) {
 		return nil, err
 	}
 	if !cacheable {
+		RecordCacheMiss(req.Method)
 		return nil, nil
 	}
 
@@ -114,6 +119,7 @@ func (c *rpcCache) GetRPC(ctx context.Context, req *RPCReq) (*RPCRes, error) {
 		return nil, err
 	}
 	if encodedVal == "" {
+		RecordCacheMiss(req.Method)
 		return nil, nil
 	}
 	val, err := snappy.Decode(nil, []byte(encodedVal))
@@ -121,6 +127,7 @@ func (c *rpcCache) GetRPC(ctx context.Context, req *RPCReq) (*RPCRes, error) {
 		return nil, err
 	}
 
+	RecordCacheHit(req.Method)
 	res := new(RPCRes)
 	err = json.Unmarshal(val, res)
 	if err != nil {

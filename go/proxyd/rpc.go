@@ -46,30 +46,22 @@ func IsValidID(id json.RawMessage) bool {
 	return len(id) > 0 && id[0] != '{' && id[0] != '['
 }
 
-func ParseRPCReq(r io.Reader) (*RPCReq, error) {
-	body, err := ioutil.ReadAll(r)
-	if err != nil {
-		return nil, wrapErr(err, "error reading request body")
-	}
-
+func ParseRPCReq(body []byte) (*RPCReq, error) {
 	req := new(RPCReq)
 	if err := json.Unmarshal(body, req); err != nil {
 		return nil, ErrParseErr
 	}
 
-	if req.JSONRPC != JSONRPCVersion {
-		return nil, ErrInvalidRequest("invalid JSON-RPC version")
-	}
-
-	if req.Method == "" {
-		return nil, ErrInvalidRequest("no method specified")
-	}
-
-	if !IsValidID(req.ID) {
-		return nil, ErrInvalidRequest("invalid ID")
-	}
-
 	return req, nil
+}
+
+func ParseBatchRPCReq(body []byte) ([]json.RawMessage, error) {
+	batch := make([]json.RawMessage, 0)
+	if err := json.Unmarshal(body, &batch); err != nil {
+		return nil, err
+	}
+
+	return batch, nil
 }
 
 func ParseRPCRes(r io.Reader) (*RPCRes, error) {
@@ -84,6 +76,22 @@ func ParseRPCRes(r io.Reader) (*RPCRes, error) {
 	}
 
 	return res, nil
+}
+
+func ValidateRPCReq(req *RPCReq) error {
+	if req.JSONRPC != JSONRPCVersion {
+		return ErrInvalidRequest("invalid JSON-RPC version")
+	}
+
+	if req.Method == "" {
+		return ErrInvalidRequest("no method specified")
+	}
+
+	if !IsValidID(req.ID) {
+		return ErrInvalidRequest("invalid ID")
+	}
+
+	return nil
 }
 
 func NewRPCErrorRes(id json.RawMessage, err error) *RPCRes {

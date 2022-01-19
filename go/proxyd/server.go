@@ -6,6 +6,8 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/ioutil"
+	"math"
 	"net/http"
 	"strconv"
 	"strings"
@@ -22,6 +24,7 @@ const (
 	ContextKeyAuth          = "authorization"
 	ContextKeyReqID         = "req_id"
 	ContextKeyXForwardedFor = "x_forwarded_for"
+	MaxBatchRPCCalls        = 25
 )
 
 type Server struct {
@@ -49,6 +52,11 @@ func NewServer(
 	if cache == nil {
 		cache = &NoopRPCCache{}
 	}
+
+	if maxBodySize == 0 {
+		maxBodySize = math.MaxInt64
+	}
+
 	return &Server{
 		backendGroups:      backendGroups,
 		wsBackendGroup:     wsBackendGroup,
@@ -122,15 +130,66 @@ func (s *Server) HandleRPC(w http.ResponseWriter, r *http.Request) {
 		"user_agent", r.Header.Get("user-agent"),
 	)
 
-	bodyReader := &recordLenReader{Reader: io.LimitReader(r.Body, s.maxBodySize)}
-	req, err := ParseRPCReq(bodyReader)
+	body, err := ioutil.ReadAll(io.LimitReader(r.Body, s.maxBodySize))
 	if err != nil {
-		log.Info("rejected request with bad rpc request", "source", "rpc", "err", err)
-		RecordRPCError(ctx, BackendProxyd, MethodUnknown, err)
+		log.Error("error reading request body", "err", err)
+		writeRPCError(ctx, w, nil, ErrInternal)
+		return
+	}
+	RecordRequestPayloadSize(ctx, len(body))
+
+	if body[0] == '[' {
+		reqs, err := ParseBatchRPCReq(body)
+		if err != nil {
+			log.Error("error parsing batch RPC request", "err", err)
+			RecordRPCError(ctx, BackendProxyd, MethodUnknown, err)
+			writeRPCError(ctx, w, nil, ErrParseErr)
+			return
+		}
+
+		if len(reqs) > MaxBatchRPCCalls {
+			RecordRPCError(ctx, BackendProxyd, MethodUnknown, ErrTooManyBatchRequests)
+			writeRPCError(ctx, w, nil, ErrTooManyBatchRequests)
+			return
+		}
+
+		if len(reqs) == 0 {
+			writeRPCError(ctx, w, nil, ErrInvalidRequest("must specify at least one batch call"))
+			return
+		}
+
+		batchRes := make([]*RPCRes, len(reqs), len(reqs))
+		for i := 0; i < len(reqs); i++ {
+			req, err := ParseRPCReq(reqs[i])
+			if err != nil {
+				log.Info("error parsing RPC call", "source", "rpc", "err", err)
+				batchRes[i] = NewRPCErrorRes(nil, err)
+				continue
+			}
+
+			batchRes[i] = s.handleSingleRPC(ctx, req)
+		}
+
+		writeBatchRPCRes(ctx, w, batchRes)
+		return
+	}
+
+	req, err := ParseRPCReq(body)
+	if err != nil {
+		log.Info("error parsing RPC call", "source", "rpc", "err", err)
 		writeRPCError(ctx, w, nil, err)
 		return
 	}
-	RecordRequestPayloadSize(ctx, req.Method, bodyReader.Len)
+
+	backendRes := s.handleSingleRPC(ctx, req)
+	writeRPCRes(ctx, w, backendRes)
+}
+
+func (s *Server) handleSingleRPC(ctx context.Context, req *RPCReq) *RPCRes {
+	if err := ValidateRPCReq(req); err != nil {
+		RecordRPCError(ctx, BackendProxyd, MethodUnknown, err)
+		return NewRPCErrorRes(nil, err)
+	}
 
 	group := s.rpcMethodMappings[req.Method]
 	if group == "" {
@@ -143,22 +202,20 @@ func (s *Server) HandleRPC(w http.ResponseWriter, r *http.Request) {
 			"method", req.Method,
 		)
 		RecordRPCError(ctx, BackendProxyd, MethodUnknown, ErrMethodNotWhitelisted)
-		writeRPCError(ctx, w, req.ID, ErrMethodNotWhitelisted)
-		return
+		return NewRPCErrorRes(req.ID, ErrMethodNotWhitelisted)
 	}
 
 	var backendRes *RPCRes
-	backendRes, err = s.cache.GetRPC(ctx, req)
-	if err == nil && backendRes != nil {
-		writeRPCRes(ctx, w, backendRes)
-		return
-	}
+	backendRes, err := s.cache.GetRPC(ctx, req)
 	if err != nil {
 		log.Warn(
 			"cache lookup error",
 			"req_id", GetReqID(ctx),
 			"err", err,
 		)
+	}
+	if backendRes != nil {
+		return backendRes
 	}
 
 	backendRes, err = s.backendGroups[group].Forward(ctx, req)
@@ -169,8 +226,7 @@ func (s *Server) HandleRPC(w http.ResponseWriter, r *http.Request) {
 			"req_id", GetReqID(ctx),
 			"err", err,
 		)
-		writeRPCError(ctx, w, req.ID, err)
-		return
+		return NewRPCErrorRes(req.ID, err)
 	}
 
 	if backendRes.Error == nil {
@@ -183,7 +239,7 @@ func (s *Server) HandleRPC(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	writeRPCRes(ctx, w, backendRes)
+	return backendRes
 }
 
 func (s *Server) HandleWS(w http.ResponseWriter, r *http.Request) {
@@ -291,6 +347,18 @@ func writeRPCRes(ctx context.Context, w http.ResponseWriter, res *RPCRes) {
 		return
 	}
 	httpResponseCodesTotal.WithLabelValues(strconv.Itoa(statusCode)).Inc()
+	RecordResponsePayloadSize(ctx, ww.Len)
+}
+
+func writeBatchRPCRes(ctx context.Context, w http.ResponseWriter, res []*RPCRes) {
+	w.WriteHeader(200)
+	ww := &recordLenWriter{Writer: w}
+	enc := json.NewEncoder(ww)
+	if err := enc.Encode(res); err != nil {
+		log.Error("error writing batch rpc response", "err", err)
+		RecordRPCError(ctx, BackendProxyd, MethodUnknown, err)
+		return
+	}
 	RecordResponsePayloadSize(ctx, ww.Len)
 }
 
