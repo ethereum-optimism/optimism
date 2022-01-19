@@ -1,9 +1,16 @@
 import { expect } from './shared/setup'
 
+/* Imports: External */
 import { expectApprox, injectL2Context } from '@eth-optimism/core-utils'
 import { Wallet, BigNumber, Contract, ContractFactory, constants } from 'ethers'
 import { serialize } from '@ethersproject/transactions'
 import { ethers } from 'hardhat'
+import {
+  TransactionReceipt,
+  TransactionRequest,
+} from '@ethersproject/providers'
+
+/* Imports: Internal */
 import {
   sleep,
   l2Provider,
@@ -14,10 +21,6 @@ import {
   gasPriceForL2,
 } from './shared/utils'
 import { OptimismEnv } from './shared/env'
-import {
-  TransactionReceipt,
-  TransactionRequest,
-} from '@ethersproject/providers'
 import simpleStorageJson from '../artifacts/contracts/SimpleStorage.sol/SimpleStorage.json'
 
 describe('Basic RPC tests', () => {

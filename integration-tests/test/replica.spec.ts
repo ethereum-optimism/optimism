@@ -1,4 +1,9 @@
 import { expect } from './shared/setup'
+
+/* Imports: External */
+import { TransactionReceipt } from '@ethersproject/abstract-provider'
+
+/* Imports: Internal */
 import { OptimismEnv } from './shared/env'
 import {
   defaultTransactionFactory,
@@ -6,7 +11,6 @@ import {
   sleep,
   isLiveNetwork,
 } from './shared/utils'
-import { TransactionReceipt } from '@ethersproject/abstract-provider'
 
 describe('Replica Tests', () => {
   let env: OptimismEnv

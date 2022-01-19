@@ -1,10 +1,10 @@
 import { expect } from './shared/setup'
 
-/* Imports: Internal */
+/* Imports: External */
 import { providers } from 'ethers'
 import { injectL2Context, applyL1ToL2Alias } from '@eth-optimism/core-utils'
 
-/* Imports: External */
+/* Imports: Internal */
 import { OptimismEnv } from './shared/env'
 import { Direction } from './shared/watcher-utils'
 import { isLiveNetwork } from './shared/utils'

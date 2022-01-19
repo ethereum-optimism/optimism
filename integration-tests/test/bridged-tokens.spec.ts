@@ -1,9 +1,11 @@
 import { expect } from './shared/setup'
 
+/* Imports: External */
 import { BigNumber, Contract, ContractFactory, utils, Wallet } from 'ethers'
 import { ethers } from 'hardhat'
 import * as L2Artifact from '@eth-optimism/contracts/artifacts/contracts/standards/L2StandardERC20.sol/L2StandardERC20.json'
 
+/* Imports: Internal */
 import { OptimismEnv } from './shared/env'
 import { isLiveNetwork, isMainnet } from './shared/utils'
 import { Direction } from './shared/watcher-utils'

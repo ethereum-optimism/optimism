@@ -1,7 +1,10 @@
 import { expect } from './shared/setup'
 
+/* Imports: External */
 import { BigNumber, Contract, ContractFactory, Wallet } from 'ethers'
 import { ethers } from 'hardhat'
+
+/* Imports: Internal */
 import {
   fundUser,
   encodeSolidityRevertMessage,
