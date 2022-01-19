@@ -212,9 +212,19 @@ export interface StateRootBatchHeader {
 }
 
 /**
- * State root batch, including header and actual state roots.
+ * Information about a state root, including header, block number, and root iself.
+ */
+export interface StateRoot {
+  blockNumber: number
+  header: StateRootBatchHeader
+  stateRoot: string
+}
+
+/**
+ * Information about a batch of state roots.
  */
 export interface StateRootBatch {
+  blockNumber: number
   header: StateRootBatchHeader
   stateRoots: string[]
 }

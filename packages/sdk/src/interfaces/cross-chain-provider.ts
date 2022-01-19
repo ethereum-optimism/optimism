@@ -1,4 +1,4 @@
-import { BigNumber } from 'ethers'
+import { Event, BigNumber } from 'ethers'
 import { Provider, BlockTag } from '@ethersproject/abstract-provider'
 import {
   MessageLike,
@@ -12,6 +12,8 @@ import {
   OEContracts,
   MessageReceipt,
   CustomBridges,
+  StateRoot,
+  StateRootBatch,
 } from './types'
 
 /**
@@ -225,4 +227,62 @@ export interface ICrossChainProvider {
    * @returns Estimated amount of time remaining (in blocks) before the message can be executed.
    */
   estimateMessageWaitTimeBlocks(message: MessageLike): Promise<number>
+
+  /**
+   * Queries the current challenge period in seconds from the StateCommitmentChain.
+   *
+   * @returns Current challenge period in seconds.
+   */
+  getChallengePeriodSeconds(): Promise<number>
+
+  /**
+   * Queries the current challenge period in blocks from the StateCommitmentChain. Estimation is
+   * based on the challenge period in seconds divided by the L1 block time.
+   *
+   * @returns Current challenge period in blocks.
+   */
+  getChallengePeriodBlocks(): Promise<number>
+
+  /**
+   * Returns the state root that corresponds to a given message. This is the state root for the
+   * block in which the transaction was included, as published to the StateCommitmentChain. If the
+   * state root for the given message has not been published yet, this function returns null.
+   *
+   * @param message Message to find a state root for.
+   * @returns State root for the block in which the message was created.
+   */
+  getMessageStateRoot(message: MessageLike): Promise<StateRoot | null>
+
+  /**
+   * Returns the StateBatchAppended event that was emitted when the batch with a given index was
+   * created. Returns null if no such event exists (the batch has not been submitted).
+   *
+   * @param batchIndex Index of the batch to find an event for.
+   * @returns StateBatchAppended event for the batch, or null if no such batch exists.
+   */
+  getStateBatchAppendedEventByBatchIndex(
+    batchIndex: number
+  ): Promise<Event | null>
+
+  /**
+   * Returns the StateBatchAppended event for the batch that includes the transaction with the
+   * given index. Returns null if no such event exists.
+   *
+   * @param transactionIndex Index of the L2 transaction to find an event for.
+   * @returns StateBatchAppended event for the batch that includes the given transaction by index.
+   */
+  getStateBatchAppendedEventByTransactionIndex(
+    transactionIndex: number
+  ): Promise<Event | null>
+
+  /**
+   * Returns information about the state root batch that included the state root for the given
+   * transaction by index. Returns null if no such state root has been published yet.
+   *
+   * @param transactionIndex Index of the L2 transaction to find a state root batch for.
+   * @returns State root batch for the given transaction index, or null if none exists yet.
+   */
+  getStateRootBatchByTransactionIndex(
+    transactionIndex: number
+  ): Promise<StateRootBatch | null>
 }
