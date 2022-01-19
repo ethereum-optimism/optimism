@@ -146,7 +146,7 @@ func (c *OpNodeCmd) RunNode() {
 	c.log.Info("Starting OpNode")
 
 	var unsub []func()
-	mergeSub := func(sub ethereum.Subscription, errMsg string) {
+	handleUnsubscribe := func(sub ethereum.Subscription, errMsg string) {
 		unsub = append(unsub, sub.Unsubscribe)
 		go func() {
 			err, ok := <-sub.Err()
@@ -182,7 +182,7 @@ func (c *OpNodeCmd) RunNode() {
 		l1HeadsFeed.Subscribe(l1SubCh)
 		// start driving engine: sync blocks by deriving them from L1 and driving them into the engine
 		engDriveSub := eng.Drive(c.ctx, c.l1Downloader, l1SubCh)
-		mergeSub(engDriveSub, "engine driver unexpectedly failed")
+		handleUnsubscribe(engDriveSub, "engine driver unexpectedly failed")
 	}
 
 	// Keep subscribed to the L1 heads, which keeps the L1 maintainer pointing to the best headers to sync
@@ -194,7 +194,7 @@ func (c *OpNodeCmd) RunNode() {
 			l1HeadsFeed.Send(sig)
 		})
 	})
-	mergeSub(l1HeadsSub, "l1 heads subscription failed")
+	handleUnsubscribe(l1HeadsSub, "l1 heads subscription failed")
 
 	// subscribe to L1 heads for info
 	l1Heads := make(chan eth.HeadSignal, 10)
