@@ -66,7 +66,7 @@ describe('DepositFeed', () => {
     it('when an EOA deposits a transaction with 0 value.', async () => {
       const receipt = await(
         await depositFeed.depositTransaction(
-          ZERO_ADDRESS,
+          NON_ZERO_ADDRESS,
           ZERO_BIGNUMBER,
           NON_ZERO_GASLIMIT,
           false,
@@ -79,7 +79,7 @@ describe('DepositFeed', () => {
 
       expect(eventArgs).to.deep.equal({
         from: signerAddress,
-        to: ZERO_ADDRESS,
+        to: NON_ZERO_ADDRESS,
         mint: ZERO_BIGNUMBER,
         value: ZERO_BIGNUMBER,
         gasLimit: NON_ZERO_GASLIMIT,
