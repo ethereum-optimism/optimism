@@ -83,7 +83,20 @@ type receiptTask struct {
 }
 
 type Downloader interface {
+	// Fetch downloads a block and all the corresponding transaction receipts.
+	// Past and ongoing download jobs are cached in an LRU to de-duplicate work.
+	//
+	// If the Downloader is closed, then a DownloadClosedErr is returned.
+	//
+	// If the Downloader is stressed with too many new requests,
+	// a long call may be evicted and return a DownloadEvictedErr.
+	//
+	// If the provided ctx is done the download may also finish with the context error.
+	//
+	// Internal timeouts are maintained to ensure nothing halts the downloader indefinitely.
 	Fetch(ctx context.Context, id eth.BlockID) (*types.Block, []*types.Receipt, error)
+	// AddReceiptWorkers can add n parallel workers, or remove if n < 0, or no-op if n == 0.
+	// It then returns the new number of workers.
 	AddReceiptWorkers(n int) int
 	Close()
 }
@@ -93,10 +106,19 @@ type DownloadSource interface {
 	eth.ReceiptSource
 }
 
+// downloader implements Downloader with parallel jobs,
+// to work around the limited standard JSON-RPC that can only fetch receipts individually.
+//
+// The downloader maintains a LRU of past and ongoing requests, to de-duplicate work.
+// After the first task of downloading the block completes, the transactions are mapped to receipt download tasks.
+// Receipt tasks are queued up, split between parallel workers, and re-scheduled on failure up to 5 times.
+//
+// Receipt-downloading workers can be added/removed through AddReceiptWorkers at any time.
 type downloader struct {
 	// cache of ongoing/completed block tasks: block hash -> block
 	cacheEvict *lru.Cache
-	cacheLock  sync.Mutex
+	// Get/Add calls need to be atomic to avoid duplicate jobs being created and added
+	cacheLock sync.Mutex
 
 	receiptTasks       chan *receiptTask
 	receiptWorkers     []ethereum.Subscription
@@ -131,7 +153,6 @@ func (dl *downloader) Fetch(ctx context.Context, id eth.BlockID) (*types.Block, 
 	var dlTask *downloadTask
 	if dlTaskIfc, ok := dl.cacheEvict.Get(id.Hash); ok {
 		dlTask = dlTaskIfc.(*downloadTask)
-		dl.cacheEvict.Add(id.Hash, dlTask) // add it again, so it moves to the front and avoid eviction
 	} else {
 		ctx, cancel := context.WithCancel(ctx)
 		dlTask = &downloadTask{ctx: ctx, cancel: cancel}
