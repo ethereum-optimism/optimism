@@ -119,12 +119,12 @@ as the engine implementation can sync state faster through methods like [snap-sy
 
 ### Happy-path sync
 
-1. Engine API informs engine of chain head, unconditionally (part of regular node operation):
+1. The rollup node informs the engine of the L2 chain head, unconditionally (part of regular node operation):
    - [`engine_executePayloadV1`][engine_executePayloadV1] is called with latest L2 block derived from L1.
    - [`engine_forkchoiceUpdatedV1`][engine_forkchoiceUpdatedV1] is called with the current
      `unsafe`/`safe`/`finalized` L2 block hashes.
-2. Engine requests headers from peers, in reverse till the parent hash matches the local chain
-3. Engine catches up:
+2. The engine requests headers from peers, in reverse till the parent hash matches the local chain
+3. The engine catches up:
     a) A form of state sync is activated towards the finalized or head block hash
     b) A form of block sync pulls block bodies and processes towards head block hash
 
@@ -134,17 +134,12 @@ the operation within the engine is the exact same as with L1 (although with an E
 ### Worst-case sync
 
 1. Engine is out of sync, not peered and/or stalled due other reasons.
-2. rollup node periodically fetches latest head from engine (`eth_getBlockByNumber`)
-3. rollup node activates sync if the engine is out of sync but not syncing through P2P (`eth_syncing`)
-4. rollup node inserts blocks, derived from L1, one by one,
-   starting from the engine head (or genesis block if unrecognized) up to the latest chain head.
-   (`engine_forkchoiceUpdatedV1`, `engine_executePayloadV1`)
+2. The rollup node maintains latest head from engine (poll `eth_getBlockByNumber` and/or maintain a header subscription)
+3. The rollup node activates sync if the engine is out of sync but not syncing through P2P (`eth_syncing`)
+4. The rollup node inserts blocks, derived from L1, one by one, potentially adapting to L1 reorg(s),
+   as outlined in the [rollup node spec] (`engine_forkchoiceUpdatedV1`, `engine_executePayloadV1`)
 
-See [rollup node sync spec][rollup-node-sync] for L1-based block syncing specification.
-
-> **TODO**: rollup node block-by-block sync (covered in rollup node PR #43)
-
-[rollup-node-sync]: ./rollup-node.md#sync
+[rollup node spec]: rollup-node.md
 
 [eip-2718]: https://eips.ethereum.org/EIPS/eip-2718
 [eip-2718-transactions]: https://eips.ethereum.org/EIPS/eip-2718#transactions
