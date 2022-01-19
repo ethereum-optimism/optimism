@@ -4,3 +4,4 @@ cache
 unicorn
 unicorn2
 .*.swp
+venv
