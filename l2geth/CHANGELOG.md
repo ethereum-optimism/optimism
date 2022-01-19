@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.5.7
+
+### Patch Changes
+
+- d4bf299f: Add support to fully unmarshal Receipts with Optimism fields
+- 8be69ca7: Add changeset for https://github.com/ethereum-optimism/optimism/pull/2011 - replicas forward write requests to the sequencer via a configured parameter `--sequencer.clienthttp` or `SEQUENCER_CLIENT_HTTP`
+- c9fd6ec2: Correctly parse fee enforcement via config to allow turning off L2 fees for development
+
 ## 0.5.6
 
 ### Patch Changes
