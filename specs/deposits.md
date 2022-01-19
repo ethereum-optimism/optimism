@@ -161,12 +161,9 @@ A reference implementation of the L1 Attributes predeploy contract can be found 
 
 [L1Block.sol]: ../packages/contracts/contracts/L2/L1Block.sol
 
-The bytecode to add to the genesis file will be located in the
-`deployedBytecode` of the [JSON artifact file][l1-block-artifacts] corresponding
-to L1Block.sol (this link will be broken unless you've built the contracts with
-`yarn build` in the `packages/contracts` directory).
-
-[l1-block-artifacts]: /packages/contracts/artifacts/contracts/L2/L1Block.sol/L1Block.json
+After running `yarn build` in the `packages/contracts` directory, the bytecode to add to the genesis
+file will be located in the `deployedBytecode` field of the build artifacts file at
+`/packages/contracts/artifacts/contracts/L2/L1Block.sol/L1Block.json`.
 
 ## L1 Transaction Deposits
 
