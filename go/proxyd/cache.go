@@ -2,7 +2,6 @@ package proxyd
 
 import (
 	"context"
-	"time"
 
 	"github.com/go-redis/redis/v8"
 	lru "github.com/hashicorp/golang-lru"
@@ -10,7 +9,7 @@ import (
 
 type Cache interface {
 	Get(ctx context.Context, key string) (string, error)
-	Put(ctx context.Context, key string, value string, ttl time.Duration) error
+	Put(ctx context.Context, key string, value string) error
 	Remove(ctx context.Context, key string) error
 }
 
@@ -35,7 +34,7 @@ func (c *cache) Get(ctx context.Context, key string) (string, error) {
 	return "", nil
 }
 
-func (c *cache) Put(ctx context.Context, key string, value string, ttl time.Duration) error {
+func (c *cache) Put(ctx context.Context, key string, value string) error {
 	c.lru.Add(key, value)
 	return nil
 }
@@ -72,7 +71,7 @@ func (c *redisCache) Get(ctx context.Context, key string) (string, error) {
 	return val, nil
 }
 
-func (c *redisCache) Put(ctx context.Context, key string, value string, ttl time.Duration) error {
+func (c *redisCache) Put(ctx context.Context, key string, value string) error {
 	err := c.rdb.Set(ctx, key, value, 0).Err()
 	if err != nil {
 		RecordRedisError("CacheSet")
@@ -91,11 +90,9 @@ type GetLatestGasPriceFn func(ctx context.Context) (uint64, error)
 type RPCCache interface {
 	GetRPC(ctx context.Context, req *RPCReq) (*RPCRes, error)
 
-	// The blockNumberSync is used to enforce Sequential Consistency. We make the following assumptions to do this:
-	// 1. No Reorgs. Reoorgs are handled by the Cache during retrieval
-	// 2. The backend yields synchronized block numbers and RPC Responses.
-	// 2. No backend failover. If there's a failover then we may desync as we use a different backend
-	// that doesn't have our block.
+	// The blockNumberSync is used to enforce Sequential Consistency for cache invalidation. We make the following assumptions to do this:
+	// 1. blockNumberSync is monotonically increasing (sans reorgs)
+	// 2. blockNumberSync is ordered before block state of the RPCRes
 	PutRPC(ctx context.Context, req *RPCReq, res *RPCRes, blockNumberSync uint64) error
 }
 

@@ -12,6 +12,8 @@ import (
 	"github.com/golang/snappy"
 )
 
+const numBlockConfirmations = 50
+
 var (
 	cacheTTL = 5 * time.Second
 
@@ -75,15 +77,37 @@ func (e *EthGetBlockByNumberMethodHandler) GetRPCMethod(ctx context.Context, req
 		return nil, err
 	}
 	key := e.cacheKey(req)
-	return getBlockDependentCachedRPCResponse(ctx, e.cache, e.getLatestBlockNumFn, key, req)
+	return getImmutableRPCResponse(ctx, e.cache, key, req)
 }
 
 func (e *EthGetBlockByNumberMethodHandler) PutRPCMethod(ctx context.Context, req *RPCReq, res *RPCRes, blockNumberSync uint64) error {
 	if ok, err := e.cacheable(req); !ok || err != nil {
 		return err
 	}
+
+	blockInput, _, err := decodeGetBlockByNumberParams(req.Params)
+	if err != nil {
+		return err
+	}
+	if isBlockDependentParam(blockInput) {
+		return nil
+	}
+	if blockInput != "earliest" {
+		curBlock, err := e.getLatestBlockNumFn(ctx)
+		if err != nil {
+			return err
+		}
+		blockNum, err := decodeBlockInput(blockInput)
+		if err != nil {
+			return err
+		}
+		if curBlock <= blockNum+numBlockConfirmations {
+			return nil
+		}
+	}
+
 	key := e.cacheKey(req)
-	return putBlockDependentCachedRPCResponse(ctx, e.cache, key, res, blockNumberSync)
+	return putImmutableRPCResponse(ctx, e.cache, key, req, res)
 }
 
 type EthGetBlockRangeMethodHandler struct {
@@ -111,16 +135,45 @@ func (e *EthGetBlockRangeMethodHandler) GetRPCMethod(ctx context.Context, req *R
 	if ok, err := e.cacheable(req); !ok || err != nil {
 		return nil, err
 	}
+
 	key := e.cacheKey(req)
-	return getBlockDependentCachedRPCResponse(ctx, e.cache, e.getLatestBlockNumFn, key, req)
+	return getImmutableRPCResponse(ctx, e.cache, key, req)
 }
 
 func (e *EthGetBlockRangeMethodHandler) PutRPCMethod(ctx context.Context, req *RPCReq, res *RPCRes, blockNumberSync uint64) error {
 	if ok, err := e.cacheable(req); !ok || err != nil {
 		return err
 	}
+
+	start, end, _, err := decodeGetBlockRangeParams(req.Params)
+	if err != nil {
+		return err
+	}
+	curBlock, err := e.getLatestBlockNumFn(ctx)
+	if err != nil {
+		return err
+	}
+	if start != "earliest" {
+		startNum, err := decodeBlockInput(start)
+		if err != nil {
+			return err
+		}
+		if curBlock <= startNum+numBlockConfirmations {
+			return nil
+		}
+	}
+	if end != "earliest" {
+		endNum, err := decodeBlockInput(end)
+		if err != nil {
+			return err
+		}
+		if curBlock <= endNum+numBlockConfirmations {
+			return nil
+		}
+	}
+
 	key := e.cacheKey(req)
-	return putBlockDependentCachedRPCResponse(ctx, e.cache, key, res, blockNumberSync)
+	return putImmutableRPCResponse(ctx, e.cache, key, req, res)
 }
 
 type EthCallMethodHandler struct {
@@ -137,8 +190,15 @@ func (e *EthCallMethodHandler) cacheKey(req *RPCReq) string {
 		Value    string `json:"value"`
 		Data     string `json:"data"`
 	}
+	var input []json.RawMessage
+	if err := json.Unmarshal(req.Params, &input); err != nil {
+		return ""
+	}
+	if len(input) != 2 {
+		return ""
+	}
 	var params ethCallParams
-	if err := json.Unmarshal(req.Params, &params); err != nil {
+	if err := json.Unmarshal(input[0], &params); err != nil {
 		return ""
 	}
 	// ensure the order is consistent
@@ -298,6 +358,36 @@ func (c *CachedRPC) ExpirationTime() time.Time {
 	return time.Unix(0, c.Expiration*int64(time.Millisecond))
 }
 
+func getImmutableRPCResponse(ctx context.Context, cache Cache, key string, req *RPCReq) (*RPCRes, error) {
+	encodedVal, err := cache.Get(ctx, key)
+	if err != nil {
+		return nil, err
+	}
+	if encodedVal == "" {
+		return nil, nil
+	}
+	val, err := snappy.Decode(nil, []byte(encodedVal))
+	if err != nil {
+		return nil, err
+	}
+
+	res := new(RPCRes)
+	if err := json.Unmarshal(val, res); err != nil {
+		return nil, err
+	}
+	res.ID = req.ID
+	return res, nil
+}
+
+func putImmutableRPCResponse(ctx context.Context, cache Cache, key string, req *RPCReq, res *RPCRes) error {
+	if key == "" {
+		return nil
+	}
+	val := mustMarshalJSON(res)
+	encodedVal := snappy.Encode(nil, val)
+	return cache.Put(ctx, key, string(encodedVal))
+}
+
 func getBlockDependentCachedRPCResponse(ctx context.Context, cache Cache, getLatestBlockNumFn GetLatestBlockNumFn, key string, req *RPCReq) (*RPCRes, error) {
 	encodedVal, err := cache.Get(ctx, key)
 	if err != nil {
@@ -321,10 +411,11 @@ func getBlockDependentCachedRPCResponse(ctx context.Context, cache Cache, getLat
 	}
 	expired := time.Now().After(item.ExpirationTime())
 	if curBlockNum > item.BlockNum && expired {
-		// Remove the key now to avoid biasing LRU list
+		// Remove the key now to avoid stale entries from biasing the LRU list
 		// TODO: be careful removing keys once there are multiple proxyd instances
 		return nil, cache.Remove(ctx, key)
-	} else if curBlockNum < item.BlockNum { /* desync: reorgs, backend failover, slow backend, etc */
+	} else if curBlockNum < item.BlockNum { /* desync: reorgs, backend failover, slow sequencer I/O, etc */
+		// TODO: Use the blockHash to detect reorgs and invalidate the key
 		return nil, nil
 	}
 
@@ -345,5 +436,5 @@ func putBlockDependentCachedRPCResponse(ctx context.Context, cache Cache, key st
 	val := item.Encode()
 
 	encodedVal := snappy.Encode(nil, val)
-	return cache.Put(ctx, key, string(encodedVal), cacheTTL)
+	return cache.Put(ctx, key, string(encodedVal))
 }

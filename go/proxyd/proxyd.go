@@ -5,6 +5,7 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
+	"math/big"
 	"net/http"
 	"os"
 	"time"
@@ -321,6 +322,6 @@ func makeGetLatestGasPriceFn(client *ethclient.Client, quit <-chan struct{}) Get
 		if value == nil {
 			return 0, fmt.Errorf("gas price is unavailable")
 		}
-		return value.(uint64), nil
+		return value.(*big.Int).Uint64(), nil
 	}
 }
