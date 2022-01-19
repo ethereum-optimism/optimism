@@ -48,4 +48,5 @@ jobs:
       - name: Link Checker
         uses: lycheeverse/lychee-action@v1.2.0
         with:
+          args: --verbose --no-progress --exclude twitter.com --exclude-mail README.md "./specs/**/*.md" "./meta/**/*.md" "./opnode/**/*.md"
           fail: true

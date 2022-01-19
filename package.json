@@ -13,6 +13,6 @@
     "lint": "yarn lint:fix && yarn lint:check",
     "lint:fix": "markdownlint-cli2-fix \"./specs/**/*.md\" \"#node_modules\"",
     "lint:check": "markdownlint-cli2 \"./specs/**/*.md\" \"#node_modules\"",
-    "lint:links": "lychee \"./specs/**/*.md\""
+    "lint:links": "lychee --exclude twitter.com --exclude-mail README.md \"./specs/**/*.md\" \"./meta/**/*.md\" \"./opnode/**/*.md\""
   }
 }
