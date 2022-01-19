@@ -27,9 +27,9 @@ func (r Receipt) MarshalJSON() ([]byte, error) {
 		BlockHash         common.Hash    `json:"blockHash,omitempty"`
 		BlockNumber       *hexutil.Big   `json:"blockNumber,omitempty"`
 		TransactionIndex  hexutil.Uint   `json:"transactionIndex"`
-		L1GasPrice        *big.Int       `json:"l1GasPrice" gencodec:"required"`
-		L1GasUsed         *big.Int       `json:"l1GasUsed" gencodec:"required"`
-		L1Fee             *big.Int       `json:"l1Fee" gencodec:"required"`
+		L1GasPrice        *hexutil.Big   `json:"l1GasPrice" gencodec:"required"`
+		L1GasUsed         *hexutil.Big   `json:"l1GasUsed" gencodec:"required"`
+		L1Fee             *hexutil.Big   `json:"l1Fee" gencodec:"required"`
 		FeeScalar         *big.Float     `json:"l1FeeScalar" gencodec:"required"`
 	}
 	var enc Receipt
@@ -44,9 +44,9 @@ func (r Receipt) MarshalJSON() ([]byte, error) {
 	enc.BlockHash = r.BlockHash
 	enc.BlockNumber = (*hexutil.Big)(r.BlockNumber)
 	enc.TransactionIndex = hexutil.Uint(r.TransactionIndex)
-	enc.L1GasPrice = r.L1GasPrice
-	enc.L1GasUsed = r.L1GasUsed
-	enc.L1Fee = r.L1Fee
+	enc.L1GasPrice = (*hexutil.Big)(r.L1GasPrice)
+	enc.L1GasUsed = (*hexutil.Big)(r.L1GasUsed)
+	enc.L1Fee = (*hexutil.Big)(r.L1Fee)
 	enc.FeeScalar = r.FeeScalar
 	return json.Marshal(&enc)
 }
@@ -65,9 +65,9 @@ func (r *Receipt) UnmarshalJSON(input []byte) error {
 		BlockHash         *common.Hash    `json:"blockHash,omitempty"`
 		BlockNumber       *hexutil.Big    `json:"blockNumber,omitempty"`
 		TransactionIndex  *hexutil.Uint   `json:"transactionIndex"`
-		L1GasPrice        *big.Int        `json:"l1GasPrice" gencodec:"required"`
-		L1GasUsed         *big.Int        `json:"l1GasUsed" gencodec:"required"`
-		L1Fee             *big.Int        `json:"l1Fee" gencodec:"required"`
+		L1GasPrice        *hexutil.Big    `json:"l1GasPrice" gencodec:"required"`
+		L1GasUsed         *hexutil.Big    `json:"l1GasUsed" gencodec:"required"`
+		L1Fee             *hexutil.Big    `json:"l1Fee" gencodec:"required"`
 		FeeScalar         *big.Float      `json:"l1FeeScalar" gencodec:"required"`
 	}
 	var dec Receipt
@@ -115,15 +115,15 @@ func (r *Receipt) UnmarshalJSON(input []byte) error {
 	if dec.L1GasPrice == nil {
 		return errors.New("missing required field 'l1GasPrice' for Receipt")
 	}
-	r.L1GasPrice = dec.L1GasPrice
+	r.L1GasPrice = (*big.Int)(dec.L1GasPrice)
 	if dec.L1GasUsed == nil {
 		return errors.New("missing required field 'l1GasUsed' for Receipt")
 	}
-	r.L1GasUsed = dec.L1GasUsed
+	r.L1GasUsed = (*big.Int)(dec.L1GasUsed)
 	if dec.L1Fee == nil {
 		return errors.New("missing required field 'l1Fee' for Receipt")
 	}
-	r.L1Fee = dec.L1Fee
+	r.L1Fee = (*big.Int)(dec.L1Fee)
 	if dec.FeeScalar == nil {
 		return errors.New("missing required field 'l1FeeScalar' for Receipt")
 	}
