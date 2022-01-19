@@ -1,0 +1,4 @@
+ignores: [
+  "@eth-optimism/core-utils",
+  "ts-mocha",
+]

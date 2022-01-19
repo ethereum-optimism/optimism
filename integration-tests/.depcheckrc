@@ -1,0 +1,8 @@
+ignores: [
+  "@openzeppelin/contracts",
+  "@types/mocha",
+  "@types/rimraf",
+  "@uniswap/v3-core",
+  "mocha",
+  "typescript",
+]

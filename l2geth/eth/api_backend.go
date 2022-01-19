@@ -136,6 +136,10 @@ func (b *EthAPIBackend) IngestTransactions(txs []*types.Transaction) error {
 	return nil
 }
 
+func (b *EthAPIBackend) SequencerClientHttp() string {
+	return b.eth.config.Rollup.SequencerClientHttp
+}
+
 func (b *EthAPIBackend) HeaderByNumber(ctx context.Context, number rpc.BlockNumber) (*types.Header, error) {
 	// Pending block is only known by the miner
 	if number == rpc.PendingBlockNumber {
