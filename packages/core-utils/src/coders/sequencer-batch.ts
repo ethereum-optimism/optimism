@@ -1,5 +1,6 @@
 import { add0x, remove0x, encodeHex } from '../common'
 import { BigNumber, ethers } from 'ethers'
+import zlib from 'zlib'
 
 export interface BatchContext {
   numSequencedTransactions: number
@@ -23,12 +24,19 @@ export const encodeAppendSequencerBatch = (
   const encodeShouldStartAtElement = encodeHex(b.shouldStartAtElement, 10)
   const encodedTotalElementsToAppend = encodeHex(b.totalElementsToAppend, 6)
 
+  b.contexts.unshift({
+    numSequencedTransactions: 0,
+    numSubsequentQueueTransactions: 0,
+    timestamp: 0,
+    blockNumber: 0,
+  })
+
   const encodedContextsHeader = encodeHex(b.contexts.length, 6)
   const encodedContexts =
     encodedContextsHeader +
     b.contexts.reduce((acc, cur) => acc + encodeBatchContext(cur), '')
 
-  const encodedTransactionData = b.transactions.reduce((acc, cur) => {
+  let encodedTransactionData = b.transactions.reduce((acc, cur) => {
     if (cur.length % 2 !== 0) {
       throw new Error('Unexpected uneven hex string value!')
     }
@@ -37,6 +45,11 @@ export const encodeAppendSequencerBatch = (
     ).padStart(6, '0')
     return acc + encodedTxDataHeader + remove0x(cur)
   }, '')
+
+  encodedTransactionData = zlib
+    .deflateSync(Buffer.from(encodedTransactionData, 'hex'))
+    .toString('hex')
+
   return (
     encodeShouldStartAtElement +
     encodedTotalElementsToAppend +

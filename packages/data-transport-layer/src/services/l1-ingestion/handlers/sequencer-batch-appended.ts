@@ -7,6 +7,7 @@ import {
   toRpcHexString,
 } from '@eth-optimism/core-utils'
 import { SequencerBatchAppendedEvent } from '@eth-optimism/contracts/dist/types/CanonicalTransactionChain'
+import zlib from 'zlib'
 
 /* Imports: Internal */
 import {
@@ -78,7 +79,7 @@ export const handleEventsSequencerBatchAppended: EventHandlerSet<
     const transactionEntries: TransactionEntry[] = []
 
     // It's easier to deal with this data if it's a Buffer.
-    const calldata = fromHexString(extraData.l1TransactionData)
+    let calldata = fromHexString(extraData.l1TransactionData)
 
     if (calldata.length < 12) {
       throw new Error(
@@ -93,6 +94,20 @@ export const handleEventsSequencerBatchAppended: EventHandlerSet<
     for (let i = 0; i < numContexts; i++) {
       const contextPointer = 15 + 16 * i
       const context = parseSequencerBatchContext(calldata, contextPointer)
+
+      if (
+        i === 0 &&
+        context.blockNumber === 0 &&
+        context.timestamp === 0 &&
+        context.numSubsequentQueueTransactions === 0 &&
+        context.numSequencedTransactions === 0
+      ) {
+        const slice = calldata.slice(nextTxPointer)
+        calldata = Buffer.concat([
+          calldata.slice(0, nextTxPointer),
+          zlib.inflateSync(slice),
+        ])
+      }
 
       for (let j = 0; j < context.numSequencedTransactions; j++) {
         const sequencerTransaction = parseSequencerBatchTransaction(
