@@ -122,7 +122,6 @@ func (c *OpNodeCmd) Run(ctx context.Context, args ...string) error {
 			Log:        c.log.New("engine_client", i),
 		}
 		engine := &l2.EngineDriver{
-			Ctx: c.ctx,
 			Log: c.log.New("engine", i),
 			RPC: client,
 			SyncRef: l2.SyncSource{
@@ -171,16 +170,18 @@ func (c *OpNodeCmd) RunNode() {
 		// Update genesis info, to anchor sync at
 		eng.Genesis = c.Genesis.GetGenesis()
 		// Request initial head update, default to genesis otherwise
-		if err := eng.RequestHeadUpdate(); err != nil {
+		reqCtx, reqCancel := context.WithTimeout(c.ctx, time.Second*10)
+		if err := eng.RequestHeadUpdate(reqCtx); err != nil {
 			eng.Log.Error("failed to fetch engine head, defaulting to genesis", "err", err)
 			eng.UpdateHead(eng.Genesis.L1, eng.Genesis.L2)
 		}
+		reqCancel()
 
 		// driver subscribes to L1 head changes
 		l1SubCh := make(chan eth.HeadSignal, 10)
 		l1HeadsFeed.Subscribe(l1SubCh)
 		// start driving engine: sync blocks by deriving them from L1 and driving them into the engine
-		engDriveSub := eng.Drive(c.l1Downloader, l1SubCh)
+		engDriveSub := eng.Drive(c.ctx, c.l1Downloader, l1SubCh)
 		mergeSub(engDriveSub, "engine driver unexpectedly failed")
 	}
 
@@ -189,9 +190,9 @@ func (c *OpNodeCmd) RunNode() {
 		if err != nil {
 			c.log.Warn("resubscribing after failed L1 subscription", "err", err)
 		}
-		return eth.WatchHeadChanges(c.ctx, c.l1Source, eth.HeadSignalFn(func(sig eth.HeadSignal) {
+		return eth.WatchHeadChanges(c.ctx, c.l1Source, func(sig eth.HeadSignal) {
 			l1HeadsFeed.Send(sig)
-		}))
+		})
 	})
 	mergeSub(l1HeadsSub, "l1 heads subscription failed")
 
