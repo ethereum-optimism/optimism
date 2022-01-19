@@ -177,7 +177,7 @@ func (e *EngineDriver) Drive(ctx context.Context, dl Downloader, l1Heads <-chan 
 					continue
 				}
 				e.Log.Debug("finding next sync step, engine syncing", "l2", e.l2Head, "l1", e.l1Head)
-				_, nextRefL1, refL2, err := FindSyncStart(ctx, e.SyncRef, &e.Genesis)
+				nextRefL1, refL2, err := FindSyncStart(ctx, e.SyncRef, &e.Genesis)
 				if err != nil {
 					e.Log.Error("Failed to find sync starting point", "err", err)
 					continue
