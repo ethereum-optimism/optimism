@@ -71,5 +71,32 @@ describe('Replica Tests', () => {
       expect(sequencerBlock.stateRoot).to.deep.eq(replicaBlock.stateRoot)
       expect(sequencerBlock.hash).to.deep.eq(replicaBlock.hash)
     })
+
+    it('should forward tx to sequencer', async () => {
+      const tx = {
+        ...defaultTransactionFactory(),
+        nonce: await env.l2Wallet.getTransactionCount(),
+        gasPrice: await gasPriceForL2(env),
+      }
+      const signed = await env.l2Wallet.signTransaction(tx)
+      const result = await env.replicaProvider.sendTransaction(signed)
+
+      let receipt: TransactionReceipt
+      while (!receipt) {
+        receipt = await env.replicaProvider.getTransactionReceipt(result.hash)
+        await sleep(200)
+      }
+
+      const sequencerBlock = (await env.l2Provider.getBlock(
+        result.blockNumber
+      )) as any
+
+      const replicaBlock = (await env.replicaProvider.getBlock(
+        result.blockNumber
+      )) as any
+
+      expect(sequencerBlock.stateRoot).to.deep.eq(replicaBlock.stateRoot)
+      expect(sequencerBlock.hash).to.deep.eq(replicaBlock.hash)
+    })
   })
 })

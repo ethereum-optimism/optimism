@@ -861,6 +861,11 @@ var (
 		Usage:  "Allow txs with fees above the current fee up to this amount, must be > 1",
 		EnvVar: "ROLLUP_FEE_THRESHOLD_UP",
 	}
+	SequencerClientHttpFlag = cli.StringFlag{
+		Name:   "sequencer.clienthttp",
+		Usage:  "HTTP endpoint for the sequencer client",
+		EnvVar: "SEQUENCER_CLIENT_HTTP",
+	}
 )
 
 // MakeDataDir retrieves the currently requested data directory, terminating
@@ -1136,6 +1141,9 @@ func setRollup(ctx *cli.Context, cfg *rollup.Config) {
 	if ctx.GlobalIsSet(RollupFeeThresholdUpFlag.Name) {
 		val := ctx.GlobalFloat64(RollupFeeThresholdUpFlag.Name)
 		cfg.FeeThresholdUp = new(big.Float).SetFloat64(val)
+	}
+	if ctx.GlobalIsSet(SequencerClientHttpFlag.Name) {
+		cfg.SequencerClientHttp = ctx.GlobalString(SequencerClientHttpFlag.Name)
 	}
 }
 
