@@ -38,7 +38,10 @@ export const encodeAppendSequencerBatch = (
     .deflateSync(Buffer.from(encodedTransactionData, 'hex'))
     .toString('hex')
 
-  if (compressed.length < encodedTransactionData.length) {
+  if (
+    compressed.length < encodedTransactionData.length &&
+    b.contexts.length > 0
+  ) {
     encodedTransactionData = compressed
     b.contexts.unshift({
       numSequencedTransactions: 0,
