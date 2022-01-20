@@ -149,7 +149,6 @@ var (
 		Buckets:   PayloadSizeBuckets,
 	}, []string{
 		"auth",
-		"method_name",
 	})
 
 	responsePayloadSizesGauge = promauto.NewHistogramVec(prometheus.HistogramOpts{
@@ -159,6 +158,22 @@ var (
 		Buckets:   PayloadSizeBuckets,
 	}, []string{
 		"auth",
+	})
+
+	cacheHitsTotal = promauto.NewCounterVec(prometheus.CounterOpts{
+		Namespace: MetricsNamespace,
+		Name:      "cache_hits_total",
+		Help:      "Number of cache hits.",
+	}, []string{
+		"method",
+	})
+
+	cacheMissesTotal = promauto.NewCounterVec(prometheus.CounterOpts{
+		Namespace: MetricsNamespace,
+		Name:      "cache_misses_total",
+		Help:      "Number of cache misses.",
+	}, []string{
+		"method",
 	})
 
 	rpcSpecialErrors = []string{
@@ -208,10 +223,18 @@ func MaybeRecordSpecialRPCError(ctx context.Context, backendName, method string,
 	}
 }
 
-func RecordRequestPayloadSize(ctx context.Context, method string, payloadSize int) {
-	requestPayloadSizesGauge.WithLabelValues(GetAuthCtx(ctx), method).Observe(float64(payloadSize))
+func RecordRequestPayloadSize(ctx context.Context, payloadSize int) {
+	requestPayloadSizesGauge.WithLabelValues(GetAuthCtx(ctx)).Observe(float64(payloadSize))
 }
 
 func RecordResponsePayloadSize(ctx context.Context, payloadSize int) {
 	responsePayloadSizesGauge.WithLabelValues(GetAuthCtx(ctx)).Observe(float64(payloadSize))
+}
+
+func RecordCacheHit(method string) {
+	cacheHitsTotal.WithLabelValues(method).Inc()
+}
+
+func RecordCacheMiss(method string) {
+	cacheMissesTotal.WithLabelValues(method).Inc()
 }

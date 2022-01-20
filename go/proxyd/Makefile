@@ -11,3 +11,11 @@ fmt:
 	go mod tidy
 	gofmt -w .
 .PHONY: fmt
+
+test:
+	go test -race -v ./...
+.PHONY: test
+
+lint:
+	go vet ./...
+.PHONY: test
