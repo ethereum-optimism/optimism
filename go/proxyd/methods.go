@@ -201,8 +201,14 @@ func (e *EthCallMethodHandler) cacheKey(req *RPCReq) string {
 	if err := json.Unmarshal(input[0], &params); err != nil {
 		return ""
 	}
+	if params.From != "" || params.Gas != "" {
+		return ""
+	}
+	if params.Value != "" && params.Value != "0x0" {
+		return ""
+	}
 	// ensure the order is consistent
-	keyParams := fmt.Sprintf("%s:%s:%s:%s:%s:%s", params.From, params.To, params.Gas, params.GasPrice, params.Value, params.Data)
+	keyParams := fmt.Sprintf("%s:%s", params.To, params.Data)
 	return fmt.Sprintf("method:eth_call:%s", keyParams)
 }
 
