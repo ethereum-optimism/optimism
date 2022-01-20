@@ -81,6 +81,9 @@ func (c *redisCache) Put(ctx context.Context, key string, value string) error {
 
 func (c *redisCache) Remove(ctx context.Context, key string) error {
 	err := c.rdb.Del(ctx, key).Err()
+	if err != nil {
+		RecordRedisError("CacheDel")
+	}
 	return err
 }
 
@@ -122,7 +125,15 @@ func (c *rpcCache) GetRPC(ctx context.Context, req *RPCReq) (*RPCRes, error) {
 	if handler == nil {
 		return nil, nil
 	}
-	return handler.GetRPCMethod(ctx, req)
+	res, err := handler.GetRPCMethod(ctx, req)
+	if res != nil {
+		if res == nil {
+			RecordCacheMiss(req.Method)
+		} else {
+			RecordCacheHit(req.Method)
+		}
+	}
+	return res, err
 }
 
 func (c *rpcCache) PutRPC(ctx context.Context, req *RPCReq, res *RPCRes, blockNumberSync uint64) error {

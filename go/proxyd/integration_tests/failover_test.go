@@ -12,7 +12,7 @@ import (
 )
 
 const (
-	goodResponse = `{"jsonrpc": "2.0", "result": "hello", "id": 999}`
+	goodResponse       = `{"jsonrpc": "2.0", "result": "hello", "id": 999}`
 	noBackendsResponse = `{"error":{"code":-32011,"message":"no backends available for method"},"id":999,"jsonrpc":"2.0"}`
 )
 

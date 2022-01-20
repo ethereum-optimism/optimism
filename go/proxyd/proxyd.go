@@ -113,7 +113,7 @@ func Start(config *Config) (func(), error) {
 		opts = append(opts, WithProxydIP(os.Getenv("PROXYD_IP")))
 		back, err := NewBackend(name, rpcURL, wsURL, lim, opts...)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		back.Start()
 		defer back.Stop()
@@ -170,14 +170,17 @@ func Start(config *Config) (func(), error) {
 	}
 
 	var rpcCache RPCCache
+	stopLVCs := make(chan struct{})
 	if config.Cache.Enabled {
-		var getLatestBlockNumFn GetLatestBlockNumFn
 		if config.Cache.BlockSyncRPCURL == "" {
 			return nil, fmt.Errorf("block sync node required for caching")
 		}
 		blockSyncRPCURL, err := ReadFromEnvOrConfig(config.Cache.BlockSyncRPCURL)
 		if err != nil {
 			return nil, err
+		}
+		if blockSyncRPCURL == "" {
+			return nil, fmt.Errorf("block sync node config is required for caching")
 		}
 
 		var cache Cache
@@ -189,20 +192,14 @@ func Start(config *Config) (func(), error) {
 			log.Warn("redis is not configured, using in-memory cache")
 			cache = newMemoryCache()
 		}
-
-		if config.Cache.BlockSyncRPCURL == "" {
-			return fmt.Errorf("block sync node config is required for caching")
-		}
 		// Ideally, the BlocKSyncRPCURL should be the sequencer or a HA replica that's not far behind
 		ethClient, err := ethclient.Dial(config.Cache.BlockSyncRPCURL)
 		if err != nil {
 			return nil, err
 		}
 		defer ethClient.Close()
-		lvcCtx, lvcCancel := context.WithCancel(context.Background())
-		defer lvcCancel()
-		blockNumFn := makeGetLatestBlockNumFn(ethClient, lvcCtx.Done())
-		gasPriceFn := makeGetLatestGasPriceFn(ethClient, lvcCtx.Done())
+		blockNumFn := makeGetLatestBlockNumFn(ethClient, stopLVCs)
+		gasPriceFn := makeGetLatestGasPriceFn(ethClient, stopLVCs)
 		rpcCache = newRPCCache(cache, blockNumFn, gasPriceFn)
 	}
 
@@ -256,7 +253,8 @@ func Start(config *Config) (func(), error) {
 
 	return func() {
 		log.Info("shutting down proxyd")
-        // TODO(inphi): Stop LVCs here
+		// TODO(inphi): Stop LVCs here
+		close(stopLVCs)
 		srv.Shutdown()
 		if err := lim.FlushBackendWSConns(backendNames); err != nil {
 			log.Error("error flushing backend ws conns", "err", err)
