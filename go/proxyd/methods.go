@@ -421,7 +421,6 @@ func getBlockDependentCachedRPCResponse(ctx context.Context, cache Cache, getLat
 		// TODO: be careful removing keys once there are multiple proxyd instances
 		return nil, cache.Remove(ctx, key)
 	} else if curBlockNum < item.BlockNum { /* desync: reorgs, backend failover, slow sequencer I/O, etc */
-		// TODO: Use the blockHash to detect reorgs and invalidate the key
 		return nil, nil
 	}
 
