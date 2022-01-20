@@ -10,10 +10,10 @@
 [block gossip]: glossary.md#block-gossip
 [rollup driver]: glossary.md#rollup-driver
 [deposits]: glossary.md#deposits
-[deposit-feed]: glossary.md#L2-deposit-feed-contract
+[deposit feed contract]: glossary.md#L2-deposit-feed-contract
 [L2 chain inception]: glossary.md#L2-chain-inception
 [receipts]: glossary.md#receipt
-[L1 attributes deposit]: glossary.md#l1-attributes-deposit
+[L1 attributes transaction]: glossary.md#l1-attributes-transaction
 [transaction deposits]: glossary.md#transaction-deposits
 
 The [rollup node] is the component responsible for [deriving the L2 chain][derivation] from L1 blocks (and their
@@ -32,197 +32,148 @@ concerned with the specification of the rollup driver.
 
 ## Table of Contents
 
-- [L2 Chain Derivation][l2-chain-derivation]
-  - [From L1 blocks to payload attributes][payload-attr]
-  - [Payload Transaction Format][payload-format]
-  - [Building the L2 block with the execution engine][calling-exec-engine]
-- [Handling L1 Re-Orgs][l1-reorgs]
-- [Finalization Guarantees][finalization]
+- [L2 Chain Derivation](#l2-chain-derivation)
+  - [Input derivation](#input-derivation)
+    - [L1 attributes transaction derivation](#l1-attributes-transaction-derivation)
+    - [Transaction deposits derivation](#transaction-deposits-derivation)
+    - [Payload attributes derivation](#payload-attributes-derivation)
+  - [Output derivation](#output-derivation)
+- [Completing a driver step](#completing-a-driver-step)
+  - [Execute](#execute)
+  - [Forkchoice](#forkchoice)
+- [API error handling](#api-error-handling)
+- [Handling L1 Re-Orgs](#handling-l1-re-orgs)
+- [Finalization Guarantees](#finalization-guarantees)
 
 ## L2 Chain Derivation
 
-[l2-chain-derivation]: #l2-chain-derivation
+This section specifies how the [rollup driver] derives one L2 block per every L1 block.
 
-This section specifies how the [rollup driver] derives one L2 block per every L1 block. The L2 block will carry
-*[deposits]*, including a single *[L1 attributes deposit]* (which carries L1 block attributes) and zero or more
-*[transaction deposits]* submitted by user on L1.
+First inputs are derived from L1 source data, then outputs are derived with L2 state through the [Engine API].
 
-----
+[Engine API]: exec-engine.md#engine-api
 
-### From L1 blocks to payload attributes
+### Input derivation
 
-[payload-attr]: #From-L1-blocks-to-payload-attributes
-[`PayloadAttributesOPV1`]: #From-L1-blocks-to-payload-attributes
+The L2 block has the same format as a L1 block: a block-header and a list of transactions.
 
-The rollup reads the following data from each L1 block:
+The list of transaction carries:
 
-- L1 block attributes
-  - block number
-  - timestamp
-  - basefee
-  - *random* (the output of the [`RANDOM` opcode][random])
-- L1 log entries emitted for [transaction deposits]
+- A *[L1 attributes transaction]* (always first item)
+- L2 transactions deposited by users in the L1 block (*[deposits]*, if any)
+
+While deposits are notably (but not only) used to "deposit" (bridge) ETH and tokens to L2,
+the word *deposit* should be understood as "a transaction *deposited* to L2".
+
+The L1 attributes are read from the L1 block header, while other deposits are read from the block's [receipts].
+
+All derived deposits each get two additional attributes during derivation, to ensure uniqueness:
+
+- `blockHeight`: the block-height of the L1 input the deposit was derived from
+- `transactionIndex`: the transaction-index within the L2 transactions list
+
+#### L1 attributes transaction derivation
+
+The rollup reads the following attributes from each L1 block to derive a [L1 attributes transaction]:
+
+- block number
+- timestamp
+- basefee
+- *random* (the output of the [`RANDOM` opcode][random])
+
+These are then encoded as a [L1 attributes deposit] to update the [L1 Attributes Predeploy].
 
 [random]: https://eips.ethereum.org/EIPS/eip-4399
+[L1 attributes deposit]: deposits.md#l1-attributes-deposit
+[L1 Attributes Predeploy]: deposits.md#l1-attributes-predeploy
+
+#### Transaction deposits derivation
 
 A [transaction deposit][transaction deposits] is an L2 transaction that has been submitted on L1, via a call to the
-[deposit feed contract][deposit-feed].
+[deposit feed contract].
 
-While deposits are notably (but not only) used to "deposit" (bridge) ETH and tokens to L2, the word *deposit* should be
-understood as "a transaction *deposited* to L2".
-
-The L1 attributes are read from the L1 block header, while deposits are read from the block's [receipts]. Refer to the
-[**deposit feed contract specification**][deposit-feed-spec] for details on how deposits are encoded as log entries.
+Refer to the[**deposit feed contract specification**][deposit-feed-spec] for details on how
+deposit properties are emitted in deposit log entries.
 
 [deposit-feed-spec]: deposits.md#deposit-feed-contract
 
-From the data read from L1, the rollup node constructs an expanded version of the [Engine API PayloadAttributesV1
-object][PayloadAttributesV1], which includes an additional `transactions` field:
+#### Payload attributes derivation
 
-[PayloadAttributesV1]: https://github.com/ethereum/execution-apis/blob/main/src/engine/specification.md#payloadattributesv1
-
-```js
-PayloadAttributesOPV1: {
-    timestamp: QUANTITY
-    random: DATA (32 bytes)
-    suggestedFeeRecipient: DATA (20 bytes)
-    transactions: array of DATA
-}
-```
-
-The type notation used here refers to the [HEX value encoding] used by the [Ethereum JSON-RPC API
-specification][JSON-RPC-API], as this structure will need to be sent over JSON-RPC. `array` refers to a JSON array.
-
-[HEX value encoding]: https://eth.wiki/json-rpc/API#hex-value-encoding
-[JSON-RPC-API]: https://github.com/ethereum/execution-apis
+From the data read from L1, the rollup node constructs an [expanded version of PayloadAttributesV1],
+which includes an additional `transactions` field.
 
 The object properties must be set as follows:
 
-- `timestamp` is set to the current [unix time] (number of elapsed seconds since 00:00:00 UTC on 1 January 1970),
+- `timestamp` is set to the current [unix time],
   rounded to the closest multiple of 2 seconds. No two blocks may have the same timestamp.
 - `random` is set to the *random* L1 block attribute
-- `suggestedFeeRecipient` is set to an address where the sequencer would like to direct the fees
-- `transactions` is an array containing the [L1 attributes deposit] as well as [transaction deposits], whose format is
-  specified in the [next section][payload-format].
+- `suggestedFeeRecipient` is set to the zero-address for deposit-blocks, since there is no sequencer.
+- `transactions` is an array of the derived deposits, all encoded in the [EIP-2718] format.
 
+[expanded version of PayloadAttributesV1]: exec-engine.md#extended-payloadattributesv1
 [unix time]: https://en.wikipedia.org/wiki/Unix_time
-[yellow paper]: https://github.com/ethereum/yellowpaper
-[EIP-155]: https://eips.ethereum.org/EIPS/eip-155
-[EIP-1559]: https://eips.ethereum.org/EIPS/eip-1559
 [EIP-2718]: https://eips.ethereum.org/EIPS/eip-2718
 [EIP-2930]: https://eips.ethereum.org/EIPS/eip-2930
 
-----
+### Output derivation
 
-### Payload Transaction Format
+Building a full block requires the earlier [derived payload attributes](#payload-attributes-derivation)
+(`payloadAttributes` argument) as well as the previous L2 state (`forkchoiceState` argument), defined by
+the [`engine_forkchoiceUpdatedV1`] method of the [Engine API]:
 
-[payload-format]: #payload-transaction-format
+- `headBlockHash`: block hash of the last block of the L2 chain, according to the rollup driver.
+- `safeBlockHash`: same as `headBlockHash`.
+- `finalizedBlockHash`: the hash of the block whose number is `number(headBlockHash) - FINALIZATION_DELAY_BLOCKS` if
+  the number of that block is `>= L2_CHAIN_INCEPTION`, 0 otherwise (where `FINALIZATION_DELAY_BLOCKS == 50400`
+  (approximately 7 days worth of L1 blocks) and `L2_CHAIN_INCEPTION` is the [L2 chain inception] (the number of the
+  first L1 block for which an L2 block was produced). See the [Finalization Guarantees][finalization] section for more
+  details.
 
-The `transactions` array is filled with user-submitted deposits, prefixed by the (single) [L1 attributes deposit]. The
-format for deposits is described at [the top of the deposit specification][deposit-transaction-type].
+[`engine_forkchoiceUpdatedV1`]: exec-engine.md#engine_forkchoiceUpdatedV1
 
-[deposit-transaction-type]: deposits.md#the-deposit-transaction-type
+Once this first API call completes, `engine_getPayloadV1` is used to fetch the full L2 block,
+as specified in the [Engine API].
 
-The rollup node is responsible for encoding the L1 attributes deposit based on the attributes (block number, timestamp
-and basefee) of the L1 block, as specified in the [L1 Attributes Deposit][l1-attributes-deposit-spec] section of the
-deposit specification. It must also encode the transaction deposits based on the `TransactionDeposited` event
-emitted by the deposit contract, as specified by the [L1 Transaction Deposits][l1-transaction-deposits] section of the
-same document.
+[`engine_getPayloadV1`]: exec-engine.md#engine_executepayloadv1
+[`ExecutionPayloadV1`]: https://github.com/ethereum/execution-apis/blob/main/src/engine/specification.md#executionpayloadv1
 
-[l1-attributes-deposit-spec]: deposits.md#l1-attributes-deposit
-[l1-transaction-deposits]: deposits.md#l1-transaction-deposits
+## Completing a driver step
 
-Here is an example valid `PayloadAttributesOPV1` object, which contains an L1 attributes deposit as well as a single
-transaction deposit:
+After deriving a full L2 block, two more API calls are required to persist the result:
+execute the new block, and update the forkchoice to reflect the new head.
 
-```js
-{
-  timestamp: "0x61a6336f",
-  random: "0xde5dff2b0982ecbbd38081eb8f4aed0525140dc1c1d56f995b4fa801a3f2649e",
-  suggestedFeeRecipient: "0xAb5801a7D398351b8bE11C439e05C5B3259aeC9B",
-  transactions: [
-    "TODO generate abi-encoded L1 attribute deposit",
-    "0x02f87101058459682f0085199c82cc0082520894ab5801a7d398351b8be11c439e05c5b3259aec9b8609184e72a00080c080a0a6d217a91ea344fc09f740f104f764d71bb1ca9a8e159117d2d27091ea5fce91a04cf5add5f5b7d791a2c4663ab488cb581df800fe0910aa755099ba466b49fd69"
-  ]
-}
-```
+### Execute
 
-----
+Execute through the [`engine_executePayloadV1`] API method with the derived payload to update the engine state.
+A `"status": "VALID"` result is required to continue.
 
-### Building the L2 block with the execution engine
+[`engine_executePayloadV1`]: exec-engine.md#engine_executepayloadv1
 
-[calling-exec-engine]: #building-the-L2-block-with-the-execution-engine
+### Forkchoice
 
-The Optimism [execution engine] is specified in the [Execution Engine Specification].
+Update the L2 head with a [`engine_forkchoiceUpdatedV1`] API call, now without `payloadAttributes` argument,
+and updated `forkchoiceState` argument:
 
-[Execution Engine Specification]: exec-engine.md
+- `headBlockHash`: block hash of the derived payload
+- `safeBlockHash`: same as `headBlockHash`
+- `finalizedBlockHash`: finalized-block. May have changed since last call.
+   Not strictly required to change, this can be adjusted later.
 
-This section defines how the rollup driver must interact with the execution engine's in order to convert [payload
-attributes] into L2 blocks.
+A `"status": "SUCCESS"` result then indicates if the engine successfully updated the head to the derived payload.
 
-> **TODO** This section probably includes too much redundant details that will
-> need to be removed once the execution engine spec is up.
+## API error handling
 
-Optimism's execution engine API is built upon [Ethereum's Engine API specification][eth-engine-api], with a
-couple of modifications. That specification builds upon [Ethereum's JSON-RPC API specification][JSON-RPC-API], which
-itself builds upon the [JSON-RPC specification][JSON-RPC].
-
-[eth-engine-api]: https://github.com/ethereum/execution-apis/blob/main/src/engine/specification.md
-[JSON-RPC]: https://www.jsonrpc.org/specification
-
-In particular, the [Ethereum's Engine API specification][eth-engine-api] specifies a [JSON-RPC] endpoint with a number
-of JSON-RPC routes, which are the means through which the rollup driver interacts with the execution engine.
-
-Instead of calling [`engine_forkchoiceUpdatedV1`], the rollup driver must call the new [`engine_forkchoiceUpdatedOPV1`]
-route. This has the same signature, except that:
-
-[`engine_forkchoiceUpdatedV1`]: https://github.com/ethereum/execution-apis/blob/main/src/engine/specification.md#engine_forkchoiceupdatedv1
-[`engine_forkchoiceUpdatedOPV1`]: exec-engine.md#engine_forkchoiceupdatedv1
-
-- it takes a [`PayloadAttributesOPV1`] object as input instead of [`PayloadAttributesV1`][PayloadAttributesV1]. The
-  execution engine must include the valid transactions supplied in this object in the block, in the same order as they
-  were supplied, and only those. See the [previous section][payload-attr] for the specification of how the properties
-  must be set.
-
-- we repurpose the [`ForkchoiceStateV1`] structure with the following property semantics:
-  - `headBlockHash`: block hash of the last block of the L2 chain, according to the rollup driver.
-  - `safeBlockHash`: same as `headBlockHash`.
-  - `finalizedBlockHash`: the hash of the block whose number is `number(headBlockHash) - FINALIZATION_DELAY_BLOCKS` if
-    the number of that block is `>= L2_CHAIN_INCEPTION`, 0 otherwise (where `FINALIZATION_DELAY_BLOCKS` = 50400,
-    approximately 7 days worth of L1 blocks) and `L2_CHAIN_INCEPTION` is the [L2 chain inception] (the number of the
-    first L1 block for which an L2 block was produced). See the [Finalization Guarantees][finalization] section for more
-    details.
-
-[`ForkchoiceStateV1`]: https://github.com/ethereum/execution-apis/blob/main/src/engine/specification.md#ForkchoiceStateV1
-
-> **Note:** the properties of `ForkchoiceStateV1` can be used to anchor queries to the regular (non-engine-API) JSON-RPC
-> endpoint of the execution engine. [See here for more information.][L2-JSON-RPC-API]
-
-[L2-JSON-RPC-API]: exec-engine.md#engine-api
-
-> **TODO LINK** L2 JSON RPC API (might be the same as [L1's][JSON-RPC-API])
-
-The `payloadID` returned by [`engine_forkchoiceUpdatedOPV1`] can then be passed to [`engine_getPayloadV1`] in order to
-obtain an [`ExecutionPayloadV1`], which fully defines a new L2 block.
-
-The rollup driver must then instruct the execution engine to execute the block by calling [`engine_executePayloadV1`].
-This returns the new L2 block hash.
-
-All invocations of [`engine_forkchoiceUpdatedOPV1`], [`engine_getPayloadV1`] and [`engine_executePayloadV1`] by the
+All invocations of [`engine_forkchoiceUpdatedV1`], [`engine_getPayloadV1`] and [`engine_executePayloadV1`] by the
 rollup driver should not result in errors assuming conformity with the specification. Said otherwise, all errors are
 implementation concerns and it is up to them to handle them (e.g. by retrying, or by stopping the chain derivation and
 requiring manual user intervention).
 
 The following scenarios are assimilated to errors:
 
-- [`engine_forkchoiceUpdatedOPV1`] returning a `status` of `"SYNCING"` instead of `"SUCCESS"` whenever passed a
+- [`engine_forkchoiceUpdatedV1`] returning a `status` of `"SYNCING"` instead of `"SUCCESS"` whenever passed a
   `headBlockHash` that it retrieved from a previous call to [`engine_executePayloadV1`].
 - [`engine_executePayloadV1`] returning a `status` of `"SYNCING"` or `"INVALID"` whenever passed an execution payload
   that was obtained by a previous call to [`engine_getPayloadV1`].
-
-[`engine_getPayloadV1`]: exec-engine.md#engine_executepayloadv1
-[`ExecutionPayloadV1`]: https://github.com/ethereum/execution-apis/blob/main/src/engine/specification.md#executionpayloadv1
-[`engine_executePayloadV1`]: exec-engine.md#engine_executepayloadv1
 
 ## Handling L1 Re-Orgs
 
@@ -236,25 +187,28 @@ processing the whole L1 chain since the [L2 chain inception].
 > non-specificative** but shows how L1 re-orgs can be handled in practice.
 
 In practice, the L1 chain is processed incrementally. However, the L1 chain may occasionally re-organize, meaning the
-head of the L1 chain changes to a block that is not the child of the previous head but rather one of its "cousins" (i.e.
-the descendant of an ancestor of the previous head). In those case, the rollup driver must:
+head of the L1 chain changes to a block that is not the child of the previous head but rather some other descendant
+of an ancestor of the previous head. In that case, the rollup driver must first search for common ancestor, and can then
+continue deriving with the new canonical L1 block after the common point.
 
-1. Call [`engine_forkchoiceUpdatedOPV1`] for the new L2 chain head
-    - Pass `null` for the `payloadAttributes` parameter.
-    - Fill the [`ForkchoiceStateV1`] object according to [the section on the execution engine][calling-exec-engine], but
-      set `headBlockHash` to the hash of the new L2 chain head. `safeBlockHash` and `finalizedBlockHash` must be updated
-      accordingly.
-2. If the call returns `"SUCCESS"`, we are done: the execution engine retrieved all the new L2 blocks via [block sync].
-3. Otherwise the call returns `"SYNCING"`, and we must derive the new blocks ourselves. Start by locating the *common
-   ancestor*, a block that is an ancestor of both the previous and new head.
-4. Isolate the range of L1 blocks from `common ancestor` (excluded) to `new head` (included).
-5. For each such block, call [`engine_forkchoiceUpdatedOPV1`], [`engine_getPayloadV1`], and [`engine_executePayloadV1`].
-   - Fill the [`PayloadAttributesOPV1`] object according to [the section on payload attributes][payload-attr].
-   - Fill the [`ForkchoiceStateV1`] object according to [the section on the execution engine][calling-exec-engine], but
-     set `headBlockHash` to the hash of the last processed L2 block (use the hash of the common ancestor initially)
-     instead of the last L2 chain head. `safeBlockHash` and `finalizedBlockHash` must be updated accordingly.
+This sync starting point (L1 block to derive from, and L2 parent to build on) is determined by:
 
-[block sync]: exec-engine.md#sync
+- Retrieve the head block of the engine (`refL2`), then determine the L1 block it was derived from (`refL1`),
+  and where it builds on (`parentL2`).
+- Fetch the L1 block at the same height (`currentL1`):
+  - If not found: consider this a reorg to a shorter L1 chain, continue.
+- If the L1 source considers this canonical (`currentL1 == refL1`):
+  - Find the next L1 block (it may not exist yet) and return that as `nextRefL1`, along with the `refL2`.
+    - Note: after looking up `N+1` ensure L1 has not changed during block-by-number lookups (`refL1 == nextL1_parent`).
+- While have not found a block in the engine common with the canonical chain, traverse the L2 chain back until genesis:
+  - Each step starts by caching the previous `currentL1` as `nextRefL1`.
+  - Lookup the parent by hash: Each step `refL2` should equal the previous `parentL2`.
+    `refL1` and `parentL2` are also traversed back by parsing the `refL2` block.
+  - The canonical L1 block is looked up at the same height (`currentL1`).
+    - If not found: consider this a reorg to a shorter L1 chain, continue.
+  - If the engine and canonical chain match (`refL1 == currentL1`), then return that as `nextRefL1`, along with `refL2`.
+- If there are no common blocks after genesis, check if `refL2` and `currentL1` match the expected genesis blocks.
+- If the genesis is correct, the last cached `nextRefL1` is returned, along with the L2 genesis.
 
 > Note that post-[merge], the L1 chain will offer finalization guarantees meaning that it won't be able to re-org more
 > than `FINALIZATION_DELAY_BLOCKS == 50400` in the past, hence preserving our finalization guarantees.
