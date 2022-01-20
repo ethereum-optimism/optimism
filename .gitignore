@@ -2,3 +2,5 @@ node_modules
 yarn-error.log
 coverage.out
 
+# hardhat automatically puts console.sol in here when you use it
+.deps
