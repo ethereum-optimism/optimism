@@ -12,6 +12,24 @@
 new [transaction type][transaction-type] for deposits. It also describes how deposits are initiated
 on L1, along with the authorization and validation conditions on L2.
 
+## Table of Contents
+
+- [The Deposit Transaction Type](#the-deposit-transaction-type)
+  - [Uses of the Deposit Transaction Type](#uses-of-the-deposit-transaction-type)
+  - [Validation and Authorization of Deposit Transaction
+    Types](#validation-and-authorization-of-deposit-transaction-types)
+  - [Execution](#execution)
+    - [Nonce Handling](#nonce-handling)
+- [L1 Attributes Deposits](#l1-attributes-deposit)
+- [Special Accounts on L2](#special-accounts-on-l2)
+  - [L1 Attributes Depositor Account](l1-attributes-depositor-account)
+  - [L1 Attributes Predeploy](#l1-attributes-predeploy)
+    - [L1 Attributes: Reference Implementation](#l1-attributes--reference-implementation)
+- [L1 Transaction Deposits](#l1-transaction-deposits)
+  - [Deposit Feed Contract](#deposit-feed-contract)
+    - [Address Aliasing](#address-aliasing)
+    - [Deposit Feed: Reference Implementation](#deposit-feed--reference-implementation)
+
 ## The Deposit Transaction Type
 
 [deposit-transaction-type]: #the-deposit-transaction-type
@@ -201,7 +219,7 @@ The deposit feed handles two special cases:
 
 > **TODO** Define if/how ETH withdrawals occur.
 
-#### Address aliasing
+#### Address Aliasing
 
 [address-aliasing]: #address-aliasing
 
