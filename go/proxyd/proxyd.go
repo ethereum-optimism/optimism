@@ -179,9 +179,6 @@ func Start(config *Config) (func(), error) {
 		if err != nil {
 			return nil, err
 		}
-		if blockSyncRPCURL == "" {
-			return nil, fmt.Errorf("block sync node config is required for caching")
-		}
 
 		var cache Cache
 		if redisURL != "" {
@@ -193,7 +190,7 @@ func Start(config *Config) (func(), error) {
 			cache = newMemoryCache()
 		}
 		// Ideally, the BlocKSyncRPCURL should be the sequencer or a HA replica that's not far behind
-		ethClient, err := ethclient.Dial(config.Cache.BlockSyncRPCURL)
+		ethClient, err := ethclient.Dial(blockSyncRPCURL)
 		if err != nil {
 			return nil, err
 		}
