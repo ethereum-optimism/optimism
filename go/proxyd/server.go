@@ -24,7 +24,7 @@ const (
 	ContextKeyAuth          = "authorization"
 	ContextKeyReqID         = "req_id"
 	ContextKeyXForwardedFor = "x_forwarded_for"
-	MaxBatchRPCCalls        = 25
+	MaxBatchRPCCalls        = 100
 )
 
 type Server struct {
@@ -138,7 +138,7 @@ func (s *Server) HandleRPC(w http.ResponseWriter, r *http.Request) {
 	}
 	RecordRequestPayloadSize(ctx, len(body))
 
-	if body[0] == '[' {
+	if IsBatch(body) {
 		reqs, err := ParseBatchRPCReq(body)
 		if err != nil {
 			log.Error("error parsing batch RPC request", "err", err)
