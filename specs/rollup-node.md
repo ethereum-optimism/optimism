@@ -92,7 +92,7 @@ These are then encoded as a [L1 attributes deposit] to update the [L1 Attributes
 A [transaction deposit][transaction deposits] is an L2 transaction that has been submitted on L1, via a call to the
 [deposit feed contract].
 
-Refer to the[**deposit feed contract specification**][deposit-feed-spec] for details on how
+Refer to the [**deposit feed contract specification**][deposit-feed-spec] for details on how
 deposit properties are emitted in deposit log entries.
 
 [deposit-feed-spec]: deposits.md#deposit-feed-contract
