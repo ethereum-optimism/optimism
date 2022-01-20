@@ -338,6 +338,7 @@ func writeRPCRes(ctx context.Context, w http.ResponseWriter, res *RPCRes) {
 		statusCode = res.Error.HTTPErrorCode
 	}
 
+	w.Header().Set("content-type", "application/json")
 	w.WriteHeader(statusCode)
 	ww := &recordLenWriter{Writer: w}
 	enc := json.NewEncoder(ww)
@@ -351,6 +352,7 @@ func writeRPCRes(ctx context.Context, w http.ResponseWriter, res *RPCRes) {
 }
 
 func writeBatchRPCRes(ctx context.Context, w http.ResponseWriter, res []*RPCRes) {
+	w.Header().Set("content-type", "application/json")
 	w.WriteHeader(200)
 	ww := &recordLenWriter{Writer: w}
 	enc := json.NewEncoder(ww)

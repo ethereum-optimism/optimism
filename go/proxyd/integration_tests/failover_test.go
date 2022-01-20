@@ -11,8 +11,10 @@ import (
 	"time"
 )
 
-const goodResponse = "{\"jsonrpc\": \"2.0\", \"result\": \"hello\", \"id\": 999}"
-const noBackendsResponse = "{\"error\":{\"code\":-32011,\"message\":\"no backends available for method\"},\"id\":999,\"jsonrpc\":\"2.0\"}"
+const (
+	goodResponse = `{"jsonrpc": "2.0", "result": "hello", "id": 999}`
+	noBackendsResponse = `{"error":{"code":-32011,"message":"no backends available for method"},"id":999,"jsonrpc":"2.0"}`
+)
 
 func TestFailover(t *testing.T) {
 	goodBackend := NewMockBackend(SingleResponseHandler(200, goodResponse))
@@ -82,7 +84,7 @@ func TestFailover(t *testing.T) {
 		})
 	}
 
-	t.Run("backend times out", func(t *testing.T) {
+	t.Run("backend times out and falls back to another", func(t *testing.T) {
 		badBackend.SetHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			time.Sleep(2 * time.Second)
 			w.Write([]byte("{}"))
@@ -93,12 +95,11 @@ func TestFailover(t *testing.T) {
 		RequireEqualJSON(t, []byte(goodResponse), res)
 		require.Equal(t, 1, len(badBackend.Requests()))
 		require.Equal(t, 1, len(goodBackend.Requests()))
+		goodBackend.Reset()
+		badBackend.Reset()
 	})
 
 	t.Run("works with a batch request", func(t *testing.T) {
-		goodBackend.Reset()
-		badBackend.Reset()
-
 		badBackend.SetHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(500)
 		}))
@@ -155,7 +156,7 @@ func TestRetries(t *testing.T) {
 func TestOutOfServiceInterval(t *testing.T) {
 	goodBackend := NewMockBackend(SingleResponseHandler(200, goodResponse))
 	defer goodBackend.Close()
-	badBackend := NewMockBackend(SingleResponseHandler(200, goodResponse))
+	badBackend := NewMockBackend(nil)
 	defer badBackend.Close()
 
 	require.NoError(t, os.Setenv("GOOD_BACKEND_RPC_URL", goodBackend.URL()))
