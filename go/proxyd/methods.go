@@ -197,6 +197,15 @@ func (e *EthCallMethodHandler) cacheKey(req *RPCReq) string {
 	if len(input) != 2 {
 		return ""
 	}
+	var blockTag string
+	if err := json.Unmarshal(input[1], &blockTag); err != nil {
+		return ""
+	}
+	// The eth_call cache is used as a LVC. Only the latest calls are cached as these are used the most
+	if blockTag != "latest" {
+		return ""
+	}
+
 	var params ethCallParams
 	if err := json.Unmarshal(input[0], &params); err != nil {
 		return ""
