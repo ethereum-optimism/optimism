@@ -2,7 +2,7 @@
 
 This document outlines the modifications, configuration and usage of a L1 execution engine for L2.
 
-## Deposit processing
+## Depositited transaction processing
 
 The Engine interfaces abstract away transaction types with [EIP-2718][eip-2718].
 
@@ -14,18 +14,18 @@ and introduce L1 information to enshrined contracts in the execution state.
 
 [deposit-spec]: deposits.md
 
-### Deposit boundaries
+### Deposited transaction boundaries
 
 Transactions cannot be blindly trusted, trust is established through authentication.
 Unlike other transaction types deposits are not authenticated by a signature:
 the rollup node authenticates them, outside of the engine.
 
-To process deposits safely, the deposits MUST be authenticated first:
+To process deposited transactions safely, the deposits MUST be authenticated first:
 
 - Ingest directly through trusted Engine API
 - Part of sync towards a trusted block hash (trusted through previous Engine API instruction)
 
-Deposits MUST never be consumed from the transaction pool.
+Deposited transactions MUST never be consumed from the transaction pool.
 *The transaction pool can be disabled in a deposits-only rollup*
 
 ## Engine API
