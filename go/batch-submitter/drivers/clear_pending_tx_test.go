@@ -32,12 +32,13 @@ func init() {
 }
 
 var (
-	testPrivKey    *ecdsa.PrivateKey
-	testWalletAddr common.Address
-	testChainID    *big.Int // 1
-	testNonce      = uint64(2)
-	testGasPrice   *big.Int // 3
-	testGasLimit   = uint64(4)
+	testPrivKey     *ecdsa.PrivateKey
+	testWalletAddr  common.Address
+	testChainID     = big.NewInt(1)
+	testNonce       = uint64(2)
+	testGasPrice    = big.NewInt(3)
+	testGasLimit    = uint64(4)
+	testBlockNumber = uint64(5)
 )
 
 // TestCraftClearingTx asserts that CraftClearingTx produces the expected
@@ -107,6 +108,12 @@ type clearPendingTxHarness struct {
 }
 
 func newClearPendingTxHarness(l1ClientConfig mock.L1ClientConfig) *clearPendingTxHarness {
+
+	if l1ClientConfig.BlockNumber == nil {
+		l1ClientConfig.BlockNumber = func(_ context.Context) (uint64, error) {
+			return testBlockNumber, nil
+		}
+	}
 	if l1ClientConfig.NonceAt == nil {
 		l1ClientConfig.NonceAt = func(_ context.Context, _ common.Address, _ *big.Int) (uint64, error) {
 			return testNonce, nil

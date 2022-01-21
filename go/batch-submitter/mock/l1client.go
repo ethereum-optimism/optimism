@@ -13,6 +13,9 @@ import (
 // L1ClientConfig houses the internal methods that are executed by the mock
 // L1Client. Any members left as nil will panic on execution.
 type L1ClientConfig struct {
+	// BlockNumber returns the most recent block number.
+	BlockNumber func(context.Context) (uint64, error)
+
 	// EstimateGas tries to estimate the gas needed to execute a specific
 	// transaction based on the current pending state of the backend blockchain.
 	// There is no guarantee that this is the true gas limit requirement as
@@ -50,6 +53,14 @@ func NewL1Client(cfg L1ClientConfig) *L1Client {
 	}
 }
 
+// BlockNumber returns the most recent block number.
+func (c *L1Client) BlockNumber(ctx context.Context) (uint64, error) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	return c.cfg.BlockNumber(ctx)
+}
+
 // EstimateGas executes the mock EstimateGas method.
 func (c *L1Client) EstimateGas(ctx context.Context, call ethereum.CallMsg) (uint64, error) {
 	c.mu.RLock()
@@ -80,6 +91,16 @@ func (c *L1Client) TransactionReceipt(ctx context.Context, txHash common.Hash) (
 	defer c.mu.RUnlock()
 
 	return c.cfg.TransactionReceipt(ctx, txHash)
+}
+
+// SetBlockNumberFunc overwrites the mock BlockNumber method.
+func (c *L1Client) SetBlockNumberFunc(
+	f func(context.Context) (uint64, error)) {
+
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	c.cfg.BlockNumber = f
 }
 
 // SetEstimateGasFunc overrwrites the mock EstimateGas method.

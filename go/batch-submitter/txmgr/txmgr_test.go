@@ -109,6 +109,9 @@ func newTestHarness() *testHarness {
 type mockBackend struct {
 	mu sync.RWMutex
 
+	// blockHeight tracks the current height of the chain.
+	blockHeight uint64
+
 	// txHashMinedWithGasPrice tracks the has of a mined transaction to its
 	// gas price.
 	txHashMinedWithGasPrice map[common.Hash]*big.Int
@@ -127,7 +130,16 @@ func (b *mockBackend) mine(txHash common.Hash, gasPrice *big.Int) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
+	b.blockHeight++
 	b.txHashMinedWithGasPrice[txHash] = gasPrice
+}
+
+// BlockNumber returns the most recent block number.
+func (b *mockBackend) BlockNumber(ctx context.Context) (uint64, error) {
+	b.mu.RLock()
+	defer b.mu.RUnlock()
+
+	return b.blockHeight, nil
 }
 
 // TransactionReceipt queries the mockBackend for a mined txHash. If none is
@@ -392,7 +404,19 @@ func TestWaitMinedCanBeCanceled(t *testing.T) {
 // first call but a success on the second call. This allows us to test that the
 // inner loop of WaitMined properly handles this case.
 type failingBackend struct {
-	returnSuccess bool
+	returnSuccessBlockNumber bool
+	returnSuccessReceipt     bool
+}
+
+// BlockNumber for the failingBackend returns errRpcFailure on the first
+// invocation and a fixed block height on subsequent calls.
+func (b *failingBackend) BlockNumber(ctx context.Context) (uint64, error) {
+	if !b.returnSuccessBlockNumber {
+		b.returnSuccessBlockNumber = true
+		return 0, errRpcFailure
+	}
+
+	return 1, nil
 }
 
 // TransactionReceipt for the failingBackend returns errRpcFailure on the first
@@ -400,13 +424,14 @@ type failingBackend struct {
 func (b *failingBackend) TransactionReceipt(
 	ctx context.Context, txHash common.Hash) (*types.Receipt, error) {
 
-	if !b.returnSuccess {
-		b.returnSuccess = true
+	if !b.returnSuccessReceipt {
+		b.returnSuccessReceipt = true
 		return nil, errRpcFailure
 	}
 
 	return &types.Receipt{
-		TxHash: txHash,
+		TxHash:      txHash,
+		BlockNumber: big.NewInt(1),
 	}, nil
 }
 

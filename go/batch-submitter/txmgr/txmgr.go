@@ -71,6 +71,9 @@ type TxManager interface {
 //
 // NOTE: This is a subset of bind.DeployBackend.
 type ReceiptSource interface {
+	// BlockNumber returns the most recent block number.
+	BlockNumber(ctx context.Context) (uint64, error)
+
 	// TransactionReceipt queries the backend for a receipt associated with
 	// txHash. If lookup does not fail, but the transaction is not found,
 	// nil should be returned for both values.
