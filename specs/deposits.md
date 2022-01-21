@@ -4,40 +4,48 @@
 [transaction-type]: glossary.md#transaction-type
 [derivation]:  glossary.md#L2-chain-derivation
 [execution-engine]: glossary.md#execution-engine
+[deposited]: glossary.md#deposited
 [deposits]: glossary.md#deposits
-[L1 attributes deposit]: glossary.md#l1-attributes-deposit
-[transaction deposits]: glossary.md#transaction-deposits
+[g-l1-attr-deposit]: glossary.md#l1-attributes-deposited-transaction
+[g-user-deposited]: glossary.md#user-deposited-transaction
+[g-deposit-block]: glossary.md#deposit-block
+[g-eoa]: glossary.md#eoa
 
-[Deposits] are transactions which are initiated on L1, and executed on L2. This document outlines a
-new [transaction type][transaction-type] for deposits. It also describes how deposits are initiated
-on L1, along with the authorization and validation conditions on L2.
+[Deposited transactions], also known as [deposits] are transactions which are initiated on L1, and
+executed on L2. This document outlines a new [transaction type][transaction-type] for deposits. It
+also describes how deposits are initiated on L1, along with the authorization and validation
+conditions on L2.
+
+**Vocabulary note**: *deposited transaction* refers specifically to an L2 transaction, while
+*deposit* can refer to the transaction at various stages (for instance when it is deposited on L1).
 
 ## Table of Contents
 
-- [The Deposit Transaction Type](#the-deposit-transaction-type)
-  - [Uses of the Deposit Transaction Type](#uses-of-the-deposit-transaction-type)
-  - [Validation and Authorization of Deposit Transaction
-    Types](#validation-and-authorization-of-deposit-transaction-types)
+- [The Deposited Transaction Type](#the-deposited-transaction-type)
+  - [Kinds of Deposited Transactions](#kinds-of-deposited-transactions)
+  - [Validation and Authorization of Deposited
+    Transaction](#validation-and-authorization-of-deposit-transaction-types)
   - [Execution](#execution)
     - [Nonce Handling](#nonce-handling)
-- [L1 Attributes Deposits](#l1-attributes-deposit)
+- [L1 Attributes Deposited Transaction](#l1-attributes-deposited-transaction)
 - [Special Accounts on L2](#special-accounts-on-l2)
-  - [L1 Attributes Depositor Account](l1-attributes-depositor-account)
-  - [L1 Attributes Predeploy](#l1-attributes-predeploy)
-    - [L1 Attributes: Reference Implementation](#l1-attributes--reference-implementation)
-- [L1 Transaction Deposits](#l1-transaction-deposits)
+  - [L1 Attributes Depositor Account](#l1-attributes-depositor-account)
+  - [L1 Attributes Predeployed Contract](#l1-attributes-predeployed-contract)
+    - [L1 Attributes Predeployed Contract: Reference Implementation](#l1-attributes-predeployed-contract--reference-implementation)
+- [User-Deposited Transactions](#user-deposited-transactions)
   - [Deposit Feed Contract](#deposit-feed-contract)
     - [Address Aliasing](#address-aliasing)
-    - [Deposit Feed: Reference Implementation](#deposit-feed--reference-implementation)
+    - [Deposit Feed Contract: Reference Implementation](#deposit-feed-contract--reference-implementation)
 
-## The Deposit Transaction Type
+## The Deposited Transaction Type
 
-[deposit-transaction-type]: #the-deposit-transaction-type
+[deposited-tx-type]: #the-deposited-transaction-type
 
-Deposit transactions have the following notable distinctions from existing transaction types:
+[Deposited transactions][deposited] have the following notable distinctions from existing
+transaction types:
 
 1. They are derived from Layer 1 blocks, and must be included as part of the protocol.
-2. They do not include signature validation (see [L1 transaction deposits][l1-transaction-deposits]
+2. They do not include signature validation (see [User-Deposited Transactions][user-deposited]
    for the rationale).
 
 We define a new [EIP-2718] compatible transaction type with the prefix `0x7E`, and the following
@@ -62,41 +70,36 @@ Picking a high identifier minimizes the risk that the identifier will be used be
 transaction type on the L1 chain in the future. We don't pick `0x7F` itself in case it becomes used
 for a variable-length encoding scheme.
 
-### Uses of the Deposit Transaction Type
+### Kinds of Deposited Transactions
 
-Although in practice we define only one new transaction type we can distinguish between two distinct
-situations which occur in the deposit block, based on their positioning.
+Although we define only one new transaction type, we can distinguish between two kinds of deposited
+transactions, based on their positioning in the [deposit block][g-deposit-block]:
 
-1. The first transaction MUST be a [L1 attributes deposit][l1-attributes-deposit], followed by
-2. an array of zero-or-more [L1 transaction deposits][l1-transaction-deposits] submitted to the
-deposit feed contract on L1.
+1. The first transaction MUST be a [L1 attributes deposited transaction][l1-attr-deposit], followed
+   by
+2. an array of zero-or-more [user-deposited transactions][user-deposited] submitted to the deposit
+   feed contract on L1.
 
-The rationale for creating only one new transaction type is to minimize both
-modifications to L1 client software and complexity in general.
+We only define a single new transaction type in order to minimize modifications to L1 client
+software, and complexity in general.
 
-> **TODO** Specify and link to deposit blocks
+### Validation and Authorization of Deposited Transactions
 
-### Validation and Authorization of Deposit Transaction Types
+[authorization]: #validation-and-authorization-of-deposited-transaction
 
-[authorization]: #validation-and-authorization-of-deposit-transaction-types
-
-As noted above, the deposit transaction type does not include a signature for validation. Rather,
-authorization is handled by the [L2 chain Derivation][derivation] process, which when correctly
-processed will only derive transactions with a `from` address attested to by the logs of the [L1
+As noted above, the deposited transaction type does not include a signature for validation. Rather,
+authorization is handled by the [L2 chain derivation][derivation] process, which when correctly
+applied will only derive transactions with a `from` address attested to by the logs of the [L1
 deposit feed contract][deposit-feed-contract].
-
-In the event a deposit transaction is included which is not derived by the [execution
-engine][execution-engine] using the correct derivation algorithm, the resulting state transition
-would be invalid.
 
 ### Execution
 
-In order to execute a deposit transaction:
+In order to execute a deposited transaction:
 
 First, the balance of the `from` account MUST be increased by the amount of `mint`.
 
-Then, the execution environment for a deposit transaction is initialized based on the transaction's
-values, in exactly the same manner as it would be for an EIP-155 transaction.
+Then, the execution environment for a deposited transaction is initialized based on the
+transaction's attributes, in exactly the same manner as it would be for an EIP-155 transaction.
 
 Specifically, a new EVM call frame targeting the `to` address is created with values initialized as
 follows:
@@ -108,7 +111,7 @@ follows:
 - `context.gas` set to `gasLimit`
 - `context.value` set to `sendValue`
 
-#### Nonce handling
+#### Nonce Handling
 
 Despite the lack of signature validation, we still increment the nonce of the `from` account when a
 deposit transaction is executed. In the context of a deposit-only roll up, this is not necessary
@@ -118,46 +121,46 @@ tooling (such as wallets and block explorers).
 
 [create-nonce]: https://github.com/ethereum/execution-specs/blob/617903a8f8d7b50cf71bf1aa733c37897c8d75c1/src/ethereum/frontier/utils/address.py#L40
 
-## L1 Attributes Deposit
+## L1 Attributes Deposited Transaction
 
-[l1-attributes-deposit]: #l1-attributes-deposit
+[l1-attr-deposit]: #l1-attributes-deposited-transaction
 
-An [L1 attributes deposit] is a deposit transaction sent to the [L1 attributes predeploy][predeploy]
-contract.
+An [L1 attributes deposited transaction][g-l1-attr-deposit] is a deposit transaction sent to the [L1
+attributes predeployed contract][predeploy].
 
 This transaction MUST have the following values:
 
 1. `from` is `0xdeaddeaddeaddeaddeaddeaddeaddeaddead0001` (the address of the
 [L1 Attributes depositor account][depositor-account])
-2. `to` is `0x4200000000000000000000000000000000000014` (the address of the L1 attributes predeploy
-   contract).
+2. `to` is `0x4200000000000000000000000000000000000014` (the address of the [L1 attributes predeployed
+   contract][predeploy]).
 3. `mint` is `0`
 4. `value` is `0`
 5. `gasLimit` is set to the maximum available.
-6. `data` is an [ABI] encoded call to the [L1 attributes predeploy][predeploy] contract's
+6. `data` is an [ABI] encoded call to the [L1 attributes predeployed contract][predeploy]'s
    `setL1BlockValues()` function with correct values associated with the corresponding L1 block (cf.
-   [reference implementation][l1-attrib-ref-implem]).
+   [reference implementation][l1-attr-ref-implem]).
 
-   <!-- TODO: Define how this account pays gas on these transactions. -->
+No gas is paid for L1 attributes deposited transactions.
 
 ## Special Accounts on L2
 
 The L1 attributes deposit transaction involves two special purpose accounts:
 
 1. The L1 attributes depositor account
-2. The L1 attributes predeploy
+2. The L1 attributes predeployed contract
 
 ### L1 Attributes Depositor Account
 
 [depositor-account]: #l1-attributes-depositor-account
 
-The depositor account is an EOA with no known private key. It has the address
+The depositor account is an [EOA][g-eoa] with no known private key. It has the address
 `0xdeaddeaddeaddeaddeaddeaddeaddeaddead0001`. Its value is returned by the `CALLER` and `ORIGIN`
 opcodes during execution of the L1 attributes deposit transaction.
 
-### L1 Attributes Predeploy
+### L1 Attributes Predeployed Contract
 
-[predeploy]: #l1-attributes-predeploy
+[predeploy]: #l1-attributes-predeployed-contract
 
 A predeployed contract on L2 at address `0x4200000000000000000000000000000000000014`, which holds
 certain block variables from the corresponding L1 block in storage, so that they may be accessed
@@ -171,9 +174,9 @@ The contract has the following solidity interface, and can be interacted with ac
 
 [ABI]: https://docs.soliditylang.org/en/v0.8.10/abi-spec.html
 
-#### L1 Attributes: Reference Implementation
+#### L1 Attributes Predeployed Contract: Reference Implementation
 
-[l1-attrib-ref-implem]: #l1-attributes--reference-implementation
+[l1-attr-ref-implem]: #l1-attributes-predeployed-contract--reference-implementation
 
 A reference implementation of the L1 Attributes predeploy contract can be found in [L1Block.sol].
 
@@ -183,14 +186,14 @@ After running `yarn build` in the `packages/contracts` directory, the bytecode t
 file will be located in the `deployedBytecode` field of the build artifacts file at
 `/packages/contracts/artifacts/contracts/L2/L1Block.sol/L1Block.json`.
 
-## L1 Transaction Deposits
+## User-Deposited Transactions
 
-[l1-transaction-deposits]: #l1-transaction-deposits
+[user-deposited]: #user-deposited-transactions
 
-L1 [transaction deposits] are [deposit transactions][deposit-transaction-type] generated by the [L2
-Chain Derivation][derivation] process. The values of each transaction are determined by the
-corresponding `TransactionDeposited` event emitted by the [deposit feed
-contract][deposit-feed-contract] on L1.
+[User-deposited transactions][g-user-deposited] are [deposited transactions][deposited-tx-type]
+generated by the [L2 Chain Derivation][derivation] process. The content of each user-deposited
+transaction are determined by the corresponding `TransactionDeposited` event emitted by the [deposit
+feed contract][deposit-feed-contract] on L1.
 
 1. `from` is unchanged from the emitted value (though it may have been transformed to an alias in
    the deposit feed contract).
@@ -203,21 +206,19 @@ contract][deposit-feed-contract] on L1.
 6. `data` is unchanged from the emitted value. Depending on the value of `to` it is handled as
    either calldata or initialization code depending on the value of `to`.
 
-### Deposit Feed Contract
+### Deposit Contract
 
-[deposit-feed-contract]: #deposit-feed-contract
+[deposit-contract]: #deposit-contract
 
-The deposit feed contract is deployed to L1. Deposited transactions are derived from the values in
-the `TransactionDeposited` event(s) emitted by the deposit feed contract.
+The deposit contract is deployed to L1. Deposited transactions are derived from the values in
+the `TransactionDeposited` event(s) emitted by the deposit contract.
 
-The deposit feed handles two special cases:
+The deposit contract handles two special cases:
 
 1. A contract creation deposit, which is indicated by setting the `isCreation` flag to `true`.
    In the event that the `to` address is non-zero, the contract will revert.
 2. A call from a contract account, in which case the `from` value is transformed to its L2
    [alias][address-aliasing].
-
-> **TODO** Define if/how ETH withdrawals occur.
 
 #### Address Aliasing
 
@@ -229,7 +230,7 @@ has the same address as a contract on L2 but doesn't have the same code. We can 
 for EOAs because they're guaranteed to have the same "code" (i.e. no code at all). This also makes
 it possible for users to interact with contracts on L2 even when the Sequencer is down.
 
-#### Deposit Feed: Reference Implementation
+#### Deposit Feed Contract: Reference Implementation
 
 A reference implementation of the Deposit Feed contract can be found in [DepositFeed.sol].
 

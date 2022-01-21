@@ -145,8 +145,8 @@ In general, a deposit is an L2 transaction derived from an L1 block (by the [rol
 While transaction deposits are notably (but not only) used to "deposit" (bridge) ETH and tokens to L2, the word
 *deposit* should be understood as "a transaction *deposited* to L2 from L1".
 
-This term *deposit* is somewhat ambiguous as these "transactions" exist at multiple levels. This section disambiguates all
-deposit-related terms.
+This term *deposit* is somewhat ambiguous as these "transactions" exist at multiple levels. This section disambiguates
+all deposit-related terms.
 
 Notably, a *deposit* can refer to:
 
@@ -331,7 +331,7 @@ this term.
 A [predeployed contract][predeploy] on L2 that can be used to retrieve the L1 block attributes of L1 blocks with a given
 block number or a given block hash.
 
-cf. [L1 Attributes Predeployed Contract Specification](deposits.md#l1-attributes--reference-implementation)
+cf. [L1 Attributes Predeployed Contract Specification](deposits.md#l1-attributes-predeployed-contract)
 
 ------------------------------------------------------------------------------------------------------------------------
 
