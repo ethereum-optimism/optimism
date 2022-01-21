@@ -29,7 +29,9 @@ jobs:
         minigeth/go-ethereum 13284469
         minigeth/go-ethereum 13284491
     - name: Install Python deps
-      run: pip3 install -r mipigo/requirements.txt
+      run: |
+        pip3 install -r mipigo/requirements.txt
+        (cd unicorn2/bindings/python && python3 setup.py install)
     - name: Build minigeth for embedded
       run: |
         cd mipigo
