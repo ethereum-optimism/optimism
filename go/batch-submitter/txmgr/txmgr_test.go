@@ -104,6 +104,11 @@ func newTestHarness() *testHarness {
 	})
 }
 
+type minedTxInfo struct {
+	gasPrice    *big.Int
+	blockNumber uint64
+}
+
 // mockBackend implements txmgr.ReceiptSource that tracks mined transactions
 // along with the gas price used.
 type mockBackend struct {
@@ -112,26 +117,31 @@ type mockBackend struct {
 	// blockHeight tracks the current height of the chain.
 	blockHeight uint64
 
-	// txHashMinedWithGasPrice tracks the has of a mined transaction to its
-	// gas price.
-	txHashMinedWithGasPrice map[common.Hash]*big.Int
+	// minedTxs maps the hash of a mined transaction to its details.
+	minedTxs map[common.Hash]minedTxInfo
 }
 
 // newMockBackend initializes a new mockBackend.
 func newMockBackend() *mockBackend {
 	return &mockBackend{
-		txHashMinedWithGasPrice: make(map[common.Hash]*big.Int),
+		minedTxs: make(map[common.Hash]minedTxInfo),
 	}
 }
 
 // mine records a (txHash, gasPrice) as confirmed. Subsequent calls to
 // TransactionReceipt with a matching txHash will result in a non-nil receipt.
-func (b *mockBackend) mine(txHash common.Hash, gasPrice *big.Int) {
+// If a nil txHash is supplied this has the effect of mining an empty block.
+func (b *mockBackend) mine(txHash *common.Hash, gasPrice *big.Int) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
 	b.blockHeight++
-	b.txHashMinedWithGasPrice[txHash] = gasPrice
+	if txHash != nil {
+		b.minedTxs[*txHash] = minedTxInfo{
+			gasPrice:    gasPrice,
+			blockNumber: b.blockHeight,
+		}
+	}
 }
 
 // BlockNumber returns the most recent block number.
@@ -154,7 +164,7 @@ func (b *mockBackend) TransactionReceipt(
 	b.mu.RLock()
 	defer b.mu.RUnlock()
 
-	gasPrice, ok := b.txHashMinedWithGasPrice[txHash]
+	txInfo, ok := b.minedTxs[txHash]
 	if !ok {
 		return nil, nil
 	}
@@ -162,8 +172,9 @@ func (b *mockBackend) TransactionReceipt(
 	// Return the gas price for the transaction in the GasUsed field so that
 	// we can assert the proper tx confirmed in our tests.
 	return &types.Receipt{
-		TxHash:  txHash,
-		GasUsed: gasPrice.Uint64(),
+		TxHash:      txHash,
+		GasUsed:     txInfo.gasPrice.Uint64(),
+		BlockNumber: big.NewInt(int64(txInfo.blockNumber)),
 	}, nil
 }
 
@@ -180,7 +191,8 @@ func TestTxMgrConfirmAtMinGasPrice(t *testing.T) {
 		tx := types.NewTx(&types.LegacyTx{
 			GasPrice: gasPrice,
 		})
-		h.backend.mine(tx.Hash(), gasPrice)
+		txHash := tx.Hash()
+		h.backend.mine(&txHash, gasPrice)
 		return tx, nil
 	}
 
@@ -232,7 +244,8 @@ func TestTxMgrConfirmsAtMaxGasPrice(t *testing.T) {
 			GasPrice: gasPrice,
 		})
 		if gasPrice.Cmp(h.cfg.MaxGasPrice) == 0 {
-			h.backend.mine(tx.Hash(), gasPrice)
+			txHash := tx.Hash()
+			h.backend.mine(&txHash, gasPrice)
 		}
 		return tx, nil
 	}
@@ -264,7 +277,8 @@ func TestTxMgrConfirmsAtMaxGasPriceDelayed(t *testing.T) {
 		// should still return an error beforehand.
 		if gasPrice.Cmp(h.cfg.MaxGasPrice) == 0 {
 			time.AfterFunc(2*time.Second, func() {
-				h.backend.mine(tx.Hash(), gasPrice)
+				txHash := tx.Hash()
+				h.backend.mine(&txHash, gasPrice)
 			})
 		}
 		return tx, nil
@@ -320,7 +334,8 @@ func TestTxMgrOnlyOnePublicationSucceeds(t *testing.T) {
 		tx := types.NewTx(&types.LegacyTx{
 			GasPrice: gasPrice,
 		})
-		h.backend.mine(tx.Hash(), gasPrice)
+		txHash := tx.Hash()
+		h.backend.mine(&txHash, gasPrice)
 		return tx, nil
 	}
 
@@ -350,7 +365,8 @@ func TestTxMgrConfirmsMinGasPriceAfterBumping(t *testing.T) {
 		// Delay mining the tx with the min gas price.
 		if gasPrice.Cmp(h.cfg.MinGasPrice) == 0 {
 			time.AfterFunc(5*time.Second, func() {
-				h.backend.mine(tx.Hash(), gasPrice)
+				txHash := tx.Hash()
+				h.backend.mine(&txHash, gasPrice)
 			})
 		}
 		return tx, nil
@@ -373,7 +389,7 @@ func TestWaitMinedReturnsReceiptOnFirstSuccess(t *testing.T) {
 	// Create a tx and mine it immediately using the default backend.
 	tx := types.NewTx(&types.LegacyTx{})
 	txHash := tx.Hash()
-	h.backend.mine(txHash, new(big.Int))
+	h.backend.mine(&txHash, new(big.Int))
 
 	ctx := context.Background()
 	receipt, err := txmgr.WaitMined(ctx, h.backend, tx, 50*time.Millisecond)
