@@ -24,7 +24,7 @@
   - [Deposited Transaction Type](#deposited-transaction-type)
   - [Deposit Contract](#deposit-contract)
 - [Other L2 Chain Concepts](#other-l2-chain-concepts)
-      - [Address Aliasing](#address-aliasing)
+  - [Address Aliasing](#address-aliasing)
   - [L2 Chain Inception](#l2-chain-inception)
   - [Rollup Node](#rollup-node)
   - [Rollup Driver](#rollup-driver)
@@ -195,7 +195,7 @@ That contract can then be used to read the the attributes of the L1 block corres
 L1 attributes deposited transactions are specified in the [L1 Attributes Deposit][l1-attributes-tx-spec] section of the
 deposits specification.
 
-[l1-attributes-tx-spec]: deposits.md#l1-attributes-deposit
+[l1-attributes-tx-spec]: deposits.md#l1-attributes-deposited-transaction
 
 ## User-Deposited Transaction
 
@@ -207,7 +207,7 @@ A *user-deposited transaction* is a [deposited transaction][deposited] which is 
 User-deposited transactions are specified in the [Transaction Deposits][tx-deposits-spec] section of the deposits
 specification.
 
-[tx-deposits-spec]: deposits.md##l1-transaction-deposits
+[tx-deposits-spec]: deposits.md#user-deposited-transactions
 
 ## Depositing Call
 

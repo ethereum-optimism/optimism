@@ -50,17 +50,31 @@ to [`engine_forkchoiceUpdatedV1`][engine_forkchoiceUpdatedV1]: the extended `Pay
 
 #### Extended PayloadAttributesV1
 
-[`PayloadAttributesV1`][PayloadAttributesV1] is extended with a `transactions` field,
-equivalent to the `transactions` field in [`ExecutionPayloadV1`][ExecutionPayloadV1]:
-> `Array of DATA` - Array of transaction objects, each object is a byte list ([`DATA`][exec-api-data]) representing
-> `TransactionType || TransactionPayload` or `LegacyTransaction` as defined in [EIP-2718][eip-2718].
+[`PayloadAttributesV1`][PayloadAttributesV1] is extended with a `transactions` field, equivalent to
+the `transactions` field in [`ExecutionPayloadV1`][ExecutionPayloadV1]:
 
-This `transactions` field is an optional JSON field:
+```js
+PayloadAttributesOPV1: {
+    timestamp: QUANTITY
+    random: DATA (32 bytes)
+    suggestedFeeRecipient: DATA (20 bytes)
+    transactions: array of DATA
+}
+```
 
-- If empty or missing: no changes to engine behavior.
-  Utilized by sequencers (if enabled) to consume the transaction pool.
+The type notation used here refers to the [HEX value encoding] used by the [Ethereum JSON-RPC API
+specification][JSON-RPC-API], as this structure will need to be sent over JSON-RPC. `array` refers
+to a JSON array.
+
+Each item of the `transactions` array is a byte list encoding a transaction: `TransactionType ||
+TransactionPayload` or `LegacyTransaction`, as defined in [EIP-2718][eip-2718].
+
+The `transactions` field is optional:
+
+- If empty or missing: no changes to engine behavior. The sequencers will (if enabled) build a block
+  by consuming transactions from the transaction pool.
 - If present and non-empty: the payload MUST only be produced with this exact list of transactions.
-  Utilized by [rollup driver][rollup-driver] to compute full block payloads based on deterministic inputs.
+  The [rollup driver][rollup-driver] determines the transaction list based on deterministic L1 inputs.
 
 > **TODO**: derivation function spec in rollup node doc or separate driver doc
 
@@ -150,3 +164,5 @@ the operation within the engine is the exact same as with L1 (although with an E
 [engine_forkchoiceUpdatedV1]: https://github.com/ethereum/execution-apis/blob/v1.0.0-alpha.5/src/engine/specification.md#engine_forkchoiceupdatedv1
 [engine_executePayloadV1]: https://github.com/ethereum/execution-apis/blob/v1.0.0-alpha.5/src/engine/specification.md#engine_executePayloadV1
 [engine_getPayloadV1]: https://github.com/ethereum/execution-apis/blob/v1.0.0-alpha.5/src/engine/specification.md#engine_getPayloadV1
+[HEX value encoding]: https://eth.wiki/json-rpc/API#hex-value-encoding
+[JSON-RPC-API]: https://github.com/ethereum/execution-apis
