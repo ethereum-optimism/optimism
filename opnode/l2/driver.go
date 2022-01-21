@@ -12,9 +12,18 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 )
 
+// Driver exposes the driver functionality that maintains the external execution-engine.
 type Driver interface {
+	// requestEngineHead retrieves the L2 head reference of the engine, as well as the L1 reference it was derived from.
+	// An error is returned when the L2 head information could not be retrieved (timeout or connection issue)
 	requestEngineHead(ctx context.Context) (refL1 eth.BlockID, refL2 eth.BlockID, err error)
+	// findSyncStart statelessly finds the next L1 block to derive, and on which L2 block it applies.
+	// If the engine is fully synced, then the last derived L1 block, and parent L2 block, is repeated.
+	// An error is returned if the sync starting point could not be determined (due to timeouts, wrong-chain, etc.)
 	findSyncStart(ctx context.Context) (nextRefL1 eth.BlockID, refL2 eth.BlockID, err error)
+	// driverStep explicitly calls the engine to derive a L1 block into a L2 block, and apply it on top of the given L2 block.
+	// The finalized L2 block is provided to update the engine with finality, but does not affect the derivation step itself.
+	// The resulting L2 block ID is returned, or an error if the derivation fails.
 	driverStep(ctx context.Context, nextRefL1 eth.BlockID, refL2 eth.BlockID, finalized eth.BlockID) (l2ID eth.BlockID, err error)
 }
 

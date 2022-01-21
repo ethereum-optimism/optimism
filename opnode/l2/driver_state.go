@@ -8,9 +8,17 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 )
 
+// StateMachine provides control over the driver state, when given control over the Driver actions.
 type StateMachine interface {
+	// RequestUpdate tries to update the state-machine with the driver head information.
+	// If the state-machine changed, considering the engine L1 and L2 head, it will return true. False otherwise.
 	RequestUpdate(ctx context.Context, log log.Logger, driver Driver) (l2Updated bool)
+	// RequestSync tries to sync the provided driver towards the sync target of the state-machine.
+	// If the L2 syncs a step, but is not finished yet, it will return true. False otherwise.
 	RequestSync(ctx context.Context, log log.Logger, driver Driver) (l2Updated bool)
+	// NotifyL1Head updates the state-machine with the L1 signal,
+	// and attempts to sync the driver if the update extends the previous head.
+	// Returns true if the driver successfully derived and synced the L2 block to match L1. False otherwise.
 	NotifyL1Head(ctx context.Context, log log.Logger, l1HeadSig eth.HeadSignal, driver Driver) (l2Updated bool)
 }
 
