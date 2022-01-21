@@ -6,23 +6,17 @@ import (
 	"errors"
 	"fmt"
 	"sync"
-	"time"
 
 	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/golang/snappy"
 )
 
-const numBlockConfirmations = 50
-
 var (
-	cacheTTL = 5 * time.Second
-
 	errInvalidRPCParams = errors.New("invalid RPC params")
 )
 
 type RPCMethodHandler interface {
 	GetRPCMethod(context.Context, *RPCReq) (*RPCRes, error)
-	PutRPCMethod(context.Context, *RPCReq, *RPCRes, uint64) error
+	PutRPCMethod(context.Context, *RPCReq, *RPCRes) error
 }
 
 type StaticMethodHandler struct {
@@ -42,7 +36,7 @@ func (e *StaticMethodHandler) GetRPCMethod(ctx context.Context, req *RPCReq) (*R
 	return cache, nil
 }
 
-func (e *StaticMethodHandler) PutRPCMethod(ctx context.Context, req *RPCReq, res *RPCRes, blockNumSync uint64) error {
+func (e *StaticMethodHandler) PutRPCMethod(ctx context.Context, req *RPCReq, res *RPCRes) error {
 	e.m.Lock()
 	if e.cache == nil {
 		e.cache = copyRes(res)
@@ -52,8 +46,9 @@ func (e *StaticMethodHandler) PutRPCMethod(ctx context.Context, req *RPCReq, res
 }
 
 type EthGetBlockByNumberMethodHandler struct {
-	cache               Cache
-	getLatestBlockNumFn GetLatestBlockNumFn
+	cache                 Cache
+	getLatestBlockNumFn   GetLatestBlockNumFn
+	numBlockConfirmations int
 }
 
 func (e *EthGetBlockByNumberMethodHandler) cacheKey(req *RPCReq) string {
@@ -80,7 +75,7 @@ func (e *EthGetBlockByNumberMethodHandler) GetRPCMethod(ctx context.Context, req
 	return getImmutableRPCResponse(ctx, e.cache, key, req)
 }
 
-func (e *EthGetBlockByNumberMethodHandler) PutRPCMethod(ctx context.Context, req *RPCReq, res *RPCRes, blockNumberSync uint64) error {
+func (e *EthGetBlockByNumberMethodHandler) PutRPCMethod(ctx context.Context, req *RPCReq, res *RPCRes) error {
 	if ok, err := e.cacheable(req); !ok || err != nil {
 		return err
 	}
@@ -101,7 +96,7 @@ func (e *EthGetBlockByNumberMethodHandler) PutRPCMethod(ctx context.Context, req
 		if err != nil {
 			return err
 		}
-		if curBlock <= blockNum+numBlockConfirmations {
+		if curBlock <= blockNum+uint64(e.numBlockConfirmations) {
 			return nil
 		}
 	}
@@ -111,8 +106,9 @@ func (e *EthGetBlockByNumberMethodHandler) PutRPCMethod(ctx context.Context, req
 }
 
 type EthGetBlockRangeMethodHandler struct {
-	cache               Cache
-	getLatestBlockNumFn GetLatestBlockNumFn
+	cache                 Cache
+	getLatestBlockNumFn   GetLatestBlockNumFn
+	numBlockConfirmations int
 }
 
 func (e *EthGetBlockRangeMethodHandler) cacheKey(req *RPCReq) string {
@@ -140,7 +136,7 @@ func (e *EthGetBlockRangeMethodHandler) GetRPCMethod(ctx context.Context, req *R
 	return getImmutableRPCResponse(ctx, e.cache, key, req)
 }
 
-func (e *EthGetBlockRangeMethodHandler) PutRPCMethod(ctx context.Context, req *RPCReq, res *RPCRes, blockNumberSync uint64) error {
+func (e *EthGetBlockRangeMethodHandler) PutRPCMethod(ctx context.Context, req *RPCReq, res *RPCRes) error {
 	if ok, err := e.cacheable(req); !ok || err != nil {
 		return err
 	}
@@ -158,7 +154,7 @@ func (e *EthGetBlockRangeMethodHandler) PutRPCMethod(ctx context.Context, req *R
 		if err != nil {
 			return err
 		}
-		if curBlock <= startNum+numBlockConfirmations {
+		if curBlock <= startNum+uint64(e.numBlockConfirmations) {
 			return nil
 		}
 	}
@@ -167,7 +163,7 @@ func (e *EthGetBlockRangeMethodHandler) PutRPCMethod(ctx context.Context, req *R
 		if err != nil {
 			return err
 		}
-		if curBlock <= endNum+numBlockConfirmations {
+		if curBlock <= endNum+uint64(e.numBlockConfirmations) {
 			return nil
 		}
 	}
@@ -177,58 +173,66 @@ func (e *EthGetBlockRangeMethodHandler) PutRPCMethod(ctx context.Context, req *R
 }
 
 type EthCallMethodHandler struct {
-	cache               Cache
-	getLatestBlockNumFn GetLatestBlockNumFn
+	cache                 Cache
+	getLatestBlockNumFn   GetLatestBlockNumFn
+	numBlockConfirmations int
 }
 
-func (e *EthCallMethodHandler) cacheKey(req *RPCReq) string {
-	type ethCallParams struct {
-		From     string `json:"from"`
-		To       string `json:"to"`
-		Gas      string `json:"gas"`
-		GasPrice string `json:"gasPrice"`
-		Value    string `json:"value"`
-		Data     string `json:"data"`
-	}
-	var input []json.RawMessage
-	if err := json.Unmarshal(req.Params, &input); err != nil {
-		return ""
-	}
-	if len(input) != 2 {
-		return ""
-	}
-	var blockTag string
-	if err := json.Unmarshal(input[1], &blockTag); err != nil {
-		return ""
-	}
-	// The eth_call cache is used as a LVC. Only the latest calls are cached as these are used the most
-	if blockTag != "latest" {
-		return ""
-	}
-
-	var params ethCallParams
-	if err := json.Unmarshal(input[0], &params); err != nil {
-		return ""
+func (e *EthCallMethodHandler) cacheable(params *ethCallParams, blockTag string) bool {
+	if isBlockDependentParam(blockTag) {
+		return false
 	}
 	if params.From != "" || params.Gas != "" {
-		return ""
+		return false
 	}
 	if params.Value != "" && params.Value != "0x0" {
-		return ""
+		return false
 	}
-	// ensure the order is consistent
-	keyParams := fmt.Sprintf("%s:%s", params.To, params.Data)
+	return true
+}
+
+func (e *EthCallMethodHandler) cacheKey(params *ethCallParams, blockTag string) string {
+	keyParams := fmt.Sprintf("%s:%s:%s", params.To, params.Data, blockTag)
 	return fmt.Sprintf("method:eth_call:%s", keyParams)
 }
 
 func (e *EthCallMethodHandler) GetRPCMethod(ctx context.Context, req *RPCReq) (*RPCRes, error) {
-	key := e.cacheKey(req)
-	return getBlockDependentCachedRPCResponse(ctx, e.cache, e.getLatestBlockNumFn, key, req)
+	params, blockTag, err := decodeEthCallParams(req)
+	if err != nil {
+		return nil, err
+	}
+	if !e.cacheable(params, blockTag) {
+		return nil, nil
+	}
+	key := e.cacheKey(params, blockTag)
+	return getImmutableRPCResponse(ctx, e.cache, key, req)
 }
 
-func (e *EthCallMethodHandler) PutRPCMethod(ctx context.Context, req *RPCReq, res *RPCRes, blockNumberSync uint64) error {
-	key := e.cacheKey(req)
-	return putBlockDependentCachedRPCResponse(ctx, e.cache, key, res, blockNumberSync)
+func (e *EthCallMethodHandler) PutRPCMethod(ctx context.Context, req *RPCReq, res *RPCRes) error {
+	params, blockTag, err := decodeEthCallParams(req)
+	if err != nil {
+		return err
+	}
+	if !e.cacheable(params, blockTag) {
+		return nil
+	}
+
+	if blockTag != "earliest" {
+		curBlock, err := e.getLatestBlockNumFn(ctx)
+		if err != nil {
+			return err
+		}
+		blockNum, err := decodeBlockInput(blockTag)
+		if err != nil {
+			return err
+		}
+		if curBlock <= blockNum+uint64(e.numBlockConfirmations) {
+			return nil
+		}
+	}
+
+	key := e.cacheKey(params, blockTag)
+	return putImmutableRPCResponse(ctx, e.cache, key, req, res)
 }
 
 type EthBlockNumberMethodHandler struct {
@@ -243,7 +247,7 @@ func (e *EthBlockNumberMethodHandler) GetRPCMethod(ctx context.Context, req *RPC
 	return makeRPCRes(req, hexutil.EncodeUint64(blockNum)), nil
 }
 
-func (e *EthBlockNumberMethodHandler) PutRPCMethod(context.Context, *RPCReq, *RPCRes, uint64) error {
+func (e *EthBlockNumberMethodHandler) PutRPCMethod(context.Context, *RPCReq, *RPCRes) error {
 	return nil
 }
 
@@ -259,7 +263,7 @@ func (e *EthGasPriceMethodHandler) GetRPCMethod(ctx context.Context, req *RPCReq
 	return makeRPCRes(req, hexutil.EncodeUint64(gasPrice)), nil
 }
 
-func (e *EthGasPriceMethodHandler) PutRPCMethod(context.Context, *RPCReq, *RPCRes, uint64) error {
+func (e *EthGasPriceMethodHandler) PutRPCMethod(context.Context, *RPCReq, *RPCRes) error {
 	return nil
 }
 
@@ -319,6 +323,34 @@ func decodeBlockInput(input string) (uint64, error) {
 	return hexutil.DecodeUint64(input)
 }
 
+type ethCallParams struct {
+	From     string `json:"from"`
+	To       string `json:"to"`
+	Gas      string `json:"gas"`
+	GasPrice string `json:"gasPrice"`
+	Value    string `json:"value"`
+	Data     string `json:"data"`
+}
+
+func decodeEthCallParams(req *RPCReq) (*ethCallParams, string, error) {
+	var input []json.RawMessage
+	if err := json.Unmarshal(req.Params, &input); err != nil {
+		return nil, "", err
+	}
+	if len(input) != 2 {
+		return nil, "", fmt.Errorf("invalid eth_call parameters")
+	}
+	params := new(ethCallParams)
+	if err := json.Unmarshal(input[0], params); err != nil {
+		return nil, "", err
+	}
+	var blockTag string
+	if err := json.Unmarshal(input[1], &blockTag); err != nil {
+		return nil, "", err
+	}
+	return params, blockTag, nil
+}
+
 func validBlockInput(input string) bool {
 	if input == "earliest" || input == "pending" || input == "latest" {
 		return true
@@ -355,100 +387,30 @@ func copyRes(res *RPCRes) *RPCRes {
 	}
 }
 
-type CachedRPC struct {
-	BlockNum   uint64  `json:"blockNum"`
-	Res        *RPCRes `json:"res"`
-	Expiration int64   `json:"expiration"` // in millis since epoch
-}
-
-func (c *CachedRPC) Encode() []byte {
-	return mustMarshalJSON(c)
-}
-
-func (c *CachedRPC) Decode(b []byte) error {
-	return json.Unmarshal(b, c)
-}
-
-func (c *CachedRPC) ExpirationTime() time.Time {
-	return time.Unix(0, c.Expiration*int64(time.Millisecond))
-}
-
 func getImmutableRPCResponse(ctx context.Context, cache Cache, key string, req *RPCReq) (*RPCRes, error) {
-	encodedVal, err := cache.Get(ctx, key)
+	val, err := cache.Get(ctx, key)
 	if err != nil {
 		return nil, err
 	}
-	if encodedVal == "" {
+	if val == "" {
 		return nil, nil
 	}
-	val, err := snappy.Decode(nil, []byte(encodedVal))
-	if err != nil {
-		return nil, err
-	}
 
-	res := new(RPCRes)
-	if err := json.Unmarshal(val, res); err != nil {
+	var result interface{}
+	if err := json.Unmarshal([]byte(val), &result); err != nil {
 		return nil, err
 	}
-	res.ID = req.ID
-	return res, nil
+	return &RPCRes{
+		JSONRPC: req.JSONRPC,
+		Result:  result,
+		ID:      req.ID,
+	}, nil
 }
 
 func putImmutableRPCResponse(ctx context.Context, cache Cache, key string, req *RPCReq, res *RPCRes) error {
 	if key == "" {
 		return nil
 	}
-	val := mustMarshalJSON(res)
-	encodedVal := snappy.Encode(nil, val)
-	return cache.Put(ctx, key, string(encodedVal))
-}
-
-func getBlockDependentCachedRPCResponse(ctx context.Context, cache Cache, getLatestBlockNumFn GetLatestBlockNumFn, key string, req *RPCReq) (*RPCRes, error) {
-	encodedVal, err := cache.Get(ctx, key)
-	if err != nil {
-		return nil, err
-	}
-	if encodedVal == "" {
-		return nil, nil
-	}
-	val, err := snappy.Decode(nil, []byte(encodedVal))
-	if err != nil {
-		return nil, err
-	}
-
-	item := new(CachedRPC)
-	if err := json.Unmarshal(val, item); err != nil {
-		return nil, err
-	}
-	curBlockNum, err := getLatestBlockNumFn(ctx)
-	if err != nil {
-		return nil, err
-	}
-	expired := time.Now().After(item.ExpirationTime())
-	if curBlockNum > item.BlockNum && expired {
-		// Remove the key now to avoid stale entries from biasing the LRU list
-		// TODO: be careful removing keys once there are multiple proxyd instances
-		return nil, cache.Remove(ctx, key)
-	} else if curBlockNum < item.BlockNum { /* desync: reorgs, backend failover, slow sequencer I/O, etc */
-		return nil, nil
-	}
-
-	res := item.Res
-	res.ID = req.ID
-	return res, nil
-}
-
-func putBlockDependentCachedRPCResponse(ctx context.Context, cache Cache, key string, res *RPCRes, blockNumberSync uint64) error {
-	if key == "" {
-		return nil
-	}
-	item := CachedRPC{
-		BlockNum:   blockNumberSync,
-		Res:        res,
-		Expiration: time.Now().Add(cacheTTL).UnixNano() / int64(time.Millisecond),
-	}
-	val := item.Encode()
-
-	encodedVal := snappy.Encode(nil, val)
-	return cache.Put(ctx, key, string(encodedVal))
+	val := mustMarshalJSON(res.Result)
+	return cache.Put(ctx, key, string(val))
 }

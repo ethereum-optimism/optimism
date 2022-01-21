@@ -145,7 +145,7 @@ var (
 	requestPayloadSizesGauge = promauto.NewHistogramVec(prometheus.HistogramOpts{
 		Namespace: MetricsNamespace,
 		Name:      "request_payload_sizes",
-		Help:      "Gauge of client request payload sizes.",
+		Help:      "Histogram of client request payload sizes.",
 		Buckets:   PayloadSizeBuckets,
 	}, []string{
 		"auth",
@@ -154,7 +154,7 @@ var (
 	responsePayloadSizesGauge = promauto.NewHistogramVec(prometheus.HistogramOpts{
 		Namespace: MetricsNamespace,
 		Name:      "response_payload_sizes",
-		Help:      "Gauge of client response payload sizes.",
+		Help:      "Histogram of client response payload sizes.",
 		Buckets:   PayloadSizeBuckets,
 	}, []string{
 		"auth",
@@ -174,6 +174,22 @@ var (
 		Help:      "Number of cache misses.",
 	}, []string{
 		"method",
+	})
+
+	lvcErrorsTotal = promauto.NewCounterVec(prometheus.CounterOpts{
+		Namespace: MetricsNamespace,
+		Name:      "lvc_errors_total",
+		Help:      "Count of lvc errors.",
+	}, []string{
+		"key",
+	})
+
+	lvcPollTimeGauge = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: MetricsNamespace,
+		Name:      "lvc_poll_time_gauge",
+		Help:      "Gauge of lvc poll time.",
+	}, []string{
+		"key",
 	})
 
 	rpcSpecialErrors = []string{

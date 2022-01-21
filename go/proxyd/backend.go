@@ -16,9 +16,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
-	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/gorilla/websocket"
 	"github.com/prometheus/client_golang/prometheus"
 )
@@ -86,7 +84,6 @@ type Backend struct {
 	authPassword         string
 	rateLimiter          RateLimiter
 	client               *http.Client
-	blockNumberLVC       *EthLastValueCache
 	dialer               *websocket.Dialer
 	maxRetries           int
 	maxResponseSize      int64
@@ -169,7 +166,7 @@ func NewBackend(
 	wsURL string,
 	rateLimiter RateLimiter,
 	opts ...BackendOpt,
-) (*Backend, error) {
+) *Backend {
 	backend := &Backend{
 		Name:            name,
 		rpcURL:          rpcURL,
@@ -186,28 +183,11 @@ func NewBackend(
 		opt(backend)
 	}
 
-	rpcClient, err := rpc.DialHTTPWithClient(rpcURL, backend.client)
-	if err != nil {
-		return nil, err
-	}
-	backend.blockNumberLVC = newLVC(ethclient.NewClient(rpcClient), func(ctx context.Context, client *ethclient.Client) (interface{}, error) {
-		blockNumber, err := client.BlockNumber(ctx)
-		return blockNumber, err
-	})
-
 	if !backend.stripTrailingXFF && backend.proxydIP == "" {
 		log.Warn("proxied requests' XFF header will not contain the proxyd ip address")
 	}
 
-	return backend, nil
-}
-
-func (b *Backend) Start() {
-	b.blockNumberLVC.Start()
-}
-
-func (b *Backend) Stop() {
-	b.blockNumberLVC.Stop()
+	return backend
 }
 
 func (b *Backend) Forward(ctx context.Context, req *RPCReq) (*RPCRes, error) {
@@ -286,14 +266,6 @@ func (b *Backend) ProxyWS(clientConn *websocket.Conn, methodWhitelist *StringSet
 
 	activeBackendWsConnsGauge.WithLabelValues(b.Name).Inc()
 	return NewWSProxier(b, clientConn, backendConn, methodWhitelist), nil
-}
-
-func (b *Backend) BlockNumber() uint64 {
-	var blockNum uint64
-	if val := b.blockNumberLVC.Read(); val != nil {
-		blockNum = val.(uint64)
-	}
-	return blockNum
 }
 
 func (b *Backend) Online() bool {
@@ -423,16 +395,13 @@ type BackendGroup struct {
 	Backends []*Backend
 }
 
-func (b *BackendGroup) Forward(ctx context.Context, rpcReq *RPCReq) (*RPCRes, uint64, error) {
+func (b *BackendGroup) Forward(ctx context.Context, rpcReq *RPCReq) (*RPCRes, error) {
 	rpcRequestsTotal.Inc()
 
 	for _, back := range b.Backends {
-		// The blockNum must precede the forwarded RPC to establish a synchronization point
-		blockNum := back.BlockNumber()
-
 		res, err := back.Forward(ctx, rpcReq)
 		if errors.Is(err, ErrMethodNotWhitelisted) {
-			return nil, 0, err
+			return nil, err
 		}
 		if errors.Is(err, ErrBackendOffline) {
 			log.Warn(
@@ -462,11 +431,11 @@ func (b *BackendGroup) Forward(ctx context.Context, rpcReq *RPCReq) (*RPCRes, ui
 			)
 			continue
 		}
-		return res, blockNum, nil
+		return res, nil
 	}
 
 	RecordUnserviceableRequest(ctx, RPCRequestSourceHTTP)
-	return nil, 0, ErrNoBackends
+	return nil, ErrNoBackends
 }
 
 func (b *BackendGroup) ProxyWS(ctx context.Context, clientConn *websocket.Conn, methodWhitelist *StringSet) (*WSProxier, error) {

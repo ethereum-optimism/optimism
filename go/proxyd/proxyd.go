@@ -5,9 +5,9 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
-	"math/big"
 	"net/http"
 	"os"
+	"strconv"
 	"time"
 
 	"github.com/ethereum/go-ethereum/ethclient"
@@ -111,12 +111,7 @@ func Start(config *Config) (func(), error) {
 			opts = append(opts, WithStrippedTrailingXFF())
 		}
 		opts = append(opts, WithProxydIP(os.Getenv("PROXYD_IP")))
-		back, err := NewBackend(name, rpcURL, wsURL, lim, opts...)
-		if err != nil {
-			return nil, err
-		}
-		back.Start()
-		defer back.Stop()
+		back := NewBackend(name, rpcURL, wsURL, lim, opts...)
 		backendNames = append(backendNames, name)
 		backendsByName[name] = back
 		log.Info("configured backend", "name", name, "rpc_url", rpcURL, "ws_url", wsURL)
@@ -169,9 +164,18 @@ func Start(config *Config) (func(), error) {
 		}
 	}
 
-	var rpcCache RPCCache
-	stopLVCs := make(chan struct{})
+	var (
+		rpcCache    RPCCache
+		blockNumLVC *EthLastValueCache
+		gasPriceLVC *EthLastValueCache
+	)
 	if config.Cache.Enabled {
+		var (
+			cache      Cache
+			blockNumFn GetLatestBlockNumFn
+			gasPriceFn GetLatestGasPriceFn
+		)
+
 		if config.Cache.BlockSyncRPCURL == "" {
 			return nil, fmt.Errorf("block sync node required for caching")
 		}
@@ -180,7 +184,6 @@ func Start(config *Config) (func(), error) {
 			return nil, err
 		}
 
-		var cache Cache
 		if redisURL != "" {
 			if cache, err = newRedisCache(redisURL); err != nil {
 				return nil, err
@@ -195,9 +198,10 @@ func Start(config *Config) (func(), error) {
 			return nil, err
 		}
 		defer ethClient.Close()
-		blockNumFn := makeGetLatestBlockNumFn(ethClient, stopLVCs)
-		gasPriceFn := makeGetLatestGasPriceFn(ethClient, stopLVCs)
-		rpcCache = newRPCCache(cache, blockNumFn, gasPriceFn)
+
+		blockNumLVC, blockNumFn = makeGetLatestBlockNumFn(ethClient, cache)
+		gasPriceLVC, gasPriceFn = makeGetLatestGasPriceFn(ethClient, cache)
+		rpcCache = newRPCCache(newCacheWithCompression(cache), blockNumFn, gasPriceFn, config.Cache.NumBlockConfirmations)
 	}
 
 	srv := NewServer(
@@ -250,8 +254,12 @@ func Start(config *Config) (func(), error) {
 
 	return func() {
 		log.Info("shutting down proxyd")
-		// TODO(inphi): Stop LVCs here
-		close(stopLVCs)
+		if blockNumLVC != nil {
+			blockNumLVC.Stop()
+		}
+		if gasPriceLVC != nil {
+			gasPriceLVC.Stop()
+		}
 		srv.Shutdown()
 		if err := lim.FlushBackendWSConns(backendNames); err != nil {
 			log.Error("error flushing backend ws conns", "err", err)
@@ -285,38 +293,38 @@ func configureBackendTLS(cfg *BackendConfig) (*tls.Config, error) {
 	return tlsConfig, nil
 }
 
-func makeGetLatestBlockNumFn(client *ethclient.Client, quit <-chan struct{}) GetLatestBlockNumFn {
-	lvc := newLVC(client, func(ctx context.Context, c *ethclient.Client) (interface{}, error) {
-		return c.BlockNumber(ctx)
-	})
+func makeUint64LastValueFn(client *ethclient.Client, cache Cache, key string, updater lvcUpdateFn) (*EthLastValueCache, func(context.Context) (uint64, error)) {
+	lvc := newLVC(client, cache, key, updater)
 	lvc.Start()
-	go func() {
-		<-quit
-		lvc.Stop()
-	}()
-	return func(ctx context.Context) (uint64, error) {
-		value := lvc.Read()
-		if value == nil {
-			return 0, fmt.Errorf("block number is unavailable")
+	return lvc, func(ctx context.Context) (uint64, error) {
+		value, err := lvc.Read(ctx)
+		if err != nil {
+			return 0, err
 		}
-		return value.(uint64), nil
+		if value == "" {
+			return 0, fmt.Errorf("%s is unavailable", key)
+		}
+		valueUint, err := strconv.ParseUint(value, 10, 64)
+		if err != nil {
+			return 0, err
+		}
+		return valueUint, nil
 	}
 }
 
-func makeGetLatestGasPriceFn(client *ethclient.Client, quit <-chan struct{}) GetLatestGasPriceFn {
-	lvc := newLVC(client, func(ctx context.Context, c *ethclient.Client) (interface{}, error) {
-		return c.SuggestGasPrice(ctx)
+func makeGetLatestBlockNumFn(client *ethclient.Client, cache Cache) (*EthLastValueCache, GetLatestBlockNumFn) {
+	return makeUint64LastValueFn(client, cache, "lvc:block_number", func(ctx context.Context, c *ethclient.Client) (string, error) {
+		blockNum, err := c.BlockNumber(ctx)
+		return strconv.FormatUint(blockNum, 10), err
 	})
-	lvc.Start()
-	go func() {
-		<-lvc.quit
-		lvc.Stop()
-	}()
-	return func(ctx context.Context) (uint64, error) {
-		value := lvc.Read()
-		if value == nil {
-			return 0, fmt.Errorf("gas price is unavailable")
+}
+
+func makeGetLatestGasPriceFn(client *ethclient.Client, cache Cache) (*EthLastValueCache, GetLatestGasPriceFn) {
+	return makeUint64LastValueFn(client, cache, "lvc:gas_price", func(ctx context.Context, c *ethclient.Client) (string, error) {
+		gasPrice, err := c.SuggestGasPrice(ctx)
+		if err != nil {
+			return "", err
 		}
-		return value.(*big.Int).Uint64(), nil
-	}
+		return gasPrice.String(), nil
+	})
 }

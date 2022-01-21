@@ -4,13 +4,13 @@ import (
 	"context"
 
 	"github.com/go-redis/redis/v8"
+	"github.com/golang/snappy"
 	lru "github.com/hashicorp/golang-lru"
 )
 
 type Cache interface {
 	Get(ctx context.Context, key string) (string, error)
 	Put(ctx context.Context, key string, value string) error
-	Remove(ctx context.Context, key string) error
 }
 
 const (
@@ -36,11 +36,6 @@ func (c *cache) Get(ctx context.Context, key string) (string, error) {
 
 func (c *cache) Put(ctx context.Context, key string, value string) error {
 	c.lru.Add(key, value)
-	return nil
-}
-
-func (c *cache) Remove(ctx context.Context, key string) error {
-	c.lru.Remove(key)
 	return nil
 }
 
@@ -79,12 +74,32 @@ func (c *redisCache) Put(ctx context.Context, key string, value string) error {
 	return err
 }
 
-func (c *redisCache) Remove(ctx context.Context, key string) error {
-	err := c.rdb.Del(ctx, key).Err()
+type cacheWithCompression struct {
+	cache Cache
+}
+
+func newCacheWithCompression(cache Cache) *cacheWithCompression {
+	return &cacheWithCompression{cache}
+}
+
+func (c *cacheWithCompression) Get(ctx context.Context, key string) (string, error) {
+	encodedVal, err := c.cache.Get(ctx, key)
 	if err != nil {
-		RecordRedisError("CacheDel")
+		return "", err
 	}
-	return err
+	if encodedVal == "" {
+		return "", nil
+	}
+	val, err := snappy.Decode(nil, []byte(encodedVal))
+	if err != nil {
+		return "", err
+	}
+	return string(val), nil
+}
+
+func (c *cacheWithCompression) Put(ctx context.Context, key string, value string) error {
+	encodedVal := snappy.Encode(nil, []byte(value))
+	return c.cache.Put(ctx, key, string(encodedVal))
 }
 
 type GetLatestBlockNumFn func(ctx context.Context) (uint64, error)
@@ -92,11 +107,7 @@ type GetLatestGasPriceFn func(ctx context.Context) (uint64, error)
 
 type RPCCache interface {
 	GetRPC(ctx context.Context, req *RPCReq) (*RPCRes, error)
-
-	// The blockNumberSync is used to enforce Sequential Consistency for cache invalidation. We make the following assumptions to do this:
-	// 1. blockNumberSync is monotonically increasing (sans reorgs)
-	// 2. blockNumberSync is ordered before block state of the RPCRes
-	PutRPC(ctx context.Context, req *RPCReq, res *RPCRes, blockNumberSync uint64) error
+	PutRPC(ctx context.Context, req *RPCReq, res *RPCRes) error
 }
 
 type rpcCache struct {
@@ -104,15 +115,15 @@ type rpcCache struct {
 	handlers map[string]RPCMethodHandler
 }
 
-func newRPCCache(cache Cache, getLatestBlockNumFn GetLatestBlockNumFn, getLatestGasPriceFn GetLatestGasPriceFn) RPCCache {
+func newRPCCache(cache Cache, getLatestBlockNumFn GetLatestBlockNumFn, getLatestGasPriceFn GetLatestGasPriceFn, numBlockConfirmations int) RPCCache {
 	handlers := map[string]RPCMethodHandler{
 		"eth_chainId":          &StaticMethodHandler{},
 		"net_version":          &StaticMethodHandler{},
-		"eth_getBlockByNumber": &EthGetBlockByNumberMethodHandler{cache, getLatestBlockNumFn},
-		"eth_getBlockRange":    &EthGetBlockRangeMethodHandler{cache, getLatestBlockNumFn},
+		"eth_getBlockByNumber": &EthGetBlockByNumberMethodHandler{cache, getLatestBlockNumFn, numBlockConfirmations},
+		"eth_getBlockRange":    &EthGetBlockRangeMethodHandler{cache, getLatestBlockNumFn, numBlockConfirmations},
 		"eth_blockNumber":      &EthBlockNumberMethodHandler{getLatestBlockNumFn},
 		"eth_gasPrice":         &EthGasPriceMethodHandler{getLatestGasPriceFn},
-		"eth_call":             &EthCallMethodHandler{cache, getLatestBlockNumFn},
+		"eth_call":             &EthCallMethodHandler{cache, getLatestBlockNumFn, numBlockConfirmations},
 	}
 	return &rpcCache{
 		cache:    cache,
@@ -136,10 +147,10 @@ func (c *rpcCache) GetRPC(ctx context.Context, req *RPCReq) (*RPCRes, error) {
 	return res, err
 }
 
-func (c *rpcCache) PutRPC(ctx context.Context, req *RPCReq, res *RPCRes, blockNumberSync uint64) error {
+func (c *rpcCache) PutRPC(ctx context.Context, req *RPCReq, res *RPCRes) error {
 	handler := c.handlers[req.Method]
 	if handler == nil {
 		return nil
 	}
-	return handler.PutRPCMethod(ctx, req, res, blockNumberSync)
+	return handler.PutRPCMethod(ctx, req, res)
 }
