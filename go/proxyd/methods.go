@@ -20,7 +20,7 @@ type RPCMethodHandler interface {
 }
 
 type StaticMethodHandler struct {
-	cache *RPCRes
+	cache interface{}
 	m     sync.RWMutex
 }
 
@@ -29,17 +29,20 @@ func (e *StaticMethodHandler) GetRPCMethod(ctx context.Context, req *RPCReq) (*R
 	cache := e.cache
 	e.m.RUnlock()
 
-	if cache != nil {
-		cache = copyRes(cache)
-		cache.ID = req.ID
+	if cache == nil {
+		return nil, nil
 	}
-	return cache, nil
+	return &RPCRes{
+		JSONRPC: req.JSONRPC,
+		Result:  cache,
+		ID:      req.ID,
+	}, nil
 }
 
 func (e *StaticMethodHandler) PutRPCMethod(ctx context.Context, req *RPCReq, res *RPCRes) error {
 	e.m.Lock()
 	if e.cache == nil {
-		e.cache = copyRes(res)
+		e.cache = res.Result
 	}
 	e.m.Unlock()
 	return nil
@@ -364,26 +367,6 @@ func makeRPCRes(req *RPCReq, result interface{}) *RPCRes {
 		JSONRPC: JSONRPCVersion,
 		ID:      req.ID,
 		Result:  result,
-	}
-}
-
-func copyResError(err *RPCErr) *RPCErr {
-	if err == nil {
-		return nil
-	}
-	return &RPCErr{
-		Code:          err.Code,
-		Message:       err.Message,
-		HTTPErrorCode: err.HTTPErrorCode,
-	}
-}
-
-func copyRes(res *RPCRes) *RPCRes {
-	return &RPCRes{
-		JSONRPC: res.JSONRPC,
-		Result:  res.Result,
-		Error:   copyResError(res.Error),
-		ID:      res.ID,
 	}
 }
 
