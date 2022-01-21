@@ -18,7 +18,6 @@ import {
   TransactionReceipt,
   TransactionRequest,
 } from '@ethersproject/providers'
-import simpleStorageJson from '../artifacts/contracts/SimpleStorage.sol/SimpleStorage.json'
 
 describe('Basic RPC tests', () => {
   let env: OptimismEnv
@@ -491,9 +490,8 @@ describe('Basic RPC tests', () => {
 
   describe('debug_traceTransaction', () => {
     it('should match debug_traceBlock', async () => {
-      const storage = new ContractFactory(
-        simpleStorageJson.abi,
-        simpleStorageJson.bytecode,
+      const storage = await ethers.getContractFactory(
+        'SimpleStorage',
         env.l2Wallet
       )
       const tx = (await storage.deploy()).deployTransaction
