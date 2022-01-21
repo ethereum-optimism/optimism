@@ -164,6 +164,7 @@ func NewBatchSubmitter(cfg Config, gitVersion string) (*BatchSubmitter, error) {
 		GasRetryIncrement:    utils.GasPriceFromGwei(cfg.GasRetryIncrement),
 		ResubmissionTimeout:  cfg.ResubmissionTimeout,
 		ReceiptQueryInterval: time.Second,
+		NumConfirmations:     cfg.NumConfirmations,
 	}
 
 	var batchTxService *Service

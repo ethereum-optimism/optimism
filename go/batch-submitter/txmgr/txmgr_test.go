@@ -95,13 +95,18 @@ func newTestHarnessWithConfig(cfg txmgr.Config) *testHarness {
 // newTestHarness initializes a testHarness with a defualt configuration that is
 // suitable for most tests.
 func newTestHarness() *testHarness {
-	return newTestHarnessWithConfig(txmgr.Config{
+	return newTestHarnessWithConfig(configWithNumConfs(1))
+}
+
+func configWithNumConfs(numConfirmations uint64) txmgr.Config {
+	return txmgr.Config{
 		MinGasPrice:          new(big.Int).SetUint64(5),
 		MaxGasPrice:          new(big.Int).SetUint64(50),
 		GasRetryIncrement:    new(big.Int).SetUint64(5),
 		ResubmissionTimeout:  time.Second,
 		ReceiptQueryInterval: 50 * time.Millisecond,
-	})
+		NumConfirmations:     numConfirmations,
+	}
 }
 
 type minedTxInfo struct {
@@ -392,7 +397,7 @@ func TestWaitMinedReturnsReceiptOnFirstSuccess(t *testing.T) {
 	h.backend.mine(&txHash, new(big.Int))
 
 	ctx := context.Background()
-	receipt, err := txmgr.WaitMined(ctx, h.backend, tx, 50*time.Millisecond)
+	receipt, err := txmgr.WaitMined(ctx, h.backend, tx, 50*time.Millisecond, 1)
 	require.Nil(t, err)
 	require.NotNil(t, receipt)
 	require.Equal(t, receipt.TxHash, txHash)
@@ -411,9 +416,54 @@ func TestWaitMinedCanBeCanceled(t *testing.T) {
 	// Create an unimined tx.
 	tx := types.NewTx(&types.LegacyTx{})
 
-	receipt, err := txmgr.WaitMined(ctx, h.backend, tx, 50*time.Millisecond)
+	receipt, err := txmgr.WaitMined(ctx, h.backend, tx, 50*time.Millisecond, 1)
 	require.Equal(t, err, context.DeadlineExceeded)
 	require.Nil(t, receipt)
+}
+
+// TestWaitMinedMultipleConfs asserts that WaitMiend will properly wait for more
+// than one confirmation.
+func TestWaitMinedMultipleConfs(t *testing.T) {
+	t.Parallel()
+
+	const numConfs = 2
+
+	h := newTestHarnessWithConfig(configWithNumConfs(numConfs))
+	ctxt, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+
+	// Create an unimined tx.
+	tx := types.NewTx(&types.LegacyTx{})
+	txHash := tx.Hash()
+	h.backend.mine(&txHash, new(big.Int))
+
+	receipt, err := txmgr.WaitMined(ctxt, h.backend, tx, 50*time.Millisecond, numConfs)
+	require.Equal(t, err, context.DeadlineExceeded)
+	require.Nil(t, receipt)
+
+	ctxt, cancel = context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+
+	// Mine an empty block, tx should now be confirmed.
+	h.backend.mine(nil, nil)
+	receipt, err = txmgr.WaitMined(ctxt, h.backend, tx, 50*time.Millisecond, numConfs)
+	require.Nil(t, err)
+	require.NotNil(t, receipt)
+	require.Equal(t, txHash, receipt.TxHash)
+}
+
+// TestManagerPanicOnZeroConfs ensures that the NewSimpleTxManager will panic
+// when attempting to configure with NumConfirmations set to zero.
+func TestManagerPanicOnZeroConfs(t *testing.T) {
+	t.Parallel()
+
+	defer func() {
+		if r := recover(); r == nil {
+			t.Fatal("NewSimpleTxManager should panic when using zero conf")
+		}
+	}()
+
+	_ = newTestHarnessWithConfig(configWithNumConfs(0))
 }
 
 // failingBackend implements txmgr.ReceiptSource, returning a failure on the
@@ -465,7 +515,7 @@ func TestWaitMinedReturnsReceiptAfterFailure(t *testing.T) {
 	txHash := tx.Hash()
 
 	ctx := context.Background()
-	receipt, err := txmgr.WaitMined(ctx, &borkedBackend, tx, 50*time.Millisecond)
+	receipt, err := txmgr.WaitMined(ctx, &borkedBackend, tx, 50*time.Millisecond, 1)
 	require.Nil(t, err)
 	require.NotNil(t, receipt)
 	require.Equal(t, receipt.TxHash, txHash)

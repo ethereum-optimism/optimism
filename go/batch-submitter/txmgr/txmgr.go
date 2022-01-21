@@ -52,6 +52,10 @@ type Config struct {
 	// query the backend to check for confirmations after a tx at a
 	// specific gas price has been published.
 	ReceiptQueryInterval time.Duration
+
+	// NumConfirmations specifies how many blocks are need to consider a
+	// transaction confirmed.
+	NumConfirmations uint64
 }
 
 // TxManager is an interface that allows callers to reliably publish txs,
@@ -92,6 +96,10 @@ type SimpleTxManager struct {
 // NewSimpleTxManager initializes a new SimpleTxManager with the passed Config.
 func NewSimpleTxManager(
 	name string, cfg Config, backend ReceiptSource) *SimpleTxManager {
+
+	if cfg.NumConfirmations == 0 {
+		panic("txmgr: NumConfirmations cannot be zero")
+	}
 
 	return &SimpleTxManager{
 		name:    name,
@@ -151,6 +159,7 @@ func (m *SimpleTxManager) Send(
 		// back to the main event loop if found.
 		receipt, err := WaitMined(
 			ctxc, m.backend, tx, m.cfg.ReceiptQueryInterval,
+			m.cfg.NumConfirmations,
 		)
 		if err != nil {
 			log.Debug(name+" send tx failed", "hash", txHash,
@@ -223,6 +232,7 @@ func WaitMined(
 	backend ReceiptSource,
 	tx *types.Transaction,
 	queryInterval time.Duration,
+	numConfirmations uint64,
 ) (*types.Receipt, error) {
 
 	queryTicker := time.NewTicker(queryInterval)
@@ -232,14 +242,42 @@ func WaitMined(
 
 	for {
 		receipt, err := backend.TransactionReceipt(ctx, txHash)
-		if receipt != nil {
-			return receipt, nil
-		}
+		switch {
+		case receipt != nil:
+			txHeight := receipt.BlockNumber.Uint64()
+			tipHeight, err := backend.BlockNumber(ctx)
+			if err != nil {
+				log.Error("Unable to fetch block number", "err", err)
+				break
+			}
 
-		if err != nil {
+			log.Trace("Transaction mined, checking confirmations",
+				"txHash", txHash, "txHeight", txHeight,
+				"tipHeight", tipHeight,
+				"numConfirmations", numConfirmations)
+
+			// The transaction is considered confirmed when
+			// txHeight+numConfirmations-1 <= tipHeight. Note that the -1 is
+			// needed to account for the fact that confirmations have an
+			// inherent off-by-one, i.e. when using 1 confirmation the
+			// transaction should be confirmed when txHeight is equal to
+			// tipHeight. The equation is rewritten in this form to avoid
+			// underflows.
+			if txHeight+numConfirmations <= tipHeight+1 {
+				log.Info("Transaction confirmed", "txHash", txHash)
+				return receipt, nil
+			}
+
+			// Safe to subtract since we know the LHS above is greater.
+			confsRemaining := (txHeight + numConfirmations) - (tipHeight + 1)
+			log.Info("Transaction not yet confirmed", "txHash", txHash,
+				"confsRemaining", confsRemaining)
+
+		case err != nil:
 			log.Trace("Receipt retrievel failed", "hash", txHash,
 				"err", err)
-		} else {
+
+		default:
 			log.Trace("Transaction not yet mined", "hash", txHash)
 		}
 
