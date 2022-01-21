@@ -64,7 +64,7 @@ describe('DepositFeed', () => {
 
   describe('Should emit the correct log values...', async () => {
     it('when an EOA deposits a transaction with 0 value.', async () => {
-      const receipt = await(
+      const receipt = await (
         await depositFeed.depositTransaction(
           NON_ZERO_ADDRESS,
           ZERO_BIGNUMBER,
