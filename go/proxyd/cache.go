@@ -2,7 +2,6 @@ package proxyd
 
 import (
 	"context"
-	"encoding/json"
 
 	"github.com/go-redis/redis/v8"
 	"github.com/golang/snappy"
@@ -14,10 +13,9 @@ type Cache interface {
 	Put(ctx context.Context, key string, value string) error
 }
 
-// assuming an average RPCRes size of 3 KB
 const (
-	memoryCacheLimit      = 4096
-	numBlockConfirmations = 50
+	// assuming an average RPCRes size of 3 KB
+	memoryCacheLimit = 4096
 )
 
 type cache struct {
@@ -76,7 +74,36 @@ func (c *redisCache) Put(ctx context.Context, key string, value string) error {
 	return err
 }
 
+type cacheWithCompression struct {
+	cache Cache
+}
+
+func newCacheWithCompression(cache Cache) *cacheWithCompression {
+	return &cacheWithCompression{cache}
+}
+
+func (c *cacheWithCompression) Get(ctx context.Context, key string) (string, error) {
+	encodedVal, err := c.cache.Get(ctx, key)
+	if err != nil {
+		return "", err
+	}
+	if encodedVal == "" {
+		return "", nil
+	}
+	val, err := snappy.Decode(nil, []byte(encodedVal))
+	if err != nil {
+		return "", err
+	}
+	return string(val), nil
+}
+
+func (c *cacheWithCompression) Put(ctx context.Context, key string, value string) error {
+	encodedVal := snappy.Encode(nil, []byte(value))
+	return c.cache.Put(ctx, key, string(encodedVal))
+}
+
 type GetLatestBlockNumFn func(ctx context.Context) (uint64, error)
+type GetLatestGasPriceFn func(ctx context.Context) (uint64, error)
 
 type RPCCache interface {
 	GetRPC(ctx context.Context, req *RPCReq) (*RPCRes, error)
@@ -84,19 +111,24 @@ type RPCCache interface {
 }
 
 type rpcCache struct {
-	cache               Cache
-	getLatestBlockNumFn GetLatestBlockNumFn
-	handlers            map[string]RPCMethodHandler
+	cache    Cache
+	handlers map[string]RPCMethodHandler
 }
 
-func newRPCCache(cache Cache, getLatestBlockNumFn GetLatestBlockNumFn) RPCCache {
+func newRPCCache(cache Cache, getLatestBlockNumFn GetLatestBlockNumFn, getLatestGasPriceFn GetLatestGasPriceFn, numBlockConfirmations int) RPCCache {
 	handlers := map[string]RPCMethodHandler{
-		"eth_chainId":          &StaticRPCMethodHandler{"eth_chainId"},
-		"net_version":          &StaticRPCMethodHandler{"net_version"},
-		"eth_getBlockByNumber": &EthGetBlockByNumberMethod{getLatestBlockNumFn},
-		"eth_getBlockRange":    &EthGetBlockRangeMethod{getLatestBlockNumFn},
+		"eth_chainId":          &StaticMethodHandler{},
+		"net_version":          &StaticMethodHandler{},
+		"eth_getBlockByNumber": &EthGetBlockByNumberMethodHandler{cache, getLatestBlockNumFn, numBlockConfirmations},
+		"eth_getBlockRange":    &EthGetBlockRangeMethodHandler{cache, getLatestBlockNumFn, numBlockConfirmations},
+		"eth_blockNumber":      &EthBlockNumberMethodHandler{getLatestBlockNumFn},
+		"eth_gasPrice":         &EthGasPriceMethodHandler{getLatestGasPriceFn},
+		"eth_call":             &EthCallMethodHandler{cache, getLatestBlockNumFn, numBlockConfirmations},
 	}
-	return &rpcCache{cache: cache, getLatestBlockNumFn: getLatestBlockNumFn, handlers: handlers}
+	return &rpcCache{
+		cache:    cache,
+		handlers: handlers,
+	}
 }
 
 func (c *rpcCache) GetRPC(ctx context.Context, req *RPCReq) (*RPCRes, error) {
@@ -104,37 +136,15 @@ func (c *rpcCache) GetRPC(ctx context.Context, req *RPCReq) (*RPCRes, error) {
 	if handler == nil {
 		return nil, nil
 	}
-	cacheable, err := handler.IsCacheable(req)
-	if err != nil {
-		return nil, err
+	res, err := handler.GetRPCMethod(ctx, req)
+	if res != nil {
+		if res == nil {
+			RecordCacheMiss(req.Method)
+		} else {
+			RecordCacheHit(req.Method)
+		}
 	}
-	if !cacheable {
-		RecordCacheMiss(req.Method)
-		return nil, nil
-	}
-
-	key := handler.CacheKey(req)
-	encodedVal, err := c.cache.Get(ctx, key)
-	if err != nil {
-		return nil, err
-	}
-	if encodedVal == "" {
-		RecordCacheMiss(req.Method)
-		return nil, nil
-	}
-	val, err := snappy.Decode(nil, []byte(encodedVal))
-	if err != nil {
-		return nil, err
-	}
-
-	RecordCacheHit(req.Method)
-	res := new(RPCRes)
-	err = json.Unmarshal(val, res)
-	if err != nil {
-		return nil, err
-	}
-	res.ID = req.ID
-	return res, nil
+	return res, err
 }
 
 func (c *rpcCache) PutRPC(ctx context.Context, req *RPCReq, res *RPCRes) error {
@@ -142,23 +152,5 @@ func (c *rpcCache) PutRPC(ctx context.Context, req *RPCReq, res *RPCRes) error {
 	if handler == nil {
 		return nil
 	}
-	cacheable, err := handler.IsCacheable(req)
-	if err != nil {
-		return err
-	}
-	if !cacheable {
-		return nil
-	}
-	requiresConfirmations, err := handler.RequiresUnconfirmedBlocks(ctx, req)
-	if err != nil {
-		return err
-	}
-	if requiresConfirmations {
-		return nil
-	}
-
-	key := handler.CacheKey(req)
-	val := mustMarshalJSON(res)
-	encodedVal := snappy.Encode(nil, val)
-	return c.cache.Put(ctx, key, string(encodedVal))
+	return handler.PutRPCMethod(ctx, req, res)
 }
