@@ -13,7 +13,8 @@ contract Dummy {
      * @param _data Data to forward
      */
     function forward(address _target, bytes calldata _data) external payable {
-        (bool success, ) = _target.call{ value: msg.value }(_data);
+        uint256 amount = address(this).balance;
+        (bool success, ) = _target.call{ value: amount }(_data);
         // Silence the 'Return value of low-level calls not used' warning.
         if (!success) {
             revert Failed();
