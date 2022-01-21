@@ -104,6 +104,7 @@ func (c *OpNodeCmd) Run(ctx context.Context, args ...string) error {
 	l1CanonicalChain := eth.CanonicalChain(c.l1Source)
 
 	c.l1Downloader = l1.NewDownloader(c.l1Source)
+	genesis := c.Genesis.GetGenesis()
 
 	for i, addr := range c.L2EngineAddrs {
 		// L2 exec engine: updated by this OpNode (L2 consensus layer node)
@@ -124,10 +125,12 @@ func (c *OpNodeCmd) Run(ctx context.Context, args ...string) error {
 		engine := &l2.EngineDriver{
 			Log: c.log.New("engine", i),
 			RPC: client,
+			DL:  c.l1Downloader,
 			SyncRef: l2.SyncSource{
 				L1: l1CanonicalChain,
 				L2: client,
 			},
+			EngineDriverState: l2.EngineDriverState{Genesis: genesis},
 		}
 		c.l2Engines = append(c.l2Engines, engine)
 	}
@@ -167,12 +170,10 @@ func (c *OpNodeCmd) RunNode() {
 
 	c.log.Info("Attaching execution engine(s)")
 	for _, eng := range c.l2Engines {
-		// Update genesis info, to anchor sync at
-		eng.Genesis = c.Genesis.GetGenesis()
 		// Request initial head update, default to genesis otherwise
 		reqCtx, reqCancel := context.WithTimeout(c.ctx, time.Second*10)
-		if err := eng.RequestHeadUpdate(reqCtx); err != nil {
-			eng.Log.Error("failed to fetch engine head, defaulting to genesis", "err", err)
+		if !eng.RequestUpdate(reqCtx, eng.Log, eng) {
+			eng.Log.Error("failed to fetch engine head, defaulting to genesis")
 			eng.UpdateHead(eng.Genesis.L1, eng.Genesis.L2)
 		}
 		reqCancel()
@@ -181,7 +182,7 @@ func (c *OpNodeCmd) RunNode() {
 		l1SubCh := make(chan eth.HeadSignal, 10)
 		l1HeadsFeed.Subscribe(l1SubCh)
 		// start driving engine: sync blocks by deriving them from L1 and driving them into the engine
-		engDriveSub := eng.Drive(c.ctx, c.l1Downloader, l1SubCh)
+		engDriveSub := eng.Drive(c.ctx, l1SubCh)
 		handleUnsubscribe(engDriveSub, "engine driver unexpectedly failed")
 	}
 
