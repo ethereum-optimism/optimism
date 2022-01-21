@@ -90,46 +90,58 @@ describe('Bridged tokens', () => {
     )
   })
 
-  it('should withdraw tokens from L2 to the depositor', async function () {
+  describe('Withdrawals', async () => {
     if (await isMainnet(env)) {
       console.log('Skipping withdrawals test on mainnet.')
       this.skip()
       return
     }
+    it('should withdraw tokens from L2 to the depositor', async () => {
+      const tx = await env.l2Bridge.withdraw(
+        L2__ERC20.address,
+        500,
+        2000000,
+        '0x'
+      )
+      await env.relayXDomainMessages(tx)
+      await env.waitForXDomainTransaction(tx, Direction.L2ToL1)
+      expect(await L1__ERC20.balanceOf(env.l1Wallet.address)).to.deep.equal(
+        BigNumber.from(999500)
+      )
+      expect(await L2__ERC20.balanceOf(env.l2Wallet.address)).to.deep.equal(
+        BigNumber.from(0)
+      )
+    }).timeout(isLiveNetwork() ? 300_000 : 120_000)
 
-    const tx = await env.l2Bridge.withdraw(
-      L2__ERC20.address,
-      500,
-      2000000,
-      '0x'
-    )
-    await env.relayXDomainMessages(tx)
-    await env.waitForXDomainTransaction(tx, Direction.L2ToL1)
-    expect(await L1__ERC20.balanceOf(env.l1Wallet.address)).to.deep.equal(
-      BigNumber.from(999500)
-    )
-    expect(await L2__ERC20.balanceOf(env.l2Wallet.address)).to.deep.equal(
-      BigNumber.from(0)
-    )
-  }).timeout(isLiveNetwork() ? 300_000 : 120_000)
+    it('should fail to withdraw from a fake L2 token to a real L1 token', async () => {
+      const balBefore = await L1__ERC20.balanceOf(env.l1Wallet.address)
 
-  it('should withdraw tokens from L2 to the transfer recipient', async function () {
-    if (await isMainnet(env)) {
-      console.log('Skipping withdrawals test on mainnet.')
-      this.skip()
-      return
-    }
+      const L2Factory__FakeStandardERC20 = await ethers.getContractFactory(
+        'FakeL2StandardERC20',
+        env.l2Wallet
+      )
+      const fakeToken = await L2Factory__FakeStandardERC20.deploy(L1__ERC20)
+      await fakeToken.deployed()
 
-    const tx = await env.l2Bridge
-      .connect(otherWalletL2)
-      .withdraw(L2__ERC20.address, 500, 2000000, '0x')
-    await env.relayXDomainMessages(tx)
-    await env.waitForXDomainTransaction(tx, Direction.L2ToL1)
-    expect(await L1__ERC20.balanceOf(otherWalletL1.address)).to.deep.equal(
-      BigNumber.from(500)
-    )
-    expect(await L2__ERC20.balanceOf(otherWalletL2.address)).to.deep.equal(
-      BigNumber.from(0)
-    )
-  }).timeout(isLiveNetwork() ? 300_000 : 120_000)
+      const tx = await env.l2Bridge.withdraw(
+        fakeToken.address,
+        500,
+        1_000_000,
+        '0x'
+      )
+      await env.relayXDomainMessages(tx)
+      const { remoteTx } = await env.waitForXDomainTransaction(
+        tx,
+        Direction.L2ToL1
+      )
+      console.log('remoteTx:', remoteTx)
+
+      expect(await L1__ERC20.balanceOf(env.l1Wallet.address)).to.deep.equal(
+        balBefore
+      )
+      expect(await L2__ERC20.balanceOf(env.l2Wallet.address)).to.deep.equal(
+        BigNumber.from(0)
+      )
+    }).timeout(isLiveNetwork() ? 300_000 : 120_000)
+  })
 })
