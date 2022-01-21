@@ -26,6 +26,7 @@ const decodeDepositEvent = async (
   const events = await depositFeed.queryFilter(
     depositFeed.filters.TransactionDeposited()
   )
+
   const eventArgs = events[events.length - 1].args
 
   return {
@@ -63,19 +64,22 @@ describe('DepositFeed', () => {
 
   describe('Should emit the correct log values...', async () => {
     it('when an EOA deposits a transaction with 0 value.', async () => {
-      await depositFeed.depositTransaction(
-        ZERO_ADDRESS,
-        ZERO_BIGNUMBER,
-        NON_ZERO_GASLIMIT,
-        false,
-        NON_ZERO_DATA
-      )
+      const receipt = await (
+        await depositFeed.depositTransaction(
+          NON_ZERO_ADDRESS,
+          ZERO_BIGNUMBER,
+          NON_ZERO_GASLIMIT,
+          false,
+          NON_ZERO_DATA
+        )
+      ).wait()
+      await expect(receipt.status).to.equal(1)
 
       const eventArgs = await decodeDepositEvent(depositFeed)
 
       expect(eventArgs).to.deep.equal({
         from: signerAddress,
-        to: ZERO_ADDRESS,
+        to: NON_ZERO_ADDRESS,
         mint: ZERO_BIGNUMBER,
         value: ZERO_BIGNUMBER,
         gasLimit: NON_ZERO_GASLIMIT,
@@ -84,14 +88,48 @@ describe('DepositFeed', () => {
       })
     })
 
+    it('when a contract deposits a transaction with 0 value.', async () => {
+      // Deploy a dummy contract so we can impersonate it
+      const dummy = await (await ethers.getContractFactory('Dummy')).deploy()
+      await dummy.deployed()
+
+      await expect(
+        dummy.forward(
+          depositFeed.address,
+          depositFeed.interface.encodeFunctionData('depositTransaction', [
+            NON_ZERO_ADDRESS,
+            ZERO_BIGNUMBER,
+            NON_ZERO_GASLIMIT,
+            false,
+            NON_ZERO_DATA,
+          ])
+        )
+      ).to.not.be.reverted
+
+      const eventArgs = await decodeDepositEvent(depositFeed)
+
+      expect(eventArgs).to.deep.equal({
+        from: applyL1ToL2Alias(dummy.address),
+        to: NON_ZERO_ADDRESS,
+        value: ZERO_BIGNUMBER,
+        mint: ZERO_BIGNUMBER,
+        gasLimit: NON_ZERO_GASLIMIT,
+        isCreation: false,
+        data: NON_ZERO_DATA,
+      })
+    })
+
     it('when an EOA deposits a contract creation with 0 value.', async () => {
-      await depositFeed.depositTransaction(
-        ZERO_ADDRESS,
-        ZERO_BIGNUMBER,
-        NON_ZERO_GASLIMIT,
-        true,
-        NON_ZERO_DATA
-      )
+      const receipt = await (
+        await depositFeed.depositTransaction(
+          ZERO_ADDRESS,
+          ZERO_BIGNUMBER,
+          NON_ZERO_GASLIMIT,
+          true,
+          NON_ZERO_DATA
+        )
+      ).wait()
+      await expect(receipt.status).to.equal(1)
 
       const eventArgs = await decodeDepositEvent(depositFeed)
 
@@ -111,16 +149,19 @@ describe('DepositFeed', () => {
       const dummy = await (await ethers.getContractFactory('Dummy')).deploy()
       await dummy.deployed()
 
-      await dummy.forward(
-        depositFeed.address,
-        depositFeed.interface.encodeFunctionData('depositTransaction', [
-          ZERO_ADDRESS,
-          ZERO_BIGNUMBER,
-          NON_ZERO_GASLIMIT,
-          true,
-          NON_ZERO_DATA,
-        ])
-      )
+      const receipt = await (
+        await dummy.forward(
+          depositFeed.address,
+          depositFeed.interface.encodeFunctionData('depositTransaction', [
+            ZERO_ADDRESS,
+            ZERO_BIGNUMBER,
+            NON_ZERO_GASLIMIT,
+            true,
+            NON_ZERO_DATA,
+          ])
+        )
+      ).wait()
+      await expect(receipt.status).to.equal(1)
 
       const eventArgs = await decodeDepositEvent(depositFeed)
 
@@ -138,16 +179,20 @@ describe('DepositFeed', () => {
     describe('and increase its eth balance...', async () => {
       it('when an EOA deposits a transaction with an ETH value.', async () => {
         const balBefore = await ethers.provider.getBalance(depositFeed.address)
-        await depositFeed.depositTransaction(
-          NON_ZERO_ADDRESS,
-          ZERO_BIGNUMBER,
-          NON_ZERO_GASLIMIT,
-          false,
-          '0x',
-          {
-            value: NON_ZERO_VALUE,
-          }
-        )
+        const receipt = await (
+          await depositFeed.depositTransaction(
+            NON_ZERO_ADDRESS,
+            ZERO_BIGNUMBER,
+            NON_ZERO_GASLIMIT,
+            false,
+            '0x',
+            {
+              value: NON_ZERO_VALUE,
+            }
+          )
+        ).wait()
+        await expect(receipt.status).to.equal(1)
+
         const balAfter = await ethers.provider.getBalance(depositFeed.address)
 
         const eventArgs = await decodeDepositEvent(depositFeed)
@@ -164,18 +209,54 @@ describe('DepositFeed', () => {
         })
       })
 
+      it('when a contract deposits a transaction with an ETH value.', async () => {
+        // Deploy a dummy contract so we can impersonate it
+        const dummy = await (await ethers.getContractFactory('Dummy')).deploy()
+        await dummy.deployed()
+        await expect(
+          dummy.forward(
+            depositFeed.address,
+            depositFeed.interface.encodeFunctionData('depositTransaction', [
+              NON_ZERO_ADDRESS,
+              ZERO_BIGNUMBER,
+              NON_ZERO_GASLIMIT,
+              false,
+              NON_ZERO_DATA,
+            ]),
+            {
+              value: NON_ZERO_VALUE,
+            }
+          )
+        ).to.not.be.reverted
+
+        const eventArgs = await decodeDepositEvent(depositFeed)
+
+        expect(eventArgs).to.deep.equal({
+          from: applyL1ToL2Alias(dummy.address),
+          to: NON_ZERO_ADDRESS,
+          value: ZERO_BIGNUMBER,
+          mint: NON_ZERO_VALUE,
+          gasLimit: NON_ZERO_GASLIMIT,
+          isCreation: false,
+          data: NON_ZERO_DATA,
+        })
+      })
+
       it('when an EOA deposits a contract creation with an ETH value.', async () => {
         const balBefore = await ethers.provider.getBalance(depositFeed.address)
-        await depositFeed.depositTransaction(
-          ZERO_ADDRESS,
-          ZERO_BIGNUMBER,
-          NON_ZERO_GASLIMIT,
-          true,
-          '0x',
-          {
-            value: NON_ZERO_VALUE,
-          }
-        )
+        const receipt = await (
+          await depositFeed.depositTransaction(
+            ZERO_ADDRESS,
+            ZERO_BIGNUMBER,
+            NON_ZERO_GASLIMIT,
+            true,
+            '0x',
+            {
+              value: NON_ZERO_VALUE,
+            }
+          )
+        ).wait()
+        await expect(receipt.status).to.equal(1)
 
         const balAfter = await ethers.provider.getBalance(depositFeed.address)
         const eventArgs = await decodeDepositEvent(depositFeed)
@@ -198,19 +279,22 @@ describe('DepositFeed', () => {
         await dummy.deployed()
 
         const balBefore = await ethers.provider.getBalance(depositFeed.address)
-        await dummy.forward(
-          depositFeed.address,
-          depositFeed.interface.encodeFunctionData('depositTransaction', [
-            ZERO_ADDRESS,
-            ZERO_BIGNUMBER,
-            NON_ZERO_GASLIMIT,
-            true,
-            NON_ZERO_DATA,
-          ]),
-          {
-            value: NON_ZERO_VALUE,
-          }
-        )
+        const receipt = await (
+          await dummy.forward(
+            depositFeed.address,
+            depositFeed.interface.encodeFunctionData('depositTransaction', [
+              ZERO_ADDRESS,
+              ZERO_BIGNUMBER,
+              NON_ZERO_GASLIMIT,
+              true,
+              NON_ZERO_DATA,
+            ]),
+            {
+              value: NON_ZERO_VALUE,
+            }
+          )
+        ).wait()
+        await expect(receipt.status).to.equal(1)
 
         const balAfter = await ethers.provider.getBalance(depositFeed.address)
         const eventArgs = await decodeDepositEvent(depositFeed)
