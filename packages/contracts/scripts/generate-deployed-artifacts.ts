@@ -1,6 +1,7 @@
 import path from 'path'
-import glob from 'glob'
 import fs from 'fs'
+
+import glob from 'glob'
 
 /**
  * Script for automatically generating a TypeScript file for retrieving deploy artifact JSON files.

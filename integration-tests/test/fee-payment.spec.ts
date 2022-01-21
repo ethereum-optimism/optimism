@@ -1,11 +1,10 @@
-import { expect } from './shared/setup'
-
 /* Imports: External */
 import { BigNumber, utils } from 'ethers'
 import { serialize } from '@ethersproject/transactions'
 import { predeploys, getContractFactory } from '@eth-optimism/contracts'
 
 /* Imports: Internal */
+import { expect } from './shared/setup'
 import { hardhatTest } from './shared/utils'
 import { OptimismEnv } from './shared/env'
 import { Direction } from './shared/watcher-utils'

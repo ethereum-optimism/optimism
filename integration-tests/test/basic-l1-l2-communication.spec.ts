@@ -1,11 +1,10 @@
-import { expect } from './shared/setup'
-
 /* Imports: External */
 import { Contract, ContractFactory } from 'ethers'
 import { ethers } from 'hardhat'
 import { applyL1ToL2Alias, awaitCondition } from '@eth-optimism/core-utils'
 
 /* Imports: Internal */
+import { expect } from './shared/setup'
 import { Direction } from './shared/watcher-utils'
 import { OptimismEnv } from './shared/env'
 import {

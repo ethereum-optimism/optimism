@@ -1,5 +1,7 @@
+import { performance } from 'perf_hooks'
+
 import { Mutex } from 'async-mutex'
-import { sleep } from '../../test/shared/utils'
+
 import {
   sanitizeForMetrics,
   benchDurationsSummary,
@@ -9,7 +11,7 @@ import {
   failedBenchRunsTotal,
 } from './metrics'
 import { ActorLogger, WorkerLogger } from './logger'
-import { performance } from 'perf_hooks'
+import { sleep } from '../../test/shared/utils'
 
 // eslint-disable-next-line @typescript-eslint/no-empty-function
 const asyncNoop = async () => {}

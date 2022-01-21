@@ -1,5 +1,6 @@
-import { add0x, remove0x, encodeHex } from '../common'
 import { BigNumber, ethers } from 'ethers'
+
+import { add0x, remove0x, encodeHex } from '../common'
 
 export interface BatchContext {
   numSequencedTransactions: number

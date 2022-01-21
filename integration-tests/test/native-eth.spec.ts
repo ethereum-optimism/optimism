@@ -1,5 +1,3 @@
-import { expect } from './shared/setup'
-
 /* Imports: External */
 import { Wallet, utils, BigNumber } from 'ethers'
 import { serialize } from '@ethersproject/transactions'
@@ -7,8 +5,8 @@ import { predeploys } from '@eth-optimism/contracts'
 import { expectApprox } from '@eth-optimism/core-utils'
 
 /* Imports: Internal */
+import { expect } from './shared/setup'
 import { Direction } from './shared/watcher-utils'
-
 import {
   DEFAULT_TEST_GAS_L1,
   DEFAULT_TEST_GAS_L2,

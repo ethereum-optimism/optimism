@@ -1,8 +1,9 @@
 import { ethers } from 'ethers'
 import { abi as UNISWAP_POOL_ABI } from '@uniswap/v3-core/artifacts/contracts/UniswapV3Pool.sol/UniswapV3Pool.json'
+
+import { expect, env, ERC20_ABI } from './setup'
 import { UNISWAP_V3_NFPM_ADDRESS } from '../scripts/constants'
 import { getUniswapV3Factory, replaceWETH } from '../scripts/utils'
-import { expect, env, ERC20_ABI } from './setup'
 import { AccountType } from '../scripts/types'
 
 describe('uniswap contracts', () => {

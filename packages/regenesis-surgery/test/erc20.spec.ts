@@ -1,5 +1,6 @@
 import { expect } from '@eth-optimism/core-utils/test/setup'
 import { BigNumber } from 'ethers'
+
 import { env } from './setup'
 
 describe('erc20', () => {

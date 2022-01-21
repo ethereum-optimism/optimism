@@ -2,16 +2,15 @@
 import { Contract, ethers, Wallet, BigNumber, providers } from 'ethers'
 import * as rlp from 'rlp'
 import { MerkleTree } from 'merkletreejs'
-
-/* Imports: Internal */
 import { fromHexString, sleep } from '@eth-optimism/core-utils'
 import { Logger, BaseService, Metrics } from '@eth-optimism/common-ts'
-
 import {
   loadContract,
   loadContractFromManager,
   predeploys,
 } from '@eth-optimism/contracts'
+
+/* Imports: Internal */
 import { StateRootBatchHeader, SentMessage, SentMessageProof } from './types'
 
 interface MessageRelayerOptions {

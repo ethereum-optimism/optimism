@@ -1,7 +1,7 @@
-import { expect } from '../../../setup'
-
 import hre from 'hardhat'
 import { Contract, ethers } from 'ethers'
+
+import { expect } from '../../../setup'
 
 describe('Lib_Buffer', () => {
   let Lib_Buffer: Contract

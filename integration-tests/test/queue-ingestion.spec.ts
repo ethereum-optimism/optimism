@@ -1,10 +1,9 @@
-import { expect } from './shared/setup'
-
 /* Imports: Internal */
 import { providers } from 'ethers'
 import { injectL2Context, applyL1ToL2Alias } from '@eth-optimism/core-utils'
 
 /* Imports: External */
+import { expect } from './shared/setup'
 import { OptimismEnv } from './shared/env'
 import { Direction } from './shared/watcher-utils'
 import { DEFAULT_TEST_GAS_L1, envConfig } from './shared/utils'

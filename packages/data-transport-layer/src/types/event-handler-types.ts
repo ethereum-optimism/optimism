@@ -2,13 +2,13 @@ import { BaseProvider } from '@ethersproject/providers'
 import { BigNumber } from 'ethers'
 import { TypedEvent } from '@eth-optimism/contracts/dist/types/common'
 
-import { TransportDB } from '../db/transport-db'
 import {
   TransactionBatchEntry,
   TransactionEntry,
   StateRootBatchEntry,
   StateRootEntry,
 } from './database-types'
+import { TransportDB } from '../db/transport-db'
 
 export type GetExtraDataHandler<TEvent extends TypedEvent, TExtraData> = (
   event?: TEvent,

@@ -1,10 +1,12 @@
 /* eslint @typescript-eslint/no-var-requires: "off" */
-import fetch from 'node-fetch'
-import path from 'path'
 import fs from 'fs'
+import path from 'path'
+
+import fetch from 'node-fetch'
 import { ethers } from 'ethers'
 import { clone } from '@eth-optimism/core-utils'
 import setupMethods from 'solc/wrapper'
+
 import {
   COMPILER_VERSIONS_TO_SOLC,
   EMSCRIPTEN_BUILD_LIST,

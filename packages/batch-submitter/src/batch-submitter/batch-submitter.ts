@@ -14,6 +14,7 @@ import { Gauge, Histogram, Counter } from 'prom-client'
 import { RollupInfo, sleep } from '@eth-optimism/core-utils'
 import { Logger, Metrics } from '@eth-optimism/common-ts'
 import { getContractFactory } from 'old-contracts'
+
 /* Internal Imports */
 import { TxSubmissionHooks } from '..'
 

@@ -1,7 +1,7 @@
-import { expect } from './setup'
 import { BigNumber } from 'ethers'
 
 /* Imports: Internal */
+import { expect } from './setup'
 import {
   toRpcHexString,
   remove0x,

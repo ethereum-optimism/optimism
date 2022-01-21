@@ -1,10 +1,9 @@
-import { expect } from '../../../setup'
-
 /* External Imports */
 import { ethers } from 'hardhat'
 import { Contract } from 'ethers'
 
 /* Internal Imports */
+import { expect } from '../../../setup'
 import { Lib_RLPWriter_TEST_JSON } from '../../../data'
 
 const encode = async (Lib_RLPWriter: Contract, input: any): Promise<void> => {

@@ -1,5 +1,3 @@
-import { expect } from '../../../setup'
-
 /* External Imports */
 import * as rlp from 'rlp'
 import { ethers } from 'hardhat'
@@ -8,6 +6,7 @@ import { fromHexString, toHexString } from '@eth-optimism/core-utils'
 import { Trie } from 'merkle-patricia-tree/dist/baseTrie'
 
 /* Internal Imports */
+import { expect } from '../../../setup'
 import { TrieTestGenerator } from '../../../helpers'
 import * as officialTestJson from '../../../data/json/libraries/trie/trietest.json'
 import * as officialTestAnyOrderJson from '../../../data/json/libraries/trie/trieanyorder.json'
