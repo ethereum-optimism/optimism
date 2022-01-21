@@ -213,7 +213,6 @@ describe('DepositFeed', () => {
         // Deploy a dummy contract so we can impersonate it
         const dummy = await (await ethers.getContractFactory('Dummy')).deploy()
         await dummy.deployed()
-        // this is not emitting an event!
         await expect(
           dummy.forward(
             depositFeed.address,
