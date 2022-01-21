@@ -1,10 +1,11 @@
 import { Contract, utils, Wallet } from 'ethers'
-import { actor, run, setupActor, setupRun } from './lib/convenience'
-import { OptimismEnv } from '../test/shared/env'
 import { FeeAmount } from '@uniswap/v3-sdk'
-import ERC20 from '../artifacts/contracts/ERC20.sol/ERC20.json'
 import { abi as NFTABI } from '@uniswap/v3-periphery/artifacts/contracts/NonfungiblePositionManager.sol/NonfungiblePositionManager.json'
 import { abi as RouterABI } from '@uniswap/v3-periphery/artifacts/contracts/SwapRouter.sol/SwapRouter.json'
+
+import { actor, run, setupActor, setupRun } from './lib/convenience'
+import { OptimismEnv } from '../test/shared/env'
+import ERC20 from '../artifacts/contracts/ERC20.sol/ERC20.json'
 
 interface Context {
   contracts: { [name: string]: Contract }

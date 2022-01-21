@@ -1,11 +1,12 @@
-import { expect } from '../setup'
 import { ethers, BigNumber, Signer } from 'ethers'
-import { submitTransactionWithYNATM } from '../../src/utils/tx-submission'
-import { ResubmissionConfig } from '../../src'
 import {
   TransactionReceipt,
   TransactionResponse,
 } from '@ethersproject/abstract-provider'
+
+import { expect } from '../setup'
+import { submitTransactionWithYNATM } from '../../src/utils/tx-submission'
+import { ResubmissionConfig } from '../../src'
 
 const nullFunction = () => undefined
 const nullHooks = {

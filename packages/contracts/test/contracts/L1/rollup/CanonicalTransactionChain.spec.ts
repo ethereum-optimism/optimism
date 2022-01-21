@@ -1,5 +1,3 @@
-import { expect } from '../../../setup'
-
 /* External Imports */
 import { ethers } from 'hardhat'
 import { Signer, ContractFactory, Contract } from 'ethers'
@@ -13,6 +11,7 @@ import { keccak256 } from 'ethers/lib/utils'
 import _ from 'lodash'
 
 /* Internal Imports */
+import { expect } from '../../../setup'
 import {
   makeAddressManager,
   setProxyTarget,

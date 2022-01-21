@@ -1,8 +1,9 @@
 import { utils, Wallet, BigNumber } from 'ethers'
+import { expect } from 'chai'
+
 import { setupActor, setupRun, actor, run } from './lib/convenience'
 import { OptimismEnv } from '../test/shared/env'
 import { Direction } from '../test/shared/watcher-utils'
-import { expect } from 'chai'
 
 interface BenchContext {
   l1Wallet: Wallet

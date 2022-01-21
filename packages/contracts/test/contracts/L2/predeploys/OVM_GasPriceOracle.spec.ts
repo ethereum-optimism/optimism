@@ -1,10 +1,9 @@
-import { expect } from '../../../setup'
-
 /* External Imports */
 import { ethers } from 'hardhat'
 import { ContractFactory, Contract, Signer } from 'ethers'
-
 import { calculateL1GasUsed, calculateL1Fee } from '@eth-optimism/core-utils'
+
+import { expect } from '../../../setup'
 
 describe('OVM_GasPriceOracle', () => {
   const initialGasPrice = 0

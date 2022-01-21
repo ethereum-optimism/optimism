@@ -9,6 +9,7 @@ import {
 import { SequencerBatchAppendedEvent } from '@eth-optimism/contracts/dist/types/CanonicalTransactionChain'
 
 /* Imports: Internal */
+import { MissingElementError } from './errors'
 import {
   DecodedSequencerBatchTransaction,
   SequencerBatchAppendedExtraData,
@@ -18,7 +19,6 @@ import {
   EventHandlerSet,
 } from '../../../types'
 import { SEQUENCER_GAS_LIMIT, parseSignatureVParam } from '../../../utils'
-import { MissingElementError } from './errors'
 
 export const handleEventsSequencerBatchAppended: EventHandlerSet<
   SequencerBatchAppendedEvent,

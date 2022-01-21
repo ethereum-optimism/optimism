@@ -1,11 +1,10 @@
-import { expect } from '../../../setup'
-
 /* Imports: External */
 import hre from 'hardhat'
 import { MockContract, smockit } from '@eth-optimism/smock'
 import { Contract, Signer } from 'ethers'
 
 /* Imports: Internal */
+import { expect } from '../../../setup'
 import { predeploys } from '../../../../src'
 
 describe('OVM_SequencerFeeVault', () => {

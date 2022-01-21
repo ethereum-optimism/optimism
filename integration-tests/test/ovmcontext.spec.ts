@@ -1,5 +1,3 @@
-import { expect } from './shared/setup'
-
 /* Imports: External */
 import { ethers } from 'hardhat'
 import { injectL2Context, expectApprox } from '@eth-optimism/core-utils'
@@ -7,6 +5,7 @@ import { predeploys } from '@eth-optimism/contracts'
 import { Contract, BigNumber } from 'ethers'
 
 /* Imports: Internal */
+import { expect } from './shared/setup'
 import {
   l2Provider,
   l1Provider,

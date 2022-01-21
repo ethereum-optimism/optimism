@@ -1,14 +1,16 @@
 /* eslint @typescript-eslint/no-var-requires: "off" */
+import { createReadStream } from 'fs'
+import * as fs from 'fs'
+import * as assert from 'assert'
+
 import { ethers } from 'ethers'
 import { abi as UNISWAP_FACTORY_ABI } from '@uniswap/v3-core/artifacts/contracts/UniswapV3Factory.sol/UniswapV3Factory.json'
 import { Interface } from '@ethersproject/abi'
 import { parseChunked } from '@discoveryjs/json-ext'
-import { createReadStream } from 'fs'
-import * as fs from 'fs'
 import byline from 'byline'
 import * as dotenv from 'dotenv'
-import * as assert from 'assert'
 import { reqenv, getenv, remove0x } from '@eth-optimism/core-utils'
+
 import {
   Account,
   EtherscanContract,

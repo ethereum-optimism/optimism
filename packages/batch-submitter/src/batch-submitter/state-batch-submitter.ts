@@ -12,8 +12,8 @@ import {
 import { Logger, Metrics } from '@eth-optimism/common-ts'
 
 /* Internal Imports */
-import { BlockRange, BatchSubmitter } from '.'
 import { TransactionSubmitter } from '../utils'
+import { BlockRange, BatchSubmitter } from '.'
 
 export class StateBatchSubmitter extends BatchSubmitter {
   // TODO: Change this so that we calculate start = scc.totalElements() and end = ctc.totalElements()!

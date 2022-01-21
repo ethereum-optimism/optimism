@@ -8,10 +8,10 @@ import bfj from 'bfj'
 import { Gauge } from 'prom-client'
 
 /* Imports: Internal */
+import { handleSequencerBlock } from './handlers/transaction'
 import { TransportDB } from '../../db/transport-db'
 import { sleep, toRpcHexString, validators } from '../../utils'
 import { L1DataTransportServiceOptions } from '../main/service'
-import { handleSequencerBlock } from './handlers/transaction'
 
 interface L2IngestionMetrics {
   highestSyncedL2Block: Gauge<string>

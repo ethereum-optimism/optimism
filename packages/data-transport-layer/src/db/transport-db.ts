@@ -3,6 +3,7 @@ import { LevelUp } from 'levelup'
 import { BigNumber } from 'ethers'
 
 /* Imports: Internal */
+import { SimpleDB } from './simple-db'
 import {
   EnqueueEntry,
   StateRootBatchEntry,
@@ -10,7 +11,6 @@ import {
   TransactionBatchEntry,
   TransactionEntry,
 } from '../types/database-types'
-import { SimpleDB } from './simple-db'
 
 const TRANSPORT_DB_KEYS = {
   ENQUEUE: `enqueue`,

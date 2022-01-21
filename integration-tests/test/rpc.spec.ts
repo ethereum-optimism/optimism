@@ -1,9 +1,12 @@
-import { expect } from './shared/setup'
-
 import { expectApprox, injectL2Context } from '@eth-optimism/core-utils'
 import { Wallet, BigNumber, Contract, ContractFactory, constants } from 'ethers'
 import { serialize } from '@ethersproject/transactions'
 import { ethers } from 'hardhat'
+import {
+  TransactionReceipt,
+  TransactionRequest,
+} from '@ethersproject/providers'
+
 import {
   sleep,
   l2Provider,
@@ -16,10 +19,7 @@ import {
   envConfig,
 } from './shared/utils'
 import { OptimismEnv } from './shared/env'
-import {
-  TransactionReceipt,
-  TransactionRequest,
-} from '@ethersproject/providers'
+import { expect } from './shared/setup'
 
 describe('Basic RPC tests', () => {
   let env: OptimismEnv

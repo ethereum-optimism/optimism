@@ -1,7 +1,8 @@
-import { expect } from '../setup'
 import { Provider } from '@ethersproject/abstract-provider'
 import { Contract } from 'ethers'
 import { ethers } from 'hardhat'
+
+import { expect } from '../setup'
 import { toProvider, toTransactionHash } from '../../src'
 
 describe('type coercion utils', () => {

@@ -8,6 +8,10 @@ import { constants } from 'ethers'
 import { Gauge, Counter } from 'prom-client'
 
 /* Imports: Internal */
+import { handleEventsTransactionEnqueued } from './handlers/transaction-enqueued'
+import { handleEventsSequencerBatchAppended } from './handlers/sequencer-batch-appended'
+import { handleEventsStateBatchAppended } from './handlers/state-batch-appended'
+import { MissingElementError } from './handlers/errors'
 import { TransportDB } from '../../db/transport-db'
 import {
   OptimismContracts,
@@ -17,11 +21,7 @@ import {
   validators,
 } from '../../utils'
 import { EventHandlerSet } from '../../types'
-import { handleEventsTransactionEnqueued } from './handlers/transaction-enqueued'
-import { handleEventsSequencerBatchAppended } from './handlers/sequencer-batch-appended'
-import { handleEventsStateBatchAppended } from './handlers/state-batch-appended'
 import { L1DataTransportServiceOptions } from '../main/service'
-import { MissingElementError } from './handlers/errors'
 
 interface L1IngestionMetrics {
   highestSyncedL1Block: Gauge<string>

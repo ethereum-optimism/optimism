@@ -1,12 +1,13 @@
 import './setup'
 
 /* Internal Imports */
+import { expect } from 'chai'
+
 import {
   encodeAppendSequencerBatch,
   decodeAppendSequencerBatch,
   sequencerBatch,
 } from '../src'
-import { expect } from 'chai'
 
 describe('BatchEncoder', () => {
   describe('appendSequencerBatch', () => {

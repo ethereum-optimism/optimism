@@ -6,10 +6,11 @@ import * as dotenv from 'dotenv'
 import { getenv, remove0x } from '@eth-optimism/core-utils'
 import { providers, BigNumber } from 'ethers'
 import { solidity } from 'ethereum-waffle'
+
+import { GenesisJsonProvider } from './provider'
 import { SurgeryDataSources, Account, AccountType } from '../scripts/types'
 import { loadSurgeryData } from '../scripts/data'
 import { classify, classifiers } from '../scripts/classifiers'
-import { GenesisJsonProvider } from './provider'
 
 // Chai plugins go here.
 chai.use(chaiAsPromised)

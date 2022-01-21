@@ -1,4 +1,5 @@
 import { ethers } from 'ethers'
+
 import { bnToAddress } from './bn'
 
 // Constant representing the alias to apply to the msg.sender when a contract sends an L1 => L2
