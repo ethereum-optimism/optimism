@@ -1,6 +1,8 @@
-// Optimism PBC 2021
+// Types explicitly related to dealing with Geth.
 
-// Represents the ethereum state
+/**
+ * Represents the Ethereum state, in the format that Geth expects it.
+ */
 export interface State {
   [address: string]: {
     nonce: number
@@ -14,7 +16,9 @@ export interface State {
   }
 }
 
-// Represents a genesis file that geth can consume
+/**
+ * Represents Geth's genesis file format.
+ */
 export interface Genesis {
   config: {
     chainId: number
