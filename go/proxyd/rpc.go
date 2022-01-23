@@ -15,14 +15,44 @@ type RPCReq struct {
 }
 
 type RPCRes struct {
+	JSONRPC string
+	Result  interface{}
+	Error   *RPCErr
+	ID      json.RawMessage
+}
+
+type rpcResJSON struct {
 	JSONRPC string          `json:"jsonrpc"`
 	Result  interface{}     `json:"result,omitempty"`
 	Error   *RPCErr         `json:"error,omitempty"`
 	ID      json.RawMessage `json:"id"`
 }
 
+type nullResultRPCRes struct {
+	JSONRPC string          `json:"jsonrpc"`
+	Result  interface{}     `json:"result"`
+	ID      json.RawMessage `json:"id"`
+}
+
 func (r *RPCRes) IsError() bool {
 	return r.Error != nil
+}
+
+func (r *RPCRes) MarshalJSON() ([]byte, error) {
+	if r.Result == nil && r.Error == nil {
+		return json.Marshal(&nullResultRPCRes{
+			JSONRPC: r.JSONRPC,
+			Result:  nil,
+			ID:      r.ID,
+		})
+	}
+
+	return json.Marshal(&rpcResJSON{
+		JSONRPC: r.JSONRPC,
+		Result:  r.Result,
+		Error:   r.Error,
+		ID:      r.ID,
+	})
 }
 
 type RPCErr struct {
