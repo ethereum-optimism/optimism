@@ -14,32 +14,54 @@ import {
   predeploys,
 } from '@eth-optimism/contracts'
 import { injectL2Context, remove0x, Watcher } from '@eth-optimism/core-utils'
-import { cleanEnv, str, num, bool } from 'envalid'
+import { cleanEnv, str, num, bool, makeValidator } from 'envalid'
 import dotenv from 'dotenv'
+dotenv.config()
 
 /* Imports: Internal */
 import { Direction, waitForXDomainTransaction } from './watcher-utils'
 import { OptimismEnv } from './env'
 
-export const GWEI = BigNumber.from(1e9)
-
 export const isLiveNetwork = () => {
   return process.env.IS_LIVE_NETWORK === 'true'
 }
 
-if (isLiveNetwork()) {
-  dotenv.config()
-}
+export const HARDHAT_CHAIN_ID = 31337
+export const DEFAULT_TEST_GAS_L1 = 330_000
+export const DEFAULT_TEST_GAS_L2 = 1_300_000
+export const ON_CHAIN_GAS_PRICE = 'onchain'
 
-const env = cleanEnv(process.env, {
+const gasPriceValidator = makeValidator((gasPrice) => {
+  if (gasPrice === 'onchain') {
+    return gasPrice
+  }
+
+  return num()._parse(gasPrice).toString()
+})
+
+const procEnv = cleanEnv(process.env, {
+  L1_GAS_PRICE: gasPriceValidator({
+    default: '0',
+  }),
   L1_URL: str({ default: 'http://localhost:9545' }),
-  L2_URL: str({ default: 'http://localhost:8545' }),
-  VERIFIER_URL: str({ default: 'http://localhost:8547' }),
-  REPLICA_URL: str({ default: 'http://localhost:8549' }),
   L1_POLLING_INTERVAL: num({ default: 10 }),
+
+  L2_CHAINID: num({ default: 420 }),
+  L2_GAS_PRICE: gasPriceValidator({
+    default: 'onchain',
+  }),
+  L2_URL: str({ default: 'http://localhost:8545' }),
   L2_POLLING_INTERVAL: num({ default: 10 }),
-  VERIFIER_POLLING_INTERVAL: num({ default: 10 }),
+  L2_WALLET_MIN_BALANCE_ETH: num({
+    default: 2,
+  }),
+  L2_WALLET_TOP_UP_AMOUNT_ETH: num({
+    default: 3,
+  }),
+
+  REPLICA_URL: str({ default: 'http://localhost:8549' }),
   REPLICA_POLLING_INTERVAL: num({ default: 10 }),
+
   PRIVATE_KEY: str({
     default:
       '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80',
@@ -51,31 +73,53 @@ const env = cleanEnv(process.env, {
     default:
       '0x8b3a350cf5c34c9194ca85829a2df0ec3153be0318b5e2d3348e872092edffba',
   }),
-  L2_CHAINID: num({ default: 420 }),
-  IS_LIVE_NETWORK: bool({ default: false }),
+
+  OVMCONTEXT_SPEC_NUM_TXS: num({
+    default: 5,
+  }),
+  DTL_ENQUEUE_CONFIRMATIONS: num({
+    default: 0,
+  }),
+
+  RUN_WITHDRAWAL_TESTS: bool({
+    default: true,
+  }),
+  RUN_REPLICA_TESTS: bool({
+    default: true,
+  }),
+  RUN_DEBUG_TRACE_TESTS: bool({
+    default: true,
+  }),
+  RUN_STRESS_TESTS: bool({
+    default: true,
+  }),
+
+  MOCHA_TIMEOUT: num({
+    default: 120_000,
+  }),
+  MOCHA_BAIL: bool({
+    default: false,
+  }),
 })
 
+export const envConfig = procEnv
+
 // The hardhat instance
-export const l1Provider = new providers.JsonRpcProvider(env.L1_URL)
-l1Provider.pollingInterval = env.L1_POLLING_INTERVAL
+export const l1Provider = new providers.JsonRpcProvider(procEnv.L1_URL)
+l1Provider.pollingInterval = procEnv.L1_POLLING_INTERVAL
 
 export const l2Provider = injectL2Context(
-  new providers.JsonRpcProvider(env.L2_URL)
+  new providers.JsonRpcProvider(procEnv.L2_URL)
 )
-l2Provider.pollingInterval = env.L2_POLLING_INTERVAL
-
-export const verifierProvider = injectL2Context(
-  new providers.JsonRpcProvider(env.VERIFIER_URL)
-)
-verifierProvider.pollingInterval = env.VERIFIER_POLLING_INTERVAL
+l2Provider.pollingInterval = procEnv.L2_POLLING_INTERVAL
 
 export const replicaProvider = injectL2Context(
-  new providers.JsonRpcProvider(env.REPLICA_URL)
+  new providers.JsonRpcProvider(procEnv.REPLICA_URL)
 )
-replicaProvider.pollingInterval = env.REPLICA_POLLING_INTERVAL
+replicaProvider.pollingInterval = procEnv.REPLICA_POLLING_INTERVAL
 
 // The sequencer private key which is funded on L1
-export const l1Wallet = new Wallet(env.PRIVATE_KEY, l1Provider)
+export const l1Wallet = new Wallet(procEnv.PRIVATE_KEY, l1Provider)
 
 // A random private key which should always be funded with deposits from L1 -> L2
 // if it's using non-0 gas price
@@ -83,7 +127,7 @@ export const l2Wallet = l1Wallet.connect(l2Provider)
 
 // The owner of the GasPriceOracle on L2
 export const gasPriceOracleWallet = new Wallet(
-  env.GAS_PRICE_ORACLE_PRIVATE_KEY,
+  procEnv.GAS_PRICE_ORACLE_PRIVATE_KEY,
   l2Provider
 )
 
@@ -92,13 +136,12 @@ export const PROXY_SEQUENCER_ENTRYPOINT_ADDRESS =
   '0x4200000000000000000000000000000000000004'
 export const OVM_ETH_ADDRESS = predeploys.OVM_ETH
 
-export const L2_CHAINID = env.L2_CHAINID
-export const IS_LIVE_NETWORK = env.IS_LIVE_NETWORK
+export const L2_CHAINID = procEnv.L2_CHAINID
 
 export const getAddressManager = (provider: any) => {
   return getContractFactory('Lib_AddressManager')
     .connect(provider)
-    .attach(env.ADDRESS_MANAGER)
+    .attach(procEnv.ADDRESS_MANAGER)
 }
 
 // Gets the bridge contract
@@ -115,33 +158,17 @@ export const getL1Bridge = async (wallet: Wallet, AddressManager: Contract) => {
     throw new Error('Proxy__OVM_L1StandardBridge not found')
   }
 
-  const L1StandardBridge = new Contract(
-    ProxyBridgeAddress,
-    l1BridgeInterface,
-    wallet
-  )
-  return L1StandardBridge
+  return new Contract(ProxyBridgeAddress, l1BridgeInterface, wallet)
 }
 
 export const getL2Bridge = async (wallet: Wallet) => {
   const L2BridgeInterface = getContractInterface('L2StandardBridge')
 
-  const L2StandardBridge = new Contract(
-    predeploys.L2StandardBridge,
-    L2BridgeInterface,
-    wallet
-  )
-  return L2StandardBridge
+  return new Contract(predeploys.L2StandardBridge, L2BridgeInterface, wallet)
 }
 
 export const getOvmEth = (wallet: Wallet) => {
-  const OVM_ETH = new Contract(
-    OVM_ETH_ADDRESS,
-    getContractInterface('OVM_ETH'),
-    wallet
-  )
-
-  return OVM_ETH
+  return new Contract(OVM_ETH_ADDRESS, getContractInterface('OVM_ETH'), wallet)
 }
 
 export const fundUser = async (
@@ -152,11 +179,53 @@ export const fundUser = async (
 ) => {
   const value = BigNumber.from(amount)
   const tx = recipient
-    ? bridge.depositETHTo(recipient, 1_300_000, '0x', { value })
-    : bridge.depositETH(1_300_000, '0x', { value })
+    ? bridge.depositETHTo(recipient, DEFAULT_TEST_GAS_L2, '0x', {
+        value,
+        gasLimit: DEFAULT_TEST_GAS_L1,
+      })
+    : bridge.depositETH(DEFAULT_TEST_GAS_L2, '0x', {
+        value,
+        gasLimit: DEFAULT_TEST_GAS_L1,
+      })
 
   await waitForXDomainTransaction(watcher, tx, Direction.L1ToL2)
 }
+
+export const conditionalTest = (
+  condition: (env?: OptimismEnv) => Promise<boolean>,
+  name,
+  fn,
+  message?: string,
+  timeout?: number
+) => {
+  it(name, async function () {
+    const shouldRun = await condition()
+    if (!shouldRun) {
+      console.log(message)
+      this.skip()
+      return
+    }
+
+    await fn()
+  }).timeout(timeout || envConfig.MOCHA_TIMEOUT)
+}
+
+export const withdrawalTest = (name, fn, timeout?: number) =>
+  conditionalTest(
+    () => Promise.resolve(procEnv.RUN_WITHDRAWAL_TESTS),
+    name,
+    fn,
+    `Skipping withdrawal test.`,
+    timeout
+  )
+
+export const hardhatTest = (name, fn) =>
+  conditionalTest(
+    isHardhat,
+    name,
+    fn,
+    'Skipping test on non-Hardhat environment.'
+  )
 
 export const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
 
@@ -175,56 +244,23 @@ export const defaultTransactionFactory = () => {
   }
 }
 
-export const waitForL2Geth = async (
-  provider: providers.JsonRpcProvider
-): Promise<providers.JsonRpcProvider> => {
-  let ready: boolean = false
-  while (!ready) {
-    try {
-      await provider.getNetwork()
-      ready = true
-    } catch (error) {
-      await sleep(1000)
-    }
+export const gasPriceForL2 = async () => {
+  if (procEnv.L2_GAS_PRICE === ON_CHAIN_GAS_PRICE) {
+    return l2Wallet.getGasPrice()
   }
-  return injectL2Context(provider)
+
+  return utils.parseUnits(procEnv.L2_GAS_PRICE, 'wei')
 }
 
-// eslint-disable-next-line @typescript-eslint/no-shadow
-export const gasPriceForL2 = async (env: OptimismEnv) => {
-  // The integration tests enforce fees on L2
-  // which run against hardhat on L1. Update if
-  // geth --dev is adopted for L1
-  const chainId = await env.l1Wallet.getChainId()
-  if ((await isMainnet(env)) || chainId === 31337) {
-    return env.l2Wallet.getGasPrice()
+export const gasPriceForL1 = async () => {
+  if (procEnv.L1_GAS_PRICE === ON_CHAIN_GAS_PRICE) {
+    return l1Wallet.getGasPrice()
   }
 
-  if (isLiveNetwork()) {
-    return Promise.resolve(BigNumber.from(10000))
-  }
-  return Promise.resolve(BigNumber.from(0))
+  return utils.parseUnits(procEnv.L1_GAS_PRICE, 'wei')
 }
 
-// eslint-disable-next-line @typescript-eslint/no-shadow
-export const gasPriceForL1 = async (env: OptimismEnv) => {
-  const chainId = await env.l1Wallet.getChainId()
-
-  switch (chainId) {
-    case 1:
-      return env.l1Wallet.getGasPrice()
-    case 3:
-    case 42:
-      return utils.parseUnits('10', 'gwei')
-    case 5:
-      return utils.parseUnits('2', 'gwei')
-    default:
-      return BigNumber.from(0)
-  }
-}
-
-// eslint-disable-next-line @typescript-eslint/no-shadow
-export const isMainnet = async (env: OptimismEnv) => {
-  const chainId = await env.l1Wallet.getChainId()
-  return chainId === 1
+export const isHardhat = async () => {
+  const chainId = await l1Wallet.getChainId()
+  return chainId === HARDHAT_CHAIN_ID
 }
