@@ -4,7 +4,7 @@ import { HardhatUserConfig } from 'hardhat/types'
 import '@nomiclabs/hardhat-ethers'
 import '@nomiclabs/hardhat-waffle'
 import 'hardhat-gas-reporter'
-import './tasks/check-state-roots'
+import './tasks/check-block-hashes'
 import { envConfig } from './test/shared/utils'
 
 const enableGasReport = !!process.env.ENABLE_GAS_REPORT
