@@ -264,3 +264,12 @@ export const isHardhat = async () => {
   const chainId = await l1Wallet.getChainId()
   return chainId === HARDHAT_CHAIN_ID
 }
+
+export const die = (...args) => {
+  console.log(...args)
+  process.exit(1)
+}
+
+export const logStderr = (msg: string) => {
+  process.stderr.write(`${msg}\n`)
+}
