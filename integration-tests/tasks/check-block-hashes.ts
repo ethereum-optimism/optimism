@@ -3,8 +3,8 @@ import { providers } from 'ethers'
 import { die, logStderr } from '../test/shared/utils'
 
 task(
-  'check-state-roots',
-  'Compares the state roots for two different replicas.'
+  'check-block-hashes',
+  'Compares the block hashes of two different replicas.'
 )
   .addPositionalParam('replicaA', 'The first replica')
   .addPositionalParam('replicaB', 'The second replica')
