@@ -22,26 +22,13 @@ pragma solidity ^0.8.9;
 
 // Can't do this until the package is published.
 //import { iOVM_L1BlockNumber } from "@eth-optimism/contracts/iOVM_L1BlockNumber";
-import { iOVM_L1BlockNumber } from "./OVMContextStorage.sol";
 
-/// @title OVMMulticall - Aggregate results from multiple read-only function calls
-contract OVMMulticall {
-    struct Call {
-        address target;
-        bytes callData;
-    }
+interface iOVM_L1BlockNumber {
+    function getL1BlockNumber() external view returns (uint256);
+}
 
-    function aggregate(Call[] memory calls) public returns (uint256 blockNumber, bytes[] memory returnData) {
-        blockNumber = block.number;
-        returnData = new bytes[](calls.length);
-        for (uint256 i = 0; i < calls.length; i++) {
-            (bool success, bytes memory ret) = calls[i].target.call(calls[i].callData);
-            require(success);
-            returnData[i] = ret;
-        }
-    }
-
-    // Helper functions
+/// @title OVMContext - Helper Functions
+contract OVMContext {
     function getCurrentBlockTimestamp() public view returns (uint256 timestamp) {
         timestamp = block.timestamp;
     }

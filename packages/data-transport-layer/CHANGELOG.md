@@ -1,5 +1,16 @@
 # data transport layer
 
+## 0.5.11
+
+### Patch Changes
+
+- ffadcb45: Smaller filter query for searching for L1 start height. This number should be configured so that the search does not need to happen because using a smaller filter will cause it to take too long.
+- b3efb8b7: String update to change the system name from OE to Optimism
+- Updated dependencies [b3efb8b7]
+- Updated dependencies [279603e5]
+- Updated dependencies [b6040bb3]
+  - @eth-optimism/contracts@0.5.8
+
 ## 0.5.10
 
 ### Patch Changes

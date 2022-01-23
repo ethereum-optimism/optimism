@@ -96,6 +96,7 @@ type Backend interface {
 	SuggestL2GasPrice(context.Context) (*big.Int, error)
 	SetL2GasPrice(context.Context, *big.Int) error
 	IngestTransactions([]*types.Transaction) error
+	SequencerClientHttp() string
 }
 
 func GetAPIs(apiBackend Backend) []rpc.API {

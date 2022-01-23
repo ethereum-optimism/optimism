@@ -15,8 +15,9 @@ type ServerConfig struct {
 }
 
 type CacheConfig struct {
-	Enabled         bool   `toml:"enabled"`
-	BlockSyncRPCURL string `toml:"block_sync_rpc_url"`
+	Enabled               bool   `toml:"enabled"`
+	BlockSyncRPCURL       string `toml:"block_sync_rpc_url"`
+	NumBlockConfirmations int    `toml:"num_block_confirmations"`
 }
 
 type RedisConfig struct {
@@ -61,11 +62,11 @@ type MethodMappingsConfig map[string]string
 
 type Config struct {
 	WSBackendGroup    string              `toml:"ws_backend_group"`
-	Server            *ServerConfig       `toml:"server"`
-	Cache             *CacheConfig        `toml:"cache"`
-	Redis             *RedisConfig        `toml:"redis"`
-	Metrics           *MetricsConfig      `toml:"metrics"`
-	BackendOptions    *BackendOptions     `toml:"backend"`
+	Server            ServerConfig        `toml:"server"`
+	Cache             CacheConfig         `toml:"cache"`
+	Redis             RedisConfig         `toml:"redis"`
+	Metrics           MetricsConfig       `toml:"metrics"`
+	BackendOptions    BackendOptions      `toml:"backend"`
 	Backends          BackendsConfig      `toml:"backends"`
 	Authentication    map[string]string   `toml:"authentication"`
 	BackendGroups     BackendGroupsConfig `toml:"backend_groups"`

@@ -1,5 +1,12 @@
 # @eth-optimism/integration-tests
 
+## 0.4.2
+
+### Patch Changes
+
+- 5787a55b: Updates to support nightly actor tests
+- dad6fd9b: Update timestamp assertion for new logic
+
 ## 0.4.1
 
 ### Patch Changes

@@ -37,4 +37,6 @@ type Config struct {
 	// quoted and the transaction being executed
 	FeeThresholdDown *big.Float
 	FeeThresholdUp   *big.Float
+	// HTTP endpoint of the sequencer
+	SequencerClientHttp string
 }

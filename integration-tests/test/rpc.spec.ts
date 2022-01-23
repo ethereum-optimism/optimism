@@ -10,15 +10,16 @@ import {
   defaultTransactionFactory,
   fundUser,
   L2_CHAINID,
-  isLiveNetwork,
   gasPriceForL2,
+  isHardhat,
+  hardhatTest,
+  envConfig,
 } from './shared/utils'
 import { OptimismEnv } from './shared/env'
 import {
   TransactionReceipt,
   TransactionRequest,
 } from '@ethersproject/providers'
-import simpleStorageJson from '../artifacts/contracts/SimpleStorage.sol/SimpleStorage.json'
 
 describe('Basic RPC tests', () => {
   let env: OptimismEnv
@@ -64,7 +65,7 @@ describe('Basic RPC tests', () => {
   describe('eth_sendRawTransaction', () => {
     it('should correctly process a valid transaction', async () => {
       const tx = defaultTransactionFactory()
-      tx.gasPrice = await gasPriceForL2(env)
+      tx.gasPrice = await gasPriceForL2()
       const nonce = await wallet.getTransactionCount()
       const result = await wallet.sendTransaction(tx)
 
@@ -78,7 +79,7 @@ describe('Basic RPC tests', () => {
     it('should not accept a transaction with the wrong chain ID', async () => {
       const tx = {
         ...defaultTransactionFactory(),
-        gasPrice: await gasPriceForL2(env),
+        gasPrice: await gasPriceForL2(),
         chainId: (await wallet.getChainId()) + 1,
       }
 
@@ -91,7 +92,7 @@ describe('Basic RPC tests', () => {
       const tx = {
         ...defaultTransactionFactory(),
         nonce: await wallet.getTransactionCount(),
-        gasPrice: await gasPriceForL2(env),
+        gasPrice: await gasPriceForL2(),
         chainId: null, // Disables EIP155 transaction signing.
       }
       const signed = await wallet.signTransaction(tx)
@@ -105,7 +106,7 @@ describe('Basic RPC tests', () => {
     it('should accept a transaction with a value', async () => {
       const tx = {
         ...defaultTransactionFactory(),
-        gasPrice: await gasPriceForL2(env),
+        gasPrice: await gasPriceForL2(),
         chainId: await env.l2Wallet.getChainId(),
         data: '0x',
         value: ethers.utils.parseEther('0.1'),
@@ -125,7 +126,7 @@ describe('Basic RPC tests', () => {
       const balance = await env.l2Wallet.getBalance()
       const tx = {
         ...defaultTransactionFactory(),
-        gasPrice: await gasPriceForL2(env),
+        gasPrice: await gasPriceForL2(),
         chainId: await env.l2Wallet.getChainId(),
         data: '0x',
         value: balance.add(ethers.utils.parseEther('1')),
@@ -145,13 +146,12 @@ describe('Basic RPC tests', () => {
     })
 
     it('should reject a transaction with too low of a fee', async () => {
-      if (isLiveNetwork()) {
-        console.log('Skipping too low of a fee test on live network')
-        return
+      const isHH = await isHardhat()
+      let gasPrice
+      if (isHH) {
+        gasPrice = await env.gasPriceOracle.gasPrice()
+        await env.gasPriceOracle.setGasPrice(1000)
       }
-
-      const gasPrice = await env.gasPriceOracle.gasPrice()
-      await env.gasPriceOracle.setGasPrice(1000)
 
       const tx = {
         ...defaultTransactionFactory(),
@@ -159,18 +159,16 @@ describe('Basic RPC tests', () => {
       }
 
       await expect(env.l2Wallet.sendTransaction(tx)).to.be.rejectedWith(
-        `gas price too low: 1 wei, use at least tx.gasPrice = 1000 wei`
+        /gas price too low: 1 wei, use at least tx\.gasPrice = \d+ wei/
       )
-      // Reset the gas price to its original price
-      await env.gasPriceOracle.setGasPrice(gasPrice)
+
+      if (isHH) {
+        // Reset the gas price to its original price
+        await env.gasPriceOracle.setGasPrice(gasPrice)
+      }
     })
 
     it('should reject a transaction with too high of a fee', async () => {
-      if (isLiveNetwork()) {
-        console.log('Skpping too high of a fee test on live network')
-        return
-      }
-
       const gasPrice = await env.gasPriceOracle.gasPrice()
       const largeGasPrice = gasPrice.mul(10)
       const tx = {
@@ -331,7 +329,7 @@ describe('Basic RPC tests', () => {
     it('includes L1 gas price and L1 gas used', async () => {
       const tx = await env.l2Wallet.populateTransaction({
         to: env.l2Wallet.address,
-        gasPrice: isLiveNetwork() ? 10000 : 1,
+        gasPrice: await gasPriceForL2(),
       })
 
       const raw = serialize({
@@ -366,7 +364,7 @@ describe('Basic RPC tests', () => {
   describe('eth_getTransactionByHash', () => {
     it('should be able to get all relevant l1/l2 transaction data', async () => {
       const tx = defaultTransactionFactory()
-      tx.gasPrice = await gasPriceForL2(env)
+      tx.gasPrice = await gasPriceForL2()
       const result = await wallet.sendTransaction(tx)
       await result.wait()
 
@@ -381,7 +379,7 @@ describe('Basic RPC tests', () => {
     it('should return the block and all included transactions', async () => {
       // Send a transaction and wait for it to be mined.
       const tx = defaultTransactionFactory()
-      tx.gasPrice = await gasPriceForL2(env)
+      tx.gasPrice = await gasPriceForL2()
       const result = await wallet.sendTransaction(tx)
       const receipt = await result.wait()
 
@@ -407,32 +405,31 @@ describe('Basic RPC tests', () => {
     // Needs to be skipped on Prod networks because this test doesn't work when
     // other people are sending transactions to the Sequencer at the same time
     // as this test is running.
-    it('should return the same result when new transactions are not applied', async function () {
-      if (isLiveNetwork()) {
-        this.skip()
-      }
+    hardhatTest(
+      'should return the same result when new transactions are not applied',
+      async () => {
+        // Get latest block once to start.
+        const prev = await provider.getBlockWithTransactions('latest')
+        // set wait to null to allow a deep object comparison
+        prev.transactions[0].wait = null
 
-      // Get latest block once to start.
-      const prev = await provider.getBlockWithTransactions('latest')
-      // set wait to null to allow a deep object comparison
-      prev.transactions[0].wait = null
-
-      // Over ten seconds, repeatedly check the latest block to make sure nothing has changed.
-      for (let i = 0; i < 5; i++) {
-        const latest = await provider.getBlockWithTransactions('latest')
-        latest.transactions[0].wait = null
-        // Check each key of the transaction individually
-        // for easy debugging if one field changes
-        for (const [key, value] of Object.entries(latest.transactions[0])) {
-          expect(value).to.deep.equal(
-            prev.transactions[0][key],
-            `mismatch ${key}`
-          )
+        // Over ten seconds, repeatedly check the latest block to make sure nothing has changed.
+        for (let i = 0; i < 5; i++) {
+          const latest = await provider.getBlockWithTransactions('latest')
+          latest.transactions[0].wait = null
+          // Check each key of the transaction individually
+          // for easy debugging if one field changes
+          for (const [key, value] of Object.entries(latest.transactions[0])) {
+            expect(value).to.deep.equal(
+              prev.transactions[0][key],
+              `mismatch ${key}`
+            )
+          }
+          expect(latest).to.deep.equal(prev)
+          await sleep(2000)
         }
-        expect(latest).to.deep.equal(prev)
-        await sleep(2000)
       }
-    })
+    )
   })
 
   describe('eth_getBalance', () => {
@@ -497,10 +494,15 @@ describe('Basic RPC tests', () => {
   })
 
   describe('debug_traceTransaction', () => {
+    before(async function () {
+      if (!envConfig.RUN_DEBUG_TRACE_TESTS) {
+        this.skip()
+      }
+    })
+
     it('should match debug_traceBlock', async () => {
-      const storage = new ContractFactory(
-        simpleStorageJson.abi,
-        simpleStorageJson.bytecode,
+      const storage = await ethers.getContractFactory(
+        'SimpleStorage',
         env.l2Wallet
       )
       const tx = (await storage.deploy()).deployTransaction

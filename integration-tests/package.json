@@ -1,7 +1,7 @@
 {
   "private": true,
   "name": "@eth-optimism/integration-tests",
-  "version": "0.4.1",
+  "version": "0.4.2",
   "description": "[Optimism] Integration tests",
   "scripts": {
     "lint": "yarn lint:fix && yarn lint:check",
@@ -28,9 +28,9 @@
     "url": "https://github.com/ethereum-optimism/optimism.git"
   },
   "devDependencies": {
-    "@eth-optimism/contracts": "0.5.7",
+    "@eth-optimism/contracts": "0.5.8",
     "@eth-optimism/core-utils": "0.7.3",
-    "@eth-optimism/message-relayer": "0.2.11",
+    "@eth-optimism/message-relayer": "0.2.12",
     "@ethersproject/abstract-provider": "^5.5.1",
     "@ethersproject/providers": "^5.4.5",
     "@ethersproject/transactions": "^5.4.0",
@@ -41,7 +41,6 @@
     "@types/chai-as-promised": "^7.1.4",
     "@types/mocha": "^8.2.2",
     "@types/rimraf": "^3.0.0",
-    "@types/shelljs": "^0.8.8",
     "@typescript-eslint/eslint-plugin": "^4.26.0",
     "@typescript-eslint/parser": "^4.26.0",
     "@uniswap/v3-core": "1.0.0",
@@ -52,7 +51,6 @@
     "chai": "^4.3.4",
     "chai-as-promised": "^7.1.1",
     "commander": "^8.3.0",
-    "docker-compose": "^0.23.8",
     "dotenv": "^10.0.0",
     "envalid": "^7.1.0",
     "eslint": "^7.27.0",
@@ -71,7 +69,6 @@
     "mocha": "^8.4.0",
     "prom-client": "^14.0.1",
     "rimraf": "^3.0.2",
-    "shelljs": "^0.8.4",
     "typescript": "^4.3.5",
     "uniswap-v3-deploy-plugin": "^0.1.0"
   }

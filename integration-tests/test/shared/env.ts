@@ -19,6 +19,8 @@ import {
   getL1Bridge,
   getL2Bridge,
   sleep,
+  envConfig,
+  DEFAULT_TEST_GAS_L1,
 } from './utils'
 import {
   initWatcher,
@@ -83,8 +85,10 @@ export class OptimismEnv {
 
     // fund the user if needed
     const balance = await l2Wallet.getBalance()
-    if (balance.lt(utils.parseEther('1'))) {
-      await fundUser(watcher, l1Bridge, utils.parseEther('1').sub(balance))
+    const min = envConfig.L2_WALLET_MIN_BALANCE_ETH.toString()
+    const topUp = envConfig.L2_WALLET_TOP_UP_AMOUNT_ETH.toString()
+    if (balance.lt(utils.parseEther(min))) {
+      await fundUser(watcher, l1Bridge, utils.parseEther(topUp))
     }
     const l1Messenger = getContractFactory('L1CrossDomainMessenger')
       .connect(l1Wallet)
@@ -156,6 +160,7 @@ export class OptimismEnv {
     tx: Promise<TransactionResponse> | TransactionResponse
   ): Promise<void> {
     tx = await tx
+    await tx.wait()
 
     let messagePairs = []
     while (true) {
@@ -187,7 +192,10 @@ export class OptimismEnv {
               message.sender,
               message.message,
               message.messageNonce,
-              proof
+              proof,
+              {
+                gasLimit: DEFAULT_TEST_GAS_L1 * 10,
+              }
             )
           await result.wait()
           break

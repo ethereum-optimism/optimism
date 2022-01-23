@@ -101,6 +101,10 @@ services:
         # no need to keep this secret, only used internally to sign blocks
         BLOCK_SIGNER_KEY: "6587ae678cf4fc9a33000cdbf9f35226b71dcc6a4684a31203241f9bcfd55d27"
         BLOCK_SIGNER_ADDRESS: "0x00000398232E2064F896018496b4b44b3D62751F"
+
+        ROLLUP_ENFORCE_FEES: ${ROLLUP_ENFORCE_FEES:-true}
+        ROLLUP_FEE_THRESHOLD_DOWN: 0.9
+        ROLLUP_FEE_THRESHOLD_UP: 1.1
     ports:
       - ${L2GETH_HTTP_PORT:-8545}:8545
       - ${L2GETH_WS_PORT:-8546}:8546
@@ -155,6 +159,7 @@ services:
   replica:
     depends_on:
       - dtl
+      - l2geth
     deploy:
       replicas: 1
     build:
@@ -165,6 +170,7 @@ services:
       - ./envs/geth.env
     environment:
         ETH1_HTTP: http://l1_chain:8545
+        SEQUENCER_CLIENT_HTTP: http://l2geth:8545
         ROLLUP_STATE_DUMP_PATH: http://deployer:8081/state-dump.latest.json
         ROLLUP_CLIENT_HTTP: http://dtl:7878
         ROLLUP_BACKEND: 'l2'

@@ -23,7 +23,7 @@ export const fundRandomWallet = async (
   const fundTx = await env.l1Wallet.sendTransaction({
     gasLimit: 25_000,
     to: wallet.address,
-    gasPrice: await gasPriceForL1(env),
+    gasPrice: await gasPriceForL1(),
     value,
   })
   await fundTx.wait()
@@ -47,7 +47,7 @@ export const executeL1ToL2Transaction = async (
         ),
         MESSAGE_GAS,
         {
-          gasPrice: await gasPriceForL1(env),
+          gasPrice: await gasPriceForL1(),
         }
       )
   )
@@ -71,7 +71,7 @@ export const executeL2ToL1Transaction = async (
         ),
         MESSAGE_GAS,
         {
-          gasPrice: gasPriceForL2(env),
+          gasPrice: gasPriceForL2(),
         }
       )
   )
@@ -90,7 +90,7 @@ export const executeL2Transaction = async (
     tx.contract
       .connect(signer)
       .functions[tx.functionName](...tx.functionParams, {
-        gasPrice: gasPriceForL2(env),
+        gasPrice: gasPriceForL2(),
       })
   )
   await result.wait()

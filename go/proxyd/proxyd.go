@@ -7,40 +7,49 @@ import (
 	"fmt"
 	"net/http"
 	"os"
-	"os/signal"
-	"syscall"
+	"strconv"
 	"time"
 
+	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
-func Start(config *Config) error {
+func Start(config *Config) (func(), error) {
 	if len(config.Backends) == 0 {
-		return errors.New("must define at least one backend")
+		return nil, errors.New("must define at least one backend")
 	}
 	if len(config.BackendGroups) == 0 {
-		return errors.New("must define at least one backend group")
+		return nil, errors.New("must define at least one backend group")
 	}
 	if len(config.RPCMethodMappings) == 0 {
-		return errors.New("must define at least one RPC method mapping")
+		return nil, errors.New("must define at least one RPC method mapping")
 	}
 
 	for authKey := range config.Authentication {
 		if authKey == "none" {
-			return errors.New("cannot use none as an auth key")
+			return nil, errors.New("cannot use none as an auth key")
 		}
+	}
+
+	var redisURL string
+	if config.Redis.URL != "" {
+		rURL, err := ReadFromEnvOrConfig(config.Redis.URL)
+		if err != nil {
+			return nil, err
+		}
+		redisURL = rURL
 	}
 
 	var lim RateLimiter
 	var err error
-	if config.Redis == nil {
+	if redisURL == "" {
 		log.Warn("redis is not configured, using local rate limiter")
 		lim = NewLocalRateLimiter()
 	} else {
-		lim, err = NewRedisRateLimiter(config.Redis.URL)
+		lim, err = NewRedisRateLimiter(redisURL)
 		if err != nil {
-			return err
+			return nil, err
 		}
 	}
 
@@ -51,17 +60,17 @@ func Start(config *Config) error {
 
 		rpcURL, err := ReadFromEnvOrConfig(cfg.RPCURL)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		wsURL, err := ReadFromEnvOrConfig(cfg.WSURL)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		if rpcURL == "" {
-			return fmt.Errorf("must define an RPC URL for backend %s", name)
+			return nil, fmt.Errorf("must define an RPC URL for backend %s", name)
 		}
 		if wsURL == "" {
-			return fmt.Errorf("must define a WS URL for backend %s", name)
+			return nil, fmt.Errorf("must define a WS URL for backend %s", name)
 		}
 
 		if config.BackendOptions.ResponseTimeoutSeconds != 0 {
@@ -86,13 +95,13 @@ func Start(config *Config) error {
 		if cfg.Password != "" {
 			passwordVal, err := ReadFromEnvOrConfig(cfg.Password)
 			if err != nil {
-				return err
+				return nil, err
 			}
 			opts = append(opts, WithBasicAuth(cfg.Username, passwordVal))
 		}
 		tlsConfig, err := configureBackendTLS(cfg)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		if tlsConfig != nil {
 			log.Info("using custom TLS config for backend", "name", name)
@@ -113,7 +122,7 @@ func Start(config *Config) error {
 		backends := make([]*Backend, 0)
 		for _, bName := range bg.Backends {
 			if backendsByName[bName] == nil {
-				return fmt.Errorf("backend %s is not defined", bName)
+				return nil, fmt.Errorf("backend %s is not defined", bName)
 			}
 			backends = append(backends, backendsByName[bName])
 		}
@@ -128,17 +137,17 @@ func Start(config *Config) error {
 	if config.WSBackendGroup != "" {
 		wsBackendGroup = backendGroups[config.WSBackendGroup]
 		if wsBackendGroup == nil {
-			return fmt.Errorf("ws backend group %s does not exist", config.WSBackendGroup)
+			return nil, fmt.Errorf("ws backend group %s does not exist", config.WSBackendGroup)
 		}
 	}
 
 	if wsBackendGroup == nil && config.Server.WSPort != 0 {
-		return fmt.Errorf("a ws port was defined, but no ws group was defined")
+		return nil, fmt.Errorf("a ws port was defined, but no ws group was defined")
 	}
 
 	for _, bg := range config.RPCMethodMappings {
 		if backendGroups[bg] == nil {
-			return fmt.Errorf("undefined backend group %s", bg)
+			return nil, fmt.Errorf("undefined backend group %s", bg)
 		}
 	}
 
@@ -149,39 +158,50 @@ func Start(config *Config) error {
 		for secret, alias := range config.Authentication {
 			resolvedSecret, err := ReadFromEnvOrConfig(secret)
 			if err != nil {
-				return err
+				return nil, err
 			}
 			resolvedAuth[resolvedSecret] = alias
 		}
 	}
 
-	var rpcCache RPCCache
-	if config.Cache != nil && config.Cache.Enabled {
-		var cache Cache
-		if config.Redis != nil {
-			if cache, err = newRedisCache(config.Redis.URL); err != nil {
-				return err
+	var (
+		rpcCache    RPCCache
+		blockNumLVC *EthLastValueCache
+		gasPriceLVC *EthLastValueCache
+	)
+	if config.Cache.Enabled {
+		var (
+			cache      Cache
+			blockNumFn GetLatestBlockNumFn
+			gasPriceFn GetLatestGasPriceFn
+		)
+
+		if config.Cache.BlockSyncRPCURL == "" {
+			return nil, fmt.Errorf("block sync node required for caching")
+		}
+		blockSyncRPCURL, err := ReadFromEnvOrConfig(config.Cache.BlockSyncRPCURL)
+		if err != nil {
+			return nil, err
+		}
+
+		if redisURL != "" {
+			if cache, err = newRedisCache(redisURL); err != nil {
+				return nil, err
 			}
 		} else {
 			log.Warn("redis is not configured, using in-memory cache")
 			cache = newMemoryCache()
 		}
-
-		var getLatestBlockNumFn GetLatestBlockNumFn
-		if config.Cache.BlockSyncRPCURL == "" {
-			return fmt.Errorf("block sync node required for caching")
-		}
-		latestHead, err := newLatestBlockHead(config.Cache.BlockSyncRPCURL)
+		// Ideally, the BlocKSyncRPCURL should be the sequencer or a HA replica that's not far behind
+		ethClient, err := ethclient.Dial(blockSyncRPCURL)
 		if err != nil {
-			return err
+			return nil, err
 		}
-		latestHead.Start()
-		defer latestHead.Stop()
+		defer ethClient.Close()
 
-		getLatestBlockNumFn = func(ctx context.Context) (uint64, error) {
-			return latestHead.GetBlockNum(), nil
-		}
-		rpcCache = newRPCCache(cache, getLatestBlockNumFn)
+		blockNumLVC, blockNumFn = makeGetLatestBlockNumFn(ethClient, cache)
+		gasPriceLVC, gasPriceFn = makeGetLatestGasPriceFn(ethClient, cache)
+		rpcCache = newRPCCache(newCacheWithCompression(cache), blockNumFn, gasPriceFn, config.Cache.NumBlockConfirmations)
 	}
 
 	srv := NewServer(
@@ -194,11 +214,16 @@ func Start(config *Config) error {
 		rpcCache,
 	)
 
-	if config.Metrics != nil && config.Metrics.Enabled {
+	if config.Metrics.Enabled {
 		addr := fmt.Sprintf("%s:%d", config.Metrics.Host, config.Metrics.Port)
 		log.Info("starting metrics server", "addr", addr)
 		go http.ListenAndServe(addr, promhttp.Handler())
 	}
+
+	// To allow integration tests to cleanly come up, wait
+	// 10ms to give the below goroutines enough time to
+	// encounter an error creating their servers
+	errTimer := time.NewTimer(10 * time.Millisecond)
 
 	if config.Server.RPCPort != 0 {
 		go func() {
@@ -224,15 +249,23 @@ func Start(config *Config) error {
 		}()
 	}
 
-	sig := make(chan os.Signal, 1)
-	signal.Notify(sig, syscall.SIGINT, syscall.SIGTERM)
-	recvSig := <-sig
-	log.Info("caught signal, shutting down", "signal", recvSig)
-	srv.Shutdown()
-	if err := lim.FlushBackendWSConns(backendNames); err != nil {
-		log.Error("error flushing backend ws conns", "err", err)
-	}
-	return nil
+	<-errTimer.C
+	log.Info("started proxyd")
+
+	return func() {
+		log.Info("shutting down proxyd")
+		if blockNumLVC != nil {
+			blockNumLVC.Stop()
+		}
+		if gasPriceLVC != nil {
+			gasPriceLVC.Stop()
+		}
+		srv.Shutdown()
+		if err := lim.FlushBackendWSConns(backendNames); err != nil {
+			log.Error("error flushing backend ws conns", "err", err)
+		}
+		log.Info("goodbye")
+	}, nil
 }
 
 func secondsToDuration(seconds int) time.Duration {
@@ -258,4 +291,40 @@ func configureBackendTLS(cfg *BackendConfig) (*tls.Config, error) {
 	}
 
 	return tlsConfig, nil
+}
+
+func makeUint64LastValueFn(client *ethclient.Client, cache Cache, key string, updater lvcUpdateFn) (*EthLastValueCache, func(context.Context) (uint64, error)) {
+	lvc := newLVC(client, cache, key, updater)
+	lvc.Start()
+	return lvc, func(ctx context.Context) (uint64, error) {
+		value, err := lvc.Read(ctx)
+		if err != nil {
+			return 0, err
+		}
+		if value == "" {
+			return 0, fmt.Errorf("%s is unavailable", key)
+		}
+		valueUint, err := strconv.ParseUint(value, 10, 64)
+		if err != nil {
+			return 0, err
+		}
+		return valueUint, nil
+	}
+}
+
+func makeGetLatestBlockNumFn(client *ethclient.Client, cache Cache) (*EthLastValueCache, GetLatestBlockNumFn) {
+	return makeUint64LastValueFn(client, cache, "lvc:block_number", func(ctx context.Context, c *ethclient.Client) (string, error) {
+		blockNum, err := c.BlockNumber(ctx)
+		return strconv.FormatUint(blockNum, 10), err
+	})
+}
+
+func makeGetLatestGasPriceFn(client *ethclient.Client, cache Cache) (*EthLastValueCache, GetLatestGasPriceFn) {
+	return makeUint64LastValueFn(client, cache, "lvc:gas_price", func(ctx context.Context, c *ethclient.Client) (string, error) {
+		gasPrice, err := c.SuggestGasPrice(ctx)
+		if err != nil {
+			return "", err
+		}
+		return gasPrice.String(), nil
+	})
 }
