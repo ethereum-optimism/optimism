@@ -119,8 +119,8 @@ To encode user-deposited transactions, refer to the following sections of the de
 
 [payload attributes]: #building-the-payload-attributes
 
-From the data read from L1 and the encoded transactions, the rollup node constructs an [expanded version][expanded-paylod] of
-[`PayloadAttributesV1`], which includes an additional `transactions` field.
+From the data read from L1 and the encoded transactions, the rollup node constructs an [expanded
+version][expanded-paylod] of [`PayloadAttributesV1`], which includes an additional `transactions` field.
 
 The object's properties must be set as follows:
 
@@ -149,7 +149,7 @@ Let
 
 Then we can apply the following pseudocode logic to update the state of both the rollup driver and execution engine:
 
-```
+```pseudocode
 // request a new execution payload
 forkChoiceState = {
     headBlockHash: refL2,
@@ -186,7 +186,7 @@ The following JSON-RPC methods are part of the [execution engine API][exec-engin
 [json-rpc-info-1]: https://github.com/ethereum-optimism/optimistic-specs/blob/a3ffa9a8c825d155a0469659b3101db5f41eecc4/specs/rollup-node.md#from-l1-blocks-to-payload-attributes
 [json-rpc-info-2]: https://github.com/ethereum-optimism/optimistic-specs/blob/a3ffa9a8c825d155a0469659b3101db5f41eecc4/specs/rollup-node.md#building-the-l2-block-with-the-execution-engine
 
-[exec-engine]: execution-engine.md
+[exec-engine]: exec-engine.md
 
 - [`engine_forkchoiceUpdatedV1`] — updates the forkchoice (i.e. the chain head) to `headBlockHash` if different, and
   instructs the engine to start building an execution payload given payload attributes the second argument isn't `null`
@@ -205,8 +205,8 @@ Within the `forkChoiceState` object, the properties have the following meaning:
 
 - `headBlockHash`: block hash of the last block of the L2 chain, according to the rollup driver.
 - `safeBlockHash`: same as `headBlockHash`.
-- `finalizedBlockHash`: the hash of the block whose number is `l2Number(headBlockHash) - FINALIZATION_DELAY_BLOCKS` if the
-  number of that block is `>= L2_CHAIN_INCEPTION`, 0 otherwise (\*) See the [Finalization Guarantees][finalization]
+- `finalizedBlockHash`: the hash of the block whose number is `l2Number(headBlockHash) - FINALIZATION_DELAY_BLOCKS` if
+  the number of that block is `>= L2_CHAIN_INCEPTION`, 0 otherwise (\*) See the [Finalization Guarantees][finalization]
   section for more details.
 
 (\*) where:
@@ -289,17 +289,19 @@ This re-derivation starting point can be found by applying the following algorit
 1. (Initialization) Set the initial `refL2` to the head block of the L2 execution engine.
 2. Set `parentL2` to `refL2`'s parent block and `refL1` to the L1 block that `refL2` was derived from.
 3. Fetch `currentL1`, the canonical L1 block at the same height as `refL1`.
-  - If `currentL1 == refL1`, then `refL2` was built on a canonical L1 block:
-    - Find the next L1 block (it may not exist yet) and return `(refL2, nextRefL1)` as the starting point of the re-derivation.
-      - It is necessary to ensure that no L1 re-org occured during this lookup, i.e. that `nextRefL1.parent == refL1`.
-      - If the next L1 block does not exist yet, there is no re-org, and nothing new to derive, and we can abort the
+
+- If `currentL1 == refL1`, then `refL2` was built on a canonical L1 block:
+  - Find the next L1 block (it may not exist yet) and return `(refL2, nextRefL1)` as the starting point of the
+    re-derivation.
+    - It is necessary to ensure that no L1 re-org occured during this lookup, i.e. that `nextRefL1.parent == refL1`.
+    - If the next L1 block does not exist yet, there is no re-org, and nothing new to derive, and we can abort the
         process.
-  - Otherwise, if `refL2` is the L2 genesis block, we have re-orged past the genesis block, which is an error that
+- Otherwise, if `refL2` is the L2 genesis block, we have re-orged past the genesis block, which is an error that
     requires a re-genesis of the L2 chain to fix (i.e. creating a new genesis configuration).
-  - Otherwise, if either `currentL1` does not exist, or `currentL1 != refL1`, set `refL2` to `parentL2` and restart this
+- Otherwise, if either `currentL1` does not exist, or `currentL1 != refL1`, set `refL2` to `parentL2` and restart this
     algorithm from step 2.
-      - Note: if `currentL1` does not exist, it means we are in a re-org to a shorter L1 chain.
-      - Note: as an optimization, we can cache `currentL1` and reuse it as the next value of `nextRefL1` to avoid an
+  - Note: if `currentL1` does not exist, it means we are in a re-org to a shorter L1 chain.
+  - Note: as an optimization, we can cache `currentL1` and reuse it as the next value of `nextRefL1` to avoid an
         extra lookup.
 
 Note that post-[merge], the depth of re-orgs will be bounded by the [L1 finality delay][l1-finality] (every 2 epochs,
