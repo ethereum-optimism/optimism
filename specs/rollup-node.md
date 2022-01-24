@@ -273,33 +273,36 @@ processing the whole L1 chain since the [L2 chain inception].
 > non-specificative** but shows how L1 re-orgs can be handled in practice.
 
 In practice, the L1 chain is processed incrementally. However, the L1 chain may occasionally re-organize, meaning the
-head of the L1 chain changes to a block that is not the child of the previous head but rather some other descendant
-of an ancestor of the previous head. In that case, the rollup driver must first search for common ancestor, and can then
-continue deriving with the new canonical L1 block after the common point.
+head of the L1 chain changes to a block that is not the child of the previous head but rather another descendant of an
+ancestor of the previous head. In that case, the rollup driver must first search for the common L1 ancestor, and can
+re-derive the L2 chain from that L1 block and onwards.
 
-This sync starting point (L1 block to derive from, and L2 parent to build on) is determined by:
+The starting point of the re-derivation is a pair `(refL2, nextRefL1)` where `refL2` refers to the L2 block to build
+upon and `nextRefL1` refers to the next L1 block to derive from (i.e. if `refL2` is derived from L1 block `refL1`,
+`nextRefL1` is the canonicla L1 block at height `l1Number(refL1) + 1`).
 
-- Retrieve the head block of the engine (`refL2`), then determine the L1 block it was derived from (`refL1`),
-  and where it builds on (`parentL2`).
-- Fetch the L1 block at the same height (`currentL1`):
-  - If not found: consider this a reorg to a shorter L1 chain, continue.
-- If the L1 source considers this canonical (`currentL1 == refL1`):
-  - Find the next L1 block (it may not exist yet) and return that as `nextRefL1`, along with the `refL2`.
-    - Note: after looking up `N+1` ensure L1 has not changed during block-by-number lookups (`refL1 == nextL1_parent`).
-- While have not found a block in the engine common with the canonical chain, traverse the L2 chain back until genesis:
-  - Each step starts by caching the previous `currentL1` as `nextRefL1`.
-  - Lookup the parent by hash: Each step `refL2` should equal the previous `parentL2`.
-    `refL1` and `parentL2` are also traversed back by parsing the `refL2` block.
-  - The canonical L1 block is looked up at the same height (`currentL1`).
-    - If not found: consider this a reorg to a shorter L1 chain, continue.
-  - If the engine and canonical chain match (`refL1 == currentL1`), then return that as `nextRefL1`, along with `refL2`.
-- If there are no common blocks after genesis, check if `refL2` and `currentL1` match the expected genesis blocks.
-- If the genesis is correct, the last cached `nextRefL1` is returned, along with the L2 genesis.
+In practice, the happy path (no re-org) and the re-org paths are merged. The happy path is simply a special case of the
+re-org path where the starting point of the re-derivation is `(currentL2Head, newL1Block)`.
 
-> Note that post-[merge], the L1 chain will offer finalization guarantees meaning that it won't be able to re-org more
-> than `FINALIZATION_DELAY_BLOCKS == 50400` in the past, hence preserving our finalization guarantees.
+This re-derivation starting point can be found by applying the following algorithm:
+
+1. (Initialization) Set the initial `refL2` to the head block of the L2 execution engine.
+2. Set `parentL2` to `refL2`'s parent block and `refL1` to the L1 block that `refL2` was derived from.
+3. Fetch `currentL1`, the canonical L1 block at the same height as `refL1`.
+  - If `currentL1 == refL1`, then `refL2` was built on a canonical L1 block:
+    - Find the next L1 block (it may not exist yet) and return `(refL2, nextRefL1)` as the starting point of the re-derivation.
+      - It is necessary to ensure that no L1 re-org occured during this lookup, i.e. that `nextRefL1.parent == refL1`.
+      - If the next L1 block does not exist yet, there is no re-org, and nothing new to derive, and we can abort the
+        process.
+  - Otherwise, if `refL2` is the L2 genesis block, we have re-orged past the genesis block, which is an error that
+    requires a re-genesis of the L2 chain to fix (i.e. creating a new genesis configuration).
+  - Otherwise, if either `currentL1` does not exist, or `currentL1 != refL1`, set `refL2` to `parentL2` and restart this
+    algorithm from step 2.
+      - Note: if `currentL1` does not exist, it means we are in a re-org to a shorter L1 chain.
+      - Note: as an optimization, we can cache `currentL1` and reuse it as the next value of `nextRefL1` to avoid an
+        extra lookup.
+
+Note that post-[merge], the depth of re-orgs will be bounded by the [L1 finality delay][l1-finality] (every 2 epochs,
+approximately 12 minutes).
 
 [merge]: https://ethereum.org/en/eth2/merge/
-
-Just like before, the meaning of errors returned by RPC calls is unspecified and must be handled at the implementer's
-discretion, while remaining compatible with the specification.
