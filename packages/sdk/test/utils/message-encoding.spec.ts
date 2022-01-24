@@ -1,7 +1,8 @@
-import { expect } from '../setup'
 import { Contract, Signer } from 'ethers'
 import { ethers } from 'hardhat'
 import { getContractFactory } from '@eth-optimism/contracts'
+
+import { expect } from '../setup'
 import {
   CoreCrossChainMessage,
   encodeCrossChainMessage,

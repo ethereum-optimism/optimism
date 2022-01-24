@@ -1,7 +1,8 @@
 import { ethers, BigNumber, Contract } from 'ethers'
+
 import { expect, env, ERC20_ABI } from './setup'
-import { AccountType } from '../scripts/types'
 import { GenesisJsonProvider } from './provider'
+import { AccountType } from '../scripts/types'
 
 describe('predeploys', () => {
   const predeploys = {

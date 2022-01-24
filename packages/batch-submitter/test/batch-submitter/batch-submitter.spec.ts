@@ -1,24 +1,18 @@
-import { expect } from '../setup'
-
 /* External Imports */
 import { ethers } from 'hardhat'
 import '@nomiclabs/hardhat-ethers'
 import { Signer, ContractFactory, Contract, BigNumber } from 'ethers'
 import sinon from 'sinon'
-
 import scc from '@eth-optimism/contracts/artifacts/contracts/L1/rollup/StateCommitmentChain.sol/StateCommitmentChain.json'
 import { getContractInterface } from '@eth-optimism/contracts'
 import { smockit, MockContract } from '@eth-optimism/smock'
-
 import { getContractFactory } from 'old-contracts'
+import { QueueOrigin, Batch, remove0x } from '@eth-optimism/core-utils'
+import { Logger, Metrics } from '@eth-optimism/common-ts'
 
 /* Internal Imports */
 import { MockchainProvider } from './mockchain-provider'
-import {
-  makeAddressManager,
-  setProxyTarget,
-  FORCE_INCLUSION_PERIOD_SECONDS,
-} from '../helpers'
+import { expect } from '../setup'
 import {
   CanonicalTransactionChainContract,
   TransactionBatchSubmitter as RealTransactionBatchSubmitter,
@@ -28,9 +22,11 @@ import {
   YnatmTransactionSubmitter,
   ResubmissionConfig,
 } from '../../src'
-
-import { QueueOrigin, Batch, remove0x } from '@eth-optimism/core-utils'
-import { Logger, Metrics } from '@eth-optimism/common-ts'
+import {
+  makeAddressManager,
+  setProxyTarget,
+  FORCE_INCLUSION_PERIOD_SECONDS,
+} from '../helpers'
 
 const EXAMPLE_STATE_ROOT =
   '0x16b7f83f409c7195b1f4fde5652f1b54a4477eacb6db7927691becafba5f8801'

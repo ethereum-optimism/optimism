@@ -1,8 +1,9 @@
 /* External Imports */
+import { exit } from 'process'
+
 import { injectL2Context, Bcfg } from '@eth-optimism/core-utils'
 import * as Sentry from '@sentry/node'
 import { Logger, Metrics, createMetricsServer } from '@eth-optimism/common-ts'
-import { exit } from 'process'
 import { Signer, Wallet } from 'ethers'
 import {
   StaticJsonRpcProvider,

@@ -1,10 +1,9 @@
-import { expect } from './shared/setup'
-
 /* Imports: Internal */
 import { ethers } from 'ethers'
 import { predeploys, getContractInterface } from '@eth-optimism/contracts'
 
 /* Imports: External */
+import { expect } from './shared/setup'
 import { OptimismEnv } from './shared/env'
 
 describe('predeploys', () => {

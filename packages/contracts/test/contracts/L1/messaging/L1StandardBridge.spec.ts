@@ -1,5 +1,3 @@
-import { expect } from '../../../setup'
-
 /* External Imports */
 import { ethers } from 'hardhat'
 import { Signer, ContractFactory, Contract, constants } from 'ethers'
@@ -7,6 +5,7 @@ import { Interface } from 'ethers/lib/utils'
 import { smockit, MockContract, smoddit } from '@eth-optimism/smock'
 
 /* Internal Imports */
+import { expect } from '../../../setup'
 import { NON_NULL_BYTES32, NON_ZERO_ADDRESS } from '../../../helpers'
 import { getContractInterface, predeploys } from '../../../../src'
 

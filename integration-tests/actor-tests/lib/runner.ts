@@ -1,9 +1,11 @@
 import * as path from 'path'
+
+import { Command } from 'commander'
+
 import { defaultRuntime } from './convenience'
 import { RunOpts } from './actor'
-import { Command } from 'commander'
-import pkg from '../../package.json'
 import { serveMetrics } from './metrics'
+import pkg from '../../package.json'
 
 const program = new Command()
 program.version(pkg.version)

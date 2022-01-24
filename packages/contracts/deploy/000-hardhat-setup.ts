@@ -1,6 +1,8 @@
 /* eslint @typescript-eslint/no-var-requires: "off" */
 import { ethers } from 'ethers'
 import { DeployFunction } from 'hardhat-deploy/dist/types'
+import { awaitCondition } from '@eth-optimism/core-utils'
+
 import {
   getContractFromArtifact,
   fundAccount,
@@ -8,7 +10,6 @@ import {
   BIG_BALANCE,
 } from '../src/deploy-utils'
 import { names } from '../src/address-names'
-import { awaitCondition } from '@eth-optimism/core-utils'
 
 const deployFn: DeployFunction = async (hre) => {
   if ((hre as any).deployConfig.forked !== 'true') {

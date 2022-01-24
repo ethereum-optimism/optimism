@@ -1,10 +1,9 @@
-import { expect } from '../../../../setup'
-
 /* Imports: External */
 import { BigNumber } from 'ethers'
 import { Block } from '@ethersproject/abstract-provider'
 
 /* Imports: Internal */
+import { expect } from '../../../../setup'
 import { handleEventsStateBatchAppended } from '../../../../../src/services/l1-ingestion/handlers/state-batch-appended'
 import { StateBatchAppendedExtraData } from '../../../../../src/types'
 import { l1StateBatchData } from '../../../examples/l1-data'
