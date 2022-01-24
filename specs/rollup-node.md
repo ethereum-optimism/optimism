@@ -1,16 +1,15 @@
 # Rollup Node Specification
 
 <!-- All glossary references in this file. -->
-[rollup node]: glossary.md#rollup-node
-[derivation]: glossary.md#L2-chain-derivation
-[payload attributes]: glossary.md#payload-attributes
-[block]: glossary.md#block
-[execution engine]: glossary.md#execution-engine
-[reorg]: glossary.md#re-organization
-[rollup driver]: glossary.md#rollup-driver
-[L2 chain inception]: glossary.md#L2-chain-inception
-[receipts]: glossary.md#receipt
-[L1 attributes deposit]: glossary.md#l1-attributes-deposit
+[g-rollup-node]: glossary.md#rollup-node
+[g-derivation]: glossary.md#L2-chain-derivation
+[g-payload-attr]: glossary.md#payload-attributes
+[g-block]: glossary.md#block
+[g-exec-engine]: glossary.md#execution-engine
+[g-reorg]: glossary.md#re-organization
+[g-rollup-driver]: glossary.md#rollup-driver
+[g-inception]: glossary.md#L2-chain-inception
+[g-receipts]: glossary.md#receipt
 [g-deposit-contract]: glossary.md#deposit-contract
 [g-deposits]: glossary.md#deposits
 [g-deposit-block]: glossary.md#deposit-block
@@ -21,20 +20,20 @@
 [g-depositing-call]: glossary.md#depositing-call
 [g-depositing-transaction]: glossary.md#depositing-transaction
 
-The [rollup node] is the component responsible for [deriving the L2 chain][derivation] from L1 blocks (and their
-associated [receipts]). This process happens in two steps:
+The [rollup node][g-rollup-node] is the component responsible for [deriving the L2 chain][g-derivation] from L1 blocks
+(and their associated [receipts][g-receipts]). This process happens in two steps:
 
-1. Read from L1 blocks and associated receipts, in order to generate [payload attributes] (essentially [a block without
-   output properties][block]).
-2. Pass the payload attributes to the [execution engine], so that the L2 block (including [output block
-   properties][block]) may be computed.
+1. Read from L1 blocks and associated receipts, in order to generate [payload attributes][g-payload-attr] (essentially
+   [a block without output properties][g-block]).
+2. Pass the payload attributes to the [execution engine][g-exec-engine], so that the L2 block (including [output block
+   properties][g-block]) may be computed.
 
 While this process is conceptually a pure function from the L1 chain to the L2 chain, it is in practice incremental. The
 L2 chain is extended whenever new L1 blocks are added to the L1 chain. Similarly, the L2 chain re-organizes whenever the
-L1 chain [re-organizes][reorg].
+L1 chain [re-organizes][g-reorg].
 
-The part of the rollup node that derives the L2 chain is called the [rollup driver]. This document is currently only
-concerned with the specification of the rollup driver.
+The part of the rollup node that derives the L2 chain is called the [rollup driver][g-rollup-driver]. This document is
+currently only concerned with the specification of the rollup driver.
 
 ## Table of Contents
 
@@ -55,8 +54,8 @@ concerned with the specification of the rollup driver.
 
 [l2-chain-derivation]: #l2-chain-derivation
 
-This section specifies how the [rollup driver] derives one L2 [deposit block][g-deposit-block] per every L1 block. The
-L2 block carries *[deposited transactions][g-deposited]* of two kinds:
+This section specifies how the [rollup driver][g-rollup-driver] derives one L2 [deposit block][g-deposit-block] per
+every L1 block. The L2 block carries *[deposited transactions][g-deposited]* of two kinds:
 
 - a single *[L1 attributes deposited transaction][g-l1-attr-deposit]* (always first)
 - zero or more *[user-deposited transactions][g-user-deposited]*
@@ -84,10 +83,11 @@ The rollup reads the following data from each L1 block:
 > them, two different deposited transaction could have the same exact hash.
 >
 > We do not use the sender's nonce to ensure uniqueness because this would require an extra L2 EVM state read from the
-> [execution engine].
+> [execution engine][g-exec-engine].
 
-The L1 attributes are read from the L1 block header, while deposits are read from the block's [receipts]. Refer to the
-[**deposit contract specification**][deposit-contract-spec] for details on how deposits are encoded as log entries.
+The L1 attributes are read from the L1 block header, while deposits are read from the block's [receipts][g-receipts].
+Refer to the [**deposit contract specification**][deposit-contract-spec] for details on how deposits are encoded as log
+entries.
 
 [deposit-contract-spec]: deposits.md#deposit-contract
 
@@ -119,8 +119,9 @@ To encode user-deposited transactions, refer to the following sections of the de
 
 [payload attributes]: #building-the-payload-attributes
 
-From the data read from L1 and the encoded transactions, the rollup node constructs an [expanded
-version][expanded-paylod] of [`PayloadAttributesV1`], which includes an additional `transactions` field.
+From the data read from L1 and the encoded transactions, the rollup node constructs the [payload
+attributes][g-payload-attr] as an [expanded version][expanded-paylod] of the [`PayloadAttributesV1`] object, which
+includes an additional `transactions` field.
 
 The object's properties must be set as follows:
 
@@ -212,8 +213,8 @@ Within the `forkChoiceState` object, the properties have the following meaning:
 (\*) where:
 
 - `FINALIZATION_DELAY_BLOCKS == 50400` (approximately 7 days worth of L1 blocks)
-- `L2_CHAIN_INCEPTION` is the [L2 chain inception] (the number of the first L1 block for which an L2 block was
-  produced).
+- `L2_CHAIN_INCEPTION` is the [L2 chain inception][g-inception] (the number of the first L1 block for which an L2 block
+  was produced).
 
 Finally, the `error()` function signals an error that must be handled by the implementation. Refer to the next section
 for more details.
@@ -267,15 +268,15 @@ previous section to each successive L1 block until we have caught up with the L1
 
 The [previous section on L2 chain derivation][l2-chain-derivation] assumes linear progression of the L1 chain. It is
 also applicable for batch processing, meaning that any given point in time, the canonical L2 chain is given by
-processing the whole L1 chain since the [L2 chain inception].
+processing the whole L1 chain since the [L2 chain inception][g-inception].
 
 > By itself, the previous section fully specifies the behaviour of the rollup driver. **The current section is
 > non-specificative** but shows how L1 re-orgs can be handled in practice.
 
-In practice, the L1 chain is processed incrementally. However, the L1 chain may occasionally re-organize, meaning the
-head of the L1 chain changes to a block that is not the child of the previous head but rather another descendant of an
-ancestor of the previous head. In that case, the rollup driver must first search for the common L1 ancestor, and can
-re-derive the L2 chain from that L1 block and onwards.
+In practice, the L1 chain is processed incrementally. However, the L1 chain may occasionally [re-organize][g-reorg],
+meaning the head of the L1 chain changes to a block that is not the child of the previous head but rather another
+descendant of an ancestor of the previous head. In that case, the rollup driver must first search for the common L1
+ancestor, and can re-derive the L2 chain from that L1 block and onwards.
 
 The starting point of the re-derivation is a pair `(refL2, nextRefL1)` where `refL2` refers to the L2 block to build
 upon and `nextRefL1` refers to the next L1 block to derive from (i.e. if `refL2` is derived from L1 block `refL1`,

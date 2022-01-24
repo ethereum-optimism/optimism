@@ -313,16 +313,17 @@ L2 derivation inputs include:
 
 [payload attributes]: glossary.md#payload-attributes
 
-This term refers to data that can be derived from [L2 chain derivation inputs][deriv-inputs] found on L1, which are then
-passed to the [execution engine][execution-engine] to construct L2 blocks.
+This term refers to an object that can be derived from [L2 chain derivation inputs][deriv-inputs] found on L1, which are
+then passed to the [execution engine][execution-engine] to construct L2 blocks.
 
-"Payload attributes" is a term that originates and is specified in the [Ethereum Engine API specification][engine-api],
-which we extend in this specification.
+The payload attributes object essentially essentially encodes a [a block without output properties][block].
 
-cf. [Execution Engine Specification](exec-engine.md)
+Payload attributes are originally specified in the [Ethereum Engine API specification][engine-api], which we expand in
+the [Execution Engine Specification](exec-engine.md).
 
-Payload attributes were historically called "L2 block inputs" in the L2 spec and you might still hear some people using
-this term.
+See also the [Building The Payload Attributes][building-payload-attr] section of the rollup node specification.
+
+[building-payload-attr]: rollup-node.md#building-the-payload-attributes
 
 ## L1 Attributes Predeployed Contract
 
