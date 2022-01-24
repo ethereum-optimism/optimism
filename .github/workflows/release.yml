@@ -505,9 +505,9 @@ jobs:
           build-args: BUILDER_TAG=${{ needs.builder.outputs.builder }}
 
   batch-submitter-service:
-    name: Publish batch-submitter-service Version ${{ needs.canary-publish.outputs.canary-docker-tag }}
-    needs: canary-publish
-    if: needs.canary-publish.outputs.batch-submitter-service != ''
+    name: Publish batch-submitter-service Version ${{ needs.release.outputs.batch-submitter-service }}
+    needs: release
+    if: needs.release.outputs.batch-submitter-service != ''
     runs-on: ubuntu-latest
 
     steps:
@@ -528,4 +528,4 @@ jobs:
           context: .
           file: ./ops/docker/Dockerfile.batch-submitter-service
           push: true
-          tags: ethereumoptimism/batch-submitter-service:${{ needs.canary-publish.outputs.batch-submitter-service }}
+          tags: ethereumoptimism/batch-submitter-service:${{ needs.release.outputs.batch-submitter-service }},ethereumoptimism/batch-submitter-service:latest
