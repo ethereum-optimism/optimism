@@ -421,9 +421,27 @@ export class CrossChainProvider implements ICrossChainProvider {
   }
 
   public async estimateL2MessageGasLimit(
-    message: MessageLike
+    message: MessageLike,
+    opts?: {
+      bufferPercent?: number
+    }
   ): Promise<BigNumber> {
-    throw new Error('Not implemented')
+    const resolved = await this.toCrossChainMessage(message)
+
+    // L2 message gas estimation is only used for L1 => L2 messages.
+    if (resolved.direction === MessageDirection.L2_TO_L1) {
+      throw new Error(`cannot estimate gas limit for L2 => L1 message`)
+    }
+
+    const estimate = await this.l2Provider.estimateGas({
+      from: resolved.sender,
+      to: resolved.target,
+      data: resolved.message,
+    })
+
+    // Return the estimate plus a buffer of 20% just in case.
+    const bufferPercent = opts?.bufferPercent || 20
+    return estimate.mul(100 + bufferPercent).div(100)
   }
 
   public async estimateMessageWaitTimeSeconds(

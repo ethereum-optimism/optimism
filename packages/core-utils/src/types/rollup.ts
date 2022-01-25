@@ -4,6 +4,9 @@ import {
   TransactionResponse,
 } from '@ethersproject/abstract-provider'
 
+/**
+ * Structure of the response returned by L2Geth nodes when querying the `rollup_getInfo` endpoint.
+ */
 export interface RollupInfo {
   mode: 'sequencer' | 'verifier'
   syncing: boolean
@@ -17,14 +20,18 @@ export interface RollupInfo {
   }
 }
 
+/**
+ * Enum used for the two transaction types (queue and direct to Sequencer).
+ */
 export enum QueueOrigin {
   Sequencer = 'sequencer',
   L1ToL2 = 'l1',
 }
 
 /**
- * Transaction & Blocks. These are the true data-types we expect
- * from running a batch submitter.
+ * JSON transaction representation when returned by L2Geth nodes. This is simply an extension to
+ * the standard transaction response type. You do NOT need to use this type unless you care about
+ * having typed access to L2-specific fields.
  */
 export interface L2Transaction extends TransactionResponse {
   l1BlockNumber: number
@@ -33,21 +40,32 @@ export interface L2Transaction extends TransactionResponse {
   rawTransaction: string
 }
 
+/**
+ * JSON block representation when returned by L2Geth nodes. Just a normal block but with
+ * L2Transaction objects instead of the standard transaction response object.
+ */
 export interface L2Block extends BlockWithTransactions {
   stateRoot: string
   transactions: [L2Transaction]
 }
 
 /**
- * BatchElement & Batch. These are the data-types of the compressed / batched
- * block data we submit to L1.
+ * Generic batch element, either a state root batch element or a transaction batch element.
  */
 export interface BatchElement {
+  // Only exists on state root batch elements.
   stateRoot: string
+
+  // Only exists on transaction batch elements.
   isSequencerTx: boolean
   rawTransaction: undefined | string
+
+  // Batch element context, exists on all batch elements.
   timestamp: number
   blockNumber: number
 }
 
+/**
+ * List of batch elements.
+ */
 export type Batch = BatchElement[]
