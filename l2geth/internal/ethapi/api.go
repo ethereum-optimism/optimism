@@ -53,6 +53,7 @@ import (
 var (
 	errOVMUnsupported = errors.New("OVM: Unsupported RPC Method")
 	errNoSequencerURL = errors.New("sequencer transaction forwarding not configured")
+	errStillSyncing   = errors.New("sequencer still syncing, cannot accept transactions")
 )
 
 const (
@@ -1597,6 +1598,12 @@ func (args *SendTxArgs) toTransaction() *types.Transaction {
 
 // SubmitTransaction is a helper function that submits tx to txPool and logs a message.
 func SubmitTransaction(ctx context.Context, b Backend, tx *types.Transaction) (common.Hash, error) {
+	// Do not accept transactions if running as the sequencer and
+	// the node is still syncing.
+	if !b.IsVerifier() && b.IsSyncing() {
+		return common.Hash{}, errStillSyncing
+	}
+
 	if err := b.SendTx(ctx, tx); err != nil {
 		return common.Hash{}, err
 	}
