@@ -25,6 +25,24 @@ contract MockMessenger is ICrossDomainMessenger {
         nonce++;
     }
 
+    function replayMessage(
+        address _target,
+        address _sender,
+        bytes calldata _message,
+        uint256 _queueIndex,
+        uint32 _oldGasLimit,
+        uint32 _newGasLimit
+    ) public {
+        emit SentMessage(
+            _target,
+            _sender,
+            _message,
+            nonce,
+            _newGasLimit
+        );
+        nonce++;
+    }
+
     struct SentMessageEventParams {
         address target;
         address sender;
