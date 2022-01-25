@@ -23,7 +23,7 @@ CREATE TABLE IF NOT EXISTS blocks (
 var createDepositsTable = `
 CREATE TABLE IF NOT EXISTS deposits (
 	queue_index INTEGER NOT NULL UNIQUE,
-	amount INTEGER NOT NULL,
+	amount TEXT NOT NULL,
 	tx_hash TEXT NOT NULL,
 	block_hash TEXT NOT NULL REFERENCES blocks(hash) ,
 	block_timestamp TEXT NOT NULL,
@@ -163,7 +163,7 @@ func (d *Database) AddIndexedBlock(block *IndexedBlock) error {
 		for _, deposit := range block.Deposits {
 			_, err = depositStmt.Exec(
 				deposit.QueueIndex,
-				deposit.Amount,
+				deposit.Amount.String(),
 				deposit.TxHash.String(),
 				block.Hash.String(),
 				block.Timestamp,
