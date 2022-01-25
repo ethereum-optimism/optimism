@@ -7,10 +7,10 @@ import (
 )
 
 func TestRPCResJSON(t *testing.T) {
-	tests := []struct{
+	tests := []struct {
 		name string
-		in *RPCRes
-		out string
+		in   *RPCRes
+		out  string
 	}{
 		{
 			"string result",
@@ -25,12 +25,12 @@ func TestRPCResJSON(t *testing.T) {
 			"object result",
 			&RPCRes{
 				JSONRPC: JSONRPCVersion,
-				Result:  struct{
+				Result: struct {
 					Str string `json:"str"`
 				}{
 					"test",
 				},
-				ID:      []byte("123"),
+				ID: []byte("123"),
 			},
 			`{"jsonrpc":"2.0","result":{"str":"test"},"id":123}`,
 		},
@@ -48,10 +48,10 @@ func TestRPCResJSON(t *testing.T) {
 			&RPCRes{
 				JSONRPC: JSONRPCVersion,
 				Error: &RPCErr{
-					Code:          1234,
-					Message:       "test err",
+					Code:    1234,
+					Message: "test err",
 				},
-				ID:      []byte("123"),
+				ID: []byte("123"),
 			},
 			`{"jsonrpc":"2.0","error":{"code":1234,"message":"test err"},"id":123}`,
 		},
