@@ -161,6 +161,7 @@ export interface CoreCrossChainMessage {
  */
 export interface CrossChainMessage extends CoreCrossChainMessage {
   direction: MessageDirection
+  gasLimit: number
   logIndex: number
   blockNumber: number
   transactionHash: string

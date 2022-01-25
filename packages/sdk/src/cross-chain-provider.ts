@@ -134,6 +134,7 @@ export class CrossChainProvider implements ICrossChainProvider {
           sender: parsed.args.sender,
           message: parsed.args.message,
           messageNonce: parsed.args.messageNonce,
+          gasLimit: parsed.args.gasLimit,
           logIndex: log.logIndex,
           blockNumber: log.blockNumber,
           transactionHash: log.transactionHash,
