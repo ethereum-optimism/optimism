@@ -6,7 +6,7 @@ require (
 	github.com/ethereum/go-ethereum v1.10.13
 	github.com/hashicorp/golang-lru v0.5.5-0.20210104140557-80c98217689d
 	github.com/holiman/uint256 v1.2.0
-	github.com/protolambda/ask v0.1.2
+	github.com/protolambda/ask v0.1.3
 	github.com/stretchr/testify v1.7.0
 	golang.org/x/term v0.0.0-20201126162022-7de9c90e9dd1
 )
