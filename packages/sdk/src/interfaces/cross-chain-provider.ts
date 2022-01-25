@@ -229,30 +229,11 @@ export interface ICrossChainProvider {
   estimateMessageWaitTimeSeconds(message: MessageLike): Promise<number>
 
   /**
-   * Returns the estimated amount of time before the message can be executed (in L1 blocks).
-   * When this is a message being sent to L1, this will return the estimated time until the message
-   * will complete its challenge period. When this is a message being sent to L2, this will return
-   * the estimated amount of time until the message will be picked up and executed on L2.
-   *
-   * @param message Message to estimate the time remaining for.
-   * @returns Estimated amount of time remaining (in blocks) before the message can be executed.
-   */
-  estimateMessageWaitTimeBlocks(message: MessageLike): Promise<number>
-
-  /**
    * Queries the current challenge period in seconds from the StateCommitmentChain.
    *
    * @returns Current challenge period in seconds.
    */
   getChallengePeriodSeconds(): Promise<number>
-
-  /**
-   * Queries the current challenge period in blocks from the StateCommitmentChain. Estimation is
-   * based on the challenge period in seconds divided by the L1 block time.
-   *
-   * @returns Current challenge period in blocks.
-   */
-  getChallengePeriodBlocks(): Promise<number>
 
   /**
    * Returns the state root that corresponds to a given message. This is the state root for the

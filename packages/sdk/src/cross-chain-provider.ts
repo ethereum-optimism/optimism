@@ -43,7 +43,6 @@ export class CrossChainProvider implements ICrossChainProvider {
   public l1Provider: Provider
   public l2Provider: Provider
   public l1ChainId: number
-  public l1BlockTime: number
   public contracts: OEContracts
   public bridges: CustomBridges
 
@@ -54,7 +53,6 @@ export class CrossChainProvider implements ICrossChainProvider {
    * @param opts.l1Provider Provider for the L1 chain, or a JSON-RPC url.
    * @param opts.l2Provider Provider for the L2 chain, or a JSON-RPC url.
    * @param opts.l1ChainId Chain ID for the L1 chain.
-   * @param opts.l1BlockTime Optional L1 block time in seconds. Defaults to 15 seconds.
    * @param opts.contracts Optional contract address overrides.
    * @param opts.bridges Optional bridge address list.
    */
@@ -62,16 +60,12 @@ export class CrossChainProvider implements ICrossChainProvider {
     l1Provider: ProviderLike
     l2Provider: ProviderLike
     l1ChainId: NumberLike
-    l1BlockTime?: NumberLike
     contracts?: DeepPartial<OEContractsLike>
     bridges?: Partial<CustomBridgesLike>
   }) {
     this.l1Provider = toProvider(opts.l1Provider)
     this.l2Provider = toProvider(opts.l2Provider)
     this.l1ChainId = toBigNumber(opts.l1ChainId).toNumber()
-    this.l1BlockTime = opts.l1BlockTime
-      ? toBigNumber(opts.l1ChainId).toNumber()
-      : 15
     this.contracts = getAllOEContracts(this.l1ChainId, {
       l1SignerOrProvider: this.l1Provider,
       l2SignerOrProvider: this.l2Provider,
@@ -366,9 +360,12 @@ export class CrossChainProvider implements ICrossChainProvider {
         if (stateRoot === null) {
           return MessageStatus.STATE_ROOT_NOT_PUBLISHED
         } else {
-          const challengePeriod = await this.getChallengePeriodBlocks()
-          const latestBlock = await this.l1Provider.getBlockNumber()
-          if (stateRoot.blockNumber + challengePeriod > latestBlock) {
+          const challengePeriod = await this.getChallengePeriodSeconds()
+          const targetBlock = await this.l1Provider.getBlock(
+            stateRoot.blockNumber
+          )
+          const latestBlock = await this.l1Provider.getBlock('latest')
+          if (targetBlock.timestamp + challengePeriod > latestBlock.timestamp) {
             return MessageStatus.IN_CHALLENGE_PERIOD
           } else {
             return MessageStatus.READY_FOR_RELAY
@@ -504,22 +501,10 @@ export class CrossChainProvider implements ICrossChainProvider {
     throw new Error('Not implemented')
   }
 
-  public async estimateMessageWaitTimeBlocks(
-    message: MessageLike
-  ): Promise<number> {
-    throw new Error('Not implemented')
-  }
-
   public async getChallengePeriodSeconds(): Promise<number> {
     const challengePeriod =
       await this.contracts.l1.StateCommitmentChain.FRAUD_PROOF_WINDOW()
     return challengePeriod.toNumber()
-  }
-
-  public async getChallengePeriodBlocks(): Promise<number> {
-    return Math.ceil(
-      (await this.getChallengePeriodSeconds()) / this.l1BlockTime
-    )
   }
 
   public async getMessageStateRoot(
