@@ -3,10 +3,13 @@ package batchsubmitter
 import (
 	"context"
 	"crypto/ecdsa"
+	"crypto/tls"
 	"fmt"
+	"github.com/ethereum/go-ethereum/rpc"
 	"net/http"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/ethereum-optimism/optimism/go/batch-submitter/drivers/proposer"
@@ -14,6 +17,7 @@ import (
 	"github.com/ethereum-optimism/optimism/go/batch-submitter/txmgr"
 	"github.com/ethereum-optimism/optimism/go/batch-submitter/utils"
 	l2ethclient "github.com/ethereum-optimism/optimism/l2geth/ethclient"
+	l2rpc "github.com/ethereum-optimism/optimism/l2geth/rpc"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
@@ -139,12 +143,12 @@ func NewBatchSubmitter(cfg Config, gitVersion string) (*BatchSubmitter, error) {
 
 	// Connect to L1 and L2 providers. Perform these last since they are the
 	// most expensive.
-	l1Client, err := dialL1EthClientWithTimeout(ctx, cfg.L1EthRpc)
+	l1Client, err := dialL1EthClientWithTimeout(ctx, cfg.L1EthRpc, cfg.DisableHTTP2)
 	if err != nil {
 		return nil, err
 	}
 
-	l2Client, err := dialL2EthClientWithTimeout(ctx, cfg.L2EthRpc)
+	l2Client, err := dialL2EthClientWithTimeout(ctx, cfg.L2EthRpc, cfg.DisableHTTP2)
 	if err != nil {
 		return nil, err
 	}
@@ -305,11 +309,28 @@ func runMetricsServer(hostname string, port uint64) {
 // dialL1EthClientWithTimeout attempts to dial the L1 provider using the
 // provided URL. If the dial doesn't complete within defaultDialTimeout seconds,
 // this method will return an error.
-func dialL1EthClientWithTimeout(ctx context.Context, url string) (
+func dialL1EthClientWithTimeout(ctx context.Context, url string, disableHTTP2 bool) (
 	*ethclient.Client, error) {
 
 	ctxt, cancel := context.WithTimeout(ctx, defaultDialTimeout)
 	defer cancel()
+
+	if strings.HasPrefix(url, "http") {
+		httpClient := new(http.Client)
+		if disableHTTP2 {
+			log.Info("Disabled HTTP/2 support in L1 eth client")
+			httpClient.Transport = &http.Transport{
+				TLSNextProto: make(map[string]func(authority string, c *tls.Conn) http.RoundTripper),
+			}
+		}
+
+		rpcClient, err := rpc.DialHTTPWithClient(url, httpClient)
+		if err != nil {
+			return nil, err
+		}
+
+		return ethclient.NewClient(rpcClient), nil
+	}
 
 	return ethclient.DialContext(ctxt, url)
 }
@@ -317,11 +338,28 @@ func dialL1EthClientWithTimeout(ctx context.Context, url string) (
 // dialL2EthClientWithTimeout attempts to dial the L2 provider using the
 // provided URL. If the dial doesn't complete within defaultDialTimeout seconds,
 // this method will return an error.
-func dialL2EthClientWithTimeout(ctx context.Context, url string) (
+func dialL2EthClientWithTimeout(ctx context.Context, url string, disableHTTP2 bool) (
 	*l2ethclient.Client, error) {
 
 	ctxt, cancel := context.WithTimeout(ctx, defaultDialTimeout)
 	defer cancel()
+
+	if strings.HasPrefix(url, "http") {
+		httpClient := new(http.Client)
+		if disableHTTP2 {
+			log.Info("Disabled HTTP/2 support in L2 eth client")
+			httpClient.Transport = &http.Transport{
+				TLSNextProto: make(map[string]func(authority string, c *tls.Conn) http.RoundTripper),
+			}
+		}
+
+		rpcClient, err := l2rpc.DialHTTPWithClient(url, httpClient)
+		if err != nil {
+			return nil, err
+		}
+
+		return l2ethclient.NewClient(rpcClient), nil
+	}
 
 	return l2ethclient.DialContext(ctxt, url)
 }

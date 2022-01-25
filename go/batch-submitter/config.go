@@ -171,6 +171,9 @@ type Config struct {
 
 	// MetricsPort is the port at which the metrics server is running.
 	MetricsPort uint64
+
+	// DisableHTTP2 disables HTTP2 support.
+	DisableHTTP2 bool
 }
 
 // NewConfig parses the Config from the provided flags or environment variables.
@@ -209,6 +212,7 @@ func NewConfig(ctx *cli.Context) (Config, error) {
 		MetricsServerEnable: ctx.GlobalBool(flags.MetricsServerEnableFlag.Name),
 		MetricsHostname:     ctx.GlobalString(flags.MetricsHostnameFlag.Name),
 		MetricsPort:         ctx.GlobalUint64(flags.MetricsPortFlag.Name),
+		DisableHTTP2:        ctx.GlobalBool(flags.HTTP2DisableFlag.Name),
 	}
 
 	err := ValidateConfig(&cfg)
