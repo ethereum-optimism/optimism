@@ -898,10 +898,9 @@ describe('CrossChainProvider', () => {
 
             await submitStateRootBatchForMessage(message)
 
-            const challengePeriod = await provider.getChallengePeriodBlocks()
-            for (let x = 0; x < challengePeriod + 1; x++) {
-              await ethers.provider.send('evm_mine', [])
-            }
+            const challengePeriod = await provider.getChallengePeriodSeconds()
+            ethers.provider.send('evm_increaseTime', [challengePeriod + 1])
+            ethers.provider.send('evm_mine', [])
 
             await l1Messenger.triggerRelayedMessageEvents([
               hashCrossChainMessage(message),
@@ -921,10 +920,9 @@ describe('CrossChainProvider', () => {
 
             await submitStateRootBatchForMessage(message)
 
-            const challengePeriod = await provider.getChallengePeriodBlocks()
-            for (let x = 0; x < challengePeriod + 1; x++) {
-              await ethers.provider.send('evm_mine', [])
-            }
+            const challengePeriod = await provider.getChallengePeriodSeconds()
+            ethers.provider.send('evm_increaseTime', [challengePeriod + 1])
+            ethers.provider.send('evm_mine', [])
 
             await l1Messenger.triggerFailedRelayedMessageEvents([
               hashCrossChainMessage(message),
@@ -944,10 +942,9 @@ describe('CrossChainProvider', () => {
 
             await submitStateRootBatchForMessage(message)
 
-            const challengePeriod = await provider.getChallengePeriodBlocks()
-            for (let x = 0; x < challengePeriod + 1; x++) {
-              await ethers.provider.send('evm_mine', [])
-            }
+            const challengePeriod = await provider.getChallengePeriodSeconds()
+            ethers.provider.send('evm_increaseTime', [challengePeriod + 1])
+            ethers.provider.send('evm_mine', [])
 
             expect(await provider.getMessageStatus(message)).to.equal(
               MessageStatus.READY_FOR_RELAY
