@@ -62,6 +62,8 @@ const procEnv = cleanEnv(process.env, {
   REPLICA_URL: str({ default: 'http://localhost:8549' }),
   REPLICA_POLLING_INTERVAL: num({ default: 10 }),
 
+  VERIFIER_URL: str({ default: 'http://localhost:8547' }),
+
   PRIVATE_KEY: str({
     default:
       '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80',
@@ -93,6 +95,9 @@ const procEnv = cleanEnv(process.env, {
   RUN_STRESS_TESTS: bool({
     default: true,
   }),
+  RUN_VERIFIER_TESTS: bool({
+    default: true,
+  }),
 
   MOCHA_TIMEOUT: num({
     default: 120_000,
@@ -117,6 +122,11 @@ export const replicaProvider = injectL2Context(
   new providers.JsonRpcProvider(procEnv.REPLICA_URL)
 )
 replicaProvider.pollingInterval = procEnv.REPLICA_POLLING_INTERVAL
+
+export const verifierProvider = injectL2Context(
+  new providers.JsonRpcProvider(procEnv.VERIFIER_URL)
+)
+verifierProvider.pollingInterval = procEnv.L2_POLLING_INTERVAL
 
 // The sequencer private key which is funded on L1
 export const l1Wallet = new Wallet(procEnv.PRIVATE_KEY, l1Provider)
