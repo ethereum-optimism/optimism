@@ -31,31 +31,48 @@ func SingleResponseHandler(code int, response string) http.HandlerFunc {
 	}
 }
 
-func RPCResponseHandler(rpcResponses map[string]string) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		body, err := ioutil.ReadAll(r.Body)
-		if err != nil {
-			panic(err)
-		}
-		req, err := proxyd.ParseRPCReq(body)
-		if err != nil {
-			panic(err)
-		}
-		res := rpcResponses[req.Method]
-		if res == "" {
-			w.WriteHeader(400)
-			return
-		}
+type RPCResponseHandler struct {
+	mtx          sync.RWMutex
+	rpcResponses map[string]string
+}
 
-		out := &proxyd.RPCRes{
-			JSONRPC: proxyd.JSONRPCVersion,
-			Result:  res,
-			ID:      req.ID,
-		}
-		enc := json.NewEncoder(w)
-		if err := enc.Encode(out); err != nil {
-			panic(err)
-		}
+func NewRPCResponseHandler(rpcResponses map[string]string) *RPCResponseHandler {
+	return &RPCResponseHandler{
+		rpcResponses: rpcResponses,
+	}
+}
+
+func (h *RPCResponseHandler) SetResponse(method, response string) {
+	h.mtx.Lock()
+	defer h.mtx.Unlock()
+	h.rpcResponses[method] = response
+}
+
+func (h *RPCResponseHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	body, err := ioutil.ReadAll(r.Body)
+	if err != nil {
+		panic(err)
+	}
+	req, err := proxyd.ParseRPCReq(body)
+	if err != nil {
+		panic(err)
+	}
+	h.mtx.RLock()
+	res := h.rpcResponses[req.Method]
+	h.mtx.RUnlock()
+	if res == "" {
+		w.WriteHeader(400)
+		return
+	}
+
+	out := &proxyd.RPCRes{
+		JSONRPC: proxyd.JSONRPCVersion,
+		Result:  res,
+		ID:      req.ID,
+	}
+	enc := json.NewEncoder(w)
+	if err := enc.Encode(out); err != nil {
+		panic(err)
 	}
 }
 

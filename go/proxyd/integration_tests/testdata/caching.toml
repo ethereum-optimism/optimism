@@ -25,3 +25,5 @@ backends = ["good"]
 eth_chainId = "main"
 net_version = "main"
 eth_getBlockByNumber = "main"
+eth_blockNumber = "main"
+eth_call = "main"
