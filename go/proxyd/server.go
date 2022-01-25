@@ -25,6 +25,7 @@ const (
 	ContextKeyReqID         = "req_id"
 	ContextKeyXForwardedFor = "x_forwarded_for"
 	MaxBatchRPCCalls        = 100
+	cacheStatusHdr          = "X-Proxyd-Cache-Status"
 )
 
 type Server struct {
@@ -159,7 +160,7 @@ func (s *Server) HandleRPC(w http.ResponseWriter, r *http.Request) {
 		}
 
 		batchRes := make([]*RPCRes, len(reqs), len(reqs))
-		var cached bool
+		var batchContainsCached bool
 		for i := 0; i < len(reqs); i++ {
 			req, err := ParseRPCReq(reqs[i])
 			if err != nil {
@@ -168,10 +169,14 @@ func (s *Server) HandleRPC(w http.ResponseWriter, r *http.Request) {
 				continue
 			}
 
+			var cached bool
 			batchRes[i], cached = s.handleSingleRPC(ctx, req)
+			if cached {
+				batchContainsCached = true
+			}
 		}
 
-		setCacheHeader(w, cached)
+		setCacheHeader(w, batchContainsCached)
 		writeBatchRPCRes(ctx, w, batchRes)
 		return
 	}
@@ -326,7 +331,6 @@ func (s *Server) populateContext(w http.ResponseWriter, r *http.Request) context
 }
 
 func setCacheHeader(w http.ResponseWriter, cached bool) {
-	const cacheStatusHdr = "X-Proxyd-Cache-Status"
 	if cached {
 		w.Header().Set(cacheStatusHdr, "HIT")
 	} else {
