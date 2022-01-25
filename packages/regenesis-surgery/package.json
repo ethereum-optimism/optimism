@@ -32,7 +32,7 @@
   },
   "devDependencies": {
     "@discoveryjs/json-ext": "^0.5.3",
-    "@eth-optimism/core-utils": "0.7.3",
+    "@eth-optimism/core-utils": "0.7.4",
     "@ethersproject/abstract-provider": "^5.5.1",
     "@ethersproject/abi": "^5.5.0",
     "@ethersproject/bignumber": "^5.5.0",
@@ -62,7 +62,7 @@
     "ethers": "^5.4.5",
     "lint-staged": "11.0.0",
     "mocha": "^9.1.2",
-    "node-fetch": "2.6.5",
+    "node-fetch": "2.6.7",
     "solc": "0.8.7-fixed",
     "ts-mocha": "^8.0.0",
     "ts-node": "^10.0.0"

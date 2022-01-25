@@ -12,11 +12,13 @@ import {
   OEContracts,
   OEContractsLike,
   MessageLike,
+  MessageRequestLike,
   TransactionLike,
   AddressLike,
   NumberLike,
   ProviderLike,
   CrossChainMessage,
+  CrossChainMessageRequest,
   MessageDirection,
   MessageStatus,
   TokenBridgeMessage,
@@ -24,6 +26,8 @@ import {
   MessageReceiptStatus,
   CustomBridges,
   CustomBridgesLike,
+  StateRoot,
+  StateRootBatch,
 } from './interfaces'
 import {
   toProvider,
@@ -50,6 +54,7 @@ export class CrossChainProvider implements ICrossChainProvider {
    * @param opts.l2Provider Provider for the L2 chain, or a JSON-RPC url.
    * @param opts.l1ChainId Chain ID for the L1 chain.
    * @param opts.contracts Optional contract address overrides.
+   * @param opts.bridges Optional bridge address list.
    */
   constructor(opts: {
     l1Provider: ProviderLike
@@ -336,7 +341,44 @@ export class CrossChainProvider implements ICrossChainProvider {
   }
 
   public async getMessageStatus(message: MessageLike): Promise<MessageStatus> {
-    throw new Error('Not implemented')
+    const resolved = await this.toCrossChainMessage(message)
+    const receipt = await this.getMessageReceipt(resolved)
+
+    if (resolved.direction === MessageDirection.L1_TO_L2) {
+      if (receipt === null) {
+        return MessageStatus.UNCONFIRMED_L1_TO_L2_MESSAGE
+      } else {
+        if (receipt.receiptStatus === MessageReceiptStatus.RELAYED_SUCCEEDED) {
+          return MessageStatus.RELAYED
+        } else {
+          return MessageStatus.FAILED_L1_TO_L2_MESSAGE
+        }
+      }
+    } else {
+      if (receipt === null) {
+        const stateRoot = await this.getMessageStateRoot(resolved)
+        if (stateRoot === null) {
+          return MessageStatus.STATE_ROOT_NOT_PUBLISHED
+        } else {
+          const challengePeriod = await this.getChallengePeriodSeconds()
+          const targetBlock = await this.l1Provider.getBlock(
+            stateRoot.blockNumber
+          )
+          const latestBlock = await this.l1Provider.getBlock('latest')
+          if (targetBlock.timestamp + challengePeriod > latestBlock.timestamp) {
+            return MessageStatus.IN_CHALLENGE_PERIOD
+          } else {
+            return MessageStatus.READY_FOR_RELAY
+          }
+        }
+      } else {
+        if (receipt.receiptStatus === MessageReceiptStatus.RELAYED_SUCCEEDED) {
+          return MessageStatus.RELAYED
+        } else {
+          return MessageStatus.READY_FOR_RELAY
+        }
+      }
+    }
   }
 
   public async getMessageReceipt(
@@ -421,12 +463,21 @@ export class CrossChainProvider implements ICrossChainProvider {
   }
 
   public async estimateL2MessageGasLimit(
-    message: MessageLike,
+    message: MessageRequestLike,
     opts?: {
       bufferPercent?: number
+      from?: string
     }
   ): Promise<BigNumber> {
-    const resolved = await this.toCrossChainMessage(message)
+    let resolved: CrossChainMessage | CrossChainMessageRequest
+    let from: string
+    if ((message as CrossChainMessage).messageNonce === undefined) {
+      resolved = message as CrossChainMessageRequest
+      from = opts?.from
+    } else {
+      resolved = await this.toCrossChainMessage(message as MessageLike)
+      from = opts?.from || (resolved as CrossChainMessage).sender
+    }
 
     // L2 message gas estimation is only used for L1 => L2 messages.
     if (resolved.direction === MessageDirection.L2_TO_L1) {
@@ -434,7 +485,7 @@ export class CrossChainProvider implements ICrossChainProvider {
     }
 
     const estimate = await this.l2Provider.estimateGas({
-      from: resolved.sender,
+      from,
       to: resolved.target,
       data: resolved.message,
     })
@@ -450,9 +501,162 @@ export class CrossChainProvider implements ICrossChainProvider {
     throw new Error('Not implemented')
   }
 
-  public async estimateMessageWaitTimeBlocks(
+  public async getChallengePeriodSeconds(): Promise<number> {
+    const challengePeriod =
+      await this.contracts.l1.StateCommitmentChain.FRAUD_PROOF_WINDOW()
+    return challengePeriod.toNumber()
+  }
+
+  public async getMessageStateRoot(
     message: MessageLike
-  ): Promise<number> {
-    throw new Error('Not implemented')
+  ): Promise<StateRoot | null> {
+    const resolved = await this.toCrossChainMessage(message)
+
+    // State roots are only a thing for L2 to L1 messages.
+    if (resolved.direction === MessageDirection.L1_TO_L2) {
+      throw new Error(`cannot get a state root for an L1 to L2 message`)
+    }
+
+    // We need the block number of the transaction that triggered the message so we can look up the
+    // state root batch that corresponds to that block number.
+    const messageTxReceipt = await this.l2Provider.getTransactionReceipt(
+      resolved.transactionHash
+    )
+
+    // Every block has exactly one transaction in it. Since there's a genesis block, the
+    // transaction index will always be one less than the block number.
+    const messageTxIndex = messageTxReceipt.blockNumber - 1
+
+    // Pull down the state root batch, we'll try to pick out the specific state root that
+    // corresponds to our message.
+    const stateRootBatch = await this.getStateRootBatchByTransactionIndex(
+      messageTxIndex
+    )
+
+    // No state root batch, no state root.
+    if (stateRootBatch === null) {
+      return null
+    }
+
+    // We have a state root batch, now we need to find the specific state root for our transaction.
+    // First we need to figure out the index of the state root within the batch we found. This is
+    // going to be the original transaction index offset by the total number of previous state
+    // roots.
+    const indexInBatch =
+      messageTxIndex - stateRootBatch.header.prevTotalElements.toNumber()
+
+    // Just a sanity check.
+    if (stateRootBatch.stateRoots.length <= indexInBatch) {
+      // Should never happen!
+      throw new Error(`state root does not exist in batch`)
+    }
+
+    return {
+      blockNumber: stateRootBatch.blockNumber,
+      header: stateRootBatch.header,
+      stateRoot: stateRootBatch.stateRoots[indexInBatch],
+    }
+  }
+
+  public async getStateBatchAppendedEventByBatchIndex(
+    batchIndex: number
+  ): Promise<ethers.Event | null> {
+    const events = await this.contracts.l1.StateCommitmentChain.queryFilter(
+      this.contracts.l1.StateCommitmentChain.filters.StateBatchAppended(
+        batchIndex
+      )
+    )
+
+    if (events.length === 0) {
+      return null
+    } else if (events.length > 1) {
+      // Should never happen!
+      throw new Error(`found more than one StateBatchAppended event`)
+    } else {
+      return events[0]
+    }
+  }
+
+  public async getStateBatchAppendedEventByTransactionIndex(
+    transactionIndex: number
+  ): Promise<ethers.Event | null> {
+    const isEventHi = (event: ethers.Event, index: number) => {
+      const prevTotalElements = event.args._prevTotalElements.toNumber()
+      return index < prevTotalElements
+    }
+
+    const isEventLo = (event: ethers.Event, index: number) => {
+      const prevTotalElements = event.args._prevTotalElements.toNumber()
+      const batchSize = event.args._batchSize.toNumber()
+      return index >= prevTotalElements + batchSize
+    }
+
+    const totalBatches: ethers.BigNumber =
+      await this.contracts.l1.StateCommitmentChain.getTotalBatches()
+    if (totalBatches.eq(0)) {
+      return null
+    }
+
+    let lowerBound = 0
+    let upperBound = totalBatches.toNumber() - 1
+    let batchEvent: ethers.Event | null =
+      await this.getStateBatchAppendedEventByBatchIndex(upperBound)
+
+    if (isEventLo(batchEvent, transactionIndex)) {
+      // Upper bound is too low, means this transaction doesn't have a corresponding state batch yet.
+      return null
+    } else if (!isEventHi(batchEvent, transactionIndex)) {
+      // Upper bound is not too low and also not too high. This means the upper bound event is the
+      // one we're looking for! Return it.
+      return batchEvent
+    }
+
+    // Binary search to find the right event. The above checks will guarantee that the event does
+    // exist and that we'll find it during this search.
+    while (lowerBound < upperBound) {
+      const middleOfBounds = Math.floor((lowerBound + upperBound) / 2)
+      batchEvent = await this.getStateBatchAppendedEventByBatchIndex(
+        middleOfBounds
+      )
+
+      if (isEventHi(batchEvent, transactionIndex)) {
+        upperBound = middleOfBounds
+      } else if (isEventLo(batchEvent, transactionIndex)) {
+        lowerBound = middleOfBounds
+      } else {
+        break
+      }
+    }
+
+    return batchEvent
+  }
+
+  public async getStateRootBatchByTransactionIndex(
+    transactionIndex: number
+  ): Promise<StateRootBatch | null> {
+    const stateBatchAppendedEvent =
+      await this.getStateBatchAppendedEventByTransactionIndex(transactionIndex)
+    if (stateBatchAppendedEvent === null) {
+      return null
+    }
+
+    const stateBatchTransaction = await stateBatchAppendedEvent.getTransaction()
+    const [stateRoots] =
+      this.contracts.l1.StateCommitmentChain.interface.decodeFunctionData(
+        'appendStateBatch',
+        stateBatchTransaction.data
+      )
+
+    return {
+      blockNumber: stateBatchAppendedEvent.blockNumber,
+      stateRoots,
+      header: {
+        batchIndex: stateBatchAppendedEvent.args._batchIndex,
+        batchRoot: stateBatchAppendedEvent.args._batchRoot,
+        batchSize: stateBatchAppendedEvent.args._batchSize,
+        prevTotalElements: stateBatchAppendedEvent.args._prevTotalElements,
+        extraData: stateBatchAppendedEvent.args._extraData,
+      },
+    }
   }
 }

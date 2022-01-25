@@ -143,7 +143,6 @@ export interface CrossChainMessageRequest {
   direction: MessageDirection
   target: string
   message: string
-  l2GasLimit: NumberLike
 }
 
 /**
@@ -212,9 +211,19 @@ export interface StateRootBatchHeader {
 }
 
 /**
- * State root batch, including header and actual state roots.
+ * Information about a state root, including header, block number, and root iself.
+ */
+export interface StateRoot {
+  blockNumber: number
+  header: StateRootBatchHeader
+  stateRoot: string
+}
+
+/**
+ * Information about a batch of state roots.
  */
 export interface StateRootBatch {
+  blockNumber: number
   header: StateRootBatchHeader
   stateRoots: string[]
 }
@@ -225,7 +234,7 @@ export interface StateRootBatch {
  * limit field (gas used depends on the amount of gas provided).
  */
 export type L1ToL2Overrides = Overrides & {
-  l2GasLimit: NumberLike
+  l2GasLimit?: NumberLike
 }
 
 /**
@@ -234,9 +243,18 @@ export type L1ToL2Overrides = Overrides & {
 export type TransactionLike = string | TransactionReceipt | TransactionResponse
 
 /**
- * Stuff that can be coerced into a message.
+ * Stuff that can be coerced into a CrossChainMessage.
  */
 export type MessageLike =
+  | CrossChainMessage
+  | TransactionLike
+  | TokenBridgeMessage
+
+/**
+ * Stuff that can be coerced into a CrossChainMessageRequest.
+ */
+export type MessageRequestLike =
+  | CrossChainMessageRequest
   | CrossChainMessage
   | TransactionLike
   | TokenBridgeMessage

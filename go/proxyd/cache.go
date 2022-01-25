@@ -2,6 +2,7 @@ package proxyd
 
 import (
 	"context"
+	"time"
 
 	"github.com/go-redis/redis/v8"
 	"github.com/golang/snappy"
@@ -16,6 +17,8 @@ type Cache interface {
 const (
 	// assuming an average RPCRes size of 3 KB
 	memoryCacheLimit = 4096
+	// Set a large ttl to avoid expirations. However, a ttl must be set for volatile-lru to take effect.
+	redisTTL = 30 * 7 * 24 * time.Hour
 )
 
 type cache struct {
@@ -67,7 +70,7 @@ func (c *redisCache) Get(ctx context.Context, key string) (string, error) {
 }
 
 func (c *redisCache) Put(ctx context.Context, key string, value string) error {
-	err := c.rdb.Set(ctx, key, value, 0).Err()
+	err := c.rdb.SetEX(ctx, key, value, redisTTL).Err()
 	if err != nil {
 		RecordRedisError("CacheSet")
 	}
