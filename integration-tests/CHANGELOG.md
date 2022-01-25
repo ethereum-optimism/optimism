@@ -1,5 +1,16 @@
 # @eth-optimism/integration-tests
 
+## 0.5.0
+
+### Minor Changes
+
+- c1e923f9: Updates to work with a live network
+
+### Patch Changes
+
+- 968fb38d: Use hardhat-ethers for importing factories in integration tests
+- a7fbafa8: Split OVMMulticall.sol into Multicall.sol & OVMContext.sol
+
 ## 0.4.2
 
 ### Patch Changes

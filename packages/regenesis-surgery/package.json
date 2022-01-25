@@ -32,7 +32,7 @@
   },
   "devDependencies": {
     "@discoveryjs/json-ext": "^0.5.3",
-    "@eth-optimism/core-utils": "0.7.3",
+    "@eth-optimism/core-utils": "0.7.4",
     "@ethersproject/abstract-provider": "^5.5.1",
     "@ethersproject/abi": "^5.5.0",
     "@ethersproject/bignumber": "^5.5.0",
