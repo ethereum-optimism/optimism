@@ -12,11 +12,13 @@ import {
   OEContracts,
   OEContractsLike,
   MessageLike,
+  MessageRequestLike,
   TransactionLike,
   AddressLike,
   NumberLike,
   ProviderLike,
   CrossChainMessage,
+  CrossChainMessageRequest,
   MessageDirection,
   MessageStatus,
   TokenBridgeMessage,
@@ -464,12 +466,21 @@ export class CrossChainProvider implements ICrossChainProvider {
   }
 
   public async estimateL2MessageGasLimit(
-    message: MessageLike,
+    message: MessageRequestLike,
     opts?: {
       bufferPercent?: number
+      from?: string
     }
   ): Promise<BigNumber> {
-    const resolved = await this.toCrossChainMessage(message)
+    let resolved: CrossChainMessage | CrossChainMessageRequest
+    let from: string
+    if ((message as CrossChainMessage).messageNonce === undefined) {
+      resolved = message as CrossChainMessageRequest
+      from = opts?.from
+    } else {
+      resolved = await this.toCrossChainMessage(message as MessageLike)
+      from = opts?.from || (resolved as CrossChainMessage).sender
+    }
 
     // L2 message gas estimation is only used for L1 => L2 messages.
     if (resolved.direction === MessageDirection.L2_TO_L1) {
@@ -477,7 +488,7 @@ export class CrossChainProvider implements ICrossChainProvider {
     }
 
     const estimate = await this.l2Provider.estimateGas({
-      from: resolved.sender,
+      from,
       to: resolved.target,
       data: resolved.message,
     })

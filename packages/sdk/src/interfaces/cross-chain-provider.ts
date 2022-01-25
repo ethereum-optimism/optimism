@@ -3,6 +3,7 @@ import { Provider, BlockTag } from '@ethersproject/abstract-provider'
 
 import {
   MessageLike,
+  MessageRequestLike,
   TransactionLike,
   AddressLike,
   NumberLike,
@@ -205,12 +206,14 @@ export interface ICrossChainProvider {
    * @param message Message get a gas estimate for.
    * @param opts Options object.
    * @param opts.bufferPercent Percentage of gas to add to the estimate. Defaults to 20.
+   * @param opts.from Address to use as the sender.
    * @returns Estimates L2 gas limit.
    */
   estimateL2MessageGasLimit(
-    message: MessageLike,
+    message: MessageRequestLike,
     opts?: {
       bufferPercent?: number
+      from?: string
     }
   ): Promise<BigNumber>
 
