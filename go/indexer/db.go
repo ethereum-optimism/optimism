@@ -72,6 +72,7 @@ func (b IndexedBlock) String() string {
 }
 
 type Deposit struct {
+	Amount     *big.Int
 	QueueIndex uint64
 	TxHash     common.Hash
 	L1TxOrigin common.Address
@@ -81,8 +82,8 @@ type Deposit struct {
 }
 
 func (d Deposit) String() string {
-	return fmt.Sprintf("Deposit { QueueIndex: %d, TxHash: %s, L1TxOrigin: %s, "+
-		"Target: %s, GasLimit: %s, Data: %x }", d.QueueIndex, d.TxHash,
+	return fmt.Sprintf("Deposit { Amount: %s, QueueIndex: %d, TxHash: %s, L1TxOrigin: %s, "+
+		"Target: %s, GasLimit: %s, Data: %x }", d.Amount, d.QueueIndex, d.TxHash,
 		d.L1TxOrigin, d.Target, d.GasLimit, d.Data)
 }
 
@@ -162,7 +163,7 @@ func (d *Database) AddIndexedBlock(block *IndexedBlock) error {
 		for _, deposit := range block.Deposits {
 			_, err = depositStmt.Exec(
 				deposit.QueueIndex,
-				0,
+				deposit.Amount,
 				deposit.TxHash.String(),
 				block.Hash.String(),
 				block.Timestamp,

@@ -33,6 +33,7 @@ type Backend interface {
 	HeaderBackend
 
 	SubscribeNewHead(context.Context, chan<- *types.Header) (ethereum.Subscription, error)
+	TransactionReceipt(context.Context, common.Hash) (*types.Receipt, error)
 }
 
 var (
@@ -171,6 +172,10 @@ func (s *Service) Loop(ctx context.Context) {
 	}
 }
 
+func (s *Service) fetchTransaction(ctx context.Context, hash common.Hash) (*types.Receipt, error) {
+	return s.cfg.L1Client.TransactionReceipt(ctx, hash)
+}
+
 func (s *Service) fetchBlockEventIterator(start, end uint64) (
 	*ctc.CanonicalTransactionChainTransactionEnqueuedIterator, error) {
 
@@ -239,8 +244,13 @@ func (s *Service) Update(start uint64, newHeader *types.Header) error {
 
 	depositsByBlockhash := make(map[common.Hash][]Deposit)
 	for iter.Next() {
+		tx, err := s.fetchTransaction(context.Background(), iter.Event.Raw.TxHash)
+		if err != nil {
+			return err
+		}
 		depositsByBlockhash[iter.Event.Raw.BlockHash] = append(
 			depositsByBlockhash[iter.Event.Raw.BlockHash], Deposit{
+				Amount:     new(big.Int).SetBytes(tx.Logs[0].Data),
 				QueueIndex: iter.Event.QueueIndex.Uint64(),
 				TxHash:     iter.Event.Raw.TxHash,
 				L1TxOrigin: iter.Event.L1TxOrigin,
