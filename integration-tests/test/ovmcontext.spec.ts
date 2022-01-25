@@ -1,5 +1,3 @@
-import { expect } from './shared/setup'
-
 /* Imports: External */
 import { ethers } from 'hardhat'
 import { injectL2Context, expectApprox } from '@eth-optimism/core-utils'
@@ -7,7 +5,13 @@ import { predeploys } from '@eth-optimism/contracts'
 import { Contract, BigNumber } from 'ethers'
 
 /* Imports: Internal */
-import { l2Provider, l1Provider, IS_LIVE_NETWORK } from './shared/utils'
+import { expect } from './shared/setup'
+import {
+  l2Provider,
+  l1Provider,
+  envConfig,
+  DEFAULT_TEST_GAS_L1,
+} from './shared/utils'
 import { OptimismEnv } from './shared/env'
 import { Direction } from './shared/watcher-utils'
 
@@ -23,29 +27,25 @@ describe('OVM Context: Layer 2 EVM Context', () => {
     env = await OptimismEnv.new()
   })
 
-  let OVMMulticall: Contract
+  let Multicall: Contract
   let OVMContextStorage: Contract
   beforeEach(async () => {
     const OVMContextStorageFactory = await ethers.getContractFactory(
       'OVMContextStorage',
       env.l2Wallet
     )
-    const OVMMulticallFactory = await ethers.getContractFactory(
-      'OVMMulticall',
+    const MulticallFactory = await ethers.getContractFactory(
+      'Multicall',
       env.l2Wallet
     )
 
     OVMContextStorage = await OVMContextStorageFactory.deploy()
     await OVMContextStorage.deployTransaction.wait()
-    OVMMulticall = await OVMMulticallFactory.deploy()
-    await OVMMulticall.deployTransaction.wait()
+    Multicall = await MulticallFactory.deploy()
+    await Multicall.deployTransaction.wait()
   })
 
-  let numTxs = 5
-  if (IS_LIVE_NETWORK) {
-    // Tests take way too long if we don't reduce the number of txs here.
-    numTxs = 1
-  }
+  const numTxs = envConfig.OVMCONTEXT_SPEC_NUM_TXS
 
   it('enqueue: L1 contextual values are correctly set in L2', async () => {
     for (let i = 0; i < numTxs; i++) {
@@ -54,7 +54,10 @@ describe('OVM Context: Layer 2 EVM Context', () => {
       const tx = await env.l1Messenger.sendMessage(
         OVMContextStorage.address,
         '0x',
-        2_000_000
+        2_000_000,
+        {
+          gasLimit: DEFAULT_TEST_GAS_L1,
+        }
       )
 
       // Wait for the transaction to be sent over to L2.
@@ -89,7 +92,7 @@ describe('OVM Context: Layer 2 EVM Context', () => {
       const coinbase = await OVMContextStorage.coinbases(i)
       expect(coinbase).to.equal(predeploys.OVM_SequencerFeeVault)
     }
-  }).timeout(150000) // this specific test takes a while because it involves L1 to L2 txs
+  })
 
   it('should set correct OVM Context for `eth_call`', async () => {
     for (let i = 0; i < numTxs; i++) {
@@ -101,21 +104,23 @@ describe('OVM Context: Layer 2 EVM Context', () => {
       await dummyTx.wait()
 
       const block = await L2Provider.getBlockWithTransactions('latest')
-      const [, returnData] = await OVMMulticall.callStatic.aggregate(
+      const [, returnData] = await Multicall.callStatic.aggregate(
         [
           [
-            OVMMulticall.address,
-            OVMMulticall.interface.encodeFunctionData(
+            OVMContextStorage.address,
+            OVMContextStorage.interface.encodeFunctionData(
               'getCurrentBlockTimestamp'
             ),
           ],
           [
-            OVMMulticall.address,
-            OVMMulticall.interface.encodeFunctionData('getCurrentBlockNumber'),
+            OVMContextStorage.address,
+            OVMContextStorage.interface.encodeFunctionData(
+              'getCurrentBlockNumber'
+            ),
           ],
           [
-            OVMMulticall.address,
-            OVMMulticall.interface.encodeFunctionData(
+            OVMContextStorage.address,
+            OVMContextStorage.interface.encodeFunctionData(
               'getCurrentL1BlockNumber'
             ),
           ],
@@ -141,19 +146,23 @@ describe('OVM Context: Layer 2 EVM Context', () => {
    */
 
   it('should return same timestamp and blocknumbers between `eth_call` and `rollup_getInfo`', async () => {
-    // As atomically as possible, call `rollup_getInfo` and OVMMulticall for the
+    // As atomically as possible, call `rollup_getInfo` and Multicall for the
     // blocknumber and timestamp. If this is not atomic, then the sequencer can
     // happend to update the timestamp between the `eth_call` and the `rollup_getInfo`
     const [info, [, returnData]] = await Promise.all([
       L2Provider.send('rollup_getInfo', []),
-      OVMMulticall.callStatic.aggregate([
+      Multicall.callStatic.aggregate([
         [
-          OVMMulticall.address,
-          OVMMulticall.interface.encodeFunctionData('getCurrentBlockTimestamp'),
+          OVMContextStorage.address,
+          OVMContextStorage.interface.encodeFunctionData(
+            'getCurrentBlockTimestamp'
+          ),
         ],
         [
-          OVMMulticall.address,
-          OVMMulticall.interface.encodeFunctionData('getCurrentL1BlockNumber'),
+          OVMContextStorage.address,
+          OVMContextStorage.interface.encodeFunctionData(
+            'getCurrentL1BlockNumber'
+          ),
         ],
       ]),
     ])

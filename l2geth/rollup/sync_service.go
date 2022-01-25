@@ -838,12 +838,13 @@ func (s *SyncService) applyTransactionToTip(tx *types.Transaction) error {
 	// Set the L1 blocknumber
 	if l1BlockNumber == nil {
 		tx.SetL1BlockNumber(bn)
-	} else if l1BlockNumber.Uint64() > s.GetLatestL1BlockNumber() {
+	} else if l1BlockNumber.Uint64() > bn {
 		s.SetLatestL1BlockNumber(l1BlockNumber.Uint64())
-	} else {
+	} else if l1BlockNumber.Uint64() < bn {
 		// l1BlockNumber < latest l1BlockNumber
 		// indicates an error
-		log.Error("Blocknumber monotonicity violation", "hash", tx.Hash().Hex())
+		log.Error("Blocknumber monotonicity violation", "hash", tx.Hash().Hex(),
+			"new", l1BlockNumber.Uint64(), "old", bn)
 	}
 
 	// Store the latest timestamp value

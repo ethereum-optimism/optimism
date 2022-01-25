@@ -141,6 +141,32 @@ jobs:
             kubectl rollout restart statefulset nightly-dtl --namespace nightly
             kubectl rollout restart deployment nightly-gas-oracle --namespace nightly
             kubectl rollout restart deployment edge-proxyd --namespace nightly
+  run-itests-nightly:
+    docker:
+      - image: cimg/base:2021.04
+    steps:
+      - setup_remote_docker:
+          version: 19.03.13
+      - run:
+          name: Run integration tests
+          command: |
+            docker run \
+              --env PRIVATE_KEY=$NIGHTLY_ITESTS_PRIVKEY \
+              --env L1_URL=https://nightly-l1.optimism-stacks.net \
+              --env L2_URL=https://nightly-l2.optimism-stacks.net \
+              --env ADDRESS_MANAGER=0x22D4E211ef8704f2ca2d6dfdB32125E2530ACE3e \
+              --env L2_CHAINID=69 \
+              --env MOCHA_BAIL=true \
+              --env MOCHA_TIMEOUT=300000 \
+              --env L1_GAS_PRICE=onchain \
+              --env L2_GAS_PRICE=onchain \
+              --env RUN_DEBUG_TRACE_TESTS=false \
+              --env RUN_REPLICA_TESTS=false \
+              --env RUN_STRESS_TESTS=false \
+              --env OVMCONTEXT_SPEC_NUM_TXS=1 \
+              --env DTL_ENQUEUE_CONFIRMATIONS=12 \
+              "$STACKMAN_REPO/integration-tests:nightly" \
+              yarn test:integration:live
   notify:
     docker:
       - image: cimg/base:2021.04
@@ -152,6 +178,18 @@ jobs:
 
 
 workflows:
+  nightly-itests:
+    triggers:
+      - schedule:
+          cron: "0 1 * * * "
+          filters:
+            branches:
+              only:
+                - develop
+    jobs:
+      - run-itests-nightly:
+          context:
+            - optimism
   nightly:
     triggers:
       - schedule:

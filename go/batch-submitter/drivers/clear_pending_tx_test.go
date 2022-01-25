@@ -32,12 +32,13 @@ func init() {
 }
 
 var (
-	testPrivKey    *ecdsa.PrivateKey
-	testWalletAddr common.Address
-	testChainID    *big.Int // 1
-	testNonce      = uint64(2)
-	testGasPrice   *big.Int // 3
-	testGasLimit   = uint64(4)
+	testPrivKey     *ecdsa.PrivateKey
+	testWalletAddr  common.Address
+	testChainID     = big.NewInt(1)
+	testNonce       = uint64(2)
+	testGasPrice    = big.NewInt(3)
+	testGasLimit    = uint64(4)
+	testBlockNumber = uint64(5)
 )
 
 // TestCraftClearingTx asserts that CraftClearingTx produces the expected
@@ -102,11 +103,20 @@ func TestSignClearingTxEstimateGasFail(t *testing.T) {
 }
 
 type clearPendingTxHarness struct {
-	l1Client drivers.L1Client
+	l1Client *mock.L1Client
 	txMgr    txmgr.TxManager
 }
 
-func newClearPendingTxHarness(l1ClientConfig mock.L1ClientConfig) *clearPendingTxHarness {
+func newClearPendingTxHarnessWithNumConfs(
+	l1ClientConfig mock.L1ClientConfig,
+	numConfirmations uint64,
+) *clearPendingTxHarness {
+
+	if l1ClientConfig.BlockNumber == nil {
+		l1ClientConfig.BlockNumber = func(_ context.Context) (uint64, error) {
+			return testBlockNumber, nil
+		}
+	}
 	if l1ClientConfig.NonceAt == nil {
 		l1ClientConfig.NonceAt = func(_ context.Context, _ common.Address, _ *big.Int) (uint64, error) {
 			return testNonce, nil
@@ -125,12 +135,17 @@ func newClearPendingTxHarness(l1ClientConfig mock.L1ClientConfig) *clearPendingT
 		GasRetryIncrement:    utils.GasPriceFromGwei(5),
 		ResubmissionTimeout:  time.Second,
 		ReceiptQueryInterval: 50 * time.Millisecond,
+		NumConfirmations:     numConfirmations,
 	}, l1Client)
 
 	return &clearPendingTxHarness{
 		l1Client: l1Client,
 		txMgr:    txMgr,
 	}
+}
+
+func newClearPendingTxHarness(l1ClientConfig mock.L1ClientConfig) *clearPendingTxHarness {
+	return newClearPendingTxHarnessWithNumConfs(l1ClientConfig, 1)
 }
 
 // TestClearPendingTxClearingTxÇonfirms asserts the happy path where our
@@ -142,7 +157,8 @@ func TestClearPendingTxClearingTxConfirms(t *testing.T) {
 		},
 		TransactionReceipt: func(_ context.Context, txHash common.Hash) (*types.Receipt, error) {
 			return &types.Receipt{
-				TxHash: txHash,
+				TxHash:      txHash,
+				BlockNumber: big.NewInt(int64(testBlockNumber)),
 			}, nil
 		},
 	})
@@ -189,4 +205,43 @@ func TestClearPendingTxTimeout(t *testing.T) {
 		testPrivKey, testChainID,
 	)
 	require.Equal(t, txmgr.ErrPublishTimeout, err)
+}
+
+// TestClearPendingTxMultipleConfs tests we wait the appropriate number of
+// confirmations for the clearing transaction to confirm.
+func TestClearPendingTxMultipleConfs(t *testing.T) {
+	const numConfs = 2
+
+	// Instantly confirm transaction.
+	h := newClearPendingTxHarnessWithNumConfs(mock.L1ClientConfig{
+		SendTransaction: func(_ context.Context, _ *types.Transaction) error {
+			return nil
+		},
+		TransactionReceipt: func(_ context.Context, txHash common.Hash) (*types.Receipt, error) {
+			return &types.Receipt{
+				TxHash:      txHash,
+				BlockNumber: big.NewInt(int64(testBlockNumber)),
+			}, nil
+		},
+	}, numConfs)
+
+	// The txmgr should timeout waiting for the txn to confirm.
+	err := drivers.ClearPendingTx(
+		"test", context.Background(), h.txMgr, h.l1Client, testWalletAddr,
+		testPrivKey, testChainID,
+	)
+	require.Equal(t, txmgr.ErrPublishTimeout, err)
+
+	// Now set the chain height to the earliest the transaction will be
+	// considered sufficiently confirmed.
+	h.l1Client.SetBlockNumberFunc(func(_ context.Context) (uint64, error) {
+		return testBlockNumber + numConfs - 1, nil
+	})
+
+	// Publishing should succeed.
+	err = drivers.ClearPendingTx(
+		"test", context.Background(), h.txMgr, h.l1Client, testWalletAddr,
+		testPrivKey, testChainID,
+	)
+	require.Nil(t, err)
 }

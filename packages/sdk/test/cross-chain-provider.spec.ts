@@ -1,7 +1,9 @@
-import { expect } from './setup'
 import { Provider } from '@ethersproject/abstract-provider'
+import { expectApprox } from '@eth-optimism/core-utils'
 import { Contract } from 'ethers'
 import { ethers } from 'hardhat'
+
+import { expect } from './setup'
 import {
   CrossChainProvider,
   MessageDirection,
@@ -1090,7 +1092,93 @@ describe('CrossChainProvider', () => {
   })
 
   describe('estimateL2MessageGasLimit', () => {
-    it('should perform a gas estimation of the L2 action')
+    let provider: CrossChainProvider
+    beforeEach(async () => {
+      provider = new CrossChainProvider({
+        l1Provider: ethers.provider,
+        l2Provider: ethers.provider,
+        l1ChainId: 31337,
+      })
+    })
+
+    describe('when the message is an L1 to L2 message', () => {
+      it('should return an accurate gas estimate plus a ~20% buffer', async () => {
+        const message = {
+          direction: MessageDirection.L1_TO_L2,
+          target: '0x' + '11'.repeat(20),
+          sender: '0x' + '22'.repeat(20),
+          message: '0x' + '33'.repeat(64),
+          messageNonce: 1234,
+          logIndex: 0,
+          blockNumber: 1234,
+          transactionHash: '0x' + '44'.repeat(32),
+        }
+
+        const estimate = await ethers.provider.estimateGas({
+          to: message.target,
+          from: message.sender,
+          data: message.message,
+        })
+
+        // Approximately 20% greater than the estimate, +/- 1%.
+        expectApprox(
+          await provider.estimateL2MessageGasLimit(message),
+          estimate.mul(120).div(100),
+          {
+            percentUpperDeviation: 1,
+            percentLowerDeviation: 1,
+          }
+        )
+      })
+
+      it('should return an accurate gas estimate when a custom buffer is provided', async () => {
+        const message = {
+          direction: MessageDirection.L1_TO_L2,
+          target: '0x' + '11'.repeat(20),
+          sender: '0x' + '22'.repeat(20),
+          message: '0x' + '33'.repeat(64),
+          messageNonce: 1234,
+          logIndex: 0,
+          blockNumber: 1234,
+          transactionHash: '0x' + '44'.repeat(32),
+        }
+
+        const estimate = await ethers.provider.estimateGas({
+          to: message.target,
+          from: message.sender,
+          data: message.message,
+        })
+
+        // Approximately 30% greater than the estimate, +/- 1%.
+        expectApprox(
+          await provider.estimateL2MessageGasLimit(message, {
+            bufferPercent: 30,
+          }),
+          estimate.mul(130).div(100),
+          {
+            percentUpperDeviation: 1,
+            percentLowerDeviation: 1,
+          }
+        )
+      })
+    })
+
+    describe('when the message is an L2 to L1 message', () => {
+      it('should throw an error', async () => {
+        const message = {
+          direction: MessageDirection.L2_TO_L1,
+          target: '0x' + '11'.repeat(20),
+          sender: '0x' + '22'.repeat(20),
+          message: '0x' + '33'.repeat(64),
+          messageNonce: 1234,
+          logIndex: 0,
+          blockNumber: 1234,
+          transactionHash: '0x' + '44'.repeat(32),
+        }
+
+        await expect(provider.estimateL2MessageGasLimit(message)).to.be.rejected
+      })
+    })
   })
 
   describe('estimateMessageWaitTimeBlocks', () => {

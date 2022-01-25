@@ -1,11 +1,10 @@
-import { expect } from '../../../setup'
-
 /* External Imports */
 import { ethers } from 'hardhat'
 import { Signer, ContractFactory, Contract, constants } from 'ethers'
 import { smockit, MockContract } from '@eth-optimism/smock'
 
 /* Internal Imports */
+import { expect } from '../../../setup'
 import {
   makeAddressManager,
   setProxyTarget,

@@ -1,5 +1,6 @@
 import { getContractInterface } from '@eth-optimism/contracts'
 import { ethers } from 'ethers'
+
 import { CoreCrossChainMessage } from '../interfaces'
 
 /**

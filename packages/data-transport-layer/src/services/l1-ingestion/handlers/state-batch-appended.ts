@@ -4,6 +4,7 @@ import { getContractFactory } from '@eth-optimism/contracts'
 import { BigNumber } from 'ethers'
 
 /* Imports: Internal */
+import { MissingElementError } from './errors'
 import {
   StateRootBatchEntry,
   StateBatchAppendedExtraData,
@@ -11,7 +12,6 @@ import {
   StateRootEntry,
   EventHandlerSet,
 } from '../../../types'
-import { MissingElementError } from './errors'
 
 export const handleEventsStateBatchAppended: EventHandlerSet<
   StateBatchAppendedEvent,

@@ -1,19 +1,15 @@
-import { expect } from './shared/setup'
-
 /* Imports: External */
 import { BigNumber, utils } from 'ethers'
 import { serialize } from '@ethersproject/transactions'
 import { predeploys, getContractFactory } from '@eth-optimism/contracts'
 
 /* Imports: Internal */
-import { isLiveNetwork } from './shared/utils'
+import { expect } from './shared/setup'
+import { hardhatTest } from './shared/utils'
 import { OptimismEnv } from './shared/env'
 import { Direction } from './shared/watcher-utils'
 
 const setPrices = async (env: OptimismEnv, value: number | BigNumber) => {
-  if (isLiveNetwork()) {
-    return
-  }
   const gasPrice = await env.gasPriceOracle.setGasPrice(value)
   await gasPrice.wait()
   const baseFee = await env.gasPriceOracle.setL1BaseFee(value)
@@ -28,24 +24,25 @@ describe('Fee Payment Integration Tests', async () => {
     env = await OptimismEnv.new()
   })
 
-  if (!isLiveNetwork()) {
-    it(`should return eth_gasPrice equal to OVM_GasPriceOracle.gasPrice`, async () => {
+  hardhatTest(
+    `should return eth_gasPrice equal to OVM_GasPriceOracle.gasPrice`,
+    async () => {
       const assertGasPrice = async () => {
         const gasPrice = await env.l2Wallet.getGasPrice()
         const oracleGasPrice = await env.gasPriceOracle.gasPrice()
         expect(gasPrice).to.deep.equal(oracleGasPrice)
       }
 
-      assertGasPrice()
+      await assertGasPrice()
       // update the gas price
       const tx = await env.gasPriceOracle.setGasPrice(1000)
       await tx.wait()
 
-      assertGasPrice()
-    })
-  }
+      await assertGasPrice()
+    }
+  )
 
-  it('Paying a nonzero but acceptable gasPrice fee', async () => {
+  hardhatTest('Paying a nonzero but acceptable gasPrice fee', async () => {
     await setPrices(env, 1000)
 
     const amount = utils.parseEther('0.0000001')
@@ -97,7 +94,7 @@ describe('Fee Payment Integration Tests', async () => {
     await setPrices(env, 1)
   })
 
-  it('should compute correct fee', async () => {
+  hardhatTest('should compute correct fee', async () => {
     await setPrices(env, 1000)
 
     const preBalance = await env.l2Wallet.getBalance()
@@ -149,39 +146,38 @@ describe('Fee Payment Integration Tests', async () => {
     await expect(env.sequencerFeeVault.withdraw()).to.be.rejected
   })
 
-  it('should be able to withdraw fees back to L1 once the minimum is met', async function () {
-    if (isLiveNetwork()) {
-      this.skip()
-      return
+  hardhatTest(
+    'should be able to withdraw fees back to L1 once the minimum is met',
+    async () => {
+      const l1FeeWallet = await env.sequencerFeeVault.l1FeeWallet()
+      const balanceBefore = await env.l1Wallet.provider.getBalance(l1FeeWallet)
+      const withdrawalAmount =
+        await env.sequencerFeeVault.MIN_WITHDRAWAL_AMOUNT()
+
+      // Transfer the minimum required to withdraw.
+      const tx = await env.l2Wallet.sendTransaction({
+        to: env.sequencerFeeVault.address,
+        value: withdrawalAmount,
+        gasLimit: 500000,
+      })
+      await tx.wait()
+
+      const vaultBalance = await env.ovmEth.balanceOf(
+        env.sequencerFeeVault.address
+      )
+
+      const withdrawTx = await env.sequencerFeeVault.withdraw()
+
+      // Wait for the withdrawal to be relayed to L1.
+      await withdrawTx.wait()
+      await env.relayXDomainMessages(withdrawTx)
+      await env.waitForXDomainTransaction(withdrawTx, Direction.L2ToL1)
+
+      // Balance difference should be equal to old L2 balance.
+      const balanceAfter = await env.l1Wallet.provider.getBalance(l1FeeWallet)
+      expect(balanceAfter.sub(balanceBefore)).to.deep.equal(
+        BigNumber.from(vaultBalance)
+      )
     }
-
-    const l1FeeWallet = await env.sequencerFeeVault.l1FeeWallet()
-    const balanceBefore = await env.l1Wallet.provider.getBalance(l1FeeWallet)
-    const withdrawalAmount = await env.sequencerFeeVault.MIN_WITHDRAWAL_AMOUNT()
-
-    // Transfer the minimum required to withdraw.
-    const tx = await env.l2Wallet.sendTransaction({
-      to: env.sequencerFeeVault.address,
-      value: withdrawalAmount,
-      gasLimit: 500000,
-    })
-    await tx.wait()
-
-    const vaultBalance = await env.ovmEth.balanceOf(
-      env.sequencerFeeVault.address
-    )
-
-    const withdrawTx = await env.sequencerFeeVault.withdraw()
-
-    // Wait for the withdrawal to be relayed to L1.
-    await withdrawTx.wait()
-    await env.relayXDomainMessages(withdrawTx)
-    await env.waitForXDomainTransaction(withdrawTx, Direction.L2ToL1)
-
-    // Balance difference should be equal to old L2 balance.
-    const balanceAfter = await env.l1Wallet.provider.getBalance(l1FeeWallet)
-    expect(balanceAfter.sub(balanceBefore)).to.deep.equal(
-      BigNumber.from(vaultBalance)
-    )
-  })
+  )
 })

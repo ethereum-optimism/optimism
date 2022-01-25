@@ -1,5 +1,3 @@
-import { expect } from './shared/setup'
-
 /* Imports: External */
 import { Wallet, utils, BigNumber } from 'ethers'
 import { serialize } from '@ethersproject/transactions'
@@ -7,13 +5,17 @@ import { predeploys } from '@eth-optimism/contracts'
 import { expectApprox } from '@eth-optimism/core-utils'
 
 /* Imports: Internal */
+import { expect } from './shared/setup'
 import { Direction } from './shared/watcher-utils'
-
-import { isMainnet, PROXY_SEQUENCER_ENTRYPOINT_ADDRESS } from './shared/utils'
+import {
+  DEFAULT_TEST_GAS_L1,
+  DEFAULT_TEST_GAS_L2,
+  envConfig,
+  PROXY_SEQUENCER_ENTRYPOINT_ADDRESS,
+  withdrawalTest,
+} from './shared/utils'
 import { OptimismEnv } from './shared/env'
 
-const DEFAULT_TEST_GAS_L1 = 330_000
-const DEFAULT_TEST_GAS_L2 = 1_300_000
 // TX size enforced by CTC:
 const MAX_ROLLUP_TX_SIZE = 50_000
 
@@ -183,13 +185,7 @@ describe('Native ETH Integration Tests', async () => {
     ).to.be.reverted
   })
 
-  it('withdraw', async function () {
-    if (await isMainnet(env)) {
-      console.log('Skipping withdrawals test on mainnet.')
-      this.skip()
-      return
-    }
-
+  withdrawalTest('withdraw', async () => {
     const withdrawAmount = BigNumber.from(3)
     const preBalances = await getBalances(env)
     expect(
@@ -231,13 +227,7 @@ describe('Native ETH Integration Tests', async () => {
     )
   })
 
-  it('withdrawTo', async function () {
-    if (await isMainnet(env)) {
-      console.log('Skipping withdrawals test on mainnet.')
-      this.skip()
-      return
-    }
-
+  withdrawalTest('withdrawTo', async () => {
     const withdrawAmount = BigNumber.from(3)
 
     const preBalances = await getBalances(env)
@@ -295,73 +285,71 @@ describe('Native ETH Integration Tests', async () => {
     )
   })
 
-  it('deposit, transfer, withdraw', async function () {
-    if (await isMainnet(env)) {
-      console.log('Skipping withdrawals test on mainnet.')
-      this.skip()
-      return
-    }
-
-    // 1. deposit
-    const amount = utils.parseEther('1')
-    await env.waitForXDomainTransaction(
-      env.l1Bridge.depositETH(DEFAULT_TEST_GAS_L2, '0xFFFF', {
-        value: amount,
-        gasLimit: DEFAULT_TEST_GAS_L1,
-      }),
-      Direction.L1ToL2
-    )
-
-    // 2. transfer to another address
-    const other = Wallet.createRandom().connect(env.l2Wallet.provider)
-    const tx = await env.l2Wallet.sendTransaction({
-      to: other.address,
-      value: amount,
-    })
-    await tx.wait()
-
-    const l1BalanceBefore = await other
-      .connect(env.l1Wallet.provider)
-      .getBalance()
-
-    // 3. do withdrawal
-    const withdrawnAmount = utils.parseEther('0.95')
-    const transaction = await env.l2Bridge
-      .connect(other)
-      .withdraw(
-        predeploys.OVM_ETH,
-        withdrawnAmount,
-        DEFAULT_TEST_GAS_L1,
-        '0xFFFF'
+  withdrawalTest(
+    'deposit, transfer, withdraw',
+    async () => {
+      // 1. deposit
+      const amount = utils.parseEther('1')
+      await env.waitForXDomainTransaction(
+        env.l1Bridge.depositETH(DEFAULT_TEST_GAS_L2, '0xFFFF', {
+          value: amount,
+          gasLimit: DEFAULT_TEST_GAS_L1,
+        }),
+        Direction.L1ToL2
       )
-    await transaction.wait()
-    await env.relayXDomainMessages(transaction)
-    const receipts = await env.waitForXDomainTransaction(
-      transaction,
-      Direction.L2ToL1
-    )
 
-    // Compute the L1 portion of the fee
-    const l1Fee = await env.gasPriceOracle.getL1Fee(
-      serialize({
-        nonce: transaction.nonce,
-        value: transaction.value,
-        gasPrice: transaction.gasPrice,
-        gasLimit: transaction.gasLimit,
-        to: transaction.to,
-        data: transaction.data,
+      // 2. transfer to another address
+      const other = Wallet.createRandom().connect(env.l2Wallet.provider)
+      const tx = await env.l2Wallet.sendTransaction({
+        to: other.address,
+        value: amount,
       })
-    )
+      await tx.wait()
 
-    // check that correct amount was withdrawn and that fee was charged
-    const l2Fee = receipts.tx.gasPrice.mul(receipts.receipt.gasUsed)
+      const l1BalanceBefore = await other
+        .connect(env.l1Wallet.provider)
+        .getBalance()
 
-    const fee = l1Fee.add(l2Fee)
-    const l1BalanceAfter = await other
-      .connect(env.l1Wallet.provider)
-      .getBalance()
-    const l2BalanceAfter = await other.getBalance()
-    expect(l1BalanceAfter).to.deep.eq(l1BalanceBefore.add(withdrawnAmount))
-    expect(l2BalanceAfter).to.deep.eq(amount.sub(withdrawnAmount).sub(fee))
-  })
+      // 3. do withdrawal
+      const withdrawnAmount = utils.parseEther('0.95')
+      const transaction = await env.l2Bridge
+        .connect(other)
+        .withdraw(
+          predeploys.OVM_ETH,
+          withdrawnAmount,
+          DEFAULT_TEST_GAS_L1,
+          '0xFFFF'
+        )
+      await transaction.wait()
+      await env.relayXDomainMessages(transaction)
+      const receipts = await env.waitForXDomainTransaction(
+        transaction,
+        Direction.L2ToL1
+      )
+
+      // Compute the L1 portion of the fee
+      const l1Fee = await env.gasPriceOracle.getL1Fee(
+        serialize({
+          nonce: transaction.nonce,
+          value: transaction.value,
+          gasPrice: transaction.gasPrice,
+          gasLimit: transaction.gasLimit,
+          to: transaction.to,
+          data: transaction.data,
+        })
+      )
+
+      // check that correct amount was withdrawn and that fee was charged
+      const l2Fee = receipts.tx.gasPrice.mul(receipts.receipt.gasUsed)
+
+      const fee = l1Fee.add(l2Fee)
+      const l1BalanceAfter = await other
+        .connect(env.l1Wallet.provider)
+        .getBalance()
+      const l2BalanceAfter = await other.getBalance()
+      expect(l1BalanceAfter).to.deep.eq(l1BalanceBefore.add(withdrawnAmount))
+      expect(l2BalanceAfter).to.deep.eq(amount.sub(withdrawnAmount).sub(fee))
+    },
+    envConfig.MOCHA_TIMEOUT * 3
+  )
 })

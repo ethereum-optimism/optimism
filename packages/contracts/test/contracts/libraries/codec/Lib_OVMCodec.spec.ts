@@ -1,6 +1,5 @@
-import '../../../setup'
-
 /* Internal Imports */
+import '../../../setup'
 import { Lib_OVMCodec_TEST_JSON } from '../../../data'
 import { runJsonTest } from '../../../helpers'
 

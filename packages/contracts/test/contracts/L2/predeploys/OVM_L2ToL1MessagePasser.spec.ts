@@ -1,5 +1,3 @@
-import { expect } from '../../../setup'
-
 /* External Imports */
 import { ethers } from 'hardhat'
 import { ContractFactory, Contract } from 'ethers'
@@ -8,6 +6,7 @@ import { remove0x } from '@eth-optimism/core-utils'
 import { keccak256 } from 'ethers/lib/utils'
 
 /* Internal Imports */
+import { expect } from '../../../setup'
 import { NON_ZERO_ADDRESS } from '../../../helpers/constants'
 
 const ELEMENT_TEST_SIZES = [1, 2, 4, 8, 16]

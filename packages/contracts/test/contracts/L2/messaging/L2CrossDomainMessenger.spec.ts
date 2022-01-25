@@ -1,5 +1,3 @@
-import { expect } from '../../../setup'
-
 /* External Imports */
 import hre, { ethers } from 'hardhat'
 import { Signer, ContractFactory, Contract } from 'ethers'
@@ -7,6 +5,7 @@ import { smockit, MockContract } from '@eth-optimism/smock'
 import { applyL1ToL2Alias } from '@eth-optimism/core-utils'
 
 /* Internal Imports */
+import { expect } from '../../../setup'
 import {
   NON_NULL_BYTES32,
   NON_ZERO_ADDRESS,

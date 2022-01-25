@@ -1,9 +1,9 @@
-import { expect } from './shared/setup'
-
 /* Imports: External */
-import { Contract, ContractFactory, Wallet, utils } from 'ethers'
+import { Contract, Wallet, utils } from 'ethers'
+import { ethers } from 'hardhat'
 
 /* Imports: Internal */
+import { expect } from './shared/setup'
 import { OptimismEnv } from './shared/env'
 import {
   executeL1ToL2TransactionsParallel,
@@ -14,15 +14,13 @@ import {
   executeRepeatedL2Transactions,
   fundRandomWallet,
 } from './shared/stress-test-helpers'
-
 /* Imports: Artifacts */
-import simpleStorageJson from '../artifacts/contracts/SimpleStorage.sol/SimpleStorage.json'
-import { fundUser, isLiveNetwork, isMainnet } from './shared/utils'
+import { envConfig, fundUser } from './shared/utils'
 
 // Need a big timeout to allow for all transactions to be processed.
 // For some reason I can't figure out how to set the timeout on a per-suite basis
 // so I'm instead setting it for every test.
-const STRESS_TEST_TIMEOUT = isLiveNetwork() ? 500_000 : 1_200_000
+const STRESS_TEST_TIMEOUT = envConfig.MOCHA_TIMEOUT * 5
 
 describe('stress tests', () => {
   const numTransactions = 3
@@ -32,12 +30,13 @@ describe('stress tests', () => {
   const wallets: Wallet[] = []
 
   before(async function () {
-    env = await OptimismEnv.new()
-    if (await isMainnet(env)) {
-      console.log('Skipping stress tests on mainnet.')
+    if (!envConfig.RUN_STRESS_TESTS) {
+      console.log('Skipping stress tests.')
       this.skip()
       return
     }
+
+    env = await OptimismEnv.new()
 
     for (let i = 0; i < numTransactions; i++) {
       wallets.push(Wallet.createRandom())
@@ -60,14 +59,12 @@ describe('stress tests', () => {
   let L2SimpleStorage: Contract
   let L1SimpleStorage: Contract
   beforeEach(async () => {
-    const factory__L1SimpleStorage = new ContractFactory(
-      simpleStorageJson.abi,
-      simpleStorageJson.bytecode,
+    const factory__L1SimpleStorage = await ethers.getContractFactory(
+      'SimpleStorage',
       env.l1Wallet
     )
-    const factory__L2SimpleStorage = new ContractFactory(
-      simpleStorageJson.abi,
-      simpleStorageJson.bytecode,
+    const factory__L2SimpleStorage = await ethers.getContractFactory(
+      'SimpleStorage',
       env.l2Wallet
     )
     L1SimpleStorage = await factory__L1SimpleStorage.deploy()

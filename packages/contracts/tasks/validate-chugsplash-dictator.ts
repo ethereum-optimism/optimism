@@ -3,8 +3,8 @@
 import { ethers } from 'ethers'
 import { task } from 'hardhat/config'
 import * as types from 'hardhat/internal/core/params/argumentTypes'
-import { getContractFactory, getContractDefinition } from '../src/contract-defs'
 
+import { getContractFactory, getContractDefinition } from '../src/contract-defs'
 import {
   getInput,
   color as c,

@@ -1,8 +1,8 @@
-import { expect } from '../../../setup'
-
 /* External Imports */
 import { ethers } from 'hardhat'
 import { ContractFactory, Contract, Signer } from 'ethers'
+
+import { expect } from '../../../setup'
 
 describe('OVM_ETH', () => {
   let signer1: Signer

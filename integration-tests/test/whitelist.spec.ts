@@ -1,11 +1,10 @@
-import { expect } from './shared/setup'
-
 /* Imports: External */
 import { ContractFactory } from 'ethers'
 import { ethers } from 'hardhat'
 import { predeploys } from '@eth-optimism/contracts'
 
 /* Imports: Internal */
+import { expect } from './shared/setup'
 import { OptimismEnv } from './shared/env'
 import { l2Provider } from './shared/utils'
 

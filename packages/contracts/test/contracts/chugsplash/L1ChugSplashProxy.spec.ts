@@ -1,11 +1,10 @@
-import { expect } from '../../setup'
-
 /* Imports: External */
 import hre from 'hardhat'
 import { Contract, Signer } from 'ethers'
 import { smockit } from '@eth-optimism/smock'
 
 /* Imports: Internal */
+import { expect } from '../../setup'
 import { getContractInterface } from '../../../src'
 
 describe('L1ChugSplashProxy', () => {

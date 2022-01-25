@@ -1,6 +1,8 @@
-import dirtree from 'directory-tree'
 import fs from 'fs'
 import path from 'path'
+
+import dirtree from 'directory-tree'
+
 import { predeploys } from '../src'
 
 interface DeploymentInfo {

@@ -1,7 +1,7 @@
-import { expect } from './shared/setup'
-
 import { BigNumber, Contract, ContractFactory, Wallet } from 'ethers'
 import { ethers } from 'hardhat'
+
+import { expect } from './shared/setup'
 import {
   fundUser,
   encodeSolidityRevertMessage,
@@ -45,7 +45,7 @@ describe('Native ETH value integration tests', () => {
     const there = await wallet.sendTransaction({
       to: other.address,
       value,
-      gasPrice: await gasPriceForL2(env),
+      gasPrice: await gasPriceForL2(),
     })
     const thereReceipt = await there.wait()
     const thereGas = thereReceipt.gasUsed.mul(there.gasPrice)
@@ -63,7 +63,7 @@ describe('Native ETH value integration tests', () => {
     const backAgain = await other.sendTransaction({
       to: wallet.address,
       value: backVal,
-      gasPrice: await gasPriceForL2(env),
+      gasPrice: await gasPriceForL2(),
     })
     const backReceipt = await backAgain.wait()
     const backGas = backReceipt.gasUsed.mul(backAgain.gasPrice)
@@ -169,7 +169,7 @@ describe('Native ETH value integration tests', () => {
     it('should allow ETH to be sent', async () => {
       const sendAmount = 15
       const tx = await ValueCalls0.simpleSend(ValueCalls1.address, sendAmount, {
-        gasPrice: await gasPriceForL2(env),
+        gasPrice: await gasPriceForL2(),
       })
       await tx.wait()
 

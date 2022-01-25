@@ -1,11 +1,10 @@
-import { expect } from './shared/setup'
-
 import { BigNumber, Contract, ContractFactory, utils, Wallet } from 'ethers'
 import { ethers } from 'hardhat'
 import * as L2Artifact from '@eth-optimism/contracts/artifacts/contracts/standards/L2StandardERC20.sol/L2StandardERC20.json'
 
+import { expect } from './shared/setup'
 import { OptimismEnv } from './shared/env'
-import { isLiveNetwork, isMainnet } from './shared/utils'
+import { withdrawalTest } from './shared/utils'
 import { Direction } from './shared/watcher-utils'
 
 describe('Bridged tokens', () => {
@@ -25,14 +24,16 @@ describe('Bridged tokens', () => {
     const other = Wallet.createRandom()
     otherWalletL1 = other.connect(env.l1Wallet.provider)
     otherWalletL2 = other.connect(env.l2Wallet.provider)
-    await env.l1Wallet.sendTransaction({
+    let tx = await env.l1Wallet.sendTransaction({
       to: otherWalletL1.address,
       value: utils.parseEther('0.01'),
     })
-    await env.l2Wallet.sendTransaction({
+    await tx.wait()
+    tx = await env.l2Wallet.sendTransaction({
       to: otherWalletL2.address,
       value: utils.parseEther('0.01'),
     })
+    await tx.wait()
 
     L1Factory__ERC20 = await ethers.getContractFactory('ERC20', env.l1Wallet)
     L2Factory__ERC20 = new ethers.ContractFactory(
@@ -77,7 +78,7 @@ describe('Bridged tokens', () => {
     expect(await L2__ERC20.balanceOf(env.l2Wallet.address)).to.deep.equal(
       BigNumber.from(1000)
     )
-  }).timeout(isLiveNetwork() ? 300_000 : 120_000)
+  })
 
   it('should transfer tokens on L2', async () => {
     const tx = await L2__ERC20.transfer(otherWalletL1.address, 500)
@@ -90,46 +91,40 @@ describe('Bridged tokens', () => {
     )
   })
 
-  it('should withdraw tokens from L2 to the depositor', async function () {
-    if (await isMainnet(env)) {
-      console.log('Skipping withdrawals test on mainnet.')
-      this.skip()
-      return
+  withdrawalTest(
+    'should withdraw tokens from L2 to the depositor',
+    async () => {
+      const tx = await env.l2Bridge.withdraw(
+        L2__ERC20.address,
+        500,
+        2000000,
+        '0x'
+      )
+      await env.relayXDomainMessages(tx)
+      await env.waitForXDomainTransaction(tx, Direction.L2ToL1)
+      expect(await L1__ERC20.balanceOf(env.l1Wallet.address)).to.deep.equal(
+        BigNumber.from(999500)
+      )
+      expect(await L2__ERC20.balanceOf(env.l2Wallet.address)).to.deep.equal(
+        BigNumber.from(0)
+      )
     }
+  )
 
-    const tx = await env.l2Bridge.withdraw(
-      L2__ERC20.address,
-      500,
-      2000000,
-      '0x'
-    )
-    await env.relayXDomainMessages(tx)
-    await env.waitForXDomainTransaction(tx, Direction.L2ToL1)
-    expect(await L1__ERC20.balanceOf(env.l1Wallet.address)).to.deep.equal(
-      BigNumber.from(999500)
-    )
-    expect(await L2__ERC20.balanceOf(env.l2Wallet.address)).to.deep.equal(
-      BigNumber.from(0)
-    )
-  }).timeout(isLiveNetwork() ? 300_000 : 120_000)
-
-  it('should withdraw tokens from L2 to the transfer recipient', async function () {
-    if (await isMainnet(env)) {
-      console.log('Skipping withdrawals test on mainnet.')
-      this.skip()
-      return
+  withdrawalTest(
+    'should withdraw tokens from L2 to the transfer recipient',
+    async () => {
+      const tx = await env.l2Bridge
+        .connect(otherWalletL2)
+        .withdraw(L2__ERC20.address, 500, 2000000, '0x')
+      await env.relayXDomainMessages(tx)
+      await env.waitForXDomainTransaction(tx, Direction.L2ToL1)
+      expect(await L1__ERC20.balanceOf(otherWalletL1.address)).to.deep.equal(
+        BigNumber.from(500)
+      )
+      expect(await L2__ERC20.balanceOf(otherWalletL2.address)).to.deep.equal(
+        BigNumber.from(0)
+      )
     }
-
-    const tx = await env.l2Bridge
-      .connect(otherWalletL2)
-      .withdraw(L2__ERC20.address, 500, 2000000, '0x')
-    await env.relayXDomainMessages(tx)
-    await env.waitForXDomainTransaction(tx, Direction.L2ToL1)
-    expect(await L1__ERC20.balanceOf(otherWalletL1.address)).to.deep.equal(
-      BigNumber.from(500)
-    )
-    expect(await L2__ERC20.balanceOf(otherWalletL2.address)).to.deep.equal(
-      BigNumber.from(0)
-    )
-  }).timeout(isLiveNetwork() ? 300_000 : 120_000)
+  )
 })

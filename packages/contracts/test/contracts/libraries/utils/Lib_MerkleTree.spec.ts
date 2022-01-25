@@ -1,5 +1,3 @@
-import { expect } from '../../../setup'
-
 /* External Imports */
 import { ethers } from 'hardhat'
 import { Contract, BigNumber } from 'ethers'
@@ -7,6 +5,7 @@ import { MerkleTree } from 'merkletreejs'
 import { fromHexString, toHexString } from '@eth-optimism/core-utils'
 
 /* Internal Imports */
+import { expect } from '../../../setup'
 import { NON_NULL_BYTES32 } from '../../../helpers'
 
 const NODE_COUNTS = [

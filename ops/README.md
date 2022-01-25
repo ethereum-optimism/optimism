@@ -32,6 +32,10 @@ docker-compose \
 
 *Note*: This generates a large amount of log data which docker stores by default. See [Disk Usage](#disk-usage).
 
+Also note that Docker Desktop only allocates 2GB of memory by default, which isn't enough to run the docker-compose services reliably.
+
+To allocate more memory, go to Settings > Resources in the Docker UI and use the slider to change the value (_4GB recommended_). Make sure to click Apply & Restart for the changes to take effect.
+
 To start the stack with monitoring enabled, just add the metric composition file.
 ```
 docker-compose \

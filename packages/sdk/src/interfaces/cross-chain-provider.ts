@@ -1,5 +1,6 @@
 import { BigNumber } from 'ethers'
 import { Provider, BlockTag } from '@ethersproject/abstract-provider'
+
 import {
   MessageLike,
   TransactionLike,
@@ -200,9 +201,16 @@ export interface ICrossChainProvider {
    * L1 => L2 messages. You would supply this gas limit when sending the message to L2.
    *
    * @param message Message get a gas estimate for.
+   * @param opts Options object.
+   * @param opts.bufferPercent Percentage of gas to add to the estimate. Defaults to 20.
    * @returns Estimates L2 gas limit.
    */
-  estimateL2MessageGasLimit(message: MessageLike): Promise<BigNumber>
+  estimateL2MessageGasLimit(
+    message: MessageLike,
+    opts?: {
+      bufferPercent?: number
+    }
+  ): Promise<BigNumber>
 
   /**
    * Returns the estimated amount of time before the message can be executed. When this is a

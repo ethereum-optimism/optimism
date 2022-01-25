@@ -95,13 +95,23 @@ func newTestHarnessWithConfig(cfg txmgr.Config) *testHarness {
 // newTestHarness initializes a testHarness with a defualt configuration that is
 // suitable for most tests.
 func newTestHarness() *testHarness {
-	return newTestHarnessWithConfig(txmgr.Config{
+	return newTestHarnessWithConfig(configWithNumConfs(1))
+}
+
+func configWithNumConfs(numConfirmations uint64) txmgr.Config {
+	return txmgr.Config{
 		MinGasPrice:          new(big.Int).SetUint64(5),
 		MaxGasPrice:          new(big.Int).SetUint64(50),
 		GasRetryIncrement:    new(big.Int).SetUint64(5),
 		ResubmissionTimeout:  time.Second,
 		ReceiptQueryInterval: 50 * time.Millisecond,
-	})
+		NumConfirmations:     numConfirmations,
+	}
+}
+
+type minedTxInfo struct {
+	gasPrice    *big.Int
+	blockNumber uint64
 }
 
 // mockBackend implements txmgr.ReceiptSource that tracks mined transactions
@@ -109,25 +119,42 @@ func newTestHarness() *testHarness {
 type mockBackend struct {
 	mu sync.RWMutex
 
-	// txHashMinedWithGasPrice tracks the has of a mined transaction to its
-	// gas price.
-	txHashMinedWithGasPrice map[common.Hash]*big.Int
+	// blockHeight tracks the current height of the chain.
+	blockHeight uint64
+
+	// minedTxs maps the hash of a mined transaction to its details.
+	minedTxs map[common.Hash]minedTxInfo
 }
 
 // newMockBackend initializes a new mockBackend.
 func newMockBackend() *mockBackend {
 	return &mockBackend{
-		txHashMinedWithGasPrice: make(map[common.Hash]*big.Int),
+		minedTxs: make(map[common.Hash]minedTxInfo),
 	}
 }
 
 // mine records a (txHash, gasPrice) as confirmed. Subsequent calls to
 // TransactionReceipt with a matching txHash will result in a non-nil receipt.
-func (b *mockBackend) mine(txHash common.Hash, gasPrice *big.Int) {
+// If a nil txHash is supplied this has the effect of mining an empty block.
+func (b *mockBackend) mine(txHash *common.Hash, gasPrice *big.Int) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
-	b.txHashMinedWithGasPrice[txHash] = gasPrice
+	b.blockHeight++
+	if txHash != nil {
+		b.minedTxs[*txHash] = minedTxInfo{
+			gasPrice:    gasPrice,
+			blockNumber: b.blockHeight,
+		}
+	}
+}
+
+// BlockNumber returns the most recent block number.
+func (b *mockBackend) BlockNumber(ctx context.Context) (uint64, error) {
+	b.mu.RLock()
+	defer b.mu.RUnlock()
+
+	return b.blockHeight, nil
 }
 
 // TransactionReceipt queries the mockBackend for a mined txHash. If none is
@@ -142,7 +169,7 @@ func (b *mockBackend) TransactionReceipt(
 	b.mu.RLock()
 	defer b.mu.RUnlock()
 
-	gasPrice, ok := b.txHashMinedWithGasPrice[txHash]
+	txInfo, ok := b.minedTxs[txHash]
 	if !ok {
 		return nil, nil
 	}
@@ -150,8 +177,9 @@ func (b *mockBackend) TransactionReceipt(
 	// Return the gas price for the transaction in the GasUsed field so that
 	// we can assert the proper tx confirmed in our tests.
 	return &types.Receipt{
-		TxHash:  txHash,
-		GasUsed: gasPrice.Uint64(),
+		TxHash:      txHash,
+		GasUsed:     txInfo.gasPrice.Uint64(),
+		BlockNumber: big.NewInt(int64(txInfo.blockNumber)),
 	}, nil
 }
 
@@ -168,7 +196,8 @@ func TestTxMgrConfirmAtMinGasPrice(t *testing.T) {
 		tx := types.NewTx(&types.LegacyTx{
 			GasPrice: gasPrice,
 		})
-		h.backend.mine(tx.Hash(), gasPrice)
+		txHash := tx.Hash()
+		h.backend.mine(&txHash, gasPrice)
 		return tx, nil
 	}
 
@@ -220,7 +249,8 @@ func TestTxMgrConfirmsAtMaxGasPrice(t *testing.T) {
 			GasPrice: gasPrice,
 		})
 		if gasPrice.Cmp(h.cfg.MaxGasPrice) == 0 {
-			h.backend.mine(tx.Hash(), gasPrice)
+			txHash := tx.Hash()
+			h.backend.mine(&txHash, gasPrice)
 		}
 		return tx, nil
 	}
@@ -252,7 +282,8 @@ func TestTxMgrConfirmsAtMaxGasPriceDelayed(t *testing.T) {
 		// should still return an error beforehand.
 		if gasPrice.Cmp(h.cfg.MaxGasPrice) == 0 {
 			time.AfterFunc(2*time.Second, func() {
-				h.backend.mine(tx.Hash(), gasPrice)
+				txHash := tx.Hash()
+				h.backend.mine(&txHash, gasPrice)
 			})
 		}
 		return tx, nil
@@ -308,7 +339,8 @@ func TestTxMgrOnlyOnePublicationSucceeds(t *testing.T) {
 		tx := types.NewTx(&types.LegacyTx{
 			GasPrice: gasPrice,
 		})
-		h.backend.mine(tx.Hash(), gasPrice)
+		txHash := tx.Hash()
+		h.backend.mine(&txHash, gasPrice)
 		return tx, nil
 	}
 
@@ -338,7 +370,8 @@ func TestTxMgrConfirmsMinGasPriceAfterBumping(t *testing.T) {
 		// Delay mining the tx with the min gas price.
 		if gasPrice.Cmp(h.cfg.MinGasPrice) == 0 {
 			time.AfterFunc(5*time.Second, func() {
-				h.backend.mine(tx.Hash(), gasPrice)
+				txHash := tx.Hash()
+				h.backend.mine(&txHash, gasPrice)
 			})
 		}
 		return tx, nil
@@ -361,10 +394,10 @@ func TestWaitMinedReturnsReceiptOnFirstSuccess(t *testing.T) {
 	// Create a tx and mine it immediately using the default backend.
 	tx := types.NewTx(&types.LegacyTx{})
 	txHash := tx.Hash()
-	h.backend.mine(txHash, new(big.Int))
+	h.backend.mine(&txHash, new(big.Int))
 
 	ctx := context.Background()
-	receipt, err := txmgr.WaitMined(ctx, h.backend, tx, 50*time.Millisecond)
+	receipt, err := txmgr.WaitMined(ctx, h.backend, tx, 50*time.Millisecond, 1)
 	require.Nil(t, err)
 	require.NotNil(t, receipt)
 	require.Equal(t, receipt.TxHash, txHash)
@@ -383,16 +416,73 @@ func TestWaitMinedCanBeCanceled(t *testing.T) {
 	// Create an unimined tx.
 	tx := types.NewTx(&types.LegacyTx{})
 
-	receipt, err := txmgr.WaitMined(ctx, h.backend, tx, 50*time.Millisecond)
+	receipt, err := txmgr.WaitMined(ctx, h.backend, tx, 50*time.Millisecond, 1)
 	require.Equal(t, err, context.DeadlineExceeded)
 	require.Nil(t, receipt)
+}
+
+// TestWaitMinedMultipleConfs asserts that WaitMiend will properly wait for more
+// than one confirmation.
+func TestWaitMinedMultipleConfs(t *testing.T) {
+	t.Parallel()
+
+	const numConfs = 2
+
+	h := newTestHarnessWithConfig(configWithNumConfs(numConfs))
+	ctxt, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+
+	// Create an unimined tx.
+	tx := types.NewTx(&types.LegacyTx{})
+	txHash := tx.Hash()
+	h.backend.mine(&txHash, new(big.Int))
+
+	receipt, err := txmgr.WaitMined(ctxt, h.backend, tx, 50*time.Millisecond, numConfs)
+	require.Equal(t, err, context.DeadlineExceeded)
+	require.Nil(t, receipt)
+
+	ctxt, cancel = context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+
+	// Mine an empty block, tx should now be confirmed.
+	h.backend.mine(nil, nil)
+	receipt, err = txmgr.WaitMined(ctxt, h.backend, tx, 50*time.Millisecond, numConfs)
+	require.Nil(t, err)
+	require.NotNil(t, receipt)
+	require.Equal(t, txHash, receipt.TxHash)
+}
+
+// TestManagerPanicOnZeroConfs ensures that the NewSimpleTxManager will panic
+// when attempting to configure with NumConfirmations set to zero.
+func TestManagerPanicOnZeroConfs(t *testing.T) {
+	t.Parallel()
+
+	defer func() {
+		if r := recover(); r == nil {
+			t.Fatal("NewSimpleTxManager should panic when using zero conf")
+		}
+	}()
+
+	_ = newTestHarnessWithConfig(configWithNumConfs(0))
 }
 
 // failingBackend implements txmgr.ReceiptSource, returning a failure on the
 // first call but a success on the second call. This allows us to test that the
 // inner loop of WaitMined properly handles this case.
 type failingBackend struct {
-	returnSuccess bool
+	returnSuccessBlockNumber bool
+	returnSuccessReceipt     bool
+}
+
+// BlockNumber for the failingBackend returns errRpcFailure on the first
+// invocation and a fixed block height on subsequent calls.
+func (b *failingBackend) BlockNumber(ctx context.Context) (uint64, error) {
+	if !b.returnSuccessBlockNumber {
+		b.returnSuccessBlockNumber = true
+		return 0, errRpcFailure
+	}
+
+	return 1, nil
 }
 
 // TransactionReceipt for the failingBackend returns errRpcFailure on the first
@@ -400,13 +490,14 @@ type failingBackend struct {
 func (b *failingBackend) TransactionReceipt(
 	ctx context.Context, txHash common.Hash) (*types.Receipt, error) {
 
-	if !b.returnSuccess {
-		b.returnSuccess = true
+	if !b.returnSuccessReceipt {
+		b.returnSuccessReceipt = true
 		return nil, errRpcFailure
 	}
 
 	return &types.Receipt{
-		TxHash: txHash,
+		TxHash:      txHash,
+		BlockNumber: big.NewInt(1),
 	}, nil
 }
 
@@ -424,7 +515,7 @@ func TestWaitMinedReturnsReceiptAfterFailure(t *testing.T) {
 	txHash := tx.Hash()
 
 	ctx := context.Background()
-	receipt, err := txmgr.WaitMined(ctx, &borkedBackend, tx, 50*time.Millisecond)
+	receipt, err := txmgr.WaitMined(ctx, &borkedBackend, tx, 50*time.Millisecond, 1)
 	require.Nil(t, err)
 	require.NotNil(t, receipt)
 	require.Equal(t, receipt.TxHash, txHash)

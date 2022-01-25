@@ -3,6 +3,7 @@
  */
 
 import { BigNumber } from 'ethers'
+
 import { remove0x } from './common'
 
 const txDataZeroGas = 4
