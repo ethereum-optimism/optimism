@@ -287,8 +287,9 @@ func (s *Service) Update(start uint64, newHeader *types.Header) error {
 			"block", number, "hash", blockHash, "deposits", len(block.Deposits))
 		for _, deposit := range block.Deposits {
 			log.Info("Indexed deposit ",
-				"l1_tx_origin", deposit.L1TxOrigin, "target", deposit.Target,
-				"gas_limit", deposit.GasLimit, "queue_index", deposit.QueueIndex)
+				"tx_hash", deposit.TxHash, "l1_tx_origin", deposit.L1TxOrigin,
+				"target", deposit.Target, "gas_limit", deposit.GasLimit,
+				"queue_index", deposit.QueueIndex)
 		}
 	}
 
