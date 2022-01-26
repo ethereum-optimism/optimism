@@ -14,6 +14,7 @@ import {
   NumberLike,
   MessageDirection,
 } from './interfaces'
+import { omit } from './utils'
 
 export class CrossChainMessenger implements ICrossChainMessenger {
   provider: ICrossChainProvider
@@ -43,6 +44,7 @@ export class CrossChainMessenger implements ICrossChainMessenger {
     overrides?: L1ToL2Overrides
   ): Promise<TransactionResponse> {
     const tx = await this.populateTransaction.sendMessage(message, overrides)
+
     if (message.direction === MessageDirection.L1_TO_L2) {
       return this.l1Signer.sendTransaction(tx)
     } else {
@@ -55,7 +57,13 @@ export class CrossChainMessenger implements ICrossChainMessenger {
     messageGasLimit: NumberLike,
     overrides?: Overrides
   ): Promise<TransactionResponse> {
-    throw new Error('Not implemented')
+    const tx = await this.populateTransaction.resendMessage(
+      message,
+      messageGasLimit,
+      overrides
+    )
+
+    return this.l1Signer.sendTransaction(tx)
   }
 
   public async finalizeMessage(
@@ -91,7 +99,8 @@ export class CrossChainMessenger implements ICrossChainMessenger {
           message.target,
           message.message,
           overrides?.l2GasLimit ||
-            (await this.provider.estimateL2MessageGasLimit(message))
+            (await this.provider.estimateL2MessageGasLimit(message)),
+          omit(overrides || {}, 'l2GasLimit')
         )
       } else {
         return this.provider.contracts.l2.L2CrossDomainMessenger.connect(
@@ -99,7 +108,8 @@ export class CrossChainMessenger implements ICrossChainMessenger {
         ).populateTransaction.sendMessage(
           message.target,
           message.message,
-          0 // Gas limit goes unused when sending from L2 to L1
+          0, // Gas limit goes unused when sending from L2 to L1
+          omit(overrides || {}, 'l2GasLimit')
         )
       }
     },
@@ -109,7 +119,22 @@ export class CrossChainMessenger implements ICrossChainMessenger {
       messageGasLimit: NumberLike,
       overrides?: Overrides
     ): Promise<TransactionRequest> => {
-      throw new Error('Not implemented')
+      const resolved = await this.provider.toCrossChainMessage(message)
+      if (resolved.direction === MessageDirection.L2_TO_L1) {
+        throw new Error(`cannot resend L2 to L1 message`)
+      }
+
+      return this.provider.contracts.l1.L1CrossDomainMessenger.connect(
+        this.l1Signer
+      ).populateTransaction.replayMessage(
+        resolved.target,
+        resolved.sender,
+        resolved.message,
+        resolved.messageNonce,
+        resolved.gasLimit,
+        messageGasLimit,
+        overrides || {}
+      )
     },
 
     finalizeMessage: async (
@@ -140,6 +165,7 @@ export class CrossChainMessenger implements ICrossChainMessenger {
       overrides?: L1ToL2Overrides
     ): Promise<BigNumber> => {
       const tx = await this.populateTransaction.sendMessage(message, overrides)
+
       if (message.direction === MessageDirection.L1_TO_L2) {
         return this.provider.l1Provider.estimateGas(tx)
       } else {
@@ -152,7 +178,13 @@ export class CrossChainMessenger implements ICrossChainMessenger {
       messageGasLimit: NumberLike,
       overrides?: Overrides
     ): Promise<BigNumber> => {
-      throw new Error('Not implemented')
+      const tx = await this.populateTransaction.resendMessage(
+        message,
+        messageGasLimit,
+        overrides
+      )
+
+      return this.provider.l1Provider.estimateGas(tx)
     },
 
     finalizeMessage: async (
