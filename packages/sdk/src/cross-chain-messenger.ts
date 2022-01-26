@@ -44,7 +44,6 @@ export class CrossChainMessenger implements ICrossChainMessenger {
     overrides?: L1ToL2Overrides
   ): Promise<TransactionResponse> {
     const tx = await this.populateTransaction.sendMessage(message, overrides)
-
     if (message.direction === MessageDirection.L1_TO_L2) {
       return this.l1Signer.sendTransaction(tx)
     } else {
@@ -57,13 +56,13 @@ export class CrossChainMessenger implements ICrossChainMessenger {
     messageGasLimit: NumberLike,
     overrides?: Overrides
   ): Promise<TransactionResponse> {
-    const tx = await this.populateTransaction.resendMessage(
-      message,
-      messageGasLimit,
-      overrides
+    return this.l1Signer.sendTransaction(
+      await this.populateTransaction.resendMessage(
+        message,
+        messageGasLimit,
+        overrides
+      )
     )
-
-    return this.l1Signer.sendTransaction(tx)
   }
 
   public async finalizeMessage(
@@ -77,7 +76,9 @@ export class CrossChainMessenger implements ICrossChainMessenger {
     amount: NumberLike,
     overrides?: L1ToL2Overrides
   ): Promise<TransactionResponse> {
-    throw new Error('Not implemented')
+    return this.l1Signer.sendTransaction(
+      await this.populateTransaction.depositETH(amount, overrides)
+    )
   }
 
   public async withdrawETH(
@@ -148,7 +149,14 @@ export class CrossChainMessenger implements ICrossChainMessenger {
       amount: NumberLike,
       overrides?: L1ToL2Overrides
     ): Promise<TransactionRequest> => {
-      throw new Error('Not implemented')
+      return this.provider.contracts.l1.L1StandardBridge.populateTransaction.depositETH(
+        overrides?.l2GasLimit || 200000, // 200k gas is fine as a default
+        '0x', // No data
+        {
+          ...omit(overrides || {}, 'l2GasLimit', 'value'),
+          value: amount,
+        }
+      )
     },
 
     withdrawETH: async (
@@ -165,7 +173,6 @@ export class CrossChainMessenger implements ICrossChainMessenger {
       overrides?: L1ToL2Overrides
     ): Promise<BigNumber> => {
       const tx = await this.populateTransaction.sendMessage(message, overrides)
-
       if (message.direction === MessageDirection.L1_TO_L2) {
         return this.provider.l1Provider.estimateGas(tx)
       } else {
@@ -183,7 +190,6 @@ export class CrossChainMessenger implements ICrossChainMessenger {
         messageGasLimit,
         overrides
       )
-
       return this.provider.l1Provider.estimateGas(tx)
     },
 
@@ -198,7 +204,8 @@ export class CrossChainMessenger implements ICrossChainMessenger {
       amount: NumberLike,
       overrides?: L1ToL2Overrides
     ): Promise<BigNumber> => {
-      throw new Error('Not implemented')
+      const tx = await this.populateTransaction.depositETH(amount, overrides)
+      return this.provider.l1Provider.estimateGas(tx)
     },
 
     withdrawETH: async (
