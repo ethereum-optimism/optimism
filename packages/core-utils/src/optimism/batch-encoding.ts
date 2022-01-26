@@ -17,13 +17,21 @@ export interface AppendSequencerBatchParams {
   transactions: string[] // total_size_bytes[],total_size_bytes[]
 }
 
+export interface EncodeSequencerBatchOptions {
+  zlib: boolean
+}
+
 const APPEND_SEQUENCER_BATCH_METHOD_ID = 'appendSequencerBatch()'
 
+// This mutates the input by using unshift...
+//
 export const encodeAppendSequencerBatch = (
-  b: AppendSequencerBatchParams
+  b: AppendSequencerBatchParams,
+  opts?: EncodeSequencerBatchOptions
 ): string => {
   const encodeShouldStartAtElement = encodeHex(b.shouldStartAtElement, 10)
   const encodedTotalElementsToAppend = encodeHex(b.totalElementsToAppend, 6)
+  const contexts = b.contexts.slice()
 
   let encodedTransactionData = b.transactions.reduce((acc, cur) => {
     if (cur.length % 2 !== 0) {
@@ -35,27 +43,28 @@ export const encodeAppendSequencerBatch = (
     return acc + encodedTxDataHeader + remove0x(cur)
   }, '')
 
-  const compressed = zlib
-    .deflateSync(Buffer.from(encodedTransactionData, 'hex'))
-    .toString('hex')
+  if (opts?.zlib) {
+    const compressed = zlib
+      .deflateSync(Buffer.from(encodedTransactionData, 'hex'))
+      .toString('hex')
 
-  if (
-    compressed.length < encodedTransactionData.length &&
-    b.contexts.length > 0
-  ) {
-    encodedTransactionData = compressed
-    b.contexts.unshift({
-      numSequencedTransactions: 0,
-      numSubsequentQueueTransactions: 0,
-      timestamp: 0,
-      blockNumber: 0,
-    })
+    if (
+      compressed.length < encodedTransactionData.length &&
+      contexts.length > 0
+    ) {
+      encodedTransactionData = compressed
+      contexts.unshift({
+        numSequencedTransactions: 0,
+        numSubsequentQueueTransactions: 0,
+        timestamp: 0,
+        blockNumber: 0,
+      })
+    }
   }
 
-  const encodedContextsHeader = encodeHex(b.contexts.length, 6)
-  const encodedContexts =
-    encodedContextsHeader +
-    b.contexts.reduce((acc, cur) => acc + encodeBatchContext(cur), '')
+  const encodedContextsHeader = encodeHex(contexts.length, 6)
+  const encodedContexts = encodedContextsHeader +
+    contexts.reduce((acc, cur) => acc + encodeBatchContext(cur), '')
 
   return (
     encodeShouldStartAtElement +
@@ -85,7 +94,7 @@ export const decodeAppendSequencerBatch = (
   const contextCount = parseInt(contextHeader, 16)
 
   let offset = 22
-  const contexts = []
+  let contexts = []
   for (let i = 0; i < contextCount; i++) {
     const numSequencedTransactions = b.slice(offset, offset + 6)
     offset += 6
@@ -106,22 +115,25 @@ export const decodeAppendSequencerBatch = (
     })
   }
 
-  const transactions = []
-  for (let i = 0; i < contexts.length; i++) {
-    const context = contexts[i]
+  if (contexts.length > 0) {
+    const context = contexts[0]
+    if (context.blockNumber === 0) {
+      switch (context.timestamp) {
+        case 0: {
+          b = b.slice(0, offset) +
+            zlib.inflateSync(Buffer.from(b.slice(offset), 'hex')).toString('hex')
+          break
+        }
+      }
 
-    if (
-      i === 0 &&
-      context.blockNumber === 0 &&
-      context.timestamp === 0 &&
-      context.numSubsequentQueueTransactions === 0 &&
-      context.numSequencedTransactions === 0
-    ) {
-      b =
-        b.slice(0, offset) +
-        zlib.inflateSync(Buffer.from(b.slice(offset), 'hex')).toString('hex')
+
+      // remove the dummy context
+      contexts = contexts.slice(1)
     }
+  }
 
+  const transactions = []
+  for (const context of contexts) {
     for (let j = 0; j < context.numSequencedTransactions; j++) {
       const size = b.slice(offset, offset + 6)
       offset += 6
@@ -140,10 +152,10 @@ export const decodeAppendSequencerBatch = (
 }
 
 export const sequencerBatch = {
-  encode: (b: AppendSequencerBatchParams) => {
+  encode: (b: AppendSequencerBatchParams, opts?: EncodeSequencerBatchOptions) => {
     return (
       ethers.utils.id(APPEND_SEQUENCER_BATCH_METHOD_ID).slice(0, 10) +
-      encodeAppendSequencerBatch(b)
+      encodeAppendSequencerBatch(b, opts)
     )
   },
   decode: (b: string): AppendSequencerBatchParams => {

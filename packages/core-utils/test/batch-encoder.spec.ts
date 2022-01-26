@@ -42,14 +42,26 @@ describe('BatchEncoder', () => {
       expect(decoded).to.deep.equal(batch)
     })
 
-    // Skipping because the second re-encoding is different once compression is enabled
-    it.skip('should work with mainnet calldata', () => {
+    it('should work with mainnet calldata', () => {
       // eslint-disable-next-line @typescript-eslint/no-var-requires
       const data = require('./fixtures/appendSequencerBatch.json')
       for (const calldata of data.calldata) {
         const decoded = sequencerBatch.decode(calldata)
         const encoded = sequencerBatch.encode(decoded)
-        expect(encoded).to.equal(calldata)
+        expect(encoded).to.deep.equal(calldata)
+      }
+    })
+
+    it('should work with mainnet calldata (compressed)', () => {
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      const data = require('./fixtures/appendSequencerBatch.json')
+      for (const calldata of data.calldata) {
+        const decoded = sequencerBatch.decode(calldata)
+        const encodedCompressed = sequencerBatch.encode(decoded, { zlib: true })
+        const decodedPostCompressed = sequencerBatch.decode(encodedCompressed)
+        expect(decoded.contexts).to.deep.equal(decodedPostCompressed.contexts)
+        const encoded = sequencerBatch.encode(decodedPostCompressed)
+        expect(encoded).to.deep.equal(calldata)
       }
     })
 
