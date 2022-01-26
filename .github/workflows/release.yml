@@ -55,7 +55,7 @@ jobs:
         run: yarn
 
       - name: Publish To NPM or Create Release Pull Request
-        uses: changesets/action@master
+        uses: changesets/action@v1
         id: changesets
         with:
           publish: yarn release
