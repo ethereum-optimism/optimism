@@ -98,8 +98,8 @@ func initializeGenesis(cfg *systemConfig) {
 		l2Alloc[addr] = core.GenesisAccount{Balance: balance}
 	}
 
-	l1Alloc[common.HexToAddress(cfg.depositContractAddress)] = core.GenesisAccount{Code: common.FromHex(deposit.DepositBin), Balance: common.Big0}
-	l2Alloc[common.HexToAddress(cfg.l1InforPredeployAddress)] = core.GenesisAccount{Code: common.FromHex(l1block.L1blockBin), Balance: common.Big0}
+	l1Alloc[common.HexToAddress(cfg.depositContractAddress)] = core.GenesisAccount{Code: common.FromHex(deposit.DepositDeployedBin), Balance: common.Big0}
+	l2Alloc[common.HexToAddress(cfg.l1InforPredeployAddress)] = core.GenesisAccount{Code: common.FromHex(l1block.L1blockDeployedBin), Balance: common.Big0}
 
 	genesisTimestamp := uint64(time.Now().Unix())
 
