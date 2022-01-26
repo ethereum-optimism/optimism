@@ -15,9 +15,20 @@ Justification for linting rules in [.markdownlint.json](/.markdownlint.json):
 - *no-emphasis-as-heading*: enable emphasized paragraphs
 
 ```shell
-yarn           # Install dependencies
-yarn lint      # Run linter
+yarn             # Install dependencies
+yarn lint        # Run linter
+yarn lint:links  # Check links
 ```
+
+To check links, you'll need to install [lychee]. The [version ran in CI][lychee-ci] is 0.8.1, but
+you should install lychee 0.8.2 locally with `cargo install --version 0.8.2 lychee` (there are some
+reported build problems with 0.8.1).
+
+You can install cargo (the Rust package manager) via [rustup].
+
+[lychee]: https://github.com/lycheeverse/lychee
+[lychee-ci]: https://github.com/lycheeverse/lychee-action/blob/f76b8412c668f78311212d16d33c4784a7d8762c/Dockerfile
+[rustup]: https://www.rust-lang.org/tools/install
 
 ## Go
 
