@@ -119,7 +119,7 @@ func initializeGenesis(cfg *systemConfig) {
 			BerlinBlock:         common.Big0,
 			LondonBlock:         common.Big0,
 			Clique: &params.CliqueConfig{
-				Period: 1,
+				Period: 2,
 				Epoch:  30000,
 			},
 		},
