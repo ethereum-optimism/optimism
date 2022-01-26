@@ -25,6 +25,7 @@ const (
 	ContextKeyReqID         = "req_id"
 	ContextKeyXForwardedFor = "x_forwarded_for"
 	MaxBatchRPCCalls        = 100
+	cacheStatusHdr          = "X-Proxyd-Cache-Status"
 )
 
 type Server struct {
@@ -159,6 +160,7 @@ func (s *Server) HandleRPC(w http.ResponseWriter, r *http.Request) {
 		}
 
 		batchRes := make([]*RPCRes, len(reqs), len(reqs))
+		var batchContainsCached bool
 		for i := 0; i < len(reqs); i++ {
 			req, err := ParseRPCReq(reqs[i])
 			if err != nil {
@@ -167,9 +169,14 @@ func (s *Server) HandleRPC(w http.ResponseWriter, r *http.Request) {
 				continue
 			}
 
-			batchRes[i] = s.handleSingleRPC(ctx, req)
+			var cached bool
+			batchRes[i], cached = s.handleSingleRPC(ctx, req)
+			if cached {
+				batchContainsCached = true
+			}
 		}
 
+		setCacheHeader(w, batchContainsCached)
 		writeBatchRPCRes(ctx, w, batchRes)
 		return
 	}
@@ -181,14 +188,15 @@ func (s *Server) HandleRPC(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	backendRes := s.handleSingleRPC(ctx, req)
+	backendRes, cached := s.handleSingleRPC(ctx, req)
+	setCacheHeader(w, cached)
 	writeRPCRes(ctx, w, backendRes)
 }
 
-func (s *Server) handleSingleRPC(ctx context.Context, req *RPCReq) *RPCRes {
+func (s *Server) handleSingleRPC(ctx context.Context, req *RPCReq) (*RPCRes, bool) {
 	if err := ValidateRPCReq(req); err != nil {
 		RecordRPCError(ctx, BackendProxyd, MethodUnknown, err)
-		return NewRPCErrorRes(nil, err)
+		return NewRPCErrorRes(nil, err), false
 	}
 
 	group := s.rpcMethodMappings[req.Method]
@@ -202,7 +210,7 @@ func (s *Server) handleSingleRPC(ctx context.Context, req *RPCReq) *RPCRes {
 			"method", req.Method,
 		)
 		RecordRPCError(ctx, BackendProxyd, MethodUnknown, ErrMethodNotWhitelisted)
-		return NewRPCErrorRes(req.ID, ErrMethodNotWhitelisted)
+		return NewRPCErrorRes(req.ID, ErrMethodNotWhitelisted), false
 	}
 
 	var backendRes *RPCRes
@@ -215,7 +223,7 @@ func (s *Server) handleSingleRPC(ctx context.Context, req *RPCReq) *RPCRes {
 		)
 	}
 	if backendRes != nil {
-		return backendRes
+		return backendRes, true
 	}
 
 	backendRes, err = s.backendGroups[group].Forward(ctx, req)
@@ -226,7 +234,7 @@ func (s *Server) handleSingleRPC(ctx context.Context, req *RPCReq) *RPCRes {
 			"req_id", GetReqID(ctx),
 			"err", err,
 		)
-		return NewRPCErrorRes(req.ID, err)
+		return NewRPCErrorRes(req.ID, err), false
 	}
 
 	if backendRes.Error == nil {
@@ -239,7 +247,7 @@ func (s *Server) handleSingleRPC(ctx context.Context, req *RPCReq) *RPCRes {
 		}
 	}
 
-	return backendRes
+	return backendRes, false
 }
 
 func (s *Server) HandleWS(w http.ResponseWriter, r *http.Request) {
@@ -320,6 +328,14 @@ func (s *Server) populateContext(w http.ResponseWriter, r *http.Request) context
 		ContextKeyReqID,
 		randStr(10),
 	)
+}
+
+func setCacheHeader(w http.ResponseWriter, cached bool) {
+	if cached {
+		w.Header().Set(cacheStatusHdr, "HIT")
+	} else {
+		w.Header().Set(cacheStatusHdr, "MISS")
+	}
 }
 
 func writeRPCError(ctx context.Context, w http.ResponseWriter, id json.RawMessage, err error) {
