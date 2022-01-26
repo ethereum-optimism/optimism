@@ -101,14 +101,6 @@ jobs:
           push: true
           tags: ethereumoptimism/l2geth:${{ needs.release.outputs.l2geth }},ethereumoptimism/l2geth:latest
 
-      - name: Publish rpc-proxy
-        uses: docker/build-push-action@v2
-        with:
-          context: .
-          file: ./ops/docker/Dockerfile.rpc-proxy
-          push: true
-          tags: ethereumoptimism/rpc-proxy:${{ needs.release.outputs.l2geth }},ethereumoptimism/rpc-proxy:latest
-
   gas-oracle:
     name: Publish Gas Oracle Version ${{ needs.release.outputs.gas-oracle }}
     needs: release
