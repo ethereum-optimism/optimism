@@ -20,9 +20,8 @@ import {
   BatchContext,
   AppendSequencerBatchParams,
 } from '../transaction-chain-contract'
-
-import { BlockRange, BatchSubmitter } from '.'
 import { TransactionSubmitter } from '../utils'
+import { BlockRange, BatchSubmitter } from '.'
 
 export interface AutoFixBatchOptions {
   fixDoublePlayedDeposits: boolean

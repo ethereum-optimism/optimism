@@ -1,8 +1,9 @@
 import { utils, Wallet, Contract } from 'ethers'
 import { ethers } from 'hardhat'
+import { expect } from 'chai'
+
 import { actor, setupActor, run, setupRun } from './lib/convenience'
 import { OptimismEnv } from '../test/shared/env'
-import { expect } from 'chai'
 
 interface Context {
   wallet: Wallet

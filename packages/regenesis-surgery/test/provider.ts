@@ -1,3 +1,5 @@
+import path from 'path'
+
 import { ethers } from 'ethers'
 import { BigNumber } from '@ethersproject/bignumber'
 import { Deferrable } from '@ethersproject/properties'
@@ -16,8 +18,6 @@ import {
   Listener,
 } from '@ethersproject/abstract-provider'
 import { KECCAK256_RLP_S, KECCAK256_NULL_S } from 'ethereumjs-util'
-import path from 'path'
-
 import { bytes32ify, remove0x, add0x } from '@eth-optimism/core-utils'
 
 // Represents the ethereum state

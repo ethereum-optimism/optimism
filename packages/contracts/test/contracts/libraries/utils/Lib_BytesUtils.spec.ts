@@ -1,10 +1,10 @@
 /* Internal Imports */
-import { Lib_BytesUtils_TEST_JSON } from '../../../data'
-import { runJsonTest } from '../../../helpers'
-
-/* External Imports */
 import { ethers } from 'hardhat'
 import { Contract } from 'ethers'
+
+/* External Imports */
+import { Lib_BytesUtils_TEST_JSON } from '../../../data'
+import { runJsonTest } from '../../../helpers'
 import { expect } from '../../../setup'
 
 describe('Lib_BytesUtils', () => {

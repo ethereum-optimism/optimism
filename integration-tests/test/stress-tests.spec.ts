@@ -1,10 +1,9 @@
-import { expect } from './shared/setup'
-
 /* Imports: External */
 import { Contract, Wallet, utils } from 'ethers'
 import { ethers } from 'hardhat'
 
 /* Imports: Internal */
+import { expect } from './shared/setup'
 import { OptimismEnv } from './shared/env'
 import {
   executeL1ToL2TransactionsParallel,
@@ -15,7 +14,6 @@ import {
   executeRepeatedL2Transactions,
   fundRandomWallet,
 } from './shared/stress-test-helpers'
-
 /* Imports: Artifacts */
 import { envConfig, fundUser } from './shared/utils'
 

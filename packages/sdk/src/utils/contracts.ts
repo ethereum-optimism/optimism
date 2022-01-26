@@ -1,5 +1,8 @@
 import { getContractInterface, predeploys } from '@eth-optimism/contracts'
 import { ethers, Contract } from 'ethers'
+
+import { toAddress } from './coercion'
+import { DeepPartial } from './type-utils'
 import {
   OEContracts,
   OEL1Contracts,
@@ -10,8 +13,6 @@ import {
   CustomBridges,
   CustomBridgesLike,
 } from '../interfaces'
-import { toAddress } from './coercion'
-import { DeepPartial } from './type-utils'
 
 /**
  * Full list of default L2 contract addresses.

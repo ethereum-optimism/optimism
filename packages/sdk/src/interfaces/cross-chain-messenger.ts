@@ -1,8 +1,9 @@
-import { Overrides, Signer } from 'ethers'
+import { Overrides, Signer, BigNumber } from 'ethers'
 import {
   TransactionRequest,
   TransactionResponse,
 } from '@ethersproject/abstract-provider'
+
 import {
   MessageLike,
   NumberLike,
@@ -21,9 +22,14 @@ export interface ICrossChainMessenger {
   provider: ICrossChainProvider
 
   /**
-   * Signer that will carry out L1/L2 transactions.
+   * Signer that will carry out L1 transactions.
    */
-  signer: Signer
+  l1Signer: Signer
+
+  /**
+   * Signer that will carry out L2 transactions.
+   */
+  l2Signer: Signer
 
   /**
    * Sends a given cross chain message. Where the message is sent depends on the direction attached
@@ -106,7 +112,7 @@ export interface ICrossChainMessenger {
     sendMessage: (
       message: CrossChainMessageRequest,
       overrides?: L1ToL2Overrides
-    ) => Promise<TransactionResponse>
+    ) => Promise<TransactionRequest>
 
     /**
      * Generates a transaction that resends a given cross chain message. Only applies to L1 to L2
@@ -177,7 +183,7 @@ export interface ICrossChainMessenger {
     sendMessage: (
       message: CrossChainMessageRequest,
       overrides?: L1ToL2Overrides
-    ) => Promise<TransactionResponse>
+    ) => Promise<BigNumber>
 
     /**
      * Estimates gas required to resend a cross chain message. Only applies to L1 to L2 messages.
@@ -191,7 +197,7 @@ export interface ICrossChainMessenger {
       message: MessageLike,
       messageGasLimit: NumberLike,
       overrides?: Overrides
-    ): Promise<TransactionRequest>
+    ): Promise<BigNumber>
 
     /**
      * Estimates gas required to finalize a cross chain message. Only applies to L2 to L1 messages.
@@ -203,7 +209,7 @@ export interface ICrossChainMessenger {
     finalizeMessage(
       message: MessageLike,
       overrides?: Overrides
-    ): Promise<TransactionRequest>
+    ): Promise<BigNumber>
 
     /**
      * Estimates gas required to deposit some ETH into the L2 chain.
@@ -215,7 +221,7 @@ export interface ICrossChainMessenger {
     depositETH(
       amount: NumberLike,
       overrides?: L1ToL2Overrides
-    ): Promise<TransactionRequest>
+    ): Promise<BigNumber>
 
     /**
      * Estimates gas required to withdraw some ETH back to the L1 chain.
@@ -224,9 +230,6 @@ export interface ICrossChainMessenger {
      * @param overrides Optional transaction overrides.
      * @returns Transaction that can be signed and executed to withdraw the tokens.
      */
-    withdrawETH(
-      amount: NumberLike,
-      overrides?: Overrides
-    ): Promise<TransactionRequest>
+    withdrawETH(amount: NumberLike, overrides?: Overrides): Promise<BigNumber>
   }
 }

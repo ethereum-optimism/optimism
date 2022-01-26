@@ -1,5 +1,3 @@
-import { expect } from '../../../setup'
-
 /* External Imports */
 import { ethers } from 'hardhat'
 import { Signer, ContractFactory, Contract } from 'ethers'
@@ -11,8 +9,8 @@ import {
 } from '@eth-optimism/smock'
 
 /* Internal Imports */
+import { expect } from '../../../setup'
 import { NON_NULL_BYTES32, NON_ZERO_ADDRESS } from '../../../helpers'
-
 import { getContractInterface } from '../../../../src'
 
 const ERR_INVALID_MESSENGER = 'OVM_XCHAIN: messenger contract unauthenticated'

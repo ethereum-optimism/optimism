@@ -1,5 +1,14 @@
 # @eth-optimism/sdk
 
+## 0.0.5
+
+### Patch Changes
+
+- Updated dependencies [ba96a455]
+- Updated dependencies [c3e85fef]
+  - @eth-optimism/core-utils@0.7.4
+  - @eth-optimism/contracts@0.5.9
+
 ## 0.0.4
 
 ### Patch Changes

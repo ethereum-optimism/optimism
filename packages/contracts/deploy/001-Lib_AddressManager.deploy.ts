@@ -1,8 +1,9 @@
 /* Imports: Internal */
+import { DeployFunction } from 'hardhat-deploy/dist/types'
+
 import { names } from '../src/address-names'
 
 /* Imports: External */
-import { DeployFunction } from 'hardhat-deploy/dist/types'
 
 const deployFn: DeployFunction = async (hre) => {
   const { deploy } = hre.deployments

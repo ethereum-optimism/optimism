@@ -1,8 +1,8 @@
-import { expect } from '../../setup'
-
 /* External Imports */
 import { ethers } from 'hardhat'
 import { Contract, BigNumber } from 'ethers'
+
+import { expect } from '../../setup'
 
 const bigNumberify = (arr: any[]) => {
   return arr.map((el: any) => {

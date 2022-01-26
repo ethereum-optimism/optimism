@@ -1,3 +1,5 @@
+import { TransactionReceipt } from '@ethersproject/abstract-provider'
+
 import { expect } from './shared/setup'
 import { OptimismEnv } from './shared/env'
 import {
@@ -6,7 +8,6 @@ import {
   sleep,
   envConfig,
 } from './shared/utils'
-import { TransactionReceipt } from '@ethersproject/abstract-provider'
 
 describe('Replica Tests', () => {
   let env: OptimismEnv

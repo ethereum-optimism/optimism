@@ -1,6 +1,5 @@
-import { expect } from './setup'
-
 /* Imports: Internal */
+import { expect } from './setup'
 import { sleep } from '../src'
 
 describe('sleep', async () => {

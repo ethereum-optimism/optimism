@@ -1,6 +1,8 @@
-import { expect } from '@eth-optimism/core-utils/test/setup'
 import fs from 'fs/promises'
 import path from 'path'
+
+import { expect } from '@eth-optimism/core-utils/test/setup'
+
 import { isBytecodeERC20 } from '../scripts/utils'
 
 describe('Utils', () => {

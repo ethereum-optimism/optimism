@@ -1,7 +1,8 @@
 import fs from 'fs'
-import client from 'prom-client'
 import http from 'http'
 import url from 'url'
+
+import client from 'prom-client'
 
 export const metricsRegistry = new client.Registry()
 

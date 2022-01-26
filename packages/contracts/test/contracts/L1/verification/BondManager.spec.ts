@@ -1,10 +1,9 @@
-import { expect } from '../../../setup'
-
 /* External Imports */
 import { ethers } from 'hardhat'
 import { Signer, Contract } from 'ethers'
 
 /* Internal Imports */
+import { expect } from '../../../setup'
 import { makeAddressManager } from '../../../helpers'
 
 describe('BondManager', () => {

@@ -2,13 +2,13 @@
 import { BaseService, Metrics } from '@eth-optimism/common-ts'
 import { LevelUp } from 'levelup'
 import level from 'level'
+import { Counter } from 'prom-client'
 
 /* Imports: Internal */
 import { L1IngestionService } from '../l1-ingestion/service'
 import { L1TransportServer } from '../server/service'
 import { validators } from '../../utils'
 import { L2IngestionService } from '../l2-ingestion/service'
-import { Counter } from 'prom-client'
 
 export interface L1DataTransportServiceOptions {
   nodeEnv: string

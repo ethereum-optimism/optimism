@@ -1,14 +1,19 @@
-import { expect } from './setup'
 import { Provider } from '@ethersproject/abstract-provider'
+import { expectApprox } from '@eth-optimism/core-utils'
 import { Contract } from 'ethers'
 import { ethers } from 'hardhat'
+
+import { expect } from './setup'
 import {
   CrossChainProvider,
   MessageDirection,
   CONTRACT_ADDRESSES,
   hashCrossChainMessage,
   omit,
+  MessageStatus,
+  CrossChainMessage,
 } from '../src'
+import { DUMMY_MESSAGE } from './helpers'
 
 describe('CrossChainProvider', () => {
   describe('construction', () => {
@@ -250,13 +255,7 @@ describe('CrossChainProvider', () => {
           for (const n of [1, 2, 4, 8]) {
             it(`should find ${n} messages when the transaction emits ${n} messages`, async () => {
               const messages = [...Array(n)].map(() => {
-                return {
-                  target: '0x' + '11'.repeat(20),
-                  sender: '0x' + '22'.repeat(20),
-                  message: '0x' + '33'.repeat(64),
-                  messageNonce: 1234,
-                  gasLimit: 100000,
-                }
+                return DUMMY_MESSAGE
               })
 
               const tx = await l1Messenger.triggerSentMessageEvents(messages)
@@ -271,6 +270,7 @@ describe('CrossChainProvider', () => {
                     target: message.target,
                     message: message.message,
                     messageNonce: ethers.BigNumber.from(message.messageNonce),
+                    gasLimit: ethers.BigNumber.from(message.gasLimit),
                     logIndex: i,
                     blockNumber: tx.blockNumber,
                     transactionHash: tx.hash,
@@ -309,13 +309,7 @@ describe('CrossChainProvider', () => {
           for (const n of [1, 2, 4, 8]) {
             it(`should find ${n} messages when the transaction emits ${n} messages`, async () => {
               const messages = [...Array(n)].map(() => {
-                return {
-                  target: '0x' + '11'.repeat(20),
-                  sender: '0x' + '22'.repeat(20),
-                  message: '0x' + '33'.repeat(64),
-                  messageNonce: 1234,
-                  gasLimit: 100000,
-                }
+                return DUMMY_MESSAGE
               })
 
               const tx = await l1Messenger.triggerSentMessageEvents(messages)
@@ -328,6 +322,7 @@ describe('CrossChainProvider', () => {
                     target: message.target,
                     message: message.message,
                     messageNonce: ethers.BigNumber.from(message.messageNonce),
+                    gasLimit: ethers.BigNumber.from(message.gasLimit),
                     logIndex: i,
                     blockNumber: tx.blockNumber,
                     transactionHash: tx.hash,
@@ -692,6 +687,7 @@ describe('CrossChainProvider', () => {
           sender: '0x' + '22'.repeat(20),
           message: '0x' + '33'.repeat(64),
           messageNonce: 1234,
+          gasLimit: 0,
           logIndex: 0,
           blockNumber: 1234,
           transactionHash: '0x' + '44'.repeat(32),
@@ -736,15 +732,7 @@ describe('CrossChainProvider', () => {
     describe('when the input is a TransactionLike', () => {
       describe('when the transaction sent exactly one message', () => {
         it('should return the CrossChainMessage sent in the transaction', async () => {
-          const message = {
-            target: '0x' + '11'.repeat(20),
-            sender: '0x' + '22'.repeat(20),
-            message: '0x' + '33'.repeat(64),
-            messageNonce: 1234,
-            gasLimit: 100000,
-          }
-
-          const tx = await l1Messenger.triggerSentMessageEvents([message])
+          const tx = await l1Messenger.triggerSentMessageEvents([DUMMY_MESSAGE])
           const foundCrossChainMessages =
             await provider.getMessagesByTransaction(tx)
           const resolved = await provider.toCrossChainMessage(tx)
@@ -755,13 +743,7 @@ describe('CrossChainProvider', () => {
       describe('when the transaction sent more than one message', () => {
         it('should throw an error', async () => {
           const messages = [...Array(2)].map(() => {
-            return {
-              target: '0x' + '11'.repeat(20),
-              sender: '0x' + '22'.repeat(20),
-              message: '0x' + '33'.repeat(64),
-              messageNonce: 1234,
-              gasLimit: 100000,
-            }
+            return DUMMY_MESSAGE
           })
 
           const tx = await l1Messenger.triggerSentMessageEvents(messages)
@@ -783,45 +765,200 @@ describe('CrossChainProvider', () => {
   })
 
   describe('getMessageStatus', () => {
+    let scc: Contract
+    let l1Messenger: Contract
+    let l2Messenger: Contract
+    let provider: CrossChainProvider
+    beforeEach(async () => {
+      // TODO: Get rid of the nested awaits here. Could be a good first issue for someone.
+      scc = (await (await ethers.getContractFactory('MockSCC')).deploy()) as any
+      l1Messenger = (await (
+        await ethers.getContractFactory('MockMessenger')
+      ).deploy()) as any
+      l2Messenger = (await (
+        await ethers.getContractFactory('MockMessenger')
+      ).deploy()) as any
+
+      provider = new CrossChainProvider({
+        l1Provider: ethers.provider,
+        l2Provider: ethers.provider,
+        l1ChainId: 31337,
+        contracts: {
+          l1: {
+            L1CrossDomainMessenger: l1Messenger.address,
+            StateCommitmentChain: scc.address,
+          },
+          l2: {
+            L2CrossDomainMessenger: l2Messenger.address,
+          },
+        },
+      })
+    })
+
+    const sendAndGetDummyMessage = async (direction: MessageDirection) => {
+      const messenger =
+        direction === MessageDirection.L1_TO_L2 ? l1Messenger : l2Messenger
+      const tx = await messenger.triggerSentMessageEvents([DUMMY_MESSAGE])
+      return (
+        await provider.getMessagesByTransaction(tx, {
+          direction,
+        })
+      )[0]
+    }
+
+    const submitStateRootBatchForMessage = async (
+      message: CrossChainMessage
+    ) => {
+      await scc.setSBAParams({
+        batchIndex: 0,
+        batchRoot: ethers.constants.HashZero,
+        batchSize: 1,
+        prevTotalElements: message.blockNumber,
+        extraData: '0x',
+      })
+      await scc.appendStateBatch([ethers.constants.HashZero], 0)
+    }
+
     describe('when the message is an L1 => L2 message', () => {
       describe('when the message has not been executed on L2 yet', () => {
-        it('should return a status of UNCONFIRMED_L1_TO_L2_MESSAGE')
+        it('should return a status of UNCONFIRMED_L1_TO_L2_MESSAGE', async () => {
+          const message = await sendAndGetDummyMessage(
+            MessageDirection.L1_TO_L2
+          )
+
+          expect(await provider.getMessageStatus(message)).to.equal(
+            MessageStatus.UNCONFIRMED_L1_TO_L2_MESSAGE
+          )
+        })
       })
 
       describe('when the message has been executed on L2', () => {
-        it('should return a status of RELAYED')
+        it('should return a status of RELAYED', async () => {
+          const message = await sendAndGetDummyMessage(
+            MessageDirection.L1_TO_L2
+          )
+
+          await l2Messenger.triggerRelayedMessageEvents([
+            hashCrossChainMessage(message),
+          ])
+
+          expect(await provider.getMessageStatus(message)).to.equal(
+            MessageStatus.RELAYED
+          )
+        })
       })
 
       describe('when the message has been executed but failed', () => {
-        it('should return a status of FAILED_L1_TO_L2_MESSAGE')
+        it('should return a status of FAILED_L1_TO_L2_MESSAGE', async () => {
+          const message = await sendAndGetDummyMessage(
+            MessageDirection.L1_TO_L2
+          )
+
+          await l2Messenger.triggerFailedRelayedMessageEvents([
+            hashCrossChainMessage(message),
+          ])
+
+          expect(await provider.getMessageStatus(message)).to.equal(
+            MessageStatus.FAILED_L1_TO_L2_MESSAGE
+          )
+        })
       })
     })
 
     describe('when the message is an L2 => L1 message', () => {
       describe('when the message state root has not been published', () => {
-        it('should return a status of STATE_ROOT_NOT_PUBLISHED')
+        it('should return a status of STATE_ROOT_NOT_PUBLISHED', async () => {
+          const message = await sendAndGetDummyMessage(
+            MessageDirection.L2_TO_L1
+          )
+
+          expect(await provider.getMessageStatus(message)).to.equal(
+            MessageStatus.STATE_ROOT_NOT_PUBLISHED
+          )
+        })
       })
 
       describe('when the message state root is still in the challenge period', () => {
-        it('should return a status of IN_CHALLENGE_PERIOD')
+        it('should return a status of IN_CHALLENGE_PERIOD', async () => {
+          const message = await sendAndGetDummyMessage(
+            MessageDirection.L2_TO_L1
+          )
+
+          await submitStateRootBatchForMessage(message)
+
+          expect(await provider.getMessageStatus(message)).to.equal(
+            MessageStatus.IN_CHALLENGE_PERIOD
+          )
+        })
       })
 
       describe('when the message is no longer in the challenge period', () => {
         describe('when the message has been relayed successfully', () => {
-          it('should return a status of RELAYED')
+          it('should return a status of RELAYED', async () => {
+            const message = await sendAndGetDummyMessage(
+              MessageDirection.L2_TO_L1
+            )
+
+            await submitStateRootBatchForMessage(message)
+
+            const challengePeriod = await provider.getChallengePeriodSeconds()
+            ethers.provider.send('evm_increaseTime', [challengePeriod + 1])
+            ethers.provider.send('evm_mine', [])
+
+            await l1Messenger.triggerRelayedMessageEvents([
+              hashCrossChainMessage(message),
+            ])
+
+            expect(await provider.getMessageStatus(message)).to.equal(
+              MessageStatus.RELAYED
+            )
+          })
         })
 
         describe('when the message has been relayed but the relay failed', () => {
-          it('should return a status of READY_FOR_RELAY')
+          it('should return a status of READY_FOR_RELAY', async () => {
+            const message = await sendAndGetDummyMessage(
+              MessageDirection.L2_TO_L1
+            )
+
+            await submitStateRootBatchForMessage(message)
+
+            const challengePeriod = await provider.getChallengePeriodSeconds()
+            ethers.provider.send('evm_increaseTime', [challengePeriod + 1])
+            ethers.provider.send('evm_mine', [])
+
+            await l1Messenger.triggerFailedRelayedMessageEvents([
+              hashCrossChainMessage(message),
+            ])
+
+            expect(await provider.getMessageStatus(message)).to.equal(
+              MessageStatus.READY_FOR_RELAY
+            )
+          })
         })
 
         describe('when the message has not been relayed', () => {
-          it('should return a status of READY_FOR_RELAY')
+          it('should return a status of READY_FOR_RELAY', async () => {
+            const message = await sendAndGetDummyMessage(
+              MessageDirection.L2_TO_L1
+            )
+
+            await submitStateRootBatchForMessage(message)
+
+            const challengePeriod = await provider.getChallengePeriodSeconds()
+            ethers.provider.send('evm_increaseTime', [challengePeriod + 1])
+            ethers.provider.send('evm_mine', [])
+
+            expect(await provider.getMessageStatus(message)).to.equal(
+              MessageStatus.READY_FOR_RELAY
+            )
+          })
         })
       })
     })
 
     describe('when the message does not exist', () => {
+      // TODO: Figure out if this is the correct behavior. Mark suggests perhaps returning null.
       it('should throw an error')
     })
   })
@@ -872,6 +1009,7 @@ describe('CrossChainProvider', () => {
             sender: '0x' + '22'.repeat(20),
             message: '0x' + '33'.repeat(64),
             messageNonce: 1234,
+            gasLimit: 0,
             logIndex: 0,
             blockNumber: 1234,
             transactionHash: '0x' + '44'.repeat(32),
@@ -902,6 +1040,7 @@ describe('CrossChainProvider', () => {
             sender: '0x' + '22'.repeat(20),
             message: '0x' + '33'.repeat(64),
             messageNonce: 1234,
+            gasLimit: 0,
             logIndex: 0,
             blockNumber: 1234,
             transactionHash: '0x' + '44'.repeat(32),
@@ -932,6 +1071,7 @@ describe('CrossChainProvider', () => {
             sender: '0x' + '22'.repeat(20),
             message: '0x' + '33'.repeat(64),
             messageNonce: 1234,
+            gasLimit: 0,
             logIndex: 0,
             blockNumber: 1234,
             transactionHash: '0x' + '44'.repeat(32),
@@ -967,6 +1107,7 @@ describe('CrossChainProvider', () => {
           sender: '0x' + '22'.repeat(20),
           message: '0x' + '33'.repeat(64),
           messageNonce: 1234,
+          gasLimit: 0,
           logIndex: 0,
           blockNumber: 1234,
           transactionHash: '0x' + '44'.repeat(32),
@@ -1011,6 +1152,7 @@ describe('CrossChainProvider', () => {
           sender: '0x' + '22'.repeat(20),
           message: '0x' + '33'.repeat(64),
           messageNonce: 1234,
+          gasLimit: 0,
           logIndex: 0,
           blockNumber: 1234,
           transactionHash: '0x' + '44'.repeat(32),
@@ -1042,6 +1184,7 @@ describe('CrossChainProvider', () => {
             sender: '0x' + '22'.repeat(20),
             message: '0x' + '33'.repeat(64),
             messageNonce: 1234,
+            gasLimit: 0,
             logIndex: 0,
             blockNumber: 1234,
             transactionHash: '0x' + '44'.repeat(32),
@@ -1074,6 +1217,7 @@ describe('CrossChainProvider', () => {
             sender: '0x' + '22'.repeat(20),
             message: '0x' + '33'.repeat(64),
             messageNonce: 1234,
+            gasLimit: 0,
             logIndex: 0,
             blockNumber: 1234,
             transactionHash: '0x' + '44'.repeat(32),
@@ -1090,7 +1234,93 @@ describe('CrossChainProvider', () => {
   })
 
   describe('estimateL2MessageGasLimit', () => {
-    it('should perform a gas estimation of the L2 action')
+    let provider: CrossChainProvider
+    beforeEach(async () => {
+      provider = new CrossChainProvider({
+        l1Provider: ethers.provider,
+        l2Provider: ethers.provider,
+        l1ChainId: 31337,
+      })
+    })
+
+    describe('when the message is an L1 to L2 message', () => {
+      it('should return an accurate gas estimate plus a ~20% buffer', async () => {
+        const message = {
+          direction: MessageDirection.L1_TO_L2,
+          target: '0x' + '11'.repeat(20),
+          sender: '0x' + '22'.repeat(20),
+          message: '0x' + '33'.repeat(64),
+          messageNonce: 1234,
+          logIndex: 0,
+          blockNumber: 1234,
+          transactionHash: '0x' + '44'.repeat(32),
+        }
+
+        const estimate = await ethers.provider.estimateGas({
+          to: message.target,
+          from: message.sender,
+          data: message.message,
+        })
+
+        // Approximately 20% greater than the estimate, +/- 1%.
+        expectApprox(
+          await provider.estimateL2MessageGasLimit(message),
+          estimate.mul(120).div(100),
+          {
+            percentUpperDeviation: 1,
+            percentLowerDeviation: 1,
+          }
+        )
+      })
+
+      it('should return an accurate gas estimate when a custom buffer is provided', async () => {
+        const message = {
+          direction: MessageDirection.L1_TO_L2,
+          target: '0x' + '11'.repeat(20),
+          sender: '0x' + '22'.repeat(20),
+          message: '0x' + '33'.repeat(64),
+          messageNonce: 1234,
+          logIndex: 0,
+          blockNumber: 1234,
+          transactionHash: '0x' + '44'.repeat(32),
+        }
+
+        const estimate = await ethers.provider.estimateGas({
+          to: message.target,
+          from: message.sender,
+          data: message.message,
+        })
+
+        // Approximately 30% greater than the estimate, +/- 1%.
+        expectApprox(
+          await provider.estimateL2MessageGasLimit(message, {
+            bufferPercent: 30,
+          }),
+          estimate.mul(130).div(100),
+          {
+            percentUpperDeviation: 1,
+            percentLowerDeviation: 1,
+          }
+        )
+      })
+    })
+
+    describe('when the message is an L2 to L1 message', () => {
+      it('should throw an error', async () => {
+        const message = {
+          direction: MessageDirection.L2_TO_L1,
+          target: '0x' + '11'.repeat(20),
+          sender: '0x' + '22'.repeat(20),
+          message: '0x' + '33'.repeat(64),
+          messageNonce: 1234,
+          logIndex: 0,
+          blockNumber: 1234,
+          transactionHash: '0x' + '44'.repeat(32),
+        }
+
+        await expect(provider.estimateL2MessageGasLimit(message)).to.be.rejected
+      })
+    })
   })
 
   describe('estimateMessageWaitTimeBlocks', () => {

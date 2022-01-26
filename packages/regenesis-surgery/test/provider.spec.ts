@@ -1,12 +1,13 @@
 import { expect } from '@eth-optimism/core-utils/test/setup'
 import { ethers, BigNumber } from 'ethers'
-import { GenesisJsonProvider } from './provider'
 import { Genesis } from '@eth-optimism/core-utils/src/types'
 import {
   remove0x,
   add0x,
 } from '@eth-optimism/core-utils/src/common/hex-strings'
 import { KECCAK256_RLP_S, KECCAK256_NULL_S } from 'ethereumjs-util'
+
+import { GenesisJsonProvider } from './provider'
 
 const account = '0x66a84544bed4ca45b3c024776812abf87728fbaf'
 

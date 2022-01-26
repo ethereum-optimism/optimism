@@ -209,14 +209,13 @@ func (st *StateTransition) buyGas() error {
 func (st *StateTransition) preCheck() error {
 	// Make sure this transaction's nonce is correct.
 	if st.msg.CheckNonce() {
+		if rcfg.UsingOVM {
+			if st.msg.QueueOrigin() == types.QueueOriginL1ToL2 {
+				return st.buyGas()
+			}
+		}
 		nonce := st.state.GetNonce(st.msg.From())
 		if nonce < st.msg.Nonce() {
-			if rcfg.UsingOVM {
-				// The nonce never increments for L1ToL2 txs
-				if st.msg.QueueOrigin() == types.QueueOriginL1ToL2 {
-					return st.buyGas()
-				}
-			}
 			return ErrNonceTooHigh
 		} else if nonce > st.msg.Nonce() {
 			return ErrNonceTooLow

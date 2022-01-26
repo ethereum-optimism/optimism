@@ -3,8 +3,8 @@ import { BigNumber } from 'ethers'
 import { TransactionEnqueuedEvent } from '@eth-optimism/contracts/dist/types/CanonicalTransactionChain'
 
 /* Imports: Internal */
-import { EnqueueEntry, EventHandlerSet } from '../../../types'
 import { MissingElementError } from './errors'
+import { EnqueueEntry, EventHandlerSet } from '../../../types'
 
 export const handleEventsTransactionEnqueued: EventHandlerSet<
   TransactionEnqueuedEvent,

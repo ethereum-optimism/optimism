@@ -50,7 +50,10 @@ import (
 	"github.com/tyler-smith/go-bip39"
 )
 
-var errOVMUnsupported = errors.New("OVM: Unsupported RPC Method")
+var (
+	errOVMUnsupported = errors.New("OVM: Unsupported RPC Method")
+	errNoSequencerURL = errors.New("sequencer transaction forwarding not configured")
+)
 
 const (
 	// defaultDialTimeout is default duration the service will wait on
@@ -1680,7 +1683,11 @@ func (s *PublicTransactionPoolAPI) SendRawTransaction(ctx context.Context, encod
 	}
 
 	if s.b.IsVerifier() {
-		client, err := dialSequencerClientWithTimeout(ctx, s.b.SequencerClientHttp())
+		sequencerURL := s.b.SequencerClientHttp()
+		if sequencerURL == "" {
+			return common.Hash{}, errNoSequencerURL
+		}
+		client, err := dialSequencerClientWithTimeout(ctx, sequencerURL)
 		if err != nil {
 			return common.Hash{}, err
 		}

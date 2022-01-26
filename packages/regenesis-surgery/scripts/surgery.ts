@@ -1,6 +1,8 @@
-import { ethers } from 'ethers'
 import fs from 'fs'
+
+import { ethers } from 'ethers'
 import { add0x, remove0x, clone } from '@eth-optimism/core-utils'
+
 import { StateDump, SurgeryDataSources, AccountType } from './types'
 import { findAccount } from './utils'
 import { handlers } from './handlers'

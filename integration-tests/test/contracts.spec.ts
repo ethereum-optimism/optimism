@@ -1,14 +1,12 @@
-import { expect } from './shared/setup'
-
 import { BigNumber, Contract, ContractFactory, utils, Wallet } from 'ethers'
 import { ethers } from 'hardhat'
 import { UniswapV3Deployer } from 'uniswap-v3-deploy-plugin/dist/deployer/UniswapV3Deployer'
-
-import { OptimismEnv } from './shared/env'
 import { FeeAmount, TICK_SPACINGS } from '@uniswap/v3-sdk'
-
 import { abi as NFTABI } from '@uniswap/v3-periphery/artifacts/contracts/NonfungiblePositionManager.sol/NonfungiblePositionManager.json'
 import { abi as RouterABI } from '@uniswap/v3-periphery/artifacts/contracts/SwapRouter.sol/SwapRouter.json'
+
+import { OptimismEnv } from './shared/env'
+import { expect } from './shared/setup'
 
 // Below methods taken from the Uniswap test suite, see
 // https://github.com/Uniswap/v3-periphery/blob/main/test/shared/ticks.ts

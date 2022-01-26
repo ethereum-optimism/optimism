@@ -1,5 +1,3 @@
-import { expect } from '../setup'
-
 /* Imports: External */
 import hre from 'hardhat'
 import { Contract, Signer } from 'ethers'
@@ -8,6 +6,7 @@ import { smockit } from '@eth-optimism/smock'
 import { toPlainObject } from 'lodash'
 
 /* Imports: Internal */
+import { expect } from '../setup'
 import {
   getMerkleTreeProof,
   getMessagesAndProofsForL2Transaction,

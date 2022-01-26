@@ -4,7 +4,6 @@ import {
   TransactionResponse,
 } from '@ethersproject/providers'
 import { Watcher } from '@eth-optimism/core-utils'
-
 import { Contract, Transaction } from 'ethers'
 
 export const initWatcher = async (

@@ -1,7 +1,9 @@
-import { BigNumber } from 'ethers'
+import { Event, BigNumber } from 'ethers'
 import { Provider, BlockTag } from '@ethersproject/abstract-provider'
+
 import {
   MessageLike,
+  MessageRequestLike,
   TransactionLike,
   AddressLike,
   NumberLike,
@@ -12,6 +14,8 @@ import {
   OEContracts,
   MessageReceipt,
   CustomBridges,
+  StateRoot,
+  StateRootBatch,
 } from './types'
 
 /**
@@ -200,9 +204,18 @@ export interface ICrossChainProvider {
    * L1 => L2 messages. You would supply this gas limit when sending the message to L2.
    *
    * @param message Message get a gas estimate for.
+   * @param opts Options object.
+   * @param opts.bufferPercent Percentage of gas to add to the estimate. Defaults to 20.
+   * @param opts.from Address to use as the sender.
    * @returns Estimates L2 gas limit.
    */
-  estimateL2MessageGasLimit(message: MessageLike): Promise<BigNumber>
+  estimateL2MessageGasLimit(
+    message: MessageRequestLike,
+    opts?: {
+      bufferPercent?: number
+      from?: string
+    }
+  ): Promise<BigNumber>
 
   /**
    * Returns the estimated amount of time before the message can be executed. When this is a
@@ -216,13 +229,52 @@ export interface ICrossChainProvider {
   estimateMessageWaitTimeSeconds(message: MessageLike): Promise<number>
 
   /**
-   * Returns the estimated amount of time before the message can be executed (in L1 blocks).
-   * When this is a message being sent to L1, this will return the estimated time until the message
-   * will complete its challenge period. When this is a message being sent to L2, this will return
-   * the estimated amount of time until the message will be picked up and executed on L2.
+   * Queries the current challenge period in seconds from the StateCommitmentChain.
    *
-   * @param message Message to estimate the time remaining for.
-   * @returns Estimated amount of time remaining (in blocks) before the message can be executed.
+   * @returns Current challenge period in seconds.
    */
-  estimateMessageWaitTimeBlocks(message: MessageLike): Promise<number>
+  getChallengePeriodSeconds(): Promise<number>
+
+  /**
+   * Returns the state root that corresponds to a given message. This is the state root for the
+   * block in which the transaction was included, as published to the StateCommitmentChain. If the
+   * state root for the given message has not been published yet, this function returns null.
+   *
+   * @param message Message to find a state root for.
+   * @returns State root for the block in which the message was created.
+   */
+  getMessageStateRoot(message: MessageLike): Promise<StateRoot | null>
+
+  /**
+   * Returns the StateBatchAppended event that was emitted when the batch with a given index was
+   * created. Returns null if no such event exists (the batch has not been submitted).
+   *
+   * @param batchIndex Index of the batch to find an event for.
+   * @returns StateBatchAppended event for the batch, or null if no such batch exists.
+   */
+  getStateBatchAppendedEventByBatchIndex(
+    batchIndex: number
+  ): Promise<Event | null>
+
+  /**
+   * Returns the StateBatchAppended event for the batch that includes the transaction with the
+   * given index. Returns null if no such event exists.
+   *
+   * @param transactionIndex Index of the L2 transaction to find an event for.
+   * @returns StateBatchAppended event for the batch that includes the given transaction by index.
+   */
+  getStateBatchAppendedEventByTransactionIndex(
+    transactionIndex: number
+  ): Promise<Event | null>
+
+  /**
+   * Returns information about the state root batch that included the state root for the given
+   * transaction by index. Returns null if no such state root has been published yet.
+   *
+   * @param transactionIndex Index of the L2 transaction to find a state root batch for.
+   * @returns State root batch for the given transaction index, or null if none exists yet.
+   */
+  getStateRootBatchByTransactionIndex(
+    transactionIndex: number
+  ): Promise<StateRootBatch | null>
 }
