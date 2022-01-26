@@ -1,4 +1,6 @@
 /* External Imports */
+import { performance } from 'perf_hooks'
+
 import { Promise as bPromise } from 'bluebird'
 import { Contract, Signer, providers } from 'ethers'
 import { TransactionReceipt } from '@ethersproject/abstract-provider'
