@@ -27,8 +27,6 @@ contracts -- A Merkleized MIPS processor on chain + the challenge logic
 The following commands should be run from the root directory unless otherwise specified:
 
 ```
-yarn
-
 # build unicorn
 ./build_unicorn.sh
 (cd unicorn2/bindings/python && python3 setup.py install)
@@ -37,20 +35,16 @@ export LIBUNICORN_PATH=$(pwd)/unicorn2/
 # build minigeth for MIPS
 (cd mipigo && ./build.sh)
 
-# build minigeth for PC
-(cd minigeth/ && go build)
-mkdir -p /tmp/cannon
-
 # compute the transition from 13284469 -> 13284470 on PC
+mkdir -p /tmp/cannon
 minigeth/go-ethereum 13284469
 
 # write out the golden MIPS minigeth start state
 yarn
 (cd mipsevm && ./evm.sh)
-./mipsevm/mipsevm
 
 # generate MIPS checkpoints for 13284469 -> 13284470
-./mipsevm/mipsevm 13284469
+mipsevm/mipsevm 13284469
 
 # deploy the MIPS and challenge contracts
 npx hardhat run scripts/deploy.js
