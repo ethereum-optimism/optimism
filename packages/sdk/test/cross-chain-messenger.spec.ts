@@ -118,12 +118,77 @@ describe('CrossChainMessenger', () => {
   })
 
   describe('resendMessage', () => {
-    describe('when the message being resent exists', () => {
-      it('should resend the message with the new gas limit')
+    let l1Messenger: Contract
+    let l2Messenger: Contract
+    let provider: CrossChainProvider
+    let messenger: CrossChainMessenger
+    beforeEach(async () => {
+      l1Messenger = (await (
+        await ethers.getContractFactory('MockMessenger')
+      ).deploy()) as any
+      l2Messenger = (await (
+        await ethers.getContractFactory('MockMessenger')
+      ).deploy()) as any
+
+      provider = new CrossChainProvider({
+        l1Provider: ethers.provider,
+        l2Provider: ethers.provider,
+        l1ChainId: 31337,
+        contracts: {
+          l1: {
+            L1CrossDomainMessenger: l1Messenger.address,
+          },
+          l2: {
+            L2CrossDomainMessenger: l2Messenger.address,
+          },
+        },
+      })
+
+      messenger = new CrossChainMessenger({
+        provider,
+        l1Signer,
+        l2Signer,
+      })
     })
 
-    describe('when the message being resent does not exist', () => {
-      it('should throw an error')
+    describe('when resending an L1 to L2 message', () => {
+      it('should resend the message with the new gas limit', async () => {
+        const message = {
+          direction: MessageDirection.L1_TO_L2,
+          target: '0x' + '11'.repeat(20),
+          message: '0x' + '22'.repeat(32),
+        }
+
+        const sent = await messenger.sendMessage(message, {
+          l2GasLimit: 1234,
+        })
+
+        await expect(messenger.resendMessage(sent, 10000))
+          .to.emit(l1Messenger, 'SentMessage')
+          .withArgs(
+            message.target,
+            await l1Signer.getAddress(),
+            message.message,
+            1, // nonce is now 1
+            10000
+          )
+      })
+    })
+
+    describe('when resending an L2 to L1 message', () => {
+      it('should throw an error', async () => {
+        const message = {
+          direction: MessageDirection.L2_TO_L1,
+          target: '0x' + '11'.repeat(20),
+          message: '0x' + '22'.repeat(32),
+        }
+
+        const sent = await messenger.sendMessage(message, {
+          l2GasLimit: 1234,
+        })
+
+        await expect(messenger.resendMessage(sent, 10000)).to.be.rejected
+      })
     })
   })
 
