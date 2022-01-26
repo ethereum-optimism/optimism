@@ -211,4 +211,48 @@ describe('CrossChainMessenger', () => {
       it('should throw an error')
     })
   })
+
+  describe('depositETH', () => {
+    let l1Messenger: Contract
+    let l1Bridge: Contract
+    let provider: CrossChainProvider
+    let messenger: CrossChainMessenger
+    beforeEach(async () => {
+      l1Messenger = (await (
+        await ethers.getContractFactory('MockMessenger')
+      ).deploy()) as any
+      l1Bridge = (await (
+        await ethers.getContractFactory('MockBridge')
+      ).deploy(l1Messenger.address)) as any
+
+      provider = new CrossChainProvider({
+        l1Provider: ethers.provider,
+        l2Provider: ethers.provider,
+        l1ChainId: 31337,
+        contracts: {
+          l1: {
+            L1CrossDomainMessenger: l1Messenger.address,
+            L1StandardBridge: l1Bridge.address,
+          },
+        },
+      })
+
+      messenger = new CrossChainMessenger({
+        provider,
+        l1Signer,
+        l2Signer,
+      })
+    })
+
+    it('should trigger the deposit ETH function with the given amount', async () => {
+      await expect(messenger.depositETH(100000))
+        .to.emit(l1Bridge, 'ETHDepositInitiated')
+        .withArgs(
+          await l1Signer.getAddress(),
+          await l1Signer.getAddress(),
+          100000,
+          '0x'
+        )
+    })
+  })
 })
