@@ -17,13 +17,11 @@ export interface AppendSequencerBatchParams {
 }
 
 export interface EncodeSequencerBatchOptions {
-  zlib: boolean
+  zlib?: boolean
 }
 
 const APPEND_SEQUENCER_BATCH_METHOD_ID = 'appendSequencerBatch()'
 
-// This mutates the input by using unshift...
-//
 export const encodeAppendSequencerBatch = (
   b: AppendSequencerBatchParams,
   opts?: EncodeSequencerBatchOptions
