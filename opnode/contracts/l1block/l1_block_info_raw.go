@@ -31,11 +31,33 @@ var (
 // L1blockMetaData contains all meta data concerning the L1block contract.
 var L1blockMetaData = &bind.MetaData{
 	ABI: "[{\"inputs\":[],\"name\":\"OnlyDepositor\",\"type\":\"error\"},{\"inputs\":[],\"name\":\"DEPOSITOR_ACCOUNT\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"basefee\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"hash\",\"outputs\":[{\"internalType\":\"bytes32\",\"name\":\"\",\"type\":\"bytes32\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"number\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"_number\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"_timestamp\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"_basefee\",\"type\":\"uint256\"},{\"internalType\":\"bytes32\",\"name\":\"_hash\",\"type\":\"bytes32\"}],\"name\":\"setL1BlockValues\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"timestamp\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"}]",
+	Bin: "0x608060405234801561001057600080fd5b506103a2806100206000396000f3fe608060405234801561001057600080fd5b50600436106100625760003560e01c806309bd5a60146100675780635cf24969146100855780638381f58a146100a3578063b80777ea146100c1578063c03ba43e146100df578063e591b282146100fb575b600080fd5b61006f610119565b60405161007c91906101fd565b60405180910390f35b61008d61011f565b60405161009a9190610231565b60405180910390f35b6100ab610125565b6040516100b89190610231565b60405180910390f35b6100c961012b565b6040516100d69190610231565b60405180910390f35b6100f960048036038101906100f491906102a9565b610131565b005b6101036101cc565b6040516101109190610351565b60405180910390f35b60035481565b60025481565b60005481565b60015481565b73deaddeaddeaddeaddeaddeaddeaddeaddead000173ffffffffffffffffffffffffffffffffffffffff163373ffffffffffffffffffffffffffffffffffffffff16146101aa576040517fce8c104800000000000000000000000000000000000000000000000000000000815260040160405180910390fd5b8360008190555082600181905550816002819055508060038190555050505050565b73deaddeaddeaddeaddeaddeaddeaddeaddead000181565b6000819050919050565b6101f7816101e4565b82525050565b600060208201905061021260008301846101ee565b92915050565b6000819050919050565b61022b81610218565b82525050565b60006020820190506102466000830184610222565b92915050565b600080fd5b61025a81610218565b811461026557600080fd5b50565b60008135905061027781610251565b92915050565b610286816101e4565b811461029157600080fd5b50565b6000813590506102a38161027d565b92915050565b600080600080608085870312156102c3576102c261024c565b5b60006102d187828801610268565b94505060206102e287828801610268565b93505060406102f387828801610268565b925050606061030487828801610294565b91505092959194509250565b600073ffffffffffffffffffffffffffffffffffffffff82169050919050565b600061033b82610310565b9050919050565b61034b81610330565b82525050565b60006020820190506103666000830184610342565b9291505056fea2646970667358221220cdaea4f1ee477c3fe7f1b3caa2283ad58d53d6a652006ec9e6f6bf22354b258264736f6c634300080a0033",
 }
 
 // L1blockABI is the input ABI used to generate the binding from.
 // Deprecated: Use L1blockMetaData.ABI instead.
 var L1blockABI = L1blockMetaData.ABI
+
+// L1blockBin is the compiled bytecode used for deploying new contracts.
+// Deprecated: Use L1blockMetaData.Bin instead.
+var L1blockBin = L1blockMetaData.Bin
+
+// DeployL1block deploys a new Ethereum contract, binding an instance of L1block to it.
+func DeployL1block(auth *bind.TransactOpts, backend bind.ContractBackend) (common.Address, *types.Transaction, *L1block, error) {
+	parsed, err := L1blockMetaData.GetAbi()
+	if err != nil {
+		return common.Address{}, nil, nil, err
+	}
+	if parsed == nil {
+		return common.Address{}, nil, nil, errors.New("GetABI returned nil")
+	}
+
+	address, tx, contract, err := bind.DeployContract(auth, *parsed, common.FromHex(L1blockBin), backend)
+	if err != nil {
+		return common.Address{}, nil, nil, err
+	}
+	return address, tx, &L1block{L1blockCaller: L1blockCaller{contract: contract}, L1blockTransactor: L1blockTransactor{contract: contract}, L1blockFilterer: L1blockFilterer{contract: contract}}, nil
+}
 
 // L1block is an auto generated Go binding around an Ethereum contract.
 type L1block struct {
