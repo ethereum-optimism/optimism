@@ -190,7 +190,7 @@ func TestSystemE2E(t *testing.T) {
 	}
 
 	// Get the L1 Block of the tx
-	ctx, cancel = context.WithTimeout(context.Background(), 1*time.Second)
+	ctx, cancel = context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 	receipt, err := l1Client.TransactionReceipt(ctx, tx.Hash())
 	if err != nil {
