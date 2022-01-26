@@ -234,8 +234,7 @@ describe('BatchSubmitter', () => {
     )
   }
 
-  // Uses old CTC for some reason
-  describe.skip('TransactionBatchSubmitter', () => {
+  describe('TransactionBatchSubmitter', () => {
     describe('submitNextBatch', () => {
       let batchSubmitter
       beforeEach(async () => {
@@ -389,8 +388,7 @@ describe('BatchSubmitter', () => {
     })
   })
 
-  // Uses old CTC for some reason
-  describe.skip('StateBatchSubmitter', () => {
+  describe('StateBatchSubmitter', () => {
     let txBatchSubmitter
     let stateBatchSubmitter
     beforeEach(async () => {
