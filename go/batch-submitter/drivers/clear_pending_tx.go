@@ -8,7 +8,6 @@ import (
 	"strings"
 
 	"github.com/ethereum-optimism/optimism/go/batch-submitter/txmgr"
-	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -50,20 +49,20 @@ func ClearPendingTx(
 	// price.
 	sendTx := func(
 		ctx context.Context,
-		gasPrice *big.Int,
 	) (*types.Transaction, error) {
-		log.Info(name+" clearing pending tx", "nonce", nonce,
-			"gasPrice", gasPrice)
+		log.Info(name+" clearing pending tx", "nonce", nonce)
 
 		signedTx, err := SignClearingTx(
-			ctx, walletAddr, nonce, gasPrice, l1Client, privKey, chainID,
+			ctx, walletAddr, nonce, l1Client, privKey, chainID,
 		)
 		if err != nil {
 			log.Error(name+" unable to sign clearing tx", "nonce", nonce,
-				"gasPrice", gasPrice, "err", err)
+				"err", err)
 			return nil, err
 		}
 		txHash := signedTx.Hash()
+		gasTipCap := signedTx.GasTipCap()
+		gasFeeCap := signedTx.GasFeeCap()
 
 		err = l1Client.SendTransaction(ctx, signedTx)
 		switch {
@@ -71,7 +70,8 @@ func ClearPendingTx(
 		// Clearing transaction successfully confirmed.
 		case err == nil:
 			log.Info(name+" submitted clearing tx", "nonce", nonce,
-				"gasPrice", gasPrice, "txHash", txHash)
+				"gasTipCap", gasTipCap, "gasFeeCap", gasFeeCap,
+				"txHash", txHash)
 
 			return signedTx, nil
 
@@ -91,8 +91,8 @@ func ClearPendingTx(
 		// transaction, or abort if the old one confirms.
 		default:
 			log.Error(name+" unable to submit clearing tx",
-				"nonce", nonce, "gasPrice", gasPrice, "txHash", txHash,
-				"err", err)
+				"nonce", nonce, "gasTipCap", gasTipCap, "gasFeeCap", gasFeeCap,
+				"txHash", txHash, "err", err)
 			return nil, err
 		}
 	}
@@ -130,23 +130,23 @@ func SignClearingTx(
 	ctx context.Context,
 	walletAddr common.Address,
 	nonce uint64,
-	gasPrice *big.Int,
 	l1Client L1Client,
 	privKey *ecdsa.PrivateKey,
 	chainID *big.Int,
 ) (*types.Transaction, error) {
 
-	gasLimit, err := l1Client.EstimateGas(ctx, ethereum.CallMsg{
-		To:       &walletAddr,
-		GasPrice: gasPrice,
-		Value:    nil,
-		Data:     nil,
-	})
+	gasTipCap, err := l1Client.SuggestGasTipCap(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	tx := CraftClearingTx(walletAddr, nonce, gasPrice, gasLimit)
+	head, err := l1Client.HeaderByNumber(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	gasFeeCap := txmgr.CalcGasFeeCap(head.BaseFee, gasTipCap)
+	tx := CraftClearingTx(walletAddr, nonce, gasFeeCap, gasTipCap)
 
 	return types.SignTx(
 		tx, types.LatestSignerForChainID(chainID), privKey,
@@ -158,16 +158,16 @@ func SignClearingTx(
 func CraftClearingTx(
 	walletAddr common.Address,
 	nonce uint64,
-	gasPrice *big.Int,
-	gasLimit uint64,
+	gasFeeCap *big.Int,
+	gasTipCap *big.Int,
 ) *types.Transaction {
 
-	return types.NewTx(&types.LegacyTx{
-		To:       &walletAddr,
-		Nonce:    nonce,
-		GasPrice: gasPrice,
-		Gas:      gasLimit,
-		Value:    nil,
-		Data:     nil,
+	return types.NewTx(&types.DynamicFeeTx{
+		To:        &walletAddr,
+		Nonce:     nonce,
+		GasFeeCap: gasFeeCap,
+		GasTipCap: gasTipCap,
+		Value:     nil,
+		Data:      nil,
 	})
 }

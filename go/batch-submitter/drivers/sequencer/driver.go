@@ -12,7 +12,6 @@ import (
 	"github.com/ethereum-optimism/optimism/go/batch-submitter/metrics"
 	"github.com/ethereum-optimism/optimism/go/batch-submitter/txmgr"
 	l2ethclient "github.com/ethereum-optimism/optimism/l2geth/ethclient"
-	"github.com/ethereum-optimism/optimism/l2geth/params"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
@@ -233,7 +232,6 @@ func (d *Driver) CraftBatchTx(
 		}
 		opts.Context = ctx
 		opts.Nonce = nonce
-		opts.GasPrice = big.NewInt(params.GWei) // dummy
 		opts.NoSend = true
 
 		return d.rawCtcContract.RawTransact(opts, batchCallData)
@@ -241,12 +239,11 @@ func (d *Driver) CraftBatchTx(
 }
 
 // SubmitBatchTx using the passed transaction as a template, signs and publishes
-// an otherwise identical transaction after setting the provided gas price. The
+// the transaction unmodified apart from sampling the current gas price. The
 // final transaction is returned to the caller.
 func (d *Driver) SubmitBatchTx(
 	ctx context.Context,
 	tx *types.Transaction,
-	gasPrice *big.Int,
 ) (*types.Transaction, error) {
 
 	opts, err := bind.NewKeyedTransactorWithChainID(
@@ -257,7 +254,6 @@ func (d *Driver) SubmitBatchTx(
 	}
 	opts.Context = ctx
 	opts.Nonce = new(big.Int).SetUint64(tx.Nonce())
-	opts.GasPrice = gasPrice
 
 	return d.rawCtcContract.RawTransact(opts, tx.Data())
 }
