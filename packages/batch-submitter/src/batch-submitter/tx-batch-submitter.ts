@@ -688,7 +688,7 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
       if (
         (lastBlockIsSequencerTx === false && block.isSequencerTx === true) ||
         groupedBlocks.length === 0 ||
-        (block.timestamp !== lastTimestamp && block.isSequencerTx === true) ||
+        block.timestamp !== lastTimestamp ||
         (block.blockNumber !== lastBlockNumber && block.isSequencerTx === true)
       ) {
         groupedBlocks.push({

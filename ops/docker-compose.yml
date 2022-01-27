@@ -138,7 +138,7 @@ services:
       - dtl
       - l2geth
     deploy:
-      replicas: 0
+      replicas: 1
     build:
       context: ..
       dockerfile: ./ops/docker/Dockerfile.geth

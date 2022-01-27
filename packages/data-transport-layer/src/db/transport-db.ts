@@ -260,11 +260,20 @@ export class TransportDB {
         return null
       }
 
+      // handle backwards compatibility
+      let timestamp = enqueue.timestamp
+      if (transaction.timestamp !== 0) {
+        timestamp = transaction.timestamp
+      }
+      // TODO: compute the patch contexts
+      // else if tx in patchContexts
+      //   timestamp = patchContexts[tx].timestamp
+
       return {
         ...transaction,
         ...{
           blockNumber: enqueue.blockNumber,
-          timestamp: enqueue.timestamp,
+          timestamp,
           gasLimit: enqueue.gasLimit,
           target: enqueue.target,
           origin: enqueue.origin,
