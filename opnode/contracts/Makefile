@@ -1,9 +1,6 @@
 SHELL := /bin/bash
 
-
 CONTRACTS_PATH := "../../packages/contracts/artifacts/contracts"
-
-
 
 binding: abi
 	$(eval temp := $(shell mktemp))

@@ -30,13 +30,14 @@ func createGethNode(l2 bool, nodeCfg *node.Config, ethCfg *ethconfig.Config, pri
 	n.AccountManager().AddBackend(keystore.NewKeyStore(keydir, scryptN, scryptP))
 	ks := n.AccountManager().Backends(keystore.KeyStoreType)[0].(*keystore.KeyStore)
 
+	password := "foobar"
 	for _, pk := range privateKeys {
-		act, err := ks.ImportECDSA(pk, "foobar")
+		act, err := ks.ImportECDSA(pk, password)
 		if err != nil {
 			n.Close()
 			return nil, nil, err
 		}
-		err = ks.Unlock(act, "foobar")
+		err = ks.Unlock(act, password)
 		if err != nil {
 			n.Close()
 			return nil, nil, err
