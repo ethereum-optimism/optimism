@@ -1,6 +1,8 @@
 .github
 
 node_modules
+.env
+**/.env
 
 test
 **/*_test.go
