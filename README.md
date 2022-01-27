@@ -27,10 +27,7 @@ contracts -- A Merkleized MIPS processor on chain + the challenge logic
 The following commands should be run from the root directory unless otherwise specified:
 
 ```
-# build unicorn
 ./build_unicorn.sh
-(cd unicorn2/bindings/python && python3 setup.py install)
-export LIBUNICORN_PATH=$(pwd)/unicorn2/
 
 # build minigeth for MIPS
 (cd mipigo && ./build.sh)

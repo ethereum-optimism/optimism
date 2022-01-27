@@ -16,6 +16,7 @@ jobs:
     - name: Install unicorn
       run: |
         ./build_unicorn.sh
+        echo "LIBUNICORN_PATH=$(pwd)/unicorn2/" >> $GITHUB_ENV
     - name: Install yarn
       run: |
         npm install --global yarn
