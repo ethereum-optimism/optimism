@@ -4,8 +4,11 @@ This is the reference implementation of the [rollup-node spec](../specs/rollup-n
 
 ## Compiling
 
+From the repository root:
+
 ```shell
 go build -o op ./opnode/cmd
+go test ./opnode/...
 ```
 
 ## Running
