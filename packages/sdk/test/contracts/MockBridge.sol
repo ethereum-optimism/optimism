@@ -132,4 +132,23 @@ contract MockBridge {
             _data
         );
     }
+
+    function withdraw(
+        address _l2Token,
+        uint256 _amount,
+        uint32 _l1Gas,
+        bytes calldata _data
+    )
+        public
+        payable
+    {
+        emit WithdrawalInitiated(
+            address(0),
+            _l2Token,
+            msg.sender,
+            msg.sender,
+            _amount,
+            _data
+        );
+    }
 }

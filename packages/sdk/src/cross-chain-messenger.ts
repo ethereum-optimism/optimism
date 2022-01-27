@@ -4,6 +4,7 @@ import {
   TransactionRequest,
   TransactionResponse,
 } from '@ethersproject/abstract-provider'
+import { predeploys } from '@eth-optimism/contracts'
 
 import {
   CrossChainMessageRequest,
@@ -85,7 +86,9 @@ export class CrossChainMessenger implements ICrossChainMessenger {
     amount: NumberLike,
     overrides?: Overrides
   ): Promise<TransactionResponse> {
-    throw new Error('Not implemented')
+    return this.l2Signer.sendTransaction(
+      await this.populateTransaction.withdrawETH(amount, overrides)
+    )
   }
 
   populateTransaction = {
@@ -163,7 +166,13 @@ export class CrossChainMessenger implements ICrossChainMessenger {
       amount: NumberLike,
       overrides?: Overrides
     ): Promise<TransactionRequest> => {
-      throw new Error('Not implemented')
+      return this.provider.contracts.l2.L2StandardBridge.populateTransaction.withdraw(
+        predeploys.OVM_ETH,
+        amount,
+        0, // No need to supply gas here
+        '0x', // No data,
+        overrides || {}
+      )
     },
   }
 
@@ -212,7 +221,8 @@ export class CrossChainMessenger implements ICrossChainMessenger {
       amount: NumberLike,
       overrides?: Overrides
     ): Promise<BigNumber> => {
-      throw new Error('Not implemented')
+      const tx = await this.populateTransaction.withdrawETH(amount, overrides)
+      return this.provider.l2Provider.estimateGas(tx)
     },
   }
 }
