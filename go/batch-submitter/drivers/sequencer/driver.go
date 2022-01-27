@@ -234,7 +234,26 @@ func (d *Driver) CraftBatchTx(
 		opts.Nonce = nonce
 		opts.NoSend = true
 
-		return d.rawCtcContract.RawTransact(opts, batchCallData)
+		tx, err := d.rawCtcContract.RawTransact(opts, batchCallData)
+		switch {
+		case err == nil:
+			return tx, nil
+
+		// If the transaction failed because the backend does not support
+		// eth_maxPriorityFeePerGas, fallback to using the default constant.
+		// Currently Alchemy is the only backend provider that exposes this
+		// method, so in the event their API is unreachable we can fallback to a
+		// degraded mode of operation. This also applies to our test
+		// environments, as hardhat doesn't support the query either.
+		case drivers.IsMaxPriorityFeePerGasNotFoundError(err):
+			log.Warn(d.cfg.Name + " eth_maxPriorityFeePerGas is unsupported " +
+				"by current backend, using fallback gasTipCap")
+			opts.GasTipCap = drivers.FallbackGasTipCap
+			return d.rawCtcContract.RawTransact(opts, batchCallData)
+
+		default:
+			return nil, err
+		}
 	}
 }
 
@@ -255,5 +274,24 @@ func (d *Driver) SubmitBatchTx(
 	opts.Context = ctx
 	opts.Nonce = new(big.Int).SetUint64(tx.Nonce())
 
-	return d.rawCtcContract.RawTransact(opts, tx.Data())
+	finalTx, err := d.rawCtcContract.RawTransact(opts, tx.Data())
+	switch {
+	case err == nil:
+		return finalTx, nil
+
+	// If the transaction failed because the backend does not support
+	// eth_maxPriorityFeePerGas, fallback to using the default constant.
+	// Currently Alchemy is the only backend provider that exposes this method,
+	// so in the event their API is unreachable we can fallback to a degraded
+	// mode of operation. This also applies to our test environments, as hardhat
+	// doesn't support the query either.
+	case drivers.IsMaxPriorityFeePerGasNotFoundError(err):
+		log.Warn(d.cfg.Name + " eth_maxPriorityFeePerGas is unsupported " +
+			"by current backend, using fallback gasTipCap")
+		opts.GasTipCap = drivers.FallbackGasTipCap
+		return d.rawCtcContract.RawTransact(opts, tx.Data())
+
+	default:
+		return nil, err
+	}
 }

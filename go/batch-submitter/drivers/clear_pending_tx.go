@@ -53,7 +53,7 @@ func ClearPendingTx(
 		log.Info(name+" clearing pending tx", "nonce", nonce)
 
 		signedTx, err := SignClearingTx(
-			ctx, walletAddr, nonce, l1Client, privKey, chainID,
+			name, ctx, walletAddr, nonce, l1Client, privKey, chainID,
 		)
 		if err != nil {
 			log.Error(name+" unable to sign clearing tx", "nonce", nonce,
@@ -127,6 +127,7 @@ func ClearPendingTx(
 // SignClearingTx creates a signed clearing tranaction which sends 0 ETH back to
 // the sender's address. EstimateGas is used to set an appropriate gas limit.
 func SignClearingTx(
+	name string,
 	ctx context.Context,
 	walletAddr common.Address,
 	nonce uint64,
@@ -137,7 +138,19 @@ func SignClearingTx(
 
 	gasTipCap, err := l1Client.SuggestGasTipCap(ctx)
 	if err != nil {
-		return nil, err
+		if !IsMaxPriorityFeePerGasNotFoundError(err) {
+			return nil, err
+		}
+
+		// If the transaction failed because the backend does not support
+		// eth_maxPriorityFeePerGas, fallback to using the default constant.
+		// Currently Alchemy is the only backend provider that exposes this
+		// method, so in the event their API is unreachable we can fallback to a
+		// degraded mode of operation. This also applies to our test
+		// environments, as hardhat doesn't support the query either.
+		log.Warn(name + " eth_maxPriorityFeePerGas is unsupported " +
+			"by current backend, using fallback gasTipCap")
+		gasTipCap = FallbackGasTipCap
 	}
 
 	head, err := l1Client.HeaderByNumber(ctx, nil)

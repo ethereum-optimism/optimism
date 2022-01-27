@@ -73,8 +73,8 @@ func TestSignClearingTxEstimateGasSuccess(t *testing.T) {
 	)
 
 	tx, err := drivers.SignClearingTx(
-		context.Background(), testWalletAddr, testNonce, l1Client, testPrivKey,
-		testChainID,
+		"TEST", context.Background(), testWalletAddr, testNonce, l1Client,
+		testPrivKey, testChainID,
 	)
 	require.Nil(t, err)
 	require.NotNil(t, tx)
@@ -103,8 +103,8 @@ func TestSignClearingTxSuggestGasTipCapFail(t *testing.T) {
 	})
 
 	tx, err := drivers.SignClearingTx(
-		context.Background(), testWalletAddr, testNonce, l1Client, testPrivKey,
-		testChainID,
+		"TEST", context.Background(), testWalletAddr, testNonce, l1Client,
+		testPrivKey, testChainID,
 	)
 	require.Equal(t, errSuggestGasTipCap, err)
 	require.Nil(t, tx)
@@ -125,8 +125,8 @@ func TestSignClearingTxHeaderByNumberFail(t *testing.T) {
 	})
 
 	tx, err := drivers.SignClearingTx(
-		context.Background(), testWalletAddr, testNonce, l1Client, testPrivKey,
-		testChainID,
+		"TEST", context.Background(), testWalletAddr, testNonce, l1Client,
+		testPrivKey, testChainID,
 	)
 	require.Equal(t, errHeaderByNumber, err)
 	require.Nil(t, tx)

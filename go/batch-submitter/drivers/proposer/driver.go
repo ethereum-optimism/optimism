@@ -201,7 +201,30 @@ func (d *Driver) CraftBatchTx(
 	blockOffset := new(big.Int).SetUint64(d.cfg.BlockOffset)
 	offsetStartsAtIndex := new(big.Int).Sub(start, blockOffset)
 
-	return d.sccContract.AppendStateBatch(opts, stateRoots, offsetStartsAtIndex)
+	tx, err := d.sccContract.AppendStateBatch(
+		opts, stateRoots, offsetStartsAtIndex,
+	)
+	switch {
+	case err == nil:
+		return tx, nil
+
+	// If the transaction failed because the backend does not support
+	// eth_maxPriorityFeePerGas, fallback to using the default constant.
+	// Currently Alchemy is the only backend provider that exposes this method,
+	// so in the event their API is unreachable we can fallback to a degraded
+	// mode of operation. This also applies to our test environments, as hardhat
+	// doesn't support the query either.
+	case drivers.IsMaxPriorityFeePerGasNotFoundError(err):
+		log.Warn(d.cfg.Name + " eth_maxPriorityFeePerGas is unsupported " +
+			"by current backend, using fallback gasTipCap")
+		opts.GasTipCap = drivers.FallbackGasTipCap
+		return d.sccContract.AppendStateBatch(
+			opts, stateRoots, offsetStartsAtIndex,
+		)
+
+	default:
+		return nil, err
+	}
 }
 
 // SubmitBatchTx using the passed transaction as a template, signs and
@@ -221,5 +244,24 @@ func (d *Driver) SubmitBatchTx(
 	opts.Context = ctx
 	opts.Nonce = new(big.Int).SetUint64(tx.Nonce())
 
-	return d.rawSccContract.RawTransact(opts, tx.Data())
+	finalTx, err := d.rawSccContract.RawTransact(opts, tx.Data())
+	switch {
+	case err == nil:
+		return finalTx, nil
+
+	// If the transaction failed because the backend does not support
+	// eth_maxPriorityFeePerGas, fallback to using the default constant.
+	// Currently Alchemy is the only backend provider that exposes this method,
+	// so in the event their API is unreachable we can fallback to a degraded
+	// mode of operation. This also applies to our test environments, as hardhat
+	// doesn't support the query either.
+	case drivers.IsMaxPriorityFeePerGasNotFoundError(err):
+		log.Warn(d.cfg.Name + " eth_maxPriorityFeePerGas is unsupported " +
+			"by current backend, using fallback gasTipCap")
+		opts.GasTipCap = drivers.FallbackGasTipCap
+		return d.rawSccContract.RawTransact(opts, tx.Data())
+
+	default:
+		return nil, err
+	}
 }
