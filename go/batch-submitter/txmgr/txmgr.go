@@ -20,21 +20,8 @@ type SendTxFunc = func(ctx context.Context) (*types.Transaction, error)
 
 // Config houses parameters for altering the behavior of a SimpleTxManager.
 type Config struct {
+	// Name the name of the driver to appear in log lines.
 	Name string
-
-	// MinGasPrice is the minimum gas price (in gwei). This is used as the
-	// initial publication attempt.
-	MinGasPrice *big.Int
-
-	// MaxGasPrice is the maximum gas price (in gwei). This is used to clamp
-	// the upper end of the range that the TxManager will ever publish when
-	// attempting to confirm a transaction.
-	MaxGasPrice *big.Int
-
-	// GasRetryIncrement is the additive gas price (in gwei) that will be
-	// used to bump each successive tx after a ResubmissionTimeout has
-	// elapsed.
-	GasRetryIncrement *big.Int
 
 	// ResubmissionTimeout is the interval at which, if no previously
 	// published transaction has been mined, the new tx with a bumped gas

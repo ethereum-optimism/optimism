@@ -44,9 +44,6 @@ func newTestHarness() *testHarness {
 
 func configWithNumConfs(numConfirmations uint64) txmgr.Config {
 	return txmgr.Config{
-		MinGasPrice:          new(big.Int).SetUint64(5),
-		MaxGasPrice:          new(big.Int).SetUint64(50),
-		GasRetryIncrement:    new(big.Int).SetUint64(5),
 		ResubmissionTimeout:  time.Second,
 		ReceiptQueryInterval: 50 * time.Millisecond,
 		NumConfirmations:     numConfirmations,

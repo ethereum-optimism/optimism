@@ -11,7 +11,6 @@ import (
 	"github.com/ethereum-optimism/optimism/go/batch-submitter/drivers"
 	"github.com/ethereum-optimism/optimism/go/batch-submitter/mock"
 	"github.com/ethereum-optimism/optimism/go/batch-submitter/txmgr"
-	"github.com/ethereum-optimism/optimism/go/batch-submitter/utils"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -167,9 +166,6 @@ func newClearPendingTxHarnessWithNumConfs(
 
 	l1Client := mock.NewL1Client(l1ClientConfig)
 	txMgr := txmgr.NewSimpleTxManager("test", txmgr.Config{
-		MinGasPrice:          utils.GasPriceFromGwei(1),
-		MaxGasPrice:          utils.GasPriceFromGwei(100),
-		GasRetryIncrement:    utils.GasPriceFromGwei(5),
 		ResubmissionTimeout:  time.Second,
 		ReceiptQueryInterval: 50 * time.Millisecond,
 		NumConfirmations:     numConfirmations,
