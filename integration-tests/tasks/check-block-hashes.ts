@@ -1,5 +1,6 @@
 import { task } from 'hardhat/config'
 import { providers } from 'ethers'
+
 import { die, logStderr } from '../test/shared/utils'
 
 task(

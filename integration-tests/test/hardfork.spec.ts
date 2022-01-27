@@ -1,10 +1,10 @@
-import { expect } from './shared/setup'
-
 import { Contract, BigNumber } from 'ethers'
 import { ethers } from 'hardhat'
+
+import { expect } from './shared/setup'
 import { OptimismEnv } from './shared/env'
 
-const traceToGasByOpcode = (structLogs, opcode) => {
+export const traceToGasByOpcode = (structLogs, opcode) => {
   let gas = 0
   const opcodes = []
   for (const log of structLogs) {
@@ -63,7 +63,7 @@ describe('Hard forks', () => {
         )
         const preBerlinTrace = await env.l2Provider.send(
           'debug_traceTransaction',
-          [tx.hash, { overrides: { berlinBlock: tip.number + 10 } }]
+          [tx.hash, { overrides: { berlinBlock: tip.number * 2 } }]
         )
         expect(berlinTrace.gas).to.not.eq(preBerlinTrace.gas)
 
@@ -93,7 +93,7 @@ describe('Hard forks', () => {
         )
         const preBerlinTrace = await env.l2Provider.send(
           'debug_traceTransaction',
-          [tx.hash, { overrides: { berlinBlock: tip.number + 10 } }]
+          [tx.hash, { overrides: { berlinBlock: tip.number * 2 } }]
         )
         expect(berlinTrace.gas).to.be.lt(preBerlinTrace.gas)
       })
@@ -132,7 +132,7 @@ describe('Hard forks', () => {
           )
           const preBerlinTrace = await env.l2Provider.send(
             'debug_traceTransaction',
-            [tx.hash, { overrides: { berlinBlock: tip.number + 10 } }]
+            [tx.hash, { overrides: { berlinBlock: tip.number * 2 } }]
           )
           // Updating a non zero value to another non zero value should not change
           expect(berlinTrace.gas).to.deep.eq(preBerlinTrace.gas)
@@ -152,8 +152,9 @@ describe('Hard forks', () => {
           )
           const preBerlinTrace = await env.l2Provider.send(
             'debug_traceTransaction',
-            [tx.hash, { overrides: { berlinBlock: tip.number + 10 } }]
+            [tx.hash, { overrides: { berlinBlock: tip.number * 2 } }]
           )
+
           // Updating to a zero value from a non zero value should becomes
           // more expensive due to this change being coupled with EIP-2929
           expect(berlinTrace.gas).to.be.gt(preBerlinTrace.gas)
@@ -173,8 +174,9 @@ describe('Hard forks', () => {
           )
           const preBerlinTrace = await env.l2Provider.send(
             'debug_traceTransaction',
-            [tx.hash, { overrides: { berlinBlock: tip.number + 10 } }]
+            [tx.hash, { overrides: { berlinBlock: tip.number * 2 } }]
           )
+
           // Updating to a zero value from a non zero value should becomes
           // more expensive due to this change being coupled with EIP-2929
           expect(berlinTrace.gas).to.be.gt(preBerlinTrace.gas)
@@ -194,7 +196,7 @@ describe('Hard forks', () => {
         )
         const preBerlinTrace = await env.l2Provider.send(
           'debug_traceTransaction',
-          [tx.hash, { overrides: { berlinBlock: tip.number + 10 } }]
+          [tx.hash, { overrides: { berlinBlock: tip.number * 2 } }]
         )
 
         // The berlin execution should use more gas than the pre Berlin

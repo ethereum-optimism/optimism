@@ -93,6 +93,9 @@ const procEnv = cleanEnv(process.env, {
   RUN_STRESS_TESTS: bool({
     default: true,
   }),
+  RUN_NIGHTLY_TESTS: bool({
+    default: false,
+  }),
 
   MOCHA_TIMEOUT: num({
     default: 120_000,
