@@ -13,4 +13,3 @@ require (
 	github.com/urfave/cli v1.22.5
 )
 
-replace github.com/ethereum-optimism/optimism/l2geth => ../../l2geth
