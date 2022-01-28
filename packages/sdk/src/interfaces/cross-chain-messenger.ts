@@ -4,12 +4,7 @@ import {
   TransactionResponse,
 } from '@ethersproject/abstract-provider'
 
-import {
-  MessageLike,
-  NumberLike,
-  CrossChainMessageRequest,
-  L1ToL2Overrides,
-} from './types'
+import { MessageLike, NumberLike, CrossChainMessageRequest } from './types'
 import { ICrossChainProvider } from './cross-chain-provider'
 
 /**
@@ -36,12 +31,17 @@ export interface ICrossChainMessenger {
    * to the message itself.
    *
    * @param message Cross chain message to send.
-   * @param overrides Optional transaction overrides.
+   * @param opts Additional options.
+   * @param opts.l2GasLimit Optional gas limit to use for the transaction on L2.
+   * @param opts.overrides Optional transaction overrides.
    * @returns Transaction response for the message sending transaction.
    */
   sendMessage(
     message: CrossChainMessageRequest,
-    overrides?: L1ToL2Overrides
+    opts?: {
+      l2GasLimit?: NumberLike
+      overrides?: Overrides
+    }
   ): Promise<TransactionResponse>
 
   /**
@@ -50,13 +50,16 @@ export interface ICrossChainMessenger {
    *
    * @param message Cross chain message to resend.
    * @param messageGasLimit New gas limit to use for the message.
-   * @param overrides Optional transaction overrides.
+   * @param opts Additional options.
+   * @param opts.overrides Optional transaction overrides.
    * @returns Transaction response for the message resending transaction.
    */
   resendMessage(
     message: MessageLike,
     messageGasLimit: NumberLike,
-    overrides?: Overrides
+    opts?: {
+      overrides?: Overrides
+    }
   ): Promise<TransactionResponse>
 
   /**
@@ -64,36 +67,47 @@ export interface ICrossChainMessenger {
    * messages. Will throw an error if the message has not completed its challenge period yet.
    *
    * @param message Message to finalize.
-   * @param overrides Optional transaction overrides.
+   * @param opts Additional options.
+   * @param opts.overrides Optional transaction overrides.
    * @returns Transaction response for the finalization transaction.
    */
   finalizeMessage(
     message: MessageLike,
-    overrides?: Overrides
+    opts?: {
+      overrides?: Overrides
+    }
   ): Promise<TransactionResponse>
 
   /**
    * Deposits some ETH into the L2 chain.
    *
    * @param amount Amount of ETH to deposit (in wei).
-   * @param overrides Optional transaction overrides.
+   * @param opts Additional options.
+   * @param opts.l2GasLimit Optional gas limit to use for the transaction on L2.
+   * @param opts.overrides Optional transaction overrides.
    * @returns Transaction response for the deposit transaction.
    */
   depositETH(
     amount: NumberLike,
-    overrides?: L1ToL2Overrides
+    opts?: {
+      l2GasLimit?: NumberLike
+      overrides?: Overrides
+    }
   ): Promise<TransactionResponse>
 
   /**
    * Withdraws some ETH back to the L1 chain.
    *
    * @param amount Amount of ETH to withdraw.
-   * @param overrides Optional transaction overrides.
+   * @param opts Additional options.
+   * @param opts.overrides Optional transaction overrides.
    * @returns Transaction response for the withdraw transaction.
    */
   withdrawETH(
     amount: NumberLike,
-    overrides?: Overrides
+    opts?: {
+      overrides?: Overrides
+    }
   ): Promise<TransactionResponse>
 
   /**
@@ -106,12 +120,17 @@ export interface ICrossChainMessenger {
      * and executed by a signer.
      *
      * @param message Cross chain message to send.
-     * @param overrides Optional transaction overrides.
+     * @param opts Additional options.
+     * @param opts.l2GasLimit Optional gas limit to use for the transaction on L2.
+     * @param opts.overrides Optional transaction overrides.
      * @returns Transaction that can be signed and executed to send the message.
      */
     sendMessage: (
       message: CrossChainMessageRequest,
-      overrides?: L1ToL2Overrides
+      opts?: {
+        l2GasLimit?: NumberLike
+        overrides?: Overrides
+      }
     ) => Promise<TransactionRequest>
 
     /**
@@ -120,13 +139,16 @@ export interface ICrossChainMessenger {
      *
      * @param message Cross chain message to resend.
      * @param messageGasLimit New gas limit to use for the message.
-     * @param overrides Optional transaction overrides.
+     * @param opts Additional options.
+     * @param opts.overrides Optional transaction overrides.
      * @returns Transaction that can be signed and executed to resend the message.
      */
     resendMessage(
       message: MessageLike,
       messageGasLimit: NumberLike,
-      overrides?: Overrides
+      opts?: {
+        overrides?: Overrides
+      }
     ): Promise<TransactionRequest>
 
     /**
@@ -135,36 +157,47 @@ export interface ICrossChainMessenger {
      * its challenge period yet.
      *
      * @param message Message to generate the finalization transaction for.
-     * @param overrides Optional transaction overrides.
+     * @param opts Additional options.
+     * @param opts.overrides Optional transaction overrides.
      * @returns Transaction that can be signed and executed to finalize the message.
      */
     finalizeMessage(
       message: MessageLike,
-      overrides?: Overrides
+      opts?: {
+        overrides?: Overrides
+      }
     ): Promise<TransactionRequest>
 
     /**
      * Generates a transaction for depositing some ETH into the L2 chain.
      *
      * @param amount Amount of ETH to deposit.
-     * @param overrides Optional transaction overrides.
+     * @param opts Additional options.
+     * @param opts.l2GasLimit Optional gas limit to use for the transaction on L2.
+     * @param opts.overrides Optional transaction overrides.
      * @returns Transaction that can be signed and executed to deposit the ETH.
      */
     depositETH(
       amount: NumberLike,
-      overrides?: L1ToL2Overrides
+      opts?: {
+        l2GasLimit?: NumberLike
+        overrides?: Overrides
+      }
     ): Promise<TransactionRequest>
 
     /**
      * Generates a transaction for withdrawing some ETH back to the L1 chain.
      *
      * @param amount Amount of ETH to withdraw.
-     * @param overrides Optional transaction overrides.
+     * @param opts Additional options.
+     * @param opts.overrides Optional transaction overrides.
      * @returns Transaction that can be signed and executed to withdraw the tokens.
      */
     withdrawETH(
       amount: NumberLike,
-      overrides?: Overrides
+      opts?: {
+        overrides?: Overrides
+      }
     ): Promise<TransactionRequest>
   }
 
@@ -177,12 +210,17 @@ export interface ICrossChainMessenger {
      * Estimates gas required to send a cross chain message.
      *
      * @param message Cross chain message to send.
-     * @param overrides Optional transaction overrides.
+     * @param opts Additional options.
+     * @param opts.l2GasLimit Optional gas limit to use for the transaction on L2.
+     * @param opts.overrides Optional transaction overrides.
      * @returns Transaction that can be signed and executed to send the message.
      */
     sendMessage: (
       message: CrossChainMessageRequest,
-      overrides?: L1ToL2Overrides
+      opts?: {
+        l2GasLimit?: NumberLike
+        overrides?: Overrides
+      }
     ) => Promise<BigNumber>
 
     /**
@@ -190,46 +228,63 @@ export interface ICrossChainMessenger {
      *
      * @param message Cross chain message to resend.
      * @param messageGasLimit New gas limit to use for the message.
-     * @param overrides Optional transaction overrides.
+     * @param opts Additional options.
+     * @param opts.overrides Optional transaction overrides.
      * @returns Transaction that can be signed and executed to resend the message.
      */
     resendMessage(
       message: MessageLike,
       messageGasLimit: NumberLike,
-      overrides?: Overrides
+      opts?: {
+        overrides?: Overrides
+      }
     ): Promise<BigNumber>
 
     /**
      * Estimates gas required to finalize a cross chain message. Only applies to L2 to L1 messages.
      *
      * @param message Message to generate the finalization transaction for.
-     * @param overrides Optional transaction overrides.
+     * @param opts Additional options.
+     * @param opts.overrides Optional transaction overrides.
      * @returns Transaction that can be signed and executed to finalize the message.
      */
     finalizeMessage(
       message: MessageLike,
-      overrides?: Overrides
+      opts?: {
+        overrides?: Overrides
+      }
     ): Promise<BigNumber>
 
     /**
      * Estimates gas required to deposit some ETH into the L2 chain.
      *
      * @param amount Amount of ETH to deposit.
-     * @param overrides Optional transaction overrides.
+     * @param opts Additional options.
+     * @param opts.l2GasLimit Optional gas limit to use for the transaction on L2.
+     * @param opts.overrides Optional transaction overrides.
      * @returns Transaction that can be signed and executed to deposit the ETH.
      */
     depositETH(
       amount: NumberLike,
-      overrides?: L1ToL2Overrides
+      opts?: {
+        l2GasLimit?: NumberLike
+        overrides?: Overrides
+      }
     ): Promise<BigNumber>
 
     /**
      * Estimates gas required to withdraw some ETH back to the L1 chain.
      *
      * @param amount Amount of ETH to withdraw.
-     * @param overrides Optional transaction overrides.
+     * @param opts Additional options.
+     * @param opts.overrides Optional transaction overrides.
      * @returns Transaction that can be signed and executed to withdraw the tokens.
      */
-    withdrawETH(amount: NumberLike, overrides?: Overrides): Promise<BigNumber>
+    withdrawETH(
+      amount: NumberLike,
+      opts?: {
+        overrides?: Overrides
+      }
+    ): Promise<BigNumber>
   }
 }
