@@ -1,5 +1,5 @@
 /* External Imports */
-import { Contract, ethers } from 'ethers'
+import { Contract, ethers, BigNumber } from 'ethers'
 import {
   TransactionResponse,
   TransactionRequest,
@@ -23,20 +23,14 @@ export class CanonicalTransactionChainContract extends Contract {
     appendSequencerBatch: async (
       batch: AppendSequencerBatchParams
     ): Promise<ethers.PopulatedTransaction> => {
-      const nonce = await this.signer.getTransactionCount()
       const to = this.address
       const data = getEncodedCalldata(batch)
-      const gasLimit = await this.signer.provider.estimateGas({
-        to,
-        from: await this.signer.getAddress(),
-        data,
-      })
 
       return {
-        nonce,
+        nonce: 0,
         to,
         data,
-        gasLimit,
+        gasLimit: BigNumber.from(0),
       }
     },
   }

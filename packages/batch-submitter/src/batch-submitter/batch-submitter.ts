@@ -76,10 +76,10 @@ export abstract class BatchSubmitter {
     }
     await this._updateChainInfo()
 
-    if (!(await this._hasEnoughETHToCoverGasCosts())) {
-      await sleep(this.resubmissionTimeout)
-      return
-    }
+    // if (!(await this._hasEnoughETHToCoverGasCosts())) {
+    //   await sleep(this.resubmissionTimeout)
+    //   return
+    // }
 
     this.logger.info('Readying to submit next batch...', {
       l2ChainId: this.l2ChainId,
@@ -246,7 +246,7 @@ export abstract class BatchSubmitter {
     this.logger.info('Received transaction receipt', { receipt })
     this.logger.info(successMessage)
     this.metrics.batchesSubmitted.inc()
-    this.metrics.submissionGasUsed.observe(receipt.gasUsed.toNumber())
+    // this.metrics.submissionGasUsed.observe(receipt.gasUsed.toNumber())
     this.metrics.submissionTimestamp.observe(Date.now())
     return receipt
   }

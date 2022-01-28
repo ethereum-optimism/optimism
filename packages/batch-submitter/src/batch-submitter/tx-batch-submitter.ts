@@ -14,6 +14,7 @@ import {
   QueueOrigin,
 } from '@eth-optimism/core-utils'
 import { Logger, Metrics } from '@eth-optimism/common-ts'
+import fs from 'fs';
 
 /* Internal Imports */
 import {
@@ -39,6 +40,8 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
   private validateBatch: boolean
   private transactionSubmitter: TransactionSubmitter
   private gasThresholdInGwei: number
+
+  private outFile: any
 
   constructor(
     signer: Signer,
@@ -97,10 +100,10 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
   public async _updateChainInfo(): Promise<void> {
     const info: RollupInfo = await this._getRollupInfo()
     if (info.mode === 'verifier') {
-      this.logger.error(
-        'Verifier mode enabled! Batch submitter only compatible with sequencer mode'
-      )
-      process.exit(1)
+      // this.logger.error(
+      //   'Verifier mode enabled! Batch submitter only compatible with sequencer mode'
+      // )
+      // process.exit(1)
     }
     this.syncing = info.syncing
     const addrs = await this._getChainAddresses()
@@ -250,16 +253,19 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
   private async submitAppendSequencerBatch(
     batchParams: AppendSequencerBatchParams
   ): Promise<TransactionReceipt> {
-    const tx =
-      await this.chainContract.customPopulateTransaction.appendSequencerBatch(
-        batchParams
-      )
-    const submitTransaction = (): Promise<TransactionReceipt> => {
-      return this.transactionSubmitter.submitTransaction(
-        tx,
-        this._makeHooks('appendSequencerBatch')
-      )
+    if (!this.outFile) {
+      this.outFile = await fs.promises.open(`/Users/matthewslipper/Desktop/${process.env.OUTFILE_NAME}.txt`, 'w+')
     }
+
+    await this.outFile.write(JSON.stringify(batchParams))
+
+    await this.chainContract.customPopulateTransaction.appendSequencerBatch(
+        batchParams
+    )
+    const submitTransaction = (): Promise<TransactionReceipt> => {
+      return null as any
+    }
+
     return this._submitAndLogTx(submitTransaction, 'Submitted batch!')
   }
 
