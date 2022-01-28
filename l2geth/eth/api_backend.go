@@ -253,7 +253,7 @@ func (b *EthAPIBackend) GetTd(blockHash common.Hash) *big.Int {
 	return b.eth.blockchain.GetTdByHash(blockHash)
 }
 
-func (b *EthAPIBackend) GetEVM(ctx context.Context, msg core.Message, state *state.StateDB, header *types.Header, vmCfg vm.Config) (*vm.EVM, func() error, error) {
+func (b *EthAPIBackend) GetEVM(ctx context.Context, msg core.Message, state *state.StateDB, header *types.Header, vmCfg *vm.Config) (*vm.EVM, func() error, error) {
 	// This was removed upstream:
 	// https://github.com/ethereum-optimism/optimism/l2geth/commit/39f502329fac4640cfb71959c3496f19ea88bc85#diff-9886da3412b43831145f62cec6e895eb3613a175b945e5b026543b7463454603
 	// We're throwing this behind a UsingOVM flag for now as to not break
@@ -262,9 +262,11 @@ func (b *EthAPIBackend) GetEVM(ctx context.Context, msg core.Message, state *sta
 		state.SetBalance(msg.From(), math.MaxBig256)
 	}
 	vmError := func() error { return nil }
-
+	if vmCfg == nil {
+		vmCfg = b.eth.blockchain.GetVMConfig()
+	}
 	context := core.NewEVMContext(msg, header, b.eth.BlockChain(), nil)
-	return vm.NewEVM(context, state, b.eth.blockchain.Config(), vmCfg), vmError, nil
+	return vm.NewEVM(context, state, b.eth.blockchain.Config(), *vmCfg), vmError, nil
 }
 
 func (b *EthAPIBackend) SubscribeRemovedLogsEvent(ch chan<- core.RemovedLogsEvent) event.Subscription {
