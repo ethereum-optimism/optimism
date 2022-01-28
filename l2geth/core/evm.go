@@ -48,7 +48,6 @@ func NewEVMContext(msg Message, header *types.Header, chain ChainContext, author
 	}
 	if rcfg.UsingOVM {
 		// When using the OVM, we must:
-		// - Set the BlockNumber to be the msg.L1BlockNumber
 		// - Set the Time to be the msg.L1Timestamp
 		return vm.Context{
 			CanTransfer:   CanTransfer,
