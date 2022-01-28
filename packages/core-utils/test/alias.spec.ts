@@ -18,7 +18,7 @@ describe('address aliasing utils', () => {
     it('should throw if the input is not a valid address', () => {
       expect(() => {
         applyL1ToL2Alias('0x1234')
-      }).to.throw
+      }).to.throw('not a valid address: 0x1234')
     })
   })
 
@@ -38,7 +38,7 @@ describe('address aliasing utils', () => {
     it('should throw if the input is not a valid address', () => {
       expect(() => {
         undoL1ToL2Alias('0x1234')
-      }).to.throw
+      }).to.throw('not a valid address: 0x1234')
     })
   })
 })
