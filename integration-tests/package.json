@@ -28,9 +28,9 @@
     "url": "https://github.com/ethereum-optimism/optimism.git"
   },
   "devDependencies": {
-    "@eth-optimism/contracts": "0.5.9",
-    "@eth-optimism/core-utils": "0.7.4",
-    "@eth-optimism/message-relayer": "0.2.13",
+    "@eth-optimism/contracts": "0.5.10",
+    "@eth-optimism/core-utils": "0.7.5",
+    "@eth-optimism/message-relayer": "0.2.14",
     "@ethersproject/abstract-provider": "^5.5.1",
     "@ethersproject/providers": "^5.4.5",
     "@ethersproject/transactions": "^5.4.0",

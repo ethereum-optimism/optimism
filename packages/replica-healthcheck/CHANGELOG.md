@@ -1,5 +1,12 @@
 # @eth-optimism/replica-healthcheck
 
+## 0.3.5
+
+### Patch Changes
+
+- Updated dependencies [ad94b9d1]
+  - @eth-optimism/core-utils@0.7.5
+
 ## 0.3.4
 
 ### Patch Changes
