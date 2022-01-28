@@ -28,7 +28,6 @@ describe('Basic RPC tests', () => {
   const provider = injectL2Context(l2Provider)
 
   let Reverter: Contract
-  let ValueContext: Contract
   let revertMessage: string
   let revertingTx: TransactionRequest
   let revertingDeployTx: TransactionRequest
@@ -54,12 +53,6 @@ describe('Basic RPC tests', () => {
     revertingDeployTx = {
       data: Factory__ConstructorReverter.bytecode,
     }
-
-    // Deploy a contract to check msg.value of the call
-    const Factory__ValueContext: ContractFactory =
-      await ethers.getContractFactory('ValueContext', wallet)
-    ValueContext = await Factory__ValueContext.deploy()
-    await ValueContext.deployTransaction.wait()
   })
 
   describe('eth_sendRawTransaction', () => {
@@ -216,6 +209,12 @@ describe('Basic RPC tests', () => {
     })
 
     it('should allow eth_calls with nonzero value', async () => {
+      // Deploy a contract to check msg.value of the call
+      const Factory__ValueContext: ContractFactory =
+        await ethers.getContractFactory('ValueContext', wallet)
+      const ValueContext: Contract = await Factory__ValueContext.deploy()
+      await ValueContext.deployTransaction.wait()
+
       // Fund account to call from
       const from = wallet.address
       const value = 15
@@ -235,6 +234,12 @@ describe('Basic RPC tests', () => {
 
     // https://github.com/ethereum-optimism/optimism/issues/1998
     it('should use address(0) as the default "from" value', async () => {
+      // Deploy a contract to check msg.caller
+      const Factory__ValueContext: ContractFactory =
+        await ethers.getContractFactory('ValueContext', wallet)
+      const ValueContext: Contract = await Factory__ValueContext.deploy()
+      await ValueContext.deployTransaction.wait()
+
       // Do the call and check msg.sender
       const data = ValueContext.interface.encodeFunctionData('getCaller')
       const res = await provider.call({
@@ -251,6 +256,12 @@ describe('Basic RPC tests', () => {
     })
 
     it('should correctly use the "from" value', async () => {
+      // Deploy a contract to check msg.caller
+      const Factory__ValueContext: ContractFactory =
+        await ethers.getContractFactory('ValueContext', wallet)
+      const ValueContext: Contract = await Factory__ValueContext.deploy()
+      await ValueContext.deployTransaction.wait()
+
       const from = wallet.address
 
       // Do the call and check msg.sender
@@ -266,15 +277,6 @@ describe('Basic RPC tests', () => {
         res
       )
       expect(paddedRes).to.eq(from)
-    })
-
-    it('should be deterministic', async () => {
-      let res = await ValueContext.callStatic.getSelfBalance()
-      for (let i = 0; i < 10; i++) {
-        const next = await ValueContext.callStatic.getSelfBalance()
-        expect(res.toNumber()).to.deep.eq(next.toNumber())
-        res = next
-      }
     })
   })
 
@@ -448,7 +450,7 @@ describe('Basic RPC tests', () => {
   })
 
   describe('eth_estimateGas', () => {
-    it('simple send gas estimation is deterministic', async () => {
+    it('gas estimation is deterministic', async () => {
       let lastEstimate: BigNumber
       for (let i = 0; i < 10; i++) {
         const estimate = await l2Provider.estimateGas({
@@ -461,15 +463,6 @@ describe('Basic RPC tests', () => {
         }
 
         lastEstimate = estimate
-      }
-    })
-
-    it('deterministic gas estimation for evm execution', async () => {
-      let res = await ValueContext.estimateGas.getSelfBalance()
-      for (let i = 0; i < 10; i++) {
-        const next = await ValueContext.estimateGas.getSelfBalance()
-        expect(res.toNumber()).to.deep.eq(next.toNumber())
-        res = next
       }
     })
 

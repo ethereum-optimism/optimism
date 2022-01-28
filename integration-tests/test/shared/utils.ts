@@ -93,9 +93,6 @@ const procEnv = cleanEnv(process.env, {
   RUN_STRESS_TESTS: bool({
     default: true,
   }),
-  RUN_NIGHTLY_TESTS: bool({
-    default: false,
-  }),
 
   MOCHA_TIMEOUT: num({
     default: 120_000,
@@ -266,13 +263,4 @@ export const gasPriceForL1 = async () => {
 export const isHardhat = async () => {
   const chainId = await l1Wallet.getChainId()
   return chainId === HARDHAT_CHAIN_ID
-}
-
-export const die = (...args) => {
-  console.log(...args)
-  process.exit(1)
-}
-
-export const logStderr = (msg: string) => {
-  process.stderr.write(`${msg}\n`)
 }

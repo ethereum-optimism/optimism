@@ -94,13 +94,8 @@ func NewEVMInterpreter(evm *EVM, cfg Config) *EVMInterpreter {
 	if !cfg.JumpTable[STOP].valid {
 		var jt JumpTable
 		switch {
-		case evm.chainRules.IsBerlin:
-			jt = berlinInstructionSet
 		case evm.chainRules.IsIstanbul:
 			jt = istanbulInstructionSet
-			if rcfg.UsingOVM {
-				enableMinimal2929(&jt)
-			}
 		case evm.chainRules.IsConstantinople:
 			jt = constantinopleInstructionSet
 		case evm.chainRules.IsByzantium:
@@ -120,6 +115,10 @@ func NewEVMInterpreter(evm *EVM, cfg Config) *EVMInterpreter {
 				cfg.ExtraEips = append(cfg.ExtraEips[:i], cfg.ExtraEips[i+1:]...)
 				log.Error("EIP activation failed", "eip", eip, "error", err)
 			}
+		}
+		// Enable minimal eip 2929
+		if rcfg.UsingOVM {
+			enableMinimal2929(&jt)
 		}
 		cfg.JumpTable = jt
 	}
