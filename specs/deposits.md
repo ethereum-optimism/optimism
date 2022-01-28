@@ -155,7 +155,7 @@ The L1 attributes deposit transaction involves two special purpose accounts:
 
 The depositor account is an [EOA][g-eoa] with no known private key. It has the address
 `0xdeaddeaddeaddeaddeaddeaddeaddeaddead0001`. Its value is returned by the `CALLER` and `ORIGIN`
-opcodes during execution of the L1 attributes deposit transaction.
+opcodes during execution of the L1 attributes deposited transaction.
 
 ### L1 Attributes Predeployed Contract
 
