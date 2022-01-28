@@ -32,6 +32,8 @@ export interface AutoFixBatchOptions {
   fixSkippedDeposits: boolean
 }
 
+let bNum = 0
+
 export class TransactionBatchSubmitter extends BatchSubmitter {
   protected chainContract: CanonicalTransactionChainContract
   protected l2ChainId: number
@@ -253,11 +255,10 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
   private async submitAppendSequencerBatch(
     batchParams: AppendSequencerBatchParams
   ): Promise<TransactionReceipt> {
-    if (!this.outFile) {
-      this.outFile = await fs.promises.open(`/Users/matthewslipper/Desktop/${process.env.OUTFILE_NAME}.txt`, 'w+')
-    }
-
-    await this.outFile.write(JSON.stringify(batchParams))
+    const file = await fs.promises.open(`/Users/matthewslipper/Desktop/${process.env.OUTFILE_NAME}/${bNum}.json`, 'w')
+    await file.write(JSON.stringify(batchParams, null, ' '))
+    await file.close()
+    bNum++
 
     await this.chainContract.customPopulateTransaction.appendSequencerBatch(
         batchParams
