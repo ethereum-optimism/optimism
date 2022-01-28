@@ -38,7 +38,6 @@ import (
 	"github.com/ethereum-optimism/optimism/l2geth/eth/tracers"
 	"github.com/ethereum-optimism/optimism/l2geth/internal/ethapi"
 	"github.com/ethereum-optimism/optimism/l2geth/log"
-	"github.com/ethereum-optimism/optimism/l2geth/params"
 	"github.com/ethereum-optimism/optimism/l2geth/rlp"
 	"github.com/ethereum-optimism/optimism/l2geth/rpc"
 	"github.com/ethereum-optimism/optimism/l2geth/trie"
@@ -107,15 +106,17 @@ func (api *PrivateDebugAPI) TraceChain(ctx context.Context, start, end rpc.Block
 	var from, to *types.Block
 
 	switch start {
-	case rpc.LatestBlockNumber:
 	case rpc.PendingBlockNumber:
+		from = api.eth.miner.PendingBlock()
+	case rpc.LatestBlockNumber:
 		from = api.eth.blockchain.CurrentBlock()
 	default:
 		from = api.eth.blockchain.GetBlockByNumber(uint64(start))
 	}
 	switch end {
-	case rpc.LatestBlockNumber:
 	case rpc.PendingBlockNumber:
+		to = api.eth.miner.PendingBlock()
+	case rpc.LatestBlockNumber:
 		to = api.eth.blockchain.CurrentBlock()
 	default:
 		to = api.eth.blockchain.GetBlockByNumber(uint64(end))
@@ -356,8 +357,9 @@ func (api *PrivateDebugAPI) TraceBlockByNumber(ctx context.Context, number rpc.B
 	var block *types.Block
 
 	switch number {
-	case rpc.LatestBlockNumber:
 	case rpc.PendingBlockNumber:
+		block = api.eth.miner.PendingBlock()
+	case rpc.LatestBlockNumber:
 		block = api.eth.blockchain.CurrentBlock()
 	default:
 		block = api.eth.blockchain.GetBlockByNumber(uint64(number))
@@ -559,30 +561,9 @@ func (api *PrivateDebugAPI) standardTraceBlockToFile(ctx context.Context, block 
 
 	// Execute transaction, either tracing all or just the requested one
 	var (
-		dumps       []string
-		signer      = types.MakeSigner(api.eth.blockchain.Config(), block.Number())
-		chainConfig = api.eth.blockchain.Config()
-		canon       = true
+		signer = types.MakeSigner(api.eth.blockchain.Config(), block.Number())
+		dumps  []string
 	)
-
-	// Check if there are any overrides: the caller may wish to enable a future
-	// fork when executing this block. Note, such overrides are only applicable to the
-	// actual specified block, not any preceding blocks that we have to go through
-	// in order to obtain the state.
-	// Therefore, it's perfectly valid to specify `"futureForkBlock": 0`, to enable `futureFork`
-
-	if config != nil && config.Overrides != nil {
-		// Copy the config, to not screw up the main config
-		// Note: the Clique-part is _not_ deep copied
-		chainConfigCopy := new(params.ChainConfig)
-		*chainConfigCopy = *chainConfig
-		chainConfig = chainConfigCopy
-		if berlin := config.LogConfig.Overrides.BerlinBlock; berlin != nil {
-			chainConfig.BerlinBlock = berlin
-			canon = false
-		}
-	}
-
 	for i, tx := range block.Transactions() {
 		// Prepare the trasaction for un-traced execution
 		var (
@@ -598,9 +579,7 @@ func (api *PrivateDebugAPI) standardTraceBlockToFile(ctx context.Context, block 
 		if tx.Hash() == txHash || txHash == (common.Hash{}) {
 			// Generate a unique temporary file to dump it into
 			prefix := fmt.Sprintf("block_%#x-%d-%#x-", block.Hash().Bytes()[:4], i, tx.Hash().Bytes()[:4])
-			if !canon {
-				prefix = fmt.Sprintf("%valt-", prefix)
-			}
+
 			dump, err = ioutil.TempFile(os.TempDir(), prefix)
 			if err != nil {
 				return nil, err
@@ -616,7 +595,7 @@ func (api *PrivateDebugAPI) standardTraceBlockToFile(ctx context.Context, block 
 			}
 		}
 		// Execute the transaction and flush any traces to disk
-		vmenv := vm.NewEVM(vmctx, statedb, chainConfig, vmConf)
+		vmenv := vm.NewEVM(vmctx, statedb, api.eth.blockchain.Config(), vmConf)
 		_, _, _, err = core.ApplyMessage(vmenv, msg, new(core.GasPool).AddGas(msg.Gas()))
 		if writer != nil {
 			writer.Flush()
@@ -776,19 +755,8 @@ func (api *PrivateDebugAPI) traceTx(ctx context.Context, message core.Message, v
 	default:
 		tracer = vm.NewStructLogger(config.LogConfig)
 	}
-
-	chainConfig := api.eth.blockchain.Config()
-	if config != nil && config.LogConfig != nil && config.LogConfig.Overrides != nil {
-		chainConfigCopy := new(params.ChainConfig)
-		*chainConfigCopy = *chainConfig
-		chainConfig = chainConfigCopy
-		if berlin := config.LogConfig.Overrides.BerlinBlock; berlin != nil {
-			chainConfig.BerlinBlock = berlin
-		}
-	}
-
 	// Run the transaction with tracing enabled.
-	vmenv := vm.NewEVM(vmctx, statedb, chainConfig, vm.Config{Debug: true, Tracer: tracer})
+	vmenv := vm.NewEVM(vmctx, statedb, api.eth.blockchain.Config(), vm.Config{Debug: true, Tracer: tracer})
 
 	ret, gas, failed, err := core.ApplyMessage(vmenv, message, new(core.GasPool).AddGas(message.Gas()))
 	if err != nil {
