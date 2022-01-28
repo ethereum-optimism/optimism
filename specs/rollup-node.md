@@ -298,7 +298,8 @@ This re-derivation starting point can be found by applying the following algorit
     - If the next L1 block does not exist yet, there is no re-org, and nothing new to derive, and we can abort the
         process.
 - Otherwise, if `refL2` is the L2 genesis block, we have re-orged past the genesis block, which is an error that
-    requires a re-genesis of the L2 chain to fix (i.e. creating a new genesis configuration).
+    requires a re-genesis of the L2 chain to fix (i.e. creating a new genesis
+    configuration) (\*)
 - Otherwise, if either `currentL1` does not exist, or `currentL1 != refL1`, set `refL2` to `parentL2` and restart this
     algorithm from step 2.
   - Note: if `currentL1` does not exist, it means we are in a re-org to a shorter L1 chain.
@@ -307,5 +308,9 @@ This re-derivation starting point can be found by applying the following algorit
 
 Note that post-[merge], the depth of re-orgs will be bounded by the [L1 finality delay][l1-finality] (every 2 epochs,
 approximately 12 minutes).
+
+(\*) Post-merge, this is only possible for 12 minutes. In practice, we'll pick an already-finalized L1 block as L2
+inception point to preclude the possibility of a re-org past genesis, at the cost of a few empty blocks at the start of
+the L2 chain.
 
 [merge]: https://ethereum.org/en/eth2/merge/
