@@ -4,7 +4,7 @@ import {
   TransactionResponse,
 } from '@ethersproject/abstract-provider'
 import { Signer } from '@ethersproject/abstract-signer'
-import { Contract, BigNumber, Overrides } from 'ethers'
+import { Contract, BigNumber } from 'ethers'
 
 /**
  * L1 contract references.
@@ -143,7 +143,6 @@ export interface CrossChainMessageRequest {
   direction: MessageDirection
   target: string
   message: string
-  l2GasLimit: NumberLike
 }
 
 /**
@@ -162,6 +161,7 @@ export interface CoreCrossChainMessage {
  */
 export interface CrossChainMessage extends CoreCrossChainMessage {
   direction: MessageDirection
+  gasLimit: number
   logIndex: number
   blockNumber: number
   transactionHash: string
@@ -212,20 +212,21 @@ export interface StateRootBatchHeader {
 }
 
 /**
- * State root batch, including header and actual state roots.
+ * Information about a state root, including header, block number, and root iself.
  */
-export interface StateRootBatch {
+export interface StateRoot {
+  blockNumber: number
   header: StateRootBatchHeader
-  stateRoots: string[]
+  stateRoot: string
 }
 
 /**
- * Extended Ethers overrides object with an l2GasLimit field.
- * Only meant to be used for L1 to L2 messages, since L2 to L1 messages don't have a specified gas
- * limit field (gas used depends on the amount of gas provided).
+ * Information about a batch of state roots.
  */
-export type L1ToL2Overrides = Overrides & {
-  l2GasLimit: NumberLike
+export interface StateRootBatch {
+  blockNumber: number
+  header: StateRootBatchHeader
+  stateRoots: string[]
 }
 
 /**
@@ -234,9 +235,18 @@ export type L1ToL2Overrides = Overrides & {
 export type TransactionLike = string | TransactionReceipt | TransactionResponse
 
 /**
- * Stuff that can be coerced into a message.
+ * Stuff that can be coerced into a CrossChainMessage.
  */
 export type MessageLike =
+  | CrossChainMessage
+  | TransactionLike
+  | TokenBridgeMessage
+
+/**
+ * Stuff that can be coerced into a CrossChainMessageRequest.
+ */
+export type MessageRequestLike =
+  | CrossChainMessageRequest
   | CrossChainMessage
   | TransactionLike
   | TokenBridgeMessage

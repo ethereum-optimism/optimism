@@ -1,4 +1,6 @@
 /* External Imports */
+import { performance } from 'perf_hooks'
+
 import { Promise as bPromise } from 'bluebird'
 import { Signer, ethers, Contract, providers } from 'ethers'
 import { TransactionReceipt } from '@ethersproject/abstract-provider'
@@ -683,10 +685,18 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
       queued: BatchElement[]
     }> = []
     for (const block of blocks) {
+      // Create a new context in certain situations
       if (
-        (lastBlockIsSequencerTx === false && block.isSequencerTx === true) ||
+        // If there are no contexts yet, create a new context.
         groupedBlocks.length === 0 ||
-        (block.timestamp !== lastTimestamp && block.isSequencerTx === true) ||
+        // If the last block was an L1 to L2 transaction, but the next block is a Sequencer
+        // transaction, create a new context.
+        (lastBlockIsSequencerTx === false && block.isSequencerTx === true) ||
+        // If the timestamp of the last block differs from the timestamp of the current block,
+        // create a new context. Applies to both L1 to L2 transactions and Sequencer transactions.
+        block.timestamp !== lastTimestamp ||
+        // If the block number of the last block differs from the block number of the current block,
+        // create a new context. ONLY applies to Sequencer transactions.
         (block.blockNumber !== lastBlockNumber && block.isSequencerTx === true)
       ) {
         groupedBlocks.push({
@@ -694,6 +704,7 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
           queued: [],
         })
       }
+
       const cur = groupedBlocks.length - 1
       block.isSequencerTx
         ? groupedBlocks[cur].sequenced.push(block)

@@ -4,7 +4,7 @@ import {
   TransactionResponse,
 } from '@ethersproject/abstract-provider'
 
-import { NumberLike, L1ToL2Overrides } from './types'
+import { NumberLike } from './types'
 import { ICrossChainMessenger } from './cross-chain-messenger'
 
 /**
@@ -30,24 +30,32 @@ export interface ICrossChainERC20Pair {
    * Deposits some tokens into the L2 chain.
    *
    * @param amount Amount of the token to deposit.
-   * @param overrides Optional transaction overrides.
+   * @param opts Additional options.
+   * @param opts.l2GasLimit Optional gas limit to use for the transaction on L2.
+   * @param opts.overrides Optional transaction overrides.
    * @returns Transaction response for the deposit transaction.
    */
   deposit(
     amount: NumberLike,
-    overrides?: L1ToL2Overrides
+    opts?: {
+      l2GasLimit?: NumberLike
+      overrides?: Overrides
+    }
   ): Promise<TransactionResponse>
 
   /**
    * Withdraws some tokens back to the L1 chain.
    *
    * @param amount Amount of the token to withdraw.
-   * @param overrides Optional transaction overrides.
+   * @param opts Additional options.
+   * @param opts.overrides Optional transaction overrides.
    * @returns Transaction response for the withdraw transaction.
    */
   withdraw(
     amount: NumberLike,
-    overrides?: Overrides
+    opts?: {
+      overrides?: Overrides
+    }
   ): Promise<TransactionResponse>
 
   /**
@@ -59,24 +67,32 @@ export interface ICrossChainERC20Pair {
      * Generates a transaction for depositing some tokens into the L2 chain.
      *
      * @param amount Amount of the token to deposit.
-     * @param overrides Optional transaction overrides.
+     * @param opts Additional options.
+     * @param opts.l2GasLimit Optional gas limit to use for the transaction on L2.
+     * @param opts.overrides Optional transaction overrides.
      * @returns Transaction that can be signed and executed to deposit the tokens.
      */
     deposit(
       amount: NumberLike,
-      overrides?: L1ToL2Overrides
+      opts?: {
+        l2GasLimit?: NumberLike
+        overrides?: Overrides
+      }
     ): Promise<TransactionResponse>
 
     /**
      * Generates a transaction for withdrawing some tokens back to the L1 chain.
      *
      * @param amount Amount of the token to withdraw.
-     * @param overrides Optional transaction overrides.
+     * @param opts Additional options.
+     * @param opts.overrides Optional transaction overrides.
      * @returns Transaction that can be signed and executed to withdraw the tokens.
      */
     withdraw(
       amount: NumberLike,
-      overrides?: Overrides
+      opts?: {
+        overrides?: Overrides
+      }
     ): Promise<TransactionRequest>
   }
 
@@ -89,24 +105,32 @@ export interface ICrossChainERC20Pair {
      * Estimates gas required to deposit some tokens into the L2 chain.
      *
      * @param amount Amount of the token to deposit.
-     * @param overrides Optional transaction overrides.
+     * @param opts Additional options.
+     * @param opts.l2GasLimit Optional gas limit to use for the transaction on L2.
+     * @param opts.overrides Optional transaction overrides.
      * @returns Transaction that can be signed and executed to deposit the tokens.
      */
     deposit(
       amount: NumberLike,
-      overrides?: L1ToL2Overrides
+      opts?: {
+        l2GasLimit?: NumberLike
+        overrides?: Overrides
+      }
     ): Promise<TransactionResponse>
 
     /**
      * Estimates gas required to withdraw some tokens back to the L1 chain.
      *
      * @param amount Amount of the token to withdraw.
-     * @param overrides Optional transaction overrides.
+     * @param opts Additional options.
+     * @param opts.overrides Optional transaction overrides.
      * @returns Transaction that can be signed and executed to withdraw the tokens.
      */
     withdraw(
       amount: NumberLike,
-      overrides?: Overrides
+      opts?: {
+        overrides?: Overrides
+      }
     ): Promise<TransactionRequest>
   }
 }

@@ -56,6 +56,12 @@ export const toHexString = (inp: Buffer | string | number | null): string => {
   }
 }
 
+/**
+ * Casts a number to a hex string without zero padding.
+ *
+ * @param n Number to cast to a hex string.
+ * @return Number cast as a hex string.
+ */
 export const toRpcHexString = (n: number | BigNumber): string => {
   let num
   if (typeof n === 'number') {
@@ -67,10 +73,18 @@ export const toRpcHexString = (n: number | BigNumber): string => {
   if (num === '0x0') {
     return num
   } else {
+    // BigNumber pads a single 0 to keep hex length even
     return num.replace(/^0x0/, '0x')
   }
 }
 
+/**
+ * Zero pads a hex string if str.length !== 2 + length * 2. Pads to length * 2.
+ *
+ * @param str Hex string to pad
+ * @param length Half the length of the desired padded hex string
+ * @return Hex string with length of 2 + length * 2
+ */
 export const padHexString = (str: string, length: number): string => {
   if (str.length === 2 + length * 2) {
     return str
@@ -79,9 +93,25 @@ export const padHexString = (str: string, length: number): string => {
   }
 }
 
-export const encodeHex = (val: any, len: number) =>
+/**
+ * Casts an input to hex string without '0x' prefix with conditional padding.
+ * Hex string will always start with a 0.
+ *
+ * @param val Input to cast to a hex string.
+ * @param len Desired length to pad hex string. Ignored if less than hex string length.
+ * @return Hex string with '0' prefix
+ */
+export const encodeHex = (val: any, len: number): string =>
   remove0x(BigNumber.from(val).toHexString()).padStart(len, '0')
 
+/**
+ * Case insensitive hex string equality check
+ *
+ * @param stringA Hex string A
+ * @param stringB Hex string B
+ * @throws {Error} Inputs must be valid hex strings
+ * @return True if equal
+ */
 export const hexStringEquals = (stringA: string, stringB: string): boolean => {
   if (!ethers.utils.isHexString(stringA)) {
     throw new Error(`input is not a hex string: ${stringA}`)
@@ -94,6 +124,12 @@ export const hexStringEquals = (stringA: string, stringB: string): boolean => {
   return stringA.toLowerCase() === stringB.toLowerCase()
 }
 
+/**
+ * Casts a number to a 32-byte, zero padded hex string.
+ *
+ * @param value Number to cast to a hex string.
+ * @return Number cast as a hex string.
+ */
 export const bytes32ify = (value: number | BigNumber): string => {
   return hexZeroPad(BigNumber.from(value).toHexString(), 32)
 }
