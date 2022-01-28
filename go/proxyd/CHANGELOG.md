@@ -1,5 +1,11 @@
 # @eth-optimism/proxyd
 
+## 3.7.0
+
+### Minor Changes
+
+- 3c2926b1: Add debug cache status header to proxyd responses
+
 ## 3.6.0
 
 ### Minor Changes
