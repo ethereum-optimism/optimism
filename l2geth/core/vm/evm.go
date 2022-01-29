@@ -55,6 +55,9 @@ func run(evm *EVM, contract *Contract, input []byte, readOnly bool) ([]byte, err
 		if evm.chainRules.IsIstanbul {
 			precompiles = PrecompiledContractsIstanbul
 		}
+		if evm.chainRules.IsBerlin {
+			precompiles = PrecompiledContractsBerlin
+		}
 		if p := precompiles[*contract.CodeAddr]; p != nil {
 			return RunPrecompiledContract(p, input, contract)
 		}
@@ -219,6 +222,9 @@ func (evm *EVM) Call(caller ContractRef, addr common.Address, input []byte, gas 
 		}
 		if evm.chainRules.IsIstanbul {
 			precompiles = PrecompiledContractsIstanbul
+		}
+		if evm.chainRules.IsBerlin {
+			precompiles = PrecompiledContractsBerlin
 		}
 		if precompiles[addr] == nil && evm.chainRules.IsEIP158 && value.Sign() == 0 {
 			// Calling a non existing account, don't do anything, but ping the tracer
@@ -413,7 +419,11 @@ func (evm *EVM) create(caller ContractRef, codeAndHash *codeAndHash, gas uint64,
 	}
 	nonce := evm.StateDB.GetNonce(caller.Address())
 	evm.StateDB.SetNonce(caller.Address(), nonce+1)
-
+	// We add this to the access list _before_ taking a snapshot. Even if the creation fails,
+	// the access-list change should not be rolled back
+	if evm.chainRules.IsBerlin {
+		evm.StateDB.AddAddressToAccessList(address)
+	}
 	// Ensure there's no existing contract already at the designated address
 	contractHash := evm.StateDB.GetCodeHash(address)
 	if evm.StateDB.GetNonce(address) != 0 || (contractHash != (common.Hash{}) && contractHash != emptyCodeHash) {

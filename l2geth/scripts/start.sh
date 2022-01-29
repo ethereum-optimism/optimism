@@ -6,16 +6,18 @@ REPO=$DIR/..
 IS_VERIFIER=
 ROLLUP_SYNC_SERVICE_ENABLE=true
 DATADIR=$HOME/.ethereum
-TARGET_GAS_LIMIT=11000000
+TARGET_GAS_LIMIT=15000000
 ETH1_CTC_DEPLOYMENT_HEIGHT=12686738
 ROLLUP_CLIENT_HTTP=http://localhost:7878
 ROLLUP_POLL_INTERVAL=15s
-ROLLUP_TIMESTAMP_REFRESH=3m
+ROLLUP_TIMESTAMP_REFRESH=15s
 CACHE=1024
 RPC_PORT=8545
 WS_PORT=8546
 VERBOSITY=3
 ROLLUP_BACKEND=l2
+CHAIN_ID=69
+BLOCK_SIGNER_ADDRESS=0x00000398232E2064F896018496b4b44b3D62751F
 
 USAGE="
 Start the Sequencer or Verifier with most configuration pre-set.
@@ -174,15 +176,22 @@ cmd="$cmd --ws"
 cmd="$cmd --wsaddr 0.0.0.0"
 cmd="$cmd --wsport $WS_PORT"
 cmd="$cmd --wsorigins '*'"
-cmd="$cmd --rpcapi 'eth,net,rollup,web3,debug'"
+cmd="$cmd --rpcapi eth,net,rollup,web3,debug,personal"
 cmd="$cmd --gasprice 0"
 cmd="$cmd --nousb"
 cmd="$cmd --gcmode=archive"
-cmd="$cmd --ipcdisable"
+cmd="$cmd --nodiscover"
+cmd="$cmd --mine"
+cmd="$cmd --password=$DATADIR/password"
+cmd="$cmd --allow-insecure-unlock"
+cmd="$cmd --unlock=$BLOCK_SIGNER_ADDRESS"
+cmd="$cmd --miner.etherbase=$BLOCK_SIGNER_ADDRESS"
+cmd="$cmd --txpool.pricelimit 0"
+
 if [[ ! -z "$IS_VERIFIER" ]]; then
     cmd="$cmd --rollup.verifier"
 fi
 cmd="$cmd --verbosity=$VERBOSITY"
 
 echo -e "Running:\nTARGET_GAS_LIMIT=$TARGET_GAS_LIMIT USING_OVM=true $cmd"
-eval env TARGET_GAS_LIMIT=$TARGET_GAS_LIMIT USING_OVM=true $cmd
+TARGET_GAS_LIMIT=$TARGET_GAS_LIMIT USING_OVM=true $cmd
