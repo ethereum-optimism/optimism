@@ -150,20 +150,20 @@ Let
 
 Then we can apply the following pseudocode logic to update the state of both the rollup driver and execution engine:
 
-```pseudocode
+```javascript
 // request a new execution payload
 forkChoiceState = {
     headBlockHash: refL2,
     safeBlockHash: refL2,
     finalizedBlockHash: l2BlockHashAt(l2Number(refL2) - FINALIZATION_DELAY_BLOCKS)
 }
-(status, payloadID) = engine_forkchoiceUpdatedV1(forkChoiceState, payloadAttributes)
+[status, payloadID] = engine_forkchoiceUpdatedV1(forkChoiceState, payloadAttributes)
 if (status != "SUCCESS") error()
 
 // retrieve and execute the execution payload
-(executionPayload, error) = engine_getPayloadV1(payloadID)
+[executionPayload, error] = engine_getPayloadV1(payloadID)
 if (error != null) error()
-(status, latestValidHash, validationError) = engine_executePayloadV1(executionPayload)
+[status, latestValidHash, validationError] = engine_executePayloadV1(executionPayload)
 if (status != "VALID" || validationError != null) error()
 
 refL2 = latestValidHash
@@ -175,7 +175,7 @@ forkChoiceState = {
     safeBlockHash: refL2,
     finalizedBlockHash: l2BlockHashAt(l2Number(headBlockHash) - FINALIZATION_DELAY_BLOCKS)
 }
-(status, payloadID) = engine_forkchoiceUpdatedV1(refL2, null)
+[status, payloadID] = engine_forkchoiceUpdatedV1(refL2, null)
 if (status != "SUCCESS") error()
 ```
 
