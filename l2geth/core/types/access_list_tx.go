@@ -1,4 +1,4 @@
-// Copyright 2014 The go-ethereum Authors
+// Copyright 2020 The go-ethereum Authors
 // This file is part of the go-ethereum library.
 //
 // The go-ethereum library is free software: you can redistribute it and/or modify
@@ -14,18 +14,28 @@
 // You should have received a copy of the GNU Lesser General Public License
 // along with the go-ethereum library. If not, see <http://www.gnu.org/licenses/>.
 
-package vm
+package types
 
-import "errors"
-
-// List execution errors
-var (
-	ErrOutOfGas                 = errors.New("out of gas")
-	ErrCodeStoreOutOfGas        = errors.New("contract creation code storage out of gas")
-	ErrDepth                    = errors.New("max call depth exceeded")
-	ErrTraceLimitReached        = errors.New("the number of logs reached the specified limit")
-	ErrInsufficientBalance      = errors.New("insufficient balance for transfer")
-	ErrContractAddressCollision = errors.New("contract address collision")
-	ErrNoCompatibleInterpreter  = errors.New("no compatible interpreter")
-	ErrGasUintOverflow          = errors.New("gas uint64 overflow")
+import (
+	"github.com/ethereum-optimism/optimism/l2geth/common"
 )
+
+//go:generate gencodec -type AccessTuple -out gen_access_tuple.go
+
+// AccessList is an EIP-2930 access list.
+type AccessList []AccessTuple
+
+// AccessTuple is the element type of an access list.
+type AccessTuple struct {
+	Address     common.Address `json:"address"        gencodec:"required"`
+	StorageKeys []common.Hash  `json:"storageKeys"    gencodec:"required"`
+}
+
+// StorageKeys returns the total number of storage keys in the access list.
+func (al AccessList) StorageKeys() int {
+	sum := 0
+	for _, tuple := range al {
+		sum += len(tuple.StorageKeys)
+	}
+	return sum
+}

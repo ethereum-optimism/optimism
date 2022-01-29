@@ -592,14 +592,15 @@ type callmsg struct {
 	ethereum.CallMsg
 }
 
-func (m callmsg) From() common.Address { return m.CallMsg.From }
-func (m callmsg) Nonce() uint64        { return 0 }
-func (m callmsg) CheckNonce() bool     { return false }
-func (m callmsg) To() *common.Address  { return m.CallMsg.To }
-func (m callmsg) GasPrice() *big.Int   { return m.CallMsg.GasPrice }
-func (m callmsg) Gas() uint64          { return m.CallMsg.Gas }
-func (m callmsg) Value() *big.Int      { return m.CallMsg.Value }
-func (m callmsg) Data() []byte         { return m.CallMsg.Data }
+func (m callmsg) From() common.Address         { return m.CallMsg.From }
+func (m callmsg) Nonce() uint64                { return 0 }
+func (m callmsg) CheckNonce() bool             { return false }
+func (m callmsg) To() *common.Address          { return m.CallMsg.To }
+func (m callmsg) GasPrice() *big.Int           { return m.CallMsg.GasPrice }
+func (m callmsg) Gas() uint64                  { return m.CallMsg.Gas }
+func (m callmsg) Value() *big.Int              { return m.CallMsg.Value }
+func (m callmsg) Data() []byte                 { return m.CallMsg.Data }
+func (m callmsg) AccessList() types.AccessList { return m.CallMsg.AccessList }
 
 // UsingOVM
 // These getters return OVM specific fields
