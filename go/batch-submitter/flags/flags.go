@@ -196,6 +196,11 @@ var (
 		Value:  7300,
 		EnvVar: prefixEnvVar("METRICS_PORT"),
 	}
+	HTTP2DisableFlag = cli.BoolFlag{
+		Name: "http2-disable",
+		Usage: "Whether or not to disable HTTP/2 support.",
+		EnvVar: prefixEnvVar("HTTP2_DISABLE"),
+	}
 )
 
 var requiredFlags = []cli.Flag{
@@ -231,6 +236,7 @@ var optionalFlags = []cli.Flag{
 	MetricsServerEnableFlag,
 	MetricsHostnameFlag,
 	MetricsPortFlag,
+	HTTP2DisableFlag,
 }
 
 // Flags contains the list of configuration options available to the binary.
