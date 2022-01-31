@@ -151,18 +151,6 @@ var (
 		Value:  1,
 		EnvVar: prefixEnvVar("BLOCK_OFFSET"),
 	}
-	MaxGasPriceInGweiFlag = cli.Uint64Flag{
-		Name:   "max-gas-price-in-gwei",
-		Usage:  "Maximum gas price the batch submitter can use for transactions",
-		Value:  100,
-		EnvVar: prefixEnvVar("MAX_GAS_PRICE_IN_GWEI"),
-	}
-	GasRetryIncrementFlag = cli.Uint64Flag{
-		Name:   "gas-retry-increment",
-		Usage:  "Default step by which to increment gas price bumps",
-		Value:  5,
-		EnvVar: prefixEnvVar("GAS_RETRY_INCREMENT_FLAG"),
-	}
 	SequencerPrivateKeyFlag = cli.StringFlag{
 		Name:   "sequencer-private-key",
 		Usage:  "The private key to use for sending to the sequencer contract",
@@ -240,8 +228,6 @@ var optionalFlags = []cli.Flag{
 	SentryDsnFlag,
 	SentryTraceRateFlag,
 	BlockOffsetFlag,
-	MaxGasPriceInGweiFlag,
-	GasRetryIncrementFlag,
 	SequencerPrivateKeyFlag,
 	ProposerPrivateKeyFlag,
 	MnemonicFlag,

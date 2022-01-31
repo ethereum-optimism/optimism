@@ -2,45 +2,26 @@ package txmgr
 
 import (
 	"context"
-	"errors"
 	"math/big"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 )
 
-// ErrPublishTimeout signals that the tx manager did not receive a confirmation
-// for a given tx after publishing with the maximum gas price and waiting out a
-// resubmission timeout.
-var ErrPublishTimeout = errors.New("failed to publish tx with max gas price")
-
 // SendTxFunc defines a function signature for publishing a desired tx with a
 // specific gas price. Implementations of this signature should also return
 // promptly when the context is canceled.
-type SendTxFunc = func(
-	ctx context.Context, gasPrice *big.Int) (*types.Transaction, error)
+type SendTxFunc = func(ctx context.Context) (*types.Transaction, error)
 
 // Config houses parameters for altering the behavior of a SimpleTxManager.
 type Config struct {
+	// Name the name of the driver to appear in log lines.
 	Name string
-
-	// MinGasPrice is the minimum gas price (in gwei). This is used as the
-	// initial publication attempt.
-	MinGasPrice *big.Int
-
-	// MaxGasPrice is the maximum gas price (in gwei). This is used to clamp
-	// the upper end of the range that the TxManager will ever publish when
-	// attempting to confirm a transaction.
-	MaxGasPrice *big.Int
-
-	// GasRetryIncrement is the additive gas price (in gwei) that will be
-	// used to bump each successive tx after a ResubmissionTimeout has
-	// elapsed.
-	GasRetryIncrement *big.Int
 
 	// ResubmissionTimeout is the interval at which, if no previously
 	// published transaction has been mined, the new tx with a bumped gas
@@ -135,25 +116,29 @@ func (m *SimpleTxManager) Send(
 	// background, returning the first successfully mined receipt back to
 	// the main event loop via receiptChan.
 	receiptChan := make(chan *types.Receipt, 1)
-	sendTxAsync := func(gasPrice *big.Int) {
+	sendTxAsync := func() {
 		defer wg.Done()
 
 		// Sign and publish transaction with current gas price.
-		tx, err := sendTx(ctxc, gasPrice)
+		tx, err := sendTx(ctxc)
 		if err != nil {
 			if err == context.Canceled ||
 				strings.Contains(err.Error(), "context canceled") {
 				return
 			}
-			log.Error(name+" unable to publish transaction",
-				"gas_price", gasPrice, "err", err)
+			log.Error(name+" unable to publish transaction", "err", err)
+			if shouldAbortImmediately(err) {
+				cancel()
+			}
 			// TODO(conner): add retry?
 			return
 		}
 
 		txHash := tx.Hash()
+		gasTipCap := tx.GasTipCap()
+		gasFeeCap := tx.GasFeeCap()
 		log.Info(name+" transaction published successfully", "hash", txHash,
-			"gas_price", gasPrice)
+			"gasTipCap", gasTipCap, "gasFeeCap", gasFeeCap)
 
 		// Wait for the transaction to be mined, reporting the receipt
 		// back to the main event loop if found.
@@ -163,7 +148,7 @@ func (m *SimpleTxManager) Send(
 		)
 		if err != nil {
 			log.Debug(name+" send tx failed", "hash", txHash,
-				"gas_price", gasPrice, "err", err)
+				"gasTipCap", gasTipCap, "gasFeeCap", gasFeeCap, "err", err)
 		}
 		if receipt != nil {
 			// Use non-blocking select to ensure function can exit
@@ -171,20 +156,17 @@ func (m *SimpleTxManager) Send(
 			select {
 			case receiptChan <- receipt:
 				log.Trace(name+" send tx succeeded", "hash", txHash,
-					"gas_price", gasPrice)
+					"gasTipCap", gasTipCap, "gasFeeCap", gasFeeCap)
 			default:
 			}
 		}
 	}
 
-	// Initialize our initial gas price to the configured minimum.
-	curGasPrice := new(big.Int).Set(m.cfg.MinGasPrice)
-
 	// Submit and wait for the receipt at our first gas price in the
 	// background, before entering the event loop and waiting out the
 	// resubmission timeout.
 	wg.Add(1)
-	go sendTxAsync(curGasPrice)
+	go sendTxAsync()
 
 	for {
 		select {
@@ -192,24 +174,9 @@ func (m *SimpleTxManager) Send(
 		// Whenever a resubmission timeout has elapsed, bump the gas
 		// price and publish a new transaction.
 		case <-time.After(m.cfg.ResubmissionTimeout):
-			// If our last attempt published at the max gas price,
-			// return an error as we are unlikely to succeed in
-			// publishing. This also indicates that the max gas
-			// price should likely be adjusted higher for the
-			// daemon.
-			if curGasPrice.Cmp(m.cfg.MaxGasPrice) >= 0 {
-				return nil, ErrPublishTimeout
-			}
-
-			// Bump the gas price using linear gas price increments.
-			curGasPrice = NextGasPrice(
-				curGasPrice, m.cfg.GasRetryIncrement,
-				m.cfg.MaxGasPrice,
-			)
-
 			// Submit and wait for the bumped traction to confirm.
 			wg.Add(1)
-			go sendTxAsync(curGasPrice)
+			go sendTxAsync()
 
 		// The passed context has been canceled, i.e. in the event of a
 		// shutdown.
@@ -221,6 +188,13 @@ func (m *SimpleTxManager) Send(
 			return receipt, nil
 		}
 	}
+}
+
+// shouldAbortImmediately returns true if the txmgr should cancel all
+// publication attempts and retry. For now, this only includes nonce errors, as
+// that error indicates that none of the transactions will ever confirm.
+func shouldAbortImmediately(err error) bool {
+	return strings.Contains(err.Error(), core.ErrNonceTooLow.Error())
 }
 
 // WaitMined blocks until the backend indicates confirmation of tx and returns
@@ -289,17 +263,12 @@ func WaitMined(
 	}
 }
 
-// NextGasPrice bumps the current gas price using an additive gasRetryIncrement,
-// clamping the resulting value to maxGasPrice.
-//
-// NOTE: This method does not mutate curGasPrice, but instead returns a copy.
-// This removes the possiblity of races occuring from goroutines sharing access
-// to the same underlying big.Int.
-func NextGasPrice(curGasPrice, gasRetryIncrement, maxGasPrice *big.Int) *big.Int {
-	nextGasPrice := new(big.Int).Set(curGasPrice)
-	nextGasPrice.Add(nextGasPrice, gasRetryIncrement)
-	if nextGasPrice.Cmp(maxGasPrice) == 1 {
-		nextGasPrice.Set(maxGasPrice)
-	}
-	return nextGasPrice
+// CalcGasFeeCap deterministically computes the recommended gas fee cap given
+// the base fee and gasTipCap. The resulting gasFeeCap is equal to:
+//   gasTipCap + 2*baseFee.
+func CalcGasFeeCap(baseFee, gasTipCap *big.Int) *big.Int {
+	return new(big.Int).Add(
+		gasTipCap,
+		new(big.Int).Mul(baseFee, big.NewInt(2)),
+	)
 }

@@ -120,6 +120,8 @@ type CallMsg struct {
 	Value    *big.Int        // amount of wei sent along with the call
 	Data     []byte          // input data, usually an ABI-encoded contract method invocation
 
+	AccessList types.AccessList // EIP-2930 access list.
+
 	L1Timestamp   uint64
 	L1BlockNumber *big.Int
 	QueueOrigin   types.QueueOrigin

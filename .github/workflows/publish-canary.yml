@@ -65,7 +65,7 @@ jobs:
         run: yarn changeset version --snapshot
 
       - name: Publish To NPM
-        uses: changesets/action@master
+        uses: changesets/action@v1
         id: changesets
         with:
           publish: yarn changeset publish --tag canary

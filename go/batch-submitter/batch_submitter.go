@@ -15,7 +15,6 @@ import (
 	"github.com/ethereum-optimism/optimism/go/batch-submitter/drivers/proposer"
 	"github.com/ethereum-optimism/optimism/go/batch-submitter/drivers/sequencer"
 	"github.com/ethereum-optimism/optimism/go/batch-submitter/txmgr"
-	"github.com/ethereum-optimism/optimism/go/batch-submitter/utils"
 	l2ethclient "github.com/ethereum-optimism/optimism/l2geth/ethclient"
 	l2rpc "github.com/ethereum-optimism/optimism/l2geth/rpc"
 	"github.com/ethereum/go-ethereum/common"
@@ -163,9 +162,6 @@ func NewBatchSubmitter(cfg Config, gitVersion string) (*BatchSubmitter, error) {
 	}
 
 	txManagerConfig := txmgr.Config{
-		MinGasPrice:          utils.GasPriceFromGwei(1),
-		MaxGasPrice:          utils.GasPriceFromGwei(cfg.MaxGasPriceInGwei),
-		GasRetryIncrement:    utils.GasPriceFromGwei(cfg.GasRetryIncrement),
 		ResubmissionTimeout:  cfg.ResubmissionTimeout,
 		ReceiptQueryInterval: time.Second,
 		NumConfirmations:     cfg.NumConfirmations,

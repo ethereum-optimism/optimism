@@ -133,14 +133,6 @@ type Config struct {
 	// blocks.
 	BlockOffset uint64
 
-	// MaxGasPriceInGwei is the maximum gas price in gwei we will allow in order
-	// to confirm a transaction.
-	MaxGasPriceInGwei uint64
-
-	// GasRetryIncrement is the step size (in gwei) by which we will ratchet the
-	// gas price in order to get a transaction confirmed.
-	GasRetryIncrement uint64
-
 	// SequencerPrivateKey the private key of the wallet used to submit
 	// transactions to the CTC contract.
 	SequencerPrivateKey string
@@ -202,8 +194,6 @@ func NewConfig(ctx *cli.Context) (Config, error) {
 		SentryDsn:           ctx.GlobalString(flags.SentryDsnFlag.Name),
 		SentryTraceRate:     ctx.GlobalDuration(flags.SentryTraceRateFlag.Name),
 		BlockOffset:         ctx.GlobalUint64(flags.BlockOffsetFlag.Name),
-		MaxGasPriceInGwei:   ctx.GlobalUint64(flags.MaxGasPriceInGweiFlag.Name),
-		GasRetryIncrement:   ctx.GlobalUint64(flags.GasRetryIncrementFlag.Name),
 		SequencerPrivateKey: ctx.GlobalString(flags.SequencerPrivateKeyFlag.Name),
 		ProposerPrivateKey:  ctx.GlobalString(flags.ProposerPrivateKeyFlag.Name),
 		Mnemonic:            ctx.GlobalString(flags.MnemonicFlag.Name),

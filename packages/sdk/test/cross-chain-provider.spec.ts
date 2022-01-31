@@ -270,6 +270,7 @@ describe('CrossChainProvider', () => {
                     target: message.target,
                     message: message.message,
                     messageNonce: ethers.BigNumber.from(message.messageNonce),
+                    gasLimit: ethers.BigNumber.from(message.gasLimit),
                     logIndex: i,
                     blockNumber: tx.blockNumber,
                     transactionHash: tx.hash,
@@ -321,6 +322,7 @@ describe('CrossChainProvider', () => {
                     target: message.target,
                     message: message.message,
                     messageNonce: ethers.BigNumber.from(message.messageNonce),
+                    gasLimit: ethers.BigNumber.from(message.gasLimit),
                     logIndex: i,
                     blockNumber: tx.blockNumber,
                     transactionHash: tx.hash,
@@ -685,6 +687,7 @@ describe('CrossChainProvider', () => {
           sender: '0x' + '22'.repeat(20),
           message: '0x' + '33'.repeat(64),
           messageNonce: 1234,
+          gasLimit: 0,
           logIndex: 0,
           blockNumber: 1234,
           transactionHash: '0x' + '44'.repeat(32),
@@ -898,10 +901,9 @@ describe('CrossChainProvider', () => {
 
             await submitStateRootBatchForMessage(message)
 
-            const challengePeriod = await provider.getChallengePeriodBlocks()
-            for (let x = 0; x < challengePeriod + 1; x++) {
-              await ethers.provider.send('evm_mine', [])
-            }
+            const challengePeriod = await provider.getChallengePeriodSeconds()
+            ethers.provider.send('evm_increaseTime', [challengePeriod + 1])
+            ethers.provider.send('evm_mine', [])
 
             await l1Messenger.triggerRelayedMessageEvents([
               hashCrossChainMessage(message),
@@ -921,10 +923,9 @@ describe('CrossChainProvider', () => {
 
             await submitStateRootBatchForMessage(message)
 
-            const challengePeriod = await provider.getChallengePeriodBlocks()
-            for (let x = 0; x < challengePeriod + 1; x++) {
-              await ethers.provider.send('evm_mine', [])
-            }
+            const challengePeriod = await provider.getChallengePeriodSeconds()
+            ethers.provider.send('evm_increaseTime', [challengePeriod + 1])
+            ethers.provider.send('evm_mine', [])
 
             await l1Messenger.triggerFailedRelayedMessageEvents([
               hashCrossChainMessage(message),
@@ -944,10 +945,9 @@ describe('CrossChainProvider', () => {
 
             await submitStateRootBatchForMessage(message)
 
-            const challengePeriod = await provider.getChallengePeriodBlocks()
-            for (let x = 0; x < challengePeriod + 1; x++) {
-              await ethers.provider.send('evm_mine', [])
-            }
+            const challengePeriod = await provider.getChallengePeriodSeconds()
+            ethers.provider.send('evm_increaseTime', [challengePeriod + 1])
+            ethers.provider.send('evm_mine', [])
 
             expect(await provider.getMessageStatus(message)).to.equal(
               MessageStatus.READY_FOR_RELAY
@@ -1009,6 +1009,7 @@ describe('CrossChainProvider', () => {
             sender: '0x' + '22'.repeat(20),
             message: '0x' + '33'.repeat(64),
             messageNonce: 1234,
+            gasLimit: 0,
             logIndex: 0,
             blockNumber: 1234,
             transactionHash: '0x' + '44'.repeat(32),
@@ -1039,6 +1040,7 @@ describe('CrossChainProvider', () => {
             sender: '0x' + '22'.repeat(20),
             message: '0x' + '33'.repeat(64),
             messageNonce: 1234,
+            gasLimit: 0,
             logIndex: 0,
             blockNumber: 1234,
             transactionHash: '0x' + '44'.repeat(32),
@@ -1069,6 +1071,7 @@ describe('CrossChainProvider', () => {
             sender: '0x' + '22'.repeat(20),
             message: '0x' + '33'.repeat(64),
             messageNonce: 1234,
+            gasLimit: 0,
             logIndex: 0,
             blockNumber: 1234,
             transactionHash: '0x' + '44'.repeat(32),
@@ -1104,6 +1107,7 @@ describe('CrossChainProvider', () => {
           sender: '0x' + '22'.repeat(20),
           message: '0x' + '33'.repeat(64),
           messageNonce: 1234,
+          gasLimit: 0,
           logIndex: 0,
           blockNumber: 1234,
           transactionHash: '0x' + '44'.repeat(32),
@@ -1148,6 +1152,7 @@ describe('CrossChainProvider', () => {
           sender: '0x' + '22'.repeat(20),
           message: '0x' + '33'.repeat(64),
           messageNonce: 1234,
+          gasLimit: 0,
           logIndex: 0,
           blockNumber: 1234,
           transactionHash: '0x' + '44'.repeat(32),
@@ -1179,6 +1184,7 @@ describe('CrossChainProvider', () => {
             sender: '0x' + '22'.repeat(20),
             message: '0x' + '33'.repeat(64),
             messageNonce: 1234,
+            gasLimit: 0,
             logIndex: 0,
             blockNumber: 1234,
             transactionHash: '0x' + '44'.repeat(32),
@@ -1211,6 +1217,7 @@ describe('CrossChainProvider', () => {
             sender: '0x' + '22'.repeat(20),
             message: '0x' + '33'.repeat(64),
             messageNonce: 1234,
+            gasLimit: 0,
             logIndex: 0,
             blockNumber: 1234,
             transactionHash: '0x' + '44'.repeat(32),

@@ -11,8 +11,6 @@ import (
 	"github.com/ethereum-optimism/optimism/go/batch-submitter/drivers"
 	"github.com/ethereum-optimism/optimism/go/batch-submitter/mock"
 	"github.com/ethereum-optimism/optimism/go/batch-submitter/txmgr"
-	"github.com/ethereum-optimism/optimism/go/batch-submitter/utils"
-	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -27,8 +25,6 @@ func init() {
 	}
 	testPrivKey = privKey
 	testWalletAddr = crypto.PubkeyToAddress(privKey.PublicKey)
-	testChainID = new(big.Int).SetUint64(1)
-	testGasPrice = new(big.Int).SetUint64(3)
 }
 
 var (
@@ -36,21 +32,22 @@ var (
 	testWalletAddr  common.Address
 	testChainID     = big.NewInt(1)
 	testNonce       = uint64(2)
-	testGasPrice    = big.NewInt(3)
-	testGasLimit    = uint64(4)
+	testGasFeeCap   = big.NewInt(3)
+	testGasTipCap   = big.NewInt(4)
 	testBlockNumber = uint64(5)
+	testBaseFee     = big.NewInt(6)
 )
 
 // TestCraftClearingTx asserts that CraftClearingTx produces the expected
 // unsigned clearing transaction.
 func TestCraftClearingTx(t *testing.T) {
 	tx := drivers.CraftClearingTx(
-		testWalletAddr, testNonce, testGasPrice, testGasLimit,
+		testWalletAddr, testNonce, testGasFeeCap, testGasTipCap,
 	)
 	require.Equal(t, &testWalletAddr, tx.To())
 	require.Equal(t, testNonce, tx.Nonce())
-	require.Equal(t, testGasPrice, tx.GasPrice())
-	require.Equal(t, testGasLimit, tx.Gas())
+	require.Equal(t, testGasFeeCap, tx.GasFeeCap())
+	require.Equal(t, testGasTipCap, tx.GasTipCap())
 	require.Equal(t, new(big.Int), tx.Value())
 	require.Nil(t, tx.Data())
 }
@@ -59,21 +56,31 @@ func TestCraftClearingTx(t *testing.T) {
 // clearing transaction when the call to EstimateGas succeeds.
 func TestSignClearingTxEstimateGasSuccess(t *testing.T) {
 	l1Client := mock.NewL1Client(mock.L1ClientConfig{
-		EstimateGas: func(_ context.Context, _ ethereum.CallMsg) (uint64, error) {
-			return testGasLimit, nil
+		HeaderByNumber: func(_ context.Context, _ *big.Int) (*types.Header, error) {
+			return &types.Header{
+				BaseFee: testBaseFee,
+			}, nil
+		},
+		SuggestGasTipCap: func(_ context.Context) (*big.Int, error) {
+			return testGasTipCap, nil
 		},
 	})
 
+	expGasFeeCap := new(big.Int).Add(
+		testGasTipCap,
+		new(big.Int).Mul(testBaseFee, big.NewInt(2)),
+	)
+
 	tx, err := drivers.SignClearingTx(
-		context.Background(), testWalletAddr, testNonce, testGasPrice, l1Client,
+		"TEST", context.Background(), testWalletAddr, testNonce, l1Client,
 		testPrivKey, testChainID,
 	)
 	require.Nil(t, err)
 	require.NotNil(t, tx)
 	require.Equal(t, &testWalletAddr, tx.To())
 	require.Equal(t, testNonce, tx.Nonce())
-	require.Equal(t, testGasPrice, tx.GasPrice())
-	require.Equal(t, testGasLimit, tx.Gas())
+	require.Equal(t, expGasFeeCap, tx.GasFeeCap())
+	require.Equal(t, testGasTipCap, tx.GasTipCap())
 	require.Equal(t, new(big.Int), tx.Value())
 	require.Nil(t, tx.Data())
 
@@ -83,22 +90,44 @@ func TestSignClearingTxEstimateGasSuccess(t *testing.T) {
 	require.Equal(t, testWalletAddr, sender)
 }
 
-// TestSignClearingTxEstimateGasFail asserts that signing a clearing transaction
-// will fail if the underlying call to EstimateGas fails.
-func TestSignClearingTxEstimateGasFail(t *testing.T) {
-	errEstimateGas := errors.New("estimate gas")
+// TestSignClearingTxSuggestGasTipCapFail asserts that signing a clearing
+// transaction will fail if the underlying call to SuggestGasTipCap fails.
+func TestSignClearingTxSuggestGasTipCapFail(t *testing.T) {
+	errSuggestGasTipCap := errors.New("suggest gas tip cap")
 
 	l1Client := mock.NewL1Client(mock.L1ClientConfig{
-		EstimateGas: func(_ context.Context, _ ethereum.CallMsg) (uint64, error) {
-			return 0, errEstimateGas
+		SuggestGasTipCap: func(_ context.Context) (*big.Int, error) {
+			return nil, errSuggestGasTipCap
 		},
 	})
 
 	tx, err := drivers.SignClearingTx(
-		context.Background(), testWalletAddr, testNonce, testGasPrice, l1Client,
+		"TEST", context.Background(), testWalletAddr, testNonce, l1Client,
 		testPrivKey, testChainID,
 	)
-	require.Equal(t, errEstimateGas, err)
+	require.Equal(t, errSuggestGasTipCap, err)
+	require.Nil(t, tx)
+}
+
+// TestSignClearingTxHeaderByNumberFail asserts that signing a clearing
+// transaction will fail if the underlying call to HeaderByNumber fails.
+func TestSignClearingTxHeaderByNumberFail(t *testing.T) {
+	errHeaderByNumber := errors.New("header by number")
+
+	l1Client := mock.NewL1Client(mock.L1ClientConfig{
+		HeaderByNumber: func(_ context.Context, _ *big.Int) (*types.Header, error) {
+			return nil, errHeaderByNumber
+		},
+		SuggestGasTipCap: func(_ context.Context) (*big.Int, error) {
+			return testGasTipCap, nil
+		},
+	})
+
+	tx, err := drivers.SignClearingTx(
+		"TEST", context.Background(), testWalletAddr, testNonce, l1Client,
+		testPrivKey, testChainID,
+	)
+	require.Equal(t, errHeaderByNumber, err)
 	require.Nil(t, tx)
 }
 
@@ -117,22 +146,26 @@ func newClearPendingTxHarnessWithNumConfs(
 			return testBlockNumber, nil
 		}
 	}
+	if l1ClientConfig.HeaderByNumber == nil {
+		l1ClientConfig.HeaderByNumber = func(_ context.Context, _ *big.Int) (*types.Header, error) {
+			return &types.Header{
+				BaseFee: testBaseFee,
+			}, nil
+		}
+	}
 	if l1ClientConfig.NonceAt == nil {
 		l1ClientConfig.NonceAt = func(_ context.Context, _ common.Address, _ *big.Int) (uint64, error) {
 			return testNonce, nil
 		}
 	}
-	if l1ClientConfig.EstimateGas == nil {
-		l1ClientConfig.EstimateGas = func(_ context.Context, _ ethereum.CallMsg) (uint64, error) {
-			return testGasLimit, nil
+	if l1ClientConfig.SuggestGasTipCap == nil {
+		l1ClientConfig.SuggestGasTipCap = func(_ context.Context) (*big.Int, error) {
+			return testGasTipCap, nil
 		}
 	}
 
 	l1Client := mock.NewL1Client(l1ClientConfig)
 	txMgr := txmgr.NewSimpleTxManager("test", txmgr.Config{
-		MinGasPrice:          utils.GasPriceFromGwei(1),
-		MaxGasPrice:          utils.GasPriceFromGwei(100),
-		GasRetryIncrement:    utils.GasPriceFromGwei(5),
 		ResubmissionTimeout:  time.Second,
 		ReceiptQueryInterval: 50 * time.Millisecond,
 		NumConfirmations:     numConfirmations,
@@ -200,11 +233,14 @@ func TestClearPendingTxTimeout(t *testing.T) {
 		},
 	})
 
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
 	err := drivers.ClearPendingTx(
-		"test", context.Background(), h.txMgr, h.l1Client, testWalletAddr,
-		testPrivKey, testChainID,
+		"test", ctx, h.txMgr, h.l1Client, testWalletAddr, testPrivKey,
+		testChainID,
 	)
-	require.Equal(t, txmgr.ErrPublishTimeout, err)
+	require.Equal(t, context.DeadlineExceeded, err)
 }
 
 // TestClearPendingTxMultipleConfs tests we wait the appropriate number of
@@ -225,12 +261,15 @@ func TestClearPendingTxMultipleConfs(t *testing.T) {
 		},
 	}, numConfs)
 
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
 	// The txmgr should timeout waiting for the txn to confirm.
 	err := drivers.ClearPendingTx(
-		"test", context.Background(), h.txMgr, h.l1Client, testWalletAddr,
-		testPrivKey, testChainID,
+		"test", ctx, h.txMgr, h.l1Client, testWalletAddr, testPrivKey,
+		testChainID,
 	)
-	require.Equal(t, txmgr.ErrPublishTimeout, err)
+	require.Equal(t, context.DeadlineExceeded, err)
 
 	// Now set the chain height to the earliest the transaction will be
 	// considered sufficiently confirmed.

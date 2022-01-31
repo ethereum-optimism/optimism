@@ -4,7 +4,7 @@ import {
   TransactionResponse,
 } from '@ethersproject/abstract-provider'
 import { Signer } from '@ethersproject/abstract-signer'
-import { Contract, BigNumber, Overrides } from 'ethers'
+import { Contract, BigNumber } from 'ethers'
 
 /**
  * L1 contract references.
@@ -143,7 +143,6 @@ export interface CrossChainMessageRequest {
   direction: MessageDirection
   target: string
   message: string
-  l2GasLimit: NumberLike
 }
 
 /**
@@ -162,6 +161,7 @@ export interface CoreCrossChainMessage {
  */
 export interface CrossChainMessage extends CoreCrossChainMessage {
   direction: MessageDirection
+  gasLimit: number
   logIndex: number
   blockNumber: number
   transactionHash: string
@@ -230,23 +230,23 @@ export interface StateRootBatch {
 }
 
 /**
- * Extended Ethers overrides object with an l2GasLimit field.
- * Only meant to be used for L1 to L2 messages, since L2 to L1 messages don't have a specified gas
- * limit field (gas used depends on the amount of gas provided).
- */
-export type L1ToL2Overrides = Overrides & {
-  l2GasLimit: NumberLike
-}
-
-/**
  * Stuff that can be coerced into a transaction.
  */
 export type TransactionLike = string | TransactionReceipt | TransactionResponse
 
 /**
- * Stuff that can be coerced into a message.
+ * Stuff that can be coerced into a CrossChainMessage.
  */
 export type MessageLike =
+  | CrossChainMessage
+  | TransactionLike
+  | TokenBridgeMessage
+
+/**
+ * Stuff that can be coerced into a CrossChainMessageRequest.
+ */
+export type MessageRequestLike =
+  | CrossChainMessageRequest
   | CrossChainMessage
   | TransactionLike
   | TokenBridgeMessage
