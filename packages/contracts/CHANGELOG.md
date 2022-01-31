@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.11
+
+### Patch Changes
+
+- e631c39c: Add berlin hardfork config to genesis creation
+
 ## 0.5.10
 
 ### Patch Changes
