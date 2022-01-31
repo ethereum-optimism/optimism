@@ -8,6 +8,7 @@ import (
 	"sort"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/math"
 	_ "github.com/lib/pq"
 )
 
@@ -182,6 +183,66 @@ func (d *Database) AddIndexedBlock(block *IndexedBlock) error {
 
 		return nil
 	})
+}
+
+func (d *Database) GetDepositsByAddress(address common.Address) ([]Deposit, error) {
+	const selectDepositsStatement = `
+	SELECT queue_index, amount, tx_hash, l1_tx_origin, target, gas_limit, data
+	FROM deposits WHERE from_address = $1 ORDER BY block_timestamp LIMIT 10
+	`
+	var deposits []Deposit
+
+	err := txn(d.db, func(tx *sql.Tx) error {
+		queryStmt, err := tx.Prepare(selectDepositsStatement)
+		if err != nil {
+			return err
+		}
+
+		rows, err := queryStmt.Query(address.String())
+		if err != nil {
+			return err
+		}
+
+		for rows.Next() {
+			var amountStr string
+			var txHashStr string
+			var l1TxOriginStr string
+			var targetStr string
+			var gasLimitStr string
+			//var amount *big.Int
+			var deposit Deposit
+			if err := rows.Scan(
+				&deposit.QueueIndex, &amountStr,
+				&txHashStr, &l1TxOriginStr,
+				&targetStr, &gasLimitStr,
+				&deposit.Data); err != nil {
+				return err
+			}
+			amount, ok := math.ParseBig256(amountStr)
+			if !ok {
+				return errors.New("error parsing amount")
+			}
+			gasLimit, ok := math.ParseBig256(gasLimitStr)
+			if !ok {
+				return errors.New("error parsing target")
+			}
+			deposit.FromAddress = address
+			deposit.Amount = amount
+			deposit.TxHash = common.HexToHash(txHashStr)
+			deposit.L1TxOrigin = common.HexToAddress(l1TxOriginStr)
+			deposit.Target = common.HexToAddress(targetStr)
+			deposit.GasLimit = gasLimit
+			// TODO: deposit.Data = data
+			deposits = append(deposits, deposit)
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		return nil, err
+	}
+	return deposits, nil
 }
 
 type BlockLocator struct {

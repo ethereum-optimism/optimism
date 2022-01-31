@@ -14,6 +14,7 @@ import (
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/getsentry/sentry-go"
+	"github.com/gorilla/mux"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/urfave/cli"
 )
@@ -148,6 +149,7 @@ func NewIndexer(cfg Config, gitVersion string) (*Indexer, error) {
 		MaxHeaderBatchSize: cfg.MaxHeaderBatchSize,
 		StartBlockNumber:   cfg.StartBlockNumber,
 		StartBlockHash:     cfg.StartBlockHash,
+		Router:             mux.NewRouter(),
 	})
 	if err != nil {
 		return nil, err

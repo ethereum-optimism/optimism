@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
+	"net/http"
 	"sync"
 
 	"github.com/ethereum-optimism/optimism/go/indexer/bindings/ctc"
@@ -16,6 +17,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/gorilla/mux"
 )
 
 // errNoChainID represents the error when the chain id is not provided
@@ -82,6 +84,7 @@ type ServiceConfig struct {
 	StartBlockNumber   uint64
 	StartBlockHash     string
 	DB                 *Database
+	Router             *mux.Router
 }
 
 type Service struct {
@@ -307,12 +310,30 @@ func (s *Service) Update(start uint64, newHeader *types.Header) error {
 	return nil
 }
 
+func (s *Service) getDeposits(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+
+	deposits, err := s.cfg.DB.GetDepositsByAddress(common.HexToAddress(vars["address"]))
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, err.Error())
+	}
+
+	respondWithJSON(w, http.StatusOK, deposits)
+}
+
+func (s *Service) Serve(ctx context.Context) {
+	s.cfg.Router.HandleFunc("/deposits/0x{address:[a-fA-F0-9]{40}}", s.getDeposits).Methods("GET")
+
+	http.ListenAndServe(":8080", s.cfg.Router)
+}
+
 func (s *Service) Start() error {
 	if s.cfg.ChainID == nil {
 		return errNoChainID
 	}
 	s.wg.Add(1)
 	go s.Loop(context.Background())
+	go s.Serve(context.Background())
 	return nil
 }
 

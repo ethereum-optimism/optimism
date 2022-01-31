@@ -3,14 +3,13 @@ module github.com/ethereum-optimism/optimism/go/indexer
 go 1.18
 
 require (
-	github.com/decred/dcrd/hdkeychain/v3 v3.1.0
 	github.com/ethereum-optimism/optimism/l2geth v0.0.0-20220104205740-f39387287484
 	github.com/ethereum/go-ethereum v1.10.14
 	github.com/getsentry/sentry-go v0.12.0
+	github.com/gorilla/mux v1.8.0
 	github.com/lib/pq v1.0.0
 	github.com/prometheus/client_golang v1.0.0
 	github.com/stretchr/testify v1.7.0
-	github.com/tyler-smith/go-bip39 v1.0.1-0.20181017060643-dbb3b84ba2ef
 	github.com/urfave/cli v1.22.5
 )
 
@@ -24,10 +23,6 @@ require (
 	github.com/cpuguy83/go-md2man/v2 v2.0.0-20190314233015-f79a8a8ca69d // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/deckarep/golang-set v0.0.0-20180603214616-504e848d77ea // indirect
-	github.com/decred/base58 v1.0.3 // indirect
-	github.com/decred/dcrd/crypto/blake256 v1.0.0 // indirect
-	github.com/decred/dcrd/crypto/ripemd160 v1.0.1 // indirect
-	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.0.1 // indirect
 	github.com/elastic/gosigar v0.8.1-0.20180330100440-37f05ff46ffa // indirect
 	github.com/go-ole/go-ole v1.2.1 // indirect
 	github.com/go-stack/stack v1.8.0 // indirect
