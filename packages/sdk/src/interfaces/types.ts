@@ -6,6 +6,9 @@ import {
 import { Signer } from '@ethersproject/abstract-signer'
 import { Contract, BigNumber } from 'ethers'
 
+import { ICrossChainProvider } from './cross-chain-provider'
+import { IBridgeAdapter } from './bridge-adapter'
+
 /**
  * L1 contract references.
  */
@@ -68,27 +71,25 @@ export interface OEContractsLike {
 }
 
 /**
- * Represents list of custom bridges.
+ * Something that looks like the list of custom bridges.
  */
-export interface CustomBridges {
-  l1: {
-    [name: string]: Contract
-  }
-  l2: {
-    [name: string]: Contract
+export interface BridgeAdapterData {
+  [name: string]: {
+    Adapter: new (opts: {
+      provider: ICrossChainProvider
+      l1Bridge: AddressLike
+      l2Bridge: AddressLike
+    }) => IBridgeAdapter
+    l1Bridge: AddressLike
+    l2Bridge: AddressLike
   }
 }
 
 /**
  * Something that looks like the list of custom bridges.
  */
-export interface CustomBridgesLike {
-  l1: {
-    [K in keyof CustomBridges['l1']]: AddressLike
-  }
-  l2: {
-    [K in keyof CustomBridges['l2']]: AddressLike
-  }
+export interface BridgeAdapters {
+  [name: string]: IBridgeAdapter
 }
 
 /**
