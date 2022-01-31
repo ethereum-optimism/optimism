@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.4.16
+
+### Patch Changes
+
+- Updated dependencies [e631c39c]
+  - @eth-optimism/contracts@0.5.11
+
 ## 0.4.15
 
 ### Patch Changes

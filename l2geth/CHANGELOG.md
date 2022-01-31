@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.9
+
+### Patch Changes
+
+- e631c39c: Implement berlin hardfork
+
 ## 0.5.8
 
 ### Patch Changes

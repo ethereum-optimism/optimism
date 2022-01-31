@@ -1,5 +1,11 @@
 # @eth-optimism/integration-tests
 
+## 0.5.1
+
+### Patch Changes
+
+- e631c39c: Add in berlin hardfork tests
+
 ## 0.5.0
 
 ### Minor Changes
