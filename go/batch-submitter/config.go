@@ -133,14 +133,6 @@ type Config struct {
 	// blocks.
 	BlockOffset uint64
 
-	// MaxGasPriceInGwei is the maximum gas price in gwei we will allow in order
-	// to confirm a transaction.
-	MaxGasPriceInGwei uint64
-
-	// GasRetryIncrement is the step size (in gwei) by which we will ratchet the
-	// gas price in order to get a transaction confirmed.
-	GasRetryIncrement uint64
-
 	// SequencerPrivateKey the private key of the wallet used to submit
 	// transactions to the CTC contract.
 	SequencerPrivateKey string
@@ -171,6 +163,9 @@ type Config struct {
 
 	// MetricsPort is the port at which the metrics server is running.
 	MetricsPort uint64
+
+	// DisableHTTP2 disables HTTP2 support.
+	DisableHTTP2 bool
 }
 
 // NewConfig parses the Config from the provided flags or environment variables.
@@ -199,8 +194,6 @@ func NewConfig(ctx *cli.Context) (Config, error) {
 		SentryDsn:           ctx.GlobalString(flags.SentryDsnFlag.Name),
 		SentryTraceRate:     ctx.GlobalDuration(flags.SentryTraceRateFlag.Name),
 		BlockOffset:         ctx.GlobalUint64(flags.BlockOffsetFlag.Name),
-		MaxGasPriceInGwei:   ctx.GlobalUint64(flags.MaxGasPriceInGweiFlag.Name),
-		GasRetryIncrement:   ctx.GlobalUint64(flags.GasRetryIncrementFlag.Name),
 		SequencerPrivateKey: ctx.GlobalString(flags.SequencerPrivateKeyFlag.Name),
 		ProposerPrivateKey:  ctx.GlobalString(flags.ProposerPrivateKeyFlag.Name),
 		Mnemonic:            ctx.GlobalString(flags.MnemonicFlag.Name),
@@ -209,6 +202,7 @@ func NewConfig(ctx *cli.Context) (Config, error) {
 		MetricsServerEnable: ctx.GlobalBool(flags.MetricsServerEnableFlag.Name),
 		MetricsHostname:     ctx.GlobalString(flags.MetricsHostnameFlag.Name),
 		MetricsPort:         ctx.GlobalUint64(flags.MetricsPortFlag.Name),
+		DisableHTTP2:        ctx.GlobalBool(flags.HTTP2DisableFlag.Name),
 	}
 
 	err := ValidateConfig(&cfg)
