@@ -210,7 +210,7 @@ export const conditionalTest = (
     }
 
     await fn()
-  }).timeout(timeout || envConfig.MOCHA_TIMEOUT)
+  }).timeout(timeout || envConfig.MOCHA_TIMEOUT * 2)
 }
 
 export const withdrawalTest = (name, fn, timeout?: number) =>
