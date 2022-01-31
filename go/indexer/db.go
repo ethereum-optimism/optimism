@@ -22,6 +22,7 @@ CREATE TABLE IF NOT EXISTS blocks (
 
 var createDepositsTable = `
 CREATE TABLE IF NOT EXISTS deposits (
+	from_address TEXT NOT NULL,
 	queue_index INTEGER NOT NULL UNIQUE,
 	amount TEXT NOT NULL,
 	tx_hash TEXT NOT NULL,
@@ -72,18 +73,19 @@ func (b IndexedBlock) String() string {
 }
 
 type Deposit struct {
-	Amount     *big.Int
-	QueueIndex uint64
-	TxHash     common.Hash
-	L1TxOrigin common.Address
-	Target     common.Address
-	GasLimit   *big.Int
-	Data       []byte
+	FromAddress common.Address
+	Amount      *big.Int
+	QueueIndex  uint64
+	TxHash      common.Hash
+	L1TxOrigin  common.Address
+	Target      common.Address
+	GasLimit    *big.Int
+	Data        []byte
 }
 
 func (d Deposit) String() string {
-	return fmt.Sprintf("Deposit { Amount: %s, QueueIndex: %d, TxHash: %s, L1TxOrigin: %s, "+
-		"Target: %s, GasLimit: %s, Data: %x }", d.Amount, d.QueueIndex, d.TxHash,
+	return fmt.Sprintf("Deposit { From: %v, Amount: %s, QueueIndex: %d, TxHash: %s, L1TxOrigin: %s, "+
+		"Target: %s, GasLimit: %s, Data: %x }", d.FromAddress, d.Amount, d.QueueIndex, d.TxHash,
 		d.L1TxOrigin, d.Target, d.GasLimit, d.Data)
 }
 
@@ -130,9 +132,9 @@ func (d *Database) AddIndexedBlock(block *IndexedBlock) error {
 
 	const insertDepositStatement = `
 	INSERT INTO deposits
-		(queue_index, amount, tx_hash, block_hash, block_timestamp, l1_tx_origin, target, gas_limit, data)
+		(from_address, queue_index, amount, tx_hash, block_hash, block_timestamp, l1_tx_origin, target, gas_limit, data)
 	VALUES
-		($1, $2, $3, $4, $5, $6, $7, $8, $9)
+		($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
 	`
 
 	return txn(d.db, func(tx *sql.Tx) error {
@@ -162,6 +164,7 @@ func (d *Database) AddIndexedBlock(block *IndexedBlock) error {
 
 		for _, deposit := range block.Deposits {
 			_, err = depositStmt.Exec(
+				deposit.FromAddress.String(),
 				deposit.QueueIndex,
 				deposit.Amount.String(),
 				deposit.TxHash.String(),

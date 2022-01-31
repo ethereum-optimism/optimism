@@ -248,15 +248,21 @@ func (s *Service) Update(start uint64, newHeader *types.Header) error {
 		if err != nil {
 			return err
 		}
+		signer := types.LatestSignerForChainID(tx.ChainId())
+		sender, err := signer.Sender(tx)
+		if err != nil {
+			return err
+		}
 		depositsByBlockhash[iter.Event.Raw.BlockHash] = append(
 			depositsByBlockhash[iter.Event.Raw.BlockHash], Deposit{
-				Amount:     tx.Value(),
-				QueueIndex: iter.Event.QueueIndex.Uint64(),
-				TxHash:     iter.Event.Raw.TxHash,
-				L1TxOrigin: iter.Event.L1TxOrigin,
-				Target:     iter.Event.Target,
-				GasLimit:   iter.Event.GasLimit,
-				Data:       iter.Event.Data,
+				FromAddress: sender,
+				Amount:      tx.Value(),
+				QueueIndex:  iter.Event.QueueIndex.Uint64(),
+				TxHash:      iter.Event.Raw.TxHash,
+				L1TxOrigin:  iter.Event.L1TxOrigin,
+				Target:      iter.Event.Target,
+				GasLimit:    iter.Event.GasLimit,
+				Data:        iter.Event.Data,
 			})
 	}
 	if err := iter.Error(); err != nil {
