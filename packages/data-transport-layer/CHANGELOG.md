@@ -1,5 +1,12 @@
 # data transport layer
 
+## 0.5.14
+
+### Patch Changes
+
+- Updated dependencies [e631c39c]
+  - @eth-optimism/contracts@0.5.11
+
 ## 0.5.13
 
 ### Patch Changes
