@@ -9,7 +9,7 @@
   - [Layer 2 (L2)](#layer-2-l2)
   - [Block](#block)
   - [EOA](#eoa)
-  - [Merkle Root](#merkle-root)
+  - [Merkle Patricia Trie](#merkle-patricia-trie)
   - [Chain Re-Organization](#chain-re-organization)
   - [Predeployed Contract ("Predeploy")](#predeployed-contract-predeploy)
   - [Receipt](#receipt)
@@ -76,11 +76,11 @@ block, and output block properties, which are derived after executing the block'
 
 "Externally Owned Account", an Ethereum term to designate addresses operated by users, as opposed to contract addresses.
 
-## Merkle Root
+## Merkle Patricia Trie
 
-[Merkle root]: glossary.md#merkle-roots
+[mpt]: glossary.md#merkle-patricia-trie
 
-The Merkle root is the root hash of a [Merkle Patricia tree] (MPT). A MPT is a sparse [trie], which is a tree-like
+A [Merkle Patricia tree] (MPT) is a sparse [trie], which is a tree-like
 structure that maps keys to values. The root hash of a MPT is a commitment to the contents of the tree, which allows a
 proof to be constructed for any key-value mapping encoded in the tree. Such a proof is called a Merkle proof, and can be
 verified against the Merkle root.
