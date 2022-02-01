@@ -8,7 +8,6 @@ import (
 	"sort"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/math"
 	_ "github.com/lib/pq"
 )
 
@@ -82,6 +81,18 @@ type Deposit struct {
 	Target      common.Address
 	GasLimit    *big.Int
 	Data        []byte
+}
+
+type TokenBridgeMessage struct {
+	FromAddress string `json:"from"`
+	ToAddress   string `json:"to"`
+	L1Token     string `json:"l1token"`
+	L2Token     string `json:"l2token"`
+	Amount      string `json:"amount"`
+	Data        []byte `json:"data"`
+	LogIndex    uint64 `json:"logIndex"`
+	BlockNumber uint64 `json:"blockNumber"`
+	TxHash      string `json:"transactionHash"`
 }
 
 func (d Deposit) String() string {
@@ -185,12 +196,12 @@ func (d *Database) AddIndexedBlock(block *IndexedBlock) error {
 	})
 }
 
-func (d *Database) GetDepositsByAddress(address common.Address) ([]Deposit, error) {
+func (d *Database) GetDepositsByAddress(address common.Address) ([]TokenBridgeMessage, error) {
 	const selectDepositsStatement = `
-	SELECT queue_index, amount, tx_hash, l1_tx_origin, target, gas_limit, data
+	SELECT queue_index, amount, tx_hash, data
 	FROM deposits WHERE from_address = $1 ORDER BY block_timestamp LIMIT 10
 	`
-	var deposits []Deposit
+	var deposits []TokenBridgeMessage
 
 	err := txn(d.db, func(tx *sql.Tx) error {
 		queryStmt, err := tx.Prepare(selectDepositsStatement)
@@ -204,35 +215,14 @@ func (d *Database) GetDepositsByAddress(address common.Address) ([]Deposit, erro
 		}
 
 		for rows.Next() {
-			var amountStr string
-			var txHashStr string
-			var l1TxOriginStr string
-			var targetStr string
-			var gasLimitStr string
-			//var amount *big.Int
-			var deposit Deposit
+			var deposit TokenBridgeMessage
 			if err := rows.Scan(
-				&deposit.QueueIndex, &amountStr,
-				&txHashStr, &l1TxOriginStr,
-				&targetStr, &gasLimitStr,
-				&deposit.Data); err != nil {
+				&deposit.LogIndex, &deposit.Amount,
+				&deposit.TxHash, &deposit.Data,
+			); err != nil {
 				return err
 			}
-			amount, ok := math.ParseBig256(amountStr)
-			if !ok {
-				return errors.New("error parsing amount")
-			}
-			gasLimit, ok := math.ParseBig256(gasLimitStr)
-			if !ok {
-				return errors.New("error parsing target")
-			}
-			deposit.FromAddress = address
-			deposit.Amount = amount
-			deposit.TxHash = common.HexToHash(txHashStr)
-			deposit.L1TxOrigin = common.HexToAddress(l1TxOriginStr)
-			deposit.Target = common.HexToAddress(targetStr)
-			deposit.GasLimit = gasLimit
-			// TODO: deposit.Data = data
+			deposit.FromAddress = address.String()
 			deposits = append(deposits, deposit)
 		}
 
