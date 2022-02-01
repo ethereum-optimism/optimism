@@ -2,34 +2,17 @@ package batchsubmitter
 
 import (
 	"context"
-	"crypto/ecdsa"
-	"crypto/tls"
-	"fmt"
-	"net/http"
 	"os"
-	"strconv"
-	"strings"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/go/batch-submitter/dial"
 	"github.com/ethereum-optimism/optimism/go/batch-submitter/drivers/proposer"
 	"github.com/ethereum-optimism/optimism/go/batch-submitter/drivers/sequencer"
+	"github.com/ethereum-optimism/optimism/go/batch-submitter/metrics"
 	"github.com/ethereum-optimism/optimism/go/batch-submitter/txmgr"
-	l2ethclient "github.com/ethereum-optimism/optimism/l2geth/ethclient"
-	l2rpc "github.com/ethereum-optimism/optimism/l2geth/rpc"
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
-	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/getsentry/sentry-go"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/urfave/cli"
-)
-
-const (
-	// defaultDialTimeout is default duration the service will wait on
-	// startup to make a connection to either the L1 or L2 backends.
-	defaultDialTimeout = 5 * time.Second
 )
 
 // Main is the entrypoint into the batch submitter service. This method returns
@@ -63,7 +46,7 @@ func Main(gitVersion string) func(ctx *cli.Context) error {
 				Dsn:              cfg.SentryDsn,
 				Environment:      cfg.EthNetworkName,
 				Release:          "batch-submitter@" + gitVersion,
-				TracesSampleRate: traceRateToFloat64(cfg.SentryTraceRate),
+				TracesSampleRate: TraceRateToFloat64(cfg.SentryTraceRate),
 				Debug:            false,
 			})
 			if err != nil {
@@ -83,7 +66,7 @@ func Main(gitVersion string) func(ctx *cli.Context) error {
 		log.Root().SetHandler(log.LvlFilterHandler(logLevel, logHandler))
 
 		// Parse sequencer private key and CTC contract address.
-		sequencerPrivKey, ctcAddress, err := parseWalletPrivKeyAndContractAddr(
+		sequencerPrivKey, ctcAddress, err := ParseWalletPrivKeyAndContractAddr(
 			"Sequencer", cfg.Mnemonic, cfg.SequencerHDPath,
 			cfg.SequencerPrivateKey, cfg.CTCAddress,
 		)
@@ -92,7 +75,7 @@ func Main(gitVersion string) func(ctx *cli.Context) error {
 		}
 
 		// Parse proposer private key and SCC contract address.
-		proposerPrivKey, sccAddress, err := parseWalletPrivKeyAndContractAddr(
+		proposerPrivKey, sccAddress, err := ParseWalletPrivKeyAndContractAddr(
 			"Proposer", cfg.Mnemonic, cfg.ProposerHDPath,
 			cfg.ProposerPrivateKey, cfg.SCCAddress,
 		)
@@ -102,18 +85,18 @@ func Main(gitVersion string) func(ctx *cli.Context) error {
 
 		// Connect to L1 and L2 providers. Perform these last since they are the
 		// most expensive.
-		l1Client, err := dialL1EthClientWithTimeout(ctx, cfg.L1EthRpc, cfg.DisableHTTP2)
+		l1Client, err := dial.L1EthClientWithTimeout(ctx, cfg.L1EthRpc, cfg.DisableHTTP2)
 		if err != nil {
 			return err
 		}
 
-		l2Client, err := dialL2EthClientWithTimeout(ctx, cfg.L2EthRpc, cfg.DisableHTTP2)
+		l2Client, err := dial.L2EthClientWithTimeout(ctx, cfg.L2EthRpc, cfg.DisableHTTP2)
 		if err != nil {
 			return err
 		}
 
 		if cfg.MetricsServerEnable {
-			go runMetricsServer(cfg.MetricsHostname, cfg.MetricsPort)
+			go metrics.RunServer(cfg.MetricsHostname, cfg.MetricsPort)
 		}
 
 		chainID, err := l1Client.ChainID(ctx)
@@ -238,118 +221,4 @@ func (b *BatchSubmitter) Stop() {
 	for _, service := range b.services {
 		_ = service.Stop()
 	}
-}
-
-// parseWalletPrivKeyAndContractAddr returns the wallet private key to use for
-// sending transactions as well as the contract address to send to for a
-// particular sub-service.
-func parseWalletPrivKeyAndContractAddr(
-	name string,
-	mnemonic string,
-	hdPath string,
-	privKeyStr string,
-	contractAddrStr string,
-) (*ecdsa.PrivateKey, common.Address, error) {
-
-	// Parse wallet private key from either privkey string or BIP39 mnemonic
-	// and BIP32 HD derivation path.
-	privKey, err := GetConfiguredPrivateKey(mnemonic, hdPath, privKeyStr)
-	if err != nil {
-		return nil, common.Address{}, err
-	}
-
-	// Parse the target contract address the wallet will send to.
-	contractAddress, err := ParseAddress(contractAddrStr)
-	if err != nil {
-		return nil, common.Address{}, err
-	}
-
-	// Log wallet address rather than private key...
-	walletAddress := crypto.PubkeyToAddress(privKey.PublicKey)
-
-	log.Info(name+" wallet params parsed successfully", "wallet_address",
-		walletAddress, "contract_address", contractAddress)
-
-	return privKey, contractAddress, nil
-}
-
-// runMetricsServer spins up a prometheus metrics server at the provided
-// hostname and port.
-//
-// NOTE: This method MUST be run as a goroutine.
-func runMetricsServer(hostname string, port uint64) {
-	metricsPortStr := strconv.FormatUint(port, 10)
-	metricsAddr := fmt.Sprintf("%s:%s", hostname, metricsPortStr)
-
-	http.Handle("/metrics", promhttp.Handler())
-	_ = http.ListenAndServe(metricsAddr, nil)
-}
-
-// dialL1EthClientWithTimeout attempts to dial the L1 provider using the
-// provided URL. If the dial doesn't complete within defaultDialTimeout seconds,
-// this method will return an error.
-func dialL1EthClientWithTimeout(ctx context.Context, url string, disableHTTP2 bool) (
-	*ethclient.Client, error) {
-
-	ctxt, cancel := context.WithTimeout(ctx, defaultDialTimeout)
-	defer cancel()
-
-	if strings.HasPrefix(url, "http") {
-		httpClient := new(http.Client)
-		if disableHTTP2 {
-			log.Info("Disabled HTTP/2 support in L1 eth client")
-			httpClient.Transport = &http.Transport{
-				TLSNextProto: make(map[string]func(authority string, c *tls.Conn) http.RoundTripper),
-			}
-		}
-
-		rpcClient, err := rpc.DialHTTPWithClient(url, httpClient)
-		if err != nil {
-			return nil, err
-		}
-
-		return ethclient.NewClient(rpcClient), nil
-	}
-
-	return ethclient.DialContext(ctxt, url)
-}
-
-// dialL2EthClientWithTimeout attempts to dial the L2 provider using the
-// provided URL. If the dial doesn't complete within defaultDialTimeout seconds,
-// this method will return an error.
-func dialL2EthClientWithTimeout(ctx context.Context, url string, disableHTTP2 bool) (
-	*l2ethclient.Client, error) {
-
-	ctxt, cancel := context.WithTimeout(ctx, defaultDialTimeout)
-	defer cancel()
-
-	if strings.HasPrefix(url, "http") {
-		httpClient := new(http.Client)
-		if disableHTTP2 {
-			log.Info("Disabled HTTP/2 support in L2 eth client")
-			httpClient.Transport = &http.Transport{
-				TLSNextProto: make(map[string]func(authority string, c *tls.Conn) http.RoundTripper),
-			}
-		}
-
-		rpcClient, err := l2rpc.DialHTTPWithClient(url, httpClient)
-		if err != nil {
-			return nil, err
-		}
-
-		return l2ethclient.NewClient(rpcClient), nil
-	}
-
-	return l2ethclient.DialContext(ctxt, url)
-}
-
-// traceRateToFloat64 converts a time.Duration into a valid float64 for the
-// Sentry client. The client only accepts values between 0.0 and 1.0, so this
-// method clamps anything greater than 1 second to 1.0.
-func traceRateToFloat64(rate time.Duration) float64 {
-	rate64 := float64(rate) / float64(time.Second)
-	if rate64 > 1.0 {
-		rate64 = 1.0
-	}
-	return rate64
 }
