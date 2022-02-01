@@ -42,7 +42,6 @@ export interface SequencerBatchAppendedExtraData {
   submitter: string
   l1TransactionData: string
   l1TransactionHash: string
-  gasLimit: string
 
   // Stuff from TransactionBatchAppended.
   prevTotalElements: BigNumber
