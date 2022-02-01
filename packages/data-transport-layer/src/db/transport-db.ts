@@ -31,11 +31,17 @@ interface Indexed {
   index: number
 }
 
+interface ExtraTransportDBOptions {
+  bssHardfork1Index?: number
+}
+
 export class TransportDB {
   public db: SimpleDB
+  public opts: ExtraTransportDBOptions
 
-  constructor(leveldb: LevelUp) {
+  constructor(leveldb: LevelUp, opts?: ExtraTransportDBOptions) {
     this.db = new SimpleDB(leveldb)
+    this.opts = opts || {}
   }
 
   public async putEnqueueEntries(entries: EnqueueEntry[]): Promise<void> {
@@ -254,26 +260,7 @@ export class TransportDB {
       return null
     }
 
-    if (transaction.queueOrigin === 'l1') {
-      const enqueue = await this.getEnqueueByIndex(transaction.queueIndex)
-      if (enqueue === null) {
-        return null
-      }
-
-      return {
-        ...transaction,
-        ...{
-          blockNumber: enqueue.blockNumber,
-          timestamp: enqueue.timestamp,
-          gasLimit: enqueue.gasLimit,
-          target: enqueue.target,
-          origin: enqueue.origin,
-          data: enqueue.data,
-        },
-      }
-    } else {
-      return transaction
-    }
+    return this._makeFullTransaction(transaction)
   }
 
   public async getLatestFullTransaction(): Promise<TransactionEntry> {
@@ -293,29 +280,44 @@ export class TransportDB {
 
     const fullTransactions = []
     for (const transaction of transactions) {
-      if (transaction.queueOrigin === 'l1') {
-        const enqueue = await this.getEnqueueByIndex(transaction.queueIndex)
-        if (enqueue === null) {
-          return null
-        }
-
-        fullTransactions.push({
-          ...transaction,
-          ...{
-            blockNumber: enqueue.blockNumber,
-            timestamp: enqueue.timestamp,
-            gasLimit: enqueue.gasLimit,
-            target: enqueue.target,
-            origin: enqueue.origin,
-            data: enqueue.data,
-          },
-        })
-      } else {
-        fullTransactions.push(transaction)
-      }
+      fullTransactions.push(await this._makeFullTransaction(transaction))
     }
 
     return fullTransactions
+  }
+
+  private async _makeFullTransaction(
+    transaction: TransactionEntry
+  ): Promise<TransactionEntry> {
+    // We only need to do extra work for L1 to L2 transactions.
+    if (transaction.queueOrigin !== 'l1') {
+      return transaction
+    }
+
+    const enqueue = await this.getEnqueueByIndex(transaction.queueIndex)
+    if (enqueue === null) {
+      return null
+    }
+
+    let timestamp = enqueue.timestamp
+    if (
+      typeof this.opts.bssHardfork1Index === 'number' &&
+      transaction.index >= this.opts.bssHardfork1Index
+    ) {
+      timestamp = transaction.timestamp
+    }
+
+    return {
+      ...transaction,
+      ...{
+        blockNumber: enqueue.blockNumber,
+        timestamp,
+        gasLimit: enqueue.gasLimit,
+        target: enqueue.target,
+        origin: enqueue.origin,
+        data: enqueue.data,
+      },
+    }
   }
 
   private async _getLatestEntryIndex(key: string): Promise<number> {
