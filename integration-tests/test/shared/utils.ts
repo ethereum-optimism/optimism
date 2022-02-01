@@ -145,8 +145,6 @@ export const gasPriceOracleWallet = new Wallet(
 )
 
 // Predeploys
-export const PROXY_SEQUENCER_ENTRYPOINT_ADDRESS =
-  '0x4200000000000000000000000000000000000004'
 export const OVM_ETH_ADDRESS = predeploys.OVM_ETH
 
 export const L2_CHAINID = procEnv.L2_CHAINID
