@@ -348,10 +348,10 @@ func (s *SyncService) initializeLatestL1(ctcDeployHeight *big.Int) error {
 			qi := tx.GetMeta().QueueIndex
 			// When the queue index is set
 			if qi != nil {
-				if qi == queueIndex {
-					log.Info("Found correct staring queue index", "queue-index", qi)
+				if *qi == *queueIndex {
+					log.Info("Found correct staring queue index", "queue-index", *qi)
 				} else {
-					log.Info("Found incorrect staring queue index, fixing", "old", queueIndex, "new", qi)
+					log.Info("Found incorrect staring queue index, fixing", "old", *queueIndex, "new", *qi)
 					queueIndex = qi
 				}
 				break
