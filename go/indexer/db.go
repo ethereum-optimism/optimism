@@ -84,15 +84,16 @@ type Deposit struct {
 }
 
 type TokenBridgeMessage struct {
-	FromAddress string `json:"from"`
-	ToAddress   string `json:"to"`
-	L1Token     string `json:"l1token"`
-	L2Token     string `json:"l2token"`
-	Amount      string `json:"amount"`
-	Data        []byte `json:"data"`
-	LogIndex    uint64 `json:"logIndex"`
-	BlockNumber uint64 `json:"blockNumber"`
-	TxHash      string `json:"transactionHash"`
+	FromAddress    string `json:"from"`
+	ToAddress      string `json:"to"`
+	L1Token        string `json:"l1token"`
+	L2Token        string `json:"l2token"`
+	Amount         string `json:"amount"`
+	Data           []byte `json:"data"`
+	LogIndex       uint64 `json:"logIndex"`
+	BlockNumber    uint64 `json:"blockNumber"`
+	BlockTimestamp string `json:"blockTimestamp"`
+	TxHash         string `json:"transactionHash"`
 }
 
 func (d Deposit) String() string {
@@ -198,8 +199,12 @@ func (d *Database) AddIndexedBlock(block *IndexedBlock) error {
 
 func (d *Database) GetDepositsByAddress(address common.Address) ([]TokenBridgeMessage, error) {
 	const selectDepositsStatement = `
-	SELECT queue_index, amount, tx_hash, data
-	FROM deposits WHERE from_address = $1 ORDER BY block_timestamp LIMIT 10
+	SELECT
+		deposits.queue_index, deposits.amount, deposits.tx_hash, deposits.data,
+		blocks.number, blocks.timestamp
+	FROM deposits
+		INNER JOIN blocks ON deposits.block_hash=blocks.hash
+	WHERE deposits.from_address = $1 ORDER BY deposits.block_timestamp LIMIT 10;
 	`
 	var deposits []TokenBridgeMessage
 
@@ -219,6 +224,7 @@ func (d *Database) GetDepositsByAddress(address common.Address) ([]TokenBridgeMe
 			if err := rows.Scan(
 				&deposit.LogIndex, &deposit.Amount,
 				&deposit.TxHash, &deposit.Data,
+				&deposit.BlockNumber, &deposit.BlockTimestamp,
 			); err != nil {
 				return err
 			}
