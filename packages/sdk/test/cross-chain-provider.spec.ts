@@ -12,6 +12,7 @@ import {
   omit,
   MessageStatus,
   CrossChainMessage,
+  StandardBridgeAdapter,
 } from '../src'
 import { DUMMY_MESSAGE } from './helpers'
 
@@ -434,6 +435,13 @@ describe('CrossChainProvider', () => {
             L2StandardBridge: l2Bridge.address,
           },
         },
+        bridges: {
+          Standard: {
+            Adapter: StandardBridgeAdapter,
+            l1Bridge: l1Bridge.address,
+            l2Bridge: l2Bridge.address,
+          },
+        },
       })
     })
 
@@ -566,71 +574,6 @@ describe('CrossChainProvider', () => {
           expect(found[1].to).to.deep.equal(withdrawal.to)
         })
       })
-
-      describe('when a block range is specified', () => {
-        describe('when a direction is specified', () => {
-          it('should find all deposits or withdrawals only in the given direction and within the block range', async () => {
-            const from = '0x' + '99'.repeat(20)
-
-            const deposit1 = {
-              l1Token: '0x' + '11'.repeat(20),
-              l2Token: '0x' + '22'.repeat(20),
-              from,
-              to: '0x' + '44'.repeat(20),
-              amount: ethers.BigNumber.from(1234),
-              data: '0x1234',
-            }
-
-            const deposit2 = {
-              l1Token: '0x' + '33'.repeat(20),
-              l2Token: '0x' + '44'.repeat(20),
-              from,
-              to: '0x' + '55'.repeat(20),
-              amount: ethers.BigNumber.from(1234),
-              data: '0x1234',
-            }
-
-            const withdrawal = {
-              l1Token: '0x' + '12'.repeat(20),
-              l2Token: '0x' + '23'.repeat(20),
-              from,
-              to: '0x' + '45'.repeat(20),
-              amount: ethers.BigNumber.from(5678),
-              data: '0x5678',
-            }
-
-            await l1Bridge.emitERC20DepositInitiated(deposit1)
-            const tx = await l1Bridge.emitERC20DepositInitiated(deposit2)
-            await l2Bridge.emitWithdrawalInitiated(withdrawal)
-
-            const found = await provider.getTokenBridgeMessagesByAddress(from, {
-              direction: MessageDirection.L1_TO_L2,
-              fromBlock: tx.blockNumber,
-            })
-
-            expect(found.length).to.equal(1)
-            expect(found[0].amount).to.deep.equal(deposit2.amount)
-            expect(found[0].data).to.deep.equal(deposit2.data)
-            expect(found[0].direction).to.equal(MessageDirection.L1_TO_L2)
-            expect(found[0].l1Token).to.deep.equal(deposit2.l1Token)
-            expect(found[0].l2Token).to.deep.equal(deposit2.l2Token)
-            expect(found[0].from).to.deep.equal(deposit2.from)
-            expect(found[0].to).to.deep.equal(deposit2.to)
-          })
-        })
-
-        describe('when a direction is not specified', () => {
-          it('should throw an error', async () => {
-            const from = '0x' + '99'.repeat(20)
-            await expect(
-              provider.getTokenBridgeMessagesByAddress(from, {
-                fromBlock: 0,
-                toBlock: 100,
-              })
-            ).to.be.rejectedWith('direction must be specified')
-          })
-        })
-      })
     })
 
     describe('when the address has not made any deposits or withdrawals', () => {
@@ -674,6 +617,13 @@ describe('CrossChainProvider', () => {
           l2: {
             L2CrossDomainMessenger: l2Messenger.address,
             L2StandardBridge: l2Bridge.address,
+          },
+        },
+        bridges: {
+          Standard: {
+            Adapter: StandardBridgeAdapter,
+            l1Bridge: l1Bridge.address,
+            l2Bridge: l2Bridge.address,
           },
         },
       })

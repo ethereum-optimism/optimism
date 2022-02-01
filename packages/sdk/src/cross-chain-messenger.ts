@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
-import { Overrides, Signer, BigNumber } from 'ethers'
+import { ethers, Overrides, Signer, BigNumber } from 'ethers'
 import {
   TransactionRequest,
   TransactionResponse,
@@ -10,11 +10,12 @@ import {
   CrossChainMessageRequest,
   ICrossChainMessenger,
   ICrossChainProvider,
+  IBridgeAdapter,
   MessageLike,
   NumberLike,
+  AddressLike,
   MessageDirection,
 } from './interfaces'
-import { omit } from './utils'
 
 export class CrossChainMessenger implements ICrossChainMessenger {
   provider: ICrossChainProvider
@@ -102,6 +103,43 @@ export class CrossChainMessenger implements ICrossChainMessenger {
     )
   }
 
+  public async depositERC20(
+    l1Token: AddressLike,
+    l2Token: AddressLike,
+    amount: NumberLike,
+    opts?: {
+      l2GasLimit?: NumberLike
+      overrides?: Overrides
+    }
+  ): Promise<TransactionResponse> {
+    return this.l1Signer.sendTransaction(
+      await this.populateTransaction.depositERC20(
+        l1Token,
+        l2Token,
+        amount,
+        opts
+      )
+    )
+  }
+
+  public async withdrawERC20(
+    l1Token: AddressLike,
+    l2Token: AddressLike,
+    amount: NumberLike,
+    opts?: {
+      overrides?: Overrides
+    }
+  ): Promise<TransactionResponse> {
+    return this.l2Signer.sendTransaction(
+      await this.populateTransaction.withdrawERC20(
+        l1Token,
+        l2Token,
+        amount,
+        opts
+      )
+    )
+  }
+
   populateTransaction = {
     sendMessage: async (
       message: CrossChainMessageRequest,
@@ -118,7 +156,7 @@ export class CrossChainMessenger implements ICrossChainMessenger {
           message.message,
           opts?.l2GasLimit ||
             (await this.provider.estimateL2MessageGasLimit(message)),
-          omit(opts?.overrides || {}, 'l2GasLimit')
+          opts?.overrides || {}
         )
       } else {
         return this.provider.contracts.l2.L2CrossDomainMessenger.connect(
@@ -127,7 +165,7 @@ export class CrossChainMessenger implements ICrossChainMessenger {
           message.target,
           message.message,
           0, // Gas limit goes unused when sending from L2 to L1
-          omit(opts?.overrides || {}, 'l2GasLimit')
+          opts?.overrides || {}
         )
       }
     },
@@ -173,13 +211,11 @@ export class CrossChainMessenger implements ICrossChainMessenger {
         overrides?: Overrides
       }
     ): Promise<TransactionRequest> => {
-      return this.provider.contracts.l1.L1StandardBridge.populateTransaction.depositETH(
-        opts?.l2GasLimit || 200000, // 200k gas is fine as a default
-        '0x', // No data
-        {
-          ...omit(opts?.overrides || {}, 'l2GasLimit', 'value'),
-          value: amount,
-        }
+      return this.provider.bridges.ETH.populateTransaction.deposit(
+        ethers.constants.AddressZero,
+        predeploys.OVM_ETH,
+        amount,
+        opts
       )
     },
 
@@ -189,13 +225,37 @@ export class CrossChainMessenger implements ICrossChainMessenger {
         overrides?: Overrides
       }
     ): Promise<TransactionRequest> => {
-      return this.provider.contracts.l2.L2StandardBridge.populateTransaction.withdraw(
+      return this.provider.bridges.ETH.populateTransaction.withdraw(
+        ethers.constants.AddressZero,
         predeploys.OVM_ETH,
         amount,
-        0, // No need to supply gas here
-        '0x', // No data,
-        opts?.overrides || {}
+        opts
       )
+    },
+
+    depositERC20: async (
+      l1Token: AddressLike,
+      l2Token: AddressLike,
+      amount: NumberLike,
+      opts?: {
+        l2GasLimit?: NumberLike
+        overrides?: Overrides
+      }
+    ): Promise<TransactionRequest> => {
+      const bridge = await this.provider.getBridgeForTokenPair(l1Token, l2Token)
+      return bridge.populateTransaction.deposit(l1Token, l2Token, amount, opts)
+    },
+
+    withdrawERC20: async (
+      l1Token: AddressLike,
+      l2Token: AddressLike,
+      amount: NumberLike,
+      opts?: {
+        overrides?: Overrides
+      }
+    ): Promise<TransactionRequest> => {
+      const bridge = await this.provider.getBridgeForTokenPair(l1Token, l2Token)
+      return bridge.populateTransaction.withdraw(l1Token, l2Token, amount, opts)
     },
   }
 
@@ -222,12 +282,13 @@ export class CrossChainMessenger implements ICrossChainMessenger {
         overrides?: Overrides
       }
     ): Promise<BigNumber> => {
-      const tx = await this.populateTransaction.resendMessage(
-        message,
-        messageGasLimit,
-        opts
+      return this.provider.l1Provider.estimateGas(
+        await this.populateTransaction.resendMessage(
+          message,
+          messageGasLimit,
+          opts
+        )
       )
-      return this.provider.l1Provider.estimateGas(tx)
     },
 
     finalizeMessage: async (
@@ -246,8 +307,9 @@ export class CrossChainMessenger implements ICrossChainMessenger {
         overrides?: Overrides
       }
     ): Promise<BigNumber> => {
-      const tx = await this.populateTransaction.depositETH(amount, opts)
-      return this.provider.l1Provider.estimateGas(tx)
+      return this.provider.l1Provider.estimateGas(
+        await this.populateTransaction.depositETH(amount, opts)
+      )
     },
 
     withdrawETH: async (
@@ -256,8 +318,46 @@ export class CrossChainMessenger implements ICrossChainMessenger {
         overrides?: Overrides
       }
     ): Promise<BigNumber> => {
-      const tx = await this.populateTransaction.withdrawETH(amount, opts)
-      return this.provider.l2Provider.estimateGas(tx)
+      return this.provider.l2Provider.estimateGas(
+        await this.populateTransaction.withdrawETH(amount, opts)
+      )
+    },
+
+    depositERC20: async (
+      l1Token: AddressLike,
+      l2Token: AddressLike,
+      amount: NumberLike,
+      opts?: {
+        l2GasLimit?: NumberLike
+        overrides?: Overrides
+      }
+    ): Promise<BigNumber> => {
+      return this.provider.l2Provider.estimateGas(
+        await this.populateTransaction.depositERC20(
+          l1Token,
+          l2Token,
+          amount,
+          opts
+        )
+      )
+    },
+
+    withdrawERC20: async (
+      l1Token: AddressLike,
+      l2Token: AddressLike,
+      amount: NumberLike,
+      opts?: {
+        overrides?: Overrides
+      }
+    ): Promise<BigNumber> => {
+      return this.provider.l2Provider.estimateGas(
+        await this.populateTransaction.withdrawERC20(
+          l1Token,
+          l2Token,
+          amount,
+          opts
+        )
+      )
     },
   }
 }

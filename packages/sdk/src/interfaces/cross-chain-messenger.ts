@@ -4,7 +4,12 @@ import {
   TransactionResponse,
 } from '@ethersproject/abstract-provider'
 
-import { MessageLike, NumberLike, CrossChainMessageRequest } from './types'
+import {
+  MessageLike,
+  NumberLike,
+  CrossChainMessageRequest,
+  AddressLike,
+} from './types'
 import { ICrossChainProvider } from './cross-chain-provider'
 
 /**
@@ -111,6 +116,46 @@ export interface ICrossChainMessenger {
   ): Promise<TransactionResponse>
 
   /**
+   * Deposits some ERC20 tokens into the L2 chain.
+   *
+   * @param l1Token Address of the L1 token.
+   * @param l2Token Address of the L2 token.
+   * @param amount Amount to deposit.
+   * @param opts Additional options.
+   * @param opts.l2GasLimit Optional gas limit to use for the transaction on L2.
+   * @param opts.overrides Optional transaction overrides.
+   * @returns Transaction response for the deposit transaction.
+   */
+  depositERC20(
+    l1Token: AddressLike,
+    l2Token: AddressLike,
+    amount: NumberLike,
+    opts?: {
+      l2GasLimit?: NumberLike
+      overrides?: Overrides
+    }
+  ): Promise<TransactionResponse>
+
+  /**
+   * Withdraws some ERC20 tokens back to the L1 chain.
+   *
+   * @param l1Token Address of the L1 token.
+   * @param l2Token Address of the L2 token.
+   * @param amount Amount to withdraw.
+   * @param opts Additional options.
+   * @param opts.overrides Optional transaction overrides.
+   * @returns Transaction response for the withdraw transaction.
+   */
+  withdrawERC20(
+    l1Token: AddressLike,
+    l2Token: AddressLike,
+    amount: NumberLike,
+    opts?: {
+      overrides?: Overrides
+    }
+  ): Promise<TransactionResponse>
+
+  /**
    * Object that holds the functions that generate transactions to be signed by the user.
    * Follows the pattern used by ethers.js.
    */
@@ -191,9 +236,49 @@ export interface ICrossChainMessenger {
      * @param amount Amount of ETH to withdraw.
      * @param opts Additional options.
      * @param opts.overrides Optional transaction overrides.
-     * @returns Transaction that can be signed and executed to withdraw the tokens.
+     * @returns Transaction that can be signed and executed to withdraw the ETH.
      */
     withdrawETH(
+      amount: NumberLike,
+      opts?: {
+        overrides?: Overrides
+      }
+    ): Promise<TransactionRequest>
+
+    /**
+     * Generates a transaction for depositing some ERC20 tokens into the L2 chain.
+     *
+     * @param l1Token Address of the L1 token.
+     * @param l2Token Address of the L2 token.
+     * @param amount Amount to deposit.
+     * @param opts Additional options.
+     * @param opts.l2GasLimit Optional gas limit to use for the transaction on L2.
+     * @param opts.overrides Optional transaction overrides.
+     * @returns Transaction that can be signed and executed to deposit the tokens.
+     */
+    depositERC20(
+      l1Token: AddressLike,
+      l2Token: AddressLike,
+      amount: NumberLike,
+      opts?: {
+        l2GasLimit?: NumberLike
+        overrides?: Overrides
+      }
+    ): Promise<TransactionRequest>
+
+    /**
+     * Generates a transaction for withdrawing some ERC20 tokens back to the L1 chain.
+     *
+     * @param l1Token Address of the L1 token.
+     * @param l2Token Address of the L2 token.
+     * @param amount Amount to withdraw.
+     * @param opts Additional options.
+     * @param opts.overrides Optional transaction overrides.
+     * @returns Transaction that can be signed and executed to withdraw the tokens.
+     */
+    withdrawERC20(
+      l1Token: AddressLike,
+      l2Token: AddressLike,
       amount: NumberLike,
       opts?: {
         overrides?: Overrides
@@ -213,7 +298,7 @@ export interface ICrossChainMessenger {
      * @param opts Additional options.
      * @param opts.l2GasLimit Optional gas limit to use for the transaction on L2.
      * @param opts.overrides Optional transaction overrides.
-     * @returns Transaction that can be signed and executed to send the message.
+     * @returns Gas estimate for the transaction.
      */
     sendMessage: (
       message: CrossChainMessageRequest,
@@ -230,7 +315,7 @@ export interface ICrossChainMessenger {
      * @param messageGasLimit New gas limit to use for the message.
      * @param opts Additional options.
      * @param opts.overrides Optional transaction overrides.
-     * @returns Transaction that can be signed and executed to resend the message.
+     * @returns Gas estimate for the transaction.
      */
     resendMessage(
       message: MessageLike,
@@ -246,7 +331,7 @@ export interface ICrossChainMessenger {
      * @param message Message to generate the finalization transaction for.
      * @param opts Additional options.
      * @param opts.overrides Optional transaction overrides.
-     * @returns Transaction that can be signed and executed to finalize the message.
+     * @returns Gas estimate for the transaction.
      */
     finalizeMessage(
       message: MessageLike,
@@ -262,7 +347,7 @@ export interface ICrossChainMessenger {
      * @param opts Additional options.
      * @param opts.l2GasLimit Optional gas limit to use for the transaction on L2.
      * @param opts.overrides Optional transaction overrides.
-     * @returns Transaction that can be signed and executed to deposit the ETH.
+     * @returns Gas estimate for the transaction.
      */
     depositETH(
       amount: NumberLike,
@@ -278,9 +363,49 @@ export interface ICrossChainMessenger {
      * @param amount Amount of ETH to withdraw.
      * @param opts Additional options.
      * @param opts.overrides Optional transaction overrides.
-     * @returns Transaction that can be signed and executed to withdraw the tokens.
+     * @returns Gas estimate for the transaction.
      */
     withdrawETH(
+      amount: NumberLike,
+      opts?: {
+        overrides?: Overrides
+      }
+    ): Promise<BigNumber>
+
+    /**
+     * Estimates gas required to deposit some ERC20 tokens into the L2 chain.
+     *
+     * @param l1Token Address of the L1 token.
+     * @param l2Token Address of the L2 token.
+     * @param amount Amount to deposit.
+     * @param opts Additional options.
+     * @param opts.l2GasLimit Optional gas limit to use for the transaction on L2.
+     * @param opts.overrides Optional transaction overrides.
+     * @returns Gas estimate for the transaction.
+     */
+    depositERC20(
+      l1Token: AddressLike,
+      l2Token: AddressLike,
+      amount: NumberLike,
+      opts?: {
+        l2GasLimit?: NumberLike
+        overrides?: Overrides
+      }
+    ): Promise<BigNumber>
+
+    /**
+     * Estimates gas required to withdraw some ERC20 tokens back to the L1 chain.
+     *
+     * @param l1Token Address of the L1 token.
+     * @param l2Token Address of the L2 token.
+     * @param amount Amount to withdraw.
+     * @param opts Additional options.
+     * @param opts.overrides Optional transaction overrides.
+     * @returns Gas estimate for the transaction.
+     */
+    withdrawERC20(
+      l1Token: AddressLike,
+      l2Token: AddressLike,
       amount: NumberLike,
       opts?: {
         overrides?: Overrides
