@@ -8,6 +8,7 @@ import {
   AddressLike,
   NumberLike,
   CrossChainMessage,
+  CrossChainMessageProof,
   MessageDirection,
   MessageStatus,
   TokenBridgeMessage,
@@ -287,4 +288,12 @@ export interface ICrossChainProvider {
   getStateRootBatchByTransactionIndex(
     transactionIndex: number
   ): Promise<StateRootBatch | null>
+
+  /**
+   * Generates the proof required to finalize an L2 to L1 message.
+   *
+   * @param message Message to generate a proof for.
+   * @returns Proof that can be used to finalize the message.
+   */
+  getMessageProof(message: MessageLike): Promise<CrossChainMessageProof>
 }

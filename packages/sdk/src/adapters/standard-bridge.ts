@@ -245,7 +245,7 @@ export class StandardBridgeAdapter implements IBridgeAdapter {
         throw new Error(`token pair not supported by bridge`)
       }
 
-      return this.l1Bridge.depositERC20(
+      return this.l1Bridge.populateTransaction.depositERC20(
         toAddress(l1Token),
         toAddress(l2Token),
         amount,
