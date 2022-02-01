@@ -13,10 +13,11 @@ import {
   TokenBridgeMessage,
   OEContracts,
   MessageReceipt,
-  CustomBridges,
   StateRoot,
   StateRootBatch,
+  BridgeAdapters,
 } from './types'
+import { IBridgeAdapter } from './bridge-adapter'
 
 /**
  * Represents the L1/L2 connection. Only handles read requests. If you want to send messages, use
@@ -46,7 +47,7 @@ export interface ICrossChainProvider {
   /**
    * List of custom bridges for the given network.
    */
-  bridges: CustomBridges
+  bridges: BridgeAdapters
 
   /**
    * Retrieves all cross chain messages sent within a given transaction.
@@ -88,6 +89,19 @@ export interface ICrossChainProvider {
   ): Promise<CrossChainMessage[]>
 
   /**
+   * Finds the appropriate bridge adapter for a given L1<>L2 token pair. Will throw if no bridges
+   * support the token pair or if more than one bridge supports the token pair.
+   *
+   * @param l1Token L1 token address.
+   * @param l2Token L2 token address.
+   * @returns The appropriate bridge adapter for the given token pair.
+   */
+  getBridgeForTokenPair(
+    l1Token: AddressLike,
+    l2Token: AddressLike
+  ): Promise<IBridgeAdapter>
+
+  /**
    * Finds all cross chain messages that correspond to token deposits or withdrawals sent by a
    * particular address. Useful for finding deposits/withdrawals because the sender of the message
    * will appear to be the StandardBridge contract and not the actual end user.
@@ -96,10 +110,6 @@ export interface ICrossChainProvider {
    * @param opts Options object.
    * @param opts.direction Direction to search for messages in. If not provided, will attempt to
    * find all messages in both directions.
-   * @param opts.fromBlock Block to start searching for messages from. If not provided, will start
-   * from the first block (block #0).
-   * @param opts.toBlock Block to stop searching for messages at. If not provided, will stop at the
-   * latest known block ("latest").
    * @returns All token bridge messages sent by the given address.
    */
   getTokenBridgeMessagesByAddress(

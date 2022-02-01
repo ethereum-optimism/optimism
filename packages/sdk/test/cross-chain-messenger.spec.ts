@@ -7,6 +7,7 @@ import {
   CrossChainProvider,
   CrossChainMessenger,
   MessageDirection,
+  ETHBridgeAdapter,
 } from '../src'
 
 describe('CrossChainMessenger', () => {
@@ -215,7 +216,9 @@ describe('CrossChainMessenger', () => {
 
   describe('depositETH', () => {
     let l1Messenger: Contract
+    let l2Messenger: Contract
     let l1Bridge: Contract
+    let l2Bridge: Contract
     let provider: CrossChainProvider
     let messenger: CrossChainMessenger
     beforeEach(async () => {
@@ -225,6 +228,12 @@ describe('CrossChainMessenger', () => {
       l1Bridge = (await (
         await ethers.getContractFactory('MockBridge')
       ).deploy(l1Messenger.address)) as any
+      l2Messenger = (await (
+        await ethers.getContractFactory('MockMessenger')
+      ).deploy()) as any
+      l2Bridge = (await (
+        await ethers.getContractFactory('MockBridge')
+      ).deploy(l2Messenger.address)) as any
 
       provider = new CrossChainProvider({
         l1Provider: ethers.provider,
@@ -234,6 +243,17 @@ describe('CrossChainMessenger', () => {
           l1: {
             L1CrossDomainMessenger: l1Messenger.address,
             L1StandardBridge: l1Bridge.address,
+          },
+          l2: {
+            L2CrossDomainMessenger: l2Messenger.address,
+            L2StandardBridge: l2Bridge.address,
+          },
+        },
+        bridges: {
+          ETH: {
+            Adapter: ETHBridgeAdapter,
+            l1Bridge: l1Bridge.address,
+            l2Bridge: l2Bridge.address,
           },
         },
       })
@@ -258,11 +278,19 @@ describe('CrossChainMessenger', () => {
   })
 
   describe('withdrawETH', () => {
+    let l1Messenger: Contract
     let l2Messenger: Contract
+    let l1Bridge: Contract
     let l2Bridge: Contract
     let provider: CrossChainProvider
     let messenger: CrossChainMessenger
     beforeEach(async () => {
+      l1Messenger = (await (
+        await ethers.getContractFactory('MockMessenger')
+      ).deploy()) as any
+      l1Bridge = (await (
+        await ethers.getContractFactory('MockBridge')
+      ).deploy(l1Messenger.address)) as any
       l2Messenger = (await (
         await ethers.getContractFactory('MockMessenger')
       ).deploy()) as any
@@ -275,9 +303,20 @@ describe('CrossChainMessenger', () => {
         l2Provider: ethers.provider,
         l1ChainId: 31337,
         contracts: {
+          l1: {
+            L1CrossDomainMessenger: l1Messenger.address,
+            L1StandardBridge: l1Bridge.address,
+          },
           l2: {
             L2CrossDomainMessenger: l2Messenger.address,
             L2StandardBridge: l2Bridge.address,
+          },
+        },
+        bridges: {
+          ETH: {
+            Adapter: ETHBridgeAdapter,
+            l1Bridge: l1Bridge.address,
+            l2Bridge: l2Bridge.address,
           },
         },
       })

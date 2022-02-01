@@ -11,6 +11,7 @@ import {
   l1Provider,
   l2Provider,
   replicaProvider,
+  verifierProvider,
   l1Wallet,
   l2Wallet,
   gasPriceOracleWallet,
@@ -57,6 +58,7 @@ export class OptimismEnv {
   l1Provider: providers.JsonRpcProvider
   l2Provider: providers.JsonRpcProvider
   replicaProvider: providers.JsonRpcProvider
+  verifierProvider: providers.JsonRpcProvider
 
   constructor(args: any) {
     this.addressManager = args.addressManager
@@ -74,6 +76,7 @@ export class OptimismEnv {
     this.l1Provider = args.l1Provider
     this.l2Provider = args.l2Provider
     this.replicaProvider = args.replicaProvider
+    this.verifierProvider = args.verifierProvider
     this.ctc = args.ctc
     this.scc = args.scc
   }
@@ -140,6 +143,7 @@ export class OptimismEnv {
       l2Wallet,
       l1Provider,
       l2Provider,
+      verifierProvider,
       replicaProvider,
     })
   }
