@@ -216,9 +216,9 @@ export interface StateRootBatchHeader {
  * Information about a state root, including header, block number, and root iself.
  */
 export interface StateRoot {
-  blockNumber: number
-  header: StateRootBatchHeader
   stateRoot: string
+  stateRootIndexInBatch: number
+  batch: StateRootBatch
 }
 
 /**
@@ -228,6 +228,20 @@ export interface StateRootBatch {
   blockNumber: number
   header: StateRootBatchHeader
   stateRoots: string[]
+}
+
+/**
+ * Proof data required to finalize an L2 to L1 message.
+ */
+export interface CrossChainMessageProof {
+  stateRoot: string
+  stateRootBatchHeader: StateRootBatchHeader
+  stateRootProof: {
+    index: number
+    siblings: string[]
+  }
+  stateTrieWitness: string
+  storageTrieWitness: string
 }
 
 /**

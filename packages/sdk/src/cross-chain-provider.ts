@@ -5,7 +5,7 @@ import {
   TransactionReceipt,
 } from '@ethersproject/abstract-provider'
 import { ethers, BigNumber } from 'ethers'
-import { sleep } from '@eth-optimism/core-utils'
+import { sleep, remove0x } from '@eth-optimism/core-utils'
 
 import {
   ICrossChainProvider,
@@ -19,6 +19,7 @@ import {
   ProviderLike,
   CrossChainMessage,
   CrossChainMessageRequest,
+  CrossChainMessageProof,
   MessageDirection,
   MessageStatus,
   TokenBridgeMessage,
@@ -38,6 +39,9 @@ import {
   getAllOEContracts,
   getBridgeAdapters,
   hashCrossChainMessage,
+  makeMerkleTreeProof,
+  makeStateTrieProof,
+  encodeCrossChainMessage,
 } from './utils'
 
 export class CrossChainProvider implements ICrossChainProvider {
@@ -302,7 +306,7 @@ export class CrossChainProvider implements ICrossChainProvider {
         } else {
           const challengePeriod = await this.getChallengePeriodSeconds()
           const targetBlock = await this.l1Provider.getBlock(
-            stateRoot.blockNumber
+            stateRoot.batch.blockNumber
           )
           const latestBlock = await this.l1Provider.getBlock('latest')
           if (targetBlock.timestamp + challengePeriod > latestBlock.timestamp) {
@@ -492,9 +496,9 @@ export class CrossChainProvider implements ICrossChainProvider {
     }
 
     return {
-      blockNumber: stateRootBatch.blockNumber,
-      header: stateRootBatch.header,
       stateRoot: stateRootBatch.stateRoots[indexInBatch],
+      stateRootIndexInBatch: indexInBatch,
+      batch: stateRootBatch,
     }
   }
 
@@ -597,6 +601,54 @@ export class CrossChainProvider implements ICrossChainProvider {
         prevTotalElements: stateBatchAppendedEvent.args._prevTotalElements,
         extraData: stateBatchAppendedEvent.args._extraData,
       },
+    }
+  }
+
+  public async getMessageProof(
+    message: MessageLike
+  ): Promise<CrossChainMessageProof> {
+    const resolved = await this.toCrossChainMessage(message)
+    if (resolved.direction === MessageDirection.L1_TO_L2) {
+      throw new Error(`can only generate proofs for L2 to L1 messages`)
+    }
+
+    const stateRoot = await this.getMessageStateRoot(resolved)
+    if (stateRoot === null) {
+      throw new Error(`state root for message not yet published`)
+    }
+
+    // We need to calculate the specific storage slot that demonstrates that this message was
+    // actually included in the L2 chain. The following calculation is based on the fact that
+    // messages are stored in the following mapping on L2:
+    // https://github.com/ethereum-optimism/optimism/blob/c84d3450225306abbb39b4e7d6d82424341df2be/packages/contracts/contracts/L2/predeploys/OVM_L2ToL1MessagePasser.sol#L23
+    // You can read more about how Solidity storage slots are computed for mappings here:
+    // https://docs.soliditylang.org/en/v0.8.4/internals/layout_in_storage.html#mappings-and-dynamic-arrays
+    const messageSlot = ethers.utils.keccak256(
+      ethers.utils.keccak256(
+        encodeCrossChainMessage(resolved) +
+          remove0x(this.contracts.l2.L2CrossDomainMessenger.address)
+      ) + '00'.repeat(32)
+    )
+
+    const stateTrieProof = await makeStateTrieProof(
+      this.l2Provider as any,
+      resolved.blockNumber,
+      this.contracts.l2.OVM_L2ToL1MessagePasser.address,
+      messageSlot
+    )
+
+    return {
+      stateRoot: stateRoot.stateRoot,
+      stateRootBatchHeader: stateRoot.batch.header,
+      stateRootProof: {
+        index: stateRoot.stateRootIndexInBatch,
+        siblings: makeMerkleTreeProof(
+          stateRoot.batch.stateRoots,
+          stateRoot.stateRootIndexInBatch
+        ),
+      },
+      stateTrieWitness: stateTrieProof.accountProof,
+      storageTrieWitness: stateTrieProof.storageProof,
     }
   }
 }

@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unused-vars */
 import { ethers, Overrides, Signer, BigNumber } from 'ethers'
 import {
   TransactionRequest,
@@ -10,7 +9,6 @@ import {
   CrossChainMessageRequest,
   ICrossChainMessenger,
   ICrossChainProvider,
-  IBridgeAdapter,
   MessageLike,
   NumberLike,
   AddressLike,
@@ -77,7 +75,9 @@ export class CrossChainMessenger implements ICrossChainMessenger {
       overrides?: Overrides
     }
   ): Promise<TransactionResponse> {
-    throw new Error('Not implemented')
+    return this.l1Signer.sendTransaction(
+      await this.populateTransaction.finalizeMessage(message, opts)
+    )
   }
 
   public async depositETH(
@@ -149,9 +149,7 @@ export class CrossChainMessenger implements ICrossChainMessenger {
       }
     ): Promise<TransactionRequest> => {
       if (message.direction === MessageDirection.L1_TO_L2) {
-        return this.provider.contracts.l1.L1CrossDomainMessenger.connect(
-          this.l1Signer
-        ).populateTransaction.sendMessage(
+        return this.provider.contracts.l1.L1CrossDomainMessenger.populateTransaction.sendMessage(
           message.target,
           message.message,
           opts?.l2GasLimit ||
@@ -159,9 +157,7 @@ export class CrossChainMessenger implements ICrossChainMessenger {
           opts?.overrides || {}
         )
       } else {
-        return this.provider.contracts.l2.L2CrossDomainMessenger.connect(
-          this.l2Signer
-        ).populateTransaction.sendMessage(
+        return this.provider.contracts.l2.L2CrossDomainMessenger.populateTransaction.sendMessage(
           message.target,
           message.message,
           0, // Gas limit goes unused when sending from L2 to L1
@@ -182,9 +178,7 @@ export class CrossChainMessenger implements ICrossChainMessenger {
         throw new Error(`cannot resend L2 to L1 message`)
       }
 
-      return this.provider.contracts.l1.L1CrossDomainMessenger.connect(
-        this.l1Signer
-      ).populateTransaction.replayMessage(
+      return this.provider.contracts.l1.L1CrossDomainMessenger.populateTransaction.replayMessage(
         resolved.target,
         resolved.sender,
         resolved.message,
@@ -201,7 +195,20 @@ export class CrossChainMessenger implements ICrossChainMessenger {
         overrides?: Overrides
       }
     ): Promise<TransactionRequest> => {
-      throw new Error('Not implemented')
+      const resolved = await this.provider.toCrossChainMessage(message)
+      if (resolved.direction === MessageDirection.L1_TO_L2) {
+        throw new Error(`cannot finalize L1 to L2 message`)
+      }
+
+      const proof = await this.provider.getMessageProof(resolved)
+      return this.provider.contracts.l1.L1CrossDomainMessenger.populateTransaction.relayMessage(
+        resolved.target,
+        resolved.sender,
+        resolved.message,
+        resolved.messageNonce,
+        proof,
+        opts?.overrides || {}
+      )
     },
 
     depositETH: async (
@@ -297,7 +304,9 @@ export class CrossChainMessenger implements ICrossChainMessenger {
         overrides?: Overrides
       }
     ): Promise<BigNumber> => {
-      throw new Error('Not implemented')
+      return this.provider.l1Provider.estimateGas(
+        await this.populateTransaction.finalizeMessage(message, opts)
+      )
     },
 
     depositETH: async (
@@ -332,7 +341,7 @@ export class CrossChainMessenger implements ICrossChainMessenger {
         overrides?: Overrides
       }
     ): Promise<BigNumber> => {
-      return this.provider.l2Provider.estimateGas(
+      return this.provider.l1Provider.estimateGas(
         await this.populateTransaction.depositERC20(
           l1Token,
           l2Token,
