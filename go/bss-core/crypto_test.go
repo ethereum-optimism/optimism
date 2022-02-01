@@ -1,4 +1,4 @@
-package batchsubmitter_test
+package bsscore_test
 
 import (
 	"bytes"
@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	batchsubmitter "github.com/ethereum-optimism/optimism/go/batch-submitter"
+	bsscore "github.com/ethereum-optimism/optimism/go/bss-core"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/stretchr/testify/require"
@@ -76,7 +76,7 @@ func TestParseAddress(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			addr, err := batchsubmitter.ParseAddress(test.addr)
+			addr, err := bsscore.ParseAddress(test.addr)
 			require.Equal(t, err, test.expErr)
 			if test.expErr != nil {
 				return
@@ -141,7 +141,7 @@ func TestDerivePrivateKey(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			privKey, err := batchsubmitter.DerivePrivateKey(test.mnemonic, test.hdPath)
+			privKey, err := bsscore.DerivePrivateKey(test.mnemonic, test.hdPath)
 			require.Equal(t, err, test.expErr)
 			if test.expErr != nil {
 				return
@@ -193,7 +193,7 @@ func TestParsePrivateKeyStr(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			privKey, err := batchsubmitter.ParsePrivateKeyStr(test.privKeyStr)
+			privKey, err := bsscore.ParsePrivateKeyStr(test.privKeyStr)
 			require.Equal(t, err, test.expErr)
 			if test.expErr != nil {
 				return
@@ -246,20 +246,20 @@ func TestGetConfiguredPrivateKey(t *testing.T) {
 			mnemonic:   validMnemonic,
 			hdPath:     validHDPath,
 			privKeyStr: validPrivKeyStr,
-			expErr:     batchsubmitter.ErrCannotGetPrivateKey,
+			expErr:     bsscore.ErrCannotGetPrivateKey,
 		},
 		{
 			name:       "neither menmonic+hdpath or privkey",
 			mnemonic:   "",
 			hdPath:     "",
 			privKeyStr: "",
-			expErr:     batchsubmitter.ErrCannotGetPrivateKey,
+			expErr:     bsscore.ErrCannotGetPrivateKey,
 		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			privKey, err := batchsubmitter.GetConfiguredPrivateKey(
+			privKey, err := bsscore.GetConfiguredPrivateKey(
 				test.mnemonic, test.hdPath, test.privKeyStr,
 			)
 			require.Equal(t, err, test.expErr)

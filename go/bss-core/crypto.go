@@ -1,4 +1,4 @@
-package batchsubmitter
+package bsscore
 
 import (
 	"crypto/ecdsa"

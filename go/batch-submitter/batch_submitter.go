@@ -5,11 +5,12 @@ import (
 	"os"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/go/batch-submitter/dial"
 	"github.com/ethereum-optimism/optimism/go/batch-submitter/drivers/proposer"
 	"github.com/ethereum-optimism/optimism/go/batch-submitter/drivers/sequencer"
-	"github.com/ethereum-optimism/optimism/go/batch-submitter/metrics"
-	"github.com/ethereum-optimism/optimism/go/batch-submitter/txmgr"
+	bsscore "github.com/ethereum-optimism/optimism/go/bss-core"
+	"github.com/ethereum-optimism/optimism/go/bss-core/dial"
+	"github.com/ethereum-optimism/optimism/go/bss-core/metrics"
+	"github.com/ethereum-optimism/optimism/go/bss-core/txmgr"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/getsentry/sentry-go"
 	"github.com/urfave/cli"
@@ -46,14 +47,14 @@ func Main(gitVersion string) func(ctx *cli.Context) error {
 				Dsn:              cfg.SentryDsn,
 				Environment:      cfg.EthNetworkName,
 				Release:          "batch-submitter@" + gitVersion,
-				TracesSampleRate: TraceRateToFloat64(cfg.SentryTraceRate),
+				TracesSampleRate: bsscore.TraceRateToFloat64(cfg.SentryTraceRate),
 				Debug:            false,
 			})
 			if err != nil {
 				return err
 			}
 
-			logHandler = SentryStreamHandler(os.Stdout, log.TerminalFormat(true))
+			logHandler = bsscore.SentryStreamHandler(os.Stdout, log.TerminalFormat(true))
 		} else {
 			logHandler = log.StreamHandler(os.Stdout, log.TerminalFormat(true))
 		}
@@ -66,7 +67,7 @@ func Main(gitVersion string) func(ctx *cli.Context) error {
 		log.Root().SetHandler(log.LvlFilterHandler(logLevel, logHandler))
 
 		// Parse sequencer private key and CTC contract address.
-		sequencerPrivKey, ctcAddress, err := ParseWalletPrivKeyAndContractAddr(
+		sequencerPrivKey, ctcAddress, err := bsscore.ParseWalletPrivKeyAndContractAddr(
 			"Sequencer", cfg.Mnemonic, cfg.SequencerHDPath,
 			cfg.SequencerPrivateKey, cfg.CTCAddress,
 		)
@@ -75,7 +76,7 @@ func Main(gitVersion string) func(ctx *cli.Context) error {
 		}
 
 		// Parse proposer private key and SCC contract address.
-		proposerPrivKey, sccAddress, err := ParseWalletPrivKeyAndContractAddr(
+		proposerPrivKey, sccAddress, err := bsscore.ParseWalletPrivKeyAndContractAddr(
 			"Proposer", cfg.Mnemonic, cfg.ProposerHDPath,
 			cfg.ProposerPrivateKey, cfg.SCCAddress,
 		)
@@ -110,7 +111,7 @@ func Main(gitVersion string) func(ctx *cli.Context) error {
 			NumConfirmations:     cfg.NumConfirmations,
 		}
 
-		var services []*Service
+		var services []*bsscore.Service
 		if cfg.RunTxBatchSubmitter {
 			batchTxDriver, err := sequencer.NewDriver(sequencer.Config{
 				Name:        "Sequencer",
@@ -126,7 +127,7 @@ func Main(gitVersion string) func(ctx *cli.Context) error {
 				return err
 			}
 
-			services = append(services, NewService(ServiceConfig{
+			services = append(services, bsscore.NewService(bsscore.ServiceConfig{
 				Context:         ctx,
 				Driver:          batchTxDriver,
 				PollInterval:    cfg.PollInterval,
@@ -152,7 +153,7 @@ func Main(gitVersion string) func(ctx *cli.Context) error {
 				return err
 			}
 
-			services = append(services, NewService(ServiceConfig{
+			services = append(services, bsscore.NewService(bsscore.ServiceConfig{
 				Context:         ctx,
 				Driver:          batchStateDriver,
 				PollInterval:    cfg.PollInterval,
@@ -162,7 +163,7 @@ func Main(gitVersion string) func(ctx *cli.Context) error {
 			}))
 		}
 
-		batchSubmitter, err := NewBatchSubmitter(ctx, cancel, services)
+		batchSubmitter, err := bsscore.NewBatchSubmitter(ctx, cancel, services)
 		if err != nil {
 			log.Error("Unable to create batch submitter", "error", err)
 			return err
@@ -180,45 +181,5 @@ func Main(gitVersion string) func(ctx *cli.Context) error {
 		<-(chan struct{})(nil)
 
 		return nil
-	}
-}
-
-// BatchSubmitter is a service that configures the necessary resources for
-// running the TxBatchSubmitter and StateBatchSubmitter sub-services.
-type BatchSubmitter struct {
-	ctx      context.Context
-	services []*Service
-	cancel   func()
-}
-
-// NewBatchSubmitter initializes the BatchSubmitter, gathering any resources
-// that will be needed by the TxBatchSubmitter and StateBatchSubmitter
-// sub-services.
-func NewBatchSubmitter(
-	ctx context.Context,
-	cancel func(),
-	services []*Service,
-) (*BatchSubmitter, error) {
-
-	return &BatchSubmitter{
-		ctx:      ctx,
-		services: services,
-		cancel:   cancel,
-	}, nil
-}
-
-func (b *BatchSubmitter) Start() error {
-	for _, service := range b.services {
-		if err := service.Start(); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func (b *BatchSubmitter) Stop() {
-	b.cancel()
-	for _, service := range b.services {
-		_ = service.Stop()
 	}
 }
