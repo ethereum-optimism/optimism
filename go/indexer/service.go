@@ -101,6 +101,11 @@ type Service struct {
 	wg sync.WaitGroup
 }
 
+type IndexerStatus struct {
+	synced  float64      `json:"synced"`
+	highest BlockLocator `json:"highest"`
+}
+
 func NewService(cfg ServiceConfig) (*Service, error) {
 	ctx, cancel := context.WithCancel(cfg.Context)
 
@@ -310,19 +315,38 @@ func (s *Service) Update(start uint64, newHeader *types.Header) error {
 	return nil
 }
 
+func (s *Service) getIndexerStatus(w http.ResponseWriter, r *http.Request) {
+
+	block, err := s.cfg.DB.GetHighestBlock()
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	// WIP: calculate
+	status := &IndexerStatus{
+		synced:  1.0,
+		highest: *block,
+	}
+
+	respondWithJSON(w, http.StatusOK, status)
+}
+
 func (s *Service) getDeposits(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 
 	deposits, err := s.cfg.DB.GetDepositsByAddress(common.HexToAddress(vars["address"]))
 	if err != nil {
 		respondWithError(w, http.StatusInternalServerError, err.Error())
+		return
 	}
 
 	respondWithJSON(w, http.StatusOK, deposits)
 }
 
 func (s *Service) Serve(ctx context.Context) {
-	s.cfg.Router.HandleFunc("/deposits/0x{address:[a-fA-F0-9]{40}}", s.getDeposits).Methods("GET")
+	s.cfg.Router.HandleFunc("/v1/status", s.getIndexerStatus).Methods("GET")
+	s.cfg.Router.HandleFunc("/v1/deposits/0x{address:[a-fA-F0-9]{40}}", s.getDeposits).Methods("GET")
 
 	http.ListenAndServe(":8080", s.cfg.Router)
 }
