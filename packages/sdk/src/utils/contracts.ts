@@ -12,7 +12,7 @@ import {
   AddressLike,
   BridgeAdapters,
   BridgeAdapterData,
-  ICrossChainProvider,
+  ICrossChainMessenger,
 } from '../interfaces'
 import {
   StandardBridgeAdapter,
@@ -291,14 +291,14 @@ export const getAllOEContracts = (
  * Gets a series of bridge adapters for the given L1 chain ID.
  *
  * @param l1ChainId L1 chain ID for the L1 network where the custom bridges are deployed.
- * @param provider Cross chain provider to connect to the bridge adapters
+ * @param messenger Cross chain messenger to connect to the bridge adapters
  * @param opts Additional options for connecting to the custom bridges.
  * @param opts.overrides Custom bridge adapters.
  * @returns An object containing all bridge adapters
  */
 export const getBridgeAdapters = (
   l1ChainId: number,
-  provider: ICrossChainProvider,
+  messenger: ICrossChainMessenger,
   opts?: {
     overrides?: BridgeAdapterData
   }
@@ -309,7 +309,7 @@ export const getBridgeAdapters = (
     ...(opts?.overrides || {}),
   })) {
     adapters[bridgeName] = new bridgeData.Adapter({
-      provider,
+      messenger,
       l1Bridge: bridgeData.l1Bridge,
       l2Bridge: bridgeData.l2Bridge,
     })

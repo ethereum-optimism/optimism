@@ -45,7 +45,7 @@ export class DAIBridgeAdapter extends StandardBridgeAdapter {
           type: 'function',
         },
       ],
-      this.provider.l1Provider
+      this.messenger.l1Provider
     )
 
     const allowedL1Token = await l1Bridge.l1Token()
