@@ -1,4 +1,4 @@
-package batchsubmitter
+package bsscore
 
 import (
 	"crypto/ecdsa"
@@ -10,6 +10,7 @@ import (
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/tyler-smith/go-bip39"
 )
 
@@ -105,4 +106,70 @@ func DerivePrivateKey(mnemonic, hdPath string) (*ecdsa.PrivateKey, error) {
 func ParsePrivateKeyStr(privKeyStr string) (*ecdsa.PrivateKey, error) {
 	hex := strings.TrimPrefix(privKeyStr, "0x")
 	return crypto.HexToECDSA(hex)
+}
+
+// ParseWalletPrivKeyAndContractAddr returns the wallet private key to use for
+// sending transactions as well as the contract address to send to for a
+// particular sub-service.
+func ParseWalletPrivKeyAndContractAddr(
+	name string,
+	mnemonic string,
+	hdPath string,
+	privKeyStr string,
+	contractAddrStr string,
+) (*ecdsa.PrivateKey, common.Address, error) {
+
+	// Parse wallet private key from either privkey string or BIP39 mnemonic
+	// and BIP32 HD derivation path.
+	privKey, err := GetConfiguredPrivateKey(mnemonic, hdPath, privKeyStr)
+	if err != nil {
+		return nil, common.Address{}, err
+	}
+
+	// Parse the target contract address the wallet will send to.
+	contractAddress, err := ParseAddress(contractAddrStr)
+	if err != nil {
+		return nil, common.Address{}, err
+	}
+
+	// Log wallet address rather than private key...
+	walletAddress := crypto.PubkeyToAddress(privKey.PublicKey)
+
+	log.Info(name+" wallet params parsed successfully", "wallet_address",
+		walletAddress, "contract_address", contractAddress)
+
+	return privKey, contractAddress, nil
+}
+
+// parseWalletPrivKeyAndContractAddr returns the wallet private key to use for
+// sending transactions as well as the contract address to send to for a
+// particular sub-service.
+func parseWalletPrivKeyAndContractAddr(
+	name string,
+	mnemonic string,
+	hdPath string,
+	privKeyStr string,
+	contractAddrStr string,
+) (*ecdsa.PrivateKey, common.Address, error) {
+
+	// Parse wallet private key from either privkey string or BIP39 mnemonic
+	// and BIP32 HD derivation path.
+	privKey, err := GetConfiguredPrivateKey(mnemonic, hdPath, privKeyStr)
+	if err != nil {
+		return nil, common.Address{}, err
+	}
+
+	// Parse the target contract address the wallet will send to.
+	contractAddress, err := ParseAddress(contractAddrStr)
+	if err != nil {
+		return nil, common.Address{}, err
+	}
+
+	// Log wallet address rather than private key...
+	walletAddress := crypto.PubkeyToAddress(privKey.PublicKey)
+
+	log.Info(name+" wallet params parsed successfully", "wallet_address",
+		walletAddress, "contract_address", contractAddress)
+
+	return privKey, contractAddress, nil
 }

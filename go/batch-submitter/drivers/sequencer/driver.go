@@ -8,9 +8,9 @@ import (
 	"strings"
 
 	"github.com/ethereum-optimism/optimism/go/batch-submitter/bindings/ctc"
-	"github.com/ethereum-optimism/optimism/go/batch-submitter/drivers"
-	"github.com/ethereum-optimism/optimism/go/batch-submitter/metrics"
-	"github.com/ethereum-optimism/optimism/go/batch-submitter/txmgr"
+	"github.com/ethereum-optimism/optimism/go/bss-core/drivers"
+	"github.com/ethereum-optimism/optimism/go/bss-core/metrics"
+	"github.com/ethereum-optimism/optimism/go/bss-core/txmgr"
 	l2ethclient "github.com/ethereum-optimism/optimism/l2geth/ethclient"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
