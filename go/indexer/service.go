@@ -102,8 +102,8 @@ type Service struct {
 }
 
 type IndexerStatus struct {
-	synced  float64      `json:"synced"`
-	highest BlockLocator `json:"highest"`
+	Synced  float64      `json:"synced"`
+	Highest BlockLocator `json:"highest_block"`
 }
 
 func NewService(cfg ServiceConfig) (*Service, error) {
@@ -317,16 +317,23 @@ func (s *Service) Update(start uint64, newHeader *types.Header) error {
 
 func (s *Service) getIndexerStatus(w http.ResponseWriter, r *http.Request) {
 
-	block, err := s.cfg.DB.GetHighestBlock()
+	highestBlock, err := s.cfg.DB.GetHighestBlock()
 	if err != nil {
 		respondWithError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 
-	// WIP: calculate
+	latestHeader, err := s.cfg.L1Client.HeaderByNumber(context.Background(), nil)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	synced := float64(highestBlock.Number) / float64(latestHeader.Number.Int64())
+
 	status := &IndexerStatus{
-		synced:  1.0,
-		highest: *block,
+		Synced:  synced,
+		Highest: *highestBlock,
 	}
 
 	respondWithJSON(w, http.StatusOK, status)
