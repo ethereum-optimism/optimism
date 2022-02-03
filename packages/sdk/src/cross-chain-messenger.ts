@@ -37,7 +37,7 @@ import {
 } from './interfaces'
 import {
   toSignerOrProvider,
-  toBigNumber,
+  toNumber,
   toTransactionHash,
   DeepPartial,
   getAllOEContracts,
@@ -46,6 +46,8 @@ import {
   makeMerkleTreeProof,
   makeStateTrieProof,
   encodeCrossChainMessage,
+  DEPOSIT_CONFIRMATION_BLOCKS,
+  CHAIN_BLOCK_TIMES,
 } from './utils'
 
 export class CrossChainMessenger implements ICrossChainMessenger {
@@ -54,6 +56,8 @@ export class CrossChainMessenger implements ICrossChainMessenger {
   public l1ChainId: number
   public contracts: OEContracts
   public bridges: BridgeAdapters
+  public depositConfirmationBlocks: number
+  public l1BlockTimeSeconds: number
 
   /**
    * Creates a new CrossChainProvider instance.
@@ -62,6 +66,8 @@ export class CrossChainMessenger implements ICrossChainMessenger {
    * @param opts.l1SignerOrProvider Signer or Provider for the L1 chain, or a JSON-RPC url.
    * @param opts.l1SignerOrProvider Signer or Provider for the L2 chain, or a JSON-RPC url.
    * @param opts.l1ChainId Chain ID for the L1 chain.
+   * @param opts.depositConfirmationBlocks Optional number of blocks before a deposit is confirmed.
+   * @param opts.l1BlockTimeSeconds Optional estimated block time in seconds for the L1 chain.
    * @param opts.contracts Optional contract address overrides.
    * @param opts.bridges Optional bridge address list.
    */
@@ -69,17 +75,31 @@ export class CrossChainMessenger implements ICrossChainMessenger {
     l1SignerOrProvider: SignerOrProviderLike
     l2SignerOrProvider: SignerOrProviderLike
     l1ChainId: NumberLike
+    depositConfirmationBlocks?: NumberLike
+    l1BlockTimeSeconds?: NumberLike
     contracts?: DeepPartial<OEContractsLike>
     bridges?: BridgeAdapterData
   }) {
     this.l1SignerOrProvider = toSignerOrProvider(opts.l1SignerOrProvider)
     this.l2SignerOrProvider = toSignerOrProvider(opts.l2SignerOrProvider)
-    this.l1ChainId = toBigNumber(opts.l1ChainId).toNumber()
+    this.l1ChainId = toNumber(opts.l1ChainId)
+
+    this.depositConfirmationBlocks =
+      opts?.depositConfirmationBlocks !== undefined
+        ? toNumber(opts.depositConfirmationBlocks)
+        : DEPOSIT_CONFIRMATION_BLOCKS[this.l1ChainId] || 0
+
+    this.l1BlockTimeSeconds =
+      opts?.l1BlockTimeSeconds !== undefined
+        ? toNumber(opts.l1BlockTimeSeconds)
+        : CHAIN_BLOCK_TIMES[this.l1ChainId] || 1
+
     this.contracts = getAllOEContracts(this.l1ChainId, {
       l1SignerOrProvider: this.l1SignerOrProvider,
       l2SignerOrProvider: this.l2SignerOrProvider,
       overrides: opts.contracts,
     })
+
     this.bridges = getBridgeAdapters(this.l1ChainId, this, {
       overrides: opts.bridges,
     })
@@ -478,7 +498,60 @@ export class CrossChainMessenger implements ICrossChainMessenger {
   public async estimateMessageWaitTimeSeconds(
     message: MessageLike
   ): Promise<number> {
-    throw new Error('Not implemented')
+    const resolved = await this.toCrossChainMessage(message)
+    const status = await this.getMessageStatus(resolved)
+    if (resolved.direction === MessageDirection.L1_TO_L2) {
+      if (
+        status === MessageStatus.RELAYED ||
+        status === MessageStatus.FAILED_L1_TO_L2_MESSAGE
+      ) {
+        // Transactions that are relayed or failed are considered completed, so the wait time is 0.
+        return 0
+      } else {
+        // Otherwise we need to estimate the number of blocks left until the transaction will be
+        // considered confirmed by the Layer 2 system. Then we multiply this by the estimated
+        // average L1 block time.
+        const receipt = await this.l1Provider.getTransactionReceipt(
+          resolved.transactionHash
+        )
+        const blocksLeft = Math.max(
+          this.depositConfirmationBlocks - receipt.confirmations,
+          0
+        )
+        return blocksLeft * this.l1BlockTimeSeconds
+      }
+    } else {
+      if (
+        status === MessageStatus.RELAYED ||
+        status === MessageStatus.READY_FOR_RELAY
+      ) {
+        // Transactions that are relayed or ready for relay are considered complete.
+        return 0
+      } else if (status === MessageStatus.STATE_ROOT_NOT_PUBLISHED) {
+        // If the state root hasn't been published yet, just assume it'll be published relatively
+        // quickly and return the challenge period for now. In the future we could use more
+        // advanced techniques to figure out average time between transaction execution and
+        // state root publication.
+        return this.getChallengePeriodSeconds()
+      } else if (status === MessageStatus.IN_CHALLENGE_PERIOD) {
+        // If the message is still within the challenge period, then we need to estimate exactly
+        // the amount of time left until the challenge period expires. The challenge period starts
+        // when the state root is published.
+        const stateRoot = await this.getMessageStateRoot(resolved)
+        const challengePeriod = await this.getChallengePeriodSeconds()
+        const targetBlock = await this.l1Provider.getBlock(
+          stateRoot.batch.blockNumber
+        )
+        const latestBlock = await this.l1Provider.getBlock('latest')
+        return Math.max(
+          challengePeriod - (latestBlock.timestamp - targetBlock.timestamp),
+          0
+        )
+      } else {
+        // Should not happen
+        throw new Error(`unexpected message status`)
+      }
+    }
   }
 
   public async getChallengePeriodSeconds(): Promise<number> {

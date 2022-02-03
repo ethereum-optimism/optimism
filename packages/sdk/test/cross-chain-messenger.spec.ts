@@ -1281,48 +1281,160 @@ describe('CrossChainMessenger', () => {
     })
   })
 
-  describe('estimateMessageWaitTimeBlocks', () => {
-    describe('when the message exists', () => {
-      describe('when the message is an L1 => L2 message', () => {
-        describe('when the message has not been executed on L2 yet', () => {
-          it(
-            'should return the estimated blocks until the message will be confirmed on L2'
-          )
-        })
-
-        describe('when the message has been executed on L2', () => {
-          it('should return 0')
-        })
-      })
-
-      describe('when the message is an L2 => L1 message', () => {
-        describe('when the state root has not been published', () => {
-          it(
-            'should return the estimated blocks until the state root will be published and pass the challenge period'
-          )
-        })
-
-        describe('when the state root is within the challenge period', () => {
-          it(
-            'should return the estimated blocks until the state root passes the challenge period'
-          )
-        })
-
-        describe('when the state root passes the challenge period', () => {
-          it('should return 0')
-        })
-      })
-    })
-
-    describe('when the message does not exist', () => {
-      it('should throw an error')
-    })
-  })
-
   describe('estimateMessageWaitTimeSeconds', () => {
-    it(
-      'should be the result of estimateMessageWaitTimeBlocks multiplied by the L1 block time'
-    )
+    let scc: Contract
+    let l1Messenger: Contract
+    let l2Messenger: Contract
+    let messenger: CrossChainMessenger
+    beforeEach(async () => {
+      // TODO: Get rid of the nested awaits here. Could be a good first issue for someone.
+      scc = (await (await ethers.getContractFactory('MockSCC')).deploy()) as any
+      l1Messenger = (await (
+        await ethers.getContractFactory('MockMessenger')
+      ).deploy()) as any
+      l2Messenger = (await (
+        await ethers.getContractFactory('MockMessenger')
+      ).deploy()) as any
+
+      messenger = new CrossChainMessenger({
+        l1SignerOrProvider: ethers.provider,
+        l2SignerOrProvider: ethers.provider,
+        l1ChainId: 31337,
+        contracts: {
+          l1: {
+            L1CrossDomainMessenger: l1Messenger.address,
+            StateCommitmentChain: scc.address,
+          },
+          l2: {
+            L2CrossDomainMessenger: l2Messenger.address,
+          },
+        },
+      })
+    })
+
+    const sendAndGetDummyMessage = async (direction: MessageDirection) => {
+      const mockMessenger =
+        direction === MessageDirection.L1_TO_L2 ? l1Messenger : l2Messenger
+      const tx = await mockMessenger.triggerSentMessageEvents([DUMMY_MESSAGE])
+      return (
+        await messenger.getMessagesByTransaction(tx, {
+          direction,
+        })
+      )[0]
+    }
+
+    const submitStateRootBatchForMessage = async (
+      message: CrossChainMessage
+    ) => {
+      await scc.setSBAParams({
+        batchIndex: 0,
+        batchRoot: ethers.constants.HashZero,
+        batchSize: 1,
+        prevTotalElements: message.blockNumber,
+        extraData: '0x',
+      })
+      await scc.appendStateBatch([ethers.constants.HashZero], 0)
+    }
+
+    describe('when the message is an L1 => L2 message', () => {
+      describe('when the message has not been executed on L2 yet', () => {
+        it('should return the estimated seconds until the message will be confirmed on L2', async () => {
+          const message = await sendAndGetDummyMessage(
+            MessageDirection.L1_TO_L2
+          )
+
+          await l1Messenger.triggerSentMessageEvents([message])
+
+          expect(
+            await messenger.estimateMessageWaitTimeSeconds(message)
+          ).to.equal(1)
+        })
+      })
+
+      describe('when the message has been executed on L2', () => {
+        it('should return 0', async () => {
+          const message = await sendAndGetDummyMessage(
+            MessageDirection.L1_TO_L2
+          )
+
+          await l1Messenger.triggerSentMessageEvents([message])
+          await l2Messenger.triggerRelayedMessageEvents([
+            hashCrossChainMessage(message),
+          ])
+
+          expect(
+            await messenger.estimateMessageWaitTimeSeconds(message)
+          ).to.equal(0)
+        })
+      })
+    })
+
+    describe('when the message is an L2 => L1 message', () => {
+      describe('when the state root has not been published', () => {
+        it('should return the estimated seconds until the state root will be published and pass the challenge period', async () => {
+          const message = await sendAndGetDummyMessage(
+            MessageDirection.L2_TO_L1
+          )
+
+          expect(
+            await messenger.estimateMessageWaitTimeSeconds(message)
+          ).to.equal(await messenger.getChallengePeriodSeconds())
+        })
+      })
+
+      describe('when the state root is within the challenge period', () => {
+        it('should return the estimated seconds until the state root passes the challenge period', async () => {
+          const message = await sendAndGetDummyMessage(
+            MessageDirection.L2_TO_L1
+          )
+
+          await submitStateRootBatchForMessage(message)
+
+          const challengePeriod = await messenger.getChallengePeriodSeconds()
+          ethers.provider.send('evm_increaseTime', [challengePeriod / 2])
+          ethers.provider.send('evm_mine', [])
+
+          expect(
+            await messenger.estimateMessageWaitTimeSeconds(message)
+          ).to.equal(challengePeriod / 2)
+        })
+      })
+
+      describe('when the state root passes the challenge period', () => {
+        it('should return 0', async () => {
+          const message = await sendAndGetDummyMessage(
+            MessageDirection.L2_TO_L1
+          )
+
+          await submitStateRootBatchForMessage(message)
+
+          const challengePeriod = await messenger.getChallengePeriodSeconds()
+          ethers.provider.send('evm_increaseTime', [challengePeriod + 1])
+          ethers.provider.send('evm_mine', [])
+
+          expect(
+            await messenger.estimateMessageWaitTimeSeconds(message)
+          ).to.equal(0)
+        })
+      })
+
+      describe('when the message has been executed', () => {
+        it('should return 0', async () => {
+          const message = await sendAndGetDummyMessage(
+            MessageDirection.L2_TO_L1
+          )
+
+          await l2Messenger.triggerSentMessageEvents([message])
+          await l1Messenger.triggerRelayedMessageEvents([
+            hashCrossChainMessage(message),
+          ])
+
+          expect(
+            await messenger.estimateMessageWaitTimeSeconds(message)
+          ).to.equal(0)
+        })
+      })
+    })
   })
 
   describe('sendMessage', () => {

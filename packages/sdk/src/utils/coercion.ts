@@ -70,6 +70,16 @@ export const toBigNumber = (num: NumberLike): BigNumber => {
 }
 
 /**
+ * Converts a number-like into a number.
+ *
+ * @param num Number-like to convert into a number.
+ * @returns Number-like as a number.
+ */
+export const toNumber = (num: NumberLike): number => {
+  return toBigNumber(num).toNumber()
+}
+
+/**
  * Converts an address-like into a 0x-prefixed address string.
  *
  * @param addr Address-like to convert into an address.
