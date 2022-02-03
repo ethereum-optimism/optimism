@@ -86,7 +86,10 @@ const deployFn: DeployFunction = async (hre) => {
 
   // Check if if we're on the hardhat chain ID. This will only happen in CI. If this is the case, we
   // can skip directly to transferring ownership over to the ChugSplashDictator contract.
-  if (await isHardhatNode(hre)) {
+  if (
+    (await isHardhatNode(hre)) ||
+    process.env.AUTOMATICALLY_TRANSFER_OWNERSHIP === 'true'
+  ) {
     const owner = await hre.ethers.getSigner(currentOwner)
     await Proxy__OVM_L1StandardBridge.connect(owner).setOwner(
       ChugSplashDictator.address
