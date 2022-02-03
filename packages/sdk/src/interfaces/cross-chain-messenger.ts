@@ -77,6 +77,16 @@ export interface ICrossChainMessenger {
   l2Signer: Signer
 
   /**
+   * Number of blocks before a deposit is considered confirmed.
+   */
+  depositConfirmationBlocks: number
+
+  /**
+   * Estimated average L1 block time in seconds.
+   */
+  l1BlockTimeSeconds: number
+
+  /**
    * Retrieves all cross chain messages sent within a given transaction.
    *
    * @param transaction Transaction hash or receipt to find messages from.
