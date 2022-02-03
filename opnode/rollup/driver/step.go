@@ -1,4 +1,4 @@
-package rollup
+package driver
 
 import (
 	"context"
@@ -9,6 +9,7 @@ import (
 
 	"github.com/ethereum-optimism/optimistic-specs/opnode/eth"
 	"github.com/ethereum-optimism/optimistic-specs/opnode/l2"
+	"github.com/ethereum-optimism/optimistic-specs/opnode/rollup/derive"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 )
@@ -77,13 +78,13 @@ func DriverStep(ctx context.Context, log log.Logger, rpc DriverAPI,
 	}
 	logger.Debug("fetched L1 data for driver")
 
-	attrs, err := DeriveBlockInputs(bl, receipts)
+	attrs, err := derive.BlockInputs(bl, receipts)
 	if err != nil {
 		return eth.BlockID{}, fmt.Errorf("failed to derive execution payload inputs: %v", err)
 	}
 	logger.Debug("derived L2 block inputs")
 
-	payload, err := DeriveBlockOutputs(ctx, rpc, l2Parent.Hash, l2Finalized, attrs)
+	payload, err := derive.BlockOutputs(ctx, rpc, l2Parent.Hash, l2Finalized, attrs)
 	if err != nil {
 		return eth.BlockID{}, fmt.Errorf("failed to derive execution payload: %v", err)
 	}

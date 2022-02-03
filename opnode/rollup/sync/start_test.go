@@ -1,4 +1,4 @@
-package rollup
+package sync
 
 import (
 	"context"
@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/ethereum-optimism/optimistic-specs/opnode/eth"
+	"github.com/ethereum-optimism/optimistic-specs/opnode/rollup"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/assert"
@@ -33,7 +34,7 @@ func (m *mockSyncReference) RefByL1Num(ctx context.Context, l1Num uint64) (self 
 	return
 }
 
-func (m *mockSyncReference) RefByL2Num(ctx context.Context, l2Num *big.Int, genesis *Genesis) (refL1 eth.BlockID, refL2 eth.BlockID, parentL2 common.Hash, err error) {
+func (m *mockSyncReference) RefByL2Num(ctx context.Context, l2Num *big.Int, genesis *rollup.Genesis) (refL1 eth.BlockID, refL2 eth.BlockID, parentL2 common.Hash, err error) {
 	if len(m.L2) == 0 {
 		panic("bad test, no l2 chain")
 	}
@@ -50,7 +51,7 @@ func (m *mockSyncReference) RefByL2Num(ctx context.Context, l2Num *big.Int, gene
 	return
 }
 
-func (m *mockSyncReference) RefByL2Hash(ctx context.Context, l2Hash common.Hash, genesis *Genesis) (refL1 eth.BlockID, refL2 eth.BlockID, parentL2 common.Hash, err error) {
+func (m *mockSyncReference) RefByL2Hash(ctx context.Context, l2Hash common.Hash, genesis *rollup.Genesis) (refL1 eth.BlockID, refL2 eth.BlockID, parentL2 common.Hash, err error) {
 	for i, bl := range m.L2 {
 		if bl.Self.Hash == l2Hash {
 			return m.RefByL2Num(ctx, big.NewInt(int64(i)), genesis)
@@ -112,7 +113,7 @@ func (c *syncStartTestCase) Run(t *testing.T) {
 		L1: actL1,
 	}
 
-	genesis := &Genesis{
+	genesis := &rollup.Genesis{
 		L1: mockID(c.GenesisL1, c.OffsetL2),
 		L2: mockID(c.GenesisL2, 0),
 	}

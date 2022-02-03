@@ -1,10 +1,11 @@
-package rollup
+package driver
 
 import (
 	"context"
 	"sync"
 
 	"github.com/ethereum-optimism/optimistic-specs/opnode/eth"
+	"github.com/ethereum-optimism/optimistic-specs/opnode/rollup"
 	"github.com/ethereum/go-ethereum/log"
 )
 
@@ -40,7 +41,7 @@ type EngineDriverState struct {
 	l1Target eth.BlockID
 
 	// Genesis starting point
-	Genesis Genesis
+	Genesis rollup.Genesis
 }
 
 // L1Head returns the block-id (hash and number) of the last L1 block that was derived into the L2 block

@@ -1,4 +1,4 @@
-package rollup
+package sync
 
 import (
 	"context"
@@ -8,6 +8,7 @@ import (
 	"github.com/ethereum/go-ethereum"
 
 	"github.com/ethereum-optimism/optimistic-specs/opnode/eth"
+	"github.com/ethereum-optimism/optimistic-specs/opnode/rollup"
 	"github.com/ethereum/go-ethereum/common"
 )
 
@@ -15,7 +16,7 @@ var WrongChainErr = errors.New("wrong chain")
 
 // FindSyncStart finds nextRefL1: the L1 block needed next for sync, to derive into a L2 block on top of refL2.
 // If the L1 reorgs then this will find the common history to build on top of and then follow the first step of the reorg.
-func FindSyncStart(ctx context.Context, reference SyncReference, genesis *Genesis) (nextRefL1, refL2 eth.BlockID, err error) {
+func FindSyncStart(ctx context.Context, reference SyncReference, genesis *rollup.Genesis) (nextRefL1, refL2 eth.BlockID, err error) {
 	var refL1 eth.BlockID    // the L1 block the refL2 was derived from
 	var parentL2 common.Hash // the parent of refL2
 	// Start at L2 head

@@ -1,4 +1,4 @@
-package rollup
+package derive
 
 import (
 	"math/big"
@@ -83,8 +83,8 @@ func TestParseL1InfoDepositTxData(t *testing.T) {
 	for i, testCase := range cases {
 		t.Run(testCase.name, func(t *testing.T) {
 			info := testCase.mkInfo(rand.New(rand.NewSource(int64(1234 + i))))
-			depTx := DeriveL1InfoDeposit(info)
-			nr, time, baseFee, h, err := ParseL1InfoDepositTxData(depTx.Data)
+			depTx := L1InfoDeposit(info)
+			nr, time, baseFee, h, err := L1InfoDepositTxData(depTx.Data)
 			assert.NoError(t, err, "expected valid deposit info")
 			assert.Equal(t, nr, info.num)
 			assert.Equal(t, time, info.time)
@@ -94,15 +94,15 @@ func TestParseL1InfoDepositTxData(t *testing.T) {
 		})
 	}
 	t.Run("no data", func(t *testing.T) {
-		_, _, _, _, err := ParseL1InfoDepositTxData(nil)
+		_, _, _, _, err := L1InfoDepositTxData(nil)
 		assert.Error(t, err)
 	})
 	t.Run("not enough data", func(t *testing.T) {
-		_, _, _, _, err := ParseL1InfoDepositTxData([]byte{1, 2, 3, 4})
+		_, _, _, _, err := L1InfoDepositTxData([]byte{1, 2, 3, 4})
 		assert.Error(t, err)
 	})
 	t.Run("too much data", func(t *testing.T) {
-		_, _, _, _, err := ParseL1InfoDepositTxData(make([]byte, 4+8+8+32+32+1))
+		_, _, _, _, err := L1InfoDepositTxData(make([]byte, 4+8+8+32+32+1))
 		assert.Error(t, err)
 	})
 }

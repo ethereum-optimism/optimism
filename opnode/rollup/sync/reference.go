@@ -1,4 +1,4 @@
-package rollup
+package sync
 
 import (
 	"context"
@@ -6,6 +6,8 @@ import (
 	"math/big"
 
 	"github.com/ethereum-optimism/optimistic-specs/opnode/eth"
+	"github.com/ethereum-optimism/optimistic-specs/opnode/rollup"
+	"github.com/ethereum-optimism/optimistic-specs/opnode/rollup/derive"
 	"github.com/ethereum/go-ethereum/common"
 )
 
@@ -22,23 +24,23 @@ func (src SyncSource) RefByL1Num(ctx context.Context, l1Num uint64) (self eth.Bl
 
 // RefByL2Num fetches the L1 and L2 block IDs from the engine for the given L2 block height.
 // Use a nil height to fetch the head.
-func (src SyncSource) RefByL2Num(ctx context.Context, l2Num *big.Int, genesis *Genesis) (refL1 eth.BlockID, refL2 eth.BlockID, parentL2 common.Hash, err error) {
+func (src SyncSource) RefByL2Num(ctx context.Context, l2Num *big.Int, genesis *rollup.Genesis) (refL1 eth.BlockID, refL2 eth.BlockID, parentL2 common.Hash, err error) {
 	refL2Block, err2 := src.L2.BlockByNumber(ctx, l2Num) // nil for latest block
 	if err2 != nil {
 		err = fmt.Errorf("failed to retrieve L2 block: %v", err2)
 		return
 	}
-	return ParseBlockReferences(refL2Block, genesis)
+	return derive.BlockReferences(refL2Block, genesis)
 }
 
 // RefByL2Hash fetches the L1 and L2 block IDs from the engine for the given L2 block hash.
-func (src SyncSource) RefByL2Hash(ctx context.Context, l2Hash common.Hash, genesis *Genesis) (refL1 eth.BlockID, refL2 eth.BlockID, parentL2 common.Hash, err error) {
+func (src SyncSource) RefByL2Hash(ctx context.Context, l2Hash common.Hash, genesis *rollup.Genesis) (refL1 eth.BlockID, refL2 eth.BlockID, parentL2 common.Hash, err error) {
 	refL2Block, err2 := src.L2.BlockByHash(ctx, l2Hash)
 	if err2 != nil {
 		err = fmt.Errorf("failed to retrieve L2 block: %v", err2)
 		return
 	}
-	return ParseBlockReferences(refL2Block, genesis)
+	return derive.BlockReferences(refL2Block, genesis)
 }
 
 // SyncReference helps inform the sync algorithm of the L2 sync-state and L1 canonical chain
@@ -48,8 +50,8 @@ type SyncReference interface {
 
 	// RefByL2Num fetches the L1 and L2 block IDs from the engine for the given L2 block height.
 	// Use a nil height to fetch the head.
-	RefByL2Num(ctx context.Context, l2Num *big.Int, genesis *Genesis) (refL1 eth.BlockID, refL2 eth.BlockID, parentL2 common.Hash, err error)
+	RefByL2Num(ctx context.Context, l2Num *big.Int, genesis *rollup.Genesis) (refL1 eth.BlockID, refL2 eth.BlockID, parentL2 common.Hash, err error)
 
 	// RefByL2Hash fetches the L1 and L2 block IDs from the engine for the given L2 block hash.
-	RefByL2Hash(ctx context.Context, l2Hash common.Hash, genesis *Genesis) (refL1 eth.BlockID, refL2 eth.BlockID, parentL2 common.Hash, err error)
+	RefByL2Hash(ctx context.Context, l2Hash common.Hash, genesis *rollup.Genesis) (refL1 eth.BlockID, refL2 eth.BlockID, parentL2 common.Hash, err error)
 }

@@ -12,6 +12,8 @@ import (
 	"github.com/ethereum-optimism/optimistic-specs/opnode/l1"
 	"github.com/ethereum-optimism/optimistic-specs/opnode/l2"
 	"github.com/ethereum-optimism/optimistic-specs/opnode/rollup"
+	"github.com/ethereum-optimism/optimistic-specs/opnode/rollup/driver"
+	rollupSync "github.com/ethereum-optimism/optimistic-specs/opnode/rollup/sync"
 
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/event"
@@ -54,7 +56,7 @@ type OpNodeCmd struct {
 	l1Source eth.L1Source
 
 	// engines to keep synced
-	l2Engines []*rollup.EngineDriver
+	l2Engines []*driver.EngineDriver
 
 	l1Downloader l1.Downloader
 
@@ -123,15 +125,15 @@ func (c *OpNodeCmd) Run(ctx context.Context, args ...string) error {
 			EthBackend: ethclient.NewClient(backend),
 			Log:        c.log.New("engine_client", i),
 		}
-		engine := &rollup.EngineDriver{
+		engine := &driver.EngineDriver{
 			Log: c.log.New("engine", i),
 			RPC: client,
 			DL:  c.l1Downloader,
-			SyncRef: rollup.SyncSource{
+			SyncRef: rollupSync.SyncSource{
 				L1: l1CanonicalChain,
 				L2: client,
 			},
-			EngineDriverState: rollup.EngineDriverState{Genesis: genesis},
+			EngineDriverState: driver.EngineDriverState{Genesis: genesis},
 		}
 		c.l2Engines = append(c.l2Engines, engine)
 	}
