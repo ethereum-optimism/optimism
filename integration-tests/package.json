@@ -31,6 +31,7 @@
     "@eth-optimism/contracts": "0.5.11",
     "@eth-optimism/core-utils": "0.7.5",
     "@eth-optimism/message-relayer": "0.2.15",
+    "@eth-optimism/sdk": "0.0.7",
     "@ethersproject/abstract-provider": "^5.5.1",
     "@ethersproject/providers": "^5.4.5",
     "@ethersproject/transactions": "^5.4.0",

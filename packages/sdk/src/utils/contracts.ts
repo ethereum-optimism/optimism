@@ -90,16 +90,14 @@ export const CONTRACT_ADDRESSES: {
     l2: DEFAULT_L2_CONTRACT_ADDRESSES,
   },
   // Hardhat local
-  // TODO: Get the actual addresses for this, temporary addresses here are fine for now until we
-  // start using this package in the integration tests.
   31337: {
     l1: {
-      AddressManager: '0x2F7E3cAC91b5148d336BbffB224B4dC79F09f01D',
-      L1CrossDomainMessenger: '0xEcC89b9EDD804850C4F343A278Be902be11AaF42',
-      L1StandardBridge: '0x73298186A143a54c20ae98EEE5a025bD5979De02',
-      StateCommitmentChain: '0x1afcA918eff169eE20fF8AB6Be75f3E872eE1C1A',
-      CanonicalTransactionChain: '0x2ebA8c4EfDB39A8Cd8f9eD65c50ec079f7CEBD81',
-      BondManager: '0xE5AE60bD6F8DEe4D0c2BC9268e23B92F1cacC58F',
+      AddressManager: '0x5FbDB2315678afecb367f032d93F642f64180aa3',
+      L1CrossDomainMessenger: '0x8A791620dd6260079BF849Dc5567aDC3F2FdC318',
+      L1StandardBridge: '0x610178dA211FEF7D417bC0e6FeD39F05609AD788',
+      StateCommitmentChain: '0xDc64a140Aa3E981100a9becA4E685f962f0cF6C9',
+      CanonicalTransactionChain: '0xCf7Ed3AccA5a467e9e704C703E8D87F634fB0Fc9',
+      BondManager: '0x5FC8d32690cc91D4c39d9d3abcBD16989F875707',
     },
     l2: DEFAULT_L2_CONTRACT_ADDRESSES,
   },
