@@ -10,7 +10,7 @@ import { hexStringEquals } from '@eth-optimism/core-utils'
 
 import {
   IBridgeAdapter,
-  ICrossChainProvider,
+  ICrossChainMessenger,
   NumberLike,
   AddressLike,
   TokenBridgeMessage,
@@ -22,7 +22,7 @@ import { toAddress } from '../utils'
  * Bridge adapter for any token bridge that uses the standard token bridge interface.
  */
 export class StandardBridgeAdapter implements IBridgeAdapter {
-  public provider: ICrossChainProvider
+  public messenger: ICrossChainMessenger
   public l1Bridge: Contract
   public l2Bridge: Contract
 
@@ -30,25 +30,25 @@ export class StandardBridgeAdapter implements IBridgeAdapter {
    * Creates a StandardBridgeAdapter instance.
    *
    * @param opts Options for the adapter.
-   * @param opts.provider Provider used to make queries related to cross-chain interactions.
+   * @param opts.messenger Provider used to make queries related to cross-chain interactions.
    * @param opts.l1Bridge L1 bridge contract.
    * @param opts.l2Bridge L2 bridge contract.
    */
   constructor(opts: {
-    provider: ICrossChainProvider
+    messenger: ICrossChainMessenger
     l1Bridge: AddressLike
     l2Bridge: AddressLike
   }) {
-    this.provider = opts.provider
+    this.messenger = opts.messenger
     this.l1Bridge = new Contract(
       toAddress(opts.l1Bridge),
       getContractInterface('L1StandardBridge'),
-      this.provider.l1Provider
+      this.messenger.l1Provider
     )
     this.l2Bridge = new Contract(
       toAddress(opts.l2Bridge),
       getContractInterface('IL2ERC20Bridge'),
-      this.provider.l2Provider
+      this.messenger.l2Provider
     )
   }
 
@@ -167,7 +167,7 @@ export class StandardBridgeAdapter implements IBridgeAdapter {
       const contract = new Contract(
         toAddress(l2Token),
         getContractInterface('L2StandardERC20'),
-        this.provider.l2Provider
+        this.messenger.l2Provider
       )
 
       // Don't support ETH deposits or withdrawals via this bridge.
@@ -287,7 +287,7 @@ export class StandardBridgeAdapter implements IBridgeAdapter {
         overrides?: Overrides
       }
     ): Promise<BigNumber> => {
-      return this.provider.l1Provider.estimateGas(
+      return this.messenger.l1Provider.estimateGas(
         await this.populateTransaction.deposit(l1Token, l2Token, amount, opts)
       )
     },
@@ -300,7 +300,7 @@ export class StandardBridgeAdapter implements IBridgeAdapter {
         overrides?: Overrides
       }
     ): Promise<BigNumber> => {
-      return this.provider.l2Provider.estimateGas(
+      return this.messenger.l2Provider.estimateGas(
         await this.populateTransaction.withdraw(l1Token, l2Token, amount, opts)
       )
     },

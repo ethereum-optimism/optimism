@@ -6,7 +6,7 @@ import {
 import { Signer } from '@ethersproject/abstract-signer'
 import { Contract, BigNumber } from 'ethers'
 
-import { ICrossChainProvider } from './cross-chain-provider'
+import { ICrossChainMessenger } from './cross-chain-messenger'
 import { IBridgeAdapter } from './bridge-adapter'
 
 /**
@@ -76,7 +76,7 @@ export interface OEContractsLike {
 export interface BridgeAdapterData {
   [name: string]: {
     Adapter: new (opts: {
-      provider: ICrossChainProvider
+      messenger: ICrossChainMessenger
       l1Bridge: AddressLike
       l2Bridge: AddressLike
     }) => IBridgeAdapter

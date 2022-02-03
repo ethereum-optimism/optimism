@@ -11,7 +11,7 @@ import {
   MessageDirection,
   TokenBridgeMessage,
 } from './types'
-import { ICrossChainProvider } from './cross-chain-provider'
+import { ICrossChainMessenger } from './cross-chain-messenger'
 
 /**
  * Represents an adapter for an L1<>L2 token bridge. Each custom bridge currently needs its own
@@ -21,7 +21,7 @@ export interface IBridgeAdapter {
   /**
    * Provider used to make queries related to cross-chain interactions.
    */
-  provider: ICrossChainProvider
+  messenger: ICrossChainMessenger
 
   /**
    * L1 bridge contract.
