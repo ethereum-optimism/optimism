@@ -9,9 +9,10 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 
 	"github.com/ethereum-optimism/optimistic-specs/opnode/eth"
-
 	"github.com/ethereum-optimism/optimistic-specs/opnode/l1"
 	"github.com/ethereum-optimism/optimistic-specs/opnode/l2"
+	"github.com/ethereum-optimism/optimistic-specs/opnode/rollup"
+
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/log"
@@ -27,8 +28,8 @@ type GenesisConf struct {
 	L1Num  uint64      `ask:"--l1-num" help:"Block number of L1 matching the l1-hash"`
 }
 
-func (conf *GenesisConf) GetGenesis() l2.Genesis {
-	return l2.Genesis{
+func (conf *GenesisConf) GetGenesis() rollup.Genesis {
+	return rollup.Genesis{
 		L1: eth.BlockID{Hash: conf.L1Hash, Number: conf.L1Num},
 		// TODO: if we start from a squashed snapshot we might have a non-zero L2 genesis number
 		L2: eth.BlockID{Hash: conf.L2Hash, Number: 0},
@@ -53,7 +54,7 @@ type OpNodeCmd struct {
 	l1Source eth.L1Source
 
 	// engines to keep synced
-	l2Engines []*l2.EngineDriver
+	l2Engines []*rollup.EngineDriver
 
 	l1Downloader l1.Downloader
 
@@ -122,15 +123,15 @@ func (c *OpNodeCmd) Run(ctx context.Context, args ...string) error {
 			EthBackend: ethclient.NewClient(backend),
 			Log:        c.log.New("engine_client", i),
 		}
-		engine := &l2.EngineDriver{
+		engine := &rollup.EngineDriver{
 			Log: c.log.New("engine", i),
 			RPC: client,
 			DL:  c.l1Downloader,
-			SyncRef: l2.SyncSource{
+			SyncRef: rollup.SyncSource{
 				L1: l1CanonicalChain,
 				L2: client,
 			},
-			EngineDriverState: l2.EngineDriverState{Genesis: genesis},
+			EngineDriverState: rollup.EngineDriverState{Genesis: genesis},
 		}
 		c.l2Engines = append(c.l2Engines, engine)
 	}

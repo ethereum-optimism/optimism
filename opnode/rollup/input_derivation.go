@@ -1,10 +1,11 @@
-package l2
+package rollup
 
 import (
 	"encoding/binary"
 	"fmt"
 	"math/big"
 
+	"github.com/ethereum-optimism/optimistic-specs/opnode/l2"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -180,7 +181,7 @@ type BlockInput interface {
 	MixDigest() common.Hash
 }
 
-func DeriveBlockInputs(block BlockInput, receipts []*types.Receipt) (*PayloadAttributes, error) {
+func DeriveBlockInputs(block BlockInput, receipts []*types.Receipt) (*l2.PayloadAttributes, error) {
 	if !CheckReceipts(block, receipts) {
 		return nil, fmt.Errorf("receipts are not consistent with the block's receipts root: %s", block.ReceiptHash())
 	}
@@ -196,7 +197,7 @@ func DeriveBlockInputs(block BlockInput, receipts []*types.Receipt) (*PayloadAtt
 		return nil, fmt.Errorf("failed to derive user deposits: %v", err)
 	}
 
-	encodedTxs := make([]Data, 0, len(userDeposits)+1)
+	encodedTxs := make([]l2.Data, 0, len(userDeposits)+1)
 	encodedTxs = append(encodedTxs, opaqueL1Tx)
 
 	for i, tx := range userDeposits {
@@ -207,9 +208,9 @@ func DeriveBlockInputs(block BlockInput, receipts []*types.Receipt) (*PayloadAtt
 		encodedTxs = append(encodedTxs, opaqueTx)
 	}
 
-	return &PayloadAttributes{
-		Timestamp:             Uint64Quantity(block.Time()),
-		Random:                Bytes32(block.MixDigest()),
+	return &l2.PayloadAttributes{
+		Timestamp:             l2.Uint64Quantity(block.Time()),
+		Random:                l2.Bytes32(block.MixDigest()),
 		SuggestedFeeRecipient: common.Address{}, // nobody gets tx fees for deposits
 		Transactions:          encodedTxs,
 	}, nil
