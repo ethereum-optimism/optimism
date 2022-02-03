@@ -117,7 +117,7 @@ func TestSystemE2E(t *testing.T) {
 		L2Hash:        l2GenesisHash,
 		L1Hash:        l1GenesisHash,
 		L1Num:         0,
-		L1NodeAddrs:   []string{endpoint(cfg.l1.nodeConfig)},
+		L1NodeAddr:    endpoint(cfg.l1.nodeConfig),
 		L2EngineAddrs: []string{endpoint(cfg.l2.nodeConfig)},
 	}
 	node, err := rollupNode.New(context.Background(), nodeCfg, testlog.Logger(t, log.LvlTrace))

@@ -22,7 +22,7 @@ import (
 
 type Config struct {
 	// L1 and L2 nodes
-	L1NodeAddrs   []string // Addresses of L1 User JSON-RPC endpoints to use (eth namespace required)
+	L1NodeAddr    string   // Address of L1 User JSON-RPC endpoint to use (eth namespace required)
 	L2EngineAddrs []string // Addresses of L2 Engine JSON-RPC endpoints to use (engine and eth namespace required)
 
 	// Genesis Information
@@ -57,27 +57,20 @@ func New(ctx context.Context, cfg *Config, log log.Logger) (*OpNode, error) {
 	if err := cfg.Check(); err != nil {
 		return nil, err
 	}
-	l1Sources := make([]eth.L1Source, 0, len(cfg.L1NodeAddrs))
-	for i, addr := range cfg.L1NodeAddrs {
-		// L1 exec engine: read-only, to update L2 consensus with
-		l1Node, err := rpc.DialContext(ctx, addr)
-		if err != nil {
-			// HTTP or WS RPC may create a disconnected client, RPC over IPC may fail directly
-			if l1Node == nil {
-				return nil, fmt.Errorf("failed to dial L1 address %d (%s): %v", i, addr, err)
-			}
-			log.Warn("failed to dial L1 address, but may connect later", "i", i, "addr", addr, "err", err)
+
+	// L1 exec engine: read-only, to update L2 consensus with
+	l1Node, err := rpc.DialContext(ctx, cfg.L1NodeAddr)
+	if err != nil {
+		// HTTP or WS RPC may create a disconnected client, RPC over IPC may fail directly
+		if l1Node == nil {
+			return nil, fmt.Errorf("failed to dial L1 addres (%s): %v", cfg.L1NodeAddr, err)
 		}
-		// TODO: we may need to authenticate the connection with L1
-		// l1Node.SetHeader()
-		cl := ethclient.NewClient(l1Node)
-		l1Sources = append(l1Sources, cl)
-	}
-	if len(l1Sources) == 0 {
-		return nil, fmt.Errorf("need at least one L1 source endpoint, see --l1")
+		log.Warn("failed to dial L1 address, but may connect later", "addr", cfg.L1NodeAddr, "err", err)
 	}
 
-	l1Source := eth.NewCombinedL1Source(l1Sources)
+	// TODO: we may need to authenticate the connection with L1
+	// l1Node.SetHeader()
+	l1Source := ethclient.NewClient(l1Node)
 	l1CanonicalChain := eth.CanonicalChain(l1Source)
 
 	l1Downloader := l1.NewDownloader(l1Source)

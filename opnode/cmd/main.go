@@ -115,7 +115,7 @@ func NewConfig(ctx *cli.Context) (*node.Config, error) {
 	}
 	cfg := &node.Config{
 		/* Required Flags */
-		L1NodeAddrs:   ctx.GlobalStringSlice(L1NodeAddrs.Name),
+		L1NodeAddr:    ctx.GlobalString(L1NodeAddr.Name),
 		L2EngineAddrs: ctx.GlobalStringSlice(L2EngineAddrs.Name),
 		L2Hash:        L2Hash,
 		L1Hash:        L1Hash,
@@ -151,7 +151,7 @@ func NewLogConfig(ctx *cli.Context) (node.LogConfig, error) {
 // }
 
 var Flags = []cli.Flag{
-	L1NodeAddrs,
+	L1NodeAddr,
 	L2EngineAddrs,
 	GenesisL2Hash,
 	GenesisL1Hash,
@@ -163,10 +163,11 @@ var Flags = []cli.Flag{
 
 var (
 	/* Required Flags */
-	L1NodeAddrs = cli.StringSliceFlag{
+	L1NodeAddr = cli.StringFlag{
 		Name:     "l1",
-		Usage:    "Addresses of L1 User JSON-RPC endpoints to use (eth namespace required)",
+		Usage:    "Address of L1 User JSON-RPC endpoint to use (eth namespace required)",
 		Required: true,
+		Value:    "http://127.0.0.1:8545",
 	}
 	L2EngineAddrs = cli.StringSliceFlag{
 		Name:     "l2",
