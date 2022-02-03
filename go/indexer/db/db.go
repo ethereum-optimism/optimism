@@ -1,4 +1,4 @@
-package indexer
+package db
 
 import (
 	"database/sql"
@@ -7,12 +7,22 @@ import (
 	"math/big"
 	"sort"
 
+	l2common "github.com/ethereum-optimism/optimism/l2geth/common"
 	"github.com/ethereum/go-ethereum/common"
 	_ "github.com/lib/pq"
 )
 
-var createBlocksTable = `
-CREATE TABLE IF NOT EXISTS blocks (
+var createL1BlocksTable = `
+CREATE TABLE IF NOT EXISTS l1_blocks (
+	hash TEXT NOT NULL PRIMARY KEY,
+	parent_hash TEXT NOT NULL,
+	number INTEGER NOT NULL,
+	timestamp INTEGER NOT NULL
+)
+`
+
+var createL2BlocksTable = `
+CREATE TABLE IF NOT EXISTS l2_blocks (
 	hash TEXT NOT NULL PRIMARY KEY,
 	parent_hash TEXT NOT NULL,
 	number INTEGER NOT NULL,
@@ -26,7 +36,22 @@ CREATE TABLE IF NOT EXISTS deposits (
 	queue_index INTEGER NOT NULL UNIQUE,
 	amount TEXT NOT NULL,
 	tx_hash TEXT NOT NULL,
-	block_hash TEXT NOT NULL REFERENCES blocks(hash) ,
+	block_hash TEXT NOT NULL REFERENCES l1_blocks(hash) ,
+	block_timestamp TEXT NOT NULL,
+	l1_tx_origin TEXT NOT NULL,
+	target TEXT NOT NULL,
+	gas_limit TEXT NOT NULL,
+	data BYTEA NOT NULL
+)
+`
+
+var createWithdrawalsTable = `
+CREATE TABLE IF NOT EXISTS withdrawals (
+	from_address TEXT NOT NULL,
+	queue_index INTEGER NOT NULL UNIQUE,
+	amount TEXT NOT NULL,
+	tx_hash TEXT NOT NULL,
+	block_hash TEXT NOT NULL REFERENCES l2_blocks(hash) ,
 	block_timestamp TEXT NOT NULL,
 	l1_tx_origin TEXT NOT NULL,
 	target TEXT NOT NULL,
@@ -36,8 +61,10 @@ CREATE TABLE IF NOT EXISTS deposits (
 `
 
 var schema = []string{
-	createBlocksTable,
+	createL1BlocksTable,
+	createL2BlocksTable,
 	createDepositsTable,
+	createWithdrawalsTable,
 }
 
 type TxnEnqueuedEvent struct {
@@ -58,20 +85,6 @@ func (e TxnEnqueuedEvent) String() string {
 		e.TxHash, e.L1TxOrigin, e.Target, e.GasLimit, e.Data)
 }
 
-type IndexedBlock struct {
-	Hash       common.Hash
-	ParentHash common.Hash
-	Number     uint64
-	Timestamp  uint64
-	Deposits   []Deposit
-}
-
-func (b IndexedBlock) String() string {
-	return fmt.Sprintf("IndexedBlock { Hash: %s, ParentHash: %s, Number: %d, "+
-		"Timestamp: %d, Deposits: %s }", b.Hash, b.ParentHash, b.Number,
-		b.Timestamp, b.Deposits)
-}
-
 type Deposit struct {
 	FromAddress common.Address
 	Amount      *big.Int
@@ -81,6 +94,41 @@ type Deposit struct {
 	Target      common.Address
 	GasLimit    *big.Int
 	Data        []byte
+}
+
+type Withdrawal struct {
+	FromAddress l2common.Address
+	Amount      *big.Int
+	TxHash      l2common.Hash
+	Data        []byte
+}
+
+type IndexedL1Block struct {
+	Hash       common.Hash
+	ParentHash common.Hash
+	Number     uint64
+	Timestamp  uint64
+	Deposits   []Deposit
+}
+
+func (b IndexedL1Block) String() string {
+	return fmt.Sprintf("IndexedL1Block { Hash: %s, ParentHash: %s, Number: %d, "+
+		"Timestamp: %d, Deposits: %s }", b.Hash, b.ParentHash, b.Number,
+		b.Timestamp, b.Deposits)
+}
+
+type IndexedL2Block struct {
+	Hash        l2common.Hash
+	ParentHash  l2common.Hash
+	Number      uint64
+	Timestamp   uint64
+	Withdrawals []Withdrawal
+}
+
+func (b IndexedL2Block) String() string {
+	return fmt.Sprintf("IndexedL2Block { Hash: %s, ParentHash: %s, Number: %d, "+
+		"Timestamp: %d, Withdrawals: %s }", b.Hash, b.ParentHash, b.Number,
+		b.Timestamp, b.Withdrawals)
 }
 
 type TokenBridgeMessage struct {
@@ -102,7 +150,7 @@ func (d Deposit) String() string {
 		d.L1TxOrigin, d.Target, d.GasLimit, d.Data)
 }
 
-func (b *IndexedBlock) Events() []TxnEnqueuedEvent {
+func (b *IndexedL1Block) Events() []TxnEnqueuedEvent {
 	nDeposits := len(b.Deposits)
 	if nDeposits == 0 {
 		return nil
@@ -135,9 +183,9 @@ type Database struct {
 	config string
 }
 
-func (d *Database) AddIndexedBlock(block *IndexedBlock) error {
+func (d *Database) AddIndexedL1Block(block *IndexedL1Block) error {
 	const insertBlockStatement = `
-	INSERT INTO blocks
+	INSERT INTO l1_blocks
 		(hash, parent_hash, number, timestamp)
 	VALUES
 		($1, $2, $3, $4)
@@ -149,7 +197,6 @@ func (d *Database) AddIndexedBlock(block *IndexedBlock) error {
 	VALUES
 		($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
 	`
-
 	return txn(d.db, func(tx *sql.Tx) error {
 		blockStmt, err := tx.Prepare(insertBlockStatement)
 		if err != nil {
@@ -187,6 +234,61 @@ func (d *Database) AddIndexedBlock(block *IndexedBlock) error {
 				deposit.Target.String(),
 				deposit.GasLimit.String(),
 				deposit.Data,
+			)
+			if err != nil {
+				return err
+			}
+		}
+
+		return nil
+	})
+}
+
+func (d *Database) AddIndexedL2Block(block *IndexedL2Block) error {
+	const insertBlockStatement = `
+	INSERT INTO l2_blocks
+		(hash, parent_hash, number, timestamp)
+	VALUES
+		($1, $2, $3, $4)
+	`
+
+	const insertWithdrawalStatement = `
+	INSERT INTO withdrawals
+		(from_address, queue_index, amount, tx_hash, block_hash, block_timestamp, l1_tx_origin, target, gas_limit, data)
+	VALUES
+		($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+	`
+	return txn(d.db, func(tx *sql.Tx) error {
+		blockStmt, err := tx.Prepare(insertBlockStatement)
+		if err != nil {
+			return err
+		}
+
+		_, err = blockStmt.Exec(
+			block.Hash.String(),
+			block.ParentHash.String(),
+			block.Number,
+			block.Timestamp,
+		)
+		if err != nil {
+			return err
+		}
+
+		if len(block.Withdrawals) == 0 {
+			return nil
+		}
+
+		withdrawalStmt, err := tx.Prepare(insertWithdrawalStatement)
+		if err != nil {
+			return err
+		}
+
+		for _, withdrawal := range block.Withdrawals {
+			_, err = withdrawalStmt.Exec(
+				withdrawal.FromAddress.String(),
+				withdrawal.Amount.String(),
+				withdrawal.TxHash.String(),
+				withdrawal.Data,
 			)
 			if err != nil {
 				return err
@@ -241,17 +343,66 @@ func (d *Database) GetDepositsByAddress(address common.Address) ([]TokenBridgeMe
 	return deposits, nil
 }
 
-type BlockLocator struct {
+func (d *Database) GetWithdrawalsByAddress(address l2common.Address) ([]TokenBridgeMessage, error) {
+	const selectWithdrawalsStatement = `
+	SELECT
+		withdrawals.queue_index, withdrawals.amount, withdrawals.tx_hash, withdrawals.data,
+		blocks.number, blocks.timestamp
+	FROM withdrawals
+		INNER JOIN blocks ON withdrawals.block_hash=blocks.hash
+	WHERE withdrawals.from_address = $1 ORDER BY withdrawals.block_timestamp LIMIT 10;
+	`
+	var withdrawals []TokenBridgeMessage
+
+	err := txn(d.db, func(tx *sql.Tx) error {
+		queryStmt, err := tx.Prepare(selectWithdrawalsStatement)
+		if err != nil {
+			return err
+		}
+
+		rows, err := queryStmt.Query(address.String())
+		if err != nil {
+			return err
+		}
+
+		for rows.Next() {
+			var withdrawal TokenBridgeMessage
+			if err := rows.Scan(
+				&withdrawal.LogIndex, &withdrawal.Amount,
+				&withdrawal.TxHash, &withdrawal.Data,
+				&withdrawal.BlockNumber, &withdrawal.BlockTimestamp,
+			); err != nil {
+				return err
+			}
+			withdrawal.FromAddress = address.String()
+			withdrawals = append(withdrawals, withdrawal)
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		return nil, err
+	}
+	return withdrawals, nil
+}
+
+type L1BlockLocator struct {
 	Number uint64
 	Hash   common.Hash
 }
 
-func (d *Database) GetHighestBlock() (*BlockLocator, error) {
+type L2BlockLocator struct {
+	Number uint64
+	Hash   l2common.Hash
+}
+
+func (d *Database) GetHighestL1Block() (*L1BlockLocator, error) {
 	const selectHighestBlockStatement = `
-	SELECT number, hash FROM blocks ORDER BY number DESC LIMIT 1
+	SELECT number, hash FROM l1_blocks ORDER BY number DESC LIMIT 1
 	`
 
-	var highestBlock *BlockLocator
+	var highestBlock *L1BlockLocator
 	err := txn(d.db, func(tx *sql.Tx) error {
 		queryStmt, err := tx.Prepare(selectHighestBlockStatement)
 		if err != nil {
@@ -278,7 +429,7 @@ func (d *Database) GetHighestBlock() (*BlockLocator, error) {
 			return errors.New("number of rows should be at most 1 since LIMIT is 1")
 		}
 
-		highestBlock = &BlockLocator{
+		highestBlock = &L1BlockLocator{
 			Number: number,
 			Hash:   common.HexToHash(hash),
 		}
@@ -292,15 +443,61 @@ func (d *Database) GetHighestBlock() (*BlockLocator, error) {
 	return highestBlock, nil
 }
 
-func (d *Database) GetIndexedBlockByHash(hash common.Hash) (*IndexedBlock, error) {
+func (d *Database) GetHighestL2Block() (*L2BlockLocator, error) {
+	const selectHighestBlockStatement = `
+	SELECT number, hash FROM l2_blocks ORDER BY number DESC LIMIT 1
+	`
+
+	var highestBlock *L2BlockLocator
+	err := txn(d.db, func(tx *sql.Tx) error {
+		queryStmt, err := tx.Prepare(selectHighestBlockStatement)
+		if err != nil {
+			return err
+		}
+
+		rows, err := queryStmt.Query()
+		if err != nil {
+			return err
+		}
+
+		if !rows.Next() {
+			return nil
+		}
+
+		var number uint64
+		var hash string
+		err = rows.Scan(&number, &hash)
+		if err != nil {
+			return err
+		}
+
+		if rows.Next() {
+			return errors.New("number of rows should be at most 1 since LIMIT is 1")
+		}
+
+		highestBlock = &L2BlockLocator{
+			Number: number,
+			Hash:   l2common.HexToHash(hash),
+		}
+
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return highestBlock, nil
+}
+
+func (d *Database) GetIndexedL1BlockByHash(hash common.Hash) (*IndexedL1Block, error) {
 	const selectBlockByHashStatement = `
 	SELECT
 		hash, parent_hash, number, timestamp
-	FROM blocks
+	FROM l1_blocks
 	WHERE hash = $1
 	`
 
-	var block *IndexedBlock
+	var block *IndexedL1Block
 	err := txn(d.db, func(tx *sql.Tx) error {
 		queryStmt, err := tx.Prepare(selectBlockByHashStatement)
 		if err != nil {
@@ -325,7 +522,7 @@ func (d *Database) GetIndexedBlockByHash(hash common.Hash) (*IndexedBlock, error
 			return err
 		}
 
-		block = &IndexedBlock{
+		block = &IndexedL1Block{
 			Hash:       common.HexToHash(hash),
 			ParentHash: common.HexToHash(parentHash),
 			Number:     number,

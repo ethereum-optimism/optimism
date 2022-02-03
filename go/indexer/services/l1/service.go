@@ -1,8 +1,9 @@
-package indexer
+package l1
 
 import (
 	"context"
 	"encoding/binary"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"math/big"
@@ -10,6 +11,7 @@ import (
 	"sync"
 
 	"github.com/ethereum-optimism/optimism/go/indexer/bindings/ctc"
+	"github.com/ethereum-optimism/optimism/go/indexer/db"
 	"github.com/ethereum-optimism/optimism/go/indexer/metrics"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
@@ -29,6 +31,18 @@ var errNoChainID = errors.New("no chain id provided")
 var errWrongChainID = errors.New("wrong chain id provided")
 
 var errNoNewBlocks = errors.New("no new blocks")
+
+func respondWithError(w http.ResponseWriter, code int, message string) {
+	respondWithJSON(w, code, map[string]string{"error": message})
+}
+
+func respondWithJSON(w http.ResponseWriter, code int, payload interface{}) {
+	response, _ := json.Marshal(payload)
+
+	w.WriteHeader(code)
+	w.Header().Set("Content-Type", "application/json")
+	w.Write(response)
+}
 
 type Backend interface {
 	bind.ContractBackend
@@ -83,7 +97,7 @@ type ServiceConfig struct {
 	MaxHeaderBatchSize uint64
 	StartBlockNumber   uint64
 	StartBlockHash     string
-	DB                 *Database
+	DB                 *db.Database
 	Router             *mux.Router
 }
 
@@ -92,7 +106,7 @@ type Service struct {
 	ctx    context.Context
 	cancel func()
 
-	contract       *ctc.CanonicalTransactionChainFilterer
+	ctcContract    *ctc.CanonicalTransactionChainFilterer
 	backend        Backend
 	headerSelector HeaderSelector
 
@@ -102,22 +116,21 @@ type Service struct {
 }
 
 type IndexerStatus struct {
-	Synced  float64      `json:"synced"`
-	Highest BlockLocator `json:"highest_block"`
+	Synced  float64           `json:"synced"`
+	Highest db.L1BlockLocator `json:"highest_block"`
 }
 
 func NewService(cfg ServiceConfig) (*Service, error) {
 	ctx, cancel := context.WithCancel(cfg.Context)
 
-	address := cfg.CTCAddr
-	contract, err := ctc.NewCanonicalTransactionChainFilterer(address, cfg.L1Client)
+	contract, err := ctc.NewCanonicalTransactionChainFilterer(cfg.CTCAddr, cfg.L1Client)
 	if err != nil {
 		return nil, err
 	}
 
 	// Handle restart logic
 
-	log.Info("Creating CTC Indexer")
+	log.Info("Creating L1 Indexer")
 
 	chainID, err := cfg.L1Client.ChainID(context.Background())
 	if err != nil {
@@ -146,7 +159,7 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 		cfg:            cfg,
 		ctx:            ctx,
 		cancel:         cancel,
-		contract:       contract,
+		ctcContract:    contract,
 		headerSelector: confirmedHeaderSelector,
 		backend:        cfg.L1Client,
 	}, nil
@@ -193,13 +206,13 @@ func (s *Service) fetchBlockEventIterator(start, end uint64) (
 		ctxt, cancel := context.WithTimeout(s.ctx, DefaultConnectionTimeout)
 
 		var iter *ctc.CanonicalTransactionChainTransactionEnqueuedIterator
-		iter, err = s.contract.FilterTransactionEnqueued(&bind.FilterOpts{
+		iter, err = s.ctcContract.FilterTransactionEnqueued(&bind.FilterOpts{
 			Start:   start,
 			End:     &end,
 			Context: ctxt,
 		}, nil, nil, nil)
 		if err != nil {
-			log.Error("Unable to query events for block range ",
+			log.Error("Unable to query deposit events for block range ",
 				"start", start, "end", end, "error", err)
 			cancel()
 			continue
@@ -211,11 +224,11 @@ func (s *Service) fetchBlockEventIterator(start, end uint64) (
 }
 
 func (s *Service) Update(start uint64, newHeader *types.Header) error {
-	var lowest = BlockLocator{
+	var lowest = db.L1BlockLocator{
 		Number: s.cfg.StartBlockNumber,
 		Hash:   common.HexToHash(s.cfg.StartBlockHash),
 	}
-	highestConfirmed, err := s.cfg.DB.GetHighestBlock()
+	highestConfirmed, err := s.cfg.DB.GetHighestL1Block()
 	if err != nil {
 		return err
 	}
@@ -250,7 +263,7 @@ func (s *Service) Update(start uint64, newHeader *types.Header) error {
 		return err
 	}
 
-	depositsByBlockhash := make(map[common.Hash][]Deposit)
+	depositsByBlockhash := make(map[common.Hash][]db.Deposit)
 	for iter.Next() {
 		tx, _, err := s.fetchTransaction(context.Background(), iter.Event.Raw.TxHash)
 		if err != nil {
@@ -262,7 +275,7 @@ func (s *Service) Update(start uint64, newHeader *types.Header) error {
 			return err
 		}
 		depositsByBlockhash[iter.Event.Raw.BlockHash] = append(
-			depositsByBlockhash[iter.Event.Raw.BlockHash], Deposit{
+			depositsByBlockhash[iter.Event.Raw.BlockHash], db.Deposit{
 				FromAddress: sender,
 				Amount:      tx.Value(),
 				QueueIndex:  iter.Event.QueueIndex.Uint64(),
@@ -282,7 +295,7 @@ func (s *Service) Update(start uint64, newHeader *types.Header) error {
 		number := header.Number.Uint64()
 		deposits := depositsByBlockhash[blockHash]
 
-		block := &IndexedBlock{
+		block := &db.IndexedL1Block{
 			Hash:       blockHash,
 			ParentHash: header.ParentHash,
 			Number:     number,
@@ -290,7 +303,7 @@ func (s *Service) Update(start uint64, newHeader *types.Header) error {
 			Deposits:   deposits,
 		}
 
-		err := s.cfg.DB.AddIndexedBlock(block)
+		err := s.cfg.DB.AddIndexedL1Block(block)
 		if err != nil {
 			log.Error("Unable to import ",
 				"block", number, "hash", blockHash, "err", err, "block", block)
@@ -315,9 +328,8 @@ func (s *Service) Update(start uint64, newHeader *types.Header) error {
 	return nil
 }
 
-func (s *Service) getIndexerStatus(w http.ResponseWriter, r *http.Request) {
-
-	highestBlock, err := s.cfg.DB.GetHighestBlock()
+func (s *Service) GetIndexerStatus(w http.ResponseWriter, r *http.Request) {
+	highestBlock, err := s.cfg.DB.GetHighestL1Block()
 	if err != nil {
 		respondWithError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -339,7 +351,7 @@ func (s *Service) getIndexerStatus(w http.ResponseWriter, r *http.Request) {
 	respondWithJSON(w, http.StatusOK, status)
 }
 
-func (s *Service) getDeposits(w http.ResponseWriter, r *http.Request) {
+func (s *Service) GetDeposits(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 
 	deposits, err := s.cfg.DB.GetDepositsByAddress(common.HexToAddress(vars["address"]))
@@ -351,20 +363,12 @@ func (s *Service) getDeposits(w http.ResponseWriter, r *http.Request) {
 	respondWithJSON(w, http.StatusOK, deposits)
 }
 
-func (s *Service) Serve(ctx context.Context) {
-	s.cfg.Router.HandleFunc("/v1/status", s.getIndexerStatus).Methods("GET")
-	s.cfg.Router.HandleFunc("/v1/deposits/0x{address:[a-fA-F0-9]{40}}", s.getDeposits).Methods("GET")
-
-	http.ListenAndServe(":8080", s.cfg.Router)
-}
-
 func (s *Service) Start() error {
 	if s.cfg.ChainID == nil {
 		return errNoChainID
 	}
 	s.wg.Add(1)
 	go s.Loop(context.Background())
-	go s.Serve(context.Background())
 	return nil
 }
 

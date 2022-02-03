@@ -9,6 +9,7 @@ LDFLAGS := -ldflags "$(LDFLAGSSTRING)"
 
 CTC_ABI_ARTIFACT := ../../packages/contracts/artifacts/contracts/L1/rollup/CanonicalTransactionChain.sol/CanonicalTransactionChain.json
 SCC_ABI_ARTIFACT := ../../packages/contracts/artifacts/contracts/L1/rollup/StateCommitmentChain.sol/StateCommitmentChain.json
+L2BRIDGE_ABI_ARTIFACT = ../../packages/contracts/artifacts/contracts/L2/messaging/L2StandardBridge.sol/L2StandardBridge.json
 
 indexer:
 	env GO111MODULE=on go build -v $(LDFLAGS) ./cmd/indexer
@@ -22,7 +23,7 @@ test:
 lint:
 	golangci-lint run ./...
 
-bindings: bindings-ctc bindings-scc
+bindings: bindings-ctc bindings-scc bindings-l2bridge
 
 bindings-ctc:
 	$(eval temp := $(shell mktemp))
@@ -56,11 +57,29 @@ bindings-scc:
 
 	rm $(temp)
 
+bindings-l2bridge:
+	$(eval temp := $(shell mktemp))
+
+	cat $(L2BRIDGE_ABI_ARTIFACT) \
+		| jq -r .bytecode > $(temp)
+
+	cat $(L2BRIDGE_ABI_ARTIFACT) \
+		| jq .abi \
+		| ../../l2geth/build/bin/abigen --pkg l2bridge \
+		--abi - \
+		--out bindings/l2bridge/l2_standard_bridge.go \
+		--type L2StandardBridge \
+		--bin $(temp)
+
+	rm $(temp)
+
+
 .PHONY: \
 	indexer \
 	bindings \
 	bindings-ctc \
 	bindings-scc \
+	bindings-l2bridge \
 	clean \
 	test \
 	lint

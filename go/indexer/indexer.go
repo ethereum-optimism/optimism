@@ -9,6 +9,9 @@ import (
 	"strconv"
 	"time"
 
+	database "github.com/ethereum-optimism/optimism/go/indexer/db"
+	"github.com/ethereum-optimism/optimism/go/indexer/services/l1"
+	"github.com/ethereum-optimism/optimism/go/indexer/services/l2"
 	l2ethclient "github.com/ethereum-optimism/optimism/l2geth/ethclient"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
@@ -23,6 +26,14 @@ const (
 	// defaultDialTimeout is default duration the service will wait on
 	// startup to make a connection to either the L1 or L2 backends.
 	defaultDialTimeout = 5 * time.Second
+)
+
+var (
+	// l2StartBlockNumber is the block number to start indexing l2 from
+	l2StartBlockNumber = uint64(0)
+
+	// l2StartBlockHash is the block hash to start indexing l2 from
+	l2StartBlockHash = "0x7ca38a1916c42007829c55e69d3e9a73265554b586a499015373241b8a3fa48b"
 )
 
 // Main is the entrypoint into the indexer service. This method returns
@@ -75,7 +86,10 @@ type Indexer struct {
 	ctcAddress common.Address
 	sccAddress common.Address
 
-	l1IndexingService *Service
+	l1IndexingService *l1.Service
+	l2IndexingService *l2.Service
+
+	router *mux.Router
 }
 
 // NewIndexer initializes the Indexer, gathering any resources
@@ -128,7 +142,7 @@ func NewIndexer(cfg Config, gitVersion string) (*Indexer, error) {
 		go runMetricsServer(cfg.MetricsHostname, cfg.MetricsPort)
 	}
 
-	db, err := NewDatabase(fmt.Sprintf("host=%s port=%d user=%s "+
+	db, err := database.NewDatabase(fmt.Sprintf("host=%s port=%d user=%s "+
 		"password=%s dbname=%s sslmode=disable",
 		cfg.DBHost, cfg.DBPort, cfg.DBUser, cfg.DBPassword, cfg.DBName))
 	if err != nil {
@@ -140,7 +154,7 @@ func NewIndexer(cfg Config, gitVersion string) (*Indexer, error) {
 		return nil, err
 	}
 
-	l1IndexingService, err := NewService(ServiceConfig{
+	l1IndexingService, err := l1.NewService(l1.ServiceConfig{
 		Context:            ctx,
 		L1Client:           l1Client,
 		CTCAddr:            ctcAddress,
@@ -155,22 +169,50 @@ func NewIndexer(cfg Config, gitVersion string) (*Indexer, error) {
 		return nil, err
 	}
 
+	l2IndexingService, err := l2.NewService(l2.ServiceConfig{
+		Context:            ctx,
+		L2Client:           l2Client,
+		DB:                 db,
+		ConfDepth:          cfg.ConfDepth,
+		MaxHeaderBatchSize: cfg.MaxHeaderBatchSize,
+		StartBlockNumber:   l2StartBlockNumber,
+		StartBlockHash:     l2StartBlockHash,
+	})
+	if err != nil {
+		return nil, err
+	}
+
 	return &Indexer{
 		ctx:               ctx,
 		cfg:               cfg,
 		l1Client:          l1Client,
 		l2Client:          l2Client,
 		l1IndexingService: l1IndexingService,
+		l2IndexingService: l2IndexingService,
+		router:            mux.NewRouter(),
 	}, nil
+}
+
+func (b *Indexer) Serve(ctx context.Context) {
+	b.router.HandleFunc("/v1/l1/status", b.l1IndexingService.GetIndexerStatus).Methods("GET")
+	b.router.HandleFunc("/v1/l2/status", b.l2IndexingService.GetIndexerStatus).Methods("GET")
+	b.router.HandleFunc("/v1/deposits/0x{address:[a-fA-F0-9]{40}}", b.l1IndexingService.GetDeposits).Methods("GET")
+	b.router.HandleFunc("/v1/withdrawals/0x{address:[a-fA-F0-9]{40}}", b.l2IndexingService.GetWithdrawals).Methods("GET")
+
+	http.ListenAndServe(":8080", b.router)
 }
 
 func (b *Indexer) Start() error {
 	b.l1IndexingService.Start()
+	b.l2IndexingService.Start()
+
+	b.Serve(b.ctx)
 	return nil
 }
 
 func (b *Indexer) Stop() {
 	b.l1IndexingService.Stop()
+	b.l2IndexingService.Stop()
 }
 
 // runMetricsServer spins up a prometheus metrics server at the provided
