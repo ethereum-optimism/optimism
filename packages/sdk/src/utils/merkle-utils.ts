@@ -6,7 +6,7 @@ import {
   toRpcHexString,
 } from '@eth-optimism/core-utils'
 import { MerkleTree } from 'merkletreejs'
-import rlp from 'rlp'
+import * as rlp from 'rlp'
 
 /**
  * Generates a Merkle proof (using the particular scheme we use within Lib_MerkleTree).
