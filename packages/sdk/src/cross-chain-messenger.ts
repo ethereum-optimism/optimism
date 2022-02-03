@@ -209,7 +209,13 @@ export class CrossChainMessenger implements ICrossChainMessenger {
       toBlock?: NumberLike
     }
   ): Promise<CrossChainMessage[]> {
-    throw new Error('Not implemented')
+    throw new Error(`
+      The function getMessagesByAddress is currently not enabled because the sender parameter of
+      the SentMessage event is not indexed within the CrossChainMessenger contracts.
+      getMessagesByAddress will be enabled by plugging in an Optimism Indexer (coming soon).
+      See the following issue on GitHub for additional context:
+      https://github.com/ethereum-optimism/optimism/issues/2129
+    `)
   }
 
   public async getBridgeForTokenPair(
