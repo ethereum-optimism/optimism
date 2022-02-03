@@ -95,9 +95,6 @@ const procEnv = cleanEnv(process.env, {
   RUN_STRESS_TESTS: bool({
     default: true,
   }),
-  RUN_NIGHTLY_TESTS: bool({
-    default: false,
-  }),
   RUN_VERIFIER_TESTS: bool({
     default: true,
   }),
