@@ -102,8 +102,8 @@ type Downloader interface {
 }
 
 type DownloadSource interface {
-	eth.BlockByHashSource
-	eth.ReceiptSource
+	TransactionReceipt(ctx context.Context, txHash common.Hash) (*types.Receipt, error)
+	BlockByHash(ctx context.Context, hash common.Hash) (*types.Block, error)
 }
 
 // downloader implements Downloader with parallel jobs,

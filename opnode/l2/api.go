@@ -4,19 +4,18 @@ package l2
 import (
 	"context"
 	"fmt"
+	"math/big"
 	"reflect"
 
 	"github.com/ethereum-optimism/optimistic-specs/opnode/eth"
 
-	"github.com/ethereum/go-ethereum/log"
-
+	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core/types"
-
 	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/holiman/uint256"
-
+	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rpc"
+	"github.com/holiman/uint256"
 )
 
 type ErrorCode int
@@ -186,9 +185,9 @@ type RPCBackend interface {
 }
 
 type EthBackend interface {
-	eth.BlockByHashSource
-	eth.BlockByNumberSource
-	eth.NewHeadSource
+	SubscribeNewHead(ctx context.Context, ch chan<- *types.Header) (ethereum.Subscription, error)
+	BlockByHash(ctx context.Context, hash common.Hash) (*types.Block, error)
+	BlockByNumber(ctx context.Context, number *big.Int) (*types.Block, error)
 }
 
 type EngineClient struct {

@@ -37,12 +37,11 @@ func (cfg *Config) Check() error {
 }
 
 type OpNode struct {
-	log          log.Logger
-	l1Source     eth.L1Source           // (combined) source to fetch data from
-	l1Downloader l1.Downloader          // actual downloader
-	l2Engines    []*driver.EngineDriver // engines to keep synced
-	ctx          context.Context        // Embeded CTX to be removed
-	done         chan struct{}
+	log       log.Logger
+	l1Source  l1.Source              // Source to fetch data from (also implements the Downloader interface)
+	l2Engines []*driver.EngineDriver // engines to keep synced
+	ctx       context.Context        // Embeded CTX to be removed
+	done      chan struct{}
 }
 
 func (conf *Config) GetGenesis() rollup.Genesis {
@@ -70,13 +69,9 @@ func New(ctx context.Context, cfg *Config, log log.Logger) (*OpNode, error) {
 
 	// TODO: we may need to authenticate the connection with L1
 	// l1Node.SetHeader()
-	l1Source := ethclient.NewClient(l1Node)
-	l1CanonicalChain := eth.CanonicalChain(l1Source)
-
-	l1Downloader := l1.NewDownloader(l1Source)
+	l1Source := l1.NewSource(ethclient.NewClient(l1Node))
 	genesis := cfg.GetGenesis()
 	var l2Engines []*driver.EngineDriver
-
 	for i, addr := range cfg.L2EngineAddrs {
 		// L2 exec engine: updated by this OpNode (L2 consensus layer node)
 		backend, err := rpc.DialContext(ctx, addr)
@@ -96,9 +91,9 @@ func New(ctx context.Context, cfg *Config, log log.Logger) (*OpNode, error) {
 		engine := &driver.EngineDriver{
 			Log: log.New("engine", i),
 			RPC: client,
-			DL:  l1Downloader,
+			DL:  l1Source,
 			SyncRef: rollupSync.SyncSource{
-				L1: l1CanonicalChain,
+				L1: l1Source,
 				L2: client,
 			},
 			EngineDriverState: driver.EngineDriverState{Genesis: genesis},
@@ -107,12 +102,11 @@ func New(ctx context.Context, cfg *Config, log log.Logger) (*OpNode, error) {
 	}
 
 	n := &OpNode{
-		log:          log,
-		l1Source:     l1Source,
-		l1Downloader: l1Downloader,
-		l2Engines:    l2Engines,
-		ctx:          ctx,
-		done:         make(chan struct{}),
+		log:       log,
+		l1Source:  l1Source,
+		l2Engines: l2Engines,
+		ctx:       ctx,
+		done:      make(chan struct{}),
 	}
 
 	return n, nil
@@ -136,7 +130,7 @@ func (c *OpNode) Start() error {
 	c.log.Info("Fetching rollup starting point")
 
 	// We download receipts in parallel
-	c.l1Downloader.AddReceiptWorkers(4)
+	c.l1Source.AddReceiptWorkers(4)
 
 	// Feed of eth.HeadSignal
 	var l1HeadsFeed event.Feed

@@ -8,13 +8,20 @@ import (
 	"github.com/ethereum-optimism/optimistic-specs/opnode/eth"
 	"github.com/ethereum-optimism/optimistic-specs/opnode/rollup"
 	"github.com/ethereum-optimism/optimistic-specs/opnode/rollup/derive"
+
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
 )
 
 // SyncSource implements SyncReference with a L2 block sources and L1 hash-by-number source
 type SyncSource struct {
-	L1 eth.BlockLinkByNumber
-	L2 eth.BlockSource
+	L1 interface {
+		BlockLinkByNumber(ctx context.Context, num uint64) (self eth.BlockID, parent eth.BlockID, err error)
+	}
+	L2 interface {
+		BlockByHash(ctx context.Context, hash common.Hash) (*types.Block, error)
+		BlockByNumber(ctx context.Context, number *big.Int) (*types.Block, error)
+	}
 }
 
 // RefByL1Num fetches the canonical L1 block hash and the parent for the given L1 block height.
