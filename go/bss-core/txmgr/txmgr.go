@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 )
@@ -121,6 +120,8 @@ func (m *SimpleTxManager) Send(
 	ctxc, cancel := context.WithCancel(ctx)
 	defer cancel()
 
+	sendState := NewSendState(3)
+
 	// Create a closure that will block on passed sendTx function in the
 	// background, returning the first successfully mined receipt back to
 	// the main event loop via receiptChan.
@@ -147,13 +148,14 @@ func (m *SimpleTxManager) Send(
 
 		// Sign and publish transaction with current gas price.
 		err = sendTx(ctxc, tx)
+		sendState.ProcessSendError(err)
 		if err != nil {
 			if err == context.Canceled ||
 				strings.Contains(err.Error(), "context canceled") {
 				return
 			}
 			log.Error(name+" unable to publish transaction", "err", err)
-			if shouldAbortImmediately(err) {
+			if sendState.ShouldAbortImmediately() {
 				cancel()
 			}
 			// TODO(conner): add retry?
@@ -165,9 +167,9 @@ func (m *SimpleTxManager) Send(
 
 		// Wait for the transaction to be mined, reporting the receipt
 		// back to the main event loop if found.
-		receipt, err := WaitMined(
+		receipt, err := waitMined(
 			ctxc, m.backend, tx, m.cfg.ReceiptQueryInterval,
-			m.cfg.NumConfirmations,
+			m.cfg.NumConfirmations, sendState,
 		)
 		if err != nil {
 			log.Debug(name+" send tx failed", "hash", txHash,
@@ -215,13 +217,6 @@ func (m *SimpleTxManager) Send(
 	}
 }
 
-// shouldAbortImmediately returns true if the txmgr should cancel all
-// publication attempts and retry. For now, this only includes nonce errors, as
-// that error indicates that none of the transactions will ever confirm.
-func shouldAbortImmediately(err error) bool {
-	return strings.Contains(err.Error(), core.ErrNonceTooLow.Error())
-}
-
 // WaitMined blocks until the backend indicates confirmation of tx and returns
 // the tx receipt. Queries are made every queryInterval, regardless of whether
 // the backend returns an error. This method can be canceled using the passed
@@ -233,6 +228,19 @@ func WaitMined(
 	queryInterval time.Duration,
 	numConfirmations uint64,
 ) (*types.Receipt, error) {
+	return waitMined(ctx, backend, tx, queryInterval, numConfirmations, nil)
+}
+
+// waitMined implements the core functionality of WaitMined, with the option to
+// pass in a SendState to record whether or not the transaction is mined.
+func waitMined(
+	ctx context.Context,
+	backend ReceiptSource,
+	tx *types.Transaction,
+	queryInterval time.Duration,
+	numConfirmations uint64,
+	sendState *SendState,
+) (*types.Receipt, error) {
 
 	queryTicker := time.NewTicker(queryInterval)
 	defer queryTicker.Stop()
@@ -243,6 +251,10 @@ func WaitMined(
 		receipt, err := backend.TransactionReceipt(ctx, txHash)
 		switch {
 		case receipt != nil:
+			if sendState != nil {
+				sendState.TxMined(txHash)
+			}
+
 			txHeight := receipt.BlockNumber.Uint64()
 			tipHeight, err := backend.BlockNumber(ctx)
 			if err != nil {
@@ -277,6 +289,9 @@ func WaitMined(
 				"err", err)
 
 		default:
+			if sendState != nil {
+				sendState.TxNotMined(txHash)
+			}
 			log.Trace("Transaction not yet mined", "hash", txHash)
 		}
 

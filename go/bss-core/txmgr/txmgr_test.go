@@ -385,6 +385,9 @@ func TestTxMgrDoesntAbortNonceTooLowAfterMiningTx(t *testing.T) {
 		case h.gasPricer.shouldMine(tx.GasFeeCap()):
 			txHash := tx.Hash()
 			h.backend.mine(&txHash, tx.GasFeeCap())
+			time.AfterFunc(5*time.Second, func() {
+				h.backend.mine(nil, nil)
+			})
 			return nil
 
 		// For gas prices greater than our expected, return ErrNonceTooLow since
