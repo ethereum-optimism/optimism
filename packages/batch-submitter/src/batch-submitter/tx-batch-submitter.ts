@@ -4,8 +4,7 @@ import { performance } from 'perf_hooks'
 import { Promise as bPromise } from 'bluebird'
 import { Signer, ethers, Contract, providers } from 'ethers'
 import { TransactionReceipt } from '@ethersproject/abstract-provider'
-import { getContractInterface, getContractFactory } from 'old-contracts'
-import { getContractInterface as getNewContractInterface } from '@eth-optimism/contracts'
+import { getContractInterface } from '@eth-optimism/contracts'
 import {
   L2Block,
   RollupInfo,
@@ -116,13 +115,9 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
       return
     }
 
-    const unwrapped_OVM_CanonicalTransactionChain = (
-      await getContractFactory('OVM_CanonicalTransactionChain', this.signer)
-    ).attach(ctcAddress)
-
     this.chainContract = new CanonicalTransactionChainContract(
-      unwrapped_OVM_CanonicalTransactionChain.address,
-      getContractInterface('OVM_CanonicalTransactionChain'),
+      ctcAddress,
+      getContractInterface('CanonicalTransactionChain'),
       this.signer
     )
     this.logger.info('Initialized new CTC', {
@@ -601,7 +596,7 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
   }> {
     const manager = new Contract(
       this.addressManagerAddress,
-      getNewContractInterface('Lib_AddressManager'),
+      getContractInterface('Lib_AddressManager'),
       this.signer.provider
     )
 
@@ -609,7 +604,7 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
 
     const container = new Contract(
       addr,
-      getNewContractInterface('IChainStorageContainer'),
+      getContractInterface('IChainStorageContainer'),
       this.signer.provider
     )
 

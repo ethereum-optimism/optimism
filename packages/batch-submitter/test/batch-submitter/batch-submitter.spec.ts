@@ -1,18 +1,18 @@
 /* External Imports */
-import { ethers } from 'hardhat'
-import '@nomiclabs/hardhat-ethers'
-import { Signer, ContractFactory, Contract, BigNumber } from 'ethers'
 import sinon from 'sinon'
-import scc from '@eth-optimism/contracts/artifacts/contracts/L1/rollup/StateCommitmentChain.sol/StateCommitmentChain.json'
-import { getContractInterface } from '@eth-optimism/contracts'
+import { ethers } from 'hardhat'
+import { Signer, ContractFactory, Contract, BigNumber } from 'ethers'
+import {
+  getContractFactory,
+  getContractInterface,
+} from '@eth-optimism/contracts'
 import { smockit, MockContract } from '@eth-optimism/smock'
-import { getContractFactory } from 'old-contracts'
 import { QueueOrigin, Batch, remove0x } from '@eth-optimism/core-utils'
 import { Logger, Metrics } from '@eth-optimism/common-ts'
 
 /* Internal Imports */
-import { MockchainProvider } from './mockchain-provider'
 import { expect } from '../setup'
+import { MockchainProvider } from './mockchain-provider'
 import {
   CanonicalTransactionChainContract,
   TransactionBatchSubmitter as RealTransactionBatchSubmitter,
@@ -30,7 +30,6 @@ import {
 
 const EXAMPLE_STATE_ROOT =
   '0x16b7f83f409c7195b1f4fde5652f1b54a4477eacb6db7927691becafba5f8801'
-const MAX_GAS_LIMIT = 8_000_000
 const MAX_TX_SIZE = 100_000
 const MIN_TX_SIZE = 1_000
 const MIN_GAS_PRICE_IN_GWEI = 1
@@ -70,7 +69,6 @@ describe('BatchSubmitter', () => {
   })
 
   let AddressManager: Contract
-  let Mock__OVM_ExecutionManager: MockContract
   let Mock__OVM_BondManager: MockContract
   let Mock__OVM_StateCommitmentChain: MockContract
   before(async () => {
@@ -80,22 +78,10 @@ describe('BatchSubmitter', () => {
       await sequencer.getAddress()
     )
 
-    Mock__OVM_ExecutionManager = await smockit(
-      await getContractFactory('OVM_ExecutionManager')
-    )
-
-    Mock__OVM_BondManager = await smockit(
-      await getContractFactory('OVM_BondManager')
-    )
+    Mock__OVM_BondManager = await smockit(getContractFactory('OVM_BondManager'))
 
     Mock__OVM_StateCommitmentChain = await smockit(
-      await getContractFactory('OVM_StateCommitmentChain')
-    )
-
-    await setProxyTarget(
-      AddressManager,
-      'OVM_ExecutionManager',
-      Mock__OVM_ExecutionManager
+      getContractFactory('OVM_StateCommitmentChain')
     )
 
     await setProxyTarget(
@@ -111,24 +97,21 @@ describe('BatchSubmitter', () => {
     )
 
     Mock__OVM_StateCommitmentChain.smocked.canOverwrite.will.return.with(false)
-    Mock__OVM_ExecutionManager.smocked.getMaxTransactionGasLimit.will.return.with(
-      MAX_GAS_LIMIT
-    )
     Mock__OVM_BondManager.smocked.isCollateralized.will.return.with(true)
   })
 
   let Factory__OVM_CanonicalTransactionChain: ContractFactory
   let Factory__OVM_StateCommitmentChain: ContractFactory
   before(async () => {
-    Factory__OVM_CanonicalTransactionChain = await getContractFactory(
-      'OVM_CanonicalTransactionChain'
+    Factory__OVM_CanonicalTransactionChain = getContractFactory(
+      'CanonicalTransactionChain'
     )
 
     Factory__OVM_CanonicalTransactionChain =
       Factory__OVM_CanonicalTransactionChain.connect(signer)
 
-    Factory__OVM_StateCommitmentChain = await getContractFactory(
-      'OVM_StateCommitmentChain'
+    Factory__OVM_StateCommitmentChain = getContractFactory(
+      'StateCommitmentChain'
     )
 
     Factory__OVM_StateCommitmentChain =
@@ -456,7 +439,7 @@ describe('BatchSubmitter', () => {
         const receipt = await stateBatchSubmitter.submitNextBatch()
         expect(receipt).to.not.be.undefined
 
-        const iface = new ethers.utils.Interface(scc.abi)
+        const iface = getContractInterface('StateCommitmentChain')
         const parsedLogs = iface.parseLog(receipt.logs[0])
 
         expect(parsedLogs.eventFragment.name).to.eq('StateBatchAppended')

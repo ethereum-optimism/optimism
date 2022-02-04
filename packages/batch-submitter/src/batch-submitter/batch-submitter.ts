@@ -13,7 +13,7 @@ import {
 import { Gauge, Histogram, Counter } from 'prom-client'
 import { RollupInfo, sleep } from '@eth-optimism/core-utils'
 import { Logger, Metrics } from '@eth-optimism/common-ts'
-import { getContractFactory } from 'old-contracts'
+import { getContractFactory } from '@eth-optimism/contracts'
 
 /* Internal Imports */
 import { TxSubmissionHooks } from '..'
@@ -136,8 +136,9 @@ export abstract class BatchSubmitter {
     ctcAddress: string
     sccAddress: string
   }> {
-    const addressManager = (
-      await getContractFactory('Lib_AddressManager', this.signer)
+    const addressManager = getContractFactory(
+      'Lib_AddressManager',
+      this.signer
     ).attach(this.addressManagerAddress)
     const sccAddress = await addressManager.getAddress('StateCommitmentChain')
     const ctcAddress = await addressManager.getAddress(

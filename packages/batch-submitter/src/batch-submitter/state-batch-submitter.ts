@@ -4,7 +4,7 @@ import { performance } from 'perf_hooks'
 import { Promise as bPromise } from 'bluebird'
 import { Contract, Signer, providers } from 'ethers'
 import { TransactionReceipt } from '@ethersproject/abstract-provider'
-import { getContractFactory } from 'old-contracts'
+import { getContractFactory } from '@eth-optimism/contracts'
 import {
   L2Block,
   RollupInfo,
@@ -96,10 +96,10 @@ export class StateBatchSubmitter extends BatchSubmitter {
     }
 
     this.chainContract = (
-      await getContractFactory('OVM_StateCommitmentChain', this.signer)
+      await getContractFactory('StateCommitmentChain', this.signer)
     ).attach(sccAddress)
     this.ctcContract = (
-      await getContractFactory('OVM_CanonicalTransactionChain', this.signer)
+      await getContractFactory('CanonicalTransactionChain', this.signer)
     ).attach(ctcAddress)
 
     this.logger.info('Connected Optimism contracts', {

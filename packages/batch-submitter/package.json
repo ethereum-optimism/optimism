@@ -44,7 +44,6 @@
     "bluebird": "^3.7.2",
     "dotenv": "^10.0.0",
     "ethers": "^5.4.5",
-    "old-contracts": "npm:@eth-optimism/contracts@^0.0.2-alpha.7",
     "prom-client": "^13.1.0"
   },
   "devDependencies": {
