@@ -1394,9 +1394,14 @@ describe('CrossChainMessenger', () => {
           ethers.provider.send('evm_increaseTime', [challengePeriod / 2])
           ethers.provider.send('evm_mine', [])
 
-          expect(
-            await messenger.estimateMessageWaitTimeSeconds(message)
-          ).to.equal(challengePeriod / 2)
+          expectApprox(
+            await messenger.estimateMessageWaitTimeSeconds(message),
+            challengePeriod / 2,
+            {
+              percentUpperDeviation: 5,
+              percentLowerDeviation: 5,
+            }
+          )
         })
       })
 
