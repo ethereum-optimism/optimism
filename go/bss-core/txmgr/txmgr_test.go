@@ -353,7 +353,49 @@ func TestTxMgrConfirmsMinGasPriceAfterBumping(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	receipt, err := h.mgr.Send(ctx, sendTxFunc)
+	receipt, err := h.mgr.Send(ctx, updateGasPrice, sendTx)
+	require.Nil(t, err)
+	require.NotNil(t, receipt)
+	require.Equal(t, h.gasPricer.expGasFeeCap().Uint64(), receipt.GasUsed)
+}
+
+// TestTxMgrDoesntAbortNonceTooLowAfterMiningTx
+func TestTxMgrDoesntAbortNonceTooLowAfterMiningTx(t *testing.T) {
+	t.Parallel()
+
+	h := newTestHarnessWithConfig(configWithNumConfs(2))
+
+	updateGasPrice := func(ctx context.Context) (*types.Transaction, error) {
+		gasTipCap, gasFeeCap := h.gasPricer.sample()
+		return types.NewTx(&types.DynamicFeeTx{
+			GasTipCap: gasTipCap,
+			GasFeeCap: gasFeeCap,
+		}), nil
+	}
+
+	sendTx := func(ctx context.Context, tx *types.Transaction) error {
+		switch {
+
+		// If the txn's gas fee cap is less than the one we expect to mine,
+		// accept the txn to the mempool.
+		case tx.GasFeeCap().Cmp(h.gasPricer.expGasFeeCap()) < 0:
+			return nil
+
+		// Accept and mine the actual txn we expect to confirm.
+		case h.gasPricer.shouldMine(tx.GasFeeCap()):
+			txHash := tx.Hash()
+			h.backend.mine(&txHash, tx.GasFeeCap())
+			return nil
+
+		// For gas prices greater than our expected, return ErrNonceTooLow since
+		// the prior txn confirmed and will invalidate subsequent publications.
+		default:
+			return core.ErrNonceTooLow
+		}
+	}
+
+	ctx := context.Background()
+	receipt, err := h.mgr.Send(ctx, updateGasPrice, sendTx)
 	require.Nil(t, err)
 	require.NotNil(t, receipt)
 	require.Equal(t, h.gasPricer.expGasFeeCap().Uint64(), receipt.GasUsed)
