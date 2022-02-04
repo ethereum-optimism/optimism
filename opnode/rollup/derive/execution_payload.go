@@ -13,9 +13,9 @@ type BlockPreparer interface {
 	ForkchoiceUpdated(ctx context.Context, state *l2.ForkchoiceState, attr *l2.PayloadAttributes) (l2.ForkchoiceUpdatedResult, error)
 }
 
-// BlockOutputs uses the engine API to derive a full L2 block from the block inputs.
+// ExecutionPayload uses the engine API to derive a full L2 block from the payload attributes.
 // The fcState does not affect the block production, but may inform the engine of finality and head changes to sync towards before block computation.
-func BlockOutputs(ctx context.Context, engine BlockPreparer, l2Parent common.Hash, l2Finalized common.Hash, attributes *l2.PayloadAttributes) (*l2.ExecutionPayload, error) {
+func ExecutionPayload(ctx context.Context, engine BlockPreparer, l2Parent common.Hash, l2Finalized common.Hash, attributes *l2.PayloadAttributes) (*l2.ExecutionPayload, error) {
 	fcState := &l2.ForkchoiceState{
 		HeadBlockHash:      l2Parent, // no difference yet between Head and Safe, no data ahead of L1 yet.
 		SafeBlockHash:      l2Parent,

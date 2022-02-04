@@ -182,7 +182,9 @@ type BlockInput interface {
 	MixDigest() common.Hash
 }
 
-func BlockInputs(block BlockInput, receipts []*types.Receipt) (*l2.PayloadAttributes, error) {
+// PayloadAttributes derives the pre-execution payload from the L1 block info and deposit receipts.
+// This is a pure function.
+func PayloadAttributes(block BlockInput, receipts []*types.Receipt) (*l2.PayloadAttributes, error) {
 	if !CheckReceipts(block, receipts) {
 		return nil, fmt.Errorf("receipts are not consistent with the block's receipts root: %s", block.ReceiptHash())
 	}
