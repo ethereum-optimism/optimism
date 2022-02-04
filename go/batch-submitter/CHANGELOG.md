@@ -1,5 +1,13 @@
 # @eth-optimism/batch-submitter-service
 
+## 0.1.2
+
+### Patch Changes
+
+- c775ffbe: fix BSS log-level flag parsing
+- d093a6bb: Adds a fix for the BSS to account for the new timestamp logic in L2Geth
+- d4c2e01b: Restructure to use bss-core package
+
 ## 0.1.1
 
 ### Patch Changes
