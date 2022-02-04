@@ -1,4 +1,4 @@
-package l2
+package derive
 
 import (
 	"encoding/binary"
@@ -186,7 +186,7 @@ func TestDeriveUserDeposits(t *testing.T) {
 					Logs:   logs,
 				})
 			}
-			got, err := DeriveUserDeposits(testCase.height, receipts)
+			got, err := UserDeposits(testCase.height, receipts)
 			assert.NoError(t, err)
 			assert.Equal(t, len(got), len(expectedDeposits))
 			for d, depTx := range got {

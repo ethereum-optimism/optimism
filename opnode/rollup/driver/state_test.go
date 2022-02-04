@@ -1,4 +1,4 @@
-package l2
+package driver
 
 import (
 	"context"
@@ -8,6 +8,7 @@ import (
 
 	"github.com/ethereum-optimism/optimistic-specs/opnode/eth"
 	"github.com/ethereum-optimism/optimistic-specs/opnode/internal/testlog"
+	"github.com/ethereum-optimism/optimistic-specs/opnode/rollup"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/assert"
@@ -51,7 +52,7 @@ func makeState(st testState) *EngineDriverState {
 		l2Head:      st.l2Head.ID(),
 		l2Finalized: st.l2Finalized.ID(),
 		l1Target:    st.l1Target.ID(),
-		Genesis: Genesis{
+		Genesis: rollup.Genesis{
 			L1: st.genesisL1.ID(),
 			L2: st.genesisL2.ID(),
 		},

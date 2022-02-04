@@ -1,10 +1,11 @@
-package l2
+package derive
 
 import (
 	"encoding/binary"
 	"fmt"
 	"math/big"
 
+	"github.com/ethereum-optimism/optimistic-specs/opnode/l2"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -116,7 +117,8 @@ type L1Info interface {
 	BaseFee() *big.Int
 }
 
-func DeriveL1InfoDeposit(block L1Info) *types.DepositTx {
+// L1InfoDeposit creats a L1 Info deposit transaction based on the L1 block
+func L1InfoDeposit(block L1Info) *types.DepositTx {
 	data := make([]byte, 4+8+8+32+32)
 	offset := 0
 	copy(data[offset:4], L1InfoFuncBytes4)
@@ -152,8 +154,8 @@ func CheckReceipts(block ReceiptHash, receipts []*types.Receipt) bool {
 	return block.ReceiptHash() == computed
 }
 
-// DeriveL2Transactions transforms a L1 block and corresponding receipts into the transaction inputs for a full L2 block
-func DeriveUserDeposits(height uint64, receipts []*types.Receipt) ([]*types.DepositTx, error) {
+// UserDeposits transforms a L1 block and corresponding receipts into the transaction inputs for a full L2 block
+func UserDeposits(height uint64, receipts []*types.Receipt) ([]*types.DepositTx, error) {
 	var out []*types.DepositTx
 
 	for _, rec := range receipts {
@@ -180,23 +182,25 @@ type BlockInput interface {
 	MixDigest() common.Hash
 }
 
-func DeriveBlockInputs(block BlockInput, receipts []*types.Receipt) (*PayloadAttributes, error) {
+// PayloadAttributes derives the pre-execution payload from the L1 block info and deposit receipts.
+// This is a pure function.
+func PayloadAttributes(block BlockInput, receipts []*types.Receipt) (*l2.PayloadAttributes, error) {
 	if !CheckReceipts(block, receipts) {
 		return nil, fmt.Errorf("receipts are not consistent with the block's receipts root: %s", block.ReceiptHash())
 	}
 
-	l1Tx := types.NewTx(DeriveL1InfoDeposit(block))
+	l1Tx := types.NewTx(L1InfoDeposit(block))
 	opaqueL1Tx, err := l1Tx.MarshalBinary()
 	if err != nil {
 		return nil, fmt.Errorf("failed to encode L1 info tx")
 	}
 
-	userDeposits, err := DeriveUserDeposits(block.NumberU64(), receipts)
+	userDeposits, err := UserDeposits(block.NumberU64(), receipts)
 	if err != nil {
 		return nil, fmt.Errorf("failed to derive user deposits: %v", err)
 	}
 
-	encodedTxs := make([]Data, 0, len(userDeposits)+1)
+	encodedTxs := make([]l2.Data, 0, len(userDeposits)+1)
 	encodedTxs = append(encodedTxs, opaqueL1Tx)
 
 	for i, tx := range userDeposits {
@@ -207,9 +211,9 @@ func DeriveBlockInputs(block BlockInput, receipts []*types.Receipt) (*PayloadAtt
 		encodedTxs = append(encodedTxs, opaqueTx)
 	}
 
-	return &PayloadAttributes{
-		Timestamp:             Uint64Quantity(block.Time()),
-		Random:                Bytes32(block.MixDigest()),
+	return &l2.PayloadAttributes{
+		Timestamp:             l2.Uint64Quantity(block.Time()),
+		Random:                l2.Bytes32(block.MixDigest()),
 		SuggestedFeeRecipient: common.Address{}, // nobody gets tx fees for deposits
 		Transactions:          encodedTxs,
 	}, nil

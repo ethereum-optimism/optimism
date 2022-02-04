@@ -1,4 +1,4 @@
-package l2
+package driver
 
 import (
 	"context"
@@ -8,6 +8,7 @@ import (
 	"github.com/ethereum/go-ethereum/event"
 
 	"github.com/ethereum-optimism/optimistic-specs/opnode/eth"
+	rollupSync "github.com/ethereum-optimism/optimistic-specs/opnode/rollup/sync"
 
 	"github.com/ethereum/go-ethereum/log"
 )
@@ -32,7 +33,7 @@ type EngineDriver struct {
 	// API bindings to execution engine
 	RPC     DriverAPI
 	DL      Downloader
-	SyncRef SyncReference
+	SyncRef rollupSync.SyncReference
 
 	// The current driving force, to shutdown before closing the engine.
 	driveSub ethereum.Subscription
@@ -59,7 +60,7 @@ func (e *EngineDriver) requestEngineHead(ctx context.Context) (refL1 eth.BlockID
 }
 
 func (e *EngineDriver) findSyncStart(ctx context.Context) (nextRefL1 eth.BlockID, refL2 eth.BlockID, err error) {
-	return FindSyncStart(ctx, e.SyncRef, &e.Genesis)
+	return rollupSync.FindSyncStart(ctx, e.SyncRef, &e.Genesis)
 }
 
 func (e *EngineDriver) driverStep(ctx context.Context, nextRefL1 eth.BlockID, refL2 eth.BlockID, finalized eth.BlockID) (l2ID eth.BlockID, err error) {
