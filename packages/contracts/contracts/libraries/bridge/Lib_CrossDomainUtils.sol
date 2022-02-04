@@ -1,9 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.9;
 
-/* Library Imports */
-import { Lib_RLPReader } from "../rlp/Lib_RLPReader.sol";
-
 /**
  * @title Lib_CrossDomainUtils
  */
