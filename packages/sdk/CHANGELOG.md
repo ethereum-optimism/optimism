@@ -1,5 +1,11 @@
 # @eth-optimism/sdk
 
+## 0.2.0
+
+### Minor Changes
+
+- dd9683bb: Correctly export SDK contents
+
 ## 0.1.0
 
 ### Minor Changes
