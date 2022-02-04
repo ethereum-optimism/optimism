@@ -4,6 +4,7 @@ go 1.16
 
 require (
 	github.com/decred/dcrd/hdkeychain/v3 v3.0.0
+	github.com/ethereum-optimism/optimism/go/bss-core v0.0.0
 	github.com/ethereum-optimism/optimism/l2geth v1.0.0
 	github.com/ethereum/go-ethereum v1.10.12
 	github.com/getsentry/sentry-go v0.11.0
@@ -14,3 +15,5 @@ require (
 )
 
 replace github.com/ethereum-optimism/optimism/l2geth => ../../l2geth
+
+replace github.com/ethereum-optimism/optimism/go/bss-core => ../bss-core

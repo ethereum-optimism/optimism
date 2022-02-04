@@ -16,7 +16,7 @@ configuration will determine the mode of operation. The configuration flags
 can be configured using either environment variables or passed at runtime as
 flags.
 
-A prebuilt Docker image is available at `ethereumoptimism/go-ethereum`.
+A prebuilt Docker image is available at `ethereumoptimism/l2geth`.
 
 To compile the code, run:
 ```
@@ -25,46 +25,39 @@ $ make geth
 
 ### Running a Sequencer
 
-Running a sequencer requires the [Data Transport Layer](https://github.com/ethereum-optimism/data-transport-layer)
-to be synced. The data transport layer is responsible for indexing transactions
-from Layer One concurrently. The sequencer pulls in transactions from the data
-transport layer and executes them. The URL of the data transport layer should be
+Running a sequencer that ingests L1 to L2 transactions requires running the
+[Data Transport Layer](https://github.com/ethereum-optimism/data-transport-layer).
+The data transport layer is responsible for indexing transactions
+from layer one Ethereum. It is possible to run a local development sequencer
+without the data transport layer by turning off the sync service. To turn on
+the sync service, use the config flag `--eth1.syncservice` or
+`ETH1_SYNC_SERVICE_ENABLE`. The URL of the data transport layer should be
 used for the sequencer config option `--rollup.clienthttp`.
 
-See the script `scripts/start.sh`. It sets many of the config options
-and accepts CLI flags. For usage, run the command:
+The `scripts` directory contains some scripts that make it easy to run a
+local sequencer for development purposes.
+
+First, the genesis block must be initialized. This is because there are
+predeployed contracts in the L2 state. The scripts to generate the genesis
+block can be found in the `contracts` package. Be sure to run those first.
 
 ```bash
-$ ./scripts/start.sh -h
+$ ./scripts/init.sh
 ```
 
-This may be suitable for simple usecases, users that need more flexibility
-with their configuration can run the command:
+This script can be ran with the `DEVELOPMENT` env var set which will add
+a prefunded account to the genesis state that can be used for development.
+
+The `start.sh` script is used to start `geth`. It hardcodes a bunch of
+common config values for when running `geth`.
 
 ```bash
-$ USING_OVM=true ./build/bin/geth \
-    --rollup.clienthttp $ROLLUP_CLIENT_HTTP \
-    --rollup.pollinterval 3s \
-    --eth1.ctcdeploymentheight $CTC_DEPLOY_HEIGHT \
-    --eth1.syncservice \
-    --rpc \
-    --dev \
-    --rpcaddr "0.0.0.0" \
-    --rpccorsdomain '*' \
-    --wsaddr "0.0.0.0" \
-    --wsport 8546 \
-    --wsorigins '*' \
-    --rpcapi 'eth,net,rollup,web3' \
-    --gasprice '0' \
-    --targetgaslimit '8000000' \
-    --nousb \
-    --gcmode=archive \
-    --ipcdisable
+$ ./scripts/start.sh
 ```
 
-To persist the database, pass the `--datadir` with a path to the directory for
-the database to be persisted in. Without this flag, an in memory database will
-be used. To tune the log level, use the `--verbosity` flag with an integer.
+This script can be modified to work with `dlv` by prefixing the `$cmd`
+with `dlv exec` and being sure to prefix the `geth` arguments with `--`
+so they are interpreted as arguments to `geth` instead of `dlv`.
 
 ### Running a Verifier
 

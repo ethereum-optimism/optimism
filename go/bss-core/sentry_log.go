@@ -1,8 +1,9 @@
-package batchsubmitter
+package bsscore
 
 import (
 	"errors"
 	"io"
+	"time"
 
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/getsentry/sentry-go"
@@ -35,4 +36,15 @@ func SentryStreamHandler(wr io.Writer, fmtr log.Format) log.Handler {
 		return err
 	})
 	return log.LazyHandler(log.SyncHandler(h))
+}
+
+// TraceRateToFloat64 converts a time.Duration into a valid float64 for the
+// Sentry client. The client only accepts values between 0.0 and 1.0, so this
+// method clamps anything greater than 1 second to 1.0.
+func TraceRateToFloat64(rate time.Duration) float64 {
+	rate64 := float64(rate) / float64(time.Second)
+	if rate64 > 1.0 {
+		rate64 = 1.0
+	}
+	return rate64
 }

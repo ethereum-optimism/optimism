@@ -32,12 +32,12 @@
     "url": "https://github.com/ethereum-optimism/optimism.git"
   },
   "dependencies": {
-    "@ethersproject/abstract-provider": "^5.4.1",
+    "@ethersproject/abstract-provider": "^5.5.1",
     "@ethersproject/bytes": "^5.5.0",
-    "@ethersproject/providers": "^5.4.5",
-    "@ethersproject/web": "^5.5.0",
+    "@ethersproject/providers": "^5.5.3",
+    "@ethersproject/web": "^5.5.1",
     "chai": "^4.3.4",
-    "ethers": "^5.4.5",
+    "ethers": "^5.5.4",
     "lodash": "^4.17.21"
   },
   "devDependencies": {

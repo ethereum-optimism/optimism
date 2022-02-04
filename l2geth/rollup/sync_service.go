@@ -825,13 +825,14 @@ func (s *SyncService) applyTransactionToTip(tx *types.Transaction) error {
 		if now.Sub(current) > s.timestampRefreshThreshold {
 			current = now
 		}
+		log.Info("Updating latest timestamp", "timestamp", current, "unix", current.Unix())
 		tx.SetL1Timestamp(uint64(current.Unix()))
 	} else if tx.L1Timestamp() == 0 && s.verifier {
 		// This should never happen
 		log.Error("No tx timestamp found when running as verifier", "hash", tx.Hash().Hex())
-	} else if tx.L1Timestamp() < s.GetLatestL1Timestamp() {
+	} else if tx.L1Timestamp() < ts {
 		// This should never happen, but sometimes does
-		log.Error("Timestamp monotonicity violation", "hash", tx.Hash().Hex())
+		log.Error("Timestamp monotonicity violation", "hash", tx.Hash().Hex(), "latest", ts, "tx", tx.L1Timestamp())
 	}
 
 	l1BlockNumber := tx.L1BlockNumber()

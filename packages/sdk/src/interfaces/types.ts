@@ -6,6 +6,9 @@ import {
 import { Signer } from '@ethersproject/abstract-signer'
 import { Contract, BigNumber } from 'ethers'
 
+import { ICrossChainMessenger } from './cross-chain-messenger'
+import { IBridgeAdapter } from './bridge-adapter'
+
 /**
  * L1 contract references.
  */
@@ -68,27 +71,25 @@ export interface OEContractsLike {
 }
 
 /**
- * Represents list of custom bridges.
+ * Something that looks like the list of custom bridges.
  */
-export interface CustomBridges {
-  l1: {
-    [name: string]: Contract
-  }
-  l2: {
-    [name: string]: Contract
+export interface BridgeAdapterData {
+  [name: string]: {
+    Adapter: new (opts: {
+      messenger: ICrossChainMessenger
+      l1Bridge: AddressLike
+      l2Bridge: AddressLike
+    }) => IBridgeAdapter
+    l1Bridge: AddressLike
+    l2Bridge: AddressLike
   }
 }
 
 /**
  * Something that looks like the list of custom bridges.
  */
-export interface CustomBridgesLike {
-  l1: {
-    [K in keyof CustomBridges['l1']]: AddressLike
-  }
-  l2: {
-    [K in keyof CustomBridges['l2']]: AddressLike
-  }
+export interface BridgeAdapters {
+  [name: string]: IBridgeAdapter
 }
 
 /**
@@ -215,9 +216,9 @@ export interface StateRootBatchHeader {
  * Information about a state root, including header, block number, and root iself.
  */
 export interface StateRoot {
-  blockNumber: number
-  header: StateRootBatchHeader
   stateRoot: string
+  stateRootIndexInBatch: number
+  batch: StateRootBatch
 }
 
 /**
@@ -227,6 +228,20 @@ export interface StateRootBatch {
   blockNumber: number
   header: StateRootBatchHeader
   stateRoots: string[]
+}
+
+/**
+ * Proof data required to finalize an L2 to L1 message.
+ */
+export interface CrossChainMessageProof {
+  stateRoot: string
+  stateRootBatchHeader: StateRootBatchHeader
+  stateRootProof: {
+    index: number
+    siblings: string[]
+  }
+  stateTrieWitness: string
+  storageTrieWitness: string
 }
 
 /**

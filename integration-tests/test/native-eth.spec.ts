@@ -11,7 +11,6 @@ import {
   DEFAULT_TEST_GAS_L1,
   DEFAULT_TEST_GAS_L2,
   envConfig,
-  PROXY_SEQUENCER_ENTRYPOINT_ADDRESS,
   withdrawalTest,
 } from './shared/utils'
 import { OptimismEnv } from './shared/env'
@@ -31,9 +30,6 @@ describe('Native ETH Integration Tests', async () => {
     const l1BobBalance = await l1Bob.getBalance()
     const l2BobBalance = await l2Bob.getBalance()
 
-    const sequencerBalance = await _env.ovmEth.balanceOf(
-      PROXY_SEQUENCER_ENTRYPOINT_ADDRESS
-    )
     const l1BridgeBalance = await _env.l1Wallet.provider.getBalance(
       _env.l1Bridge.address
     )
@@ -44,7 +40,6 @@ describe('Native ETH Integration Tests', async () => {
       l1BobBalance,
       l2BobBalance,
       l1BridgeBalance,
-      sequencerBalance,
     }
   }
 

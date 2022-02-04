@@ -18,7 +18,7 @@ import {
   TransactionEntry,
   EventHandlerSet,
 } from '../../../types'
-import { SEQUENCER_GAS_LIMIT, parseSignatureVParam } from '../../../utils'
+import { parseSignatureVParam } from '../../../utils'
 
 export const handleEventsSequencerBatchAppended: EventHandlerSet<
   SequencerBatchAppendedEvent,
@@ -65,7 +65,6 @@ export const handleEventsSequencerBatchAppended: EventHandlerSet<
       submitter: l1Transaction.from,
       l1TransactionHash: l1Transaction.hash,
       l1TransactionData: l1Transaction.data,
-      gasLimit: `${SEQUENCER_GAS_LIMIT}`,
 
       prevTotalElements: batchSubmissionEvent.args._prevTotalElements,
       batchIndex: batchSubmissionEvent.args._batchIndex,
@@ -143,7 +142,7 @@ export const handleEventsSequencerBatchAppended: EventHandlerSet<
             .toNumber(),
           batchIndex: extraData.batchIndex.toNumber(),
           blockNumber: BigNumber.from(0).toNumber(),
-          timestamp: BigNumber.from(0).toNumber(),
+          timestamp: context.timestamp,
           gasLimit: BigNumber.from(0).toString(),
           target: constants.AddressZero,
           origin: constants.AddressZero,

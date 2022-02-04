@@ -136,8 +136,9 @@ services:
       - l1_chain
       - deployer
       - dtl
+      - l2geth
     deploy:
-      replicas: 0
+      replicas: 1
     build:
       context: ..
       dockerfile: ./ops/docker/Dockerfile.geth
@@ -146,6 +147,7 @@ services:
       - ./envs/geth.env
     environment:
         ETH1_HTTP: http://l1_chain:8545
+        SEQUENCER_CLIENT_HTTP: http://l2geth:8545
         ROLLUP_STATE_DUMP_PATH: http://deployer:8081/state-dump.latest.json
         ROLLUP_CLIENT_HTTP: http://dtl:7878
         ROLLUP_BACKEND: 'l1'

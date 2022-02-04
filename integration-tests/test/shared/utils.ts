@@ -62,6 +62,8 @@ const procEnv = cleanEnv(process.env, {
   REPLICA_URL: str({ default: 'http://localhost:8549' }),
   REPLICA_POLLING_INTERVAL: num({ default: 10 }),
 
+  VERIFIER_URL: str({ default: 'http://localhost:8547' }),
+
   PRIVATE_KEY: str({
     default:
       '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80',
@@ -93,8 +95,8 @@ const procEnv = cleanEnv(process.env, {
   RUN_STRESS_TESTS: bool({
     default: true,
   }),
-  RUN_NIGHTLY_TESTS: bool({
-    default: false,
+  RUN_VERIFIER_TESTS: bool({
+    default: true,
   }),
 
   MOCHA_TIMEOUT: num({
@@ -121,6 +123,11 @@ export const replicaProvider = injectL2Context(
 )
 replicaProvider.pollingInterval = procEnv.REPLICA_POLLING_INTERVAL
 
+export const verifierProvider = injectL2Context(
+  new providers.JsonRpcProvider(procEnv.VERIFIER_URL)
+)
+verifierProvider.pollingInterval = procEnv.L2_POLLING_INTERVAL
+
 // The sequencer private key which is funded on L1
 export const l1Wallet = new Wallet(procEnv.PRIVATE_KEY, l1Provider)
 
@@ -135,8 +142,6 @@ export const gasPriceOracleWallet = new Wallet(
 )
 
 // Predeploys
-export const PROXY_SEQUENCER_ENTRYPOINT_ADDRESS =
-  '0x4200000000000000000000000000000000000004'
 export const OVM_ETH_ADDRESS = predeploys.OVM_ETH
 
 export const L2_CHAINID = procEnv.L2_CHAINID
@@ -210,7 +215,7 @@ export const conditionalTest = (
     }
 
     await fn()
-  }).timeout(timeout || envConfig.MOCHA_TIMEOUT)
+  }).timeout(timeout || envConfig.MOCHA_TIMEOUT * 2)
 }
 
 export const withdrawalTest = (name, fn, timeout?: number) =>

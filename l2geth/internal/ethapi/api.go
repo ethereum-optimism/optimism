@@ -51,7 +51,6 @@ import (
 )
 
 var (
-	errOVMUnsupported = errors.New("OVM: Unsupported RPC Method")
 	errNoSequencerURL = errors.New("sequencer transaction forwarding not configured")
 )
 
@@ -386,6 +385,19 @@ func (s *PrivateAccountAPI) SendTransaction(ctx context.Context, args SendTxArgs
 		log.Warn("Failed transaction send attempt", "from", args.From, "to", args.To, "value", args.Value.ToInt(), "err", err)
 		return common.Hash{}, err
 	}
+
+	if s.b.IsVerifier() {
+		client, err := dialSequencerClientWithTimeout(ctx, s.b.SequencerClientHttp())
+		if err != nil {
+			return common.Hash{}, err
+		}
+		err = client.SendTransaction(context.Background(), signed)
+		if err != nil {
+			return common.Hash{}, err
+		}
+		return signed.Hash(), nil
+	}
+
 	return SubmitTransaction(ctx, s.b, signed)
 }
 
@@ -1619,9 +1631,6 @@ func SubmitTransaction(ctx context.Context, b Backend, tx *types.Transaction) (c
 // SendTransaction creates a transaction for the given argument, sign it and submit it to the
 // transaction pool.
 func (s *PublicTransactionPoolAPI) SendTransaction(ctx context.Context, args SendTxArgs) (common.Hash, error) {
-	if rcfg.UsingOVM {
-		return common.Hash{}, errOVMUnsupported
-	}
 	// Look up the wallet containing the requested signer
 	account := accounts.Account{Address: args.From}
 
@@ -1654,9 +1663,6 @@ func (s *PublicTransactionPoolAPI) SendTransaction(ctx context.Context, args Sen
 // FillTransaction fills the defaults (nonce, gas, gasPrice) on a given unsigned transaction,
 // and returns it to the caller for further processing (signing + broadcast)
 func (s *PublicTransactionPoolAPI) FillTransaction(ctx context.Context, args SendTxArgs) (*SignTransactionResult, error) {
-	if rcfg.UsingOVM {
-		return nil, errOVMUnsupported
-	}
 	// Set some sanity defaults and terminate on failure
 	if err := args.setDefaults(ctx, s.b); err != nil {
 		return nil, err
@@ -1714,9 +1720,6 @@ func (s *PublicTransactionPoolAPI) SendRawTransaction(ctx context.Context, encod
 //
 // https://github.com/ethereum/wiki/wiki/JSON-RPC#eth_sign
 func (s *PublicTransactionPoolAPI) Sign(addr common.Address, data hexutil.Bytes) (hexutil.Bytes, error) {
-	if rcfg.UsingOVM {
-		return nil, errOVMUnsupported
-	}
 	// Look up the wallet containing the requested signer
 	account := accounts.Account{Address: addr}
 
@@ -1742,9 +1745,6 @@ type SignTransactionResult struct {
 // The node needs to have the private key of the account corresponding with
 // the given from address and it needs to be unlocked.
 func (s *PublicTransactionPoolAPI) SignTransaction(ctx context.Context, args SendTxArgs) (*SignTransactionResult, error) {
-	if rcfg.UsingOVM {
-		return nil, errOVMUnsupported
-	}
 	if args.Gas == nil {
 		return nil, fmt.Errorf("gas not specified")
 	}

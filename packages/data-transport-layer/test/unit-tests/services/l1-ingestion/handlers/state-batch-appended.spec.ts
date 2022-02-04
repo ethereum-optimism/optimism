@@ -1,6 +1,5 @@
 /* Imports: External */
 import { BigNumber } from 'ethers'
-import { Block } from '@ethersproject/abstract-provider'
 
 /* Imports: Internal */
 import { expect } from '../../../../setup'
@@ -18,7 +17,7 @@ describe('Event Handlers: CanonicalTransactionChain.StateBatchAppended', () => {
         data: l1StateBatchData,
       }
       // Source: https://etherscan.io/block/12106615
-      const eventBlock: Block = {
+      const eventBlock = {
         timestamp: 1616680530,
         number: 12106615,
         hash: '0x9c40310e19e943ad38e170329465c4489f6aba5895e9cacdac236be181aea31f',

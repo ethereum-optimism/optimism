@@ -9,8 +9,8 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/go/batch-submitter/drivers"
-	"github.com/ethereum-optimism/optimism/go/batch-submitter/mock"
-	"github.com/ethereum-optimism/optimism/go/batch-submitter/txmgr"
+	"github.com/ethereum-optimism/optimism/go/bss-core/mock"
+	"github.com/ethereum-optimism/optimism/go/bss-core/txmgr"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/types"

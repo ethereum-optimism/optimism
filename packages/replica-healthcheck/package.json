@@ -35,7 +35,7 @@
     "@eth-optimism/common-ts": "0.2.1",
     "@eth-optimism/core-utils": "0.7.5",
     "dotenv": "^10.0.0",
-    "ethers": "^5.4.5",
+    "ethers": "^5.5.4",
     "express": "^4.17.1",
     "express-prom-bundle": "^6.3.6",
     "lint-staged": "11.0.0",

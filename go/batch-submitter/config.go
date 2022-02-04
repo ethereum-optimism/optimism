@@ -190,6 +190,7 @@ func NewConfig(ctx *cli.Context) (Config, error) {
 		SafeMinimumEtherBalance: ctx.GlobalUint64(flags.SafeMinimumEtherBalanceFlag.Name),
 		ClearPendingTxs:         ctx.GlobalBool(flags.ClearPendingTxsFlag.Name),
 		/* Optional Flags */
+		LogLevel:            ctx.GlobalString(flags.LogLevelFlag.Name),
 		SentryEnable:        ctx.GlobalBool(flags.SentryEnableFlag.Name),
 		SentryDsn:           ctx.GlobalString(flags.SentryDsnFlag.Name),
 		SentryTraceRate:     ctx.GlobalDuration(flags.SentryTraceRateFlag.Name),
@@ -217,10 +218,6 @@ func NewConfig(ctx *cli.Context) (Config, error) {
 // ensure that it is well-formed.
 func ValidateConfig(cfg *Config) error {
 	// Sanity check log level.
-	if cfg.LogLevel == "" {
-		cfg.LogLevel = "debug"
-	}
-
 	_, err := log.LvlFromString(cfg.LogLevel)
 	if err != nil {
 		return err
