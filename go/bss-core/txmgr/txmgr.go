@@ -13,10 +13,12 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 )
 
-// SendTxFunc defines a function signature for publishing a desired tx with a
-// specific gas price. Implementations of this signature should also return
-// promptly when the context is canceled.
-type SendTxFunc = func(ctx context.Context) (*types.Transaction, error)
+// UpdateGasPriceSendTxFunc defines a function signature for publishing a
+// desired tx with a specific gas price. Implementations of this signature
+// should also return promptly when the context is canceled.
+type UpdateGasPriceFunc = func(ctx context.Context) (*types.Transaction, error)
+
+type SendTransactionFunc = func(ctx context.Context, tx *types.Transaction) error
 
 // Config houses parameters for altering the behavior of a SimpleTxManager.
 type Config struct {
@@ -48,7 +50,11 @@ type TxManager interface {
 	// prices). The method may be canceled using the passed context.
 	//
 	// NOTE: Send should be called by AT MOST one caller at a time.
-	Send(ctx context.Context, sendTx SendTxFunc) (*types.Receipt, error)
+	Send(
+		ctx context.Context,
+		updateGasPrice UpdateGasPriceFunc,
+		sendTxn SendTransactionFunc,
+	) (*types.Receipt, error)
 }
 
 // ReceiptSource is a minimal function signature used to detect the confirmation
@@ -96,7 +102,10 @@ func NewSimpleTxManager(
 //
 // NOTE: Send should be called by AT MOST one caller at a time.
 func (m *SimpleTxManager) Send(
-	ctx context.Context, sendTx SendTxFunc) (*types.Receipt, error) {
+	ctx context.Context,
+	updateGasPrice UpdateGasPriceFunc,
+	sendTx SendTransactionFunc,
+) (*types.Receipt, error) {
 
 	name := m.name
 
@@ -119,8 +128,25 @@ func (m *SimpleTxManager) Send(
 	sendTxAsync := func() {
 		defer wg.Done()
 
+		tx, err := updateGasPrice(ctxc)
+		if err != nil {
+			if err == context.Canceled ||
+				strings.Contains(err.Error(), "context canceled") {
+				return
+			}
+			log.Error(name+" unable to update txn gas price", "err", err)
+			return
+		}
+
+		txHash := tx.Hash()
+		nonce := tx.Nonce()
+		gasTipCap := tx.GasTipCap()
+		gasFeeCap := tx.GasFeeCap()
+		log.Info(name+" publishing transaction", "txHash", txHash,
+			"nonce", nonce, "gasTipCap", gasTipCap, "gasFeeCap", gasFeeCap)
+
 		// Sign and publish transaction with current gas price.
-		tx, err := sendTx(ctxc)
+		err = sendTx(ctxc, tx)
 		if err != nil {
 			if err == context.Canceled ||
 				strings.Contains(err.Error(), "context canceled") {
@@ -134,11 +160,8 @@ func (m *SimpleTxManager) Send(
 			return
 		}
 
-		txHash := tx.Hash()
-		gasTipCap := tx.GasTipCap()
-		gasFeeCap := tx.GasFeeCap()
 		log.Info(name+" transaction published successfully", "hash", txHash,
-			"gasTipCap", gasTipCap, "gasFeeCap", gasFeeCap)
+			"nonce", nonce, "gasTipCap", gasTipCap, "gasFeeCap", gasFeeCap)
 
 		// Wait for the transaction to be mined, reporting the receipt
 		// back to the main event loop if found.
@@ -148,7 +171,8 @@ func (m *SimpleTxManager) Send(
 		)
 		if err != nil {
 			log.Debug(name+" send tx failed", "hash", txHash,
-				"gasTipCap", gasTipCap, "gasFeeCap", gasFeeCap, "err", err)
+				"nonce", nonce, "gasTipCap", gasTipCap, "gasFeeCap", gasFeeCap,
+				"err", err)
 		}
 		if receipt != nil {
 			// Use non-blocking select to ensure function can exit
@@ -156,7 +180,8 @@ func (m *SimpleTxManager) Send(
 			select {
 			case receiptChan <- receipt:
 				log.Trace(name+" send tx succeeded", "hash", txHash,
-					"gasTipCap", gasTipCap, "gasFeeCap", gasFeeCap)
+					"nonce", nonce, "gasTipCap", gasTipCap,
+					"gasFeeCap", gasFeeCap)
 			default:
 			}
 		}
