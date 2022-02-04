@@ -1,0 +1,16 @@
+FROM golang:1.17.3-alpine3.13 as builder
+
+RUN apk add --no-cache make gcc musl-dev linux-headers git jq bash
+
+COPY Makefile /app/Makefile
+COPY go.mod /app/go.mod
+COPY go.sum /app/go.sum
+
+WORKDIR /app
+COPY ./opnode /app/opnode
+RUN make
+
+FROM alpine:3.13
+
+COPY --from=builder /app/bin/op /usr/local/bin
+CMD ["op"]
