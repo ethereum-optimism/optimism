@@ -1,4 +1,4 @@
-// Package l2 connects to the L2 execution engine over the Catalyst API.
+// Package l2 connects to the L2 execution engine over the Engine API.
 package l2
 
 import (
