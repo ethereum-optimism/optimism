@@ -12,6 +12,7 @@ contract TeleportrDeposit {
     uint256 public minDepositAmount;
     uint256 public maxDepositAmount;
     uint256 public maxBalance;
+    uint256 public totalDeposits;
 
     // Events
     event OwnerSet(address indexed oldOwner, address indexed newOwner);
@@ -19,7 +20,7 @@ contract TeleportrDeposit {
     event MaxDepositAmountSet(uint256 previousAmount, uint256 newAmount);
     event MaxBalanceSet(uint256 previousBalance, uint256 newBalance);
     event BalanceWithdrawn(address indexed owner, uint256 balance);
-    event EtherReceived(address indexed emitter, uint256 amount);
+    event EtherReceived(uint256 indexed depositId, address indexed emitter, uint256 indexed amount);
 
     // Modifiers
     modifier isOwner() {
@@ -36,6 +37,7 @@ contract TeleportrDeposit {
         minDepositAmount = _minDepositAmount;
         maxDepositAmount = _maxDepositAmount;
         maxBalance = _maxBalance;
+        totalDeposits = 0;
         emit OwnerSet(address(0), msg.sender);
         emit MinDepositAmountSet(0, _minDepositAmount);
         emit MaxDepositAmountSet(0, _maxDepositAmount);
@@ -50,7 +52,10 @@ contract TeleportrDeposit {
         require(msg.value <= maxDepositAmount, "Deposit amount is too big");
         require(address(this).balance <= maxBalance, "Contract max balance exceeded");
 
-        emit EtherReceived(msg.sender, msg.value);
+        emit EtherReceived(totalDeposits, msg.sender, msg.value);
+        unchecked {
+            totalDeposits += 1;
+        }
     }
 
     // Send the contract's balance to the owner
