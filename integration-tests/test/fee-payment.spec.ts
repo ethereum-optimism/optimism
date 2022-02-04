@@ -7,7 +7,6 @@ import { predeploys, getContractFactory } from '@eth-optimism/contracts'
 import { expect } from './shared/setup'
 import { hardhatTest } from './shared/utils'
 import { OptimismEnv } from './shared/env'
-import { Direction } from './shared/watcher-utils'
 
 const setPrices = async (env: OptimismEnv, value: number | BigNumber) => {
   const gasPrice = await env.gasPriceOracle.setGasPrice(value)
@@ -171,7 +170,7 @@ describe('Fee Payment Integration Tests', async () => {
       // Wait for the withdrawal to be relayed to L1.
       await withdrawTx.wait()
       await env.relayXDomainMessages(withdrawTx)
-      await env.waitForXDomainTransaction(withdrawTx, Direction.L2ToL1)
+      await env.waitForXDomainTransaction(withdrawTx)
 
       // Balance difference should be equal to old L2 balance.
       const balanceAfter = await env.l1Wallet.provider.getBalance(l1FeeWallet)

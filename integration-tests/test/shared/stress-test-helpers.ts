@@ -4,7 +4,6 @@ import { sleep } from '@eth-optimism/core-utils'
 
 /* Imports: Internal */
 import { OptimismEnv } from './env'
-import { Direction } from './watcher-utils'
 import { gasPriceForL1, gasPriceForL2 } from './utils'
 
 interface TransactionParams {
@@ -52,7 +51,7 @@ export const executeL1ToL2Transaction = async (
         }
       )
   )
-  await env.waitForXDomainTransaction(receipt, Direction.L1ToL2)
+  await env.waitForXDomainTransaction(receipt)
 }
 
 export const executeL2ToL1Transaction = async (
@@ -78,7 +77,7 @@ export const executeL2ToL1Transaction = async (
   )
 
   await env.relayXDomainMessages(receipt)
-  await env.waitForXDomainTransaction(receipt, Direction.L2ToL1)
+  await env.waitForXDomainTransaction(receipt)
 }
 
 export const executeL2Transaction = async (
