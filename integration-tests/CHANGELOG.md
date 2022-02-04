@@ -1,5 +1,17 @@
 # @eth-optimism/integration-tests
 
+## 0.5.2
+
+### Patch Changes
+
+- d6c2830a: Increase withdrawal test timeout
+- 0293749e: Add an integration test showing the infeasability of withdrawing a fake token in exchange for a legitimate token.
+- a135aa3d: Updates integration tests to include a test for syncing a Verifier from L1
+- 0bb11484: Remove nightly itests - not needed anymore
+- ba14c59d: Updates various ethers dependencies to their latest versions
+- a135aa3d: Add verifier integration tests
+- edb21845: Updates integration tests to start using SDK
+
 ## 0.5.1
 
 ### Patch Changes

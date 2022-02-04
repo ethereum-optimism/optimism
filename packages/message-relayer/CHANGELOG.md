@@ -1,5 +1,14 @@
 # @eth-optimism/message-relayer
 
+## 0.2.16
+
+### Patch Changes
+
+- ba14c59d: Updates various ethers dependencies to their latest versions
+- Updated dependencies [ba14c59d]
+  - @eth-optimism/contracts@0.5.12
+  - @eth-optimism/core-utils@0.7.6
+
 ## 0.2.15
 
 ### Patch Changes

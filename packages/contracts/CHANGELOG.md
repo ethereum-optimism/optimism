@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.5.12
+
+### Patch Changes
+
+- ba14c59d: Updates various ethers dependencies to their latest versions
+- Updated dependencies [ba14c59d]
+  - @eth-optimism/core-utils@0.7.6
+
 ## 0.5.11
 
 ### Patch Changes

@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.4.17
+
+### Patch Changes
+
+- fcce5b67: Updates batch submitter to also include separate timestamps for deposit transactions"
+- ba14c59d: Updates various ethers dependencies to their latest versions
+- Updated dependencies [ba14c59d]
+  - @eth-optimism/contracts@0.5.12
+  - @eth-optimism/core-utils@0.7.6
+
 ## 0.4.16
 
 ### Patch Changes

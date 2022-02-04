@@ -1,5 +1,13 @@
 # @eth-optimism/replica-healthcheck
 
+## 0.3.6
+
+### Patch Changes
+
+- ba14c59d: Updates various ethers dependencies to their latest versions
+- Updated dependencies [ba14c59d]
+  - @eth-optimism/core-utils@0.7.6
+
 ## 0.3.5
 
 ### Patch Changes

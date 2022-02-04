@@ -1,5 +1,11 @@
 # @eth-optimism/regenesis-surgery
 
+## 0.2.3
+
+### Patch Changes
+
+- ba14c59d: Updates various ethers dependencies to their latest versions
+
 ## 0.2.2
 
 ### Patch Changes
