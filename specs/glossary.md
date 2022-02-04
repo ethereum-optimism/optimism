@@ -80,8 +80,8 @@ block, and output block properties, which are derived after executing the block'
 
 [mpt]: glossary.md#merkle-patricia-trie
 
-A [Merkle Patricia tree] (MPT) is a sparse [trie], which is a tree-like
-structure that maps keys to values. The root hash of a MPT is a commitment to the contents of the tree, which allows a
+A [Merkle Patricia tree] (MPT) is a sparse trie, which is a tree-like structure that maps keys to values.
+The root hash of a MPT is a commitment to the contents of the tree, which allows a
 proof to be constructed for any key-value mapping encoded in the tree. Such a proof is called a Merkle proof, and can be
 verified against the Merkle root.
 

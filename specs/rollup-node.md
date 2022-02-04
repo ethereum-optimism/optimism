@@ -260,9 +260,9 @@ However, they can still be challenged by a fault proof until the end of the faul
 ## From L2 Block to L2 Output Root
 
 After processing a block the resulting outputs will need to be synchronized with L1 for trustless execution of
-L2-to-L1 messaging, such as withdrawals. To synchronize outputs are merkleized: hashed in a structured form for minimal
-proof cost to any piece of data. The merkle-structure is defined with [SSZ], a type system for merkleization and
-serialization, used in L1 (beacon-chain). However, we replace `sha256` with `keccak256` to save gas costs in the EVM.
+L2-to-L1 messaging, such as withdrawals. Outputs are hashed in a tree structured form for minimal proof cost to any
+piece of data. This merkle-structure is defined with [SSZ], a type system for merkleization and serialization, used in
+L1 (beacon-chain). However, we replace `sha256` with `keccak256` to save gas costs in the EVM.
 
 [SSZ]: https://github.com/ethereum/consensus-specs/blob/dev/ssz/simple-serialize.md
 
