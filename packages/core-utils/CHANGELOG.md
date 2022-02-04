@@ -1,5 +1,11 @@
 # @eth-optimism/core-utils
 
+## 0.7.6
+
+### Patch Changes
+
+- ba14c59d: Updates various ethers dependencies to their latest versions
+
 ## 0.7.5
 
 ### Patch Changes
