@@ -494,8 +494,6 @@ var bindTests = []struct {
 			"github.com/ethereum-optimism/optimism/l2geth/crypto"
 		`,
 		`
-			t.Skip("OVM breaks this... SKIPPING: CallFrom test. CALLER must be transpiled for this test to work properly.")
-
 			// Generate a new random account and a funded simulator
 			key, _ := crypto.GenerateKey()
 			auth := bind.NewKeyedTransactor(key)
@@ -543,8 +541,6 @@ var bindTests = []struct {
 			"github.com/ethereum-optimism/optimism/l2geth/core"
 		`,
 		`
-			t.Skip("OVM breaks this... SKIPPING: NonExistent contract test. This should be fixed & should pass if we returned the correct error messages.")
-
 			// Create a simulator and wrap a non-deployed contract
 
 			sim := backends.NewSimulatedBackend(core.GenesisAlloc{}, uint64(10000000000))
@@ -643,8 +639,6 @@ var bindTests = []struct {
 			"github.com/ethereum-optimism/optimism/l2geth/crypto"
 		`,
 		`
-			t.Skip("OVM breaks this... SKIPPING: CallFrom test. CALLER must be transpiled for this test to work properly.")
-
 			// Generate a new random account and a funded simulator
 			key, _ := crypto.GenerateKey()
 			auth := bind.NewKeyedTransactor(key)
@@ -1281,8 +1275,6 @@ var bindTests = []struct {
 			"github.com/ethereum-optimism/optimism/l2geth/crypto"
 		`,
 		`
-			t.Skip("OVM breaks this... SKIPPING: UseLibrary test.")
-
 			// Generate a new random account and a funded simulator
 			key, _ := crypto.GenerateKey()
 			auth := bind.NewKeyedTransactor(key)
@@ -1500,8 +1492,6 @@ var bindTests = []struct {
 		"github.com/ethereum-optimism/optimism/l2geth/core"
         `,
 		`
-		t.Skip("OVM breaks this... SKIPPING: MultiContracts test.")
-
 		key, _ := crypto.GenerateKey()
 		addr := crypto.PubkeyToAddress(key.PublicKey)
 
