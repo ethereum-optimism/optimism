@@ -1,4 +1,4 @@
-import { utils, Wallet, BigNumber } from 'ethers'
+import { utils, Wallet } from 'ethers'
 import { expect } from 'chai'
 
 import { actor, setupRun, setupActor, run } from './lib/convenience'
@@ -34,6 +34,6 @@ actor('Value sender', () => {
         value: 0x42,
       })
     })
-    expect(await randWallet.getBalance()).to.deep.equal(BigNumber.from(0x42))
+    expect((await randWallet.getBalance()).toString()).to.deep.equal('66')
   })
 })
