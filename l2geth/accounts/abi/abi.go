@@ -34,7 +34,6 @@ type ABI struct {
 	Constructor Method
 	Methods     map[string]Method
 	Events      map[string]Event
-	MethodsById map[[4]byte]*Method
 }
 
 // JSON returns a parsed ABI interface and error if it failed.
@@ -123,13 +122,6 @@ func (abi *ABI) UnmarshalJSON(data []byte) error {
 		return err
 	}
 	abi.Methods = make(map[string]Method)
-	// UsingOVM specific changes
-	// Create a cache of methods when running under the OVM because
-	// looking up methods based on the 4 byte selector is part of the hot
-	// code path. Without this cache, it was observed that 50% of the CPU
-	// time during syncing was spent hashing the function selectors
-	// during the call to `abi.MethodsById`
-	abi.MethodsById = make(map[[4]byte]*Method)
 	abi.Events = make(map[string]Event)
 	for _, field := range fields {
 		switch field.Type {
@@ -146,18 +138,13 @@ func (abi *ABI) UnmarshalJSON(data []byte) error {
 				_, ok = abi.Methods[name]
 			}
 			isConst := field.Constant || field.StateMutability == "pure" || field.StateMutability == "view"
-			method := Method{
+			abi.Methods[name] = Method{
 				Name:    name,
 				RawName: field.Name,
 				Const:   isConst,
 				Inputs:  field.Inputs,
 				Outputs: field.Outputs,
 			}
-			abi.Methods[name] = method
-			// UsingOVM specific changes
-			// Add method to the id cache
-			sigdata := method.ID()
-			abi.MethodsById[[4]byte{sigdata[0], sigdata[1], sigdata[2], sigdata[3]}] = &method
 		case "event":
 			name := field.Name
 			_, ok := abi.Events[name]
@@ -183,15 +170,12 @@ func (abi *ABI) MethodById(sigdata []byte) (*Method, error) {
 	if len(sigdata) < 4 {
 		return nil, fmt.Errorf("data too short (%d bytes) for abi method lookup", len(sigdata))
 	}
-
-	// UsingOVM specific changes
-	// Use the method cache to prevent the need to iterate and hash
-	// each method in the ABI
-	method, exist := abi.MethodsById[[4]byte{sigdata[0], sigdata[1], sigdata[2], sigdata[3]}]
-	if !exist {
-		return nil, fmt.Errorf("no method with id: %#x", sigdata[:4])
+	for _, method := range abi.Methods {
+		if bytes.Equal(method.ID(), sigdata[:4]) {
+			return &method, nil
+		}
 	}
-	return method, nil
+	return nil, fmt.Errorf("no method with id: %#x", sigdata[:4])
 }
 
 // EventByID looks an event up by its topic hash in the

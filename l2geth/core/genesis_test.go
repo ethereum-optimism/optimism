@@ -31,8 +31,6 @@ import (
 )
 
 func TestDefaultGenesisBlock(t *testing.T) {
-	t.Skip("OVM breaks this test because it adds the OVM contracts to the Genesis state.")
-
 	block := DefaultGenesisBlock().ToBlock(nil)
 	if block.Hash() != params.MainnetGenesisHash {
 		t.Errorf("wrong mainnet genesis hash, got %v, want %v", block.Hash(), params.MainnetGenesisHash)
