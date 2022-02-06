@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.13
+
+### Patch Changes
+
+- 438bc78a: Remove unused gas testing utils
+
 ## 0.5.12
 
 ### Patch Changes

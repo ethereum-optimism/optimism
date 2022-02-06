@@ -28,10 +28,10 @@
     "url": "https://github.com/ethereum-optimism/optimism.git"
   },
   "devDependencies": {
-    "@eth-optimism/contracts": "0.5.12",
+    "@eth-optimism/contracts": "0.5.13",
     "@eth-optimism/core-utils": "0.7.6",
-    "@eth-optimism/message-relayer": "0.2.16",
-    "@eth-optimism/sdk": "0.2.0",
+    "@eth-optimism/message-relayer": "0.2.17",
+    "@eth-optimism/sdk": "0.2.1",
     "@ethersproject/abstract-provider": "^5.5.1",
     "@ethersproject/providers": "^5.5.3",
     "@ethersproject/transactions": "^5.5.0",

@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.11
+
+### Patch Changes
+
+- 9ef215b8: Various small changes to reduce our upstream Geth diff
+
 ## 0.5.10
 
 ### Patch Changes

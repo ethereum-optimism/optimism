@@ -1,5 +1,13 @@
 # data transport layer
 
+## 0.5.16
+
+### Patch Changes
+
+- 8f72064d: Handle case where the remote block isn't found for `GET /eth/context/latest` and `GET /eth/context/blocknumber/:number`
+- Updated dependencies [438bc78a]
+  - @eth-optimism/contracts@0.5.13
+
 ## 0.5.15
 
 ### Patch Changes
