@@ -226,6 +226,18 @@ var (
 
 	TestChainConfig = &ChainConfig{big.NewInt(1), big.NewInt(0), nil, false, big.NewInt(0), common.Hash{}, big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), nil, nil, new(EthashConfig), nil}
 	TestRules       = TestChainConfig.Rules(new(big.Int))
+
+	// OpMainnetChainID is the ID of Optimism's mainnet chain.
+	OpMainnetChainID = big.NewInt(10)
+
+	// OpKovanChainID is the ID of Optimism's Kovan testnet chain.
+	OpKovanChainID = big.NewInt(69)
+
+	// OpMainnetSDUpdateForkNum is the height at which the SD update fork activates on Mainnet.
+	OpMainnetSDUpdateForkNum = big.NewInt(3135900)
+
+	// OpKovanSDUpdateForkNum is the height at which the SD update fork activates on Kovan.
+	OpKovanSDUpdateForkNum = big.NewInt(1094820)
 )
 
 // TrustedCheckpoint represents a set of post-processed trie roots (CHT and
@@ -412,6 +424,17 @@ func (c *ChainConfig) IsBerlin(num *big.Int) bool {
 // IsEWASM returns whether num represents a block number after the EWASM fork
 func (c *ChainConfig) IsEWASM(num *big.Int) bool {
 	return isForked(c.EWASMBlock, num)
+}
+
+// IsSDUpdate returns whether num represents a block number after the SD update fork
+func (c *ChainConfig) IsSDUpdate(num *big.Int) bool {
+	if c.ChainID.Cmp(OpMainnetChainID) == 0 {
+		return isForked(OpMainnetSDUpdateForkNum, num)
+	}
+	if c.ChainID.Cmp(OpKovanChainID) == 0 {
+		return isForked(OpKovanSDUpdateForkNum, num)
+	}
+	return true
 }
 
 // CheckCompatible checks whether scheduled fork transitions have been imported
