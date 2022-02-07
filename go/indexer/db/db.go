@@ -48,14 +48,10 @@ CREATE TABLE IF NOT EXISTS deposits (
 var createWithdrawalsTable = `
 CREATE TABLE IF NOT EXISTS withdrawals (
 	from_address TEXT NOT NULL,
-	queue_index INTEGER NOT NULL UNIQUE,
 	amount TEXT NOT NULL,
 	tx_hash TEXT NOT NULL,
 	block_hash TEXT NOT NULL REFERENCES l2_blocks(hash) ,
 	block_timestamp TEXT NOT NULL,
-	l1_tx_origin TEXT NOT NULL,
-	target TEXT NOT NULL,
-	gas_limit TEXT NOT NULL,
 	data BYTEA NOT NULL
 )
 `
@@ -254,9 +250,9 @@ func (d *Database) AddIndexedL2Block(block *IndexedL2Block) error {
 
 	const insertWithdrawalStatement = `
 	INSERT INTO withdrawals
-		(from_address, queue_index, amount, tx_hash, block_hash, block_timestamp, l1_tx_origin, target, gas_limit, data)
+		(from_address, amount, tx_hash, block_hash, block_timestamp, data)
 	VALUES
-		($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+		($1, $2, $3, $4, $5, $6)
 	`
 	return txn(d.db, func(tx *sql.Tx) error {
 		blockStmt, err := tx.Prepare(insertBlockStatement)
@@ -288,6 +284,8 @@ func (d *Database) AddIndexedL2Block(block *IndexedL2Block) error {
 				withdrawal.FromAddress.String(),
 				withdrawal.Amount.String(),
 				withdrawal.TxHash.String(),
+				block.Hash.String(),
+				block.Timestamp,
 				withdrawal.Data,
 			)
 			if err != nil {

@@ -23,6 +23,9 @@ import (
 	"github.com/gorilla/mux"
 )
 
+// l2BridgeContractAddress is the contract address of the standard l2 bridge
+var l2BridgeContractAddress = common.HexToAddress("0x4200000000000000000000000000000000000010")
+
 // errNoChainID represents the error when the chain id is not provided
 // and it cannot be remotely fetched
 var errNoChainID = errors.New("no chain id provided")
@@ -121,12 +124,10 @@ type IndexerStatus struct {
 	Highest db.L2BlockLocator `json:"highest_block"`
 }
 
-var L2BridgeContractAddress = common.HexToAddress("")
-
 func NewService(cfg ServiceConfig) (*Service, error) {
 	ctx, cancel := context.WithCancel(cfg.Context)
 
-	contract, err := l2bridge.NewL2StandardBridgeFilterer(L2BridgeContractAddress, cfg.L2Client)
+	contract, err := l2bridge.NewL2StandardBridgeFilterer(l2BridgeContractAddress, cfg.L2Client)
 	if err != nil {
 		return nil, err
 	}
