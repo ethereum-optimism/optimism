@@ -28,6 +28,7 @@ const (
 	defaultDialTimeout = 5 * time.Second
 )
 
+// TODO: avoid hardcoded genesis block; use flags or config
 var (
 	// l2StartBlockNumber is the block number to start indexing l2 from
 	l2StartBlockNumber = uint64(0)

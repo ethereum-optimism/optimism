@@ -250,7 +250,7 @@ func (s *Service) Update(start uint64, newHeader *types.Header) error {
 
 	if lowest.Hash != headers[0].ParentHash {
 		log.Error("Parent hash does not connect to ",
-			"block", headers[0].Number.Uint64(), "hash",
+			"block", headers[0].Number.Uint64(), "hash", headers[0].Hash(),
 			"lowest_block", lowest.Number, "hash", lowest.Hash)
 		return nil
 	}

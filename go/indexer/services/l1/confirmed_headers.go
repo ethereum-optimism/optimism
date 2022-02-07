@@ -53,7 +53,7 @@ func (f *ConfirmedHeaderSelector) NewHead(
 
 	minNextHeight := lowest + f.cfg.ConfDepth
 	if minNextHeight > number {
-		log.Info("Fork block=%d hash=%s", number, blockHash)
+		log.Info("Fork block ", "block", number, "hash", blockHash)
 		return nil
 	}
 	startHeight := lowest + 1
