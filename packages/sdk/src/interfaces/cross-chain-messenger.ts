@@ -397,6 +397,7 @@ export interface ICrossChainMessenger {
    * @param amount Amount of ETH to deposit (in wei).
    * @param opts Additional options.
    * @param opts.signer Optional signer to use to send the transaction.
+   * @param opts.recipient Optional address to receive the funds on L2. Defaults to sender.
    * @param opts.l2GasLimit Optional gas limit to use for the transaction on L2.
    * @param opts.overrides Optional transaction overrides.
    * @returns Transaction response for the deposit transaction.
@@ -405,6 +406,7 @@ export interface ICrossChainMessenger {
     amount: NumberLike,
     opts?: {
       signer?: Signer
+      recipient?: AddressLike
       l2GasLimit?: NumberLike
       overrides?: Overrides
     }
@@ -416,6 +418,7 @@ export interface ICrossChainMessenger {
    * @param amount Amount of ETH to withdraw.
    * @param opts Additional options.
    * @param opts.signer Optional signer to use to send the transaction.
+   * @param opts.recipient Optional address to receive the funds on L1. Defaults to sender.
    * @param opts.overrides Optional transaction overrides.
    * @returns Transaction response for the withdraw transaction.
    */
@@ -423,6 +426,7 @@ export interface ICrossChainMessenger {
     amount: NumberLike,
     opts?: {
       signer?: Signer
+      recipient?: AddressLike
       overrides?: Overrides
     }
   ): Promise<TransactionResponse>
@@ -435,6 +439,7 @@ export interface ICrossChainMessenger {
    * @param amount Amount to deposit.
    * @param opts Additional options.
    * @param opts.signer Optional signer to use to send the transaction.
+   * @param opts.recipient Optional address to receive the funds on L2. Defaults to sender.
    * @param opts.l2GasLimit Optional gas limit to use for the transaction on L2.
    * @param opts.overrides Optional transaction overrides.
    * @returns Transaction response for the deposit transaction.
@@ -445,6 +450,7 @@ export interface ICrossChainMessenger {
     amount: NumberLike,
     opts?: {
       signer?: Signer
+      recipient?: AddressLike
       l2GasLimit?: NumberLike
       overrides?: Overrides
     }
@@ -458,6 +464,7 @@ export interface ICrossChainMessenger {
    * @param amount Amount to withdraw.
    * @param opts Additional options.
    * @param opts.signer Optional signer to use to send the transaction.
+   * @param opts.recipient Optional address to receive the funds on L1. Defaults to sender.
    * @param opts.overrides Optional transaction overrides.
    * @returns Transaction response for the withdraw transaction.
    */
@@ -467,6 +474,7 @@ export interface ICrossChainMessenger {
     amount: NumberLike,
     opts?: {
       signer?: Signer
+      recipient?: AddressLike
       overrides?: Overrides
     }
   ): Promise<TransactionResponse>
@@ -534,6 +542,7 @@ export interface ICrossChainMessenger {
      *
      * @param amount Amount of ETH to deposit.
      * @param opts Additional options.
+     * @param opts.recipient Optional address to receive the funds on L2. Defaults to sender.
      * @param opts.l2GasLimit Optional gas limit to use for the transaction on L2.
      * @param opts.overrides Optional transaction overrides.
      * @returns Transaction that can be signed and executed to deposit the ETH.
@@ -541,6 +550,7 @@ export interface ICrossChainMessenger {
     depositETH(
       amount: NumberLike,
       opts?: {
+        recipient?: AddressLike
         l2GasLimit?: NumberLike
         overrides?: Overrides
       }
@@ -551,12 +561,14 @@ export interface ICrossChainMessenger {
      *
      * @param amount Amount of ETH to withdraw.
      * @param opts Additional options.
+     * @param opts.recipient Optional address to receive the funds on L1. Defaults to sender.
      * @param opts.overrides Optional transaction overrides.
      * @returns Transaction that can be signed and executed to withdraw the ETH.
      */
     withdrawETH(
       amount: NumberLike,
       opts?: {
+        recipient?: AddressLike
         overrides?: Overrides
       }
     ): Promise<TransactionRequest>
@@ -568,6 +580,7 @@ export interface ICrossChainMessenger {
      * @param l2Token Address of the L2 token.
      * @param amount Amount to deposit.
      * @param opts Additional options.
+     * @param opts.recipient Optional address to receive the funds on L2. Defaults to sender.
      * @param opts.l2GasLimit Optional gas limit to use for the transaction on L2.
      * @param opts.overrides Optional transaction overrides.
      * @returns Transaction that can be signed and executed to deposit the tokens.
@@ -577,6 +590,7 @@ export interface ICrossChainMessenger {
       l2Token: AddressLike,
       amount: NumberLike,
       opts?: {
+        recipient?: AddressLike
         l2GasLimit?: NumberLike
         overrides?: Overrides
       }
@@ -589,6 +603,7 @@ export interface ICrossChainMessenger {
      * @param l2Token Address of the L2 token.
      * @param amount Amount to withdraw.
      * @param opts Additional options.
+     * @param opts.recipient Optional address to receive the funds on L1. Defaults to sender.
      * @param opts.overrides Optional transaction overrides.
      * @returns Transaction that can be signed and executed to withdraw the tokens.
      */
@@ -597,6 +612,7 @@ export interface ICrossChainMessenger {
       l2Token: AddressLike,
       amount: NumberLike,
       opts?: {
+        recipient?: AddressLike
         overrides?: Overrides
       }
     ): Promise<TransactionRequest>
@@ -661,6 +677,7 @@ export interface ICrossChainMessenger {
      *
      * @param amount Amount of ETH to deposit.
      * @param opts Additional options.
+     * @param opts.recipient Optional address to receive the funds on L2. Defaults to sender.
      * @param opts.l2GasLimit Optional gas limit to use for the transaction on L2.
      * @param opts.overrides Optional transaction overrides.
      * @returns Gas estimate for the transaction.
@@ -668,6 +685,7 @@ export interface ICrossChainMessenger {
     depositETH(
       amount: NumberLike,
       opts?: {
+        recipient?: AddressLike
         l2GasLimit?: NumberLike
         overrides?: Overrides
       }
@@ -678,12 +696,14 @@ export interface ICrossChainMessenger {
      *
      * @param amount Amount of ETH to withdraw.
      * @param opts Additional options.
+     * @param opts.recipient Optional address to receive the funds on L1. Defaults to sender.
      * @param opts.overrides Optional transaction overrides.
      * @returns Gas estimate for the transaction.
      */
     withdrawETH(
       amount: NumberLike,
       opts?: {
+        recipient?: AddressLike
         overrides?: Overrides
       }
     ): Promise<BigNumber>
@@ -695,6 +715,7 @@ export interface ICrossChainMessenger {
      * @param l2Token Address of the L2 token.
      * @param amount Amount to deposit.
      * @param opts Additional options.
+     * @param opts.recipient Optional address to receive the funds on L2. Defaults to sender.
      * @param opts.l2GasLimit Optional gas limit to use for the transaction on L2.
      * @param opts.overrides Optional transaction overrides.
      * @returns Gas estimate for the transaction.
@@ -704,6 +725,7 @@ export interface ICrossChainMessenger {
       l2Token: AddressLike,
       amount: NumberLike,
       opts?: {
+        recipient?: AddressLike
         l2GasLimit?: NumberLike
         overrides?: Overrides
       }
@@ -716,6 +738,7 @@ export interface ICrossChainMessenger {
      * @param l2Token Address of the L2 token.
      * @param amount Amount to withdraw.
      * @param opts Additional options.
+     * @param opts.recipient Optional address to receive the funds on L1. Defaults to sender.
      * @param opts.overrides Optional transaction overrides.
      * @returns Gas estimate for the transaction.
      */
@@ -724,6 +747,7 @@ export interface ICrossChainMessenger {
       l2Token: AddressLike,
       amount: NumberLike,
       opts?: {
+        recipient?: AddressLike
         overrides?: Overrides
       }
     ): Promise<BigNumber>

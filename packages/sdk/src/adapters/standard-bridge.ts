@@ -208,6 +208,7 @@ export class StandardBridgeAdapter implements IBridgeAdapter {
     amount: NumberLike,
     signer: Signer,
     opts?: {
+      recipient?: AddressLike
       l2GasLimit?: NumberLike
       overrides?: Overrides
     }
@@ -223,6 +224,7 @@ export class StandardBridgeAdapter implements IBridgeAdapter {
     amount: NumberLike,
     signer: Signer,
     opts?: {
+      recipient?: AddressLike
       overrides?: Overrides
     }
   ): Promise<TransactionResponse> {
@@ -237,6 +239,7 @@ export class StandardBridgeAdapter implements IBridgeAdapter {
       l2Token: AddressLike,
       amount: NumberLike,
       opts?: {
+        recipient?: AddressLike
         l2GasLimit?: NumberLike
         overrides?: Overrides
       }
@@ -245,14 +248,26 @@ export class StandardBridgeAdapter implements IBridgeAdapter {
         throw new Error(`token pair not supported by bridge`)
       }
 
-      return this.l1Bridge.populateTransaction.depositERC20(
-        toAddress(l1Token),
-        toAddress(l2Token),
-        amount,
-        opts?.l2GasLimit || 200_000, // Default to 200k gas limit.
-        '0x', // No data.
-        opts?.overrides || {}
-      )
+      if (opts?.recipient === undefined) {
+        return this.l1Bridge.populateTransaction.depositERC20(
+          toAddress(l1Token),
+          toAddress(l2Token),
+          amount,
+          opts?.l2GasLimit || 200_000, // Default to 200k gas limit.
+          '0x', // No data.
+          opts?.overrides || {}
+        )
+      } else {
+        return this.l1Bridge.populateTransaction.depositERC20To(
+          toAddress(l1Token),
+          toAddress(l2Token),
+          toAddress(opts.recipient),
+          amount,
+          opts?.l2GasLimit || 200_000, // Default to 200k gas limit.
+          '0x', // No data.
+          opts?.overrides || {}
+        )
+      }
     },
 
     withdraw: async (
@@ -260,6 +275,7 @@ export class StandardBridgeAdapter implements IBridgeAdapter {
       l2Token: AddressLike,
       amount: NumberLike,
       opts?: {
+        recipient?: AddressLike
         overrides?: Overrides
       }
     ): Promise<TransactionRequest> => {
@@ -267,13 +283,24 @@ export class StandardBridgeAdapter implements IBridgeAdapter {
         throw new Error(`token pair not supported by bridge`)
       }
 
-      return this.l2Bridge.populateTransaction.withdraw(
-        toAddress(l2Token),
-        amount,
-        0, // L1 gas not required.
-        '0x', // No data.
-        opts?.overrides || {}
-      )
+      if (opts?.recipient === undefined) {
+        return this.l2Bridge.populateTransaction.withdraw(
+          toAddress(l2Token),
+          amount,
+          0, // L1 gas not required.
+          '0x', // No data.
+          opts?.overrides || {}
+        )
+      } else {
+        return this.l2Bridge.populateTransaction.withdrawTo(
+          toAddress(l2Token),
+          toAddress(opts.recipient),
+          amount,
+          0, // L1 gas not required.
+          '0x', // No data.
+          opts?.overrides || {}
+        )
+      }
     },
   }
 
@@ -283,6 +310,7 @@ export class StandardBridgeAdapter implements IBridgeAdapter {
       l2Token: AddressLike,
       amount: NumberLike,
       opts?: {
+        recipient?: AddressLike
         l2GasLimit?: NumberLike
         overrides?: Overrides
       }
@@ -297,6 +325,7 @@ export class StandardBridgeAdapter implements IBridgeAdapter {
       l2Token: AddressLike,
       amount: NumberLike,
       opts?: {
+        recipient?: AddressLike
         overrides?: Overrides
       }
     ): Promise<BigNumber> => {
