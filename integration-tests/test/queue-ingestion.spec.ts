@@ -5,7 +5,6 @@ import { injectL2Context, applyL1ToL2Alias } from '@eth-optimism/core-utils'
 /* Imports: External */
 import { expect } from './shared/setup'
 import { OptimismEnv } from './shared/env'
-import { Direction } from './shared/watcher-utils'
 import { DEFAULT_TEST_GAS_L1, envConfig } from './shared/utils'
 
 describe('Queue Ingestion', () => {
@@ -41,10 +40,7 @@ describe('Queue Ingestion', () => {
     for (let i = 0; i < numTxs; i++) {
       const l1Tx = txs[i]
       const l1TxReceipt = await txs[i].wait()
-      const receipt = await env.waitForXDomainTransaction(
-        l1Tx,
-        Direction.L1ToL2
-      )
+      const receipt = await env.waitForXDomainTransaction(l1Tx)
       const l2Tx = (await l2Provider.getTransaction(
         receipt.remoteTx.hash
       )) as any

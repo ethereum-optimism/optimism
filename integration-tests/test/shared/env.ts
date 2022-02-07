@@ -2,7 +2,6 @@
 import { Contract, utils, Wallet, providers } from 'ethers'
 import { TransactionResponse } from '@ethersproject/providers'
 import { getContractFactory, predeploys } from '@eth-optimism/contracts'
-import { Watcher } from '@eth-optimism/core-utils'
 import { getMessagesAndProofsForL2Transaction } from '@eth-optimism/message-relayer'
 import { CrossChainMessenger } from '@eth-optimism/sdk'
 
@@ -25,9 +24,7 @@ import {
   DEFAULT_TEST_GAS_L1,
 } from './utils'
 import {
-  initWatcher,
   CrossDomainMessagePair,
-  Direction,
   waitForXDomainTransaction,
 } from './watcher-utils'
 
@@ -47,9 +44,6 @@ export class OptimismEnv {
   l2Messenger: Contract
   gasPriceOracle: Contract
   sequencerFeeVault: Contract
-
-  // The L1 <> L2 State watcher
-  watcher: Watcher
 
   // The wallets
   l1Wallet: Wallet
@@ -72,7 +66,6 @@ export class OptimismEnv {
     this.l2Messenger = args.l2Messenger
     this.gasPriceOracle = args.gasPriceOracle
     this.sequencerFeeVault = args.sequencerFeeVault
-    this.watcher = args.watcher
     this.l1Wallet = args.l1Wallet
     this.l2Wallet = args.l2Wallet
     this.messenger = args.messenger
@@ -93,7 +86,6 @@ export class OptimismEnv {
     })
 
     const addressManager = getAddressManager(l1Wallet)
-    const watcher = await initWatcher(l1Provider, l2Provider, addressManager)
     const l1Bridge = await getL1Bridge(l1Wallet, addressManager)
 
     // fund the user if needed
@@ -105,12 +97,12 @@ export class OptimismEnv {
     }
     const l1Messenger = getContractFactory('L1CrossDomainMessenger')
       .connect(l1Wallet)
-      .attach(watcher.l1.messengerAddress)
+      .attach(messenger.contracts.l1.L1CrossDomainMessenger.address)
     const ovmEth = getOvmEth(l2Wallet)
     const l2Bridge = await getL2Bridge(l2Wallet)
     const l2Messenger = getContractFactory('L2CrossDomainMessenger')
       .connect(l2Wallet)
-      .attach(watcher.l2.messengerAddress)
+      .attach(messenger.contracts.l2.L2CrossDomainMessenger.address)
 
     const ctcAddress = await addressManager.getAddress(
       'CanonicalTransactionChain'
@@ -148,7 +140,6 @@ export class OptimismEnv {
       sequencerFeeVault,
       l2Bridge,
       l2Messenger,
-      watcher,
       l1Wallet,
       l2Wallet,
       messenger,
@@ -160,10 +151,9 @@ export class OptimismEnv {
   }
 
   async waitForXDomainTransaction(
-    tx: Promise<TransactionResponse> | TransactionResponse,
-    direction: Direction
+    tx: Promise<TransactionResponse> | TransactionResponse
   ): Promise<CrossDomainMessagePair> {
-    return waitForXDomainTransaction(this.watcher, tx, direction)
+    return waitForXDomainTransaction(this.messenger, tx)
   }
 
   /**

@@ -13,7 +13,6 @@ import {
   DEFAULT_TEST_GAS_L1,
 } from './shared/utils'
 import { OptimismEnv } from './shared/env'
-import { Direction } from './shared/watcher-utils'
 
 /**
  * These tests cover the OVM execution contexts. In the OVM execution
@@ -62,7 +61,7 @@ describe('OVM Context: Layer 2 EVM Context', () => {
 
       // Wait for the transaction to be sent over to L2.
       await tx.wait()
-      const pair = await env.waitForXDomainTransaction(tx, Direction.L1ToL2)
+      const pair = await env.waitForXDomainTransaction(tx)
 
       // Get the L1 block that the enqueue transaction was in so that
       // the timestamp can be compared against the layer two contract
