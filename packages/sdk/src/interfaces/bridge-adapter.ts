@@ -109,6 +109,7 @@ export interface IBridgeAdapter {
    * @param amount Amount of the token to deposit.
    * @param signer Signer used to sign and send the transaction.
    * @param opts Additional options.
+   * @param opts.recipient Optional address to receive the funds on L2. Defaults to sender.
    * @param opts.l2GasLimit Optional gas limit to use for the transaction on L2.
    * @param opts.overrides Optional transaction overrides.
    * @returns Transaction response for the deposit transaction.
@@ -119,6 +120,7 @@ export interface IBridgeAdapter {
     amount: NumberLike,
     signer: Signer,
     opts?: {
+      recipient?: AddressLike
       l2GasLimit?: NumberLike
       overrides?: Overrides
     }
@@ -132,6 +134,7 @@ export interface IBridgeAdapter {
    * @param amount Amount of the token to withdraw.
    * @param signer Signer used to sign and send the transaction.
    * @param opts Additional options.
+   * @param opts.recipient Optional address to receive the funds on L1. Defaults to sender.
    * @param opts.overrides Optional transaction overrides.
    * @returns Transaction response for the withdraw transaction.
    */
@@ -141,6 +144,7 @@ export interface IBridgeAdapter {
     amount: NumberLike,
     signer: Signer,
     opts?: {
+      recipient?: AddressLike
       overrides?: Overrides
     }
   ): Promise<TransactionResponse>
@@ -157,6 +161,7 @@ export interface IBridgeAdapter {
      * @param l2Token The L2 token address.
      * @param amount Amount of the token to deposit.
      * @param opts Additional options.
+     * @param opts.recipient Optional address to receive the funds on L2. Defaults to sender.
      * @param opts.l2GasLimit Optional gas limit to use for the transaction on L2.
      * @param opts.overrides Optional transaction overrides.
      * @returns Transaction that can be signed and executed to deposit the tokens.
@@ -166,6 +171,7 @@ export interface IBridgeAdapter {
       l2Token: AddressLike,
       amount: NumberLike,
       opts?: {
+        recipient?: AddressLike
         l2GasLimit?: NumberLike
         overrides?: Overrides
       }
@@ -178,6 +184,7 @@ export interface IBridgeAdapter {
      * @param l2Token The L2 token address.
      * @param amount Amount of the token to withdraw.
      * @param opts Additional options.
+     * @param opts.recipient Optional address to receive the funds on L1. Defaults to sender.
      * @param opts.overrides Optional transaction overrides.
      * @returns Transaction that can be signed and executed to withdraw the tokens.
      */
@@ -186,6 +193,7 @@ export interface IBridgeAdapter {
       l2Token: AddressLike,
       amount: NumberLike,
       opts?: {
+        recipient?: AddressLike
         overrides?: Overrides
       }
     ): Promise<TransactionRequest>
@@ -203,6 +211,7 @@ export interface IBridgeAdapter {
      * @param l2Token The L2 token address.
      * @param amount Amount of the token to deposit.
      * @param opts Additional options.
+     * @param opts.recipient Optional address to receive the funds on L2. Defaults to sender.
      * @param opts.l2GasLimit Optional gas limit to use for the transaction on L2.
      * @param opts.overrides Optional transaction overrides.
      * @returns Gas estimate for the transaction.
@@ -212,6 +221,7 @@ export interface IBridgeAdapter {
       l2Token: AddressLike,
       amount: NumberLike,
       opts?: {
+        recipient?: AddressLike
         l2GasLimit?: NumberLike
         overrides?: Overrides
       }
@@ -224,6 +234,7 @@ export interface IBridgeAdapter {
      * @param l2Token The L2 token address.
      * @param amount Amount of the token to withdraw.
      * @param opts Additional options.
+     * @param opts.recipient Optional address to receive the funds on L1. Defaults to sender.
      * @param opts.overrides Optional transaction overrides.
      * @returns Gas estimate for the transaction.
      */
@@ -232,6 +243,7 @@ export interface IBridgeAdapter {
       l2Token: AddressLike,
       amount: NumberLike,
       opts?: {
+        recipient?: AddressLike
         overrides?: Overrides
       }
     ): Promise<BigNumber>
