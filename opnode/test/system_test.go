@@ -110,22 +110,24 @@ func TestSystemE2E(t *testing.T) {
 	l2GenesisHash := getGenesisHash(l2Client)
 
 	// Rollup Node
-	node := rollupNode.OpNodeCmd{
-		Genesis: rollupNode.GenesisConf{
-			L2Hash: l2GenesisHash,
-			L1Hash: l1GenesisHash,
-			L1Num:  0,
-		},
-		LogCmd: rollupNode.LogCmd{
-			LogLvl: "warn",
+	nodeCfg := &rollupNode.Config{
+		L2Hash:        l2GenesisHash,
+		L1Hash:        l1GenesisHash,
+		L1Num:         0,
+		L1NodeAddrs:   []string{endpoint(cfg.l1.nodeConfig)},
+		L2EngineAddrs: []string{endpoint(cfg.l2.nodeConfig)},
+		LogCfg: rollupNode.LogConfig{
+			Level:  "warn",
 			Color:  true,
 			Format: "text",
 		},
-		L1NodeAddrs:   []string{endpoint(cfg.l1.nodeConfig)},
-		L2EngineAddrs: []string{endpoint(cfg.l2.nodeConfig)},
 	}
-	err = node.Run(context.Background())
-	defer node.Close()
+	node, err := rollupNode.New(context.Background(), nodeCfg)
+	if err != nil {
+		t.Fatalf("Failed to create the new node: %v", err)
+	}
+	err = node.Start()
+	defer node.Stop()
 	if err != nil {
 		t.Fatal(err)
 	}
