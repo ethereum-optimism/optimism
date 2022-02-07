@@ -118,7 +118,6 @@ describe('Basic L1<>L2 Communication', async () => {
 
       const receipt = await env.messenger.waitForMessageReceipt(transaction)
 
-      console.log(await env.messenger.l2Signer.getAddress())
       expect(receipt.transactionReceipt.status).to.equal(1)
       expect(await L2SimpleStorage.msgSender()).to.equal(
         env.messenger.contracts.l2.L2CrossDomainMessenger.address
