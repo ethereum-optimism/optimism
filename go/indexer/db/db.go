@@ -391,13 +391,13 @@ func (d *Database) GetWithdrawalsByAddress(address l2common.Address, page Pagina
 }
 
 type L1BlockLocator struct {
-	Number uint64
-	Hash   common.Hash
+	Number uint64      `json:"number"`
+	Hash   common.Hash `json:"hash"`
 }
 
 type L2BlockLocator struct {
-	Number uint64
-	Hash   l2common.Hash
+	Number uint64        `json:"number"`
+	Hash   l2common.Hash `json:"hash"`
 }
 
 func (d *Database) GetHighestL1Block() (*L1BlockLocator, error) {
