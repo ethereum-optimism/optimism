@@ -219,7 +219,7 @@ describe('Basic RPC tests', () => {
       // Fund account to call from
       const from = wallet.address
       const value = 15
-      await fundUser(env.watcher, env.l1Bridge, value, from)
+      await fundUser(env.messenger, value, from)
 
       // Do the call and check msg.value
       const data = ValueContext.interface.encodeFunctionData('getCallValue')
