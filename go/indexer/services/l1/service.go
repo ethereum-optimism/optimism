@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"math/big"
 	"net/http"
+	"strconv"
 	"sync"
 
 	"github.com/ethereum-optimism/optimism/go/indexer/bindings/ctc"
@@ -354,7 +355,29 @@ func (s *Service) GetIndexerStatus(w http.ResponseWriter, r *http.Request) {
 func (s *Service) GetDeposits(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 
-	deposits, err := s.cfg.DB.GetDepositsByAddress(common.HexToAddress(vars["address"]))
+	limitStr := r.URL.Query().Get("limit")
+	limit, err := strconv.ParseUint(limitStr, 10, 64)
+	if err != nil && limitStr != "" {
+		respondWithError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	if limit == 0 {
+		limit = 10
+	}
+
+	offsetStr := r.URL.Query().Get("offset")
+	offset, err := strconv.ParseUint(offsetStr, 10, 64)
+	if err != nil && offsetStr != "" {
+		respondWithError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	page := db.PaginationParam{
+		Limit:  uint64(limit),
+		Offset: uint64(offset),
+	}
+
+	deposits, err := s.cfg.DB.GetDepositsByAddress(common.HexToAddress(vars["address"]), page)
 	if err != nil {
 		respondWithError(w, http.StatusInternalServerError, err.Error())
 		return

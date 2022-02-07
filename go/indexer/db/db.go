@@ -56,6 +56,11 @@ CREATE TABLE IF NOT EXISTS withdrawals (
 )
 `
 
+type PaginationParam struct {
+	Limit  uint64
+	Offset uint64
+}
+
 var schema = []string{
 	createL1BlocksTable,
 	createL2BlocksTable,
@@ -297,14 +302,14 @@ func (d *Database) AddIndexedL2Block(block *IndexedL2Block) error {
 	})
 }
 
-func (d *Database) GetDepositsByAddress(address common.Address) ([]TokenBridgeMessage, error) {
+func (d *Database) GetDepositsByAddress(address common.Address, page PaginationParam) ([]TokenBridgeMessage, error) {
 	const selectDepositsStatement = `
 	SELECT
 		deposits.queue_index, deposits.amount, deposits.tx_hash, deposits.data,
-		blocks.number, blocks.timestamp
+		l1_blocks.number, l1_blocks.timestamp
 	FROM deposits
-		INNER JOIN blocks ON deposits.block_hash=blocks.hash
-	WHERE deposits.from_address = $1 ORDER BY deposits.block_timestamp LIMIT 10;
+		INNER JOIN l1_blocks ON deposits.block_hash=l1_blocks.hash
+	WHERE deposits.from_address = $1 ORDER BY deposits.block_timestamp LIMIT $2 OFFSET $3;
 	`
 	var deposits []TokenBridgeMessage
 
@@ -314,7 +319,7 @@ func (d *Database) GetDepositsByAddress(address common.Address) ([]TokenBridgeMe
 			return err
 		}
 
-		rows, err := queryStmt.Query(address.String())
+		rows, err := queryStmt.Query(address.String(), page.Limit, page.Offset)
 		if err != nil {
 			return err
 		}
@@ -341,14 +346,14 @@ func (d *Database) GetDepositsByAddress(address common.Address) ([]TokenBridgeMe
 	return deposits, nil
 }
 
-func (d *Database) GetWithdrawalsByAddress(address l2common.Address) ([]TokenBridgeMessage, error) {
+func (d *Database) GetWithdrawalsByAddress(address l2common.Address, page PaginationParam) ([]TokenBridgeMessage, error) {
 	const selectWithdrawalsStatement = `
 	SELECT
-		withdrawals.queue_index, withdrawals.amount, withdrawals.tx_hash, withdrawals.data,
-		blocks.number, blocks.timestamp
+		withdrawals.amount, withdrawals.tx_hash, withdrawals.data,
+		l2_blocks.number, l2_blocks.timestamp
 	FROM withdrawals
-		INNER JOIN blocks ON withdrawals.block_hash=blocks.hash
-	WHERE withdrawals.from_address = $1 ORDER BY withdrawals.block_timestamp LIMIT 10;
+		INNER JOIN l2_blocks ON withdrawals.block_hash=l2_blocks.hash
+	WHERE withdrawals.from_address = $1 ORDER BY withdrawals.block_timestamp LIMIT $2 OFFSET $3;
 	`
 	var withdrawals []TokenBridgeMessage
 
@@ -358,7 +363,7 @@ func (d *Database) GetWithdrawalsByAddress(address l2common.Address) ([]TokenBri
 			return err
 		}
 
-		rows, err := queryStmt.Query(address.String())
+		rows, err := queryStmt.Query(address.String(), page.Limit, page.Offset)
 		if err != nil {
 			return err
 		}
@@ -366,7 +371,7 @@ func (d *Database) GetWithdrawalsByAddress(address l2common.Address) ([]TokenBri
 		for rows.Next() {
 			var withdrawal TokenBridgeMessage
 			if err := rows.Scan(
-				&withdrawal.LogIndex, &withdrawal.Amount,
+				&withdrawal.Amount,
 				&withdrawal.TxHash, &withdrawal.Data,
 				&withdrawal.BlockNumber, &withdrawal.BlockTimestamp,
 			); err != nil {
