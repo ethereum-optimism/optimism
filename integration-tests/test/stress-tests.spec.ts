@@ -47,12 +47,7 @@ describe('stress tests', () => {
     }
 
     for (const wallet of wallets) {
-      await fundUser(
-        env.watcher,
-        env.l1Bridge,
-        utils.parseEther('0.1'),
-        wallet.address
-      )
+      await fundUser(env.messenger, utils.parseEther('0.1'), wallet.address)
     }
   })
 

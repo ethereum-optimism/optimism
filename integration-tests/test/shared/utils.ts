@@ -4,7 +4,6 @@ import {
   Wallet,
   constants,
   providers,
-  BigNumberish,
   BigNumber,
   utils,
 } from 'ethers'
@@ -13,13 +12,13 @@ import {
   getContractInterface,
   predeploys,
 } from '@eth-optimism/contracts'
-import { injectL2Context, remove0x, Watcher } from '@eth-optimism/core-utils'
+import { injectL2Context, remove0x } from '@eth-optimism/core-utils'
+import { CrossChainMessenger, NumberLike } from '@eth-optimism/sdk'
 import { cleanEnv, str, num, bool, makeValidator } from 'envalid'
 import dotenv from 'dotenv'
 dotenv.config()
 
 /* Imports: Internal */
-import { Direction, waitForXDomainTransaction } from './watcher-utils'
 import { OptimismEnv } from './env'
 
 export const isLiveNetwork = () => {
@@ -180,23 +179,26 @@ export const getOvmEth = (wallet: Wallet) => {
 }
 
 export const fundUser = async (
-  watcher: Watcher,
-  bridge: Contract,
-  amount: BigNumberish,
+  messenger: CrossChainMessenger,
+  amount: NumberLike,
   recipient?: string
 ) => {
-  const value = BigNumber.from(amount)
-  const tx = recipient
-    ? bridge.depositETHTo(recipient, DEFAULT_TEST_GAS_L2, '0x', {
-        value,
-        gasLimit: DEFAULT_TEST_GAS_L1,
-      })
-    : bridge.depositETH(DEFAULT_TEST_GAS_L2, '0x', {
-        value,
-        gasLimit: DEFAULT_TEST_GAS_L1,
-      })
+  await messenger.waitForMessageReceipt(
+    await messenger.depositETH(amount, {
+      l2GasLimit: DEFAULT_TEST_GAS_L2,
+      overrides: {
+        gasPrice: DEFAULT_TEST_GAS_L1,
+      },
+    })
+  )
 
-  await waitForXDomainTransaction(watcher, tx, Direction.L1ToL2)
+  if (recipient !== undefined) {
+    const tx = await messenger.l2Signer.sendTransaction({
+      to: recipient,
+      value: amount,
+    })
+    await tx.wait()
+  }
 }
 
 export const conditionalTest = (
