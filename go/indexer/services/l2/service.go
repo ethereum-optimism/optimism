@@ -271,8 +271,10 @@ func (s *Service) Update(start uint64, newHeader *types.Header) error {
 	for iter.Next() {
 		withdrawalsByBlockhash[iter.Event.Raw.BlockHash] = append(
 			withdrawalsByBlockhash[iter.Event.Raw.BlockHash], db.Withdrawal{
-				TxHash: iter.Event.Raw.TxHash,
-				Data:   iter.Event.Data,
+				FromAddress: iter.Event.From,
+				Amount:      iter.Event.Amount,
+				TxHash:      iter.Event.Raw.TxHash,
+				Data:        iter.Event.Data,
 			})
 	}
 	if err := iter.Error(); err != nil {
