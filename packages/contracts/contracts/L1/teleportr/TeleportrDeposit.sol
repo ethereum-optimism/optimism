@@ -8,10 +8,10 @@ pragma solidity >=0.8.9;
  * https://github.com/0xclem/teleportr/blob/main/contracts/BridgeDeposit.sol
  */
 contract TeleportrDeposit {
-    address private owner;
-    uint256 private maxDepositAmount;
-    uint256 private maxBalance;
-    bool private canReceiveDeposit;
+    address public owner;
+    uint256 public maxDepositAmount;
+    uint256 public maxBalance;
+    bool public canReceiveDeposit;
 
     // Events
     event OwnerSet(address indexed oldOwner, address indexed newOwner);
@@ -91,22 +91,5 @@ contract TeleportrDeposit {
     function setMaxBalance(uint256 _maxBalance) external isOwner {
         emit MaxBalanceSet(maxBalance, _maxBalance);
         maxBalance = _maxBalance;
-    }
-
-    // Getters
-    function getMaxDepositAmount() external view returns (uint256) {
-        return maxDepositAmount;
-    }
-
-    function getMaxBalance() external view returns (uint256) {
-        return maxBalance;
-    }
-
-    function getOwner() external view returns (address) {
-        return owner;
-    }
-
-    function getCanReceiveDeposit() external view returns (bool) {
-        return canReceiveDeposit;
     }
 }
