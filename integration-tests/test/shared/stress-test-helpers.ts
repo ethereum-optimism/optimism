@@ -1,10 +1,11 @@
 /* Imports: External */
 import { ethers } from 'ethers'
+import { sleep } from '@eth-optimism/core-utils'
 
 /* Imports: Internal */
 import { OptimismEnv } from './env'
 import { Direction } from './watcher-utils'
-import { gasPriceForL1, gasPriceForL2, sleep } from './utils'
+import { gasPriceForL1, gasPriceForL2 } from './utils'
 
 interface TransactionParams {
   contract: ethers.Contract

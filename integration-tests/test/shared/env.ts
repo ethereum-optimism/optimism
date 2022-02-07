@@ -2,7 +2,7 @@
 import { Contract, utils, Wallet, providers } from 'ethers'
 import { TransactionResponse } from '@ethersproject/providers'
 import { getContractFactory, predeploys } from '@eth-optimism/contracts'
-import { Watcher } from '@eth-optimism/core-utils'
+import { Watcher, sleep } from '@eth-optimism/core-utils'
 import { getMessagesAndProofsForL2Transaction } from '@eth-optimism/message-relayer'
 import { CrossChainMessenger } from '@eth-optimism/sdk'
 
@@ -20,7 +20,6 @@ import {
   getOvmEth,
   getL1Bridge,
   getL2Bridge,
-  sleep,
   envConfig,
   DEFAULT_TEST_GAS_L1,
 } from './utils'
