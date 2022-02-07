@@ -48,6 +48,9 @@ CREATE TABLE IF NOT EXISTS deposits (
 var createWithdrawalsTable = `
 CREATE TABLE IF NOT EXISTS withdrawals (
 	from_address TEXT NOT NULL,
+	to_address TEXT NOT NULL,
+	l1_token TEXT NOT NULL,
+	l2_token TEXT NOT NULL,
 	amount TEXT NOT NULL,
 	tx_hash TEXT NOT NULL,
 	block_hash TEXT NOT NULL REFERENCES l2_blocks(hash) ,
@@ -98,9 +101,12 @@ type Deposit struct {
 }
 
 type Withdrawal struct {
-	FromAddress l2common.Address
-	Amount      *big.Int
 	TxHash      l2common.Hash
+	L1Token     l2common.Address
+	L2Token     l2common.Address
+	FromAddress l2common.Address
+	ToAddress   l2common.Address
+	Amount      *big.Int
 	Data        []byte
 }
 
@@ -255,9 +261,9 @@ func (d *Database) AddIndexedL2Block(block *IndexedL2Block) error {
 
 	const insertWithdrawalStatement = `
 	INSERT INTO withdrawals
-		(from_address, amount, tx_hash, block_hash, block_timestamp, data)
+		(from_address, to_address, l1_token, l2_token, amount, tx_hash, block_hash, block_timestamp, data)
 	VALUES
-		($1, $2, $3, $4, $5, $6)
+		($1, $2, $3, $4, $5, $6, $7, $8, $9)
 	`
 	return txn(d.db, func(tx *sql.Tx) error {
 		blockStmt, err := tx.Prepare(insertBlockStatement)
@@ -287,6 +293,9 @@ func (d *Database) AddIndexedL2Block(block *IndexedL2Block) error {
 		for _, withdrawal := range block.Withdrawals {
 			_, err = withdrawalStmt.Exec(
 				withdrawal.FromAddress.String(),
+				withdrawal.ToAddress.String(),
+				withdrawal.L1Token.String(),
+				withdrawal.L1Token.String(),
 				withdrawal.Amount.String(),
 				withdrawal.TxHash.String(),
 				block.Hash.String(),
@@ -349,6 +358,8 @@ func (d *Database) GetDepositsByAddress(address common.Address, page PaginationP
 func (d *Database) GetWithdrawalsByAddress(address l2common.Address, page PaginationParam) ([]TokenBridgeMessage, error) {
 	const selectWithdrawalsStatement = `
 	SELECT
+		withdrawals.from_address, withdrawals.to_address,
+		withdrawals.l1_token, withdrawals.l2_token,
 		withdrawals.amount, withdrawals.tx_hash, withdrawals.data,
 		l2_blocks.number, l2_blocks.timestamp
 	FROM withdrawals
@@ -371,8 +382,9 @@ func (d *Database) GetWithdrawalsByAddress(address l2common.Address, page Pagina
 		for rows.Next() {
 			var withdrawal TokenBridgeMessage
 			if err := rows.Scan(
-				&withdrawal.Amount,
-				&withdrawal.TxHash, &withdrawal.Data,
+				&withdrawal.FromAddress, &withdrawal.ToAddress,
+				&withdrawal.L1Token, &withdrawal.L2Token,
+				&withdrawal.Amount, &withdrawal.TxHash, &withdrawal.Data,
 				&withdrawal.BlockNumber, &withdrawal.BlockTimestamp,
 			); err != nil {
 				return err
