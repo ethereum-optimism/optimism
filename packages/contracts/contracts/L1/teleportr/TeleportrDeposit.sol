@@ -20,7 +20,6 @@ contract TeleportrDeposit {
     event MaxBalanceSet(uint256 previousBalance, uint256 newBalance);
     event BalanceWithdrawn(address indexed owner, uint256 balance);
     event EtherReceived(address indexed emitter, uint256 amount);
-    event Destructed(address indexed owner, uint256 amount);
 
     // Modifiers
     modifier isLowerThanMaxDepositAmount() {
@@ -65,11 +64,6 @@ contract TeleportrDeposit {
         uint256 _balance = address(this).balance;
         emit BalanceWithdrawn(owner, _balance);
         payable(owner).transfer(_balance);
-    }
-
-    function destroy() public isOwner {
-        emit Destructed(owner, address(this).balance);
-        selfdestruct(payable(owner));
     }
 
     // Setters
