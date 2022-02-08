@@ -9,11 +9,13 @@ import (
 
 	"github.com/ethereum-optimism/optimism/go/gas-oracle/bindings"
 	"github.com/ethereum-optimism/optimism/go/gas-oracle/gasprices"
+	ometrics "github.com/ethereum-optimism/optimism/go/gas-oracle/metrics"
 
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/metrics"
 )
 
 var (
@@ -31,7 +33,10 @@ var (
 	errWrongChainID = errors.New("wrong chain id provided")
 	// errNoBaseFee represents the error when the base fee is not found on the
 	// block. This means that the block being queried is pre eip1559
-	errNoBaseFee = errors.New("base fee not found on block")
+	errNoBaseFee           = errors.New("base fee not found on block")
+	updateFailedCounter    = metrics.NewRegisteredCounter("gasoracle/update_failed", ometrics.DefaultRegistry)
+	updateSucceededCounter = metrics.NewRegisteredCounter("gasoracle/update_succeeded", ometrics.DefaultRegistry)
+	feeUpdatedCounter      = metrics.NewRegisteredCounter("gasoracle/fee_updated", ometrics.DefaultRegistry)
 )
 
 // GasPriceOracle manages a hot key that can update the L2 Gas Price
@@ -62,7 +67,8 @@ func (g *GasPriceOracle) Start() error {
 	address := crypto.PubkeyToAddress(g.config.privateKey.PublicKey)
 	log.Info("Starting Gas Price Oracle", "l1-chain-id", g.l1ChainID,
 		"l2-chain-id", g.l2ChainID, "address", address.Hex())
-
+	// TODO: Create a metric for the vesion (and maybe configuration?)
+	// The geth metric library doesn't support labels, so that strategy doesn't work here
 	price, err := g.contract.GasPrice(&bind.CallOpts{
 		Context: context.Background(),
 	})
@@ -117,7 +123,9 @@ func (g *GasPriceOracle) Loop() {
 			log.Trace("polling", "time", time.Now())
 			if err := g.Update(); err != nil {
 				log.Error("cannot update gas price", "message", err)
+				updateFailedCounter.Inc(1)
 			}
+			updateSucceededCounter.Inc(1)
 
 		case <-g.ctx.Done():
 			g.Stop()
