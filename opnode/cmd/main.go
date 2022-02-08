@@ -65,7 +65,6 @@ func RollupNodeMain(ctx *cli.Context) error {
 		log.Error("Unable to start L2 Output Submitter", "error", err)
 		return err
 	}
-	defer n.Stop()
 
 	log.Info("Rollup node started")
 
@@ -78,7 +77,7 @@ func RollupNodeMain(ctx *cli.Context) error {
 	}...)
 	<-interruptChannel
 
-	return nil
+	return n.Stop()
 
 }
 

@@ -48,7 +48,7 @@ type OpNode struct {
 	l1Downloader l1.Downloader          // actual downloader
 	l2Engines    []*driver.EngineDriver // engines to keep synced
 	ctx          context.Context        // Embeded CTX to be removed
-	close        chan chan error        // Why chan of chans?
+	close        chan chan error        // Used to pass back the final error condition.
 }
 
 func (conf *Config) GetGenesis() rollup.Genesis {
