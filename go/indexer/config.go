@@ -39,6 +39,9 @@ type Config struct {
 	// L2StandardBridgeAddress is the l2 standard bridge contract address.
 	L2StandardBridgeAddress string
 
+	// L2GenesisBlockHash is the l2 genesis block hash.
+	L2GenesisBlockHash string
+
 	// PollInterval is the delay between querying L2 for more transaction
 	// and creating a new batch.
 	PollInterval time.Duration
@@ -110,6 +113,7 @@ func NewConfig(ctx *cli.Context) (Config, error) {
 		L2EthRpc:                ctx.GlobalString(flags.L2EthRpcFlag.Name),
 		L1StandardBridgeAddress: ctx.GlobalString(flags.L1StandardBridgeAddressFlag.Name),
 		L2StandardBridgeAddress: ctx.GlobalString(flags.L2StandardBridgeAddressFlag.Name),
+		L2GenesisBlockHash:      ctx.GlobalString(flags.L2GenesisBlockHashFlag.Name),
 		DBHost:                  ctx.GlobalString(flags.DBHostFlag.Name),
 		DBPort:                  ctx.GlobalUint64(flags.DBPortFlag.Name),
 		DBUser:                  ctx.GlobalString(flags.DBUserFlag.Name),

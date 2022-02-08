@@ -27,15 +27,6 @@ const (
 	defaultDialTimeout = 5 * time.Second
 )
 
-// TODO: avoid hardcoded genesis block; use flags or config
-var (
-	// l2StartBlockNumber is the block number to start indexing l2 from
-	l2StartBlockNumber = uint64(0)
-
-	// l2StartBlockHash is the block hash to start indexing l2 from
-	l2StartBlockHash = "0x7ca38a1916c42007829c55e69d3e9a73265554b586a499015373241b8a3fa48b"
-)
-
 // Main is the entrypoint into the indexer service. This method returns
 // a closure that executes the service and blocks until the service exits. The
 // use of a closure allows the parameters bound to the top-level main package,
@@ -178,8 +169,8 @@ func NewIndexer(cfg Config, gitVersion string) (*Indexer, error) {
 		DB:                      db,
 		ConfDepth:               cfg.ConfDepth,
 		MaxHeaderBatchSize:      cfg.MaxHeaderBatchSize,
-		StartBlockNumber:        l2StartBlockNumber,
-		StartBlockHash:          l2StartBlockHash,
+		StartBlockNumber:        uint64(0),
+		StartBlockHash:          cfg.L2GenesisBlockHash,
 	})
 	if err != nil {
 		return nil, err

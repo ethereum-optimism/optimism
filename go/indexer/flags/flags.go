@@ -52,6 +52,12 @@ var (
 		Required: true,
 		EnvVar:   "L2_STANDARD_BRIDGE_ADDRESS",
 	}
+	L2GenesisBlockHashFlag = cli.StringFlag{
+		Name:     "l2-genesis-block-hash",
+		Usage:    "Genesis block hash of the L2 chain",
+		Required: true,
+		EnvVar:   "L2_GENESIS_BLOCK_HASH",
+	}
 	NumConfirmationsFlag = cli.Uint64Flag{
 		Name:     "num-confirmations",
 		Usage:    "Number of confirmations to wait before finalizing L1 deposit",
@@ -163,6 +169,7 @@ var requiredFlags = []cli.Flag{
 	L2EthRpcFlag,
 	L1StandardBridgeAddressFlag,
 	L2StandardBridgeAddressFlag,
+	L2GenesisBlockHashFlag,
 	NumConfirmationsFlag,
 	DBHostFlag,
 	DBPortFlag,
