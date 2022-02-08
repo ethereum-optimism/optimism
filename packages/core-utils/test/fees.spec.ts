@@ -1,4 +1,4 @@
-import * as fees from '../src/fees'
+import { zeroesAndOnes } from '../src'
 
 describe('Fees', () => {
   it('should count zeros and ones', () => {
@@ -10,7 +10,7 @@ describe('Fees', () => {
     ]
 
     for (const test of cases) {
-      const [zeros, ones] = fees.zeroesAndOnes(test.input)
+      const [zeros, ones] = zeroesAndOnes(test.input)
       zeros.should.eq(test.zeros)
       ones.should.eq(test.ones)
     }

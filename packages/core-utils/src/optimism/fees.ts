@@ -4,7 +4,7 @@
 
 import { BigNumber } from 'ethers'
 
-import { remove0x } from './common'
+import { remove0x } from '../common'
 
 const txDataZeroGas = 4
 const txDataNonZeroGasEIP2028 = 16
