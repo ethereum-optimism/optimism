@@ -11,7 +11,6 @@ import (
 	"strconv"
 	"sync"
 
-	"github.com/ethereum-optimism/optimism/go/indexer/bindings/ctc"
 	"github.com/ethereum-optimism/optimism/go/indexer/bindings/l2bridge"
 	"github.com/ethereum-optimism/optimism/go/indexer/db"
 	"github.com/ethereum-optimism/optimism/go/indexer/metrics"
@@ -110,7 +109,6 @@ type Service struct {
 	ctx    context.Context
 	cancel func()
 
-	ctcContract      *ctc.CanonicalTransactionChainFilterer
 	l2BridgeContract *l2bridge.L2StandardBridgeFilterer
 	backend          Backend
 	headerSelector   HeaderSelector

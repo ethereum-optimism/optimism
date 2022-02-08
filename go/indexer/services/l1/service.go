@@ -11,7 +11,7 @@ import (
 	"strconv"
 	"sync"
 
-	"github.com/ethereum-optimism/optimism/go/indexer/bindings/ctc"
+	"github.com/ethereum-optimism/optimism/go/indexer/bindings/l1bridge"
 	"github.com/ethereum-optimism/optimism/go/indexer/db"
 	"github.com/ethereum-optimism/optimism/go/indexer/metrics"
 	"github.com/ethereum/go-ethereum"
@@ -22,6 +22,9 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/gorilla/mux"
 )
+
+// l1BridgeContractAddress is the contract address of the standard l1 bridge
+var l1BridgeContractAddress = common.HexToAddress("0x4200000000000000000000000000000000000010")
 
 // errNoChainID represents the error when the chain id is not provided
 // and it cannot be remotely fetched
@@ -99,7 +102,6 @@ type ServiceConfig struct {
 	StartBlockNumber   uint64
 	StartBlockHash     string
 	DB                 *db.Database
-	Router             *mux.Router
 }
 
 type Service struct {
@@ -107,9 +109,9 @@ type Service struct {
 	ctx    context.Context
 	cancel func()
 
-	ctcContract    *ctc.CanonicalTransactionChainFilterer
-	backend        Backend
-	headerSelector HeaderSelector
+	l1BridgeContract *l1bridge.L1StandardBridgeFilterer
+	backend          Backend
+	headerSelector   HeaderSelector
 
 	metrics *metrics.Metrics
 
@@ -124,7 +126,7 @@ type IndexerStatus struct {
 func NewService(cfg ServiceConfig) (*Service, error) {
 	ctx, cancel := context.WithCancel(cfg.Context)
 
-	contract, err := ctc.NewCanonicalTransactionChainFilterer(cfg.CTCAddr, cfg.L1Client)
+	contract, err := l1bridge.NewL1StandardBridgeFilterer(l1BridgeContractAddress, cfg.L1Client)
 	if err != nil {
 		return nil, err
 	}
@@ -157,12 +159,12 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 	}
 
 	return &Service{
-		cfg:            cfg,
-		ctx:            ctx,
-		cancel:         cancel,
-		ctcContract:    contract,
-		headerSelector: confirmedHeaderSelector,
-		backend:        cfg.L1Client,
+		cfg:              cfg,
+		ctx:              ctx,
+		cancel:           cancel,
+		l1BridgeContract: contract,
+		headerSelector:   confirmedHeaderSelector,
+		backend:          cfg.L1Client,
 	}, nil
 }
 
@@ -199,15 +201,15 @@ func (s *Service) fetchTransaction(ctx context.Context, hash common.Hash) (*type
 }
 
 func (s *Service) fetchBlockEventIterator(start, end uint64) (
-	*ctc.CanonicalTransactionChainTransactionEnqueuedIterator, error) {
+	*l1bridge.L1StandardBridgeDepositFinalizedIterator, error) {
 
 	const NUM_RETRIES = 5
 	var err error
 	for retry := 0; retry < NUM_RETRIES; retry++ {
 		ctxt, cancel := context.WithTimeout(s.ctx, DefaultConnectionTimeout)
 
-		var iter *ctc.CanonicalTransactionChainTransactionEnqueuedIterator
-		iter, err = s.ctcContract.FilterTransactionEnqueued(&bind.FilterOpts{
+		var iter *l1bridge.L1StandardBridgeDepositFinalizedIterator
+		iter, err = s.l1BridgeContract.FilterDepositFinalized(&bind.FilterOpts{
 			Start:   start,
 			End:     &end,
 			Context: ctxt,
@@ -266,24 +268,14 @@ func (s *Service) Update(start uint64, newHeader *types.Header) error {
 
 	depositsByBlockhash := make(map[common.Hash][]db.Deposit)
 	for iter.Next() {
-		tx, _, err := s.fetchTransaction(context.Background(), iter.Event.Raw.TxHash)
-		if err != nil {
-			return err
-		}
-		signer := types.LatestSignerForChainID(tx.ChainId())
-		sender, err := signer.Sender(tx)
-		if err != nil {
-			return err
-		}
 		depositsByBlockhash[iter.Event.Raw.BlockHash] = append(
 			depositsByBlockhash[iter.Event.Raw.BlockHash], db.Deposit{
-				FromAddress: sender,
-				Amount:      tx.Value(),
-				QueueIndex:  iter.Event.QueueIndex.Uint64(),
 				TxHash:      iter.Event.Raw.TxHash,
-				L1TxOrigin:  iter.Event.L1TxOrigin,
-				Target:      iter.Event.Target,
-				GasLimit:    iter.Event.GasLimit,
+				L1Token:     iter.Event.L1Token,
+				L2Token:     iter.Event.L2Token,
+				FromAddress: iter.Event.From,
+				ToAddress:   iter.Event.To,
+				Amount:      iter.Event.Amount,
 				Data:        iter.Event.Data,
 			})
 	}
@@ -314,10 +306,7 @@ func (s *Service) Update(start uint64, newHeader *types.Header) error {
 		log.Info("Imported ",
 			"block", number, "hash", blockHash, "deposits", len(block.Deposits))
 		for _, deposit := range block.Deposits {
-			log.Info("Indexed deposit ",
-				"tx_hash", deposit.TxHash, "l1_tx_origin", deposit.L1TxOrigin,
-				"target", deposit.Target, "gas_limit", deposit.GasLimit,
-				"queue_index", deposit.QueueIndex)
+			log.Info("Indexed deposit ", "tx_hash", deposit.TxHash)
 		}
 	}
 

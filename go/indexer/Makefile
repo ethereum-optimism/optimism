@@ -7,8 +7,7 @@ LDFLAGSSTRING +=-X main.GitDate=$(GITDATE)
 LDFLAGSSTRING +=-X main.GitVersion=$(GITVERSION)
 LDFLAGS := -ldflags "$(LDFLAGSSTRING)"
 
-CTC_ABI_ARTIFACT := ../../packages/contracts/artifacts/contracts/L1/rollup/CanonicalTransactionChain.sol/CanonicalTransactionChain.json
-SCC_ABI_ARTIFACT := ../../packages/contracts/artifacts/contracts/L1/rollup/StateCommitmentChain.sol/StateCommitmentChain.json
+L1BRIDGE_ABI_ARTIFACT = ../../packages/contracts/artifacts/contracts/L1/messaging/L1StandardBridge.sol/L1StandardBridge.json
 L2BRIDGE_ABI_ARTIFACT = ../../packages/contracts/artifacts/contracts/L2/messaging/L2StandardBridge.sol/L2StandardBridge.json
 
 indexer:
@@ -23,36 +22,20 @@ test:
 lint:
 	golangci-lint run ./...
 
-bindings: bindings-ctc bindings-scc bindings-l2bridge
+bindings: bindings-l1bridge bindings-l2bridge
 
-bindings-ctc:
+bindings-l1bridge:
 	$(eval temp := $(shell mktemp))
 
-	cat $(CTC_ABI_ARTIFACT) \
+	cat $(L2BRIDGE_ABI_ARTIFACT) \
 		| jq -r .bytecode > $(temp)
 
-	cat $(CTC_ABI_ARTIFACT) \
+	cat $(L2BRIDGE_ABI_ARTIFACT) \
 		| jq .abi \
-		| abigen --pkg ctc \
+		| abigen --pkg l1bridge \
 		--abi - \
-		--out bindings/ctc/canonical_transaction_chain.go \
-		--type CanonicalTransactionChain \
-		--bin $(temp)
-
-	rm $(temp)
-
-bindings-scc:
-	$(eval temp := $(shell mktemp))
-
-	cat $(SCC_ABI_ARTIFACT) \
-		| jq -r .bytecode > $(temp)
-
-	cat $(SCC_ABI_ARTIFACT) \
-		| jq .abi \
-		| abigen --pkg scc \
-		--abi - \
-		--out bindings/scc/state_commitment_chain.go \
-		--type StateCommitmentChain \
+		--out bindings/l1bridge/l1_standard_bridge.go \
+		--type L1StandardBridge \
 		--bin $(temp)
 
 	rm $(temp)

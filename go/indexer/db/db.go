@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
-	"sort"
 
 	l2common "github.com/ethereum-optimism/optimism/l2geth/common"
 	"github.com/ethereum/go-ethereum/common"
@@ -74,29 +73,21 @@ var schema = []string{
 type TxnEnqueuedEvent struct {
 	BlockNumber uint64
 	Timestamp   uint64
-	QueueIndex  uint64
 	TxHash      common.Hash
-	L1TxOrigin  common.Address
-	Target      common.Address
-	GasLimit    *big.Int
 	Data        []byte
 }
 
 func (e TxnEnqueuedEvent) String() string {
-	return fmt.Sprintf("TxnEnqueuedEvent { BlockNumber: %d, Timestamp: %d, "+
-		"QueueIndex: %d, TxHash: %s, L1TxOrigin: %s, Target: %s, "+
-		"GasLimit: %s, Data: %x }", e.BlockNumber, e.Timestamp, e.QueueIndex,
-		e.TxHash, e.L1TxOrigin, e.Target, e.GasLimit, e.Data)
+	return e.TxHash.String()
 }
 
 type Deposit struct {
-	FromAddress common.Address
-	Amount      *big.Int
-	QueueIndex  uint64
 	TxHash      common.Hash
-	L1TxOrigin  common.Address
-	Target      common.Address
-	GasLimit    *big.Int
+	L1Token     common.Address
+	L2Token     common.Address
+	FromAddress common.Address
+	ToAddress   common.Address
+	Amount      *big.Int
 	Data        []byte
 }
 
@@ -152,9 +143,7 @@ type TokenBridgeMessage struct {
 }
 
 func (d Deposit) String() string {
-	return fmt.Sprintf("Deposit { From: %v, Amount: %s, QueueIndex: %d, TxHash: %s, L1TxOrigin: %s, "+
-		"Target: %s, GasLimit: %s, Data: %x }", d.FromAddress, d.Amount, d.QueueIndex, d.TxHash,
-		d.L1TxOrigin, d.Target, d.GasLimit, d.Data)
+	return d.TxHash.String()
 }
 
 func (b *IndexedL1Block) Events() []TxnEnqueuedEvent {
@@ -168,19 +157,10 @@ func (b *IndexedL1Block) Events() []TxnEnqueuedEvent {
 		events = append(events, TxnEnqueuedEvent{
 			BlockNumber: b.Number,
 			Timestamp:   b.Timestamp,
-			QueueIndex:  deposit.QueueIndex,
 			TxHash:      deposit.TxHash,
-			L1TxOrigin:  deposit.L1TxOrigin,
-			Target:      deposit.Target,
-			GasLimit:    deposit.GasLimit,
 			Data:        deposit.Data, // TODO: copy?
 		})
 	}
-
-	// Ensure that the events are always sorted by increasing queue index.
-	sort.Slice(events, func(i, j int) bool {
-		return events[i].QueueIndex < events[j].QueueIndex
-	})
 
 	return events
 }
@@ -200,7 +180,7 @@ func (d *Database) AddIndexedL1Block(block *IndexedL1Block) error {
 
 	const insertDepositStatement = `
 	INSERT INTO deposits
-		(from_address, queue_index, amount, tx_hash, block_hash, block_timestamp, l1_tx_origin, target, gas_limit, data)
+		(from_address, to_address, l1_token, l2_token, amount, tx_hash, block_hash, block_timestamp, data)
 	VALUES
 		($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
 	`
@@ -232,14 +212,13 @@ func (d *Database) AddIndexedL1Block(block *IndexedL1Block) error {
 		for _, deposit := range block.Deposits {
 			_, err = depositStmt.Exec(
 				deposit.FromAddress.String(),
-				deposit.QueueIndex,
+				deposit.ToAddress.String(),
+				deposit.L1Token.String(),
+				deposit.L1Token.String(),
 				deposit.Amount.String(),
 				deposit.TxHash.String(),
 				block.Hash.String(),
 				block.Timestamp,
-				deposit.L1TxOrigin.String(),
-				deposit.Target.String(),
-				deposit.GasLimit.String(),
 				deposit.Data,
 			)
 			if err != nil {
@@ -558,63 +537,15 @@ func (d *Database) GetIndexedL1BlockByHash(hash common.Hash) (*IndexedL1Block, e
 	return block, nil
 
 }
-func (d *Database) GetEventByQueueIndex(queueIndex uint64) (*TxnEnqueuedEvent, error) {
-	const selectEventByQueueIndex = `
-	SELECT
-		b.number, b.timestamp,
-		d.queue_index, d.tx_hash, d.l1_tx_origin, d.target, d.gas_limit, d.data
-	FROM
-		blocks AS b,
-		deposits AS d
-	WHERE b.hash = d.block_hash AND d.queue_index = $1
-	`
-
-	var event *TxnEnqueuedEvent
-	err := txn(d.db, func(tx *sql.Tx) error {
-		queryStmt, err := tx.Prepare(selectEventByQueueIndex)
-		if err != nil {
-			return err
-		}
-
-		rows, err := queryStmt.Query(queueIndex)
-		if err != nil {
-			return err
-		}
-
-		if !rows.Next() {
-			return nil
-		}
-
-		e, err := scanTxnEnqueuedEvent(rows)
-		if err != nil {
-			return err
-		}
-
-		if rows.Next() {
-			return errors.New("number of rows should be at most 1 since queue_index is pk")
-		}
-
-		event = &e
-
-		return nil
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	return event, nil
-}
-
 func (d *Database) GetEventsByBlockHash(hash common.Hash) ([]TxnEnqueuedEvent, error) {
 	const selectEventsByBlockHashStatement = `
 	SELECT
 		b.number, b.timestamp,
-		d.queue_index, d.tx_hash, d.l1_tx_origin, d.target, d.gas_limit, d.data
+		d.tx_hash, d.data
 	FROM
 		blocks AS b,
 		deposits AS d
 	WHERE b.hash = d.block_hash AND b.hash = $1
-	ORDER BY d.queue_index
 	`
 
 	var events []TxnEnqueuedEvent
@@ -650,39 +581,22 @@ func (d *Database) GetEventsByBlockHash(hash common.Hash) ([]TxnEnqueuedEvent, e
 func scanTxnEnqueuedEvent(rows *sql.Rows) (TxnEnqueuedEvent, error) {
 	var number uint64
 	var timestamp uint64
-	var queueIndex uint64
 	var txHash string
-	var l1TxOrigin string
-	var target string
-	var gasLimitStr string
 	var data []byte
 	err := rows.Scan(
 		&number,
 		&timestamp,
-		&queueIndex,
 		&txHash,
-		&l1TxOrigin,
-		&target,
-		&gasLimitStr,
 		&data,
 	)
 	if err != nil {
 		return TxnEnqueuedEvent{}, err
 	}
 
-	gasLimit, ok := new(big.Int).SetString(gasLimitStr, 10)
-	if !ok {
-		return TxnEnqueuedEvent{}, errors.New(fmt.Sprintf("Invalid gasLimit string \"%v\"", gasLimitStr))
-	}
-
 	return TxnEnqueuedEvent{
 		BlockNumber: number,
 		Timestamp:   timestamp,
-		QueueIndex:  queueIndex,
 		TxHash:      common.HexToHash(txHash),
-		L1TxOrigin:  common.HexToAddress(l1TxOrigin),
-		Target:      common.HexToAddress(target),
-		GasLimit:    gasLimit,
 		Data:        data,
 	}, nil
 }

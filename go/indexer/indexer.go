@@ -164,7 +164,6 @@ func NewIndexer(cfg Config, gitVersion string) (*Indexer, error) {
 		MaxHeaderBatchSize: cfg.MaxHeaderBatchSize,
 		StartBlockNumber:   cfg.StartBlockNumber,
 		StartBlockHash:     cfg.StartBlockHash,
-		Router:             mux.NewRouter(),
 	})
 	if err != nil {
 		return nil, err
