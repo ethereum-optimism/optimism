@@ -91,15 +91,15 @@ type Driver interface {
 }
 
 type ServiceConfig struct {
-	Context              context.Context
-	L2Client             *l2ethclient.Client
-	ChainID              *big.Int
-	L2ERC20BridgeAddress l2common.Address
-	ConfDepth            uint64
-	MaxHeaderBatchSize   uint64
-	StartBlockNumber     uint64
-	StartBlockHash       string
-	DB                   *db.Database
+	Context                 context.Context
+	L2Client                *l2ethclient.Client
+	ChainID                 *big.Int
+	L2StandardBridgeAddress l2common.Address
+	ConfDepth               uint64
+	MaxHeaderBatchSize      uint64
+	StartBlockNumber        uint64
+	StartBlockHash          string
+	DB                      *db.Database
 }
 
 type Service struct {
@@ -124,7 +124,7 @@ type IndexerStatus struct {
 func NewService(cfg ServiceConfig) (*Service, error) {
 	ctx, cancel := context.WithCancel(cfg.Context)
 
-	contract, err := l2bridge.NewL2StandardBridgeFilterer(cfg.L2ERC20BridgeAddress, cfg.L2Client)
+	contract, err := l2bridge.NewL2StandardBridgeFilterer(cfg.L2StandardBridgeAddress, cfg.L2Client)
 	if err != nil {
 		return nil, err
 	}

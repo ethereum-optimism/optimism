@@ -152,7 +152,7 @@ func NewIndexer(cfg Config, gitVersion string) (*Indexer, error) {
 		return nil, err
 	}
 
-	l2erc20BridgeAddress, err := ParseL2Address(cfg.L2StandardBridgeAddress)
+	l2StandardBridgeAddress, err := ParseL2Address(cfg.L2StandardBridgeAddress)
 	if err != nil {
 		return nil, err
 	}
@@ -172,14 +172,14 @@ func NewIndexer(cfg Config, gitVersion string) (*Indexer, error) {
 	}
 
 	l2IndexingService, err := l2.NewService(l2.ServiceConfig{
-		Context:              ctx,
-		L2Client:             l2Client,
-		L2ERC20BridgeAddress: l2erc20BridgeAddress,
-		DB:                   db,
-		ConfDepth:            cfg.ConfDepth,
-		MaxHeaderBatchSize:   cfg.MaxHeaderBatchSize,
-		StartBlockNumber:     l2StartBlockNumber,
-		StartBlockHash:       l2StartBlockHash,
+		Context:                 ctx,
+		L2Client:                l2Client,
+		L2StandardBridgeAddress: l2StandardBridgeAddress,
+		DB:                      db,
+		ConfDepth:               cfg.ConfDepth,
+		MaxHeaderBatchSize:      cfg.MaxHeaderBatchSize,
+		StartBlockNumber:        l2StartBlockNumber,
+		StartBlockHash:          l2StartBlockHash,
 	})
 	if err != nil {
 		return nil, err
