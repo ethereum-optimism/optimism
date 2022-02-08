@@ -52,31 +52,6 @@ export class StandardBridgeAdapter implements IBridgeAdapter {
     )
   }
 
-  public async getTokenBridgeMessagesByAddress(
-    address: AddressLike,
-    opts?: {
-      direction?: MessageDirection
-    }
-  ): Promise<TokenBridgeMessage[]> {
-    let messages: TokenBridgeMessage[] = []
-
-    if (
-      opts?.direction === undefined ||
-      opts?.direction === MessageDirection.L1_TO_L2
-    ) {
-      messages = messages.concat(await this.getDepositsByAddress(address))
-    }
-
-    if (
-      opts?.direction === undefined ||
-      opts?.direction === MessageDirection.L2_TO_L1
-    ) {
-      messages = messages.concat(await this.getWithdrawalsByAddress(address))
-    }
-
-    return messages
-  }
-
   public async getDepositsByAddress(
     address: AddressLike,
     opts?: {
