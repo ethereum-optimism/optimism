@@ -27,10 +27,10 @@ bindings: bindings-l1bridge bindings-l2bridge
 bindings-l1bridge:
 	$(eval temp := $(shell mktemp))
 
-	cat $(L2BRIDGE_ABI_ARTIFACT) \
+	cat $(L1BRIDGE_ABI_ARTIFACT) \
 		| jq -r .bytecode > $(temp)
 
-	cat $(L2BRIDGE_ABI_ARTIFACT) \
+	cat $(L1BRIDGE_ABI_ARTIFACT) \
 		| jq .abi \
 		| abigen --pkg l1bridge \
 		--abi - \

@@ -3,7 +3,6 @@ package db
 import (
 	"database/sql"
 	"errors"
-	"fmt"
 	"math/big"
 
 	l2common "github.com/ethereum-optimism/optimism/l2geth/common"
@@ -32,15 +31,15 @@ CREATE TABLE IF NOT EXISTS l2_blocks (
 var createDepositsTable = `
 CREATE TABLE IF NOT EXISTS deposits (
 	from_address TEXT NOT NULL,
-	queue_index INTEGER NOT NULL UNIQUE,
+	to_address TEXT NOT NULL,
+	l1_token TEXT NOT NULL,
+	l2_token TEXT NOT NULL,
 	amount TEXT NOT NULL,
-	tx_hash TEXT NOT NULL,
+	data BYTEA NOT NULL,
+	log_index INTEGER NOT NULL,
 	block_hash TEXT NOT NULL REFERENCES l1_blocks(hash) ,
 	block_timestamp TEXT NOT NULL,
-	l1_tx_origin TEXT NOT NULL,
-	target TEXT NOT NULL,
-	gas_limit TEXT NOT NULL,
-	data BYTEA NOT NULL
+	tx_hash TEXT NOT NULL
 )
 `
 
@@ -51,10 +50,11 @@ CREATE TABLE IF NOT EXISTS withdrawals (
 	l1_token TEXT NOT NULL,
 	l2_token TEXT NOT NULL,
 	amount TEXT NOT NULL,
-	tx_hash TEXT NOT NULL,
+	data BYTEA NOT NULL,
+	log_index INTEGER NOT NULL,
 	block_hash TEXT NOT NULL REFERENCES l2_blocks(hash) ,
 	block_timestamp TEXT NOT NULL,
-	data BYTEA NOT NULL
+	tx_hash TEXT NOT NULL
 )
 `
 
@@ -89,6 +89,7 @@ type Deposit struct {
 	ToAddress   common.Address
 	Amount      *big.Int
 	Data        []byte
+	LogIndex    uint64
 }
 
 type Withdrawal struct {
@@ -99,6 +100,7 @@ type Withdrawal struct {
 	ToAddress   l2common.Address
 	Amount      *big.Int
 	Data        []byte
+	LogIndex    uint64
 }
 
 type IndexedL1Block struct {
@@ -110,9 +112,7 @@ type IndexedL1Block struct {
 }
 
 func (b IndexedL1Block) String() string {
-	return fmt.Sprintf("IndexedL1Block { Hash: %s, ParentHash: %s, Number: %d, "+
-		"Timestamp: %d, Deposits: %s }", b.Hash, b.ParentHash, b.Number,
-		b.Timestamp, b.Deposits)
+	return b.Hash.String()
 }
 
 type IndexedL2Block struct {
@@ -124,9 +124,7 @@ type IndexedL2Block struct {
 }
 
 func (b IndexedL2Block) String() string {
-	return fmt.Sprintf("IndexedL2Block { Hash: %s, ParentHash: %s, Number: %d, "+
-		"Timestamp: %d, Withdrawals: %s }", b.Hash, b.ParentHash, b.Number,
-		b.Timestamp, b.Withdrawals)
+	return b.Hash.String()
 }
 
 type TokenBridgeMessage struct {
@@ -180,7 +178,7 @@ func (d *Database) AddIndexedL1Block(block *IndexedL1Block) error {
 
 	const insertDepositStatement = `
 	INSERT INTO deposits
-		(from_address, to_address, l1_token, l2_token, amount, tx_hash, block_hash, block_timestamp, data)
+		(from_address, to_address, l1_token, l2_token, amount, tx_hash, log_index, block_hash, block_timestamp, data)
 	VALUES
 		($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
 	`
@@ -217,6 +215,7 @@ func (d *Database) AddIndexedL1Block(block *IndexedL1Block) error {
 				deposit.L1Token.String(),
 				deposit.Amount.String(),
 				deposit.TxHash.String(),
+				deposit.LogIndex,
 				block.Hash.String(),
 				block.Timestamp,
 				deposit.Data,
@@ -240,9 +239,9 @@ func (d *Database) AddIndexedL2Block(block *IndexedL2Block) error {
 
 	const insertWithdrawalStatement = `
 	INSERT INTO withdrawals
-		(from_address, to_address, l1_token, l2_token, amount, tx_hash, block_hash, block_timestamp, data)
+		(from_address, to_address, l1_token, l2_token, amount, tx_hash, log_index, block_hash, block_timestamp, data)
 	VALUES
-		($1, $2, $3, $4, $5, $6, $7, $8, $9)
+		($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
 	`
 	return txn(d.db, func(tx *sql.Tx) error {
 		blockStmt, err := tx.Prepare(insertBlockStatement)
@@ -277,6 +276,7 @@ func (d *Database) AddIndexedL2Block(block *IndexedL2Block) error {
 				withdrawal.L1Token.String(),
 				withdrawal.Amount.String(),
 				withdrawal.TxHash.String(),
+				withdrawal.LogIndex,
 				block.Hash.String(),
 				block.Timestamp,
 				withdrawal.Data,
@@ -293,7 +293,9 @@ func (d *Database) AddIndexedL2Block(block *IndexedL2Block) error {
 func (d *Database) GetDepositsByAddress(address common.Address, page PaginationParam) ([]TokenBridgeMessage, error) {
 	const selectDepositsStatement = `
 	SELECT
-		deposits.queue_index, deposits.amount, deposits.tx_hash, deposits.data,
+		deposits.from_address, deposits.to_address,
+		deposits.l1_token, deposits.l2_token,
+		deposits.amount, deposits.tx_hash, deposits.data,
 		l1_blocks.number, l1_blocks.timestamp
 	FROM deposits
 		INNER JOIN l1_blocks ON deposits.block_hash=l1_blocks.hash
@@ -315,13 +317,13 @@ func (d *Database) GetDepositsByAddress(address common.Address, page PaginationP
 		for rows.Next() {
 			var deposit TokenBridgeMessage
 			if err := rows.Scan(
-				&deposit.LogIndex, &deposit.Amount,
-				&deposit.TxHash, &deposit.Data,
+				&deposit.FromAddress, &deposit.ToAddress,
+				&deposit.L1Token, &deposit.L2Token,
+				&deposit.Amount, &deposit.TxHash, &deposit.Data,
 				&deposit.BlockNumber, &deposit.BlockTimestamp,
 			); err != nil {
 				return err
 			}
-			deposit.FromAddress = address.String()
 			deposits = append(deposits, deposit)
 		}
 
@@ -368,7 +370,6 @@ func (d *Database) GetWithdrawalsByAddress(address l2common.Address, page Pagina
 			); err != nil {
 				return err
 			}
-			withdrawal.FromAddress = address.String()
 			withdrawals = append(withdrawals, withdrawal)
 		}
 

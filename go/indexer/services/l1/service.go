@@ -24,7 +24,7 @@ import (
 )
 
 // l1BridgeContractAddress is the contract address of the standard l1 bridge
-var l1BridgeContractAddress = common.HexToAddress("0x4200000000000000000000000000000000000010")
+var l1BridgeContractAddress = common.HexToAddress("0x99C9fc46f92E8a1c0deC1b1747d010903E884bE1")
 
 // errNoChainID represents the error when the chain id is not provided
 // and it cannot be remotely fetched
@@ -201,15 +201,15 @@ func (s *Service) fetchTransaction(ctx context.Context, hash common.Hash) (*type
 }
 
 func (s *Service) fetchBlockEventIterator(start, end uint64) (
-	*l1bridge.L1StandardBridgeDepositFinalizedIterator, error) {
+	*l1bridge.L1StandardBridgeERC20DepositInitiatedIterator, error) {
 
 	const NUM_RETRIES = 5
 	var err error
 	for retry := 0; retry < NUM_RETRIES; retry++ {
 		ctxt, cancel := context.WithTimeout(s.ctx, DefaultConnectionTimeout)
 
-		var iter *l1bridge.L1StandardBridgeDepositFinalizedIterator
-		iter, err = s.l1BridgeContract.FilterDepositFinalized(&bind.FilterOpts{
+		var iter *l1bridge.L1StandardBridgeERC20DepositInitiatedIterator
+		iter, err = s.l1BridgeContract.FilterERC20DepositInitiated(&bind.FilterOpts{
 			Start:   start,
 			End:     &end,
 			Context: ctxt,
