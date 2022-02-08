@@ -65,6 +65,7 @@ func RollupNodeMain(ctx *cli.Context) error {
 		log.Error("Unable to start L2 Output Submitter", "error", err)
 		return err
 	}
+	defer n.Stop()
 
 	log.Info("Rollup node started")
 
@@ -77,7 +78,7 @@ func RollupNodeMain(ctx *cli.Context) error {
 	}...)
 	<-interruptChannel
 
-	return n.Stop()
+	return nil
 
 }
 
@@ -146,11 +147,11 @@ func NewLogConfig(ctx *cli.Context) (node.LogConfig, error) {
 
 // Flags
 
-const envVarPrefix = "ROLLUP_NODE_"
-
-func prefixEnvVar(name string) string {
-	return envVarPrefix + name
-}
+// Commented out for deadcode lint
+// const envVarPrefix = "ROLLUP_NODE_"
+// func prefixEnvVar(name string) string {
+// 	return envVarPrefix + name
+// }
 
 var Flags = []cli.Flag{
 	L1NodeAddrs,

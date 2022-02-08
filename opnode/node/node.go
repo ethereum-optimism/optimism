@@ -48,7 +48,7 @@ type OpNode struct {
 	l1Downloader l1.Downloader          // actual downloader
 	l2Engines    []*driver.EngineDriver // engines to keep synced
 	ctx          context.Context        // Embeded CTX to be removed
-	close        chan chan error        // Used to pass back the final error condition.
+	done         chan struct{}
 }
 
 func (conf *Config) GetGenesis() rollup.Genesis {
@@ -126,7 +126,7 @@ func New(ctx context.Context, cfg *Config) (*OpNode, error) {
 		l1Downloader: l1Downloader,
 		l2Engines:    l2Engines,
 		ctx:          ctx,
-		close:        make(chan chan error),
+		done:         make(chan struct{}),
 	}
 
 	return n, nil
@@ -196,7 +196,7 @@ func (c *OpNode) Start() error {
 			case l1Head := <-l1Heads:
 				c.log.Info("New L1 head", "head", l1Head.Self, "parent", l1Head.Parent)
 			// TODO: maybe log other info on interval or other chain events (individual engines also log things)
-			case done := <-c.close:
+			case <-c.done:
 				c.log.Info("Closing OpNode")
 				// close all tasks
 				for _, f := range unsub {
@@ -208,8 +208,6 @@ func (c *OpNode) Start() error {
 				for _, eng := range c.l2Engines {
 					eng.Close()
 				}
-				// signal back everything closed without error
-				done <- nil
 				return
 			}
 		}
@@ -217,12 +215,8 @@ func (c *OpNode) Start() error {
 	return nil
 }
 
-func (c *OpNode) Stop() error {
-	if c.close != nil {
-		done := make(chan error)
-		c.close <- done
-		err := <-done
-		return err
+func (c *OpNode) Stop() {
+	if c.done != nil {
+		close(c.done)
 	}
-	return nil
 }
