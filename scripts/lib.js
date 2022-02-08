@@ -2,12 +2,14 @@ const fs = require("fs")
 const rlp = require('rlp')
 const child_process = require("child_process")
 
+const basedir = process.env.BASEDIR == undefined ? "/tmp/cannon" : process.env.BASEDIR
+
 async function deploy() {
   const MIPS = await ethers.getContractFactory("MIPS")
   const m = await MIPS.deploy()
   const mm = await ethers.getContractAt("MIPSMemory", await m.m())
 
-  let startTrie = JSON.parse(fs.readFileSync("/tmp/cannon/golden.json"))
+  let startTrie = JSON.parse(fs.readFileSync(basedir+"/golden.json"))
   let goldenRoot = startTrie["root"]
   console.log("goldenRoot is", goldenRoot)
 
@@ -49,7 +51,7 @@ function getBlockRlp(block) {
 }
 
 async function deployed() {
-  let addresses = JSON.parse(fs.readFileSync("/tmp/cannon/deployed.json"))
+  let addresses = JSON.parse(fs.readFileSync(basedir+"/deployed.json"))
   const c = await ethers.getContractAt("Challenge", addresses["Challenge"])
   const m = await ethers.getContractAt("MIPS", addresses["MIPS"])
   const mm = await ethers.getContractAt("MIPSMemory", addresses["MIPSMemory"])
@@ -106,7 +108,7 @@ async function getTrieNodesForCall(c, caddress, cdat, preimages) {
 }
 
 function getTrieAtStep(blockNumberN, step) {
-  const fn = "/tmp/cannon/0_"+blockNumberN.toString()+"/checkpoint_"+step.toString()+".json"
+  const fn = basedir+"/0_"+blockNumberN.toString()+"/checkpoint_"+step.toString()+".json"
 
   if (!fs.existsSync(fn)) {
     console.log("running mipsevm")
@@ -133,4 +135,4 @@ async function writeMemory(mm, root, addr, data, bytes32=false) {
   return root
 }
 
-module.exports = { deploy, deployed, getTrieNodesForCall, getBlockRlp, getTrieAtStep, writeMemory, MissingHashError }
+module.exports = { basedir, deploy, deployed, getTrieNodesForCall, getBlockRlp, getTrieAtStep, writeMemory, MissingHashError }

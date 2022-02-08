@@ -55,24 +55,29 @@ npx hardhat node --fork https://mainnet.infura.io/v3/9aa3d95b3bc440fa88ea12eaa44
 
 # challenger is pretending the block 13284491 transition is the transition for 13284469
 # this will conflict at the first step
-rm -rf /tmp/cannon/*
+mkdir -p /tmp/cannon /tmp/cannon_fault && rm -rf /tmp/cannon/* /tmp/cannon_fault/*
 mipsevm/mipsevm
 npx hardhat run scripts/deploy.js --network hosthat
+cp /tmp/cannon/*.json /tmp/cannon_fault/
 
-# compute the MIPS checkpoints
-minigeth/go-ethereum 13284491 && mipsevm/mipsevm 13284491
+# compute real MIPS checkpoint
 minigeth/go-ethereum 13284469 && mipsevm/mipsevm 13284469
-BLOCK=13284469 npx hardhat run scripts/challenge.js --network hosthat
+
+# compute fake MIPS checkpoint (use a symlink to pretend)
+BASEDIR=/tmp/cannon_fault minigeth/go-ethereum 13284491 && BASEDIR=/tmp/cannon_fault mipsevm/mipsevm 13284491
+ln -s /tmp/cannon_fault/0_13284491 /tmp/cannon_fault/0_13284469
+
+BASEDIR=/tmp/cannon_fault BLOCK=13284469 npx hardhat run scripts/challenge.js --network hosthat
 
 # do binary search
 for i in {1..23}
 do
-ID=0 BLOCK=13284491 CHALLENGER=1 npx hardhat run scripts/respond.js --network hosthat
+BASEDIR=/tmp/cannon_fault ID=0 BLOCK=13284469 CHALLENGER=1 npx hardhat run scripts/respond.js --network hosthat
 ID=0 BLOCK=13284469 npx hardhat run scripts/respond.js --network hosthat
 done
 
 # assert as challenger (fails)
-ID=0 BLOCK=13284491 CHALLENGER=1 npx hardhat run scripts/assert.js --network hosthat
+BASEDIR=/tmp/cannon_fault ID=0 BLOCK=13284469 CHALLENGER=1 npx hardhat run scripts/assert.js --network hosthat
 
 # assert as defender (passes)
 ID=0 BLOCK=13284469 npx hardhat run scripts/assert.js --network hosthat

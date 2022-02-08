@@ -44,13 +44,17 @@ func main() {
 			fmt.Println("override node url", newNodeUrl)
 			oracle.SetNodeUrl(newNodeUrl)
 		}
+		basedir := os.Getenv("BASEDIR")
+		if len(basedir) == 0 {
+			basedir = "/tmp/cannon"
+		}
 
 		pkw := oracle.PreimageKeyValueWriter{}
 		pkwtrie := trie.NewStackTrie(pkw)
 
 		blockNumber, _ := strconv.Atoi(os.Args[1])
 		// TODO: get the chainid
-		oracle.SetRoot(fmt.Sprintf("/tmp/cannon/0_%d", blockNumber))
+		oracle.SetRoot(fmt.Sprintf("%s/0_%d", basedir, blockNumber))
 		oracle.PrefetchBlock(big.NewInt(int64(blockNumber)), true, nil)
 		oracle.PrefetchBlock(big.NewInt(int64(blockNumber)+1), false, pkwtrie)
 		hash, err := pkwtrie.Commit()

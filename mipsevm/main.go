@@ -19,9 +19,13 @@ func WriteCheckpoint(ram map[uint32](uint32), fn string, step int) {
 func main() {
 	root := ""
 	target := -1
+	basedir := os.Getenv("BASEDIR")
+	if len(basedir) == 0 {
+		basedir = "/tmp/cannon"
+	}
 	if len(os.Args) > 1 {
 		blockNumber, _ := strconv.Atoi(os.Args[1])
-		root = fmt.Sprintf("/tmp/cannon/%d_%d", 0, blockNumber)
+		root = fmt.Sprintf("%s/%d_%d", basedir, 0, blockNumber)
 	}
 	if len(os.Args) > 2 {
 		target, _ = strconv.Atoi(os.Args[2])
@@ -67,7 +71,7 @@ func main() {
 		// not ready for golden yet
 		LoadMappedFileUnicorn(mu, "mipigo/minigeth.bin", ram, 0)
 		if root == "" {
-			WriteCheckpoint(ram, "/tmp/cannon/golden.json", -1)
+			WriteCheckpoint(ram, fmt.Sprintf("%s/golden.json", basedir), -1)
 			fmt.Println("exiting early without a block number")
 			os.Exit(0)
 		}

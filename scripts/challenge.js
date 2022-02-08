@@ -1,5 +1,5 @@
 const fs = require("fs")
-const { deployed, getBlockRlp, getTrieNodesForCall } = require("../scripts/lib")
+const { basedir, deployed, getBlockRlp, getTrieNodesForCall } = require("../scripts/lib")
 
 async function main() {
   let [c, m, mm] = await deployed()
@@ -17,13 +17,16 @@ async function main() {
   console.log(c.address, m.address, mm.address)
 
   // TODO: move this to lib, it's shared with the test
-  let startTrie = JSON.parse(fs.readFileSync("/tmp/cannon/golden.json"))
-  /*const assertionRoot = "0x1111111111111111111111111111111111111111111111111111111111111111"
-  let finalTrie = JSON.parse(fs.readFileSync("/tmp/cannon/0_"+blockNumberN.toString()+"/checkpoint_final.json"))*/
+  let startTrie = JSON.parse(fs.readFileSync(basedir+"/golden.json"))
 
-  // we are submitting the (wrong) transition for block 13284469 as the attacker
-  const assertionRoot = "0xb0b8fc0cf929b8b7a1a31059e1dfb321e78ff0dfe5912d5c615beaf37ec608e7"
-  let finalTrie = JSON.parse(fs.readFileSync("/tmp/cannon/0_13284491/checkpoint_final.json"))
+  const assertionRootBinary = fs.readFileSync(basedir+"/0_"+blockNumberN.toString()+"/output")
+  var assertionRoot = "0x"
+  for (var i=0; i<32; i++) {
+    hex = assertionRootBinary[i].toString(16);
+    assertionRoot += ("0"+hex).slice(-2);
+  }
+  console.log("asserting root", assertionRoot)
+  let finalTrie = JSON.parse(fs.readFileSync(basedir+"/0_"+blockNumberN.toString()+"/checkpoint_final.json"))
 
   let preimages = Object.assign({}, startTrie['preimages'], finalTrie['preimages']);
   const finalSystemState = finalTrie['root']
