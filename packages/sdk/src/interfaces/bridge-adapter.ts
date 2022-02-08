@@ -5,12 +5,7 @@ import {
   BlockTag,
 } from '@ethersproject/abstract-provider'
 
-import {
-  NumberLike,
-  AddressLike,
-  MessageDirection,
-  TokenBridgeMessage,
-} from './types'
+import { NumberLike, AddressLike, TokenBridgeMessage } from './types'
 import { ICrossChainMessenger } from './cross-chain-messenger'
 
 /**
@@ -32,24 +27,6 @@ export interface IBridgeAdapter {
    * L2 bridge contract.
    */
   l2Bridge: Contract
-
-  /**
-   * Finds all cross chain messages that correspond to token deposits or withdrawals sent by a
-   * particular address. Useful for finding deposits/withdrawals because the sender of the message
-   * will appear to be the StandardBridge contract and not the actual end user.
-   *
-   * @param address Address to search for messages from.
-   * @param opts Options object.
-   * @param opts.direction Direction to search for messages in. If not provided, will attempt to
-   * find all messages in both directions.
-   * @returns All token bridge messages sent by the given address.
-   */
-  getTokenBridgeMessagesByAddress(
-    address: AddressLike,
-    opts?: {
-      direction?: MessageDirection
-    }
-  ): Promise<TokenBridgeMessage[]>
 
   /**
    * Gets all deposits for a given address.

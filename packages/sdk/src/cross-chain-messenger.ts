@@ -240,23 +240,6 @@ export class CrossChainMessenger implements ICrossChainMessenger {
     return bridges[0]
   }
 
-  public async getTokenBridgeMessagesByAddress(
-    address: AddressLike,
-    opts: {
-      direction?: MessageDirection
-    } = {}
-  ): Promise<TokenBridgeMessage[]> {
-    return (
-      await Promise.all(
-        Object.values(this.bridges).map(async (bridge) => {
-          return bridge.getTokenBridgeMessagesByAddress(address, opts)
-        })
-      )
-    ).reduce((acc, val) => {
-      return acc.concat(val)
-    }, [])
-  }
-
   public async getDepositsByAddress(
     address: AddressLike,
     opts: {
