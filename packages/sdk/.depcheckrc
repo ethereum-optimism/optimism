@@ -1,4 +1,6 @@
 ignores: [
   "@eth-optimism/core-utils",
   "ts-mocha",
+  "typedoc",
+  "typedoc-plugin-markdown"
 ]
