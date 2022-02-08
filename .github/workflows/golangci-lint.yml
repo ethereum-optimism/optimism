@@ -29,3 +29,8 @@ jobs:
         with:
           version: v1.29
           working-directory: go/batch-submitter
+      - name: golangci-lint bss-core
+        uses: golangci/golangci-lint-action@v2
+        with:
+          version: v1.29
+          working-directory: go/bss-core
