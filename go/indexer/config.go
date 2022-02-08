@@ -33,19 +33,15 @@ type Config struct {
 	// L2EthRpc is the HTTP provider URL for L1.
 	L2EthRpc string
 
-	// L1StandardBridgeAddress is the CTC contract address.
+	// L1StandardBridgeAddress is the l1 standard bridge contract address.
 	L1StandardBridgeAddress string
 
-	// L2ERC20BridgeAddress is the SCC contract address.
-	L2ERC20BridgeAddress string
+	// L2StandardBridgeAddress is the l2 standard bridge contract address.
+	L2StandardBridgeAddress string
 
 	// PollInterval is the delay between querying L2 for more transaction
 	// and creating a new batch.
 	PollInterval time.Duration
-
-	// NumConfirmations is the number of confirmations which we will wait after
-	// appending new batches.
-	NumConfirmations uint64
 
 	// Hostname of the database connection.
 	DBHost string
@@ -84,10 +80,6 @@ type Config struct {
 	// StartBlockHash is the block hash to start indexing from.
 	StartBlockHash string
 
-	// BlockOffset is the offset between the CTC contract start and the L2 geth
-	// blocks.
-	BlockOffset uint64
-
 	// ConfDepth is the number of confirmations after which headers are
 	// considered confirmed.
 	ConfDepth uint64
@@ -117,8 +109,7 @@ func NewConfig(ctx *cli.Context) (Config, error) {
 		L1EthRpc:                ctx.GlobalString(flags.L1EthRpcFlag.Name),
 		L2EthRpc:                ctx.GlobalString(flags.L2EthRpcFlag.Name),
 		L1StandardBridgeAddress: ctx.GlobalString(flags.L1StandardBridgeAddressFlag.Name),
-		L2ERC20BridgeAddress:    ctx.GlobalString(flags.L2ERC20BridgeAddressFlag.Name),
-		NumConfirmations:        ctx.GlobalUint64(flags.NumConfirmationsFlag.Name),
+		L2StandardBridgeAddress: ctx.GlobalString(flags.L2StandardBridgeAddressFlag.Name),
 		DBHost:                  ctx.GlobalString(flags.DBHostFlag.Name),
 		DBPort:                  ctx.GlobalUint64(flags.DBPortFlag.Name),
 		DBUser:                  ctx.GlobalString(flags.DBUserFlag.Name),
@@ -130,7 +121,6 @@ func NewConfig(ctx *cli.Context) (Config, error) {
 		SentryTraceRate:     ctx.GlobalDuration(flags.SentryTraceRateFlag.Name),
 		StartBlockNumber:    ctx.GlobalUint64(flags.StartBlockNumberFlag.Name),
 		StartBlockHash:      ctx.GlobalString(flags.StartBlockHashFlag.Name),
-		BlockOffset:         ctx.GlobalUint64(flags.BlockOffsetFlag.Name),
 		ConfDepth:           ctx.GlobalUint64(flags.ConfDepthFlag.Name),
 		MaxHeaderBatchSize:  ctx.GlobalUint64(flags.MaxHeaderBatchSizeFlag.Name),
 		MetricsServerEnable: ctx.GlobalBool(flags.MetricsServerEnableFlag.Name),

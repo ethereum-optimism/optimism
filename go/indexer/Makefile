@@ -60,8 +60,7 @@ bindings-l2bridge:
 .PHONY: \
 	indexer \
 	bindings \
-	bindings-ctc \
-	bindings-scc \
+	bindings-l1bridge \
 	bindings-l2bridge \
 	clean \
 	test \

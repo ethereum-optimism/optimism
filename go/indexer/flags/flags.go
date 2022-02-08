@@ -46,11 +46,11 @@ var (
 		Required: true,
 		EnvVar:   "L1_STANDARD_BRIDGE_ADDRESS",
 	}
-	L2ERC20BridgeAddressFlag = cli.StringFlag{
-		Name:     "l2-erc20-bridge-address",
-		Usage:    "Address of the L2 ERC20 Bridge",
+	L2StandardBridgeAddressFlag = cli.StringFlag{
+		Name:     "l2-standard-bridge-address",
+		Usage:    "Address of the L2 Standard Bridge",
 		Required: true,
-		EnvVar:   "L2_ERC20_BRIDGE_ADDRESS",
+		EnvVar:   "L2_STANDARD_BRIDGE_ADDRESS",
 	}
 	NumConfirmationsFlag = cli.Uint64Flag{
 		Name:     "num-confirmations",
@@ -125,12 +125,6 @@ var (
 		Value:  "0xd4e56740f876aef8c010b86a40d5f56745a118d0906a34e69aec8c0db1cb8fa3",
 		EnvVar: prefixEnvVar("START_BLOCK_HASH"),
 	}
-	BlockOffsetFlag = cli.Uint64Flag{
-		Name:   "block-offset",
-		Usage:  "The offset between the CTC contract start and the L2 geth blocks",
-		Value:  1,
-		EnvVar: prefixEnvVar("BLOCK_OFFSET"),
-	}
 	ConfDepthFlag = cli.Uint64Flag{
 		Name:   "conf-depth",
 		Usage:  "The number of confirmations after which headers are considered confirmed",
@@ -168,7 +162,7 @@ var requiredFlags = []cli.Flag{
 	L1EthRpcFlag,
 	L2EthRpcFlag,
 	L1StandardBridgeAddressFlag,
-	L2ERC20BridgeAddressFlag,
+	L2StandardBridgeAddressFlag,
 	NumConfirmationsFlag,
 	DBHostFlag,
 	DBPortFlag,
@@ -182,7 +176,6 @@ var optionalFlags = []cli.Flag{
 	SentryEnableFlag,
 	SentryDsnFlag,
 	SentryTraceRateFlag,
-	BlockOffsetFlag,
 	ConfDepthFlag,
 	MaxHeaderBatchSizeFlag,
 	StartBlockNumberFlag,

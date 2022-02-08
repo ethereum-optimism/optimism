@@ -13,7 +13,6 @@ import (
 	"github.com/ethereum-optimism/optimism/go/indexer/services/l1"
 	"github.com/ethereum-optimism/optimism/go/indexer/services/l2"
 	l2ethclient "github.com/ethereum-optimism/optimism/l2geth/ethclient"
-	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/getsentry/sentry-go"
@@ -80,12 +79,10 @@ func Main(gitVersion string) func(ctx *cli.Context) error {
 // Indexer is a service that configures the necessary resources for
 // running the Sync and BlockHandler sub-services.
 type Indexer struct {
-	ctx        context.Context
-	cfg        Config
-	l1Client   *ethclient.Client
-	l2Client   *l2ethclient.Client
-	ctcAddress common.Address
-	sccAddress common.Address
+	ctx      context.Context
+	cfg      Config
+	l1Client *ethclient.Client
+	l2Client *l2ethclient.Client
 
 	l1IndexingService *l1.Service
 	l2IndexingService *l2.Service
@@ -155,7 +152,7 @@ func NewIndexer(cfg Config, gitVersion string) (*Indexer, error) {
 		return nil, err
 	}
 
-	l2erc20BridgeAddress, err := ParseL2Address(cfg.L2ERC20BridgeAddress)
+	l2erc20BridgeAddress, err := ParseL2Address(cfg.L2StandardBridgeAddress)
 	if err != nil {
 		return nil, err
 	}
