@@ -237,8 +237,6 @@ export const hardhatTest = (name, fn) =>
     'Skipping test on non-Hardhat environment.'
   )
 
-export const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
-
 const abiCoder = new utils.AbiCoder()
 export const encodeSolidityRevertMessage = (_reason: string): string => {
   return '0x08c379a0' + remove0x(abiCoder.encode(['string'], [_reason]))
