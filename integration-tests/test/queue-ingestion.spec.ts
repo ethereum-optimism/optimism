@@ -1,6 +1,7 @@
 /* Imports: Internal */
 import { providers } from 'ethers'
-import { injectL2Context, applyL1ToL2Alias } from '@eth-optimism/core-utils'
+import { applyL1ToL2Alias } from '@eth-optimism/core-utils'
+import { asL2Provider } from '@eth-optimism/sdk'
 
 /* Imports: External */
 import { expect } from './shared/setup'
@@ -13,7 +14,7 @@ describe('Queue Ingestion', () => {
   let l2Provider: providers.JsonRpcProvider
   before(async () => {
     env = await OptimismEnv.new()
-    l2Provider = injectL2Context(env.l2Wallet.provider as any)
+    l2Provider = asL2Provider(env.l2Wallet.provider as any)
   })
 
   // The batch submitter will notice that there are transactions

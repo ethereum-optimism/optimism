@@ -1,5 +1,6 @@
 /* Imports: External */
-import { expectApprox, injectL2Context, sleep } from '@eth-optimism/core-utils'
+import { expectApprox, sleep } from '@eth-optimism/core-utils'
+import { asL2Provider } from '@eth-optimism/sdk'
 import { Wallet, BigNumber, Contract, ContractFactory, constants } from 'ethers'
 import { serialize } from '@ethersproject/transactions'
 import { ethers } from 'hardhat'
@@ -26,7 +27,7 @@ describe('Basic RPC tests', () => {
   let env: OptimismEnv
   let wallet: Wallet
 
-  const provider = injectL2Context(l2Provider)
+  const provider = asL2Provider(l2Provider)
 
   let Reverter: Contract
   let ValueContext: Contract
