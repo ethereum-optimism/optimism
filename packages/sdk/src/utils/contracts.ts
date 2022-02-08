@@ -1,7 +1,7 @@
 import { getContractInterface, predeploys } from '@eth-optimism/contracts'
 import { ethers, Contract } from 'ethers'
 
-import { toAddress } from './coercion'
+import { toAddress } from './type-coercion'
 import { DeepPartial } from './type-utils'
 import {
   OEContracts,
@@ -12,13 +12,13 @@ import {
   AddressLike,
   BridgeAdapters,
   BridgeAdapterData,
-  ICrossChainMessenger,
-} from '../interfaces'
+} from '../types'
 import {
   StandardBridgeAdapter,
   ETHBridgeAdapter,
   DAIBridgeAdapter,
-} from '../adapters'
+} from '../bridge-adapters'
+import { CrossChainMessenger } from '../cross-chain-messenger'
 
 /**
  * Full list of default L2 contract addresses.
@@ -308,7 +308,7 @@ export const getAllOEContracts = (
  */
 export const getBridgeAdapters = (
   l1ChainId: number,
-  messenger: ICrossChainMessenger,
+  messenger: CrossChainMessenger,
   opts?: {
     overrides?: BridgeAdapterData
   }

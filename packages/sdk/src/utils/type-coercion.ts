@@ -14,7 +14,7 @@ import {
   TransactionLike,
   NumberLike,
   AddressLike,
-} from '../interfaces'
+} from '../types'
 
 /**
  * Converts a SignerOrProviderLike into a Signer or a Provider. Assumes that if the input is a

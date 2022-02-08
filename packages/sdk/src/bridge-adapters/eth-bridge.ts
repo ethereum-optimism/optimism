@@ -9,7 +9,7 @@ import {
   AddressLike,
   TokenBridgeMessage,
   MessageDirection,
-} from '../interfaces'
+} from '../types'
 import { toAddress, omit } from '../utils'
 import { StandardBridgeAdapter } from './standard-bridge'
 

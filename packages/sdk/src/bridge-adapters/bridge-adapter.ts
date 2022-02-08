@@ -5,8 +5,8 @@ import {
   BlockTag,
 } from '@ethersproject/abstract-provider'
 
-import { NumberLike, AddressLike, TokenBridgeMessage } from './types'
-import { ICrossChainMessenger } from './cross-chain-messenger'
+import { NumberLike, AddressLike, TokenBridgeMessage } from '../types'
+import { CrossChainMessenger } from '../cross-chain-messenger'
 
 /**
  * Represents an adapter for an L1<>L2 token bridge. Each custom bridge currently needs its own
@@ -16,7 +16,7 @@ export interface IBridgeAdapter {
   /**
    * Provider used to make queries related to cross-chain interactions.
    */
-  messenger: ICrossChainMessenger
+  messenger: CrossChainMessenger
 
   /**
    * L1 bridge contract.

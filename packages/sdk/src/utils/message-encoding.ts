@@ -1,7 +1,7 @@
 import { getContractInterface } from '@eth-optimism/contracts'
 import { ethers } from 'ethers'
 
-import { CoreCrossChainMessage } from '../interfaces'
+import { CoreCrossChainMessage } from '../types'
 
 /**
  * Returns the canonical encoding of a cross chain message. This encoding is used in various

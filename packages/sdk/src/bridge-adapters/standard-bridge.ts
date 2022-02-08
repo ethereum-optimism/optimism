@@ -9,20 +9,20 @@ import { getContractInterface, predeploys } from '@eth-optimism/contracts'
 import { hexStringEquals } from '@eth-optimism/core-utils'
 
 import {
-  IBridgeAdapter,
-  ICrossChainMessenger,
   NumberLike,
   AddressLike,
   TokenBridgeMessage,
   MessageDirection,
-} from '../interfaces'
+} from '../types'
+import { CrossChainMessenger } from '../cross-chain-messenger'
 import { toAddress } from '../utils'
+import { IBridgeAdapter } from './bridge-adapter'
 
 /**
  * Bridge adapter for any token bridge that uses the standard token bridge interface.
  */
 export class StandardBridgeAdapter implements IBridgeAdapter {
-  public messenger: ICrossChainMessenger
+  public messenger: CrossChainMessenger
   public l1Bridge: Contract
   public l2Bridge: Contract
 
@@ -35,7 +35,7 @@ export class StandardBridgeAdapter implements IBridgeAdapter {
    * @param opts.l2Bridge L2 bridge contract.
    */
   constructor(opts: {
-    messenger: ICrossChainMessenger
+    messenger: CrossChainMessenger
     l1Bridge: AddressLike
     l2Bridge: AddressLike
   }) {
