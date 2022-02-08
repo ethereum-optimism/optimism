@@ -1,6 +1,6 @@
 import { ethers } from 'ethers'
 
-import { bnToAddress } from './bn'
+import { bnToAddress } from '../common'
 
 // Constant representing the alias to apply to the msg.sender when a contract sends an L1 => L2
 // message. We need this aliasing scheme because a contract can be deployed to the same address

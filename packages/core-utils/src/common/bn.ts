@@ -1,6 +1,6 @@
 import { ethers } from 'ethers'
 
-import { remove0x, add0x } from './common/hex-strings'
+import { remove0x, add0x } from './hex-strings'
 
 /**
  * Converts an ethers BigNumber into an equivalent Ethereum address representation.
