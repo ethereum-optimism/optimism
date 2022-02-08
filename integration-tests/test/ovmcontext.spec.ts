@@ -1,7 +1,8 @@
 /* Imports: External */
 import { ethers } from 'hardhat'
-import { injectL2Context, expectApprox } from '@eth-optimism/core-utils'
+import { expectApprox } from '@eth-optimism/core-utils'
 import { predeploys } from '@eth-optimism/contracts'
+import { asL2Provider } from '@eth-optimism/sdk'
 import { Contract, BigNumber } from 'ethers'
 
 /* Imports: Internal */
@@ -21,7 +22,7 @@ import { Direction } from './shared/watcher-utils'
  * must be equal to the blocknumber/timestamp of the L1 transaction.
  */
 describe('OVM Context: Layer 2 EVM Context', () => {
-  const L2Provider = injectL2Context(l2Provider)
+  const L2Provider = asL2Provider(l2Provider)
   let env: OptimismEnv
   before(async () => {
     env = await OptimismEnv.new()

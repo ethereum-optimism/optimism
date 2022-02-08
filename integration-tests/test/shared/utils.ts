@@ -12,8 +12,12 @@ import {
   getContractInterface,
   predeploys,
 } from '@eth-optimism/contracts'
-import { injectL2Context, remove0x } from '@eth-optimism/core-utils'
-import { CrossChainMessenger, NumberLike } from '@eth-optimism/sdk'
+import { remove0x } from '@eth-optimism/core-utils'
+import {
+  CrossChainMessenger,
+  NumberLike,
+  asL2Provider,
+} from '@eth-optimism/sdk'
 import { cleanEnv, str, num, bool, makeValidator } from 'envalid'
 import dotenv from 'dotenv'
 dotenv.config()
@@ -112,17 +116,17 @@ export const envConfig = procEnv
 export const l1Provider = new providers.JsonRpcProvider(procEnv.L1_URL)
 l1Provider.pollingInterval = procEnv.L1_POLLING_INTERVAL
 
-export const l2Provider = injectL2Context(
+export const l2Provider = asL2Provider(
   new providers.JsonRpcProvider(procEnv.L2_URL)
 )
 l2Provider.pollingInterval = procEnv.L2_POLLING_INTERVAL
 
-export const replicaProvider = injectL2Context(
+export const replicaProvider = asL2Provider(
   new providers.JsonRpcProvider(procEnv.REPLICA_URL)
 )
 replicaProvider.pollingInterval = procEnv.REPLICA_POLLING_INTERVAL
 
-export const verifierProvider = injectL2Context(
+export const verifierProvider = asL2Provider(
   new providers.JsonRpcProvider(procEnv.VERIFIER_URL)
 )
 verifierProvider.pollingInterval = procEnv.L2_POLLING_INTERVAL
