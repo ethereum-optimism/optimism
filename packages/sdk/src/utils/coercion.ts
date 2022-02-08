@@ -10,6 +10,7 @@ import { ethers, BigNumber } from 'ethers'
 
 import {
   SignerOrProviderLike,
+  ProviderLike,
   TransactionLike,
   NumberLike,
   AddressLike,
@@ -31,6 +32,23 @@ export const toSignerOrProvider = (
     return signerOrProvider as Provider
   } else if (Signer.isSigner(signerOrProvider)) {
     return signerOrProvider as Signer
+  } else {
+    throw new Error('Invalid provider')
+  }
+}
+
+/**
+ * Converts a ProviderLike into a Provider. Assumes that if the input is a string then it is a
+ * JSON-RPC url.
+ *
+ * @param provider ProviderLike to turn into a Provider.
+ * @returns Input as a Provider.
+ */
+export const toProvider = (provider: ProviderLike): Provider => {
+  if (typeof provider === 'string') {
+    return new ethers.providers.JsonRpcProvider(provider)
+  } else if (Provider.isProvider(provider)) {
+    return provider as Provider
   } else {
     throw new Error('Invalid provider')
   }
