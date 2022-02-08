@@ -17,14 +17,12 @@ import (
 	ethereum "github.com/ethereum-optimism/optimism/l2geth"
 	"github.com/ethereum-optimism/optimism/l2geth/accounts/abi/bind"
 	"github.com/ethereum-optimism/optimism/l2geth/common"
+	l2common "github.com/ethereum-optimism/optimism/l2geth/common"
 	"github.com/ethereum-optimism/optimism/l2geth/core/types"
 	l2ethclient "github.com/ethereum-optimism/optimism/l2geth/ethclient"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/gorilla/mux"
 )
-
-// l2BridgeContractAddress is the contract address of the standard l2 bridge
-var l2BridgeContractAddress = common.HexToAddress("0x4200000000000000000000000000000000000010")
 
 // errNoChainID represents the error when the chain id is not provided
 // and it cannot be remotely fetched
@@ -93,15 +91,15 @@ type Driver interface {
 }
 
 type ServiceConfig struct {
-	Context            context.Context
-	L2Client           *l2ethclient.Client
-	ChainID            *big.Int
-	CTCAddr            common.Address
-	ConfDepth          uint64
-	MaxHeaderBatchSize uint64
-	StartBlockNumber   uint64
-	StartBlockHash     string
-	DB                 *db.Database
+	Context              context.Context
+	L2Client             *l2ethclient.Client
+	ChainID              *big.Int
+	L2ERC20BridgeAddress l2common.Address
+	ConfDepth            uint64
+	MaxHeaderBatchSize   uint64
+	StartBlockNumber     uint64
+	StartBlockHash       string
+	DB                   *db.Database
 }
 
 type Service struct {
@@ -126,7 +124,7 @@ type IndexerStatus struct {
 func NewService(cfg ServiceConfig) (*Service, error) {
 	ctx, cancel := context.WithCancel(cfg.Context)
 
-	contract, err := l2bridge.NewL2StandardBridgeFilterer(l2BridgeContractAddress, cfg.L2Client)
+	contract, err := l2bridge.NewL2StandardBridgeFilterer(cfg.L2ERC20BridgeAddress, cfg.L2Client)
 	if err != nil {
 		return nil, err
 	}
@@ -194,10 +192,6 @@ func (s *Service) Loop(ctx context.Context) {
 			return
 		}
 	}
-}
-
-func (s *Service) fetchTransaction(ctx context.Context, hash common.Hash) (*types.Transaction, bool, error) {
-	return s.cfg.L2Client.TransactionByHash(ctx, hash)
 }
 
 func (s *Service) fetchBlockEventIterator(start, end uint64) (

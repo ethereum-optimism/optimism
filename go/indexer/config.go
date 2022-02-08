@@ -33,11 +33,11 @@ type Config struct {
 	// L2EthRpc is the HTTP provider URL for L1.
 	L2EthRpc string
 
-	// CTCAddress is the CTC contract address.
-	CTCAddress string
+	// L1StandardBridgeAddress is the CTC contract address.
+	L1StandardBridgeAddress string
 
-	// SCCAddress is the SCC contract address.
-	SCCAddress string
+	// L2ERC20BridgeAddress is the SCC contract address.
+	L2ERC20BridgeAddress string
 
 	// PollInterval is the delay between querying L2 for more transaction
 	// and creating a new batch.
@@ -112,18 +112,18 @@ type Config struct {
 func NewConfig(ctx *cli.Context) (Config, error) {
 	cfg := Config{
 		/* Required Flags */
-		BuildEnv:         ctx.GlobalString(flags.BuildEnvFlag.Name),
-		EthNetworkName:   ctx.GlobalString(flags.EthNetworkNameFlag.Name),
-		L1EthRpc:         ctx.GlobalString(flags.L1EthRpcFlag.Name),
-		L2EthRpc:         ctx.GlobalString(flags.L2EthRpcFlag.Name),
-		CTCAddress:       ctx.GlobalString(flags.CTCAddressFlag.Name),
-		SCCAddress:       ctx.GlobalString(flags.SCCAddressFlag.Name),
-		NumConfirmations: ctx.GlobalUint64(flags.NumConfirmationsFlag.Name),
-		DBHost:           ctx.GlobalString(flags.DBHostFlag.Name),
-		DBPort:           ctx.GlobalUint64(flags.DBPortFlag.Name),
-		DBUser:           ctx.GlobalString(flags.DBUserFlag.Name),
-		DBPassword:       ctx.GlobalString(flags.DBPasswordFlag.Name),
-		DBName:           ctx.GlobalString(flags.DBNameFlag.Name),
+		BuildEnv:                ctx.GlobalString(flags.BuildEnvFlag.Name),
+		EthNetworkName:          ctx.GlobalString(flags.EthNetworkNameFlag.Name),
+		L1EthRpc:                ctx.GlobalString(flags.L1EthRpcFlag.Name),
+		L2EthRpc:                ctx.GlobalString(flags.L2EthRpcFlag.Name),
+		L1StandardBridgeAddress: ctx.GlobalString(flags.L1StandardBridgeAddressFlag.Name),
+		L2ERC20BridgeAddress:    ctx.GlobalString(flags.L2ERC20BridgeAddressFlag.Name),
+		NumConfirmations:        ctx.GlobalUint64(flags.NumConfirmationsFlag.Name),
+		DBHost:                  ctx.GlobalString(flags.DBHostFlag.Name),
+		DBPort:                  ctx.GlobalUint64(flags.DBPortFlag.Name),
+		DBUser:                  ctx.GlobalString(flags.DBUserFlag.Name),
+		DBPassword:              ctx.GlobalString(flags.DBPasswordFlag.Name),
+		DBName:                  ctx.GlobalString(flags.DBNameFlag.Name),
 		/* Optional Flags */
 		SentryEnable:        ctx.GlobalBool(flags.SentryEnableFlag.Name),
 		SentryDsn:           ctx.GlobalString(flags.SentryDsnFlag.Name),

@@ -150,33 +150,39 @@ func NewIndexer(cfg Config, gitVersion string) (*Indexer, error) {
 		return nil, err
 	}
 
-	ctcAddress, err := ParseAddress(cfg.CTCAddress)
+	l1StandardBridgeAddress, err := ParseL1Address(cfg.L1StandardBridgeAddress)
+	if err != nil {
+		return nil, err
+	}
+
+	l2erc20BridgeAddress, err := ParseL2Address(cfg.L2ERC20BridgeAddress)
 	if err != nil {
 		return nil, err
 	}
 
 	l1IndexingService, err := l1.NewService(l1.ServiceConfig{
-		Context:            ctx,
-		L1Client:           l1Client,
-		CTCAddr:            ctcAddress,
-		DB:                 db,
-		ConfDepth:          cfg.ConfDepth,
-		MaxHeaderBatchSize: cfg.MaxHeaderBatchSize,
-		StartBlockNumber:   cfg.StartBlockNumber,
-		StartBlockHash:     cfg.StartBlockHash,
+		Context:                 ctx,
+		L1Client:                l1Client,
+		L1StandardBridgeAddress: l1StandardBridgeAddress,
+		DB:                      db,
+		ConfDepth:               cfg.ConfDepth,
+		MaxHeaderBatchSize:      cfg.MaxHeaderBatchSize,
+		StartBlockNumber:        cfg.StartBlockNumber,
+		StartBlockHash:          cfg.StartBlockHash,
 	})
 	if err != nil {
 		return nil, err
 	}
 
 	l2IndexingService, err := l2.NewService(l2.ServiceConfig{
-		Context:            ctx,
-		L2Client:           l2Client,
-		DB:                 db,
-		ConfDepth:          cfg.ConfDepth,
-		MaxHeaderBatchSize: cfg.MaxHeaderBatchSize,
-		StartBlockNumber:   l2StartBlockNumber,
-		StartBlockHash:     l2StartBlockHash,
+		Context:              ctx,
+		L2Client:             l2Client,
+		L2ERC20BridgeAddress: l2erc20BridgeAddress,
+		DB:                   db,
+		ConfDepth:            cfg.ConfDepth,
+		MaxHeaderBatchSize:   cfg.MaxHeaderBatchSize,
+		StartBlockNumber:     l2StartBlockNumber,
+		StartBlockHash:       l2StartBlockHash,
 	})
 	if err != nil {
 		return nil, err

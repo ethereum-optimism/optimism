@@ -23,9 +23,6 @@ import (
 	"github.com/gorilla/mux"
 )
 
-// l1BridgeContractAddress is the contract address of the standard l1 bridge
-var l1BridgeContractAddress = common.HexToAddress("0x99C9fc46f92E8a1c0deC1b1747d010903E884bE1")
-
 // errNoChainID represents the error when the chain id is not provided
 // and it cannot be remotely fetched
 var errNoChainID = errors.New("no chain id provided")
@@ -93,15 +90,15 @@ type Driver interface {
 }
 
 type ServiceConfig struct {
-	Context            context.Context
-	L1Client           *ethclient.Client
-	ChainID            *big.Int
-	CTCAddr            common.Address
-	ConfDepth          uint64
-	MaxHeaderBatchSize uint64
-	StartBlockNumber   uint64
-	StartBlockHash     string
-	DB                 *db.Database
+	Context                 context.Context
+	L1Client                *ethclient.Client
+	ChainID                 *big.Int
+	L1StandardBridgeAddress common.Address
+	ConfDepth               uint64
+	MaxHeaderBatchSize      uint64
+	StartBlockNumber        uint64
+	StartBlockHash          string
+	DB                      *db.Database
 }
 
 type Service struct {
@@ -126,7 +123,7 @@ type IndexerStatus struct {
 func NewService(cfg ServiceConfig) (*Service, error) {
 	ctx, cancel := context.WithCancel(cfg.Context)
 
-	contract, err := l1bridge.NewL1StandardBridgeFilterer(l1BridgeContractAddress, cfg.L1Client)
+	contract, err := l1bridge.NewL1StandardBridgeFilterer(cfg.L1StandardBridgeAddress, cfg.L1Client)
 	if err != nil {
 		return nil, err
 	}
@@ -194,10 +191,6 @@ func (s *Service) Loop(ctx context.Context) {
 			return
 		}
 	}
-}
-
-func (s *Service) fetchTransaction(ctx context.Context, hash common.Hash) (*types.Transaction, bool, error) {
-	return s.cfg.L1Client.TransactionByHash(ctx, hash)
 }
 
 func (s *Service) fetchBlockEventIterator(start, end uint64) (

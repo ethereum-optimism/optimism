@@ -40,17 +40,17 @@ var (
 		Required: true,
 		EnvVar:   "L2_ETH_RPC",
 	}
-	CTCAddressFlag = cli.StringFlag{
-		Name:     "ctc-address",
-		Usage:    "Address of the CTC contract",
+	L1StandardBridgeAddressFlag = cli.StringFlag{
+		Name:     "l1-standard-bridge-address",
+		Usage:    "Address of the L1 Standard Bridge",
 		Required: true,
-		EnvVar:   "CTC_ADDRESS",
+		EnvVar:   "L1_STANDARD_BRIDGE_ADDRESS",
 	}
-	SCCAddressFlag = cli.StringFlag{
-		Name:     "scc-address",
-		Usage:    "Address of the SCC contract",
+	L2ERC20BridgeAddressFlag = cli.StringFlag{
+		Name:     "l2-erc20-bridge-address",
+		Usage:    "Address of the L2 ERC20 Bridge",
 		Required: true,
-		EnvVar:   "SCC_ADDRESS",
+		EnvVar:   "L2_ERC20_BRIDGE_ADDRESS",
 	}
 	NumConfirmationsFlag = cli.Uint64Flag{
 		Name:     "num-confirmations",
@@ -167,8 +167,8 @@ var requiredFlags = []cli.Flag{
 	EthNetworkNameFlag,
 	L1EthRpcFlag,
 	L2EthRpcFlag,
-	CTCAddressFlag,
-	SCCAddressFlag,
+	L1StandardBridgeAddressFlag,
+	L2ERC20BridgeAddressFlag,
 	NumConfirmationsFlag,
 	DBHostFlag,
 	DBPortFlag,
