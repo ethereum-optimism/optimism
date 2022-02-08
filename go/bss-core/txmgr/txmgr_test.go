@@ -45,9 +45,10 @@ func newTestHarness() *testHarness {
 
 func configWithNumConfs(numConfirmations uint64) txmgr.Config {
 	return txmgr.Config{
-		ResubmissionTimeout:  time.Second,
-		ReceiptQueryInterval: 50 * time.Millisecond,
-		NumConfirmations:     numConfirmations,
+		ResubmissionTimeout:       time.Second,
+		ReceiptQueryInterval:      50 * time.Millisecond,
+		NumConfirmations:          numConfirmations,
+		SafeAbortNonceTooLowCount: 3,
 	}
 }
 

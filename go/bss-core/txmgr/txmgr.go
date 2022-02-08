@@ -38,6 +38,11 @@ type Config struct {
 	// NumConfirmations specifies how many blocks are need to consider a
 	// transaction confirmed.
 	NumConfirmations uint64
+
+	// SafeAbortNonceTooLowCount specifies how many ErrNonceTooLow observations
+	// are required to give up on a tx at a particular nonce without receiving
+	// confirmation.
+	SafeAbortNonceTooLowCount uint64
 }
 
 // TxManager is an interface that allows callers to reliably publish txs,
@@ -120,7 +125,7 @@ func (m *SimpleTxManager) Send(
 	ctxc, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	sendState := NewSendState(3)
+	sendState := NewSendState(m.cfg.SafeAbortNonceTooLowCount)
 
 	// Create a closure that will block on passed sendTx function in the
 	// background, returning the first successfully mined receipt back to
