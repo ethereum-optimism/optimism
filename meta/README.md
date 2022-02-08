@@ -1,3 +1,4 @@
+<!-- DOCTOC SKIP -->
 # Meta Processes
 
 This directory describes processes that we use to build the specification.

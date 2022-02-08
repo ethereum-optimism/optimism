@@ -1,3 +1,4 @@
+<!-- DOCTOC SKIP -->
 # Release process
 
 1. Confirm all release features are completed

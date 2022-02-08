@@ -35,20 +35,24 @@ L1 chain [re-organizes][g-reorg].
 The part of the rollup node that derives the L2 chain is called the [rollup driver][g-rollup-driver]. This document is
 currently only concerned with the specification of the rollup driver.
 
-## Table of Contents
+<!-- START doctoc generated TOC please keep comment here to allow auto update -->
+<!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
+**Table of Contents**
 
 - [L2 Chain Derivation](#l2-chain-derivation)
   - [From L1 Blocks to Payload Attributes](#from-l1-blocks-to-payload-attributes)
-    - [Reading L1 Inputs](#reading-l1-inputs)
+    - [Reading L1 inputs](#reading-l1-inputs)
     - [Encoding the L1 Attributes Deposited Transaction](#encoding-the-l1-attributes-deposited-transaction)
     - [Encoding User-Deposited Transactions](#encoding-user-deposited-transactions)
     - [Building the Payload Attributes](#building-the-payload-attributes)
-  - [From Payload Attributes to L2 Block](#from-payload-attributes-to-L2-block)
+  - [From Payload Attributes to L2 Block](#from-payload-attributes-to-l2-block)
     - [Inductive Derivation Step](#inductive-derivation-step)
     - [Engine API Error Handling](#engine-api-error-handling)
     - [Finalization Guarantees](#finalization-guarantees)
   - [Whole L2 Chain Derivation](#whole-l2-chain-derivation)
 - [Handling L1 Re-Orgs](#handling-l1-re-orgs)
+
+<!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
 # L2 Chain Derivation
 

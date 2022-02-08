@@ -1,5 +1,14 @@
 # Linting
 
+<!-- START doctoc generated TOC please keep comment here to allow auto update -->
+<!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
+**Table of Contents**
+
+- [Markdown](#markdown)
+- [Go](#go)
+
+<!-- END doctoc generated TOC please keep comment here to allow auto update -->
+
 ## Markdown
 
 See
@@ -18,6 +27,7 @@ Justification for linting rules in [.markdownlint.json](/.markdownlint.json):
 yarn             # Install dependencies
 yarn lint        # Run linter
 yarn lint:links  # Check links
+yarn lint:toc    # Update TOC docs
 ```
 
 To check links, you'll need to install [lychee]. The [version ran in CI][lychee-ci] is 0.8.1, but

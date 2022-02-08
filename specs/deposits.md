@@ -18,23 +18,26 @@ with the authorization and validation conditions on L2.
 **Vocabulary note**: *deposited transaction* refers specifically to an L2 transaction, while
 *deposit* can refer to the transaction at various stages (for instance when it is deposited on L1).
 
-## Table of Contents
+<!-- START doctoc generated TOC please keep comment here to allow auto update -->
+<!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
+**Table of Contents**
 
 - [The Deposited Transaction Type](#the-deposited-transaction-type)
   - [Kinds of Deposited Transactions](#kinds-of-deposited-transactions)
-  - [Validation and Authorization of Deposited
-    Transaction](#validation-and-authorization-of-deposit-transaction-types)
+  - [Validation and Authorization of Deposited Transactions](#validation-and-authorization-of-deposited-transactions)
   - [Execution](#execution)
     - [Nonce Handling](#nonce-handling)
 - [L1 Attributes Deposited Transaction](#l1-attributes-deposited-transaction)
 - [Special Accounts on L2](#special-accounts-on-l2)
   - [L1 Attributes Depositor Account](#l1-attributes-depositor-account)
   - [L1 Attributes Predeployed Contract](#l1-attributes-predeployed-contract)
-    - [L1 Attributes Predeployed Contract: Reference Implementation](#l1-attributes-predeployed-contract--reference-implementation)
+    - [L1 Attributes Predeployed Contract: Reference Implementation](#l1-attributes-predeployed-contract-reference-implementation)
 - [User-Deposited Transactions](#user-deposited-transactions)
-  - [Deposit Feed Contract](#deposit-feed-contract)
+  - [Deposit Contract](#deposit-contract)
     - [Address Aliasing](#address-aliasing)
-    - [Deposit Feed Contract: Reference Implementation](#deposit-feed-contract--reference-implementation)
+    - [Deposit Feed Contract: Reference Implementation](#deposit-feed-contract-reference-implementation)
+
+<!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
 ## The Deposited Transaction Type
 
