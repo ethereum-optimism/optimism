@@ -30,20 +30,25 @@ export class ETHBridgeAdapter extends StandardBridgeAdapter {
       opts?.toBlock
     )
 
-    return events.map((event) => {
-      return {
-        direction: MessageDirection.L1_TO_L2,
-        from: event.args._from,
-        to: event.args._to,
-        l1Token: ethers.constants.AddressZero,
-        l2Token: predeploys.OVM_ETH,
-        amount: event.args._amount,
-        data: event.args._data,
-        logIndex: event.logIndex,
-        blockNumber: event.blockNumber,
-        transactionHash: event.transactionHash,
-      }
-    })
+    return events
+      .map((event) => {
+        return {
+          direction: MessageDirection.L1_TO_L2,
+          from: event.args._from,
+          to: event.args._to,
+          l1Token: ethers.constants.AddressZero,
+          l2Token: predeploys.OVM_ETH,
+          amount: event.args._amount,
+          data: event.args._data,
+          logIndex: event.logIndex,
+          blockNumber: event.blockNumber,
+          transactionHash: event.transactionHash,
+        }
+      })
+      .sort((a, b) => {
+        // Sort descending by block number
+        return b.blockNumber - a.blockNumber
+      })
   }
 
   public async getWithdrawalsByAddress(
@@ -80,6 +85,10 @@ export class ETHBridgeAdapter extends StandardBridgeAdapter {
           blockNumber: event.blockNumber,
           transactionHash: event.transactionHash,
         }
+      })
+      .sort((a, b) => {
+        // Sort descending by block number
+        return b.blockNumber - a.blockNumber
       })
   }
 

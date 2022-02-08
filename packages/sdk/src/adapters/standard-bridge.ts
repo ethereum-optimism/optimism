@@ -93,6 +93,10 @@ export class StandardBridgeAdapter implements IBridgeAdapter {
           transactionHash: event.transactionHash,
         }
       })
+      .sort((a, b) => {
+        // Sort descending by block number
+        return b.blockNumber - a.blockNumber
+      })
   }
 
   public async getWithdrawalsByAddress(
@@ -131,6 +135,10 @@ export class StandardBridgeAdapter implements IBridgeAdapter {
           blockNumber: event.blockNumber,
           transactionHash: event.transactionHash,
         }
+      })
+      .sort((a, b) => {
+        // Sort descending by block number
+        return b.blockNumber - a.blockNumber
       })
   }
 

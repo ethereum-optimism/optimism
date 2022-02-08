@@ -253,9 +253,14 @@ export class CrossChainMessenger implements ICrossChainMessenger {
           return bridge.getDepositsByAddress(address, opts)
         })
       )
-    ).reduce((acc, val) => {
-      return acc.concat(val)
-    }, [])
+    )
+      .reduce((acc, val) => {
+        return acc.concat(val)
+      }, [])
+      .sort((a, b) => {
+        // Sort descending by block number
+        return b.blockNumber - a.blockNumber
+      })
   }
 
   public async getWithdrawalsByAddress(
@@ -271,9 +276,14 @@ export class CrossChainMessenger implements ICrossChainMessenger {
           return bridge.getWithdrawalsByAddress(address, opts)
         })
       )
-    ).reduce((acc, val) => {
-      return acc.concat(val)
-    }, [])
+    )
+      .reduce((acc, val) => {
+        return acc.concat(val)
+      }, [])
+      .sort((a, b) => {
+        // Sort descending by block number
+        return b.blockNumber - a.blockNumber
+      })
   }
 
   public async toCrossChainMessage(
