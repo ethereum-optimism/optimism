@@ -9,8 +9,8 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 )
 
-// StateMachine provides control over the driver state, when given control over the Driver actions.
-type StateMachine interface {
+// stateMachine provides control over the driver state, when given control over the Driver actions.
+type stateMachine interface {
 	// RequestUpdate tries to update the state-machine with the driver head information.
 	// If the state-machine changed, considering the engine L1 and L2 head, it will return true. False otherwise.
 	RequestUpdate(ctx context.Context, log log.Logger, driver Driver) (l2Updated bool)

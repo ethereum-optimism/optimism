@@ -17,7 +17,7 @@ const cold = time.Second * 8
 // at least try every minute to sync, even if things are going well
 const max = time.Minute
 
-func NewDriverLoop(ctx context.Context, state StateMachine, log log.Logger, l1Heads <-chan eth.HeadSignal, driver Driver) func(quit <-chan struct{}) error {
+func newDriverLoop(ctx context.Context, state stateMachine, log log.Logger, l1Heads <-chan eth.HeadSignal, driver Driver) func(quit <-chan struct{}) error {
 
 	backoff := cold
 	syncTicker := time.NewTicker(cold)
