@@ -1,10 +1,10 @@
 ignores: [
+  "@ethersproject/bytes",
+  "@ethersproject/providers",
   "@codechecks/client",
   "@openzeppelin/contracts",
   "@openzeppelin/contracts-upgradeable",
   "@typechain/ethers-v5",
   "prettier-plugin-solidity",
   "solhint-plugin-prettier",
-  "ts-generator",
-  "yargs",
 ]
