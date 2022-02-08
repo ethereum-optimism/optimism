@@ -1,6 +1,8 @@
 package metrics
 
 import (
+	"strings"
+
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 )
@@ -44,9 +46,10 @@ type Metrics struct {
 }
 
 func NewMetrics(subsystem string) *Metrics {
+	subsystem = "batch_submitter_ " + strings.ToLower(subsystem)
 	return &Metrics{
 		ETHBalance: promauto.NewGauge(prometheus.GaugeOpts{
-			Name:      "batch_submitter_eth_balance",
+			Name:      "balance_eth",
 			Help:      "ETH balance of the batch submitter",
 			Subsystem: subsystem,
 		}),
@@ -76,12 +79,12 @@ func NewMetrics(subsystem string) *Metrics {
 			Subsystem: subsystem,
 		}),
 		SubmissionTimestamp: promauto.NewGauge(prometheus.GaugeOpts{
-			Name:      "submission_timestamp",
+			Name:      "submission_timestamp_ms",
 			Help:      "Timestamp of last batch submitter submission",
 			Subsystem: subsystem,
 		}),
 		SubmissionGasUsed: promauto.NewGauge(prometheus.GaugeOpts{
-			Name:      "submission_gas_used",
+			Name:      "submission_gas_used_wei",
 			Help:      "Gas used to submit each batch",
 			Subsystem: subsystem,
 		}),
@@ -101,12 +104,12 @@ func NewMetrics(subsystem string) *Metrics {
 			Subsystem: subsystem,
 		}),
 		BatchConfirmationTime: promauto.NewGauge(prometheus.GaugeOpts{
-			Name:      "batch_submitter_batch_confirmation_time_ms",
+			Name:      "batch_confirmation_time_ms",
 			Help:      "Time to confirm batch transactions",
 			Subsystem: subsystem,
 		}),
 		BatchPruneCount: promauto.NewGauge(prometheus.GaugeOpts{
-			Name:      "batch_submitter_batch_prune_count",
+			Name:      "batch_prune_count",
 			Help:      "Number of times a batch is pruned",
 			Subsystem: subsystem,
 		}),
