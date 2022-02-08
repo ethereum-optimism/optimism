@@ -1,5 +1,14 @@
 # Linting
 
+<!-- START doctoc generated TOC please keep comment here to allow auto update -->
+<!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
+**Table of Contents**
+
+- [Markdown](#markdown)
+- [Go](#go)
+
+<!-- END doctoc generated TOC please keep comment here to allow auto update -->
+
 ## Markdown
 
 See
@@ -18,6 +27,7 @@ Justification for linting rules in [.markdownlint.json](/.markdownlint.json):
 yarn             # Install dependencies
 yarn lint        # Run linter
 yarn lint:links  # Check links
+yarn lint:toc    # Update TOC docs
 ```
 
 To check links, you'll need to install [lychee]. The [version ran in CI][lychee-ci] is 0.8.1, but
@@ -29,6 +39,10 @@ You can install cargo (the Rust package manager) via [rustup].
 [lychee]: https://github.com/lycheeverse/lychee
 [lychee-ci]: https://github.com/lycheeverse/lychee-action/blob/f76b8412c668f78311212d16d33c4784a7d8762c/Dockerfile
 [rustup]: https://www.rust-lang.org/tools/install
+
+To update the TOC, we run [doctoc], installed through the dev-dependencies in `package.json`.
+
+[doctoc]: https://github.com/thlorenz/doctoc
 
 ## Go
 

@@ -1,5 +1,23 @@
 # L2 Execution Engine
 
+<!-- START doctoc generated TOC please keep comment here to allow auto update -->
+<!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
+**Table of Contents**
+
+- [Depositited transaction processing](#depositited-transaction-processing)
+  - [Deposited transaction boundaries](#deposited-transaction-boundaries)
+- [Engine API](#engine-api)
+  - [`engine_forkchoiceUpdatedV1`](#engine_forkchoiceupdatedv1)
+    - [Extended PayloadAttributesV1](#extended-payloadattributesv1)
+  - [`engine_executePayloadV1`](#engine_executepayloadv1)
+  - [`engine_getPayloadV1`](#engine_getpayloadv1)
+- [Networking](#networking)
+- [Sync](#sync)
+  - [Happy-path sync](#happy-path-sync)
+  - [Worst-case sync](#worst-case-sync)
+
+<!-- END doctoc generated TOC please keep comment here to allow auto update -->
+
 This document outlines the modifications, configuration and usage of a L1 execution engine for L2.
 
 ## Depositited transaction processing

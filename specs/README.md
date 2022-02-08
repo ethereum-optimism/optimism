@@ -1,3 +1,4 @@
+<!-- DOCTOC SKIP -->
 # Optimism specs
 
 This directory contains the plain english specs for Optimism, an minimal optimistic rollup protocol

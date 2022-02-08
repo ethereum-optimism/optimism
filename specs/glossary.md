@@ -1,6 +1,8 @@
 # Glossary
 
-## Table of Contents
+<!-- START doctoc generated TOC please keep comment here to allow auto update -->
+<!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
+**Table of Contents**
 
 - [General Terms](#general-terms)
   - [Layer 1 (L1)](#layer-1-l1)
@@ -34,6 +36,8 @@
   - [L1 Attributes Predeployed Contract](#l1-attributes-predeployed-contract)
 - [Execution Engine Concepts](#execution-engine-concepts)
   - [Execution Engine](#execution-engine)
+
+<!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
 ------------------------------------------------------------------------------------------------------------------------
 
