@@ -176,13 +176,12 @@ func (s *Service) Loop(ctx context.Context) {
 	}
 	defer subscription.Unsubscribe()
 
-	start := uint64(0)
 	for {
 		select {
 		case header := <-newHeads:
 			log.Info("Received new header", "header", header.Hash)
 			for {
-				err := s.Update(start, header)
+				err := s.Update(header)
 				if err != nil && err != errNoNewBlocks {
 					log.Error("Unable to update indexer ", "err", err)
 				}
@@ -220,7 +219,7 @@ func (s *Service) fetchBlockEventIterator(start, end uint64) (
 	return nil, err
 }
 
-func (s *Service) Update(start uint64, newHeader *types.Header) error {
+func (s *Service) Update(newHeader *types.Header) error {
 	var lowest = db.L2BlockLocator{
 		Number: s.cfg.StartBlockNumber,
 		Hash:   common.HexToHash(s.cfg.StartBlockHash),
