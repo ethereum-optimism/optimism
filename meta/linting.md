@@ -40,6 +40,10 @@ You can install cargo (the Rust package manager) via [rustup].
 [lychee-ci]: https://github.com/lycheeverse/lychee-action/blob/f76b8412c668f78311212d16d33c4784a7d8762c/Dockerfile
 [rustup]: https://www.rust-lang.org/tools/install
 
+To update the TOC, we run [doctoc], installed through the dev-dependencies in `package.json`.
+
+[doctoc]: https://github.com/thlorenz/doctoc
+
 ## Go
 
 See
