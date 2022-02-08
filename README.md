@@ -38,6 +38,11 @@ root
 │   ├── <a href="./packages/batch-submitter">batch-submitter</a>: Service for submitting batches of transactions and results to L1
 │   ├── <a href="./packages/message-relayer">message-relayer</a>: Tool for automatically relaying L1<>L2 messages in development
 │   └── <a href="./packages/replica-healthcheck">replica-healthcheck</a>: Service for monitoring the health of a replica node
+├── <a href="./go">go</a>
+│   ├── <a href="./go/batch-submitter">batch-submitter</a>: Service for submitting batches of transactions and results to L1
+│   ├── <a href="./go/bss-core">bss-core</a>: Core batch-submitter logic and utilities
+│   ├── <a href="./go/gas-oracle">gas-oracle</a>: Service for updating L1 gas prices on L2
+│   └── <a href="./go/proxyd">proxyd</a>: Configurable RPC request router and proxy
 ├── <a href="./l2geth">l2geth</a>: Optimism client software, a fork of <a href="https://github.com/ethereum/go-ethereum/tree/v1.9.10">geth v1.9.10</a>
 ├── <a href="./integration-tests">integration-tests</a>: Various integration tests for the Optimism network
 └── <a href="./ops">ops</a>: Tools for running Optimism nodes and networks
@@ -78,10 +83,6 @@ Some exceptions to this rule exist for cases in which we absolutely must deploy 
 If you're changing or adding a contract and you're unsure about which branch to make a PR into, default to using the latest release candidate branch.
 See below for info about release candidate branches.
 
-### Release new versions
-
-Developers can release new versions of the software by adding changesets to their pull requests using `yarn changeset`. Changesets will persist over time on the `develop` branch without triggering new version bumps to be proposed by the Changesets bot. Once changesets are merged into `master`, the bot will create a new pull request called "Version Packages" which bumps the versions of packages. The correct flow for triggering releases is to re-base these pull requests onto `develop` and merge them, and then create a new pull request to merge `develop` onto `master`. Then, the `release` workflow will trigger the actual publishing to `npm` and Docker hub.
-
 ### Release candidate branches
 
 Branches marked `regenesis/X.X.X` are **release candidate branches**.
@@ -89,6 +90,10 @@ Changes that are not backwards compatible and all changes to contracts within `p
 Release candidates are merged into `develop` and then into `master` once they've been fully deployed.
 We may sometimes have more than one active `regenesis/X.X.X` branch if we're in the middle of a deployment.
 See table in the **Active Branches** section above to find the right branch to target.
+
+### Releasing new versions
+
+Developers can release new versions of the software by adding changesets to their pull requests using `yarn changeset`. Changesets will persist over time on the `develop` branch without triggering new version bumps to be proposed by the Changesets bot. Once changesets are merged into `master`, the bot will create a new pull request called "Version Packages" which bumps the versions of packages. The correct flow for triggering releases is to re-base these pull requests onto `develop` and merge them, and then create a new pull request to merge `develop` onto `master`. Then, the `release` workflow will trigger the actual publishing to `npm` and Docker hub.
 
 ## License
 
