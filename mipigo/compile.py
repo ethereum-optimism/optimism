@@ -2,14 +2,11 @@
 import os
 import sys
 import struct
+import hashlib
 from rangetree import RangeTree
 from elftools.elf.elffile import ELFFile
 
-# TODO: refactor this to not use unicorn
-from unicorn import *
-from unicorn.mips_const import *
-
-def load_minigeth(mu, fn="minigeth"):
+def load_minigeth(fn="minigeth"):
   elf = open(fn, "rb")
   data = elf.read()
   elf.seek(0)
@@ -22,12 +19,12 @@ def load_minigeth(mu, fn="minigeth"):
 
   # program memory (16 MB)
   prog_size = (end_addr+0xFFF) & ~0xFFF
-  mu.mem_map(0, prog_size)
+  prog_dat = bytearray(prog_size)
   print("malloced 0x%x for program" % prog_size)
 
   for seg in elffile.iter_segments():
     print(seg.header, hex(seg.header.p_vaddr))
-    mu.mem_write(seg.header.p_vaddr, seg.data())
+    prog_dat[seg.header.p_vaddr:seg.header.p_vaddr+len(seg.data())] = seg.data()
 
   entry = elffile.header.e_entry
   print("entrypoint: 0x%x" % entry)
@@ -35,7 +32,7 @@ def load_minigeth(mu, fn="minigeth"):
   # moved to MIPS
   sf = os.path.join(os.path.dirname(os.path.abspath(__file__)), "startup", "startup.bin")
   start = open(sf, "rb").read() + struct.pack(">I", entry)
-  mu.mem_write(0, start)
+  prog_dat[:len(start)] = start
   entry = 0
 
   r = RangeTree()
@@ -54,31 +51,23 @@ def load_minigeth(mu, fn="minigeth"):
         if symbol.name == "runtime.gcenable":
           print(nsym, symbol.name)
           # nop gcenable
-          mu.mem_write(symbol['st_value'], b"\x03\xe0\x00\x08\x00\x00\x00\x00")
+          prog_dat[symbol['st_value']:symbol['st_value']+8] = b"\x03\xe0\x00\x08\x00\x00\x00\x00"
           found += 1
-        #if symbol.name == "github.com/ethereum/go-ethereum/oracle.Halt":
-          #00400000: 2004dead ; <input:0> li $a0, 57005
-          # 00400004: 00042400 ; <input:1> sll $a0, $a0, 16
-          # 00400008: 00800008 ; <input:2> jr $a0
-          #mu.mem_write(symbol['st_value'], b"\x20\x04\xde\xad\x00\x04\x24\x00\x00\x80\x00\x08")
-          #found += 1
     except Exception:
       #traceback.print_exc()
       pass
 
   #assert(found == 2)
-  return prog_size, r
+  return prog_dat, prog_size, r
 
 
 if __name__ == "__main__":
-  mu = Uc(UC_ARCH_MIPS, UC_MODE_32 + UC_MODE_BIG_ENDIAN)
-
   fn = "minigeth"
   if len(sys.argv) > 1:
     fn = sys.argv[1]
 
-  prog_size, _ = load_minigeth(mu, fn)
-  print("compiled %d bytes" % prog_size)
+  prog_dat, prog_size, _ = load_minigeth(fn)
+  print("compiled %d bytes with md5 %s" % (prog_size, hashlib.md5(prog_dat).hexdigest()))
 
   with open(fn+".bin", "wb") as f:
-    f.write(mu.mem_read(0, prog_size))
+    f.write(prog_dat)
