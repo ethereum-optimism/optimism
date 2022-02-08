@@ -206,6 +206,14 @@ func (m *SimpleTxManager) Send(
 		// Whenever a resubmission timeout has elapsed, bump the gas
 		// price and publish a new transaction.
 		case <-time.After(m.cfg.ResubmissionTimeout):
+			// Avoid republishing if we are waiting for confirmation on an
+			// existing tx. This is primarily an optimization to reduce the
+			// number of API calls we make, but also reduces the chances of
+			// getting a false postive reading for ShouldAbortImmediately.
+			if sendState.IsWaitingForConfirmation() {
+				continue
+			}
+
 			// Submit and wait for the bumped traction to confirm.
 			wg.Add(1)
 			go sendTxAsync()

@@ -100,3 +100,12 @@ func (s *SendState) ShouldAbortImmediately() bool {
 	// threshold.
 	return s.nonceTooLowCount >= s.safeAbortNonceTooLowCount
 }
+
+// IsWaitingForConfirmation returns true if we have at least one confirmation on
+// one of our txs.
+func (s *SendState) IsWaitingForConfirmation() bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	return len(s.minedTxs) > 0
+}

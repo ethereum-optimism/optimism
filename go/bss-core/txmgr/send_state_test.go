@@ -31,6 +31,7 @@ func processNSendErrors(sendState *txmgr.SendState, err error, n int) {
 func TestSendStateNoAbortAfterInit(t *testing.T) {
 	sendState := newSendState()
 	require.False(t, sendState.ShouldAbortImmediately())
+	require.False(t, sendState.IsWaitingForConfirmation())
 }
 
 // TestSendStateNoAbortAfterProcessNilError asserts that nil errors are not
@@ -134,4 +135,27 @@ func TestSendStateSafeAbortWhileCallingNotMinedOnUnminedTx(t *testing.T) {
 	)
 	sendState.TxNotMined(testHash)
 	require.True(t, sendState.ShouldAbortImmediately())
+}
+
+// TestSendStateIsWaitingForConfirmationAfterTxMined asserts that we are waiting
+// for confirmation after a tx is mined.
+func TestSendStateIsWaitingForConfirmationAfterTxMined(t *testing.T) {
+	sendState := newSendState()
+
+	testHash2 := common.HexToHash("0x02")
+
+	sendState.TxMined(testHash)
+	require.True(t, sendState.IsWaitingForConfirmation())
+	sendState.TxMined(testHash2)
+	require.True(t, sendState.IsWaitingForConfirmation())
+}
+
+// TestSendStateIsNotWaitingForConfirmationAfterTxUnmined asserts that we are
+// not waiting for confirmation after a tx is mined then unmined.
+func TestSendStateIsNotWaitingForConfirmationAfterTxUnmined(t *testing.T) {
+	sendState := newSendState()
+
+	sendState.TxMined(testHash)
+	sendState.TxNotMined(testHash)
+	require.False(t, sendState.IsWaitingForConfirmation())
 }
