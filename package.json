@@ -15,6 +15,6 @@
     "lint:fix": "markdownlint-cli2-fix \"./opnode/README.md\" \"./specs/**/*.md\" \"#node_modules\"",
     "lint:check": "markdownlint-cli2  \"./opnode/README.md\" \"./specs/**/*.md\" \"#node_modules\"",
     "lint:links": "lychee --exclude twitter.com --exclude-mail README.md \"./opnode/README.md\" \"./specs/**/*.md\" \"./meta/**/*.md\" \"./opnode/**/*.md\"",
-    "lint:toc": "yarn doctoc --title=\"**Table of Contents**\" ./specs ./meta"
+    "lint:toc": "doctoc --title=\"**Table of Contents**\" ./specs ./meta"
   }
 }
