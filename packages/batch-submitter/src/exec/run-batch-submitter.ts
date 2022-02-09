@@ -1,7 +1,8 @@
 /* External Imports */
 import { exit } from 'process'
 
-import { injectL2Context, Bcfg } from '@eth-optimism/core-utils'
+import { Bcfg } from '@eth-optimism/core-utils'
+import { asL2Provider } from '@eth-optimism/sdk'
 import * as Sentry from '@sentry/node'
 import { Logger, Metrics, createMetricsServer } from '@eth-optimism/common-ts'
 import { Signer, Wallet } from 'ethers'
@@ -346,7 +347,7 @@ export const run = async () => {
 
   const clearPendingTxs = requiredEnvVars.CLEAR_PENDING_TXS
 
-  const l2Provider = injectL2Context(
+  const l2Provider = asL2Provider(
     new StaticJsonRpcProvider({
       url: requiredEnvVars.L2_NODE_WEB3_URL,
       headers: { 'User-Agent': 'batch-submitter' },
