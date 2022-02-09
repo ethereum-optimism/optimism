@@ -53,8 +53,7 @@ npx hardhat run scripts/deploy.js
 # testing on hardhat (forked mainnet, a few blocks ahead of challenge)
 npx hardhat node --fork https://mainnet.infura.io/v3/9aa3d95b3bc440fa88ea12eaa4456161 --fork-block-number 13284495
 
-# challenger is pretending the block 13284491 transition is the transition for 13284469
-# this will conflict at the first step
+# setup and deploy contracts
 mkdir -p /tmp/cannon /tmp/cannon_fault && rm -rf /tmp/cannon/* /tmp/cannon_fault/*
 mipsevm/mipsevm
 npx hardhat run scripts/deploy.js --network hosthat
@@ -63,10 +62,12 @@ cp /tmp/cannon/*.json /tmp/cannon_fault/
 # compute real MIPS checkpoint
 minigeth/go-ethereum 13284469 && mipsevm/mipsevm 13284469
 
-# compute fake MIPS checkpoint (use a symlink to pretend)
+# compute fake MIPS checkpoint
+# challenger is pretending the block 13284491 transition is the transition for 13284469
 BASEDIR=/tmp/cannon_fault minigeth/go-ethereum 13284491 && BASEDIR=/tmp/cannon_fault mipsevm/mipsevm 13284491
 ln -s /tmp/cannon_fault/0_13284491 /tmp/cannon_fault/0_13284469
 
+# start challenge
 BASEDIR=/tmp/cannon_fault BLOCK=13284469 npx hardhat run scripts/challenge.js --network hosthat
 
 # do binary search
@@ -81,6 +82,35 @@ BASEDIR=/tmp/cannon_fault ID=0 BLOCK=13284469 CHALLENGER=1 npx hardhat run scrip
 
 # assert as defender (passes)
 ID=0 BLOCK=13284469 npx hardhat run scripts/assert.js --network hosthat
+```
+
+## Alternate challenge with output fault (much slower)
+
+```
+# reset as above
+
+# compute real MIPS checkpoint
+minigeth/go-ethereum 13284491 && mipsevm/mipsevm 13284491
+
+# alternate fake MIPS checkpoint
+BASEDIR=/tmp/cannon_fault minigeth/go-ethereum 13284491 && OUTPUTFAULT=1 BASEDIR=/tmp/cannon_fault mipsevm/mipsevm 13284491
+python3 -c 'f="/tmp/cannon_fault/0_13284491/output";o=b"\xba\xba\xba\xba"+open(f, "rb").read()[4:]; open(f, "wb").write(o)'
+
+# start challenge
+BASEDIR=/tmp/cannon_fault BLOCK=13284491 npx hardhat run scripts/challenge.js --network hosthat
+
+# do binary search
+for i in {1..25}
+do
+OUTPUTFAULT=1 BASEDIR=/tmp/cannon_fault ID=0 BLOCK=13284491 CHALLENGER=1 npx hardhat run scripts/respond.js --network hosthat
+ID=0 BLOCK=13284491 npx hardhat run scripts/respond.js --network hosthat
+done
+
+# assert as challenger (fails)
+OUTPUTFAULT=1 BASEDIR=/tmp/cannon_fault ID=0 BLOCK=13284491 CHALLENGER=1 npx hardhat run scripts/assert.js --network hosthat
+
+# assert as defender (passes)
+ID=0 BLOCK=13284491 npx hardhat run scripts/assert.js --network hosthat
 ```
 
 ## State Oracle API

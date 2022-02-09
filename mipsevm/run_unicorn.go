@@ -73,6 +73,8 @@ func GetHookedUnicorn(root string, ram map[uint32](uint32), callback func(int, u
 	mu, err := uc.NewUnicorn(uc.ARCH_MIPS, uc.MODE_32|uc.MODE_BIG_ENDIAN)
 	check(err)
 
+	_, outputfault := os.LookupEnv("OUTPUTFAULT")
+
 	mu.HookAdd(uc.HOOK_INTR, func(mu uc.Unicorn, intno uint32) {
 		if intno != 17 {
 			log.Fatal("invalid interrupt ", intno, " at step ", steps)
@@ -130,6 +132,10 @@ func GetHookedUnicorn(root string, ram map[uint32](uint32), callback func(int, u
 			rt := value
 			rs := addr64 & 3
 			addr := uint32(addr64 & 0xFFFFFFFC)
+			if outputfault && addr == 0x30000804 {
+				fmt.Printf("injecting output fault over %x\n", rt)
+				rt = 0xbabababa
+			}
 			//fmt.Printf("%X(%d) = %x (at step %d)\n", addr, size, value, steps)
 			if size == 1 {
 				mem := ram[addr]
