@@ -93,6 +93,7 @@ ID=0 BLOCK=13284469 npx hardhat run scripts/assert.js --network hosthat
 minigeth/go-ethereum 13284491 && mipsevm/mipsevm 13284491
 
 # alternate fake MIPS checkpoint (will modify output file)
+# REGFAULT=13240000 also works on my build to change output hash
 BASEDIR=/tmp/cannon_fault minigeth/go-ethereum 13284491 && OUTPUTFAULT=1 BASEDIR=/tmp/cannon_fault mipsevm/mipsevm 13284491
 
 # start challenge
@@ -106,7 +107,7 @@ ID=0 BLOCK=13284491 npx hardhat run scripts/respond.js --network hosthat
 done
 
 # assert as challenger (fails)
-OUTPUTFAULT=1 BASEDIR=/tmp/cannon_fault ID=0 BLOCK=13284491 CHALLENGER=1 npx hardhat run scripts/assert.js --network hosthat
+BASEDIR=/tmp/cannon_fault ID=0 BLOCK=13284491 CHALLENGER=1 npx hardhat run scripts/assert.js --network hosthat
 
 # assert as defender (passes)
 ID=0 BLOCK=13284491 npx hardhat run scripts/assert.js --network hosthat
