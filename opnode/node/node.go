@@ -37,9 +37,9 @@ func (cfg *Config) Check() error {
 
 type OpNode struct {
 	log       log.Logger
-	l1Source  l1.Source          // Source to fetch data from (also implements the Downloader interface)
-	l2Engines []*driver.DriverV2 // engines to keep synced
-	ctx       context.Context    // Embeded CTX to be removed
+	l1Source  l1.Source        // Source to fetch data from (also implements the Downloader interface)
+	l2Engines []*driver.Driver // engines to keep synced
+	ctx       context.Context  // Embeded CTX to be removed
 	done      chan struct{}
 }
 
@@ -70,7 +70,7 @@ func New(ctx context.Context, cfg *Config, log log.Logger) (*OpNode, error) {
 	// l1Node.SetHeader()
 	l1Source := l1.NewSource(ethclient.NewClient(l1Node))
 	genesis := cfg.GetGenesis()
-	var l2Engines []*driver.DriverV2
+	var l2Engines []*driver.Driver
 	for i, addr := range cfg.L2EngineAddrs {
 		// L2 exec engine: updated by this OpNode (L2 consensus layer node)
 		backend, err := rpc.DialContext(ctx, addr)
@@ -129,19 +129,15 @@ func (c *OpNode) Start() error {
 	for _, eng := range c.l2Engines {
 		// Request initial head update, default to genesis otherwise
 		reqCtx, reqCancel := context.WithTimeout(c.ctx, time.Second*10)
-		if !eng.RequestUpdate(reqCtx, c.log, eng) {
-			c.log.Error("failed to fetch engine head, defaulting to genesis")
-			eng.UpdateHead(eng.Genesis.L1, eng.Genesis.L2)
-		}
-		reqCancel()
 
 		// driver subscribes to L1 head changes
 		l1SubCh := make(chan eth.HeadSignal, 10)
 		l1HeadsFeed.Subscribe(l1SubCh)
 		// start driving engine: sync blocks by deriving them from L1 and driving them into the engine
-		eng.Start(context.TODO(), l1SubCh)
+		eng.Start(reqCtx, l1SubCh)
 		// engDriveSub := eng.Drive(c.ctx, l1SubCh)
 		// handleUnsubscribe(engDriveSub, "engine driver unexpectedly failed")
+		reqCancel()
 	}
 
 	// Keep subscribed to the L1 heads, which keeps the L1 maintainer pointing to the best headers to sync

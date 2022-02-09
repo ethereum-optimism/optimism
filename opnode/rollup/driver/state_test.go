@@ -46,8 +46,8 @@ type testState struct {
 	genesisL2   testID
 }
 
-func makeState(st testState) *EngineDriverState {
-	return &EngineDriverState{
+func makeState(st testState) *state {
+	return &state{
 		l1Head:      st.l1Head.ID(),
 		l2Head:      st.l2Head.ID(),
 		l2Finalized: st.l2Finalized.ID(),
@@ -86,7 +86,7 @@ func (m *mockDriver) driverStep(ctx context.Context, nextRefL1 eth.BlockID, refL
 	return
 }
 
-var _ Driver = (*mockDriver)(nil)
+var _ internalDriver = (*mockDriver)(nil)
 
 func TestEngineDriverState_RequestSync(t *testing.T) {
 	log := testlog.Logger(t, log.LvlTrace)
@@ -104,7 +104,7 @@ func TestEngineDriverState_RequestSync(t *testing.T) {
 	driver.On("findSyncStart", ctx).Return(testID("d:3").ID(), testID("C:2").ID(), nil)
 	driver.On("driverStep", ctx, testID("d:3").ID(), testID("C:2").ID(), testID("B:1").ID()).Return(testID("D:3").ID(), nil)
 
-	l2Updated := state.RequestSync(ctx, log, driver)
+	l2Updated := state.requestSync(ctx, log, driver)
 
 	assert.Equal(t, state.l1Head, testID("d:3").ID())
 	assert.Equal(t, state.l2Head, testID("D:3").ID())
