@@ -16,7 +16,7 @@ go test ./opnode/...
 Options can be reviewed with:
 
 ```shell
-./op run --help
+./op --help
 ```
 
 To start syncing the rollup:
@@ -35,7 +35,7 @@ Specify genesis details:
 
 ```shell
 # websockets or IPC preferred for event notifications to improve sync, http RPC works with adaptive polling.
-op node run \
+op \
   --l1=ws://localhost:8546 --l2=ws//localhost:9001 \
   --genesis.l1-num=.... --genesis.l1-hash=..... --genesis.l2-hash=....
 ```

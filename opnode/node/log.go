@@ -9,55 +9,50 @@ import (
 	"golang.org/x/term"
 )
 
-type LogLvl string
+type LogConfig struct {
+	Level  string // Log level: trace, debug, info, warn, error, crit. Capitals are accepted too.
+	Color  bool   // Color the log output. Defaults to true if terminal is detected.
+	Format string // Format the log output. Supported formats: 'text', 'json'
 
-func (lvl LogLvl) String() string {
-	return string(lvl)
 }
 
-func (lvl *LogLvl) Set(v string) error {
-	v = strings.ToLower(v) // ignore case
-	_, err := log.LvlFromString(v)
-	if err != nil {
-		return err
+func DefaultLogConfig() LogConfig {
+	return LogConfig{
+		Level:  "info",
+		Format: "text",
+		Color:  term.IsTerminal(int(os.Stdout.Fd())),
 	}
-	*lvl = LogLvl(v)
+}
+
+// Check verifes that the LogConfig is valid. Calls to `NewLogger` may fail if this
+// returns an error.
+func (cfg *LogConfig) Check() error {
+	switch cfg.Format {
+	case "json", "json-pretty", "terminal", "text":
+	default:
+		return fmt.Errorf("unrecognized log format: %s", cfg.Format)
+	}
+	level := strings.ToLower(cfg.Level) // ignore case
+	_, err := log.LvlFromString(level)
+	if err != nil {
+		return fmt.Errorf("unrecognized log level: %w", err)
+	}
 	return nil
 }
 
-func (lvl *LogLvl) Type() string {
-	return "log-level"
+// NewLogger creates a logger based on the supplied configuration
+func (cfg *LogConfig) NewLogger() log.Logger {
+	handler := log.StreamHandler(os.Stdout, format(cfg.Format, cfg.Color))
+	handler = log.SyncHandler(handler)
+	log.LvlFilterHandler(level(cfg.Level), handler)
+	logger := log.New()
+	logger.SetHandler(handler)
+	return logger
+
 }
 
-func (lvl LogLvl) Lvl() log.Lvl {
-	out, err := log.LvlFromString(string(lvl))
-	if err != nil {
-		panic("lvl.Set failed")
-	}
-	return out
-}
-
-type LogFormat string
-
-func (lf LogFormat) String() string {
-	return string(lf)
-}
-
-func (lf *LogFormat) Set(v string) error {
-	switch v {
-	case "json", "json-pretty", "terminal", "text":
-		*lf = LogFormat(v)
-		return nil
-	default:
-		return fmt.Errorf("unrecognized log format: %s", v)
-	}
-}
-
-func (lf *LogFormat) Type() string {
-	return "log-format"
-}
-
-func (lf LogFormat) Format(color bool) log.Format {
+// format turns a string and color into a structured Format object
+func format(lf string, color bool) log.Format {
 	switch lf {
 	case "json":
 		return log.JSONFormat()
@@ -66,27 +61,16 @@ func (lf LogFormat) Format(color bool) log.Format {
 	case "text", "terminal":
 		return log.TerminalFormat(color)
 	default:
-		panic("lf.Set failed")
+		panic("Failed to create `log.Format` from options")
 	}
 }
 
-type LogCmd struct {
-	LogLvl LogLvl    `ask:"--level" help:"Log level: trace, debug, info, warn, error, crit. Capitals are accepted too."`
-	Color  bool      `ask:"--color" help:"Color the log output. Defaults to true if terminal is detected."`
-	Format LogFormat `ask:"--format" help:"Format the log output. Supported formats: 'text', 'json'"`
-}
-
-func (c *LogCmd) Default() {
-	c.LogLvl = "info"
-	c.Color = term.IsTerminal(int(os.Stdout.Fd()))
-	c.Format = "text"
-}
-
-func (c *LogCmd) Create() log.Logger {
-	handler := log.StreamHandler(os.Stdout, c.Format.Format(c.Color))
-	handler = log.SyncHandler(handler)
-	log.LvlFilterHandler(c.LogLvl.Lvl(), handler)
-	logger := log.New()
-	logger.SetHandler(handler)
-	return logger
+// level parses the level string into an appropriate object
+func level(s string) log.Lvl {
+	s = strings.ToLower(s) // ignore case
+	l, err := log.LvlFromString(s)
+	if err != nil {
+		panic(fmt.Sprintf("Could not parse log level: %v", err))
+	}
+	return l
 }

@@ -7,8 +7,8 @@ require (
 	github.com/hashicorp/golang-lru v0.5.5-0.20210104140557-80c98217689d
 	github.com/holiman/uint256 v1.2.0
 	github.com/miguelmota/go-ethereum-hdwallet v0.1.1
-	github.com/protolambda/ask v0.1.3
 	github.com/stretchr/testify v1.7.0
+	github.com/urfave/cli v1.22.5
 	golang.org/x/term v0.0.0-20201126162022-7de9c90e9dd1
 )
 
@@ -18,6 +18,7 @@ require (
 	github.com/btcsuite/btcd v0.21.0-beta // indirect
 	github.com/btcsuite/btcutil v1.0.3-0.20201208143702-a53e38424cce // indirect
 	github.com/cespare/xxhash/v2 v2.1.1 // indirect
+	github.com/cpuguy83/go-md2man/v2 v2.0.0-20190314233015-f79a8a8ca69d // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/deckarep/golang-set v0.0.0-20180603214616-504e848d77ea // indirect
 	github.com/edsrzf/mmap-go v1.0.0 // indirect
@@ -43,7 +44,9 @@ require (
 	github.com/prometheus/tsdb v0.7.1 // indirect
 	github.com/rjeczalik/notify v0.9.1 // indirect
 	github.com/rs/cors v1.7.0 // indirect
+	github.com/russross/blackfriday/v2 v2.0.1 // indirect
 	github.com/shirou/gopsutil v3.21.4-0.20210419000835-c7a38de76ee5+incompatible // indirect
+	github.com/shurcooL/sanitized_anchor_name v1.0.0 // indirect
 	github.com/status-im/keycard-go v0.0.0-20190316090335-8537d3370df4 // indirect
 	github.com/stretchr/objx v0.1.1 // indirect
 	github.com/syndtr/goleveldb v1.0.1-0.20210819022825-2ae1ddf74ef7 // indirect

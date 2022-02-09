@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimistic-specs/opnode/contracts/deposit"
+	"github.com/ethereum-optimism/optimistic-specs/opnode/internal/testlog"
 	rollupNode "github.com/ethereum-optimism/optimistic-specs/opnode/node"
 
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
@@ -16,6 +17,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/eth/ethconfig"
 	"github.com/ethereum/go-ethereum/ethclient"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/node"
 )
 
@@ -36,6 +38,7 @@ func endpoint(cfg *node.Config) string {
 // TestSystemE2E sets up a L1 Geth node, a rollup node, and a L2 geth node and then confirms that L1 deposits are reflected on L2.
 // All nodes are run in process (but are the full nodes, not mocked or stubbed).
 func TestSystemE2E(t *testing.T) {
+	log.Root().SetHandler(log.DiscardHandler()) // Comment this out to see geth l1/l2 logs
 	// System Config
 	cfg := &systemConfig{
 		mnemonic: "squirrel green gallery layer logic title habit chase clog actress language enrich body plate fun pledge gap abuse mansion define either blast alien witness",
@@ -110,22 +113,19 @@ func TestSystemE2E(t *testing.T) {
 	l2GenesisHash := getGenesisHash(l2Client)
 
 	// Rollup Node
-	node := rollupNode.OpNodeCmd{
-		Genesis: rollupNode.GenesisConf{
-			L2Hash: l2GenesisHash,
-			L1Hash: l1GenesisHash,
-			L1Num:  0,
-		},
-		LogCmd: rollupNode.LogCmd{
-			LogLvl: "warn",
-			Color:  true,
-			Format: "text",
-		},
+	nodeCfg := &rollupNode.Config{
+		L2Hash:        l2GenesisHash,
+		L1Hash:        l1GenesisHash,
+		L1Num:         0,
 		L1NodeAddrs:   []string{endpoint(cfg.l1.nodeConfig)},
 		L2EngineAddrs: []string{endpoint(cfg.l2.nodeConfig)},
 	}
-	err = node.Run(context.Background())
-	defer node.Close()
+	node, err := rollupNode.New(context.Background(), nodeCfg, testlog.Logger(t, log.LvlTrace))
+	if err != nil {
+		t.Fatalf("Failed to create the new node: %v", err)
+	}
+	err = node.Start()
+	defer node.Stop()
 	if err != nil {
 		t.Fatal(err)
 	}
