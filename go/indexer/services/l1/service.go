@@ -269,6 +269,7 @@ func (s *Service) Update(newHeader *types.Header) error {
 				ToAddress:   iter.Event.To,
 				Amount:      iter.Event.Amount,
 				Data:        iter.Event.Data,
+				LogIndex:    iter.Event.Raw.Index,
 			})
 	}
 	if err := iter.Error(); err != nil {

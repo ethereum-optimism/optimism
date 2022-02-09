@@ -89,7 +89,7 @@ type Deposit struct {
 	ToAddress   common.Address
 	Amount      *big.Int
 	Data        []byte
-	LogIndex    uint64
+	LogIndex    uint
 }
 
 type Withdrawal struct {
@@ -100,7 +100,7 @@ type Withdrawal struct {
 	ToAddress   l2common.Address
 	Amount      *big.Int
 	Data        []byte
-	LogIndex    uint64
+	LogIndex    uint
 }
 
 type IndexedL1Block struct {
