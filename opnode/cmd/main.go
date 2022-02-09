@@ -2,8 +2,6 @@ package main
 
 import (
 	"context"
-	"encoding/hex"
-	"errors"
 	"fmt"
 	"os"
 	"os/signal"
@@ -97,25 +95,12 @@ func RollupNodeMain(ctx *cli.Context) error {
 
 }
 
-// has0xPrefix validates str begins with '0x' or '0X'.
-// Copied from geth
-func has0xPrefix(str string) bool {
-	return len(str) >= 2 && str[0] == '0' && (str[1] == 'x' || str[1] == 'X')
-}
-
-// HexToHash is copied from Geth, but does not supress the error
+// HexToHash takes a `0x` prefixed hex hash string and turns it into a hash.
+// Errors are reported.
 func HexToHash(s string) (common.Hash, error) {
-	if has0xPrefix(s) {
-		s = s[2:]
-	}
-	bytes, err := hex.DecodeString(s)
-	if err != nil {
-		return common.Hash{}, fmt.Errorf("Could not decode hex hash: %w", err)
-	}
-	if len(bytes) != common.HashLength {
-		return common.Hash{}, errors.New("Invalid length for Hash")
-	}
-	return common.BytesToHash(bytes), nil
+	var x common.Hash
+	err := x.UnmarshalText([]byte(s))
+	return x, err
 }
 
 // NewConfig creates a Config from the provided flags or environment variables.
