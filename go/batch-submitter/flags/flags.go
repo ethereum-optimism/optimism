@@ -129,6 +129,13 @@ var (
 		Value:  "info",
 		EnvVar: prefixEnvVar("LOG_LEVEL"),
 	}
+	LogTerminalFlag = cli.BoolFlag{
+		Name: "log-terminal",
+		Usage: "If true, outputs logs in terminal format, otherwise prints " +
+			"in JSON format. If SENTRY_ENABLE is set to true, this flag is " +
+			"ignored and logs are printed using JSON",
+		EnvVar: prefixEnvVar("LOG_TERMINAL"),
+	}
 	SentryEnableFlag = cli.BoolFlag{
 		Name:   "sentry-enable",
 		Usage:  "Whether or not to enable Sentry. If true, sentry-dsn must also be set",
@@ -197,8 +204,8 @@ var (
 		EnvVar: prefixEnvVar("METRICS_PORT"),
 	}
 	HTTP2DisableFlag = cli.BoolFlag{
-		Name: "http2-disable",
-		Usage: "Whether or not to disable HTTP/2 support.",
+		Name:   "http2-disable",
+		Usage:  "Whether or not to disable HTTP/2 support.",
 		EnvVar: prefixEnvVar("HTTP2_DISABLE"),
 	}
 )
@@ -224,6 +231,7 @@ var requiredFlags = []cli.Flag{
 
 var optionalFlags = []cli.Flag{
 	LogLevelFlag,
+	LogTerminalFlag,
 	SentryEnableFlag,
 	SentryDsnFlag,
 	SentryTraceRateFlag,
