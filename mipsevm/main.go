@@ -19,6 +19,13 @@ func WriteCheckpoint(ram map[uint32](uint32), fn string, step int) {
 func main() {
 	root := ""
 	target := -1
+
+	regfault := -1
+	regfault_str, regfault_valid := os.LookupEnv("REGFAULT")
+	if regfault_valid {
+		regfault, _ = strconv.Atoi(regfault_str)
+	}
+
 	basedir := os.Getenv("BASEDIR")
 	if len(basedir) == 0 {
 		basedir = "/tmp/cannon"
@@ -55,6 +62,10 @@ func main() {
 			// this can be raised to 10,000,000 if the files are too large
 			//if (target == -1 && step%10000000 == 0) || step == target {
 			// first run checkpointing is disabled for now since is isn't used
+			if step == regfault {
+				fmt.Printf("regfault at step %d\n", step)
+				mu.RegWrite(uc.MIPS_REG_V0, 0xbabababa)
+			}
 			if step == target {
 				SyncRegs(mu, ram)
 				fn := fmt.Sprintf("%s/checkpoint_%d.json", root, step)
