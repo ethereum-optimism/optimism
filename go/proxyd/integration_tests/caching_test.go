@@ -16,7 +16,7 @@ func TestCaching(t *testing.T) {
 	require.NoError(t, err)
 	defer redis.Close()
 
-	hdlr := NewRPCResponseHandler(map[string]string{
+	hdlr := NewRPCResponseHandler(map[string]interface{}{
 		"eth_chainId":          "0x420",
 		"net_version":          "0x1234",
 		"eth_blockNumber":      "0x64",
@@ -123,10 +123,25 @@ func TestCaching(t *testing.T) {
 		})
 	}
 
-	hdlr.SetResponse("eth_blockNumber", "0x100")
-	time.Sleep(1500 * time.Millisecond)
-	resRaw, _, err := client.SendRPC("eth_blockNumber", nil)
-	RequireEqualJSON(t, []byte("{\"id\":999,\"jsonrpc\":\"2.0\",\"result\":\"0x100\"}"), resRaw)
+	t.Run("block numbers update", func(t *testing.T) {
+		hdlr.SetResponse("eth_blockNumber", "0x100")
+		time.Sleep(1500 * time.Millisecond)
+		resRaw, _, err := client.SendRPC("eth_blockNumber", nil)
+		require.NoError(t, err)
+		RequireEqualJSON(t, []byte("{\"id\":999,\"jsonrpc\":\"2.0\",\"result\":\"0x100\"}"), resRaw)
+		backend.Reset()
+	})
+
+	t.Run("nil responses should not be cached", func(t *testing.T) {
+		hdlr.SetResponse("eth_getBlockByNumber", nil)
+		resRaw, _, err := client.SendRPC("eth_getBlockByNumber", []interface{}{"0x123"})
+		require.NoError(t, err)
+		resCache, _, err := client.SendRPC("eth_getBlockByNumber", []interface{}{"0x123"})
+		require.NoError(t, err)
+		RequireEqualJSON(t, []byte("{\"id\":999,\"jsonrpc\":\"2.0\",\"result\":null}"), resRaw)
+		RequireEqualJSON(t, resRaw, resCache)
+		require.Equal(t, 2, countRequests(backend, "eth_getBlockByNumber"))
+	})
 }
 
 func countRequests(backend *MockBackend, name string) int {

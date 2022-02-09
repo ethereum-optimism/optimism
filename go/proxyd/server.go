@@ -237,7 +237,7 @@ func (s *Server) handleSingleRPC(ctx context.Context, req *RPCReq) (*RPCRes, boo
 		return NewRPCErrorRes(req.ID, err), false
 	}
 
-	if backendRes.Error == nil {
+	if backendRes.Error == nil && backendRes.Result != nil {
 		if err = s.cache.PutRPC(ctx, req, backendRes); err != nil {
 			log.Warn(
 				"cache put error",
