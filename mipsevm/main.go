@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"os"
 	"strconv"
 
@@ -96,6 +97,10 @@ func main() {
 	}
 
 	if target == -1 {
+		if ram[0x30000800] != 0x1337f00d {
+			log.Fatal("failed to output state root, exiting")
+		}
+
 		output_filename := fmt.Sprintf("%s/output", root)
 		outputs, err := ioutil.ReadFile(output_filename)
 		check(err)
