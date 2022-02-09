@@ -3,7 +3,6 @@ import { expect } from 'chai'
 
 import { setupActor, setupRun, actor, run } from './lib/convenience'
 import { OptimismEnv } from '../test/shared/env'
-import { Direction } from '../test/shared/watcher-utils'
 
 interface BenchContext {
   l1Wallet: Wallet
@@ -42,8 +41,7 @@ actor('Funds depositor', () => {
           .depositETH(DEFAULT_TEST_GAS_L2, '0xFFFF', {
             value: 0x42,
             gasLimit: DEFAULT_TEST_GAS_L1,
-          }),
-        Direction.L1ToL2
+          })
       )
     })
     expect((await l2Wallet.getBalance()).sub(balBefore)).to.deep.equal(
