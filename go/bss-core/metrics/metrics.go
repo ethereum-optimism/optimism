@@ -46,7 +46,7 @@ type Metrics struct {
 }
 
 func NewMetrics(subsystem string) *Metrics {
-	subsystem = "batch_submitter_ " + strings.ToLower(subsystem)
+	subsystem = "batch_submitter_" + strings.ToLower(subsystem)
 	return &Metrics{
 		ETHBalance: promauto.NewGauge(prometheus.GaugeOpts{
 			Name:      "balance_eth",
