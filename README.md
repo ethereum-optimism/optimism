@@ -92,9 +92,8 @@ ID=0 BLOCK=13284469 npx hardhat run scripts/assert.js --network hosthat
 # compute real MIPS checkpoint
 minigeth/go-ethereum 13284491 && mipsevm/mipsevm 13284491
 
-# alternate fake MIPS checkpoint
+# alternate fake MIPS checkpoint (will modify output file)
 BASEDIR=/tmp/cannon_fault minigeth/go-ethereum 13284491 && OUTPUTFAULT=1 BASEDIR=/tmp/cannon_fault mipsevm/mipsevm 13284491
-python3 -c 'f="/tmp/cannon_fault/0_13284491/output";o=b"\xba\xba\xba\xba"+open(f, "rb").read()[4:]; open(f, "wb").write(o)'
 
 # start challenge
 BASEDIR=/tmp/cannon_fault BLOCK=13284491 npx hardhat run scripts/challenge.js --network hosthat

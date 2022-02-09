@@ -1,6 +1,8 @@
 package main
 
 import (
+	"bytes"
+	"encoding/binary"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -94,7 +96,27 @@ func main() {
 	}
 
 	if target == -1 {
+		output_filename := fmt.Sprintf("%s/output", root)
+		outputs, err := ioutil.ReadFile(output_filename)
+		check(err)
+		real := append([]byte{0x13, 0x37, 0xf0, 0x0d}, outputs...)
+
+		output := []byte{}
+		for i := 0; i < 0x44; i += 4 {
+			t := make([]byte, 4)
+			binary.BigEndian.PutUint32(t, ram[uint32(0x30000800+i)])
+			output = append(output, t...)
+		}
+
+		if bytes.Compare(real, output) != 0 {
+			fmt.Println("MISMATCH OUTPUT, OVERWRITING!!!")
+			ioutil.WriteFile(output_filename, output[4:], 0644)
+		} else {
+			fmt.Println("output match")
+		}
+
 		WriteCheckpoint(ram, fmt.Sprintf("%s/checkpoint_final.json", root), lastStep)
+
 	}
 
 	// step 2 (optional), validate each 1 million chunk in EVM
