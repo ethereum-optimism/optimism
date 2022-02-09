@@ -9,19 +9,28 @@ import (
 	"os/signal"
 	"syscall"
 
+	"github.com/ethereum-optimism/optimistic-specs/opnode/node"
+
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
-	"github.com/ethereum/go-ethereum/params"
 	"github.com/urfave/cli"
-
-	"github.com/ethereum-optimism/optimistic-specs/opnode/node"
 )
 
 var (
-	Version   = ""
-	GitCommit = ""
-	GitDate   = ""
+	Version = "0.0.0"
+	// GitCommit   = ""
+	// GitDate     = ""
+	VersionMeta = "dev"
 )
+
+// VersionWithMeta holds the textual version string including the metadata.
+var VersionWithMeta = func() string {
+	v := Version
+	if VersionMeta != "" {
+		v += "-" + VersionMeta
+	}
+	return v
+}()
 
 func main() {
 	// Set up logger with a default INFO level in case we fail to parse flags,
@@ -35,7 +44,7 @@ func main() {
 
 	app := cli.NewApp()
 	app.Flags = Flags
-	app.Version = fmt.Sprintf("%s-%s", Version, params.VersionWithCommit(GitCommit, GitDate)) // TODO: Don't use Geth's hardcoded versions
+	app.Version = VersionWithMeta
 	app.Name = "opnode"
 	app.Usage = "Optimism Rollup Node"
 	app.Description = "The deposit only rollup node drives the L2 execution engine based on L1 deposits."
