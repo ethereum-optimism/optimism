@@ -1,6 +1,7 @@
 /* Imports: External */
 import { BaseService, Metrics } from '@eth-optimism/common-ts'
 import { StaticJsonRpcProvider } from '@ethersproject/providers'
+import { sleep, toRpcHexString } from '@eth-optimism/core-utils'
 import { BigNumber } from 'ethers'
 import { LevelUp } from 'levelup'
 import axios from 'axios'
@@ -10,7 +11,7 @@ import { Gauge } from 'prom-client'
 /* Imports: Internal */
 import { handleSequencerBlock } from './handlers/transaction'
 import { TransportDB } from '../../db/transport-db'
-import { sleep, toRpcHexString, validators } from '../../utils'
+import { validators } from '../../utils'
 import { L1DataTransportServiceOptions } from '../main/service'
 
 interface L2IngestionMetrics {
