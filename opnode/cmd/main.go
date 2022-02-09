@@ -63,7 +63,13 @@ func RollupNodeMain(ctx *cli.Context) error {
 		log.Error("Unable to create the rollup node config", "error", err)
 		return err
 	}
-	n, err := node.New(context.Background(), cfg)
+	logCfg, err := NewLogConfig(ctx)
+	if err != nil {
+		log.Error("Unable to create the log config", "error", err)
+		return err
+	}
+
+	n, err := node.New(context.Background(), cfg, logCfg.NewLogger())
 	if err != nil {
 		log.Error("Unable to create the rollup node", "error", err)
 		return err
@@ -122,36 +128,33 @@ func NewConfig(ctx *cli.Context) (*node.Config, error) {
 	if err != nil {
 		return nil, fmt.Errorf("Could not decode L1Hash: %w", err)
 	}
-	logCfg, err := NewLogConfig(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	return &node.Config{
+	cfg := &node.Config{
 		/* Required Flags */
 		L1NodeAddrs:   ctx.GlobalStringSlice(L1NodeAddrs.Name),
 		L2EngineAddrs: ctx.GlobalStringSlice(L2EngineAddrs.Name),
 		L2Hash:        L2Hash,
 		L1Hash:        L1Hash,
 		L1Num:         ctx.GlobalUint64(GenesisL2Hash.Name),
-		/* Optional Flags */
-		LogCfg: logCfg,
-	}, nil
+	}
+	if err := cfg.Check(); err != nil {
+		return nil, err
+	}
+	return cfg, nil
 }
 
 // NewLogConfig creates a log config from the provided flags or environment variables.
 func NewLogConfig(ctx *cli.Context) (node.LogConfig, error) {
-	logCfg := node.DefaultLogConfig() // Done to set color based on terminal type
-	logCfg.Level = ctx.GlobalString(LogLevelFlag.Name)
-	logCfg.Format = ctx.GlobalString(LogFormatFlag.Name)
+	cfg := node.DefaultLogConfig() // Done to set color based on terminal type
+	cfg.Level = ctx.GlobalString(LogLevelFlag.Name)
+	cfg.Format = ctx.GlobalString(LogFormatFlag.Name)
 	if ctx.IsSet(LogColorFlag.Name) {
-		logCfg.Color = ctx.GlobalBool(LogColorFlag.Name)
+		cfg.Color = ctx.GlobalBool(LogColorFlag.Name)
 	}
 
-	if err := logCfg.Check(); err != nil {
-		return logCfg, err
+	if err := cfg.Check(); err != nil {
+		return cfg, err
 	}
-	return logCfg, nil
+	return cfg, nil
 }
 
 // Flags

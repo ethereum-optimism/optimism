@@ -29,16 +29,10 @@ type Config struct {
 	L2Hash common.Hash // Genesis block hash of L2
 	L1Hash common.Hash // Block hash of L1 after (not incl.) which L1 starts deriving blocks
 	L1Num  uint64      // Block number of L1 matching the l1-hash
-
-	LogCfg LogConfig
 }
 
 // Check verifies that the given configuration makes sense
 func (cfg *Config) Check() error {
-	err := cfg.LogCfg.Check()
-	if err != nil {
-		return fmt.Errorf("Error checking log sub-config: %w", err)
-	}
 	return nil
 }
 
@@ -59,11 +53,10 @@ func (conf *Config) GetGenesis() rollup.Genesis {
 	}
 }
 
-func New(ctx context.Context, cfg *Config) (*OpNode, error) {
+func New(ctx context.Context, cfg *Config, log log.Logger) (*OpNode, error) {
 	if err := cfg.Check(); err != nil {
 		return nil, err
 	}
-	log := cfg.LogCfg.NewLogger()
 	l1Sources := make([]eth.L1Source, 0, len(cfg.L1NodeAddrs))
 	for i, addr := range cfg.L1NodeAddrs {
 		// L1 exec engine: read-only, to update L2 consensus with
