@@ -33,18 +33,27 @@ func SingleResponseHandler(code int, response string) http.HandlerFunc {
 
 type RPCResponseHandler struct {
 	mtx          sync.RWMutex
-	rpcResponses map[string]string
+	rpcResponses map[string]interface{}
 }
 
-func NewRPCResponseHandler(rpcResponses map[string]string) *RPCResponseHandler {
+func NewRPCResponseHandler(rpcResponses map[string]interface{}) *RPCResponseHandler {
 	return &RPCResponseHandler{
 		rpcResponses: rpcResponses,
 	}
 }
 
-func (h *RPCResponseHandler) SetResponse(method, response string) {
+func (h *RPCResponseHandler) SetResponse(method string, response interface{}) {
 	h.mtx.Lock()
 	defer h.mtx.Unlock()
+
+	switch response.(type) {
+	case string:
+	case nil:
+		break
+	default:
+		panic("invalid response type")
+	}
+
 	h.rpcResponses[method] = response
 }
 
