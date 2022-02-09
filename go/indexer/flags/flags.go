@@ -58,12 +58,6 @@ var (
 		Required: true,
 		EnvVar:   "L2_GENESIS_BLOCK_HASH",
 	}
-	NumConfirmationsFlag = cli.Uint64Flag{
-		Name:     "num-confirmations",
-		Usage:    "Number of confirmations to wait before finalizing L1 deposit",
-		Required: true,
-		EnvVar:   prefixEnvVar("NUM_CONFIRMATIONS"),
-	}
 	DBHostFlag = cli.StringFlag{
 		Name:     "db-host",
 		Usage:    "Hostname of the database connection",
@@ -170,7 +164,6 @@ var requiredFlags = []cli.Flag{
 	L1StandardBridgeAddressFlag,
 	L2StandardBridgeAddressFlag,
 	L2GenesisBlockHashFlag,
-	NumConfirmationsFlag,
 	DBHostFlag,
 	DBPortFlag,
 	DBUserFlag,
