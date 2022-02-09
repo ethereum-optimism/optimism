@@ -117,4 +117,5 @@ const main = async () => {
 
   await service.start()
 }
-export default main
+
+main()
