@@ -1,5 +1,12 @@
 # @eth-optimism/core-utils
 
+## 0.7.7
+
+### Patch Changes
+
+- b4165299: Added tests and docstrings to misc functions
+- 3c2acd91: Refactor folder structure of @eth-optimism/core-utils.
+
 ## 0.7.6
 
 ### Patch Changes

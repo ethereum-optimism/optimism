@@ -1,5 +1,19 @@
 # @eth-optimism/sdk
 
+## 0.2.2
+
+### Patch Changes
+
+- fd6ea3ee: Adds support for depositing or withdrawing to a target address
+- 5ffb5fcf: Removes the getTokenBridgeMessagesByAddress function
+- dd4b2055: This update implements the asL2Provider function
+- f08c06a8: Updates the SDK to include default bridges for the local Optimism network (31337)
+- da53dc64: Have SDK sort deposits/withdrawals descending by block number
+- Updated dependencies [b4165299]
+- Updated dependencies [3c2acd91]
+  - @eth-optimism/core-utils@0.7.7
+  - @eth-optimism/contracts@0.5.14
+
 ## 0.2.1
 
 ### Patch Changes

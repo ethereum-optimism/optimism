@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.4.19
+
+### Patch Changes
+
+- Updated dependencies [b4165299]
+- Updated dependencies [3c2acd91]
+  - @eth-optimism/core-utils@0.7.7
+  - @eth-optimism/contracts@0.5.14
+
 ## 0.4.18
 
 ### Patch Changes

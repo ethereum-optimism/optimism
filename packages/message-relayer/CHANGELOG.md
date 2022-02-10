@@ -1,5 +1,15 @@
 # @eth-optimism/message-relayer
 
+## 0.2.18
+
+### Patch Changes
+
+- 31108ed0: Fixes a bug that prevented the relayer from running correctly.
+- Updated dependencies [b4165299]
+- Updated dependencies [3c2acd91]
+  - @eth-optimism/core-utils@0.7.7
+  - @eth-optimism/contracts@0.5.14
+
 ## 0.2.17
 
 ### Patch Changes
