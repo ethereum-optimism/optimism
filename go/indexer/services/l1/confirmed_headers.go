@@ -26,6 +26,7 @@ type HeaderBackend interface {
 }
 
 type HeaderSelectorConfig struct {
+	ChainID      *big.Int
 	ConfDepth    uint64
 	MaxBatchSize uint64
 }
@@ -94,6 +95,13 @@ func (f *ConfirmedHeaderSelector) NewHead(
 
 	log.Info("Verifying block range ",
 		"startHeight", startHeight, "endHeight", endHeight)
+
+	// go-ethereum doesn't yet support kovan completely, so skip verification
+	// see: https://github.com/ethereum/go-ethereum/issues/24366#issuecomment-1034139876
+	kovanChainID := new(big.Int).SetUint64(42)
+	if f.cfg.ChainID.Cmp(kovanChainID) == 0 {
+		return headers
+	}
 
 	for i, header := range headers {
 		// Trim the returned headers if any of the lookups failed.
