@@ -108,7 +108,7 @@ func (f *ConfirmedHeaderSelector) NewHead(
 			prevHeader := headers[i-1]
 			if prevHeader.Hash() != header.ParentHash {
 				log.Error("Parent hash does not connect to ",
-					"block", header.Number.Uint64, "hash", header.Hash(),
+					"block", header.Number.Uint64(), "hash", header.Hash(),
 					"prev", prevHeader.Number.Uint64(), "hash", prevHeader.Hash())
 				headers = headers[:i]
 				break
