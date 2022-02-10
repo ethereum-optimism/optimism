@@ -1,5 +1,6 @@
 /* Imports: External */
 import { ethers } from 'ethers'
+import { MessageDirection, MessageStatus } from '@eth-optimism/sdk'
 import { sleep } from '@eth-optimism/core-utils'
 
 /* Imports: Internal */
@@ -76,7 +77,17 @@ export const executeL2ToL1Transaction = async (
       )
   )
 
-  await env.relayXDomainMessages(receipt)
+  const messages = await env.messenger.getMessagesByTransaction(receipt, {
+    direction: MessageDirection.L2_TO_L1,
+  })
+  let status: MessageStatus
+  for (const message of messages) {
+    while (status !== MessageStatus.READY_FOR_RELAY) {
+      status = await env.messenger.getMessageStatus(message)
+      await sleep(1000)
+    }
+    await env.messenger.finalizeMessage(message)
+  }
   await env.waitForXDomainTransaction(receipt)
 }
 

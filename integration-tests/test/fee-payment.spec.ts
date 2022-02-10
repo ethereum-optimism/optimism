@@ -2,6 +2,8 @@
 import { BigNumber, utils } from 'ethers'
 import { serialize } from '@ethersproject/transactions'
 import { predeploys, getContractFactory } from '@eth-optimism/contracts'
+import { MessageDirection, MessageStatus } from '@eth-optimism/sdk'
+import { sleep } from '@eth-optimism/core-utils'
 
 /* Imports: Internal */
 import { expect } from './shared/setup'
@@ -169,7 +171,20 @@ describe('Fee Payment Integration Tests', async () => {
 
       // Wait for the withdrawal to be relayed to L1.
       await withdrawTx.wait()
-      await env.relayXDomainMessages(withdrawTx)
+      const messages = await env.messenger.getMessagesByTransaction(
+        withdrawTx,
+        {
+          direction: MessageDirection.L2_TO_L1,
+        }
+      )
+      let status: MessageStatus
+      for (const message of messages) {
+        while (status !== MessageStatus.READY_FOR_RELAY) {
+          status = await env.messenger.getMessageStatus(message)
+          await sleep(1000)
+        }
+        await env.messenger.finalizeMessage(message)
+      }
       await env.waitForXDomainTransaction(withdrawTx)
 
       // Balance difference should be equal to old L2 balance.

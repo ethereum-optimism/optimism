@@ -2,7 +2,8 @@
 import { Wallet, utils, BigNumber } from 'ethers'
 import { serialize } from '@ethersproject/transactions'
 import { predeploys } from '@eth-optimism/contracts'
-import { expectApprox } from '@eth-optimism/core-utils'
+import { expectApprox, sleep } from '@eth-optimism/core-utils'
+import { MessageDirection, MessageStatus } from '@eth-optimism/sdk'
 
 /* Imports: Internal */
 import { expect } from './shared/setup'
@@ -190,7 +191,17 @@ describe('Native ETH Integration Tests', async () => {
       '0xFFFF'
     )
     await transaction.wait()
-    await env.relayXDomainMessages(transaction)
+    const messages = await env.messenger.getMessagesByTransaction(transaction, {
+      direction: MessageDirection.L2_TO_L1,
+    })
+    let status: MessageStatus
+    for (const message of messages) {
+      while (status !== MessageStatus.READY_FOR_RELAY) {
+        status = await env.messenger.getMessageStatus(message)
+        await sleep(1000)
+      }
+      await env.messenger.finalizeMessage(message)
+    }
     const receipts = await env.waitForXDomainTransaction(transaction)
     const fee = receipts.tx.gasLimit.mul(receipts.tx.gasPrice)
 
@@ -233,7 +244,17 @@ describe('Native ETH Integration Tests', async () => {
     )
 
     await transaction.wait()
-    await env.relayXDomainMessages(transaction)
+    const messages = await env.messenger.getMessagesByTransaction(transaction, {
+      direction: MessageDirection.L2_TO_L1,
+    })
+    let status: MessageStatus
+    for (const message of messages) {
+      while (status !== MessageStatus.READY_FOR_RELAY) {
+        status = await env.messenger.getMessageStatus(message)
+        await sleep(1000)
+      }
+      await env.messenger.finalizeMessage(message)
+    }
     const receipts = await env.waitForXDomainTransaction(transaction)
 
     const l2Fee = receipts.tx.gasPrice.mul(receipts.receipt.gasUsed)
@@ -304,7 +325,20 @@ describe('Native ETH Integration Tests', async () => {
           '0xFFFF'
         )
       await transaction.wait()
-      await env.relayXDomainMessages(transaction)
+      const messages = await env.messenger.getMessagesByTransaction(
+        transaction,
+        {
+          direction: MessageDirection.L2_TO_L1,
+        }
+      )
+      let status: MessageStatus
+      for (const message of messages) {
+        while (status !== MessageStatus.READY_FOR_RELAY) {
+          status = await env.messenger.getMessageStatus(message)
+          await sleep(1000)
+        }
+        await env.messenger.finalizeMessage(message)
+      }
       const receipts = await env.waitForXDomainTransaction(transaction)
 
       // Compute the L1 portion of the fee
