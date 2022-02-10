@@ -1,5 +1,15 @@
 # @eth-optimism/integration-tests
 
+## 0.5.3
+
+### Patch Changes
+
+- a8a74a98: Remove Watcher usage from itests
+- e2ad8653: Support non-well-known networks
+- 152df378: Use new asL2Provider function for integration tests
+- 748c04ab: Updates integration tests to use the SDK for bridged token tests
+- 8cb2535b: Skip an unreliable test
+
 ## 0.5.2
 
 ### Patch Changes

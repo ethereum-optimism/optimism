@@ -1,6 +1,6 @@
 {
   "name": "@eth-optimism/message-relayer",
-  "version": "0.2.17",
+  "version": "0.2.18",
   "description": "[Optimism] Service for automatically relaying L2 to L1 transactions",
   "main": "dist/index",
   "types": "dist/index",
@@ -35,8 +35,8 @@
   },
   "dependencies": {
     "@eth-optimism/common-ts": "0.2.1",
-    "@eth-optimism/contracts": "0.5.13",
-    "@eth-optimism/core-utils": "0.7.6",
+    "@eth-optimism/contracts": "0.5.14",
+    "@eth-optimism/core-utils": "0.7.7",
     "@sentry/node": "^6.3.1",
     "bcfg": "^0.1.6",
     "dotenv": "^10.0.0",
