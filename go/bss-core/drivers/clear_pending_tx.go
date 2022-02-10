@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/ethereum-optimism/optimism/go/bss-core/txmgr"
+	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -159,7 +160,20 @@ func SignClearingTx(
 	}
 
 	gasFeeCap := txmgr.CalcGasFeeCap(head.BaseFee, gasTipCap)
-	tx := CraftClearingTx(walletAddr, nonce, gasFeeCap, gasTipCap)
+
+	gasLimit, err := l1Client.EstimateGas(ctx, ethereum.CallMsg{
+		From:      walletAddr,
+		To:        &walletAddr,
+		GasFeeCap: gasFeeCap,
+		GasTipCap: gasTipCap,
+		Value:     nil,
+		Data:      nil,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	tx := CraftClearingTx(walletAddr, nonce, gasFeeCap, gasTipCap, gasLimit)
 
 	return types.SignTx(
 		tx, types.LatestSignerForChainID(chainID), privKey,
@@ -173,11 +187,13 @@ func CraftClearingTx(
 	nonce uint64,
 	gasFeeCap *big.Int,
 	gasTipCap *big.Int,
+	gasLimit uint64,
 ) *types.Transaction {
 
 	return types.NewTx(&types.DynamicFeeTx{
 		To:        &walletAddr,
 		Nonce:     nonce,
+		Gas:       gasLimit,
 		GasFeeCap: gasFeeCap,
 		GasTipCap: gasTipCap,
 		Value:     nil,

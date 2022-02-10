@@ -1,6 +1,7 @@
 import { performance } from 'perf_hooks'
 
 import { Mutex } from 'async-mutex'
+import { sleep } from '@eth-optimism/core-utils'
 
 import {
   sanitizeForMetrics,
@@ -11,7 +12,6 @@ import {
   failedBenchRunsTotal,
 } from './metrics'
 import { ActorLogger, WorkerLogger } from './logger'
-import { sleep } from '../../test/shared/utils'
 
 // eslint-disable-next-line @typescript-eslint/no-empty-function
 const asyncNoop = async () => {}

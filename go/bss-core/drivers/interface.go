@@ -4,6 +4,7 @@ import (
 	"context"
 	"math/big"
 
+	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 )
@@ -11,6 +12,13 @@ import (
 // L1Client is an abstraction over an L1 Ethereum client functionality required
 // by the batch submitter.
 type L1Client interface {
+	// EstimateGas tries to estimate the gas needed to execute a specific
+	// transaction based on the current pending state of the backend blockchain.
+	// There is no guarantee that this is the true gas limit requirement as
+	// other transactions may be added or removed by miners, but it should
+	// provide a basis for setting a reasonable default.
+	EstimateGas(context.Context, ethereum.CallMsg) (uint64, error)
+
 	// HeaderByNumber returns a block header from the current canonical chain.
 	// If number is nil, the latest known header is returned.
 	HeaderByNumber(context.Context, *big.Int) (*types.Header, error)

@@ -240,23 +240,6 @@ export class CrossChainMessenger implements ICrossChainMessenger {
     return bridges[0]
   }
 
-  public async getTokenBridgeMessagesByAddress(
-    address: AddressLike,
-    opts: {
-      direction?: MessageDirection
-    } = {}
-  ): Promise<TokenBridgeMessage[]> {
-    return (
-      await Promise.all(
-        Object.values(this.bridges).map(async (bridge) => {
-          return bridge.getTokenBridgeMessagesByAddress(address, opts)
-        })
-      )
-    ).reduce((acc, val) => {
-      return acc.concat(val)
-    }, [])
-  }
-
   public async getDepositsByAddress(
     address: AddressLike,
     opts: {
@@ -270,9 +253,14 @@ export class CrossChainMessenger implements ICrossChainMessenger {
           return bridge.getDepositsByAddress(address, opts)
         })
       )
-    ).reduce((acc, val) => {
-      return acc.concat(val)
-    }, [])
+    )
+      .reduce((acc, val) => {
+        return acc.concat(val)
+      }, [])
+      .sort((a, b) => {
+        // Sort descending by block number
+        return b.blockNumber - a.blockNumber
+      })
   }
 
   public async getWithdrawalsByAddress(
@@ -288,9 +276,14 @@ export class CrossChainMessenger implements ICrossChainMessenger {
           return bridge.getWithdrawalsByAddress(address, opts)
         })
       )
-    ).reduce((acc, val) => {
-      return acc.concat(val)
-    }, [])
+    )
+      .reduce((acc, val) => {
+        return acc.concat(val)
+      }, [])
+      .sort((a, b) => {
+        // Sort descending by block number
+        return b.blockNumber - a.blockNumber
+      })
   }
 
   public async toCrossChainMessage(
@@ -815,6 +808,7 @@ export class CrossChainMessenger implements ICrossChainMessenger {
   public async depositETH(
     amount: NumberLike,
     opts?: {
+      recipient?: AddressLike
       signer?: Signer
       l2GasLimit?: NumberLike
       overrides?: Overrides
@@ -828,6 +822,7 @@ export class CrossChainMessenger implements ICrossChainMessenger {
   public async withdrawETH(
     amount: NumberLike,
     opts?: {
+      recipient?: AddressLike
       signer?: Signer
       overrides?: Overrides
     }
@@ -842,6 +837,7 @@ export class CrossChainMessenger implements ICrossChainMessenger {
     l2Token: AddressLike,
     amount: NumberLike,
     opts?: {
+      recipient?: AddressLike
       signer?: Signer
       l2GasLimit?: NumberLike
       overrides?: Overrides
@@ -862,6 +858,7 @@ export class CrossChainMessenger implements ICrossChainMessenger {
     l2Token: AddressLike,
     amount: NumberLike,
     opts?: {
+      recipient?: AddressLike
       signer?: Signer
       overrides?: Overrides
     }
@@ -949,6 +946,7 @@ export class CrossChainMessenger implements ICrossChainMessenger {
     depositETH: async (
       amount: NumberLike,
       opts?: {
+        recipient?: AddressLike
         l2GasLimit?: NumberLike
         overrides?: Overrides
       }
@@ -964,6 +962,7 @@ export class CrossChainMessenger implements ICrossChainMessenger {
     withdrawETH: async (
       amount: NumberLike,
       opts?: {
+        recipient?: AddressLike
         overrides?: Overrides
       }
     ): Promise<TransactionRequest> => {
@@ -980,6 +979,7 @@ export class CrossChainMessenger implements ICrossChainMessenger {
       l2Token: AddressLike,
       amount: NumberLike,
       opts?: {
+        recipient?: AddressLike
         l2GasLimit?: NumberLike
         overrides?: Overrides
       }
@@ -993,6 +993,7 @@ export class CrossChainMessenger implements ICrossChainMessenger {
       l2Token: AddressLike,
       amount: NumberLike,
       opts?: {
+        recipient?: AddressLike
         overrides?: Overrides
       }
     ): Promise<TransactionRequest> => {
@@ -1047,6 +1048,7 @@ export class CrossChainMessenger implements ICrossChainMessenger {
     depositETH: async (
       amount: NumberLike,
       opts?: {
+        recipient?: AddressLike
         l2GasLimit?: NumberLike
         overrides?: Overrides
       }
@@ -1059,6 +1061,7 @@ export class CrossChainMessenger implements ICrossChainMessenger {
     withdrawETH: async (
       amount: NumberLike,
       opts?: {
+        recipient?: AddressLike
         overrides?: Overrides
       }
     ): Promise<BigNumber> => {
@@ -1072,6 +1075,7 @@ export class CrossChainMessenger implements ICrossChainMessenger {
       l2Token: AddressLike,
       amount: NumberLike,
       opts?: {
+        recipient?: AddressLike
         l2GasLimit?: NumberLike
         overrides?: Overrides
       }
@@ -1091,6 +1095,7 @@ export class CrossChainMessenger implements ICrossChainMessenger {
       l2Token: AddressLike,
       amount: NumberLike,
       opts?: {
+        recipient?: AddressLike
         overrides?: Overrides
       }
     ): Promise<BigNumber> => {

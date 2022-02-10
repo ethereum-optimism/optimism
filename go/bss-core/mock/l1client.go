@@ -5,6 +5,7 @@ import (
 	"math/big"
 	"sync"
 
+	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 )
@@ -14,6 +15,13 @@ import (
 type L1ClientConfig struct {
 	// BlockNumber returns the most recent block number.
 	BlockNumber func(context.Context) (uint64, error)
+
+	// EstimateGas tries to estimate the gas needed to execute a specific
+	// transaction based on the current pending state of the backend blockchain.
+	// There is no guarantee that this is the true gas limit requirement as
+	// other transactions may be added or removed by miners, but it should
+	// provide a basis for setting a reasonable default.
+	EstimateGas func(context.Context, ethereum.CallMsg) (uint64, error)
 
 	// HeaderByNumber returns a block header from the current canonical chain.
 	// If number is nil, the latest known header is returned.
@@ -59,6 +67,18 @@ func (c *L1Client) BlockNumber(ctx context.Context) (uint64, error) {
 	defer c.mu.RUnlock()
 
 	return c.cfg.BlockNumber(ctx)
+}
+
+// EstimateGas tries to estimate the gas needed to execute a specific
+// transaction based on the current pending state of the backend blockchain.
+// There is no guarantee that this is the true gas limit requirement as other
+// transactions may be added or removed by miners, but it should provide a basis
+// for setting a reasonable default.
+func (c *L1Client) EstimateGas(ctx context.Context, msg ethereum.CallMsg) (uint64, error) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	return c.cfg.EstimateGas(ctx, msg)
 }
 
 // HeaderByNumber returns a block header from the current canonical chain. If
@@ -111,6 +131,16 @@ func (c *L1Client) SetBlockNumberFunc(
 	defer c.mu.Unlock()
 
 	c.cfg.BlockNumber = f
+}
+
+// SetEstimateGasFunc overwrites the mock EstimateGas method.
+func (c *L1Client) SetEstimateGasFunc(
+	f func(context.Context, ethereum.CallMsg) (uint64, error)) {
+
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	c.cfg.EstimateGas = f
 }
 
 // SetHeaderByNumberFunc overwrites the mock HeaderByNumber method.

@@ -8,9 +8,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/go/batch-submitter/drivers"
+	"github.com/ethereum-optimism/optimism/go/bss-core/drivers"
 	"github.com/ethereum-optimism/optimism/go/bss-core/mock"
 	"github.com/ethereum-optimism/optimism/go/bss-core/txmgr"
+	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -36,16 +37,18 @@ var (
 	testGasTipCap   = big.NewInt(4)
 	testBlockNumber = uint64(5)
 	testBaseFee     = big.NewInt(6)
+	testGasLimit    = uint64(7)
 )
 
 // TestCraftClearingTx asserts that CraftClearingTx produces the expected
 // unsigned clearing transaction.
 func TestCraftClearingTx(t *testing.T) {
 	tx := drivers.CraftClearingTx(
-		testWalletAddr, testNonce, testGasFeeCap, testGasTipCap,
+		testWalletAddr, testNonce, testGasFeeCap, testGasTipCap, testGasLimit,
 	)
 	require.Equal(t, &testWalletAddr, tx.To())
 	require.Equal(t, testNonce, tx.Nonce())
+	require.Equal(t, testGasLimit, tx.Gas())
 	require.Equal(t, testGasFeeCap, tx.GasFeeCap())
 	require.Equal(t, testGasTipCap, tx.GasTipCap())
 	require.Equal(t, new(big.Int), tx.Value())
@@ -63,6 +66,9 @@ func TestSignClearingTxEstimateGasSuccess(t *testing.T) {
 		},
 		SuggestGasTipCap: func(_ context.Context) (*big.Int, error) {
 			return testGasTipCap, nil
+		},
+		EstimateGas: func(_ context.Context, _ ethereum.CallMsg) (uint64, error) {
+			return testGasLimit, nil
 		},
 	})
 
@@ -131,6 +137,33 @@ func TestSignClearingTxHeaderByNumberFail(t *testing.T) {
 	require.Nil(t, tx)
 }
 
+// TestSignClearingTxEstimateGasFail asserts that signing a clearing
+// transaction will fail if the underlying call to EstimateGas fails.
+func TestSignClearingTxEstimateGasFail(t *testing.T) {
+	errEstimateGas := errors.New("estimate gas")
+
+	l1Client := mock.NewL1Client(mock.L1ClientConfig{
+		EstimateGas: func(_ context.Context, _ ethereum.CallMsg) (uint64, error) {
+			return 0, errEstimateGas
+		},
+		HeaderByNumber: func(_ context.Context, _ *big.Int) (*types.Header, error) {
+			return &types.Header{
+				BaseFee: testBaseFee,
+			}, nil
+		},
+		SuggestGasTipCap: func(_ context.Context) (*big.Int, error) {
+			return testGasTipCap, nil
+		},
+	})
+
+	tx, err := drivers.SignClearingTx(
+		"TEST", context.Background(), testWalletAddr, testNonce, l1Client,
+		testPrivKey, testChainID,
+	)
+	require.Equal(t, errEstimateGas, err)
+	require.Nil(t, tx)
+}
+
 type clearPendingTxHarness struct {
 	l1Client *mock.L1Client
 	txMgr    txmgr.TxManager
@@ -161,6 +194,11 @@ func newClearPendingTxHarnessWithNumConfs(
 	if l1ClientConfig.SuggestGasTipCap == nil {
 		l1ClientConfig.SuggestGasTipCap = func(_ context.Context) (*big.Int, error) {
 			return testGasTipCap, nil
+		}
+	}
+	if l1ClientConfig.EstimateGas == nil {
+		l1ClientConfig.EstimateGas = func(_ context.Context, _ ethereum.CallMsg) (uint64, error) {
+			return testGasLimit, nil
 		}
 	}
 

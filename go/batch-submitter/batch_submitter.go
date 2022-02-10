@@ -54,9 +54,11 @@ func Main(gitVersion string) func(ctx *cli.Context) error {
 				return err
 			}
 
-			logHandler = bsscore.SentryStreamHandler(os.Stdout, log.TerminalFormat(true))
-		} else {
+			logHandler = bsscore.SentryStreamHandler(os.Stdout, log.JSONFormat())
+		} else if cfg.LogTerminal {
 			logHandler = log.StreamHandler(os.Stdout, log.TerminalFormat(true))
+		} else {
+			logHandler = log.StreamHandler(os.Stdout, log.JSONFormat())
 		}
 
 		logLevel, err := log.LvlFromString(cfg.LogLevel)

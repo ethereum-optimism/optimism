@@ -2,7 +2,7 @@
 import { Contract, utils, Wallet, providers } from 'ethers'
 import { TransactionResponse } from '@ethersproject/providers'
 import { getContractFactory, predeploys } from '@eth-optimism/contracts'
-import { Watcher } from '@eth-optimism/core-utils'
+import { sleep } from '@eth-optimism/core-utils'
 import { getMessagesAndProofsForL2Transaction } from '@eth-optimism/message-relayer'
 import { CrossChainMessenger } from '@eth-optimism/sdk'
 
@@ -20,14 +20,11 @@ import {
   getOvmEth,
   getL1Bridge,
   getL2Bridge,
-  sleep,
   envConfig,
   DEFAULT_TEST_GAS_L1,
 } from './utils'
 import {
-  initWatcher,
   CrossDomainMessagePair,
-  Direction,
   waitForXDomainTransaction,
 } from './watcher-utils'
 
@@ -47,9 +44,6 @@ export class OptimismEnv {
   l2Messenger: Contract
   gasPriceOracle: Contract
   sequencerFeeVault: Contract
-
-  // The L1 <> L2 State watcher
-  watcher: Watcher
 
   // The wallets
   l1Wallet: Wallet
@@ -72,7 +66,6 @@ export class OptimismEnv {
     this.l2Messenger = args.l2Messenger
     this.gasPriceOracle = args.gasPriceOracle
     this.sequencerFeeVault = args.sequencerFeeVault
-    this.watcher = args.watcher
     this.l1Wallet = args.l1Wallet
     this.l2Wallet = args.l2Wallet
     this.messenger = args.messenger
@@ -85,26 +78,25 @@ export class OptimismEnv {
   }
 
   static async new(): Promise<OptimismEnv> {
+    const network = await l1Provider.getNetwork()
+
     const addressManager = getAddressManager(l1Wallet)
-    const watcher = await initWatcher(l1Provider, l2Provider, addressManager)
     const l1Bridge = await getL1Bridge(l1Wallet, addressManager)
 
-    // fund the user if needed
-    const balance = await l2Wallet.getBalance()
-    const min = envConfig.L2_WALLET_MIN_BALANCE_ETH.toString()
-    const topUp = envConfig.L2_WALLET_TOP_UP_AMOUNT_ETH.toString()
-    if (balance.lt(utils.parseEther(min))) {
-      await fundUser(watcher, l1Bridge, utils.parseEther(topUp))
-    }
+    const l1MessengerAddress = await addressManager.getAddress(
+      'Proxy__OVM_L1CrossDomainMessenger'
+    )
+    const l2MessengerAddress = await addressManager.getAddress(
+      'L2CrossDomainMessenger'
+    )
     const l1Messenger = getContractFactory('L1CrossDomainMessenger')
       .connect(l1Wallet)
-      .attach(watcher.l1.messengerAddress)
+      .attach(l1MessengerAddress)
     const ovmEth = getOvmEth(l2Wallet)
     const l2Bridge = await getL2Bridge(l2Wallet)
     const l2Messenger = getContractFactory('L2CrossDomainMessenger')
       .connect(l2Wallet)
-      .attach(watcher.l2.messengerAddress)
-
+      .attach(l2MessengerAddress)
     const ctcAddress = await addressManager.getAddress(
       'CanonicalTransactionChain'
     )
@@ -129,12 +121,29 @@ export class OptimismEnv {
       .connect(l2Wallet)
       .attach(predeploys.OVM_L1BlockNumber)
 
-    const network = await l1Provider.getNetwork()
     const messenger = new CrossChainMessenger({
       l1SignerOrProvider: l1Wallet,
       l2SignerOrProvider: l2Wallet,
       l1ChainId: network.chainId,
+      contracts: {
+        l1: {
+          AddressManager: envConfig.ADDRESS_MANAGER,
+          L1CrossDomainMessenger: l1Messenger.address,
+          L1StandardBridge: l1Bridge.address,
+          StateCommitmentChain: sccAddress,
+          CanonicalTransactionChain: ctcAddress,
+          BondManager: await addressManager.getAddress('BondManager'),
+        },
+      },
     })
+
+    // fund the user if needed
+    const balance = await l2Wallet.getBalance()
+    const min = envConfig.L2_WALLET_MIN_BALANCE_ETH.toString()
+    const topUp = envConfig.L2_WALLET_TOP_UP_AMOUNT_ETH.toString()
+    if (balance.lt(utils.parseEther(min))) {
+      await fundUser(messenger, utils.parseEther(topUp))
+    }
 
     return new OptimismEnv({
       addressManager,
@@ -148,7 +157,6 @@ export class OptimismEnv {
       sequencerFeeVault,
       l2Bridge,
       l2Messenger,
-      watcher,
       l1Wallet,
       l2Wallet,
       messenger,
@@ -160,10 +168,9 @@ export class OptimismEnv {
   }
 
   async waitForXDomainTransaction(
-    tx: Promise<TransactionResponse> | TransactionResponse,
-    direction: Direction
+    tx: Promise<TransactionResponse> | TransactionResponse
   ): Promise<CrossDomainMessagePair> {
-    return waitForXDomainTransaction(this.watcher, tx, direction)
+    return waitForXDomainTransaction(this.messenger, tx)
   }
 
   /**

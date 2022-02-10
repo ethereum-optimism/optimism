@@ -118,6 +118,11 @@ type Config struct {
 	// LogLevel is the lowest log level that will be output.
 	LogLevel string
 
+	// LogTerminal if true, prints to stdout in terminal format, otherwise
+	// prints using JSON. If SentryEnable is true this flag is ignored, and logs
+	// are printed using JSON.
+	LogTerminal bool
+
 	// SentryEnable if true, logs any error messages to sentry. SentryDsn
 	// must also be set if SentryEnable is true.
 	SentryEnable bool
@@ -191,6 +196,7 @@ func NewConfig(ctx *cli.Context) (Config, error) {
 		ClearPendingTxs:         ctx.GlobalBool(flags.ClearPendingTxsFlag.Name),
 		/* Optional Flags */
 		LogLevel:            ctx.GlobalString(flags.LogLevelFlag.Name),
+		LogTerminal:         ctx.GlobalBool(flags.LogTerminalFlag.Name),
 		SentryEnable:        ctx.GlobalBool(flags.SentryEnableFlag.Name),
 		SentryDsn:           ctx.GlobalString(flags.SentryDsnFlag.Name),
 		SentryTraceRate:     ctx.GlobalDuration(flags.SentryTraceRateFlag.Name),

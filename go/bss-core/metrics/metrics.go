@@ -1,6 +1,8 @@
 package metrics
 
 import (
+	"strings"
+
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 )
@@ -10,11 +12,11 @@ type Metrics struct {
 	ETHBalance prometheus.Gauge
 
 	// BatchSizeInBytes tracks the size of batch submission transactions.
-	BatchSizeInBytes prometheus.Histogram
+	BatchSizeInBytes prometheus.Summary
 
 	// NumElementsPerBatch tracks the number of L2 transactions in each batch
 	// submission.
-	NumElementsPerBatch prometheus.Histogram
+	NumElementsPerBatch prometheus.Summary
 
 	// SubmissionTimestamp tracks the time at which each batch was confirmed.
 	SubmissionTimestamp prometheus.Gauge
@@ -44,9 +46,10 @@ type Metrics struct {
 }
 
 func NewMetrics(subsystem string) *Metrics {
+	subsystem = "batch_submitter_" + strings.ToLower(subsystem)
 	return &Metrics{
 		ETHBalance: promauto.NewGauge(prometheus.GaugeOpts{
-			Name:      "batch_submitter_eth_balance",
+			Name:      "balance_eth",
 			Help:      "ETH balance of the batch submitter",
 			Subsystem: subsystem,
 		}),
@@ -56,32 +59,19 @@ func NewMetrics(subsystem string) *Metrics {
 			Subsystem:  subsystem,
 			Objectives: map[float64]float64{0.5: 0.05, 0.9: 0.01, 0.99: 0.001},
 		}),
-		NumElementsPerBatch: promauto.NewHistogram(prometheus.HistogramOpts{
-			Name: "num_elements_per_batch",
-			Help: "Number of transaction in each batch",
-			Buckets: []float64{
-				250,
-				500,
-				750,
-				1000,
-				1250,
-				1500,
-				1750,
-				2000,
-				2250,
-				2500,
-				2750,
-				3000,
-			},
-			Subsystem: subsystem,
+		NumElementsPerBatch: promauto.NewSummary(prometheus.SummaryOpts{
+			Name:       "num_elements_per_batch",
+			Help:       "Number of elements in each batch",
+			Objectives: map[float64]float64{0.5: 0.05, 0.9: 0.01, 0.99: 0.001},
+			Subsystem:  subsystem,
 		}),
 		SubmissionTimestamp: promauto.NewGauge(prometheus.GaugeOpts{
-			Name:      "submission_timestamp",
+			Name:      "submission_timestamp_ms",
 			Help:      "Timestamp of last batch submitter submission",
 			Subsystem: subsystem,
 		}),
 		SubmissionGasUsed: promauto.NewGauge(prometheus.GaugeOpts{
-			Name:      "submission_gas_used",
+			Name:      "submission_gas_used_wei",
 			Help:      "Gas used to submit each batch",
 			Subsystem: subsystem,
 		}),
@@ -101,12 +91,12 @@ func NewMetrics(subsystem string) *Metrics {
 			Subsystem: subsystem,
 		}),
 		BatchConfirmationTime: promauto.NewGauge(prometheus.GaugeOpts{
-			Name:      "batch_submitter_batch_confirmation_time_ms",
+			Name:      "batch_confirmation_time_ms",
 			Help:      "Time to confirm batch transactions",
 			Subsystem: subsystem,
 		}),
 		BatchPruneCount: promauto.NewGauge(prometheus.GaugeOpts{
-			Name:      "batch_submitter_batch_prune_count",
+			Name:      "batch_prune_count",
 			Help:      "Number of times a batch is pruned",
 			Subsystem: subsystem,
 		}),

@@ -1,4 +1,6 @@
-import { expectApprox, injectL2Context } from '@eth-optimism/core-utils'
+/* Imports: External */
+import { expectApprox, sleep } from '@eth-optimism/core-utils'
+import { asL2Provider } from '@eth-optimism/sdk'
 import { Wallet, BigNumber, Contract, ContractFactory, constants } from 'ethers'
 import { serialize } from '@ethersproject/transactions'
 import { ethers } from 'hardhat'
@@ -7,8 +9,8 @@ import {
   TransactionRequest,
 } from '@ethersproject/providers'
 
+/* Imports: Internal */
 import {
-  sleep,
   l2Provider,
   defaultTransactionFactory,
   fundUser,
@@ -25,7 +27,7 @@ describe('Basic RPC tests', () => {
   let env: OptimismEnv
   let wallet: Wallet
 
-  const provider = injectL2Context(l2Provider)
+  const provider = asL2Provider(l2Provider)
 
   let Reverter: Contract
   let ValueContext: Contract
@@ -219,7 +221,7 @@ describe('Basic RPC tests', () => {
       // Fund account to call from
       const from = wallet.address
       const value = 15
-      await fundUser(env.watcher, env.l1Bridge, value, from)
+      await fundUser(env.messenger, value, from)
 
       // Do the call and check msg.value
       const data = ValueContext.interface.encodeFunctionData('getCallValue')

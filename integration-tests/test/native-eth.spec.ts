@@ -6,7 +6,6 @@ import { expectApprox } from '@eth-optimism/core-utils'
 
 /* Imports: Internal */
 import { expect } from './shared/setup'
-import { Direction } from './shared/watcher-utils'
 import {
   DEFAULT_TEST_GAS_L1,
   DEFAULT_TEST_GAS_L2,
@@ -71,8 +70,7 @@ describe('Native ETH Integration Tests', async () => {
         to: env.l1Bridge.address,
         value: depositAmount,
         gasLimit: DEFAULT_TEST_GAS_L1,
-      }),
-      Direction.L1ToL2
+      })
     )
 
     const l1FeePaid = receipt.gasUsed.mul(tx.gasPrice)
@@ -96,8 +94,7 @@ describe('Native ETH Integration Tests', async () => {
       env.l1Bridge.depositETH(DEFAULT_TEST_GAS_L2, '0xFFFF', {
         value: depositAmount,
         gasLimit: DEFAULT_TEST_GAS_L1,
-      }),
-      Direction.L1ToL2
+      })
     )
 
     const l1FeePaid = receipt.gasUsed.mul(tx.gasPrice)
@@ -121,8 +118,7 @@ describe('Native ETH Integration Tests', async () => {
       env.l1Bridge.depositETHTo(l2Bob.address, DEFAULT_TEST_GAS_L2, '0xFFFF', {
         value: depositAmount,
         gasLimit: DEFAULT_TEST_GAS_L1,
-      }),
-      Direction.L1ToL2
+      })
     )
 
     const l1FeePaid = depositReceipts.receipt.gasUsed.mul(
@@ -152,8 +148,7 @@ describe('Native ETH Integration Tests', async () => {
       env.l1Bridge.depositETH(ASSUMED_L2_GAS_LIMIT, data, {
         value: depositAmount,
         gasLimit: 4_000_000,
-      }),
-      Direction.L1ToL2
+      })
     )
 
     const l1FeePaid = receipt.gasUsed.mul(tx.gasPrice)
@@ -196,10 +191,7 @@ describe('Native ETH Integration Tests', async () => {
     )
     await transaction.wait()
     await env.relayXDomainMessages(transaction)
-    const receipts = await env.waitForXDomainTransaction(
-      transaction,
-      Direction.L2ToL1
-    )
+    const receipts = await env.waitForXDomainTransaction(transaction)
     const fee = receipts.tx.gasLimit.mul(receipts.tx.gasPrice)
 
     const postBalances = await getBalances(env)
@@ -242,10 +234,7 @@ describe('Native ETH Integration Tests', async () => {
 
     await transaction.wait()
     await env.relayXDomainMessages(transaction)
-    const receipts = await env.waitForXDomainTransaction(
-      transaction,
-      Direction.L2ToL1
-    )
+    const receipts = await env.waitForXDomainTransaction(transaction)
 
     const l2Fee = receipts.tx.gasPrice.mul(receipts.receipt.gasUsed)
 
@@ -289,8 +278,7 @@ describe('Native ETH Integration Tests', async () => {
         env.l1Bridge.depositETH(DEFAULT_TEST_GAS_L2, '0xFFFF', {
           value: amount,
           gasLimit: DEFAULT_TEST_GAS_L1,
-        }),
-        Direction.L1ToL2
+        })
       )
 
       // 2. transfer to another address
@@ -317,10 +305,7 @@ describe('Native ETH Integration Tests', async () => {
         )
       await transaction.wait()
       await env.relayXDomainMessages(transaction)
-      const receipts = await env.waitForXDomainTransaction(
-        transaction,
-        Direction.L2ToL1
-      )
+      const receipts = await env.waitForXDomainTransaction(transaction)
 
       // Compute the L1 portion of the fee
       const l1Fee = await env.gasPriceOracle.getL1Fee(

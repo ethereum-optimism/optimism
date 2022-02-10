@@ -5,12 +5,7 @@ import {
   BlockTag,
 } from '@ethersproject/abstract-provider'
 
-import {
-  NumberLike,
-  AddressLike,
-  MessageDirection,
-  TokenBridgeMessage,
-} from './types'
+import { NumberLike, AddressLike, TokenBridgeMessage } from './types'
 import { ICrossChainMessenger } from './cross-chain-messenger'
 
 /**
@@ -32,24 +27,6 @@ export interface IBridgeAdapter {
    * L2 bridge contract.
    */
   l2Bridge: Contract
-
-  /**
-   * Finds all cross chain messages that correspond to token deposits or withdrawals sent by a
-   * particular address. Useful for finding deposits/withdrawals because the sender of the message
-   * will appear to be the StandardBridge contract and not the actual end user.
-   *
-   * @param address Address to search for messages from.
-   * @param opts Options object.
-   * @param opts.direction Direction to search for messages in. If not provided, will attempt to
-   * find all messages in both directions.
-   * @returns All token bridge messages sent by the given address.
-   */
-  getTokenBridgeMessagesByAddress(
-    address: AddressLike,
-    opts?: {
-      direction?: MessageDirection
-    }
-  ): Promise<TokenBridgeMessage[]>
 
   /**
    * Gets all deposits for a given address.
@@ -109,6 +86,7 @@ export interface IBridgeAdapter {
    * @param amount Amount of the token to deposit.
    * @param signer Signer used to sign and send the transaction.
    * @param opts Additional options.
+   * @param opts.recipient Optional address to receive the funds on L2. Defaults to sender.
    * @param opts.l2GasLimit Optional gas limit to use for the transaction on L2.
    * @param opts.overrides Optional transaction overrides.
    * @returns Transaction response for the deposit transaction.
@@ -119,6 +97,7 @@ export interface IBridgeAdapter {
     amount: NumberLike,
     signer: Signer,
     opts?: {
+      recipient?: AddressLike
       l2GasLimit?: NumberLike
       overrides?: Overrides
     }
@@ -132,6 +111,7 @@ export interface IBridgeAdapter {
    * @param amount Amount of the token to withdraw.
    * @param signer Signer used to sign and send the transaction.
    * @param opts Additional options.
+   * @param opts.recipient Optional address to receive the funds on L1. Defaults to sender.
    * @param opts.overrides Optional transaction overrides.
    * @returns Transaction response for the withdraw transaction.
    */
@@ -141,6 +121,7 @@ export interface IBridgeAdapter {
     amount: NumberLike,
     signer: Signer,
     opts?: {
+      recipient?: AddressLike
       overrides?: Overrides
     }
   ): Promise<TransactionResponse>
@@ -157,6 +138,7 @@ export interface IBridgeAdapter {
      * @param l2Token The L2 token address.
      * @param amount Amount of the token to deposit.
      * @param opts Additional options.
+     * @param opts.recipient Optional address to receive the funds on L2. Defaults to sender.
      * @param opts.l2GasLimit Optional gas limit to use for the transaction on L2.
      * @param opts.overrides Optional transaction overrides.
      * @returns Transaction that can be signed and executed to deposit the tokens.
@@ -166,6 +148,7 @@ export interface IBridgeAdapter {
       l2Token: AddressLike,
       amount: NumberLike,
       opts?: {
+        recipient?: AddressLike
         l2GasLimit?: NumberLike
         overrides?: Overrides
       }
@@ -178,6 +161,7 @@ export interface IBridgeAdapter {
      * @param l2Token The L2 token address.
      * @param amount Amount of the token to withdraw.
      * @param opts Additional options.
+     * @param opts.recipient Optional address to receive the funds on L1. Defaults to sender.
      * @param opts.overrides Optional transaction overrides.
      * @returns Transaction that can be signed and executed to withdraw the tokens.
      */
@@ -186,6 +170,7 @@ export interface IBridgeAdapter {
       l2Token: AddressLike,
       amount: NumberLike,
       opts?: {
+        recipient?: AddressLike
         overrides?: Overrides
       }
     ): Promise<TransactionRequest>
@@ -203,6 +188,7 @@ export interface IBridgeAdapter {
      * @param l2Token The L2 token address.
      * @param amount Amount of the token to deposit.
      * @param opts Additional options.
+     * @param opts.recipient Optional address to receive the funds on L2. Defaults to sender.
      * @param opts.l2GasLimit Optional gas limit to use for the transaction on L2.
      * @param opts.overrides Optional transaction overrides.
      * @returns Gas estimate for the transaction.
@@ -212,6 +198,7 @@ export interface IBridgeAdapter {
       l2Token: AddressLike,
       amount: NumberLike,
       opts?: {
+        recipient?: AddressLike
         l2GasLimit?: NumberLike
         overrides?: Overrides
       }
@@ -224,6 +211,7 @@ export interface IBridgeAdapter {
      * @param l2Token The L2 token address.
      * @param amount Amount of the token to withdraw.
      * @param opts Additional options.
+     * @param opts.recipient Optional address to receive the funds on L1. Defaults to sender.
      * @param opts.overrides Optional transaction overrides.
      * @returns Gas estimate for the transaction.
      */
@@ -232,6 +220,7 @@ export interface IBridgeAdapter {
       l2Token: AddressLike,
       amount: NumberLike,
       opts?: {
+        recipient?: AddressLike
         overrides?: Overrides
       }
     ): Promise<BigNumber>
