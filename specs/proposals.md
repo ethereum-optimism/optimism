@@ -3,6 +3,14 @@
 <!-- All glossary references in this file. -->
 [g-rollup-node]: glossary.md#rollup-node
 
+<!-- START doctoc generated TOC please keep comment here to allow auto update -->
+<!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
+**Table of Contents**
+
+- [Proposing L2 output commitments](#proposing-l2-output-commitments)
+- [L2 output commitment construction](#l2-output-commitment-construction)
+
+<!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
 After processing one or more blocks the outputs will need to be synchronized with L1 for trustless execution of
 L2-to-L1 messaging, such as withdrawals. Outputs are hashed in a tree-structured form which minimizes the cost of
@@ -16,7 +24,7 @@ are part of later specification milestones.
 
 [cannon]: https://github.com/ethereum-optimism/cannon
 
-## Proposing output commitments
+## Proposing L2 output commitments
 
 The proposer's role is to construct and submit output commitments on a configurable interval to a contract on L1.
 
@@ -24,7 +32,7 @@ TODO: describe integration with rollup node and L2 execution engine (see PR #179
 
 TODO: link to contract specification/source of L2 Output oracle on L1.
 
-## L2 Output commitment construction
+## L2 output commitment construction
 
 This merkle-structure is defined with [SSZ], a type system for merkleization and serialization, used in
 L1 (beacon-chain). However, we replace `sha256` with `keccak256` to save gas costs in the EVM.

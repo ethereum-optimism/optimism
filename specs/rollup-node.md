@@ -50,7 +50,6 @@ currently only concerned with the specification of the rollup driver.
     - [Inductive Derivation Step](#inductive-derivation-step)
     - [Engine API Error Handling](#engine-api-error-handling)
     - [Finalization Guarantees](#finalization-guarantees)
-  - [From L2 Block to L2 Output Root](#from-l2-block-to-l2-output-root)
   - [Whole L2 Chain Derivation](#whole-l2-chain-derivation)
 - [Handling L1 Re-Orgs](#handling-l1-re-orgs)
 

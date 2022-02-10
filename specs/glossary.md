@@ -68,7 +68,7 @@ description of these properties can be found in code comments [here][nano-header
 
 It is useful to distinguish between input block properties, which are known before executing the transactions in the
 block, and output block properties, which are derived after executing the block's transactions. These include various
-[Merkle Patricia Trie roots][mpt] that notably commit to the L2 state and to the log events emitted during the execution.
+[Merkle Patricia Trie roots][mpt] that notably commit to the L2 state and to the log events emitted during execution.
 
 ## EOA
 
@@ -250,7 +250,7 @@ The *deposit contract* is qn [L1] contract to which [EOAs][EOA] and contracts ma
 emitted as log records (in Solidity, these are called *events*) for consumption by [rollup nodes][rollup node].
 
 Advanced note: the deposits are not stored in calldata because they can be sent by contracts, in which case the calldata
-is part of the *internal* execution between contracts, and this intermediate calldata is not captured in one of the 
+is part of the *internal* execution between contracts, and this intermediate calldata is not captured in one of the
 [Merkle Patricia Trie roots][mpt] included in the L1 block.
 
 cf. [Deposits Specification](deposits.md)
