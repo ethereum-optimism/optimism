@@ -103,9 +103,11 @@ func NewIndexer(cfg Config, gitVersion string) (*Indexer, error) {
 			return nil, err
 		}
 
-		logHandler = SentryStreamHandler(os.Stdout, log.TerminalFormat(true))
-	} else {
+		logHandler = SentryStreamHandler(os.Stdout, log.JSONFormat())
+	} else if cfg.LogTerminal {
 		logHandler = log.StreamHandler(os.Stdout, log.TerminalFormat(true))
+	} else {
+		logHandler = log.StreamHandler(os.Stdout, log.JSONFormat())
 	}
 
 	logLevel, err := log.LvlFromString(cfg.LogLevel)
