@@ -96,12 +96,7 @@ func (f *ConfirmedHeaderSelector) NewHead(
 	log.Info("Verifying block range ",
 		"startHeight", startHeight, "endHeight", endHeight)
 
-	// go-ethereum doesn't yet support kovan completely, so skip verification
-	// see: https://github.com/ethereum/go-ethereum/issues/24366#issuecomment-1034139876
-	kovanChainID := new(big.Int).SetUint64(42)
-	if f.cfg.ChainID.Cmp(kovanChainID) == 0 {
-		return headers
-	}
+	isKovan := f.cfg.ChainID.Cmp(kovanChainID) == 0
 
 	for i, header := range headers {
 		// Trim the returned headers if any of the lookups failed.
@@ -112,7 +107,9 @@ func (f *ConfirmedHeaderSelector) NewHead(
 
 		// Assert that each header builds on the parent before it, trim if there
 		// are any discontinuities.
-		if i > 0 {
+		// go-ethereum doesn't yet support kovan completely, so skip verification
+		// see: https://github.com/ethereum/go-ethereum/issues/24366#issuecomment-1034139876
+		if i > 0 && !isKovan {
 			prevHeader := headers[i-1]
 			if prevHeader.Hash() != header.ParentHash {
 				log.Error("Parent hash does not connect to ",
