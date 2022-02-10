@@ -33,9 +33,6 @@ var errWrongChainID = errors.New("wrong chain id provided")
 
 var errNoNewBlocks = errors.New("no new blocks")
 
-// kovanChainID is the chain id of the kovan test network
-var kovanChainID = new(big.Int).SetUint64(42)
-
 func respondWithError(w http.ResponseWriter, code int, message string) {
 	respondWithJSON(w, code, map[string]string{"error": message})
 }
@@ -150,7 +147,6 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 	}
 
 	confirmedHeaderSelector, err := NewConfirmedHeaderSelector(HeaderSelectorConfig{
-		ChainID:      cfg.ChainID,
 		ConfDepth:    cfg.ConfDepth,
 		MaxBatchSize: cfg.MaxHeaderBatchSize,
 	})
@@ -240,22 +236,18 @@ func (s *Service) Update(newHeader *types.Header) error {
 		return errNoNewBlocks
 	}
 
-	// go-ethereum doesn't yet support kovan completely, so skip verification
-	// see: https://github.com/ethereum/go-ethereum/issues/24366#issuecomment-1034139876
-	if s.cfg.ChainID.Cmp(kovanChainID) != 0 {
-		if lowest.Number+1 != headers[0].Number.Uint64() {
-			log.Error("Block number does not immediately follow ",
-				"block", headers[0].Number.Uint64(), "hash", headers[0].Hash(),
-				"lowest_block", lowest.Number, "hash", lowest.Hash)
-			return nil
-		}
+	if lowest.Number+1 != headers[0].Number.Uint64() {
+		log.Error("Block number does not immediately follow ",
+			"block", headers[0].Number.Uint64(), "hash", headers[0].Hash(),
+			"lowest_block", lowest.Number, "hash", lowest.Hash)
+		return nil
+	}
 
-		if lowest.Hash != headers[0].ParentHash {
-			log.Error("Parent hash does not connect to ",
-				"block", headers[0].Number.Uint64(), "hash", headers[0].Hash(),
-				"lowest_block", lowest.Number, "hash", lowest.Hash)
-			return nil
-		}
+	if lowest.Hash != headers[0].ParentHash {
+		log.Error("Parent hash does not connect to ",
+			"block", headers[0].Number.Uint64(), "hash", headers[0].Hash(),
+			"lowest_block", lowest.Number, "hash", lowest.Hash)
+		return nil
 	}
 
 	startHeight := headers[0].Number.Uint64()
