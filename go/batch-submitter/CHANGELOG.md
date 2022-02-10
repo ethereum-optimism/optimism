@@ -1,5 +1,15 @@
 # @eth-optimism/batch-submitter-service
 
+## 0.1.3
+
+### Patch Changes
+
+- 69118ac3: Switch num_elements_per_batch from Histogram to Summary
+- df98d134: Remove extra space in metric names
+- 3ec06301: Default to JSON logs, add LOG_TERMINAL flag for debugging
+- fe321618: Unify metric name format
+- 93a26819: Fixes a bug where clearing txs are rejected on startup due to missing gas limit
+
 ## 0.1.2
 
 ### Patch Changes

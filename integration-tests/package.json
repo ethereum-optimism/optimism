@@ -1,7 +1,7 @@
 {
   "private": true,
   "name": "@eth-optimism/integration-tests",
-  "version": "0.5.2",
+  "version": "0.5.3",
   "description": "[Optimism] Integration tests",
   "scripts": {
     "lint": "yarn lint:fix && yarn lint:check",
@@ -28,10 +28,10 @@
     "url": "https://github.com/ethereum-optimism/optimism.git"
   },
   "devDependencies": {
-    "@eth-optimism/contracts": "0.5.13",
-    "@eth-optimism/core-utils": "0.7.6",
-    "@eth-optimism/message-relayer": "0.2.17",
-    "@eth-optimism/sdk": "0.2.1",
+    "@eth-optimism/contracts": "0.5.14",
+    "@eth-optimism/core-utils": "0.7.7",
+    "@eth-optimism/message-relayer": "0.2.18",
+    "@eth-optimism/sdk": "0.2.2",
     "@ethersproject/abstract-provider": "^5.5.1",
     "@ethersproject/providers": "^5.5.3",
     "@ethersproject/transactions": "^5.5.0",

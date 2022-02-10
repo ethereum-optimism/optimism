@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.5.14
+
+### Patch Changes
+
+- Updated dependencies [b4165299]
+- Updated dependencies [3c2acd91]
+  - @eth-optimism/core-utils@0.7.7
+
 ## 0.5.13
 
 ### Patch Changes

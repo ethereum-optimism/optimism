@@ -1,7 +1,7 @@
 {
   "private": true,
   "name": "@eth-optimism/replica-healthcheck",
-  "version": "0.3.6",
+  "version": "0.3.7",
   "description": "[Optimism] Service for monitoring the health of replica nodes",
   "main": "dist/index",
   "types": "dist/index",
@@ -33,7 +33,7 @@
   },
   "dependencies": {
     "@eth-optimism/common-ts": "0.2.1",
-    "@eth-optimism/core-utils": "0.7.6",
+    "@eth-optimism/core-utils": "0.7.7",
     "dotenv": "^10.0.0",
     "ethers": "^5.5.4",
     "express": "^4.17.1",

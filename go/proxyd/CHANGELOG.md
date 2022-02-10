@@ -1,5 +1,11 @@
 # @eth-optimism/proxyd
 
+## 3.8.0
+
+### Minor Changes
+
+- 527448bb: Handle nil responses better
+
 ## 3.7.0
 
 ### Minor Changes
