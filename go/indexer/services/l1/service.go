@@ -192,7 +192,33 @@ func (s *Service) Loop(ctx context.Context) {
 	}
 }
 
-func (s *Service) fetchBlockEventIterator(start, end uint64) (
+func (s *Service) fetchETHBlockEventIterator(start, end uint64) (
+	*l1bridge.L1StandardBridgeETHDepositInitiatedIterator, error) {
+
+	const NUM_RETRIES = 5
+	var err error
+	for retry := 0; retry < NUM_RETRIES; retry++ {
+		ctxt, cancel := context.WithTimeout(s.ctx, DefaultConnectionTimeout)
+
+		var iter *l1bridge.L1StandardBridgeETHDepositInitiatedIterator
+		iter, err = s.l1BridgeContract.FilterETHDepositInitiated(&bind.FilterOpts{
+			Start:   start,
+			End:     &end,
+			Context: ctxt,
+		}, nil, nil)
+		if err != nil {
+			log.Error("Unable to query deposit events for block range ",
+				"start", start, "end", end, "error", err)
+			cancel()
+			continue
+		}
+		cancel()
+		return iter, nil
+	}
+	return nil, err
+}
+
+func (s *Service) fetchERC20BlockEventIterator(start, end uint64) (
 	*l1bridge.L1StandardBridgeERC20DepositInitiatedIterator, error) {
 
 	const NUM_RETRIES = 5
@@ -252,27 +278,47 @@ func (s *Service) Update(newHeader *types.Header) error {
 
 	startHeight := headers[0].Number.Uint64()
 	endHeight := headers[len(headers)-1].Number.Uint64()
+	depositsByBlockhash := make(map[common.Hash][]db.Deposit)
 
-	iter, err := s.fetchBlockEventIterator(startHeight, endHeight)
+	ethIter, err := s.fetchETHBlockEventIterator(startHeight, endHeight)
 	if err != nil {
 		return err
 	}
 
-	depositsByBlockhash := make(map[common.Hash][]db.Deposit)
-	for iter.Next() {
-		depositsByBlockhash[iter.Event.Raw.BlockHash] = append(
-			depositsByBlockhash[iter.Event.Raw.BlockHash], db.Deposit{
-				TxHash:      iter.Event.Raw.TxHash,
-				L1Token:     iter.Event.L1Token,
-				L2Token:     iter.Event.L2Token,
-				FromAddress: iter.Event.From,
-				ToAddress:   iter.Event.To,
-				Amount:      iter.Event.Amount,
-				Data:        iter.Event.Data,
-				LogIndex:    iter.Event.Raw.Index,
+	for ethIter.Next() {
+		depositsByBlockhash[ethIter.Event.Raw.BlockHash] = append(
+			depositsByBlockhash[ethIter.Event.Raw.BlockHash], db.Deposit{
+				TxHash:      ethIter.Event.Raw.TxHash,
+				FromAddress: ethIter.Event.From,
+				ToAddress:   ethIter.Event.To,
+				Amount:      ethIter.Event.Amount,
+				Data:        ethIter.Event.Data,
+				LogIndex:    ethIter.Event.Raw.Index,
 			})
 	}
-	if err := iter.Error(); err != nil {
+	if err := ethIter.Error(); err != nil {
+		return err
+	}
+
+	erc20Iter, err := s.fetchERC20BlockEventIterator(startHeight, endHeight)
+	if err != nil {
+		return err
+	}
+
+	for erc20Iter.Next() {
+		depositsByBlockhash[erc20Iter.Event.Raw.BlockHash] = append(
+			depositsByBlockhash[erc20Iter.Event.Raw.BlockHash], db.Deposit{
+				TxHash:      erc20Iter.Event.Raw.TxHash,
+				L1Token:     erc20Iter.Event.L1Token,
+				L2Token:     erc20Iter.Event.L2Token,
+				FromAddress: erc20Iter.Event.From,
+				ToAddress:   erc20Iter.Event.To,
+				Amount:      erc20Iter.Event.Amount,
+				Data:        erc20Iter.Event.Data,
+				LogIndex:    erc20Iter.Event.Raw.Index,
+			})
+	}
+	if err := erc20Iter.Error(); err != nil {
 		return err
 	}
 
