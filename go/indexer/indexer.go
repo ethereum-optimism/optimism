@@ -15,6 +15,7 @@ import (
 	l2ethclient "github.com/ethereum-optimism/optimism/l2geth/ethclient"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/getsentry/sentry-go"
 	"github.com/gorilla/mux"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -119,7 +120,7 @@ func NewIndexer(cfg Config, gitVersion string) (*Indexer, error) {
 
 	// Connect to L1 and L2 providers. Perform these last since they are the
 	// most expensive.
-	l1Client, err := dialL1EthClientWithTimeout(ctx, cfg.L1EthRpc)
+	l1Client, rawl1Client, err := dialL1EthClientWithTimeout(ctx, cfg.L1EthRpc)
 	if err != nil {
 		return nil, err
 	}
@@ -153,6 +154,7 @@ func NewIndexer(cfg Config, gitVersion string) (*Indexer, error) {
 	l1IndexingService, err := l1.NewService(l1.ServiceConfig{
 		Context:                 ctx,
 		L1Client:                l1Client,
+		RawL1Client:             rawl1Client,
 		L1StandardBridgeAddress: l1StandardBridgeAddress,
 		DB:                      db,
 		ConfDepth:               cfg.ConfDepth,
@@ -227,12 +229,16 @@ func runMetricsServer(hostname string, port uint64) {
 // provided URL. If the dial doesn't complete within defaultDialTimeout seconds,
 // this method will return an error.
 func dialL1EthClientWithTimeout(ctx context.Context, url string) (
-	*ethclient.Client, error) {
+	*ethclient.Client, *rpc.Client, error) {
 
 	ctxt, cancel := context.WithTimeout(ctx, defaultDialTimeout)
 	defer cancel()
 
-	return ethclient.DialContext(ctxt, url)
+	c, err := rpc.DialContext(ctxt, url)
+	if err != nil {
+		return nil, nil, err
+	}
+	return ethclient.NewClient(c), c, nil
 }
 
 // dialL2EthClientWithTimeout attempts to dial the L2 provider using the

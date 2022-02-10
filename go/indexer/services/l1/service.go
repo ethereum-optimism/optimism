@@ -2,7 +2,6 @@ package l1
 
 import (
 	"context"
-	"encoding/binary"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -14,12 +13,12 @@ import (
 	"github.com/ethereum-optimism/optimism/go/indexer/bindings/l1bridge"
 	"github.com/ethereum-optimism/optimism/go/indexer/db"
 	"github.com/ethereum-optimism/optimism/go/indexer/metrics"
-	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/gorilla/mux"
 )
 
@@ -45,41 +44,6 @@ func respondWithJSON(w http.ResponseWriter, code int, payload interface{}) {
 	w.Write(response)
 }
 
-type Backend interface {
-	bind.ContractBackend
-	HeaderBackend
-
-	SubscribeNewHead(context.Context, chan<- *types.Header) (ethereum.Subscription, error)
-	TransactionByHash(context.Context, common.Hash) (*types.Transaction, bool, error)
-}
-
-var (
-	// weiToGwei is the conversion rate from wei to gwei.
-	weiToGwei = new(big.Float).SetFloat64(1e-18)
-)
-
-func uint64ToBytes(i uint64) []byte {
-	var buf [8]byte
-	binary.BigEndian.PutUint64(buf[:], i)
-	return buf[:]
-}
-
-func bytesToUint64(b []byte) uint64 {
-	return binary.BigEndian.Uint64(b)
-}
-
-// Merge function to add two uint64 numbers
-func add(existing, new []byte) []byte {
-	return uint64ToBytes(bytesToUint64(existing) + bytesToUint64(new))
-}
-
-func weiToGwei64(wei *big.Int) float64 {
-	gwei := new(big.Float).SetInt(wei)
-	gwei.Mul(gwei, weiToGwei)
-	gwei64, _ := gwei.Float64()
-	return gwei64
-}
-
 // Driver is an interface for indexing deposits from l1.
 type Driver interface {
 	// Name is an identifier used to prefix logs for a particular service.
@@ -92,6 +56,7 @@ type Driver interface {
 type ServiceConfig struct {
 	Context                 context.Context
 	L1Client                *ethclient.Client
+	RawL1Client             *rpc.Client
 	ChainID                 *big.Int
 	L1StandardBridgeAddress common.Address
 	ConfDepth               uint64
@@ -107,8 +72,7 @@ type Service struct {
 	cancel func()
 
 	l1BridgeContract *l1bridge.L1StandardBridgeFilterer
-	backend          Backend
-	headerSelector   HeaderSelector
+	headerSelector   *ConfirmedHeaderSelector
 
 	metrics *metrics.Metrics
 
@@ -161,13 +125,12 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 		cancel:           cancel,
 		l1BridgeContract: contract,
 		headerSelector:   confirmedHeaderSelector,
-		backend:          cfg.L1Client,
 	}, nil
 }
 
 func (s *Service) Loop(ctx context.Context) {
 	newHeads := make(chan *types.Header, 1000)
-	subscription, err := s.backend.SubscribeNewHead(s.ctx, newHeads)
+	subscription, err := s.cfg.L1Client.SubscribeNewHead(s.ctx, newHeads)
 	if err != nil {
 		log.Error("unable to subscribe to new heads ", "err", err)
 		s.Stop()
@@ -257,21 +220,21 @@ func (s *Service) Update(newHeader *types.Header) error {
 		lowest = *highestConfirmed
 	}
 
-	headers := s.headerSelector.NewHead(s.ctx, lowest.Number, newHeader, s.backend)
+	headers := s.headerSelector.NewHead(s.ctx, lowest.Number, newHeader, s.cfg.RawL1Client)
 	if len(headers) == 0 {
 		return errNoNewBlocks
 	}
 
 	if lowest.Number+1 != headers[0].Number.Uint64() {
 		log.Error("Block number does not immediately follow ",
-			"block", headers[0].Number.Uint64(), "hash", headers[0].Hash(),
+			"block", headers[0].Number.Uint64(), "hash", headers[0].Hash,
 			"lowest_block", lowest.Number, "hash", lowest.Hash)
 		return nil
 	}
 
 	if lowest.Hash != headers[0].ParentHash {
 		log.Error("Parent hash does not connect to ",
-			"block", headers[0].Number.Uint64(), "hash", headers[0].Hash(),
+			"block", headers[0].Number.Uint64(), "hash", headers[0].Hash,
 			"lowest_block", lowest.Number, "hash", lowest.Hash)
 		return nil
 	}
@@ -323,7 +286,7 @@ func (s *Service) Update(newHeader *types.Header) error {
 	}
 
 	for _, header := range headers {
-		blockHash := header.Hash()
+		blockHash := header.Hash
 		number := header.Number.Uint64()
 		deposits := depositsByBlockhash[blockHash]
 
