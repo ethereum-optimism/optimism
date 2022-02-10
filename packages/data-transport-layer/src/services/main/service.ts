@@ -68,6 +68,12 @@ export class L1DataTransportService extends BaseService<L1DataTransportServiceOp
   protected async _init(): Promise<void> {
     this.logger.info('Initializing L1 Data Transport Service...')
 
+    if (this.options.bssHardfork1Index !== null && this.options.bssHardfork1Index !== undefined) {
+      this.logger.info(`BSS HF1 is active at block: ${this.options.bssHardfork1Index}`)
+    } else {
+      this.logger.info(`BSS HF1 is not active`)
+    }
+
     this.state.db = level(this.options.dbPath)
     await this.state.db.open()
 
