@@ -2,17 +2,11 @@
 import { ethers } from 'hardhat'
 import { expectApprox } from '@eth-optimism/core-utils'
 import { predeploys } from '@eth-optimism/contracts'
-import { asL2Provider } from '@eth-optimism/sdk'
 import { Contract, BigNumber } from 'ethers'
 
 /* Imports: Internal */
 import { expect } from './shared/setup'
-import {
-  l2Provider,
-  l1Provider,
-  envConfig,
-  DEFAULT_TEST_GAS_L1,
-} from './shared/utils'
+import { envConfig, DEFAULT_TEST_GAS_L1 } from './shared/utils'
 import { OptimismEnv } from './shared/env'
 
 /**
@@ -21,7 +15,6 @@ import { OptimismEnv } from './shared/env'
  * must be equal to the blocknumber/timestamp of the L1 transaction.
  */
 describe('OVM Context: Layer 2 EVM Context', () => {
-  const L2Provider = asL2Provider(l2Provider)
   let env: OptimismEnv
   before(async () => {
     env = await OptimismEnv.new()
@@ -66,8 +59,10 @@ describe('OVM Context: Layer 2 EVM Context', () => {
 
       // Get the L1 block that the enqueue transaction was in so that
       // the timestamp can be compared against the layer two contract
-      const l1Block = await l1Provider.getBlock(pair.receipt.blockNumber)
-      const l2Block = await l2Provider.getBlock(pair.remoteReceipt.blockNumber)
+      const l1Block = await env.l1Provider.getBlock(pair.receipt.blockNumber)
+      const l2Block = await env.l2Provider.getBlock(
+        pair.remoteReceipt.blockNumber
+      )
 
       // block.number should return the value of the L2 block number.
       const l2BlockNumber = await OVMContextStorage.blockNumbers(i)
@@ -103,7 +98,7 @@ describe('OVM Context: Layer 2 EVM Context', () => {
       })
       await dummyTx.wait()
 
-      const block = await L2Provider.getBlockWithTransactions('latest')
+      const block = await env.l2Provider.getBlockWithTransactions('latest')
       const [, returnData] = await Multicall.callStatic.aggregate(
         [
           [
