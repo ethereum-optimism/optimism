@@ -2,9 +2,9 @@ package l1
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/ethereum-optimism/optimism/go/indexer/server"
 	"math/big"
 	"net/http"
 	"strconv"
@@ -36,18 +36,6 @@ var errNoChainID = errors.New("no chain id provided")
 var errWrongChainID = errors.New("wrong chain id provided")
 
 var errNoNewBlocks = errors.New("no new blocks")
-
-func respondWithError(w http.ResponseWriter, code int, message string) {
-	respondWithJSON(w, code, map[string]string{"error": message})
-}
-
-func respondWithJSON(w http.ResponseWriter, code int, payload interface{}) {
-	response, _ := json.Marshal(payload)
-
-	w.WriteHeader(code)
-	w.Header().Set("Content-Type", "application/json")
-	w.Write(response)
-}
 
 // Driver is an interface for indexing deposits from l1.
 type Driver interface {
@@ -350,13 +338,13 @@ func (s *Service) Update(newHeader *types.Header) error {
 func (s *Service) GetIndexerStatus(w http.ResponseWriter, r *http.Request) {
 	highestBlock, err := s.cfg.DB.GetHighestL1Block()
 	if err != nil {
-		respondWithError(w, http.StatusInternalServerError, err.Error())
+		server.RespondWithError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 
 	latestHeader, err := s.cfg.L1Client.HeaderByNumber(context.Background(), nil)
 	if err != nil {
-		respondWithError(w, http.StatusInternalServerError, err.Error())
+		server.RespondWithError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 
@@ -367,7 +355,7 @@ func (s *Service) GetIndexerStatus(w http.ResponseWriter, r *http.Request) {
 		Highest: *highestBlock,
 	}
 
-	respondWithJSON(w, http.StatusOK, status)
+	server.RespondWithJSON(w, http.StatusOK, status)
 }
 
 func (s *Service) GetDeposits(w http.ResponseWriter, r *http.Request) {
@@ -376,7 +364,7 @@ func (s *Service) GetDeposits(w http.ResponseWriter, r *http.Request) {
 	limitStr := r.URL.Query().Get("limit")
 	limit, err := strconv.ParseUint(limitStr, 10, 64)
 	if err != nil && limitStr != "" {
-		respondWithError(w, http.StatusInternalServerError, err.Error())
+		server.RespondWithError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 	if limit == 0 {
@@ -386,7 +374,7 @@ func (s *Service) GetDeposits(w http.ResponseWriter, r *http.Request) {
 	offsetStr := r.URL.Query().Get("offset")
 	offset, err := strconv.ParseUint(offsetStr, 10, 64)
 	if err != nil && offsetStr != "" {
-		respondWithError(w, http.StatusInternalServerError, err.Error())
+		server.RespondWithError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 
@@ -397,11 +385,11 @@ func (s *Service) GetDeposits(w http.ResponseWriter, r *http.Request) {
 
 	deposits, err := s.cfg.DB.GetDepositsByAddress(common.HexToAddress(vars["address"]), page)
 	if err != nil {
-		respondWithError(w, http.StatusInternalServerError, err.Error())
+		server.RespondWithError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 
-	respondWithJSON(w, http.StatusOK, deposits)
+	server.RespondWithJSON(w, http.StatusOK, deposits)
 }
 
 func (s *Service) subscribeNewHeads(ctx context.Context, heads chan *types.Header) {

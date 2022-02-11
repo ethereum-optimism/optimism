@@ -3,6 +3,7 @@ package indexer
 import (
 	"context"
 	"fmt"
+	"github.com/ethereum-optimism/optimism/go/indexer/server"
 	"math/big"
 	"net/http"
 	"os"
@@ -200,7 +201,8 @@ func (b *Indexer) Serve(ctx context.Context) {
 	b.router.HandleFunc("/v1/deposits/0x{address:[a-fA-F0-9]{40}}", b.l1IndexingService.GetDeposits).Methods("GET")
 	b.router.HandleFunc("/v1/withdrawals/0x{address:[a-fA-F0-9]{40}}", b.l2IndexingService.GetWithdrawals).Methods("GET")
 
-	http.ListenAndServe(":8080", b.router)
+	middleware := server.LoggingMiddleware(log.New("service", "server"))
+	http.ListenAndServe(":8080", middleware(b.router))
 }
 
 func (b *Indexer) Start() error {
