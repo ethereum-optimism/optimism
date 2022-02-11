@@ -204,16 +204,22 @@ func (b *Indexer) Serve(ctx context.Context) {
 }
 
 func (b *Indexer) Start() error {
-	b.l1IndexingService.Start()
-	b.l2IndexingService.Start()
+	if b.cfg.DisableIndexer {
+		log.Info("indexer disabled, only serving data")
+	} else {
+		b.l1IndexingService.Start()
+		b.l2IndexingService.Start()
+	}
 
 	b.Serve(b.ctx)
 	return nil
 }
 
 func (b *Indexer) Stop() {
-	b.l1IndexingService.Stop()
-	b.l2IndexingService.Stop()
+	if !b.cfg.DisableIndexer {
+		b.l1IndexingService.Stop()
+		b.l2IndexingService.Stop()
+	}
 }
 
 // runMetricsServer spins up a prometheus metrics server at the provided

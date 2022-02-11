@@ -91,6 +91,12 @@ var (
 
 	/* Optional Flags */
 
+	DisableIndexer = cli.BoolFlag{
+		Name: "disable-indexer",
+		Usage: "Whether or not to enable the indexer on this instance",
+		Required: false,
+		EnvVar: prefixEnvVar("DISABLE_INDEXER"),
+	}
 	LogLevelFlag = cli.StringFlag{
 		Name:   "log-level",
 		Usage:  "The lowest log level that will be output",
@@ -179,6 +185,7 @@ var requiredFlags = []cli.Flag{
 }
 
 var optionalFlags = []cli.Flag{
+	DisableIndexer,
 	LogLevelFlag,
 	LogTerminalFlag,
 	SentryEnableFlag,

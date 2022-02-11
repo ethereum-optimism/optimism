@@ -105,6 +105,9 @@ type Config struct {
 
 	// MetricsPort is the port at which the metrics server is running.
 	MetricsPort uint64
+
+	// DisableIndexer enables/disables the indexer.
+	DisableIndexer bool
 }
 
 // NewConfig parses the Config from the provided flags or environment variables.
@@ -125,6 +128,7 @@ func NewConfig(ctx *cli.Context) (Config, error) {
 		DBPassword:              ctx.GlobalString(flags.DBPasswordFlag.Name),
 		DBName:                  ctx.GlobalString(flags.DBNameFlag.Name),
 		/* Optional Flags */
+		DisableIndexer:      ctx.GlobalBool(flags.DisableIndexer.Name),
 		LogLevel:            ctx.GlobalString(flags.LogLevelFlag.Name),
 		LogTerminal:         ctx.GlobalBool(flags.LogTerminalFlag.Name),
 		SentryEnable:        ctx.GlobalBool(flags.SentryEnableFlag.Name),
