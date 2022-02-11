@@ -1,9 +1,9 @@
-name: bss-core unit tests
+name: teleportr unit tests
 
 on:
   push:
     paths:
-      - 'go/bss-core/**'
+      - 'go/teleportr/**'
     branches:
       - 'master'
       - 'develop'
@@ -11,17 +11,24 @@ on:
       - 'regenesis/*'
   pull_request:
     paths:
-      - 'go/bss-core/**'
+      - 'go/teleportr/**'
   workflow_dispatch:
 
 defaults:
   run:
-    working-directory: './go/bss-core'
+    working-directory: './go/teleportr'
 
 jobs:
   tests:
     runs-on: ubuntu-latest
-
+    services:
+      postgres:
+        image: postgres
+        env:
+          POSTGRES_USER=postgres
+          POSTGRES_PASSWORD=password
+        ports:
+          - 5432:5432
     steps:
       - name: Install Go
         uses: actions/setup-go@v2
