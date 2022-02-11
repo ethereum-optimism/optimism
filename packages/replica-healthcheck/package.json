@@ -34,6 +34,7 @@
   "dependencies": {
     "@eth-optimism/common-ts": "0.2.1",
     "@eth-optimism/core-utils": "0.7.7",
+    "@eth-optimism/sdk": "^0.2.1",
     "dotenv": "^10.0.0",
     "ethers": "^5.5.4",
     "express": "^4.17.1",
