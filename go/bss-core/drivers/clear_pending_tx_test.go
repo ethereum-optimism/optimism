@@ -204,9 +204,10 @@ func newClearPendingTxHarnessWithNumConfs(
 
 	l1Client := mock.NewL1Client(l1ClientConfig)
 	txMgr := txmgr.NewSimpleTxManager("test", txmgr.Config{
-		ResubmissionTimeout:  time.Second,
-		ReceiptQueryInterval: 50 * time.Millisecond,
-		NumConfirmations:     numConfirmations,
+		ResubmissionTimeout:       time.Second,
+		ReceiptQueryInterval:      50 * time.Millisecond,
+		NumConfirmations:          numConfirmations,
+		SafeAbortNonceTooLowCount: 3,
 	}, l1Client)
 
 	return &clearPendingTxHarness{

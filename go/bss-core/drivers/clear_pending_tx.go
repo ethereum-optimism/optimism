@@ -48,7 +48,7 @@ func ClearPendingTx(
 	// Construct the clearing transaction submission clousure that will attempt
 	// to send the a clearing transaction transaction at the given nonce and gas
 	// price.
-	sendTx := func(
+	updateGasPrice := func(
 		ctx context.Context,
 	) (*types.Transaction, error) {
 		log.Info(name+" clearing pending tx", "nonce", nonce)
@@ -61,11 +61,16 @@ func ClearPendingTx(
 				"err", err)
 			return nil, err
 		}
-		txHash := signedTx.Hash()
-		gasTipCap := signedTx.GasTipCap()
-		gasFeeCap := signedTx.GasFeeCap()
 
-		err = l1Client.SendTransaction(ctx, signedTx)
+		return signedTx, nil
+	}
+
+	sendTx := func(ctx context.Context, tx *types.Transaction) error {
+		txHash := tx.Hash()
+		gasTipCap := tx.GasTipCap()
+		gasFeeCap := tx.GasFeeCap()
+
+		err := l1Client.SendTransaction(ctx, tx)
 		switch {
 
 		// Clearing transaction successfully confirmed.
@@ -74,7 +79,7 @@ func ClearPendingTx(
 				"gasTipCap", gasTipCap, "gasFeeCap", gasFeeCap,
 				"txHash", txHash)
 
-			return signedTx, nil
+			return nil
 
 		// Getting a nonce too low error implies that a previous transaction in
 		// the mempool has confirmed and we should abort trying to publish at
@@ -83,7 +88,7 @@ func ClearPendingTx(
 			log.Info(name + " transaction from previous restart confirmed, " +
 				"aborting mempool clearing")
 			cancel()
-			return nil, context.Canceled
+			return context.Canceled
 
 		// An unexpected error occurred. This also handles the case where the
 		// clearing transaction has not yet bested the gas price a prior
@@ -94,11 +99,11 @@ func ClearPendingTx(
 			log.Error(name+" unable to submit clearing tx",
 				"nonce", nonce, "gasTipCap", gasTipCap, "gasFeeCap", gasFeeCap,
 				"txHash", txHash, "err", err)
-			return nil, err
+			return err
 		}
 	}
 
-	receipt, err := txMgr.Send(ctx, sendTx)
+	receipt, err := txMgr.Send(ctx, updateGasPrice, sendTx)
 	switch {
 
 	// If the current context is canceled, a prior transaction in the mempool

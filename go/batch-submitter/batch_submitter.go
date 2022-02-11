@@ -108,9 +108,10 @@ func Main(gitVersion string) func(ctx *cli.Context) error {
 		}
 
 		txManagerConfig := txmgr.Config{
-			ResubmissionTimeout:  cfg.ResubmissionTimeout,
-			ReceiptQueryInterval: time.Second,
-			NumConfirmations:     cfg.NumConfirmations,
+			ResubmissionTimeout:       cfg.ResubmissionTimeout,
+			ReceiptQueryInterval:      time.Second,
+			NumConfirmations:          cfg.NumConfirmations,
+			SafeAbortNonceTooLowCount: cfg.SafeAbortNonceTooLowCount,
 		}
 
 		var services []*bsscore.Service
