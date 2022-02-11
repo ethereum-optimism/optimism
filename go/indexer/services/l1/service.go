@@ -132,10 +132,16 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 }
 
 func (s *Service) Loop(ctx context.Context) {
+	if err := s.catchUp(ctx); err != nil {
+		if err == context.Canceled {
+			return
+		}
+
+		log.Error("error catching up to tip, trying to subscribe anyway", "err", err)
+	}
+
 	newHeads := make(chan *types.Header, 1000)
-	subCtx, cancel := context.WithCancel(ctx)
-	go s.subscribeNewHeads(subCtx, newHeads)
-	defer cancel()
+	go s.subscribeNewHeads(ctx, newHeads)
 
 	for {
 		select {
@@ -413,12 +419,44 @@ func (s *Service) subscribeNewHeads(ctx context.Context, heads chan *types.Heade
 	}
 }
 
+func (s *Service) catchUp(ctx context.Context) error {
+	realHead, err := s.cfg.L1Client.HeaderByNumber(context.Background(), nil)
+	if err != nil {
+		return err
+	}
+
+	currHead, err := s.cfg.DB.GetHighestL1Block()
+	if err != nil {
+		return err
+	}
+
+	for realHead.Number.Uint64() - s.cfg.ConfDepth > currHead.Number + s.cfg.MaxHeaderBatchSize {
+		log.Info("chain is far behind head, resyncing")
+
+		select {
+		case <-ctx.Done():
+			return context.Canceled
+		default:
+			if err := s.Update(realHead); err != nil {
+				return err
+			}
+			currHead, err = s.cfg.DB.GetHighestL1Block()
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	log.Info("indexer is close enough to tip, starting regular loop")
+	return nil
+}
+
 func (s *Service) Start() error {
 	if s.cfg.ChainID == nil {
 		return errNoChainID
 	}
 	s.wg.Add(1)
-	go s.Loop(context.Background())
+	go s.Loop(s.ctx)
 	return nil
 }
 
