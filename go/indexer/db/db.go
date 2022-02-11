@@ -70,7 +70,8 @@ CREATE TABLE IF NOT EXISTS withdrawals (
 var insertETHL1Token = `
 	INSERT INTO l1_tokens
 		(address, name, symbol, decimals)
-	VALUES ('0x0000000000000000000000000000000000000000', 'Ethereum', 'ETH', 18);
+	VALUES ('0x0000000000000000000000000000000000000000', 'Ethereum', 'ETH', 18)
+	ON CONFLICT (address) DO NOTHING;
 `
 
 type PaginationParam struct {
