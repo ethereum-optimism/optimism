@@ -10,6 +10,8 @@ import (
 	"strconv"
 	"sync"
 
+	_ "github.com/lib/pq"
+
 	"github.com/ethereum-optimism/optimism/go/indexer/bindings/l1bridge"
 	"github.com/ethereum-optimism/optimism/go/indexer/db"
 	"github.com/ethereum-optimism/optimism/go/indexer/metrics"
@@ -243,26 +245,6 @@ func (s *Service) Update(newHeader *types.Header) error {
 	endHeight := headers[len(headers)-1].Number.Uint64()
 	depositsByBlockhash := make(map[common.Hash][]db.Deposit)
 
-	ethIter, err := s.fetchETHBlockEventIterator(startHeight, endHeight)
-	if err != nil {
-		return err
-	}
-
-	for ethIter.Next() {
-		depositsByBlockhash[ethIter.Event.Raw.BlockHash] = append(
-			depositsByBlockhash[ethIter.Event.Raw.BlockHash], db.Deposit{
-				TxHash:      ethIter.Event.Raw.TxHash,
-				FromAddress: ethIter.Event.From,
-				ToAddress:   ethIter.Event.To,
-				Amount:      ethIter.Event.Amount,
-				Data:        ethIter.Event.Data,
-				LogIndex:    ethIter.Event.Raw.Index,
-			})
-	}
-	if err := ethIter.Error(); err != nil {
-		return err
-	}
-
 	erc20Iter, err := s.fetchERC20BlockEventIterator(startHeight, endHeight)
 	if err != nil {
 		return err
@@ -282,6 +264,46 @@ func (s *Service) Update(newHeader *types.Header) error {
 			})
 	}
 	if err := erc20Iter.Error(); err != nil {
+		return err
+	}
+
+	// Index L1 ERC20 tokens
+	for _, deposits := range depositsByBlockhash {
+		for _, deposit := range deposits {
+			token, err := s.cfg.DB.GetL1TokenByAddress(deposit.L1Token.String())
+			if err != nil {
+				return err
+			}
+			if token != nil {
+				continue
+			}
+			token, err = QueryERC20(deposit.L1Token, s.cfg.L1Client)
+			if err != nil {
+				return err
+			}
+			if err := s.cfg.DB.AddL1Token(deposit.L1Token.String(), token); err != nil {
+				return err
+			}
+		}
+	}
+
+	ethIter, err := s.fetchETHBlockEventIterator(startHeight, endHeight)
+	if err != nil {
+		return err
+	}
+
+	for ethIter.Next() {
+		depositsByBlockhash[ethIter.Event.Raw.BlockHash] = append(
+			depositsByBlockhash[ethIter.Event.Raw.BlockHash], db.Deposit{
+				TxHash:      ethIter.Event.Raw.TxHash,
+				FromAddress: ethIter.Event.From,
+				ToAddress:   ethIter.Event.To,
+				Amount:      ethIter.Event.Amount,
+				Data:        ethIter.Event.Data,
+				LogIndex:    ethIter.Event.Raw.Index,
+			})
+	}
+	if err := ethIter.Error(); err != nil {
 		return err
 	}
 

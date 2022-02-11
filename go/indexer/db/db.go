@@ -32,7 +32,7 @@ var createDepositsTable = `
 CREATE TABLE IF NOT EXISTS deposits (
 	from_address TEXT NOT NULL,
 	to_address TEXT NOT NULL,
-	l1_token TEXT NOT NULL,
+	l1_token TEXT NOT NULL REFERENCES l1_tokens(address),
 	l2_token TEXT NOT NULL,
 	amount TEXT NOT NULL,
 	data BYTEA NOT NULL,
@@ -40,6 +40,15 @@ CREATE TABLE IF NOT EXISTS deposits (
 	block_hash TEXT NOT NULL REFERENCES l1_blocks(hash) ,
 	block_timestamp TEXT NOT NULL,
 	tx_hash TEXT NOT NULL
+)
+`
+
+var createL1TokensTable = `
+CREATE TABLE IF NOT EXISTS l1_tokens (
+	address TEXT NOT NULL PRIMARY KEY,
+	name TEXT NOT NULL,
+	symbol TEXT NOT NULL UNIQUE,
+	decimals INTEGER NOT NULL
 )
 `
 
@@ -58,6 +67,12 @@ CREATE TABLE IF NOT EXISTS withdrawals (
 )
 `
 
+var insertETHL1Token = `
+	INSERT INTO l1_tokens
+		(address, name, symbol, decimals)
+	VALUES ('0x0000000000000000000000000000000000000000', 'Ethereum', 'ETH', 18);
+`
+
 type PaginationParam struct {
 	Limit  uint64
 	Offset uint64
@@ -66,6 +81,8 @@ type PaginationParam struct {
 var schema = []string{
 	createL1BlocksTable,
 	createL2BlocksTable,
+	createL1TokensTable,
+	insertETHL1Token,
 	createDepositsTable,
 	createWithdrawalsTable,
 }
@@ -163,9 +180,91 @@ func (b *IndexedL1Block) Events() []TxnEnqueuedEvent {
 	return events
 }
 
+type Token struct {
+	Name     string `json:"name"`
+	Symbol   string `json:"symbol"`
+	Decimals uint8  `json:"decimals"`
+}
+
 type Database struct {
 	db     *sql.DB
 	config string
+}
+
+func (d *Database) GetL1TokenByAddress(address string) (*Token, error) {
+	const selectL1TokenStatement = `
+	SELECT name, symbol, decimals FROM l1_tokens WHERE address = $1;
+	`
+
+	var token *Token
+	err := txn(d.db, func(tx *sql.Tx) error {
+		queryStmt, err := tx.Prepare(selectL1TokenStatement)
+		if err != nil {
+			return err
+		}
+
+		rows, err := queryStmt.Query(address)
+		if err != nil {
+			return err
+		}
+
+		if !rows.Next() {
+			return nil
+		}
+
+		var name string
+		var symbol string
+		var decimals uint8
+		err = rows.Scan(&name, &symbol, &decimals)
+		if err != nil {
+			return err
+		}
+
+		if rows.Next() {
+			return errors.New("address should be unique")
+		}
+
+		token = &Token{
+			Name:     name,
+			Symbol:   symbol,
+			Decimals: decimals,
+		}
+
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return token, nil
+}
+
+func (d *Database) AddL1Token(address string, token *Token) error {
+	const insertTokenStatement = `
+	INSERT INTO l1_tokens
+		(address, name, symbol, decimals)
+	VALUES
+		($1, $2, $3, $4)
+	`
+
+	return txn(d.db, func(tx *sql.Tx) error {
+		tokenStmt, err := tx.Prepare(insertTokenStatement)
+		if err != nil {
+			return err
+		}
+
+		_, err = tokenStmt.Exec(
+			address,
+			token.Name,
+			token.Symbol,
+			token.Decimals,
+		)
+		if err != nil {
+			return err
+		}
+
+		return nil
+	})
 }
 
 func (d *Database) AddIndexedL1Block(block *IndexedL1Block) error {
