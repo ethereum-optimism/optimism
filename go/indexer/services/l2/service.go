@@ -25,6 +25,8 @@ import (
 	"github.com/gorilla/mux"
 )
 
+var logger = log.New("service", "l2")
+
 // errNoChainID represents the error when the chain id is not provided
 // and it cannot be remotely fetched
 var errNoChainID = errors.New("no chain id provided")
@@ -132,7 +134,7 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 
 	// Handle restart logic
 
-	log.Info("Creating L2 Indexer")
+	logger.Info("Creating L2 Indexer")
 
 	chainID, err := cfg.L2Client.ChainID(context.Background())
 	if err != nil {
@@ -173,7 +175,7 @@ func (s *Service) Loop(ctx context.Context) {
 			return
 		}
 
-		log.Error("error catching up to tip, trying to subscribe anyway", "err", err)
+		logger.Error("error catching up to tip, trying to subscribe anyway", "err", err)
 	}
 
 	newHeads := make(chan *types.Header, 1000)
@@ -182,11 +184,11 @@ func (s *Service) Loop(ctx context.Context) {
 	for {
 		select {
 		case header := <-newHeads:
-			log.Info("Received new header", "header", header.Hash)
+			logger.Info("Received new header", "header", header.Hash)
 			for {
 				err := s.Update(header)
 				if err != nil && err != errNoNewBlocks {
-					log.Error("Unable to update indexer ", "err", err)
+					logger.Error("Unable to update indexer ", "err", err)
 				}
 				break
 			}
@@ -211,7 +213,7 @@ func (s *Service) fetchBlockEventIterator(start, end uint64) (
 			Context: ctxt,
 		}, nil, nil, nil)
 		if err != nil {
-			log.Error("Unable to query withdrawal events for block range ",
+			logger.Error("Unable to query withdrawal events for block range ",
 				"start", start, "end", end, "error", err)
 			cancel()
 			continue
@@ -241,14 +243,14 @@ func (s *Service) Update(newHeader *types.Header) error {
 	}
 
 	if lowest.Number+1 != headers[0].Number.Uint64() {
-		log.Error("Block number does not immediately follow ",
+		logger.Error("Block number does not immediately follow ",
 			"block", headers[0].Number.Uint64(), "hash", headers[0].Hash(),
 			"lowest_block", lowest.Number, "hash", lowest.Hash)
 		return nil
 	}
 
 	if lowest.Hash != headers[0].ParentHash {
-		log.Error("Parent hash does not connect to ",
+		logger.Error("Parent hash does not connect to ",
 			"block", headers[0].Number.Uint64(), "hash", headers[0].Hash(),
 			"lowest_block", lowest.Number, "hash", lowest.Hash)
 		return nil
@@ -295,15 +297,15 @@ func (s *Service) Update(newHeader *types.Header) error {
 
 		err := s.cfg.DB.AddIndexedL2Block(block)
 		if err != nil {
-			log.Error("Unable to import ",
+			logger.Error("Unable to import ",
 				"block", number, "hash", blockHash, "err", err, "block", block)
 			return err
 		}
 
-		log.Debug("Imported ",
+		logger.Debug("Imported ",
 			"block", number, "hash", blockHash, "withdrawals", len(block.Withdrawals))
 		for _, withdrawal := range block.Withdrawals {
-			log.Info("Indexed withdrawal ", "tx_hash", withdrawal.TxHash)
+			logger.Info("Indexed withdrawal ", "tx_hash", withdrawal.TxHash)
 		}
 	}
 
@@ -380,7 +382,7 @@ func (s *Service) subscribeNewHeads(ctx context.Context, heads chan *types.Heade
 		case <-tick.C:
 			header, err := s.cfg.L2Client.HeaderByNumber(ctx, nil)
 			if err != nil {
-				log.Error("error fetching header by number", "err", err)
+				logger.Error("error fetching header by number", "err", err)
 			}
 			heads <- header
 		case <-ctx.Done():
@@ -400,8 +402,14 @@ func (s *Service) catchUp(ctx context.Context) error {
 		return err
 	}
 
+	if realHead.Number.Uint64() - s.cfg.ConfDepth <= currHead.Number + s.cfg.MaxHeaderBatchSize {
+		return nil
+	}
+
+	logger.Info("chain is far behind head, resyncing")
+
 	for realHead.Number.Uint64() - s.cfg.ConfDepth > currHead.Number + s.cfg.MaxHeaderBatchSize {
-		log.Info("chain is far behind head, resyncing")
+
 
 		select {
 		case <-ctx.Done():
@@ -417,7 +425,7 @@ func (s *Service) catchUp(ctx context.Context) error {
 		}
 	}
 
-	log.Info("indexer is close enough to tip, starting regular loop")
+	logger.Info("indexer is close enough to tip, starting regular loop")
 	return nil
 }
 

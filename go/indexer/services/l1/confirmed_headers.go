@@ -158,7 +158,7 @@ func (f *ConfirmedHeaderSelector) NewHead(
 	number := header.Number.Uint64()
 	blockHash := header.Hash
 
-	log.Info("New block", "block", number, "hash", blockHash)
+	logger.Info("New block", "block", number, "hash", blockHash)
 
 	if number < f.cfg.ConfDepth {
 		return nil
@@ -179,7 +179,7 @@ func (f *ConfirmedHeaderSelector) NewHead(
 
 	nHeaders := endHeight - startHeight + 1
 	if nHeaders > 1 {
-		log.Info("Loading block batch ",
+		logger.Info("Loading block batch ",
 			"startHeight", startHeight, "endHeight", endHeight)
 	}
 
@@ -206,7 +206,7 @@ func (f *ConfirmedHeaderSelector) NewHead(
 	}
 	wg.Wait()
 
-	log.Info("Verifying block range ",
+	logger.Debug("Verifying block range ",
 		"startHeight", startHeight, "endHeight", endHeight)
 
 	for i, header := range headers {
