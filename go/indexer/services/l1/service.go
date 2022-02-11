@@ -427,18 +427,24 @@ func (s *Service) catchUp(ctx context.Context) error {
 		return err
 	}
 
-	currHead, err := s.cfg.DB.GetHighestL1Block()
+	currHead, err := s.cfg.DB.GetHighestL2Block()
 	if err != nil {
 		return err
 	}
 
-	if realHead.Number.Uint64() - s.cfg.ConfDepth <= currHead.Number + s.cfg.MaxHeaderBatchSize {
+	realHeadNum := realHead.Number.Uint64()
+	var currHeadNum uint64
+	if currHead != nil {
+		currHeadNum = currHead.Number
+	}
+
+	if realHeadNum - s.cfg.ConfDepth <= currHeadNum + s.cfg.MaxHeaderBatchSize {
 		return nil
 	}
 
 	logger.Info("chain is far behind head, resyncing")
 
-	for realHead.Number.Uint64() - s.cfg.ConfDepth > currHead.Number + s.cfg.MaxHeaderBatchSize {
+	for realHeadNum - s.cfg.ConfDepth > currHeadNum + s.cfg.MaxHeaderBatchSize {
 		select {
 		case <-ctx.Done():
 			return context.Canceled
@@ -446,10 +452,11 @@ func (s *Service) catchUp(ctx context.Context) error {
 			if err := s.Update(realHead); err != nil {
 				return err
 			}
-			currHead, err = s.cfg.DB.GetHighestL1Block()
+			currHead, err := s.cfg.DB.GetHighestL1Block()
 			if err != nil {
 				return err
 			}
+			currHeadNum = currHead.Number
 		}
 	}
 

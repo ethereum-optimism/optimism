@@ -556,24 +556,20 @@ func (d *Database) GetHighestL2Block() (*L2BlockLocator, error) {
 			return err
 		}
 
-		rows, err := queryStmt.Query()
-		if err != nil {
-			return err
-		}
-
-		if !rows.Next() {
-			return nil
+		row := queryStmt.QueryRow()
+		if row.Err() != nil {
+			return row.Err()
 		}
 
 		var number uint64
 		var hash string
-		err = rows.Scan(&number, &hash)
+		err = row.Scan(&number, &hash)
 		if err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				highestBlock = nil
+				return nil
+			}
 			return err
-		}
-
-		if rows.Next() {
-			return errors.New("number of rows should be at most 1 since LIMIT is 1")
 		}
 
 		highestBlock = &L2BlockLocator{
