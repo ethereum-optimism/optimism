@@ -47,7 +47,7 @@ var createL1TokensTable = `
 CREATE TABLE IF NOT EXISTS l1_tokens (
 	address TEXT NOT NULL PRIMARY KEY,
 	name TEXT NOT NULL,
-	symbol TEXT NOT NULL UNIQUE,
+	symbol TEXT NOT NULL,
 	decimals INTEGER NOT NULL
 )
 `
@@ -147,7 +147,7 @@ func (b IndexedL2Block) String() string {
 type TokenBridgeMessage struct {
 	FromAddress    string `json:"from"`
 	ToAddress      string `json:"to"`
-	L1Token        string `json:"l1token"`
+	L1Token        *Token `json:"l1token"`
 	L2Token        string `json:"l2token"`
 	Amount         string `json:"amount"`
 	Data           []byte `json:"data"`
@@ -181,6 +181,7 @@ func (b *IndexedL1Block) Events() []TxnEnqueuedEvent {
 }
 
 type Token struct {
+	Address  string `json:"address"`
 	Name     string `json:"name"`
 	Symbol   string `json:"symbol"`
 	Decimals uint8  `json:"decimals"`
@@ -395,9 +396,11 @@ func (d *Database) GetDepositsByAddress(address common.Address, page PaginationP
 		deposits.from_address, deposits.to_address,
 		deposits.l1_token, deposits.l2_token,
 		deposits.amount, deposits.tx_hash, deposits.data,
+		l1_tokens.name, l1_tokens.symbol, l1_tokens.decimals,
 		l1_blocks.number, l1_blocks.timestamp
 	FROM deposits
 		INNER JOIN l1_blocks ON deposits.block_hash=l1_blocks.hash
+		INNER JOIN l1_tokens ON deposits.l1_token=l1_tokens.address
 	WHERE deposits.from_address = $1 ORDER BY deposits.block_timestamp LIMIT $2 OFFSET $3;
 	`
 	var deposits []TokenBridgeMessage
@@ -415,14 +418,17 @@ func (d *Database) GetDepositsByAddress(address common.Address, page PaginationP
 
 		for rows.Next() {
 			var deposit TokenBridgeMessage
+			var token Token
 			if err := rows.Scan(
 				&deposit.FromAddress, &deposit.ToAddress,
-				&deposit.L1Token, &deposit.L2Token,
+				&token.Address, &deposit.L2Token,
 				&deposit.Amount, &deposit.TxHash, &deposit.Data,
+				&token.Name, &token.Symbol, &token.Decimals,
 				&deposit.BlockNumber, &deposit.BlockTimestamp,
 			); err != nil {
 				return err
 			}
+			deposit.L1Token = &token
 			deposits = append(deposits, deposit)
 		}
 
