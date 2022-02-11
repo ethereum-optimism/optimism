@@ -3,8 +3,7 @@ import { Contract, utils, Wallet, providers } from 'ethers'
 import { TransactionResponse } from '@ethersproject/providers'
 import { getContractFactory, predeploys } from '@eth-optimism/contracts'
 import { sleep } from '@eth-optimism/core-utils'
-import { getMessagesAndProofsForL2Transaction } from '@eth-optimism/message-relayer'
-import { CrossChainMessenger } from '@eth-optimism/sdk'
+import { CrossChainMessenger, MessageStatus } from '@eth-optimism/sdk'
 
 /* Imports: Internal */
 import {
@@ -21,7 +20,6 @@ import {
   getL1Bridge,
   getL2Bridge,
   envConfig,
-  DEFAULT_TEST_GAS_L1,
 } from './utils'
 import {
   CrossDomainMessagePair,
@@ -184,67 +182,48 @@ export class OptimismEnv {
     tx = await tx
     await tx.wait()
 
-    let messagePairs = []
-    while (true) {
-      try {
-        messagePairs = await getMessagesAndProofsForL2Transaction(
-          l1Provider,
-          l2Provider,
-          this.scc.address,
-          predeploys.L2CrossDomainMessenger,
-          tx.hash
-        )
-        break
-      } catch (err) {
-        if (err.message.includes('unable to find state root batch for tx')) {
-          await sleep(5000)
-        } else {
-          throw err
-        }
-      }
+    const messages = await this.messenger.getMessagesByTransaction(tx)
+    if (messages.length === 0) {
+      return
     }
 
-    for (const { message, proof } of messagePairs) {
-      while (true) {
+    for (const message of messages) {
+      let status: MessageStatus
+      while (
+        status !== MessageStatus.READY_FOR_RELAY &&
+        status !== MessageStatus.RELAYED
+      ) {
+        status = await this.messenger.getMessageStatus(message)
+        await sleep(1000)
+      }
+
+      let relayed = false
+      while (!relayed) {
         try {
-          const result = await this.l1Messenger
-            .connect(this.l1Wallet)
-            .relayMessage(
-              message.target,
-              message.sender,
-              message.message,
-              message.messageNonce,
-              proof,
-              {
-                gasLimit: DEFAULT_TEST_GAS_L1 * 10,
-              }
-            )
-          await result.wait()
-          break
+          await this.messenger.finalizeMessage(message)
+          relayed = true
         } catch (err) {
-          if (err.message.includes('execution failed due to an exception')) {
-            await sleep(5000)
-          } else if (err.message.includes('Nonce too low')) {
-            await sleep(5000)
-          } else if (err.message.includes('transaction was replaced')) {
-            // this happens when we run tests in parallel
-            await sleep(5000)
-          } else if (
+          if (
+            err.message.includes('Nonce too low') ||
+            err.message.includes('transaction was replaced') ||
             err.message.includes(
               'another transaction with same nonce in the queue'
             )
           ) {
-            // this happens when we run tests in parallel
+            // Sometimes happens when we run tests in parallel.
             await sleep(5000)
           } else if (
             err.message.includes('message has already been received')
           ) {
-            break
+            // Message already relayed, this is fine.
+            relayed = true
           } else {
             throw err
           }
         }
       }
+
+      await this.messenger.waitForMessageReceipt(message)
     }
   }
 }

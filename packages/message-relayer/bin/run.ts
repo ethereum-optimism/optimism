@@ -5,7 +5,7 @@ import * as Sentry from '@sentry/node'
 import * as dotenv from 'dotenv'
 import Config from 'bcfg'
 
-import { MessageRelayerService } from '../service'
+import { MessageRelayerService } from '../src'
 
 dotenv.config()
 
@@ -59,14 +59,6 @@ const main = async () => {
     'get-logs-interval',
     parseInt(env.GET_LOGS_INTERVAL, 10) || 2000
   )
-  const L2_BLOCK_OFFSET = config.uint(
-    'l2-start-offset',
-    parseInt(env.L2_BLOCK_OFFSET, 10) || 1
-  )
-  const L1_START_OFFSET = config.uint(
-    'l1-start-offset',
-    parseInt(env.L1_BLOCK_OFFSET, 10) || 1
-  )
   const FROM_L2_TRANSACTION_INDEX = config.uint(
     'from-l2-transaction-index',
     parseInt(env.FROM_L2_TRANSACTION_INDEX, 10) || 0
@@ -102,15 +94,11 @@ const main = async () => {
   }
 
   const service = new MessageRelayerService({
-    l1RpcProvider: l1Provider,
     l2RpcProvider: l2Provider,
-    addressManagerAddress: ADDRESS_MANAGER_ADDRESS,
     l1Wallet: wallet,
     relayGasLimit: RELAY_GAS_LIMIT,
     fromL2TransactionIndex: FROM_L2_TRANSACTION_INDEX,
     pollingInterval: POLLING_INTERVAL,
-    l2BlockOffset: L2_BLOCK_OFFSET,
-    l1StartOffset: L1_START_OFFSET,
     getLogsInterval: GET_LOGS_INTERVAL,
     logger,
   })
