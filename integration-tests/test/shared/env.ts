@@ -1,9 +1,16 @@
 /* Imports: External */
-import { Contract, utils, Wallet, providers } from 'ethers'
-import { TransactionResponse } from '@ethersproject/providers'
+import { Contract, utils, Wallet, providers, Transaction } from 'ethers'
+import {
+  TransactionResponse,
+  TransactionReceipt,
+} from '@ethersproject/providers'
 import { getContractFactory, predeploys } from '@eth-optimism/contracts'
 import { sleep } from '@eth-optimism/core-utils'
-import { CrossChainMessenger, MessageStatus } from '@eth-optimism/sdk'
+import {
+  CrossChainMessenger,
+  MessageStatus,
+  MessageDirection,
+} from '@eth-optimism/sdk'
 
 /* Imports: Internal */
 import {
@@ -21,10 +28,13 @@ import {
   getL2Bridge,
   envConfig,
 } from './utils'
-import {
-  CrossDomainMessagePair,
-  waitForXDomainTransaction,
-} from './watcher-utils'
+
+export interface CrossDomainMessagePair {
+  tx: Transaction
+  receipt: TransactionReceipt
+  remoteTx: Transaction
+  remoteReceipt: TransactionReceipt
+}
 
 /// Helper class for instantiating a test environment with a funded account
 export class OptimismEnv {
@@ -168,7 +178,32 @@ export class OptimismEnv {
   async waitForXDomainTransaction(
     tx: Promise<TransactionResponse> | TransactionResponse
   ): Promise<CrossDomainMessagePair> {
-    return waitForXDomainTransaction(this.messenger, tx)
+    // await it if needed
+    tx = await tx
+
+    const receipt = await tx.wait()
+    const resolved = await this.messenger.toCrossChainMessage(tx)
+    const messageReceipt = await this.messenger.waitForMessageReceipt(tx)
+    let fullTx: any
+    let remoteTx: any
+    if (resolved.direction === MessageDirection.L1_TO_L2) {
+      fullTx = await this.messenger.l1Provider.getTransaction(tx.hash)
+      remoteTx = await this.messenger.l2Provider.getTransaction(
+        messageReceipt.transactionReceipt.transactionHash
+      )
+    } else {
+      fullTx = await this.messenger.l2Provider.getTransaction(tx.hash)
+      remoteTx = await this.messenger.l1Provider.getTransaction(
+        messageReceipt.transactionReceipt.transactionHash
+      )
+    }
+
+    return {
+      tx: fullTx,
+      receipt,
+      remoteTx,
+      remoteReceipt: messageReceipt.transactionReceipt,
+    }
   }
 
   /**
