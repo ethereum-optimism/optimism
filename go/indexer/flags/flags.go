@@ -20,43 +20,43 @@ var (
 		Usage: "Build environment for which the binary is produced, " +
 			"e.g. production or development",
 		Required: true,
-		EnvVar:   "BUILD_ENV",
+		EnvVar:   prefixEnvVar("BUILD_ENV"),
 	}
 	EthNetworkNameFlag = cli.StringFlag{
 		Name:     "eth-network-name",
 		Usage:    "Ethereum network name",
 		Required: true,
-		EnvVar:   "ETH_NETWORK_NAME",
+		EnvVar:   prefixEnvVar("ETH_NETWORK_NAME"),
 	}
 	L1EthRpcFlag = cli.StringFlag{
 		Name:     "l1-eth-rpc",
 		Usage:    "HTTP provider URL for L1",
 		Required: true,
-		EnvVar:   "L1_ETH_RPC",
+		EnvVar:   prefixEnvVar("L1_ETH_RPC"),
 	}
 	L2EthRpcFlag = cli.StringFlag{
 		Name:     "l2-eth-rpc",
 		Usage:    "HTTP provider URL for L2",
 		Required: true,
-		EnvVar:   "L2_ETH_RPC",
+		EnvVar:   prefixEnvVar("L2_ETH_RPC"),
 	}
 	L1StandardBridgeAddressFlag = cli.StringFlag{
 		Name:     "l1-standard-bridge-address",
 		Usage:    "Address of the L1 Standard Bridge",
 		Required: true,
-		EnvVar:   "L1_STANDARD_BRIDGE_ADDRESS",
+		EnvVar:   prefixEnvVar("L1_STANDARD_BRIDGE_ADDRESS"),
 	}
 	L2StandardBridgeAddressFlag = cli.StringFlag{
 		Name:     "l2-standard-bridge-address",
 		Usage:    "Address of the L2 Standard Bridge",
 		Required: true,
-		EnvVar:   "L2_STANDARD_BRIDGE_ADDRESS",
+		EnvVar:   prefixEnvVar("L2_STANDARD_BRIDGE_ADDRESS"),
 	}
 	L2GenesisBlockHashFlag = cli.StringFlag{
 		Name:     "l2-genesis-block-hash",
 		Usage:    "Genesis block hash of the L2 chain",
 		Required: true,
-		EnvVar:   "L2_GENESIS_BLOCK_HASH",
+		EnvVar:   prefixEnvVar("L2_GENESIS_BLOCK_HASH"),
 	}
 	DBHostFlag = cli.StringFlag{
 		Name:     "db-host",

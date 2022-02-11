@@ -229,7 +229,7 @@ func (f *ConfirmedHeaderSelector) NewHead(
 			}
 		}
 
-		log.Info("Confirmed block ",
+		log.Debug("Confirmed block ",
 			"block", header.Number.Uint64(), "hash", header.Hash)
 	}
 

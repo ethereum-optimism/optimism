@@ -1,6 +1,6 @@
 module github.com/ethereum-optimism/optimism/go/indexer
 
-go 1.18
+go 1.17
 
 require (
 	github.com/ethereum-optimism/optimism/l2geth v0.0.0-20220104205740-f39387287484

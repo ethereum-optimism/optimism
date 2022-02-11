@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"strconv"
 	"sync"
+	"time"
 
 	_ "github.com/lib/pq"
 
@@ -132,13 +133,9 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 
 func (s *Service) Loop(ctx context.Context) {
 	newHeads := make(chan *types.Header, 1000)
-	subscription, err := s.cfg.L1Client.SubscribeNewHead(s.ctx, newHeads)
-	if err != nil {
-		log.Error("unable to subscribe to new heads ", "err", err)
-		s.Stop()
-		return
-	}
-	defer subscription.Unsubscribe()
+	subCtx, cancel := context.WithCancel(ctx)
+	go s.subscribeNewHeads(subCtx, newHeads)
+	defer cancel()
 
 	for {
 		select {
@@ -327,7 +324,7 @@ func (s *Service) Update(newHeader *types.Header) error {
 			return err
 		}
 
-		log.Info("Imported ",
+		log.Debug("Imported ",
 			"block", number, "hash", blockHash, "deposits", len(block.Deposits))
 		for _, deposit := range block.Deposits {
 			log.Info("Indexed deposit ", "tx_hash", deposit.TxHash)
@@ -397,6 +394,23 @@ func (s *Service) GetDeposits(w http.ResponseWriter, r *http.Request) {
 	}
 
 	respondWithJSON(w, http.StatusOK, deposits)
+}
+
+func (s *Service) subscribeNewHeads(ctx context.Context, heads chan *types.Header) {
+	tick := time.NewTicker(5 * time.Second)
+
+	for {
+		select {
+		case <-tick.C:
+			header, err := s.cfg.L1Client.HeaderByNumber(ctx, nil)
+			if err != nil {
+				log.Error("error fetching header by number", "err", err)
+			}
+			heads <- header
+		case <-ctx.Done():
+			return
+		}
+	}
 }
 
 func (s *Service) Start() error {

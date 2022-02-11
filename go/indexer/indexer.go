@@ -134,9 +134,12 @@ func NewIndexer(cfg Config, gitVersion string) (*Indexer, error) {
 		go runMetricsServer(cfg.MetricsHostname, cfg.MetricsPort)
 	}
 
-	db, err := database.NewDatabase(fmt.Sprintf("host=%s port=%d user=%s "+
-		"password=%s dbname=%s sslmode=disable",
-		cfg.DBHost, cfg.DBPort, cfg.DBUser, cfg.DBPassword, cfg.DBName))
+	dsn := fmt.Sprintf("host=%s port=%d user=%s dbname=%s sslmode=disable",
+		cfg.DBHost, cfg.DBPort, cfg.DBUser, cfg.DBName)
+	if cfg.DBPassword != "" {
+		dsn += fmt.Sprintf(" password=%s", cfg.DBPassword)
+	}
+	db, err := database.NewDatabase(dsn)
 	if err != nil {
 		return nil, err
 	}
