@@ -19,6 +19,7 @@
 [g-l1-attr-predeploy]: glossary.md#l1-attributes-predeployed-contract
 [g-depositing-call]: glossary.md#depositing-call
 [g-depositing-transaction]: glossary.md#depositing-transaction
+[g-mpt]: glossary.md#merkle-patricia-trie
 
 The [rollup node][g-rollup-node] is the component responsible for [deriving the L2 chain][g-derivation] from L1 blocks
 (and their associated [receipts][g-receipts]). This process happens in two steps:
@@ -257,8 +258,9 @@ However, they can still be challenged by a fault proof until the end of the faul
 
 ## Whole L2 Chain Derivation
 
-The previous two sections presents an inductive process: given that we know the "current" L2 block, well as the next L1
-block, then we can derive [payload attributes] for the next L1 block, and from that the next L2 block.
+The [block derivation](#from-l1-blocks-to-payload-attributes) presents an inductive process:
+given that we know the "current" L2 block, well as the next L1 block,
+then we can derive [payload attributes] for the next L1 block, and from that the next L2 block.
 
 To derive the whole L2 chain from scratch, we simply start with the L2 genesis block as the current L2 block, and the
 block at height `L2_CHAIN_INCEPTION + 1` as the next L1 block. Then we iteratively apply the derivation process from the
