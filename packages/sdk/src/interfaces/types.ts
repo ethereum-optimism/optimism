@@ -269,7 +269,7 @@ export type MessageRequestLike =
 /**
  * Stuff that can be coerced into a provider.
  */
-export type ProviderLike = string | Provider | any
+export type ProviderLike = string | Provider
 
 /**
  * Stuff that can be coerced into a signer.
