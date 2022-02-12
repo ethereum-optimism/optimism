@@ -1,5 +1,5 @@
 /* Imports: External */
-import { Wallet } from 'ethers'
+import { Signer } from 'ethers'
 import { sleep } from '@eth-optimism/core-utils'
 import {
   BaseServiceV2,
@@ -15,6 +15,7 @@ type MessageRelayerOptions = {
   l2RpcProvider: Provider
   l1Wallet: Signer
   fromL2TransactionIndex?: number
+}
 
 type MessageRelayerMetrics = {
   highestCheckedL2Tx: Gauge
@@ -74,28 +75,22 @@ export class MessageRelayerService extends BaseServiceV2<
     })
   }
 
-  private state: {
-    messenger: CrossChainMessenger
-    highestCheckedL2Tx: number
-  } = {} as any
+  protected async init(): Promise<void> {
+    this.state.wallet = this.options.l1Wallet.connect(
+      this.options.l1RpcProvider
+    )
 
-  protected async _init(): Promise<void> {
-    this.logger.info('Initializing message relayer', {
-      relayGasLimit: this.options.relayGasLimit,
-      fromL2TransactionIndex: this.options.fromL2TransactionIndex,
-      pollingInterval: this.options.pollingInterval,
-      getLogsInterval: this.options.getLogsInterval,
-    })
-
-    const l1Network = await this.options.l1Wallet.provider.getNetwork()
+    const l1Network = await this.state.wallet.provider.getNetwork()
     const l1ChainId = l1Network.chainId
     this.state.messenger = new CrossChainMessenger({
-      l1SignerOrProvider: this.options.l1Wallet,
+      l1SignerOrProvider: this.state.wallet,
       l2SignerOrProvider: this.options.l2RpcProvider,
       l1ChainId,
     })
 
     this.state.highestCheckedL2Tx = this.options.fromL2TransactionIndex || 1
+    this.state.highestKnownL2Tx =
+      await this.state.messenger.l2Provider.getBlockNumber()
   }
 
   protected async main(): Promise<void> {
@@ -132,6 +127,40 @@ export class MessageRelayerService extends BaseServiceV2<
       block.transactions[0].hash
     )
 
+    // No messages in this transaction so we can move on to the next one.
+    if (messages.length === 0) {
+      this.state.highestCheckedL2Tx++
+      return
+    }
+
+    // Make sure that all messages sent within the transaction are finalized. If any messages
+    // are not finalized, then we're going to break the loop which will trigger the sleep and
+    // wait for a few seconds before we check again to see if this transaction is finalized.
+    let isFinalized = true
+    for (const message of messages) {
+      const status = await this.state.messenger.getMessageStatus(message)
+      if (
+        status === MessageStatus.IN_CHALLENGE_PERIOD ||
+        status === MessageStatus.STATE_ROOT_NOT_PUBLISHED
+      ) {
+        isFinalized = false
+      }
+    }
+
+    if (!isFinalized) {
+      this.logger.info(
+        `tx not yet finalized, waiting: ${this.state.highestCheckedL2Tx}`
+      )
+      return
+    } else {
+      this.logger.info(
+        `tx is finalized, relaying: ${this.state.highestCheckedL2Tx}`
+      )
+    }
+
+    // If we got here then all messages in the transaction are finalized. Now we can relay
+    // each message to L1.
+    for (const message of messages) {
       try {
         const tx = await this.state.messenger.finalizeMessage(message)
         this.logger.info(`relayer sent tx: ${tx.hash}`)
@@ -142,13 +171,16 @@ export class MessageRelayerService extends BaseServiceV2<
         } else {
           throw err
         }
-      } catch (err) {
-        this.logger.error('Caught an unhandled error', {
-          message: err.toString(),
-          stack: err.stack,
-          code: err.code,
-        })
       }
+      await this.state.messenger.waitForMessageReceipt(message)
     }
+
+    // All messages have been relayed so we can move on to the next block.
+    this.state.highestCheckedL2Tx++
   }
+}
+
+if (require.main === module) {
+  const service = new MessageRelayerService()
+  service.run()
 }
