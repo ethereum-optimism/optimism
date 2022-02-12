@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/ethereum-optimism/optimism/go/indexer/server"
+	"github.com/rs/cors"
 	"math/big"
 	"net/http"
 	"os"
@@ -196,6 +197,10 @@ func NewIndexer(cfg Config, gitVersion string) (*Indexer, error) {
 }
 
 func (b *Indexer) Serve(ctx context.Context) {
+	c := cors.New(cors.Options{
+		AllowedOrigins: []string{"*"},
+	})
+
 	b.router.HandleFunc("/v1/l1/status", b.l1IndexingService.GetIndexerStatus).Methods("GET")
 	b.router.HandleFunc("/v1/l2/status", b.l2IndexingService.GetIndexerStatus).Methods("GET")
 	b.router.HandleFunc("/v1/deposits/0x{address:[a-fA-F0-9]{40}}", b.l1IndexingService.GetDeposits).Methods("GET")
@@ -206,7 +211,7 @@ func (b *Indexer) Serve(ctx context.Context) {
 	})
 
 	middleware := server.LoggingMiddleware(log.New("service", "server"))
-	http.ListenAndServe(":8080", middleware(b.router))
+	http.ListenAndServe(":8080", middleware(c.Handler(b.router)))
 }
 
 func (b *Indexer) Start() error {
