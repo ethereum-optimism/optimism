@@ -128,6 +128,10 @@ type Deposit struct {
 	LogIndex    uint
 }
 
+func (d Deposit) String() string {
+	return d.TxHash.String()
+}
+
 type Withdrawal struct {
 	TxHash      l2common.Hash
 	L1Token     l2common.Address
@@ -137,6 +141,10 @@ type Withdrawal struct {
 	Amount      *big.Int
 	Data        []byte
 	LogIndex    uint
+}
+
+func (w Withdrawal) String() string {
+	return w.TxHash.String()
 }
 
 type IndexedL1Block struct {
@@ -163,23 +171,6 @@ func (b IndexedL2Block) String() string {
 	return b.Hash.String()
 }
 
-type TokenBridgeMessage struct {
-	FromAddress    string `json:"from"`
-	ToAddress      string `json:"to"`
-	L1Token        *Token `json:"l1token"`
-	L2Token        string `json:"l2token"`
-	Amount         string `json:"amount"`
-	Data           []byte `json:"data"`
-	LogIndex       uint64 `json:"logIndex"`
-	BlockNumber    uint64 `json:"blockNumber"`
-	BlockTimestamp string `json:"blockTimestamp"`
-	TxHash         string `json:"transactionHash"`
-}
-
-func (d Deposit) String() string {
-	return d.TxHash.String()
-}
-
 func (b *IndexedL1Block) Events() []TxnEnqueuedEvent {
 	nDeposits := len(b.Deposits)
 	if nDeposits == 0 {
@@ -204,6 +195,32 @@ type Token struct {
 	Name     string `json:"name"`
 	Symbol   string `json:"symbol"`
 	Decimals uint8  `json:"decimals"`
+}
+
+type DepositJSON struct {
+	FromAddress    string `json:"from"`
+	ToAddress      string `json:"to"`
+	L1Token        *Token `json:"l1token"`
+	L2Token        string `json:"l2token"`
+	Amount         string `json:"amount"`
+	Data           []byte `json:"data"`
+	LogIndex       uint64 `json:"logIndex"`
+	BlockNumber    uint64 `json:"blockNumber"`
+	BlockTimestamp string `json:"blockTimestamp"`
+	TxHash         string `json:"transactionHash"`
+}
+
+type WithdrawalJSON struct {
+	FromAddress    string `json:"from"`
+	ToAddress      string `json:"to"`
+	L1Token        string `json:"l1token"`
+	L2Token        *Token `json:"l2token"`
+	Amount         string `json:"amount"`
+	Data           []byte `json:"data"`
+	LogIndex       uint64 `json:"logIndex"`
+	BlockNumber    uint64 `json:"blockNumber"`
+	BlockTimestamp string `json:"blockTimestamp"`
+	TxHash         string `json:"transactionHash"`
 }
 
 type Database struct {
@@ -485,7 +502,7 @@ func (d *Database) AddIndexedL2Block(block *IndexedL2Block) error {
 	})
 }
 
-func (d *Database) GetDepositsByAddress(address common.Address, page PaginationParam) ([]TokenBridgeMessage, error) {
+func (d *Database) GetDepositsByAddress(address common.Address, page PaginationParam) ([]DepositJSON, error) {
 	const selectDepositsStatement = `
 	SELECT
 		deposits.from_address, deposits.to_address,
@@ -498,7 +515,7 @@ func (d *Database) GetDepositsByAddress(address common.Address, page PaginationP
 		INNER JOIN l1_tokens ON deposits.l1_token=l1_tokens.address
 	WHERE deposits.from_address = $1 ORDER BY deposits.block_timestamp LIMIT $2 OFFSET $3;
 	`
-	var deposits []TokenBridgeMessage
+	var deposits []DepositJSON
 
 	err := txn(d.db, func(tx *sql.Tx) error {
 		queryStmt, err := tx.Prepare(selectDepositsStatement)
@@ -512,7 +529,7 @@ func (d *Database) GetDepositsByAddress(address common.Address, page PaginationP
 		}
 
 		for rows.Next() {
-			var deposit TokenBridgeMessage
+			var deposit DepositJSON
 			var token Token
 			if err := rows.Scan(
 				&deposit.FromAddress, &deposit.ToAddress,
@@ -536,18 +553,20 @@ func (d *Database) GetDepositsByAddress(address common.Address, page PaginationP
 	return deposits, nil
 }
 
-func (d *Database) GetWithdrawalsByAddress(address l2common.Address, page PaginationParam) ([]TokenBridgeMessage, error) {
+func (d *Database) GetWithdrawalsByAddress(address l2common.Address, page PaginationParam) ([]WithdrawalJSON, error) {
 	const selectWithdrawalsStatement = `
 	SELECT
 		withdrawals.from_address, withdrawals.to_address,
 		withdrawals.l1_token, withdrawals.l2_token,
 		withdrawals.amount, withdrawals.tx_hash, withdrawals.data,
+		l2_tokens.name, l2_tokens.symbol, l2_tokens.decimals,
 		l2_blocks.number, l2_blocks.timestamp
 	FROM withdrawals
 		INNER JOIN l2_blocks ON withdrawals.block_hash=l2_blocks.hash
+		INNER JOIN l2_tokens ON withdrawals.l2_token=l2_tokens.address
 	WHERE withdrawals.from_address = $1 ORDER BY withdrawals.block_timestamp LIMIT $2 OFFSET $3;
 	`
-	var withdrawals []TokenBridgeMessage
+	var withdrawals []WithdrawalJSON
 
 	err := txn(d.db, func(tx *sql.Tx) error {
 		queryStmt, err := tx.Prepare(selectWithdrawalsStatement)
@@ -561,15 +580,18 @@ func (d *Database) GetWithdrawalsByAddress(address l2common.Address, page Pagina
 		}
 
 		for rows.Next() {
-			var withdrawal TokenBridgeMessage
+			var withdrawal WithdrawalJSON
+			var token Token
 			if err := rows.Scan(
 				&withdrawal.FromAddress, &withdrawal.ToAddress,
-				&withdrawal.L1Token, &withdrawal.L2Token,
+				&withdrawal.L1Token, &token.Address,
 				&withdrawal.Amount, &withdrawal.TxHash, &withdrawal.Data,
+				&token.Name, &token.Symbol, &token.Decimals,
 				&withdrawal.BlockNumber, &withdrawal.BlockTimestamp,
 			); err != nil {
 				return err
 			}
+			withdrawal.L2Token = &token
 			withdrawals = append(withdrawals, withdrawal)
 		}
 
