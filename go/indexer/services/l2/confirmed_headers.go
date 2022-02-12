@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/l2geth/core/types"
+	l2ethclient "github.com/ethereum-optimism/optimism/l2geth/ethclient"
 	"github.com/ethereum-optimism/optimism/l2geth/log"
 )
 
@@ -16,14 +17,6 @@ const (
 	DefaultConfDepth         uint64 = 20
 	DefaultMaxBatchSize      uint64 = 100
 )
-
-type HeaderSelector interface {
-	NewHead(context.Context, uint64, *types.Header, HeaderBackend) []*types.Header
-}
-
-type HeaderBackend interface {
-	HeaderByNumber(context.Context, *big.Int) (*types.Header, error)
-}
 
 type HeaderSelectorConfig struct {
 	ConfDepth    uint64
@@ -38,7 +31,7 @@ func (f *ConfirmedHeaderSelector) NewHead(
 	ctx context.Context,
 	lowest uint64,
 	header *types.Header,
-	backend HeaderBackend,
+	client *l2ethclient.Client,
 ) []*types.Header {
 
 	number := header.Number.Uint64()
@@ -81,7 +74,7 @@ func (f *ConfirmedHeaderSelector) NewHead(
 
 			height := startHeight + ii
 			bigHeight := new(big.Int).SetUint64(height)
-			header, err := backend.HeaderByNumber(ctxt, bigHeight)
+			header, err := client.HeaderByNumber(ctxt, bigHeight)
 			if err != nil {
 				log.Error("Unable to load block ", "block", height, "err", err)
 				return
