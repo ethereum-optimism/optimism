@@ -282,6 +282,30 @@ func (s *Service) Update(newHeader *types.Header) error {
 		return err
 	}
 
+	// Index L1 ERC20 tokens
+	for _, withdrawals := range withdrawalsByBlockhash {
+		for _, withdrawal := range withdrawals {
+			token, err := s.cfg.DB.GetL2TokenByAddress(withdrawal.L2Token.String())
+			if err != nil {
+				return err
+			}
+			if token != nil {
+				continue
+			}
+			token, err = QueryERC20(withdrawal.L2Token, s.cfg.L2Client)
+			if err != nil {
+				logger.Error("Error querying ERC20 token details",
+					"l2_token", withdrawal.L2Token.String(), "err", err)
+				token = &db.Token{
+					Address: withdrawal.L2Token.String(),
+				}
+			}
+			if err := s.cfg.DB.AddL2Token(withdrawal.L2Token.String(), token); err != nil {
+				return err
+			}
+		}
+	}
+
 	for _, header := range headers {
 		blockHash := header.Hash()
 		number := header.Number.Uint64()
@@ -408,12 +432,12 @@ func (s *Service) catchUp(ctx context.Context) error {
 		currHeadNum = currHead.Number
 	}
 
-	if realHeadNum - s.cfg.ConfDepth <= currHeadNum + s.cfg.MaxHeaderBatchSize {
+	if realHeadNum-s.cfg.ConfDepth <= currHeadNum+s.cfg.MaxHeaderBatchSize {
 		return nil
 	}
 
 	logger.Info("chain is far behind head, resyncing")
-	for realHeadNum - s.cfg.ConfDepth > currHeadNum + s.cfg.MaxHeaderBatchSize {
+	for realHeadNum-s.cfg.ConfDepth > currHeadNum+s.cfg.MaxHeaderBatchSize {
 		select {
 		case <-ctx.Done():
 			return context.Canceled

@@ -57,7 +57,7 @@ CREATE TABLE IF NOT EXISTS withdrawals (
 	from_address TEXT NOT NULL,
 	to_address TEXT NOT NULL,
 	l1_token TEXT NOT NULL,
-	l2_token TEXT NOT NULL,
+	l2_token TEXT NOT NULL REFERENCES l2_tokens(address),
 	amount TEXT NOT NULL,
 	data BYTEA NOT NULL,
 	log_index INTEGER NOT NULL,
@@ -67,10 +67,26 @@ CREATE TABLE IF NOT EXISTS withdrawals (
 )
 `
 
+var createL2TokensTable = `
+CREATE TABLE IF NOT EXISTS l2_tokens (
+	address TEXT NOT NULL PRIMARY KEY,
+	name TEXT NOT NULL,
+	symbol TEXT NOT NULL,
+	decimals INTEGER NOT NULL
+)
+`
+
 var insertETHL1Token = `
 	INSERT INTO l1_tokens
 		(address, name, symbol, decimals)
 	VALUES ('0x0000000000000000000000000000000000000000', 'Ethereum', 'ETH', 18)
+	ON CONFLICT (address) DO NOTHING;
+`
+
+var insertETHL2Token = `
+	INSERT INTO l2_tokens
+		(address, name, symbol, decimals)
+	VALUES ('0xDeadDeAddeAddEAddeadDEaDDEAdDeaDDeAD0000', 'Ethereum', 'ETH', 18)
 	ON CONFLICT (address) DO NOTHING;
 `
 
@@ -83,7 +99,9 @@ var schema = []string{
 	createL1BlocksTable,
 	createL2BlocksTable,
 	createL1TokensTable,
+	createL2TokensTable,
 	insertETHL1Token,
+	insertETHL2Token,
 	createDepositsTable,
 	createWithdrawalsTable,
 }
@@ -241,9 +259,85 @@ func (d *Database) GetL1TokenByAddress(address string) (*Token, error) {
 	return token, nil
 }
 
+func (d *Database) GetL2TokenByAddress(address string) (*Token, error) {
+	const selectL2TokenStatement = `
+	SELECT name, symbol, decimals FROM l2_tokens WHERE address = $1;
+	`
+
+	var token *Token
+	err := txn(d.db, func(tx *sql.Tx) error {
+		queryStmt, err := tx.Prepare(selectL2TokenStatement)
+		if err != nil {
+			return err
+		}
+
+		rows, err := queryStmt.Query(address)
+		if err != nil {
+			return err
+		}
+
+		if !rows.Next() {
+			return nil
+		}
+
+		var name string
+		var symbol string
+		var decimals uint8
+		err = rows.Scan(&name, &symbol, &decimals)
+		if err != nil {
+			return err
+		}
+
+		if rows.Next() {
+			return errors.New("address should be unique")
+		}
+
+		token = &Token{
+			Name:     name,
+			Symbol:   symbol,
+			Decimals: decimals,
+		}
+
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return token, nil
+}
+
 func (d *Database) AddL1Token(address string, token *Token) error {
 	const insertTokenStatement = `
 	INSERT INTO l1_tokens
+		(address, name, symbol, decimals)
+	VALUES
+		($1, $2, $3, $4)
+	`
+
+	return txn(d.db, func(tx *sql.Tx) error {
+		tokenStmt, err := tx.Prepare(insertTokenStatement)
+		if err != nil {
+			return err
+		}
+
+		_, err = tokenStmt.Exec(
+			address,
+			token.Name,
+			token.Symbol,
+			token.Decimals,
+		)
+		if err != nil {
+			return err
+		}
+
+		return nil
+	})
+}
+
+func (d *Database) AddL2Token(address string, token *Token) error {
+	const insertTokenStatement = `
+	INSERT INTO l2_tokens
 		(address, name, symbol, decimals)
 	VALUES
 		($1, $2, $3, $4)
