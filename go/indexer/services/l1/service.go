@@ -4,12 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/ethereum-optimism/optimism/go/indexer/server"
 	"math/big"
 	"net/http"
 	"strconv"
 	"sync"
 	"time"
+
+	"github.com/ethereum-optimism/optimism/go/indexer/server"
 
 	_ "github.com/lib/pq"
 
@@ -272,7 +273,11 @@ func (s *Service) Update(newHeader *types.Header) error {
 			}
 			token, err = QueryERC20(deposit.L1Token, s.cfg.L1Client)
 			if err != nil {
-				return err
+				logger.Error("Error querying ERC20 token details",
+					"l1_token", deposit.L1Token.String(), "err", err)
+				token = &db.Token{
+					Address: deposit.L1Token.String(),
+				}
 			}
 			if err := s.cfg.DB.AddL1Token(deposit.L1Token.String(), token); err != nil {
 				return err
@@ -426,13 +431,13 @@ func (s *Service) catchUp(ctx context.Context) error {
 		currHeadNum = currHead.Number
 	}
 
-	if realHeadNum - s.cfg.ConfDepth <= currHeadNum + s.cfg.MaxHeaderBatchSize {
+	if realHeadNum-s.cfg.ConfDepth <= currHeadNum+s.cfg.MaxHeaderBatchSize {
 		return nil
 	}
 
 	logger.Info("chain is far behind head, resyncing")
 
-	for realHeadNum - s.cfg.ConfDepth > currHeadNum + s.cfg.MaxHeaderBatchSize {
+	for realHeadNum-s.cfg.ConfDepth > currHeadNum+s.cfg.MaxHeaderBatchSize {
 		select {
 		case <-ctx.Done():
 			return context.Canceled
