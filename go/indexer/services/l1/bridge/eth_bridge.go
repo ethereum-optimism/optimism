@@ -61,10 +61,6 @@ func (s *EthBridge) GetDepositsByBlockRange(start, end uint64) (map[common.Hash]
 	return depositsByBlockhash, nil
 }
 
-func (s *EthBridge) GetWithdrawalsByBlockRange(start, end uint64) (map[common.Address][]db.Withdrawal, error) {
-	return nil, nil
-}
-
 func NewEthBridge(address common.Address, client *bind.ContractFilterer, ctx context.Context) (*EthBridge, error) {
 	filterer, err := l1bridge.NewL1StandardBridgeFilterer(address, *client)
 	if err != nil {
