@@ -36,7 +36,6 @@ The following commands should be run from the root directory unless otherwise sp
 # build minigeth for MIPS
 (cd mipigo && ./build.sh)
 
-
 # compute the transition from 13284469 -> 13284470 on PC
 TRANSITION_BLOCK=13284469
 mkdir -p /tmp/cannon
