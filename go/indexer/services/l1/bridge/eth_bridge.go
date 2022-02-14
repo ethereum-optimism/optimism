@@ -2,46 +2,38 @@ package bridge
 
 import (
 	"context"
-	"time"
 
 	"github.com/ethereum-optimism/optimism/go/indexer/bindings/l1bridge"
 	"github.com/ethereum-optimism/optimism/go/indexer/db"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/log"
 )
 
-var logger = log.New("service", "bridge")
-
-const (
-	DefaultConnectionTimeout = 20 * time.Second
-)
-
-type StandardBridge struct {
+type EthBridge struct {
 	ctx      context.Context
 	address  common.Address
 	client   *bind.ContractFilterer
 	filterer *l1bridge.L1StandardBridgeFilterer
 }
 
-func (s *StandardBridge) Address() common.Address {
+func (s *EthBridge) Address() common.Address {
 	return s.address
 }
 
-func (s *StandardBridge) GetDepositsByBlockRange(start, end uint64) (map[common.Hash][]db.Deposit, error) {
+func (s *EthBridge) GetDepositsByBlockRange(start, end uint64) (map[common.Hash][]db.Deposit, error) {
 	depositsByBlockhash := make(map[common.Hash][]db.Deposit)
 
-	var iter *l1bridge.L1StandardBridgeERC20DepositInitiatedIterator
+	var iter *l1bridge.L1StandardBridgeETHDepositInitiatedIterator
 	var err error
 	const NUM_RETRIES = 5
 	for retry := 0; retry < NUM_RETRIES; retry++ {
 		ctxt, cancel := context.WithTimeout(s.ctx, DefaultConnectionTimeout)
 
-		iter, err = s.filterer.FilterERC20DepositInitiated(&bind.FilterOpts{
+		iter, err = s.filterer.FilterETHDepositInitiated(&bind.FilterOpts{
 			Start:   start,
 			End:     &end,
 			Context: ctxt,
-		}, nil, nil, nil)
+		}, nil, nil)
 		if err != nil {
 			logger.Error("Unable to query deposit events for block range ",
 				"start", start, "end", end, "error", err)
@@ -55,8 +47,6 @@ func (s *StandardBridge) GetDepositsByBlockRange(start, end uint64) (map[common.
 		depositsByBlockhash[iter.Event.Raw.BlockHash] = append(
 			depositsByBlockhash[iter.Event.Raw.BlockHash], db.Deposit{
 				TxHash:      iter.Event.Raw.TxHash,
-				L1Token:     iter.Event.L1Token,
-				L2Token:     iter.Event.L2Token,
 				FromAddress: iter.Event.From,
 				ToAddress:   iter.Event.To,
 				Amount:      iter.Event.Amount,
@@ -71,16 +61,16 @@ func (s *StandardBridge) GetDepositsByBlockRange(start, end uint64) (map[common.
 	return depositsByBlockhash, nil
 }
 
-func (s *StandardBridge) GetWithdrawalsByBlockRange(start, end uint64) (map[common.Address][]db.Withdrawal, error) {
+func (s *EthBridge) GetWithdrawalsByBlockRange(start, end uint64) (map[common.Address][]db.Withdrawal, error) {
 	return nil, nil
 }
 
-func NewStandardBridge(address common.Address, client *bind.ContractFilterer, ctx context.Context) (*StandardBridge, error) {
+func NewEthBridge(address common.Address, client *bind.ContractFilterer, ctx context.Context) (*EthBridge, error) {
 	filterer, err := l1bridge.NewL1StandardBridgeFilterer(address, *client)
 	if err != nil {
 		return nil, err
 	}
-	return &StandardBridge{
+	return &EthBridge{
 		address:  address,
 		filterer: filterer,
 		client:   client,

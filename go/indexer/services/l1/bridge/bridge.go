@@ -10,5 +10,4 @@ type Bridge interface {
 	Address() common.Address
 	Contract() *bind.BoundContract
 	GetDepositsByBlockRange(uint64, uint64) (map[common.Hash][]db.Deposit, error)
-	GetWithdrawalsByBlockRange(uint64, uint64) (map[common.Hash][]db.Withdrawal, error)
 }
