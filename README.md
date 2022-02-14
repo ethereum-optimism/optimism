@@ -13,6 +13,10 @@ It's half geth, half MIPS, and whole awesome.
 * ...running compiled Go code
 * ...that runs an EVM
 
+For more information on Cannon's inner workings, check [this overview][overview].
+
+[overview]: https://github.com/ethereum-optimism/optimistic-specs/wiki/Cannon-Overview
+
 ## Directory Layout
 
 ```
@@ -32,16 +36,18 @@ The following commands should be run from the root directory unless otherwise sp
 # build minigeth for MIPS
 (cd mipigo && ./build.sh)
 
+
 # compute the transition from 13284469 -> 13284470 on PC
+TRANSITION_BLOCK=13284469
 mkdir -p /tmp/cannon
-minigeth/go-ethereum 13284469
+minigeth/go-ethereum $TRANSITION_BLOCK
 
 # write out the golden MIPS minigeth start state
 yarn
 (cd mipsevm && ./evm.sh)
 
-# generate MIPS checkpoints for 13284469 -> 13284470
-mipsevm/mipsevm 13284469
+# generate MIPS checkpoints
+mipsevm/mipsevm $TRANSITION_BLOCK
 
 # deploy the MIPS and challenge contracts
 npx hardhat run scripts/deploy.js
@@ -49,9 +55,38 @@ npx hardhat run scripts/deploy.js
 
 ## Full Challenge / Response
 
+In this example, the challenger will challenge the transition from a block (`BLOCK`), but pretends
+that chain state before another block (`WRONG_BLOCK`) is the state before the challenged block.
+Consequently, the challenger will disagree with the defender on every single step of the challenge
+game, and the single step to execute will be the very first MIPS instruction executed. The reason is
+that the initial MIPS state Merkle root is stored on-chain, and immediately modified to reflect the
+fact that the input hash for the block is written at address 0x3000000.
+
+(The input hash is automatically validated against the blockhash, so note that in this demo the
+challenger has to provide the correct (`BLOCK`) input hash to the `InitiateChallenge` function of
+`Challenge.sol`, but will execute as though the input hash was the one derived from `WRONG_BLOCK`.)
+
+Because the challenger uses the wrong inputs, it will assert a post-state (Merkle root) for the
+first MIPS instruction that has the wrong input hash at 0x3000000. Hence, the challenge will fail.
+
 ```
+RPC_URL=https://mainnet.infura.io/v3/9aa3d95b3bc440fa88ea12eaa4456161
+
+# chain ID, read by challenge.js, respond.js and assert.js
+export ID=0
+
+# block at which to fork mainnet
+FORK_BLOCK=13284495
+
+# block whose transition will be challenged
+# this variable is read by challenge.js, respond.js and assert.js
+export BLOCK=13284469
+
+# block whose pre-state is used by the challenger instead of the challenged block's pre-state
+WRONG_BLOCK=13284491
+
 # testing on hardhat (forked mainnet, a few blocks ahead of challenge)
-npx hardhat node --fork https://mainnet.infura.io/v3/9aa3d95b3bc440fa88ea12eaa4456161 --fork-block-number 13284495
+npx hardhat node --fork $RPC_URL --fork-block-number $FORK_BLOCK
 
 # setup and deploy contracts
 mkdir -p /tmp/cannon /tmp/cannon_fault && rm -rf /tmp/cannon/* /tmp/cannon_fault/*
@@ -59,58 +94,84 @@ mipsevm/mipsevm
 npx hardhat run scripts/deploy.js --network hosthat
 cp /tmp/cannon/*.json /tmp/cannon_fault/
 
+# fetch preimages for real block
+minigeth/go-ethereum $BLOCK
+
 # compute real MIPS checkpoint
-minigeth/go-ethereum 13284469 && mipsevm/mipsevm 13284469
+mipsevm/mipsevm $BLOCK
+
+# fetch preimages for wrong block
+BASEDIR=/tmp/cannon_fault minigeth/go-ethereum $WRONG_BLOCK
 
 # compute fake MIPS checkpoint
-# challenger is pretending the block 13284491 transition is the transition for 13284469
-BASEDIR=/tmp/cannon_fault minigeth/go-ethereum 13284491 && BASEDIR=/tmp/cannon_fault mipsevm/mipsevm 13284491
-ln -s /tmp/cannon_fault/0_13284491 /tmp/cannon_fault/0_13284469
+BASEDIR=/tmp/cannon_fault mipsevm/mipsevm $WRONG_BLOCK
+
+# pretend the wrong block's input, checkpoints and preimages are the right block's
+ln -s /tmp/cannon_fault/0_$WRONG_BLOCK /tmp/cannon_fault/0_$BLOCK
 
 # start challenge
-BASEDIR=/tmp/cannon_fault BLOCK=13284469 npx hardhat run scripts/challenge.js --network hosthat
+BASEDIR=/tmp/cannon_fault npx hardhat run scripts/challenge.js --network hosthat
 
-# do binary search
-for i in {1..23}
-do
-BASEDIR=/tmp/cannon_fault ID=0 BLOCK=13284469 CHALLENGER=1 npx hardhat run scripts/respond.js --network hosthat
-ID=0 BLOCK=13284469 npx hardhat run scripts/respond.js --network hosthat
+# binary search
+for i in {1..23}; do
+    BASEDIR=/tmp/cannon_fault CHALLENGER=1 npx hardhat run scripts/respond.js --network hosthat
+    BLOCK=13284469 npx hardhat run scripts/respond.js --network hosthat
 done
 
 # assert as challenger (fails)
-BASEDIR=/tmp/cannon_fault ID=0 BLOCK=13284469 CHALLENGER=1 npx hardhat run scripts/assert.js --network hosthat
+BASEDIR=/tmp/cannon_fault CHALLENGER=1 npx hardhat run scripts/assert.js --network hosthat
 
 # assert as defender (passes)
-ID=0 BLOCK=13284469 npx hardhat run scripts/assert.js --network hosthat
+npx hardhat run scripts/assert.js --network hosthat
 ```
 
 ## Alternate challenge with output fault (much slower)
 
 ```
-# reset as above
+# block whose transition will be challenged
+# this variable is read by challenge.js, respond.js and assert.js
+BLOCK=13284491
+
+# chain ID, read by challenge.js, respond.js and assert.js
+export ID=0
+
+# setup and deploy contracts
+mkdir -p /tmp/cannon /tmp/cannon_fault && rm -rf /tmp/cannon/* /tmp/cannon_fault/*
+mipsevm/mipsevm
+npx hardhat run scripts/deploy.js --network hosthat
+cp /tmp/cannon/*.json /tmp/cannon_fault/
+
+# fetch preimages for real block
+minigeth/go-ethereum $BLOCK
 
 # compute real MIPS checkpoint
-minigeth/go-ethereum 13284491 && mipsevm/mipsevm 13284491
+mipsevm/mipsevm $BLOCK
 
-# alternate fake MIPS checkpoint (will modify output file)
-# REGFAULT=13240000 also works on my build to change output hash
-BASEDIR=/tmp/cannon_fault minigeth/go-ethereum 13284491 && OUTPUTFAULT=1 BASEDIR=/tmp/cannon_fault mipsevm/mipsevm 13284491
+# fetch preimages for fake block (real block modified with a fault)
+# these are the same preimages as for the real block, but we're using a different basedir
+BASEDIR=/tmp/cannon_fault minigeth/go-ethereum $BLOCK
+
+# compute fake MIPS checkpoint (includes a fault)
+# the output file will be different than for the real block
+OUTPUTFAULT=1 BASEDIR=/tmp/cannon_fault mipsevm/mipsevm $BLOCK
+
+# alternatively, to inject a fault in registers instead of memory
+# REGFAULT=13240000 BASEDIR=/tmp/cannon_fault mipsevm/mipsevm $BLOCK
 
 # start challenge
-BASEDIR=/tmp/cannon_fault BLOCK=13284491 npx hardhat run scripts/challenge.js --network hosthat
+BASEDIR=/tmp/cannon_fault npx hardhat run scripts/challenge.js --network hosthat
 
-# do binary search
-for i in {1..25}
-do
-OUTPUTFAULT=1 BASEDIR=/tmp/cannon_fault ID=0 BLOCK=13284491 CHALLENGER=1 npx hardhat run scripts/respond.js --network hosthat
-ID=0 BLOCK=13284491 npx hardhat run scripts/respond.js --network hosthat
+# binary search
+for i in {1..25};do
+    OUTPUTFAULT=1 BASEDIR=/tmp/cannon_fault CHALLENGER=1 npx hardhat run scripts/respond.js --network hosthat
+    npx hardhat run scripts/respond.js --network hosthat
 done
 
 # assert as challenger (fails)
-BASEDIR=/tmp/cannon_fault ID=0 BLOCK=13284491 CHALLENGER=1 npx hardhat run scripts/assert.js --network hosthat
+BASEDIR=/tmp/cannon_fault CHALLENGER=1 npx hardhat run scripts/assert.js --network hosthat
 
 # assert as defender (passes)
-ID=0 BLOCK=13284491 npx hardhat run scripts/assert.js --network hosthat
+npx hardhat run scripts/assert.js --network hosthat
 ```
 
 ## State Oracle API
@@ -133,4 +194,6 @@ These are NOP in the VM
 
 Most of this code is MIT licensed, minigeth is LGPL3.
 
-Note: This code is unaudited. It in NO WAY should be used to secure any money until a lot more testing and auditing are done. I have deployed this nowhere, have advised against deploying it, and make no guarantees of security of ANY KIND.
+Note: This code is unaudited. It in NO WAY should be used to secure any money until a lot more
+testing and auditing are done. I have deployed this nowhere, have advised against deploying it, and
+make no guarantees of security of ANY KIND.
