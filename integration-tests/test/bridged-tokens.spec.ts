@@ -1,9 +1,11 @@
+/* Imports: External */
 import { BigNumber, Contract, ContractFactory, utils, Wallet } from 'ethers'
 import { ethers } from 'hardhat'
 import { getContractFactory } from '@eth-optimism/contracts'
 import { MessageStatus } from '@eth-optimism/sdk'
 import { sleep } from '@eth-optimism/core-utils'
 
+/* Imports: Internal */
 import { expect } from './shared/setup'
 import { OptimismEnv } from './shared/env'
 import { withdrawalTest } from './shared/utils'

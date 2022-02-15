@@ -1,6 +1,8 @@
+/* Imports: External */
 import { BigNumber, Contract, ContractFactory, Wallet } from 'ethers'
 import { ethers } from 'hardhat'
 
+/* Imports: Internal */
 import { expect } from './shared/setup'
 import {
   fundUser,
