@@ -92,6 +92,7 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 
 	if cfg.ChainID != nil {
 		if cfg.ChainID.Cmp(chainID) != 0 {
+			cancel()
 			return nil, fmt.Errorf("%w: configured with %d and got %d",
 				errWrongChainID, cfg.ChainID, chainID)
 		}
@@ -105,12 +106,15 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 		return nil, err
 	}
 
+	logger.Info("Scanning bridges for deposits", "bridges", bridges)
+
 	confirmedHeaderSelector, err := NewConfirmedHeaderSelector(HeaderSelectorConfig{
 		ConfDepth:    cfg.ConfDepth,
 		MaxBatchSize: cfg.MaxHeaderBatchSize,
 	})
 
 	if err != nil {
+		cancel()
 		return nil, err
 	}
 
@@ -188,8 +192,8 @@ func (s *Service) Update(newHeader *types.Header) error {
 	endHeight := headers[len(headers)-1].Number.Uint64()
 	depositsByBlockhash := make(map[common.Hash][]db.Deposit)
 
-	for name, bridge := range s.bridges {
-		bridgeDeposits, err := bridge.GetDepositsByBlockRange(startHeight, endHeight)
+	for _, bridgeImpl := range s.bridges {
+		bridgeDeposits, err := bridgeImpl.GetDepositsByBlockRange(startHeight, endHeight)
 		if err != nil {
 			logger.Error(err.Error())
 			continue
@@ -197,8 +201,8 @@ func (s *Service) Update(newHeader *types.Header) error {
 
 		// ERC20 deposits l1_token needs to be indexed before they can be
 		// inserted, because l1_token is a foreign key to the token metadata
-		switch name {
-		case "StandardBridge":
+		switch bridgeImpl.(type) {
+		case *bridge.StandardBridge:
 			// Index L1 ERC20 tokens
 			for _, deposits := range bridgeDeposits {
 				for _, deposit := range deposits {

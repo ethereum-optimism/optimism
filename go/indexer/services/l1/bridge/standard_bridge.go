@@ -10,6 +10,7 @@ import (
 )
 
 type StandardBridge struct {
+	name     string
 	ctx      context.Context
 	address  common.Address
 	client   bind.ContractFilterer
@@ -61,4 +62,8 @@ func (s *StandardBridge) GetDepositsByBlockRange(start, end uint64) (map[common.
 	}
 
 	return depositsByBlockhash, nil
+}
+
+func (s *StandardBridge) String() string {
+	return s.name
 }

@@ -10,26 +10,27 @@ import (
 )
 
 type EthBridge struct {
+	name     string
 	ctx      context.Context
 	address  common.Address
 	client   bind.ContractFilterer
 	filterer *l1bridge.L1StandardBridgeFilterer
 }
 
-func (s *EthBridge) Address() common.Address {
-	return s.address
+func (e *EthBridge) Address() common.Address {
+	return e.address
 }
 
-func (s *EthBridge) GetDepositsByBlockRange(start, end uint64) (map[common.Hash][]db.Deposit, error) {
+func (e *EthBridge) GetDepositsByBlockRange(start, end uint64) (map[common.Hash][]db.Deposit, error) {
 	depositsByBlockhash := make(map[common.Hash][]db.Deposit)
 
 	var iter *l1bridge.L1StandardBridgeETHDepositInitiatedIterator
 	var err error
 	const NUM_RETRIES = 5
 	for retry := 0; retry < NUM_RETRIES; retry++ {
-		ctxt, cancel := context.WithTimeout(s.ctx, DefaultConnectionTimeout)
+		ctxt, cancel := context.WithTimeout(e.ctx, DefaultConnectionTimeout)
 
-		iter, err = s.filterer.FilterETHDepositInitiated(&bind.FilterOpts{
+		iter, err = e.filterer.FilterETHDepositInitiated(&bind.FilterOpts{
 			Start:   start,
 			End:     &end,
 			Context: ctxt,
@@ -59,4 +60,8 @@ func (s *EthBridge) GetDepositsByBlockRange(start, end uint64) (map[common.Hash]
 	}
 
 	return depositsByBlockhash, nil
+}
+
+func (e *EthBridge) String() string {
+	return e.name
 }
