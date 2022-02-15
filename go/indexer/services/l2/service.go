@@ -11,10 +11,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/go/indexer/bindings/l2bridge"
 	"github.com/ethereum-optimism/optimism/go/indexer/db"
 	"github.com/ethereum-optimism/optimism/go/indexer/metrics"
-	"github.com/ethereum-optimism/optimism/l2geth/accounts/abi/bind"
+	"github.com/ethereum-optimism/optimism/go/indexer/services/l2/bridge"
 	"github.com/ethereum-optimism/optimism/l2geth/common"
 	l2common "github.com/ethereum-optimism/optimism/l2geth/common"
 	"github.com/ethereum-optimism/optimism/l2geth/core/types"
@@ -64,8 +63,8 @@ type Service struct {
 	ctx    context.Context
 	cancel func()
 
-	l2BridgeContract *l2bridge.L2StandardBridgeFilterer
-	headerSelector   *ConfirmedHeaderSelector
+	bridges        map[string]bridge.Bridge
+	headerSelector *ConfirmedHeaderSelector
 
 	metrics *metrics.Metrics
 
@@ -80,22 +79,19 @@ type IndexerStatus struct {
 func NewService(cfg ServiceConfig) (*Service, error) {
 	ctx, cancel := context.WithCancel(cfg.Context)
 
-	contract, err := l2bridge.NewL2StandardBridgeFilterer(cfg.L2StandardBridgeAddress, cfg.L2Client)
-	if err != nil {
-		return nil, err
-	}
-
 	// Handle restart logic
 
 	logger.Info("Creating L2 Indexer")
 
 	chainID, err := cfg.L2Client.ChainID(context.Background())
 	if err != nil {
+		cancel()
 		return nil, err
 	}
 
 	if cfg.ChainID != nil {
 		if cfg.ChainID.Cmp(chainID) != 0 {
+			cancel()
 			return nil, fmt.Errorf("%w: configured with %d and got %d",
 				errWrongChainID, cfg.ChainID, chainID)
 		}
@@ -103,21 +99,30 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 		cfg.ChainID = chainID
 	}
 
+	bridges, err := bridge.BridgesByChainID(cfg.ChainID, cfg.L2Client, ctx)
+	if err != nil {
+		cancel()
+		return nil, err
+	}
+
+	logger.Info("Scanning bridges for withdrawals", "bridges", bridges)
+
 	confirmedHeaderSelector, err := NewConfirmedHeaderSelector(HeaderSelectorConfig{
 		ConfDepth:    cfg.ConfDepth,
 		MaxBatchSize: cfg.MaxHeaderBatchSize,
 	})
 
 	if err != nil {
+		cancel()
 		return nil, err
 	}
 
 	return &Service{
-		cfg:              cfg,
-		ctx:              ctx,
-		cancel:           cancel,
-		l2BridgeContract: contract,
-		headerSelector:   confirmedHeaderSelector,
+		cfg:            cfg,
+		ctx:            ctx,
+		cancel:         cancel,
+		bridges:        bridges,
+		headerSelector: confirmedHeaderSelector,
 	}, nil
 }
 
@@ -148,32 +153,6 @@ func (s *Service) Loop(ctx context.Context) {
 			return
 		}
 	}
-}
-
-func (s *Service) fetchBlockEventIterator(start, end uint64) (
-	*l2bridge.L2StandardBridgeWithdrawalInitiatedIterator, error) {
-
-	const NUM_RETRIES = 5
-	var err error
-	for retry := 0; retry < NUM_RETRIES; retry++ {
-		ctxt, cancel := context.WithTimeout(s.ctx, DefaultConnectionTimeout)
-
-		var iter *l2bridge.L2StandardBridgeWithdrawalInitiatedIterator
-		iter, err = s.l2BridgeContract.FilterWithdrawalInitiated(&bind.FilterOpts{
-			Start:   start,
-			End:     &end,
-			Context: ctxt,
-		}, nil, nil, nil)
-		if err != nil {
-			logger.Error("Unable to query withdrawal events for block range ",
-				"start", start, "end", end, "error", err)
-			cancel()
-			continue
-		}
-		cancel()
-		return iter, nil
-	}
-	return nil, err
 }
 
 func (s *Service) Update(newHeader *types.Header) error {
@@ -210,51 +189,46 @@ func (s *Service) Update(newHeader *types.Header) error {
 
 	startHeight := headers[0].Number.Uint64()
 	endHeight := headers[len(headers)-1].Number.Uint64()
-
-	iter, err := s.fetchBlockEventIterator(startHeight, endHeight)
-	if err != nil {
-		return err
-	}
-
 	withdrawalsByBlockhash := make(map[common.Hash][]db.Withdrawal)
-	for iter.Next() {
-		withdrawalsByBlockhash[iter.Event.Raw.BlockHash] = append(
-			withdrawalsByBlockhash[iter.Event.Raw.BlockHash], db.Withdrawal{
-				TxHash:      iter.Event.Raw.TxHash,
-				L1Token:     iter.Event.L1Token,
-				L2Token:     iter.Event.L2Token,
-				FromAddress: iter.Event.From,
-				ToAddress:   iter.Event.To,
-				Amount:      iter.Event.Amount,
-				Data:        iter.Event.Data,
-				LogIndex:    iter.Event.Raw.Index,
-			})
-	}
-	if err := iter.Error(); err != nil {
-		return err
-	}
 
-	// Index L1 ERC20 tokens
-	for _, withdrawals := range withdrawalsByBlockhash {
-		for _, withdrawal := range withdrawals {
-			token, err := s.cfg.DB.GetL2TokenByAddress(withdrawal.L2Token.String())
-			if err != nil {
-				return err
-			}
-			if token != nil {
-				continue
-			}
-			token, err = QueryERC20(withdrawal.L2Token, s.cfg.L2Client)
-			if err != nil {
-				logger.Error("Error querying ERC20 token details",
-					"l2_token", withdrawal.L2Token.String(), "err", err)
-				token = &db.Token{
-					Address: withdrawal.L2Token.String(),
+	for _, bridgeImpl := range s.bridges {
+		bridgeWithdrawals, err := bridgeImpl.GetWithdrawalsByBlockRange(startHeight, endHeight)
+		if err != nil {
+			logger.Error(err.Error())
+			continue
+		}
+
+		// ERC20 withdrawals l1_token needs to be indexed before they can be
+		// inserted, because l1_token is a foreign key to the token metadata
+		switch bridgeImpl.(type) {
+		case *bridge.StandardBridge:
+			// Index L1 ERC20 tokens
+			for _, withdrawals := range bridgeWithdrawals {
+				for _, withdrawal := range withdrawals {
+					token, err := s.cfg.DB.GetL2TokenByAddress(withdrawal.L2Token.String())
+					if err != nil {
+						return err
+					}
+					if token != nil {
+						continue
+					}
+					token, err = QueryERC20(withdrawal.L2Token, s.cfg.L2Client)
+					if err != nil {
+						logger.Error("Error querying ERC20 token details",
+							"l2_token", withdrawal.L2Token.String(), "err", err)
+						token = &db.Token{
+							Address: withdrawal.L2Token.String(),
+						}
+					}
+					if err := s.cfg.DB.AddL2Token(withdrawal.L2Token.String(), token); err != nil {
+						return err
+					}
 				}
 			}
-			if err := s.cfg.DB.AddL2Token(withdrawal.L2Token.String(), token); err != nil {
-				return err
-			}
+		}
+
+		for blockHash, withdrawals := range bridgeWithdrawals {
+			withdrawalsByBlockhash[blockHash] = append(withdrawalsByBlockhash[blockHash], withdrawals...)
 		}
 	}
 
