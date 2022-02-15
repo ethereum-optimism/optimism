@@ -64,7 +64,7 @@ type Service struct {
 	ctx    context.Context
 	cancel func()
 
-	bridges        []bridge.Bridge
+	bridges        map[string]bridge.Bridge
 	headerSelector *ConfirmedHeaderSelector
 
 	metrics *metrics.Metrics
@@ -80,17 +80,13 @@ type IndexerStatus struct {
 func NewService(cfg ServiceConfig) (*Service, error) {
 	ctx, cancel := context.WithCancel(cfg.Context)
 
-	bridges, err := bridge.BridgesByChainID(cfg.ChainID, cfg.L1Client, ctx)
-	if err != nil {
-		return nil, err
-	}
-
 	// Handle restart logic
 
 	logger.Info("Creating L1 Indexer")
 
 	chainID, err := cfg.L1Client.ChainID(context.Background())
 	if err != nil {
+		cancel()
 		return nil, err
 	}
 
@@ -101,6 +97,12 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 		}
 	} else {
 		cfg.ChainID = chainID
+	}
+
+	bridges, err := bridge.BridgesByChainID(cfg.ChainID, cfg.L1Client, ctx)
+	if err != nil {
+		cancel()
+		return nil, err
 	}
 
 	confirmedHeaderSelector, err := NewConfirmedHeaderSelector(HeaderSelectorConfig{
@@ -186,12 +188,42 @@ func (s *Service) Update(newHeader *types.Header) error {
 	endHeight := headers[len(headers)-1].Number.Uint64()
 	depositsByBlockhash := make(map[common.Hash][]db.Deposit)
 
-	for _, bridge := range s.bridges {
+	for name, bridge := range s.bridges {
 		bridgeDeposits, err := bridge.GetDepositsByBlockRange(startHeight, endHeight)
 		if err != nil {
 			logger.Error(err.Error())
 			continue
 		}
+
+		// ERC20 deposits l1_token needs to be indexed before they can be
+		// inserted, because l1_token is a foreign key to the token metadata
+		switch name {
+		case "StandardBridge":
+			// Index L1 ERC20 tokens
+			for _, deposits := range bridgeDeposits {
+				for _, deposit := range deposits {
+					token, err := s.cfg.DB.GetL1TokenByAddress(deposit.L1Token.String())
+					if err != nil {
+						return err
+					}
+					if token != nil {
+						continue
+					}
+					token, err = QueryERC20(deposit.L1Token, s.cfg.L1Client)
+					if err != nil {
+						logger.Error("Error querying ERC20 token details",
+							"l1_token", deposit.L1Token.String(), "err", err)
+						token = &db.Token{
+							Address: deposit.L1Token.String(),
+						}
+					}
+					if err := s.cfg.DB.AddL1Token(deposit.L1Token.String(), token); err != nil {
+						return err
+					}
+				}
+			}
+		}
+
 		for blockHash, deposits := range bridgeDeposits {
 			depositsByBlockhash[blockHash] = append(depositsByBlockhash[blockHash], deposits...)
 		}
