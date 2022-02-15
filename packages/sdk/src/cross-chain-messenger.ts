@@ -654,6 +654,11 @@ export class CrossChainMessenger implements ICrossChainMessenger {
     let batchEvent: ethers.Event | null =
       await this.getStateBatchAppendedEventByBatchIndex(upperBound)
 
+    // Only happens when no batches have been submitted yet.
+    if (batchEvent === null) {
+      return null
+    }
+
     if (isEventLo(batchEvent, transactionIndex)) {
       // Upper bound is too low, means this transaction doesn't have a corresponding state batch yet.
       return null
