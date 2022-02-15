@@ -91,8 +91,8 @@ func BridgesByChainID(chainID *big.Int, client bind.ContractFilterer, ctx contex
 		return nil, err
 	}
 
-	switch chainID {
-	case big.NewInt(42):
+	switch chainID.Uint64() {
+	case 42:
 		return []Bridge{
 			&StandardBridge{
 				ctx:      ctx,

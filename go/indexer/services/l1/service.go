@@ -15,10 +15,8 @@ import (
 
 	_ "github.com/lib/pq"
 
-	"github.com/ethereum-optimism/optimism/go/indexer/bindings/l1bridge"
 	"github.com/ethereum-optimism/optimism/go/indexer/db"
 	"github.com/ethereum-optimism/optimism/go/indexer/metrics"
-	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
@@ -66,8 +64,8 @@ type Service struct {
 	ctx    context.Context
 	cancel func()
 
-	l1BridgeContract *l1bridge.L1StandardBridgeFilterer
-	headerSelector   *ConfirmedHeaderSelector
+	bridges        []bridge.Bridge
+	headerSelector *ConfirmedHeaderSelector
 
 	metrics *metrics.Metrics
 
@@ -82,7 +80,7 @@ type IndexerStatus struct {
 func NewService(cfg ServiceConfig) (*Service, error) {
 	ctx, cancel := context.WithCancel(cfg.Context)
 
-	contract, err := l1bridge.NewL1StandardBridgeFilterer(cfg.L1StandardBridgeAddress, cfg.L1Client)
+	bridges, err := bridge.BridgesByChainID(cfg.ChainID, cfg.L1Client, ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -115,11 +113,11 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 	}
 
 	return &Service{
-		cfg:              cfg,
-		ctx:              ctx,
-		cancel:           cancel,
-		l1BridgeContract: contract,
-		headerSelector:   confirmedHeaderSelector,
+		cfg:            cfg,
+		ctx:            ctx,
+		cancel:         cancel,
+		bridges:        bridges,
+		headerSelector: confirmedHeaderSelector,
 	}, nil
 }
 
@@ -150,58 +148,6 @@ func (s *Service) Loop(ctx context.Context) {
 			return
 		}
 	}
-}
-
-func (s *Service) fetchETHBlockEventIterator(start, end uint64) (
-	*l1bridge.L1StandardBridgeETHDepositInitiatedIterator, error) {
-
-	const NUM_RETRIES = 5
-	var err error
-	for retry := 0; retry < NUM_RETRIES; retry++ {
-		ctxt, cancel := context.WithTimeout(s.ctx, DefaultConnectionTimeout)
-
-		var iter *l1bridge.L1StandardBridgeETHDepositInitiatedIterator
-		iter, err = s.l1BridgeContract.FilterETHDepositInitiated(&bind.FilterOpts{
-			Start:   start,
-			End:     &end,
-			Context: ctxt,
-		}, nil, nil)
-		if err != nil {
-			logger.Error("Unable to query deposit events for block range ",
-				"start", start, "end", end, "error", err)
-			cancel()
-			continue
-		}
-		cancel()
-		return iter, nil
-	}
-	return nil, err
-}
-
-func (s *Service) fetchERC20BlockEventIterator(start, end uint64) (
-	*l1bridge.L1StandardBridgeERC20DepositInitiatedIterator, error) {
-
-	const NUM_RETRIES = 5
-	var err error
-	for retry := 0; retry < NUM_RETRIES; retry++ {
-		ctxt, cancel := context.WithTimeout(s.ctx, DefaultConnectionTimeout)
-
-		var iter *l1bridge.L1StandardBridgeERC20DepositInitiatedIterator
-		iter, err = s.l1BridgeContract.FilterERC20DepositInitiated(&bind.FilterOpts{
-			Start:   start,
-			End:     &end,
-			Context: ctxt,
-		}, nil, nil, nil)
-		if err != nil {
-			logger.Error("Unable to query deposit events for block range ",
-				"start", start, "end", end, "error", err)
-			cancel()
-			continue
-		}
-		cancel()
-		return iter, nil
-	}
-	return nil, err
 }
 
 func (s *Service) Update(newHeader *types.Header) error {
@@ -240,12 +186,7 @@ func (s *Service) Update(newHeader *types.Header) error {
 	endHeight := headers[len(headers)-1].Number.Uint64()
 	depositsByBlockhash := make(map[common.Hash][]db.Deposit)
 
-	bridges, err := bridge.BridgesByChainID(s.cfg.ChainID, s.cfg.L1Client, s.ctx)
-	if err != nil {
-		logger.Error(err.Error())
-	}
-
-	for _, bridge := range bridges {
+	for _, bridge := range s.bridges {
 		bridgeDeposits, err := bridge.GetDepositsByBlockRange(startHeight, endHeight)
 		if err != nil {
 			logger.Error(err.Error())
