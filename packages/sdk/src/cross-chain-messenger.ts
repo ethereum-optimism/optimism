@@ -143,6 +143,13 @@ export class CrossChainMessenger implements ICrossChainMessenger {
       direction?: MessageDirection
     } = {}
   ): Promise<CrossChainMessage[]> {
+    // Wait for the transaction receipt if the input is waitable.
+    // TODO: Maybe worth doing this with more explicit typing but whatever for now.
+    if (typeof (transaction as any).wait === 'function') {
+      await (transaction as any).wait()
+    }
+
+    // Convert the input to a transaction hash.
     const txHash = toTransactionHash(transaction)
 
     let receipt: TransactionReceipt
