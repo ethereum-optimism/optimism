@@ -185,6 +185,38 @@ export class StandardBridgeAdapter implements IBridgeAdapter {
     }
   }
 
+  public async approval(
+    l1Token: AddressLike,
+    l2Token: AddressLike,
+    signer: ethers.Signer
+  ): Promise<BigNumber> {
+    if (!(await this.supportsTokenPair(l1Token, l2Token))) {
+      throw new Error(`token pair not supported by bridge`)
+    }
+
+    const token = new Contract(
+      toAddress(l1Token),
+      getContractInterface('L2StandardERC20'), // Any ERC20 will do
+      this.messenger.l1Provider
+    )
+
+    return token.allowance(await signer.getAddress(), this.l1Bridge.address)
+  }
+
+  public async approve(
+    l1Token: AddressLike,
+    l2Token: AddressLike,
+    amount: NumberLike,
+    signer: Signer,
+    opts?: {
+      overrides?: Overrides
+    }
+  ): Promise<TransactionResponse> {
+    return signer.sendTransaction(
+      await this.populateTransaction.approve(l1Token, l2Token, amount, opts)
+    )
+  }
+
   public async deposit(
     l1Token: AddressLike,
     l2Token: AddressLike,
@@ -217,6 +249,31 @@ export class StandardBridgeAdapter implements IBridgeAdapter {
   }
 
   populateTransaction = {
+    approve: async (
+      l1Token: AddressLike,
+      l2Token: AddressLike,
+      amount: NumberLike,
+      opts?: {
+        overrides?: Overrides
+      }
+    ): Promise<TransactionRequest> => {
+      if (!(await this.supportsTokenPair(l1Token, l2Token))) {
+        throw new Error(`token pair not supported by bridge`)
+      }
+
+      const token = new Contract(
+        toAddress(l1Token),
+        getContractInterface('L2StandardERC20'), // Any ERC20 will do
+        this.messenger.l1Provider
+      )
+
+      return token.populateTransaction.approve(
+        this.l1Bridge.address,
+        amount,
+        opts?.overrides || {}
+      )
+    },
+
     deposit: async (
       l1Token: AddressLike,
       l2Token: AddressLike,
@@ -288,6 +345,19 @@ export class StandardBridgeAdapter implements IBridgeAdapter {
   }
 
   estimateGas = {
+    approve: async (
+      l1Token: AddressLike,
+      l2Token: AddressLike,
+      amount: NumberLike,
+      opts?: {
+        overrides?: Overrides
+      }
+    ): Promise<BigNumber> => {
+      return this.messenger.l1Provider.estimateGas(
+        await this.populateTransaction.approve(l1Token, l2Token, amount, opts)
+      )
+    },
+
     deposit: async (
       l1Token: AddressLike,
       l2Token: AddressLike,

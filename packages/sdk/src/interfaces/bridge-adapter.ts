@@ -79,6 +79,41 @@ export interface IBridgeAdapter {
   ): Promise<boolean>
 
   /**
+   * Queries the account's approval amount for a given L1 token.
+   *
+   * @param l1Token The L1 token address.
+   * @param l2Token The L2 token address.
+   * @param signer Signer to query the approval for.
+   * @returns Amount of tokens approved for deposits from the account.
+   */
+  approval(
+    l1Token: AddressLike,
+    l2Token: AddressLike,
+    signer: Signer
+  ): Promise<BigNumber>
+
+  /**
+   * Approves a deposit into the L2 chain.
+   *
+   * @param l1Token The L1 token address.
+   * @param l2Token The L2 token address.
+   * @param amount Amount of the token to approve.
+   * @param signer Signer used to sign and send the transaction.
+   * @param opts Additional options.
+   * @param opts.overrides Optional transaction overrides.
+   * @returns Transaction response for the approval transaction.
+   */
+  approve(
+    l1Token: AddressLike,
+    l2Token: AddressLike,
+    amount: NumberLike,
+    signer: Signer,
+    opts?: {
+      overrides?: Overrides
+    }
+  ): Promise<TransactionResponse>
+
+  /**
    * Deposits some tokens into the L2 chain.
    *
    * @param l1Token The L1 token address.
@@ -132,6 +167,25 @@ export interface IBridgeAdapter {
    */
   populateTransaction: {
     /**
+     * Generates a transaction for approving some tokens to deposit into the L2 chain.
+     *
+     * @param l1Token The L1 token address.
+     * @param l2Token The L2 token address.
+     * @param amount Amount of the token to approve.
+     * @param opts Additional options.
+     * @param opts.overrides Optional transaction overrides.
+     * @returns Transaction that can be signed and executed to deposit the tokens.
+     */
+    approve(
+      l1Token: AddressLike,
+      l2Token: AddressLike,
+      amount: NumberLike,
+      opts?: {
+        overrides?: Overrides
+      }
+    ): Promise<TransactionRequest>
+
+    /**
      * Generates a transaction for depositing some tokens into the L2 chain.
      *
      * @param l1Token The L1 token address.
@@ -181,6 +235,25 @@ export interface IBridgeAdapter {
    * Follows the pattern used by ethers.js.
    */
   estimateGas: {
+    /**
+     * Estimates gas required to approve some tokens to deposit into the L2 chain.
+     *
+     * @param l1Token The L1 token address.
+     * @param l2Token The L2 token address.
+     * @param amount Amount of the token to approve.
+     * @param opts Additional options.
+     * @param opts.overrides Optional transaction overrides.
+     * @returns Gas estimate for the transaction.
+     */
+    approve(
+      l1Token: AddressLike,
+      l2Token: AddressLike,
+      amount: NumberLike,
+      opts?: {
+        overrides?: Overrides
+      }
+    ): Promise<BigNumber>
+
     /**
      * Estimates gas required to deposit some tokens into the L2 chain.
      *
