@@ -88,14 +88,12 @@ var BRIDGE_ADDRESSES = map[uint64][]struct{ name, impl, addr string }{
 	// Mainnet
 	10: {
 		{"Standard", "StandardBridge", CONTRACT_ADDRESSES[10].L2StandardBridge},
-		{"ETH", "ETHBridge", CONTRACT_ADDRESSES[10].L2StandardBridge},
 		{"BitBTC", "StandardBridge", "0xaBA2c5F108F7E820C049D5Af70B16ac266c8f128"},
 		//{"DAI", "DAIBridge", "0x10E6593CDda8c58a1d0f14C5164B376352a55f2F"},
 	},
 	// Kovan
 	69: {
 		{"Standard", "StandardBridge", CONTRACT_ADDRESSES[69].L2StandardBridge},
-		{"ETH", "ETHBridge", CONTRACT_ADDRESSES[69].L2StandardBridge},
 		{"BitBTC", "StandardBridge", "0x0b651A42F32069d62d5ECf4f2a7e5Bd3E9438746"},
 		{"USX", "StandardBridge", "0x40E862341b2416345F02c41Ac70df08525150dC7"},
 		//{"DAI", "	DAIBridge", "0xb415e822C4983ecD6B1c1596e8a5f976cf6CD9e3"},
@@ -103,12 +101,10 @@ var BRIDGE_ADDRESSES = map[uint64][]struct{ name, impl, addr string }{
 	// Goerli
 	690: {
 		{"Standard", "StandardBridge", CONTRACT_ADDRESSES[690].L2StandardBridge},
-		{"ETH", "ETHBridge", CONTRACT_ADDRESSES[690].L2StandardBridge},
 	},
 	// Hardhat local
 	420: {
 		{"Standard", "StandardBridge", CONTRACT_ADDRESSES[420].L2StandardBridge},
-		{"ETH", "ETHBridge", CONTRACT_ADDRESSES[420].L2StandardBridge},
 	},
 }
 
@@ -131,21 +127,6 @@ func BridgesByChainID(chainID *big.Int, client bind.ContractFilterer, ctx contex
 				filterer: l2StandardBridgeFilter,
 			}
 			bridges[bridge.name] = standardBridge
-		case "ETHBridge":
-			l2EthBridgeAddress := common.HexToAddress(bridge.addr)
-			l2EthBridgeFilter, err := l2bridge.NewL2StandardBridgeFilterer(l2EthBridgeAddress, client)
-			if err != nil {
-				return nil, err
-			}
-
-			ethBridge := &EthBridge{
-				name:     bridge.name,
-				ctx:      ctx,
-				address:  l2EthBridgeAddress,
-				client:   client,
-				filterer: l2EthBridgeFilter,
-			}
-			bridges[bridge.name] = ethBridge
 		default:
 			return nil, errors.New("unsupported bridge")
 		}
