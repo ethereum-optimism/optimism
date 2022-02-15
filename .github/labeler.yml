@@ -30,5 +30,8 @@ M-core-utils:
 M-dtl:
   - any: ['packages/data-transport-layer/**/*']
 
+M-sdk:
+  - any: ['packages/sdk/**/*']
+
 M-ops:
   - any: ['ops/**/*']
