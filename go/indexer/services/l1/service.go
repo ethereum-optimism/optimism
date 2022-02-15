@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/go/indexer/server"
+	"github.com/ethereum-optimism/optimism/go/indexer/services/l1/bridge"
 
 	_ "github.com/lib/pq"
 
@@ -239,70 +240,20 @@ func (s *Service) Update(newHeader *types.Header) error {
 	endHeight := headers[len(headers)-1].Number.Uint64()
 	depositsByBlockhash := make(map[common.Hash][]db.Deposit)
 
-	erc20Iter, err := s.fetchERC20BlockEventIterator(startHeight, endHeight)
+	bridges, err := bridge.BridgesByChainID(s.cfg.ChainID, s.cfg.L1Client, s.ctx)
 	if err != nil {
-		return err
+		logger.Error(err.Error())
 	}
 
-	for erc20Iter.Next() {
-		depositsByBlockhash[erc20Iter.Event.Raw.BlockHash] = append(
-			depositsByBlockhash[erc20Iter.Event.Raw.BlockHash], db.Deposit{
-				TxHash:      erc20Iter.Event.Raw.TxHash,
-				L1Token:     erc20Iter.Event.L1Token,
-				L2Token:     erc20Iter.Event.L2Token,
-				FromAddress: erc20Iter.Event.From,
-				ToAddress:   erc20Iter.Event.To,
-				Amount:      erc20Iter.Event.Amount,
-				Data:        erc20Iter.Event.Data,
-				LogIndex:    erc20Iter.Event.Raw.Index,
-			})
-	}
-	if err := erc20Iter.Error(); err != nil {
-		return err
-	}
-
-	// Index L1 ERC20 tokens
-	for _, deposits := range depositsByBlockhash {
-		for _, deposit := range deposits {
-			token, err := s.cfg.DB.GetL1TokenByAddress(deposit.L1Token.String())
-			if err != nil {
-				return err
-			}
-			if token != nil {
-				continue
-			}
-			token, err = QueryERC20(deposit.L1Token, s.cfg.L1Client)
-			if err != nil {
-				logger.Error("Error querying ERC20 token details",
-					"l1_token", deposit.L1Token.String(), "err", err)
-				token = &db.Token{
-					Address: deposit.L1Token.String(),
-				}
-			}
-			if err := s.cfg.DB.AddL1Token(deposit.L1Token.String(), token); err != nil {
-				return err
-			}
+	for _, bridge := range bridges {
+		bridgeDeposits, err := bridge.GetDepositsByBlockRange(startHeight, endHeight)
+		if err != nil {
+			logger.Error(err.Error())
+			continue
 		}
-	}
-
-	ethIter, err := s.fetchETHBlockEventIterator(startHeight, endHeight)
-	if err != nil {
-		return err
-	}
-
-	for ethIter.Next() {
-		depositsByBlockhash[ethIter.Event.Raw.BlockHash] = append(
-			depositsByBlockhash[ethIter.Event.Raw.BlockHash], db.Deposit{
-				TxHash:      ethIter.Event.Raw.TxHash,
-				FromAddress: ethIter.Event.From,
-				ToAddress:   ethIter.Event.To,
-				Amount:      ethIter.Event.Amount,
-				Data:        ethIter.Event.Data,
-				LogIndex:    ethIter.Event.Raw.Index,
-			})
-	}
-	if err := ethIter.Error(); err != nil {
-		return err
+		for blockHash, deposits := range bridgeDeposits {
+			depositsByBlockhash[blockHash] = append(depositsByBlockhash[blockHash], deposits...)
+		}
 	}
 
 	for _, header := range headers {

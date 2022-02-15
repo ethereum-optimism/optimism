@@ -1,8 +1,10 @@
 package bridge
 
 import (
+	"context"
 	"math/big"
 
+	"github.com/ethereum-optimism/optimism/go/indexer/bindings/l1bridge"
 	"github.com/ethereum-optimism/optimism/go/indexer/db"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
@@ -10,7 +12,6 @@ import (
 
 type Bridge interface {
 	Address() common.Address
-	Contract() *bind.BoundContract
 	GetDepositsByBlockRange(uint64, uint64) (map[common.Hash][]db.Deposit, error)
 }
 
@@ -32,7 +33,7 @@ var DEFAULT_L2_CONTRACT_ADDRESSES = map[string]string{
 	"WETH9": "0x4200000000000000000000000000000000000006",
 }
 
-var CONTRACT_ADDRESSES = map[uint]map[string]map[string]string{
+var CONTRACT_ADDRESSES = map[uint64]map[string]map[string]string{
 	// Mainnet
 	1: {
 		"l1": {
@@ -83,6 +84,29 @@ var CONTRACT_ADDRESSES = map[uint]map[string]map[string]string{
 	},
 }
 
-func BridgesByChainID(chainID *big.Int) []Bridge {
-	return nil
+func BridgesByChainID(chainID *big.Int, client bind.ContractFilterer, ctx context.Context) ([]Bridge, error) {
+	l1StandardBridgeAddress := common.HexToAddress(CONTRACT_ADDRESSES[chainID.Uint64()]["l1"]["L1StandardBridge"])
+	standardBridgeContract, err := l1bridge.NewL1StandardBridgeFilterer(l1StandardBridgeAddress, client)
+	if err != nil {
+		return nil, err
+	}
+
+	switch chainID {
+	case big.NewInt(42):
+		return []Bridge{
+			&StandardBridge{
+				ctx:      ctx,
+				address:  l1StandardBridgeAddress,
+				client:   client,
+				filterer: standardBridgeContract,
+			},
+			&EthBridge{
+				ctx:      ctx,
+				address:  l1StandardBridgeAddress,
+				client:   client,
+				filterer: standardBridgeContract,
+			},
+		}, nil
+	}
+	return nil, nil
 }

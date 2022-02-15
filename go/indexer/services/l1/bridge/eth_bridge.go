@@ -12,7 +12,7 @@ import (
 type EthBridge struct {
 	ctx      context.Context
 	address  common.Address
-	client   *bind.ContractFilterer
+	client   bind.ContractFilterer
 	filterer *l1bridge.L1StandardBridgeFilterer
 }
 
@@ -59,17 +59,4 @@ func (s *EthBridge) GetDepositsByBlockRange(start, end uint64) (map[common.Hash]
 	}
 
 	return depositsByBlockhash, nil
-}
-
-func NewEthBridge(address common.Address, client *bind.ContractFilterer, ctx context.Context) (*EthBridge, error) {
-	filterer, err := l1bridge.NewL1StandardBridgeFilterer(address, *client)
-	if err != nil {
-		return nil, err
-	}
-	return &EthBridge{
-		address:  address,
-		filterer: filterer,
-		client:   client,
-		ctx:      ctx,
-	}, nil
 }

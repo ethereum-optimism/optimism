@@ -12,7 +12,7 @@ import (
 type StandardBridge struct {
 	ctx      context.Context
 	address  common.Address
-	client   *bind.ContractFilterer
+	client   bind.ContractFilterer
 	filterer *l1bridge.L1StandardBridgeFilterer
 }
 
@@ -61,21 +61,4 @@ func (s *StandardBridge) GetDepositsByBlockRange(start, end uint64) (map[common.
 	}
 
 	return depositsByBlockhash, nil
-}
-
-func (s *StandardBridge) GetWithdrawalsByBlockRange(start, end uint64) (map[common.Address][]db.Withdrawal, error) {
-	return nil, nil
-}
-
-func NewStandardBridge(address common.Address, client *bind.ContractFilterer, ctx context.Context) (*StandardBridge, error) {
-	filterer, err := l1bridge.NewL1StandardBridgeFilterer(address, *client)
-	if err != nil {
-		return nil, err
-	}
-	return &StandardBridge{
-		address:  address,
-		filterer: filterer,
-		client:   client,
-		ctx:      ctx,
-	}, nil
 }
