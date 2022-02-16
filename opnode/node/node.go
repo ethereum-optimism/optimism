@@ -134,10 +134,14 @@ func (c *OpNode) Start() error {
 		l1SubCh := make(chan eth.HeadSignal, 10)
 		l1HeadsFeed.Subscribe(l1SubCh)
 		// start driving engine: sync blocks by deriving them from L1 and driving them into the engine
-		eng.Start(reqCtx, l1SubCh)
+		err := eng.Start(reqCtx, l1SubCh)
 		// engDriveSub := eng.Drive(c.ctx, l1SubCh)
 		// handleUnsubscribe(engDriveSub, "engine driver unexpectedly failed")
 		reqCancel()
+		if err != nil {
+			c.log.Error("Could not start a rollup node", "err", err)
+			return err
+		}
 	}
 
 	// Keep subscribed to the L1 heads, which keeps the L1 maintainer pointing to the best headers to sync
