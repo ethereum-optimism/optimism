@@ -162,7 +162,8 @@ export class MessageRelayerService extends BaseService<MessageRelayerOptions> {
           // each message to L1.
           for (const message of messages) {
             try {
-              await this.state.messenger.finalizeMessage(message)
+              const tx = await this.state.messenger.finalizeMessage(message)
+              this.logger.info(`relayer sent tx: ${tx.hash}`)
             } catch (err) {
               if (err.message.includes('message has already been received')) {
                 // It's fine, the message was relayed by someone else
