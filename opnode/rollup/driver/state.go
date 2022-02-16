@@ -23,20 +23,6 @@ type internalDriver interface {
 	driverStep(ctx context.Context, nextRefL1 eth.BlockID, refL2 eth.BlockID, finalized eth.BlockID) (l2ID eth.BlockID, err error)
 }
 
-// stateMachine provides control over the driver state, when given control over the Driver actions.
-type stateMachine interface {
-	// requestUpdate tries to update the state-machine with the driver head information.
-	// If the state-machine changed, considering the engine L1 and L2 head, it will return true. False otherwise.
-	requestUpdate(ctx context.Context, log log.Logger, driver internalDriver) (l2Updated bool)
-	// requestSync tries to sync the provided driver towards the sync target of the state-machine.
-	// If the L2 syncs a step, but is not finished yet, it will return true. False otherwise.
-	requestSync(ctx context.Context, log log.Logger, driver internalDriver) (l2Updated bool)
-	// notifyL1Head updates the state-machine with the L1 signal,
-	// and attempts to sync the driver if the update extends the previous head.
-	// Returns true if the driver successfully derived and synced the L2 block to match L1. False otherwise.
-	notifyL1Head(ctx context.Context, log log.Logger, l1HeadSig eth.HeadSignal, driver internalDriver) (l2Updated bool)
-}
-
 type state struct {
 	// l1Head tracks the L1 block corresponding to the l2Head
 	l1Head eth.BlockID
@@ -60,6 +46,8 @@ func (e *state) updateHead(l1Head eth.BlockID, l2Head eth.BlockID) {
 	e.l2Head = l2Head
 }
 
+// requestUpdate tries to update the state-machine with the driver head information.
+// If the state-machine changed, considering the engine L1 and L2 head, it will return true. False otherwise.
 func (e *state) requestUpdate(ctx context.Context, log log.Logger, driver internalDriver) (l2Updated bool) {
 	refL1, refL2, err := driver.requestEngineHead(ctx)
 	if err != nil {
@@ -72,6 +60,8 @@ func (e *state) requestUpdate(ctx context.Context, log log.Logger, driver intern
 	return e.l1Head != refL1 || e.l2Head != refL2
 }
 
+// requestSync tries to sync the provided driver towards the sync target of the state-machine.
+// If the L2 syncs a step, but is not finished yet, it will return true. False otherwise.
 func (e *state) requestSync(ctx context.Context, log log.Logger, driver internalDriver) (l2Updated bool) {
 	if e.l1Head == e.l1Target {
 		log.Debug("Engine is fully synced", "l1_head", e.l1Head, "l2_head", e.l2Head)
@@ -98,6 +88,9 @@ func (e *state) requestSync(ctx context.Context, log log.Logger, driver internal
 	return e.l1Head != e.l1Target
 }
 
+// notifyL1Head updates the state-machine with the L1 signal,
+// and attempts to sync the driver if the update extends the previous head.
+// Returns true if the driver successfully derived and synced the L2 block to match L1. False otherwise.
 func (e *state) notifyL1Head(ctx context.Context, log log.Logger, l1HeadSig eth.HeadSignal, driver internalDriver) (l2Updated bool) {
 	if e.l1Head == l1HeadSig.Self {
 		log.Debug("Received L1 head signal, already synced to it, ignoring event", "l1_head", e.l1Head)
