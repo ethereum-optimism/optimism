@@ -34,6 +34,27 @@ var errWrongChainID = errors.New("wrong chain id provided")
 
 var errNoNewBlocks = errors.New("no new blocks")
 
+// clientRetryInterval is the interval to wait between retrying client API
+// calls.
+var clientRetryInterval = 5 * time.Second
+
+// HeaderByNumberWithRetry retries the given func until it succeeds, waiting
+// for clientRetryInterval duration after every call.
+func HeaderByNumberWithRetry(ctx context.Context,
+	client *l2ethclient.Client) (*types.Header, error) {
+	for {
+		res, err := client.HeaderByNumber(ctx, nil)
+		switch err {
+		case nil:
+			return res, err
+		default:
+			log.Error("Error fetching header", "err", err)
+			break
+		}
+		time.Sleep(clientRetryInterval)
+	}
+}
+
 func respondWithError(w http.ResponseWriter, code int, message string) {
 	respondWithJSON(w, code, map[string]string{"error": message})
 }
@@ -64,6 +85,7 @@ type Service struct {
 	cancel func()
 
 	bridges        map[string]bridge.Bridge
+	latestHeader   uint64
 	headerSelector *ConfirmedHeaderSelector
 
 	metrics *metrics.Metrics
@@ -198,11 +220,11 @@ func (s *Service) Update(newHeader *types.Header) error {
 			continue
 		}
 
-		// ERC20 withdrawals l1_token needs to be indexed before they can be
-		// inserted, because l1_token is a foreign key to the token metadata
+		// ERC20 withdrawals l2_token needs to be indexed before they can be
+		// inserted, because l2_token is a foreign key to the token metadata
 		switch bridgeImpl.(type) {
 		case *bridge.StandardBridge:
-			// Index L1 ERC20 tokens
+			// Index L2 ERC20 tokens
 			for _, withdrawals := range bridgeWithdrawals {
 				for _, withdrawal := range withdrawals {
 					token, err := s.cfg.DB.GetL2TokenByAddress(withdrawal.L2Token.String())
@@ -274,13 +296,10 @@ func (s *Service) GetIndexerStatus(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	latestHeader, err := s.cfg.L2Client.HeaderByNumber(context.Background(), nil)
-	if err != nil {
-		respondWithError(w, http.StatusInternalServerError, err.Error())
-		return
+	var synced float64
+	if s.latestHeader != 0 {
+		synced = float64(highestBlock.Number) / float64(s.latestHeader)
 	}
-
-	synced := float64(highestBlock.Number) / float64(latestHeader.Number.Int64())
 
 	status := &IndexerStatus{
 		Synced:  synced,
@@ -330,7 +349,7 @@ func (s *Service) subscribeNewHeads(ctx context.Context, heads chan *types.Heade
 	for {
 		select {
 		case <-tick.C:
-			header, err := s.cfg.L2Client.HeaderByNumber(ctx, nil)
+			header, err := HeaderByNumberWithRetry(ctx, s.cfg.L2Client)
 			if err != nil {
 				logger.Error("error fetching header by number", "err", err)
 			}
@@ -342,7 +361,7 @@ func (s *Service) subscribeNewHeads(ctx context.Context, heads chan *types.Heade
 }
 
 func (s *Service) catchUp(ctx context.Context) error {
-	realHead, err := s.cfg.L2Client.HeaderByNumber(context.Background(), nil)
+	realHead, err := HeaderByNumberWithRetry(ctx, s.cfg.L2Client)
 	if err != nil {
 		return err
 	}
