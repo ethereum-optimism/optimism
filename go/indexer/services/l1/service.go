@@ -8,8 +8,10 @@ import (
 	"net/http"
 	"strconv"
 	"sync"
+	"sync/atomic"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/go/indexer/bindings/l1erc20"
 	"github.com/ethereum-optimism/optimism/go/indexer/server"
 	"github.com/ethereum-optimism/optimism/go/indexer/services/l1/bridge"
 
@@ -36,6 +38,27 @@ var errNoChainID = errors.New("no chain id provided")
 var errWrongChainID = errors.New("wrong chain id provided")
 
 var errNoNewBlocks = errors.New("no new blocks")
+
+// clientRetryInterval is the interval to wait between retrying client API
+// calls.
+var clientRetryInterval = 5 * time.Second
+
+// HeaderByNumberWithRetry retries the given func until it succeeds, waiting
+// for clientRetryInterval duration after every call.
+func HeaderByNumberWithRetry(ctx context.Context,
+	client *ethclient.Client) (*types.Header, error) {
+	for {
+		res, err := client.HeaderByNumber(ctx, nil)
+		switch err {
+		case nil:
+			return res, err
+		default:
+			log.Error("Error fetching header", "err", err)
+			break
+		}
+		time.Sleep(clientRetryInterval)
+	}
+}
 
 // Driver is an interface for indexing deposits from l1.
 type Driver interface {
@@ -65,6 +88,7 @@ type Service struct {
 	cancel func()
 
 	bridges        map[string]bridge.Bridge
+	latestHeader   uint64
 	headerSelector *ConfirmedHeaderSelector
 
 	metrics *metrics.Metrics
@@ -142,7 +166,12 @@ func (s *Service) Loop(ctx context.Context) {
 	for {
 		select {
 		case header := <-newHeads:
+			if header == nil {
+				break
+			}
+
 			logger.Info("Received new header", "header", header.Hash)
+			atomic.StoreUint64(&s.latestHeader, header.Number.Uint64())
 			for {
 				err := s.Update(header)
 				if err != nil && err != errNoNewBlocks {
@@ -213,7 +242,13 @@ func (s *Service) Update(newHeader *types.Header) error {
 					if token != nil {
 						continue
 					}
-					token, err = QueryERC20(deposit.L1Token, s.cfg.L1Client)
+
+					contract, err := l1erc20.NewL1ERC20(deposit.L1Token, s.cfg.L1Client)
+					if err != nil {
+						return err
+					}
+
+					token, err = QueryERC20(deposit.L1Token, contract)
 					if err != nil {
 						logger.Error("Error querying ERC20 token details",
 							"l1_token", deposit.L1Token.String(), "err", err)
@@ -275,13 +310,10 @@ func (s *Service) GetIndexerStatus(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	latestHeader, err := s.cfg.L1Client.HeaderByNumber(context.Background(), nil)
-	if err != nil {
-		server.RespondWithError(w, http.StatusInternalServerError, err.Error())
-		return
+	var synced float64
+	if s.latestHeader != 0 {
+		synced = float64(highestBlock.Number) / float64(s.latestHeader)
 	}
-
-	synced := float64(highestBlock.Number) / float64(latestHeader.Number.Int64())
 
 	status := &IndexerStatus{
 		Synced:  synced,
@@ -331,7 +363,7 @@ func (s *Service) subscribeNewHeads(ctx context.Context, heads chan *types.Heade
 	for {
 		select {
 		case <-tick.C:
-			header, err := s.cfg.L1Client.HeaderByNumber(ctx, nil)
+			header, err := HeaderByNumberWithRetry(ctx, s.cfg.L1Client)
 			if err != nil {
 				logger.Error("error fetching header by number", "err", err)
 			}
@@ -343,7 +375,7 @@ func (s *Service) subscribeNewHeads(ctx context.Context, heads chan *types.Heade
 }
 
 func (s *Service) catchUp(ctx context.Context) error {
-	realHead, err := s.cfg.L1Client.HeaderByNumber(context.Background(), nil)
+	realHead, err := HeaderByNumberWithRetry(ctx, s.cfg.L1Client)
 	if err != nil {
 		return err
 	}
