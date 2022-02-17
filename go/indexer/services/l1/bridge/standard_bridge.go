@@ -24,24 +24,13 @@ func (s *StandardBridge) Address() common.Address {
 func (s *StandardBridge) GetDepositsByBlockRange(start, end uint64) (map[common.Hash][]db.Deposit, error) {
 	depositsByBlockhash := make(map[common.Hash][]db.Deposit)
 
-	var iter *l1bridge.L1StandardBridgeERC20DepositInitiatedIterator
-	var err error
-	const NUM_RETRIES = 5
-	for retry := 0; retry < NUM_RETRIES; retry++ {
-		ctxt, cancel := context.WithTimeout(s.ctx, DefaultConnectionTimeout)
-
-		iter, err = s.filterer.FilterERC20DepositInitiated(&bind.FilterOpts{
-			Start:   start,
-			End:     &end,
-			Context: ctxt,
-		}, nil, nil, nil)
-		if err != nil {
-			logger.Error("Unable to query deposit events for block range ",
-				"start", start, "end", end, "error", err)
-			cancel()
-			continue
-		}
-		cancel()
+	iter, err := FilterERC20DepositInitiatedWithRetry(s.filterer, &bind.FilterOpts{
+		Start:   start,
+		End:     &end,
+		Context: s.ctx,
+	})
+	if err != nil {
+		logger.Error("Error fetching filter", "err", err)
 	}
 
 	for iter.Next() {

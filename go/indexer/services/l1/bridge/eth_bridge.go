@@ -24,24 +24,13 @@ func (e *EthBridge) Address() common.Address {
 func (e *EthBridge) GetDepositsByBlockRange(start, end uint64) (map[common.Hash][]db.Deposit, error) {
 	depositsByBlockhash := make(map[common.Hash][]db.Deposit)
 
-	var iter *l1bridge.L1StandardBridgeETHDepositInitiatedIterator
-	var err error
-	const NUM_RETRIES = 5
-	for retry := 0; retry < NUM_RETRIES; retry++ {
-		ctxt, cancel := context.WithTimeout(e.ctx, DefaultConnectionTimeout)
-
-		iter, err = e.filterer.FilterETHDepositInitiated(&bind.FilterOpts{
-			Start:   start,
-			End:     &end,
-			Context: ctxt,
-		}, nil, nil)
-		if err != nil {
-			logger.Error("Unable to query deposit events for block range ",
-				"start", start, "end", end, "error", err)
-			cancel()
-			continue
-		}
-		cancel()
+	iter, err := FilterETHDepositInitiatedWithRetry(e.filterer, &bind.FilterOpts{
+		Start:   start,
+		End:     &end,
+		Context: e.ctx,
+	})
+	if err != nil {
+		logger.Error("Error fetching filter", "err", err)
 	}
 
 	for iter.Next() {
