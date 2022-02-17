@@ -47,8 +47,6 @@ export const estimateL1Gas = async (
 ): Promise<BigNumber> => {
   const gpo = connectGasPriceOracle(l2Provider)
   return gpo.getL1GasUsed(
-    // Only use the tx fields we need. That way there's no
-    // need to delete fields before calling the SDK
     serialize({
       data: tx.data,
       to: tx.to,
@@ -73,8 +71,6 @@ export const estimateL1GasCost = async (
 ): Promise<BigNumber> => {
   const gpo = connectGasPriceOracle(l2Provider)
   return gpo.getL1Fee(
-    // Only use the tx fields we need. That way there's no
-    // need to delete fields before calling the SDK      
     serialize({
       data: tx.data,
       to: tx.to,
