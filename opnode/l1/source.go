@@ -12,16 +12,6 @@ import (
 	"github.com/ethereum/go-ethereum/ethclient"
 )
 
-// type L1Source interface {
-// 	SubscribeNewHead(ctx context.Context, ch chan<- *types.Header) (ethereum.Subscription, error)
-// 	HeaderByHash(ctx context.Context, hash common.Hash) (*types.Header, error)
-// 	HeaderByNumber(ctx context.Context, number *big.Int) (*types.Header, error)
-// 	TransactionReceipt(ctx context.Context, txHash common.Hash) (*types.Receipt, error)
-// 	BlockByHash(ctx context.Context, hash common.Hash) (*types.Block, error)
-// 	BlockByNumber(ctx context.Context, number *big.Int) (*types.Block, error)
-// 	Close()
-// }
-
 type Source struct {
 	client     *ethclient.Client
 	downloader Downloader
