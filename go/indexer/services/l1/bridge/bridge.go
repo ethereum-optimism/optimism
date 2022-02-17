@@ -69,7 +69,7 @@ var BRIDGE_ADDRESSES = map[uint64][]struct{ name, impl, addr string }{
 		{"Standard", "StandardBridge", CONTRACT_ADDRESSES[1].L1StandardBridge},
 		{"ETH", "ETHBridge", CONTRACT_ADDRESSES[1].L1StandardBridge},
 		{"BitBTC", "StandardBridge", "0xaBA2c5F108F7E820C049D5Af70B16ac266c8f128"},
-		//{"DAI", "DAIBridge", "0x10E6593CDda8c58a1d0f14C5164B376352a55f2F"},
+		{"DAI", "StandardBridge", "0x10E6593CDda8c58a1d0f14C5164B376352a55f2F"},
 	},
 	// Kovan
 	42: {
@@ -77,7 +77,7 @@ var BRIDGE_ADDRESSES = map[uint64][]struct{ name, impl, addr string }{
 		{"ETH", "ETHBridge", CONTRACT_ADDRESSES[42].L1StandardBridge},
 		{"BitBTC", "StandardBridge", "0x0b651A42F32069d62d5ECf4f2a7e5Bd3E9438746"},
 		{"USX", "StandardBridge", "0x40E862341b2416345F02c41Ac70df08525150dC7"},
-		//{"DAI", "	DAIBridge", "0xb415e822C4983ecD6B1c1596e8a5f976cf6CD9e3"},
+		{"DAI", "StandardBridge", "0xb415e822C4983ecD6B1c1596e8a5f976cf6CD9e3"},
 	},
 	// Goerli
 	5: {
