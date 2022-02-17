@@ -3,6 +3,7 @@ package db
 import (
 	"database/sql"
 	"errors"
+	"github.com/google/uuid"
 	"math/big"
 
 	l2common "github.com/ethereum-optimism/optimism/l2geth/common"
@@ -12,8 +13,8 @@ import (
 
 var createL1BlocksTable = `
 CREATE TABLE IF NOT EXISTS l1_blocks (
-	hash TEXT NOT NULL PRIMARY KEY,
-	parent_hash TEXT NOT NULL,
+	hash VARCHAR NOT NULL PRIMARY KEY,
+	parent_hash VARCHAR NOT NULL,
 	number INTEGER NOT NULL,
 	timestamp INTEGER NOT NULL
 )
@@ -21,8 +22,8 @@ CREATE TABLE IF NOT EXISTS l1_blocks (
 
 var createL2BlocksTable = `
 CREATE TABLE IF NOT EXISTS l2_blocks (
-	hash TEXT NOT NULL PRIMARY KEY,
-	parent_hash TEXT NOT NULL,
+	hash VARCHAR NOT NULL PRIMARY KEY,
+	parent_hash VARCHAR NOT NULL,
 	number INTEGER NOT NULL,
 	timestamp INTEGER NOT NULL
 )
@@ -30,40 +31,40 @@ CREATE TABLE IF NOT EXISTS l2_blocks (
 
 var createDepositsTable = `
 CREATE TABLE IF NOT EXISTS deposits (
-	from_address TEXT NOT NULL,
-	to_address TEXT NOT NULL,
-	l1_token TEXT NOT NULL REFERENCES l1_tokens(address),
-	l2_token TEXT NOT NULL,
-	amount TEXT NOT NULL,
+	guid VARCHAR PRIMARY KEY NOT NULL,
+	from_address VARCHAR NOT NULL,
+	to_address VARCHAR NOT NULL,
+	l1_token VARCHAR NOT NULL REFERENCES l1_tokens(address),
+	l2_token VARCHAR NOT NULL,
+	amount VARCHAR NOT NULL,
 	data BYTEA NOT NULL,
 	log_index INTEGER NOT NULL,
-	block_hash TEXT NOT NULL REFERENCES l1_blocks(hash) ,
-	block_timestamp TEXT NOT NULL,
-	tx_hash TEXT NOT NULL
+	block_hash VARCHAR NOT NULL REFERENCES l1_blocks(hash) ,
+	tx_hash VARCHAR NOT NULL
 )
 `
 
 var createL1TokensTable = `
 CREATE TABLE IF NOT EXISTS l1_tokens (
-	address TEXT NOT NULL PRIMARY KEY,
-	name TEXT NOT NULL,
-	symbol TEXT NOT NULL,
+	address VARCHAR NOT NULL PRIMARY KEY,
+	name VARCHAR NOT NULL,
+	symbol VARCHAR NOT NULL,
 	decimals INTEGER NOT NULL
 )
 `
 
 var createWithdrawalsTable = `
 CREATE TABLE IF NOT EXISTS withdrawals (
-	from_address TEXT NOT NULL,
-	to_address TEXT NOT NULL,
-	l1_token TEXT NOT NULL,
-	l2_token TEXT NOT NULL REFERENCES l2_tokens(address),
-	amount TEXT NOT NULL,
+	guid VARCHAR PRIMARY KEY NOT NULL,
+	from_address VARCHAR NOT NULL,
+	to_address VARCHAR NOT NULL,
+	l1_token VARCHAR NOT NULL,
+	l2_token VARCHAR NOT NULL REFERENCES l2_tokens(address),
+	amount VARCHAR NOT NULL,
 	data BYTEA NOT NULL,
 	log_index INTEGER NOT NULL,
-	block_hash TEXT NOT NULL REFERENCES l2_blocks(hash) ,
-	block_timestamp TEXT NOT NULL,
-	tx_hash TEXT NOT NULL
+	block_hash VARCHAR NOT NULL REFERENCES l2_blocks(hash) ,
+	tx_hash VARCHAR NOT NULL
 )
 `
 
@@ -118,6 +119,7 @@ func (e TxnEnqueuedEvent) String() string {
 }
 
 type Deposit struct {
+	GUID        string
 	TxHash      common.Hash
 	L1Token     common.Address
 	L2Token     common.Address
@@ -133,6 +135,7 @@ func (d Deposit) String() string {
 }
 
 type Withdrawal struct {
+	GUID        string
 	TxHash      l2common.Hash
 	L1Token     l2common.Address
 	L2Token     l2common.Address
@@ -198,6 +201,7 @@ type Token struct {
 }
 
 type DepositJSON struct {
+	GUID           string `json:"guid"`
 	FromAddress    string `json:"from"`
 	ToAddress      string `json:"to"`
 	L1Token        *Token `json:"l1token"`
@@ -211,6 +215,7 @@ type DepositJSON struct {
 }
 
 type WithdrawalJSON struct {
+	GUID           string `json:"guid"`
 	FromAddress    string `json:"from"`
 	ToAddress      string `json:"to"`
 	L1Token        string `json:"l1token"`
@@ -390,7 +395,7 @@ func (d *Database) AddIndexedL1Block(block *IndexedL1Block) error {
 
 	const insertDepositStatement = `
 	INSERT INTO deposits
-		(from_address, to_address, l1_token, l2_token, amount, tx_hash, log_index, block_hash, block_timestamp, data)
+		(guid, from_address, to_address, l1_token, l2_token, amount, tx_hash, log_index, block_hash, data)
 	VALUES
 		($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
 	`
@@ -421,6 +426,7 @@ func (d *Database) AddIndexedL1Block(block *IndexedL1Block) error {
 
 		for _, deposit := range block.Deposits {
 			_, err = depositStmt.Exec(
+				NewGUID(),
 				deposit.FromAddress.String(),
 				deposit.ToAddress.String(),
 				deposit.L1Token.String(),
@@ -429,7 +435,6 @@ func (d *Database) AddIndexedL1Block(block *IndexedL1Block) error {
 				deposit.TxHash.String(),
 				deposit.LogIndex,
 				block.Hash.String(),
-				block.Timestamp,
 				deposit.Data,
 			)
 			if err != nil {
@@ -451,7 +456,7 @@ func (d *Database) AddIndexedL2Block(block *IndexedL2Block) error {
 
 	const insertWithdrawalStatement = `
 	INSERT INTO withdrawals
-		(from_address, to_address, l1_token, l2_token, amount, tx_hash, log_index, block_hash, block_timestamp, data)
+		(guid, from_address, to_address, l1_token, l2_token, amount, tx_hash, log_index, block_hash, data)
 	VALUES
 		($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
 	`
@@ -482,6 +487,7 @@ func (d *Database) AddIndexedL2Block(block *IndexedL2Block) error {
 
 		for _, withdrawal := range block.Withdrawals {
 			_, err = withdrawalStmt.Exec(
+				NewGUID(),
 				withdrawal.FromAddress.String(),
 				withdrawal.ToAddress.String(),
 				withdrawal.L1Token.String(),
@@ -490,7 +496,6 @@ func (d *Database) AddIndexedL2Block(block *IndexedL2Block) error {
 				withdrawal.TxHash.String(),
 				withdrawal.LogIndex,
 				block.Hash.String(),
-				block.Timestamp,
 				withdrawal.Data,
 			)
 			if err != nil {
@@ -505,7 +510,7 @@ func (d *Database) AddIndexedL2Block(block *IndexedL2Block) error {
 func (d *Database) GetDepositsByAddress(address common.Address, page PaginationParam) ([]DepositJSON, error) {
 	const selectDepositsStatement = `
 	SELECT
-		deposits.from_address, deposits.to_address,
+		deposits.guid, deposits.from_address, deposits.to_address,
 		deposits.l1_token, deposits.l2_token,
 		deposits.amount, deposits.tx_hash, deposits.data,
 		l1_tokens.name, l1_tokens.symbol, l1_tokens.decimals,
@@ -513,7 +518,7 @@ func (d *Database) GetDepositsByAddress(address common.Address, page PaginationP
 	FROM deposits
 		INNER JOIN l1_blocks ON deposits.block_hash=l1_blocks.hash
 		INNER JOIN l1_tokens ON deposits.l1_token=l1_tokens.address
-	WHERE deposits.from_address = $1 ORDER BY deposits.block_timestamp LIMIT $2 OFFSET $3;
+	WHERE deposits.from_address = $1 ORDER BY l1_blocks.timestamp LIMIT $2 OFFSET $3;
 	`
 	var deposits []DepositJSON
 
@@ -532,6 +537,7 @@ func (d *Database) GetDepositsByAddress(address common.Address, page PaginationP
 			var deposit DepositJSON
 			var token Token
 			if err := rows.Scan(
+				&deposit.GUID,
 				&deposit.FromAddress, &deposit.ToAddress,
 				&token.Address, &deposit.L2Token,
 				&deposit.Amount, &deposit.TxHash, &deposit.Data,
@@ -556,7 +562,7 @@ func (d *Database) GetDepositsByAddress(address common.Address, page PaginationP
 func (d *Database) GetWithdrawalsByAddress(address l2common.Address, page PaginationParam) ([]WithdrawalJSON, error) {
 	const selectWithdrawalsStatement = `
 	SELECT
-		withdrawals.from_address, withdrawals.to_address,
+	    withdrawals.guid, withdrawals.from_address, withdrawals.to_address,
 		withdrawals.l1_token, withdrawals.l2_token,
 		withdrawals.amount, withdrawals.tx_hash, withdrawals.data,
 		l2_tokens.name, l2_tokens.symbol, l2_tokens.decimals,
@@ -564,7 +570,7 @@ func (d *Database) GetWithdrawalsByAddress(address l2common.Address, page Pagina
 	FROM withdrawals
 		INNER JOIN l2_blocks ON withdrawals.block_hash=l2_blocks.hash
 		INNER JOIN l2_tokens ON withdrawals.l2_token=l2_tokens.address
-	WHERE withdrawals.from_address = $1 ORDER BY withdrawals.block_timestamp LIMIT $2 OFFSET $3;
+	WHERE withdrawals.from_address = $1 ORDER BY l2_blocks.timestamp LIMIT $2 OFFSET $3;
 	`
 	var withdrawals []WithdrawalJSON
 
@@ -583,6 +589,7 @@ func (d *Database) GetWithdrawalsByAddress(address l2common.Address, page Pagina
 			var withdrawal WithdrawalJSON
 			var token Token
 			if err := rows.Scan(
+				&withdrawal.GUID,
 				&withdrawal.FromAddress, &withdrawal.ToAddress,
 				&withdrawal.L1Token, &token.Address,
 				&withdrawal.Amount, &withdrawal.TxHash, &withdrawal.Data,
@@ -713,20 +720,19 @@ func (d *Database) GetIndexedL1BlockByHash(hash common.Hash) (*IndexedL1Block, e
 			return err
 		}
 
-		rows, err := queryStmt.Query(hash.String())
-		if err != nil {
-			return err
-		}
-
-		if !rows.Next() {
+		row := queryStmt.QueryRow(hash.String())
+		if errors.Is(row.Err(), sql.ErrNoRows) {
 			return nil
+		}
+		if row.Err() != nil {
+			return err
 		}
 
 		var hash string
 		var parentHash string
 		var number uint64
 		var timestamp uint64
-		err = rows.Scan(&hash, &parentHash, &number, &timestamp)
+		err = row.Scan(&hash, &parentHash, &number, &timestamp)
 		if err != nil {
 			return err
 		}
@@ -739,10 +745,6 @@ func (d *Database) GetIndexedL1BlockByHash(hash common.Hash) (*IndexedL1Block, e
 			Deposits:   nil,
 		}
 
-		if rows.Next() {
-			return errors.New("number of rows should be at most 1 since hash is pk")
-		}
-
 		return nil
 	})
 	if err != nil {
@@ -752,6 +754,7 @@ func (d *Database) GetIndexedL1BlockByHash(hash common.Hash) (*IndexedL1Block, e
 	return block, nil
 
 }
+
 func (d *Database) GetEventsByBlockHash(hash common.Hash) ([]TxnEnqueuedEvent, error) {
 	const selectEventsByBlockHashStatement = `
 	SELECT
@@ -868,4 +871,8 @@ func txn(db *sql.DB, apply func(*sql.Tx) error) error {
 	}
 
 	return tx.Commit()
+}
+
+func NewGUID() string {
+	return uuid.New().String()
 }
