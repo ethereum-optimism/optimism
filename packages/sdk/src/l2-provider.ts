@@ -31,7 +31,7 @@ export const getL1GasPrice = async (
   l2Provider: ProviderLike
 ): Promise<BigNumber> => {
   const gpo = connectGasPriceOracle(l2Provider)
-  return gpo.gasPrice()
+  return gpo.l1BaseFee()
 }
 
 /**
