@@ -92,10 +92,10 @@ var (
 	/* Optional Flags */
 
 	DisableIndexer = cli.BoolFlag{
-		Name: "disable-indexer",
-		Usage: "Whether or not to enable the indexer on this instance",
+		Name:     "disable-indexer",
+		Usage:    "Whether or not to enable the indexer on this instance",
 		Required: false,
-		EnvVar: prefixEnvVar("DISABLE_INDEXER"),
+		EnvVar:   prefixEnvVar("DISABLE_INDEXER"),
 	}
 	LogLevelFlag = cli.StringFlag{
 		Name:   "log-level",

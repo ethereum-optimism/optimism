@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/ethereum-optimism/optimism/go/indexer/metrics"
 	"math/big"
 	"net/http"
 	"strconv"
@@ -18,7 +19,6 @@ import (
 	_ "github.com/lib/pq"
 
 	"github.com/ethereum-optimism/optimism/go/indexer/db"
-	"github.com/ethereum-optimism/optimism/go/indexer/metrics"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
@@ -43,6 +43,8 @@ var errNoNewBlocks = errors.New("no new blocks")
 // calls.
 var clientRetryInterval = 5 * time.Second
 
+var ZeroAddress common.Address
+
 // HeaderByNumberWithRetry retries the given func until it succeeds, waiting
 // for clientRetryInterval duration after every call.
 func HeaderByNumberWithRetry(ctx context.Context,
@@ -64,13 +66,11 @@ func HeaderByNumberWithRetry(ctx context.Context,
 type Driver interface {
 	// Name is an identifier used to prefix logs for a particular service.
 	Name() string
-
-	// Metrics returns the subservice telemetry object.
-	Metrics() *metrics.Metrics
 }
 
 type ServiceConfig struct {
 	Context                 context.Context
+	Metrics                 *metrics.Metrics
 	L1Client                *ethclient.Client
 	RawL1Client             *rpc.Client
 	ChainID                 *big.Int
@@ -148,6 +148,7 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 		cancel:         cancel,
 		bridges:        bridges,
 		headerSelector: confirmedHeaderSelector,
+		metrics:        cfg.Metrics,
 	}, nil
 }
 
@@ -220,11 +221,14 @@ func (s *Service) Update(newHeader *types.Header) error {
 	startHeight := headers[0].Number.Uint64()
 	endHeight := headers[len(headers)-1].Number.Uint64()
 	depositsByBlockhash := make(map[common.Hash][]db.Deposit)
+	tokensByAddress := map[common.Address]*db.Token{
+		ZeroAddress: db.ETHL1Token,
+	}
 
 	for _, bridgeImpl := range s.bridges {
 		bridgeDeposits, err := bridgeImpl.GetDepositsByBlockRange(startHeight, endHeight)
 		if err != nil {
-			logger.Error(err.Error())
+			logger.Error("an error occurred getting deposits", "err", err.Error(), "bridge", bridgeImpl.String())
 			continue
 		}
 
@@ -235,11 +239,16 @@ func (s *Service) Update(newHeader *types.Header) error {
 			// Index L1 ERC20 tokens
 			for _, deposits := range bridgeDeposits {
 				for _, deposit := range deposits {
+					if tokensByAddress[deposit.L1Token] != nil {
+						continue
+					}
+
 					token, err := s.cfg.DB.GetL1TokenByAddress(deposit.L1Token.String())
 					if err != nil {
 						return err
 					}
 					if token != nil {
+						tokensByAddress[deposit.L1Token] = token
 						continue
 					}
 
@@ -259,6 +268,7 @@ func (s *Service) Update(newHeader *types.Header) error {
 					if err := s.cfg.DB.AddL1Token(deposit.L1Token.String(), token); err != nil {
 						return err
 					}
+					tokensByAddress[deposit.L1Token] = token
 				}
 			}
 		}
@@ -283,17 +293,30 @@ func (s *Service) Update(newHeader *types.Header) error {
 
 		err := s.cfg.DB.AddIndexedL1Block(block)
 		if err != nil {
-			logger.Error("Unable to import ",
-				"block", number, "hash", blockHash, "err", err, "block", block)
+			logger.Error(
+				"Unable to import ",
+				"block", number,
+				"hash", blockHash, "err", err,
+				"block", block,
+			)
 			return err
 		}
 
 		logger.Debug("Imported ",
 			"block", number, "hash", blockHash, "deposits", len(block.Deposits))
 		for _, deposit := range block.Deposits {
-			logger.Info("Indexed deposit ", "tx_hash", deposit.TxHash)
+			token := tokensByAddress[deposit.L1Token]
+			logger.Info(
+				"indexed deposit",
+				"tx_hash", deposit.TxHash,
+				"symbol", token.Symbol,
+				"amount", deposit.Amount,
+			)
+			s.metrics.RecordDeposit(deposit.L1Token)
 		}
 	}
+
+	s.metrics.SetL1SyncHeight(endHeight)
 
 	latestHeaderNumber := headers[len(headers)-1].Number.Uint64()
 	newHeaderNumber := newHeader.Number.Uint64()
@@ -396,6 +419,7 @@ func (s *Service) catchUp(ctx context.Context) error {
 	}
 
 	logger.Info("chain is far behind head, resyncing")
+	s.metrics.SetL1CatchingUp(true)
 
 	for realHeadNum-s.cfg.ConfDepth > currHeadNum+s.cfg.MaxHeaderBatchSize {
 		select {
@@ -414,6 +438,7 @@ func (s *Service) catchUp(ctx context.Context) error {
 	}
 
 	logger.Info("indexer is close enough to tip, starting regular loop")
+	s.metrics.SetL1CatchingUp(false)
 	return nil
 }
 

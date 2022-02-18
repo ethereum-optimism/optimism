@@ -3,6 +3,7 @@ package indexer
 import (
 	"context"
 	"fmt"
+	"github.com/ethereum-optimism/optimism/go/indexer/metrics"
 	"github.com/ethereum-optimism/optimism/go/indexer/server"
 	"github.com/rs/cors"
 	"math/big"
@@ -132,8 +133,16 @@ func NewIndexer(cfg Config, gitVersion string) (*Indexer, error) {
 		return nil, err
 	}
 
+	m := metrics.NewMetrics(nil)
+
 	if cfg.MetricsServerEnable {
-		go runMetricsServer(cfg.MetricsHostname, cfg.MetricsPort)
+		go func() {
+			_, err := m.Serve(cfg.MetricsHostname, cfg.MetricsPort)
+			if err != nil {
+				log.Error("metrics server failed to start", "err", err)
+			}
+		}()
+		log.Info("metrics server enabled", "host", cfg.MetricsHostname, "port", cfg.MetricsPort)
 	}
 
 	dsn := fmt.Sprintf("host=%s port=%d user=%s dbname=%s sslmode=disable",
@@ -158,6 +167,7 @@ func NewIndexer(cfg Config, gitVersion string) (*Indexer, error) {
 
 	l1IndexingService, err := l1.NewService(l1.ServiceConfig{
 		Context:                 ctx,
+		Metrics:                 m,
 		L1Client:                l1Client,
 		RawL1Client:             rawl1Client,
 		L1StandardBridgeAddress: l1StandardBridgeAddress,
@@ -173,6 +183,7 @@ func NewIndexer(cfg Config, gitVersion string) (*Indexer, error) {
 
 	l2IndexingService, err := l2.NewService(l2.ServiceConfig{
 		Context:                 ctx,
+		Metrics:                 m,
 		L2Client:                l2Client,
 		L2StandardBridgeAddress: l2StandardBridgeAddress,
 		DB:                      db,

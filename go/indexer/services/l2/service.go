@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/ethereum-optimism/optimism/go/indexer/metrics"
 	"math/big"
 	"net/http"
 	"strconv"
@@ -12,7 +13,6 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/go/indexer/db"
-	"github.com/ethereum-optimism/optimism/go/indexer/metrics"
 	"github.com/ethereum-optimism/optimism/go/indexer/services/l2/bridge"
 	"github.com/ethereum-optimism/optimism/l2geth/common"
 	l2common "github.com/ethereum-optimism/optimism/l2geth/common"
@@ -69,6 +69,7 @@ func respondWithJSON(w http.ResponseWriter, code int, payload interface{}) {
 
 type ServiceConfig struct {
 	Context                 context.Context
+	Metrics                 *metrics.Metrics
 	L2Client                *l2ethclient.Client
 	ChainID                 *big.Int
 	L2StandardBridgeAddress l2common.Address
@@ -145,6 +146,7 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 		cancel:         cancel,
 		bridges:        bridges,
 		headerSelector: confirmedHeaderSelector,
+		metrics:        cfg.Metrics,
 	}, nil
 }
 
@@ -212,11 +214,14 @@ func (s *Service) Update(newHeader *types.Header) error {
 	startHeight := headers[0].Number.Uint64()
 	endHeight := headers[len(headers)-1].Number.Uint64()
 	withdrawalsByBlockhash := make(map[common.Hash][]db.Withdrawal)
+	tokensByAddress := map[common.Address]*db.Token{
+		db.ETHL2Address: db.ETHL1Token,
+	}
 
 	for _, bridgeImpl := range s.bridges {
 		bridgeWithdrawals, err := bridgeImpl.GetWithdrawalsByBlockRange(startHeight, endHeight)
 		if err != nil {
-			logger.Error(err.Error())
+			logger.Error("an error occurred getting withdrawals", "err", err.Error(), "bridge", bridgeImpl.String())
 			continue
 		}
 
@@ -227,11 +232,16 @@ func (s *Service) Update(newHeader *types.Header) error {
 			// Index L2 ERC20 tokens
 			for _, withdrawals := range bridgeWithdrawals {
 				for _, withdrawal := range withdrawals {
+					if tokensByAddress[withdrawal.L2Token] != nil {
+						continue
+					}
+
 					token, err := s.cfg.DB.GetL2TokenByAddress(withdrawal.L2Token.String())
 					if err != nil {
 						return err
 					}
 					if token != nil {
+						tokensByAddress[withdrawal.L2Token] = token
 						continue
 					}
 					token, err = QueryERC20(withdrawal.L2Token, s.cfg.L2Client)
@@ -245,6 +255,7 @@ func (s *Service) Update(newHeader *types.Header) error {
 					if err := s.cfg.DB.AddL2Token(withdrawal.L2Token.String(), token); err != nil {
 						return err
 					}
+					tokensByAddress[withdrawal.L2Token] = token
 				}
 			}
 		}
@@ -269,17 +280,30 @@ func (s *Service) Update(newHeader *types.Header) error {
 
 		err := s.cfg.DB.AddIndexedL2Block(block)
 		if err != nil {
-			logger.Error("Unable to import ",
-				"block", number, "hash", blockHash, "err", err, "block", block)
+			logger.Error(
+				"Unable to import ",
+				"block", number,
+				"hash", blockHash,
+				"err", err,
+				"block", block,
+			)
 			return err
 		}
 
 		logger.Debug("Imported ",
 			"block", number, "hash", blockHash, "withdrawals", len(block.Withdrawals))
 		for _, withdrawal := range block.Withdrawals {
-			logger.Info("Indexed withdrawal ", "tx_hash", withdrawal.TxHash)
+			token := tokensByAddress[withdrawal.L2Token]
+			logger.Info(
+				"indexed withdrawal ",
+				"tx_hash", withdrawal.TxHash,
+				"symbol", token.Symbol,
+				"amount", withdrawal.Amount,
+			)
 		}
 	}
+
+	s.metrics.SetL2SyncHeight(endHeight)
 
 	latestHeaderNumber := headers[len(headers)-1].Number.Uint64()
 	newHeaderNumber := newHeader.Number.Uint64()
@@ -382,6 +406,8 @@ func (s *Service) catchUp(ctx context.Context) error {
 	}
 
 	logger.Info("chain is far behind head, resyncing")
+	s.metrics.SetL2CatchingUp(true)
+
 	for realHeadNum-s.cfg.ConfDepth > currHeadNum+s.cfg.MaxHeaderBatchSize {
 		select {
 		case <-ctx.Done():
@@ -399,6 +425,7 @@ func (s *Service) catchUp(ctx context.Context) error {
 	}
 
 	logger.Info("indexer is close enough to tip, starting regular loop")
+	s.metrics.SetL2CatchingUp(false)
 	return nil
 }
 

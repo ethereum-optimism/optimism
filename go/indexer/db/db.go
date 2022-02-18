@@ -208,6 +208,22 @@ type Token struct {
 	Decimals uint8  `json:"decimals"`
 }
 
+var ETHL1Token = &Token{
+	Address:  "0x0000000000000000000000000000000000000000",
+	Name:     "Ethereum",
+	Symbol:   "ETH",
+	Decimals: 18,
+}
+
+var ETHL2Address = l2common.HexToAddress("0xDeadDeAddeAddEAddeadDEaDDEAdDeaDDeAD0000")
+
+var ETHL2Token = &Token{
+	Address:  "0xDeadDeAddeAddEAddeadDEaDDEAdDeaDDeAD0000",
+	Name:     "Ethereum",
+	Symbol:   "ETH",
+	Decimals: 18,
+}
+
 type DepositJSON struct {
 	GUID           string `json:"guid"`
 	FromAddress    string `json:"from"`
