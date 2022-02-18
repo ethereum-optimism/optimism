@@ -219,15 +219,38 @@ export class L2IngestionService extends BaseService<L2IngestionServiceOptions> {
         id: '1',
       }
 
-      const resp = await axios.post(
-        this.state.l2RpcProvider.connection.url,
-        req,
-        { responseType: 'stream' }
-      )
-      const respJson = await bfj.parse(resp.data, {
-        yieldRate: 4096, // this yields abit more often than the default of 16384
-      })
-      blocks = respJson.result
+      // Retry the `eth_getBlockRange` query in case the endBlockNumber
+      // is greater than the tip and `null` is returned. This gives time
+      // for the sync to catch up
+      let result = null
+      let retry = 0
+      while (result === null) {
+        if (retry === 6) {
+          throw new Error(
+            `unable to fetch block range [${startBlockNumber},${endBlockNumber})`
+          )
+        }
+
+        const resp = await axios.post(
+          this.state.l2RpcProvider.connection.url,
+          req,
+          { responseType: 'stream' }
+        )
+        const respJson = await bfj.parse(resp.data, {
+          yieldRate: 4096, // this yields abit more often than the default of 16384
+        })
+
+        result = respJson.result
+        if (result === null) {
+          retry++
+          this.logger.info(
+            `request for block range [${startBlockNumber},${endBlockNumber}) returned null, retry ${retry}`
+          )
+          await sleep(1000 * retry)
+        }
+      }
+
+      blocks = result
     }
 
     for (const block of blocks) {
