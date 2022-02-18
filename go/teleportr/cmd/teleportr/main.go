@@ -7,6 +7,7 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/urfave/cli"
 
+	"github.com/ethereum-optimism/optimism/go/teleportr"
 	"github.com/ethereum-optimism/optimism/go/teleportr/flags"
 )
 
@@ -33,9 +34,7 @@ func main() {
 	app.Usage = "Teleportr"
 	app.Description = "Teleportr bridge from L1 to L2"
 
-	app.Action = func(_ *cli.Context) error {
-		return nil
-	}
+	app.Action = teleportr.Main(GitVersion)
 	err := app.Run(os.Args)
 	if err != nil {
 		log.Crit("Application failed", "message", err)
