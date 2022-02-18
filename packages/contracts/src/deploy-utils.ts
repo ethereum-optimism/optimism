@@ -53,9 +53,18 @@ export const deployAndVerifyAndThen = async ({
           address: result.address,
           constructorArguments: args,
         })
-        console.log('Successfully verified')
+        console.log('Successfully verified on Etherscan')
       } catch (error) {
-        console.log('Error when verifying bytecode on etherscan:')
+        console.log('Error when verifying bytecode on Etherscan:')
+        console.log(error)
+      }
+
+      try {
+        console.log('Verifying on Sourcify...')
+        await hre.run('sourcify')
+        console.log('Successfully verified on Sourcify')
+      } catch (error) {
+        console.log('Error when verifying bytecode on Sourcify:')
         console.log(error)
       }
     }
