@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
-import { ethers, Overrides } from 'ethers'
+import { ethers, Contract, Overrides, BigNumber } from 'ethers'
 import { TransactionRequest, BlockTag } from '@ethersproject/abstract-provider'
-import { predeploys } from '@eth-optimism/contracts'
+import { predeploys, getContractInterface } from '@eth-optimism/contracts'
 import { hexStringEquals } from '@eth-optimism/core-utils'
 
 import {
@@ -17,6 +17,14 @@ import { StandardBridgeAdapter } from './standard-bridge'
  * Bridge adapter for the ETH bridge.
  */
 export class ETHBridgeAdapter extends StandardBridgeAdapter {
+  public async approval(
+    l1Token: AddressLike,
+    l2Token: AddressLike,
+    signer: ethers.Signer
+  ): Promise<BigNumber> {
+    throw new Error(`approval not necessary for ETH bridge`)
+  }
+
   public async getDepositsByAddress(
     address: AddressLike,
     opts?: {
@@ -104,6 +112,17 @@ export class ETHBridgeAdapter extends StandardBridgeAdapter {
   }
 
   populateTransaction = {
+    approve: async (
+      l1Token: AddressLike,
+      l2Token: AddressLike,
+      amount: NumberLike,
+      opts?: {
+        overrides?: Overrides
+      }
+    ): Promise<TransactionRequest> => {
+      throw new Error(`approvals not necessary for ETH bridge`)
+    },
+
     deposit: async (
       l1Token: AddressLike,
       l2Token: AddressLike,
