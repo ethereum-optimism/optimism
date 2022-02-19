@@ -92,8 +92,7 @@ contract TeleportrDisburser is Ownable {
             // rather than reverting to prevent blocking progress on other
             // disbursements.
 
-            //slither-disable-next-line calls-inside-a-loop
-            //slither-disable-next-line reentrancy-vulnerabilities-3
+            // slither-disable-next-line calls-loop,reentrancy-events
             (bool success, ) = _addr.call{ value: _amount, gas: 2300 }("");
             if (success) emit DisbursementSuccess(_depositId, _addr, _amount);
             else emit DisbursementFailed(_depositId, _addr, _amount);
