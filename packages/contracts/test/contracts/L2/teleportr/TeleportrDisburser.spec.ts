@@ -5,7 +5,7 @@ import { Signer, Contract, BigNumber } from 'ethers'
 /* Internal Imports */
 import { expect } from '../../../setup'
 
-describe.only('TeleportrDisburser', async () => {
+describe('TeleportrDisburser', async () => {
   const zeroETH = ethers.utils.parseEther('0.0')
   const oneETH = ethers.utils.parseEther('1.0')
   const twoETH = ethers.utils.parseEther('2.0')
