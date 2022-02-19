@@ -9,7 +9,6 @@ import (
 	"math/big"
 	"net/http"
 	"os"
-	"strconv"
 	"time"
 
 	database "github.com/ethereum-optimism/optimism/go/indexer/db"
@@ -21,7 +20,6 @@ import (
 	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/getsentry/sentry-go"
 	"github.com/gorilla/mux"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/urfave/cli"
 )
 
@@ -242,18 +240,6 @@ func (b *Indexer) Stop() {
 		b.l1IndexingService.Stop()
 		b.l2IndexingService.Stop()
 	}
-}
-
-// runMetricsServer spins up a prometheus metrics server at the provided
-// hostname and port.
-//
-// NOTE: This method MUST be run as a goroutine.
-func runMetricsServer(hostname string, port uint64) {
-	metricsPortStr := strconv.FormatUint(port, 10)
-	metricsAddr := fmt.Sprintf("%s:%s", hostname, metricsPortStr)
-
-	http.Handle("/metrics", promhttp.Handler())
-	_ = http.ListenAndServe(metricsAddr, nil)
 }
 
 // dialL1EthClientWithTimeout attempts to dial the L1 provider using the

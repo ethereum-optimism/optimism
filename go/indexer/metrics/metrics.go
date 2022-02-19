@@ -126,6 +126,7 @@ func (m *Metrics) Serve(hostname string, port uint64) (*http.Server, error) {
 	mux.Handle("/metrics", promhttp.Handler())
 	srv := new(http.Server)
 	srv.Addr = fmt.Sprintf("%s:%d", hostname, port)
+	srv.Handler = mux
 	err := srv.ListenAndServe()
 	return srv, err
 }
