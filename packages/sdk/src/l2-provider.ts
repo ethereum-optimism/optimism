@@ -31,7 +31,7 @@ export const getL1GasPrice = async (
   l2Provider: ProviderLike
 ): Promise<BigNumber> => {
   const gpo = connectGasPriceOracle(l2Provider)
-  return gpo.gasPrice()
+  return gpo.l1BaseFee()
 }
 
 /**
@@ -48,7 +48,11 @@ export const estimateL1Gas = async (
   const gpo = connectGasPriceOracle(l2Provider)
   return gpo.getL1GasUsed(
     serialize({
-      ...tx,
+      data: tx.data,
+      to: tx.to,
+      gasPrice: tx.gasPrice,
+      type: tx.type,
+      gasLimit: tx.gasLimit,
       nonce: toNumber(tx.nonce as NumberLike),
     })
   )
@@ -68,7 +72,11 @@ export const estimateL1GasCost = async (
   const gpo = connectGasPriceOracle(l2Provider)
   return gpo.getL1Fee(
     serialize({
-      ...tx,
+      data: tx.data,
+      to: tx.to,
+      gasPrice: tx.gasPrice,
+      type: tx.type,
+      gasLimit: tx.gasLimit,
       nonce: toNumber(tx.nonce as NumberLike),
     })
   )
