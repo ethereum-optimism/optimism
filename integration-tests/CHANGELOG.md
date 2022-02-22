@@ -1,5 +1,12 @@
 # @eth-optimism/integration-tests
 
+## 0.5.4
+
+### Patch Changes
+
+- dc5f6517: Deletes watcher-utils.ts. Moves it's utilities into env.ts.
+- dcdcc757: Removes message relaying utilities from the Message Relayer, to be replaced by the SDK
+
 ## 0.5.3
 
 ### Patch Changes

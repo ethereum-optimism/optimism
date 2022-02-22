@@ -1,5 +1,11 @@
 # @eth-optimism/batch-submitter-service
 
+## 0.1.4
+
+### Patch Changes
+
+- bcbde5f3: Fixes a bug that causes the txmgr to not wait for the configured numConfirmations
+
 ## 0.1.3
 
 ### Patch Changes

@@ -1,5 +1,11 @@
 # @eth-optimism/core-utils
 
+## 0.8.0
+
+### Minor Changes
+
+- 0b4453f7: Deletes the Watcher and injectL2Context functions. Use the SDK instead.
+
 ## 0.7.7
 
 ### Patch Changes
