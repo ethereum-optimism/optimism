@@ -307,6 +307,7 @@ func (s *Service) Update(newHeader *types.Header) error {
 				"symbol", token.Symbol,
 				"amount", withdrawal.Amount,
 			)
+			s.metrics.RecordWithdrawal(withdrawal.L2Token)
 		}
 	}
 

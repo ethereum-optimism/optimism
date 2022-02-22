@@ -12,7 +12,7 @@ import (
 	_ "github.com/lib/pq"
 )
 
-var createL1BlocksTable = `
+const createL1BlocksTable = `
 CREATE TABLE IF NOT EXISTS l1_blocks (
 	hash VARCHAR NOT NULL PRIMARY KEY,
 	parent_hash VARCHAR NOT NULL,
@@ -21,7 +21,7 @@ CREATE TABLE IF NOT EXISTS l1_blocks (
 )
 `
 
-var createL2BlocksTable = `
+const createL2BlocksTable = `
 CREATE TABLE IF NOT EXISTS l2_blocks (
 	hash VARCHAR NOT NULL PRIMARY KEY,
 	parent_hash VARCHAR NOT NULL,
@@ -30,7 +30,7 @@ CREATE TABLE IF NOT EXISTS l2_blocks (
 )
 `
 
-var createDepositsTable = `
+const createDepositsTable = `
 CREATE TABLE IF NOT EXISTS deposits (
 	guid VARCHAR PRIMARY KEY NOT NULL,
 	from_address VARCHAR NOT NULL,
@@ -45,7 +45,7 @@ CREATE TABLE IF NOT EXISTS deposits (
 )
 `
 
-var createL1TokensTable = `
+const createL1TokensTable = `
 CREATE TABLE IF NOT EXISTS l1_tokens (
 	address VARCHAR NOT NULL PRIMARY KEY,
 	name VARCHAR NOT NULL,
@@ -54,7 +54,7 @@ CREATE TABLE IF NOT EXISTS l1_tokens (
 )
 `
 
-var createWithdrawalsTable = `
+const createWithdrawalsTable = `
 CREATE TABLE IF NOT EXISTS withdrawals (
 	guid VARCHAR PRIMARY KEY NOT NULL,
 	from_address VARCHAR NOT NULL,
@@ -69,7 +69,7 @@ CREATE TABLE IF NOT EXISTS withdrawals (
 )
 `
 
-var createL2TokensTable = `
+const createL2TokensTable = `
 CREATE TABLE IF NOT EXISTS l2_tokens (
 	address TEXT NOT NULL PRIMARY KEY,
 	name TEXT NOT NULL,
@@ -78,25 +78,30 @@ CREATE TABLE IF NOT EXISTS l2_tokens (
 )
 `
 
-var insertETHL1Token = `
-	INSERT INTO l1_tokens
-		(address, name, symbol, decimals)
-	VALUES ('0x0000000000000000000000000000000000000000', 'Ethereum', 'ETH', 18)
-	ON CONFLICT (address) DO NOTHING;
+const insertETHL1Token = `
+INSERT INTO l1_tokens
+	(address, name, symbol, decimals)
+VALUES ('0x0000000000000000000000000000000000000000', 'Ethereum', 'ETH', 18)
+ON CONFLICT (address) DO NOTHING;
 `
 
 // earlier transactions used 0x0000000000000000000000000000000000000000 as
 // address of ETH so insert both that and
 // 0xDeadDeAddeAddEAddeadDEaDDEAdDeaDDeAD0000
-var insertETHL2Token = `
-	INSERT INTO l2_tokens
-		(address, name, symbol, decimals)
-	VALUES ('0xDeadDeAddeAddEAddeadDEaDDEAdDeaDDeAD0000', 'Ethereum', 'ETH', 18)
-	ON CONFLICT (address) DO NOTHING;
-	INSERT INTO l2_tokens
-		(address, name, symbol, decimals)
-	VALUES ('0x0000000000000000000000000000000000000000', 'Ethereum', 'ETH', 18)
-	ON CONFLICT (address) DO NOTHING;
+const insertETHL2Token = `
+INSERT INTO l2_tokens
+	(address, name, symbol, decimals)
+VALUES ('0xDeadDeAddeAddEAddeadDEaDDEAdDeaDDeAD0000', 'Ethereum', 'ETH', 18)
+ON CONFLICT (address) DO NOTHING;
+INSERT INTO l2_tokens
+	(address, name, symbol, decimals)
+VALUES ('0x0000000000000000000000000000000000000000', 'Ethereum', 'ETH', 18)
+ON CONFLICT (address) DO NOTHING;
+`
+
+const createL1L2NumberIndex = `
+CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS l1_blocks_number ON l1_blocks(number);
+CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS l2_blocks_number ON l2_blocks(number);
 `
 
 type PaginationParam struct {
@@ -113,6 +118,7 @@ var schema = []string{
 	insertETHL2Token,
 	createDepositsTable,
 	createWithdrawalsTable,
+	createL1L2NumberIndex,
 }
 
 type TxnEnqueuedEvent struct {
