@@ -54,13 +54,18 @@ type Driver interface {
 		start, end, nonce *big.Int,
 	) (*types.Transaction, error)
 
-	// SubmitBatchTx using the passed transaction as a template, signs and
-	// publishes the transaction unmodified apart from sampling the current gas
-	// price. The final transaction is returned to the caller.
-	SubmitBatchTx(
+	// UpdateGasPrice signs an otherwise identical txn to the one provided but
+	// with updated gas prices sampled from the existing network conditions.
+	//
+	// NOTE: Thie method SHOULD NOT publish the resulting transaction.
+	UpdateGasPrice(
 		ctx context.Context,
 		tx *types.Transaction,
 	) (*types.Transaction, error)
+
+	// SendTransaction injects a signed transaction into the pending pool for
+	// execution.
+	SendTransaction(ctx context.Context, tx *types.Transaction) error
 }
 
 type ServiceConfig struct {
@@ -193,30 +198,19 @@ func (s *Service) eventLoop() {
 
 			// Construct the transaction submission clousure that will attempt
 			// to send the next transaction at the given nonce and gas price.
-			sendTx := func(ctx context.Context) (*types.Transaction, error) {
-				log.Info(name+" attempting batch tx", "start", start,
+			updateGasPrice := func(ctx context.Context) (*types.Transaction, error) {
+				log.Info(name+" updating batch tx gas price", "start", start,
 					"end", end, "nonce", nonce)
 
-				tx, err := s.cfg.Driver.SubmitBatchTx(ctx, tx)
-				if err != nil {
-					return nil, err
-				}
-
-				log.Info(
-					name+" submitted batch tx",
-					"start", start,
-					"end", end,
-					"nonce", nonce,
-					"tx_hash", tx.Hash(),
-				)
-
-				return tx, nil
+				return s.cfg.Driver.UpdateGasPrice(ctx, tx)
 			}
 
 			// Wait until one of our submitted transactions confirms. If no
 			// receipt is received it's likely our gas price was too low.
 			batchConfirmationStart := time.Now()
-			receipt, err := s.txMgr.Send(s.ctx, sendTx)
+			receipt, err := s.txMgr.Send(
+				s.ctx, updateGasPrice, s.cfg.Driver.SendTransaction,
+			)
 			if err != nil {
 				log.Error(name+" unable to publish batch tx",
 					"err", err)

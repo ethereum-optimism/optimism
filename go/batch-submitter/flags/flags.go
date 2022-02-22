@@ -80,6 +80,14 @@ var (
 		Required: true,
 		EnvVar:   prefixEnvVar("NUM_CONFIRMATIONS"),
 	}
+	SafeAbortNonceTooLowCountFlag = cli.Uint64Flag{
+		Name: "safe-abort-nonce-too-low-count",
+		Usage: "Number of ErrNonceTooLow observations required to " +
+			"give up on a tx at a particular nonce without receiving " +
+			"confirmation",
+		Required: true,
+		EnvVar:   prefixEnvVar("SAFE_ABORT_NONCE_TOO_LOW_COUNT"),
+	}
 	ResubmissionTimeoutFlag = cli.DurationFlag{
 		Name: "resubmission-timeout",
 		Usage: "Duration we will wait before resubmitting a " +
@@ -221,6 +229,7 @@ var requiredFlags = []cli.Flag{
 	MaxBatchSubmissionTimeFlag,
 	PollIntervalFlag,
 	NumConfirmationsFlag,
+	SafeAbortNonceTooLowCountFlag,
 	ResubmissionTimeoutFlag,
 	FinalityConfirmationsFlag,
 	RunTxBatchSubmitterFlag,

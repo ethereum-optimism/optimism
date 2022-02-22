@@ -8,15 +8,16 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 )
 
-// SendTxFunc defines a function signature for publishing a desired tx with a
-// specific gas price. Implementations of this signature should also return
-// promptly when the context is canceled.
-type SendTxFunc = func(ctx context.Context) (*types.Transaction, error)
+// UpdateGasPriceSendTxFunc defines a function signature for publishing a
+// desired tx with a specific gas price. Implementations of this signature
+// should also return promptly when the context is canceled.
+type UpdateGasPriceFunc = func(ctx context.Context) (*types.Transaction, error)
+
+type SendTransactionFunc = func(ctx context.Context, tx *types.Transaction) error
 
 // Config houses parameters for altering the behavior of a SimpleTxManager.
 type Config struct {
@@ -37,6 +38,11 @@ type Config struct {
 	// NumConfirmations specifies how many blocks are need to consider a
 	// transaction confirmed.
 	NumConfirmations uint64
+
+	// SafeAbortNonceTooLowCount specifies how many ErrNonceTooLow observations
+	// are required to give up on a tx at a particular nonce without receiving
+	// confirmation.
+	SafeAbortNonceTooLowCount uint64
 }
 
 // TxManager is an interface that allows callers to reliably publish txs,
@@ -48,7 +54,11 @@ type TxManager interface {
 	// prices). The method may be canceled using the passed context.
 	//
 	// NOTE: Send should be called by AT MOST one caller at a time.
-	Send(ctx context.Context, sendTx SendTxFunc) (*types.Receipt, error)
+	Send(
+		ctx context.Context,
+		updateGasPrice UpdateGasPriceFunc,
+		sendTxn SendTransactionFunc,
+	) (*types.Receipt, error)
 }
 
 // ReceiptSource is a minimal function signature used to detect the confirmation
@@ -96,7 +106,10 @@ func NewSimpleTxManager(
 //
 // NOTE: Send should be called by AT MOST one caller at a time.
 func (m *SimpleTxManager) Send(
-	ctx context.Context, sendTx SendTxFunc) (*types.Receipt, error) {
+	ctx context.Context,
+	updateGasPrice UpdateGasPriceFunc,
+	sendTx SendTransactionFunc,
+) (*types.Receipt, error) {
 
 	name := m.name
 
@@ -112,6 +125,8 @@ func (m *SimpleTxManager) Send(
 	ctxc, cancel := context.WithCancel(ctx)
 	defer cancel()
 
+	sendState := NewSendState(m.cfg.SafeAbortNonceTooLowCount)
+
 	// Create a closure that will block on passed sendTx function in the
 	// background, returning the first successfully mined receipt back to
 	// the main event loop via receiptChan.
@@ -119,36 +134,52 @@ func (m *SimpleTxManager) Send(
 	sendTxAsync := func() {
 		defer wg.Done()
 
+		tx, err := updateGasPrice(ctxc)
+		if err != nil {
+			if err == context.Canceled ||
+				strings.Contains(err.Error(), "context canceled") {
+				return
+			}
+			log.Error(name+" unable to update txn gas price", "err", err)
+			return
+		}
+
+		txHash := tx.Hash()
+		nonce := tx.Nonce()
+		gasTipCap := tx.GasTipCap()
+		gasFeeCap := tx.GasFeeCap()
+		log.Info(name+" publishing transaction", "txHash", txHash,
+			"nonce", nonce, "gasTipCap", gasTipCap, "gasFeeCap", gasFeeCap)
+
 		// Sign and publish transaction with current gas price.
-		tx, err := sendTx(ctxc)
+		err = sendTx(ctxc, tx)
+		sendState.ProcessSendError(err)
 		if err != nil {
 			if err == context.Canceled ||
 				strings.Contains(err.Error(), "context canceled") {
 				return
 			}
 			log.Error(name+" unable to publish transaction", "err", err)
-			if shouldAbortImmediately(err) {
+			if sendState.ShouldAbortImmediately() {
 				cancel()
 			}
 			// TODO(conner): add retry?
 			return
 		}
 
-		txHash := tx.Hash()
-		gasTipCap := tx.GasTipCap()
-		gasFeeCap := tx.GasFeeCap()
 		log.Info(name+" transaction published successfully", "hash", txHash,
-			"gasTipCap", gasTipCap, "gasFeeCap", gasFeeCap)
+			"nonce", nonce, "gasTipCap", gasTipCap, "gasFeeCap", gasFeeCap)
 
 		// Wait for the transaction to be mined, reporting the receipt
 		// back to the main event loop if found.
-		receipt, err := WaitMined(
+		receipt, err := waitMined(
 			ctxc, m.backend, tx, m.cfg.ReceiptQueryInterval,
-			m.cfg.NumConfirmations,
+			m.cfg.NumConfirmations, sendState,
 		)
 		if err != nil {
 			log.Debug(name+" send tx failed", "hash", txHash,
-				"gasTipCap", gasTipCap, "gasFeeCap", gasFeeCap, "err", err)
+				"nonce", nonce, "gasTipCap", gasTipCap, "gasFeeCap", gasFeeCap,
+				"err", err)
 		}
 		if receipt != nil {
 			// Use non-blocking select to ensure function can exit
@@ -156,7 +187,8 @@ func (m *SimpleTxManager) Send(
 			select {
 			case receiptChan <- receipt:
 				log.Trace(name+" send tx succeeded", "hash", txHash,
-					"gasTipCap", gasTipCap, "gasFeeCap", gasFeeCap)
+					"nonce", nonce, "gasTipCap", gasTipCap,
+					"gasFeeCap", gasFeeCap)
 			default:
 			}
 		}
@@ -174,6 +206,14 @@ func (m *SimpleTxManager) Send(
 		// Whenever a resubmission timeout has elapsed, bump the gas
 		// price and publish a new transaction.
 		case <-time.After(m.cfg.ResubmissionTimeout):
+			// Avoid republishing if we are waiting for confirmation on an
+			// existing tx. This is primarily an optimization to reduce the
+			// number of API calls we make, but also reduces the chances of
+			// getting a false postive reading for ShouldAbortImmediately.
+			if sendState.IsWaitingForConfirmation() {
+				continue
+			}
+
 			// Submit and wait for the bumped traction to confirm.
 			wg.Add(1)
 			go sendTxAsync()
@@ -190,13 +230,6 @@ func (m *SimpleTxManager) Send(
 	}
 }
 
-// shouldAbortImmediately returns true if the txmgr should cancel all
-// publication attempts and retry. For now, this only includes nonce errors, as
-// that error indicates that none of the transactions will ever confirm.
-func shouldAbortImmediately(err error) bool {
-	return strings.Contains(err.Error(), core.ErrNonceTooLow.Error())
-}
-
 // WaitMined blocks until the backend indicates confirmation of tx and returns
 // the tx receipt. Queries are made every queryInterval, regardless of whether
 // the backend returns an error. This method can be canceled using the passed
@@ -208,6 +241,19 @@ func WaitMined(
 	queryInterval time.Duration,
 	numConfirmations uint64,
 ) (*types.Receipt, error) {
+	return waitMined(ctx, backend, tx, queryInterval, numConfirmations, nil)
+}
+
+// waitMined implements the core functionality of WaitMined, with the option to
+// pass in a SendState to record whether or not the transaction is mined.
+func waitMined(
+	ctx context.Context,
+	backend ReceiptSource,
+	tx *types.Transaction,
+	queryInterval time.Duration,
+	numConfirmations uint64,
+	sendState *SendState,
+) (*types.Receipt, error) {
 
 	queryTicker := time.NewTicker(queryInterval)
 	defer queryTicker.Stop()
@@ -218,6 +264,10 @@ func WaitMined(
 		receipt, err := backend.TransactionReceipt(ctx, txHash)
 		switch {
 		case receipt != nil:
+			if sendState != nil {
+				sendState.TxMined(txHash)
+			}
+
 			txHeight := receipt.BlockNumber.Uint64()
 			tipHeight, err := backend.BlockNumber(ctx)
 			if err != nil {
@@ -252,6 +302,9 @@ func WaitMined(
 				"err", err)
 
 		default:
+			if sendState != nil {
+				sendState.TxNotMined(txHash)
+			}
 			log.Trace("Transaction not yet mined", "hash", txHash)
 		}
 

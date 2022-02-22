@@ -1,1 +1,1 @@
-export * from './relay-tx'
+export * from './service'

@@ -1,5 +1,9 @@
 /* Imports: External */
-import { fromHexString, FallbackProvider } from '@eth-optimism/core-utils'
+import {
+  fromHexString,
+  FallbackProvider,
+  sleep,
+} from '@eth-optimism/core-utils'
 import { BaseService, Metrics } from '@eth-optimism/common-ts'
 import { TypedEvent } from '@eth-optimism/contracts/dist/types/common'
 import { BaseProvider } from '@ethersproject/providers'
@@ -15,7 +19,6 @@ import { MissingElementError } from './handlers/errors'
 import { TransportDB } from '../../db/transport-db'
 import {
   OptimismContracts,
-  sleep,
   loadOptimismContracts,
   loadContract,
   validators,

@@ -642,7 +642,7 @@ func hashish(x string) bool {
 
 func fetchGenesis(url string) ([]byte, error) {
 	client := &http.Client{
-		Timeout: 10 * time.Second,
+		Timeout: 60 * time.Second,
 	}
 	resp, err := client.Get(url)
 	if err != nil {

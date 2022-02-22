@@ -37,12 +37,10 @@
     "@ethersproject/providers": "^5.5.3",
     "@ethersproject/web": "^5.5.1",
     "chai": "^4.3.4",
-    "ethers": "^5.5.4",
-    "lodash": "^4.17.21"
+    "ethers": "^5.5.4"
   },
   "devDependencies": {
     "@types/chai": "^4.2.18",
-    "@types/lodash": "^4.14.168",
     "@types/mocha": "^8.2.2",
     "@typescript-eslint/eslint-plugin": "^4.26.0",
     "@typescript-eslint/parser": "^4.26.0",

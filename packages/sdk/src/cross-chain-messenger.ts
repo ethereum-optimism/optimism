@@ -109,7 +109,7 @@ export class CrossChainMessenger implements ICrossChainMessenger {
     if (Provider.isProvider(this.l1SignerOrProvider)) {
       return this.l1SignerOrProvider
     } else {
-      return this.l1SignerOrProvider.provider
+      return this.l1SignerOrProvider.provider as any
     }
   }
 
@@ -117,7 +117,7 @@ export class CrossChainMessenger implements ICrossChainMessenger {
     if (Provider.isProvider(this.l2SignerOrProvider)) {
       return this.l2SignerOrProvider
     } else {
-      return this.l2SignerOrProvider.provider
+      return this.l2SignerOrProvider.provider as any
     }
   }
 
@@ -143,6 +143,13 @@ export class CrossChainMessenger implements ICrossChainMessenger {
       direction?: MessageDirection
     } = {}
   ): Promise<CrossChainMessage[]> {
+    // Wait for the transaction receipt if the input is waitable.
+    // TODO: Maybe worth doing this with more explicit typing but whatever for now.
+    if (typeof (transaction as any).wait === 'function') {
+      await (transaction as any).wait()
+    }
+
+    // Convert the input to a transaction hash.
     const txHash = toTransactionHash(transaction)
 
     let receipt: TransactionReceipt
@@ -654,6 +661,11 @@ export class CrossChainMessenger implements ICrossChainMessenger {
     let batchEvent: ethers.Event | null =
       await this.getStateBatchAppendedEventByBatchIndex(upperBound)
 
+    // Only happens when no batches have been submitted yet.
+    if (batchEvent === null) {
+      return null
+    }
+
     if (isEventLo(batchEvent, transactionIndex)) {
       // Upper bound is too low, means this transaction doesn't have a corresponding state batch yet.
       return null
@@ -832,6 +844,36 @@ export class CrossChainMessenger implements ICrossChainMessenger {
     )
   }
 
+  public async approval(
+    l1Token: AddressLike,
+    l2Token: AddressLike,
+    opts?: {
+      signer?: Signer
+    }
+  ): Promise<BigNumber> {
+    const bridge = await this.getBridgeForTokenPair(l1Token, l2Token)
+    return bridge.approval(l1Token, l2Token, opts?.signer || this.l1Signer)
+  }
+
+  public async approveERC20(
+    l1Token: AddressLike,
+    l2Token: AddressLike,
+    amount: NumberLike,
+    opts?: {
+      signer?: Signer
+      overrides?: Overrides
+    }
+  ): Promise<TransactionResponse> {
+    return (opts?.signer || this.l1Signer).sendTransaction(
+      await this.populateTransaction.approveERC20(
+        l1Token,
+        l2Token,
+        amount,
+        opts
+      )
+    )
+  }
+
   public async depositERC20(
     l1Token: AddressLike,
     l2Token: AddressLike,
@@ -974,6 +1016,18 @@ export class CrossChainMessenger implements ICrossChainMessenger {
       )
     },
 
+    approveERC20: async (
+      l1Token: AddressLike,
+      l2Token: AddressLike,
+      amount: NumberLike,
+      opts?: {
+        overrides?: Overrides
+      }
+    ): Promise<TransactionRequest> => {
+      const bridge = await this.getBridgeForTokenPair(l1Token, l2Token)
+      return bridge.populateTransaction.approve(l1Token, l2Token, amount, opts)
+    },
+
     depositERC20: async (
       l1Token: AddressLike,
       l2Token: AddressLike,
@@ -1067,6 +1121,24 @@ export class CrossChainMessenger implements ICrossChainMessenger {
     ): Promise<BigNumber> => {
       return this.l2Provider.estimateGas(
         await this.populateTransaction.withdrawETH(amount, opts)
+      )
+    },
+
+    approveERC20: async (
+      l1Token: AddressLike,
+      l2Token: AddressLike,
+      amount: NumberLike,
+      opts?: {
+        overrides?: Overrides
+      }
+    ): Promise<BigNumber> => {
+      return this.l1Provider.estimateGas(
+        await this.populateTransaction.approveERC20(
+          l1Token,
+          l2Token,
+          amount,
+          opts
+        )
       )
     },
 

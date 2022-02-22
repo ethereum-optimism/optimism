@@ -412,6 +412,44 @@ export interface ICrossChainMessenger {
   ): Promise<TransactionResponse>
 
   /**
+   * Queries the account's approval amount for a given L1 token.
+   *
+   * @param l1Token The L1 token address.
+   * @param l2Token The L2 token address.
+   * @param opts Additional options.
+   * @param opts.signer Optional signer to get the approval for.
+   * @returns Amount of tokens approved for deposits from the account.
+   */
+  approval(
+    l1Token: AddressLike,
+    l2Token: AddressLike,
+    opts?: {
+      signer?: Signer
+    }
+  ): Promise<BigNumber>
+
+  /**
+   * Approves a deposit into the L2 chain.
+   *
+   * @param l1Token The L1 token address.
+   * @param l2Token The L2 token address.
+   * @param amount Amount of the token to approve.
+   * @param opts Additional options.
+   * @param opts.signer Optional signer to use to send the transaction.
+   * @param opts.overrides Optional transaction overrides.
+   * @returns Transaction response for the approval transaction.
+   */
+  approveERC20(
+    l1Token: AddressLike,
+    l2Token: AddressLike,
+    amount: NumberLike,
+    opts?: {
+      signer?: Signer
+      overrides?: Overrides
+    }
+  ): Promise<TransactionResponse>
+
+  /**
    * Deposits some ERC20 tokens into the L2 chain.
    *
    * @param l1Token Address of the L1 token.
@@ -512,6 +550,25 @@ export interface ICrossChainMessenger {
      */
     finalizeMessage(
       message: MessageLike,
+      opts?: {
+        overrides?: Overrides
+      }
+    ): Promise<TransactionRequest>
+
+    /**
+     * Generates a transaction for approving some tokens to deposit into the L2 chain.
+     *
+     * @param l1Token The L1 token address.
+     * @param l2Token The L2 token address.
+     * @param amount Amount of the token to approve.
+     * @param opts Additional options.
+     * @param opts.overrides Optional transaction overrides.
+     * @returns Transaction response for the approval transaction.
+     */
+    approveERC20(
+      l1Token: AddressLike,
+      l2Token: AddressLike,
+      amount: NumberLike,
       opts?: {
         overrides?: Overrides
       }
@@ -647,6 +704,25 @@ export interface ICrossChainMessenger {
      */
     finalizeMessage(
       message: MessageLike,
+      opts?: {
+        overrides?: Overrides
+      }
+    ): Promise<BigNumber>
+
+    /**
+     * Estimates gas required to approve some tokens to deposit into the L2 chain.
+     *
+     * @param l1Token The L1 token address.
+     * @param l2Token The L2 token address.
+     * @param amount Amount of the token to approve.
+     * @param opts Additional options.
+     * @param opts.overrides Optional transaction overrides.
+     * @returns Transaction response for the approval transaction.
+     */
+    approveERC20(
+      l1Token: AddressLike,
+      l2Token: AddressLike,
+      amount: NumberLike,
       opts?: {
         overrides?: Overrides
       }

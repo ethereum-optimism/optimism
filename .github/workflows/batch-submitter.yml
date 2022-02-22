@@ -11,7 +11,7 @@ on:
       - 'regenesis/*'
   pull_request:
     paths:
-      - 'go/batch-submitter/*'
+      - 'go/batch-submitter/**'
   workflow_dispatch:
 
 defaults:

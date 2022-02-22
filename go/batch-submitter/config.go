@@ -89,6 +89,11 @@ type Config struct {
 	// appending new batches.
 	NumConfirmations uint64
 
+	// SafeAbortNonceTooLowCount is the number of ErrNonceTooLowObservations
+	// required to give up on a tx at a particular nonce without receiving
+	// confirmation.
+	SafeAbortNonceTooLowCount uint64
+
 	// ResubmissionTimeout is time we will wait before resubmitting a
 	// transaction.
 	ResubmissionTimeout time.Duration
@@ -178,22 +183,23 @@ type Config struct {
 func NewConfig(ctx *cli.Context) (Config, error) {
 	cfg := Config{
 		/* Required Flags */
-		BuildEnv:                ctx.GlobalString(flags.BuildEnvFlag.Name),
-		EthNetworkName:          ctx.GlobalString(flags.EthNetworkNameFlag.Name),
-		L1EthRpc:                ctx.GlobalString(flags.L1EthRpcFlag.Name),
-		L2EthRpc:                ctx.GlobalString(flags.L2EthRpcFlag.Name),
-		CTCAddress:              ctx.GlobalString(flags.CTCAddressFlag.Name),
-		SCCAddress:              ctx.GlobalString(flags.SCCAddressFlag.Name),
-		MaxL1TxSize:             ctx.GlobalUint64(flags.MaxL1TxSizeFlag.Name),
-		MaxBatchSubmissionTime:  ctx.GlobalDuration(flags.MaxBatchSubmissionTimeFlag.Name),
-		PollInterval:            ctx.GlobalDuration(flags.PollIntervalFlag.Name),
-		NumConfirmations:        ctx.GlobalUint64(flags.NumConfirmationsFlag.Name),
-		ResubmissionTimeout:     ctx.GlobalDuration(flags.ResubmissionTimeoutFlag.Name),
-		FinalityConfirmations:   ctx.GlobalUint64(flags.FinalityConfirmationsFlag.Name),
-		RunTxBatchSubmitter:     ctx.GlobalBool(flags.RunTxBatchSubmitterFlag.Name),
-		RunStateBatchSubmitter:  ctx.GlobalBool(flags.RunStateBatchSubmitterFlag.Name),
-		SafeMinimumEtherBalance: ctx.GlobalUint64(flags.SafeMinimumEtherBalanceFlag.Name),
-		ClearPendingTxs:         ctx.GlobalBool(flags.ClearPendingTxsFlag.Name),
+		BuildEnv:                  ctx.GlobalString(flags.BuildEnvFlag.Name),
+		EthNetworkName:            ctx.GlobalString(flags.EthNetworkNameFlag.Name),
+		L1EthRpc:                  ctx.GlobalString(flags.L1EthRpcFlag.Name),
+		L2EthRpc:                  ctx.GlobalString(flags.L2EthRpcFlag.Name),
+		CTCAddress:                ctx.GlobalString(flags.CTCAddressFlag.Name),
+		SCCAddress:                ctx.GlobalString(flags.SCCAddressFlag.Name),
+		MaxL1TxSize:               ctx.GlobalUint64(flags.MaxL1TxSizeFlag.Name),
+		MaxBatchSubmissionTime:    ctx.GlobalDuration(flags.MaxBatchSubmissionTimeFlag.Name),
+		PollInterval:              ctx.GlobalDuration(flags.PollIntervalFlag.Name),
+		NumConfirmations:          ctx.GlobalUint64(flags.NumConfirmationsFlag.Name),
+		SafeAbortNonceTooLowCount: ctx.GlobalUint64(flags.SafeAbortNonceTooLowCountFlag.Name),
+		ResubmissionTimeout:       ctx.GlobalDuration(flags.ResubmissionTimeoutFlag.Name),
+		FinalityConfirmations:     ctx.GlobalUint64(flags.FinalityConfirmationsFlag.Name),
+		RunTxBatchSubmitter:       ctx.GlobalBool(flags.RunTxBatchSubmitterFlag.Name),
+		RunStateBatchSubmitter:    ctx.GlobalBool(flags.RunStateBatchSubmitterFlag.Name),
+		SafeMinimumEtherBalance:   ctx.GlobalUint64(flags.SafeMinimumEtherBalanceFlag.Name),
+		ClearPendingTxs:           ctx.GlobalBool(flags.ClearPendingTxsFlag.Name),
 		/* Optional Flags */
 		LogLevel:            ctx.GlobalString(flags.LogLevelFlag.Name),
 		LogTerminal:         ctx.GlobalBool(flags.LogTerminalFlag.Name),

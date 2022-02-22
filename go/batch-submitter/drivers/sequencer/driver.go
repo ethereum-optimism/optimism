@@ -257,10 +257,11 @@ func (d *Driver) CraftBatchTx(
 	}
 }
 
-// SubmitBatchTx using the passed transaction as a template, signs and publishes
-// the transaction unmodified apart from sampling the current gas price. The
-// final transaction is returned to the caller.
-func (d *Driver) SubmitBatchTx(
+// UpdateGasPrice signs an otherwise identical txn to the one provided but with
+// updated gas prices sampled from the existing network conditions.
+//
+// NOTE: Thie method SHOULD NOT publish the resulting transaction.
+func (d *Driver) UpdateGasPrice(
 	ctx context.Context,
 	tx *types.Transaction,
 ) (*types.Transaction, error) {
@@ -273,6 +274,7 @@ func (d *Driver) SubmitBatchTx(
 	}
 	opts.Context = ctx
 	opts.Nonce = new(big.Int).SetUint64(tx.Nonce())
+	opts.NoSend = true
 
 	finalTx, err := d.rawCtcContract.RawTransact(opts, tx.Data())
 	switch {
@@ -294,4 +296,13 @@ func (d *Driver) SubmitBatchTx(
 	default:
 		return nil, err
 	}
+}
+
+// SendTransaction injects a signed transaction into the pending pool for
+// execution.
+func (d *Driver) SendTransaction(
+	ctx context.Context,
+	tx *types.Transaction,
+) error {
+	return d.cfg.L1Client.SendTransaction(ctx, tx)
 }

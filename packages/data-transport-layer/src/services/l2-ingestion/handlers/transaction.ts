@@ -1,6 +1,7 @@
 /* Imports: External */
 import { BigNumber, ethers } from 'ethers'
 import { serialize } from '@ethersproject/transactions'
+import { padHexString } from '@eth-optimism/core-utils'
 
 /* Imports: Internal */
 import { TransportDB } from '../../../db/transport-db'
@@ -9,7 +10,7 @@ import {
   StateRootEntry,
   TransactionEntry,
 } from '../../../types'
-import { padHexString, parseSignatureVParam } from '../../../utils'
+import { parseSignatureVParam } from '../../../utils'
 
 export const handleSequencerBlock = {
   parseBlock: async (
