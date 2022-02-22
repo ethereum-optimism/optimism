@@ -1,5 +1,21 @@
 # @eth-optimism/message-relayer
 
+## 0.3.0
+
+### Minor Changes
+
+- dcdcc757: Removes message relaying utilities from the Message Relayer, to be replaced by the SDK
+
+### Patch Changes
+
+- 189f63be: Update message relayer to log sent tx hashes
+- Updated dependencies [f37c283c]
+- Updated dependencies [3f4d3c13]
+- Updated dependencies [0b4453f7]
+- Updated dependencies [0c54e60e]
+  - @eth-optimism/sdk@0.2.3
+  - @eth-optimism/core-utils@0.8.0
+
 ## 0.2.18
 
 ### Patch Changes
