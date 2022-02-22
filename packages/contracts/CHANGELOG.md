@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.5.15
+
+### Patch Changes
+
+- 78298782: Contracts are additionally verified on sourcify during deploy. This should reduce manual labor during future regeneses.
+- Updated dependencies [0b4453f7]
+  - @eth-optimism/core-utils@0.8.0
+
 ## 0.5.14
 
 ### Patch Changes

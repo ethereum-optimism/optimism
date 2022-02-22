@@ -1,5 +1,17 @@
 # @eth-optimism/sdk
 
+## 0.2.3
+
+### Patch Changes
+
+- f37c283c: Have SDK properly handle case when no batches are submitted yet
+- 3f4d3c13: Have SDK wait for transactions in getMessagesByTransaction
+- 0c54e60e: Add approval functions to the SDK
+- Updated dependencies [0b4453f7]
+- Updated dependencies [78298782]
+  - @eth-optimism/core-utils@0.8.0
+  - @eth-optimism/contracts@0.5.15
+
 ## 0.2.2
 
 ### Patch Changes

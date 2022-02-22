@@ -1,5 +1,18 @@
 # data transport layer
 
+## 0.5.18
+
+### Patch Changes
+
+- b8ee3e05: Add logging when BSS HF1 is active
+- 4878667a: Deletes common.ts in data-transport-layer. Uses core-utils.
+- e9602d86: Handle null response for `eth_getBlockRange` query
+- e63f3b61: Add logs displaying current sync from l2
+- Updated dependencies [0b4453f7]
+- Updated dependencies [78298782]
+  - @eth-optimism/core-utils@0.8.0
+  - @eth-optimism/contracts@0.5.15
+
 ## 0.5.17
 
 ### Patch Changes

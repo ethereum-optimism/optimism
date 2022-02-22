@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.12
+
+### Patch Changes
+
+- 84e6a158: Bump the timeout to download the genesis file on l2geth
+
 ## 0.5.11
 
 ### Patch Changes
