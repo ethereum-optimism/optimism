@@ -181,8 +181,6 @@ func (s *Service) Loop(ctx context.Context) {
 }
 
 func (s *Service) Update(newHeader *types.Header) error {
-	dur := prometheus.NewTimer(s.metrics.UpdateDuration.WithLabelValues("l2"))
-	defer dur.ObserveDuration()
 	var lowest = db.L2BlockLocator{
 		Number: s.cfg.StartBlockNumber,
 		Hash:   common.HexToHash(s.cfg.StartBlockHash),
@@ -220,6 +218,12 @@ func (s *Service) Update(newHeader *types.Header) error {
 	tokensByAddress := map[common.Address]*db.Token{
 		db.ETHL2Address: db.ETHL1Token,
 	}
+
+	start := prometheus.NewTimer(s.metrics.UpdateDuration.WithLabelValues("l2"))
+	defer func() {
+		dur := start.ObserveDuration()
+		logger.Info("updated index", "start_height", startHeight, "end_height", endHeight, "duration", dur)
+	}()
 
 	for _, bridgeImpl := range s.bridges {
 		bridgeWithdrawals, err := bridgeImpl.GetWithdrawalsByBlockRange(startHeight, endHeight)
