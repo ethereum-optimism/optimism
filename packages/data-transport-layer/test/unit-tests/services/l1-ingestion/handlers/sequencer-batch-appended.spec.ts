@@ -2,6 +2,7 @@ import fs from 'fs'
 import path from 'path'
 
 import { BigNumber, ethers } from 'ethers'
+
 import { compressBatchWithZlib } from '../../../../../src/utils'
 
 const readMockData = () => {

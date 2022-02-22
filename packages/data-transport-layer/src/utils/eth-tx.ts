@@ -1,7 +1,6 @@
 /* Imports: External */
-import { ethers, BigNumber } from 'ethers'
-import { fromHexString, sequencerBatch } from '@eth-optimism/core-utils'
-import zlib from 'zlib'
+import { ethers } from 'ethers'
+import { sequencerBatch } from '@eth-optimism/core-utils'
 
 export const parseSignatureVParam = (
   v: number | ethers.BigNumber | string,

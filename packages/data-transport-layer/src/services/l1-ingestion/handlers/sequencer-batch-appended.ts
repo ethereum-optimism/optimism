@@ -1,5 +1,3 @@
-import zlib from 'zlib'
-
 /* Imports: External */
 import { BigNumber, ethers, constants } from 'ethers'
 import { serialize, Transaction } from '@ethersproject/transactions'
