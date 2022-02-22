@@ -119,6 +119,13 @@ export class L2IngestionService extends BaseService<L2IngestionServiceOptions> {
           highestSyncedL2BlockNumber === targetL2Block ||
           currentL2Block === 0
         ) {
+          this.logger.info(
+            'All Layer 2 (Optimism) transactions are synchronized',
+            {
+              currentL2Block,
+              targetL2Block,
+            }
+          )
           await sleep(this.options.pollingInterval)
           continue
         }
