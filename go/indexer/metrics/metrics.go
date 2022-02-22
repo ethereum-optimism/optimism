@@ -24,6 +24,10 @@ type Metrics struct {
 
 	L2CatchingUp prometheus.Gauge
 
+	SyncPercent *prometheus.GaugeVec
+
+	UpdateDuration *prometheus.SummaryVec
+
 	tokenAddrs map[string]string
 }
 
@@ -75,6 +79,21 @@ func NewMetrics(monitoredTokens map[string]string) *Metrics {
 			Namespace: metricsNamespace,
 		}),
 
+		SyncPercent: promauto.NewGaugeVec(prometheus.GaugeOpts{
+			Name: "sync_percent",
+			Help: "Sync percentage for each chain.",
+			Namespace: metricsNamespace,
+		}, []string{
+			"chain",
+		}),
+
+		UpdateDuration: promauto.NewSummaryVec(prometheus.SummaryOpts{
+			Name: "update_duration",
+			Help: "How long each update took.",
+		}, []string{
+			"chain",
+		}),
+
 		tokenAddrs: mts,
 	}
 }
@@ -119,6 +138,14 @@ func (m *Metrics) SetL2CatchingUp(state bool) {
 		catchingUp = 1
 	}
 	m.L2CatchingUp.Set(catchingUp)
+}
+
+func (m * Metrics) SetL1SyncPercent(height uint64, head uint64) {
+	m.SyncPercent.WithLabelValues("l1").Set(float64(height) / float64(head))
+}
+
+func (m * Metrics) SetL2SyncPercent(height uint64, head uint64) {
+	m.SyncPercent.WithLabelValues("l2").Set(float64(height) / float64(head))
 }
 
 func (m *Metrics) Serve(hostname string, port uint64) (*http.Server, error) {

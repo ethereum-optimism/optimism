@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/ethereum-optimism/optimism/go/indexer/metrics"
+	"github.com/prometheus/client_golang/prometheus"
 	"math/big"
 	"net/http"
 	"strconv"
@@ -187,6 +188,8 @@ func (s *Service) Loop(ctx context.Context) {
 }
 
 func (s *Service) Update(newHeader *types.Header) error {
+	dur := prometheus.NewTimer(s.metrics.UpdateDuration.WithLabelValues("l1"))
+	defer dur.ObserveDuration()
 	var lowest = db.L1BlockLocator{
 		Number: s.cfg.StartBlockNumber,
 		Hash:   common.HexToHash(s.cfg.StartBlockHash),
@@ -316,10 +319,10 @@ func (s *Service) Update(newHeader *types.Header) error {
 		}
 	}
 
-	s.metrics.SetL1SyncHeight(endHeight)
-
-	latestHeaderNumber := headers[len(headers)-1].Number.Uint64()
 	newHeaderNumber := newHeader.Number.Uint64()
+	s.metrics.SetL1SyncHeight(endHeight)
+	s.metrics.SetL1SyncPercent(endHeight, newHeaderNumber)
+	latestHeaderNumber := headers[len(headers)-1].Number.Uint64()
 	if latestHeaderNumber+s.cfg.ConfDepth-1 == newHeaderNumber {
 		return errNoNewBlocks
 	}
@@ -402,13 +405,12 @@ func (s *Service) catchUp(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	realHeadNum := realHead.Number.Uint64()
 
-	currHead, err := s.cfg.DB.GetHighestL2Block()
+	currHead, err := s.cfg.DB.GetHighestL1Block()
 	if err != nil {
 		return err
 	}
-
-	realHeadNum := realHead.Number.Uint64()
 	var currHeadNum uint64
 	if currHead != nil {
 		currHeadNum = currHead.Number
@@ -438,6 +440,7 @@ func (s *Service) catchUp(ctx context.Context) error {
 	}
 
 	logger.Info("indexer is close enough to tip, starting regular loop")
+
 	s.metrics.SetL1CatchingUp(false)
 	return nil
 }
