@@ -88,7 +88,7 @@ func NewMetrics(monitoredTokens map[string]string) *Metrics {
 		}),
 
 		UpdateDuration: promauto.NewSummaryVec(prometheus.SummaryOpts{
-			Name: "update_duration",
+			Name: "update_duration_seconds",
 			Help: "How long each update took.",
 			Namespace: metricsNamespace,
 			Objectives: map[float64]float64{0.5: 0.05, 0.9: 0.01, 0.95: 0.005, 0.99: 0.001},
