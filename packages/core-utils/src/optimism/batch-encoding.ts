@@ -1,7 +1,7 @@
+import zlib from 'zlib'
+
 import { Transaction, parse } from '@ethersproject/transactions'
 import { BigNumber, ethers } from 'ethers'
-
-import zlib from 'zlib'
 
 import { add0x, remove0x, encodeHex } from '../common'
 
