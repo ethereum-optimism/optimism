@@ -138,7 +138,27 @@ BASEDIR=/tmp/cannon_fault CHALLENGER=1 npx hardhat run scripts/assert.js --netwo
 npx hardhat run scripts/assert.js --network hosthat
 ```
 
-## Alternate challenge with output fault (much slower)
+## Alternate challenge-reponse with output fault (much slower)
+
+Unlike the previous scenario, in this challenge-response scenario we use the correct block data
+(preimages) and instead use the `OUTPUTFAULT` environment variable to request a fault in the
+challenger's execution, making his challenge invalid.
+
+The "fault" in question is a behaviour hardcoded in `mipsevm` (Unicorn mode only) which triggers
+when the `OUTPUTFAULT` env var is set: when writing to MIPS address 0x30000804 (address where the
+output hash is written at the end of execution), it will write a wrong value instead.
+
+Alternatively, if `REGFAULT` is set, it should contain a MIPS execution step number and causes the
+MIPS register V0 to be set to a bogus value at the given execution step. (Just like before, this
+behaviour is hardcoded in `mipsevm` in Unicorn mode and triggers when `REGFAULT` is set.)
+
+This is much slower than the previous scenario because:
+
+- Since we write to the output hash at the end of execution, we will execute ~ `log(n) * 3/4 * n`
+  MIPS steps (where `n` = number of steps in full execution) vs `log(n) * 1/4 * n`in the previous
+  example. (This is the difference of having the fault occur in the first vs (one of) the last
+  steps.)
+- The challenged block contains almost 4x as many transactions as the original (8.5M vs 30M gas).
 
 ```
 # START setup (same as previous example)
