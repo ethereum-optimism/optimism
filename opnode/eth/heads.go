@@ -16,6 +16,10 @@ type HeadSignal struct {
 // HeadSignalFn is used as callback function to accept head-signals
 type HeadSignalFn func(sig HeadSignal)
 
+type NewHeadSource interface {
+	SubscribeNewHead(ctx context.Context, ch chan<- *types.Header) (ethereum.Subscription, error)
+}
+
 // WatchHeadChanges wraps a new-head subscription from NewHeadSource to feed the given Tracker
 func WatchHeadChanges(ctx context.Context, src NewHeadSource, fn HeadSignalFn) (ethereum.Subscription, error) {
 	headChanges := make(chan *types.Header, 10)
