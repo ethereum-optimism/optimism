@@ -125,9 +125,9 @@ const encodeBatchContext = (context: BatchContext): string => {
   )
 }
 
-const decodeAppendSequencerBatch = (
+export const decodeAppendSequencerBatch = (
   b: string | Buffer,
-  opts: DecodeSequencerBatchOpts
+  opts?: DecodeSequencerBatchOpts
 ): AppendSequencerBatchParams => {
   let buf: Buffer
   if (typeof b === 'string') {
