@@ -87,8 +87,7 @@ describe('Event Handlers: CanonicalTransactionChain.SequencerBatchAppended', () 
       expect(() => {
         handleEventsSequencerBatchAppended.parseEvent(...input1)
       }).to.throw(
-        `Block ${input1[1].blockNumber} transaction data is invalid for decoding: ${input1[1].l1TransactionData} , ` +
-          `converted buffer length is < 12.`
+        `Block ${input1[1].blockNumber} transaction data is too small: ${input1[1].l1TransactionData.length}`
       )
     })
 
