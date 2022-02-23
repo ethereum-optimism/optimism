@@ -1,6 +1,6 @@
 /* Imports: External */
 import { ethers } from 'ethers'
-import { sequencerBatch } from '@eth-optimism/core-utils'
+import { sequencerBatch, add0x, BatchType } from '@eth-optimism/core-utils'
 
 export const parseSignatureVParam = (
   v: number | ethers.BigNumber | string,
@@ -15,9 +15,9 @@ export const parseSignatureVParam = (
   return v - 2 * chainId - 35
 }
 
-// The indices take into account the 4 byte selector
 export const compressBatchWithZlib = (calldata: string | Buffer): string => {
-  const batch = sequencerBatch.decode(calldata.toString('hex'))
-  const encoded = sequencerBatch.encode(batch, { zlib: true })
-  return encoded
+  const batch = sequencerBatch.decode(calldata)
+  batch.type = BatchType.ZLIB
+  const encoded = sequencerBatch.encode(batch)
+  return add0x(encoded.toString('hex'))
 }
