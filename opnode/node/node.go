@@ -10,7 +10,6 @@ import (
 	"github.com/ethereum-optimism/optimistic-specs/opnode/l2"
 	"github.com/ethereum-optimism/optimistic-specs/opnode/rollup"
 	"github.com/ethereum-optimism/optimistic-specs/opnode/rollup/driver"
-	rollupSync "github.com/ethereum-optimism/optimistic-specs/opnode/rollup/sync"
 
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
@@ -38,9 +37,8 @@ func (cfg *Config) Check() error {
 
 type OpNode struct {
 	log       log.Logger
-	l1Source  l1.Source              // Source to fetch data from (also implements the Downloader interface)
-	l2Engines []*driver.EngineDriver // engines to keep synced
-	ctx       context.Context        // Embeded CTX to be removed
+	l1Source  l1.Source        // Source to fetch data from (also implements the Downloader interface)
+	l2Engines []*driver.Driver // engines to keep synced
 	done      chan struct{}
 }
 
@@ -71,7 +69,7 @@ func New(ctx context.Context, cfg *Config, log log.Logger) (*OpNode, error) {
 	// l1Node.SetHeader()
 	l1Source := l1.NewSource(ethclient.NewClient(l1Node))
 	genesis := cfg.GetGenesis()
-	var l2Engines []*driver.EngineDriver
+	var l2Engines []*driver.Driver
 	for i, addr := range cfg.L2EngineAddrs {
 		// L2 exec engine: updated by this OpNode (L2 consensus layer node)
 		backend, err := rpc.DialContext(ctx, addr)
@@ -88,16 +86,7 @@ func New(ctx context.Context, cfg *Config, log log.Logger) (*OpNode, error) {
 			EthBackend: ethclient.NewClient(backend),
 			Log:        log.New("engine_client", i),
 		}
-		engine := &driver.EngineDriver{
-			Log: log.New("engine", i),
-			RPC: client,
-			DL:  l1Source,
-			SyncRef: rollupSync.SyncSource{
-				L1: l1Source,
-				L2: client,
-			},
-			EngineDriverState: driver.EngineDriverState{Genesis: genesis},
-		}
+		engine := driver.NewDriver(client, l1Source, log.New("engine", i), genesis)
 		l2Engines = append(l2Engines, engine)
 	}
 
@@ -105,14 +94,13 @@ func New(ctx context.Context, cfg *Config, log log.Logger) (*OpNode, error) {
 		log:       log,
 		l1Source:  l1Source,
 		l2Engines: l2Engines,
-		ctx:       ctx,
 		done:      make(chan struct{}),
 	}
 
 	return n, nil
 }
 
-func (c *OpNode) Start() error {
+func (c *OpNode) Start(ctx context.Context) error {
 	c.log.Info("Starting OpNode")
 
 	var unsub []func()
@@ -138,19 +126,18 @@ func (c *OpNode) Start() error {
 	c.log.Info("Attaching execution engine(s)")
 	for _, eng := range c.l2Engines {
 		// Request initial head update, default to genesis otherwise
-		reqCtx, reqCancel := context.WithTimeout(c.ctx, time.Second*10)
-		if !eng.RequestUpdate(reqCtx, eng.Log, eng) {
-			eng.Log.Error("failed to fetch engine head, defaulting to genesis")
-			eng.UpdateHead(eng.Genesis.L1, eng.Genesis.L2)
-		}
-		reqCancel()
+		reqCtx, reqCancel := context.WithTimeout(ctx, time.Second*10)
 
 		// driver subscribes to L1 head changes
 		l1SubCh := make(chan eth.HeadSignal, 10)
 		l1HeadsFeed.Subscribe(l1SubCh)
 		// start driving engine: sync blocks by deriving them from L1 and driving them into the engine
-		engDriveSub := eng.Drive(c.ctx, l1SubCh)
-		handleUnsubscribe(engDriveSub, "engine driver unexpectedly failed")
+		err := eng.Start(reqCtx, l1SubCh)
+		reqCancel()
+		if err != nil {
+			c.log.Error("Could not start a rollup node", "err", err)
+			return err
+		}
 	}
 
 	// Keep subscribed to the L1 heads, which keeps the L1 maintainer pointing to the best headers to sync
@@ -158,7 +145,7 @@ func (c *OpNode) Start() error {
 		if err != nil {
 			c.log.Warn("resubscribing after failed L1 subscription", "err", err)
 		}
-		return eth.WatchHeadChanges(c.ctx, c.l1Source, func(sig eth.HeadSignal) {
+		return eth.WatchHeadChanges(context.Background(), c.l1Source, func(sig eth.HeadSignal) {
 			l1HeadsFeed.Send(sig)
 		})
 	})

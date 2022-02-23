@@ -2,31 +2,28 @@ package driver
 
 import (
 	"context"
-	"sync"
 
 	"github.com/ethereum-optimism/optimistic-specs/opnode/eth"
 	"github.com/ethereum-optimism/optimistic-specs/opnode/rollup"
 	"github.com/ethereum/go-ethereum/log"
 )
 
-// StateMachine provides control over the driver state, when given control over the Driver actions.
-type StateMachine interface {
-	// RequestUpdate tries to update the state-machine with the driver head information.
-	// If the state-machine changed, considering the engine L1 and L2 head, it will return true. False otherwise.
-	RequestUpdate(ctx context.Context, log log.Logger, driver Driver) (l2Updated bool)
-	// RequestSync tries to sync the provided driver towards the sync target of the state-machine.
-	// If the L2 syncs a step, but is not finished yet, it will return true. False otherwise.
-	RequestSync(ctx context.Context, log log.Logger, driver Driver) (l2Updated bool)
-	// NotifyL1Head updates the state-machine with the L1 signal,
-	// and attempts to sync the driver if the update extends the previous head.
-	// Returns true if the driver successfully derived and synced the L2 block to match L1. False otherwise.
-	NotifyL1Head(ctx context.Context, log log.Logger, l1HeadSig eth.HeadSignal, driver Driver) (l2Updated bool)
+// internalDriver exposes the driver functionality that maintains the external execution-engine.
+type internalDriver interface {
+	// requestEngineHead retrieves the L2 he```d reference of the engine, as well as the L1 reference it was derived from.
+	// An error is returned when the L2 head information could not be retrieved (timeout or connection issue)
+	requestEngineHead(ctx context.Context) (refL1 eth.BlockID, refL2 eth.BlockID, err error)
+	// findSyncStart statelessly finds the next L1 block to derive, and on which L2 block it applies.
+	// If the engine is fully synced, then the last derived L1 block, and parent L2 block, is repeated.
+	// An error is returned if the sync starting point could not be determined (due to timeouts, wrong-chain, etc.)
+	findSyncStart(ctx context.Context) (nextRefL1 eth.BlockID, refL2 eth.BlockID, err error)
+	// driverStep explicitly calls the engine to derive a L1 block into a L2 block, and apply it on top of the given L2 block.
+	// The finalized L2 block is provided to update the engine with finality, but does not affect the derivation step itself.
+	// The resulting L2 block ID is returned, or an error if the derivation fails.
+	driverStep(ctx context.Context, nextRefL1 eth.BlockID, refL2 eth.BlockID, finalized eth.BlockID) (l2ID eth.BlockID, err error)
 }
 
-type EngineDriverState struct {
-	// Locks the L1 and L2 head changes, to keep a consistent view of the engine
-	headLock sync.RWMutex
-
+type state struct {
 	// l1Head tracks the L1 block corresponding to the l2Head
 	l1Head eth.BlockID
 
@@ -44,48 +41,28 @@ type EngineDriverState struct {
 	Genesis rollup.Genesis
 }
 
-// L1Head returns the block-id (hash and number) of the last L1 block that was derived into the L2 block
-func (e *EngineDriverState) L1Head() eth.BlockID {
-	e.headLock.RLock()
-	defer e.headLock.RUnlock()
-	return e.l1Head
-}
-
-// L2Head returns the block-id (hash and number) of the L2 chain head
-func (e *EngineDriverState) L2Head() eth.BlockID {
-	e.headLock.RLock()
-	defer e.headLock.RUnlock()
-	return e.l2Head
-}
-
-func (e *EngineDriverState) Head() (l1Head eth.BlockID, l2Head eth.BlockID) {
-	e.headLock.RLock()
-	defer e.headLock.RUnlock()
-	return e.l1Head, e.l2Head
-}
-
-func (e *EngineDriverState) UpdateHead(l1Head eth.BlockID, l2Head eth.BlockID) {
-	e.headLock.Lock()
-	defer e.headLock.Unlock()
+func (e *state) updateHead(l1Head eth.BlockID, l2Head eth.BlockID) {
 	e.l1Head = l1Head
 	e.l2Head = l2Head
 }
 
-func (e *EngineDriverState) RequestUpdate(ctx context.Context, log log.Logger, driver Driver) (l2Updated bool) {
+// requestUpdate tries to update the state-machine with the driver head information.
+// If the state-machine changed, considering the engine L1 and L2 head, it will return true. False otherwise.
+func (e *state) requestUpdate(ctx context.Context, log log.Logger, driver internalDriver) (l2Updated bool) {
 	refL1, refL2, err := driver.requestEngineHead(ctx)
 	if err != nil {
 		log.Error("failed to request engine head", "err", err)
 		return false
 	}
-	e.headLock.Lock()
-	defer e.headLock.Unlock()
 
 	e.l1Head = refL1
 	e.l2Head = refL2
 	return e.l1Head != refL1 || e.l2Head != refL2
 }
 
-func (e *EngineDriverState) RequestSync(ctx context.Context, log log.Logger, driver Driver) (l2Updated bool) {
+// requestSync tries to sync the provided driver towards the sync target of the state-machine.
+// If the L2 syncs a step, but is not finished yet, it will return true. False otherwise.
+func (e *state) requestSync(ctx context.Context, log log.Logger, driver internalDriver) (l2Updated bool) {
 	if e.l1Head == e.l1Target {
 		log.Debug("Engine is fully synced", "l1_head", e.l1Head, "l2_head", e.l2Head)
 		// TODO: even though we are fully synced, it may be worth attempting anyway,
@@ -106,12 +83,15 @@ func (e *EngineDriverState) RequestSync(ctx context.Context, log log.Logger, dri
 		log.Error("Failed to sync L2 chain with new L1 block", "l1", nextRefL1, "onto_l2", refL2, "err", err)
 		return false
 	} else {
-		e.UpdateHead(nextRefL1, l2ID) // l2ID is derived from the nextRefL1
+		e.updateHead(nextRefL1, l2ID) // l2ID is derived from the nextRefL1
 	}
 	return e.l1Head != e.l1Target
 }
 
-func (e *EngineDriverState) NotifyL1Head(ctx context.Context, log log.Logger, l1HeadSig eth.HeadSignal, driver Driver) (l2Updated bool) {
+// notifyL1Head updates the state-machine with the L1 signal,
+// and attempts to sync the driver if the update extends the previous head.
+// Returns true if the driver successfully derived and synced the L2 block to match L1. False otherwise.
+func (e *state) notifyL1Head(ctx context.Context, log log.Logger, l1HeadSig eth.HeadSignal, driver internalDriver) (l2Updated bool) {
 	if e.l1Head == l1HeadSig.Self {
 		log.Debug("Received L1 head signal, already synced to it, ignoring event", "l1_head", e.l1Head)
 		return
@@ -124,7 +104,7 @@ func (e *EngineDriverState) NotifyL1Head(ctx context.Context, log log.Logger, l1
 			e.l1Target = l1HeadSig.Self
 			return false
 		} else {
-			e.UpdateHead(l1HeadSig.Self, l2ID)
+			e.updateHead(l1HeadSig.Self, l2ID)
 			return true
 		}
 	}
