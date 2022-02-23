@@ -49,7 +49,7 @@ task('set-l2-gasprice')
     const GasPriceOracle = new ethers.Contract(
       predeploys.OVM_GasPriceOracle,
       GasPriceOracleArtifact.abi,
-      provider
+      signer
     )
 
     const addr = await signer.getAddress()
