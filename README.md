@@ -36,6 +36,9 @@ The following commands should be run from the root directory unless otherwise sp
 # build minigeth for MIPS
 (cd mipigo && ./build.sh)
 
+# build minigeth for PC
+(cd minigeth/ && go build)
+
 # compute the transition from 13284469 -> 13284470 on PC
 TRANSITION_BLOCK=13284469
 mkdir -p /tmp/cannon
@@ -44,6 +47,9 @@ minigeth/go-ethereum $TRANSITION_BLOCK
 # write out the golden MIPS minigeth start state
 yarn
 (cd mipsevm && ./evm.sh)
+
+# if you run into "digital envelope routines::unsupported", rerun after this:
+# export NODE_OPTIONS=--openssl-legacy-provider
 
 # generate MIPS checkpoints
 mipsevm/mipsevm $TRANSITION_BLOCK
@@ -71,11 +77,16 @@ first MIPS instruction that has the wrong input hash at 0x3000000. Hence, the ch
 ```
 RPC_URL=https://mainnet.infura.io/v3/9aa3d95b3bc440fa88ea12eaa4456161
 
-# chain ID, read by challenge.js, respond.js and assert.js
-export ID=0
-
 # block at which to fork mainnet
 FORK_BLOCK=13284495
+
+# testing on hardhat (forked mainnet, a few blocks ahead of challenge)
+npx hardhat node --fork $RPC_URL --fork-block-number $FORK_BLOCK
+
+# open a new terminal for the following commands
+
+# chain ID, read by challenge.js, respond.js and assert.js
+export ID=0
 
 # block whose transition will be challenged
 # this variable is read by challenge.js, respond.js and assert.js
@@ -84,25 +95,28 @@ export BLOCK=13284469
 # block whose pre-state is used by the challenger instead of the challenged block's pre-state
 WRONG_BLOCK=13284491
 
-# testing on hardhat (forked mainnet, a few blocks ahead of challenge)
-npx hardhat node --fork $RPC_URL --fork-block-number $FORK_BLOCK
-
-# setup and deploy contracts
+# clear data from previous runs
 mkdir -p /tmp/cannon /tmp/cannon_fault && rm -rf /tmp/cannon/* /tmp/cannon_fault/*
+
+# generate initial memory state checkpoint (in /tmp/cannon/golden.json)
 mipsevm/mipsevm
+
+# deploy contracts
 npx hardhat run scripts/deploy.js --network hosthat
-cp /tmp/cannon/*.json /tmp/cannon_fault/
+
+# challenger will use same initial memory checkpoint and deployed contracts
+cp /tmp/cannon/{golden,deployed}.json /tmp/cannon_fault/
 
 # fetch preimages for real block
 minigeth/go-ethereum $BLOCK
 
-# compute real MIPS checkpoint
+# compute real MIPS final memory checkpoint
 mipsevm/mipsevm $BLOCK
 
 # fetch preimages for wrong block
 BASEDIR=/tmp/cannon_fault minigeth/go-ethereum $WRONG_BLOCK
 
-# compute fake MIPS checkpoint
+# compute fake MIPS final memory checkpoint
 BASEDIR=/tmp/cannon_fault mipsevm/mipsevm $WRONG_BLOCK
 
 # pretend the wrong block's input, checkpoints and preimages are the right block's
@@ -114,7 +128,7 @@ BASEDIR=/tmp/cannon_fault npx hardhat run scripts/challenge.js --network hosthat
 # binary search
 for i in {1..23}; do
     BASEDIR=/tmp/cannon_fault CHALLENGER=1 npx hardhat run scripts/respond.js --network hosthat
-    BLOCK=13284469 npx hardhat run scripts/respond.js --network hosthat
+    npx hardhat run scripts/respond.js --network hosthat
 done
 
 # assert as challenger (fails)
@@ -127,6 +141,20 @@ npx hardhat run scripts/assert.js --network hosthat
 ## Alternate challenge with output fault (much slower)
 
 ```
+# START setup (same as previous example)
+
+RPC_URL=https://mainnet.infura.io/v3/9aa3d95b3bc440fa88ea12eaa4456161
+
+# block at which to fork mainnet
+FORK_BLOCK=13284495
+
+# testing on hardhat (forked mainnet, a few blocks ahead of challenge)
+npx hardhat node --fork $RPC_URL --fork-block-number $FORK_BLOCK
+
+# open a new terminal for the following commands
+
+# END setup
+
 # block whose transition will be challenged
 # this variable is read by challenge.js, respond.js and assert.js
 BLOCK=13284491
@@ -134,11 +162,17 @@ BLOCK=13284491
 # chain ID, read by challenge.js, respond.js and assert.js
 export ID=0
 
-# setup and deploy contracts
+# clear data from previous runs
 mkdir -p /tmp/cannon /tmp/cannon_fault && rm -rf /tmp/cannon/* /tmp/cannon_fault/*
+
+# generate initial memory state checkpoint (in /tmp/cannon/golden.json)
 mipsevm/mipsevm
+
+# deploy contracts
 npx hardhat run scripts/deploy.js --network hosthat
-cp /tmp/cannon/*.json /tmp/cannon_fault/
+
+# challenger will use same initial memory checkpoint and deployed contracts
+cp /tmp/cannon/{golden,deployed}.json /tmp/cannon_fault/
 
 # fetch preimages for real block
 minigeth/go-ethereum $BLOCK
