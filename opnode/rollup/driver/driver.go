@@ -93,7 +93,6 @@ func (d *Driver) loop() {
 
 	for {
 		select {
-
 		case <-d.done:
 			return
 		case <-l2HeadPoll.C:
@@ -104,18 +103,22 @@ func (d *Driver) loop() {
 			cancel()
 			continue
 		case l1HeadSig := <-d.l1Heads:
+			ctx, cancel := context.WithTimeout(ctx, time.Second*4)
 			if d.notifyL1Head(ctx, d.log, l1HeadSig, d) {
 				syncQuickly()
 			}
+			cancel()
 			continue
 		case <-syncTicker.C:
 			// If already synced, or in case of failure, we slow down
 			syncBackoff()
+			ctx, cancel := context.WithTimeout(ctx, time.Second*4)
 			if d.requestSync(ctx, d.log, d) {
 				// Successfully stepped toward target. Continue quickly if we are not there yet
 				syncQuickly()
 				onL2Update()
 			}
+			cancel()
 		}
 	}
 
