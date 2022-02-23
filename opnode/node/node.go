@@ -145,7 +145,7 @@ func (c *OpNode) Start(ctx context.Context) error {
 		if err != nil {
 			c.log.Warn("resubscribing after failed L1 subscription", "err", err)
 		}
-		return eth.WatchHeadChanges(ctx, c.l1Source, func(sig eth.HeadSignal) {
+		return eth.WatchHeadChanges(context.Background(), c.l1Source, func(sig eth.HeadSignal) {
 			l1HeadsFeed.Send(sig)
 		})
 	})
