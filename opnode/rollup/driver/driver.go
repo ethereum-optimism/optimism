@@ -32,7 +32,7 @@ type Driver struct {
 	syncRef rollupSync.SyncReference
 	dl      Downloader
 	l1Heads <-chan eth.HeadSignal
-	done    chan chan error
+	done    chan struct{}
 	genesis rollup.Genesis
 	state   // embedded engine state
 }
@@ -43,7 +43,7 @@ func NewDriver(l2 DriverAPI, l1 l1.Source, log log.Logger, genesis rollup.Genesi
 		rpc:     l2,
 		syncRef: rollupSync.SyncSource{L1: l1, L2: l2},
 		dl:      l1,
-		done:    make(chan chan error),
+		done:    make(chan struct{}),
 		genesis: genesis,
 		state:   state{Genesis: genesis},
 	}
@@ -59,10 +59,8 @@ func (d *Driver) Start(ctx context.Context, l1Heads <-chan eth.HeadSignal) error
 	return nil
 }
 func (d *Driver) Close() error {
-	ec := make(chan error)
-	d.done <- ec
-	err := <-ec
-	return err
+	close(d.done)
+	return nil
 }
 
 func (d *Driver) loop() {
