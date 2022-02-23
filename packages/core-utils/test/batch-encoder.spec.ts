@@ -7,6 +7,8 @@ import {
   encodeAppendSequencerBatch,
   decodeAppendSequencerBatch,
   sequencerBatch,
+  BatchType,
+  remove0x,
 } from '../src'
 
 describe('BatchEncoder', () => {
@@ -17,6 +19,7 @@ describe('BatchEncoder', () => {
         totalElementsToAppend: 0,
         contexts: [],
         transactions: [],
+        type: BatchType.LEGACY,
       }
       const encoded = encodeAppendSequencerBatch(batch)
       const decoded = decodeAppendSequencerBatch(encoded)
@@ -36,6 +39,7 @@ describe('BatchEncoder', () => {
           },
         ],
         transactions: ['0x45423400000011', '0x45423400000012'],
+        type: BatchType.LEGACY,
       }
       const encoded = encodeAppendSequencerBatch(batch)
       const decoded = decodeAppendSequencerBatch(encoded)
@@ -49,6 +53,23 @@ describe('BatchEncoder', () => {
         const decoded = sequencerBatch.decode(calldata)
         const encoded = sequencerBatch.encode(decoded)
         expect(encoded).to.deep.equal(calldata)
+
+        // Ensure that passing as buffer works
+        const decodedBuf = sequencerBatch.decode(
+          Buffer.from(remove0x(calldata), 'hex')
+        )
+        expect(decodedBuf).to.deep.eq(decoded)
+
+        const encodedBuf = sequencerBatch.encode(decodedBuf, { buffer: true })
+        expect(Buffer.isBuffer(encodedBuf))
+
+        expect(
+          Buffer.compare(
+            encodedBuf as Buffer,
+            Buffer.from(remove0x(encoded.toString('hex')), 'hex')
+          )
+        )
+        expect('0x' + encodedBuf.toString('hex')).to.eq(encoded)
       }
     })
 
@@ -57,9 +78,22 @@ describe('BatchEncoder', () => {
       const data = require('./fixtures/appendSequencerBatch.json')
       for (const calldata of data.calldata) {
         const decoded = sequencerBatch.decode(calldata)
-        const encodedCompressed = sequencerBatch.encode(decoded, { zlib: true })
+        // Set the batch type to be zlib so that the batch
+        // is compressed
+        decoded.type = BatchType.ZLIB
+        // Encode a compressed batch
+        const encodedCompressed = sequencerBatch.encode(decoded)
+        expect(decoded.type).to.eq(BatchType.ZLIB)
+
+        // Decode the compressed batch
         const decodedPostCompressed = sequencerBatch.decode(encodedCompressed)
+        expect(decoded.type).to.eq(BatchType.ZLIB)
         expect(decoded.contexts).to.deep.equal(decodedPostCompressed.contexts)
+
+        // Set the batch type to legacy so that when it is encoded,
+        // it is not compressed
+        decodedPostCompressed.type = BatchType.LEGACY
+
         const encoded = sequencerBatch.encode(decodedPostCompressed)
         expect(encoded).to.deep.equal(calldata)
       }
