@@ -39,7 +39,6 @@ type OpNode struct {
 	log       log.Logger
 	l1Source  l1.Source        // Source to fetch data from (also implements the Downloader interface)
 	l2Engines []*driver.Driver // engines to keep synced
-	ctx       context.Context  // Embeded CTX to be removed
 	done      chan struct{}
 }
 
@@ -95,14 +94,13 @@ func New(ctx context.Context, cfg *Config, log log.Logger) (*OpNode, error) {
 		log:       log,
 		l1Source:  l1Source,
 		l2Engines: l2Engines,
-		ctx:       ctx,
 		done:      make(chan struct{}),
 	}
 
 	return n, nil
 }
 
-func (c *OpNode) Start() error {
+func (c *OpNode) Start(ctx context.Context) error {
 	c.log.Info("Starting OpNode")
 
 	var unsub []func()
@@ -128,7 +126,7 @@ func (c *OpNode) Start() error {
 	c.log.Info("Attaching execution engine(s)")
 	for _, eng := range c.l2Engines {
 		// Request initial head update, default to genesis otherwise
-		reqCtx, reqCancel := context.WithTimeout(c.ctx, time.Second*10)
+		reqCtx, reqCancel := context.WithTimeout(ctx, time.Second*10)
 
 		// driver subscribes to L1 head changes
 		l1SubCh := make(chan eth.HeadSignal, 10)
@@ -149,7 +147,7 @@ func (c *OpNode) Start() error {
 		if err != nil {
 			c.log.Warn("resubscribing after failed L1 subscription", "err", err)
 		}
-		return eth.WatchHeadChanges(c.ctx, c.l1Source, func(sig eth.HeadSignal) {
+		return eth.WatchHeadChanges(ctx, c.l1Source, func(sig eth.HeadSignal) {
 			l1HeadsFeed.Send(sig)
 		})
 	})

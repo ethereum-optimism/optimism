@@ -74,7 +74,7 @@ func RollupNodeMain(ctx *cli.Context) error {
 	}
 	log.Info("Starting rollup node")
 
-	if err := n.Start(); err != nil {
+	if err := n.Start(context.Background()); err != nil {
 		log.Error("Unable to start L2 Output Submitter", "error", err)
 		return err
 	}

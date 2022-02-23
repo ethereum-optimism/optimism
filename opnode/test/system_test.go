@@ -124,7 +124,7 @@ func TestSystemE2E(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create the new node: %v", err)
 	}
-	err = node.Start()
+	err = node.Start(context.Background())
 	defer node.Stop()
 	if err != nil {
 		t.Fatal(err)
