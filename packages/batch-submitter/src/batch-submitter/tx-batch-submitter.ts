@@ -12,6 +12,7 @@ import {
   BatchElement,
   Batch,
   QueueOrigin,
+  BatchType,
 } from '@eth-optimism/core-utils'
 import { Logger, Metrics } from '@eth-optimism/common-ts'
 
@@ -39,6 +40,7 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
   private validateBatch: boolean
   private transactionSubmitter: TransactionSubmitter
   private gasThresholdInGwei: number
+  private batchType: BatchType
 
   constructor(
     signer: Signer,
@@ -61,7 +63,8 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
       fixDoublePlayedDeposits: false,
       fixMonotonicity: false,
       fixSkippedDeposits: false,
-    } // TODO: Remove this
+    }, // TODO: Remove this
+    useZlibCompression: boolean
   ) {
     super(
       signer,
@@ -83,6 +86,10 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
     this.autoFixBatchOptions = autoFixBatchOptions
     this.gasThresholdInGwei = gasThresholdInGwei
     this.transactionSubmitter = transactionSubmitter
+    this.batchType = BatchType.LEGACY
+    if (useZlibCompression) {
+      this.batchType = BatchType.ZLIB
+    }
 
     this.logger.info('Batch validation options', {
       autoFixBatchOptions,
@@ -295,6 +302,7 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
       startBlock,
       batch
     )
+
     let wasBatchTruncated = false
     let encoded = encodeAppendSequencerBatch(sequencerBatchParams)
     while (encoded.length / 2 > this.maxTxSize) {
@@ -313,10 +321,14 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
       wasBatchTruncated = true
     }
 
+    // Set the batch type so that it is serialized correctly
+    sequencerBatchParams.type = this.batchType
+
     this.logger.info('Generated sequencer batch params', {
       contexts: sequencerBatchParams.contexts,
       transactions: sequencerBatchParams.transactions,
       wasBatchTruncated,
+      type: BatchType[sequencerBatchParams.type],
     })
     return [sequencerBatchParams, wasBatchTruncated]
   }

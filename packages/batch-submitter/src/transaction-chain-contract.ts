@@ -70,6 +70,6 @@ const appendSequencerBatch = async (
 
 const getEncodedCalldata = (batch: AppendSequencerBatchParams): string => {
   const methodId = APPEND_SEQUENCER_BATCH_METHOD_ID
-  const calldata = encodeAppendSequencerBatch(batch, { zlib: true })
+  const calldata = encodeAppendSequencerBatch(batch).toString('hex')
   return '0x' + remove0x(methodId) + remove0x(calldata)
 }
