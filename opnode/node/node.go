@@ -133,8 +133,6 @@ func (c *OpNode) Start(ctx context.Context) error {
 		l1HeadsFeed.Subscribe(l1SubCh)
 		// start driving engine: sync blocks by deriving them from L1 and driving them into the engine
 		err := eng.Start(reqCtx, l1SubCh)
-		// engDriveSub := eng.Drive(c.ctx, l1SubCh)
-		// handleUnsubscribe(engDriveSub, "engine driver unexpectedly failed")
 		reqCancel()
 		if err != nil {
 			c.log.Error("Could not start a rollup node", "err", err)
