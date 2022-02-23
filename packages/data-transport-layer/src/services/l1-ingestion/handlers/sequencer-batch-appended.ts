@@ -6,6 +6,7 @@ import {
   toHexString,
   toRpcHexString,
   sequencerBatch,
+  BatchType,
 } from '@eth-optimism/core-utils'
 import { SequencerBatchAppendedEvent } from '@eth-optimism/contracts/dist/types/CanonicalTransactionChain'
 
@@ -184,6 +185,7 @@ export const handleEventsSequencerBatchAppended: EventHandlerSet<
       timestamp: BigNumber.from(extraData.timestamp).toNumber(),
       submitter: extraData.submitter,
       l1TransactionHash: extraData.l1TransactionHash,
+      type: BatchType[decoded.type],
     }
 
     return {

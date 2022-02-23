@@ -60,6 +60,7 @@ export const handleEventsStateBatchAppended: EventHandlerSet<
       prevTotalElements: event.args._prevTotalElements.toNumber(),
       extraData: event.args._extraData,
       l1TransactionHash: extraData.l1TransactionHash,
+      type: 'LEGACY', // There is currently only 1 state root batch type
     }
 
     return {

@@ -1,6 +1,7 @@
 /* Imports: External */
 import { LevelUp } from 'levelup'
 import { BigNumber } from 'ethers'
+import { BatchType } from '@eth-optimism/core-utils'
 
 /* Imports: Internal */
 import { SimpleDB } from './simple-db'
@@ -126,7 +127,14 @@ export class TransportDB {
   public async getTransactionBatchByIndex(
     index: number
   ): Promise<TransactionBatchEntry> {
-    return this._getEntryByIndex(TRANSPORT_DB_KEYS.TRANSACTION_BATCH, index)
+    const entry = (await this._getEntryByIndex(
+      TRANSPORT_DB_KEYS.TRANSACTION_BATCH,
+      index
+    )) as TransactionBatchEntry
+    if (entry && typeof entry.type === 'undefined') {
+      entry.type = BatchType[BatchType.LEGACY]
+    }
+    return entry
   }
 
   public async getStateRootByIndex(index: number): Promise<StateRootEntry> {
@@ -168,7 +176,13 @@ export class TransportDB {
   }
 
   public async getLatestTransactionBatch(): Promise<TransactionBatchEntry> {
-    return this._getLatestEntry(TRANSPORT_DB_KEYS.TRANSACTION_BATCH)
+    const entry = (await this._getLatestEntry(
+      TRANSPORT_DB_KEYS.TRANSACTION_BATCH
+    )) as TransactionBatchEntry
+    if (entry && typeof entry.type === 'undefined') {
+      entry.type = BatchType[BatchType.LEGACY]
+    }
+    return entry
   }
 
   public async getLatestStateRoot(): Promise<StateRootEntry> {
