@@ -2,8 +2,11 @@ package derive
 
 import (
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"math/big"
+
+	"github.com/ethereum-optimism/optimistic-specs/opnode/rollup"
 
 	"github.com/ethereum-optimism/optimistic-specs/opnode/l2"
 	"github.com/ethereum/go-ethereum/common"
@@ -115,6 +118,8 @@ type L1Info interface {
 	Time() uint64
 	Hash() common.Hash
 	BaseFee() *big.Int
+	// MixDigest field, reused for randomness after The Merge (Bellatrix hardfork)
+	MixDigest() common.Hash
 }
 
 // L1InfoDeposit creats a L1 Info deposit transaction based on the L1 block
@@ -176,18 +181,127 @@ func UserDeposits(height uint64, receipts []*types.Receipt) ([]*types.DepositTx,
 	return out, nil
 }
 
-type BlockInput interface {
-	ReceiptHash
-	L1Info
-	MixDigest() common.Hash
+func BatchesFromEVMTransactions(config *rollup.Config, txs []*types.Transaction) (out []BatchData) {
+	l1Signer := config.L1Signer()
+	for _, tx := range txs {
+		if to := tx.To(); to != nil && *to == config.BatchInboxAddress {
+			seqDataSubmitter, err := l1Signer.Sender(tx)
+			if err != nil {
+				continue // bad signature, ignore
+			}
+			// some random L1 user might have sent a transaction to our batch inbox, ignore them
+			if seqDataSubmitter != config.BatchSenderAddress {
+				continue // not an authorized batch submitter, ignore
+			}
+			out = append(out, ParseBatches(tx.Data())...)
+		}
+	}
+	return
+}
+
+func FilterBatches(config *rollup.Config, epoch rollup.Epoch, minL2Time uint64, maxL2Time uint64, batches []BatchData) (out []BatchData) {
+	uniqueTime := make(map[uint64]struct{})
+	for _, batch := range batches {
+		if batch.Epoch != epoch {
+			// Batch was tagged for past or future epoch,
+			// i.e. it was included too late or depends on the given L1 block to be processed first.
+			continue
+		}
+		if (batch.Timestamp-config.Genesis.L2Time)%config.BlockTime != 0 {
+			continue // bad timestamp, not a multiple of the block time
+		}
+		if batch.Timestamp < minL2Time {
+			continue // old batch
+		}
+		// limit timestamp upper bound to avoid huge amount of empty blocks
+		if batch.Timestamp >= maxL2Time {
+			continue // too far in future
+		}
+		// Check if we have already seen a batch for this L2 block
+		if _, ok := uniqueTime[batch.Timestamp]; ok {
+			// block already exists, batch is duplicate (first batch persists, others are ignored)
+			continue
+		}
+		uniqueTime[batch.Timestamp] = struct{}{}
+		out = append(out, batch)
+	}
+	return
+}
+
+type L2Info interface {
+	Time() uint64
+}
+
+// PayloadAttributes derives a sequence of pre-execution payload attributes from:
+//  - The L1 information the L1-info deposit is derived from
+//  - The L1 receipts the user deposits are derived from
+//  - The data batches the L2 sequencer work is derived from
+//  - The L2 information of the block the new derived blocks build on
+//
+// This is a pure function.
+func PayloadAttributesV2(config *rollup.Config, l1Info L1Info, receipts []*types.Receipt, seqWindow []BatchData, l2Info L2Info) ([]*l2.PayloadAttributes, error) {
+	// check if we have the full sequencing window
+	if len(seqWindow) == 0 {
+		return nil, errors.New("cannot derive payload attributes from empty sequencing window")
+	}
+
+	// Retrieve the deposits of this epoch (all deposits from the first block)
+	deposits, err := DeriveDeposits(l1Info, receipts)
+	if err != nil {
+		return nil, fmt.Errorf("failed to derive deposits: %v", err)
+	}
+
+	// copy L1 randomness (mix-digest becomes randao field post-merge)
+	// TODO: we don't have a randomness oracle on L2, what should sequencing randomness look like.
+	// Repeating the latest randomness of L1 might not be ideal.
+	randomnessSeed := l2.Bytes32(l1Info.MixDigest())
+
+	// Collect all L2 batches, the bathes may be out-of-order, or possibly missing.
+	l2Blocks := make(map[uint64]*l2.PayloadAttributes)
+	highestSeenTimestamp := l1Info.Time()
+	for _, batch := range seqWindow {
+
+		// Track the last batch we've seen (gaps will be filled with empty L2 blocks)
+		if batch.Timestamp > highestSeenTimestamp {
+			highestSeenTimestamp = batch.Timestamp
+		}
+
+		l2Blocks[batch.Timestamp] = &l2.PayloadAttributes{
+			Timestamp:             l2.Uint64Quantity(batch.Timestamp),
+			Random:                randomnessSeed,
+			SuggestedFeeRecipient: config.FeeRecipientAddress,
+			Transactions:          batch.Transactions,
+		}
+	}
+
+	// fill the gaps and always ensure at least one L2 block
+	var out []*l2.PayloadAttributes
+	for t := l1Info.Time() + config.BlockTime; t <= highestSeenTimestamp; t += config.BlockTime {
+		if bl, ok := l2Blocks[t]; ok {
+			out = append(out, bl)
+		} else {
+			// skipped/missing L2 block, create an empty block instead
+			out = append(out, &l2.PayloadAttributes{
+				Timestamp:             l2.Uint64Quantity(t),
+				Random:                randomnessSeed,
+				SuggestedFeeRecipient: config.FeeRecipientAddress,
+				Transactions:          nil,
+			})
+		}
+	}
+
+	// Force deposits into the first block
+	out[0].Transactions = append(append(make([]l2.Data, 0), deposits...), out[0].Transactions...)
+
+	return out, nil
 }
 
 // PayloadAttributes derives the pre-execution payload from the L1 block info and deposit receipts.
 // This is a pure function.
-func PayloadAttributes(block BlockInput, receipts []*types.Receipt) (*l2.PayloadAttributes, error) {
-	if !CheckReceipts(block, receipts) {
-		return nil, fmt.Errorf("receipts are not consistent with the block's receipts root: %s", block.ReceiptHash())
-	}
+func PayloadAttributes(block L1Info, receipts []*types.Receipt) (*l2.PayloadAttributes, error) {
+	// if !CheckReceipts(block, receipts) {
+	// 	return nil, fmt.Errorf("receipts are not consistent with the block's receipts root: %s", block.ReceiptHash())
+	// }
 
 	l1Tx := types.NewTx(L1InfoDeposit(block))
 	opaqueL1Tx, err := l1Tx.MarshalBinary()
@@ -217,4 +331,37 @@ func PayloadAttributes(block BlockInput, receipts []*types.Receipt) (*l2.Payload
 		SuggestedFeeRecipient: common.Address{}, // nobody gets tx fees for deposits
 		Transactions:          encodedTxs,
 	}, nil
+}
+
+func DeriveDeposits(l1Info L1Info, receipts []*types.Receipt) ([]l2.Data, error) {
+	l1Tx := types.NewTx(L1InfoDeposit(l1Info))
+	opaqueL1Tx, err := l1Tx.MarshalBinary()
+	if err != nil {
+		return nil, fmt.Errorf("failed to encode L1 info tx")
+	}
+	userDeposits, err := UserDeposits(l1Info.NumberU64(), receipts)
+	if err != nil {
+		return nil, fmt.Errorf("failed to derive user deposits: %v", err)
+	}
+	encodedTxs := make([]l2.Data, 0, len(userDeposits)+1)
+	encodedTxs = append(encodedTxs, opaqueL1Tx)
+	for i, tx := range userDeposits {
+		opaqueTx, err := types.NewTx(tx).MarshalBinary()
+		if err != nil {
+			return nil, fmt.Errorf("failed to encode user tx %d", i)
+		}
+		encodedTxs = append(encodedTxs, opaqueTx)
+	}
+	return encodedTxs, nil
+}
+
+type BatchData struct {
+	Epoch     rollup.Epoch // aka l1 num
+	Timestamp uint64
+	// no feeRecipient address input, all fees go to a L2 contract
+	Transactions []l2.Data
+}
+
+func ParseBatches(data l2.Data) []BatchData {
+	return nil // TODO
 }

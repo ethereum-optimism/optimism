@@ -10,10 +10,11 @@ import (
 )
 
 type l1MockInfo struct {
-	num     uint64
-	time    uint64
-	hash    common.Hash
-	baseFee *big.Int
+	num       uint64
+	time      uint64
+	hash      common.Hash
+	baseFee   *big.Int
+	mixDigest [32]byte
 }
 
 func (l *l1MockInfo) NumberU64() uint64 {
@@ -30,6 +31,10 @@ func (l *l1MockInfo) Hash() common.Hash {
 
 func (l *l1MockInfo) BaseFee() *big.Int {
 	return l.baseFee
+}
+
+func (l *l1MockInfo) MixDigest() common.Hash {
+	return l.mixDigest
 }
 
 func randomHash(rng *rand.Rand) (out common.Hash) {
