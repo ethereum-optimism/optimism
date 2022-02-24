@@ -93,10 +93,10 @@ func TestLatestDeposit(t *testing.T) {
 	// Query should return nil on empty databse.
 	latestDeposit, err := d.LatestDeposit()
 	require.Nil(t, err)
-	require.Equal(t, (*int64)(nil), latestDeposit)
+	require.Equal(t, (*uint64)(nil), latestDeposit)
 
 	// Update table to have a single element.
-	expLatestDeposit := int64(1)
+	expLatestDeposit := uint64(1)
 	err = d.UpsertDeposits([]db.Deposit{{
 		ID:             1,
 		TxnHash:        common.HexToHash("0xf1"),
@@ -249,9 +249,9 @@ func TestUpsertDisbursement(t *testing.T) {
 	address := common.HexToAddress("0xaa01")
 	amount := big.NewInt(1)
 	depTxnHash := common.HexToHash("0xdd01")
-	depBlockNumber := int64(1)
+	depBlockNumber := uint64(1)
 	disTxnHash := common.HexToHash("0xee02")
-	disBlockNumber := int64(2)
+	disBlockNumber := uint64(2)
 
 	// Calling UpsertDisbursement with the zero timestamp should fail.
 	err := d.UpsertDisbursement(0, common.HexToHash("0xdd00"), 0, time.Time{})

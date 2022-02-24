@@ -24,9 +24,9 @@ var (
 // Deposit represents an event emitted from the TeleportrDeposit contract on L1,
 // along with additional info about the tx that generated the event.
 type Deposit struct {
-	ID             int64
+	ID             uint64
 	TxnHash        common.Hash
-	BlockNumber    int64
+	BlockNumber    uint64
 	BlockTimestamp time.Time
 	Address        common.Address
 	Amount         *big.Int
@@ -35,14 +35,14 @@ type Deposit struct {
 // ConfirmationInfo holds metadata about a tx on either the L1 or L2 chain.
 type ConfirmationInfo struct {
 	TxnHash        common.Hash
-	BlockNumber    int64
+	BlockNumber    uint64
 	BlockTimestamp time.Time
 }
 
 // CompletedTeleport represents an L1 deposit that has been disbursed on L2. The
 // struct also hold info about the L1 and L2 txns involved.
 type CompletedTeleport struct {
-	ID           int64
+	ID           uint64
 	Address      common.Address
 	Amount       *big.Int
 	Deposit      ConfirmationInfo
@@ -211,10 +211,10 @@ LIMIT 1
 
 // LatestDeposit returns the block number of the latest deposit known to the
 // database.
-func (d *Database) LatestDeposit() (*int64, error) {
+func (d *Database) LatestDeposit() (*uint64, error) {
 	row := d.conn.QueryRow(latestDepositQuery)
 
-	var latestTransfer int64
+	var latestTransfer uint64
 	err := row.Scan(&latestTransfer)
 	if err == sql.ErrNoRows {
 		return nil, nil
@@ -235,7 +235,7 @@ ORDER BY dep.id ASC
 
 // ConfirmedDeposits returns the set of all deposits that have sufficient
 // confirmation, but do not have a recorded disbursement.
-func (d *Database) ConfirmedDeposits(blockNumber, confirmations int64) ([]Deposit, error) {
+func (d *Database) ConfirmedDeposits(blockNumber, confirmations uint64) ([]Deposit, error) {
 	rows, err := d.conn.Query(confirmedDepositsQuery, confirmations, blockNumber)
 	if err != nil {
 		return nil, err
@@ -287,9 +287,9 @@ SET (txn_hash, block_number, block_timestamp) = ($2, $3, $4)
 // UpsertDisbursement inserts a disbursement, or updates an existing record
 // in-place if the ID already exists.
 func (d *Database) UpsertDisbursement(
-	id int64,
+	id uint64,
 	txnHash common.Hash,
-	blockNumber int64,
+	blockNumber uint64,
 	blockTimestamp time.Time,
 ) error {
 	if blockTimestamp.IsZero() {
