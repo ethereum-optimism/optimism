@@ -16,6 +16,7 @@ import (
 // SyncSource implements SyncReference with a L2 block sources and L1 hash-by-number source
 type SyncSource struct {
 	L1 interface {
+		HeadBlockLink(ctx context.Context) (self eth.BlockID, parent eth.BlockID, err error)
 		BlockLinkByNumber(ctx context.Context, num uint64) (self eth.BlockID, parent eth.BlockID, err error)
 	}
 	L2 interface {
@@ -27,6 +28,11 @@ type SyncSource struct {
 // RefByL1Num fetches the canonical L1 block hash and the parent for the given L1 block height.
 func (src SyncSource) RefByL1Num(ctx context.Context, l1Num uint64) (self eth.BlockID, parent eth.BlockID, err error) {
 	return src.L1.BlockLinkByNumber(ctx, l1Num)
+}
+
+// L1HeadRef fetches the canonical L1 block hash and the parent for the head of the L1 chain.
+func (src SyncSource) L1HeadRef(ctx context.Context) (self eth.BlockID, parent eth.BlockID, err error) {
+	return src.L1.HeadBlockLink(ctx)
 }
 
 // RefByL2Num fetches the L1 and L2 block IDs from the engine for the given L2 block height.
@@ -54,6 +60,9 @@ func (src SyncSource) RefByL2Hash(ctx context.Context, l2Hash common.Hash, genes
 type SyncReference interface {
 	// RefByL1Num fetches the canonical L1 block hash and the parent for the given L1 block height.
 	RefByL1Num(ctx context.Context, l1Num uint64) (self eth.BlockID, parent eth.BlockID, err error)
+
+	// L1HeadRef fetches the canonical L1 block hash and the parent for the head of the L1 chain.
+	L1HeadRef(ctx context.Context) (self eth.BlockID, parent eth.BlockID, err error)
 
 	// RefByL2Num fetches the L1 and L2 block IDs from the engine for the given L2 block height.
 	// Use a nil height to fetch the head.

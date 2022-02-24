@@ -34,6 +34,19 @@ func (m *mockSyncReference) RefByL1Num(ctx context.Context, l1Num uint64) (self 
 	return
 }
 
+func (m *mockSyncReference) L1HeadRef(ctx context.Context) (self eth.BlockID, parent eth.BlockID, err error) {
+	l := len(m.L1)
+	if l == 0 {
+		err = ethereum.NotFound
+		return
+	}
+	self = m.L1[l-1]
+	if l-1 > 0 {
+		parent = m.L1[l-1-1]
+	}
+	return
+}
+
 func (m *mockSyncReference) RefByL2Num(ctx context.Context, l2Num *big.Int, genesis *rollup.Genesis) (refL1 eth.BlockID, refL2 eth.BlockID, parentL2 common.Hash, err error) {
 	if len(m.L2) == 0 {
 		panic("bad test, no l2 chain")
