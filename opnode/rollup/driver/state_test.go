@@ -54,11 +54,17 @@ type testState struct {
 }
 
 func makeState(st testState) *state {
+	next := make([]eth.BlockID, len(st.l1Next))
+	for i, id := range st.l1Next {
+		next[i] = id.ID()
+	}
 	return &state{
-		l1Head:      st.l1Head.ID(),
-		l2Head:      st.l2Head.ID(),
-		l2Finalized: st.l2Finalized.ID(),
-		l1Target:    st.l1Target.ID(),
+		l1Head:       st.l1Head.ID(),
+		l2Head:       st.l2Head.ID(),
+		l2Finalized:  st.l2Finalized.ID(),
+		l1Target:     st.l1Target.ID(),
+		l1Next:       next,
+		l2NextParent: st.l2NextParent.ID(),
 		// TODO: improve testing config (test different seq window sizes and non-zero L2 genesis time?)
 		Config: rollup.Config{
 			Genesis: rollup.Genesis{
@@ -89,16 +95,16 @@ func (m *mockDriver) requestEngineHead(ctx context.Context) (refL1 eth.BlockID, 
 	return
 }
 
-func (m *mockDriver) findSyncStart(ctx context.Context) (nextRefL1 eth.BlockID, refL2 eth.BlockID, err error) {
+func (m *mockDriver) findSyncStart(ctx context.Context) (nextL1s []eth.BlockID, refL2 eth.BlockID, err error) {
 	returnArgs := m.Called(ctx)
-	nextRefL1 = returnArgs.Get(0).(eth.BlockID)
+	nextL1s = returnArgs.Get(0).([]eth.BlockID)
 	refL2 = returnArgs.Get(1).(eth.BlockID)
 	err, _ = returnArgs.Get(2).(error)
 	return
 }
 
-func (m *mockDriver) driverStep(ctx context.Context, nextRefL1 eth.BlockID, refL2 eth.BlockID, finalized eth.BlockID) (l2ID eth.BlockID, err error) {
-	returnArgs := m.Called(ctx, nextRefL1, refL2, finalized)
+func (m *mockDriver) driverStep(ctx context.Context, seqWindow []eth.BlockID, refL2 eth.BlockID, finalized eth.BlockID) (l2ID eth.BlockID, err error) {
+	returnArgs := m.Called(ctx, seqWindow, refL2, finalized)
 	l2ID = returnArgs.Get(0).(eth.BlockID)
 	err, _ = returnArgs.Get(1).(error)
 	return
@@ -112,15 +118,18 @@ func TestEngineDriverState_RequestSync(t *testing.T) {
 	ctx := context.Background()
 
 	state := makeState(testState{
-		l1Head:      "c:2",
-		l2Head:      "C:2",
-		l2Finalized: "B:1",
-		l1Target:    "e:4",
-		genesisL1:   "a:0",
-		genesisL2:   "b:0",
+		l1Head:        "c:2",
+		l2Head:        "C:2",
+		l2Finalized:   "B:1",
+		l1Target:      "e:4",
+		l1Next:        []testID{"d:3", "e:4", "c:5"}, // TODO: multiple batches per L1 block
+		l2NextParent:  "C:2",
+		genesisL1:     "a:0",
+		genesisL2:     "b:0",
+		seqWindowSize: 1, // TODO: test larger sequencing sizes (requires updating test below)
 	})
-	driver.On("findSyncStart", ctx).Return(testID("d:3").ID(), testID("C:2").ID(), nil)
-	driver.On("driverStep", ctx, testID("d:3").ID(), testID("C:2").ID(), testID("B:1").ID()).Return(testID("D:3").ID(), nil)
+	driver.On("findSyncStart", ctx).Return([]eth.BlockID{testID("d:3").ID()}, testID("C:2").ID(), nil)
+	driver.On("driverStep", ctx, []eth.BlockID{testID("d:3").ID()}, testID("C:2").ID(), testID("B:1").ID()).Return(testID("D:3").ID(), nil)
 
 	l2Updated := state.requestSync(ctx, log, driver)
 

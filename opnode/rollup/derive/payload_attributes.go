@@ -239,7 +239,7 @@ type L2Info interface {
 //  - The L2 information of the block the new derived blocks build on
 //
 // This is a pure function.
-func PayloadAttributesV2(config *rollup.Config, l1Info L1Info, receipts []*types.Receipt, seqWindow []BatchData, l2Info L2Info) ([]*l2.PayloadAttributes, error) {
+func PayloadAttributes(config *rollup.Config, l1Info L1Info, receipts []*types.Receipt, seqWindow []BatchData, l2Info L2Info) ([]*l2.PayloadAttributes, error) {
 	// check if we have the full sequencing window
 	if len(seqWindow) == 0 {
 		return nil, errors.New("cannot derive payload attributes from empty sequencing window")
@@ -294,43 +294,6 @@ func PayloadAttributesV2(config *rollup.Config, l1Info L1Info, receipts []*types
 	out[0].Transactions = append(append(make([]l2.Data, 0), deposits...), out[0].Transactions...)
 
 	return out, nil
-}
-
-// PayloadAttributes derives the pre-execution payload from the L1 block info and deposit receipts.
-// This is a pure function.
-func PayloadAttributes(block L1Info, receipts []*types.Receipt) (*l2.PayloadAttributes, error) {
-	// if !CheckReceipts(block, receipts) {
-	// 	return nil, fmt.Errorf("receipts are not consistent with the block's receipts root: %s", block.ReceiptHash())
-	// }
-
-	l1Tx := types.NewTx(L1InfoDeposit(block))
-	opaqueL1Tx, err := l1Tx.MarshalBinary()
-	if err != nil {
-		return nil, fmt.Errorf("failed to encode L1 info tx")
-	}
-
-	userDeposits, err := UserDeposits(block.NumberU64(), receipts)
-	if err != nil {
-		return nil, fmt.Errorf("failed to derive user deposits: %v", err)
-	}
-
-	encodedTxs := make([]l2.Data, 0, len(userDeposits)+1)
-	encodedTxs = append(encodedTxs, opaqueL1Tx)
-
-	for i, tx := range userDeposits {
-		opaqueTx, err := types.NewTx(tx).MarshalBinary()
-		if err != nil {
-			return nil, fmt.Errorf("failed to encode user tx %d", i)
-		}
-		encodedTxs = append(encodedTxs, opaqueTx)
-	}
-
-	return &l2.PayloadAttributes{
-		Timestamp:             l2.Uint64Quantity(block.Time()),
-		Random:                l2.Bytes32(block.MixDigest()),
-		SuggestedFeeRecipient: common.Address{}, // nobody gets tx fees for deposits
-		Transactions:          encodedTxs,
-	}, nil
 }
 
 func DeriveDeposits(l1Info L1Info, receipts []*types.Receipt) ([]l2.Data, error) {

@@ -9,7 +9,6 @@ import (
 	"github.com/ethereum-optimism/optimistic-specs/opnode/rollup"
 	rollupSync "github.com/ethereum-optimism/optimistic-specs/opnode/rollup/sync"
 
-	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 )
 
@@ -21,10 +20,6 @@ const cold = time.Second * 8
 
 // at least try every minute to sync, even if things are going well
 const max = time.Minute
-
-type Downloader interface {
-	Fetch(ctx context.Context, id eth.BlockID) (*types.Block, []*types.Receipt, error)
-}
 
 type Driver struct {
 	log         log.Logger
@@ -127,15 +122,10 @@ func (e *Driver) requestEngineHead(ctx context.Context) (refL1 eth.BlockID, refL
 	return l2Head.L1Parent, l2Head.Self, err
 }
 
-func (e *Driver) findSyncStart(ctx context.Context) (nextRefL1 eth.BlockID, refL2 eth.BlockID, err error) {
-	var l1s []eth.BlockID
-	l1s, refL2, err = rollupSync.FindSyncStart(ctx, e.chainSource, &e.Config.Genesis)
-	if err != nil && len(l1s) > 0 {
-		nextRefL1 = l1s[0]
-	}
-	return
+func (e *Driver) findSyncStart(ctx context.Context) (nextRefL1s []eth.BlockID, refL2 eth.BlockID, err error) {
+	return rollupSync.FindSyncStart(ctx, e.chainSource, &e.Config.Genesis)
 }
 
-func (e *Driver) driverStep(ctx context.Context, nextRefL1 eth.BlockID, refL2 eth.BlockID, finalized eth.BlockID) (l2ID eth.BlockID, err error) {
-	return e.step(ctx, nextRefL1, refL2, finalized.Hash)
+func (e *Driver) driverStep(ctx context.Context, l1Input []eth.BlockID, l2Parent eth.BlockID, l2Finalized eth.BlockID) (l2ID eth.BlockID, err error) {
+	return e.step(ctx, l1Input, l2Parent, l2Finalized.Hash)
 }
