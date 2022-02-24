@@ -235,7 +235,7 @@ type DepositJSON struct {
 	FromAddress    string `json:"from"`
 	ToAddress      string `json:"to"`
 	L1Token        *Token `json:"l1Token"`
-	L2Token        *Token `json:"l2Token"`
+	L2Token        string `json:"l2Token"`
 	Amount         string `json:"amount"`
 	Data           []byte `json:"data"`
 	LogIndex       uint64 `json:"logIndex"`
@@ -248,7 +248,7 @@ type WithdrawalJSON struct {
 	GUID           string `json:"guid"`
 	FromAddress    string `json:"from"`
 	ToAddress      string `json:"to"`
-	L1Token        *Token `json:"l1Token"`
+	L1Token        string `json:"l1Token"`
 	L2Token        *Token `json:"l2Token"`
 	Amount         string `json:"amount"`
 	Data           []byte `json:"data"`
@@ -544,12 +544,10 @@ func (d *Database) GetDepositsByAddress(address common.Address, page PaginationP
 		deposits.amount, deposits.tx_hash, deposits.data,
 		deposits.l1_token, deposits.l2_token,
 		l1_tokens.name, l1_tokens.symbol, l1_tokens.decimals,
-		l2_tokens.name, l2_tokens.symbol, l2_tokens.decimals,
 		l1_blocks.number, l1_blocks.timestamp
 	FROM deposits
 		INNER JOIN l1_blocks ON deposits.block_hash=l1_blocks.hash
 		INNER JOIN l1_tokens ON deposits.l1_token=l1_tokens.address
-		INNER JOIN l2_tokens ON deposits.l2_token=l2_tokens.address
 	WHERE deposits.from_address = $1 ORDER BY l1_blocks.timestamp LIMIT $2 OFFSET $3;
 	`
 	var deposits []DepositJSON
@@ -567,19 +565,17 @@ func (d *Database) GetDepositsByAddress(address common.Address, page PaginationP
 
 		for rows.Next() {
 			var deposit DepositJSON
-			var l1_token, l2_token Token
+			var l1_token Token
 			if err := rows.Scan(
 				&deposit.GUID, &deposit.FromAddress, &deposit.ToAddress,
 				&deposit.Amount, &deposit.TxHash, &deposit.Data,
-				&l1_token.Address, &l2_token.Address,
+				&l1_token.Address, &deposit.L2Token,
 				&l1_token.Name, &l1_token.Symbol, &l1_token.Decimals,
-				&l2_token.Name, &l2_token.Symbol, &l2_token.Decimals,
 				&deposit.BlockNumber, &deposit.BlockTimestamp,
 			); err != nil {
 				return err
 			}
 			deposit.L1Token = &l1_token
-			deposit.L2Token = &l2_token
 			deposits = append(deposits, deposit)
 		}
 
@@ -598,12 +594,10 @@ func (d *Database) GetWithdrawalsByAddress(address l2common.Address, page Pagina
 	    withdrawals.guid, withdrawals.from_address, withdrawals.to_address,
 		withdrawals.amount, withdrawals.tx_hash, withdrawals.data,
 		withdrawals.l1_token, withdrawals.l2_token,
-		l1_tokens.name, l1_tokens.symbol, l1_tokens.decimals,
 		l2_tokens.name, l2_tokens.symbol, l2_tokens.decimals,
 		l2_blocks.number, l2_blocks.timestamp
 	FROM withdrawals
 		INNER JOIN l2_blocks ON withdrawals.block_hash=l2_blocks.hash
-		INNER JOIN l1_tokens ON withdrawals.l1_token=l1_tokens.address
 		INNER JOIN l2_tokens ON withdrawals.l2_token=l2_tokens.address
 	WHERE withdrawals.from_address = $1 ORDER BY l2_blocks.timestamp LIMIT $2 OFFSET $3;
 	`
@@ -622,18 +616,16 @@ func (d *Database) GetWithdrawalsByAddress(address l2common.Address, page Pagina
 
 		for rows.Next() {
 			var withdrawal WithdrawalJSON
-			var l1_token, l2_token Token
+			var l2_token Token
 			if err := rows.Scan(
 				&withdrawal.GUID, &withdrawal.FromAddress, &withdrawal.ToAddress,
 				&withdrawal.Amount, &withdrawal.TxHash, &withdrawal.Data,
-				&l1_token.Address, &l2_token.Address,
-				&l1_token.Name, &l1_token.Symbol, &l1_token.Decimals,
+				&withdrawal.L1Token, &l2_token.Address,
 				&l2_token.Name, &l2_token.Symbol, &l2_token.Decimals,
 				&withdrawal.BlockNumber, &withdrawal.BlockTimestamp,
 			); err != nil {
 				return err
 			}
-			withdrawal.L1Token = &l1_token
 			withdrawal.L2Token = &l2_token
 			withdrawals = append(withdrawals, withdrawal)
 		}
