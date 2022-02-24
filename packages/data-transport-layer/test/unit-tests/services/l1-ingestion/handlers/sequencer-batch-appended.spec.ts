@@ -2,8 +2,14 @@ import fs from 'fs'
 import path from 'path'
 
 import { BigNumber, ethers } from 'ethers'
+import { sequencerBatch, add0x, BatchType } from '@eth-optimism/core-utils'
 
-import { compressBatchWithZlib } from '../../../../../src/utils'
+const compressBatchWithZlib = (calldata: string | Buffer): string => {
+  const batch = sequencerBatch.decode(calldata)
+  batch.type = BatchType.ZLIB
+  const encoded = sequencerBatch.encode(batch)
+  return add0x(encoded.toString('hex'))
+}
 
 const readMockData = () => {
   const mockDataPath = path.join(__dirname, '..', '..', '..', 'examples')
@@ -91,13 +97,16 @@ describe('Event Handlers: CanonicalTransactionChain.SequencerBatchAppended', () 
       )
     })
 
-    describe('mainnet transactions', () => {
+    describe.only('mainnet transactions', () => {
       for (const mock of mockData) {
         const { input, output } = mock
         const { event, extraData, l2ChainId } = input
         const hash = mock.input.extraData.l1TransactionHash
 
         it(`uncompressed: ${hash}`, () => {
+          // Set the type to be legacy
+          output.transactionBatchEntry.type = BatchType[BatchType.LEGACY]
+
           const res = handleEventsSequencerBatchAppended.parseEvent(
             event,
             extraData,
@@ -112,6 +121,9 @@ describe('Event Handlers: CanonicalTransactionChain.SequencerBatchAppended', () 
         })
 
         it(`compressed: ${hash}`, () => {
+          // Set the type to be zlib
+          output.transactionBatchEntry.type = BatchType[BatchType.ZLIB]
+
           const compressed = compressBatchWithZlib(
             input.extraData.l1TransactionData
           )
