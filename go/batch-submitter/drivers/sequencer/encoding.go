@@ -2,6 +2,7 @@ package sequencer
 
 import (
 	"bytes"
+	"compress/zlib"
 	"encoding/binary"
 	"fmt"
 	"io"
@@ -71,6 +72,35 @@ func (c *BatchContext) Read(r io.Reader) error {
 	return readUint64(r, &c.BlockNumber, 5)
 }
 
+type BatchType int8
+
+func (b BatchType) String() string {
+	switch b {
+	case BatchTypeLegacy:
+		return "LEGACY"
+	case BatchTypeZlib:
+		return "ZLIB"
+	default:
+		return ""
+	}
+}
+
+func (b BatchType) FromString(s string) BatchType {
+	switch s {
+	case "zlib", "ZLIB":
+		return BatchTypeZlib
+	case "legacy", "LEGACY":
+		return BatchTypeLegacy
+	default:
+		return BatchTypeLegacy
+	}
+}
+
+const (
+	BatchTypeLegacy BatchType = -1
+	BatchTypeZlib             = 0
+)
+
 // AppendSequencerBatchParams holds the raw data required to submit a batch of
 // L2 txs to L1 CTC contract. Rather than encoding the objects using the
 // standard ABI encoding, a custom encoding is and provided in the call data to
@@ -95,6 +125,9 @@ type AppendSequencerBatchParams struct {
 	// Txs contains all sequencer txs that will be recorded in the L1 CTC
 	// contract.
 	Txs []*CachedTx
+
+	// The type of the batch
+	Type BatchType
 }
 
 // Write encodes the AppendSequencerBatchParams using the following format:
@@ -109,16 +142,46 @@ func (p *AppendSequencerBatchParams) Write(w *bytes.Buffer) error {
 	writeUint64(w, p.ShouldStartAtElement, 5)
 	writeUint64(w, p.TotalElementsToAppend, 3)
 
+	contexts := make([]BatchContext, len(p.Contexts))
+	copy(contexts, p.Contexts)
+
+	if p.Type == BatchTypeZlib {
+		if contexts == nil {
+			contexts = []BatchContext{}
+		}
+
+		// All zero values for the single batch context
+		// is desired here
+		contexts = append([]BatchContext{{}}, contexts...)
+	}
+
 	// Write number of contexts followed by each fixed-size BatchContext.
-	writeUint64(w, uint64(len(p.Contexts)), 3)
-	for _, context := range p.Contexts {
+	writeUint64(w, uint64(len(contexts)), 3)
+	for _, context := range contexts {
 		context.Write(w)
 	}
 
-	// Write each length-prefixed tx.
-	for _, tx := range p.Txs {
-		writeUint64(w, uint64(tx.Size()), TxLenSize)
-		_, _ = w.Write(tx.RawTx()) // can't fail for bytes.Buffer
+	switch p.Type {
+	case BatchTypeLegacy:
+		// Write each length-prefixed tx.
+		for _, tx := range p.Txs {
+			writeUint64(w, uint64(tx.Size()), TxLenSize)
+			_, _ = w.Write(tx.RawTx()) // can't fail for bytes.Buffer
+		}
+	case BatchTypeZlib:
+		zw := zlib.NewWriter(w)
+		defer zw.Close()
+
+		for _, tx := range p.Txs {
+			writeUint64(zw, uint64(tx.Size()), TxLenSize)
+			_, err := zw.Write(tx.RawTx())
+			if err != nil {
+				return err
+			}
+		}
+
+	default:
+		return fmt.Errorf("Unknown batch type: %s", p.Type)
 	}
 
 	return nil
@@ -168,6 +231,32 @@ func (p *AppendSequencerBatchParams) Read(r io.Reader) error {
 		p.Contexts = append(p.Contexts, batchContext)
 	}
 
+	p.Type = BatchTypeLegacy
+
+	// Handle backwards compatible batch types
+	if len(p.Contexts) > 0 && p.Contexts[0].Timestamp == 0 {
+		switch p.Contexts[0].BlockNumber {
+		case 0:
+			// zlib compressed transaction data
+			p.Type = BatchTypeZlib
+			// remove the first dummy context
+			p.Contexts = p.Contexts[1:]
+			numContexts--
+
+			zr, err := zlib.NewReader(r)
+			if err == io.EOF || err == io.ErrUnexpectedEOF {
+				return nil
+			} else if err != nil {
+				return err
+			}
+			defer zr.Close()
+
+			buf := new(bytes.Buffer)
+			io.Copy(buf, zr)
+			r = bytes.NewReader(buf.Bytes())
+		}
+	}
+
 	// Deserialize any transactions. Since the number of txs is ommitted
 	// from the encoding, loop until the stream is consumed.
 	for {
@@ -191,7 +280,7 @@ func (p *AppendSequencerBatchParams) Read(r io.Reader) error {
 }
 
 // writeUint64 writes a the bottom `n` bytes of `val` to `w`.
-func writeUint64(w *bytes.Buffer, val uint64, n uint) {
+func writeUint64(w io.Writer, val uint64, n uint) {
 	if n < 1 || n > 8 {
 		panic(fmt.Sprintf("invalid number of bytes %d must be 1-8", n))
 	}

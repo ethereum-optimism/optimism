@@ -125,6 +125,7 @@ func Main(gitVersion string) func(ctx *cli.Context) error {
 				CTCAddr:     ctcAddress,
 				ChainID:     chainID,
 				PrivKey:     sequencerPrivKey,
+				BatchType:   new(sequencer.BatchType).FromString(cfg.SequencerBatchType),
 			})
 			if err != nil {
 				return err

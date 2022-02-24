@@ -65,167 +65,23 @@ type AppendSequencerBatchParamsTest struct {
 	TotalElementsToAppend uint64                   `json:"total_elements_to_append"`
 	Contexts              []sequencer.BatchContext `json:"contexts"`
 	Txs                   []string                 `json:"txs"`
+	Type                  sequencer.BatchType      `json:"type"`
 }
 
-var appendSequencerBatchParamTests = AppendSequencerBatchParamsTestCases{
-	Tests: []AppendSequencerBatchParamsTest{
-		{
-			Name: "empty batch",
-			HexEncoding: "0000000000000000" +
-				"000000",
-			ShouldStartAtElement:  0,
-			TotalElementsToAppend: 0,
-			Contexts:              nil,
-			Txs:                   nil,
-		},
-		{
-			Name: "single tx",
-			HexEncoding: "0000000001000001" +
-				"000000" +
-				"00000ac9808080808080808080",
-			ShouldStartAtElement:  1,
-			TotalElementsToAppend: 1,
-			Contexts:              nil,
-			Txs: []string{
-				"c9808080808080808080",
-			},
-		},
-		{
-			Name: "multiple txs",
-			HexEncoding: "0000000001000004" +
-				"000000" +
-				"00000ac9808080808080808080" +
-				"00000ac9808080808080808080" +
-				"00000ac9808080808080808080" +
-				"00000ac9808080808080808080",
-			ShouldStartAtElement:  1,
-			TotalElementsToAppend: 4,
-			Contexts:              nil,
-			Txs: []string{
-				"c9808080808080808080",
-				"c9808080808080808080",
-				"c9808080808080808080",
-				"c9808080808080808080",
-			},
-		},
-		{
-			Name: "single context",
-			HexEncoding: "0000000001000000" +
-				"000001" +
-				"000102030405060708090a0b0c0d0e0f",
-			ShouldStartAtElement:  1,
-			TotalElementsToAppend: 0,
-			Contexts: []sequencer.BatchContext{
-				{
-					NumSequencedTxs:       0x000102,
-					NumSubsequentQueueTxs: 0x030405,
-					Timestamp:             0x060708090a,
-					BlockNumber:           0x0b0c0d0e0f,
-				},
-			},
-			Txs: nil,
-		},
-		{
-			Name: "multiple contexts",
-			HexEncoding: "0000000001000000" +
-				"000004" +
-				"000102030405060708090a0b0c0d0e0f" +
-				"000102030405060708090a0b0c0d0e0f" +
-				"000102030405060708090a0b0c0d0e0f" +
-				"000102030405060708090a0b0c0d0e0f",
-			ShouldStartAtElement:  1,
-			TotalElementsToAppend: 0,
-			Contexts: []sequencer.BatchContext{
-				{
-					NumSequencedTxs:       0x000102,
-					NumSubsequentQueueTxs: 0x030405,
-					Timestamp:             0x060708090a,
-					BlockNumber:           0x0b0c0d0e0f,
-				},
-				{
-					NumSequencedTxs:       0x000102,
-					NumSubsequentQueueTxs: 0x030405,
-					Timestamp:             0x060708090a,
-					BlockNumber:           0x0b0c0d0e0f,
-				},
-				{
-					NumSequencedTxs:       0x000102,
-					NumSubsequentQueueTxs: 0x030405,
-					Timestamp:             0x060708090a,
-					BlockNumber:           0x0b0c0d0e0f,
-				},
-				{
-					NumSequencedTxs:       0x000102,
-					NumSubsequentQueueTxs: 0x030405,
-					Timestamp:             0x060708090a,
-					BlockNumber:           0x0b0c0d0e0f,
-				},
-			},
-			Txs: nil,
-		},
-		{
-			Name: "complex",
-			HexEncoding: "0102030405060708" +
-				"000004" +
-				"000102030405060708090a0b0c0d0e0f" +
-				"000102030405060708090a0b0c0d0e0f" +
-				"000102030405060708090a0b0c0d0e0f" +
-				"000102030405060708090a0b0c0d0e0f" +
-				"00000ac9808080808080808080" +
-				"00000ac9808080808080808080" +
-				"00000ac9808080808080808080" +
-				"00000ac9808080808080808080",
-			ShouldStartAtElement:  0x0102030405,
-			TotalElementsToAppend: 0x060708,
-			Contexts: []sequencer.BatchContext{
-				{
-					NumSequencedTxs:       0x000102,
-					NumSubsequentQueueTxs: 0x030405,
-					Timestamp:             0x060708090a,
-					BlockNumber:           0x0b0c0d0e0f,
-				},
-				{
-					NumSequencedTxs:       0x000102,
-					NumSubsequentQueueTxs: 0x030405,
-					Timestamp:             0x060708090a,
-					BlockNumber:           0x0b0c0d0e0f,
-				},
-				{
-					NumSequencedTxs:       0x000102,
-					NumSubsequentQueueTxs: 0x030405,
-					Timestamp:             0x060708090a,
-					BlockNumber:           0x0b0c0d0e0f,
-				},
-				{
-					NumSequencedTxs:       0x000102,
-					NumSubsequentQueueTxs: 0x030405,
-					Timestamp:             0x060708090a,
-					BlockNumber:           0x0b0c0d0e0f,
-				},
-			},
-			Txs: []string{
-				"c9808080808080808080",
-				"c9808080808080808080",
-				"c9808080808080808080",
-				"c9808080808080808080",
-			},
-		},
-	},
-}
+var appendSequencerBatchParamTests = AppendSequencerBatchParamsTestCases{}
 
-// TestAppendSequencerBatchParamsEncodeDecodeMatchesJSON ensures that the
-// in-memory test vectors for valid encode/decode stay in sync with the JSON
-// version.
-func TestAppendSequencerBatchParamsEncodeDecodeMatchesJSON(t *testing.T) {
-	t.Parallel()
-
-	jsonBytes, err := json.MarshalIndent(appendSequencerBatchParamTests, "", "\t")
-	require.Nil(t, err)
-
+func init() {
 	data, err := os.ReadFile("./testdata/valid_append_sequencer_batch_params.json")
-	require.Nil(t, err)
+	if err != nil {
+		panic(err)
+	}
 
-	require.Equal(t, jsonBytes, data)
+	var cases AppendSequencerBatchParamsTestCases
+	err = json.Unmarshal(data, &cases)
+	if err != nil {
+		panic(err)
+	}
+	appendSequencerBatchParamTests = cases
 }
 
 // TestAppendSequencerBatchParamsEncodeDecode asserts the proper encoding and
@@ -265,6 +121,7 @@ func testAppendSequencerBatchParamsEncodeDecode(
 		TotalElementsToAppend: test.TotalElementsToAppend,
 		Contexts:              test.Contexts,
 		Txs:                   nil,
+		Type:                  sequencer.BatchTypeLegacy,
 	}
 
 	// Decode the batch from the test string.
@@ -272,8 +129,10 @@ func testAppendSequencerBatchParamsEncodeDecode(
 	require.Nil(t, err)
 
 	var params sequencer.AppendSequencerBatchParams
+	params.Type = sequencer.BatchTypeLegacy
 	err = params.Read(bytes.NewReader(rawBytes))
 	require.Nil(t, err)
+	require.Equal(t, params.Type, sequencer.BatchType(sequencer.BatchTypeLegacy))
 
 	// Assert that the decoded params match the expected params. The
 	// transactions are compared serparetly (via hash), since the internal
@@ -292,6 +151,32 @@ func testAppendSequencerBatchParamsEncodeDecode(
 	paramsBytes, err := params.Serialize()
 	require.Nil(t, err)
 	require.Equal(t, test.HexEncoding, hex.EncodeToString(paramsBytes))
+
+	// Reserialize the batch in compressed format
+
+	// Serialize the batches in compressed form
+	params.Type = sequencer.BatchTypeZlib
+	compressedParamsBytes, err := params.Serialize()
+	require.Nil(t, err)
+
+	var paramsCompressed sequencer.AppendSequencerBatchParams
+	//runtime.Breakpoint()
+	err = paramsCompressed.Read(bytes.NewReader(compressedParamsBytes))
+	require.Nil(t, err)
+	require.Equal(t, paramsCompressed.Type, sequencer.BatchType(sequencer.BatchTypeZlib))
+
+	// Handle nil contexts, Read() will never return nil contexts
+	if expParams.Contexts == nil {
+		expParams.Contexts = make([]sequencer.BatchContext, 0)
+	}
+	expParams.Type = sequencer.BatchTypeZlib
+	decompressedTxs := paramsCompressed.Txs
+	paramsCompressed.Txs = nil
+
+	require.Equal(t, expParams, paramsCompressed)
+	compareTxs(t, expTxs, decompressedTxs)
+
+	paramsCompressed.Txs = decompressedTxs
 }
 
 // compareTxs compares a list of two transactions, testing each pair by tx hash.

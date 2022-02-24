@@ -36,6 +36,7 @@ type Config struct {
 	CTCAddr     common.Address
 	ChainID     *big.Int
 	PrivKey     *ecdsa.PrivateKey
+	BatchType   BatchType
 }
 
 type Driver struct {
@@ -160,7 +161,7 @@ func (d *Driver) CraftBatchTx(
 	name := d.cfg.Name
 
 	log.Info(name+" crafting batch tx", "start", start, "end", end,
-		"nonce", nonce)
+		"nonce", nonce, "type", d.cfg.BatchType.String())
 
 	var (
 		batchElements []BatchElement
@@ -195,7 +196,7 @@ func (d *Driver) CraftBatchTx(
 	var pruneCount int
 	for {
 		batchParams, err := GenSequencerBatchParams(
-			shouldStartAt, d.cfg.BlockOffset, batchElements,
+			shouldStartAt, d.cfg.BlockOffset, batchElements, d.cfg.BatchType,
 		)
 		if err != nil {
 			return nil, err
