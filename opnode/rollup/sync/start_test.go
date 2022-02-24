@@ -2,6 +2,7 @@ package sync
 
 import (
 	"context"
+	"fmt"
 	"math/big"
 	"testing"
 
@@ -103,17 +104,21 @@ type syncStartTestCase struct {
 	Name string
 
 	OffsetL2 uint64
-	EngineL1 string
-	EngineL2 string
-	ActualL1 string
+	EngineL1 string // L1 Chain prior to a re-org or other change
+	EngineL2 string // L2 Chain that follows from L1Chain
+	ActualL1 string // L1 Chain after a change may have occurred
 
 	GenesisL1 rune
 	GenesisL2 rune
 
-	ExpectedNextRefL1 rune
-	ExpectedRefL2     rune
+	ExpectedNextRefsL1 string // The L1 extension to follow (i.e. L1 after the L1 parent in the new L2 Head)
+	ExpectedRefL2      rune   // The new L2 tip after a L1 change that may have occured
 
 	ExpectedErr error
+}
+
+func refToRune(r eth.BlockID) rune {
+	return rune(r.Hash.Bytes()[0])
 }
 
 func (c *syncStartTestCase) Run(t *testing.T) {
@@ -131,196 +136,185 @@ func (c *syncStartTestCase) Run(t *testing.T) {
 		L2: mockID(c.GenesisL2, 0),
 	}
 
-	expectedNextRefL1Num := ^uint64(0)
-	for i, id := range c.ActualL1 {
-		if id == c.ExpectedNextRefL1 {
-			expectedNextRefL1Num = uint64(i)
-		}
-	}
-	if c.ExpectedNextRefL1 == 0 {
-		expectedNextRefL1Num = uint64(0)
-	}
-	expectedNextRefL1 := mockID(c.ExpectedNextRefL1, expectedNextRefL1Num)
+	fmt.Println(engL1)
+	fmt.Println(actL1)
+	fmt.Println(engL2)
 
-	expectedRefL2Num := ^uint64(0)
-	for i, id := range c.EngineL2 {
-		if id == c.ExpectedRefL2 {
-			expectedRefL2Num = uint64(i)
-		}
-	}
-	if c.ExpectedRefL2 == 0 {
-		expectedRefL2Num = uint64(0)
-	}
-	expectedRefL2 := mockID(c.ExpectedRefL2, expectedRefL2Num)
+	nextRefL1s, refL2, err := V3FindSyncStart(context.Background(), SyncSourceV2{msr}, genesis)
 
-	nextRefL1, refL2, err := FindSyncStart(context.Background(), msr, genesis)
 	if c.ExpectedErr != nil {
-		assert.Error(t, err, "got next L1 %s (%d), onto L2: %s (%d)", nextRefL1.Hash[:1], nextRefL1.Number, refL2.Hash[:1], refL2.Number)
+		assert.Error(t, err, "Expecting an error in this test case")
 		assert.ErrorIs(t, err, c.ExpectedErr)
 	} else {
+		expectedRefL2 := refToRune(refL2)
+		var expectedRefsL1 []rune
+		for _, ref := range nextRefL1s {
+			expectedRefsL1 = append(expectedRefsL1, refToRune(ref))
+		}
+
 		assert.NoError(t, err)
-		assert.Equal(t, expectedNextRefL1, nextRefL1, "expected %s (nr %d) but got %s (nr %d)", expectedNextRefL1.Hash[:1], expectedNextRefL1.Number, nextRefL1.Hash[:1], nextRefL1.Number)
-		assert.Equal(t, expectedRefL2, refL2, "expected %s (nr %d) but got %s (nr %d)", expectedRefL2.Hash[:1], expectedRefL2.Number, refL2.Hash[:1], refL2.Number)
+		assert.Equal(t, c.ExpectedNextRefsL1, string(expectedRefsL1), "Next L1 refs not equal")
+		assert.Equal(t, expectedRefL2, c.ExpectedRefL2, "Next L2 Head not equal")
 	}
 }
 
 func TestFindSyncStart(t *testing.T) {
 	testCases := []syncStartTestCase{
 		{
-			Name:              "happy extend",
-			OffsetL2:          0,
-			EngineL1:          "ab",
-			EngineL2:          "AB",
-			ActualL1:          "abc",
-			GenesisL1:         'a',
-			GenesisL2:         'A',
-			ExpectedNextRefL1: 'c',
-			ExpectedRefL2:     'B',
-			ExpectedErr:       nil,
+			Name:               "happy extend",
+			OffsetL2:           0,
+			EngineL1:           "ab",
+			EngineL2:           "AB",
+			ActualL1:           "abc",
+			GenesisL1:          'a',
+			GenesisL2:          'A',
+			ExpectedNextRefsL1: "c",
+			ExpectedRefL2:      'B',
+			ExpectedErr:        nil,
 		},
 		{
-			Name:              "extend one at a time",
-			OffsetL2:          0,
-			EngineL1:          "ab",
-			EngineL2:          "AB",
-			ActualL1:          "abcdef",
-			GenesisL1:         'a',
-			GenesisL2:         'A',
-			ExpectedNextRefL1: 'c',
-			ExpectedRefL2:     'B',
-			ExpectedErr:       nil,
+			Name:               "extend one at a time",
+			OffsetL2:           0,
+			EngineL1:           "ab",
+			EngineL2:           "AB",
+			ActualL1:           "abcdef",
+			GenesisL1:          'a',
+			GenesisL2:          'A',
+			ExpectedNextRefsL1: "cdef",
+			ExpectedRefL2:      'B',
+			ExpectedErr:        nil,
 		},
 		{
-			Name:              "already synced",
-			OffsetL2:          0,
-			EngineL1:          "abcde",
-			EngineL2:          "ABCDE",
-			ActualL1:          "abcde",
-			GenesisL1:         'a',
-			GenesisL2:         'A',
-			ExpectedNextRefL1: 'e',
-			ExpectedRefL2:     'D',
-			ExpectedErr:       nil,
+			Name:               "already synced",
+			OffsetL2:           0,
+			EngineL1:           "abcde",
+			EngineL2:           "ABCDE",
+			ActualL1:           "abcde",
+			GenesisL1:          'a',
+			GenesisL2:          'A',
+			ExpectedNextRefsL1: "",
+			ExpectedRefL2:      'E',
+			ExpectedErr:        nil,
 		},
 		{
-			Name:              "genesis",
-			OffsetL2:          0,
-			EngineL1:          "a",
-			EngineL2:          "A",
-			ActualL1:          "a",
-			GenesisL1:         'a',
-			GenesisL2:         'A',
-			ExpectedNextRefL1: 'a',
-			ExpectedRefL2:     0, // actual zero hash before genesis hash
-			ExpectedErr:       nil,
+			Name:               "genesis",
+			OffsetL2:           0,
+			EngineL1:           "a",
+			EngineL2:           "A",
+			ActualL1:           "a",
+			GenesisL1:          'a',
+			GenesisL2:          'A',
+			ExpectedNextRefsL1: "",
+			ExpectedRefL2:      'A',
+			ExpectedErr:        nil,
 		},
 		{
-			Name:              "reorg two steps back",
-			OffsetL2:          0,
-			EngineL1:          "abc",
-			EngineL2:          "ABC",
-			ActualL1:          "axy",
-			GenesisL1:         'a',
-			GenesisL2:         'A',
-			ExpectedNextRefL1: 'x',
-			ExpectedRefL2:     'A',
-			ExpectedErr:       nil,
+			Name:               "reorg two steps back",
+			OffsetL2:           0,
+			EngineL1:           "abc",
+			EngineL2:           "ABC",
+			ActualL1:           "axy",
+			GenesisL1:          'a',
+			GenesisL2:          'A',
+			ExpectedNextRefsL1: "xy",
+			ExpectedRefL2:      'A',
+			ExpectedErr:        nil,
 		},
 		{
-			Name:              "Orphan block",
-			OffsetL2:          0,
-			EngineL1:          "abcd",
-			EngineL2:          "ABCD",
-			ActualL1:          "abcx",
-			GenesisL1:         'a',
-			GenesisL2:         'A',
-			ExpectedNextRefL1: 'x',
-			ExpectedRefL2:     'C',
-			ExpectedErr:       nil,
+			Name:               "Orphan block",
+			OffsetL2:           0,
+			EngineL1:           "abcd",
+			EngineL2:           "ABCD",
+			ActualL1:           "abcx",
+			GenesisL1:          'a',
+			GenesisL2:          'A',
+			ExpectedNextRefsL1: "x",
+			ExpectedRefL2:      'C',
+			ExpectedErr:        nil,
 		},
 		{
-			Name:              "L2 chain ahead",
-			OffsetL2:          0,
-			EngineL1:          "abcdef",
-			EngineL2:          "ABCDEF",
-			ActualL1:          "abc",
-			GenesisL1:         'a',
-			GenesisL2:         'A',
-			ExpectedNextRefL1: 0,
-			ExpectedRefL2:     0,
-			ExpectedErr:       ethereum.NotFound,
+			Name:               "L2 chain ahead",
+			OffsetL2:           0,
+			EngineL1:           "abcdef",
+			EngineL2:           "ABCDEF",
+			ActualL1:           "abc",
+			GenesisL1:          'a',
+			GenesisL2:          'A',
+			ExpectedNextRefsL1: "",
+			ExpectedRefL2:      'C',
+			ExpectedErr:        nil,
 		},
 		{
-			Name:              "L2 chain ahead reorg",
-			OffsetL2:          0,
-			EngineL1:          "abcdef",
-			EngineL2:          "ABCDEF",
-			ActualL1:          "abcx",
-			GenesisL1:         'a',
-			GenesisL2:         'A',
-			ExpectedNextRefL1: 'x',
-			ExpectedRefL2:     'C',
-			ExpectedErr:       nil,
+			Name:               "L2 chain ahead reorg",
+			OffsetL2:           0,
+			EngineL1:           "abcdef",
+			EngineL2:           "ABCDEF",
+			ActualL1:           "abcx",
+			GenesisL1:          'a',
+			GenesisL2:          'A',
+			ExpectedNextRefsL1: "x",
+			ExpectedRefL2:      'C',
+			ExpectedErr:        nil,
 		},
 		{
-			Name:              "unexpected L1 chain",
-			OffsetL2:          0,
-			EngineL1:          "abcdef",
-			EngineL2:          "ABCDEF",
-			ActualL1:          "xyz",
-			GenesisL1:         'a',
-			GenesisL2:         'A',
-			ExpectedNextRefL1: 0,
-			ExpectedRefL2:     0,
-			ExpectedErr:       WrongChainErr,
+			Name:               "unexpected L1 chain",
+			OffsetL2:           0,
+			EngineL1:           "abcdef",
+			EngineL2:           "ABCDEF",
+			ActualL1:           "xyz",
+			GenesisL1:          'a',
+			GenesisL2:          'A',
+			ExpectedNextRefsL1: "",
+			ExpectedRefL2:      0,
+			ExpectedErr:        WrongChainErr,
 		},
 		{
-			Name:              "unexpected L2 chain",
-			OffsetL2:          0,
-			EngineL1:          "abcdef",
-			EngineL2:          "ABCDEF",
-			ActualL1:          "xyz",
-			GenesisL1:         'a',
-			GenesisL2:         'X',
-			ExpectedNextRefL1: 0,
-			ExpectedRefL2:     0,
-			ExpectedErr:       WrongChainErr,
+			Name:               "unexpected L2 chain",
+			OffsetL2:           0,
+			EngineL1:           "abcdef",
+			EngineL2:           "ABCDEF",
+			ActualL1:           "xyz",
+			GenesisL1:          'a',
+			GenesisL2:          'X',
+			ExpectedNextRefsL1: "",
+			ExpectedRefL2:      0,
+			ExpectedErr:        WrongChainErr,
 		},
 		{
-			Name:              "offset L2 genesis extend",
-			OffsetL2:          3,
-			EngineL1:          "def",
-			EngineL2:          "DEF",
-			ActualL1:          "abcdefg",
-			GenesisL1:         'd',
-			GenesisL2:         'D',
-			ExpectedNextRefL1: 'g',
-			ExpectedRefL2:     'F',
-			ExpectedErr:       nil,
+			Name:               "offset L2 genesis extend",
+			OffsetL2:           3,
+			EngineL1:           "def",
+			EngineL2:           "DEF",
+			ActualL1:           "abcdefg",
+			GenesisL1:          'd',
+			GenesisL2:          'D',
+			ExpectedNextRefsL1: "g",
+			ExpectedRefL2:      'F',
+			ExpectedErr:        nil,
 		},
 		{
-			Name:              "offset L2 genesis reorg",
-			OffsetL2:          3,
-			EngineL1:          "defgh",
-			EngineL2:          "DEFGH",
-			ActualL1:          "abcdx",
-			GenesisL1:         'd',
-			GenesisL2:         'D',
-			ExpectedNextRefL1: 'x',
-			ExpectedRefL2:     'D',
-			ExpectedErr:       nil,
+			Name:               "offset L2 genesis reorg",
+			OffsetL2:           3,
+			EngineL1:           "defgh",
+			EngineL2:           "DEFGH",
+			ActualL1:           "abcdx",
+			GenesisL1:          'd',
+			GenesisL2:          'D',
+			ExpectedNextRefsL1: "x",
+			ExpectedRefL2:      'D',
+			ExpectedErr:        nil,
 		},
 		{
-			Name:              "reorg past offset genesis",
-			OffsetL2:          3,
-			EngineL1:          "defgh",
-			EngineL2:          "DEFGH",
-			ActualL1:          "abx",
-			GenesisL1:         'd',
-			GenesisL2:         'D',
-			ExpectedNextRefL1: 0,
-			ExpectedRefL2:     0,
-			ExpectedErr:       WrongChainErr,
+			Name:               "reorg past offset genesis",
+			OffsetL2:           3,
+			EngineL1:           "abcdefgh",
+			EngineL2:           "ABCDEFGH",
+			ActualL1:           "abx",
+			GenesisL1:          'd',
+			GenesisL2:          'D',
+			ExpectedNextRefsL1: "",
+			ExpectedRefL2:      0,
+			ExpectedErr:        WrongChainErr,
 		},
 	}
 
