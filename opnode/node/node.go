@@ -3,6 +3,7 @@ package node
 import (
 	"context"
 	"fmt"
+	"math/big"
 	"time"
 
 	"github.com/ethereum-optimism/optimistic-specs/opnode/eth"
@@ -70,6 +71,18 @@ func New(ctx context.Context, cfg *Config, log log.Logger) (*OpNode, error) {
 	l1Source := l1.NewSource(ethclient.NewClient(l1Node))
 	genesis := cfg.GetGenesis()
 	var l2Engines []*driver.Driver
+	// TODO: Merge into node.Config?
+	config := rollup.Config{
+		Genesis:              genesis,
+		BlockTime:            2,
+		MaxSequencerTimeDiff: 10,
+		SeqWindowSize:        64,
+		L1ChainID:            big.NewInt(901),
+		// TODO pick defaults
+		FeeRecipientAddress: common.Address{0xff, 0x01},
+		BatchInboxAddress:   common.Address{0xff, 0x02},
+		BatchSenderAddress:  common.Address{0xff, 0x03},
+	}
 	for i, addr := range cfg.L2EngineAddrs {
 		// L2 exec engine: updated by this OpNode (L2 consensus layer node)
 		backend, err := rpc.DialContext(ctx, addr)
@@ -86,7 +99,7 @@ func New(ctx context.Context, cfg *Config, log log.Logger) (*OpNode, error) {
 			EthBackend: ethclient.NewClient(backend),
 			Log:        log.New("engine_client", i),
 		}
-		engine := driver.NewDriver(client, l1Source, log.New("engine", i), genesis)
+		engine := driver.NewDriver(config, client, l1Source, log.New("engine", i))
 		l2Engines = append(l2Engines, engine)
 	}
 

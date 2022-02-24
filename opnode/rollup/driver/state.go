@@ -37,8 +37,8 @@ type state struct {
 	// The L1 block we are syncing towards, may be ahead of l1Head
 	l1Target eth.BlockID
 
-	// Genesis starting point
-	Genesis rollup.Genesis
+	// Rollup config
+	Config rollup.Config
 }
 
 func (e *state) updateHead(l1Head eth.BlockID, l2Head eth.BlockID) {

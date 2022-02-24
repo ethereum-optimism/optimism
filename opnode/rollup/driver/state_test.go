@@ -2,6 +2,7 @@ package driver
 
 import (
 	"context"
+	"math/big"
 	"strconv"
 	"strings"
 	"testing"
@@ -42,8 +43,14 @@ type testState struct {
 	l2Head      testID
 	l2Finalized testID
 	l1Target    testID
-	genesisL1   testID
-	genesisL2   testID
+
+	l1Next       []testID
+	l2NextParent testID
+
+	genesisL1 testID
+	genesisL2 testID
+
+	seqWindowSize uint64
 }
 
 func makeState(st testState) *state {
@@ -52,9 +59,20 @@ func makeState(st testState) *state {
 		l2Head:      st.l2Head.ID(),
 		l2Finalized: st.l2Finalized.ID(),
 		l1Target:    st.l1Target.ID(),
-		Genesis: rollup.Genesis{
-			L1: st.genesisL1.ID(),
-			L2: st.genesisL2.ID(),
+		// TODO: improve testing config (test different seq window sizes and non-zero L2 genesis time?)
+		Config: rollup.Config{
+			Genesis: rollup.Genesis{
+				L1:     st.genesisL1.ID(),
+				L2:     st.genesisL2.ID(),
+				L2Time: 0,
+			},
+			BlockTime:            2,
+			MaxSequencerTimeDiff: 10,
+			SeqWindowSize:        st.seqWindowSize,
+			L1ChainID:            big.NewInt(100),
+			FeeRecipientAddress:  common.Address{0x0a},
+			BatchInboxAddress:    common.Address{0x0b},
+			BatchSenderAddress:   common.Address{0x0c},
 		},
 	}
 }
