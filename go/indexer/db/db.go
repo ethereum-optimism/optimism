@@ -100,8 +100,8 @@ ON CONFLICT (address) DO NOTHING;
 `
 
 const createL1L2NumberIndex = `
-CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS l1_blocks_number ON l1_blocks(number);
-CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS l2_blocks_number ON l2_blocks(number);
+CREATE UNIQUE INDEX IF NOT EXISTS l1_blocks_number ON l1_blocks(number);
+CREATE UNIQUE INDEX IF NOT EXISTS l2_blocks_number ON l2_blocks(number);
 `
 
 type PaginationParam struct {
