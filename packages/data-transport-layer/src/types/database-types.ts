@@ -48,6 +48,7 @@ interface BatchEntry {
   prevTotalElements: number
   extraData: string
   l1TransactionHash: string
+  type: string
 }
 
 export type TransactionBatchEntry = BatchEntry
