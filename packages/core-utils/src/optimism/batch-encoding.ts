@@ -125,6 +125,8 @@ const encodeBatchContext = (context: BatchContext): string => {
   )
 }
 
+// decodeAppendSequencerBatch assumes that there
+// is not 4byte selector as a prefix
 export const decodeAppendSequencerBatch = (
   b: string | Buffer,
   opts?: DecodeSequencerBatchOpts
@@ -166,9 +168,10 @@ export const decodeAppendSequencerBatch = (
 
   if (contexts.length > 0) {
     const context = contexts[0]
-    if (context.blockNumber === 0) {
-      switch (context.timestamp) {
+    if (context.timestamp === 0) {
+      switch (context.blockNumber) {
         case 0: {
+          // zlib typed batch
           b = Buffer.concat([
             b.slice(0, offset),
             zlib.inflateSync(b.slice(offset)),
