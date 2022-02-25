@@ -96,14 +96,12 @@ export const handleEventsSequencerBatchAppended: EventHandlerSet<
     // Keep track of the tx index in the current batch
     let index = 0
 
-    for (const [i, context] of decoded.contexts.entries()) {
+    for (const context of decoded.contexts) {
       for (let j = 0; j < context.numSequencedTransactions; j++) {
         const tx = decoded.transactions[index] as Transaction
         if (!tx) {
           throw new Error(
-            `Invalid batch context, tx count: ${
-              decoded.transactions.length
-            }, attempting to parse ${i + j}`
+            `Invalid batch context, tx count: ${decoded.transactions.length}, attempting to parse ${index}`
           )
         }
 
