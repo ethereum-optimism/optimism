@@ -250,6 +250,11 @@ export const run = async () => {
     env.VALIDATE_TX_BATCH ? env.VALIDATE_TX_BATCH === 'true' : false
   )
 
+  const SEQUENCER_BATCH_TYPE = config.str(
+    'sequencer-batch-type',
+    env.SEQUENCER_BATCH_TYPE || 'legacy'
+  )
+
   // Auto fix batch options -- TODO: Remove this very hacky config
   const AUTO_FIX_BATCH_OPTIONS_CONF = config.str(
     'auto-fix-batch-conf',
@@ -402,7 +407,8 @@ export const run = async () => {
     VALIDATE_TX_BATCH,
     logger.child({ name: TX_BATCH_SUBMITTER_LOG_TAG }),
     metrics,
-    autoFixBatchOptions
+    autoFixBatchOptions,
+    SEQUENCER_BATCH_TYPE
   )
 
   const stateBatchTxSubmitter: TransactionSubmitter =

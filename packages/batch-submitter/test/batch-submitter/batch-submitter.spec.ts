@@ -226,7 +226,13 @@ describe('BatchSubmitter', () => {
       1,
       false,
       new Logger({ name: TX_BATCH_SUBMITTER_LOG_TAG }),
-      testMetrics
+      testMetrics,
+      {
+        fixDoublePlayedDeposits: false,
+        fixMonotonicity: false,
+        fixSkippedDeposits: false,
+      },
+      'legacy'
     )
   }
 
