@@ -2,147 +2,218 @@ package driver
 
 import (
 	"context"
+	"time"
 
 	"github.com/ethereum-optimism/optimistic-specs/opnode/eth"
 	"github.com/ethereum-optimism/optimistic-specs/opnode/rollup"
 	"github.com/ethereum/go-ethereum/log"
 )
 
-// internalDriver exposes the driver functionality that maintains the external execution-engine.
-type internalDriver interface {
-	// requestEngineHead retrieves the L2 he```d reference of the engine, as well as the L1 reference it was derived from.
-	// An error is returned when the L2 head information could not be retrieved (timeout or connection issue)
-	requestEngineHead(ctx context.Context) (refL1 eth.BlockID, refL2 eth.BlockID, err error)
-	// findSyncStart statelessly finds the next L1 block to derive, and on which L2 block it applies.
-	// If the engine is fully synced, then the last derived L1 block, and parent L2 block, is repeated.
-	// An error is returned if the sync starting point could not be determined (due to timeouts, wrong-chain, etc.)
-	findSyncStart(ctx context.Context) (nextRefL1s []eth.BlockID, refL2 eth.BlockID, err error)
-	// driverStep explicitly calls the engine to derive a L1 block into a L2 block, and apply it on top of the given L2 block.
-	// The finalized L2 block is provided to update the engine with finality, but does not affect the derivation step itself.
-	// The resulting L2 block ID is returned, or an error if the derivation fails.
-	driverStep(ctx context.Context, nextRefL1s []eth.BlockID, refL2 eth.BlockID, finalized eth.BlockID) (l2ID eth.BlockID, err error)
+type inputInterface interface {
+	L1Head(ctx context.Context) (eth.L1Node, error)
+	L2Head(ctx context.Context) (eth.L2Node, error)
+	L1ChainWindow(ctx context.Context, base eth.BlockID) ([]eth.BlockID, error)
+}
+
+type outputInterface interface {
+	step(ctx context.Context, l2Head eth.BlockID, l2Finalized eth.BlockID, l1Window []eth.BlockID) (eth.BlockID, error)
 }
 
 type state struct {
-	// l1Head tracks the L1 block corresponding to the l2Head
-	l1Head eth.BlockID
-
-	// l2Head tracks the head-block of the engine
-	l2Head eth.BlockID
-
-	// l2Finalized tracks the block the engine can safely regard as irreversible
-	// (a week for disputes, or maybe shorter if we see L1 finalize and take the derived L2 chain up till there)
-	l2Finalized eth.BlockID
-
-	// l1Next buffers the next L1 block IDs to derive new L2 blocks from, with increasing block height.
-	l1Next []eth.BlockID
-	// l2NextParent buffers the L2 Block ID to build on with l1Next.
-	// This may not be in sync with the l2Head in case of reorgs.
-	l2NextParent eth.BlockID
-
-	// The L1 block we are syncing towards, may be ahead of l1Head
-	l1Target eth.BlockID
+	// Chain State
+	l1Head      eth.BlockID   // Latest recorded head of the L1 Chain
+	l1Base      eth.BlockID   // L1 Parent of L2 Head block
+	l2Head      eth.BlockID   // L2 Safe Head - this is the head of the L2 chain as derived from L1 (thus it is Sequencer window blocks behind)
+	l2Finalized eth.BlockID   // L2 Block that will never be reversed
+	l1Window    []eth.BlockID // l1Window buffers the next L1 block IDs to derive new L2 blocks from, with increasing block height.
 
 	// Rollup config
 	Config rollup.Config
+
+	// Connections (in/out)
+	l1Heads <-chan eth.HeadSignal
+	input   inputInterface
+	output  outputInterface
+
+	log  log.Logger
+	done chan struct{}
 }
 
-func (e *state) updateHead(l1Head eth.BlockID, l2Head eth.BlockID) {
-	e.l1Head = l1Head
-	e.l2Head = l2Head
-}
-
-// requestUpdate tries to update the state-machine with the driver head information.
-// If the state-machine changed, considering the engine L1 and L2 head, it will return true. False otherwise.
-func (e *state) requestUpdate(ctx context.Context, log log.Logger, driver internalDriver) (l2Updated bool) {
-	refL1, refL2, err := driver.requestEngineHead(ctx)
-	if err != nil {
-		log.Error("failed to request engine head", "err", err)
-		return false
+// l1WindowEnd returns the last block that should be used as `base` to L1ChainWindow
+// This is either the last block of the window, or the L1 base block if the window is not populated
+func (s *state) l1WindowEnd() eth.BlockID {
+	if len(s.l1Window) == 0 {
+		return s.l1Base
 	}
-
-	e.l1Head = refL1
-	e.l2Head = refL2
-	return e.l1Head != refL1 || e.l2Head != refL2
+	return s.l1Window[len(s.l1Window)-1]
 }
 
-// requestSync tries to sync the provided driver towards the sync target of the state-machine.
-// If the L2 syncs a step, but is not finished yet, it will return true. False otherwise.
-func (e *state) requestSync(ctx context.Context, log log.Logger, driver internalDriver) (l2Updated bool) {
-	log = log.New("l1_head", e.l1Head, "l2_head", e.l2Head)
-	if e.l1Head == e.l1Target {
-		log.Debug("Engine is fully synced")
-		// TODO: even though we are fully synced, it may be worth attempting anyway,
-		// in case the e.l1Head is not updating (failed/broken L1 head subscription)
-		return false
-	}
-	// If the engine is not in sync with our previous sync preparation, then we need to reconstruct the buffered L1 ids
-	if e.l2Head != e.l2NextParent {
-		log.Debug("finding next sync step, engine syncing", "buffered_l2", e.l2NextParent)
-		nextL1s, refL2, err := driver.findSyncStart(ctx)
+// TODO: Split this function into populate window & SequencingWindow
+func (s *state) getNextWindow(ctx context.Context) ([]eth.BlockID, error) {
+
+	if uint64(len(s.l1Window)) < s.Config.SeqWindowSize {
+		nexts, err := s.input.L1ChainWindow(ctx, s.l1WindowEnd())
 		if err != nil {
-			log.Error("Failed to find sync starting point", "err", err)
-			return false
+			return nil, err
 		}
-		e.l1Next = nextL1s
-		e.l2NextParent = refL2
-	} else {
-		log.Debug("attempting new sync step")
+		s.l1Window = append(s.l1Window, nexts...)
 	}
-
-	return e.applyNextWindow(ctx, log, driver)
+	l := uint64(len(s.l1Window))
+	if l > s.Config.SeqWindowSize {
+		l = s.Config.SeqWindowSize
+	}
+	return s.l1Window[:l], nil
 }
 
-func (e *state) applyNextWindow(ctx context.Context, log log.Logger, driver internalDriver) (l2Updated bool) {
-	// If the engine moved faster than our buffer try to move the buffer forward, do not get stuck.
-	for i, id := range e.l1Next {
-		if e.l1Head == id {
-			log.Debug("Engine is ahead of rollup node, skipping forward and aborting sync")
-			e.l1Next = e.l1Next[i+1:]
-			e.l2NextParent = e.l2Head
-			return true
-		}
-	}
-	if uint64(len(e.l1Next)) < e.Config.SeqWindowSize {
-		log.Warn("Not enough known L1 blocks for sequencing window, skipping sync")
-		return false
-	}
-	seqWindow := e.l1Next[:e.Config.SeqWindowSize]
-	log = log.New("l1_window_start", seqWindow[0], "onto_l2", e.l2NextParent)
-	if l2ID, err := driver.driverStep(ctx, seqWindow, e.l2NextParent, e.l2Finalized); err != nil {
-		log.Error("Failed to sync L2 chain with new L1 block", "stopped_at", l2ID, "err", err)
-		return false
-	} else {
-		log.Debug("Finished driver step", "l1_head", seqWindow[0], "l2_head", l2ID)
-		e.updateHead(seqWindow[0], l2ID) // l2ID is derived from the nextRefL1
-		// shift sequencing window: batches overlap, but we continue deposit/l1info processing from the next block.
-		e.l1Next = e.l1Next[1:]
-		e.l2NextParent = l2ID
-		return true
+func NewState(log log.Logger, config rollup.Config, input inputInterface, output outputInterface) *state {
+	return &state{
+		Config: config,
+		done:   make(chan struct{}),
+		log:    log,
+		input:  input,
+		output: output,
 	}
 }
 
-// notifyL1Head updates the state-machine with the L1 signal,
-// and attempts to sync the driver if the update extends the previous head.
-// Returns true if the driver successfully derived and synced the L2 block to match L1. False otherwise.
-func (e *state) notifyL1Head(ctx context.Context, log log.Logger, l1HeadSig eth.HeadSignal, driver internalDriver) (l2Updated bool) {
-	if e.l1Head == l1HeadSig.Self {
-		log.Debug("Received L1 head signal, already synced to it, ignoring event", "l1_head", e.l1Head)
-		return
+func (s *state) Start(ctx context.Context, l1Heads <-chan eth.HeadSignal) error {
+	l1Head, err := s.input.L1Head(ctx)
+	if err != nil {
+		return err
 	}
-	e.l1Target = l1HeadSig.Self
-	// Check if this is a simple extension on top of previous buffered L1 chain we already know of
-	if len(e.l1Next) > 0 && e.l1Next[len(e.l1Next)-1] == l1HeadSig.Parent {
-		// don't buffer more than 20 sequencing windows  (TBD, sanity limit)
-		if uint64(len(e.l1Next)) < e.Config.SeqWindowSize*20 {
-			e.l1Next = append(e.l1Next, l1HeadSig.Self)
+	l2Head, err := s.input.L2Head(ctx)
+	if err != nil {
+		return err
+	}
+
+	s.l1Head = l1Head.Self
+	s.l2Head = l2Head.Self
+	s.l1Base = l2Head.L1Parent
+	s.l1Heads = l1Heads
+
+	go s.loop()
+	return nil
+}
+
+func (s *state) Close() error {
+	close(s.done)
+	return nil
+}
+
+func (s *state) handleReorg(ctx context.Context, head eth.HeadSignal) error {
+	log.Warn("L1 Head signal indicates an L1 re-org", "old_l1_head", s.l1Head, "new_l1_head_parent", head.Parent, "new_l1_head", head.Self)
+	nextL2Head, err := s.input.L2Head(ctx)
+	if err != nil {
+		log.Error("Could not get new L2 head when trying to handle a re-org", "err", err)
+		// TODO: How do you handle this error - it seems to break everything
+		return err
+	}
+	s.l1Head = head.Parent
+	s.l1Window = nil
+	s.l1Base = nextL2Head.L1Parent
+	s.l2Head = nextL2Head.Self
+	return nil
+}
+
+// newL1Head takes the new head and updates the internal state to reflect the new chain state.
+// Returns true if it is a re-org, false otherwise (linear extension, no-op, or other simple case).
+// If there is a re-org, this updates the internal state to handle the re-org.
+// Note that `ctx` is only used in a re-org and that handling a re-org may take a long period of time.
+// The L2 engine is not modified in this function.
+func (s *state) newL1Head(ctx context.Context, head eth.HeadSignal) (bool, error) {
+	// Already have head
+	if s.l1Head == head.Self {
+		log.Trace("Received L1 head signal that is the same as the current head", "l1_head", head.Self)
+		return false, nil
+	}
+	// Re-org (maybe also a skip)
+	if s.l1Head != head.Parent {
+		err := s.handleReorg(ctx, head)
+		if err != nil {
+			return false, err
 		}
-		return e.applyNextWindow(ctx, log, driver)
 	}
-	if e.l1Head.Number < l1HeadSig.Parent.Number {
-		log.Debug("Received new L1 head, engine is out of sync, cannot immediately process", "l1", l1HeadSig.Self, "l2", e.l2Head)
-	} else {
-		log.Warn("Received a L1 reorg, syncing new alternative chain", "l1", l1HeadSig.Self, "l2", e.l2Head)
+	// Linear extension
+	s.l1Head = head.Self
+	if len(s.l1Window) > 0 && s.l1Window[len(s.l1Window)-1] == head.Parent {
+		// // don't buffer more than 20 sequencing windows  (TBD, sanity limit)
+		// if uint64(len(e.l1Next)) < e.Config.SeqWindowSize*20 {
+		// 	e.l1Next = append(e.l1Next, l1HeadSig.Self)
+		// }
+		s.l1Window = append(s.l1Window, head.Self)
 	}
-	return false
+
+	return false, nil
+
+}
+
+func (s *state) newSafeL2Head(head eth.BlockID) {
+	s.log.Trace("New L2 head", "head", head)
+	s.l2Head = head
+	// TODO: Update L1 base here.
+
+	// Remove the processed L1 block from the window
+	if len(s.l1Window) > 0 {
+		s.l1Window = s.l1Window[:1]
+	}
+}
+
+func (s *state) loop() {
+	s.log.Info("State loop started")
+	ctx := context.Background()
+	// l1Poll := time.NewTicker(1 * time.Second)
+	// l2Poll := time.NewTicker(1 * time.Second)
+	stepRequest := make(chan struct{}, 1)
+	// defer l1Poll.Stop()
+	// defer l2Poll.Stop()
+
+	requestStep := func() {
+		select {
+		case stepRequest <- struct{}{}:
+		default:
+		}
+	}
+
+	requestStep()
+
+	for {
+		select {
+		// TODO: Poll cases (and move to bottom)
+		// case <-l1Poll.C:
+		// case <-l2Poll.C:
+		case <-s.done:
+			return
+		case l1HeadSig := <-s.l1Heads:
+			s.log.Trace("L1 Head Update", "new_head", l1HeadSig.Self)
+			// Set a long timeout because the timeout is for running sync.L2Head
+			ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+			_, err := s.newL1Head(ctx, l1HeadSig)
+			if err != nil {
+				panic(err)
+			}
+			requestStep()
+			cancel()
+
+		case <-stepRequest:
+			s.log.Trace("Step request")
+			window, err := s.getNextWindow(ctx)
+			if err != nil {
+				panic(err)
+			}
+			if len(window) == int(s.Config.SeqWindowSize) {
+				s.log.Trace("Running step")
+				ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+				newL2Head, err := s.output.step(ctx, s.l2Head, s.l2Finalized, window)
+				cancel()
+				s.log.Trace("step output", "head", newL2Head, "err", err)
+				if err != nil {
+					panic(err)
+				}
+				s.newSafeL2Head(newL2Head)
+			} else {
+				s.log.Trace("Not enough saved blocks to run step")
+			}
+
+		}
+	}
+
 }

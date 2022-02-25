@@ -15,11 +15,6 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 )
 
-type DriverAPI interface {
-	l2.EngineAPI
-	l2.EthBackend
-}
-
 type Downloader interface {
 	// FetchL1Info fetches the L1 header information corresponding to a L1 block ID
 	FetchL1Info(ctx context.Context, id eth.BlockID) (derive.L1Info, error)
@@ -31,51 +26,67 @@ type Downloader interface {
 	FetchL2Info(ctx context.Context, id eth.BlockID) (derive.L2Info, error)
 }
 
+type DriverAPI interface {
+	l2.EngineAPI
+	l2.EthBackend
+}
+
+type outputImpl struct {
+	dl     Downloader
+	rpc    DriverAPI
+	log    log.Logger
+	Config rollup.Config
+}
+
 // DriverStep derives and processes one or more L2 blocks from the given sequencing window of L1 blocks.
 // An incomplete sequencing window will result in an incomplete L2 chain if so.
 //
 // After the step completes it returns the block ID of the last processed L2 block, even if an error occurs.
-func (d *Driver) step(ctx context.Context, l1Input []eth.BlockID, l2Parent eth.BlockID, l2Finalized common.Hash) (out eth.BlockID, err error) {
-
+func (d *outputImpl) step(ctx context.Context, l2Head eth.BlockID, l2Finalized eth.BlockID, l1Input []eth.BlockID) (out eth.BlockID, err error) {
 	if len(l1Input) == 0 {
-		return l2Parent, fmt.Errorf("empty L1 sequencing window on L2 %s", l2Parent)
+		return l2Head, fmt.Errorf("empty L1 sequencing window on L2 %s", l2Head)
 	}
 
 	logger := d.log.New("input_l1_first", l1Input[0], "input_l1_last", l1Input[len(l1Input)-1],
-		"input_l2_parent", l2Parent, "finalized_l2", l2Finalized)
+		"input_l2_parent", l2Head, "finalized_l2", l2Finalized)
+	logger.Trace("Running update step on the L2 node")
 
 	epoch := rollup.Epoch(l1Input[0].Number)
 
 	fetchCtx, cancel := context.WithTimeout(ctx, time.Second*20)
 	defer cancel()
 
-	l2Info, err := d.dl.FetchL2Info(fetchCtx, l2Parent)
+	l2Info, err := d.dl.FetchL2Info(fetchCtx, l2Head)
 	if err != nil {
-		return l2Parent, fmt.Errorf("failed to fetch L2 block info of %s: %v", l2Parent, err)
+		return l2Head, fmt.Errorf("failed to fetch L2 block info of %s: %v", l2Head, err)
 	}
+	logger.Trace("Got l2 info")
 	l1Info, err := d.dl.FetchL1Info(fetchCtx, l1Input[0])
 	if err != nil {
-		return l2Parent, fmt.Errorf("failed to fetch L1 block info of %s: %v", l1Input[0], err)
+		return l2Head, fmt.Errorf("failed to fetch L1 block info of %s: %v", l1Input[0], err)
 	}
+	logger.Trace("Got l1 info")
 	receipts, err := d.dl.FetchReceipts(fetchCtx, l1Input[0])
 	if err != nil {
-		return l2Parent, fmt.Errorf("failed to fetch receipts of %s: %v", l1Input[0], err)
+		return l2Head, fmt.Errorf("failed to fetch receipts of %s: %v", l1Input[0], err)
 	}
+	logger.Trace("Got receipts")
 	// TODO: with sharding the blobs may be identified in more detail than L1 block hashes
 	batches, err := d.dl.FetchBatches(fetchCtx, l1Input)
 	if err != nil {
-		return l2Parent, fmt.Errorf("failed to fetch batches from %s: %v", l1Input, err)
+		return l2Head, fmt.Errorf("failed to fetch batches from %s: %v", l1Input, err)
 	}
+	logger.Trace("Got batches")
 
 	attrsList, err := derive.PayloadAttributes(&d.Config, l1Info, receipts, batches, l2Info)
 	if err != nil {
-		return l2Parent, fmt.Errorf("failed to derive execution payload inputs: %v", err)
+		return l2Head, fmt.Errorf("failed to derive execution payload inputs: %v", err)
 	}
 	logger.Debug("derived L2 block inputs")
 
-	last := l2Parent
+	last := l2Head
 	for i, attrs := range attrsList {
-		last, err := AddBlock(ctx, logger, d.rpc, last, l2Finalized, attrs)
+		last, err := AddBlock(ctx, logger, d.rpc, last, l2Finalized.Hash, attrs)
 		if err != nil {
 			return last, fmt.Errorf("failed to extend L2 chain at block %d/%d of epoch %d: %v", i, len(attrsList), epoch, err)
 		}
