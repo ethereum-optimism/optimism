@@ -138,6 +138,17 @@ type AppendSequencerBatchParams struct {
 //  - [num txs ommitted]
 //    - tx_len:                       3 bytes
 //    - tx_bytes:                     tx_len bytes
+//
+// Typed batches include a dummy context as the first context
+// where the timestamp is 0. The blocknumber is interpreted
+// as an enum that defines the type. It is impossible to have
+// a timestamp of 0 in practice, so this safely can indicate
+// that the batch is typed.
+// Type 0 batches have a dummy context where the blocknumber is
+// set to 0. The transaction data is compressed with zlib before
+// submitting the transaction to the chain. The fields should_start_at_element,
+// total_elements_to_append, num_contexts and the contexts themselves
+// are not altered.
 func (p *AppendSequencerBatchParams) Write(w *bytes.Buffer) error {
 	writeUint64(w, p.ShouldStartAtElement, 5)
 	writeUint64(w, p.TotalElementsToAppend, 3)
@@ -146,10 +157,6 @@ func (p *AppendSequencerBatchParams) Write(w *bytes.Buffer) error {
 	copy(contexts, p.Contexts)
 
 	if p.Type == BatchTypeZlib {
-		if contexts == nil {
-			contexts = []BatchContext{}
-		}
-
 		// All zero values for the single batch context
 		// is desired here
 		contexts = append([]BatchContext{{}}, contexts...)
