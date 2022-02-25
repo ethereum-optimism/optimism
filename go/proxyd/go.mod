@@ -6,7 +6,7 @@ require (
 	github.com/BurntSushi/toml v0.4.1
 	github.com/alicebob/gopher-json v0.0.0-20200520072559-a9ecdc9d1d3a // indirect
 	github.com/alicebob/miniredis v2.5.0+incompatible
-	github.com/ethereum/go-ethereum v1.10.11
+	github.com/ethereum/go-ethereum v1.10.16
 	github.com/go-redis/redis/v8 v8.11.4
 	github.com/golang/snappy v0.0.4
 	github.com/gomodule/redigo v1.8.8 // indirect
