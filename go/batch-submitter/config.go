@@ -276,7 +276,7 @@ func ValidateConfig(cfg *Config) error {
 
 	usingTypedBatches := cfg.SequencerBatchType != ""
 	validBatchType := cfg.SequencerBatchType == "legacy" || cfg.SequencerBatchType == "zlib"
-	if usingTypedBatches && validBatchType {
+	if usingTypedBatches && !validBatchType {
 		return ErrInvalidBatchType
 	}
 
