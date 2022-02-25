@@ -1,6 +1,7 @@
 package metrics
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -8,6 +9,11 @@ import (
 )
 
 type Base struct {
+	// subsystemName stores the name that will prefix all metrics. This can be
+	// used by drivers to futher extend the core metrics and ensure they use the
+	// same prefix.
+	subsystemName string
+
 	// balanceETH tracks the amount of ETH in the submitter's account.
 	balanceETH prometheus.Gauge
 
@@ -37,17 +43,12 @@ type Base struct {
 	// batchConfirmationTimeMs tracks the duration it takes to confirm a batch
 	// transaction.
 	batchConfirmationTimeMs prometheus.Gauge
-
-	// batchPruneCount tracks the number of times a batch of sequencer
-	// transactions is pruned in order to meet the desired size requirements.
-	//
-	// NOTE: This is currently only active in the sequencer driver.
-	batchPruneCount prometheus.Gauge
 }
 
-func NewBase(subsystem string) *Base {
-	subsystem = "batch_submitter_" + strings.ToLower(subsystem)
+func NewBase(serviceName, subServiceName string) *Base {
+	subsystem := MakeSubsystemName(serviceName, subServiceName)
 	return &Base{
+		subsystemName: subsystem,
 		balanceETH: promauto.NewGauge(prometheus.GaugeOpts{
 			Name:      "balance_eth",
 			Help:      "ETH balance of the batch submitter",
@@ -95,12 +96,12 @@ func NewBase(subsystem string) *Base {
 			Help:      "Time to confirm batch transactions",
 			Subsystem: subsystem,
 		}),
-		batchPruneCount: promauto.NewGauge(prometheus.GaugeOpts{
-			Name:      "batch_prune_count",
-			Help:      "Number of times a batch is pruned",
-			Subsystem: subsystem,
-		}),
 	}
+}
+
+// SubsystemName returns the subsystem name for the metrics group.
+func (b *Base) SubsystemName() string {
+	return b.subsystemName
 }
 
 // BalanceETH tracks the amount of ETH in the submitter's account.
@@ -151,10 +152,27 @@ func (b *Base) BatchConfirmationTimeMs() prometheus.Gauge {
 	return b.batchConfirmationTimeMs
 }
 
-// BatchPruneCount tracks the number of times a batch of sequencer transactions
-// is pruned in order to meet the desired size requirements.
+// MakeSubsystemName builds the subsystem name for a group of metrics, which
+// prometheus will use to prefix all metrics in the group. If two non-empty
+// strings are provided, they are joined with an underscore. If only one
+// non-empty string is provided, that name will be used alone. Otherwise an
+// empty string is returned after converting the characters to lower case.
 //
-// NOTE: This is currently only active in the sequencer driver.
-func (b *Base) BatchPruneCount() prometheus.Gauge {
-	return b.batchPruneCount
+// NOTE: This method panics if spaces are included in either string.
+func MakeSubsystemName(serviceName string, subServiceName string) string {
+	var subsystem string
+	switch {
+	case serviceName != "" && subServiceName != "":
+		subsystem = fmt.Sprintf("%s_%s", serviceName, subServiceName)
+	case serviceName != "":
+		subsystem = serviceName
+	default:
+		subsystem = subServiceName
+	}
+
+	if strings.ContainsAny(subsystem, " ") {
+		panic(fmt.Sprintf("metrics name \"%s\"cannot have spaces", subsystem))
+	}
+
+	return strings.ToLower(subsystem)
 }

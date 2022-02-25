@@ -3,6 +3,9 @@ package metrics
 import "github.com/prometheus/client_golang/prometheus"
 
 type Metrics interface {
+	// SubsystemName returns the subsystem name for the metrics group.
+	SubsystemName() string
+
 	// BalanceETH tracks the amount of ETH in the submitter's account.
 	BalanceETH() prometheus.Gauge
 
@@ -32,8 +35,4 @@ type Metrics interface {
 	// BatchConfirmationTimeMs tracks the duration it takes to confirm a batch
 	// transaction.
 	BatchConfirmationTimeMs() prometheus.Gauge
-
-	// BatchPruneCount tracks the number of times a batch of sequencer
-	// transactions is pruned in order to meet the desired size requirements.
-	BatchPruneCount() prometheus.Gauge
 }

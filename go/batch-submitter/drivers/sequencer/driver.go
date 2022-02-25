@@ -44,7 +44,7 @@ type Driver struct {
 	rawCtcContract *bind.BoundContract
 	walletAddr     common.Address
 	ctcABI         *abi.ABI
-	metrics        *metrics.Base
+	metrics        *Metrics
 }
 
 func NewDriver(cfg Config) (*Driver, error) {
@@ -80,7 +80,7 @@ func NewDriver(cfg Config) (*Driver, error) {
 		rawCtcContract: rawCtcContract,
 		walletAddr:     walletAddr,
 		ctcABI:         ctcABI,
-		metrics:        metrics.NewBase(cfg.Name),
+		metrics:        NewMetrics(cfg.Name),
 	}, nil
 }
 
@@ -220,7 +220,7 @@ func (d *Driver) CraftBatchTx(
 		}
 
 		d.metrics.NumElementsPerBatch().Observe(float64(len(batchElements)))
-		d.metrics.BatchPruneCount().Set(float64(pruneCount))
+		d.metrics.BatchPruneCount.Set(float64(pruneCount))
 
 		log.Info(name+" batch constructed", "num_txs", len(batchElements), "length", len(batchCallData))
 

@@ -82,7 +82,7 @@ func NewDriver(cfg Config) (*Driver, error) {
 		rawSccContract: rawSccContract,
 		ctcContract:    ctcContract,
 		walletAddr:     walletAddr,
-		metrics:        metrics.NewBase(cfg.Name),
+		metrics:        metrics.NewBase("batch_submitter", cfg.Name),
 	}, nil
 }
 
