@@ -55,18 +55,18 @@ func TestOpenClose(t *testing.T) {
 	require.Nil(t, err)
 }
 
-// TestUpsert empty deposits asserts that it is safe to call UpsertDeposits with
-// an empty list.
+// TestUpsertEmptyDeposits empty deposits asserts that it is safe to call
+// UpsertDeposits with an empty list.
 func TestUpsertEmptyDeposits(t *testing.T) {
 	t.Parallel()
 
 	d := newDatabase(t)
 	defer d.Close()
 
-	err := d.UpsertDeposits(nil)
+	err := d.UpsertDeposits(nil, 0)
 	require.Nil(t, err)
 
-	err = d.UpsertDeposits([]db.Deposit{})
+	err = d.UpsertDeposits([]db.Deposit{}, 0)
 	require.Nil(t, err)
 }
 
@@ -78,56 +78,8 @@ func TestUpsertDepositWithZeroTimestampFails(t *testing.T) {
 	d := newDatabase(t)
 	defer d.Close()
 
-	err := d.UpsertDeposits([]db.Deposit{{}})
+	err := d.UpsertDeposits([]db.Deposit{{}}, 0)
 	require.Equal(t, db.ErrZeroTimestamp, err)
-}
-
-// TestLatestDeposit asserts that the LatestDeposit method properly returns the
-// highest block number in the databse, or nil if no items are present.
-func TestLatestDeposit(t *testing.T) {
-	t.Parallel()
-
-	d := newDatabase(t)
-	defer d.Close()
-
-	// Query should return nil on empty databse.
-	latestDeposit, err := d.LatestDeposit()
-	require.Nil(t, err)
-	require.Equal(t, (*uint64)(nil), latestDeposit)
-
-	// Update table to have a single element.
-	expLatestDeposit := uint64(1)
-	err = d.UpsertDeposits([]db.Deposit{{
-		ID:             1,
-		TxnHash:        common.HexToHash("0xf1"),
-		BlockNumber:    expLatestDeposit,
-		BlockTimestamp: testTimestamp,
-		Address:        common.HexToAddress("0xa1"),
-		Amount:         big.NewInt(1),
-	}})
-	require.Nil(t, err)
-
-	// Query should return block number of only deposit.
-	latestDeposit, err = d.LatestDeposit()
-	require.Nil(t, err)
-	require.Equal(t, &expLatestDeposit, latestDeposit)
-
-	// Update table to have two distinct block numbers.
-	expLatestDeposit = 2
-	err = d.UpsertDeposits([]db.Deposit{{
-		ID:             2,
-		TxnHash:        common.HexToHash("0xf2"),
-		BlockNumber:    expLatestDeposit,
-		BlockTimestamp: testTimestamp,
-		Address:        common.HexToAddress("0xa2"),
-		Amount:         big.NewInt(2),
-	}})
-	require.Nil(t, err)
-
-	// Query should return the highest of the two block numbers.
-	latestDeposit, err = d.LatestDeposit()
-	require.Nil(t, err)
-	require.Equal(t, &expLatestDeposit, latestDeposit)
 }
 
 // TestUpsertDeposits asserts that UpsertDeposits properly overwrites an
@@ -147,7 +99,7 @@ func TestUpsertDeposits(t *testing.T) {
 		Amount:         big.NewInt(1),
 	}
 
-	err := d.UpsertDeposits([]db.Deposit{deposit1})
+	err := d.UpsertDeposits([]db.Deposit{deposit1}, 0)
 	require.Nil(t, err)
 
 	deposits, err := d.ConfirmedDeposits(1, 1)
@@ -163,12 +115,65 @@ func TestUpsertDeposits(t *testing.T) {
 		Amount:         big.NewInt(2),
 	}
 
-	err = d.UpsertDeposits([]db.Deposit{deposit2})
+	err = d.UpsertDeposits([]db.Deposit{deposit2}, 0)
 	require.Nil(t, err)
 
 	deposits, err = d.ConfirmedDeposits(2, 1)
 	require.Nil(t, err)
 	require.Equal(t, deposits, []db.Deposit{deposit2})
+}
+
+// TestUpsertDepositsRecordsLastProcessedBlock asserts that calling
+// UpsertDeposits properly records the last processed block.
+func TestUpsertDepositsRecordsLastProcessedBlock(t *testing.T) {
+	t.Parallel()
+
+	d := newDatabase(t)
+	defer d.Close()
+
+	uint64Ptr := func(x uint64) *uint64 {
+		return &x
+	}
+
+	// Should be empty initially.
+	lastProcessedBlock, err := d.LastProcessedBlock()
+	require.Nil(t, err)
+	require.Nil(t, lastProcessedBlock)
+
+	// Insert nil deposits through block 1.
+	err = d.UpsertDeposits(nil, 1)
+	require.Nil(t, err)
+
+	// Check that LastProcessedBlock returns 1.
+	lastProcessedBlock, err = d.LastProcessedBlock()
+	require.Nil(t, err)
+	require.Equal(t, uint64Ptr(1), lastProcessedBlock)
+
+	// Insert empty deposits through block 2.
+	err = d.UpsertDeposits([]db.Deposit{}, 2)
+	require.Nil(t, err)
+
+	// Check that LastProcessedBlock returns 2.
+	lastProcessedBlock, err = d.LastProcessedBlock()
+	require.Nil(t, err)
+	require.Equal(t, uint64Ptr(2), lastProcessedBlock)
+
+	// Insert real deposit in block 3 with last processed at 4.
+	deposit := db.Deposit{
+		ID:             0,
+		TxnHash:        common.HexToHash("0xff03"),
+		BlockNumber:    3,
+		BlockTimestamp: testTimestamp,
+		Address:        common.HexToAddress("0xaa03"),
+		Amount:         big.NewInt(3),
+	}
+	err = d.UpsertDeposits([]db.Deposit{deposit}, 4)
+	require.Nil(t, err)
+
+	// Check that LastProcessedBlock returns 2.
+	lastProcessedBlock, err = d.LastProcessedBlock()
+	require.Nil(t, err)
+	require.Equal(t, uint64Ptr(4), lastProcessedBlock)
 }
 
 // TestConfirmedDeposits asserts that ConfirmedDeposits properly returns the set
@@ -211,7 +216,7 @@ func TestConfirmedDeposits(t *testing.T) {
 
 	err = d.UpsertDeposits([]db.Deposit{
 		deposit1, deposit2, deposit3,
-	})
+	}, 0)
 	require.Nil(t, err)
 
 	// First deposit only has 1 conf, should not be found using 2 confs at block
@@ -271,7 +276,7 @@ func TestUpsertDisbursement(t *testing.T) {
 			Address:        address,
 			Amount:         amount,
 		},
-	})
+	}, 0)
 	require.Nil(t, err)
 
 	// Mark the deposit as disbursed with some temporary info.

@@ -69,9 +69,18 @@ CREATE TABLE IF NOT EXISTS disbursements (
 );
 `
 
+const lastProcessedBlockTable = `
+CREATE TABLE IF NOT EXISTS last_processed_block (
+	id BOOL PRIMARY KEY DEFAULT TRUE,
+	value INT8 NOT NULL,
+	CONSTRAINT id CHECK (id)
+);
+`
+
 var migrations = []string{
 	createDepositsTable,
 	createDisbursementsTable,
+	lastProcessedBlockTable,
 }
 
 // Config houses the data required to connect to a Postgres backend.
@@ -155,6 +164,13 @@ func (d *Database) Close() error {
 	return d.conn.Close()
 }
 
+const upsertLastProcessedBlock = `
+INSERT INTO last_processed_block (value)
+VALUES ($1)
+ON CONFLICT (id) DO UPDATE
+SET value = $1
+`
+
 const upsertDepositStatement = `
 INSERT INTO deposits (id, txn_hash, block_number, block_timestamp, address, amount)
 VALUES ($1, $2, $3, $4, $5, $6)
@@ -164,10 +180,10 @@ SET (txn_hash, block_number, block_timestamp, address, amount) = ($2, $3, $4, $5
 
 // UpsertDeposits inserts a list of deposits into the database, or updats an
 // existing deposit in place if the same ID is found.
-func (d *Database) UpsertDeposits(deposits []Deposit) error {
-	if len(deposits) == 0 {
-		return nil
-	}
+func (d *Database) UpsertDeposits(
+	deposits []Deposit,
+	lastProcessedBlock uint64,
+) error {
 
 	// Sanity check deposits.
 	for _, deposit := range deposits {
@@ -185,7 +201,6 @@ func (d *Database) UpsertDeposits(deposits []Deposit) error {
 	}()
 
 	for _, deposit := range deposits {
-
 		_, err = tx.Exec(
 			upsertDepositStatement,
 			deposit.ID,
@@ -200,29 +215,30 @@ func (d *Database) UpsertDeposits(deposits []Deposit) error {
 		}
 	}
 
+	_, err = tx.Exec(upsertLastProcessedBlock, lastProcessedBlock)
+	if err != nil {
+		return err
+	}
+
 	return tx.Commit()
 }
 
-const latestDepositQuery = `
-SELECT block_number FROM deposits
-ORDER BY block_number DESC
-LIMIT 1
+const lastProcessedBlockQuery = `
+SELECT value FROM last_processed_block
 `
 
-// LatestDeposit returns the block number of the latest deposit known to the
-// database.
-func (d *Database) LatestDeposit() (*uint64, error) {
-	row := d.conn.QueryRow(latestDepositQuery)
+func (d *Database) LastProcessedBlock() (*uint64, error) {
+	row := d.conn.QueryRow(lastProcessedBlockQuery)
 
-	var latestTransfer uint64
-	err := row.Scan(&latestTransfer)
+	var lastProcessedBlock uint64
+	err := row.Scan(&lastProcessedBlock)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	} else if err != nil {
 		return nil, err
 	}
 
-	return &latestTransfer, nil
+	return &lastProcessedBlock, nil
 }
 
 const confirmedDepositsQuery = `
@@ -275,6 +291,28 @@ func (d *Database) ConfirmedDeposits(blockNumber, confirmations uint64) ([]Depos
 	}
 
 	return deposits, nil
+}
+
+const latestDisbursementIDQuery = `
+SELECT id FROM disbursements
+ORDER BY id DESC
+LIMIT 1
+`
+
+// LatestDisbursementID returns the latest deposit id known to the database that
+// has a recorded disbursement.
+func (d *Database) LatestDisbursementID() (*uint64, error) {
+	row := d.conn.QueryRow(latestDisbursementIDQuery)
+
+	var latestDisbursementID uint64
+	err := row.Scan(&latestDisbursementID)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	} else if err != nil {
+		return nil, err
+	}
+
+	return &latestDisbursementID, nil
 }
 
 const markDisbursedStatement = `
