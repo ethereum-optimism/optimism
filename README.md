@@ -58,174 +58,18 @@ mipsevm/mipsevm $TRANSITION_BLOCK
 npx hardhat run scripts/deploy.js
 ```
 
-## Full Challenge / Response
+## Examples
 
-In this example, the challenger will challenge the transition from a block (`BLOCK`), but pretends
-that chain state before another block (`WRONG_BLOCK`) is the state before the challenged block.
-Consequently, the challenger will disagree with the defender on every single step of the challenge
-game, and the single step to execute will be the very first MIPS instruction executed. The reason is
-that the initial MIPS state Merkle root is stored on-chain, and immediately modified to reflect the
-fact that the input hash for the block is written at address 0x3000000.
+The script files [`demo/challenge_simple.sh`](demo/challenge_simple.sh) and
+[`demo/challenge_fault.sh`](demo/challenge_fault.sh) present two example scenarios demonstrating the
+whole process of a fault proof, including the challenge game and single step verification.
 
-(The input hash is automatically validated against the blockhash, so note that in this demo the
-challenger has to provide the correct (`BLOCK`) input hash to the `InitiateChallenge` function of
-`Challenge.sol`, but will execute as though the input hash was the one derived from `WRONG_BLOCK`.)
+- In the `simple` challenge, the challenger uses the wrong block data in his challenge.
+- In the `fault` scenario, fault injection is used to alter the challenger's memory at a specific
+  step of the execution.
 
-Because the challenger uses the wrong inputs, it will assert a post-state (Merkle root) for the
-first MIPS instruction that has the wrong input hash at 0x3000000. Hence, the challenge will fail.
-
-```
-RPC_URL=https://mainnet.infura.io/v3/9aa3d95b3bc440fa88ea12eaa4456161
-
-# block at which to fork mainnet
-FORK_BLOCK=13284495
-
-# testing on hardhat (forked mainnet, a few blocks ahead of challenge)
-npx hardhat node --fork $RPC_URL --fork-block-number $FORK_BLOCK
-
-# open a new terminal for the following commands
-
-# chain ID, read by challenge.js, respond.js and assert.js
-export ID=0
-
-# block whose transition will be challenged
-# this variable is read by challenge.js, respond.js and assert.js
-export BLOCK=13284469
-
-# block whose pre-state is used by the challenger instead of the challenged block's pre-state
-WRONG_BLOCK=13284491
-
-# clear data from previous runs
-mkdir -p /tmp/cannon /tmp/cannon_fault && rm -rf /tmp/cannon/* /tmp/cannon_fault/*
-
-# generate initial memory state checkpoint (in /tmp/cannon/golden.json)
-mipsevm/mipsevm
-
-# deploy contracts
-npx hardhat run scripts/deploy.js --network hosthat
-
-# challenger will use same initial memory checkpoint and deployed contracts
-cp /tmp/cannon/{golden,deployed}.json /tmp/cannon_fault/
-
-# fetch preimages for real block
-minigeth/go-ethereum $BLOCK
-
-# compute real MIPS final memory checkpoint
-mipsevm/mipsevm $BLOCK
-
-# fetch preimages for wrong block
-BASEDIR=/tmp/cannon_fault minigeth/go-ethereum $WRONG_BLOCK
-
-# compute fake MIPS final memory checkpoint
-BASEDIR=/tmp/cannon_fault mipsevm/mipsevm $WRONG_BLOCK
-
-# pretend the wrong block's input, checkpoints and preimages are the right block's
-ln -s /tmp/cannon_fault/0_$WRONG_BLOCK /tmp/cannon_fault/0_$BLOCK
-
-# start challenge
-BASEDIR=/tmp/cannon_fault npx hardhat run scripts/challenge.js --network hosthat
-
-# binary search
-for i in {1..23}; do
-    BASEDIR=/tmp/cannon_fault CHALLENGER=1 npx hardhat run scripts/respond.js --network hosthat
-    npx hardhat run scripts/respond.js --network hosthat
-done
-
-# assert as challenger (fails)
-BASEDIR=/tmp/cannon_fault CHALLENGER=1 npx hardhat run scripts/assert.js --network hosthat
-
-# assert as defender (passes)
-npx hardhat run scripts/assert.js --network hosthat
-```
-
-## Alternate challenge-reponse with output fault (much slower)
-
-Unlike the previous scenario, in this challenge-response scenario we use the correct block data
-(preimages) and instead use the `OUTPUTFAULT` environment variable to request a fault in the
-challenger's execution, making his challenge invalid.
-
-The "fault" in question is a behaviour hardcoded in `mipsevm` (Unicorn mode only) which triggers
-when the `OUTPUTFAULT` env var is set: when writing to MIPS address 0x30000804 (address where the
-output hash is written at the end of execution), it will write a wrong value instead.
-
-Alternatively, if `REGFAULT` is set, it should contain a MIPS execution step number and causes the
-MIPS register V0 to be set to a bogus value at the given execution step. (Just like before, this
-behaviour is hardcoded in `mipsevm` in Unicorn mode and triggers when `REGFAULT` is set.)
-
-This is much slower than the previous scenario because:
-
-- Since we write to the output hash at the end of execution, we will execute ~ `log(n) * 3/4 * n`
-  MIPS steps (where `n` = number of steps in full execution) vs `log(n) * 1/4 * n`in the previous
-  example. (This is the difference of having the fault occur in the first vs (one of) the last
-  steps.)
-- The challenged block contains almost 4x as many transactions as the original (8.5M vs 30M gas).
-
-```
-# START setup (same as previous example)
-
-RPC_URL=https://mainnet.infura.io/v3/9aa3d95b3bc440fa88ea12eaa4456161
-
-# block at which to fork mainnet
-FORK_BLOCK=13284495
-
-# testing on hardhat (forked mainnet, a few blocks ahead of challenge)
-npx hardhat node --fork $RPC_URL --fork-block-number $FORK_BLOCK
-
-# open a new terminal for the following commands
-
-# END setup
-
-# block whose transition will be challenged
-# this variable is read by challenge.js, respond.js and assert.js
-BLOCK=13284491
-
-# chain ID, read by challenge.js, respond.js and assert.js
-export ID=0
-
-# clear data from previous runs
-mkdir -p /tmp/cannon /tmp/cannon_fault && rm -rf /tmp/cannon/* /tmp/cannon_fault/*
-
-# generate initial memory state checkpoint (in /tmp/cannon/golden.json)
-mipsevm/mipsevm
-
-# deploy contracts
-npx hardhat run scripts/deploy.js --network hosthat
-
-# challenger will use same initial memory checkpoint and deployed contracts
-cp /tmp/cannon/{golden,deployed}.json /tmp/cannon_fault/
-
-# fetch preimages for real block
-minigeth/go-ethereum $BLOCK
-
-# compute real MIPS checkpoint
-mipsevm/mipsevm $BLOCK
-
-# fetch preimages for fake block (real block modified with a fault)
-# these are the same preimages as for the real block, but we're using a different basedir
-BASEDIR=/tmp/cannon_fault minigeth/go-ethereum $BLOCK
-
-# compute fake MIPS checkpoint (includes a fault)
-# the output file will be different than for the real block
-OUTPUTFAULT=1 BASEDIR=/tmp/cannon_fault mipsevm/mipsevm $BLOCK
-
-# alternatively, to inject a fault in registers instead of memory
-# REGFAULT=13240000 BASEDIR=/tmp/cannon_fault mipsevm/mipsevm $BLOCK
-
-# start challenge
-BASEDIR=/tmp/cannon_fault npx hardhat run scripts/challenge.js --network hosthat
-
-# binary search
-for i in {1..25};do
-    OUTPUTFAULT=1 BASEDIR=/tmp/cannon_fault CHALLENGER=1 npx hardhat run scripts/respond.js --network hosthat
-    npx hardhat run scripts/respond.js --network hosthat
-done
-
-# assert as challenger (fails)
-BASEDIR=/tmp/cannon_fault CHALLENGER=1 npx hardhat run scripts/assert.js --network hosthat
-
-# assert as defender (passes)
-npx hardhat run scripts/assert.js --network hosthat
-```
+In both cases, the challenger fails to challenge the block. Refer to the documentation string at the
+top of these file for more details regarding the scenario.
 
 ## State Oracle API
 
