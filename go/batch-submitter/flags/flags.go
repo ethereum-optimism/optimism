@@ -250,6 +250,7 @@ var optionalFlags = []cli.Flag{
 	SentryDsnFlag,
 	SentryTraceRateFlag,
 	BlockOffsetFlag,
+	SequencerBatchType,
 	SequencerPrivateKeyFlag,
 	ProposerPrivateKeyFlag,
 	MnemonicFlag,
