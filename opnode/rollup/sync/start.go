@@ -51,11 +51,11 @@ var WrongChainErr = errors.New("wrong chain")
 //     - ??
 
 func V3FindSyncStart(ctx context.Context, source SyncReferenceV2, genesis *rollup.Genesis) ([]eth.BlockID, eth.BlockID, error) {
-	l2Head, err := findL2Head(ctx, source, genesis)
+	l2Head, err := FindL2Head(ctx, source, genesis)
 	if err != nil {
 		return nil, eth.BlockID{}, err
 	}
-	l1blocks, err := findL1Range(ctx, source, l2Head.l1parent)
+	l1blocks, err := FindL1Range(ctx, source, l2Head.l1parent)
 	if err != nil {
 		return nil, eth.BlockID{}, fmt.Errorf("failed to fetch l1 range: %w", err)
 	}
@@ -66,7 +66,7 @@ func V3FindSyncStart(ctx context.Context, source SyncReferenceV2, genesis *rollu
 
 // findL2Head takes the current L2 Head and then finds the topmost L2 head that is valid
 // In the case that there are no re-orgs,
-func findL2Head(ctx context.Context, source SyncReferenceV2, genesis *rollup.Genesis) (L2Node, error) {
+func FindL2Head(ctx context.Context, source SyncReferenceV2, genesis *rollup.Genesis) (L2Node, error) {
 	// Starting point
 	l2Head, err := source.L2NodeByNumber(ctx, nil, genesis)
 	if err != nil {
@@ -102,7 +102,7 @@ func findL2Head(ctx context.Context, source SyncReferenceV2, genesis *rollup.Gen
 	}
 }
 
-func findL1Range(ctx context.Context, source SyncReferenceV2, begin eth.BlockID) ([]eth.BlockID, error) {
+func FindL1Range(ctx context.Context, source SyncReferenceV2, begin eth.BlockID) ([]eth.BlockID, error) {
 	if _, err := source.L1NodeByNumber(ctx, begin.Number); err != nil {
 		return nil, fmt.Errorf("failed to fetch L1 block %v %v: %w", begin.Number, begin.Hash, err)
 	}
