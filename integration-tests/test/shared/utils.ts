@@ -108,6 +108,9 @@ const procEnv = cleanEnv(process.env, {
   MOCHA_BAIL: bool({
     default: false,
   }),
+  BATCH_SUBMITTER_SEQUENCER_BATCH_TYPE: str({
+    default: 'zlib',
+  }),
 })
 
 export const envConfig = procEnv
