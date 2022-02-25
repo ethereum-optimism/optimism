@@ -152,15 +152,13 @@ func testAppendSequencerBatchParamsEncodeDecode(
 	require.Nil(t, err)
 	require.Equal(t, test.HexEncoding, hex.EncodeToString(paramsBytes))
 
-	// Reserialize the batch in compressed format
-
 	// Serialize the batches in compressed form
 	params.Type = sequencer.BatchTypeZlib
 	compressedParamsBytes, err := params.Serialize()
 	require.Nil(t, err)
 
+	// Deserialize the compressed batch
 	var paramsCompressed sequencer.AppendSequencerBatchParams
-	//runtime.Breakpoint()
 	err = paramsCompressed.Read(bytes.NewReader(compressedParamsBytes))
 	require.Nil(t, err)
 	require.Equal(t, paramsCompressed.Type, sequencer.BatchTypeZlib)
@@ -175,7 +173,6 @@ func testAppendSequencerBatchParamsEncodeDecode(
 
 	require.Equal(t, expParams, paramsCompressed)
 	compareTxs(t, expTxs, decompressedTxs)
-
 	paramsCompressed.Txs = decompressedTxs
 }
 
