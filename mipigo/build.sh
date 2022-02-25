@@ -3,10 +3,9 @@ cd ../minigeth
 export GOOS=linux
 export GOARCH=mips
 export GOMIPS=softfloat
-go build
-cd ../mipigo
+go build -o ../mipigo/minigeth
 
-cp ../minigeth/go-ethereum minigeth
+cd ../mipigo
 file minigeth
 
 if [[ ! -d venv ]]; then

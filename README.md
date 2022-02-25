@@ -26,27 +26,24 @@ mipsevm -- A MIPS runtime in the EVM (works with contracts)
 contracts -- A Merkleized MIPS processor on chain + the challenge logic
 ```
 
+## Building
+
+```
+make build
+```
+
 ## Usage
 
 The following commands should be run from the root directory unless otherwise specified:
 
 ```
-./build_unicorn.sh
-
-# build minigeth for MIPS
-(cd mipigo && ./build.sh)
-
-# build minigeth for PC
-(cd minigeth/ && go build)
-
 # compute the transition from 13284469 -> 13284470 on PC
 TRANSITION_BLOCK=13284469
 mkdir -p /tmp/cannon
 minigeth/go-ethereum $TRANSITION_BLOCK
 
 # write out the golden MIPS minigeth start state
-yarn
-(cd mipsevm && ./evm.sh)
+mipsevm/mipsevm
 
 # if you run into "digital envelope routines::unsupported", rerun after this:
 # export NODE_OPTIONS=--openssl-legacy-provider
