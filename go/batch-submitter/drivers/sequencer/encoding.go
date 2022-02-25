@@ -153,12 +153,14 @@ func (p *AppendSequencerBatchParams) Write(w *bytes.Buffer) error {
 	writeUint64(w, p.ShouldStartAtElement, 5)
 	writeUint64(w, p.TotalElementsToAppend, 3)
 
+	// copy the contexts as to not malleate the struct
+	// when it is a typed batch
 	contexts := make([]BatchContext, len(p.Contexts))
 	copy(contexts, p.Contexts)
 
 	if p.Type == BatchTypeZlib {
 		// All zero values for the single batch context
-		// is desired here
+		// is desired here as blocknumber 0 means it is a zlib batch
 		contexts = append([]BatchContext{{}}, contexts...)
 	}
 
@@ -181,8 +183,7 @@ func (p *AppendSequencerBatchParams) Write(w *bytes.Buffer) error {
 
 		for _, tx := range p.Txs {
 			writeUint64(zw, uint64(tx.Size()), TxLenSize)
-			_, err := zw.Write(tx.RawTx())
-			if err != nil {
+			if _, err := zw.Write(tx.RawTx()); err != nil {
 				return err
 			}
 		}
