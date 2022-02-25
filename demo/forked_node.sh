@@ -4,6 +4,10 @@
 # You need to run this in a separate terminal (or in the background)
 # before running challenge_simple.sh or challenge_fault.sh.
 
+# Uncomment this line if you receive the error:
+#    Error HH604: Error running JSON-RPC server: error:0308010C:digital envelope routines::unsupported
+# export NODE_OPTIONS=--openssl-legacy-provider
+
 RPC_URL=https://mainnet.infura.io/v3/9aa3d95b3bc440fa88ea12eaa4456161
 
 # block at which to fork mainnet
