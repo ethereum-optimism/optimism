@@ -132,7 +132,7 @@ func testAppendSequencerBatchParamsEncodeDecode(
 	params.Type = sequencer.BatchTypeLegacy
 	err = params.Read(bytes.NewReader(rawBytes))
 	require.Nil(t, err)
-	require.Equal(t, params.Type, sequencer.BatchType(sequencer.BatchTypeLegacy))
+	require.Equal(t, params.Type, sequencer.BatchTypeLegacy)
 
 	// Assert that the decoded params match the expected params. The
 	// transactions are compared serparetly (via hash), since the internal
@@ -163,7 +163,7 @@ func testAppendSequencerBatchParamsEncodeDecode(
 	//runtime.Breakpoint()
 	err = paramsCompressed.Read(bytes.NewReader(compressedParamsBytes))
 	require.Nil(t, err)
-	require.Equal(t, paramsCompressed.Type, sequencer.BatchType(sequencer.BatchTypeZlib))
+	require.Equal(t, paramsCompressed.Type, sequencer.BatchTypeZlib)
 
 	// Handle nil contexts, Read() will never return nil contexts
 	if expParams.Contexts == nil {
