@@ -1,6 +1,3 @@
-import fs from 'fs'
-import path from 'path'
-
 import { BigNumber, ethers } from 'ethers'
 import { sequencerBatch, add0x, BatchType } from '@eth-optimism/core-utils'
 
@@ -11,42 +8,8 @@ const compressBatchWithZlib = (calldata: string | Buffer): string => {
   return add0x(encoded.toString('hex'))
 }
 
-const readMockData = () => {
-  const mockDataPath = path.join(__dirname, '..', '..', '..', 'examples')
-  const paths = fs.readdirSync(mockDataPath)
-  const files = []
-  for (const filename of paths) {
-    // Skip non .txt files
-    if (!filename.endsWith('.txt')) {
-      continue
-    }
-    const filePath = path.join(mockDataPath, filename)
-    const file = fs.readFileSync(filePath)
-    const obj = JSON.parse(file.toString())
-    // Reserialize the BigNumbers
-    obj.input.extraData.prevTotalElements = BigNumber.from(
-      obj.input.extraData.prevTotalElements
-    )
-    obj.input.extraData.batchIndex = BigNumber.from(
-      obj.input.extraData.batchIndex
-    )
-    if (obj.input.event.args.length !== 3) {
-      throw new Error(`ABI mismatch`)
-    }
-    obj.input.event.args = obj.input.event.args.map(BigNumber.from)
-    obj.input.event.args._startingQueueIndex = obj.input.event.args[0]
-    obj.input.event.args._numQueueElements = obj.input.event.args[1]
-    obj.input.event.args._totalElements = obj.input.event.args[2]
-    obj.input.extraData.batchSize = BigNumber.from(
-      obj.input.extraData.batchSize
-    )
-    files.push(obj)
-  }
-  return files
-}
-
 /* Imports: Internal */
-import { expect } from '../../../../setup'
+import { expect, readMockData } from '../../../../setup'
 import { handleEventsSequencerBatchAppended } from '../../../../../src/services/l1-ingestion/handlers/sequencer-batch-appended'
 import { SequencerBatchAppendedExtraData } from '../../../../../src/types'
 
@@ -97,7 +60,7 @@ describe('Event Handlers: CanonicalTransactionChain.SequencerBatchAppended', () 
       )
     })
 
-    describe.only('mainnet transactions', () => {
+    describe('mainnet transactions', () => {
       for (const mock of mockData) {
         const { input, output } = mock
         const { event, extraData, l2ChainId } = input
