@@ -20,10 +20,14 @@ jobs:
           - 5000:5000
     strategy:
       matrix:
-        batch-submitter: [ts-batch-submitter, go-batch-submitter]
+        batch-submitter:
+          - ts-batch-submitter-legacy
+          - go-batch-submitter-legacy
+          - ts-batch-submitter-zlib
+          - go-batch-submitter-zlib
     env:
-        DOCKER_BUILDKIT: 1
-        COMPOSE_DOCKER_CLI_BUILD: 1
+      DOCKER_BUILDKIT: 1
+      COMPOSE_DOCKER_CLI_BUILD: 1
     steps:
       # Monorepo tests
       - uses: actions/checkout@v2
@@ -40,11 +44,17 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-yarn-
 
+      - name: Set conditional env vars
+        run: |
+          echo "BATCH_SUBMITTER_SEQUENCER_BATCH_TYPE=zlib" >> $GITHUB_ENV
+        if: endsWith(matrix.batch-submitter, '-zlib')
+
       - name: Bring the stack up
         working-directory: ./ops
         run: |
+          SERVICE=$(echo ${{ matrix.batch-submitter }} | cut -c1-18)
           ./scripts/stats.sh &
-          docker-compose -f docker-compose.yml -f docker-compose.${{ matrix.batch-submitter }}.yml up -d
+          docker-compose -f docker-compose.yml -f docker-compose.$SERVICE.yml up -d
 
       - name: Wait for the Sequencer node
         working-directory: ./ops
