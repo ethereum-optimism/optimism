@@ -127,7 +127,8 @@ func FindL1Range(ctx context.Context, source SyncReferenceV2, begin eth.BlockID)
 			return nil, fmt.Errorf("failed to fetch L1 block %v: %w", i, err)
 		}
 		fmt.Println(prevHash, n.parent.Hash)
-		if n.parent.Hash != prevHash {
+		// TODO(Joshua): Look into why this fails around the genesis block
+		if n.parent.Number != 0 && n.parent.Hash != prevHash {
 			return nil, errors.New("re-organization occurred while attempting to get l1 range")
 		}
 		prevHash = n.self.Hash
