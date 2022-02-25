@@ -27,12 +27,18 @@
 # Exit if any command fails.
 set -e
 
+shout() {
+    echo ""
+    echo "------------------------------------------------------------"
+    echo "$1"
+    echo "------------------------------------------------------------"
+    echo ""
+}
+
 # Print an error if we exit before all commands have run.
 exit_trap() {
     [[ $? == 0 ]] && return
-    echo "----------------------------------------"
-    echo "EARLY EXIT: SCRIPT FAILED"
-    echo "----------------------------------------"
+    shout "EARLY EXIT: SCRIPT FAILED"
 }
 trap "exit_trap" EXIT
 
@@ -49,43 +55,47 @@ WRONG_BLOCK=13284491
 # clear data from previous runs
 mkdir -p /tmp/cannon /tmp/cannon_fault && rm -rf /tmp/cannon/* /tmp/cannon_fault/*
 
-# generate initial memory state checkpoint (in /tmp/cannon/golden.json)
+# stored in /tmp/cannon/golden.json
+shout "GENERATING INITIAL MEMORY STATE CHECKPOINT"
 mipsevm/mipsevm
 
-# deploy contracts
+shout "DEPLOYING CONTRACTS"
 npx hardhat run scripts/deploy.js --network hosthat
 
 # challenger will use same initial memory checkpoint and deployed contracts
 cp /tmp/cannon/{golden,deployed}.json /tmp/cannon_fault/
 
-# fetch preimages for real block
+shout "FETCHING PREIMAGES FOR REAL BLOCK"
 minigeth/go-ethereum $BLOCK
 
-# compute real MIPS final memory checkpoint
+shout "COMPUTING REAL MIPS FINAL MEMORY CHECKPOINT"
 mipsevm/mipsevm $BLOCK
 
-# fetch preimages for wrong block
+shout "FETCHING PREIMAGES FOR WRONG BLOCK"
 BASEDIR=/tmp/cannon_fault minigeth/go-ethereum $WRONG_BLOCK
 
-# compute fake MIPS final memory checkpoint
+shout "COMPUTING FAKE MIPS FINAL MEMORY CHECKPOINT"
 BASEDIR=/tmp/cannon_fault mipsevm/mipsevm $WRONG_BLOCK
 
 # pretend the wrong block's input, checkpoints and preimages are the right block's
 ln -s /tmp/cannon_fault/0_$WRONG_BLOCK /tmp/cannon_fault/0_$BLOCK
 
-# start challenge
+shout "STARTING CHALLENGE"
 BASEDIR=/tmp/cannon_fault npx hardhat run scripts/challenge.js --network hosthat
 
-# binary search
+shout "BINARY SEARCH"
 for i in {1..23}; do
+    echo ""
+    echo "--- STEP $i / 23 ---"
+    echo ""
     BASEDIR=/tmp/cannon_fault CHALLENGER=1 npx hardhat run scripts/respond.js --network hosthat
     npx hardhat run scripts/respond.js --network hosthat
 done
 
-# assert as challenger (fails)
+shout "ASSERTING AS CHALLENGER (should fail)"
 set +e # this should fail!
 BASEDIR=/tmp/cannon_fault CHALLENGER=1 npx hardhat run scripts/assert.js --network hosthat
 set -e
 
-# assert as defender (passes)
+shout "ASSERTING AS DEFENDER (should pass)"
 npx hardhat run scripts/assert.js --network hosthat

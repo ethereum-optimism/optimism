@@ -35,6 +35,14 @@
 # Exit if any command fails.
 set -e
 
+shout() {
+    echo ""
+    echo "----------------------------------------"
+    echo "$1"
+    echo "----------------------------------------"
+    echo ""
+}
+
 # Print an error if we exit before all commands have run.
 exit_trap() {
     [[ $? == 0 ]] && return
@@ -46,7 +54,7 @@ trap "exit_trap" EXIT
 
 # block whose transition will be challenged
 # this variable is read by challenge.js, respond.js and assert.js
-BLOCK=13284491
+export BLOCK=13284491
 
 # chain ID, read by challenge.js, respond.js and assert.js
 export ID=0
@@ -54,45 +62,51 @@ export ID=0
 # clear data from previous runs
 mkdir -p /tmp/cannon /tmp/cannon_fault && rm -rf /tmp/cannon/* /tmp/cannon_fault/*
 
-# generate initial memory state checkpoint (in /tmp/cannon/golden.json)
+# stored in /tmp/cannon/golden.json
+shout "GENERATING INITIAL MEMORY STATE CHECKPOINT"
 mipsevm/mipsevm
 
-# deploy contracts
+shout "DEPLOYING CONTRACTS"
 npx hardhat run scripts/deploy.js --network hosthat
 
 # challenger will use same initial memory checkpoint and deployed contracts
 cp /tmp/cannon/{golden,deployed}.json /tmp/cannon_fault/
 
-# fetch preimages for real block
+shout "FETCHING PREIMAGES FOR REAL BLOCK"
 minigeth/go-ethereum $BLOCK
 
-# compute real MIPS checkpoint
+shout "COMPUTING REAL MIPS FINAL MEMORY CHECKPOINT"
 mipsevm/mipsevm $BLOCK
 
-# fetch preimages for fake block (real block modified with a fault)
-# these are the same preimages as for the real block, but we're using a different basedir
+# these are the preimages for the real block (but go into a different basedir)
+shout "FETCHING PREIMAGES FOR FAULTY BLOCK"
 BASEDIR=/tmp/cannon_fault minigeth/go-ethereum $BLOCK
 
-# compute fake MIPS checkpoint (includes a fault)
-# the output file will be different than for the real block
+# since the computation includes a fault, the output file will be different than
+# for the real block
+shout "COMPUTE FAKE MIPS CHECKPOINT"
 OUTPUTFAULT=1 BASEDIR=/tmp/cannon_fault mipsevm/mipsevm $BLOCK
 
 # alternatively, to inject a fault in registers instead of memory
 # REGFAULT=13240000 BASEDIR=/tmp/cannon_fault mipsevm/mipsevm $BLOCK
 
-# start challenge
+shout "STARTING CHALLENGE"
 BASEDIR=/tmp/cannon_fault npx hardhat run scripts/challenge.js --network hosthat
 
-# binary search
-for i in {1..25};do
+shout "BINARY SEARCH"
+# for i in {1..25}; do
+for i in {1..23}; do
+    echo ""
+    echo "--- STEP $i / 25 --"
+    echo ""
     OUTPUTFAULT=1 BASEDIR=/tmp/cannon_fault CHALLENGER=1 npx hardhat run scripts/respond.js --network hosthat
     npx hardhat run scripts/respond.js --network hosthat
 done
 
-# assert as challenger (fails)
+shout "ASSERTING AS CHALLENGER (should fail)"
 set +e # this should fail!
 BASEDIR=/tmp/cannon_fault CHALLENGER=1 npx hardhat run scripts/assert.js --network hosthat
 set -e
 
-# assert as defender (passes)
+shout "ASSERTING AS DEFENDER (should pass)"
 npx hardhat run scripts/assert.js --network hosthat
