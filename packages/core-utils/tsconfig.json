@@ -1,3 +1,4 @@
 {
-  "extends": "../../tsconfig.json"
+  "extends": "../../tsconfig.json",
+  "typeRoots": ["node_modules/@types", "src/@types"]
 }
