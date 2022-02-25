@@ -129,30 +129,26 @@ export const decodeAppendSequencerBatch = (
   b: string | Buffer,
   opts?: DecodeSequencerBatchOpts
 ): AppendSequencerBatchParams => {
-  let buf: Buffer
   if (typeof b === 'string') {
-    b = remove0x(b)
-    buf = Buffer.from(b, 'hex')
-  } else {
-    buf = b
+    b = Buffer.from(remove0x(b), 'hex')
   }
 
-  const shouldStartAtElement = buf.slice(0, 5)
-  const totalElementsToAppend = buf.slice(5, 8)
-  const contextHeader = buf.slice(8, 11)
+  const shouldStartAtElement = b.slice(0, 5)
+  const totalElementsToAppend = b.slice(5, 8)
+  const contextHeader = b.slice(8, 11)
   const contextCount = parseInt(contextHeader.toString('hex'), 8)
   let batchType = BatchType.LEGACY
 
   let offset = 11
   let contexts = []
   for (let i = 0; i < contextCount; i++) {
-    const numSequencedTransactions = buf.slice(offset, offset + 3)
+    const numSequencedTransactions = b.slice(offset, offset + 3)
     offset += 3
-    const numSubsequentQueueTransactions = buf.slice(offset, offset + 3)
+    const numSubsequentQueueTransactions = b.slice(offset, offset + 3)
     offset += 3
-    const timestamp = buf.slice(offset, offset + 5)
+    const timestamp = b.slice(offset, offset + 5)
     offset += 5
-    const blockNumber = buf.slice(offset, offset + 5)
+    const blockNumber = b.slice(offset, offset + 5)
     offset += 5
     contexts.push({
       numSequencedTransactions: parseInt(
@@ -173,9 +169,9 @@ export const decodeAppendSequencerBatch = (
     if (context.blockNumber === 0) {
       switch (context.timestamp) {
         case 0: {
-          buf = Buffer.concat([
-            buf.slice(0, offset),
-            zlib.inflateSync(buf.slice(offset)),
+          b = Buffer.concat([
+            b.slice(0, offset),
+            zlib.inflateSync(b.slice(offset)),
           ])
           batchType = BatchType.ZLIB
           break
@@ -190,9 +186,9 @@ export const decodeAppendSequencerBatch = (
   let transactions = []
   for (const context of contexts) {
     for (let i = 0; i < context.numSequencedTransactions; i++) {
-      const size = buf.slice(offset, offset + 3)
+      const size = b.slice(offset, offset + 3)
       offset += 3
-      const raw = buf.slice(offset, offset + parseInt(size.toString('hex'), 16))
+      const raw = b.slice(offset, offset + parseInt(size.toString('hex'), 16))
       transactions.push(add0x(raw.toString('hex')))
       offset += raw.length
     }
@@ -227,9 +223,11 @@ export const sequencerBatch = {
         encodeAppendSequencerBatch(b, opts) as Buffer,
       ])
     }
-    return ('0x' +
+    return (
+      '0x' +
       FOUR_BYTE_APPEND_SEQUENCER_BATCH.toString('hex') +
-      encodeAppendSequencerBatch(b, opts)) as string
+      encodeAppendSequencerBatch(b, opts).toString('hex')
+    )
   },
   decode: (
     b: string | Buffer,
