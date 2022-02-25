@@ -98,7 +98,7 @@ func (b BatchType) FromString(s string) BatchType {
 
 const (
 	BatchTypeLegacy BatchType = -1
-	BatchTypeZlib             = 0
+	BatchTypeZlib   BatchType = 0
 )
 
 // AppendSequencerBatchParams holds the raw data required to submit a batch of
@@ -252,7 +252,9 @@ func (p *AppendSequencerBatchParams) Read(r io.Reader) error {
 			defer zr.Close()
 
 			buf := new(bytes.Buffer)
-			io.Copy(buf, zr)
+			if _, err := io.Copy(buf, zr); err != nil {
+				return err
+			}
 			r = bytes.NewReader(buf.Bytes())
 		}
 	}
