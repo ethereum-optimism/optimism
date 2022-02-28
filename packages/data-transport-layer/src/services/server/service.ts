@@ -88,7 +88,6 @@ export class L1TransportServer extends BaseService<L1TransportServerOptions> {
     }
 
     this.state.db = new TransportDB(this.options.db, {
-      bssHardfork1Index: this.options.bssHardfork1Index,
       l2ChainId: this.options.l2ChainId,
     })
 

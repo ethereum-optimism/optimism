@@ -86,7 +86,6 @@ export class L2IngestionService extends BaseService<L2IngestionServiceOptions> {
     this.l2IngestionMetrics = registerMetrics(this.metrics)
 
     this.state.db = new TransportDB(this.options.db, {
-      bssHardfork1Index: this.options.bssHardfork1Index,
       l2ChainId: this.options.l2ChainId,
     })
 

@@ -108,7 +108,6 @@ export class L1IngestionService extends BaseService<L1IngestionServiceOptions> {
 
   protected async _init(): Promise<void> {
     this.state.db = new TransportDB(this.options.db, {
-      bssHardfork1Index: this.options.bssHardfork1Index,
       l2ChainId: this.options.l2ChainId,
     })
 
