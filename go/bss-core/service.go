@@ -31,7 +31,7 @@ type Driver interface {
 	WalletAddr() common.Address
 
 	// Metrics returns the subservice telemetry object.
-	Metrics() *metrics.Metrics
+	Metrics() metrics.Metrics
 
 	// ClearPendingTx a publishes a transaction at the next available nonce in
 	// order to clear any transactions in the mempool left over from a prior
@@ -83,7 +83,7 @@ type Service struct {
 	cancel func()
 
 	txMgr   txmgr.TxManager
-	metrics *metrics.Metrics
+	metrics metrics.Metrics
 
 	wg sync.WaitGroup
 }
@@ -147,7 +147,7 @@ func (s *Service) eventLoop() {
 				log.Error(name+" unable to get current balance", "err", err)
 				continue
 			}
-			s.metrics.ETHBalance.Set(weiToEth64(balance))
+			s.metrics.BalanceETH().Set(weiToEth64(balance))
 
 			// Determine the range of L2 blocks that the batch submitter has not
 			// processed, and needs to take action on.
@@ -186,7 +186,7 @@ func (s *Service) eventLoop() {
 				continue
 			}
 			batchTxBuildTime := time.Since(batchTxBuildStart) / time.Millisecond
-			s.metrics.BatchTxBuildTime.Set(float64(batchTxBuildTime))
+			s.metrics.BatchTxBuildTimeMs().Set(float64(batchTxBuildTime))
 
 			// Record the size of the batch transaction.
 			var txBuf bytes.Buffer
@@ -194,7 +194,7 @@ func (s *Service) eventLoop() {
 				log.Error(name+" unable to encode batch tx", "err", err)
 				continue
 			}
-			s.metrics.BatchSizeInBytes.Observe(float64(len(txBuf.Bytes())))
+			s.metrics.BatchSizeBytes().Observe(float64(len(txBuf.Bytes())))
 
 			// Construct the transaction submission clousure that will attempt
 			// to send the next transaction at the given nonce and gas price.
@@ -214,7 +214,7 @@ func (s *Service) eventLoop() {
 			if err != nil {
 				log.Error(name+" unable to publish batch tx",
 					"err", err)
-				s.metrics.FailedSubmissions.Inc()
+				s.metrics.FailedSubmissions().Inc()
 				continue
 			}
 
@@ -223,10 +223,10 @@ func (s *Service) eventLoop() {
 				"tx_hash", receipt.TxHash)
 			batchConfirmationTime := time.Since(batchConfirmationStart) /
 				time.Millisecond
-			s.metrics.BatchConfirmationTime.Set(float64(batchConfirmationTime))
-			s.metrics.BatchesSubmitted.Inc()
-			s.metrics.SubmissionGasUsed.Set(float64(receipt.GasUsed))
-			s.metrics.SubmissionTimestamp.Set(float64(time.Now().UnixNano() / 1e6))
+			s.metrics.BatchConfirmationTimeMs().Set(float64(batchConfirmationTime))
+			s.metrics.BatchesSubmitted().Inc()
+			s.metrics.SubmissionGasUsedWei().Set(float64(receipt.GasUsed))
+			s.metrics.SubmissionTimestamp().Set(float64(time.Now().UnixNano() / 1e6))
 
 		case err := <-s.ctx.Done():
 			log.Error(name+" service shutting down", "err", err)
