@@ -245,17 +245,16 @@ func (s *SyncService) Start() error {
 	if s.verifier {
 		go s.VerifierLoop()
 	} else {
-		// The sequencer must sync the transactions to the tip and the
-		// pending queue transactions on start before setting sync status
-		// to false and opening up the RPC to accept transactions.
-		if err := s.syncTransactionsToTip(); err != nil {
-			return fmt.Errorf("Sequencer cannot sync transactions to tip: %w", err)
-		}
-		if err := s.syncQueueToTip(); err != nil {
-			return fmt.Errorf("Sequencer cannot sync queue to tip: %w", err)
-		}
-		s.setSyncStatus(false)
-		go s.SequencerLoop()
+		go func() {
+			if err := s.syncTransactionsToTip(); err != nil {
+				log.Crit("Sequencer cannot sync transactions to tip: %w", err)
+			}
+			if err := s.syncQueueToTip(); err != nil {
+				log.Crit("Sequencer cannot sync queue to tip: %w", err)
+			}
+			s.setSyncStatus(false)
+			go s.SequencerLoop()
+		}()
 	}
 	return nil
 }
