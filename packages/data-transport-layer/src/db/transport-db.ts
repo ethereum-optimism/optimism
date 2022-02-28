@@ -4,6 +4,7 @@ import { BigNumber } from 'ethers'
 
 /* Imports: Internal */
 import { SimpleDB } from './simple-db'
+import { PATCH_CONTEXTS } from './patch-contexts'
 import {
   EnqueueEntry,
   StateRootBatchEntry,
@@ -32,6 +33,7 @@ interface Indexed {
 }
 
 interface ExtraTransportDBOptions {
+  l2ChainId?: number
   bssHardfork1Index?: number
 }
 
@@ -305,6 +307,12 @@ export class TransportDB {
       transaction.index >= this.opts.bssHardfork1Index
     ) {
       timestamp = transaction.timestamp
+    }
+
+    // Override with patch contexts if necessary
+    const contexts = PATCH_CONTEXTS[this.opts.l2ChainId]
+    if (contexts && contexts[transaction.index + 1]) {
+      timestamp = contexts[transaction.index + 1]
     }
 
     return {
