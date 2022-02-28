@@ -1,9 +1,11 @@
+/* Imports: External */
 import { BigNumber, Contract, ContractFactory, utils, Wallet } from 'ethers'
 import { ethers } from 'hardhat'
 import { getContractFactory } from '@eth-optimism/contracts'
 import { MessageStatus } from '@eth-optimism/sdk'
 import { sleep } from '@eth-optimism/core-utils'
 
+/* Imports: Internal */
 import { expect } from './shared/setup'
 import { OptimismEnv } from './shared/env'
 import { withdrawalTest } from './shared/utils'
@@ -61,7 +63,10 @@ describe('Bridged tokens', () => {
     await L2__ERC20.deployed()
 
     // Approve the L1 ERC20 to spend our money
-    const tx = await L1__ERC20.approve(env.l1Bridge.address, 1000000)
+    const tx = await L1__ERC20.approve(
+      env.messenger.contracts.l1.L1StandardBridge.address,
+      1000000
+    )
     await tx.wait()
   })
 

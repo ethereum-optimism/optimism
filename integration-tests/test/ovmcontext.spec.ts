@@ -44,14 +44,15 @@ describe('OVM Context: Layer 2 EVM Context', () => {
     for (let i = 0; i < numTxs; i++) {
       // Send a transaction from L1 to L2. This will automatically update the L1 contextual
       // information like the L1 block number and L1 timestamp.
-      const tx = await env.l1Messenger.sendMessage(
-        OVMContextStorage.address,
-        '0x',
-        2_000_000,
-        {
-          gasLimit: DEFAULT_TEST_GAS_L1,
-        }
-      )
+      const tx =
+        await env.messenger.contracts.l1.L1CrossDomainMessenger.sendMessage(
+          OVMContextStorage.address,
+          '0x',
+          2_000_000,
+          {
+            gasLimit: DEFAULT_TEST_GAS_L1,
+          }
+        )
 
       // Wait for the transaction to be sent over to L2.
       await tx.wait()

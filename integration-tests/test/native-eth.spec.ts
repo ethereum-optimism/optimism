@@ -11,6 +11,7 @@ import {
   DEFAULT_TEST_GAS_L2,
   envConfig,
   withdrawalTest,
+  gasPriceOracleWallet,
 } from './shared/utils'
 import { OptimismEnv } from './shared/env'
 
@@ -30,7 +31,7 @@ describe('Native ETH Integration Tests', async () => {
     const l2BobBalance = await l2Bob.getBalance()
 
     const l1BridgeBalance = await _env.l1Wallet.provider.getBalance(
-      _env.l1Bridge.address
+      _env.messenger.contracts.l1.L1StandardBridge.address
     )
 
     return {
@@ -51,12 +52,13 @@ describe('Native ETH Integration Tests', async () => {
   describe('estimateGas', () => {
     it('Should estimate gas for ETH withdraw', async () => {
       const amount = utils.parseEther('0.0000001')
-      const gas = await env.l2Bridge.estimateGas.withdraw(
-        predeploys.OVM_ETH,
-        amount,
-        0,
-        '0xFFFF'
-      )
+      const gas =
+        await env.messenger.contracts.l2.L2StandardBridge.estimateGas.withdraw(
+          predeploys.OVM_ETH,
+          amount,
+          0,
+          '0xFFFF'
+        )
       // Expect gas to be less than or equal to the target plus 1%
       expectApprox(gas, 6700060, { absoluteUpperDeviation: 1000 })
     })
@@ -67,7 +69,7 @@ describe('Native ETH Integration Tests', async () => {
     const preBalances = await getBalances(env)
     const { tx, receipt } = await env.waitForXDomainTransaction(
       env.l1Wallet.sendTransaction({
-        to: env.l1Bridge.address,
+        to: env.messenger.contracts.l1.L1StandardBridge.address,
         value: depositAmount,
         gasLimit: DEFAULT_TEST_GAS_L1,
       })
@@ -91,10 +93,14 @@ describe('Native ETH Integration Tests', async () => {
     const depositAmount = 10
     const preBalances = await getBalances(env)
     const { tx, receipt } = await env.waitForXDomainTransaction(
-      env.l1Bridge.depositETH(DEFAULT_TEST_GAS_L2, '0xFFFF', {
-        value: depositAmount,
-        gasLimit: DEFAULT_TEST_GAS_L1,
-      })
+      env.messenger.contracts.l1.L1StandardBridge.depositETH(
+        DEFAULT_TEST_GAS_L2,
+        '0xFFFF',
+        {
+          value: depositAmount,
+          gasLimit: DEFAULT_TEST_GAS_L1,
+        }
+      )
     )
 
     const l1FeePaid = receipt.gasUsed.mul(tx.gasPrice)
@@ -115,10 +121,15 @@ describe('Native ETH Integration Tests', async () => {
     const depositAmount = 10
     const preBalances = await getBalances(env)
     const depositReceipts = await env.waitForXDomainTransaction(
-      env.l1Bridge.depositETHTo(l2Bob.address, DEFAULT_TEST_GAS_L2, '0xFFFF', {
-        value: depositAmount,
-        gasLimit: DEFAULT_TEST_GAS_L1,
-      })
+      env.messenger.contracts.l1.L1StandardBridge.depositETHTo(
+        l2Bob.address,
+        DEFAULT_TEST_GAS_L2,
+        '0xFFFF',
+        {
+          value: depositAmount,
+          gasLimit: DEFAULT_TEST_GAS_L1,
+        }
+      )
     )
 
     const l1FeePaid = depositReceipts.receipt.gasUsed.mul(
@@ -145,10 +156,14 @@ describe('Native ETH Integration Tests', async () => {
     // to allow for encoding and other arguments
     const data = `0x` + 'ab'.repeat(MAX_ROLLUP_TX_SIZE - 500)
     const { tx, receipt } = await env.waitForXDomainTransaction(
-      env.l1Bridge.depositETH(ASSUMED_L2_GAS_LIMIT, data, {
-        value: depositAmount,
-        gasLimit: 4_000_000,
-      })
+      env.messenger.contracts.l1.L1StandardBridge.depositETH(
+        ASSUMED_L2_GAS_LIMIT,
+        data,
+        {
+          value: depositAmount,
+          gasLimit: 4_000_000,
+        }
+      )
     )
 
     const l1FeePaid = receipt.gasUsed.mul(tx.gasPrice)
@@ -169,9 +184,13 @@ describe('Native ETH Integration Tests', async () => {
 
     const data = `0x` + 'ab'.repeat(MAX_ROLLUP_TX_SIZE + 1)
     await expect(
-      env.l1Bridge.depositETH(DEFAULT_TEST_GAS_L2, data, {
-        value: depositAmount,
-      })
+      env.messenger.contracts.l1.L1StandardBridge.depositETH(
+        DEFAULT_TEST_GAS_L2,
+        data,
+        {
+          value: depositAmount,
+        }
+      )
     ).to.be.reverted
   })
 
@@ -183,12 +202,13 @@ describe('Native ETH Integration Tests', async () => {
       'Cannot run withdrawal test before any deposits...'
     )
 
-    const transaction = await env.l2Bridge.withdraw(
-      predeploys.OVM_ETH,
-      withdrawAmount,
-      DEFAULT_TEST_GAS_L2,
-      '0xFFFF'
-    )
+    const transaction =
+      await env.messenger.contracts.l2.L2StandardBridge.withdraw(
+        predeploys.OVM_ETH,
+        withdrawAmount,
+        DEFAULT_TEST_GAS_L2,
+        '0xFFFF'
+      )
     await transaction.wait()
     await env.relayXDomainMessages(transaction)
     const receipts = await env.waitForXDomainTransaction(transaction)
@@ -224,13 +244,14 @@ describe('Native ETH Integration Tests', async () => {
       'Cannot run withdrawal test before any deposits...'
     )
 
-    const transaction = await env.l2Bridge.withdrawTo(
-      predeploys.OVM_ETH,
-      l1Bob.address,
-      withdrawAmount,
-      DEFAULT_TEST_GAS_L2,
-      '0xFFFF'
-    )
+    const transaction =
+      await env.messenger.contracts.l2.L2StandardBridge.withdrawTo(
+        predeploys.OVM_ETH,
+        l1Bob.address,
+        withdrawAmount,
+        DEFAULT_TEST_GAS_L2,
+        '0xFFFF'
+      )
 
     await transaction.wait()
     await env.relayXDomainMessages(transaction)
@@ -248,7 +269,9 @@ describe('Native ETH Integration Tests', async () => {
       data: transaction.data,
     })
 
-    const l1Fee = await env.gasPriceOracle.getL1Fee(raw)
+    const l1Fee = await env.messenger.contracts.l2.OVM_GasPriceOracle.connect(
+      gasPriceOracleWallet
+    ).getL1Fee(raw)
     const fee = l2Fee.add(l1Fee)
 
     const postBalances = await getBalances(env)
@@ -275,10 +298,14 @@ describe('Native ETH Integration Tests', async () => {
       // 1. deposit
       const amount = utils.parseEther('1')
       await env.waitForXDomainTransaction(
-        env.l1Bridge.depositETH(DEFAULT_TEST_GAS_L2, '0xFFFF', {
-          value: amount,
-          gasLimit: DEFAULT_TEST_GAS_L1,
-        })
+        env.messenger.contracts.l1.L1StandardBridge.depositETH(
+          DEFAULT_TEST_GAS_L2,
+          '0xFFFF',
+          {
+            value: amount,
+            gasLimit: DEFAULT_TEST_GAS_L1,
+          }
+        )
       )
 
       // 2. transfer to another address
@@ -295,9 +322,10 @@ describe('Native ETH Integration Tests', async () => {
 
       // 3. do withdrawal
       const withdrawnAmount = utils.parseEther('0.95')
-      const transaction = await env.l2Bridge
-        .connect(other)
-        .withdraw(
+      const transaction =
+        await env.messenger.contracts.l2.L2StandardBridge.connect(
+          other
+        ).withdraw(
           predeploys.OVM_ETH,
           withdrawnAmount,
           DEFAULT_TEST_GAS_L1,
@@ -308,16 +336,19 @@ describe('Native ETH Integration Tests', async () => {
       const receipts = await env.waitForXDomainTransaction(transaction)
 
       // Compute the L1 portion of the fee
-      const l1Fee = await env.gasPriceOracle.getL1Fee(
-        serialize({
-          nonce: transaction.nonce,
-          value: transaction.value,
-          gasPrice: transaction.gasPrice,
-          gasLimit: transaction.gasLimit,
-          to: transaction.to,
-          data: transaction.data,
-        })
-      )
+      const l1Fee =
+        await await env.messenger.contracts.l2.OVM_GasPriceOracle.connect(
+          gasPriceOracleWallet
+        ).getL1Fee(
+          serialize({
+            nonce: transaction.nonce,
+            value: transaction.value,
+            gasPrice: transaction.gasPrice,
+            gasLimit: transaction.gasLimit,
+            to: transaction.to,
+            data: transaction.data,
+          })
+        )
 
       // check that correct amount was withdrawn and that fee was charged
       const l2Fee = receipts.tx.gasPrice.mul(receipts.receipt.gasUsed)

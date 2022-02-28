@@ -1,6 +1,8 @@
+/* Imports: External */
 import { BigNumber, Contract, ContractFactory, Wallet } from 'ethers'
 import { ethers } from 'hardhat'
 
+/* Imports: Internal */
 import { expect } from './shared/setup'
 import {
   fundUser,
@@ -121,8 +123,10 @@ describe('Native ETH value integration tests', () => {
         'geth RPC does not match ovmSELFBALANCE'
       )
       // query ovmSELFBALANCE() opcode via eth_call as another check
-      const ovmEthBalanceOf0 = await env.ovmEth.balanceOf(ValueCalls0.address)
-      const ovmEthBalanceOf1 = await env.ovmEth.balanceOf(ValueCalls1.address)
+      const ovmEthBalanceOf0 =
+        await env.messenger.contracts.l2.OVM_ETH.balanceOf(ValueCalls0.address)
+      const ovmEthBalanceOf1 =
+        await env.messenger.contracts.l2.OVM_ETH.balanceOf(ValueCalls1.address)
       expect(ovmEthBalanceOf0).to.deep.eq(
         BigNumber.from(expectedBalances[0]),
         'geth RPC does not match OVM_ETH.balanceOf'
