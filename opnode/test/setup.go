@@ -27,7 +27,7 @@ func deriveAddress(w accounts.Wallet, path string) common.Address {
 // It will panic if the derivation path is not correctly formatted.
 func deriveAccount(w accounts.Wallet, path string) accounts.Account {
 	derivPath := hdwallet.MustParseDerivationPath(path)
-	account, err := w.Derive(derivPath, false)
+	account, err := w.Derive(derivPath, true)
 	if err != nil {
 		panic(err)
 	}
@@ -49,6 +49,7 @@ type systemConfig struct {
 	cliqueSigners           []string       // derivation path
 	depositContractAddress  string
 	l1InforPredeployAddress string
+	wallet                  *hdwallet.Wallet
 }
 
 func precompileAlloc() core.GenesisAlloc {
@@ -155,5 +156,5 @@ func initializeGenesis(cfg *systemConfig) {
 
 	cfg.l1.ethConfig.Genesis = l1Genesis
 	cfg.l2.ethConfig.Genesis = l2Genesis
-
+	cfg.wallet = wallet
 }

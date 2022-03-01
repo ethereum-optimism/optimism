@@ -11,6 +11,7 @@
     "ordering": "warn",
     "avoid-low-level-calls": "off",
     "reason-string": "off",
-    "avoid-tx-origin": "off"
+    "avoid-tx-origin": "off",
+    "func-visibility": ["warn", { "ignoreConstructors": true }]
   }
 }
