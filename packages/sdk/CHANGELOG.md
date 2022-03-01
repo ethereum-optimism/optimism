@@ -1,5 +1,12 @@
 # @eth-optimism/sdk
 
+## 0.2.4
+
+### Patch Changes
+
+- 44420939: 1. Fix a bug in `L2Provider.getL1GasPrice()`
+  2. Make it easier to get correct estimates from `L2Provider.estimateL1Gas()` and `L2.estimateL2GasCost`.
+
 ## 0.2.3
 
 ### Patch Changes
