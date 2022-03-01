@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.5.13
+
+### Patch Changes
+
+- 0002b1df: Remove dead code in l2geth
+- 1187dc9a: Don't block read rpc requests when syncing
+- bc342ec4: Fix queue index comparison
+
 ## 0.5.12
 
 ### Patch Changes

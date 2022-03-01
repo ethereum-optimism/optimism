@@ -1,5 +1,11 @@
 # @eth-optimism/integration-tests
 
+## 0.5.5
+
+### Patch Changes
+
+- 45642dc8: Replaces l1Provider and l2Provider with env.l1Provider and env.l2Provider respectively.
+
 ## 0.5.4
 
 ### Patch Changes

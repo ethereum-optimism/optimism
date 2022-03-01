@@ -1,5 +1,12 @@
 # data transport layer
 
+## 0.5.19
+
+### Patch Changes
+
+- 275eb818: Include patch contexts for bss hf1
+- baece507: Hardcodes BSS HF1 block into the DTL
+
 ## 0.5.18
 
 ### Patch Changes
