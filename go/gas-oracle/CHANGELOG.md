@@ -1,5 +1,11 @@
 # @eth-optimism/gas-oracle
 
+## 0.1.7
+
+### Patch Changes
+
+- fed748e0: Update to go-ethereum v1.10.16
+
 ## 0.1.6
 
 ### Patch Changes
