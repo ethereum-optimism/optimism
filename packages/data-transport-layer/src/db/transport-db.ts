@@ -4,6 +4,7 @@ import { BigNumber } from 'ethers'
 
 /* Imports: Internal */
 import { SimpleDB } from './simple-db'
+import { PATCH_CONTEXTS, BSS_HF1_INDEX } from '../config'
 import {
   EnqueueEntry,
   StateRootBatchEntry,
@@ -32,7 +33,7 @@ interface Indexed {
 }
 
 interface ExtraTransportDBOptions {
-  bssHardfork1Index?: number
+  l2ChainId?: number
 }
 
 export class TransportDB {
@@ -300,11 +301,17 @@ export class TransportDB {
     }
 
     let timestamp = enqueue.timestamp
-    if (
-      typeof this.opts.bssHardfork1Index === 'number' &&
-      transaction.index >= this.opts.bssHardfork1Index
-    ) {
+
+    // BSS HF1 activates at block 0 if not specified.
+    const bssHf1Index = BSS_HF1_INDEX[this.opts.l2ChainId] || 0
+    if (transaction.index >= bssHf1Index) {
       timestamp = transaction.timestamp
+    }
+
+    // Override with patch contexts if necessary
+    const contexts = PATCH_CONTEXTS[this.opts.l2ChainId]
+    if (contexts && contexts[transaction.index + 1]) {
+      timestamp = contexts[transaction.index + 1]
     }
 
     return {
