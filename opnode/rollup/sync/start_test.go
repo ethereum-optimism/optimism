@@ -13,42 +13,27 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-type l2Block struct {
-	Self   eth.BlockID
-	FromL1 eth.BlockID
+type fakeChainSource struct {
+	L1 []eth.L1Node
+	L2 []eth.L2Node
 }
 
-type mockSyncReference struct {
-	L2 []l2Block
-	L1 []eth.BlockID
-}
-
-func (m *mockSyncReference) RefByL1Num(ctx context.Context, l1Num uint64) (self eth.BlockID, parent eth.BlockID, err error) {
+func (m *fakeChainSource) L1NodeByNumber(ctx context.Context, l1Num uint64) (eth.L1Node, error) {
 	if l1Num >= uint64(len(m.L1)) {
-		err = ethereum.NotFound
-		return
+		return eth.L1Node{}, ethereum.NotFound
 	}
-	self = m.L1[l1Num]
-	if l1Num > 0 {
-		parent = m.L1[l1Num-1]
-	}
-	return
+	return m.L1[l1Num], nil
 }
 
-func (m *mockSyncReference) L1HeadRef(ctx context.Context) (self eth.BlockID, parent eth.BlockID, err error) {
+func (m *fakeChainSource) L1HeadNode(ctx context.Context) (eth.L1Node, error) {
 	l := len(m.L1)
 	if l == 0 {
-		err = ethereum.NotFound
-		return
+		return eth.L1Node{}, ethereum.NotFound
 	}
-	self = m.L1[l-1]
-	if l-1 > 0 {
-		parent = m.L1[l-1-1]
-	}
-	return
+	return m.L1[l-1], nil
 }
 
-func (m *mockSyncReference) RefByL2Num(ctx context.Context, l2Num *big.Int, genesis *rollup.Genesis) (refL1 eth.BlockID, refL2 eth.BlockID, parentL2 common.Hash, err error) {
+func (m *fakeChainSource) L2NodeByNumber(ctx context.Context, l2Num *big.Int) (eth.L2Node, error) {
 	if len(m.L2) == 0 {
 		panic("bad test, no l2 chain")
 	}
@@ -56,46 +41,56 @@ func (m *mockSyncReference) RefByL2Num(ctx context.Context, l2Num *big.Int, gene
 	if l2Num != nil {
 		i = l2Num.Uint64()
 	}
-	head := m.L2[i]
-	refL1 = head.FromL1
-	refL2 = head.Self
-	if i > 0 {
-		parentL2 = m.L2[i-1].Self.Hash
-	}
-	return
+	return m.L2[i], nil
 }
 
-func (m *mockSyncReference) RefByL2Hash(ctx context.Context, l2Hash common.Hash, genesis *rollup.Genesis) (refL1 eth.BlockID, refL2 eth.BlockID, parentL2 common.Hash, err error) {
+func (m *fakeChainSource) L2NodeByHash(ctx context.Context, l2Hash common.Hash) (eth.L2Node, error) {
 	for i, bl := range m.L2 {
 		if bl.Self.Hash == l2Hash {
-			return m.RefByL2Num(ctx, big.NewInt(int64(i)), genesis)
+			return m.L2NodeByNumber(ctx, big.NewInt(int64(i)))
 		}
 	}
-	err = ethereum.NotFound
-	return
+	return eth.L2Node{}, ethereum.NotFound
 }
 
-var _ SyncReference = (*mockSyncReference)(nil)
+var _ ChainSource = (*fakeChainSource)(nil)
 
-func mockID(id rune, num uint64) eth.BlockID {
+func fakeID(id rune, num uint64) eth.BlockID {
 	var h common.Hash
 	copy(h[:], string(id))
 	return eth.BlockID{Hash: h, Number: uint64(num)}
 }
 
-func chainL1(offset uint64, ids string) (out []eth.BlockID) {
+func fakeL1Block(self rune, parent rune, num uint64) eth.L1Node {
+	var parentID eth.BlockID
+	if num != 0 {
+		parentID = fakeID(parent, num-1)
+	}
+	return eth.L1Node{Self: fakeID(self, num), Parent: parentID}
+}
+
+func fakeL2Block(self rune, parent rune, l1parent eth.BlockID, num uint64) eth.L2Node {
+	var parentID eth.BlockID
+	if num != 0 {
+		parentID = fakeID(parent, num-1)
+	}
+	return eth.L2Node{Self: fakeID(self, num), L2Parent: parentID, L1Parent: l1parent}
+}
+
+func chainL1(offset uint64, ids string) (out []eth.L1Node) {
+	var prevID rune
 	for i, id := range ids {
-		out = append(out, mockID(id, offset+uint64(i)))
+		out = append(out, fakeL1Block(id, prevID, offset+uint64(i)))
+		prevID = id
 	}
 	return
 }
 
-func chainL2(l1 []eth.BlockID, ids string) (out []l2Block) {
+func chainL2(l1 []eth.L1Node, ids string) (out []eth.L2Node) {
+	var prevID rune
 	for i, id := range ids {
-		out = append(out, l2Block{
-			Self:   mockID(id, uint64(i)),
-			FromL1: l1[i],
-		})
+		out = append(out, fakeL2Block(id, prevID, l1[i].Self, uint64(i)))
+		prevID = id
 	}
 	return
 }
@@ -126,21 +121,21 @@ func (c *syncStartTestCase) Run(t *testing.T) {
 	engL2 := chainL2(engL1, c.EngineL2)
 	actL1 := chainL1(0, c.ActualL1)
 
-	msr := &mockSyncReference{
+	msr := &fakeChainSource{
 		L2: engL2,
 		L1: actL1,
 	}
 
 	genesis := &rollup.Genesis{
-		L1: mockID(c.GenesisL1, c.OffsetL2),
-		L2: mockID(c.GenesisL2, 0),
+		L1: fakeID(c.GenesisL1, c.OffsetL2),
+		L2: fakeID(c.GenesisL2, 0),
 	}
 
 	fmt.Println(engL1)
 	fmt.Println(actL1)
 	fmt.Println(engL2)
 
-	nextRefL1s, refL2, err := V3FindSyncStart(context.Background(), SyncSourceV2{msr}, genesis)
+	nextRefL1s, refL2, err := V3FindSyncStart(context.Background(), msr, genesis)
 
 	if c.ExpectedErr != nil {
 		assert.Error(t, err, "Expecting an error in this test case")

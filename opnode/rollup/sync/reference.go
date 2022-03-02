@@ -13,111 +13,86 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 )
 
-// Sync Source Interface TODOs:
-// Relax block by hash???  would have to use by number interface though
-// Merge v1 and v2
-// Put node definitions in eth?
-
-// SyncSource implements SyncReference with a L2 block sources and L1 hash-by-number source
-type SyncSource struct {
-	L1 interface {
-		HeadBlockLink(ctx context.Context) (self eth.BlockID, parent eth.BlockID, err error)
-		BlockLinkByNumber(ctx context.Context, num uint64) (self eth.BlockID, parent eth.BlockID, err error)
-	}
-	L2 interface {
-		BlockByHash(ctx context.Context, hash common.Hash) (*types.Block, error)
-		BlockByNumber(ctx context.Context, number *big.Int) (*types.Block, error)
-	}
+// L1Client is the subset of methods that ChainSource needs to determine the L1 block graph
+type L1Client interface {
+	HeaderByNumber(ctx context.Context, number *big.Int) (*types.Header, error)
 }
 
-// RefByL1Num fetches the canonical L1 block hash and the parent for the given L1 block height.
-func (src SyncSource) RefByL1Num(ctx context.Context, l1Num uint64) (self eth.BlockID, parent eth.BlockID, err error) {
-	return src.L1.BlockLinkByNumber(ctx, l1Num)
+// L2Client is the subset of methods that ChainSource needs to determine the L2 block graph
+type L2Client interface {
+	BlockByNumber(ctx context.Context, number *big.Int) (*types.Block, error)
+	BlockByHash(ctx context.Context, hash common.Hash) (*types.Block, error)
 }
 
-// L1HeadRef fetches the canonical L1 block hash and the parent for the head of the L1 chain.
-func (src SyncSource) L1HeadRef(ctx context.Context) (self eth.BlockID, parent eth.BlockID, err error) {
-	return src.L1.HeadBlockLink(ctx)
-}
-
-// RefByL2Num fetches the L1 and L2 block IDs from the engine for the given L2 block height.
-// Use a nil height to fetch the head.
-func (src SyncSource) RefByL2Num(ctx context.Context, l2Num *big.Int, genesis *rollup.Genesis) (refL1 eth.BlockID, refL2 eth.BlockID, parentL2 common.Hash, err error) {
-	refL2Block, err2 := src.L2.BlockByNumber(ctx, l2Num) // nil for latest block
-	if err2 != nil {
-		err = fmt.Errorf("failed to retrieve L2 block: %v", err2)
-		return
-	}
-	return derive.BlockReferences(refL2Block, genesis)
-}
-
-// RefByL2Hash fetches the L1 and L2 block IDs from the engine for the given L2 block hash.
-func (src SyncSource) RefByL2Hash(ctx context.Context, l2Hash common.Hash, genesis *rollup.Genesis) (refL1 eth.BlockID, refL2 eth.BlockID, parentL2 common.Hash, err error) {
-	refL2Block, err2 := src.L2.BlockByHash(ctx, l2Hash)
-	if err2 != nil {
-		err = fmt.Errorf("failed to retrieve L2 block: %v", err2)
-		return
-	}
-	return derive.BlockReferences(refL2Block, genesis)
-}
-
-// SyncReference helps inform the sync algorithm of the L2 sync-state and L1 canonical chain
-type SyncReference interface {
-	// RefByL1Num fetches the canonical L1 block hash and the parent for the given L1 block height.
-	RefByL1Num(ctx context.Context, l1Num uint64) (self eth.BlockID, parent eth.BlockID, err error)
-
-	// L1HeadRef fetches the canonical L1 block hash and the parent for the head of the L1 chain.
-	L1HeadRef(ctx context.Context) (self eth.BlockID, parent eth.BlockID, err error)
-
-	// RefByL2Num fetches the L1 and L2 block IDs from the engine for the given L2 block height.
-	// Use a nil height to fetch the head.
-	RefByL2Num(ctx context.Context, l2Num *big.Int, genesis *rollup.Genesis) (refL1 eth.BlockID, refL2 eth.BlockID, parentL2 common.Hash, err error)
-
-	// RefByL2Hash fetches the L1 and L2 block IDs from the engine for the given L2 block hash.
-	RefByL2Hash(ctx context.Context, l2Hash common.Hash, genesis *rollup.Genesis) (refL1 eth.BlockID, refL2 eth.BlockID, parentL2 common.Hash, err error)
-}
-
-// SyncReferenceV2 wraps the return types of SyncReference to be easier to work with.
-type SyncReferenceV2 interface {
+// ChainSource provides access to the L1 and L2 block graph
+type ChainSource interface {
 	L1NodeByNumber(ctx context.Context, l1Num uint64) (eth.L1Node, error)
 	L1HeadNode(ctx context.Context) (eth.L1Node, error)
-	L2NodeByNumber(ctx context.Context, l2Num *big.Int, genesis *rollup.Genesis) (eth.L2Node, error)
-	L2NodeByHash(ctx context.Context, l2Hash common.Hash, genesis *rollup.Genesis) (eth.L2Node, error)
+	L2NodeByNumber(ctx context.Context, l2Num *big.Int) (eth.L2Node, error)
+	L2NodeByHash(ctx context.Context, l2Hash common.Hash) (eth.L2Node, error)
 }
 
-type SyncSourceV2 struct {
-	SyncReference
+func NewChainSource(l1 L1Client, l2 L2Client, genesis *rollup.Genesis) *chainSourceImpl {
+	return &chainSourceImpl{l1: l1, l2: l2, genesis: genesis}
 }
 
-func (src SyncSourceV2) L1NodeByNumber(ctx context.Context, l1Num uint64) (eth.L1Node, error) {
-	self, parent, err := src.RefByL1Num(ctx, l1Num)
+type chainSourceImpl struct {
+	l1      L1Client
+	l2      L2Client
+	genesis *rollup.Genesis
+}
+
+// L1NodeByNumber returns the canonical block and parent ids.
+func (src chainSourceImpl) L1NodeByNumber(ctx context.Context, l1Num uint64) (eth.L1Node, error) {
+	header, err := src.l1.HeaderByNumber(ctx, big.NewInt(int64(l1Num)))
 	if err != nil {
-		return eth.L1Node{}, err
+		// w%: wrap the error, we still need to detect if a canonical block is not found, a.k.a. end of chain.
+		return eth.L1Node{}, fmt.Errorf("failed to determine block-hash of height %d, could not get header: %w", l1Num, err)
 	}
-	return eth.L1Node{Self: self, Parent: parent}, nil
-
+	parentNum := l1Num
+	if parentNum > 0 {
+		parentNum -= 1
+	}
+	return eth.L1Node{
+		Self:   eth.BlockID{Hash: header.Hash(), Number: l1Num},
+		Parent: eth.BlockID{Hash: header.ParentHash, Number: parentNum},
+	}, nil
 }
 
-func (src SyncSourceV2) L1HeadNode(ctx context.Context) (eth.L1Node, error) {
-	self, parent, err := src.L1HeadRef(ctx)
+// L1NodeByNumber returns the canonical head block and parent ids.
+func (src chainSourceImpl) L1HeadNode(ctx context.Context) (eth.L1Node, error) {
+	header, err := src.l1.HeaderByNumber(ctx, nil)
 	if err != nil {
-		return eth.L1Node{}, err
+		// w%: wrap the error, we still need to detect if a canonical block is not found, a.k.a. end of chain.
+		return eth.L1Node{}, fmt.Errorf("failed to determine block-hash of head block, could not get header: %w", err)
 	}
-	return eth.L1Node{Self: self, Parent: parent}, nil
+	l1Num := header.Number.Uint64()
+	parentNum := l1Num
+	if parentNum > 0 {
+		parentNum -= 1
+	}
+	return eth.L1Node{
+		Self:   eth.BlockID{Hash: header.Hash(), Number: l1Num},
+		Parent: eth.BlockID{Hash: header.ParentHash, Number: parentNum},
+	}, nil
 }
 
-func (src SyncSourceV2) L2NodeByNumber(ctx context.Context, l2Num *big.Int, genesis *rollup.Genesis) (eth.L2Node, error) {
-	l1Ref, l2ref, l2ParentHash, err := src.RefByL2Num(ctx, l2Num, genesis)
+// L2NodeByNumber returns the canonical block and parent ids.
+func (src chainSourceImpl) L2NodeByNumber(ctx context.Context, l2Num *big.Int) (eth.L2Node, error) {
+	block, err := src.l2.BlockByNumber(ctx, l2Num)
 	if err != nil {
-		return eth.L2Node{}, err
+		// w%: wrap the error, we still need to detect if a canonical block is not found, a.k.a. end of chain.
+		return eth.L2Node{}, fmt.Errorf("failed to determine block-hash of height %v, could not get header: %w", l2Num, err)
 	}
-	return eth.L2Node{Self: l2ref, L1Parent: l1Ref, L2Parent: eth.BlockID{Hash: l2ParentHash, Number: l2ref.Number - 1}}, nil
+	return derive.BlockReferences(block, src.genesis)
 }
 
-func (src SyncSourceV2) L2NodeByHash(ctx context.Context, l2Hash common.Hash, genesis *rollup.Genesis) (eth.L2Node, error) {
-	l1Ref, l2ref, l2ParentHash, err := src.RefByL2Hash(ctx, l2Hash, genesis)
+// L2NodeByHash returns the block & parent ids based on the supplied hash. The returned node may not be in the canonical chain
+func (src chainSourceImpl) L2NodeByHash(ctx context.Context, l2Hash common.Hash) (eth.L2Node, error) {
+	block, err := src.l2.BlockByHash(ctx, l2Hash)
 	if err != nil {
-		return eth.L2Node{}, err
+		// w%: wrap the error, we still need to detect if a canonical block is not found, a.k.a. end of chain.
+		return eth.L2Node{}, fmt.Errorf("failed to determine block-hash of height %v, could not get header: %w", l2Hash, err)
 	}
-	return eth.L2Node{Self: l2ref, L1Parent: l1Ref, L2Parent: eth.BlockID{Hash: l2ParentHash, Number: l2ref.Number - 1}}, nil
+	return derive.BlockReferences(block, src.genesis)
 }
