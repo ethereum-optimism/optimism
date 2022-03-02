@@ -10,8 +10,8 @@ on:
       - '*rc'
       - 'regenesis/*'
   pull_request:
-    paths:
-      - 'go/bss-core/**'
+    branches:
+      - '*'
   workflow_dispatch:
 
 defaults:
