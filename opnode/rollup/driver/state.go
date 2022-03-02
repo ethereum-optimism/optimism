@@ -31,7 +31,7 @@ type state struct {
 	Config rollup.Config
 
 	// Connections (in/out)
-	l1Heads <-chan eth.HeadSignal
+	l1Heads <-chan eth.L1Node
 	input   inputInterface
 	output  outputInterface
 
@@ -75,7 +75,7 @@ func NewState(log log.Logger, config rollup.Config, input inputInterface, output
 	}
 }
 
-func (s *state) Start(ctx context.Context, l1Heads <-chan eth.HeadSignal) error {
+func (s *state) Start(ctx context.Context, l1Heads <-chan eth.L1Node) error {
 	l1Head, err := s.input.L1Head(ctx)
 	if err != nil {
 		return err
@@ -99,7 +99,7 @@ func (s *state) Close() error {
 	return nil
 }
 
-func (s *state) handleReorg(ctx context.Context, head eth.HeadSignal) error {
+func (s *state) handleReorg(ctx context.Context, head eth.L1Node) error {
 	log.Warn("L1 Head signal indicates an L1 re-org", "old_l1_head", s.l1Head, "new_l1_head_parent", head.Parent, "new_l1_head", head.Self)
 	nextL2Head, err := s.input.L2Head(ctx)
 	if err != nil {
@@ -119,7 +119,7 @@ func (s *state) handleReorg(ctx context.Context, head eth.HeadSignal) error {
 // If there is a re-org, this updates the internal state to handle the re-org.
 // Note that `ctx` is only used in a re-org and that handling a re-org may take a long period of time.
 // The L2 engine is not modified in this function.
-func (s *state) newL1Head(ctx context.Context, head eth.HeadSignal) (bool, error) {
+func (s *state) newL1Head(ctx context.Context, head eth.L1Node) (bool, error) {
 	// Already have head
 	if s.l1Head == head.Self {
 		log.Trace("Received L1 head signal that is the same as the current head", "l1_head", head.Self)

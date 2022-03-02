@@ -29,7 +29,7 @@ func NewDriver(cfg rollup.Config, l2 DriverAPI, l1 l1.Source, log log.Logger) *D
 	}
 }
 
-func (d *Driver) Start(ctx context.Context, l1Heads <-chan eth.HeadSignal) error {
+func (d *Driver) Start(ctx context.Context, l1Heads <-chan eth.L1Node) error {
 	return d.s.Start(ctx, l1Heads)
 }
 func (d *Driver) Close() error {
