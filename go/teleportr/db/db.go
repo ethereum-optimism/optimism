@@ -77,10 +77,19 @@ CREATE TABLE IF NOT EXISTS last_processed_block (
 );
 `
 
+const pendingTxTable = `
+CREATE TABLE IF NOT EXISTS pending_txs (
+	txn_hash VARCHAR NOT NULL PRIMARY KEY,
+	start_id INT8 NOT NULL,
+	end_id INT8 NOT NULL
+);
+`
+
 var migrations = []string{
 	createDepositsTable,
 	createDisbursementsTable,
 	lastProcessedBlockTable,
+	pendingTxTable,
 }
 
 // Config houses the data required to connect to a Postgres backend.
@@ -416,4 +425,89 @@ func (d *Database) CompletedTeleports() ([]CompletedTeleport, error) {
 	}
 
 	return teleports, nil
+}
+
+// PendingTx encapsulates the metadata stored about published disbursement txs.
+type PendingTx struct {
+	// Txhash is the tx hash of the disbursement tx.
+	TxHash common.Hash
+
+	// StartID is the deposit id of the first disbursement, inclusive.
+	StartID uint64
+
+	// EndID is the deposit id fo the last disbursement, exclusive.
+	EndID uint64
+}
+
+const upsertPendingTxStatement = `
+INSERT INTO pending_txs (txn_hash, start_id, end_id)
+VALUES ($1, $2, $3)
+ON CONFLICT (txn_hash) DO UPDATE
+SET (start_id, end_id) = ($2, $3)
+`
+
+// UpsertPendingTx inserts a disbursement, or updates the entry if the TxHash
+// already exists.
+func (d *Database) UpsertPendingTx(pendingTx PendingTx) error {
+	_, err := d.conn.Exec(
+		upsertPendingTxStatement,
+		pendingTx.TxHash.String(),
+		pendingTx.StartID,
+		pendingTx.EndID,
+	)
+	return err
+}
+
+const listPendingTxsQuery = `
+SELECT txn_hash, start_id, end_id
+FROM pending_txs
+ORDER BY start_id DESC, end_id DESC, txn_hash ASC
+`
+
+// ListPendingTxs returns all pending txs stored in the database.
+func (d *Database) ListPendingTxs() ([]PendingTx, error) {
+	rows, err := d.conn.Query(listPendingTxsQuery)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var pendingTxs []PendingTx
+	for rows.Next() {
+		var pendingTx PendingTx
+		var txHashStr string
+		err = rows.Scan(
+			&txHashStr,
+			&pendingTx.StartID,
+			&pendingTx.EndID,
+		)
+		if err != nil {
+			return nil, err
+		}
+		pendingTx.TxHash = common.HexToHash(txHashStr)
+
+		pendingTxs = append(pendingTxs, pendingTx)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return pendingTxs, nil
+}
+
+const deletePendingTxsStatement = `
+DELETE FROM pending_txs
+WHERE start_id = $1 AND end_id = $2
+`
+
+// DeletePendingTx removes any pending txs with matching start and end ids. This
+// allows the caller to remove any logically-conflicting pending txs from the
+// database after successfully processing the outcomes.
+func (d *Database) DeletePendingTx(startID, endID uint64) error {
+	_, err := d.conn.Exec(
+		deletePendingTxsStatement,
+		startID,
+		endID,
+	)
+	return err
 }

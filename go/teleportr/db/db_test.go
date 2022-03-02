@@ -311,3 +311,135 @@ func TestUpsertDisbursement(t *testing.T) {
 	require.Nil(t, err)
 	require.Equal(t, expTeleports, teleports)
 }
+
+// TestUpsertPendingTxs asserts that UpsertPendingTx properly records a pending
+// tx, and that it appears in ListPendingTxs on subsequent calls.
+func TestUpsertPendingTxs(t *testing.T) {
+	t.Parallel()
+
+	d := newDatabase(t)
+	defer d.Close()
+
+	// Should be empty at first.
+	pendingTxs, err := d.ListPendingTxs()
+	require.Nil(t, err)
+	require.Nil(t, pendingTxs)
+
+	// Add first pending tx.
+	pendingTx1 := db.PendingTx{
+		TxHash:  common.HexToHash("0x11"),
+		StartID: 0,
+		EndID:   1,
+	}
+	err = d.UpsertPendingTx(pendingTx1)
+	require.Nil(t, err)
+
+	pendingTxs, err = d.ListPendingTxs()
+	require.Nil(t, err)
+	require.Equal(t, []db.PendingTx{pendingTx1}, pendingTxs)
+
+	// Add second pending tx.
+	pendingTx2 := db.PendingTx{
+		TxHash:  common.HexToHash("0x22"),
+		StartID: 0,
+		EndID:   1,
+	}
+	err = d.UpsertPendingTx(pendingTx2)
+	require.Nil(t, err)
+
+	pendingTxs, err = d.ListPendingTxs()
+	require.Nil(t, err)
+	require.Equal(t, []db.PendingTx{pendingTx1, pendingTx2}, pendingTxs)
+
+	// Readd duplciate pending tx.
+	err = d.UpsertPendingTx(pendingTx2)
+	require.Nil(t, err)
+
+	pendingTxs, err = d.ListPendingTxs()
+	require.Nil(t, err)
+	require.Equal(t, []db.PendingTx{pendingTx1, pendingTx2}, pendingTxs)
+
+	// Add third pending tx.
+	pendingTx3 := db.PendingTx{
+		TxHash:  common.HexToHash("0x33"),
+		StartID: 1,
+		EndID:   2,
+	}
+	err = d.UpsertPendingTx(pendingTx3)
+	require.Nil(t, err)
+
+	pendingTxs, err = d.ListPendingTxs()
+	require.Nil(t, err)
+	require.Equal(t, []db.PendingTx{pendingTx3, pendingTx1, pendingTx2}, pendingTxs)
+}
+
+// TestDeletePendingTx asserts that DeletePendingTx properly cleans up the
+// pending_txs table when provided with various start/end ids.
+func TestDeletePendingTx(t *testing.T) {
+	t.Parallel()
+
+	d := newDatabase(t)
+	defer d.Close()
+
+	pendingTx1 := db.PendingTx{
+		TxHash:  common.HexToHash("0x11"),
+		StartID: 0,
+		EndID:   1,
+	}
+	pendingTx2 := db.PendingTx{
+		TxHash:  common.HexToHash("0x22"),
+		StartID: 0,
+		EndID:   1,
+	}
+	pendingTx3 := db.PendingTx{
+		TxHash:  common.HexToHash("0x33"),
+		StartID: 1,
+		EndID:   2,
+	}
+
+	err := d.UpsertPendingTx(pendingTx1)
+	require.Nil(t, err)
+	err = d.UpsertPendingTx(pendingTx2)
+	require.Nil(t, err)
+	err = d.UpsertPendingTx(pendingTx3)
+	require.Nil(t, err)
+
+	pendingTxs, err := d.ListPendingTxs()
+	require.Nil(t, err)
+	require.Equal(t, []db.PendingTx{pendingTx3, pendingTx1, pendingTx2}, pendingTxs)
+
+	// Delete with indexes that do not match any start/end, no effect.
+	err = d.DeletePendingTx(3, 4)
+	require.Nil(t, err)
+	pendingTxs, err = d.ListPendingTxs()
+	require.Nil(t, err)
+	require.Equal(t, []db.PendingTx{pendingTx3, pendingTx1, pendingTx2}, pendingTxs)
+
+	// Delete with indexes that matches start but no end, no effect.
+	err = d.DeletePendingTx(1, 3)
+	require.Nil(t, err)
+	pendingTxs, err = d.ListPendingTxs()
+	require.Nil(t, err)
+	require.Equal(t, []db.PendingTx{pendingTx3, pendingTx1, pendingTx2}, pendingTxs)
+
+	// Delete with indexes that matches end but no start, no effect.
+	err = d.DeletePendingTx(0, 2)
+	require.Nil(t, err)
+	pendingTxs, err = d.ListPendingTxs()
+	require.Nil(t, err)
+	require.Equal(t, []db.PendingTx{pendingTx3, pendingTx1, pendingTx2}, pendingTxs)
+
+	// Delete with indexes that matches start and end, should remove both.
+	err = d.DeletePendingTx(0, 1)
+	require.Nil(t, err)
+	pendingTxs, err = d.ListPendingTxs()
+	require.Nil(t, err)
+	require.Equal(t, []db.PendingTx{pendingTx3}, pendingTxs)
+
+	// Delete with indexes that matches start and end, no empty.
+	err = d.DeletePendingTx(1, 2)
+	require.Nil(t, err)
+	pendingTxs, err = d.ListPendingTxs()
+	require.Nil(t, err)
+	require.Nil(t, pendingTxs)
+}
