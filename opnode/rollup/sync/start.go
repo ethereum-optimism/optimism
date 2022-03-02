@@ -1,21 +1,9 @@
-package sync
-
-import (
-	"context"
-	"errors"
-	"fmt"
-
-	"github.com/ethereum/go-ethereum"
-
-	"github.com/ethereum-optimism/optimistic-specs/opnode/eth"
-	"github.com/ethereum-optimism/optimistic-specs/opnode/rollup"
-)
-
-var WrongChainErr = errors.New("wrong chain")
-
+// The sync package is responsible for reconciling L1 and L2.
+//
+//
 // The ethereum chain is a DAG of blocks with the root block being the genesis block.
 // At any given time, the head (or tip) of the chain can change if an offshoot of the chain
-// has a higher difficulty. This is known as a re-organization of the canonical chain.
+// has a higher number. This is known as a re-organization of the canonical chain.
 // Each block points to a parent block and the node is responsible for deciding which block is the head
 // and thus the mapping from block number to canonical block.
 //
@@ -34,22 +22,39 @@ var WrongChainErr = errors.New("wrong chain")
 //     - L2 reorg
 //     - L2 extension
 //
-// When one of those actions occurs, the L2 chain head may need to be updated and we would like a portion of the L1 chain
-// that we should use to derive the L2 chain from.
-// These are two different functions, but doing the first requires walking both chains in which case it is easy to also
-// return a portion of the chain.
-//
-// This function returns the highest possible l2block that is valid. This is the (possibly new) L2 chain head.
+// When one of these changes occurs, the rollup node needs to determine what the new L2 Head should be.
+// In a simple extension case, the L2 head remains the same, but in the case of a re-org on L1, it needs
+// to find the first L2 block where the l1parent is in the L1 canonical chain.
+// In the case of a re-org, it is also helpful to obtain the L1 blocks after the L1 base to re-start the
+// chain derivation process.
+
+package sync
+
+import (
+	"context"
+	"errors"
+	"fmt"
+
+	"github.com/ethereum/go-ethereum"
+
+	"github.com/ethereum-optimism/optimistic-specs/opnode/eth"
+	"github.com/ethereum-optimism/optimistic-specs/opnode/rollup"
+)
+
+var WrongChainErr = errors.New("wrong chain")
+var MaxReorgDepth = 200
+var MaxBlocksInL1Range = uint64(100)
+
+// V3FindSyncStart finds the L2 head and the chain of L1 blocks after the L1 base block.
+// The L2 Head is the highest possible l2block such that it is valid (see above rules).
 // It also returns a portion of the L1 chain starting just after l2block.l1parent.number.
-//     - The L1 chain was canonical when the function was called.
-//     - The L1 chain is continuous
-//     - The L1 chain is from low to high
-//     - The length is not defined.
+//     - The returned L1 blocks were canonical when the function was called.
+//     - The returned L1 block are contiguous and ordered from low to high.
+//     - The first block (if len > 0) has height l2block.l1parent.number + 1.
+//     - The length of the array may be any value, including 0.
 // If err is not nil, the above return values are not well defined. An error will be returned in the following cases:
 //     - Wrapped ethereum.NotFound if it could not find a block in L1 or L2. This error may be temporary.
 //     - Wrapped WrongChainErr if the l1_rollup_genesis block is not reachable from the L2 chain.
-//     - ??
-
 func V3FindSyncStart(ctx context.Context, source ChainSource, genesis *rollup.Genesis) ([]eth.BlockID, eth.BlockID, error) {
 	l2Head, err := FindL2Head(ctx, source, genesis)
 	if err != nil {
@@ -73,6 +78,7 @@ func FindL2Head(ctx context.Context, source ChainSource, genesis *rollup.Genesis
 	if err != nil {
 		return eth.L2Node{}, fmt.Errorf("failed to fetch L2 head: %w", err)
 	}
+	reorgDepth := 0
 	// Walk L2 chain from L2 head to first L2 block which has a L1 Parent that is canonical. May walk to L2 genesis
 	for n := l2Head; ; {
 		l1header, err := source.L1NodeByNumber(ctx, n.L1Parent.Number)
@@ -100,35 +106,42 @@ func FindL2Head(ctx context.Context, source ChainSource, genesis *rollup.Genesis
 		if err != nil {
 			return eth.L2Node{}, fmt.Errorf("failed to fetch L2 block by hash %v: %w", n.L2Parent.Hash, err)
 		}
+		reorgDepth++
+		if reorgDepth >= MaxReorgDepth {
+			panic("Too deep re-org")
+		}
 	}
 }
 
 // FindL1Range returns a range of L1 block beginning just after `begin`.
 func FindL1Range(ctx context.Context, source ChainSource, begin eth.BlockID) ([]eth.BlockID, error) {
-	if _, err := source.L1NodeByNumber(ctx, begin.Number); err != nil {
+	// Ensure that we start on the expected chain.
+	if canonicalBegin, err := source.L1NodeByNumber(ctx, begin.Number); err != nil {
 		return nil, fmt.Errorf("failed to fetch L1 block %v %v: %w", begin.Number, begin.Hash, err)
+
+	} else {
+		if canonicalBegin.Self != begin {
+			return nil, fmt.Errorf("Re-org at begin block. Expected: %v. Actual: %v", begin, canonicalBegin.Self)
+		}
 	}
-	// TODO: Check hash (begin.hash = the same as from L1NodeByNumber above) here (even if slightly redudant)
+
 	l1head, err := source.L1HeadNode(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch head L1 block: %w", err)
 	}
-	maxBlocks := uint64(100)
+	maxBlocks := MaxBlocksInL1Range
+	// Cap maxBlocks if there are less than maxBlocks between `begin` and the head of the chain.
 	if l1head.Self.Number-begin.Number <= maxBlocks {
-		fmt.Println("Capping max blocks")
 		maxBlocks = l1head.Self.Number - begin.Number
-		fmt.Println(maxBlocks)
 	}
 
 	prevHash := begin.Hash
 	var res []eth.BlockID
 	for i := begin.Number + 1; i < begin.Number+maxBlocks+1; i++ {
-		fmt.Println(i, i)
 		n, err := source.L1NodeByNumber(ctx, i)
 		if err != nil {
 			return nil, fmt.Errorf("failed to fetch L1 block %v: %w", i, err)
 		}
-		fmt.Println(prevHash, n.Parent.Hash)
 		// TODO(Joshua): Look into why this fails around the genesis block
 		if n.Parent.Number != 0 && n.Parent.Hash != prevHash {
 			return nil, errors.New("re-organization occurred while attempting to get l1 range")
