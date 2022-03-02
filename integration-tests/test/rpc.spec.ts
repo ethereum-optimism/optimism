@@ -9,6 +9,7 @@ import {
 } from '@ethersproject/providers'
 
 /* Imports: Internal */
+import { expect } from './shared/setup'
 import {
   defaultTransactionFactory,
   fundUser,
@@ -20,7 +21,6 @@ import {
   gasPriceOracleWallet,
 } from './shared/utils'
 import { OptimismEnv } from './shared/env'
-import { expect } from './shared/setup'
 
 describe('Basic RPC tests', () => {
   let env: OptimismEnv

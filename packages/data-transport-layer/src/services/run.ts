@@ -51,7 +51,6 @@ type ethNetwork = 'mainnet' | 'kovan' | 'goerli'
       useSentry: config.bool('use-sentry', false),
       sentryDsn: config.str('sentry-dsn'),
       sentryTraceRate: config.ufloat('sentry-trace-rate', 0.05),
-      bssHardfork1Index: config.uint('bss-hardfork-1-index', null),
     })
 
     const stop = async (signal) => {

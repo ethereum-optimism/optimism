@@ -2,7 +2,7 @@ version: 2.1
 orbs:
   gcp-gke: circleci/gcp-gke@1.3.0
   slack: circleci/slack@4.5.1
-slack-fail-post-step: &slack-fail-post-step
+slack-nightly-build-fail-post-step: &slack-nightly-build-fail-post-step
   post-steps:
     - slack/notify:
         channel: $SLACK_DEFAULT_CHANNEL
@@ -154,7 +154,7 @@ jobs:
               --env PRIVATE_KEY=$NIGHTLY_ITESTS_PRIVKEY \
               --env L1_URL=https://nightly-l1.optimism-stacks.net \
               --env L2_URL=https://nightly-l2.optimism-stacks.net \
-              --env ADDRESS_MANAGER=0x22D4E211ef8704f2ca2d6dfdB32125E2530ACE3e \
+              --env ADDRESS_MANAGER=0xfcA6De8Db94C4d99bD5a7f5De1bb7A039265Ac42 \
               --env L2_CHAINID=69 \
               --env MOCHA_BAIL=true \
               --env MOCHA_TIMEOUT=300000 \
@@ -190,6 +190,66 @@ workflows:
       - run-itests-nightly:
           context:
             - optimism
+          post-steps:
+            - slack/notify:
+                channel: $SLACK_DEFAULT_CHANNEL
+                event: fail
+                custom: |
+                  {
+                    "text": "",
+                    "blocks": [
+                      {
+                        "type": "section",
+                        "text": {
+                          "type": "mrkdwn",
+                          "text": "🔴 Nightly integration tests failed!"
+                        }
+                      },
+                      {
+                        "type": "actions",
+                        "elements": [
+                          {
+                            "type": "button",
+                            "text": {
+                              "type": "plain_text",
+                              "text": "View Job"
+                            },
+                            "url": "${CIRCLE_BUILD_URL}"
+                          }
+                        ]
+                      }
+                    ]
+                  }
+            - slack/notify:
+                channel: $SLACK_DEFAULT_CHANNEL
+                event: pass
+                custom: |
+                  {
+                    "text": "",
+                    "blocks": [
+                      {
+                        "type": "section",
+                        "text": {
+                          "type": "mrkdwn",
+                          "text": "✅ Nightly integration tests passed."
+                        }
+                      },
+                      {
+                        "type": "actions",
+                        "elements": [
+                          {
+                            "type": "button",
+                            "text": {
+                              "type": "plain_text",
+                              "text": "View Job"
+                            },
+                            "url": "${CIRCLE_BUILD_URL}"
+                          }
+                        ]
+                      }
+                    ]
+                  }
+
   nightly:
     triggers:
       - schedule:
@@ -203,47 +263,47 @@ workflows:
           context: 
             - optimism
             - slack
-          <<: *slack-fail-post-step
+          <<: *slack-nightly-build-fail-post-step
       - build-batch-submitter:
           context:
             - optimism
             - slack
-          <<: *slack-fail-post-step
+          <<: *slack-nightly-build-fail-post-step
       - build-deployer:
           context:
             - optimism
             - slack
-          <<: *slack-fail-post-step
+          <<: *slack-nightly-build-fail-post-step
       - build-l2geth:
           context:
             - optimism
             - slack
-          <<: *slack-fail-post-step
+          <<: *slack-nightly-build-fail-post-step
       - build-gas-oracle:
           context:
             - optimism
             - slack
-          <<: *slack-fail-post-step
+          <<: *slack-nightly-build-fail-post-step
       - build-integration-tests:
           context:
             - optimism
             - slack
-          <<: *slack-fail-post-step
+          <<: *slack-nightly-build-fail-post-step
       - build-go-batch-submitter:
           context:
             - optimism
             - slack
-          <<: *slack-fail-post-step
+          <<: *slack-nightly-build-fail-post-step
       - build-proxyd:
           context:
             - optimism
             - slack
-          <<: *slack-fail-post-step
+          <<: *slack-nightly-build-fail-post-step
       - deploy-nightly:
           context:
             - optimism
             - slack
-          <<: *slack-fail-post-step
+          <<: *slack-nightly-build-fail-post-step
           requires:
             - build-dtl
             - build-batch-submitter

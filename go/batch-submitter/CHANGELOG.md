@@ -1,5 +1,13 @@
 # @eth-optimism/batch-submitter-service
 
+## 0.1.5
+
+### Patch Changes
+
+- 6f2ea193: Update to go-ethereum v1.10.16
+- 87359fd2: Refactors the bss-core service to use a metrics interface to allow
+  driver-specific metric extensions
+
 ## 0.1.4
 
 ### Patch Changes
