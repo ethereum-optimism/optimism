@@ -1,4 +1,4 @@
-package dial
+package batchsubmitter
 
 import (
 	"context"
@@ -6,18 +6,19 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/ethereum-optimism/optimism/go/bss-core/dial"
 	"github.com/ethereum-optimism/optimism/l2geth/ethclient"
 	"github.com/ethereum-optimism/optimism/l2geth/log"
 	"github.com/ethereum-optimism/optimism/l2geth/rpc"
 )
 
-// L2EthClientWithTimeout attempts to dial the L2 provider using the
-// provided URL. If the dial doesn't complete within defaultDialTimeout seconds,
+// DialL2EthClientWithTimeout attempts to dial the L2 provider using the
+// provided URL. If the dial doesn't complete within dial.DefaultTimeout seconds,
 // this method will return an error.
-func L2EthClientWithTimeout(ctx context.Context, url string, disableHTTP2 bool) (
+func DialL2EthClientWithTimeout(ctx context.Context, url string, disableHTTP2 bool) (
 	*ethclient.Client, error) {
 
-	ctxt, cancel := context.WithTimeout(ctx, defaultDialTimeout)
+	ctxt, cancel := context.WithTimeout(ctx, dial.DefaultTimeout)
 	defer cancel()
 
 	if strings.HasPrefix(url, "http") {
