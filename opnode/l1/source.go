@@ -39,20 +39,6 @@ func (s Source) BlockLinkByNumber(ctx context.Context, num uint64) (self eth.Blo
 
 }
 
-func (s Source) HeadBlockLink(ctx context.Context) (self eth.BlockID, parent eth.BlockID, err error) {
-	header, err := s.client.HeaderByNumber(ctx, nil)
-	if err != nil {
-		// w%: wrap the error, we still need to detect if a canonical block is not found, a.k.a. end of chain.
-		return eth.BlockID{}, eth.BlockID{}, fmt.Errorf("failed to determine block-hash of head block, could not get header: %w", err)
-	}
-	parentNum := header.Number.Uint64()
-	if parentNum > 0 {
-		parentNum -= 1
-	}
-	return eth.BlockID{Hash: header.Hash(), Number: header.Number.Uint64()}, eth.BlockID{Hash: header.ParentHash, Number: parentNum}, nil
-
-}
-
 func (s Source) SubscribeNewHead(ctx context.Context, ch chan<- *types.Header) (ethereum.Subscription, error) {
 	return s.client.SubscribeNewHead(ctx, ch)
 }
