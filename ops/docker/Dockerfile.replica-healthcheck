@@ -19,6 +19,11 @@ COPY --from=builder /optimism/packages/core-utils/dist ./packages/core-utils/dis
 COPY --from=builder /optimism/packages/common-ts/package.json ./packages/common-ts/package.json
 COPY --from=builder /optimism/packages/common-ts/dist ./packages/common-ts/dist
 
+COPY --from=builder /optimism/packages/contracts/package.json ./packages/contracts/package.json
+COPY --from=builder /optimism/packages/contracts/deployments ./packages/contracts/deployments
+COPY --from=builder /optimism/packages/contracts/dist ./packages/contracts/dist
+COPY --from=builder /optimism/packages/contracts/artifacts ./packages/contracts/artifacts
+
 # copy the service
 WORKDIR /opt/optimism/packages/replica-healthcheck
 COPY --from=builder /optimism/packages/replica-healthcheck/dist ./dist

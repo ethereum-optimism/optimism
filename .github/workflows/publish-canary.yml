@@ -345,7 +345,7 @@ jobs:
           build-args: BUILDER_TAG=${{ needs.builder.outputs.canary-docker-tag }}
 
   replica-healthcheck:
-    name: Publish Data Transport Layer Version ${{ needs.builder.outputs.canary-docker-tag }}
+    name: Publish Replica Healthcheck Version ${{ needs.builder.outputs.canary-docker-tag }}
     needs: builder
     if: needs.builder.outputs.replica-healthcheck != ''
     runs-on: ubuntu-latest
