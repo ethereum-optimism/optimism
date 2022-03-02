@@ -235,7 +235,7 @@ func TestConfirmedDeposits(t *testing.T) {
 	require.Nil(t, err)
 	require.Equal(t, []db.Deposit{deposit1, deposit2, deposit3}, deposits)
 
-	err = d.UpsertDisbursement(deposit1.ID, common.HexToHash("0xdd01"), 1, testTimestamp)
+	err = d.UpsertDisbursement(deposit1.ID, common.HexToHash("0xdd01"), 1, testTimestamp, true)
 	require.Nil(t, err)
 
 	deposits, err = d.ConfirmedDeposits(2, 1)
@@ -259,11 +259,11 @@ func TestUpsertDisbursement(t *testing.T) {
 	disBlockNumber := uint64(2)
 
 	// Calling UpsertDisbursement with the zero timestamp should fail.
-	err := d.UpsertDisbursement(0, common.HexToHash("0xdd00"), 0, time.Time{})
+	err := d.UpsertDisbursement(0, common.HexToHash("0xdd00"), 0, time.Time{}, true)
 	require.Equal(t, db.ErrZeroTimestamp, err)
 
 	// Calling UpsertDisbursement with an unknown id should fail.
-	err = d.UpsertDisbursement(0, common.HexToHash("0xdd00"), 0, testTimestamp)
+	err = d.UpsertDisbursement(0, common.HexToHash("0xdd00"), 0, testTimestamp, true)
 	require.Equal(t, db.ErrUnknownDeposit, err)
 
 	// Now, insert a real deposit that we will disburse.
@@ -280,11 +280,11 @@ func TestUpsertDisbursement(t *testing.T) {
 	require.Nil(t, err)
 
 	// Mark the deposit as disbursed with some temporary info.
-	err = d.UpsertDisbursement(1, common.HexToHash("0xee00"), 1, testTimestamp)
-	require.Nil(t, err)
-
-	// Overwrite the disbursement info with the final values.
-	err = d.UpsertDisbursement(1, disTxnHash, disBlockNumber, testTimestamp)
+	tempDisTxnHash := common.HexToHash("0xee00")
+	tempDisBlockNumber := uint64(1)
+	err = d.UpsertDisbursement(
+		1, tempDisTxnHash, tempDisBlockNumber, testTimestamp, false,
+	)
 	require.Nil(t, err)
 
 	expTeleports := []db.CompletedTeleport{
@@ -292,6 +292,36 @@ func TestUpsertDisbursement(t *testing.T) {
 			ID:      1,
 			Address: address,
 			Amount:  amount,
+			Success: false,
+			Deposit: db.ConfirmationInfo{
+				TxnHash:        depTxnHash,
+				BlockNumber:    depBlockNumber,
+				BlockTimestamp: testTimestamp,
+			},
+			Disbursement: db.ConfirmationInfo{
+				TxnHash:        tempDisTxnHash,
+				BlockNumber:    tempDisBlockNumber,
+				BlockTimestamp: testTimestamp,
+			},
+		},
+	}
+
+	// Assert that the deposit shows up in the CompletedTeleports method with
+	// both the L1 and temp L2 confirmation info.
+	teleports, err := d.CompletedTeleports()
+	require.Nil(t, err)
+	require.Equal(t, expTeleports, teleports)
+
+	// Overwrite the disbursement info with the final values.
+	err = d.UpsertDisbursement(1, disTxnHash, disBlockNumber, testTimestamp, true)
+	require.Nil(t, err)
+
+	expTeleports = []db.CompletedTeleport{
+		{
+			ID:      1,
+			Address: address,
+			Amount:  amount,
+			Success: true,
 			Deposit: db.ConfirmationInfo{
 				TxnHash:        depTxnHash,
 				BlockNumber:    depBlockNumber,
@@ -307,7 +337,7 @@ func TestUpsertDisbursement(t *testing.T) {
 
 	// Assert that the deposit now shows up in the CompletedTeleports method
 	// with both the L1 and L2 confirmation info.
-	teleports, err := d.CompletedTeleports()
+	teleports, err = d.CompletedTeleports()
 	require.Nil(t, err)
 	require.Equal(t, expTeleports, teleports)
 }

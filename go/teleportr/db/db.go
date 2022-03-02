@@ -45,6 +45,7 @@ type CompletedTeleport struct {
 	ID           uint64
 	Address      common.Address
 	Amount       *big.Int
+	Success      bool
 	Deposit      ConfirmationInfo
 	Disbursement ConfirmationInfo
 }
@@ -65,7 +66,8 @@ CREATE TABLE IF NOT EXISTS disbursements (
 	id INT8 NOT NULL PRIMARY KEY REFERENCES deposits(id),
 	txn_hash VARCHAR NOT NULL,
 	block_number INT8 NOT NULL,
-	block_timestamp TIMESTAMPTZ NOT NULL
+	block_timestamp TIMESTAMPTZ NOT NULL,
+	success BOOL NOT NULL
 );
 `
 
@@ -325,10 +327,10 @@ func (d *Database) LatestDisbursementID() (*uint64, error) {
 }
 
 const markDisbursedStatement = `
-INSERT INTO disbursements (id, txn_hash, block_number, block_timestamp)
-VALUES ($1, $2, $3, $4)
+INSERT INTO disbursements (id, txn_hash, block_number, block_timestamp, success)
+VALUES ($1, $2, $3, $4, $5)
 ON CONFLICT (id) DO UPDATE
-SET (txn_hash, block_number, block_timestamp) = ($2, $3, $4)
+SET (txn_hash, block_number, block_timestamp, success) = ($2, $3, $4, $5)
 `
 
 // UpsertDisbursement inserts a disbursement, or updates an existing record
@@ -338,6 +340,7 @@ func (d *Database) UpsertDisbursement(
 	txnHash common.Hash,
 	blockNumber uint64,
 	blockTimestamp time.Time,
+	success bool,
 ) error {
 	if blockTimestamp.IsZero() {
 		return ErrZeroTimestamp
@@ -349,6 +352,7 @@ func (d *Database) UpsertDisbursement(
 		txnHash.String(),
 		blockNumber,
 		blockTimestamp,
+		success,
 	)
 	if err != nil {
 		if strings.Contains(err.Error(), "violates foreign key constraint") {
@@ -369,7 +373,7 @@ func (d *Database) UpsertDisbursement(
 
 const completedTeleportsQuery = `
 SELECT
-dep.id, dep.address, dep.amount,
+dep.id, dep.address, dep.amount, dis.success,
 dep.txn_hash, dep.block_number, dep.block_timestamp,
 dis.txn_hash, dis.block_number, dis.block_timestamp
 FROM deposits AS dep, disbursements AS dis
@@ -397,6 +401,7 @@ func (d *Database) CompletedTeleports() ([]CompletedTeleport, error) {
 			&teleport.ID,
 			&addressStr,
 			&amountStr,
+			&teleport.Success,
 			&depTxnHashStr,
 			&teleport.Deposit.BlockNumber,
 			&teleport.Deposit.BlockTimestamp,
