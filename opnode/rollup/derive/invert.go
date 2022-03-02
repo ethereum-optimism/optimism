@@ -36,30 +36,24 @@ type Block interface {
 }
 
 // BlockReferences takes a L2 block and determines which L1 block it was derived from, and the L2 self and parent id.
-func BlockReferences(refL2Block Block, genesis *rollup.Genesis) (refL1 eth.BlockID, refL2 eth.BlockID, parentL2 common.Hash, err error) {
-	refL2 = eth.BlockID{Hash: refL2Block.Hash(), Number: refL2Block.NumberU64()}
-	if refL2.Number <= genesis.L2.Number {
-		if refL2.Hash != genesis.L2.Hash {
-			err = fmt.Errorf("unexpected L2 genesis block: %s, expected %s", refL2, genesis.L2)
-			return
+func BlockReferences(l2Block Block, genesis *rollup.Genesis) (eth.L2Node, error) {
+	self := eth.BlockID{Hash: l2Block.Hash(), Number: l2Block.NumberU64()}
+	if self.Number <= genesis.L2.Number {
+		if self.Hash != genesis.L2.Hash {
+			return eth.L2Node{}, fmt.Errorf("unexpected L2 genesis block: %s, expected %s", self, genesis.L2)
 		}
-		refL1 = genesis.L1
-		refL2 = genesis.L2
-		parentL2 = common.Hash{}
-		return
+		return eth.L2Node{Self: self, L1Parent: genesis.L1}, nil
 	}
 
-	parentL2 = refL2Block.ParentHash()
-	txs := refL2Block.Transactions()
+	l2Parent := eth.BlockID{Hash: l2Block.ParentHash(), Number: l2Block.NumberU64() - 1}
+
+	txs := l2Block.Transactions()
 	if len(txs) == 0 || txs[0].Type() != types.DepositTxType {
-		err = fmt.Errorf("l2 block is missing L1 info deposit tx, block hash: %s", refL2Block.Hash())
-		return
+		return eth.L2Node{}, fmt.Errorf("l2 block is missing L1 info deposit tx, block hash: %s", l2Block.Hash())
 	}
-	refL1Nr, _, _, refL1Hash, err := L1InfoDepositTxData(txs[0].Data())
+	l1Number, _, _, l1Hash, err := L1InfoDepositTxData(txs[0].Data())
 	if err != nil {
-		err = fmt.Errorf("failed to parse L1 info deposit tx from L2 block: %v", err)
-		return
+		return eth.L2Node{}, fmt.Errorf("failed to parse L1 info deposit tx from L2 block: %v", err)
 	}
-	refL1 = eth.BlockID{Hash: refL1Hash, Number: refL1Nr}
-	return
+	return eth.L2Node{Self: self, L2Parent: l2Parent, L1Parent: eth.BlockID{Hash: l1Hash, Number: l1Number}}, nil
 }
