@@ -55,49 +55,49 @@ func V3FindSyncStart(ctx context.Context, source SyncReferenceV2, genesis *rollu
 	if err != nil {
 		return nil, eth.BlockID{}, err
 	}
-	l1blocks, err := FindL1Range(ctx, source, l2Head.l1parent)
+	l1blocks, err := FindL1Range(ctx, source, l2Head.L1Parent)
 	if err != nil {
 		return nil, eth.BlockID{}, fmt.Errorf("failed to fetch l1 range: %w", err)
 	}
 
-	return l1blocks, l2Head.self, nil
+	return l1blocks, l2Head.Self, nil
 
 }
 
 // findL2Head takes the current L2 Head and then finds the topmost L2 head that is valid
 // In the case that there are no re-orgs,
-func FindL2Head(ctx context.Context, source SyncReferenceV2, genesis *rollup.Genesis) (L2Node, error) {
+func FindL2Head(ctx context.Context, source SyncReferenceV2, genesis *rollup.Genesis) (eth.L2Node, error) {
 	// Starting point
 	l2Head, err := source.L2NodeByNumber(ctx, nil, genesis)
 	if err != nil {
-		return L2Node{}, fmt.Errorf("failed to fetch L2 head: %w", err)
+		return eth.L2Node{}, fmt.Errorf("failed to fetch L2 head: %w", err)
 	}
 	// Walk L2 chain from L2 head to first L2 block which has a L1 Parent that is canonical. May walk to L2 genesis
 	for n := l2Head; ; {
-		l1header, err := source.L1NodeByNumber(ctx, n.l1parent.Number)
+		l1header, err := source.L1NodeByNumber(ctx, n.L1Parent.Number)
 		if err != nil {
 			// Generic error, bail out.
 			if !errors.Is(err, ethereum.NotFound) {
-				return L2Node{}, fmt.Errorf("failed to fetch L1 block %v: %w", n.l1parent.Number, err)
+				return eth.L2Node{}, fmt.Errorf("failed to fetch L1 block %v: %w", n.L1Parent.Number, err)
 			}
 			// L1 block not found, keep walking chain
 		} else {
 			// L1 Block found, check if matches & should keep walking the chain
-			if l1header.self.Hash == n.l1parent.Hash {
+			if l1header.Self.Hash == n.L1Parent.Hash {
 				return n, nil
 			}
 		}
 
 		// Don't walk past genesis. If we were at the L2 genesis, but could not find the L1 genesis
 		// pointed to from it, we are on the wrong L1 chain.
-		if n.self.Hash == genesis.L2.Hash || n.self.Number == genesis.L2.Number {
-			return L2Node{}, WrongChainErr
+		if n.Self.Hash == genesis.L2.Hash || n.Self.Number == genesis.L2.Number {
+			return eth.L2Node{}, WrongChainErr
 		}
 
 		// Pull L2 parent for next iteration
-		n, err = source.L2NodeByHash(ctx, n.l2parent.Hash, genesis)
+		n, err = source.L2NodeByHash(ctx, n.L2Parent.Hash, genesis)
 		if err != nil {
-			return L2Node{}, fmt.Errorf("failed to fetch L2 block by hash %v: %w", n.l2parent.Hash, err)
+			return eth.L2Node{}, fmt.Errorf("failed to fetch L2 block by hash %v: %w", n.L2Parent.Hash, err)
 		}
 	}
 }
@@ -112,9 +112,9 @@ func FindL1Range(ctx context.Context, source SyncReferenceV2, begin eth.BlockID)
 		return nil, fmt.Errorf("failed to fetch head L1 block: %w", err)
 	}
 	maxBlocks := uint64(100)
-	if l1head.self.Number-begin.Number <= maxBlocks {
+	if l1head.Self.Number-begin.Number <= maxBlocks {
 		fmt.Println("Capping max blocks")
-		maxBlocks = l1head.self.Number - begin.Number
+		maxBlocks = l1head.Self.Number - begin.Number
 		fmt.Println(maxBlocks)
 	}
 
@@ -126,13 +126,13 @@ func FindL1Range(ctx context.Context, source SyncReferenceV2, begin eth.BlockID)
 		if err != nil {
 			return nil, fmt.Errorf("failed to fetch L1 block %v: %w", i, err)
 		}
-		fmt.Println(prevHash, n.parent.Hash)
+		fmt.Println(prevHash, n.Parent.Hash)
 		// TODO(Joshua): Look into why this fails around the genesis block
-		if n.parent.Number != 0 && n.parent.Hash != prevHash {
+		if n.Parent.Number != 0 && n.Parent.Hash != prevHash {
 			return nil, errors.New("re-organization occurred while attempting to get l1 range")
 		}
-		prevHash = n.self.Hash
-		res = append(res, n.self)
+		prevHash = n.Self.Hash
+		res = append(res, n.Self)
 	}
 
 	return res, nil

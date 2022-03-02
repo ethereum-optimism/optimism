@@ -79,56 +79,45 @@ type SyncReference interface {
 
 // SyncReferenceV2 wraps the return types of SyncReference to be easier to work with.
 type SyncReferenceV2 interface {
-	L1NodeByNumber(ctx context.Context, l1Num uint64) (L1Node, error)
-	L1HeadNode(ctx context.Context) (L1Node, error)
-	L2NodeByNumber(ctx context.Context, l2Num *big.Int, genesis *rollup.Genesis) (L2Node, error)
-	L2NodeByHash(ctx context.Context, l2Hash common.Hash, genesis *rollup.Genesis) (L2Node, error)
+	L1NodeByNumber(ctx context.Context, l1Num uint64) (eth.L1Node, error)
+	L1HeadNode(ctx context.Context) (eth.L1Node, error)
+	L2NodeByNumber(ctx context.Context, l2Num *big.Int, genesis *rollup.Genesis) (eth.L2Node, error)
+	L2NodeByHash(ctx context.Context, l2Hash common.Hash, genesis *rollup.Genesis) (eth.L2Node, error)
 }
 
 type SyncSourceV2 struct {
 	SyncReference
 }
 
-func (src SyncSourceV2) L1NodeByNumber(ctx context.Context, l1Num uint64) (L1Node, error) {
+func (src SyncSourceV2) L1NodeByNumber(ctx context.Context, l1Num uint64) (eth.L1Node, error) {
 	self, parent, err := src.RefByL1Num(ctx, l1Num)
 	if err != nil {
-		return L1Node{}, err
+		return eth.L1Node{}, err
 	}
-	return L1Node{self: self, parent: parent}, nil
+	return eth.L1Node{Self: self, Parent: parent}, nil
 
 }
 
-func (src SyncSourceV2) L1HeadNode(ctx context.Context) (L1Node, error) {
+func (src SyncSourceV2) L1HeadNode(ctx context.Context) (eth.L1Node, error) {
 	self, parent, err := src.L1HeadRef(ctx)
 	if err != nil {
-		return L1Node{}, err
+		return eth.L1Node{}, err
 	}
-	return L1Node{self: self, parent: parent}, nil
+	return eth.L1Node{Self: self, Parent: parent}, nil
 }
 
-func (src SyncSourceV2) L2NodeByNumber(ctx context.Context, l2Num *big.Int, genesis *rollup.Genesis) (L2Node, error) {
+func (src SyncSourceV2) L2NodeByNumber(ctx context.Context, l2Num *big.Int, genesis *rollup.Genesis) (eth.L2Node, error) {
 	l1Ref, l2ref, l2ParentHash, err := src.RefByL2Num(ctx, l2Num, genesis)
 	if err != nil {
-		return L2Node{}, err
+		return eth.L2Node{}, err
 	}
-	return L2Node{self: l2ref, l1parent: l1Ref, l2parent: eth.BlockID{Hash: l2ParentHash, Number: l2ref.Number - 1}}, nil
+	return eth.L2Node{Self: l2ref, L1Parent: l1Ref, L2Parent: eth.BlockID{Hash: l2ParentHash, Number: l2ref.Number - 1}}, nil
 }
 
-func (src SyncSourceV2) L2NodeByHash(ctx context.Context, l2Hash common.Hash, genesis *rollup.Genesis) (L2Node, error) {
+func (src SyncSourceV2) L2NodeByHash(ctx context.Context, l2Hash common.Hash, genesis *rollup.Genesis) (eth.L2Node, error) {
 	l1Ref, l2ref, l2ParentHash, err := src.RefByL2Hash(ctx, l2Hash, genesis)
 	if err != nil {
-		return L2Node{}, err
+		return eth.L2Node{}, err
 	}
-	return L2Node{self: l2ref, l1parent: l1Ref, l2parent: eth.BlockID{Hash: l2ParentHash, Number: l2ref.Number - 1}}, nil
-}
-
-type L2Node struct {
-	self     eth.BlockID
-	l2parent eth.BlockID
-	l1parent eth.BlockID
-}
-
-type L1Node struct {
-	self   eth.BlockID
-	parent eth.BlockID
+	return eth.L2Node{Self: l2ref, L1Parent: l1Ref, L2Parent: eth.BlockID{Hash: l2ParentHash, Number: l2ref.Number - 1}}, nil
 }
