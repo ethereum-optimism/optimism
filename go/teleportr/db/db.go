@@ -180,7 +180,9 @@ func (d *Database) UpsertDeposits(deposits []Deposit) error {
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback()
+	defer func() {
+		_ = tx.Rollback()
+	}()
 
 	for _, deposit := range deposits {
 
