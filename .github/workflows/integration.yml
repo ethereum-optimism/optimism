@@ -21,10 +21,11 @@ jobs:
     strategy:
       matrix:
         batch-submitter:
-          - ts-batch-submitter-legacy
-          - go-batch-submitter-legacy
-          - ts-batch-submitter-zlib
-          - go-batch-submitter-zlib
+          - ts-batch-submitter
+          - go-batch-submitter
+        batch-type:
+          - zlib
+          - legacy
     env:
       DOCKER_BUILDKIT: 1
       COMPOSE_DOCKER_CLI_BUILD: 1
@@ -46,15 +47,13 @@ jobs:
 
       - name: Set conditional env vars
         run: |
-          echo "BATCH_SUBMITTER_SEQUENCER_BATCH_TYPE=zlib" >> $GITHUB_ENV
-        if: endsWith(matrix.batch-submitter, '-zlib')
+          echo "BATCH_SUBMITTER_SEQUENCER_BATCH_TYPE=${{ matrix.batch-type }}" >> $GITHUB_ENV
 
       - name: Bring the stack up
         working-directory: ./ops
         run: |
-          SERVICE=$(echo ${{ matrix.batch-submitter }} | cut -c1-18)
           ./scripts/stats.sh &
-          docker-compose -f docker-compose.yml -f docker-compose.$SERVICE.yml up -d
+          docker-compose -f docker-compose.yml -f docker-compose.${{ matrix.batch-submitter }}.yml up -d
 
       - name: Wait for the Sequencer node
         working-directory: ./ops
