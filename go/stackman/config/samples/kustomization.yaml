@@ -1,0 +1,10 @@
+## Append samples you want in your CSV to this file as resources ##
+resources:
+- stack_v1_cliquel1.yaml
+- stack_v1_deployer.yaml
+- stack_v1_datatransportlayer.yaml
+- stack_v1_sequencer.yaml
+- stack_v1_batchsubmitter.yaml
+- stack_v1_gasoracle.yaml
+- stack_v1_actor.yaml
+#+kubebuilder:scaffold:manifestskustomizesamples

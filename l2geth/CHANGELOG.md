@@ -1,5 +1,62 @@
 # Changelog
 
+## 0.5.13
+
+### Patch Changes
+
+- 0002b1df: Remove dead code in l2geth
+- 1187dc9a: Don't block read rpc requests when syncing
+- bc342ec4: Fix queue index comparison
+
+## 0.5.12
+
+### Patch Changes
+
+- 84e6a158: Bump the timeout to download the genesis file on l2geth
+
+## 0.5.11
+
+### Patch Changes
+
+- 9ef215b8: Various small changes to reduce our upstream Geth diff
+
+## 0.5.10
+
+### Patch Changes
+
+- 2e7f6a55: Fixes incorrect timestamp handling for L1 syncing verifiers
+- 81d90563: Bring back RPC methods that were previously blocked
+
+## 0.5.9
+
+### Patch Changes
+
+- e631c39c: Implement berlin hardfork
+
+## 0.5.8
+
+### Patch Changes
+
+- 949916f8: Add a better error message for when the sequencer url is not configured when proxying user requests to the sequencer for `eth_sendRawTransaction` when running as a verifier/replica
+- 300f79bf: Fix nonce issue
+- ae96d784: Add reinitialize-by-url command, add dump chain state command
+- c7569a16: Fix blocknumber monotonicity logging bug
+
+## 0.5.7
+
+### Patch Changes
+
+- d4bf299f: Add support to fully unmarshal Receipts with Optimism fields
+- 8be69ca7: Add changeset for https://github.com/ethereum-optimism/optimism/pull/2011 - replicas forward write requests to the sequencer via a configured parameter `--sequencer.clienthttp` or `SEQUENCER_CLIENT_HTTP`
+- c9fd6ec2: Correctly parse fee enforcement via config to allow turning off L2 fees for development
+
+## 0.5.6
+
+### Patch Changes
+
+- 3a77bbcc: Implement updated timestamp logic
+- 3e3c07a3: changed the default address to be address(0) in `call`
+
 ## 0.5.5
 
 ### Patch Changes

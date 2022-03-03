@@ -1,8 +1,11 @@
 /* Imports: External */
 import { LevelUp } from 'levelup'
 import { BigNumber } from 'ethers'
+import { BatchType } from '@eth-optimism/core-utils'
 
 /* Imports: Internal */
+import { SimpleDB } from './simple-db'
+import { PATCH_CONTEXTS, BSS_HF1_INDEX } from '../config'
 import {
   EnqueueEntry,
   StateRootBatchEntry,
@@ -10,7 +13,6 @@ import {
   TransactionBatchEntry,
   TransactionEntry,
 } from '../types/database-types'
-import { SimpleDB } from './simple-db'
 
 const TRANSPORT_DB_KEYS = {
   ENQUEUE: `enqueue`,
@@ -31,11 +33,17 @@ interface Indexed {
   index: number
 }
 
+interface ExtraTransportDBOptions {
+  l2ChainId?: number
+}
+
 export class TransportDB {
   public db: SimpleDB
+  public opts: ExtraTransportDBOptions
 
-  constructor(leveldb: LevelUp) {
+  constructor(leveldb: LevelUp, opts?: ExtraTransportDBOptions) {
     this.db = new SimpleDB(leveldb)
+    this.opts = opts || {}
   }
 
   public async putEnqueueEntries(entries: EnqueueEntry[]): Promise<void> {
@@ -120,7 +128,14 @@ export class TransportDB {
   public async getTransactionBatchByIndex(
     index: number
   ): Promise<TransactionBatchEntry> {
-    return this._getEntryByIndex(TRANSPORT_DB_KEYS.TRANSACTION_BATCH, index)
+    const entry = (await this._getEntryByIndex(
+      TRANSPORT_DB_KEYS.TRANSACTION_BATCH,
+      index
+    )) as TransactionBatchEntry
+    if (entry && typeof entry.type === 'undefined') {
+      entry.type = BatchType[BatchType.LEGACY]
+    }
+    return entry
   }
 
   public async getStateRootByIndex(index: number): Promise<StateRootEntry> {
@@ -162,7 +177,13 @@ export class TransportDB {
   }
 
   public async getLatestTransactionBatch(): Promise<TransactionBatchEntry> {
-    return this._getLatestEntry(TRANSPORT_DB_KEYS.TRANSACTION_BATCH)
+    const entry = (await this._getLatestEntry(
+      TRANSPORT_DB_KEYS.TRANSACTION_BATCH
+    )) as TransactionBatchEntry
+    if (entry && typeof entry.type === 'undefined') {
+      entry.type = BatchType[BatchType.LEGACY]
+    }
+    return entry
   }
 
   public async getLatestStateRoot(): Promise<StateRootEntry> {
@@ -254,26 +275,7 @@ export class TransportDB {
       return null
     }
 
-    if (transaction.queueOrigin === 'l1') {
-      const enqueue = await this.getEnqueueByIndex(transaction.queueIndex)
-      if (enqueue === null) {
-        return null
-      }
-
-      return {
-        ...transaction,
-        ...{
-          blockNumber: enqueue.blockNumber,
-          timestamp: enqueue.timestamp,
-          gasLimit: enqueue.gasLimit,
-          target: enqueue.target,
-          origin: enqueue.origin,
-          data: enqueue.data,
-        },
-      }
-    } else {
-      return transaction
-    }
+    return this._makeFullTransaction(transaction)
   }
 
   public async getLatestFullTransaction(): Promise<TransactionEntry> {
@@ -293,29 +295,50 @@ export class TransportDB {
 
     const fullTransactions = []
     for (const transaction of transactions) {
-      if (transaction.queueOrigin === 'l1') {
-        const enqueue = await this.getEnqueueByIndex(transaction.queueIndex)
-        if (enqueue === null) {
-          return null
-        }
-
-        fullTransactions.push({
-          ...transaction,
-          ...{
-            blockNumber: enqueue.blockNumber,
-            timestamp: enqueue.timestamp,
-            gasLimit: enqueue.gasLimit,
-            target: enqueue.target,
-            origin: enqueue.origin,
-            data: enqueue.data,
-          },
-        })
-      } else {
-        fullTransactions.push(transaction)
-      }
+      fullTransactions.push(await this._makeFullTransaction(transaction))
     }
 
     return fullTransactions
+  }
+
+  private async _makeFullTransaction(
+    transaction: TransactionEntry
+  ): Promise<TransactionEntry> {
+    // We only need to do extra work for L1 to L2 transactions.
+    if (transaction.queueOrigin !== 'l1') {
+      return transaction
+    }
+
+    const enqueue = await this.getEnqueueByIndex(transaction.queueIndex)
+    if (enqueue === null) {
+      return null
+    }
+
+    let timestamp = enqueue.timestamp
+
+    // BSS HF1 activates at block 0 if not specified.
+    const bssHf1Index = BSS_HF1_INDEX[this.opts.l2ChainId] || 0
+    if (transaction.index >= bssHf1Index) {
+      timestamp = transaction.timestamp
+    }
+
+    // Override with patch contexts if necessary
+    const contexts = PATCH_CONTEXTS[this.opts.l2ChainId]
+    if (contexts && contexts[transaction.index + 1]) {
+      timestamp = contexts[transaction.index + 1]
+    }
+
+    return {
+      ...transaction,
+      ...{
+        blockNumber: enqueue.blockNumber,
+        timestamp,
+        gasLimit: enqueue.gasLimit,
+        target: enqueue.target,
+        origin: enqueue.origin,
+        data: enqueue.data,
+      },
+    }
   }
 
   private async _getLatestEntryIndex(key: string): Promise<number> {

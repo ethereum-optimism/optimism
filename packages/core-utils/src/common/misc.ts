@@ -11,7 +11,12 @@ export const sleep = async (ms: number): Promise<void> => {
   })
 }
 
-// Returns a copy of an object
+/**
+ * Returns a clone of the object.
+ *
+ * @param obj Object to clone.
+ * @returns Clone of the object.
+ */
 export const clone = (obj: any): any => {
   if (typeof obj === 'undefined') {
     throw new Error(`Trying to clone undefined object`)
@@ -33,6 +38,13 @@ export const reqenv = (name: string): string => {
   return value
 }
 
+/**
+ * Loads a variable from the environment and returns a fallback if not found.
+ *
+ * @param name Name of the variable to load.
+ * @param [fallback] Optional value to be returned as fallback.
+ * @returns Value of the variable as a string, fallback or undefined.
+ */
 export const getenv = (name: string, fallback?: string): string | undefined => {
   return process.env[name] || fallback
 }

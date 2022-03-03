@@ -1,8 +1,9 @@
-import { utils, Wallet, Contract, ContractFactory } from 'ethers'
+import { utils, Wallet, Contract } from 'ethers'
+import { ethers } from 'hardhat'
+import { expect } from 'chai'
+
 import { actor, setupActor, run, setupRun } from './lib/convenience'
 import { OptimismEnv } from '../test/shared/env'
-import StateDOS from '../artifacts/contracts/StateDOS.sol/StateDOS.json'
-import { expect } from 'chai'
 
 interface Context {
   wallet: Wallet
@@ -16,11 +17,7 @@ actor('Trie DoS accounts', () => {
   setupActor(async () => {
     env = await OptimismEnv.new()
 
-    const factory = new ContractFactory(
-      StateDOS.abi,
-      StateDOS.bytecode,
-      env.l2Wallet
-    )
+    const factory = await ethers.getContractFactory('StateDOS', env.l2Wallet)
     contract = await factory.deploy()
     await contract.deployed()
   })

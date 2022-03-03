@@ -1,18 +1,19 @@
-import { expect } from '../setup'
 import { Provider } from '@ethersproject/abstract-provider'
 import { Contract } from 'ethers'
 import { ethers } from 'hardhat'
-import { toProvider, toTransactionHash } from '../../src'
+
+import { expect } from '../setup'
+import { toSignerOrProvider, toTransactionHash } from '../../src'
 
 describe('type coercion utils', () => {
-  describe('toProvider', () => {
+  describe('toSignerOrProvider', () => {
     it('should convert a string to a JsonRpcProvider', () => {
-      const provider = toProvider('http://localhost:8545')
+      const provider = toSignerOrProvider('http://localhost:8545')
       expect(Provider.isProvider(provider)).to.be.true
     })
 
     it('should not do anything with a provider', () => {
-      const provider = toProvider(ethers.provider)
+      const provider = toSignerOrProvider(ethers.provider)
       expect(provider).to.deep.equal(ethers.provider)
     })
   })

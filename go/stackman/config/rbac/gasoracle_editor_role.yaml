@@ -1,0 +1,24 @@
+# permissions for end users to edit gasoracles.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: gasoracle-editor-role
+rules:
+- apiGroups:
+  - stack.optimism-stacks.net
+  resources:
+  - gasoracles
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - stack.optimism-stacks.net
+  resources:
+  - gasoracles/status
+  verbs:
+  - get

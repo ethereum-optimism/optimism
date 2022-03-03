@@ -1,5 +1,87 @@
 # data transport layer
 
+## 0.5.19
+
+### Patch Changes
+
+- 275eb818: Include patch contexts for bss hf1
+- baece507: Hardcodes BSS HF1 block into the DTL
+
+## 0.5.18
+
+### Patch Changes
+
+- b8ee3e05: Add logging when BSS HF1 is active
+- 4878667a: Deletes common.ts in data-transport-layer. Uses core-utils.
+- e9602d86: Handle null response for `eth_getBlockRange` query
+- e63f3b61: Add logs displaying current sync from l2
+- Updated dependencies [0b4453f7]
+- Updated dependencies [78298782]
+  - @eth-optimism/core-utils@0.8.0
+  - @eth-optimism/contracts@0.5.15
+
+## 0.5.17
+
+### Patch Changes
+
+- Updated dependencies [b4165299]
+- Updated dependencies [3c2acd91]
+  - @eth-optimism/core-utils@0.7.7
+  - @eth-optimism/contracts@0.5.14
+
+## 0.5.16
+
+### Patch Changes
+
+- 8f72064d: Handle case where the remote block isn't found for `GET /eth/context/latest` and `GET /eth/context/blocknumber/:number`
+- Updated dependencies [438bc78a]
+  - @eth-optimism/contracts@0.5.13
+
+## 0.5.15
+
+### Patch Changes
+
+- 1741d884: Updates DTL to correctly parse L1 to L2 tx timestamps after the first bss hardfork
+- ba14c59d: Updates various ethers dependencies to their latest versions
+- Updated dependencies [ba14c59d]
+  - @eth-optimism/contracts@0.5.12
+  - @eth-optimism/core-utils@0.7.6
+
+## 0.5.14
+
+### Patch Changes
+
+- Updated dependencies [e631c39c]
+  - @eth-optimism/contracts@0.5.11
+
+## 0.5.13
+
+### Patch Changes
+
+- Updated dependencies [ad94b9d1]
+  - @eth-optimism/core-utils@0.7.5
+  - @eth-optimism/contracts@0.5.10
+
+## 0.5.12
+
+### Patch Changes
+
+- Updated dependencies [ba96a455]
+- Updated dependencies [c3e85fef]
+  - @eth-optimism/core-utils@0.7.4
+  - @eth-optimism/contracts@0.5.9
+
+## 0.5.11
+
+### Patch Changes
+
+- ffadcb45: Smaller filter query for searching for L1 start height. This number should be configured so that the search does not need to happen because using a smaller filter will cause it to take too long.
+- b3efb8b7: String update to change the system name from OE to Optimism
+- Updated dependencies [b3efb8b7]
+- Updated dependencies [279603e5]
+- Updated dependencies [b6040bb3]
+  - @eth-optimism/contracts@0.5.8
+
 ## 0.5.10
 
 ### Patch Changes

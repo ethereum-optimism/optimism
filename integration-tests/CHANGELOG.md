@@ -1,5 +1,64 @@
 # @eth-optimism/integration-tests
 
+## 0.5.5
+
+### Patch Changes
+
+- 45642dc8: Replaces l1Provider and l2Provider with env.l1Provider and env.l2Provider respectively.
+
+## 0.5.4
+
+### Patch Changes
+
+- dc5f6517: Deletes watcher-utils.ts. Moves it's utilities into env.ts.
+- dcdcc757: Removes message relaying utilities from the Message Relayer, to be replaced by the SDK
+
+## 0.5.3
+
+### Patch Changes
+
+- a8a74a98: Remove Watcher usage from itests
+- e2ad8653: Support non-well-known networks
+- 152df378: Use new asL2Provider function for integration tests
+- 748c04ab: Updates integration tests to use the SDK for bridged token tests
+- 8cb2535b: Skip an unreliable test
+
+## 0.5.2
+
+### Patch Changes
+
+- d6c2830a: Increase withdrawal test timeout
+- 0293749e: Add an integration test showing the infeasability of withdrawing a fake token in exchange for a legitimate token.
+- a135aa3d: Updates integration tests to include a test for syncing a Verifier from L1
+- 0bb11484: Remove nightly itests - not needed anymore
+- ba14c59d: Updates various ethers dependencies to their latest versions
+- a135aa3d: Add verifier integration tests
+- edb21845: Updates integration tests to start using SDK
+
+## 0.5.1
+
+### Patch Changes
+
+- e631c39c: Add in berlin hardfork tests
+
+## 0.5.0
+
+### Minor Changes
+
+- c1e923f9: Updates to work with a live network
+
+### Patch Changes
+
+- 968fb38d: Use hardhat-ethers for importing factories in integration tests
+- a7fbafa8: Split OVMMulticall.sol into Multicall.sol & OVMContext.sol
+
+## 0.4.2
+
+### Patch Changes
+
+- 5787a55b: Updates to support nightly actor tests
+- dad6fd9b: Update timestamp assertion for new logic
+
 ## 0.4.1
 
 ### Patch Changes

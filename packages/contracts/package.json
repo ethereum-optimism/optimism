@@ -1,6 +1,6 @@
 {
   "name": "@eth-optimism/contracts",
-  "version": "0.5.7",
+  "version": "0.5.15",
   "description": "[Optimism] L1 and L2 smart contracts for Optimism",
   "main": "dist/index",
   "types": "dist/index",
@@ -58,16 +58,16 @@
     "url": "https://github.com/ethereum-optimism/optimism.git"
   },
   "dependencies": {
-    "@eth-optimism/core-utils": "0.7.3",
-    "@ethersproject/abstract-provider": "^5.4.1",
-    "@ethersproject/abstract-signer": "^5.4.1",
-    "@ethersproject/hardware-wallets": "^5.4.0"
+    "@eth-optimism/core-utils": "0.8.0",
+    "@ethersproject/abstract-provider": "^5.5.1",
+    "@ethersproject/abstract-signer": "^5.5.0",
+    "@ethersproject/hardware-wallets": "^5.5.0"
   },
   "devDependencies": {
     "@codechecks/client": "^0.1.11",
     "@defi-wonderland/smock": "^2.0.2",
     "@eth-optimism/smock": "1.1.10",
-    "@ethersproject/transactions": "^5.4.0",
+    "@nomiclabs/ethereumjs-vm": "^4.2.2",
     "@nomiclabs/hardhat-ethers": "^2.0.2",
     "@nomiclabs/hardhat-etherscan": "^2.1.6",
     "@nomiclabs/hardhat-waffle": "^2.0.1",
@@ -96,7 +96,7 @@
     "eslint-plugin-react": "^7.24.0",
     "eslint-plugin-unicorn": "^32.0.1",
     "ethereum-waffle": "^3.3.0",
-    "ethers": "^5.4.5",
+    "ethers": "^5.5.4",
     "glob": "^7.1.6",
     "hardhat": "^2.3.0",
     "hardhat-deploy": "^0.9.3",
@@ -123,6 +123,6 @@
     "yargs": "^16.2.0"
   },
   "peerDependencies": {
-    "ethers": "^5.4.5"
+    "ethers": "^5"
   }
 }

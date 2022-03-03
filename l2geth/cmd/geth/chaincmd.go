@@ -17,14 +17,22 @@
 package main
 
 import (
+	"bytes"
+	"crypto/sha256"
 	"encoding/json"
 	"fmt"
+	"io"
+	"io/ioutil"
+	"net/http"
 	"os"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"strconv"
 	"sync/atomic"
 	"time"
+
+	"github.com/ethereum-optimism/optimism/l2geth/common/hexutil"
 
 	"github.com/ethereum-optimism/optimism/l2geth/cmd/utils"
 	"github.com/ethereum-optimism/optimism/l2geth/common"
@@ -45,7 +53,7 @@ var (
 		Action:    utils.MigrateFlags(initGenesis),
 		Name:      "init",
 		Usage:     "Bootstrap and initialize a new genesis block",
-		ArgsUsage: "<genesisPath>",
+		ArgsUsage: "<genesisPathOrUrl> (<genesisHash>)",
 		Flags: []cli.Flag{
 			utils.DataDirFlag,
 		},
@@ -55,7 +63,22 @@ The init command initializes a new genesis block and definition for the network.
 This is a destructive action and changes the network in which you will be
 participating.
 
-It expects the genesis file as argument.`,
+It expects either a path or an HTTP URL to the genesis file as an argument. If an
+HTTP URL is specified for the genesis file, then a hex-encoded SHA256 hash of the
+genesis file must be included as a second argument. The hash provided on the CLI 
+will be checked against the hash of the genesis file downloaded from the URL.`,
+	}
+	dumpChainCfgCommand = cli.Command{
+		Action: utils.MigrateFlags(dumpChainCfg),
+		Name:   "dump-chain-cfg",
+		Usage:  "Dumps the current chain config to standard out.",
+		Flags: []cli.Flag{
+			utils.DataDirFlag,
+		},
+		Category: "BLOCKCHAIN COMMANDS",
+		Description: `
+This command dumps the currently configured chain state to standard output. It
+will fail if there is no genesis block configured.`,
 	}
 	importCommand = cli.Command{
 		Action:    utils.MigrateFlags(importChain),
@@ -194,15 +217,50 @@ Use "ethereum dump 0" to dump the genesis block.`,
 // the zero'd block (i.e. genesis) or will fail hard if it can't succeed.
 func initGenesis(ctx *cli.Context) error {
 	// Make sure we have a valid genesis JSON
-	genesisPath := ctx.Args().First()
-	if len(genesisPath) == 0 {
-		utils.Fatalf("Must supply path to genesis JSON file")
+	genesisPathOrURL := ctx.Args().First()
+	if len(genesisPathOrURL) == 0 {
+		utils.Fatalf("Must supply path or URL to genesis JSON file")
 	}
-	file, err := os.Open(genesisPath)
-	if err != nil {
-		utils.Fatalf("Failed to read genesis file: %v", err)
+
+	var file io.ReadCloser
+	if matched, _ := regexp.MatchString("^http(s)?://", genesisPathOrURL); matched {
+		genesisHashStr := ctx.Args().Get(1)
+		if genesisHashStr == "" {
+			utils.Fatalf("Must specify a genesis hash argument if the genesis path argument is an URL.")
+		}
+
+		genesisHashData, err := hexutil.Decode(genesisHashStr)
+		if err != nil {
+			utils.Fatalf("Error decoding genesis hash: %v", err)
+		}
+
+		log.Info("Fetching genesis file", "url", genesisPathOrURL)
+
+		genesisData, err := fetchGenesis(genesisPathOrURL)
+		if err != nil {
+			utils.Fatalf("Failed to fetch genesis file: %v", err)
+		}
+
+		hash := sha256.New()
+		hash.Write(genesisData)
+		actualHash := hash.Sum(nil)
+		if !bytes.Equal(actualHash, genesisHashData) {
+			utils.Fatalf(
+				"Genesis hashes do not match. Need: %s, got: %s",
+				genesisHashStr,
+				hexutil.Encode(actualHash),
+			)
+		}
+
+		file = ioutil.NopCloser(bytes.NewReader(genesisData))
+	} else {
+		var err error
+		file, err = os.Open(genesisPathOrURL)
+		if err != nil {
+			utils.Fatalf("Failed to read genesis file: %v", err)
+		}
+		defer file.Close()
 	}
-	defer file.Close()
 
 	genesis := new(core.Genesis)
 	if err := json.NewDecoder(file).Decode(genesis); err != nil {
@@ -224,6 +282,30 @@ func initGenesis(ctx *cli.Context) error {
 		chaindb.Close()
 		log.Info("Successfully wrote genesis state", "database", name, "hash", hash)
 	}
+	return nil
+}
+
+// dumpChainCfg dumps chain config to standard output.
+func dumpChainCfg(ctx *cli.Context) error {
+	stack := makeFullNode(ctx)
+	defer stack.Close()
+
+	db, err := stack.OpenDatabase("chaindata", 0, 0, "")
+	if err != nil {
+		utils.Fatalf("Failed to open database: %v", err)
+	}
+
+	stored := rawdb.ReadCanonicalHash(db, 0)
+	var zeroHash common.Hash
+	if stored == zeroHash {
+		utils.Fatalf("No genesis block configured.")
+	}
+	chainCfg := rawdb.ReadChainConfig(db, stored)
+	out, err := json.MarshalIndent(chainCfg, "", "  ")
+	if err != nil {
+		utils.Fatalf("Failed to marshal chain config: %v", out)
+	}
+	fmt.Println(string(out))
 	return nil
 }
 
@@ -556,4 +638,16 @@ func inspect(ctx *cli.Context) error {
 func hashish(x string) bool {
 	_, err := strconv.Atoi(x)
 	return err != nil
+}
+
+func fetchGenesis(url string) ([]byte, error) {
+	client := &http.Client{
+		Timeout: 60 * time.Second,
+	}
+	resp, err := client.Get(url)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	return ioutil.ReadAll(resp.Body)
 }

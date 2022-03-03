@@ -1,4 +1,6 @@
 /* External Imports */
+import { performance } from 'perf_hooks'
+
 import { Promise as bPromise } from 'bluebird'
 import { Signer, ethers, Contract, providers } from 'ethers'
 import { TransactionReceipt } from '@ethersproject/abstract-provider'
@@ -10,6 +12,7 @@ import {
   BatchElement,
   Batch,
   QueueOrigin,
+  BatchType,
 } from '@eth-optimism/core-utils'
 import { Logger, Metrics } from '@eth-optimism/common-ts'
 
@@ -20,9 +23,8 @@ import {
   BatchContext,
   AppendSequencerBatchParams,
 } from '../transaction-chain-contract'
-
-import { BlockRange, BatchSubmitter } from '.'
 import { TransactionSubmitter } from '../utils'
+import { BlockRange, BatchSubmitter } from '.'
 
 export interface AutoFixBatchOptions {
   fixDoublePlayedDeposits: boolean
@@ -38,6 +40,7 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
   private validateBatch: boolean
   private transactionSubmitter: TransactionSubmitter
   private gasThresholdInGwei: number
+  private batchType: BatchType
 
   constructor(
     signer: Signer,
@@ -60,7 +63,8 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
       fixDoublePlayedDeposits: false,
       fixMonotonicity: false,
       fixSkippedDeposits: false,
-    } // TODO: Remove this
+    }, // TODO: Remove this
+    batchType: string
   ) {
     super(
       signer,
@@ -83,9 +87,18 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
     this.gasThresholdInGwei = gasThresholdInGwei
     this.transactionSubmitter = transactionSubmitter
 
-    this.logger.info('Batch validation options', {
+    if (batchType === 'legacy') {
+      this.batchType = BatchType.LEGACY
+    } else if (batchType === 'zlib') {
+      this.batchType = BatchType.ZLIB
+    } else {
+      throw new Error(`Invalid batch type: ${batchType}`)
+    }
+
+    this.logger.info('Batch options', {
       autoFixBatchOptions,
       validateBatch,
+      batchType: BatchType[this.batchType],
     })
   }
 
@@ -294,6 +307,7 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
       startBlock,
       batch
     )
+
     let wasBatchTruncated = false
     let encoded = encodeAppendSequencerBatch(sequencerBatchParams)
     while (encoded.length / 2 > this.maxTxSize) {
@@ -312,10 +326,14 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
       wasBatchTruncated = true
     }
 
+    // Set the batch type so that it is serialized correctly
+    sequencerBatchParams.type = this.batchType
+
     this.logger.info('Generated sequencer batch params', {
       contexts: sequencerBatchParams.contexts,
       transactions: sequencerBatchParams.transactions,
       wasBatchTruncated,
+      type: BatchType[sequencerBatchParams.type],
     })
     return [sequencerBatchParams, wasBatchTruncated]
   }
@@ -684,10 +702,18 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
       queued: BatchElement[]
     }> = []
     for (const block of blocks) {
+      // Create a new context in certain situations
       if (
-        (lastBlockIsSequencerTx === false && block.isSequencerTx === true) ||
+        // If there are no contexts yet, create a new context.
         groupedBlocks.length === 0 ||
-        (block.timestamp !== lastTimestamp && block.isSequencerTx === true) ||
+        // If the last block was an L1 to L2 transaction, but the next block is a Sequencer
+        // transaction, create a new context.
+        (lastBlockIsSequencerTx === false && block.isSequencerTx === true) ||
+        // If the timestamp of the last block differs from the timestamp of the current block,
+        // create a new context. Applies to both L1 to L2 transactions and Sequencer transactions.
+        block.timestamp !== lastTimestamp ||
+        // If the block number of the last block differs from the block number of the current block,
+        // create a new context. ONLY applies to Sequencer transactions.
         (block.blockNumber !== lastBlockNumber && block.isSequencerTx === true)
       ) {
         groupedBlocks.push({
@@ -695,6 +721,7 @@ export class TransactionBatchSubmitter extends BatchSubmitter {
           queued: [],
         })
       }
+
       const cur = groupedBlocks.length - 1
       block.isSequencerTx
         ? groupedBlocks[cur].sequenced.push(block)

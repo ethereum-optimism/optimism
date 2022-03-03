@@ -1,0 +1,20 @@
+# permissions for end users to view gasoracles.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: gasoracle-viewer-role
+rules:
+- apiGroups:
+  - stack.optimism-stacks.net
+  resources:
+  - gasoracles
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - stack.optimism-stacks.net
+  resources:
+  - gasoracles/status
+  verbs:
+  - get

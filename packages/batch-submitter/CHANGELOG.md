@@ -1,5 +1,81 @@
 # Changelog
 
+## 0.4.20
+
+### Patch Changes
+
+- d3d70291: Use asL2Provider instead of injectL2Context in bss and healthcheck service.
+- Updated dependencies [f37c283c]
+- Updated dependencies [3f4d3c13]
+- Updated dependencies [0b4453f7]
+- Updated dependencies [78298782]
+- Updated dependencies [0c54e60e]
+  - @eth-optimism/sdk@0.2.3
+  - @eth-optimism/core-utils@0.8.0
+  - @eth-optimism/contracts@0.5.15
+
+## 0.4.19
+
+### Patch Changes
+
+- Updated dependencies [b4165299]
+- Updated dependencies [3c2acd91]
+  - @eth-optimism/core-utils@0.7.7
+  - @eth-optimism/contracts@0.5.14
+
+## 0.4.18
+
+### Patch Changes
+
+- Updated dependencies [438bc78a]
+  - @eth-optimism/contracts@0.5.13
+
+## 0.4.17
+
+### Patch Changes
+
+- fcce5b67: Updates batch submitter to also include separate timestamps for deposit transactions"
+- ba14c59d: Updates various ethers dependencies to their latest versions
+- Updated dependencies [ba14c59d]
+  - @eth-optimism/contracts@0.5.12
+  - @eth-optimism/core-utils@0.7.6
+
+## 0.4.16
+
+### Patch Changes
+
+- Updated dependencies [e631c39c]
+  - @eth-optimism/contracts@0.5.11
+
+## 0.4.15
+
+### Patch Changes
+
+- ae4a90d9: Adds a fix for the BSS to account for new timestamp logic in L2Geth
+- ca547c4e: Import performance to not couple batch submitter to version of nodejs that has performance as a builtin
+- Updated dependencies [ad94b9d1]
+  - @eth-optimism/core-utils@0.7.5
+  - @eth-optimism/contracts@0.5.10
+
+## 0.4.14
+
+### Patch Changes
+
+- Updated dependencies [ba96a455]
+- Updated dependencies [c3e85fef]
+  - @eth-optimism/core-utils@0.7.4
+  - @eth-optimism/contracts@0.5.9
+
+## 0.4.13
+
+### Patch Changes
+
+- 9fe09f70: Properly clear state root batch txs on startup
+- Updated dependencies [b3efb8b7]
+- Updated dependencies [279603e5]
+- Updated dependencies [b6040bb3]
+  - @eth-optimism/contracts@0.5.8
+
 ## 0.4.12
 
 ### Patch Changes

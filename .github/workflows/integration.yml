@@ -20,10 +20,15 @@ jobs:
           - 5000:5000
     strategy:
       matrix:
-        batch-submitter: [ts-batch-submitter, go-batch-submitter]
+        batch-submitter:
+          - ts-batch-submitter
+          - go-batch-submitter
+        batch-type:
+          - zlib
+          - legacy
     env:
-        DOCKER_BUILDKIT: 1
-        COMPOSE_DOCKER_CLI_BUILD: 1
+      DOCKER_BUILDKIT: 1
+      COMPOSE_DOCKER_CLI_BUILD: 1
     steps:
       # Monorepo tests
       - uses: actions/checkout@v2
@@ -39,6 +44,10 @@ jobs:
           key: ${{ runner.os }}-yarn-${{ hashFiles('**/yarn.lock') }}
           restore-keys: |
             ${{ runner.os }}-yarn-
+
+      - name: Set conditional env vars
+        run: |
+          echo "BATCH_SUBMITTER_SEQUENCER_BATCH_TYPE=${{ matrix.batch-type }}" >> $GITHUB_ENV
 
       - name: Bring the stack up
         working-directory: ./ops

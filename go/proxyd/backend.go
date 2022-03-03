@@ -7,16 +7,18 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/ethereum/go-ethereum/log"
-	"github.com/gorilla/websocket"
-	"github.com/prometheus/client_golang/prometheus"
 	"io"
 	"io/ioutil"
 	"math"
 	"math/rand"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
+
+	"github.com/ethereum/go-ethereum/log"
+	"github.com/gorilla/websocket"
+	"github.com/prometheus/client_golang/prometheus"
 )
 
 const (
@@ -60,6 +62,10 @@ var (
 		Message:       "backend returned an invalid response",
 		HTTPErrorCode: 500,
 	}
+	ErrTooManyBatchRequests = &RPCErr{
+		Code:    JSONRPCErrorInternal - 14,
+		Message: "too many RPC calls in batch request",
+	}
 )
 
 func ErrInvalidRequest(msg string) *RPCErr {
@@ -84,6 +90,8 @@ type Backend struct {
 	maxRPS               int
 	maxWSConns           int
 	outOfServiceInterval time.Duration
+	stripTrailingXFF     bool
+	proxydIP             string
 }
 
 type BackendOpt func(b *Backend)
@@ -140,6 +148,18 @@ func WithTLSConfig(tlsConfig *tls.Config) BackendOpt {
 	}
 }
 
+func WithStrippedTrailingXFF() BackendOpt {
+	return func(b *Backend) {
+		b.stripTrailingXFF = true
+	}
+}
+
+func WithProxydIP(ip string) BackendOpt {
+	return func(b *Backend) {
+		b.proxydIP = ip
+	}
+}
+
 func NewBackend(
 	name string,
 	rpcURL string,
@@ -161,6 +181,10 @@ func NewBackend(
 
 	for _, opt := range opts {
 		opt(backend)
+	}
+
+	if !backend.stripTrailingXFF && backend.proxydIP == "" {
+		log.Warn("proxied requests' XFF header will not contain the proxyd ip address")
 	}
 
 	return backend
@@ -316,7 +340,18 @@ func (b *Backend) doForward(ctx context.Context, rpcReq *RPCReq) (*RPCRes, error
 		httpReq.SetBasicAuth(b.authUsername, b.authPassword)
 	}
 
+	xForwardedFor := GetXForwardedFor(ctx)
+	if b.stripTrailingXFF {
+		ipList := strings.Split(xForwardedFor, ", ")
+		if len(ipList) > 0 {
+			xForwardedFor = ipList[0]
+		}
+	} else if b.proxydIP != "" {
+		xForwardedFor = fmt.Sprintf("%s, %s", xForwardedFor, b.proxydIP)
+	}
+
 	httpReq.Header.Set("content-type", "application/json")
+	httpReq.Header.Set("X-Forwarded-For", xForwardedFor)
 
 	httpRes, err := b.client.Do(httpReq)
 	if err != nil {
@@ -600,7 +635,7 @@ func (w *WSProxier) close() {
 }
 
 func (w *WSProxier) prepareClientMsg(msg []byte) (*RPCReq, error) {
-	req, err := ParseRPCReq(bytes.NewReader(msg))
+	req, err := ParseRPCReq(msg)
 	if err != nil {
 		return nil, err
 	}

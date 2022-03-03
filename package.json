@@ -57,8 +57,9 @@
   },
   "dependencies": {
     "@changesets/cli": "^2.16.0",
+    "@codechecks/client": "^0.1.11",
+    "@ethersproject/abstract-provider": "5.5.1",
     "@openzeppelin/contracts": "^4.3.2",
-    "@openzeppelin/contracts-upgradeable": "^4.3.2",
-    "@codechecks/client": "^0.1.11"
+    "@openzeppelin/contracts-upgradeable": "^4.3.2"
   }
 }

@@ -1,8 +1,10 @@
 /* External Imports */
-import { injectL2Context, Bcfg } from '@eth-optimism/core-utils'
+import { exit } from 'process'
+
+import { Bcfg } from '@eth-optimism/core-utils'
+import { asL2Provider } from '@eth-optimism/sdk'
 import * as Sentry from '@sentry/node'
 import { Logger, Metrics, createMetricsServer } from '@eth-optimism/common-ts'
-import { exit } from 'process'
 import { Signer, Wallet } from 'ethers'
 import {
   StaticJsonRpcProvider,
@@ -248,6 +250,11 @@ export const run = async () => {
     env.VALIDATE_TX_BATCH ? env.VALIDATE_TX_BATCH === 'true' : false
   )
 
+  const SEQUENCER_BATCH_TYPE = config.str(
+    'sequencer-batch-type',
+    env.SEQUENCER_BATCH_TYPE || 'legacy'
+  )
+
   // Auto fix batch options -- TODO: Remove this very hacky config
   const AUTO_FIX_BATCH_OPTIONS_CONF = config.str(
     'auto-fix-batch-conf',
@@ -345,7 +352,7 @@ export const run = async () => {
 
   const clearPendingTxs = requiredEnvVars.CLEAR_PENDING_TXS
 
-  const l2Provider = injectL2Context(
+  const l2Provider = asL2Provider(
     new StaticJsonRpcProvider({
       url: requiredEnvVars.L2_NODE_WEB3_URL,
       headers: { 'User-Agent': 'batch-submitter' },
@@ -400,7 +407,8 @@ export const run = async () => {
     VALIDATE_TX_BATCH,
     logger.child({ name: TX_BATCH_SUBMITTER_LOG_TAG }),
     metrics,
-    autoFixBatchOptions
+    autoFixBatchOptions,
+    SEQUENCER_BATCH_TYPE
   )
 
   const stateBatchTxSubmitter: TransactionSubmitter =
@@ -430,20 +438,21 @@ export const run = async () => {
 
   // Loops infinitely!
   const loop = async (
-    func: () => Promise<TransactionReceipt>
+    func: () => Promise<TransactionReceipt>,
+    signer: Signer
   ): Promise<void> => {
     // Clear all pending transactions
     if (clearPendingTxs) {
       try {
-        const pendingTxs = await sequencerSigner.getTransactionCount('pending')
-        const latestTxs = await sequencerSigner.getTransactionCount('latest')
+        const pendingTxs = await signer.getTransactionCount('pending')
+        const latestTxs = await signer.getTransactionCount('latest')
         if (pendingTxs > latestTxs) {
           logger.info(
             'Detected pending transactions. Clearing all transactions!'
           )
           for (let i = latestTxs; i < pendingTxs; i++) {
-            const response = await sequencerSigner.sendTransaction({
-              to: await sequencerSigner.getAddress(),
+            const response = await signer.sendTransaction({
+              to: await signer.getAddress(),
               value: 0,
               nonce: i,
             })
@@ -456,7 +465,7 @@ export const run = async () => {
             logger.debug('empty transaction data', {
               data: response.data,
             })
-            await sequencerSigner.provider.waitForTransaction(
+            await signer.provider.waitForTransaction(
               response.hash,
               requiredEnvVars.NUM_CONFIRMATIONS
             )
@@ -508,10 +517,10 @@ export const run = async () => {
 
   // Run batch submitters in two seperate infinite loops!
   if (requiredEnvVars.RUN_TX_BATCH_SUBMITTER) {
-    loop(() => txBatchSubmitter.submitNextBatch())
+    loop(() => txBatchSubmitter.submitNextBatch(), sequencerSigner)
   }
   if (requiredEnvVars.RUN_STATE_BATCH_SUBMITTER) {
-    loop(() => stateBatchSubmitter.submitNextBatch())
+    loop(() => stateBatchSubmitter.submitNextBatch(), proposerSigner)
   }
 
   if (config.bool('run-metrics-server', env.RUN_METRICS_SERVER === 'true')) {

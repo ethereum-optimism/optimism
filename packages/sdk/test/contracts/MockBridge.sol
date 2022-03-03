@@ -3,6 +3,13 @@ pragma solidity ^0.8.9;
 import { MockMessenger } from "./MockMessenger.sol";
 
 contract MockBridge {
+    event ETHDepositInitiated(
+        address indexed _from,
+        address indexed _to,
+        uint256 _amount,
+        bytes _data
+    );
+
     event ERC20DepositInitiated(
         address indexed _l1Token,
         address indexed _l2Token,
@@ -109,5 +116,39 @@ contract MockBridge {
         TokenEventStruct memory _params
     ) public {
         emit DepositFailed(_params.l1Token, _params.l2Token, _params.from, _params.to, _params.amount, _params.data);
+    }
+
+    function depositETH(
+        uint32 _l2GasLimit,
+        bytes memory _data
+    )
+        public
+        payable
+    {
+        emit ETHDepositInitiated(
+            msg.sender,
+            msg.sender,
+            msg.value,
+            _data
+        );
+    }
+
+    function withdraw(
+        address _l2Token,
+        uint256 _amount,
+        uint32 _l1Gas,
+        bytes calldata _data
+    )
+        public
+        payable
+    {
+        emit WithdrawalInitiated(
+            address(0),
+            _l2Token,
+            msg.sender,
+            msg.sender,
+            _amount,
+            _data
+        );
     }
 }

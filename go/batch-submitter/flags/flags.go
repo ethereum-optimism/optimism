@@ -80,6 +80,14 @@ var (
 		Required: true,
 		EnvVar:   prefixEnvVar("NUM_CONFIRMATIONS"),
 	}
+	SafeAbortNonceTooLowCountFlag = cli.Uint64Flag{
+		Name: "safe-abort-nonce-too-low-count",
+		Usage: "Number of ErrNonceTooLow observations required to " +
+			"give up on a tx at a particular nonce without receiving " +
+			"confirmation",
+		Required: true,
+		EnvVar:   prefixEnvVar("SAFE_ABORT_NONCE_TOO_LOW_COUNT"),
+	}
 	ResubmissionTimeoutFlag = cli.DurationFlag{
 		Name: "resubmission-timeout",
 		Usage: "Duration we will wait before resubmitting a " +
@@ -129,6 +137,13 @@ var (
 		Value:  "info",
 		EnvVar: prefixEnvVar("LOG_LEVEL"),
 	}
+	LogTerminalFlag = cli.BoolFlag{
+		Name: "log-terminal",
+		Usage: "If true, outputs logs in terminal format, otherwise prints " +
+			"in JSON format. If SENTRY_ENABLE is set to true, this flag is " +
+			"ignored and logs are printed using JSON",
+		EnvVar: prefixEnvVar("LOG_TERMINAL"),
+	}
 	SentryEnableFlag = cli.BoolFlag{
 		Name:   "sentry-enable",
 		Usage:  "Whether or not to enable Sentry. If true, sentry-dsn must also be set",
@@ -150,18 +165,6 @@ var (
 		Usage:  "The offset between the CTC contract start and the L2 geth blocks",
 		Value:  1,
 		EnvVar: prefixEnvVar("BLOCK_OFFSET"),
-	}
-	MaxGasPriceInGweiFlag = cli.Uint64Flag{
-		Name:   "max-gas-price-in-gwei",
-		Usage:  "Maximum gas price the batch submitter can use for transactions",
-		Value:  100,
-		EnvVar: prefixEnvVar("MAX_GAS_PRICE_IN_GWEI"),
-	}
-	GasRetryIncrementFlag = cli.Uint64Flag{
-		Name:   "gas-retry-increment",
-		Usage:  "Default step by which to increment gas price bumps",
-		Value:  5,
-		EnvVar: prefixEnvVar("GAS_RETRY_INCREMENT_FLAG"),
 	}
 	SequencerPrivateKeyFlag = cli.StringFlag{
 		Name:   "sequencer-private-key",
@@ -191,6 +194,12 @@ var (
 			"mnemonic. The mnemonic flag must also be set.",
 		EnvVar: prefixEnvVar("PROPOSER_HD_PATH"),
 	}
+	SequencerBatchType = cli.StringFlag{
+		Name:   "sequencer-batch-type",
+		Usage:  "The type of sequencer batch to be submitted. Valid arguments are legacy or zlib.",
+		Value:  "legacy",
+		EnvVar: prefixEnvVar("SEQUENCER_BATCH_TYPE"),
+	}
 	MetricsServerEnableFlag = cli.BoolFlag{
 		Name:   "metrics-server-enable",
 		Usage:  "Whether or not to run the embedded metrics server",
@@ -208,6 +217,11 @@ var (
 		Value:  7300,
 		EnvVar: prefixEnvVar("METRICS_PORT"),
 	}
+	HTTP2DisableFlag = cli.BoolFlag{
+		Name:   "http2-disable",
+		Usage:  "Whether or not to disable HTTP/2 support.",
+		EnvVar: prefixEnvVar("HTTP2_DISABLE"),
+	}
 )
 
 var requiredFlags = []cli.Flag{
@@ -221,6 +235,7 @@ var requiredFlags = []cli.Flag{
 	MaxBatchSubmissionTimeFlag,
 	PollIntervalFlag,
 	NumConfirmationsFlag,
+	SafeAbortNonceTooLowCountFlag,
 	ResubmissionTimeoutFlag,
 	FinalityConfirmationsFlag,
 	RunTxBatchSubmitterFlag,
@@ -231,12 +246,12 @@ var requiredFlags = []cli.Flag{
 
 var optionalFlags = []cli.Flag{
 	LogLevelFlag,
+	LogTerminalFlag,
 	SentryEnableFlag,
 	SentryDsnFlag,
 	SentryTraceRateFlag,
 	BlockOffsetFlag,
-	MaxGasPriceInGweiFlag,
-	GasRetryIncrementFlag,
+	SequencerBatchType,
 	SequencerPrivateKeyFlag,
 	ProposerPrivateKeyFlag,
 	MnemonicFlag,
@@ -245,6 +260,7 @@ var optionalFlags = []cli.Flag{
 	MetricsServerEnableFlag,
 	MetricsHostnameFlag,
 	MetricsPortFlag,
+	HTTP2DisableFlag,
 }
 
 // Flags contains the list of configuration options available to the binary.

@@ -23,6 +23,10 @@ contract ValueContext {
     function getCallValue() public payable returns(uint256) {
         return msg.value;
     }
+
+    function getCaller() external view returns (address){
+        return msg.sender;
+    }
 }
 
 contract ValueCalls is ValueContext {

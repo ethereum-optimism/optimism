@@ -40,6 +40,7 @@ import (
 	"github.com/ethereum-optimism/optimism/l2geth/core/types"
 	"github.com/ethereum-optimism/optimism/l2geth/core/vm"
 	"github.com/ethereum-optimism/optimism/l2geth/crypto"
+	"github.com/ethereum-optimism/optimism/l2geth/ethclient"
 	"github.com/ethereum-optimism/optimism/l2geth/log"
 	"github.com/ethereum-optimism/optimism/l2geth/p2p"
 	"github.com/ethereum-optimism/optimism/l2geth/params"
@@ -49,7 +50,16 @@ import (
 	"github.com/tyler-smith/go-bip39"
 )
 
-var errOVMUnsupported = errors.New("OVM: Unsupported RPC Method")
+var (
+	errNoSequencerURL = errors.New("sequencer transaction forwarding not configured")
+	errStillSyncing   = errors.New("sequencer still syncing, cannot accept transactions")
+)
+
+const (
+	// defaultDialTimeout is default duration the service will wait on
+	// startup to make a connection to either the L1 or L2 backends.
+	defaultDialTimeout = 5 * time.Second
+)
 
 // PublicEthereumAPI provides an API to access Ethereum related information.
 // It offers only methods that operate on public data that is freely available to anyone.
@@ -376,6 +386,19 @@ func (s *PrivateAccountAPI) SendTransaction(ctx context.Context, args SendTxArgs
 		log.Warn("Failed transaction send attempt", "from", args.From, "to", args.To, "value", args.Value.ToInt(), "err", err)
 		return common.Hash{}, err
 	}
+
+	if s.b.IsVerifier() {
+		client, err := dialSequencerClientWithTimeout(ctx, s.b.SequencerClientHttp())
+		if err != nil {
+			return common.Hash{}, err
+		}
+		err = client.SendTransaction(context.Background(), signed)
+		if err != nil {
+			return common.Hash{}, err
+		}
+		return signed.Hash(), nil
+	}
+
 	return SubmitTransaction(ctx, s.b, signed)
 }
 
@@ -415,7 +438,7 @@ func (s *PrivateAccountAPI) SignTransaction(ctx context.Context, args SendTxArgs
 //
 // The key used to calculate the signature is decrypted with the given password.
 //
-// https://github.com/ethereum-optimism/optimism/l2geth/wiki/Management-APIs#personal_sign
+// https://github.com/ethereum/go-ethereum/wiki/Management-APIs#personal_sign
 func (s *PrivateAccountAPI) Sign(ctx context.Context, data hexutil.Bytes, addr common.Address, passwd string) (hexutil.Bytes, error) {
 	// Look up the wallet containing the requested signer
 	account := accounts.Account{Address: addr}
@@ -443,7 +466,7 @@ func (s *PrivateAccountAPI) Sign(ctx context.Context, data hexutil.Bytes, addr c
 // Note, the signature must conform to the secp256k1 curve R, S and V values, where
 // the V value must be 27 or 28 for legacy reasons.
 //
-// https://github.com/ethereum-optimism/optimism/l2geth/wiki/Management-APIs#personal_ecRecover
+// https://github.com/ethereum/go-ethereum/wiki/Management-APIs#personal_ecRecover
 func (s *PrivateAccountAPI) EcRecover(ctx context.Context, data, sig hexutil.Bytes) (common.Address, error) {
 	if len(sig) != crypto.SignatureLength {
 		return common.Address{}, fmt.Errorf("signature must be %d bytes long", crypto.SignatureLength)
@@ -789,7 +812,7 @@ type account struct {
 	StateDiff *map[common.Hash]common.Hash `json:"stateDiff"`
 }
 
-func DoCall(ctx context.Context, b Backend, args CallArgs, blockNrOrHash rpc.BlockNumberOrHash, overrides map[common.Address]account, vmCfg vm.Config, timeout time.Duration, globalGasCap *big.Int) ([]byte, uint64, bool, error) {
+func DoCall(ctx context.Context, b Backend, args CallArgs, blockNrOrHash rpc.BlockNumberOrHash, overrides map[common.Address]account, vmCfg *vm.Config, timeout time.Duration, globalGasCap *big.Int) ([]byte, uint64, bool, error) {
 	defer func(start time.Time) { log.Debug("Executing EVM call finished", "runtime", time.Since(start)) }(time.Now())
 
 	state, header, err := b.StateAndHeaderByNumberOrHash(ctx, blockNrOrHash)
@@ -799,9 +822,11 @@ func DoCall(ctx context.Context, b Backend, args CallArgs, blockNrOrHash rpc.Blo
 	// Set sender address or use a default if none specified
 	var addr common.Address
 	if args.From == nil {
-		if wallets := b.AccountManager().Wallets(); len(wallets) > 0 {
-			if accounts := wallets[0].Accounts(); len(accounts) > 0 {
-				addr = accounts[0].Address
+		if !rcfg.UsingOVM {
+			if wallets := b.AccountManager().Wallets(); len(wallets) > 0 {
+				if accounts := wallets[0].Accounts(); len(accounts) > 0 {
+					addr = accounts[0].Address
+				}
 			}
 		}
 	} else {
@@ -898,7 +923,7 @@ func DoCall(ctx context.Context, b Backend, args CallArgs, blockNrOrHash rpc.Blo
 	defer cancel()
 
 	// Get a new instance of the EVM.
-	evm, vmError, err := b.GetEVM(ctx, msg, state, header)
+	evm, vmError, err := b.GetEVM(ctx, msg, state, header, vmCfg)
 	if err != nil {
 		return nil, 0, false, err
 	}
@@ -934,7 +959,7 @@ func (s *PublicBlockChainAPI) Call(ctx context.Context, args CallArgs, blockNrOr
 	if overrides != nil {
 		accounts = *overrides
 	}
-	result, _, failed, err := DoCall(ctx, s.b, args, blockNrOrHash, accounts, vm.Config{}, 5*time.Second, s.b.RPCGasCap())
+	result, _, failed, err := DoCall(ctx, s.b, args, blockNrOrHash, accounts, &vm.Config{}, 5*time.Second, s.b.RPCGasCap())
 	if err != nil {
 		return nil, err
 	}
@@ -977,11 +1002,13 @@ func DoEstimateGas(ctx context.Context, b Backend, args CallArgs, blockNrOrHash 
 	}
 	cap = hi
 
-	// Set sender address or use a default if none specified
-	if args.From == nil {
-		if wallets := b.AccountManager().Wallets(); len(wallets) > 0 {
-			if accounts := wallets[0].Accounts(); len(accounts) > 0 {
-				args.From = &accounts[0].Address
+	if !rcfg.UsingOVM {
+		// Set sender address or use a default if none specified
+		if args.From == nil {
+			if wallets := b.AccountManager().Wallets(); len(wallets) > 0 {
+				if accounts := wallets[0].Accounts(); len(accounts) > 0 {
+					args.From = &accounts[0].Address
+				}
 			}
 		}
 	}
@@ -993,7 +1020,7 @@ func DoEstimateGas(ctx context.Context, b Backend, args CallArgs, blockNrOrHash 
 	executable := func(gas uint64) (bool, []byte) {
 		args.Gas = (*hexutil.Uint64)(&gas)
 
-		res, _, failed, err := DoCall(ctx, b, args, blockNrOrHash, nil, vm.Config{}, 0, gasCap)
+		res, _, failed, err := DoCall(ctx, b, args, blockNrOrHash, nil, &vm.Config{}, 0, gasCap)
 		if err != nil || failed {
 			return false, res
 		}
@@ -1287,6 +1314,18 @@ func newRPCTransactionFromBlockHash(b *types.Block, hash common.Hash) *RPCTransa
 	return nil
 }
 
+// dialSequencerClientWithTimeout attempts to dial the Sequencer using the
+// provided URL. If the dial doesn't complete within defaultDialTimeout
+// seconds, this method will return an error.
+func dialSequencerClientWithTimeout(ctx context.Context, url string) (
+	*ethclient.Client, error) {
+
+	ctxt, cancel := context.WithTimeout(ctx, defaultDialTimeout)
+	defer cancel()
+
+	return ethclient.DialContext(ctxt, url)
+}
+
 // PublicTransactionPoolAPI exposes methods for the RPC interface
 type PublicTransactionPoolAPI struct {
 	b         Backend
@@ -1573,6 +1612,12 @@ func (args *SendTxArgs) toTransaction() *types.Transaction {
 
 // SubmitTransaction is a helper function that submits tx to txPool and logs a message.
 func SubmitTransaction(ctx context.Context, b Backend, tx *types.Transaction) (common.Hash, error) {
+	// Do not accept transactions if running as the sequencer and
+	// the node is still syncing.
+	if !b.IsVerifier() && b.IsSyncing() {
+		return common.Hash{}, errStillSyncing
+	}
+
 	if err := b.SendTx(ctx, tx); err != nil {
 		return common.Hash{}, err
 	}
@@ -1593,9 +1638,6 @@ func SubmitTransaction(ctx context.Context, b Backend, tx *types.Transaction) (c
 // SendTransaction creates a transaction for the given argument, sign it and submit it to the
 // transaction pool.
 func (s *PublicTransactionPoolAPI) SendTransaction(ctx context.Context, args SendTxArgs) (common.Hash, error) {
-	if rcfg.UsingOVM {
-		return common.Hash{}, errOVMUnsupported
-	}
 	// Look up the wallet containing the requested signer
 	account := accounts.Account{Address: args.From}
 
@@ -1628,9 +1670,6 @@ func (s *PublicTransactionPoolAPI) SendTransaction(ctx context.Context, args Sen
 // FillTransaction fills the defaults (nonce, gas, gasPrice) on a given unsigned transaction,
 // and returns it to the caller for further processing (signing + broadcast)
 func (s *PublicTransactionPoolAPI) FillTransaction(ctx context.Context, args SendTxArgs) (*SignTransactionResult, error) {
-	if rcfg.UsingOVM {
-		return nil, errOVMUnsupported
-	}
 	// Set some sanity defaults and terminate on failure
 	if err := args.setDefaults(ctx, s.b); err != nil {
 		return nil, err
@@ -1647,18 +1686,31 @@ func (s *PublicTransactionPoolAPI) FillTransaction(ctx context.Context, args Sen
 // SendRawTransaction will add the signed transaction to the transaction pool.
 // The sender is responsible for signing the transaction and using the correct nonce.
 func (s *PublicTransactionPoolAPI) SendRawTransaction(ctx context.Context, encodedTx hexutil.Bytes) (common.Hash, error) {
-	if s.b.IsVerifier() {
-		return common.Hash{}, errors.New("Cannot send raw transaction in verifier mode")
+	tx := new(types.Transaction)
+	if err := rlp.DecodeBytes(encodedTx, tx); err != nil {
+		return common.Hash{}, err
 	}
 
 	if s.b.IsSyncing() {
 		return common.Hash{}, errors.New("Cannot send raw transaction while syncing")
 	}
 
-	tx := new(types.Transaction)
-	if err := rlp.DecodeBytes(encodedTx, tx); err != nil {
-		return common.Hash{}, err
+	if s.b.IsVerifier() {
+		sequencerURL := s.b.SequencerClientHttp()
+		if sequencerURL == "" {
+			return common.Hash{}, errNoSequencerURL
+		}
+		client, err := dialSequencerClientWithTimeout(ctx, sequencerURL)
+		if err != nil {
+			return common.Hash{}, err
+		}
+		err = client.SendTransaction(context.Background(), tx)
+		if err != nil {
+			return common.Hash{}, err
+		}
+		return tx.Hash(), nil
 	}
+
 	// L1Timestamp and L1BlockNumber will be set right before execution
 	txMeta := types.NewTransactionMeta(nil, 0, nil, types.QueueOriginSequencer, nil, nil, encodedTx)
 	tx.SetTransactionMeta(txMeta)
@@ -1675,9 +1727,6 @@ func (s *PublicTransactionPoolAPI) SendRawTransaction(ctx context.Context, encod
 //
 // https://github.com/ethereum/wiki/wiki/JSON-RPC#eth_sign
 func (s *PublicTransactionPoolAPI) Sign(addr common.Address, data hexutil.Bytes) (hexutil.Bytes, error) {
-	if rcfg.UsingOVM {
-		return nil, errOVMUnsupported
-	}
 	// Look up the wallet containing the requested signer
 	account := accounts.Account{Address: addr}
 
@@ -1703,9 +1752,6 @@ type SignTransactionResult struct {
 // The node needs to have the private key of the account corresponding with
 // the given from address and it needs to be unlocked.
 func (s *PublicTransactionPoolAPI) SignTransaction(ctx context.Context, args SendTxArgs) (*SignTransactionResult, error) {
-	if rcfg.UsingOVM {
-		return nil, errOVMUnsupported
-	}
 	if args.Gas == nil {
 		return nil, fmt.Errorf("gas not specified")
 	}

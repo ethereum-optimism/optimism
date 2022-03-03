@@ -1,6 +1,7 @@
 /* Imports: External */
 import { BaseService, Metrics } from '@eth-optimism/common-ts'
 import { StaticJsonRpcProvider } from '@ethersproject/providers'
+import { sleep, toRpcHexString } from '@eth-optimism/core-utils'
 import { BigNumber } from 'ethers'
 import { LevelUp } from 'levelup'
 import axios from 'axios'
@@ -8,10 +9,10 @@ import bfj from 'bfj'
 import { Gauge } from 'prom-client'
 
 /* Imports: Internal */
-import { TransportDB } from '../../db/transport-db'
-import { sleep, toRpcHexString, validators } from '../../utils'
-import { L1DataTransportServiceOptions } from '../main/service'
 import { handleSequencerBlock } from './handlers/transaction'
+import { TransportDB } from '../../db/transport-db'
+import { validators } from '../../utils'
+import { L1DataTransportServiceOptions } from '../main/service'
 
 interface L2IngestionMetrics {
   highestSyncedL2Block: Gauge<string>
@@ -84,7 +85,9 @@ export class L2IngestionService extends BaseService<L2IngestionServiceOptions> {
 
     this.l2IngestionMetrics = registerMetrics(this.metrics)
 
-    this.state.db = new TransportDB(this.options.db)
+    this.state.db = new TransportDB(this.options.db, {
+      l2ChainId: this.options.l2ChainId,
+    })
 
     this.state.l2RpcProvider =
       typeof this.options.l2RpcProvider === 'string'
@@ -116,6 +119,13 @@ export class L2IngestionService extends BaseService<L2IngestionServiceOptions> {
           highestSyncedL2BlockNumber === targetL2Block ||
           currentL2Block === 0
         ) {
+          this.logger.info(
+            'All Layer 2 (Optimism) transactions are synchronized',
+            {
+              currentL2Block,
+              targetL2Block,
+            }
+          )
           await sleep(this.options.pollingInterval)
           continue
         }
@@ -216,15 +226,38 @@ export class L2IngestionService extends BaseService<L2IngestionServiceOptions> {
         id: '1',
       }
 
-      const resp = await axios.post(
-        this.state.l2RpcProvider.connection.url,
-        req,
-        { responseType: 'stream' }
-      )
-      const respJson = await bfj.parse(resp.data, {
-        yieldRate: 4096, // this yields abit more often than the default of 16384
-      })
-      blocks = respJson.result
+      // Retry the `eth_getBlockRange` query in case the endBlockNumber
+      // is greater than the tip and `null` is returned. This gives time
+      // for the sync to catch up
+      let result = null
+      let retry = 0
+      while (result === null) {
+        if (retry === 6) {
+          throw new Error(
+            `unable to fetch block range [${startBlockNumber},${endBlockNumber})`
+          )
+        }
+
+        const resp = await axios.post(
+          this.state.l2RpcProvider.connection.url,
+          req,
+          { responseType: 'stream' }
+        )
+        const respJson = await bfj.parse(resp.data, {
+          yieldRate: 4096, // this yields abit more often than the default of 16384
+        })
+
+        result = respJson.result
+        if (result === null) {
+          retry++
+          this.logger.info(
+            `request for block range [${startBlockNumber},${endBlockNumber}) returned null, retry ${retry}`
+          )
+          await sleep(1000 * retry)
+        }
+      }
+
+      blocks = result
     }
 
     for (const block of blocks) {

@@ -1,0 +1,24 @@
+# permissions for end users to edit cliquel1s.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: cliquel1-editor-role
+rules:
+- apiGroups:
+  - stack.optimism-stacks.net
+  resources:
+  - cliquel1s
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - stack.optimism-stacks.net
+  resources:
+  - cliquel1s/status
+  verbs:
+  - get

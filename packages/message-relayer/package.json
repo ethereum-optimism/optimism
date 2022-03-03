@@ -1,25 +1,20 @@
 {
   "name": "@eth-optimism/message-relayer",
-  "version": "0.2.11",
+  "version": "0.3.0",
   "description": "[Optimism] Service for automatically relaying L2 to L1 transactions",
   "main": "dist/index",
   "types": "dist/index",
   "files": [
     "dist/*"
   ],
-  "bin": {
-    "withdraw": "./src/exec/withdraw.ts"
-  },
   "scripts": {
-    "start": "ts-node ./src/exec/run.ts",
+    "start": "ts-node ./bin/run.ts",
     "build": "tsc -p ./tsconfig.build.json",
     "clean": "rimraf  dist/ ./tsconfig.build.tsbuildinfo",
     "lint": "yarn lint:fix && yarn lint:check",
     "pre-commit": "lint-staged",
     "lint:fix": "yarn lint:check --fix",
-    "lint:check": "eslint . --max-warnings=0",
-    "test": "hardhat test --show-stack-traces",
-    "test:coverage": "nyc hardhat test && nyc merge .nyc_output coverage.json"
+    "lint:check": "eslint . --max-warnings=0"
   },
   "keywords": [
     "optimism",
@@ -35,28 +30,19 @@
   },
   "dependencies": {
     "@eth-optimism/common-ts": "0.2.1",
-    "@eth-optimism/contracts": "0.5.7",
-    "@eth-optimism/core-utils": "0.7.3",
+    "@eth-optimism/core-utils": "0.8.0",
+    "@eth-optimism/sdk": "^0.2.3",
     "@sentry/node": "^6.3.1",
     "bcfg": "^0.1.6",
     "dotenv": "^10.0.0",
-    "ethers": "^5.4.5",
-    "merkletreejs": "^0.2.18",
-    "rlp": "^2.2.6"
+    "ethers": "^5.5.4"
   },
   "devDependencies": {
-    "@eth-optimism/smock": "1.1.10",
-    "@nomiclabs/ethereumjs-vm": "^4",
     "@nomiclabs/hardhat-ethers": "^2.0.2",
     "@nomiclabs/hardhat-waffle": "^2.0.1",
-    "@types/chai": "^4.2.18",
-    "@types/chai-as-promised": "^7.1.4",
-    "@types/mocha": "^8.2.2",
     "@typescript-eslint/eslint-plugin": "^4.26.0",
     "@typescript-eslint/parser": "^4.26.0",
     "babel-eslint": "^10.1.0",
-    "chai": "^4.3.4",
-    "chai-as-promised": "^7.1.1",
     "eslint": "^7.27.0",
     "eslint-config-prettier": "^8.3.0",
     "eslint-plugin-import": "^2.23.4",
@@ -68,8 +54,6 @@
     "ethereum-waffle": "^3.3.0",
     "hardhat": "^2.3.0",
     "lint-staged": "11.0.0",
-    "lodash": "^4.17.21",
-    "mocha": "^8.4.0",
     "prettier": "^2.3.1",
     "ts-node": "^10.0.0",
     "typescript": "^4.3.5"

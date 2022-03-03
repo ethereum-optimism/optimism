@@ -23,4 +23,4 @@ curl \
     $L2_NODE_WEB3_URL
 
 # go
-exec node ./exec/run-message-relayer.js
+exec yarn start

@@ -1,11 +1,12 @@
-FROM golang:1.15-alpine3.13 as builder
+FROM golang:1.17.3-alpine3.13 as builder
 
 RUN apk add --no-cache make gcc musl-dev linux-headers git jq bash
 
 COPY ./l2geth /l2geth
+COPY ./go/bss-core /go/bss-core
 COPY ./go/batch-submitter/go.mod ./go/batch-submitter/go.sum /go/batch-submitter/
 WORKDIR /go/batch-submitter
-RUN go mod graph | grep -v l2geth | awk '{if ($1 !~ "@") print $2}' | xargs -n 1 go get
+RUN go mod graph | grep -v l2geth | grep -v bss-core | awk '{if ($1 !~ "@") print $2}' | xargs -n 1 go get
 COPY ./go/batch-submitter/ ./
 RUN make
 

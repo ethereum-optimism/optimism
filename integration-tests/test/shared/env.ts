@@ -1,143 +1,115 @@
 /* Imports: External */
-import { Contract, utils, Wallet, providers } from 'ethers'
-import { TransactionResponse } from '@ethersproject/providers'
-import { getContractFactory, predeploys } from '@eth-optimism/contracts'
-import { Watcher } from '@eth-optimism/core-utils'
-import { getMessagesAndProofsForL2Transaction } from '@eth-optimism/message-relayer'
+import { utils, Wallet, providers, Transaction } from 'ethers'
+import {
+  TransactionResponse,
+  TransactionReceipt,
+} from '@ethersproject/providers'
+import { sleep } from '@eth-optimism/core-utils'
+import {
+  CrossChainMessenger,
+  MessageStatus,
+  MessageDirection,
+} from '@eth-optimism/sdk'
 
 /* Imports: Internal */
 import {
-  getAddressManager,
   l1Provider,
   l2Provider,
   replicaProvider,
+  verifierProvider,
   l1Wallet,
   l2Wallet,
-  gasPriceOracleWallet,
   fundUser,
-  getOvmEth,
-  getL1Bridge,
-  getL2Bridge,
-  sleep,
+  envConfig,
 } from './utils'
-import {
-  initWatcher,
-  CrossDomainMessagePair,
-  Direction,
-  waitForXDomainTransaction,
-} from './watcher-utils'
+
+export interface CrossDomainMessagePair {
+  tx: Transaction
+  receipt: TransactionReceipt
+  remoteTx: Transaction
+  remoteReceipt: TransactionReceipt
+}
 
 /// Helper class for instantiating a test environment with a funded account
 export class OptimismEnv {
-  // L1 Contracts
-  addressManager: Contract
-  l1Bridge: Contract
-  l1Messenger: Contract
-  ctc: Contract
-  scc: Contract
-
-  // L2 Contracts
-  ovmEth: Contract
-  l2Bridge: Contract
-  l2Messenger: Contract
-  gasPriceOracle: Contract
-  sequencerFeeVault: Contract
-
-  // The L1 <> L2 State watcher
-  watcher: Watcher
-
   // The wallets
   l1Wallet: Wallet
   l2Wallet: Wallet
 
   // The providers
+  messenger: CrossChainMessenger
   l1Provider: providers.JsonRpcProvider
   l2Provider: providers.JsonRpcProvider
   replicaProvider: providers.JsonRpcProvider
+  verifierProvider: providers.JsonRpcProvider
 
   constructor(args: any) {
-    this.addressManager = args.addressManager
-    this.l1Bridge = args.l1Bridge
-    this.l1Messenger = args.l1Messenger
-    this.ovmEth = args.ovmEth
-    this.l2Bridge = args.l2Bridge
-    this.l2Messenger = args.l2Messenger
-    this.gasPriceOracle = args.gasPriceOracle
-    this.sequencerFeeVault = args.sequencerFeeVault
-    this.watcher = args.watcher
     this.l1Wallet = args.l1Wallet
     this.l2Wallet = args.l2Wallet
+    this.messenger = args.messenger
     this.l1Provider = args.l1Provider
     this.l2Provider = args.l2Provider
     this.replicaProvider = args.replicaProvider
-    this.ctc = args.ctc
-    this.scc = args.scc
+    this.verifierProvider = args.verifierProvider
   }
 
   static async new(): Promise<OptimismEnv> {
-    const addressManager = getAddressManager(l1Wallet)
-    const watcher = await initWatcher(l1Provider, l2Provider, addressManager)
-    const l1Bridge = await getL1Bridge(l1Wallet, addressManager)
+    const network = await l1Provider.getNetwork()
+
+    const messenger = new CrossChainMessenger({
+      l1SignerOrProvider: l1Wallet,
+      l2SignerOrProvider: l2Wallet,
+      l1ChainId: network.chainId,
+    })
 
     // fund the user if needed
     const balance = await l2Wallet.getBalance()
-    if (balance.lt(utils.parseEther('1'))) {
-      await fundUser(watcher, l1Bridge, utils.parseEther('1').sub(balance))
+    const min = envConfig.L2_WALLET_MIN_BALANCE_ETH.toString()
+    const topUp = envConfig.L2_WALLET_TOP_UP_AMOUNT_ETH.toString()
+    if (balance.lt(utils.parseEther(min))) {
+      await fundUser(messenger, utils.parseEther(topUp))
     }
-    const l1Messenger = getContractFactory('L1CrossDomainMessenger')
-      .connect(l1Wallet)
-      .attach(watcher.l1.messengerAddress)
-    const ovmEth = getOvmEth(l2Wallet)
-    const l2Bridge = await getL2Bridge(l2Wallet)
-    const l2Messenger = getContractFactory('L2CrossDomainMessenger')
-      .connect(l2Wallet)
-      .attach(watcher.l2.messengerAddress)
-
-    const ctcAddress = await addressManager.getAddress(
-      'CanonicalTransactionChain'
-    )
-    const ctc = getContractFactory('CanonicalTransactionChain')
-      .connect(l1Wallet)
-      .attach(ctcAddress)
-
-    const gasPriceOracle = getContractFactory('OVM_GasPriceOracle')
-      .connect(gasPriceOracleWallet)
-      .attach(predeploys.OVM_GasPriceOracle)
-
-    const sccAddress = await addressManager.getAddress('StateCommitmentChain')
-    const scc = getContractFactory('StateCommitmentChain')
-      .connect(l1Wallet)
-      .attach(sccAddress)
-
-    const sequencerFeeVault = getContractFactory('OVM_SequencerFeeVault')
-      .connect(l2Wallet)
-      .attach(predeploys.OVM_SequencerFeeVault)
 
     return new OptimismEnv({
-      addressManager,
-      l1Bridge,
-      ctc,
-      scc,
-      l1Messenger,
-      ovmEth,
-      gasPriceOracle,
-      sequencerFeeVault,
-      l2Bridge,
-      l2Messenger,
-      watcher,
       l1Wallet,
       l2Wallet,
+      messenger,
       l1Provider,
       l2Provider,
+      verifierProvider,
       replicaProvider,
     })
   }
 
   async waitForXDomainTransaction(
-    tx: Promise<TransactionResponse> | TransactionResponse,
-    direction: Direction
+    tx: Promise<TransactionResponse> | TransactionResponse
   ): Promise<CrossDomainMessagePair> {
-    return waitForXDomainTransaction(this.watcher, tx, direction)
+    // await it if needed
+    tx = await tx
+
+    const receipt = await tx.wait()
+    const resolved = await this.messenger.toCrossChainMessage(tx)
+    const messageReceipt = await this.messenger.waitForMessageReceipt(tx)
+    let fullTx: any
+    let remoteTx: any
+    if (resolved.direction === MessageDirection.L1_TO_L2) {
+      fullTx = await this.messenger.l1Provider.getTransaction(tx.hash)
+      remoteTx = await this.messenger.l2Provider.getTransaction(
+        messageReceipt.transactionReceipt.transactionHash
+      )
+    } else {
+      fullTx = await this.messenger.l2Provider.getTransaction(tx.hash)
+      remoteTx = await this.messenger.l1Provider.getTransaction(
+        messageReceipt.transactionReceipt.transactionHash
+      )
+    }
+
+    return {
+      tx: fullTx,
+      receipt,
+      remoteTx,
+      remoteReceipt: messageReceipt.transactionReceipt,
+    }
   }
 
   /**
@@ -149,65 +121,50 @@ export class OptimismEnv {
     tx: Promise<TransactionResponse> | TransactionResponse
   ): Promise<void> {
     tx = await tx
+    await tx.wait()
 
-    let messagePairs = []
-    while (true) {
-      try {
-        messagePairs = await getMessagesAndProofsForL2Transaction(
-          l1Provider,
-          l2Provider,
-          this.scc.address,
-          predeploys.L2CrossDomainMessenger,
-          tx.hash
-        )
-        break
-      } catch (err) {
-        if (err.message.includes('unable to find state root batch for tx')) {
-          await sleep(5000)
-        } else {
-          throw err
-        }
-      }
+    const messages = await this.messenger.getMessagesByTransaction(tx)
+    if (messages.length === 0) {
+      return
     }
 
-    for (const { message, proof } of messagePairs) {
-      while (true) {
+    for (const message of messages) {
+      let status: MessageStatus
+      while (
+        status !== MessageStatus.READY_FOR_RELAY &&
+        status !== MessageStatus.RELAYED
+      ) {
+        status = await this.messenger.getMessageStatus(message)
+        await sleep(1000)
+      }
+
+      let relayed = false
+      while (!relayed) {
         try {
-          const result = await this.l1Messenger
-            .connect(this.l1Wallet)
-            .relayMessage(
-              message.target,
-              message.sender,
-              message.message,
-              message.messageNonce,
-              proof
-            )
-          await result.wait()
-          break
+          await this.messenger.finalizeMessage(message)
+          relayed = true
         } catch (err) {
-          if (err.message.includes('execution failed due to an exception')) {
-            await sleep(5000)
-          } else if (err.message.includes('Nonce too low')) {
-            await sleep(5000)
-          } else if (err.message.includes('transaction was replaced')) {
-            // this happens when we run tests in parallel
-            await sleep(5000)
-          } else if (
+          if (
+            err.message.includes('Nonce too low') ||
+            err.message.includes('transaction was replaced') ||
             err.message.includes(
               'another transaction with same nonce in the queue'
             )
           ) {
-            // this happens when we run tests in parallel
+            // Sometimes happens when we run tests in parallel.
             await sleep(5000)
           } else if (
             err.message.includes('message has already been received')
           ) {
-            break
+            // Message already relayed, this is fine.
+            relayed = true
           } else {
             throw err
           }
         }
       }
+
+      await this.messenger.waitForMessageReceipt(message)
     }
   }
 }

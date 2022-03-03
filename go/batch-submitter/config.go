@@ -33,6 +33,11 @@ var (
 	ErrSameSequencerAndProposerPrivKey = errors.New("sequencer-priv-key and " +
 		"proposer-priv-key must be distinct")
 
+	// ErrInvalidBatchType  signals that an unsupported batch type is being
+	// configured. The default is "legacy" and the options are "legacy" or
+	// "zlib"
+	ErrInvalidBatchType = errors.New("invalid batch type")
+
 	// ErrSentryDSNNotSet signals that not Data Source Name was provided
 	// with which to configure Sentry logging.
 	ErrSentryDSNNotSet = errors.New("sentry-dsn must be set if use-sentry " +
@@ -89,6 +94,11 @@ type Config struct {
 	// appending new batches.
 	NumConfirmations uint64
 
+	// SafeAbortNonceTooLowCount is the number of ErrNonceTooLowObservations
+	// required to give up on a tx at a particular nonce without receiving
+	// confirmation.
+	SafeAbortNonceTooLowCount uint64
+
 	// ResubmissionTimeout is time we will wait before resubmitting a
 	// transaction.
 	ResubmissionTimeout time.Duration
@@ -118,6 +128,11 @@ type Config struct {
 	// LogLevel is the lowest log level that will be output.
 	LogLevel string
 
+	// LogTerminal if true, prints to stdout in terminal format, otherwise
+	// prints using JSON. If SentryEnable is true this flag is ignored, and logs
+	// are printed using JSON.
+	LogTerminal bool
+
 	// SentryEnable if true, logs any error messages to sentry. SentryDsn
 	// must also be set if SentryEnable is true.
 	SentryEnable bool
@@ -132,14 +147,6 @@ type Config struct {
 	// BlockOffset is the offset between the CTC contract start and the L2 geth
 	// blocks.
 	BlockOffset uint64
-
-	// MaxGasPriceInGwei is the maximum gas price in gwei we will allow in order
-	// to confirm a transaction.
-	MaxGasPriceInGwei uint64
-
-	// GasRetryIncrement is the step size (in gwei) by which we will ratchet the
-	// gas price in order to get a transaction confirmed.
-	GasRetryIncrement uint64
 
 	// SequencerPrivateKey the private key of the wallet used to submit
 	// transactions to the CTC contract.
@@ -162,6 +169,9 @@ type Config struct {
 	// the proposer transactions.
 	ProposerHDPath string
 
+	// SequencerBatchType represents the type of batch the sequencer submits.
+	SequencerBatchType string
+
 	// MetricsServerEnable if true, will create a metrics client and log to
 	// Prometheus.
 	MetricsServerEnable bool
@@ -171,6 +181,9 @@ type Config struct {
 
 	// MetricsPort is the port at which the metrics server is running.
 	MetricsPort uint64
+
+	// DisableHTTP2 disables HTTP2 support.
+	DisableHTTP2 bool
 }
 
 // NewConfig parses the Config from the provided flags or environment variables.
@@ -178,37 +191,40 @@ type Config struct {
 func NewConfig(ctx *cli.Context) (Config, error) {
 	cfg := Config{
 		/* Required Flags */
-		BuildEnv:                ctx.GlobalString(flags.BuildEnvFlag.Name),
-		EthNetworkName:          ctx.GlobalString(flags.EthNetworkNameFlag.Name),
-		L1EthRpc:                ctx.GlobalString(flags.L1EthRpcFlag.Name),
-		L2EthRpc:                ctx.GlobalString(flags.L2EthRpcFlag.Name),
-		CTCAddress:              ctx.GlobalString(flags.CTCAddressFlag.Name),
-		SCCAddress:              ctx.GlobalString(flags.SCCAddressFlag.Name),
-		MaxL1TxSize:             ctx.GlobalUint64(flags.MaxL1TxSizeFlag.Name),
-		MaxBatchSubmissionTime:  ctx.GlobalDuration(flags.MaxBatchSubmissionTimeFlag.Name),
-		PollInterval:            ctx.GlobalDuration(flags.PollIntervalFlag.Name),
-		NumConfirmations:        ctx.GlobalUint64(flags.NumConfirmationsFlag.Name),
-		ResubmissionTimeout:     ctx.GlobalDuration(flags.ResubmissionTimeoutFlag.Name),
-		FinalityConfirmations:   ctx.GlobalUint64(flags.FinalityConfirmationsFlag.Name),
-		RunTxBatchSubmitter:     ctx.GlobalBool(flags.RunTxBatchSubmitterFlag.Name),
-		RunStateBatchSubmitter:  ctx.GlobalBool(flags.RunStateBatchSubmitterFlag.Name),
-		SafeMinimumEtherBalance: ctx.GlobalUint64(flags.SafeMinimumEtherBalanceFlag.Name),
-		ClearPendingTxs:         ctx.GlobalBool(flags.ClearPendingTxsFlag.Name),
+		BuildEnv:                  ctx.GlobalString(flags.BuildEnvFlag.Name),
+		EthNetworkName:            ctx.GlobalString(flags.EthNetworkNameFlag.Name),
+		L1EthRpc:                  ctx.GlobalString(flags.L1EthRpcFlag.Name),
+		L2EthRpc:                  ctx.GlobalString(flags.L2EthRpcFlag.Name),
+		CTCAddress:                ctx.GlobalString(flags.CTCAddressFlag.Name),
+		SCCAddress:                ctx.GlobalString(flags.SCCAddressFlag.Name),
+		MaxL1TxSize:               ctx.GlobalUint64(flags.MaxL1TxSizeFlag.Name),
+		MaxBatchSubmissionTime:    ctx.GlobalDuration(flags.MaxBatchSubmissionTimeFlag.Name),
+		PollInterval:              ctx.GlobalDuration(flags.PollIntervalFlag.Name),
+		NumConfirmations:          ctx.GlobalUint64(flags.NumConfirmationsFlag.Name),
+		SafeAbortNonceTooLowCount: ctx.GlobalUint64(flags.SafeAbortNonceTooLowCountFlag.Name),
+		ResubmissionTimeout:       ctx.GlobalDuration(flags.ResubmissionTimeoutFlag.Name),
+		FinalityConfirmations:     ctx.GlobalUint64(flags.FinalityConfirmationsFlag.Name),
+		RunTxBatchSubmitter:       ctx.GlobalBool(flags.RunTxBatchSubmitterFlag.Name),
+		RunStateBatchSubmitter:    ctx.GlobalBool(flags.RunStateBatchSubmitterFlag.Name),
+		SafeMinimumEtherBalance:   ctx.GlobalUint64(flags.SafeMinimumEtherBalanceFlag.Name),
+		ClearPendingTxs:           ctx.GlobalBool(flags.ClearPendingTxsFlag.Name),
 		/* Optional Flags */
+		LogLevel:            ctx.GlobalString(flags.LogLevelFlag.Name),
+		LogTerminal:         ctx.GlobalBool(flags.LogTerminalFlag.Name),
 		SentryEnable:        ctx.GlobalBool(flags.SentryEnableFlag.Name),
 		SentryDsn:           ctx.GlobalString(flags.SentryDsnFlag.Name),
 		SentryTraceRate:     ctx.GlobalDuration(flags.SentryTraceRateFlag.Name),
 		BlockOffset:         ctx.GlobalUint64(flags.BlockOffsetFlag.Name),
-		MaxGasPriceInGwei:   ctx.GlobalUint64(flags.MaxGasPriceInGweiFlag.Name),
-		GasRetryIncrement:   ctx.GlobalUint64(flags.GasRetryIncrementFlag.Name),
 		SequencerPrivateKey: ctx.GlobalString(flags.SequencerPrivateKeyFlag.Name),
 		ProposerPrivateKey:  ctx.GlobalString(flags.ProposerPrivateKeyFlag.Name),
 		Mnemonic:            ctx.GlobalString(flags.MnemonicFlag.Name),
 		SequencerHDPath:     ctx.GlobalString(flags.SequencerHDPathFlag.Name),
 		ProposerHDPath:      ctx.GlobalString(flags.ProposerHDPathFlag.Name),
+		SequencerBatchType:  ctx.GlobalString(flags.SequencerBatchType.Name),
 		MetricsServerEnable: ctx.GlobalBool(flags.MetricsServerEnableFlag.Name),
 		MetricsHostname:     ctx.GlobalString(flags.MetricsHostnameFlag.Name),
 		MetricsPort:         ctx.GlobalUint64(flags.MetricsPortFlag.Name),
+		DisableHTTP2:        ctx.GlobalBool(flags.HTTP2DisableFlag.Name),
 	}
 
 	err := ValidateConfig(&cfg)
@@ -223,10 +239,6 @@ func NewConfig(ctx *cli.Context) (Config, error) {
 // ensure that it is well-formed.
 func ValidateConfig(cfg *Config) error {
 	// Sanity check log level.
-	if cfg.LogLevel == "" {
-		cfg.LogLevel = "debug"
-	}
-
 	_, err := log.LvlFromString(cfg.LogLevel)
 	if err != nil {
 		return err
@@ -260,6 +272,12 @@ func ValidateConfig(cfg *Config) error {
 		cfg.SequencerPrivateKey == cfg.ProposerPrivateKey {
 
 		return ErrSameSequencerAndProposerPrivKey
+	}
+
+	usingTypedBatches := cfg.SequencerBatchType != ""
+	validBatchType := cfg.SequencerBatchType == "legacy" || cfg.SequencerBatchType == "zlib"
+	if usingTypedBatches && !validBatchType {
+		return ErrInvalidBatchType
 	}
 
 	// Ensure the Sentry Data Source Name is set when using Sentry.

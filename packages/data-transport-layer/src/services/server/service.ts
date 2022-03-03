@@ -87,7 +87,10 @@ export class L1TransportServer extends BaseService<L1TransportServerOptions> {
       await this.options.db.open()
     }
 
-    this.state.db = new TransportDB(this.options.db)
+    this.state.db = new TransportDB(this.options.db, {
+      l2ChainId: this.options.l2ChainId,
+    })
+
     this.state.l1RpcProvider =
       typeof this.options.l1RpcProvider === 'string'
         ? new JsonRpcProvider(this.options.l1RpcProvider)
@@ -337,6 +340,9 @@ export class L1TransportServer extends BaseService<L1TransportServerOptions> {
         const blockNumber = Math.max(0, tip - this.options.confirmations)
 
         const block = await this.state.l1RpcProvider.getBlock(blockNumber)
+        if (block === null) {
+          throw new Error(`Cannot GET /eth/context/latest at ${blockNumber}`)
+        }
 
         return {
           blockNumber: block.number,
@@ -363,6 +369,10 @@ export class L1TransportServer extends BaseService<L1TransportServerOptions> {
         }
 
         const block = await this.state.l1RpcProvider.getBlock(number)
+        if (block === null) {
+          throw new Error(`Cannot GET /eth/context/blocknumber/${number}`)
+        }
+
         return {
           blockNumber: block.number,
           timestamp: block.timestamp,

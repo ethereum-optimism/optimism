@@ -4,9 +4,9 @@ import { ethers } from 'ethers'
 import { task } from 'hardhat/config'
 import * as types from 'hardhat/internal/core/params/argumentTypes'
 import { hexStringEquals } from '@eth-optimism/core-utils'
+
 import { getContractFactory, getContractDefinition } from '../src/contract-defs'
 import { names } from '../src/address-names'
-
 import {
   getInput,
   color as c,

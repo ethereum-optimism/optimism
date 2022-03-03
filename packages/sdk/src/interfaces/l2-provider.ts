@@ -1,11 +1,46 @@
-import { Provider, TransactionRequest } from '@ethersproject/abstract-provider'
+import {
+  Provider,
+  TransactionRequest,
+  TransactionResponse,
+  Block,
+  BlockWithTransactions,
+} from '@ethersproject/abstract-provider'
 import { BigNumber } from 'ethers'
+
+/**
+ * JSON transaction representation when returned by L2Geth nodes. This is simply an extension to
+ * the standard transaction response type. You do NOT need to use this type unless you care about
+ * having typed access to L2-specific fields.
+ */
+export interface L2Transaction extends TransactionResponse {
+  l1BlockNumber: number
+  l1TxOrigin: string
+  queueOrigin: string
+  rawTransaction: string
+}
+
+/**
+ * JSON block representation when returned by L2Geth nodes. Just a normal block but with
+ * an added stateRoot field.
+ */
+export interface L2Block extends Block {
+  stateRoot: string
+}
+
+/**
+ * JSON block representation when returned by L2Geth nodes. Just a normal block but with
+ * L2Transaction objects instead of the standard transaction response object.
+ */
+export interface L2BlockWithTransactions extends BlockWithTransactions {
+  stateRoot: string
+  transactions: [L2Transaction]
+}
 
 /**
  * Represents an extended version of an normal ethers Provider that returns additional L2 info and
  * has special functions for L2-specific interactions.
  */
-export interface L2Provider extends Provider {
+export type L2Provider<TProvider extends Provider> = TProvider & {
   /**
    * Gets the current L1 (data) gas price.
    *

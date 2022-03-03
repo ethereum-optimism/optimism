@@ -9,8 +9,6 @@ Within each contract file you'll find a comment that lists:
 1. The compiler with which a contract is intended to be compiled, `solc` or `optimistic-solc`.
 2. The network upon to which the contract will be deployed, `OVM` or `EVM`.
 
-A more detailed overview of these contracts can be found on the [community hub](http://community.optimism.io/docs/protocol/protocol.html#system-overview).
-
 <!-- TODO: Add link to final contract docs here when finished. -->
 
 ## Usage (npm)

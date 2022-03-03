@@ -1,6 +1,6 @@
 {
   "name": "@eth-optimism/core-utils",
-  "version": "0.7.3",
+  "version": "0.8.0",
   "description": "[Optimism] Core typescript utilities",
   "main": "dist/index",
   "types": "dist/index",
@@ -32,17 +32,17 @@
     "url": "https://github.com/ethereum-optimism/optimism.git"
   },
   "dependencies": {
-    "@ethersproject/abstract-provider": "^5.4.1",
+    "@ethersproject/abstract-provider": "^5.5.1",
     "@ethersproject/bytes": "^5.5.0",
-    "@ethersproject/providers": "^5.4.5",
-    "@ethersproject/web": "^5.5.0",
+    "@ethersproject/providers": "^5.5.3",
+    "@ethersproject/transactions": "^5.5.0",
+    "@ethersproject/web": "^5.5.1",
+    "bufio": "^1.0.7",
     "chai": "^4.3.4",
-    "ethers": "^5.4.5",
-    "lodash": "^4.17.21"
+    "ethers": "^5.5.4"
   },
   "devDependencies": {
     "@types/chai": "^4.2.18",
-    "@types/lodash": "^4.14.168",
     "@types/mocha": "^8.2.2",
     "@typescript-eslint/eslint-plugin": "^4.26.0",
     "@typescript-eslint/parser": "^4.26.0",

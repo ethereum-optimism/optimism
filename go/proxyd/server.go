@@ -5,20 +5,27 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"io/ioutil"
+	"math"
+	"net/http"
+	"strconv"
+	"strings"
+	"time"
+
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/gorilla/mux"
 	"github.com/gorilla/websocket"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/rs/cors"
-	"io"
-	"net/http"
-	"strconv"
-	"time"
 )
 
 const (
-	ContextKeyAuth  = "authorization"
-	ContextKeyReqID = "req_id"
+	ContextKeyAuth          = "authorization"
+	ContextKeyReqID         = "req_id"
+	ContextKeyXForwardedFor = "x_forwarded_for"
+	MaxBatchRPCCalls        = 100
+	cacheStatusHdr          = "X-Proxyd-Cache-Status"
 )
 
 type Server struct {
@@ -31,6 +38,7 @@ type Server struct {
 	upgrader           *websocket.Upgrader
 	rpcServer          *http.Server
 	wsServer           *http.Server
+	cache              RPCCache
 }
 
 func NewServer(
@@ -40,7 +48,16 @@ func NewServer(
 	rpcMethodMappings map[string]string,
 	maxBodySize int64,
 	authenticatedPaths map[string]string,
+	cache RPCCache,
 ) *Server {
+	if cache == nil {
+		cache = &NoopRPCCache{}
+	}
+
+	if maxBodySize == 0 {
+		maxBodySize = math.MaxInt64
+	}
+
 	return &Server{
 		backendGroups:      backendGroups,
 		wsBackendGroup:     wsBackendGroup,
@@ -48,6 +65,7 @@ func NewServer(
 		rpcMethodMappings:  rpcMethodMappings,
 		maxBodySize:        maxBodySize,
 		authenticatedPaths: authenticatedPaths,
+		cache:              cache,
 		upgrader: &websocket.Upgrader{
 			HandshakeTimeout: 5 * time.Second,
 		},
@@ -113,12 +131,72 @@ func (s *Server) HandleRPC(w http.ResponseWriter, r *http.Request) {
 		"user_agent", r.Header.Get("user-agent"),
 	)
 
-	req, err := ParseRPCReq(io.LimitReader(r.Body, s.maxBodySize))
+	body, err := ioutil.ReadAll(io.LimitReader(r.Body, s.maxBodySize))
 	if err != nil {
-		log.Info("rejected request with bad rpc request", "source", "rpc", "err", err)
-		RecordRPCError(ctx, BackendProxyd, MethodUnknown, err)
+		log.Error("error reading request body", "err", err)
+		writeRPCError(ctx, w, nil, ErrInternal)
+		return
+	}
+	RecordRequestPayloadSize(ctx, len(body))
+
+	if IsBatch(body) {
+		reqs, err := ParseBatchRPCReq(body)
+		if err != nil {
+			log.Error("error parsing batch RPC request", "err", err)
+			RecordRPCError(ctx, BackendProxyd, MethodUnknown, err)
+			writeRPCError(ctx, w, nil, ErrParseErr)
+			return
+		}
+
+		if len(reqs) > MaxBatchRPCCalls {
+			RecordRPCError(ctx, BackendProxyd, MethodUnknown, ErrTooManyBatchRequests)
+			writeRPCError(ctx, w, nil, ErrTooManyBatchRequests)
+			return
+		}
+
+		if len(reqs) == 0 {
+			writeRPCError(ctx, w, nil, ErrInvalidRequest("must specify at least one batch call"))
+			return
+		}
+
+		batchRes := make([]*RPCRes, len(reqs), len(reqs))
+		var batchContainsCached bool
+		for i := 0; i < len(reqs); i++ {
+			req, err := ParseRPCReq(reqs[i])
+			if err != nil {
+				log.Info("error parsing RPC call", "source", "rpc", "err", err)
+				batchRes[i] = NewRPCErrorRes(nil, err)
+				continue
+			}
+
+			var cached bool
+			batchRes[i], cached = s.handleSingleRPC(ctx, req)
+			if cached {
+				batchContainsCached = true
+			}
+		}
+
+		setCacheHeader(w, batchContainsCached)
+		writeBatchRPCRes(ctx, w, batchRes)
+		return
+	}
+
+	req, err := ParseRPCReq(body)
+	if err != nil {
+		log.Info("error parsing RPC call", "source", "rpc", "err", err)
 		writeRPCError(ctx, w, nil, err)
 		return
+	}
+
+	backendRes, cached := s.handleSingleRPC(ctx, req)
+	setCacheHeader(w, cached)
+	writeRPCRes(ctx, w, backendRes)
+}
+
+func (s *Server) handleSingleRPC(ctx context.Context, req *RPCReq) (*RPCRes, bool) {
+	if err := ValidateRPCReq(req); err != nil {
+		RecordRPCError(ctx, BackendProxyd, MethodUnknown, err)
+		return NewRPCErrorRes(nil, err), false
 	}
 
 	group := s.rpcMethodMappings[req.Method]
@@ -132,11 +210,23 @@ func (s *Server) HandleRPC(w http.ResponseWriter, r *http.Request) {
 			"method", req.Method,
 		)
 		RecordRPCError(ctx, BackendProxyd, MethodUnknown, ErrMethodNotWhitelisted)
-		writeRPCError(ctx, w, req.ID, ErrMethodNotWhitelisted)
-		return
+		return NewRPCErrorRes(req.ID, ErrMethodNotWhitelisted), false
 	}
 
-	backendRes, err := s.backendGroups[group].Forward(ctx, req)
+	var backendRes *RPCRes
+	backendRes, err := s.cache.GetRPC(ctx, req)
+	if err != nil {
+		log.Warn(
+			"cache lookup error",
+			"req_id", GetReqID(ctx),
+			"err", err,
+		)
+	}
+	if backendRes != nil {
+		return backendRes, true
+	}
+
+	backendRes, err = s.backendGroups[group].Forward(ctx, req)
 	if err != nil {
 		log.Error(
 			"error forwarding RPC request",
@@ -144,11 +234,20 @@ func (s *Server) HandleRPC(w http.ResponseWriter, r *http.Request) {
 			"req_id", GetReqID(ctx),
 			"err", err,
 		)
-		writeRPCError(ctx, w, req.ID, err)
-		return
+		return NewRPCErrorRes(req.ID, err), false
 	}
 
-	writeRPCRes(ctx, w, backendRes)
+	if backendRes.Error == nil && backendRes.Result != nil {
+		if err = s.cache.PutRPC(ctx, req, backendRes); err != nil {
+			log.Warn(
+				"cache put error",
+				"req_id", GetReqID(ctx),
+				"err", err,
+			)
+		}
+	}
+
+	return backendRes, false
 }
 
 func (s *Server) HandleWS(w http.ResponseWriter, r *http.Request) {
@@ -214,12 +313,29 @@ func (s *Server) populateContext(w http.ResponseWriter, r *http.Request) context
 		return nil
 	}
 
+	xff := r.Header.Get("X-Forwarded-For")
+	if xff == "" {
+		ipPort := strings.Split(r.RemoteAddr, ":")
+		if len(ipPort) == 2 {
+			xff = ipPort[0]
+		}
+	}
+
 	ctx := context.WithValue(r.Context(), ContextKeyAuth, s.authenticatedPaths[authorization])
+	ctx = context.WithValue(ctx, ContextKeyXForwardedFor, xff)
 	return context.WithValue(
 		ctx,
 		ContextKeyReqID,
 		randStr(10),
 	)
+}
+
+func setCacheHeader(w http.ResponseWriter, cached bool) {
+	if cached {
+		w.Header().Set(cacheStatusHdr, "HIT")
+	} else {
+		w.Header().Set(cacheStatusHdr, "MISS")
+	}
 }
 
 func writeRPCError(ctx context.Context, w http.ResponseWriter, id json.RawMessage, err error) {
@@ -237,14 +353,31 @@ func writeRPCRes(ctx context.Context, w http.ResponseWriter, res *RPCRes) {
 	if res.IsError() && res.Error.HTTPErrorCode != 0 {
 		statusCode = res.Error.HTTPErrorCode
 	}
+
+	w.Header().Set("content-type", "application/json")
 	w.WriteHeader(statusCode)
-	enc := json.NewEncoder(w)
+	ww := &recordLenWriter{Writer: w}
+	enc := json.NewEncoder(ww)
 	if err := enc.Encode(res); err != nil {
 		log.Error("error writing rpc response", "err", err)
 		RecordRPCError(ctx, BackendProxyd, MethodUnknown, err)
 		return
 	}
 	httpResponseCodesTotal.WithLabelValues(strconv.Itoa(statusCode)).Inc()
+	RecordResponsePayloadSize(ctx, ww.Len)
+}
+
+func writeBatchRPCRes(ctx context.Context, w http.ResponseWriter, res []*RPCRes) {
+	w.Header().Set("content-type", "application/json")
+	w.WriteHeader(200)
+	ww := &recordLenWriter{Writer: w}
+	enc := json.NewEncoder(ww)
+	if err := enc.Encode(res); err != nil {
+		log.Error("error writing batch rpc response", "err", err)
+		RecordRPCError(ctx, BackendProxyd, MethodUnknown, err)
+		return
+	}
+	RecordResponsePayloadSize(ctx, ww.Len)
 }
 
 func instrumentedHdlr(h http.Handler) http.HandlerFunc {
@@ -270,4 +403,44 @@ func GetReqID(ctx context.Context) string {
 		return ""
 	}
 	return reqId
+}
+
+func GetXForwardedFor(ctx context.Context) string {
+	xff, ok := ctx.Value(ContextKeyXForwardedFor).(string)
+	if !ok {
+		return ""
+	}
+	return xff
+}
+
+type recordLenReader struct {
+	io.Reader
+	Len int
+}
+
+func (r *recordLenReader) Read(p []byte) (n int, err error) {
+	n, err = r.Reader.Read(p)
+	r.Len += n
+	return
+}
+
+type recordLenWriter struct {
+	io.Writer
+	Len int
+}
+
+func (w *recordLenWriter) Write(p []byte) (n int, err error) {
+	n, err = w.Writer.Write(p)
+	w.Len += n
+	return
+}
+
+type NoopRPCCache struct{}
+
+func (n *NoopRPCCache) GetRPC(context.Context, *RPCReq) (*RPCRes, error) {
+	return nil, nil
+}
+
+func (n *NoopRPCCache) PutRPC(context.Context, *RPCReq, *RPCRes) error {
+	return nil
 }

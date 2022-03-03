@@ -1,6 +1,7 @@
 /* External Imports */
-import { promisify } from 'util'
 import { exec } from 'child_process'
+import { promisify } from 'util'
+
 import { ethers } from 'ethers'
 import {
   computeStorageSlots,
@@ -39,6 +40,8 @@ export interface RollupDeployConfig {
   l1FeeWalletAddress: string
   // Address of the L1CrossDomainMessenger contract.
   l1CrossDomainMessengerAddress: string
+  // Block height to activate berlin hardfork
+  berlinBlock: number
 }
 
 /**
@@ -149,6 +152,7 @@ export const makeL2GenesisFile = async (
       petersburgBlock: 0,
       istanbulBlock: 0,
       muirGlacierBlock: 0,
+      berlinBlock: cfg.berlinBlock,
       clique: {
         period: 0,
         epoch: 30000,

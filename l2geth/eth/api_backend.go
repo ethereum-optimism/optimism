@@ -136,14 +136,12 @@ func (b *EthAPIBackend) IngestTransactions(txs []*types.Transaction) error {
 	return nil
 }
 
+func (b *EthAPIBackend) SequencerClientHttp() string {
+	return b.eth.config.Rollup.SequencerClientHttp
+}
+
 func (b *EthAPIBackend) HeaderByNumber(ctx context.Context, number rpc.BlockNumber) (*types.Header, error) {
-	// Pending block is only known by the miner
-	if number == rpc.PendingBlockNumber {
-		block := b.eth.miner.PendingBlock()
-		return block.Header(), nil
-	}
-	// Otherwise resolve and return the block
-	if number == rpc.LatestBlockNumber {
+	if number == rpc.LatestBlockNumber || number == rpc.PendingBlockNumber {
 		return b.eth.blockchain.CurrentBlock().Header(), nil
 	}
 	return b.eth.blockchain.GetHeaderByNumber(uint64(number)), nil
@@ -171,13 +169,7 @@ func (b *EthAPIBackend) HeaderByHash(ctx context.Context, hash common.Hash) (*ty
 }
 
 func (b *EthAPIBackend) BlockByNumber(ctx context.Context, number rpc.BlockNumber) (*types.Block, error) {
-	// Pending block is only known by the miner
-	if number == rpc.PendingBlockNumber {
-		block := b.eth.miner.PendingBlock()
-		return block, nil
-	}
-	// Otherwise resolve and return the block
-	if number == rpc.LatestBlockNumber {
+	if number == rpc.LatestBlockNumber || number == rpc.PendingBlockNumber {
 		return b.eth.blockchain.CurrentBlock(), nil
 	}
 	return b.eth.blockchain.GetBlockByNumber(uint64(number)), nil
@@ -209,12 +201,6 @@ func (b *EthAPIBackend) BlockByNumberOrHash(ctx context.Context, blockNrOrHash r
 }
 
 func (b *EthAPIBackend) StateAndHeaderByNumber(ctx context.Context, number rpc.BlockNumber) (*state.StateDB, *types.Header, error) {
-	// Pending state is only known by the miner
-	if number == rpc.PendingBlockNumber {
-		block, state := b.eth.miner.Pending()
-		return state, block.Header(), nil
-	}
-	// Otherwise resolve the block number and return its state
 	header, err := b.HeaderByNumber(ctx, number)
 	if err != nil {
 		return nil, nil, err
@@ -267,7 +253,7 @@ func (b *EthAPIBackend) GetTd(blockHash common.Hash) *big.Int {
 	return b.eth.blockchain.GetTdByHash(blockHash)
 }
 
-func (b *EthAPIBackend) GetEVM(ctx context.Context, msg core.Message, state *state.StateDB, header *types.Header) (*vm.EVM, func() error, error) {
+func (b *EthAPIBackend) GetEVM(ctx context.Context, msg core.Message, state *state.StateDB, header *types.Header, vmCfg *vm.Config) (*vm.EVM, func() error, error) {
 	// This was removed upstream:
 	// https://github.com/ethereum-optimism/optimism/l2geth/commit/39f502329fac4640cfb71959c3496f19ea88bc85#diff-9886da3412b43831145f62cec6e895eb3613a175b945e5b026543b7463454603
 	// We're throwing this behind a UsingOVM flag for now as to not break
@@ -276,9 +262,11 @@ func (b *EthAPIBackend) GetEVM(ctx context.Context, msg core.Message, state *sta
 		state.SetBalance(msg.From(), math.MaxBig256)
 	}
 	vmError := func() error { return nil }
-
+	if vmCfg == nil {
+		vmCfg = b.eth.blockchain.GetVMConfig()
+	}
 	context := core.NewEVMContext(msg, header, b.eth.BlockChain(), nil)
-	return vm.NewEVM(context, state, b.eth.blockchain.Config(), *b.eth.blockchain.GetVMConfig()), vmError, nil
+	return vm.NewEVM(context, state, b.eth.blockchain.Config(), *vmCfg), vmError, nil
 }
 
 func (b *EthAPIBackend) SubscribeRemovedLogsEvent(ch chan<- core.RemovedLogsEvent) event.Subscription {

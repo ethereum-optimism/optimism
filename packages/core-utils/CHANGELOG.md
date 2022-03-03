@@ -1,5 +1,37 @@
 # @eth-optimism/core-utils
 
+## 0.8.0
+
+### Minor Changes
+
+- 0b4453f7: Deletes the Watcher and injectL2Context functions. Use the SDK instead.
+
+## 0.7.7
+
+### Patch Changes
+
+- b4165299: Added tests and docstrings to misc functions
+- 3c2acd91: Refactor folder structure of @eth-optimism/core-utils.
+
+## 0.7.6
+
+### Patch Changes
+
+- ba14c59d: Updates various ethers dependencies to their latest versions
+
+## 0.7.5
+
+### Patch Changes
+
+- ad94b9d1: test/docs: Improve docstrings and tests for utils inside of hex-strings.ts
+
+## 0.7.4
+
+### Patch Changes
+
+- ba96a455: Improved docstrings for BCFG typings
+- c3e85fef: Cleans up the internal file and folder structure for the typings exported by core-utils
+
 ## 0.7.3
 
 ### Patch Changes

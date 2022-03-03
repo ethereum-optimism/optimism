@@ -1,5 +1,17 @@
 # @eth-optimism/gas-oracle
 
+## 0.1.7
+
+### Patch Changes
+
+- fed748e0: Update to go-ethereum v1.10.16
+
+## 0.1.6
+
+### Patch Changes
+
+- b3efb8b7: String update to change the system name from OE to Optimism
+
 ## 0.1.5
 
 ### Patch Changes

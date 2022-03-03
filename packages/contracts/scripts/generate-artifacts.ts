@@ -1,6 +1,7 @@
 import path from 'path'
-import glob from 'glob'
 import fs from 'fs'
+
+import glob from 'glob'
 
 /**
  * Script for automatically generating a file which has a series of `require` statements for

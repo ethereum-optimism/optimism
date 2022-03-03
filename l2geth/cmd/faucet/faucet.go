@@ -467,7 +467,7 @@ func (f *faucet) apiHandler(w http.ResponseWriter, r *http.Request) {
 			username, avatar, address, err = authNoAuth(msg.URL)
 		default:
 			//lint:ignore ST1005 This error is to be displayed in the browser
-			err = errors.New("Something funky happened, please open an issue at https://github.com/ethereum-optimism/optimism/l2geth/issues")
+			err = errors.New("Something funky happened, please open an issue at https://github.com/ethereum-optimism/optimism/issues")
 		}
 		if err != nil {
 			if err = sendError(conn, err); err != nil {

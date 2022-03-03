@@ -2,10 +2,11 @@ package proxyd
 
 import (
 	"context"
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promauto"
 	"strconv"
 	"strings"
+
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 )
 
 const (
@@ -19,6 +20,8 @@ const (
 	SourceBackend = "backend"
 	MethodUnknown = "unknown"
 )
+
+var PayloadSizeBuckets = []float64{10, 50, 100, 500, 1000, 5000, 10000, 100000, 1000000}
 
 var (
 	rpcRequestsTotal = promauto.NewCounter(prometheus.CounterOpts{
@@ -139,6 +142,56 @@ var (
 		"source",
 	})
 
+	requestPayloadSizesGauge = promauto.NewHistogramVec(prometheus.HistogramOpts{
+		Namespace: MetricsNamespace,
+		Name:      "request_payload_sizes",
+		Help:      "Histogram of client request payload sizes.",
+		Buckets:   PayloadSizeBuckets,
+	}, []string{
+		"auth",
+	})
+
+	responsePayloadSizesGauge = promauto.NewHistogramVec(prometheus.HistogramOpts{
+		Namespace: MetricsNamespace,
+		Name:      "response_payload_sizes",
+		Help:      "Histogram of client response payload sizes.",
+		Buckets:   PayloadSizeBuckets,
+	}, []string{
+		"auth",
+	})
+
+	cacheHitsTotal = promauto.NewCounterVec(prometheus.CounterOpts{
+		Namespace: MetricsNamespace,
+		Name:      "cache_hits_total",
+		Help:      "Number of cache hits.",
+	}, []string{
+		"method",
+	})
+
+	cacheMissesTotal = promauto.NewCounterVec(prometheus.CounterOpts{
+		Namespace: MetricsNamespace,
+		Name:      "cache_misses_total",
+		Help:      "Number of cache misses.",
+	}, []string{
+		"method",
+	})
+
+	lvcErrorsTotal = promauto.NewCounterVec(prometheus.CounterOpts{
+		Namespace: MetricsNamespace,
+		Name:      "lvc_errors_total",
+		Help:      "Count of lvc errors.",
+	}, []string{
+		"key",
+	})
+
+	lvcPollTimeGauge = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: MetricsNamespace,
+		Name:      "lvc_poll_time_gauge",
+		Help:      "Gauge of lvc poll time.",
+	}, []string{
+		"key",
+	})
+
 	rpcSpecialErrors = []string{
 		"nonce too low",
 		"gas price too high",
@@ -184,4 +237,20 @@ func MaybeRecordSpecialRPCError(ctx context.Context, backendName, method string,
 			return
 		}
 	}
+}
+
+func RecordRequestPayloadSize(ctx context.Context, payloadSize int) {
+	requestPayloadSizesGauge.WithLabelValues(GetAuthCtx(ctx)).Observe(float64(payloadSize))
+}
+
+func RecordResponsePayloadSize(ctx context.Context, payloadSize int) {
+	responsePayloadSizesGauge.WithLabelValues(GetAuthCtx(ctx)).Observe(float64(payloadSize))
+}
+
+func RecordCacheHit(method string) {
+	cacheHitsTotal.WithLabelValues(method).Inc()
+}
+
+func RecordCacheMiss(method string) {
+	cacheMissesTotal.WithLabelValues(method).Inc()
 }

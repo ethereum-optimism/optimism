@@ -27,7 +27,7 @@ type BatchElement struct {
 	// Tx is the optional transaction that was applied in this batch.
 	//
 	// NOTE: This field will only be populated for sequencer txs.
-	Tx *l2types.Transaction
+	Tx *CachedTx
 }
 
 // IsSequencerTx returns true if this batch contains a tx that needs to be
@@ -54,14 +54,15 @@ func BatchElementFromBlock(block *l2types.Block) BatchElement {
 	isSequencerTx := tx.QueueOrigin() == l2types.QueueOriginSequencer
 
 	// Only include sequencer txs in the returned BatchElement.
-	if !isSequencerTx {
-		tx = nil
+	var cachedTx *CachedTx
+	if isSequencerTx {
+		cachedTx = NewCachedTx(tx)
 	}
 
 	return BatchElement{
 		Timestamp:   block.Time(),
 		BlockNumber: l1BlockNumber,
-		Tx:          tx,
+		Tx:          cachedTx,
 	}
 }
 
@@ -77,12 +78,13 @@ func GenSequencerBatchParams(
 	shouldStartAtElement uint64,
 	blockOffset uint64,
 	batch []BatchElement,
+	batchType BatchType,
 ) (*AppendSequencerBatchParams, error) {
 
 	var (
 		contexts               []BatchContext
 		groupedBlocks          []groupedBlock
-		txs                    []*l2types.Transaction
+		txs                    []*CachedTx
 		lastBlockIsSequencerTx bool
 		lastTimestamp          uint64
 		lastBlockNumber        uint64
@@ -90,11 +92,10 @@ func GenSequencerBatchParams(
 
 	// Iterate over the batch elements, grouping the elements according to
 	// the following critera:
-	//  - All sequencer txs in the same group must have the same timestamp
-	//     and block number.
+	//  - All txs in the same group must have the same timestamp.
+	//  - All sequencer txs in the same group must have the same block number.
 	//  - If sequencer txs exist in a group, they must come before all
 	//     queued txs.
-	//  - A group should never split consecutive queued txs.
 	//
 	// Assuming the block and timestamp criteria for sequencer txs are
 	// respected within each group, the following are examples of groupings:
@@ -109,17 +110,18 @@ func GenSequencerBatchParams(
 		// To enforce the above groupings, the following condition is
 		// used to determine when to create a new batch:
 		//  - On the first pass, or
-		//  - Whenever a sequecer tx is observed, and:
+		//  - The preceding tx has a different timestamp, or
+		//  - Whenever a sequencer tx is observed, and:
 		//    - The preceding tx was a queued tx, or
-		//    - The preceding sequencer tx has a different
-		//       block number/timestamp.
-		// Note that a sequencer tx is required to create a new group,
-		// so a queued tx may ONLY exist as the first element in a group
-		// if it is the very first element.
+		//    - The preceding sequencer tx has a different block number.
+		// Note that a sequencer tx is usually required to create a new group,
+		// so a queued tx may ONLY exist as the first element in a group if it
+		// is the very first element or it has a different timestamp from the
+		// preceding tx.
 		needsNewGroupOnSequencerTx := !lastBlockIsSequencerTx ||
-			el.Timestamp != lastTimestamp ||
 			el.BlockNumber != lastBlockNumber
 		if len(groupedBlocks) == 0 ||
+			el.Timestamp != lastTimestamp ||
 			(el.IsSequencerTx() && needsNewGroupOnSequencerTx) {
 
 			groupedBlocks = append(groupedBlocks, groupedBlock{})
@@ -187,5 +189,6 @@ func GenSequencerBatchParams(
 		TotalElementsToAppend: uint64(len(batch)),
 		Contexts:              contexts,
 		Txs:                   txs,
+		Type:                  batchType,
 	}, nil
 }

@@ -12,6 +12,9 @@ COPY --from=builder /optimism/*.json /optimism/yarn.lock ./
 COPY --from=builder /optimism/node_modules ./node_modules
 
 # copy deps (would have been nice if docker followed the symlinks required)
+COPY --from=builder /optimism/packages/sdk/package.json ./packages/sdk/package.json
+COPY --from=builder /optimism/packages/sdk/dist ./packages/sdk/dist
+
 COPY --from=builder /optimism/packages/core-utils/package.json ./packages/core-utils/package.json
 COPY --from=builder /optimism/packages/core-utils/dist ./packages/core-utils/dist
 

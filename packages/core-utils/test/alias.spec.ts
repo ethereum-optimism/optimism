@@ -1,5 +1,5 @@
 import { expect } from './setup'
-import { applyL1ToL2Alias, undoL1ToL2Alias } from '../src/alias'
+import { applyL1ToL2Alias, undoL1ToL2Alias } from '../src'
 
 describe('address aliasing utils', () => {
   describe('applyL1ToL2Alias', () => {
@@ -18,7 +18,7 @@ describe('address aliasing utils', () => {
     it('should throw if the input is not a valid address', () => {
       expect(() => {
         applyL1ToL2Alias('0x1234')
-      }).to.throw
+      }).to.throw('not a valid address: 0x1234')
     })
   })
 
@@ -38,7 +38,7 @@ describe('address aliasing utils', () => {
     it('should throw if the input is not a valid address', () => {
       expect(() => {
         undoL1ToL2Alias('0x1234')
-      }).to.throw
+      }).to.throw('not a valid address: 0x1234')
     })
   })
 })

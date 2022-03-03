@@ -1,10 +1,10 @@
 /* Imports: External */
 import { ethers } from 'ethers'
+import { sleep } from '@eth-optimism/core-utils'
 
 /* Imports: Internal */
 import { OptimismEnv } from './env'
-import { Direction } from './watcher-utils'
-import { gasPriceForL1, gasPriceForL2, sleep } from './utils'
+import { gasPriceForL1, gasPriceForL2 } from './utils'
 
 interface TransactionParams {
   contract: ethers.Contract
@@ -23,7 +23,7 @@ export const fundRandomWallet = async (
   const fundTx = await env.l1Wallet.sendTransaction({
     gasLimit: 25_000,
     to: wallet.address,
-    gasPrice: await gasPriceForL1(env),
+    gasPrice: await gasPriceForL1(),
     value,
   })
   await fundTx.wait()
@@ -37,21 +37,21 @@ export const executeL1ToL2Transaction = async (
 ) => {
   const signer = wallet.connect(env.l1Wallet.provider)
   const receipt = await retryOnNonceError(async () =>
-    env.l1Messenger
-      .connect(signer)
-      .sendMessage(
-        tx.contract.address,
-        tx.contract.interface.encodeFunctionData(
-          tx.functionName,
-          tx.functionParams
-        ),
-        MESSAGE_GAS,
-        {
-          gasPrice: await gasPriceForL1(env),
-        }
-      )
+    env.messenger.contracts.l1.L1CrossDomainMessenger.connect(
+      signer
+    ).sendMessage(
+      tx.contract.address,
+      tx.contract.interface.encodeFunctionData(
+        tx.functionName,
+        tx.functionParams
+      ),
+      MESSAGE_GAS,
+      {
+        gasPrice: await gasPriceForL1(),
+      }
+    )
   )
-  await env.waitForXDomainTransaction(receipt, Direction.L1ToL2)
+  await env.waitForXDomainTransaction(receipt)
 }
 
 export const executeL2ToL1Transaction = async (
@@ -61,23 +61,23 @@ export const executeL2ToL1Transaction = async (
 ) => {
   const signer = wallet.connect(env.l2Wallet.provider)
   const receipt = await retryOnNonceError(() =>
-    env.l2Messenger
-      .connect(signer)
-      .sendMessage(
-        tx.contract.address,
-        tx.contract.interface.encodeFunctionData(
-          tx.functionName,
-          tx.functionParams
-        ),
-        MESSAGE_GAS,
-        {
-          gasPrice: gasPriceForL2(env),
-        }
-      )
+    env.messenger.contracts.l2.L2CrossDomainMessenger.connect(
+      signer
+    ).sendMessage(
+      tx.contract.address,
+      tx.contract.interface.encodeFunctionData(
+        tx.functionName,
+        tx.functionParams
+      ),
+      MESSAGE_GAS,
+      {
+        gasPrice: gasPriceForL2(),
+      }
+    )
   )
 
   await env.relayXDomainMessages(receipt)
-  await env.waitForXDomainTransaction(receipt, Direction.L2ToL1)
+  await env.waitForXDomainTransaction(receipt)
 }
 
 export const executeL2Transaction = async (
@@ -90,7 +90,7 @@ export const executeL2Transaction = async (
     tx.contract
       .connect(signer)
       .functions[tx.functionName](...tx.functionParams, {
-        gasPrice: gasPriceForL2(env),
+        gasPrice: gasPriceForL2(),
       })
   )
   await result.wait()

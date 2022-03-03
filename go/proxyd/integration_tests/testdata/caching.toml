@@ -1,0 +1,29 @@
+[server]
+rpc_port = 8545
+
+[backend]
+response_timeout_seconds = 1
+
+[redis]
+url = "$REDIS_URL"
+
+[cache]
+enabled = true
+block_sync_rpc_url = "$GOOD_BACKEND_RPC_URL"
+
+
+[backends]
+[backends.good]
+rpc_url = "$GOOD_BACKEND_RPC_URL"
+ws_url = "$GOOD_BACKEND_RPC_URL"
+
+[backend_groups]
+[backend_groups.main]
+backends = ["good"]
+
+[rpc_method_mappings]
+eth_chainId = "main"
+net_version = "main"
+eth_getBlockByNumber = "main"
+eth_blockNumber = "main"
+eth_call = "main"

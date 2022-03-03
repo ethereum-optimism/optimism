@@ -1,6 +1,8 @@
 .github
 
 node_modules
+.env
+**/.env
 
 test
 **/*_test.go
@@ -12,3 +14,4 @@ l2geth/signer/fourbyte
 l2geth/cmd/puppeth
 l2geth/cmd/clef
 go/gas-oracle/gas-oracle
+go/batch-submitter/batch-submitter

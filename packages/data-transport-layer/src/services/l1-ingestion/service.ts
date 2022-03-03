@@ -1,5 +1,9 @@
 /* Imports: External */
-import { fromHexString, FallbackProvider } from '@eth-optimism/core-utils'
+import {
+  fromHexString,
+  FallbackProvider,
+  sleep,
+} from '@eth-optimism/core-utils'
 import { BaseService, Metrics } from '@eth-optimism/common-ts'
 import { TypedEvent } from '@eth-optimism/contracts/dist/types/common'
 import { BaseProvider } from '@ethersproject/providers'
@@ -8,20 +12,19 @@ import { constants } from 'ethers'
 import { Gauge, Counter } from 'prom-client'
 
 /* Imports: Internal */
+import { handleEventsTransactionEnqueued } from './handlers/transaction-enqueued'
+import { handleEventsSequencerBatchAppended } from './handlers/sequencer-batch-appended'
+import { handleEventsStateBatchAppended } from './handlers/state-batch-appended'
+import { MissingElementError } from './handlers/errors'
 import { TransportDB } from '../../db/transport-db'
 import {
   OptimismContracts,
-  sleep,
   loadOptimismContracts,
   loadContract,
   validators,
 } from '../../utils'
 import { EventHandlerSet } from '../../types'
-import { handleEventsTransactionEnqueued } from './handlers/transaction-enqueued'
-import { handleEventsSequencerBatchAppended } from './handlers/sequencer-batch-appended'
-import { handleEventsStateBatchAppended } from './handlers/state-batch-appended'
 import { L1DataTransportServiceOptions } from '../main/service'
-import { MissingElementError } from './handlers/errors'
 
 interface L1IngestionMetrics {
   highestSyncedL1Block: Gauge<string>
@@ -104,7 +107,9 @@ export class L1IngestionService extends BaseService<L1IngestionServiceOptions> {
   } = {} as any
 
   protected async _init(): Promise<void> {
-    this.state.db = new TransportDB(this.options.db)
+    this.state.db = new TransportDB(this.options.db, {
+      l2ChainId: this.options.l2ChainId,
+    })
 
     this.l1IngestionMetrics = registerMetrics(this.metrics)
 

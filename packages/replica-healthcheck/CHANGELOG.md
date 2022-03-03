@@ -1,5 +1,56 @@
 # @eth-optimism/replica-healthcheck
 
+## 0.3.9
+
+### Patch Changes
+
+- d4b0e193: Fix bug in replica healthcheck dockerfile
+- Updated dependencies [44420939]
+  - @eth-optimism/sdk@0.2.4
+
+## 0.3.8
+
+### Patch Changes
+
+- d3d70291: Use asL2Provider instead of injectL2Context in bss and healthcheck service.
+- Updated dependencies [f37c283c]
+- Updated dependencies [3f4d3c13]
+- Updated dependencies [0b4453f7]
+- Updated dependencies [0c54e60e]
+  - @eth-optimism/sdk@0.2.3
+  - @eth-optimism/core-utils@0.8.0
+
+## 0.3.7
+
+### Patch Changes
+
+- Updated dependencies [b4165299]
+- Updated dependencies [3c2acd91]
+  - @eth-optimism/core-utils@0.7.7
+
+## 0.3.6
+
+### Patch Changes
+
+- ba14c59d: Updates various ethers dependencies to their latest versions
+- Updated dependencies [ba14c59d]
+  - @eth-optimism/core-utils@0.7.6
+
+## 0.3.5
+
+### Patch Changes
+
+- Updated dependencies [ad94b9d1]
+  - @eth-optimism/core-utils@0.7.5
+
+## 0.3.4
+
+### Patch Changes
+
+- Updated dependencies [ba96a455]
+- Updated dependencies [c3e85fef]
+  - @eth-optimism/core-utils@0.7.4
+
 ## 0.3.3
 
 ### Patch Changes

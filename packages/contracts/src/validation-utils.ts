@@ -1,4 +1,5 @@
 import { createInterface } from 'readline'
+
 import { hexStringEquals } from '@eth-optimism/core-utils'
 
 export const getInput = (query) => {

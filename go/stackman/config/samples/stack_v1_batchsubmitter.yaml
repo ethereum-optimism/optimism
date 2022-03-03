@@ -1,0 +1,6 @@
+apiVersion: stack.optimism-stacks.net/v1
+kind: BatchSubmitter
+metadata:
+  name: batchsubmitter-sample
+spec:
+  # Add fields here

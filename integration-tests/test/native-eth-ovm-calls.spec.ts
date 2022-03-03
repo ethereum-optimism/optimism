@@ -1,7 +1,9 @@
-import { expect } from './shared/setup'
-
+/* Imports: External */
 import { BigNumber, Contract, ContractFactory, Wallet } from 'ethers'
 import { ethers } from 'hardhat'
+
+/* Imports: Internal */
+import { expect } from './shared/setup'
 import {
   fundUser,
   encodeSolidityRevertMessage,
@@ -38,14 +40,14 @@ describe('Native ETH value integration tests', () => {
     }
 
     const value = ethers.utils.parseEther('0.01')
-    await fundUser(env.watcher, env.l1Bridge, value, wallet.address)
+    await fundUser(env.messenger, value, wallet.address)
 
     const initialBalances = await getBalances()
 
     const there = await wallet.sendTransaction({
       to: other.address,
       value,
-      gasPrice: await gasPriceForL2(env),
+      gasPrice: await gasPriceForL2(),
     })
     const thereReceipt = await there.wait()
     const thereGas = thereReceipt.gasUsed.mul(there.gasPrice)
@@ -63,7 +65,7 @@ describe('Native ETH value integration tests', () => {
     const backAgain = await other.sendTransaction({
       to: wallet.address,
       value: backVal,
-      gasPrice: await gasPriceForL2(env),
+      gasPrice: await gasPriceForL2(),
     })
     const backReceipt = await backAgain.wait()
     const backGas = backReceipt.gasUsed.mul(backAgain.gasPrice)
@@ -121,8 +123,10 @@ describe('Native ETH value integration tests', () => {
         'geth RPC does not match ovmSELFBALANCE'
       )
       // query ovmSELFBALANCE() opcode via eth_call as another check
-      const ovmEthBalanceOf0 = await env.ovmEth.balanceOf(ValueCalls0.address)
-      const ovmEthBalanceOf1 = await env.ovmEth.balanceOf(ValueCalls1.address)
+      const ovmEthBalanceOf0 =
+        await env.messenger.contracts.l2.OVM_ETH.balanceOf(ValueCalls0.address)
+      const ovmEthBalanceOf1 =
+        await env.messenger.contracts.l2.OVM_ETH.balanceOf(ValueCalls1.address)
       expect(ovmEthBalanceOf0).to.deep.eq(
         BigNumber.from(expectedBalances[0]),
         'geth RPC does not match OVM_ETH.balanceOf'
@@ -156,12 +160,7 @@ describe('Native ETH value integration tests', () => {
     beforeEach(async () => {
       ValueCalls0 = await Factory__ValueCalls.deploy()
       ValueCalls1 = await Factory__ValueCalls.deploy()
-      await fundUser(
-        env.watcher,
-        env.l1Bridge,
-        initialBalance0,
-        ValueCalls0.address
-      )
+      await fundUser(env.messenger, initialBalance0, ValueCalls0.address)
       // These tests ass assume ValueCalls0 starts with a balance, but ValueCalls1 does not.
       await checkBalances([initialBalance0, 0])
     })
@@ -169,7 +168,7 @@ describe('Native ETH value integration tests', () => {
     it('should allow ETH to be sent', async () => {
       const sendAmount = 15
       const tx = await ValueCalls0.simpleSend(ValueCalls1.address, sendAmount, {
-        gasPrice: await gasPriceForL2(env),
+        gasPrice: await gasPriceForL2(),
       })
       await tx.wait()
 
@@ -203,12 +202,7 @@ describe('Native ETH value integration tests', () => {
     it('should have the correct ovmSELFBALANCE which includes the msg.value', async () => {
       // give an initial balance which the ovmCALLVALUE should be added to when calculating ovmSELFBALANCE
       const initialBalance = 10
-      await fundUser(
-        env.watcher,
-        env.l1Bridge,
-        initialBalance,
-        ValueCalls1.address
-      )
+      await fundUser(env.messenger, initialBalance, ValueCalls1.address)
 
       const sendAmount = 15
       const [success, returndata] = await ValueCalls0.callStatic.sendWithData(

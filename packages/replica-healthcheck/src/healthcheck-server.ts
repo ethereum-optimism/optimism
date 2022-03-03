@@ -1,11 +1,13 @@
-import express from 'express'
 import { Server } from 'net'
+
+import express from 'express'
 import promBundle from 'express-prom-bundle'
 import { Gauge, Histogram } from 'prom-client'
 import cron from 'node-cron'
 import { providers, Wallet } from 'ethers'
 import { Metrics, Logger } from '@eth-optimism/common-ts'
-import { injectL2Context, sleep } from '@eth-optimism/core-utils'
+import { sleep } from '@eth-optimism/core-utils'
+import { asL2Provider } from '@eth-optimism/sdk'
 
 import { binarySearchForMismatch } from './helpers'
 
@@ -48,7 +50,7 @@ export class HealthcheckServer {
   init = () => {
     this.metrics = this.initMetrics()
     this.server = this.initServer()
-    this.replicaProvider = injectL2Context(
+    this.replicaProvider = asL2Provider(
       new providers.StaticJsonRpcProvider({
         url: this.options.replicaRpcProvider,
         headers: { 'User-Agent': 'replica-healthcheck' },
@@ -179,7 +181,7 @@ export class HealthcheckServer {
   }
 
   runSyncCheck = async () => {
-    const sequencerProvider = injectL2Context(
+    const sequencerProvider = asL2Provider(
       new providers.StaticJsonRpcProvider({
         url: this.options.sequencerRpcProvider,
         headers: { 'User-Agent': 'replica-healthcheck' },

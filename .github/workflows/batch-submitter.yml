@@ -10,8 +10,8 @@ on:
       - '*rc'
       - 'regenesis/*'
   pull_request:
-    paths:
-      - 'go/batch-submitter/*'
+    branches:
+      - '*'
   workflow_dispatch:
 
 defaults:
