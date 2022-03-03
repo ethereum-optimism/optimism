@@ -72,6 +72,16 @@ func stutterL1(t *testing.T, s *state, src *fakeChainSource, l1Heads chan eth.L1
 	l1Heads <- src.l1Head()
 }
 
+func stutterAdvance(t *testing.T, s *state, src *fakeChainSource, l1Heads chan eth.L1Node, reorgBase int) {
+	l1Heads <- src.l1Head()
+	l1Heads <- src.l1Head()
+	l1Heads <- src.l1Head()
+	l1Heads <- src.advanceL1()
+	l1Heads <- src.l1Head()
+	l1Heads <- src.l1Head()
+	l1Heads <- src.l1Head()
+}
+
 func reorg__L1(t *testing.T, s *state, src *fakeChainSource, l1Heads chan eth.L1Node, reorgBase int) {
 	src.reorgChains(reorgBase)
 	l1Heads <- src.l1Head()
@@ -169,6 +179,21 @@ func TestDriver(t *testing.T) {
 				{l1action: stutterL1, l2action: advanceL2, expectedL1Head: "w:6", expectedL2Head: "Z:5", expectedWindow: []testID{"z:5", "w:6"}},
 				{l1action: stutterL1, l2action: stutterL2, expectedL1Head: "w:6", expectedL2Head: "Z:5", expectedWindow: []testID{"z:5", "w:6"}},
 				{l1action: stutterL1, l2action: stutterL2, expectedL1Head: "w:6", expectedL2Head: "Z:5", expectedWindow: []testID{"z:5", "w:6"}},
+			},
+		},
+		{
+			name:      "Simple extensions with multi-step",
+			l1Chains:  []string{"abcdefgh"},
+			l2Chains:  []string{"ABCDEF"},
+			seqWindow: 2,
+			steps: []stateTestCaseStep{
+				{l1action: stutterL1, l2action: stutterL2, expectedL1Head: "a:0", expectedL2Head: "A:0"},
+				{l1action: advanceL1, l2action: stutterL2, expectedL1Head: "b:1", expectedL2Head: "A:0", expectedWindow: []testID{"a:0", "b:1"}},
+				{l1action: stutterAdvance, l2action: advanceL2, expectedL1Head: "c:2", expectedL2Head: "B:1", expectedWindow: []testID{"b:1", "c:2"}},
+				{l1action: advanceL1, l2action: advanceL2, expectedL1Head: "d:3", expectedL2Head: "C:2", expectedWindow: []testID{"c:2", "d:3"}},
+				{l1action: advanceL1, l2action: advanceL2, expectedL1Head: "e:4", expectedL2Head: "D:3", expectedWindow: []testID{"d:3", "e:4"}},
+				{l1action: advanceL1, l2action: advanceL2, expectedL1Head: "f:5", expectedL2Head: "E:4", expectedWindow: []testID{"e:4", "f:5"}},
+				{l1action: advanceL1, l2action: advanceL2, expectedL1Head: "g:6", expectedL2Head: "F:5", expectedWindow: []testID{"f:5", "g:6"}},
 			},
 		},
 	}
