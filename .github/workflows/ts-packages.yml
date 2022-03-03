@@ -115,12 +115,6 @@ jobs:
           flags: core-utils
       - uses: codecov/codecov-action@v1
         with:
-          files: ./packages/batch-submitter/coverage.json
-          fail_ci_if_error: false
-          verbose: true
-          flags: batch-submitter
-      - uses: codecov/codecov-action@v1
-        with:
           files: ./packages/data-transport-layer/coverage.json
           fail_ci_if_error: false
           verbose: true
@@ -169,10 +163,6 @@ jobs:
         # only install dependencies if there was a change in the deps
         # if: steps.yarn-cache.outputs.cache-hit != 'true'
         run: yarn install
-
-      - name: Check packages/batch-submitter
-        working-directory: ./packages/batch-submitter
-        run: npx depcheck
 
       - name: Check packages/contracts
         working-directory: ./packages/contracts

@@ -1,7 +1,5 @@
-BATCH_SUBMITTER ?= docker-compose.ts-batch-submitter.yml
 DOCKER_COMPOSE_CMD := docker-compose \
-	-f docker-compose.yml \
-	-f $(BATCH_SUBMITTER)
+	-f docker-compose.yml
 
 build:
 	DOCKER_BUILDKIT=1 \

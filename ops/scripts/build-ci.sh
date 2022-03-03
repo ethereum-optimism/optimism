@@ -43,7 +43,6 @@ docker tag localhost:5000/ethereumoptimism/builder:latest ethereumoptimism/build
 
 build deployer "ethereumoptimism/deployer:latest" "./ops/docker/Dockerfile.deployer" .
 build dtl "ethereumoptimism/data-transport-layer:latest" "./ops/docker/Dockerfile.data-transport-layer" .
-build batch_submitter "ethereumoptimism/batch-submitter:latest" "./ops/docker/Dockerfile.batch-submitter" .
 build relayer "ethereumoptimism/message-relayer:latest" "./ops/docker/Dockerfile.message-relayer" .
 build integration-tests "ethereumoptimism/integration-tests:latest" "./ops/docker/Dockerfile.integration-tests" .
 
