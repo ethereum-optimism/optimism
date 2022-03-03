@@ -63,6 +63,14 @@ CREATE TABLE IF NOT EXISTS deposits (
 );
 `
 
+const createDepositTxnHashIndex = `
+CREATE INDEX ON deposits (txn_hash)
+`
+
+const createDepositAddressIndex = `
+CREATE INDEX ON deposits (address)
+`
+
 const createDisbursementsTable = `
 CREATE TABLE IF NOT EXISTS disbursements (
 	id INT8 NOT NULL PRIMARY KEY REFERENCES deposits(id),
@@ -91,6 +99,8 @@ CREATE TABLE IF NOT EXISTS pending_txs (
 
 var migrations = []string{
 	createDepositsTable,
+	createDepositTxnHashIndex,
+	createDepositAddressIndex,
 	createDisbursementsTable,
 	lastProcessedBlockTable,
 	pendingTxTable,
