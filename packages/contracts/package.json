@@ -119,7 +119,7 @@
     "ts-generator": "0.0.8",
     "ts-node": "^10.0.0",
     "typechain": "^6.0.2",
-    "typescript": "^4.3.5"
+    "typescript": "^4.6.2"
   },
   "peerDependencies": {
     "ethers": "^5"
