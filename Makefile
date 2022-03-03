@@ -5,13 +5,13 @@ unicorn:
 	./build_unicorn.sh
 
 minigeth_mips:
-	(cd mipigo && ./build.sh)
+	cd mipigo && ./build.sh
 
 minigeth_default_arch:
-	(cd minigeth && go build)
+	cd minigeth && go build
 
 mipsevm:
-	(cd mipsevm && go build)
+	cd mipsevm && go build
 
 contracts:
 	yarn
