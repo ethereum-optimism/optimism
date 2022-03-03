@@ -2,7 +2,6 @@ package derive
 
 import (
 	"encoding/binary"
-	"errors"
 	"fmt"
 	"math/big"
 
@@ -240,11 +239,6 @@ type L2Info interface {
 //
 // This is a pure function.
 func PayloadAttributes(config *rollup.Config, l1Info L1Info, receipts []*types.Receipt, seqWindow []BatchData, l2Info L2Info) ([]*l2.PayloadAttributes, error) {
-	// check if we have the full sequencing window
-	if len(seqWindow) == 0 {
-		return nil, errors.New("cannot derive payload attributes from empty sequencing window")
-	}
-
 	// Retrieve the deposits of this epoch (all deposits from the first block)
 	deposits, err := DeriveDeposits(l1Info, receipts)
 	if err != nil {
@@ -274,7 +268,13 @@ func PayloadAttributes(config *rollup.Config, l1Info L1Info, receipts []*types.R
 		}
 	}
 
+	// If there are no submitted batches, at least derive the deposit block.
+	if len(seqWindow) == 0 {
+		highestSeenTimestamp += config.BlockTime
+	}
+
 	// fill the gaps and always ensure at least one L2 block
+	// TODO: What happens if `highestSeenTimestamp` start rolling into the next epoch (higher than the next L1 block timestamp)
 	var out []*l2.PayloadAttributes
 	for t := l1Info.Time() + config.BlockTime; t <= highestSeenTimestamp; t += config.BlockTime {
 		if bl, ok := l2Blocks[t]; ok {
