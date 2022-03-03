@@ -137,6 +137,10 @@ func FindL1Range(ctx context.Context, source ChainSource, begin eth.BlockID) ([]
 		maxBlocks = l1head.Self.Number - begin.Number
 	}
 
+	if maxBlocks == 0 {
+		return nil, nil
+	}
+
 	prevHash := begin.Hash
 	var res []eth.BlockID
 	for i := begin.Number + 1; i < begin.Number+maxBlocks+1; i++ {
