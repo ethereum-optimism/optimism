@@ -250,7 +250,7 @@ func PayloadAttributes(config *rollup.Config, l1Info L1Info, receipts []*types.R
 	// Repeating the latest randomness of L1 might not be ideal.
 	randomnessSeed := l2.Bytes32(l1Info.MixDigest())
 
-	// Collect all L2 batches, the bathes may be out-of-order, or possibly missing.
+	// Collect all L2 batches, the batches may be out-of-order, or possibly missing.
 	l2Blocks := make(map[uint64]*l2.PayloadAttributes)
 	highestSeenTimestamp := l1Info.Time()
 	for _, batch := range seqWindow {

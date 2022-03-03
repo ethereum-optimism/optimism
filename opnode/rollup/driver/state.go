@@ -39,34 +39,6 @@ type state struct {
 	done chan struct{}
 }
 
-// l1WindowEnd returns the last block that should be used as `base` to L1ChainWindow
-// This is either the last block of the window, or the L1 base block if the window is not populated
-func (s *state) l1WindowEnd() eth.BlockID {
-	if len(s.l1Window) == 0 {
-		return s.l1Base
-	}
-	return s.l1Window[len(s.l1Window)-1]
-}
-
-// TODO: Split this function into populate window & SequencingWindow
-func (s *state) getNextWindow(ctx context.Context) ([]eth.BlockID, error) {
-
-	if uint64(len(s.l1Window)) < s.Config.SeqWindowSize {
-		s.log.Trace("Pulling chain window from L1", "cached_size", len(s.l1Window), "window_end", s.l1WindowEnd())
-		nexts, err := s.input.L1ChainWindow(ctx, s.l1WindowEnd())
-		if err != nil {
-			return nil, err
-		}
-		s.log.Trace("Window from l1", "nexts", nexts)
-		s.l1Window = append(s.l1Window, nexts...)
-	}
-	l := uint64(len(s.l1Window))
-	if l > s.Config.SeqWindowSize {
-		l = s.Config.SeqWindowSize
-	}
-	return s.l1Window[:l], nil
-}
-
 func NewState(log log.Logger, config rollup.Config, input inputInterface, output outputInterface) *state {
 	return &state{
 		Config: config,
@@ -98,6 +70,36 @@ func (s *state) Start(ctx context.Context, l1Heads <-chan eth.L1Node) error {
 
 func (s *state) Close() error {
 	close(s.done)
+	return nil
+}
+
+// l1WindowEnd returns the last block that should be used as `base` to L1ChainWindow
+// This is either the last block of the window, or the L1 base block if the window is not populated
+func (s *state) l1WindowEnd() eth.BlockID {
+	if len(s.l1Window) == 0 {
+		return s.l1Base
+	}
+	return s.l1Window[len(s.l1Window)-1]
+}
+
+// sequencingWindow returns the next sequencing window and true if it exists, (nil, false) if
+// there are not enough saved blocks.
+func (s *state) sequencingWindow() ([]eth.BlockID, bool) {
+	if len(s.l1Window) < int(s.Config.SeqWindowSize) {
+		return nil, false
+	}
+	return s.l1Window[:int(s.Config.SeqWindowSize)], true
+}
+
+// extendL1Window extends the cached L1 window by pulling blocks from L1.
+// It starts just after `l1WindowEnd()`
+func (s *state) extendL1Window(ctx context.Context) error {
+	s.log.Trace("Extending the cached window from L1", "cached_size", len(s.l1Window), "window_end", s.l1WindowEnd())
+	nexts, err := s.input.L1ChainWindow(ctx, s.l1WindowEnd())
+	if err != nil {
+		return err
+	}
+	s.l1Window = append(s.l1Window, nexts...)
 	return nil
 }
 
@@ -186,17 +188,23 @@ func (s *state) loop() {
 			cancel()
 
 		case <-stepRequest:
-			window, err := s.getNextWindow(ctx)
-			if err != nil {
-				panic(err)
+			log := s.log.New("action", "step_request", "cached_window_len", len(s.l1Window), "l1Head", s.l1Head, "l2Head", s.l2Head, "l1Base", s.l1Base)
+			// Extended cached window if we do not have enough saved blocks
+			if len(s.l1Window) < int(s.Config.SeqWindowSize) {
+				err := s.extendL1Window(context.Background())
+				log.Trace("Extended window", "new_cached_window_len", len(s.l1Window))
+				if err != nil {
+					panic(err)
+				}
 			}
-			s.log.Trace("Step request", "window", window)
-			if len(window) == int(s.Config.SeqWindowSize) {
-				s.log.Trace("Running step")
+
+			// Get next window (& ensure that it exists)
+			if window, ok := s.sequencingWindow(); ok {
+				log.Trace("Running step")
 				ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 				newL2Head, err := s.output.step(ctx, s.l2Head, s.l2Finalized, window)
 				cancel()
-				s.log.Trace("step output", "head", newL2Head, "err", err)
+				log.Trace("Ran step", "head", newL2Head, "err", err)
 				if err != nil {
 					panic(err)
 				}
@@ -204,9 +212,8 @@ func (s *state) loop() {
 				s.l1Base = s.l1Window[0]
 				s.l1Window = s.l1Window[1:]
 				// TODO: l2Finalized/l2Safe.
-
 			} else {
-				s.log.Trace("Not enough saved blocks to run step")
+				log.Trace("Not enough saved blocks to run step")
 			}
 
 		}
