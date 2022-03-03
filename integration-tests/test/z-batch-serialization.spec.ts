@@ -15,8 +15,9 @@ describe('Batch Serialization', () => {
 
   it('should fetch batches', async () => {
     const tip = await env.l1Provider.getBlockNumber()
-    const logs = await env.ctc.queryFilter(
-      env.ctc.filters.TransactionBatchAppended(),
+    const ctc = env.messenger.contracts.l1.CanonicalTransactionChain
+    const logs = await ctc.queryFilter(
+      ctc.filters.TransactionBatchAppended(),
       0,
       tip
     )
