@@ -248,7 +248,7 @@ func TestSystemE2E(t *testing.T) {
 	require.Nil(t, err, "Could not get transaction receipt")
 
 	// Wait (or timeout) for that block to show up on L2
-	timeoutCh := time.After(3 * time.Second)
+	timeoutCh := time.After(6 * time.Second)
 loop:
 	for {
 		select {
