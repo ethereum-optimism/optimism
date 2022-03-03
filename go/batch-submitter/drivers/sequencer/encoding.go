@@ -1,8 +1,11 @@
 package sequencer
 
 import (
+	"bufio"
 	"bytes"
+	"compress/zlib"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"io"
 	"math"
@@ -17,7 +20,13 @@ const (
 	TxLenSize = 3
 )
 
-var byteOrder = binary.BigEndian
+var (
+	// byteOrder represents the endiannes used for batch serialization
+	byteOrder = binary.BigEndian
+	// ErrMalformedBatch represents a batch that is not well formed
+	// according to the protocol specification
+	ErrMalformedBatch = errors.New("malformed batch")
+)
 
 // BatchContext denotes a range of transactions that belong the same batch. It
 // is used to compress shared fields that would otherwise be repeated for each
@@ -44,11 +53,14 @@ type BatchContext struct {
 //  - num_subsequent_queue_txs: 3 bytes
 //  - timestamp:                5 bytes
 //  - block_number:             5 bytes
+//
+// Note that writing to a bytes.Buffer cannot
+// error, so errors are ignored here
 func (c *BatchContext) Write(w *bytes.Buffer) {
-	writeUint64(w, c.NumSequencedTxs, 3)
-	writeUint64(w, c.NumSubsequentQueueTxs, 3)
-	writeUint64(w, c.Timestamp, 5)
-	writeUint64(w, c.BlockNumber, 5)
+	_ = writeUint64(w, c.NumSequencedTxs, 3)
+	_ = writeUint64(w, c.NumSubsequentQueueTxs, 3)
+	_ = writeUint64(w, c.Timestamp, 5)
+	_ = writeUint64(w, c.BlockNumber, 5)
 }
 
 // Read decodes the BatchContext from the passed reader. If fewer than 16-bytes
@@ -70,6 +82,45 @@ func (c *BatchContext) Read(r io.Reader) error {
 	}
 	return readUint64(r, &c.BlockNumber, 5)
 }
+
+// BatchType represents the type of batch being
+// submitted. When the first context in the batch
+// has a timestamp of 0, the blocknumber is interpreted
+// as an enum that represets the type
+type BatchType int8
+
+// Implements the Stringer interface for BatchType
+func (b BatchType) String() string {
+	switch b {
+	case BatchTypeLegacy:
+		return "LEGACY"
+	case BatchTypeZlib:
+		return "ZLIB"
+	default:
+		return ""
+	}
+}
+
+// BatchTypeFromString returns the BatchType
+// enum based on a human readable string
+func BatchTypeFromString(s string) BatchType {
+	switch s {
+	case "zlib", "ZLIB":
+		return BatchTypeZlib
+	case "legacy", "LEGACY":
+		return BatchTypeLegacy
+	default:
+		return BatchTypeLegacy
+	}
+}
+
+const (
+	// BatchTypeLegacy represets the legacy batch type
+	BatchTypeLegacy BatchType = -1
+	// BatchTypeZlib represents a batch type where the
+	// transaction data is compressed using zlib
+	BatchTypeZlib BatchType = 0
+)
 
 // AppendSequencerBatchParams holds the raw data required to submit a batch of
 // L2 txs to L1 CTC contract. Rather than encoding the objects using the
@@ -95,6 +146,9 @@ type AppendSequencerBatchParams struct {
 	// Txs contains all sequencer txs that will be recorded in the L1 CTC
 	// contract.
 	Txs []*CachedTx
+
+	// The type of the batch
+	Type BatchType
 }
 
 // Write encodes the AppendSequencerBatchParams using the following format:
@@ -105,20 +159,73 @@ type AppendSequencerBatchParams struct {
 //  - [num txs ommitted]
 //    - tx_len:                       3 bytes
 //    - tx_bytes:                     tx_len bytes
+//
+// Typed batches include a dummy context as the first context
+// where the timestamp is 0. The blocknumber is interpreted
+// as an enum that defines the type. It is impossible to have
+// a timestamp of 0 in practice, so this safely can indicate
+// that the batch is typed.
+// Type 0 batches have a dummy context where the blocknumber is
+// set to 0. The transaction data is compressed with zlib before
+// submitting the transaction to the chain. The fields should_start_at_element,
+// total_elements_to_append, num_contexts and the contexts themselves
+// are not altered.
+//
+// Note that writing to a bytes.Buffer cannot
+// error, so errors are ignored here
 func (p *AppendSequencerBatchParams) Write(w *bytes.Buffer) error {
-	writeUint64(w, p.ShouldStartAtElement, 5)
-	writeUint64(w, p.TotalElementsToAppend, 3)
+	_ = writeUint64(w, p.ShouldStartAtElement, 5)
+	_ = writeUint64(w, p.TotalElementsToAppend, 3)
+
+	// There must be contexts if there are transactions
+	if len(p.Contexts) == 0 && len(p.Txs) != 0 {
+		return ErrMalformedBatch
+	}
+
+	// There must be transactions if there are contexts
+	if len(p.Txs) == 0 && len(p.Contexts) != 0 {
+		return ErrMalformedBatch
+	}
+
+	// copy the contexts as to not malleate the struct
+	// when it is a typed batch
+	contexts := make([]BatchContext, 0, len(p.Contexts)+1)
+	if p.Type == BatchTypeZlib {
+		// All zero values for the single batch context
+		// is desired here as blocknumber 0 means it is a zlib batch
+		contexts = append(contexts, BatchContext{})
+	}
+	contexts = append(contexts, p.Contexts...)
 
 	// Write number of contexts followed by each fixed-size BatchContext.
-	writeUint64(w, uint64(len(p.Contexts)), 3)
-	for _, context := range p.Contexts {
+	_ = writeUint64(w, uint64(len(contexts)), 3)
+	for _, context := range contexts {
 		context.Write(w)
 	}
 
-	// Write each length-prefixed tx.
-	for _, tx := range p.Txs {
-		writeUint64(w, uint64(tx.Size()), TxLenSize)
-		_, _ = w.Write(tx.RawTx()) // can't fail for bytes.Buffer
+	switch p.Type {
+	case BatchTypeLegacy:
+		// Write each length-prefixed tx.
+		for _, tx := range p.Txs {
+			_ = writeUint64(w, uint64(tx.Size()), TxLenSize)
+			_, _ = w.Write(tx.RawTx()) // can't fail for bytes.Buffer
+		}
+	case BatchTypeZlib:
+		zw := zlib.NewWriter(w)
+		for _, tx := range p.Txs {
+			if err := writeUint64(zw, uint64(tx.Size()), TxLenSize); err != nil {
+				return err
+			}
+			if _, err := zw.Write(tx.RawTx()); err != nil {
+				return err
+			}
+		}
+		if err := zw.Close(); err != nil {
+			return err
+		}
+
+	default:
+		return fmt.Errorf("Unknown batch type: %s", p.Type)
 	}
 
 	return nil
@@ -159,6 +266,8 @@ func (p *AppendSequencerBatchParams) Read(r io.Reader) error {
 		return err
 	}
 
+	// Ensure that contexts is never nil
+	p.Contexts = make([]BatchContext, 0)
 	for i := uint64(0); i < numContexts; i++ {
 		var batchContext BatchContext
 		if err := batchContext.Read(r); err != nil {
@@ -168,14 +277,44 @@ func (p *AppendSequencerBatchParams) Read(r io.Reader) error {
 		p.Contexts = append(p.Contexts, batchContext)
 	}
 
+	// Assume that it is a legacy batch at first
+	p.Type = BatchTypeLegacy
+
+	// Handle backwards compatible batch types
+	if len(p.Contexts) > 0 && p.Contexts[0].Timestamp == 0 {
+		switch p.Contexts[0].BlockNumber {
+		case 0:
+			// zlib compressed transaction data
+			p.Type = BatchTypeZlib
+			// remove the first dummy context
+			p.Contexts = p.Contexts[1:]
+			numContexts--
+
+			zr, err := zlib.NewReader(r)
+			if err != nil {
+				return err
+			}
+			defer zr.Close()
+
+			r = bufio.NewReader(zr)
+		}
+	}
+
 	// Deserialize any transactions. Since the number of txs is ommitted
 	// from the encoding, loop until the stream is consumed.
 	for {
 		var txLen uint64
 		err := readUint64(r, &txLen, TxLenSize)
 		// Getting an EOF when reading the txLen expected for a cleanly
-		// encoded object. Silece the error and return success.
+		// encoded object. Silence the error and return success if
+		// the batch is well formed.
 		if err == io.EOF {
+			if len(p.Contexts) == 0 && len(p.Txs) != 0 {
+				return ErrMalformedBatch
+			}
+			if len(p.Txs) == 0 && len(p.Contexts) != 0 {
+				return ErrMalformedBatch
+			}
 			return nil
 		} else if err != nil {
 			return err
@@ -188,10 +327,11 @@ func (p *AppendSequencerBatchParams) Read(r io.Reader) error {
 
 		p.Txs = append(p.Txs, NewCachedTx(tx))
 	}
+
 }
 
 // writeUint64 writes a the bottom `n` bytes of `val` to `w`.
-func writeUint64(w *bytes.Buffer, val uint64, n uint) {
+func writeUint64(w io.Writer, val uint64, n uint) error {
 	if n < 1 || n > 8 {
 		panic(fmt.Sprintf("invalid number of bytes %d must be 1-8", n))
 	}
@@ -204,7 +344,8 @@ func writeUint64(w *bytes.Buffer, val uint64, n uint) {
 
 	var buf [8]byte
 	byteOrder.PutUint64(buf[:], val)
-	_, _ = w.Write(buf[8-n:]) // can't fail for bytes.Buffer
+	_, err := w.Write(buf[8-n:])
+	return err
 }
 
 // readUint64 reads `n` bytes from `r` and returns them in the lower `n` bytes
