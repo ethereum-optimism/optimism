@@ -12,11 +12,8 @@ on:
       - '*rc'
       - 'regenesis/*'
   pull_request:
-    paths:
-      - 'go/gas-oracle/**'
-      - 'go/batch-submitter/**'
-      - 'go/bss-core/**'
-      - 'go/teleportr/**'
+    branches:
+      - '*'
 jobs:
   golangci:
     name: lint
