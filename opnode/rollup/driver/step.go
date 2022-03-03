@@ -108,7 +108,7 @@ func AddBlock(ctx context.Context, logger log.Logger, rpc DriverAPI,
 	}
 
 	logger = logger.New("derived_l2", payload.ID())
-	logger.Info("derived full block")
+	logger.Info("derived full block", "l2Parent", l2Parent, "attrs", attrs, "payload", payload)
 
 	err = l2.ExecutePayload(ctx, rpc, payload)
 	if err != nil {

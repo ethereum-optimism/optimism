@@ -189,6 +189,7 @@ func (s *state) loop() {
 
 		case <-stepRequest:
 			log := s.log.New("action", "step_request", "cached_window_len", len(s.l1Window), "l1Head", s.l1Head, "l2Head", s.l2Head, "l1Base", s.l1Base)
+			log.Trace("Got step request")
 			// Extended cached window if we do not have enough saved blocks
 			if len(s.l1Window) < int(s.Config.SeqWindowSize) {
 				err := s.extendL1Window(context.Background())
