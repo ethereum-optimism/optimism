@@ -149,6 +149,15 @@ export class Context extends Struct {
     this.blockNumber = br.readU40BE()
     return this
   }
+
+  toJSON() {
+    return {
+      numSequencedTransactions: this.numSequencedTransactions,
+      numSubsequentQueueTransactions: this.numSubsequentQueueTransactions,
+      timestamp: this.timestamp,
+      blockNumber: this.blockNumber,
+    }
+  }
 }
 
 // transaction
@@ -227,6 +236,27 @@ export class BatchedTx extends Struct {
         s: this.tx.s,
       }
     )
+  }
+
+  toJSON() {
+    if (!this.tx) {
+      this.tx = parse(this.raw)
+    }
+
+    return {
+      nonce: this.tx.nonce,
+      gasPrice: this.tx.gasPrice.toString(),
+      gasLimit: this.tx.gasLimit.toString(),
+      to: this.tx.to,
+      value: this.tx.value.toString(),
+      data: this.tx.data,
+      v: this.tx.v,
+      r: this.tx.r,
+      s: this.tx.s,
+      chainId: this.tx.chainId,
+      hash: this.tx.hash,
+      from: this.tx.from,
+    }
   }
 
   // TODO: inconsistent API with toTransaction
@@ -389,5 +419,14 @@ export class SequencerBatch extends Struct {
 
   toHex(): string {
     return '0x' + this.encode().toString('hex')
+  }
+
+  toJSON() {
+    return {
+      shouldStartAtElement: this.shouldStartAtElement,
+      totalElementsToAppend: this.totalElementsToAppend,
+      contexts: this.contexts.map((c) => c.toJSON()),
+      transactions: this.transactions.map((tx) => tx.toJSON()),
+    }
   }
 }
