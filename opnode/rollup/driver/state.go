@@ -52,10 +52,12 @@ func (s *state) l1WindowEnd() eth.BlockID {
 func (s *state) getNextWindow(ctx context.Context) ([]eth.BlockID, error) {
 
 	if uint64(len(s.l1Window)) < s.Config.SeqWindowSize {
+		s.log.Trace("Pulling chain window from L1", "cached_size", len(s.l1Window), "window_end", s.l1WindowEnd())
 		nexts, err := s.input.L1ChainWindow(ctx, s.l1WindowEnd())
 		if err != nil {
 			return nil, err
 		}
+		s.log.Trace("Window from l1", "nexts", nexts)
 		s.l1Window = append(s.l1Window, nexts...)
 	}
 	l := uint64(len(s.l1Window))
@@ -134,7 +136,8 @@ func (s *state) newL1Head(ctx context.Context, head eth.L1Node) (bool, error) {
 	}
 	// Linear extension
 	s.l1Head = head.Self
-	if len(s.l1Window) > 0 && s.l1Window[len(s.l1Window)-1] == head.Parent {
+	// Check if the new block extends the L1 window and save it if so.
+	if s.l1WindowEnd() == head.Parent {
 		// // don't buffer more than 20 sequencing windows  (TBD, sanity limit)
 		// if uint64(len(e.l1Next)) < e.Config.SeqWindowSize*20 {
 		// 	e.l1Next = append(e.l1Next, l1HeadSig.Self)
@@ -144,17 +147,6 @@ func (s *state) newL1Head(ctx context.Context, head eth.L1Node) (bool, error) {
 
 	return false, nil
 
-}
-
-func (s *state) newSafeL2Head(head eth.BlockID) {
-	s.log.Trace("New L2 head", "head", head)
-	s.l2Head = head
-	// TODO: Update L1 base here.
-
-	// Remove the processed L1 block from the window
-	if len(s.l1Window) > 0 {
-		s.l1Window = s.l1Window[:1]
-	}
 }
 
 func (s *state) loop() {
@@ -194,11 +186,11 @@ func (s *state) loop() {
 			cancel()
 
 		case <-stepRequest:
-			s.log.Trace("Step request")
 			window, err := s.getNextWindow(ctx)
 			if err != nil {
 				panic(err)
 			}
+			s.log.Trace("Step request", "window", window)
 			if len(window) == int(s.Config.SeqWindowSize) {
 				s.log.Trace("Running step")
 				ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
@@ -208,7 +200,11 @@ func (s *state) loop() {
 				if err != nil {
 					panic(err)
 				}
-				s.newSafeL2Head(newL2Head)
+				s.l2Head = newL2Head
+				s.l1Base = s.l1Window[0]
+				s.l1Window = s.l1Window[1:]
+				// TODO: l2Finalized/l2Safe.
+
 			} else {
 				s.log.Trace("Not enough saved blocks to run step")
 			}
