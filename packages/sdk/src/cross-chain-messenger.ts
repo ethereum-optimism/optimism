@@ -453,10 +453,13 @@ export class CrossChainMessenger implements ICrossChainMessenger {
       timeoutMs?: number
     } = {}
   ): Promise<MessageReceipt> {
+    // Resolving once up-front is slightly more efficient.
+    const resolved = await this.toCrossChainMessage(message)
+
     let totalTimeMs = 0
     while (totalTimeMs < (opts.timeoutMs || Infinity)) {
       const tick = Date.now()
-      const receipt = await this.getMessageReceipt(message)
+      const receipt = await this.getMessageReceipt(resolved)
       if (receipt !== null) {
         return receipt
       } else {
@@ -466,6 +469,73 @@ export class CrossChainMessenger implements ICrossChainMessenger {
     }
 
     throw new Error(`timed out waiting for message receipt`)
+  }
+
+  public async waitForMessageStatus(
+    message: MessageLike,
+    status: MessageStatus,
+    opts: {
+      pollIntervalMs?: number
+      timeoutMs?: number
+    } = {}
+  ): Promise<void> {
+    // Resolving once up-front is slightly more efficient.
+    const resolved = await this.toCrossChainMessage(message)
+
+    let totalTimeMs = 0
+    while (totalTimeMs < (opts.timeoutMs || Infinity)) {
+      const tick = Date.now()
+      const currentStatus = await this.getMessageStatus(resolved)
+
+      // Handle special cases for L1 to L2 messages.
+      if (resolved.direction === MessageDirection.L1_TO_L2) {
+        // If we're at the expected status, we're done.
+        if (currentStatus === status) {
+          return
+        }
+
+        if (
+          status === MessageStatus.UNCONFIRMED_L1_TO_L2_MESSAGE &&
+          currentStatus > status
+        ) {
+          // Anything other than UNCONFIRMED_L1_TO_L2_MESSAGE implies that the message was at one
+          // point "unconfirmed", so we can stop waiting.
+          return
+        }
+
+        if (
+          status === MessageStatus.FAILED_L1_TO_L2_MESSAGE &&
+          currentStatus === MessageStatus.RELAYED
+        ) {
+          throw new Error(
+            `incompatible message status, expected FAILED_L1_TO_L2_MESSAGE got RELAYED`
+          )
+        }
+
+        if (
+          status === MessageStatus.RELAYED &&
+          currentStatus === MessageStatus.FAILED_L1_TO_L2_MESSAGE
+        ) {
+          throw new Error(
+            `incompatible message status, expected RELAYED got FAILED_L1_TO_L2_MESSAGE`
+          )
+        }
+      }
+
+      // Handle special cases for L2 to L1 messages.
+      if (resolved.direction === MessageDirection.L2_TO_L1) {
+        if (currentStatus >= status) {
+          // For L2 to L1 messages, anything after the expected status implies the previous status,
+          // so we can safely return if the current status enum is larger than the expected one.
+          return
+        }
+      }
+
+      await sleep(opts.pollIntervalMs || 4000)
+      totalTimeMs += Date.now() - tick
+    }
+
+    throw new Error(`timed out waiting for message status change`)
   }
 
   public async estimateL2MessageGasLimit(
