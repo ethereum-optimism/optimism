@@ -38,7 +38,7 @@ task('fetch-batches')
 
     const batches = []
 
-    for (let i = start; i < end; i += 2001) {
+    for (let i = start; i <= end; i += 2001) {
       const tip = Math.min(i + 2000, end)
       console.error(`Querying events ${i}-${tip}`)
 
