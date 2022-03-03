@@ -7,6 +7,7 @@ import {
   smoddit,
   ModifiableContract,
 } from '@eth-optimism/smock'
+import { smock } from '@defi-wonderland/smock'
 
 /* Internal Imports */
 import { expect } from '../../../setup'
@@ -20,6 +21,7 @@ const DUMMY_L1BRIDGE_ADDRESS: string =
   '0x1234123412341234123412341234123412341234'
 const DUMMY_L1TOKEN_ADDRESS: string =
   '0x2234223412342234223422342234223422342234'
+const OVM_ETH_ADDRESS: string = '0xDeadDeAddeAddEAddeadDEaDDEAdDeaDDeAD0000'
 
 describe('L2StandardBridge', () => {
   let alice: Signer
@@ -182,6 +184,15 @@ describe('L2StandardBridge', () => {
   describe('withdrawals', () => {
     const withdrawAmount = 1_000
     let SmoddedL2Token: ModifiableContract
+
+    let Fake__OVM_ETH
+
+    before(async () => {
+      Fake__OVM_ETH = await smock.fake('OVM_ETH', {
+        address: OVM_ETH_ADDRESS,
+      })
+    })
+
     beforeEach(async () => {
       // Deploy a smodded gateway so we can give some balances to withdraw
       SmoddedL2Token = await (
@@ -201,6 +212,35 @@ describe('L2StandardBridge', () => {
         },
         l2Bridge: L2StandardBridge.address,
       })
+    })
+
+    it('withdraw() withdraws and sends the correct withdrawal message for OVM_ETH', async () => {
+      await L2StandardBridge.withdraw(
+        Fake__OVM_ETH.address,
+        0,
+        0,
+        NON_NULL_BYTES32
+      )
+
+      const withdrawalCallToMessenger =
+        Mock__L2CrossDomainMessenger.smocked.sendMessage.calls[0]
+
+      // Assert the correct cross-chain call was sent:
+      // Message should be sent to the L1L1StandardBridge on L1
+      expect(withdrawalCallToMessenger._target).to.equal(DUMMY_L1BRIDGE_ADDRESS)
+
+      // Message data should be a call telling the L1StandardBridge to finalize the withdrawal
+      expect(withdrawalCallToMessenger._message).to.equal(
+        Factory__L1StandardBridge.interface.encodeFunctionData(
+          'finalizeETHWithdrawal',
+          [
+            await alice.getAddress(),
+            await alice.getAddress(),
+            0,
+            NON_NULL_BYTES32,
+          ]
+        )
+      )
     })
 
     it('withdraw() burns and sends the correct withdrawal message', async () => {

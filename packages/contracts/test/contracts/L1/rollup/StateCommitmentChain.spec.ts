@@ -409,17 +409,97 @@ describe('StateCommitmentChain', () => {
     })
   })
 
-  describe('verifyElement()', () => {
+  describe('getLastSequencerTimestamp', () => {
+    describe('when no batches have been inserted', () => {
+      it('should return zero', async () => {
+        expect(await StateCommitmentChain.getLastSequencerTimestamp()).to.equal(
+          0
+        )
+      })
+    })
+
+    describe('when one batch element has been inserted', () => {
+      let timestamp
+      beforeEach(async () => {
+        const batch = [NON_NULL_BYTES32]
+        Mock__CanonicalTransactionChain.smocked.getTotalElements.will.return.with(
+          batch.length
+        )
+        await StateCommitmentChain.appendStateBatch(batch, 0)
+        timestamp = await getEthTime(ethers.provider)
+      })
+
+      it('should return the number of inserted batch elements', async () => {
+        expect(await StateCommitmentChain.getLastSequencerTimestamp()).to.equal(
+          timestamp
+        )
+      })
+    })
+  })
+
+  describe('verifyStateCommitment()', () => {
+    const batch = [NON_NULL_BYTES32]
+    const batchHeader = {
+      batchIndex: 0,
+      batchRoot: NON_NULL_BYTES32,
+      batchSize: 1,
+      prevTotalElements: 0,
+      extraData: ethers.constants.HashZero,
+    }
+
+    const inclusionProof = {
+      index: 0,
+      siblings: [],
+    }
+
+    const element = NON_NULL_BYTES32
+
+    before(async () => {
+      Mock__BondManager.smocked.isCollateralized.will.return.with(true)
+    })
+
+    beforeEach(async () => {
+      Mock__CanonicalTransactionChain.smocked.getTotalElements.will.return.with(
+        batch.length
+      )
+      await StateCommitmentChain.appendStateBatch(batch, 0)
+      batchHeader.extraData = ethers.utils.defaultAbiCoder.encode(
+        ['uint256', 'address'],
+        [await getEthTime(ethers.provider), await sequencer.getAddress()]
+      )
+    })
+
     it('should revert when given an invalid batch header', async () => {
-      // TODO
+      await expect(
+        StateCommitmentChain.verifyStateCommitment(
+          element,
+          {
+            ...batchHeader,
+            extraData: '0x' + '22'.repeat(32),
+          },
+          inclusionProof
+        )
+      ).to.be.revertedWith('Invalid batch header.')
     })
 
     it('should revert when given an invalid inclusion proof', async () => {
-      // TODO
+      await expect(
+        StateCommitmentChain.verifyStateCommitment(
+          ethers.constants.HashZero,
+          batchHeader,
+          inclusionProof
+        )
+      ).to.be.revertedWith('Invalid inclusion proof.')
     })
 
     it('should return true when given a valid proof', async () => {
-      // TODO
+      expect(
+        await StateCommitmentChain.verifyStateCommitment(
+          element,
+          batchHeader,
+          inclusionProof
+        )
+      ).to.equal(true)
     })
   })
 })

@@ -38,6 +38,16 @@ describe('Lib_RLPWriter', () => {
     }
   })
 
+  describe('writeBool', () => {
+    it(`should encode bool: true`, async () => {
+      expect(await Lib_RLPWriter.writeBool(true)).to.equal('0x01')
+    })
+
+    it(`should encode bool: false`, async () => {
+      expect(await Lib_RLPWriter.writeBool(false)).to.equal('0x80')
+    })
+  })
+
   describe('Use of library with other memory-modifying operations', () => {
     it('should allow creation of a contract beforehand and still work', async () => {
       const randomAddress = '0x1234123412341234123412341234123412341234'

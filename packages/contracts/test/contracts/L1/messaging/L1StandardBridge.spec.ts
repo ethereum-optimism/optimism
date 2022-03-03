@@ -88,6 +88,17 @@ describe('L1StandardBridge', () => {
     })
   })
 
+  describe('receive', () => {
+    it('should send an amount of ETH to the callers balance on L2', async () => {
+      await expect(
+        alice.sendTransaction({
+          to: L1StandardBridge.address,
+          data: '0x',
+        })
+      ).to.not.be.reverted
+    })
+  })
+
   describe('ETH deposits', () => {
     const depositAmount = 1_000
 
@@ -562,6 +573,20 @@ describe('L1StandardBridge', () => {
       expect(await L1ERC20.balanceOf(NON_ZERO_ADDRESS)).to.be.equal(
         withdrawalAmount
       )
+    })
+  })
+
+  describe('donateETH', () => {
+    it('it should just call the function', async () => {
+      await expect(L1StandardBridge.donateETH()).to.not.be.reverted
+    })
+
+    it('should send ETH to the contract account', async () => {
+      await expect(
+        L1StandardBridge.donateETH({
+          value: 100,
+        })
+      ).to.not.be.reverted
     })
   })
 })

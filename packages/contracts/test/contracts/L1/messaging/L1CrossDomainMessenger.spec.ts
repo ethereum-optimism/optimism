@@ -2,6 +2,7 @@
 import { ethers } from 'hardhat'
 import { Signer, ContractFactory, Contract, BigNumber } from 'ethers'
 import { smockit, MockContract } from '@eth-optimism/smock'
+import { smock, MockContractFactory } from '@defi-wonderland/smock'
 import {
   remove0x,
   toHexString,
@@ -344,6 +345,28 @@ describe('L1CrossDomainMessenger', () => {
           newGasLimit
         )
       ).to.not.be.reverted
+    })
+  })
+
+  describe('xDomainMessageSender', () => {
+    let Mock__Factory__L1CrossDomainMessenger: MockContractFactory<ContractFactory>
+    let Mock__L1CrossDomainMessenger
+    before(async () => {
+      Mock__Factory__L1CrossDomainMessenger = await smock.mock(
+        'L1CrossDomainMessenger'
+      )
+      Mock__L1CrossDomainMessenger =
+        await Mock__Factory__L1CrossDomainMessenger.deploy()
+    })
+
+    it('should return the xDomainMsgSender address', async () => {
+      await Mock__L1CrossDomainMessenger.setVariable(
+        'xDomainMsgSender',
+        '0x0000000000000000000000000000000000000000'
+      )
+      expect(
+        await Mock__L1CrossDomainMessenger.xDomainMessageSender()
+      ).to.equal('0x0000000000000000000000000000000000000000')
     })
   })
 
