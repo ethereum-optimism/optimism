@@ -56,7 +56,8 @@ fields (rlp encoded in the order they appear here):
 [EIP-2718]: https://eips.ethereum.org/EIPS/eip-2718
 
 - `address from`: The address of the sender account.
-- `address to`: The address of the recipient account.
+- `address to`: The address of the recipient account, or the null (zero-length) address if the
+  deposited transaction is a contract creation.
 - `uint256 mint`: The ETH value to mint on L2.
 - `uint256 value`: The ETH value to send to the recipient account.
 - `bytes data`: The input data.
@@ -199,14 +200,14 @@ feed contract][deposit-feed-contract] on L1.
 
 1. `from` is unchanged from the emitted value (though it may have been transformed to an alias in
    the deposit feed contract).
-2. `to` may be either:
-    1. any 20-byte address (including the zero-address)
-    2. `null` in which case a contract is created.
+2. `to` is any 20-byte address (including the zero address)
+    - In case of a contract creation (cf. `isCreation`), this address is always zero.
 3. `mint` is set to the emitted value.
 4. `value` is set to the emitted value.
 5. `gaslimit` is unchanged from the emitted value.
-6. `data` is unchanged from the emitted value. Depending on the value of `to` it is handled as
-   either calldata or initialization code depending on the value of `to`.
+6. `isCreation` is set to `true` if the transaction is a contract creation, `false` otherwise.
+7. `data` is unchanged from the emitted value. Depending on the value of `isCreation` it is handled
+   as either calldata or contract initialization code.
 
 ### Deposit Contract
 
