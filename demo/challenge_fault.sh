@@ -94,8 +94,7 @@ shout "STARTING CHALLENGE"
 BASEDIR=/tmp/cannon_fault npx hardhat run scripts/challenge.js --network hosthat
 
 shout "BINARY SEARCH"
-# for i in {1..25}; do
-for i in {1..23}; do
+for i in {1..25}; do
     echo ""
     echo "--- STEP $i / 25 --"
     echo ""
