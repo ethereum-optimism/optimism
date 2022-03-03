@@ -383,6 +383,69 @@ func (d *Database) UpsertDisbursement(
 	return nil
 }
 
+const loadTeleportByDepositHashQuery = `
+SELECT
+dep.id, dep.address, dep.amount, dis.success,
+dep.txn_hash, dep.block_number, dep.block_timestamp,
+dis.txn_hash, dis.block_number, dis.block_timestamp
+FROM deposits AS dep
+LEFT JOIN disbursements AS dis
+ON dep.id = dis.id AND dep.txn_hash = $1
+LIMIT 1
+`
+
+func (d *Database) LoadTeleportByDepositHash(
+	txHash common.Hash,
+) (*Teleport, error) {
+
+	row := d.conn.QueryRow(loadTeleportByDepositHashQuery, txHash.String())
+	teleport, err := scanTeleport(row)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	} else if err != nil {
+		return nil, err
+	}
+
+	return &teleport, nil
+}
+
+const loadTeleportsByAddressQuery = `
+SELECT
+dep.id, dep.address, dep.amount, dis.success,
+dep.txn_hash, dep.block_number, dep.block_timestamp,
+dis.txn_hash, dis.block_number, dis.block_timestamp
+FROM deposits AS dep
+LEFT JOIN disbursements AS dis
+ON dep.id = dis.id AND dep.address = $1
+ORDER BY dep.block_timestamp DESC, dep.id DESC
+LIMIT 100
+`
+
+func (d *Database) LoadTeleportsByAddress(
+	addr common.Address,
+) ([]Teleport, error) {
+
+	rows, err := d.conn.Query(loadTeleportsByAddressQuery, addr.String())
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var teleports []Teleport
+	for rows.Next() {
+		teleport, err := scanTeleport(rows)
+		if err != nil {
+			return nil, err
+		}
+		teleports = append(teleports, teleport)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return teleports, nil
+}
+
 const completedTeleportsQuery = `
 SELECT
 dep.id, dep.address, dep.amount, dis.success,
@@ -417,7 +480,11 @@ func (d *Database) CompletedTeleports() ([]Teleport, error) {
 	return teleports, nil
 }
 
-func scanTeleport(rows *sql.Rows) (Teleport, error) {
+type Scanner interface {
+	Scan(...interface{}) error
+}
+
+func scanTeleport(scanner Scanner) (Teleport, error) {
 	var teleport Teleport
 	var addressStr string
 	var amountStr string
@@ -426,7 +493,7 @@ func scanTeleport(rows *sql.Rows) (Teleport, error) {
 	var disBlockNumber *uint64
 	var disBlockTimestamp *time.Time
 	var success *bool
-	err := rows.Scan(
+	err := scanner.Scan(
 		&teleport.ID,
 		&addressStr,
 		&amountStr,
