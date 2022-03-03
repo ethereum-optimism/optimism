@@ -301,7 +301,7 @@ func TestUpsertDisbursement(t *testing.T) {
 	)
 	require.Nil(t, err)
 
-	expTeleports := []db.CompletedTeleport{
+	expTeleports := []db.Teleport{
 		{
 			Deposit: db.Deposit{
 				ID:      1,
@@ -313,7 +313,7 @@ func TestUpsertDisbursement(t *testing.T) {
 					BlockTimestamp: testTimestamp,
 				},
 			},
-			Disbursement: db.Disbursement{
+			Disbursement: &db.Disbursement{
 				Success: false,
 				ConfirmationInfo: db.ConfirmationInfo{
 					TxnHash:        tempDisTxnHash,
@@ -334,7 +334,7 @@ func TestUpsertDisbursement(t *testing.T) {
 	err = d.UpsertDisbursement(1, disTxnHash, disBlockNumber, testTimestamp, true)
 	require.Nil(t, err)
 
-	expTeleports = []db.CompletedTeleport{
+	expTeleports = []db.Teleport{
 		{
 			Deposit: db.Deposit{
 				ID:      1,
@@ -346,7 +346,7 @@ func TestUpsertDisbursement(t *testing.T) {
 					BlockTimestamp: testTimestamp,
 				},
 			},
-			Disbursement: db.Disbursement{
+			Disbursement: &db.Disbursement{
 				Success: true,
 				ConfirmationInfo: db.ConfirmationInfo{
 					TxnHash:        disTxnHash,
