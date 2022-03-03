@@ -21,17 +21,6 @@ var (
 	ErrUnknownDeposit = errors.New("unknown deposit")
 )
 
-// Deposit represents an event emitted from the TeleportrDeposit contract on L1,
-// along with additional info about the tx that generated the event.
-type Deposit struct {
-	ID             uint64
-	TxnHash        common.Hash
-	BlockNumber    uint64
-	BlockTimestamp time.Time
-	Address        common.Address
-	Amount         *big.Int
-}
-
 // ConfirmationInfo holds metadata about a tx on either the L1 or L2 chain.
 type ConfirmationInfo struct {
 	TxnHash        common.Hash
@@ -39,15 +28,27 @@ type ConfirmationInfo struct {
 	BlockTimestamp time.Time
 }
 
+// Deposit represents an event emitted from the TeleportrDeposit contract on L1,
+// along with additional info about the tx that generated the event.
+type Deposit struct {
+	ID      uint64
+	Address common.Address
+	Amount  *big.Int
+
+	ConfirmationInfo
+}
+
+type Disbursement struct {
+	Success bool
+
+	ConfirmationInfo
+}
+
 // CompletedTeleport represents an L1 deposit that has been disbursed on L2. The
 // struct also hold info about the L1 and L2 txns involved.
 type CompletedTeleport struct {
-	ID           uint64
-	Address      common.Address
-	Amount       *big.Int
-	Success      bool
-	Deposit      ConfirmationInfo
-	Disbursement ConfirmationInfo
+	Deposit
+	Disbursement Disbursement
 }
 
 const createDepositsTable = `
@@ -401,7 +402,7 @@ func (d *Database) CompletedTeleports() ([]CompletedTeleport, error) {
 			&teleport.ID,
 			&addressStr,
 			&amountStr,
-			&teleport.Success,
+			&teleport.Disbursement.Success,
 			&depTxnHashStr,
 			&teleport.Deposit.BlockNumber,
 			&teleport.Deposit.BlockTimestamp,
