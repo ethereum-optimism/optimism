@@ -210,17 +210,19 @@ describe('stress tests', () => {
       const tip = await env.l2Provider.getBlock('latest')
       const prev = {
         block: await env.l2Provider.getBlock(0),
-        l1BlockNumber: await env.l1BlockNumber.getL1BlockNumber({
-          blockTag: 0,
-        }),
+        l1BlockNumber:
+          await env.messenger.contracts.l2.OVM_L1BlockNumber.getL1BlockNumber({
+            blockTag: 0,
+          }),
       }
       for (let i = 1; i < tip.number; i++) {
         const block = await env.l2Provider.getBlock(i)
         expect(block.timestamp).to.be.gte(prev.block.timestamp)
 
-        const l1BlockNumber = await env.l1BlockNumber.getL1BlockNumber({
-          blockTag: i,
-        })
+        const l1BlockNumber =
+          await env.messenger.contracts.l2.OVM_L1BlockNumber.getL1BlockNumber({
+            blockTag: i,
+          })
         expect(l1BlockNumber.gt(prev.l1BlockNumber))
 
         prev.block = block
