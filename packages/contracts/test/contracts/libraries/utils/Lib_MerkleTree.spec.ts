@@ -3,6 +3,7 @@ import { ethers } from 'hardhat'
 import { Contract, BigNumber } from 'ethers'
 import { MerkleTree } from 'merkletreejs'
 import { fromHexString, toHexString } from '@eth-optimism/core-utils'
+import { smock, FakeContract } from '@defi-wonderland/smock'
 
 /* Internal Imports */
 import { expect } from '../../../setup'
@@ -32,10 +33,15 @@ const fillDefaultHashes = (elements: string[]): string[] => {
 
 describe('Lib_MerkleTree', () => {
   let Lib_MerkleTree: Contract
+  let Fake__LibMerkleTree: FakeContract<Contract>
   before(async () => {
     Lib_MerkleTree = await (
       await ethers.getContractFactory('TestLib_MerkleTree')
     ).deploy()
+
+    Fake__LibMerkleTree = await smock.fake(
+      await ethers.getContractFactory('TestLib_MerkleTree')
+    )
   })
 
   describe('getMerkleRoot', () => {
@@ -78,9 +84,40 @@ describe('Lib_MerkleTree', () => {
         })
       }
     })
+
+    describe('when odd number of elements is provided', () => {
+      it(`should generate the correct root when odd number of elements are provided`, async () => {
+        const elements = ['0x12', '0x34', '0x56'].map((value) =>
+          ethers.utils.keccak256(value)
+        )
+
+        Fake__LibMerkleTree.getMerkleRoot.returns()
+
+        // expect(await Fake__LibMerkleTree.getMerkleRoot(elements)).to.not.be.reverted
+        await expect(Lib_MerkleTree.getMerkleRoot(elements)).to.not.be.reverted
+      })
+    })
   })
 
   describe('verify', () => {
+    describe('when total elements is zero', () => {
+      const totalLeaves = 0
+
+      it('should revert', async () => {
+        await expect(
+          Lib_MerkleTree.verify(
+            ethers.constants.HashZero,
+            ethers.constants.HashZero,
+            0,
+            [],
+            totalLeaves
+          )
+        ).to.be.revertedWith(
+          'Lib_MerkleTree: Total leaves must be greater than zero.'
+        )
+      })
+    })
+
     describe('when total elements is zero', () => {
       const totalLeaves = 0
 

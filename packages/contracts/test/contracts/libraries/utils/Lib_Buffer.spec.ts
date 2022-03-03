@@ -12,14 +12,28 @@ describe('Lib_Buffer', () => {
     Lib_Buffer = await Factory__Lib_Buffer.deploy()
   })
 
-  describe('push', () => {
+  describe('push(bytes32,bytes27)', () => {
     for (const len of [1, 2, 4, 8, 32]) {
       it(`it should be able to add ${len} element(s) to the array`, async () => {
         for (let i = 0; i < len; i++) {
           await expect(
-            Lib_Buffer.push(
+            Lib_Buffer['push(bytes32,bytes27)'](
               ethers.utils.keccak256(`0x${i.toString(16).padStart(16, '0')}`),
               `0x${'00'.repeat(27)}`
+            )
+          ).to.not.be.reverted
+        }
+      })
+    }
+  })
+
+  describe('push(bytes32)', () => {
+    for (const len of [1, 2, 4, 8, 32]) {
+      it(`it should be able to add ${len} element(s) to the array`, async () => {
+        for (let i = 0; i < len; i++) {
+          await expect(
+            Lib_Buffer['push(bytes32)'](
+              ethers.utils.keccak256(`0x${i.toString(16).padStart(16, '0')}`)
             )
           ).to.not.be.reverted
         }
@@ -37,7 +51,10 @@ describe('Lib_Buffer', () => {
               `0x${i.toString(16).padStart(16, '0')}`
             )
             values.push(value)
-            await Lib_Buffer.push(value, `0x${'00'.repeat(27)}`)
+            await Lib_Buffer['push(bytes32,bytes27)'](
+              value,
+              `0x${'00'.repeat(27)}`
+            )
           }
         })
 
@@ -68,7 +85,10 @@ describe('Lib_Buffer', () => {
               `0x${i.toString(16).padStart(16, '0')}`
             )
             values.push(value)
-            await Lib_Buffer.push(value, `0x${'00'.repeat(27)}`)
+            await Lib_Buffer['push(bytes32,bytes27)'](
+              value,
+              `0x${'00'.repeat(27)}`
+            )
           }
         })
 
@@ -86,20 +106,26 @@ describe('Lib_Buffer', () => {
 
     it('should change if set by a call to push()', async () => {
       const extraData = `0x${'11'.repeat(27)}`
-      await Lib_Buffer.push(ethers.utils.keccak256('0x00'), extraData)
+      await Lib_Buffer['push(bytes32,bytes27)'](
+        ethers.utils.keccak256('0x00'),
+        extraData
+      )
 
       expect(await Lib_Buffer.getExtraData()).to.equal(extraData)
     })
 
     it('should change if set multiple times', async () => {
-      await Lib_Buffer.push(
+      await Lib_Buffer['push(bytes32,bytes27)'](
         ethers.utils.keccak256('0x00'),
         `0x${'11'.repeat(27)}`
       )
 
       const extraData = `0x${'22'.repeat(27)}`
 
-      await Lib_Buffer.push(ethers.utils.keccak256('0x00'), extraData)
+      await Lib_Buffer['push(bytes32,bytes27)'](
+        ethers.utils.keccak256('0x00'),
+        extraData
+      )
 
       expect(await Lib_Buffer.getExtraData()).to.equal(extraData)
     })
@@ -140,7 +166,10 @@ describe('Lib_Buffer', () => {
               `0x${i.toString(16).padStart(16, '0')}`
             )
             values.push(value)
-            await Lib_Buffer.push(value, `0x${'00'.repeat(27)}`)
+            await Lib_Buffer['push(bytes32,bytes27)'](
+              value,
+              `0x${'00'.repeat(27)}`
+            )
           }
         })
 
@@ -171,5 +200,27 @@ describe('Lib_Buffer', () => {
         }
       })
     }
+  })
+
+  describe('setContext', () => {
+    it('should modify the context', async () => {
+      const length = 20
+      const extraData = `0x${'11'.repeat(27)}`
+      const cntx = [length, extraData]
+
+      await Lib_Buffer.setContext(length, extraData)
+
+      expect(await Lib_Buffer.getContext()).to.eql(cntx)
+    })
+
+    it('should not modify the context', async () => {
+      const length = 0
+      const extraData = `0x${'00'.repeat(27)}`
+
+      const prevContext = await Lib_Buffer.getContext()
+      await Lib_Buffer.setContext(length, extraData)
+
+      expect(await Lib_Buffer.getContext()).to.eql(prevContext)
+    })
   })
 })
