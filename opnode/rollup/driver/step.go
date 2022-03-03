@@ -86,7 +86,7 @@ func (d *outputImpl) step(ctx context.Context, l2Head eth.BlockID, l2Finalized e
 
 	last := l2Head
 	for i, attrs := range attrsList {
-		last, err := AddBlock(ctx, logger, d.rpc, last, l2Finalized.Hash, attrs)
+		last, err = AddBlock(ctx, logger, d.rpc, last, l2Finalized.Hash, attrs)
 		if err != nil {
 			return last, fmt.Errorf("failed to extend L2 chain at block %d/%d of epoch %d: %v", i, len(attrsList), epoch, err)
 		}
