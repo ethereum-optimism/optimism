@@ -129,14 +129,10 @@ export class OptimismEnv {
     }
 
     for (const message of messages) {
-      let status: MessageStatus
-      while (
-        status !== MessageStatus.READY_FOR_RELAY &&
-        status !== MessageStatus.RELAYED
-      ) {
-        status = await this.messenger.getMessageStatus(message)
-        await sleep(1000)
-      }
+      await this.messenger.waitForMessageStatus(
+        message,
+        MessageStatus.READY_FOR_RELAY
+      )
 
       let relayed = false
       while (!relayed) {
