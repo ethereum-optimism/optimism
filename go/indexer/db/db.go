@@ -70,8 +70,7 @@ CREATE TABLE IF NOT EXISTS state_batches (
 	size INTEGER NOT NULL,
 	prev_total INTEGER NOT NULL,
 	extra_data BYTEA NOT NULL,
-	timestamp INTEGER NOT NULL,
-	block_number INTEGER NOT NULL
+	block_hash VARCHAR NOT NULL REFERENCES l1_blocks(hash)
 )
 `
 
@@ -221,14 +220,13 @@ func (b *IndexedL1Block) Events() []TxnEnqueuedEvent {
 	return events
 }
 
-type L1StateBatch struct {
-	Index       *big.Int
-	Root        common.Hash
-	Size        *big.Int
-	PrevTotal   *big.Int
-	ExtraData   []byte
-	Timestamp   uint64
-	BlockNumber uint64
+type StateBatch struct {
+	Index     *big.Int
+	Root      common.Hash
+	Size      *big.Int
+	PrevTotal *big.Int
+	ExtraData []byte
+	BlockHash common.Hash
 }
 
 type Token struct {
@@ -561,12 +559,12 @@ func (d *Database) AddIndexedL2Block(block *IndexedL2Block) error {
 	})
 }
 
-func (d *Database) AddStateBatch(batch *L1StateBatch) error {
+func (d *Database) AddStateBatch(batches []StateBatch) error {
 	const insertStateBatchStatement = `
 	INSERT INTO state_batches
-		(index, root, size, prev_total, extra_data, timestamp, block_number)
+		(index, root, size, prev_total, extra_data, block_hash)
 	VALUES
-		($1, $2, $3, $4, $5, $6, $7)
+		($1, $2, $3, $4, $5, $6)
 	`
 
 	return txn(d.db, func(tx *sql.Tx) error {
@@ -575,17 +573,18 @@ func (d *Database) AddStateBatch(batch *L1StateBatch) error {
 			return err
 		}
 
-		_, err = stateBatchStmt.Exec(
-			batch.Index,
-			batch.Root,
-			batch.Size,
-			batch.PrevTotal,
-			batch.ExtraData,
-			batch.Timestamp,
-			batch.BlockNumber,
-		)
-		if err != nil {
-			return err
+		for _, sb := range batches {
+			_, err = stateBatchStmt.Exec(
+				sb.Index.Uint64(),
+				sb.Root.String(),
+				sb.Size.Uint64(),
+				sb.PrevTotal.Uint64(),
+				sb.ExtraData,
+				sb.BlockHash.String(),
+			)
+			if err != nil {
+				return err
+			}
 		}
 
 		return nil

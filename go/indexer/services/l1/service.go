@@ -15,6 +15,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/ethereum-optimism/optimism/go/indexer/bindings/l1erc20"
+	"github.com/ethereum-optimism/optimism/go/indexer/bindings/scc"
 	"github.com/ethereum-optimism/optimism/go/indexer/server"
 	"github.com/ethereum-optimism/optimism/go/indexer/services/l1/bridge"
 
@@ -90,6 +91,7 @@ type Service struct {
 	cancel func()
 
 	bridges        map[string]bridge.Bridge
+	batchScanner   *scc.StateCommitmentChainFilterer
 	latestHeader   uint64
 	headerSelector *ConfirmedHeaderSelector
 
@@ -132,6 +134,12 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 		return nil, err
 	}
 
+	batchScanner, err := bridge.StateCommitmentChainScanner(cfg.ChainID, cfg.L1Client, ctx)
+	if err != nil {
+		cancel()
+		return nil, err
+	}
+
 	logger.Info("Scanning bridges for deposits", "bridges", bridges)
 
 	confirmedHeaderSelector, err := NewConfirmedHeaderSelector(HeaderSelectorConfig{
@@ -149,6 +157,7 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 		ctx:            ctx,
 		cancel:         cancel,
 		bridges:        bridges,
+		batchScanner:   batchScanner,
 		headerSelector: confirmedHeaderSelector,
 		metrics:        cfg.Metrics,
 	}, nil
@@ -286,6 +295,11 @@ func (s *Service) Update(newHeader *types.Header) error {
 		}
 	}
 
+	stateBatches, err := QueryStateBatches(s.batchScanner, startHeight, endHeight, s.ctx)
+	if err != nil {
+		logger.Error("Error querying state batches", "err", err)
+	}
+
 	for _, header := range headers {
 		blockHash := header.Hash
 		number := header.Number.Uint64()
@@ -303,6 +317,18 @@ func (s *Service) Update(newHeader *types.Header) error {
 		if err != nil {
 			logger.Error(
 				"Unable to import ",
+				"block", number,
+				"hash", blockHash, "err", err,
+				"block", block,
+			)
+			return err
+		}
+
+		batches := stateBatches[blockHash]
+		err = s.cfg.DB.AddStateBatch(batches)
+		if err != nil {
+			logger.Error(
+				"Unable to import state append batch",
 				"block", number,
 				"hash", blockHash, "err", err,
 				"block", block,

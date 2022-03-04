@@ -6,6 +6,7 @@ import (
 	"math/big"
 
 	"github.com/ethereum-optimism/optimism/go/indexer/bindings/l1bridge"
+	"github.com/ethereum-optimism/optimism/go/indexer/bindings/scc"
 	"github.com/ethereum-optimism/optimism/go/indexer/db"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
@@ -130,4 +131,13 @@ func BridgesByChainID(chainID *big.Int, client bind.ContractFilterer, ctx contex
 		}
 	}
 	return bridges, nil
+}
+
+func StateCommitmentChainScanner(chainID *big.Int, client bind.ContractFilterer, ctx context.Context) (*scc.StateCommitmentChainFilterer, error) {
+	addr := common.HexToAddress(CONTRACT_ADDRESSES[chainID.Uint64()].StateCommitmentChain)
+	filter, err := scc.NewStateCommitmentChainFilterer(addr, client)
+	if err != nil {
+		return nil, err
+	}
+	return filter, nil
 }
