@@ -12,6 +12,8 @@ L2BRIDGE_ABI_ARTIFACT = ../../packages/contracts/artifacts/contracts/L2/messagin
 
 ERC20_ABI_ARTIFACT = ./contracts/ERC20.sol/ERC20.json
 
+SCC_ABI_ARTIFACT = ../../packages/contracts/artifacts/contracts/L1/rollup/StateCommitmentChain.sol/StateCommitmentChain.json
+
 indexer:
 	env GO111MODULE=on go build -v $(LDFLAGS) ./cmd/indexer
 
@@ -24,7 +26,7 @@ test:
 lint:
 	golangci-lint run ./...
 
-bindings: bindings-l1bridge bindings-l2bridge bindings-l1erc20 bindings-l2erc20
+bindings: bindings-l1bridge bindings-l2bridge bindings-l1erc20 bindings-l2erc20 bindings-scc
 
 bindings-l1bridge:
 	$(eval temp := $(shell mktemp))
@@ -90,11 +92,30 @@ bindings-l2erc20:
 
 	rm $(temp)
 
+bindings-scc:
+	$(eval temp := $(shell mktemp))
+
+	cat $(SCC_ABI_ARTIFACT) \
+		| jq -r .bytecode > $(temp)
+
+	cat $(SCC_ABI_ARTIFACT) \
+		| jq .abi \
+		| abigen --pkg scc \
+		--abi - \
+		--out bindings/scc/statecommitmentchain.go \
+		--type StateCommitmentChain \
+		--bin $(temp)
+
+	rm $(temp)
+
 .PHONY: \
 	indexer \
 	bindings \
 	bindings-l1bridge \
 	bindings-l2bridge \
+	bindings-l1erc20 \
+	bindings-l2erc20 \
+	bindings-scc \
 	clean \
 	test \
 	lint
