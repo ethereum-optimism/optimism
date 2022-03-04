@@ -6,5 +6,4 @@ ignores: [
   "prettier-plugin-solidity",
   "solhint-plugin-prettier",
   "ts-generator",
-  "yargs",
 ]
