@@ -1,6 +1,7 @@
 package rollup
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -22,6 +23,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/l2geth/eth/gasprice"
 	"github.com/ethereum-optimism/optimism/l2geth/rollup/fees"
+	"github.com/ethereum-optimism/optimism/l2geth/rollup/pub"
 	"github.com/ethereum-optimism/optimism/l2geth/rollup/rcfg"
 )
 
@@ -68,10 +70,11 @@ type SyncService struct {
 	signer                         types.Signer
 	feeThresholdUp                 *big.Float
 	feeThresholdDown               *big.Float
+	txLogger                       pub.Publisher
 }
 
 // NewSyncService returns an initialized sync service
-func NewSyncService(ctx context.Context, cfg Config, txpool *core.TxPool, bc *core.BlockChain, db ethdb.Database) (*SyncService, error) {
+func NewSyncService(ctx context.Context, cfg Config, txpool *core.TxPool, bc *core.BlockChain, db ethdb.Database, txLogger pub.Publisher) (*SyncService, error) {
 	if bc == nil {
 		return nil, errors.New("Must pass BlockChain to SyncService")
 	}
@@ -143,6 +146,7 @@ func NewSyncService(ctx context.Context, cfg Config, txpool *core.TxPool, bc *co
 		signer:                         types.NewEIP155Signer(chainID),
 		feeThresholdDown:               cfg.FeeThresholdDown,
 		feeThresholdUp:                 cfg.FeeThresholdUp,
+		txLogger:                       txLogger,
 	}
 
 	// The chainHeadSub is used to synchronize the SyncService with the chain.
@@ -871,6 +875,17 @@ func (s *SyncService) applyTransactionToTip(tx *types.Transaction) error {
 
 	// The index was set above so it is safe to dereference
 	log.Debug("Applying transaction to tip", "index", *tx.GetMeta().Index, "hash", tx.Hash().Hex(), "origin", tx.QueueOrigin().String())
+
+	// Log transaction to the failover log
+	encodedTx := new(bytes.Buffer)
+	if err := tx.EncodeRLP(encodedTx); err != nil {
+		return err
+	}
+	if err := s.txLogger.Publish(s.ctx, encodedTx.Bytes()); err != nil {
+		pubTxDropCounter.Inc(1)
+		log.Error("Failed to publish transaction to log", "msg", err)
+		return fmt.Errorf("internal error: transaction logging failed")
+	}
 
 	txs := types.Transactions{tx}
 	errCh := make(chan error, 1)

@@ -164,6 +164,9 @@ var (
 		utils.RollupFeeThresholdDownFlag,
 		utils.RollupFeeThresholdUpFlag,
 		utils.SequencerClientHttpFlag,
+		utils.TxPublisherProjectIDFlag,
+		utils.TxPublisherTopicIDFlag,
+		utils.TxPublisherTimeoutFlag,
 	}
 
 	rpcFlags = []cli.Flag{
