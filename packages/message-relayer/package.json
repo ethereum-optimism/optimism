@@ -50,7 +50,7 @@
     "eslint-plugin-react": "^7.24.0",
     "eslint-plugin-unicorn": "^32.0.1",
     "ethereum-waffle": "^3.3.0",
-    "hardhat": "^2.3.0",
+    "hardhat": "^2.9.2",
     "lint-staged": "11.0.0",
     "prettier": "^2.3.1",
     "ts-node": "^10.0.0",
