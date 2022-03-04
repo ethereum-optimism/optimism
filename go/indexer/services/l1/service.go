@@ -4,14 +4,15 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/ethereum-optimism/optimism/go/indexer/metrics"
-	"github.com/prometheus/client_golang/prometheus"
 	"math/big"
 	"net/http"
 	"strconv"
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/ethereum-optimism/optimism/go/indexer/metrics"
+	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/ethereum-optimism/optimism/go/indexer/bindings/l1erc20"
 	"github.com/ethereum-optimism/optimism/go/indexer/server"
