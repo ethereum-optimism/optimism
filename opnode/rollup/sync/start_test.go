@@ -2,7 +2,6 @@ package sync
 
 import (
 	"context"
-	"fmt"
 	"math/big"
 	"testing"
 
@@ -130,10 +129,6 @@ func (c *syncStartTestCase) Run(t *testing.T) {
 		L1: fakeID(c.GenesisL1, c.OffsetL2),
 		L2: fakeID(c.GenesisL2, 0),
 	}
-
-	fmt.Println(engL1)
-	fmt.Println(actL1)
-	fmt.Println(engL2)
 
 	nextRefL1s, refL2, err := V3FindSyncStart(context.Background(), msr, genesis)
 

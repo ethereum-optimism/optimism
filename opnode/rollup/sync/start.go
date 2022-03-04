@@ -8,7 +8,7 @@
 // and thus the mapping from block number to canonical block.
 //
 // The optimism chain has similar properties, but also retains references to the ethereum chain.
-// Each optimism block retains a reference to an ethereum (L1) block and to it's parent optimism (L2) block.
+// Each optimism block retains a reference to an L1 block and to its parent L2 block.
 // The L2 chain node must satisfy the following validity rules
 //     1. l2block.height == l2parent.block.height + 1
 //     2. l2block.l1parent.height >= l2block.l2parent.l1parent.height
@@ -16,7 +16,8 @@
 //     4. l1_rollup_genesis is reachable from l2block.l1parent
 //
 //
-// During normal operation, both the L1 and L2 canonical chains can change.
+// During normal operation, both the L1 and L2 canonical chains can change, due to a reorg
+// or an extension (new block).
 //     - L1 reorg
 //     - L1 extension
 //     - L2 reorg
