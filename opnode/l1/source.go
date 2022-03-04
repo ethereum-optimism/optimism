@@ -77,7 +77,8 @@ func (s Source) Close() {
 }
 
 func (s Source) FetchL1Info(ctx context.Context, id eth.BlockID) (derive.L1Info, error) {
-	return nil, nil
+	block, _, err := s.Fetch(ctx, id)
+	return block, err
 }
 func (s Source) FetchReceipts(ctx context.Context, id eth.BlockID) ([]*types.Receipt, error) {
 	_, receipts, err := s.Fetch(ctx, id)
