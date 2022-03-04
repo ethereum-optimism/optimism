@@ -54,6 +54,27 @@ CREATE TABLE IF NOT EXISTS l1_tokens (
 )
 `
 
+const createL2TokensTable = `
+CREATE TABLE IF NOT EXISTS l2_tokens (
+	address TEXT NOT NULL PRIMARY KEY,
+	name TEXT NOT NULL,
+	symbol TEXT NOT NULL,
+	decimals INTEGER NOT NULL
+)
+`
+
+const createStateBatchesTable = `
+CREATE TABLE IF NOT EXISTS state_batches (
+	index INTEGER NOT NULL PRIMARY KEY,
+	root VARCHAR NOT NULL,
+	size INTEGER NOT NULL,
+	prev_total INTEGER NOT NULL,
+	extra_data BYTEA NOT NULL,
+	timestamp INTEGER NOT NULL,
+	block_number INTEGER NOT NULL
+)
+`
+
 const createWithdrawalsTable = `
 CREATE TABLE IF NOT EXISTS withdrawals (
 	guid VARCHAR PRIMARY KEY NOT NULL,
@@ -66,27 +87,7 @@ CREATE TABLE IF NOT EXISTS withdrawals (
 	log_index INTEGER NOT NULL,
 	block_hash VARCHAR NOT NULL REFERENCES l2_blocks(hash),
 	tx_hash VARCHAR NOT NULL,
-	state_batch_root VARCHAR REFERENCES state_batches(root)
-)
-`
-
-const createStateBatchesTable = `
-CREATE TABLE IF NOT EXISTS state_batches (
-	root VARCHAR NOT NULL PRIMARY KEY,
-	size INTEGER NOT NULL,
-	prev_total INTEGER NOT NULL,
-	extra_data BYTEA NOT NULL,
-	timestamp INTEGER NOT NULL,
-	block_number INTEGER NOT NULL
-)
-`
-
-const createL2TokensTable = `
-CREATE TABLE IF NOT EXISTS l2_tokens (
-	address TEXT NOT NULL PRIMARY KEY,
-	name TEXT NOT NULL,
-	symbol TEXT NOT NULL,
-	decimals INTEGER NOT NULL
+	state_batch INTEGER REFERENCES state_batches(index)
 )
 `
 
@@ -126,11 +127,11 @@ var schema = []string{
 	createL2BlocksTable,
 	createL1TokensTable,
 	createL2TokensTable,
+	createStateBatchesTable,
 	insertETHL1Token,
 	insertETHL2Token,
 	createDepositsTable,
 	createWithdrawalsTable,
-	createStateBatchesTable,
 	createL1L2NumberIndex,
 }
 
@@ -221,6 +222,7 @@ func (b *IndexedL1Block) Events() []TxnEnqueuedEvent {
 }
 
 type L1StateBatch struct {
+	Index       *big.Int
 	Root        common.Hash
 	Size        *big.Int
 	PrevTotal   *big.Int
@@ -562,9 +564,9 @@ func (d *Database) AddIndexedL2Block(block *IndexedL2Block) error {
 func (d *Database) AddStateBatch(batch *L1StateBatch) error {
 	const insertStateBatchStatement = `
 	INSERT INTO state_batches
-		(root, size, prev_total, extra_data, timestamp, block_number)
+		(index, root, size, prev_total, extra_data, timestamp, block_number)
 	VALUES
-		($1, $2, $3, $4, $5, $6)
+		($1, $2, $3, $4, $5, $6, $7)
 	`
 
 	return txn(d.db, func(tx *sql.Tx) error {
@@ -574,6 +576,7 @@ func (d *Database) AddStateBatch(batch *L1StateBatch) error {
 		}
 
 		_, err = stateBatchStmt.Exec(
+			batch.Index,
 			batch.Root,
 			batch.Size,
 			batch.PrevTotal,
