@@ -229,6 +229,17 @@ type StateBatch struct {
 	BlockHash common.Hash
 }
 
+type StateBatchJSON struct {
+	Index          uint64 `json:"index"`
+	Root           string `json:"root"`
+	Size           uint64 `json:"size"`
+	PrevTotal      uint64 `json:"prevTotal"`
+	ExtraData      []byte `json:"extraData"`
+	BlockHash      string `json:"blockHash"`
+	BlockNumber    uint64 `json:"blockNumber"`
+	BlockTimestamp uint64 `json:"blockTimestamp"`
+}
+
 type Token struct {
 	Address  string `json:"address"`
 	Name     string `json:"name"`
@@ -267,17 +278,18 @@ type DepositJSON struct {
 }
 
 type WithdrawalJSON struct {
-	GUID           string `json:"guid"`
-	FromAddress    string `json:"from"`
-	ToAddress      string `json:"to"`
-	L1Token        string `json:"l1Token"`
-	L2Token        *Token `json:"l2Token"`
-	Amount         string `json:"amount"`
-	Data           []byte `json:"data"`
-	LogIndex       uint64 `json:"logIndex"`
-	BlockNumber    uint64 `json:"blockNumber"`
-	BlockTimestamp string `json:"blockTimestamp"`
-	TxHash         string `json:"transactionHash"`
+	GUID           string          `json:"guid"`
+	FromAddress    string          `json:"from"`
+	ToAddress      string          `json:"to"`
+	L1Token        string          `json:"l1Token"`
+	L2Token        *Token          `json:"l2Token"`
+	Amount         string          `json:"amount"`
+	Data           []byte          `json:"data"`
+	LogIndex       uint64          `json:"logIndex"`
+	BlockNumber    uint64          `json:"blockNumber"`
+	BlockTimestamp string          `json:"blockTimestamp"`
+	TxHash         string          `json:"transactionHash"`
+	Batch          *StateBatchJSON `json:"batch"`
 }
 
 type Database struct {
@@ -642,6 +654,67 @@ func (d *Database) GetDepositsByAddress(address common.Address, page PaginationP
 	return deposits, nil
 }
 
+func (d *Database) GetWithdrawalBatch(hash l2common.Hash) (*StateBatchJSON, error) {
+	const selectWithdrawalBatchStatement = `
+	SELECT
+		state_batches.index, state_batches.root, state_batches.size, state_batches.prev_total, state_batches.extra_data, state_batches.block_hash,
+		l1_blocks.number, l1_blocks.timestamp
+	FROM state_batches
+	INNER JOIN l1_blocks ON state_batches.block_hash = l1_blocks.hash
+	WHERE size + prev_total >= (
+		SELECT
+			number
+		FROM
+		withdrawals
+		INNER JOIN l2_blocks ON withdrawals.block_hash = l2_blocks.hash where tx_hash=$1
+	) ORDER BY INDEX LIMIT 1;
+	`
+
+	var batch *StateBatchJSON
+	err := txn(d.db, func(tx *sql.Tx) error {
+		queryStmt, err := tx.Prepare(selectWithdrawalBatchStatement)
+		if err != nil {
+			return err
+		}
+
+		row := queryStmt.QueryRow(hash.String())
+		if row.Err() != nil {
+			return row.Err()
+		}
+
+		var index, size, prev_total, block_number, block_timestamp uint64
+		var root, block_hash string
+		var extra_data []byte
+		err = row.Scan(&index, &root, &size, &prev_total, &extra_data, &block_hash,
+			&block_number, &block_timestamp)
+		if err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				batch = nil
+				return nil
+			}
+			return err
+		}
+
+		batch = &StateBatchJSON{
+			Index:          index,
+			Root:           root,
+			Size:           size,
+			PrevTotal:      prev_total,
+			ExtraData:      extra_data,
+			BlockHash:      block_hash,
+			BlockNumber:    block_number,
+			BlockTimestamp: block_timestamp,
+		}
+
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return batch, nil
+}
+
 func (d *Database) GetWithdrawalsByAddress(address l2common.Address, page PaginationParam) ([]WithdrawalJSON, error) {
 	const selectWithdrawalsStatement = `
 	SELECT
@@ -690,6 +763,12 @@ func (d *Database) GetWithdrawalsByAddress(address l2common.Address, page Pagina
 	if err != nil {
 		return nil, err
 	}
+
+	for i := range withdrawals {
+		batch, _ := d.GetWithdrawalBatch(l2common.HexToHash(withdrawals[i].TxHash))
+		withdrawals[i].Batch = batch
+	}
+
 	return withdrawals, nil
 }
 

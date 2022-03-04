@@ -5,13 +5,14 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/ethereum-optimism/optimism/go/indexer/metrics"
-	"github.com/prometheus/client_golang/prometheus"
 	"math/big"
 	"net/http"
 	"strconv"
 	"sync"
 	"time"
+
+	"github.com/ethereum-optimism/optimism/go/indexer/metrics"
+	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/ethereum-optimism/optimism/go/indexer/db"
 	"github.com/ethereum-optimism/optimism/go/indexer/services/l2/bridge"
@@ -339,6 +340,18 @@ func (s *Service) GetIndexerStatus(w http.ResponseWriter, r *http.Request) {
 	}
 
 	respondWithJSON(w, http.StatusOK, status)
+}
+
+func (s *Service) GetWithdrawalBatch(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+
+	batch, err := s.cfg.DB.GetWithdrawalBatch(common.HexToHash(vars["hash"]))
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	respondWithJSON(w, http.StatusOK, batch)
 }
 
 func (s *Service) GetWithdrawals(w http.ResponseWriter, r *http.Request) {

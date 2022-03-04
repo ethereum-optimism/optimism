@@ -3,13 +3,14 @@ package indexer
 import (
 	"context"
 	"fmt"
-	"github.com/ethereum-optimism/optimism/go/indexer/metrics"
-	"github.com/ethereum-optimism/optimism/go/indexer/server"
-	"github.com/rs/cors"
 	"math/big"
 	"net/http"
 	"os"
 	"time"
+
+	"github.com/ethereum-optimism/optimism/go/indexer/metrics"
+	"github.com/ethereum-optimism/optimism/go/indexer/server"
+	"github.com/rs/cors"
 
 	database "github.com/ethereum-optimism/optimism/go/indexer/db"
 	"github.com/ethereum-optimism/optimism/go/indexer/services/l1"
@@ -213,6 +214,7 @@ func (b *Indexer) Serve(ctx context.Context) {
 	b.router.HandleFunc("/v1/l1/status", b.l1IndexingService.GetIndexerStatus).Methods("GET")
 	b.router.HandleFunc("/v1/l2/status", b.l2IndexingService.GetIndexerStatus).Methods("GET")
 	b.router.HandleFunc("/v1/deposits/0x{address:[a-fA-F0-9]{40}}", b.l1IndexingService.GetDeposits).Methods("GET")
+	b.router.HandleFunc("/v1/withdrawal/0x{hash:[a-fA-F0-9]{64}}", b.l2IndexingService.GetWithdrawalBatch).Methods("GET")
 	b.router.HandleFunc("/v1/withdrawals/0x{address:[a-fA-F0-9]{40}}", b.l2IndexingService.GetWithdrawals).Methods("GET")
 	b.router.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(200)
