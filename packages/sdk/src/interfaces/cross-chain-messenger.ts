@@ -227,6 +227,27 @@ export interface ICrossChainMessenger {
   ): Promise<MessageReceipt>
 
   /**
+   * Waits until the status of a given message changes to the expected status. Note that if the
+   * status of the given message changes to a status that implies the expected status, this will
+   * still return. If the status of the message changes to a status that exclues the expected
+   * status, this will throw an error.
+   *
+   * @param message Message to wait for.
+   * @param status Expected status of the message.
+   * @param opts Options to pass to the waiting function.
+   * @param opts.pollIntervalMs Number of milliseconds to wait when polling.
+   * @param opts.timeoutMs Milliseconds to wait before timing out.
+   */
+  waitForMessageStatus(
+    message: MessageLike,
+    status: MessageStatus,
+    opts?: {
+      pollIntervalMs?: number
+      timeoutMs?: number
+    }
+  ): Promise<void>
+
+  /**
    * Estimates the amount of gas required to fully execute a given message on L2. Only applies to
    * L1 => L2 messages. You would supply this gas limit when sending the message to L2.
    *
