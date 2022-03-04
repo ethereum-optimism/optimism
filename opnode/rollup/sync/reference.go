@@ -44,27 +44,21 @@ type chainSourceImpl struct {
 
 // L1NodeByNumber returns the canonical block and parent ids.
 func (src chainSourceImpl) L1NodeByNumber(ctx context.Context, l1Num uint64) (eth.L1Node, error) {
-	header, err := src.l1.HeaderByNumber(ctx, big.NewInt(int64(l1Num)))
-	if err != nil {
-		// w%: wrap the error, we still need to detect if a canonical block is not found, a.k.a. end of chain.
-		return eth.L1Node{}, fmt.Errorf("failed to determine block-hash of height %d, could not get header: %w", l1Num, err)
-	}
-	parentNum := l1Num
-	if parentNum > 0 {
-		parentNum -= 1
-	}
-	return eth.L1Node{
-		Self:   eth.BlockID{Hash: header.Hash(), Number: l1Num},
-		Parent: eth.BlockID{Hash: header.ParentHash, Number: parentNum},
-	}, nil
+	return src.l1NodeByNumber(ctx, new(big.Int).SetUint64(l1Num))
 }
 
 // L1NodeByNumber returns the canonical head block and parent ids.
 func (src chainSourceImpl) L1HeadNode(ctx context.Context) (eth.L1Node, error) {
-	header, err := src.l1.HeaderByNumber(ctx, nil)
+	return src.l1NodeByNumber(ctx, nil)
+}
+
+// l1NodeByNumber wraps l1.HeaderByNumber to return an eth.L1Node
+// This is internal because the exposed L1NodeByNumber takes uint64 instead of big.Ints
+func (src chainSourceImpl) l1NodeByNumber(ctx context.Context, number *big.Int) (eth.L1Node, error) {
+	header, err := src.l1.HeaderByNumber(ctx, number)
 	if err != nil {
 		// w%: wrap the error, we still need to detect if a canonical block is not found, a.k.a. end of chain.
-		return eth.L1Node{}, fmt.Errorf("failed to determine block-hash of head block, could not get header: %w", err)
+		return eth.L1Node{}, fmt.Errorf("failed to determine block-hash of height %v, could not get header: %w", number, err)
 	}
 	l1Num := header.Number.Uint64()
 	parentNum := l1Num
