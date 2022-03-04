@@ -40,7 +40,7 @@ CREATE TABLE IF NOT EXISTS deposits (
 	amount VARCHAR NOT NULL,
 	data BYTEA NOT NULL,
 	log_index INTEGER NOT NULL,
-	block_hash VARCHAR NOT NULL REFERENCES l1_blocks(hash) ,
+	block_hash VARCHAR NOT NULL REFERENCES l1_blocks(hash),
 	tx_hash VARCHAR NOT NULL
 )
 `
@@ -64,8 +64,20 @@ CREATE TABLE IF NOT EXISTS withdrawals (
 	amount VARCHAR NOT NULL,
 	data BYTEA NOT NULL,
 	log_index INTEGER NOT NULL,
-	block_hash VARCHAR NOT NULL REFERENCES l2_blocks(hash) ,
-	tx_hash VARCHAR NOT NULL
+	block_hash VARCHAR NOT NULL REFERENCES l2_blocks(hash),
+	tx_hash VARCHAR NOT NULL,
+	state_batch_root VARCHAR REFERENCES state_batches(root)
+)
+`
+
+const createStateBatchesTable = `
+CREATE TABLE IF NOT EXISTS state_batches (
+	root VARCHAR NOT NULL PRIMARY KEY,
+	size INTEGER NOT NULL,
+	prev_total INTEGER NOT NULL,
+	extra_data BYTEA NOT NULL,
+	timestamp INTEGER NOT NULL,
+	block_number INTEGER NOT NULL
 )
 `
 
@@ -118,6 +130,7 @@ var schema = []string{
 	insertETHL2Token,
 	createDepositsTable,
 	createWithdrawalsTable,
+	createStateBatchesTable,
 	createL1L2NumberIndex,
 }
 
@@ -205,6 +218,15 @@ func (b *IndexedL1Block) Events() []TxnEnqueuedEvent {
 	}
 
 	return events
+}
+
+type L1StateBatch struct {
+	Root        common.Hash
+	Size        *big.Int
+	PrevTotal   *big.Int
+	ExtraData   []byte
+	Timestamp   uint64
+	BlockNumber uint64
 }
 
 type Token struct {
@@ -531,6 +553,36 @@ func (d *Database) AddIndexedL2Block(block *IndexedL2Block) error {
 			if err != nil {
 				return err
 			}
+		}
+
+		return nil
+	})
+}
+
+func (d *Database) AddStateBatch(batch *L1StateBatch) error {
+	const insertStateBatchStatement = `
+	INSERT INTO state_batches
+		(root, size, prev_total, extra_data, timestamp, block_number)
+	VALUES
+		($1, $2, $3, $4, $5, $6)
+	`
+
+	return txn(d.db, func(tx *sql.Tx) error {
+		stateBatchStmt, err := tx.Prepare(insertStateBatchStatement)
+		if err != nil {
+			return err
+		}
+
+		_, err = stateBatchStmt.Exec(
+			batch.Root,
+			batch.Size,
+			batch.PrevTotal,
+			batch.ExtraData,
+			batch.Timestamp,
+			batch.BlockNumber,
+		)
+		if err != nil {
+			return err
 		}
 
 		return nil
