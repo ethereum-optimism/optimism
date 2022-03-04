@@ -6,6 +6,6 @@
   },
   "license": "MIT",
   "dependencies": {
-    "hardhat": "^2.7.0"
+    "hardhat": "^2.9.2"
   }
 }
