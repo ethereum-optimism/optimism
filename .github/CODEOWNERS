@@ -1,17 +1,21 @@
-# CODEOWNERS can be disruptive because it automatically requests review from individuals across the
-# board. We still like to use this file to track who's working on what, but all lines are commented
-# out so that GitHub won't trigger review requests.
+go/bss-core                         @cfromknecht @tynes
+go/batch-submitter                  @cfromknecht @tynes
+go/gas-oracle                       @tynes
+go/l2geth-exporter                  @optimisticben @mslipper
+go/op-exporter                      @optimisticben @mslipper
+go/proxyd                           @mslipper @inphi
+go/teleportr                        @mslipper @cfromknecht
 
-# l2geth/                             @smartcontracts @tynes @karlfloersch
-# packages/specs/l2geth/              @smartcontracts @tynes @karlfloersch
-# packages/contracts/                 @smartcontracts @ben-chain @maurelian @elenadimitrova
-# packages/specs/protocol/            @smartcontracts @ben-chain @maurelian
-# ops/                                @tynes @karlfloersch
-# packages/core-utils/                @smartcontracts @annieke @ben-chain
-# packages/common-ts/                 @annieke
-# packages/core-utils/src/watcher.ts  @K-Ho
-# packages/message-relayer/           @K-Ho
-# packages/batch-submitter/           @annieke @karlfloersch
-# packages/data-transport-layer/      @annieke
-# packages/replica-healthcheck/       @annieke
-# integration-tests/                  @tynes
+integration-tests/                  @tynes @mslipper
+
+packages/core-utils                 @smartcontracts @tynes
+packages/common-ts/                 @smartcontracts
+packages/message-relayer/           @smartcontracts
+packages/data-transport-layer/      @tynes @smartcontracts
+packages/replica-healthcheck        @optimisticben @tynes
+packages/sdk                        @smartcontracts @mslipper
+packages/contracts                  @elenadimitrova @maurelian @smartcontracts
+
+l2geth                              @tynes @cfromknecht @smartcontracts
+
+ops                                 @tynes @optimisticben @mslipper

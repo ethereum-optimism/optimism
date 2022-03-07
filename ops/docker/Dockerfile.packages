@@ -4,9 +4,9 @@
 # ### BASE: Install deps
 # We do not use Alpine because there's a regression causing it to be very slow
 # when used with typescript/hardhat: https://github.com/nomiclabs/hardhat/issues/1219
-FROM node:16.13-buster-slim as base
+FROM node:16-alpine as base
 
-RUN apt-get update -y && apt-get install -y git curl jq python3
+RUN apk add --no-cache git curl jq python3
 
 # copy over the needed configs to run the dep installation
 # note: this approach can be a bit unhandy to maintain, but it allows
@@ -49,7 +49,12 @@ COPY ./ops/scripts/integration-tests.sh ./
 CMD ["yarn", "test:integration"]
 
 
-FROM base as relayer
+FROM base as message-relayer
 WORKDIR /opt/optimism/packages/message-relayer
 COPY ./ops/scripts/relayer.sh .
 CMD ["npm", "run", "start"]
+
+
+FROM base as replica-healthcheck
+WORKDIR /opts/optimism/packages/replica-healthcheck
+ENTRYPOINT ["node", "dist/exec/run-healthcheck-server.js"]
