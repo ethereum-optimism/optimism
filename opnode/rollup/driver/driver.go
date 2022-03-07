@@ -130,7 +130,12 @@ func (e *Driver) requestEngineHead(ctx context.Context) (refL1 eth.BlockID, refL
 }
 
 func (e *Driver) findSyncStart(ctx context.Context) (nextRefL1 eth.BlockID, refL2 eth.BlockID, err error) {
-	return rollupSync.FindSyncStart(ctx, e.chainSource, &e.genesis)
+	var l1s []eth.BlockID
+	l1s, refL2, err = rollupSync.FindSyncStart(ctx, e.chainSource, &e.genesis)
+	if err != nil && len(l1s) > 0 {
+		nextRefL1 = l1s[0]
+	}
+	return
 }
 
 func (e *Driver) driverStep(ctx context.Context, nextRefL1 eth.BlockID, refL2 eth.BlockID, finalized eth.BlockID) (l2ID eth.BlockID, err error) {

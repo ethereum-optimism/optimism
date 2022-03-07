@@ -130,7 +130,7 @@ func (c *syncStartTestCase) Run(t *testing.T) {
 		L2: fakeID(c.GenesisL2, 0),
 	}
 
-	nextRefL1s, refL2, err := V3FindSyncStart(context.Background(), msr, genesis)
+	nextRefL1s, refL2, err := FindSyncStart(context.Background(), msr, genesis)
 
 	if c.ExpectedErr != nil {
 		assert.Error(t, err, "Expecting an error in this test case")

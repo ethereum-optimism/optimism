@@ -35,7 +35,7 @@ type Block interface {
 	Transactions() types.Transactions
 }
 
-// BlockReferences takes a L2 block and determines which L1 block it was derived from, and the L2 self and parent id.
+// BlockReferences takes a L2 block and determines which L1 block it was derived from, its L2 parent id, and its own id.
 func BlockReferences(l2Block Block, genesis *rollup.Genesis) (eth.L2Node, error) {
 	self := eth.BlockID{Hash: l2Block.Hash(), Number: l2Block.NumberU64()}
 	if self.Number <= genesis.L2.Number {
