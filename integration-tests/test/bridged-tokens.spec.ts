@@ -1,9 +1,10 @@
+/* Imports: External */
 import { BigNumber, Contract, ContractFactory, utils, Wallet } from 'ethers'
 import { ethers } from 'hardhat'
 import { getContractFactory } from '@eth-optimism/contracts'
 import { MessageStatus } from '@eth-optimism/sdk'
-import { sleep } from '@eth-optimism/core-utils'
 
+/* Imports: Internal */
 import { expect } from './shared/setup'
 import { OptimismEnv } from './shared/env'
 import { withdrawalTest } from './shared/utils'
@@ -61,7 +62,10 @@ describe('Bridged tokens', () => {
     await L2__ERC20.deployed()
 
     // Approve the L1 ERC20 to spend our money
-    const tx = await L1__ERC20.approve(env.l1Bridge.address, 1000000)
+    const tx = await L1__ERC20.approve(
+      env.messenger.contracts.l1.L1StandardBridge.address,
+      1000000
+    )
     await tx.wait()
   })
 
@@ -103,12 +107,10 @@ describe('Bridged tokens', () => {
         500
       )
 
-      // TODO: Maybe this should be built into the SDK
-      let status: MessageStatus
-      while (status !== MessageStatus.READY_FOR_RELAY) {
-        status = await env.messenger.getMessageStatus(tx)
-        await sleep(1000)
-      }
+      await env.messenger.waitForMessageStatus(
+        tx,
+        MessageStatus.READY_FOR_RELAY
+      )
 
       await env.messenger.finalizeMessage(tx)
       await env.messenger.waitForMessageReceipt(tx)
@@ -134,12 +136,10 @@ describe('Bridged tokens', () => {
         }
       )
 
-      // TODO: Maybe this should be built into the SDK
-      let status: MessageStatus
-      while (status !== MessageStatus.READY_FOR_RELAY) {
-        status = await env.messenger.getMessageStatus(tx)
-        await sleep(1000)
-      }
+      await env.messenger.waitForMessageStatus(
+        tx,
+        MessageStatus.READY_FOR_RELAY
+      )
 
       await env.messenger.finalizeMessage(tx)
       await env.messenger.waitForMessageReceipt(tx)
@@ -196,12 +196,10 @@ describe('Bridged tokens', () => {
         }
       )
 
-      // TODO: Maybe this should be built into the SDK
-      let status: MessageStatus
-      while (status !== MessageStatus.READY_FOR_RELAY) {
-        status = await env.messenger.getMessageStatus(withdrawalTx)
-        await sleep(1000)
-      }
+      await env.messenger.waitForMessageStatus(
+        withdrawalTx,
+        MessageStatus.READY_FOR_RELAY
+      )
 
       await env.messenger.finalizeMessage(withdrawalTx)
       await env.messenger.waitForMessageReceipt(withdrawalTx)

@@ -9,6 +9,7 @@ import {
 } from '@ethersproject/providers'
 
 /* Imports: Internal */
+import { expect } from './shared/setup'
 import {
   defaultTransactionFactory,
   fundUser,
@@ -17,9 +18,9 @@ import {
   isHardhat,
   hardhatTest,
   envConfig,
+  gasPriceOracleWallet,
 } from './shared/utils'
 import { OptimismEnv } from './shared/env'
-import { expect } from './shared/setup'
 
 describe('Basic RPC tests', () => {
   let env: OptimismEnv
@@ -149,8 +150,12 @@ describe('Basic RPC tests', () => {
       const isHH = await isHardhat()
       let gasPrice
       if (isHH) {
-        gasPrice = await env.gasPriceOracle.gasPrice()
-        await env.gasPriceOracle.setGasPrice(1000)
+        gasPrice = await env.messenger.contracts.l2.OVM_GasPriceOracle.connect(
+          gasPriceOracleWallet
+        ).gasPrice()
+        await env.messenger.contracts.l2.OVM_GasPriceOracle.connect(
+          gasPriceOracleWallet
+        ).setGasPrice(1000)
       }
 
       const tx = {
@@ -164,12 +169,17 @@ describe('Basic RPC tests', () => {
 
       if (isHH) {
         // Reset the gas price to its original price
-        await env.gasPriceOracle.setGasPrice(gasPrice)
+        await env.messenger.contracts.l2.OVM_GasPriceOracle.connect(
+          gasPriceOracleWallet
+        ).setGasPrice(gasPrice)
       }
     })
 
     it('should reject a transaction with too high of a fee', async () => {
-      const gasPrice = await env.gasPriceOracle.gasPrice()
+      const gasPrice =
+        await env.messenger.contracts.l2.OVM_GasPriceOracle.connect(
+          gasPriceOracleWallet
+        ).gasPrice()
       const largeGasPrice = gasPrice.mul(10)
       const tx = {
         ...defaultTransactionFactory(),
@@ -341,11 +351,25 @@ describe('Basic RPC tests', () => {
         data: tx.data,
       })
 
-      const l1Fee = await env.gasPriceOracle.getL1Fee(raw)
-      const l1GasPrice = await env.gasPriceOracle.l1BaseFee()
-      const l1GasUsed = await env.gasPriceOracle.getL1GasUsed(raw)
-      const scalar = await env.gasPriceOracle.scalar()
-      const decimals = await env.gasPriceOracle.decimals()
+      const l1Fee = await env.messenger.contracts.l2.OVM_GasPriceOracle.connect(
+        gasPriceOracleWallet
+      ).getL1Fee(raw)
+      const l1GasPrice =
+        await env.messenger.contracts.l2.OVM_GasPriceOracle.connect(
+          gasPriceOracleWallet
+        ).l1BaseFee()
+      const l1GasUsed =
+        await env.messenger.contracts.l2.OVM_GasPriceOracle.connect(
+          gasPriceOracleWallet
+        ).getL1GasUsed(raw)
+      const scalar =
+        await env.messenger.contracts.l2.OVM_GasPriceOracle.connect(
+          gasPriceOracleWallet
+        ).scalar()
+      const decimals =
+        await env.messenger.contracts.l2.OVM_GasPriceOracle.connect(
+          gasPriceOracleWallet
+        ).decimals()
 
       const scaled = scalar.toNumber() / 10 ** decimals.toNumber()
 
@@ -439,7 +463,8 @@ describe('Basic RPC tests', () => {
   describe('eth_getBalance', () => {
     it('should get the OVM_ETH balance', async () => {
       const rpcBalance = await env.l2Provider.getBalance(env.l2Wallet.address)
-      const contractBalance = await env.ovmEth.balanceOf(env.l2Wallet.address)
+      const contractBalance =
+        await env.messenger.contracts.l2.OVM_ETH.balanceOf(env.l2Wallet.address)
       expect(rpcBalance).to.be.deep.eq(contractBalance)
     })
   })
@@ -525,9 +550,14 @@ describe('Basic RPC tests', () => {
   describe('rollup_gasPrices', () => {
     it('should return the L1 and L2 gas prices', async () => {
       const result = await env.l2Provider.send('rollup_gasPrices', [])
-      const l1GasPrice = await env.gasPriceOracle.l1BaseFee()
-      const l2GasPrice = await env.gasPriceOracle.gasPrice()
-
+      const l1GasPrice =
+        await env.messenger.contracts.l2.OVM_GasPriceOracle.connect(
+          gasPriceOracleWallet
+        ).l1BaseFee()
+      const l2GasPrice =
+        await env.messenger.contracts.l2.OVM_GasPriceOracle.connect(
+          gasPriceOracleWallet
+        ).gasPrice()
       expect(BigNumber.from(result.l1GasPrice)).to.deep.eq(l1GasPrice)
       expect(BigNumber.from(result.l2GasPrice)).to.deep.eq(l2GasPrice)
     })

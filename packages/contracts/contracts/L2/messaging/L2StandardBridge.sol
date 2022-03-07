@@ -74,13 +74,13 @@ contract L2StandardBridge is IL2ERC20Bridge, CrossDomainEnabled {
     }
 
     /**
-     * @dev Performs the logic for deposits by storing the token and informing the L2 token Gateway
-     * of the deposit.
-     * @param _l2Token Address of L2 token where withdrawal was initiated.
-     * @param _from Account to pull the deposit from on L2.
+     * @dev Performs the logic for withdrawals by burning the token and informing
+     *      the L1 token Gateway of the withdrawal.
+     * @param _l2Token Address of L2 token where withdrawal is initiated.
+     * @param _from Account to pull the withdrawal from on L2.
      * @param _to Account to give the withdrawal to on L1.
      * @param _amount Amount of the token to withdraw.
-     * param _l1Gas Unused, but included for potential forward compatibility considerations.
+     * @param _l1Gas Unused, but included for potential forward compatibility considerations.
      * @param _data Optional data to forward to L1. This data is provided
      *        solely as a convenience for external contracts. Aside from enforcing a maximum
      *        length, these contracts provide no guarantees about its content.

@@ -1,11 +1,21 @@
 import { BigNumber, ethers } from 'ethers'
+import { sequencerBatch, add0x, BatchType } from '@eth-optimism/core-utils'
+
+const compressBatchWithZlib = (calldata: string): string => {
+  const batch = sequencerBatch.decode(calldata)
+  batch.type = BatchType.ZLIB
+  const encoded = sequencerBatch.encode(batch)
+  return add0x(encoded)
+}
 
 /* Imports: Internal */
-import { expect } from '../../../../setup'
+import { expect, readMockData } from '../../../../setup'
 import { handleEventsSequencerBatchAppended } from '../../../../../src/services/l1-ingestion/handlers/sequencer-batch-appended'
 import { SequencerBatchAppendedExtraData } from '../../../../../src/types'
 
 describe('Event Handlers: CanonicalTransactionChain.SequencerBatchAppended', () => {
+  const mockData = readMockData()
+
   describe('handleEventsSequencerBatchAppended.parseEvent', () => {
     // This tests the behavior of parsing a real mainnet transaction,
     // so it will break if the encoding scheme changes.
@@ -46,9 +56,53 @@ describe('Event Handlers: CanonicalTransactionChain.SequencerBatchAppended', () 
       expect(() => {
         handleEventsSequencerBatchAppended.parseEvent(...input1)
       }).to.throw(
-        `Block ${input1[1].blockNumber} transaction data is invalid for decoding: ${input1[1].l1TransactionData} , ` +
-          `converted buffer length is < 12.`
+        `Block ${input1[1].blockNumber} transaction data is too small: ${input1[1].l1TransactionData.length}`
       )
+    })
+
+    describe('mainnet transactions', () => {
+      for (const mock of mockData) {
+        const { input, output } = mock
+        const { event, extraData, l2ChainId } = input
+        const hash = mock.input.extraData.l1TransactionHash
+
+        it(`uncompressed: ${hash}`, () => {
+          // Set the type to be legacy
+          output.transactionBatchEntry.type = BatchType[BatchType.LEGACY]
+
+          const res = handleEventsSequencerBatchAppended.parseEvent(
+            event,
+            extraData,
+            l2ChainId
+          )
+          // Check all of the transaction entries individually
+          for (const [i, got] of res.transactionEntries.entries()) {
+            const expected = output.transactionEntries[i]
+            expect(got).to.deep.eq(expected, `case ${i}`)
+          }
+          expect(res).to.deep.eq(output)
+        })
+
+        it(`compressed: ${hash}`, () => {
+          // Set the type to be zlib
+          output.transactionBatchEntry.type = BatchType[BatchType.ZLIB]
+
+          const compressed = compressBatchWithZlib(
+            input.extraData.l1TransactionData
+          )
+
+          const copy = { ...extraData }
+          copy.l1TransactionData = compressed
+
+          const res = handleEventsSequencerBatchAppended.parseEvent(
+            event,
+            copy,
+            l2ChainId
+          )
+
+          expect(res).to.deep.eq(output)
+        })
+      }
     })
   })
 })

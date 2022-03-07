@@ -3,6 +3,7 @@ import hre, { ethers } from 'hardhat'
 import { Signer, ContractFactory, Contract } from 'ethers'
 import { smockit, MockContract } from '@eth-optimism/smock'
 import { applyL1ToL2Alias } from '@eth-optimism/core-utils'
+import { smock, MockContractFactory } from '@defi-wonderland/smock'
 
 /* Internal Imports */
 import { expect } from '../../../setup'
@@ -65,6 +66,30 @@ describe('L2CrossDomainMessenger', () => {
     L2CrossDomainMessenger = await Factory__L2CrossDomainMessenger.deploy(
       Mock__L1CrossDomainMessenger.address
     )
+  })
+
+  describe('xDomainMessageSender', () => {
+    let Mock__Factory__L2CrossDomainMessenger: MockContractFactory<ContractFactory>
+    let Mock__L2CrossDomainMessenger
+    before(async () => {
+      Mock__Factory__L2CrossDomainMessenger = await smock.mock(
+        'L2CrossDomainMessenger'
+      )
+      Mock__L2CrossDomainMessenger =
+        await Mock__Factory__L2CrossDomainMessenger.deploy(
+          Mock__L1CrossDomainMessenger.address
+        )
+    })
+
+    it('should return the xDomainMsgSender address', async () => {
+      await Mock__L2CrossDomainMessenger.setVariable(
+        'xDomainMsgSender',
+        '0x0000000000000000000000000000000000000000'
+      )
+      expect(
+        await Mock__L2CrossDomainMessenger.xDomainMessageSender()
+      ).to.equal('0x0000000000000000000000000000000000000000')
+    })
   })
 
   describe('sendMessage', () => {

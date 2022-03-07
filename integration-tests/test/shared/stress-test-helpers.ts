@@ -37,19 +37,19 @@ export const executeL1ToL2Transaction = async (
 ) => {
   const signer = wallet.connect(env.l1Wallet.provider)
   const receipt = await retryOnNonceError(async () =>
-    env.l1Messenger
-      .connect(signer)
-      .sendMessage(
-        tx.contract.address,
-        tx.contract.interface.encodeFunctionData(
-          tx.functionName,
-          tx.functionParams
-        ),
-        MESSAGE_GAS,
-        {
-          gasPrice: await gasPriceForL1(),
-        }
-      )
+    env.messenger.contracts.l1.L1CrossDomainMessenger.connect(
+      signer
+    ).sendMessage(
+      tx.contract.address,
+      tx.contract.interface.encodeFunctionData(
+        tx.functionName,
+        tx.functionParams
+      ),
+      MESSAGE_GAS,
+      {
+        gasPrice: await gasPriceForL1(),
+      }
+    )
   )
   await env.waitForXDomainTransaction(receipt)
 }
@@ -61,19 +61,19 @@ export const executeL2ToL1Transaction = async (
 ) => {
   const signer = wallet.connect(env.l2Wallet.provider)
   const receipt = await retryOnNonceError(() =>
-    env.l2Messenger
-      .connect(signer)
-      .sendMessage(
-        tx.contract.address,
-        tx.contract.interface.encodeFunctionData(
-          tx.functionName,
-          tx.functionParams
-        ),
-        MESSAGE_GAS,
-        {
-          gasPrice: gasPriceForL2(),
-        }
-      )
+    env.messenger.contracts.l2.L2CrossDomainMessenger.connect(
+      signer
+    ).sendMessage(
+      tx.contract.address,
+      tx.contract.interface.encodeFunctionData(
+        tx.functionName,
+        tx.functionParams
+      ),
+      MESSAGE_GAS,
+      {
+        gasPrice: gasPriceForL2(),
+      }
+    )
   )
 
   await env.relayXDomainMessages(receipt)

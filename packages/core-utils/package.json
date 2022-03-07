@@ -35,7 +35,9 @@
     "@ethersproject/abstract-provider": "^5.5.1",
     "@ethersproject/bytes": "^5.5.0",
     "@ethersproject/providers": "^5.5.3",
+    "@ethersproject/transactions": "^5.5.0",
     "@ethersproject/web": "^5.5.1",
+    "bufio": "^1.0.7",
     "chai": "^4.3.4",
     "ethers": "^5.5.4"
   },

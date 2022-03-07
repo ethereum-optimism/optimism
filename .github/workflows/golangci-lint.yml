@@ -4,15 +4,16 @@ on:
     paths:
       - 'go/gas-oracle/**'
       - 'go/batch-submitter/**'
+      - 'go/bss-core/**'
+      - 'go/teleportr/**'
     branches:
       - 'master'
       - 'develop'
       - '*rc'
       - 'regenesis/*'
   pull_request:
-    paths:
-      - 'go/gas-oracle/**'
-      - 'go/batch-submitter/**'
+    branches:
+      - '*'
 jobs:
   golangci:
     name: lint
@@ -34,3 +35,8 @@ jobs:
         with:
           version: v1.29
           working-directory: go/bss-core
+      - name: golangci-lint teleportr
+        uses: golangci/golangci-lint-action@v2
+        with:
+          version: v1.29
+          working-directory: go/teleportr

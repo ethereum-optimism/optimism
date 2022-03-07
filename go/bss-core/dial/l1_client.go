@@ -12,12 +12,12 @@ import (
 )
 
 // L1EthClientWithTimeout attempts to dial the L1 provider using the
-// provided URL. If the dial doesn't complete within defaultDialTimeout seconds,
+// provided URL. If the dial doesn't complete within DefaultTimeout seconds,
 // this method will return an error.
 func L1EthClientWithTimeout(ctx context.Context, url string, disableHTTP2 bool) (
 	*ethclient.Client, error) {
 
-	ctxt, cancel := context.WithTimeout(ctx, defaultDialTimeout)
+	ctxt, cancel := context.WithTimeout(ctx, DefaultTimeout)
 	defer cancel()
 
 	if strings.HasPrefix(url, "http") {

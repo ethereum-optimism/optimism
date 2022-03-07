@@ -3,4 +3,3 @@ export { tests as Lib_RLPReader_TEST_JSON } from './json/libraries/rlp/Lib_RLPRe
 export { tests as Lib_Bytes32Utils_TEST_JSON } from './json/libraries/utils/Lib_Bytes32Utils.test.json'
 export { tests as Lib_BytesUtils_TEST_JSON } from './json/libraries/utils/Lib_BytesUtils.test.json'
 export { tests as Lib_MerkleTrie_TEST_JSON } from './json/libraries/trie/Lib_MerkleTrie.test.json'
-export { tests as Lib_OVMCodec_TEST_JSON } from './json/libraries/codec/Lib_OVMCodec.test.json'

@@ -1,17 +1,6 @@
 /* Imports: External */
-import {
-  Contract,
-  Wallet,
-  constants,
-  providers,
-  BigNumber,
-  utils,
-} from 'ethers'
-import {
-  getContractFactory,
-  getContractInterface,
-  predeploys,
-} from '@eth-optimism/contracts'
+import { Wallet, providers, BigNumber, utils } from 'ethers'
+import { predeploys } from '@eth-optimism/contracts'
 import { remove0x } from '@eth-optimism/core-utils'
 import {
   CrossChainMessenger,
@@ -49,7 +38,7 @@ const procEnv = cleanEnv(process.env, {
   L1_URL: str({ default: 'http://localhost:9545' }),
   L1_POLLING_INTERVAL: num({ default: 10 }),
 
-  L2_CHAINID: num({ default: 420 }),
+  L2_CHAINID: num({ default: 987 }),
   L2_GAS_PRICE: gasPriceValidator({
     default: 'onchain',
   }),
@@ -70,9 +59,6 @@ const procEnv = cleanEnv(process.env, {
   PRIVATE_KEY: str({
     default:
       '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80',
-  }),
-  ADDRESS_MANAGER: str({
-    default: '0x5FbDB2315678afecb367f032d93F642f64180aa3',
   }),
   GAS_PRICE_ORACLE_PRIVATE_KEY: str({
     default:
@@ -101,12 +87,18 @@ const procEnv = cleanEnv(process.env, {
   RUN_VERIFIER_TESTS: bool({
     default: true,
   }),
+  RUN_SYSTEM_ADDRESS_TESTS: bool({
+    default: false,
+  }),
 
   MOCHA_TIMEOUT: num({
     default: 120_000,
   }),
   MOCHA_BAIL: bool({
     default: false,
+  }),
+  BATCH_SUBMITTER_SEQUENCER_BATCH_TYPE: str({
+    default: 'zlib',
   }),
 })
 
@@ -148,39 +140,6 @@ export const gasPriceOracleWallet = new Wallet(
 export const OVM_ETH_ADDRESS = predeploys.OVM_ETH
 
 export const L2_CHAINID = procEnv.L2_CHAINID
-
-export const getAddressManager = (provider: any) => {
-  return getContractFactory('Lib_AddressManager')
-    .connect(provider)
-    .attach(procEnv.ADDRESS_MANAGER)
-}
-
-// Gets the bridge contract
-export const getL1Bridge = async (wallet: Wallet, AddressManager: Contract) => {
-  const l1BridgeInterface = getContractInterface('L1StandardBridge')
-  const ProxyBridgeAddress = await AddressManager.getAddress(
-    'Proxy__OVM_L1StandardBridge'
-  )
-
-  if (
-    !utils.isAddress(ProxyBridgeAddress) ||
-    ProxyBridgeAddress === constants.AddressZero
-  ) {
-    throw new Error('Proxy__OVM_L1StandardBridge not found')
-  }
-
-  return new Contract(ProxyBridgeAddress, l1BridgeInterface, wallet)
-}
-
-export const getL2Bridge = async (wallet: Wallet) => {
-  const L2BridgeInterface = getContractInterface('L2StandardBridge')
-
-  return new Contract(predeploys.L2StandardBridge, L2BridgeInterface, wallet)
-}
-
-export const getOvmEth = (wallet: Wallet) => {
-  return new Contract(OVM_ETH_ADDRESS, getContractInterface('OVM_ETH'), wallet)
-}
 
 export const fundUser = async (
   messenger: CrossChainMessenger,

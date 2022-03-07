@@ -78,6 +78,7 @@ func GenSequencerBatchParams(
 	shouldStartAtElement uint64,
 	blockOffset uint64,
 	batch []BatchElement,
+	batchType BatchType,
 ) (*AppendSequencerBatchParams, error) {
 
 	var (
@@ -188,5 +189,6 @@ func GenSequencerBatchParams(
 		TotalElementsToAppend: uint64(len(batch)),
 		Contexts:              contexts,
 		Txs:                   txs,
+		Type:                  batchType,
 	}, nil
 }

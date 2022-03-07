@@ -1,10 +1,12 @@
 /* Imports: External */
 import { BigNumber, ethers, constants } from 'ethers'
+import { serialize, Transaction } from '@ethersproject/transactions'
 import { getContractFactory } from '@eth-optimism/contracts'
 import {
-  fromHexString,
   toHexString,
   toRpcHexString,
+  BatchType,
+  SequencerBatch,
 } from '@eth-optimism/core-utils'
 import { SequencerBatchAppendedEvent } from '@eth-optimism/contracts/dist/types/CanonicalTransactionChain'
 
@@ -76,33 +78,33 @@ export const handleEventsSequencerBatchAppended: EventHandlerSet<
   parseEvent: (event, extraData, l2ChainId) => {
     const transactionEntries: TransactionEntry[] = []
 
-    // It's easier to deal with this data if it's a Buffer.
-    const calldata = fromHexString(extraData.l1TransactionData)
-
-    if (calldata.length < 12) {
+    // 12 * 2 + 2 = 26
+    if (extraData.l1TransactionData.length < 26) {
       throw new Error(
-        `Block ${extraData.blockNumber} transaction data is invalid for decoding: ${extraData.l1TransactionData} , ` +
-          `converted buffer length is < 12.`
+        `Block ${extraData.blockNumber} transaction data is too small: ${extraData.l1TransactionData.length}`
       )
     }
-    const numContexts = BigNumber.from(calldata.slice(12, 15)).toNumber()
+
+    // TODO: typings not working?
+    const decoded = (SequencerBatch as any).fromHex(extraData.l1TransactionData)
+
+    // Keep track of the CTC index
     let transactionIndex = 0
+    // Keep track of the number of deposits
     let enqueuedCount = 0
-    let nextTxPointer = 15 + 16 * numContexts
-    for (let i = 0; i < numContexts; i++) {
-      const contextPointer = 15 + 16 * i
-      const context = parseSequencerBatchContext(calldata, contextPointer)
+    // Keep track of the tx index in the current batch
+    let index = 0
 
+    for (const context of decoded.contexts) {
       for (let j = 0; j < context.numSequencedTransactions; j++) {
-        const sequencerTransaction = parseSequencerBatchTransaction(
-          calldata,
-          nextTxPointer
-        )
+        const buf = decoded.transactions[index]
+        if (!buf) {
+          throw new Error(
+            `Invalid batch context, tx count: ${decoded.transactions.length}, attempting to parse ${index}`
+          )
+        }
 
-        const decoded = decodeSequencerBatchTransaction(
-          sequencerTransaction,
-          l2ChainId
-        )
+        const tx = buf.toTransaction()
 
         transactionEntries.push({
           index: extraData.prevTotalElements
@@ -114,16 +116,29 @@ export const handleEventsSequencerBatchAppended: EventHandlerSet<
           gasLimit: BigNumber.from(0).toString(),
           target: constants.AddressZero,
           origin: null,
-          data: toHexString(sequencerTransaction),
+          data: serialize(
+            {
+              nonce: tx.nonce,
+              gasPrice: tx.gasPrice,
+              gasLimit: tx.gasLimit,
+              to: tx.to,
+              value: tx.value,
+              data: tx.data,
+            },
+            {
+              v: tx.v,
+              r: tx.r,
+              s: tx.s,
+            }
+          ),
           queueOrigin: 'sequencer',
-          value: decoded.value,
+          value: toRpcHexString(tx.value),
           queueIndex: null,
-          decoded,
+          decoded: mapSequencerTransaction(tx, l2ChainId),
           confirmed: true,
         })
-
-        nextTxPointer += 3 + sequencerTransaction.length
         transactionIndex++
+        index++
       }
 
       for (let j = 0; j < context.numSubsequentQueueTransactions; j++) {
@@ -169,6 +184,7 @@ export const handleEventsSequencerBatchAppended: EventHandlerSet<
       timestamp: BigNumber.from(extraData.timestamp).toNumber(),
       submitter: extraData.submitter,
       l1TransactionHash: extraData.l1TransactionHash,
+      type: BatchType[decoded.type],
     }
 
     return {
@@ -206,61 +222,21 @@ export const handleEventsSequencerBatchAppended: EventHandlerSet<
   },
 }
 
-interface SequencerBatchContext {
-  numSequencedTransactions: number
-  numSubsequentQueueTransactions: number
-  timestamp: number
-  blockNumber: number
-}
-
-const parseSequencerBatchContext = (
-  calldata: Buffer,
-  offset: number
-): SequencerBatchContext => {
-  return {
-    numSequencedTransactions: BigNumber.from(
-      calldata.slice(offset, offset + 3)
-    ).toNumber(),
-    numSubsequentQueueTransactions: BigNumber.from(
-      calldata.slice(offset + 3, offset + 6)
-    ).toNumber(),
-    timestamp: BigNumber.from(
-      calldata.slice(offset + 6, offset + 11)
-    ).toNumber(),
-    blockNumber: BigNumber.from(
-      calldata.slice(offset + 11, offset + 16)
-    ).toNumber(),
-  }
-}
-
-const parseSequencerBatchTransaction = (
-  calldata: Buffer,
-  offset: number
-): Buffer => {
-  const transactionLength = BigNumber.from(
-    calldata.slice(offset, offset + 3)
-  ).toNumber()
-
-  return calldata.slice(offset + 3, offset + 3 + transactionLength)
-}
-
-const decodeSequencerBatchTransaction = (
-  transaction: Buffer,
+const mapSequencerTransaction = (
+  tx: Transaction,
   l2ChainId: number
 ): DecodedSequencerBatchTransaction => {
-  const decodedTx = ethers.utils.parseTransaction(transaction)
-
   return {
-    nonce: BigNumber.from(decodedTx.nonce).toString(),
-    gasPrice: BigNumber.from(decodedTx.gasPrice).toString(),
-    gasLimit: BigNumber.from(decodedTx.gasLimit).toString(),
-    value: toRpcHexString(decodedTx.value),
-    target: decodedTx.to ? toHexString(decodedTx.to) : null,
-    data: toHexString(decodedTx.data),
+    nonce: BigNumber.from(tx.nonce).toString(),
+    gasPrice: BigNumber.from(tx.gasPrice).toString(),
+    gasLimit: BigNumber.from(tx.gasLimit).toString(),
+    value: toRpcHexString(tx.value),
+    target: tx.to ? toHexString(tx.to) : null,
+    data: toHexString(tx.data),
     sig: {
-      v: parseSignatureVParam(decodedTx.v, l2ChainId),
-      r: toHexString(decodedTx.r),
-      s: toHexString(decodedTx.s),
+      v: parseSignatureVParam(tx.v, l2ChainId),
+      r: toHexString(tx.r),
+      s: toHexString(tx.s),
     },
   }
 }

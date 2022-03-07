@@ -26,14 +26,15 @@ describe('Queue Ingestion', () => {
     // the transaction to Layer 1
     const txs = []
     for (let i = 0; i < numTxs; i++) {
-      const tx = await env.l1Messenger.sendMessage(
-        `0x${`${i}`.repeat(40)}`,
-        `0x0${i}`,
-        1_000_000,
-        {
-          gasLimit: DEFAULT_TEST_GAS_L1,
-        }
-      )
+      const tx =
+        await env.messenger.contracts.l1.L1CrossDomainMessenger.sendMessage(
+          `0x${`${i}`.repeat(40)}`,
+          `0x0${i}`,
+          1_000_000,
+          {
+            gasLimit: DEFAULT_TEST_GAS_L1,
+          }
+        )
       await tx.wait()
       txs.push(tx)
     }
@@ -46,10 +47,11 @@ describe('Queue Ingestion', () => {
         receipt.remoteTx.hash
       )) as any
 
-      const params = env.l2Messenger.interface.decodeFunctionData(
-        'relayMessage',
-        l2Tx.data
-      )
+      const params =
+        env.messenger.contracts.l2.L2CrossDomainMessenger.interface.decodeFunctionData(
+          'relayMessage',
+          l2Tx.data
+        )
 
       expect(params._sender.toLowerCase()).to.equal(
         env.l1Wallet.address.toLowerCase()
@@ -57,7 +59,9 @@ describe('Queue Ingestion', () => {
       expect(params._target).to.equal('0x' + `${i}`.repeat(40))
       expect(l2Tx.queueOrigin).to.equal('l1')
       expect(l2Tx.l1TxOrigin.toLowerCase()).to.equal(
-        applyL1ToL2Alias(env.l1Messenger.address).toLowerCase()
+        applyL1ToL2Alias(
+          env.messenger.contracts.l1.L1CrossDomainMessenger.address
+        ).toLowerCase()
       )
       expect(l2Tx.l1BlockNumber).to.equal(l1TxReceipt.blockNumber)
     }

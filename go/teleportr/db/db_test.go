@@ -55,18 +55,18 @@ func TestOpenClose(t *testing.T) {
 	require.Nil(t, err)
 }
 
-// TestUpsert empty deposits asserts that it is safe to call UpsertDeposits with
-// an empty list.
+// TestUpsertEmptyDeposits empty deposits asserts that it is safe to call
+// UpsertDeposits with an empty list.
 func TestUpsertEmptyDeposits(t *testing.T) {
 	t.Parallel()
 
 	d := newDatabase(t)
 	defer d.Close()
 
-	err := d.UpsertDeposits(nil)
+	err := d.UpsertDeposits(nil, 0)
 	require.Nil(t, err)
 
-	err = d.UpsertDeposits([]db.Deposit{})
+	err = d.UpsertDeposits([]db.Deposit{}, 0)
 	require.Nil(t, err)
 }
 
@@ -78,56 +78,8 @@ func TestUpsertDepositWithZeroTimestampFails(t *testing.T) {
 	d := newDatabase(t)
 	defer d.Close()
 
-	err := d.UpsertDeposits([]db.Deposit{{}})
+	err := d.UpsertDeposits([]db.Deposit{{}}, 0)
 	require.Equal(t, db.ErrZeroTimestamp, err)
-}
-
-// TestLatestDeposit asserts that the LatestDeposit method properly returns the
-// highest block number in the databse, or nil if no items are present.
-func TestLatestDeposit(t *testing.T) {
-	t.Parallel()
-
-	d := newDatabase(t)
-	defer d.Close()
-
-	// Query should return nil on empty databse.
-	latestDeposit, err := d.LatestDeposit()
-	require.Nil(t, err)
-	require.Equal(t, (*int64)(nil), latestDeposit)
-
-	// Update table to have a single element.
-	expLatestDeposit := int64(1)
-	err = d.UpsertDeposits([]db.Deposit{{
-		ID:             1,
-		TxnHash:        common.HexToHash("0xf1"),
-		BlockNumber:    expLatestDeposit,
-		BlockTimestamp: testTimestamp,
-		Address:        common.HexToAddress("0xa1"),
-		Amount:         big.NewInt(1),
-	}})
-	require.Nil(t, err)
-
-	// Query should return block number of only deposit.
-	latestDeposit, err = d.LatestDeposit()
-	require.Nil(t, err)
-	require.Equal(t, &expLatestDeposit, latestDeposit)
-
-	// Update table to have two distinct block numbers.
-	expLatestDeposit = 2
-	err = d.UpsertDeposits([]db.Deposit{{
-		ID:             2,
-		TxnHash:        common.HexToHash("0xf2"),
-		BlockNumber:    expLatestDeposit,
-		BlockTimestamp: testTimestamp,
-		Address:        common.HexToAddress("0xa2"),
-		Amount:         big.NewInt(2),
-	}})
-	require.Nil(t, err)
-
-	// Query should return the highest of the two block numbers.
-	latestDeposit, err = d.LatestDeposit()
-	require.Nil(t, err)
-	require.Equal(t, &expLatestDeposit, latestDeposit)
 }
 
 // TestUpsertDeposits asserts that UpsertDeposits properly overwrites an
@@ -147,7 +99,7 @@ func TestUpsertDeposits(t *testing.T) {
 		Amount:         big.NewInt(1),
 	}
 
-	err := d.UpsertDeposits([]db.Deposit{deposit1})
+	err := d.UpsertDeposits([]db.Deposit{deposit1}, 0)
 	require.Nil(t, err)
 
 	deposits, err := d.ConfirmedDeposits(1, 1)
@@ -163,12 +115,65 @@ func TestUpsertDeposits(t *testing.T) {
 		Amount:         big.NewInt(2),
 	}
 
-	err = d.UpsertDeposits([]db.Deposit{deposit2})
+	err = d.UpsertDeposits([]db.Deposit{deposit2}, 0)
 	require.Nil(t, err)
 
 	deposits, err = d.ConfirmedDeposits(2, 1)
 	require.Nil(t, err)
 	require.Equal(t, deposits, []db.Deposit{deposit2})
+}
+
+// TestUpsertDepositsRecordsLastProcessedBlock asserts that calling
+// UpsertDeposits properly records the last processed block.
+func TestUpsertDepositsRecordsLastProcessedBlock(t *testing.T) {
+	t.Parallel()
+
+	d := newDatabase(t)
+	defer d.Close()
+
+	uint64Ptr := func(x uint64) *uint64 {
+		return &x
+	}
+
+	// Should be empty initially.
+	lastProcessedBlock, err := d.LastProcessedBlock()
+	require.Nil(t, err)
+	require.Nil(t, lastProcessedBlock)
+
+	// Insert nil deposits through block 1.
+	err = d.UpsertDeposits(nil, 1)
+	require.Nil(t, err)
+
+	// Check that LastProcessedBlock returns 1.
+	lastProcessedBlock, err = d.LastProcessedBlock()
+	require.Nil(t, err)
+	require.Equal(t, uint64Ptr(1), lastProcessedBlock)
+
+	// Insert empty deposits through block 2.
+	err = d.UpsertDeposits([]db.Deposit{}, 2)
+	require.Nil(t, err)
+
+	// Check that LastProcessedBlock returns 2.
+	lastProcessedBlock, err = d.LastProcessedBlock()
+	require.Nil(t, err)
+	require.Equal(t, uint64Ptr(2), lastProcessedBlock)
+
+	// Insert real deposit in block 3 with last processed at 4.
+	deposit := db.Deposit{
+		ID:             0,
+		TxnHash:        common.HexToHash("0xff03"),
+		BlockNumber:    3,
+		BlockTimestamp: testTimestamp,
+		Address:        common.HexToAddress("0xaa03"),
+		Amount:         big.NewInt(3),
+	}
+	err = d.UpsertDeposits([]db.Deposit{deposit}, 4)
+	require.Nil(t, err)
+
+	// Check that LastProcessedBlock returns 2.
+	lastProcessedBlock, err = d.LastProcessedBlock()
+	require.Nil(t, err)
+	require.Equal(t, uint64Ptr(4), lastProcessedBlock)
 }
 
 // TestConfirmedDeposits asserts that ConfirmedDeposits properly returns the set
@@ -211,7 +216,7 @@ func TestConfirmedDeposits(t *testing.T) {
 
 	err = d.UpsertDeposits([]db.Deposit{
 		deposit1, deposit2, deposit3,
-	})
+	}, 0)
 	require.Nil(t, err)
 
 	// First deposit only has 1 conf, should not be found using 2 confs at block
@@ -230,7 +235,7 @@ func TestConfirmedDeposits(t *testing.T) {
 	require.Nil(t, err)
 	require.Equal(t, []db.Deposit{deposit1, deposit2, deposit3}, deposits)
 
-	err = d.UpsertDisbursement(deposit1.ID, common.HexToHash("0xdd01"), 1, testTimestamp)
+	err = d.UpsertDisbursement(deposit1.ID, common.HexToHash("0xdd01"), 1, testTimestamp, true)
 	require.Nil(t, err)
 
 	deposits, err = d.ConfirmedDeposits(2, 1)
@@ -249,16 +254,16 @@ func TestUpsertDisbursement(t *testing.T) {
 	address := common.HexToAddress("0xaa01")
 	amount := big.NewInt(1)
 	depTxnHash := common.HexToHash("0xdd01")
-	depBlockNumber := int64(1)
+	depBlockNumber := uint64(1)
 	disTxnHash := common.HexToHash("0xee02")
-	disBlockNumber := int64(2)
+	disBlockNumber := uint64(2)
 
 	// Calling UpsertDisbursement with the zero timestamp should fail.
-	err := d.UpsertDisbursement(0, common.HexToHash("0xdd00"), 0, time.Time{})
+	err := d.UpsertDisbursement(0, common.HexToHash("0xdd00"), 0, time.Time{}, true)
 	require.Equal(t, db.ErrZeroTimestamp, err)
 
 	// Calling UpsertDisbursement with an unknown id should fail.
-	err = d.UpsertDisbursement(0, common.HexToHash("0xdd00"), 0, testTimestamp)
+	err = d.UpsertDisbursement(0, common.HexToHash("0xdd00"), 0, testTimestamp, true)
 	require.Equal(t, db.ErrUnknownDeposit, err)
 
 	// Now, insert a real deposit that we will disburse.
@@ -271,15 +276,15 @@ func TestUpsertDisbursement(t *testing.T) {
 			Address:        address,
 			Amount:         amount,
 		},
-	})
+	}, 0)
 	require.Nil(t, err)
 
 	// Mark the deposit as disbursed with some temporary info.
-	err = d.UpsertDisbursement(1, common.HexToHash("0xee00"), 1, testTimestamp)
-	require.Nil(t, err)
-
-	// Overwrite the disbursement info with the final values.
-	err = d.UpsertDisbursement(1, disTxnHash, disBlockNumber, testTimestamp)
+	tempDisTxnHash := common.HexToHash("0xee00")
+	tempDisBlockNumber := uint64(1)
+	err = d.UpsertDisbursement(
+		1, tempDisTxnHash, tempDisBlockNumber, testTimestamp, false,
+	)
 	require.Nil(t, err)
 
 	expTeleports := []db.CompletedTeleport{
@@ -287,6 +292,36 @@ func TestUpsertDisbursement(t *testing.T) {
 			ID:      1,
 			Address: address,
 			Amount:  amount,
+			Success: false,
+			Deposit: db.ConfirmationInfo{
+				TxnHash:        depTxnHash,
+				BlockNumber:    depBlockNumber,
+				BlockTimestamp: testTimestamp,
+			},
+			Disbursement: db.ConfirmationInfo{
+				TxnHash:        tempDisTxnHash,
+				BlockNumber:    tempDisBlockNumber,
+				BlockTimestamp: testTimestamp,
+			},
+		},
+	}
+
+	// Assert that the deposit shows up in the CompletedTeleports method with
+	// both the L1 and temp L2 confirmation info.
+	teleports, err := d.CompletedTeleports()
+	require.Nil(t, err)
+	require.Equal(t, expTeleports, teleports)
+
+	// Overwrite the disbursement info with the final values.
+	err = d.UpsertDisbursement(1, disTxnHash, disBlockNumber, testTimestamp, true)
+	require.Nil(t, err)
+
+	expTeleports = []db.CompletedTeleport{
+		{
+			ID:      1,
+			Address: address,
+			Amount:  amount,
+			Success: true,
 			Deposit: db.ConfirmationInfo{
 				TxnHash:        depTxnHash,
 				BlockNumber:    depBlockNumber,
@@ -302,7 +337,139 @@ func TestUpsertDisbursement(t *testing.T) {
 
 	// Assert that the deposit now shows up in the CompletedTeleports method
 	// with both the L1 and L2 confirmation info.
-	teleports, err := d.CompletedTeleports()
+	teleports, err = d.CompletedTeleports()
 	require.Nil(t, err)
 	require.Equal(t, expTeleports, teleports)
+}
+
+// TestUpsertPendingTxs asserts that UpsertPendingTx properly records a pending
+// tx, and that it appears in ListPendingTxs on subsequent calls.
+func TestUpsertPendingTxs(t *testing.T) {
+	t.Parallel()
+
+	d := newDatabase(t)
+	defer d.Close()
+
+	// Should be empty at first.
+	pendingTxs, err := d.ListPendingTxs()
+	require.Nil(t, err)
+	require.Nil(t, pendingTxs)
+
+	// Add first pending tx.
+	pendingTx1 := db.PendingTx{
+		TxHash:  common.HexToHash("0x11"),
+		StartID: 0,
+		EndID:   1,
+	}
+	err = d.UpsertPendingTx(pendingTx1)
+	require.Nil(t, err)
+
+	pendingTxs, err = d.ListPendingTxs()
+	require.Nil(t, err)
+	require.Equal(t, []db.PendingTx{pendingTx1}, pendingTxs)
+
+	// Add second pending tx.
+	pendingTx2 := db.PendingTx{
+		TxHash:  common.HexToHash("0x22"),
+		StartID: 0,
+		EndID:   1,
+	}
+	err = d.UpsertPendingTx(pendingTx2)
+	require.Nil(t, err)
+
+	pendingTxs, err = d.ListPendingTxs()
+	require.Nil(t, err)
+	require.Equal(t, []db.PendingTx{pendingTx1, pendingTx2}, pendingTxs)
+
+	// Readd duplciate pending tx.
+	err = d.UpsertPendingTx(pendingTx2)
+	require.Nil(t, err)
+
+	pendingTxs, err = d.ListPendingTxs()
+	require.Nil(t, err)
+	require.Equal(t, []db.PendingTx{pendingTx1, pendingTx2}, pendingTxs)
+
+	// Add third pending tx.
+	pendingTx3 := db.PendingTx{
+		TxHash:  common.HexToHash("0x33"),
+		StartID: 1,
+		EndID:   2,
+	}
+	err = d.UpsertPendingTx(pendingTx3)
+	require.Nil(t, err)
+
+	pendingTxs, err = d.ListPendingTxs()
+	require.Nil(t, err)
+	require.Equal(t, []db.PendingTx{pendingTx3, pendingTx1, pendingTx2}, pendingTxs)
+}
+
+// TestDeletePendingTx asserts that DeletePendingTx properly cleans up the
+// pending_txs table when provided with various start/end ids.
+func TestDeletePendingTx(t *testing.T) {
+	t.Parallel()
+
+	d := newDatabase(t)
+	defer d.Close()
+
+	pendingTx1 := db.PendingTx{
+		TxHash:  common.HexToHash("0x11"),
+		StartID: 0,
+		EndID:   1,
+	}
+	pendingTx2 := db.PendingTx{
+		TxHash:  common.HexToHash("0x22"),
+		StartID: 0,
+		EndID:   1,
+	}
+	pendingTx3 := db.PendingTx{
+		TxHash:  common.HexToHash("0x33"),
+		StartID: 1,
+		EndID:   2,
+	}
+
+	err := d.UpsertPendingTx(pendingTx1)
+	require.Nil(t, err)
+	err = d.UpsertPendingTx(pendingTx2)
+	require.Nil(t, err)
+	err = d.UpsertPendingTx(pendingTx3)
+	require.Nil(t, err)
+
+	pendingTxs, err := d.ListPendingTxs()
+	require.Nil(t, err)
+	require.Equal(t, []db.PendingTx{pendingTx3, pendingTx1, pendingTx2}, pendingTxs)
+
+	// Delete with indexes that do not match any start/end, no effect.
+	err = d.DeletePendingTx(3, 4)
+	require.Nil(t, err)
+	pendingTxs, err = d.ListPendingTxs()
+	require.Nil(t, err)
+	require.Equal(t, []db.PendingTx{pendingTx3, pendingTx1, pendingTx2}, pendingTxs)
+
+	// Delete with indexes that matches start but no end, no effect.
+	err = d.DeletePendingTx(1, 3)
+	require.Nil(t, err)
+	pendingTxs, err = d.ListPendingTxs()
+	require.Nil(t, err)
+	require.Equal(t, []db.PendingTx{pendingTx3, pendingTx1, pendingTx2}, pendingTxs)
+
+	// Delete with indexes that matches end but no start, no effect.
+	err = d.DeletePendingTx(0, 2)
+	require.Nil(t, err)
+	pendingTxs, err = d.ListPendingTxs()
+	require.Nil(t, err)
+	require.Equal(t, []db.PendingTx{pendingTx3, pendingTx1, pendingTx2}, pendingTxs)
+
+	// Delete with indexes that matches start and end, should remove both.
+	err = d.DeletePendingTx(0, 1)
+	require.Nil(t, err)
+	pendingTxs, err = d.ListPendingTxs()
+	require.Nil(t, err)
+	require.Equal(t, []db.PendingTx{pendingTx3}, pendingTxs)
+
+	// Delete with indexes that matches start and end, no empty.
+	err = d.DeletePendingTx(1, 2)
+	require.Nil(t, err)
+	pendingTxs, err = d.ListPendingTxs()
+	require.Nil(t, err)
+	require.Nil(t, pendingTxs)
 }

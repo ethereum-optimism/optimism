@@ -74,11 +74,10 @@ describe('Basic L1<>L2 Communication', async () => {
           }
         )
 
-        let status: MessageStatus
-        while (status !== MessageStatus.READY_FOR_RELAY) {
-          status = await env.messenger.getMessageStatus(transaction)
-          await sleep(1000)
-        }
+        await env.messenger.waitForMessageStatus(
+          transaction,
+          MessageStatus.READY_FOR_RELAY
+        )
 
         await env.messenger.finalizeMessage(transaction)
         await env.messenger.waitForMessageReceipt(transaction)

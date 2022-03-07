@@ -416,6 +416,16 @@ func (evm *EVM) create(caller ContractRef, codeAndHash *codeAndHash, gas uint64,
 			}
 			return ret, common.Address{}, gas, errExecutionReverted
 		}
+
+		// Get the system address for this caller.
+		sysAddr := rcfg.SystemAddressFor(evm.ChainConfig().ChainID, caller.Address())
+
+		// If there is a configured system address for this caller, and the caller's nonce is zero,
+		// and there is no contract already deployed at this system address, then set the created
+		// address to the system address.
+		if sysAddr != rcfg.ZeroSystemAddress && evm.StateDB.GetNonce(caller.Address()) == 0 {
+			address = sysAddr
+		}
 	}
 	nonce := evm.StateDB.GetNonce(caller.Address())
 	evm.StateDB.SetNonce(caller.Address(), nonce+1)

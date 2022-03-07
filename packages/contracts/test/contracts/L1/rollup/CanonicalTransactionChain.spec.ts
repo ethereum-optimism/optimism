@@ -218,6 +218,18 @@ describe('CanonicalTransactionChain', () => {
       ).to.be.revertedWith('Insufficient gas for L2 rate limiting burn.')
     })
 
+    it('should burn L1 gas when L2 gas limit is high', async () => {
+      const _enqueueL2GasPrepaid =
+        await CanonicalTransactionChain.enqueueL2GasPrepaid()
+      const data = '0x' + '12'.repeat(1234)
+
+      // Create a tx with high L2 gas limit
+      const l2GasLimit = 4 * _enqueueL2GasPrepaid
+
+      await expect(CanonicalTransactionChain.enqueue(target, l2GasLimit, data))
+        .to.not.be.reverted
+    })
+
     describe('with valid input parameters', () => {
       it('should emit a TransactionEnqueued event', async () => {
         const timestamp = (await getEthTime(ethers.provider)) + 100

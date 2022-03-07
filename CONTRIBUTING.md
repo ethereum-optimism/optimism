@@ -116,7 +116,7 @@ This will build the following containers:
 * [`l2geth`](https://hub.docker.com/r/ethereumoptimism/l2geth): L2 geth node running in Sequencer mode
 * [`verifier`](https://hub.docker.com/r/ethereumoptimism/go-ethereum): L2 geth node running in Verifier mode
 * [`relayer`](https://hub.docker.com/r/ethereumoptimism/message-relayer): helper process that relays messages between L1 and L2
-* [`batch_submitter`](https://hub.docker.com/r/ethereumoptimism/batch-submitter): service that submits batches of Sequencer transactions to the L1 chain
+* [`batch_submitter`](https://hub.docker.com/r/ethereumoptimism/batch-submitter-service): service that submits batches of Sequencer transactions to the L1 chain
 * [`integration_tests`](https://hub.docker.com/r/ethereumoptimism/integration-tests): integration tests in a box
 
 If you want to make a change to a container, you'll need to take it down and rebuild it.

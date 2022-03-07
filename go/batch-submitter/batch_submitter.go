@@ -93,7 +93,7 @@ func Main(gitVersion string) func(ctx *cli.Context) error {
 			return err
 		}
 
-		l2Client, err := dial.L2EthClientWithTimeout(ctx, cfg.L2EthRpc, cfg.DisableHTTP2)
+		l2Client, err := DialL2EthClientWithTimeout(ctx, cfg.L2EthRpc, cfg.DisableHTTP2)
 		if err != nil {
 			return err
 		}
@@ -125,6 +125,7 @@ func Main(gitVersion string) func(ctx *cli.Context) error {
 				CTCAddr:     ctcAddress,
 				ChainID:     chainID,
 				PrivKey:     sequencerPrivKey,
+				BatchType:   sequencer.BatchTypeFromString(cfg.SequencerBatchType),
 			})
 			if err != nil {
 				return err

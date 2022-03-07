@@ -1,6 +1,8 @@
+/* Imports: External */
 import { Contract, BigNumber } from 'ethers'
 import { ethers } from 'hardhat'
 
+/* Imports: Internal */
 import { expect } from './shared/setup'
 import { OptimismEnv } from './shared/env'
 
