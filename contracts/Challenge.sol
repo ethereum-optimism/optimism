@@ -46,11 +46,17 @@ contract Challenge {
   }
 
   struct Chal {
+    // Left bound of the binary search: challenger & defender agree on all steps <= L.
     uint256 L;
+    // Right bound of the binary search: challenger & defender disagree on all steps >= R.
     uint256 R;
+    // Maps step numbers to asserted state hashes for the challenger.
     mapping(uint256 => bytes32) assertedState;
+    // Maps step numbers to asserted state hashes for the defender.
     mapping(uint256 => bytes32) defendedState;
+    // Address of the challenger.
     address payable challenger;
+    // Block number preceding the challenged block.
     uint256 blockNumberN;
   }
 
@@ -155,33 +161,18 @@ contract Challenge {
     require(mem.ReadBytes32(finalSystemState, 0x30000804) == assertionRoot,
         "the final MIPS machine state asserts a different state root than your challenge");
 
-    return newChallengeTrusted(blockNumberN, startState, finalSystemState, stepCount);
-  }
-
-  function newChallengeTrusted(
-      uint256 blockNumberN, bytes32 startState, bytes32 finalSystemState, uint256 stepCount)
-    internal
-    returns (uint256)
-  {
-    uint256 challengeId = lastChallengeId;
+    uint256 challengeId = lastChallengeId++;
     Chal storage c = challenges[challengeId];
-    lastChallengeId += 1;
 
-    // the challenger arrives
+    // A NEW CHALLENGER APPEARS
     c.challenger = msg.sender;
-
-    // the state is set
     c.blockNumberN = blockNumberN;
-    // NOTE: if they disagree on the start, 0->1 will fail
     c.assertedState[0] = startState;
     c.defendedState[0] = startState;
     c.assertedState[stepCount] = finalSystemState;
-
-    // init the binary search
     c.L = 0;
     c.R = stepCount;
 
-    // find me later
     emit ChallengeCreate(challengeId);
     return challengeId;
   }
