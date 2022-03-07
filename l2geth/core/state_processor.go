@@ -26,6 +26,7 @@ import (
 	"github.com/ethereum-optimism/optimism/l2geth/crypto"
 	"github.com/ethereum-optimism/optimism/l2geth/params"
 	"github.com/ethereum-optimism/optimism/l2geth/rollup/fees"
+	"github.com/ethereum-optimism/optimism/l2geth/rollup/rcfg"
 )
 
 // StateProcessor is a basic Processor, which takes care of transitioning
@@ -132,7 +133,18 @@ func ApplyTransaction(config *params.ChainConfig, bc ChainContext, author *commo
 	receipt.GasUsed = gas
 	// if the transaction created a contract, store the creation address in the receipt.
 	if msg.To() == nil {
-		receipt.ContractAddress = crypto.CreateAddress(vmenv.Context.Origin, tx.Nonce())
+		if rcfg.UsingOVM {
+			sysAddress := rcfg.SystemAddressFor(config.ChainID, vmenv.Context.Origin)
+			// If nonce is zero, and the deployer is a system address deployer,
+			// set the provided system contract address.
+			if sysAddress != rcfg.ZeroSystemAddress && tx.Nonce() == 0 && tx.To() == nil {
+				receipt.ContractAddress = sysAddress
+			} else {
+				receipt.ContractAddress = crypto.CreateAddress(vmenv.Context.Origin, tx.Nonce())
+			}
+		} else {
+			receipt.ContractAddress = crypto.CreateAddress(vmenv.Context.Origin, tx.Nonce())
+		}
 	}
 	// Set the receipt logs and create a bloom for filtering
 	receipt.Logs = statedb.GetLogs(tx.Hash())

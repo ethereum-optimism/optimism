@@ -38,7 +38,7 @@ const procEnv = cleanEnv(process.env, {
   L1_URL: str({ default: 'http://localhost:9545' }),
   L1_POLLING_INTERVAL: num({ default: 10 }),
 
-  L2_CHAINID: num({ default: 420 }),
+  L2_CHAINID: num({ default: 987 }),
   L2_GAS_PRICE: gasPriceValidator({
     default: 'onchain',
   }),
@@ -86,6 +86,9 @@ const procEnv = cleanEnv(process.env, {
   }),
   RUN_VERIFIER_TESTS: bool({
     default: true,
+  }),
+  RUN_SYSTEM_ADDRESS_TESTS: bool({
+    default: false,
   }),
 
   MOCHA_TIMEOUT: num({
