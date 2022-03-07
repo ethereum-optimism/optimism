@@ -30,7 +30,7 @@ func NewDriver(cfg rollup.Config, l2 DriverAPI, l1 l1.Source, log log.Logger) *D
 	}
 }
 
-func (d *Driver) Start(ctx context.Context, l1Heads <-chan eth.L1Node) error {
+func (d *Driver) Start(ctx context.Context, l1Heads <-chan eth.L1BlockRef) error {
 	return d.s.Start(ctx, l1Heads)
 }
 func (d *Driver) Close() error {
@@ -42,11 +42,11 @@ type inputImpl struct {
 	genesis     *rollup.Genesis
 }
 
-func (i *inputImpl) L1Head(ctx context.Context) (eth.L1Node, error) {
+func (i *inputImpl) L1Head(ctx context.Context) (eth.L1BlockRef, error) {
 	return i.chainSource.L1HeadNode(ctx)
 }
 
-func (i *inputImpl) L2Head(ctx context.Context) (eth.L2Node, error) {
+func (i *inputImpl) L2Head(ctx context.Context) (eth.L2BlockRef, error) {
 	return i.chainSource.L2NodeByNumber(ctx, nil)
 
 }
@@ -55,6 +55,6 @@ func (i *inputImpl) L1ChainWindow(ctx context.Context, base eth.BlockID) ([]eth.
 	return sync.FindL1Range(ctx, i.chainSource, base)
 }
 
-func (i *inputImpl) SafeL2Head(ctx context.Context) (eth.L2Node, error) {
+func (i *inputImpl) SafeL2Head(ctx context.Context) (eth.L2BlockRef, error) {
 	return sync.FindSafeL2Head(ctx, i.chainSource, i.genesis)
 }

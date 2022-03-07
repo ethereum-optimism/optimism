@@ -26,10 +26,10 @@ type L2Client interface {
 
 // ChainSource provides access to the L1 and L2 block graph
 type ChainSource interface {
-	L1NodeByNumber(ctx context.Context, l1Num uint64) (eth.L1Node, error)
-	L1HeadNode(ctx context.Context) (eth.L1Node, error)
-	L2NodeByNumber(ctx context.Context, l2Num *big.Int) (eth.L2Node, error)
-	L2NodeByHash(ctx context.Context, l2Hash common.Hash) (eth.L2Node, error)
+	L1NodeByNumber(ctx context.Context, l1Num uint64) (eth.L1BlockRef, error)
+	L1HeadNode(ctx context.Context) (eth.L1BlockRef, error)
+	L2NodeByNumber(ctx context.Context, l2Num *big.Int) (eth.L2BlockRef, error)
+	L2NodeByHash(ctx context.Context, l2Hash common.Hash) (eth.L2BlockRef, error)
 }
 
 func NewChainSource(l1 L1Client, l2 L2Client, genesis *rollup.Genesis) *chainSourceImpl {
@@ -43,50 +43,50 @@ type chainSourceImpl struct {
 }
 
 // L1NodeByNumber returns the canonical block and parent ids.
-func (src chainSourceImpl) L1NodeByNumber(ctx context.Context, l1Num uint64) (eth.L1Node, error) {
+func (src chainSourceImpl) L1NodeByNumber(ctx context.Context, l1Num uint64) (eth.L1BlockRef, error) {
 	return src.l1NodeByNumber(ctx, new(big.Int).SetUint64(l1Num))
 }
 
 // L1NodeByNumber returns the canonical head block and parent ids.
-func (src chainSourceImpl) L1HeadNode(ctx context.Context) (eth.L1Node, error) {
+func (src chainSourceImpl) L1HeadNode(ctx context.Context) (eth.L1BlockRef, error) {
 	return src.l1NodeByNumber(ctx, nil)
 }
 
 // l1NodeByNumber wraps l1.HeaderByNumber to return an eth.L1Node
 // This is internal because the exposed L1NodeByNumber takes uint64 instead of big.Ints
-func (src chainSourceImpl) l1NodeByNumber(ctx context.Context, number *big.Int) (eth.L1Node, error) {
+func (src chainSourceImpl) l1NodeByNumber(ctx context.Context, number *big.Int) (eth.L1BlockRef, error) {
 	header, err := src.l1.HeaderByNumber(ctx, number)
 	if err != nil {
 		// w%: wrap the error, we still need to detect if a canonical block is not found, a.k.a. end of chain.
-		return eth.L1Node{}, fmt.Errorf("failed to determine block-hash of height %v, could not get header: %w", number, err)
+		return eth.L1BlockRef{}, fmt.Errorf("failed to determine block-hash of height %v, could not get header: %w", number, err)
 	}
 	l1Num := header.Number.Uint64()
 	parentNum := l1Num
 	if parentNum > 0 {
 		parentNum -= 1
 	}
-	return eth.L1Node{
+	return eth.L1BlockRef{
 		Self:   eth.BlockID{Hash: header.Hash(), Number: l1Num},
 		Parent: eth.BlockID{Hash: header.ParentHash, Number: parentNum},
 	}, nil
 }
 
 // L2NodeByNumber returns the canonical block and parent ids.
-func (src chainSourceImpl) L2NodeByNumber(ctx context.Context, l2Num *big.Int) (eth.L2Node, error) {
+func (src chainSourceImpl) L2NodeByNumber(ctx context.Context, l2Num *big.Int) (eth.L2BlockRef, error) {
 	block, err := src.l2.BlockByNumber(ctx, l2Num)
 	if err != nil {
 		// w%: wrap the error, we still need to detect if a canonical block is not found, a.k.a. end of chain.
-		return eth.L2Node{}, fmt.Errorf("failed to determine block-hash of height %v, could not get header: %w", l2Num, err)
+		return eth.L2BlockRef{}, fmt.Errorf("failed to determine block-hash of height %v, could not get header: %w", l2Num, err)
 	}
 	return derive.BlockReferences(block, src.genesis)
 }
 
 // L2NodeByHash returns the block & parent ids based on the supplied hash. The returned node may not be in the canonical chain
-func (src chainSourceImpl) L2NodeByHash(ctx context.Context, l2Hash common.Hash) (eth.L2Node, error) {
+func (src chainSourceImpl) L2NodeByHash(ctx context.Context, l2Hash common.Hash) (eth.L2BlockRef, error) {
 	block, err := src.l2.BlockByHash(ctx, l2Hash)
 	if err != nil {
 		// w%: wrap the error, we still need to detect if a canonical block is not found, a.k.a. end of chain.
-		return eth.L2Node{}, fmt.Errorf("failed to determine block-hash of height %v, could not get header: %w", l2Hash, err)
+		return eth.L2BlockRef{}, fmt.Errorf("failed to determine block-hash of height %v, could not get header: %w", l2Hash, err)
 	}
 	return derive.BlockReferences(block, src.genesis)
 }

@@ -10,11 +10,11 @@ import (
 )
 
 type inputInterface interface {
-	L1Head(ctx context.Context) (eth.L1Node, error)
-	L2Head(ctx context.Context) (eth.L2Node, error)
+	L1Head(ctx context.Context) (eth.L1BlockRef, error)
+	L2Head(ctx context.Context) (eth.L2BlockRef, error)
 	L1ChainWindow(ctx context.Context, base eth.BlockID) ([]eth.BlockID, error)
 	// SafeL2Head is the L2 Head found via the sync algorithm
-	SafeL2Head(ctx context.Context) (eth.L2Node, error)
+	SafeL2Head(ctx context.Context) (eth.L2BlockRef, error)
 }
 
 type outputInterface interface {
@@ -33,7 +33,7 @@ type state struct {
 	Config rollup.Config
 
 	// Connections (in/out)
-	l1Heads <-chan eth.L1Node
+	l1Heads <-chan eth.L1BlockRef
 	input   inputInterface
 	output  outputInterface
 
@@ -51,7 +51,7 @@ func NewState(log log.Logger, config rollup.Config, input inputInterface, output
 	}
 }
 
-func (s *state) Start(ctx context.Context, l1Heads <-chan eth.L1Node) error {
+func (s *state) Start(ctx context.Context, l1Heads <-chan eth.L1BlockRef) error {
 	l1Head, err := s.input.L1Head(ctx)
 	if err != nil {
 		return err
@@ -63,7 +63,7 @@ func (s *state) Start(ctx context.Context, l1Heads <-chan eth.L1Node) error {
 
 	s.l1Head = l1Head.Self
 	s.l2Head = l2Head.Self
-	s.l1Base = l2Head.L1Parent
+	s.l1Base = l2Head.L1Origin
 	s.l1Heads = l1Heads
 
 	go s.loop()
@@ -154,7 +154,7 @@ func (s *state) loop() {
 				}
 				s.l1Head = newL1Head.Self
 				s.l1Window = nil
-				s.l1Base = nextL2Head.L1Parent
+				s.l1Base = nextL2Head.L1Origin
 				s.l2Head = nextL2Head.Self
 			}
 			// Run step if we are able to

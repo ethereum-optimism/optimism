@@ -119,7 +119,7 @@ func (c *OpNode) Start(ctx context.Context) error {
 
 	c.log.Info("Fetching rollup starting point")
 
-	// Feed of eth.L1Node
+	// Feed of eth.L1BlockRef
 	var l1HeadsFeed event.Feed
 
 	c.log.Info("Attaching execution engine(s)")
@@ -128,7 +128,7 @@ func (c *OpNode) Start(ctx context.Context) error {
 		reqCtx, reqCancel := context.WithTimeout(ctx, time.Second*10)
 
 		// driver subscribes to L1 head changes
-		l1SubCh := make(chan eth.L1Node, 10)
+		l1SubCh := make(chan eth.L1BlockRef, 10)
 		l1HeadsFeed.Subscribe(l1SubCh)
 		// start driving engine: sync blocks by deriving them from L1 and driving them into the engine
 		err := eng.Start(reqCtx, l1SubCh)
@@ -144,14 +144,14 @@ func (c *OpNode) Start(ctx context.Context) error {
 		if err != nil {
 			c.log.Warn("resubscribing after failed L1 subscription", "err", err)
 		}
-		return eth.WatchHeadChanges(context.Background(), c.l1Source, func(sig eth.L1Node) {
+		return eth.WatchHeadChanges(context.Background(), c.l1Source, func(sig eth.L1BlockRef) {
 			l1HeadsFeed.Send(sig)
 		})
 	})
 	handleUnsubscribe(l1HeadsSub, "l1 heads subscription failed")
 
 	// subscribe to L1 heads for info
-	l1Heads := make(chan eth.L1Node, 10)
+	l1Heads := make(chan eth.L1BlockRef, 10)
 	l1HeadsFeed.Subscribe(l1Heads)
 
 	c.log.Info("Start-up complete!")

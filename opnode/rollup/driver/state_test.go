@@ -59,20 +59,20 @@ type stateTestCaseStep struct {
 	expectedL2Head testID
 	expectedWindow []testID
 
-	l1action func(t *testing.T, s *state, src *fakeChainSource, l1Heads chan eth.L1Node)
+	l1action func(t *testing.T, s *state, src *fakeChainSource, l1Heads chan eth.L1BlockRef)
 	l2action func(t *testing.T, expectedWindow []testID, s *state, src *fakeChainSource, outputIn chan outputArgs, outputReturn chan outputReturnArgs)
 	reorg    bool
 }
 
-func advanceL1(t *testing.T, s *state, src *fakeChainSource, l1Heads chan eth.L1Node) {
+func advanceL1(t *testing.T, s *state, src *fakeChainSource, l1Heads chan eth.L1BlockRef) {
 	l1Heads <- src.advanceL1()
 }
 
-func stutterL1(t *testing.T, s *state, src *fakeChainSource, l1Heads chan eth.L1Node) {
+func stutterL1(t *testing.T, s *state, src *fakeChainSource, l1Heads chan eth.L1BlockRef) {
 	l1Heads <- src.l1Head()
 }
 
-func stutterAdvance(t *testing.T, s *state, src *fakeChainSource, l1Heads chan eth.L1Node) {
+func stutterAdvance(t *testing.T, s *state, src *fakeChainSource, l1Heads chan eth.L1BlockRef) {
 	l1Heads <- src.l1Head()
 	l1Heads <- src.l1Head()
 	l1Heads <- src.l1Head()
@@ -123,7 +123,7 @@ type stateTestCase struct {
 func (tc *stateTestCase) Run(t *testing.T) {
 	log := testlog.Logger(t, log.LvlTrace)
 	chainSource := NewFakeChainSource(tc.l1Chains, tc.l2Chains, log)
-	l1headsCh := make(chan eth.L1Node, 10)
+	l1headsCh := make(chan eth.L1BlockRef, 10)
 	// Unbuffered channels to force a sync point between
 	outputIn := make(chan outputArgs)
 	outputReturn := make(chan outputReturnArgs)
