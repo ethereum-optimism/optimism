@@ -44,7 +44,7 @@ func NewMetrics(monitoredTokens map[string]string) *Metrics {
 	return &Metrics{
 		SyncHeight: promauto.NewGaugeVec(prometheus.GaugeOpts{
 			Name:      "sync_height",
-			Help:      "The max height of the indexer's last batch of L1 blocks.",
+			Help:      "The max height of the indexer's last batch of L1/L1 blocks.",
 			Namespace: metricsNamespace,
 		}, []string{
 			"chain",
