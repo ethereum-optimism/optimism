@@ -17,6 +17,7 @@ type Driver struct {
 func NewDriver(cfg rollup.Config, l2 DriverAPI, l1 l1.Source, log log.Logger) *Driver {
 	input := &inputImpl{
 		chainSource: sync.NewChainSource(l1, l2, &cfg.Genesis),
+		genesis:     &cfg.Genesis,
 	}
 	output := &outputImpl{
 		Config: cfg,
@@ -38,6 +39,7 @@ func (d *Driver) Close() error {
 
 type inputImpl struct {
 	chainSource sync.ChainSource
+	genesis     *rollup.Genesis
 }
 
 func (i *inputImpl) L1Head(ctx context.Context) (eth.L1Node, error) {
@@ -51,4 +53,8 @@ func (i *inputImpl) L2Head(ctx context.Context) (eth.L2Node, error) {
 
 func (i *inputImpl) L1ChainWindow(ctx context.Context, base eth.BlockID) ([]eth.BlockID, error) {
 	return sync.FindL1Range(ctx, i.chainSource, base)
+}
+
+func (i *inputImpl) SafeL2Head(ctx context.Context) (eth.L2Node, error) {
+	return sync.FindSafeL2Head(ctx, i.chainSource, i.genesis)
 }

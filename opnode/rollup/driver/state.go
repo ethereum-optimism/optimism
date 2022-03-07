@@ -13,6 +13,8 @@ type inputInterface interface {
 	L1Head(ctx context.Context) (eth.L1Node, error)
 	L2Head(ctx context.Context) (eth.L2Node, error)
 	L1ChainWindow(ctx context.Context, base eth.BlockID) ([]eth.BlockID, error)
+	// SafeL2Head is the L2 Head found via the sync algorithm
+	SafeL2Head(ctx context.Context) (eth.L2Node, error)
 }
 
 type outputInterface interface {
@@ -73,8 +75,8 @@ func (s *state) Close() error {
 	return nil
 }
 
-// l1WindowEnd returns the last block that should be used as `base` to L1ChainWindow
-// This is either the last block of the window, or the L1 base block if the window is not populated
+// l1WindowEnd returns the last block that should be used as `base` to L1ChainWindow.
+// This is either the last block of the window, or the L1 base block if the window is not populated.
 func (s *state) l1WindowEnd() eth.BlockID {
 	if len(s.l1Window) == 0 {
 		return s.l1Base
@@ -82,17 +84,8 @@ func (s *state) l1WindowEnd() eth.BlockID {
 	return s.l1Window[len(s.l1Window)-1]
 }
 
-// sequencingWindow returns the next sequencing window and true if it exists, (nil, false) if
-// there are not enough saved blocks.
-func (s *state) sequencingWindow() ([]eth.BlockID, bool) {
-	if len(s.l1Window) < int(s.Config.SeqWindowSize) {
-		return nil, false
-	}
-	return s.l1Window[:int(s.Config.SeqWindowSize)], true
-}
-
 // extendL1Window extends the cached L1 window by pulling blocks from L1.
-// It starts just after `l1WindowEnd()`
+// It starts just after `s.l1WindowEnd()`.
 func (s *state) extendL1Window(ctx context.Context) error {
 	s.log.Trace("Extending the cached window from L1", "cached_size", len(s.l1Window), "window_end", s.l1WindowEnd())
 	nexts, err := s.input.L1ChainWindow(ctx, s.l1WindowEnd())
@@ -103,52 +96,13 @@ func (s *state) extendL1Window(ctx context.Context) error {
 	return nil
 }
 
-func (s *state) handleReorg(ctx context.Context, head eth.L1Node) error {
-	log.Warn("L1 Head signal indicates an L1 re-org", "old_l1_head", s.l1Head, "new_l1_head_parent", head.Parent, "new_l1_head", head.Self)
-	nextL2Head, err := s.input.L2Head(ctx)
-	if err != nil {
-		log.Error("Could not get new L2 head when trying to handle a re-org", "err", err)
-		// TODO: How do you handle this error - it seems to break everything
-		return err
+// sequencingWindow returns the next sequencing window and true if it exists, (nil, false) if
+// there are not enough saved blocks.
+func (s *state) sequencingWindow() ([]eth.BlockID, bool) {
+	if len(s.l1Window) < int(s.Config.SeqWindowSize) {
+		return nil, false
 	}
-	s.l1Head = head.Parent
-	s.l1Window = nil
-	s.l1Base = nextL2Head.L1Parent
-	s.l2Head = nextL2Head.Self
-	return nil
-}
-
-// newL1Head takes the new head and updates the internal state to reflect the new chain state.
-// Returns true if it is a re-org, false otherwise (linear extension, no-op, or other simple case).
-// If there is a re-org, this updates the internal state to handle the re-org.
-// Note that `ctx` is only used in a re-org and that handling a re-org may take a long period of time.
-// The L2 engine is not modified in this function.
-func (s *state) newL1Head(ctx context.Context, head eth.L1Node) (bool, error) {
-	// Already have head
-	if s.l1Head == head.Self {
-		log.Trace("Received L1 head signal that is the same as the current head", "l1_head", head.Self)
-		return false, nil
-	}
-	// Re-org (maybe also a skip)
-	if s.l1Head != head.Parent {
-		err := s.handleReorg(ctx, head)
-		if err != nil {
-			return false, err
-		}
-	}
-	// Linear extension
-	s.l1Head = head.Self
-	// Check if the new block extends the L1 window and save it if so.
-	if s.l1WindowEnd() == head.Parent {
-		// // don't buffer more than 20 sequencing windows  (TBD, sanity limit)
-		// if uint64(len(e.l1Next)) < e.Config.SeqWindowSize*20 {
-		// 	e.l1Next = append(e.l1Next, l1HeadSig.Self)
-		// }
-		s.l1Window = append(s.l1Window, head.Self)
-	}
-
-	return false, nil
-
+	return s.l1Window[:int(s.Config.SeqWindowSize)], true
 }
 
 func (s *state) loop() {
@@ -176,45 +130,67 @@ func (s *state) loop() {
 		// case <-l2Poll.C:
 		case <-s.done:
 			return
-		case l1HeadSig := <-s.l1Heads:
-			s.log.Trace("L1 Head Update", "new_head", l1HeadSig.Self)
-			// Set a long timeout because the timeout is for running sync.L2Head
-			ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
-			_, err := s.newL1Head(ctx, l1HeadSig)
-			if err != nil {
-				panic(err)
+		case newL1Head := <-s.l1Heads:
+			s.log.Trace("Received new L1 Head", "new_head", newL1Head.Self, "old_head", s.l1Head)
+			// Check if we have a stutter step. May be due to a L1 Poll operation.
+			if s.l1Head == newL1Head.Self {
+				log.Trace("Received L1 head signal that is the same as the current head", "l1_head", newL1Head.Self)
+				continue
+			}
+
+			// Typically get linear extension, but if not, handle a re-org
+			if s.l1Head == newL1Head.Parent {
+				s.log.Trace("Linear extension")
+				s.l1Head = newL1Head.Self
+				if s.l1WindowEnd() == newL1Head.Parent {
+					s.l1Window = append(s.l1Window, newL1Head.Self)
+				}
+			} else {
+				s.log.Warn("L1 Head signal indicates an L1 re-org", "old_l1_head", s.l1Head, "new_l1_head_parent", newL1Head.Parent, "new_l1_head", newL1Head.Self)
+				nextL2Head, err := s.input.SafeL2Head(ctx)
+				if err != nil {
+					s.log.Error("Could not get new L2 head when trying to handle a re-org", "err", err)
+					continue
+				}
+				s.l1Head = newL1Head.Self
+				s.l1Window = nil
+				s.l1Base = nextL2Head.L1Parent
+				s.l2Head = nextL2Head.Self
 			}
 			requestStep()
-			cancel()
 
 		case <-stepRequest:
-			log := s.log.New("action", "step_request", "cached_window_len", len(s.l1Window), "l1Head", s.l1Head, "l2Head", s.l2Head, "l1Base", s.l1Base)
-			log.Trace("Got step request")
-			// Extended cached window if we do not have enough saved blocks
+			s.log.Trace("Got step request")
+			// Extend cached window if we do not have enough saved blocks
 			if len(s.l1Window) < int(s.Config.SeqWindowSize) {
 				err := s.extendL1Window(context.Background())
-				log.Trace("Extended window", "new_cached_window_len", len(s.l1Window))
 				if err != nil {
-					panic(err)
+					s.log.Error("Could not extend the cached L1 window", "err", err, "l1Head", s.l1Head, "l1Base", s.l1Base, "window_end", s.l1WindowEnd())
+					continue
 				}
 			}
 
 			// Get next window (& ensure that it exists)
 			if window, ok := s.sequencingWindow(); ok {
-				log.Trace("Running step")
+				s.log.Trace("Have enough cached blocks to run step.")
 				ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 				newL2Head, err := s.output.step(ctx, s.l2Head, s.l2Finalized, window)
 				cancel()
-				log.Trace("Ran step", "head", newL2Head, "err", err)
 				if err != nil {
-					panic(err)
+					s.log.Error("Error in running the output step.", "err", err, "l2Head", s.l2Head, "l2Finalized", s.l2Finalized, "window", window)
+					continue
 				}
 				s.l2Head = newL2Head
 				s.l1Base = s.l1Window[0]
 				s.l1Window = s.l1Window[1:]
 				// TODO: l2Finalized/l2Safe.
 			} else {
-				log.Trace("Not enough saved blocks to run step")
+				s.log.Trace("Not enough cached blocks to run step", "cached_window_len", len(s.l1Window))
+			}
+
+			// Immediately run next step if we have enough blocks.
+			if s.l1Head.Number-s.l1Base.Number >= s.Config.SeqWindowSize {
+				requestStep()
 			}
 
 		}
