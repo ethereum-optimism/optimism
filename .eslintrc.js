@@ -27,6 +27,7 @@ module.exports = {
       parserOptions: {
         project: 'tsconfig.json',
         sourceType: 'module',
+        allowAutomaticSingleRunInference: true,
       },
       rules: {
         '@typescript-eslint/adjacent-overload-signatures': 'error',
@@ -102,13 +103,9 @@ module.exports = {
     'import/no-extraneous-dependencies': ['error'],
     'import/no-internal-modules': 'off',
     'import/order': [
-      "error",
+      'error',
       {
-        groups: [
-          'builtin',
-          'external',
-          'internal',
-        ],
+        groups: ['builtin', 'external', 'internal'],
         'newlines-between': 'always',
       },
     ],
