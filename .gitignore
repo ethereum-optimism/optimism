@@ -1,27 +1,29 @@
-.DS_Store
+# no comment needed
 node_modules
+
+# log files
+*.log
+
+# environment variables
+.env
+.env*
+
+# os-specific build/temp files
+.DS_Store
+*.sw*
+
+# coverage report files
 results
 temp
 .nyc_output
 coverage.json
+
+# ts build files
 *.tsbuildinfo
 
+# global ts output
 dist
+
+# global hardhat output
 artifacts
 cache
-
-l2geth/build/bin
-packages/contracts/deployments/custom
-packages/contracts/coverage*
-packages/contracts/@ens*
-packages/contracts/@openzeppelin*
-packages/contracts/hardhat*
-
-packages/data-transport-layer/db
-
-# vim
-*.sw*
-
-.env
-.env*
-*.log

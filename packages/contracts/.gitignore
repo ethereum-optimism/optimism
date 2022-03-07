@@ -1,2 +1,12 @@
+# auto-generated files for browser builds
 src/contract-artifacts.ts
 src/contract-deployed-artifacts.ts
+
+# local deployment output folder
+deployments/custom
+
+# hoisted dependencies for builds and tests
+coverage*
+@ens*
+@openzeppelin*
+hardhat*
