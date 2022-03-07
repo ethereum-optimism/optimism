@@ -64,7 +64,7 @@ export class CrossChainMessenger implements ICrossChainMessenger {
    *
    * @param opts Options for the provider.
    * @param opts.l1SignerOrProvider Signer or Provider for the L1 chain, or a JSON-RPC url.
-   * @param opts.l1SignerOrProvider Signer or Provider for the L2 chain, or a JSON-RPC url.
+   * @param opts.l2SignerOrProvider Signer or Provider for the L2 chain, or a JSON-RPC url.
    * @param opts.l1ChainId Chain ID for the L1 chain.
    * @param opts.depositConfirmationBlocks Optional number of blocks before a deposit is confirmed.
    * @param opts.l1BlockTimeSeconds Optional estimated block time in seconds for the L1 chain.
