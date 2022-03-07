@@ -1,0 +1,16 @@
+FROM golang:1.17.3-alpine3.13 as builder 
+
+RUN apk add --no-cache make gcc musl-dev linux-headers git jq bash
+
+COPY ./go/indexer /go/indexer
+COPY ./go/indexer/go.mod ./go/indexer/go.sum /go/indexer/
+WORKDIR /go/indexer
+RUN go mod graph | grep -v indexer | awk '{if ($1 !~ "@") print $2}' | xargs -n 1 go get
+COPY ./go/indexer/ ./
+RUN make
+
+FROM alpine:3.13
+
+COPY --from=builder /go/indexer/indexer /usr/local/bin
+
+CMD ["indexer"]
