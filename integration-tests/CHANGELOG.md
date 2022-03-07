@@ -1,5 +1,13 @@
 # @eth-optimism/integration-tests
 
+## 0.5.6
+
+### Patch Changes
+
+- 962f36e4: Add support for system addresses
+- d6e309be: Add test coverage for zlib compressed batches
+- 386df4dc: Replaces contract references in integration tests with SDK CrossChainMessenger objects.
+
 ## 0.5.5
 
 ### Patch Changes

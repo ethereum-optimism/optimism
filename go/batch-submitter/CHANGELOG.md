@@ -1,5 +1,12 @@
 # @eth-optimism/batch-submitter-service
 
+## 0.1.6
+
+### Patch Changes
+
+- 6af67df5: Move L2 dial logic out of bss-core to avoid l2geth dependency
+- fe680568: Enable the usage of typed batches and type 0 zlib compressed batches
+
 ## 0.1.5
 
 ### Patch Changes

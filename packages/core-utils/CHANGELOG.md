@@ -1,5 +1,12 @@
 # @eth-optimism/core-utils
 
+## 0.8.1
+
+### Patch Changes
+
+- 5a6f539c: Add toJSON methods to the batch primitives
+- 27d8942e: Update batch serialization with typed batches and zlib compression
+
 ## 0.8.0
 
 ### Minor Changes

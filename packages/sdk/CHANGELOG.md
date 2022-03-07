@@ -1,5 +1,19 @@
 # @eth-optimism/sdk
 
+## 0.2.5
+
+### Patch Changes
+
+- b66e3131: Add a function for waiting for a particular message status
+- Updated dependencies [962f36e4]
+- Updated dependencies [f2179e37]
+- Updated dependencies [b6a4fa4b]
+- Updated dependencies [b7c0a5ca]
+- Updated dependencies [5a6f539c]
+- Updated dependencies [27d8942e]
+  - @eth-optimism/contracts@0.5.16
+  - @eth-optimism/core-utils@0.8.1
+
 ## 0.2.4
 
 ### Patch Changes
