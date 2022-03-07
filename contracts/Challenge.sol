@@ -36,13 +36,13 @@ contract Challenge {
   IMIPSMemory immutable mem;
 
   // State hash of the fault proof program's initial MIPS state.
-  bytes32 immutable GlobalStartState;
+  bytes32 immutable globalStartState;
 
-  constructor(IMIPS imips, bytes32 globalStartState) {
+  constructor(IMIPS _mips, bytes32 _globalStartState) {
     owner = msg.sender;
-    mips = imips;
-    mem = imips.m();
-    GlobalStartState = globalStartState;
+    mips = _mips;
+    mem = _mips.m();
+    globalStartState = _globalStartState;
   }
 
   struct ChallengeData {
@@ -79,7 +79,7 @@ contract Challenge {
   event ChallengeCreated(uint256 challengeId);
 
   // helper function to determine what nodes we need
-  function CallWithTrieNodes(address target, bytes calldata dat, bytes[] calldata nodes) public {
+  function callWithTrieNodes(address target, bytes calldata dat, bytes[] calldata nodes) public {
     for (uint i = 0; i < nodes.length; i++) {
       mem.AddTrieNode(nodes[i]);
     }
@@ -108,7 +108,7 @@ contract Challenge {
   /// @param stepCount The number of steps (MIPS instructions) taken to execute the fault proof
   ///        program.
   /// @return The challenge identifier
-  function InitiateChallenge(
+  function initiateChallenge(
       uint blockNumberN, bytes calldata blockHeaderNp1, bytes32 assertionRoot,
       bytes32 finalSystemState, uint256 stepCount)
     external
@@ -150,7 +150,7 @@ contract Challenge {
     }
 
     // Write input hash at predefined memory address.
-    bytes32 startState = GlobalStartState;
+    bytes32 startState = globalStartState;
     startState = mem.WriteBytes32(startState, 0x30000000, inputHash);
 
     // Confirm that `finalSystemState` asserts the state you claim and that the machine is stopped.
@@ -198,7 +198,7 @@ contract Challenge {
     return c.assertedState[stepNumber];
   }
 
-  function ProposeState(uint256 challengeId, bytes32 riscState) external {
+  function proposeState(uint256 challengeId, bytes32 riscState) external {
     ChallengeData storage c = challenges[challengeId];
     require(c.challenger != address(0), "invalid challenge");
     require(c.challenger == msg.sender, "must be challenger");
@@ -209,7 +209,7 @@ contract Challenge {
     c.assertedState[stepNumber] = riscState;
   }
 
-  function RespondState(uint256 challengeId, bytes32 riscState) external {
+  function respondState(uint256 challengeId, bytes32 riscState) external {
     ChallengeData storage c = challenges[challengeId];
     require(c.challenger != address(0), "invalid challenge");
     require(owner == msg.sender, "must be owner");
@@ -237,7 +237,7 @@ contract Challenge {
   event ChallengerLoses(uint256 challengeId);
   event ChallengerLosesByDefault(uint256 challengeId);
 
-  function ConfirmStateTransition(uint256 challengeId) external {
+  function confirmStateTransition(uint256 challengeId) external {
     ChallengeData storage c = challenges[challengeId];
     require(c.challenger != address(0), "invalid challenge");
     //require(c.challenger == msg.sender, "must be challenger");
@@ -253,7 +253,7 @@ contract Challenge {
     emit ChallengerWins(challengeId);
   }
 
-  function DenyStateTransition(uint256 challengeId) external {
+  function denyStateTransition(uint256 challengeId) external {
     ChallengeData storage c = challenges[challengeId];
     require(c.challenger != address(0), "invalid challenge");
     //require(owner == msg.sender, "must be owner");

@@ -30,9 +30,9 @@ async function main() {
 
   let ret
   if (isProposing) {
-    ret = await c.ProposeState(challengeId, root)
+    ret = await c.proposeState(challengeId, root)
   } else {
-    ret = await c.RespondState(challengeId, root)
+    ret = await c.respondState(challengeId, root)
   }
   let receipt = await ret.wait()
   console.log("done", receipt.blockNumber)

@@ -32,14 +32,14 @@ async function main() {
   const finalSystemState = finalTrie['root']
 
   let args = [blockNumberN, blockNp1Rlp, assertionRoot, finalSystemState, finalTrie['step']]
-  let cdat = c.interface.encodeFunctionData("InitiateChallenge", args)
+  let cdat = c.interface.encodeFunctionData("initiateChallenge", args)
   let nodes = await getTrieNodesForCall(c, c.address, cdat, preimages)
 
   // run "on chain"
   for (n of nodes) {
     await mm.AddTrieNode(n)
   }
-  let ret = await c.InitiateChallenge(...args)
+  let ret = await c.initiateChallenge(...args)
   let receipt = await ret.wait()
   // ChallengeCreated event
   let challengeId = receipt.events[0].args['challengeId'].toNumber()

@@ -15,7 +15,7 @@
 #
 # (The input hash is automatically validated against the blockhash, so note that
 # in this demo the challenger has to provide the correct (`BLOCK`) input hash to
-# the `InitiateChallenge` function of `Challenge.sol`, but will execute as
+# the `initiateChallenge` function of `Challenge.sol`, but will execute as
 # though the input hash was the one derived from `WRONG_BLOCK`.)
 #
 # Because the challenger uses the wrong inputs, it will assert a post-state

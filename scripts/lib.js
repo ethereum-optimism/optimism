@@ -71,8 +71,8 @@ async function getTrieNodesForCall(c, caddress, cdat, preimages) {
   while (1) {
     try {
       // TODO: make this eth call?
-      // needs something like InitiateChallengeWithTrieNodesj
-      let calldata = c.interface.encodeFunctionData("CallWithTrieNodes", [caddress, cdat, nodes])
+      // needs something like initiateChallengeWithTrieNodesj
+      let calldata = c.interface.encodeFunctionData("callWithTrieNodes", [caddress, cdat, nodes])
       ret = await ethers.provider.call({
         to:c.address,
         data:calldata

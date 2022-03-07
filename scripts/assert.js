@@ -18,11 +18,11 @@ async function main() {
   let cdat
   if (isChallenger) {
     // challenger declare victory
-    cdat = c.interface.encodeFunctionData("ConfirmStateTransition", [challengeId])
+    cdat = c.interface.encodeFunctionData("confirmStateTransition", [challengeId])
   } else {
     // defender declare victory
     // note: not always possible
-    cdat = c.interface.encodeFunctionData("DenyStateTransition", [challengeId])
+    cdat = c.interface.encodeFunctionData("denyStateTransition", [challengeId])
   }
 
   let startTrie = getTrieAtStep(blockNumberN, step)
@@ -36,9 +36,9 @@ async function main() {
 
   let ret
   if (isChallenger) {
-    ret = await c.ConfirmStateTransition(challengeId)
+    ret = await c.confirmStateTransition(challengeId)
   } else {
-    ret = await c.DenyStateTransition(challengeId)
+    ret = await c.denyStateTransition(challengeId)
   }
 
   let receipt = await ret.wait()
