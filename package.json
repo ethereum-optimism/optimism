@@ -8,12 +8,7 @@
       "packages/*",
       "l2geth",
       "integration-tests",
-      "specs",
-      "go/gas-oracle",
-      "go/batch-submitter",
-      "go/l2geth-exporter",
-      "go/proxyd",
-      "go/op-exporter",
+      "go/*",
       "ops/docker/rpc-proxy",
       "ops/docker/hardhat"
     ],
