@@ -5,27 +5,45 @@ pragma experimental ABIEncoderV2;
 import "./lib/Lib_RLPReader.sol";
 
 interface IMIPS {
+  // Given a MIPS state hash (includes code & registers), execute the next instruction and returns
+  // the update state hash.
   function Step(bytes32 stateHash) external returns (bytes32);
+
+  // Returns the associated MIPS memory contract.
   function m() external pure returns (IMIPSMemory);
 }
 
 interface IMIPSMemory {
+  // Adds a `(hash(anything) => anything)` entry to the mapping that underpins all the Merkle tries
+  // that this contract deals with (where "state hash" = Merkle root of such a trie).
+  // Here, `anything` is supposed to be node data in such a trie.
   function AddTrieNode(bytes calldata anything) external;
+
   function ReadMemory(bytes32 stateHash, uint32 addr) external view returns (uint32);
   function ReadBytes32(bytes32 stateHash, uint32 addr) external view returns (bytes32);
+
+  // Write 32 bits at the given address and returns the updated state hash.
   function WriteMemory(bytes32 stateHash, uint32 addr, uint32 val) external returns (bytes32);
+
+  // Write 32 bytes at the given address and returns the updated state hash.
   function WriteBytes32(bytes32 stateHash, uint32 addr, bytes32 val) external returns (bytes32);
 }
 
 contract Challenge {
   address payable immutable owner;
 
-  // the mips machine state transition function
   IMIPS immutable mips;
   IMIPSMemory immutable mem;
 
-  // the program start state
+  // State hash of the fault proof program's initial MIPS state.
   bytes32 immutable GlobalStartState;
+
+  constructor(IMIPS imips, bytes32 globalStartState) {
+    owner = msg.sender;
+    mips = imips;
+    mem = imips.m();
+    GlobalStartState = globalStartState;
+  }
 
   struct Chal {
     uint256 L;
@@ -35,17 +53,13 @@ contract Challenge {
     address payable challenger;
     uint256 blockNumberN;
   }
+
   mapping(uint256 => Chal) challenges;
 
-  constructor(IMIPS imips, bytes32 globalStartState) {
-    owner = msg.sender;
-    mips = imips;
-    mem = imips.m();
-    GlobalStartState = globalStartState;
-  }
-
-  // allow getting money (and withdrawing the bounty, honor system)
+  // Allow sending money to the contract (without calldata).
   receive() external payable {}
+
+  // Allows the owner to withdraw funds from the contract.
   function withdraw() external {
     require(msg.sender == owner, "not owner");
     (bool sent, ) = owner.call{value: address(this).balance}("");
