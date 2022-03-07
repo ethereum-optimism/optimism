@@ -110,8 +110,26 @@ contract Challenge {
     }
   }
 
-  function InitiateChallenge(uint blockNumberN, bytes calldata blockHeaderNp1,
-        bytes32 assertionRoot, bytes32 finalSystemState, uint256 stepCount) external returns (uint256) {
+  /// @notice Challenges the transition from block `blockNumberN` to the next block (N+1), which is
+  ///         the block being challenged.
+  ///         Before calling this, it is necessary to have loaded all the trie node necessary to
+  ///         write the input hash in the Merkleized initial MIPS state, and to read the output hash
+  ///         and machine state from the Merkleized final MIPS state (i.e. `finalSystemState`). Use
+  ///         `MIPSMemory.AddTrieNode` for this purpose.
+  /// @param blockNumberN The number N of the parent of the block being challenged
+  /// @param blockHeaderNp1 The RLP-encoded header of the block being challenged (N+1)
+  /// @param assertionRoot The state root that the challenger claims is the correct one for the
+  ///        given the transactions included in block N+1.
+  /// @param finalSystemState The state hash of the fault proof program's final MIPS state.
+  /// @param stepCount The number of steps (MIPS instructions) taken to execute the fault proof
+  ///        program.
+  /// @return The challenge identifier
+  function InitiateChallenge(
+      uint blockNumberN, bytes calldata blockHeaderNp1, bytes32 assertionRoot,
+      bytes32 finalSystemState, uint256 stepCount)
+    external
+    returns (uint256)
+  {
     bytes32 computedBlockHash = keccak256(blockHeaderNp1);
 
     // get block hashes, can replace with oracle
@@ -121,36 +139,43 @@ contract Challenge {
     if (blockNumberNHash == bytes32(0) || blockNumberNp1Hash == bytes32(0)) {
       revert("block number too old to challenge");
     }
-    require(blockNumberNp1Hash == computedBlockHash, "end block hash wrong");
+    require(blockNumberNp1Hash == computedBlockHash, "incorrect header supplied for block N+1");
 
-    // decode the blocks
+    // Decode the N+1 block header to construct the fault proof program's input hash.
+    // Because the input hash is constructed from data proven against on-chain block hashes,
+    // it is provably correct, and we can consider that both parties agree on it.
     bytes32 inputHash;
     {
-      Lib_RLPReader.RLPItem[] memory blockNp1 = Lib_RLPReader.readList(blockHeaderNp1);
-      bytes32 parentHash = Lib_RLPReader.readBytes32(blockNp1[0]);
+      Lib_RLPReader.RLPItem[] memory decodedHeader = Lib_RLPReader.readList(blockHeaderNp1);
+
+      bytes32 parentHash = Lib_RLPReader.readBytes32(decodedHeader[0]);
+      // This should never happen, as we validated the hashes beforehand.
       require(blockNumberNHash == parentHash, "parent block hash somehow wrong");
 
-      bytes32 newroot = Lib_RLPReader.readBytes32(blockNp1[3]);
-      require(assertionRoot != newroot, "asserting that the real state is correct is not a challenge");
+      bytes32 newroot = Lib_RLPReader.readBytes32(decodedHeader[3]);
+      require(assertionRoot != newroot,
+          "asserting that the real state is correct is not a challenge");
 
-      // load starting info into the input oracle
-      // we both agree at the beginning
-      bytes32 txhash = Lib_RLPReader.readBytes32(blockNp1[4]);
-      bytes32 coinbase = bytes32(uint256(Lib_RLPReader.readAddress(blockNp1[2])));
-      bytes32 unclehash = Lib_RLPReader.readBytes32(blockNp1[1]);
-      bytes32 gaslimit = bytes32(Lib_RLPReader.readUint256(blockNp1[9]));
-      bytes32 time = bytes32(Lib_RLPReader.readUint256(blockNp1[11]));
+      bytes32 txhash    = Lib_RLPReader.readBytes32(decodedHeader[4]);
+      bytes32 coinbase  = bytes32(uint256(uint160(Lib_RLPReader.readAddress(decodedHeader[2]))));
+      bytes32 unclehash = Lib_RLPReader.readBytes32(decodedHeader[1]);
+      bytes32 gaslimit  = Lib_RLPReader.readBytes32(decodedHeader[9]);
+      bytes32 time      = Lib_RLPReader.readBytes32(decodedHeader[11]);
+
       inputHash = keccak256(abi.encodePacked(parentHash, txhash, coinbase, unclehash, gaslimit, time));
     }
 
+    // Write input hash at predefined memory address.
     bytes32 startState = GlobalStartState;
     startState = mem.WriteBytes32(startState, 0x30000000, inputHash);
 
-    // confirm the finalSystemHash asserts the state you claim and the machine is stopped
-    // you must load these trie nodes into MIPSMemory before calling this
-    require(mem.ReadMemory(finalSystemState, 0xC0000080) == 0x5EAD0000, "machine is not stopped in final state (PC == 0x5EAD0000)");
-    require(mem.ReadMemory(finalSystemState, 0x30000800) == 0x1337f00d, "state is not outputted");
-    require(mem.ReadBytes32(finalSystemState, 0x30000804) == assertionRoot, "you are claiming a different state root in machine");
+    // Confirm that `finalSystemState` asserts the state you claim and that the machine is stopped.
+    require(mem.ReadMemory(finalSystemState, 0xC0000080) == 0x5EAD0000,
+        "the final MIPS machine state is not stopped (PC != 0x5EAD0000)");
+    require(mem.ReadMemory(finalSystemState, 0x30000800) == 0x1337f00d,
+        "the final state root has not been written a the predefined MIPS memory location");
+    require(mem.ReadBytes32(finalSystemState, 0x30000804) == assertionRoot,
+        "the final MIPS machine state asserts a different state root than your challenge");
 
     return newChallengeTrusted(blockNumberN, startState, finalSystemState, stepCount);
   }
