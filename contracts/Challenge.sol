@@ -45,7 +45,7 @@ contract Challenge {
     GlobalStartState = globalStartState;
   }
 
-  struct Chal {
+  struct ChallengeData {
     // Left bound of the binary search: challenger & defender agree on all steps <= L.
     uint256 L;
     // Right bound of the binary search: challenger & defender disagree on all steps >= R.
@@ -60,7 +60,7 @@ contract Challenge {
     uint256 blockNumberN;
   }
 
-  mapping(uint256 => Chal) challenges;
+  mapping(uint256 => ChallengeData) challenges;
 
   // Allow sending money to the contract (without calldata).
   receive() external payable {}
@@ -162,7 +162,7 @@ contract Challenge {
         "the final MIPS machine state asserts a different state root than your challenge");
 
     uint256 challengeId = lastChallengeId++;
-    Chal storage c = challenges[challengeId];
+    ChallengeData storage c = challenges[challengeId];
 
     // A NEW CHALLENGER APPEARS
     c.challenger = msg.sender;
@@ -180,26 +180,26 @@ contract Challenge {
   // binary search
 
   function isSearching(uint256 challengeId) view public returns (bool) {
-    Chal storage c = challenges[challengeId];
+    ChallengeData storage c = challenges[challengeId];
     require(c.challenger != address(0), "invalid challenge");
     return c.L + 1 != c.R;
   }
 
   function getStepNumber(uint256 challengeId) view public returns (uint256) {
-    Chal storage c = challenges[challengeId];
+    ChallengeData storage c = challenges[challengeId];
     require(c.challenger != address(0), "invalid challenge");
     return (c.L+c.R)/2;
   }
 
   function getProposedState(uint256 challengeId) view public returns (bytes32) {
-    Chal storage c = challenges[challengeId];
+    ChallengeData storage c = challenges[challengeId];
     require(c.challenger != address(0), "invalid challenge");
     uint256 stepNumber = getStepNumber(challengeId);
     return c.assertedState[stepNumber];
   }
 
   function ProposeState(uint256 challengeId, bytes32 riscState) external {
-    Chal storage c = challenges[challengeId];
+    ChallengeData storage c = challenges[challengeId];
     require(c.challenger != address(0), "invalid challenge");
     require(c.challenger == msg.sender, "must be challenger");
     require(isSearching(challengeId), "must be searching");
@@ -210,7 +210,7 @@ contract Challenge {
   }
 
   function RespondState(uint256 challengeId, bytes32 riscState) external {
-    Chal storage c = challenges[challengeId];
+    ChallengeData storage c = challenges[challengeId];
     require(c.challenger != address(0), "invalid challenge");
     require(owner == msg.sender, "must be owner");
     require(isSearching(challengeId), "must be searching");
@@ -238,7 +238,7 @@ contract Challenge {
   event ChallengerLosesByDefault(uint256 challengeId);
 
   function ConfirmStateTransition(uint256 challengeId) external {
-    Chal storage c = challenges[challengeId];
+    ChallengeData storage c = challenges[challengeId];
     require(c.challenger != address(0), "invalid challenge");
     //require(c.challenger == msg.sender, "must be challenger");
     require(!isSearching(challengeId), "binary search not finished");
@@ -254,7 +254,7 @@ contract Challenge {
   }
 
   function DenyStateTransition(uint256 challengeId) external {
-    Chal storage c = challenges[challengeId];
+    ChallengeData storage c = challenges[challengeId];
     require(c.challenger != address(0), "invalid challenge");
     //require(owner == msg.sender, "must be owner");
     require(!isSearching(challengeId), "binary search not finished");
