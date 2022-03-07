@@ -5,23 +5,23 @@ import { SecureTrie, BaseTrie } from 'merkle-patricia-tree'
 import { fromHexString, toHexString } from '@eth-optimism/core-utils'
 import { ethers } from 'ethers'
 
-export interface TrieNode {
+interface TrieNode {
   key: string
   val: string
 }
 
-export interface InclusionProofTest {
+interface InclusionProofTest {
   key: string
   val: string
   proof: string
   root: string
 }
 
-export interface NodeUpdateTest extends InclusionProofTest {
+interface NodeUpdateTest extends InclusionProofTest {
   newRoot: string
 }
 
-export interface EthereumAccount {
+interface EthereumAccount {
   address?: string
   nonce: number
   balance: number
@@ -30,14 +30,14 @@ export interface EthereumAccount {
   storage?: TrieNode[]
 }
 
-export interface AccountProofTest {
+interface AccountProofTest {
   address: string
   account: EthereumAccount
   accountTrieWitness: string
   accountTrieRoot: string
 }
 
-export interface AccountUpdateTest extends AccountProofTest {
+interface AccountUpdateTest extends AccountProofTest {
   newAccountTrieRoot: string
 }
 
