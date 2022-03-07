@@ -45,7 +45,6 @@ contract Challenge {
   }
 
   // allow getting money (and withdrawing the bounty, honor system)
-  fallback() external payable {}
   receive() external payable {}
   function withdraw() external {
     require(msg.sender == owner, "not owner");
