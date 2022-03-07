@@ -72,11 +72,11 @@ contract Challenge {
     require(sent, "Failed to send Ether");
   }
 
-  // create challenge
+  // ID if the last created challenged, incremented for new challenge IDs.
   uint256 public lastChallengeId = 0;
 
   // Emitted when a new challenge is created.
-  event ChallengeCreate(uint256 challengeId);
+  event ChallengeCreated(uint256 challengeId);
 
   // helper function to determine what nodes we need
   function CallWithTrieNodes(address target, bytes calldata dat, bytes[] calldata nodes) public {
@@ -173,7 +173,7 @@ contract Challenge {
     c.L = 0;
     c.R = stepCount;
 
-    emit ChallengeCreate(challengeId);
+    emit ChallengeCreated(challengeId);
     return challengeId;
   }
 

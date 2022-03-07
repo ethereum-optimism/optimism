@@ -41,7 +41,7 @@ async function main() {
   }
   let ret = await c.InitiateChallenge(...args)
   let receipt = await ret.wait()
-  // ChallengeCreate event
+  // ChallengeCreated event
   let challengeId = receipt.events[0].args['challengeId'].toNumber()
   console.log("new challenge with id", challengeId)
 }
