@@ -1,5 +1,16 @@
 # @eth-optimism/replica-healthcheck
 
+## 0.3.10
+
+### Patch Changes
+
+- dad644b4: Fix bug in replica healthcheck dockerfile
+- Updated dependencies [b66e3131]
+- Updated dependencies [5a6f539c]
+- Updated dependencies [27d8942e]
+  - @eth-optimism/sdk@0.2.5
+  - @eth-optimism/core-utils@0.8.1
+
 ## 0.3.9
 
 ### Patch Changes
