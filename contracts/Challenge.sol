@@ -177,20 +177,24 @@ contract Challenge {
     return challengeId;
   }
 
-  // binary search
-
+  /// @notice Indicates whether the given challenge is still searching (true), or if the single step
+  ///         of disagreement has been found (false).
   function isSearching(uint256 challengeId) view public returns (bool) {
     ChallengeData storage c = challenges[challengeId];
     require(c.challenger != address(0), "invalid challenge");
     return c.L + 1 != c.R;
   }
 
+  /// @notice Returns the next step number where the challenger and the defender must compared
+  ///         state hash, namely the midpoint between the current left and right bounds of the
+  ///         binary search.
   function getStepNumber(uint256 challengeId) view public returns (uint256) {
     ChallengeData storage c = challenges[challengeId];
     require(c.challenger != address(0), "invalid challenge");
     return (c.L+c.R)/2;
   }
 
+  /// @notice Returns the last state hash proposed by the challenger during the binary search.
   function getProposedState(uint256 challengeId) view public returns (bytes32) {
     ChallengeData storage c = challenges[challengeId];
     require(c.challenger != address(0), "invalid challenge");
@@ -198,7 +202,9 @@ contract Challenge {
     return c.assertedState[stepNumber];
   }
 
-  function proposeState(uint256 challengeId, bytes32 riscState) external {
+  /// @notice The challenger can call this function to submit the state hash for the next step
+  ///         in the binary search (cf. `getStepNumber`).
+  function proposeState(uint256 challengeId, bytes32 stateHash) external {
     ChallengeData storage c = challenges[challengeId];
     require(c.challenger != address(0), "invalid challenge");
     require(c.challenger == msg.sender, "must be challenger");
@@ -206,10 +212,15 @@ contract Challenge {
 
     uint256 stepNumber = getStepNumber(challengeId);
     require(c.assertedState[stepNumber] == bytes32(0), "state already proposed");
-    c.assertedState[stepNumber] = riscState;
+    c.assertedState[stepNumber] = stateHash;
   }
 
-  function respondState(uint256 challengeId, bytes32 riscState) external {
+  /// @notice The defender can call this function to submit the state hash for the next step
+  ///         in the binary search (cf. `getStepNumber`). He can only do this after the challenger
+  ///         has submitted his own state hash for this step.
+  ///         If the defender believes there are less steps in the execution of the fault proof
+  ///         program than the current step number, he should submit a state hash of 0.
+  function respondState(uint256 challengeId, bytes32 stateHash) external {
     ChallengeData storage c = challenges[challengeId];
     require(c.challenger != address(0), "invalid challenge");
     require(owner == msg.sender, "must be owner");
@@ -218,15 +229,16 @@ contract Challenge {
     uint256 stepNumber = getStepNumber(challengeId);
     require(c.assertedState[stepNumber] != bytes32(0), "challenger state not proposed");
     require(c.defendedState[stepNumber] == bytes32(0), "state already proposed");
-    // technically, we don't have to save these states
-    // but if we want to prove us right and not just the attacker wrong, we do
-    c.defendedState[stepNumber] = riscState;
+
+    // Technically, we don't have to save these states, but we have to if we want to let the
+    // defender terminate the proof early (and not via a timeout) after the binary search completes.
+    c.defendedState[stepNumber] = stateHash;
+
+    // update binary search bounds
     if (c.assertedState[stepNumber] == c.defendedState[stepNumber]) {
-      // agree
-      c.L = stepNumber;
+      c.L = stepNumber; // agree
     } else {
-      // disagree
-      c.R = stepNumber;
+      c.R = stepNumber; // disagree
     }
   }
 
