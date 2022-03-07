@@ -9,8 +9,16 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimistic-specs/opnode/eth"
+	"github.com/ethereum-optimism/optimistic-specs/opnode/rollup"
 	"github.com/ethereum-optimism/optimistic-specs/opnode/rollup/sync"
 )
+
+func fakeGenesis(l1 rune, l2 rune, l2offset int) rollup.Genesis {
+	return rollup.Genesis{
+		L1: fakeID(l1, 0),
+		L2: fakeID(l2, uint64(l2offset)),
+	}
+}
 
 func fakeID(id rune, num uint64) eth.BlockID {
 	var h common.Hash
@@ -72,49 +80,50 @@ func NewFakeChainSource(l1 []string, l2 []string, log log.Logger) *fakeChainSour
 // what the head block is of the L1 and L2 chains. In addition, it enables re-orgs
 // to easily be implemented
 type fakeChainSource struct {
-	reorg  int            // Index of which chain to be operating on
-	l1head int            // Head block of the L1 chain
-	l2head int            // Head block of the L2 chain
-	l1s    [][]eth.L1Node // l1s[reorg] is the L1 chain in that specific re-org configuration
-	l2s    [][]eth.L2Node // l2s[reorg] is the L2 chain in that specific re-org configuration
-	log    log.Logger
+	l1reorg int            // Index of the L1 chain to be operating on
+	l2reorg int            // Index of the L2 chain to be operating on
+	l1head  int            // Head block of the L1 chain
+	l2head  int            // Head block of the L2 chain
+	l1s     [][]eth.L1Node // l1s[reorg] is the L1 chain in that specific re-org configuration
+	l2s     [][]eth.L2Node // l2s[reorg] is the L2 chain in that specific re-org configuration
+	log     log.Logger
 }
 
 func (m *fakeChainSource) L1NodeByNumber(ctx context.Context, l1Num uint64) (eth.L1Node, error) {
-	m.log.Trace("L1NodeByNumber", "l1Num", l1Num, "l1Head", m.l1head, "reorg", m.reorg)
+	m.log.Trace("L1NodeByNumber", "l1Num", l1Num, "l1Head", m.l1head, "reorg", m.l1reorg)
 	if l1Num > uint64(m.l1head) {
 		return eth.L1Node{}, ethereum.NotFound
 	}
-	return m.l1s[m.reorg][l1Num], nil
+	return m.l1s[m.l1reorg][l1Num], nil
 }
 
 func (m *fakeChainSource) L1HeadNode(ctx context.Context) (eth.L1Node, error) {
-	m.log.Trace("L1HeadNode", "l1Head", m.l1head, "reorg", m.reorg)
-	l := len(m.l1s[m.reorg])
+	m.log.Trace("L1HeadNode", "l1Head", m.l1head, "reorg", m.l1reorg)
+	l := len(m.l1s[m.l1reorg])
 	if l == 0 {
 		return eth.L1Node{}, ethereum.NotFound
 	}
-	return m.l1s[m.reorg][m.l1head], nil
+	return m.l1s[m.l1reorg][m.l1head], nil
 }
 
 func (m *fakeChainSource) L2NodeByNumber(ctx context.Context, l2Num *big.Int) (eth.L2Node, error) {
-	m.log.Trace("L2NodeByNumber", "l2Num", l2Num, "l2Head", m.l2head, "reorg", m.reorg)
-	if len(m.l2s[m.reorg]) == 0 {
+	m.log.Trace("L2NodeByNumber", "l2Num", l2Num, "l2Head", m.l2head, "reorg", m.l2reorg)
+	if len(m.l2s[m.l2reorg]) == 0 {
 		panic("bad test, no l2 chain")
 	}
 	if l2Num == nil {
-		return m.l2s[m.reorg][m.l2head], nil
+		return m.l2s[m.l2reorg][m.l2head], nil
 	}
 	i := int(l2Num.Int64())
 	if i > m.l2head {
 		return eth.L2Node{}, ethereum.NotFound
 	}
-	return m.l2s[m.reorg][i], nil
+	return m.l2s[m.l2reorg][i], nil
 }
 
 func (m *fakeChainSource) L2NodeByHash(ctx context.Context, l2Hash common.Hash) (eth.L2Node, error) {
-	m.log.Trace("L2NodeByHash", "l2Hash", l2Hash, "l2Head", m.l2head, "reorg", m.reorg)
-	for i, bl := range m.l2s[m.reorg] {
+	m.log.Trace("L2NodeByHash", "l2Hash", l2Hash, "l2Head", m.l2head, "reorg", m.l2reorg)
+	for i, bl := range m.l2s[m.l2reorg] {
 		if bl.Self.Hash == l2Hash {
 			return m.L2NodeByNumber(ctx, big.NewInt(int64(i)))
 		}
@@ -124,39 +133,54 @@ func (m *fakeChainSource) L2NodeByHash(ctx context.Context, l2Hash common.Hash) 
 
 var _ sync.ChainSource = (*fakeChainSource)(nil)
 
-func (m *fakeChainSource) reorgChains(reorgBase int) {
-	m.log.Trace("Reorg", "new_reorg", m.reorg+1, "old_reorg", m.reorg)
-	m.reorg++
-	if m.reorg >= len(m.l1s) {
+func (m *fakeChainSource) reorgL1() {
+	m.log.Trace("Reorg L1", "new_reorg", m.l1reorg+1, "old_reorg", m.l1reorg)
+	m.l1reorg++
+	if m.l1reorg >= len(m.l1s) {
 		panic("No more re-org chains available")
 	}
-	m.l2head = reorgBase
+}
+
+func (m *fakeChainSource) reorgL2() {
+	m.log.Trace("Reorg L2", "new_reorg", m.l2reorg+1, "old_reorg", m.l2reorg)
+	m.l2reorg++
+	if m.l2reorg >= len(m.l2s) {
+		panic("No more re-org chains available")
+	}
+}
+
+func (m *fakeChainSource) setL2Head(head int) eth.L2Node {
+	m.log.Trace("Set L2 head", "new_head", head, "old_head", m.l2head)
+	m.l2head = head
+	if m.l2head >= len(m.l2s[m.l2reorg]) {
+		panic("Cannot advance L2 past end of chain")
+	}
+	return m.l2s[m.l2reorg][m.l2head]
 }
 
 func (m *fakeChainSource) advanceL1() eth.L1Node {
 	m.log.Trace("Advance L1", "new_head", m.l1head+1, "old_head", m.l1head)
 	m.l1head++
-	if m.l1head >= len(m.l1s[m.reorg]) {
+	if m.l1head >= len(m.l1s[m.l1reorg]) {
 		panic("Cannot advance L1 past end of chain")
 	}
-	return m.l1s[m.reorg][m.l1head]
+	return m.l1s[m.l1reorg][m.l1head]
 }
 
 func (m *fakeChainSource) l1Head() eth.L1Node {
 	m.log.Trace("L1 Head", "head", m.l1head)
-	return m.l1s[m.reorg][m.l1head]
+	return m.l1s[m.l1reorg][m.l1head]
 }
 
-func (m *fakeChainSource) advanceL2() eth.L2Node {
-	m.log.Trace("Advance L2", "new_head", m.l2head+1, "old_head", m.l2head)
-	m.l2head++
-	if m.l2head >= len(m.l2s[m.reorg]) {
-		panic("Cannot advance L2 past end of chain")
-	}
-	return m.l2s[m.reorg][m.l2head]
-}
-
-// unused
+// Unused functions
+// func (m *fakeChainSource) advanceL2() eth.L2Node {
+// 	m.log.Trace("Advance L2", "new_head", m.l2head+1, "old_head", m.l2head)
+// 	m.l2head++
+// 	if m.l2head >= len(m.l2s[m.l1reorg]) {
+// 		panic("Cannot advance L2 past end of chain")
+// 	}
+// 	return m.l2s[m.l1reorg][m.l2head]
+// }
 // func (m *fakeChainSource) l2Head() eth.L2Node {
 // 	m.log.Trace("L2 Head", "head", m.l2head)
 // 	return m.l2s[m.reorg][m.l2head]
