@@ -149,7 +149,7 @@ func (s *state) loop() {
 				s.log.Warn("L1 Head signal indicates an L1 re-org", "old_l1_head", s.l1Head, "new_l1_head_parent", newL1Head.Parent, "new_l1_head", newL1Head.Self)
 				nextL2Head, err := s.input.SafeL2Head(ctx)
 				if err != nil {
-					s.log.Error("Could not get new L2 head when trying to handle a re-org", "err", err)
+					s.log.Error("Could not get new safe L2 head when trying to handle a re-org", "err", err)
 					continue
 				}
 				s.l1Head = newL1Head.Self
@@ -157,8 +157,10 @@ func (s *state) loop() {
 				s.l1Base = nextL2Head.L1Parent
 				s.l2Head = nextL2Head.Self
 			}
-			requestStep()
-
+			// Run step if we are able to
+			if s.l1Head.Number-s.l1Base.Number >= s.Config.SeqWindowSize {
+				requestStep()
+			}
 		case <-stepRequest:
 			s.log.Trace("Got step request")
 			// Extend cached window if we do not have enough saved blocks
@@ -183,7 +185,7 @@ func (s *state) loop() {
 				s.l2Head = newL2Head
 				s.l1Base = s.l1Window[0]
 				s.l1Window = s.l1Window[1:]
-				// TODO: l2Finalized/l2Safe.
+				// TODO: l2Finalized
 			} else {
 				s.log.Trace("Not enough cached blocks to run step", "cached_window_len", len(s.l1Window))
 			}
