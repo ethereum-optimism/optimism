@@ -94,9 +94,9 @@ type Service struct {
 	latestHeader   uint64
 	headerSelector *ConfirmedHeaderSelector
 
-	metrics *metrics.Metrics
+	metrics    *metrics.Metrics
 	tokenCache map[common.Address]*db.Token
-	wg sync.WaitGroup
+	wg         sync.WaitGroup
 }
 
 type IndexerStatus struct {
@@ -289,10 +289,15 @@ func (s *Service) Update(newHeader *types.Header) error {
 		logger.Error("Error querying state batches", "err", err)
 	}
 
-	for _, header := range headers {
+	for i, header := range headers {
 		blockHash := header.Hash
 		number := header.Number.Uint64()
 		deposits := depositsByBlockHash[blockHash]
+		batches := stateBatches[blockHash]
+
+		if len(deposits) == 0 && len(batches) == 0 && i != len(headers)-1 {
+			continue
+		}
 
 		block := &db.IndexedL1Block{
 			Hash:       blockHash,
@@ -313,7 +318,6 @@ func (s *Service) Update(newHeader *types.Header) error {
 			return err
 		}
 
-		batches := stateBatches[blockHash]
 		err = s.cfg.DB.AddStateBatch(batches)
 		if err != nil {
 			logger.Error(

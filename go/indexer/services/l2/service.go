@@ -69,15 +69,15 @@ func respondWithJSON(w http.ResponseWriter, code int, payload interface{}) {
 }
 
 type ServiceConfig struct {
-	Context                 context.Context
-	Metrics                 *metrics.Metrics
-	L2Client                *l2ethclient.Client
-	ChainID                 *big.Int
-	ConfDepth               uint64
-	MaxHeaderBatchSize      uint64
-	StartBlockNumber        uint64
-	StartBlockHash          string
-	DB                      *db.Database
+	Context            context.Context
+	Metrics            *metrics.Metrics
+	L2Client           *l2ethclient.Client
+	ChainID            *big.Int
+	ConfDepth          uint64
+	MaxHeaderBatchSize uint64
+	StartBlockNumber   uint64
+	StartBlockHash     string
+	DB                 *db.Database
 }
 
 type Service struct {
@@ -89,9 +89,9 @@ type Service struct {
 	latestHeader   uint64
 	headerSelector *ConfirmedHeaderSelector
 
-	metrics *metrics.Metrics
+	metrics    *metrics.Metrics
 	tokenCache map[common.Address]*db.Token
-	wg sync.WaitGroup
+	wg         sync.WaitGroup
 }
 
 type IndexerStatus struct {
@@ -267,10 +267,14 @@ func (s *Service) Update(newHeader *types.Header) error {
 		}
 	}
 
-	for _, header := range headers {
+	for i, header := range headers {
 		blockHash := header.Hash()
 		number := header.Number.Uint64()
 		withdrawals := withdrawalsByBlockHash[blockHash]
+
+		if len(withdrawals) == 0 && i != len(headers)-1 {
+			continue
+		}
 
 		block := &db.IndexedL2Block{
 			Hash:        blockHash,
