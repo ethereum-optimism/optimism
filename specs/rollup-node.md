@@ -12,7 +12,6 @@
 [g-receipts]: glossary.md#receipt
 [g-deposit-contract]: glossary.md#deposit-contract
 [g-deposits]: glossary.md#deposits
-[g-deposit-block]: glossary.md#deposit-block
 [g-deposited]: glossary.md#deposited-transaction
 [g-l1-attr-deposit]: glossary.md#l1-attributes-deposited-transaction
 [g-user-deposited]: glossary.md#user-deposited-transaction
@@ -20,13 +19,18 @@
 [g-depositing-call]: glossary.md#depositing-call
 [g-depositing-transaction]: glossary.md#depositing-transaction
 [g-mpt]: glossary.md#merkle-patricia-trie
+[g-sequencing-window]: glossary.md#sequencing-window
+[g-sequencing]: glossary.md#sequencing
+[g-sequencer-batch]: glossary.md#sequencer-batch
 
 The [rollup node][g-rollup-node] is the component responsible for [deriving the L2 chain][g-derivation] from L1 blocks
-(and their associated [receipts][g-receipts]). This process happens in two steps:
+(and their associated [receipts][g-receipts]). This process happens in three steps:
 
-1. Read from L1 blocks and associated receipts, in order to generate [payload attributes][g-payload-attr] (essentially
-   [a block without output properties][g-block]).
-2. Pass the payload attributes to the [execution engine][g-exec-engine], so that the L2 block (including [output block
+1. Select a [sequencing window][g-sequencing-window] from the L1 chain, on top of the last L2 block:
+   a list of blocks, with transactions and associated receipts.
+2. Read L1 information, deposits, and sequencing batches in order to generate [payload attributes][g-payload-attr]
+   (essentially [a block without output properties][g-block]).
+3. Pass the payload attributes to the [execution engine][g-exec-engine], so that the L2 block (including [output block
    properties][g-block]) may be computed.
 
 While this process is conceptually a pure function from the L1 chain to the L2 chain, it is in practice incremental. The
@@ -41,6 +45,7 @@ currently only concerned with the specification of the rollup driver.
 **Table of Contents**
 
 - [L2 Chain Derivation](#l2-chain-derivation)
+  - [From L1 chain to Sequencing Window](#from-l1-chain-to-sequencing-window)
   - [From L1 Blocks to Payload Attributes](#from-l1-blocks-to-payload-attributes)
     - [Reading L1 inputs](#reading-l1-inputs)
     - [Encoding the L1 Attributes Deposited Transaction](#encoding-the-l1-attributes-deposited-transaction)
@@ -59,30 +64,81 @@ currently only concerned with the specification of the rollup driver.
 
 [l2-chain-derivation]: #l2-chain-derivation
 
-This section specifies how the [rollup driver][g-rollup-driver] derives one L2 [deposit block][g-deposit-block] per
-every L1 block. The L2 block carries *[deposited transactions][g-deposited]* of two kinds:
+This section specifies how the [rollup driver][g-rollup-driver] derives a sequence of L2 blocks per sequencing window.
 
-- a single *[L1 attributes deposited transaction][g-l1-attr-deposit]* (always first)
-- zero or more *[user-deposited transactions][g-user-deposited]*
+Every L2 block carries transactions of two categories:
+
+- *[deposited transactions][g-deposited]*: two kinds:
+  - derived from the L1 chain: a single *[L1 attributes deposited transaction][g-l1-attr-deposit]* (always first).
+  - derived from [receipts][g-receipts]: zero or more *[user-deposited transactions][g-user-deposited]*.
+- *[sequenced transactions][g-sequencing]*: derived from [sequencer batches][g-sequencer-batch],
+  zero or more regular transactions, signed by L2 users.
 
 ------------------------------------------------------------------------------------------------------------------------
+
+## From L1 chain to Sequencing Window
+
+A [sequencing window][g-sequencing-window] is a fixed number consecutive L1 blocks that a derivation step takes as
+input. The window is identified by an `epoch`, equal to the block number of the first block in the window.
+
+As the full derivation of the L2 chain by the driver progresses each derivation step shifts the window forward by a
+single L1 block: the windows overlap.
+
+Each sequencing window is derived into a variable number of L2 blocks, depending on the timestamps of L1 and L2.
+
+The L2 has a fixed block time and no more than one batch per block,
+meaning that gaps between the batches (ordered by timestamp) are interpreted as batches with empty transaction-lists,
+thus construing L2 blocks that only contain deposit transaction(s).
+
+The L2 blocks produced by a sequencing window are bounded by timestamp:
+
+- `min_l2_timestamp = prev_l2_timestamp + l2_block_time`
+- `max_l2_timestamp = l1_timestamp + l2_block_time`, where `l1_timestamp` is the timestamp of the
+  first L1 block of the sequencing window. (maximum bound, may not be aligned with block time)
+
+If there are no batches present in the sequencing window then the L2 chain is extended up to `max_l2_timestamp` (incl.)
+with empty batches, but otherwise regular block derivation.
+
+Note that with short block times on L1 the L2 time may increment beyond the L1 time,
+but the longer target block time of L1 will correct back and allow the timestamps to align again.
 
 ## From L1 Blocks to Payload Attributes
 
 ### Reading L1 inputs
 
-The rollup reads the following data from each L1 block:
+The rollup reads the following data from the [sequencing window][g-sequencing-window]:
 
-- L1 block attributes
-  - block number
-  - timestamp
-  - basefee
-  - *random* (the output of the [`RANDOM` opcode][random])
-- L1 log entries emitted for [user deposits][g-deposits], augmented with
-  - `blockHeight`: the block-height of the L1 block
-  - `transactionIndex`: the transaction-index within the L2 transactions list
+- Of the *first* block in the window only:
+  - L1 block attributes:
+    - block number
+    - timestamp
+    - basefee
+    - *random* (the output of the [`RANDOM` opcode][random])
+  - L1 log entries emitted for [user deposits][g-deposits], augmented with
+    - `blockHeight`: the block-height of the L1 block
+    - `transactionIndex`: the transaction-index within the L2 transactions list
+- Of each block in the window:
+  - Sequencer batches, derived from the transactions:
+    - The transaction receiver is the sequencer inbox address
+    - The transaction must be signed by a recognized sequencer account
+    - The calldata may contain any number of batches. *(calldata will be substituted with blob data in the future.)*
+    - Batches not matching filter criteria are ignored:
+      - `batch.epoch == sequencing_window.epoch`, i.e. for this sequencing window
+      - `(batch.timestamp - genesis_l2_timestamp) % block_time == 0`, i.e. timestamp is aligned
+      - `min_l2_timestamp < batch.timestamp < max_l2_timestamp`, i.e. timestamp is within range
+      - The batch is the first batch with `batch.timestamp` in this sequencing window,
+        i.e. one batch per L2 block number
 
 [random]: https://eips.ethereum.org/EIPS/eip-4399
+
+Batches are formatted as: `type ++ RLP([epoch, timestamp, transaction_list])`
+
+- `type` is a single `byte` identifying the batch format
+- `epoch` is the sequencing window epoch, i.e. the first L1 block number
+- `timestamp` is the L2 timestamp of the block
+- `transaction_list` is an RLP encoded list of [EIP-2718] encoded transactions
+
+[EIP-2718]: https://eips.ethereum.org/EIPS/eip-2718
 
 > Design note: The extra log entry metadata will be used to ensure that deposited transactions will be unique. Without
 > them, two different deposited transaction could have the same exact hash.
@@ -95,6 +151,11 @@ Refer to the [**deposit contract specification**][deposit-contract-spec] for det
 entries.
 
 [deposit-contract-spec]: deposits.md#deposit-contract
+
+Each of the derived `PayloadAttributes` starts with a L1 Attributes transaction.
+
+The [User-deposited] transactions are all put in the first of the derived `PayloadAttributes`,
+inserted after the L1 Attributes transaction, before any [sequenced][g-sequencing] transactions.
 
 ### Encoding the L1 Attributes Deposited Transaction
 
@@ -125,14 +186,14 @@ To encode user-deposited transactions, refer to the following sections of the de
 [payload attributes]: #building-the-payload-attributes
 
 From the data read from L1 and the encoded transactions, the rollup node constructs the [payload
-attributes][g-payload-attr] as an [expanded version][expanded-paylod] of the [`PayloadAttributesV1`] object, which
+attributes][g-payload-attr] as an [expanded version][expanded-payload] of the [`PayloadAttributesV1`] object, which
 includes an additional `transactions` field.
 
 The object's properties must be set as follows:
 
 - `timestamp` is set to the timestamp of the L1 block.
 - `random` is set to the *random* L1 block attribute
-- `suggestedFeeRecipient` is set to the zero-address for deposit-blocks, since there is no sequencer.
+- `suggestedFeeRecipient` is set to an address determined by the system
 - `transactions` is an array of the derived deposits, encoded as per the two preceding sections.
 
 [expanded-payload]: exec-engine.md#extended-payloadattributesv1
@@ -259,12 +320,13 @@ However, they can still be challenged by a fault proof until the end of the faul
 ## Whole L2 Chain Derivation
 
 The [block derivation](#from-l1-blocks-to-payload-attributes) presents an inductive process:
-given that we know the "current" L2 block, well as the next L1 block,
-then we can derive [payload attributes] for the next L1 block, and from that the next L2 block.
+given that we know the last L2 block derived from the previous [sequencing window][g-sequencing-window], as well as the
+next [sequencing window][g-sequencing-window], then we can derive [payload attributes] of the next L2 blocks.
 
-To derive the whole L2 chain from scratch, we simply start with the L2 genesis block as the current L2 block, and the
-block at height `L2_CHAIN_INCEPTION + 1` as the next L1 block. Then we iteratively apply the derivation process from the
-previous section to each successive L1 block until we have caught up with the L1 head.
+To derive the whole L2 chain from scratch, we simply start with the L2 genesis block as the last L2 block, and the
+block at height `L2_CHAIN_INCEPTION + 1` as the start of the next sequencing window.
+Then we iteratively apply the derivation process from the previous section by shifting the sequencing window one L1
+block forward each step, until there is an insufficient number of L1 blocks left for a complete sequencing window.
 
 > **TODO** specify genesis block
 
@@ -286,10 +348,13 @@ ancestor, and can re-derive the L2 chain from that L1 block and onwards.
 
 The starting point of the re-derivation is a pair `(refL2, nextRefL1)` where `refL2` refers to the L2 block to build
 upon and `nextRefL1` refers to the next L1 block to derive from (i.e. if `refL2` is derived from L1 block `refL1`,
-`nextRefL1` is the canonicla L1 block at height `l1Number(refL1) + 1`).
+`nextRefL1` is the canonical L1 block at height `l1Number(refL1) + 1`).
 
 In practice, the happy path (no re-org) and the re-org paths are merged. The happy path is simply a special case of the
 re-org path where the starting point of the re-derivation is `(currentL2Head, newL1Block)`.
+
+After a `(currentL2Head, newL1Block)` starting point is found, derivation can continue when a complete sequencing window
+of canonical L1 blocks following the starting point is retrieved.
 
 This re-derivation starting point can be found by applying the following algorithm:
 
@@ -300,14 +365,13 @@ This re-derivation starting point can be found by applying the following algorit
 - If `currentL1 == refL1`, then `refL2` was built on a canonical L1 block:
   - Find the next L1 block (it may not exist yet) and return `(refL2, nextRefL1)` as the starting point of the
     re-derivation.
-    - It is necessary to ensure that no L1 re-org occured during this lookup, i.e. that `nextRefL1.parent == refL1`.
+    - It is necessary to ensure that no L1 re-org occurred during this lookup, i.e. that `nextRefL1.parent == refL1`.
     - If the next L1 block does not exist yet, there is no re-org, and nothing new to derive, and we can abort the
         process.
 - Otherwise, if `refL2` is the L2 genesis block, we have re-orged past the genesis block, which is an error that
-    requires a re-genesis of the L2 chain to fix (i.e. creating a new genesis
-    configuration) (\*)
+  requires a re-genesis of the L2 chain to fix (i.e. creating a new genesis configuration) (\*)
 - Otherwise, if either `currentL1` does not exist, or `currentL1 != refL1`, set `refL2` to `parentL2` and restart this
-    algorithm from step 2.
+  algorithm from step 2.
   - Note: if `currentL1` does not exist, it means we are in a re-org to a shorter L1 chain.
   - Note: as an optimization, we can cache `currentL1` and reuse it as the next value of `nextRefL1` to avoid an
         extra lookup.

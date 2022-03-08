@@ -15,9 +15,12 @@
   - [Receipt](#receipt)
   - [Transaction Type](#transaction-type)
   - [Fork Choice Rule](#fork-choice-rule)
+- [Sequencing](#sequencing)
+  - [Sequencing window](#sequencing-window)
+  - [Sequencing epoch](#sequencing-epoch)
+  - [Sequencer batch](#sequencer-batch)
 - [Deposits](#deposits)
   - [Deposited Transaction](#deposited-transaction)
-  - [Deposit Block](#deposit-block)
   - [L1 Attributes Deposited Transaction](#l1-attributes-deposited-transaction)
   - [User-Deposited Transaction](#user-deposited-transaction)
   - [Depositing Call](#depositing-call)
@@ -140,6 +143,38 @@ on-chain-confirmed head, or the on-chain-finalized head.
 
 ------------------------------------------------------------------------------------------------------------------------
 
+# Sequencing
+
+[sequencing]: glossary.md#sequencing
+
+Transactions in the rollup can be included in two ways:
+
+- Through a [deposited transaction](#deposited-transaction), enforced by the system
+- Through a regular transaction, embedded in a [sequencer batch](#sequencer-batch)
+
+Submitting transactions for inclusion in a batch saves costs by reducing overhead, and enables the sequencer to
+pre-confirm the transactions before the L1 confirms the data.
+
+## Sequencing window
+
+[sequencing-window]: glossary.md#sequencing-window
+
+A sequencing window is a range of L1 blocks, to parse inputs from during a derivation step.
+
+## Sequencing epoch
+
+A sequencing epoch is a number identifying the start of a [sequencing window](#sequencing-window),
+equal to the L1 block number of the first block in the window.
+
+## Sequencer batch
+
+[sequencer-batch]: glossary.md#sequencer-batch
+
+A sequencer batch is list of L2 transactions tagged with an [`epoch`](#sequencing-epoch) and L2 block `timestamp`.
+Each L2 block can have one batch of transactions, an input for the block derivation.
+
+------------------------------------------------------------------------------------------------------------------------
+
 # Deposits
 
 [deposits]: glossary.md#deposits
@@ -170,8 +205,7 @@ Deposits are specified in the [deposits specification][deposits-spec].
 
 [deposited]: glossary.md#deposited-transaction
 
-A *deposited transaction* is a L2 transaction that was derived from L1 and is included in a [deposit
-block][deposit-block].
+A *deposited transaction* is a L2 transaction that was derived from L1 and included in a L2 block.
 
 There are two kinds of deposited transactions:
 
@@ -181,12 +215,6 @@ There are two kinds of deposited transactions:
   contract][deposit-contract].
 
 [deposits-spec]: deposits.md
-
-## Deposit Block
-
-[deposit-block]: glossary.md#deposit-block
-
-A *deposit block* is a L2 block that contains only [deposited transactions][deposited].
 
 ## L1 Attributes Deposited Transaction
 
@@ -312,6 +340,7 @@ L2 derivation inputs include:
   - timestamp
   - basefee
 - [deposits] (as log data)
+- [sequencer batches][sequencer-batch] (as transaction data)
 
 ## Payload Attributes
 

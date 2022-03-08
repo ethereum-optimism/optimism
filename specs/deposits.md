@@ -7,7 +7,6 @@
 [g-deposits]: glossary.md#deposits
 [g-l1-attr-deposit]: glossary.md#l1-attributes-deposited-transaction
 [g-user-deposited]: glossary.md#user-deposited-transaction
-[g-deposit-block]: glossary.md#deposit-block
 [g-eoa]: glossary.md#eoa
 
 [Deposited transactions][g-deposited], also known as [deposits][g-deposits] are transactions which
@@ -76,7 +75,7 @@ for a variable-length encoding scheme.
 ### Kinds of Deposited Transactions
 
 Although we define only one new transaction type, we can distinguish between two kinds of deposited
-transactions, based on their positioning in the [deposit block][g-deposit-block]:
+transactions, based on their positioning in the L2 block:
 
 1. The first transaction MUST be a [L1 attributes deposited transaction][l1-attr-deposit], followed
    by
