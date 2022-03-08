@@ -3,16 +3,16 @@
 # Optimism Smart Contracts
 
 `@eth-optimism/contracts` contains the various Solidity smart contracts used within the Optimism system.
-Some of these contracts are deployed on Ethereum ("Layer 1"), while others are meant to be deployed to Optimism ("Layer 2").
-
-Within each contract file you'll find a comment that lists:
-1. The compiler with which a contract is intended to be compiled, `solc` or `optimistic-solc`.
-2. The network upon to which the contract will be deployed, `OVM` or `EVM`.
-
-<!-- TODO: Add link to final contract docs here when finished. -->
+Some of these contracts are [meant to be deployed to Ethereum ("Layer 1")](https://github.com/ethereum-optimism/optimism/tree/develop/packages/contracts/contracts/L1), while others are [meant to be deployed to Optimism ("Layer 2")](https://github.com/ethereum-optimism/optimism/tree/develop/packages/contracts/contracts/L2).
+Within each contract file you'll find the network upon which the contract is meant to be deloyed, listed as either `EVM` (for Ethereum) or `OVM` (for Optimism).
+If neither `EVM` nor `OVM` are listed, the contract is likely intended to be used on either network.
 
 ## Usage (npm)
-If your development stack is based on Node/npm:
+
+You can import `@eth-optimism/contracts` to use the Optimism contracts within your own codebase.
+We currently only export `@eth-optimism/contracts` via `npm`.
+
+Install via `npm` or `yarn`:
 
 ```shell
 npm install @eth-optimism/contracts
@@ -21,7 +21,16 @@ npm install @eth-optimism/contracts
 Within your contracts:
 
 ```solidity
-import { SomeContract } from "@eth-optimism/contracts/SomeContract.sol";
+import { SomeContract } from "@eth-optimism/contracts/path/to/SomeContract.sol";
+```
+
+Note that the `/path/to/SomeContract.sol` is the path to the target contract within the [contracts folder](https://github.com/ethereum-optimism/optimism/tree/develop/packages/contracts/contracts) inside of this package.
+For example, the [L1CrossDomainMessenger](/contracts/L1/messaging/L1CrossDomainMessenger.sol) contract is located at `/contracts/L1/messaging/L1CrossDomainMessenger.sol`, relative to this README.
+You would therefore import the contract as:
+
+
+```solidity
+import { L1CrossDomainMessenger } from "@eth-optimism/contracts/L1/messaging/L1CrossDomainMessenger.sol";
 ```
 
 ## Guide for Developers
