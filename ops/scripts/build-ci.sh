@@ -7,7 +7,6 @@ function build() {
     echo "Context: $4"
     docker buildx build \
         --tag "$2" \
-        --build-arg LOCAL_REGISTRY=localhost:5000 \
         --cache-from "type=local,src=/tmp/.buildx-cache/$1" \
         --cache-to="type=local,dest=/tmp/.buildx-cache-new/$1" \
         --file "$3" \
@@ -15,31 +14,11 @@ function build() {
         &
 }
 
-# Split across two build stages:
-#
-# 1. Build the builder and everything that doesn't depend on it, then
-# 2. Build everything else.
-#
-# Each individual build is executed in parallel, so we use wait block all builds
-# in each stage are complete.
-
 mkdir -p /tmp/.buildx-cache-new
-docker buildx build --tag "localhost:5000/ethereumoptimism/builder:latest" --cache-from "type=local,src=/tmp/.buildx-cache/builder" --cache-to="type=local,mode=max,dest=/tmp/.buildx-cache-new/builder" --file "./ops/docker/Dockerfile.monorepo" --push . &
 build l2geth "ethereumoptimism/l2geth:latest" "./ops/docker/Dockerfile.geth" .
 build l1chain "ethereumoptimism/hardhat:latest" "./ops/docker/hardhat/Dockerfile" ./ops/docker/hardhat
 
 wait
-
-# BuildX builds everything in a container when docker-container is selected as
-# the backend. Unfortunately, this means that the built image must be pushed
-# then re-pulled in order to make the container accessible to the Docker daemon.
-# We have to use the docker-container backend since the the docker backend does
-# not support cache-from and cache-to.
-docker pull localhost:5000/ethereumoptimism/builder:latest
-
-# Re-tag the local registry version of the builder so that docker-compose and
-# friends can see it.
-docker tag localhost:5000/ethereumoptimism/builder:latest ethereumoptimism/builder:latest
 
 build deployer "ethereumoptimism/deployer:latest" "./ops/docker/Dockerfile.deployer" .
 build dtl "ethereumoptimism/data-transport-layer:latest" "./ops/docker/Dockerfile.data-transport-layer" .
