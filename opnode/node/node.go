@@ -117,9 +117,6 @@ func (c *OpNode) Start(ctx context.Context) error {
 
 	c.log.Info("Fetching rollup starting point")
 
-	// We download receipts in parallel
-	c.l1Source.AddReceiptWorkers(4)
-
 	// Feed of eth.HeadSignal
 	var l1HeadsFeed event.Feed
 

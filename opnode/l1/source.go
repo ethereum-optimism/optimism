@@ -15,7 +15,7 @@ import (
 
 type Source struct {
 	client     *ethclient.Client
-	downloader Downloader
+	downloader *Downloader
 }
 
 func NewSource(client *ethclient.Client) Source {
@@ -67,13 +67,8 @@ func (s Source) Fetch(ctx context.Context, id eth.BlockID) (*types.Block, []*typ
 	return s.downloader.Fetch(ctx, id)
 }
 
-func (s Source) AddReceiptWorkers(n int) int {
-	return s.downloader.AddReceiptWorkers(n)
-}
-
 func (s Source) Close() {
 	s.client.Close()
-	s.downloader.Close()
 }
 
 func (s Source) FetchL1Info(ctx context.Context, id eth.BlockID) (derive.L1Info, error) {
