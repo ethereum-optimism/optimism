@@ -1,70 +1,33 @@
-[![codecov](https://codecov.io/gh/ethereum-optimism/optimism/branch/master/graph/badge.svg?token=0VTG7PG7YR&flag=message-relayer)](https://codecov.io/gh/ethereum-optimism/optimism)
 # @eth-optimism/message-relayer
 
-This package contains:
-
-1. A service for relaying messages from L2 to L1.
-2. Utilities for finding these messages and relaying them.
+`message-relayer` is a service that automatically finalizes ("relays") messages sent from Optimism to Ethereum.
+This package is meant to be used during local development and should NOT be used on a production network.
 
 ## Installation
 
+Clone, install, and build the Optimism monorepo:
+
 ```
-yarn add @eth-optimism/message-relayer
+git clone https://github.com/ethereum-optimism/optimism.git
+yarn install
+yarn build
 ```
 
-## Relay Utilities
+## Running the relayer (Docker)
 
-### getMessagesAndProofsForL2Transaction
+The `message-relayer` can be included as part of the [local Optimism development environment](https://community.optimism.io/docs/developers/build/dev-node/).
+Although the `message-relayer` is not turned on by default, it can be enabled by [changing this line in docker-compose.yml](https://github.com/ethereum-optimism/optimism/blob/51a527b8e3fe69940fb8c0f5e4aa2e0ae8ee294c/ops/docker-compose.yml#L129) to:
 
-Finds all L2 => L1 messages sent in a given L2 transaction and generates proof for each.
+```
+replicas: 1
+```
 
-#### Usage
+## Running the relayer (manual)
 
-```typescript
-import { getMessagesAndProofsForL2Transaction } from '@eth-optimism/message-relayer'
+The `message-relayer` can also be run manually.
+Copy `.env.example` into a new file named `.env`, then set the environment variables listed there.
+Once your environment variables have been set, run the relayer via:
 
-const main = async () => {
-  const l1RpcProviderUrl = 'https://layer1.endpoint'
-  const l2RpcProviderUrl = 'https://layer2.endpoint'
-  const l1StateCommitmentChainAddress = 'address of StateCommitmentChain from deployments page'
-  const l2CrossDomainMessengerAddress = 'address of L2CrossDomainMessenger from deployments page'
-  const l2TransactionHash = 'hash of the transaction with messages to relay'
-
-  const messagePairs = await getMessagesAndProofsForL2Transaction(
-    l1RpcProviderUrl,
-    l2RpcProviderUrl,
-    l1StateCommitmentChainAddress,
-    l2CrossDomainMessengerAddress,
-    l2TransactionHash
-  )
-
-  console.log(messagePairs)
-  // Will log something along the lines of:
-  // [
-  //   {
-  //     message: {
-  //       target: '0x...',
-  //       sender: '0x...',
-  //       message: '0x...',
-  //       messageNonce: 1234...
-  //     },
-  //     proof: {
-  //       // complicated
-  //     }
-  //   }
-  // ]
-
-  // You can then do something along the lines of:
-  // for (const { message, proof } of messagePairs) {
-  //   await l1CrossDomainMessenger.relayMessage(
-  //     message.target,
-  //     message.sender,
-  //     message.message,
-  //     message.messageNonce,
-  //     proof
-  //   )
-  // }
-}
-
-main()
+```
+yarn start
 ```
