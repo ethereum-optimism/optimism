@@ -2,22 +2,25 @@ package server
 
 import (
 	"encoding/json"
-	"github.com/ethereum/go-ethereum/log"
 	"net/http"
 	"runtime/debug"
 	"time"
+
+	"github.com/ethereum/go-ethereum/log"
 )
 
+// RespondWithError writes the given error code and message to the writer.
 func RespondWithError(w http.ResponseWriter, code int, message string) {
 	RespondWithJSON(w, code, map[string]string{"error": message})
 }
 
+// RespondWithJSON writes the given payload marshalled as JSON to the writer.
 func RespondWithJSON(w http.ResponseWriter, code int, payload interface{}) {
 	response, _ := json.Marshal(payload)
 
 	w.WriteHeader(code)
 	w.Header().Set("Content-Type", "application/json")
-	w.Write(response)
+	_, _ = w.Write(response)
 }
 
 // responseWriter is a minimal wrapper for http.ResponseWriter that allows the
@@ -44,8 +47,6 @@ func (rw *responseWriter) WriteHeader(code int) {
 	rw.status = code
 	rw.ResponseWriter.WriteHeader(code)
 	rw.wroteHeader = true
-
-	return
 }
 
 // LoggingMiddleware logs the incoming HTTP request & its duration.

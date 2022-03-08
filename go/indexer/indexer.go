@@ -6,6 +6,7 @@ import (
 	"math/big"
 	"net/http"
 	"os"
+	"strconv"
 	"time"
 
 	"github.com/ethereum-optimism/optimism/go/indexer/metrics"
@@ -19,7 +20,7 @@ import (
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rpc"
-	"github.com/getsentry/sentry-go"
+	sentry "github.com/getsentry/sentry-go"
 	"github.com/gorilla/mux"
 	"github.com/urfave/cli"
 )
@@ -201,7 +202,8 @@ func NewIndexer(cfg Config, gitVersion string) (*Indexer, error) {
 	}, nil
 }
 
-func (b *Indexer) Serve(ctx context.Context) {
+// Serve spins up a REST API server at the given hostname and port.
+func (b *Indexer) Serve() error {
 	c := cors.New(cors.Options{
 		AllowedOrigins: []string{"*"},
 	})
@@ -213,25 +215,41 @@ func (b *Indexer) Serve(ctx context.Context) {
 	b.router.HandleFunc("/v1/withdrawals/0x{address:[a-fA-F0-9]{40}}", b.l2IndexingService.GetWithdrawals).Methods("GET")
 	b.router.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(200)
-		w.Write([]byte("OK"))
+		_, err := w.Write([]byte("OK"))
+		if err != nil {
+			log.Error("Error handling /healthz", "error", err)
+		}
 	})
 
 	middleware := server.LoggingMiddleware(log.New("service", "server"))
-	http.ListenAndServe(":8080", middleware(c.Handler(b.router)))
+
+	port := strconv.FormatUint(b.cfg.RESTPort, 10)
+	addr := fmt.Sprintf("%s:%s", b.cfg.RESTHostname, port)
+
+	log.Info("indexer REST server listening on", "addr", addr)
+	return http.ListenAndServe(addr, middleware(c.Handler(b.router)))
 }
 
+// Start starts the starts the indexing service on L1 and L2 chains and also
+// starts the REST server.
 func (b *Indexer) Start() error {
 	if b.cfg.DisableIndexer {
 		log.Info("indexer disabled, only serving data")
 	} else {
-		b.l1IndexingService.Start()
-		b.l2IndexingService.Start()
+		err := b.l1IndexingService.Start()
+		if err != nil {
+			return err
+		}
+		err = b.l2IndexingService.Start()
+		if err != nil {
+			return err
+		}
 	}
 
-	b.Serve(b.ctx)
-	return nil
+	return b.Serve()
 }
 
+// Stop stops the indexing service on L1 and L2 chains.
 func (b *Indexer) Stop() {
 	if !b.cfg.DisableIndexer {
 		b.l1IndexingService.Stop()
@@ -276,8 +294,4 @@ func traceRateToFloat64(rate time.Duration) float64 {
 		rate64 = 1.0
 	}
 	return rate64
-}
-
-func gasPriceFromGwei(gasPriceInGwei uint64) *big.Int {
-	return new(big.Int).SetUint64(gasPriceInGwei * 1e9)
 }

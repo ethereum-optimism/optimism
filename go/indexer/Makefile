@@ -26,7 +26,7 @@ test:
 lint:
 	golangci-lint run ./...
 
-bindings: bindings-l1bridge bindings-l2bridge bindings-l1erc20 bindings-l2erc20 bindings-scc
+bindings: bindings-l1bridge bindings-l2bridge bindings-l1erc20 bindings-l2erc20 bindings-scc bindings-address-manager
 
 bindings-l1bridge:
 	$(eval temp := $(shell mktemp))
@@ -130,6 +130,7 @@ bindings-address-manager:
 	bindings-l1erc20 \
 	bindings-l2erc20 \
 	bindings-scc \
+	bindings-address-manager
 	clean \
 	test \
 	lint

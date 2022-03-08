@@ -2,7 +2,6 @@ package l2
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"math/big"
@@ -12,6 +11,7 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/go/indexer/metrics"
+	"github.com/ethereum-optimism/optimism/go/indexer/server"
 	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/ethereum-optimism/optimism/go/indexer/db"
@@ -50,22 +50,9 @@ func HeaderByNumberWithRetry(ctx context.Context,
 			return res, err
 		default:
 			log.Error("Error fetching header", "err", err)
-			break
 		}
 		time.Sleep(clientRetryInterval)
 	}
-}
-
-func respondWithError(w http.ResponseWriter, code int, message string) {
-	respondWithJSON(w, code, map[string]string{"error": message})
-}
-
-func respondWithJSON(w http.ResponseWriter, code int, payload interface{}) {
-	response, _ := json.Marshal(payload)
-
-	w.WriteHeader(code)
-	w.Header().Set("Content-Type", "application/json")
-	w.Write(response)
 }
 
 type ServiceConfig struct {
@@ -177,10 +164,12 @@ func (s *Service) Loop(ctx context.Context) {
 			logger.Info("Received new header", "header", header.Hash)
 			for {
 				err := s.Update(header)
-				if err != nil && err != errNoNewBlocks {
-					logger.Error("Unable to update indexer ", "err", err)
+				if err != nil {
+					if err != errNoNewBlocks {
+						logger.Error("Unable to update indexer ", "err", err)
+					}
+					break
 				}
-				break
 			}
 		case <-s.ctx.Done():
 			return
@@ -323,7 +312,7 @@ func (s *Service) Update(newHeader *types.Header) error {
 func (s *Service) GetIndexerStatus(w http.ResponseWriter, r *http.Request) {
 	highestBlock, err := s.cfg.DB.GetHighestL2Block()
 	if err != nil {
-		respondWithError(w, http.StatusInternalServerError, err.Error())
+		server.RespondWithError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 
@@ -337,7 +326,7 @@ func (s *Service) GetIndexerStatus(w http.ResponseWriter, r *http.Request) {
 		Highest: *highestBlock,
 	}
 
-	respondWithJSON(w, http.StatusOK, status)
+	server.RespondWithJSON(w, http.StatusOK, status)
 }
 
 func (s *Service) GetWithdrawalBatch(w http.ResponseWriter, r *http.Request) {
@@ -345,11 +334,11 @@ func (s *Service) GetWithdrawalBatch(w http.ResponseWriter, r *http.Request) {
 
 	batch, err := s.cfg.DB.GetWithdrawalBatch(common.HexToHash(vars["hash"]))
 	if err != nil {
-		respondWithError(w, http.StatusInternalServerError, err.Error())
+		server.RespondWithError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 
-	respondWithJSON(w, http.StatusOK, batch)
+	server.RespondWithJSON(w, http.StatusOK, batch)
 }
 
 func (s *Service) GetWithdrawals(w http.ResponseWriter, r *http.Request) {
@@ -358,7 +347,7 @@ func (s *Service) GetWithdrawals(w http.ResponseWriter, r *http.Request) {
 	limitStr := r.URL.Query().Get("limit")
 	limit, err := strconv.ParseUint(limitStr, 10, 64)
 	if err != nil && limitStr != "" {
-		respondWithError(w, http.StatusInternalServerError, err.Error())
+		server.RespondWithError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 	if limit == 0 {
@@ -368,7 +357,7 @@ func (s *Service) GetWithdrawals(w http.ResponseWriter, r *http.Request) {
 	offsetStr := r.URL.Query().Get("offset")
 	offset, err := strconv.ParseUint(offsetStr, 10, 64)
 	if err != nil && offsetStr != "" {
-		respondWithError(w, http.StatusInternalServerError, err.Error())
+		server.RespondWithError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 
@@ -379,11 +368,11 @@ func (s *Service) GetWithdrawals(w http.ResponseWriter, r *http.Request) {
 
 	withdrawals, err := s.cfg.DB.GetWithdrawalsByAddress(common.HexToAddress(vars["address"]), page)
 	if err != nil {
-		respondWithError(w, http.StatusInternalServerError, err.Error())
+		server.RespondWithError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 
-	respondWithJSON(w, http.StatusOK, withdrawals)
+	server.RespondWithJSON(w, http.StatusOK, withdrawals)
 }
 
 func (s *Service) subscribeNewHeads(ctx context.Context, heads chan *types.Header) {
@@ -486,11 +475,11 @@ func (s *Service) Start() error {
 	return nil
 }
 
-func (s *Service) Stop() error {
+func (s *Service) Stop() {
 	s.cancel()
 	s.wg.Wait()
-	if err := s.cfg.DB.Close(); err != nil {
-		return err
+	err := s.cfg.DB.Close()
+	if err != nil {
+		logger.Error("Error closing db", "err", err)
 	}
-	return nil
 }
