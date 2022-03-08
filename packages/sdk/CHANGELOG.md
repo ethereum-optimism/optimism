@@ -1,5 +1,15 @@
 # @eth-optimism/sdk
 
+## 1.0.0
+
+### Major Changes
+
+- 84f63c49: Update README and bump SDK to 1.0.0
+
+### Patch Changes
+
+- 42227d69: Fix typo in constructor docstring
+
 ## 0.2.5
 
 ### Patch Changes
