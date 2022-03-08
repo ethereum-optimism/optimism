@@ -24,12 +24,12 @@
     "ethereum",
     "sdk"
   ],
-  "homepage": "https://github.com/ethereum-optimism/optimism-monorepo/tree/master/packages/sdk#readme",
+  "homepage": "https://github.com/ethereum-optimism/optimism/tree/develop/packages/sdk#readme",
   "license": "MIT",
   "author": "Optimism PBC",
   "repository": {
     "type": "git",
-    "url": "https://github.com/ethereum-optimism/optimism-monorepo.git"
+    "url": "https://github.com/ethereum-optimism/optimism.git"
   },
   "devDependencies": {
     "@ethersproject/abstract-provider": "^5.5.1",
