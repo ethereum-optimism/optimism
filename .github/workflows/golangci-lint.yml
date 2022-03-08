@@ -10,7 +10,7 @@ on:
       - 'master'
       - 'develop'
       - '*rc'
-      - 'regenesis/*'
+      - 'release/*'
   pull_request:
     branches:
       - '*'
