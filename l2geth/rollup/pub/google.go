@@ -51,6 +51,8 @@ func (p *GooglePublisher) Publish(ctx context.Context, msg []byte) error {
 		Data:        msg,
 		OrderingKey: messageOrderingKey,
 	}
+	// If there was an error previously, clear it out to allow publishing to work again
+	p.topic.ResumePublish(messageOrderingKey)
 	result := p.topic.Publish(ctx, &pmsg)
 	_, err := result.Get(ctx)
 	return err
