@@ -245,6 +245,12 @@ func PayloadAttributes(config *rollup.Config, l1Info L1Info, receipts []*types.R
 		return nil, fmt.Errorf("failed to derive deposits: %v", err)
 	}
 
+	l1Tx := types.NewTx(L1InfoDeposit(l1Info))
+	l1InfoTx, err := l1Tx.MarshalBinary() // TODO: Issue with shared l1InfoTx?
+	if err != nil {
+		return nil, fmt.Errorf("failed to encode L1 info tx")
+	}
+
 	// copy L1 randomness (mix-digest becomes randao field post-merge)
 	// TODO: we don't have a randomness oracle on L2, what should sequencing randomness look like.
 	// Repeating the latest randomness of L1 might not be ideal.
@@ -260,11 +266,15 @@ func PayloadAttributes(config *rollup.Config, l1Info L1Info, receipts []*types.R
 			highestSeenTimestamp = batch.Timestamp
 		}
 
+		txns := make([]l2.Data, 0, len(batch.Transactions)+1)
+		txns = append(txns, l1InfoTx)
+		txns = append(txns, batch.Transactions...)
+
 		l2Blocks[batch.Timestamp] = &l2.PayloadAttributes{
 			Timestamp:             l2.Uint64Quantity(batch.Timestamp),
 			Random:                randomnessSeed,
 			SuggestedFeeRecipient: config.FeeRecipientAddress,
-			Transactions:          batch.Transactions,
+			Transactions:          txns,
 		}
 	}
 
@@ -281,17 +291,19 @@ func PayloadAttributes(config *rollup.Config, l1Info L1Info, receipts []*types.R
 			out = append(out, bl)
 		} else {
 			// skipped/missing L2 block, create an empty block instead
+			txns := make([]l2.Data, 1)
+			txns[0] = l1InfoTx
 			out = append(out, &l2.PayloadAttributes{
 				Timestamp:             l2.Uint64Quantity(t),
 				Random:                randomnessSeed,
 				SuggestedFeeRecipient: config.FeeRecipientAddress,
-				Transactions:          nil,
+				Transactions:          txns,
 			})
 		}
 	}
 
-	// Force deposits into the first block
-	out[0].Transactions = append(append(make([]l2.Data, 0), deposits...), out[0].Transactions...)
+	// Force deposits into the first block. TODO: Clean up L1 Info handling.
+	out[0].Transactions = append(append(make([]l2.Data, 0), deposits...), out[0].Transactions[1:]...)
 
 	return out, nil
 }
