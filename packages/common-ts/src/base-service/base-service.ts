@@ -1,6 +1,6 @@
 /* Imports: Internal */
-import { Logger } from './common/logger'
-import { Metrics } from './common/metrics'
+import { Logger } from '../common/logger'
+import { Metrics } from '../common/metrics'
 
 type OptionSettings<TOptions> = {
   [P in keyof TOptions]?: {

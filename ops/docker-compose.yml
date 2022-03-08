@@ -123,7 +123,6 @@ services:
   relayer:
     depends_on:
       - l1_chain
-      - deployer
       - l2geth
     deploy:
       replicas: 0
@@ -133,14 +132,10 @@ services:
       target: relayer
     entrypoint: ./relayer.sh
     environment:
-      L1_NODE_WEB3_URL: http://l1_chain:8545
-      L2_NODE_WEB3_URL: http://l2geth:8545
-      URL: http://deployer:8081/addresses.json
-      # a funded hardhat account
-      L1_WALLET_KEY: '0xdbda1821b80551c9d65939329250298aa3472ba22feea921c0cf5d620ea67b97'
+      MESSAGE_RELAYER__L1RPCPROVIDER: http://l1_chain:8545
+      MESSAGE_RELAYER__L2RPCPROVIDER: http://l2geth:8545
+      MESSAGE_RELAYER__L1WALLET: '0xdbda1821b80551c9d65939329250298aa3472ba22feea921c0cf5d620ea67b97'
       RETRIES: 60
-      POLLING_INTERVAL: 500
-      GET_LOGS_INTERVAL: 500
 
   verifier:
     depends_on:
