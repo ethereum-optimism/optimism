@@ -55,13 +55,15 @@ type outputReturnArgs struct {
 }
 
 type stateTestCaseStep struct {
-	expectedL1Head testID
-	expectedL2Head testID
-	expectedWindow []testID
+	// Expect l1head, l2head, and sequence window
+	l1head testID
+	l2head testID
+	window []testID
 
-	l1action func(t *testing.T, s *state, src *fakeChainSource, l1Heads chan eth.L1BlockRef)
-	l2action func(t *testing.T, expectedWindow []testID, s *state, src *fakeChainSource, outputIn chan outputArgs, outputReturn chan outputReturnArgs)
-	reorg    bool
+	// l1act and l2act are ran at each step
+	l1act func(t *testing.T, s *state, src *fakeChainSource, l1Heads chan eth.L1BlockRef)
+	l2act func(t *testing.T, expectedWindow []testID, s *state, src *fakeChainSource, outputIn chan outputArgs, outputReturn chan outputReturnArgs)
+	reorg bool
 }
 
 func advanceL1(t *testing.T, s *state, src *fakeChainSource, l1Heads chan eth.L1BlockRef) {
@@ -124,7 +126,7 @@ func (tc *stateTestCase) Run(t *testing.T) {
 	log := testlog.Logger(t, log.LvlTrace)
 	chainSource := NewFakeChainSource(tc.l1Chains, tc.l2Chains, log)
 	l1headsCh := make(chan eth.L1BlockRef, 10)
-	// Unbuffered channels to force a sync point between
+	// Unbuffered channels to force a sync point between the test and the state loop.
 	outputIn := make(chan outputArgs)
 	outputReturn := make(chan outputReturnArgs)
 	outputHandler := func(ctx context.Context, l2Head eth.BlockID, l2Finalized eth.BlockID, l1Window []eth.BlockID) (eth.BlockID, error) {
@@ -145,13 +147,13 @@ func (tc *stateTestCase) Run(t *testing.T) {
 		if step.reorg {
 			chainSource.reorgL1()
 		}
-		step.l1action(t, state, chainSource, l1headsCh)
+		step.l1act(t, state, chainSource, l1headsCh)
 		<-time.After(5 * time.Millisecond)
-		step.l2action(t, step.expectedWindow, state, chainSource, outputIn, outputReturn)
+		step.l2act(t, step.window, state, chainSource, outputIn, outputReturn)
 		<-time.After(5 * time.Millisecond)
 
-		assert.Equal(t, step.expectedL1Head.ID(), state.l1Head, "l1 head")
-		assert.Equal(t, step.expectedL2Head.ID(), state.l2Head, "l2 head")
+		assert.Equal(t, step.l1head.ID(), state.l1Head, "l1 head")
+		assert.Equal(t, step.l2head.ID(), state.l2Head, "l2 head")
 	}
 }
 
@@ -164,13 +166,13 @@ func TestDriver(t *testing.T) {
 			seqWindow: 2,
 			genesis:   fakeGenesis('a', 'A', 0),
 			steps: []stateTestCaseStep{
-				{l1action: stutterL1, l2action: stutterL2, expectedL1Head: "a:0", expectedL2Head: "A:0"},
-				{l1action: advanceL1, l2action: stutterL2, expectedL1Head: "b:1", expectedL2Head: "A:0", expectedWindow: []testID{"a:0", "b:1"}},
-				{l1action: advanceL1, l2action: advanceL2, expectedL1Head: "c:2", expectedL2Head: "B:1", expectedWindow: []testID{"b:1", "c:2"}},
-				{l1action: advanceL1, l2action: advanceL2, expectedL1Head: "d:3", expectedL2Head: "C:2", expectedWindow: []testID{"c:2", "d:3"}},
-				{l1action: advanceL1, l2action: advanceL2, expectedL1Head: "e:4", expectedL2Head: "D:3", expectedWindow: []testID{"d:3", "e:4"}},
-				{l1action: advanceL1, l2action: advanceL2, expectedL1Head: "f:5", expectedL2Head: "E:4", expectedWindow: []testID{"e:4", "f:5"}},
-				{l1action: advanceL1, l2action: advanceL2, expectedL1Head: "g:6", expectedL2Head: "F:5", expectedWindow: []testID{"f:5", "g:6"}},
+				{l1act: stutterL1, l2act: stutterL2, l1head: "a:0", l2head: "A:0"},
+				{l1act: advanceL1, l2act: stutterL2, l1head: "b:1", l2head: "A:0", window: []testID{"a:0", "b:1"}},
+				{l1act: advanceL1, l2act: advanceL2, l1head: "c:2", l2head: "B:1", window: []testID{"b:1", "c:2"}},
+				{l1act: advanceL1, l2act: advanceL2, l1head: "d:3", l2head: "C:2", window: []testID{"c:2", "d:3"}},
+				{l1act: advanceL1, l2act: advanceL2, l1head: "e:4", l2head: "D:3", window: []testID{"d:3", "e:4"}},
+				{l1act: advanceL1, l2act: advanceL2, l1head: "f:5", l2head: "E:4", window: []testID{"e:4", "f:5"}},
+				{l1act: advanceL1, l2act: advanceL2, l1head: "g:6", l2head: "F:5", window: []testID{"f:5", "g:6"}},
 			},
 		},
 		{
@@ -180,18 +182,18 @@ func TestDriver(t *testing.T) {
 			seqWindow: 2,
 			genesis:   fakeGenesis('a', 'A', 0),
 			steps: []stateTestCaseStep{
-				{l1action: stutterL1, l2action: stutterL2, expectedL1Head: "a:0", expectedL2Head: "A:0"},
-				{l1action: advanceL1, l2action: stutterL2, expectedL1Head: "b:1", expectedL2Head: "A:0", expectedWindow: []testID{"a:0", "b:1"}},
-				{l1action: advanceL1, l2action: advanceL2, expectedL1Head: "c:2", expectedL2Head: "B:1", expectedWindow: []testID{"b:1", "c:2"}},
-				{l1action: advanceL1, l2action: advanceL2, expectedL1Head: "d:3", expectedL2Head: "C:2", expectedWindow: []testID{"c:2", "d:3"}},
-				{l1action: advanceL1, l2action: advanceL2, expectedL1Head: "e:4", expectedL2Head: "D:3", expectedWindow: []testID{"d:3", "e:4"}},
-				{l1action: advanceL1, l2action: advanceL2, expectedL1Head: "f:5", expectedL2Head: "E:4", expectedWindow: []testID{"e:4", "f:5"}},
-				{l1action: advanceL1, l2action: advanceL2, expectedL1Head: "g:6", expectedL2Head: "F:5", expectedWindow: []testID{"f:5", "g:6"}},
-				{l1action: stutterL1, l2action: reorg__L2, expectedL1Head: "w:6", expectedL2Head: "X:3", expectedWindow: []testID{"x:3", "y:4"}, reorg: true},
-				{l1action: stutterL1, l2action: advanceL2, expectedL1Head: "w:6", expectedL2Head: "Y:4", expectedWindow: []testID{"y:4", "z:5"}},
-				{l1action: stutterL1, l2action: advanceL2, expectedL1Head: "w:6", expectedL2Head: "Z:5", expectedWindow: []testID{"z:5", "w:6"}},
-				{l1action: stutterL1, l2action: stutterL2, expectedL1Head: "w:6", expectedL2Head: "Z:5", expectedWindow: []testID{"z:5", "w:6"}},
-				{l1action: stutterL1, l2action: stutterL2, expectedL1Head: "w:6", expectedL2Head: "Z:5", expectedWindow: []testID{"z:5", "w:6"}},
+				{l1act: stutterL1, l2act: stutterL2, l1head: "a:0", l2head: "A:0"},
+				{l1act: advanceL1, l2act: stutterL2, l1head: "b:1", l2head: "A:0", window: []testID{"a:0", "b:1"}},
+				{l1act: advanceL1, l2act: advanceL2, l1head: "c:2", l2head: "B:1", window: []testID{"b:1", "c:2"}},
+				{l1act: advanceL1, l2act: advanceL2, l1head: "d:3", l2head: "C:2", window: []testID{"c:2", "d:3"}},
+				{l1act: advanceL1, l2act: advanceL2, l1head: "e:4", l2head: "D:3", window: []testID{"d:3", "e:4"}},
+				{l1act: advanceL1, l2act: advanceL2, l1head: "f:5", l2head: "E:4", window: []testID{"e:4", "f:5"}},
+				{l1act: advanceL1, l2act: advanceL2, l1head: "g:6", l2head: "F:5", window: []testID{"f:5", "g:6"}},
+				{l1act: stutterL1, l2act: reorg__L2, l1head: "w:6", l2head: "X:3", window: []testID{"x:3", "y:4"}, reorg: true},
+				{l1act: stutterL1, l2act: advanceL2, l1head: "w:6", l2head: "Y:4", window: []testID{"y:4", "z:5"}},
+				{l1act: stutterL1, l2act: advanceL2, l1head: "w:6", l2head: "Z:5", window: []testID{"z:5", "w:6"}},
+				{l1act: stutterL1, l2act: stutterL2, l1head: "w:6", l2head: "Z:5", window: []testID{"z:5", "w:6"}},
+				{l1act: stutterL1, l2act: stutterL2, l1head: "w:6", l2head: "Z:5", window: []testID{"z:5", "w:6"}},
 			},
 		},
 		{
@@ -201,13 +203,13 @@ func TestDriver(t *testing.T) {
 			seqWindow: 2,
 			genesis:   fakeGenesis('a', 'A', 0),
 			steps: []stateTestCaseStep{
-				{l1action: stutterL1, l2action: stutterL2, expectedL1Head: "a:0", expectedL2Head: "A:0"},
-				{l1action: advanceL1, l2action: stutterL2, expectedL1Head: "b:1", expectedL2Head: "A:0", expectedWindow: []testID{"a:0", "b:1"}},
-				{l1action: stutterAdvance, l2action: advanceL2, expectedL1Head: "c:2", expectedL2Head: "B:1", expectedWindow: []testID{"b:1", "c:2"}},
-				{l1action: advanceL1, l2action: advanceL2, expectedL1Head: "d:3", expectedL2Head: "C:2", expectedWindow: []testID{"c:2", "d:3"}},
-				{l1action: advanceL1, l2action: advanceL2, expectedL1Head: "e:4", expectedL2Head: "D:3", expectedWindow: []testID{"d:3", "e:4"}},
-				{l1action: advanceL1, l2action: advanceL2, expectedL1Head: "f:5", expectedL2Head: "E:4", expectedWindow: []testID{"e:4", "f:5"}},
-				{l1action: advanceL1, l2action: advanceL2, expectedL1Head: "g:6", expectedL2Head: "F:5", expectedWindow: []testID{"f:5", "g:6"}},
+				{l1act: stutterL1, l2act: stutterL2, l1head: "a:0", l2head: "A:0"},
+				{l1act: advanceL1, l2act: stutterL2, l1head: "b:1", l2head: "A:0", window: []testID{"a:0", "b:1"}},
+				{l1act: stutterAdvance, l2act: advanceL2, l1head: "c:2", l2head: "B:1", window: []testID{"b:1", "c:2"}},
+				{l1act: advanceL1, l2act: advanceL2, l1head: "d:3", l2head: "C:2", window: []testID{"c:2", "d:3"}},
+				{l1act: advanceL1, l2act: advanceL2, l1head: "e:4", l2head: "D:3", window: []testID{"d:3", "e:4"}},
+				{l1act: advanceL1, l2act: advanceL2, l1head: "f:5", l2head: "E:4", window: []testID{"e:4", "f:5"}},
+				{l1act: advanceL1, l2act: advanceL2, l1head: "g:6", l2head: "F:5", window: []testID{"f:5", "g:6"}},
 			},
 		},
 	}

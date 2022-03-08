@@ -171,17 +171,3 @@ func (m *fakeChainSource) l1Head() eth.L1BlockRef {
 	m.log.Trace("L1 Head", "head", m.l1head)
 	return m.l1s[m.l1reorg][m.l1head]
 }
-
-// Unused functions
-// func (m *fakeChainSource) advanceL2() eth.L2BlockRef {
-// 	m.log.Trace("Advance L2", "new_head", m.l2head+1, "old_head", m.l2head)
-// 	m.l2head++
-// 	if m.l2head >= len(m.l2s[m.l1reorg]) {
-// 		panic("Cannot advance L2 past end of chain")
-// 	}
-// 	return m.l2s[m.l1reorg][m.l2head]
-// }
-// func (m *fakeChainSource) l2Head() eth.L2BlockRef {
-// 	m.log.Trace("L2 Head", "head", m.l2head)
-// 	return m.l2s[m.reorg][m.l2head]
-// }
