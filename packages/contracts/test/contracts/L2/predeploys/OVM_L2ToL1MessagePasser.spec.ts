@@ -1,7 +1,7 @@
 /* External Imports */
 import { ethers } from 'hardhat'
 import { ContractFactory, Contract } from 'ethers'
-import { MockContract, smockit } from '@eth-optimism/smock'
+import { smock, FakeContract } from '@defi-wonderland/smock'
 import { remove0x } from '@eth-optimism/core-utils'
 import { keccak256 } from 'ethers/lib/utils'
 
@@ -25,9 +25,9 @@ const callPredeploy = async (
 
 // TODO: rewrite this test to bypass the execution manager
 describe.skip('OVM_L2ToL1MessagePasser', () => {
-  let Mock__OVM_ExecutionManager: MockContract
+  let Fake__OVM_ExecutionManager: FakeContract
   before(async () => {
-    Mock__OVM_ExecutionManager = await smockit(
+    Fake__OVM_ExecutionManager = await smock.fake<Contract>(
       await ethers.getContractFactory('OVM_ExecutionManager')
     )
   })
@@ -38,7 +38,7 @@ describe.skip('OVM_L2ToL1MessagePasser', () => {
       await ethers.getContractFactory('Helper_PredeployCaller')
     ).deploy()
 
-    Helper_PredeployCaller.setTarget(Mock__OVM_ExecutionManager.address)
+    Helper_PredeployCaller.setTarget(Fake__OVM_ExecutionManager.address)
   })
 
   let Factory__OVM_L2ToL1MessagePasser: ContractFactory
@@ -55,9 +55,7 @@ describe.skip('OVM_L2ToL1MessagePasser', () => {
 
   describe('passMessageToL1', () => {
     before(async () => {
-      Mock__OVM_ExecutionManager.smocked.ovmCALLER.will.return.with(
-        NON_ZERO_ADDRESS
-      )
+      Fake__OVM_ExecutionManager.ovmCALLER.returns(NON_ZERO_ADDRESS)
     })
 
     for (const size of ELEMENT_TEST_SIZES) {

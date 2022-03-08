@@ -1,9 +1,12 @@
 /* External Imports */
 import hre, { ethers } from 'hardhat'
 import { Signer, ContractFactory, Contract } from 'ethers'
-import { smockit, MockContract } from '@eth-optimism/smock'
 import { applyL1ToL2Alias } from '@eth-optimism/core-utils'
-import { smock, MockContractFactory } from '@defi-wonderland/smock'
+import {
+  smock,
+  MockContractFactory,
+  FakeContract,
+} from '@defi-wonderland/smock'
 
 /* Internal Imports */
 import { expect } from '../../../setup'
@@ -20,17 +23,17 @@ describe('L2CrossDomainMessenger', () => {
     ;[signer] = await ethers.getSigners()
   })
 
-  let Mock__TargetContract: MockContract
-  let Mock__L1CrossDomainMessenger: MockContract
-  let Mock__OVM_L2ToL1MessagePasser: MockContract
+  let Fake__TargetContract: FakeContract
+  let Fake__L1CrossDomainMessenger: FakeContract
+  let Fake__OVM_L2ToL1MessagePasser: FakeContract
   before(async () => {
-    Mock__TargetContract = await smockit(
+    Fake__TargetContract = await smock.fake<Contract>(
       await ethers.getContractFactory('Helper_SimpleProxy')
     )
-    Mock__L1CrossDomainMessenger = await smockit(
+    Fake__L1CrossDomainMessenger = await smock.fake<Contract>(
       await ethers.getContractFactory('L1CrossDomainMessenger')
     )
-    Mock__OVM_L2ToL1MessagePasser = await smockit(
+    Fake__OVM_L2ToL1MessagePasser = await smock.fake<Contract>(
       await ethers.getContractFactory('OVM_L2ToL1MessagePasser'),
       { address: predeploys.OVM_L2ToL1MessagePasser }
     )
@@ -39,7 +42,7 @@ describe('L2CrossDomainMessenger', () => {
   let impersonatedL1CrossDomainMessengerSender: Signer
   before(async () => {
     const impersonatedAddress = applyL1ToL2Alias(
-      Mock__L1CrossDomainMessenger.address
+      Fake__L1CrossDomainMessenger.address
     )
     await hre.network.provider.request({
       method: 'hardhat_impersonateAccount',
@@ -64,7 +67,7 @@ describe('L2CrossDomainMessenger', () => {
   let L2CrossDomainMessenger: Contract
   beforeEach(async () => {
     L2CrossDomainMessenger = await Factory__L2CrossDomainMessenger.deploy(
-      Mock__L1CrossDomainMessenger.address
+      Fake__L1CrossDomainMessenger.address
     )
   })
 
@@ -77,7 +80,7 @@ describe('L2CrossDomainMessenger', () => {
       )
       Mock__L2CrossDomainMessenger =
         await Mock__Factory__L2CrossDomainMessenger.deploy(
-          Mock__L1CrossDomainMessenger.address
+          Fake__L1CrossDomainMessenger.address
         )
     })
 
@@ -103,10 +106,10 @@ describe('L2CrossDomainMessenger', () => {
       ).to.not.be.reverted
 
       expect(
-        Mock__OVM_L2ToL1MessagePasser.smocked.passMessageToL1.calls[0]
-      ).to.deep.equal([
-        encodeXDomainCalldata(target, await signer.getAddress(), message, 0),
-      ])
+        Fake__OVM_L2ToL1MessagePasser.passMessageToL1.getCall(0).args[0]
+      ).to.deep.equal(
+        encodeXDomainCalldata(target, await signer.getAddress(), message, 0)
+      )
     })
 
     it('should be able to send the same message twice', async () => {
@@ -123,8 +126,8 @@ describe('L2CrossDomainMessenger', () => {
     let message: string
     let sender: string
     before(async () => {
-      target = Mock__TargetContract.address
-      message = Mock__TargetContract.interface.encodeFunctionData('setTarget', [
+      target = Fake__TargetContract.address
+      message = Fake__TargetContract.interface.encodeFunctionData('setTarget', [
         NON_ZERO_ADDRESS,
       ])
       sender = await signer.getAddress()
@@ -146,9 +149,9 @@ describe('L2CrossDomainMessenger', () => {
         impersonatedL1CrossDomainMessengerSender
       ).relayMessage(target, sender, message, 0)
 
-      expect(Mock__TargetContract.smocked.setTarget.calls[0]).to.deep.equal([
-        NON_ZERO_ADDRESS,
-      ])
+      expect(Fake__TargetContract.setTarget.getCall(0).args[0]).to.deep.equal(
+        NON_ZERO_ADDRESS
+      )
     })
 
     it('the xDomainMessageSender is reset to the original value', async () => {
@@ -179,7 +182,7 @@ describe('L2CrossDomainMessenger', () => {
 
     it('should not make a call if the target is the L2 MessagePasser', async () => {
       target = predeploys.OVM_L2ToL1MessagePasser
-      message = Mock__OVM_L2ToL1MessagePasser.interface.encodeFunctionData(
+      message = Fake__OVM_L2ToL1MessagePasser.interface.encodeFunctionData(
         'passMessageToL1(bytes)',
         [NON_NULL_BYTES32]
       )
@@ -193,7 +196,7 @@ describe('L2CrossDomainMessenger', () => {
 
       // There should be no 'relayedMessage' event logged in the receipt.
       const logs = (
-        await Mock__OVM_L2ToL1MessagePasser.provider.getTransactionReceipt(
+        await Fake__OVM_L2ToL1MessagePasser.provider.getTransactionReceipt(
           (
             await resProm
           ).hash

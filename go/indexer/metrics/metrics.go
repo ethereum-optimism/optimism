@@ -43,8 +43,8 @@ func NewMetrics(monitoredTokens map[string]string) *Metrics {
 
 	return &Metrics{
 		SyncHeight: promauto.NewGaugeVec(prometheus.GaugeOpts{
-			Name:      "l1_sync_height",
-			Help:      "The max height of the indexer's last batch of L1 blocks.",
+			Name:      "sync_height",
+			Help:      "The max height of the indexer's last batch of L1/L1 blocks.",
 			Namespace: metricsNamespace,
 		}, []string{
 			"chain",
@@ -66,7 +66,7 @@ func NewMetrics(monitoredTokens map[string]string) *Metrics {
 			"symbol",
 		}),
 
-		StateBatchesCount: prometheus.NewCounter(prometheus.CounterOpts{
+		StateBatchesCount: promauto.NewCounter(prometheus.CounterOpts{
 			Name:      "state_batches_count",
 			Help:      "The number of state batches indexed.",
 			Namespace: metricsNamespace,
@@ -101,7 +101,7 @@ func NewMetrics(monitoredTokens map[string]string) *Metrics {
 			"chain",
 		}),
 
-		CachedTokensCount: prometheus.NewCounterVec(prometheus.CounterOpts{
+		CachedTokensCount: promauto.NewCounterVec(prometheus.CounterOpts{
 			Name:      "cached_tokens_count",
 			Help:      "How many tokens are in the cache",
 			Namespace: metricsNamespace,
@@ -118,7 +118,7 @@ func (m *Metrics) SetL1SyncHeight(height uint64) {
 }
 
 func (m *Metrics) SetL2SyncHeight(height uint64) {
-	m.SyncHeight.WithLabelValues("l1").Set(float64(height))
+	m.SyncHeight.WithLabelValues("l2").Set(float64(height))
 }
 
 func (m *Metrics) RecordDeposit(addr common.Address) {

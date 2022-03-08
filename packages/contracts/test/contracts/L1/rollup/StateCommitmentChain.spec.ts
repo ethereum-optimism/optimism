@@ -1,7 +1,7 @@
 /* External Imports */
 import { ethers } from 'hardhat'
 import { Signer, ContractFactory, Contract, constants } from 'ethers'
-import { smockit, MockContract } from '@eth-optimism/smock'
+import { smock, FakeContract } from '@defi-wonderland/smock'
 
 /* Internal Imports */
 import { expect } from '../../../setup'
@@ -25,26 +25,26 @@ describe('StateCommitmentChain', () => {
     AddressManager = await makeAddressManager()
   })
 
-  let Mock__CanonicalTransactionChain: MockContract
-  let Mock__BondManager: MockContract
+  let Fake__CanonicalTransactionChain: FakeContract
+  let Fake__BondManager: FakeContract
   before(async () => {
-    Mock__CanonicalTransactionChain = await smockit(
+    Fake__CanonicalTransactionChain = await smock.fake<Contract>(
       await ethers.getContractFactory('CanonicalTransactionChain')
     )
 
     await setProxyTarget(
       AddressManager,
       'CanonicalTransactionChain',
-      Mock__CanonicalTransactionChain
+      Fake__CanonicalTransactionChain
     )
 
-    Mock__BondManager = await smockit(
+    Fake__BondManager = await smock.fake<Contract>(
       await ethers.getContractFactory('BondManager')
     )
 
-    await setProxyTarget(AddressManager, 'BondManager', Mock__BondManager)
+    await setProxyTarget(AddressManager, 'BondManager', Fake__BondManager)
 
-    Mock__BondManager.smocked.isCollateralized.will.return.with(true)
+    Fake__BondManager.isCollateralized.returns(true)
 
     await AddressManager.setAddress(
       'OVM_Proposer',
@@ -114,7 +114,7 @@ describe('StateCommitmentChain', () => {
 
       describe('when submitting more elements than present in the CanonicalTransactionChain', () => {
         before(() => {
-          Mock__CanonicalTransactionChain.smocked.getTotalElements.will.return.with(
+          Fake__CanonicalTransactionChain.getTotalElements.returns(
             batch.length - 1
           )
         })
@@ -130,9 +130,7 @@ describe('StateCommitmentChain', () => {
 
       describe('when not submitting more elements than present in the CanonicalTransactionChain', () => {
         before(() => {
-          Mock__CanonicalTransactionChain.smocked.getTotalElements.will.return.with(
-            batch.length
-          )
+          Fake__CanonicalTransactionChain.getTotalElements.returns(batch.length)
         })
 
         it('should append the state batch', async () => {
@@ -143,7 +141,7 @@ describe('StateCommitmentChain', () => {
 
       describe('when a sequencer submits ', () => {
         beforeEach(async () => {
-          Mock__CanonicalTransactionChain.smocked.getTotalElements.will.return.with(
+          Fake__CanonicalTransactionChain.getTotalElements.returns(
             batch.length * 2
           )
 
@@ -182,7 +180,7 @@ describe('StateCommitmentChain', () => {
       })
       describe('when the proposer has not previously staked at the BondManager', () => {
         before(() => {
-          Mock__BondManager.smocked.isCollateralized.will.return.with(false)
+          Fake__BondManager.isCollateralized.returns(false)
         })
 
         it('should revert', async () => {
@@ -207,13 +205,11 @@ describe('StateCommitmentChain', () => {
     }
 
     before(() => {
-      Mock__BondManager.smocked.isCollateralized.will.return.with(true)
+      Fake__BondManager.isCollateralized.returns(true)
     })
 
     beforeEach(async () => {
-      Mock__CanonicalTransactionChain.smocked.getTotalElements.will.return.with(
-        batch.length
-      )
+      Fake__CanonicalTransactionChain.getTotalElements.returns(batch.length)
       await StateCommitmentChain.appendStateBatch(batch, 0)
       batchHeader.extraData = ethers.utils.defaultAbiCoder.encode(
         ['uint256', 'address'],
@@ -329,9 +325,7 @@ describe('StateCommitmentChain', () => {
     describe('when one batch element has been inserted', () => {
       beforeEach(async () => {
         const batch = [NON_NULL_BYTES32]
-        Mock__CanonicalTransactionChain.smocked.getTotalElements.will.return.with(
-          batch.length
-        )
+        Fake__CanonicalTransactionChain.getTotalElements.returns(batch.length)
         await StateCommitmentChain.appendStateBatch(batch, 0)
       })
 
@@ -343,9 +337,7 @@ describe('StateCommitmentChain', () => {
     describe('when 64 batch elements have been inserted in one batch', () => {
       beforeEach(async () => {
         const batch = Array(64).fill(NON_NULL_BYTES32)
-        Mock__CanonicalTransactionChain.smocked.getTotalElements.will.return.with(
-          batch.length
-        )
+        Fake__CanonicalTransactionChain.getTotalElements.returns(batch.length)
         await StateCommitmentChain.appendStateBatch(batch, 0)
       })
 
@@ -357,7 +349,7 @@ describe('StateCommitmentChain', () => {
     describe('when 32 batch elements have been inserted in each of two batches', () => {
       beforeEach(async () => {
         const batch = Array(32).fill(NON_NULL_BYTES32)
-        Mock__CanonicalTransactionChain.smocked.getTotalElements.will.return.with(
+        Fake__CanonicalTransactionChain.getTotalElements.returns(
           batch.length * 2
         )
         await StateCommitmentChain.appendStateBatch(batch, 0)
@@ -380,9 +372,7 @@ describe('StateCommitmentChain', () => {
     describe('when one batch has been inserted', () => {
       beforeEach(async () => {
         const batch = [NON_NULL_BYTES32]
-        Mock__CanonicalTransactionChain.smocked.getTotalElements.will.return.with(
-          batch.length
-        )
+        Fake__CanonicalTransactionChain.getTotalElements.returns(batch.length)
         await StateCommitmentChain.appendStateBatch(batch, 0)
       })
 
@@ -394,7 +384,7 @@ describe('StateCommitmentChain', () => {
     describe('when 8 batches have been inserted', () => {
       beforeEach(async () => {
         const batch = [NON_NULL_BYTES32]
-        Mock__CanonicalTransactionChain.smocked.getTotalElements.will.return.with(
+        Fake__CanonicalTransactionChain.getTotalElements.returns(
           batch.length * 8
         )
 
@@ -422,9 +412,7 @@ describe('StateCommitmentChain', () => {
       let timestamp
       beforeEach(async () => {
         const batch = [NON_NULL_BYTES32]
-        Mock__CanonicalTransactionChain.smocked.getTotalElements.will.return.with(
-          batch.length
-        )
+        Fake__CanonicalTransactionChain.getTotalElements.returns(batch.length)
         await StateCommitmentChain.appendStateBatch(batch, 0)
         timestamp = await getEthTime(ethers.provider)
       })
@@ -455,13 +443,11 @@ describe('StateCommitmentChain', () => {
     const element = NON_NULL_BYTES32
 
     before(async () => {
-      Mock__BondManager.smocked.isCollateralized.will.return.with(true)
+      Fake__BondManager.isCollateralized.returns(true)
     })
 
     beforeEach(async () => {
-      Mock__CanonicalTransactionChain.smocked.getTotalElements.will.return.with(
-        batch.length
-      )
+      Fake__CanonicalTransactionChain.getTotalElements.returns(batch.length)
       await StateCommitmentChain.appendStateBatch(batch, 0)
       batchHeader.extraData = ethers.utils.defaultAbiCoder.encode(
         ['uint256', 'address'],
