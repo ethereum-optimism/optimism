@@ -6,6 +6,7 @@ import (
 	"math/big"
 
 	"github.com/ethereum-optimism/optimistic-specs/opnode/eth"
+	"github.com/ethereum-optimism/optimistic-specs/opnode/rollup/derive"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -73,4 +74,19 @@ func (s Source) AddReceiptWorkers(n int) int {
 func (s Source) Close() {
 	s.client.Close()
 	s.downloader.Close()
+}
+
+func (s Source) FetchL1Info(ctx context.Context, id eth.BlockID) (derive.L1Info, error) {
+	block, _, err := s.Fetch(ctx, id)
+	return block, err
+}
+func (s Source) FetchReceipts(ctx context.Context, id eth.BlockID) ([]*types.Receipt, error) {
+	_, receipts, err := s.Fetch(ctx, id)
+	return receipts, err
+}
+func (s Source) FetchBatches(ctx context.Context, window []eth.BlockID) ([]derive.BatchData, error) {
+	return nil, nil
+}
+func (s Source) FetchL2Info(ctx context.Context, id eth.BlockID) (derive.L2Info, error) {
+	return nil, nil
 }

@@ -14,3 +14,7 @@
 //
 // The steps should be keep separate to enable easier testing.
 package derive
+
+// Mock interfaces. TODO: Remove
+type BatchData interface{}
+type L2Info interface{}
