@@ -20,10 +20,8 @@ type Downloader interface {
 	FetchL1Info(ctx context.Context, id eth.BlockID) (derive.L1Info, error)
 	// FetchReceipts of a L1 block
 	FetchReceipts(ctx context.Context, id eth.BlockID) ([]*types.Receipt, error)
-	// FetchBatches from the given window of L1 blocks
-	FetchBatches(ctx context.Context, window []eth.BlockID) ([]derive.BatchData, error)
-	// FetchL2Info fetches the L2 header information corresponding to a L2 block ID
-	FetchL2Info(ctx context.Context, id eth.BlockID) (derive.L2Info, error)
+	// FetchTransactions from the given window of L1 blocks
+	FetchTransactions(ctx context.Context, window []eth.BlockID) ([]*types.Transaction, error)
 }
 
 type DriverAPI interface {
@@ -56,33 +54,32 @@ func (d *outputImpl) step(ctx context.Context, l2Head eth.BlockID, l2Finalized e
 	fetchCtx, cancel := context.WithTimeout(ctx, time.Second*20)
 	defer cancel()
 
-	l2Info, err := d.dl.FetchL2Info(fetchCtx, l2Head)
+	l2Info, err := d.rpc.BlockByHash(fetchCtx, l2Head.Hash)
 	if err != nil {
 		return l2Head, fmt.Errorf("failed to fetch L2 block info of %s: %v", l2Head, err)
 	}
-	logger.Trace("Got l2 info")
 	l1Info, err := d.dl.FetchL1Info(fetchCtx, l1Input[0])
 	if err != nil {
 		return l2Head, fmt.Errorf("failed to fetch L1 block info of %s: %v", l1Input[0], err)
 	}
-	logger.Trace("Got l1 info")
 	receipts, err := d.dl.FetchReceipts(fetchCtx, l1Input[0])
 	if err != nil {
 		return l2Head, fmt.Errorf("failed to fetch receipts of %s: %v", l1Input[0], err)
 	}
-	logger.Trace("Got receipts")
 	// TODO: with sharding the blobs may be identified in more detail than L1 block hashes
-	batches, err := d.dl.FetchBatches(fetchCtx, l1Input)
+	transactions, err := d.dl.FetchTransactions(fetchCtx, l1Input)
 	if err != nil {
-		return l2Head, fmt.Errorf("failed to fetch batches from %s: %v", l1Input, err)
+		return l2Head, fmt.Errorf("failed to fetch transactions from %s: %v", l1Input, err)
 	}
-	logger.Trace("Got batches")
+	batches := derive.BatchesFromEVMTransactions(&d.Config, transactions)
+	minL2Time := l2Info.Time() + d.Config.BlockTime
+	maxL2Time := l1Info.Time() + d.Config.BlockTime
+	batches = derive.FilterBatches(&d.Config, epoch, minL2Time, maxL2Time, batches)
 
 	attrsList, err := derive.PayloadAttributes(&d.Config, l1Info, receipts, batches, l2Info)
 	if err != nil {
 		return l2Head, fmt.Errorf("failed to derive execution payload inputs: %v", err)
 	}
-	logger.Debug("derived L2 block inputs")
 
 	last := l2Head
 	for i, attrs := range attrsList {
