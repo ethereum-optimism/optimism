@@ -49,7 +49,12 @@ COPY ./ops/scripts/integration-tests.sh ./
 CMD ["yarn", "test:integration"]
 
 
-FROM base as relayer
+FROM base as message-relayer
 WORKDIR /opt/optimism/packages/message-relayer
 COPY ./ops/scripts/relayer.sh .
 CMD ["npm", "run", "start"]
+
+
+FROM base as replica-healthcheck
+WORKDIR /opts/optimism/packages/replica-healthcheck
+ENTRYPOINT ["node", "dist/exec/run-healthcheck-server.js"]
