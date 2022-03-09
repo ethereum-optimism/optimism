@@ -284,7 +284,6 @@ func PayloadAttributes(config *rollup.Config, l1Info L1Info, receipts []*types.R
 	}
 
 	// fill the gaps and always ensure at least one L2 block
-	// TODO: What happens if `highestSeenTimestamp` start rolling into the next epoch (higher than the next L1 block timestamp)
 	var out []*l2.PayloadAttributes
 	for t := l1Info.Time() + config.BlockTime; t <= highestSeenTimestamp; t += config.BlockTime {
 		if bl, ok := l2Blocks[t]; ok {
