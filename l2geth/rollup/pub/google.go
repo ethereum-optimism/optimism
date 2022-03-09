@@ -2,6 +2,7 @@ package pub
 
 import (
 	"context"
+	"sync"
 	"time"
 
 	"cloud.google.com/go/pubsub"
@@ -20,7 +21,8 @@ type GooglePublisher struct {
 	client          *pubsub.Client
 	topic           *pubsub.Topic
 	publishSettings pubsub.PublishSettings
-	Timeout         time.Duration
+	timeout         time.Duration
+	mutex           sync.Mutex
 }
 
 func NewGooglePublisher(ctx context.Context, config Config) (*GooglePublisher, error) {
@@ -41,19 +43,27 @@ func NewGooglePublisher(ctx context.Context, config Config) (*GooglePublisher, e
 		log.Info("Sanitizing publisher timeout to 2 seconds")
 		timeout = time.Second * 2
 	}
-	return &GooglePublisher{client, topic, publishSettings, timeout}, nil
+	return &GooglePublisher{
+		client: client,
+		topic:  topic, publishSettings: publishSettings,
+		timeout: timeout,
+	}, nil
 }
 
 func (p *GooglePublisher) Publish(ctx context.Context, msg []byte) error {
-	ctx, cancel := context.WithTimeout(ctx, p.Timeout)
+	ctx, cancel := context.WithTimeout(ctx, p.timeout)
 	defer cancel()
 	pmsg := pubsub.Message{
 		Data:        msg,
 		OrderingKey: messageOrderingKey,
 	}
-	// If there was an error previously, clear it out to allow publishing to work again
+
+	p.mutex.Lock()
+	// If there was an error previously, clear it out to allow publishing to proceed again
 	p.topic.ResumePublish(messageOrderingKey)
 	result := p.topic.Publish(ctx, &pmsg)
 	_, err := result.Get(ctx)
+	p.mutex.Unlock()
+
 	return err
 }
