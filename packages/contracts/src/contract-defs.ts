@@ -1,6 +1,7 @@
 import { ethers } from 'ethers'
 
-export const getContractDefinition = (name: string): any => {
+export const getContractArtifact = (name: string): any => {
+  // returns the hardhat artifact for a given contract by name.
   // We import this using `require` because hardhat tries to build this file when compiling
   // the contracts, but we need the contracts to be compiled before the contract-artifacts.ts
   // file can be generated.
@@ -14,11 +15,13 @@ export const getContractDefinition = (name: string): any => {
 }
 
 export const getContractInterface = (name: string): ethers.utils.Interface => {
+  //returns the interface for a given contract by name.
   const definition = getContractDefinition(name)
   return new ethers.utils.Interface(definition.abi)
 }
 
 export const getContractFactory = (
+  //returns the interface,bytecode and signer of a given contract by name.
   name: string,
   signer?: ethers.Signer
 ): ethers.ContractFactory => {
