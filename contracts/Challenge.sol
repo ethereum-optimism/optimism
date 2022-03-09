@@ -72,27 +72,11 @@ contract Challenge {
     require(sent, "Failed to send Ether");
   }
 
-  // ID if the last created challenged, incremented for new challenge IDs.
+  /// @notice ID if the last created challenged, incremented for new challenge IDs.
   uint256 public lastChallengeId = 0;
 
-  // Emitted when a new challenge is created.
+  /// @notice Emitted when a new challenge is created.
   event ChallengeCreated(uint256 challengeId);
-
-  // helper function to determine what nodes we need
-  function callWithTrieNodes(address target, bytes calldata dat, bytes[] calldata nodes) public {
-    for (uint i = 0; i < nodes.length; i++) {
-      mem.AddTrieNode(nodes[i]);
-    }
-    (bool success, bytes memory revertData) = target.call(dat);
-    // TODO: better way to revert?
-    if (!success) {
-      uint256 revertDataLength = revertData.length;
-      assembly {
-          let revertDataStart := add(revertData, 32)
-          revert(revertDataStart, revertDataLength)
-      }
-    }
-  }
 
   /// @notice Challenges the transition from block `blockNumberN` to the next block (N+1), which is
   ///         the block being challenged.
@@ -175,6 +159,36 @@ contract Challenge {
 
     emit ChallengeCreated(challengeId);
     return challengeId;
+  }
+
+  ///         Before calling this, it is necessary to have loaded all the trie node necessary to
+  ///         write the input hash in the Merkleized initial MIPS state, and to read the output hash
+  ///         and machine state from the Merkleized final MIPS state (i.e. `finalSystemState`). Use
+  ///         `MIPSMemory.AddTrieNode` for this purpose.
+
+  /// @notice Calling `initiateChallenge` requires some trie nodes to have been supplied beforehand,
+  ///         in order to be able to write the input hash in the Merkleized initial MIPS state, and
+  ///         to read the output hash and machine state from the Merkleized final MIPS state.
+  ///         This function can be used to figure out which nodes are needed, as memory-reading
+  ///         functions in MIPSMemory.sol will revert with the missing node ID when a node is
+  ///         missing. Therefore, you can call this function repeatedly via `eth_call`, and
+  ///         iteratively build the list of required node until the call succeeds.
+  /// @param target The contract to call to (usually this contract)
+  /// @param dat The data to include in the call (usually the calldata for a call to
+  ///        `initiateChallenge`
+  /// @param nodes The nodes to add the MIPS state trie before making the call
+  function callWithTrieNodes(address target, bytes calldata dat, bytes[] calldata nodes) public {
+    for (uint i = 0; i < nodes.length; i++) {
+      mem.AddTrieNode(nodes[i]);
+    }
+    (bool success, bytes memory revertData) = target.call(dat);
+    if (!success) {
+      uint256 revertDataLength = revertData.length;
+      assembly {
+        let revertDataStart := add(revertData, 32)
+        revert(revertDataStart, revertDataLength)
+      }
+    }
   }
 
   /// @notice Indicates whether the given challenge is still searching (true), or if the single step
