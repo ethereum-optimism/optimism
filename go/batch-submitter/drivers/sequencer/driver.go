@@ -32,6 +32,7 @@ type Config struct {
 	L1Client    *ethclient.Client
 	L2Client    *l2ethclient.Client
 	BlockOffset uint64
+	MinTxSize   uint64
 	MaxTxSize   uint64
 	CTCAddr     common.Address
 	ChainID     *big.Int
@@ -150,7 +151,8 @@ func (d *Driver) GetBatchBlockRange(
 
 // CraftBatchTx transforms the L2 blocks between start and end into a batch
 // transaction using the given nonce. A dummy gas price is used in the resulting
-// transaction to use for size estimation.
+// transaction to use for size estimation. A nil transaction is returned if the
+// transaction does not meet the minimum size requirements.
 //
 // NOTE: This method SHOULD NOT publish the resulting transaction.
 func (d *Driver) CraftBatchTx(
@@ -211,13 +213,18 @@ func (d *Driver) CraftBatchTx(
 		batchCallData := append(appendSequencerBatchID, batchArguments...)
 
 		// Continue pruning until calldata size is less than configured max.
-		if uint64(len(batchCallData)) > d.cfg.MaxTxSize {
+		calldataSize := uint64(len(batchCallData))
+		if calldataSize > d.cfg.MaxTxSize {
 			oldLen := len(batchElements)
 			newBatchElementsLen := (oldLen * 9) / 10
 			batchElements = batchElements[:newBatchElementsLen]
 			log.Info(name+" pruned batch", "old_num_txs", oldLen, "new_num_txs", newBatchElementsLen)
 			pruneCount++
 			continue
+		} else if calldataSize < d.cfg.MinTxSize {
+			log.Info(name+" batch tx size below minimum",
+				"size", calldataSize, "min_tx_size", d.cfg.MinTxSize)
+			return nil, nil
 		}
 
 		d.metrics.NumElementsPerBatch().Observe(float64(len(batchElements)))

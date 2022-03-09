@@ -197,6 +197,7 @@ func NewConfig(ctx *cli.Context) (Config, error) {
 		L2EthRpc:                  ctx.GlobalString(flags.L2EthRpcFlag.Name),
 		CTCAddress:                ctx.GlobalString(flags.CTCAddressFlag.Name),
 		SCCAddress:                ctx.GlobalString(flags.SCCAddressFlag.Name),
+		MinL1TxSize:               ctx.GlobalUint64(flags.MinL1TxSizeFlag.Name),
 		MaxL1TxSize:               ctx.GlobalUint64(flags.MaxL1TxSizeFlag.Name),
 		MaxBatchSubmissionTime:    ctx.GlobalDuration(flags.MaxBatchSubmissionTimeFlag.Name),
 		PollInterval:              ctx.GlobalDuration(flags.PollIntervalFlag.Name),
