@@ -53,6 +53,16 @@ export abstract class BaseServiceV2<
   protected loopIntervalMs: number
 
   /**
+   * Whether or not the service is currently running.
+   */
+  protected running: boolean
+
+  /**
+   * Whether or not the service has run to completion.
+   */
+  protected done: boolean
+
+  /**
    * Logger class for this service.
    */
   protected logger: Logger
@@ -181,43 +191,68 @@ export abstract class BaseServiceV2<
     }, {}) as TMetrics
 
     this.logger = new Logger({ name: params.name })
+
+    // Gracefully handle stop signals.
+    const stop = async (signal: string) => {
+      this.logger.info(`stopping service`, { signal })
+      await this.stop()
+      process.exit(0)
+    }
+    process.on('SIGTERM', stop)
+    process.on('SIGINT', stop)
   }
 
   /**
    * Runs the main function. If this service is set up to loop, will repeatedly loop around the
    * main function. Will also catch unhandled errors.
    */
-  public run(): void {
-    const _run = async () => {
-      if (this.init) {
-        this.logger.info('initializing service')
-        await this.init()
-        this.logger.info('service initialized')
-      }
+  public async run(): Promise<void> {
+    this.done = false
 
-      if (this.loop) {
-        this.logger.info('starting main loop')
-        while (true) {
-          try {
-            await this.main()
-          } catch (err) {
-            this.logger.error('caught an unhandled exception', {
-              message: err.message,
-              stack: err.stack,
-              code: err.code,
-            })
-          }
-
-          // Always sleep between loops
-          await sleep(this.loopIntervalMs)
-        }
-      } else {
-        this.logger.info('running main function')
-        await this.main()
-      }
+    if (this.init) {
+      this.logger.info('initializing service')
+      await this.init()
+      this.logger.info('service initialized')
     }
 
-    _run()
+    if (this.loop) {
+      this.logger.info('starting main loop')
+      this.running = true
+      while (this.running) {
+        try {
+          await this.main()
+        } catch (err) {
+          this.logger.error('caught an unhandled exception', {
+            message: err.message,
+            stack: err.stack,
+            code: err.code,
+          })
+        }
+
+        // Sleep between loops if we're still running (service not stopped).
+        if (this.running) {
+          await sleep(this.loopIntervalMs)
+        }
+      }
+    } else {
+      this.logger.info('running main function')
+      await this.main()
+    }
+
+    this.done = true
+  }
+
+  /**
+   * Tries to gracefully stop the service. Service will continue running until the current loop
+   * iteration is finished and will then stop looping.
+   */
+  public async stop(): Promise<void> {
+    this.running = false
+
+    // Wait until the main loop has finished.
+    while (!this.done) {
+      await sleep(1000)
+    }
   }
 
   /**
