@@ -12,9 +12,6 @@
       "ops/docker/rpc-proxy",
       "ops/docker/hardhat"
     ],
-    "nohoist": [
-      "examples/*"
-    ]
   },
   "private": true,
   "devDependencies": {
