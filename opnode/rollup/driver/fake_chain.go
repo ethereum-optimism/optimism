@@ -89,16 +89,16 @@ type fakeChainSource struct {
 	log     log.Logger
 }
 
-func (m *fakeChainSource) L1NodeByNumber(ctx context.Context, l1Num uint64) (eth.L1BlockRef, error) {
-	m.log.Trace("L1NodeByNumber", "l1Num", l1Num, "l1Head", m.l1head, "reorg", m.l1reorg)
+func (m *fakeChainSource) L1BlockRefByNumber(ctx context.Context, l1Num uint64) (eth.L1BlockRef, error) {
+	m.log.Trace("L1BlockRefByNumber", "l1Num", l1Num, "l1Head", m.l1head, "reorg", m.l1reorg)
 	if l1Num > uint64(m.l1head) {
 		return eth.L1BlockRef{}, ethereum.NotFound
 	}
 	return m.l1s[m.l1reorg][l1Num], nil
 }
 
-func (m *fakeChainSource) L1HeadNode(ctx context.Context) (eth.L1BlockRef, error) {
-	m.log.Trace("L1HeadNode", "l1Head", m.l1head, "reorg", m.l1reorg)
+func (m *fakeChainSource) L1HeadBlockRef(ctx context.Context) (eth.L1BlockRef, error) {
+	m.log.Trace("L1HeadBlockRef", "l1Head", m.l1head, "reorg", m.l1reorg)
 	l := len(m.l1s[m.l1reorg])
 	if l == 0 {
 		return eth.L1BlockRef{}, ethereum.NotFound
@@ -106,8 +106,8 @@ func (m *fakeChainSource) L1HeadNode(ctx context.Context) (eth.L1BlockRef, error
 	return m.l1s[m.l1reorg][m.l1head], nil
 }
 
-func (m *fakeChainSource) L2NodeByNumber(ctx context.Context, l2Num *big.Int) (eth.L2BlockRef, error) {
-	m.log.Trace("L2NodeByNumber", "l2Num", l2Num, "l2Head", m.l2head, "reorg", m.l2reorg)
+func (m *fakeChainSource) L2BlockRefByNumber(ctx context.Context, l2Num *big.Int) (eth.L2BlockRef, error) {
+	m.log.Trace("L2BlockRefByNumber", "l2Num", l2Num, "l2Head", m.l2head, "reorg", m.l2reorg)
 	if len(m.l2s[m.l2reorg]) == 0 {
 		panic("bad test, no l2 chain")
 	}
@@ -121,11 +121,11 @@ func (m *fakeChainSource) L2NodeByNumber(ctx context.Context, l2Num *big.Int) (e
 	return m.l2s[m.l2reorg][i], nil
 }
 
-func (m *fakeChainSource) L2NodeByHash(ctx context.Context, l2Hash common.Hash) (eth.L2BlockRef, error) {
-	m.log.Trace("L2NodeByHash", "l2Hash", l2Hash, "l2Head", m.l2head, "reorg", m.l2reorg)
+func (m *fakeChainSource) L2BlockRefByHash(ctx context.Context, l2Hash common.Hash) (eth.L2BlockRef, error) {
+	m.log.Trace("L2BlockRefByHash", "l2Hash", l2Hash, "l2Head", m.l2head, "reorg", m.l2reorg)
 	for i, bl := range m.l2s[m.l2reorg] {
 		if bl.Self.Hash == l2Hash {
-			return m.L2NodeByNumber(ctx, big.NewInt(int64(i)))
+			return m.L2BlockRefByNumber(ctx, big.NewInt(int64(i)))
 		}
 	}
 	return eth.L2BlockRef{}, ethereum.NotFound

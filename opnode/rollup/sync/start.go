@@ -77,14 +77,14 @@ func FindSyncStart(ctx context.Context, source ChainSource, genesis *rollup.Gene
 // until it finds the first L2 block that is based on a canonical L1 block.
 func FindSafeL2Head(ctx context.Context, source ChainSource, genesis *rollup.Genesis) (eth.L2BlockRef, error) {
 	// Starting point
-	l2Head, err := source.L2NodeByNumber(ctx, nil)
+	l2Head, err := source.L2BlockRefByNumber(ctx, nil)
 	if err != nil {
 		return eth.L2BlockRef{}, fmt.Errorf("failed to fetch L2 head: %w", err)
 	}
 	reorgDepth := 0
 	// Walk L2 chain from L2 head to first L2 block which has a L1 Parent that is canonical. May walk to L2 genesis
 	for n := l2Head; ; {
-		l1header, err := source.L1NodeByNumber(ctx, n.L1Origin.Number)
+		l1header, err := source.L1BlockRefByNumber(ctx, n.L1Origin.Number)
 		if err != nil {
 			// Generic error, bail out.
 			if !errors.Is(err, ethereum.NotFound) {
@@ -105,7 +105,7 @@ func FindSafeL2Head(ctx context.Context, source ChainSource, genesis *rollup.Gen
 		}
 
 		// Pull L2 parent for next iteration
-		n, err = source.L2NodeByHash(ctx, n.Parent.Hash)
+		n, err = source.L2BlockRefByHash(ctx, n.Parent.Hash)
 		if err != nil {
 			return eth.L2BlockRef{}, fmt.Errorf("failed to fetch L2 block by hash %v: %w", n.Parent.Hash, err)
 		}
@@ -119,7 +119,7 @@ func FindSafeL2Head(ctx context.Context, source ChainSource, genesis *rollup.Gen
 // FindL1Range returns a range of L1 block beginning just after `begin`.
 func FindL1Range(ctx context.Context, source ChainSource, begin eth.BlockID) ([]eth.BlockID, error) {
 	// Ensure that we start on the expected chain.
-	if canonicalBegin, err := source.L1NodeByNumber(ctx, begin.Number); err != nil {
+	if canonicalBegin, err := source.L1BlockRefByNumber(ctx, begin.Number); err != nil {
 		return nil, fmt.Errorf("failed to fetch L1 block %v %v: %w", begin.Number, begin.Hash, err)
 	} else {
 		if canonicalBegin.Self != begin {
@@ -127,7 +127,7 @@ func FindL1Range(ctx context.Context, source ChainSource, begin eth.BlockID) ([]
 		}
 	}
 
-	l1head, err := source.L1HeadNode(ctx)
+	l1head, err := source.L1HeadBlockRef(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch head L1 block: %w", err)
 	}
@@ -144,7 +144,7 @@ func FindL1Range(ctx context.Context, source ChainSource, begin eth.BlockID) ([]
 	prevHash := begin.Hash
 	var res []eth.BlockID
 	for i := begin.Number + 1; i < begin.Number+maxBlocks+1; i++ {
-		n, err := source.L1NodeByNumber(ctx, i)
+		n, err := source.L1BlockRefByNumber(ctx, i)
 		if err != nil {
 			return nil, fmt.Errorf("failed to fetch L1 block %v: %w", i, err)
 		}

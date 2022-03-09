@@ -26,10 +26,10 @@ type L2Client interface {
 
 // ChainSource provides access to the L1 and L2 block graph
 type ChainSource interface {
-	L1NodeByNumber(ctx context.Context, l1Num uint64) (eth.L1BlockRef, error)
-	L1HeadNode(ctx context.Context) (eth.L1BlockRef, error)
-	L2NodeByNumber(ctx context.Context, l2Num *big.Int) (eth.L2BlockRef, error)
-	L2NodeByHash(ctx context.Context, l2Hash common.Hash) (eth.L2BlockRef, error)
+	L1BlockRefByNumber(ctx context.Context, l1Num uint64) (eth.L1BlockRef, error)
+	L1HeadBlockRef(ctx context.Context) (eth.L1BlockRef, error)
+	L2BlockRefByNumber(ctx context.Context, l2Num *big.Int) (eth.L2BlockRef, error)
+	L2BlockRefByHash(ctx context.Context, l2Hash common.Hash) (eth.L2BlockRef, error)
 }
 
 func NewChainSource(l1 L1Client, l2 L2Client, genesis *rollup.Genesis) *chainSourceImpl {
@@ -42,19 +42,19 @@ type chainSourceImpl struct {
 	genesis *rollup.Genesis
 }
 
-// L1NodeByNumber returns the canonical block and parent ids.
-func (src chainSourceImpl) L1NodeByNumber(ctx context.Context, l1Num uint64) (eth.L1BlockRef, error) {
-	return src.l1NodeByNumber(ctx, new(big.Int).SetUint64(l1Num))
+// L1BlockRefByNumber returns the canonical block and parent ids.
+func (src chainSourceImpl) L1BlockRefByNumber(ctx context.Context, l1Num uint64) (eth.L1BlockRef, error) {
+	return src.l1BlockRefByNumber(ctx, new(big.Int).SetUint64(l1Num))
 }
 
-// L1NodeByNumber returns the canonical head block and parent ids.
-func (src chainSourceImpl) L1HeadNode(ctx context.Context) (eth.L1BlockRef, error) {
-	return src.l1NodeByNumber(ctx, nil)
+// L1BlockRefByNumber returns the canonical head block and parent ids.
+func (src chainSourceImpl) L1HeadBlockRef(ctx context.Context) (eth.L1BlockRef, error) {
+	return src.l1BlockRefByNumber(ctx, nil)
 }
 
-// l1NodeByNumber wraps l1.HeaderByNumber to return an eth.L1Node
-// This is internal because the exposed L1NodeByNumber takes uint64 instead of big.Ints
-func (src chainSourceImpl) l1NodeByNumber(ctx context.Context, number *big.Int) (eth.L1BlockRef, error) {
+// l1BlockRefByNumber wraps l1.HeaderByNumber to return an eth.L1BlockRef
+// This is internal because the exposed L1BlockRefByNumber takes uint64 instead of big.Ints
+func (src chainSourceImpl) l1BlockRefByNumber(ctx context.Context, number *big.Int) (eth.L1BlockRef, error) {
 	header, err := src.l1.HeaderByNumber(ctx, number)
 	if err != nil {
 		// w%: wrap the error, we still need to detect if a canonical block is not found, a.k.a. end of chain.
@@ -71,8 +71,8 @@ func (src chainSourceImpl) l1NodeByNumber(ctx context.Context, number *big.Int) 
 	}, nil
 }
 
-// L2NodeByNumber returns the canonical block and parent ids.
-func (src chainSourceImpl) L2NodeByNumber(ctx context.Context, l2Num *big.Int) (eth.L2BlockRef, error) {
+// L2BlockRefByNumber returns the canonical block and parent ids.
+func (src chainSourceImpl) L2BlockRefByNumber(ctx context.Context, l2Num *big.Int) (eth.L2BlockRef, error) {
 	block, err := src.l2.BlockByNumber(ctx, l2Num)
 	if err != nil {
 		// w%: wrap the error, we still need to detect if a canonical block is not found, a.k.a. end of chain.
@@ -81,8 +81,8 @@ func (src chainSourceImpl) L2NodeByNumber(ctx context.Context, l2Num *big.Int) (
 	return derive.BlockReferences(block, src.genesis)
 }
 
-// L2NodeByHash returns the block & parent ids based on the supplied hash. The returned node may not be in the canonical chain
-func (src chainSourceImpl) L2NodeByHash(ctx context.Context, l2Hash common.Hash) (eth.L2BlockRef, error) {
+// L2BlockRefByHash returns the block & parent ids based on the supplied hash. The returned BlockRef may not be in the canonical chain
+func (src chainSourceImpl) L2BlockRefByHash(ctx context.Context, l2Hash common.Hash) (eth.L2BlockRef, error) {
 	block, err := src.l2.BlockByHash(ctx, l2Hash)
 	if err != nil {
 		// w%: wrap the error, we still need to detect if a canonical block is not found, a.k.a. end of chain.

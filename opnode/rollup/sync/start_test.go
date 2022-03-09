@@ -17,14 +17,14 @@ type fakeChainSource struct {
 	L2 []eth.L2BlockRef
 }
 
-func (m *fakeChainSource) L1NodeByNumber(ctx context.Context, l1Num uint64) (eth.L1BlockRef, error) {
+func (m *fakeChainSource) L1BlockRefByNumber(ctx context.Context, l1Num uint64) (eth.L1BlockRef, error) {
 	if l1Num >= uint64(len(m.L1)) {
 		return eth.L1BlockRef{}, ethereum.NotFound
 	}
 	return m.L1[l1Num], nil
 }
 
-func (m *fakeChainSource) L1HeadNode(ctx context.Context) (eth.L1BlockRef, error) {
+func (m *fakeChainSource) L1HeadBlockRef(ctx context.Context) (eth.L1BlockRef, error) {
 	l := len(m.L1)
 	if l == 0 {
 		return eth.L1BlockRef{}, ethereum.NotFound
@@ -32,7 +32,7 @@ func (m *fakeChainSource) L1HeadNode(ctx context.Context) (eth.L1BlockRef, error
 	return m.L1[l-1], nil
 }
 
-func (m *fakeChainSource) L2NodeByNumber(ctx context.Context, l2Num *big.Int) (eth.L2BlockRef, error) {
+func (m *fakeChainSource) L2BlockRefByNumber(ctx context.Context, l2Num *big.Int) (eth.L2BlockRef, error) {
 	if len(m.L2) == 0 {
 		panic("bad test, no l2 chain")
 	}
@@ -43,10 +43,10 @@ func (m *fakeChainSource) L2NodeByNumber(ctx context.Context, l2Num *big.Int) (e
 	return m.L2[i], nil
 }
 
-func (m *fakeChainSource) L2NodeByHash(ctx context.Context, l2Hash common.Hash) (eth.L2BlockRef, error) {
+func (m *fakeChainSource) L2BlockRefByHash(ctx context.Context, l2Hash common.Hash) (eth.L2BlockRef, error) {
 	for i, bl := range m.L2 {
 		if bl.Self.Hash == l2Hash {
-			return m.L2NodeByNumber(ctx, big.NewInt(int64(i)))
+			return m.L2BlockRefByNumber(ctx, big.NewInt(int64(i)))
 		}
 	}
 	return eth.L2BlockRef{}, ethereum.NotFound

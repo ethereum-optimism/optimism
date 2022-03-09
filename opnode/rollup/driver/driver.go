@@ -43,11 +43,11 @@ type inputImpl struct {
 }
 
 func (i *inputImpl) L1Head(ctx context.Context) (eth.L1BlockRef, error) {
-	return i.chainSource.L1HeadNode(ctx)
+	return i.chainSource.L1HeadBlockRef(ctx)
 }
 
 func (i *inputImpl) L2Head(ctx context.Context) (eth.L2BlockRef, error) {
-	return i.chainSource.L2NodeByNumber(ctx, nil)
+	return i.chainSource.L2BlockRefByNumber(ctx, nil)
 
 }
 
