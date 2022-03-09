@@ -242,20 +242,26 @@ contract Challenge {
     }
   }
 
-  // final payout
-  // anyone can call these, right?
-
+  /// @notice Emitted when the challenger can provably be shown to be correct about his assertion.
   event ChallengerWins(uint256 challengeId);
+
+  /// @notice Emitted when the challenger can provably be shown to be wrong about his assertion.
   event ChallengerLoses(uint256 challengeId);
+
+  /// @notice Emitted when the challenger should lose if he does not generate a `ChallengerWins`
+  ///         event in a timely manner (TBD). This occurs in a specific scenario when we can't
+  ///         explicitly verify that the defender is right (cf. `denyStateTransition).
   event ChallengerLosesByDefault(uint256 challengeId);
 
+  /// @notice Anybody can call this function to confirm that the single execution step that the
+  ///         challenger and defender disagree on does indeed yield the result asserted by the
+  ///         challenger, leading to him winning the challenge.
   function confirmStateTransition(uint256 challengeId) external {
     ChallengeData storage c = challenges[challengeId];
     require(c.challenger != address(0), "invalid challenge");
-    //require(c.challenger == msg.sender, "must be challenger");
     require(!isSearching(challengeId), "binary search not finished");
-    bytes32 stepState = mips.Step(c.assertedState[c.L]);
 
+    bytes32 stepState = mips.Step(c.assertedState[c.L]);
     require(stepState == c.assertedState[c.R], "wrong asserted state for challenger");
 
     // pay out bounty!!
@@ -265,15 +271,26 @@ contract Challenge {
     emit ChallengerWins(challengeId);
   }
 
+  /// @notice Anybody can call this function to confirm that the single execution step that the
+  ///         challenger and defender disagree on does indeed yield the result asserted by the
+  ///         defender, leading to the challenger losing the challenge.
   function denyStateTransition(uint256 challengeId) external {
     ChallengeData storage c = challenges[challengeId];
     require(c.challenger != address(0), "invalid challenge");
-    //require(owner == msg.sender, "must be owner");
     require(!isSearching(challengeId), "binary search not finished");
+
+    // We run this before the next check so that if executing the final step somehow
+    // causes a revert, then at least we do not emit `ChallengerLosesByDefault` when we know that
+    // the challenger can't win (even if right) because of the revert.
     bytes32 stepState = mips.Step(c.defendedState[c.L]);
 
-    // NOTE: challenger can make c.defendedState[c.R] 0 if the search always went right
-    // while the challenger can't win, you can't make them lose
+    // If the challenger always agrees with the defender during the search, we end up with:
+    // c.L + 1 == c.R == stepCount (from `initiateChallenge`)
+    // In this case, the defender didn't assert his state hash for c.R, which makes
+    // `c.defendedState[c.R]` zero. This means we can't verify that the defender right about the
+    // final execution step.
+    // The solution is to emit `ChallengerLosesByDefault` to signify the challenger should lose
+    // if he can't emit `ChallengerWins` in a timely manner.
     if (c.defendedState[c.R] == bytes32(0)) {
       emit ChallengerLosesByDefault(challengeId);
       return;
