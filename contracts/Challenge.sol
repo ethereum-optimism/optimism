@@ -4,38 +4,48 @@ pragma experimental ABIEncoderV2;
 
 import "./lib/Lib_RLPReader.sol";
 
+/// @notice MIPS virtual machine interface
 interface IMIPS {
-  // Given a MIPS state hash (includes code & registers), execute the next instruction and returns
-  // the update state hash.
+  /// @notice Given a MIPS state hash (includes code & registers), execute the next instruction and returns
+  ///         the update state hash.
   function Step(bytes32 stateHash) external returns (bytes32);
 
-  // Returns the associated MIPS memory contract.
+  /// @notice Returns the associated MIPS memory contract.
   function m() external pure returns (IMIPSMemory);
 }
 
+/// @notice MIPS memory (really "state", including registers and memory-mapped I/O)
 interface IMIPSMemory {
-  // Adds a `(hash(anything) => anything)` entry to the mapping that underpins all the Merkle tries
-  // that this contract deals with (where "state hash" = Merkle root of such a trie).
-  // Here, `anything` is supposed to be node data in such a trie.
+  /// @notice Adds a `(hash(anything) => anything)` entry to the mapping that underpins all the
+  ///         Merkle tries that this contract deals with (where "state hash" = Merkle root of such
+  ///         a trie).
+  /// @param anything node data to add to the trie
   function AddTrieNode(bytes calldata anything) external;
 
   function ReadMemory(bytes32 stateHash, uint32 addr) external view returns (uint32);
   function ReadBytes32(bytes32 stateHash, uint32 addr) external view returns (bytes32);
 
-  // Write 32 bits at the given address and returns the updated state hash.
+  /// @notice Write 32 bits at the given address and returns the updated state hash.
   function WriteMemory(bytes32 stateHash, uint32 addr, uint32 val) external returns (bytes32);
 
-  // Write 32 bytes at the given address and returns the updated state hash.
+  /// @notice Write 32 bytes at the given address and returns the updated state hash.
   function WriteBytes32(bytes32 stateHash, uint32 addr, bytes32 val) external returns (bytes32);
 }
 
+/// @notice Implementation of the challenge game, which allows a challenger to challenge an L1 block
+///         by asserting a different state root for the transition implied by the block's
+///         transactions. The challenger plays against a defender (the owner of this contract),
+///         which we assume acts honestly. The challenger and the defender perform a binary search
+///         over the execution trace of the fault proof program (in this case minigeth), in order
+///         to determine a single execution step that they disagree on, at which point that step
+///         can be executed on-chain in order to determine if the challenge is valid.
 contract Challenge {
   address payable immutable owner;
 
   IMIPS immutable mips;
   IMIPSMemory immutable mem;
 
-  // State hash of the fault proof program's initial MIPS state.
+  /// @notice State hash of the fault proof program's initial MIPS state.
   bytes32 immutable globalStartState;
 
   constructor(IMIPS _mips, bytes32 _globalStartState) {
@@ -60,20 +70,11 @@ contract Challenge {
     uint256 blockNumberN;
   }
 
-  mapping(uint256 => ChallengeData) challenges;
-
-  // Allow sending money to the contract (without calldata).
-  receive() external payable {}
-
-  // Allows the owner to withdraw funds from the contract.
-  function withdraw() external {
-    require(msg.sender == owner, "not owner");
-    (bool sent, ) = owner.call{value: address(this).balance}("");
-    require(sent, "Failed to send Ether");
-  }
-
   /// @notice ID if the last created challenged, incremented for new challenge IDs.
   uint256 public lastChallengeId = 0;
+
+  /// @notice Maps challenge IDs to challenge data.
+  mapping(uint256 => ChallengeData) challenges;
 
   /// @notice Emitted when a new challenge is created.
   event ChallengeCreated(uint256 challengeId);
@@ -160,11 +161,6 @@ contract Challenge {
     emit ChallengeCreated(challengeId);
     return challengeId;
   }
-
-  ///         Before calling this, it is necessary to have loaded all the trie node necessary to
-  ///         write the input hash in the Merkleized initial MIPS state, and to read the output hash
-  ///         and machine state from the Merkleized final MIPS state (i.e. `finalSystemState`). Use
-  ///         `MIPSMemory.AddTrieNode` for this purpose.
 
   /// @notice Calling `initiateChallenge` requires some trie nodes to have been supplied beforehand,
   ///         in order to be able to write the input hash in the Merkleized initial MIPS state, and
@@ -314,5 +310,14 @@ contract Challenge {
 
     // consider the challenger mocked
     emit ChallengerLoses(challengeId);
+  }
+
+  /// @notice Allow sending money to the contract (without calldata).
+  receive() external payable {}
+
+  /// @notice Allows the owner to withdraw funds from the contract.
+  function withdraw() external {
+    require(msg.sender == owner);
+    owner.transfer(address(this).balance);
   }
 }
