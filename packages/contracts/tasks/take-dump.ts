@@ -1,83 +1,71 @@
-/* External Imports */
+import * as path from 'path'
+import * as fs from 'fs'
 import { exec } from 'child_process'
 import { promisify } from 'util'
 
+import * as mkdirp from 'mkdirp'
 import { ethers } from 'ethers'
-import {
-  computeStorageSlots,
-  getStorageLayout,
-} from '@defi-wonderland/smock/dist/src/utils'
+import { task } from 'hardhat/config'
 import { remove0x } from '@eth-optimism/core-utils'
 
-/* Internal Imports */
-import { predeploys } from './predeploys'
-import { getContractArtifact } from './contract-artifacts'
+import { predeploys } from '../src/predeploys'
+import { getContractFromArtifact } from '../src/deploy-utils'
+import { getDeployConfig } from '../src/deploy-config'
+import { names } from '../src/address-names'
 
-export interface RollupDeployConfig {
-  // Address that will own the L2 deployer whitelist.
-  whitelistOwner: string
-  // Address that will own the L2 gas price oracle.
-  gasPriceOracleOwner: string
-  // Overhead value of the gas price oracle
-  gasPriceOracleOverhead: number
-  // Scalar value of the gas price oracle
-  gasPriceOracleScalar: number
-  // L1 base fee of the gas price oracle
-  gasPriceOracleL1BaseFee: number
-  // L2 gas price of the gas price oracle
-  gasPriceOracleGasPrice: number
-  // Number of decimals of the gas price oracle scalar
-  gasPriceOracleDecimals: number
-  // Initial value for the L2 block gas limit.
-  l2BlockGasLimit: number
-  // Chain ID to give the L2 network.
-  l2ChainId: number
-  // Address of the key that will sign blocks.
-  blockSignerAddress: string
-  // Address of the L1StandardBridge contract.
-  l1StandardBridgeAddress: string
-  // Address of the L1 fee wallet.
-  l1FeeWalletAddress: string
-  // Address of the L1CrossDomainMessenger contract.
-  l1CrossDomainMessengerAddress: string
-  // Block height to activate berlin hardfork
-  berlinBlock: number
-}
+task('take-dump').setAction(async (args, hre) => {
+  /* eslint-disable @typescript-eslint/no-var-requires */
 
-/**
- * Generates the initial state for the L2 system by injecting the relevant L2 system contracts.
- *
- * @param cfg Configuration for the L2 system.
- * @returns Generated L2 genesis state.
- */
-export const makeL2GenesisFile = async (
-  cfg: RollupDeployConfig
-): Promise<any> => {
-  // Very basic validation.
-  for (const [key, val] of Object.entries(cfg)) {
-    if (val === undefined) {
-      throw new Error(`must provide an input for config value: ${key}`)
-    }
+  // Needs to be imported here or hardhat will throw a fit about hardhat being imported from
+  // within the configuration file.
+  const {
+    computeStorageSlots,
+    getStorageLayout,
+  } = require('@defi-wonderland/smock/dist/src/utils')
+
+  // Needs to be imported here because the artifacts can only be generated after the contracts have
+  // been compiled, but compiling the contracts will import the config file which, as a result,
+  // will import this file.
+  const { getContractArtifact } = require('../src/contract-artifacts')
+
+  /* eslint-enable @typescript-eslint/no-var-requires */
+
+  // Make sure we have a deploy config for this network
+  const deployConfig = getDeployConfig(hre.network.name)
+
+  // Basic warning so users know that the whitelist will be disabled if the owner is the zero address.
+  if (
+    deployConfig.ovmWhitelistOwner === undefined ||
+    deployConfig.ovmWhitelistOwner === ethers.constants.AddressZero
+  ) {
+    console.log(
+      'WARNING: whitelist owner is undefined or address(0), whitelist will be disabled'
+    )
   }
 
   const variables = {
     OVM_DeployerWhitelist: {
-      owner: cfg.whitelistOwner,
+      owner: deployConfig.ovmWhitelistOwner,
     },
     OVM_GasPriceOracle: {
-      _owner: cfg.gasPriceOracleOwner,
-      gasPrice: cfg.gasPriceOracleGasPrice,
-      l1BaseFee: cfg.gasPriceOracleL1BaseFee,
-      overhead: cfg.gasPriceOracleOverhead,
-      scalar: cfg.gasPriceOracleScalar,
-      decimals: cfg.gasPriceOracleDecimals,
+      _owner: deployConfig.ovmGasPriceOracleOwner,
+      gasPrice: deployConfig.gasPriceOracleL2GasPrice,
+      l1BaseFee: deployConfig.gasPriceOracleL1BaseFee,
+      overhead: deployConfig.gasPriceOracleOverhead,
+      scalar: deployConfig.gasPriceOracleScalar,
+      decimals: deployConfig.gasPriceOracleDecimals,
     },
     L2StandardBridge: {
-      l1TokenBridge: cfg.l1StandardBridgeAddress,
+      l1TokenBridge: (
+        await getContractFromArtifact(
+          hre,
+          names.managed.contracts.Proxy__OVM_L1StandardBridge
+        )
+      ).address,
       messenger: predeploys.L2CrossDomainMessenger,
     },
     OVM_SequencerFeeVault: {
-      l1FeeWallet: cfg.l1FeeWalletAddress,
+      l1FeeWallet: deployConfig.ovmFeeWalletAddress,
     },
     OVM_ETH: {
       l2Bridge: predeploys.L2StandardBridge,
@@ -89,7 +77,12 @@ export const makeL2GenesisFile = async (
       // We default the xDomainMsgSender to this value to save gas.
       // See usage of this default in the L2CrossDomainMessenger contract.
       xDomainMsgSender: '0x000000000000000000000000000000000000dEaD',
-      l1CrossDomainMessenger: cfg.l1CrossDomainMessengerAddress,
+      l1CrossDomainMessenger: (
+        await getContractFromArtifact(
+          hre,
+          names.managed.contracts.Proxy__OVM_L1CrossDomainMessenger
+        )
+      ).address,
       // Set the messageNonce to a high value to avoid overwriting old sent messages.
       messageNonce: 100000,
     },
@@ -139,10 +132,10 @@ export const makeL2GenesisFile = async (
     commit = '0000000000000000000000000000000000000000'
   }
 
-  return {
+  const genesis = {
     commit,
     config: {
-      chainId: cfg.l2ChainId,
+      chainId: deployConfig.l2ChainId,
       homesteadBlock: 0,
       eip150Block: 0,
       eip155Block: 0,
@@ -152,19 +145,27 @@ export const makeL2GenesisFile = async (
       petersburgBlock: 0,
       istanbulBlock: 0,
       muirGlacierBlock: 0,
-      berlinBlock: cfg.berlinBlock,
+      berlinBlock: deployConfig.hfBerlinBlock,
       clique: {
         period: 0,
         epoch: 30000,
       },
     },
     difficulty: '1',
-    gasLimit: cfg.l2BlockGasLimit.toString(10),
+    gasLimit: deployConfig.l2BlockGasLimit.toString(10),
     extradata:
       '0x' +
       '00'.repeat(32) +
-      remove0x(cfg.blockSignerAddress) +
+      remove0x(deployConfig.ovmBlockSignerAddress) +
       '00'.repeat(65),
     alloc: dump,
   }
-}
+
+  // Make sure the output location exists
+  const outdir = path.resolve(__dirname, '../genesis')
+  const outfile = path.join(outdir, `${hre.network.name}.json`)
+  mkdirp.sync(outdir)
+
+  // Write the genesis file
+  fs.writeFileSync(outfile, JSON.stringify(genesis, null, 4))
+})
