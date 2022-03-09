@@ -228,7 +228,7 @@ services:
     build:
       context: ..
       dockerfile: ./ops/docker/Dockerfile.gas-oracle
-    image: ethereumoptimism/l2geth:${DOCKER_TAG_GAS_ORACLE:-latest}
+    image: ethereumoptimism/gas-oracle:${DOCKER_TAG_GAS_ORACLE:-latest}
     entrypoint: ./gas-oracle.sh
     environment:
       GAS_PRICE_ORACLE_ETHEREUM_HTTP_URL: http://l2geth:8545
