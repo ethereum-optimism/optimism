@@ -46,13 +46,12 @@ contract MIPS {
       bytes32 newStateHash = m.WriteMemory(stateHash, addr, value);
       require(m.ReadMemory(newStateHash, addr) == value, "memory readback check failed");
       return newStateHash;
-    } else {
-      assembly {
-        // TODO: this is actually doing an SLOAD first
-        sstore(addr, value)
-      }
-      return stateHash;
     }
+    assembly {
+      // TODO: this is actually doing an SLOAD first
+      sstore(addr, value)
+    }
+    return stateHash;
   }
 
   function ReadMemory(bytes32 stateHash, uint32 addr) internal returns (uint32 ret) {
@@ -60,10 +59,9 @@ contract MIPS {
       emit TryReadMemory(addr);
       ret = m.ReadMemory(stateHash, addr);
       //emit DidReadMemory(addr, ret);
-    } else {
-      assembly {
-        ret := sload(addr)
-      }
+    }
+    assembly {
+      ret := sload(addr)
     }
   }
 
@@ -191,11 +189,9 @@ contract MIPS {
       if (shouldBranch) {
         return stepPC(stateHash, nextPC,
           pc + 4 + (SE(insn&0xFFFF, 16)<<2));
-      } else {
-        // branch not taken
-        return stepPC(stateHash, nextPC, nextPC+4);
       }
-
+      // branch not taken
+      return stepPC(stateHash, nextPC, nextPC+4);
     }
 
     // memory fetch (all I-type)
