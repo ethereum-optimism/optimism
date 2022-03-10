@@ -13,26 +13,26 @@ import (
 )
 
 type fakeChainSource struct {
-	L1 []eth.L1Node
-	L2 []eth.L2Node
+	L1 []eth.L1BlockRef
+	L2 []eth.L2BlockRef
 }
 
-func (m *fakeChainSource) L1NodeByNumber(ctx context.Context, l1Num uint64) (eth.L1Node, error) {
+func (m *fakeChainSource) L1BlockRefByNumber(ctx context.Context, l1Num uint64) (eth.L1BlockRef, error) {
 	if l1Num >= uint64(len(m.L1)) {
-		return eth.L1Node{}, ethereum.NotFound
+		return eth.L1BlockRef{}, ethereum.NotFound
 	}
 	return m.L1[l1Num], nil
 }
 
-func (m *fakeChainSource) L1HeadNode(ctx context.Context) (eth.L1Node, error) {
+func (m *fakeChainSource) L1HeadBlockRef(ctx context.Context) (eth.L1BlockRef, error) {
 	l := len(m.L1)
 	if l == 0 {
-		return eth.L1Node{}, ethereum.NotFound
+		return eth.L1BlockRef{}, ethereum.NotFound
 	}
 	return m.L1[l-1], nil
 }
 
-func (m *fakeChainSource) L2NodeByNumber(ctx context.Context, l2Num *big.Int) (eth.L2Node, error) {
+func (m *fakeChainSource) L2BlockRefByNumber(ctx context.Context, l2Num *big.Int) (eth.L2BlockRef, error) {
 	if len(m.L2) == 0 {
 		panic("bad test, no l2 chain")
 	}
@@ -43,13 +43,13 @@ func (m *fakeChainSource) L2NodeByNumber(ctx context.Context, l2Num *big.Int) (e
 	return m.L2[i], nil
 }
 
-func (m *fakeChainSource) L2NodeByHash(ctx context.Context, l2Hash common.Hash) (eth.L2Node, error) {
+func (m *fakeChainSource) L2BlockRefByHash(ctx context.Context, l2Hash common.Hash) (eth.L2BlockRef, error) {
 	for i, bl := range m.L2 {
 		if bl.Self.Hash == l2Hash {
-			return m.L2NodeByNumber(ctx, big.NewInt(int64(i)))
+			return m.L2BlockRefByNumber(ctx, big.NewInt(int64(i)))
 		}
 	}
-	return eth.L2Node{}, ethereum.NotFound
+	return eth.L2BlockRef{}, ethereum.NotFound
 }
 
 var _ ChainSource = (*fakeChainSource)(nil)
@@ -60,23 +60,23 @@ func fakeID(id rune, num uint64) eth.BlockID {
 	return eth.BlockID{Hash: h, Number: uint64(num)}
 }
 
-func fakeL1Block(self rune, parent rune, num uint64) eth.L1Node {
+func fakeL1Block(self rune, parent rune, num uint64) eth.L1BlockRef {
 	var parentID eth.BlockID
 	if num != 0 {
 		parentID = fakeID(parent, num-1)
 	}
-	return eth.L1Node{Self: fakeID(self, num), Parent: parentID}
+	return eth.L1BlockRef{Self: fakeID(self, num), Parent: parentID}
 }
 
-func fakeL2Block(self rune, parent rune, l1parent eth.BlockID, num uint64) eth.L2Node {
+func fakeL2Block(self rune, parent rune, l1parent eth.BlockID, num uint64) eth.L2BlockRef {
 	var parentID eth.BlockID
 	if num != 0 {
 		parentID = fakeID(parent, num-1)
 	}
-	return eth.L2Node{Self: fakeID(self, num), L2Parent: parentID, L1Parent: l1parent}
+	return eth.L2BlockRef{Self: fakeID(self, num), Parent: parentID, L1Origin: l1parent}
 }
 
-func chainL1(offset uint64, ids string) (out []eth.L1Node) {
+func chainL1(offset uint64, ids string) (out []eth.L1BlockRef) {
 	var prevID rune
 	for i, id := range ids {
 		out = append(out, fakeL1Block(id, prevID, offset+uint64(i)))
@@ -85,7 +85,7 @@ func chainL1(offset uint64, ids string) (out []eth.L1Node) {
 	return
 }
 
-func chainL2(l1 []eth.L1Node, ids string) (out []eth.L2Node) {
+func chainL2(l1 []eth.L1BlockRef, ids string) (out []eth.L2BlockRef) {
 	var prevID rune
 	for i, id := range ids {
 		out = append(out, fakeL2Block(id, prevID, l1[i].Self, uint64(i)))

@@ -8,13 +8,8 @@ import (
 	"github.com/ethereum/go-ethereum/event"
 )
 
-type HeadSignal struct {
-	Parent BlockID
-	Self   BlockID
-}
-
 // HeadSignalFn is used as callback function to accept head-signals
-type HeadSignalFn func(sig HeadSignal)
+type HeadSignalFn func(sig L1BlockRef)
 
 type NewHeadSource interface {
 	SubscribeNewHead(ctx context.Context, ch chan<- *types.Header) (ethereum.Subscription, error)
@@ -39,7 +34,7 @@ func WatchHeadChanges(ctx context.Context, src NewHeadSource, fn HeadSignalFn) (
 				if height > 0 {
 					parent = BlockID{Hash: header.ParentHash, Number: height - 1}
 				}
-				fn(HeadSignal{Parent: parent, Self: self})
+				fn(L1BlockRef{Parent: parent, Self: self})
 			case err := <-sub.Err():
 				return err
 			case <-ctx.Done():

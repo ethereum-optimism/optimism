@@ -72,16 +72,22 @@ func (s Source) Close() {
 }
 
 func (s Source) FetchL1Info(ctx context.Context, id eth.BlockID) (derive.L1Info, error) {
-	block, _, err := s.Fetch(ctx, id)
-	return block, err
+	return s.client.BlockByHash(ctx, id.Hash)
 }
 func (s Source) FetchReceipts(ctx context.Context, id eth.BlockID) ([]*types.Receipt, error) {
 	_, receipts, err := s.Fetch(ctx, id)
 	return receipts, err
 }
-func (s Source) FetchBatches(ctx context.Context, window []eth.BlockID) ([]derive.BatchData, error) {
-	return nil, nil
-}
-func (s Source) FetchL2Info(ctx context.Context, id eth.BlockID) (derive.L2Info, error) {
-	return nil, nil
+
+func (s Source) FetchTransactions(ctx context.Context, window []eth.BlockID) ([]*types.Transaction, error) {
+	var txns []*types.Transaction
+	for _, id := range window {
+		block, err := s.client.BlockByHash(ctx, id.Hash)
+		if err != nil {
+			return nil, err
+		}
+		txns = append(txns, block.Transactions()...)
+	}
+	return txns, nil
+
 }

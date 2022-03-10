@@ -21,33 +21,33 @@ func (id BlockID) TerminalString() string {
 	return fmt.Sprintf("%s:%d", id.Hash.TerminalString(), id.Number)
 }
 
-type L2Node struct {
+type L2BlockRef struct {
 	Self     BlockID
-	L2Parent BlockID
-	L1Parent BlockID
+	Parent   BlockID
+	L1Origin BlockID
 }
 
-func (id L2Node) String() string {
+func (id L2BlockRef) String() string {
 	return fmt.Sprintf("%s:%d", id.Self.Hash.String(), id.Self.Number)
 }
 
 // TerminalString implements log.TerminalStringer, formatting a string for console
 // output during logging.
-func (id L2Node) TerminalString() string {
+func (id L2BlockRef) TerminalString() string {
 	return fmt.Sprintf("%s:%d", id.Self.Hash.TerminalString(), id.Self.Number)
 }
 
-type L1Node struct {
+type L1BlockRef struct {
 	Self   BlockID
 	Parent BlockID
 }
 
-func (id L1Node) String() string {
+func (id L1BlockRef) String() string {
 	return fmt.Sprintf("%s:%d", id.Self.Hash.String(), id.Self.Number)
 }
 
 // TerminalString implements log.TerminalStringer, formatting a string for console
 // output during logging.
-func (id L1Node) TerminalString() string {
+func (id L1BlockRef) TerminalString() string {
 	return fmt.Sprintf("%s:%d", id.Self.Hash.TerminalString(), id.Self.Number)
 }

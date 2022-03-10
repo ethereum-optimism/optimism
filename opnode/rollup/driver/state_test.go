@@ -5,6 +5,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/ethereum-optimism/optimistic-specs/opnode/eth"
 	"github.com/ethereum-optimism/optimistic-specs/opnode/internal/testlog"
@@ -12,7 +13,6 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
 )
 
 type testID string
@@ -37,76 +37,185 @@ func (id testID) ID() eth.BlockID {
 	}
 }
 
-type testState struct {
-	l1Head      testID
-	l2Head      testID
-	l2Finalized testID
-	l1Target    testID
-	genesisL1   testID
-	genesisL2   testID
+type outputHandlerFn func(ctx context.Context, l2Head eth.BlockID, l2Finalized eth.BlockID, l1Window []eth.BlockID) (eth.BlockID, error)
+
+func (fn outputHandlerFn) step(ctx context.Context, l2Head eth.BlockID, l2Finalized eth.BlockID, l1Window []eth.BlockID) (eth.BlockID, error) {
+	return fn(ctx, l2Head, l2Finalized, l1Window)
 }
 
-func makeState(st testState) *state {
-	return &state{
-		l1Head:      st.l1Head.ID(),
-		l2Head:      st.l2Head.ID(),
-		l2Finalized: st.l2Finalized.ID(),
-		l1Target:    st.l1Target.ID(),
-		Genesis: rollup.Genesis{
-			L1: st.genesisL1.ID(),
-			L2: st.genesisL2.ID(),
-		},
+type outputArgs struct {
+	l2Head      eth.BlockID
+	l2Finalized eth.BlockID
+	l1Window    []eth.BlockID
+}
+
+type outputReturnArgs struct {
+	l2Head eth.BlockID
+	err    error
+}
+
+type stateTestCaseStep struct {
+	// Expect l1head, l2head, and sequence window
+	l1head testID
+	l2head testID
+	window []testID
+
+	// l1act and l2act are ran at each step
+	l1act func(t *testing.T, s *state, src *fakeChainSource, l1Heads chan eth.L1BlockRef)
+	l2act func(t *testing.T, expectedWindow []testID, s *state, src *fakeChainSource, outputIn chan outputArgs, outputReturn chan outputReturnArgs)
+	reorg bool
+}
+
+func advanceL1(t *testing.T, s *state, src *fakeChainSource, l1Heads chan eth.L1BlockRef) {
+	l1Heads <- src.advanceL1()
+}
+
+func stutterL1(t *testing.T, s *state, src *fakeChainSource, l1Heads chan eth.L1BlockRef) {
+	l1Heads <- src.l1Head()
+}
+
+func stutterAdvance(t *testing.T, s *state, src *fakeChainSource, l1Heads chan eth.L1BlockRef) {
+	l1Heads <- src.l1Head()
+	l1Heads <- src.l1Head()
+	l1Heads <- src.l1Head()
+	l1Heads <- src.advanceL1()
+	l1Heads <- src.l1Head()
+	l1Heads <- src.l1Head()
+	l1Heads <- src.l1Head()
+}
+
+func stutterL2(t *testing.T, expectedWindow []testID, s *state, src *fakeChainSource, outputIn chan outputArgs, outputReturn chan outputReturnArgs) {
+	select {
+	case <-outputIn:
+		t.Error("Got a step when no step should have occurred (l1 only advance)")
+	default:
 	}
 }
 
-type mockDriver struct {
-	mock.Mock
+func advanceL2(t *testing.T, expectedWindow []testID, s *state, src *fakeChainSource, outputIn chan outputArgs, outputReturn chan outputReturnArgs) {
+	args := <-outputIn
+	assert.Equal(t, int(s.Config.SeqWindowSize), len(args.l1Window), "Invalid L1 window size")
+	assert.Equal(t, len(expectedWindow), len(args.l1Window), "L1 Window size does not match expectedWindow")
+	for i := range expectedWindow {
+		assert.Equal(t, expectedWindow[i].ID(), args.l1Window[i], "Window elements must match")
+	}
+	outputReturn <- outputReturnArgs{l2Head: src.setL2Head(int(args.l2Head.Number) + 1).Self, err: nil}
 }
 
-func (m *mockDriver) requestEngineHead(ctx context.Context) (refL1 eth.BlockID, refL2 eth.BlockID, err error) {
-	returnArgs := m.Called(ctx)
-	refL1 = returnArgs.Get(0).(eth.BlockID)
-	refL2 = returnArgs.Get(1).(eth.BlockID)
-	err = returnArgs.Get(2).(error)
-	return
+func reorg__L2(t *testing.T, expectedWindow []testID, s *state, src *fakeChainSource, outputIn chan outputArgs, outputReturn chan outputReturnArgs) {
+	args := <-outputIn
+	assert.Equal(t, int(s.Config.SeqWindowSize), len(args.l1Window), "Invalid L1 window size")
+	assert.Equal(t, len(expectedWindow), len(args.l1Window), "L1 Window size does not match expectedWindow")
+	for i := range expectedWindow {
+		assert.Equal(t, expectedWindow[i].ID(), args.l1Window[i], "Window elements must match")
+	}
+	src.reorgL2()
+	outputReturn <- outputReturnArgs{l2Head: src.setL2Head(int(args.l2Head.Number) + 1).Self, err: nil}
 }
 
-func (m *mockDriver) findSyncStart(ctx context.Context) (nextRefL1 eth.BlockID, refL2 eth.BlockID, err error) {
-	returnArgs := m.Called(ctx)
-	nextRefL1 = returnArgs.Get(0).(eth.BlockID)
-	refL2 = returnArgs.Get(1).(eth.BlockID)
-	err, _ = returnArgs.Get(2).(error)
-	return
+type stateTestCase struct {
+	name      string
+	l1Chains  []string
+	l2Chains  []string
+	steps     []stateTestCaseStep
+	seqWindow int
+	genesis   rollup.Genesis
 }
 
-func (m *mockDriver) driverStep(ctx context.Context, nextRefL1 eth.BlockID, refL2 eth.BlockID, finalized eth.BlockID) (l2ID eth.BlockID, err error) {
-	returnArgs := m.Called(ctx, nextRefL1, refL2, finalized)
-	l2ID = returnArgs.Get(0).(eth.BlockID)
-	err, _ = returnArgs.Get(1).(error)
-	return
-}
-
-var _ internalDriver = (*mockDriver)(nil)
-
-func TestEngineDriverState_RequestSync(t *testing.T) {
+func (tc *stateTestCase) Run(t *testing.T) {
 	log := testlog.Logger(t, log.LvlTrace)
-	driver := new(mockDriver)
-	ctx := context.Background()
+	chainSource := NewFakeChainSource(tc.l1Chains, tc.l2Chains, log)
+	l1headsCh := make(chan eth.L1BlockRef, 10)
+	// Unbuffered channels to force a sync point between the test and the state loop.
+	outputIn := make(chan outputArgs)
+	outputReturn := make(chan outputReturnArgs)
+	outputHandler := func(ctx context.Context, l2Head eth.BlockID, l2Finalized eth.BlockID, l1Window []eth.BlockID) (eth.BlockID, error) {
+		outputIn <- outputArgs{l2Head: l2Head, l2Finalized: l2Finalized, l1Window: l1Window}
+		r := <-outputReturn
+		return r.l2Head, r.err
+	}
+	config := rollup.Config{SeqWindowSize: uint64(tc.seqWindow), Genesis: tc.genesis}
+	state := NewState(log, config, &inputImpl{chainSource: chainSource, genesis: &tc.genesis}, outputHandlerFn(outputHandler))
+	defer func() {
+		assert.NoError(t, state.Close(), "Error closing state")
+	}()
 
-	state := makeState(testState{
-		l1Head:      "c:2",
-		l2Head:      "C:2",
-		l2Finalized: "B:1",
-		l1Target:    "e:4",
-		genesisL1:   "a:0",
-		genesisL2:   "b:0",
-	})
-	driver.On("findSyncStart", ctx).Return(testID("d:3").ID(), testID("C:2").ID(), nil)
-	driver.On("driverStep", ctx, testID("d:3").ID(), testID("C:2").ID(), testID("B:1").ID()).Return(testID("D:3").ID(), nil)
+	err := state.Start(context.Background(), l1headsCh)
+	assert.NoError(t, err, "Error starting the state object")
 
-	l2Updated := state.requestSync(ctx, log, driver)
+	for _, step := range tc.steps {
+		if step.reorg {
+			chainSource.reorgL1()
+		}
+		step.l1act(t, state, chainSource, l1headsCh)
+		<-time.After(5 * time.Millisecond)
+		step.l2act(t, step.window, state, chainSource, outputIn, outputReturn)
+		<-time.After(5 * time.Millisecond)
 
-	assert.Equal(t, state.l1Head, testID("d:3").ID())
-	assert.Equal(t, state.l2Head, testID("D:3").ID())
-	assert.True(t, l2Updated)
+		assert.Equal(t, step.l1head.ID(), state.l1Head, "l1 head")
+		assert.Equal(t, step.l2head.ID(), state.l2Head, "l2 head")
+	}
+}
+
+func TestDriver(t *testing.T) {
+	cases := []stateTestCase{
+		{
+			name:      "Simple extensions",
+			l1Chains:  []string{"abcdefgh"},
+			l2Chains:  []string{"ABCDEF"},
+			seqWindow: 2,
+			genesis:   fakeGenesis('a', 'A', 0),
+			steps: []stateTestCaseStep{
+				{l1act: stutterL1, l2act: stutterL2, l1head: "a:0", l2head: "A:0"},
+				{l1act: advanceL1, l2act: stutterL2, l1head: "b:1", l2head: "A:0", window: []testID{"a:0", "b:1"}},
+				{l1act: advanceL1, l2act: advanceL2, l1head: "c:2", l2head: "B:1", window: []testID{"b:1", "c:2"}},
+				{l1act: advanceL1, l2act: advanceL2, l1head: "d:3", l2head: "C:2", window: []testID{"c:2", "d:3"}},
+				{l1act: advanceL1, l2act: advanceL2, l1head: "e:4", l2head: "D:3", window: []testID{"d:3", "e:4"}},
+				{l1act: advanceL1, l2act: advanceL2, l1head: "f:5", l2head: "E:4", window: []testID{"e:4", "f:5"}},
+				{l1act: advanceL1, l2act: advanceL2, l1head: "g:6", l2head: "F:5", window: []testID{"f:5", "g:6"}},
+			},
+		},
+		{
+			name:      "Reorg",
+			l1Chains:  []string{"abcdefg", "abcxyzw"},
+			l2Chains:  []string{"ABCDEF", "ABCXYZ"},
+			seqWindow: 2,
+			genesis:   fakeGenesis('a', 'A', 0),
+			steps: []stateTestCaseStep{
+				{l1act: stutterL1, l2act: stutterL2, l1head: "a:0", l2head: "A:0"},
+				{l1act: advanceL1, l2act: stutterL2, l1head: "b:1", l2head: "A:0", window: []testID{"a:0", "b:1"}},
+				{l1act: advanceL1, l2act: advanceL2, l1head: "c:2", l2head: "B:1", window: []testID{"b:1", "c:2"}},
+				{l1act: advanceL1, l2act: advanceL2, l1head: "d:3", l2head: "C:2", window: []testID{"c:2", "d:3"}},
+				{l1act: advanceL1, l2act: advanceL2, l1head: "e:4", l2head: "D:3", window: []testID{"d:3", "e:4"}},
+				{l1act: advanceL1, l2act: advanceL2, l1head: "f:5", l2head: "E:4", window: []testID{"e:4", "f:5"}},
+				{l1act: advanceL1, l2act: advanceL2, l1head: "g:6", l2head: "F:5", window: []testID{"f:5", "g:6"}},
+				{l1act: stutterL1, l2act: reorg__L2, l1head: "w:6", l2head: "X:3", window: []testID{"x:3", "y:4"}, reorg: true},
+				{l1act: stutterL1, l2act: advanceL2, l1head: "w:6", l2head: "Y:4", window: []testID{"y:4", "z:5"}},
+				{l1act: stutterL1, l2act: advanceL2, l1head: "w:6", l2head: "Z:5", window: []testID{"z:5", "w:6"}},
+				{l1act: stutterL1, l2act: stutterL2, l1head: "w:6", l2head: "Z:5", window: []testID{"z:5", "w:6"}},
+				{l1act: stutterL1, l2act: stutterL2, l1head: "w:6", l2head: "Z:5", window: []testID{"z:5", "w:6"}},
+			},
+		},
+		{
+			name:      "Simple extensions with multi-step stutter",
+			l1Chains:  []string{"abcdefgh"},
+			l2Chains:  []string{"ABCDEF"},
+			seqWindow: 2,
+			genesis:   fakeGenesis('a', 'A', 0),
+			steps: []stateTestCaseStep{
+				{l1act: stutterL1, l2act: stutterL2, l1head: "a:0", l2head: "A:0"},
+				{l1act: advanceL1, l2act: stutterL2, l1head: "b:1", l2head: "A:0", window: []testID{"a:0", "b:1"}},
+				{l1act: stutterAdvance, l2act: advanceL2, l1head: "c:2", l2head: "B:1", window: []testID{"b:1", "c:2"}},
+				{l1act: advanceL1, l2act: advanceL2, l1head: "d:3", l2head: "C:2", window: []testID{"c:2", "d:3"}},
+				{l1act: advanceL1, l2act: advanceL2, l1head: "e:4", l2head: "D:3", window: []testID{"d:3", "e:4"}},
+				{l1act: advanceL1, l2act: advanceL2, l1head: "f:5", l2head: "E:4", window: []testID{"e:4", "f:5"}},
+				{l1act: advanceL1, l2act: advanceL2, l1head: "g:6", l2head: "F:5", window: []testID{"f:5", "g:6"}},
+			},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, tc.Run)
+	}
+
 }

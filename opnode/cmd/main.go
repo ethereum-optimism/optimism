@@ -3,11 +3,13 @@ package main
 import (
 	"context"
 	"fmt"
+	"math/big"
 	"os"
 	"os/signal"
 	"syscall"
 
 	"github.com/ethereum-optimism/optimistic-specs/opnode/node"
+	"github.com/ethereum-optimism/optimistic-specs/opnode/rollup"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
@@ -120,7 +122,18 @@ func NewConfig(ctx *cli.Context) (*node.Config, error) {
 		L2Hash:        L2Hash,
 		L1Hash:        L1Hash,
 		L1Num:         ctx.GlobalUint64(GenesisL2Hash.Name),
+		Rollup: rollup.Config{
+			BlockTime:            2,
+			MaxSequencerTimeDiff: 10,
+			SeqWindowSize:        64,
+			L1ChainID:            big.NewInt(901),
+			// TODO pick defaults
+			FeeRecipientAddress: common.Address{0xff, 0x01},
+			BatchInboxAddress:   common.Address{0xff, 0x02},
+			BatchSenderAddress:  common.Address{0xff, 0x03},
+		},
 	}
+	cfg.Rollup.Genesis = cfg.GetGenesis()
 	if err := cfg.Check(); err != nil {
 		return nil, err
 	}

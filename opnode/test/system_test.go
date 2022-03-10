@@ -13,7 +13,7 @@ import (
 	"github.com/ethereum-optimism/optimistic-specs/opnode/contracts/deposit"
 	"github.com/ethereum-optimism/optimistic-specs/opnode/internal/testlog"
 	rollupNode "github.com/ethereum-optimism/optimistic-specs/opnode/node"
-	"github.com/stretchr/testify/require"
+	"github.com/ethereum-optimism/optimistic-specs/opnode/rollup"
 
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
@@ -25,6 +25,7 @@ import (
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/node"
+	"github.com/stretchr/testify/require"
 )
 
 func getGenesisHash(client *ethclient.Client) common.Hash {
@@ -120,7 +121,18 @@ func TestSystemE2E(t *testing.T) {
 		L1Num:         0,
 		L1NodeAddr:    endpoint(cfg.l1.nodeConfig),
 		L2EngineAddrs: []string{endpoint(cfg.l2.nodeConfig)},
+		Rollup: rollup.Config{
+			BlockTime:            1,
+			MaxSequencerTimeDiff: 10,
+			SeqWindowSize:        1,
+			L1ChainID:            big.NewInt(901),
+			// TODO pick defaults
+			FeeRecipientAddress: common.Address{0xff, 0x01},
+			BatchInboxAddress:   common.Address{0xff, 0x02},
+			BatchSenderAddress:  common.Address{0xff, 0x03},
+		},
 	}
+	nodeCfg.Rollup.Genesis = nodeCfg.GetGenesis()
 	node, err := rollupNode.New(context.Background(), nodeCfg, testlog.Logger(t, log.LvlTrace))
 	require.Nil(t, err)
 
@@ -236,7 +248,7 @@ func TestSystemE2E(t *testing.T) {
 	require.Nil(t, err, "Could not get transaction receipt")
 
 	// Wait (or timeout) for that block to show up on L2
-	timeoutCh := time.After(3 * time.Second)
+	timeoutCh := time.After(6 * time.Second)
 loop:
 	for {
 		select {
