@@ -269,6 +269,9 @@ contract Challenge {
   ///         Before calling this function, you need to add trie nodes so that the MIPS state can be
   ///         read/written by the single step execution. Use `MIPSMemory.AddTrieNode` for this
   ///         purpose. Use `callWithTrieNodes` to figure out which nodes you need.
+  ///         You will also need to supply any preimage that the step tries to access with
+  ///         `MIPSMemory.AddPreimage`. See `scripts/assert.js` for details on how this can be
+  ///         done.
   function confirmStateTransition(uint256 challengeId) external {
     ChallengeData storage c = challenges[challengeId];
     require(c.challenger != address(0), "invalid challenge");
@@ -290,6 +293,9 @@ contract Challenge {
   ///         Before calling this function, you need to add trie nodes so that the MIPS state can be
   ///         read/written by the single step execution. Use `MIPSMemory.AddTrieNode` for this
   ///         purpose. Use `callWithTrieNodes` to figure out which nodes you need.
+  ///         You will also need to supply any preimage that the step tries to access with
+  ///         `MIPSMemory.AddPreimage`. See `scripts/assert.js` for details on how this can be
+  ///         done.
   function denyStateTransition(uint256 challengeId) external {
     ChallengeData storage c = challenges[challengeId];
     require(c.challenger != address(0), "invalid challenge");
