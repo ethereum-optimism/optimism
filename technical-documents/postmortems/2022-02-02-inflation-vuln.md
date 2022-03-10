@@ -5,7 +5,7 @@ It also details our response, lessons learned, and subsequent changes to our pro
 
 ## Incident Summary
 
-A vulnerability in Optimism’s fork of go-ethereum ([L2-geth](../../l2geth/README.md)) was reported
+A vulnerability in Optimism’s fork of [Geth](https://github.com/ethereum/go-ethereum) (which we refer to as [L2Geth](../../l2geth/README.md)) was reported
 to us by [Jay Freeman](https://twitter.com/saurik) (AKA saurik) on February 2nd, 2022. If exploited,
 this vulnerability would allow anyone to mint an unbounded amount of ETH on Optimism.
 
@@ -13,7 +13,7 @@ We confirmed the issue, implemented a fix, and upgraded our infrastructure withi
 alerted infrastructure providers running Optimism, as well as other network operators who are using
 a fork of our software.
 
-All parties were running a patched version of L2-geth within 32 hours of the initial report.
+All parties were running a patched version of L2Geth within 32 hours of the initial report.
 
 ## Lead up
 
@@ -46,7 +46,7 @@ since they had to roll out an emergency patch version.
 
 Jay Freeman (a.k.a. saurik) reported the bug to us via security@optimism.io. He first attempted to
 report via our Immunefi bounty program, but decided to email us since it does not explicitly include
-our L2-Geth code.
+our L2Geth code.
 
 ## Recovery
 
@@ -81,7 +81,7 @@ timeline and activities were as follows:
   [PR #2146](https://github.com/ethereum-optimism/optimism/pull/2146), which we will use to sneak in
   the fix without publicly disclosing it.
 - 2022-02-06 0250: mslipper merges the finalized patch into PR #2146 after testing, and cuts the
-  release of l2geth version `0.5.11`.
+  release of L2Geth version `0.5.11`.
 
 ## How it was fixed
 
@@ -104,7 +104,7 @@ that is, by looking at the PR that introduced it, and the organization context o
 #### The PR
 
 It was introduced in [PR #1363](https://github.com/ethereum-optimism/optimism/pull/1363), on
-2021-07-20, and merged 3 days later. It includes changes to 21 files, (14 in geth code, 6 in test
+2021-07-20, and merged 3 days later. It includes changes to 21 files, (14 in L2Geth code, 6 in test
 files). The diff added 217 lines, and removed 149 lines.
 
 The PR was well scoped, and all of the changes were relevant according to its description:
@@ -209,13 +209,13 @@ the various risks they considered.
 
 ### Maximizing the effectiveness of our bug reporting channels
 
-Our bounty program page on Immunefi did not list Geth as in scope, which led saurik to report
+Our bounty program page on Immunefi did not list L2Geth as in scope, which led saurik to report
 through our security@optimism.io email. Additionally, not all members of the team are in the habit
-of checking email at the start of. This caused some delay in the initial incident response process.
+of checking email at the start of their day. This caused some delay in the initial incident response process.
 
 **Actions taken:**
 
-1. We have extended the scope of the Immunefi program to include our Geth fork.
+1. We have extended the scope of the Immunefi program to include L2Geth.
 
 **Actions planned:**
 
