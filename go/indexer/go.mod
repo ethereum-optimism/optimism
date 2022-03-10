@@ -6,6 +6,7 @@ require (
 	github.com/ethereum-optimism/optimism/l2geth v0.0.0-20220104205740-f39387287484
 	github.com/ethereum/go-ethereum v1.10.14
 	github.com/getsentry/sentry-go v0.12.0
+	github.com/google/uuid v1.3.0
 	github.com/gorilla/mux v1.8.0
 	github.com/lib/pq v1.0.0
 	github.com/prometheus/client_golang v1.0.0
@@ -31,7 +32,6 @@ require (
 	github.com/go-stack/stack v1.8.0 // indirect
 	github.com/golang/protobuf v1.4.3 // indirect
 	github.com/golang/snappy v0.0.4 // indirect
-	github.com/google/uuid v1.3.0 // indirect
 	github.com/gorilla/websocket v1.4.2 // indirect
 	github.com/hashicorp/golang-lru v0.5.5-0.20210104140557-80c98217689d // indirect
 	github.com/huin/goupnp v1.0.2 // indirect

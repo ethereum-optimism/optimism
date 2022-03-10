@@ -35,10 +35,6 @@ var logger = log.New("service", "l1")
 // and it cannot be remotely fetched
 var errNoChainID = errors.New("no chain id provided")
 
-// errWrongChainID represents the error when the configured chain id is not
-// correct
-var errWrongChainID = errors.New("wrong chain id provided")
-
 var errNoNewBlocks = errors.New("no new blocks")
 
 // clientRetryInterval is the interval to wait between retrying client API
@@ -58,7 +54,6 @@ func HeaderByNumberWithRetry(ctx context.Context,
 			return res, err
 		default:
 			log.Error("Error fetching header", "err", err)
-			break
 		}
 		time.Sleep(clientRetryInterval)
 	}
@@ -194,10 +189,12 @@ func (s *Service) Loop(ctx context.Context) {
 			atomic.StoreUint64(&s.latestHeader, header.Number.Uint64())
 			for {
 				err := s.Update(header)
-				if err != nil && err != errNoNewBlocks {
-					logger.Error("Unable to update indexer ", "err", err)
+				if err != nil {
+					if err != errNoNewBlocks {
+						logger.Error("Unable to update indexer ", "err", err)
+					}
+					break
 				}
-				break
 			}
 		case <-s.ctx.Done():
 			return
@@ -509,11 +506,11 @@ func (s *Service) Start() error {
 	return nil
 }
 
-func (s *Service) Stop() error {
+func (s *Service) Stop() {
 	s.cancel()
 	s.wg.Wait()
-	if err := s.cfg.DB.Close(); err != nil {
-		return err
+	err := s.cfg.DB.Close()
+	if err != nil {
+		logger.Error("Error closing db", "err", err)
 	}
-	return nil
 }

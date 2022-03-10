@@ -26,7 +26,6 @@ func FilterStateBatchAppendedWithRetry(filterer *scc.StateCommitmentChainFiltere
 			return res, err
 		default:
 			logger.Error("Error fetching filter", "err", err)
-			break
 		}
 		time.Sleep(clientRetryInterval)
 	}
@@ -45,7 +44,6 @@ func FilterETHDepositInitiatedWithRetry(filterer *l1bridge.L1StandardBridgeFilte
 			return res, err
 		default:
 			logger.Error("Error fetching filter", "err", err)
-			break
 		}
 		time.Sleep(clientRetryInterval)
 	}
@@ -64,7 +62,6 @@ func FilterERC20DepositInitiatedWithRetry(filterer *l1bridge.L1StandardBridgeFil
 			return res, err
 		default:
 			logger.Error("Error fetching filter", "err", err)
-			break
 		}
 		time.Sleep(clientRetryInterval)
 	}

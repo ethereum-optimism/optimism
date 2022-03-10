@@ -145,7 +145,7 @@ func HeaderByNumber(ctx context.Context, client *rpc.Client, height *big.Int) (*
 	if err == nil && head == nil {
 		err = ethereum.NotFound
 	}
-	return head, nil
+	return head, err
 }
 
 func (f *ConfirmedHeaderSelector) NewHead(

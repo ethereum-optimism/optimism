@@ -96,6 +96,12 @@ type Config struct {
 	// batch.
 	MaxHeaderBatchSize uint64
 
+	// RESTHostname is the hostname at which the REST server is running.
+	RESTHostname string
+
+	// RESTPort is the port at which the REST server is running.
+	RESTPort uint64
+
 	// MetricsServerEnable if true, will create a metrics client and log to
 	// Prometheus.
 	MetricsServerEnable bool
@@ -118,8 +124,8 @@ func NewConfig(ctx *cli.Context) (Config, error) {
 		BuildEnv:                ctx.GlobalString(flags.BuildEnvFlag.Name),
 		EthNetworkName:          ctx.GlobalString(flags.EthNetworkNameFlag.Name),
 		ChainID:                 ctx.GlobalInt64(flags.ChainIDFlag.Name),
-		L1EthRpc:                ctx.GlobalString(flags.L1EthRpcFlag.Name),
-		L2EthRpc:                ctx.GlobalString(flags.L2EthRpcFlag.Name),
+		L1EthRpc:                ctx.GlobalString(flags.L1EthRPCFlag.Name),
+		L2EthRpc:                ctx.GlobalString(flags.L2EthRPCFlag.Name),
 		L1AddressManagerAddress: ctx.GlobalString(flags.L1AddressManagerAddressFlag.Name),
 		L2GenesisBlockHash:      ctx.GlobalString(flags.L2GenesisBlockHashFlag.Name),
 		DBHost:                  ctx.GlobalString(flags.DBHostFlag.Name),
@@ -139,6 +145,8 @@ func NewConfig(ctx *cli.Context) (Config, error) {
 		ConfDepth:           ctx.GlobalUint64(flags.ConfDepthFlag.Name),
 		MaxHeaderBatchSize:  ctx.GlobalUint64(flags.MaxHeaderBatchSizeFlag.Name),
 		MetricsServerEnable: ctx.GlobalBool(flags.MetricsServerEnableFlag.Name),
+		RESTHostname:        ctx.GlobalString(flags.RESTHostnameFlag.Name),
+		RESTPort:            ctx.GlobalUint64(flags.RESTPortFlag.Name),
 		MetricsHostname:     ctx.GlobalString(flags.MetricsHostnameFlag.Name),
 		MetricsPort:         ctx.GlobalUint64(flags.MetricsPortFlag.Name),
 	}
