@@ -6,8 +6,6 @@ import { Lib_BytesUtils } from "./Lib_BytesUtils.sol";
 import { Lib_RLPReader } from "./Lib_RLPReader.sol";
 import { Lib_RLPWriter } from "./Lib_RLPWriter.sol";
 
-import "hardhat/console.sol";
-
 /**
  * @title Lib_MerkleTrie
  */
@@ -682,12 +680,10 @@ library Lib_MerkleTrie {
             bytes memory _hash
         )
     {
-        //console.logBytes(_encoded);
         if (_encoded.length < 32) {
             return _encoded;
         } else {
             bytes32 encodedHash = keccak256(_encoded);
-            //console.logBytes32(encodedHash);
             GetTrie()[encodedHash] = _encoded;
             return abi.encodePacked(encodedHash);
         }

@@ -3,7 +3,6 @@ pragma solidity ^0.7.3;
 pragma experimental ABIEncoderV2;
 
 import "./lib/Lib_RLPReader.sol";
-import "hardhat/console.sol";
 
 interface IMIPS {
   function Step(bytes32 stateHash) external returns (bytes32);
@@ -66,7 +65,7 @@ contract Challenge {
     // the challenger arrives
     c.challenger = msg.sender;
 
-    // the state is set 
+    // the state is set
     c.blockNumberN = blockNumberN;
     // NOTE: if they disagree on the start, 0->1 will fail
     c.assertedState[0] = startState;
@@ -210,8 +209,6 @@ contract Challenge {
     require(!isSearching(challengeId), "binary search not finished");
     bytes32 stepState = mips.Step(c.assertedState[c.L]);
 
-    console.logBytes32(stepState);
-    console.logBytes32(c.assertedState[c.R]);
     require(stepState == c.assertedState[c.R], "wrong asserted state for challenger");
 
     // pay out bounty!!
@@ -235,8 +232,6 @@ contract Challenge {
       return;
     }
 
-    console.logBytes32(stepState);
-    console.logBytes32(c.defendedState[c.R]);
     require(stepState == c.defendedState[c.R], "wrong asserted state for defender");
 
     // consider the challenger mocked
