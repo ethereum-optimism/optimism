@@ -1,5 +1,14 @@
 # @eth-optimism/sdk
 
+## 1.0.1
+
+### Patch Changes
+
+- 7ae1c67f: Update package json to include correct repo link
+- 47e5d118: Tighten type restriction on ProviderLike
+- Updated dependencies [175ae0bf]
+  - @eth-optimism/contracts@0.5.17
+
 ## 1.0.0
 
 ### Major Changes
