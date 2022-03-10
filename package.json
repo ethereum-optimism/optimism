@@ -11,7 +11,7 @@
       "go/*",
       "ops/docker/rpc-proxy",
       "ops/docker/hardhat"
-    ],
+    ]
   },
   "private": true,
   "devDependencies": {
