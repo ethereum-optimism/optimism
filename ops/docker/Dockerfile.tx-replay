@@ -1,0 +1,12 @@
+FROM golang:1.16 as builder
+
+ADD ./go/tx-replay /app/
+WORKDIR /app/
+RUN make build
+
+FROM alpine:latest
+RUN apk --no-cache add ca-certificates
+WORKDIR /root/
+COPY --from=builder /app/tx-replay /usr/local/bin/
+ENTRYPOINT ["tx-replay"]
+CMD ["--help"]
