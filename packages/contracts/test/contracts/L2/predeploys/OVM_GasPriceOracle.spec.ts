@@ -26,9 +26,9 @@ describe('OVM_GasPriceOracle', () => {
       await signer1.getAddress()
     )
 
-    OVM_GasPriceOracle.setOverhead(2750)
-    OVM_GasPriceOracle.setScalar(1500000)
-    OVM_GasPriceOracle.setDecimals(6)
+    await OVM_GasPriceOracle.setOverhead(2750)
+    await OVM_GasPriceOracle.setScalar(1500000)
+    await OVM_GasPriceOracle.setDecimals(6)
   })
 
   describe('owner', () => {
