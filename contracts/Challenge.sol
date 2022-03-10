@@ -49,8 +49,9 @@ contract Challenge {
   fallback() external payable {}
   receive() external payable {}
   function withdraw() external {
-    require(msg.sender == owner);
-    owner.transfer(address(this).balance);
+    require(msg.sender == owner, "not owner");
+    (bool sent, ) = owner.call{value: address(this).balance}("");
+    require(sent, "Failed to send Ether");
   }
 
   // create challenge
@@ -214,7 +215,8 @@ contract Challenge {
     require(stepState == c.assertedState[c.R], "wrong asserted state for challenger");
 
     // pay out bounty!!
-    c.challenger.transfer(address(this).balance);
+    (bool sent, ) = c.challenger.call{value: address(this).balance}("");
+    require(sent, "Failed to send Ether");
     
     emit ChallengerWins(challengeId);
   }
