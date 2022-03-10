@@ -46,7 +46,7 @@ contract Challenge {
   IMIPSMemory immutable mem;
 
   /// @notice State hash of the fault proof program's initial MIPS state.
-  bytes32 immutable globalStartState;
+  bytes32 public immutable globalStartState;
 
   constructor(IMIPS _mips, bytes32 _globalStartState) {
     owner = msg.sender;
@@ -74,7 +74,7 @@ contract Challenge {
   uint256 public lastChallengeId = 0;
 
   /// @notice Maps challenge IDs to challenge data.
-  mapping(uint256 => ChallengeData) challenges;
+  mapping(uint256 => ChallengeData) public challenges;
 
   /// @notice Emitted when a new challenge is created.
   event ChallengeCreated(uint256 challengeId);
