@@ -3,6 +3,13 @@
 <!--![cannon](https://static.wikia.nocookie.net/ageofempires/images/8/80/Bombard_cannon_aoe2DE.png/revision/latest/top-crop/width/360/height/360?cb=20200331021834)-->
 ![cannon](https://paradacreativa.es/wp-content/uploads/2021/05/Canon-orbital-GTA-01.jpg)
 
+---
+
+**NEW: Cannon is currently the object of [a bug bounty on Immunefi](https://immunefi.com/bounty/optimismcannon/). Find vulnerabilities
+in Cannon for up to a $50.000 payout.**
+
+---
+
 The cannon (cannon cannon cannon) is an on chain interactive dispute engine implementing EVM-equivalent fault proofs.
 
 It's half geth, half MIPS, and whole awesome.
