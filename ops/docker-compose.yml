@@ -13,7 +13,7 @@ x-system-addr-env: &system-addr-env
 services:
   # this is a helper service used because there's no official hardhat image
   l1_chain:
-    image: ethereumoptimism/hardhat:${DOCKER_TAG:-latest}
+    image: ethereumoptimism/hardhat:${DOCKER_TAG_HARDHAT:-latest}
     build:
       context: ./docker/hardhat
       dockerfile: Dockerfile
@@ -30,6 +30,7 @@ services:
       context: ..
       dockerfile: ./ops/docker/Dockerfile.packages
       target: deployer
+    image: ethereumoptimism/deployer:${DOCKER_TAG_DEPLOYER:-latest}
     entrypoint: ./deployer.sh
     environment:
       # Env vars for the deployment script.
@@ -72,6 +73,7 @@ services:
       context: ..
       dockerfile: ./ops/docker/Dockerfile.packages
       target: data-transport-layer
+    image: ethereumoptimism/data-transport-layer:${DOCKER_TAG_DATA_TRANSPORT_LAYER:-latest}
     # override with the dtl script and the env vars required for it
     entrypoint: ./dtl.sh
     env_file:
@@ -96,6 +98,7 @@ services:
     build:
       context: ..
       dockerfile: ./ops/docker/Dockerfile.geth
+    image: ethereumoptimism/l2geth:${DOCKER_TAG_L2GETH:-latest}
     # override with the geth script and the env vars required for it
     entrypoint: sh ./geth.sh
     env_file:
@@ -123,24 +126,20 @@ services:
   relayer:
     depends_on:
       - l1_chain
-      - deployer
       - l2geth
     deploy:
       replicas: 0
     build:
       context: ..
       dockerfile: ./ops/docker/Dockerfile.packages
-      target: relayer
+      target: message-relayer
+    image: ethereumoptimism/message-relayer:${DOCKER_TAG_MESSAGE_RELAYER:-latest}
     entrypoint: ./relayer.sh
     environment:
-      L1_NODE_WEB3_URL: http://l1_chain:8545
-      L2_NODE_WEB3_URL: http://l2geth:8545
-      URL: http://deployer:8081/addresses.json
-      # a funded hardhat account
-      L1_WALLET_KEY: '0xdbda1821b80551c9d65939329250298aa3472ba22feea921c0cf5d620ea67b97'
+      MESSAGE_RELAYER__L1RPCPROVIDER: http://l1_chain:8545
+      MESSAGE_RELAYER__L2RPCPROVIDER: http://l2geth:8545
+      MESSAGE_RELAYER__L1WALLET: '0xdbda1821b80551c9d65939329250298aa3472ba22feea921c0cf5d620ea67b97'
       RETRIES: 60
-      POLLING_INTERVAL: 500
-      GET_LOGS_INTERVAL: 500
 
   verifier:
     depends_on:
@@ -153,6 +152,7 @@ services:
     build:
       context: ..
       dockerfile: ./ops/docker/Dockerfile.geth
+    image: ethereumoptimism/l2geth:${DOCKER_TAG_L2GETH:-latest}
     entrypoint: sh ./geth.sh
     env_file:
       - ./envs/geth.env
@@ -179,6 +179,7 @@ services:
     build:
       context: ..
       dockerfile: ./ops/docker/Dockerfile.geth
+    image: ethereumoptimism/l2geth:${DOCKER_TAG_L2GETH:-latest}
     entrypoint: sh ./geth.sh
     env_file:
       - ./envs/geth.env
@@ -203,6 +204,7 @@ services:
       context: ..
       dockerfile: ./ops/docker/Dockerfile.packages
       target: integration-tests
+    image: ethereumoptimism/integration-tests:${DOCKER_TAG_INTEGRATION_TESTS:-latest}
     entrypoint: ./integration-tests.sh
     environment:
       L1_URL: http://l1_chain:8545
@@ -226,6 +228,7 @@ services:
     build:
       context: ..
       dockerfile: ./ops/docker/Dockerfile.gas-oracle
+    image: ethereumoptimism/gas-oracle:${DOCKER_TAG_GAS_ORACLE:-latest}
     entrypoint: ./gas-oracle.sh
     environment:
       GAS_PRICE_ORACLE_ETHEREUM_HTTP_URL: http://l2geth:8545
@@ -240,6 +243,7 @@ services:
     build:
       context: ..
       dockerfile: ./ops/docker/Dockerfile.batch-submitter-service
+    image: ethereumoptimism/batch-submitter-service:${DOCKER_TAG_BATCH_SUBMITTER_SERVICE:-latest}
     entrypoint: ./batch-submitter.sh
     env_file:
       - ./envs/batch-submitter.env
