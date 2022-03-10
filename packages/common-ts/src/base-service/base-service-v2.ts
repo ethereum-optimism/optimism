@@ -110,12 +110,16 @@ export abstract class BaseServiceV2<
     // Use commander as a way to communicate info about the service. We don't actually *use*
     // commander for anything besides the ability to run `ts-node ./service.ts --help`.
     const program = new Command()
+    const reg = /L_1|L_2/g
     for (const [optionName, optionSpec] of Object.entries(params.optionsSpec)) {
+      const repl = optionName.includes('l1') ? 'L1' : 'L2'
       program.addOption(
         new Option(`--${optionName.toLowerCase()}`, `${optionSpec.desc}`).env(
-          `${params.name
-            .replace(/-/g, '_')
-            .toUpperCase()}__${optionName.toUpperCase()}`
+          `${snakeCase(
+            params.name.replace(/-/g, '_')
+          ).toUpperCase()}__${snakeCase(optionName)
+            .toUpperCase()
+            .replace(reg, repl)}`
         )
       )
     }
