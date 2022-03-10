@@ -1,5 +1,17 @@
 # @eth-optimism/replica-healthcheck
 
+## 1.0.0
+
+### Major Changes
+
+- e264f03f: Rewrite replica-healthcheck with BaseServiceV2
+
+### Patch Changes
+
+- Updated dependencies [b3f9bdef]
+- Updated dependencies [e53b5783]
+  - @eth-optimism/common-ts@0.2.2
+
 ## 0.3.11
 
 ### Patch Changes
