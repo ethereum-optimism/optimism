@@ -46,6 +46,7 @@ contract MockL2OutputOracle {
         require(block.timestamp > _timestamp, "Cannot append L2 output in future");
         require(_l2Output != bytes32(0), "Cannot submit empty L2 output");
         require(_timestamp == nextTimestamp(), "Timestamp not equal to next expected timestamp");
+        // todo: add require statement to ensure a specific prev-hash exists on the current chain
         l2Outputs[_timestamp] = _l2Output;
         latestBlockTimestamp = _timestamp;
     }

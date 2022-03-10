@@ -8,8 +8,9 @@ that maintains 1:1 compatibility with Ethereum.
 
 - [Glossary](glossary.md)
 - [Deposits](deposits.md)
+- [Withdrawals](withdrawals.md)
 - [Execution Engine](exec-engine.md)
-- [L2 output root Proposals](proposals.md)
+- [L2 Output Root Proposals](proposals.md)
 - [Rollup Node](rollup-node.md)
 
 ## Design Goals

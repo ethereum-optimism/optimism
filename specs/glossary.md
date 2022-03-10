@@ -37,6 +37,7 @@
   - [L2 Derivation Inputs](#l2-derivation-inputs)
   - [Payload Attributes](#payload-attributes)
   - [L1 Attributes Predeployed Contract](#l1-attributes-predeployed-contract)
+  - [L2 output](#l2-output)
 - [Execution Engine Concepts](#execution-engine-concepts)
   - [Execution Engine](#execution-engine)
 
@@ -366,6 +367,14 @@ A [predeployed contract][predeploy] on L2 that can be used to retrieve the L1 bl
 block number or a given block hash.
 
 cf. [L1 Attributes Predeployed Contract Specification](deposits.md#l1-attributes-predeployed-contract)
+
+## L2 output
+
+[l2-output]: glossary.md#l2-output
+
+A 32 byte value representing the current state of the L2 chain.
+
+cf. [Proposing L2 output commitments](proposals.md#l2-output-root-proposals-specification)
 
 ------------------------------------------------------------------------------------------------------------------------
 

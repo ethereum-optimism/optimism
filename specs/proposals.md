@@ -1,4 +1,4 @@
-# L2 output root Proposals Specification
+# L2 Output Root Proposals Specification
 
 <!-- All glossary references in this file. -->
 [g-rollup-node]: glossary.md#rollup-node
@@ -7,8 +7,12 @@
 <!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
 **Table of Contents**
 
-- [Proposing L2 output commitments](#proposing-l2-output-commitments)
-- [L2 output commitment construction](#l2-output-commitment-construction)
+- [Constants](#constants)
+- [Proposing L2 Output Commitments](#proposing-l2-output-commitments)
+- [L2 Output Commitment Construction](#l2-output-commitment-construction)
+- [L2 Output Oracle Smart Contract](#l2-output-oracle-smart-contract)
+- [Security Considerations](#security-considerations)
+  - [L1 Reorgs](#l1-reorgs)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
@@ -24,15 +28,39 @@ are part of later specification milestones.
 
 [cannon]: https://github.com/ethereum-optimism/cannon
 
-## Proposing L2 output commitments
+## Definitions
 
-The proposer's role is to construct and submit output commitments on a configurable interval to a contract on L1.
+### Constants
 
-TODO: describe integration with rollup node and L2 execution engine (see PR #179).
+| Name                   | Value | Unit    |
+| ---------------------- | ----- | ------- |
+| `SUBMISSION_FREQUENCY` | `100` | seconds |
+| `L2_BLOCK_TIME`        | `2`   | seconds |
 
-TODO: link to contract specification/source of L2 Output oracle on L1.
+### Types
 
-## L2 output commitment construction
+The `ForkSpec` type contains the height and blockhash for a block in the L1 chain.
+
+```js
+struct ForkSpec {
+    uint256 blockHeight;
+    bytes32 blockHash;
+}
+```
+
+## Proposing L2 Output Commitments
+
+The proposer's role is to construct and submit output commitments on a configurable interval to a contract on  , which
+it does by running the [L2 output submitter](../l2os/) service (AKA L2OSS). This service periodically queries the rollup
+ node's [`optimism_outputAtBlock` rpc method](./rollup-node.md#l2-output-rpc-method) for the latest output root derived
+ from the latest [finalized](rollup-node.md#finalization-guarantees) L1 block. The construction of this output root is
+ described [below](#l2-output-commitment-construction).
+
+If there is no newly finalized output, the service continues querying until it receives one. It then submits this
+output, and the appropriate timestamp, to the [L2 Output Commitment](#l2-output-commitment-smart-contract) contract's
+`appendL2Output()` function. The timestamp MUST be the next multiple of the `SUBMISSION_FREQUENCY` value.
+
+## L2 Output Commitment Construction
 
 This merkle-structure is defined with [SSZ], a type system for merkleization and serialization, used in
 L1 (beacon-chain). However, we replace `sha256` with `keccak256` to save gas costs in the EVM.
@@ -42,7 +70,7 @@ L1 (beacon-chain). However, we replace `sha256` with `keccak256` to save gas cos
 ```python
 class L2Output(Container):
   state_root: Bytes32
-  withdrawal_storage_root: Bytes32  # TODO: withdrawals specifcation work-in-progress
+  withdrawal_storage_root: Bytes32  # TODO: withdrawals specification work-in-progress
   latest_block: ExecutionPayload  # includes block hash
   history_accumulator_root: Bytes32  # Not functional yet
   extension: Bytes32
@@ -71,3 +99,55 @@ This is a work-in-progress, see [issue 181](https://github.com/ethereum-optimism
 
 The `extension` is a zeroed `Bytes32`, to be substituted with a SSZ container to extend merkleized information in future
 upgrades. This keeps the static merkle structure forwards-compatible.
+
+## L2 Output Oracle Smart Contract
+
+L2 blocks are produced at a constant rate of `L2_BLOCK_TIME` (2 seconds).
+A new L2 output MUST be appended to the chain once per `SUBMISSION_FREQUENCY` (100 seconds). Note that interval is based on L2 time. It is OK to have L2 outputs
+submitted at larger or small intervals
+
+The L2 Output Oracle contract implements the following interface:
+
+```js
+/**
+ * Data necessary to ensure that the output is being written to the expected fork of the L1 chain.
+ * This protects against an erroneous commitment in the event of an L1 reorg.
+ */
+struct ForkSpec {
+    uint256 blockHeight;
+    bytes32 blockHash;
+}
+
+/**
+ * Accepts an L2 output checkpoint and the timestamp of the corresponding L2
+ * block. The timestamp must be equal to the current value returned by
+ * `nextTimestamp()` in order to be accepted.
+ * @param _l2Output The L2 output of the checkpoint block.
+ * @param _timestamp The L2 block timestamp that resulted in _l2Output.
+ * @param _forkSpecifier A commitment to a specific fork.
+ */
+function appendL2Output(bytes32 _l2Output, uint256 _timestamp, ForkSpec _forkSpecifier) external
+
+
+/**
+ * Computes the timestamp of the next L2 block that needs to be
+ * checkpointed.
+ */
+function nextTimestamp() public view returns (uint256) {
+    return latestBlockTimestamp + submissionFrequency;
+}
+
+/**
+ * Computes the L2 block number given a target L2 block timestamp.
+ * @param _timestamp The L2 block timestamp of the target block.
+ */
+function computeL2BlockNumber(uint256 _timestamp) public view returns (uint256)
+```
+
+## Security Considerations
+
+### L1 Reorgs
+
+If the L1 has a reorg after an output has been generated and submitted, the L2 state and correct output may change
+leading to a faulty proposal. This is mitigated against in the OutputOracle by checking that the block at
+`_forkSpecifier.blockHeight` has the expected hash `_forkSpecifier.blockHash`.
