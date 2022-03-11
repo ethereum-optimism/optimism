@@ -104,7 +104,7 @@ func handleMessage(ctx context.Context, msg *pubsub.Message, eclient *ethclient.
 		msg.Nack()
 		return // retry later
 	}
-	if err == ethereum.NotFound {
+	if err == nil {
 		log.Info("Skipping transaction", "hash", txHash.String())
 		msg.Ack()
 		return
