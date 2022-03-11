@@ -509,12 +509,14 @@ func (d *Driver) ingestDeposits(
 			}
 
 			deposits = append(deposits, db.Deposit{
-				ID:             event.DepositId.Uint64(),
-				TxnHash:        event.Raw.TxHash,
-				BlockNumber:    event.Raw.BlockNumber,
-				BlockTimestamp: time.Unix(int64(header.Time), 0),
-				Address:        event.Emitter,
-				Amount:         event.Amount,
+				ID:      event.DepositId.Uint64(),
+				Address: event.Emitter,
+				Amount:  event.Amount,
+				ConfirmationInfo: db.ConfirmationInfo{
+					TxnHash:        event.Raw.TxHash,
+					BlockNumber:    event.Raw.BlockNumber,
+					BlockTimestamp: time.Unix(int64(header.Time), 0),
+				},
 			})
 		}
 		err = events.Error()
