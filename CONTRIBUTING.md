@@ -138,6 +138,8 @@ docker-compose build
 docker-compose up
 ```
 
+**If a node process exits with exit code: 137** you may need to increase the default memory limit of docker containers
+
 Finally, **if you're running into weird problems and nothing seems to be working**, run:
 
 ```bash
