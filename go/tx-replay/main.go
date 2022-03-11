@@ -2,22 +2,25 @@ package main
 
 import (
 	"context"
-	"flag"
-	"log"
+	"fmt"
+	"os"
+
+	"github.com/urfave/cli"
 
 	"cloud.google.com/go/pubsub"
 
 	ethereum "github.com/ethereum-optimism/optimism/l2geth"
 	"github.com/ethereum-optimism/optimism/l2geth/core/types"
 	"github.com/ethereum-optimism/optimism/l2geth/ethclient"
+	"github.com/ethereum-optimism/optimism/l2geth/log"
+	"github.com/ethereum-optimism/optimism/l2geth/params"
 	"github.com/ethereum-optimism/optimism/l2geth/rlp"
 )
 
 var (
-	project      = flag.String("gcp-project", "", "Google project-name")
-	topic        = flag.String("topic", "", "PUB/SUB topic name to subscribe to")
-	sequencerURL = flag.String("sequencer-url", "http://0.0.0.0:8545", "sequencer URL to replay txs")
-	subscription = flag.String("sub", "", "subscription ID")
+	GitVersion = ""
+	GitCommit  = ""
+	GitDate    = ""
 
 	SubscriptionReceiveSettings = pubsub.ReceiveSettings{
 		MaxOutstandingMessages: 100000,
@@ -25,68 +28,96 @@ var (
 	}
 )
 
-func init() {
-	flag.Parse()
+func main() {
+	log.Root().SetHandler(
+		log.LvlFilterHandler(
+			log.LvlInfo,
+			log.StreamHandler(os.Stdout, log.TerminalFormat(true)),
+		),
+	)
+
+	app := cli.NewApp()
+	app.Flags = flags
+	app.Version = fmt.Sprintf("%s-%s", GitVersion, params.VersionWithCommit(GitCommit, GitDate))
+	app.Name = "tx-replay"
+	app.Usage = "Transaction replay"
+	app.Description = "Replay transactions from Google PubSub to a sequencer"
+	app.Action = Main()
+	if err := app.Run(os.Args); err != nil {
+		log.Crit("Application failed", "message", err)
+	}
 }
 
-func main() {
-	ctx := context.Background()
-	client, err := pubsub.NewClient(ctx, *project)
-	if err != nil {
-		log.Fatalf("Failed to create pubsub client: %v", err)
-	}
-	defer client.Close()
-
-	sub := client.Subscription(*subscription)
-	sub.ReceiveSettings = SubscriptionReceiveSettings
-
-	eclient, err := ethclient.DialContext(ctx, *sequencerURL)
-	if err != nil {
-		log.Fatalf("Failed to create ethclient: %v", err)
-	}
-
-	// sanity check sub configs
-	subConfig, err := sub.Config(ctx)
-	if err != nil {
-		log.Fatalf("Failed to retrieve subscription config: %v", err)
-	}
-	if !subConfig.EnableMessageOrdering {
-		log.Fatal("invalid sub config: message ordering is not enabled")
-	}
-
-	cb := func(ctx context.Context, msg *pubsub.Message) {
-		var tx types.Transaction
-		if err := rlp.DecodeBytes(msg.Data, &tx); err != nil {
-			msg.Nack()
-			log.Fatalf("invalid transaction in queue: %v", err)
-		}
-
-		txHash := tx.Hash()
-		rtx, _, err := eclient.TransactionByHash(ctx, txHash)
-		if err != nil && err != ethereum.NotFound {
-			log.Printf("ERROR: unable to retrieve transaction hash %s: %v", txHash.String(), err)
-			msg.Nack()
-			return // retry later
-		}
-		if rtx != nil || err == ethereum.NotFound {
-			log.Printf("Skipping transaction hash %s", txHash.String())
-			msg.Ack()
-			return
-		}
-
-		jason, _ := tx.MarshalJSON()
-		log.Printf("Replaying transaction %s: %s\n", txHash.String(), string(jason))
-
-		if err := eclient.SendTransaction(ctx, &tx); err != nil {
-			msg.Nack()
-			log.Fatalf("Failed to replay transaction %s: %v", txHash.String(), err)
-		}
-		msg.Ack()
-	}
-	for {
-		err = sub.Receive(ctx, cb)
+func Main() func(ctx *cli.Context) error {
+	return func(ctx *cli.Context) error {
+		client, err := pubsub.NewClient(context.Background(), ctx.GlobalString(GcpProjectFlag.Name))
 		if err != nil {
-			log.Fatalf("unable to receive msg: %v", err)
+			log.Error("Failed to create pubsub client", "msg", err)
+			return err
+		}
+		defer client.Close()
+
+		sub := client.Subscription(ctx.GlobalString(SubscriptionIDFlag.Name))
+		sub.ReceiveSettings = SubscriptionReceiveSettings
+
+		eclient, err := ethclient.DialContext(context.Background(), ctx.GlobalString(SequencerURLFlag.Name))
+		if err != nil {
+			log.Error("Failed to create ethclient", "msg", err)
+			return err
+		}
+
+		// sanity check sub configs
+		/*
+			subConfig, err := sub.Config(context.Background())
+			if err != nil {
+				log.Error("Failed to retrieve subscription config", "msg", err)
+				return err
+			}
+			if !subConfig.EnableMessageOrdering {
+				return errors.New("invalid sub config: message ordering is not enabled")
+			}
+		*/
+
+		for {
+			err = sub.Receive(context.Background(), func(ctx context.Context, msg *pubsub.Message) {
+				handleMessage(ctx, msg, eclient)
+			})
+			if err != nil {
+				log.Error("unable to receive message", "msg", err)
+			}
 		}
 	}
+}
+
+func handleMessage(ctx context.Context, msg *pubsub.Message, eclient *ethclient.Client) {
+	var tx types.Transaction
+	if err := rlp.DecodeBytes(msg.Data, &tx); err != nil {
+		msg.Nack()
+		log.Error("invalid transaction in queue", "msg", err)
+		// TODO: Backoff for a bit?
+	}
+
+	txHash := tx.Hash()
+	_, _, err := eclient.TransactionByHash(ctx, txHash)
+	if err == ethereum.NotFound {
+		log.Info("Skipping transaction", "hash", txHash.String())
+		msg.Ack()
+		return
+	}
+	if err != nil {
+		log.Error("unable to retrieve transaction", "hash", txHash.String(), "msg", err)
+		msg.Nack()
+		return // retry later
+	}
+
+	jason, _ := tx.MarshalJSON()
+	log.Info("Replaying transaction", "hash", txHash.String(), "tx", string(jason))
+
+	if err := eclient.SendTransaction(ctx, &tx); err != nil {
+		msg.Nack()
+		log.Error("Failed to replay transaction", "hash", txHash.String(), "msg", err)
+		return
+	}
+	msg.Ack()
+
 }
