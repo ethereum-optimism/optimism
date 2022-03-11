@@ -1,0 +1,32 @@
+package derive
+
+import (
+	"testing"
+
+	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/stretchr/testify/assert"
+)
+
+func TestBatchRoundTrip(t *testing.T) {
+	batches := []BatchV1{
+		{
+			Epoch:        0,
+			Timestamp:    0,
+			Transactions: []hexutil.Bytes{},
+		},
+		{
+			Epoch:        1,
+			Timestamp:    1647026951,
+			Transactions: []hexutil.Bytes{[]byte{0, 0, 0}, []byte{0x76, 0xfd, 0x7c}},
+		},
+	}
+
+	for i, batch := range batches {
+		enc, err := batch.MarshalBinary()
+		assert.NoError(t, err)
+		var dec BatchV1
+		err = dec.UnmarshalBinary(enc)
+		assert.NoError(t, err)
+		assert.Equal(t, batch, dec, "Batch not equal test case %v", i)
+	}
+}

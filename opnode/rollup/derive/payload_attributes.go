@@ -186,13 +186,19 @@ func BatchesFromEVMTransactions(config *rollup.Config, txs []*types.Transaction)
 		if to := tx.To(); to != nil && *to == config.BatchInboxAddress {
 			seqDataSubmitter, err := l1Signer.Sender(tx)
 			if err != nil {
+				// TODO: log error
 				continue // bad signature, ignore
 			}
 			// some random L1 user might have sent a transaction to our batch inbox, ignore them
 			if seqDataSubmitter != config.BatchSenderAddress {
 				continue // not an authorized batch submitter, ignore
 			}
-			out = append(out, ParseBatches(tx.Data())...)
+			batch, err := ParseBatch(tx.Data())
+			if err != nil {
+				// TODO: log error
+				continue
+			}
+			out = append(out, batch)
 		}
 	}
 	return
@@ -327,15 +333,4 @@ func DeriveDeposits(l1Info L1Info, receipts []*types.Receipt) ([]l2.Data, error)
 		encodedTxs = append(encodedTxs, opaqueTx)
 	}
 	return encodedTxs, nil
-}
-
-type BatchData struct {
-	Epoch     rollup.Epoch // aka l1 num
-	Timestamp uint64
-	// no feeRecipient address input, all fees go to a L2 contract
-	Transactions []l2.Data
-}
-
-func ParseBatches(data l2.Data) []BatchData {
-	return nil // TODO
 }
