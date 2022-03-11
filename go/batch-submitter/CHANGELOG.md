@@ -1,5 +1,12 @@
 # @eth-optimism/batch-submitter-service
 
+## 0.1.7
+
+### Patch Changes
+
+- aca0684e: Add 20% buffer to gas estimation on tx-batch submission to prevent OOG reverts
+- 75040ca5: Adds MIN_L1_TX_SIZE configuration
+
 ## 0.1.6
 
 ### Patch Changes

@@ -1,6 +1,6 @@
 {
   "name": "@eth-optimism/contracts",
-  "version": "0.5.16",
+  "version": "0.5.17",
   "description": "[Optimism] L1 and L2 smart contracts for Optimism",
   "main": "dist/index",
   "types": "dist/index",
@@ -66,6 +66,9 @@
   "devDependencies": {
     "@codechecks/client": "^0.1.11",
     "@defi-wonderland/smock": "^2.0.2",
+    "@ethersproject/abi": "^5.6.0",
+    "@ethersproject/bytes": "^5.6.0",
+    "@ethersproject/providers": "^5.6.0",
     "@nomiclabs/ethereumjs-vm": "^4.2.2",
     "@nomiclabs/hardhat-ethers": "^2.0.2",
     "@nomiclabs/hardhat-etherscan": "^2.1.6",
@@ -79,6 +82,7 @@
     "@types/lodash": "^4.14.168",
     "@types/mkdirp": "^1.0.1",
     "@types/mocha": "^8.2.2",
+    "@types/node": "^17.0.21",
     "@typescript-eslint/eslint-plugin": "^4.26.0",
     "@typescript-eslint/parser": "^4.26.0",
     "babel-eslint": "^10.1.0",
@@ -115,6 +119,7 @@
     "solhint": "^3.3.6",
     "solhint-plugin-prettier": "^0.0.5",
     "solidity-coverage": "^0.7.17",
+    "squirrelly": "^8.0.8",
     "ts-generator": "0.0.8",
     "ts-node": "^10.0.0",
     "typechain": "^6.0.2",

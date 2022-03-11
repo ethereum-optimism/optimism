@@ -1,5 +1,12 @@
 # @eth-optimism/common-ts
 
+## 0.2.2
+
+### Patch Changes
+
+- b3f9bdef: Have BaseServiceV2 gracefully catch exit signals
+- e53b5783: Introduces the new BaseServiceV2 class.
+
 ## 0.2.1
 
 ### Patch Changes

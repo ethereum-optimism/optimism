@@ -13,8 +13,12 @@ DISBURSER_ARTIFACT := ../../packages/contracts/artifacts/contracts/L2/teleportr/
 teleportr:
 	env GO111MODULE=on go build -v $(LDFLAGS) ./cmd/teleportr
 
+teleportr-api:
+	env GO111MODULE=on go build -v $(LDFLAGS) ./cmd/teleportr-api
+
 clean:
 	rm teleportr
+	rm api
 
 test:
 	go test -v ./...
@@ -48,6 +52,7 @@ bindings-disburser:
 
 .PHONY: \
 	teleportr \
+	teleportr-api \
 	bindings \
 	bindings-deposit \
 	bindings-disburser \

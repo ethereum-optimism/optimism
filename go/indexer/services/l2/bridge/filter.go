@@ -25,7 +25,6 @@ func FilterWithdrawalInitiatedWithRetry(filterer *l2bridge.L2StandardBridgeFilte
 			return res, err
 		default:
 			logger.Error("Error fetching filter", "err", err)
-			break
 		}
 		time.Sleep(clientRetryInterval)
 	}

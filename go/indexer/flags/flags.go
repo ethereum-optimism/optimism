@@ -29,28 +29,28 @@ var (
 		EnvVar:   prefixEnvVar("ETH_NETWORK_NAME"),
 	}
 	ChainIDFlag = cli.StringFlag{
-		Name: "chain-id",
-		Usage: "Ethereum chain ID",
+		Name:     "chain-id",
+		Usage:    "Ethereum chain ID",
 		Required: true,
-		EnvVar: prefixEnvVar("CHAIN_ID"),
+		EnvVar:   prefixEnvVar("CHAIN_ID"),
 	}
-	L1EthRpcFlag = cli.StringFlag{
+	L1EthRPCFlag = cli.StringFlag{
 		Name:     "l1-eth-rpc",
 		Usage:    "HTTP provider URL for L1",
 		Required: true,
 		EnvVar:   prefixEnvVar("L1_ETH_RPC"),
 	}
-	L2EthRpcFlag = cli.StringFlag{
+	L2EthRPCFlag = cli.StringFlag{
 		Name:     "l2-eth-rpc",
 		Usage:    "HTTP provider URL for L2",
 		Required: true,
 		EnvVar:   prefixEnvVar("L2_ETH_RPC"),
 	}
 	L1AddressManagerAddressFlag = cli.StringFlag{
-		Name: "l1-address-manager-address",
-		Usage: "Address of the L1 address manager",
+		Name:     "l1-address-manager-address",
+		Usage:    "Address of the L1 address manager",
 		Required: true,
-		EnvVar: prefixEnvVar("L1_ADDRESS_MANAGER_ADDRESS"),
+		EnvVar:   prefixEnvVar("L1_ADDRESS_MANAGER_ADDRESS"),
 	}
 	L2GenesisBlockHashFlag = cli.StringFlag{
 		Name:     "l2-genesis-block-hash",
@@ -150,6 +150,18 @@ var (
 		Value:  2000,
 		EnvVar: prefixEnvVar("MAX_HEADER_BATCH_SIZE"),
 	}
+	RESTHostnameFlag = cli.StringFlag{
+		Name:   "rest-hostname",
+		Usage:  "The hostname of the REST server",
+		Value:  "127.0.0.1",
+		EnvVar: prefixEnvVar("REST_HOSTNAME"),
+	}
+	RESTPortFlag = cli.Uint64Flag{
+		Name:   "rest-port",
+		Usage:  "The port of the REST server",
+		Value:  8080,
+		EnvVar: prefixEnvVar("REST_PORT"),
+	}
 	MetricsServerEnableFlag = cli.BoolFlag{
 		Name:   "metrics-server-enable",
 		Usage:  "Whether or not to run the embedded metrics server",
@@ -173,8 +185,8 @@ var requiredFlags = []cli.Flag{
 	BuildEnvFlag,
 	EthNetworkNameFlag,
 	ChainIDFlag,
-	L1EthRpcFlag,
-	L2EthRpcFlag,
+	L1EthRPCFlag,
+	L2EthRPCFlag,
 	L1AddressManagerAddressFlag,
 	L2GenesisBlockHashFlag,
 	DBHostFlag,
@@ -195,6 +207,8 @@ var optionalFlags = []cli.Flag{
 	MaxHeaderBatchSizeFlag,
 	StartBlockNumberFlag,
 	StartBlockHashFlag,
+	RESTHostnameFlag,
+	RESTPortFlag,
 	MetricsServerEnableFlag,
 	MetricsHostnameFlag,
 	MetricsPortFlag,
