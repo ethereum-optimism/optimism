@@ -207,7 +207,7 @@ export abstract class BaseServiceV2<
 
     // Gracefully handle stop signals.
     const stop = async (signal: string) => {
-      this.logger.info(`stopping service`, { signal })
+      this.logger.info(`stopping service with signal`, { signal })
       await this.stop()
       process.exit(0)
     }
@@ -263,9 +263,11 @@ export abstract class BaseServiceV2<
     this.running = false
 
     // Wait until the main loop has finished.
+    this.logger.info('stopping service, waiting for main loop to finish')
     while (!this.done) {
       await sleep(1000)
     }
+    this.logger.info('main loop finished, goodbye!')
   }
 
   /**
