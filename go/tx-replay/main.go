@@ -33,7 +33,7 @@ func main() {
 	ctx := context.Background()
 	client, err := pubsub.NewClient(ctx, *project)
 	if err != nil {
-		panic(err)
+		log.Fatalf("Failed to create pubsub client: %v", err)
 	}
 	defer client.Close()
 
@@ -42,13 +42,13 @@ func main() {
 
 	eclient, err := ethclient.DialContext(ctx, *sequencerURL)
 	if err != nil {
-		log.Fatal(err)
+		log.Fatalf("Failed to create ethclient: %v", err)
 	}
 
 	// sanity check sub configs
 	subConfig, err := sub.Config(ctx)
 	if err != nil {
-		log.Fatal(err)
+		log.Fatalf("Failed to retrieve subscription config: %v", err)
 	}
 	if !subConfig.EnableMessageOrdering {
 		log.Fatal("invalid sub config: message ordering is not enabled")
