@@ -9,6 +9,7 @@
   },
   "scripts": {
     "test": "hardhat test",
+    "test:slither": "slither .",
     "build": "hardhat compile",
     "lint:ts:check": "eslint .",
     "lint:contracts:check": "yarn solhint -f table 'contracts/**/*.sol'",

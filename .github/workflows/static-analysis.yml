@@ -1,0 +1,48 @@
+name: Contracts lint, test and static analysis
+
+on:
+  push:
+    branches:
+      - 'main'
+      - 'staging'
+  pull_request:
+  workflow_dispatch:
+
+env:
+  PYTEST_ADDOPTS: "--color=yes"
+
+jobs:
+  slither:
+    name: Slither run
+    runs-on: ubuntu-latest
+    defaults:
+        run:
+            shell: bash
+            working-directory: ./packages/contracts
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions/setup-node@v2
+        with:
+            node-version: '14'
+            cache: 'yarn'
+      - run: yarn install
+
+      - name: Build
+        run: yarn build
+
+      - name: Lint
+        run: yarn lint:check
+
+      - name: Test
+        run: yarn test
+
+      - name: Set up Python 3.8
+        uses: actions/setup-python@v2
+        with:
+          python-version: '3.8'
+
+      - name: Install Slither
+        run: pip3 install slither-analyzer
+
+      - name: Run analysis
+        run: yarn test:slither
