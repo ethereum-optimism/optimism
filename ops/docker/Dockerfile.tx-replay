@@ -9,4 +9,3 @@ RUN apk --no-cache add ca-certificates
 WORKDIR /root/
 COPY --from=builder /app/tx-replay /usr/local/bin/
 ENTRYPOINT ["tx-replay"]
-CMD ["--help"]

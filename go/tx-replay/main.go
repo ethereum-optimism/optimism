@@ -99,15 +99,15 @@ func handleMessage(ctx context.Context, msg *pubsub.Message, eclient *ethclient.
 
 	txHash := tx.Hash()
 	_, _, err := eclient.TransactionByHash(ctx, txHash)
+	if err != nil && err != ethereum.NotFound {
+		log.Error("unable to retrieve transaction", "hash", txHash.String(), "msg", err)
+		msg.Nack()
+		return // retry later
+	}
 	if err == ethereum.NotFound {
 		log.Info("Skipping transaction", "hash", txHash.String())
 		msg.Ack()
 		return
-	}
-	if err != nil {
-		log.Error("unable to retrieve transaction", "hash", txHash.String(), "msg", err)
-		msg.Nack()
-		return // retry later
 	}
 
 	jason, _ := tx.MarshalJSON()
