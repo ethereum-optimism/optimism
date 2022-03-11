@@ -1,6 +1,6 @@
 import { ethers } from 'ethers'
 /** 
- * Gets the contract's artifact
+ * Gets the contract's artifact.
  * 
  * @param name Given contract's name. 
  * @returns Hardhat's artifact for the given contract. 
@@ -19,7 +19,7 @@ export const getContractArtifact = (name: string): any => {
 }
 
 /** 
- * Gets the contract's interface
+ * Gets the contract's interface.
  * 
  * @param name Given contract's name. 
  * @returns Interface for the given contract. 
@@ -30,7 +30,7 @@ export const getContractInterface = (name: string): ethers.utils.Interface => {
 }
 
 /** 
- * Gets the contract to deploy
+ * Gets the contract to deploy.
  * 
  * @param name Given contract's name. 
  * @param signer Signer of contract. 
