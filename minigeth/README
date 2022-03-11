@@ -1,9 +1,0 @@
-The pieces of geth needed to verify a block
-
-See `../sync_minigeth.sh`, most of this is just geth and we can copy many of the files
-
-The database has been abstracted in the `oracle/`, this does not use leveldb
-
-Running on PC, it fetches all the required pieces of state from RPC.
-
-Running on MIPS, it uses the oracle MMIO interface to get state based on hash.
