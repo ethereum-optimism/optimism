@@ -107,19 +107,28 @@ export abstract class BaseServiceV2<
       params.loopIntervalMs !== undefined ? params.loopIntervalMs : 0
     this.state = {} as TServiceState
 
+    /**
+     * Special snake_case function which accounts for the common strings "L1" and "L2" which would
+     * normally be split into "L_1" and "L_2" by the snake_case function.
+     *
+     * @param str String to convert to snake_case.
+     * @returns snake_case string.
+     */
+    const opSnakeCase = (str: string) => {
+      const reg = /l_1|l_2/g
+      const repl = str.includes('l1') ? 'l1' : 'l2'
+      return snakeCase(str).replace(reg, repl)
+    }
+
     // Use commander as a way to communicate info about the service. We don't actually *use*
     // commander for anything besides the ability to run `ts-node ./service.ts --help`.
     const program = new Command()
-    const reg = /L_1|L_2/g
     for (const [optionName, optionSpec] of Object.entries(params.optionsSpec)) {
-      const repl = optionName.includes('l1') ? 'L1' : 'L2'
       program.addOption(
         new Option(`--${optionName.toLowerCase()}`, `${optionSpec.desc}`).env(
-          `${snakeCase(
+          `${opSnakeCase(
             params.name.replace(/-/g, '_')
-          ).toUpperCase()}__${snakeCase(optionName)
-            .toUpperCase()
-            .replace(reg, repl)}`
+          ).toUpperCase()}__${opSnakeCase(optionName).toUpperCase()}`
         )
       )
     }
@@ -140,7 +149,7 @@ export abstract class BaseServiceV2<
       'after',
       `\nMetrics:\n${Object.entries(params.metricsSpec)
         .map(([metricName, metricSpec]) => {
-          const parsedName = snakeCase(metricName)
+          const parsedName = opSnakeCase(metricName)
           return `  ${parsedName}${' '.repeat(
             longestMetricNameLength - parsedName.length + 2
           )}${metricSpec.desc} (type: ${metricSpec.type.name})`
@@ -187,7 +196,7 @@ export abstract class BaseServiceV2<
     this.metrics = Object.keys(params.metricsSpec || {}).reduce((acc, key) => {
       const spec = params.metricsSpec[key]
       acc[key] = new spec.type({
-        name: `${snakeCase(params.name)}_${snakeCase(key)}`,
+        name: `${opSnakeCase(params.name)}_${opSnakeCase(key)}`,
         help: spec.desc,
         labelNames: spec.labels || [],
       })
@@ -198,7 +207,7 @@ export abstract class BaseServiceV2<
 
     // Gracefully handle stop signals.
     const stop = async (signal: string) => {
-      this.logger.info(`stopping service`, { signal })
+      this.logger.info(`stopping service with signal`, { signal })
       await this.stop()
       process.exit(0)
     }
@@ -254,9 +263,11 @@ export abstract class BaseServiceV2<
     this.running = false
 
     // Wait until the main loop has finished.
+    this.logger.info('stopping service, waiting for main loop to finish')
     while (!this.done) {
       await sleep(1000)
     }
+    this.logger.info('main loop finished, goodbye!')
   }
 
   /**
