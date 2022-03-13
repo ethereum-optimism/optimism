@@ -37,6 +37,7 @@ contracts -- A Merkleized MIPS processor on chain + the challenge logic
 
 ```
 make build
+make test # verify everything works correctly
 ```
 
 ## Usage
