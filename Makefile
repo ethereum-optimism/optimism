@@ -1,8 +1,12 @@
-build: unicorn minigeth_mips minigeth_default_arch mipsevm contracts
+build: unicorn submodules minigeth_mips minigeth_default_arch mipsevm contracts
 	yarn
 
 unicorn:
 	./build_unicorn.sh
+
+submodules:
+	git submodule init
+	git submodule update
 
 minigeth_mips:
 	cd mipigo && ./build.sh
@@ -67,5 +71,5 @@ mrproper: clean
 	rm -rf node_modules
 	rm -rf mipigo/venv
 
-.PHONY: build unicorn minigeth_mips minigeth_default_arch mipsevm contracts \
+.PHONY: build unicorn submodules minigeth_mips minigeth_default_arch mipsevm contracts \
 	clean mrproper test_challenge test_mipsevm test_minigeth test
