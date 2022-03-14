@@ -142,15 +142,15 @@ func NewConfig(ctx *cli.Context) (Config, error) {
 	return Config{
 		Hostname:          ctx.GlobalString(flags.APIHostnameFlag.Name),
 		Port:              uint16(ctx.GlobalUint64(flags.APIPortFlag.Name)),
-		L1EthRpc:          ctx.GlobalString(flags.APIL1EthRpcFlag.Name),
-		DepositAddress:    ctx.GlobalString(flags.APIDepositAddressFlag.Name),
-		NumConfirmations:  ctx.GlobalUint64(flags.APINumConfirmationsFlag.Name),
-		PostgresHost:      ctx.GlobalString(flags.APIPostgresHostFlag.Name),
-		PostgresPort:      uint16(ctx.GlobalUint64(flags.APIPostgresPortFlag.Name)),
-		PostgresUser:      ctx.GlobalString(flags.APIPostgresUserFlag.Name),
-		PostgresPassword:  ctx.GlobalString(flags.APIPostgresPasswordFlag.Name),
-		PostgresDBName:    ctx.GlobalString(flags.APIPostgresDBNameFlag.Name),
-		PostgresEnableSSL: ctx.GlobalBool(flags.APIPostgresEnableSSLFlag.Name),
+		L1EthRpc:          ctx.GlobalString(flags.L1EthRpcFlag.Name),
+		DepositAddress:    ctx.GlobalString(flags.DepositAddressFlag.Name),
+		NumConfirmations:  ctx.GlobalUint64(flags.NumDepositConfirmationsFlag.Name),
+		PostgresHost:      ctx.GlobalString(flags.PostgresHostFlag.Name),
+		PostgresPort:      uint16(ctx.GlobalUint64(flags.PostgresPortFlag.Name)),
+		PostgresUser:      ctx.GlobalString(flags.PostgresUserFlag.Name),
+		PostgresPassword:  ctx.GlobalString(flags.PostgresPasswordFlag.Name),
+		PostgresDBName:    ctx.GlobalString(flags.PostgresDBNameFlag.Name),
+		PostgresEnableSSL: ctx.GlobalBool(flags.PostgresEnableSSLFlag.Name),
 	}, nil
 }
 
