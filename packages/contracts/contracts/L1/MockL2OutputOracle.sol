@@ -62,7 +62,7 @@ contract MockL2OutputOracle {
      * Computes the L2 block number given a target L2 block timestamp.
      * @param _timestamp The L2 block timestamp of the target block.
      */
-    function computeL2BlockNumber(uint256 _timestamp) public view returns (uint256) {
+    function computeL2BlockNumber(uint256 _timestamp) external view returns (uint256) {
         require(_timestamp >= startingBlockTimestamp, "timestamp prior to startingBlockTimestamp");
         return historicalTotalBlocks + (_timestamp - startingBlockTimestamp) / l2BlockTime;
     }
