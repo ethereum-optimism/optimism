@@ -44,9 +44,10 @@ func NewGooglePublisher(ctx context.Context, config Config) (*GooglePublisher, e
 		timeout = time.Second * 2
 	}
 	return &GooglePublisher{
-		client: client,
-		topic:  topic, publishSettings: publishSettings,
-		timeout: timeout,
+		client:          client,
+		topic:           topic,
+		publishSettings: publishSettings,
+		timeout:         timeout,
 	}, nil
 }
 
