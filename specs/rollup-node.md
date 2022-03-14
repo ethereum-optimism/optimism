@@ -358,7 +358,7 @@ The input and return types here are as defined by the [engine API specs][engine-
 
 - method: `optimism_outputAtBlock`
 - params:
-  1. `QUANTITY` - L1 integer block number, or the strings `"safe"`, `"latest"`, or `"pending"`
+  1. `QUANTITY` - L2 integer block number, or the strings `"safe"`, `"latest"`, or `"pending"`
 - returns:
   2.`DATA` - The 32 byte output root
 
