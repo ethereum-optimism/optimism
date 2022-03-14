@@ -495,3 +495,78 @@ func TestDeletePendingTx(t *testing.T) {
 	require.Nil(t, err)
 	require.Nil(t, pendingTxs)
 }
+
+// TestLoadTeleports asserts that LoadTeleportByDepositHash and
+// LoadTeleportsByAddress are able to query for a spcific deposit in various
+// stages through the teleport process.
+func TestLoadTeleports(t *testing.T) {
+	t.Parallel()
+
+	d := newDatabase(t)
+	defer d.Close()
+
+	address := common.HexToAddress("0x01")
+	amount := big.NewInt(1000)
+	depTxnHash := common.HexToHash("0x0d01")
+	depBlockNumber := uint64(1)
+	disTxnHash := common.HexToHash("0x0e01")
+	disBlockNumber := uint64(2)
+
+	// Insert deposit.
+	deposit1 := db.Deposit{
+		ID:      1,
+		Address: address,
+		Amount:  amount,
+		ConfirmationInfo: db.ConfirmationInfo{
+			TxnHash:        depTxnHash,
+			BlockNumber:    depBlockNumber,
+			BlockTimestamp: testTimestamp,
+		},
+	}
+
+	err := d.UpsertDeposits([]db.Deposit{deposit1}, 0)
+	require.Nil(t, err)
+
+	// The same, undisbursed teleport should be retruned by hash and address.
+	expTeleport := db.Teleport{
+		Deposit:      deposit1,
+		Disbursement: nil,
+	}
+
+	teleport, err := d.LoadTeleportByDepositHash(depTxnHash)
+	require.Nil(t, err)
+	require.NotNil(t, teleport)
+	require.Equal(t, expTeleport, *teleport)
+
+	teleports, err := d.LoadTeleportsByAddress(address)
+	require.Nil(t, err)
+	require.Equal(t, []db.Teleport{expTeleport}, teleports)
+
+	// Insert a disbursement for the above deposit.
+	err = d.UpsertDisbursement(
+		1, disTxnHash, disBlockNumber, testTimestamp, true,
+	)
+	require.Nil(t, err)
+
+	// The now-complete teleport should be returned from both queries.
+	expTeleport = db.Teleport{
+		Deposit: deposit1,
+		Disbursement: &db.Disbursement{
+			Success: true,
+			ConfirmationInfo: db.ConfirmationInfo{
+				TxnHash:        disTxnHash,
+				BlockNumber:    disBlockNumber,
+				BlockTimestamp: testTimestamp,
+			},
+		},
+	}
+
+	teleport, err = d.LoadTeleportByDepositHash(depTxnHash)
+	require.Nil(t, err)
+	require.NotNil(t, teleport)
+	require.Equal(t, expTeleport, *teleport)
+
+	teleports, err = d.LoadTeleportsByAddress(address)
+	require.Nil(t, err)
+	require.Equal(t, []db.Teleport{expTeleport}, teleports)
+}
