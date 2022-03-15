@@ -251,8 +251,6 @@ workflows:
           working_directory: go/teleportr
       - check-contracts:
           name: Check contracts
-          requires:
-            - yarn-monorepo
 
 
 
