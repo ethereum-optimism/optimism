@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"os"
 	"strconv"
 	"time"
 
@@ -53,68 +52,9 @@ func Start(config *Config) (func(), error) {
 		}
 	}
 
-	backendNames := make([]string, 0)
-	backendsByName := make(map[string]*Backend)
-	for name, cfg := range config.Backends {
-		opts := make([]BackendOpt, 0)
-
-		rpcURL, err := ReadFromEnvOrConfig(cfg.RPCURL)
-		if err != nil {
-			return nil, err
-		}
-		wsURL, err := ReadFromEnvOrConfig(cfg.WSURL)
-		if err != nil {
-			return nil, err
-		}
-		if rpcURL == "" {
-			return nil, fmt.Errorf("must define an RPC URL for backend %s", name)
-		}
-		if wsURL == "" {
-			return nil, fmt.Errorf("must define a WS URL for backend %s", name)
-		}
-
-		if config.BackendOptions.ResponseTimeoutSeconds != 0 {
-			timeout := secondsToDuration(config.BackendOptions.ResponseTimeoutSeconds)
-			opts = append(opts, WithTimeout(timeout))
-		}
-		if config.BackendOptions.MaxRetries != 0 {
-			opts = append(opts, WithMaxRetries(config.BackendOptions.MaxRetries))
-		}
-		if config.BackendOptions.MaxResponseSizeBytes != 0 {
-			opts = append(opts, WithMaxResponseSize(config.BackendOptions.MaxResponseSizeBytes))
-		}
-		if config.BackendOptions.OutOfServiceSeconds != 0 {
-			opts = append(opts, WithOutOfServiceDuration(secondsToDuration(config.BackendOptions.OutOfServiceSeconds)))
-		}
-		if cfg.MaxRPS != 0 {
-			opts = append(opts, WithMaxRPS(cfg.MaxRPS))
-		}
-		if cfg.MaxWSConns != 0 {
-			opts = append(opts, WithMaxWSConns(cfg.MaxWSConns))
-		}
-		if cfg.Password != "" {
-			passwordVal, err := ReadFromEnvOrConfig(cfg.Password)
-			if err != nil {
-				return nil, err
-			}
-			opts = append(opts, WithBasicAuth(cfg.Username, passwordVal))
-		}
-		tlsConfig, err := configureBackendTLS(cfg)
-		if err != nil {
-			return nil, err
-		}
-		if tlsConfig != nil {
-			log.Info("using custom TLS config for backend", "name", name)
-			opts = append(opts, WithTLSConfig(tlsConfig))
-		}
-		if cfg.StripTrailingXFF {
-			opts = append(opts, WithStrippedTrailingXFF())
-		}
-		opts = append(opts, WithProxydIP(os.Getenv("PROXYD_IP")))
-		back := NewBackend(name, rpcURL, wsURL, lim, opts...)
-		backendNames = append(backendNames, name)
-		backendsByName[name] = back
-		log.Info("configured backend", "name", name, "rpc_url", rpcURL, "ws_url", wsURL)
+	backendNames, backendsByName, err := config.BuildBackends(lim)
+	if err != nil {
+		return nil, err
 	}
 
 	backendGroups := make(map[string]*BackendGroup)
@@ -151,17 +91,9 @@ func Start(config *Config) (func(), error) {
 		}
 	}
 
-	var resolvedAuth map[string]string
-
-	if config.Authentication != nil {
-		resolvedAuth = make(map[string]string)
-		for secret, alias := range config.Authentication {
-			resolvedSecret, err := ReadFromEnvOrConfig(secret)
-			if err != nil {
-				return nil, err
-			}
-			resolvedAuth[resolvedSecret] = alias
-		}
+	resolvedAuth, err := config.ResolveAuth()
+	if err != nil {
+		return nil, err
 	}
 
 	var (

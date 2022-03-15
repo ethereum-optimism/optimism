@@ -1,9 +1,13 @@
 package proxyd
 
 import (
+	"errors"
 	"fmt"
+	"math/big"
 	"os"
 	"strings"
+
+	"github.com/ethereum/go-ethereum/log"
 )
 
 type ServerConfig struct {
@@ -60,6 +64,11 @@ type BackendGroupsConfig map[string]*BackendGroupConfig
 
 type MethodMappingsConfig map[string]string
 
+type EthConfig struct {
+	L2ChainID          *big.Int `toml:"l2_chain_id"`
+	BedrockCutoffBlock *big.Int `toml:"bedrock_cutoff_block"`
+}
+
 type Config struct {
 	WSBackendGroup    string              `toml:"ws_backend_group"`
 	Server            ServerConfig        `toml:"server"`
@@ -72,6 +81,108 @@ type Config struct {
 	BackendGroups     BackendGroupsConfig `toml:"backend_groups"`
 	RPCMethodMappings map[string]string   `toml:"rpc_method_mappings"`
 	WSMethodWhitelist []string            `toml:"ws_method_whitelist"`
+	Eth               EthConfig           `toml:"eth_config"`
+	LogFormat         string              `toml:"log_format"`
+}
+
+func (c *Config) ResolveAuth() (map[string]string, error) {
+	var resolvedAuth map[string]string
+	if c.Authentication != nil {
+		resolvedAuth = make(map[string]string)
+		for secret, alias := range c.Authentication {
+			resolvedSecret, err := ReadFromEnvOrConfig(secret)
+			if err != nil {
+				return nil, err
+			}
+			resolvedAuth[resolvedSecret] = alias
+		}
+	}
+	return resolvedAuth, nil
+}
+
+func (c *Config) BuildBackends(lim RateLimiter) ([]string, map[string]*Backend, error) {
+	backendNames := make([]string, 0)
+	backendsByName := make(map[string]*Backend)
+
+	for name, cfg := range c.Backends {
+		opts := make([]BackendOpt, 0)
+
+		rpcURL, err := ReadFromEnvOrConfig(cfg.RPCURL)
+		if err != nil {
+			return nil, nil, err
+		}
+		wsURL, err := ReadFromEnvOrConfig(cfg.WSURL)
+		if err != nil {
+			return nil, nil, err
+		}
+		if rpcURL == "" {
+			return nil, nil, fmt.Errorf("must define an RPC URL for backend %s", name)
+		}
+		if wsURL == "" {
+			return nil, nil, fmt.Errorf("must define a WS URL for backend %s", name)
+		}
+
+		if c.BackendOptions.ResponseTimeoutSeconds != 0 {
+			timeout := secondsToDuration(c.BackendOptions.ResponseTimeoutSeconds)
+			opts = append(opts, WithTimeout(timeout))
+		}
+		if c.BackendOptions.MaxRetries != 0 {
+			opts = append(opts, WithMaxRetries(c.BackendOptions.MaxRetries))
+		}
+		if c.BackendOptions.MaxResponseSizeBytes != 0 {
+			opts = append(opts, WithMaxResponseSize(c.BackendOptions.MaxResponseSizeBytes))
+		}
+		if c.BackendOptions.OutOfServiceSeconds != 0 {
+			opts = append(opts, WithOutOfServiceDuration(secondsToDuration(c.BackendOptions.OutOfServiceSeconds)))
+		}
+		if cfg.MaxRPS != 0 {
+			opts = append(opts, WithMaxRPS(cfg.MaxRPS))
+		}
+		if cfg.MaxWSConns != 0 {
+			opts = append(opts, WithMaxWSConns(cfg.MaxWSConns))
+		}
+		if cfg.Password != "" {
+			passwordVal, err := ReadFromEnvOrConfig(cfg.Password)
+			if err != nil {
+				return nil, nil, err
+			}
+			opts = append(opts, WithBasicAuth(cfg.Username, passwordVal))
+		}
+		tlsConfig, err := configureBackendTLS(cfg)
+		if err != nil {
+			return nil, nil, err
+		}
+		if tlsConfig != nil {
+			log.Info("using custom TLS config for backend", "name", name)
+			opts = append(opts, WithTLSConfig(tlsConfig))
+		}
+		if cfg.StripTrailingXFF {
+			opts = append(opts, WithStrippedTrailingXFF())
+		}
+		opts = append(opts, WithProxydIP(os.Getenv("PROXYD_IP")))
+		back := NewBackend(name, rpcURL, wsURL, lim, opts...)
+		backendNames = append(backendNames, name)
+		backendsByName[name] = back
+		log.Info("configured backend", "name", name, "rpc_url", rpcURL, "ws_url", wsURL)
+	}
+
+	return backendNames, backendsByName, nil
+}
+
+func (c *Config) ValidateDaisyChainBackends() error {
+	valid := false
+	for name := range c.Backends {
+		switch name {
+		case "epoch1", "epoch2", "epoch3", "epoch4", "epoch5", "epoch6":
+			valid = true
+		default:
+			continue
+		}
+	}
+	if valid {
+		return nil
+	}
+	return errors.New("invalid backend name configuration")
 }
 
 func ReadFromEnvOrConfig(value string) (string, error) {

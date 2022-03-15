@@ -94,6 +94,10 @@ type Backend struct {
 	proxydIP             string
 }
 
+func (b *Backend) String() string {
+	return b.Name
+}
+
 type BackendOpt func(b *Backend)
 
 func WithBasicAuth(username, password string) BackendOpt {

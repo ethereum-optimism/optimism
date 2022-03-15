@@ -1,0 +1,33 @@
+log_format = "fmt"
+
+[server]
+# Host for the proxyd RPC server to listen on.
+rpc_host = "0.0.0.0"
+# Port for the above.
+rpc_port = 8545
+# Maximum client body size, in bytes, that the server will accept.
+max_body_size_bytes = 10485760
+
+[metrics]
+# Whether or not to enable Prometheus metrics.
+enabled = true
+# Host for the Prometheus metrics endpoint to listen on.
+host = "0.0.0.0"
+# Port for the above.
+port = 9761
+
+[backend]
+# How long proxyd should wait for a backend response before timing out.
+response_timeout_seconds = 5
+# Maximum response size, in bytes, that proxyd will accept from a backend.
+max_response_size_bytes = 5242880
+# Maximum number of times proxyd will try a backend before giving up.
+max_retries = 6
+
+[backends]
+[backends.epoch6]
+rpc_url = "$GOOD_BACKEND_RPC_URL"
+ws_url = "$GOOD_BACKEND_RPC_URL"
+
+[eth_config]
+l2_chain_id = 1056

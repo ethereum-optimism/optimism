@@ -7,6 +7,9 @@ proxyd:
 	go build -v $(LDFLAGS) -o ./bin/proxyd ./cmd/proxyd
 .PHONY: proxyd
 
+daisychain:
+	go build -v $(LDFLAGS) -o ./bin/daisychain ./cmd/daisychain
+
 fmt:
 	go mod tidy
 	gofmt -w .

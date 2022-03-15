@@ -1,0 +1,27 @@
+log_format = "fmt"
+
+[server]
+# Host for the proxyd RPC server to listen on.
+rpc_host = "0.0.0.0"
+# Port for the above.
+rpc_port = 8080
+# Host for the proxyd WS server to listen on.
+ws_host = "0.0.0.0"
+# Port for the above
+ws_port = 8085
+# Maximum client body size, in bytes, that the server will accept.
+max_body_size_bytes = 10485760
+
+[backend]
+response_timeout_seconds = 5
+max_response_size_bytes = 5242880
+max_retries = 6
+
+[backends]
+[backends.foo]
+rpc_url = "http://127.0.0.1:9999"
+ws_url = "http://127.0.0.1:9998"
+
+[eth_config]
+l2_chain_id = 10
+bedrock_cutoff_block = 10
