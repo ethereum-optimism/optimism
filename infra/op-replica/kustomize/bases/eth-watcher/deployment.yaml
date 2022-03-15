@@ -1,0 +1,33 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: eth-watcher
+  labels:
+    app: eth-watcher
+spec:
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: eth-watcher
+    spec:
+      serviceAccountName: replica-operator
+      containers:
+        - name: eth-watcher
+          image: ethereumoptimism/eth-watcher
+          command:
+            - eth-watcher
+          env:
+            - name: GETH_URL
+              value: http://l2geth-replica:8545
+            - name: STOP_HEIGHT
+              value: "1561000"
+            - name: NAMESPACE
+              value: kovan-replica-0-4-14
+          resources:
+            limits:
+              memory: 256Mi
+              cpu: 512m
+            requests:
+              memory: 128Mi
+              cpu: 256m
