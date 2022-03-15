@@ -186,10 +186,10 @@ jobs:
       - checkout
       - run:
           name: Install dependencies
-          command: yarn &&  yarn build
+          command: yarn && yarn build
       - run:
           name: Run Slither
-          command: slither ./packages/contracts
+          command: yarn test:slither
 
 
 workflows:
