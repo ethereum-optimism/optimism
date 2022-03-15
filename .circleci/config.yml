@@ -8,22 +8,13 @@ slack-nightly-build-fail-post-step: &slack-nightly-build-fail-post-step
         channel: $SLACK_DEFAULT_CHANNEL
         event: fail
         template: basic_fail-1
-commands:
-  go-build-check-docker:
-    parameters:
-      path:
-        description: Path to the project
-        type: string
-      make-cmd:
-        description: Make command to build the project
-    steps:
-      - run:
-          name: Lint
-          command: golangci-lint run ./...
-      - run:
-          name: 
-      - 
 
+executors:
+  go-builder:
+    docker:
+      - image: mslipper/go-builder:latest
+
+commands:
   build-dockerfile:
     parameters:
       image-name:
@@ -46,6 +37,7 @@ commands:
             echo -n "$STACKMAN_REPO_AUTH" | docker login -u _json_key --password-stdin https://us-east4-docker.pkg.dev
             docker build -t "$STACKMAN_REPO/<<parameters.image-name>>:nightly" -f <<parameters.dockerfile>> <<#parameters.target>>--target <<parameters.target>><</parameters.target>> .
             docker push "$STACKMAN_REPO/<<parameters.image-name>>:nightly"
+
 jobs:
   build-dtl:
     docker:
@@ -158,14 +150,40 @@ jobs:
           command: |
             echo "Dummy job."
 
+  go-build-check:
+    parameters:
+      binary_name:
+        description: Binary name to build
+      working_directory:
+        description: Working directory
+    executor: go-builder
+    steps:
+      - run:
+          name: Lint
+          command: golangci-lint run -E goimports -E sqlclosecheck -E bodyclose -E asciicheck ./...
+          working_directory: <<parameters.working_directory>
+      - run:
+          name: Test
+          command: |
+            mkdir -p /test-results
+            gotestsum --junitfile /test-results/tests.xml
+          working_directory: <<parameters.working_directory>
+      - store_test_results:
+          path: /test-results
+      - run:
+          name: Build
+          command: make <<parameters.binary_name>>
+          working_directory: <<parameters.working_directory>
+
 
 workflows:
   pull-requests:
     jobs:
       - checkout
-      - check-batch-submitter:
-        context:
-          - optimism
+      - go-build-check:
+          name: Check batch submitter
+          binary_name: batch-submitter
+          working_directory: batch-submitter
 
 
   nightly-itests:
