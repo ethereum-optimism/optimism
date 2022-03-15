@@ -235,8 +235,7 @@ jobs:
 workflows:
   pull-requests:
     jobs:
-      - yarn-monorepo:
-          name: Install yarn dependencies
+      - yarn-monorepo
       - go-build-check:
           name: Check batch submitter
           binary_name: batch-submitter
