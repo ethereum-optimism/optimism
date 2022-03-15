@@ -190,6 +190,7 @@ jobs:
       - run:
           name: Run Slither
           command: yarn test:slither
+          working_directory: packages/contracts
 
 
 workflows:
