@@ -28,6 +28,8 @@
   - [Depositor](#depositor)
   - [Deposited Transaction Type](#deposited-transaction-type)
   - [Deposit Contract](#deposit-contract)
+- [Withdrawals](#withdrawals)
+  - [Relayer](#relayer)
 - [Other L2 Chain Concepts](#other-l2-chain-concepts)
   - [Address Aliasing](#address-aliasing)
   - [L2 Chain Inception](#l2-chain-inception)
@@ -283,6 +285,26 @@ is part of the *internal* execution between contracts, and this intermediate cal
 [Merkle Patricia Trie roots][mpt] included in the L1 block.
 
 cf. [Deposits Specification](deposits.md)
+
+------------------------------------------------------------------------------------------------------------------------
+
+# Withdrawals
+
+[withdrawals]: glossary.md#withdrawals
+
+In general, a withdrawal is a transaction sent from L2 to L1 that may transfer of data and/or value.
+
+This term *withdrawal* is somewhat ambiguous as these "transactions" exist at multiple levels. In order to differentiate
+ between the L1 and L2 components of a withdrawal we introduce the following terms:
+
+- A *withdrawing* call or transaction occurs on L2 and initiates a withdrawal.
+- A *withdrawn* call or transaction occurs on l1 as the result of an withdrawal being relayed on L1.
+
+## Relayer
+
+[relayer]: glossary.md#withdrawals
+
+An EOA on L1 which finalizes a withdrawal by providing submitting the data necessary to verify its inclusion on L2.
 
 ------------------------------------------------------------------------------------------------------------------------
 
