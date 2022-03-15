@@ -4,11 +4,12 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"github.com/ethereum-optimism/optimism/go/proxyd"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"sync"
+
+	"github.com/ethereum-optimism/optimism/go/proxyd"
 )
 
 type RecordedRequest struct {

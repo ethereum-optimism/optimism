@@ -2,13 +2,14 @@ package integration_tests
 
 import (
 	"fmt"
-	"github.com/ethereum-optimism/optimism/go/proxyd"
-	"github.com/stretchr/testify/require"
 	"net/http"
 	"os"
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/ethereum-optimism/optimism/go/proxyd"
+	"github.com/stretchr/testify/require"
 )
 
 const (
