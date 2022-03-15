@@ -59,7 +59,7 @@ contract MIPS {
       emit TryReadMemory(addr);
       ret = m.ReadMemory(stateHash, addr);
       //emit DidReadMemory(addr, ret);
-      return;
+      return ret;
     }
     assembly {
       ret := sload(addr)
