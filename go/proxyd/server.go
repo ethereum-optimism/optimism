@@ -107,15 +107,15 @@ func (s *Server) WSListenAndServe(host string, port int) error {
 
 func (s *Server) Shutdown() {
 	if s.rpcServer != nil {
-		s.rpcServer.Shutdown(context.Background())
+		_ = s.rpcServer.Shutdown(context.Background())
 	}
 	if s.wsServer != nil {
-		s.wsServer.Shutdown(context.Background())
+		_ = s.wsServer.Shutdown(context.Background())
 	}
 }
 
 func (s *Server) HandleHealthz(w http.ResponseWriter, r *http.Request) {
-	w.Write([]byte("OK"))
+	_, _ = w.Write([]byte("OK"))
 }
 
 func (s *Server) HandleRPC(w http.ResponseWriter, r *http.Request) {
@@ -159,7 +159,7 @@ func (s *Server) HandleRPC(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		batchRes := make([]*RPCRes, len(reqs), len(reqs))
+		batchRes := make([]*RPCRes, len(reqs))
 		var batchContainsCached bool
 		for i := 0; i < len(reqs); i++ {
 			req, err := ParseRPCReq(reqs[i])
@@ -301,7 +301,7 @@ func (s *Server) populateContext(w http.ResponseWriter, r *http.Request) context
 		}
 		return context.WithValue(
 			r.Context(),
-			ContextKeyReqID,
+			ContextKeyReqID, //nolint:staticcheck
 			randStr(10),
 		)
 	}
@@ -321,8 +321,8 @@ func (s *Server) populateContext(w http.ResponseWriter, r *http.Request) context
 		}
 	}
 
-	ctx := context.WithValue(r.Context(), ContextKeyAuth, s.authenticatedPaths[authorization])
-	ctx = context.WithValue(ctx, ContextKeyXForwardedFor, xff)
+	ctx := context.WithValue(r.Context(), ContextKeyAuth, s.authenticatedPaths[authorization]) //nolint:staticcheck
+	ctx = context.WithValue(ctx, ContextKeyXForwardedFor, xff) //nolint:staticcheck
 	return context.WithValue(
 		ctx,
 		ContextKeyReqID,
@@ -411,17 +411,6 @@ func GetXForwardedFor(ctx context.Context) string {
 		return ""
 	}
 	return xff
-}
-
-type recordLenReader struct {
-	io.Reader
-	Len int
-}
-
-func (r *recordLenReader) Read(p []byte) (n int, err error) {
-	n, err = r.Reader.Read(p)
-	r.Len += n
-	return
 }
 
 type recordLenWriter struct {

@@ -217,7 +217,11 @@ func Start(config *Config) (func(), error) {
 	if config.Metrics.Enabled {
 		addr := fmt.Sprintf("%s:%d", config.Metrics.Host, config.Metrics.Port)
 		log.Info("starting metrics server", "addr", addr)
-		go http.ListenAndServe(addr, promhttp.Handler())
+		go func() {
+			if err := http.ListenAndServe(addr, promhttp.Handler()); err != nil {
+				log.Error("error starting metrics server", "err", err)
+			}
+		}()
 	}
 
 	// To allow integration tests to cleanly come up, wait
