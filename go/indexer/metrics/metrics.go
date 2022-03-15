@@ -2,12 +2,13 @@ package metrics
 
 import (
 	"fmt"
+	"net/http"
+
 	l2common "github.com/ethereum-optimism/optimism/l2geth/common"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
-	"net/http"
 )
 
 const metricsNamespace = "indexer"

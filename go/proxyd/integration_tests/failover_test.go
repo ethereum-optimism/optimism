@@ -2,13 +2,14 @@ package integration_tests
 
 import (
 	"fmt"
-	"github.com/ethereum-optimism/optimism/go/proxyd"
-	"github.com/stretchr/testify/require"
 	"net/http"
 	"os"
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/ethereum-optimism/optimism/go/proxyd"
+	"github.com/stretchr/testify/require"
 )
 
 const (
@@ -39,7 +40,7 @@ func TestFailover(t *testing.T) {
 			"backend responds 200 with non-JSON response",
 			http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				w.WriteHeader(200)
-				w.Write([]byte("this data is not JSON!"))
+				_, _ = w.Write([]byte("this data is not JSON!"))
 			}),
 		},
 		{
@@ -87,7 +88,7 @@ func TestFailover(t *testing.T) {
 	t.Run("backend times out and falls back to another", func(t *testing.T) {
 		badBackend.SetHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			time.Sleep(2 * time.Second)
-			w.Write([]byte("{}"))
+			_, _ = w.Write([]byte("{}"))
 		}))
 		res, statusCode, err := client.SendRPC("eth_chainId", nil)
 		require.NoError(t, err)
@@ -133,7 +134,7 @@ func TestRetries(t *testing.T) {
 			w.WriteHeader(500)
 			return
 		}
-		w.Write([]byte(goodResponse))
+		_, _ = w.Write([]byte(goodResponse))
 	}))
 
 	// test case where request eventually succeeds
@@ -169,7 +170,7 @@ func TestOutOfServiceInterval(t *testing.T) {
 	defer shutdown()
 
 	okHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte(goodResponse))
+		_, _ = w.Write([]byte(goodResponse))
 	})
 	badBackend.SetHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(503)
@@ -190,10 +191,12 @@ func TestOutOfServiceInterval(t *testing.T) {
 	require.Equal(t, 2, len(badBackend.Requests()))
 	require.Equal(t, 2, len(goodBackend.Requests()))
 
-	res, statusCode, err = client.SendBatchRPC(
+	_, statusCode, err = client.SendBatchRPC(
 		NewRPCReq("1", "eth_chainId", nil),
 		NewRPCReq("1", "eth_chainId", nil),
 	)
+	require.NoError(t, err)
+	require.Equal(t, 200, statusCode)
 	require.Equal(t, 2, len(badBackend.Requests()))
 	require.Equal(t, 4, len(goodBackend.Requests()))
 

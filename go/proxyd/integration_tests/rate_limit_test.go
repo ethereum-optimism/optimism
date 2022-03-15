@@ -1,10 +1,11 @@
 package integration_tests
 
 import (
-	"github.com/ethereum-optimism/optimism/go/proxyd"
-	"github.com/stretchr/testify/require"
 	"os"
 	"testing"
+
+	"github.com/ethereum-optimism/optimism/go/proxyd"
+	"github.com/stretchr/testify/require"
 )
 
 type resWithCode struct {
