@@ -185,7 +185,7 @@ workflows:
       - go-build-check:
           name: Check batch submitter
           binary_name: batch-submitter
-          working_directory: batch-submitter
+          working_directory: go/batch-submitter
 
 
   nightly-itests:
