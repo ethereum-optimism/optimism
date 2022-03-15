@@ -160,6 +160,7 @@ jobs:
         type: string
     executor: go-builder
     steps:
+      - checkout
       - run:
           name: Lint
           command: golangci-lint run -E goimports -E sqlclosecheck -E bodyclose -E asciicheck ./...
@@ -181,7 +182,6 @@ jobs:
 workflows:
   pull-requests:
     jobs:
-      - checkout
       - go-build-check:
           name: Check batch submitter
           binary_name: batch-submitter
