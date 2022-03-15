@@ -186,6 +186,10 @@ workflows:
           name: Check batch submitter
           binary_name: batch-submitter
           working_directory: go/batch-submitter
+      - go-build-check:
+          name: Check proxyd
+          binary_name: proxyd
+          working_directory: go/proxyd
 
 
   nightly-itests:
