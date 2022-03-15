@@ -196,6 +196,16 @@ workflows:
           name: Check teleportr
           binary_name: teleportr
           working_directory: go/teleportr
+      - slither:
+          name: Check slither
+          docker:
+            - image: mslipper/slither:latest
+          steps:
+            - checkout
+            - run:
+                name: Run Slither
+                command: slither ./packages/contracts
+
 
 
   nightly-itests:
