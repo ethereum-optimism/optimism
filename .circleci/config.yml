@@ -190,6 +190,10 @@ workflows:
           name: Check proxyd
           binary_name: proxyd
           working_directory: go/proxyd
+      - go-build-check:
+          name: Check teleportr
+          binary_name: teleportr
+          working_directory: go/teleportr
 
 
   nightly-itests:
