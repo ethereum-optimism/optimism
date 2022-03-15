@@ -1,5 +1,5 @@
 ---
-'@eth-optimism/data-transport-layer': minor
+'@eth-optimism/data-transport-layer': patch
 ---
 
 dtl: Support basic authentication for RPC endpoints
