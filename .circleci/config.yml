@@ -7,33 +7,23 @@ slack-nightly-build-fail-post-step: &slack-nightly-build-fail-post-step
     - slack/notify:
         channel: $SLACK_DEFAULT_CHANNEL
         event: fail
-        custom: |
-          {
-            "text": "",
-            "blocks": [
-              {
-                "type": "section",
-                "text": {
-                  "type": "mrkdwn",
-                  "text": "🔴 Nightly build failed!"
-                }
-              },
-              {
-                "type": "actions",
-                "elements": [
-                  {
-                    "type": "button",
-                    "text": {
-                      "type": "plain_text",
-                      "text": "View Job"
-                    },
-                    "url": "${CIRCLE_BUILD_URL}"
-                  }
-                ]
-              }
-            ]
-          }
+        template: basic_fail-1
 commands:
+  go-build-check-docker:
+    parameters:
+      path:
+        description: Path to the project
+        type: string
+      make-cmd:
+        description: Make command to build the project
+    steps:
+      - run:
+          name: Lint
+          command: golangci-lint run ./...
+      - run:
+          name: 
+      - 
+
   build-dockerfile:
     parameters:
       image-name:
@@ -170,6 +160,14 @@ jobs:
 
 
 workflows:
+  pull-requests:
+    jobs:
+      - checkout
+      - check-batch-submitter:
+        context:
+          - optimism
+
+
   nightly-itests:
     triggers:
       - schedule:
