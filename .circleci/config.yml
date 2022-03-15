@@ -158,7 +158,9 @@ jobs:
       working_directory:
         description: Working directory
         type: string
-    executor: go-builder
+    docker:
+      - image: mslipper/go-builder:latest
+      - image: cimg/postgres:12.0
     steps:
       - checkout
       - run:
@@ -181,8 +183,6 @@ jobs:
 
 workflows:
   pull-requests:
-    docker:
-      - image: cimg/postgres:12.0
     jobs:
       - go-build-check:
           name: Check batch submitter
