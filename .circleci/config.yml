@@ -154,8 +154,10 @@ jobs:
     parameters:
       binary_name:
         description: Binary name to build
+        type: string
       working_directory:
         description: Working directory
+        type: string
     executor: go-builder
     steps:
       - run:
