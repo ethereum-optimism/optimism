@@ -160,7 +160,7 @@ jobs:
         type: string
     docker:
       - image: mslipper/go-builder:latest
-      - image: cimg/postgres:13.1
+      - image: cimg/postgres:14.1
     steps:
       - checkout
       - run:
