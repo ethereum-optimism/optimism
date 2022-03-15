@@ -236,7 +236,7 @@ workflows:
   pull-requests:
     jobs:
       - yarn-monorepo:
-          name: Install monorepo yarn dependencies
+          name: Install yarn dependencies
       - go-build-check:
           name: Check batch submitter
           binary_name: batch-submitter
@@ -251,6 +251,8 @@ workflows:
           working_directory: go/teleportr
       - check-contracts:
           name: Check contracts
+          requires:
+            - yarn-monorepo
 
 
 
