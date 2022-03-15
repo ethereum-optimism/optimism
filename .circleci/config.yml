@@ -164,19 +164,19 @@ jobs:
       - run:
           name: Lint
           command: golangci-lint run -E goimports -E sqlclosecheck -E bodyclose -E asciicheck ./...
-          working_directory: <<parameters.working_directory>
+          working_directory: <<parameters.working_directory>>
       - run:
           name: Test
           command: |
             mkdir -p /test-results
             gotestsum --junitfile /test-results/tests.xml
-          working_directory: <<parameters.working_directory>
+          working_directory: <<parameters.working_directory>>
       - store_test_results:
           path: /test-results
       - run:
           name: Build
           command: make <<parameters.binary_name>>
-          working_directory: <<parameters.working_directory>
+          working_directory: <<parameters.working_directory>>
 
 
 workflows:
