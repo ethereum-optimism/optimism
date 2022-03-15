@@ -255,7 +255,7 @@ func (b *Backend) ProxyWS(clientConn *websocket.Conn, methodWhitelist *StringSet
 		return nil, ErrBackendOverCapacity
 	}
 
-	backendConn, _, err := b.dialer.Dial(b.wsURL, nil)
+	backendConn, _, err := b.dialer.Dial(b.wsURL, nil) // nolint:bodyclose
 	if err != nil {
 		b.setOffline()
 		if err := b.rateLimiter.DecBackendWSConns(b.Name); err != nil {
@@ -578,7 +578,7 @@ func (w *WSProxier) backendPump(ctx context.Context, errC chan error) {
 		if err != nil {
 			errC <- err
 			if err := w.clientConn.WriteMessage(websocket.CloseMessage, formatWSError(err)); err != nil {
-				 log.Error("error writing clientConn message", "err", err)
+				log.Error("error writing clientConn message", "err", err)
 			}
 			return
 		}

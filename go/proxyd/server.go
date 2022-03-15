@@ -322,7 +322,7 @@ func (s *Server) populateContext(w http.ResponseWriter, r *http.Request) context
 	}
 
 	ctx := context.WithValue(r.Context(), ContextKeyAuth, s.authenticatedPaths[authorization]) //nolint:staticcheck
-	ctx = context.WithValue(ctx, ContextKeyXForwardedFor, xff) //nolint:staticcheck
+	ctx = context.WithValue(ctx, ContextKeyXForwardedFor, xff)                                 //nolint:staticcheck
 	return context.WithValue(
 		ctx,
 		ContextKeyReqID,

@@ -133,7 +133,7 @@ func TestRetries(t *testing.T) {
 			w.WriteHeader(500)
 			return
 		}
-		w.Write([]byte(goodResponse))
+		_, _ = w.Write([]byte(goodResponse))
 	}))
 
 	// test case where request eventually succeeds
@@ -169,7 +169,7 @@ func TestOutOfServiceInterval(t *testing.T) {
 	defer shutdown()
 
 	okHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte(goodResponse))
+		_, _ = w.Write([]byte(goodResponse))
 	})
 	badBackend.SetHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(503)
@@ -194,6 +194,8 @@ func TestOutOfServiceInterval(t *testing.T) {
 		NewRPCReq("1", "eth_chainId", nil),
 		NewRPCReq("1", "eth_chainId", nil),
 	)
+	require.NoError(t, err)
+	require.Equal(t, 200, statusCode)
 	require.Equal(t, 2, len(badBackend.Requests()))
 	require.Equal(t, 4, len(goodBackend.Requests()))
 

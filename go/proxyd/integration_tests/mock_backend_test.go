@@ -27,7 +27,7 @@ type MockBackend struct {
 func SingleResponseHandler(code int, response string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(code)
-		w.Write([]byte(response))
+		_, _ = w.Write([]byte(response))
 	}
 }
 
