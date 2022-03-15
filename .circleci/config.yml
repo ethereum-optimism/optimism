@@ -180,7 +180,7 @@ jobs:
           command: make <<parameters.binary_name>>
           working_directory: <<parameters.working_directory>>
 
-  yarn-install:
+  yarn-monorepo:
     docker:
       - image: mslipper/slither:latest
     steps:
@@ -235,6 +235,8 @@ jobs:
 workflows:
   pull-requests:
     jobs:
+      - yarn-monorepo:
+          name: Install monorepo yarn dependencies
       - go-build-check:
           name: Check batch submitter
           binary_name: batch-submitter
@@ -250,7 +252,7 @@ workflows:
       - check-contracts:
           name: Check contracts
           requires:
-            - yarn-install
+            - yarn-monorepo
 
 
 
