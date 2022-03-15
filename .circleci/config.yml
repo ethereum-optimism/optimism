@@ -186,11 +186,7 @@ jobs:
       - checkout
       - run:
           name: Install dependencies
-          command: |
-            yarn
-            yarn build
-            yarn build:contracts
-            yarn autogen:artifacts
+          command: yarn &&  yarn build
       - run:
           name: Run Slither
           command: slither ./packages/contracts
