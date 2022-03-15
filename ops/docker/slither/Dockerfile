@@ -1,0 +1,8 @@
+FROM python:3.8.12-slim-buster
+
+RUN apt-get update && \
+	apt-get install -y curl openssh-client git build-essential ca-certificates && \
+	curl -sL https://deb.nodesource.com/setup_16.x -o nodesource_setup.sh && \
+	bash nodesource_setup.sh && \
+	npm i -g yarn && \
+	pip install slither-analyzer
