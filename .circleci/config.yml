@@ -179,14 +179,53 @@ jobs:
           name: Build
           command: make <<parameters.binary_name>>
           working_directory: <<parameters.working_directory>>
-  slither:
+
+  yarn-install:
     docker:
       - image: mslipper/slither:latest
     steps:
+      - restore_cache:
+          keys:
+            - v1-source-{{ .Branch }}-{{ .Revision }}
+            - v1-source-{{ .Branch }}
       - checkout
+      - save_cache:
+          key: v1-source-{{ .Branch }}-{{ .Revision }}
+          paths:
+            - ".git"
+      - restore_cache:
+          keys:
+            - v1-yarn-{{ checksum "yarn.lock" }}
+            - v1-yarn
       - run:
           name: Install dependencies
-          command: yarn && yarn build
+          command: yarn --frozen-lockfile
+      - save_cache:
+          key: v1-yarn-{{ checksum "yarn.lock" }}
+          paths: 
+            - node_modules
+            - packages/common-ts/node_modules
+            - packages/contracts/node_modules
+            - packages/core-utils/node_modules
+            - packages/data-transport-layer/node_modules
+            - packages/message-relayer/node_modules
+            - packages/replica-healthcehck/node_modules
+            - packages/sdk/node_modules
+
+  check-contracts:
+    docker:
+      - image: mslipper/slither:latest
+    steps:
+      - restore_cache:
+          keys:
+            - v1-source-{{ .Branch }}-{{ .Revision }}
+      - checkout
+      - restore_cache:
+          keys:
+            - v1-yarn-{{ checksum "yarn.lock" }}
+      - run:
+          name: Build monorepo
+          command: yarn build
       - run:
           name: Run Slither
           command: yarn test:slither
@@ -208,8 +247,10 @@ workflows:
           name: Check teleportr
           binary_name: teleportr
           working_directory: go/teleportr
-      - slither:
-          name: Slither run
+      - check-contracts:
+          name: Check contracts
+          requires:
+            - yarn-install
 
 
 
