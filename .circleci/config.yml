@@ -185,6 +185,13 @@ jobs:
     steps:
       - checkout
       - run:
+          name: Install dependencies
+          command: |
+            yarn
+            yarn build
+            yarn build:contracts
+            yarn autogen:artifacts
+      - run:
           name: Run Slither
           command: slither ./packages/contracts
 
