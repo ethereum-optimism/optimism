@@ -195,13 +195,13 @@ jobs:
             - ".git"
       - restore_cache:
           keys:
-            - v1-yarn-{{ checksum "yarn.lock" }}
-            - v1-yarn
+            - v1-yarn-install-{{ checksum "yarn.lock" }}
+            - v1-yarn-install
       - run:
           name: Install dependencies
           command: yarn --frozen-lockfile
       - save_cache:
-          key: v1-yarn-{{ checksum "yarn.lock" }}
+          key: v1-yarn-install-{{ checksum "yarn.lock" }}
           paths: 
             - node_modules
             - packages/common-ts/node_modules
@@ -211,6 +211,14 @@ jobs:
             - packages/message-relayer/node_modules
             - packages/replica-healthcehck/node_modules
             - packages/sdk/node_modules
+            - integration-tests/node_modules
+      - run:
+          name: Build monorepo
+          command: yarn build
+      - save_cache:
+          key: v1-yarn-build-{{ .Revision }}
+          paths:
+            - "."
 
   check-contracts:
     docker:
@@ -218,14 +226,8 @@ jobs:
     steps:
       - restore_cache:
           keys:
-            - v1-source-{{ .Branch }}-{{ .Revision }}
+            - v1-yarn-build-{{ .Revision }}
       - checkout
-      - restore_cache:
-          keys:
-            - v1-yarn-{{ checksum "yarn.lock" }}
-      - run:
-          name: Build monorepo
-          command: yarn build
       - run:
           name: Run Slither
           command: yarn test:slither
