@@ -179,6 +179,14 @@ jobs:
           name: Build
           command: make <<parameters.binary_name>>
           working_directory: <<parameters.working_directory>>
+  slither:
+    docker:
+      - image: mslipper/slither:latest
+    steps:
+      - checkout
+      - run:
+          name: Run Slither
+          command: slither ./packages/contracts
 
 
 workflows:
@@ -197,14 +205,7 @@ workflows:
           binary_name: teleportr
           working_directory: go/teleportr
       - slither:
-          name: Check slither
-          docker:
-            - image: mslipper/slither:latest
-          steps:
-            - checkout
-            - run:
-                name: Run Slither
-                command: slither ./packages/contracts
+          name: Slither run
 
 
 
