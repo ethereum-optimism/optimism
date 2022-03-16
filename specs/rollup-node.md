@@ -167,6 +167,8 @@ entries.
 [deposit-contract-spec]: deposits.md#deposit-contract
 
 Each of the derived `PayloadAttributes` starts with a L1 Attributes transaction.
+Like other derived deposits, this does not have to be batch-submitted, and exposes the required L1 information for the
+process of finding the sync starting point of the L2 chain, without requiring L2 state access.
 
 The [User-deposited] transactions are all put in the first of the derived `PayloadAttributes`,
 inserted after the L1 Attributes transaction, before any [sequenced][g-sequencing] transactions.

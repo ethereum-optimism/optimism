@@ -77,10 +77,9 @@ for a variable-length encoding scheme.
 Although we define only one new transaction type, we can distinguish between two kinds of deposited
 transactions, based on their positioning in the L2 block:
 
-1. The first transaction MUST be a [L1 attributes deposited transaction][l1-attr-deposit], followed
-   by
+1. The first transaction MUST be a [L1 attributes deposited transaction][l1-attr-deposit], followed by
 2. an array of zero-or-more [user-deposited transactions][user-deposited] submitted to the deposit
-   feed contract on L1.
+   feed contract on L1. User-deposited transactions are only present in the first block of a L2 epoch.
 
 We only define a single new transaction type in order to minimize modifications to L1 client
 software, and complexity in general.
