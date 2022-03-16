@@ -20,8 +20,12 @@ export interface L1DataTransportServiceOptions {
   dangerouslyCatchAllErrors?: boolean
   hostname: string
   l1RpcProvider: string
+  l1RpcProviderUser?: string
+  l1RpcProviderPassword?: string
   l2ChainId: number
   l2RpcProvider: string
+  l2RpcProviderUser?: string
+  l2RpcProviderPassword?: string
   metrics?: Metrics
   dbPath: string
   logsPerPollingInterval: number
