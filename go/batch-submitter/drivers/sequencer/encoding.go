@@ -328,14 +328,23 @@ func (p *AppendSequencerBatchParams) Read(r io.Reader) error {
 		p.Contexts = append(p.Contexts, batchContext)
 	}
 
-	// Handle newer batch type decodings.
+	// Define a closure to clean up the reader used by the specified encoding.
+	var closeReader func() error
 	switch batchType {
+
+	// The legacy serialization does not require clsing, so we instatiate a
+	// dummy closure.
+	case BatchTypeLegacy:
+		closeReader = func() error { return nil }
+
+	// The zlib serialization requires decompression before reading the
+	// plaintext bytes, and also requires proper cleanup.
 	case BatchTypeZlib:
 		zr, err := zlib.NewReader(r)
 		if err != nil {
 			return err
 		}
-		defer zr.Close()
+		closeReader = zr.Close
 
 		r = bufio.NewReader(zr)
 	}
@@ -355,7 +364,7 @@ func (p *AppendSequencerBatchParams) Read(r io.Reader) error {
 			if len(p.Txs) == 0 && len(p.Contexts) != 0 {
 				return ErrMalformedBatch
 			}
-			return nil
+			return closeReader()
 		} else if err != nil {
 			return err
 		}
