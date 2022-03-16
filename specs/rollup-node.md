@@ -128,6 +128,7 @@ The rollup reads the following data from the [sequencing window][g-sequencing-wi
       - `min_l2_timestamp < batch.timestamp < max_l2_timestamp`, i.e. timestamp is within range
       - The batch is the first batch with `batch.timestamp` in this sequencing window,
         i.e. one batch per L2 block number
+      - The batch only contains sequenced transactions, i.e. it must NOT contain any Deposit-type transactions.
 
 [random]: https://eips.ethereum.org/EIPS/eip-4399
 
@@ -149,7 +150,7 @@ Batch contents:
 
 - `epoch` is the sequencing window epoch, i.e. the first L1 block number
 - `timestamp` is the L2 timestamp of the block
-- `transaction_list` is an RLP encoded list of [EIP-2718] encoded transactions
+- `transaction_list` is an RLP encoded list of [EIP-2718] encoded transactions.
 
 [EIP-2718]: https://eips.ethereum.org/EIPS/eip-2718
 
@@ -207,7 +208,8 @@ The object's properties must be set as follows:
 - `timestamp` is set to the timestamp of the L1 block.
 - `random` is set to the *random* L1 block attribute
 - `suggestedFeeRecipient` is set to an address determined by the system
-- `transactions` is an array of the derived deposits, encoded as per the two preceding sections.
+- `transactions` is an array of the derived transactions: deposited transactions and sequenced transactions.
+   All encoded with [EIP-2718]. Sequenced transactions must exclude any Deposit-type transactions.
 
 [expanded-payload]: exec-engine.md#extended-payloadattributesv1
 [`PayloadAttributesV1`]: https://github.com/ethereum/execution-apis/blob/main/src/engine/specification.md#payloadattributesv1
