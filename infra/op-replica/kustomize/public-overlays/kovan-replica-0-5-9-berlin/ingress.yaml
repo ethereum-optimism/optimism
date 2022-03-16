@@ -1,0 +1,28 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: kovan-replica-0-5-9-berlin
+  annotations:
+    kubernetes.io/ingress.class: gce
+    kubernetes.io/ingress.global-static-ip-name: kovan-replica-0-5-9-berlin
+    networking.gke.io/managed-certificates: kovan-replica-0-5-9-berlin
+spec:
+  rules:
+  - host: kovan-replica-0-5-9-berlin.optimism.io
+    http:
+      paths:
+      - backend:
+          service:
+            name: l2geth-replica
+            port:
+              name: rpc
+        path: /
+        pathType: ImplementationSpecific
+---
+apiVersion: networking.gke.io/v1
+kind: ManagedCertificate
+metadata:
+  name: kovan-replica-0-5-9-berlin
+spec:
+  domains:
+  - kovan-replica-0-5-9-berlin.optimism.io

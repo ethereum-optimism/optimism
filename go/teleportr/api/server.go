@@ -279,7 +279,7 @@ func (s *Server) HandleStatus(
 	balanceAfterMaxDeposit := new(big.Int).Add(
 		curBalance, maxDepositAmount,
 	)
-	isAvailable := curBalance.Cmp(balanceAfterMaxDeposit) >= 0
+	isAvailable := maxBalance.Cmp(balanceAfterMaxDeposit) >= 0
 
 	resp := StatusResponse{
 		CurrentBalanceWei:   curBalance.String(),
@@ -395,7 +395,7 @@ type RPCTeleport struct {
 	TxHash         string           `json:"tx_hash"`
 	BlockNumber    string           `json:"block_number"`
 	BlockTimestamp string           `json:"block_timestamp_unix"`
-	Disbursement   *RPCDisbursement `json:"disbursement,omitempty"`
+	Disbursement   *RPCDisbursement `json:"disbursement"`
 }
 
 func makeRPCTeleport(teleport *db.Teleport) RPCTeleport {
@@ -407,7 +407,7 @@ func makeRPCTeleport(teleport *db.Teleport) RPCTeleport {
 		BlockNumber:    strconv.FormatUint(teleport.Deposit.BlockNumber, 10),
 		BlockTimestamp: strconv.FormatInt(teleport.Deposit.BlockTimestamp.Unix(), 10),
 	}
-	if rpcTeleport.Disbursement != nil {
+	if teleport.Disbursement != nil {
 		rpcTeleport.Disbursement = &RPCDisbursement{
 			TxHash:         teleport.Disbursement.TxnHash.String(),
 			BlockNumber:    strconv.FormatUint(teleport.Disbursement.BlockNumber, 10),
@@ -426,10 +426,10 @@ type RPCDisbursement struct {
 }
 
 type TrackResponse struct {
-	CurrentBlockNumber     string `json:"current_block_number"`
-	ConfirmationsRequired  string `json:"confirmations_required"`
-	ConfirmationsRemaining string `json:"confirmations_remaining"`
-	Teleport               RPCTeleport
+	CurrentBlockNumber     string      `json:"current_block_number"`
+	ConfirmationsRequired  string      `json:"confirmations_required"`
+	ConfirmationsRemaining string      `json:"confirmations_remaining"`
+	Teleport               RPCTeleport `json:"teleport"`
 }
 
 func (s *Server) HandleTrack(
