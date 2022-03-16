@@ -25,7 +25,7 @@ export const getContractArtifact = (name: string): any => {
  * @returns Interface for the given contract. 
  */ 
 export const getContractInterface = (name: string): ethers.utils.Interface => {
-  const definition = getContractDefinition(name)
+  const definition = getContractArtifact(name)
   return new ethers.utils.Interface(definition.abi)
 }
 
@@ -40,7 +40,7 @@ export const getContractFactory = (
   name: string,
   signer?: ethers.Signer
 ): ethers.ContractFactory => {
-  const definition = getContractDefinition(name)
+  const definition = getContractArtifact(name)
   const contractInterface = getContractInterface(name)
   return new ethers.ContractFactory(
     contractInterface,
