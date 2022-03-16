@@ -11,21 +11,18 @@ jobs:
     runs-on: ubuntu-latest
     # map the step outputs to job outputs
     outputs:
-      use_builder: ${{ steps.packages.outputs.use_builder }}
-      builder: ${{ steps.packages.outputs.builder }}
       l2geth: ${{ steps.packages.outputs.l2geth }}
-      batch-submitter: ${{ steps.packages.outputs.batch-submitter }}
       message-relayer: ${{ steps.packages.outputs.message-relayer }}
       data-transport-layer: ${{ steps.packages.outputs.data-transport-layer }}
       contracts: ${{ steps.packages.outputs.contracts }}
       gas-oracle: ${{ steps.packages.outputs.gas-oracle }}
       replica-healthcheck: ${{ steps.packages.outputs.replica-healthcheck }}
       proxyd: ${{ steps.packages.outputs.proxyd }}
-      rpc-proxy: ${{ steps.packages.outputs.rpc-proxy }}
       hardhat-node: ${{ steps.packages.outputs.hardhat-node }}
-      op-exporter : ${{ steps.packages.outputs.op-exporter }}
-      l2geth-exporter : ${{ steps.packages.outputs.l2geth-exporter }}
-      batch-submitter-service : ${{ steps.packages.outputs.batch-submitter-service }}
+      op-exporter: ${{ steps.packages.outputs.op-exporter }}
+      l2geth-exporter: ${{ steps.packages.outputs.l2geth-exporter }}
+      batch-submitter-service: ${{ steps.packages.outputs.batch-submitter-service }}
+      indexer: ${{ steps.packages.outputs.indexer }}
 
     steps:
       - name: Checkout Repo
@@ -71,10 +68,6 @@ jobs:
         run: |
           node ops/scripts/ci-versions.js ${{ toJSON(steps.changesets.outputs.publishedPackages) }}
 
-  # The below code is duplicated, would be ideal if we could use a matrix with a
-  # key/value being dynamically generated from the `publishedPackages` output
-  # while also allowing for parallelization (i.e. `l2geth` not depending on `builder`)
-  # and all jobs executing in parallel once `builder` is built
   l2geth:
     name: Publish L2Geth Version ${{ needs.release.outputs.l2geth }}
     needs: release
@@ -264,80 +257,10 @@ jobs:
             GITCOMMIT=${{ steps.build_args.outputs.GITCOMMIT }}
             GITVERSION=${{ steps.build_args.outputs.GITVERSION }}
 
-  rpc-proxy:
-    name: Publish rpc-proxy Version ${{ needs.release.outputs.rpc-proxy }}
-    needs: release
-    if: needs.release.outputs.rpc-proxy != ''
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v2
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v1
-
-      - name: Login to Docker Hub
-        uses: docker/login-action@v1
-        with:
-          username: ${{ secrets.DOCKERHUB_ACCESS_TOKEN_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_ACCESS_TOKEN_SECRET }}
-
-      - name: Set env
-        run: |
-          echo "GITDATE=$(date)" >> $GITHUB_ENV"
-
-      - name: Build and push
-        uses: docker/build-push-action@v2
-        with:
-          context: .
-          file: ./ops/docker/Dockerfile.rpc-proxy
-          push: true
-          tags: ethereumoptimism/rpc-proxy:${{ needs.release.outputs.rpc-proxy }},ethereumoptimism/rpc-proxy:latest
-
-  # pushes the base builder image to dockerhub
-  builder:
-    name: Prepare/Publish the base builder image for the services ${{ needs.release.outputs.builder }}
-    needs: release
-    # Build the builder if a dep of the builder has an update or if the builder
-    # has had its version bumped. TODO: remove the left hand side once tagged
-    # releases of the builder are released so that pulled builder images are
-    # used
-    if: ${{ needs.release.outputs.use_builder == 'true' || needs.release.outputs.builder != '' }}
-    runs-on: ubuntu-latest
-    # we re-output the variables so that the child jobs can access them
-    outputs:
-      builder: ${{ needs.release.outputs.builder || 'latest' }}
-      batch-submitter: ${{ needs.release.outputs.batch-submitter }}
-      message-relayer: ${{ needs.release.outputs.message-relayer }}
-      data-transport-layer: ${{ needs.release.outputs.data-transport-layer }}
-      contracts: ${{ needs.release.outputs.contracts }}
-      integration-tests: ${{ needs.release.outputs.integration-tests }}
-      replica-healthcheck: ${{ needs.release.outputs.replica-healthcheck }}
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v2
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v1
-
-      - name: Login to Docker Hub
-        uses: docker/login-action@v1
-        with:
-          username: ${{ secrets.DOCKERHUB_ACCESS_TOKEN_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_ACCESS_TOKEN_SECRET }}
-
-      - name: Build and push
-        uses: docker/build-push-action@v2
-        with:
-          context: .
-          file: ./ops/docker/Dockerfile.monorepo
-          push: true
-          tags: ethereumoptimism/builder:latest
-
   message-relayer:
-    name: Publish Message Relayer Version ${{ needs.builder.outputs.message-relayer }}
-    needs: builder
-    if: needs.builder.outputs.message-relayer != ''
+    name: Publish Message Relayer Version ${{ needs.release.outputs.message-relayer }}
+    needs: release
+    if: needs.release.outputs.message-relayer != ''
     runs-on: ubuntu-latest
 
     steps:
@@ -356,42 +279,15 @@ jobs:
         uses: docker/build-push-action@v2
         with:
           context: .
-          file: ./ops/docker/Dockerfile.message-relayer
+          file: ./ops/docker/Dockerfile.packages
+          target: message-relayer
           push: true
-          tags: ethereumoptimism/message-relayer:${{ needs.builder.outputs.message-relayer }},ethereumoptimism/message-relayer:latest
-          build-args: BUILDER_TAG=${{ needs.builder.outputs.builder }}
-
-  batch-submitter:
-    name: Publish Batch Submitter Version ${{ needs.builder.outputs.batch-submitter }}
-    needs: builder
-    if: needs.builder.outputs.batch-submitter != ''
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v2
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v1
-
-      - name: Login to Docker Hub
-        uses: docker/login-action@v1
-        with:
-          username: ${{ secrets.DOCKERHUB_ACCESS_TOKEN_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_ACCESS_TOKEN_SECRET }}
-
-      - name: Build and push
-        uses: docker/build-push-action@v2
-        with:
-          context: .
-          file: ./ops/docker/Dockerfile.batch-submitter
-          push: true
-          tags: ethereumoptimism/batch-submitter:${{ needs.builder.outputs.batch-submitter }},ethereumoptimism/batch-submitter:latest
-          build-args: BUILDER_TAG=${{ needs.builder.outputs.builder }}
+          tags: ethereumoptimism/message-relayer:${{ needs.release.outputs.message-relayer }},ethereumoptimism/message-relayer:latest
 
   data-transport-layer:
-    name: Publish Data Transport Layer Version ${{ needs.builder.outputs.data-transport-layer }}
-    needs: builder
-    if: needs.builder.outputs.data-transport-layer != ''
+    name: Publish Data Transport Layer Version ${{ needs.release.outputs.data-transport-layer }}
+    needs: release
+    if: needs.release.outputs.data-transport-layer != ''
     runs-on: ubuntu-latest
 
     steps:
@@ -410,15 +306,15 @@ jobs:
         uses: docker/build-push-action@v2
         with:
           context: .
-          file: ./ops/docker/Dockerfile.data-transport-layer
+          file: ./ops/docker/Dockerfile.packages
+          target: data-transport-layer
           push: true
-          tags: ethereumoptimism/data-transport-layer:${{ needs.builder.outputs.data-transport-layer }},ethereumoptimism/data-transport-layer:latest
-          build-args: BUILDER_TAG=${{ needs.builder.outputs.builder }}
+          tags: ethereumoptimism/data-transport-layer:${{ needs.release.outputs.data-transport-layer }},ethereumoptimism/data-transport-layer:latest
 
   contracts:
-    name: Publish Deployer Version ${{ needs.builder.outputs.contracts }}
-    needs: builder
-    if: needs.builder.outputs.contracts != ''
+    name: Publish Deployer Version ${{ needs.release.outputs.contracts }}
+    needs: release
+    if: needs.release.outputs.contracts != ''
     runs-on: ubuntu-latest
 
     steps:
@@ -437,15 +333,15 @@ jobs:
         uses: docker/build-push-action@v2
         with:
           context: .
-          file: ./ops/docker/Dockerfile.deployer
+          file: ./ops/docker/Dockerfile.packages
+          target: deployer
           push: true
-          tags: ethereumoptimism/deployer:${{ needs.builder.outputs.contracts }},ethereumoptimism/deployer:latest
-          build-args: BUILDER_TAG=${{ needs.builder.outputs.builder }}
+          tags: ethereumoptimism/deployer:${{ needs.release.outputs.contracts }},ethereumoptimism/deployer:latest
 
   integration_tests:
-    name: Publish Integration tests ${{ needs.builder.outputs.integration-tests }}
-    needs: builder
-    if: needs.builder.outputs.integration-tests != ''
+    name: Publish Integration tests ${{ needs.release.outputs.integration-tests }}
+    needs: release
+    if: needs.release.outputs.integration-tests != ''
     runs-on: ubuntu-latest
 
     steps:
@@ -464,15 +360,15 @@ jobs:
         uses: docker/build-push-action@v2
         with:
           context: .
-          file: ./ops/docker/Dockerfile.integration-tests
+          file: ./ops/docker/Dockerfile.packages
+          target: integration-tests
           push: true
-          tags: ethereumoptimism/integration-tests:${{ needs.builder.outputs.integration-tests }},ethereumoptimism/integration-tests:latest
-          build-args: BUILDER_TAG=${{ needs.builder.outputs.builder }}
+          tags: ethereumoptimism/integration-tests:${{ needs.release.outputs.integration-tests }},ethereumoptimism/integration-tests:latest
 
   replica-healthcheck:
-    name: Publish Replica Healthcheck Version ${{ needs.builder.outputs.replica-healthcheck }}
-    needs: builder
-    if: needs.builder.outputs.replica-healthcheck != ''
+    name: Publish Replica Healthcheck Version ${{ needs.release.outputs.replica-healthcheck }}
+    needs: release
+    if: needs.release.outputs.replica-healthcheck != ''
     runs-on: ubuntu-latest
 
     steps:
@@ -491,10 +387,10 @@ jobs:
         uses: docker/build-push-action@v2
         with:
           context: .
-          file: ./ops/docker/Dockerfile.replica-healthcheck
+          file: ./ops/docker/Dockerfile.packages
+          target: replica-healthcheck
           push: true
-          tags: ethereumoptimism/replica-healthcheck:${{ needs.builder.outputs.replica-healthcheck }},ethereumoptimism/replica-healthcheck:latest
-          build-args: BUILDER_TAG=${{ needs.builder.outputs.builder }}
+          tags: ethereumoptimism/replica-healthcheck:${{ needs.release.outputs.replica-healthcheck }},ethereumoptimism/replica-healthcheck:latest
 
   batch-submitter-service:
     name: Publish batch-submitter-service Version ${{ needs.release.outputs.batch-submitter-service }}
@@ -521,3 +417,40 @@ jobs:
           file: ./ops/docker/Dockerfile.batch-submitter-service
           push: true
           tags: ethereumoptimism/batch-submitter-service:${{ needs.release.outputs.batch-submitter-service }},ethereumoptimism/batch-submitter-service:latest
+
+  indexer:
+    name: Publish Indexer Version ${{ needs.release.outputs.indexer }}
+    needs: release
+    if: needs.release.outputs.indexer != ''
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v1
+        with:
+          username: ${{ secrets.DOCKERHUB_ACCESS_TOKEN_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_ACCESS_TOKEN_SECRET }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v1
+
+      - name: Set build args
+        id: build_args
+        run: |
+          echo ::set-output name=GITDATE::"$(date +%d-%m-%Y)"
+          echo ::set-output name=GITVERSION::$(jq -r .version ./go/indexer/package.json)
+          echo ::set-output name=GITCOMMIT::"$GITHUB_SHA"
+
+      - name: Publish Indexer
+        uses: docker/build-push-action@v2
+        with:
+          context: .
+          file: ./ops/docker/Dockerfile.indexer
+          push: true
+          tags: ethereumoptimism/indexer:${{ needs.release.outputs.indexer }},ethereumoptimism/indexer:latest
+          build-args: |
+            GITDATE=${{ steps.build_args.outputs.GITDATE }}
+            GITCOMMIT=${{ steps.build_args.outputs.GITCOMMIT }}
+            GITVERSION=${{ steps.build_args.outputs.GITVERSION }}

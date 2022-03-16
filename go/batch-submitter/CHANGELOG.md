@@ -1,5 +1,19 @@
 # @eth-optimism/batch-submitter-service
 
+## 0.1.7
+
+### Patch Changes
+
+- aca0684e: Add 20% buffer to gas estimation on tx-batch submission to prevent OOG reverts
+- 75040ca5: Adds MIN_L1_TX_SIZE configuration
+
+## 0.1.6
+
+### Patch Changes
+
+- 6af67df5: Move L2 dial logic out of bss-core to avoid l2geth dependency
+- fe680568: Enable the usage of typed batches and type 0 zlib compressed batches
+
 ## 0.1.5
 
 ### Patch Changes

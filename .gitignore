@@ -24,4 +24,5 @@ packages/data-transport-layer/db
 
 .env
 .env*
+!.env.example
 *.log

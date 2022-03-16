@@ -1,7 +1,7 @@
 /* External Imports */
 import { ethers } from 'hardhat'
 import { Signer, ContractFactory, Contract } from 'ethers'
-import { smoddit } from '@eth-optimism/smock'
+import { MockContract, smock } from '@defi-wonderland/smock'
 import { expectApprox } from '@eth-optimism/core-utils'
 
 /* Internal Imports */
@@ -92,7 +92,7 @@ describe('[GAS BENCHMARK] Depositing via the standard bridge [ @skip-on-coverage
   })
 
   // 4 Bridge
-  let L1ERC20: Contract
+  let L1ERC20: MockContract<Contract>
   let L1StandardBridge: Contract
   before('Deploy the bridge and setup the token', async () => {
     // Deploy the Bridge
@@ -105,14 +105,12 @@ describe('[GAS BENCHMARK] Depositing via the standard bridge [ @skip-on-coverage
     )
 
     L1ERC20 = await (
-      await smoddit('@openzeppelin/contracts/token/ERC20/ERC20.sol:ERC20')
+      await smock.mock('@openzeppelin/contracts/token/ERC20/ERC20.sol:ERC20')
     ).deploy('L1ERC20', 'ERC')
     const aliceAddress = await alice.getAddress()
-    await L1ERC20.smodify.put({
-      _totalSupply: INITIAL_TOTAL_L1_SUPPLY,
-      _balances: {
-        [aliceAddress]: INITIAL_TOTAL_L1_SUPPLY,
-      },
+    await L1ERC20.setVariable('_totalSupply', INITIAL_TOTAL_L1_SUPPLY)
+    await L1ERC20.setVariable('_balances', {
+      [aliceAddress]: INITIAL_TOTAL_L1_SUPPLY,
     })
   })
 

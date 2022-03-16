@@ -1,5 +1,38 @@
 # @eth-optimism/message-relayer
 
+## 0.4.0
+
+### Minor Changes
+
+- 860fef46: Rewrites the message-relayer to use the BaseServiceV2.
+
+### Patch Changes
+
+- Updated dependencies [b3f9bdef]
+- Updated dependencies [7ae1c67f]
+- Updated dependencies [e53b5783]
+- Updated dependencies [47e5d118]
+  - @eth-optimism/common-ts@0.2.2
+  - @eth-optimism/sdk@1.0.1
+
+## 0.3.2
+
+### Patch Changes
+
+- Updated dependencies [42227d69]
+- Updated dependencies [84f63c49]
+  - @eth-optimism/sdk@1.0.0
+
+## 0.3.1
+
+### Patch Changes
+
+- Updated dependencies [b66e3131]
+- Updated dependencies [5a6f539c]
+- Updated dependencies [27d8942e]
+  - @eth-optimism/sdk@0.2.5
+  - @eth-optimism/core-utils@0.8.1
+
 ## 0.3.0
 
 ### Minor Changes

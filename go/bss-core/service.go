@@ -46,7 +46,9 @@ type Driver interface {
 
 	// CraftBatchTx transforms the L2 blocks between start and end into a batch
 	// transaction using the given nonce. A dummy gas price is used in the
-	// resulting transaction to use for size estimation.
+	// resulting transaction to use for size estimation. The driver may return a
+	// nil value for transaction if there is no action that needs to be
+	// performed.
 	//
 	// NOTE: This method SHOULD NOT publish the resulting transaction.
 	CraftBatchTx(
@@ -183,6 +185,8 @@ func (s *Service) eventLoop() {
 			if err != nil {
 				log.Error(name+" unable to craft batch tx",
 					"err", err)
+				continue
+			} else if tx == nil {
 				continue
 			}
 			batchTxBuildTime := time.Since(batchTxBuildStart) / time.Millisecond

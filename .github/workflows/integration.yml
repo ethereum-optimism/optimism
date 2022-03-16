@@ -6,7 +6,7 @@ on:
       - 'master'
       - 'develop'
       - '*rc'
-      - 'regenesis/*'
+      - 'release/*'
   pull_request:
   workflow_dispatch:
 

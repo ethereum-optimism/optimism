@@ -1,5 +1,29 @@
 # data transport layer
 
+## 0.5.21
+
+### Patch Changes
+
+- Updated dependencies [b3f9bdef]
+- Updated dependencies [175ae0bf]
+- Updated dependencies [e53b5783]
+  - @eth-optimism/common-ts@0.2.2
+  - @eth-optimism/contracts@0.5.17
+
+## 0.5.20
+
+### Patch Changes
+
+- 3873b696: Enable typed batch support
+- Updated dependencies [962f36e4]
+- Updated dependencies [f2179e37]
+- Updated dependencies [b6a4fa4b]
+- Updated dependencies [b7c0a5ca]
+- Updated dependencies [5a6f539c]
+- Updated dependencies [27d8942e]
+  - @eth-optimism/contracts@0.5.16
+  - @eth-optimism/core-utils@0.8.1
+
 ## 0.5.19
 
 ### Patch Changes

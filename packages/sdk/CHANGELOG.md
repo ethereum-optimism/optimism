@@ -1,5 +1,38 @@
 # @eth-optimism/sdk
 
+## 1.0.1
+
+### Patch Changes
+
+- 7ae1c67f: Update package json to include correct repo link
+- 47e5d118: Tighten type restriction on ProviderLike
+- Updated dependencies [175ae0bf]
+  - @eth-optimism/contracts@0.5.17
+
+## 1.0.0
+
+### Major Changes
+
+- 84f63c49: Update README and bump SDK to 1.0.0
+
+### Patch Changes
+
+- 42227d69: Fix typo in constructor docstring
+
+## 0.2.5
+
+### Patch Changes
+
+- b66e3131: Add a function for waiting for a particular message status
+- Updated dependencies [962f36e4]
+- Updated dependencies [f2179e37]
+- Updated dependencies [b6a4fa4b]
+- Updated dependencies [b7c0a5ca]
+- Updated dependencies [5a6f539c]
+- Updated dependencies [27d8942e]
+  - @eth-optimism/contracts@0.5.16
+  - @eth-optimism/core-utils@0.8.1
+
 ## 0.2.4
 
 ### Patch Changes

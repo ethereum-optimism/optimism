@@ -1,6 +1,6 @@
 {
   "name": "@eth-optimism/common-ts",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "[Optimism] Advanced typescript tooling used by various services",
   "main": "dist/index",
   "types": "dist/index",
@@ -31,14 +31,23 @@
     "url": "https://github.com/ethereum-optimism/optimism.git"
   },
   "dependencies": {
+    "@eth-optimism/core-utils": "0.8.1",
     "@sentry/node": "^6.3.1",
+    "bcfg": "^0.1.7",
+    "commander": "^9.0.0",
+    "dotenv": "^16.0.0",
+    "envalid": "^7.2.2",
+    "ethers": "^5.5.4",
     "express": "^4.17.1",
+    "lodash": "^4.17.21",
     "pino": "^6.11.3",
     "pino-multi-stream": "^5.3.0",
     "pino-sentry": "^0.7.0",
     "prom-client": "^13.1.0"
   },
   "devDependencies": {
+    "@ethersproject/abstract-provider": "^5.5.1",
+    "@ethersproject/abstract-signer": "^5.5.0",
     "@types/chai": "^4.2.18",
     "@types/express": "^4.17.12",
     "@types/mocha": "^8.2.2",

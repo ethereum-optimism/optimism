@@ -1,0 +1,48 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: mainnet-replica-l1-0-5-13
+commonLabels:
+  network: mainnet
+  provider: internal
+  sync_source: l1
+
+bases:
+  - ../../../envs/mainnet-gen5-l1-berlin/
+  - ../../../scripts
+
+resources:
+  - ../../bases/data-transport-layer
+  - ../../bases/l2geth-replica
+  - ../../bases/servicemonitors
+  - ../../bases/replica-healthcheck
+  - ./volumes.yaml
+
+images:
+  - name: ethereumoptimism/data-transport-layer
+    newName: ethereumoptimism/data-transport-layer
+    newTag: 0.5.20
+  - name: ethereumoptimism/l2geth
+    newName: ethereumoptimism/l2geth
+    newTag: 0.5.13
+  - name: ethereumoptimism/replica-healthcheck
+    newName: ethereumoptimism/replica-healthcheck
+    newTag: 0.3.3
+
+patchesStrategicMerge:
+  - ./patches/dtl.yaml
+  - ./patches/l2geth.yaml
+  - ./patches/replica-healthcheck.yaml
+
+patches:
+  - path: ./patches/l2geth-volume.yaml
+    target:
+      group: apps
+      version: v1
+      kind: StatefulSet
+      name: l2geth-replica
+  - path: ./patches/dtl-volume.yaml
+    target:
+      group: apps
+      version: v1
+      kind: StatefulSet
+      name: data-transport-layer

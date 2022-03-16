@@ -11,16 +11,16 @@ import (
 var UsingOVM bool
 
 var (
-	// l2GasPriceSlot refers to the storage slot that the L2 gas price is stored
+	// L2GasPriceSlot refers to the storage slot that the L2 gas price is stored
 	// in in the OVM_GasPriceOracle predeploy
 	L2GasPriceSlot = common.BigToHash(big.NewInt(1))
-	// l1GasPriceSlot refers to the storage slot that the L1 gas price is stored
+	// L1GasPriceSlot refers to the storage slot that the L1 gas price is stored
 	// in in the OVM_GasPriceOracle predeploy
 	L1GasPriceSlot = common.BigToHash(big.NewInt(2))
-	// l2GasPriceOracleOwnerSlot refers to the storage slot that the owner of
+	// L2GasPriceOracleOwnerSlot refers to the storage slot that the owner of
 	// the OVM_GasPriceOracle is stored in
 	L2GasPriceOracleOwnerSlot = common.BigToHash(big.NewInt(0))
-	// l2GasPriceOracleAddress is the address of the OVM_GasPriceOracle
+	// L2GasPriceOracleAddress is the address of the OVM_GasPriceOracle
 	// predeploy
 	L2GasPriceOracleAddress = common.HexToAddress("0x420000000000000000000000000000000000000F")
 	// OverheadSlot refers to the storage slot in the OVM_GasPriceOracle that

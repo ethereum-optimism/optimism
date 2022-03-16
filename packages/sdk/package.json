@@ -1,6 +1,6 @@
 {
   "name": "@eth-optimism/sdk",
-  "version": "0.2.4",
+  "version": "1.0.1",
   "description": "[Optimism] Tools for working with Optimism",
   "main": "dist/index",
   "types": "dist/index",
@@ -16,19 +16,20 @@
     "lint:fix": "yarn lint:check --fix",
     "pre-commit": "lint-staged",
     "test": "hardhat test",
-    "test:coverage": "nyc hardhat test && nyc merge .nyc_output coverage.json"
+    "test:coverage": "nyc hardhat test && nyc merge .nyc_output coverage.json",
+    "autogen:docs": "typedoc --out docs src/index.ts"
   },
   "keywords": [
     "optimism",
     "ethereum",
     "sdk"
   ],
-  "homepage": "https://github.com/ethereum-optimism/optimism-monorepo/tree/master/packages/sdk#readme",
+  "homepage": "https://github.com/ethereum-optimism/optimism/tree/develop/packages/sdk#readme",
   "license": "MIT",
   "author": "Optimism PBC",
   "repository": {
     "type": "git",
-    "url": "https://github.com/ethereum-optimism/optimism-monorepo.git"
+    "url": "https://github.com/ethereum-optimism/optimism.git"
   },
   "devDependencies": {
     "@ethersproject/abstract-provider": "^5.5.1",
@@ -60,11 +61,12 @@
     "nyc": "^15.1.0",
     "prettier": "^2.3.1",
     "ts-mocha": "^8.0.0",
+    "typedoc": "^0.22.13",
     "typescript": "^4.3.5"
   },
   "dependencies": {
-    "@eth-optimism/contracts": "0.5.15",
-    "@eth-optimism/core-utils": "0.8.0",
+    "@eth-optimism/contracts": "0.5.17",
+    "@eth-optimism/core-utils": "0.8.1",
     "lodash": "^4.17.21",
     "merkletreejs": "^0.2.27",
     "rlp": "^2.2.7"

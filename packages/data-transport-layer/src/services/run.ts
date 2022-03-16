@@ -26,6 +26,8 @@ type ethNetwork = 'mainnet' | 'kovan' | 'goerli'
       hostname: config.str('server-hostname', 'localhost'),
       confirmations: config.uint('confirmations', 35),
       l1RpcProvider: config.str('l1-rpc-endpoint'),
+      l1RpcProviderUser: config.str('l1-rpc-user'),
+      l1RpcProviderPassword: config.str('l1-rpc-password'),
       addressManager: config.str('address-manager'),
       pollingInterval: config.uint('polling-interval', 5000),
       logsPerPollingInterval: config.uint('logs-per-polling-interval', 2000),
@@ -34,6 +36,8 @@ type ethNetwork = 'mainnet' | 'kovan' | 'goerli'
         false
       ),
       l2RpcProvider: config.str('l2-rpc-endpoint'),
+      l2RpcProviderUser: config.str('l2-rpc-user'),
+      l2RpcProviderPassword: config.str('l2-rpc-password'),
       l2ChainId: config.uint('l2-chain-id'),
       syncFromL1: config.bool('sync-from-l1', true),
       syncFromL2: config.bool('sync-from-l2', false),

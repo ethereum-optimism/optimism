@@ -1,0 +1,8 @@
+---
+version: "3.4"
+services:
+  l2geth-replica:
+    entrypoint:
+      - /bin/sh
+      - -c
+      - "/scripts/$GETH_INIT_SCRIPT && /scripts/l2geth-replica-start.sh --config /scripts/l2geth.toml"

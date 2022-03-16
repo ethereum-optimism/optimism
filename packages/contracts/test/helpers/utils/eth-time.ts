@@ -17,22 +17,8 @@ export const increaseEthTime = async (
   await mineBlock(provider)
 }
 
-export const mineBlock = async (
-  provider: any,
-  timestamp?: number
-): Promise<void> => {
+const mineBlock = async (provider: any, timestamp?: number): Promise<void> => {
   await provider.send('evm_mine', timestamp ? [timestamp] : [])
-}
-
-export const getBlockTime = async (
-  provider: any,
-  block?: number
-): Promise<number> => {
-  await mineBlock(provider)
-  if (!!block) {
-    block = await getNextBlockNumber(provider)
-  }
-  return (await provider.getBlock(block)).timestamp
 }
 
 export const getNextBlockNumber = async (provider: any): Promise<number> => {

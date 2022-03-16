@@ -65,14 +65,6 @@ jobs:
           image-name: data-transport-layer
           target: data-transport-layer
           dockerfile: ./ops/docker/Dockerfile.packages
-  build-batch-submitter:
-    docker:
-      - image: cimg/base:2021.04
-    steps:
-      - build-dockerfile:
-          image-name: batch-submitter
-          target: batch-submitter
-          dockerfile: ./ops/docker/Dockerfile.packages
   build-go-batch-submitter:
     docker:
       - image: cimg/base:2021.04
@@ -264,11 +256,6 @@ workflows:
             - optimism
             - slack
           <<: *slack-nightly-build-fail-post-step
-      - build-batch-submitter:
-          context:
-            - optimism
-            - slack
-          <<: *slack-nightly-build-fail-post-step
       - build-deployer:
           context:
             - optimism
@@ -306,7 +293,6 @@ workflows:
           <<: *slack-nightly-build-fail-post-step
           requires:
             - build-dtl
-            - build-batch-submitter
             - build-go-batch-submitter
             - build-deployer
             - build-l2geth

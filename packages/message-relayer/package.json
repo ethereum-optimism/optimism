@@ -1,6 +1,7 @@
 {
+  "private": true,
   "name": "@eth-optimism/message-relayer",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "[Optimism] Service for automatically relaying L2 to L1 transactions",
   "main": "dist/index",
   "types": "dist/index",
@@ -8,7 +9,7 @@
     "dist/*"
   ],
   "scripts": {
-    "start": "ts-node ./bin/run.ts",
+    "start": "ts-node ./src/service.ts",
     "build": "tsc -p ./tsconfig.build.json",
     "clean": "rimraf  dist/ ./tsconfig.build.tsbuildinfo",
     "lint": "yarn lint:fix && yarn lint:check",
@@ -29,15 +30,13 @@
     "url": "https://github.com/ethereum-optimism/optimism.git"
   },
   "dependencies": {
-    "@eth-optimism/common-ts": "0.2.1",
-    "@eth-optimism/core-utils": "0.8.0",
-    "@eth-optimism/sdk": "^0.2.3",
-    "@sentry/node": "^6.3.1",
-    "bcfg": "^0.1.6",
-    "dotenv": "^10.0.0",
+    "@eth-optimism/common-ts": "0.2.2",
+    "@eth-optimism/core-utils": "0.8.1",
+    "@eth-optimism/sdk": "1.0.1",
     "ethers": "^5.5.4"
   },
   "devDependencies": {
+    "@ethersproject/abstract-provider": "^5.5.1",
     "@nomiclabs/hardhat-ethers": "^2.0.2",
     "@nomiclabs/hardhat-waffle": "^2.0.1",
     "@typescript-eslint/eslint-plugin": "^4.26.0",

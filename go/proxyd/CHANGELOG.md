@@ -1,5 +1,11 @@
 # @eth-optimism/proxyd
 
+## 3.8.2
+
+### Patch Changes
+
+- ae18cea1: Don't hit Redis when the out of service interval is zero
+
 ## 3.8.1
 
 ### Patch Changes

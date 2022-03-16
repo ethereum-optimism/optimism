@@ -1,5 +1,7 @@
 ignores: [
   "@codechecks/client",
+  "@ethersproject/bytes",
+  "@ethersproject/providers",
   "@openzeppelin/contracts",
   "@openzeppelin/contracts-upgradeable",
   "@typechain/ethers-v5",

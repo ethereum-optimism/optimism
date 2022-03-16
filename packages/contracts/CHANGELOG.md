@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.5.17
+
+### Patch Changes
+
+- 175ae0bf: Minor README update
+
+## 0.5.16
+
+### Patch Changes
+
+- 962f36e4: Add support for system addresses
+- f2179e37: Add a fetch batches hardhat task
+- b6a4fa4b: Removes outdated functions and constants from the contracts package
+- b7c0a5ca: Remove yargs as a contracts dependency (unused)
+- Updated dependencies [5a6f539c]
+- Updated dependencies [27d8942e]
+  - @eth-optimism/core-utils@0.8.1
+
 ## 0.5.15
 
 ### Patch Changes

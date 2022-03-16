@@ -93,6 +93,8 @@ export class L2IngestionService extends BaseService<L2IngestionServiceOptions> {
       typeof this.options.l2RpcProvider === 'string'
         ? new StaticJsonRpcProvider({
             url: this.options.l2RpcProvider,
+            user: this.options.l2RpcProviderUser,
+            password: this.options.l2RpcProviderPassword,
             headers: { 'User-Agent': 'data-transport-layer' },
           })
         : this.options.l2RpcProvider

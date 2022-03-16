@@ -15,9 +15,7 @@ jobs:
     runs-on: ubuntu-latest
     # map the step outputs to job outputs
     outputs:
-      builder: ${{ steps.packages.outputs.builder }}
       l2geth: ${{ steps.packages.outputs.l2geth }}
-      batch-submitter: ${{ steps.packages.outputs.batch-submitter }}
       message-relayer: ${{ steps.packages.outputs.message-relayer }}
       data-transport-layer: ${{ steps.packages.outputs.data-transport-layer }}
       contracts: ${{ steps.packages.outputs.contracts }}
@@ -26,10 +24,10 @@ jobs:
       hardhat-node: ${{ steps.packages.outputs.hardhat-node }}
       canary-docker-tag: ${{ steps.docker-image-name.outputs.canary-docker-tag }}
       proxyd: ${{ steps.packages.outputs.proxyd }}
-      rpc-proxy : ${{ steps.packages.outputs.rpc-proxy }}
-      op-exporter : ${{ steps.packages.outputs.op-exporter }}
-      l2geth-exporter : ${{ steps.packages.outputs.l2geth-exporter }}
-      batch-submitter-service : ${{ steps.packages.outputs.batch-submitter-service }}
+      op-exporter: ${{ steps.packages.outputs.op-exporter }}
+      l2geth-exporter: ${{ steps.packages.outputs.l2geth-exporter }}
+      batch-submitter-service: ${{ steps.packages.outputs.batch-submitter-service }}
+      indexer: ${{ steps.packages.outputs.indexer }}
 
     steps:
       - name: Check out source code
@@ -92,10 +90,6 @@ jobs:
         env:
           CUSTOM_IMAGE_NAME: ${{ github.event.inputs.customImageName }}
 
-  # The below code is duplicated, would be ideal if we could use a matrix with a
-  # key/value being dynamically generated from the `publishedPackages` output
-  # while also allowing for parallelization (i.e. `l2geth` not depending on `builder`)
-  # and all jobs executing in parallel once `builder` is built
   l2geth:
     name: Publish L2Geth Version ${{ needs.canary-publish.outputs.canary-docker-tag }}
     needs: canary-publish
@@ -174,45 +168,10 @@ jobs:
           push: true
           tags: ethereumoptimism/hardhat-node:${{ needs.canary-publish.outputs.canary-docker-tag }}
 
-  builder:
-    name: Prepare the base builder image for the services
-    needs: canary-publish
-    runs-on: ubuntu-latest
-    # we re-output the variables so that the child jobs can access them
-    outputs:
-      batch-submitter: ${{ needs.canary-publish.outputs.batch-submitter }}
-      message-relayer: ${{ needs.canary-publish.outputs.message-relayer }}
-      data-transport-layer: ${{ needs.canary-publish.outputs.data-transport-layer }}
-      contracts: ${{ needs.canary-publish.outputs.contracts }}
-      integration-tests: ${{ needs.canary-publish.outputs.integration-tests }}
-      replica-healthcheck: ${{ needs.canary-publish.outputs.replica-healthcheck }}
-      canary-docker-tag: ${{ needs.canary-publish.outputs.canary-docker-tag }}
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v2
-
-      - name: Login to Docker Hub
-        uses: docker/login-action@v1
-        with:
-          username: ${{ secrets.DOCKERHUB_ACCESS_TOKEN_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_ACCESS_TOKEN_SECRET }}
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v1
-
-      - name: Build and push
-        uses: docker/build-push-action@v2
-        with:
-          context: .
-          file: ./ops/docker/Dockerfile.monorepo
-          push: true
-          tags: ethereumoptimism/builder:${{ needs.canary-publish.outputs.canary-docker-tag }}
-
   message-relayer:
-    name: Publish Message Relayer Version ${{ needs.builder.outputs.canary-docker-tag }}
-    needs: builder
-    if: needs.builder.outputs.message-relayer != ''
+    name: Publish Message Relayer Version ${{ needs.canary-publish.outputs.canary-docker-tag }}
+    needs: canary-publish
+    if: needs.canary-publish.outputs.message-relayer != ''
     runs-on: ubuntu-latest
 
     steps:
@@ -231,42 +190,15 @@ jobs:
         uses: docker/build-push-action@v2
         with:
           context: .
-          file: ./ops/docker/Dockerfile.message-relayer
+          file: ./ops/docker/Dockerfile.packages
+          target: relayer
           push: true
-          tags: ethereumoptimism/message-relayer:${{ needs.builder.outputs.canary-docker-tag }}
-          build-args: BUILDER_TAG=${{ needs.builder.outputs.canary-docker-tag }}
-
-  batch-submitter:
-    name: Publish Batch Submitter Version ${{ needs.builder.outputs.canary-docker-tag }}
-    needs: builder
-    if: needs.builder.outputs.batch-submitter != ''
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v2
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v1
-
-      - name: Login to Docker Hub
-        uses: docker/login-action@v1
-        with:
-          username: ${{ secrets.DOCKERHUB_ACCESS_TOKEN_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_ACCESS_TOKEN_SECRET }}
-
-      - name: Build and push
-        uses: docker/build-push-action@v2
-        with:
-          context: .
-          file: ./ops/docker/Dockerfile.batch-submitter
-          push: true
-          tags: ethereumoptimism/batch-submitter:${{ needs.builder.outputs.canary-docker-tag }}
-          build-args: BUILDER_TAG=${{ needs.builder.outputs.canary-docker-tag }}
+          tags: ethereumoptimism/message-relayer:${{ needs.canary-publish.outputs.canary-docker-tag }}
 
   data-transport-layer:
-    name: Publish Data Transport Layer Version ${{ needs.builder.outputs.canary-docker-tag }}
-    needs: builder
-    if: needs.builder.outputs.data-transport-layer != ''
+    name: Publish Data Transport Layer Version ${{ needs.canary-publish.outputs.canary-docker-tag }}
+    needs: canary-publish
+    if: needs.canary-publish.outputs.data-transport-layer != ''
     runs-on: ubuntu-latest
 
     steps:
@@ -285,15 +217,15 @@ jobs:
         uses: docker/build-push-action@v2
         with:
           context: .
-          file: ./ops/docker/Dockerfile.data-transport-layer
+          file: ./ops/docker/Dockerfile.packages
+          target: data-transport-layer
           push: true
-          tags: ethereumoptimism/data-transport-layer:${{ needs.builder.outputs.canary-docker-tag }}
-          build-args: BUILDER_TAG=${{ needs.builder.outputs.canary-docker-tag }}
+          tags: ethereumoptimism/data-transport-layer:${{ needs.canary-publish.outputs.canary-docker-tag }}
 
   contracts:
-    name: Publish Deployer Version ${{ needs.builder.outputs.canary-docker-tag }}
-    needs: builder
-    if: needs.builder.outputs.contracts != ''
+    name: Publish Deployer Version ${{ needs.canary-publish.outputs.canary-docker-tag }}
+    needs: canary-publish
+    if: needs.canary-publish.outputs.contracts != ''
     runs-on: ubuntu-latest
 
     steps:
@@ -312,15 +244,15 @@ jobs:
         uses: docker/build-push-action@v2
         with:
           context: .
-          file: ./ops/docker/Dockerfile.deployer
+          file: ./ops/docker/Dockerfile.packages
+          target: deployer
           push: true
-          tags: ethereumoptimism/deployer:${{ needs.builder.outputs.canary-docker-tag }}
-          build-args: BUILDER_TAG=${{ needs.builder.outputs.canary-docker-tag }}
+          tags: ethereumoptimism/deployer:${{ needs.canary-publish.outputs.canary-docker-tag }}
 
   integration_tests:
-    name: Publish Integration tests ${{ needs.builder.outputs.integration-tests }}
-    needs: builder
-    if: needs.builder.outputs.integration-tests != ''
+    name: Publish Integration tests ${{ needs.canary-publish.outputs.integration-tests }}
+    needs: canary-publish
+    if: needs.canary-publish.outputs.integration-tests != ''
     runs-on: ubuntu-latest
 
     steps:
@@ -339,15 +271,15 @@ jobs:
         uses: docker/build-push-action@v2
         with:
           context: .
-          file: ./ops/docker/Dockerfile.integration-tests
+          file: ./ops/docker/Dockerfile.packages
+          target: integration-tests
           push: true
-          tags: ethereumoptimism/integration-tests:${{ needs.builder.outputs.canary-docker-tag }}
-          build-args: BUILDER_TAG=${{ needs.builder.outputs.canary-docker-tag }}
+          tags: ethereumoptimism/integration-tests:${{ needs.canary-publish.outputs.canary-docker-tag }}
 
   replica-healthcheck:
-    name: Publish Replica Healthcheck Version ${{ needs.builder.outputs.canary-docker-tag }}
-    needs: builder
-    if: needs.builder.outputs.replica-healthcheck != ''
+    name: Publish Replica Healthcheck Version ${{ needs.canary-publish.outputs.canary-docker-tag }}
+    needs: canary-publish
+    if: needs.canary-publish.outputs.replica-healthcheck != ''
     runs-on: ubuntu-latest
 
     steps:
@@ -366,10 +298,10 @@ jobs:
         uses: docker/build-push-action@v2
         with:
           context: .
-          file: ./ops/docker/Dockerfile.replica-healthcheck
+          file: ./ops/docker/Dockerfile.packages
+          target: replica-healthcheck
           push: true
-          tags: ethereumoptimism/replica-healthcheck:${{ needs.builder.outputs.canary-docker-tag }}
-          build-args: BUILDER_TAG=${{ needs.builder.outputs.canary-docker-tag }}
+          tags: ethereumoptimism/replica-healthcheck:${{ needs.canary-publish.outputs.canary-docker-tag }}
 
   proxyd:
     name: Publish proxyd Version ${{ needs.canary-publish.outputs.canary-docker-tag }}
@@ -482,32 +414,6 @@ jobs:
             GITCOMMIT=${{ steps.build_args.outputs.GITCOMMIT }}
             GITVERSION=${{ steps.build_args.outputs.GITVERSION }}
 
-  rpc-proxy:
-    name: Publish rpc-proxy Version ${{ needs.canary-publish.outputs.canary-docker-tag }}
-    needs: canary-publish
-    if: needs.canary-publish.outputs.rpc-proxy != ''
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v2
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v1
-
-      - name: Login to Docker Hub
-        uses: docker/login-action@v1
-        with:
-          username: ${{ secrets.DOCKERHUB_ACCESS_TOKEN_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_ACCESS_TOKEN_SECRET }}
-
-      - name: Build and push
-        uses: docker/build-push-action@v2
-        with:
-          context: .
-          file: ./ops/docker/Dockerfile.rpc-proxy
-          push: true
-          tags: ethereumoptimism/rpc-proxy:${{ needs.canary-publish.outputs.rpc-proxy }}
-
   batch-submitter-service:
     name: Publish batch-submitter-service Version ${{ needs.canary-publish.outputs.canary-docker-tag }}
     needs: canary-publish
@@ -533,3 +439,40 @@ jobs:
           file: ./ops/docker/Dockerfile.batch-submitter-service
           push: true
           tags: ethereumoptimism/batch-submitter-service:${{ needs.canary-publish.outputs.batch-submitter-service }}
+
+  indexer:
+    name: Publish indexer Version ${{ needs.canary-publish.outputs.canary-docker-tag }}
+    needs: canary-publish
+    if: needs.canary-publish.outputs.indexer != ''
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v1
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v1
+        with:
+          username: ${{ secrets.DOCKERHUB_ACCESS_TOKEN_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_ACCESS_TOKEN_SECRET }}
+
+      - name: Set build args
+        id: build_args
+        run: |
+          echo ::set-output name=GITDATE::"$(date +%d-%m-%Y)"
+          echo ::set-output name=GITVERSION::$(jq -r .version ./go/indexer/package.json)
+          echo ::set-output name=GITCOMMIT::"$GITHUB_SHA"
+
+      - name: Build and push
+        uses: docker/build-push-action@v2
+        with:
+          context: .
+          file: ./ops/docker/Dockerfile.indexer
+          push: true
+          tags: ethereumoptimism/batch-submitter-service:${{ needs.canary-publish.outputs.indexer }}
+          build-args: |
+            GITDATE=${{ steps.build_args.outputs.GITDATE }}
+            GITCOMMIT=${{ steps.build_args.outputs.GITCOMMIT }}
+            GITVERSION=${{ steps.build_args.outputs.GITVERSION }}

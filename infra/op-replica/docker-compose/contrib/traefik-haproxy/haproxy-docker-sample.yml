@@ -1,0 +1,41 @@
+version: "3.4"
+x-logging: &logging
+  logging:
+    driver: json-file
+    options:
+      max-size: 20m
+      max-file: "3"
+
+services:
+  optimism-haproxy:
+    image: haproxy:latest
+    user: root
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        apt-get update
+        apt-get install --no-install-recommends -y curl jq bc ca-certificates
+        exec haproxy -f /usr/local/etc/haproxy/haproxy.cfg
+    networks:
+      default:
+        aliases:
+          - optimismws-lb.example.com
+          - optimism-lb.example.com
+    configs:
+      - source: optimism-haproxy.cfg
+        target: /usr/local/etc/haproxy/haproxy.cfg
+      - source: check-ecsync-optimism.sh
+        target: /var/lib/haproxy/check-ecsync.sh
+        mode: 0555
+    deploy:
+      mode: replicated
+      replicas: 2
+      placement:
+        constraints: ["node.role == worker"]
+    <<: *logging
+
+configs:
+  optimism-haproxy.cfg:
+    external: true
+  check-ecsync-optimism.sh:
+    external: true

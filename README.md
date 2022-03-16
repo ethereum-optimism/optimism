@@ -56,8 +56,8 @@ root
 | Branch          | Status                                                                           |
 | --------------- | -------------------------------------------------------------------------------- |
 | [master](https://github.com/ethereum-optimism/optimism/tree/master/)                   | Accepts PRs from `develop` when we intend to deploy to mainnet.                                      |
-| [develop](https://github.com/ethereum-optimism/optimism/tree/develop/)                 | Accepts PRs that are compatible with `master` OR from `regenesis/X.X.X` branches.                    |
-| regenesis/X.X.X                                                                        | Accepts PRs for all changes, particularly those not backwards compatible with `develop` and `master`. |
+| [develop](https://github.com/ethereum-optimism/optimism/tree/develop/)                 | Accepts PRs that are compatible with `master` OR from `release/X.X.X` branches.                    |
+| release/X.X.X                                                                          | Accepts PRs for all changes, particularly those not backwards compatible with `develop` and `master`. |
 
 ### Overview
 
@@ -90,10 +90,10 @@ Be sure to not merge other pull requests into `develop` if partially through the
 
 ### Release candidate branches
 
-Branches marked `regenesis/X.X.X` are **release candidate branches**.
+Branches marked `release/X.X.X` are **release candidate branches**.
 Changes that are not backwards compatible and all changes to contracts within `packages/contracts/contracts` MUST be directed towards a release candidate branch.
 Release candidates are merged into `develop` and then into `master` once they've been fully deployed.
-We may sometimes have more than one active `regenesis/X.X.X` branch if we're in the middle of a deployment.
+We may sometimes have more than one active `release/X.X.X` branch if we're in the middle of a deployment.
 See table in the **Active Branches** section above to find the right branch to target.
 
 ### Releasing new versions
