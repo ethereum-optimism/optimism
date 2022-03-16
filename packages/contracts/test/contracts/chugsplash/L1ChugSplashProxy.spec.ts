@@ -1,11 +1,10 @@
-/* Imports: External */
 import hre from 'hardhat'
 import { Contract, Signer } from 'ethers'
 import { smock } from '@defi-wonderland/smock'
 
-/* Imports: Internal */
 import { expect } from '../../setup'
 import { getContractInterface } from '../../../src'
+import { deploy } from '../../helpers'
 
 describe('L1ChugSplashProxy', () => {
   let signer1: Signer
@@ -16,12 +15,9 @@ describe('L1ChugSplashProxy', () => {
 
   let L1ChugSplashProxy: Contract
   beforeEach(async () => {
-    const Factory__L1ChugSplashProxy = await hre.ethers.getContractFactory(
-      'L1ChugSplashProxy'
-    )
-    L1ChugSplashProxy = await Factory__L1ChugSplashProxy.deploy(
-      await signer1.getAddress()
-    )
+    L1ChugSplashProxy = await deploy('L1ChugSplashProxy', {
+      args: [await signer1.getAddress()],
+    })
   })
 
   describe('getOwner', () => {
@@ -173,14 +169,16 @@ describe('L1ChugSplashProxy', () => {
       const owner = await smock.fake<Contract>(
         getContractInterface('iL1ChugSplashDeployer')
       )
-      const factory = await hre.ethers.getContractFactory('L1ChugSplashProxy')
-      const proxy = await factory.deploy(owner.address)
+
+      L1ChugSplashProxy = await deploy('L1ChugSplashProxy', {
+        args: [owner.address],
+      })
 
       owner.isUpgrading.returns(true)
 
       await expect(
         owner.wallet.sendTransaction({
-          to: proxy.address,
+          to: L1ChugSplashProxy.address,
           data: '0x',
         })
       ).to.be.revertedWith(
