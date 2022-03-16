@@ -31,7 +31,7 @@ import (
 //
 // Note: the type system is based on L1 typed transactions.
 
-// encodeBufferPool holds temporary encoder buffers batch encoding
+// encodeBufferPool holds temporary encoder buffers for batch encoding
 var encodeBufferPool = sync.Pool{
 	New: func() interface{} { return new(bytes.Buffer) },
 }
@@ -59,7 +59,7 @@ type BatchData struct {
 
 func DecodeBatches(config *rollup.Config, r io.Reader) ([]*BatchData, error) {
 	var typeData [1]byte
-	if _, err := r.Read(typeData[:]); err != nil {
+	if _, err := io.ReadFull(r, typeData[:]); err != nil {
 		return nil, fmt.Errorf("failed to read batch bundle type byte: %v", err)
 	}
 	switch typeData[0] {
