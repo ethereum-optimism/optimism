@@ -121,7 +121,7 @@ The rollup reads the following data from the [sequencing window][g-sequencing-wi
   - Sequencer batches, derived from the transactions:
     - The transaction receiver is the sequencer inbox address
     - The transaction must be signed by a recognized sequencer account
-    - The calldata may contain any number of batches. *(calldata will be substituted with blob data in the future.)*
+    - The calldata may contain a bundle of batches. *(calldata will be substituted with blob data in the future.)*
     - Batches not matching filter criteria are ignored:
       - `batch.epoch == sequencing_window.epoch`, i.e. for this sequencing window
       - `(batch.timestamp - genesis_l2_timestamp) % block_time == 0`, i.e. timestamp is aligned
@@ -131,9 +131,22 @@ The rollup reads the following data from the [sequencing window][g-sequencing-wi
 
 [random]: https://eips.ethereum.org/EIPS/eip-4399
 
-Batches are formatted as: `type ++ RLP([epoch, timestamp, transaction_list])`
+A bundle of batches is versioned by prefixing with a bundle version byte: `bundle = bundle_version ++ bundle_data`.
 
-- `type` is a single `byte` identifying the batch format
+Bundle versions:
+
+- `0`: `bundle_data = RLP([batch_0, batch_1, ..., batch_N])`
+- `1`: `bundle_data = compress(RLP([batch_0, batch_1, ..., batch_N]))` (compression algorithm TBD)
+
+A batch is also versioned by prefixing with a version byte: `batch = batch_version ++ batch_data`
+and encoded as a byte-string (including version prefix byte) in the bundle RLP list.
+
+Batch versions:
+
+- `0`: `batch_data = RLP([epoch, timestamp, transaction_list])`, where each
+
+Batch contents:
+
 - `epoch` is the sequencing window epoch, i.e. the first L1 block number
 - `timestamp` is the L2 timestamp of the block
 - `transaction_list` is an RLP encoded list of [EIP-2718] encoded transactions
