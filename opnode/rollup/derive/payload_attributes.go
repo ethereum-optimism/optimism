@@ -1,6 +1,7 @@
 package derive
 
 import (
+	"bytes"
 	"encoding/binary"
 	"fmt"
 	"math/big"
@@ -180,7 +181,7 @@ func UserDeposits(height uint64, receipts []*types.Receipt) ([]*types.DepositTx,
 	return out, nil
 }
 
-func BatchesFromEVMTransactions(config *rollup.Config, txs []*types.Transaction) (out []BatchData) {
+func BatchesFromEVMTransactions(config *rollup.Config, txs []*types.Transaction) (out []*BatchData) {
 	l1Signer := config.L1Signer()
 	for _, tx := range txs {
 		if to := tx.To(); to != nil && *to == config.BatchInboxAddress {
@@ -193,18 +194,18 @@ func BatchesFromEVMTransactions(config *rollup.Config, txs []*types.Transaction)
 			if seqDataSubmitter != config.BatchSenderAddress {
 				continue // not an authorized batch submitter, ignore
 			}
-			batch, err := ParseBatch(tx.Data())
+			batches, err := DecodeBatches(config, bytes.NewReader(tx.Data()))
 			if err != nil {
 				// TODO: log error
 				continue
 			}
-			out = append(out, batch)
+			out = append(out, batches...)
 		}
 	}
 	return
 }
 
-func FilterBatches(config *rollup.Config, epoch rollup.Epoch, minL2Time uint64, maxL2Time uint64, batches []BatchData) (out []BatchData) {
+func FilterBatches(config *rollup.Config, epoch rollup.Epoch, minL2Time uint64, maxL2Time uint64, batches []*BatchData) (out []*BatchData) {
 	uniqueTime := make(map[uint64]struct{})
 	for _, batch := range batches {
 		if batch.Epoch != epoch {
@@ -244,7 +245,7 @@ type L2Info interface {
 //  - The L2 information of the block the new derived blocks build on
 //
 // This is a pure function.
-func PayloadAttributes(config *rollup.Config, l1Info L1Info, receipts []*types.Receipt, seqWindow []BatchData, l2Info L2Info) ([]*l2.PayloadAttributes, error) {
+func PayloadAttributes(config *rollup.Config, l1Info L1Info, receipts []*types.Receipt, seqWindow []*BatchData, l2Info L2Info) ([]*l2.PayloadAttributes, error) {
 	// Retrieve the deposits of this epoch (all deposits from the first block)
 	deposits, err := DeriveDeposits(l1Info, receipts)
 	if err != nil {
