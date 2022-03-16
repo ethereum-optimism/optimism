@@ -123,8 +123,10 @@ type PayloadAttributes struct {
 	Random Bytes32 `json:"random"`
 	// suggested value for the coinbase field of the new payload
 	SuggestedFeeRecipient common.Address `json:"suggestedFeeRecipient"`
-	// Transactions to build the block with, omitted if the local tx pool of the engine should be used instead
+	// Transactions to force into the block (always at the start of the transactions list).
 	Transactions []Data `json:"transactions,omitempty"`
+	// NoTxPool to disable adding any transactions from the transaction-pool.
+	NoTxPool bool `json:"noTxPool,omitempty"`
 }
 
 type ExecutePayloadStatus string
