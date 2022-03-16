@@ -1,11 +1,14 @@
 package bss
 
 import (
+	"bytes"
 	"context"
 	"crypto/ecdsa"
 	"errors"
 	"math/big"
 	"time"
+
+	"github.com/ethereum-optimism/optimistic-specs/opnode/rollup"
 
 	"github.com/ethereum-optimism/optimistic-specs/opnode/rollup/derive"
 	"github.com/ethereum/go-ethereum"
@@ -26,13 +29,14 @@ type BatchSubmitter struct {
 // 	return &BatchSubmitter{client: client, addr: addr}
 // }
 
-// Submit creates & submits a batch to L1. Blocks until the transaction is included.
+// Submit creates & submits batches to L1. Blocks until the transaction is included.
 // Return the tx hash as well as a possible error.
-func (b *BatchSubmitter) Submit(batch *derive.BatchV1) (common.Hash, error) {
+func (b *BatchSubmitter) Submit(config *rollup.Config, batches []*derive.BatchData) (common.Hash, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
 	defer cancel()
-	enc, err := batch.MarshalBinary()
-	if err != nil {
+
+	var buf bytes.Buffer
+	if err := derive.EncodeBatches(config, batches, &buf); err != nil {
 		return common.Hash{}, err
 	}
 
@@ -57,7 +61,7 @@ func (b *BatchSubmitter) Submit(batch *derive.BatchV1) (common.Hash, error) {
 		To:        &b.ToAddress,
 		GasTipCap: tip,
 		GasFeeCap: fee,
-		Data:      enc,
+		Data:      buf.Bytes(),
 	}
 	msg := ethereum.CallMsg{
 		From:      addr,
