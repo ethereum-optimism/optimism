@@ -209,7 +209,7 @@ jobs:
             - packages/core-utils/node_modules
             - packages/data-transport-layer/node_modules
             - packages/message-relayer/node_modules
-            - packages/replica-healthcehck/node_modules
+            - packages/replica-healthcheck/node_modules
             - packages/sdk/node_modules
             - integration-tests/node_modules
       - run:
@@ -220,7 +220,7 @@ jobs:
           paths:
             - "."
 
-  check-contracts:
+  contracts-slither:
     docker:
       - image: mslipper/slither:latest
     steps:
@@ -233,6 +233,31 @@ jobs:
           command: yarn test:slither
           working_directory: packages/contracts
 
+  contracts-lint:
+    docker:
+      - image: mslipper/slither:latest
+    steps:
+      - restore_cache:
+          keys:
+            - v1-yarn-build-{{ .Revision }}
+      - checkout
+      - run:
+          name: Lint
+          command: yarn lint:check
+          working_directory: packages/contracts
+      - run:
+          name: test
+          command: yarn test:coverage
+          working_directory: packages/contracts
+
+  contracts-test:
+    docker:
+      - image: mslipper/slither:latest
+    steps:
+      - run:
+          name: test
+          command: yarn test:coverage
+          working_directory: packages/contracts
 
 workflows:
   pull-requests:
@@ -250,8 +275,13 @@ workflows:
           name: Check teleportr
           binary_name: teleportr
           working_directory: go/teleportr
-      - check-contracts:
-          name: Check contracts
+      - contracts-slither:
+          requires:
+            - yarn-monorepo
+      - contracts-lint:
+          requires:
+            - yarn-monorepo
+      - contracts-test:
           requires:
             - yarn-monorepo
 
