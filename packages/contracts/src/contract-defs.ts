@@ -10,7 +10,6 @@ export const getContractArtifact = (name: string): any => {
   // the contracts, but we need the contracts to be compiled before the contract-artifacts.ts
   // file can be generated.
   // eslint-disable-next-line @typescript-eslint/no-var-requires
-  const { getContractArtifact } = require('./contract-artifacts')
   const artifact = getContractArtifact(name)
   if (artifact === undefined) {
     throw new Error(`Unable to find artifact for contract: ${name}`)
