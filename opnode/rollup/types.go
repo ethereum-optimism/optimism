@@ -2,6 +2,7 @@ package rollup
 
 import (
 	"errors"
+	"fmt"
 	"math/big"
 
 	"github.com/ethereum-optimism/optimistic-specs/opnode/eth"
@@ -48,10 +49,10 @@ type Config struct {
 // Check verifies that the given configuration makes sense
 func (cfg *Config) Check() error {
 	if cfg.BlockTime == 0 {
-		return errors.New("block time cannot be 0")
+		return fmt.Errorf("block time cannot be 0, got %d", cfg.BlockTime)
 	}
-	if cfg.SeqWindowSize == 0 {
-		return errors.New("sequencing window size cannot be 0")
+	if cfg.SeqWindowSize < 2 {
+		return fmt.Errorf("sequencing window size must at least be 2, got %d", cfg.SeqWindowSize)
 	}
 	if cfg.Genesis.L1.Hash == (common.Hash{}) {
 		return errors.New("genesis l1 hash cannot be empty")
