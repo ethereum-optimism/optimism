@@ -8,5 +8,5 @@
   "hardhat_ignore_compile": false,
   "disable_color": false,
   "exclude_dependencies": false,
-  "filter_paths": "contracts/test"
+  "filter_paths": "contracts/test|lib/ds-test"
 }
