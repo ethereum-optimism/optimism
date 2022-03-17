@@ -10,7 +10,6 @@ import (
 
 	"github.com/ethereum-optimism/optimistic-specs/opnode/eth"
 	"github.com/ethereum-optimism/optimistic-specs/opnode/rollup"
-	"github.com/ethereum-optimism/optimistic-specs/opnode/rollup/sync"
 )
 
 func fakeGenesis(l1 rune, l2 rune, l2offset int) rollup.Genesis {
@@ -89,6 +88,27 @@ type fakeChainSource struct {
 	log     log.Logger
 }
 
+func (m *fakeChainSource) L1Range(ctx context.Context, base eth.BlockID) ([]eth.BlockID, error) {
+	var out []eth.BlockID
+	found := false
+	for i, b := range m.l1s[m.l1reorg] {
+		if found {
+			out = append(out, b.Self)
+		}
+		if b.Self == base {
+			found = true
+		}
+		if i == m.l1head {
+			if found {
+				return out, nil
+			} else {
+				return nil, ethereum.NotFound
+			}
+		}
+	}
+	return nil, ethereum.NotFound
+}
+
 func (m *fakeChainSource) L1BlockRefByNumber(ctx context.Context, l1Num uint64) (eth.L1BlockRef, error) {
 	m.log.Trace("L1BlockRefByNumber", "l1Num", l1Num, "l1Head", m.l1head, "reorg", m.l1reorg)
 	if l1Num > uint64(m.l1head) {
@@ -131,7 +151,8 @@ func (m *fakeChainSource) L2BlockRefByHash(ctx context.Context, l2Hash common.Ha
 	return eth.L2BlockRef{}, ethereum.NotFound
 }
 
-var _ sync.ChainSource = (*fakeChainSource)(nil)
+var _ L1Chain = (*fakeChainSource)(nil)
+var _ L2Chain = (*fakeChainSource)(nil)
 
 func (m *fakeChainSource) reorgL1() {
 	m.log.Trace("Reorg L1", "new_reorg", m.l1reorg+1, "old_reorg", m.l1reorg)

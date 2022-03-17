@@ -8,8 +8,8 @@ import (
 
 	"github.com/ethereum-optimism/optimistic-specs/opnode/rollup"
 
-	"github.com/ethereum-optimism/optimistic-specs/opnode/l2"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/trie"
@@ -270,7 +270,7 @@ func SortedAndPreparedBatches(batches []*BatchData, epoch, blockTime, minL2Time,
 	return out
 }
 
-func L1InfoDepositBytes(l1Info L1Info) (l2.Data, error) {
+func L1InfoDepositBytes(l1Info L1Info) (hexutil.Bytes, error) {
 	l1Tx := types.NewTx(L1InfoDeposit(l1Info))
 	opaqueL1Tx, err := l1Tx.MarshalBinary()
 	if err != nil {
@@ -279,12 +279,12 @@ func L1InfoDepositBytes(l1Info L1Info) (l2.Data, error) {
 	return opaqueL1Tx, nil
 }
 
-func DeriveDeposits(epoch uint64, receipts []*types.Receipt) ([]l2.Data, error) {
+func DeriveDeposits(epoch uint64, receipts []*types.Receipt) ([]hexutil.Bytes, error) {
 	userDeposits, err := UserDeposits(epoch, receipts)
 	if err != nil {
 		return nil, fmt.Errorf("failed to derive user deposits: %v", err)
 	}
-	encodedTxs := make([]l2.Data, 0, len(userDeposits))
+	encodedTxs := make([]hexutil.Bytes, 0, len(userDeposits))
 	for i, tx := range userDeposits {
 		opaqueTx, err := types.NewTx(tx).MarshalBinary()
 		if err != nil {

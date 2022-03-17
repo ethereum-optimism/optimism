@@ -61,6 +61,7 @@ func New(ctx context.Context, cfg *Config, log log.Logger) (*OpNode, error) {
 	// l1Node.SetHeader()
 	l1Source := l1.NewSource(ethclient.NewClient(l1Node))
 	var l2Engines []*driver.Driver
+	genesis := cfg.Rollup.Genesis
 
 	for i, addr := range cfg.L2EngineAddrs {
 		l2Node, err := dialRPCClientWithBackoff(ctx, log, addr)
@@ -69,7 +70,7 @@ func New(ctx context.Context, cfg *Config, log log.Logger) (*OpNode, error) {
 		}
 		// TODO: we may need to authenticate the connection with L2
 		// backend.SetHeader()
-		client, err := l2.NewSource(l2Node, log.New("engine_client", i))
+		client, err := l2.NewSource(l2Node, &genesis, log.New("engine_client", i))
 		if err != nil {
 			return nil, err
 		}
