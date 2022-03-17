@@ -3,6 +3,7 @@ package rollup
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"math/big"
@@ -17,6 +18,7 @@ import (
 	"github.com/ethereum-optimism/optimism/l2geth/ethdb"
 	"github.com/ethereum-optimism/optimism/l2geth/event"
 	"github.com/ethereum-optimism/optimism/l2geth/log"
+	"github.com/ethereum-optimism/optimism/l2geth/rlp"
 
 	"github.com/ethereum-optimism/optimism/l2geth/core/rawdb"
 	"github.com/ethereum-optimism/optimism/l2geth/core/types"
@@ -71,10 +73,11 @@ type SyncService struct {
 	feeThresholdUp                 *big.Float
 	feeThresholdDown               *big.Float
 	txLogger                       pub.Publisher
+	queueSub                       QueueSubscriber
 }
 
 // NewSyncService returns an initialized sync service
-func NewSyncService(ctx context.Context, cfg Config, txpool *core.TxPool, bc *core.BlockChain, db ethdb.Database, txLogger pub.Publisher) (*SyncService, error) {
+func NewSyncService(ctx context.Context, cfg Config, txpool *core.TxPool, bc *core.BlockChain, db ethdb.Database, txLogger pub.Publisher, queueSub QueueSubscriber) (*SyncService, error) {
 	if bc == nil {
 		return nil, errors.New("Must pass BlockChain to SyncService")
 	}
@@ -147,6 +150,7 @@ func NewSyncService(ctx context.Context, cfg Config, txpool *core.TxPool, bc *co
 		feeThresholdDown:               cfg.FeeThresholdDown,
 		feeThresholdUp:                 cfg.FeeThresholdUp,
 		txLogger:                       txLogger,
+		queueSub:                       queueSub,
 	}
 
 	// The chainHeadSub is used to synchronize the SyncService with the chain.
@@ -421,6 +425,10 @@ func (s *SyncService) verify() error {
 	case BackendL2:
 		if err := s.syncTransactionsToTip(); err != nil {
 			return fmt.Errorf("Verifier cannot sync transactions with BackendL2: %w", err)
+		}
+	case BackendQueue:
+		if err := s.syncTransactionFromQueue(); err != nil {
+			return fmt.Errorf("Verifier cannot sync transactions with BackendQueue: %w", err)
 		}
 	}
 	return nil
@@ -877,12 +885,7 @@ func (s *SyncService) applyTransactionToTip(tx *types.Transaction) error {
 	log.Debug("Applying transaction to tip", "index", *tx.GetMeta().Index, "hash", tx.Hash().Hex(), "origin", tx.QueueOrigin().String())
 
 	// Log transaction to the failover log
-	encodedTx := new(bytes.Buffer)
-	if err := tx.EncodeRLP(encodedTx); err != nil {
-		return err
-	}
-	if err := s.txLogger.Publish(s.ctx, encodedTx.Bytes()); err != nil {
-		pubTxDropCounter.Inc(1)
+	if err := s.publishTransaction(tx); err != nil {
 		log.Error("Failed to publish transaction to log", "msg", err)
 		return fmt.Errorf("internal error: transaction logging failed")
 	}
@@ -1230,10 +1233,75 @@ func (s *SyncService) syncTransactionRange(start, end uint64, backend Backend) e
 	return nil
 }
 
+// syncTransactionFromQueue will sync the earliest transaction from an external message queue
+func (s *SyncService) syncTransactionFromQueue() error {
+	cb := func(ctx context.Context, msg QueueSubscriberMessage) {
+		var (
+			txMeta types.TransactionMeta
+			tx     types.Transaction
+		)
+		if err := json.Unmarshal(msg.Data(), &txMeta); err != nil {
+			msg.Nack()
+			return
+		}
+		if err := rlp.DecodeBytes(txMeta.RawTransaction, &tx); err != nil {
+			msg.Nack()
+			return
+		}
+		if txMeta.L1BlockNumber == nil || txMeta.L1Timestamp == 0 {
+			log.Warn("missing required queued transaction fields", "msg", string(msg.Data()))
+			msg.Nack()
+			return
+		}
+
+		if readTx, _, _, _ := rawdb.ReadTransaction(s.db, tx.Hash()); readTx != nil {
+			msg.Ack()
+			return
+		}
+
+		if err := s.applyTransactionToTip(&tx); err != nil {
+			msg.Nack()
+			return
+		}
+
+		msg.Ack()
+	}
+
+	s.queueSub.ReceiveMessage(s.ctx, cb)
+	return nil
+}
+
 // SubscribeNewTxsEvent registers a subscription of NewTxsEvent and
 // starts sending event to the given channel.
 func (s *SyncService) SubscribeNewTxsEvent(ch chan<- core.NewTxsEvent) event.Subscription {
 	return s.scope.Track(s.txFeed.Subscribe(ch))
+}
+
+func (s *SyncService) publishTransaction(tx *types.Transaction) error {
+	rawTx := new(bytes.Buffer)
+	if err := tx.EncodeRLP(rawTx); err != nil {
+		return err
+	}
+
+	if tx.L1BlockNumber() == nil || tx.L1Timestamp() == 0 {
+		return fmt.Errorf("transaction doesn't contain required fields")
+	}
+
+	// Manually populate RawTransaction as it's not always available
+	txMeta := tx.GetMeta()
+	txMeta.RawTransaction = rawTx.Bytes()
+
+	txLog := AsQueuedTransactionMeta(txMeta)
+	encodedTxLog, err := json.Marshal(&txLog)
+	if err != nil {
+		return err
+	}
+
+	if err := s.txLogger.Publish(s.ctx, encodedTxLog); err != nil {
+		pubTxDropCounter.Inc(1)
+		return err
+	}
+	return nil
 }
 
 func stringify(i *uint64) string {
@@ -1247,4 +1315,26 @@ func stringify(i *uint64) string {
 // validation and applies the transaction
 func (s *SyncService) IngestTransaction(tx *types.Transaction) error {
 	return s.applyTransaction(tx)
+}
+
+type QueuedTransactionMeta struct {
+	L1BlockNumber   *big.Int           `json:"l1BlockNumber"`
+	L1Timestamp     *uint64            `json:"l1Timestamp"`
+	L1MessageSender *common.Address    `json:"l1MessageSender"`
+	QueueOrigin     *types.QueueOrigin `json:"queueOrigin"`
+	Index           *uint64            `json:"index"`
+	QueueIndex      *uint64            `json:"queueIndex"`
+	RawTransaction  []byte             `json:"rawTransaction"`
+}
+
+func AsQueuedTransactionMeta(txMeta *types.TransactionMeta) *QueuedTransactionMeta {
+	return &QueuedTransactionMeta{
+		L1BlockNumber:   txMeta.L1BlockNumber,
+		L1Timestamp:     &txMeta.L1Timestamp,
+		L1MessageSender: txMeta.L1MessageSender,
+		QueueOrigin:     &txMeta.QueueOrigin,
+		Index:           txMeta.Index,
+		QueueIndex:      txMeta.QueueIndex,
+		RawTransaction:  txMeta.RawTransaction,
+	}
 }

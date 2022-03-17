@@ -213,7 +213,13 @@ func New(ctx *node.ServiceContext, config *Config) (*Ethereum, error) {
 		return nil, err
 	}
 
-	eth.syncService, err = rollup.NewSyncService(context.Background(), config.Rollup, eth.txPool, eth.blockchain, eth.chainDb, txLogger)
+	var txQueueSubscriber rollup.QueueSubscriber
+	txQueueSubscriber, err = rollup.NewQueueSubscriber(context.Background(), config.TxQueueSubscriber)
+	if err != nil {
+		return nil, err
+	}
+
+	eth.syncService, err = rollup.NewSyncService(context.Background(), config.Rollup, eth.txPool, eth.blockchain, eth.chainDb, txLogger, txQueueSubscriber)
 	if err != nil {
 		return nil, fmt.Errorf("Cannot initialize syncservice: %w", err)
 	}

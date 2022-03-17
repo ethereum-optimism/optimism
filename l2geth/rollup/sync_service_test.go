@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/rand"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"math/big"
@@ -23,7 +24,6 @@ import (
 	"github.com/ethereum-optimism/optimism/l2geth/ethdb"
 	"github.com/ethereum-optimism/optimism/l2geth/event"
 	"github.com/ethereum-optimism/optimism/l2geth/params"
-	"github.com/ethereum-optimism/optimism/l2geth/rlp"
 	"github.com/ethereum-optimism/optimism/l2geth/rollup/pub"
 	"github.com/ethereum-optimism/optimism/l2geth/rollup/rcfg"
 )
@@ -899,7 +899,7 @@ func TestBadFeeThresholds(t *testing.T) {
 			cfg.FeeThresholdDown = tt.thresholdDown
 			cfg.FeeThresholdUp = tt.thresholdUp
 
-			_, err := NewSyncService(context.Background(), cfg, txPool, chain, db, &pub.NoopPublisher{})
+			_, err := NewSyncService(context.Background(), cfg, txPool, chain, db, &pub.NoopPublisher{}, &noopQueueSubscriber{})
 			if !errors.Is(err, tt.err) {
 				t.Fatalf("%s: %s", name, err)
 			}
@@ -931,15 +931,15 @@ func TestSyncServiceTransactionLog(t *testing.T) {
 	txLogger.unblockPublish()
 	<-txCh
 
-	var loggedTx *types.Transaction
+	loggedTxMeta := new(QueuedTransactionMeta)
 	buf := <-txLogger.msgs
-	if err := rlp.DecodeBytes(buf, &loggedTx); err != nil {
-		t.Fatalf("unable to decode logged transaction: %v", err)
+	if err := json.Unmarshal(buf, loggedTxMeta); err != nil {
+		t.Fatalf("unable to decode logged transaction meta: %v", err)
 	}
 
-	txJSON, _ := tx.MarshalJSON()
-	loggedTxJSON, _ := loggedTx.MarshalJSON()
-	if !bytes.Equal(txJSON, loggedTxJSON) {
+	txMetaJSON, _ := tx.GetMeta().MarshalJSON()
+	loggedTxJSON, _ := json.Marshal(loggedTxMeta)
+	if !bytes.Equal(txMetaJSON, loggedTxJSON) {
 		t.Fatal("mismatched logged transactions")
 	}
 }
@@ -1011,7 +1011,7 @@ func newTestSyncService(isVerifier bool, alloc *common.Address, txLogger pub.Pub
 	if txLogger == nil {
 		txLogger = &pub.NoopPublisher{}
 	}
-	service, err := NewSyncService(context.Background(), cfg, txPool, chain, db, txLogger)
+	service, err := NewSyncService(context.Background(), cfg, txPool, chain, db, txLogger, &noopQueueSubscriber{})
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("Cannot initialize syncservice: %w", err)
 	}

@@ -186,4 +186,6 @@ type Config struct {
 	Rollup rollup.Config
 
 	TxPublisher pub.Config
+
+	TxQueueSubscriber rollup.QueueSubscriberConfig
 }
