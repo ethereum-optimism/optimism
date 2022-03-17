@@ -1241,15 +1241,17 @@ func (s *SyncService) syncTransactionFromQueue() error {
 			tx     types.Transaction
 		)
 		if err := json.Unmarshal(msg.Data(), &txMeta); err != nil {
+			log.Error("Failed to unmarshal logged TransactionMeta", "msg", err)
 			msg.Nack()
 			return
 		}
 		if err := rlp.DecodeBytes(txMeta.RawTransaction, &tx); err != nil {
+			log.Error("decoding raw transaction failed", "msg", err)
 			msg.Nack()
 			return
 		}
 		if txMeta.L1BlockNumber == nil || txMeta.L1Timestamp == 0 {
-			log.Warn("missing required queued transaction fields", "msg", string(msg.Data()))
+			log.Error("Missing required queued transaction fields", "msg", string(msg.Data()))
 			msg.Nack()
 			return
 		}
@@ -1260,6 +1262,7 @@ func (s *SyncService) syncTransactionFromQueue() error {
 		}
 
 		if err := s.applyTransactionToTip(&tx); err != nil {
+			log.Error("Unable to apply transactions to tip from Queue", "msg", err)
 			msg.Nack()
 			return
 		}
@@ -1267,6 +1270,7 @@ func (s *SyncService) syncTransactionFromQueue() error {
 		msg.Ack()
 	}
 
+	// This blocks until there's a new message in the queue or ctx deadline hits
 	s.queueSub.ReceiveMessage(s.ctx, cb)
 	return nil
 }
