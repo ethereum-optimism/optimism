@@ -26,7 +26,7 @@ $ make geth
 ### Running a Sequencer
 
 Running a sequencer that ingests L1 to L2 transactions requires running the
-[Data Transport Layer](https://github.com/ethereum-optimism/data-transport-layer).
+[Data Transport Layer](https://github.com/ethereum-optimism/optimism/tree/develop/packages/data-transport-layer).
 The data transport layer is responsible for indexing transactions
 from layer one Ethereum. It is possible to run a local development sequencer
 without the data transport layer by turning off the sync service. To turn on
