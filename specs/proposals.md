@@ -58,7 +58,7 @@ it does by running the [L2 output submitter](../l2os/) service (AKA L2OSS). This
 
 If there is no newly finalized output, the service continues querying until it receives one. It then submits this
 output, and the appropriate timestamp, to the [L2 Output Commitment](#l2-output-commitment-smart-contract) contract's
-`appendL2Output()` function. The timestamp MUST be the next multiple of the `SUBMISSION_FREQUENCY` value.
+`appendL2Output()` function. The timestamp MUST be the next multiple of the `SUBMISSION_INTERVAL` value.
 
 ## L2 Output Commitment Construction
 
@@ -103,7 +103,7 @@ upgrades. This keeps the static merkle structure forwards-compatible.
 ## L2 Output Oracle Smart Contract
 
 L2 blocks are produced at a constant rate of `L2_BLOCK_TIME` (2 seconds).
-A new L2 output MUST be appended to the chain once per `SUBMISSION_FREQUENCY` (100 seconds). Note that interval is based on L2 time. It is OK to have L2 outputs
+A new L2 output MUST be appended to the chain once per `SUBMISSION_INTERVAL` (100 seconds). Note that interval is based on L2 time. It is OK to have L2 outputs
 submitted at larger or small intervals
 
 The L2 Output Oracle contract implements the following interface:
@@ -134,7 +134,7 @@ function appendL2Output(bytes32 _l2Output, uint256 _timestamp, ForkSpec _forkSpe
  * checkpointed.
  */
 function nextTimestamp() public view returns (uint256) {
-    return latestBlockTimestamp + submissionFrequency;
+    return latestBlockTimestamp + submissionInterval;
 }
 
 /**

@@ -5,7 +5,7 @@ pragma solidity >=0.8.10;
  * @title MockL2OutputOracle
  */
 contract MockL2OutputOracle {
-    uint256 public submissionFrequency;
+    uint256 public submissionInterval;
     uint256 public l2BlockTime;
     mapping(uint256 => bytes32) public l2Outputs;
     uint256 public historicalTotalBlocks;
@@ -14,7 +14,7 @@ contract MockL2OutputOracle {
 
     /**
      * Initialize the MockL2OutputOracle contract.
-     * @param _submissionFrequency The desired interval in seconds at which
+     * @param _submissionInterval The desired interval in seconds at which
      *        checkpoints must be submitted.
      * @param _l2BlockTime The desired L2 inter-block time in seconds.
      * @param _genesisL2Output The initial L2 output of the L2 chain.
@@ -22,12 +22,12 @@ contract MockL2OutputOracle {
      *        initialization of the L2 chain.
      */
     constructor(
-        uint256 _submissionFrequency,
+        uint256 _submissionInterval,
         uint256 _l2BlockTime,
         bytes32 _genesisL2Output,
         uint256 _historicalTotalBlocks
     ) {
-        submissionFrequency = _submissionFrequency;
+        submissionInterval = _submissionInterval;
         l2BlockTime = _l2BlockTime;
         l2Outputs[block.timestamp] = _genesisL2Output; // solhint-disable not-rely-on-time
         historicalTotalBlocks = _historicalTotalBlocks;
@@ -56,7 +56,7 @@ contract MockL2OutputOracle {
      * checkpointed.
      */
     function nextTimestamp() public view returns (uint256) {
-        return latestBlockTimestamp + submissionFrequency;
+        return latestBlockTimestamp + submissionInterval;
     }
 
     /**
