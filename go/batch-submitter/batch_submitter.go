@@ -148,15 +148,16 @@ func Main(gitVersion string) func(ctx *cli.Context) error {
 
 		if cfg.RunStateBatchSubmitter {
 			batchStateDriver, err := proposer.NewDriver(proposer.Config{
-				Name:        "Proposer",
-				L1Client:    l1Client,
-				L2Client:    l2Client,
-				BlockOffset: cfg.BlockOffset,
-				MaxTxSize:   cfg.MaxL1TxSize,
-				SCCAddr:     sccAddress,
-				CTCAddr:     ctcAddress,
-				ChainID:     chainID,
-				PrivKey:     proposerPrivKey,
+				Name:                 "Proposer",
+				L1Client:             l1Client,
+				L2Client:             l2Client,
+				BlockOffset:          cfg.BlockOffset,
+				MinStateRootElements: cfg.MinStateRootElements,
+				MaxStateRootElements: cfg.MaxStateRootElements,
+				SCCAddr:              sccAddress,
+				CTCAddr:              ctcAddress,
+				ChainID:              chainID,
+				PrivKey:              proposerPrivKey,
 			})
 			if err != nil {
 				return err
