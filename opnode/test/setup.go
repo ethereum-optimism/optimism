@@ -44,7 +44,8 @@ type gethConfig struct {
 type systemConfig struct {
 	mnemonic                string
 	l1                      gethConfig
-	l2                      gethConfig
+	l2Verifier              gethConfig
+	l2Sequencer             gethConfig
 	premine                 map[string]int // Derivation path -> amount in ETH (not wei)
 	cliqueSigners           []string       // derivation path
 	depositContractAddress  string
@@ -132,7 +133,7 @@ func initializeGenesis(cfg *systemConfig) {
 	}
 	l2Genesis := &core.Genesis{
 		Config: &params.ChainConfig{
-			ChainID:                 new(big.Int).SetUint64((cfg.l2.ethConfig.NetworkId)),
+			ChainID:                 new(big.Int).SetUint64((cfg.l2Verifier.ethConfig.NetworkId)),
 			HomesteadBlock:          common.Big0,
 			EIP150Block:             common.Big0,
 			EIP155Block:             common.Big0,
@@ -155,6 +156,7 @@ func initializeGenesis(cfg *systemConfig) {
 	}
 
 	cfg.l1.ethConfig.Genesis = l1Genesis
-	cfg.l2.ethConfig.Genesis = l2Genesis
+	cfg.l2Verifier.ethConfig.Genesis = l2Genesis
+	cfg.l2Sequencer.ethConfig.Genesis = l2Genesis
 	cfg.wallet = wallet
 }

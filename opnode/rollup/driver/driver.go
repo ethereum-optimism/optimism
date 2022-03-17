@@ -6,7 +6,9 @@ import (
 	"github.com/ethereum-optimism/optimistic-specs/opnode/eth"
 	"github.com/ethereum-optimism/optimistic-specs/opnode/l1"
 	"github.com/ethereum-optimism/optimistic-specs/opnode/rollup"
+	"github.com/ethereum-optimism/optimistic-specs/opnode/rollup/derive"
 	"github.com/ethereum-optimism/optimistic-specs/opnode/rollup/sync"
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 )
 
@@ -14,7 +16,15 @@ type Driver struct {
 	s *state
 }
 
-func NewDriver(cfg rollup.Config, l2 DriverAPI, l1 l1.Source, log log.Logger) *Driver {
+type BatchSubmitter interface {
+	Submit(config *rollup.Config, batches []*derive.BatchData) (common.Hash, error)
+}
+
+func NewDriver(cfg rollup.Config, l2 DriverAPI, l1 l1.Source, log log.Logger, submitter BatchSubmitter, sequencer bool) *Driver {
+	if sequencer && submitter == nil {
+		log.Error("Bad configuration")
+		// TODO: return error
+	}
 	input := &inputImpl{
 		chainSource: sync.NewChainSource(l1, l2, &cfg.Genesis),
 		genesis:     &cfg.Genesis,
@@ -26,7 +36,7 @@ func NewDriver(cfg rollup.Config, l2 DriverAPI, l1 l1.Source, log log.Logger) *D
 		rpc:    l2,
 	}
 	return &Driver{
-		s: NewState(log, cfg, input, output),
+		s: NewState(log, cfg, input, output, submitter, sequencer),
 	}
 }
 

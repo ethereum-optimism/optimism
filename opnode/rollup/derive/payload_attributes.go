@@ -181,7 +181,8 @@ func UserDeposits(height uint64, receipts []*types.Receipt) ([]*types.DepositTx,
 	return out, nil
 }
 
-func BatchesFromEVMTransactions(config *rollup.Config, txs []*types.Transaction) (out []*BatchData) {
+func BatchesFromEVMTransactions(config *rollup.Config, txs []*types.Transaction) ([]*BatchData, error) {
+	var out []*BatchData
 	l1Signer := config.L1Signer()
 	for _, tx := range txs {
 		if to := tx.To(); to != nil && *to == config.BatchInboxAddress {
@@ -192,17 +193,18 @@ func BatchesFromEVMTransactions(config *rollup.Config, txs []*types.Transaction)
 			}
 			// some random L1 user might have sent a transaction to our batch inbox, ignore them
 			if seqDataSubmitter != config.BatchSenderAddress {
+				// TODO: log/record metric
 				continue // not an authorized batch submitter, ignore
 			}
 			batches, err := DecodeBatches(config, bytes.NewReader(tx.Data()))
 			if err != nil {
-				// TODO: log error
+				// TODO: log/record metric
 				continue
 			}
 			out = append(out, batches...)
 		}
 	}
-	return
+	return out, nil
 }
 
 func FilterBatches(config *rollup.Config, epoch rollup.Epoch, minL2Time uint64, maxL2Time uint64, batches []*BatchData) (out []*BatchData) {
@@ -245,7 +247,7 @@ type L2Info interface {
 //  - The L2 information of the block the new derived blocks build on
 //
 // This is a pure function.
-func PayloadAttributes(config *rollup.Config, l1Info L1Info, receipts []*types.Receipt, seqWindow []*BatchData, l2Info L2Info) ([]*l2.PayloadAttributes, error) {
+func PayloadAttributes(config *rollup.Config, l1Info L1Info, receipts []*types.Receipt, seqWindow []*BatchData, l2Info L2Info, minL2Time, maxL2Time uint64) ([]*l2.PayloadAttributes, error) {
 	// Retrieve the deposits of this epoch (all deposits from the first block)
 	deposits, err := DeriveDeposits(l1Info, receipts)
 	if err != nil {
@@ -265,13 +267,7 @@ func PayloadAttributes(config *rollup.Config, l1Info L1Info, receipts []*types.R
 
 	// Collect all L2 batches, the batches may be out-of-order, or possibly missing.
 	l2Blocks := make(map[uint64]*l2.PayloadAttributes)
-	highestSeenTimestamp := l1Info.Time()
 	for _, batch := range seqWindow {
-
-		// Track the last batch we've seen (gaps will be filled with empty L2 blocks)
-		if batch.Timestamp > highestSeenTimestamp {
-			highestSeenTimestamp = batch.Timestamp
-		}
 
 		txns := make([]l2.Data, 0, len(batch.Transactions)+1)
 		txns = append(txns, l1InfoTx)
@@ -285,14 +281,9 @@ func PayloadAttributes(config *rollup.Config, l1Info L1Info, receipts []*types.R
 		}
 	}
 
-	// If there are no submitted batches, at least derive the deposit block.
-	if len(seqWindow) == 0 {
-		highestSeenTimestamp += config.BlockTime
-	}
-
 	// fill the gaps and always ensure at least one L2 block
 	var out []*l2.PayloadAttributes
-	for t := l1Info.Time() + config.BlockTime; t <= highestSeenTimestamp; t += config.BlockTime {
+	for t := minL2Time; t < maxL2Time; t += config.BlockTime {
 		if bl, ok := l2Blocks[t]; ok {
 			out = append(out, bl)
 		} else {
@@ -304,9 +295,13 @@ func PayloadAttributes(config *rollup.Config, l1Info L1Info, receipts []*types.R
 				Random:                randomnessSeed,
 				SuggestedFeeRecipient: config.FeeRecipientAddress,
 				Transactions:          txns,
+				// we are verifying, not sequencing, we've all transactions and do not pull from the tx-pool
+				// (that would make the block derivation non-deterministic)
+				NoTxPool: true,
 			})
 		}
 	}
+	// TODO: Assert that this does not panic here (i.e. make sure that len(out) > 0)
 
 	// Force deposits into the first block. TODO: Clean up L1 Info handling.
 	out[0].Transactions = append(append(make([]l2.Data, 0), deposits...), out[0].Transactions[1:]...)

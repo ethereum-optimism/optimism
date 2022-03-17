@@ -2,6 +2,7 @@ package test
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math/big"
 	"testing"
@@ -15,6 +16,7 @@ import (
 	rollupNode "github.com/ethereum-optimism/optimistic-specs/opnode/node"
 	"github.com/ethereum-optimism/optimistic-specs/opnode/rollup"
 
+	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/accounts/keystore"
@@ -48,6 +50,7 @@ func TestSystemE2E(t *testing.T) {
 	log.Root().SetHandler(log.DiscardHandler()) // Comment this out to see geth l1/l2 logs
 
 	const l2OutputHDPath = "m/44'/60'/0'/0/3"
+	const bssHDPath = "m/44'/60'/0'/0/4"
 
 	// System Config
 	cfg := &systemConfig{
@@ -62,13 +65,21 @@ func TestSystemE2E(t *testing.T) {
 				NetworkId: 900,
 			},
 		},
-		l2: gethConfig{
+		l2Verifier: gethConfig{
 			nodeConfig: &node.Config{
-				Name:    "l2geth",
-				DataDir: "",
-				IPCPath: "",
-				WSHost:  "127.0.0.1",
-				WSPort:  9091,
+				Name:   "l2gethVerify",
+				WSHost: "127.0.0.1",
+				WSPort: 9091,
+			},
+			ethConfig: &ethconfig.Config{
+				NetworkId: 901,
+			},
+		},
+		l2Sequencer: gethConfig{
+			nodeConfig: &node.Config{
+				Name:   "l2gethSeq",
+				WSHost: "127.0.0.1",
+				WSPort: 9092,
 			},
 			ethConfig: &ethconfig.Config{
 				NetworkId: 901,
@@ -79,6 +90,7 @@ func TestSystemE2E(t *testing.T) {
 			"m/44'/60'/0'/0/1": 10000000,
 			"m/44'/60'/0'/0/2": 10000000,
 			l2OutputHDPath:     10000000,
+			bssHDPath:          10000000,
 		},
 		cliqueSigners:           []string{"m/44'/60'/0'/0/0"},
 		depositContractAddress:  "0xdeaddeaddeaddeaddeaddeaddeaddeaddead0001",
@@ -110,35 +122,91 @@ func TestSystemE2E(t *testing.T) {
 	err = l2Node.Start()
 	require.Nil(t, err)
 
-	l2Client, err := ethclient.Dial(endpoint(cfg.l2.nodeConfig))
+	l2Client, err := ethclient.Dial(endpoint(cfg.l2Verifier.nodeConfig))
 	require.Nil(t, err)
 	l2GenesisHash := getGenesisHash(l2Client)
 
-	// Rollup Node
+	// Start L2
+	l2SequencerNode, _, err := l2SequencerGeth(cfg)
+	require.Nil(t, err)
+	defer l2SequencerNode.Close()
+
+	err = l2SequencerNode.Start()
+	require.Nil(t, err)
+
+	l2SequencerClient, err := ethclient.Dial(endpoint(cfg.l2Sequencer.nodeConfig))
+	require.Nil(t, err)
+
+	// BSS
+	bssPrivKey, err := cfg.wallet.PrivateKey(accounts.Account{
+		URL: accounts.URL{
+			Path: bssHDPath,
+		},
+	})
+	require.Nil(t, err)
+	submitterAddress := crypto.PubkeyToAddress(bssPrivKey.PublicKey)
+
+	// Account
+	ethPrivKey, err := cfg.wallet.PrivateKey(accounts.Account{
+		URL: accounts.URL{
+			Path: "m/44'/60'/0'/0/0",
+		},
+	})
+	require.Nil(t, err)
+
+	// Verifier Rollup Node
 	nodeCfg := &rollupNode.Config{
 		L2Hash:        l2GenesisHash,
 		L1Hash:        l1GenesisHash,
 		L1Num:         0,
 		L1NodeAddr:    endpoint(cfg.l1.nodeConfig),
-		L2EngineAddrs: []string{endpoint(cfg.l2.nodeConfig)},
+		L2EngineAddrs: []string{endpoint(cfg.l2Verifier.nodeConfig)},
 		Rollup: rollup.Config{
 			BlockTime:            1,
 			MaxSequencerTimeDiff: 10,
-			SeqWindowSize:        1,
-			L1ChainID:            big.NewInt(901),
+			SeqWindowSize:        2,
+			L1ChainID:            big.NewInt(900),
 			// TODO pick defaults
 			FeeRecipientAddress: common.Address{0xff, 0x01},
 			BatchInboxAddress:   common.Address{0xff, 0x02},
-			BatchSenderAddress:  common.Address{0xff, 0x03},
+			BatchSenderAddress:  submitterAddress,
 		},
 	}
 	nodeCfg.Rollup.Genesis = nodeCfg.GetGenesis()
-	node, err := rollupNode.New(context.Background(), nodeCfg, testlog.Logger(t, log.LvlTrace))
+	node, err := rollupNode.New(context.Background(), nodeCfg, testlog.Logger(t, log.LvlError))
 	require.Nil(t, err)
 
 	err = node.Start(context.Background())
 	require.Nil(t, err)
 	defer node.Stop()
+
+	// Sequencer Rollup Node
+	sequenceCfg := &rollupNode.Config{
+		L2Hash:        l2GenesisHash,
+		L1Hash:        l1GenesisHash,
+		L1Num:         0,
+		L1NodeAddr:    endpoint(cfg.l1.nodeConfig),
+		L2EngineAddrs: []string{endpoint(cfg.l2Sequencer.nodeConfig)},
+		Rollup: rollup.Config{
+			BlockTime:            1,
+			MaxSequencerTimeDiff: 10,
+			SeqWindowSize:        2,
+			L1ChainID:            big.NewInt(900),
+			// TODO pick defaults
+			FeeRecipientAddress: common.Address{0xff, 0x01},
+			BatchInboxAddress:   common.Address{0xff, 0x02},
+			BatchSenderAddress:  submitterAddress,
+		},
+		Sequencer:        true,
+		SubmitterPrivKey: bssPrivKey,
+	}
+	sequenceCfg.Rollup.Genesis = sequenceCfg.GetGenesis()
+	sequencer, err := rollupNode.New(context.Background(), sequenceCfg, testlog.Logger(t, log.LvlError))
+	require.Nil(t, err)
+
+	err = sequencer.Start(context.Background())
+	require.Nil(t, err)
+	defer sequencer.Stop()
 
 	// Deploy StateRootOracle
 	l2OutputPrivKey, err := cfg.wallet.PrivateKey(accounts.Account{
@@ -178,13 +246,13 @@ func TestSystemE2E(t *testing.T) {
 	// L2Output Submitter
 	l2OutputSubmitter, err := l2os.NewL2OutputSubmitter(l2os.Config{
 		L1EthRpc:                  endpoint(cfg.l1.nodeConfig),
-		L2EthRpc:                  endpoint(cfg.l2.nodeConfig),
+		L2EthRpc:                  endpoint(cfg.l2Verifier.nodeConfig),
 		L2OOAddress:               l2ooAddr.String(),
 		PollInterval:              5 * time.Second,
 		NumConfirmations:          1,
 		ResubmissionTimeout:       5 * time.Second,
 		SafeAbortNonceTooLowCount: 3,
-		LogLevel:                  "debug",
+		LogLevel:                  "error",
 		Mnemonic:                  cfg.mnemonic,
 		L2OutputHDPath:            l2OutputHDPath,
 	}, "")
@@ -246,6 +314,7 @@ func TestSystemE2E(t *testing.T) {
 	defer cancel()
 	receipt, err := l1Client.TransactionReceipt(ctx, tx.Hash())
 	require.Nil(t, err, "Could not get transaction receipt")
+	waitNumber := new(big.Int).Add(receipt.BlockNumber, common.Big2) // sequence window effect
 
 	// Wait (or timeout) for that block to show up on L2
 	timeoutCh := time.After(6 * time.Second)
@@ -253,7 +322,7 @@ loop:
 	for {
 		select {
 		case head := <-headChan:
-			if head.Number.Cmp(receipt.BlockNumber) >= 0 {
+			if head.Number.Cmp(waitNumber) >= 0 {
 				break loop
 			}
 		case err := <-l2HeadSub.Err():
@@ -311,4 +380,46 @@ loop:
 		case <-time.After(time.Second):
 		}
 	}
+
+	// Submit TX to L2 sequencer node
+	toAddr := common.Address{0xff, 0xff}
+	tx = types.MustSignNewTx(ethPrivKey, types.LatestSignerForChainID(new(big.Int).SetUint64(cfg.l2Verifier.ethConfig.NetworkId)), &types.DynamicFeeTx{
+		ChainID:   big.NewInt(int64(cfg.l2Verifier.ethConfig.NetworkId)),
+		Nonce:     1, // guess
+		To:        &toAddr,
+		Value:     big.NewInt(1_000_000_000),
+		GasTipCap: big.NewInt(10),
+		GasFeeCap: big.NewInt(200),
+		Gas:       21000,
+	})
+	err = l2SequencerClient.SendTransaction(context.Background(), tx)
+	require.Nil(t, err)
+
+	var l2IncludedBlock *big.Int
+
+	// Wait for tx to show up in chain (on sequencer)
+	timeoutCh = time.After(6 * time.Second)
+lastLoop:
+	for {
+		select {
+		case <-timeoutCh:
+			t.Fatal("Timeout waiting for l2 transaction")
+		case <-time.After(200 * time.Millisecond):
+		}
+
+		receipt, err := l2Client.TransactionReceipt(context.Background(), tx.Hash())
+		if receipt != nil && err == nil {
+			l2IncludedBlock = receipt.BlockNumber
+			break lastLoop
+		} else if err != nil && !errors.Is(err, ethereum.NotFound) {
+			require.Nil(t, err)
+		}
+	}
+
+	verifBlock, err := l2Client.BlockByNumber(context.Background(), l2IncludedBlock)
+	require.Nil(t, err)
+	seqBlock, err := l2SequencerClient.BlockByNumber(context.Background(), l2IncludedBlock)
+	require.Nil(t, err)
+	require.Equal(t, verifBlock.Hash(), seqBlock.Hash(), "Verifier and sequencer blocks not the same after including a batch tx")
+
 }

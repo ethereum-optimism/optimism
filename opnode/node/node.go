@@ -2,9 +2,11 @@ package node
 
 import (
 	"context"
+	"crypto/ecdsa"
 	"fmt"
 	"time"
 
+	"github.com/ethereum-optimism/optimistic-specs/opnode/bss"
 	"github.com/ethereum-optimism/optimistic-specs/opnode/eth"
 	"github.com/ethereum-optimism/optimistic-specs/opnode/l1"
 	"github.com/ethereum-optimism/optimistic-specs/opnode/l2"
@@ -29,7 +31,9 @@ type Config struct {
 	L1Hash common.Hash // Block hash of L1 after (not incl.) which L1 starts deriving blocks
 	L1Num  uint64      // Block number of L1 matching the l1-hash
 
-	Rollup rollup.Config
+	Rollup           rollup.Config
+	Sequencer        bool
+	SubmitterPrivKey *ecdsa.PrivateKey
 }
 
 // Check verifies that the given configuration makes sense
@@ -88,7 +92,16 @@ func New(ctx context.Context, cfg *Config, log log.Logger) (*OpNode, error) {
 			EthBackend: ethclient.NewClient(backend),
 			Log:        log.New("engine_client", i),
 		}
-		engine := driver.NewDriver(cfg.Rollup, client, l1Source, log.New("engine", i))
+		var submitter *bss.BatchSubmitter
+		if cfg.Sequencer {
+			submitter = &bss.BatchSubmitter{
+				Client:    ethclient.NewClient(l1Node),
+				ToAddress: cfg.Rollup.BatchInboxAddress,
+				ChainID:   cfg.Rollup.L1ChainID,
+				PrivKey:   cfg.SubmitterPrivKey,
+			}
+		}
+		engine := driver.NewDriver(cfg.Rollup, client, l1Source, log.New("engine", i, "Sequencer", cfg.Sequencer), submitter, cfg.Sequencer)
 		l2Engines = append(l2Engines, engine)
 	}
 

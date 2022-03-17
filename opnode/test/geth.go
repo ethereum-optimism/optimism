@@ -73,5 +73,9 @@ func l1Geth(cfg *systemConfig) (*node.Node, *eth.Ethereum, error) {
 }
 
 func l2Geth(cfg *systemConfig) (*node.Node, *eth.Ethereum, error) {
-	return createGethNode(true, cfg.l2.nodeConfig, cfg.l2.ethConfig, []*ecdsa.PrivateKey{})
+	return createGethNode(true, cfg.l2Verifier.nodeConfig, cfg.l2Verifier.ethConfig, nil)
+}
+
+func l2SequencerGeth(cfg *systemConfig) (*node.Node, *eth.Ethereum, error) {
+	return createGethNode(true, cfg.l2Sequencer.nodeConfig, cfg.l2Sequencer.ethConfig, nil)
 }

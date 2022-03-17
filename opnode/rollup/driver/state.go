@@ -6,6 +6,7 @@ import (
 
 	"github.com/ethereum-optimism/optimistic-specs/opnode/eth"
 	"github.com/ethereum-optimism/optimistic-specs/opnode/rollup"
+	"github.com/ethereum-optimism/optimistic-specs/opnode/rollup/derive"
 	"github.com/ethereum/go-ethereum/log"
 )
 
@@ -19,35 +20,42 @@ type inputInterface interface {
 
 type outputInterface interface {
 	step(ctx context.Context, l2Head eth.BlockID, l2Finalized eth.BlockID, l1Window []eth.BlockID) (eth.BlockID, error)
+	newBlock(ctx context.Context, l2Finalized eth.BlockID, l2Parent eth.BlockID, l1Origin eth.BlockID, includeDeposits bool) (eth.BlockID, *derive.BatchData, error)
 }
 
 type state struct {
 	// Chain State
-	l1Head      eth.BlockID   // Latest recorded head of the L1 Chain
-	l1Base      eth.BlockID   // L1 Parent of L2 Head block
-	l2Head      eth.BlockID   // L2 Safe Head - this is the head of the L2 chain as derived from L1 (thus it is Sequencer window blocks behind)
-	l2Finalized eth.BlockID   // L2 Block that will never be reversed
-	l1Window    []eth.BlockID // l1Window buffers the next L1 block IDs to derive new L2 blocks from, with increasing block height.
+	l1Head       eth.BlockID   // Latest recorded head of the L1 Chain
+	l1Base       eth.BlockID   // L1 Parent of L2 Head block
+	l2UnsafeHead eth.BlockID   // L2 Unsafe Head - this is the head block from the sequencer
+	l1Origin     eth.BlockID   // L1 Origin of the L2 Unsafe head. For sequencing only.
+	l2Head       eth.BlockID   // L2 Safe Head - this is the head of the L2 chain as derived from L1 (thus it is Sequencer window blocks behind)
+	l2Finalized  eth.BlockID   // L2 Block that will never be reversed
+	l1Window     []eth.BlockID // l1Window buffers the next L1 block IDs to derive new L2 blocks from, with increasing block height.
 
 	// Rollup config
-	Config rollup.Config
+	Config    rollup.Config
+	sequencer bool
 
 	// Connections (in/out)
 	l1Heads <-chan eth.L1BlockRef
 	input   inputInterface
 	output  outputInterface
+	bss     BatchSubmitter
 
 	log  log.Logger
 	done chan struct{}
 }
 
-func NewState(log log.Logger, config rollup.Config, input inputInterface, output outputInterface) *state {
+func NewState(log log.Logger, config rollup.Config, input inputInterface, output outputInterface, submitter BatchSubmitter, sequencer bool) *state {
 	return &state{
-		Config: config,
-		done:   make(chan struct{}),
-		log:    log,
-		input:  input,
-		output: output,
+		Config:    config,
+		done:      make(chan struct{}),
+		log:       log,
+		input:     input,
+		output:    output,
+		bss:       submitter,
+		sequencer: sequencer,
 	}
 }
 
@@ -62,6 +70,8 @@ func (s *state) Start(ctx context.Context, l1Heads <-chan eth.L1BlockRef) error 
 	}
 
 	s.l1Head = l1Head.Self
+	s.l1Origin = s.l1Head
+	s.l2UnsafeHead = l2Head.Self // TODO: Makes sense?
 	s.l2Head = l2Head.Self
 	s.l1Base = l2Head.L1Origin
 	s.l1Heads = l1Heads
@@ -108,6 +118,13 @@ func (s *state) sequencingWindow() ([]eth.BlockID, bool) {
 func (s *state) loop() {
 	s.log.Info("State loop started")
 	ctx := context.Background()
+	var l2BlockCreation <-chan time.Time
+	if s.sequencer {
+		l2BlockCreationTicker := time.NewTicker(time.Duration(s.Config.BlockTime) * time.Second)
+		defer l2BlockCreationTicker.Stop()
+		l2BlockCreation = l2BlockCreationTicker.C
+	}
+
 	// l1Poll := time.NewTicker(1 * time.Second)
 	// l2Poll := time.NewTicker(1 * time.Second)
 	stepRequest := make(chan struct{}, 1)
@@ -130,6 +147,34 @@ func (s *state) loop() {
 		// case <-l2Poll.C:
 		case <-s.done:
 			return
+		case <-l2BlockCreation:
+			// 1. Check if new epoch (new L1 head)
+			firstOfEpoch := false
+			if s.l1Head != s.l1Origin {
+				firstOfEpoch = true
+				s.l1Origin = s.l1Head
+			}
+			// Don't produce blocks until past the L1 genesis
+			if s.l1Origin.Number <= s.Config.Genesis.L1.Number {
+				continue
+			}
+			// 2. Ask output to create new block
+			newUnsafeL2Head, batch, err := s.output.newBlock(context.Background(), s.l2Finalized, s.l2UnsafeHead, s.l1Origin, firstOfEpoch)
+			if err != nil {
+				s.log.Error("Could not extend chain as sequencer", "err", err, "l2UnsafeHead", s.l2UnsafeHead, "l1Origin", s.l1Origin)
+				continue
+			}
+			// 3. Update unsafe l2 head + epoch
+			s.l2UnsafeHead = newUnsafeL2Head
+			s.log.Trace("Created new l2 block", "l2UnsafeHead", s.l2UnsafeHead)
+			// 4. Ask for batch submission
+			go func() {
+				_, err := s.bss.Submit(&s.Config, []*derive.BatchData{batch}) // TODO: submit multiple batches
+				if err != nil {
+					s.log.Error("Error submitting batch", "err", err)
+				}
+			}()
+
 		case newL1Head := <-s.l1Heads:
 			s.log.Trace("Received new L1 Head", "new_head", newL1Head.Self, "old_head", s.l1Head)
 			// Check if we have a stutter step. May be due to a L1 Poll operation.
@@ -153,6 +198,7 @@ func (s *state) loop() {
 					continue
 				}
 				s.l1Head = newL1Head.Self
+				// TODO: Unsafe head here
 				s.l1Window = nil
 				s.l1Base = nextL2Head.L1Origin
 				s.l2Head = nextL2Head.Self
@@ -162,6 +208,10 @@ func (s *state) loop() {
 				requestStep()
 			}
 		case <-stepRequest:
+			if s.sequencer {
+				s.log.Trace("Skipping extension based on L1 chain as sequencer")
+				continue
+			}
 			s.log.Trace("Got step request")
 			// Extend cached window if we do not have enough saved blocks
 			if len(s.l1Window) < int(s.Config.SeqWindowSize) {

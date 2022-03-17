@@ -10,6 +10,7 @@ import (
 	"github.com/ethereum-optimism/optimistic-specs/opnode/eth"
 	"github.com/ethereum-optimism/optimistic-specs/opnode/internal/testlog"
 	"github.com/ethereum-optimism/optimistic-specs/opnode/rollup"
+	"github.com/ethereum-optimism/optimistic-specs/opnode/rollup/derive"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/assert"
@@ -41,6 +42,10 @@ type outputHandlerFn func(ctx context.Context, l2Head eth.BlockID, l2Finalized e
 
 func (fn outputHandlerFn) step(ctx context.Context, l2Head eth.BlockID, l2Finalized eth.BlockID, l1Window []eth.BlockID) (eth.BlockID, error) {
 	return fn(ctx, l2Head, l2Finalized, l1Window)
+}
+
+func (fn outputHandlerFn) newBlock(ctx context.Context, l2Finalized eth.BlockID, l2Parent eth.BlockID, l1Origin eth.BlockID, includeDeposits bool) (eth.BlockID, *derive.BatchData, error) {
+	panic("Unimplemented")
 }
 
 type outputArgs struct {
@@ -134,8 +139,8 @@ func (tc *stateTestCase) Run(t *testing.T) {
 		r := <-outputReturn
 		return r.l2Head, r.err
 	}
-	config := rollup.Config{SeqWindowSize: uint64(tc.seqWindow), Genesis: tc.genesis}
-	state := NewState(log, config, &inputImpl{chainSource: chainSource, genesis: &tc.genesis}, outputHandlerFn(outputHandler))
+	config := rollup.Config{SeqWindowSize: uint64(tc.seqWindow), Genesis: tc.genesis, BlockTime: 2}
+	state := NewState(log, config, &inputImpl{chainSource: chainSource, genesis: &tc.genesis}, outputHandlerFn(outputHandler), nil, false)
 	defer func() {
 		assert.NoError(t, state.Close(), "Error closing state")
 	}()
