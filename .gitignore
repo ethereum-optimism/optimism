@@ -6,3 +6,4 @@ unicorn2
 .*.swp
 venv
 .idea
+*.log

@@ -1,9 +1,7 @@
 #!/bin/bash
 
-# --------------------------------------------------------------------------------
-#
-# !! Make sure to run forked_node.sh in another terminal before running this.
-#
+# --- DOC ----------------------------------------------------------------------
+
 # Unlike the simple scenario (cf. challenge_simple.sh), in this
 # challenge-response scenario we use the correct block data (preimages) and
 # instead use the `OUTPUTFAULT` environment variable to request a fault in the
@@ -29,11 +27,9 @@
 #
 # - The challenged block contains almost 4x as many transactions as the original
 #   (8.5M vs 30M gas).
-#
-# --------------------------------------------------------------------------------
 
-# Exit if any command fails.
-set -e
+
+# --- SCRIPT SETUP -------------------------------------------------------------
 
 shout() {
     echo ""
@@ -43,14 +39,41 @@ shout() {
     echo ""
 }
 
-# Print an error if we exit before all commands have run.
+# Exit if any command fails.
+set -e
+
 exit_trap() {
+    # Print an error if the last command failed
+    # (in which case the script is exiting because of set -e).
     [[ $? == 0 ]] && return
     echo "----------------------------------------"
     echo "EARLY EXIT: SCRIPT FAILED"
     echo "----------------------------------------"
+
+    # Kill (send SIGTERM) to the whole process group, also killing
+    # any background processes.
+    # I think the trap command resets SIGTERM before resending it to the whole
+    # group. (cf. https://stackoverflow.com/a/2173421)
+    trap - SIGTERM && kill -- -$$
 }
-trap "exit_trap" EXIT
+trap "exit_trap" SIGINT SIGTERM EXIT
+
+# --- BOOT MAINNET FORK --------------------------------------------------------
+
+NODE_LOG="challenge_fault_node.log"
+
+shout "BOOTING MAINNET FORK NODE IN BACKGROUND (LOG: $NODE_LOG)"
+
+# get directory containing this file
+SCRIPT_DIR=$(dirname "$(readlink -f "$0")")
+
+# run a hardhat mainnet fork node
+"$SCRIPT_DIR/forked_node.sh" > "$NODE_LOG" 2>&1 &
+
+# give the node some time to boot up
+sleep 10
+
+# --- CHALLENGE SETUP ----------------------------------------------------------
 
 # block whose transition will be challenged
 # this variable is read by challenge.js, respond.js and assert.js
@@ -90,6 +113,8 @@ OUTPUTFAULT=1 BASEDIR=/tmp/cannon_fault mipsevm/mipsevm $BLOCK
 # alternatively, to inject a fault in registers instead of memory
 # REGFAULT=13240000 BASEDIR=/tmp/cannon_fault mipsevm/mipsevm $BLOCK
 
+# --- BINARY SEARCH ------------------------------------------------------------
+
 shout "STARTING CHALLENGE"
 BASEDIR=/tmp/cannon_fault npx hardhat run scripts/challenge.js --network hosthat
 
@@ -101,6 +126,8 @@ for i in {1..25}; do
     OUTPUTFAULT=1 BASEDIR=/tmp/cannon_fault CHALLENGER=1 npx hardhat run scripts/respond.js --network hosthat
     npx hardhat run scripts/respond.js --network hosthat
 done
+
+# --- SINGLE STEP EXECUTION ----------------------------------------------------
 
 shout "ASSERTING AS CHALLENGER (should fail)"
 set +e # this should fail!
