@@ -1,6 +1,7 @@
 package rollup
 
 import (
+	"errors"
 	"math/big"
 
 	"github.com/ethereum-optimism/optimistic-specs/opnode/eth"
@@ -33,12 +34,35 @@ type Config struct {
 	// Required to verify L1 signatures
 	L1ChainID *big.Int
 
+	// Note: below addresses are part of the block-derivation process,
+	// and required to be the same network-wide to stay in consensus.
+
 	// L2 address receiving all L2 transaction fees
 	FeeRecipientAddress common.Address
 	// L1 address that batches are sent to
 	BatchInboxAddress common.Address
 	// Acceptable batch-sender address
 	BatchSenderAddress common.Address
+}
+
+// Check verifies that the given configuration makes sense
+func (cfg *Config) Check() error {
+	if cfg.BlockTime == 0 {
+		return errors.New("block time cannot be 0")
+	}
+	if cfg.SeqWindowSize == 0 {
+		return errors.New("sequencing window size cannot be 0")
+	}
+	if cfg.Genesis.L1.Hash == (common.Hash{}) {
+		return errors.New("genesis l1 hash cannot be empty")
+	}
+	if cfg.Genesis.L2.Hash == (common.Hash{}) {
+		return errors.New("genesis l2 hash cannot be empty")
+	}
+	if cfg.Genesis.L2.Hash == cfg.Genesis.L1.Hash {
+		return errors.New("achievement get! rollup inception: L1 and L2 genesis cannot be the same")
+	}
+	return nil
 }
 
 func (c *Config) L1Signer() types.Signer {
