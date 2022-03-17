@@ -8,6 +8,8 @@
 **NEW: Cannon is currently the object of [a bug bounty on Immunefi](https://immunefi.com/bounty/optimismcannon/). Find vulnerabilities
 in Cannon for up to a $50.000 payout.**
 
+- Please take note of [the honest defender assumption](https://github.com/ethereum-optimism/cannon/issues/63)
+
 ---
 
 The cannon (cannon cannon cannon) is an on chain interactive dispute engine implementing EVM-equivalent fault proofs.
