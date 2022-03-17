@@ -215,6 +215,18 @@ func (s *Service) eventLoop() {
 			receipt, err := s.txMgr.Send(
 				s.ctx, updateGasPrice, s.cfg.Driver.SendTransaction,
 			)
+
+			// Record the confirmation time and gas used if we receive a
+			// receipt, as this indicates the transaction confirmed. We record
+			// these metrics here as the transaction may have reverted, and will
+			// abort below.
+			if receipt != nil {
+				batchConfirmationTime := time.Since(batchConfirmationStart) /
+					time.Millisecond
+				s.metrics.BatchConfirmationTimeMs().Set(float64(batchConfirmationTime))
+				s.metrics.SubmissionGasUsedWei().Set(float64(receipt.GasUsed))
+			}
+
 			if err != nil {
 				log.Error(name+" unable to publish batch tx",
 					"err", err)
@@ -225,11 +237,7 @@ func (s *Service) eventLoop() {
 			// The transaction was successfully submitted.
 			log.Info(name+" batch tx successfully published",
 				"tx_hash", receipt.TxHash)
-			batchConfirmationTime := time.Since(batchConfirmationStart) /
-				time.Millisecond
-			s.metrics.BatchConfirmationTimeMs().Set(float64(batchConfirmationTime))
 			s.metrics.BatchesSubmitted().Inc()
-			s.metrics.SubmissionGasUsedWei().Set(float64(receipt.GasUsed))
 			s.metrics.SubmissionTimestamp().Set(float64(time.Now().UnixNano() / 1e6))
 
 		case err := <-s.ctx.Done():
