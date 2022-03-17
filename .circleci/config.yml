@@ -254,6 +254,10 @@ jobs:
     docker:
       - image: mslipper/slither:latest
     steps:
+      - restore_cache:
+          keys:
+            - v1-yarn-build-{{ .Revision }}
+      - checkout
       - run:
           name: test
           command: yarn test:coverage
