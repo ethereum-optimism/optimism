@@ -207,13 +207,10 @@ func New(ctx *node.ServiceContext, config *Config) (*Ethereum, error) {
 	}
 	eth.txPool = core.NewTxPool(config.TxPool, chainConfig, eth.blockchain)
 
-	var txLogger pub.Publisher = &pub.NoopPublisher{}
-	if config.TxPublisher.ProjectID != "" {
-		var err error
-		txLogger, err = pub.NewGooglePublisher(context.Background(), config.TxPublisher)
-		if err != nil {
-			return nil, err
-		}
+	var txLogger pub.Publisher
+	txLogger, err = pub.NewGooglePublisher(context.Background(), config.TxPublisher)
+	if err != nil {
+		return nil, err
 	}
 
 	eth.syncService, err = rollup.NewSyncService(context.Background(), config.Rollup, eth.txPool, eth.blockchain, eth.chainDb, txLogger)

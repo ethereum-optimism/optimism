@@ -164,6 +164,7 @@ var (
 		utils.RollupFeeThresholdDownFlag,
 		utils.RollupFeeThresholdUpFlag,
 		utils.SequencerClientHttpFlag,
+		utils.TxPublisherEnableFlag,
 		utils.TxPublisherProjectIDFlag,
 		utils.TxPublisherTopicIDFlag,
 		utils.TxPublisherTimeoutFlag,

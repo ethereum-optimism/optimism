@@ -12,6 +12,7 @@ import (
 const messageOrderingKey = "o"
 
 type Config struct {
+	Enable    bool
 	ProjectID string
 	TopicID   string
 	Timeout   time.Duration
@@ -25,7 +26,11 @@ type GooglePublisher struct {
 	mutex           sync.Mutex
 }
 
-func NewGooglePublisher(ctx context.Context, config Config) (*GooglePublisher, error) {
+func NewGooglePublisher(ctx context.Context, config Config) (Publisher, error) {
+	if !config.Enable {
+		return &NoopPublisher{}, nil
+	}
+
 	client, err := pubsub.NewClient(ctx, config.ProjectID)
 	if err != nil {
 		return nil, err
@@ -43,6 +48,8 @@ func NewGooglePublisher(ctx context.Context, config Config) (*GooglePublisher, e
 		log.Info("Sanitizing publisher timeout to 2 seconds")
 		timeout = time.Second * 2
 	}
+
+	log.Info("Initialized transaction log to PubSub", "topic", config.TopicID)
 	return &GooglePublisher{
 		client:          client,
 		topic:           topic,

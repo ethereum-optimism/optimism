@@ -867,6 +867,11 @@ var (
 		Usage:  "HTTP endpoint for the sequencer client",
 		EnvVar: "SEQUENCER_CLIENT_HTTP",
 	}
+	TxPublisherEnableFlag = cli.BoolFlag{
+		Name:   "txpublisher.enable",
+		Usage:  "Enable Transaction logging to PubSub",
+		EnvVar: "TX_PUBLISHER_ENABLE",
+	}
 	TxPublisherProjectIDFlag = cli.StringFlag{
 		Name:   "txpublisher.projectid",
 		Usage:  "GCP Project ID for the tx PubSub",
@@ -1166,6 +1171,9 @@ func setRollup(ctx *cli.Context, cfg *rollup.Config) {
 // UsingOVM
 // setTxPublisher configures the transaction logger
 func setTxPublisher(ctx *cli.Context, cfg *pub.Config) {
+	if ctx.GlobalIsSet(TxPublisherEnableFlag.Name) {
+		cfg.Enable = ctx.GlobalBool(TxPublisherEnableFlag.Name)
+	}
 	if ctx.GlobalIsSet(TxPublisherProjectIDFlag.Name) {
 		cfg.ProjectID = ctx.GlobalString(TxPublisherProjectIDFlag.Name)
 	}
