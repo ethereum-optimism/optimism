@@ -7,8 +7,8 @@ import (
 )
 
 type BlockID struct {
-	Hash   common.Hash
-	Number uint64
+	Hash   common.Hash `json:"hash"`
+	Number uint64      `json:"number"`
 }
 
 func (id BlockID) String() string {
@@ -22,9 +22,9 @@ func (id BlockID) TerminalString() string {
 }
 
 type L2BlockRef struct {
-	Self     BlockID
-	Parent   BlockID
-	L1Origin BlockID
+	Self     BlockID `json:"self"`
+	Parent   BlockID `json:"parent"`
+	L1Origin BlockID `json:"l1_origin"`
 }
 
 func (id L2BlockRef) String() string {
@@ -38,8 +38,8 @@ func (id L2BlockRef) TerminalString() string {
 }
 
 type L1BlockRef struct {
-	Self   BlockID
-	Parent BlockID
+	Self   BlockID `json:"self"`
+	Parent BlockID `json:"parent"`
 }
 
 func (id L1BlockRef) String() string {
