@@ -79,7 +79,7 @@ sleep 10
 # this variable is read by challenge.js, respond.js and assert.js
 export BLOCK=13284491
 
-# chain ID, read by challenge.js, respond.js and assert.js
+# challenge ID, read by respond.js and assert.js
 export ID=0
 
 # clear data from previous runs

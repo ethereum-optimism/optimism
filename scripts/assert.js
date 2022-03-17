@@ -12,7 +12,7 @@ async function main() {
 
   if (await c.isSearching(challengeId)) {
     console.log("search is NOT done")
-    return 
+    return
   }
 
   let cdat

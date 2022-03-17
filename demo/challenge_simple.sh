@@ -67,7 +67,7 @@ sleep 10
 
 # --- CHALLENGE SETUP ----------------------------------------------------------
 
-# chain ID, read by challenge.js, respond.js and assert.js
+# challenge ID, read by respond.js and assert.js
 export ID=0
 
 # block whose transition will be challenged
