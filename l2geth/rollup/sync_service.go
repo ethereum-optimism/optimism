@@ -1235,6 +1235,7 @@ func (s *SyncService) syncTransactionRange(start, end uint64, backend Backend) e
 
 // syncTransactionFromQueue will sync the earliest transaction from an external message queue
 func (s *SyncService) syncTransactionFromQueue() error {
+	// we don't drop messages unless they're already applied
 	cb := func(ctx context.Context, msg QueueSubscriberMessage) {
 		var (
 			txMeta types.TransactionMeta
