@@ -1,0 +1,20 @@
+name: Test Challenge Simple
+
+on: [push, pull_request]
+
+jobs:
+  unit:
+    name: Simple challenge scenario
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v2
+    - name: Install Toolchain (Go, Node.js, Yarn and Make)
+      run: |
+        sudo apt-get update
+        sudo apt-get -y --no-install-recommends install golang-1.16 nodejs npm make
+        npm install --global yarn
+    - name: Build
+      run: make build
+    - name: Run simple challenge scenario
+      run: demo/challenge_simple.sh
