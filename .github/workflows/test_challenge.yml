@@ -1,6 +1,6 @@
 name: Test Challenge
 
-on: [push, pull_request]
+on: push
 
 jobs:
   unit:
