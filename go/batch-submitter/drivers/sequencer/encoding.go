@@ -83,26 +83,22 @@ func (c *BatchContext) Read(r io.Reader) error {
 	return readUint64(r, &c.BlockNumber, 5)
 }
 
-// BatchType represents the type of batch being
-// submitted. When the first context in the batch
-// has a timestamp of 0, the blocknumber is interpreted
-// as an enum that represets the type
+// BatchType represents the type of batch being submitted. When the first
+// context in the batch has a timestamp of 0, the blocknumber is interpreted as
+// an enum that represets the type.
 type BatchType int8
 
-// Implements the Stringer interface for BatchType
-func (b BatchType) String() string {
-	switch b {
-	case BatchTypeLegacy:
-		return "LEGACY"
-	case BatchTypeZlib:
-		return "ZLIB"
-	default:
-		return ""
-	}
-}
+const (
+	// BatchTypeLegacy represets the legacy batch type.
+	BatchTypeLegacy BatchType = -1
 
-// BatchTypeFromString returns the BatchType
-// enum based on a human readable string
+	// BatchTypeZlib represents a batch type where the transaction data is
+	// compressed using zlib.
+	BatchTypeZlib BatchType = 0
+)
+
+// BatchTypeFromString returns the BatchType enum based on a human readable
+// string.
 func BatchTypeFromString(s string) BatchType {
 	switch s {
 	case "zlib", "ZLIB":
@@ -114,13 +110,17 @@ func BatchTypeFromString(s string) BatchType {
 	}
 }
 
-const (
-	// BatchTypeLegacy represets the legacy batch type
-	BatchTypeLegacy BatchType = -1
-	// BatchTypeZlib represents a batch type where the
-	// transaction data is compressed using zlib
-	BatchTypeZlib BatchType = 0
-)
+// String implements the Stringer interface for BatchType.
+func (b BatchType) String() string {
+	switch b {
+	case BatchTypeLegacy:
+		return "LEGACY"
+	case BatchTypeZlib:
+		return "ZLIB"
+	default:
+		return ""
+	}
+}
 
 // AppendSequencerBatchParams holds the raw data required to submit a batch of
 // L2 txs to L1 CTC contract. Rather than encoding the objects using the
