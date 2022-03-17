@@ -17,6 +17,7 @@ import (
 
 	bsscore "github.com/ethereum-optimism/optimism/go/bss-core"
 	"github.com/ethereum-optimism/optimism/go/bss-core/dial"
+	"github.com/ethereum-optimism/optimism/go/bss-core/drivers"
 	"github.com/ethereum-optimism/optimism/go/bss-core/txmgr"
 	"github.com/ethereum-optimism/optimism/go/teleportr/bindings/deposit"
 	"github.com/ethereum-optimism/optimism/go/teleportr/db"
@@ -346,7 +347,16 @@ func (s *Server) HandleEstimate(
 	gasTipCap, err := s.l1Client.SuggestGasTipCap(ctx)
 	if err != nil {
 		rpcErrorsTotal.WithLabelValues("suggest_gas_tip_cap").Inc()
-		return err
+		// If the request failed because the backend does not support
+		// eth_maxPriorityFeePerGas, fallback to using the default constant.
+		// Currently Alchemy is the only backend provider that exposes this
+		// method, so in the event their API is unreachable we can fallback to a
+		// degraded mode of operation. This also applies to our test
+		// environments, as hardhat doesn't support the query either.
+		if !drivers.IsMaxPriorityFeePerGasNotFoundError(err) {
+			return err
+		}
+		gasTipCap = drivers.FallbackGasTipCap
 	}
 
 	header, err := s.l1Client.HeaderByNumber(ctx, nil)
