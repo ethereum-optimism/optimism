@@ -146,9 +146,6 @@ type AppendSequencerBatchParams struct {
 	// Txs contains all sequencer txs that will be recorded in the L1 CTC
 	// contract.
 	Txs []*CachedTx
-
-	// The type of the batch
-	Type BatchType
 }
 
 // Write encodes the AppendSequencerBatchParams using the following format:
@@ -173,7 +170,11 @@ type AppendSequencerBatchParams struct {
 //
 // Note that writing to a bytes.Buffer cannot
 // error, so errors are ignored here
-func (p *AppendSequencerBatchParams) Write(w *bytes.Buffer) error {
+func (p *AppendSequencerBatchParams) Write(
+	w *bytes.Buffer,
+	batchType BatchType,
+) error {
+
 	_ = writeUint64(w, p.ShouldStartAtElement, 5)
 	_ = writeUint64(w, p.TotalElementsToAppend, 3)
 
@@ -190,7 +191,7 @@ func (p *AppendSequencerBatchParams) Write(w *bytes.Buffer) error {
 	// copy the contexts as to not malleate the struct
 	// when it is a typed batch
 	contexts := make([]BatchContext, 0, len(p.Contexts)+1)
-	if p.Type == BatchTypeZlib {
+	if batchType == BatchTypeZlib {
 		// All zero values for the single batch context
 		// is desired here as blocknumber 0 means it is a zlib batch
 		contexts = append(contexts, BatchContext{})
@@ -203,7 +204,7 @@ func (p *AppendSequencerBatchParams) Write(w *bytes.Buffer) error {
 		context.Write(w)
 	}
 
-	switch p.Type {
+	switch batchType {
 	case BatchTypeLegacy:
 		// Write each length-prefixed tx.
 		for _, tx := range p.Txs {
@@ -225,7 +226,7 @@ func (p *AppendSequencerBatchParams) Write(w *bytes.Buffer) error {
 		}
 
 	default:
-		return fmt.Errorf("Unknown batch type: %s", p.Type)
+		return fmt.Errorf("Unknown batch type: %s", batchType)
 	}
 
 	return nil
@@ -233,9 +234,12 @@ func (p *AppendSequencerBatchParams) Write(w *bytes.Buffer) error {
 
 // Serialize performs the same encoding as Write, but returns the resulting
 // bytes slice.
-func (p *AppendSequencerBatchParams) Serialize() ([]byte, error) {
+func (p *AppendSequencerBatchParams) Serialize(
+	batchType BatchType,
+) ([]byte, error) {
+
 	var buf bytes.Buffer
-	if err := p.Write(&buf); err != nil {
+	if err := p.Write(&buf, batchType); err != nil {
 		return nil, err
 	}
 	return buf.Bytes(), nil
@@ -277,15 +281,10 @@ func (p *AppendSequencerBatchParams) Read(r io.Reader) error {
 		p.Contexts = append(p.Contexts, batchContext)
 	}
 
-	// Assume that it is a legacy batch at first
-	p.Type = BatchTypeLegacy
-
 	// Handle backwards compatible batch types
 	if len(p.Contexts) > 0 && p.Contexts[0].Timestamp == 0 {
 		switch p.Contexts[0].BlockNumber {
 		case 0:
-			// zlib compressed transaction data
-			p.Type = BatchTypeZlib
 			// remove the first dummy context
 			p.Contexts = p.Contexts[1:]
 			numContexts--

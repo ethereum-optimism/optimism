@@ -199,13 +199,13 @@ func (d *Driver) CraftBatchTx(
 	var pruneCount int
 	for {
 		batchParams, err := GenSequencerBatchParams(
-			shouldStartAt, d.cfg.BlockOffset, batchElements, d.cfg.BatchType,
+			shouldStartAt, d.cfg.BlockOffset, batchElements,
 		)
 		if err != nil {
 			return nil, err
 		}
 
-		batchArguments, err := batchParams.Serialize()
+		batchArguments, err := batchParams.Serialize(d.cfg.BatchType)
 		if err != nil {
 			return nil, err
 		}

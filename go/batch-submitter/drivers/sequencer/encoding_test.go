@@ -119,7 +119,6 @@ func testAppendSequencerBatchParamsEncodeDecode(
 		TotalElementsToAppend: test.TotalElementsToAppend,
 		Contexts:              test.Contexts,
 		Txs:                   nil,
-		Type:                  sequencer.BatchTypeLegacy,
 	}
 
 	// Decode the batch from the test string.
@@ -133,7 +132,6 @@ func testAppendSequencerBatchParamsEncodeDecode(
 	} else {
 		require.Nil(t, err)
 	}
-	require.Equal(t, params.Type, sequencer.BatchTypeLegacy)
 
 	// Assert that the decoded params match the expected params. The
 	// transactions are compared serparetly (via hash), since the internal
@@ -149,7 +147,7 @@ func testAppendSequencerBatchParamsEncodeDecode(
 
 	// Finally, encode the decoded object and assert it matches the original
 	// hex string.
-	paramsBytes, err := params.Serialize()
+	paramsBytes, err := params.Serialize(sequencer.BatchTypeLegacy)
 
 	// Return early when testing error cases, no need to reserialize again
 	if test.Error {
@@ -161,17 +159,14 @@ func testAppendSequencerBatchParamsEncodeDecode(
 	require.Equal(t, test.HexEncoding, hex.EncodeToString(paramsBytes))
 
 	// Serialize the batches in compressed form
-	params.Type = sequencer.BatchTypeZlib
-	compressedParamsBytes, err := params.Serialize()
+	compressedParamsBytes, err := params.Serialize(sequencer.BatchTypeZlib)
 	require.Nil(t, err)
 
 	// Deserialize the compressed batch
 	var paramsCompressed sequencer.AppendSequencerBatchParams
 	err = paramsCompressed.Read(bytes.NewReader(compressedParamsBytes))
 	require.Nil(t, err)
-	require.Equal(t, paramsCompressed.Type, sequencer.BatchTypeZlib)
 
-	expParams.Type = sequencer.BatchTypeZlib
 	decompressedTxs := paramsCompressed.Txs
 	paramsCompressed.Txs = nil
 
