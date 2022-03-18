@@ -199,39 +199,57 @@ func (d *Driver) CraftBatchTx(
 	var pruneCount int
 	for {
 		batchParams, err := GenSequencerBatchParams(
-			shouldStartAt, d.cfg.BlockOffset, batchElements, d.cfg.BatchType,
+			shouldStartAt, d.cfg.BlockOffset, batchElements,
 		)
 		if err != nil {
 			return nil, err
 		}
 
-		batchArguments, err := batchParams.Serialize()
+		// Use plaintext encoding to enforce size constraints.
+		plaintextBatchArguments, err := batchParams.Serialize(BatchTypeLegacy)
 		if err != nil {
 			return nil, err
 		}
 
 		appendSequencerBatchID := d.ctcABI.Methods[appendSequencerBatchMethodName].ID
-		batchCallData := append(appendSequencerBatchID, batchArguments...)
+		plaintextCalldata := append(appendSequencerBatchID, plaintextBatchArguments...)
 
-		// Continue pruning until calldata size is less than configured max.
-		calldataSize := uint64(len(batchCallData))
-		if calldataSize > d.cfg.MaxTxSize {
+		// Continue pruning until plaintext calldata size is less than
+		// configured max.
+		plaintextCalldataSize := uint64(len(plaintextCalldata))
+		if plaintextCalldataSize > d.cfg.MaxTxSize {
 			oldLen := len(batchElements)
 			newBatchElementsLen := (oldLen * 9) / 10
 			batchElements = batchElements[:newBatchElementsLen]
-			log.Info(name+" pruned batch", "old_num_txs", oldLen, "new_num_txs", newBatchElementsLen)
+			log.Info(name+" pruned batch",
+				"plaintext_size", plaintextCalldataSize,
+				"max_tx_size", d.cfg.MaxTxSize,
+				"old_num_txs", oldLen,
+				"new_num_txs", newBatchElementsLen)
 			pruneCount++
 			continue
-		} else if calldataSize < d.cfg.MinTxSize {
+		} else if plaintextCalldataSize < d.cfg.MinTxSize {
 			log.Info(name+" batch tx size below minimum",
-				"size", calldataSize, "min_tx_size", d.cfg.MinTxSize)
+				"plaintext_size", plaintextCalldataSize,
+				"min_tx_size", d.cfg.MinTxSize,
+				"num_txs", len(batchElements))
 			return nil, nil
 		}
 
 		d.metrics.NumElementsPerBatch().Observe(float64(len(batchElements)))
 		d.metrics.BatchPruneCount.Set(float64(pruneCount))
 
-		log.Info(name+" batch constructed", "num_txs", len(batchElements), "length", len(batchCallData))
+		// Finally, encode the batch using the configured batch type.
+		var calldata = plaintextCalldata
+		if d.cfg.BatchType != BatchTypeLegacy {
+			batchArguments, err := batchParams.Serialize(d.cfg.BatchType)
+			if err != nil {
+				return nil, err
+			}
+			calldata = append(appendSequencerBatchID, batchArguments...)
+		}
+
+		log.Info(name+" batch constructed", "num_txs", len(batchElements), "length", len(calldata))
 
 		opts, err := bind.NewKeyedTransactorWithChainID(
 			d.cfg.PrivKey, d.cfg.ChainID,
@@ -243,7 +261,7 @@ func (d *Driver) CraftBatchTx(
 		opts.Nonce = nonce
 		opts.NoSend = true
 
-		tx, err := d.rawCtcContract.RawTransact(opts, batchCallData)
+		tx, err := d.rawCtcContract.RawTransact(opts, calldata)
 		switch {
 		case err == nil:
 			return tx, nil
@@ -258,7 +276,7 @@ func (d *Driver) CraftBatchTx(
 			log.Warn(d.cfg.Name + " eth_maxPriorityFeePerGas is unsupported " +
 				"by current backend, using fallback gasTipCap")
 			opts.GasTipCap = drivers.FallbackGasTipCap
-			return d.rawCtcContract.RawTransact(opts, batchCallData)
+			return d.rawCtcContract.RawTransact(opts, calldata)
 
 		default:
 			return nil, err

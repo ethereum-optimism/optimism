@@ -47,6 +47,25 @@ type BatchContext struct {
 	BlockNumber uint64 `json:"block_number"`
 }
 
+// IsMarkerContext returns true if the BatchContext is a marker context used to
+// specify the encoding format. This is only valid if called on the first
+// BatchContext in the calldata.
+func (c BatchContext) IsMarkerContext() bool {
+	return c.Timestamp == 0
+}
+
+// MarkerBatchType returns the BatchType specified by a marker BatchContext.
+// The return value is only valid if called on the first BatchContext in the
+// calldata and IsMarkerContext returns true.
+func (c BatchContext) MarkerBatchType() BatchType {
+	switch c.BlockNumber {
+	case 0:
+		return BatchTypeZlib
+	default:
+		return BatchTypeLegacy
+	}
+}
+
 // Write encodes the BatchContext into a 16-byte stream using the following
 // encoding:
 //  - num_sequenced_txs:        3 bytes
@@ -83,26 +102,22 @@ func (c *BatchContext) Read(r io.Reader) error {
 	return readUint64(r, &c.BlockNumber, 5)
 }
 
-// BatchType represents the type of batch being
-// submitted. When the first context in the batch
-// has a timestamp of 0, the blocknumber is interpreted
-// as an enum that represets the type
+// BatchType represents the type of batch being submitted. When the first
+// context in the batch has a timestamp of 0, the blocknumber is interpreted as
+// an enum that represets the type.
 type BatchType int8
 
-// Implements the Stringer interface for BatchType
-func (b BatchType) String() string {
-	switch b {
-	case BatchTypeLegacy:
-		return "LEGACY"
-	case BatchTypeZlib:
-		return "ZLIB"
-	default:
-		return ""
-	}
-}
+const (
+	// BatchTypeLegacy represets the legacy batch type.
+	BatchTypeLegacy BatchType = -1
 
-// BatchTypeFromString returns the BatchType
-// enum based on a human readable string
+	// BatchTypeZlib represents a batch type where the transaction data is
+	// compressed using zlib.
+	BatchTypeZlib BatchType = 0
+)
+
+// BatchTypeFromString returns the BatchType enum based on a human readable
+// string.
 func BatchTypeFromString(s string) BatchType {
 	switch s {
 	case "zlib", "ZLIB":
@@ -114,13 +129,37 @@ func BatchTypeFromString(s string) BatchType {
 	}
 }
 
-const (
-	// BatchTypeLegacy represets the legacy batch type
-	BatchTypeLegacy BatchType = -1
-	// BatchTypeZlib represents a batch type where the
-	// transaction data is compressed using zlib
-	BatchTypeZlib BatchType = 0
-)
+// String implements the Stringer interface for BatchType.
+func (b BatchType) String() string {
+	switch b {
+	case BatchTypeLegacy:
+		return "LEGACY"
+	case BatchTypeZlib:
+		return "ZLIB"
+	default:
+		return ""
+	}
+}
+
+// MarkerContext returns the marker context, if any, for the given batch type.
+func (b BatchType) MarkerContext() *BatchContext {
+	switch b {
+
+	// No marker context for legacy encoding.
+	case BatchTypeLegacy:
+		return nil
+
+	// Zlib marker context sets block number equal to zero.
+	case BatchTypeZlib:
+		return &BatchContext{
+			Timestamp:   0,
+			BlockNumber: 0,
+		}
+
+	default:
+		return nil
+	}
+}
 
 // AppendSequencerBatchParams holds the raw data required to submit a batch of
 // L2 txs to L1 CTC contract. Rather than encoding the objects using the
@@ -146,9 +185,6 @@ type AppendSequencerBatchParams struct {
 	// Txs contains all sequencer txs that will be recorded in the L1 CTC
 	// contract.
 	Txs []*CachedTx
-
-	// The type of the batch
-	Type BatchType
 }
 
 // Write encodes the AppendSequencerBatchParams using the following format:
@@ -173,7 +209,11 @@ type AppendSequencerBatchParams struct {
 //
 // Note that writing to a bytes.Buffer cannot
 // error, so errors are ignored here
-func (p *AppendSequencerBatchParams) Write(w *bytes.Buffer) error {
+func (p *AppendSequencerBatchParams) Write(
+	w *bytes.Buffer,
+	batchType BatchType,
+) error {
+
 	_ = writeUint64(w, p.ShouldStartAtElement, 5)
 	_ = writeUint64(w, p.TotalElementsToAppend, 3)
 
@@ -190,10 +230,10 @@ func (p *AppendSequencerBatchParams) Write(w *bytes.Buffer) error {
 	// copy the contexts as to not malleate the struct
 	// when it is a typed batch
 	contexts := make([]BatchContext, 0, len(p.Contexts)+1)
-	if p.Type == BatchTypeZlib {
-		// All zero values for the single batch context
-		// is desired here as blocknumber 0 means it is a zlib batch
-		contexts = append(contexts, BatchContext{})
+	// Add the marker context, if any, for non-legacy encodings.
+	markerContext := batchType.MarkerContext()
+	if markerContext != nil {
+		contexts = append(contexts, *markerContext)
 	}
 	contexts = append(contexts, p.Contexts...)
 
@@ -203,7 +243,7 @@ func (p *AppendSequencerBatchParams) Write(w *bytes.Buffer) error {
 		context.Write(w)
 	}
 
-	switch p.Type {
+	switch batchType {
 	case BatchTypeLegacy:
 		// Write each length-prefixed tx.
 		for _, tx := range p.Txs {
@@ -225,7 +265,7 @@ func (p *AppendSequencerBatchParams) Write(w *bytes.Buffer) error {
 		}
 
 	default:
-		return fmt.Errorf("Unknown batch type: %s", p.Type)
+		return fmt.Errorf("Unknown batch type: %s", batchType)
 	}
 
 	return nil
@@ -233,9 +273,12 @@ func (p *AppendSequencerBatchParams) Write(w *bytes.Buffer) error {
 
 // Serialize performs the same encoding as Write, but returns the resulting
 // bytes slice.
-func (p *AppendSequencerBatchParams) Serialize() ([]byte, error) {
+func (p *AppendSequencerBatchParams) Serialize(
+	batchType BatchType,
+) ([]byte, error) {
+
 	var buf bytes.Buffer
-	if err := p.Write(&buf); err != nil {
+	if err := p.Write(&buf, batchType); err != nil {
 		return nil, err
 	}
 	return buf.Bytes(), nil
@@ -266,6 +309,9 @@ func (p *AppendSequencerBatchParams) Read(r io.Reader) error {
 		return err
 	}
 
+	// Assume that it is a legacy batch at first, this will be overwrritten if
+	// we detect a marker context.
+	var batchType = BatchTypeLegacy
 	// Ensure that contexts is never nil
 	p.Contexts = make([]BatchContext, 0)
 	for i := uint64(0); i < numContexts; i++ {
@@ -274,30 +320,33 @@ func (p *AppendSequencerBatchParams) Read(r io.Reader) error {
 			return err
 		}
 
+		if i == 0 && batchContext.IsMarkerContext() {
+			batchType = batchContext.MarkerBatchType()
+			continue
+		}
+
 		p.Contexts = append(p.Contexts, batchContext)
 	}
 
-	// Assume that it is a legacy batch at first
-	p.Type = BatchTypeLegacy
+	// Define a closure to clean up the reader used by the specified encoding.
+	var closeReader func() error
+	switch batchType {
 
-	// Handle backwards compatible batch types
-	if len(p.Contexts) > 0 && p.Contexts[0].Timestamp == 0 {
-		switch p.Contexts[0].BlockNumber {
-		case 0:
-			// zlib compressed transaction data
-			p.Type = BatchTypeZlib
-			// remove the first dummy context
-			p.Contexts = p.Contexts[1:]
-			numContexts--
+	// The legacy serialization does not require clsing, so we instatiate a
+	// dummy closure.
+	case BatchTypeLegacy:
+		closeReader = func() error { return nil }
 
-			zr, err := zlib.NewReader(r)
-			if err != nil {
-				return err
-			}
-			defer zr.Close()
-
-			r = bufio.NewReader(zr)
+	// The zlib serialization requires decompression before reading the
+	// plaintext bytes, and also requires proper cleanup.
+	case BatchTypeZlib:
+		zr, err := zlib.NewReader(r)
+		if err != nil {
+			return err
 		}
+		closeReader = zr.Close
+
+		r = bufio.NewReader(zr)
 	}
 
 	// Deserialize any transactions. Since the number of txs is ommitted
@@ -315,7 +364,7 @@ func (p *AppendSequencerBatchParams) Read(r io.Reader) error {
 			if len(p.Txs) == 0 && len(p.Contexts) != 0 {
 				return ErrMalformedBatch
 			}
-			return nil
+			return closeReader()
 		} else if err != nil {
 			return err
 		}
@@ -327,7 +376,6 @@ func (p *AppendSequencerBatchParams) Read(r io.Reader) error {
 
 		p.Txs = append(p.Txs, NewCachedTx(tx))
 	}
-
 }
 
 // writeUint64 writes a the bottom `n` bytes of `val` to `w`.
