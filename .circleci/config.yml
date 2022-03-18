@@ -281,7 +281,7 @@ jobs:
           name: Test
           command: |
             circleci tests glob "../test/**/*.spec.ts" | circleci tests split | tee splits.txt
-            hardhat test --show-stack-traces $(cat splits.txt)
+            yarn test:contracts $(cat splits.txt)
           working_directory: packages/contracts
 
   geth-tests:
@@ -354,19 +354,19 @@ workflows:
     jobs:
       - yarn-monorepo
       - go-build-check:
-          name: Check batch submitter
+          name: batch-submitter-tests
           binary_name: batch-submitter
           working_directory: go/batch-submitter
       - go-build-check:
-          name: Check proxyd
+          name: proxyd-tests
           binary_name: proxyd
           working_directory: go/proxyd
       - go-build-check:
-          name: Check teleportr
+          name: teleportr-tests
           binary_name: teleportr
           working_directory: go/teleportr
       - go-build-check:
-          name: Check gas-oracle
+          name: gas-oracle-tests
           binary_name: gas-oracle
           working_directory: go/gas-oracle
       - contracts-static:
