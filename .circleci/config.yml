@@ -368,9 +368,6 @@ workflows:
           name: Check gas-oracle
           binary_name: gas-oracle
           working_directory: go/gas-oracle
-      - contracts-test:
-          requires:
-            - yarn-monorepo
       - contracts-static:
           requires:
             - yarn-monorepo
