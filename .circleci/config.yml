@@ -332,8 +332,8 @@ jobs:
           name: Run integration tests
           command: |
             echo "Globbing tests:"
-            echo $(circleci tests glob "../integration_tests/*.spec.ts")
-            circleci tests glob "../integration_tests/*.spec.ts" | circleci tests split | xargs docker-compose run integration_tests 
+            echo $(circleci tests glob "../integration-tests/*.spec.ts")
+            circleci tests glob "../integration-tests/*.spec.ts" | circleci tests split | xargs docker-compose run integration_tests 
           working_directory: ops
 
 workflows:
