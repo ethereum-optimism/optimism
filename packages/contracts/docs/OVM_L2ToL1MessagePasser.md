@@ -10,6 +10,22 @@
 
 ## Methods
 
+### c_0xac7c9426
+
+```solidity
+function c_0xac7c9426(bytes32 c__0xac7c9426) external pure
+```
+
+
+
+
+
+#### Parameters
+
+| Name | Type | Description |
+|---|---|---|
+| c__0xac7c9426 | bytes32 | undefined
+
 ### passMessageToL1
 
 ```solidity

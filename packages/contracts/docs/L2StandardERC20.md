@@ -95,6 +95,22 @@ function burn(address _from, uint256 _amount) external nonpayable
 | _from | address | undefined
 | _amount | uint256 | undefined
 
+### c_0x91dfe917
+
+```solidity
+function c_0x91dfe917(bytes32 c__0x91dfe917) external pure
+```
+
+
+
+
+
+#### Parameters
+
+| Name | Type | Description |
+|---|---|---|
+| c__0x91dfe917 | bytes32 | undefined
+
 ### decimals
 
 ```solidity

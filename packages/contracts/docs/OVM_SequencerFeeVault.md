@@ -27,6 +27,22 @@ function MIN_WITHDRAWAL_AMOUNT() external view returns (uint256)
 |---|---|---|
 | _0 | uint256 | undefined
 
+### c_0x8d05aca4
+
+```solidity
+function c_0x8d05aca4(bytes32 c__0x8d05aca4) external pure
+```
+
+
+
+
+
+#### Parameters
+
+| Name | Type | Description |
+|---|---|---|
+| c__0x8d05aca4 | bytes32 | undefined
+
 ### l1FeeWallet
 
 ```solidity

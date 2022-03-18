@@ -64,6 +64,38 @@ function blockedMessages(bytes32) external view returns (bool)
 |---|---|---|
 | _0 | bool | undefined
 
+### c_0xb9519e7a
+
+```solidity
+function c_0xb9519e7a(bytes32 c__0xb9519e7a) external pure
+```
+
+
+
+
+
+#### Parameters
+
+| Name | Type | Description |
+|---|---|---|
+| c__0xb9519e7a | bytes32 | undefined
+
+### c_0xf0dad4d0
+
+```solidity
+function c_0xf0dad4d0(bytes32 c__0xf0dad4d0) external pure
+```
+
+
+
+
+
+#### Parameters
+
+| Name | Type | Description |
+|---|---|---|
+| c__0xf0dad4d0 | bytes32 | undefined
+
 ### initialize
 
 ```solidity

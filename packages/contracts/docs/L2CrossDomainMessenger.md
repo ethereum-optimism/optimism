@@ -10,6 +10,22 @@
 
 ## Methods
 
+### c_0x198fb849
+
+```solidity
+function c_0x198fb849(bytes32 c__0x198fb849) external pure
+```
+
+
+
+
+
+#### Parameters
+
+| Name | Type | Description |
+|---|---|---|
+| c__0x198fb849 | bytes32 | undefined
+
 ### l1CrossDomainMessenger
 
 ```solidity

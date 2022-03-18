@@ -249,13 +249,22 @@ jobs:
   contracts-test:
     docker:
       - image: mslipper/slither:latest
+    resource_class: xlarge
     steps:
       - restore_cache:
           keys:
             - v1-yarn-build-{{ .Revision }}
       - checkout
       - run:
-          name: test
+          name: Lint
+          command: yarn lint:check
+          working_directory: packages/contracts
+      - run:
+          name: Slither
+          command: yarn test:slither
+          working_directory: packages/contracts
+      - run:
+          name: Test
           command: yarn test:coverage
           working_directory: packages/contracts
 
@@ -308,12 +317,12 @@ workflows:
           name: Check gas-oracle
           binary_name: gas-oracle
           working_directory: go/gas-oracle
-      - contracts-slither:
-          requires:
-            - yarn-monorepo
-      - contracts-lint:
-          requires:
-            - yarn-monorepo
+      # - contracts-slither:
+      #     requires:
+      #       - yarn-monorepo
+      # - contracts-lint:
+      #     requires:
+      #       - yarn-monorepo
       - contracts-test:
           requires:
             - yarn-monorepo

@@ -10,6 +10,22 @@
 
 ## Methods
 
+### c_0x776ce5ce
+
+```solidity
+function c_0x776ce5ce(bytes32 c__0x776ce5ce) external pure
+```
+
+
+
+
+
+#### Parameters
+
+| Name | Type | Description |
+|---|---|---|
+| c__0x776ce5ce | bytes32 | undefined
+
 ### getImplementation
 
 ```solidity

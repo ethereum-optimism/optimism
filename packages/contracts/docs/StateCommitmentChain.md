@@ -78,6 +78,38 @@ Accesses the batch storage container.
 |---|---|---|
 | _0 | contract IChainStorageContainer | Reference to the batch storage container.
 
+### c_0x65cecced
+
+```solidity
+function c_0x65cecced(bytes32 c__0x65cecced) external pure
+```
+
+
+
+
+
+#### Parameters
+
+| Name | Type | Description |
+|---|---|---|
+| c__0x65cecced | bytes32 | undefined
+
+### c_0xb9519e7a
+
+```solidity
+function c_0xb9519e7a(bytes32 c__0xb9519e7a) external pure
+```
+
+
+
+
+
+#### Parameters
+
+| Name | Type | Description |
+|---|---|---|
+| c__0xb9519e7a | bytes32 | undefined
+
 ### deleteStateBatch
 
 ```solidity

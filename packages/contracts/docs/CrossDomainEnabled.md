@@ -10,6 +10,22 @@
 
 ## Methods
 
+### c_0x52711346
+
+```solidity
+function c_0x52711346(bytes32 c__0x52711346) external pure
+```
+
+
+
+
+
+#### Parameters
+
+| Name | Type | Description |
+|---|---|---|
+| c__0x52711346 | bytes32 | undefined
+
 ### messenger
 
 ```solidity

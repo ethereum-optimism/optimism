@@ -10,6 +10,22 @@
 
 ## Methods
 
+### c_0x508fc111
+
+```solidity
+function c_0x508fc111(bytes32 c__0x508fc111) external pure
+```
+
+
+
+
+
+#### Parameters
+
+| Name | Type | Description |
+|---|---|---|
+| c__0x508fc111 | bytes32 | undefined
+
 ### createStandardL2Token
 
 ```solidity

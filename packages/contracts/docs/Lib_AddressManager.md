@@ -10,6 +10,22 @@
 
 ## Methods
 
+### c_0x1dd4f360
+
+```solidity
+function c_0x1dd4f360(bytes32 c__0x1dd4f360) external pure
+```
+
+
+
+
+
+#### Parameters
+
+| Name | Type | Description |
+|---|---|---|
+| c__0x1dd4f360 | bytes32 | undefined
+
 ### getAddress
 
 ```solidity

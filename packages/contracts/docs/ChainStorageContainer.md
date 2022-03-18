@@ -10,6 +10,38 @@
 
 ## Methods
 
+### c_0x8b47d469
+
+```solidity
+function c_0x8b47d469(bytes32 c__0x8b47d469) external pure
+```
+
+
+
+
+
+#### Parameters
+
+| Name | Type | Description |
+|---|---|---|
+| c__0x8b47d469 | bytes32 | undefined
+
+### c_0xb9519e7a
+
+```solidity
+function c_0xb9519e7a(bytes32 c__0xb9519e7a) external pure
+```
+
+
+
+
+
+#### Parameters
+
+| Name | Type | Description |
+|---|---|---|
+| c__0xb9519e7a | bytes32 | undefined
+
 ### deleteElementsAfterInclusive
 
 ```solidity

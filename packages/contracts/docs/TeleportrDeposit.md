@@ -10,6 +10,22 @@
 
 ## Methods
 
+### c_0xbf18ea64
+
+```solidity
+function c_0xbf18ea64(bytes32 c__0xbf18ea64) external pure
+```
+
+
+
+
+
+#### Parameters
+
+| Name | Type | Description |
+|---|---|---|
+| c__0xbf18ea64 | bytes32 | undefined
+
 ### maxBalance
 
 ```solidity
