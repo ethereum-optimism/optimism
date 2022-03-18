@@ -155,7 +155,7 @@ jobs:
       binary_name:
         description: Binary name to build
         type: string
-        optional: true
+        default: ""
       working_directory:
         description: Working directory
         type: string
