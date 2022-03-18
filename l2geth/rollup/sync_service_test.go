@@ -1007,6 +1007,11 @@ func TestSyncServiceBackendQueue(t *testing.T) {
 	if !bytes.Equal(expected, eventTx) {
 		t.Fatalf("invalid tx applied")
 	}
+	expectedMeta, _ := tx.GetMeta().MarshalJSON()
+	eventTxMeta, _ := event.Txs[0].GetMeta().MarshalJSON()
+	if !bytes.Equal(expectedMeta, eventTxMeta) {
+		t.Fatalf("invalid tx meta applied")
+	}
 
 	followerService.chainHeadCh <- core.ChainHeadEvent{}
 	subEvent := <-queueSub.events
