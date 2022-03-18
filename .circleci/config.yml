@@ -312,11 +312,15 @@ jobs:
   test-integration:
     machine:
       image: ubuntu-2004:202111-02
+    environment:
+      DOCKER_BUILDKIT: 1
     steps:
       - checkout
       - run:
-          name: Being up the stack
-          command: docker-compose -f docker-compose.yml up -d
+          name: Bring up the stack
+          command: |
+            docker-compose build --parallel
+            docker-compose up -d
           working_directory: ops
       - run:
           name: Wait for sequencer
