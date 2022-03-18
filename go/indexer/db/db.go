@@ -318,6 +318,7 @@ func (d *Database) GetDepositsByAddress(address common.Address, page PaginationP
 		if err != nil {
 			return err
 		}
+		defer rows.Close()
 
 		for rows.Next() {
 			var deposit DepositJSON
@@ -335,7 +336,7 @@ func (d *Database) GetDepositsByAddress(address common.Address, page PaginationP
 			deposits = append(deposits, deposit)
 		}
 
-		return nil
+		return rows.Err()
 	})
 	if err != nil {
 		return nil, err
@@ -352,12 +353,7 @@ func (d *Database) GetDepositsByAddress(address common.Address, page PaginationP
 
 	var count uint64
 	err = txn(d.db, func(tx *sql.Tx) error {
-		queryStmt, err := tx.Prepare(selectDepositCountStatement)
-		if err != nil {
-			return err
-		}
-
-		row := queryStmt.QueryRow(address.String())
+		row := tx.QueryRow(selectDepositsStatement, address.String())
 		if err != nil {
 			return err
 		}
@@ -396,12 +392,7 @@ func (d *Database) GetWithdrawalBatch(hash l2common.Hash) (*StateBatchJSON, erro
 
 	var batch *StateBatchJSON
 	err := txn(d.db, func(tx *sql.Tx) error {
-		queryStmt, err := tx.Prepare(selectWithdrawalBatchStatement)
-		if err != nil {
-			return err
-		}
-
-		row := queryStmt.QueryRow(hash.String())
+		row := tx.QueryRow(selectWithdrawalBatchStatement, hash.String())
 		if row.Err() != nil {
 			return row.Err()
 		}
@@ -409,7 +400,7 @@ func (d *Database) GetWithdrawalBatch(hash l2common.Hash) (*StateBatchJSON, erro
 		var index, size, prevTotal, blockNumber, blockTimestamp uint64
 		var root, blockHash string
 		var extraData []byte
-		err = row.Scan(&index, &root, &size, &prevTotal, &extraData, &blockHash,
+		err := row.Scan(&index, &root, &size, &prevTotal, &extraData, &blockHash,
 			&blockNumber, &blockTimestamp)
 		if err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
