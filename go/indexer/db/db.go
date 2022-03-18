@@ -228,12 +228,8 @@ func (d *Database) AddIndexedL2Block(block *IndexedL2Block) error {
 		($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
 	`
 	return txn(d.db, func(tx *sql.Tx) error {
-		blockStmt, err := tx.Prepare(insertBlockStatement)
-		if err != nil {
-			return err
-		}
-
-		_, err = blockStmt.Exec(
+		_, err := tx.Exec(
+			insertBlockStatement,
 			block.Hash.String(),
 			block.ParentHash.String(),
 			block.Number,
@@ -247,13 +243,9 @@ func (d *Database) AddIndexedL2Block(block *IndexedL2Block) error {
 			return nil
 		}
 
-		withdrawalStmt, err := tx.Prepare(insertWithdrawalStatement)
-		if err != nil {
-			return err
-		}
-
 		for _, withdrawal := range block.Withdrawals {
-			_, err = withdrawalStmt.Exec(
+			_, err = tx.Exec(
+				insertWithdrawalStatement,
 				NewGUID(),
 				withdrawal.FromAddress.String(),
 				withdrawal.ToAddress.String(),
@@ -322,12 +314,7 @@ func (d *Database) GetDepositsByAddress(address common.Address, page PaginationP
 	var deposits []DepositJSON
 
 	err := txn(d.db, func(tx *sql.Tx) error {
-		queryStmt, err := tx.Prepare(selectDepositsStatement)
-		if err != nil {
-			return err
-		}
-
-		rows, err := queryStmt.Query(address.String(), page.Limit, page.Offset)
+		rows, err := tx.Query(selectDepositsStatement, address.String(), page.Limit, page.Offset)
 		if err != nil {
 			return err
 		}
