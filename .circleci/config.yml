@@ -259,6 +259,35 @@ jobs:
           command: yarn test:coverage
           working_directory: packages/contracts
 
+  depcheck:
+    docker:
+      - image: mslipper/slither:latest
+    steps:
+      - restore_cache:
+          keys:
+            - v1-yarn-build-{{ .Revision }}
+      - checkout
+      - run:
+          name: Check contracts
+          command: npx depcheck
+          working_directory: packages/contracts
+      - run:
+          name: Check core-utils
+          command: npx depcheck
+          working_directory: packages/core-utils
+      - run:
+          name: Check data-transport-layer
+          command: npx depcheck
+          working_directory: packages/data-transport-layer
+      - run:
+          name: Check sdk
+          command: npx depcheck
+          working_directory: packages/sdk
+      - run:
+          name: Check integration-tests
+          command: npx depcheck
+          working_directory: integration-tests
+
 workflows:
   pull-requests:
     jobs:
@@ -275,6 +304,10 @@ workflows:
           name: Check teleportr
           binary_name: teleportr
           working_directory: go/teleportr
+      - go-build-check:
+          name: Check gas-oracle
+          binary_name: gas-oracle
+          working_directory: go/gas-oracle
       - contracts-slither:
           requires:
             - yarn-monorepo
