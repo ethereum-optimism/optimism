@@ -183,9 +183,6 @@ jobs:
           name: Build
           command: make <<parameters.binary_name>>
           working_directory: <<parameters.working_directory>>
-          when:
-            condition:
-              - equal: [true, <<parameters.build>>]
 
   yarn-monorepo:
     docker:
