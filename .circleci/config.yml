@@ -359,8 +359,6 @@ workflows:
           requires:
             - yarn-monorepo
       - test-integration:
-          requires:
-            - yarn-monorepo
 
 
   nightly-itests:
