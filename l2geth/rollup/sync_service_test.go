@@ -907,7 +907,7 @@ func TestBadFeeThresholds(t *testing.T) {
 	}
 }
 
-// Ensure that Transaction Logging preceeds transaction apply
+// Ensure that Transaction Logging precedes transaction apply
 func TestSyncServiceTransactionLog(t *testing.T) {
 	txLogger := newMockPublisher()
 	service, txCh, _, err := newTestSyncService(false, nil, txLogger)
