@@ -10,38 +10,6 @@
 
 ## Methods
 
-### c_0xaff0b0c8
-
-```solidity
-function c_0xaff0b0c8(bytes32 c__0xaff0b0c8) external pure
-```
-
-
-
-
-
-#### Parameters
-
-| Name | Type | Description |
-|---|---|---|
-| c__0xaff0b0c8 | bytes32 | undefined
-
-### c_0xb9519e7a
-
-```solidity
-function c_0xb9519e7a(bytes32 c__0xb9519e7a) external pure
-```
-
-
-
-
-
-#### Parameters
-
-| Name | Type | Description |
-|---|---|---|
-| c__0xb9519e7a | bytes32 | undefined
-
 ### isCollateralized
 
 ```solidity

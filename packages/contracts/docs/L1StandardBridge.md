@@ -10,38 +10,6 @@
 
 ## Methods
 
-### c_0x52711346
-
-```solidity
-function c_0x52711346(bytes32 c__0x52711346) external pure
-```
-
-
-
-
-
-#### Parameters
-
-| Name | Type | Description |
-|---|---|---|
-| c__0x52711346 | bytes32 | undefined
-
-### c_0xc4c4c59c
-
-```solidity
-function c_0xc4c4c59c(bytes32 c__0xc4c4c59c) external pure
-```
-
-
-
-
-
-#### Parameters
-
-| Name | Type | Description |
-|---|---|---|
-| c__0xc4c4c59c | bytes32 | undefined
-
 ### depositERC20
 
 ```solidity

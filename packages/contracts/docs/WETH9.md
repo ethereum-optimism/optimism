@@ -78,22 +78,6 @@ function balanceOf(address) external view returns (uint256)
 |---|---|---|
 | _0 | uint256 | undefined
 
-### c_0x49bc1f12
-
-```solidity
-function c_0x49bc1f12(bytes32 c__0x49bc1f12) external pure
-```
-
-
-
-
-
-#### Parameters
-
-| Name | Type | Description |
-|---|---|---|
-| c__0x49bc1f12 | bytes32 | undefined
-
 ### decimals
 
 ```solidity

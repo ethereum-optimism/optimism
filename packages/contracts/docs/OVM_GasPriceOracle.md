@@ -10,22 +10,6 @@
 
 ## Methods
 
-### c_0x22910892
-
-```solidity
-function c_0x22910892(bytes32 c__0x22910892) external pure
-```
-
-
-
-
-
-#### Parameters
-
-| Name | Type | Description |
-|---|---|---|
-| c__0x22910892 | bytes32 | undefined
-
 ### decimals
 
 ```solidity

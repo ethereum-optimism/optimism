@@ -72,38 +72,6 @@ Accesses the batch storage container.
 |---|---|---|
 | _0 | contract IChainStorageContainer | Reference to the batch storage container.
 
-### c_0xb9519e7a
-
-```solidity
-function c_0xb9519e7a(bytes32 c__0xb9519e7a) external pure
-```
-
-
-
-
-
-#### Parameters
-
-| Name | Type | Description |
-|---|---|---|
-| c__0xb9519e7a | bytes32 | undefined
-
-### c_0xeec32677
-
-```solidity
-function c_0xeec32677(bytes32 c__0xeec32677) external pure
-```
-
-
-
-
-
-#### Parameters
-
-| Name | Type | Description |
-|---|---|---|
-| c__0xeec32677 | bytes32 | undefined
-
 ### enqueue
 
 ```solidity

@@ -10,22 +10,6 @@
 
 ## Methods
 
-### c_0x16931334
-
-```solidity
-function c_0x16931334(bytes32 c__0x16931334) external pure
-```
-
-
-
-
-
-#### Parameters
-
-| Name | Type | Description |
-|---|---|---|
-| c__0x16931334 | bytes32 | undefined
-
 ### disburse
 
 ```solidity

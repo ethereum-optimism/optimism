@@ -10,22 +10,6 @@
 
 ## Methods
 
-### c_0x59a12b1b
-
-```solidity
-function c_0x59a12b1b(bytes32 c__0x59a12b1b) external pure
-```
-
-
-
-
-
-#### Parameters
-
-| Name | Type | Description |
-|---|---|---|
-| c__0x59a12b1b | bytes32 | undefined
-
 ### finalOwner
 
 ```solidity

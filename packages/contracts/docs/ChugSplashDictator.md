@@ -44,22 +44,6 @@ function bridgeSlotVal() external view returns (bytes32)
 |---|---|---|
 | _0 | bytes32 | undefined
 
-### c_0xf98cc2e1
-
-```solidity
-function c_0xf98cc2e1(bytes32 c__0xf98cc2e1) external pure
-```
-
-
-
-
-
-#### Parameters
-
-| Name | Type | Description |
-|---|---|---|
-| c__0xf98cc2e1 | bytes32 | undefined
-
 ### codeHash
 
 ```solidity

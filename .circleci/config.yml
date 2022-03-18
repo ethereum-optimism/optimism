@@ -258,8 +258,8 @@ jobs:
       - run:
           name: Temporarily rename TS files
           command: |
-            mv contract-artifacts.ts contract-artifacts._ts
-            mv contract-deployed-artifacts.ts contract-deployed-artifacts._ts
+            mv src/contract-artifacts.ts src/contract-artifacts._ts
+            mv src/contract-deployed-artifacts.ts src/contract-deployed-artifacts._ts
           working_directory: packages/contracts
       - run:
           name: Lint
@@ -268,8 +268,8 @@ jobs:
       - run:
           name: Rename TS files back
           command: |
-            mv contract-artifacts._ts contract-artifacts.ts
-            mv contract-deployed-artifacts._ts contract-deployed-artifacts.ts
+            mv src/contract-artifacts._ts src/contract-artifacts.ts
+            mv src/contract-deployed-artifacts._ts src/contract-deployed-artifacts.ts
           working_directory: packages/contracts
       - run:
           name: Slither
