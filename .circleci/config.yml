@@ -183,7 +183,6 @@ jobs:
   yarn-monorepo:
     docker:
       - image: mslipper/slither:latest
-    resource_class: xlarge
     steps:
       - restore_cache:
           keys:
@@ -261,6 +260,7 @@ jobs:
           command: |
             mv contract-artifacts.ts contract-artifacts._ts
             mv contract-deployed-artifacts.ts contract-deployed-artifacts._ts
+          working_directory: packages/contracts
       - run:
           name: Lint
           command: yarn lint:check
@@ -270,6 +270,7 @@ jobs:
           command: |
             mv contract-artifacts._ts contract-artifacts.ts
             mv contract-deployed-artifacts._ts contract-deployed-artifacts.ts
+          working_directory: packages/contracts
       - run:
           name: Slither
           command: yarn test:slither
