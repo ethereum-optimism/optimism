@@ -329,6 +329,7 @@ jobs:
       - run:
           name: Run integration tests
           command: docker-compose run integration_tests          
+          working_directory: ops
 
 workflows:
   pull-requests:
