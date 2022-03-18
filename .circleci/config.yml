@@ -353,14 +353,6 @@ jobs:
             docker-compose run integration_tests $(cat splits.txt)
           working_directory: ops
 
-  bss-core-tests:
-    docker:
-      - image: mslipper/go-builder:latest
-    steps:
-      - checkout
-      - run:
-        name: 
-
 workflows:
   pull-requests:
     jobs:
@@ -385,6 +377,10 @@ workflows:
           name: indexer-tests
           binary_name: indexer
           working_directory: go/indexer
+      - go-build-check:
+          name: bss-core-tests
+          build: false
+          working_directory: go/bss-core
       - contracts-static:
           requires:
             - yarn-monorepo
