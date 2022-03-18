@@ -236,19 +236,6 @@ jobs:
   contracts-lint:
     docker:
       - image: mslipper/slither:latest
-    steps:
-      - restore_cache:
-          keys:
-            - v1-yarn-build-{{ .Revision }}
-      - checkout
-      - run:
-          name: Lint
-          command: yarn lint:check
-          working_directory: packages/contracts
-
-  contracts-lint:
-    docker:
-      - image: mslipper/slither:latest
     resource_class: xlarge
     steps:
       - restore_cache:
