@@ -286,7 +286,7 @@ jobs:
 
   geth-tests:
     docker:
-      - image: cimg/base:2021.04
+      - image: mslipper/go-builder:latest
     steps:
       - checkout
       - run:
