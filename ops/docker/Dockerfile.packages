@@ -6,7 +6,7 @@
 # when used with typescript/hardhat: https://github.com/nomiclabs/hardhat/issues/1219
 FROM node:16.13-buster-slim as base
 
-RUN apt-get update -y && apt-get install -y --no-install-recommends git \ 
+RUN apt-get update -y && apt-get install -y --no-install-recommends git \
       curl \
       jq \
       python3 \
@@ -62,4 +62,4 @@ CMD ["npm", "run", "start"]
 
 FROM base as replica-healthcheck
 WORKDIR /opts/optimism/packages/replica-healthcheck
-ENTRYPOINT ["node", "dist/exec/run-healthcheck-server.js"]
+ENTRYPOINT ["npm", "run", "start"]
