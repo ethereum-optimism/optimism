@@ -158,6 +158,10 @@ jobs:
       working_directory:
         description: Working directory
         type: string
+      build:
+        decription: Whether or not to build
+        type: boolean
+        default: true
     docker:
       - image: mslipper/go-builder:latest
       - image: cimg/postgres:14.1
@@ -179,6 +183,9 @@ jobs:
           name: Build
           command: make <<parameters.binary_name>>
           working_directory: <<parameters.working_directory>>
+          when:
+            condition:
+              - equal: [true, <<parameters.working_directory>>]
 
   yarn-monorepo:
     docker:
@@ -346,6 +353,14 @@ jobs:
             docker-compose run integration_tests $(cat splits.txt)
           working_directory: ops
 
+  bss-core-tests:
+    docker:
+      - image: mslipper/go-builder:latest
+    steps:
+      - checkout
+      - run:
+        name: 
+
 workflows:
   pull-requests:
     jobs:
@@ -366,6 +381,10 @@ workflows:
           name: gas-oracle-tests
           binary_name: gas-oracle
           working_directory: go/gas-oracle
+      - go-build-check:
+          name: indexer-tests
+          binary_name: indexer
+          working_directory: go/indexer
       - contracts-static:
           requires:
             - yarn-monorepo
