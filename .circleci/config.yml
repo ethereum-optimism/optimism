@@ -292,6 +292,7 @@ jobs:
       - run:
           name: Test
           command: make test
+          working_directory: l2geth
 
   depcheck:
     docker:
