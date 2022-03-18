@@ -326,7 +326,7 @@ jobs:
       docker_layer_caching: true
     environment:
       DOCKER_BUILDKIT: 1
-    parallelism: 4
+    parallelism: 2
     steps:
       - checkout
       - run:
