@@ -74,13 +74,17 @@ type Config struct {
 	// by the batch submitter.
 	MaxL1TxSize uint64
 
+	// MinStateRootElements is the minimum number of state root elements that
+	// can be submitted in single proposer batch.
+	MinStateRootElements uint64
+
+	// MaxStateRootElements is the maximum number of state root elements that
+	// can be submitted in single proposer batch.
+	MaxStateRootElements uint64
+
 	// MaxTxBatchCount is the maximum number of L2 transactions that can ever be
 	// in a batch.
 	MaxTxBatchCount uint64
-
-	// MaxStateBatchCount is the maximum number of L2 state roots that can ever
-	// be in a batch.
-	MaxStateBatchCount uint64
 
 	// MaxBatchSubmissionTime is the maximum amount of time that we will
 	// wait before submitting an under-sized batch.
@@ -199,6 +203,8 @@ func NewConfig(ctx *cli.Context) (Config, error) {
 		SCCAddress:                ctx.GlobalString(flags.SCCAddressFlag.Name),
 		MinL1TxSize:               ctx.GlobalUint64(flags.MinL1TxSizeFlag.Name),
 		MaxL1TxSize:               ctx.GlobalUint64(flags.MaxL1TxSizeFlag.Name),
+		MinStateRootElements:      ctx.GlobalUint64(flags.MinStateRootElementsFlag.Name),
+		MaxStateRootElements:      ctx.GlobalUint64(flags.MinStateRootElementsFlag.Name),
 		MaxBatchSubmissionTime:    ctx.GlobalDuration(flags.MaxBatchSubmissionTimeFlag.Name),
 		PollInterval:              ctx.GlobalDuration(flags.PollIntervalFlag.Name),
 		NumConfirmations:          ctx.GlobalUint64(flags.NumConfirmationsFlag.Name),
