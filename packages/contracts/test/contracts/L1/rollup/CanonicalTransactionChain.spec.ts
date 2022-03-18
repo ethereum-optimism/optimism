@@ -77,9 +77,7 @@ describe('CanonicalTransactionChain', () => {
       await sequencer.getAddress()
     )
 
-    Fake__StateCommitmentChain = await smock.fake<Contract>(
-      await ethers.getContractFactory('StateCommitmentChain')
-    )
+    Fake__StateCommitmentChain = await smock.fake<Contract>('StateCommitmentChain')
 
     await setProxyTarget(
       AddressManager,

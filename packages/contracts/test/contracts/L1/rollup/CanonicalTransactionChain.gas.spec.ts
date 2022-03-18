@@ -55,7 +55,7 @@ describe('[GAS BENCHMARK] CanonicalTransactionChain [ @skip-on-coverage ]', () =
     )
 
     Fake__StateCommitmentChain = await smock.fake<Contract>(
-      await ethers.getContractFactory('StateCommitmentChain')
+    'StateCommitmentChain'
     )
 
     await setProxyTarget(
