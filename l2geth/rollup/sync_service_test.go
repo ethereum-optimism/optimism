@@ -990,7 +990,7 @@ func TestSyncServiceBackendQueue(t *testing.T) {
 	}()
 
 	go func() {
-		followerService.syncTransactionFromQueue()
+		followerService.syncTransactionsFromQueue()
 	}()
 
 	// forward the logged transaction from the "active sequencer"
@@ -1036,7 +1036,7 @@ func TestSyncServiceBackendQueueNack(t *testing.T) {
 			}
 
 			go func() {
-				service.syncTransactionFromQueue()
+				service.syncTransactionsFromQueue()
 			}()
 
 			queueSub.ProduceMessage(msg)
@@ -1164,9 +1164,10 @@ func (p *mockQueueSubscriber) ProduceMessage(msg []byte) {
 	p.msgs <- msg
 }
 
-func (p *mockQueueSubscriber) ReceiveMessage(ctx context.Context, cb func(ctx context.Context, msg QueueSubscriberMessage)) {
+func (p *mockQueueSubscriber) ReceiveMessage(ctx context.Context, cb func(ctx context.Context, msg QueueSubscriberMessage)) error {
 	msg := <-p.msgs
 	cb(ctx, &mockQueueSubscriberMessage{msg, p.events})
+	return nil
 }
 
 func (p *mockQueueSubscriber) Close() error { return nil }

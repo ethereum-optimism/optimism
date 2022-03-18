@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"cloud.google.com/go/pubsub"
+	"github.com/ethereum-optimism/optimism/l2geth/log"
 )
 
 type QueueSubscriberMessage interface {
@@ -13,7 +14,7 @@ type QueueSubscriberMessage interface {
 }
 
 type QueueSubscriber interface {
-	ReceiveMessage(ctx context.Context, cb func(ctx context.Context, msg QueueSubscriberMessage))
+	ReceiveMessage(ctx context.Context, cb func(ctx context.Context, msg QueueSubscriberMessage)) error
 	Close() error
 }
 
@@ -55,11 +56,12 @@ func NewQueueSubscriber(ctx context.Context, config QueueSubscriberConfig) (Queu
 		MaxOutstandingBytes:    maxOutstandingBytes,
 	}
 
+	log.Info("Created Queue Subscriber", "projectID", config.ProjectID, "subscriptionID", config.SubscriptionID)
 	return &queueSubscriber{client, sub}, nil
 }
 
-func (q *queueSubscriber) ReceiveMessage(ctx context.Context, cb func(ctx context.Context, msg QueueSubscriberMessage)) {
-	q.sub.Receive(ctx, func(ctx context.Context, pmsg *pubsub.Message) {
+func (q *queueSubscriber) ReceiveMessage(ctx context.Context, cb func(ctx context.Context, msg QueueSubscriberMessage)) error {
+	return q.sub.Receive(ctx, func(ctx context.Context, pmsg *pubsub.Message) {
 		cb(ctx, &queueSubscriberMessage{pmsg})
 	})
 }
@@ -86,6 +88,7 @@ func (q *queueSubscriberMessage) Nack() {
 
 type noopQueueSubscriber struct{}
 
-func (q *noopQueueSubscriber) ReceiveMessage(ctx context.Context, cb func(ctx context.Context, msg QueueSubscriberMessage)) {
+func (q *noopQueueSubscriber) ReceiveMessage(ctx context.Context, cb func(ctx context.Context, msg QueueSubscriberMessage)) error {
+	return nil
 }
 func (q *noopQueueSubscriber) Close() error { return nil }

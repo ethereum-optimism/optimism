@@ -1213,10 +1213,10 @@ func setTxPublisher(ctx *cli.Context, cfg *pub.Config) {
 // UsingOVM
 // setTxQueueSubscriber configures the Queue Backend
 func setTxQueueSubscriber(ctx *cli.Context, cfg *rollup.QueueSubscriberConfig) {
-	if ctx.GlobalIsSet(TxPublisherEnableFlag.Name) {
+	if ctx.GlobalIsSet(TxQueueEnableFlag.Name) {
 		cfg.Enable = ctx.GlobalBool(TxQueueEnableFlag.Name)
 	}
-	if ctx.GlobalIsSet(TxPublisherProjectIDFlag.Name) {
+	if ctx.GlobalIsSet(TxQueueProjectIDFlag.Name) {
 		cfg.ProjectID = ctx.GlobalString(TxQueueProjectIDFlag.Name)
 	}
 	if ctx.GlobalIsSet(TxQueueSubscriptionIDFlag.Name) {

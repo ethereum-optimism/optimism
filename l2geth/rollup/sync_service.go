@@ -165,7 +165,7 @@ func NewSyncService(ctx context.Context, cfg Config, txpool *core.TxPool, bc *co
 	// a remote server that indexes the layer one contracts. Place this
 	// code behind this if statement so that this can run without the
 	// requirement of the remote server being up.
-	if service.enable {
+	if service.enable && service.backend != BackendQueue {
 		// Ensure that the rollup client can connect to a remote server
 		// before starting. Retry until it can connect.
 		tEnsure := time.NewTicker(10 * time.Second)
@@ -427,7 +427,7 @@ func (s *SyncService) verify() error {
 			return fmt.Errorf("Verifier cannot sync transactions with BackendL2: %w", err)
 		}
 	case BackendQueue:
-		if err := s.syncTransactionFromQueue(); err != nil {
+		if err := s.syncTransactionsFromQueue(); err != nil {
 			return fmt.Errorf("Verifier cannot sync transactions with BackendQueue: %w", err)
 		}
 	}
@@ -1233,29 +1233,42 @@ func (s *SyncService) syncTransactionRange(start, end uint64, backend Backend) e
 	return nil
 }
 
-// syncTransactionFromQueue will sync the earliest transaction from an external message queue
-func (s *SyncService) syncTransactionFromQueue() error {
+// syncTransactionsFromQueue will sync the earliest transaction from an external message queue
+func (s *SyncService) syncTransactionsFromQueue() error {
 	// we don't drop messages unless they're already applied
 	cb := func(ctx context.Context, msg QueueSubscriberMessage) {
 		var (
-			txMeta types.TransactionMeta
-			tx     types.Transaction
+			queuedTxMeta QueuedTransactionMeta
+			tx           types.Transaction
+			txMeta       *types.TransactionMeta
 		)
-		if err := json.Unmarshal(msg.Data(), &txMeta); err != nil {
+		log.Debug("Reading transaction from queue", "json", string(msg.Data()))
+
+		if err := json.Unmarshal(msg.Data(), &queuedTxMeta); err != nil {
 			log.Error("Failed to unmarshal logged TransactionMeta", "msg", err)
 			msg.Nack()
 			return
 		}
-		if err := rlp.DecodeBytes(txMeta.RawTransaction, &tx); err != nil {
+		if err := rlp.DecodeBytes(queuedTxMeta.RawTransaction, &tx); err != nil {
 			log.Error("decoding raw transaction failed", "msg", err)
 			msg.Nack()
 			return
 		}
-		if txMeta.L1BlockNumber == nil || txMeta.L1Timestamp == 0 {
+		if queuedTxMeta.L1BlockNumber == nil || queuedTxMeta.L1Timestamp == nil {
 			log.Error("Missing required queued transaction fields", "msg", string(msg.Data()))
 			msg.Nack()
 			return
 		}
+
+		txMeta = types.NewTransactionMeta(
+			queuedTxMeta.L1BlockNumber,
+			*queuedTxMeta.L1Timestamp,
+			queuedTxMeta.L1MessageSender,
+			*queuedTxMeta.QueueOrigin,
+			queuedTxMeta.Index,
+			queuedTxMeta.QueueIndex,
+			queuedTxMeta.RawTransaction)
+		tx.SetTransactionMeta(txMeta)
 
 		if readTx, _, _, _ := rawdb.ReadTransaction(s.db, tx.Hash()); readTx != nil {
 			msg.Ack()
@@ -1268,12 +1281,12 @@ func (s *SyncService) syncTransactionFromQueue() error {
 			return
 		}
 
+		log.Debug("Successfully applied queued transaction", "txhash", tx.Hash())
 		msg.Ack()
 	}
 
 	// This blocks until there's a new message in the queue or ctx deadline hits
-	s.queueSub.ReceiveMessage(s.ctx, cb)
-	return nil
+	return s.queueSub.ReceiveMessage(s.ctx, cb)
 }
 
 // SubscribeNewTxsEvent registers a subscription of NewTxsEvent and
