@@ -6,4 +6,5 @@ RUN apt-get update && \
 	bash nodesource_setup.sh && \
 	apt-get install -y nodejs && \
 	npm i -g yarn && \
+	npm i -g depcheck && \
 	pip install slither-analyzer

@@ -245,10 +245,6 @@ jobs:
           name: Lint
           command: yarn lint:check
           working_directory: packages/contracts
-      - run:
-          name: test
-          command: yarn test:coverage
-          working_directory: packages/contracts
 
   contracts-test:
     docker:
