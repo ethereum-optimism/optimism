@@ -309,6 +309,25 @@ jobs:
           command: npx depcheck
           working_directory: integration-tests
 
+  test-integration:
+    machine: true
+    steps:
+      - restore_cache:
+          keys:
+            - v1-yarn-build-{{ .Revision }}
+      - checkout
+      - run:
+          name: Being up the stack
+          command: docker-compose -f docker-compose.yml up -d
+          working_directory: ops
+      - run:
+          name: Wait for sequencer
+          command: bash scripts/wait-for-sequencer.sh
+          working_directory: ops
+      - run:
+          name: Run integration tests
+          command: docker-compose run integration_tests          
+
 workflows:
   pull-requests:
     jobs:
@@ -341,7 +360,9 @@ workflows:
       - depcheck:
           requires:
             - yarn-monorepo
-
+      - test-integration:
+          requires:
+            - yarn-monorepo
 
 
   nightly-itests:
