@@ -1,0 +1,50 @@
+version: '3.4'
+
+volumes:
+  l1_data:
+  l2_data:
+
+services:
+  l1:
+    build:
+      context: .
+      dockerfile: Dockerfile.l1
+      args:
+        DEPOSIT_FEED_BYTECODE: $DEPOSIT_FEED_BYTECODE
+    ports:
+      - "9545:8545"
+    volumes:
+      - "l1_data:/db"
+
+  l2:
+    build:
+      context: .
+      dockerfile: Dockerfile.l2
+      args:
+        L1_BLOCK_INFO_BYTECODE: $L1_BLOCK_INFO_BYTECODE
+    ports:
+      - "8545:8545"
+    volumes:
+      - "l2_data:/db"
+
+  opnode:
+    depends_on:
+      - l1
+      - l2
+    build:
+      context: ../
+      dockerfile: ./ops/Dockerfile.opnode
+    volumes:
+      - ${PWD}/bss-key.txt:/config/bss-key.txt
+      - ${PWD}/rollup.json:/config/rollup.json
+    command:
+      - "op"
+      - "--l1"
+      - "ws://l1:8546"
+      - "--l2"
+      - "ws://l2:8546"
+      - "--sequencing.enabled"
+      - "--rollup.config"
+      - "/config/rollup.json"
+      - "--batchsubmitter.key"
+      - "/config/bss-key.txt"

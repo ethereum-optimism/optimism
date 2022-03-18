@@ -8,7 +8,7 @@ COPY go.sum /app/go.sum
 
 WORKDIR /app
 COPY ./opnode /app/opnode
-RUN make
+RUN make opnode
 
 FROM alpine:3.13
 

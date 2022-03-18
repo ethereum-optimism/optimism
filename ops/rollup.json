@@ -1,0 +1,21 @@
+{
+  "genesis": {
+    "l1": {
+      "hash": "0x21837b23495539c19e4b85d3d115c740c677d2609480eb67c3b2bb218a3ffd8f",
+      "number": 0
+    },
+    "l2": {
+      "hash": "0xb6eacd24a7fa15fa1a9b3ae550e217760f7d8a82a9c246975144b6ba6e3589f3",
+      "number": 0
+    },
+    "l2_time": 1647573629
+  },
+
+  "block_time": 1,
+
+  "max_sequencer_time_diff": 10,
+
+  "seq_window_size": 64,
+
+  "l1_chain_id": 900
+}

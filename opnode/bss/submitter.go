@@ -86,7 +86,7 @@ func (b *BatchSubmitter) Submit(config *rollup.Config, batches []*derive.BatchDa
 		return common.Hash{}, err
 	}
 
-	timeout := time.After(4 * time.Second)
+	timeout := time.After(30 * time.Second)
 
 	for {
 		receipt, err := b.Client.TransactionReceipt(context.Background(), tx.Hash())

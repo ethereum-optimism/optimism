@@ -1,0 +1,15 @@
+FROM ethereum/client-go:v1.10.16
+
+ARG DEPOSIT_FEED_BYTECODE=""
+
+RUN apk add --no-cache jq
+
+COPY entrypoint.sh /entrypoint.sh
+COPY genesis-l1.json /genesis.json
+
+RUN cat /genesis.json | jq ". | .alloc.deaddeaddeaddeaddeaddeaddeaddeaddead0001.code = \"$DEPOSIT_FEED_BYTECODE\"" | tee /genesis-with-bytecode.json && \
+    mv /genesis-with-bytecode.json /genesis.json
+
+VOLUME ["/db"]
+
+ENTRYPOINT ["/bin/sh", "/entrypoint.sh"]

@@ -41,7 +41,7 @@ var (
 	}
 
 	// TODO: move batch submitter to stand-alone process
-	BatchSubmitterKeyFlag = cli.BoolFlag{
+	BatchSubmitterKeyFlag = cli.StringFlag{
 		Name:   "batchsubmitter.key",
 		Usage:  "key for batch submitting",
 		EnvVar: prefixEnvVar("BATCHSUBMITTER_KEY"),
