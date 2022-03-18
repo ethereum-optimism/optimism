@@ -144,6 +144,7 @@ func (d *Database) AddL2Token(address string, token *Token) error {
 
 	return txn(d.db, func(tx *sql.Tx) error {
 		_, err := tx.Exec(
+			insertTokenStatement,
 			address,
 			token.Name,
 			token.Symbol,
@@ -171,12 +172,8 @@ func (d *Database) AddIndexedL1Block(block *IndexedL1Block) error {
 		($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
 	`
 	return txn(d.db, func(tx *sql.Tx) error {
-		blockStmt, err := tx.Prepare(insertBlockStatement)
-		if err != nil {
-			return err
-		}
-
-		_, err = blockStmt.Exec(
+		_, err := tx.Exec(
+			insertBlockStatement,
 			block.Hash.String(),
 			block.ParentHash.String(),
 			block.Number,
@@ -190,13 +187,9 @@ func (d *Database) AddIndexedL1Block(block *IndexedL1Block) error {
 			return nil
 		}
 
-		depositStmt, err := tx.Prepare(insertDepositStatement)
-		if err != nil {
-			return err
-		}
-
 		for _, deposit := range block.Deposits {
-			_, err = depositStmt.Exec(
+			_, err = tx.Exec(
+				insertDepositStatement,
 				NewGUID(),
 				deposit.FromAddress.String(),
 				deposit.ToAddress.String(),
@@ -292,13 +285,9 @@ func (d *Database) AddStateBatch(batches []StateBatch) error {
 	`
 
 	return txn(d.db, func(tx *sql.Tx) error {
-		stateBatchStmt, err := tx.Prepare(insertStateBatchStatement)
-		if err != nil {
-			return err
-		}
-
 		for _, sb := range batches {
-			_, err = stateBatchStmt.Exec(
+			_, err := tx.Exec(
+				insertStateBatchStatement,
 				sb.Index.Uint64(),
 				sb.Root.String(),
 				sb.Size.Uint64(),
