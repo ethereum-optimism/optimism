@@ -233,7 +233,7 @@ jobs:
           command: yarn test:slither
           working_directory: packages/contracts
 
-  contracts-lint:
+  contracts-static:
     docker:
       - image: mslipper/slither:latest
     resource_class: xlarge
