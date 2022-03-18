@@ -318,16 +318,16 @@ jobs:
     parallelism: 2
     steps:
       - checkout
-      # - run:
-      #     name: Bring up the stack
-      #     command: |
-      #       docker-compose build --parallel --progress=plain
-      #       docker-compose up -d
-      #     working_directory: ops
-      # - run:
-      #     name: Wait for sequencer
-      #     command: bash scripts/wait-for-sequencer.sh
-      #     working_directory: ops
+      - run:
+          name: Bring up the stack
+          command: |
+            docker-compose build --progress=plain
+            docker-compose up -d
+          working_directory: ops
+      - run:
+          name: Wait for sequencer
+          command: bash scripts/wait-for-sequencer.sh
+          working_directory: ops
       - run:
           name: Run integration tests
           command: |
