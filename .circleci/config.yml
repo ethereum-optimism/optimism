@@ -271,7 +271,6 @@ jobs:
     docker:
       - image: mslipper/slither:latest
     resource_class: xlarge
-    parallelism: 2
     steps:
       - restore_cache:
           keys:
@@ -279,9 +278,7 @@ jobs:
       - checkout
       - run:
           name: Test
-          command: |
-            circleci tests glob "../test/**/*.spec.ts" | circleci tests split | tee splits.txt
-            yarn test:contracts $(cat splits.txt)
+          command: yarn test:coverage
           working_directory: packages/contracts
 
   geth-tests:
