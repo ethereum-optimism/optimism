@@ -159,7 +159,7 @@ jobs:
         description: Working directory
         type: string
       build:
-        decription: Whether or not to build
+        description: Whether or not to build
         type: boolean
         default: true
     docker:
