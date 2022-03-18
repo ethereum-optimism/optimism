@@ -328,7 +328,8 @@ jobs:
           working_directory: ops
       - run:
           name: Run integration tests
-          command: docker-compose run integration_tests          
+          command: |
+            circleci tests glob "../integration_tests/*.spec.ts" | xargs docker-compose run integration_tests 
           working_directory: ops
 
 workflows:
