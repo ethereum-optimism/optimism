@@ -258,7 +258,7 @@ jobs:
       - checkout
       - run:
           name: Temporarily rename TS files
-          run: |
+          command: |
             mv contract-artifacts.ts contract-artifacts._ts
             mv contract-deployed-artifacts.ts contract-deployed-artifacts._ts
       - run:
@@ -267,7 +267,7 @@ jobs:
           working_directory: packages/contracts
       - run:
           name: Rename TS files back
-          run: |
+          command: |
             mv contract-artifacts._ts contract-artifacts.ts
             mv contract-deployed-artifacts._ts contract-deployed-artifacts.ts
       - run:
