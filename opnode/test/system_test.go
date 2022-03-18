@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ethereum-optimism/optimistic-specs/opnode/eth"
+
 	"github.com/ethereum-optimism/optimistic-specs/l2os"
 	"github.com/ethereum-optimism/optimistic-specs/l2os/bindings/l2oo"
 	"github.com/ethereum-optimism/optimistic-specs/l2os/txmgr"
@@ -30,14 +32,14 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func getGenesisHash(client *ethclient.Client) common.Hash {
+func getGenesisInfo(client *ethclient.Client) (id eth.BlockID, timestamp uint64) {
 	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
 	defer cancel()
 	block, err := client.BlockByNumber(ctx, common.Big0)
 	if err != nil {
 		panic(err)
 	}
-	return block.Hash()
+	return eth.BlockID{Hash: block.Hash(), Number: block.NumberU64()}, block.Time()
 }
 
 func endpoint(cfg *node.Config) string {
@@ -112,7 +114,7 @@ func TestSystemE2E(t *testing.T) {
 
 	l1Client, err := ethclient.Dial(endpoint(cfg.l1.nodeConfig))
 	require.Nil(t, err)
-	l1GenesisHash := getGenesisHash(l1Client)
+	l1GenesisID, _ := getGenesisInfo(l1Client)
 
 	// Start L2
 	l2Node, _, err := l2Geth(cfg)
@@ -124,7 +126,7 @@ func TestSystemE2E(t *testing.T) {
 
 	l2Client, err := ethclient.Dial(endpoint(cfg.l2Verifier.nodeConfig))
 	require.Nil(t, err)
-	l2GenesisHash := getGenesisHash(l2Client)
+	l2GenesisID, l2GenesisTime := getGenesisInfo(l2Client)
 
 	// Start L2
 	l2SequencerNode, _, err := l2SequencerGeth(cfg)
@@ -156,12 +158,14 @@ func TestSystemE2E(t *testing.T) {
 
 	// Verifier Rollup Node
 	nodeCfg := &rollupNode.Config{
-		L2Hash:        l2GenesisHash,
-		L1Hash:        l1GenesisHash,
-		L1Num:         0,
 		L1NodeAddr:    endpoint(cfg.l1.nodeConfig),
 		L2EngineAddrs: []string{endpoint(cfg.l2Verifier.nodeConfig)},
 		Rollup: rollup.Config{
+			Genesis: rollup.Genesis{
+				L1:     l1GenesisID,
+				L2:     l2GenesisID,
+				L2Time: l2GenesisTime,
+			},
 			BlockTime:            1,
 			MaxSequencerTimeDiff: 10,
 			SeqWindowSize:        2,
@@ -172,7 +176,6 @@ func TestSystemE2E(t *testing.T) {
 			BatchSenderAddress:  submitterAddress,
 		},
 	}
-	nodeCfg.Rollup.Genesis = nodeCfg.GetGenesis()
 	node, err := rollupNode.New(context.Background(), nodeCfg, testlog.Logger(t, log.LvlError))
 	require.Nil(t, err)
 
@@ -182,12 +185,14 @@ func TestSystemE2E(t *testing.T) {
 
 	// Sequencer Rollup Node
 	sequenceCfg := &rollupNode.Config{
-		L2Hash:        l2GenesisHash,
-		L1Hash:        l1GenesisHash,
-		L1Num:         0,
 		L1NodeAddr:    endpoint(cfg.l1.nodeConfig),
 		L2EngineAddrs: []string{endpoint(cfg.l2Sequencer.nodeConfig)},
 		Rollup: rollup.Config{
+			Genesis: rollup.Genesis{
+				L1:     l1GenesisID,
+				L2:     l2GenesisID,
+				L2Time: l2GenesisTime,
+			},
 			BlockTime:            1,
 			MaxSequencerTimeDiff: 10,
 			SeqWindowSize:        2,
@@ -200,7 +205,6 @@ func TestSystemE2E(t *testing.T) {
 		Sequencer:        true,
 		SubmitterPrivKey: bssPrivKey,
 	}
-	sequenceCfg.Rollup.Genesis = sequenceCfg.GetGenesis()
 	sequencer, err := rollupNode.New(context.Background(), sequenceCfg, testlog.Logger(t, log.LvlError))
 	require.Nil(t, err)
 

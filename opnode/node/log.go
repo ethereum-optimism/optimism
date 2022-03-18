@@ -13,7 +13,6 @@ type LogConfig struct {
 	Level  string // Log level: trace, debug, info, warn, error, crit. Capitals are accepted too.
 	Color  bool   // Color the log output. Defaults to true if terminal is detected.
 	Format string // Format the log output. Supported formats: 'text', 'json'
-
 }
 
 func DefaultLogConfig() LogConfig {

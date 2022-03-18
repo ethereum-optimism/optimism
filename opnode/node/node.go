@@ -2,7 +2,6 @@ package node
 
 import (
 	"context"
-	"crypto/ecdsa"
 	"fmt"
 	"time"
 
@@ -10,50 +9,20 @@ import (
 	"github.com/ethereum-optimism/optimistic-specs/opnode/eth"
 	"github.com/ethereum-optimism/optimistic-specs/opnode/l1"
 	"github.com/ethereum-optimism/optimistic-specs/opnode/l2"
-	"github.com/ethereum-optimism/optimistic-specs/opnode/rollup"
 	"github.com/ethereum-optimism/optimistic-specs/opnode/rollup/driver"
 
 	"github.com/ethereum/go-ethereum"
-	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rpc"
 )
 
-type Config struct {
-	// L1 and L2 nodes
-	L1NodeAddr    string   // Address of L1 User JSON-RPC endpoint to use (eth namespace required)
-	L2EngineAddrs []string // Addresses of L2 Engine JSON-RPC endpoints to use (engine and eth namespace required)
-
-	// Genesis Information
-	L2Hash common.Hash // Genesis block hash of L2
-	L1Hash common.Hash // Block hash of L1 after (not incl.) which L1 starts deriving blocks
-	L1Num  uint64      // Block number of L1 matching the l1-hash
-
-	Rollup           rollup.Config
-	Sequencer        bool
-	SubmitterPrivKey *ecdsa.PrivateKey
-}
-
-// Check verifies that the given configuration makes sense
-func (cfg *Config) Check() error {
-	return nil
-}
-
 type OpNode struct {
 	log       log.Logger
 	l1Source  l1.Source        // Source to fetch data from (also implements the Downloader interface)
 	l2Engines []*driver.Driver // engines to keep synced
 	done      chan struct{}
-}
-
-func (conf *Config) GetGenesis() rollup.Genesis {
-	return rollup.Genesis{
-		L1: eth.BlockID{Hash: conf.L1Hash, Number: conf.L1Num},
-		// TODO: if we start from a squashed snapshot we might have a non-zero L2 genesis number
-		L2: eth.BlockID{Hash: conf.L2Hash, Number: 0},
-	}
 }
 
 func New(ctx context.Context, cfg *Config, log log.Logger) (*OpNode, error) {
