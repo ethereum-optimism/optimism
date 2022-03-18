@@ -318,22 +318,22 @@ jobs:
     parallelism: 2
     steps:
       - checkout
-      - run:
-          name: Bring up the stack
-          command: |
-            docker-compose build --parallel --progress=plain
-            docker-compose up -d
-          working_directory: ops
-      - run:
-          name: Wait for sequencer
-          command: bash scripts/wait-for-sequencer.sh
-          working_directory: ops
+      # - run:
+      #     name: Bring up the stack
+      #     command: |
+      #       docker-compose build --parallel --progress=plain
+      #       docker-compose up -d
+      #     working_directory: ops
+      # - run:
+      #     name: Wait for sequencer
+      #     command: bash scripts/wait-for-sequencer.sh
+      #     working_directory: ops
       - run:
           name: Run integration tests
           command: |
             echo "Globbing tests:"
             echo $(circleci tests glob "../integration_tests/*.spec.ts")
-            circleci tests glob "../integration_tests/*.spec.ts" | xargs docker-compose run integration_tests 
+            circleci tests glob "../integration_tests/*.spec.ts" | circleci tests split | xargs docker-compose run integration_tests 
           working_directory: ops
 
 workflows:
