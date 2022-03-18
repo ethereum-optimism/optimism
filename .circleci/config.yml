@@ -155,7 +155,6 @@ jobs:
       binary_name:
         description: Binary name to build
         type: string
-        default: ""
       working_directory:
         description: Working directory
         type: string
@@ -328,6 +327,24 @@ jobs:
           command: npx depcheck
           working_directory: integration-tests
 
+  bss-core-tests:
+    docker:
+      - image: mslipper/go-builder:latest
+    steps:
+      - checkout
+      - run:
+          name: Lint
+          command: golangci-lint run -E goimports -E sqlclosecheck -E bodyclose -E asciicheck ./...
+          working_directory: go/bss-core
+      - run:
+          name: Test
+          command: |
+            mkdir -p /test-results
+            gotestsum --junitfile /test-results/tests.xml
+          working_directory: go/bss-core
+      - store_test_results:
+          path: /test-results
+
   integration-tests:
     machine:
       image: ubuntu-2004:202111-02
@@ -378,10 +395,7 @@ workflows:
           name: indexer-tests
           binary_name: indexer
           working_directory: go/indexer
-      - go-build-check:
-          name: bss-core-tests
-          build: false
-          working_directory: go/bss-core
+      - bss-core-tests
       - contracts-static:
           requires:
             - yarn-monorepo
