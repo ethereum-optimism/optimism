@@ -43,7 +43,6 @@ func (d *Database) GetL1TokenByAddress(address string) (*Token, error) {
 			return row.Err()
 		}
 
-
 		var name string
 		var symbol string
 		var decimals uint8
@@ -78,12 +77,7 @@ func (d *Database) GetL2TokenByAddress(address string) (*Token, error) {
 
 	var token *Token
 	err := txn(d.db, func(tx *sql.Tx) error {
-		queryStmt, err := tx.Prepare(selectL2TokenStatement)
-		if err != nil {
-			return err
-		}
-
-		row := queryStmt.QueryRow(selectL2TokenStatement, address)
+		row := tx.QueryRow(selectL2TokenStatement, address)
 		if row.Err() != nil {
 			return row.Err()
 		}
@@ -91,7 +85,7 @@ func (d *Database) GetL2TokenByAddress(address string) (*Token, error) {
 		var name string
 		var symbol string
 		var decimals uint8
-		err = row.Scan(&name, &symbol, &decimals)
+		err := row.Scan(&name, &symbol, &decimals)
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil
 		}
@@ -126,22 +120,14 @@ func (d *Database) AddL1Token(address string, token *Token) error {
 	`
 
 	return txn(d.db, func(tx *sql.Tx) error {
-		tokenStmt, err := tx.Prepare(insertTokenStatement)
-		if err != nil {
-			return err
-		}
-
-		_, err = tokenStmt.Exec(
+		_, err := tx.Exec(
+			insertTokenStatement,
 			address,
 			token.Name,
 			token.Symbol,
 			token.Decimals,
 		)
-		if err != nil {
-			return err
-		}
-
-		return nil
+		return err
 	})
 }
 
@@ -157,22 +143,13 @@ func (d *Database) AddL2Token(address string, token *Token) error {
 	`
 
 	return txn(d.db, func(tx *sql.Tx) error {
-		tokenStmt, err := tx.Prepare(insertTokenStatement)
-		if err != nil {
-			return err
-		}
-
-		_, err = tokenStmt.Exec(
+		_, err := tx.Exec(
 			address,
 			token.Name,
 			token.Symbol,
 			token.Decimals,
 		)
-		if err != nil {
-			return err
-		}
-
-		return nil
+		return err
 	})
 }
 
