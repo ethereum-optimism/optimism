@@ -155,6 +155,7 @@ jobs:
       binary_name:
         description: Binary name to build
         type: string
+        optional: true
       working_directory:
         description: Working directory
         type: string
@@ -185,7 +186,7 @@ jobs:
           working_directory: <<parameters.working_directory>>
           when:
             condition:
-              - equal: [true, <<parameters.working_directory>>]
+              - equal: [true, <<parameters.build>>]
 
   yarn-monorepo:
     docker:
