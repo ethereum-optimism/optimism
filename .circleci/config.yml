@@ -312,8 +312,10 @@ jobs:
   test-integration:
     machine:
       image: ubuntu-2004:202111-02
+      docker_layer_caching: true
     environment:
       DOCKER_BUILDKIT: 1
+    parallelism: 2
     steps:
       - checkout
       - run:
@@ -329,6 +331,8 @@ jobs:
       - run:
           name: Run integration tests
           command: |
+            echo "Globbing tests:"
+            echo $(circleci tests glob "../integration_tests/*.spec.ts")
             circleci tests glob "../integration_tests/*.spec.ts" | xargs docker-compose run integration_tests 
           working_directory: ops
 
