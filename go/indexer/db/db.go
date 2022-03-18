@@ -353,7 +353,7 @@ func (d *Database) GetDepositsByAddress(address common.Address, page PaginationP
 
 	var count uint64
 	err = txn(d.db, func(tx *sql.Tx) error {
-		row := tx.QueryRow(selectDepositsStatement, address.String())
+		row := tx.QueryRow(selectDepositCountStatement, address.String())
 		if err != nil {
 			return err
 		}
@@ -448,15 +448,11 @@ func (d *Database) GetWithdrawalsByAddress(address l2common.Address, page Pagina
 	var withdrawals []WithdrawalJSON
 
 	err := txn(d.db, func(tx *sql.Tx) error {
-		queryStmt, err := tx.Prepare(selectWithdrawalsStatement)
+		rows, err := tx.Query(selectWithdrawalsStatement, address.String(), page.Limit, page.Offset)
 		if err != nil {
 			return err
 		}
-
-		rows, err := queryStmt.Query(address.String(), page.Limit, page.Offset)
-		if err != nil {
-			return err
-		}
+		defer rows.Close()
 
 		for rows.Next() {
 			var withdrawal WithdrawalJSON
@@ -474,7 +470,7 @@ func (d *Database) GetWithdrawalsByAddress(address l2common.Address, page Pagina
 			withdrawals = append(withdrawals, withdrawal)
 		}
 
-		return nil
+		return rows.Err()
 	})
 
 	if err != nil {
@@ -497,12 +493,7 @@ func (d *Database) GetWithdrawalsByAddress(address l2common.Address, page Pagina
 
 	var count uint64
 	err = txn(d.db, func(tx *sql.Tx) error {
-		queryStmt, err := tx.Prepare(selectWithdrawalCountStatement)
-		if err != nil {
-			return err
-		}
-
-		row := queryStmt.QueryRow(address.String())
+		row := tx.QueryRow(selectWithdrawalCountStatement, address.String())
 		if err != nil {
 			return err
 		}
@@ -529,19 +520,14 @@ func (d *Database) GetHighestL1Block() (*L1BlockLocator, error) {
 
 	var highestBlock *L1BlockLocator
 	err := txn(d.db, func(tx *sql.Tx) error {
-		queryStmt, err := tx.Prepare(selectHighestBlockStatement)
-		if err != nil {
-			return err
-		}
-
-		row := queryStmt.QueryRow()
+		row := tx.QueryRow(selectHighestBlockStatement)
 		if row.Err() != nil {
 			return row.Err()
 		}
 
 		var number uint64
 		var hash string
-		err = row.Scan(&number, &hash)
+		err := row.Scan(&number, &hash)
 		if err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
 				highestBlock = nil
@@ -572,19 +558,14 @@ func (d *Database) GetHighestL2Block() (*L2BlockLocator, error) {
 
 	var highestBlock *L2BlockLocator
 	err := txn(d.db, func(tx *sql.Tx) error {
-		queryStmt, err := tx.Prepare(selectHighestBlockStatement)
-		if err != nil {
-			return err
-		}
-
-		row := queryStmt.QueryRow()
+		row := tx.QueryRow(selectHighestBlockStatement)
 		if row.Err() != nil {
 			return row.Err()
 		}
 
 		var number uint64
 		var hash string
-		err = row.Scan(&number, &hash)
+		err := row.Scan(&number, &hash)
 		if err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
 				highestBlock = nil
@@ -618,25 +599,20 @@ func (d *Database) GetIndexedL1BlockByHash(hash common.Hash) (*IndexedL1Block, e
 
 	var block *IndexedL1Block
 	err := txn(d.db, func(tx *sql.Tx) error {
-		queryStmt, err := tx.Prepare(selectBlockByHashStatement)
-		if err != nil {
-			return err
-		}
-
-		row := queryStmt.QueryRow(hash.String())
-		if errors.Is(row.Err(), sql.ErrNoRows) {
-			return nil
-		}
+		row := tx.QueryRow(selectBlockByHashStatement, hash.String())
 		if row.Err() != nil {
-			return err
+			return row.Err()
 		}
 
 		var hash string
 		var parentHash string
 		var number uint64
 		var timestamp uint64
-		err = row.Scan(&hash, &parentHash, &number, &timestamp)
+		err := row.Scan(&hash, &parentHash, &number, &timestamp)
 		if err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				return nil
+			}
 			return err
 		}
 
