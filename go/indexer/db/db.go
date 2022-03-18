@@ -38,30 +38,21 @@ func (d *Database) GetL1TokenByAddress(address string) (*Token, error) {
 
 	var token *Token
 	err := txn(d.db, func(tx *sql.Tx) error {
-		queryStmt, err := tx.Prepare(selectL1TokenStatement)
-		if err != nil {
-			return err
+		row := tx.QueryRow(selectL1TokenStatement, address)
+		if row.Err() != nil {
+			return row.Err()
 		}
 
-		rows, err := queryStmt.Query(address)
-		if err != nil {
-			return err
-		}
-
-		if !rows.Next() {
-			return nil
-		}
 
 		var name string
 		var symbol string
 		var decimals uint8
-		err = rows.Scan(&name, &symbol, &decimals)
+		err := row.Scan(&name, &symbol, &decimals)
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil
+		}
 		if err != nil {
 			return err
-		}
-
-		if rows.Next() {
-			return errors.New("address should be unique")
 		}
 
 		token = &Token{
@@ -69,7 +60,6 @@ func (d *Database) GetL1TokenByAddress(address string) (*Token, error) {
 			Symbol:   symbol,
 			Decimals: decimals,
 		}
-
 		return nil
 	})
 	if err != nil {
@@ -93,25 +83,20 @@ func (d *Database) GetL2TokenByAddress(address string) (*Token, error) {
 			return err
 		}
 
-		rows, err := queryStmt.Query(address)
-		if err != nil {
-			return err
-		}
-
-		if !rows.Next() {
-			return nil
+		row := queryStmt.QueryRow(selectL2TokenStatement, address)
+		if row.Err() != nil {
+			return row.Err()
 		}
 
 		var name string
 		var symbol string
 		var decimals uint8
-		err = rows.Scan(&name, &symbol, &decimals)
+		err = row.Scan(&name, &symbol, &decimals)
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil
+		}
 		if err != nil {
 			return err
-		}
-
-		if rows.Next() {
-			return errors.New("address should be unique")
 		}
 
 		token = &Token{
@@ -399,7 +384,6 @@ func (d *Database) GetDepositsByAddress(address common.Address, page PaginationP
 
 		return nil
 	})
-
 	if err != nil {
 		return nil, err
 	}
@@ -414,7 +398,6 @@ func (d *Database) GetDepositsByAddress(address common.Address, page PaginationP
 	`
 
 	var count uint64
-
 	err = txn(d.db, func(tx *sql.Tx) error {
 		queryStmt, err := tx.Prepare(selectDepositCountStatement)
 		if err != nil {
@@ -426,9 +409,11 @@ func (d *Database) GetDepositsByAddress(address common.Address, page PaginationP
 			return err
 		}
 
-		row.Scan(&count)
-		return nil
+		return row.Scan(&count)
 	})
+	if err != nil {
+		return nil, err
+	}
 
 	page.Total = count
 
@@ -567,7 +552,6 @@ func (d *Database) GetWithdrawalsByAddress(address l2common.Address, page Pagina
 	`
 
 	var count uint64
-
 	err = txn(d.db, func(tx *sql.Tx) error {
 		queryStmt, err := tx.Prepare(selectWithdrawalCountStatement)
 		if err != nil {
@@ -579,9 +563,11 @@ func (d *Database) GetWithdrawalsByAddress(address l2common.Address, page Pagina
 			return err
 		}
 
-		row.Scan(&count)
-		return nil
+		return row.Scan(&count)
 	})
+	if err != nil {
+		return nil, err
+	}
 
 	page.Total = count
 

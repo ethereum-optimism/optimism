@@ -2,6 +2,7 @@ package bridge
 
 import (
 	"fmt"
+
 	"github.com/ethereum-optimism/optimism/go/indexer/bindings/address_manager"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
