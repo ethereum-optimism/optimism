@@ -15,6 +15,7 @@ FROM alpine:3.13
 RUN apk add --no-cache ca-certificates jq curl
 COPY --from=builder /go-ethereum/build/bin/geth /usr/local/bin/
 
+WORKDIR /usr/local/bin/
 EXPOSE 8545 8546 8547
 COPY ./ops/scripts/geth.sh .
 ENTRYPOINT ["geth"]

@@ -231,6 +231,7 @@ func TestClearPendingTxClearingTxConfirms(t *testing.T) {
 			return &types.Receipt{
 				TxHash:      txHash,
 				BlockNumber: big.NewInt(int64(testBlockNumber)),
+				Status:      types.ReceiptStatusSuccessful,
 			}, nil
 		},
 	})
@@ -296,6 +297,7 @@ func TestClearPendingTxMultipleConfs(t *testing.T) {
 			return &types.Receipt{
 				TxHash:      txHash,
 				BlockNumber: big.NewInt(int64(testBlockNumber)),
+				Status:      types.ReceiptStatusSuccessful,
 			}, nil
 		},
 	}, numConfs)

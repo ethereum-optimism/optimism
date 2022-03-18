@@ -23,7 +23,7 @@ import { SomeContract } from "@eth-optimism/contracts/path/to/SomeContract.sol";
 ```
 
 Note that the `/path/to/SomeContract.sol` is the path to the target contract within the [contracts folder](https://github.com/ethereum-optimism/optimism/tree/develop/packages/contracts/contracts) inside of this package.
-For example, the [L1CrossDomainMessenger](/contracts/L1/messaging/L1CrossDomainMessenger.sol) contract is located at `/contracts/L1/messaging/L1CrossDomainMessenger.sol`, relative to this README.
+For example, the [L1CrossDomainMessenger](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts/contracts/L1/messaging/L1CrossDomainMessenger.sol) contract is located at `packages/contracts/contracts/L1/messaging/L1CrossDomainMessenger.sol`, relative to this README.
 You would therefore import the contract as:
 
 

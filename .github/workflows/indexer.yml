@@ -1,0 +1,38 @@
+name: indexer unit tests
+
+on:
+  push:
+    paths:
+      - 'go/indexer/**'
+    branches:
+      - 'master'
+      - 'develop'
+      - '*rc'
+      - 'release/*'
+  pull_request:
+    branches:
+      - '*'
+  workflow_dispatch:
+
+defaults:
+  run:
+    working-directory: './go/indexer'
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Install Go
+        uses: actions/setup-go@v2
+        with:
+          go-version: 1.16.x
+
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Install
+        run: make
+
+      - name: Test
+        run: make test
