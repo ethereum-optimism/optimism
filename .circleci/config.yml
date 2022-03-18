@@ -312,6 +312,7 @@ jobs:
   test-integration:
     machine:
       image: ubuntu-2004:202111-02
+    working_directory: /home/circleci
     steps:
       - restore_cache:
           keys:
