@@ -310,7 +310,8 @@ jobs:
           working_directory: integration-tests
 
   test-integration:
-    machine: true
+    machine:
+      image: ubuntu-2004:202111-02
     steps:
       - restore_cache:
           keys:
