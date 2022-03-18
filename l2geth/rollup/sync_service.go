@@ -165,6 +165,7 @@ func NewSyncService(ctx context.Context, cfg Config, txpool *core.TxPool, bc *co
 	// a remote server that indexes the layer one contracts. Place this
 	// code behind this if statement so that this can run without the
 	// requirement of the remote server being up.
+	// If we're syncing from the Queue, then we can skip all this and rely on L2 published transactions
 	if service.enable && service.backend != BackendQueue {
 		// Ensure that the rollup client can connect to a remote server
 		// before starting. Retry until it can connect.
