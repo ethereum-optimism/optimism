@@ -2,6 +2,7 @@ package txmgr
 
 import (
 	"context"
+	"errors"
 	"math/big"
 	"strings"
 	"sync"
@@ -11,6 +12,9 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 )
+
+// ErrReverted signals that a mined transaction reverted.
+var ErrReverted = errors.New("transaction reverted")
 
 // UpdateGasPriceSendTxFunc defines a function signature for publishing a
 // desired tx with a specific gas price. Implementations of this signature
@@ -225,6 +229,9 @@ func (m *SimpleTxManager) Send(
 
 		// The transaction has confirmed.
 		case receipt := <-receiptChan:
+			if receipt.Status == types.ReceiptStatusFailed {
+				return receipt, ErrReverted
+			}
 			return receipt, nil
 		}
 	}
@@ -288,7 +295,10 @@ func waitMined(
 			// tipHeight. The equation is rewritten in this form to avoid
 			// underflows.
 			if txHeight+numConfirmations <= tipHeight+1 {
-				log.Info("Transaction confirmed", "txHash", txHash)
+				reverted := receipt.Status == types.ReceiptStatusFailed
+				log.Info("Transaction confirmed",
+					"txHash", txHash,
+					"reverted", reverted)
 				return receipt, nil
 			}
 

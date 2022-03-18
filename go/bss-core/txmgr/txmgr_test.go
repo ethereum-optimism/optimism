@@ -98,6 +98,7 @@ func (g *gasPricer) sample() (*big.Int, *big.Int) {
 type minedTxInfo struct {
 	gasFeeCap   *big.Int
 	blockNumber uint64
+	reverted    bool
 }
 
 // mockBackend implements txmgr.ReceiptSource that tracks mined transactions
@@ -123,6 +124,20 @@ func newMockBackend() *mockBackend {
 // TransactionReceipt with a matching txHash will result in a non-nil receipt.
 // If a nil txHash is supplied this has the effect of mining an empty block.
 func (b *mockBackend) mine(txHash *common.Hash, gasFeeCap *big.Int) {
+	b.mineWithStatus(txHash, gasFeeCap, false)
+}
+
+// mineWithStatus records a (txHash, gasFeeCap) pair as confirmed, but also
+// includes the option to specify whether or not the transaction reverted.
+// Subsequent calls to TransactionReceipt with a matching txHash will result in
+// a non-nil receipt. If a nil txHash is supplied this has the effect of mining
+// an empty block.
+func (b *mockBackend) mineWithStatus(
+	txHash *common.Hash,
+	gasFeeCap *big.Int,
+	revert bool,
+) {
+
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
@@ -131,6 +146,7 @@ func (b *mockBackend) mine(txHash *common.Hash, gasFeeCap *big.Int) {
 		b.minedTxs[*txHash] = minedTxInfo{
 			gasFeeCap:   gasFeeCap,
 			blockNumber: b.blockHeight,
+			reverted:    revert,
 		}
 	}
 }
@@ -160,12 +176,18 @@ func (b *mockBackend) TransactionReceipt(
 		return nil, nil
 	}
 
+	var status = types.ReceiptStatusSuccessful
+	if txInfo.reverted {
+		status = types.ReceiptStatusFailed
+	}
+
 	// Return the gas fee cap for the transaction in the GasUsed field so that
 	// we can assert the proper tx confirmed in our tests.
 	return &types.Receipt{
 		TxHash:      txHash,
 		GasUsed:     txInfo.gasFeeCap.Uint64(),
 		BlockNumber: big.NewInt(int64(txInfo.blockNumber)),
+		Status:      status,
 	}, nil
 }
 
@@ -197,6 +219,39 @@ func TestTxMgrConfirmAtMinGasPrice(t *testing.T) {
 	ctx := context.Background()
 	receipt, err := h.mgr.Send(ctx, updateGasPrice, sendTx)
 	require.Nil(t, err)
+	require.NotNil(t, receipt)
+	require.Equal(t, gasPricer.expGasFeeCap().Uint64(), receipt.GasUsed)
+}
+
+// TestTxMgrFailsForRevertedTxn asserts that Send returns ErrReverted if the
+// confirmed transaction reverts during execution, and returns the resulting
+// receipt.
+func TestTxMgrFailsForRevertedTxn(t *testing.T) {
+	t.Parallel()
+
+	h := newTestHarness()
+
+	gasPricer := newGasPricer(1)
+
+	updateGasPrice := func(ctx context.Context) (*types.Transaction, error) {
+		gasTipCap, gasFeeCap := gasPricer.sample()
+		return types.NewTx(&types.DynamicFeeTx{
+			GasTipCap: gasTipCap,
+			GasFeeCap: gasFeeCap,
+		}), nil
+	}
+
+	sendTx := func(ctx context.Context, tx *types.Transaction) error {
+		if gasPricer.shouldMine(tx.GasFeeCap()) {
+			txHash := tx.Hash()
+			h.backend.mineWithStatus(&txHash, tx.GasFeeCap(), true)
+		}
+		return nil
+	}
+
+	ctx := context.Background()
+	receipt, err := h.mgr.Send(ctx, updateGasPrice, sendTx)
+	require.Equal(t, txmgr.ErrReverted, err)
 	require.NotNil(t, receipt)
 	require.Equal(t, gasPricer.expGasFeeCap().Uint64(), receipt.GasUsed)
 }
@@ -519,6 +574,7 @@ func (b *failingBackend) TransactionReceipt(
 	return &types.Receipt{
 		TxHash:      txHash,
 		BlockNumber: big.NewInt(1),
+		Status:      types.ReceiptStatusSuccessful,
 	}, nil
 }
 

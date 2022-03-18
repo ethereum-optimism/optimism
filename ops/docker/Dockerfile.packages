@@ -6,7 +6,12 @@
 # when used with typescript/hardhat: https://github.com/nomiclabs/hardhat/issues/1219
 FROM node:16.13-buster-slim as base
 
-RUN apt-get update -y && apt-get install -y git curl jq python3
+RUN apt-get update -y && apt-get install -y --no-install-recommends git \ 
+      curl \
+      jq \
+      python3 \
+      ca-certificates \
+  &&  rm -rf /var/lib/apt/lists/*
 
 # copy over the needed configs to run the dep installation
 # note: this approach can be a bit unhandy to maintain, but it allows
@@ -22,7 +27,7 @@ COPY packages/message-relayer/package.json ./packages/message-relayer/package.js
 COPY packages/replica-healthcheck/package.json ./packages/replica-healthcheck/package.json
 COPY integration-tests/package.json ./integration-tests/package.json
 
-RUN yarn install --frozen-lockfile
+RUN yarn install --frozen-lockfile && yarn cache clean
 
 COPY ./packages ./packages
 COPY ./integration-tests ./integration-tests
