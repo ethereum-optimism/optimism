@@ -280,6 +280,19 @@ jobs:
           command: yarn test:coverage
           working_directory: packages/contracts
 
+  geth-tests:
+    docker:
+      - image: cimg/base:2021.04
+    steps:
+      - checkout
+      - run:
+          name: Test
+          command: |
+            mkdir -p /test-results
+            gotestsum --junitfile /test-results/tests.xml
+      - store_test_results:
+          path: /test-results
+
   depcheck:
     docker:
       - image: mslipper/slither:latest
@@ -367,6 +380,7 @@ workflows:
       - depcheck:
           requires:
             - yarn-monorepo
+      - geth-tests
       - test-integration
 
 
