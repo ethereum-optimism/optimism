@@ -358,7 +358,7 @@ workflows:
       - depcheck:
           requires:
             - yarn-monorepo
-      - test-integration:
+      - test-integration
 
 
   nightly-itests:
