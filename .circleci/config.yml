@@ -246,7 +246,7 @@ jobs:
           command: yarn lint:check
           working_directory: packages/contracts
 
-  contracts-test:
+  contracts-lint:
     docker:
       - image: mslipper/slither:latest
     resource_class: xlarge
@@ -280,18 +280,31 @@ jobs:
           command: yarn test:coverage
           working_directory: packages/contracts
 
-  geth-tests:
+  contracts-tests:
+    docker:
+      - image: mslipper/slither:latest
+    resource_class: xlarge
+    parallelism: 2
+    steps:
+      - restore_cache:
+          keys:
+            - v1-yarn-build-{{ .Revision }}
+      - checkout
+      - run:
+          name: Test
+          command: |
+            circleci tests glob "../test/**/*.spec.ts" | circleci tests split | tee splits.txt
+            hardhat test --show-stack-traces $(cat splits.txt)
+          working_directory: packages/contracts
+
+  geth:
     docker:
       - image: cimg/base:2021.04
     steps:
       - checkout
       - run:
           name: Test
-          command: |
-            mkdir -p /test-results
-            gotestsum --junitfile /test-results/tests.xml
-      - store_test_results:
-          path: /test-results
+          command: make test
 
   depcheck:
     docker:
@@ -322,7 +335,7 @@ jobs:
           command: npx depcheck
           working_directory: integration-tests
 
-  test-integration:
+  integration-tests:
     machine:
       image: ubuntu-2004:202111-02
       docker_layer_caching: true
@@ -368,20 +381,20 @@ workflows:
           name: Check gas-oracle
           binary_name: gas-oracle
           working_directory: go/gas-oracle
-      # - contracts-slither:
-      #     requires:
-      #       - yarn-monorepo
-      # - contracts-lint:
-      #     requires:
-      #       - yarn-monorepo
       - contracts-test:
+          requires:
+            - yarn-monorepo
+      - contracts-static:
+          requires:
+            - yarn-monorepo
+      - contracts-tests:
           requires:
             - yarn-monorepo
       - depcheck:
           requires:
             - yarn-monorepo
       - geth-tests
-      - test-integration
+      - integration-tests
 
 
   nightly-itests:
