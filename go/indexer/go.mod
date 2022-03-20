@@ -4,7 +4,7 @@ go 1.17
 
 require (
 	github.com/ethereum-optimism/optimism/l2geth v0.0.0-20220104205740-f39387287484
-	github.com/ethereum/go-ethereum v1.10.14
+	github.com/ethereum/go-ethereum v1.10.16
 	github.com/getsentry/sentry-go v0.12.0
 	github.com/google/uuid v1.3.0
 	github.com/gorilla/mux v1.8.0
@@ -24,7 +24,7 @@ require (
 	github.com/cespare/xxhash/v2 v2.1.1 // indirect
 	github.com/cpuguy83/go-md2man/v2 v2.0.0-20190314233015-f79a8a8ca69d // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
-	github.com/deckarep/golang-set v0.0.0-20180603214616-504e848d77ea // indirect
+	github.com/deckarep/golang-set v1.8.0 // indirect
 	github.com/edsrzf/mmap-go v1.0.0 // indirect
 	github.com/elastic/gosigar v0.8.1-0.20180330100440-37f05ff46ffa // indirect
 	github.com/gballet/go-libpcsclite v0.0.0-20190607065134-2772fd86a8ff // indirect
@@ -35,8 +35,8 @@ require (
 	github.com/gorilla/websocket v1.4.2 // indirect
 	github.com/hashicorp/golang-lru v0.5.5-0.20210104140557-80c98217689d // indirect
 	github.com/huin/goupnp v1.0.2 // indirect
-	github.com/jackpal/go-nat-pmp v1.0.2-0.20160603034137-1fa385a6f458 // indirect
-	github.com/karalabe/usb v0.0.0-20211005121534-4c5740d64559 // indirect
+	github.com/jackpal/go-nat-pmp v1.0.2 // indirect
+	github.com/karalabe/usb v0.0.2 // indirect
 	github.com/mattn/go-runewidth v0.0.9 // indirect
 	github.com/matttproud/golang_protobuf_extensions v1.0.1 // indirect
 	github.com/olekukonko/tablewriter v0.0.5 // indirect
