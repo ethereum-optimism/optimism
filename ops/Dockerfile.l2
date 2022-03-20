@@ -1,0 +1,15 @@
+FROM mslipper/reference-optimistic-geth:latest
+
+ARG L1_BLOCK_INFO_BYTECODE=""
+
+RUN apk add --no-cache jq
+
+COPY entrypoint.sh /entrypoint.sh
+COPY genesis-l2.json /genesis.json
+
+RUN cat /genesis.json | jq ". | .alloc.\"4242424242424242424242424242424242424242\".code = \"$L1_BLOCK_INFO_BYTECODE\"" | tee /genesis-with-bytecode.json && \
+    mv /genesis-with-bytecode.json /genesis.json
+
+VOLUME ["/db"]
+
+ENTRYPOINT ["/bin/sh", "/entrypoint.sh"]

@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/ethereum-optimism/optimistic-specs/opnode/backoff"
+
 	"github.com/ethereum-optimism/optimistic-specs/opnode/bss"
 	"github.com/ethereum-optimism/optimistic-specs/opnode/eth"
 	"github.com/ethereum-optimism/optimistic-specs/opnode/l1"
@@ -30,14 +32,22 @@ func New(ctx context.Context, cfg *Config, log log.Logger) (*OpNode, error) {
 		return nil, err
 	}
 
-	// L1 exec engine: read-only, to update L2 consensus with
-	l1Node, err := rpc.DialContext(ctx, cfg.L1NodeAddr)
-	if err != nil {
-		// HTTP or WS RPC may create a disconnected client, RPC over IPC may fail directly
-		if l1Node == nil {
-			return nil, fmt.Errorf("failed to dial L1 addres (%s): %v", cfg.L1NodeAddr, err)
+	bOff := backoff.Exponential()
+	var l1Node *rpc.Client
+	err := backoff.Do(10, bOff, func() error {
+		client, err := rpc.DialContext(ctx, cfg.L1NodeAddr)
+		if err != nil {
+			// HTTP or WS RPC may create a disconnected client, RPC over IPC may fail directly
+			if client == nil {
+				return fmt.Errorf("failed to dial L1 address (%s): %v", cfg.L1NodeAddr, err)
+			}
+			log.Warn("failed to dial L1 address, but may connect later", "addr", cfg.L1NodeAddr, "err", err)
 		}
-		log.Warn("failed to dial L1 address, but may connect later", "addr", cfg.L1NodeAddr, "err", err)
+		l1Node = client
+		return nil
+	})
+	if err != nil {
+		return nil, err
 	}
 
 	// TODO: we may need to authenticate the connection with L1
@@ -46,14 +56,22 @@ func New(ctx context.Context, cfg *Config, log log.Logger) (*OpNode, error) {
 	var l2Engines []*driver.Driver
 
 	for i, addr := range cfg.L2EngineAddrs {
-		// L2 exec engine: updated by this OpNode (L2 consensus layer node)
-		backend, err := rpc.DialContext(ctx, addr)
-		if err != nil {
-			if backend == nil {
-				return nil, fmt.Errorf("failed to dial L2 address %d (%s): %v", i, addr, err)
+		var backend *rpc.Client
+		err := backoff.Do(10, bOff, func() error {
+			client, err := rpc.DialContext(ctx, addr)
+			if err != nil {
+				if client == nil {
+					return fmt.Errorf("failed to dial L2 address %d (%s): %v", i, addr, err)
+				}
+				log.Warn("failed to dial L2 address, but may connect later", "i", i, "addr", addr, "err", err)
 			}
-			log.Warn("failed to dial L2 address, but may connect later", "i", i, "addr", addr, "err", err)
+			backend = client
+			return nil
+		})
+		if err != nil {
+			return nil, err
 		}
+
 		// TODO: we may need to authenticate the connection with L2
 		// backend.SetHeader()
 		client := &l2.EngineClient{
