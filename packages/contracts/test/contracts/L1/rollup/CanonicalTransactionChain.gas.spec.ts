@@ -54,9 +54,7 @@ describe('[GAS BENCHMARK] CanonicalTransactionChain [ @skip-on-coverage ]', () =
       await sequencer.getAddress()
     )
 
-    Fake__StateCommitmentChain = await smock.fake<Contract>(
-    'StateCommitmentChain'
-    )
+    Fake__StateCommitmentChain = await smock.fake<Contract>( 'StateCommitmentChain')
 
     await setProxyTarget(
       AddressManager,

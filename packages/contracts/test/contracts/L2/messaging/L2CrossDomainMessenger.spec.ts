@@ -27,14 +27,11 @@ describe('L2CrossDomainMessenger', () => {
   let Fake__L1CrossDomainMessenger: FakeContract
   let Fake__OVM_L2ToL1MessagePasser: FakeContract
   before(async () => {
-    Fake__TargetContract = await smock.fake<Contract>(
-    'Helper_SimpleProxy'
-    )
+    Fake__TargetContract = await smock.fake<Contract>( 'Helper_SimpleProxy')
     Fake__L1CrossDomainMessenger = await smock.fake<Contract>(
     'L1CrossDomainMessenger'
     )
-    Fake__OVM_L2ToL1MessagePasser = await smock.fake<Contract>(
-    'OVM_L2ToL1MessagePasser',
+    Fake__OVM_L2ToL1MessagePasser = await smock.fake<Contract>( 'OVM_L2ToL1MessagePasser',
       { address: predeploys.OVM_L2ToL1MessagePasser }
     )
   })

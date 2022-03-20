@@ -76,7 +76,7 @@ describe('L1CrossDomainMessenger', () => {
         address: predeploys.L2CrossDomainMessenger,
       }
     )
-    Fake__StateCommitmentChain = await smock.fake<Contract>('StateCommitmentChain')
+    Fake__StateCommitmentChain = await smock.fake<Contract>( 'StateCommitmentChain')
 
     await AddressManager.setAddress(
       'L2CrossDomainMessenger',
