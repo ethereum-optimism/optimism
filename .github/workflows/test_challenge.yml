@@ -1,6 +1,6 @@
 name: Test Challenge
 
-on: push
+on: [push, pull_request]
 
 jobs:
   unit:
@@ -8,35 +8,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - name: Checkout Code
-      uses: actions/checkout@v2
-    - name: Install Go + Node
+      uses: actions/checkout@v3
+      with:
+        submodules: true
+    - name: Install Toolchain (Go, Node.js, Yarn and Make)
       run: |
         sudo apt-get update
-        sudo apt-get -y --no-install-recommends install golang-1.16 nodejs npm
-    - name: Install unicorn
-      run: |
-        ./build_unicorn.sh
-        echo "LIBUNICORN_PATH=$(pwd)/unicorn2/" >> $GITHUB_ENV
-    - name: Install yarn
-      run: |
+        sudo apt-get -y --no-install-recommends install golang-1.16 nodejs npm make
         npm install --global yarn
-        yarn install
-    - name: Build minigeth and run block 13284469 (builds preimage cache)
-      run: |
-        (cd minigeth/ && go build)
-        mkdir -p /tmp/cannon
-        minigeth/go-ethereum 13284469
-    - name: Install Python deps
-      run: pip3 install -r mipigo/requirements.txt
-    - name: Build minigeth for embedded
-      run: |
-        cd mipigo
-        ./build.sh
-    - name: Build mipsevm
-      run: |
-        cd mipsevm
-        go build
-    - name: Generate golden and checkpoints for 13284469
-      run: mipsevm/mipsevm && mipsevm/mipsevm 13284469
+    - name: Build
+      run: make unicorn minigeth_mips minigeth_default_arch mipsevm yarn
     - name: Run test challenge
-      run: npx hardhat test test/challenge_test.js
+      run: make test_challenge

@@ -1,6 +1,6 @@
 name: Test Contracts
 
-on: push
+on: [push, pull_request]
 
 jobs:
   unit:
@@ -8,14 +8,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - name: Checkout Code
-      uses: actions/checkout@v2
-    - name: Install Node
+      uses: actions/checkout@v3
+    - name: Install Toolchain (Node, Yarn and Make)
       run: |
         sudo apt-get update
-        sudo apt-get -y --no-install-recommends install nodejs npm
-    - name: Install yarn
-      run: |
+        sudo apt-get -y --no-install-recommends install nodejs npm make
         npm install --global yarn
-        yarn install
+    - name: Install Dependencies
+      run: make yarn
     - name: Hardhat Test
-      run: npx hardhat test
+      run: make test_contracts

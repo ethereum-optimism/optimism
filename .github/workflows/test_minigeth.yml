@@ -1,6 +1,6 @@
-name: Test minigeth
+name: Test Minigeth
 
-on: push
+on: [push, pull_request]
 
 jobs:
   unit:
@@ -8,20 +8,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - name: Checkout Code
-      uses: actions/checkout@v2
-    - name: Install Go
+      uses: actions/checkout@v3
+      with:
+        submodules: true
+    - name: Install Toolchain (Go & Make)
       run: |
         sudo apt-get update
-        sudo apt-get -y --no-install-recommends install golang-1.16
+        sudo apt-get -y --no-install-recommends install golang-1.16 make
     - name: Build minigeth
-      run: |
-        (cd minigeth/ && go build)
-        mkdir -p /tmp/cannon
-    - name: Test block 13284491 (0 tx)
-      run: minigeth/go-ethereum 13284491
-    - name: Test block 13284469 (few tx)
-      run: minigeth/go-ethereum 13284469
-    - name: Test block 13284053 (deletion)
-      run: minigeth/go-ethereum 13284053
-    - name: Test block 13303075 (uncles)
-      run: minigeth/go-ethereum 13303075
+      run: make minigeth_default_arch
+    - name: Test Minigeth
+      run: make test_minigeth

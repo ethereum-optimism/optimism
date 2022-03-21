@@ -1,6 +1,6 @@
 name: Test MIPS EVM
 
-on: push
+on: [push, pull_request]
 
 jobs:
   unit:
@@ -8,32 +8,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - name: Checkout Code
-      uses: actions/checkout@v2
-    - name: Install Go + Node
+      uses: actions/checkout@v3
+      with:
+        submodules: true
+    - name: Install Toolchain (Go, Node, Yarn & Make)
       run: |
         sudo apt-get update
-        sudo apt-get -y --no-install-recommends install golang-1.16 nodejs npm
-    - name: Install unicorn
-      run: |
-        ./build_unicorn.sh
-        echo "LIBUNICORN_PATH=$(pwd)/unicorn2/" >> $GITHUB_ENV
-    - name: Install yarn
-      run: |
+        sudo apt-get -y --no-install-recommends install golang-1.16 nodejs npm make
         npm install --global yarn
-        yarn install
-    - name: Hardhat Compile
-      run: npx hardhat compile
-    - name: Build minigeth and run blocks 13284469 and 13284491
-      run: |
-        (cd minigeth/ && go build)
-        mkdir -p /tmp/cannon
-        minigeth/go-ethereum 13284469
-        minigeth/go-ethereum 13284491
-    - name: Install Python deps
-      run: pip3 install -r mipigo/requirements.txt
-    - name: Build minigeth for embedded
-      run: |
-        cd mipigo
-        ./build.sh
-    - name: All MIPS EVM tests
-      run: cd mipsevm && go test -v
+    - name: Build
+      run: make build
+    - name: Test MIPS EVM
+      run: make test_mipsevm

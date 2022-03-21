@@ -1,12 +1,16 @@
-build: unicorn submodules minigeth_mips minigeth_default_arch mipsevm contracts
-	yarn
+SHELL := /bin/bash
+
+build: unicorn submodule minigeth_mips minigeth_default_arch mipsevm contracts
 
 unicorn:
 	./build_unicorn.sh
 
-submodules:
-	git submodule init
-	git submodule update
+submodule:
+	# CI will checkout submodules on its own (and fails on these commands)
+	if [[ -z "$$GITHUB_ENV" ]]; then \
+		git submodule init; \
+		git submodule update; \
+	fi
 
 minigeth_mips:
 	cd mipigo && ./build.sh
@@ -17,9 +21,11 @@ minigeth_default_arch:
 mipsevm:
 	cd mipsevm && go build
 
-contracts:
-	yarn
+contracts: yarn
 	npx hardhat compile
+
+yarn:
+	yarn install
 
 define clear_cache
 	rm -rf /tmp/cannon
@@ -71,5 +77,5 @@ mrproper: clean
 	rm -rf node_modules
 	rm -rf mipigo/venv
 
-.PHONY: build unicorn submodules minigeth_mips minigeth_default_arch mipsevm contracts \
-	clean mrproper test_challenge test_mipsevm test_minigeth test
+.PHONY: build unicorn submodule minigeth_mips minigeth_default_arch mipsevm contracts \
+	yarn clean mrproper test_challenge test_mipsevm test_minigeth test

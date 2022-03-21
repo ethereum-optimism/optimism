@@ -1,6 +1,6 @@
 name: Test Challenge Simple
 
-on: push
+on: [push, pull_request]
 
 jobs:
   unit:
@@ -8,7 +8,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - name: Checkout Code
-      uses: actions/checkout@v2
+      uses: actions/checkout@v3
+      with:
+        submodules: true
     - name: Install Toolchain (Go, Node.js, Yarn and Make)
       run: |
         sudo apt-get update
