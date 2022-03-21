@@ -1,10 +1,12 @@
 //SPDX-License-Identifier: MIT
 pragma solidity >=0.8.10;
 
+import { Ownable } from "../../lib/openzeppelin-contracts/contracts/access/Ownable.sol";
+
 /**
  * @title L2OutputOracle
  */
-contract L2OutputOracle {
+contract L2OutputOracle is Ownable {
     uint256 public submissionInterval;
     uint256 public l2BlockTime;
     mapping(uint256 => bytes32) public l2Outputs;
@@ -25,7 +27,8 @@ contract L2OutputOracle {
         uint256 _submissionInterval,
         uint256 _l2BlockTime,
         bytes32 _genesisL2Output,
-        uint256 _historicalTotalBlocks
+        uint256 _historicalTotalBlocks,
+        address sequencer
     ) {
         submissionInterval = _submissionInterval;
         l2BlockTime = _l2BlockTime;
@@ -33,6 +36,8 @@ contract L2OutputOracle {
         historicalTotalBlocks = _historicalTotalBlocks;
         latestBlockTimestamp = block.timestamp; // solhint-disable not-rely-on-time
         startingBlockTimestamp = block.timestamp; // solhint-disable not-rely-on-time
+
+        _transferOwnership(sequencer);
     }
 
     /**
@@ -42,7 +47,8 @@ contract L2OutputOracle {
      * @param _l2Output The L2 output of the checkpoint block.
      * @param _timestamp The L2 block timestamp that resulted in _l2Output.
      */
-    function appendL2Output(bytes32 _l2Output, uint256 _timestamp) external {
+    function appendL2Output(bytes32 _l2Output, uint256 _timestamp) external payable onlyOwner {
+        // todo: separate owner and sequencer roles
         require(block.timestamp > _timestamp, "Cannot append L2 output in future");
         require(_l2Output != bytes32(0), "Cannot submit empty L2 output");
         require(_timestamp == nextTimestamp(), "Timestamp not equal to next expected timestamp");
