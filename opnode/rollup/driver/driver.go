@@ -31,7 +31,7 @@ type Downloader interface {
 	FetchTransactions(ctx context.Context, window []eth.BlockID) ([]*types.Transaction, error)
 }
 
-type BlockPreparer interface {
+type Engine interface {
 	GetPayload(ctx context.Context, payloadId l2.PayloadID) (*l2.ExecutionPayload, error)
 	ForkchoiceUpdate(ctx context.Context, state *l2.ForkchoiceState, attr *l2.PayloadAttributes) (*l2.ForkchoiceUpdatedResult, error)
 	ExecutePayload(ctx context.Context, payload *l2.ExecutionPayload) error

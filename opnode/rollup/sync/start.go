@@ -56,7 +56,8 @@ type L2Chain interface {
 
 var WrongChainErr = errors.New("wrong chain")
 var TooDeepReorgErr = errors.New("reorg is too deep")
-var MaxReorgDepth = 500
+
+const MaxReorgDepth = 500
 
 // FindSafeL2Head takes the supplied L2 start block and walks the L2 chain until it finds the first L2 block reachable from the supplied
 // block that is also canonical.

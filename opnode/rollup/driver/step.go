@@ -18,7 +18,7 @@ import (
 
 type outputImpl struct {
 	dl     Downloader
-	l2     BlockPreparer
+	l2     Engine
 	log    log.Logger
 	Config rollup.Config
 }
@@ -176,7 +176,9 @@ func (d *outputImpl) step(ctx context.Context, l2Head eth.BlockID, l2Finalized e
 			return last, fmt.Errorf("failed to extend L2 chain at block %d/%d of epoch %d: %w", i, len(batches), epoch, err)
 		}
 		last = payload.ID()
-		fc.HeadBlockHash = last.Hash // should be safe block, but geth is broken
+		// TODO(Joshua): Update this to handle verifiers + sequencers
+		fc.HeadBlockHash = last.Hash
+		fc.SafeBlockHash = last.Hash
 	}
 
 	return last, nil

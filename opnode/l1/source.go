@@ -14,10 +14,7 @@ import (
 	"github.com/ethereum/go-ethereum/ethclient"
 )
 
-var WrongChainErr = errors.New("wrong chain")
-var TooDeepReorgErr = errors.New("reorg is too deep")
-var MaxReorgDepth = 500
-var MaxBlocksInL1Range = uint64(100)
+const MaxBlocksInL1Range = uint64(100)
 
 type Source struct {
 	client     *ethclient.Client
