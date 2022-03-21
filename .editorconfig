@@ -14,3 +14,6 @@ indent_style = tab
 
 [*.{ts,js}]
 indent_size = 2
+
+[*.yml]
+indent_size = 2

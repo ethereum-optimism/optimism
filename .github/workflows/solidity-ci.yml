@@ -11,30 +11,43 @@ on:
 env:
   PYTEST_ADDOPTS: "--color=yes"
 
+defaults:
+    run:
+      shell: bash
+      working-directory: ./packages/contracts
+
 jobs:
-  slither:
-    name: Slither run
+  solidity-ci:
     runs-on: ubuntu-latest
-    defaults:
-        run:
-            shell: bash
-            working-directory: ./packages/contracts
+    name: Solidity Checks
     steps:
       - uses: actions/checkout@v2
+        with:
+          submodules: recursive
+
       - uses: actions/setup-node@v2
         with:
             node-version: '14'
             cache: 'yarn'
       - run: yarn install
 
-      - name: Build
-        run: yarn build
 
-      - name: Lint
-        run: yarn lint:check
+      - name: Install Foundry
+        uses: onbjerg/foundry-toolchain@v1
+        with:
+          version: nightly
+
+      - name: Build with Forge
+        run: yarn build:forge
+
+      - name: Build with HH
+        run: yarn build:hh
 
       - name: Test
         run: yarn test
+
+      - name: Lint
+        run: yarn lint:check
 
       - name: Set up Python 3.8
         uses: actions/setup-python@v2
@@ -44,5 +57,5 @@ jobs:
       - name: Install Slither
         run: pip3 install slither-analyzer
 
-      - name: Run analysis
-        run: yarn test:slither
+      - name: Run Slither
+        run: yarn slither
