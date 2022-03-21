@@ -114,9 +114,8 @@ The rollup reads the following data from the [sequencing window][g-sequencing-wi
     - timestamp
     - basefee
     - *random* (the output of the [`RANDOM` opcode][random])
-  - L1 log entries emitted for [user deposits][g-deposits], augmented with
-    - `blockHeight`: the block-height of the L1 block
-    - `transactionIndex`: the transaction-index within the L2 transactions list
+  - L1 log entries emitted for [user deposits][g-deposits], derived transactions are augmented with
+    `blockHeight` and `transactionIndex` of the transaction in L2.
 - Of each block in the window:
   - Sequencer batches, derived from the transactions:
     - The transaction receiver is the sequencer inbox address
@@ -153,12 +152,6 @@ Batch contents:
 - `transaction_list` is an RLP encoded list of [EIP-2718] encoded transactions.
 
 [EIP-2718]: https://eips.ethereum.org/EIPS/eip-2718
-
-> Design note: The extra log entry metadata will be used to ensure that deposited transactions will be unique. Without
-> them, two different deposited transaction could have the same exact hash.
->
-> We do not use the sender's nonce to ensure uniqueness because this would require an extra L2 EVM state read from the
-> [execution engine][g-exec-engine].
 
 The L1 attributes are read from the L1 block header, while deposits are read from the block's [receipts][g-receipts].
 Refer to the [**deposit contract specification**][deposit-contract-spec] for details on how deposits are encoded as log

@@ -43,11 +43,10 @@ func (d *outputImpl) newBlock(ctx context.Context, l2Finalized eth.BlockID, l2Pa
 
 	var receipts types.Receipts
 	if includeDeposits {
-		receipts, err = d.dl.FetchReceipts(fetchCtx, l1Origin)
+		receipts, err = d.dl.FetchReceipts(fetchCtx, l1Origin, l1Info.ReceiptHash())
 		if err != nil {
 			return l2Parent, nil, fmt.Errorf("failed to fetch receipts of %s: %v", l1Origin, err)
 		}
-
 	}
 	l1InfoTx, err := derive.L1InfoDepositBytes(l1Info)
 	if err != nil {
@@ -55,7 +54,7 @@ func (d *outputImpl) newBlock(ctx context.Context, l2Finalized eth.BlockID, l2Pa
 	}
 	var txns []l2.Data
 	txns = append(txns, l1InfoTx)
-	deposits, err := derive.DeriveDeposits(l1Info.NumberU64(), receipts)
+	deposits, err := derive.DeriveDeposits(l2Parent.Number+1, receipts)
 	d.log.Info("Derived deposits", "deposits", deposits, "l2Parent", l2Parent, "l1Origin", l1Origin)
 	if err != nil {
 		return l2Parent, nil, fmt.Errorf("failed to derive deposits: %v", err)
@@ -124,11 +123,11 @@ func (d *outputImpl) step(ctx context.Context, l2Head eth.BlockID, l2Finalized e
 	if err != nil {
 		return l2Head, fmt.Errorf("failed to create l1InfoTx: %w", err)
 	}
-	receipts, err := d.dl.FetchReceipts(fetchCtx, l1Input[0])
+	receipts, err := d.dl.FetchReceipts(fetchCtx, l1Input[0], l1Info.ReceiptHash())
 	if err != nil {
 		return l2Head, fmt.Errorf("failed to fetch receipts of %s: %w", l1Input[0], err)
 	}
-	deposits, err := derive.DeriveDeposits(uint64(epoch), receipts)
+	deposits, err := derive.DeriveDeposits(l2Head.Number+1, receipts)
 	if err != nil {
 		return l2Head, fmt.Errorf("failed to derive deposits: %w", err)
 	}
