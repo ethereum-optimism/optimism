@@ -31,6 +31,22 @@ function finalizeDeposit(address _l2Token, address _l1Token, address _from, addr
 | _amount | uint256 | Amount of the token to withdraw
 | _data | bytes | Data provider by the sender on L1. This data is provided        solely as a convenience for external contracts. Aside from enforcing a maximum        length, these contracts provide no guarantees about its content.
 
+### initialize
+
+```solidity
+function initialize(address _l1messenger) external nonpayable
+```
+
+
+
+
+
+#### Parameters
+
+| Name | Type | Description |
+|---|---|---|
+| _l1messenger | address | L1 Messenger address being used for cross-chain communications.
+
 ### l2TokenBridge
 
 ```solidity

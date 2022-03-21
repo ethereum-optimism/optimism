@@ -32,21 +32,13 @@ contract L2NativeERC20Bridge is IL2NativeERC20Bridge, CrossDomainEnabled {
      * Constructor *
      ***************/
 
-    // This contract lives behind a proxy, so the constructor parameters will go unused.
-    constructor() CrossDomainEnabled(address(0)) {}
-
-    /******************
-     * Initialization *
-     ******************/
-
     /**
-     * @param _l2messenger L2 Messenger address being used for cross-chain communications.
-     * @param _l1TokenBridge L1 standard bridge address.
+     * @param _l2CrossDomainMessenger Cross-domain messenger used by this contract.
+     * @param _l1TokenBridge Address of the L1 bridge deployed to the main chain.
      */
-    // slither-disable-next-line external-function
-    function initialize(address _l2messenger, address _l1TokenBridge) public {
-        require(messenger == address(0), "Contract has already been initialized.");
-        messenger = _l2messenger;
+    constructor(address _l2CrossDomainMessenger, address _l1TokenBridge)
+        CrossDomainEnabled(_l2CrossDomainMessenger)
+    {
         l1TokenBridge = _l1TokenBridge;
     }
 

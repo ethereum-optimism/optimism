@@ -95,23 +95,6 @@ function finalizeERC20Withdrawal(address _l2Token, address _l1Token, address _fr
 | _amount | uint256 | Amount of the ERC20 to deposit.
 | _data | bytes | Data provided by the sender on L1. This data is provided   solely as a convenience for external contracts. Aside from enforcing a maximum   length, these contracts provide no guarantees about its content.
 
-### initialize
-
-```solidity
-function initialize(address _l2messenger, address _l1TokenBridge) external nonpayable
-```
-
-
-
-
-
-#### Parameters
-
-| Name | Type | Description |
-|---|---|---|
-| _l2messenger | address | L2 Messenger address being used for cross-chain communications.
-| _l1TokenBridge | address | L1 standard bridge address.
-
 ### l1TokenBridge
 
 ```solidity

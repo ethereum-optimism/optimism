@@ -8,6 +8,7 @@ import { IL2NativeERC20Bridge } from "../../L2/messaging/IL2NativeERC20Bridge.so
 /* Library Imports */
 import { ERC165Checker } from "@openzeppelin/contracts/utils/introspection/ERC165Checker.sol";
 import { CrossDomainEnabled } from "../../libraries/bridge/CrossDomainEnabled.sol";
+import { Lib_PredeployAddresses } from "../../libraries/constants/Lib_PredeployAddresses.sol";
 
 /* Contract Imports */
 import { IL1StandardERC20 } from "../../standards/IL1StandardERC20.sol";
@@ -19,22 +20,31 @@ import { IL1StandardERC20 } from "../../standards/IL1StandardERC20.sol";
 contract L1NativeERC20Bridge is IL1NativeERC20Bridge, CrossDomainEnabled {
     /********************************
      * External Contract References *
-     ********************************/
-
-    address public l2TokenBridge;
+     *******************************
+    /**
+     * @dev get the address of the corresponding L1 bridge contract.
+     * @return Address of the corresponding L1 bridge contract.
+     */
+    address public immutable l2TokenBridge = Lib_PredeployAddresses.L2_NATIVE_TOKENS_BRIDGE;
 
     /***************
      * Constructor *
      ***************/
 
+    // This contract lives behind a proxy, so the constructor parameters will go unused.
+    constructor() CrossDomainEnabled(address(0)) {}
+
+    /******************
+     * Initialization *
+     ******************/
+
     /**
-     * @param _l1CrossDomainMessenger Cross-domain messenger used by this contract.
-     * @param _l2TokenBridge Address of the L2 bridge deployed on Optimism.
+     * @param _l1messenger L1 Messenger address being used for cross-chain communications.
      */
-    constructor(address _l1CrossDomainMessenger, address _l2TokenBridge)
-        CrossDomainEnabled(_l1CrossDomainMessenger)
-    {
-        l2TokenBridge = _l2TokenBridge;
+    // slither-disable-next-line external-function
+    function initialize(address _l1messenger) public {
+        require(messenger == address(0), "Contract has already been initialized.");
+        messenger = _l1messenger;
     }
 
     /***************
