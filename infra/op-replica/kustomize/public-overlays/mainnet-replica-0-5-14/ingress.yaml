@@ -1,0 +1,28 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: mainnet-replica-0-5-14
+  annotations:
+    kubernetes.io/ingress.class: gce
+    kubernetes.io/ingress.global-static-ip-name: mainnet-replica-0-5-14
+    networking.gke.io/managed-certificates: mainnet-replica-0-5-14
+spec:
+  rules:
+  - host: mainnet-replica-0-5-14.optimism.io
+    http:
+      paths:
+      - backend:
+          service:
+            name: l2geth-replica
+            port:
+              name: rpc
+        path: /
+        pathType: ImplementationSpecific
+---
+apiVersion: networking.gke.io/v1
+kind: ManagedCertificate
+metadata:
+  name: mainnet-replica-0-5-14
+spec:
+  domains:
+  - mainnet-replica-0-5-14.optimism.io
