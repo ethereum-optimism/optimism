@@ -29,7 +29,7 @@ contract L1BLockTest is DSTest {
     }
 
     function test_basefee() external {
-        assertEq(lb.timestamp(), 2);
+        assertEq(lb.basefee(), 3);
     }
 
     function test_hash() external {
