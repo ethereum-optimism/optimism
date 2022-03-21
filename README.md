@@ -31,20 +31,6 @@ request].
 [Issues]: https://github.com/ethereum-optimism/optimistic-specs/issues
 [pull request]: https://github.com/ethereum-optimism/optimistic-specs/pulls
 
-### R&D Calls
-
-We hold bi-weekly R&D calls that are open to anyone interested in contributing
-to the Optimism spec.
-
-Contact [@karlfloersch], [@protolambda], [@kelvinfichter] or [@norswap] if you'd
-like to join these calls. Please note that these calls may be recorded and
-shared publicly (we will ask for consent before recording).
-
-[@karlfloersch]: https://twitter.com/karl_dot_tech/
-[@protolambda]: https://github.com/protolambda/
-[@kelvinfichter]: https://twitter.com/kelvinfichter
-[@norswap]: https://twitter.com/norswap
-
 ## License
 
 Specification: CC0 1.0 Universal, see [`specs/LICENSE`](./specs/LICENSE) file.
