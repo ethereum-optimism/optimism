@@ -27,27 +27,34 @@ type OpNode struct {
 	done      chan struct{}
 }
 
+func dialRPCClientWithBackoff(ctx context.Context, log log.Logger, addr string) (*rpc.Client, error) {
+	bOff := backoff.Exponential()
+	var ret *rpc.Client
+	err := backoff.Do(10, bOff, func() error {
+		client, err := rpc.DialContext(ctx, addr)
+		if err != nil {
+			if client == nil {
+				return fmt.Errorf("failed to dial address (%s): %w", addr, err)
+			}
+			log.Warn("failed to dial address, but may connect later", "addr", addr, "err", err)
+		}
+		ret = client
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return ret, nil
+}
+
 func New(ctx context.Context, cfg *Config, log log.Logger) (*OpNode, error) {
 	if err := cfg.Check(); err != nil {
 		return nil, err
 	}
 
-	bOff := backoff.Exponential()
-	var l1Node *rpc.Client
-	err := backoff.Do(10, bOff, func() error {
-		client, err := rpc.DialContext(ctx, cfg.L1NodeAddr)
-		if err != nil {
-			// HTTP or WS RPC may create a disconnected client, RPC over IPC may fail directly
-			if client == nil {
-				return fmt.Errorf("failed to dial L1 address (%s): %v", cfg.L1NodeAddr, err)
-			}
-			log.Warn("failed to dial L1 address, but may connect later", "addr", cfg.L1NodeAddr, "err", err)
-		}
-		l1Node = client
-		return nil
-	})
+	l1Node, err := dialRPCClientWithBackoff(ctx, log, cfg.L1NodeAddr)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to dial L1 address (%s): %w", cfg.L1NodeAddr, err)
 	}
 
 	// TODO: we may need to authenticate the connection with L1
@@ -56,29 +63,17 @@ func New(ctx context.Context, cfg *Config, log log.Logger) (*OpNode, error) {
 	var l2Engines []*driver.Driver
 
 	for i, addr := range cfg.L2EngineAddrs {
-		var backend *rpc.Client
-		err := backoff.Do(10, bOff, func() error {
-			client, err := rpc.DialContext(ctx, addr)
-			if err != nil {
-				if client == nil {
-					return fmt.Errorf("failed to dial L2 address %d (%s): %v", i, addr, err)
-				}
-				log.Warn("failed to dial L2 address, but may connect later", "i", i, "addr", addr, "err", err)
-			}
-			backend = client
-			return nil
-		})
+		l2Node, err := dialRPCClientWithBackoff(ctx, log, addr)
+		if err != nil {
+			return nil, err
+		}
+		// TODO: we may need to authenticate the connection with L2
+		// backend.SetHeader()
+		client, err := l2.NewSource(l2Node, log.New("engine_client", i))
 		if err != nil {
 			return nil, err
 		}
 
-		// TODO: we may need to authenticate the connection with L2
-		// backend.SetHeader()
-		client := &l2.EngineClient{
-			RPCBackend: backend,
-			EthBackend: ethclient.NewClient(backend),
-			Log:        log.New("engine_client", i),
-		}
 		var submitter *bss.BatchSubmitter
 		if cfg.Sequencer {
 			submitter = &bss.BatchSubmitter{
@@ -88,7 +83,7 @@ func New(ctx context.Context, cfg *Config, log log.Logger) (*OpNode, error) {
 				PrivKey:   cfg.SubmitterPrivKey,
 			}
 		}
-		engine := driver.NewDriver(cfg.Rollup, client, l1Source, log.New("engine", i, "Sequencer", cfg.Sequencer), submitter, cfg.Sequencer)
+		engine := driver.NewDriver(cfg.Rollup, client, &l1Source, log.New("engine", i, "Sequencer", cfg.Sequencer), submitter, cfg.Sequencer)
 		l2Engines = append(l2Engines, engine)
 	}
 

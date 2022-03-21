@@ -10,6 +10,8 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 )
 
+// TODO: Extend L2 Inteface to get safe/unsafe blocks (specifically for Unsafe L2 head)
+
 type inputInterface interface {
 	L1Head(ctx context.Context) (eth.L1BlockRef, error)
 	L2Head(ctx context.Context) (eth.L2BlockRef, error)
@@ -19,19 +21,19 @@ type inputInterface interface {
 }
 
 type outputInterface interface {
-	step(ctx context.Context, l2Head eth.BlockID, l2Finalized eth.BlockID, l1Window []eth.BlockID) (eth.BlockID, error)
-	newBlock(ctx context.Context, l2Finalized eth.BlockID, l2Parent eth.BlockID, l1Origin eth.BlockID, includeDeposits bool) (eth.BlockID, *derive.BatchData, error)
+	step(ctx context.Context, l2Head eth.BlockID, l2Finalized eth.BlockID, unsafeL2Head eth.BlockID, l1Input []eth.BlockID) (eth.BlockID, error)
+	newBlock(ctx context.Context, l2Finalized eth.BlockID, l2Parent eth.BlockID, l2Safe eth.BlockID, l1Origin eth.BlockID, includeDeposits bool) (eth.BlockID, *derive.BatchData, error)
 }
 
 type state struct {
 	// Chain State
-	l1Head       eth.BlockID   // Latest recorded head of the L1 Chain
-	l1Base       eth.BlockID   // L1 Parent of L2 Head block
-	l2UnsafeHead eth.BlockID   // L2 Unsafe Head - this is the head block from the sequencer
-	l1Origin     eth.BlockID   // L1 Origin of the L2 Unsafe head. For sequencing only.
-	l2Head       eth.BlockID   // L2 Safe Head - this is the head of the L2 chain as derived from L1 (thus it is Sequencer window blocks behind)
-	l2Finalized  eth.BlockID   // L2 Block that will never be reversed
-	l1Window     []eth.BlockID // l1Window buffers the next L1 block IDs to derive new L2 blocks from, with increasing block height.
+	l1Head      eth.BlockID   // Latest recorded head of the L1 Chain
+	l2Head      eth.BlockID   // L2 Unsafe Head
+	l1Origin    eth.BlockID   // L1 Origin of the L2 Unsafe head. For sequencing only.
+	l2SafeHead  eth.BlockID   // L2 Safe Head - this is the head of the L2 chain as derived from L1 (thus it is Sequencer window blocks behind)
+	l1Base      eth.BlockID   // L1 Parent of L2 Safe Head block
+	l2Finalized eth.BlockID   // L2 Block that will never be reversed
+	l1Window    []eth.BlockID // l1Window buffers the next L1 block IDs to derive new L2 blocks from, with increasing block height.
 
 	// Rollup config
 	Config    rollup.Config
@@ -69,10 +71,11 @@ func (s *state) Start(ctx context.Context, l1Heads <-chan eth.L1BlockRef) error 
 		return err
 	}
 
+	//  TODO: Don't start everything from L2 heads
 	s.l1Head = l1Head.Self
 	s.l1Origin = s.l1Head
-	s.l2UnsafeHead = l2Head.Self // TODO: Makes sense?
-	s.l2Head = l2Head.Self
+	s.l2Head = l2Head.Self // TODO: Makes sense?
+	s.l2SafeHead = l2Head.Self
 	s.l1Base = l2Head.L1Origin
 	s.l1Heads = l1Heads
 
@@ -159,14 +162,14 @@ func (s *state) loop() {
 				continue
 			}
 			// 2. Ask output to create new block
-			newUnsafeL2Head, batch, err := s.output.newBlock(context.Background(), s.l2Finalized, s.l2UnsafeHead, s.l1Origin, firstOfEpoch)
+			newUnsafeL2Head, batch, err := s.output.newBlock(context.Background(), s.l2Finalized, s.l2Head, s.l2SafeHead, s.l1Origin, firstOfEpoch)
 			if err != nil {
-				s.log.Error("Could not extend chain as sequencer", "err", err, "l2UnsafeHead", s.l2UnsafeHead, "l1Origin", s.l1Origin)
+				s.log.Error("Could not extend chain as sequencer", "err", err, "l2UnsafeHead", s.l2Head, "l1Origin", s.l1Origin)
 				continue
 			}
 			// 3. Update unsafe l2 head + epoch
-			s.l2UnsafeHead = newUnsafeL2Head
-			s.log.Trace("Created new l2 block", "l2UnsafeHead", s.l2UnsafeHead)
+			s.l2Head = newUnsafeL2Head
+			s.log.Trace("Created new l2 block", "l2UnsafeHead", s.l2Head)
 			// 4. Ask for batch submission
 			go func() {
 				_, err := s.bss.Submit(&s.Config, []*derive.BatchData{batch}) // TODO: submit multiple batches
@@ -201,7 +204,7 @@ func (s *state) loop() {
 				// TODO: Unsafe head here
 				s.l1Window = nil
 				s.l1Base = nextL2Head.L1Origin
-				s.l2Head = nextL2Head.Self
+				s.l2SafeHead = nextL2Head.Self
 			}
 			// Run step if we are able to
 			if s.l1Head.Number-s.l1Base.Number >= s.Config.SeqWindowSize {
@@ -226,13 +229,16 @@ func (s *state) loop() {
 			if window, ok := s.sequencingWindow(); ok {
 				s.log.Trace("Have enough cached blocks to run step.")
 				ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
-				newL2Head, err := s.output.step(ctx, s.l2Head, s.l2Finalized, window)
+				newL2Head, err := s.output.step(ctx, s.l2SafeHead, s.l2Finalized, s.l2Head, window)
 				cancel()
 				if err != nil {
-					s.log.Error("Error in running the output step.", "err", err, "l2Head", s.l2Head, "l2Finalized", s.l2Finalized, "window", window)
+					s.log.Error("Error in running the output step.", "err", err, "l2SafeHead", s.l2SafeHead, "l2Finalized", s.l2Finalized, "window", window)
 					continue
 				}
-				s.l2Head = newL2Head
+				if s.l2Head == s.l2SafeHead {
+					s.l2Head = newL2Head
+				}
+				s.l2SafeHead = newL2Head
 				s.l1Base = s.l1Window[0]
 				s.l1Window = s.l1Window[1:]
 				// TODO: l2Finalized

@@ -38,13 +38,13 @@ func (id testID) ID() eth.BlockID {
 	}
 }
 
-type outputHandlerFn func(ctx context.Context, l2Head eth.BlockID, l2Finalized eth.BlockID, l1Window []eth.BlockID) (eth.BlockID, error)
+type outputHandlerFn func(ctx context.Context, l2Head eth.BlockID, l2Finalized eth.BlockID, l2Unsafe eth.BlockID, l1Window []eth.BlockID) (eth.BlockID, error)
 
-func (fn outputHandlerFn) step(ctx context.Context, l2Head eth.BlockID, l2Finalized eth.BlockID, l1Window []eth.BlockID) (eth.BlockID, error) {
-	return fn(ctx, l2Head, l2Finalized, l1Window)
+func (fn outputHandlerFn) step(ctx context.Context, l2Head eth.BlockID, l2Finalized eth.BlockID, l2Unsafe eth.BlockID, l1Window []eth.BlockID) (eth.BlockID, error) {
+	return fn(ctx, l2Head, l2Finalized, l2Unsafe, l1Window)
 }
 
-func (fn outputHandlerFn) newBlock(ctx context.Context, l2Finalized eth.BlockID, l2Parent eth.BlockID, l1Origin eth.BlockID, includeDeposits bool) (eth.BlockID, *derive.BatchData, error) {
+func (fn outputHandlerFn) newBlock(ctx context.Context, l2Finalized eth.BlockID, l2Parent eth.BlockID, l2Safe eth.BlockID, l1Origin eth.BlockID, includeDeposits bool) (eth.BlockID, *derive.BatchData, error) {
 	panic("Unimplemented")
 }
 
@@ -134,7 +134,7 @@ func (tc *stateTestCase) Run(t *testing.T) {
 	// Unbuffered channels to force a sync point between the test and the state loop.
 	outputIn := make(chan outputArgs)
 	outputReturn := make(chan outputReturnArgs)
-	outputHandler := func(ctx context.Context, l2Head eth.BlockID, l2Finalized eth.BlockID, l1Window []eth.BlockID) (eth.BlockID, error) {
+	outputHandler := func(ctx context.Context, l2Head eth.BlockID, l2Finalized eth.BlockID, l2Unsafe eth.BlockID, l1Window []eth.BlockID) (eth.BlockID, error) {
 		outputIn <- outputArgs{l2Head: l2Head, l2Finalized: l2Finalized, l1Window: l1Window}
 		r := <-outputReturn
 		return r.l2Head, r.err
@@ -158,7 +158,7 @@ func (tc *stateTestCase) Run(t *testing.T) {
 		<-time.After(5 * time.Millisecond)
 
 		assert.Equal(t, step.l1head.ID(), state.l1Head, "l1 head")
-		assert.Equal(t, step.l2head.ID(), state.l2Head, "l2 head")
+		assert.Equal(t, step.l2head.ID(), state.l2SafeHead, "l2 head")
 	}
 }
 

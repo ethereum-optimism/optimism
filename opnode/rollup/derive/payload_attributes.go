@@ -210,20 +210,8 @@ func BatchesFromEVMTransactions(config *rollup.Config, txs []*types.Transaction)
 func FilterBatches(config *rollup.Config, epoch rollup.Epoch, minL2Time uint64, maxL2Time uint64, batches []*BatchData) (out []*BatchData) {
 	uniqueTime := make(map[uint64]struct{})
 	for _, batch := range batches {
-		if batch.Epoch != epoch {
-			// Batch was tagged for past or future epoch,
-			// i.e. it was included too late or depends on the given L1 block to be processed first.
+		if !ValidBatch(batch, config, epoch, minL2Time, maxL2Time) {
 			continue
-		}
-		if (batch.Timestamp-config.Genesis.L2Time)%config.BlockTime != 0 {
-			continue // bad timestamp, not a multiple of the block time
-		}
-		if batch.Timestamp < minL2Time {
-			continue // old batch
-		}
-		// limit timestamp upper bound to avoid huge amount of empty blocks
-		if batch.Timestamp >= maxL2Time {
-			continue // too far in future
 		}
 		// Check if we have already seen a batch for this L2 block
 		if _, ok := uniqueTime[batch.Timestamp]; ok {
@@ -236,91 +224,67 @@ func FilterBatches(config *rollup.Config, epoch rollup.Epoch, minL2Time uint64, 
 	return
 }
 
+func ValidBatch(batch *BatchData, config *rollup.Config, epoch rollup.Epoch, minL2Time uint64, maxL2Time uint64) bool {
+	if batch.Epoch != epoch {
+		// Batch was tagged for past or future epoch,
+		// i.e. it was included too late or depends on the given L1 block to be processed first.
+		return false
+	}
+	if (batch.Timestamp-config.Genesis.L2Time)%config.BlockTime != 0 {
+		return false // bad timestamp, not a multiple of the block time
+	}
+	if batch.Timestamp < minL2Time {
+		return false // old batch
+	}
+	// limit timestamp upper bound to avoid huge amount of empty blocks
+	if batch.Timestamp >= maxL2Time {
+		return false // too far in future
+	}
+	return true
+}
+
 type L2Info interface {
 	Time() uint64
 }
 
-// PayloadAttributes derives a sequence of pre-execution payload attributes from:
-//  - The L1 information the L1-info deposit is derived from
-//  - The L1 receipts the user deposits are derived from
-//  - The data batches the L2 sequencer work is derived from
-//  - The L2 information of the block the new derived blocks build on
-//
-// This is a pure function.
-func PayloadAttributes(config *rollup.Config, l1Info L1Info, receipts []*types.Receipt, seqWindow []*BatchData, l2Info L2Info, minL2Time, maxL2Time uint64) ([]*l2.PayloadAttributes, error) {
-	// Retrieve the deposits of this epoch (all deposits from the first block)
-	deposits, err := DeriveDeposits(l1Info, receipts)
-	if err != nil {
-		return nil, fmt.Errorf("failed to derive deposits: %v", err)
+// SortedAndPreparedBatches turns a collection of batches to the input batches for a series of blocks
+func SortedAndPreparedBatches(batches []*BatchData, epoch, blockTime, minL2Time, maxL2Time uint64) []*BatchData {
+	m := make(map[uint64]*BatchData)
+	for _, b := range batches {
+		m[b.BatchV1.Timestamp] = b
 	}
-
-	l1Tx := types.NewTx(L1InfoDeposit(l1Info))
-	l1InfoTx, err := l1Tx.MarshalBinary() // TODO: Issue with shared l1InfoTx?
-	if err != nil {
-		return nil, fmt.Errorf("failed to encode L1 info tx")
-	}
-
-	// copy L1 randomness (mix-digest becomes randao field post-merge)
-	// TODO: we don't have a randomness oracle on L2, what should sequencing randomness look like.
-	// Repeating the latest randomness of L1 might not be ideal.
-	randomnessSeed := l2.Bytes32(l1Info.MixDigest())
-
-	// Collect all L2 batches, the batches may be out-of-order, or possibly missing.
-	l2Blocks := make(map[uint64]*l2.PayloadAttributes)
-	for _, batch := range seqWindow {
-
-		txns := make([]l2.Data, 0, len(batch.Transactions)+1)
-		txns = append(txns, l1InfoTx)
-		txns = append(txns, batch.Transactions...)
-
-		l2Blocks[batch.Timestamp] = &l2.PayloadAttributes{
-			Timestamp:             l2.Uint64Quantity(batch.Timestamp),
-			Random:                randomnessSeed,
-			SuggestedFeeRecipient: config.FeeRecipientAddress,
-			Transactions:          txns,
-		}
-	}
-
-	// fill the gaps and always ensure at least one L2 block
-	var out []*l2.PayloadAttributes
-	for t := minL2Time; t < maxL2Time; t += config.BlockTime {
-		if bl, ok := l2Blocks[t]; ok {
-			out = append(out, bl)
+	var out []*BatchData
+	for t := minL2Time; t < maxL2Time; t += blockTime {
+		b, ok := m[t]
+		if ok {
+			out = append(out, b)
 		} else {
-			// skipped/missing L2 block, create an empty block instead
-			txns := make([]l2.Data, 1)
-			txns[0] = l1InfoTx
-			out = append(out, &l2.PayloadAttributes{
-				Timestamp:             l2.Uint64Quantity(t),
-				Random:                randomnessSeed,
-				SuggestedFeeRecipient: config.FeeRecipientAddress,
-				Transactions:          txns,
-				// we are verifying, not sequencing, we've all transactions and do not pull from the tx-pool
-				// (that would make the block derivation non-deterministic)
-				NoTxPool: true,
+			out = append(out, &BatchData{
+				BatchV1{
+					Epoch:     rollup.Epoch(epoch),
+					Timestamp: t,
+				},
 			})
 		}
 	}
-	// TODO: Assert that this does not panic here (i.e. make sure that len(out) > 0)
-
-	// Force deposits into the first block. TODO: Clean up L1 Info handling.
-	out[0].Transactions = append(append(make([]l2.Data, 0), deposits...), out[0].Transactions[1:]...)
-
-	return out, nil
+	return out
 }
 
-func DeriveDeposits(l1Info L1Info, receipts []*types.Receipt) ([]l2.Data, error) {
+func L1InfoDepositBytes(l1Info L1Info) (l2.Data, error) {
 	l1Tx := types.NewTx(L1InfoDeposit(l1Info))
 	opaqueL1Tx, err := l1Tx.MarshalBinary()
 	if err != nil {
 		return nil, fmt.Errorf("failed to encode L1 info tx")
 	}
-	userDeposits, err := UserDeposits(l1Info.NumberU64(), receipts)
+	return opaqueL1Tx, nil
+}
+
+func DeriveDeposits(epoch uint64, receipts []*types.Receipt) ([]l2.Data, error) {
+	userDeposits, err := UserDeposits(epoch, receipts)
 	if err != nil {
 		return nil, fmt.Errorf("failed to derive user deposits: %v", err)
 	}
-	encodedTxs := make([]l2.Data, 0, len(userDeposits)+1)
-	encodedTxs = append(encodedTxs, opaqueL1Tx)
+	encodedTxs := make([]l2.Data, 0, len(userDeposits))
 	for i, tx := range userDeposits {
 		opaqueTx, err := types.NewTx(tx).MarshalBinary()
 		if err != nil {
