@@ -125,7 +125,7 @@ type syncStartTestCase struct {
 	GenesisL2 rune
 
 	ExpectedNextRefsL1 string // The L1 extension to follow (i.e. L1 after the L1 parent in the new L2 Head)
-	ExpectedRefL2      rune   // The new L2 tip after a L1 change that may have occured
+	ExpectedRefL2      rune   // The new L2 tip after a L1 change that may have occurred
 
 	ExpectedErr error
 }
