@@ -234,6 +234,7 @@ func (d *Driver) CraftBatchTx(
 
 	var disbursements []disburse.TeleportrDisburserDisbursement
 	var depositIDs []uint64
+	value := new(big.Int)
 	for _, deposit := range confirmedDeposits {
 		disbursement := disburse.TeleportrDisburserDisbursement{
 			Amount: deposit.Amount,
@@ -241,6 +242,7 @@ func (d *Driver) CraftBatchTx(
 		}
 		disbursements = append(disbursements, disbursement)
 		depositIDs = append(depositIDs, deposit.ID)
+		value = value.Add(value, deposit.Amount)
 	}
 
 	log.Info(name+" crafting batch tx", "start", start, "end", end,
@@ -250,7 +252,7 @@ func (d *Driver) CraftBatchTx(
 
 	log.Info(name+" batch constructed", "num_disbursements", len(disbursements))
 
-	gasPrice, err := d.cfg.L1Client.SuggestGasPrice(ctx)
+	gasPrice, err := d.cfg.L2Client.SuggestGasPrice(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -265,6 +267,7 @@ func (d *Driver) CraftBatchTx(
 	opts.Nonce = nonce
 	opts.GasPrice = gasPrice
 	opts.NoSend = true
+	opts.Value = value
 
 	tx, err := d.disburserContract.Disburse(opts, start, disbursements)
 	if err != nil {
@@ -299,6 +302,7 @@ func (d *Driver) UpdateGasPrice(
 	opts.Context = ctx
 	opts.Nonce = new(big.Int).SetUint64(tx.Nonce())
 	opts.GasPrice = gasPrice
+	opts.Value = tx.Value()
 	opts.NoSend = true
 
 	return d.rawDisburserContract.RawTransact(opts, tx.Data())
@@ -313,7 +317,7 @@ func (d *Driver) SendTransaction(
 
 	txHash := tx.Hash()
 	startID := d.currentDepositIDs[0]
-	endID := d.currentDepositIDs[len(d.currentDepositIDs)] + 1
+	endID := d.currentDepositIDs[len(d.currentDepositIDs) - 1] + 1
 
 	// Record the pending transaction hash so that we can recover if we crash
 	// after publishing.

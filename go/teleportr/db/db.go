@@ -390,7 +390,8 @@ dep.txn_hash, dep.block_number, dep.block_timestamp,
 dis.txn_hash, dis.block_number, dis.block_timestamp
 FROM deposits AS dep
 LEFT JOIN disbursements AS dis
-ON dep.id = dis.id AND dep.txn_hash = $1
+ON dep.id = dis.id
+WHERE dep.txn_hash = $1
 LIMIT 1
 `
 
@@ -416,7 +417,8 @@ dep.txn_hash, dep.block_number, dep.block_timestamp,
 dis.txn_hash, dis.block_number, dis.block_timestamp
 FROM deposits AS dep
 LEFT JOIN disbursements AS dis
-ON dep.id = dis.id AND dep.address = $1
+ON dep.id = dis.id
+WHERE dep.address = $1
 ORDER BY dep.block_timestamp DESC, dep.id DESC
 LIMIT 100
 `
