@@ -25,8 +25,8 @@ type BatchSubmitter interface {
 type Downloader interface {
 	// FetchL1Info fetches the L1 header information corresponding to a L1 block ID
 	FetchL1Info(ctx context.Context, id eth.BlockID) (derive.L1Info, error)
-	// FetchReceipts of a L1 block
-	FetchReceipts(ctx context.Context, id eth.BlockID) ([]*types.Receipt, error)
+	// FetchReceipts of a L1 block. The receipt-hash must be provided to sanity-check the retrieved receipts.
+	FetchReceipts(ctx context.Context, id eth.BlockID, receiptHash common.Hash) ([]*types.Receipt, error)
 	// FetchTransactions from the given window of L1 blocks
 	FetchTransactions(ctx context.Context, window []eth.BlockID) ([]*types.Transaction, error)
 }

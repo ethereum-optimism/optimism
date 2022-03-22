@@ -5,16 +5,21 @@ import (
 	"math/rand"
 	"testing"
 
+	"github.com/ethereum/go-ethereum/params"
+
+	"github.com/ethereum/go-ethereum/core/types"
+
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/assert"
 )
 
 type l1MockInfo struct {
-	num       uint64
-	time      uint64
-	hash      common.Hash
-	baseFee   *big.Int
-	mixDigest [32]byte
+	num         uint64
+	time        uint64
+	hash        common.Hash
+	baseFee     *big.Int
+	mixDigest   [32]byte
+	receiptRoot common.Hash
 }
 
 func (l *l1MockInfo) NumberU64() uint64 {
@@ -37,6 +42,10 @@ func (l *l1MockInfo) MixDigest() common.Hash {
 	return l.mixDigest
 }
 
+func (l *l1MockInfo) ReceiptHash() common.Hash {
+	return l.receiptRoot
+}
+
 func randomHash(rng *rand.Rand) (out common.Hash) {
 	rng.Read(out[:])
 	return
@@ -44,10 +53,11 @@ func randomHash(rng *rand.Rand) (out common.Hash) {
 
 func randomL1Info(rng *rand.Rand) *l1MockInfo {
 	return &l1MockInfo{
-		num:     rng.Uint64(),
-		time:    rng.Uint64(),
-		hash:    randomHash(rng),
-		baseFee: big.NewInt(rng.Int63n(1000_0000 * 1e9)), // a million GWEI
+		num:         rng.Uint64(),
+		time:        rng.Uint64(),
+		hash:        randomHash(rng),
+		baseFee:     big.NewInt(rng.Int63n(1000_000 * params.GWei)), // a million GWEI
+		receiptRoot: types.EmptyRootHash,
 	}
 }
 

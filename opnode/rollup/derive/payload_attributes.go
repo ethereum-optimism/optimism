@@ -12,7 +12,6 @@ import (
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/trie"
 	"github.com/holiman/uint256"
 )
 
@@ -120,6 +119,7 @@ type L1Info interface {
 	BaseFee() *big.Int
 	// MixDigest field, reused for randomness after The Merge (Bellatrix hardfork)
 	MixDigest() common.Hash
+	ReceiptHash() common.Hash
 }
 
 // L1InfoDeposit creats a L1 Info deposit transaction based on the L1 block
@@ -148,19 +148,8 @@ func L1InfoDeposit(block L1Info) *types.DepositTx {
 	}
 }
 
-type ReceiptHash interface {
-	ReceiptHash() common.Hash
-}
-
-// CheckReceipts sanity checks that the receipts are consistent with the block data.
-func CheckReceipts(block ReceiptHash, receipts []*types.Receipt) bool {
-	hasher := trie.NewStackTrie(nil)
-	computed := types.DeriveSha(types.Receipts(receipts), hasher)
-	return block.ReceiptHash() == computed
-}
-
-// UserDeposits transforms a L1 block and corresponding receipts into the transaction inputs for a full L2 block
-func UserDeposits(height uint64, receipts []*types.Receipt) ([]*types.DepositTx, error) {
+// UserDeposits transforms the L2 block-height and L1 receipts into the transaction inputs for a full L2 block
+func UserDeposits(l2BlockHeight uint64, receipts []*types.Receipt) ([]*types.DepositTx, error) {
 	var out []*types.DepositTx
 
 	for _, rec := range receipts {
@@ -170,7 +159,7 @@ func UserDeposits(height uint64, receipts []*types.Receipt) ([]*types.DepositTx,
 		for _, log := range rec.Logs {
 			if log.Address == DepositContractAddr {
 				// offset transaction index by 1, the first is the l1-info tx
-				dep, err := UnmarshalLogEvent(height, uint64(len(out))+1, log)
+				dep, err := UnmarshalLogEvent(l2BlockHeight, uint64(len(out))+1, log)
 				if err != nil {
 					return nil, fmt.Errorf("malformatted L1 deposit log: %v", err)
 				}
@@ -240,6 +229,14 @@ func ValidBatch(batch *BatchData, config *rollup.Config, epoch rollup.Epoch, min
 	if batch.Timestamp >= maxL2Time {
 		return false // too far in future
 	}
+	for _, txBytes := range batch.Transactions {
+		if len(txBytes) == 0 {
+			return false // transaction data must not be empty
+		}
+		if txBytes[0] == types.DepositTxType {
+			return false // sequencers may not embed any deposits into batch data
+		}
+	}
 	return true
 }
 
@@ -279,8 +276,8 @@ func L1InfoDepositBytes(l1Info L1Info) (hexutil.Bytes, error) {
 	return opaqueL1Tx, nil
 }
 
-func DeriveDeposits(epoch uint64, receipts []*types.Receipt) ([]hexutil.Bytes, error) {
-	userDeposits, err := UserDeposits(epoch, receipts)
+func DeriveDeposits(l2BlockHeight uint64, receipts []*types.Receipt) ([]hexutil.Bytes, error) {
+	userDeposits, err := UserDeposits(l2BlockHeight, receipts)
 	if err != nil {
 		return nil, fmt.Errorf("failed to derive user deposits: %v", err)
 	}

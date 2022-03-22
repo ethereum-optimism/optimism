@@ -8,6 +8,7 @@
 [g-l1-attr-deposit]: glossary.md#l1-attributes-deposited-transaction
 [g-user-deposited]: glossary.md#user-deposited-transaction
 [g-eoa]: glossary.md#eoa
+[g-exec-engine]: glossary.md#execution-engine
 
 [Deposited transactions][g-deposited], also known as [deposits][g-deposits] are transactions which
 are initiated on L1, and executed on L2. This document outlines a new [transaction
@@ -54,6 +55,8 @@ fields (rlp encoded in the order they appear here):
 
 [EIP-2718]: https://eips.ethereum.org/EIPS/eip-2718
 
+- `uint64 blockHeight`: the block-height of the L2 block
+- `uint64 transactionIndex`: the transaction-index within the L2 transactions list
 - `address from`: The address of the sender account.
 - `address to`: The address of the recipient account, or the null (zero-length) address if the
   deposited transaction is a contract creation.
@@ -71,6 +74,12 @@ We select `0x7E` because transaction type identifiers are currently allowed to g
 Picking a high identifier minimizes the risk that the identifier will be used be claimed by another
 transaction type on the L1 chain in the future. We don't pick `0x7F` itself in case it becomes used
 for a variable-length encoding scheme.
+
+The extra blockHeight and transactionIndex in deposits will be used to ensure that deposited transactions
+will be unique. Without them, two different deposited transaction could have the same exact hash.
+
+We do not use the sender's nonce to ensure uniqueness because this would require an extra L2 EVM state read from the
+[execution engine][g-exec-engine] during block-derivation.
 
 ### Kinds of Deposited Transactions
 
