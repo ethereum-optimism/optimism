@@ -11,7 +11,7 @@ import (
 // SendState tracks information about the publication state of a given txn. In
 // this context, a txn may correspond to multiple different txn hashes due to
 // varying gas prices, though we treat them all as the same logical txn. This
-// struct is primarly used to determine whether or not the txmgr should abort a
+// struct is primarily used to determine whether or not the txmgr should abort a
 // given txn and retry with a higher nonce.
 type SendState struct {
 	minedTxs         map[common.Hash]struct{}
@@ -77,7 +77,7 @@ func (s *SendState) TxNotMined(txHash common.Hash) {
 	// If the txn got reorged and left us with no mined txns, reset the nonce
 	// too low count, otherwise we might abort too soon when processing the next
 	// error. If the nonce too low errors persist, we want to ensure we wait out
-	// the full safe abort count to enesure we have a sufficient number of
+	// the full safe abort count to ensure we have a sufficient number of
 	// observations.
 	if len(s.minedTxs) == 0 && wasMined {
 		s.nonceTooLowCount = 0

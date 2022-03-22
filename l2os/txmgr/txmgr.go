@@ -209,7 +209,7 @@ func (m *SimpleTxManager) Send(
 			// Avoid republishing if we are waiting for confirmation on an
 			// existing tx. This is primarily an optimization to reduce the
 			// number of API calls we make, but also reduces the chances of
-			// getting a false postive reading for ShouldAbortImmediately.
+			// getting a false positive reading for ShouldAbortImmediately.
 			if sendState.IsWaitingForConfirmation() {
 				continue
 			}
