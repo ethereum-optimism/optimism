@@ -15,15 +15,21 @@ import (
 )
 
 var (
-	Version = "0.0.0"
-	// GitCommit   = ""
-	// GitDate     = ""
+	Version     = "0.0.0"
+	GitCommit   = ""
+	GitDate     = ""
 	VersionMeta = "dev"
 )
 
 // VersionWithMeta holds the textual version string including the metadata.
 var VersionWithMeta = func() string {
 	v := Version
+	if GitCommit != "" {
+		v += "-" + GitCommit[:8]
+	}
+	if GitDate != "" {
+		v += "-" + GitDate
+	}
 	if VersionMeta != "" {
 		v += "-" + VersionMeta
 	}
