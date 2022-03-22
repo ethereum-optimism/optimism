@@ -21,7 +21,7 @@ jobs:
       - name: golangci-lint
         uses: golangci/golangci-lint-action@v2
         with:
-          version: v1.43.0  # version of golangci-lint, not the action
+          version: v1.45.0  # version of golangci-lint, not the action
           skip-go-installation: true
           # rules: https://golangci-lint.run/usage/quick-start/
           args: -E asciicheck,goimports,misspell
