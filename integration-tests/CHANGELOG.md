@@ -1,5 +1,11 @@
 # @eth-optimism/integration-tests
 
+## 0.5.7
+
+### Patch Changes
+
+- 88601cb7: Refactored Dockerfiles
+
 ## 0.5.6
 
 ### Patch Changes

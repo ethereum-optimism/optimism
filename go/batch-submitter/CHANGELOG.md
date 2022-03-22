@@ -1,5 +1,15 @@
 # @eth-optimism/batch-submitter-service
 
+## 0.1.8
+
+### Patch Changes
+
+- 88601cb7: Refactored Dockerfiles
+- 6856b215: Count reverted transactions in failed_submissions
+- 9678b357: Add Min/MaxStateRootElements configuration
+- f8348862: l2geth: Sync from Backend Queue
+- 727b0582: Enforce min/max tx size on plaintext batch encoding
+
 ## 0.1.7
 
 ### Patch Changes

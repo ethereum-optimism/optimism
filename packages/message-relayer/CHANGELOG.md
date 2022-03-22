@@ -1,5 +1,18 @@
 # @eth-optimism/message-relayer
 
+## 0.4.1
+
+### Patch Changes
+
+- 88601cb7: Refactored Dockerfiles
+- 5cd1e996: Have BaseServiceV2 add spaces to environment variable names
+- Updated dependencies [f7761058]
+- Updated dependencies [5ae15042]
+- Updated dependencies [5cd1e996]
+- Updated dependencies [d49feca1]
+  - @eth-optimism/common-ts@0.2.3
+  - @eth-optimism/sdk@1.0.2
+
 ## 0.4.0
 
 ### Minor Changes

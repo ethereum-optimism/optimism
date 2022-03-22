@@ -1,5 +1,16 @@
 # @eth-optimism/replica-healthcheck
 
+## 1.0.1
+
+### Patch Changes
+
+- 1c685f76: Fixes a bug in the replica-healthcheck dockerfile
+- 5cd1e996: Have BaseServiceV2 add spaces to environment variable names
+- Updated dependencies [f7761058]
+- Updated dependencies [5ae15042]
+- Updated dependencies [5cd1e996]
+  - @eth-optimism/common-ts@0.2.3
+
 ## 1.0.0
 
 ### Major Changes
