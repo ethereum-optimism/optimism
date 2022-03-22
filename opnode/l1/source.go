@@ -2,6 +2,7 @@ package l1
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math/big"
 
@@ -13,6 +14,8 @@ import (
 	"github.com/ethereum/go-ethereum/ethclient"
 )
 
+const MaxBlocksInL1Range = uint64(100)
+
 type Source struct {
 	client     *ethclient.Client
 	downloader *Downloader
@@ -23,20 +26,6 @@ func NewSource(client *ethclient.Client) Source {
 		client:     client,
 		downloader: NewDownloader(client),
 	}
-}
-
-func (s Source) BlockLinkByNumber(ctx context.Context, num uint64) (self eth.BlockID, parent eth.BlockID, err error) {
-	header, err := s.client.HeaderByNumber(ctx, big.NewInt(int64(num)))
-	if err != nil {
-		// w%: wrap the error, we still need to detect if a canonical block is not found, a.k.a. end of chain.
-		return eth.BlockID{}, eth.BlockID{}, fmt.Errorf("failed to determine block-hash of height %d, could not get header: %w", num, err)
-	}
-	parentNum := num
-	if parentNum > 0 {
-		parentNum -= 1
-	}
-	return eth.BlockID{Hash: header.Hash(), Number: num}, eth.BlockID{Hash: header.ParentHash, Number: parentNum}, nil
-
 }
 
 func (s Source) SubscribeNewHead(ctx context.Context, ch chan<- *types.Header) (ethereum.Subscription, error) {
@@ -74,6 +63,7 @@ func (s Source) Close() {
 func (s Source) FetchL1Info(ctx context.Context, id eth.BlockID) (derive.L1Info, error) {
 	return s.client.BlockByHash(ctx, id.Hash)
 }
+
 func (s Source) FetchReceipts(ctx context.Context, id eth.BlockID) ([]*types.Receipt, error) {
 	_, receipts, err := s.Fetch(ctx, id)
 	return receipts, err
@@ -90,4 +80,74 @@ func (s Source) FetchTransactions(ctx context.Context, window []eth.BlockID) ([]
 	}
 	return txns, nil
 
+}
+func (s Source) L1HeadBlockRef(ctx context.Context) (eth.L1BlockRef, error) {
+	return s.l1BlockRefByNumber(ctx, nil)
+}
+
+func (s Source) L1BlockRefByNumber(ctx context.Context, l1Num uint64) (eth.L1BlockRef, error) {
+	return s.l1BlockRefByNumber(ctx, new(big.Int).SetUint64(l1Num))
+}
+
+// l1BlockRefByNumber wraps l1.HeaderByNumber to return an eth.L1BlockRef
+// This is internal because the exposed L1BlockRefByNumber takes uint64 instead of big.Ints
+func (s Source) l1BlockRefByNumber(ctx context.Context, number *big.Int) (eth.L1BlockRef, error) {
+	header, err := s.client.HeaderByNumber(ctx, number)
+	if err != nil {
+		// w%: wrap the error, we still need to detect if a canonical block is not found, a.k.a. end of chain.
+		return eth.L1BlockRef{}, fmt.Errorf("failed to determine block-hash of height %v, could not get header: %w", number, err)
+	}
+	l1Num := header.Number.Uint64()
+	parentNum := l1Num
+	if parentNum > 0 {
+		parentNum -= 1
+	}
+	return eth.L1BlockRef{
+		Self:   eth.BlockID{Hash: header.Hash(), Number: l1Num},
+		Parent: eth.BlockID{Hash: header.ParentHash, Number: parentNum},
+	}, nil
+}
+
+// L1Range returns a range of L1 block beginning just after `begin`.
+func (s Source) L1Range(ctx context.Context, begin eth.BlockID) ([]eth.BlockID, error) {
+	// Ensure that we start on the expected chain.
+	if canonicalBegin, err := s.L1BlockRefByNumber(ctx, begin.Number); err != nil {
+		return nil, fmt.Errorf("failed to fetch L1 block %v %v: %w", begin.Number, begin.Hash, err)
+	} else {
+		if canonicalBegin.Self != begin {
+			return nil, fmt.Errorf("Re-org at begin block. Expected: %v. Actual: %v", begin, canonicalBegin.Self)
+		}
+	}
+
+	l1head, err := s.L1HeadBlockRef(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch head L1 block: %w", err)
+	}
+	maxBlocks := MaxBlocksInL1Range
+	// Cap maxBlocks if there are less than maxBlocks between `begin` and the head of the chain.
+	if l1head.Self.Number-begin.Number <= maxBlocks {
+		maxBlocks = l1head.Self.Number - begin.Number
+	}
+
+	if maxBlocks == 0 {
+		return nil, nil
+	}
+
+	prevHash := begin.Hash
+	var res []eth.BlockID
+	// TODO: Walk backwards to be able to use block by hash
+	for i := begin.Number + 1; i < begin.Number+maxBlocks+1; i++ {
+		n, err := s.L1BlockRefByNumber(ctx, i)
+		if err != nil {
+			return nil, fmt.Errorf("failed to fetch L1 block %v: %w", i, err)
+		}
+		// TODO(Joshua): Look into why this fails around the genesis block
+		if n.Parent.Number != 0 && n.Parent.Hash != prevHash {
+			return nil, errors.New("re-organization occurred while attempting to get l1 range")
+		}
+		prevHash = n.Self.Hash
+		res = append(res, n.Self)
+	}
+
+	return res, nil
 }

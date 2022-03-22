@@ -10,11 +10,29 @@ import (
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 type fakeChainSource struct {
 	L1 []eth.L1BlockRef
 	L2 []eth.L2BlockRef
+}
+
+func (m *fakeChainSource) L1Range(ctx context.Context, base eth.BlockID) ([]eth.BlockID, error) {
+	var out []eth.BlockID
+	found := false
+	for _, b := range m.L1 {
+		if found {
+			out = append(out, b.Self)
+		}
+		if b.Self == base {
+			found = true
+		}
+	}
+	if found {
+		return out, nil
+	}
+	return nil, ethereum.NotFound
 }
 
 func (m *fakeChainSource) L1BlockRefByNumber(ctx context.Context, l1Num uint64) (eth.L1BlockRef, error) {
@@ -52,7 +70,8 @@ func (m *fakeChainSource) L2BlockRefByHash(ctx context.Context, l2Hash common.Ha
 	return eth.L2BlockRef{}, ethereum.NotFound
 }
 
-var _ ChainSource = (*fakeChainSource)(nil)
+var _ L1Chain = (*fakeChainSource)(nil)
+var _ L2Chain = (*fakeChainSource)(nil)
 
 func fakeID(id rune, num uint64) eth.BlockID {
 	var h common.Hash
@@ -129,14 +148,17 @@ func (c *syncStartTestCase) Run(t *testing.T) {
 		L1: fakeID(c.GenesisL1, c.OffsetL2),
 		L2: fakeID(c.GenesisL2, 0),
 	}
-
-	nextRefL1s, refL2, err := FindSyncStart(context.Background(), msr, genesis)
+	head, err := msr.L2BlockRefByNumber(context.Background(), nil)
+	require.Nil(t, err)
+	refL2, err := FindSafeL2Head(context.Background(), head.Self, msr, msr, genesis)
 
 	if c.ExpectedErr != nil {
 		assert.Error(t, err, "Expecting an error in this test case")
 		assert.ErrorIs(t, err, c.ExpectedErr)
 	} else {
-		expectedRefL2 := refToRune(refL2)
+		nextRefL1s, err := msr.L1Range(context.Background(), refL2.L1Origin)
+		require.Nil(t, err)
+		expectedRefL2 := refToRune(refL2.Self)
 		var expectedRefsL1 []rune
 		for _, ref := range nextRefL1s {
 			expectedRefsL1 = append(expectedRefsL1, refToRune(ref))
