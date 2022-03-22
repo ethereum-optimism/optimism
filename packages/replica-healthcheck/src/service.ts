@@ -1,5 +1,10 @@
-import { Provider } from '@ethersproject/abstract-provider'
-import { BaseServiceV2, Gauge, validators } from '@eth-optimism/common-ts'
+import { Provider, Block } from '@ethersproject/abstract-provider'
+import {
+  BaseServiceV2,
+  Counter,
+  Gauge,
+  validators,
+} from '@eth-optimism/common-ts'
 import { sleep } from '@eth-optimism/core-utils'
 
 type HealthcheckOptions = {
@@ -13,6 +18,8 @@ type HealthcheckMetrics = {
   isCurrentlyDiverged: Gauge
   referenceHeight: Gauge
   targetHeight: Gauge
+  targetConnectionFailures: Counter
+  referenceConnectionFailures: Counter
 }
 
 type HealthcheckState = {}
@@ -59,15 +66,48 @@ export class HealthcheckService extends BaseServiceV2<
           type: Gauge,
           desc: 'Block height of the target client',
         },
+        targetConnectionFailures: {
+          type: Counter,
+          desc: 'Number of connection failures to the target client',
+        },
+        referenceConnectionFailures: {
+          type: Counter,
+          desc: 'Number of connection failures to the reference client',
+        },
       },
     })
   }
 
   async main() {
-    const targetLatest = await this.options.targetRpcProvider.getBlock('latest')
-    const referenceLatest = await this.options.referenceRpcProvider.getBlock(
-      'latest'
-    )
+    // Get the latest block from the target client and check for connection failures.
+    let targetLatest: Block
+    try {
+      targetLatest = await this.options.targetRpcProvider.getBlock('latest')
+    } catch (err) {
+      if (err.message.includes('could not detect network')) {
+        this.logger.error('target client not connected')
+        this.metrics.targetConnectionFailures.inc()
+        return
+      } else {
+        throw err
+      }
+    }
+
+    // Get the latest block from the reference client and check for connection failures.
+    let referenceLatest: Block
+    try {
+      referenceLatest = await this.options.referenceRpcProvider.getBlock(
+        'latest'
+      )
+    } catch (err) {
+      if (err.message.includes('could not detect network')) {
+        this.logger.error('reference client not connected')
+        this.metrics.referenceConnectionFailures.inc()
+        return
+      } else {
+        throw err
+      }
+    }
 
     // Update these metrics first so they'll refresh no matter what.
     this.metrics.targetHeight.set(targetLatest.number)
