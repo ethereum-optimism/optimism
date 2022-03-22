@@ -24,7 +24,7 @@ jobs:
           version: v1.43.0  # version of golangci-lint, not the action
           skip-go-installation: true
           # rules: https://golangci-lint.run/usage/quick-start/
-          args: -E asciicheck,goimports
+          args: -E asciicheck,goimports,misspell
       - name: Test and generate coverage
         run: go test -coverpkg=./... -coverprofile=coverage.out -covermode=atomic ./...
       - name: Upload coverage output

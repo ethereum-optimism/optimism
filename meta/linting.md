@@ -61,5 +61,5 @@ Justification for linting rules:
 # Install linter globally (should not affect go.mod)
 go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.43.0
 # run linter, add --fix option to fix problems (where supported)
-golangci-lint run -E asciicheck,goimports
+golangci-lint run -E asciicheck,goimports,misspell
 ```
