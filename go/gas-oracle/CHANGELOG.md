@@ -1,5 +1,11 @@
 # @eth-optimism/gas-oracle
 
+## 0.1.8
+
+### Patch Changes
+
+- 88601cb7: Refactored Dockerfiles
+
 ## 0.1.7
 
 ### Patch Changes

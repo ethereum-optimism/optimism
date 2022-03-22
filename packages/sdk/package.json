@@ -1,6 +1,6 @@
 {
   "name": "@eth-optimism/sdk",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "[Optimism] Tools for working with Optimism",
   "main": "dist/index",
   "types": "dist/index",
@@ -65,7 +65,7 @@
     "typescript": "^4.3.5"
   },
   "dependencies": {
-    "@eth-optimism/contracts": "0.5.17",
+    "@eth-optimism/contracts": "0.5.18",
     "@eth-optimism/core-utils": "0.8.1",
     "lodash": "^4.17.21",
     "merkletreejs": "^0.2.27",

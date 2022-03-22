@@ -1,5 +1,13 @@
 # @eth-optimism/sdk
 
+## 1.0.2
+
+### Patch Changes
+
+- d49feca1: Comment out non-functional getMessagesByAddress function
+- Updated dependencies [88601cb7]
+  - @eth-optimism/contracts@0.5.18
+
 ## 1.0.1
 
 ### Patch Changes
