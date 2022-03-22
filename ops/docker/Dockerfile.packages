@@ -61,5 +61,6 @@ CMD ["npm", "run", "start"]
 
 
 FROM base as replica-healthcheck
-WORKDIR /opts/optimism/packages/replica-healthcheck
+WORKDIR /opt/optimism/packages/replica-healthcheck
+COPY ./ops/scripts/healthcheck.sh .
 ENTRYPOINT ["npm", "run", "start"]
