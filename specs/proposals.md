@@ -7,7 +7,9 @@
 <!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
 **Table of Contents**
 
-- [Constants](#constants)
+- [Definitions](#definitions)
+  - [Constants](#constants)
+  - [Types](#types)
 - [Proposing L2 Output Commitments](#proposing-l2-output-commitments)
 - [L2 Output Commitment Construction](#l2-output-commitment-construction)
 - [L2 Output Oracle Smart Contract](#l2-output-oracle-smart-contract)
@@ -34,7 +36,7 @@ are part of later specification milestones.
 
 | Name                   | Value | Unit    |
 | ---------------------- | ----- | ------- |
-| `SUBMISSION_FREQUENCY` | `100` | seconds |
+| `SUBMISSION_INTERVAL` | `1800` | seconds |
 | `L2_BLOCK_TIME`        | `2`   | seconds |
 
 ### Types
@@ -50,8 +52,8 @@ struct ForkSpec {
 
 ## Proposing L2 Output Commitments
 
-The proposer's role is to construct and submit output commitments on a configurable interval to a contract on  , which
-it does by running the [L2 output submitter](../l2os/) service (AKA L2OSS). This service periodically queries the rollup
+The proposer's role is to construct and submit output commitments on a configurable interval to a contract on , which
+it does by running the [L2 output submitter](../l2os/) (AKA L2OS). This service periodically queries the rollup
  node's [`optimism_outputAtBlock` rpc method](./rollup-node.md#l2-output-rpc-method) for the latest output root derived
  from the latest [finalized](rollup-node.md#finalization-guarantees) L1 block. The construction of this output root is
  described [below](#l2-output-commitment-construction).
@@ -103,8 +105,8 @@ upgrades. This keeps the static merkle structure forwards-compatible.
 ## L2 Output Oracle Smart Contract
 
 L2 blocks are produced at a constant rate of `L2_BLOCK_TIME` (2 seconds).
-A new L2 output MUST be appended to the chain once per `SUBMISSION_INTERVAL` (100 seconds). Note that interval is based on L2 time. It is OK to have L2 outputs
-submitted at larger or small intervals
+A new L2 output MUST be appended to the chain once per `SUBMISSION_INTERVAL` (1800 seconds). Note that this interval is based
+on L2 time. It is OK to have L2 outputs submitted at larger or small intervals.
 
 The L2 Output Oracle contract implements the following interface:
 
@@ -130,8 +132,7 @@ function appendL2Output(bytes32 _l2Output, uint256 _timestamp, ForkSpec _forkSpe
 
 
 /**
- * Computes the timestamp of the next L2 block that needs to be
- * checkpointed.
+ * Computes the timestamp of the next L2 block that needs to be checkpointed.
  */
 function nextTimestamp() public view returns (uint256) {
     return latestBlockTimestamp + submissionInterval;

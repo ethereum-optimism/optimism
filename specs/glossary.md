@@ -37,7 +37,7 @@
   - [L2 Derivation Inputs](#l2-derivation-inputs)
   - [Payload Attributes](#payload-attributes)
   - [L1 Attributes Predeployed Contract](#l1-attributes-predeployed-contract)
-  - [L2 output](#l2-output)
+  - [L2 Output Root](#l2-output-root)
 - [Execution Engine Concepts](#execution-engine-concepts)
   - [Execution Engine](#execution-engine)
 
@@ -368,7 +368,7 @@ block number or a given block hash.
 
 cf. [L1 Attributes Predeployed Contract Specification](deposits.md#l1-attributes-predeployed-contract)
 
-## L2 output
+## L2 Output Root
 
 [l2-output]: glossary.md#l2-output
 

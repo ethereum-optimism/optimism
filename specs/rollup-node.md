@@ -345,7 +345,7 @@ block forward each step, until there is an insufficient number of L1 blocks left
 
 ## L2 Output RPC method
 
-The Rollup node has its own RPC method, `optimism_output` which returns the
+The Rollup node has its own RPC method, `optimism_outputAtBlock` which returns the
 a 32 byte hash corresponding to the [SSZ] encoded [L2Output](./proposals.md#l2-output-commitment-construction).
 
 [SSZ]: https://github.com/ethereum/consensus-specs/blob/dev/ssz/simple-serialize.md
@@ -360,7 +360,7 @@ The input and return types here are as defined by the [engine API specs][engine-
 - params:
   1. `QUANTITY` - L2 integer block number, or the strings `"safe"`, `"latest"`, or `"pending"`
 - returns:
-  2.`DATA` - The 32 byte output root
+  1. `DATA` - The 32 byte output root
 
 # Handling L1 Re-Orgs
 
