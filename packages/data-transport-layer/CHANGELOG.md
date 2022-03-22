@@ -1,5 +1,19 @@
 # data transport layer
 
+## 0.5.22
+
+### Patch Changes
+
+- 075f4b66: Removes the unused L1DataTransportClient and its dependencies
+- 88601cb7: Refactored Dockerfiles
+- 134a0966: dtl: Support basic authentication for RPC endpoints
+- Updated dependencies [88601cb7]
+- Updated dependencies [f7761058]
+- Updated dependencies [5ae15042]
+- Updated dependencies [5cd1e996]
+  - @eth-optimism/contracts@0.5.18
+  - @eth-optimism/common-ts@0.2.3
+
 ## 0.5.21
 
 ### Patch Changes

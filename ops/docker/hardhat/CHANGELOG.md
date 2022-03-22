@@ -1,5 +1,11 @@
 # @eth-optimism/hardhat-node
 
+## 0.1.3
+
+### Patch Changes
+
+- 88601cb7: Refactored Dockerfiles
+
 ## 0.1.2
 
 ### Patch Changes

@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.5.15
+
+### Patch Changes
+
+- 88601cb7: Refactored Dockerfiles
+- f8348862: l2geth: Sync from Backend Queue
+
 ## 0.5.14
 
 ### Patch Changes

@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.18
+
+### Patch Changes
+
+- 88601cb7: Refactored Dockerfiles
+
 ## 0.5.17
 
 ### Patch Changes
