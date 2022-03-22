@@ -163,6 +163,7 @@ func TestSystemE2E(t *testing.T) {
 		L1NodeAddr:    endpoint(cfg.l1.nodeConfig),
 		L2EngineAddrs: []string{endpoint(cfg.l2Verifier.nodeConfig)},
 		L2NodeAddr:    endpoint(cfg.l2Verifier.nodeConfig),
+		L1TrustRPC:    false, // would be faster to enable, but we want to catch if the RPC is buggy
 		Rollup: rollup.Config{
 			Genesis: rollup.Genesis{
 				L1:     l1GenesisID,
@@ -191,6 +192,7 @@ func TestSystemE2E(t *testing.T) {
 		L1NodeAddr:    endpoint(cfg.l1.nodeConfig),
 		L2EngineAddrs: []string{endpoint(cfg.l2Sequencer.nodeConfig)},
 		L2NodeAddr:    endpoint(cfg.l2Verifier.nodeConfig),
+		L1TrustRPC:    true, // test RPC cache usage
 		Rollup: rollup.Config{
 			Genesis: rollup.Genesis{
 				L1:     l1GenesisID,

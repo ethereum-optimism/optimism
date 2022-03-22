@@ -51,6 +51,11 @@ var (
 	}
 
 	/* Optional Flags */
+	L1TrustRPC = cli.BoolFlag{
+		Name:   "l1.trustrpc",
+		Usage:  "Trust the L1 RPC, sync faster at risk of malicious/buggy RPC providing bad or inconsistent L1 data",
+		EnvVar: prefixEnvVar("L1_TRUST_RPC"),
+	}
 
 	SequencingEnabledFlag = cli.BoolFlag{
 		Name:   "sequencing.enabled",
@@ -100,6 +105,7 @@ var requiredFlags = []cli.Flag{
 }
 
 var optionalFlags = []cli.Flag{
+	L1TrustRPC,
 	SequencingEnabledFlag,
 	BatchSubmitterKeyFlag,
 	WithdrawalContractAddr,

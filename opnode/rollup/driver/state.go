@@ -2,6 +2,7 @@ package driver
 
 import (
 	"context"
+	"sync/atomic"
 	"time"
 
 	"github.com/ethereum-optimism/optimistic-specs/opnode/eth"
@@ -17,7 +18,7 @@ type state struct {
 	l2Head      eth.L2BlockRef // L2 Unsafe Head
 	l2SafeHead  eth.L2BlockRef // L2 Safe Head - this is the head of the L2 chain as derived from L1 (thus it is Sequencer window blocks behind)
 	l2Finalized eth.BlockID    // L2 Block that will never be reversed
-	l1Window    []eth.BlockID  // l1Window buffers the next L1 block IDs to derive new L2 blocks from, with increasing block height.
+	l1WindowBuf []eth.BlockID  // l1WindowBuf buffers the next L1 block IDs to derive new L2 blocks from, with increasing block height.
 
 	// Rollup config
 	Config    rollup.Config
@@ -32,6 +33,8 @@ type state struct {
 
 	log  log.Logger
 	done chan struct{}
+
+	closed uint32 // non-zero when closed
 }
 
 func NewState(log log.Logger, config rollup.Config, l1 L1Chain, l2 L2Chain, output outputInterface, submitter BatchSubmitter, sequencer bool) *state {
@@ -74,34 +77,35 @@ func (s *state) Close() error {
 	return nil
 }
 
-// l1WindowEnd returns the last block that should be used as `base` to L1ChainWindow.
+// l1WindowBufEnd returns the last block that should be used as `base` to L1ChainWindow.
 // This is either the last block of the window, or the L1 base block if the window is not populated.
-func (s *state) l1WindowEnd() eth.BlockID {
-	if len(s.l1Window) == 0 {
+func (s *state) l1WindowBufEnd() eth.BlockID {
+	if len(s.l1WindowBuf) == 0 {
 		return s.l2Head.L1Origin
 	}
-	return s.l1Window[len(s.l1Window)-1]
+	return s.l1WindowBuf[len(s.l1WindowBuf)-1]
 }
 
 // extendL1Window extends the cached L1 window by pulling blocks from L1.
-// It starts just after `s.l1WindowEnd()`.
+// It starts just after `s.l1WindowBufEnd()`.
 func (s *state) extendL1Window(ctx context.Context) error {
-	s.log.Trace("Extending the cached window from L1", "cached_size", len(s.l1Window), "window_end", s.l1WindowEnd())
-	nexts, err := s.l1.L1Range(ctx, s.l1WindowEnd())
+	s.log.Trace("Extending the cached window from L1", "cached_size", len(s.l1WindowBuf), "window_buf_end", s.l1WindowBufEnd())
+	// fetch enough ids for 2 sequencing windows (we'll shift from one into the other before we run out again)
+	nexts, err := s.l1.L1Range(ctx, s.l1WindowBufEnd(), s.Config.SeqWindowSize*2)
 	if err != nil {
 		return err
 	}
-	s.l1Window = append(s.l1Window, nexts...)
+	s.l1WindowBuf = append(s.l1WindowBuf, nexts...)
 	return nil
 }
 
 // sequencingWindow returns the next sequencing window and true if it exists, (nil, false) if
 // there are not enough saved blocks.
 func (s *state) sequencingWindow() ([]eth.BlockID, bool) {
-	if len(s.l1Window) < int(s.Config.SeqWindowSize) {
+	if len(s.l1WindowBuf) < int(s.Config.SeqWindowSize) {
 		return nil, false
 	}
-	return s.l1Window[:int(s.Config.SeqWindowSize)], true
+	return s.l1WindowBuf[:int(s.Config.SeqWindowSize)], true
 }
 
 func (s *state) findNextL1Origin(ctx context.Context) (eth.BlockID, error) {
@@ -148,6 +152,7 @@ func (s *state) loop() {
 		// case <-l1Poll.C:
 		// case <-l2Poll.C:
 		case <-s.done:
+			atomic.AddUint32(&s.closed, 1)
 			return
 		case <-l2BlockCreation:
 			nextOrigin, err := s.findNextL1Origin(context.Background())
@@ -170,6 +175,9 @@ func (s *state) loop() {
 			// 4. Ask for batch submission
 			go func() {
 				_, err := s.bss.Submit(&s.Config, []*derive.BatchData{batch}) // TODO: submit multiple batches
+				if atomic.LoadUint32(&s.closed) > 0 {
+					return // closed, don't log (go-routine may be running after logger closed)
+				}
 				if err != nil {
 					s.log.Error("Error submitting batch", "err", err)
 				}
@@ -187,8 +195,8 @@ func (s *state) loop() {
 			if s.l1Head.Hash == newL1Head.ParentHash {
 				s.log.Trace("Linear extension")
 				s.l1Head = newL1Head
-				if s.l1WindowEnd().Hash == newL1Head.ParentHash {
-					s.l1Window = append(s.l1Window, newL1Head.ID())
+				if s.l1WindowBufEnd().Hash == newL1Head.ParentHash {
+					s.l1WindowBuf = append(s.l1WindowBuf, newL1Head.ID())
 				}
 			} else {
 				s.log.Warn("L1 Head signal indicates an L1 re-org", "old_l1_head", s.l1Head, "new_l1_head_parent", newL1Head.ParentHash, "new_l1_head", newL1Head)
@@ -204,7 +212,7 @@ func (s *state) loop() {
 					continue
 				}
 				s.l1Head = newL1Head
-				s.l1Window = nil
+				s.l1WindowBuf = nil
 				s.l2Head = nextL2Head
 				s.l2SafeHead = nextL2Head // TODO: Handle this more carefully
 			}
@@ -220,10 +228,10 @@ func (s *state) loop() {
 			}
 			s.log.Trace("Got step request")
 			// Extend cached window if we do not have enough saved blocks
-			if len(s.l1Window) < int(s.Config.SeqWindowSize) {
+			if len(s.l1WindowBuf) < int(s.Config.SeqWindowSize) {
 				err := s.extendL1Window(context.Background())
 				if err != nil {
-					s.log.Error("Could not extend the cached L1 window", "err", err, "l1Head", s.l1Head, "window_end", s.l1WindowEnd())
+					s.log.Error("Could not extend the cached L1 window", "err", err, "l1Head", s.l1Head, "window_buf_end", s.l1WindowBufEnd())
 					continue
 				}
 			}
@@ -242,10 +250,10 @@ func (s *state) loop() {
 					s.l2Head = newL2Head
 				}
 				s.l2SafeHead = newL2Head
-				s.l1Window = s.l1Window[1:]
+				s.l1WindowBuf = s.l1WindowBuf[1:]
 				// TODO: l2Finalized
 			} else {
-				s.log.Trace("Not enough cached blocks to run step", "cached_window_len", len(s.l1Window))
+				s.log.Trace("Not enough cached blocks to run step", "cached_window_len", len(s.l1WindowBuf))
 			}
 
 			// Immediately run next step if we have enough blocks.

@@ -23,12 +23,9 @@ type BatchSubmitter interface {
 }
 
 type Downloader interface {
-	// FetchL1Info fetches the L1 header information corresponding to a L1 block ID
-	FetchL1Info(ctx context.Context, id eth.BlockID) (derive.L1Info, error)
-	// FetchReceipts of a L1 block. The receipt-hash must be provided to sanity-check the retrieved receipts.
-	FetchReceipts(ctx context.Context, id eth.BlockID, receiptHash common.Hash) ([]*types.Receipt, error)
-	// FetchTransactions from the given window of L1 blocks
-	FetchTransactions(ctx context.Context, window []eth.BlockID) ([]*types.Transaction, error)
+	InfoByHash(ctx context.Context, hash common.Hash) (derive.L1Info, error)
+	Fetch(ctx context.Context, blockHash common.Hash) (derive.L1Info, types.Transactions, types.Receipts, error)
+	FetchAllTransactions(ctx context.Context, window []eth.BlockID) ([]types.Transactions, error)
 }
 
 type Engine interface {
@@ -41,7 +38,7 @@ type Engine interface {
 type L1Chain interface {
 	L1BlockRefByNumber(ctx context.Context, l1Num uint64) (eth.L1BlockRef, error)
 	L1HeadBlockRef(ctx context.Context) (eth.L1BlockRef, error)
-	L1Range(ctx context.Context, base eth.BlockID) ([]eth.BlockID, error)
+	L1Range(ctx context.Context, base eth.BlockID, max uint64) ([]eth.BlockID, error)
 }
 
 // TODO: Extend L2 Interface to get safe/unsafe blocks (specifically for Unsafe L2 head)
