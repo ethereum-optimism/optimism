@@ -139,6 +139,9 @@ func (d *Driver) ClearPendingTx(
 func (d *Driver) GetBatchBlockRange(
 	ctx context.Context) (*big.Int, *big.Int, error) {
 
+	// Update balance metrics on each iteration.
+	d.updateBalanceMetrics(ctx)
+
 	// Clear the current deposit IDs from any prior iteration.
 	d.currentDepositIDs = nil
 
@@ -317,7 +320,7 @@ func (d *Driver) SendTransaction(
 
 	txHash := tx.Hash()
 	startID := d.currentDepositIDs[0]
-	endID := d.currentDepositIDs[len(d.currentDepositIDs) - 1] + 1
+	endID := d.currentDepositIDs[len(d.currentDepositIDs)-1] + 1
 
 	// Record the pending transaction hash so that we can recover if we crash
 	// after publishing.
@@ -430,10 +433,10 @@ func (d *Driver) processPendingTxs(ctx context.Context) error {
 			"blockTimestamp", blockTimestamp)
 	}
 
-	d.metrics.SuccessfulDisbursements.Set(float64(successfulDisbursements))
-	d.metrics.FailedDisbursements.Set(float64(failedDisbursements))
+	d.metrics.SuccessfulDisbursements.Add(float64(successfulDisbursements))
+	d.metrics.FailedDisbursements.Add(float64(failedDisbursements))
 	d.metrics.FailedDatabaseMethods.With(DBMethodUpsertDisbursement).
-		Set(float64(failedUpserts))
+		Inc()
 
 	// We have completed our post-processing once all of the disbursements are
 	// written without failures.
@@ -620,7 +623,7 @@ func (d *Driver) logDatabaseContractMismatch(
 			log.Warn("Recorded disbursements behind contract",
 				"last_disbursement_id", *lastDisbursementID,
 				"contract_next_id", contractNextID)
-			d.metrics.DepositIDMismatch.Set(1.0)
+			d.metrics.DepositIDMismatch.Inc()
 
 		// The last recorded disbursement is ahead of what the contract believes.
 		// This should NEVER happen unless the sequencer blows up and loses
@@ -643,7 +646,7 @@ func (d *Driver) logDatabaseContractMismatch(
 		log.Warn("Recorded disbursements behind contract",
 			"last_disbursement_id", nil,
 			"contract_next_id", contractNextID)
-		d.metrics.DepositIDMismatch.Set(1.0)
+		d.metrics.DepositIDMismatch.Inc()
 
 	// Database and contract indicate we have not done a disbursement.
 	default:
@@ -654,10 +657,9 @@ func (d *Driver) logDatabaseContractMismatch(
 func (d *Driver) upsertDeposits(deposits []db.Deposit, end uint64) error {
 	err := d.cfg.Database.UpsertDeposits(deposits, end)
 	if err != nil {
-		d.metrics.FailedDatabaseMethods.With(DBMethodUpsertDeposits).Set(1.0)
+		d.metrics.FailedDatabaseMethods.With(DBMethodUpsertDeposits).Inc()
 		return err
 	}
-	d.metrics.FailedDatabaseMethods.With(DBMethodUpsertDeposits).Set(0.0)
 	return nil
 }
 
@@ -666,59 +668,70 @@ func (d *Driver) confirmedDeposits(blockNumber uint64) ([]db.Deposit, error) {
 		blockNumber, d.cfg.NumConfirmations,
 	)
 	if err != nil {
-		d.metrics.FailedDatabaseMethods.With(DBMethodConfirmedDeposits).Set(1.0)
+		d.metrics.FailedDatabaseMethods.With(DBMethodConfirmedDeposits).Inc()
 		return nil, err
 	}
-	d.metrics.FailedDatabaseMethods.With(DBMethodConfirmedDeposits).Set(0.0)
 	return confirmedDeposits, nil
 }
 
 func (d *Driver) lastProcessedBlock() (*uint64, error) {
 	lastProcessedBlock, err := d.cfg.Database.LastProcessedBlock()
 	if err != nil {
-		d.metrics.FailedDatabaseMethods.With(DBMethodLastProcessedBlock).Set(1.0)
+		d.metrics.FailedDatabaseMethods.With(DBMethodLastProcessedBlock).Inc()
 		return nil, err
 	}
-	d.metrics.FailedDatabaseMethods.With(DBMethodLastProcessedBlock).Set(0.0)
 	return lastProcessedBlock, nil
 }
 
 func (d *Driver) upsertPendingTx(pendingTx db.PendingTx) error {
 	err := d.cfg.Database.UpsertPendingTx(pendingTx)
 	if err != nil {
-		d.metrics.FailedDatabaseMethods.With(DBMethodUpsertPendingTx).Set(1.0)
+		d.metrics.FailedDatabaseMethods.With(DBMethodUpsertPendingTx).Inc()
 		return err
 	}
-	d.metrics.FailedDatabaseMethods.With(DBMethodUpsertPendingTx).Set(0.0)
 	return nil
 }
 
 func (d *Driver) listPendingTxs() ([]db.PendingTx, error) {
 	pendingTxs, err := d.cfg.Database.ListPendingTxs()
 	if err != nil {
-		d.metrics.FailedDatabaseMethods.With(DBMethodListPendingTxs).Set(1.0)
+		d.metrics.FailedDatabaseMethods.With(DBMethodListPendingTxs).Inc()
 		return nil, err
 	}
-	d.metrics.FailedDatabaseMethods.With(DBMethodListPendingTxs).Set(0.0)
 	return pendingTxs, nil
 }
 
 func (d *Driver) latestDisbursementID() (*uint64, error) {
 	lastDisbursementID, err := d.cfg.Database.LatestDisbursementID()
 	if err != nil {
-		d.metrics.FailedDatabaseMethods.With(DBMethodLatestDisbursementID).Set(1.0)
+		d.metrics.FailedDatabaseMethods.With(DBMethodLatestDisbursementID).Inc()
 		return nil, err
 	}
-	d.metrics.FailedDatabaseMethods.With(DBMethodLatestDisbursementID).Set(0.0)
 	return lastDisbursementID, nil
 }
 
 func (d *Driver) deletePendingTx(startID, endID uint64) error {
 	err := d.cfg.Database.DeletePendingTx(startID, endID)
 	if err != nil {
-		d.metrics.FailedDatabaseMethods.With(DBMethodDeletePendingTx).Set(1.0)
+		d.metrics.FailedDatabaseMethods.With(DBMethodDeletePendingTx).Inc()
 		return err
 	}
-	d.metrics.FailedDatabaseMethods.With(DBMethodDeletePendingTx).Set(0.0)
 	return nil
+}
+
+func (d *Driver) updateBalanceMetrics(ctx context.Context) {
+	disburserBal, err := d.cfg.L2Client.BalanceAt(ctx, d.walletAddr, nil)
+	if err != nil {
+		log.Error("Error getting disburser wallet balance", "err", err)
+		disburserBal = big.NewInt(0)
+	}
+
+	depositBal, err := d.cfg.L1Client.BalanceAt(ctx, d.cfg.DepositAddr, nil)
+	if err != nil {
+		log.Error("Error getting deposit contract balance", "err", err)
+		depositBal = big.NewInt(0)
+	}
+
+	d.metrics.DisburserBalance.Set(float64(disburserBal.Uint64()))
+	d.metrics.DepositContractBalance.Set(float64(depositBal.Uint64()))
 }
