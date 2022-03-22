@@ -105,8 +105,8 @@ upgrades. This keeps the static merkle structure forwards-compatible.
 ## L2 Output Oracle Smart Contract
 
 L2 blocks are produced at a constant rate of `L2_BLOCK_TIME` (2 seconds).
-A new L2 output MUST be appended to the chain once per `SUBMISSION_INTERVAL` (1800 seconds). Note that this interval is based
-on L2 time. It is OK to have L2 outputs submitted at larger or small intervals.
+A new L2 output MUST be appended to the chain once per `SUBMISSION_INTERVAL` (1800 seconds). Note that this interval is\
+based on L2 time. It is OK to have L2 outputs submitted at larger or small intervals.
 
 The L2 Output Oracle contract implements the following interface:
 

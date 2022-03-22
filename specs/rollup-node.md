@@ -321,9 +321,10 @@ As stated earlier, an L2 block is considered *finalized* after a delay of `FINAL
 after the L1 block that generated it. This is a duration of approximately 7 days worth of L1 blocks. This is also known
 as the "fault proof window", as after this time the block can no longer be challenged by a fault proof.
 
-L1 Ethereum reaches [finality][l1-finality] approximately every [12.8 minutes][consensus-time-params]. L2 blocks generated from finalized L1 blocks
-are "safer" than most recent L2 blocks because they will never disappear from the chain's history because of a re-org.
-However, they can still be challenged by a fault proof until the end of the fault proof window.
+L1 Ethereum reaches [finality][l1-finality] approximately every [12.8 minutes][consensus-time-params]. L2 blocks
+generated from finalized L1 blocksare "safer" than most recent L2 blocks because they will never disappear from the
+chain's history because of a re-org. However, they can still be challenged by a fault proof until the end of the fault
+proof window.
 
 [l1-finality]: https://www.paradigm.xyz/2021/07/ethereum-reorgs-after-the-merge
 [consensus-time-params]: https://github.com/ethereum/consensus-specs/blob/v1.0.0/specs/phase0/beacon-chain.md#time-parameters
