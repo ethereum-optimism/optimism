@@ -1,5 +1,5 @@
 // Package derive provides the data transformation functions that take L1 data
-// and turn it into L2 blocks and results. Certian L2 data is also able to
+// and turn it into L2 blocks and results. Certain L2 data is also able to
 // turned back into L1 data.
 //
 // The flow is data is as follows

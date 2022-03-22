@@ -23,7 +23,7 @@ func (e *ErrFailedPermanently) Error() string {
 // Do performs the provided Operation up to maxAttempts times
 // with delays in between each retry according to the provided
 // Strategy.
-func Do(maxAttempts int, strat Strategy, op Operation) error {
+func Do(maxAttempts int, strategy Strategy, op Operation) error {
 	var attempt int
 
 	for {
@@ -39,6 +39,6 @@ func Do(maxAttempts int, strat Strategy, op Operation) error {
 				LastErr:  err,
 			}
 		}
-		time.Sleep(strat.Duration(attempt - 1))
+		time.Sleep(strategy.Duration(attempt - 1))
 	}
 }

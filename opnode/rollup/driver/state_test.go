@@ -128,7 +128,7 @@ type stateTestCase struct {
 }
 
 func (tc *stateTestCase) Run(t *testing.T) {
-	log := testlog.Logger(t, log.LvlTrace)
+	log := testlog.Logger(t, log.LvlError)
 	chainSource := NewFakeChainSource(tc.l1Chains, tc.l2Chains, log)
 	l1headsCh := make(chan eth.L1BlockRef, 10)
 	// Unbuffered channels to force a sync point between the test and the state loop.

@@ -175,8 +175,8 @@ func dialEthClientWithTimeout(ctx context.Context, url string) (
 	return ethclient.DialContext(ctxt, url)
 }
 
-// parseAddress parses an ETH addres from a hex string. This method will fail if
-// the address is not a valid hexidecimal address.
+// parseAddress parses an ETH address from a hex string. This method will fail if
+// the address is not a valid hexadecimal address.
 func parseAddress(address string) (common.Address, error) {
 	if common.IsHexAddress(address) {
 		return common.HexToAddress(address), nil

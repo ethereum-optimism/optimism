@@ -9,12 +9,12 @@ import (
 )
 
 func TestDo(t *testing.T) {
-	strat := Fixed(10 * time.Millisecond)
+	strategy := Fixed(10 * time.Millisecond)
 	dummyErr := errors.New("explode")
 
 	start := time.Now()
 	var i int
-	require.NoError(t, Do(2, strat, func() error {
+	require.NoError(t, Do(2, strategy, func() error {
 		if i == 1 {
 			return nil
 		}
@@ -26,7 +26,7 @@ func TestDo(t *testing.T) {
 
 	start = time.Now()
 	// add one because the first attempt counts
-	err := Do(3, strat, func() error {
+	err := Do(3, strategy, func() error {
 		return dummyErr
 	})
 	require.Equal(t, dummyErr, err.(*ErrFailedPermanently).LastErr)
