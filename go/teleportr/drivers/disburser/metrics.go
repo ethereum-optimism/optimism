@@ -41,7 +41,7 @@ type Metrics struct {
 
 	// FailedDatabaseMethods tracks the number of database failures for each
 	// known database method.
-	FailedDatabaseMethods *prometheus.GaugeVec
+	FailedDatabaseMethods *prometheus.CounterVec
 
 	// DepositIDMismatch tracks whether or not our database is in sync with the
 	// disrburser contract. 1 means in sync, 0 means out of sync.
@@ -53,11 +53,11 @@ type Metrics struct {
 
 	// SuccessfulDisbursements tracks the number of disbursements that emit a
 	// success event from a given tx.
-	SuccessfulDisbursements prometheus.Gauge
+	SuccessfulDisbursements prometheus.Counter
 
 	// FailedDisbursements tracks the number of disbursements that emit a failed
 	// event from a given tx.
-	FailedDisbursements prometheus.Gauge
+	FailedDisbursements prometheus.Counter
 
 	// PostgresLastDisbursedID tracks the latest disbursement id in postgres.
 	PostgresLastDisbursedID prometheus.Gauge
@@ -65,6 +65,12 @@ type Metrics struct {
 	// ContractNextDisbursementID tracks the next disbursement id expected by
 	// the disburser contract.
 	ContractNextDisbursementID prometheus.Gauge
+
+	// DisburserBalance tracks Teleportr's disburser account balance.
+	DisburserBalance prometheus.Gauge
+
+	// DepositContractBalance tracks Teleportr's deposit contract balance.
+	DepositContractBalance prometheus.Gauge
 }
 
 // NewMetrics initializes a new, extended metrics object.
@@ -72,7 +78,7 @@ func NewMetrics(subsystem string) *Metrics {
 	base := metrics.NewBase(subsystem, "")
 	return &Metrics{
 		Base: base,
-		FailedDatabaseMethods: promauto.NewGaugeVec(prometheus.GaugeOpts{
+		FailedDatabaseMethods: promauto.NewCounterVec(prometheus.CounterOpts{
 			Name:      "failed_database_operations",
 			Help:      "Tracks the number of database failures",
 			Subsystem: base.SubsystemName(),
@@ -109,6 +115,16 @@ func NewMetrics(subsystem string) *Metrics {
 		ContractNextDisbursementID: promauto.NewGauge(prometheus.GaugeOpts{
 			Name:      "contract_next_disbursement_id",
 			Help:      "Next disbursement id expected by the disburser contract",
+			Subsystem: base.SubsystemName(),
+		}),
+		DisburserBalance: promauto.NewGauge(prometheus.GaugeOpts{
+			Name:      "disburser_balance",
+			Help:      "Balance in Wei of Teleportr's disburser wallet",
+			Subsystem: base.SubsystemName(),
+		}),
+		DepositContractBalance: promauto.NewGauge(prometheus.GaugeOpts{
+			Name:      "deposit_contract_balance",
+			Help:      "Balance in Wei of Teleportr's deposit contract",
 			Subsystem: base.SubsystemName(),
 		}),
 	}
