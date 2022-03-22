@@ -27,6 +27,14 @@ contract DepositFeed {
     );
 
     /**
+     * Accepts value deposits where users can send ETH directly to
+     * the smart contract address and have the funds be deposited
+     */
+    receive() external payable {
+        depositTransaction(msg.sender, msg.value, 30000, false, bytes(""));
+    }
+
+    /**
      * Accepts deposits of ETH and data, and emits a TransactionDeposited event for use in deriving
      * deposit transactions.
      * @param _to The L2 destination address.
@@ -41,7 +49,7 @@ contract DepositFeed {
         uint256 _gasLimit,
         bool _isCreation,
         bytes memory _data
-    ) external payable {
+    ) public payable {
         if (_isCreation && _to != address(0)) {
             revert NonZeroCreationTarget();
         }
