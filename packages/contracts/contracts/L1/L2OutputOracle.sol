@@ -7,6 +7,12 @@ import { Ownable } from "../../lib/openzeppelin-contracts/contracts/access/Ownab
  * @title L2OutputOracle
  */
 contract L2OutputOracle is Ownable {
+
+    event l2OutputAppended(
+        bytes32 indexed _l2Output,
+        uint256 indexed _timestamp
+    );
+
     uint256 public submissionInterval;
     uint256 public l2BlockTime;
     mapping(uint256 => bytes32) public l2Outputs;
@@ -55,6 +61,8 @@ contract L2OutputOracle is Ownable {
         // todo: add require statement to ensure a specific prev-hash exists on the current chain
         l2Outputs[_timestamp] = _l2Output;
         latestBlockTimestamp = _timestamp;
+
+        emit l2OutputAppended(_l2Output, _timestamp);
     }
 
     /**
