@@ -13,7 +13,7 @@ curl \
     --retry-connrefused \
     --retry $RETRIES \
     --retry-delay 1 \
-    $MESSAGE_RELAYER__L2RPCPROVIDER
+    $MESSAGE_RELAYER__L2_RPC_PROVIDER
 
 # go
 exec yarn start

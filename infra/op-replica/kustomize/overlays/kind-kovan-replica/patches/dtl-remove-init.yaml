@@ -1,0 +1,10 @@
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: data-transport-layer
+spec:
+  template:
+    spec:
+      initContainers:
+

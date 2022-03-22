@@ -13,7 +13,9 @@
       "ops/docker/hardhat"
     ],
     "nohoist": [
-      "examples/*"
+      "examples/*",
+      "**/typechain",
+      "**/@typechain/*"
     ]
   },
   "private": true,

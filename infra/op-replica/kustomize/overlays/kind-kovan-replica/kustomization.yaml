@@ -1,0 +1,34 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: kovan-replica
+
+bases:
+  - ../../bases/data-transport-layer
+  - ../../bases/l2geth-replica
+  - ../../bases/configmaps
+  - ../../bases/replica-healthcheck
+
+configMapGenerator:
+  - name: data-transport-layer
+    envs:
+      - ./envs/data-transport-layer.env
+  - name: l2geth-replica
+    envs:
+      - ./envs/l2geth.env
+  - name: replica-healthcheck
+    envs:
+      - ./envs/replica-healthcheck.env
+
+images:
+  - name: ethereumoptimism/data-transport-layer
+    newName: ethereumoptimism/data-transport-layer
+    newTag: 0.4.2
+  - name: ethereumoptimism/l2geth
+    newName: ethereumoptimism/l2geth
+    newTag: 0.4.6
+  - name: ethereumoptimism/replica-healthcheck
+    newName: optimisticben/replica-healthcheck@sha256
+    newTag: 3e8cc21f556ef8d06c0c781bb88a4f06ca0905194641becab6f302e442164140
+
+patchesStrategicMerge:
+  - ./patches/dtl-remove-init.yaml

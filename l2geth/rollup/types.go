@@ -26,6 +26,8 @@ func (s Backend) String() string {
 		return "l1"
 	case BackendL2:
 		return "l2"
+	case BackendQueue:
+		return "queue"
 	default:
 		return ""
 	}
@@ -38,6 +40,8 @@ func NewBackend(typ string) (Backend, error) {
 		return BackendL1, nil
 	case "l2":
 		return BackendL2, nil
+	case "queue":
+		return BackendQueue, nil
 	default:
 		return 0, fmt.Errorf("Unknown Backend: %s", typ)
 	}
@@ -54,6 +58,11 @@ const (
 	// around the transactions as they have not been submitted via a batch to
 	// L1.
 	BackendL2
+
+	// BackendQueue Backend involves syncing transactions from an external message queue.
+	// This has the same guarantees as BackendL2 as such transactions may not have been
+	// submitted via a batch to L1.
+	BackendQueue
 )
 
 func isCtcTxEqual(a, b *types.Transaction) bool {

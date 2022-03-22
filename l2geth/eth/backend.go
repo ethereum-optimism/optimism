@@ -52,6 +52,7 @@ import (
 	"github.com/ethereum-optimism/optimism/l2geth/params"
 	"github.com/ethereum-optimism/optimism/l2geth/rlp"
 	"github.com/ethereum-optimism/optimism/l2geth/rollup"
+	"github.com/ethereum-optimism/optimism/l2geth/rollup/pub"
 	"github.com/ethereum-optimism/optimism/l2geth/rollup/rcfg"
 	"github.com/ethereum-optimism/optimism/l2geth/rpc"
 )
@@ -206,7 +207,19 @@ func New(ctx *node.ServiceContext, config *Config) (*Ethereum, error) {
 	}
 	eth.txPool = core.NewTxPool(config.TxPool, chainConfig, eth.blockchain)
 
-	eth.syncService, err = rollup.NewSyncService(context.Background(), config.Rollup, eth.txPool, eth.blockchain, eth.chainDb)
+	var txLogger pub.Publisher
+	txLogger, err = pub.NewGooglePublisher(context.Background(), config.TxPublisher)
+	if err != nil {
+		return nil, err
+	}
+
+	var txQueueSubscriber rollup.QueueSubscriber
+	txQueueSubscriber, err = rollup.NewQueueSubscriber(context.Background(), config.TxQueueSubscriber)
+	if err != nil {
+		return nil, err
+	}
+
+	eth.syncService, err = rollup.NewSyncService(context.Background(), config.Rollup, eth.txPool, eth.blockchain, eth.chainDb, txLogger, txQueueSubscriber)
 	if err != nil {
 		return nil, fmt.Errorf("Cannot initialize syncservice: %w", err)
 	}

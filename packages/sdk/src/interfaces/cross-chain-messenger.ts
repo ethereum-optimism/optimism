@@ -103,27 +103,30 @@ export interface ICrossChainMessenger {
     }
   ): Promise<CrossChainMessage[]>
 
-  /**
-   * Retrieves all cross chain messages sent by a particular address.
-   *
-   * @param address Address to search for messages from.
-   * @param opts Options object.
-   * @param opts.direction Direction to search for messages in. If not provided, will attempt to
-   * find all messages in both directions.
-   * @param opts.fromBlock Block to start searching for messages from. If not provided, will start
-   * from the first block (block #0).
-   * @param opts.toBlock Block to stop searching for messages at. If not provided, will stop at the
-   * latest known block ("latest").
-   * @returns All cross chain messages sent by the particular address.
-   */
-  getMessagesByAddress(
-    address: AddressLike,
-    opts?: {
-      direction?: MessageDirection
-      fromBlock?: NumberLike
-      toBlock?: NumberLike
-    }
-  ): Promise<CrossChainMessage[]>
+  // TODO: Make this function work. Likely requires indexer or the function will be prohibitively
+  // slow to query all of the necessary data.
+  //
+  // /**
+  //  * Retrieves all cross chain messages sent by a particular address.
+  //  *
+  //  * @param address Address to search for messages from.
+  //  * @param opts Options object.
+  //  * @param opts.direction Direction to search for messages in. If not provided, will attempt to
+  //  * find all messages in both directions.
+  //  * @param opts.fromBlock Block to start searching for messages from. If not provided, will start
+  //  * from the first block (block #0).
+  //  * @param opts.toBlock Block to stop searching for messages at. If not provided, will stop at the
+  //  * latest known block ("latest").
+  //  * @returns All cross chain messages sent by the particular address.
+  //  */
+  // getMessagesByAddress(
+  //   address: AddressLike,
+  //   opts?: {
+  //     direction?: MessageDirection
+  //     fromBlock?: NumberLike
+  //     toBlock?: NumberLike
+  //   }
+  // ): Promise<CrossChainMessage[]>
 
   /**
    * Finds the appropriate bridge adapter for a given L1<>L2 token pair. Will throw if no bridges

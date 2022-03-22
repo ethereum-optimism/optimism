@@ -66,6 +66,20 @@ var (
 		Required: true,
 		EnvVar:   prefixEnvVar("MAX_L1_TX_SIZE"),
 	}
+	MinStateRootElementsFlag = cli.Uint64Flag{
+		Name: "min-state-root-elements",
+		Usage: "Minimum number of elements required to submit a state " +
+			"root batch",
+		Required: true,
+		EnvVar:   prefixEnvVar("MIN_STATE_ROOT_ELEMENTS"),
+	}
+	MaxStateRootElementsFlag = cli.Uint64Flag{
+		Name: "max-state-root-elements",
+		Usage: "Maximum number of elements required to submit a state " +
+			"root batch",
+		Required: true,
+		EnvVar:   prefixEnvVar("MAX_STATE_ROOT_ELEMENTS"),
+	}
 	MaxBatchSubmissionTimeFlag = cli.DurationFlag{
 		Name: "max-batch-submission-time",
 		Usage: "Maximum amount of time that we will wait before " +
@@ -240,6 +254,8 @@ var requiredFlags = []cli.Flag{
 	SCCAddressFlag,
 	MinL1TxSizeFlag,
 	MaxL1TxSizeFlag,
+	MinStateRootElementsFlag,
+	MaxStateRootElementsFlag,
 	MaxBatchSubmissionTimeFlag,
 	PollIntervalFlag,
 	NumConfirmationsFlag,

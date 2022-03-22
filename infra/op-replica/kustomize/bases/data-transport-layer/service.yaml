@@ -1,0 +1,14 @@
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: data-transport-layer
+spec:
+  ports:
+    - name: http
+      port: 7878
+      protocol: TCP
+      targetPort: 7878
+  selector:
+    app: data-transport-layer
+  type: ClusterIP
