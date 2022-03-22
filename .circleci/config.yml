@@ -154,6 +154,7 @@ jobs:
               --env L2_GAS_PRICE=onchain \
               --env RUN_DEBUG_TRACE_TESTS=false \
               --env RUN_REPLICA_TESTS=false \
+              --env RUN_HEALTHCHECK_TESTS=false \
               --env RUN_STRESS_TESTS=false \
               --env OVMCONTEXT_SPEC_NUM_TXS=1 \
               --env DTL_ENQUEUE_CONFIRMATIONS=12 \
@@ -252,7 +253,7 @@ workflows:
                 - develop
     jobs:
       - build-dtl:
-          context: 
+          context:
             - optimism
             - slack
           <<: *slack-nightly-build-fail-post-step

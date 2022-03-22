@@ -202,7 +202,7 @@ services:
       - l2geth
       - replica
     deploy:
-      replicas: 1
+      replicas: 0
     build:
       context: ..
       dockerfile: ./ops/docker/Dockerfile.packages
@@ -226,6 +226,7 @@ services:
     environment:
       L1_URL: http://l1_chain:8545
       L2_URL: http://l2geth:8545
+      HEALTHCHECK_URL: http://replica-healthcheck:7300/metrics
       REPLICA_URL: http://replica:8545
       VERIFIER_URL: http://verifier:8545
       URL: http://deployer:8081/addresses.json
