@@ -7,10 +7,13 @@ import {
   deployAndVerifyAndThen,
   getContractFromArtifact,
 } from '../src/deploy-utils'
+import { getDeployConfig } from '../src/deploy-config'
 import { names } from '../src/address-names'
 import { predeploys } from '../src/predeploys'
 
 const deployFn: DeployFunction = async (hre) => {
+  const deployConfig = getDeployConfig(hre.network.name)
+
   const Lib_AddressManager = await getContractFromArtifact(
     hre,
     names.unmanaged.Lib_AddressManager
@@ -42,13 +45,13 @@ const deployFn: DeployFunction = async (hre) => {
     // CanonicalTransactionChain.
     {
       name: names.managed.accounts.OVM_Sequencer,
-      address: (hre as any).deployConfig.ovmSequencerAddress,
+      address: deployConfig.ovmSequencerAddress,
     },
     // OVM_Proposer is the address allowed to submit state roots (transaction results) to the
     // StateCommitmentChain.
     {
       name: names.managed.accounts.OVM_Proposer,
-      address: (hre as any).deployConfig.ovmProposerAddress,
+      address: deployConfig.ovmProposerAddress,
     },
   ]
 
@@ -69,7 +72,7 @@ const deployFn: DeployFunction = async (hre) => {
     name: names.unmanaged.AddressDictator,
     args: [
       Lib_AddressManager.address,
-      (hre as any).deployConfig.ovmAddressManagerOwner,
+      deployConfig.ovmAddressManagerOwner,
       namesAndAddresses.map((pair) => {
         return pair.name
       }),
