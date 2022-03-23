@@ -6,6 +6,8 @@ import { Ownable } from "../../lib/openzeppelin-contracts/contracts/access/Ownab
 /**
  * @title L2OutputOracle
  */
+// The payable keyword is used on appendL2Output to save gas on the msg.value check.
+// slither-disable-next-line locked-ether
 contract L2OutputOracle is Ownable {
     event l2OutputAppended(bytes32 indexed _l2Output, uint256 indexed _l2timestamp);
 
