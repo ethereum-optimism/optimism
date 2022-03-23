@@ -110,6 +110,8 @@ contract L2OutputOracle is Ownable {
             _l2timestamp >= startingBlockTimestamp,
             "Timestamp prior to startingBlockTimestamp"
         );
-        return historicalTotalBlocks + (_l2timestamp - startingBlockTimestamp) / l2BlockTime;
+        // If _l2timestamp == startingBlockTimestamp, then the L2BlockNumber should be
+        // historicalTotalBlocks + 1
+        return historicalTotalBlocks + 1 + (_l2timestamp - startingBlockTimestamp) / l2BlockTime;
     }
 }

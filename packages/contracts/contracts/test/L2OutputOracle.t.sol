@@ -101,14 +101,19 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
 
     // Test: computeL2BlockNumber() should return the correct value
     function test_computeL2BlockNumber() external {
+        // Test with the timestamp of the very first appended block
+        uint256 argTimestamp = startingBlockTimestamp;
+        uint256 expected = historicalTotalBlocks + 1;
+        assertEq(oracle.computeL2BlockNumber(argTimestamp), expected);
+
         // Test with an integer multiple of the l2BlockTime
-        uint256 argTimestamp = startingBlockTimestamp + 20;
-        uint256 expected = historicalTotalBlocks + 20 / l2BlockTime;
+        argTimestamp = startingBlockTimestamp + 20;
+        expected = historicalTotalBlocks + 1 + (20 / l2BlockTime);
         assertEq(oracle.computeL2BlockNumber(argTimestamp), expected);
 
         // Test with a remainder
         argTimestamp = startingBlockTimestamp + 33;
-        expected = historicalTotalBlocks + 33 / l2BlockTime;
+        expected = historicalTotalBlocks + 1 + (33 / l2BlockTime);
         assertEq(oracle.computeL2BlockNumber(argTimestamp), expected);
     }
     // Test: computeL2BlockNumber() fails with a blockNumber from before the startingBlockTimestamp
