@@ -13,7 +13,6 @@ interface CheatCodes {
 contract L2OutputOracle_Initializer is DSTest {
     // Utility variables
     CheatCodes cheats = CheatCodes(HEVM_ADDRESS);
-    bytes32 NON_ZERO_HASH = keccak256(abi.encode(1));
     uint256 appendedTimestamp;
 
     // Test target
@@ -23,7 +22,7 @@ contract L2OutputOracle_Initializer is DSTest {
     address sequencer = 0x000000000000000000000000000000000000AbBa;
     uint256 submissionInterval = 1800;
     uint256 l2BlockTime = 2;
-    bytes32 genesisL2Output = keccak256(abi.encode(2));
+    bytes32 genesisL2Output = keccak256(abi.encode(0));
     uint256 historicalTotalBlocks = 100;
 
     // Cache of the initial L2 timestamp
@@ -62,7 +61,7 @@ contract L2OutputOracleTest_Constructor is L2OutputOracle_Initializer {
 }
 
 contract L2OutputOracleTest is L2OutputOracle_Initializer {
-    bytes32 appendedOutput = keccak256(abi.encode(3));
+    bytes32 appendedOutput1 = keccak256(abi.encode(1));
 
     constructor() {
         appendedTimestamp = oracle.nextTimestamp();
@@ -71,7 +70,7 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
         cheats.warp(appendedTimestamp + 1);
         cheats.prank(sequencer);
         oracle.appendL2Output(
-            appendedOutput,
+            appendedOutput1,
             appendedTimestamp
         );
     }
@@ -81,7 +80,7 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
     }
 
     function test_getL2Outputs() external {
-        assertEq(oracle.l2Outputs(appendedTimestamp), appendedOutput);
+        assertEq(oracle.l2Outputs(appendedTimestamp), appendedOutput1);
     }
 
     function test_nextTimestamp() external {
@@ -108,6 +107,63 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
             oracle.computeL2BlockNumber(argTimestamp),
             expected
         );
+    }
+
+    function test_appendingAnotherOutput() external {
+        bytes32 appendedOutput2 = keccak256(abi.encode(2));
+        uint256 nextTimestamp = oracle.nextTimestamp();
+
+        // Ensure the submissionInterval is enforced
+        assertEq(nextTimestamp, appendedTimestamp + submissionInterval);
+
+        cheats.warp(nextTimestamp + 1);
+        cheats.prank(sequencer);
+        oracle.appendL2Output(appendedOutput2, nextTimestamp);
+    }
+
+    function testCannot_appendOutputIfNotSequencer() external {
+        bytes32 appendedOutput2 = keccak256(abi.encode(2));
+        uint256 nextTimestamp = oracle.nextTimestamp();
+
+        cheats.warp(nextTimestamp + 1);
+        cheats.expectRevert("Ownable: caller is not the owner");
+        oracle.appendL2Output(appendedOutput2, nextTimestamp);
+    }
+
+    function testCannot_appendEmptyOutput() external {
+        bytes32 appendedOutput2 = bytes32(0);
+        uint256 nextTimestamp = oracle.nextTimestamp();
+        cheats.warp(nextTimestamp + 1);
+        cheats.prank(sequencer);
+        cheats.expectRevert("Cannot submit empty L2 output");
+        oracle.appendL2Output(appendedOutput2, nextTimestamp);
+    }
+
+    function testCannot_appendUnexpectedTimestamp() external {
+        bytes32 appendedOutput2 = bytes32(0);
+        uint256 nextTimestamp = oracle.nextTimestamp();
+        cheats.warp(nextTimestamp + 1);
+        cheats.prank(sequencer);
+        cheats.expectRevert("Timestamp not equal to next expected timestamp");
+        oracle.appendL2Output(appendedOutput2, nextTimestamp - 1);
+    }
+
+    function testCannot_appendCurrentTimestamp() external {
+        bytes32 appendedOutput2 = bytes32(0);
+        uint256 nextTimestamp = oracle.nextTimestamp();
+        cheats.warp(nextTimestamp + 1);
+        cheats.prank(sequencer);
+        cheats.expectRevert("Cannot append L2 output in future");
+        oracle.appendL2Output(appendedOutput2, block.timestamp);
+    }
+
+    function testCannot_appendFutureTimestamp() external {
+        bytes32 appendedOutput2 = bytes32(0);
+        uint256 nextTimestamp = oracle.nextTimestamp();
+        cheats.warp(nextTimestamp + 1);
+        cheats.prank(sequencer);
+        cheats.expectRevert("Cannot append L2 output in future");
+        oracle.appendL2Output(appendedOutput2, block.timestamp);
     }
 
     function testCannot_computePreHistoricalL2BlockNumber() external {
