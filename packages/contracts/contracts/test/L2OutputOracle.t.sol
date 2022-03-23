@@ -111,7 +111,7 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
     }
 
     function testCannot_computePreHistoricalL2BlockNumber() external {
-        bytes memory expectedError = "timestamp prior to startingBlockTimestamp";
+        bytes memory expectedError = "Timestamp prior to startingBlockTimestamp";
         uint256 argTimestamp = startingBlockTimestamp - 1;
         cheats.expectRevert(expectedError);
         oracle.computeL2BlockNumber(argTimestamp);

@@ -10,15 +10,26 @@ contract L2OutputOracle is Ownable {
 
     event l2OutputAppended(
         bytes32 indexed _l2Output,
-        uint256 indexed _timestamp
+        uint256 indexed _l2timestamp
     );
 
-    uint256 public submissionInterval;
-    uint256 public l2BlockTime;
-    mapping(uint256 => bytes32) public l2Outputs;
-    uint256 public historicalTotalBlocks;
+    // The interval in seconds at which checkpoints must be submitted.
+    uint256 public immutable submissionInterval;
+
+    // The time between blocks on L2.
+    uint256 public immutable l2BlockTime;
+
+    // The number of blocks in the chain before the first block in this contract.
+    uint256 public immutable historicalTotalBlocks;
+
+    // The timestamp of the first L2 block recorded in this contract.
+    uint256 public immutable startingBlockTimestamp;
+
+    // The timestamp of the most recent L2 block recorded in this contract.
     uint256 public latestBlockTimestamp;
-    uint256 public startingBlockTimestamp;
+
+    // A mapping from L2 timestamps to the output root for the block with that timestamp
+    mapping(uint256 => bytes32) public l2Outputs;
 
     /**
      * Initialize the L2OutputOracle contract.
@@ -51,18 +62,19 @@ contract L2OutputOracle is Ownable {
      * block. The timestamp must be equal to the current value returned by
      * `nextTimestamp()` in order to be accepted.
      * @param _l2Output The L2 output of the checkpoint block.
-     * @param _timestamp The L2 block timestamp that resulted in _l2Output.
+     * @param _l2timestamp The L2 block timestamp that resulted in _l2Output.
      */
-    function appendL2Output(bytes32 _l2Output, uint256 _timestamp) external payable onlyOwner {
+    function appendL2Output(bytes32 _l2Output, uint256 _l2timestamp) external payable onlyOwner {
         // todo: separate owner and sequencer roles
-        require(block.timestamp > _timestamp, "Cannot append L2 output in future");
+        require(_l2timestamp < block.timestamp, "Cannot append L2 output in future");
+        require(_l2timestamp == nextTimestamp(), "Timestamp not equal to next expected timestamp");
         require(_l2Output != bytes32(0), "Cannot submit empty L2 output");
-        require(_timestamp == nextTimestamp(), "Timestamp not equal to next expected timestamp");
-        // todo: add require statement to ensure a specific prev-hash exists on the current chain
-        l2Outputs[_timestamp] = _l2Output;
-        latestBlockTimestamp = _timestamp;
 
-        emit l2OutputAppended(_l2Output, _timestamp);
+        // todo: add require statement to ensure a specific prev-hash exists on the current chain
+        l2Outputs[_l2timestamp] = _l2Output;
+        latestBlockTimestamp = _l2timestamp;
+
+        emit l2OutputAppended(_l2Output, _l2timestamp);
     }
 
     /**
@@ -75,10 +87,10 @@ contract L2OutputOracle is Ownable {
 
     /**
      * Computes the L2 block number given a target L2 block timestamp.
-     * @param _timestamp The L2 block timestamp of the target block.
+     * @param _l2timestamp The L2 block timestamp of the target block.
      */
-    function computeL2BlockNumber(uint256 _timestamp) external view returns (uint256) {
-        require(_timestamp >= startingBlockTimestamp, "timestamp prior to startingBlockTimestamp");
-        return historicalTotalBlocks + (_timestamp - startingBlockTimestamp) / l2BlockTime;
+    function computeL2BlockNumber(uint256 _l2timestamp) external view returns (uint256) {
+        require(_l2timestamp >= startingBlockTimestamp, "Timestamp prior to startingBlockTimestamp");
+        return historicalTotalBlocks + (_l2timestamp - startingBlockTimestamp) / l2BlockTime;
     }
 }
