@@ -1,12 +1,14 @@
-/* Imports: External */
+import { Server } from 'net'
+
 import Config from 'bcfg'
 import * as dotenv from 'dotenv'
 import { Command, Option } from 'commander'
 import { ValidatorSpec, Spec, cleanEnv } from 'envalid'
 import { sleep } from '@eth-optimism/core-utils'
 import snakeCase from 'lodash/snakeCase'
+import express from 'express'
+import prometheus, { Registry } from 'prom-client'
 
-/* Imports: Internal */
 import { Logger } from '../common/logger'
 import { Metric } from './metrics'
 
@@ -83,6 +85,26 @@ export abstract class BaseServiceV2<
   protected readonly metrics: TMetrics
 
   /**
+   * Registry for prometheus metrics.
+   */
+  protected readonly metricsRegistry: Registry
+
+  /**
+   * Metrics server.
+   */
+  protected metricsServer: Server
+
+  /**
+   * Port for the metrics server.
+   */
+  protected readonly metricsServerPort: number
+
+  /**
+   * Hostname for the metrics server.
+   */
+  protected readonly metricsServerHostname: string
+
+  /**
    * @param params Options for the construction of the service.
    * @param params.name Name for the service. This name will determine the prefix used for logging,
    * metrics, and loading environment variables.
@@ -93,6 +115,8 @@ export abstract class BaseServiceV2<
    * @param params.options Options to pass to the service.
    * @param params.loops Whether or not the service should loop. Defaults to true.
    * @param params.loopIntervalMs Loop interval in milliseconds. Defaults to zero.
+   * @param params.metricsServerPort Port for the metrics server. Defaults to 7300.
+   * @param params.metricsServerHostname Hostname for the metrics server. Defaults to 0.0.0.0.
    */
   constructor(params: {
     name: string
@@ -101,6 +125,8 @@ export abstract class BaseServiceV2<
     options?: Partial<TOptions>
     loop?: boolean
     loopIntervalMs?: number
+    metricsServerPort?: number
+    metricsServerHostname?: string
   }) {
     this.loop = params.loop !== undefined ? params.loop : true
     this.loopIntervalMs =
@@ -203,6 +229,11 @@ export abstract class BaseServiceV2<
       return acc
     }, {}) as TMetrics
 
+    // Create the metrics server.
+    this.metricsRegistry = prometheus.register
+    this.metricsServerPort = params.metricsServerPort || 7300
+    this.metricsServerHostname = params.metricsServerHostname || '0.0.0.0'
+
     this.logger = new Logger({ name: params.name })
 
     // Gracefully handle stop signals.
@@ -221,6 +252,33 @@ export abstract class BaseServiceV2<
    */
   public async run(): Promise<void> {
     this.done = false
+
+    // Start the metrics server if not yet running.
+    if (!this.metricsServer) {
+      this.logger.info('starting metrics server')
+
+      await new Promise((resolve) => {
+        const app = express()
+
+        app.get('/metrics', async (_, res) => {
+          res.status(200).send(await this.metricsRegistry.metrics())
+        })
+
+        this.metricsServer = app.listen(
+          this.metricsServerPort,
+          this.metricsServerHostname,
+          () => {
+            resolve(null)
+          }
+        )
+      })
+
+      this.logger.info(`metrics started`, {
+        port: this.metricsServerPort,
+        hostname: this.metricsServerHostname,
+        route: '/metrics',
+      })
+    }
 
     if (this.init) {
       this.logger.info('initializing service')
@@ -267,7 +325,18 @@ export abstract class BaseServiceV2<
     while (!this.done) {
       await sleep(1000)
     }
-    this.logger.info('main loop finished, goodbye!')
+
+    // Shut down the metrics server if it's running.
+    if (this.metricsServer) {
+      this.logger.info('stopping metrics server')
+      await new Promise((resolve) => {
+        this.metricsServer.close(() => {
+          resolve(null)
+        })
+      })
+      this.logger.info('metrics server stopped')
+      this.metricsServer = undefined
+    }
   }
 
   /**

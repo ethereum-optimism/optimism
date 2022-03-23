@@ -197,6 +197,23 @@ services:
       - ${REPLICA_HTTP_PORT:-8549}:8545
       - ${REPLICA_WS_PORT:-8550}:8546
 
+  replica-healthcheck:
+    depends_on:
+      - l2geth
+      - replica
+    deploy:
+      replicas: 0
+    build:
+      context: ..
+      dockerfile: ./ops/docker/Dockerfile.packages
+      target: replica-healthcheck
+    image: ethereumoptimism/replica-healthcheck:${DOCKER_TAG_REPLICA_HEALTHCHECK:-latest}
+    environment:
+      HEALTHCHECK__REFERENCE_RPC_PROVIDER: http://l2geth:8545
+      HEALTHCHECK__TARGET_RPC_PROVIDER: http://replica:8545
+    ports:
+      - ${HEALTHCHECK_HTTP_PORT:-7300}:7300
+
   integration_tests:
     deploy:
       replicas: 0
@@ -209,6 +226,7 @@ services:
     environment:
       L1_URL: http://l1_chain:8545
       L2_URL: http://l2geth:8545
+      HEALTHCHECK_URL: http://replica-healthcheck:7300/metrics
       REPLICA_URL: http://replica:8545
       VERIFIER_URL: http://verifier:8545
       URL: http://deployer:8081/addresses.json

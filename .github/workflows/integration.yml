@@ -50,7 +50,7 @@ jobs:
         working-directory: ./ops
         run: |
           ./scripts/stats.sh &
-          docker-compose -f docker-compose.yml up -d
+          docker-compose -f docker-compose.yml up -d --scale replica-healthcheck=1
 
       - name: Wait for the Sequencer node
         working-directory: ./ops
@@ -64,7 +64,6 @@ jobs:
         if: failure()
         uses: jwalton/gh-docker-logs@v1
         with:
-          images: 'ethereumoptimism/hardhat,ops_deployer,ops_dtl,ops_l2geth,ethereumoptimism/message-relayer,ops_batch_submitter,ops_replica,ops_integration_tests'
           dest: '/home/runner/logs'
 
       - name: Tar logs
