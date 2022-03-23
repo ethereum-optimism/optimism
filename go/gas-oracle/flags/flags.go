@@ -89,6 +89,12 @@ var (
 		Usage:  "length of epochs in seconds",
 		EnvVar: "GAS_PRICE_ORACLE_EPOCH_LENGTH_SECONDS",
 	}
+	L1BaseFeeEpochLengthSecondsFlag = cli.Uint64Flag{
+		Name:   "l1-base-fee-epoch-length-seconds",
+		Value:  15,
+		Usage:  "polling time for updating the L1 base fee",
+		EnvVar: "GAS_PRICE_ORACLE_L1_BASE_FEE_EPOCH_LENGTH_SECONDS",
+	}
 	L1BaseFeeSignificanceFactorFlag = cli.Float64Flag{
 		Name:   "l1-base-fee-significant-factor",
 		Value:  0.10,
@@ -169,6 +175,7 @@ var Flags = []cli.Flag{
 	MaxPercentChangePerEpochFlag,
 	AverageBlockGasLimitPerEpochFlag,
 	EpochLengthSecondsFlag,
+	L1BaseFeeEpochLengthSecondsFlag,
 	L2GasPriceSignificanceFactorFlag,
 	WaitForReceiptFlag,
 	EnableL1BaseFeeFlag,

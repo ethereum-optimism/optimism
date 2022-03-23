@@ -111,6 +111,7 @@ func (g *GasPriceOracle) ensure() error {
 func (g *GasPriceOracle) Loop() {
 	timer := time.NewTicker(time.Duration(g.config.epochLengthSeconds) * time.Second)
 	defer timer.Stop()
+
 	for {
 		select {
 		case <-timer.C:
@@ -126,7 +127,7 @@ func (g *GasPriceOracle) Loop() {
 }
 
 func (g *GasPriceOracle) BaseFeeLoop() {
-	timer := time.NewTicker(15 * time.Second)
+	timer := time.NewTicker(time.Duration(g.config.l1BaseFeeEpochLengthSeconds) * time.Second)
 	defer timer.Stop()
 
 	updateBaseFee, err := wrapUpdateBaseFee(g.l1Backend, g.l2Backend, g.config)
