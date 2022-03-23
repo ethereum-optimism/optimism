@@ -9,10 +9,10 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimistic-specs/opnode/rollup"
-
 	"github.com/ethereum-optimism/optimistic-specs/opnode/rollup/derive"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
@@ -25,10 +25,6 @@ type BatchSubmitter struct {
 	PrivKey   *ecdsa.PrivateKey
 }
 
-// func NewSubmitter(client ethclient.Client, addr common.Address) *BatchSubmitter {
-// 	return &BatchSubmitter{client: client, addr: addr}
-// }
-
 // Submit creates & submits batches to L1. Blocks until the transaction is included.
 // Return the tx hash as well as a possible error.
 func (b *BatchSubmitter) Submit(config *rollup.Config, batches []*derive.BatchData) (common.Hash, error) {
@@ -37,12 +33,6 @@ func (b *BatchSubmitter) Submit(config *rollup.Config, batches []*derive.BatchDa
 
 	var buf bytes.Buffer
 	if err := derive.EncodeBatches(config, batches, &buf); err != nil {
-		return common.Hash{}, err
-	}
-
-	addr := crypto.PubkeyToAddress(b.PrivKey.PublicKey)
-	nonce, err := b.Client.PendingNonceAt(ctx, addr)
-	if err != nil {
 		return common.Hash{}, err
 	}
 
@@ -55,6 +45,13 @@ func (b *BatchSubmitter) Submit(config *rollup.Config, batches []*derive.BatchDa
 		return common.Hash{}, err
 	}
 
+	// Note: If the BSS acts up, look into the pending nonce.
+	addr := crypto.PubkeyToAddress(b.PrivKey.PublicKey)
+	nonce, err := b.Client.PendingNonceAt(ctx, addr)
+	if err != nil {
+		return common.Hash{}, err
+	}
+
 	rawTx := &types.DynamicFeeTx{
 		ChainID:   b.ChainID,
 		Nonce:     nonce,
@@ -63,14 +60,10 @@ func (b *BatchSubmitter) Submit(config *rollup.Config, batches []*derive.BatchDa
 		GasFeeCap: fee,
 		Data:      buf.Bytes(),
 	}
-	msg := ethereum.CallMsg{
-		From:      addr,
-		To:        rawTx.To,
-		GasTipCap: rawTx.GasTipCap,
-		GasFeeCap: rawTx.GasFeeCap,
-		Data:      rawTx.Data,
-	}
-	gas, err := b.Client.EstimateGas(ctx, msg)
+
+	// No contract execution so we just pay intrinsic gas.
+	// If we add contract execution, making it gas usage deterministic is very helpful.
+	gas, err := core.IntrinsicGas(rawTx.Data, nil, false, true, true)
 	if err != nil {
 		return common.Hash{}, err
 	}
