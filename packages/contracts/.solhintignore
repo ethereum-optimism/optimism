@@ -1,3 +1,4 @@
+# Deps and test files
 node_modules
-lib/ds-test
+lib
 contracts/test/*.t.sol

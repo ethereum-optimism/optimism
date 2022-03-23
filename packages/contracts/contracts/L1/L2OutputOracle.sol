@@ -7,11 +7,7 @@ import { Ownable } from "../../lib/openzeppelin-contracts/contracts/access/Ownab
  * @title L2OutputOracle
  */
 contract L2OutputOracle is Ownable {
-
-    event l2OutputAppended(
-        bytes32 indexed _l2Output,
-        uint256 indexed _l2timestamp
-    );
+    event l2OutputAppended(bytes32 indexed _l2Output, uint256 indexed _l2timestamp);
 
     // The interval in seconds at which checkpoints must be submitted.
     uint256 public immutable submissionInterval;
@@ -63,14 +59,34 @@ contract L2OutputOracle is Ownable {
      * `nextTimestamp()` in order to be accepted.
      * @param _l2Output The L2 output of the checkpoint block.
      * @param _l2timestamp The L2 block timestamp that resulted in _l2Output.
+     * @param _blockhash A block hash which must be included in the current chain.
+     * @param _blocknumber The block number with the specified block hash.
      */
-    function appendL2Output(bytes32 _l2Output, uint256 _l2timestamp) external payable onlyOwner {
-        // todo: separate owner and sequencer roles
+    function appendL2Output(
+        bytes32 _l2Output,
+        uint256 _l2timestamp,
+        bytes32 _blockhash,
+        uint256 _blocknumber
+    ) external payable onlyOwner {
         require(_l2timestamp < block.timestamp, "Cannot append L2 output in future");
         require(_l2timestamp == nextTimestamp(), "Timestamp not equal to next expected timestamp");
         require(_l2Output != bytes32(0), "Cannot submit empty L2 output");
 
-        // todo: add require statement to ensure a specific prev-hash exists on the current chain
+        if (_blockhash != bytes32(0)) {
+            // This check allows the sequencer to append an output based on a given L1 block,
+            // without fear that it will be reorged out.
+            // It will also revert if the blockheight provided is more than 256 blocks behind the
+            // chain tip (as the hash will return as zero). This does open the door to a grieffing
+            // attack in which the sequencer's submission is censored until the block is no longer
+            // retrievable, if the sequencer is experiencing this attack it can simply leave out the
+            // blockhash value, and delay submission until it is confident that the L1 block is
+            // finalized.
+            require(
+                blockhash(_blocknumber) == _blockhash,
+                "Blockhash does not match the hash at the expected height."
+            );
+        }
+
         l2Outputs[_l2timestamp] = _l2Output;
         latestBlockTimestamp = _l2timestamp;
 
@@ -90,7 +106,10 @@ contract L2OutputOracle is Ownable {
      * @param _l2timestamp The L2 block timestamp of the target block.
      */
     function computeL2BlockNumber(uint256 _l2timestamp) external view returns (uint256) {
-        require(_l2timestamp >= startingBlockTimestamp, "Timestamp prior to startingBlockTimestamp");
+        require(
+            _l2timestamp >= startingBlockTimestamp,
+            "Timestamp prior to startingBlockTimestamp"
+        );
         return historicalTotalBlocks + (_l2timestamp - startingBlockTimestamp) / l2BlockTime;
     }
 }
