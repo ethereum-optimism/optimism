@@ -10,11 +10,14 @@ interface CheatCodes {
     function expectRevert(bytes calldata) external;
 
     function warp(uint256) external;
+
+    function roll(uint256) external;
 }
 
 contract L2OutputOracle_Initializer is DSTest {
     // Utility variables
     CheatCodes cheats = CheatCodes(HEVM_ADDRESS);
+    bytes32 nonZeroHash = keccak256(abi.encode("NON_ZERO"));
     uint256 appendedTimestamp;
 
     // Test target
@@ -73,14 +76,21 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
         oracle.appendL2Output(appendedOutput1, appendedTimestamp, 0, 0);
     }
 
+    /****************
+     * Getter Tests *
+     ****************/
+
+    // Test: latestBlockTimestamp() should return the correct value
     function test_latestBlockTimestamp() external {
         assertEq(oracle.latestBlockTimestamp(), appendedTimestamp);
     }
 
+    // Test: getL2Outputs() should return the correct value
     function test_getL2Outputs() external {
         assertEq(oracle.l2Outputs(appendedTimestamp), appendedOutput1);
     }
 
+    // Test: nextTimestamp() should return the correct value
     function test_nextTimestamp() external {
         assertEq(
             oracle.nextTimestamp(),
@@ -89,7 +99,8 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
         );
     }
 
-    function test_computesL2BlockNumber() external {
+    // Test: computeL2BlockNumber() should return the correct value
+    function test_computeL2BlockNumber() external {
         // Test with an integer multiple of the l2BlockTime
         uint256 argTimestamp = startingBlockTimestamp + 20;
         uint256 expected = historicalTotalBlocks + 20 / l2BlockTime;
@@ -100,7 +111,20 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
         expected = historicalTotalBlocks + 33 / l2BlockTime;
         assertEq(oracle.computeL2BlockNumber(argTimestamp), expected);
     }
+    // Test: computeL2BlockNumber() fails with a blockNumber from before the startingBlockTimestamp
+    function testCannot_computePreHistoricalL2BlockNumber() external {
+        bytes memory expectedError = "Timestamp prior to startingBlockTimestamp";
+        uint256 argTimestamp = startingBlockTimestamp - 1;
+        cheats.expectRevert(expectedError);
+        oracle.computeL2BlockNumber(argTimestamp);
+    }
 
+    /*****************************
+     * Append Tests - Happy Path *
+     *****************************/
+
+    // Test: appendL2Output succeeds when given valid input, and no block hash and number are
+    // specified.
     function test_appendingAnotherOutput() external {
         bytes32 appendedOutput2 = keccak256(abi.encode(2));
         uint256 nextTimestamp = oracle.nextTimestamp();
@@ -113,55 +137,94 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
         oracle.appendL2Output(appendedOutput2, nextTimestamp, 0, 0);
     }
 
+    // Test: appendL2Output succeeds when given valid input, and when a block hash and number are
+    // specified for reorg protection.
+    // This tests is disabled (w/ skip_ prefix) because all blocks in Foundry currently have a
+    // blockhash of zero.
+    function skip_test_appendWithBlockhashAndHeight() external {
+        // Move ahead to block 100 so that we can reference historical blocks
+        cheats.roll(100);
+
+        // Get the number and hash of a previous block in the chain
+        uint256 blockNumber = block.number - 1;
+        bytes32 blockHash = blockhash(blockNumber);
+
+        uint256 nextTimestamp = oracle.nextTimestamp();
+        cheats.warp(nextTimestamp + 1);
+        cheats.prank(sequencer);
+
+        // Changing the blockNumber argument should break this tests, however it does not
+        // per the comment preceding this test.
+        oracle.appendL2Output(nonZeroHash, nextTimestamp, blockHash, blockNumber);
+    }
+
+    /***************************
+     * Append Tests - Sad Path *
+     ***************************/
+
+    // Test: appendL2Output fails if called by a party that is not the sequencer.
     function testCannot_appendOutputIfNotSequencer() external {
-        bytes32 appendedOutput2 = keccak256(abi.encode(2));
         uint256 nextTimestamp = oracle.nextTimestamp();
 
         cheats.warp(nextTimestamp + 1);
         cheats.expectRevert("Ownable: caller is not the owner");
-        oracle.appendL2Output(appendedOutput2, nextTimestamp, 0, 0);
+        oracle.appendL2Output(nonZeroHash, nextTimestamp, 0, 0);
     }
 
+    // Test: appendL2Output fails given a zero blockhash.
     function testCannot_appendEmptyOutput() external {
-        bytes32 appendedOutput2 = bytes32(0);
+        bytes32 outputToAppend = bytes32(0);
         uint256 nextTimestamp = oracle.nextTimestamp();
         cheats.warp(nextTimestamp + 1);
         cheats.prank(sequencer);
         cheats.expectRevert("Cannot submit empty L2 output");
-        oracle.appendL2Output(appendedOutput2, nextTimestamp, 0, 0);
+        oracle.appendL2Output(outputToAppend, nextTimestamp, 0, 0);
     }
 
+    // Test: appendL2Output fails if the timestamp doesn't match the next expected timestamp.
     function testCannot_appendUnexpectedTimestamp() external {
-        bytes32 appendedOutput2 = bytes32(0);
         uint256 nextTimestamp = oracle.nextTimestamp();
         cheats.warp(nextTimestamp + 1);
         cheats.prank(sequencer);
         cheats.expectRevert("Timestamp not equal to next expected timestamp");
-        oracle.appendL2Output(appendedOutput2, nextTimestamp - 1, 0, 0);
+        oracle.appendL2Output(nonZeroHash, nextTimestamp - 1, 0, 0);
     }
 
+    // Test: appendL2Output fails if the timestamp is equal to the current L1 timestamp.
     function testCannot_appendCurrentTimestamp() external {
-        bytes32 appendedOutput2 = bytes32(0);
         uint256 nextTimestamp = oracle.nextTimestamp();
         cheats.warp(nextTimestamp + 1);
         cheats.prank(sequencer);
         cheats.expectRevert("Cannot append L2 output in future");
-        oracle.appendL2Output(appendedOutput2, block.timestamp, 0, 0);
+        oracle.appendL2Output(nonZeroHash, block.timestamp, 0, 0);
     }
 
+    // Test: appendL2Output fails if the timestamp is in the future.
     function testCannot_appendFutureTimestamp() external {
-        bytes32 appendedOutput2 = bytes32(0);
         uint256 nextTimestamp = oracle.nextTimestamp();
         cheats.warp(nextTimestamp + 1);
         cheats.prank(sequencer);
         cheats.expectRevert("Cannot append L2 output in future");
-        oracle.appendL2Output(appendedOutput2, block.timestamp, 0, 0);
+        oracle.appendL2Output(nonZeroHash, block.timestamp + 1, 0, 0);
     }
 
-    function testCannot_computePreHistoricalL2BlockNumber() external {
-        bytes memory expectedError = "Timestamp prior to startingBlockTimestamp";
-        uint256 argTimestamp = startingBlockTimestamp - 1;
-        cheats.expectRevert(expectedError);
-        oracle.computeL2BlockNumber(argTimestamp);
+    // Test: appendL2Output fails when given valid input, but the block hash and number do not
+    // match.
+    // This tests is disabled (w/ skip_ prefix) because all blocks in Foundry currently have a
+    // blockhash of zero.
+    function skip_testCannot_AppendWithUnmatchedBlockhash() external {
+        // Move ahead to block 100 so that we can reference historical blocks
+        cheats.roll(100);
+
+        // Get the number and hash of a previous block in the chain
+        uint256 blockNumber = block.number - 1;
+        bytes32 blockHash = blockhash(blockNumber);
+
+        uint256 nextTimestamp = oracle.nextTimestamp();
+        cheats.warp(nextTimestamp + 1);
+        cheats.prank(sequencer);
+
+        // This will fail when foundry no longer returns zerod block hashes
+        oracle.appendL2Output(nonZeroHash, nextTimestamp, blockHash, blockNumber - 1);
     }
 }
