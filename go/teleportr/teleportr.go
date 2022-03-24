@@ -85,7 +85,7 @@ func Main(gitVersion string) func(ctx *cli.Context) error {
 			go metrics.RunServer(cfg.MetricsHostname, cfg.MetricsPort)
 		}
 
-		chainID, err := l1Client.ChainID(ctx)
+		chainID, err := l2Client.ChainID(ctx)
 		if err != nil {
 			return err
 		}
@@ -120,7 +120,7 @@ func Main(gitVersion string) func(ctx *cli.Context) error {
 			Driver:          teleportrDriver,
 			PollInterval:    cfg.PollInterval,
 			ClearPendingTx:  false,
-			L1Client:        l1Client,
+			L1Client:        l2Client,
 			TxManagerConfig: txManagerConfig,
 		})
 
@@ -149,6 +149,36 @@ func Main(gitVersion string) func(ctx *cli.Context) error {
 		}...)
 		<-interruptChannel
 
+		return nil
+	}
+}
+
+func Migrate() func(ctx *cli.Context) error {
+	return func(cliCtx *cli.Context) error {
+		cfg, err := NewConfig(cliCtx)
+		if err != nil {
+			return err
+		}
+
+		log.Info("Initializing teleportr")
+
+		database, err := db.Open(db.Config{
+			Host:      cfg.PostgresHost,
+			Port:      uint16(cfg.PostgresPort),
+			User:      cfg.PostgresUser,
+			Password:  cfg.PostgresPassword,
+			DBName:    cfg.PostgresDBName,
+			EnableSSL: cfg.PostgresEnableSSL,
+		})
+		if err != nil {
+			return err
+		}
+
+		log.Info("Migrating database")
+		if err := database.Migrate(); err != nil {
+			return err
+		}
+		log.Info("Done")
 		return nil
 	}
 }

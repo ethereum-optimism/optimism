@@ -2,6 +2,7 @@ package l1
 
 import (
 	"context"
+
 	"github.com/ethereum-optimism/optimism/go/indexer/bindings/l1erc20"
 	"github.com/ethereum/go-ethereum/ethclient"
 
@@ -39,7 +40,6 @@ func QueryERC20(address common.Address, client *ethclient.Client) (*db.Token, er
 		Decimals: decimals,
 	}, nil
 }
-
 
 func QueryStateBatches(filterer *scc.StateCommitmentChainFilterer, startHeight, endHeight uint64, ctx context.Context) (map[common.Hash][]db.StateBatch, error) {
 	batches := make(map[common.Hash][]db.StateBatch)

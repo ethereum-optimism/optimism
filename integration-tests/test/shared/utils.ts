@@ -56,6 +56,8 @@ const procEnv = cleanEnv(process.env, {
 
   VERIFIER_URL: str({ default: 'http://localhost:8547' }),
 
+  HEALTHCHECK_URL: str({ default: 'http://localhost:7300/metrics' }),
+
   PRIVATE_KEY: str({
     default:
       '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80',
@@ -76,6 +78,9 @@ const procEnv = cleanEnv(process.env, {
     default: true,
   }),
   RUN_REPLICA_TESTS: bool({
+    default: true,
+  }),
+  RUN_HEALTHCHECK_TESTS: bool({
     default: true,
   }),
   RUN_DEBUG_TRACE_TESTS: bool({

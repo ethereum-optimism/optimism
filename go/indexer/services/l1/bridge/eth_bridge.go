@@ -2,6 +2,7 @@ package bridge
 
 import (
 	"context"
+
 	"github.com/ethereum-optimism/optimism/go/indexer/bindings/l1bridge"
 	"github.com/ethereum-optimism/optimism/go/indexer/db"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"

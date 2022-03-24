@@ -38,30 +38,20 @@ func (d *Database) GetL1TokenByAddress(address string) (*Token, error) {
 
 	var token *Token
 	err := txn(d.db, func(tx *sql.Tx) error {
-		queryStmt, err := tx.Prepare(selectL1TokenStatement)
-		if err != nil {
-			return err
-		}
-
-		rows, err := queryStmt.Query(address)
-		if err != nil {
-			return err
-		}
-
-		if !rows.Next() {
-			return nil
+		row := tx.QueryRow(selectL1TokenStatement, address)
+		if row.Err() != nil {
+			return row.Err()
 		}
 
 		var name string
 		var symbol string
 		var decimals uint8
-		err = rows.Scan(&name, &symbol, &decimals)
+		err := row.Scan(&name, &symbol, &decimals)
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil
+		}
 		if err != nil {
 			return err
-		}
-
-		if rows.Next() {
-			return errors.New("address should be unique")
 		}
 
 		token = &Token{
@@ -69,7 +59,6 @@ func (d *Database) GetL1TokenByAddress(address string) (*Token, error) {
 			Symbol:   symbol,
 			Decimals: decimals,
 		}
-
 		return nil
 	})
 	if err != nil {
@@ -88,30 +77,20 @@ func (d *Database) GetL2TokenByAddress(address string) (*Token, error) {
 
 	var token *Token
 	err := txn(d.db, func(tx *sql.Tx) error {
-		queryStmt, err := tx.Prepare(selectL2TokenStatement)
-		if err != nil {
-			return err
-		}
-
-		rows, err := queryStmt.Query(address)
-		if err != nil {
-			return err
-		}
-
-		if !rows.Next() {
-			return nil
+		row := tx.QueryRow(selectL2TokenStatement, address)
+		if row.Err() != nil {
+			return row.Err()
 		}
 
 		var name string
 		var symbol string
 		var decimals uint8
-		err = rows.Scan(&name, &symbol, &decimals)
+		err := row.Scan(&name, &symbol, &decimals)
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil
+		}
 		if err != nil {
 			return err
-		}
-
-		if rows.Next() {
-			return errors.New("address should be unique")
 		}
 
 		token = &Token{
@@ -141,22 +120,14 @@ func (d *Database) AddL1Token(address string, token *Token) error {
 	`
 
 	return txn(d.db, func(tx *sql.Tx) error {
-		tokenStmt, err := tx.Prepare(insertTokenStatement)
-		if err != nil {
-			return err
-		}
-
-		_, err = tokenStmt.Exec(
+		_, err := tx.Exec(
+			insertTokenStatement,
 			address,
 			token.Name,
 			token.Symbol,
 			token.Decimals,
 		)
-		if err != nil {
-			return err
-		}
-
-		return nil
+		return err
 	})
 }
 
@@ -172,22 +143,14 @@ func (d *Database) AddL2Token(address string, token *Token) error {
 	`
 
 	return txn(d.db, func(tx *sql.Tx) error {
-		tokenStmt, err := tx.Prepare(insertTokenStatement)
-		if err != nil {
-			return err
-		}
-
-		_, err = tokenStmt.Exec(
+		_, err := tx.Exec(
+			insertTokenStatement,
 			address,
 			token.Name,
 			token.Symbol,
 			token.Decimals,
 		)
-		if err != nil {
-			return err
-		}
-
-		return nil
+		return err
 	})
 }
 
@@ -209,12 +172,8 @@ func (d *Database) AddIndexedL1Block(block *IndexedL1Block) error {
 		($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
 	`
 	return txn(d.db, func(tx *sql.Tx) error {
-		blockStmt, err := tx.Prepare(insertBlockStatement)
-		if err != nil {
-			return err
-		}
-
-		_, err = blockStmt.Exec(
+		_, err := tx.Exec(
+			insertBlockStatement,
 			block.Hash.String(),
 			block.ParentHash.String(),
 			block.Number,
@@ -228,13 +187,9 @@ func (d *Database) AddIndexedL1Block(block *IndexedL1Block) error {
 			return nil
 		}
 
-		depositStmt, err := tx.Prepare(insertDepositStatement)
-		if err != nil {
-			return err
-		}
-
 		for _, deposit := range block.Deposits {
-			_, err = depositStmt.Exec(
+			_, err = tx.Exec(
+				insertDepositStatement,
 				NewGUID(),
 				deposit.FromAddress.String(),
 				deposit.ToAddress.String(),
@@ -273,12 +228,8 @@ func (d *Database) AddIndexedL2Block(block *IndexedL2Block) error {
 		($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
 	`
 	return txn(d.db, func(tx *sql.Tx) error {
-		blockStmt, err := tx.Prepare(insertBlockStatement)
-		if err != nil {
-			return err
-		}
-
-		_, err = blockStmt.Exec(
+		_, err := tx.Exec(
+			insertBlockStatement,
 			block.Hash.String(),
 			block.ParentHash.String(),
 			block.Number,
@@ -292,13 +243,9 @@ func (d *Database) AddIndexedL2Block(block *IndexedL2Block) error {
 			return nil
 		}
 
-		withdrawalStmt, err := tx.Prepare(insertWithdrawalStatement)
-		if err != nil {
-			return err
-		}
-
 		for _, withdrawal := range block.Withdrawals {
-			_, err = withdrawalStmt.Exec(
+			_, err = tx.Exec(
+				insertWithdrawalStatement,
 				NewGUID(),
 				withdrawal.FromAddress.String(),
 				withdrawal.ToAddress.String(),
@@ -330,13 +277,9 @@ func (d *Database) AddStateBatch(batches []StateBatch) error {
 	`
 
 	return txn(d.db, func(tx *sql.Tx) error {
-		stateBatchStmt, err := tx.Prepare(insertStateBatchStatement)
-		if err != nil {
-			return err
-		}
-
 		for _, sb := range batches {
-			_, err = stateBatchStmt.Exec(
+			_, err := tx.Exec(
+				insertStateBatchStatement,
 				sb.Index.Uint64(),
 				sb.Root.String(),
 				sb.Size.Uint64(),
@@ -371,15 +314,11 @@ func (d *Database) GetDepositsByAddress(address common.Address, page PaginationP
 	var deposits []DepositJSON
 
 	err := txn(d.db, func(tx *sql.Tx) error {
-		queryStmt, err := tx.Prepare(selectDepositsStatement)
+		rows, err := tx.Query(selectDepositsStatement, address.String(), page.Limit, page.Offset)
 		if err != nil {
 			return err
 		}
-
-		rows, err := queryStmt.Query(address.String(), page.Limit, page.Offset)
-		if err != nil {
-			return err
-		}
+		defer rows.Close()
 
 		for rows.Next() {
 			var deposit DepositJSON
@@ -397,9 +336,8 @@ func (d *Database) GetDepositsByAddress(address common.Address, page PaginationP
 			deposits = append(deposits, deposit)
 		}
 
-		return nil
+		return rows.Err()
 	})
-
 	if err != nil {
 		return nil, err
 	}
@@ -414,21 +352,17 @@ func (d *Database) GetDepositsByAddress(address common.Address, page PaginationP
 	`
 
 	var count uint64
-
 	err = txn(d.db, func(tx *sql.Tx) error {
-		queryStmt, err := tx.Prepare(selectDepositCountStatement)
+		row := tx.QueryRow(selectDepositCountStatement, address.String())
 		if err != nil {
 			return err
 		}
 
-		row := queryStmt.QueryRow(address.String())
-		if err != nil {
-			return err
-		}
-
-		row.Scan(&count)
-		return nil
+		return row.Scan(&count)
 	})
+	if err != nil {
+		return nil, err
+	}
 
 	page.Total = count
 
@@ -458,12 +392,7 @@ func (d *Database) GetWithdrawalBatch(hash l2common.Hash) (*StateBatchJSON, erro
 
 	var batch *StateBatchJSON
 	err := txn(d.db, func(tx *sql.Tx) error {
-		queryStmt, err := tx.Prepare(selectWithdrawalBatchStatement)
-		if err != nil {
-			return err
-		}
-
-		row := queryStmt.QueryRow(hash.String())
+		row := tx.QueryRow(selectWithdrawalBatchStatement, hash.String())
 		if row.Err() != nil {
 			return row.Err()
 		}
@@ -471,7 +400,7 @@ func (d *Database) GetWithdrawalBatch(hash l2common.Hash) (*StateBatchJSON, erro
 		var index, size, prevTotal, blockNumber, blockTimestamp uint64
 		var root, blockHash string
 		var extraData []byte
-		err = row.Scan(&index, &root, &size, &prevTotal, &extraData, &blockHash,
+		err := row.Scan(&index, &root, &size, &prevTotal, &extraData, &blockHash,
 			&blockNumber, &blockTimestamp)
 		if err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
@@ -519,15 +448,11 @@ func (d *Database) GetWithdrawalsByAddress(address l2common.Address, page Pagina
 	var withdrawals []WithdrawalJSON
 
 	err := txn(d.db, func(tx *sql.Tx) error {
-		queryStmt, err := tx.Prepare(selectWithdrawalsStatement)
+		rows, err := tx.Query(selectWithdrawalsStatement, address.String(), page.Limit, page.Offset)
 		if err != nil {
 			return err
 		}
-
-		rows, err := queryStmt.Query(address.String(), page.Limit, page.Offset)
-		if err != nil {
-			return err
-		}
+		defer rows.Close()
 
 		for rows.Next() {
 			var withdrawal WithdrawalJSON
@@ -545,7 +470,7 @@ func (d *Database) GetWithdrawalsByAddress(address l2common.Address, page Pagina
 			withdrawals = append(withdrawals, withdrawal)
 		}
 
-		return nil
+		return rows.Err()
 	})
 
 	if err != nil {
@@ -567,21 +492,17 @@ func (d *Database) GetWithdrawalsByAddress(address l2common.Address, page Pagina
 	`
 
 	var count uint64
-
 	err = txn(d.db, func(tx *sql.Tx) error {
-		queryStmt, err := tx.Prepare(selectWithdrawalCountStatement)
+		row := tx.QueryRow(selectWithdrawalCountStatement, address.String())
 		if err != nil {
 			return err
 		}
 
-		row := queryStmt.QueryRow(address.String())
-		if err != nil {
-			return err
-		}
-
-		row.Scan(&count)
-		return nil
+		return row.Scan(&count)
 	})
+	if err != nil {
+		return nil, err
+	}
 
 	page.Total = count
 
@@ -599,19 +520,14 @@ func (d *Database) GetHighestL1Block() (*L1BlockLocator, error) {
 
 	var highestBlock *L1BlockLocator
 	err := txn(d.db, func(tx *sql.Tx) error {
-		queryStmt, err := tx.Prepare(selectHighestBlockStatement)
-		if err != nil {
-			return err
-		}
-
-		row := queryStmt.QueryRow()
+		row := tx.QueryRow(selectHighestBlockStatement)
 		if row.Err() != nil {
 			return row.Err()
 		}
 
 		var number uint64
 		var hash string
-		err = row.Scan(&number, &hash)
+		err := row.Scan(&number, &hash)
 		if err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
 				highestBlock = nil
@@ -642,19 +558,14 @@ func (d *Database) GetHighestL2Block() (*L2BlockLocator, error) {
 
 	var highestBlock *L2BlockLocator
 	err := txn(d.db, func(tx *sql.Tx) error {
-		queryStmt, err := tx.Prepare(selectHighestBlockStatement)
-		if err != nil {
-			return err
-		}
-
-		row := queryStmt.QueryRow()
+		row := tx.QueryRow(selectHighestBlockStatement)
 		if row.Err() != nil {
 			return row.Err()
 		}
 
 		var number uint64
 		var hash string
-		err = row.Scan(&number, &hash)
+		err := row.Scan(&number, &hash)
 		if err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
 				highestBlock = nil
@@ -688,25 +599,20 @@ func (d *Database) GetIndexedL1BlockByHash(hash common.Hash) (*IndexedL1Block, e
 
 	var block *IndexedL1Block
 	err := txn(d.db, func(tx *sql.Tx) error {
-		queryStmt, err := tx.Prepare(selectBlockByHashStatement)
-		if err != nil {
-			return err
-		}
-
-		row := queryStmt.QueryRow(hash.String())
-		if errors.Is(row.Err(), sql.ErrNoRows) {
-			return nil
-		}
+		row := tx.QueryRow(selectBlockByHashStatement, hash.String())
 		if row.Err() != nil {
-			return err
+			return row.Err()
 		}
 
 		var hash string
 		var parentHash string
 		var number uint64
 		var timestamp uint64
-		err = row.Scan(&hash, &parentHash, &number, &timestamp)
+		err := row.Scan(&hash, &parentHash, &number, &timestamp)
 		if err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				return nil
+			}
 			return err
 		}
 

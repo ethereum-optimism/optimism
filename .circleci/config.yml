@@ -7,32 +7,13 @@ slack-nightly-build-fail-post-step: &slack-nightly-build-fail-post-step
     - slack/notify:
         channel: $SLACK_DEFAULT_CHANNEL
         event: fail
-        custom: |
-          {
-            "text": "",
-            "blocks": [
-              {
-                "type": "section",
-                "text": {
-                  "type": "mrkdwn",
-                  "text": "🔴 Nightly build failed!"
-                }
-              },
-              {
-                "type": "actions",
-                "elements": [
-                  {
-                    "type": "button",
-                    "text": {
-                      "type": "plain_text",
-                      "text": "View Job"
-                    },
-                    "url": "${CIRCLE_BUILD_URL}"
-                  }
-                ]
-              }
-            ]
-          }
+        template: basic_fail-1
+
+executors:
+  go-builder:
+    docker:
+      - image: ethereumoptimism/go-builder:latest
+
 commands:
   build-dockerfile:
     parameters:
@@ -56,6 +37,27 @@ commands:
             echo -n "$STACKMAN_REPO_AUTH" | docker login -u _json_key --password-stdin https://us-east4-docker.pkg.dev
             docker build -t "$STACKMAN_REPO/<<parameters.image-name>>:nightly" -f <<parameters.dockerfile>> <<#parameters.target>>--target <<parameters.target>><</parameters.target>> .
             docker push "$STACKMAN_REPO/<<parameters.image-name>>:nightly"
+
+  go-lint-test:
+    parameters:
+      working_directory:
+        description: Working directory
+        type: string
+    steps:
+      - checkout
+      - run:
+          name: Lint
+          command: golangci-lint run -E goimports -E sqlclosecheck -E bodyclose -E asciicheck ./...
+          working_directory: <<parameters.working_directory>>
+      - run:
+          name: Test
+          command: |
+            mkdir -p /test-results
+            gotestsum --junitfile /test-results/tests.xml
+          working_directory: <<parameters.working_directory>>
+      - store_test_results:
+          path: /test-results
+
 jobs:
   build-dtl:
     docker:
@@ -154,6 +156,7 @@ jobs:
               --env L2_GAS_PRICE=onchain \
               --env RUN_DEBUG_TRACE_TESTS=false \
               --env RUN_REPLICA_TESTS=false \
+              --env RUN_HEALTHCHECK_TESTS=false \
               --env RUN_STRESS_TESTS=false \
               --env OVMCONTEXT_SPEC_NUM_TXS=1 \
               --env DTL_ENQUEUE_CONFIRMATIONS=12 \
@@ -168,8 +171,294 @@ jobs:
           command: |
             echo "Dummy job."
 
+  go-lint-test:
+    parameters:
+      working_directory:
+        description: Working directory
+        type: string
+    docker:
+      - image: ethereumoptimism/go-builder:latest
+      - image: cimg/postgres:14.1
+    steps:
+      - go-lint-test:
+          working_directory: <<parameters.working_directory>>
+
+  go-lint-test-build:
+    parameters:
+      binary_name:
+        description: Binary name to build
+        type: string
+      working_directory:
+        description: Working directory
+        type: string
+    docker:
+      - image: ethereumoptimism/go-builder:latest
+      - image: cimg/postgres:14.1
+    steps:
+      - go-lint-test:
+          working_directory: <<parameters.working_directory>>
+      - run:
+          name: Build
+          command: make <<parameters.binary_name>>
+          working_directory: <<parameters.working_directory>>
+
+  yarn-monorepo:
+    docker:
+      - image: ethereumoptimism/js-builder:latest
+    steps:
+      - restore_cache:
+          keys:
+            - v1-source-{{ .Branch }}-{{ .Revision }}
+            - v1-source-{{ .Branch }}
+      - checkout
+      - save_cache:
+          key: v1-source-{{ .Branch }}-{{ .Revision }}
+          paths:
+            - ".git"
+      - restore_cache:
+          keys:
+            - v1-yarn-install-{{ checksum "yarn.lock" }}
+            - v1-yarn-install
+      - run:
+          name: Install dependencies
+          command: yarn --frozen-lockfile
+      - save_cache:
+          key: v1-yarn-install-{{ checksum "yarn.lock" }}
+          paths: 
+            - node_modules
+            - packages/common-ts/node_modules
+            - packages/contracts/node_modules
+            - packages/core-utils/node_modules
+            - packages/data-transport-layer/node_modules
+            - packages/message-relayer/node_modules
+            - packages/replica-healthcheck/node_modules
+            - packages/sdk/node_modules
+            - integration-tests/node_modules
+      - run:
+          name: Build monorepo
+          command: yarn build
+      - save_cache:
+          key: v1-yarn-build-{{ .Revision }}
+          paths:
+            - "."
+
+  contracts-slither:
+    docker:
+      - image: ethereumoptimism/js-builder:latest
+    steps:
+      - restore_cache:
+          keys:
+            - v1-yarn-build-{{ .Revision }}
+      - checkout
+      - run:
+          name: Run Slither
+          command: yarn test:slither
+          working_directory: packages/contracts
+
+  contracts-tests:
+    docker:
+      - image: ethereumoptimism/js-builder:latest
+    resource_class: xlarge
+    steps:
+      - restore_cache:
+          keys:
+            - v1-yarn-build-{{ .Revision }}
+      - checkout
+      - run:
+          name: Lint
+          command: yarn lint:check
+          working_directory: packages/contracts
+      - run:
+          name: Slither
+          command: yarn test:slither
+          working_directory: packages/contracts
+      - run:
+          name: Test
+          command: yarn test:coverage
+          working_directory: packages/contracts
+
+  dtl-tests:
+    docker:
+      - image: ethereumoptimism/js-builder:latest
+    steps:
+      - restore_cache:
+          keys:
+            - v1-yarn-build-{{ .Revision }}
+      - checkout
+      - run:
+          name: Test
+          command: yarn test:coverage
+          working_directory: packages/data-transport-layer
+
+  geth-tests:
+    docker:
+      - image: ethereumoptimism/go-builder:latest
+    steps:
+      - checkout
+      - run:
+          name: Test
+          command: make test
+          working_directory: l2geth
+
+  depcheck:
+    docker:
+      - image: ethereumoptimism/js-builder:latest
+    steps:
+      - restore_cache:
+          keys:
+            - v1-yarn-build-{{ .Revision }}
+      - checkout
+      # Note: The below needs to be manually configured whenever we
+      # add a new package to CI.
+      - run:
+          name: Check contracts
+          command: npx depcheck
+          working_directory: packages/contracts
+      - run:
+          name: Check core-utils
+          command: npx depcheck
+          working_directory: packages/core-utils
+      - run:
+          name: Check data-transport-layer
+          command: npx depcheck
+          working_directory: packages/data-transport-layer
+      - run:
+          name: Check sdk
+          command: npx depcheck
+          working_directory: packages/sdk
+      - run:
+          name: Check integration-tests
+          command: npx depcheck
+          working_directory: integration-tests
+
+  bss-core-tests:
+    docker:
+      - image: ethereumoptimism/go-builder:latest
+    steps:
+      - checkout
+      - run:
+          name: Lint
+          command: golangci-lint run -E goimports -E sqlclosecheck -E bodyclose -E asciicheck ./...
+          working_directory: go/bss-core
+      - run:
+          name: Test
+          command: |
+            mkdir -p /test-results
+            gotestsum --junitfile /test-results/tests.xml
+          working_directory: go/bss-core
+      - store_test_results:
+          path: /test-results
+
+  integration-tests:
+    machine:
+      image: ubuntu-2004:202111-02
+      docker_layer_caching: true
+    environment:
+      DOCKER_BUILDKIT: 1
+    parallelism: 3
+    steps:
+      - checkout
+      - run:
+          name: Bring up the stack
+          command: |
+            docker-compose build --progress=plain
+            docker-compose up -d --scale replica-healthcheck=1
+          working_directory: ops
+      - run:
+          name: Wait for sequencer
+          command: bash scripts/wait-for-sequencer.sh
+          working_directory: ops
+      - run:
+          name: Run integration tests
+          command: |
+            circleci tests glob "../integration-tests/test/*.spec.ts" | circleci tests split | tee splits.txt
+            docker-compose run integration_tests $(cat splits.txt)
+          working_directory: ops
+
+  js-lint-test:
+    parameters:
+      package_name:
+        description: Package name
+        type: string
+    docker:
+      - image: ethereumoptimism/js-builder:latest
+    steps:
+      - restore_cache:
+          keys:
+            - v1-yarn-build-{{ .Revision }}
+      - checkout
+      - run:
+          name: Lint
+          command: yarn lint:check
+          working_directory: packages/<<parameters.package_name>>
+      - run:
+          name: Test
+          command: yarn test:coverage
+          working_directory: packages/<<parameters.package_name>>
+
 
 workflows:
+  main:
+    jobs:
+      - yarn-monorepo
+      - go-lint-test-build:
+          name: batch-submitter-tests
+          binary_name: batch-submitter
+          working_directory: go/batch-submitter
+      - go-lint-test-build:
+          name: proxyd-tests
+          binary_name: proxyd
+          working_directory: go/proxyd
+      - go-lint-test-build:
+          name: teleportr-tests
+          binary_name: teleportr
+          working_directory: go/teleportr
+      - go-lint-test-build:
+          name: gas-oracle-tests
+          binary_name: gas-oracle
+          working_directory: go/gas-oracle
+      - go-lint-test-build:
+          name: indexer-tests
+          binary_name: indexer
+          working_directory: go/indexer
+      - go-lint-test:
+          name: bss-core-tests
+          working_directory: go/bss-core
+      - contracts-tests:
+          requires:
+            - yarn-monorepo
+      - js-lint-test:
+          name: dtl-tests
+          package_name: data-transport-layer
+          requires:
+            - yarn-monorepo
+      - js-lint-test:
+          name: core-utils-tests
+          package_name: core-utils
+          requires:
+            - yarn-monorepo
+      - js-lint-test:
+          name: sdk-tests
+          package_name: sdk
+          requires:
+            - yarn-monorepo
+      - js-lint-test:
+          name: message-relayer-tests
+          package_name: message-relayer
+          requires:
+            - yarn-monorepo
+      - js-lint-test:
+          name: replica-healthcheck-tests
+          package_name: replica-healthcheck
+          requires:
+            - yarn-monorepo
+      - depcheck:
+          requires:
+            - yarn-monorepo
+      - geth-tests
+      - integration-tests
+
+
   nightly-itests:
     triggers:
       - schedule:
@@ -252,7 +541,7 @@ workflows:
                 - develop
     jobs:
       - build-dtl:
-          context: 
+          context:
             - optimism
             - slack
           <<: *slack-nightly-build-fail-post-step
