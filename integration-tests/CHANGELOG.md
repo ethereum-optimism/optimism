@@ -1,5 +1,11 @@
 # @eth-optimism/integration-tests
 
+## 0.5.8
+
+### Patch Changes
+
+- 88807f03: Add integration test for healthcheck server
+
 ## 0.5.7
 
 ### Patch Changes

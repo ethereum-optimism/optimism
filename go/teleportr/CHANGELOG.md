@@ -1,6 +1,13 @@
 # @eth-optimism/teleportr
 
+## 0.0.2
+
+### Patch Changes
+
+- f101d38b: Add metrics for balances
+
 ## 0.0.1
+
 ### Patch Changes
 
 - 172c3d74: Add SuggestGasTipCap fallback
