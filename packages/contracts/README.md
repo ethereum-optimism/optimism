@@ -22,7 +22,6 @@ yarn build
 
 ## Running Tests
 
-
 The full test suite can be executed via `yarn`:
 
 ```shell

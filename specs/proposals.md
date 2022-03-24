@@ -7,14 +7,14 @@
 <!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
 **Table of Contents**
 
-- [Definitions](#definitions)
-  - [Constants](#constants)
-  - [Types](#types)
 - [Proposing L2 Output Commitments](#proposing-l2-output-commitments)
 - [L2 Output Commitment Construction](#l2-output-commitment-construction)
 - [L2 Output Oracle Smart Contract](#l2-output-oracle-smart-contract)
 - [Security Considerations](#security-considerations)
   - [L1 Reorgs](#l1-reorgs)
+- [Summary of Definitions](#summary-of-definitions)
+  - [Constants](#constants)
+  - [Types](#types)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
@@ -29,26 +29,6 @@ the fault proof game specification and integration of a output-root challenger i
 are part of later specification milestones.
 
 [cannon]: https://github.com/ethereum-optimism/cannon
-
-## Definitions
-
-### Constants
-
-| Name                   | Value | Unit    |
-| ---------------------- | ----- | ------- |
-| `SUBMISSION_INTERVAL` | `1800` | seconds |
-| `L2_BLOCK_TIME`        | `2`   | seconds |
-
-### Types
-
-The `ForkSpec` type contains the height and blockhash for a block in the L1 chain.
-
-```js
-struct ForkSpec {
-    uint256 blockHeight;
-    bytes32 blockHash;
-}
-```
 
 ## Proposing L2 Output Commitments
 
@@ -152,3 +132,23 @@ function computeL2BlockNumber(uint256 _timestamp) public view returns (uint256)
 If the L1 has a reorg after an output has been generated and submitted, the L2 state and correct output may change
 leading to a faulty proposal. This is mitigated against in the OutputOracle by checking that the block at
 `_forkSpecifier.blockHeight` has the expected hash `_forkSpecifier.blockHash`.
+
+## Summary of Definitions
+
+### Constants
+
+| Name                   | Value | Unit    |
+| ---------------------- | ----- | ------- |
+| `SUBMISSION_INTERVAL` | `1800` | seconds |
+| `L2_BLOCK_TIME`        | `2`   | seconds |
+
+### Types
+
+The `ForkSpec` type contains the height and blockhash for a block in the L1 chain.
+
+```js
+struct ForkSpec {
+    uint256 blockHeight;
+    bytes32 blockHash;
+}
+```
