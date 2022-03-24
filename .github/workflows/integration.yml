@@ -50,7 +50,7 @@ jobs:
         working-directory: ./ops
         run: |
           ./scripts/stats.sh &
-          docker-compose -f docker-compose.yml up -d --scale replica-healthcheck=1
+          docker-compose -f docker-compose.yml up -d --scale replica_healthcheck=1
 
       - name: Wait for the Sequencer node
         working-directory: ./ops
