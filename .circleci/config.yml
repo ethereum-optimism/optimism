@@ -224,7 +224,7 @@ jobs:
           command: yarn --frozen-lockfile
       - save_cache:
           key: v1-yarn-install-{{ checksum "yarn.lock" }}
-          paths: 
+          paths:
             - node_modules
             - packages/common-ts/node_modules
             - packages/contracts/node_modules
@@ -362,7 +362,7 @@ jobs:
           name: Bring up the stack
           command: |
             docker-compose build --progress=plain
-            docker-compose up -d --scale replica-healthcheck=1
+            docker-compose up -d --scale replica_healthcheck=1
           working_directory: ops
       - run:
           name: Wait for sequencer
