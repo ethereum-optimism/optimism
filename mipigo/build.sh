@@ -1,4 +1,6 @@
-#!/bin/bash -e
+#!/usr/bin/env bash
+set -e
+
 cd ../minigeth
 export GOOS=linux
 export GOARCH=mips

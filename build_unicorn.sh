@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 if [[ ! -d unicorn2 ]]; then
     git clone https://github.com/geohot/unicorn.git -b dev unicorn2
     #git clone https://github.com/unicorn-engine/unicorn.git -b dev unicorn2

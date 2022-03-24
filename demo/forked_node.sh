@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # This runs a hardhat node forked from mainnet at the specified block.
 # You need to run this in a separate terminal (or in the background)

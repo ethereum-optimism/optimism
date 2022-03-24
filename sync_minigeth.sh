@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 FILES=$(grep -v "#" files_minigeth)
 MINIGETH=$PWD/minigeth
 git clone https://github.com/ethereum/go-ethereum.git

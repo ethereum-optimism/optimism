@@ -1,4 +1,6 @@
-#!/bin/bash -e
+#!/usr/bin/env bash
+set -e
+
 (cd minigeth/ && go build)
 mkdir -p /tmp/cannon
 
