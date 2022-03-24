@@ -9,8 +9,6 @@ import { Ownable } from "../../lib/openzeppelin-contracts/contracts/access/Ownab
 // The payable keyword is used on appendL2Output to save gas on the msg.value check.
 // slither-disable-next-line locked-ether
 contract L2OutputOracle is Ownable {
-    event l2OutputAppended(bytes32 indexed _l2Output, uint256 indexed _l2timestamp);
-
     // The interval in seconds at which checkpoints must be submitted.
     uint256 public immutable submissionInterval;
 
@@ -28,6 +26,9 @@ contract L2OutputOracle is Ownable {
 
     // A mapping from L2 timestamps to the output root for the block with that timestamp
     mapping(uint256 => bytes32) public l2Outputs;
+
+    // Emitted when an output is appended
+    event l2OutputAppended(bytes32 indexed _l2Output, uint256 indexed _l2timestamp);
 
     /**
      * Initialize the L2OutputOracle contract.
@@ -78,7 +79,7 @@ contract L2OutputOracle is Ownable {
             // This check allows the sequencer to append an output based on a given L1 block,
             // without fear that it will be reorged out.
             // It will also revert if the blockheight provided is more than 256 blocks behind the
-            // chain tip (as the hash will return as zero). This does open the door to a grieffing
+            // chain tip (as the hash will return as zero). This does open the door to a griefing
             // attack in which the sequencer's submission is censored until the block is no longer
             // retrievable, if the sequencer is experiencing this attack it can simply leave out the
             // blockhash value, and delay submission until it is confident that the L1 block is
