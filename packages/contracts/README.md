@@ -22,7 +22,11 @@ yarn build
 
 ## Running Tests
 
-The full test suite can be executed via `yarn`:
+First get the dependencies:
+
+`git submodule init` and `git submodule update`
+
+Then the full test suite can be executed via `yarn`:
 
 ```shell
 yarn test
