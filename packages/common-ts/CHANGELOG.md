@@ -1,5 +1,11 @@
 # @eth-optimism/common-ts
 
+## 0.2.4
+
+### Patch Changes
+
+- f981b8da: Properly exposes metrics as part of a metrics server at port 7300
+
 ## 0.2.3
 
 ### Patch Changes

@@ -1,5 +1,14 @@
 # @eth-optimism/replica-healthcheck
 
+## 1.0.2
+
+### Patch Changes
+
+- f981b8da: Fixes a bug in the replica-healthcheck docker file
+- 032731b5: Add checks and metrics for dead networks
+- Updated dependencies [f981b8da]
+  - @eth-optimism/common-ts@0.2.4
+
 ## 1.0.1
 
 ### Patch Changes

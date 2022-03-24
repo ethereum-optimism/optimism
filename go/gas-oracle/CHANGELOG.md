@@ -1,5 +1,11 @@
 # @eth-optimism/gas-oracle
 
+## 0.1.9
+
+### Patch Changes
+
+- c535b3a5: Allow configurable base fee update poll time with `GAS_PRICE_ORACLE_L1_BASE_FEE_EPOCH_LENGTH_SECONDS`
+
 ## 0.1.8
 
 ### Patch Changes
