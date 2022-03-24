@@ -224,11 +224,11 @@ services:
       context: ..
       dockerfile: ./ops/docker/Dockerfile.gas-oracle
     image: ethereumoptimism/gas-oracle:${DOCKER_TAG_GAS_ORACLE:-latest}
-    entrypoint: ./gas-oracle.sh
     environment:
-      GAS_PRICE_ORACLE_ETHEREUM_HTTP_URL: http://l2geth:8545
+      GAS_PRICE_ORACLE_ETHEREUM_HTTP_URL: http://l1_chain:8545
+      GAS_PRICE_ORACLE_LAYER_TWO_HTTP_URL: http://l2geth:8545
       # Default hardhat account 5
-      GAS_PRICE_ORACLE_PRIVATE_KEY: '0x8b3a350cf5c34c9194ca85829a2df0ec3153be0318b5e2d3348e872092edffba'
+      GAS_PRICE_ORACLE_PRIVATE_KEY: "0x8b3a350cf5c34c9194ca85829a2df0ec3153be0318b5e2d3348e872092edffba"
 
   batch_submitter:
     depends_on:
