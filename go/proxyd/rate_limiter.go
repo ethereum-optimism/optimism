@@ -5,10 +5,11 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
-	"github.com/ethereum/go-ethereum/log"
-	"github.com/go-redis/redis/v8"
 	"sync"
 	"time"
+
+	"github.com/ethereum/go-ethereum/log"
+	"github.com/go-redis/redis/v8"
 )
 
 const MaxRPSScript = `

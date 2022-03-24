@@ -35,8 +35,8 @@ func main() {
 	app.Description = "Teleportr bridge from L1 to L2"
 	app.Commands = []cli.Command{
 		{
-			Name: "migrate",
-			Usage: "Migrates teleportr's database",
+			Name:   "migrate",
+			Usage:  "Migrates teleportr's database",
 			Action: teleportr.Migrate(),
 		},
 	}

@@ -2,8 +2,9 @@ package proxyd
 
 import (
 	"encoding/json"
-	"github.com/stretchr/testify/require"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestRPCResJSON(t *testing.T) {

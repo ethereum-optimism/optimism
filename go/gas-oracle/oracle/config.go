@@ -28,6 +28,7 @@ type Config struct {
 	maxPercentChangePerEpoch     float64
 	averageBlockGasLimitPerEpoch uint64
 	epochLengthSeconds           uint64
+	l1BaseFeeEpochLengthSeconds  uint64
 	l2GasPriceSignificanceFactor float64
 	l1BaseFeeSignificanceFactor  float64
 	enableL1BaseFee              bool
@@ -54,6 +55,7 @@ func NewConfig(ctx *cli.Context) *Config {
 	cfg.maxPercentChangePerEpoch = ctx.GlobalFloat64(flags.MaxPercentChangePerEpochFlag.Name)
 	cfg.averageBlockGasLimitPerEpoch = ctx.GlobalUint64(flags.AverageBlockGasLimitPerEpochFlag.Name)
 	cfg.epochLengthSeconds = ctx.GlobalUint64(flags.EpochLengthSecondsFlag.Name)
+	cfg.l1BaseFeeEpochLengthSeconds = ctx.GlobalUint64(flags.L1BaseFeeEpochLengthSecondsFlag.Name)
 	cfg.l2GasPriceSignificanceFactor = ctx.GlobalFloat64(flags.L2GasPriceSignificanceFactorFlag.Name)
 	cfg.floorPrice = ctx.GlobalUint64(flags.FloorPriceFlag.Name)
 	cfg.l1BaseFeeSignificanceFactor = ctx.GlobalFloat64(flags.L1BaseFeeSignificanceFactorFlag.Name)
