@@ -25,7 +25,7 @@ contract L2OutputOracle is Ownable {
     uint256 public latestBlockTimestamp;
 
     // A mapping from L2 timestamps to the output root for the block with that timestamp
-    mapping(uint256 => bytes32) public l2Outputs;
+    mapping(uint256 => bytes32) internal l2Outputs;
 
     // Emitted when an output is appended
     event l2OutputAppended(bytes32 indexed _l2Output, uint256 indexed _l2timestamp);
@@ -102,6 +102,14 @@ contract L2OutputOracle is Ownable {
      */
     function nextTimestamp() public view returns (uint256) {
         return latestBlockTimestamp + submissionInterval;
+    }
+
+    /**
+     * Returns the L2 output root given a target L2 block timestamp. Returns 0 if none is found.
+     * @param _l2Timestamp The L2 block timestamp of the target block.
+     */
+    function getL2Output(uint256 _l2Timestamp) external view returns (bytes32) {
+        return l2Outputs[_l2Timestamp];
     }
 
     /**

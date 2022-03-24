@@ -51,7 +51,7 @@ contract L2OutputOracleTest_Constructor is L2OutputOracle_Initializer {
         assertEq(oracle.historicalTotalBlocks(), historicalTotalBlocks);
         assertEq(oracle.latestBlockTimestamp(), startingBlockTimestamp);
         assertEq(oracle.startingBlockTimestamp(), startingBlockTimestamp);
-        assertEq(oracle.l2Outputs(startingBlockTimestamp), genesisL2Output);
+        assertEq(oracle.getL2Output(startingBlockTimestamp), genesisL2Output);
     }
 }
 
@@ -76,9 +76,11 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
         assertEq(oracle.latestBlockTimestamp(), appendedTimestamp);
     }
 
-    // Test: getL2Outputs() should return the correct value
-    function test_getL2Outputs() external {
-        assertEq(oracle.l2Outputs(appendedTimestamp), appendedOutput1);
+    // Test: getL2Output() should return the correct value
+    function test_getL2Output() external {
+        assertEq(oracle.getL2Output(appendedTimestamp), appendedOutput1);
+        assertEq(oracle.getL2Output(appendedTimestamp + 1), 0);
+
     }
 
     // Test: nextTimestamp() should return the correct value
