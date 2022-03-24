@@ -53,7 +53,7 @@ struct ForkSpec {
 ## Proposing L2 Output Commitments
 
 The proposer's role is to construct and submit output commitments on a configurable interval to a contract on , which
-it does by running the [L2 output submitter](../l2os/) (AKA L2OS). This service periodically queries the rollup
+it does by running the [L2 output submitter](../l2os/). This service periodically queries the rollup
  node's [`optimism_outputAtBlock` rpc method](./rollup-node.md#l2-output-rpc-method) for the latest output root derived
  from the latest [finalized](rollup-node.md#finalization-guarantees) L1 block. The construction of this output root is
  described [below](#l2-output-commitment-construction).

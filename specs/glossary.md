@@ -372,7 +372,7 @@ cf. [L1 Attributes Predeployed Contract Specification](deposits.md#l1-attributes
 
 [l2-output]: glossary.md#l2-output
 
-A 32 byte value representing the current state of the L2 chain.
+A 32 byte value which commits to the current state of the L2 chain.
 
 cf. [Proposing L2 output commitments](proposals.md#l2-output-root-proposals-specification)
 
