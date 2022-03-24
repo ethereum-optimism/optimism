@@ -10,6 +10,7 @@
   ],
   "scripts": {
     "start": "ts-node ./src/service",
+    "test:coverage": "echo 'No tests defined.'",
     "build": "tsc -p tsconfig.build.json",
     "clean": "rimraf ./dist ./tsconfig.build.tsbuildinfo",
     "lint": "yarn run lint:fix && yarn run lint:check",
