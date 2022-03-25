@@ -1,5 +1,13 @@
 #!/usr/bin/env bash
 
+# The following variables can be overridden as environment variables:
+# * BLOCK (block whose transition will be challenged)
+# * WRONG_BLOCK (block number used by challenger)
+# * SKIP_NODE (skip forking a node, useful if you've already forked a node)
+#
+# Example usage:
+# SKIP_NODE=1 BLOCK=13284469 WRONG_BLOCK=13284491 ./demo/challenge_simple.sh
+
 # --- DOC ----------------------------------------------------------------------
 
 # In this example, the challenger will challenge the transition from a block
@@ -52,18 +60,20 @@ trap "exit_trap" SIGINT SIGTERM EXIT
 
 # --- BOOT MAINNET FORK --------------------------------------------------------
 
-NODE_LOG="challenge_simple_node.log"
+if [[ ! "$SKIP_NODE" ]]; then
+    NODE_LOG="challenge_simple_node.log"
 
-shout "BOOTING MAINNET FORK NODE IN BACKGROUND (LOG: $NODE_LOG)"
+    shout "BOOTING MAINNET FORK NODE IN BACKGROUND (LOG: $NODE_LOG)"
 
-# get directory containing this file
-SCRIPT_DIR=$(dirname "$(readlink -f "$0")")
+    # get directory containing this file
+    SCRIPT_DIR=$(dirname "$(readlink -f "$0")")
 
-# run a hardhat mainnet fork node
-"$SCRIPT_DIR/forked_node.sh" > "$NODE_LOG" 2>&1 &
+    # run a hardhat mainnet fork node
+    "$SCRIPT_DIR/forked_node.sh" > "$NODE_LOG" 2>&1 &
 
-# give the node some time to boot up
-sleep 10
+    # give the node some time to boot up
+    sleep 10
+fi
 
 # --- CHALLENGE SETUP ----------------------------------------------------------
 
@@ -72,10 +82,11 @@ export ID=0
 
 # block whose transition will be challenged
 # this variable is read by challenge.js, respond.js and assert.js
-export BLOCK=13284469
+BLOCK=${BLOCK:-13284469}
+export BLOCK
 
 # block whose pre-state is used by the challenger instead of the challenged block's pre-state
-WRONG_BLOCK=13284491
+WRONG_BLOCK=${WRONG_BLOCK:-13284491}
 
 # clear data from previous runs
 mkdir -p /tmp/cannon /tmp/cannon_fault && rm -rf /tmp/cannon/* /tmp/cannon_fault/*
