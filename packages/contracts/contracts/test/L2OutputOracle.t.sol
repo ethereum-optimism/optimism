@@ -144,16 +144,16 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
         vm.roll(100);
 
         // Get the number and hash of a previous block in the chain
-        uint256 blockNumber = block.number - 1;
-        bytes32 blockHash = blockhash(blockNumber);
+        uint256 l1BlockNumber = block.number - 1;
+        bytes32 l1BlockHash = blockhash(l1BlockNumber);
 
         uint256 nextTimestamp = oracle.nextTimestamp();
         vm.warp(nextTimestamp + 1);
         vm.prank(sequencer);
 
-        // Changing the blockNumber argument should break this tests, however it does not
+        // Changing the l1BlockNumber argument should break this tests, however it does not
         // per the comment preceding this test.
-        oracle.appendL2Output(nonZeroHash, nextTimestamp, blockHash, blockNumber);
+        oracle.appendL2Output(nonZeroHash, nextTimestamp, l1BlockHash, l1BlockNumber);
     }
 
     /***************************
@@ -215,14 +215,14 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
         vm.roll(100);
 
         // Get the number and hash of a previous block in the chain
-        uint256 blockNumber = block.number - 1;
-        bytes32 blockHash = blockhash(blockNumber);
+        uint256 l1BlockNumber = block.number - 1;
+        bytes32 l1BlockHash = blockhash(l1BlockNumber);
 
         uint256 nextTimestamp = oracle.nextTimestamp();
         vm.warp(nextTimestamp + 1);
         vm.prank(sequencer);
 
         // This will fail when foundry no longer returns zerod block hashes
-        oracle.appendL2Output(nonZeroHash, nextTimestamp, blockHash, blockNumber - 1);
+        oracle.appendL2Output(nonZeroHash, nextTimestamp, l1BlockHash, l1BlockNumber - 1);
     }
 }

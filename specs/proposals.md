@@ -101,14 +101,14 @@ The L2 Output Oracle contract implements the following interface:
  * This function may only be called by the Sequencer.
  * @param _l2Output The L2 output of the checkpoint block.
  * @param _l2timestamp The L2 block timestamp that resulted in _l2Output.
- * @param _blockhash A block hash which must be included in the current chain.
- * @param _blocknumber The block number with the specified block hash.
+ * @param _l1Blockhash A block hash which must be included in the current chain.
+ * @param _l1Blocknumber The block number with the specified block hash.
  */
 function appendL2Output(
     bytes32 _l2Output,
     uint256 _l2timestamp,
-    bytes32 _blockhash,
-    uint256 _blocknumber
+    bytes32 _l1Blockhash,
+    uint256 _l1Blocknumber
 )
 
 

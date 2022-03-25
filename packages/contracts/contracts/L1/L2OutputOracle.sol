@@ -63,20 +63,20 @@ contract L2OutputOracle is Ownable {
      * This function may only be called by the Sequencer.
      * @param _l2Output The L2 output of the checkpoint block.
      * @param _l2timestamp The L2 block timestamp that resulted in _l2Output.
-     * @param _blockhash A block hash which must be included in the current chain.
-     * @param _blocknumber The block number with the specified block hash.
+     * @param _l1Blockhash A block hash which must be included in the current chain.
+     * @param _l1Blocknumber The block number with the specified block hash.
      */
     function appendL2Output(
         bytes32 _l2Output,
         uint256 _l2timestamp,
-        bytes32 _blockhash,
-        uint256 _blocknumber
+        bytes32 _l1Blockhash,
+        uint256 _l1Blocknumber
     ) external payable onlyOwner {
         require(_l2timestamp < block.timestamp, "Cannot append L2 output in future");
         require(_l2timestamp == nextTimestamp(), "Timestamp not equal to next expected timestamp");
         require(_l2Output != bytes32(0), "Cannot submit empty L2 output");
 
-        if (_blockhash != bytes32(0)) {
+        if (_l1Blockhash != bytes32(0)) {
             // This check allows the sequencer to append an output based on a given L1 block,
             // without fear that it will be reorged out.
             // It will also revert if the blockheight provided is more than 256 blocks behind the
@@ -86,7 +86,7 @@ contract L2OutputOracle is Ownable {
             // blockhash value, and delay submission until it is confident that the L1 block is
             // finalized.
             require(
-                blockhash(_blocknumber) == _blockhash,
+                blockhash(_l1Blocknumber) == _l1Blockhash,
                 "Blockhash does not match the hash at the expected height."
             );
         }
