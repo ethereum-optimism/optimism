@@ -14,7 +14,6 @@
   - [L1 Reorgs](#l1-reorgs)
 - [Summary of Definitions](#summary-of-definitions)
   - [Constants](#constants)
-  - [Types](#types)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
@@ -41,6 +40,10 @@ it does by running the [L2 output submitter](../l2os/). This service periodicall
 If there is no newly finalized output, the service continues querying until it receives one. It then submits this
 output, and the appropriate timestamp, to the [L2 Output Commitment](#l2-output-commitment-smart-contract) contract's
 `appendL2Output()` function. The timestamp MUST be the next multiple of the `SUBMISSION_INTERVAL` value.
+
+> **Note regarding future work:** In the initial version of the system, the proposer will be the same entity as the
+> sequencer, which is a trusted role. In the future proposers will need to submit a bond in order to post L2 output
+> roots, and some or all of this bond may be taken in the event of a faulty proposal.
 
 ## L2 Output Commitment Construction
 
@@ -92,31 +95,27 @@ The L2 Output Oracle contract implements the following interface:
 
 ```js
 /**
- * Data necessary to ensure that the output is being written to the expected fork of the L1 chain.
- * This protects against an erroneous commitment in the event of an L1 reorg.
- */
-struct ForkSpec {
-    uint256 blockHeight;
-    bytes32 blockHash;
-}
-
-/**
  * Accepts an L2 output checkpoint and the timestamp of the corresponding L2
  * block. The timestamp must be equal to the current value returned by
  * `nextTimestamp()` in order to be accepted.
+ * This function may only be called by the Sequencer.
  * @param _l2Output The L2 output of the checkpoint block.
- * @param _timestamp The L2 block timestamp that resulted in _l2Output.
- * @param _forkSpecifier A commitment to a specific fork.
+ * @param _l2timestamp The L2 block timestamp that resulted in _l2Output.
+ * @param _blockhash A block hash which must be included in the current chain.
+ * @param _blocknumber The block number with the specified block hash.
  */
-function appendL2Output(bytes32 _l2Output, uint256 _timestamp, ForkSpec _forkSpecifier) external
+function appendL2Output(
+    bytes32 _l2Output,
+    uint256 _l2timestamp,
+    bytes32 _blockhash,
+    uint256 _blocknumber
+)
 
 
 /**
  * Computes the timestamp of the next L2 block that needs to be checkpointed.
  */
-function nextTimestamp() public view returns (uint256) {
-    return latestBlockTimestamp + submissionInterval;
-}
+function nextTimestamp() public view returns (uint256)
 
 /**
  * Computes the L2 block number given a target L2 block timestamp.
@@ -130,8 +129,9 @@ function computeL2BlockNumber(uint256 _timestamp) public view returns (uint256)
 ### L1 Reorgs
 
 If the L1 has a reorg after an output has been generated and submitted, the L2 state and correct output may change
-leading to a faulty proposal. This is mitigated against in the OutputOracle by checking that the block at
-`_forkSpecifier.blockHeight` has the expected hash `_forkSpecifier.blockHash`.
+leading to a faulty proposal. This is mitigated against by allowing the sequencer to submit an
+L1 block number and hash to the Output Oracle when appending a new output; in the event of a reorg, the block hash
+will not match that of the block with that number and the call will revert.
 
 ## Summary of Definitions
 
@@ -141,14 +141,3 @@ leading to a faulty proposal. This is mitigated against in the OutputOracle by c
 | ---------------------- | ----- | ------- |
 | `SUBMISSION_INTERVAL` | `1800` | seconds |
 | `L2_BLOCK_TIME`        | `2`   | seconds |
-
-### Types
-
-The `ForkSpec` type contains the height and blockhash for a block in the L1 chain.
-
-```js
-struct ForkSpec {
-    uint256 blockHeight;
-    bytes32 blockHash;
-}
-```

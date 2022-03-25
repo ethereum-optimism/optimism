@@ -60,6 +60,7 @@ contract L2OutputOracle is Ownable {
      * Accepts an L2 output checkpoint and the timestamp of the corresponding L2
      * block. The timestamp must be equal to the current value returned by
      * `nextTimestamp()` in order to be accepted.
+     * This function may only be called by the Sequencer.
      * @param _l2Output The L2 output of the checkpoint block.
      * @param _l2timestamp The L2 block timestamp that resulted in _l2Output.
      * @param _blockhash A block hash which must be included in the current chain.
