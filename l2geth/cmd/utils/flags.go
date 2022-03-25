@@ -862,6 +862,12 @@ var (
 		Usage:  "Allow txs with fees above the current fee up to this amount, must be > 1",
 		EnvVar: "ROLLUP_FEE_THRESHOLD_UP",
 	}
+	RollupGenesisTimeoutSecondsFlag = cli.DurationFlag{
+		Name:   "rollup.genesistimeoutseconds",
+		Usage:  "Timeout for the genesis file to be fetched",
+		Value:  time.Second * 60,
+		EnvVar: "ROLLUP_GENESIS_TIMEOUT_SECONDS",
+	}
 	SequencerClientHttpFlag = cli.StringFlag{
 		Name:   "sequencer.clienthttp",
 		Usage:  "HTTP endpoint for the sequencer client",
