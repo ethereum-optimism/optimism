@@ -1,6 +1,9 @@
 name: Exteral Tests (Synthetix)
 
-on: workflow_dispatch
+on:
+  schedule:
+    # run these tests once per day
+    - cron: '0 0 * * *'
 
 jobs:
   integration:
