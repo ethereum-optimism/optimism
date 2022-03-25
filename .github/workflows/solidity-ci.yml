@@ -17,9 +17,9 @@ defaults:
       working-directory: ./packages/contracts
 
 jobs:
-  solidity-ci:
+  yarn-test:
     runs-on: ubuntu-latest
-    name: Solidity Checks
+    name: Yarn Test
     steps:
       - uses: actions/checkout@v2
         with:
@@ -31,6 +31,22 @@ jobs:
             cache: 'yarn'
       - run: yarn install
 
+      - name: Build with HH
+        run: yarn build:hh
+
+      - name: Test
+        run: yarn test:hh
+
+      - name: Lint
+        run: yarn lint:check
+
+  forge-test:
+    runs-on: ubuntu-latest
+    name: Forge Test
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          submodules: recursive
 
       - name: Install Foundry
         uses: onbjerg/foundry-toolchain@v1
@@ -40,14 +56,22 @@ jobs:
       - name: Build with Forge
         run: yarn build:forge
 
-      - name: Build with HH
-        run: yarn build:hh
+      - name: Test with Forge
+        run: yarn test:forge
 
-      - name: Test
-        run: yarn test
+  slither:
+    runs-on: ubuntu-latest
+    name: Slither
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          submodules: recursive
 
-      - name: Lint
-        run: yarn lint:check
+      - uses: actions/setup-node@v2
+        with:
+            node-version: '14'
+            cache: 'yarn'
+      - run: yarn install
 
       - name: Set up Python 3.8
         uses: actions/setup-python@v2
@@ -59,3 +83,4 @@ jobs:
 
       - name: Run Slither
         run: yarn slither
+        continue-on-error: true
