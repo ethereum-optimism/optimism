@@ -20,6 +20,7 @@ import {
   SyncingResponse,
   TransactionBatchResponse,
   TransactionResponse,
+  TransactionEntry,
 } from '../../types'
 import { validators } from '../../utils'
 import { L1DataTransportServiceOptions } from '../main/service'
@@ -260,8 +261,8 @@ export class L1TransportServer extends BaseService<L1TransportServerOptions> {
       async (req): Promise<SyncingResponse> => {
         const backend = req.query.backend || this.options.defaultBackend
 
-        let currentL2Block
-        let highestL2BlockNumber
+        let currentL2Block: TransactionEntry
+        let highestL2BlockNumber: number
         switch (backend) {
           case 'l1':
             currentL2Block = await this.state.db.getLatestTransaction()
@@ -276,6 +277,10 @@ export class L1TransportServer extends BaseService<L1TransportServerOptions> {
           default:
             throw new Error(`Unknown transaction backend ${backend}`)
         }
+
+        // Prevent highestL2BlockNumber from being negative.
+        // highestL2BlockNumber isn't used anywhere, so it's safe to set this to 0.
+        highestL2BlockNumber = Math.max(highestL2BlockNumber, 0)
 
         if (currentL2Block === null) {
           if (highestL2BlockNumber === null) {
