@@ -218,6 +218,16 @@ export abstract class BaseServiceV2<
       return acc
     }, {}) as TOptions
 
+    // Make sure all options are defined.
+    for (const [optionName, optionSpec] of Object.entries(params.optionsSpec)) {
+      if (
+        optionSpec.default === undefined &&
+        this.options[optionName] === undefined
+      ) {
+        throw new Error(`missing required option: ${optionName}`)
+      }
+    }
+
     // Create the metrics objects.
     this.metrics = Object.keys(params.metricsSpec || {}).reduce((acc, key) => {
       const spec = params.metricsSpec[key]
