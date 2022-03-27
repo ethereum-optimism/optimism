@@ -10,6 +10,7 @@
     "modifier-name-mixedcase": "error",
     "ordering": "warn",
     "avoid-low-level-calls": "off",
+    "event-name-camelcase": "off",
     "reason-string": "off",
     "avoid-tx-origin": "off",
     "func-visibility": ["warn", { "ignoreConstructors": true }]
