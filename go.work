@@ -1,0 +1,14 @@
+go 1.18
+
+use (
+	./go/batch-submitter
+	./go/bss-core
+	./go/gas-oracle
+	./go/indexer
+	./go/l2geth-exporter
+	./go/op-exporter
+	./go/proxyd
+	./go/stackman
+	./go/teleportr
+	./l2geth
+)
