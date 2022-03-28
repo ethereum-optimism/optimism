@@ -31,6 +31,24 @@ var (
 		Required: true,
 		EnvVar:   prefixEnvVar("ROLLUP_CONFIG"),
 	}
+	L2EthNodeAddr = cli.StringFlag{
+		Name:     "l2.eth",
+		Usage:    "Address of L2 User JSON-RPC endpoint to use (eth namespace required)",
+		Required: true,
+		EnvVar:   prefixEnvVar("L2_ETH_RPC"),
+	}
+	RPCListenAddr = cli.StringFlag{
+		Name:     "rpc.addr",
+		Usage:    "RPC listening address",
+		Required: true,
+		EnvVar:   prefixEnvVar("RPC_ADDR"),
+	}
+	RPCListenPort = cli.IntFlag{
+		Name:     "rpc.port",
+		Usage:    "RPC listening port",
+		Required: true,
+		EnvVar:   prefixEnvVar("RPC_PORT"),
+	}
 
 	/* Optional Flags */
 
@@ -45,6 +63,12 @@ var (
 		Name:   "batchsubmitter.key",
 		Usage:  "key for batch submitting",
 		EnvVar: prefixEnvVar("BATCHSUBMITTER_KEY"),
+	}
+
+	WithdrawalContractAddr = cli.StringFlag{
+		Name:   "rpc.withdrawalcontractaddress",
+		Usage:  "Address of the Withdrawal contract. By default, this is set to the withdrawal contract predeploy",
+		EnvVar: prefixEnvVar("WITHDRAWAL_CONTRACT_ADDR"),
 	}
 
 	LogLevelFlag = cli.StringFlag{
@@ -70,11 +94,15 @@ var requiredFlags = []cli.Flag{
 	L1NodeAddr,
 	L2EngineAddrs,
 	RollupConfig,
+	L2EthNodeAddr,
+	RPCListenAddr,
+	RPCListenPort,
 }
 
 var optionalFlags = []cli.Flag{
 	SequencingEnabledFlag,
 	BatchSubmitterKeyFlag,
+	WithdrawalContractAddr,
 	LogLevelFlag,
 	LogFormatFlag,
 	LogColorFlag,

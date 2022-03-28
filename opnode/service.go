@@ -10,6 +10,7 @@ import (
 	"github.com/ethereum-optimism/optimistic-specs/opnode/flags"
 	"github.com/ethereum-optimism/optimistic-specs/opnode/node"
 	"github.com/ethereum-optimism/optimistic-specs/opnode/rollup"
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/urfave/cli"
 )
@@ -38,12 +39,21 @@ func NewConfig(ctx *cli.Context) (*node.Config, error) {
 		}
 	}
 
+	withdrawalContractAddress := WithdrawalContractAddress
+	if value := ctx.GlobalString(flags.WithdrawalContractAddr.Name); value != "" {
+		withdrawalContractAddress = common.HexToAddress(value)
+	}
+
 	cfg := &node.Config{
-		L1NodeAddr:       ctx.GlobalString(flags.L1NodeAddr.Name),
-		L2EngineAddrs:    ctx.GlobalStringSlice(flags.L2EngineAddrs.Name),
-		Rollup:           *rollupConfig,
-		Sequencer:        enableSequencing,
-		SubmitterPrivKey: batchSubmitterKey,
+		L1NodeAddr:             ctx.GlobalString(flags.L1NodeAddr.Name),
+		L2EngineAddrs:          ctx.GlobalStringSlice(flags.L2EngineAddrs.Name),
+		L2NodeAddr:             ctx.GlobalString(flags.L2EthNodeAddr.Name),
+		Rollup:                 *rollupConfig,
+		Sequencer:              enableSequencing,
+		SubmitterPrivKey:       batchSubmitterKey,
+		RPCListenAddr:          ctx.GlobalString(flags.RPCListenAddr.Name),
+		RPCListenPort:          ctx.GlobalInt(flags.RPCListenPort.Name),
+		WithdrawalContractAddr: withdrawalContractAddress,
 	}
 	if err := cfg.Check(); err != nil {
 		return nil, err

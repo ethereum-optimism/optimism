@@ -160,6 +160,7 @@ func TestSystemE2E(t *testing.T) {
 	nodeCfg := &rollupNode.Config{
 		L1NodeAddr:    endpoint(cfg.l1.nodeConfig),
 		L2EngineAddrs: []string{endpoint(cfg.l2Verifier.nodeConfig)},
+		L2NodeAddr:    endpoint(cfg.l2Verifier.nodeConfig),
 		Rollup: rollup.Config{
 			Genesis: rollup.Genesis{
 				L1:     l1GenesisID,
@@ -176,7 +177,7 @@ func TestSystemE2E(t *testing.T) {
 			BatchSenderAddress:  submitterAddress,
 		},
 	}
-	node, err := rollupNode.New(context.Background(), nodeCfg, testlog.Logger(t, log.LvlError))
+	node, err := rollupNode.New(context.Background(), nodeCfg, testlog.Logger(t, log.LvlError), "")
 	require.Nil(t, err)
 
 	err = node.Start(context.Background())
@@ -187,6 +188,7 @@ func TestSystemE2E(t *testing.T) {
 	sequenceCfg := &rollupNode.Config{
 		L1NodeAddr:    endpoint(cfg.l1.nodeConfig),
 		L2EngineAddrs: []string{endpoint(cfg.l2Sequencer.nodeConfig)},
+		L2NodeAddr:    endpoint(cfg.l2Verifier.nodeConfig),
 		Rollup: rollup.Config{
 			Genesis: rollup.Genesis{
 				L1:     l1GenesisID,
@@ -205,7 +207,7 @@ func TestSystemE2E(t *testing.T) {
 		Sequencer:        true,
 		SubmitterPrivKey: bssPrivKey,
 	}
-	sequencer, err := rollupNode.New(context.Background(), sequenceCfg, testlog.Logger(t, log.LvlError))
+	sequencer, err := rollupNode.New(context.Background(), sequenceCfg, testlog.Logger(t, log.LvlError), "")
 	require.Nil(t, err)
 
 	err = sequencer.Start(context.Background())

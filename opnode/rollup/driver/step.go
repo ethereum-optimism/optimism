@@ -95,7 +95,7 @@ func (d *outputImpl) newBlock(ctx context.Context, l2Finalized eth.BlockID, l2Pa
 // An incomplete sequencing window will result in an incomplete L2 chain if so.
 //
 // After the step completes it returns the block ID of the last processed L2 block, even if an error occurs.
-func (d *outputImpl) step(ctx context.Context, l2Head eth.BlockID, l2Finalized eth.BlockID, unsafeL2Head eth.BlockID, l1Input []eth.BlockID) (out eth.BlockID, err error) {
+func (d *outputImpl) step(ctx context.Context, l2Head eth.BlockID, l2Finalized eth.BlockID, unsafeL2Head eth.BlockID, l1Input []eth.BlockID) (eth.BlockID, error) {
 	// Sanity Checks
 	if len(l1Input) == 0 {
 		return l2Head, fmt.Errorf("empty L1 sequencing window on L2 %s", l2Head)

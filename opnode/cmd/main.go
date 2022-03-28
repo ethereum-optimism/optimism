@@ -73,7 +73,7 @@ func RollupNodeMain(ctx *cli.Context) error {
 		return err
 	}
 
-	n, err := node.New(context.Background(), cfg, logCfg.NewLogger())
+	n, err := node.New(context.Background(), cfg, logCfg.NewLogger(), VersionWithMeta)
 	if err != nil {
 		log.Error("Unable to create the rollup node", "error", err)
 		return err
