@@ -172,7 +172,7 @@ func (c *OpNode) Start(ctx context.Context) error {
 		for {
 			select {
 			case l1Head := <-l1Heads:
-				c.log.Info("New L1 head", "head", l1Head.Self, "parent", l1Head.Parent)
+				c.log.Info("New L1 head", "head", l1Head, "parent", l1Head.ParentHash)
 			// TODO: maybe log other info on interval or other chain events (individual engines also log things)
 			case <-c.done:
 				c.log.Info("Closing OpNode")

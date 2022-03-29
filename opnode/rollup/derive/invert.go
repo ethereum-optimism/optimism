@@ -33,19 +33,25 @@ type Block interface {
 	NumberU64() uint64
 	ParentHash() common.Hash
 	Transactions() types.Transactions
+	Time() uint64
 }
 
 // BlockReferences takes a L2 block and determines which L1 block it was derived from, its L2 parent id, and its own id.
 func BlockReferences(l2Block Block, genesis *rollup.Genesis) (eth.L2BlockRef, error) {
-	self := eth.BlockID{Hash: l2Block.Hash(), Number: l2Block.NumberU64()}
-	if self.Number <= genesis.L2.Number {
-		if self.Hash != genesis.L2.Hash {
-			return eth.L2BlockRef{}, fmt.Errorf("unexpected L2 genesis block: %s, expected %s", self, genesis.L2)
-		}
-		return eth.L2BlockRef{Self: self, L1Origin: genesis.L1}, nil
+	id := eth.L2BlockRef{
+		Hash:       l2Block.Hash(),
+		Number:     l2Block.NumberU64(),
+		ParentHash: l2Block.ParentHash(),
+		Time:       l2Block.Time(),
 	}
 
-	l2Parent := eth.BlockID{Hash: l2Block.ParentHash(), Number: l2Block.NumberU64() - 1}
+	if id.Number <= genesis.L2.Number {
+		if id.Hash != genesis.L2.Hash {
+			return eth.L2BlockRef{}, fmt.Errorf("unexpected L2 genesis block: %s:%d, expected %s", id.Hash, id.Number, genesis.L2)
+		}
+		id.L1Origin = genesis.L1
+		return id, nil
+	}
 
 	txs := l2Block.Transactions()
 	if len(txs) == 0 || txs[0].Type() != types.DepositTxType {
@@ -55,5 +61,6 @@ func BlockReferences(l2Block Block, genesis *rollup.Genesis) (eth.L2BlockRef, er
 	if err != nil {
 		return eth.L2BlockRef{}, fmt.Errorf("failed to parse L1 info deposit tx from L2 block: %v", err)
 	}
-	return eth.L2BlockRef{Self: self, Parent: l2Parent, L1Origin: eth.BlockID{Hash: l1Hash, Number: l1Number}}, nil
+	id.L1Origin = eth.BlockID{Hash: l1Hash, Number: l1Number}
+	return id, nil
 }

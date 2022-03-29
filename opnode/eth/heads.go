@@ -27,14 +27,12 @@ func WatchHeadChanges(ctx context.Context, src NewHeadSource, fn HeadSignalFn) (
 		for {
 			select {
 			case header := <-headChanges:
-				hash := header.Hash()
-				height := header.Number.Uint64()
-				self := BlockID{Hash: hash, Number: height}
-				parent := BlockID{}
-				if height > 0 {
-					parent = BlockID{Hash: header.ParentHash, Number: height - 1}
-				}
-				fn(L1BlockRef{Parent: parent, Self: self})
+				fn(L1BlockRef{
+					Hash:       header.Hash(),
+					Number:     header.Number.Uint64(),
+					ParentHash: header.ParentHash,
+					Time:       header.Time,
+				})
 			case err := <-sub.Err():
 				return err
 			case <-ctx.Done():

@@ -108,14 +108,12 @@ func (s Source) l1BlockRefByNumber(ctx context.Context, number *big.Int) (eth.L1
 		// w%: wrap the error, we still need to detect if a canonical block is not found, a.k.a. end of chain.
 		return eth.L1BlockRef{}, fmt.Errorf("failed to determine block-hash of height %v, could not get header: %w", number, err)
 	}
-	l1Num := header.Number.Uint64()
-	parentNum := l1Num
-	if parentNum > 0 {
-		parentNum -= 1
-	}
+
 	return eth.L1BlockRef{
-		Self:   eth.BlockID{Hash: header.Hash(), Number: l1Num},
-		Parent: eth.BlockID{Hash: header.ParentHash, Number: parentNum},
+		Hash:       header.Hash(),
+		Number:     header.Number.Uint64(),
+		ParentHash: header.ParentHash,
+		Time:       header.Time,
 	}, nil
 }
 
@@ -125,8 +123,8 @@ func (s Source) L1Range(ctx context.Context, begin eth.BlockID) ([]eth.BlockID, 
 	if canonicalBegin, err := s.L1BlockRefByNumber(ctx, begin.Number); err != nil {
 		return nil, fmt.Errorf("failed to fetch L1 block %v %v: %w", begin.Number, begin.Hash, err)
 	} else {
-		if canonicalBegin.Self != begin {
-			return nil, fmt.Errorf("Re-org at begin block. Expected: %v. Actual: %v", begin, canonicalBegin.Self)
+		if canonicalBegin.Hash != begin.Hash {
+			return nil, fmt.Errorf("Re-org at begin block. Expected: %v. Actual: %v", begin, canonicalBegin)
 		}
 	}
 
@@ -136,8 +134,8 @@ func (s Source) L1Range(ctx context.Context, begin eth.BlockID) ([]eth.BlockID, 
 	}
 	maxBlocks := MaxBlocksInL1Range
 	// Cap maxBlocks if there are less than maxBlocks between `begin` and the head of the chain.
-	if l1head.Self.Number-begin.Number <= maxBlocks {
-		maxBlocks = l1head.Self.Number - begin.Number
+	if l1head.Number-begin.Number <= maxBlocks {
+		maxBlocks = l1head.Number - begin.Number
 	}
 
 	if maxBlocks == 0 {
@@ -153,11 +151,11 @@ func (s Source) L1Range(ctx context.Context, begin eth.BlockID) ([]eth.BlockID, 
 			return nil, fmt.Errorf("failed to fetch L1 block %v: %w", i, err)
 		}
 		// TODO(Joshua): Look into why this fails around the genesis block
-		if n.Parent.Number != 0 && n.Parent.Hash != prevHash {
+		if n.Number != 1 && n.ParentHash != prevHash {
 			return nil, errors.New("re-organization occurred while attempting to get l1 range")
 		}
-		prevHash = n.Self.Hash
-		res = append(res, n.Self)
+		prevHash = n.Hash
+		res = append(res, n.ID())
 	}
 
 	return res, nil

@@ -13,13 +13,11 @@ import (
 
 type state struct {
 	// Chain State
-	l1Head      eth.BlockID   // Latest recorded head of the L1 Chain
-	l2Head      eth.BlockID   // L2 Unsafe Head
-	l1Origin    eth.BlockID   // L1 Origin of the L2 Unsafe head. For sequencing only.
-	l2SafeHead  eth.BlockID   // L2 Safe Head - this is the head of the L2 chain as derived from L1 (thus it is Sequencer window blocks behind)
-	l1Base      eth.BlockID   // L1 Parent of L2 Safe Head block
-	l2Finalized eth.BlockID   // L2 Block that will never be reversed
-	l1Window    []eth.BlockID // l1Window buffers the next L1 block IDs to derive new L2 blocks from, with increasing block height.
+	l1Head      eth.L1BlockRef // Latest recorded head of the L1 Chain
+	l2Head      eth.L2BlockRef // L2 Unsafe Head
+	l2SafeHead  eth.L2BlockRef // L2 Safe Head - this is the head of the L2 chain as derived from L1 (thus it is Sequencer window blocks behind)
+	l2Finalized eth.BlockID    // L2 Block that will never be reversed
+	l1Window    []eth.BlockID  // l1Window buffers the next L1 block IDs to derive new L2 blocks from, with increasing block height.
 
 	// Rollup config
 	Config    rollup.Config
@@ -59,12 +57,12 @@ func (s *state) Start(ctx context.Context, l1Heads <-chan eth.L1BlockRef) error 
 		return err
 	}
 
-	//  TODO: Don't start everything from L2 heads
-	s.l1Head = l1Head.Self
-	s.l1Origin = s.l1Head
-	s.l2Head = l2Head.Self // TODO: Makes sense?
-	s.l2SafeHead = l2Head.Self
-	s.l1Base = l2Head.L1Origin
+	// TODO:
+	// 1. Pull safehead from sync-start algorithm
+	// 2. Check if heads are below genesis & if so, bump to genesis.
+	s.l1Head = l1Head
+	s.l2Head = l2Head
+	s.l2SafeHead = l2Head
 	s.l1Heads = l1Heads
 
 	go s.loop()
@@ -80,7 +78,7 @@ func (s *state) Close() error {
 // This is either the last block of the window, or the L1 base block if the window is not populated.
 func (s *state) l1WindowEnd() eth.BlockID {
 	if len(s.l1Window) == 0 {
-		return s.l1Base
+		return s.l2Head.L1Origin
 	}
 	return s.l1Window[len(s.l1Window)-1]
 }
@@ -104,6 +102,19 @@ func (s *state) sequencingWindow() ([]eth.BlockID, bool) {
 		return nil, false
 	}
 	return s.l1Window[:int(s.Config.SeqWindowSize)], true
+}
+
+func (s *state) findNextL1Origin(ctx context.Context) (eth.BlockID, error) {
+	return s.l1Head.ID(), nil // Temporary until timestamps are working correctly
+	// [prev L2 + blocktime, L1 Bock)
+	// currentL1Origin := s.l2Head.L1Origin
+	// s.log.Info("Find next l1Origin", "l2Head", s.l2Head, "l1Origin", currentL1Origin)
+	// if s.l2Head.Time+int64(s.Config.BlockTime) >= currentL1Origin.Time {
+	// 	ref, err := s.l1.L1BlockRefByNumber(ctx, currentL1Origin.Number+1)
+	// 	s.log.Info("Lookuing up new L1 Origin", "nextL1Origin", ref)
+	// 	return ref.Self, err
+	// }
+	// return currentL1Origin, nil
 }
 
 func (s *state) loop() {
@@ -139,20 +150,18 @@ func (s *state) loop() {
 		case <-s.done:
 			return
 		case <-l2BlockCreation:
-			// 1. Check if new epoch (new L1 head)
-			firstOfEpoch := false
-			if s.l1Head != s.l1Origin {
-				firstOfEpoch = true
-				s.l1Origin = s.l1Head
+			nextOrigin, err := s.findNextL1Origin(context.Background())
+			if err != nil {
+				continue
 			}
 			// Don't produce blocks until past the L1 genesis
-			if s.l1Origin.Number <= s.Config.Genesis.L1.Number {
+			if nextOrigin.Number <= s.Config.Genesis.L1.Number {
 				continue
 			}
 			// 2. Ask output to create new block
-			newUnsafeL2Head, batch, err := s.output.newBlock(context.Background(), s.l2Finalized, s.l2Head, s.l2SafeHead, s.l1Origin, firstOfEpoch)
+			newUnsafeL2Head, batch, err := s.output.newBlock(context.Background(), s.l2Finalized, s.l2Head, s.l2SafeHead.ID(), nextOrigin)
 			if err != nil {
-				s.log.Error("Could not extend chain as sequencer", "err", err, "l2UnsafeHead", s.l2Head, "l1Origin", s.l1Origin)
+				s.log.Error("Could not extend chain as sequencer", "err", err, "l2UnsafeHead", s.l2Head, "l1Origin", nextOrigin)
 				continue
 			}
 			// 3. Update unsafe l2 head + epoch
@@ -167,41 +176,41 @@ func (s *state) loop() {
 			}()
 
 		case newL1Head := <-s.l1Heads:
-			s.log.Trace("Received new L1 Head", "new_head", newL1Head.Self, "old_head", s.l1Head)
+			s.log.Trace("Received new L1 Head", "new_head", newL1Head, "old_head", s.l1Head)
 			// Check if we have a stutter step. May be due to a L1 Poll operation.
-			if s.l1Head == newL1Head.Self {
-				log.Trace("Received L1 head signal that is the same as the current head", "l1_head", newL1Head.Self)
+			if s.l1Head.Hash == newL1Head.Hash {
+				log.Trace("Received L1 head signal that is the same as the current head", "l1_head", newL1Head)
 				continue
 			}
 
 			// Typically get linear extension, but if not, handle a re-org
-			if s.l1Head == newL1Head.Parent {
+			if s.l1Head.Hash == newL1Head.ParentHash {
 				s.log.Trace("Linear extension")
-				s.l1Head = newL1Head.Self
-				if s.l1WindowEnd() == newL1Head.Parent {
-					s.l1Window = append(s.l1Window, newL1Head.Self)
+				s.l1Head = newL1Head
+				if s.l1WindowEnd().Hash == newL1Head.ParentHash {
+					s.l1Window = append(s.l1Window, newL1Head.ID())
 				}
 			} else {
-				s.log.Warn("L1 Head signal indicates an L1 re-org", "old_l1_head", s.l1Head, "new_l1_head_parent", newL1Head.Parent, "new_l1_head", newL1Head.Self)
+				s.log.Warn("L1 Head signal indicates an L1 re-org", "old_l1_head", s.l1Head, "new_l1_head_parent", newL1Head.ParentHash, "new_l1_head", newL1Head)
 				// TODO(Joshua): Fix having to make this call when being careful about the exact state
 				l2Head, err := s.l2.L2BlockRefByNumber(context.Background(), nil)
 				if err != nil {
 					s.log.Error("Could not get fetch L2 head when trying to handle a re-org", "err", err)
 					continue
 				}
-				nextL2Head, err := sync.FindSafeL2Head(ctx, l2Head.Self, s.l1, s.l2, &s.Config.Genesis)
+				nextL2Head, err := sync.FindSafeL2Head(ctx, l2Head.ID(), s.l1, s.l2, &s.Config.Genesis)
 				if err != nil {
 					s.log.Error("Could not get new safe L2 head when trying to handle a re-org", "err", err)
 					continue
 				}
-				s.l1Head = newL1Head.Self
-				// TODO: Unsafe head here
+				s.l1Head = newL1Head
 				s.l1Window = nil
-				s.l1Base = nextL2Head.L1Origin
-				s.l2SafeHead = nextL2Head.Self
+				s.l2Head = nextL2Head
+				s.l2SafeHead = nextL2Head // TODO: Handle this more carefully
 			}
+
 			// Run step if we are able to
-			if s.l1Head.Number-s.l1Base.Number >= s.Config.SeqWindowSize {
+			if s.l1Head.Number-s.l2Head.L1Origin.Number >= s.Config.SeqWindowSize {
 				requestStep()
 			}
 		case <-stepRequest:
@@ -214,7 +223,7 @@ func (s *state) loop() {
 			if len(s.l1Window) < int(s.Config.SeqWindowSize) {
 				err := s.extendL1Window(context.Background())
 				if err != nil {
-					s.log.Error("Could not extend the cached L1 window", "err", err, "l1Head", s.l1Head, "l1Base", s.l1Base, "window_end", s.l1WindowEnd())
+					s.log.Error("Could not extend the cached L1 window", "err", err, "l1Head", s.l1Head, "window_end", s.l1WindowEnd())
 					continue
 				}
 			}
@@ -223,7 +232,7 @@ func (s *state) loop() {
 			if window, ok := s.sequencingWindow(); ok {
 				s.log.Trace("Have enough cached blocks to run step.")
 				ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
-				newL2Head, err := s.output.step(ctx, s.l2SafeHead, s.l2Finalized, s.l2Head, window)
+				newL2Head, err := s.output.step(ctx, s.l2SafeHead, s.l2Finalized, s.l2Head.ID(), window)
 				cancel()
 				if err != nil {
 					s.log.Error("Error in running the output step.", "err", err, "l2SafeHead", s.l2SafeHead, "l2Finalized", s.l2Finalized, "window", window)
@@ -233,7 +242,6 @@ func (s *state) loop() {
 					s.l2Head = newL2Head
 				}
 				s.l2SafeHead = newL2Head
-				s.l1Base = s.l1Window[0]
 				s.l1Window = s.l1Window[1:]
 				// TODO: l2Finalized
 			} else {
@@ -241,7 +249,7 @@ func (s *state) loop() {
 			}
 
 			// Immediately run next step if we have enough blocks.
-			if s.l1Head.Number-s.l1Base.Number >= s.Config.SeqWindowSize {
+			if s.l1Head.Number-s.l2Head.L1Origin.Number >= s.Config.SeqWindowSize {
 				requestStep()
 			}
 

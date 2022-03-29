@@ -79,21 +79,21 @@ func FindSafeL2Head(ctx context.Context, start eth.BlockID, l1 L1Chain, l2 L2Cha
 			// L1 block not found, keep walking chain
 		} else {
 			// L1 Block found, check if matches & should keep walking the chain
-			if l1header.Self.Hash == n.L1Origin.Hash {
+			if l1header.Hash == n.L1Origin.Hash {
 				return n, nil
 			}
 		}
 
 		// Don't walk past genesis. If we were at the L2 genesis, but could not find the L1 genesis
 		// pointed to from it, we are on the wrong L1 chain.
-		if n.Self.Hash == genesis.L2.Hash || n.Self.Number == genesis.L2.Number {
+		if n.Hash == genesis.L2.Hash || n.Number == genesis.L2.Number {
 			return eth.L2BlockRef{}, WrongChainErr
 		}
 
 		// Pull L2 parent for next iteration
-		n, err = l2.L2BlockRefByHash(ctx, n.Parent.Hash)
+		n, err = l2.L2BlockRefByHash(ctx, n.ParentHash)
 		if err != nil {
-			return eth.L2BlockRef{}, fmt.Errorf("failed to fetch L2 block by hash %v: %w", n.Parent.Hash, err)
+			return eth.L2BlockRef{}, fmt.Errorf("failed to fetch L2 block by hash %v: %w", n.ParentHash, err)
 		}
 		reorgDepth++
 		if reorgDepth >= MaxReorgDepth {

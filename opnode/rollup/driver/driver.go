@@ -51,8 +51,8 @@ type L2Chain interface {
 }
 
 type outputInterface interface {
-	step(ctx context.Context, l2Head eth.BlockID, l2Finalized eth.BlockID, unsafeL2Head eth.BlockID, l1Input []eth.BlockID) (eth.BlockID, error)
-	newBlock(ctx context.Context, l2Finalized eth.BlockID, l2Parent eth.BlockID, l2Safe eth.BlockID, l1Origin eth.BlockID, includeDeposits bool) (eth.BlockID, *derive.BatchData, error)
+	step(ctx context.Context, l2Head eth.L2BlockRef, l2Finalized eth.BlockID, unsafeL2Head eth.BlockID, l1Input []eth.BlockID) (eth.L2BlockRef, error)
+	newBlock(ctx context.Context, l2Finalized eth.BlockID, l2Parent eth.L2BlockRef, l2Safe eth.BlockID, l1Origin eth.BlockID) (eth.L2BlockRef, *derive.BatchData, error)
 }
 
 func NewDriver(cfg rollup.Config, l2 *l2.Source, l1 *l1.Source, log log.Logger, submitter BatchSubmitter, sequencer bool) *Driver {

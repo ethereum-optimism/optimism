@@ -38,13 +38,13 @@ func (id testID) ID() eth.BlockID {
 	}
 }
 
-type outputHandlerFn func(ctx context.Context, l2Head eth.BlockID, l2Finalized eth.BlockID, l2Unsafe eth.BlockID, l1Window []eth.BlockID) (eth.BlockID, error)
+type outputHandlerFn func(ctx context.Context, l2Head eth.L2BlockRef, l2Finalized eth.BlockID, unsafeL2Head eth.BlockID, l1Input []eth.BlockID) (eth.L2BlockRef, error)
 
-func (fn outputHandlerFn) step(ctx context.Context, l2Head eth.BlockID, l2Finalized eth.BlockID, l2Unsafe eth.BlockID, l1Window []eth.BlockID) (eth.BlockID, error) {
-	return fn(ctx, l2Head, l2Finalized, l2Unsafe, l1Window)
+func (fn outputHandlerFn) step(ctx context.Context, l2Head eth.L2BlockRef, l2Finalized eth.BlockID, unsafeL2Head eth.BlockID, l1Input []eth.BlockID) (eth.L2BlockRef, error) {
+	return fn(ctx, l2Head, l2Finalized, unsafeL2Head, l1Input)
 }
 
-func (fn outputHandlerFn) newBlock(ctx context.Context, l2Finalized eth.BlockID, l2Parent eth.BlockID, l2Safe eth.BlockID, l1Origin eth.BlockID, includeDeposits bool) (eth.BlockID, *derive.BatchData, error) {
+func (fn outputHandlerFn) newBlock(ctx context.Context, l2Finalized eth.BlockID, l2Parent eth.L2BlockRef, l2Safe eth.BlockID, l1Origin eth.BlockID) (eth.L2BlockRef, *derive.BatchData, error) {
 	panic("Unimplemented")
 }
 
@@ -55,7 +55,7 @@ type outputArgs struct {
 }
 
 type outputReturnArgs struct {
-	l2Head eth.BlockID
+	l2Head eth.L2BlockRef
 	err    error
 }
 
@@ -104,7 +104,7 @@ func advanceL2(t *testing.T, expectedWindow []testID, s *state, src *fakeChainSo
 	for i := range expectedWindow {
 		assert.Equal(t, expectedWindow[i].ID(), args.l1Window[i], "Window elements must match")
 	}
-	outputReturn <- outputReturnArgs{l2Head: src.setL2Head(int(args.l2Head.Number) + 1).Self, err: nil}
+	outputReturn <- outputReturnArgs{l2Head: src.setL2Head(int(args.l2Head.Number) + 1), err: nil}
 }
 
 func reorg__L2(t *testing.T, expectedWindow []testID, s *state, src *fakeChainSource, outputIn chan outputArgs, outputReturn chan outputReturnArgs) {
@@ -115,7 +115,7 @@ func reorg__L2(t *testing.T, expectedWindow []testID, s *state, src *fakeChainSo
 		assert.Equal(t, expectedWindow[i].ID(), args.l1Window[i], "Window elements must match")
 	}
 	src.reorgL2()
-	outputReturn <- outputReturnArgs{l2Head: src.setL2Head(int(args.l2Head.Number) + 1).Self, err: nil}
+	outputReturn <- outputReturnArgs{l2Head: src.setL2Head(int(args.l2Head.Number) + 1), err: nil}
 }
 
 type stateTestCase struct {
@@ -134,8 +134,8 @@ func (tc *stateTestCase) Run(t *testing.T) {
 	// Unbuffered channels to force a sync point between the test and the state loop.
 	outputIn := make(chan outputArgs)
 	outputReturn := make(chan outputReturnArgs)
-	outputHandler := func(ctx context.Context, l2Head eth.BlockID, l2Finalized eth.BlockID, l2Unsafe eth.BlockID, l1Window []eth.BlockID) (eth.BlockID, error) {
-		outputIn <- outputArgs{l2Head: l2Head, l2Finalized: l2Finalized, l1Window: l1Window}
+	outputHandler := func(ctx context.Context, l2Head eth.L2BlockRef, l2Finalized eth.BlockID, unsafeL2Head eth.BlockID, l1Input []eth.BlockID) (eth.L2BlockRef, error) {
+		outputIn <- outputArgs{l2Head: l2Head.ID(), l2Finalized: l2Finalized, l1Window: l1Input}
 		r := <-outputReturn
 		return r.l2Head, r.err
 	}
@@ -157,8 +157,8 @@ func (tc *stateTestCase) Run(t *testing.T) {
 		step.l2act(t, step.window, state, chainSource, outputIn, outputReturn)
 		<-time.After(5 * time.Millisecond)
 
-		assert.Equal(t, step.l1head.ID(), state.l1Head, "l1 head")
-		assert.Equal(t, step.l2head.ID(), state.l2SafeHead, "l2 head")
+		assert.Equal(t, step.l1head.ID(), state.l1Head.ID(), "l1 head")
+		assert.Equal(t, step.l2head.ID(), state.l2SafeHead.ID(), "l2 head")
 	}
 }
 

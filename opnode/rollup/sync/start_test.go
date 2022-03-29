@@ -23,9 +23,9 @@ func (m *fakeChainSource) L1Range(ctx context.Context, base eth.BlockID) ([]eth.
 	found := false
 	for _, b := range m.L1 {
 		if found {
-			out = append(out, b.Self)
+			out = append(out, b.ID())
 		}
-		if b.Self == base {
+		if b.ID() == base {
 			found = true
 		}
 	}
@@ -63,7 +63,7 @@ func (m *fakeChainSource) L2BlockRefByNumber(ctx context.Context, l2Num *big.Int
 
 func (m *fakeChainSource) L2BlockRefByHash(ctx context.Context, l2Hash common.Hash) (eth.L2BlockRef, error) {
 	for i, bl := range m.L2 {
-		if bl.Self.Hash == l2Hash {
+		if bl.Hash == l2Hash {
 			return m.L2BlockRefByNumber(ctx, big.NewInt(int64(i)))
 		}
 	}
@@ -84,7 +84,8 @@ func fakeL1Block(self rune, parent rune, num uint64) eth.L1BlockRef {
 	if num != 0 {
 		parentID = fakeID(parent, num-1)
 	}
-	return eth.L1BlockRef{Self: fakeID(self, num), Parent: parentID}
+	id := fakeID(self, num)
+	return eth.L1BlockRef{Hash: id.Hash, Number: id.Number, ParentHash: parentID.Hash}
 }
 
 func fakeL2Block(self rune, parent rune, l1parent eth.BlockID, num uint64) eth.L2BlockRef {
@@ -92,7 +93,8 @@ func fakeL2Block(self rune, parent rune, l1parent eth.BlockID, num uint64) eth.L
 	if num != 0 {
 		parentID = fakeID(parent, num-1)
 	}
-	return eth.L2BlockRef{Self: fakeID(self, num), Parent: parentID, L1Origin: l1parent}
+	id := fakeID(self, num)
+	return eth.L2BlockRef{Hash: id.Hash, Number: id.Number, ParentHash: parentID.Hash, L1Origin: l1parent}
 }
 
 func chainL1(offset uint64, ids string) (out []eth.L1BlockRef) {
@@ -107,7 +109,7 @@ func chainL1(offset uint64, ids string) (out []eth.L1BlockRef) {
 func chainL2(l1 []eth.L1BlockRef, ids string) (out []eth.L2BlockRef) {
 	var prevID rune
 	for i, id := range ids {
-		out = append(out, fakeL2Block(id, prevID, l1[i].Self, uint64(i)))
+		out = append(out, fakeL2Block(id, prevID, l1[i].ID(), uint64(i)))
 		prevID = id
 	}
 	return
@@ -150,7 +152,7 @@ func (c *syncStartTestCase) Run(t *testing.T) {
 	}
 	head, err := msr.L2BlockRefByNumber(context.Background(), nil)
 	require.Nil(t, err)
-	refL2, err := FindSafeL2Head(context.Background(), head.Self, msr, msr, genesis)
+	refL2, err := FindSafeL2Head(context.Background(), head.ID(), msr, msr, genesis)
 
 	if c.ExpectedErr != nil {
 		assert.Error(t, err, "Expecting an error in this test case")
@@ -158,7 +160,7 @@ func (c *syncStartTestCase) Run(t *testing.T) {
 	} else {
 		nextRefL1s, err := msr.L1Range(context.Background(), refL2.L1Origin)
 		require.Nil(t, err)
-		expectedRefL2 := refToRune(refL2.Self)
+		expectedRefL2 := refToRune(refL2.ID())
 		var expectedRefsL1 []rune
 		for _, ref := range nextRefL1s {
 			expectedRefsL1 = append(expectedRefsL1, refToRune(ref))
