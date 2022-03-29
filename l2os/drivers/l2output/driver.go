@@ -8,24 +8,29 @@ import (
 	"strings"
 
 	"github.com/ethereum-optimism/optimistic-specs/l2os/bindings/l2oo"
+	"github.com/ethereum-optimism/optimistic-specs/opnode/l2"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/rpc"
 )
 
 var bigOne = big.NewInt(1)
+var supportedL2OutputVersion = l2.Bytes32{}
 
 type Config struct {
-	Name     string
-	L1Client *ethclient.Client
-	L2Client *ethclient.Client
-	L2OOAddr common.Address
-	ChainID  *big.Int
-	PrivKey  *ecdsa.PrivateKey
+	Name         string
+	L1Client     *ethclient.Client
+	L2Client     *ethclient.Client
+	RollupClient *rpc.Client
+	L2OOAddr     common.Address
+	ChainID      *big.Int
+	PrivKey      *ecdsa.PrivateKey
 }
 
 type Driver struct {
@@ -160,9 +165,8 @@ func (d *Driver) CraftTx(
 	// Fetch the final block in the range, as this is the only L2 output we need
 	// to submit.
 	nextCheckpointBlock := new(big.Int).Sub(end, bigOne)
-	checkpointBlock, err := d.cfg.L2Client.HeaderByNumber(
-		ctx, nextCheckpointBlock,
-	)
+
+	l2OutputRoot, err := d.outputRootAtBlock(ctx, nextCheckpointBlock)
 	if err != nil {
 		return nil, err
 	}
@@ -205,9 +209,7 @@ func (d *Driver) CraftTx(
 	opts.Nonce = nonce
 	opts.NoSend = true
 
-	return d.l2ooContract.AppendL2Output(
-		opts, checkpointBlock.Root, timestamp,
-	)
+	return d.l2ooContract.AppendL2Output(opts, l2OutputRoot, timestamp)
 }
 
 // UpdateGasPrice signs an otherwise identical txn to the one provided but with
@@ -240,4 +242,18 @@ func (d *Driver) SendTransaction(
 ) error {
 
 	return d.cfg.L1Client.SendTransaction(ctx, tx)
+}
+
+func (d *Driver) outputRootAtBlock(ctx context.Context, blockNum *big.Int) (l2.Bytes32, error) {
+	var output []l2.Bytes32
+	if err := d.cfg.RollupClient.CallContext(ctx, &output, "optimism_outputAtBlock", hexutil.EncodeBig(blockNum)); err != nil {
+		return l2.Bytes32{}, err
+	}
+	if len(output) != 2 {
+		return l2.Bytes32{}, fmt.Errorf("invalid outputAtBlock response")
+	}
+	if version := output[0]; version != supportedL2OutputVersion {
+		return l2.Bytes32{}, fmt.Errorf("unsupported l2 output version")
+	}
+	return output[1], nil
 }

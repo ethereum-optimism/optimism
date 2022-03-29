@@ -25,6 +25,12 @@ var (
 		Required: true,
 		EnvVar:   "L2_ETH_RPC",
 	}
+	RollupRpc = cli.StringFlag{
+		Name:     "rollup-rpc",
+		Usage:    "HTTP provider URL for the rollup node",
+		Required: true,
+		EnvVar:   "ROLLUP_RPC",
+	}
 	L2OOAddressFlag = cli.StringFlag{
 		Name:     "l2oo-address",
 		Usage:    "Address of the L2OutputOracle contract",
@@ -88,6 +94,7 @@ var (
 var requiredFlags = []cli.Flag{
 	L1EthRpcFlag,
 	L2EthRpcFlag,
+	RollupRpc,
 	L2OOAddressFlag,
 	PollIntervalFlag,
 	NumConfirmationsFlag,

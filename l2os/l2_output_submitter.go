@@ -14,6 +14,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/rpc"
 	hdwallet "github.com/miguelmota/go-ethereum-hdwallet"
 	"github.com/urfave/cli"
 )
@@ -117,6 +118,11 @@ func NewL2OutputSubmitter(cfg Config, gitVersion string) (*L2OutputSubmitter, er
 		return nil, err
 	}
 
+	rollupClient, err := dialRpcClientWithTimeout(ctx, cfg.RollupRpc)
+	if err != nil {
+		return nil, err
+	}
+
 	chainID, err := l1Client.ChainID(ctx)
 	if err != nil {
 		return nil, err
@@ -130,12 +136,13 @@ func NewL2OutputSubmitter(cfg Config, gitVersion string) (*L2OutputSubmitter, er
 	}
 
 	l2OutputDriver, err := l2output.NewDriver(l2output.Config{
-		Name:     "L2Output Submitter",
-		L1Client: l1Client,
-		L2Client: l2Client,
-		L2OOAddr: l2ooAddress,
-		ChainID:  chainID,
-		PrivKey:  l2OutputPrivKey,
+		Name:         "L2Output Submitter",
+		L1Client:     l1Client,
+		L2Client:     l2Client,
+		RollupClient: rollupClient,
+		L2OOAddr:     l2ooAddress,
+		ChainID:      chainID,
+		PrivKey:      l2OutputPrivKey,
 	})
 	if err != nil {
 		return nil, err
@@ -173,6 +180,16 @@ func dialEthClientWithTimeout(ctx context.Context, url string) (
 	defer cancel()
 
 	return ethclient.DialContext(ctxt, url)
+}
+
+// dialRpcClientWithTimeout attempts to dial the RPC provider using the provided
+// URL. If the dial doesn't complete within defaultDialTimeout seconds, this
+// method will return an error.
+func dialRpcClientWithTimeout(ctx context.Context, url string) (*rpc.Client, error) {
+	ctxt, cancel := context.WithTimeout(ctx, defaultDialTimeout)
+	defer cancel()
+
+	return rpc.DialContext(ctxt, url)
 }
 
 // parseAddress parses an ETH address from a hex string. This method will fail if

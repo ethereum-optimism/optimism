@@ -17,6 +17,9 @@ type Config struct {
 	// L2EthRpc is the HTTP provider URL for L1.
 	L2EthRpc string
 
+	// RollupRpc is the HTTP provider URL for the rollup node.
+	RollupRpc string
+
 	// L2OOAddress is the L2OutputOracle contract address.
 	L2OOAddress string
 
@@ -58,6 +61,7 @@ func NewConfig(ctx *cli.Context) Config {
 		/* Required Flags */
 		L1EthRpc:                  ctx.GlobalString(flags.L1EthRpcFlag.Name),
 		L2EthRpc:                  ctx.GlobalString(flags.L2EthRpcFlag.Name),
+		RollupRpc:                 ctx.GlobalString(flags.RollupRpc.Name),
 		L2OOAddress:               ctx.GlobalString(flags.L2OOAddressFlag.Name),
 		PollInterval:              ctx.GlobalDuration(flags.PollIntervalFlag.Name),
 		NumConfirmations:          ctx.GlobalUint64(flags.NumConfirmationsFlag.Name),
