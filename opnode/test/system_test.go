@@ -12,6 +12,7 @@ import (
 
 	"github.com/ethereum-optimism/optimistic-specs/l2os"
 	"github.com/ethereum-optimism/optimistic-specs/l2os/bindings/l2oo"
+	"github.com/ethereum-optimism/optimistic-specs/l2os/rollupclient"
 	"github.com/ethereum-optimism/optimistic-specs/l2os/txmgr"
 	"github.com/ethereum-optimism/optimistic-specs/opnode/contracts/deposit"
 	"github.com/ethereum-optimism/optimistic-specs/opnode/internal/testlog"
@@ -29,6 +30,7 @@ import (
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/node"
+	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/stretchr/testify/require"
 )
 
@@ -206,6 +208,8 @@ func TestSystemE2E(t *testing.T) {
 		},
 		Sequencer:        true,
 		SubmitterPrivKey: bssPrivKey,
+		RPCListenAddr:    "127.0.0.1",
+		RPCListenPort:    9093,
 	}
 	sequencer, err := rollupNode.New(context.Background(), sequenceCfg, testlog.Logger(t, log.LvlError), "")
 	require.Nil(t, err)
@@ -213,6 +217,10 @@ func TestSystemE2E(t *testing.T) {
 	err = sequencer.Start(context.Background())
 	require.Nil(t, err)
 	defer sequencer.Stop()
+
+	rollupRPCClient, err := rpc.DialContext(context.Background(), fmt.Sprintf("http://%s:%d", sequenceCfg.RPCListenAddr, sequenceCfg.RPCListenPort))
+	require.Nil(t, err)
+	rollupClient := rollupclient.NewRollupClient(rollupRPCClient)
 
 	// Deploy StateRootOracle
 	l2OutputPrivKey, err := cfg.wallet.PrivateKey(accounts.Account{
@@ -253,6 +261,7 @@ func TestSystemE2E(t *testing.T) {
 	l2OutputSubmitter, err := l2os.NewL2OutputSubmitter(l2os.Config{
 		L1EthRpc:                  endpoint(cfg.l1.nodeConfig),
 		L2EthRpc:                  endpoint(cfg.l2Verifier.nodeConfig),
+		RollupRpc:                 fmt.Sprintf("http://%s:%d", sequenceCfg.RPCListenAddr, sequenceCfg.RPCListenPort),
 		L2OOAddress:               l2ooAddr.String(),
 		PollInterval:              5 * time.Second,
 		NumConfirmations:          1,
@@ -374,9 +383,11 @@ loop:
 			// finalized.
 			ctx, cancel = context.WithTimeout(context.Background(), time.Second)
 			defer cancel()
-			l2Block, err := l2Client.BlockByNumber(ctx, l2ooBlockNumber)
+			l2Output, err := rollupClient.OutputAtBlock(ctx, l2ooBlockNumber)
 			require.Nil(t, err)
-			require.Equal(t, l2Block.Root(), common.Hash(committedL2Output))
+			require.Len(t, l2Output, 2)
+
+			require.Equal(t, l2Output[1][:], committedL2Output[:])
 			break
 		}
 
