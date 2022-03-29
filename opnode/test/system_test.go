@@ -9,10 +9,10 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimistic-specs/opnode/eth"
-	"github.com/ethereum-optimism/optimistic-specs/opnode/l2"
 
 	"github.com/ethereum-optimism/optimistic-specs/l2os"
 	"github.com/ethereum-optimism/optimistic-specs/l2os/bindings/l2oo"
+	"github.com/ethereum-optimism/optimistic-specs/l2os/rollupclient"
 	"github.com/ethereum-optimism/optimistic-specs/l2os/txmgr"
 	"github.com/ethereum-optimism/optimistic-specs/opnode/contracts/deposit"
 	"github.com/ethereum-optimism/optimistic-specs/opnode/internal/testlog"
@@ -24,7 +24,6 @@ import (
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/accounts/keystore"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/eth/ethconfig"
@@ -219,8 +218,9 @@ func TestSystemE2E(t *testing.T) {
 	require.Nil(t, err)
 	defer sequencer.Stop()
 
-	rollupClient, err := rpc.DialContext(context.Background(), fmt.Sprintf("http://%s:%d", sequenceCfg.RPCListenAddr, sequenceCfg.RPCListenPort))
+	rollupRPCClient, err := rpc.DialContext(context.Background(), fmt.Sprintf("http://%s:%d", sequenceCfg.RPCListenAddr, sequenceCfg.RPCListenPort))
 	require.Nil(t, err)
+	rollupClient := rollupclient.NewRollupClient(rollupRPCClient)
 
 	// Deploy StateRootOracle
 	l2OutputPrivKey, err := cfg.wallet.PrivateKey(accounts.Account{
@@ -383,8 +383,7 @@ loop:
 			// finalized.
 			ctx, cancel = context.WithTimeout(context.Background(), time.Second)
 			defer cancel()
-			var l2Output []l2.Bytes32
-			err = rollupClient.CallContext(ctx, &l2Output, "optimism_outputAtBlock", hexutil.EncodeBig(l2ooBlockNumber))
+			l2Output, err := rollupClient.OutputAtBlock(ctx, l2ooBlockNumber)
 			require.Nil(t, err)
 			require.Len(t, l2Output, 2)
 

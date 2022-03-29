@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimistic-specs/l2os/drivers/l2output"
+	"github.com/ethereum-optimism/optimistic-specs/l2os/rollupclient"
 	"github.com/ethereum-optimism/optimistic-specs/l2os/txmgr"
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/common"
@@ -139,7 +140,7 @@ func NewL2OutputSubmitter(cfg Config, gitVersion string) (*L2OutputSubmitter, er
 		Name:         "L2Output Submitter",
 		L1Client:     l1Client,
 		L2Client:     l2Client,
-		RollupClient: rollupClient,
+		RollupClient: rollupclient.NewRollupClient(rollupClient),
 		L2OOAddr:     l2ooAddress,
 		ChainID:      chainID,
 		PrivKey:      l2OutputPrivKey,

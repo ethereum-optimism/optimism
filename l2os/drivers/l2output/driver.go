@@ -8,16 +8,15 @@ import (
 	"strings"
 
 	"github.com/ethereum-optimism/optimistic-specs/l2os/bindings/l2oo"
+	"github.com/ethereum-optimism/optimistic-specs/l2os/rollupclient"
 	"github.com/ethereum-optimism/optimistic-specs/opnode/l2"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
-	"github.com/ethereum/go-ethereum/rpc"
 )
 
 var bigOne = big.NewInt(1)
@@ -27,7 +26,7 @@ type Config struct {
 	Name         string
 	L1Client     *ethclient.Client
 	L2Client     *ethclient.Client
-	RollupClient *rpc.Client
+	RollupClient *rollupclient.RollupClient
 	L2OOAddr     common.Address
 	ChainID      *big.Int
 	PrivKey      *ecdsa.PrivateKey
@@ -245,8 +244,8 @@ func (d *Driver) SendTransaction(
 }
 
 func (d *Driver) outputRootAtBlock(ctx context.Context, blockNum *big.Int) (l2.Bytes32, error) {
-	var output []l2.Bytes32
-	if err := d.cfg.RollupClient.CallContext(ctx, &output, "optimism_outputAtBlock", hexutil.EncodeBig(blockNum)); err != nil {
+	output, err := d.cfg.RollupClient.OutputAtBlock(ctx, blockNum)
+	if err != nil {
 		return l2.Bytes32{}, err
 	}
 	if len(output) != 2 {

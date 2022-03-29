@@ -25,7 +25,7 @@ var (
 		Required: true,
 		EnvVar:   "L2_ETH_RPC",
 	}
-	RollupRpc = cli.StringFlag{
+	RollupRpcFlag = cli.StringFlag{
 		Name:     "rollup-rpc",
 		Usage:    "HTTP provider URL for the rollup node",
 		Required: true,
@@ -94,7 +94,7 @@ var (
 var requiredFlags = []cli.Flag{
 	L1EthRpcFlag,
 	L2EthRpcFlag,
-	RollupRpc,
+	RollupRpcFlag,
 	L2OOAddressFlag,
 	PollIntervalFlag,
 	NumConfirmationsFlag,
