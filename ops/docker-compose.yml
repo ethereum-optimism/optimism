@@ -12,7 +12,7 @@ services:
       args:
         DEPOSIT_FEED_BYTECODE: $DEPOSIT_FEED_BYTECODE
     ports:
-      - "9545:8545"
+      - "8545:8545"
     volumes:
       - "l1_data:/db"
 
@@ -23,7 +23,7 @@ services:
       args:
         L1_BLOCK_INFO_BYTECODE: $L1_BLOCK_INFO_BYTECODE
     ports:
-      - "8545:8545"
+      - "9545:8545"
     volumes:
       - "l2_data:/db"
 

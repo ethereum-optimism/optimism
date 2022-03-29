@@ -2,6 +2,10 @@ opnode:
 	go build -o ./bin/op ./opnode/cmd
 .PHONY: opnode
 
+contracts:
+	cd ./packages/contracts && yarn build
+.PHONY: contracts
+
 clean:
 	rm -rf ./bin
 .PHONY: clean
