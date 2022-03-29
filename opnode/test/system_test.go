@@ -14,6 +14,7 @@ import (
 	"github.com/ethereum-optimism/optimistic-specs/opnode/contracts/deposit"
 	"github.com/ethereum-optimism/optimistic-specs/opnode/contracts/l1block"
 	"github.com/ethereum-optimism/optimistic-specs/opnode/internal/testlog"
+	"github.com/ethereum-optimism/optimistic-specs/opnode/node"
 	rollupNode "github.com/ethereum-optimism/optimistic-specs/opnode/node"
 	"github.com/ethereum-optimism/optimistic-specs/opnode/rollup"
 	"github.com/ethereum-optimism/optimistic-specs/opnode/rollup/derive"
@@ -95,8 +96,10 @@ func defaultSystemConfig(t *testing.T) SystemConfig {
 				L1TrustRPC:    false,
 				Sequencer:     true,
 				// Submitter PrivKey is set in system start for rollup nodes where sequencer = true
-				RPCListenAddr: "127.0.0.1",
-				RPCListenPort: 9093,
+				RPC: node.RPCConfig{
+					ListenAddr: "127.0.0.1",
+					ListenPort: 9093,
+				},
 			},
 		},
 		Loggers: map[string]log.Logger{
@@ -131,7 +134,7 @@ func TestL2OutputSubmitter(t *testing.T) {
 
 	l1Client := sys.Clients["l1"]
 
-	rollupRPCClient, err := rpc.DialContext(context.Background(), fmt.Sprintf("http://%s:%d", cfg.Nodes["sequencer"].RPCListenAddr, cfg.Nodes["sequencer"].RPCListenPort))
+	rollupRPCClient, err := rpc.DialContext(context.Background(), fmt.Sprintf("http://%s:%d", cfg.Nodes["sequencer"].RPC.ListenAddr, cfg.Nodes["sequencer"].RPC.ListenPort))
 	require.Nil(t, err)
 	rollupClient := rollupclient.NewRollupClient(rollupRPCClient)
 
@@ -146,7 +149,7 @@ func TestL2OutputSubmitter(t *testing.T) {
 	l2OutputSubmitter, err := l2os.NewL2OutputSubmitter(l2os.Config{
 		L1EthRpc:                  "ws://127.0.0.1:9090",
 		L2EthRpc:                  cfg.Nodes["sequencer"].L2NodeAddr,
-		RollupRpc:                 fmt.Sprintf("http://%s:%d", cfg.Nodes["sequencer"].RPCListenAddr, cfg.Nodes["sequencer"].RPCListenPort),
+		RollupRpc:                 fmt.Sprintf("http://%s:%d", cfg.Nodes["sequencer"].RPC.ListenAddr, cfg.Nodes["sequencer"].RPC.ListenPort),
 		L2OOAddress:               sys.L2OOContractAddr.String(),
 		PollInterval:              2 * time.Second,
 		NumConfirmations:          1,

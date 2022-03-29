@@ -14,6 +14,7 @@ import (
 	"github.com/ethereum-optimism/optimistic-specs/opnode/contracts/deposit"
 	"github.com/ethereum-optimism/optimistic-specs/opnode/contracts/l1block"
 	rollupNode "github.com/ethereum-optimism/optimistic-specs/opnode/node"
+	"github.com/ethereum-optimism/optimistic-specs/opnode/predeploy"
 	"github.com/ethereum-optimism/optimistic-specs/opnode/rollup"
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
@@ -205,6 +206,7 @@ func (cfg SystemConfig) start() (*System, error) {
 	}
 
 	l2Alloc[cfg.L1InfoPredeployAddress] = core.GenesisAccount{Code: common.FromHex(l1block.L1blockDeployedBin), Balance: common.Big0}
+	l2Alloc[predeploy.WithdrawalContractAddress] = core.GenesisAccount{Code: []byte{}, Balance: common.Big0}
 
 	genesisTimestamp := uint64(time.Now().Unix())
 

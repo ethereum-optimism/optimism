@@ -121,7 +121,12 @@ func New(ctx context.Context, cfg *Config, log log.Logger, appVersion string) (*
 	if err != nil {
 		return nil, fmt.Errorf("failed to dial l2 address (%s): %w", cfg.L2NodeAddr, err)
 	}
-	server, err := newRPCServer(ctx, cfg.RPCListenAddr, cfg.RPCListenPort, &l2EthClientImpl{l2Node}, cfg.WithdrawalContractAddr, log, appVersion)
+
+	client, err := l2.NewReadOnlySource(l2Node, &genesis, log)
+	if err != nil {
+		return nil, err
+	}
+	server, err := newRPCServer(ctx, &cfg.RPC, &cfg.Rollup, client, log, appVersion)
 	if err != nil {
 		return nil, err
 	}

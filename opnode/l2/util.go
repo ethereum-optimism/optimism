@@ -1,28 +1,32 @@
-package node
+package l2
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"math/big"
+
+	"github.com/ethereum-optimism/optimistic-specs/opnode/rollup"
+	"github.com/ethereum-optimism/optimistic-specs/opnode/rollup/derive"
+	"github.com/ethereum/go-ethereum/core/types"
 
 	"github.com/ethereum/go-ethereum/ethdb/memorydb"
 
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/rlp"
 
-	"github.com/ethereum-optimism/optimistic-specs/opnode/l2"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/trie"
 )
 
-func ComputeL2OutputRoot(l2OutputRootVersion l2.Bytes32, blockHash common.Hash, blockRoot common.Hash, storageRoot common.Hash) l2.Bytes32 {
+func ComputeL2OutputRoot(l2OutputRootVersion Bytes32, blockHash common.Hash, blockRoot common.Hash, storageRoot common.Hash) Bytes32 {
 	var buf bytes.Buffer
 	buf.Write(l2OutputRootVersion[:])
 	buf.Write(blockRoot.Bytes())
 	buf.Write(storageRoot[:])
 	buf.Write(blockHash.Bytes())
-	return l2.Bytes32(crypto.Keccak256Hash(buf.Bytes()))
+	return Bytes32(crypto.Keccak256Hash(buf.Bytes()))
 }
 
 type AccountResult struct {
@@ -75,4 +79,44 @@ func (res *AccountResult) Verify(stateRoot common.Hash) error {
 			"  proof:   %x", accountClaimedValue, accountProofValue)
 	}
 	return err
+}
+
+// BlockToBatch converts a L2 block to batch-data.
+// Empty L2 blocks (i.e. only a L1 info deposit tx) return a nil batch with nil error.
+// Invalid L2 blocks may return an error.
+func BlockToBatch(config *rollup.Config, block *types.Block) (*derive.BatchData, error) {
+	txs := block.Transactions()
+	if len(txs) == 0 {
+		return nil, errors.New("expected at least 1 transaction but found none")
+	}
+	if typ := txs[0].Type(); typ != types.DepositTxType {
+		return nil, fmt.Errorf("expected first tx to be a deposit of L1 info, but got type: %d", typ)
+	}
+	if len(txs) == 1 { // the L1 info deposit tx, but empty otherwise, no batch data to submit
+		return nil, nil
+	}
+
+	// encode non-deposit transactions
+	var opaqueTxs []hexutil.Bytes
+	for i, tx := range block.Transactions() {
+		if tx.Type() == types.DepositTxType {
+			continue
+		}
+		otx, err := tx.MarshalBinary()
+		if err != nil {
+			return nil, fmt.Errorf("failed to encode tx %d in block: %v", i, err)
+		}
+		opaqueTxs = append(opaqueTxs, otx)
+	}
+
+	// figure out which L1 epoch this L2 block was derived from
+	l1Info, err := derive.L1InfoDepositTxData(txs[0].Data())
+	if err != nil {
+		return nil, fmt.Errorf("invalid L1 info deposit tx in block: %v", err)
+	}
+	return &derive.BatchData{BatchV1: derive.BatchV1{
+		Epoch:        rollup.Epoch(l1Info.Number), // the L1 block number equals the L2 epoch.
+		Timestamp:    block.Time(),
+		Transactions: opaqueTxs,
+	}}, nil
 }
