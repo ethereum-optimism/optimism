@@ -1,6 +1,9 @@
 name: Exteral Tests (Synthetix)
 
-on: workflow_dispatch
+on:
+  schedule:
+    # run these tests once per day
+    - cron: '0 0 * * *'
 
 jobs:
   integration:
@@ -69,7 +72,6 @@ jobs:
         if: failure()
         uses: jwalton/gh-docker-logs@v1
         with:
-          images: 'ethereumoptimism/hardhat,ethereumoptimism/deployer,ethereumoptimism/data-transport-layer,ethereumoptimism/l2geth,ethereumoptimism/message-relayer,ethereumoptimism/batch-submitter,ethereumoptimism/l2geth,ethereumoptimism/integration-tests'
           dest: '~/logs'
 
       - name: Tar logs
