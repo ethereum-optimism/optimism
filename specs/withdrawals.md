@@ -73,7 +73,7 @@ These inputs must satisfy the following conditions:
 
 **On L2:**
 
-1. An L2 account sends a withdrawal message (and possibly also ETH) to the `WithdrawalsWindow` predeploy contract.
+1. An L2 account sends a withdrawal message (and possibly also ETH) to the `Withdrawor` predeploy contract.
    This is a very simple contract that stores a mapping from the hash of the `WithdrawalMessage` as defined above to a
    boolean value. (`mapping (bytes32 => bool) withdrawalMessages`)
 2. If ETH is being withdrawn, it can eventually be burned by deploying a contract which immediately `SELFDESTRUCT`s.
@@ -101,7 +101,7 @@ to be withdrawn.
 It contains a mapping which records withdrawals.
 
 ```js
-interface WithdrawalsWindow {
+interface Withdrawor {
 
     event WithdrawalMessage(
         uint256 indexed messageNonce, // this is a global nonce value for all withdrawal messages
