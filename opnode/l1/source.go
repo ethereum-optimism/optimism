@@ -19,9 +19,13 @@ import (
 )
 
 type SourceConfig struct {
+	// batching parameters
 	MaxParallelBatching int
 	MaxBatchRetry       int
 	MaxRequestsPerBatch int
+
+	// limit concurrent requests, applies to the source as a whole
+	MaxConcurrentRequests int
 
 	// cache sizes
 
@@ -37,6 +41,31 @@ type SourceConfig struct {
 	// Of real L1 blocks no deposits can be missed/faked, no batches can be missed/faked,
 	// only the wrong L1 blocks can be retrieved.
 	TrustRPC bool
+}
+
+func (c *SourceConfig) Check() error {
+	if c.ReceiptsCacheSize < 0 {
+		return fmt.Errorf("invalid receipts cache size: %d", c.ReceiptsCacheSize)
+	}
+	if c.TransactionsCacheSize < 0 {
+		return fmt.Errorf("invalid transactions cache size: %d", c.TransactionsCacheSize)
+	}
+	if c.HeadersCacheSize < 0 {
+		return fmt.Errorf("invalid headers cache size: %d", c.HeadersCacheSize)
+	}
+	if c.MaxConcurrentRequests < 1 {
+		return fmt.Errorf("expected at least 1 concurrent request, but max is %d", c.MaxConcurrentRequests)
+	}
+	if c.MaxParallelBatching < 1 {
+		return fmt.Errorf("expected at least 1 batch request to run at a time, but max is %d", c.MaxParallelBatching)
+	}
+	if c.MaxBatchRetry < 0 || c.MaxBatchRetry > 20 {
+		return fmt.Errorf("number of max batch retries is not reasonable: %d", c.MaxBatchRetry)
+	}
+	if c.MaxRequestsPerBatch < 1 {
+		return fmt.Errorf("expected at least 1 request per batch, but max is: %d", c.MaxRequestsPerBatch)
+	}
+	return nil
 }
 
 func DefaultConfig(config *rollup.Config, trustRPC bool) *SourceConfig {
@@ -55,6 +84,8 @@ func DefaultConfig(config *rollup.Config, trustRPC bool) *SourceConfig {
 		MaxParallelBatching: 8,
 		MaxBatchRetry:       3,
 		MaxRequestsPerBatch: 20,
+
+		MaxConcurrentRequests: 10,
 
 		TrustRPC: trustRPC,
 	}
@@ -92,18 +123,15 @@ type Source struct {
 }
 
 func NewSource(client RPCClient, log log.Logger, config *SourceConfig) (*Source, error) {
-	receiptsCache, err := lru.New(config.ReceiptsCacheSize)
-	if err != nil {
-		return nil, fmt.Errorf("invalid receipts cache: %v", err)
+	if err := config.Check(); err != nil {
+		return nil, fmt.Errorf("bad config, cannot create L1 source: %v", err)
 	}
-	transactionsCache, err := lru.New(config.TransactionsCacheSize)
-	if err != nil {
-		return nil, fmt.Errorf("invalid transactions cache: %v", err)
-	}
-	headersCache, err := lru.New(config.HeadersCacheSize)
-	if err != nil {
-		return nil, fmt.Errorf("invalid headers cache: %v", err)
-	}
+	// no errors if the size is positive, as already validated by Check() above.
+	receiptsCache, _ := lru.New(config.ReceiptsCacheSize)
+	transactionsCache, _ := lru.New(config.TransactionsCacheSize)
+	headersCache, _ := lru.New(config.HeadersCacheSize)
+
+	client = LimitRPC(client, config.MaxConcurrentRequests)
 
 	// Batch calls will be split up to handle max-batch size,
 	// and parallelized since the RPC server does not parallelize batch contents otherwise.
