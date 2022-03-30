@@ -22,6 +22,7 @@ services:
       dockerfile: Dockerfile.l2
       args:
         L1_BLOCK_INFO_BYTECODE: $L1_BLOCK_INFO_BYTECODE
+        WITHDRAWOR_BYTECODE: $WITHDRAWOR_BYTECODE
     ports:
       - "9545:8545"
     volumes:
