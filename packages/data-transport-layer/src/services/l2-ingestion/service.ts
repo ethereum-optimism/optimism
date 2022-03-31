@@ -106,6 +106,10 @@ export class L2IngestionService extends BaseService<L2IngestionServiceOptions> {
           })
         : this.options.l2RpcProvider
 
+    // TODO: Attempt to connect to the l2RpcProvider repeatedly, retry for like 90 seconds
+    // then throw an error if can't connect after 90 seconds. Can use getNetwork() to check
+    // if the connection is successful or not.
+
     // Consistency check to fix Kovan halting issue.
     const network = await this.state.l2RpcProvider.getNetwork()
     const shouldDoCheck = !(await this.state.db.getConsistencyCheckFlag())
