@@ -27,6 +27,7 @@ const TRANSPORT_DB_KEYS = {
   STARTING_L1_BLOCK: `l1:starting`,
   HIGHEST_L2_BLOCK: `l2:highest`,
   HIGHEST_SYNCED_BLOCK: `synced:highest`,
+  CONSISTENCY_CHECK: `consistency:checked`,
 }
 
 interface Indexed {
@@ -200,6 +201,20 @@ export class TransportDB {
 
   public async getHighestL2BlockNumber(): Promise<number> {
     return this.db.get<number>(TRANSPORT_DB_KEYS.HIGHEST_L2_BLOCK, 0)
+  }
+
+  public async getConsistencyCheckFlag(): Promise<boolean> {
+    return this.db.get<boolean>(TRANSPORT_DB_KEYS.CONSISTENCY_CHECK, 0)
+  }
+
+  public async putConsistencyCheckFlag(flag: boolean): Promise<void> {
+    return this.db.put<boolean>([
+      {
+        key: TRANSPORT_DB_KEYS.CONSISTENCY_CHECK,
+        index: 0,
+        value: flag,
+      },
+    ])
   }
 
   public async putHighestL2BlockNumber(

@@ -22,9 +22,7 @@ export const handleSequencerBlock = {
   }> => {
     const transaction = block.transactions[0]
     const transactionIndex =
-      transaction.index === null || transaction.index === undefined
-        ? BigNumber.from(transaction.blockNumber).toNumber() - 1
-        : BigNumber.from(transaction.index).toNumber()
+      BigNumber.from(transaction.blockNumber).toNumber() - 1
 
     let transactionEntry: Partial<TransactionEntry> = {
       // Legacy support.
