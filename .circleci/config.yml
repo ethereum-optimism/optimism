@@ -208,22 +208,22 @@ jobs:
     steps:
       - restore_cache:
           keys:
-            - v2-source-{{ .Branch }}-{{ .Revision }}
-            - v2-source-{{ .Branch }}
+            - v2-cache-source-{{ .Branch }}-{{ .Revision }}
+            - v2-cache-source-{{ .Branch }}
       - checkout
       - save_cache:
-          key: v2-source-{{ .Branch }}-{{ .Revision }}
+          key: v2-cache-source-{{ .Branch }}-{{ .Revision }}
           paths:
             - ".git"
       - restore_cache:
           keys:
-            - v2-yarn-install-{{ checksum "yarn.lock" }}
-            - v2-yarn-install
+            - v2-cache-yarn-install-{{ checksum "yarn.lock" }}
+            - v2-cache-yarn-install
       - run:
           name: Install dependencies
           command: yarn --frozen-lockfile
       - save_cache:
-          key: v2-yarn-install-{{ checksum "yarn.lock" }}
+          key: v2-cache-yarn-install-{{ checksum "yarn.lock" }}
           paths:
             - node_modules
             - packages/common-ts/node_modules
@@ -238,7 +238,7 @@ jobs:
           name: Build monorepo
           command: yarn build
       - save_cache:
-          key: v2-yarn-build-{{ .Revision }}
+          key: v2-cache-yarn-build-{{ .Revision }}
           paths:
             - "."
 
@@ -248,7 +248,7 @@ jobs:
     steps:
       - restore_cache:
           keys:
-            - v2-yarn-build-{{ .Revision }}
+            - v2-cache-yarn-build-{{ .Revision }}
       - checkout
       - run:
           name: Run Slither
@@ -262,7 +262,7 @@ jobs:
     steps:
       - restore_cache:
           keys:
-            - v2-yarn-build-{{ .Revision }}
+            - v2-cache-yarn-build-{{ .Revision }}
       - checkout
       - run:
           name: Lint
@@ -283,7 +283,7 @@ jobs:
     steps:
       - restore_cache:
           keys:
-            - v2-yarn-build-{{ .Revision }}
+            - v2-cache-yarn-build-{{ .Revision }}
       - checkout
       - run:
           name: Test
@@ -306,7 +306,7 @@ jobs:
     steps:
       - restore_cache:
           keys:
-            - v2-yarn-build-{{ .Revision }}
+            - v2-cache-yarn-build-{{ .Revision }}
       - checkout
       # Note: The below needs to be manually configured whenever we
       # add a new package to CI.
@@ -385,7 +385,7 @@ jobs:
     steps:
       - restore_cache:
           keys:
-            - v2-yarn-build-{{ .Revision }}
+            - v2-cache-yarn-build-{{ .Revision }}
       - checkout
       - run:
           name: Lint
