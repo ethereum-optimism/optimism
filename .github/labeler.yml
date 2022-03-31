@@ -40,4 +40,4 @@ C-Protocol-Critical:
   - any:
     - 'packages/data-transport-layer/**/*.ts'
     - 'packages/contracts/**/*.sol'
-    - 'pakages/l2geth/**/*.go'
+    - 'l2geth/**/*.go'
