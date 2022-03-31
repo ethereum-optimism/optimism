@@ -269,6 +269,10 @@ jobs:
           command: yarn lint:check
           working_directory: packages/contracts
       - run:
+          name: Check deployment docs
+          command: yarn autogen:markdown && git diff --exit-code
+          working_directory: packages/contracts
+      - run:
           name: Slither
           command: yarn test:slither
           working_directory: packages/contracts
