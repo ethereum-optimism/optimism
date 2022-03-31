@@ -13,7 +13,7 @@
     "build": "yarn build:forge && yarn build:hh",
     "test:hh": "yarn hardhat test",
     "test:forge": "forge test --root . -c contracts --out forge-artifacts",
-    "test": "yarn test:forge && yarn test:hh",
+    "test": "yarn test:forge",
     "slither": "slither .",
     "clean": "rm -rf ./artifacts ./forge-artifacts ./cache ./coverage ./tsconfig.build.tsbuildinfo",
     "lint:ts:check": "eslint .",
