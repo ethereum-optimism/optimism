@@ -1,0 +1,62 @@
+pull_request_rules:
+  - name: Automatic merge on approval
+    conditions:
+        - or:
+          - and:
+            - "label!=SR-Risk"
+            - "label!=C-Protocol-Critical"
+            - "#approved-reviews-by>=2"
+          - and:
+            - "label=SR-Risk"
+            - "#approved-reviews-by>=2"
+            - "approved-reviews-by=maurelian"
+          - and:
+            - "label=C-Protocol-Critical"
+            - "#approved-reviews-by>=2"
+            - or:
+              - "approved-reviews-by=tynes"
+              - "approved-reviews-by=smartcontracts"
+    actions:
+      merge:
+        method: squash
+  - name: Handle security critical PRs
+    conditions:
+      - "label=SR-Risk"
+    actions:
+      request_reviews:
+        users:
+          - "maurelian"
+      comment:
+        message: |
+          Hey there @{{author}}! You flagged this PR as security critical. To make review easier, please add a comment describing
+
+          1. The risks present in this PR.
+          2. The mitigations you have added to try and reduce those risks.
+  - name: Request reviewers
+    conditions:
+      - -closed
+    actions:
+      request_reviews:
+        users:
+          - cfromknecht
+          - tynes
+          - mslipper
+          - inphi
+          - tuxcanfly
+          - smartcontracts
+        random_count: 2
+  - name: Request protocol critical reviewers
+    conditions:
+      - label=C-Protocol-Critical
+    actions:
+      request_reviews:
+        users:
+          - tynes
+          - smartcontracts
+        random_count: 1
+  - name: Ask to resolve conflict
+    conditions:
+      - conflict
+    actions:
+      comment:
+        message: Hey @{{author}}! This PR has merge conflicts. Please fix them before continuing review.

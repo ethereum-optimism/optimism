@@ -10,7 +10,7 @@
   - 'patches/**/*'
 
 M-ci:
-  - any: ['.github/**/*']
+  - any: ['.github/**/*', '.circleci/**/*']
 
 M-l2geth:
   - any: ['l2geth/**/*']
@@ -35,3 +35,9 @@ M-sdk:
 
 M-ops:
   - any: ['ops/**/*']
+
+C-Protocol-Critical:
+  - any:
+    - 'packages/data-transport-layer/**/*.ts'
+    - 'packages/contracts/**/*.sol'
+    - 'pakages/l2geth/**/*.go'
