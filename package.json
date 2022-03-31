@@ -4,10 +4,10 @@
   "license": "MIT",
   "private": true,
   "devDependencies": {
+    "doctoc": "2.1.0",
     "lint-staged": "11.0.0",
     "markdownlint": "^0.24.0",
-    "markdownlint-cli2": "^0.3.2",
-    "doctoc": "2.1.0"
+    "markdownlint-cli2": "^0.3.2"
   },
   "scripts": {
     "setup": "yarn install && cargo install lychee",
@@ -16,5 +16,8 @@
     "lint:check": "markdownlint-cli2  \"./opnode/README.md\" \"./specs/**/*.md\" \"#**/node_modules\"",
     "lint:links": "lychee --exclude twitter.com --exclude-mail README.md \"./opnode/README.md\" \"./specs/**/*.md\" \"./meta/**/*.md\" \"./opnode/**/*.md\"",
     "lint:toc": "doctoc --title=\"**Table of Contents**\" ./specs ./meta"
+  },
+  "dependencies": {
+    "@eth-optimism/core-utils": "^0.8.1"
   }
 }
