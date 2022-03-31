@@ -247,11 +247,26 @@ export abstract class BaseServiceV2<
     this.logger = new Logger({ name: params.name })
 
     // Gracefully handle stop signals.
+    const maxSignalCount = 3
+    let currSignalCount = 0
     const stop = async (signal: string) => {
-      this.logger.info(`stopping service with signal`, { signal })
-      await this.stop()
-      process.exit(0)
+      // Allow exiting fast if more signals are received.
+      currSignalCount++
+      if (currSignalCount === 1) {
+        this.logger.info(`stopping service with signal`, { signal })
+        await this.stop()
+        process.exit(0)
+      } else if (currSignalCount >= maxSignalCount) {
+        this.logger.info(`performing hard stop`)
+        process.exit(0)
+      } else {
+        this.logger.info(
+          `send ${maxSignalCount - currSignalCount} more signal(s) to hard stop`
+        )
+      }
     }
+
+    // Handle stop signals.
     process.on('SIGTERM', stop)
     process.on('SIGINT', stop)
   }
