@@ -8,7 +8,7 @@ do
     sleep 1
     if [ $i -eq $RETRIES ]; then
         echo 'Timed out waiting for sequencer'
-        break
+        exit 1
     fi
     echo 'Waiting for sequencer...'
     ((i=i+1))
