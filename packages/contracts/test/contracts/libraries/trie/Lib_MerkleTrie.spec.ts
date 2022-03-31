@@ -152,62 +152,6 @@ describe('Lib_MerkleTrie', () => {
     }
   })
 
-  describe('update', () => {
-    for (const nodeCount of NODE_COUNTS) {
-      describe(`inside a trie with ${nodeCount} nodes and keys/vals of size ${nodeCount} bytes`, () => {
-        let generator: TrieTestGenerator
-        before(async () => {
-          generator = await TrieTestGenerator.fromRandom({
-            seed: `seed.update.${nodeCount}`,
-            nodeCount,
-            secure: false,
-            keySize: nodeCount,
-            valSize: nodeCount,
-          })
-        })
-
-        for (
-          let i = 0;
-          i < nodeCount;
-          i += nodeCount / (nodeCount > 8 ? 8 : 1)
-        ) {
-          it(`should correctly update node #${i}`, async () => {
-            const test = await generator.makeNodeUpdateTest(
-              i,
-              '0x1234123412341234'
-            )
-
-            expect(
-              await Lib_MerkleTrie.update(
-                test.key,
-                test.val,
-                test.proof,
-                test.root
-              )
-            ).to.equal(test.newRoot)
-          })
-        }
-      })
-    }
-
-    it('should return the single-node root hash if the trie was previously empty', async () => {
-      const key = '0x1234'
-      const val = '0x5678'
-
-      const trie = new Trie()
-      await trie.put(fromHexString(key), fromHexString(val))
-
-      expect(
-        await Lib_MerkleTrie.update(
-          key,
-          val,
-          '0x', // Doesn't require a proof
-          ethers.utils.keccak256('0x80') // Empty Merkle trie root hash
-        )
-      ).to.equal(toHexString(trie.root))
-    })
-  })
-
   describe('get', () => {
     for (const nodeCount of NODE_COUNTS) {
       describe(`inside a trie with ${nodeCount} nodes and keys/vals of size ${nodeCount} bytes`, () => {
