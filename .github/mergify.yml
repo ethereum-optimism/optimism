@@ -1,3 +1,7 @@
+queue_rules:
+  - name: default
+    conditions: []
+
 pull_request_rules:
   - name: Automatic merge on approval
     conditions:
@@ -17,7 +21,8 @@ pull_request_rules:
               - "approved-reviews-by=tynes"
               - "approved-reviews-by=smartcontracts"
     actions:
-      merge:
+      queue:
+        name: default
         method: squash
   - name: Handle security critical PRs
     conditions:
@@ -60,3 +65,10 @@ pull_request_rules:
     actions:
       comment:
         message: Hey @{{author}}! This PR has merge conflicts. Please fix them before continuing review.
+  - name: Notify author when added to merge queue
+    conditions:
+      - "check-success=Queue: Embarked on merge train"
+    actions:
+      comment:
+        message: |
+          This PR has been added to the merge train, and will be merged soon.
