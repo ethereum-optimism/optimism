@@ -14,24 +14,26 @@ contract Withdrawor {
         address indexed target,
         uint256 value,
         uint256 gasLimit,
-        bytes message
+        bytes data
     );
 
     /**
-     * Passes a message to L1.
-     * @param _message Message to pass to L1.
+     * Initiates a withdrawal to execute on L1.
+     * @param _target Address to call on L1 execution.
+     * @param _gasLimit GasLimit to provide on L1.
+     * @param _data Data to forward to L1 target.
      */
     function initiateWithdrawal(
         address _target,
         uint256 _gasLimit,
-        bytes calldata _message
+        bytes calldata _data
     ) external payable {
-        bytes32 messageHash = keccak256(
-            abi.encode(nonce, msg.sender, _target, msg.value, _message)
+        bytes32 withdrawalHash = keccak256(
+            abi.encode(nonce, msg.sender, _target, msg.value, _gasLimit, _data)
         );
-        withdrawals[messageHash] = true;
+        withdrawals[withdrawalHash] = true;
         nonce++;
 
-        emit WithdrawalInitiated(nonce, msg.sender, _target, msg.value, _gasLimit, _message);
+        emit WithdrawalInitiated(nonce, msg.sender, _target, msg.value, _gasLimit, _data);
     }
 }

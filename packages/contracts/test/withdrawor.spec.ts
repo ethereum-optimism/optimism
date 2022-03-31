@@ -45,12 +45,13 @@ describe('Withdraw', () => {
 
     const messageHash = ethers.utils.keccak256(
       ethers.utils.defaultAbiCoder.encode(
-        ['uint256', 'address', 'address', 'uint256', 'bytes'],
+        ['uint256', 'address', 'address', 'uint256', 'uint256', 'bytes'],
         [
           nonceBefore,
           signerAddress,
           NON_ZERO_ADDRESS,
           ZERO_BYTES32,
+          NON_ZERO_GASLIMIT,
           NON_ZERO_DATA,
         ]
       )
