@@ -6,7 +6,7 @@ import { BigNumber } from 'ethers'
 import { LevelUp } from 'levelup'
 import axios from 'axios'
 import bfj from 'bfj'
-import { Gauge } from 'prom-client'
+import { Gauge, Histogram } from 'prom-client'
 
 /* Imports: Internal */
 import { handleSequencerBlock } from './handlers/transaction'
@@ -16,6 +16,7 @@ import { L1DataTransportServiceOptions } from '../main/service'
 
 interface L2IngestionMetrics {
   highestSyncedL2Block: Gauge<string>
+  fetchBlocksRequestTime: Histogram<string>
 }
 
 const registerMetrics = ({
@@ -25,6 +26,12 @@ const registerMetrics = ({
   highestSyncedL2Block: new client.Gauge({
     name: 'data_transport_layer_highest_synced_l2_block',
     help: 'Highest Synced L2 Block Number',
+    registers: [registry],
+  }),
+  fetchBlocksRequestTime: new client.Histogram({
+    name: 'data_transport_layer_fetch_blocks_time',
+    help: 'Amount of time fetching remote L2 blocks takes',
+    buckets: [0.1, 5, 15, 50, 100, 500],
     registers: [registry],
   }),
 })
@@ -240,6 +247,8 @@ export class L2IngestionService extends BaseService<L2IngestionServiceOptions> {
           )
         }
 
+        const end = this.l2IngestionMetrics.fetchBlocksRequestTime.startTimer()
+
         const resp = await axios.post(
           this.state.l2RpcProvider.connection.url,
           req,
@@ -248,6 +257,8 @@ export class L2IngestionService extends BaseService<L2IngestionServiceOptions> {
         const respJson = await bfj.parse(resp.data, {
           yieldRate: 4096, // this yields abit more often than the default of 16384
         })
+
+        end()
 
         result = respJson.result
         if (result === null) {
