@@ -878,8 +878,8 @@ func (s *SyncService) applyTransactionToTip(tx *types.Transaction) error {
 	// the case where the index is updated but the
 	// transaction isn't yet added to the chain
 	s.SetLatestIndex(tx.GetMeta().Index)
-	if tx.GetMeta().QueueIndex != nil {
-		s.SetLatestEnqueueIndex(tx.GetMeta().QueueIndex)
+	if queueIndex := tx.GetMeta().QueueIndex; queueIndex != nil {
+		s.SetLatestEnqueueIndex(queueIndex)
 	}
 
 	// The index was set above so it is safe to dereference
