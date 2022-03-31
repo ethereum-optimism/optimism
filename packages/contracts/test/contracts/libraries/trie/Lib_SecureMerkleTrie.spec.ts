@@ -50,43 +50,6 @@ describe('Lib_SecureMerkleTrie', () => {
     }
   })
 
-  describe('update', () => {
-    for (const nodeCount of NODE_COUNTS) {
-      describe(`inside a trie with ${nodeCount} nodes`, () => {
-        let generator: TrieTestGenerator
-        before(async () => {
-          generator = await TrieTestGenerator.fromRandom({
-            seed: `seed.update.${nodeCount}`,
-            nodeCount,
-            secure: true,
-          })
-        })
-
-        for (
-          let i = 0;
-          i < nodeCount;
-          i += nodeCount / (nodeCount > 8 ? 8 : 1)
-        ) {
-          it(`should correctly update node #${i}`, async () => {
-            const test = await generator.makeNodeUpdateTest(
-              i,
-              '0x1234123412341234'
-            )
-
-            expect(
-              await Lib_SecureMerkleTrie.update(
-                test.key,
-                test.val,
-                test.proof,
-                test.root
-              )
-            ).to.equal(test.newRoot)
-          })
-        }
-      })
-    }
-  })
-
   describe('get', () => {
     for (const nodeCount of NODE_COUNTS) {
       describe(`inside a trie with ${nodeCount} nodes`, () => {
@@ -114,23 +77,5 @@ describe('Lib_SecureMerkleTrie', () => {
         }
       })
     }
-  })
-
-  describe('getSingleNodeRootHash', () => {
-    let generator: TrieTestGenerator
-    before(async () => {
-      generator = await TrieTestGenerator.fromRandom({
-        seed: `seed.get.${1}`,
-        nodeCount: 1,
-        secure: true,
-      })
-    })
-
-    it(`should get the root hash of a trie with a single node`, async () => {
-      const test = await generator.makeInclusionProofTest(0)
-      expect(
-        await Lib_SecureMerkleTrie.getSingleNodeRootHash(test.key, test.val)
-      ).to.equal(test.root)
-    })
   })
 })
