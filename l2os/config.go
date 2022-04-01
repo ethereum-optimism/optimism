@@ -14,7 +14,7 @@ type Config struct {
 	// L1EthRpc is the HTTP provider URL for L1.
 	L1EthRpc string
 
-	// L2EthRpc is the HTTP provider URL for L1.
+	// L2EthRpc is the HTTP provider URL for L2.
 	L2EthRpc string
 
 	// RollupRpc is the HTTP provider URL for the rollup node.
