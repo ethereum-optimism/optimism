@@ -6,7 +6,7 @@ import { BigNumber } from 'ethers'
 import { LevelUp } from 'levelup'
 import axios from 'axios'
 import bfj from 'bfj'
-import { Gauge } from 'prom-client'
+import { Gauge, Histogram } from 'prom-client'
 
 /* Imports: Internal */
 import { handleSequencerBlock } from './handlers/transaction'
@@ -16,6 +16,7 @@ import { L1DataTransportServiceOptions } from '../main/service'
 
 interface L2IngestionMetrics {
   highestSyncedL2Block: Gauge<string>
+  fetchBlocksRequestTime: Histogram<string>
 }
 
 const registerMetrics = ({
@@ -25,6 +26,12 @@ const registerMetrics = ({
   highestSyncedL2Block: new client.Gauge({
     name: 'data_transport_layer_highest_synced_l2_block',
     help: 'Highest Synced L2 Block Number',
+    registers: [registry],
+  }),
+  fetchBlocksRequestTime: new client.Histogram({
+    name: 'data_transport_layer_fetch_blocks_time',
+    help: 'Amount of time fetching remote L2 blocks takes',
+    buckets: [0.1, 5, 15, 50, 100, 500],
     registers: [registry],
   }),
 })
@@ -100,7 +107,58 @@ export class L2IngestionService extends BaseService<L2IngestionServiceOptions> {
         : this.options.l2RpcProvider
   }
 
+  protected async ensure(): Promise<void> {
+    let retries = 0
+    while (true) {
+      try {
+        await this.state.l2RpcProvider.getNetwork()
+        break
+      } catch (e) {
+        retries++
+        this.logger.info(`Cannot connect to L2, retrying ${retries}/20`)
+        if (retries >= 20) {
+          this.logger.info('Cannot connect to L2, shutting down')
+          await this.stop()
+          process.exit()
+        }
+        await sleep(1000 * retries)
+      }
+    }
+  }
+
+  protected async checkConsistency(): Promise<void> {
+    const network = await this.state.l2RpcProvider.getNetwork()
+    const shouldDoCheck = !(await this.state.db.getConsistencyCheckFlag())
+    if (shouldDoCheck && network.chainId === 69) {
+      this.logger.info('performing consistency check')
+      const highestBlock =
+        await this.state.db.getHighestSyncedUnconfirmedBlock()
+      for (let i = 0; i < highestBlock; i++) {
+        const block = await this.state.db.getUnconfirmedTransactionByIndex(i)
+        if (block === null) {
+          this.logger.info('resetting to null block', {
+            index: i,
+          })
+          await this.state.db.setHighestSyncedUnconfirmedBlock(i)
+          break
+        }
+
+        // Log some progress so people know what's goin on.
+        if (i % 10000 === 0) {
+          this.logger.info(`consistency check progress`, {
+            index: i,
+          })
+        }
+      }
+      this.logger.info('consistency check complete')
+      await this.state.db.putConsistencyCheckFlag(true)
+    }
+  }
+
   protected async _start(): Promise<void> {
+    await this.ensure()
+    await this.checkConsistency()
+
     while (this.running) {
       try {
         const highestSyncedL2BlockNumber =
@@ -240,6 +298,8 @@ export class L2IngestionService extends BaseService<L2IngestionServiceOptions> {
           )
         }
 
+        const end = this.l2IngestionMetrics.fetchBlocksRequestTime.startTimer()
+
         const resp = await axios.post(
           this.state.l2RpcProvider.connection.url,
           req,
@@ -248,6 +308,8 @@ export class L2IngestionService extends BaseService<L2IngestionServiceOptions> {
         const respJson = await bfj.parse(resp.data, {
           yieldRate: 4096, // this yields abit more often than the default of 16384
         })
+
+        end()
 
         result = respJson.result
         if (result === null) {

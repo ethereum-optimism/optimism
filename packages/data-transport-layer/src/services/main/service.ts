@@ -89,6 +89,10 @@ export class L1DataTransportService extends BaseService<L1DataTransportServiceOp
       }
     })
 
+    this.state.metrics.client.collectDefaultMetrics({
+      prefix: 'data_transport_layer_'
+    })
+
     this.state.failureCounter = new this.state.metrics.client.Counter({
       name: 'data_transport_layer_main_service_failures',
       help: 'Counts the number of times that the main service fails',

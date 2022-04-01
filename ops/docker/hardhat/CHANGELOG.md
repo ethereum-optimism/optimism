@@ -1,5 +1,11 @@
 # @eth-optimism/hardhat-node
 
+## 0.1.4
+
+### Patch Changes
+
+- 847a6338: Bump to hardhat@2.9.1
+
 ## 0.1.3
 
 ### Patch Changes

@@ -2,4 +2,4 @@
 '@eth-optimism/l2geth': patch
 ---
 
-Skip TestWSAttachWelcome
+Skip account cmd tests
