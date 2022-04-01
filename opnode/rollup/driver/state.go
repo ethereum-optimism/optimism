@@ -12,7 +12,6 @@ import (
 	"github.com/ethereum-optimism/optimistic-specs/opnode/eth"
 	"github.com/ethereum-optimism/optimistic-specs/opnode/l2"
 	"github.com/ethereum-optimism/optimistic-specs/opnode/rollup"
-	"github.com/ethereum-optimism/optimistic-specs/opnode/rollup/derive"
 	"github.com/ethereum-optimism/optimistic-specs/opnode/rollup/sync"
 	"github.com/ethereum/go-ethereum/log"
 )
@@ -239,18 +238,6 @@ func (s *state) createNewL2Block(ctx context.Context) error {
 	// Update our L2 head block based on the new unsafe block we just generated.
 	s.l2Head = newUnsafeL2Head
 	s.log.Info("Sequenced new l2 block", "l2Head", s.l2Head, "l1Origin", s.l2Head.L1Origin, "txs", len(batch.Transactions), "time", s.l2Head.Time)
-
-	// Submit batch to L1. Right now this is part of the Sequencer loop inside of the rollup node
-	// but it's much cleaner to have it in a separate service. Will be removed from this loop
-	// before Bedrock goes into production.
-	s.wg.Add(1)
-	go func() {
-		defer s.wg.Done()
-		_, err := s.bss.Submit(&s.Config, []*derive.BatchData{batch}) // TODO: submit multiple batches
-		if err != nil {
-			s.log.Error("Error submitting batch", "err", err)
-		}
-	}()
 
 	return nil
 }
