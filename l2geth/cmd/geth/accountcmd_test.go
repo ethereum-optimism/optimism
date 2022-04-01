@@ -48,6 +48,7 @@ func TestAccountListEmpty(t *testing.T) {
 }
 
 func TestAccountList(t *testing.T) {
+	t.Skip()
 	datadir := tmpDatadirWithKeystore(t)
 	geth := runGeth(t, "account", "list", "--datadir", datadir)
 	defer geth.ExpectExit()
@@ -67,6 +68,7 @@ Account #2: {289d485d9771714cce91d3393d764e1311907acc} keystore://{{.Datadir}}/k
 }
 
 func TestAccountNew(t *testing.T) {
+	t.Skip()
 	geth := runGeth(t, "account", "new", "--lightkdf")
 	defer geth.ExpectExit()
 	geth.Expect(`
@@ -89,6 +91,7 @@ Path of the secret key file: .*UTC--.+--[0-9a-f]{40}
 }
 
 func TestAccountNewBadRepeat(t *testing.T) {
+	t.Skip()
 	geth := runGeth(t, "account", "new", "--lightkdf")
 	defer geth.ExpectExit()
 	geth.Expect(`
@@ -101,6 +104,7 @@ Fatal: Passwords do not match
 }
 
 func TestAccountUpdate(t *testing.T) {
+	t.Skip()
 	datadir := tmpDatadirWithKeystore(t)
 	geth := runGeth(t, "account", "update",
 		"--datadir", datadir, "--lightkdf",
@@ -117,6 +121,7 @@ Repeat password: {{.InputLine "foobar2"}}
 }
 
 func TestWalletImport(t *testing.T) {
+	t.Skip()
 	geth := runGeth(t, "wallet", "import", "--lightkdf", "testdata/guswallet.json")
 	defer geth.ExpectExit()
 	geth.Expect(`
@@ -132,6 +137,7 @@ Address: {d4584b5f6229b7be90727b0fc8c6b91bb427821f}
 }
 
 func TestWalletImportBadPassword(t *testing.T) {
+	t.Skip()
 	geth := runGeth(t, "wallet", "import", "--lightkdf", "testdata/guswallet.json")
 	defer geth.ExpectExit()
 	geth.Expect(`
@@ -142,6 +148,7 @@ Fatal: could not decrypt key with given password
 }
 
 func TestUnlockFlag(t *testing.T) {
+	t.Skip()
 	datadir := tmpDatadirWithKeystore(t)
 	geth := runGeth(t,
 		"--datadir", datadir, "--nat", "none", "--nodiscover", "--maxpeers", "0", "--port", "0",
@@ -166,6 +173,7 @@ Password: {{.InputLine "foobar"}}
 }
 
 func TestUnlockFlagWrongPassword(t *testing.T) {
+	t.Skip()
 	datadir := tmpDatadirWithKeystore(t)
 	geth := runGeth(t,
 		"--datadir", datadir, "--nat", "none", "--nodiscover", "--maxpeers", "0", "--port", "0",
@@ -185,6 +193,7 @@ Fatal: Failed to unlock account f466859ead1932d743d622cb74fc058882e8648a (could 
 
 // https://github.com/ethereum/go-ethereum/issues/1785
 func TestUnlockFlagMultiIndex(t *testing.T) {
+	t.Skip()
 	datadir := tmpDatadirWithKeystore(t)
 	geth := runGeth(t,
 		"--datadir", datadir, "--nat", "none", "--nodiscover", "--maxpeers", "0", "--port", "0",
@@ -212,6 +221,7 @@ Password: {{.InputLine "foobar"}}
 }
 
 func TestUnlockFlagPasswordFile(t *testing.T) {
+	t.Skip()
 	datadir := tmpDatadirWithKeystore(t)
 	geth := runGeth(t,
 		"--datadir", datadir, "--nat", "none", "--nodiscover", "--maxpeers", "0", "--port", "0",
@@ -232,6 +242,7 @@ func TestUnlockFlagPasswordFile(t *testing.T) {
 }
 
 func TestUnlockFlagPasswordFileWrongPassword(t *testing.T) {
+	t.Skip()
 	datadir := tmpDatadirWithKeystore(t)
 	geth := runGeth(t,
 		"--datadir", datadir, "--nat", "none", "--nodiscover", "--maxpeers", "0", "--port", "0",
@@ -243,6 +254,7 @@ Fatal: Failed to unlock account 0 (could not decrypt key with given password)
 }
 
 func TestUnlockFlagAmbiguous(t *testing.T) {
+	t.Skip()
 	store := filepath.Join("..", "..", "accounts", "keystore", "testdata", "dupes")
 	geth := runGeth(t,
 		"--keystore", store, "--nat", "none", "--nodiscover", "--maxpeers", "0", "--port", "0",
@@ -281,6 +293,7 @@ In order to avoid this warning, you need to remove the following duplicate key f
 }
 
 func TestUnlockFlagAmbiguousWrongPassword(t *testing.T) {
+	t.Skip()
 	store := filepath.Join("..", "..", "accounts", "keystore", "testdata", "dupes")
 	geth := runGeth(t,
 		"--keystore", store, "--nat", "none", "--nodiscover", "--maxpeers", "0", "--port", "0",
