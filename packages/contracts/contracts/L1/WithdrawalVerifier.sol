@@ -2,6 +2,9 @@
 pragma solidity 0.8.10;
 
 import { L2OutputOracle } from "./L2OutputOracle.sol";
+import {
+    Lib_SecureMerkleTrie
+} from "../../lib/optimism/packages/contracts/contracts/libraries/trie/Lib_SecureMerkleTrie.sol";
 
 /**
  * @title WithdrawalVerifier
@@ -19,30 +22,21 @@ contract WithdrawalVerifier {
         bytes32 latestBlockhash;
     }
 
-    // struct WithdrawalProof {
-    //     ;
-    // }
-
     constructor(L2OutputOracle _l2Oracle, address _withdrawalsPredeploy) {
         l2Oracle = _l2Oracle;
         withdrawalsPredeploy = _withdrawalsPredeploy;
     }
 
     function verifyWithdrawal(
-        uint256 nonce,
+        uint256 _nonce,
         address _sender,
         address _target,
         uint256 _value,
         uint256 _gasLimit,
         bytes calldata _data,
-        OutputRootProof calldata _outputRootProof
-    )
-        external
-        returns (
-            // WithdrawalProof _withdrawalProof
-            bool
-        )
-    {
+        OutputRootProof calldata _outputRootProof,
+        bytes calldata _withdrawalProof
+    ) external returns (bool) {
         // check that the timestamp is 7 days old
         // hash _outputRootProof and compare with the outputOracle's value
         // how do I get the withdrawal root itself?
@@ -61,5 +55,24 @@ contract WithdrawalVerifier {
                 ),
             "Calculated output root does not match expected value"
         );
+
+        bytes32 withdrawalHash = keccak256(
+            abi.encode(_nonce, _sender, _target, _value, _gasLimit, _data)
+        );
+        emit log_named_bytes32("withdrawalHash", withdrawalHash);
+        bytes32 storageKey = keccak256(
+            abi.encode(
+                withdrawalHash,
+                uint256(1) // second slot
+            )
+        );
+
+        return
+            Lib_SecureMerkleTrie.verifyInclusionProof(
+                abi.encodePacked(storageKey),
+                hex"01",
+                _withdrawalProof,
+                _outputRootProof.withdrawerRoot
+            );
     }
 }

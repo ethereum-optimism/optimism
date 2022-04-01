@@ -49,6 +49,7 @@ contract WithdrawalVerifierTest is DSTest {
     bytes32 withdrawerRoot = 0xb8576230d94535779ec872748df80a094fcad002a8fc2b37c5b8fe250b384be6;
     bytes32 latestBlockhash = keccak256(abi.encode(2));
     WithdrawalVerifier.OutputRootProof outputRootProof;
+    bytes withdrawalProof = hex"f879b853f8518080a04fc5f13ab2f9ba0c2da88b0151ab0e7cf4d85d08cca45ccd923c6ab76323eb28808080808080a0fc935bb380a99df15c4aae91dacba616986d33af599d458d5388fa5fec3ac80780808080808080a3e2a036125dacbefad1d42a65c3425f7b5c8b559dac475adb31578315e77ec70a3f9701";
 
     constructor() {
         // Move time forward so we have a non-zero starting timestamp
@@ -100,7 +101,8 @@ contract WithdrawalVerifierTest is DSTest {
             0, // value
             50_000, // gasLimit
             hex"111111111111111111111111111111111111111111111111111111111111111111111111111111111111", //data
-            outputRootProof
+            outputRootProof,
+            withdrawalProof
         );
     }
 
@@ -114,7 +116,8 @@ contract WithdrawalVerifierTest is DSTest {
             0, // value
             50_000, // gasLimit
             hex"111111111111111111111111111111111111111111111111111111111111111111111111111111111111", //data
-            outputRootProof
+            outputRootProof,
+            hex"ffff"
         );
     }
 
@@ -131,7 +134,8 @@ contract WithdrawalVerifierTest is DSTest {
             0, // value
             50_000, // gasLimit
             hex"111111111111111111111111111111111111111111111111111111111111111111111111111111111111", //data
-            invalidOutpuRootProof
+            invalidOutpuRootProof,
+            hex"ffff"
         );
     }
 }
