@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.5.19
+
+### Patch Changes
+
+- c1957126: Update Dockerfile to use Alpine
+- d9a51154: Bump to hardhat@2.9.1
+- Updated dependencies [c1957126]
+  - @eth-optimism/core-utils@0.8.2
+
 ## 0.5.18
 
 ### Patch Changes
