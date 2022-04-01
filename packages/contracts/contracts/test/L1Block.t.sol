@@ -1,14 +1,12 @@
+//SPDX-License-Identifier: MIT
 pragma solidity 0.8.10;
 
 import { DSTest } from "../../lib/ds-test/src/test.sol";
+import { Vm } from "../../lib/forge-std/src/Vm.sol";
 import { L1Block } from "../L2/L1Block.sol";
 
-interface CheatCodes {
-    function prank(address) external;
-}
-
 contract L1BLockTest is DSTest {
-    CheatCodes cheats = CheatCodes(HEVM_ADDRESS);
+    Vm vm = Vm(HEVM_ADDRESS);
     L1Block lb;
     address depositor;
     bytes32 immutable NON_ZERO_HASH = keccak256(abi.encode(1));
@@ -16,7 +14,7 @@ contract L1BLockTest is DSTest {
     function setUp() external {
         lb = new L1Block();
         depositor = lb.DEPOSITOR_ACCOUNT();
-        cheats.prank(depositor);
+        vm.prank(depositor);
         lb.setL1BlockValues(1, 2, 3, NON_ZERO_HASH);
     }
 

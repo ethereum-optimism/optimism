@@ -8,12 +8,13 @@
     "hardhat": "^2.7.1"
   },
   "scripts": {
-    "build:forge": "forge build --root . -c contracts --out forge-artifacts",
+    "build:forge": "forge build",
     "build:hh": "yarn hardhat compile",
     "build": "yarn build:forge && yarn build:hh",
     "test:hh": "yarn hardhat test",
-    "test:forge": "forge test --root . -c contracts --out forge-artifacts",
     "test": "yarn test:forge",
+    "test:forge": "forge test",
+    "gas-snapshot": "forge snapshot",
     "slither": "slither .",
     "clean": "rm -rf ./artifacts ./forge-artifacts ./cache ./coverage ./tsconfig.build.tsbuildinfo",
     "lint:ts:check": "eslint .",

@@ -3,3 +3,5 @@ src = 'contracts'
  # We need to build seperate artifacts for forge and hh, because they each expect a different
  # structure for the artifacts directory.
 out = 'forge-artifacts'
+optimizer = true
+optimizer_runs = 999999

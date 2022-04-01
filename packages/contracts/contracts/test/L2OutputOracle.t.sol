@@ -44,7 +44,7 @@ contract L2OutputOracle_Initializer is DSTest {
 
 // Define this test in a standalone contract to ensure it runs immediately after the constructor.
 contract L2OutputOracleTest_Constructor is L2OutputOracle_Initializer {
-    function test_Constructor() external {
+    function test_constructor() external {
         assertEq(oracle.owner(), sequencer);
         assertEq(oracle.submissionInterval(), submissionInterval);
         assertEq(oracle.l2BlockTime(), l2BlockTime);
