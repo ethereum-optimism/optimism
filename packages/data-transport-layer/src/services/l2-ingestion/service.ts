@@ -107,7 +107,58 @@ export class L2IngestionService extends BaseService<L2IngestionServiceOptions> {
         : this.options.l2RpcProvider
   }
 
+  protected async ensure(): Promise<void> {
+    let retries = 0
+    while (true) {
+      try {
+        await this.state.l2RpcProvider.getNetwork()
+        break
+      } catch (e) {
+        retries++
+        this.logger.info(`Cannot connect to L2, retrying ${retries}/20`)
+        if (retries >= 20) {
+          this.logger.info('Cannot connect to L2, shutting down')
+          await this.stop()
+          process.exit()
+        }
+        await sleep(1000 * retries)
+      }
+    }
+  }
+
+  protected async checkConsistency(): Promise<void> {
+    const network = await this.state.l2RpcProvider.getNetwork()
+    const shouldDoCheck = !(await this.state.db.getConsistencyCheckFlag())
+    if (shouldDoCheck && network.chainId === 69) {
+      this.logger.info('performing consistency check')
+      const highestBlock =
+        await this.state.db.getHighestSyncedUnconfirmedBlock()
+      for (let i = 0; i < highestBlock; i++) {
+        const block = await this.state.db.getUnconfirmedTransactionByIndex(i)
+        if (block === null) {
+          this.logger.info('resetting to null block', {
+            index: i,
+          })
+          await this.state.db.setHighestSyncedUnconfirmedBlock(i)
+          break
+        }
+
+        // Log some progress so people know what's goin on.
+        if (i % 10000 === 0) {
+          this.logger.info(`consistency check progress`, {
+            index: i,
+          })
+        }
+      }
+      this.logger.info('consistency check complete')
+      await this.state.db.putConsistencyCheckFlag(true)
+    }
+  }
+
   protected async _start(): Promise<void> {
+    await this.ensure()
+    await this.checkConsistency()
+
     while (this.running) {
       try {
         const highestSyncedL2BlockNumber =
