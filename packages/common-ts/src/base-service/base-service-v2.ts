@@ -218,6 +218,16 @@ export abstract class BaseServiceV2<
       return acc
     }, {}) as TOptions
 
+    // Make sure all options are defined.
+    for (const [optionName, optionSpec] of Object.entries(params.optionsSpec)) {
+      if (
+        optionSpec.default === undefined &&
+        this.options[optionName] === undefined
+      ) {
+        throw new Error(`missing required option: ${optionName}`)
+      }
+    }
+
     // Create the metrics objects.
     this.metrics = Object.keys(params.metricsSpec || {}).reduce((acc, key) => {
       const spec = params.metricsSpec[key]
@@ -237,11 +247,26 @@ export abstract class BaseServiceV2<
     this.logger = new Logger({ name: params.name })
 
     // Gracefully handle stop signals.
+    const maxSignalCount = 3
+    let currSignalCount = 0
     const stop = async (signal: string) => {
-      this.logger.info(`stopping service with signal`, { signal })
-      await this.stop()
-      process.exit(0)
+      // Allow exiting fast if more signals are received.
+      currSignalCount++
+      if (currSignalCount === 1) {
+        this.logger.info(`stopping service with signal`, { signal })
+        await this.stop()
+        process.exit(0)
+      } else if (currSignalCount >= maxSignalCount) {
+        this.logger.info(`performing hard stop`)
+        process.exit(0)
+      } else {
+        this.logger.info(
+          `send ${maxSignalCount - currSignalCount} more signal(s) to hard stop`
+        )
+      }
     }
+
+    // Handle stop signals.
     process.on('SIGTERM', stop)
     process.on('SIGINT', stop)
   }

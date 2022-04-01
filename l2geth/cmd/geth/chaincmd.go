@@ -56,6 +56,7 @@ var (
 		ArgsUsage: "<genesisPathOrUrl> (<genesisHash>)",
 		Flags: []cli.Flag{
 			utils.DataDirFlag,
+			utils.RollupGenesisTimeoutSecondsFlag,
 		},
 		Category: "BLOCKCHAIN COMMANDS",
 		Description: `
@@ -65,7 +66,7 @@ participating.
 
 It expects either a path or an HTTP URL to the genesis file as an argument. If an
 HTTP URL is specified for the genesis file, then a hex-encoded SHA256 hash of the
-genesis file must be included as a second argument. The hash provided on the CLI 
+genesis file must be included as a second argument. The hash provided on the CLI
 will be checked against the hash of the genesis file downloaded from the URL.`,
 	}
 	dumpChainCfgCommand = cli.Command{
@@ -236,7 +237,7 @@ func initGenesis(ctx *cli.Context) error {
 
 		log.Info("Fetching genesis file", "url", genesisPathOrURL)
 
-		genesisData, err := fetchGenesis(genesisPathOrURL)
+		genesisData, err := fetchGenesis(genesisPathOrURL, time.Duration(ctx.GlobalInt(utils.RollupGenesisTimeoutSecondsFlag.Name)))
 		if err != nil {
 			utils.Fatalf("Failed to fetch genesis file: %v", err)
 		}
@@ -640,9 +641,9 @@ func hashish(x string) bool {
 	return err != nil
 }
 
-func fetchGenesis(url string) ([]byte, error) {
+func fetchGenesis(url string, timeout time.Duration) ([]byte, error) {
 	client := &http.Client{
-		Timeout: 60 * time.Second,
+		Timeout: timeout,
 	}
 	resp, err := client.Get(url)
 	if err != nil {

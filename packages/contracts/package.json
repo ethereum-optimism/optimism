@@ -100,7 +100,7 @@
     "ethereum-waffle": "^3.3.0",
     "ethers": "^5.5.4",
     "glob": "^7.1.6",
-    "hardhat": "^2.3.0",
+    "hardhat": "^2.9.2",
     "hardhat-deploy": "^0.9.3",
     "hardhat-gas-reporter": "^1.0.4",
     "hardhat-output-validator": "^0.1.18",

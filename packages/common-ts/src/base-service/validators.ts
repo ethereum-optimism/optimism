@@ -18,6 +18,19 @@ const provider = makeValidator<Provider>((input) => {
   return new ethers.providers.JsonRpcProvider(parsed)
 })
 
+const jsonRpcProvider = makeValidator<ethers.providers.JsonRpcProvider>(
+  (input) => {
+    const parsed = url()._parse(input)
+    return new ethers.providers.JsonRpcProvider(parsed)
+  }
+)
+
+const staticJsonRpcProvider =
+  makeValidator<ethers.providers.StaticJsonRpcProvider>((input) => {
+    const parsed = url()._parse(input)
+    return new ethers.providers.StaticJsonRpcProvider(parsed)
+  })
+
 const wallet = makeValidator<Signer>((input) => {
   if (!ethers.utils.isHexString(input)) {
     throw new Error(`expected wallet to be a hex string`)
@@ -37,4 +50,6 @@ export const validators = {
   json,
   wallet,
   provider,
+  jsonRpcProvider,
+  staticJsonRpcProvider,
 }
