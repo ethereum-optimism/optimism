@@ -151,7 +151,7 @@ func TestL2OutputSubmitter(t *testing.T) {
 		L2EthRpc:                  cfg.Nodes["sequencer"].L2NodeAddr,
 		RollupRpc:                 fmt.Sprintf("http://%s:%d", cfg.Nodes["sequencer"].RPC.ListenAddr, cfg.Nodes["sequencer"].RPC.ListenPort),
 		L2OOAddress:               sys.L2OOContractAddr.String(),
-		PollInterval:              2 * time.Second,
+		PollInterval:              50 * time.Millisecond,
 		NumConfirmations:          1,
 		ResubmissionTimeout:       3 * time.Second,
 		SafeAbortNonceTooLowCount: 3,
