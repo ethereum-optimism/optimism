@@ -873,6 +873,7 @@ func (s *SyncService) applyTransactionToTip(tx *types.Transaction) error {
 			tx.SetIndex(*index + 1)
 		}
 	}
+	queueIndex := s.GetLatestEnqueueIndex()
 
 	// On restart, these values are repaired to handle
 	// the case where the index is updated but the
@@ -882,12 +883,21 @@ func (s *SyncService) applyTransactionToTip(tx *types.Transaction) error {
 		s.SetLatestEnqueueIndex(queueIndex)
 	}
 
+	// This reset function MUST be called on any error case
+	reset := func() {
+		s.SetLatestL1Timestamp(ts)
+		s.SetLatestL1BlockNumber(bn)
+		s.SetLatestIndex(index)
+		s.SetLatestEnqueueIndex(queueIndex)
+	}
+
 	// The index was set above so it is safe to dereference
 	log.Debug("Applying transaction to tip", "index", *tx.GetMeta().Index, "hash", tx.Hash().Hex(), "origin", tx.QueueOrigin().String())
 
 	// Log transaction to the failover log
 	if err := s.publishTransaction(tx); err != nil {
 		log.Error("Failed to publish transaction to log", "msg", err)
+		reset()
 		return fmt.Errorf("internal error: transaction logging failed")
 	}
 
@@ -903,9 +913,7 @@ func (s *SyncService) applyTransactionToTip(tx *types.Transaction) error {
 	select {
 	case err := <-errCh:
 		log.Error("Got error waiting for transaction to be added to chain", "msg", err)
-		s.SetLatestL1Timestamp(ts)
-		s.SetLatestL1BlockNumber(bn)
-		s.SetLatestIndex(index)
+		reset()
 		return err
 	case <-s.chainHeadCh:
 		// Update the cache when the transaction is from the owner
@@ -914,9 +922,7 @@ func (s *SyncService) applyTransactionToTip(tx *types.Transaction) error {
 		owner := s.GasPriceOracleOwnerAddress()
 		if owner != nil && sender == *owner {
 			if err := s.updateGasPriceOracleCache(nil); err != nil {
-				s.SetLatestL1Timestamp(ts)
-				s.SetLatestL1BlockNumber(bn)
-				s.SetLatestIndex(index)
+				reset()
 				return err
 			}
 		}

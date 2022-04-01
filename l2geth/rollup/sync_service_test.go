@@ -951,6 +951,17 @@ func TestSyncServiceTransactionLogFailed(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	var (
+		startL1Timestamp  uint64 = 10000
+		startIndex        uint64 = 1
+		startBlockNum     uint64 = 2
+		startEnqueueIndex uint64 = 1
+	)
+	service.SetLatestL1Timestamp(startL1Timestamp)
+	service.SetLatestIndex(&startIndex)
+	service.SetLatestL1BlockNumber(startBlockNum)
+	service.SetLatestEnqueueIndex(&startEnqueueIndex)
+
 	tx := mockTx()
 
 	errCh := make(chan error)
@@ -967,6 +978,19 @@ func TestSyncServiceTransactionLogFailed(t *testing.T) {
 	case <-txCh:
 		t.Fatal("transaction applied after log failed")
 	default:
+	}
+
+	if ts := service.GetLatestL1Timestamp(); ts != startL1Timestamp {
+		t.Fatal("l1 timestamp was not rolled back")
+	}
+	if index := service.GetLatestIndex(); *index != startIndex {
+		t.Fatal("transaction index was not rolled back")
+	}
+	if bn := service.GetLatestL1BlockNumber(); bn != startBlockNum {
+		t.Fatal("block number was not rolled back")
+	}
+	if index := service.GetLatestEnqueueIndex(); *index != startEnqueueIndex {
+		t.Fatal("enqueue index was not rolled back")
 	}
 }
 
