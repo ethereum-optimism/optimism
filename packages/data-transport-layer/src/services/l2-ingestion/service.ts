@@ -105,7 +105,9 @@ export class L2IngestionService extends BaseService<L2IngestionServiceOptions> {
             headers: { 'User-Agent': 'data-transport-layer' },
           })
         : this.options.l2RpcProvider
+  }
 
+  protected async ensure(): Promise<void> {
     let retries = 0
     while (true) {
       try {
@@ -122,8 +124,9 @@ export class L2IngestionService extends BaseService<L2IngestionServiceOptions> {
         await sleep(1000 * retries)
       }
     }
+  }
 
-    // Consistency check to fix Kovan halting issue.
+  protected async checkConsistency(): Promise<void> {
     const network = await this.state.l2RpcProvider.getNetwork()
     const shouldDoCheck = !(await this.state.db.getConsistencyCheckFlag())
     if (shouldDoCheck && network.chainId === 69) {
@@ -153,6 +156,9 @@ export class L2IngestionService extends BaseService<L2IngestionServiceOptions> {
   }
 
   protected async _start(): Promise<void> {
+    await this.ensure()
+    await this.checkConsistency()
+
     while (this.running) {
       try {
         const highestSyncedL2BlockNumber =
