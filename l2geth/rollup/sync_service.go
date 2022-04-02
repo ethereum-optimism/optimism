@@ -883,51 +883,51 @@ func (s *SyncService) applyTransactionToTip(tx *types.Transaction) error {
 		s.SetLatestEnqueueIndex(tx.GetMeta().QueueIndex)
 	}
 
-	// This reset function MUST be called on any error case
-	reset := func() {
+	err := func() error {
+		// The index was set above so it is safe to dereference
+		log.Debug("Applying transaction to tip", "index", *tx.GetMeta().Index, "hash", tx.Hash().Hex(), "origin", tx.QueueOrigin().String())
+
+		// Log transaction to the failover log
+		if err := s.publishTransaction(tx); err != nil {
+			log.Error("Failed to publish transaction to log", "msg", err)
+			return fmt.Errorf("internal error: transaction logging failed")
+		}
+
+		txs := types.Transactions{tx}
+		errCh := make(chan error, 1)
+		s.txFeed.Send(core.NewTxsEvent{
+			Txs:   txs,
+			ErrCh: errCh,
+		})
+		// Block until the transaction has been added to the chain
+		log.Trace("Waiting for transaction to be added to chain", "hash", tx.Hash().Hex())
+
+		select {
+		case err := <-errCh:
+			log.Error("Got error waiting for transaction to be added to chain", "msg", err)
+			return err
+		case <-s.chainHeadCh:
+			// Update the cache when the transaction is from the owner
+			// of the gas price oracle
+			sender, _ := types.Sender(s.signer, tx)
+			owner := s.GasPriceOracleOwnerAddress()
+			if owner != nil && sender == *owner {
+				if err := s.updateGasPriceOracleCache(nil); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}()
+
+	// Rollback state on errors
+	if err != nil {
 		s.SetLatestL1Timestamp(ts)
 		s.SetLatestL1BlockNumber(bn)
 		s.SetLatestIndex(index)
 		s.SetLatestEnqueueIndex(queueIndex)
 	}
-
-	// The index was set above so it is safe to dereference
-	log.Debug("Applying transaction to tip", "index", *tx.GetMeta().Index, "hash", tx.Hash().Hex(), "origin", tx.QueueOrigin().String())
-
-	// Log transaction to the failover log
-	if err := s.publishTransaction(tx); err != nil {
-		log.Error("Failed to publish transaction to log", "msg", err)
-		reset()
-		return fmt.Errorf("internal error: transaction logging failed")
-	}
-
-	txs := types.Transactions{tx}
-	errCh := make(chan error, 1)
-	s.txFeed.Send(core.NewTxsEvent{
-		Txs:   txs,
-		ErrCh: errCh,
-	})
-	// Block until the transaction has been added to the chain
-	log.Trace("Waiting for transaction to be added to chain", "hash", tx.Hash().Hex())
-
-	select {
-	case err := <-errCh:
-		log.Error("Got error waiting for transaction to be added to chain", "msg", err)
-		reset()
-		return err
-	case <-s.chainHeadCh:
-		// Update the cache when the transaction is from the owner
-		// of the gas price oracle
-		sender, _ := types.Sender(s.signer, tx)
-		owner := s.GasPriceOracleOwnerAddress()
-		if owner != nil && sender == *owner {
-			if err := s.updateGasPriceOracleCache(nil); err != nil {
-				reset()
-				return err
-			}
-		}
-		return nil
-	}
+	return err
 }
 
 // applyBatchedTransaction applies transactions that were batched to layer one.
