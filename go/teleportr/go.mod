@@ -62,3 +62,15 @@ require (
 )
 
 replace github.com/ethereum-optimism/optimism/go/bss-core => ../bss-core
+
+replace github.com/docker/docker v1.4.2-0.20180625184442-8e610b2b55bf => github.com/docker/docker v1.6.1 // required to fix CVE-2015-3627
+
+replace github.com/gin-gonic/gin v1.4.0 => github.com/gin-gonic/gin v1.6.3-0.20210406033725-bfc8ca285eb4 // indirect; required to fix CVE-2020-28483
+
+replace github.com/gogo/protobuf v1.3.1 => github.com/gogo/protobuf v1.3.2 // required to fix CVE-2021-3121
+
+replace github.com/microcosm-cc/bluemonday v1.0.2 => github.com/microcosm-cc/bluemonday v1.0.16 // required to fix CVE-2021-42576
+
+replace golang.org/x/text v0.3.6 => golang.org/x/text v0.3.7 // required to fix CVE-2021-38561
+
+replace github.com/nats-io/jwt v0.3.0 => github.com/nats-io/jwt v1.1.0 // required to fix CVE-2020-26892, CVE-2020-26521

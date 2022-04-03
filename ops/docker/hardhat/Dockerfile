@@ -1,13 +1,9 @@
 FROM node:16-alpine
 
 # bring in the config files for installing deps
-COPY [ \
-    "package.json", \
-    "/hardhat/" \
-]
-
-# install deps
 WORKDIR /hardhat
+COPY package.json hardhat.config.js ./
+# install deps
 RUN yarn install && yarn cache clean
 
 # bring in dockerenv so that hardhat launches with host = 0.0.0.0 instead of 127.0.0.1

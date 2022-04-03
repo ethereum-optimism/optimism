@@ -61,3 +61,9 @@ require (
 	gopkg.in/urfave/cli.v1 v1.20.0
 	gotest.tools/v3 v3.0.3 // indirect
 )
+
+replace github.com/gogo/protobuf v1.3.1 => github.com/gogo/protobuf v1.3.2 // required to fix CVE-2021-3121
+
+replace golang.org/x/text v0.3.6 => golang.org/x/text v0.3.7 // required to fix CVE-2021-38561
+
+replace github.com/graph-gophers/graphql-go v0.0.0-20201113091052-beb923fada29 => github.com/graph-gophers/graphql-go v1.3.0 // required to fix CVE-2022-21708
