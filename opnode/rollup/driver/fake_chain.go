@@ -91,11 +91,11 @@ type fakeChainSource struct {
 	log     log.Logger
 }
 
-func (m *fakeChainSource) L1Range(ctx context.Context, base eth.BlockID) ([]eth.BlockID, error) {
+func (m *fakeChainSource) L1Range(ctx context.Context, base eth.BlockID, max uint64) ([]eth.BlockID, error) {
 	var out []eth.BlockID
 	found := false
 	for i, b := range m.l1s[m.l1reorg] {
-		if found {
+		if found && uint64(len(out)) < max {
 			out = append(out, b.ID())
 		}
 		if b.ID() == base {

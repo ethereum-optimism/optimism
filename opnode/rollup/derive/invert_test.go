@@ -5,21 +5,35 @@ import (
 	"math/rand"
 	"testing"
 
-	"github.com/ethereum/go-ethereum/params"
-
 	"github.com/ethereum/go-ethereum/core/types"
+
+	"github.com/ethereum-optimism/optimistic-specs/opnode/eth"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/assert"
 )
 
 type l1MockInfo struct {
+	hash        common.Hash
+	parentHash  common.Hash
+	root        common.Hash
 	num         uint64
 	time        uint64
-	hash        common.Hash
-	baseFee     *big.Int
 	mixDigest   [32]byte
+	baseFee     *big.Int
 	receiptRoot common.Hash
+}
+
+func (l *l1MockInfo) Hash() common.Hash {
+	return l.hash
+}
+
+func (l *l1MockInfo) ParentHash() common.Hash {
+	return l.parentHash
+}
+
+func (l *l1MockInfo) Root() common.Hash {
+	return l.root
 }
 
 func (l *l1MockInfo) NumberU64() uint64 {
@@ -30,20 +44,29 @@ func (l *l1MockInfo) Time() uint64 {
 	return l.time
 }
 
-func (l *l1MockInfo) Hash() common.Hash {
-	return l.hash
+func (l *l1MockInfo) MixDigest() common.Hash {
+	return l.mixDigest
 }
 
 func (l *l1MockInfo) BaseFee() *big.Int {
 	return l.baseFee
 }
 
-func (l *l1MockInfo) MixDigest() common.Hash {
-	return l.mixDigest
-}
-
 func (l *l1MockInfo) ReceiptHash() common.Hash {
 	return l.receiptRoot
+}
+
+func (l *l1MockInfo) ID() eth.BlockID {
+	return eth.BlockID{Hash: l.hash, Number: l.num}
+}
+
+func (l *l1MockInfo) BlockRef() eth.L1BlockRef {
+	return eth.L1BlockRef{
+		Hash:       l.hash,
+		Number:     l.num,
+		ParentHash: l.parentHash,
+		Time:       l.time,
+	}
 }
 
 func randomHash(rng *rand.Rand) (out common.Hash) {
@@ -53,11 +76,13 @@ func randomHash(rng *rand.Rand) (out common.Hash) {
 
 func randomL1Info(rng *rand.Rand) *l1MockInfo {
 	return &l1MockInfo{
+		parentHash:  randomHash(rng),
 		num:         rng.Uint64(),
 		time:        rng.Uint64(),
 		hash:        randomHash(rng),
-		baseFee:     big.NewInt(rng.Int63n(1000_000 * params.GWei)), // a million GWEI
+		baseFee:     big.NewInt(rng.Int63n(1000_000 * 1e9)), // a million GWEI
 		receiptRoot: types.EmptyRootHash,
+		root:        randomHash(rng),
 	}
 }
 

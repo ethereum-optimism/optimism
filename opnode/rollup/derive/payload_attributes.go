@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"math/big"
 
+	"github.com/ethereum-optimism/optimistic-specs/opnode/eth"
 	"github.com/ethereum-optimism/optimistic-specs/opnode/rollup"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -113,13 +114,16 @@ func UnmarshalLogEvent(blockNum uint64, txIndex uint64, ev *types.Log) (*types.D
 }
 
 type L1Info interface {
+	Hash() common.Hash
+	ParentHash() common.Hash
+	Root() common.Hash // state-root
 	NumberU64() uint64
 	Time() uint64
-	Hash() common.Hash
-	BaseFee() *big.Int
 	// MixDigest field, reused for randomness after The Merge (Bellatrix hardfork)
 	MixDigest() common.Hash
-	ReceiptHash() common.Hash
+	BaseFee() *big.Int
+	ID() eth.BlockID
+	BlockRef() eth.L1BlockRef
 }
 
 // L1InfoDeposit creats a L1 Info deposit transaction based on the L1 block
@@ -170,27 +174,29 @@ func UserDeposits(l2BlockHeight uint64, receipts []*types.Receipt) ([]*types.Dep
 	return out, nil
 }
 
-func BatchesFromEVMTransactions(config *rollup.Config, txs []*types.Transaction) ([]*BatchData, error) {
+func BatchesFromEVMTransactions(config *rollup.Config, txLists []types.Transactions) ([]*BatchData, error) {
 	var out []*BatchData
 	l1Signer := config.L1Signer()
-	for _, tx := range txs {
-		if to := tx.To(); to != nil && *to == config.BatchInboxAddress {
-			seqDataSubmitter, err := l1Signer.Sender(tx)
-			if err != nil {
-				// TODO: log error
-				continue // bad signature, ignore
+	for _, txs := range txLists {
+		for _, tx := range txs {
+			if to := tx.To(); to != nil && *to == config.BatchInboxAddress {
+				seqDataSubmitter, err := l1Signer.Sender(tx) // optimization: only derive sender if To is correct
+				if err != nil {
+					// TODO: log error
+					continue // bad signature, ignore
+				}
+				// some random L1 user might have sent a transaction to our batch inbox, ignore them
+				if seqDataSubmitter != config.BatchSenderAddress {
+					// TODO: log/record metric
+					continue // not an authorized batch submitter, ignore
+				}
+				batches, err := DecodeBatches(config, bytes.NewReader(tx.Data()))
+				if err != nil {
+					// TODO: log/record metric
+					continue
+				}
+				out = append(out, batches...)
 			}
-			// some random L1 user might have sent a transaction to our batch inbox, ignore them
-			if seqDataSubmitter != config.BatchSenderAddress {
-				// TODO: log/record metric
-				continue // not an authorized batch submitter, ignore
-			}
-			batches, err := DecodeBatches(config, bytes.NewReader(tx.Data()))
-			if err != nil {
-				// TODO: log/record metric
-				continue
-			}
-			out = append(out, batches...)
 		}
 	}
 	return out, nil
