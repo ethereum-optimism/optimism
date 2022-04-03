@@ -3,17 +3,16 @@ version: '3.4'
 x-system-addr-env: &system-addr-env
   # private key: a6aecc98b63bafb0de3b29ae9964b14acb4086057808be29f90150214ebd4a0f
   # OK to publish this since it will only ever be used in itests
-  SYSTEM_ADDRESS_0_DEPLOYER: "0xa961b0d6dce82db098cf70a42a14add3ee3db2d5"
+  SYSTEM_ADDRESS_0_DEPLOYER: '0xa961b0d6dce82db098cf70a42a14add3ee3db2d5'
 
   # private key: 3b8d2345102cce2443acb240db6e87c8edd4bb3f821b17fab8ea2c9da08ea132
   # OK to publish this since it will only ever be used in itests
-  SYSTEM_ADDRESS_1_DEPLOYER: "0xdfc82d475833a50de90c642770f34a9db7deb725"
-
+  SYSTEM_ADDRESS_1_DEPLOYER: '0xdfc82d475833a50de90c642770f34a9db7deb725'
 
 services:
   # this is a helper service used because there's no official hardhat image
   l1_chain:
-    image: ethereumoptimism/hardhat:${DOCKER_TAG:-latest}
+    image: ethereumoptimism/hardhat:${DOCKER_TAG_HARDHAT:-latest}
     build:
       context: ./docker/hardhat
       dockerfile: Dockerfile
@@ -30,35 +29,13 @@ services:
       context: ..
       dockerfile: ./ops/docker/Dockerfile.packages
       target: deployer
+    image: ethereumoptimism/deployer:${DOCKER_TAG_DEPLOYER:-latest}
     entrypoint: ./deployer.sh
     environment:
       # Env vars for the deployment script.
       CONTRACTS_RPC_URL: http://l1_chain:8545
       CONTRACTS_DEPLOYER_KEY: 'ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80'
-      CONTRACTS_TARGET_NETWORK: 'custom'
-      OVM_ADDRESS_MANAGER_OWNER: '0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266'
-      OVM_PROPOSER_ADDRESS: '0x3c44cdddb6a900fa2b585dd299e03d12fa4293bc'
-      OVM_SEQUENCER_ADDRESS: '0x70997970c51812dc3a010c7d01b50e0d17dc79c8'
-      SCC_FRAUD_PROOF_WINDOW: 0
-      NUM_DEPLOY_CONFIRMATIONS: 0
-      # skip compilation when run in docker-compose, since the contracts
-      # were already compiled in the builder step
-      NO_COMPILE: 1
-
-      # Env vars for the dump script.
-      # Default hardhat account 5
-      GAS_PRICE_ORACLE_OWNER: '0x9965507d1a55bcc2695c58ba16fb37d819b0a4dc'
-      # setting the whitelist owner to address(0) disables the whitelist
-      WHITELIST_OWNER: '0x0000000000000000000000000000000000000000'
-      L1_FEE_WALLET_ADDRESS: '0x391716d440c151c42cdf1c95c1d83a5427bca52c'
-      L2_CHAIN_ID: 987
-      L2_BLOCK_GAS_LIMIT: 15000000
-      BLOCK_SIGNER_ADDRESS: '0x00000398232E2064F896018496b4b44b3D62751F'
-      GAS_PRICE_ORACLE_OVERHEAD: 2750
-      GAS_PRICE_ORACLE_SCALAR: 1500000
-      GAS_PRICE_ORACLE_L1_BASE_FEE: 1
-      GAS_PRICE_ORACLE_GAS_PRICE: 1
-      GAS_PRICE_ORACLE_DECIMALS: 6
+      CONTRACTS_TARGET_NETWORK: 'local'
     ports:
       # expose the service to the host for getting the contract addrs
       - ${DEPLOYER_PORT:-8080}:8081
@@ -72,6 +49,7 @@ services:
       context: ..
       dockerfile: ./ops/docker/Dockerfile.packages
       target: data-transport-layer
+    image: ethereumoptimism/data-transport-layer:${DOCKER_TAG_DATA_TRANSPORT_LAYER:-latest}
     # override with the dtl script and the env vars required for it
     entrypoint: ./dtl.sh
     env_file:
@@ -85,7 +63,7 @@ services:
       DATA_TRANSPORT_LAYER__L1_RPC_ENDPOINT: http://l1_chain:8545
       DATA_TRANSPORT_LAYER__L2_RPC_ENDPOINT: http://l2geth:8545
       DATA_TRANSPORT_LAYER__SYNC_FROM_L2: 'true'
-      DATA_TRANSPORT_LAYER__L2_CHAIN_ID: 987
+      DATA_TRANSPORT_LAYER__L2_CHAIN_ID: 17
     ports:
       - ${DTL_PORT:-7878}:7878
 
@@ -96,6 +74,7 @@ services:
     build:
       context: ..
       dockerfile: ./ops/docker/Dockerfile.geth
+    image: ethereumoptimism/l2geth:${DOCKER_TAG_L2GETH:-latest}
     # override with the geth script and the env vars required for it
     entrypoint: sh ./geth.sh
     env_file:
@@ -123,24 +102,20 @@ services:
   relayer:
     depends_on:
       - l1_chain
-      - deployer
       - l2geth
     deploy:
       replicas: 0
     build:
       context: ..
       dockerfile: ./ops/docker/Dockerfile.packages
-      target: relayer
+      target: message-relayer
+    image: ethereumoptimism/message-relayer:${DOCKER_TAG_MESSAGE_RELAYER:-latest}
     entrypoint: ./relayer.sh
     environment:
-      L1_NODE_WEB3_URL: http://l1_chain:8545
-      L2_NODE_WEB3_URL: http://l2geth:8545
-      URL: http://deployer:8081/addresses.json
-      # a funded hardhat account
-      L1_WALLET_KEY: '0xdbda1821b80551c9d65939329250298aa3472ba22feea921c0cf5d620ea67b97'
+      MESSAGE_RELAYER__L1_RPC_PROVIDER: http://l1_chain:8545
+      MESSAGE_RELAYER__L2_RPC_PROVIDER: http://l2geth:8545
+      MESSAGE_RELAYER__L1_WALLET: '0xdbda1821b80551c9d65939329250298aa3472ba22feea921c0cf5d620ea67b97'
       RETRIES: 60
-      POLLING_INTERVAL: 500
-      GET_LOGS_INTERVAL: 500
 
   verifier:
     depends_on:
@@ -153,6 +128,7 @@ services:
     build:
       context: ..
       dockerfile: ./ops/docker/Dockerfile.geth
+    image: ethereumoptimism/l2geth:${DOCKER_TAG_L2GETH:-latest}
     entrypoint: sh ./geth.sh
     env_file:
       - ./envs/geth.env
@@ -179,6 +155,7 @@ services:
     build:
       context: ..
       dockerfile: ./ops/docker/Dockerfile.geth
+    image: ethereumoptimism/l2geth:${DOCKER_TAG_L2GETH:-latest}
     entrypoint: sh ./geth.sh
     env_file:
       - ./envs/geth.env
@@ -196,6 +173,23 @@ services:
       - ${REPLICA_HTTP_PORT:-8549}:8545
       - ${REPLICA_WS_PORT:-8550}:8546
 
+  replica_healthcheck:
+    depends_on:
+      - l2geth
+      - replica
+    deploy:
+      replicas: 0
+    build:
+      context: ..
+      dockerfile: ./ops/docker/Dockerfile.packages
+      target: replica-healthcheck
+    image: ethereumoptimism/replica-healthcheck:${DOCKER_TAG_REPLICA_HEALTHCHECK:-latest}
+    environment:
+      HEALTHCHECK__REFERENCE_RPC_PROVIDER: http://l2geth:8545
+      HEALTHCHECK__TARGET_RPC_PROVIDER: http://replica:8545
+    ports:
+      - ${HEALTHCHECK_HTTP_PORT:-7300}:7300
+
   integration_tests:
     deploy:
       replicas: 0
@@ -203,10 +197,12 @@ services:
       context: ..
       dockerfile: ./ops/docker/Dockerfile.packages
       target: integration-tests
+    image: ethereumoptimism/integration-tests:${DOCKER_TAG_INTEGRATION_TESTS:-latest}
     entrypoint: ./integration-tests.sh
     environment:
       L1_URL: http://l1_chain:8545
       L2_URL: http://l2geth:8545
+      HEALTHCHECK_URL: http://replica_healthcheck:7300/metrics
       REPLICA_URL: http://replica:8545
       VERIFIER_URL: http://verifier:8545
       URL: http://deployer:8081/addresses.json
@@ -214,11 +210,11 @@ services:
       NO_NETWORK: 1
       BATCH_SUBMITTER_SEQUENCER_BATCH_TYPE: ${BATCH_SUBMITTER_SEQUENCER_BATCH_TYPE:-zlib}
 
-      RUN_SYSTEM_ADDRESS_TESTS: "true"
+      RUN_SYSTEM_ADDRESS_TESTS: 'true'
 
       # must match l2geth environment, see above for why it's safe to publish these
-      SYSTEM_ADDRESS_0_DEPLOYER_KEY: "a6aecc98b63bafb0de3b29ae9964b14acb4086057808be29f90150214ebd4a0f"
-      SYSTEM_ADDRESS_1_DEPLOYER_KEY: "3b8d2345102cce2443acb240db6e87c8edd4bb3f821b17fab8ea2c9da08ea132"
+      SYSTEM_ADDRESS_0_DEPLOYER_KEY: 'a6aecc98b63bafb0de3b29ae9964b14acb4086057808be29f90150214ebd4a0f'
+      SYSTEM_ADDRESS_1_DEPLOYER_KEY: '3b8d2345102cce2443acb240db6e87c8edd4bb3f821b17fab8ea2c9da08ea132'
 
   gas_oracle:
     deploy:
@@ -226,9 +222,10 @@ services:
     build:
       context: ..
       dockerfile: ./ops/docker/Dockerfile.gas-oracle
-    entrypoint: ./gas-oracle.sh
+    image: ethereumoptimism/gas-oracle:${DOCKER_TAG_GAS_ORACLE:-latest}
     environment:
-      GAS_PRICE_ORACLE_ETHEREUM_HTTP_URL: http://l2geth:8545
+      GAS_PRICE_ORACLE_ETHEREUM_HTTP_URL: http://l1_chain:8545
+      GAS_PRICE_ORACLE_LAYER_TWO_HTTP_URL: http://l2geth:8545
       # Default hardhat account 5
       GAS_PRICE_ORACLE_PRIVATE_KEY: '0x8b3a350cf5c34c9194ca85829a2df0ec3153be0318b5e2d3348e872092edffba'
 
@@ -240,6 +237,7 @@ services:
     build:
       context: ..
       dockerfile: ./ops/docker/Dockerfile.batch-submitter-service
+    image: ethereumoptimism/batch-submitter-service:${DOCKER_TAG_BATCH_SUBMITTER_SERVICE:-latest}
     entrypoint: ./batch-submitter.sh
     env_file:
       - ./envs/batch-submitter.env

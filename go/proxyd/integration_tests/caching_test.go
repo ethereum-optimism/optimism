@@ -3,12 +3,13 @@ package integration_tests
 import (
 	"bytes"
 	"fmt"
-	"github.com/alicebob/miniredis"
-	"github.com/ethereum-optimism/optimism/go/proxyd"
-	"github.com/stretchr/testify/require"
 	"os"
 	"testing"
 	"time"
+
+	"github.com/alicebob/miniredis"
+	"github.com/ethereum-optimism/optimism/go/proxyd"
+	"github.com/stretchr/testify/require"
 )
 
 func TestCaching(t *testing.T) {

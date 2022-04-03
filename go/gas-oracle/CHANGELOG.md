@@ -1,5 +1,23 @@
 # @eth-optimism/gas-oracle
 
+## 0.1.10
+
+### Patch Changes
+
+- 162ff89c: Fixes a bug that would cause the service to crash on startup if the RPC URLs were not immediately available
+
+## 0.1.9
+
+### Patch Changes
+
+- c535b3a5: Allow configurable base fee update poll time with `GAS_PRICE_ORACLE_L1_BASE_FEE_EPOCH_LENGTH_SECONDS`
+
+## 0.1.8
+
+### Patch Changes
+
+- 88601cb7: Refactored Dockerfiles
+
 ## 0.1.7
 
 ### Patch Changes

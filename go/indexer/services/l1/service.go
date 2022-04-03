@@ -35,10 +35,6 @@ var logger = log.New("service", "l1")
 // and it cannot be remotely fetched
 var errNoChainID = errors.New("no chain id provided")
 
-// errWrongChainID represents the error when the configured chain id is not
-// correct
-var errWrongChainID = errors.New("wrong chain id provided")
-
 var errNoNewBlocks = errors.New("no new blocks")
 
 // clientRetryInterval is the interval to wait between retrying client API
@@ -58,7 +54,6 @@ func HeaderByNumberWithRetry(ctx context.Context,
 			return res, err
 		default:
 			log.Error("Error fetching header", "err", err)
-			break
 		}
 		time.Sleep(clientRetryInterval)
 	}
@@ -94,9 +89,9 @@ type Service struct {
 	latestHeader   uint64
 	headerSelector *ConfirmedHeaderSelector
 
-	metrics *metrics.Metrics
+	metrics    *metrics.Metrics
 	tokenCache map[common.Address]*db.Token
-	wg sync.WaitGroup
+	wg         sync.WaitGroup
 }
 
 type IndexerStatus struct {
@@ -194,10 +189,12 @@ func (s *Service) Loop(ctx context.Context) {
 			atomic.StoreUint64(&s.latestHeader, header.Number.Uint64())
 			for {
 				err := s.Update(header)
-				if err != nil && err != errNoNewBlocks {
-					logger.Error("Unable to update indexer ", "err", err)
+				if err != nil {
+					if err != errNoNewBlocks {
+						logger.Error("Unable to update indexer ", "err", err)
+					}
+					break
 				}
-				break
 			}
 		case <-s.ctx.Done():
 			return
@@ -289,10 +286,15 @@ func (s *Service) Update(newHeader *types.Header) error {
 		logger.Error("Error querying state batches", "err", err)
 	}
 
-	for _, header := range headers {
+	for i, header := range headers {
 		blockHash := header.Hash
 		number := header.Number.Uint64()
 		deposits := depositsByBlockHash[blockHash]
+		batches := stateBatches[blockHash]
+
+		if len(deposits) == 0 && len(batches) == 0 && i != len(headers)-1 {
+			continue
+		}
 
 		block := &db.IndexedL1Block{
 			Hash:       blockHash,
@@ -313,7 +315,6 @@ func (s *Service) Update(newHeader *types.Header) error {
 			return err
 		}
 
-		batches := stateBatches[blockHash]
 		err = s.cfg.DB.AddStateBatch(batches)
 		if err != nil {
 			logger.Error(
@@ -505,11 +506,11 @@ func (s *Service) Start() error {
 	return nil
 }
 
-func (s *Service) Stop() error {
+func (s *Service) Stop() {
 	s.cancel()
 	s.wg.Wait()
-	if err := s.cfg.DB.Close(); err != nil {
-		return err
+	err := s.cfg.DB.Close()
+	if err != nil {
+		logger.Error("Error closing db", "err", err)
 	}
-	return nil
 }

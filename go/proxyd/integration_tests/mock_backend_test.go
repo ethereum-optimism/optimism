@@ -4,11 +4,12 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"github.com/ethereum-optimism/optimism/go/proxyd"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"sync"
+
+	"github.com/ethereum-optimism/optimism/go/proxyd"
 )
 
 type RecordedRequest struct {
@@ -27,7 +28,7 @@ type MockBackend struct {
 func SingleResponseHandler(code int, response string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(code)
-		w.Write([]byte(response))
+		_, _ = w.Write([]byte(response))
 	}
 }
 

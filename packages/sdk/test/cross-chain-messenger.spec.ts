@@ -383,7 +383,8 @@ describe('CrossChainMessenger', () => {
     })
   })
 
-  describe('getMessagesByAddress', () => {
+  // Skipped until getMessagesByAddress can be implemented
+  describe.skip('getMessagesByAddress', () => {
     describe('when the address has sent messages', () => {
       describe('when no direction is specified', () => {
         it('should find all messages sent by the address')

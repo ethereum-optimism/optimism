@@ -126,16 +126,15 @@ var (
 		Required: true,
 		EnvVar:   prefixEnvVar("POSTGRES_DB_NAME"),
 	}
+
+	/* Optional Flags */
+
 	PostgresEnableSSLFlag = cli.BoolFlag{
 		Name: "postgres-enable-ssl",
 		Usage: "Whether or not to enable SSL on connections to " +
 			"teleportr postgres instance",
-		Required: true,
-		EnvVar:   prefixEnvVar("POSTGRES_ENABLE_SSL"),
+		EnvVar: prefixEnvVar("POSTGRES_ENABLE_SSL"),
 	}
-
-	/* Optional Flags */
-
 	LogLevelFlag = cli.StringFlag{
 		Name:   "log-level",
 		Usage:  "The lowest log level that will be output",
@@ -208,12 +207,12 @@ var requiredFlags = []cli.Flag{
 	PostgresUserFlag,
 	PostgresPasswordFlag,
 	PostgresDBNameFlag,
-	PostgresEnableSSLFlag,
 }
 
 var optionalFlags = []cli.Flag{
 	LogLevelFlag,
 	LogTerminalFlag,
+	PostgresEnableSSLFlag,
 	DisburserPrivateKeyFlag,
 	MnemonicFlag,
 	DisburserHDPathFlag,

@@ -1,7 +1,7 @@
 import { ethers } from 'ethers'
 import { task } from 'hardhat/config'
 import * as types from 'hardhat/internal/core/params/argumentTypes'
-import { SequencerBatch } from '@eth-optimism/core-utils'
+import { BatchType, SequencerBatch } from '@eth-optimism/core-utils'
 
 import { names } from '../src/address-names'
 import { getContractFromArtifact } from '../src/deploy-utils'
@@ -51,7 +51,31 @@ task('fetch-batches')
       for (const event of events) {
         const tx = await provider.getTransaction(event.transactionHash)
         const batch = (SequencerBatch as any).fromHex(tx.data)
-        batches.push(batch.toJSON())
+
+        // Add an extra field to the resulting json
+        // so that the serialization sizes can be observed
+        const json = batch.toJSON()
+        json.sizes = {
+          legacy: 0,
+          zlib: 0,
+        }
+
+        // Create a copy of the batch to serialize in
+        // the alternative format
+        const copy = (SequencerBatch as any).fromHex(tx.data)
+        if (batch.type === BatchType.ZLIB) {
+          copy.type = BatchType.LEGACY
+          json.sizes.legacy = copy.encode().length
+          json.sizes.zlib = batch.encode().length
+        } else {
+          copy.type = BatchType.ZLIB
+          json.sizes.zlib = copy.encode().length
+          json.sizes.legacy = batch.encode().length
+        }
+
+        json.compressionRatio = json.sizes.zlib / json.sizes.legacy
+
+        batches.push(json)
       }
     }
 

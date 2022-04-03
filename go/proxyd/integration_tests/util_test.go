@@ -4,12 +4,13 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"github.com/BurntSushi/toml"
-	"github.com/ethereum-optimism/optimism/go/proxyd"
-	"github.com/stretchr/testify/require"
 	"io/ioutil"
 	"net/http"
 	"testing"
+
+	"github.com/BurntSushi/toml"
+	"github.com/ethereum-optimism/optimism/go/proxyd"
+	"github.com/stretchr/testify/require"
 )
 
 type ProxydClient struct {

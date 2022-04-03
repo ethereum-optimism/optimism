@@ -15,5 +15,6 @@ FROM alpine:3.13
 RUN apk add --no-cache ca-certificates jq curl
 COPY --from=builder /go/batch-submitter/batch-submitter /usr/local/bin/
 
+WORKDIR /usr/local/bin
 COPY ./ops/scripts/batch-submitter.sh .
 ENTRYPOINT ["batch-submitter"]

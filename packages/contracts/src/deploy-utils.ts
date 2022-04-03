@@ -1,9 +1,10 @@
-/* Imports: External */
 import { ethers, Contract } from 'ethers'
 import { Provider } from '@ethersproject/abstract-provider'
 import { Signer } from '@ethersproject/abstract-signer'
 import { sleep, awaitCondition } from '@eth-optimism/core-utils'
 import { HttpNetworkConfig } from 'hardhat/types'
+
+import { getDeployConfig } from './deploy-config'
 
 /**
  * @param  {Any} hre Hardhat runtime environment
@@ -31,13 +32,14 @@ export const deployAndVerifyAndThen = async ({
 }) => {
   const { deploy } = hre.deployments
   const { deployer } = await hre.getNamedAccounts()
+  const deployConfig = getDeployConfig(hre.network.name)
 
   const result = await deploy(name, {
     contract,
     from: deployer,
     args,
     log: true,
-    waitConfirmations: hre.deployConfig.numDeployConfirmations,
+    waitConfirmations: deployConfig.numDeployConfirmations,
   })
 
   await hre.ethers.provider.waitForTransaction(result.transactionHash)
@@ -92,6 +94,8 @@ export const getAdvancedContract = (opts: {
   hre: any
   contract: Contract
 }): Contract => {
+  const deployConfig = getDeployConfig(opts.hre.network.name)
+
   // Temporarily override Object.defineProperty to bypass ether's object protection.
   const def = Object.defineProperty
   Object.defineProperty = (obj, propName, prop) => {
@@ -115,7 +119,7 @@ export const getAdvancedContract = (opts: {
       // We want to use the gas price that has been configured at the beginning of the deployment.
       // However, if the function being triggered is a "constant" (static) function, then we don't
       // want to provide a gas price because we're prone to getting insufficient balance errors.
-      let gasPrice = opts.hre.deployConfig.gasPrice || undefined
+      let gasPrice = deployConfig.gasPrice || undefined
       if (contract.interface.getFunction(fnName).constant) {
         gasPrice = 0
       }
@@ -147,7 +151,7 @@ export const getAdvancedContract = (opts: {
             return contract[fnName](...args)
           }
         } else if (
-          receipt.confirmations >= opts.hre.deployConfig.numDeployConfirmations
+          receipt.confirmations >= deployConfig.numDeployConfirmations
         ) {
           return tx
         }
@@ -163,7 +167,9 @@ export const fundAccount = async (
   address: string,
   amount: ethers.BigNumber
 ) => {
-  if ((hre as any).deployConfig.forked !== 'true') {
+  const deployConfig = getDeployConfig(hre.network.name)
+
+  if (!deployConfig.isForkedNetwork) {
     throw new Error('this method can only be used against a forked network')
   }
 
@@ -194,7 +200,9 @@ export const sendImpersonatedTx = async (opts: {
   gas: string
   args: any[]
 }) => {
-  if ((opts.hre as any).deployConfig.forked !== 'true') {
+  const deployConfig = getDeployConfig(opts.hre.network.name)
+
+  if (!deployConfig.isForkedNetwork) {
     throw new Error('this method can only be used against a forked network')
   }
 

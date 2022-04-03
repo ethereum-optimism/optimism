@@ -1,0 +1,16 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+configMapGenerator:
+  - name: data-transport-layer
+    envs:
+      - ./data-transport-layer.env
+  - name: l2geth-replica
+    envs:
+      - ./l2geth-replica.env
+  - name: replica-healthcheck
+    envs:
+      - ./replica-healthcheck.env
+  - name: geth-scripts
+    files:
+      - ./check-for-chaindata.sh

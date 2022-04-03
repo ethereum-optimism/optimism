@@ -111,6 +111,7 @@ func (g *GasPriceOracle) ensure() error {
 func (g *GasPriceOracle) Loop() {
 	timer := time.NewTicker(time.Duration(g.config.epochLengthSeconds) * time.Second)
 	defer timer.Stop()
+
 	for {
 		select {
 		case <-timer.C:
@@ -126,7 +127,7 @@ func (g *GasPriceOracle) Loop() {
 }
 
 func (g *GasPriceOracle) BaseFeeLoop() {
-	timer := time.NewTicker(15 * time.Second)
+	timer := time.NewTicker(time.Duration(g.config.l1BaseFeeEpochLengthSeconds) * time.Second)
 	defer timer.Stop()
 
 	updateBaseFee, err := wrapUpdateBaseFee(g.l1Backend, g.l2Backend, g.config)
@@ -186,11 +187,15 @@ func NewGasPriceOracle(cfg *Config) (*GasPriceOracle, error) {
 	}
 
 	// Ensure that we can actually connect to both backends
+	log.Info("Connecting to layer two")
 	if err := ensureConnection(l2Client); err != nil {
-		log.Error("Unable to connect to layer two", "addr", cfg.layerTwoHttpUrl)
+		log.Error("Unable to connect to layer two")
+		return nil, err
 	}
+	log.Info("Connecting to layer one")
 	if err := ensureConnection(l1Client); err != nil {
-		log.Error("Unable to connect to layer one", "addr", cfg.ethereumHttpUrl)
+		log.Error("Unable to connect to layer one")
+		return nil, err
 	}
 
 	address := cfg.gasPriceOracleAddress
@@ -314,14 +319,18 @@ func NewGasPriceOracle(cfg *Config) (*GasPriceOracle, error) {
 
 // Ensure that we can actually connect
 func ensureConnection(client *ethclient.Client) error {
-	t := time.NewTicker(5 * time.Second)
+	t := time.NewTicker(1 * time.Second)
+	retries := 0
 	defer t.Stop()
 	for ; true; <-t.C {
 		_, err := client.ChainID(context.Background())
 		if err == nil {
 			break
 		} else {
-			return err
+			retries += 1
+			if retries > 90 {
+				return err
+			}
 		}
 	}
 	return nil

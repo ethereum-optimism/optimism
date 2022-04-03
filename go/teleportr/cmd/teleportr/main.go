@@ -33,6 +33,13 @@ func main() {
 	app.Name = "teleportr"
 	app.Usage = "Teleportr"
 	app.Description = "Teleportr bridge from L1 to L2"
+	app.Commands = []cli.Command{
+		{
+			Name:   "migrate",
+			Usage:  "Migrates teleportr's database",
+			Action: teleportr.Migrate(),
+		},
+	}
 
 	app.Action = teleportr.Main(GitVersion)
 	err := app.Run(os.Args)

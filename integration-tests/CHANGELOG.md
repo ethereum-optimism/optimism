@@ -1,5 +1,25 @@
 # @eth-optimism/integration-tests
 
+## 0.5.9
+
+### Patch Changes
+
+- 5bf390b4: Update chainid
+- c1957126: Update Dockerfile to use Alpine
+- d9a51154: Bump to hardhat@2.9.1
+
+## 0.5.8
+
+### Patch Changes
+
+- 88807f03: Add integration test for healthcheck server
+
+## 0.5.7
+
+### Patch Changes
+
+- 88601cb7: Refactored Dockerfiles
+
 ## 0.5.6
 
 ### Patch Changes

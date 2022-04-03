@@ -21,17 +21,6 @@ var (
 	ErrUnknownDeposit = errors.New("unknown deposit")
 )
 
-// Deposit represents an event emitted from the TeleportrDeposit contract on L1,
-// along with additional info about the tx that generated the event.
-type Deposit struct {
-	ID             uint64
-	TxnHash        common.Hash
-	BlockNumber    uint64
-	BlockTimestamp time.Time
-	Address        common.Address
-	Amount         *big.Int
-}
-
 // ConfirmationInfo holds metadata about a tx on either the L1 or L2 chain.
 type ConfirmationInfo struct {
 	TxnHash        common.Hash
@@ -39,15 +28,28 @@ type ConfirmationInfo struct {
 	BlockTimestamp time.Time
 }
 
-// CompletedTeleport represents an L1 deposit that has been disbursed on L2. The
-// struct also hold info about the L1 and L2 txns involved.
-type CompletedTeleport struct {
-	ID           uint64
-	Address      common.Address
-	Amount       *big.Int
-	Success      bool
-	Deposit      ConfirmationInfo
-	Disbursement ConfirmationInfo
+// Deposit represents an event emitted from the TeleportrDeposit contract on L1,
+// along with additional info about the tx that generated the event.
+type Deposit struct {
+	ID      uint64
+	Address common.Address
+	Amount  *big.Int
+
+	ConfirmationInfo
+}
+
+type Disbursement struct {
+	Success bool
+
+	ConfirmationInfo
+}
+
+// Teleport represents the combination of an L1 deposit and its disbursement on
+// L2. Disburment will be nil if the L2 disbursement has not occurred.
+type Teleport struct {
+	Deposit
+
+	Disbursement *Disbursement
 }
 
 const createDepositsTable = `
@@ -59,6 +61,14 @@ CREATE TABLE IF NOT EXISTS deposits (
 	address VARCHAR NOT NULL,
 	amount VARCHAR NOT NULL
 );
+`
+
+const createDepositTxnHashIndex = `
+CREATE INDEX ON deposits (txn_hash)
+`
+
+const createDepositAddressIndex = `
+CREATE INDEX ON deposits (address)
 `
 
 const createDisbursementsTable = `
@@ -89,6 +99,8 @@ CREATE TABLE IF NOT EXISTS pending_txs (
 
 var migrations = []string{
 	createDepositsTable,
+	createDepositTxnHashIndex,
+	createDepositAddressIndex,
 	createDisbursementsTable,
 	lastProcessedBlockTable,
 	pendingTxTable,
@@ -135,7 +147,7 @@ func (c Config) WithoutDB() string {
 // sslMode retuns "enabled" if EnableSSL is true, otherwise returns "disabled".
 func (c Config) sslMode() string {
 	if c.EnableSSL {
-		return "enable"
+		return "require"
 	}
 	return "disable"
 }
@@ -371,6 +383,71 @@ func (d *Database) UpsertDisbursement(
 	return nil
 }
 
+const loadTeleportByDepositHashQuery = `
+SELECT
+dep.id, dep.address, dep.amount, dis.success,
+dep.txn_hash, dep.block_number, dep.block_timestamp,
+dis.txn_hash, dis.block_number, dis.block_timestamp
+FROM deposits AS dep
+LEFT JOIN disbursements AS dis
+ON dep.id = dis.id
+WHERE dep.txn_hash = $1
+LIMIT 1
+`
+
+func (d *Database) LoadTeleportByDepositHash(
+	txHash common.Hash,
+) (*Teleport, error) {
+
+	row := d.conn.QueryRow(loadTeleportByDepositHashQuery, txHash.String())
+	teleport, err := scanTeleport(row)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	} else if err != nil {
+		return nil, err
+	}
+
+	return &teleport, nil
+}
+
+const loadTeleportsByAddressQuery = `
+SELECT
+dep.id, dep.address, dep.amount, dis.success,
+dep.txn_hash, dep.block_number, dep.block_timestamp,
+dis.txn_hash, dis.block_number, dis.block_timestamp
+FROM deposits AS dep
+LEFT JOIN disbursements AS dis
+ON dep.id = dis.id
+WHERE dep.address = $1
+ORDER BY dep.block_timestamp DESC, dep.id DESC
+LIMIT 100
+`
+
+func (d *Database) LoadTeleportsByAddress(
+	addr common.Address,
+) ([]Teleport, error) {
+
+	rows, err := d.conn.Query(loadTeleportsByAddressQuery, addr.String())
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var teleports []Teleport
+	for rows.Next() {
+		teleport, err := scanTeleport(rows)
+		if err != nil {
+			return nil, err
+		}
+		teleports = append(teleports, teleport)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return teleports, nil
+}
+
 const completedTeleportsQuery = `
 SELECT
 dep.id, dep.address, dep.amount, dis.success,
@@ -383,46 +460,19 @@ ORDER BY id DESC
 
 // CompletedTeleports returns the set of all deposits that have also been
 // disbursed.
-func (d *Database) CompletedTeleports() ([]CompletedTeleport, error) {
+func (d *Database) CompletedTeleports() ([]Teleport, error) {
 	rows, err := d.conn.Query(completedTeleportsQuery)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 
-	var teleports []CompletedTeleport
+	var teleports []Teleport
 	for rows.Next() {
-		var teleport CompletedTeleport
-		var addressStr string
-		var amountStr string
-		var depTxnHashStr string
-		var disTxnHashStr string
-		err = rows.Scan(
-			&teleport.ID,
-			&addressStr,
-			&amountStr,
-			&teleport.Success,
-			&depTxnHashStr,
-			&teleport.Deposit.BlockNumber,
-			&teleport.Deposit.BlockTimestamp,
-			&disTxnHashStr,
-			&teleport.Disbursement.BlockNumber,
-			&teleport.Disbursement.BlockTimestamp,
-		)
+		teleport, err := scanTeleport(rows)
 		if err != nil {
 			return nil, err
 		}
-		amount, ok := new(big.Int).SetString(amountStr, 10)
-		if !ok {
-			return nil, fmt.Errorf("unable to parse amount %v", amount)
-		}
-		teleport.Address = common.HexToAddress(addressStr)
-		teleport.Amount = amount
-		teleport.Deposit.TxnHash = common.HexToHash(depTxnHashStr)
-		teleport.Deposit.BlockTimestamp = teleport.Deposit.BlockTimestamp.Local()
-		teleport.Disbursement.TxnHash = common.HexToHash(disTxnHashStr)
-		teleport.Disbursement.BlockTimestamp = teleport.Disbursement.BlockTimestamp.Local()
-
 		teleports = append(teleports, teleport)
 	}
 	if err := rows.Err(); err != nil {
@@ -430,6 +480,63 @@ func (d *Database) CompletedTeleports() ([]CompletedTeleport, error) {
 	}
 
 	return teleports, nil
+}
+
+type Scanner interface {
+	Scan(...interface{}) error
+}
+
+func scanTeleport(scanner Scanner) (Teleport, error) {
+	var teleport Teleport
+	var addressStr string
+	var amountStr string
+	var depTxnHashStr string
+	var disTxnHashStr *string
+	var disBlockNumber *uint64
+	var disBlockTimestamp *time.Time
+	var success *bool
+	err := scanner.Scan(
+		&teleport.ID,
+		&addressStr,
+		&amountStr,
+		&success,
+		&depTxnHashStr,
+		&teleport.Deposit.BlockNumber,
+		&teleport.Deposit.BlockTimestamp,
+		&disTxnHashStr,
+		&disBlockNumber,
+		&disBlockTimestamp,
+	)
+	if err != nil {
+		return Teleport{}, err
+	}
+
+	amount, ok := new(big.Int).SetString(amountStr, 10)
+	if !ok {
+		return Teleport{}, fmt.Errorf("unable to parse amount %v", amount)
+	}
+	teleport.Address = common.HexToAddress(addressStr)
+	teleport.Amount = amount
+	teleport.Deposit.TxnHash = common.HexToHash(depTxnHashStr)
+	teleport.Deposit.BlockTimestamp = teleport.Deposit.BlockTimestamp.Local()
+
+	hasDisbursement := success != nil &&
+		disTxnHashStr != nil &&
+		disBlockNumber != nil &&
+		disBlockTimestamp != nil
+
+	if hasDisbursement {
+		teleport.Disbursement = &Disbursement{
+			ConfirmationInfo: ConfirmationInfo{
+				TxnHash:        common.HexToHash(*disTxnHashStr),
+				BlockNumber:    *disBlockNumber,
+				BlockTimestamp: disBlockTimestamp.Local(),
+			},
+			Success: *success,
+		}
+	}
+
+	return teleport, nil
 }
 
 // PendingTx encapsulates the metadata stored about published disbursement txs.

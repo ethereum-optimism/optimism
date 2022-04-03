@@ -9,9 +9,12 @@ import {
   getContractFromArtifact,
   deployAndVerifyAndThen,
 } from '../src/deploy-utils'
+import { getDeployConfig } from '../src/deploy-config'
 import { names } from '../src/address-names'
 
 const deployFn: DeployFunction = async (hre) => {
+  const deployConfig = getDeployConfig(hre.network.name)
+
   const Proxy__OVM_L1StandardBridge = await getContractFromArtifact(
     hre,
     'Proxy__OVM_L1StandardBridge'
@@ -31,7 +34,7 @@ const deployFn: DeployFunction = async (hre) => {
     name: names.unmanaged.ChugSplashDictator,
     args: [
       Proxy__OVM_L1StandardBridge.address,
-      (hre as any).deployConfig.ovmAddressManagerOwner,
+      deployConfig.ovmAddressManagerOwner,
       ethers.utils.keccak256(bridgeCode),
       ethers.utils.hexZeroPad('0x00', 32),
       ethers.utils.hexZeroPad(Proxy__OVM_L1CrossDomainMessenger.address, 32),

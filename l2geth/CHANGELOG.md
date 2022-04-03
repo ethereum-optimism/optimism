@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.5.16
+
+### Patch Changes
+
+- a01a2eb1: Skip TestWSAttachWelcome
+- 23ad6068: Skip some geth console tests that flake in CI
+- 6926b293: Adds a flag for changing the genesis fetch timeout
+
+## 0.5.15
+
+### Patch Changes
+
+- 88601cb7: Refactored Dockerfiles
+- f8348862: l2geth: Sync from Backend Queue
+
 ## 0.5.14
 
 ### Patch Changes

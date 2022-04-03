@@ -20,8 +20,12 @@ export interface L1DataTransportServiceOptions {
   dangerouslyCatchAllErrors?: boolean
   hostname: string
   l1RpcProvider: string
+  l1RpcProviderUser?: string
+  l1RpcProviderPassword?: string
   l2ChainId: number
   l2RpcProvider: string
+  l2RpcProviderUser?: string
+  l2RpcProviderPassword?: string
   metrics?: Metrics
   dbPath: string
   logsPerPollingInterval: number
@@ -83,6 +87,10 @@ export class L1DataTransportService extends BaseService<L1DataTransportServiceOp
         release: this.options.release,
         service: this.name,
       }
+    })
+
+    this.state.metrics.client.collectDefaultMetrics({
+      prefix: 'data_transport_layer_'
     })
 
     this.state.failureCounter = new this.state.metrics.client.Counter({

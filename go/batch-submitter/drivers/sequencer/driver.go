@@ -12,6 +12,7 @@ import (
 	"github.com/ethereum-optimism/optimism/go/bss-core/metrics"
 	"github.com/ethereum-optimism/optimism/go/bss-core/txmgr"
 	l2ethclient "github.com/ethereum-optimism/optimism/l2geth/ethclient"
+	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
@@ -32,6 +33,7 @@ type Config struct {
 	L1Client    *ethclient.Client
 	L2Client    *l2ethclient.Client
 	BlockOffset uint64
+	MinTxSize   uint64
 	MaxTxSize   uint64
 	CTCAddr     common.Address
 	ChainID     *big.Int
@@ -150,7 +152,8 @@ func (d *Driver) GetBatchBlockRange(
 
 // CraftBatchTx transforms the L2 blocks between start and end into a batch
 // transaction using the given nonce. A dummy gas price is used in the resulting
-// transaction to use for size estimation.
+// transaction to use for size estimation. A nil transaction is returned if the
+// transaction does not meet the minimum size requirements.
 //
 // NOTE: This method SHOULD NOT publish the resulting transaction.
 func (d *Driver) CraftBatchTx(
@@ -196,34 +199,57 @@ func (d *Driver) CraftBatchTx(
 	var pruneCount int
 	for {
 		batchParams, err := GenSequencerBatchParams(
-			shouldStartAt, d.cfg.BlockOffset, batchElements, d.cfg.BatchType,
+			shouldStartAt, d.cfg.BlockOffset, batchElements,
 		)
 		if err != nil {
 			return nil, err
 		}
 
-		batchArguments, err := batchParams.Serialize()
+		// Use plaintext encoding to enforce size constraints.
+		plaintextBatchArguments, err := batchParams.Serialize(BatchTypeLegacy)
 		if err != nil {
 			return nil, err
 		}
 
 		appendSequencerBatchID := d.ctcABI.Methods[appendSequencerBatchMethodName].ID
-		batchCallData := append(appendSequencerBatchID, batchArguments...)
+		plaintextCalldata := append(appendSequencerBatchID, plaintextBatchArguments...)
 
-		// Continue pruning until calldata size is less than configured max.
-		if uint64(len(batchCallData)) > d.cfg.MaxTxSize {
+		// Continue pruning until plaintext calldata size is less than
+		// configured max.
+		plaintextCalldataSize := uint64(len(plaintextCalldata))
+		if plaintextCalldataSize > d.cfg.MaxTxSize {
 			oldLen := len(batchElements)
 			newBatchElementsLen := (oldLen * 9) / 10
 			batchElements = batchElements[:newBatchElementsLen]
-			log.Info(name+" pruned batch", "old_num_txs", oldLen, "new_num_txs", newBatchElementsLen)
+			log.Info(name+" pruned batch",
+				"plaintext_size", plaintextCalldataSize,
+				"max_tx_size", d.cfg.MaxTxSize,
+				"old_num_txs", oldLen,
+				"new_num_txs", newBatchElementsLen)
 			pruneCount++
 			continue
+		} else if plaintextCalldataSize < d.cfg.MinTxSize {
+			log.Info(name+" batch tx size below minimum",
+				"plaintext_size", plaintextCalldataSize,
+				"min_tx_size", d.cfg.MinTxSize,
+				"num_txs", len(batchElements))
+			return nil, nil
 		}
 
 		d.metrics.NumElementsPerBatch().Observe(float64(len(batchElements)))
 		d.metrics.BatchPruneCount.Set(float64(pruneCount))
 
-		log.Info(name+" batch constructed", "num_txs", len(batchElements), "length", len(batchCallData))
+		// Finally, encode the batch using the configured batch type.
+		var calldata = plaintextCalldata
+		if d.cfg.BatchType != BatchTypeLegacy {
+			batchArguments, err := batchParams.Serialize(d.cfg.BatchType)
+			if err != nil {
+				return nil, err
+			}
+			calldata = append(appendSequencerBatchID, batchArguments...)
+		}
+
+		log.Info(name+" batch constructed", "num_txs", len(batchElements), "length", len(calldata))
 
 		opts, err := bind.NewKeyedTransactorWithChainID(
 			d.cfg.PrivKey, d.cfg.ChainID,
@@ -235,7 +261,7 @@ func (d *Driver) CraftBatchTx(
 		opts.Nonce = nonce
 		opts.NoSend = true
 
-		tx, err := d.rawCtcContract.RawTransact(opts, batchCallData)
+		tx, err := d.rawCtcContract.RawTransact(opts, calldata)
 		switch {
 		case err == nil:
 			return tx, nil
@@ -250,7 +276,7 @@ func (d *Driver) CraftBatchTx(
 			log.Warn(d.cfg.Name + " eth_maxPriorityFeePerGas is unsupported " +
 				"by current backend, using fallback gasTipCap")
 			opts.GasTipCap = drivers.FallbackGasTipCap
-			return d.rawCtcContract.RawTransact(opts, batchCallData)
+			return d.rawCtcContract.RawTransact(opts, calldata)
 
 		default:
 			return nil, err
@@ -267,6 +293,46 @@ func (d *Driver) UpdateGasPrice(
 	tx *types.Transaction,
 ) (*types.Transaction, error) {
 
+	gasTipCap, err := d.cfg.L1Client.SuggestGasTipCap(ctx)
+	if err != nil {
+		// If the transaction failed because the backend does not support
+		// eth_maxPriorityFeePerGas, fallback to using the default constant.
+		// Currently Alchemy is the only backend provider that exposes this
+		// method, so in the event their API is unreachable we can fallback to a
+		// degraded mode of operation. This also applies to our test
+		// environments, as hardhat doesn't support the query either.
+		if !drivers.IsMaxPriorityFeePerGasNotFoundError(err) {
+			return nil, err
+		}
+
+		log.Warn(d.cfg.Name + " eth_maxPriorityFeePerGas is unsupported " +
+			"by current backend, using fallback gasTipCap")
+		gasTipCap = drivers.FallbackGasTipCap
+	}
+
+	header, err := d.cfg.L1Client.HeaderByNumber(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+	gasFeeCap := txmgr.CalcGasFeeCap(header.BaseFee, gasTipCap)
+
+	// The estimated gas limits performed by RawTransact fail semi-regularly
+	// with out of gas exceptions. To remedy this we extract the internal calls
+	// to perform gas price/gas limit estimation here and add a buffer to
+	// account for any network variability.
+	gasLimit, err := d.cfg.L1Client.EstimateGas(ctx, ethereum.CallMsg{
+		From:      d.walletAddr,
+		To:        &d.cfg.CTCAddr,
+		GasPrice:  nil,
+		GasTipCap: gasTipCap,
+		GasFeeCap: gasFeeCap,
+		Value:     nil,
+		Data:      tx.Data(),
+	})
+	if err != nil {
+		return nil, err
+	}
+
 	opts, err := bind.NewKeyedTransactorWithChainID(
 		d.cfg.PrivKey, d.cfg.ChainID,
 	)
@@ -275,28 +341,12 @@ func (d *Driver) UpdateGasPrice(
 	}
 	opts.Context = ctx
 	opts.Nonce = new(big.Int).SetUint64(tx.Nonce())
+	opts.GasTipCap = gasTipCap
+	opts.GasFeeCap = gasFeeCap
+	opts.GasLimit = 6 * gasLimit / 5 // add 20% buffer to gas limit
 	opts.NoSend = true
 
-	finalTx, err := d.rawCtcContract.RawTransact(opts, tx.Data())
-	switch {
-	case err == nil:
-		return finalTx, nil
-
-	// If the transaction failed because the backend does not support
-	// eth_maxPriorityFeePerGas, fallback to using the default constant.
-	// Currently Alchemy is the only backend provider that exposes this method,
-	// so in the event their API is unreachable we can fallback to a degraded
-	// mode of operation. This also applies to our test environments, as hardhat
-	// doesn't support the query either.
-	case drivers.IsMaxPriorityFeePerGasNotFoundError(err):
-		log.Warn(d.cfg.Name + " eth_maxPriorityFeePerGas is unsupported " +
-			"by current backend, using fallback gasTipCap")
-		opts.GasTipCap = drivers.FallbackGasTipCap
-		return d.rawCtcContract.RawTransact(opts, tx.Data())
-
-	default:
-		return nil, err
-	}
+	return d.rawCtcContract.RawTransact(opts, tx.Data())
 }
 
 // SendTransaction injects a signed transaction into the pending pool for

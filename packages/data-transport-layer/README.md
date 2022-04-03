@@ -19,7 +19,7 @@ We run two sub-services, the [`L1IngestionService`](./src/services/l1-ingestion/
 
 See an example config at [.env.example](.env.example); copy into a `.env` file before running.
 
-`L1_TRANSPORT__L1_RPC_ENDPOINT` can be the JSON RPC endpoint of any L1 Ethereum node. `L1_TRANSPORT__ADDRESS_MANAGER` should be the contract addresss of the Address Manager on the corresponding network; find their values in the [Regenesis repo](https://github.com/ethereum-optimism/regenesis).
+`L1_TRANSPORT__L1_RPC_ENDPOINT` can be the JSON RPC endpoint of any L1 Ethereum node. `L1_TRANSPORT__ADDRESS_MANAGER` should be the contract addresss of the Address Manager on the corresponding network; find their values in the [contracts package](https://github.com/ethereum-optimism/optimism/tree/develop/packages/contracts/deployments).
 
 ### Building and usage
 
@@ -47,7 +47,7 @@ Here's the list of environment variables you can change:
 | Variable                                                | Default     | Description                                                                                                                                                   |
 | ------------------------------------------------------- | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | DATA_TRANSPORT_LAYER__DB_PATH                           | ./db        | Path to the database for this service.                                                                                                                        |
-| DATA_TRANSPORT_LAYER__ADDRESS_MANAGER                   | -           | Address of the AddressManager contract on L1. See [regenesis](https://github.com/ethereum-optimism/regenesis) repo to find this address for mainnet or kovan. |
+| DATA_TRANSPORT_LAYER__ADDRESS_MANAGER                   | -           | Address of the AddressManager contract on L1. See [contracts](https://github.com/ethereum-optimism/optimism/tree/develop/packages/contracts/deployments) package to find this address for mainnet or kovan. |
 | DATA_TRANSPORT_LAYER__POLLING_INTERVAL                  | 5000        | Period of time between execution loops.                                                                                                                       |
 | DATA_TRANSPORT_LAYER__DANGEROUSLY_CATCH_ALL_ERRORS      | false       | If true, will catch all errors without throwing.                                                                                                              |
 | DATA_TRANSPORT_LAYER__CONFIRMATIONS                     | 12          | Number of confirmations to wait before accepting transactions as "canonical".                                                                                 |
@@ -55,9 +55,13 @@ Here's the list of environment variables you can change:
 | DATA_TRANSPORT_LAYER__SERVER_PORT                       | 7878        | Port to run the API on.                                                                                                                                       |
 | DATA_TRANSPORT_LAYER__SYNC_FROM_L1                      | true        | Whether or not to sync from L1.                                                                                                                               |
 | DATA_TRANSPORT_LAYER__L1_RPC_ENDPOINT                   | -           | RPC endpoint for an L1 node.                                                                                                                                  |
+| DATA_TRANSPORT_LAYER__L1_RPC_USER                       | -           | Basic Authentication user for the L1 node endpoint.                                                                                                           |
+| DATA_TRANSPORT_LAYER__L1_RPC_PASSWORD                   | -           | Basic Authentication password for the L1 node endpoint.                                                                                                       |
 | DATA_TRANSPORT_LAYER__LOGS_PER_POLLING_INTERVAL         | 2000        | Logs to sync per polling interval.                                                                                                                            |
 | DATA_TRANSPORT_LAYER__SYNC_FROM_L2                      | false       | Whether or not to sync from L2.                                                                                                                               |
 | DATA_TRANSPORT_LAYER__L2_RPC_ENDPOINT                   | -           | RPC endpoint for an L2 node.                                                                                                                                  |
+| DATA_TRANSPORT_LAYER__L2_RPC_USER                       | -           | Basic Authentication user for the L2 node endpoint.                                                                                                           |
+| DATA_TRANSPORT_LAYER__L2_RPC_PASSWORD                   | -           | Basic Authentication password for the L2 node endpoint.                                                                                                       |
 | DATA_TRANSPORT_LAYER__TRANSACTIONS_PER_POLLING_INTERVAL | 1000        | Number of L2 transactions to query per polling interval.                                                                                                      |
 | DATA_TRANSPORT_LAYER__L2_CHAIN_ID                       | -           | L2 chain ID.                                                                                                                                                  |
 | DATA_TRANSPORT_LAYER__LEGACY_SEQUENCER_COMPATIBILITY    | false       | Whether or not to enable "legacy" sequencer sync (without the custom `eth_getBlockRange` endpoint)                                                            |

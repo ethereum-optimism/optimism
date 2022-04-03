@@ -1,7 +1,7 @@
 /* External Imports */
 import { ethers } from 'hardhat'
 import { Signer, ContractFactory, Contract } from 'ethers'
-import { smockit, MockContract } from '@eth-optimism/smock'
+import { smock, FakeContract } from '@defi-wonderland/smock'
 import {
   AppendSequencerBatchParams,
   encodeAppendSequencerBatch,
@@ -69,7 +69,7 @@ describe('CanonicalTransactionChain', () => {
   })
 
   let AddressManager: Contract
-  let Mock__StateCommitmentChain: MockContract
+  let Fake__StateCommitmentChain: FakeContract
   before(async () => {
     AddressManager = await makeAddressManager()
     await AddressManager.setAddress(
@@ -77,14 +77,14 @@ describe('CanonicalTransactionChain', () => {
       await sequencer.getAddress()
     )
 
-    Mock__StateCommitmentChain = await smockit(
+    Fake__StateCommitmentChain = await smock.fake<Contract>(
       await ethers.getContractFactory('StateCommitmentChain')
     )
 
     await setProxyTarget(
       AddressManager,
       'StateCommitmentChain',
-      Mock__StateCommitmentChain
+      Fake__StateCommitmentChain
     )
   })
 

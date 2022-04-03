@@ -1,5 +1,11 @@
 # @eth-optimism/core-utils
 
+## 0.8.2
+
+### Patch Changes
+
+- c1957126: Update Dockerfile to use Alpine
+
 ## 0.8.1
 
 ### Patch Changes

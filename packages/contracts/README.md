@@ -3,16 +3,14 @@
 # Optimism Smart Contracts
 
 `@eth-optimism/contracts` contains the various Solidity smart contracts used within the Optimism system.
-Some of these contracts are deployed on Ethereum ("Layer 1"), while others are meant to be deployed to Optimism ("Layer 2").
-
-Within each contract file you'll find a comment that lists:
-1. The compiler with which a contract is intended to be compiled, `solc` or `optimistic-solc`.
-2. The network upon to which the contract will be deployed, `OVM` or `EVM`.
-
-<!-- TODO: Add link to final contract docs here when finished. -->
+Some of these contracts are [meant to be deployed to Ethereum ("Layer 1")](https://github.com/ethereum-optimism/optimism/tree/develop/packages/contracts/contracts/L1), while others are [meant to be deployed to Optimism ("Layer 2")](https://github.com/ethereum-optimism/optimism/tree/develop/packages/contracts/contracts/L2).
+Within each contract file you'll find the network upon which the contract is meant to be deloyed, listed as either `EVM` (for Ethereum) or `OVM` (for Optimism).
+If neither `EVM` nor `OVM` are listed, the contract is likely intended to be used on either network.
 
 ## Usage (npm)
-If your development stack is based on Node/npm:
+
+You can import `@eth-optimism/contracts` to use the Optimism contracts within your own codebase.
+Install via `npm` or `yarn`:
 
 ```shell
 npm install @eth-optimism/contracts
@@ -21,11 +19,22 @@ npm install @eth-optimism/contracts
 Within your contracts:
 
 ```solidity
-import { SomeContract } from "@eth-optimism/contracts/SomeContract.sol";
+import { SomeContract } from "@eth-optimism/contracts/path/to/SomeContract.sol";
+```
+
+Note that the `/path/to/SomeContract.sol` is the path to the target contract within the [contracts folder](https://github.com/ethereum-optimism/optimism/tree/develop/packages/contracts/contracts) inside of this package.
+For example, the [L1CrossDomainMessenger](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts/contracts/L1/messaging/L1CrossDomainMessenger.sol) contract is located at `packages/contracts/contracts/L1/messaging/L1CrossDomainMessenger.sol`, relative to this README.
+You would therefore import the contract as:
+
+
+```solidity
+import { L1CrossDomainMessenger } from "@eth-optimism/contracts/L1/messaging/L1CrossDomainMessenger.sol";
 ```
 
 ## Guide for Developers
+
 ### Setup
+
 Install the following:
 - [`Node.js` (14+)](https://nodejs.org/en/)
 - [`npm`](https://www.npmjs.com/get-npm)
@@ -39,142 +48,129 @@ cd contracts
 ```
 
 Install `npm` packages:
+
 ```shell
 yarn install
 ```
 
 ### Running Tests
+
 Tests are executed via `yarn`:
+
 ```shell
 yarn test
 ```
 
 Run specific tests by giving a path to the file you want to run:
+
 ```shell
 yarn test ./test/path/to/my/test.spec.ts
 ```
 
 ### Measuring test coverage:
+
 ```shell
 yarn test:coverage
 ```
 
 The output is most easily viewable by opening the html file in your browser:
+
 ```shell
 open ./coverage/index.html
 ```
 
 ### Compiling and Building
-Easiest way is to run the primary build script:
+
+Compile and build the various required with the `build` command:
+
 ```shell
 yarn build
 ```
 
-Running the full build command will perform the following actions:
-1. `build:contracts` - Compile all Solidity contracts with both the EVM and OVM compilers.
-2. `build:typescript` - Builds the typescript files that are used to export utilities into js.
-3. `build:copy` - Copies various other files into the dist folder.
-4. `build:dump` - Generates a genesis state from the contracts that L2 geth will use.
-5. `build:typechain` - Generates [TypeChain](https://github.com/ethereum-ts/TypeChain) artifacts.
-
-You can also build specific components as follows:
-```shell
-yarn build:contracts
-```
-
 ### Deploying the Contracts
-To deploy the contracts first clone, install, and build the contracts package.
 
-Next set the following env vars:
+#### Required environment variables
 
-```bash
-CONTRACTS_TARGET_NETWORK=...
-CONTRACTS_DEPLOYER_KEY=...
-CONTRACTS_RPC_URL=...
+You must set several required environment variables before you can execute a deployment.
+Duplicate the file [`.env.example`](./.env.example) and rename your duplicate to `.env`.
+Fill out each of the environment variables before continuing.
+
+#### Creating a deployment configuration
+
+Before you can carry out a deployment, you must create a deployment configuration file inside of the [deploy-config](./deploy-config/) folder.
+Deployment configuration files are TypeScript files that export an object that conforms to the `DeployConfig` type.
+See [mainnet.ts](./deploy-config/mainnet.ts) for an example deployment configuration.
+We recommend duplicating an existing deployment config and modifying it to satisfy your requirements.
+
+#### Executing a deployment
+
+Once you've created your deploy config, you can execute a deployment with the following command:
+
+```
+npx hardhat deploy --network <my network name>
 ```
 
-Then to perform the actual deployment run:
+Note that this only applies to fresh deployments.
+If you want to upgrade an existing system (instead of deploying a new system from scratch), you must use the following command instead:
 
-```bash
-npx hardhat deploy \
-  --network ... \  # `network` MUST equal your env var `CONTRACTS_TARGET_NETWORK`
-  --ovm-address-manager-owner ... \
-  --ovm-proposer-address ... \
-  --ovm-relayer-address ... \
-  --ovm-sequencer-address ... \
-  --scc-fraud-proof-window ... \
-  --scc-sequencer-publish-window ...
+```
+npx hardhat deploy --network <my network name> --tags upgrade
 ```
 
-This will deploy the contracts to the network specified in your env and create
-an artifacts directory in `./deployments`.
+During the deployment process, you will be asked to transfer ownership of several contracts to a special contract address.
+You will also be asked to verify various configuration values.
+This is a safety mechanism to make sure that actions within an upgrade are performed atomically.
+Ownership of these addresses will be automatically returned to the original owner address once the upgrade is complete.
+The original owner can always recover ownership from the upgrade contract in an emergency.
+Please read these instructions carefully, verify each of the presented configuration values, and carefully confirm that the contract you are giving ownership to has not been compromised (e.g., check the code on Etherscan).
 
-To view all deployment options run:
+After your deployment is complete, your new contracts will be written to an artifacts directory in `./deployments/<my network name>`.
 
-```bash
-npx hardhat deploy --help
+#### Verifying contract source code
 
-Hardhat version 2.2.1
+Contracts will be automatically verified via both [Etherscan](https://etherscan.io) and [Sourcify](https://sourcify.dev/) during the deployment process.
+If there was an issue with verification during the deployment, you can manually verify your contracts with the command:
 
-Usage: hardhat [GLOBAL OPTIONS] deploy [--ctc-force-inclusion-period-seconds <INT>] [--ctc-max-transaction-gas-limit <INT>] --deploy-scripts <STRING> [--em-max-gas-per-queue-per-epoch <INT>] [--em-max-transaction-gas-limit <INT>] [--em-min-transaction-gas-limit <INT>] [--em-ovm-chain-id <INT>] [--em-seconds-per-epoch <INT>] --export <STRING> --export-all <STRING> --gasprice <STRING> [--l1-block-time-seconds <INT>] [--no-compile] [--no-impersonation] --ovm-address-manager-owner <STRING> --ovm-proposer-address <STRING> --ovm-relayer-address <STRING> --ovm-sequencer-address <STRING> [--reset] [--scc-fraud-proof-window <INT>] [--scc-sequencer-publish-window <INT>] [--silent] --tags <STRING> [--watch] --write <BOOLEAN>
-
-OPTIONS:
-
-  --ctc-force-inclusion-period-seconds  Number of seconds that the sequencer has to include transactions before the L1 queue. (default: 2592000)
-  --ctc-max-transaction-gas-limit       Max gas limit for L1 queue transactions. (default: 9000000)
-  --deploy-scripts                      override deploy script folder path
-  --em-max-gas-per-queue-per-epoch      Maximum gas allowed in a given queue for each epoch. (default: 250000000)
-  --em-max-transaction-gas-limit        Maximum allowed transaction gas limit. (default: 9000000)
-  --em-min-transaction-gas-limit        Minimum allowed transaction gas limit. (default: 50000)
-  --em-ovm-chain-id                     Chain ID for the L2 network. (default: 420)
-  --em-seconds-per-epoch                Number of seconds in each epoch. (default: 0)
-  --export                              export current network deployments
-  --export-all                          export all deployments into one file
-  --gasprice                            gas price to use for transactions
-  --l1-block-time-seconds               Number of seconds on average between every L1 block. (default: 15)
-  --no-compile                          disable pre compilation
-  --no-impersonation                    do not impersonate unknown accounts
-  --ovm-address-manager-owner           Address that will own the Lib_AddressManager. Must be provided or this deployment will fail.
-  --ovm-proposer-address                Address of the account that will propose state roots. Must be provided or this deployment will fail.
-  --ovm-relayer-address                 Address of the message relayer. Must be provided or this deployment will fail.
-  --ovm-sequencer-address               Address of the sequencer. Must be provided or this deployment will fail.
-  --reset                               whether to delete deployments files first
-  --scc-fraud-proof-window              Number of seconds until a transaction is considered finalized. (default: 604800)
-  --scc-sequencer-publish-window        Number of seconds that the sequencer is exclusively allowed to post state roots. (default: 1800)
-  --silent                              whether to remove log
-  --tags                                specify which deploy script to execute via tags, separated by commas
-  --watch                               redeploy on every change of contract or deploy script
-  --write                               whether to write deployments to file
-
-deploy: Deploy contracts
-
-For global options help run: hardhat help
+```
+npx hardhat etherscan-verify --network <my network name>
 ```
 
-### Verifying Deployments on Etherscan
-If you are using a network which Etherscan supports you can verify your contracts with:
+#### Creating a genesis file
 
-```bash
-npx hardhat etherscan-verify --api-key ... --network ...
+Optimism expects that certain contracts (called "predeploys") be deployed to the L2 network at pre-determined addresses.
+We guarantee this by creating a genesis file in which certain contracts are already within the L2 state at the genesis block.
+To create the genesis file for your network, you must first deploy the L1 contracts using the appropriate commands from above.
+Once you've deployed your contracts, run the following command:
+
+```
+npx hardhat take-dump --network <my network name>
 ```
 
-### Other hardhat tasks
+A genesis file will be created for you at `/genesis/<my network name>.json`.
+You can then ingest this file via `geth init`.
 
-To whitelist deployers on Mainnet you must have the whitelist Owner wallet connected, then run:
-```bash
-npx hardhat whitelist \
-  --use-ledger true \
-  --contracts-rpc-url https://mainnet.optimism.io \
-  --address ... \ # address to whitelist
+### Hardhat tasks
+
+#### Whitelisting
+
+Optimism has removed the whitelist from the Optimism mainnet.
+However, if you are running your own network and still wish to use the whitelist, you can manage the whitelist with the `whitelist` task.
+Run the following to get help text for the `whitelist` command:
+
+```
+npx hardhat whitelist --help
 ```
 
-To withdraw ETH fees to L1 on Mainnet, run:
-```bash
-npx hardhat withdraw-fees \
-  --use-ledger \  # The ledger to withdraw fees with. Ensure this wallet has ETH on L2 to pay the tx fee.
-  --contracts-rpc-url https://mainnet.optimism.io \
-```
+#### Withdrawing fees
 
+Any wallet can trigger a withdrawal of fees within the `SequencerFeeWallet` contract on L2 back to L1 as long as a threshold balance has been reached.
+Fees within the wallet will return to a fixed address on L1.
+Run the following to get help text for the `withdraw-fees` command:
+
+```
+npx hardhat withdraw-fees --help
+```
 
 ## Security
 Please refer to our [Security Policy](https://github.com/ethereum-optimism/.github/security/policy) for information about how to disclose security issues with this code.
+We also maintain a [bug bounty program via Immunefi](https://immunefi.com/bounty/optimism/) with a maximum payout of $2,000,042 for critical bug reports.

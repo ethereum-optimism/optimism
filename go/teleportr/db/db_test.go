@@ -91,12 +91,14 @@ func TestUpsertDeposits(t *testing.T) {
 	defer d.Close()
 
 	deposit1 := db.Deposit{
-		ID:             1,
-		TxnHash:        common.HexToHash("0xff01"),
-		BlockNumber:    1,
-		BlockTimestamp: testTimestamp,
-		Address:        common.HexToAddress("0xaa01"),
-		Amount:         big.NewInt(1),
+		ID:      1,
+		Address: common.HexToAddress("0xaa01"),
+		Amount:  big.NewInt(1),
+		ConfirmationInfo: db.ConfirmationInfo{
+			TxnHash:        common.HexToHash("0xff01"),
+			BlockNumber:    1,
+			BlockTimestamp: testTimestamp,
+		},
 	}
 
 	err := d.UpsertDeposits([]db.Deposit{deposit1}, 0)
@@ -107,12 +109,14 @@ func TestUpsertDeposits(t *testing.T) {
 	require.Equal(t, deposits, []db.Deposit{deposit1})
 
 	deposit2 := db.Deposit{
-		ID:             1,
-		TxnHash:        common.HexToHash("0xff02"),
-		BlockNumber:    2,
-		BlockTimestamp: testTimestamp,
-		Address:        common.HexToAddress("0xaa02"),
-		Amount:         big.NewInt(2),
+		ID:      1,
+		Address: common.HexToAddress("0xaa02"),
+		Amount:  big.NewInt(2),
+		ConfirmationInfo: db.ConfirmationInfo{
+			TxnHash:        common.HexToHash("0xff02"),
+			BlockNumber:    2,
+			BlockTimestamp: testTimestamp,
+		},
 	}
 
 	err = d.UpsertDeposits([]db.Deposit{deposit2}, 0)
@@ -160,12 +164,14 @@ func TestUpsertDepositsRecordsLastProcessedBlock(t *testing.T) {
 
 	// Insert real deposit in block 3 with last processed at 4.
 	deposit := db.Deposit{
-		ID:             0,
-		TxnHash:        common.HexToHash("0xff03"),
-		BlockNumber:    3,
-		BlockTimestamp: testTimestamp,
-		Address:        common.HexToAddress("0xaa03"),
-		Amount:         big.NewInt(3),
+		ID:      0,
+		Address: common.HexToAddress("0xaa03"),
+		Amount:  big.NewInt(3),
+		ConfirmationInfo: db.ConfirmationInfo{
+			TxnHash:        common.HexToHash("0xff03"),
+			BlockNumber:    3,
+			BlockTimestamp: testTimestamp,
+		},
 	}
 	err = d.UpsertDeposits([]db.Deposit{deposit}, 4)
 	require.Nil(t, err)
@@ -190,28 +196,34 @@ func TestConfirmedDeposits(t *testing.T) {
 	require.Equal(t, int(0), len(deposits))
 
 	deposit1 := db.Deposit{
-		ID:             1,
-		TxnHash:        common.HexToHash("0xff01"),
-		BlockNumber:    1,
-		BlockTimestamp: testTimestamp,
-		Address:        common.HexToAddress("0xaa01"),
-		Amount:         big.NewInt(1),
+		ID:      1,
+		Address: common.HexToAddress("0xaa01"),
+		Amount:  big.NewInt(1),
+		ConfirmationInfo: db.ConfirmationInfo{
+			TxnHash:        common.HexToHash("0xff01"),
+			BlockNumber:    1,
+			BlockTimestamp: testTimestamp,
+		},
 	}
 	deposit2 := db.Deposit{
-		ID:             2,
-		TxnHash:        common.HexToHash("0xff21"),
-		BlockNumber:    2,
-		BlockTimestamp: testTimestamp,
-		Address:        common.HexToAddress("0xaa21"),
-		Amount:         big.NewInt(2),
+		ID:      2,
+		Address: common.HexToAddress("0xaa21"),
+		Amount:  big.NewInt(2),
+		ConfirmationInfo: db.ConfirmationInfo{
+			TxnHash:        common.HexToHash("0xff21"),
+			BlockNumber:    2,
+			BlockTimestamp: testTimestamp,
+		},
 	}
 	deposit3 := db.Deposit{
-		ID:             3,
-		TxnHash:        common.HexToHash("0xff22"),
-		BlockNumber:    2,
-		BlockTimestamp: testTimestamp,
-		Address:        common.HexToAddress("0xaa22"),
-		Amount:         big.NewInt(2),
+		ID:      3,
+		Address: common.HexToAddress("0xaa22"),
+		Amount:  big.NewInt(2),
+		ConfirmationInfo: db.ConfirmationInfo{
+			TxnHash:        common.HexToHash("0xff22"),
+			BlockNumber:    2,
+			BlockTimestamp: testTimestamp,
+		},
 	}
 
 	err = d.UpsertDeposits([]db.Deposit{
@@ -269,12 +281,14 @@ func TestUpsertDisbursement(t *testing.T) {
 	// Now, insert a real deposit that we will disburse.
 	err = d.UpsertDeposits([]db.Deposit{
 		{
-			ID:             1,
-			TxnHash:        depTxnHash,
-			BlockNumber:    depBlockNumber,
-			BlockTimestamp: testTimestamp,
-			Address:        address,
-			Amount:         amount,
+			ID:      1,
+			Address: address,
+			Amount:  amount,
+			ConfirmationInfo: db.ConfirmationInfo{
+				TxnHash:        depTxnHash,
+				BlockNumber:    depBlockNumber,
+				BlockTimestamp: testTimestamp,
+			},
 		},
 	}, 0)
 	require.Nil(t, err)
@@ -287,21 +301,25 @@ func TestUpsertDisbursement(t *testing.T) {
 	)
 	require.Nil(t, err)
 
-	expTeleports := []db.CompletedTeleport{
+	expTeleports := []db.Teleport{
 		{
-			ID:      1,
-			Address: address,
-			Amount:  amount,
-			Success: false,
-			Deposit: db.ConfirmationInfo{
-				TxnHash:        depTxnHash,
-				BlockNumber:    depBlockNumber,
-				BlockTimestamp: testTimestamp,
+			Deposit: db.Deposit{
+				ID:      1,
+				Address: address,
+				Amount:  amount,
+				ConfirmationInfo: db.ConfirmationInfo{
+					TxnHash:        depTxnHash,
+					BlockNumber:    depBlockNumber,
+					BlockTimestamp: testTimestamp,
+				},
 			},
-			Disbursement: db.ConfirmationInfo{
-				TxnHash:        tempDisTxnHash,
-				BlockNumber:    tempDisBlockNumber,
-				BlockTimestamp: testTimestamp,
+			Disbursement: &db.Disbursement{
+				Success: false,
+				ConfirmationInfo: db.ConfirmationInfo{
+					TxnHash:        tempDisTxnHash,
+					BlockNumber:    tempDisBlockNumber,
+					BlockTimestamp: testTimestamp,
+				},
 			},
 		},
 	}
@@ -316,21 +334,25 @@ func TestUpsertDisbursement(t *testing.T) {
 	err = d.UpsertDisbursement(1, disTxnHash, disBlockNumber, testTimestamp, true)
 	require.Nil(t, err)
 
-	expTeleports = []db.CompletedTeleport{
+	expTeleports = []db.Teleport{
 		{
-			ID:      1,
-			Address: address,
-			Amount:  amount,
-			Success: true,
-			Deposit: db.ConfirmationInfo{
-				TxnHash:        depTxnHash,
-				BlockNumber:    depBlockNumber,
-				BlockTimestamp: testTimestamp,
+			Deposit: db.Deposit{
+				ID:      1,
+				Address: address,
+				Amount:  amount,
+				ConfirmationInfo: db.ConfirmationInfo{
+					TxnHash:        depTxnHash,
+					BlockNumber:    depBlockNumber,
+					BlockTimestamp: testTimestamp,
+				},
 			},
-			Disbursement: db.ConfirmationInfo{
-				TxnHash:        disTxnHash,
-				BlockNumber:    disBlockNumber,
-				BlockTimestamp: testTimestamp,
+			Disbursement: &db.Disbursement{
+				Success: true,
+				ConfirmationInfo: db.ConfirmationInfo{
+					TxnHash:        disTxnHash,
+					BlockNumber:    disBlockNumber,
+					BlockTimestamp: testTimestamp,
+				},
 			},
 		},
 	}
@@ -472,4 +494,79 @@ func TestDeletePendingTx(t *testing.T) {
 	pendingTxs, err = d.ListPendingTxs()
 	require.Nil(t, err)
 	require.Nil(t, pendingTxs)
+}
+
+// TestLoadTeleports asserts that LoadTeleportByDepositHash and
+// LoadTeleportsByAddress are able to query for a spcific deposit in various
+// stages through the teleport process.
+func TestLoadTeleports(t *testing.T) {
+	t.Parallel()
+
+	d := newDatabase(t)
+	defer d.Close()
+
+	address := common.HexToAddress("0x01")
+	amount := big.NewInt(1000)
+	depTxnHash := common.HexToHash("0x0d01")
+	depBlockNumber := uint64(1)
+	disTxnHash := common.HexToHash("0x0e01")
+	disBlockNumber := uint64(2)
+
+	// Insert deposit.
+	deposit1 := db.Deposit{
+		ID:      1,
+		Address: address,
+		Amount:  amount,
+		ConfirmationInfo: db.ConfirmationInfo{
+			TxnHash:        depTxnHash,
+			BlockNumber:    depBlockNumber,
+			BlockTimestamp: testTimestamp,
+		},
+	}
+
+	err := d.UpsertDeposits([]db.Deposit{deposit1}, 0)
+	require.Nil(t, err)
+
+	// The same, undisbursed teleport should be retruned by hash and address.
+	expTeleport := db.Teleport{
+		Deposit:      deposit1,
+		Disbursement: nil,
+	}
+
+	teleport, err := d.LoadTeleportByDepositHash(depTxnHash)
+	require.Nil(t, err)
+	require.NotNil(t, teleport)
+	require.Equal(t, expTeleport, *teleport)
+
+	teleports, err := d.LoadTeleportsByAddress(address)
+	require.Nil(t, err)
+	require.Equal(t, []db.Teleport{expTeleport}, teleports)
+
+	// Insert a disbursement for the above deposit.
+	err = d.UpsertDisbursement(
+		1, disTxnHash, disBlockNumber, testTimestamp, true,
+	)
+	require.Nil(t, err)
+
+	// The now-complete teleport should be returned from both queries.
+	expTeleport = db.Teleport{
+		Deposit: deposit1,
+		Disbursement: &db.Disbursement{
+			Success: true,
+			ConfirmationInfo: db.ConfirmationInfo{
+				TxnHash:        disTxnHash,
+				BlockNumber:    disBlockNumber,
+				BlockTimestamp: testTimestamp,
+			},
+		},
+	}
+
+	teleport, err = d.LoadTeleportByDepositHash(depTxnHash)
+	require.Nil(t, err)
+	require.NotNil(t, teleport)
+	require.Equal(t, expTeleport, *teleport)
+
+	teleports, err = d.LoadTeleportsByAddress(address)
+	require.Nil(t, err)
+	require.Equal(t, []db.Teleport{expTeleport}, teleports)
 }

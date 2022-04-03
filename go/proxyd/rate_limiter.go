@@ -5,10 +5,11 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
-	"github.com/ethereum/go-ethereum/log"
-	"github.com/go-redis/redis/v8"
 	"sync"
 	"time"
+
+	"github.com/ethereum/go-ethereum/log"
+	"github.com/go-redis/redis/v8"
 )
 
 const MaxRPSScript = `
@@ -85,6 +86,9 @@ func (r *RedisRateLimiter) IsBackendOnline(name string) (bool, error) {
 }
 
 func (r *RedisRateLimiter) SetBackendOffline(name string, duration time.Duration) error {
+	if duration == 0 {
+		return nil
+	}
 	err := r.rdb.SetEX(
 		context.Background(),
 		fmt.Sprintf("backend:%s:offline", name),

@@ -38,7 +38,7 @@ const procEnv = cleanEnv(process.env, {
   L1_URL: str({ default: 'http://localhost:9545' }),
   L1_POLLING_INTERVAL: num({ default: 10 }),
 
-  L2_CHAINID: num({ default: 987 }),
+  L2_CHAINID: num({ default: 17 }),
   L2_GAS_PRICE: gasPriceValidator({
     default: 'onchain',
   }),
@@ -55,6 +55,8 @@ const procEnv = cleanEnv(process.env, {
   REPLICA_POLLING_INTERVAL: num({ default: 10 }),
 
   VERIFIER_URL: str({ default: 'http://localhost:8547' }),
+
+  HEALTHCHECK_URL: str({ default: 'http://localhost:7300/metrics' }),
 
   PRIVATE_KEY: str({
     default:
@@ -76,6 +78,9 @@ const procEnv = cleanEnv(process.env, {
     default: true,
   }),
   RUN_REPLICA_TESTS: bool({
+    default: true,
+  }),
+  RUN_HEALTHCHECK_TESTS: bool({
     default: true,
   }),
   RUN_DEBUG_TRACE_TESTS: bool({

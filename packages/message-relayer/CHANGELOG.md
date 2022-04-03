@@ -1,5 +1,63 @@
 # @eth-optimism/message-relayer
 
+## 0.4.3
+
+### Patch Changes
+
+- c1957126: Update Dockerfile to use Alpine
+- d9a51154: Bump to hardhat@2.9.1
+- Updated dependencies [e36b085c]
+- Updated dependencies [c1957126]
+- Updated dependencies [51673b90]
+- Updated dependencies [7a179003]
+- Updated dependencies [d9a51154]
+  - @eth-optimism/common-ts@0.2.5
+  - @eth-optimism/core-utils@0.8.2
+  - @eth-optimism/sdk@1.0.3
+
+## 0.4.2
+
+### Patch Changes
+
+- Updated dependencies [f981b8da]
+  - @eth-optimism/common-ts@0.2.4
+
+## 0.4.1
+
+### Patch Changes
+
+- 88601cb7: Refactored Dockerfiles
+- 5cd1e996: Have BaseServiceV2 add spaces to environment variable names
+- Updated dependencies [f7761058]
+- Updated dependencies [5ae15042]
+- Updated dependencies [5cd1e996]
+- Updated dependencies [d49feca1]
+  - @eth-optimism/common-ts@0.2.3
+  - @eth-optimism/sdk@1.0.2
+
+## 0.4.0
+
+### Minor Changes
+
+- 860fef46: Rewrites the message-relayer to use the BaseServiceV2.
+
+### Patch Changes
+
+- Updated dependencies [b3f9bdef]
+- Updated dependencies [7ae1c67f]
+- Updated dependencies [e53b5783]
+- Updated dependencies [47e5d118]
+  - @eth-optimism/common-ts@0.2.2
+  - @eth-optimism/sdk@1.0.1
+
+## 0.3.2
+
+### Patch Changes
+
+- Updated dependencies [42227d69]
+- Updated dependencies [84f63c49]
+  - @eth-optimism/sdk@1.0.0
+
 ## 0.3.1
 
 ### Patch Changes

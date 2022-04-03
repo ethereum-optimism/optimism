@@ -13,14 +13,7 @@ import '@nomiclabs/hardhat-waffle'
 import '@nomiclabs/hardhat-etherscan'
 import 'hardhat-deploy'
 import '@typechain/hardhat'
-import './tasks/deploy'
-import './tasks/l2-gasprice'
-import './tasks/set-owner'
-import './tasks/validate-address-dictator'
-import './tasks/validate-chugsplash-dictator'
-import './tasks/whitelist'
-import './tasks/withdraw-fees'
-import './tasks/fetch-batches'
+import './tasks'
 import 'hardhat-gas-reporter'
 import '@primitivefi/hardhat-dodoc'
 import 'hardhat-output-validator'
@@ -30,6 +23,7 @@ dotenv.config()
 
 const enableGasReport = !!process.env.ENABLE_GAS_REPORT
 const privateKey = process.env.PRIVATE_KEY || '0x' + '11'.repeat(32) // this is to avoid hardhat error
+const deploy = process.env.DEPLOY_DIRECTORY || 'deploy'
 
 const config: HardhatUserConfig = {
   networks: {
@@ -47,16 +41,30 @@ const config: HardhatUserConfig = {
     'optimism-kovan': {
       chainId: 69,
       url: 'https://kovan.optimism.io',
+      deploy,
       accounts: [privateKey],
     },
     'optimism-mainnet': {
       chainId: 10,
       url: 'https://mainnet.optimism.io',
+      deploy,
       accounts: [privateKey],
     },
     'mainnet-trial': {
       chainId: 42069,
       url: 'http://127.0.0.1:8545',
+      accounts: [privateKey],
+    },
+    kovan: {
+      chainId: 42,
+      url: process.env.CONTRACTS_RPC_URL || '',
+      deploy,
+      accounts: [privateKey],
+    },
+    mainnet: {
+      chainId: 1,
+      url: process.env.CONTRACTS_RPC_URL || '',
+      deploy,
       accounts: [privateKey],
     },
   },

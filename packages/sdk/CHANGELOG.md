@@ -1,5 +1,43 @@
 # @eth-optimism/sdk
 
+## 1.0.3
+
+### Patch Changes
+
+- c1957126: Update Dockerfile to use Alpine
+- d9a51154: Bump to hardhat@2.9.1
+- Updated dependencies [c1957126]
+- Updated dependencies [d9a51154]
+  - @eth-optimism/contracts@0.5.19
+  - @eth-optimism/core-utils@0.8.2
+
+## 1.0.2
+
+### Patch Changes
+
+- d49feca1: Comment out non-functional getMessagesByAddress function
+- Updated dependencies [88601cb7]
+  - @eth-optimism/contracts@0.5.18
+
+## 1.0.1
+
+### Patch Changes
+
+- 7ae1c67f: Update package json to include correct repo link
+- 47e5d118: Tighten type restriction on ProviderLike
+- Updated dependencies [175ae0bf]
+  - @eth-optimism/contracts@0.5.17
+
+## 1.0.0
+
+### Major Changes
+
+- 84f63c49: Update README and bump SDK to 1.0.0
+
+### Patch Changes
+
+- 42227d69: Fix typo in constructor docstring
+
 ## 0.2.5
 
 ### Patch Changes

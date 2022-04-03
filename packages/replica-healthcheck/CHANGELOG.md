@@ -1,5 +1,57 @@
 # @eth-optimism/replica-healthcheck
 
+## 1.0.3
+
+### Patch Changes
+
+- c1957126: Update Dockerfile to use Alpine
+- Updated dependencies [e36b085c]
+- Updated dependencies [c1957126]
+- Updated dependencies [51673b90]
+- Updated dependencies [7a179003]
+  - @eth-optimism/common-ts@0.2.5
+  - @eth-optimism/core-utils@0.8.2
+
+## 1.0.2
+
+### Patch Changes
+
+- f981b8da: Fixes a bug in the replica-healthcheck docker file
+- 032731b5: Add checks and metrics for dead networks
+- Updated dependencies [f981b8da]
+  - @eth-optimism/common-ts@0.2.4
+
+## 1.0.1
+
+### Patch Changes
+
+- 1c685f76: Fixes a bug in the replica-healthcheck dockerfile
+- 5cd1e996: Have BaseServiceV2 add spaces to environment variable names
+- Updated dependencies [f7761058]
+- Updated dependencies [5ae15042]
+- Updated dependencies [5cd1e996]
+  - @eth-optimism/common-ts@0.2.3
+
+## 1.0.0
+
+### Major Changes
+
+- e264f03f: Rewrite replica-healthcheck with BaseServiceV2
+
+### Patch Changes
+
+- Updated dependencies [b3f9bdef]
+- Updated dependencies [e53b5783]
+  - @eth-optimism/common-ts@0.2.2
+
+## 0.3.11
+
+### Patch Changes
+
+- Updated dependencies [42227d69]
+- Updated dependencies [84f63c49]
+  - @eth-optimism/sdk@1.0.0
+
 ## 0.3.10
 
 ### Patch Changes
