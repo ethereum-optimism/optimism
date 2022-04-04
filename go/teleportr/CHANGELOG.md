@@ -1,5 +1,11 @@
 # @eth-optimism/teleportr
 
+## 0.0.3
+
+### Patch Changes
+
+- 160f4c3d: Update docker image to use golang 1.18.0
+
 ## 0.0.2
 
 ### Patch Changes
