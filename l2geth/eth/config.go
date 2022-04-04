@@ -32,7 +32,6 @@ import (
 	"github.com/ethereum-optimism/optimism/l2geth/miner"
 	"github.com/ethereum-optimism/optimism/l2geth/params"
 	"github.com/ethereum-optimism/optimism/l2geth/rollup"
-	"github.com/ethereum-optimism/optimism/l2geth/rollup/pub"
 )
 
 // DefaultConfig contains default settings for use on the Ethereum main net.
@@ -184,8 +183,4 @@ type Config struct {
 
 	// Optimism Rollup Config
 	Rollup rollup.Config
-
-	TxPublisher pub.Config
-
-	TxQueueSubscriber rollup.QueueSubscriberConfig
 }

@@ -165,15 +165,6 @@ var (
 		utils.RollupFeeThresholdUpFlag,
 		utils.RollupGenesisTimeoutSecondsFlag,
 		utils.SequencerClientHttpFlag,
-		utils.TxPublisherEnableFlag,
-		utils.TxPublisherProjectIDFlag,
-		utils.TxPublisherTopicIDFlag,
-		utils.TxPublisherTimeoutFlag,
-		utils.TxQueueEnableFlag,
-		utils.TxQueueProjectIDFlag,
-		utils.TxQueueSubscriptionIDFlag,
-		utils.TxQueueMaxOutstandingBytesFlag,
-		utils.TxQueueMaxOutstandingMessagesFlag,
 	}
 
 	rpcFlags = []cli.Flag{

@@ -1,10 +1,8 @@
 package rollup
 
 import (
-	"bytes"
 	"context"
 	"crypto/rand"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"math/big"
@@ -24,14 +22,13 @@ import (
 	"github.com/ethereum-optimism/optimism/l2geth/ethdb"
 	"github.com/ethereum-optimism/optimism/l2geth/event"
 	"github.com/ethereum-optimism/optimism/l2geth/params"
-	"github.com/ethereum-optimism/optimism/l2geth/rollup/pub"
 	"github.com/ethereum-optimism/optimism/l2geth/rollup/rcfg"
 )
 
 // Test that the timestamps are updated correctly.
 // This impacts execution, for `block.timestamp`
 func TestSyncServiceTimestampUpdate(t *testing.T) {
-	service, txCh, _, err := newTestSyncService(false, nil, nil)
+	service, txCh, _, err := newTestSyncService(false, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -114,7 +111,7 @@ func TestSyncServiceTimestampUpdate(t *testing.T) {
 
 // Test that the L1 blocknumber is updated correctly
 func TestSyncServiceL1BlockNumberUpdate(t *testing.T) {
-	service, txCh, _, err := newTestSyncService(false, nil, nil)
+	service, txCh, _, err := newTestSyncService(false, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -182,7 +179,7 @@ func TestSyncServiceL1BlockNumberUpdate(t *testing.T) {
 // after the transaction enqueued event is emitted. Set `false` as
 // the argument to start as a sequencer
 func TestSyncServiceTransactionEnqueued(t *testing.T) {
-	service, txCh, _, err := newTestSyncService(false, nil, nil)
+	service, txCh, _, err := newTestSyncService(false, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -244,7 +241,7 @@ func TestSyncServiceTransactionEnqueued(t *testing.T) {
 }
 
 func TestTransactionToTipNoIndex(t *testing.T) {
-	service, txCh, _, err := newTestSyncService(false, nil, nil)
+	service, txCh, _, err := newTestSyncService(false, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -295,7 +292,7 @@ func TestTransactionToTipNoIndex(t *testing.T) {
 }
 
 func TestTransactionToTipTimestamps(t *testing.T) {
-	service, txCh, _, err := newTestSyncService(false, nil, nil)
+	service, txCh, _, err := newTestSyncService(false, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -371,7 +368,7 @@ func TestTransactionToTipTimestamps(t *testing.T) {
 }
 
 func TestApplyIndexedTransaction(t *testing.T) {
-	service, txCh, _, err := newTestSyncService(true, nil, nil)
+	service, txCh, _, err := newTestSyncService(true, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -414,7 +411,7 @@ func TestApplyIndexedTransaction(t *testing.T) {
 }
 
 func TestApplyBatchedTransaction(t *testing.T) {
-	service, txCh, _, err := newTestSyncService(true, nil, nil)
+	service, txCh, _, err := newTestSyncService(true, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -451,7 +448,7 @@ func TestApplyBatchedTransaction(t *testing.T) {
 }
 
 func TestIsAtTip(t *testing.T) {
-	service, _, _, err := newTestSyncService(true, nil, nil)
+	service, _, _, err := newTestSyncService(true, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -524,7 +521,7 @@ func TestIsAtTip(t *testing.T) {
 }
 
 func TestSyncQueue(t *testing.T) {
-	service, txCh, _, err := newTestSyncService(true, nil, nil)
+	service, txCh, _, err := newTestSyncService(true, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -581,7 +578,7 @@ func TestSyncQueue(t *testing.T) {
 }
 
 func TestSyncServiceL1GasPrice(t *testing.T) {
-	service, _, _, err := newTestSyncService(true, nil, nil)
+	service, _, _, err := newTestSyncService(true, nil)
 	setupMockClient(service, map[string]interface{}{})
 
 	if err != nil {
@@ -619,7 +616,7 @@ func TestSyncServiceL1GasPrice(t *testing.T) {
 }
 
 func TestSyncServiceL2GasPrice(t *testing.T) {
-	service, _, _, err := newTestSyncService(true, nil, nil)
+	service, _, _, err := newTestSyncService(true, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -654,7 +651,7 @@ func TestSyncServiceL2GasPrice(t *testing.T) {
 }
 
 func TestSyncServiceGasPriceOracleOwnerAddress(t *testing.T) {
-	service, _, _, err := newTestSyncService(true, nil, nil)
+	service, _, _, err := newTestSyncService(true, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -688,7 +685,7 @@ func TestSyncServiceGasPriceOracleOwnerAddress(t *testing.T) {
 // Only the gas price oracle owner can send 0 gas price txs
 // when fees are enforced
 func TestFeeGasPriceOracleOwnerTransactions(t *testing.T) {
-	service, _, _, err := newTestSyncService(true, nil, nil)
+	service, _, _, err := newTestSyncService(true, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -744,7 +741,7 @@ func TestFeeGasPriceOracleOwnerTransactions(t *testing.T) {
 
 // Pass true to set as a verifier
 func TestSyncServiceSync(t *testing.T) {
-	service, txCh, sub, err := newTestSyncService(true, nil, nil)
+	service, txCh, sub, err := newTestSyncService(true, nil)
 	defer sub.Unsubscribe()
 	if err != nil {
 		t.Fatal(err)
@@ -796,7 +793,7 @@ func TestSyncServiceSync(t *testing.T) {
 }
 
 func TestInitializeL1ContextPostGenesis(t *testing.T) {
-	service, _, _, err := newTestSyncService(true, nil, nil)
+	service, _, _, err := newTestSyncService(true, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -899,158 +896,9 @@ func TestBadFeeThresholds(t *testing.T) {
 			cfg.FeeThresholdDown = tt.thresholdDown
 			cfg.FeeThresholdUp = tt.thresholdUp
 
-			_, err := NewSyncService(context.Background(), cfg, txPool, chain, db, &pub.NoopPublisher{}, &noopQueueSubscriber{})
+			_, err := NewSyncService(context.Background(), cfg, txPool, chain, db)
 			if !errors.Is(err, tt.err) {
 				t.Fatalf("%s: %s", name, err)
-			}
-		})
-	}
-}
-
-// Ensure that Transaction Logging precedes transaction apply
-func TestSyncServiceTransactionLog(t *testing.T) {
-	txLogger := newMockPublisher()
-	service, txCh, _, err := newTestSyncService(false, nil, txLogger)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	tx := mockTx()
-
-	go func() {
-		err = service.applyTransactionToTip(tx)
-	}()
-
-	txLogger.waitForPublish()
-
-	select {
-	case <-txCh:
-		t.Fatal("transaction applied before being logged")
-	default:
-	}
-	txLogger.unblockPublish()
-	<-txCh
-
-	loggedTxMeta := new(QueuedTransactionMeta)
-	buf := <-txLogger.msgs
-	if err := json.Unmarshal(buf, loggedTxMeta); err != nil {
-		t.Fatalf("unable to decode logged transaction meta: %v", err)
-	}
-
-	txMetaJSON, _ := tx.GetMeta().MarshalJSON()
-	loggedTxJSON, _ := json.Marshal(loggedTxMeta)
-	if !bytes.Equal(txMetaJSON, loggedTxJSON) {
-		t.Fatal("mismatched logged transactions")
-	}
-}
-
-func TestSyncServiceTransactionLogFailed(t *testing.T) {
-	txLogger := &failingMockPublisher{}
-	service, txCh, _, err := newTestSyncService(false, nil, txLogger)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	tx := mockTx()
-
-	errCh := make(chan error)
-	go func() {
-		err = service.applyTransactionToTip(tx)
-		errCh <- err
-		close(errCh)
-	}()
-
-	if err := <-errCh; err == nil {
-		t.Fatal("transaction applied with log failure")
-	}
-	select {
-	case <-txCh:
-		t.Fatal("transaction applied after log failed")
-	default:
-	}
-}
-
-func TestSyncServiceBackendQueue(t *testing.T) {
-	txLogger := newMockPublisher()
-	txLogger.unblockPublish()
-	activeService, _, _, err := newTestSyncService(false, nil, txLogger)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	queueSub := newMockQueueSubscriber()
-	followerService, followerTxCh, _, err := newTestSyncServiceWithQueueSubscriber(true, nil, &pub.NoopPublisher{}, queueSub)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	tx := mockTx()
-	go func() {
-		activeService.applyTransactionToTip(tx)
-	}()
-
-	go func() {
-		followerService.syncTransactionsFromQueue()
-	}()
-
-	// forward the logged transaction from the "active sequencer"
-	msg := <-txLogger.msgs
-	queueSub.ProduceMessage(msg)
-
-	event := <-followerTxCh
-	if len(event.Txs) != 1 {
-		t.Fatal("Unexpected number of transactions")
-	}
-
-	expected, _ := tx.MarshalJSON()
-	eventTx, _ := event.Txs[0].MarshalJSON()
-	if !bytes.Equal(expected, eventTx) {
-		t.Fatalf("invalid tx applied")
-	}
-	expectedMeta, _ := tx.GetMeta().MarshalJSON()
-	eventTxMeta, _ := event.Txs[0].GetMeta().MarshalJSON()
-	if !bytes.Equal(expectedMeta, eventTxMeta) {
-		t.Fatalf("invalid tx meta applied")
-	}
-
-	followerService.chainHeadCh <- core.ChainHeadEvent{}
-	subEvent := <-queueSub.events
-
-	if subEvent != mockAckEvent {
-		t.Fatalf("subscriber failed to acknowledge transaction")
-	}
-}
-
-func TestSyncServiceBackendQueueNack(t *testing.T) {
-	tx := mockTx()
-	tx.GetMeta().RawTransaction = nil
-	tests := map[string][]byte{
-		//"good txmeta":                      []byte("{\"l1BlockNumber\":0,\"l1Timestamp\":1647549225,\"l1MessageSender\":\"0x1487ef4dd5b0ca7610b85964371c1d8ab7c468eb\",\"queueOrigin\":\"sequencer\",\"index\":0,\"queueIndex\":0,\"rawTransaction\":\"34CAgJQrz3UmBr9M0373farCJhgNfaGiVICCAACAgIA=\"}"),
-		"invalid json":           nil,
-		"invalid RawTransaction": []byte("{\"l1BlockNumber\":0,\"l1Timestamp\":1647549225,\"l1MessageSender\":\"0x1487ef4dd5b0ca7610b85964371c1d8ab7c468eb\",\"queueOrigin\":\"sequencer\",\"index\":0,\"queueIndex\":0,\"rawTransaction\":\"\"}"),
-		"missing L1BlockNumber":  []byte("{\"l1Timestamp\":1647549225,\"l1MessageSender\":\"0x1487ef4dd5b0ca7610b85964371c1d8ab7c468eb\",\"queueOrigin\":\"sequencer\",\"index\":0,\"queueIndex\":0,\"rawTransaction\":\"34CAgJQrz3UmBr9M0373farCJhgNfaGiVICCAACAgIA=\"}"),
-		"missing L1Timestamp":    []byte("{\"l1BlockNumber\":0,\"l1MessageSender\":\"0x1487ef4dd5b0ca7610b85964371c1d8ab7c468eb\",\"queueOrigin\":\"sequencer\",\"index\":0,\"queueIndex\":0,\"rawTransaction\":\"34CAgJQrz3UmBr9M0373farCJhgNfaGiVICCAACAgIA=\"}"),
-	}
-
-	for name, msg := range tests {
-		t.Run(name, func(t *testing.T) {
-			queueSub := newMockQueueSubscriber()
-			service, _, _, err := newTestSyncServiceWithQueueSubscriber(true, nil, &pub.NoopPublisher{}, queueSub)
-			if err != nil {
-				t.Fatal(err)
-			}
-
-			go func() {
-				service.syncTransactionsFromQueue()
-			}()
-
-			queueSub.ProduceMessage(msg)
-
-			service.chainHeadCh <- core.ChainHeadEvent{}
-			event := <-queueSub.events
-
-			if event != mockNackEvent {
-				t.Fatalf("subscriber failed to acknowledge transaction")
 			}
 		})
 	}
@@ -1089,15 +937,12 @@ func newTestSyncServiceDeps(isVerifier bool, alloc *common.Address) (Config, *co
 	return cfg, txPool, chain, db, nil
 }
 
-func newTestSyncServiceWithQueueSubscriber(isVerifier bool, alloc *common.Address, txLogger pub.Publisher, queueSub QueueSubscriber) (*SyncService, chan core.NewTxsEvent, event.Subscription, error) {
+func newTestSyncService(isVerifier bool, alloc *common.Address) (*SyncService, chan core.NewTxsEvent, event.Subscription, error) {
 	cfg, txPool, chain, db, err := newTestSyncServiceDeps(isVerifier, alloc)
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("Cannot initialize syncservice: %w", err)
 	}
-	if txLogger == nil {
-		txLogger = &pub.NoopPublisher{}
-	}
-	service, err := NewSyncService(context.Background(), cfg, txPool, chain, db, txLogger, queueSub)
+	service, err := NewSyncService(context.Background(), cfg, txPool, chain, db)
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("Cannot initialize syncservice: %w", err)
 	}
@@ -1107,91 +952,6 @@ func newTestSyncServiceWithQueueSubscriber(isVerifier bool, alloc *common.Addres
 	sub := service.SubscribeNewTxsEvent(txCh)
 
 	return service, txCh, sub, nil
-}
-
-func newTestSyncService(isVerifier bool, alloc *common.Address, txLogger pub.Publisher) (*SyncService, chan core.NewTxsEvent, event.Subscription, error) {
-	return newTestSyncServiceWithQueueSubscriber(isVerifier, alloc, txLogger, &noopQueueSubscriber{})
-}
-
-type mockPublisher struct {
-	wg1  sync.WaitGroup
-	wg2  sync.WaitGroup
-	msgs chan ([]byte)
-}
-
-func newMockPublisher() *mockPublisher {
-	p := mockPublisher{
-		msgs: make(chan []byte, 1024),
-	}
-	p.wg1.Add(1)
-	p.wg2.Add(1)
-	return &p
-}
-
-// unblockPublish allows a call to Publish to proceed
-func (p *mockPublisher) unblockPublish() {
-	p.wg1.Done()
-}
-
-// waitForPublish blocks until a call is made to Publish
-func (p *mockPublisher) waitForPublish() {
-	p.wg2.Wait()
-}
-
-func (p *mockPublisher) Publish(ctx context.Context, msg []byte) error {
-	p.wg2.Done()
-	p.wg1.Wait()
-	p.msgs <- msg
-	return nil
-}
-
-type failingMockPublisher struct{}
-
-func (p *failingMockPublisher) Publish(ctx context.Context, msg []byte) error {
-	return fmt.Errorf("publish failed")
-}
-
-type mockQueueEvent int
-
-const mockAckEvent mockQueueEvent = 0
-const mockNackEvent mockQueueEvent = 1
-
-type mockQueueSubscriber struct {
-	msgs   chan []byte
-	events chan mockQueueEvent
-}
-
-func newMockQueueSubscriber() *mockQueueSubscriber {
-	return &mockQueueSubscriber{make(chan []byte, 1024), make(chan mockQueueEvent, 1024)}
-}
-
-func (p *mockQueueSubscriber) ProduceMessage(msg []byte) {
-	p.msgs <- msg
-}
-
-func (p *mockQueueSubscriber) ReceiveMessage(ctx context.Context, cb func(ctx context.Context, msg QueueSubscriberMessage)) error {
-	msg := <-p.msgs
-	cb(ctx, &mockQueueSubscriberMessage{msg, p.events})
-	return nil
-}
-
-func (p *mockQueueSubscriber) Close() error { return nil }
-
-type mockQueueSubscriberMessage struct {
-	data   []byte
-	events chan<- mockQueueEvent
-}
-
-func (m *mockQueueSubscriberMessage) Data() []byte {
-	return m.data
-}
-
-func (m *mockQueueSubscriberMessage) Ack() {
-	m.events <- mockAckEvent
-}
-
-func (m *mockQueueSubscriberMessage) Nack() {
-	m.events <- mockNackEvent
 }
 
 type mockClient struct {
@@ -1348,7 +1108,6 @@ func mockTx() *types.Transaction {
 	gasLimit := uint64(0)
 	data := []byte{0x00, 0x00}
 	l1BlockNumber := big.NewInt(0)
-	queueIndex := uint64(0)
 
 	tx := types.NewTransaction(0, target, big.NewInt(0), gasLimit, big.NewInt(0), data)
 	meta := types.NewTransactionMeta(
@@ -1357,7 +1116,7 @@ func mockTx() *types.Transaction {
 		&l1TxOrigin,
 		types.QueueOriginSequencer,
 		nil,
-		&queueIndex,
+		nil,
 		nil,
 	)
 	tx.SetTransactionMeta(meta)
