@@ -1,5 +1,4 @@
 ---
-'@eth-optimism/batch-submitter': patch
 '@eth-optimism/common-ts': patch
 '@eth-optimism/contracts': patch
 '@eth-optimism/core-utils': patch
