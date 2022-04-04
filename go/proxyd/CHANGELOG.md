@@ -1,5 +1,11 @@
 # @eth-optimism/proxyd
 
+## 3.8.3
+
+### Patch Changes
+
+- 160f4c3d: Update docker image to use golang 1.18.0
+
 ## 3.8.2
 
 ### Patch Changes

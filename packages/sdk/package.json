@@ -1,6 +1,6 @@
 {
   "name": "@eth-optimism/sdk",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "[Optimism] Tools for working with Optimism",
   "main": "dist/index",
   "types": "dist/index",
@@ -62,11 +62,11 @@
     "prettier": "^2.3.1",
     "ts-mocha": "^8.0.0",
     "typedoc": "^0.22.13",
-    "typescript": "^4.3.5"
+    "typescript": "^4.6.2"
   },
   "dependencies": {
-    "@eth-optimism/contracts": "0.5.19",
-    "@eth-optimism/core-utils": "0.8.2",
+    "@eth-optimism/contracts": "0.5.20",
+    "@eth-optimism/core-utils": "0.8.3",
     "lodash": "^4.17.21",
     "merkletreejs": "^0.2.27",
     "rlp": "^2.2.7"

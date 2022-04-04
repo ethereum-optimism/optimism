@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.5.20
+
+### Patch Changes
+
+- d040a8d9: Deleted update and helper functions/tests from Lib_MerkleTrie.sol and Lib_SecureMerkleTrie.sol
+- b57014d1: Update to typescript@4.6.2
+- Updated dependencies [b57014d1]
+  - @eth-optimism/core-utils@0.8.3
+
 ## 0.5.19
 
 ### Patch Changes

@@ -1,5 +1,14 @@
 # @eth-optimism/replica-healthcheck
 
+## 1.0.4
+
+### Patch Changes
+
+- b57014d1: Update to typescript@4.6.2
+- Updated dependencies [b57014d1]
+  - @eth-optimism/common-ts@0.2.6
+  - @eth-optimism/core-utils@0.8.3
+
 ## 1.0.3
 
 ### Patch Changes
