@@ -1,4 +1,4 @@
-FROM golang:1.17.2-alpine3.13 AS builder
+FROM golang:1.18.0-alpine3.15 as builder
 
 ARG GITCOMMIT=docker
 ARG GITDATE=docker
@@ -11,7 +11,7 @@ COPY ./go/proxyd /app
 
 RUN make proxyd
 
-FROM alpine:3.14.2
+FROM alpine:3.15
 
 COPY ./go/proxyd/entrypoint.sh /bin/entrypoint.sh
 
