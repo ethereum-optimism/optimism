@@ -10,7 +10,9 @@
       "integration-tests",
       "go/*",
       "ops/docker/rpc-proxy",
-      "ops/docker/hardhat"
+      "ops/docker/hardhat",
+      "ops/docker/go-builder",
+      "ops/docker/js-builder"
     ],
     "nohoist": [
       "examples/*",
