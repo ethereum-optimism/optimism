@@ -205,5 +205,8 @@ describe('Withdraw', () => {
           gasLimit: 1_000_000,
         }
       )
+      const events: any = (await tx.wait()).events
+      expect(events[0].event).to.equal('WithdrawalVerified')
+    })
   }).timeout(30000)
 })

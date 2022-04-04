@@ -23,6 +23,15 @@ contract WithdrawalVerifier {
         bytes32 latestBlockhash;
     }
 
+    event WithdrawalVerified(
+        uint256 indexed messageNonce,
+        address indexed sender,
+        address indexed target,
+        uint256 value,
+        uint256 gasLimit,
+        bytes data
+    );
+
     constructor(
         L2OutputOracle _l2Oracle,
         address _withdrawalsPredeploy,
@@ -75,12 +84,15 @@ contract WithdrawalVerifier {
             )
         );
 
-        return
-            Lib_SecureMerkleTrie.verifyInclusionProof(
-                abi.encodePacked(storageKey),
-                hex"01",
-                _withdrawalProof,
-                _outputRootProof.withdrawerStorageRoot
-            );
+        bool verified = Lib_SecureMerkleTrie.verifyInclusionProof(
+            abi.encodePacked(storageKey),
+            hex"01",
+            _withdrawalProof,
+            _outputRootProof.withdrawerStorageRoot
+        );
+
+        emit WithdrawalVerified(_nonce, _sender, _target, _value, _gasLimit, _data);
+
+        return verified;
     }
 }
