@@ -6,6 +6,7 @@ import {
     Lib_SecureMerkleTrie
 } from "../../lib/optimism/packages/contracts/contracts/libraries/trie/Lib_SecureMerkleTrie.sol";
 
+
 /**
  * @title WithdrawalVerifier
  */
@@ -18,7 +19,7 @@ contract WithdrawalVerifier {
         uint256 timestamp;
         bytes32 version;
         bytes32 stateRoot;
-        bytes32 withdrawerRoot;
+        bytes32 withdrawerStorageRoot;
         bytes32 latestBlockhash;
     }
 
@@ -49,7 +50,7 @@ contract WithdrawalVerifier {
                     abi.encode(
                         _outputRootProof.version,
                         _outputRootProof.stateRoot,
-                        _outputRootProof.withdrawerRoot,
+                        _outputRootProof.withdrawerStorageRoot,
                         _outputRootProof.latestBlockhash
                     )
                 ),
@@ -59,11 +60,11 @@ contract WithdrawalVerifier {
         bytes32 withdrawalHash = keccak256(
             abi.encode(_nonce, _sender, _target, _value, _gasLimit, _data)
         );
-        emit log_named_bytes32("withdrawalHash", withdrawalHash);
+
         bytes32 storageKey = keccak256(
             abi.encode(
                 withdrawalHash,
-                uint256(1) // second slot
+                uint256(1) // The withdrawals mapping is at the second slot in the layout
             )
         );
 
@@ -72,7 +73,7 @@ contract WithdrawalVerifier {
                 abi.encodePacked(storageKey),
                 hex"01",
                 _withdrawalProof,
-                _outputRootProof.withdrawerRoot
+                _outputRootProof.withdrawerStorageRoot
             );
     }
 }
