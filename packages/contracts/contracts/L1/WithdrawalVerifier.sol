@@ -6,14 +6,12 @@ import {
     Lib_SecureMerkleTrie
 } from "../../lib/optimism/packages/contracts/contracts/libraries/trie/Lib_SecureMerkleTrie.sol";
 
-
 /**
  * @title WithdrawalVerifier
  */
 contract WithdrawalVerifier {
-    L2OutputOracle public immutable l2Oracle;
-    address public immutable withdrawalsPredeploy;
-    uint256 public immutable finalizationWindow;
+    L2OutputOracle public immutable L2_ORACLE;
+    uint256 public immutable FINALIZATION_WINDOW;
 
     struct OutputRootProof {
         uint256 timestamp;
@@ -32,14 +30,9 @@ contract WithdrawalVerifier {
         bytes data
     );
 
-    constructor(
-        L2OutputOracle _l2Oracle,
-        address _withdrawalsPredeploy,
-        uint256 _finalizationWindow
-    ) {
-        l2Oracle = _l2Oracle;
-        withdrawalsPredeploy = _withdrawalsPredeploy;
-        finalizationWindow = _finalizationWindow;
+    constructor(L2OutputOracle _l2Oracle, uint256 _finalizationWindow) {
+        L2_ORACLE = _l2Oracle;
+        FINALIZATION_WINDOW = _finalizationWindow;
     }
 
     function verifyWithdrawal(
@@ -55,11 +48,11 @@ contract WithdrawalVerifier {
         // check that the timestamp is 7 days old
         // hash _outputRootProof and compare with the outputOracle's value
         // how do I get the withdrawal root itself?
-        require(_outputRootProof.timestamp <= block.timestamp - finalizationWindow, "Too soon");
+        require(_outputRootProof.timestamp <= block.timestamp - FINALIZATION_WINDOW, "Too soon");
 
         // Add a block scope to avoid stack-too-deep
         {
-            bytes32 outputRoot = l2Oracle.getL2Output(_outputRootProof.timestamp);
+            bytes32 outputRoot = L2_ORACLE.getL2Output(_outputRootProof.timestamp);
             require(
                 outputRoot ==
                     keccak256(

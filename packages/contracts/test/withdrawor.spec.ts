@@ -161,7 +161,7 @@ describe('Withdraw', () => {
       // Deploy the WithdrawalVerifier with a 0 second finalization delay.
       withdrawalVerifier = await (
         await new WithdrawalVerifier__factory(l1Signer)
-      ).deploy(l2OutputOracle.address, withdraworAddress, 0)
+      ).deploy(l2OutputOracle.address, 0)
 
       // create an output root that we can prove against only the storage root matters
       // for our purposes.
@@ -185,6 +185,7 @@ describe('Withdraw', () => {
         0
       )
     })
+
     it('should successfully verify the withdrawal on L1', async () => {
       const tx = await withdrawalVerifier.verifyWithdrawal(
         nonceBefore,

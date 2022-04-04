@@ -65,7 +65,7 @@ contract WithdrawalVerifierTest is DSTest {
         );
         startingBlockTimestamp = block.timestamp;
 
-        wv = new WithdrawalVerifier(oracle, withdrawalsPredeploy);
+        wv = new WithdrawalVerifier(oracle, 7 days);
     }
 
     function setUp() external {
