@@ -1,5 +1,13 @@
 # @eth-optimism/common-ts
 
+## 0.2.6
+
+### Patch Changes
+
+- b57014d1: Update to typescript@4.6.2
+- Updated dependencies [b57014d1]
+  - @eth-optimism/core-utils@0.8.3
+
 ## 0.2.5
 
 ### Patch Changes
