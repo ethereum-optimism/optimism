@@ -19,11 +19,10 @@ type Config struct {
 }
 
 type GooglePublisher struct {
-	client          *pubsub.Client
-	topic           *pubsub.Topic
-	publishSettings pubsub.PublishSettings
-	timeout         time.Duration
-	mutex           sync.Mutex
+	client  *pubsub.Client
+	topic   *pubsub.Topic
+	timeout time.Duration
+	mutex   sync.Mutex
 }
 
 func NewGooglePublisher(ctx context.Context, config Config) (Publisher, error) {
@@ -39,7 +38,7 @@ func NewGooglePublisher(ctx context.Context, config Config) (Publisher, error) {
 	topic.EnableMessageOrdering = true
 
 	// Publish messages immediately
-	publishSettings := pubsub.PublishSettings{
+	topic.PublishSettings = pubsub.PublishSettings{
 		DelayThreshold: 0,
 		CountThreshold: 0,
 	}
@@ -51,10 +50,9 @@ func NewGooglePublisher(ctx context.Context, config Config) (Publisher, error) {
 
 	log.Info("Initialized transaction log to PubSub", "topic", config.TopicID)
 	return &GooglePublisher{
-		client:          client,
-		topic:           topic,
-		publishSettings: publishSettings,
-		timeout:         timeout,
+		client:  client,
+		topic:   topic,
+		timeout: timeout,
 	}, nil
 }
 
