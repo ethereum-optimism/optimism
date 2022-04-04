@@ -13,7 +13,7 @@ import {
 contract WithdrawalVerifier {
     L2OutputOracle public immutable l2Oracle;
     address public immutable withdrawalsPredeploy;
-    // todo: add an immutable finalization window var here
+    uint256 public immutable finalizationWindow;
 
     struct OutputRootProof {
         uint256 timestamp;
@@ -23,9 +23,14 @@ contract WithdrawalVerifier {
         bytes32 latestBlockhash;
     }
 
-    constructor(L2OutputOracle _l2Oracle, address _withdrawalsPredeploy) {
+    constructor(
+        L2OutputOracle _l2Oracle,
+        address _withdrawalsPredeploy,
+        uint256 _finalizationWindow
+    ) {
         l2Oracle = _l2Oracle;
         withdrawalsPredeploy = _withdrawalsPredeploy;
+        finalizationWindow = _finalizationWindow;
     }
 
     function verifyWithdrawal(
@@ -41,22 +46,24 @@ contract WithdrawalVerifier {
         // check that the timestamp is 7 days old
         // hash _outputRootProof and compare with the outputOracle's value
         // how do I get the withdrawal root itself?
-        require(_outputRootProof.timestamp <= block.timestamp - 7 days, "Too soon");
+        require(_outputRootProof.timestamp <= block.timestamp - finalizationWindow, "Too soon");
 
-        bytes32 outputRoot = l2Oracle.getL2Output(_outputRootProof.timestamp);
-        require(
-            outputRoot ==
-                keccak256(
-                    abi.encode(
-                        _outputRootProof.version,
-                        _outputRootProof.stateRoot,
-                        _outputRootProof.withdrawerStorageRoot,
-                        _outputRootProof.latestBlockhash
-                    )
-                ),
-            "Calculated output root does not match expected value"
-        );
-
+        // Add a block scope to avoid stack-too-deep
+        {
+            bytes32 outputRoot = l2Oracle.getL2Output(_outputRootProof.timestamp);
+            require(
+                outputRoot ==
+                    keccak256(
+                        abi.encode(
+                            _outputRootProof.version,
+                            _outputRootProof.stateRoot,
+                            _outputRootProof.withdrawerStorageRoot,
+                            _outputRootProof.latestBlockhash
+                        )
+                    ),
+                "Calculated output root does not match expected value"
+            );
+        }
         bytes32 withdrawalHash = keccak256(
             abi.encode(_nonce, _sender, _target, _value, _gasLimit, _data)
         );

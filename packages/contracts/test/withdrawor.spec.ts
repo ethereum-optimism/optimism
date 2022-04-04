@@ -5,12 +5,19 @@ import {
   Withdrawor__factory,
   TestLibSecureMerkleTrie,
   TestLibSecureMerkleTrie__factory,
+  WithdrawalVerifier,
+  WithdrawalVerifier__factory,
+  L2OutputOracle,
+  L2OutputOracle__factory,
 } from '../typechain'
-import { toRpcHexString, toHexString } from '@eth-optimism/core-utils'
+import { toRpcHexString, toHexString, Address } from '@eth-optimism/core-utils'
 import * as rlp from 'rlp'
 
 const l2GethProvider = new providers.JsonRpcProvider('http://localhost:9545')
+const l1GethProvider = new providers.JsonRpcProvider('http://localhost:8545')
+
 const withdraworAddress = '0x4200000000000000000000000000000000000015'
+
 const NON_ZERO_ADDRESS = '0x' + '11'.repeat(20)
 const NON_ZERO_GASLIMIT = BigNumber.from(50_000)
 const NON_ZERO_DATA = '0x' + '11'.repeat(42)
@@ -42,24 +49,31 @@ const encodeWithdrawal = (args: {
 
 describe('Withdraw', () => {
   let wallet: Wallet
-  let signer: Signer
   let signerAddress: string
+  let l1Signer: Signer
+  let l2Signer: Signer
   let withdrawor: Withdrawor
   let testLibSecureMerkleTrie: TestLibSecureMerkleTrie
-  before('Setup withdrawor contract', async () => {
-    wallet = new Wallet(process.env.PRIVATE_KEY!)
-    signer = wallet.connect(l2GethProvider)
-    signerAddress = await signer.getAddress()
+  let proof: any
+  let nonceBefore: BigNumber
 
-    withdrawor = await new Withdrawor__factory(signer).attach(withdraworAddress)
+  before('Setup L2 withdrawor contract', async () => {
+    wallet = new Wallet(process.env.PRIVATE_KEY!)
+    signerAddress = await wallet.getAddress()
+    l1Signer = wallet.connect(l1GethProvider)
+    l2Signer = wallet.connect(l2GethProvider)
+
+    withdrawor = await new Withdrawor__factory(l2Signer).attach(
+      withdraworAddress
+    )
+
     testLibSecureMerkleTrie = await (
-      await new TestLibSecureMerkleTrie__factory(signer)
+      await new TestLibSecureMerkleTrie__factory(l2Signer)
     ).deploy()
   })
 
-  describe('Creating a withdrawal', () => {
+  describe('Creating a withdrawal on L2', () => {
     let withdrawalHash: string
-    let nonceBefore: BigNumber
     let storageKey: string
     before(async () => {
       nonceBefore = await withdrawor.nonce()
@@ -76,7 +90,7 @@ describe('Withdraw', () => {
       withdrawalHash = ethers.utils.keccak256(
         encodeWithdrawal({
           nonce: nonceBefore,
-          sender: signerAddress,
+          sender: await l2Signer.getAddress(),
           target: NON_ZERO_ADDRESS,
           value: 0,
           gasLimit: NON_ZERO_GASLIMIT,
@@ -105,7 +119,7 @@ describe('Withdraw', () => {
 
     it('should generate a valid proof', async () => {
       // Get the proof
-      const proof = await l2GethProvider.send('eth_getProof', [
+      proof = await l2GethProvider.send('eth_getProof', [
         withdraworAddress,
         [storageKey],
         toRpcHexString((await l2GethProvider.getBlock('latest')).number),
@@ -126,4 +140,70 @@ describe('Withdraw', () => {
       ).to.be.true
     })
   })
+
+  describe('Finalizing a withdrawal on L1', () => {
+    let withdrawalVerifier: WithdrawalVerifier
+    let l2OutputOracle: L2OutputOracle
+    let l2Timestamp: BigNumber
+    before('Setup L1 system contracts', async () => {
+      // Deploy the L2 Output Oracle with a 1 second submission interval so that we can immediately
+      // test the withdrawal.
+      l2OutputOracle = await (
+        await new L2OutputOracle__factory(l1Signer)
+      ).deploy(
+        1, // submissionInterval
+        1, // l2BlockTime
+        ethers.utils.keccak256('0x00'), // genesisL2Output
+        100, // historicalTotalBlocks
+        signerAddress
+      )
+
+      // Deploy the WithdrawalVerifier with a 0 second finalization delay.
+      withdrawalVerifier = await (
+        await new WithdrawalVerifier__factory(l1Signer)
+      ).deploy(l2OutputOracle.address, withdraworAddress, 0)
+
+      // create an output root that we can prove against only the storage root matters
+      // for our purposes.
+      const outputRoot = ethers.utils.keccak256(
+        ethers.utils.defaultAbiCoder.encode(
+          ['bytes32', 'bytes32', 'bytes32', 'bytes32'],
+          [
+            ethers.constants.HashZero,
+            ethers.constants.HashZero,
+            proof.storageHash,
+            ethers.constants.HashZero,
+          ]
+        )
+      )
+
+      l2Timestamp = await l2OutputOracle.nextTimestamp()
+      await l2OutputOracle.appendL2Output(
+        outputRoot,
+        l2Timestamp,
+        ethers.constants.HashZero,
+        0
+      )
+    })
+    it('should successfully verify the withdrawal on L1', async () => {
+      const tx = await withdrawalVerifier.verifyWithdrawal(
+        nonceBefore,
+        signerAddress,
+        NON_ZERO_ADDRESS,
+        0,
+        NON_ZERO_GASLIMIT,
+        NON_ZERO_DATA,
+        {
+          timestamp: l2Timestamp,
+          version: ethers.constants.HashZero,
+          stateRoot: ethers.constants.HashZero,
+          withdrawerStorageRoot: proof.storageHash,
+          latestBlockhash: ethers.constants.HashZero,
+        },
+        toHexString(rlp.encode(proof.storageProof[0].proof)),
+        {
+          gasLimit: 1_000_000,
+        }
+      )
+  }).timeout(30000)
 })
