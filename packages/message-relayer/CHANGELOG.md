@@ -1,5 +1,20 @@
 # @eth-optimism/message-relayer
 
+## 0.4.3
+
+### Patch Changes
+
+- c1957126: Update Dockerfile to use Alpine
+- d9a51154: Bump to hardhat@2.9.1
+- Updated dependencies [e36b085c]
+- Updated dependencies [c1957126]
+- Updated dependencies [51673b90]
+- Updated dependencies [7a179003]
+- Updated dependencies [d9a51154]
+  - @eth-optimism/common-ts@0.2.5
+  - @eth-optimism/core-utils@0.8.2
+  - @eth-optimism/sdk@1.0.3
+
 ## 0.4.2
 
 ### Patch Changes

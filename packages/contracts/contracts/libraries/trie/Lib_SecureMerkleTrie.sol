@@ -35,27 +35,6 @@ library Lib_SecureMerkleTrie {
     }
 
     /**
-     * @notice Updates a Merkle trie and returns a new root hash.
-     * @param _key Key of the node to update, as a hex string.
-     * @param _value Value of the node to update, as a hex string.
-     * @param _proof Merkle trie inclusion proof for the node *nearest* the
-     * target node. If the key exists, we can simply update the value.
-     * Otherwise, we need to modify the trie to handle the new k/v pair.
-     * @param _root Known root of the Merkle trie. Used to verify that the
-     * included proof is correctly constructed.
-     * @return _updatedRoot Root hash of the newly constructed trie.
-     */
-    function update(
-        bytes memory _key,
-        bytes memory _value,
-        bytes memory _proof,
-        bytes32 _root
-    ) internal pure returns (bytes32 _updatedRoot) {
-        bytes memory key = _getSecureKey(_key);
-        return Lib_MerkleTrie.update(key, _value, _proof, _root);
-    }
-
-    /**
      * @notice Retrieves the value associated with a given key.
      * @param _key Key to search for, as hex bytes.
      * @param _proof Merkle trie inclusion proof for the key.
@@ -70,21 +49,6 @@ library Lib_SecureMerkleTrie {
     ) internal pure returns (bool _exists, bytes memory _value) {
         bytes memory key = _getSecureKey(_key);
         return Lib_MerkleTrie.get(key, _proof, _root);
-    }
-
-    /**
-     * Computes the root hash for a trie with a single node.
-     * @param _key Key for the single node.
-     * @param _value Value for the single node.
-     * @return _updatedRoot Hash of the trie.
-     */
-    function getSingleNodeRootHash(bytes memory _key, bytes memory _value)
-        internal
-        pure
-        returns (bytes32 _updatedRoot)
-    {
-        bytes memory key = _getSecureKey(_key);
-        return Lib_MerkleTrie.getSingleNodeRootHash(key, _value);
     }
 
     /*********************

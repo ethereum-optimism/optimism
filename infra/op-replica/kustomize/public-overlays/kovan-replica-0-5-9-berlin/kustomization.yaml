@@ -20,7 +20,7 @@ resources:
 images:
   - name: ethereumoptimism/data-transport-layer
     newName: ethereumoptimism/data-transport-layer
-    newTag: 0.5.11
+    newTag: 0.5.24
   - name: ethereumoptimism/l2geth
     newName: ethereumoptimism/l2geth
     newTag: 0.5.9

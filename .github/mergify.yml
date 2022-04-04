@@ -24,6 +24,12 @@ pull_request_rules:
       queue:
         name: default
         method: squash
+      comment:
+        message: |
+          This PR has been added to the merge queue, and will be merged soon.
+      label:
+        add:
+          - on-merge-train
   - name: Handle security critical PRs
     conditions:
       - "label=SR-Risk"
@@ -67,8 +73,8 @@ pull_request_rules:
         message: Hey @{{author}}! This PR has merge conflicts. Please fix them before continuing review.
   - name: Notify author when added to merge queue
     conditions:
-      - "check-success=Queue: Embarked on merge train"
+      - "check-pending=Queue: Embarked in merge train"
     actions:
       comment:
         message: |
-          This PR has been added to the merge train, and will be merged soon.
+          This PR is next in line to be merged, and will be merged as soon as checks pass.
