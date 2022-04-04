@@ -1,5 +1,12 @@
 # @eth-optimism/batch-submitter-service
 
+## 0.1.9
+
+### Patch Changes
+
+- 160f4c3d: Update docker image to use golang 1.18.0
+- 0c4d4e08: l2geth: Revert transaction pubsub feature
+
 ## 0.1.8
 
 ### Patch Changes

@@ -1,5 +1,11 @@
 # @eth-optimism/op-exporter
 
+## 0.5.4
+
+### Patch Changes
+
+- 160f4c3d: Update docker image to use golang 1.18.0
+
 ## 0.5.3
 
 ### Patch Changes

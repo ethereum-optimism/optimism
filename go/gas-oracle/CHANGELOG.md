@@ -1,5 +1,11 @@
 # @eth-optimism/gas-oracle
 
+## 0.1.11
+
+### Patch Changes
+
+- 160f4c3d: Update docker image to use golang 1.18.0
+
 ## 0.1.10
 
 ### Patch Changes
