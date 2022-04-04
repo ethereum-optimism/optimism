@@ -1,12 +1,16 @@
 [submodule "packages/contracts/lib/ds-test"]
 	path = packages/contracts/lib/ds-test
 	url = https://github.com/dapphub/ds-test
+    ignore = dirty
 [submodule "packages/contracts/lib/openzeppelin-contracts"]
 	path = packages/contracts/lib/openzeppelin-contracts
 	url = https://github.com/openzeppelin/openzeppelin-contracts
+    ignore = dirty
 [submodule "packages/contracts/lib/forge-std"]
 	path = packages/contracts/lib/forge-std
 	url = https://github.com/brockelmore/forge-std
+    ignore = dirty
 [submodule "packages/contracts/lib/optimism"]
 	path = packages/contracts/lib/optimism
 	url = https://github.com/ethereum-optimism/optimism
+    ignore = dirty
