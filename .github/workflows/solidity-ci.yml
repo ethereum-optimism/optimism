@@ -32,11 +32,12 @@ jobs:
             cache: 'yarn'
       - run: yarn install
 
-      - name: Build with HH
-        run: yarn build:hh
+      # We don't currently have any hardhat tests that should run in this context
+      # - name: Build with HH
+      #   run: yarn build:hh
 
-      - name: Test
-        run: yarn test:hh
+      # # - name: Test
+      # #   run: yarn test:hh
 
       - name: Lint
         run: yarn lint:check
