@@ -120,6 +120,16 @@ func (m *fakeChainSource) L1BlockRefByNumber(ctx context.Context, l1Num uint64) 
 	return m.l1s[m.l1reorg][l1Num], nil
 }
 
+func (m *fakeChainSource) L1BlockRefByHash(ctx context.Context, l1Hash common.Hash) (eth.L1BlockRef, error) {
+	m.log.Trace("L1BlockRefByHash", "l1Hash", l1Hash, "l1Head", m.l1head, "reorg", m.l1reorg)
+	for i, bl := range m.l1s[m.l1reorg] {
+		if bl.Hash == l1Hash {
+			return m.L1BlockRefByNumber(ctx, uint64(i))
+		}
+	}
+	return eth.L1BlockRef{}, ethereum.NotFound
+}
+
 func (m *fakeChainSource) L1HeadBlockRef(ctx context.Context) (eth.L1BlockRef, error) {
 	m.log.Trace("L1HeadBlockRef", "l1Head", m.l1head, "reorg", m.l1reorg)
 	l := len(m.l1s[m.l1reorg])

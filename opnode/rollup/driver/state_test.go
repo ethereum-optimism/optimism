@@ -115,6 +115,7 @@ func reorg__L2(t *testing.T, expectedWindow []testID, s *state, src *fakeChainSo
 		assert.Equal(t, expectedWindow[i].ID(), args.l1Window[i], "Window elements must match")
 	}
 	src.reorgL2()
+
 	outputReturn <- outputReturnArgs{l2Head: src.setL2Head(int(args.l2Head.Number) + 1), err: nil}
 }
 
@@ -128,14 +129,15 @@ type stateTestCase struct {
 }
 
 func (tc *stateTestCase) Run(t *testing.T) {
-	log := testlog.Logger(t, log.LvlError)
+	log := testlog.Logger(t, log.LvlTrace)
 	chainSource := NewFakeChainSource(tc.l1Chains, tc.l2Chains, log)
 	l1headsCh := make(chan eth.L1BlockRef, 10)
 	// Unbuffered channels to force a sync point between the test and the state loop.
 	outputIn := make(chan outputArgs)
 	outputReturn := make(chan outputReturnArgs)
 	outputHandler := func(ctx context.Context, l2Head eth.L2BlockRef, l2Finalized eth.BlockID, unsafeL2Head eth.BlockID, l1Input []eth.BlockID) (eth.L2BlockRef, error) {
-		outputIn <- outputArgs{l2Head: l2Head.ID(), l2Finalized: l2Finalized, l1Window: l1Input}
+		// TODO: Not sequencer, but need to pass unsafeL2Head here for the test.
+		outputIn <- outputArgs{l2Head: unsafeL2Head, l2Finalized: l2Finalized, l1Window: l1Input}
 		r := <-outputReturn
 		return r.l2Head, r.err
 	}

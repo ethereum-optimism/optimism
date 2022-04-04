@@ -36,8 +36,9 @@ type Engine interface {
 }
 
 type L1Chain interface {
-	L1BlockRefByNumber(ctx context.Context, l1Num uint64) (eth.L1BlockRef, error)
-	L1HeadBlockRef(ctx context.Context) (eth.L1BlockRef, error)
+	L1BlockRefByNumber(context.Context, uint64) (eth.L1BlockRef, error)
+	L1BlockRefByHash(context.Context, common.Hash) (eth.L1BlockRef, error)
+	L1HeadBlockRef(context.Context) (eth.L1BlockRef, error)
 	L1Range(ctx context.Context, base eth.BlockID, max uint64) ([]eth.BlockID, error)
 }
 

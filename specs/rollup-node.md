@@ -373,43 +373,45 @@ The [previous section on L2 chain derivation][l2-chain-derivation] assumes linea
 also applicable for batch processing, meaning that any given point in time, the canonical L2 chain is given by
 processing the whole L1 chain since the [L2 chain inception][g-inception].
 
-> By itself, the previous section fully specifies the behaviour of the rollup driver. **The current section is
+If the L1 Chain re-orgs, the rollup node must re-derive sections of the L2 chain such that it derives the same L2 chain
+that a rollup node would derive if it only followed the new L1 chain.
+
+> By itself, the previous section fully specifies the behavior of the rollup driver. **The current section is
 > non-specificative** but shows how L1 re-orgs can be handled in practice.
 
 In practice, the L1 chain is processed incrementally. However, the L1 chain may occasionally [re-organize][g-reorg],
 meaning the head of the L1 chain changes to a block that is not the child of the previous head but rather another
 descendant of an ancestor of the previous head. In that case, the rollup driver must first search for the common L1
-ancestor, and can re-derive the L2 chain from that L1 block and onwards.
+ancestor, and can re-derive the L2 chain from that L1 block and onward.
 
-The starting point of the re-derivation is a pair `(refL2, nextRefL1)` where `refL2` refers to the L2 block to build
-upon and `nextRefL1` refers to the next L1 block to derive from (i.e. if `refL2` is derived from L1 block `refL1`,
-`nextRefL1` is the canonical L1 block at height `l1Number(refL1) + 1`).
+The rollup node maintains two heads of the L2 Chain: the unsafe head (often called head) and the safe head.
+Each L2 block has an L1 Attributes block that it references in the L1 Info deposit transaction.
+The unsafe head is the head of the L2 chain. It's L1 Attributes should be canonical or potentially extending the
+canonical chain (if the rollup node has not yet seen the L1 block that it is based upon).
+The safe head is the the last L2 block of the last epoch whose sequencing window is complete
+(i.e. the epoch with number `L1Head.number` - `SEQUENCING_WINDOW_SIZE`).
 
-In practice, the happy path (no re-org) and the re-org paths are merged. The happy path is simply a special case of the
-re-org path where the starting point of the re-derivation is `(currentL2Head, newL1Block)`.
+Steps during a reorg
 
-After a `(currentL2Head, newL1Block)` starting point is found, derivation can continue when a complete sequencing window
-of canonical L1 blocks following the starting point is retrieved.
+1. Set "unsafe head" to equal the l2 head we retrieved, just as default
+2. Set "latest block" to equal the l2 head we retrieved, also just as default
+3. Walk back L2, and stop until block.l1Origin is found AND canonical, and update "latest block" to this block.
+And don't override "unsafe head" if it's not found, but do override it when block.l1Origin does not match the
+canonical L1 block at that height.
+4. Walk back L2 from the "latest block" until a full sequencing window of L1 blocks has been passed.
+This is the "safe block".
 
-This re-derivation starting point can be found by applying the following algorithm:
+The purpose of this is to ensure that if the sequencing window for a L2 block has changed since it was derived,
+that L2 block is re-derived.
 
-1. (Initialization) Set the initial `refL2` to the head block of the L2 execution engine.
-2. Set `parentL2` to `refL2`'s parent block and `refL1` to the L1 block that `refL2` was derived from.
-3. Fetch `currentL1`, the canonical L1 block at the same height as `refL1`.
+The first L1 block of the sequencing window is the L1 attributes for that L2 block. The end of the sequencing
+window is the canonical L1 block whose number is `SEQUENCING_WINDOW` larger than the start. The end of the
+window must be selected by number otherwise the sequencer would not be able to create batches. The problem
+with selecting the end of the window by number is that when an L1 reorg occurs, the blocks (and thus batches)
+in the window could change. We must find the find the first L2 block whose complete sequencing window is
+unchanged in the reorg.
 
-- If `currentL1 == refL1`, then `refL2` was built on a canonical L1 block:
-  - Find the next L1 block (it may not exist yet) and return `(refL2, nextRefL1)` as the starting point of the
-    re-derivation.
-    - It is necessary to ensure that no L1 re-org occurred during this lookup, i.e. that `nextRefL1.parent == refL1`.
-    - If the next L1 block does not exist yet, there is no re-org, and nothing new to derive, and we can abort the
-        process.
-- Otherwise, if `refL2` is the L2 genesis block, we have re-orged past the genesis block, which is an error that
-  requires a re-genesis of the L2 chain to fix (i.e. creating a new genesis configuration) (\*)
-- Otherwise, if either `currentL1` does not exist, or `currentL1 != refL1`, set `refL2` to `parentL2` and restart this
-  algorithm from step 2.
-  - Note: if `currentL1` does not exist, it means we are in a re-org to a shorter L1 chain.
-  - Note: as an optimization, we can cache `currentL1` and reuse it as the next value of `nextRefL1` to avoid an
-        extra lookup.
+When walking back on the L2 chain, care should be taken to not walk past the rollup genesis.
 
 Note that post-[merge], the depth of re-orgs will be bounded by the [L1 finality delay][l1-finality] (every 2 epochs,
 approximately 12 minutes).

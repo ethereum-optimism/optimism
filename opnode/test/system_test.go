@@ -312,7 +312,7 @@ func TestSystemE2E(t *testing.T) {
 
 	// Finally send TX
 	mintAmount := big.NewInt(1_000_000_000_000)
-	tx, err = depositContract.DepositTransaction(opts, fromAddr, mintAmount, big.NewInt(1_000_000), false, nil)
+	_, err = depositContract.DepositTransaction(opts, fromAddr, mintAmount, big.NewInt(1_000_000), false, nil)
 	require.Nil(t, err, "with deposit tx")
 
 	// Wait for tx to be mined on L1 (or timeout)
@@ -331,7 +331,9 @@ func TestSystemE2E(t *testing.T) {
 	defer cancel()
 	receipt, err := l1Client.TransactionReceipt(ctx, tx.Hash())
 	require.Nil(t, err, "Could not get transaction receipt")
+	// TODO: Include fix for this.
 	waitNumber := new(big.Int).Add(receipt.BlockNumber, common.Big2) // sequence window effect
+	waitNumber = new(big.Int).Mul(waitNumber, common.Big2)
 
 	// Wait (or timeout) for that block to show up on L2
 	timeoutCh := time.After(6 * time.Second)

@@ -137,7 +137,6 @@ func NewSource(client RPCClient, log log.Logger, config *SourceConfig) (*Source,
 	// and parallelized since the RPC server does not parallelize batch contents otherwise.
 	getBatch := parallelBatchCall(log, client.BatchCallContext,
 		config.MaxBatchRetry, config.MaxRequestsPerBatch, config.MaxParallelBatching)
-
 	return &Source{
 		client:            client,
 		batchCall:         getBatch,
@@ -309,6 +308,14 @@ func (s *Source) L1BlockRefByNumber(ctx context.Context, l1Num uint64) (eth.L1Bl
 		return eth.L1BlockRef{}, fmt.Errorf("failed to fetch header by num %d: %v", l1Num, err)
 	}
 	return head.BlockRef(), nil
+}
+
+func (s *Source) L1BlockRefByHash(ctx context.Context, hash common.Hash) (eth.L1BlockRef, error) {
+	block, err := s.InfoByHash(ctx, hash)
+	if err != nil {
+		return eth.L1BlockRef{}, fmt.Errorf("failed to fetch header by hash %v: %w", hash, err)
+	}
+	return block.BlockRef(), nil
 }
 
 // L1Range returns a range of L1 block beginning just after begin, up to max blocks.
