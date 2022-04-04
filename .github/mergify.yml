@@ -5,21 +5,22 @@ queue_rules:
 pull_request_rules:
   - name: Automatic merge on approval
     conditions:
-        - or:
-          - and:
-            - "label!=SR-Risk"
-            - "label!=C-Protocol-Critical"
-            - "#approved-reviews-by>=2"
-          - and:
-            - "label=SR-Risk"
-            - "#approved-reviews-by>=2"
-            - "approved-reviews-by=maurelian"
-          - and:
-            - "label=C-Protocol-Critical"
-            - "#approved-reviews-by>=2"
-            - or:
-              - "approved-reviews-by=tynes"
-              - "approved-reviews-by=smartcontracts"
+        - and:
+          - "#review-threads-unresolved=0"
+          - "#approved-reviews-by>=2"
+          - "#changes-requested-reviews-by=0"
+          - or:
+            - and:
+              - "label!=SR-Risk"
+              - "label!=C-Protocol-Critical"
+            - and:
+              - "label=SR-Risk"
+              - "approved-reviews-by=maurelian"
+            - and:
+              - "label=C-Protocol-Critical"
+              - or:
+                - "approved-reviews-by=tynes"
+                - "approved-reviews-by=smartcontracts"
     actions:
       queue:
         name: default
@@ -50,11 +51,9 @@ pull_request_rules:
       request_reviews:
         users:
           - cfromknecht
-          - tynes
           - mslipper
           - inphi
           - tuxcanfly
-          - smartcontracts
         random_count: 2
   - name: Request protocol critical reviewers
     conditions:
@@ -71,6 +70,16 @@ pull_request_rules:
     actions:
       comment:
         message: Hey @{{author}}! This PR has merge conflicts. Please fix them before continuing review.
+      label:
+        add:
+          - conflict
+  - name: Remove conflicts label when conflicts gone
+    conditions:
+      - -conflict
+    actions:
+      label:
+        remove:
+          - conflict
   - name: Notify author when added to merge queue
     conditions:
       - "check-pending=Queue: Embarked in merge train"
@@ -78,3 +87,13 @@ pull_request_rules:
       comment:
         message: |
           This PR is next in line to be merged, and will be merged as soon as checks pass.
+  - name: Notify author when merge queue failed
+    conditions:
+      - "check-failed=Queue: Embarked in merge train"
+    actions:
+      comment:
+        message: |
+          Merge failed. Please see automated check logs for more details.
+      label:
+        remove:
+          - on-merge-train

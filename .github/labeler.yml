@@ -37,7 +37,4 @@ M-ops:
   - any: ['ops/**/*']
 
 C-Protocol-Critical:
-  - any:
-    - 'packages/data-transport-layer/**/*.ts'
-    - 'packages/contracts/**/*.sol'
-    - 'l2geth/**/*.go'
+  - any: ['packages/data-transport-layer/**/*.ts', 'packages/contracts/**/*.sol', 'l2geth/**/*.go']
