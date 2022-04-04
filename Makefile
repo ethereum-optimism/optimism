@@ -21,7 +21,7 @@ devnet-up:
 		DEPOSIT_FEED_BYTECODE=$(shell cat ./packages/contracts/artifacts/contracts/L1/DepositFeed.sol/DepositFeed.json | jq .deployedBytecode) \
 			L1_BLOCK_INFO_BYTECODE=$(shell cat ./packages/contracts/artifacts/contracts/L2/L1Block.sol/L1Block.json | jq .deployedBytecode) \
 			WITHDRAWOR_BYTECODE=$(shell cat ./packages/contracts/artifacts/contracts/L2/Withdrawor.sol/Withdrawor.json | jq .deployedBytecode) \
- 			docker-compose up --build)
+            docker-compose up --build)
 .PHONY: devnet-up
 
 devnet-down:
