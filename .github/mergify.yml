@@ -89,7 +89,7 @@ pull_request_rules:
           This PR is next in line to be merged, and will be merged as soon as checks pass.
   - name: Notify author when merge queue failed
     conditions:
-      - "check-failed=Queue: Embarked in merge train"
+      - "check-failure=Queue: Embarked in merge train"
     actions:
       comment:
         message: |
