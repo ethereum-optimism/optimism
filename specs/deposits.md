@@ -234,7 +234,7 @@ The deposit contract handles two special cases:
 
 [address-aliasing]: #address-aliasing
 
-If the caller is not a contract, the address will be transformed by adding
+If the caller is a contract, the address will be transformed by adding
 `0x1111000000000000000000000000000000001111` to it. This prevents attacks in which a contract on L1
 has the same address as a contract on L2 but doesn't have the same code. We can safely ignore this
 for EOAs because they're guaranteed to have the same "code" (i.e. no code at all). This also makes
