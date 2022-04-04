@@ -72,11 +72,12 @@ to [`engine_forkchoiceUpdatedV1`][engine_forkchoiceUpdatedV1]: the extended `Pay
 the `transactions` field in [`ExecutionPayloadV1`][ExecutionPayloadV1]:
 
 ```js
-PayloadAttributesOPV1: {
+PayloadAttributesV1: {
     timestamp: QUANTITY
     random: DATA (32 bytes)
     suggestedFeeRecipient: DATA (20 bytes)
     transactions: array of DATA
+    noTxPool: bool
 }
 ```
 
@@ -91,10 +92,14 @@ The `transactions` field is optional:
 
 - If empty or missing: no changes to engine behavior. The sequencers will (if enabled) build a block
   by consuming transactions from the transaction pool.
-- If present and non-empty: the payload MUST only be produced with this exact list of transactions.
+- If present and non-empty: the payload MUST be produced starting with this exact list of transactions.
   The [rollup driver][rollup-driver] determines the transaction list based on deterministic L1 inputs.
 
-> **TODO**: derivation function spec in rollup node doc or separate driver doc
+The `noTxPool` is optional as well, and extends the `transactions` meaning:
+
+- If `false`, the execution engine is free to pack additional transactions from external sources like the tx pool
+  into the payload, after any of the `transactions`. This is the default behavior a L1 node implements.
+- If `true`, the execution engine must not change anything about the given list of `transactions`.
 
 [rollup-driver]: rollup-node.md
 
