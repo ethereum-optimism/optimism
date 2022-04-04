@@ -24,6 +24,8 @@ jobs:
       batch-submitter-service: ${{ steps.packages.outputs.batch-submitter-service }}
       indexer: ${{ steps.packages.outputs.indexer }}
       teleportr: ${{ steps.packages.outputs.teleportr }}
+      go-builder: ${{ steps.packages.outputs.go-builder }}
+      js-builder: ${{ steps.packages.outputs.js-builder }}
 
     steps:
       - name: Checkout Repo
@@ -146,6 +148,58 @@ jobs:
           file: ./Dockerfile
           push: true
           tags: ethereumoptimism/hardhat-node:${{ needs.release.outputs.gas-oracle }},ethereumoptimism/hardhat-node:latest
+
+  go-builder:
+    name: Publish go-builder ${{ needs.release.outputs.go-builder }}
+    needs: release
+    if: needs.release.go-builder != ''
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v1
+        with:
+          username: ${{ secrets.DOCKERHUB_ACCESS_TOKEN_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_ACCESS_TOKEN_SECRET }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v1
+
+      - name: Publish go-builder
+        uses: docker/build-push-action@v2
+        with:
+          context: ./ops/docker/go-builder
+          file: ./Dockerfile
+          push: true
+          tags: ethereumoptimism/go-builder:${{ needs.release.outputs.go-builder }},ethereumoptimism/go-builder:latest
+
+  js-builder:
+    name: Publish js-builder ${{ needs.release.outputs.js-builder }}
+    needs: release
+    if: needs.release.js-builder != ''
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v1
+        with:
+          username: ${{ secrets.DOCKERHUB_ACCESS_TOKEN_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_ACCESS_TOKEN_SECRET }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v1
+
+      - name: Publish js-builder
+        uses: docker/build-push-action@v2
+        with:
+          context: ./ops/docker/js-builder
+          file: ./Dockerfile
+          push: true
+          tags: ethereumoptimism/js-builder:${{ needs.release.outputs.js-builder }},ethereumoptimism/js-builder:latest
 
   proxyd:
     name: Publish proxyd Version ${{ needs.release.outputs.proxyd }}
