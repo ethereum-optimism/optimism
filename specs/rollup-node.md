@@ -45,7 +45,7 @@ currently only concerned with the specification of the rollup driver.
 **Table of Contents**
 
 - [L2 Chain Derivation](#l2-chain-derivation)
-  - [From L1 Sequencing window to L2 Payload Attributes](#from-l1-sequencing-window-to-l2-payload-attributes)
+  - [From L1 Sequencing Window to L2 Payload Attributes](#from-l1-sequencing-window-to-l2-payload-attributes)
     - [Reading L1 inputs](#reading-l1-inputs)
     - [Encoding the L1 Attributes Deposited Transaction](#encoding-the-l1-attributes-deposited-transaction)
     - [Encoding User-Deposited Transactions](#encoding-user-deposited-transactions)
@@ -78,15 +78,15 @@ Every L2 block carries transactions of two categories:
 
 ------------------------------------------------------------------------------------------------------------------------
 
-## From L1 Sequencing window to L2 Payload Attributes
+## From L1 Sequencing Window to L2 Payload Attributes
 
 A [sequencing window][g-sequencing-window] is a fixed number consecutive L1 blocks that a derivation step takes as
 input. The window is identified by an `epoch`, equal to the block number of the first block in the window.
 
-As the full derivation of the L2 chain by the driver progresses each derivation step shifts the window forward by a
-single L1 block: the windows overlap.
-
-Each sequencing window is derived into a variable number of L2 blocks, following the below derivation steps.
+The derivation of the L2 chain from the L1 chain happens in steps.
+Each step adds a variable number of L2 blocks to the L2 chain, derived from the sequencing window for the given epoch.
+For epoch `N`, the sequencing window comprises L1 blocks `[N, N + SEQUENCING_WINDOW_SIZE)`.
+Note that the sequencing windows overlap.
 
 ### Reading L1 inputs
 
@@ -117,7 +117,7 @@ The rollup reads the following data from the [sequencing window][g-sequencing-wi
           - `l1_timestamp` is the timestamp of the L1 block associated with the L2 block's epoch
           - `max_sequencer_drift` is the most a sequencer is allowed to get ahead of L1
       - The batch is the first batch with `batch.timestamp` in this sequencing window,
-      i.e. one batch per L2 block number
+        i.e. one batch per L2 block number.
       - The batch only contains sequenced transactions, i.e. it must NOT contain any Deposit-type transactions.
 
 [random]: https://eips.ethereum.org/EIPS/eip-4399
@@ -146,16 +146,9 @@ Batch contents:
 
 The L1 attributes are read from the L1 block header, while deposits are read from the block's [receipts][g-receipts].
 Refer to the [**deposit contract specification**][deposit-contract-spec] for details on how deposits are encoded as log
-entries.
+entries. The deposited and sequenced transactions are combined when the Payload Attributes are constructed.
 
 [deposit-contract-spec]: deposits.md#deposit-contract
-
-Each of the derived `PayloadAttributes` starts with a L1 Attributes transaction.
-Like other derived deposits, this does not have to be batch-submitted, and exposes the required L1 information for the
-process of finding the sync starting point of the L2 chain, without requiring L2 state access.
-
-The [User-deposited] transactions are all put in the first of the derived `PayloadAttributes`,
-inserted after the L1 Attributes transaction, before any [sequenced][g-sequencing] transactions.
 
 ### Encoding the L1 Attributes Deposited Transaction
 
@@ -190,23 +183,30 @@ A sequencing window is derived into a variable number of L2 blocks, defined by a
   `new_head_l2_timestamp = max(highest_valid_batch_timestamp, next_l1_timestamp - l2_block_time, min_l2_timestamp)`
   - `highest_valid_batch_timestamp = max(batch.timestamp for batch in filtered_batches)`,
     or `0` if no there are no `filtered_batches`.
+    `batch.timestamp` refers to the L2 block timestamp encoded in the batch.
   - `next_l1_timestamp` is the timestamp of the next L1 block.
 
-The L2 chain is extended to `new_head_l2_timestamp`, has a fixed block time, and no more than one batch per block.
-This means that every `l2_block_time` that has no batch is interpreted as one with an empty sequenced transaction-list,
-thus construing a L2 block that only contains deposit transaction(s).
+The L2 chain is extended to `new_head_l2_timestamp` with blocks at a fixed block time (`l2_block_time`).
+This means that every `l2_block_time` that has no batch is interpreted as one with no sequenced transactions.
+
+Each of the derived `PayloadAttributes` starts with a L1 Attributes transaction.
+Like other derived deposits, this does not have to be batch-submitted, and exposes the required L1 information for the
+process of finding the sync starting point of the L2 chain, without requiring L2 state access.
+
+The [User-deposited] transactions are all put in the first of the derived `PayloadAttributes`,
+inserted after the L1 Attributes transaction, before any [sequenced][g-sequencing] transactions.
 
 #### Building individual Payload Attributes
 
 [payload attributes]: #building-individual-payload-attributes
 
-From timestamped transaction lists derived from the sequencing window, the rollup node constructs [payload
+From the timestamped transaction lists derived from the sequencing window, the rollup node constructs [payload
 attributes][g-payload-attr] as an [expanded version][expanded-payload] of the [`PayloadAttributesV1`] object, which
-includes additional `transactions` and `noTxPool` fields.
+includes the additional `transactions` and `noTxPool` fields.
 
 Each of the timestamped transaction lists translates to a `PayloadAttributesV1` as follows:
 
-- `timestamp` is set to the timestamp of the L2 block.
+- `timestamp` is set to the timestamp of the transaction list.
 - `random` is set to the *random* `execution_payload.prev_randao` L1 block attribute
 - `suggestedFeeRecipient` is set to an address determined by the system
 - `transactions` is the array of the derived transactions: deposited transactions and sequenced transactions.
