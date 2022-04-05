@@ -1,6 +1,12 @@
 //SPDX-License-Identifier: MIT
 pragma solidity 0.8.10;
 
+/* Library Imports */
+import {
+    AddressAliasHelper
+} from "../../lib/optimism/packages/contracts/contracts/standards/AddressAliasHelper.sol";
+
+
 /**
  * @title Withdrawer
  * @notice The Withdrawer contract facilitates sending both ETH value and data from L2 to L1.
@@ -42,6 +48,12 @@ contract Withdrawer {
         uint256 _gasLimit,
         bytes calldata _data
     ) external payable {
+
+        address from = msg.sender;
+        // Transform the from-address to its L1 alias if the caller is a contract.
+        if (msg.sender != tx.origin) {
+            from = AddressAliasHelper.undoL1ToL2Alias(msg.sender);
+        }
         bytes32 withdrawalHash = keccak256(
             abi.encode(nonce, msg.sender, _target, msg.value, _gasLimit, _data)
         );
@@ -69,7 +81,7 @@ contract Withdrawer {
             pop(
                 create(
                     balance(address()), // Fund the new contract with the balance of this one.
-                    30, // offset
+                    0, // offset
                     2 // size
                 )
             )

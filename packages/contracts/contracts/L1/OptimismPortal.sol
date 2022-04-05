@@ -3,6 +3,7 @@ pragma solidity 0.8.10;
 
 /* Inherited Imports */
 import { DepositFeed } from "./DepositFeed.sol";
+
 /* Interactions Imports */
 import { L2OutputOracle } from "./L2OutputOracle.sol";
 
@@ -106,8 +107,8 @@ contract OptimismPortal is DepositFeed {
         // Check that this withdrawal has not already been finalized.
         require(finalizedWithdrawals[withdrawalHash] == false, "Withdrawal already finalized");
 
-        // Make the call.
         l2Sender = _sender;
+        // Make the call.
         _target.call{ value: _value, gas: _gasLimit }(_data);
         l2Sender = DEFAULT_L2_SENDER;
 

@@ -1,6 +1,11 @@
 //SPDX-License-Identifier: MIT
 pragma solidity 0.8.10;
 
+/* Library Imports */
+import {
+    AddressAliasHelper
+} from "../../lib/optimism/packages/contracts/contracts/standards/AddressAliasHelper.sol";
+
 /**
  * @title DepositFeed
  * @notice Implements the logic for depositing from L1 to L2.
@@ -10,9 +15,6 @@ contract DepositFeed {
      * @notice Error emitted on deposits which create a new contract with a non-zero target.
      */
     error NonZeroCreationTarget();
-
-    // Constant for address aliasing
-    uint160 private constant OFFSET = uint160(0x1111000000000000000000000000000000001111);
 
     /**
      * @notice Emitted when a Transaction is deposited from L1 to L2. The parameters of this
@@ -51,9 +53,7 @@ contract DepositFeed {
         address from = msg.sender;
         // Transform the from-address to its alias if the caller is a contract.
         if (msg.sender != tx.origin) {
-            unchecked {
-                from = address(uint160(msg.sender) + OFFSET);
-            }
+            from = AddressAliasHelper.applyL1ToL2Alias(msg.sender);
         }
 
         emit TransactionDeposited(from, _to, msg.value, _value, _gasLimit, _isCreation, _data);

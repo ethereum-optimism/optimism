@@ -5,6 +5,10 @@ import { DSTest } from "../../lib/ds-test/src/test.sol";
 import { Vm } from "../../lib/forge-std/src/Vm.sol";
 import { DepositFeed } from "../L1/DepositFeed.sol";
 
+import {
+    AddressAliasHelper
+} from "../../lib/optimism/packages/contracts/contracts/standards/AddressAliasHelper.sol";
+
 contract DepositFeedTest is DSTest {
     Vm vm = Vm(HEVM_ADDRESS);
     address immutable ZERO_ADDRESS = address(0);
@@ -28,11 +32,6 @@ contract DepositFeedTest is DSTest {
 
     function setUp() external {
         df = new DepositFeed();
-    }
-
-    function addressAlias() internal view returns (address) {
-        return
-            address(uint160(address(this)) + uint160(0x1111000000000000000000000000000000001111));
     }
 
     // Test: depositTransaction fails when contract creation has a non-zero destination address
@@ -69,7 +68,7 @@ contract DepositFeedTest is DSTest {
     function test_depositTransaction_NoValueContract() external {
         vm.expectEmit(true, true, false, true);
         emit TransactionDeposited(
-            addressAlias(),
+            AddressAliasHelper.applyL1ToL2Alias(address(this)),
             NON_ZERO_ADDRESS,
             ZERO_VALUE,
             ZERO_VALUE,
@@ -110,7 +109,7 @@ contract DepositFeedTest is DSTest {
     function test_depositTransaction_createWithZeroValueForContract() external {
         vm.expectEmit(true, true, false, true);
         emit TransactionDeposited(
-            addressAlias(),
+            AddressAliasHelper.applyL1ToL2Alias(address(this)),
             ZERO_ADDRESS,
             ZERO_VALUE,
             ZERO_VALUE,
@@ -152,7 +151,7 @@ contract DepositFeedTest is DSTest {
     function test_depositTransaction_withEthValueFromContract() external {
         vm.expectEmit(true, true, false, true);
         emit TransactionDeposited(
-            addressAlias(),
+            AddressAliasHelper.applyL1ToL2Alias(address(this)),
             NON_ZERO_ADDRESS,
             NON_ZERO_VALUE,
             ZERO_VALUE,
@@ -200,7 +199,7 @@ contract DepositFeedTest is DSTest {
     function test_depositTransaction_withEthValueAndContractContractCreation() external {
         vm.expectEmit(true, true, false, true);
         emit TransactionDeposited(
-            addressAlias(),
+            AddressAliasHelper.applyL1ToL2Alias(address(this)),
             ZERO_ADDRESS,
             NON_ZERO_VALUE,
             ZERO_VALUE,
