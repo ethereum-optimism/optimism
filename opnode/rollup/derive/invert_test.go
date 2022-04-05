@@ -123,7 +123,7 @@ func TestParseL1InfoDepositTxData(t *testing.T) {
 	for i, testCase := range cases {
 		t.Run(testCase.name, func(t *testing.T) {
 			info := testCase.mkInfo(rand.New(rand.NewSource(int64(1234 + i))))
-			depTx := L1InfoDeposit(info)
+			depTx := L1InfoDeposit(123, info)
 			nr, time, baseFee, h, err := L1InfoDepositTxData(depTx.Data)
 			assert.NoError(t, err, "expected valid deposit info")
 			assert.Equal(t, nr, info.num)
