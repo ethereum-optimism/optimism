@@ -3,10 +3,11 @@ pragma solidity 0.8.10;
 
 /**
  * @title DepositFeed
+ * @notice Implements the logic for depositing from L1 to L2.
  */
 contract DepositFeed {
     /**
-     * Deposits which create a new contract must set the recipient to address(0).
+     * @notice Error emitted on deposits which create a new contract with a non-zero target.
      */
     error NonZeroCreationTarget();
 
@@ -14,7 +15,8 @@ contract DepositFeed {
     uint160 private constant OFFSET = uint160(0x1111000000000000000000000000000000001111);
 
     /**
-     * Event with the parameters required to derive transactions on L2.
+     * @notice Emitted when a Transaction is deposited from L1 to L2. The parameters of this
+     * event are read by the rollup node and used to derive deposit transactions on L2.
      */
     event TransactionDeposited(
         address indexed from,
@@ -27,8 +29,8 @@ contract DepositFeed {
     );
 
     /**
-     * Accepts deposits of ETH and data, and emits a TransactionDeposited event for use in deriving
-     * deposit transactions.
+     * @notice Accepts deposits of ETH and data, and emits a TransactionDeposited event for use in
+     * deriving deposit transactions.
      * @param _to The L2 destination address.
      * @param _value The ETH value to send in the deposit transaction.
      * @param _gasLimit The L2 gasLimit.

@@ -102,7 +102,7 @@ It contains a mapping which records withdrawals.
 interface Withdrawer {
 
     event WithdrawalMessage(
-        uint256 indexed messageNonce, // this is a global nonce value for all withdrawal messages
+        uint256 indexed nonce, // this is a global nonce value for all withdrawal messages
         address indexed sender,
         address indexed target,
         uint256 value,

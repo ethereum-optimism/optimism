@@ -1,20 +1,42 @@
 //SPDX-License-Identifier: MIT
 pragma solidity 0.8.10;
 
+/* Inherited Imports */
 import { DepositFeed } from "./DepositFeed.sol";
-import { WithdrawalVerifier } from "./Lib_WithdrawalVerifier.sol";
+/* Interactions Imports */
 import { L2OutputOracle } from "./L2OutputOracle.sol";
 
+/* Library Imports */
+import { WithdrawalVerifier } from "./Lib_WithdrawalVerifier.sol";
+
+/**
+ * @title OptimismPortal
+ * @notice The OptimismPortal is a contract on L1 used to deposit and withdraw between L2 and L1.
+ */
 contract OptimismPortal is DepositFeed {
+    /// @notice Emitted when a withdrawal is finalized
     event WithdrawalFinalized(bytes32 indexed);
 
-    // Value used to reset the l2Sender. This is more gas efficient that setting it to zero.
+    /// @notice Value used to reset the l2Sender, this is more efficient than setting it to zero.
     address internal constant DEFAULT_L2_SENDER = 0x000000000000000000000000000000000000dEaD;
 
+    /// @notice Minimum time that must elapse before a withdrawal can be finalized.
     uint256 public immutable FINALIZATION_WINDOW;
+
+    /// @notice Address of the L2OutputOracle.
     L2OutputOracle public immutable L2_ORACLE;
 
+    /**
+     * @notice Public variable which can be used to read the address of the L2 account which
+     * initated the withdrawal. Can also be used to determine whether or not execution is occuring
+     * downstream of a call to finalizeWithdrawalTransaction().
+     */
     address public l2Sender = DEFAULT_L2_SENDER;
+
+    /**
+     * @notice A list of withdrawal hashes which have been successfully finalized.
+     * Used for replay protection.
+     */
     mapping(bytes32 => bool) public finalizedWithdrawals;
 
     constructor(L2OutputOracle _l2Oracle, uint256 _finalizationWindow) {
@@ -23,9 +45,9 @@ contract OptimismPortal is DepositFeed {
     }
 
     /**
-     * Accepts value so that users can send ETH directly to this contract and
+     * @notice Accepts value so that users can send ETH directly to this contract and
      * have the funds be deposited to their address on L2.
-     * Note: this is intended as a convenience function for EOAs. Contracts should call the
+     * @dev This is intended as a convenience function for EOAs. Contracts should call the
      * depositTransaction() function directly.
      */
     receive() external payable {
@@ -33,7 +55,7 @@ contract OptimismPortal is DepositFeed {
     }
 
     /**
-     * Finalizes a withdrawal transaction.
+     * @notice Finalizes a withdrawal transaction.
      * @param _nonce Nonce for the provided message.
      * @param _sender Message sender address on L2.
      * @param _target Target address on L1.

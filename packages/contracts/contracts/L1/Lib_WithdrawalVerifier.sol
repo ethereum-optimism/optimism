@@ -1,15 +1,20 @@
 //SPDX-License-Identifier: MIT
 pragma solidity 0.8.10;
 
+/* Interactions Imports */
 import { L2OutputOracle } from "./L2OutputOracle.sol";
+
+/* Library Imports */
 import {
     Lib_SecureMerkleTrie
 } from "../../lib/optimism/packages/contracts/contracts/libraries/trie/Lib_SecureMerkleTrie.sol";
 
 /**
  * @title WithdrawalVerifier
+ * @notice A library with helper functions for verifying a withdrawal on L1.
  */
 library WithdrawalVerifier {
+    /// @notice A struct containing the elements hashed together to generate the output root.
     struct OutputRootProof {
         uint256 timestamp;
         bytes32 version;
@@ -18,6 +23,13 @@ library WithdrawalVerifier {
         bytes32 latestBlockhash;
     }
 
+    /**
+     * @notice Checks that the elements provided in the proof hash together to generate the provided
+     * output root.
+     * @param _outputRoot A hash retrieved from the L2OutputOracle contract.
+     * @param _outputRootProof The elements which were hashed together to generate the output root.
+     * @return Whether or not the output root matches the hashed output of the proof.
+     */
     function _verifyWithdrawerStorageRoot(
         bytes32 _outputRoot,
         OutputRootProof calldata _outputRootProof
@@ -34,6 +46,14 @@ library WithdrawalVerifier {
             );
     }
 
+    /**
+     * @notice Verifies a proof that a given withdrawal hash is present in the Withdrawer contract's
+     * withdrawals mapping.
+     * @param _withdrawalHash Keccak256 hash of the withdrawal transaction data.
+     * @param _withdrawerStorageRoot Storage root of the withdrawer predeploy contract.
+     * @param _withdrawalProof Merkle trie inclusion proof for the desired node.
+     * @return Whether or not the inclusion proof was successful.
+     */
     function _verifyWithdrawalInclusion(
         bytes32 _withdrawalHash,
         bytes32 _withdrawerStorageRoot,
@@ -42,7 +62,7 @@ library WithdrawalVerifier {
         bytes32 storageKey = keccak256(
             abi.encode(
                 _withdrawalHash,
-                uint256(1) // The withdrawals mapping is at the second slot in the layout
+                uint256(1) // The withdrawals mapping is at the second slot in the layout.
             )
         );
 
