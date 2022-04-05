@@ -32,6 +32,17 @@ func (q QueueOrigin) String() string {
 	}
 }
 
+func (q QueueOrigin) MarshalJSON() ([]byte, error) {
+	switch q {
+	case QueueOriginSequencer:
+		return []byte(`"sequencer"`), nil
+	case QueueOriginL1ToL2:
+		return []byte(`"l1"`), nil
+	default:
+		return []byte(`""`), nil
+	}
+}
+
 func (q *QueueOrigin) UnmarshalJSON(b []byte) error {
 	switch string(b) {
 	case "\"sequencer\"":
