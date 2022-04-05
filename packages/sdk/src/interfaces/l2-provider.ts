@@ -83,4 +83,9 @@ export type L2Provider<TProvider extends Provider> = TProvider & {
    * @returns Estimated total gas cost.
    */
   estimateTotalGasCost(tx: TransactionRequest): Promise<BigNumber>
+
+  /**
+   * Helps deterimine if a given provider is an l2Provider
+   */
+  _isL2Provider: true
 }

@@ -109,7 +109,7 @@ export class CrossChainMessenger implements ICrossChainMessenger {
     if (Provider.isProvider(this.l1SignerOrProvider)) {
       return this.l1SignerOrProvider
     } else {
-      return this.l1SignerOrProvider.provider as any
+      return this.l1SignerOrProvider.provider
     }
   }
 
@@ -117,7 +117,7 @@ export class CrossChainMessenger implements ICrossChainMessenger {
     if (Provider.isProvider(this.l2SignerOrProvider)) {
       return this.l2SignerOrProvider
     } else {
-      return this.l2SignerOrProvider.provider as any
+      return this.l2SignerOrProvider.provider
     }
   }
 
@@ -144,10 +144,7 @@ export class CrossChainMessenger implements ICrossChainMessenger {
     } = {}
   ): Promise<CrossChainMessage[]> {
     // Wait for the transaction receipt if the input is waitable.
-    // TODO: Maybe worth doing this with more explicit typing but whatever for now.
-    if (typeof (transaction as any).wait === 'function') {
-      await (transaction as any).wait()
-    }
+    await (transaction as TransactionResponse).wait?.()
 
     // Convert the input to a transaction hash.
     const txHash = toTransactionHash(transaction)
@@ -821,7 +818,7 @@ export class CrossChainMessenger implements ICrossChainMessenger {
     )
 
     const stateTrieProof = await makeStateTrieProof(
-      this.l2Provider as any,
+      this.l2Provider as ethers.providers.JsonRpcProvider,
       resolved.blockNumber,
       this.contracts.l2.OVM_L2ToL1MessagePasser.address,
       messageSlot
