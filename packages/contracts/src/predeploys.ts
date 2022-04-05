@@ -17,6 +17,9 @@ export const predeploys = {
   L2StandardTokenFactory: '0x4200000000000000000000000000000000000012',
   OVM_L1BlockNumber: '0x4200000000000000000000000000000000000013',
 
+  // This contract exists on Optimistic Kovan:
+  L2ERC721Bridge: '0xA779A0cA89556A9dffD47527F0aad1c2e0d66e46',
+
   // We're temporarily disabling OVM_ETH because the jury is still out on whether or not ETH as an
   // ERC20 is desirable.
   OVM_ETH: '0xDeadDeAddeAddEAddeadDEaDDEAdDeaDDeAD0000',

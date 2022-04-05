@@ -191,6 +191,16 @@ OVM_L1BlockNumber
 </tr>
 <tr>
 <td>
+L2ERC721Bridge
+</td>
+<td align="center">
+<a href="https://optimistic.etherscan.io/address/0xA779A0cA89556A9dffD47527F0aad1c2e0d66e46">
+<code>0xA779A0cA89556A9dffD47527F0aad1c2e0d66e46</code>
+</a>
+</td>
+</tr>
+<tr>
+<td>
 OVM_ETH
 </td>
 <td align="center">
