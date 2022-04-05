@@ -110,7 +110,7 @@ type syncStartTestCase struct {
 	GenesisL2    rune
 	GenesisL2Num uint64
 
-	SeqWindowSize int
+	SeqWindowSize uint64
 	SafeL2Head    rune
 	UnsafeL2Head  rune
 	ExpectedErr   error

@@ -124,6 +124,7 @@ type L1Info interface {
 	BaseFee() *big.Int
 	ID() eth.BlockID
 	BlockRef() eth.L1BlockRef
+	ReceiptHash() common.Hash
 }
 
 // L1InfoDeposit creats a L1 Info deposit transaction based on the L1 block
@@ -250,8 +251,8 @@ type L2Info interface {
 	Time() uint64
 }
 
-// SortedAndPreparedBatches turns a collection of batches to the input batches for a series of blocks
-func SortedAndPreparedBatches(batches []*BatchData, epoch, blockTime, minL2Time, maxL2Time uint64) []*BatchData {
+// FillMissingBatches turns a collection of batches to the input batches for a series of blocks
+func FillMissingBatches(batches []*BatchData, epoch, blockTime, minL2Time, maxL2Time uint64) []*BatchData {
 	m := make(map[uint64]*BatchData)
 	for _, b := range batches {
 		m[b.BatchV1.Timestamp] = b

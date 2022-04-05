@@ -78,6 +78,10 @@ func (info *HeaderInfo) BlockRef() eth.L1BlockRef {
 	}
 }
 
+func (info *HeaderInfo) ReceiptHash() common.Hash {
+	return info.receiptHash
+}
+
 type rpcHeaderCacheInfo struct {
 	Hash common.Hash `json:"hash"`
 }

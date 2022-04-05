@@ -2,6 +2,7 @@ package driver
 
 import (
 	"context"
+	"errors"
 	"math/big"
 
 	"github.com/ethereum/go-ethereum"
@@ -9,6 +10,7 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimistic-specs/opnode/eth"
+	"github.com/ethereum-optimism/optimistic-specs/opnode/l2"
 	"github.com/ethereum-optimism/optimistic-specs/opnode/rollup"
 )
 
@@ -164,6 +166,21 @@ func (m *fakeChainSource) L2BlockRefByHash(ctx context.Context, l2Hash common.Ha
 	return eth.L2BlockRef{}, ethereum.NotFound
 }
 
+func (m *fakeChainSource) ForkchoiceUpdate(ctx context.Context, state *l2.ForkchoiceState, attr *l2.PayloadAttributes) (*l2.ForkchoiceUpdatedResult, error) {
+	m.log.Trace("ForkchoiceUpdate", "newHead", state.HeadBlockHash, "l2Head", m.l2head, "reorg", m.l2reorg)
+	m.l2reorg++
+	if m.l2reorg >= len(m.l2s) {
+		panic("No more re-org chains available")
+	}
+	for i, bl := range m.l2s[m.l2reorg] {
+		if bl.Hash == state.HeadBlockHash {
+			m.l2head = i
+			return nil, nil
+		}
+	}
+	return nil, errors.New("unable to set new head")
+}
+
 var _ L1Chain = (*fakeChainSource)(nil)
 var _ L2Chain = (*fakeChainSource)(nil)
 
@@ -171,14 +188,6 @@ func (m *fakeChainSource) reorgL1() {
 	m.log.Trace("Reorg L1", "new_reorg", m.l1reorg+1, "old_reorg", m.l1reorg)
 	m.l1reorg++
 	if m.l1reorg >= len(m.l1s) {
-		panic("No more re-org chains available")
-	}
-}
-
-func (m *fakeChainSource) reorgL2() {
-	m.log.Trace("Reorg L2", "new_reorg", m.l2reorg+1, "old_reorg", m.l2reorg)
-	m.l2reorg++
-	if m.l2reorg >= len(m.l2s) {
 		panic("No more re-org chains available")
 	}
 }
