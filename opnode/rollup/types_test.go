@@ -27,13 +27,13 @@ func randConfig() *Config {
 			L2:     eth.BlockID{Hash: randHash(), Number: 1337},
 			L2Time: uint64(time.Now().Unix()),
 		},
-		BlockTime:            2,
-		MaxSequencerTimeDiff: 100,
-		SeqWindowSize:        2,
-		L1ChainID:            big.NewInt(900),
-		FeeRecipientAddress:  randAddr(),
-		BatchInboxAddress:    randAddr(),
-		BatchSenderAddress:   randAddr(),
+		BlockTime:           2,
+		MaxSequencerDrift:   100,
+		SeqWindowSize:       2,
+		L1ChainID:           big.NewInt(900),
+		FeeRecipientAddress: randAddr(),
+		BatchInboxAddress:   randAddr(),
+		BatchSenderAddress:  randAddr(),
 	}
 }
 

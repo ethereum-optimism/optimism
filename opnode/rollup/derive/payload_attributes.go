@@ -252,13 +252,24 @@ type L2Info interface {
 }
 
 // FillMissingBatches turns a collection of batches to the input batches for a series of blocks
-func FillMissingBatches(batches []*BatchData, epoch, blockTime, minL2Time, maxL2Time uint64) []*BatchData {
+func FillMissingBatches(batches []*BatchData, epoch, blockTime, minL2Time, nextL1Time uint64) []*BatchData {
 	m := make(map[uint64]*BatchData)
+	// The number of L2 blocks per sequencing window is variable, we do not immediately fill to maxL2Time:
+	// - ensure at least 1 block
+	// - fill up to the next L1 block time stamp, if higher, to keep up with L1 time
+	// - fill up to the last valid batch, to keep up with L2 time
+	newHeadL2Timestamp := minL2Time
+	if nextL1Time > newHeadL2Timestamp+blockTime {
+		newHeadL2Timestamp = nextL1Time - blockTime
+	}
 	for _, b := range batches {
 		m[b.BatchV1.Timestamp] = b
+		if b.Timestamp > newHeadL2Timestamp {
+			newHeadL2Timestamp = b.Timestamp
+		}
 	}
 	var out []*BatchData
-	for t := minL2Time; t < maxL2Time; t += blockTime {
+	for t := minL2Time; t <= newHeadL2Timestamp; t += blockTime {
 		b, ok := m[t]
 		if ok {
 			out = append(out, b)

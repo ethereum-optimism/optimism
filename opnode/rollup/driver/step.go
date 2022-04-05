@@ -103,11 +103,11 @@ func (d *outputImpl) createNewBlock(ctx context.Context, l2Head eth.L2BlockRef, 
 // It returns the new L2 head and L2 Safe head and if there was a reorg. This function must return if there was a reorg otherwise the L2 chain must be traversed.
 func (d *outputImpl) insertEpoch(ctx context.Context, l2Head eth.L2BlockRef, l2SafeHead eth.L2BlockRef, l2Finalized eth.BlockID, l1Input []eth.BlockID) (eth.L2BlockRef, eth.L2BlockRef, bool, error) {
 	// Sanity Checks
-	if len(l1Input) == 0 {
-		return l2Head, l2SafeHead, false, fmt.Errorf("empty L1 sequencing window on L2 %s", l2SafeHead)
+	if len(l1Input) <= 1 {
+		return l2Head, l2SafeHead, false, fmt.Errorf("too small L1 sequencing window for L2 derivation on %s: %v", l2SafeHead, l1Input)
 	}
 	if len(l1Input) != int(d.Config.SeqWindowSize) {
-		return l2Head, l2SafeHead, false, errors.New("Invalid sequencing window size")
+		return l2Head, l2SafeHead, false, errors.New("invalid sequencing window size")
 	}
 
 	logger := d.log.New("input_l1_first", l1Input[0], "input_l1_last", l1Input[len(l1Input)-1], "input_l2_parent", l2SafeHead, "finalized_l2", l2Finalized)
@@ -128,6 +128,10 @@ func (d *outputImpl) insertEpoch(ctx context.Context, l2Head eth.L2BlockRef, l2S
 	if l2SafeHead.L1Origin.Hash != l1Info.ParentHash() {
 		return l2Head, l2SafeHead, false, fmt.Errorf("l1Info %v does not extend L1 Origin (%v) of L2 Safe Head (%v)", l1Info.Hash(), l2SafeHead.L1Origin, l2SafeHead)
 	}
+	nextL1Block, err := d.dl.InfoByHash(ctx, l1Input[1].Hash)
+	if err != nil {
+		return l2Head, l2SafeHead, false, fmt.Errorf("failed to get L1 timestamp of next L1 block: %v", err)
+	}
 	deposits, err := derive.DeriveDeposits(l2SafeHead.Number+1, receipts)
 	if err != nil {
 		return l2Head, l2SafeHead, false, fmt.Errorf("failed to derive deposits: %w", err)
@@ -143,9 +147,12 @@ func (d *outputImpl) insertEpoch(ctx context.Context, l2Head eth.L2BlockRef, l2S
 	}
 	// Make batches contiguous
 	minL2Time := l2Info.Time() + d.Config.BlockTime
-	maxL2Time := l1Info.Time()
+	maxL2Time := l1Info.Time() + d.Config.MaxSequencerDrift
+	if minL2Time+d.Config.BlockTime > maxL2Time {
+		maxL2Time = minL2Time + d.Config.BlockTime
+	}
 	batches = derive.FilterBatches(&d.Config, epoch, minL2Time, maxL2Time, batches)
-	batches = derive.FillMissingBatches(batches, uint64(epoch), d.Config.BlockTime, minL2Time, maxL2Time)
+	batches = derive.FillMissingBatches(batches, uint64(epoch), d.Config.BlockTime, minL2Time, nextL1Block.Time())
 
 	fc := l2.ForkchoiceState{
 		HeadBlockHash:      l2Head.Hash,
