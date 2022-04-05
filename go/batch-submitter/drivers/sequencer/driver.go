@@ -233,7 +233,10 @@ func (d *Driver) CraftBatchTx(
 			continue
 		}
 
-		if plaintextCalldataSize < d.cfg.MinTxSize {
+		// Ignore the minimmum size constraint after the initial pass, as its
+		// possible for a batch to be pruned and become smaller than the minimum
+		// tx size.
+		if pruneCount == 0 && plaintextCalldataSize < d.cfg.MinTxSize {
 			log.Info(name+" batch tx size below minimum",
 				"num_txs", len(batchElements))
 			return nil, nil
