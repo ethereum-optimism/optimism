@@ -231,7 +231,9 @@ func (d *Driver) CraftBatchTx(
 				"new_num_txs", newBatchElementsLen)
 			pruneCount++
 			continue
-		} else if plaintextCalldataSize < d.cfg.MinTxSize {
+		}
+
+		if plaintextCalldataSize < d.cfg.MinTxSize {
 			log.Info(name+" batch tx size below minimum",
 				"num_txs", len(batchElements))
 			return nil, nil
