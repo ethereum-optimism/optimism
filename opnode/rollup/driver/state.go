@@ -3,6 +3,7 @@ package driver
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sync/atomic"
 	"time"
 
@@ -192,6 +193,14 @@ func (s *state) findNextL1Origin(ctx context.Context) (eth.L1BlockRef, error) {
 	// If there is no more slack left (including the sequencer drift), then we will have to start building on the next L1 origin
 	maxL2Time := currentOrigin.Time + s.Config.MaxSequencerDrift
 	if nextL2Time > maxL2Time {
+		// If we are not matching the L1 origin (due to a large gap between L1 blocks), then we stay with the current origin.
+		// This matches the `next_l1_timestamp - l2_block_time` part of the `new_head_l2_timestamp`, the batches will still be valid.
+		if nextL2Time < nextOrigin.Time {
+			s.log.Warn("Ran out of slack with current epoch, but the next L1 block is still ahead in time, thus we continue the epoch",
+				"l2Head", s.l2Head, "previous_l1Origin", s.l2Head.L1Origin, "l1Origin", nextOrigin)
+			return currentOrigin, nil
+		}
+		// The L1 chain continues, and eventually the sequencer will be forced onto the chain with deposits from L1
 		s.log.Warn("Forced to advance to new L1 Origin", "l2Head", s.l2Head, "previous_l1Origin", s.l2Head.L1Origin, "l1Origin", nextOrigin)
 		return nextOrigin, nil
 	}
@@ -209,11 +218,12 @@ func (s *state) createNewL2Block(ctx context.Context) (eth.L1BlockRef, error) {
 		return eth.L1BlockRef{}, err
 	}
 	nextL2Time := s.l2Head.Time + s.Config.BlockTime
-	// If we are behind the next L1 origin, then we should be deriving empty blocks (regular verifier work) until the L2 time catches up with L1 again.
+	// If we are behind the L1 origin that we should be using then we broke the invariant
 	if nextL2Time < nextOrigin.Time {
-		s.log.Warn("Skipping block production because the next block time is behind the next L1 Origin",
+		s.log.Error("Cannot build L2 block for time before L1 origin",
 			"l2Head", s.l2Head, "nextL2Time", nextL2Time, "l1Origin", nextOrigin, "l1OriginTime", nextOrigin.Time)
-		return eth.L1BlockRef{}, nil
+		return eth.L1BlockRef{}, fmt.Errorf("cannot build L2 block on top %s for time %d before L1 origin %s at time %d",
+			s.l2Head, nextL2Time, nextOrigin, nextOrigin.Time)
 	}
 
 	// If the L1 origin changed this block, then we are in the first block of the epoch
