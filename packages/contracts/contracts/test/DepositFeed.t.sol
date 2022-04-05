@@ -12,7 +12,7 @@ contract DepositFeedTest is DSTest {
     uint256 immutable NON_ZERO_VALUE = 100;
     uint256 immutable ZERO_VALUE = 0;
     uint256 immutable NON_ZERO_GASLIMIT = 50000;
-    bytes NON_ZERO_DATA = "0x1111";
+    bytes NON_ZERO_DATA = hex"1111";
 
     DepositFeed df;
 
@@ -38,7 +38,7 @@ contract DepositFeedTest is DSTest {
     // Test: depositTransaction fails when contract creation has a non-zero destination address
     function test_depositTransaction_ContractCreationReverts() external {
         vm.expectRevert(abi.encodeWithSignature("NonZeroCreationTarget()"));
-        df.depositTransaction(NON_ZERO_ADDRESS, NON_ZERO_VALUE, NON_ZERO_GASLIMIT, true, "0x");
+        df.depositTransaction(NON_ZERO_ADDRESS, NON_ZERO_VALUE, NON_ZERO_GASLIMIT, true, hex"");
     }
 
     // Test: depositTransaction should emit the correct log when an EOA deposits a tx with 0 value
@@ -135,7 +135,7 @@ contract DepositFeedTest is DSTest {
             ZERO_VALUE,
             NON_ZERO_GASLIMIT,
             false,
-            "0x"
+            NON_ZERO_DATA
         );
 
         df.depositTransaction{ value: NON_ZERO_VALUE }(
@@ -143,8 +143,28 @@ contract DepositFeedTest is DSTest {
             ZERO_VALUE,
             NON_ZERO_GASLIMIT,
             false,
-            "0x"
+            NON_ZERO_DATA
         );
+        assertEq(address(df).balance, NON_ZERO_VALUE);
+    }
+
+    // Test: depositTransaction should increase its eth balance when an EOA deposits a transaction with ETH
+    function test_receive_withEthValueFromEOA() external {
+        // EOA emulation
+        vm.prank(address(this), address(this));
+
+        vm.expectEmit(true, true, false, true);
+        emit TransactionDeposited(
+            address(this),
+            address(this),
+            NON_ZERO_VALUE,
+            NON_ZERO_VALUE,
+            30_000,
+            false,
+            hex""
+        );
+        address(df).call{ value: NON_ZERO_VALUE }(hex"");
+
         assertEq(address(df).balance, NON_ZERO_VALUE);
     }
 
@@ -183,7 +203,7 @@ contract DepositFeedTest is DSTest {
             ZERO_VALUE,
             NON_ZERO_GASLIMIT,
             true,
-            "0x"
+            hex""
         );
 
         df.depositTransaction{ value: NON_ZERO_VALUE }(
@@ -191,7 +211,7 @@ contract DepositFeedTest is DSTest {
             ZERO_VALUE,
             NON_ZERO_GASLIMIT,
             true,
-            "0x"
+            hex""
         );
         assertEq(address(df).balance, NON_ZERO_VALUE);
     }
