@@ -8,11 +8,12 @@ import { L2OutputOracle_Initializer } from "./L2OutputOracle.t.sol";
 
 /* Target contract dependencies */
 import { L2OutputOracle } from "../L1/L2OutputOracle.sol";
+import { WithdrawalVerifier } from "../L1/Lib_WithdrawalVerifier.sol";
 
 /* Target contract */
-import { WithdrawalVerifier } from "../L1/WithdrawalVerifier.sol";
+import { OptimismPortal } from "../L1/OptimismPortal.sol";
 
-contract WithdrawalVerifierTest is DSTest {
+contract OptimismPortal_finalizeWithdrawalTransaction_Test is DSTest {
 
     event TransactionDeposited(
         address indexed from,
@@ -39,7 +40,7 @@ contract WithdrawalVerifierTest is DSTest {
     uint256 historicalTotalBlocks = 100;
 
     // Test target
-    WithdrawalVerifier wv;
+    OptimismPortal op;
 
     // Target constructor arguments
     address withdrawalsPredeploy = 0x4200000000000000000000000000000000000015;
@@ -94,7 +95,7 @@ contract WithdrawalVerifierTest is DSTest {
         );
         startingBlockTimestamp = block.timestamp;
 
-        wv = new WithdrawalVerifier(oracle, 7 days);
+        op = new OptimismPortal(oracle, 7 days);
     }
 
     function setUp() external {
@@ -123,7 +124,7 @@ contract WithdrawalVerifierTest is DSTest {
     function test_verifyWithdrawal() external {
         // Warp to after the finality window
         vm.warp(appendedTimestamp + 7 days);
-        wv.verifyWithdrawal(
+        op.finalizeWithdrawalTransaction(
             wdNonce,
             wdSender,
             wdTarget,
@@ -138,7 +139,7 @@ contract WithdrawalVerifierTest is DSTest {
     function test_cannotVerifyRecentWithdrawal() external {
         // This call should fail because the output root we're using was appended 1 second ago.
         vm.expectRevert("Too soon");
-        wv.verifyWithdrawal(
+        op.finalizeWithdrawalTransaction(
             wdNonce,
             wdSender,
             wdTarget,
@@ -156,7 +157,7 @@ contract WithdrawalVerifierTest is DSTest {
         vm.expectRevert("Calculated output root does not match expected value");
         WithdrawalVerifier.OutputRootProof memory invalidOutpuRootProof = outputRootProof;
         invalidOutpuRootProof.latestBlockhash = 0;
-        wv.verifyWithdrawal(
+        op.finalizeWithdrawalTransaction(
             wdNonce,
             wdSender,
             wdTarget,
