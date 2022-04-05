@@ -56,7 +56,7 @@ func (d *outputImpl) createNewBlock(ctx context.Context, l2Head eth.L2BlockRef, 
 		return l2Head, nil, errors.New("L2 Timestamp is too large")
 	}
 
-	l1InfoTx, err := derive.L1InfoDepositBytes(l1Info)
+	l1InfoTx, err := derive.L1InfoDepositBytes(l2Head.Number+1, l1Info)
 	if err != nil {
 		return l2Head, nil, err
 	}
@@ -128,10 +128,6 @@ func (d *outputImpl) insertEpoch(ctx context.Context, l2Head eth.L2BlockRef, l2S
 	if l2SafeHead.L1Origin.Hash != l1Info.ParentHash() {
 		return l2Head, l2SafeHead, false, fmt.Errorf("l1Info %v does not extend L1 Origin (%v) of L2 Safe Head (%v)", l1Info.Hash(), l2SafeHead.L1Origin, l2SafeHead)
 	}
-	l1InfoTx, err := derive.L1InfoDepositBytes(l1Info)
-	if err != nil {
-		return l2Head, l2SafeHead, false, fmt.Errorf("failed to create l1InfoTx: %w", err)
-	}
 	deposits, err := derive.DeriveDeposits(l2SafeHead.Number+1, receipts)
 	if err != nil {
 		return l2Head, l2SafeHead, false, fmt.Errorf("failed to derive deposits: %w", err)
@@ -164,6 +160,10 @@ func (d *outputImpl) insertEpoch(ctx context.Context, l2Head eth.L2BlockRef, l2S
 	var reorg bool
 	for i, batch := range batches {
 		var txns []l2.Data
+		l1InfoTx, err := derive.L1InfoDepositBytes(lastSafeHead.Number+1, l1Info)
+		if err != nil {
+			return l2Head, l2SafeHead, false, fmt.Errorf("failed to create l1InfoTx: %w", err)
+		}
 		txns = append(txns, l1InfoTx)
 		if i == 0 {
 			txns = append(txns, deposits...)

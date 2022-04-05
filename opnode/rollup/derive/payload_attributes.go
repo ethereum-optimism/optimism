@@ -128,7 +128,7 @@ type L1Info interface {
 }
 
 // L1InfoDeposit creats a L1 Info deposit transaction based on the L1 block
-func L1InfoDeposit(block L1Info) *types.DepositTx {
+func L1InfoDeposit(l2BlockHeight uint64, block L1Info) *types.DepositTx {
 	data := make([]byte, 4+8+8+32+32)
 	offset := 0
 	copy(data[offset:4], L1InfoFuncBytes4)
@@ -142,7 +142,7 @@ func L1InfoDeposit(block L1Info) *types.DepositTx {
 	copy(data[offset:offset+32], block.Hash().Bytes())
 
 	return &types.DepositTx{
-		BlockHeight:      block.NumberU64(),
+		BlockHeight:      l2BlockHeight,
 		TransactionIndex: 0, // always the first transaction
 		From:             DepositContractAddr,
 		To:               &L1InfoPredeployAddr,
@@ -274,8 +274,8 @@ func FillMissingBatches(batches []*BatchData, epoch, blockTime, minL2Time, maxL2
 	return out
 }
 
-func L1InfoDepositBytes(l1Info L1Info) (hexutil.Bytes, error) {
-	l1Tx := types.NewTx(L1InfoDeposit(l1Info))
+func L1InfoDepositBytes(l2BlockHeight uint64, l1Info L1Info) (hexutil.Bytes, error) {
+	l1Tx := types.NewTx(L1InfoDeposit(l2BlockHeight, l1Info))
 	opaqueL1Tx, err := l1Tx.MarshalBinary()
 	if err != nil {
 		return nil, fmt.Errorf("failed to encode L1 info tx")
