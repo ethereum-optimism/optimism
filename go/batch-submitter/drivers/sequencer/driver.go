@@ -214,6 +214,11 @@ func (d *Driver) CraftBatchTx(
 		appendSequencerBatchID := d.ctcABI.Methods[appendSequencerBatchMethodName].ID
 		plaintextCalldata := append(appendSequencerBatchID, plaintextBatchArguments...)
 
+		log.Info(name+" testing batch size",
+			"plaintext_size", len(plaintextCalldata),
+			"min_tx_size", d.cfg.MinTxSize,
+			"max_tx_size", d.cfg.MaxTxSize)
+
 		// Continue pruning until plaintext calldata size is less than
 		// configured max.
 		plaintextCalldataSize := uint64(len(plaintextCalldata))
@@ -222,16 +227,12 @@ func (d *Driver) CraftBatchTx(
 			newBatchElementsLen := (oldLen * 9) / 10
 			batchElements = batchElements[:newBatchElementsLen]
 			log.Info(name+" pruned batch",
-				"plaintext_size", plaintextCalldataSize,
-				"max_tx_size", d.cfg.MaxTxSize,
 				"old_num_txs", oldLen,
 				"new_num_txs", newBatchElementsLen)
 			pruneCount++
 			continue
 		} else if plaintextCalldataSize < d.cfg.MinTxSize {
 			log.Info(name+" batch tx size below minimum",
-				"plaintext_size", plaintextCalldataSize,
-				"min_tx_size", d.cfg.MinTxSize,
 				"num_txs", len(batchElements))
 			return nil, nil
 		}
@@ -249,7 +250,10 @@ func (d *Driver) CraftBatchTx(
 			calldata = append(appendSequencerBatchID, batchArguments...)
 		}
 
-		log.Info(name+" batch constructed", "num_txs", len(batchElements), "length", len(calldata))
+		log.Info(name+" batch constructed",
+			"num_txs", len(batchElements),
+			"final_size", len(calldata),
+			"batch_type", d.cfg.BatchType)
 
 		opts, err := bind.NewKeyedTransactorWithChainID(
 			d.cfg.PrivKey, d.cfg.ChainID,
