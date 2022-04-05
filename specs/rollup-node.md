@@ -120,6 +120,9 @@ The rollup reads the following data from the [sequencing window][g-sequencing-wi
         i.e. one batch per L2 block number.
       - The batch only contains sequenced transactions, i.e. it must NOT contain any Deposit-type transactions.
 
+Note that after the above filtering `min_l2_timestamp >= l1_timestamp` always holds,
+i.e. a L2 block timestamp is always equal or ahead of the timestamp of the corresponding L1 origin block.
+
 [random]: https://eips.ethereum.org/EIPS/eip-4399
 
 A bundle of batches is versioned by prefixing with a bundle version byte: `bundle = bundle_version ++ bundle_data`.
