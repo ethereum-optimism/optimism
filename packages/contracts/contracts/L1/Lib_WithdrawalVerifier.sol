@@ -16,7 +16,6 @@ import {
 library WithdrawalVerifier {
     /// @notice A struct containing the elements hashed together to generate the output root.
     struct OutputRootProof {
-        uint256 timestamp;
         bytes32 version;
         bytes32 stateRoot;
         bytes32 withdrawerStorageRoot;

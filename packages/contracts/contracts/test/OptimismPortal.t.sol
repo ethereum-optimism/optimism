@@ -113,7 +113,6 @@ contract OptimismPortal_finalizeWithdrawalTransaction_Test is DSTest {
         // cache the appendedTimestamp
         appendedTimestamp = nextTimestamp;
         outputRootProof = WithdrawalVerifier.OutputRootProof({
-            timestamp: appendedTimestamp,
             version: version,
             stateRoot: stateRoot,
             withdrawerStorageRoot: withdrawerStorageRoot,
@@ -131,6 +130,7 @@ contract OptimismPortal_finalizeWithdrawalTransaction_Test is DSTest {
             wdValue,
             wdGasLimit,
             wdData,
+            appendedTimestamp,
             outputRootProof,
             withdrawalProof
         );
@@ -138,7 +138,7 @@ contract OptimismPortal_finalizeWithdrawalTransaction_Test is DSTest {
 
     function test_cannotVerifyRecentWithdrawal() external {
         // This call should fail because the output root we're using was appended 1 second ago.
-        vm.expectRevert("Too soon");
+        vm.expectRevert("Finalization window has not yet passed.");
         op.finalizeWithdrawalTransaction(
             wdNonce,
             wdSender,
@@ -146,6 +146,7 @@ contract OptimismPortal_finalizeWithdrawalTransaction_Test is DSTest {
             wdValue,
             wdGasLimit,
             wdData,
+            appendedTimestamp,
             outputRootProof,
             hex"ffff"
         );
@@ -164,6 +165,7 @@ contract OptimismPortal_finalizeWithdrawalTransaction_Test is DSTest {
             wdValue,
             wdGasLimit,
             wdData,
+            appendedTimestamp,
             invalidOutpuRootProof,
             hex"ffff"
         );

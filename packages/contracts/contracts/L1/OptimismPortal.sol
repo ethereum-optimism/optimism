@@ -71,15 +71,19 @@ contract OptimismPortal is DepositFeed {
         uint256 _value,
         uint256 _gasLimit,
         bytes calldata _data,
+        uint256 _timestamp,
         WithdrawalVerifier.OutputRootProof calldata _outputRootProof,
         bytes calldata _withdrawalProof
     ) external {
         // Check that the timestamp is 7 days old.
-        require(_outputRootProof.timestamp <= block.timestamp - FINALIZATION_WINDOW, "Too soon");
+        require(
+            _timestamp <= block.timestamp - FINALIZATION_WINDOW,
+            "Finalization window has not yet passed."
+        );
 
         // Get the output root and verify that the withdrawer contract's storage root is contained
         // in it.
-        bytes32 outputRoot = L2_ORACLE.getL2Output(_outputRootProof.timestamp);
+        bytes32 outputRoot = L2_ORACLE.getL2Output(_timestamp);
         require(
             WithdrawalVerifier._verifyWithdrawerStorageRoot(outputRoot, _outputRootProof) == true,
             "Calculated output root does not match expected value"
