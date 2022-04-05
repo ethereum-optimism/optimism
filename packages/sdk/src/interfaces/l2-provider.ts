@@ -85,7 +85,8 @@ export type L2Provider<TProvider extends Provider> = TProvider & {
   estimateTotalGasCost(tx: TransactionRequest): Promise<BigNumber>
 
   /**
-   * Helps deterimine if a given provider is an l2Provider
+   * Internal property to determine if a provider is a L2Provider
+   * You are likely looking for the isL2Provider function
    */
   _isL2Provider: true
 }

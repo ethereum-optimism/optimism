@@ -119,6 +119,18 @@ export const estimateTotalGasCost = async (
   return l1GasCost.add(l2GasCost)
 }
 
+/**
+ * Determines if a given Provider is an L2Provider.  Will coerce type
+ * if true
+ *
+ * @param provider The provider to check
+ * @returns Boolean
+ * @example
+ * if (isL2Provider(provider)) {
+ *   // typescript now knows it is of type L2Provider
+ *   const gasPrice = await provider.estimateL2GasPrice(tx)
+ * }
+ */
 export const isL2Provider = <TProvider extends Provider>(
   provider: TProvider
 ): provider is L2Provider<TProvider> => {
