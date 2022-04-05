@@ -25,23 +25,20 @@ type outputImpl struct {
 	Config rollup.Config
 }
 
-func (d *outputImpl) createNewBlock(ctx context.Context, l2Head eth.L2BlockRef, l2SafeHead eth.BlockID, l2Finalized eth.BlockID, l1Origin eth.BlockID) (eth.L2BlockRef, *derive.BatchData, error) {
+func (d *outputImpl) createNewBlock(ctx context.Context, l2Head eth.L2BlockRef, l2SafeHead eth.BlockID, l2Finalized eth.BlockID, l1Origin eth.L1BlockRef) (eth.L2BlockRef, *derive.BatchData, error) {
 	d.log.Info("creating new block", "l2Head", l2Head)
+
+	// If the L1 origin changed this block, then we are in the first block of the epoch
+	firstEpochBlock := l2Head.L1Origin.Number != l1Origin.Number
+
 	fetchCtx, cancel := context.WithTimeout(ctx, time.Second*20)
 	defer cancel()
-	l2Info, err := d.l2.BlockByHash(fetchCtx, l2Head.Hash)
-	if err != nil {
-		return l2Head, nil, fmt.Errorf("failed to fetch L2 block info of %s: %v", l2Head, err)
-	}
-	l2BLockRef, err := derive.BlockReferences(l2Info, &d.Config.Genesis)
-	if err != nil {
-		return l2Head, nil, fmt.Errorf("failed to derive L2BlockRef from l2Block: %w", err)
-	}
 
 	var l1Info derive.L1Info
 	var receipts types.Receipts
+	var err error
 	// Include deposits if this is the first block of an epoch
-	if l2BLockRef.L1Origin.Number != l1Origin.Number {
+	if firstEpochBlock {
 		l1Info, _, receipts, err = d.dl.Fetch(fetchCtx, l1Origin.Hash)
 	} else {
 		l1Info, err = d.dl.InfoByHash(fetchCtx, l1Origin.Hash)
@@ -49,11 +46,6 @@ func (d *outputImpl) createNewBlock(ctx context.Context, l2Head eth.L2BlockRef, 
 	}
 	if err != nil {
 		return l2Head, nil, fmt.Errorf("failed to fetch L1 block info of %s: %v", l1Origin, err)
-	}
-
-	timestamp := l2Info.Time() + d.Config.BlockTime
-	if timestamp > l1Info.Time()+d.Config.MaxSequencerDrift {
-		return l2Head, nil, errors.New("no slack left, L2 Timestamp is too large")
 	}
 
 	l1InfoTx, err := derive.L1InfoDepositBytes(l2Head.Number+1, l1Info)
@@ -72,7 +64,7 @@ func (d *outputImpl) createNewBlock(ctx context.Context, l2Head eth.L2BlockRef, 
 	depositStart := len(txns)
 
 	attrs := &l2.PayloadAttributes{
-		Timestamp:             hexutil.Uint64(timestamp),
+		Timestamp:             hexutil.Uint64(l2Head.Time + d.Config.BlockTime),
 		Random:                l2.Bytes32(l1Info.MixDigest()),
 		SuggestedFeeRecipient: d.Config.FeeRecipientAddress,
 		Transactions:          txns,

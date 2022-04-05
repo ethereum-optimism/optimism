@@ -256,7 +256,7 @@ func FillMissingBatches(batches []*BatchData, epoch, blockTime, minL2Time, nextL
 	m := make(map[uint64]*BatchData)
 	// The number of L2 blocks per sequencing window is variable, we do not immediately fill to maxL2Time:
 	// - ensure at least 1 block
-	// - fill up to the next L1 block time stamp, if higher, to keep up with L1 time
+	// - fill up to the next L1 block timestamp, if higher, to keep up with L1 time
 	// - fill up to the last valid batch, to keep up with L2 time
 	newHeadL2Timestamp := minL2Time
 	if nextL1Time > newHeadL2Timestamp+blockTime {

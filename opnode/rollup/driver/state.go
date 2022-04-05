@@ -169,20 +169,16 @@ func (s *state) findNextL1Origin(ctx context.Context) (eth.L1BlockRef, error) {
 	}
 
 	// Grab the block ref
-	curr, err := s.l1.L1BlockRefByHash(ctx, s.l2Head.L1Origin.Hash)
+	currentOrigin, err := s.l1.L1BlockRefByHash(ctx, s.l2Head.L1Origin.Hash)
 	if err != nil {
 		return eth.L1BlockRef{}, err
 	}
-	// Somehow reorg'd. Will let the state loop take care of it.
-	if curr.Hash != s.l2Head.L1Origin.Hash {
-		return eth.L1BlockRef{}, errors.New("unknown L1Origin")
-	}
 
-	nextOrigin, err := s.l1.L1BlockRefByNumber(ctx, curr.Number+1)
+	nextOrigin, err := s.l1.L1BlockRefByNumber(ctx, currentOrigin.Number+1)
 	if errors.Is(err, ethereum.NotFound) {
 		// no new L1 origin found, keep the current one
-		s.log.Info("No new L1 origin, staying with current one", "l2Head", s.l2Head, "l1Origin", curr)
-		return nextOrigin, nil
+		s.log.Info("No new L1 origin, staying with current one", "l2Head", s.l2Head, "l1Origin", currentOrigin)
+		return currentOrigin, nil
 	}
 
 	nextL2Time := s.l2Head.Time + s.Config.BlockTime
@@ -194,15 +190,15 @@ func (s *state) findNextL1Origin(ctx context.Context) (eth.L1BlockRef, error) {
 	}
 
 	// If there is no more slack left (including the sequencer drift), then we will have to start building on the next L1 origin
-	maxL2Time := curr.Time + s.Config.MaxSequencerDrift
+	maxL2Time := currentOrigin.Time + s.Config.MaxSequencerDrift
 	if nextL2Time > maxL2Time {
 		s.log.Warn("Forced to advance to new L1 Origin", "l2Head", s.l2Head, "previous_l1Origin", s.l2Head.L1Origin, "l1Origin", nextOrigin)
 		return nextOrigin, nil
 	}
 
 	// If we have a next
-	s.log.Info("Next L1 Origin is the same as the previous", "l2Head", s.l2Head, "l1Origin", curr)
-	return curr, nil
+	s.log.Info("Next L1 Origin is the same as the previous", "l2Head", s.l2Head, "l1Origin", currentOrigin)
+	return currentOrigin, nil
 }
 
 // createNewL2Block builds a L2 block on top of the L2 Head (unsafe)
@@ -220,10 +216,15 @@ func (s *state) createNewL2Block(ctx context.Context) (eth.L1BlockRef, error) {
 		return eth.L1BlockRef{}, nil
 	}
 
+	// If the L1 origin changed this block, then we are in the first block of the epoch
+	isFirstEpochBlock := s.l2Head.L1Origin.Number != nextOrigin.Number
+
+	// We create at least 1 block per epoch. After that we have to enforce the max timestamp.
+	//
 	// TODO: we can give ourselves less slack here, and prefer to adopt the next L1 block more eagerly,
 	// to ensure we have more time to submit the next block we produce, at the cost of sequencing less eagerly.
 	maxL2Time := nextOrigin.Time + s.Config.MaxSequencerDrift
-	if nextL2Time > maxL2Time {
+	if !isFirstEpochBlock && nextL2Time > maxL2Time {
 		s.log.Warn("Skipping block production because we have no slack left to sequence more blocks on the L1 origin",
 			"l2Head", s.l2Head, "nextL2Time", nextL2Time, "l1Origin", nextOrigin, "l1OriginTime", nextOrigin.Time)
 		return eth.L1BlockRef{}, nil
@@ -234,7 +235,7 @@ func (s *state) createNewL2Block(ctx context.Context) (eth.L1BlockRef, error) {
 		return eth.L1BlockRef{}, nil
 	}
 	// Actually create the new block
-	newUnsafeL2Head, batch, err := s.output.createNewBlock(context.Background(), s.l2Head, s.l2SafeHead.ID(), s.l2Finalized, nextOrigin.ID())
+	newUnsafeL2Head, batch, err := s.output.createNewBlock(context.Background(), s.l2Head, s.l2SafeHead.ID(), s.l2Finalized, nextOrigin)
 	if err != nil {
 		s.log.Error("Could not extend chain as sequencer", "err", err, "l2UnsafeHead", s.l2Head, "l1Origin", nextOrigin)
 		return eth.L1BlockRef{}, err
