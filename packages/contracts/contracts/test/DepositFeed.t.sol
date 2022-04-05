@@ -148,26 +148,6 @@ contract DepositFeedTest is DSTest {
         assertEq(address(df).balance, NON_ZERO_VALUE);
     }
 
-    // Test: depositTransaction should increase its eth balance when an EOA deposits a transaction with ETH
-    function test_receive_withEthValueFromEOA() external {
-        // EOA emulation
-        vm.prank(address(this), address(this));
-
-        vm.expectEmit(true, true, false, true);
-        emit TransactionDeposited(
-            address(this),
-            address(this),
-            NON_ZERO_VALUE,
-            NON_ZERO_VALUE,
-            30_000,
-            false,
-            hex""
-        );
-        address(df).call{ value: NON_ZERO_VALUE }(hex"");
-
-        assertEq(address(df).balance, NON_ZERO_VALUE);
-    }
-
     // Test: depositTransaction should increase its eth balance when a contract deposits a transaction with ETH
     function test_depositTransaction_withEthValueFromContract() external {
         vm.expectEmit(true, true, false, true);

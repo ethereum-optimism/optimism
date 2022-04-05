@@ -13,6 +13,17 @@ import { L2OutputOracle } from "../L1/L2OutputOracle.sol";
 import { WithdrawalVerifier } from "../L1/WithdrawalVerifier.sol";
 
 contract WithdrawalVerifierTest is DSTest {
+
+    event TransactionDeposited(
+        address indexed from,
+        address indexed to,
+        uint256 mint,
+        uint256 value,
+        uint256 gasLimit,
+        bool isCreation,
+        bytes data
+    );
+
     // Utilities
     Vm vm = Vm(HEVM_ADDRESS);
     bytes32 nonZeroHash = keccak256(abi.encode("NON_ZERO"));
@@ -155,5 +166,24 @@ contract WithdrawalVerifierTest is DSTest {
             invalidOutpuRootProof,
             hex"ffff"
         );
+    }
+
+    function test_receive_withEthValueFromEOA() external {
+        // EOA emulation
+        vm.prank(address(this), address(this));
+
+        vm.expectEmit(true, true, false, true);
+        emit TransactionDeposited(
+            address(this),
+            address(this),
+            100,
+            100,
+            30_000,
+            false,
+            hex""
+        );
+        address(op).call{ value: 100 }(hex"");
+
+        assertEq(address(op).balance, 100);
     }
 }
