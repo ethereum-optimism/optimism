@@ -2,9 +2,9 @@
 pragma solidity 0.8.10;
 
 /**
- * @title Withdrawor
+ * @title Withdrawer
  */
-contract Withdrawor {
+contract Withdrawer {
     uint256 public nonce;
     mapping(bytes32 => bool) public withdrawals;
 

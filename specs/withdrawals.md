@@ -73,7 +73,7 @@ These inputs must satisfy the following conditions:
 
 **On L2:**
 
-1. An L2 account sends a withdrawal message (and possibly also ETH) to the `Withdrawor` predeploy contract.
+1. An L2 account sends a withdrawal message (and possibly also ETH) to the `Withdrawer` predeploy contract.
    This is a very simple contract that stores a mapping from the hash of the `WithdrawalMessage` as defined above to a
    boolean value. (`mapping (bytes32 => bool) withdrawalMessages`)
 2. If ETH is being withdrawn, it can eventually be burned by deploying a contract which immediately `SELFDESTRUCT`s.
@@ -96,12 +96,10 @@ These inputs must satisfy the following conditions:
 The L2 Withdrawals predeploy is a simple contract at `0x4200000000000000000000000000000000000015` which stores messages
 to be withdrawn.
 
-> **Backware**
-
 It contains a mapping which records withdrawals.
 
 ```js
-interface Withdrawor {
+interface Withdrawer {
 
     event WithdrawalMessage(
         uint256 indexed messageNonce, // this is a global nonce value for all withdrawal messages
@@ -147,6 +145,8 @@ If the execution of the relayed call fails in the `target` contracts, it is unfo
 whether or not it was 'supposed' to fail, and whether or not it should be 'replayable'.
 Thus we provide the following mitigations:
 
+// TODO: finish this sentence...
+
 1. The minimum gas amount to be
 
 [Insufficient Gas Griefing]:(https://swcregistry.io/docs/SWC-126)
@@ -162,6 +162,8 @@ Thus we provide the following mitigations:
 This `FINALIZATION_WINDOW` value is equivalent to 7 days.
 
 ### Data Structures and Type Aliases
+
+> TODO: update this section is quite outdated with current impl
 
 1. A `WithdrawalMessage` is encoded in a struct as follows:
 

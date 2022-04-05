@@ -1,8 +1,8 @@
 import { expect } from 'chai'
 import { Signer, BigNumber, Wallet, providers, ethers, utils } from 'ethers'
 import {
-  Withdrawor,
-  Withdrawor__factory,
+  Withdrawer,
+  Withdrawer__factory,
   TestLibSecureMerkleTrie,
   TestLibSecureMerkleTrie__factory,
   WithdrawalVerifier,
@@ -16,7 +16,7 @@ import * as rlp from 'rlp'
 const l2GethProvider = new providers.JsonRpcProvider('http://localhost:9545')
 const l1GethProvider = new providers.JsonRpcProvider('http://localhost:8545')
 
-const withdraworAddress = '0x4200000000000000000000000000000000000015'
+const withdrawerAddress = '0x4200000000000000000000000000000000000015'
 
 const NON_ZERO_ADDRESS = '0x' + '11'.repeat(20)
 const NON_ZERO_GASLIMIT = BigNumber.from(50_000)
@@ -52,19 +52,19 @@ describe('Withdraw', () => {
   let signerAddress: string
   let l1Signer: Signer
   let l2Signer: Signer
-  let withdrawor: Withdrawor
+  let withdrawer: Withdrawer
   let testLibSecureMerkleTrie: TestLibSecureMerkleTrie
   let proof: any
   let nonceBefore: BigNumber
 
-  before('Setup L2 withdrawor contract', async () => {
+  before('Setup L2 withdrawer contract', async () => {
     wallet = new Wallet(process.env.PRIVATE_KEY!)
     signerAddress = await wallet.getAddress()
     l1Signer = wallet.connect(l1GethProvider)
     l2Signer = wallet.connect(l2GethProvider)
 
-    withdrawor = await new Withdrawor__factory(l2Signer).attach(
-      withdraworAddress
+    withdrawer = await new Withdrawer__factory(l2Signer).attach(
+      withdrawerAddress
     )
 
     testLibSecureMerkleTrie = await (
@@ -76,10 +76,10 @@ describe('Withdraw', () => {
     let withdrawalHash: string
     let storageKey: string
     before(async () => {
-      nonceBefore = await withdrawor.nonce()
+      nonceBefore = await withdrawer.nonce()
 
       await (
-        await withdrawor.initiateWithdrawal(
+        await withdrawer.initiateWithdrawal(
           NON_ZERO_ADDRESS,
           NON_ZERO_GASLIMIT,
           NON_ZERO_DATA
@@ -100,8 +100,8 @@ describe('Withdraw', () => {
     })
 
     it('Should add an entry to the withdrawals mapping', async () => {
-      const nonceAfter = await withdrawor.nonce()
-      expect(await withdrawor.withdrawals(withdrawalHash)).to.be.true
+      const nonceAfter = await withdrawer.nonce()
+      expect(await withdrawer.withdrawals(withdrawalHash)).to.be.true
       expect(nonceAfter.sub(nonceBefore).toNumber()).to.eq(1)
     })
 
@@ -113,14 +113,14 @@ describe('Withdraw', () => {
       storageKey = ethers.utils.keccak256(withdrawalHash + storageSlot)
 
       expect(
-        await l2GethProvider.getStorageAt(withdraworAddress, storageKey)
+        await l2GethProvider.getStorageAt(withdrawerAddress, storageKey)
       ).to.equal(utils.hexZeroPad('0x01', 32))
     })
 
     it('should generate a valid proof', async () => {
       // Get the proof
       proof = await l2GethProvider.send('eth_getProof', [
-        withdraworAddress,
+        withdrawerAddress,
         [storageKey],
         toRpcHexString((await l2GethProvider.getBlock('latest')).number),
       ])
