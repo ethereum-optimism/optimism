@@ -52,8 +52,8 @@ func (d *outputImpl) createNewBlock(ctx context.Context, l2Head eth.L2BlockRef, 
 	}
 
 	timestamp := l2Info.Time() + d.Config.BlockTime
-	if timestamp >= l1Info.Time() {
-		return l2Head, nil, errors.New("L2 Timestamp is too large")
+	if timestamp > l1Info.Time()+d.Config.MaxSequencerDrift {
+		return l2Head, nil, errors.New("no slack left, L2 Timestamp is too large")
 	}
 
 	l1InfoTx, err := derive.L1InfoDepositBytes(l2Head.Number+1, l1Info)

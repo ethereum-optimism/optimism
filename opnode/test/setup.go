@@ -151,8 +151,8 @@ func initializeGenesis(cfg *systemConfig) {
 		Difficulty: common.Big1,
 		GasLimit:   5000000,
 		Nonce:      4660,
-		// Set the L2 timestamps to be before the timestamp of the rollup genesis's L1 Block Timestamp. This is to match the current implementation of timestamps.
-		Timestamp: genesisTimestamp - 1,
+		// must be equal (or higher, while within bounds) as the L1 anchor point of the rollup
+		Timestamp: genesisTimestamp,
 		BaseFee:   big.NewInt(7),
 	}
 
