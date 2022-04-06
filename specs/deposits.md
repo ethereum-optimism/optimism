@@ -142,7 +142,7 @@ This transaction MUST have the following values:
 
 1. `from` is `0xdeaddeaddeaddeaddeaddeaddeaddeaddead0001` (the address of the
 [L1 Attributes depositor account][depositor-account])
-2. `to` is `0x4200000000000000000000000000000000000014` (the address of the [L1 attributes predeployed
+2. `to` is `0x4200000000000000000000000000000000000015` (the address of the [L1 attributes predeployed
    contract][predeploy]).
 3. `mint` is `0`
 4. `value` is `0`
@@ -172,7 +172,7 @@ opcodes during execution of the L1 attributes deposited transaction.
 
 [predeploy]: #l1-attributes-predeployed-contract
 
-A predeployed contract on L2 at address `0x4200000000000000000000000000000000000014`, which holds
+A predeployed contract on L2 at address `0x4200000000000000000000000000000000000015`, which holds
 certain block variables from the corresponding L1 block in storage, so that they may be accessed
 during the execution of the subsequent deposited transactions.
 

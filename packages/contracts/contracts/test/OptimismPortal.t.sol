@@ -42,7 +42,7 @@ contract OptimismPortal_finalizeWithdrawalTransaction_Test is DSTest {
     OptimismPortal op;
 
     // Target constructor arguments
-    address withdrawalsPredeploy = 0x4200000000000000000000000000000000000015;
+    address withdrawalsPredeploy = 0x4200000000000000000000000000000000000016;
 
     // Cache of timestamps
     uint256 startingBlockTimestamp;

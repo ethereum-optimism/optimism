@@ -16,7 +16,7 @@ import * as rlp from 'rlp'
 const l2GethProvider = new providers.JsonRpcProvider('http://localhost:9545')
 const l1GethProvider = new providers.JsonRpcProvider('http://localhost:8545')
 
-const withdrawerAddress = '0x4200000000000000000000000000000000000015'
+const withdrawerAddress = '0x4200000000000000000000000000000000000016'
 
 const NON_ZERO_ADDRESS = '0x' + '11'.repeat(20)
 const NON_ZERO_GASLIMIT = BigNumber.from(50_000)
