@@ -1,5 +1,16 @@
 # @eth-optimism/sdk
 
+## 1.1.0
+
+### Minor Changes
+
+- a9f8e577: New isL2Provider helper function. Internal cleanups.
+
+### Patch Changes
+
+- Updated dependencies [5818decb]
+  - @eth-optimism/contracts@0.5.21
+
 ## 1.0.4
 
 ### Patch Changes
