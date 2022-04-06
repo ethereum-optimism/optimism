@@ -17,6 +17,9 @@ devnet-clean: devnet-down
 .PHONY: devnet-clean
 
 devnet-up:
+	@test -f ./packages/contracts/artifacts/contracts/L1/DepositFeed.sol/DepositFeed.json
+	@test -f ./packages/contracts/artifacts/contracts/L2/L1Block.sol/L1Block.json
+	@test -f ./packages/contracts/artifacts/contracts/L2/Withdrawer.sol/Withdrawer.json
 	@(cd ./ops && \
 		DEPOSIT_FEED_BYTECODE=$(shell cat ./packages/contracts/artifacts/contracts/L1/DepositFeed.sol/DepositFeed.json | jq .deployedBytecode) \
 			L1_BLOCK_INFO_BYTECODE=$(shell cat ./packages/contracts/artifacts/contracts/L2/L1Block.sol/L1Block.json | jq .deployedBytecode) \

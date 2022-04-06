@@ -11,11 +11,17 @@
     "l2_time": 1647573629
   },
 
-  "block_time": 1,
+  "block_time": 2,
 
-  "max_sequencer_time_diff": 10,
+  "max_sequencer_drift": 10,
 
-  "seq_window_size": 64,
+  "seq_window_size": 2,
 
-  "l1_chain_id": 900
+  "l1_chain_id": 900,
+
+  "fee_recipient_address":  "0xff00000000000000000000000000000000000002",
+
+  "batch_inbox_address":  "0xff00000000000000000000000000000000000002",
+
+  "batch_sender_address": "0xde3829a23df1479438622a08a116e8eb3f620bb5"
 }

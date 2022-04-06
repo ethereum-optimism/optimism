@@ -237,7 +237,7 @@ func (s *state) createNewL2Block(ctx context.Context) (eth.L1BlockRef, error) {
 		return eth.L1BlockRef{}, nil
 	}
 	// Don't produce blocks until past the L1 genesis
-	if nextOrigin.Number <= s.Config.Genesis.L1.Number {
+	if nextOrigin.Number < s.Config.Genesis.L1.Number {
 		s.log.Info("Skipping block production because the next L1 Origin is behind the L1 genesis")
 		return eth.L1BlockRef{}, nil
 	}
