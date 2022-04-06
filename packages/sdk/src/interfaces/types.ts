@@ -10,6 +10,16 @@ import { ICrossChainMessenger } from './cross-chain-messenger'
 import { IBridgeAdapter } from './bridge-adapter'
 
 /**
+ * Commonly used Chain IDs
+ */
+export enum Chain {
+  MAINNET = 1,
+  GOERLI = 5,
+  KOVAN = 42,
+  HARDHAT_LOCAL = 31337,
+}
+
+/**
  * L1 contract references.
  */
 export interface OEL1Contracts {
