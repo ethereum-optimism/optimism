@@ -81,8 +81,8 @@ abstract contract WithdrawalsRelay {
      * @param _sender Message sender address on L2.
      * @param _target Target address on L1.
      * @param _value ETH to send to the target.
-     * @param _data Data to send to the target.
      * @param _gasLimit Gas to be forwarded to the target.
+     * @param _data Data to send to the target.
      * @param _timestamp L2 timestamp of the outputRoot.
      * @param _outputRootProof Inclusion proof of the withdrawer contracts storage root.
      * @param _withdrawalProof Inclusion proof for the given withdrawal in the withdrawer contract.
@@ -115,8 +115,13 @@ abstract contract WithdrawalsRelay {
 
         // Verify that the hash of the withdrawal transaction's arguments are included in the
         // storage hash of the withdrawer contract.
-        bytes32 withdrawalHash = keccak256(
-            abi.encode(_nonce, _sender, _target, _value, _gasLimit, _data)
+        bytes32 withdrawalHash = WithdrawalVerifier._deriveWithdrawalHash(
+            _nonce,
+            _sender,
+            _target,
+            _value,
+            _gasLimit,
+            _data
         );
         if (
             WithdrawalVerifier._verifyWithdrawalInclusion(
