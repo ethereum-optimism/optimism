@@ -15,6 +15,18 @@ import { WithdrawalVerifier } from "./Lib_WithdrawalVerifier.sol";
  * @notice The OptimismPortal is a contract on L1 used to deposit and withdraw between L2 and L1.
  */
 contract OptimismPortal is DepositFeed {
+    /// @notice Error emitted when attempting to finalize a withdrawal too early.
+    error NotYetFinal();
+
+    /// @notice Error emitted when the output root proof is invalid.
+    error InvalidOutputRootProof();
+
+    /// @notice Error emitted when the withdrawal inclusion proof is invalid.
+    error InvalidWithdrawalInclusionProof();
+
+    /// @notice Error emitted when a withdrawal has already been finalized.
+    error WithdrawalAlreadyFinalized();
+
     /// @notice Emitted when a withdrawal is finalized
     event WithdrawalFinalized(bytes32 indexed);
 
@@ -77,36 +89,37 @@ contract OptimismPortal is DepositFeed {
         bytes calldata _withdrawalProof
     ) external {
         // Check that the timestamp is 7 days old.
-        require(
-            _timestamp <= block.timestamp - FINALIZATION_PERIOD,
-            "Finalization window has not yet passed."
-        );
+        if (block.timestamp < _timestamp + FINALIZATION_PERIOD) {
+            revert NotYetFinal();
+        }
 
         // Get the output root.
         bytes32 outputRoot = L2_ORACLE.getL2Output(_timestamp);
 
         // Verify that the output root can be generated with the elements in the proof.
-        require(
-             outputRoot == WithdrawalVerifier._deriveOutputRoot(_outputRootProof),
-            "Calculated output root does not match expected value"
-        );
+        if (outputRoot != WithdrawalVerifier._deriveOutputRoot(_outputRootProof)) {
+            revert InvalidOutputRootProof();
+        }
 
         // Verify that the hash of the withdrawal transaction's arguments are included in the
         // storage hash of the withdrawer contract.
         bytes32 withdrawalHash = keccak256(
             abi.encode(_nonce, _sender, _target, _value, _gasLimit, _data)
         );
-        require(
+        if (
             WithdrawalVerifier._verifyWithdrawalInclusion(
                 withdrawalHash,
                 _outputRootProof.withdrawerStorageRoot,
                 _withdrawalProof
-            ) == true,
-            "Withdrawal transaction not found in storage"
-        );
+            ) == false
+        ) {
+            revert InvalidWithdrawalInclusionProof();
+        }
 
         // Check that this withdrawal has not already been finalized.
-        require(finalizedWithdrawals[withdrawalHash] == false, "Withdrawal already finalized");
+        if (finalizedWithdrawals[withdrawalHash] == true) {
+            revert WithdrawalAlreadyFinalized();
+        }
 
         l2Sender = _sender;
         // Make the call.
