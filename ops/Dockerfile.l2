@@ -1,4 +1,4 @@
-FROM mslipper/reference-optimistic-geth:latest
+FROM ethereumoptimism/reference-optimistic-geth:latest
 
 ARG L1_BLOCK_INFO_BYTECODE=""
 ARG WITHDRAWER_BYTECODE=""
