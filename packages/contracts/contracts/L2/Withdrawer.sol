@@ -12,7 +12,7 @@ import { Burner } from "./Burner.sol";
 /**
  * @title Withdrawer
  * @notice The Withdrawer contract facilitates sending both ETH value and data from L2 to L1.
- * It is predeployed in the L2 state at address 0x4200000000000000000000000000000000000015.
+ * It is predeployed in the L2 state at address 0x4200000000000000000000000000000000000016.
  */
 contract Withdrawer {
     /**********

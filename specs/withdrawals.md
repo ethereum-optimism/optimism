@@ -72,7 +72,7 @@ An L2 account sends a withdrawal message (and possibly also ETH) to the `Withdra
 ## The L2 Withdrawer Contract
 
 A withdrawal is initiated by calling the Withdrawer contract's `initiateWithdrawal` function.
-The Withdrawer is a simple predeploy contract at `0x4200000000000000000000000000000000000015` which stores messages
+The Withdrawer is a simple predeploy contract at `0x4200000000000000000000000000000000000016` which stores messages
 to be withdrawn.
 
 ```js
