@@ -44,7 +44,7 @@ func (fn outputHandlerFn) insertEpoch(ctx context.Context, l2Head eth.L2BlockRef
 	return fn(ctx, l2Head, l2SafeHead, l2Finalized, l1Input)
 }
 
-func (fn outputHandlerFn) createNewBlock(ctx context.Context, l2Head eth.L2BlockRef, l2SafeHead eth.BlockID, l2Finalized eth.BlockID, l1Origin eth.BlockID) (eth.L2BlockRef, *derive.BatchData, error) {
+func (fn outputHandlerFn) createNewBlock(ctx context.Context, l2Head eth.L2BlockRef, l2SafeHead eth.BlockID, l2Finalized eth.BlockID, l1Origin eth.L1BlockRef) (eth.L2BlockRef, *derive.BatchData, error) {
 	panic("Unimplemented")
 }
 

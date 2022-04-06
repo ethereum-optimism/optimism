@@ -25,23 +25,20 @@ type outputImpl struct {
 	Config rollup.Config
 }
 
-func (d *outputImpl) createNewBlock(ctx context.Context, l2Head eth.L2BlockRef, l2SafeHead eth.BlockID, l2Finalized eth.BlockID, l1Origin eth.BlockID) (eth.L2BlockRef, *derive.BatchData, error) {
+func (d *outputImpl) createNewBlock(ctx context.Context, l2Head eth.L2BlockRef, l2SafeHead eth.BlockID, l2Finalized eth.BlockID, l1Origin eth.L1BlockRef) (eth.L2BlockRef, *derive.BatchData, error) {
 	d.log.Info("creating new block", "l2Head", l2Head)
+
+	// If the L1 origin changed this block, then we are in the first block of the epoch
+	firstEpochBlock := l2Head.L1Origin.Number != l1Origin.Number
+
 	fetchCtx, cancel := context.WithTimeout(ctx, time.Second*20)
 	defer cancel()
-	l2Info, err := d.l2.BlockByHash(fetchCtx, l2Head.Hash)
-	if err != nil {
-		return l2Head, nil, fmt.Errorf("failed to fetch L2 block info of %s: %v", l2Head, err)
-	}
-	l2BLockRef, err := derive.BlockReferences(l2Info, &d.Config.Genesis)
-	if err != nil {
-		return l2Head, nil, fmt.Errorf("failed to derive L2BlockRef from l2Block: %w", err)
-	}
 
 	var l1Info derive.L1Info
 	var receipts types.Receipts
+	var err error
 	// Include deposits if this is the first block of an epoch
-	if l2BLockRef.L1Origin.Number != l1Origin.Number {
+	if firstEpochBlock {
 		l1Info, _, receipts, err = d.dl.Fetch(fetchCtx, l1Origin.Hash)
 	} else {
 		l1Info, err = d.dl.InfoByHash(fetchCtx, l1Origin.Hash)
@@ -49,11 +46,6 @@ func (d *outputImpl) createNewBlock(ctx context.Context, l2Head eth.L2BlockRef, 
 	}
 	if err != nil {
 		return l2Head, nil, fmt.Errorf("failed to fetch L1 block info of %s: %v", l1Origin, err)
-	}
-
-	timestamp := l2Info.Time() + d.Config.BlockTime
-	if timestamp >= l1Info.Time() {
-		return l2Head, nil, errors.New("L2 Timestamp is too large")
 	}
 
 	l1InfoTx, err := derive.L1InfoDepositBytes(l2Head.Number+1, l1Info)
@@ -72,7 +64,7 @@ func (d *outputImpl) createNewBlock(ctx context.Context, l2Head eth.L2BlockRef, 
 	depositStart := len(txns)
 
 	attrs := &l2.PayloadAttributes{
-		Timestamp:             hexutil.Uint64(timestamp),
+		Timestamp:             hexutil.Uint64(l2Head.Time + d.Config.BlockTime),
 		Random:                l2.Bytes32(l1Info.MixDigest()),
 		SuggestedFeeRecipient: d.Config.FeeRecipientAddress,
 		Transactions:          txns,
@@ -103,11 +95,11 @@ func (d *outputImpl) createNewBlock(ctx context.Context, l2Head eth.L2BlockRef, 
 // It returns the new L2 head and L2 Safe head and if there was a reorg. This function must return if there was a reorg otherwise the L2 chain must be traversed.
 func (d *outputImpl) insertEpoch(ctx context.Context, l2Head eth.L2BlockRef, l2SafeHead eth.L2BlockRef, l2Finalized eth.BlockID, l1Input []eth.BlockID) (eth.L2BlockRef, eth.L2BlockRef, bool, error) {
 	// Sanity Checks
-	if len(l1Input) == 0 {
-		return l2Head, l2SafeHead, false, fmt.Errorf("empty L1 sequencing window on L2 %s", l2SafeHead)
+	if len(l1Input) <= 1 {
+		return l2Head, l2SafeHead, false, fmt.Errorf("too small L1 sequencing window for L2 derivation on %s: %v", l2SafeHead, l1Input)
 	}
 	if len(l1Input) != int(d.Config.SeqWindowSize) {
-		return l2Head, l2SafeHead, false, errors.New("Invalid sequencing window size")
+		return l2Head, l2SafeHead, false, errors.New("invalid sequencing window size")
 	}
 
 	logger := d.log.New("input_l1_first", l1Input[0], "input_l1_last", l1Input[len(l1Input)-1], "input_l2_parent", l2SafeHead, "finalized_l2", l2Finalized)
@@ -128,6 +120,10 @@ func (d *outputImpl) insertEpoch(ctx context.Context, l2Head eth.L2BlockRef, l2S
 	if l2SafeHead.L1Origin.Hash != l1Info.ParentHash() {
 		return l2Head, l2SafeHead, false, fmt.Errorf("l1Info %v does not extend L1 Origin (%v) of L2 Safe Head (%v)", l1Info.Hash(), l2SafeHead.L1Origin, l2SafeHead)
 	}
+	nextL1Block, err := d.dl.InfoByHash(ctx, l1Input[1].Hash)
+	if err != nil {
+		return l2Head, l2SafeHead, false, fmt.Errorf("failed to get L1 timestamp of next L1 block: %v", err)
+	}
 	deposits, err := derive.DeriveDeposits(l2SafeHead.Number+1, receipts)
 	if err != nil {
 		return l2Head, l2SafeHead, false, fmt.Errorf("failed to derive deposits: %w", err)
@@ -143,9 +139,12 @@ func (d *outputImpl) insertEpoch(ctx context.Context, l2Head eth.L2BlockRef, l2S
 	}
 	// Make batches contiguous
 	minL2Time := l2Info.Time() + d.Config.BlockTime
-	maxL2Time := l1Info.Time()
+	maxL2Time := l1Info.Time() + d.Config.MaxSequencerDrift
+	if minL2Time+d.Config.BlockTime > maxL2Time {
+		maxL2Time = minL2Time + d.Config.BlockTime
+	}
 	batches = derive.FilterBatches(&d.Config, epoch, minL2Time, maxL2Time, batches)
-	batches = derive.FillMissingBatches(batches, uint64(epoch), d.Config.BlockTime, minL2Time, maxL2Time)
+	batches = derive.FillMissingBatches(batches, uint64(epoch), d.Config.BlockTime, minL2Time, nextL1Block.Time())
 
 	fc := l2.ForkchoiceState{
 		HeadBlockHash:      l2Head.Hash,
