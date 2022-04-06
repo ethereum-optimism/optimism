@@ -89,8 +89,10 @@ contract OptimismPortal is DepositFeed {
         bytes calldata _withdrawalProof
     ) external {
         // Check that the timestamp is 7 days old.
-        if (block.timestamp < _timestamp + FINALIZATION_PERIOD) {
-            revert NotYetFinal();
+        unchecked {
+            if (block.timestamp < _timestamp + FINALIZATION_PERIOD) {
+                revert NotYetFinal();
+            }
         }
 
         // Get the output root.

@@ -61,7 +61,9 @@ contract Withdrawer {
         withdrawals[withdrawalHash] = true;
 
         emit WithdrawalInitiated(nonce, from, _target, msg.value, _gasLimit, _data);
-        nonce++;
+        unchecked {
+            nonce++;
+        }
     }
 
     /**

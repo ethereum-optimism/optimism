@@ -126,6 +126,9 @@ contract L2OutputOracle is Ownable {
         );
         // For the first block recorded (ie. _l2timestamp = startingBlockTimestamp), the
         // L2BlockNumber should be historicalTotalBlocks + 1.
-        return historicalTotalBlocks + 1 + ((_l2timestamp - startingBlockTimestamp) / l2BlockTime);
+        unchecked {
+            return
+                historicalTotalBlocks + 1 + ((_l2timestamp - startingBlockTimestamp) / l2BlockTime);
+        }
     }
 }
