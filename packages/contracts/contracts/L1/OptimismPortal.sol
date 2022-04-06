@@ -22,7 +22,7 @@ contract OptimismPortal is DepositFeed {
     address internal constant DEFAULT_L2_SENDER = 0x000000000000000000000000000000000000dEaD;
 
     /// @notice Minimum time that must elapse before a withdrawal can be finalized.
-    uint256 public immutable FINALIZATION_WINDOW;
+    uint256 public immutable FINALIZATION_PERIOD;
 
     /// @notice Address of the L2OutputOracle.
     L2OutputOracle public immutable L2_ORACLE;
@@ -40,9 +40,9 @@ contract OptimismPortal is DepositFeed {
      */
     mapping(bytes32 => bool) public finalizedWithdrawals;
 
-    constructor(L2OutputOracle _l2Oracle, uint256 _finalizationWindow) {
+    constructor(L2OutputOracle _l2Oracle, uint256 _finalizationPeriod) {
         L2_ORACLE = _l2Oracle;
-        FINALIZATION_WINDOW = _finalizationWindow;
+        FINALIZATION_PERIOD = _finalizationPeriod;
     }
 
     /**
@@ -78,7 +78,7 @@ contract OptimismPortal is DepositFeed {
     ) external {
         // Check that the timestamp is 7 days old.
         require(
-            _timestamp <= block.timestamp - FINALIZATION_WINDOW,
+            _timestamp <= block.timestamp - FINALIZATION_PERIOD,
             "Finalization window has not yet passed."
         );
 
