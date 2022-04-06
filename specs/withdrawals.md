@@ -12,13 +12,14 @@
 **Table of Contents**
 
 [Withdrawals][g-withdrawal] are cross domain transactions which are initiated on L2, and finalized by a transaction
-executed on L1. They may be used to transfer data and/or ETH from L1 to L2.
+executed on L1. Notably, withdrawals may be used by and L2 account to call an L1 contract, or to transfer ETH from
+an L2 account to an L1 account.
 
 **Vocabulary note**: *withdrawal* can refer to the transaction at various stages of the process, but we introduce
-more specific terms to differentiate between the transaction
+more specific terms to differentiate:
 
-- *withdrawal initiating transaction* refers specifically to a transaction on L2 sent to the Withdrawals predeploy.
-- *withdrawal finalizing transaction* refers specifically to an L1 transaction which finalizes and relays the
+- A *withdrawal initiating transaction* refers specifically to a transaction on L2 sent to the Withdrawals predeploy.
+- A *withdrawal finalizing transaction* refers specifically to an L1 transaction which finalizes and relays the
   withdrawal.
 
 Withdrawals are initiated on L2 via a call to the Withdrawals predeploy contract, which records the important properties
@@ -37,6 +38,7 @@ finalization.
   - [On L2](#on-l2)
   - [On L1](#on-l1)
 - [The L2 Withdrawer Contract](#the-l2-withdrawer-contract)
+  - [Address Aliasing](#address-aliasing)
 - [The Optimism Portal Contract](#the-optimism-portal-contract)
 - [Withdrawal Verification and Finalization](#withdrawal-verification-and-finalization)
 - [Security Considerations](#security-considerations)
@@ -58,10 +60,12 @@ An L2 account sends a withdrawal message (and possibly also ETH) to the `Withdra
 
 ### On L1
 
-1. A [relayer][g-relayer] submits the required inputs (see below) to the `OptimismPortal` contract. The relayer need
+1. A [relayer][g-relayer] submits the required inputs to the `OptimismPortal` contract. The relayer need
    not be the same entity which initiated the withdrawal on L2.
-2. The `OptimismPortal` contract retrieves the output root from the `OutputOracle`'s `l2Outputs()` function, and
-   performs the remainder of the verification process internally.
+   These inputs include the withdrawal transaction data, inclusion proofs, and a timestamp. The timestamp
+   must be one for which an L2 output root exists, which commits to the withdrawal as registered on L2.
+2. The `OptimismPortal` contract retrieves the output root for the given timestamp from the `OutputOracle`'s
+   `l2Outputs()` function, and performs the remainder of the verification process internally.
 3. If verification fails, the call reverts. Otherwise the call is forwarded, and the hash is recorded to prevent it from
    from being replayed.
 
@@ -93,8 +97,13 @@ interface Withdrawer {
 }
 ```
 
-If called by a contract, the `initiateWithdrawal` function will alias the `sender` address in the reverse of the
-manner described in the [deposits spec](./deposits.md#address-aliasing).
+### Address Aliasing
+
+[address-aliasing]: #address-aliasing
+
+If called by a contract, the `initiateWithdrawal` function will alias the `sender` address by subtracting
+`0x1111000000000000000000000000000000001111`. This is the reverse of the
+transformation described in the [deposits spec](./deposits.md#address-aliasing).
 
 ## The Optimism Portal Contract
 
@@ -129,18 +138,19 @@ The following inputs are required to verify and finalize a withdrawal:
   - `nonce`: Nonce for the provided message.
   - `sender`: Message sender address on L2.
   - `target`: Target address on L1.
+  - `value`: ETH to send to the target.
   - `data`: Data to send to the target.
   - `gasLimit`: Gas to be forwarded to the target.
 - Proof and verification data:
   - `timestamp`: The L2 timestamp corresponding with the output root.
-  - `outputRootProof`: The 4 values which are used to derive the output root.
+  - `outputRootProof`: Four `bytes32` values which are used to derive the output root.
   - `withdrawalProof`: An inclusion proof for the given withdrawal in the withdrawer contract.
 
 These inputs must satisfy the following conditions:
 
 1. The `timestamp` is at least `FINALIZATION_PERIOD` seconds old.
 1. `OutputOracle.l2Outputs(timestamp)` returns a non-zero value `l2Output`.
-2. The `l2Output` value is equal to the hash of the components of the `outputRootProof`
+1. The keccak256 hash of the `outputRootProof` values is equal to the `l2Output`.
 1. The `withdrawalProof` is a valid inclusion proof demonstrating that a hash of the Withdrawal transaction data
    is contained in the storage of the Withdrawer contract on L2.
 
