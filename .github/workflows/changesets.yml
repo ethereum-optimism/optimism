@@ -1,5 +1,5 @@
 ---
-name: 'Changeset integrity checker'
+name: Changeset integrity checker
 on:
   - pull_request_target
 
@@ -10,5 +10,8 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v2
 
-      - name: 'changeset status'
+      - name: Install Dependencies
+        uses: yarn
+
+      - name: Changeset Status
         run: npx changeset status
