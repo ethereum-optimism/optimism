@@ -6,6 +6,9 @@ import {
     AddressAliasHelper
 } from "../../lib/optimism/packages/contracts/contracts/standards/AddressAliasHelper.sol";
 
+/* Interaction imports */
+import { Burner } from "./Burner.sol";
+
 /**
  * @title Withdrawer
  * @notice The Withdrawer contract facilitates sending both ETH value and data from L2 to L1.
@@ -86,22 +89,7 @@ contract Withdrawer {
      */
     function burn() external {
         uint256 balance = address(this).balance;
-        assembly {
-            // Put this code into memory at the scratch space (first word).
-            // 30 - address(this)
-            // ff - selfdestruct
-            mstore(0, 0x30ff)
-
-            // Transfer all funds to a new contract that will selfdestruct
-            // and destroy all the ether it holds in the process.
-            pop(
-                create(
-                    balance(address()), // Fund the new contract with the balance of this one.
-                    30, // offset
-                    2 // size
-                )
-            )
-        }
+        Burner burner = new Burner{ value: balance }();
         emit WithdrawerBalanceBurnt(balance);
     }
 }

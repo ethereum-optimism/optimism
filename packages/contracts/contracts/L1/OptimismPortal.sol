@@ -92,6 +92,7 @@ contract OptimismPortal is DepositFeed {
      * @param _nonce Nonce for the provided message.
      * @param _sender Message sender address on L2.
      * @param _target Target address on L1.
+     * @param _value ETH to send to the target.
      * @param _data Data to send to the target.
      * @param _gasLimit Gas to be forwarded to the target.
      * @param _timestamp L2 timestamp of the outputRoot.

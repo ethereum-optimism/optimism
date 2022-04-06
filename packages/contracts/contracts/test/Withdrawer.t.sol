@@ -100,25 +100,13 @@ contract WithdawerBurnTest is WithdrawerTestCommon {
 
     // Test: burn should destroy the ETH held in the contract
     function test_burn() external {
-        // Sanity check that setUp worked as expected.
         assertEq(address(wd).balance, NON_ZERO_VALUE);
         vm.expectEmit(true, false, false, false);
         emit WithdrawerBalanceBurnt(NON_ZERO_VALUE);
         wd.burn();
-        // Calculate the address of the contract that will selfdestruct at the end of this tx.
-        // Based on https://github.com/ethereum-optimism/contracts/blob/532b9a743cf34d66e812cbf1d9f28c452b52e1bd/contracts/optimistic-ethereum/libraries/utils/Lib_EthUtils.sol#L145
-        bytes[] memory encoded = new bytes[](2);
-        encoded[0] = Lib_RLPWriter.writeAddress(address(wd)); // creator
-        encoded[1] = Lib_RLPWriter.writeUint(0); // nonce
-        bytes memory encodedList = Lib_RLPWriter.writeList(encoded);
-        address created = Lib_Bytes32Utils.toAddress(keccak256(encodedList));
 
         // The Withdrawer should have no balance
         assertEq(address(wd).balance, 0);
-
-        // The created contract should have its balance
-        assertEq(created.balance, NON_ZERO_VALUE);
-
     }
 
 }
