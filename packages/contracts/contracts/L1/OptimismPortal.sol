@@ -94,6 +94,7 @@ contract OptimismPortal is DepositFeed {
      * @param _target Target address on L1.
      * @param _data Data to send to the target.
      * @param _gasLimit Gas to be forwarded to the target.
+     * @param _timestamp L2 timestamp of the outputRoot.
      * @param _outputRootProof Inclusion proof of the withdrawer contracts storage root.
      * @param _withdrawalProof Inclusion proof for the given withdrawal in the withdrawer contract.
      */

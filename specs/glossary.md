@@ -292,19 +292,20 @@ cf. [Deposits Specification](deposits.md)
 
 [withdrawals]: glossary.md#withdrawals
 
-In general, a withdrawal is a transaction sent from L2 to L1 that may transfer of data and/or value.
+In general, a withdrawal is a transaction sent from L2 to L1 that may transfer data and/or value.
 
 This term *withdrawal* is somewhat ambiguous as these "transactions" exist at multiple levels. In order to differentiate
  between the L1 and L2 components of a withdrawal we introduce the following terms:
 
-- A *withdrawing* call or transaction occurs on L2 and initiates a withdrawal.
-- A *withdrawn* call or transaction occurs on l1 as the result of an withdrawal being relayed on L1.
+- *withdrawal initiating transaction* refers specifically to a transaction on L2 sent to the Withdrawals predeploy.
+- *withdrawal finalizing transaction* refers specifically to an L1 transaction which finalizes and relays the
+  withdrawal.
 
 ## Relayer
 
 [relayer]: glossary.md#withdrawals
 
-An EOA on L1 which finalizes a withdrawal by providing submitting the data necessary to verify its inclusion on L2.
+An EOA on L1 which finalizes a withdrawal by submitting the data necessary to verify its inclusion on L2.
 
 ------------------------------------------------------------------------------------------------------------------------
 

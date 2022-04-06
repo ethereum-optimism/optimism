@@ -11,7 +11,6 @@ import {
  * @notice Implements the logic for depositing from L1 to L2.
  */
 contract DepositFeed {
-
     /**********
      * Errors *
      **********/
@@ -20,7 +19,6 @@ contract DepositFeed {
      * @notice Error emitted on deposits which create a new contract with a non-zero target.
      */
     error NonZeroCreationTarget();
-
 
     /**********
      * Events *
