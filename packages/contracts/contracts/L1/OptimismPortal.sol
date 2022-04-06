@@ -82,11 +82,12 @@ contract OptimismPortal is DepositFeed {
             "Finalization window has not yet passed."
         );
 
-        // Get the output root and verify that the withdrawer contract's storage root is contained
-        // in it.
+        // Get the output root.
         bytes32 outputRoot = L2_ORACLE.getL2Output(_timestamp);
+
+        // Verify that the output root can be generated with the elements in the proof.
         require(
-            WithdrawalVerifier._verifyWithdrawerStorageRoot(outputRoot, _outputRootProof) == true,
+             outputRoot == WithdrawalVerifier._deriveOutputRoot(_outputRootProof),
             "Calculated output root does not match expected value"
         );
 

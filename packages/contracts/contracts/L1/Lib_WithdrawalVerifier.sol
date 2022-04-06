@@ -23,18 +23,16 @@ library WithdrawalVerifier {
     }
 
     /**
-     * @notice Checks that the elements provided in the proof hash together to generate the provided
-     * output root.
-     * @param _outputRoot A hash retrieved from the L2OutputOracle contract.
+     * @notice Derives the output root corresponding to the elements provided in the proof.
      * @param _outputRootProof The elements which were hashed together to generate the output root.
      * @return Whether or not the output root matches the hashed output of the proof.
      */
-    function _verifyWithdrawerStorageRoot(
-        bytes32 _outputRoot,
-        OutputRootProof calldata _outputRootProof
-    ) internal pure returns (bool) {
+    function _deriveOutputRoot(OutputRootProof calldata _outputRootProof)
+        internal
+        pure
+        returns (bytes32)
+    {
         return
-            _outputRoot ==
             keccak256(
                 abi.encode(
                     _outputRootProof.version,
