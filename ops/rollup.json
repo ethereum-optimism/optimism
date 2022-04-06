@@ -19,7 +19,7 @@
 
   "l1_chain_id": 900,
 
-  "fee_recipient_address":  "0xff00000000000000000000000000000000000002",
+  "fee_recipient_address":  "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
 
   "batch_inbox_address":  "0xff00000000000000000000000000000000000002",
 
