@@ -1,5 +1,11 @@
 # @eth-optimism/go-builder
 
+## 0.0.3
+
+### Patch Changes
+
+- ec446248: Trigger releases
+
 ## 0.0.2
 
 ### Patch Changes
