@@ -4,13 +4,13 @@ pragma solidity 0.8.10;
 /* Library Imports */
 import {
     AddressAliasHelper
-} from "../../lib/optimism/packages/contracts/contracts/standards/AddressAliasHelper.sol";
+} from "../../../lib/optimism/packages/contracts/contracts/standards/AddressAliasHelper.sol";
 
 /**
  * @title DepositFeed
  * @notice Implements the logic for depositing from L1 to L2.
  */
-contract DepositFeed {
+abstract contract DepositFeed {
     /**********
      * Errors *
      **********/

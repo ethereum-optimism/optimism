@@ -1,13 +1,10 @@
 //SPDX-License-Identifier: MIT
 pragma solidity 0.8.10;
 
-/* Interactions Imports */
-import { L2OutputOracle } from "./L2OutputOracle.sol";
-
 /* Library Imports */
 import {
     Lib_SecureMerkleTrie
-} from "../../lib/optimism/packages/contracts/contracts/libraries/trie/Lib_SecureMerkleTrie.sol";
+} from "../../../lib/optimism/packages/contracts/contracts/libraries/trie/Lib_SecureMerkleTrie.sol";
 
 /**
  * @title WithdrawalVerifier

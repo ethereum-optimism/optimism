@@ -1,13 +1,19 @@
 //SPDX-License-Identifier: MIT
 pragma solidity 0.8.10;
 
+/* Testing utilities */
 import { DSTest } from "../../lib/ds-test/src/test.sol";
 import { Vm } from "../../lib/forge-std/src/Vm.sol";
-import { DepositFeed } from "../L1/DepositFeed.sol";
 
+/* Library Imports */
 import {
     AddressAliasHelper
 } from "../../lib/optimism/packages/contracts/contracts/standards/AddressAliasHelper.sol";
+
+/* Target contract */
+import { DepositFeed } from "../L1/abstracts/DepositFeed.sol";
+
+contract Target is DepositFeed {}
 
 contract DepositFeedTest is DSTest {
     Vm vm = Vm(HEVM_ADDRESS);
@@ -18,7 +24,7 @@ contract DepositFeedTest is DSTest {
     uint256 immutable NON_ZERO_GASLIMIT = 50000;
     bytes NON_ZERO_DATA = hex"1111";
 
-    DepositFeed df;
+    Target df;
 
     event TransactionDeposited(
         address indexed from,
@@ -31,7 +37,7 @@ contract DepositFeedTest is DSTest {
     );
 
     function setUp() external {
-        df = new DepositFeed();
+        df = new Target();
     }
 
     // Test: depositTransaction fails when contract creation has a non-zero destination address
