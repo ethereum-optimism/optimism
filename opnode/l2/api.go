@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"reflect"
 
+	"github.com/ethereum/go-ethereum/core/beacon"
+
 	"github.com/ethereum-optimism/optimistic-specs/opnode/eth"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -85,8 +87,7 @@ type Uint256Quantity = uint256.Int
 
 type Data = hexutil.Bytes
 
-// TODO: implement neat 8 byte typed payload ID and upstream it to geth api definitions
-type PayloadID = hexutil.Bytes
+type PayloadID = beacon.PayloadID
 
 type ExecutionPayload struct {
 	ParentHashField common.Hash     `json:"parentHash"`
@@ -94,7 +95,7 @@ type ExecutionPayload struct {
 	StateRoot       Bytes32         `json:"stateRoot"`
 	ReceiptsRoot    Bytes32         `json:"receiptsRoot"`
 	LogsBloom       Bytes256        `json:"logsBloom"`
-	Random          Bytes32         `json:"random"`
+	PrevRandao      Bytes32         `json:"prevRandao"`
 	BlockNumber     Uint64Quantity  `json:"blockNumber"`
 	GasLimit        Uint64Quantity  `json:"gasLimit"`
 	GasUsed         Uint64Quantity  `json:"gasUsed"`
@@ -151,7 +152,7 @@ type PayloadAttributes struct {
 	// value for the timestamp field of the new payload
 	Timestamp Uint64Quantity `json:"timestamp"`
 	// value for the random field of the new payload
-	Random Bytes32 `json:"random"`
+	PrevRandao Bytes32 `json:"prevRandao"`
 	// suggested value for the coinbase field of the new payload
 	SuggestedFeeRecipient common.Address `json:"suggestedFeeRecipient"`
 	// Transactions to force into the block (always at the start of the transactions list).
@@ -169,9 +170,16 @@ const (
 	ExecutionInvalid ExecutePayloadStatus = "INVALID"
 	// sync process is in progress
 	ExecutionSyncing ExecutePayloadStatus = "SYNCING"
+	// returned if the payload is not fully validated, and does not extend the canonical chain,
+	// but will be remembered for later (on reorgs or sync updates and such)
+	ExecutionAccepted ExecutePayloadStatus = "ACCEPTED"
+	// if the block-hash in the payload is not correct
+	ExecutionInvalidBlockHash ExecutePayloadStatus = "INVALID_BLOCK_HASH"
+	// proof-of-stake transition only, not used in rollup
+	ExecutionInvalidTerminalBlock ExecutePayloadStatus = "INVALID_TERMINAL_BLOCK"
 )
 
-type ExecutePayloadResult struct {
+type PayloadStatusV1 struct {
 	// the result of the payload execution
 	Status ExecutePayloadStatus `json:"status"`
 	// the hash of the most recent valid block in the branch defined by payload and its ancestors
@@ -189,18 +197,9 @@ type ForkchoiceState struct {
 	FinalizedBlockHash common.Hash `json:"finalizedBlockHash"`
 }
 
-type ForkchoiceUpdatedStatus string
-
-const (
-	// given payload is valid
-	UpdateSuccess ForkchoiceUpdatedStatus = "SUCCESS"
-	// sync process is in progress
-	UpdateSyncing ForkchoiceUpdatedStatus = "SYNCING"
-)
-
 type ForkchoiceUpdatedResult struct {
 	// the result of the payload execution
-	Status ForkchoiceUpdatedStatus `json:"status"`
+	PayloadStatus PayloadStatusV1 `json:"payloadStatus"`
 	// the payload id if requested
 	PayloadID *PayloadID `json:"payloadId"`
 }

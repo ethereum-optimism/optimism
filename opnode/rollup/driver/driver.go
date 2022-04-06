@@ -31,7 +31,7 @@ type Downloader interface {
 type Engine interface {
 	GetPayload(ctx context.Context, payloadId l2.PayloadID) (*l2.ExecutionPayload, error)
 	ForkchoiceUpdate(ctx context.Context, state *l2.ForkchoiceState, attr *l2.PayloadAttributes) (*l2.ForkchoiceUpdatedResult, error)
-	ExecutePayload(ctx context.Context, payload *l2.ExecutionPayload) error
+	NewPayload(ctx context.Context, payload *l2.ExecutionPayload) error
 	BlockByHash(context.Context, common.Hash) (*types.Block, error)
 	BlockByNumber(context.Context, *big.Int) (*types.Block, error)
 }
