@@ -140,7 +140,8 @@ abstract contract WithdrawalsRelay {
 
         l2Sender = _sender;
         // Make the call.
-        _target.call{ value: _value, gas: _gasLimit }(_data);
+        (bool s, ) = _target.call{ value: _value, gas: _gasLimit }(_data);
+        s; // Silence the compiler's "Return value of low-level calls not used" warning.
         l2Sender = DEFAULT_L2_SENDER;
 
         // All withdrawals are immediately finalized. If the ability to replay a transaction is

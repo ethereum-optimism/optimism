@@ -36,14 +36,15 @@ contract OptimismPortal_Test is DSTest {
         op = new OptimismPortal(oracle, 7 days);
     }
 
-
     function test_receive_withEthValueFromEOA() external {
         // EOA emulation
         vm.prank(address(this), address(this));
 
         vm.expectEmit(true, true, false, true);
         emit TransactionDeposited(address(this), address(this), 100, 100, 30_000, false, hex"");
-        address(op).call{ value: 100 }(hex"");
+
+        (bool s, ) = address(op).call{ value: 100 }(hex"");
+        s; // Silence the compiler's "Return value of low-level calls not used" warning.
 
         assertEq(address(op).balance, 100);
     }

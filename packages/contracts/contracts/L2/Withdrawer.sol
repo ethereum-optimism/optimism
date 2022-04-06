@@ -89,7 +89,7 @@ contract Withdrawer {
      */
     function burn() external {
         uint256 balance = address(this).balance;
-        Burner burner = new Burner{ value: balance }();
+        new Burner{ value: balance }();
         emit WithdrawerBalanceBurnt(balance);
     }
 }
