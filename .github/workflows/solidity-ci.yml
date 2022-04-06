@@ -32,12 +32,6 @@ jobs:
             cache: 'yarn'
       - run: yarn install
 
-      - name: Build with HH
-        run: yarn build:hh
-
-      - name: Test
-        run: yarn test:hh
-
       - name: Lint
         run: yarn lint:check
 

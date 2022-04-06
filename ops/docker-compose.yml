@@ -22,6 +22,7 @@ services:
       dockerfile: Dockerfile.l2
       args:
         L1_BLOCK_INFO_BYTECODE: $L1_BLOCK_INFO_BYTECODE
+        WITHDRAWER_BYTECODE: $WITHDRAWER_BYTECODE
     ports:
       - "9545:8545"
     volumes:
@@ -40,19 +41,4 @@ services:
       - ${PWD}/bss-key.txt:/config/bss-key.txt
       - ${PWD}/rollup.json:/config/rollup.json
     command:
-      - "op"
-      - "--l1"
-      - "ws://l1:8546"
-      - "--l2"
-      - "ws://l2:8546"
-      - "--sequencing.enabled"
-      - "--rollup.config"
-      - "/config/rollup.json"
-      - "--batchsubmitter.key"
-      - "/config/bss-key.txt"
-      - "--l2.eth"
-      - "http://l2:8545"
-      - "--rpc.addr"
-      - "0.0.0.0"
-      - "--rpc.port"
-      - "8545"
+      - "opnode-entrypoint.sh"

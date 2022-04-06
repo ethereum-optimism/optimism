@@ -5,7 +5,8 @@
   "main": "index.js",
   "license": "MIT",
   "dependencies": {
-    "hardhat": "^2.7.1"
+    "hardhat": "^2.7.1",
+    "rlp": "^2.2.7"
   },
   "scripts": {
     "build:forge": "forge build",
