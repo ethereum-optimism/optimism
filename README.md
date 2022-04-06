@@ -5,7 +5,7 @@
 This repository holds the work-in-progress specification for the next version of
 Optimism.
 
-This spec is developped iteratively, specifying a rollup of increasing
+This spec is developed iteratively, specifying a rollup of increasing
 complexity. The current stage specifies a "rollup" whose only transactions are
 deposits (L2 transactions submitted on L1).
 
@@ -18,7 +18,11 @@ Please note that this specification is currently under heavy construction.
 
 ## Local Devnet Setup
 
-You can spin up a local devnet via `docker-compose`. For convenence, we have defined `make` targets to start and stop the devnet with a single command. To run the devnet, you will need `docker` and `docker-compose` installed. Then, as a precondition, make sure that you have compiled the contracts by `cd`ing into `packages/contracts` and running `yarn` followed by `yarn build`. You'll only need to do this if you change the contracts in the future.
+You can spin up a local devnet via `docker-compose`.
+For convenience, we have defined `make` targets to start and stop the devnet with a single command.
+To run the devnet, you will need `docker` and `docker-compose` installed.
+Then, as a precondition, make sure that you have compiled the contracts by `cd`ing into `packages/contracts`
+and running `yarn` followed by `yarn build`. You'll only need to do this if you change the contracts in the future.
 
 Then, run the following:
 
@@ -28,14 +32,17 @@ make devnet-down # stops the devnet
 make devnet-clean # removes the devnet by deleting images and persistent volumes
 ```
 
-L1 is accessible at `http://localhost:8545`, and L2 is accessible at `http://localhost:8546`. Any Ethereum tool - Metamask, `seth`, etc. - can use these endpoints. Note that you will need to specify the L2 chain ID manually if you use Metamask. The devnet's L2 chain ID is 901.
+L1 is accessible at `http://localhost:8545`, and L2 is accessible at `http://localhost:8546`.
+Any Ethereum tool - Metamask, `seth`, etc. - can use these endpoints.
+Note that you will need to specify the L2 chain ID manually if you use Metamask. The devnet's L2 chain ID is 901.
 
 The devnet comes with a pre-funded account you can use as a faucet:
 
 - Address: `0xde3829a23df1479438622a08a116e8eb3f620bb5`
 - Private key: `bf7604d9d3a1c7748642b1b7b05c2bd219c9faa91458b370f85e5a40f3b03af7`
 
-The faucet account exists on both L1 and L2. To deposit onto L2 from L1, you can use the `deposit` hardhat task. Run the following from the `packags/contracts` directory:
+The faucet account exists on both L1 and L2. To deposit onto L2 from L1, you can use the `deposit` hardhat task.
+Run the following from the `packags/contracts` directory:
 
 ```bash
 npx hardhat deposit --amount-eth <amount in eth> --to <address>
