@@ -236,8 +236,9 @@ func (s *state) createNewL2Block(ctx context.Context) (eth.L1BlockRef, error) {
 			"l2Head", s.l2Head, "nextL2Time", nextL2Time, "l1Origin", nextOrigin, "l1OriginTime", nextOrigin.Time)
 		return eth.L1BlockRef{}, nil
 	}
-	// Don't produce blocks until past the L1 genesis
-	if nextOrigin.Number <= s.Config.Genesis.L1.Number {
+	// Don't produce blocks until at the rollup-genesis block of the L1 chain
+	// note: deposits within this L1 block will be included in L2.
+	if nextOrigin.Number < s.Config.Genesis.L1.Number {
 		s.log.Info("Skipping block production because the next L1 Origin is behind the L1 genesis")
 		return eth.L1BlockRef{}, nil
 	}
