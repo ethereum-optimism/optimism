@@ -11,10 +11,20 @@ import {
  * @notice Implements the logic for depositing from L1 to L2.
  */
 contract DepositFeed {
+
+    /**********
+     * Errors *
+     **********/
+
     /**
      * @notice Error emitted on deposits which create a new contract with a non-zero target.
      */
     error NonZeroCreationTarget();
+
+
+    /**********
+     * Events *
+     **********/
 
     /**
      * @notice Emitted when a Transaction is deposited from L1 to L2. The parameters of this
@@ -29,6 +39,10 @@ contract DepositFeed {
         bool isCreation,
         bytes data
     );
+
+    /**********************
+     * External Functions *
+     **********************/
 
     /**
      * @notice Accepts deposits of ETH and data, and emits a TransactionDeposited event for use in

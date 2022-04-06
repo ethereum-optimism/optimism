@@ -15,6 +15,10 @@ import { WithdrawalVerifier } from "./Lib_WithdrawalVerifier.sol";
  * @notice The OptimismPortal is a contract on L1 used to deposit and withdraw between L2 and L1.
  */
 contract OptimismPortal is DepositFeed {
+    /**********
+     * Errors *
+     **********/
+
     /// @notice Error emitted when attempting to finalize a withdrawal too early.
     error NotYetFinal();
 
@@ -27,11 +31,19 @@ contract OptimismPortal is DepositFeed {
     /// @notice Error emitted when a withdrawal has already been finalized.
     error WithdrawalAlreadyFinalized();
 
+    /**********
+     * Events *
+     **********/
+
     /// @notice Emitted when a withdrawal is finalized
     event WithdrawalFinalized(bytes32 indexed);
 
     /// @notice Value used to reset the l2Sender, this is more efficient than setting it to zero.
     address internal constant DEFAULT_L2_SENDER = 0x000000000000000000000000000000000000dEaD;
+
+    /**********************
+     * Contract Variables *
+     **********************/
 
     /// @notice Minimum time that must elapse before a withdrawal can be finalized.
     uint256 public immutable FINALIZATION_PERIOD;
@@ -52,10 +64,18 @@ contract OptimismPortal is DepositFeed {
      */
     mapping(bytes32 => bool) public finalizedWithdrawals;
 
+    /***************
+     * Constructor *
+     ***************/
+
     constructor(L2OutputOracle _l2Oracle, uint256 _finalizationPeriod) {
         L2_ORACLE = _l2Oracle;
         FINALIZATION_PERIOD = _finalizationPeriod;
     }
+
+    /**********************
+     * External Functions *
+     **********************/
 
     /**
      * @notice Accepts value so that users can send ETH directly to this contract and

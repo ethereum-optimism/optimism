@@ -12,11 +12,9 @@ import {
  * It is predeployed in the L2 state at address 0x4200000000000000000000000000000000000015.
  */
 contract Withdrawer {
-    /// @notice A unique value hashed with each withdrawal.
-    uint256 public nonce;
-
-    /// @notice A mapping listing withdrawals which have been initiated herein.
-    mapping(bytes32 => bool) public withdrawals;
+    /**********
+     * Events *
+     **********/
 
     /**
      * @notice Emitted any time a withdrawal is initiated.
@@ -38,6 +36,20 @@ contract Withdrawer {
 
     /// @notice Emitted when the balance of this contract is burned.
     event WithdrawerBalanceBurnt(uint256 indexed amount);
+
+    /**********************
+     * Contract Variables *
+     **********************/
+
+    /// @notice A unique value hashed with each withdrawal.
+    uint256 public nonce;
+
+    /// @notice A mapping listing withdrawals which have been initiated herein.
+    mapping(bytes32 => bool) public withdrawals;
+
+    /**********************
+     * External Functions *
+     **********************/
 
     /**
      * @notice Initiates a withdrawal to execute on L1.
