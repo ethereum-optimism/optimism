@@ -152,7 +152,7 @@ jobs:
   go-builder:
     name: Publish go-builder ${{ needs.release.outputs.go-builder }}
     needs: release
-    if: needs.release.go-builder != ''
+    if: needs.release.outputs.go-builder != ''
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -178,7 +178,7 @@ jobs:
   js-builder:
     name: Publish js-builder ${{ needs.release.outputs.js-builder }}
     needs: release
-    if: needs.release.js-builder != ''
+    if: needs.release.outputs.js-builder != ''
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
