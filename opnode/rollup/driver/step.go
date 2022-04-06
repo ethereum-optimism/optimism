@@ -65,7 +65,7 @@ func (d *outputImpl) createNewBlock(ctx context.Context, l2Head eth.L2BlockRef, 
 
 	attrs := &l2.PayloadAttributes{
 		Timestamp:             hexutil.Uint64(l2Head.Time + d.Config.BlockTime),
-		Random:                l2.Bytes32(l1Info.MixDigest()),
+		PrevRandao:            l2.Bytes32(l1Info.MixDigest()),
 		SuggestedFeeRecipient: d.Config.FeeRecipientAddress,
 		Transactions:          txns,
 		NoTxPool:              false,
@@ -170,7 +170,7 @@ func (d *outputImpl) insertEpoch(ctx context.Context, l2Head eth.L2BlockRef, l2S
 		txns = append(txns, batch.Transactions...)
 		attrs := &l2.PayloadAttributes{
 			Timestamp:             hexutil.Uint64(batch.Timestamp),
-			Random:                l2.Bytes32(l1Info.MixDigest()),
+			PrevRandao:            l2.Bytes32(l1Info.MixDigest()),
 			SuggestedFeeRecipient: d.Config.FeeRecipientAddress,
 			Transactions:          txns,
 			NoTxPool:              false,
@@ -216,8 +216,8 @@ func attributesMatchBlock(attrs *l2.PayloadAttributes, parentHash common.Hash, b
 	if uint64(attrs.Timestamp) != block.Time() {
 		return fmt.Errorf("timestamp field does not match. expected: %v. got: %v", uint64(attrs.Timestamp), block.Time())
 	}
-	if attrs.Random != l2.Bytes32(block.MixDigest()) {
-		return fmt.Errorf("random field does not match. expected: %v. got: %v", attrs.Random, l2.Bytes32(block.MixDigest()))
+	if attrs.PrevRandao != l2.Bytes32(block.MixDigest()) {
+		return fmt.Errorf("random field does not match. expected: %v. got: %v", attrs.PrevRandao, l2.Bytes32(block.MixDigest()))
 	}
 	if len(attrs.Transactions) != len(block.Transactions()) {
 		return fmt.Errorf("transaction count does not match. expected: %v. got: %v", len(attrs.Transactions), len(block.Transactions()))
@@ -281,7 +281,7 @@ func (d *outputImpl) insertHeadBlock(ctx context.Context, fc l2.ForkchoiceState,
 	if err != nil {
 		return nil, fmt.Errorf("failed to get execution payload: %w", err)
 	}
-	err = d.l2.ExecutePayload(ctx, payload)
+	err = d.l2.NewPayload(ctx, payload)
 	if err != nil {
 		return nil, fmt.Errorf("failed to insert execution payload: %w", err)
 	}

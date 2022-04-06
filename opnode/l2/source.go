@@ -68,25 +68,30 @@ func (s *Source) ForkchoiceUpdate(ctx context.Context, fc *ForkchoiceState, attr
 			e.Error("Failed to share forkchoice-updated signal")
 		}
 	}
-	switch result.Status {
-	case UpdateSyncing:
+	switch result.PayloadStatus.Status {
+	case ExecutionSyncing:
 		return nil, fmt.Errorf("updated forkchoice, but node is syncing: %v", err)
-	case UpdateSuccess:
+	case ExecutionAccepted, ExecutionInvalidTerminalBlock, ExecutionInvalidBlockHash:
+		// ACCEPTED, INVALID_TERMINAL_BLOCK, INVALID_BLOCK_HASH are only for execution
+		return nil, fmt.Errorf("unexpected %s status, could not update forkchoice: %v", result.PayloadStatus.Status, err)
+	case ExecutionInvalid:
+		return nil, fmt.Errorf("cannot update forkchoice, block is invalid: %v", err)
+	case ExecutionValid:
 		return &result, nil
 	default:
-		return nil, fmt.Errorf("unknown forkchoice status on %s: %q, ", fc.SafeBlockHash, string(result.Status))
+		return nil, fmt.Errorf("unknown forkchoice status on %s: %q, ", fc.SafeBlockHash, string(result.PayloadStatus.Status))
 	}
 }
 
 // ExecutePayload executes a built block on the execution engine and returns an error if it was not successful.
-func (s *Source) ExecutePayload(ctx context.Context, payload *ExecutionPayload) error {
+func (s *Source) NewPayload(ctx context.Context, payload *ExecutionPayload) error {
 	e := s.log.New("block_hash", payload.BlockHash)
 	e.Debug("sending payload for execution")
 
 	execCtx, cancel := context.WithTimeout(ctx, time.Second*5)
 	defer cancel()
-	var result ExecutePayloadResult
-	err := s.rpc.CallContext(execCtx, &result, "engine_executePayloadV1", payload)
+	var result PayloadStatusV1
+	err := s.rpc.CallContext(execCtx, &result, "engine_newPayloadV1", payload)
 	e.Debug("Received payload execution result", "status", result.Status, "latestValidHash", result.LatestValidHash, "message", result.ValidationError)
 	if err != nil {
 		e.Error("Payload execution failed", "err", err)
@@ -97,9 +102,15 @@ func (s *Source) ExecutePayload(ctx context.Context, payload *ExecutionPayload) 
 	case ExecutionValid:
 		return nil
 	case ExecutionSyncing:
-		return fmt.Errorf("failed to execute payload %s, node is syncing, latest valid hash is %s", payload.ID(), result.LatestValidHash)
+		return fmt.Errorf("failed to execute payload %s, node is syncing", payload.ID())
 	case ExecutionInvalid:
 		return fmt.Errorf("execution payload %s was INVALID! Latest valid hash is %s, ignoring bad block: %q", payload.ID(), result.LatestValidHash, result.ValidationError)
+	case ExecutionInvalidBlockHash:
+		return fmt.Errorf("execution payload %s has INVALID BLOCKHASH! %v", payload.BlockHash, result.ValidationError)
+	case ExecutionInvalidTerminalBlock:
+		return fmt.Errorf("engine is misconfigured. Received invalid-terminal-block error while engine API should be active at genesis. err: %v", result.ValidationError)
+	case ExecutionAccepted:
+		return fmt.Errorf("execution payload cannot be validated yet, latest valid hash is %s", result.LatestValidHash)
 	default:
 		return fmt.Errorf("unknown execution status on %s: %q, ", payload.ID(), string(result.Status))
 	}
