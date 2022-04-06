@@ -198,6 +198,8 @@ var argTypes = map[string][]reflect.Type{
 	"txpool_contentFrom": []reflect.Type{},
 	"txpool_status":      []reflect.Type{},
 	"txpool_inspect":     []reflect.Type{},
+
+	// TODO: debug methods
 }
 
 // These types are taken from go-ethereum/internal

@@ -27,6 +27,15 @@ var (
 	KovanChainId = big.NewInt(69)
 )
 
+// maxEpoch represents the maximum epoch
+// supported by the daisychain. If the RequestOptions
+// is sent with an epoch larger than this, it is an
+// error
+const maxEpoch = uint(6)
+
+// DaisyChainServer is the main struct representing
+// the daisy chain server. It has a reference to
+// each possible backend
 type DaisyChainServer struct {
 	rpcServer          *http.Server
 	maxBodySize        int64
@@ -42,12 +51,16 @@ type DaisyChainServer struct {
 	upgrader           *websocket.Upgrader
 }
 
+// RequestOptions represents the optional
+// additional RPC parameter than can be sent
+// by a user to the daisychain server. The epoch
+// represents the backend that the request should be
+// sent to.
 type RequestOptions struct {
-	Epoch *uint `json:"epoch,omitempty"`
+	Epoch uint `json:"epoch"`
 }
 
-var latestEpoch = uint(6)
-
+// NewDaisyChainServer will create a daisychain server
 func NewDaisyChainServer(
 	backends map[string]*Backend,
 	maxBodySize int64,
@@ -73,6 +86,8 @@ func NewDaisyChainServer(
 	return &srv
 }
 
+// StartDaisyChain will start a daisychain server
+// and is the entrypoint to the application
 func StartDaisyChain(config *Config) (func(), error) {
 	if err := config.ValidateDaisyChainBackends(); err != nil {
 		return func() {}, err
@@ -98,39 +113,13 @@ func StartDaisyChain(config *Config) (func(), error) {
 		config.Eth.BedrockCutoffBlock,
 	)
 
-	// send a chain id request to each node to ensure they are on the same chain
-	req, _ := ParseRPCReq([]byte(`{"id":"1","jsonrpc":"2.0","method":"eth_chainId","params":[]}`))
-	chainIds := []*hexutil.Big{}
-	for _, backend := range srv.Backends() {
-		res, _ := backend.Forward(context.Background(), req)
-		str, ok := res.Result.(string)
-		if !ok {
-			return nil, errors.New("cannot fetch chainid on start")
-		}
-		chainId := new(hexutil.Big)
-		err := chainId.UnmarshalText([]byte(str))
-		if err != nil {
-			return nil, err
-		}
-		chainIds = append(chainIds, chainId)
+	l2ChainID, err := srv.checkChainIDs()
+	if err != nil {
+		return func() {}, err
 	}
-
-	if len(chainIds) == 0 {
-		panic("cannot fetch remote chain id")
+	if srv.l2ChainID == nil {
+		srv.l2ChainID = l2ChainID
 	}
-	chainId := chainIds[0].ToInt()
-	for _, id := range chainIds {
-		if id.ToInt().Cmp(chainId) != 0 {
-			log.Crit("mismatched chain ids detected", "chain-id", chainId, "other", id)
-		}
-	}
-	log.Info("detected chain id", "value", chainId)
-	if srv.l2ChainID != nil {
-		if srv.l2ChainID.Cmp(chainId) != 0 {
-			return nil, fmt.Errorf("mismatched chainids: expected %d, got %d", srv.l2ChainID, chainId)
-		}
-	}
-	srv.l2ChainID = chainId
 
 	if srv.l2ChainID.Cmp(MainnetChainId) == 0 {
 		log.Info("running on mainnet")
@@ -187,6 +176,46 @@ func StartDaisyChain(config *Config) (func(), error) {
 	}, nil
 }
 
+// checkChainIDs will check that each configured backend returns
+// the same chain id
+func (s *DaisyChainServer) checkChainIDs() (*big.Int, error) {
+	// send a chain id request to each node to ensure they are on the same chain
+	req, _ := ParseRPCReq([]byte(`{"id":"1","jsonrpc":"2.0","method":"eth_chainId","params":[]}`))
+	chainIds := []*hexutil.Big{}
+	for _, backend := range s.Backends() {
+		res, _ := backend.Forward(context.Background(), req)
+		str, ok := res.Result.(string)
+		if !ok {
+			return nil, errors.New("cannot fetch chainid on start")
+		}
+		chainId := new(hexutil.Big)
+		err := chainId.UnmarshalText([]byte(str))
+		if err != nil {
+			return nil, err
+		}
+		chainIds = append(chainIds, chainId)
+	}
+
+	if len(chainIds) == 0 {
+		panic("cannot fetch remote chain id")
+	}
+	chainId := chainIds[0].ToInt()
+	for _, id := range chainIds {
+		if id.ToInt().Cmp(chainId) != 0 {
+			log.Crit("mismatched chain ids detected", "chain-id", chainId, "other", id)
+		}
+	}
+	log.Info("detected chain id", "value", chainId)
+	if s.l2ChainID != nil {
+		if s.l2ChainID.Cmp(chainId) != 0 {
+			return nil, fmt.Errorf("mismatched chainids: expected %d, got %d", s.l2ChainID, chainId)
+		}
+	}
+	return chainId, nil
+}
+
+// HandleRPC is the top level RPC handler for the daisychain.
+// All RPC requests are routed through this handler.
 func (s *DaisyChainServer) HandleRPC(w http.ResponseWriter, r *http.Request) {
 	ctx := populateContext(w, r, s.authenticatedPaths)
 	if ctx == nil {
@@ -214,15 +243,22 @@ func (s *DaisyChainServer) HandleRPC(w http.ResponseWriter, r *http.Request) {
 			return NewRPCErrorRes(req.ID, ErrParseErr), false
 		}
 
+		// TODO(tynes): perhaps a better approach is to attempt to classify the request
+		// up front and then have an enum in a switch statement
 		var res *RPCRes
+		// Check to see if the request is meant for the latest node
+		// first. This will be the most commonly used case, so check first.
 		if s.isLatestEpochsRPC(argument) {
-			// Check to see if the request is meant to go for
-			// the latest epochs (5 or 6)
 			res = s.handleLatestEpochsRPC(ctx, req, values)
 		} else if s.isHashBasedRPC(values) {
 			// Check to see if a hash was passed in the rpc params
+			// and fall back to each node, looking for the hash
+			// TODO: If we want users to be able to pass a hash
+			// and not need to be explicit with the epoch and have
+			// it "just work" then this needs to be checked first
 			res = s.handleHashTaggedRPC(ctx, req)
 		} else {
+			// If an epoch was passed then route based on the epoch
 			res = s.handleEpochRPC(ctx, req, argument)
 		}
 		return res, false
@@ -231,42 +267,46 @@ func (s *DaisyChainServer) HandleRPC(w http.ResponseWriter, r *http.Request) {
 	handleRPC(ctx, w, r, s.maxBodySize, doRequest)
 }
 
+// isLatestEpochsRPC will check to see if the request
 func (s *DaisyChainServer) isLatestEpochsRPC(opts *RequestOptions) bool {
 	if opts == nil {
 		return true
 	}
-	if opts.Epoch == nil {
-		return true
-	}
-	if *opts.Epoch == 5 || *opts.Epoch == 6 {
+	if opts.Epoch == 5 || opts.Epoch == 6 {
 		return true
 	}
 	return false
 }
 
+// Backends returns a list of all of the configured
+// backends in descending order.
 func (s *DaisyChainServer) Backends() []*Backend {
 	backends := []*Backend{}
-	if s.epoch1 != nil {
-		backends = append(backends, s.epoch1)
-	}
-	if s.epoch2 != nil {
-		backends = append(backends, s.epoch2)
-	}
-	if s.epoch3 != nil {
-		backends = append(backends, s.epoch3)
-	}
-	if s.epoch4 != nil {
-		backends = append(backends, s.epoch4)
+	if s.epoch6 != nil {
+		backends = append(backends, s.epoch6)
 	}
 	if s.epoch5 != nil {
 		backends = append(backends, s.epoch5)
 	}
-	if s.epoch6 != nil {
-		backends = append(backends, s.epoch6)
+	if s.epoch4 != nil {
+		backends = append(backends, s.epoch4)
+	}
+	if s.epoch3 != nil {
+		backends = append(backends, s.epoch3)
+	}
+	if s.epoch2 != nil {
+		backends = append(backends, s.epoch2)
+	}
+	if s.epoch1 != nil {
+		backends = append(backends, s.epoch1)
 	}
 	return backends
 }
 
+// handleLatestEpochsRPC will send a request to the post regenesis nodes.
+// This needs to be able to determine if the request should be sent to
+// the bedrock node or the pre bedrock node based on the bedrockCutoffBlock.
+// It also needs to handle string based blocktags.
 // TODO: handle eth_getLogs across the cutoff point
 func (s *DaisyChainServer) handleLatestEpochsRPC(ctx context.Context, req *RPCReq, values []reflect.Value) *RPCRes {
 	backend := s.epoch6
@@ -289,9 +329,16 @@ func (s *DaisyChainServer) handleLatestEpochsRPC(ctx context.Context, req *RPCRe
 	return res
 }
 
+// handleEpochRPC will determine the epoch that the user specified and
+// send the request to the appropriate backend
 func (s *DaisyChainServer) handleEpochRPC(ctx context.Context, req *RPCReq, argument *RequestOptions) *RPCRes {
+	if argument == nil {
+		log.Trace("cannot process nil request options")
+		return NewRPCErrorRes(req.ID, ErrInternal)
+	}
+
 	var backend *Backend
-	switch *argument.Epoch {
+	switch argument.Epoch {
 	case 6:
 		backend = s.epoch6
 	case 5:
@@ -321,8 +368,8 @@ func (s *DaisyChainServer) handleEpochRPC(ctx context.Context, req *RPCReq, argu
 	return res
 }
 
-// TODO: perhaps the better approach is to attempt to classify the request
-// up front and then have an enum in a switch statement
+// isHashBasedRPC will check to see if any of the params are
+// a hash so that each backend can be attempted in order
 func (s *DaisyChainServer) isHashBasedRPC(values []reflect.Value) bool {
 	for _, value := range values {
 		iface := value.Interface()
@@ -338,21 +385,7 @@ func (s *DaisyChainServer) isHashBasedRPC(values []reflect.Value) bool {
 	return false
 }
 
-func (s *DaisyChainServer) isNumberBasedRPC(values []reflect.Value) (*big.Int, bool) {
-	for _, value := range values {
-		iface := value.Interface()
-		if param, ok := iface.(rpc.BlockNumberOrHash); ok {
-			if num, ok := param.Number(); ok {
-				return new(big.Int).SetInt64(num.Int64()), true
-			}
-		}
-		if num, ok := iface.(rpc.BlockNumber); ok {
-			return new(big.Int).SetInt64(num.Int64()), true
-		}
-	}
-	return nil, false
-}
-
+// RPCListenAndServe and start the RPC server
 func (s *DaisyChainServer) RPCListenAndServe(host string, port int) error {
 	hdlr := mux.NewRouter()
 	hdlr.HandleFunc("/healthz", s.HandleHealthz).Methods("GET")
@@ -369,21 +402,47 @@ func (s *DaisyChainServer) RPCListenAndServe(host string, port int) error {
 	return s.rpcServer.ListenAndServe()
 }
 
+// Shutdown will shut down the server
 func (s *DaisyChainServer) Shutdown() {
 	if s.rpcServer != nil {
 		_ = s.rpcServer.Shutdown(context.Background())
 	}
 }
 
+// HandleHealthz is the health handler for infrastructure
+// monitoring
 func (s *DaisyChainServer) HandleHealthz(w http.ResponseWriter, r *http.Request) {
 	_, _ = w.Write([]byte("OK"))
 }
 
-// Tries each rpc url one after another
+// isNumberBasedRPC checks to see if the RPC request is number based.
+// This is important for determining which of the post regenesis era
+// RPC nodes to send the request to. If the number is less than the
+// bedrockCutoffBlock, then it should go to the first post regenesis
+// node. If the number is greater than the bedrockCutoffBlock, then
+// it should go to the bedrock node.
+func (s *DaisyChainServer) isNumberBasedRPC(values []reflect.Value) (*big.Int, bool) {
+	for _, value := range values {
+		iface := value.Interface()
+		if param, ok := iface.(rpc.BlockNumberOrHash); ok {
+			if num, ok := param.Number(); ok {
+				return new(big.Int).SetInt64(num.Int64()), true
+			}
+		}
+		if num, ok := iface.(rpc.BlockNumber); ok {
+			return new(big.Int).SetInt64(num.Int64()), true
+		}
+	}
+	return nil, false
+}
+
+// handleHashTaggedRPC will try each backend until it finds
+// a backend with a successful response. The requests should be tried
+// in descending order
 func (s *DaisyChainServer) handleHashTaggedRPC(ctx context.Context, req *RPCReq) *RPCRes {
-	backends := s.Backends()
 	var res *RPCRes
-	for _, backend := range backends {
+	for i, backend := range s.Backends() {
+		log.Trace("trying hash tagged request", "backend", backend, "index", i, "method", req.Method)
 		res, _ = backend.Forward(ctx, req)
 		if !res.IsError() {
 			break
@@ -392,6 +451,9 @@ func (s *DaisyChainServer) handleHashTaggedRPC(ctx context.Context, req *RPCReq)
 	return res
 }
 
+// trimRequestOptions will remove the optional RequestOptions from the
+// RPC request and mutate the RPC request params so that it can be
+// safely forwarded to a backend.
 func trimRequestOptions(req *RPCReq, values []reflect.Value) (*RPCReq, error) {
 	raw, err := json.Marshal(values[0 : len(values)-1])
 	if err != nil {
@@ -401,16 +463,23 @@ func trimRequestOptions(req *RPCReq, values []reflect.Value) (*RPCReq, error) {
 	return req, nil
 }
 
+// parseRequestOptions parses the daisychain RequestOptions from
+// the request. The RequestOptions are optional, meaning that they
+// can be `nil`. Each Ethereum RPC method is extended to accept an
+// optional RequestOptions that can be passed in to determine which
+// backend chain to submit the request to and is removed before
+// actually forwarding the request.
 func parseRequestOptions(values []reflect.Value) (*RequestOptions, bool) {
 	requestOpts := values[len(values)-1]
 	argument, ok := requestOpts.Interface().(*RequestOptions)
 	if !ok {
 		return nil, false
 	}
-	// If the epoch is not set, default to the latest
-	// TODO: return an error if the epoch isn't explicit?
-	if argument != nil && argument.Epoch == nil {
-		argument.Epoch = &latestEpoch
+	if argument == nil {
+		return nil, true
+	}
+	if argument.Epoch > maxEpoch {
+		return nil, false
 	}
 	return argument, true
 }
