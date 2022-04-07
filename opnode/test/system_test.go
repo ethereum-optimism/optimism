@@ -17,6 +17,7 @@ import (
 	"github.com/ethereum-optimism/optimistic-specs/opnode/internal/testlog"
 	rollupNode "github.com/ethereum-optimism/optimistic-specs/opnode/node"
 	"github.com/ethereum-optimism/optimistic-specs/opnode/rollup"
+	"github.com/ethereum-optimism/optimistic-specs/opnode/rollup/derive"
 
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/accounts"
@@ -96,8 +97,8 @@ func TestSystemE2E(t *testing.T) {
 			bssHDPath:          10000000,
 		},
 		cliqueSigners:          []string{"m/44'/60'/0'/0/0"},
-		depositContractAddress: "0xdeaddeaddeaddeaddeaddeaddeaddeaddead0001",
-		l1InfoPredeployAddress: "0x4200000000000000000000000000000000000015",
+		depositContractAddress: derive.DepositContractAddr.Hex(),
+		l1InfoPredeployAddress: derive.L1InfoPredeployAddr.Hex(),
 	}
 	// Create genesis & assign it to ethconfigs
 	initializeGenesis(cfg)
