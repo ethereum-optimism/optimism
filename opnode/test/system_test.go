@@ -312,7 +312,8 @@ func TestSystemE2E(t *testing.T) {
 
 	// Finally send TX
 	mintAmount := big.NewInt(1_000_000_000_000)
-	_, err = depositContract.DepositTransaction(opts, fromAddr, mintAmount, big.NewInt(1_000_000), false, nil)
+	opts.Value = mintAmount
+	_, err = depositContract.DepositTransaction(opts, fromAddr, common.Big0, big.NewInt(1_000_000), false, nil)
 	require.Nil(t, err, "with deposit tx")
 
 	// Wait for tx to be mined on L1 (or timeout)

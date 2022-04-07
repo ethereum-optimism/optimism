@@ -64,14 +64,15 @@ func UnmarshalLogEvent(blockNum uint64, txIndex uint64, ev *types.Log) (*types.D
 
 	// unindexed data
 	offset := uint64(0)
-	dep.Value = new(big.Int).SetBytes(ev.Data[offset : offset+32])
-	offset += 32
 
 	dep.Mint = new(big.Int).SetBytes(ev.Data[offset : offset+32])
 	// 0 mint is represented as nil to skip minting code
 	if dep.Mint.Cmp(new(big.Int)) == 0 {
 		dep.Mint = nil
 	}
+	offset += 32
+
+	dep.Value = new(big.Int).SetBytes(ev.Data[offset : offset+32])
 	offset += 32
 
 	gas := new(big.Int).SetBytes(ev.Data[offset : offset+32])

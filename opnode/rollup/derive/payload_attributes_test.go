@@ -72,12 +72,12 @@ func GenerateDepositLog(deposit *types.DepositTx) *types.Log {
 
 	data := make([]byte, 6*32)
 	offset := 0
-	deposit.Value.FillBytes(data[offset : offset+32])
-	offset += 32
-
 	if deposit.Mint != nil {
 		deposit.Mint.FillBytes(data[offset : offset+32])
 	}
+	offset += 32
+
+	deposit.Value.FillBytes(data[offset : offset+32])
 	offset += 32
 
 	binary.BigEndian.PutUint64(data[offset+24:offset+32], deposit.Gas)
