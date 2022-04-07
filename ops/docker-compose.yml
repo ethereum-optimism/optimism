@@ -11,6 +11,7 @@ services:
       dockerfile: Dockerfile.l1
       args:
         DEPOSIT_FEED_BYTECODE: $DEPOSIT_FEED_BYTECODE
+        GENESIS_TIMESTAMP: $GENESIS_TIMESTAMP
     ports:
       - "8545:8545"
     volumes:
@@ -23,6 +24,7 @@ services:
       args:
         L1_BLOCK_INFO_BYTECODE: $L1_BLOCK_INFO_BYTECODE
         WITHDRAWER_BYTECODE: $WITHDRAWER_BYTECODE
+        GENESIS_TIMESTAMP: $GENESIS_TIMESTAMP
     ports:
       - "9545:8545"
     volumes:
