@@ -29,5 +29,5 @@ devnet-up:
 .PHONY: devnet-up
 
 devnet-down:
-	@(cd ./ops && docker-compose down)
+	@(cd ./ops && docker-compose down -v)
 .PHONY: devnet-stop
