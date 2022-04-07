@@ -39,7 +39,7 @@ reducing fees can be achieved by better utilizing bandwidth, computation and sto
 
 [Optimistic rollup](https://vitalik.ca/general/2021/01/05/rollup.html) is a layer 2 scalability technique which
 increases the computation & storage capacity of Ethereum without sacrificing security or decentralization. Transaction
-data is submitted on-chain but executed off-chain. If there is an error in the off-chain execution, a fraud proof can
+data is submitted on-chain but executed off-chain. If there is an error in the off-chain execution, a fault proof can
 be submitted on-chain to correct the error and protect user funds. In the same way you don't go to court unless there
 is a dispute, you don't execute transactions on on-chain unless there is an error.
 
@@ -71,8 +71,8 @@ chain is available, so is the rollup.
 guaranteed to _only_ finalize correct (ie. valid) rollup block hashes given a **single honest verifier** assumption. If
 there is ever an invalid block hash asserted on layer 1, an honest verifier will prove it is invalid and win a bond.
 
-**Footnote**: There are two main ways to enforce validity of a rollup: fraud proofs (optimistic rollup) and validity
-proofs (zkRollup). For the purposes of this spec we only focus on fraud proofs but it is worth noting that validity
+**Footnote**: There are two main ways to enforce validity of a rollup: fault proofs (optimistic rollup) and validity
+proofs (zkRollup). For the purposes of this spec we only focus on fault proofs but it is worth noting that validity
 proofs can also be plugged in once they have been made feasible.
 
 ## Network Participants
@@ -139,7 +139,7 @@ Links to components mentioned in this diagram:
 - Sequencer Batch Submitter (WIP)
 - [L2 Output Oracle](./proposals.md#l2-output-oracle-smart-contract)
 - [L2 Output Submitter](./proposals#proposing-l2-output-commitments)
-- Fraud Proof VM (WIP)
+- Fault Proof VM (WIP)
 
 ### Withdrawing
 
@@ -155,5 +155,5 @@ Links to components mentioned in this diagram:
 ## Next Steps
 
 This is a choose your own adventure. Are you interested in how a verifier works under the hood? Maybe you want to dive
-deep into the bit flippin' Fraud Proof VM? All key components have been linked at least once in this doc, so you should
+deep into the bit flippin' Fault Proof VM? All key components have been linked at least once in this doc, so you should
 now have the context you need to dive in deeper. [The world is yours](https://www.youtube.com/watch?v=e5PnuIRnJW8)!

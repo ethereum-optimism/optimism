@@ -59,7 +59,7 @@ token deposits (tokens are locked on L1, then minted on L2 via a deposited trans
   - The BatchInbox is a regular EOA address. This lets us pass on gast cost savings by not executing any EVM code.
 
 - **L2OutputOracle**: A smart contract that stores [L2 output roots](./glossary.md#l2-output) for use with withdrawals
-and fraud proofs.
+and fault proofs.
 
 ### L2 Components
 
