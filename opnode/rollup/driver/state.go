@@ -289,6 +289,9 @@ func (s *state) handleEpoch(ctx context.Context) (bool, error) {
 	newL2Head, newL2SafeHead, reorg, err := s.output.insertEpoch(ctx, s.l2Head, s.l2SafeHead, s.l2Finalized, window)
 	cancel()
 	if err != nil {
+		// Cannot easily check that s.l1WindowBuf[0].ParentHash == s.l2Safehead.L1Origin.Hash in this function, so if insertEpoch
+		// may have found a problem with that, clear the buffer and try again later.
+		s.l1WindowBuf = nil
 		s.log.Error("Error in running the output step.", "err", err, "l2Head", s.l2Head, "l2SafeHead", s.l2SafeHead)
 		return false, err
 	}
