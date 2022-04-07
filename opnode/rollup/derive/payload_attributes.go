@@ -22,7 +22,7 @@ var (
 	DepositContractAddr = common.HexToAddress("0xdeaddeaddeaddeaddeaddeaddeaddeaddead0001")
 	L1InfoFuncSignature = "setL1BlockValues(uint256,uint256,uint256,bytes32)"
 	L1InfoFuncBytes4    = crypto.Keccak256([]byte(L1InfoFuncSignature))[:4]
-	L1InfoPredeployAddr = common.HexToAddress("0x4242424242424242424242424242424242424242")
+	L1InfoPredeployAddr = common.HexToAddress("0x4200000000000000000000000000000000000015")
 )
 
 // UnmarshalLogEvent decodes an EVM log entry emitted by the deposit contract into typed deposit data.

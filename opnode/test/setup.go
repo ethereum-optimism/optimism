@@ -42,15 +42,15 @@ type gethConfig struct {
 
 // systemConfig holds the information necessary to create a L1 <-> Rollup <-> L2 system
 type systemConfig struct {
-	mnemonic                string
-	l1                      gethConfig
-	l2Verifier              gethConfig
-	l2Sequencer             gethConfig
-	premine                 map[string]int // Derivation path -> amount in ETH (not wei)
-	cliqueSigners           []string       // derivation path
-	depositContractAddress  string
-	l1InforPredeployAddress string
-	wallet                  *hdwallet.Wallet
+	mnemonic               string
+	l1                     gethConfig
+	l2Verifier             gethConfig
+	l2Sequencer            gethConfig
+	premine                map[string]int // Derivation path -> amount in ETH (not wei)
+	cliqueSigners          []string       // derivation path
+	depositContractAddress string
+	l1InfoPredeployAddress string
+	wallet                 *hdwallet.Wallet
 }
 
 func precompileAlloc() core.GenesisAlloc {
@@ -101,7 +101,7 @@ func initializeGenesis(cfg *systemConfig) {
 	}
 
 	l1Alloc[common.HexToAddress(cfg.depositContractAddress)] = core.GenesisAccount{Code: common.FromHex(deposit.DepositDeployedBin), Balance: common.Big0}
-	l2Alloc[common.HexToAddress(cfg.l1InforPredeployAddress)] = core.GenesisAccount{Code: common.FromHex(l1block.L1blockDeployedBin), Balance: common.Big0}
+	l2Alloc[common.HexToAddress(cfg.l1InfoPredeployAddress)] = core.GenesisAccount{Code: common.FromHex(l1block.L1blockDeployedBin), Balance: common.Big0}
 
 	genesisTimestamp := uint64(time.Now().Unix())
 
