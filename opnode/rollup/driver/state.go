@@ -109,7 +109,7 @@ func (s *state) Close() error {
 // This is either the last block of the window, or the L1 base block if the window is not populated.
 func (s *state) l1WindowBufEnd() eth.BlockID {
 	if len(s.l1WindowBuf) == 0 {
-		return s.l2Head.L1Origin
+		return s.l2SafeHead.L1Origin
 	}
 	return s.l1WindowBuf[len(s.l1WindowBuf)-1]
 }
@@ -289,6 +289,9 @@ func (s *state) handleEpoch(ctx context.Context) (bool, error) {
 	newL2Head, newL2SafeHead, reorg, err := s.output.insertEpoch(ctx, s.l2Head, s.l2SafeHead, s.l2Finalized, window)
 	cancel()
 	if err != nil {
+		// Cannot easily check that s.l1WindowBuf[0].ParentHash == s.l2Safehead.L1Origin.Hash in this function, so if insertEpoch
+		// may have found a problem with that, clear the buffer and try again later.
+		s.l1WindowBuf = nil
 		s.log.Error("Error in running the output step.", "err", err, "l2Head", s.l2Head, "l2SafeHead", s.l2SafeHead)
 		return false, err
 	}
@@ -364,7 +367,7 @@ func (s *state) loop() {
 			}
 			// Run step if we are able to
 			if s.l1Head.Number-s.l2SafeHead.L1Origin.Number >= s.Config.SeqWindowSize {
-				s.log.Trace("Requesting next step", "l1Head", s.l1Head, "l2Head", s.l2Head, "l1Origin", s.l2Head.L1Origin)
+				s.log.Trace("Requesting next step", "l1Head", s.l1Head, "l2Head", s.l2Head, "l1Origin", s.l2SafeHead.L1Origin)
 				requestStep()
 			}
 		case <-stepRequest:
@@ -382,8 +385,8 @@ func (s *state) loop() {
 			}
 
 			// Immediately run next step if we have enough blocks.
-			if s.l1Head.Number-s.l2Head.L1Origin.Number >= s.Config.SeqWindowSize {
-				s.log.Trace("Requesting next step", "l1Head", s.l1Head, "l2Head", s.l2Head, "l1Origin", s.l2Head.L1Origin)
+			if s.l1Head.Number-s.l2SafeHead.L1Origin.Number >= s.Config.SeqWindowSize {
+				s.log.Trace("Requesting next step", "l1Head", s.l1Head, "l2Head", s.l2Head, "l1Origin", s.l2SafeHead.L1Origin)
 				requestStep()
 			}
 		}
