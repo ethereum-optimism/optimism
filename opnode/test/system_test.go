@@ -98,7 +98,7 @@ func TestSystemE2E(t *testing.T) {
 		},
 		cliqueSigners:           []string{"m/44'/60'/0'/0/0"},
 		depositContractAddress:  "0xdeaddeaddeaddeaddeaddeaddeaddeaddead0001",
-		l1InforPredeployAddress: "0x4200000000000000000000000000000000000015",
+		l1InfoPredeployAddress: "0x4200000000000000000000000000000000000015",
 	}
 	// Create genesis & assign it to ethconfigs
 	initializeGenesis(cfg)
