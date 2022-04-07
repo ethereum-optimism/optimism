@@ -11,11 +11,16 @@ submodules:
 
 opnode:
 	go build -o ./bin/op ./opnode/cmd
-.PHONY: opnode
+.PHONY: opnoed
 
 contracts:
 	cd ./packages/contracts && yarn install && yarn build
 .PHONY: contracts
+
+test:
+	cd ./opnode && make test
+	cd ./packages/contracts && yarn test
+.PHONY: test
 
 clean:
 	rm -rf ./bin
