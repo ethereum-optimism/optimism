@@ -102,7 +102,7 @@ func advanceL2(t *testing.T, expectedWindow []testID, s *state, src *fakeChainSo
 	assert.Equal(t, int(s.Config.SeqWindowSize), len(args.l1Window), "Invalid L1 window size")
 	assert.Equal(t, len(expectedWindow), len(args.l1Window), "L1 Window size does not match expectedWindow")
 	for i := range expectedWindow {
-		assert.Equal(t, expectedWindow[i].ID(), args.l1Window[i], "Window elements must match")
+		assert.Equal(t, expectedWindow[i].ID(), args.l1Window[i], "Window elements must match in advancing L2 in window element %d", i)
 	}
 	outputReturn <- outputReturnArgs{l2Head: src.setL2Head(int(args.l2Head.Number) + 1), err: nil}
 }
@@ -112,7 +112,7 @@ func reorg__L2(t *testing.T, expectedWindow []testID, s *state, src *fakeChainSo
 	assert.Equal(t, int(s.Config.SeqWindowSize), len(args.l1Window), "Invalid L1 window size")
 	assert.Equal(t, len(expectedWindow), len(args.l1Window), "L1 Window size does not match expectedWindow")
 	for i := range expectedWindow {
-		assert.Equal(t, expectedWindow[i].ID(), args.l1Window[i], "Window elements must match")
+		assert.Equal(t, expectedWindow[i].ID(), args.l1Window[i], "Window elements must match on reorg in window element %d", i)
 	}
 
 	outputReturn <- outputReturnArgs{l2Head: src.setL2Head(int(args.l2Head.Number) + 1), err: nil}
@@ -136,7 +136,7 @@ func (tc *stateTestCase) Run(t *testing.T) {
 	outputReturn := make(chan outputReturnArgs)
 	outputHandler := func(ctx context.Context, l2Head eth.L2BlockRef, l2SafeHead eth.L2BlockRef, l2Finalized eth.BlockID, l1Input []eth.BlockID) (eth.L2BlockRef, eth.L2BlockRef, bool, error) {
 		// TODO: Not sequencer, but need to pass unsafeL2Head here for the test.
-		outputIn <- outputArgs{l2Head: l2Head.ID(), l2Finalized: l2Finalized, l1Window: l1Input}
+		outputIn <- outputArgs{l2Head: l2SafeHead.ID(), l2Finalized: l2Finalized, l1Window: l1Input}
 		r := <-outputReturn
 		return r.l2Head, r.l2Head, false, r.err
 	}
@@ -159,7 +159,7 @@ func (tc *stateTestCase) Run(t *testing.T) {
 		<-time.After(5 * time.Millisecond)
 
 		assert.Equal(t, step.l1head.ID(), state.l1Head.ID(), "l1 head")
-		assert.Equal(t, step.l2head.ID(), state.l2SafeHead.ID(), "l2 head")
+		assert.Equal(t, step.l2head.ID(), state.l2SafeHead.ID(), "l2 safe head")
 	}
 }
 
@@ -183,8 +183,8 @@ func TestDriver(t *testing.T) {
 		},
 		{
 			name:      "Reorg",
-			l1Chains:  []string{"abcdefg", "abcxyzw"},
-			l2Chains:  []string{"ABCDEF", "ABCXYZ"},
+			l1Chains:  []string{"abcdefg", "abcwxyz"},
+			l2Chains:  []string{"ABCDEF", "ABCWXY"},
 			seqWindow: 2,
 			genesis:   fakeGenesis('a', 'A', 0),
 			steps: []stateTestCaseStep{
@@ -195,11 +195,11 @@ func TestDriver(t *testing.T) {
 				{l1act: advanceL1, l2act: advanceL2, l1head: "e:4", l2head: "D:3", window: []testID{"d:3", "e:4"}},
 				{l1act: advanceL1, l2act: advanceL2, l1head: "f:5", l2head: "E:4", window: []testID{"e:4", "f:5"}},
 				{l1act: advanceL1, l2act: advanceL2, l1head: "g:6", l2head: "F:5", window: []testID{"f:5", "g:6"}},
-				{l1act: stutterL1, l2act: reorg__L2, l1head: "w:6", l2head: "X:3", window: []testID{"x:3", "y:4"}, reorg: true},
-				{l1act: stutterL1, l2act: advanceL2, l1head: "w:6", l2head: "Y:4", window: []testID{"y:4", "z:5"}},
-				{l1act: stutterL1, l2act: advanceL2, l1head: "w:6", l2head: "Z:5", window: []testID{"z:5", "w:6"}},
-				{l1act: stutterL1, l2act: stutterL2, l1head: "w:6", l2head: "Z:5", window: []testID{"z:5", "w:6"}},
-				{l1act: stutterL1, l2act: stutterL2, l1head: "w:6", l2head: "Z:5", window: []testID{"z:5", "w:6"}},
+				{l1act: stutterL1, l2act: reorg__L2, l1head: "z:6", l2head: "C:2", window: []testID{"c:2", "w:3"}, reorg: true},
+				{l1act: stutterL1, l2act: advanceL2, l1head: "z:6", l2head: "W:3", window: []testID{"w:3", "x:4"}},
+				{l1act: stutterL1, l2act: advanceL2, l1head: "z:6", l2head: "X:4", window: []testID{"x:4", "y:5"}},
+				{l1act: stutterL1, l2act: advanceL2, l1head: "z:6", l2head: "Y:5", window: []testID{"y:5", "z:6"}},
+				{l1act: stutterL1, l2act: stutterL2, l1head: "z:6", l2head: "Y:5", window: []testID{}},
 			},
 		},
 		{
