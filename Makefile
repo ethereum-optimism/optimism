@@ -1,9 +1,20 @@
+build: submodules opnode contracts
+.PHONY: build
+
+submodules:
+	# CI will checkout submodules on its own (and fails on these commands)
+	if [ -z "$$GITHUB_ENV" ]; then \
+		git submodule init; \
+		git submodule update; \
+	fi
+.PHONY: submodules
+
 opnode:
 	go build -o ./bin/op ./opnode/cmd
 .PHONY: opnode
 
 contracts:
-	cd ./packages/contracts && yarn build
+	cd ./packages/contracts && yarn install && yarn build
 .PHONY: contracts
 
 clean:
