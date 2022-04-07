@@ -1,4 +1,4 @@
-# Optimistic Ethereum Introduction
+# Introduction
 
 <!-- START doctoc generated TOC please keep comment here to allow auto update -->
 <!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
@@ -52,7 +52,7 @@ anywhere.
 
 ### 🎶 All together now 🎶
 
-**Optimistic Ethereum is an _EVM equivalent_, _optimistic rollup_ protocol designed to _scale Ethereum_.**
+**Optimism is an _EVM equivalent_, _optimistic rollup_ protocol designed to _scale Ethereum_.**
 
 ## Protocol Guarantees
 
@@ -77,7 +77,7 @@ proofs can also be plugged in once they have been made feasible.
 
 ## Network Participants
 
-There are three actors in Optimistic Ethereum: users, sequencers, and verifiers.
+There are three actors in Optimism: users, sequencers, and verifiers.
 
 ![Network Overview](./assets/network-participants-overview.svg)
 
@@ -126,7 +126,7 @@ provide context when diving into any particular component specification.
 ### Depositing and Sending Transactions
 
 Users will often begin their L2 journey by depositing ETH from L1. Once they have ETH to pay fees, they'll start
-sending transactions on L2. The following diagram demonstrates this interaction and all key Optimistic Ethereum
+sending transactions on L2. The following diagram demonstrates this interaction and all key Optimism
 components which are utilized:
 
 ![Diagram of Depositing and Sending Transactions](./assets/sequencer-handling-deposits-and-transactions.svg)
