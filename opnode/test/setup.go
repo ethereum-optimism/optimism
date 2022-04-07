@@ -42,15 +42,15 @@ type gethConfig struct {
 
 // systemConfig holds the information necessary to create a L1 <-> Rollup <-> L2 system
 type systemConfig struct {
-	mnemonic                string
-	l1                      gethConfig
-	l2Verifier              gethConfig
-	l2Sequencer             gethConfig
-	premine                 map[string]int // Derivation path -> amount in ETH (not wei)
-	cliqueSigners           []string       // derivation path
-	depositContractAddress  string
+	mnemonic               string
+	l1                     gethConfig
+	l2Verifier             gethConfig
+	l2Sequencer            gethConfig
+	premine                map[string]int // Derivation path -> amount in ETH (not wei)
+	cliqueSigners          []string       // derivation path
+	depositContractAddress string
 	l1InfoPredeployAddress string
-	wallet                  *hdwallet.Wallet
+	wallet                 *hdwallet.Wallet
 }
 
 func precompileAlloc() core.GenesisAlloc {

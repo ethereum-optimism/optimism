@@ -8,13 +8,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ethereum-optimism/optimistic-specs/opnode/eth"
-
 	"github.com/ethereum-optimism/optimistic-specs/l2os"
 	"github.com/ethereum-optimism/optimistic-specs/l2os/bindings/l2oo"
 	"github.com/ethereum-optimism/optimistic-specs/l2os/rollupclient"
 	"github.com/ethereum-optimism/optimistic-specs/l2os/txmgr"
 	"github.com/ethereum-optimism/optimistic-specs/opnode/contracts/deposit"
+	"github.com/ethereum-optimism/optimistic-specs/opnode/eth"
 	"github.com/ethereum-optimism/optimistic-specs/opnode/internal/testlog"
 	rollupNode "github.com/ethereum-optimism/optimistic-specs/opnode/node"
 	"github.com/ethereum-optimism/optimistic-specs/opnode/rollup"
@@ -96,8 +95,8 @@ func TestSystemE2E(t *testing.T) {
 			l2OutputHDPath:     10000000,
 			bssHDPath:          10000000,
 		},
-		cliqueSigners:           []string{"m/44'/60'/0'/0/0"},
-		depositContractAddress:  "0xdeaddeaddeaddeaddeaddeaddeaddeaddead0001",
+		cliqueSigners:          []string{"m/44'/60'/0'/0/0"},
+		depositContractAddress: "0xdeaddeaddeaddeaddeaddeaddeaddeaddead0001",
 		l1InfoPredeployAddress: "0x4200000000000000000000000000000000000015",
 	}
 	// Create genesis & assign it to ethconfigs
