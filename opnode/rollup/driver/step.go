@@ -173,7 +173,9 @@ func (d *outputImpl) insertEpoch(ctx context.Context, l2Head eth.L2BlockRef, l2S
 			PrevRandao:            l2.Bytes32(l1Info.MixDigest()),
 			SuggestedFeeRecipient: d.Config.FeeRecipientAddress,
 			Transactions:          txns,
-			NoTxPool:              false,
+			// we are verifying, not sequencing, we've got all transactions and do not pull from the tx-pool
+			// (that would make the block derivation non-deterministic)
+			NoTxPool: true,
 		}
 
 		// We are either verifying blocks (with a potential for a reorg) or inserting a safe head to the chain
