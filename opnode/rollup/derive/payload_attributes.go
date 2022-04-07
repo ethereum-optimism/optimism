@@ -20,7 +20,7 @@ var (
 	DepositEventABI     = "TransactionDeposited(address,address,uint256,uint256,uint256,bool,bytes)"
 	DepositEventABIHash = crypto.Keccak256Hash([]byte(DepositEventABI))
 	DepositContractAddr = common.HexToAddress("0xdeaddeaddeaddeaddeaddeaddeaddeaddead0001")
-	L1InfoFuncSignature = "setL1BlockValues(uint256 _number, uint256 _timestamp, uint256 _basefee, bytes32 _hash)"
+	L1InfoFuncSignature = "setL1BlockValues(uint256,uint256,uint256,bytes32)"
 	L1InfoFuncBytes4    = crypto.Keccak256([]byte(L1InfoFuncSignature))[:4]
 	L1InfoPredeployAddr = common.HexToAddress("0x4242424242424242424242424242424242424242")
 )
