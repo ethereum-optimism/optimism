@@ -26,6 +26,7 @@ const (
 	ContextKeyXForwardedFor = "x_forwarded_for"
 	MaxBatchRPCCalls        = 100
 	cacheStatusHdr          = "X-Proxyd-Cache-Status"
+	defaultServerTimeout    = time.Second * 10
 )
 
 type Server struct {
@@ -35,6 +36,7 @@ type Server struct {
 	rpcMethodMappings  map[string]string
 	maxBodySize        int64
 	authenticatedPaths map[string]string
+	timeout            time.Duration
 	upgrader           *websocket.Upgrader
 	rpcServer          *http.Server
 	wsServer           *http.Server
@@ -48,6 +50,7 @@ func NewServer(
 	rpcMethodMappings map[string]string,
 	maxBodySize int64,
 	authenticatedPaths map[string]string,
+	timeout time.Duration,
 	cache RPCCache,
 ) *Server {
 	if cache == nil {
@@ -58,6 +61,10 @@ func NewServer(
 		maxBodySize = math.MaxInt64
 	}
 
+	if timeout == 0 {
+		timeout = defaultServerTimeout
+	}
+
 	return &Server{
 		backendGroups:      backendGroups,
 		wsBackendGroup:     wsBackendGroup,
@@ -65,6 +72,7 @@ func NewServer(
 		rpcMethodMappings:  rpcMethodMappings,
 		maxBodySize:        maxBodySize,
 		authenticatedPaths: authenticatedPaths,
+		timeout:            timeout,
 		cache:              cache,
 		upgrader: &websocket.Upgrader{
 			HandshakeTimeout: 5 * time.Second,
@@ -123,6 +131,9 @@ func (s *Server) HandleRPC(w http.ResponseWriter, r *http.Request) {
 	if ctx == nil {
 		return
 	}
+	var cancel context.CancelFunc
+	ctx, cancel = context.WithTimeout(ctx, s.timeout)
+	defer cancel()
 
 	log.Info(
 		"received RPC request",
@@ -162,6 +173,12 @@ func (s *Server) HandleRPC(w http.ResponseWriter, r *http.Request) {
 		batchRes := make([]*RPCRes, len(reqs))
 		var batchContainsCached bool
 		for i := 0; i < len(reqs); i++ {
+			if ctx.Err() == context.DeadlineExceeded {
+				log.Info("short-circuiting batch RPC", "index", i, "batch_size", len(reqs))
+				writeRPCError(ctx, w, nil, ErrGatewayTimeout)
+				return
+			}
+
 			req, err := ParseRPCReq(reqs[i])
 			if err != nil {
 				log.Info("error parsing RPC call", "source", "rpc", "err", err)
