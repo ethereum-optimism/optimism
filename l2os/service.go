@@ -59,27 +59,22 @@ type ServiceConfig struct {
 }
 
 type Service struct {
-	cfg    ServiceConfig
-	ctx    context.Context
-	cancel func()
-
+	cfg   ServiceConfig
 	txMgr txmgr.TxManager
 
-	wg sync.WaitGroup
+	done chan struct{}
+	wg   sync.WaitGroup
 }
 
 func NewService(cfg ServiceConfig) *Service {
-	ctx, cancel := context.WithCancel(cfg.Context)
-
 	txMgr := txmgr.NewSimpleTxManager(
 		cfg.Driver.Name(), cfg.TxManagerConfig, cfg.L1Client,
 	)
 
 	return &Service{
-		cfg:    cfg,
-		ctx:    ctx,
-		cancel: cancel,
-		txMgr:  txMgr,
+		cfg:   cfg,
+		txMgr: txMgr,
+		done:  make(chan struct{}),
 	}
 }
 
@@ -90,12 +85,14 @@ func (s *Service) Start() error {
 }
 
 func (s *Service) Stop() error {
-	s.cancel()
+	close(s.done)
 	s.wg.Wait()
 	return nil
 }
 
 func (s *Service) eventLoop() {
+	ctx, cancel := context.WithCancel(s.cfg.Context)
+	defer cancel()
 	defer s.wg.Done()
 
 	name := s.cfg.Driver.Name()
@@ -106,7 +103,7 @@ func (s *Service) eventLoop() {
 			// Determine the range of L2 blocks that the submitter has not
 			// processed, and needs to take action on.
 			log.Info(name + " fetching current block range")
-			start, end, err := s.cfg.Driver.GetBlockRange(s.ctx)
+			start, end, err := s.cfg.Driver.GetBlockRange(ctx)
 			if err != nil {
 				log.Error(name+" unable to get block range", "err", err)
 				continue
@@ -121,7 +118,7 @@ func (s *Service) eventLoop() {
 
 			// Query for the submitter's current nonce.
 			nonce64, err := s.cfg.L1Client.NonceAt(
-				s.ctx, s.cfg.Driver.WalletAddr(), nil,
+				ctx, s.cfg.Driver.WalletAddr(), nil,
 			)
 			if err != nil {
 				log.Error(name+" unable to get current nonce",
@@ -131,7 +128,7 @@ func (s *Service) eventLoop() {
 			nonce := new(big.Int).SetUint64(nonce64)
 
 			tx, err := s.cfg.Driver.CraftTx(
-				s.ctx, start, end, nonce,
+				ctx, start, end, nonce,
 			)
 			if err != nil {
 				log.Error(name+" unable to craft tx",
@@ -151,7 +148,7 @@ func (s *Service) eventLoop() {
 			// Wait until one of our submitted transactions confirms. If no
 			// receipt is received it's likely our gas price was too low.
 			receipt, err := s.txMgr.Send(
-				s.ctx, updateGasPrice, s.cfg.Driver.SendTransaction,
+				ctx, updateGasPrice, s.cfg.Driver.SendTransaction,
 			)
 			if err != nil {
 				log.Error(name+" unable to publish tx", "err", err)
@@ -162,8 +159,8 @@ func (s *Service) eventLoop() {
 			log.Info(name+" tx successfully published",
 				"tx_hash", receipt.TxHash)
 
-		case err := <-s.ctx.Done():
-			log.Error(name+" service shutting down", "err", err)
+		case <-s.done:
+			log.Info(name + " service shutting down")
 			return
 		}
 	}

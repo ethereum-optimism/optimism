@@ -3,6 +3,7 @@ package node
 import (
 	"context"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/ethereum-optimism/optimistic-specs/opnode/backoff"
@@ -24,8 +25,10 @@ type OpNode struct {
 	log       log.Logger
 	l1Source  *l1.Source       // Source to fetch data from (also implements the Downloader interface)
 	l2Engines []*driver.Driver // engines to keep synced
+	l2Nodes   []*rpc.Client    // L2 Execution Engines to close at shutdown
 	server    *rpcServer
 	done      chan struct{}
+	wg        sync.WaitGroup
 }
 
 func dialRPCClientWithBackoff(ctx context.Context, log log.Logger, addr string) (*rpc.Client, error) {
@@ -67,15 +70,26 @@ func New(ctx context.Context, cfg *Config, log log.Logger, appVersion string) (*
 	var l2Engines []*driver.Driver
 	genesis := cfg.Rollup.Genesis
 
+	var l2Nodes []*rpc.Client
+	closeNodes := func() {
+		for _, n := range l2Nodes {
+			n.Close()
+		}
+	}
+
 	for i, addr := range cfg.L2EngineAddrs {
 		l2Node, err := dialRPCClientWithBackoff(ctx, log, addr)
 		if err != nil {
+			closeNodes()
 			return nil, err
 		}
+		l2Nodes = append(l2Nodes, l2Node)
+
 		// TODO: we may need to authenticate the connection with L2
 		// backend.SetHeader()
 		client, err := l2.NewSource(l2Node, &genesis, log.New("engine_client", i))
 		if err != nil {
+			closeNodes()
 			return nil, err
 		}
 
@@ -107,6 +121,7 @@ func New(ctx context.Context, cfg *Config, log log.Logger, appVersion string) (*
 		l2Engines: l2Engines,
 		server:    server,
 		done:      make(chan struct{}),
+		l2Nodes:   l2Nodes,
 	}
 
 	return n, nil
@@ -170,8 +185,9 @@ func (c *OpNode) Start(ctx context.Context) error {
 	}
 
 	c.log.Info("Start-up complete!")
-
+	c.wg.Add(1)
 	go func() {
+		defer c.wg.Done()
 		for {
 			select {
 			case l1Head := <-l1Heads:
@@ -183,12 +199,17 @@ func (c *OpNode) Start(ctx context.Context) error {
 				for _, f := range unsub {
 					f()
 				}
-				// close L1 data source
-				c.l1Source.Close()
 				// close L2 engines
 				for _, eng := range c.l2Engines {
 					eng.Close()
 				}
+				// close L2 nodes
+				for _, n := range c.l2Nodes {
+					n.Close()
+				}
+				// close L1 data source
+				c.l1Source.Close()
+
 				return
 			}
 		}
@@ -200,5 +221,6 @@ func (c *OpNode) Stop() {
 	if c.done != nil {
 		close(c.done)
 	}
+	c.wg.Wait()
 	c.server.Stop()
 }

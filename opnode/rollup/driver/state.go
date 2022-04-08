@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"sync/atomic"
+	gosync "sync"
 	"time"
 
 	"github.com/ethereum/go-ethereum"
@@ -39,7 +39,7 @@ type state struct {
 	log  log.Logger
 	done chan struct{}
 
-	closed uint32 // non-zero when closed
+	wg gosync.WaitGroup
 }
 
 func NewState(log log.Logger, config rollup.Config, l1 L1Chain, l2 L2Chain, output outputInterface, submitter BatchSubmitter, sequencer bool) *state {
@@ -96,12 +96,14 @@ func (s *state) Start(ctx context.Context, l1Heads <-chan eth.L1BlockRef) error 
 	s.l1Head = l1Head
 	s.l1Heads = l1Heads
 
+	s.wg.Add(1)
 	go s.loop()
 	return nil
 }
 
 func (s *state) Close() error {
 	close(s.done)
+	s.wg.Wait()
 	return nil
 }
 
@@ -213,7 +215,7 @@ func (s *state) findNextL1Origin(ctx context.Context) (eth.L1BlockRef, uint64, e
 
 // createNewL2Block builds a L2 block on top of the L2 Head (unsafe)
 func (s *state) createNewL2Block(ctx context.Context) (eth.L1BlockRef, error) {
-	nextOrigin, maxL2Time, err := s.findNextL1Origin(context.Background())
+	nextOrigin, maxL2Time, err := s.findNextL1Origin(ctx)
 	if err != nil {
 		s.log.Error("Error finding next L1 Origin", "err", err)
 		return eth.L1BlockRef{}, err
@@ -242,7 +244,7 @@ func (s *state) createNewL2Block(ctx context.Context) (eth.L1BlockRef, error) {
 		return eth.L1BlockRef{}, nil
 	}
 	// Actually create the new block
-	newUnsafeL2Head, batch, err := s.output.createNewBlock(context.Background(), s.l2Head, s.l2SafeHead.ID(), s.l2Finalized, nextOrigin)
+	newUnsafeL2Head, batch, err := s.output.createNewBlock(ctx, s.l2Head, s.l2SafeHead.ID(), s.l2Finalized, nextOrigin)
 	if err != nil {
 		s.log.Error("Could not extend chain as sequencer", "err", err, "l2UnsafeHead", s.l2Head, "l1Origin", nextOrigin)
 		return eth.L1BlockRef{}, err
@@ -250,11 +252,11 @@ func (s *state) createNewL2Block(ctx context.Context) (eth.L1BlockRef, error) {
 	// State update
 	s.l2Head = newUnsafeL2Head
 	s.log.Info("Sequenced new l2 block", "l2Head", s.l2Head, "l1Origin", s.l2Head.L1Origin, "txs", len(batch.Transactions), "time", s.l2Head.Time)
-	//Submit batch
+	// Submit batch in separate thread
+	s.wg.Add(1)
 	go func() {
+		defer s.wg.Done()
 		_, err := s.bss.Submit(&s.Config, []*derive.BatchData{batch}) // TODO: submit multiple batches
-		// Note: This can cause problems as the log can run after the batch submitter / driver is shut down.
-		// This is tracked in issue #308
 		if err != nil {
 			s.log.Error("Error submitting batch", "err", err)
 		}
@@ -308,8 +310,10 @@ func (s *state) handleEpoch(ctx context.Context) (bool, error) {
 
 // loop is the event loop that responds to L1 changes and internal timers to produce L2 blocks.
 func (s *state) loop() {
+	defer s.wg.Done()
 	s.log.Info("State loop started")
-	ctx := context.Background()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 	var l2BlockCreation <-chan time.Time
 	if s.sequencer {
 		l2BlockCreationTicker := time.NewTicker(time.Duration(s.Config.BlockTime) * time.Second)
@@ -341,7 +345,6 @@ func (s *state) loop() {
 	for {
 		select {
 		case <-s.done:
-			atomic.AddUint32(&s.closed, 1)
 			return
 		case <-l2BlockCreation:
 			s.log.Trace("L2 Creation Ticker")

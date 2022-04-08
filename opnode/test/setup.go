@@ -117,11 +117,11 @@ func (cfg SystemConfig) start() (*System, error) {
 	didErrAfterStart := false
 	defer func() {
 		if didErrAfterStart {
-			for _, node := range sys.nodes {
-				node.Close()
-			}
 			for _, node := range sys.rollupNodes {
 				node.Stop()
+			}
+			for _, node := range sys.nodes {
+				node.Close()
 			}
 		}
 	}()

@@ -2,6 +2,7 @@ package l1
 
 import (
 	"context"
+	"sync"
 
 	"github.com/ethereum/go-ethereum/rpc"
 )
@@ -9,6 +10,7 @@ import (
 type limitClient struct {
 	c    RPCClient
 	sema chan struct{}
+	wg   sync.WaitGroup
 }
 
 // LimitRPC limits concurrent RPC requests (excluding subscriptions) to a given number by wrapping the client with a semaphore.
@@ -21,12 +23,16 @@ func LimitRPC(c RPCClient, concurrentRequests int) RPCClient {
 }
 
 func (lc *limitClient) BatchCallContext(ctx context.Context, b []rpc.BatchElem) error {
+	lc.wg.Add(1)
+	defer lc.wg.Done()
 	lc.sema <- struct{}{}
 	defer func() { <-lc.sema }()
 	return lc.c.BatchCallContext(ctx, b)
 }
 
 func (lc *limitClient) CallContext(ctx context.Context, result interface{}, method string, args ...interface{}) error {
+	lc.wg.Add(1)
+	defer lc.wg.Done()
 	lc.sema <- struct{}{}
 	defer func() { <-lc.sema }()
 	return lc.c.CallContext(ctx, result, method, args...)
@@ -38,5 +44,7 @@ func (lc *limitClient) EthSubscribe(ctx context.Context, channel interface{}, ar
 }
 
 func (lc *limitClient) Close() {
+	lc.wg.Wait()
+	close(lc.sema)
 	lc.c.Close()
 }
