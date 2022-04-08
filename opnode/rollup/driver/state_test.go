@@ -9,12 +9,16 @@ import (
 
 	"github.com/ethereum-optimism/optimistic-specs/opnode/eth"
 	"github.com/ethereum-optimism/optimistic-specs/opnode/internal/testlog"
+	"github.com/ethereum-optimism/optimistic-specs/opnode/internal/testutils"
 	"github.com/ethereum-optimism/optimistic-specs/opnode/rollup"
 	"github.com/ethereum-optimism/optimistic-specs/opnode/rollup/derive"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/assert"
 )
+
+var _ L1Chain = (*testutils.FakeChainSource)(nil)
+var _ L2Chain = (*testutils.FakeChainSource)(nil)
 
 type testID string
 
@@ -66,30 +70,30 @@ type stateTestCaseStep struct {
 	window []testID
 
 	// l1act and l2act are ran at each step
-	l1act func(t *testing.T, s *state, src *fakeChainSource, l1Heads chan eth.L1BlockRef)
-	l2act func(t *testing.T, expectedWindow []testID, s *state, src *fakeChainSource, outputIn chan outputArgs, outputReturn chan outputReturnArgs)
+	l1act func(t *testing.T, s *state, src *testutils.FakeChainSource, l1Heads chan eth.L1BlockRef)
+	l2act func(t *testing.T, expectedWindow []testID, s *state, src *testutils.FakeChainSource, outputIn chan outputArgs, outputReturn chan outputReturnArgs)
 	reorg bool
 }
 
-func advanceL1(t *testing.T, s *state, src *fakeChainSource, l1Heads chan eth.L1BlockRef) {
-	l1Heads <- src.advanceL1()
+func advanceL1(t *testing.T, s *state, src *testutils.FakeChainSource, l1Heads chan eth.L1BlockRef) {
+	l1Heads <- src.AdvanceL1()
 }
 
-func stutterL1(t *testing.T, s *state, src *fakeChainSource, l1Heads chan eth.L1BlockRef) {
-	l1Heads <- src.l1Head()
+func stutterL1(t *testing.T, s *state, src *testutils.FakeChainSource, l1Heads chan eth.L1BlockRef) {
+	l1Heads <- src.L1Head()
 }
 
-func stutterAdvance(t *testing.T, s *state, src *fakeChainSource, l1Heads chan eth.L1BlockRef) {
-	l1Heads <- src.l1Head()
-	l1Heads <- src.l1Head()
-	l1Heads <- src.l1Head()
-	l1Heads <- src.advanceL1()
-	l1Heads <- src.l1Head()
-	l1Heads <- src.l1Head()
-	l1Heads <- src.l1Head()
+func stutterAdvance(t *testing.T, s *state, src *testutils.FakeChainSource, l1Heads chan eth.L1BlockRef) {
+	l1Heads <- src.L1Head()
+	l1Heads <- src.L1Head()
+	l1Heads <- src.L1Head()
+	l1Heads <- src.AdvanceL1()
+	l1Heads <- src.L1Head()
+	l1Heads <- src.L1Head()
+	l1Heads <- src.L1Head()
 }
 
-func stutterL2(t *testing.T, expectedWindow []testID, s *state, src *fakeChainSource, outputIn chan outputArgs, outputReturn chan outputReturnArgs) {
+func stutterL2(t *testing.T, expectedWindow []testID, s *state, src *testutils.FakeChainSource, outputIn chan outputArgs, outputReturn chan outputReturnArgs) {
 	select {
 	case <-outputIn:
 		t.Error("Got a step when no step should have occurred (l1 only advance)")
@@ -97,17 +101,17 @@ func stutterL2(t *testing.T, expectedWindow []testID, s *state, src *fakeChainSo
 	}
 }
 
-func advanceL2(t *testing.T, expectedWindow []testID, s *state, src *fakeChainSource, outputIn chan outputArgs, outputReturn chan outputReturnArgs) {
+func advanceL2(t *testing.T, expectedWindow []testID, s *state, src *testutils.FakeChainSource, outputIn chan outputArgs, outputReturn chan outputReturnArgs) {
 	args := <-outputIn
 	assert.Equal(t, int(s.Config.SeqWindowSize), len(args.l1Window), "Invalid L1 window size")
 	assert.Equal(t, len(expectedWindow), len(args.l1Window), "L1 Window size does not match expectedWindow")
 	for i := range expectedWindow {
 		assert.Equal(t, expectedWindow[i].ID(), args.l1Window[i], "Window elements must match in advancing L2 in window element %d", i)
 	}
-	outputReturn <- outputReturnArgs{l2Head: src.setL2Head(int(args.l2Head.Number) + 1), err: nil}
+	outputReturn <- outputReturnArgs{l2Head: src.SetL2Head(int(args.l2Head.Number) + 1), err: nil}
 }
 
-func reorg__L2(t *testing.T, expectedWindow []testID, s *state, src *fakeChainSource, outputIn chan outputArgs, outputReturn chan outputReturnArgs) {
+func reorg__L2(t *testing.T, expectedWindow []testID, s *state, src *testutils.FakeChainSource, outputIn chan outputArgs, outputReturn chan outputReturnArgs) {
 	args := <-outputIn
 	assert.Equal(t, int(s.Config.SeqWindowSize), len(args.l1Window), "Invalid L1 window size")
 	assert.Equal(t, len(expectedWindow), len(args.l1Window), "L1 Window size does not match expectedWindow")
@@ -115,7 +119,7 @@ func reorg__L2(t *testing.T, expectedWindow []testID, s *state, src *fakeChainSo
 		assert.Equal(t, expectedWindow[i].ID(), args.l1Window[i], "Window elements must match on reorg in window element %d", i)
 	}
 
-	outputReturn <- outputReturnArgs{l2Head: src.setL2Head(int(args.l2Head.Number) + 1), err: nil}
+	outputReturn <- outputReturnArgs{l2Head: src.SetL2Head(int(args.l2Head.Number) + 1), err: nil}
 }
 
 type stateTestCase struct {
@@ -129,7 +133,7 @@ type stateTestCase struct {
 
 func (tc *stateTestCase) Run(t *testing.T) {
 	log := testlog.Logger(t, log.LvlError)
-	chainSource := NewFakeChainSource(tc.l1Chains, tc.l2Chains, log)
+	chainSource := testutils.NewFakeChainSource(tc.l1Chains, tc.l2Chains, 0, log)
 	l1headsCh := make(chan eth.L1BlockRef, 10)
 	// Unbuffered channels to force a sync point between the test and the state loop.
 	outputIn := make(chan outputArgs)
@@ -151,7 +155,7 @@ func (tc *stateTestCase) Run(t *testing.T) {
 
 	for _, step := range tc.steps {
 		if step.reorg {
-			chainSource.reorgL1()
+			chainSource.ReorgL1()
 		}
 		step.l1act(t, state, chainSource, l1headsCh)
 		<-time.After(5 * time.Millisecond)
@@ -170,7 +174,7 @@ func TestDriver(t *testing.T) {
 			l1Chains:  []string{"abcdefgh"},
 			l2Chains:  []string{"ABCDEF"},
 			seqWindow: 2,
-			genesis:   fakeGenesis('a', 'A', 0),
+			genesis:   testutils.FakeGenesis('a', 'A', 0),
 			steps: []stateTestCaseStep{
 				{l1act: stutterL1, l2act: stutterL2, l1head: "a:0", l2head: "A:0"},
 				{l1act: advanceL1, l2act: stutterL2, l1head: "b:1", l2head: "A:0", window: []testID{"a:0", "b:1"}},
@@ -186,7 +190,7 @@ func TestDriver(t *testing.T) {
 			l1Chains:  []string{"abcdefg", "abcwxyz"},
 			l2Chains:  []string{"ABCDEF", "ABCWXY"},
 			seqWindow: 2,
-			genesis:   fakeGenesis('a', 'A', 0),
+			genesis:   testutils.FakeGenesis('a', 'A', 0),
 			steps: []stateTestCaseStep{
 				{l1act: stutterL1, l2act: stutterL2, l1head: "a:0", l2head: "A:0"},
 				{l1act: advanceL1, l2act: stutterL2, l1head: "b:1", l2head: "A:0", window: []testID{"a:0", "b:1"}},
@@ -207,7 +211,7 @@ func TestDriver(t *testing.T) {
 			l1Chains:  []string{"abcdefgh"},
 			l2Chains:  []string{"ABCDEF"},
 			seqWindow: 2,
-			genesis:   fakeGenesis('a', 'A', 0),
+			genesis:   testutils.FakeGenesis('a', 'A', 0),
 			steps: []stateTestCaseStep{
 				{l1act: stutterL1, l2act: stutterL2, l1head: "a:0", l2head: "A:0"},
 				{l1act: advanceL1, l2act: stutterL2, l1head: "b:1", l2head: "A:0", window: []testID{"a:0", "b:1"}},

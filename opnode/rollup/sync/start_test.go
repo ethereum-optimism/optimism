@@ -5,110 +5,45 @@ import (
 	"testing"
 
 	"github.com/ethereum-optimism/optimistic-specs/opnode/eth"
+	"github.com/ethereum-optimism/optimistic-specs/opnode/internal/testlog"
+	"github.com/ethereum-optimism/optimistic-specs/opnode/internal/testutils"
 	"github.com/ethereum-optimism/optimistic-specs/opnode/rollup"
-	"github.com/ethereum/go-ethereum"
-	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
 )
 
-type fakeChainSource struct {
-	L1 []eth.L1BlockRef
-	L2 map[common.Hash]eth.L2BlockRef
-}
+var _ L1Chain = (*testutils.FakeChainSource)(nil)
+var _ L2Chain = (*testutils.FakeChainSource)(nil)
 
-func (m *fakeChainSource) L1HeadBlockRef(ctx context.Context) (eth.L1BlockRef, error) {
-	return m.L1[len(m.L1)-1], nil
-}
-
-func (m *fakeChainSource) L1BlockRefByNumber(ctx context.Context, number uint64) (eth.L1BlockRef, error) {
-	n := int(number)
-	if n >= len(m.L1) {
-		return eth.L1BlockRef{}, ethereum.NotFound
+// generateFakeL2 creates a fake L2 chain with the following conditions:
+// - The L2 chain is based off of the L1 chain
+// - The actual L1 chain is the New L1 chain
+// - Both heads are at the tip of their respective chains
+func (c *syncStartTestCase) generateFakeL2(t *testing.T) (*testutils.FakeChainSource, eth.L2BlockRef, rollup.Genesis) {
+	log := testlog.Logger(t, log.LvlError)
+	chain := testutils.NewFakeChainSource([]string{c.L1, c.NewL1}, []string{c.L2}, int(c.GenesisL1Num), log)
+	chain.SetL2Head(len(c.L2) - 1)
+	genesis := testutils.FakeGenesis(c.GenesisL1, c.GenesisL2, int(c.GenesisL1Num))
+	head, err := chain.L2BlockRefByNumber(context.Background(), nil)
+	require.Nil(t, err)
+	chain.ReorgL1()
+	for i := 0; i < len(c.NewL1)-1; i++ {
+		chain.AdvanceL1()
 	}
-	return m.L1[n], nil
-}
-
-func (m *fakeChainSource) L2BlockRefByHash(ctx context.Context, l2Hash common.Hash) (eth.L2BlockRef, error) {
-	ref, ok := m.L2[l2Hash]
-	if !ok {
-		return eth.L2BlockRef{}, ethereum.NotFound
-	}
-	return ref, nil
-}
-
-var _ L1Chain = (*fakeChainSource)(nil)
-var _ L2Chain = (*fakeChainSource)(nil)
-
-func fakeID(id rune, num uint64) eth.BlockID {
-	var h common.Hash
-	copy(h[:], string(id))
-	return eth.BlockID{Hash: h, Number: uint64(num)}
-}
-
-func fakeL1Block(self rune, parent rune, num uint64) eth.L1BlockRef {
-	var parentID eth.BlockID
-	if num != 0 {
-		parentID = fakeID(parent, num-1)
-	}
-	id := fakeID(self, num)
-	return eth.L1BlockRef{Hash: id.Hash, Number: id.Number, ParentHash: parentID.Hash}
-}
-
-func fakeL2Block(self rune, parent rune, l1parent eth.BlockID, num uint64) eth.L2BlockRef {
-	var parentID eth.BlockID
-	if num != 0 {
-		parentID = fakeID(parent, num-1)
-	}
-	id := fakeID(self, num)
-	return eth.L2BlockRef{Hash: id.Hash, Number: id.Number, ParentHash: parentID.Hash, L1Origin: l1parent}
-}
-
-func (c *syncStartTestCase) generateFakeL2() (*fakeChainSource, eth.L2BlockRef, rollup.Genesis) {
-	var l1 []eth.L1BlockRef
-	var newl1 []eth.L1BlockRef
-	var prevID rune
-	for i, id := range c.L1 {
-		l1 = append(l1, fakeL1Block(id, prevID, uint64(i)))
-		// fmt.Printf("%v\t%v\n", l1[i].Self, l1[i].Parent)
-		prevID = id
-	}
-	prevID = rune(0)
-	for i, id := range c.NewL1 {
-		newl1 = append(newl1, fakeL1Block(id, prevID, uint64(i)))
-		// fmt.Printf("%v\t%v\n", newl1[i].Self, newl1[i].Parent)
-		prevID = id
-	}
-
-	prevID = rune(0)
-	var head eth.L2BlockRef
-	m := make(map[common.Hash]eth.L2BlockRef)
-	for i, id := range c.L2 {
-		b := fakeL2Block(id, prevID, l1[i+int(c.GenesisL1Num)].ID(), uint64(i)+c.GenesisL2Num)
-		m[b.Hash] = b
-		// fmt.Printf("%v\t%v\t%v\n", b.Self, b.Parent, b.L1Origin)
-		prevID = id
-		head = b
-	}
-	genesis := rollup.Genesis{
-		L1: fakeID(c.GenesisL1, c.GenesisL1Num),
-		L2: fakeID(c.GenesisL2, c.GenesisL2Num),
-	}
-	return &fakeChainSource{L1: newl1, L2: m}, head, genesis
+	return chain, head, genesis
 
 }
 
 type syncStartTestCase struct {
 	Name string
 
-	L1        string // L1 Chain prior to a re-org or other change
-	L2        string // L2 Chain that follows from L1Chain
-	NewL1     string // New L1 chain
-	ReorgBase rune   // Highest L1 block in the pre and post re-org L1 chian
+	L1    string // L1 Chain prior to a re-org or other change
+	L2    string // L2 Chain that follows from L1Chain
+	NewL1 string // New L1 chain
 
 	GenesisL1    rune
 	GenesisL1Num uint64
 	GenesisL2    rune
-	GenesisL2Num uint64
 
 	SeqWindowSize uint64
 	SafeL2Head    rune
@@ -121,9 +56,9 @@ func refToRune(r eth.BlockID) rune {
 }
 
 func (c *syncStartTestCase) Run(t *testing.T) {
-	msr, l2Head, genesis := c.generateFakeL2()
+	chain, l2Head, genesis := c.generateFakeL2(t)
 
-	unsafeL2Head, safeHead, err := FindL2Heads(context.TODO(), l2Head, c.SeqWindowSize, msr, msr, &genesis)
+	unsafeL2Head, safeHead, err := FindL2Heads(context.Background(), l2Head, c.SeqWindowSize, chain, chain, &genesis)
 
 	if c.ExpectedErr != nil {
 		require.Error(t, err, "Expecting an error in this test case")
