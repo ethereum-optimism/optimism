@@ -4,12 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"testing"
+
 	"github.com/ethereum-optimism/optimistic-specs/opnode/internal/testlog"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
-	"testing"
 )
 
 type elemCall struct {
@@ -285,7 +286,7 @@ func (c *parentErrBatchTestCase) Run(t *testing.T) {
 	c.On("get", requests).Run(func(args mock.Arguments) {
 	}).Return([]error{expErr})
 	err := fetchBatched(context.Background(), testlog.Logger(t, log.LvlError), requests, c.GetBatch, 2, 2, 1)
-	assert.Equal(t, expErr, err)
+	assert.ErrorIs(t, err, expErr)
 	c.AssertExpectations(t)
 }
 
