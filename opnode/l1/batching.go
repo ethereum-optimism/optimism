@@ -29,10 +29,11 @@ type batchResult struct {
 
 // fetchBatched fetches the given requests in batches of at most maxPerBatch elements, and with at most maxRetry retries per batch.
 // Batch requests may be split into maxParallel go-routines.
+// Retries only apply to individual request errors, not to the outer batch-requests that combine them into batches.
 func fetchBatched(ctx context.Context, log log.Logger, requests []rpc.BatchElem, getBatch batchCallContextFn, maxRetry int, maxPerBatch int, maxParallel int) error {
 	batchRequest := func(ctx context.Context, missing []rpc.BatchElem) (failed []rpc.BatchElem, err error) {
 		if err := getBatch(ctx, missing); err != nil {
-			return nil, fmt.Errorf("failed batch-retrieval of receipts: %v", err)
+			return nil, fmt.Errorf("failed batch-retrieval: %w", err)
 		}
 		for _, elem := range missing {
 			if elem.Error != nil {

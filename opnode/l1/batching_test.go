@@ -2,14 +2,15 @@ package l1
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"testing"
 
 	"github.com/ethereum-optimism/optimistic-specs/opnode/internal/testlog"
-	log "github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rpc"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
-	"gotest.tools/assert"
 )
 
 type elemCall struct {
@@ -77,9 +78,7 @@ func (tc *batchTestCase) Run(t *testing.T) {
 		}).Return([]error{batchCall.err}) // wrap to preserve nil as type of error
 	}
 
-	log := testlog.Logger(t, log.LvlError)
-
-	err := fetchBatched(context.Background(), log, requests, tc.GetBatch, tc.maxRetry, tc.maxPerBatch, tc.maxParallel)
+	err := fetchBatched(context.Background(), testlog.Logger(t, log.LvlError), requests, tc.GetBatch, tc.maxRetry, tc.maxPerBatch, tc.maxParallel)
 	assert.Equal(t, err, tc.err)
 
 	tc.AssertExpectations(t)
@@ -263,4 +262,35 @@ func TestFetchBatched(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, tc.Run)
 	}
+}
+
+type parentErrBatchTestCase struct {
+	mock.Mock
+}
+
+func (c *parentErrBatchTestCase) GetBatch(ctx context.Context, b []rpc.BatchElem) error {
+	return c.Mock.MethodCalled("get", b).Get(0).([]error)[0]
+}
+
+func (c *parentErrBatchTestCase) Run(t *testing.T) {
+	var requests []rpc.BatchElem
+	for i := 0; i < 2; i++ {
+		requests = append(requests, rpc.BatchElem{
+			Method: "testing",
+			Args:   []interface{}{i},
+		})
+	}
+
+	// shouldn't retry if it's an error on the actual request
+	expErr := errors.New("fail")
+	c.On("get", requests).Run(func(args mock.Arguments) {
+	}).Return([]error{expErr})
+	err := fetchBatched(context.Background(), testlog.Logger(t, log.LvlError), requests, c.GetBatch, 2, 2, 1)
+	assert.ErrorIs(t, err, expErr)
+	c.AssertExpectations(t)
+}
+
+func TestFetchBatchedContextTimeout(t *testing.T) {
+	var c parentErrBatchTestCase
+	c.Run(t)
 }

@@ -1,6 +1,6 @@
 module github.com/ethereum-optimism/optimistic-specs
 
-go 1.18
+go 1.17
 
 require (
 	github.com/ethereum/go-ethereum v1.10.16
@@ -10,7 +10,6 @@ require (
 	github.com/stretchr/testify v1.7.0
 	github.com/urfave/cli v1.22.5
 	golang.org/x/term v0.0.0-20210927222741-03fcf44c2211
-	gotest.tools v2.2.0+incompatible
 )
 
 require (
@@ -30,7 +29,6 @@ require (
 	github.com/go-stack/stack v1.8.1 // indirect
 	github.com/golang-jwt/jwt/v4 v4.3.0 // indirect
 	github.com/golang/snappy v0.0.4 // indirect
-	github.com/google/go-cmp v0.5.4 // indirect
 	github.com/google/uuid v1.3.0 // indirect
 	github.com/gorilla/websocket v1.5.0 // indirect
 	github.com/hashicorp/go-bexpr v0.1.11 // indirect
