@@ -11,7 +11,7 @@ submodules:
 
 opnode:
 	go build -o ./bin/op ./opnode/cmd
-.PHONY: opnoed
+.PHONY: opnode
 
 contracts:
 	cd ./packages/contracts && yarn install && yarn build
