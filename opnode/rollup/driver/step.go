@@ -26,6 +26,34 @@ type outputImpl struct {
 	Config rollup.Config
 }
 
+// isDepositTx checks an opaqueTx to determine if it is a Deposit Trransaction
+// It has to return an error in the case the transaction is empty
+func isDepositTx(opaqueTx l2.Data) (bool, error) {
+	if len(opaqueTx) == 0 {
+		return false, errors.New("empty transaction")
+	}
+	return opaqueTx[0] == types.DepositTxType, nil
+}
+
+// lastDeposit finds the index of last deposit at the start of the transactions.
+// It walks the transactions from the start until it finds a non-deposit tx.
+// An error is returned if any looked at transaction cannot be decoded
+func lastDeposit(txns []l2.Data) (int, error) {
+	var lastDeposit int
+	for i, tx := range txns {
+		deposit, err := isDepositTx(tx)
+		if err != nil {
+			return 0, fmt.Errorf("invalid transaction at idx %d", i)
+		}
+		if deposit {
+			lastDeposit = i
+		} else {
+			break
+		}
+	}
+	return lastDeposit, nil
+}
+
 func (d *outputImpl) createNewBlock(ctx context.Context, l2Head eth.L2BlockRef, l2SafeHead eth.BlockID, l2Finalized eth.BlockID, l1Origin eth.L1BlockRef) (eth.L2BlockRef, *derive.BatchData, error) {
 	d.log.Info("creating new block", "l2Head", l2Head)
 
@@ -63,8 +91,6 @@ func (d *outputImpl) createNewBlock(ctx context.Context, l2Head eth.L2BlockRef, 
 	}
 	txns = append(txns, deposits...)
 
-	depositStart := len(txns)
-
 	attrs := &l2.PayloadAttributes{
 		Timestamp:             hexutil.Uint64(l2Head.Time + d.Config.BlockTime),
 		PrevRandao:            l2.Bytes32(l1Info.MixDigest()),
@@ -78,15 +104,16 @@ func (d *outputImpl) createNewBlock(ctx context.Context, l2Head eth.L2BlockRef, 
 		FinalizedBlockHash: l2Finalized.Hash,
 	}
 
-	payload, err := d.insertHeadBlock(ctx, fc, attrs, false)
+	payload, lastDeposit, err := d.insertHeadBlock(ctx, fc, attrs, false)
 	if err != nil {
 		return l2Head, nil, fmt.Errorf("failed to extend L2 chain: %v", err)
 	}
+
 	batch := &derive.BatchData{
 		BatchV1: derive.BatchV1{
 			Epoch:        rollup.Epoch(l1Info.NumberU64()),
 			Timestamp:    uint64(payload.Timestamp),
-			Transactions: payload.Transactions[depositStart:],
+			Transactions: payload.Transactions[lastDeposit+1:],
 		},
 	}
 	ref, err := l2.PayloadToBlockRef(payload, &d.Config.Genesis)
@@ -185,7 +212,7 @@ func (d *outputImpl) insertEpoch(ctx context.Context, l2Head eth.L2BlockRef, l2S
 			payload, reorg, err = d.verifySafeBlock(ctx, fc, attrs, lastSafeHead.ID())
 
 		} else {
-			payload, err = d.insertHeadBlock(ctx, fc, attrs, true)
+			payload, _, err = d.insertHeadBlock(ctx, fc, attrs, true)
 		}
 		if err != nil {
 			return lastHead, lastSafeHead, didReorg, fmt.Errorf("failed to extend L2 chain at block %d/%d of epoch %d: %w", i, len(batches), epoch, err)
@@ -247,7 +274,7 @@ func (d *outputImpl) verifySafeBlock(ctx context.Context, fc l2.ForkchoiceState,
 		d.log.Warn("Detected L2 reorg when verifying L2 safe head", "parent", parent, "prev_block", payload.BlockHash, "mismatch", err)
 		fc.HeadBlockHash = parent.Hash
 		fc.SafeBlockHash = parent.Hash
-		payload, err := d.insertHeadBlock(ctx, fc, attrs, true)
+		payload, _, err := d.insertHeadBlock(ctx, fc, attrs, true)
 		return payload, true, err
 	}
 	// If the attributes match, just bump the safe head
@@ -264,22 +291,54 @@ func (d *outputImpl) verifySafeBlock(ctx context.Context, fc l2.ForkchoiceState,
 // It first uses the given FC to start the block creation process and then after the payload is executed,
 // sets the FC to the same safe and finalized hashes, but updates the head hash to the new block.
 // If updateSafe is true, the head block is considered to be the safe head as well as the head.
-func (d *outputImpl) insertHeadBlock(ctx context.Context, fc l2.ForkchoiceState, attrs *l2.PayloadAttributes, updateSafe bool) (*l2.ExecutionPayload, error) {
+// It returns the payload, the count of deposits, and an error.
+func (d *outputImpl) insertHeadBlock(ctx context.Context, fc l2.ForkchoiceState, attrs *l2.PayloadAttributes, updateSafe bool) (*l2.ExecutionPayload, int, error) {
 	fcRes, err := d.l2.ForkchoiceUpdate(ctx, &fc, attrs)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create new block via forkchoice: %w", err)
+		return nil, 0, fmt.Errorf("failed to create new block via forkchoice: %w", err)
 	}
 	id := fcRes.PayloadID
 	if id == nil {
-		return nil, errors.New("nil id in forkchoice result when expecting a valid ID")
+		return nil, 0, errors.New("nil id in forkchoice result when expecting a valid ID")
 	}
 	payload, err := d.l2.GetPayload(ctx, *id)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get execution payload: %w", err)
+		return nil, 0, fmt.Errorf("failed to get execution payload: %w", err)
 	}
+	// Sanity check payload before inserting it
+	if len(payload.Transactions) == 0 {
+		return nil, 0, errors.New("no transactions in returned payload")
+	}
+	if payload.Transactions[0][0] != types.DepositTxType {
+		return nil, 0, fmt.Errorf("first transaction was not deposit tx. Got %v", payload.Transactions[0][0])
+	}
+	// Ensure that the deposits are first
+	lastDeposit, err := lastDeposit(payload.Transactions)
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to find last deposit: %w", err)
+	}
+	// Ensure no deposits after last deposit
+	for i := lastDeposit + 1; i < len(payload.Transactions); i++ {
+		tx := payload.Transactions[i]
+		deposit, err := isDepositTx(tx)
+		if err != nil {
+			return nil, 0, fmt.Errorf("failed to decode transaction idx %d: %w", i, err)
+		}
+		if deposit {
+			d.log.Error("Produced an invalid block where the deposit txns are not all at the start of the block", "tx_idx", i, "lastDeposit", lastDeposit)
+			return nil, 0, fmt.Errorf("deposit tx (%d) after other tx in l2 block with prev deposit at idx %d", i, lastDeposit)
+		}
+	}
+	// If this is an unsafe block, it has deposits & transactions included from L2.
+	// Record if the execution engine dropped deposits. The verification process would see a mismatch
+	// between attributes and the block, but then execute the correct block.
+	if !updateSafe && lastDeposit+1 != len(attrs.Transactions) {
+		d.log.Error("Dropped deposits when executing L2 block")
+	}
+
 	err = d.l2.NewPayload(ctx, payload)
 	if err != nil {
-		return nil, fmt.Errorf("failed to insert execution payload: %w", err)
+		return nil, 0, fmt.Errorf("failed to insert execution payload: %w", err)
 	}
 	fc.HeadBlockHash = payload.BlockHash
 	if updateSafe {
@@ -288,7 +347,7 @@ func (d *outputImpl) insertHeadBlock(ctx context.Context, fc l2.ForkchoiceState,
 	d.log.Debug("Inserted L2 head block", "number", uint64(payload.BlockNumber), "hash", payload.BlockHash, "update_safe", updateSafe)
 	_, err = d.l2.ForkchoiceUpdate(ctx, &fc, nil)
 	if err != nil {
-		return nil, fmt.Errorf("failed to make the new L2 block canonical via forkchoice: %w", err)
+		return nil, 0, fmt.Errorf("failed to make the new L2 block canonical via forkchoice: %w", err)
 	}
-	return payload, nil
+	return payload, lastDeposit, nil
 }
