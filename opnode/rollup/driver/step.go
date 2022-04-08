@@ -1,6 +1,7 @@
 package driver
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -85,10 +86,10 @@ func (d *outputImpl) createNewBlock(ctx context.Context, l2Head eth.L2BlockRef, 
 		BatchV1: derive.BatchV1{
 			Epoch:        rollup.Epoch(l1Info.NumberU64()),
 			Timestamp:    uint64(payload.Timestamp),
-			Transactions: payload.TransactionsField[depositStart:],
+			Transactions: payload.Transactions[depositStart:],
 		},
 	}
-	ref, err := derive.BlockReferences(payload, &d.Config.Genesis)
+	ref, err := l2.PayloadToBlockRef(payload, &d.Config.Genesis)
 	return ref, batch, err
 }
 
@@ -110,7 +111,7 @@ func (d *outputImpl) insertEpoch(ctx context.Context, l2Head eth.L2BlockRef, l2S
 	epoch := rollup.Epoch(l1Input[0].Number)
 	fetchCtx, cancel := context.WithTimeout(ctx, time.Second*20)
 	defer cancel()
-	l2Info, err := d.l2.BlockByHash(fetchCtx, l2SafeHead.Hash)
+	l2Info, err := d.l2.PayloadByHash(fetchCtx, l2SafeHead.Hash)
 	if err != nil {
 		return l2Head, l2SafeHead, false, fmt.Errorf("failed to fetch L2 block info of %s: %w", l2SafeHead, err)
 	}
@@ -139,7 +140,7 @@ func (d *outputImpl) insertEpoch(ctx context.Context, l2Head eth.L2BlockRef, l2S
 		return l2Head, l2SafeHead, false, fmt.Errorf("failed to fetch create batches from transactions: %w", err)
 	}
 	// Make batches contiguous
-	minL2Time := l2Info.Time() + d.Config.BlockTime
+	minL2Time := uint64(l2Info.Timestamp) + d.Config.BlockTime
 	maxL2Time := l1Info.Time() + d.Config.MaxSequencerDrift
 	if minL2Time+d.Config.BlockTime > maxL2Time {
 		maxL2Time = minL2Time + d.Config.BlockTime
@@ -156,7 +157,7 @@ func (d *outputImpl) insertEpoch(ctx context.Context, l2Head eth.L2BlockRef, l2S
 	lastHead := l2Head
 	lastSafeHead := l2SafeHead
 	didReorg := false
-	var payload derive.Block
+	var payload *l2.ExecutionPayload
 	var reorg bool
 	for i, batch := range batches {
 		var txns []l2.Data
@@ -190,7 +191,7 @@ func (d *outputImpl) insertEpoch(ctx context.Context, l2Head eth.L2BlockRef, l2S
 			return lastHead, lastSafeHead, didReorg, fmt.Errorf("failed to extend L2 chain at block %d/%d of epoch %d: %w", i, len(batches), epoch, err)
 		}
 
-		newLast, err := derive.BlockReferences(payload, &d.Config.Genesis)
+		newLast, err := l2.PayloadToBlockRef(payload, &d.Config.Genesis)
 		if err != nil {
 			return lastHead, lastSafeHead, didReorg, fmt.Errorf("failed to derive block references: %w", err)
 		}
@@ -212,29 +213,22 @@ func (d *outputImpl) insertEpoch(ctx context.Context, l2Head eth.L2BlockRef, l2S
 
 // attributesMatchBlock checks if the L2 attributes pre-inputs match the output
 // nil if it is a match. If err is not nil, the error contains the reason for the mismatch
-func attributesMatchBlock(attrs *l2.PayloadAttributes, parentHash common.Hash, block *types.Block) error {
-	if parentHash != block.ParentHash() {
-		return fmt.Errorf("parent hash field does not match. expected: %v. got: %v", parentHash, block.ParentHash())
+func attributesMatchBlock(attrs *l2.PayloadAttributes, parentHash common.Hash, block *l2.ExecutionPayload) error {
+	if parentHash != block.ParentHash {
+		return fmt.Errorf("parent hash field does not match. expected: %v. got: %v", parentHash, block.ParentHash)
 	}
-	if uint64(attrs.Timestamp) != block.Time() {
-		return fmt.Errorf("timestamp field does not match. expected: %v. got: %v", uint64(attrs.Timestamp), block.Time())
+	if attrs.Timestamp != block.Timestamp {
+		return fmt.Errorf("timestamp field does not match. expected: %v. got: %v", uint64(attrs.Timestamp), block.Timestamp)
 	}
-	if attrs.PrevRandao != l2.Bytes32(block.MixDigest()) {
-		return fmt.Errorf("random field does not match. expected: %v. got: %v", attrs.PrevRandao, l2.Bytes32(block.MixDigest()))
+	if attrs.PrevRandao != block.PrevRandao {
+		return fmt.Errorf("random field does not match. expected: %v. got: %v", attrs.PrevRandao, block.PrevRandao)
 	}
-	if len(attrs.Transactions) != len(block.Transactions()) {
-		return fmt.Errorf("transaction count does not match. expected: %v. got: %v", len(attrs.Transactions), len(block.Transactions()))
+	if len(attrs.Transactions) != len(block.Transactions) {
+		return fmt.Errorf("transaction count does not match. expected: %v. got: %v", len(attrs.Transactions), block.Transactions)
 	}
-	btxs := block.Transactions()
-	for i := range attrs.Transactions {
-		var tx types.Transaction
-		err := tx.UnmarshalBinary(attrs.Transactions[i])
-		if err != nil {
-			return fmt.Errorf("failed to decode transaction %d in attributes: %w", i, err)
-		}
-
-		if tx.Hash() != btxs[i].Hash() {
-			return fmt.Errorf("transaction %d does not match. expected: %v. got: %v", i, tx.Hash(), btxs[i].Hash())
+	for i, otx := range attrs.Transactions {
+		if expect := block.Transactions[i]; !bytes.Equal(otx, expect) {
+			return fmt.Errorf("transaction %d does not match. expected: %x. got: %x", i, expect, otx)
 		}
 	}
 	return nil
@@ -242,29 +236,28 @@ func attributesMatchBlock(attrs *l2.PayloadAttributes, parentHash common.Hash, b
 
 // verifySafeBlock reconciles the supplied payload attributes against the actual L2 block.
 // If they do not match, it inserts the new block and sets the head and safe head to the new block in the FC.
-func (d *outputImpl) verifySafeBlock(ctx context.Context, fc l2.ForkchoiceState, attrs *l2.PayloadAttributes, parent eth.BlockID) (derive.Block, bool, error) {
-	block, err := d.l2.BlockByNumber(ctx, new(big.Int).SetUint64(parent.Number+1))
+func (d *outputImpl) verifySafeBlock(ctx context.Context, fc l2.ForkchoiceState, attrs *l2.PayloadAttributes, parent eth.BlockID) (*l2.ExecutionPayload, bool, error) {
+	payload, err := d.l2.PayloadByNumber(ctx, new(big.Int).SetUint64(parent.Number+1))
 	if err != nil {
 		return nil, false, fmt.Errorf("failed to get L2 block: %w", err)
 	}
-	err = attributesMatchBlock(attrs, parent.Hash, block)
+	err = attributesMatchBlock(attrs, parent.Hash, payload)
 	if err != nil {
 		// Have reorg
-		d.log.Warn("Detected L2 reorg when verifying L2 safe head", "parent", parent, "prev_block", block.Hash(), "mismatch", err)
+		d.log.Warn("Detected L2 reorg when verifying L2 safe head", "parent", parent, "prev_block", payload.BlockHash, "mismatch", err)
 		fc.HeadBlockHash = parent.Hash
 		fc.SafeBlockHash = parent.Hash
 		payload, err := d.insertHeadBlock(ctx, fc, attrs, true)
 		return payload, true, err
 	}
-	// If match, just bump the safe head
-	d.log.Debug("Verified L2 block", "number", block.Number(), "hash", block.Hash())
-	fc.SafeBlockHash = block.Hash()
+	// If the attributes match, just bump the safe head
+	d.log.Debug("Verified L2 block", "number", payload.BlockNumber, "hash", payload.BlockHash)
+	fc.SafeBlockHash = payload.BlockHash
 	_, err = d.l2.ForkchoiceUpdate(ctx, &fc, nil)
 	if err != nil {
 		return nil, false, fmt.Errorf("failed to execute ForkchoiceUpdated: %w", err)
 	}
-	return block, false, nil
-
+	return payload, false, nil
 }
 
 // insertHeadBlock creates, executes, and inserts the specified block as the head block.
