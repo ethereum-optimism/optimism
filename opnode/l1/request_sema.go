@@ -38,6 +38,5 @@ func (lc *limitClient) EthSubscribe(ctx context.Context, channel interface{}, ar
 }
 
 func (lc *limitClient) Close() {
-	close(lc.sema)
 	lc.c.Close()
 }
