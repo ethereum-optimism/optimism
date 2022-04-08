@@ -89,7 +89,7 @@ func (d *outputImpl) createNewBlock(ctx context.Context, l2Head eth.L2BlockRef, 
 			Transactions: payload.Transactions[depositStart:],
 		},
 	}
-	ref, err := l2.PayloadToBlockRef(payload)
+	ref, err := l2.PayloadToBlockRef(payload, &d.Config.Genesis)
 	return ref, batch, err
 }
 
@@ -191,7 +191,7 @@ func (d *outputImpl) insertEpoch(ctx context.Context, l2Head eth.L2BlockRef, l2S
 			return lastHead, lastSafeHead, didReorg, fmt.Errorf("failed to extend L2 chain at block %d/%d of epoch %d: %w", i, len(batches), epoch, err)
 		}
 
-		newLast, err := l2.PayloadToBlockRef(payload)
+		newLast, err := l2.PayloadToBlockRef(payload, &d.Config.Genesis)
 		if err != nil {
 			return lastHead, lastSafeHead, didReorg, fmt.Errorf("failed to derive block references: %w", err)
 		}

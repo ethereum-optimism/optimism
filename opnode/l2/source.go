@@ -165,7 +165,7 @@ func (s *Source) L2BlockRefByNumber(ctx context.Context, l2Num *big.Int) (eth.L2
 		// w%: wrap the error, we still need to detect if a canonical block is not found, a.k.a. end of chain.
 		return eth.L2BlockRef{}, fmt.Errorf("failed to determine block-hash of height %v, could not get header: %w", l2Num, err)
 	}
-	return blockToBlockRef(block)
+	return blockToBlockRef(block, s.genesis)
 }
 
 // L2BlockRefByHash returns the block & parent ids based on the supplied hash. The returned BlockRef may not be in the canonical chain
@@ -175,47 +175,68 @@ func (s *Source) L2BlockRefByHash(ctx context.Context, l2Hash common.Hash) (eth.
 		// w%: wrap the error, we still need to detect if a canonical block is not found, a.k.a. end of chain.
 		return eth.L2BlockRef{}, fmt.Errorf("failed to determine block-hash of height %v, could not get header: %w", l2Hash, err)
 	}
-	return blockToBlockRef(block)
+	return blockToBlockRef(block, s.genesis)
 }
 
-func blockToBlockRef(block *types.Block) (eth.L2BlockRef, error) {
-	txs := block.Transactions()
-	if len(txs) == 0 {
-		return eth.L2BlockRef{}, fmt.Errorf("l2 block is missing L1 info deposit tx, block hash: %s", block.Hash())
-	}
-	tx := txs[0]
-	if tx.Type() != types.DepositTxType {
-		return eth.L2BlockRef{}, fmt.Errorf("first block tx has unexpected tx type: %d", tx.Type())
-	}
-	l1Number, _, _, l1Hash, err := derive.L1InfoDepositTxData(tx.Data())
-	if err != nil {
-		return eth.L2BlockRef{}, fmt.Errorf("failed to parse L1 info deposit tx from L2 block: %v", err)
+// blockToBlockRef extracts the essential L2BlockRef information from a block,
+// falling back to genesis information if necessary.
+func blockToBlockRef(block *types.Block, genesis *rollup.Genesis) (eth.L2BlockRef, error) {
+	var l1Origin eth.BlockID
+	if block.NumberU64() == genesis.L2.Number {
+		if block.Hash() != genesis.L2.Hash {
+			return eth.L2BlockRef{}, fmt.Errorf("expected L2 genesis hash to match L2 block at genesis block number %d: %s <> %s", genesis.L2.Number, block.Hash(), genesis.L2.Hash)
+		}
+		l1Origin = genesis.L1
+	} else {
+		txs := block.Transactions()
+		if len(txs) == 0 {
+			return eth.L2BlockRef{}, fmt.Errorf("l2 block is missing L1 info deposit tx, block hash: %s", block.Hash())
+		}
+		tx := txs[0]
+		if tx.Type() != types.DepositTxType {
+			return eth.L2BlockRef{}, fmt.Errorf("first block tx has unexpected tx type: %d", tx.Type())
+		}
+		l1Number, _, _, l1Hash, err := derive.L1InfoDepositTxData(tx.Data())
+		if err != nil {
+			return eth.L2BlockRef{}, fmt.Errorf("failed to parse L1 info deposit tx from L2 block: %v", err)
+		}
+		l1Origin = eth.BlockID{Hash: l1Hash, Number: l1Number}
 	}
 	return eth.L2BlockRef{
 		Hash:       block.Hash(),
 		Number:     block.NumberU64(),
 		ParentHash: block.ParentHash(),
 		Time:       block.Time(),
-		L1Origin:   eth.BlockID{Hash: l1Hash, Number: l1Number},
+		L1Origin:   l1Origin,
 	}, nil
 }
 
-func PayloadToBlockRef(payload *ExecutionPayload) (eth.L2BlockRef, error) {
-	if len(payload.Transactions) == 0 {
-		return eth.L2BlockRef{}, fmt.Errorf("l2 block is missing L1 info deposit tx, block hash: %s", payload.BlockHash)
+// PayloadToBlockRef extracts the essential L2BlockRef information from an execution payload,
+// falling back to genesis information if necessary.
+func PayloadToBlockRef(payload *ExecutionPayload, genesis *rollup.Genesis) (eth.L2BlockRef, error) {
+	var l1Origin eth.BlockID
+	if uint64(payload.BlockNumber) == genesis.L2.Number {
+		if payload.BlockHash != genesis.L2.Hash {
+			return eth.L2BlockRef{}, fmt.Errorf("expected L2 genesis hash to match L2 block at genesis block number %d: %s <> %s", genesis.L2.Number, payload.BlockHash, genesis.L2.Hash)
+		}
+		l1Origin = genesis.L1
+	} else {
+		if len(payload.Transactions) == 0 {
+			return eth.L2BlockRef{}, fmt.Errorf("l2 block is missing L1 info deposit tx, block hash: %s", payload.BlockHash)
+		}
+		var tx types.Transaction
+		if err := tx.UnmarshalBinary(payload.Transactions[0]); err != nil {
+			return eth.L2BlockRef{}, fmt.Errorf("failed to decode first tx to read l1 info from: %v", err)
+		}
+		if tx.Type() != types.DepositTxType {
+			return eth.L2BlockRef{}, fmt.Errorf("first payload tx has unexpected tx type: %d", tx.Type())
+		}
+		l1Number, _, _, l1Hash, err := derive.L1InfoDepositTxData(tx.Data())
+		if err != nil {
+			return eth.L2BlockRef{}, fmt.Errorf("failed to parse L1 info deposit tx from L2 block: %v", err)
+		}
+		l1Origin = eth.BlockID{Hash: l1Hash, Number: l1Number}
 	}
-	var tx types.Transaction
-	if err := tx.UnmarshalBinary(payload.Transactions[0]); err != nil {
-		return eth.L2BlockRef{}, fmt.Errorf("failed to decode first tx to read l1 info from: %v", err)
-	}
-	if tx.Type() != types.DepositTxType {
-		return eth.L2BlockRef{}, fmt.Errorf("first payload tx has unexpected tx type: %d", tx.Type())
-	}
-	l1Number, _, _, l1Hash, err := derive.L1InfoDepositTxData(tx.Data())
-	if err != nil {
-		return eth.L2BlockRef{}, fmt.Errorf("failed to parse L1 info deposit tx from L2 block: %v", err)
-	}
-	l1Origin := eth.BlockID{Hash: l1Hash, Number: l1Number}
 
 	return eth.L2BlockRef{
 		Hash:       payload.BlockHash,
