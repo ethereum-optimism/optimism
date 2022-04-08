@@ -6,11 +6,8 @@ This repository holds the work-in-progress specification for the next version of
 Optimism.
 
 This spec is developed iteratively, specifying a rollup of increasing
-complexity. The current stage specifies a "rollup" whose only transactions are
-deposits (L2 transactions submitted on L1).
-
-A more detailed, though potentially out of date specification can be found on
-the `alpha` branch.
+complexity. The current stage specifies a "rollup" with deposits, withdrawals and sequenced (L2-native) transactions.
+Some aspects, such as the fee logic and calldata compression, are still missing or in placeholder state.
 
 ## Work in Progress
 
