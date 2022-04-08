@@ -313,7 +313,7 @@ func TestSystemE2E(t *testing.T) {
 	// Finally send TX
 	mintAmount := big.NewInt(1_000_000_000_000)
 	opts.Value = mintAmount
-	_, err = depositContract.DepositTransaction(opts, fromAddr, common.Big0, big.NewInt(1_000_000), false, nil)
+	l1DepTx, err := depositContract.DepositTransaction(opts, fromAddr, common.Big0, big.NewInt(1_000_000), false, nil)
 	require.Nil(t, err, "with deposit tx")
 
 	// Wait for tx to be mined on L1 (or timeout)
@@ -351,6 +351,19 @@ loop:
 			t.Fatal("Timeout waiting for l2 head")
 		}
 	}
+
+	// Based on the L1 event log, compute the deposit-tx hash, and receive the receipt from the derived L2 deposit tx.
+	ctx, cancel = context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	l1DepReceipt, err := l1Client.TransactionReceipt(ctx, l1DepTx.Hash())
+	require.Nil(t, err, "Could not get L1 deposit receipt")
+	reconstructedDep, err := derive.UnmarshalLogEvent(l1DepReceipt.Logs[0])
+	require.NoError(t, err)
+	l2DepTx := types.NewTx(reconstructedDep)
+	depHash := l2DepTx.Hash()
+	depositReceipt, err := l2Client.TransactionReceipt(context.Background(), depHash)
+	require.NoError(t, err)
+	require.Equal(t, depositReceipt.Status, types.ReceiptStatusSuccessful)
 
 	// Confirm balance
 	ctx, cancel = context.WithTimeout(context.Background(), 1*time.Second)
