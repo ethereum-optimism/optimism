@@ -108,5 +108,4 @@ contract WithdawerBurnTest is WithdrawerTestCommon {
         // The Withdrawer should have no balance
         assertEq(address(wd).balance, 0);
     }
-
 }

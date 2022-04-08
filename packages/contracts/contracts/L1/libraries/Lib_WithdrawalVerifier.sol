@@ -1,13 +1,10 @@
 //SPDX-License-Identifier: MIT
 pragma solidity 0.8.10;
 
-/* Interactions Imports */
-import { L2OutputOracle } from "./L2OutputOracle.sol";
-
 /* Library Imports */
 import {
     Lib_SecureMerkleTrie
-} from "../../lib/optimism/packages/contracts/contracts/libraries/trie/Lib_SecureMerkleTrie.sol";
+} from "../../../lib/optimism/packages/contracts/contracts/libraries/trie/Lib_SecureMerkleTrie.sol";
 
 /**
  * @title WithdrawalVerifier
@@ -20,6 +17,26 @@ library WithdrawalVerifier {
         bytes32 stateRoot;
         bytes32 withdrawerStorageRoot;
         bytes32 latestBlockhash;
+    }
+
+    /**
+     * @notice Derives the withdrawal hash according to the encoding in the L2 Withdrawer contract
+     * @param _nonce Nonce for the provided message.
+     * @param _sender Message sender address on L2.
+     * @param _target Target address on L1.
+     * @param _value ETH to send to the target.
+     * @param _gasLimit Gas to be forwarded to the target.
+     * @param _data Data to send to the target.
+     */
+    function _deriveWithdrawalHash(
+        uint256 _nonce,
+        address _sender,
+        address _target,
+        uint256 _value,
+        uint256 _gasLimit,
+        bytes calldata _data
+    ) external pure returns (bytes32) {
+        return keccak256(abi.encode(_nonce, _sender, _target, _value, _gasLimit, _data));
     }
 
     /**
