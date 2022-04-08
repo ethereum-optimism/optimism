@@ -6,3 +6,7 @@ bin
 
 # vim swap files
 *.sw*
+
+integration-tests/cache/
+integration-tests/artifacts/
+**/*.env

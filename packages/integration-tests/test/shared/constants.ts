@@ -1,0 +1,1 @@
+export const DEPOSIT_FEED_ADDR = '0xdeaddeaddeaddeaddeaddeaddeaddeaddead0001'

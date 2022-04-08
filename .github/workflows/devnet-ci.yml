@@ -1,0 +1,39 @@
+name: Devnet integration tests
+
+on:
+  push:
+    branches:
+      - 'main'
+      - 'staging'
+      - 'feat/*'
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  compose-devnet:
+    runs-on: ubuntu-latest
+    name: Run integration tests on devnet
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          submodules: recursive
+
+      - uses: actions/setup-node@v2
+        with:
+          node-version: '14'
+          cache: 'yarn'
+
+      - run: |
+          curl -L -o /tmp/foundry.tgz https://github.com/gakonst/foundry/releases/download/nightly-9c2469488c6872e5d17198555f7d8e1a80173151/foundry_nightly_linux_amd64.tar.gz
+          tar -xzvf /tmp/foundry.tgz
+          mv forge /usr/local/bin
+          mv cast /usr/local/bin
+        name: Install forge
+
+      - run: cd packages/contracts && yarn install && yarn build
+      - run: cd packages/integration-tests && yarn install && yarn build:contracts
+
+      - run: make devnet-up
+        name: Bring up the stack
+
+      - run: sleep 10 && docker ps && make integration-tests

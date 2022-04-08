@@ -35,8 +35,8 @@ Note that you will need to specify the L2 chain ID manually if you use Metamask.
 
 The devnet comes with a pre-funded account you can use as a faucet:
 
-- Address: `0xde3829a23df1479438622a08a116e8eb3f620bb5`
-- Private key: `bf7604d9d3a1c7748642b1b7b05c2bd219c9faa91458b370f85e5a40f3b03af7`
+- Address: `0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266`
+- Private key: `ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80`
 
 The faucet account exists on both L1 and L2. To deposit onto L2 from L1, you can use the `deposit` hardhat task.
 Run the following from the `packags/contracts` directory:
@@ -52,6 +52,11 @@ L1_PROVIDER_URL=http://localhost:8545
 L2_PROVIDER_URL=http://localhost:8546
 PRIVATE_KEY=bf7604d9d3a1c7748642b1b7b05c2bd219c9faa91458b370f85e5a40f3b03af7
 ```
+
+The batch submitter uses the account below to submit batches to L1:
+
+- Address: `0xde3829a23df1479438622a08a116e8eb3f620bb5`
+- Private key: `bf7604d9d3a1c7748642b1b7b05c2bd219c9faa91458b370f85e5a40f3b03af7`
 
 ## Contributing
 
