@@ -18,6 +18,7 @@
     "lint:toc": "doctoc --title=\"**Table of Contents**\" ./specs ./meta"
   },
   "dependencies": {
-    "@eth-optimism/core-utils": "^0.8.1"
+    "@eth-optimism/core-utils": "^0.8.1",
+    "@ethersproject/constants": "^5.6.0"
   }
 }

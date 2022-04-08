@@ -5,6 +5,11 @@
   "main": "index.js",
   "license": "MIT",
   "dependencies": {
+    "@ethersproject/address": "^5.6.0",
+    "@ethersproject/bignumber": "^5.6.0",
+    "@ethersproject/bytes": "^5.6.1",
+    "@ethersproject/keccak256": "^5.6.0",
+    "@ethersproject/rlp": "^5.6.0",
     "hardhat": "^2.7.1",
     "rlp": "^2.2.7"
   },
