@@ -234,7 +234,7 @@ func (s *Source) Fetch(ctx context.Context, blockHash common.Hash) (derive.L1Inf
 		return nil, nil, nil, err
 	}
 
-	receipts, err := fetchReceipts(ctx, info.receiptHash, txs, s.batchCall)
+	receipts, err := fetchReceipts(ctx, info.ID(), info.receiptHash, txs, s.batchCall)
 	if err != nil {
 		return nil, nil, nil, err
 	}

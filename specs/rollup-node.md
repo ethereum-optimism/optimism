@@ -98,8 +98,7 @@ The rollup reads the following data from the [sequencing window][g-sequencing-wi
     - timestamp
     - basefee
     - *random* (the output of the [`RANDOM` opcode][random])
-  - L1 log entries emitted for [user deposits][g-deposits], derived transactions are augmented with
-    `blockHeight` and `transactionIndex` of the transaction in L2.
+  - L1 log entries emitted for [user deposits][g-deposits], augmented with a [sourceHash](./deposits.md#).
 - Of each block in the window:
   - Sequencer batches, derived from the transactions:
     - The transaction receiver is the sequencer inbox address

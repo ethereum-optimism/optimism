@@ -48,13 +48,14 @@ func (d *outputImpl) createNewBlock(ctx context.Context, l2Head eth.L2BlockRef, 
 		return l2Head, nil, fmt.Errorf("failed to fetch L1 block info of %s: %v", l1Origin, err)
 	}
 
-	l1InfoTx, err := derive.L1InfoDepositBytes(l2Head.Number+1, l1Info)
+	seqNumber := l2Head.Number + 1 - l2SafeHead.Number
+	l1InfoTx, err := derive.L1InfoDepositBytes(seqNumber, l1Info)
 	if err != nil {
 		return l2Head, nil, err
 	}
 	var txns []l2.Data
 	txns = append(txns, l1InfoTx)
-	deposits, err := derive.DeriveDeposits(l2Head.Number+1, receipts)
+	deposits, err := derive.DeriveDeposits(receipts)
 	d.log.Info("Derived deposits", "deposits", deposits, "l2Parent", l2Head, "l1Origin", l1Origin)
 	if err != nil {
 		return l2Head, nil, fmt.Errorf("failed to derive deposits: %v", err)
@@ -124,7 +125,7 @@ func (d *outputImpl) insertEpoch(ctx context.Context, l2Head eth.L2BlockRef, l2S
 	if err != nil {
 		return l2Head, l2SafeHead, false, fmt.Errorf("failed to get L1 timestamp of next L1 block: %v", err)
 	}
-	deposits, err := derive.DeriveDeposits(l2SafeHead.Number+1, receipts)
+	deposits, err := derive.DeriveDeposits(receipts)
 	if err != nil {
 		return l2Head, l2SafeHead, false, fmt.Errorf("failed to derive deposits: %w", err)
 	}
@@ -159,7 +160,7 @@ func (d *outputImpl) insertEpoch(ctx context.Context, l2Head eth.L2BlockRef, l2S
 	var reorg bool
 	for i, batch := range batches {
 		var txns []l2.Data
-		l1InfoTx, err := derive.L1InfoDepositBytes(lastSafeHead.Number+1, l1Info)
+		l1InfoTx, err := derive.L1InfoDepositBytes(uint64(i), l1Info)
 		if err != nil {
 			return l2Head, l2SafeHead, false, fmt.Errorf("failed to create l1InfoTx: %w", err)
 		}

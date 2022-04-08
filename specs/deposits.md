@@ -23,6 +23,7 @@ with the authorization and validation conditions on L2.
 **Table of Contents**
 
 - [The Deposited Transaction Type](#the-deposited-transaction-type)
+  - [Source hash computation](#source-hash-computation)
   - [Kinds of Deposited Transactions](#kinds-of-deposited-transactions)
   - [Validation and Authorization of Deposited Transactions](#validation-and-authorization-of-deposited-transactions)
   - [Execution](#execution)
@@ -55,8 +56,7 @@ fields (rlp encoded in the order they appear here):
 
 [EIP-2718]: https://eips.ethereum.org/EIPS/eip-2718
 
-- `uint64 blockHeight`: the block-height of the L2 block
-- `uint64 transactionIndex`: the transaction-index within the L2 transactions list
+- `bytes32 sourceHash`: the source-hash, uniquely identifies the origin of the deposit
 - `address from`: The address of the sender account.
 - `address to`: The address of the recipient account, or the null (zero-length) address if the
   deposited transaction is a contract creation.
@@ -75,8 +75,25 @@ Picking a high identifier minimizes the risk that the identifier will be used be
 transaction type on the L1 chain in the future. We don't pick `0x7F` itself in case it becomes used
 for a variable-length encoding scheme.
 
-The extra blockHeight and transactionIndex in deposits will be used to ensure that deposited transactions
-will be unique. Without them, two different deposited transaction could have the same exact hash.
+### Source hash computation
+
+The `sourceHash` of a deposit transaction is computed based on the origin:
+
+- User-deposited:
+  `keccak256(bytes32(uint256(0)), keccak256(l1BlockHash, bytes32(uint256(l1LogIndex))))`.
+  Where the `l1BlockHash`, and `l1LogIndex` all refer to the inclusion of the deposit log event on L1.
+  `l1LogIndex` is the index of the deposit event log in the combined list of log events of the block.
+- L1 attributes deposited:
+  `keccak256(bytes32(uint256(1)), keccak256(bytes32(uint256(l1BlockHash)), bytes32(uint256(seqNumber))`.
+  Where `l1BlockHash` refers to the L1 block hash of which the info attributes are deposited.
+  And `seqNumber = l2BlockNum - l2EpochStartBlockNum`,
+  where `l2BlockNum` is the L2 block number of the inclusion of the deposit tx in L2,
+  and `l2EpochStartBlockNum` is the L2 block number of the first L2 block in the epoch.
+
+Without a `sourceHash` in a deposit, two different deposited transactions could have the same exact hash.
+
+The outer `keccak256` hashes the actual uniquely identifying information with a domain,
+to avoid collisions between different types of sources.
 
 We do not use the sender's nonce to ensure uniqueness because this would require an extra L2 EVM state read from the
 [execution engine][g-exec-engine] during block-derivation.

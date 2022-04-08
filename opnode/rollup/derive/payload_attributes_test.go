@@ -28,7 +28,7 @@ func RandETH(rng *rand.Rand, max int64) *big.Int {
 }
 
 // Returns a DepositEvent customized on the basis of the id parameter.
-func GenerateDeposit(blockNum uint64, txIndex uint64, rng *rand.Rand) *types.DepositTx {
+func GenerateDeposit(source UserDepositSource, rng *rand.Rand) *types.DepositTx {
 	dataLen := rng.Int63n(10_000)
 	data := make([]byte, dataLen)
 	rng.Read(data)
@@ -44,14 +44,13 @@ func GenerateDeposit(blockNum uint64, txIndex uint64, rng *rand.Rand) *types.Dep
 	}
 
 	dep := &types.DepositTx{
-		BlockHeight:      blockNum,
-		TransactionIndex: txIndex,
-		From:             GenerateAddress(rng),
-		To:               to,
-		Value:            RandETH(rng, 200),
-		Gas:              uint64(rng.Int63n(10 * 1e6)), // 10 M gas max
-		Data:             data,
-		Mint:             mint,
+		SourceHash: source.SourceHash(),
+		From:       GenerateAddress(rng),
+		To:         to,
+		Value:      RandETH(rng, 200),
+		Gas:        uint64(rng.Int63n(10 * 1e6)), // 10 M gas max
+		Data:       data,
+		Mint:       mint,
 	}
 	return dep
 }
@@ -118,11 +117,17 @@ func TestUnmarshalLogEvent(t *testing.T) {
 	for i := int64(0); i < 100; i++ {
 		t.Run(fmt.Sprintf("random_deposit_%d", i), func(t *testing.T) {
 			rng := rand.New(rand.NewSource(1234 + i))
-			blockNum := rng.Uint64()
-			txIndex := uint64(rng.Intn(10000))
-			depInput := GenerateDeposit(blockNum, txIndex, rng)
+			source := UserDepositSource{
+				L1BlockHash: randomHash(rng),
+				LogIndex:    uint64(rng.Intn(10000)),
+			}
+			depInput := GenerateDeposit(source, rng)
 			log := GenerateDepositLog(depInput)
-			depOutput, err := UnmarshalLogEvent(blockNum, txIndex, log)
+
+			log.TxIndex = uint(rng.Intn(10000))
+			log.Index = uint(source.LogIndex)
+			log.BlockHash = source.L1BlockHash
+			depOutput, err := UnmarshalLogEvent(log)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -142,54 +147,64 @@ type receiptData struct {
 }
 
 type DeriveUserDepositsTestCase struct {
-	name   string
-	height uint64
+	name string
 	// generate len(receipts) receipts
 	receipts []receiptData
 }
 
 func TestDeriveUserDeposits(t *testing.T) {
 	testCases := []DeriveUserDepositsTestCase{
-		{"no deposits", 100, []receiptData{}},
-		{"other log", 100, []receiptData{{true, []bool{false}}}},
-		{"success deposit", 100, []receiptData{{true, []bool{true}}}},
-		{"failed deposit", 100, []receiptData{{false, []bool{true}}}},
-		{"mixed deposits", 100, []receiptData{{true, []bool{true}}, {false, []bool{true}}}},
-		{"success multiple logs", 100, []receiptData{{true, []bool{true, true}}}},
-		{"failed multiple logs", 100, []receiptData{{false, []bool{true, true}}}},
-		{"not all deposit logs", 100, []receiptData{{true, []bool{true, false, true}}}},
-		{"random", 100, []receiptData{{true, []bool{false, false, true}}, {false, []bool{}}, {true, []bool{true}}}},
+		{"no deposits", []receiptData{}},
+		{"other log", []receiptData{{true, []bool{false}}}},
+		{"success deposit", []receiptData{{true, []bool{true}}}},
+		{"failed deposit", []receiptData{{false, []bool{true}}}},
+		{"mixed deposits", []receiptData{{true, []bool{true}}, {false, []bool{true}}}},
+		{"success multiple logs", []receiptData{{true, []bool{true, true}}}},
+		{"failed multiple logs", []receiptData{{false, []bool{true, true}}}},
+		{"not all deposit logs", []receiptData{{true, []bool{true, false, true}}}},
+		{"random", []receiptData{{true, []bool{false, false, true}}, {false, []bool{}}, {true, []bool{true}}}},
 	}
 	for i, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
 			rng := rand.New(rand.NewSource(1234 + int64(i)))
 			var receipts []*types.Receipt
 			var expectedDeposits []*types.DepositTx
-			for _, rData := range testCase.receipts {
+			logIndex := uint(0)
+			blockHash := randomHash(rng)
+			for txIndex, rData := range testCase.receipts {
 				var logs []*types.Log
 				status := types.ReceiptStatusSuccessful
 				if !rData.goodReceipt {
 					status = types.ReceiptStatusFailed
 				}
 				for _, isDeposit := range rData.DepositLogs {
+					var ev *types.Log
 					if isDeposit {
-						dep := GenerateDeposit(testCase.height, uint64(1+len(expectedDeposits)), rng)
+						source := UserDepositSource{L1BlockHash: blockHash, LogIndex: uint64(logIndex)}
+						dep := GenerateDeposit(source, rng)
 						if status == types.ReceiptStatusSuccessful {
 							expectedDeposits = append(expectedDeposits, dep)
 						}
-						logs = append(logs, GenerateDepositLog(dep))
+						ev = GenerateDepositLog(dep)
 					} else {
-						logs = append(logs, GenerateLog(GenerateAddress(rng), nil, nil))
+						ev = GenerateLog(GenerateAddress(rng), nil, nil)
 					}
+					ev.TxIndex = uint(txIndex)
+					ev.Index = logIndex
+					ev.BlockHash = blockHash
+					logs = append(logs, ev)
+					logIndex++
 				}
 
 				receipts = append(receipts, &types.Receipt{
-					Type:   types.DynamicFeeTxType,
-					Status: status,
-					Logs:   logs,
+					Type:             types.DynamicFeeTxType,
+					Status:           status,
+					Logs:             logs,
+					BlockHash:        blockHash,
+					TransactionIndex: uint(txIndex),
 				})
 			}
-			got, err := UserDeposits(testCase.height, receipts)
+			got, err := UserDeposits(receipts)
 			assert.NoError(t, err)
 			assert.Equal(t, len(got), len(expectedDeposits))
 			for d, depTx := range got {

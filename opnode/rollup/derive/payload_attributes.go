@@ -25,6 +25,44 @@ var (
 	L1InfoPredeployAddr = common.HexToAddress("0x4200000000000000000000000000000000000015")
 )
 
+type UserDepositSource struct {
+	L1BlockHash common.Hash
+	LogIndex    uint64
+}
+
+const (
+	UserDepositSourceDomain   = 0
+	L1InfoDepositSourceDomain = 1
+)
+
+func (dep *UserDepositSource) SourceHash() common.Hash {
+	var input [32 * 2]byte
+	copy(input[:32], dep.L1BlockHash[:])
+	binary.BigEndian.PutUint64(input[32*2-8:], dep.LogIndex)
+	depositIDHash := crypto.Keccak256Hash(input[:])
+	var domainInput [32 * 2]byte
+	binary.BigEndian.PutUint64(domainInput[32-8:32], UserDepositSourceDomain)
+	copy(domainInput[32:], depositIDHash[:])
+	return crypto.Keccak256Hash(domainInput[:])
+}
+
+type L1InfoDepositSource struct {
+	L1BlockHash common.Hash
+	SeqNumber   uint64
+}
+
+func (dep *L1InfoDepositSource) SourceHash() common.Hash {
+	var input [32 * 2]byte
+	copy(input[:32], dep.L1BlockHash[:])
+	binary.BigEndian.PutUint64(input[32*2-8:], dep.SeqNumber)
+	depositIDHash := crypto.Keccak256Hash(input[:])
+
+	var domainInput [32 * 2]byte
+	binary.BigEndian.PutUint64(domainInput[32-8:32], L1InfoDepositSourceDomain)
+	copy(domainInput[32:], depositIDHash[:])
+	return crypto.Keccak256Hash(domainInput[:])
+}
+
 // UnmarshalLogEvent decodes an EVM log entry emitted by the deposit contract into typed deposit data.
 //
 // parse log data for:
@@ -38,10 +76,8 @@ var (
 //    	 data data
 //     );
 //
-// Deposits additionally get:
-//  - blockNum matching the L1 block height
-//  - txIndex: matching the deposit index, not L1 transaction index, since there can be multiple deposits per L1 tx
-func UnmarshalLogEvent(blockNum uint64, txIndex uint64, ev *types.Log) (*types.DepositTx, error) {
+// Additionally, the event log-index and
+func UnmarshalLogEvent(ev *types.Log) (*types.DepositTx, error) {
 	if len(ev.Topics) != 3 {
 		return nil, fmt.Errorf("expected 3 event topics (event identity, indexed from, indexed to)")
 	}
@@ -54,8 +90,11 @@ func UnmarshalLogEvent(blockNum uint64, txIndex uint64, ev *types.Log) (*types.D
 
 	var dep types.DepositTx
 
-	dep.BlockHeight = blockNum
-	dep.TransactionIndex = txIndex
+	source := UserDepositSource{
+		L1BlockHash: ev.BlockHash,
+		LogIndex:    uint64(ev.Index),
+	}
+	dep.SourceHash = source.SourceHash()
 
 	// indexed 0
 	dep.From = common.BytesToAddress(ev.Topics[1][12:])
@@ -128,8 +167,9 @@ type L1Info interface {
 	ReceiptHash() common.Hash
 }
 
-// L1InfoDeposit creats a L1 Info deposit transaction based on the L1 block
-func L1InfoDeposit(l2BlockHeight uint64, block L1Info) *types.DepositTx {
+// L1InfoDeposit creats a L1 Info deposit transaction based on the L1 block,
+// and the L2 block-height difference with the start of the epoch.
+func L1InfoDeposit(seqNumber uint64, block L1Info) *types.DepositTx {
 	data := make([]byte, 4+8+8+32+32)
 	offset := 0
 	copy(data[offset:4], L1InfoFuncBytes4)
@@ -142,20 +182,24 @@ func L1InfoDeposit(l2BlockHeight uint64, block L1Info) *types.DepositTx {
 	offset += 32
 	copy(data[offset:offset+32], block.Hash().Bytes())
 
+	source := L1InfoDepositSource{
+		L1BlockHash: block.Hash(),
+		SeqNumber:   seqNumber,
+	}
+
 	return &types.DepositTx{
-		BlockHeight:      l2BlockHeight,
-		TransactionIndex: 0, // always the first transaction
-		From:             DepositContractAddr,
-		To:               &L1InfoPredeployAddr,
-		Mint:             nil,
-		Value:            big.NewInt(0),
-		Gas:              99_999_999,
-		Data:             data,
+		SourceHash: source.SourceHash(),
+		From:       DepositContractAddr,
+		To:         &L1InfoPredeployAddr,
+		Mint:       nil,
+		Value:      big.NewInt(0),
+		Gas:        99_999_999,
+		Data:       data,
 	}
 }
 
 // UserDeposits transforms the L2 block-height and L1 receipts into the transaction inputs for a full L2 block
-func UserDeposits(l2BlockHeight uint64, receipts []*types.Receipt) ([]*types.DepositTx, error) {
+func UserDeposits(receipts []*types.Receipt) ([]*types.DepositTx, error) {
 	var out []*types.DepositTx
 
 	for _, rec := range receipts {
@@ -164,8 +208,7 @@ func UserDeposits(l2BlockHeight uint64, receipts []*types.Receipt) ([]*types.Dep
 		}
 		for _, log := range rec.Logs {
 			if log.Address == DepositContractAddr {
-				// offset transaction index by 1, the first is the l1-info tx
-				dep, err := UnmarshalLogEvent(l2BlockHeight, uint64(len(out))+1, log)
+				dep, err := UnmarshalLogEvent(log)
 				if err != nil {
 					return nil, fmt.Errorf("malformatted L1 deposit log: %v", err)
 				}
@@ -286,8 +329,9 @@ func FillMissingBatches(batches []*BatchData, epoch, blockTime, minL2Time, nextL
 	return out
 }
 
-func L1InfoDepositBytes(l2BlockHeight uint64, l1Info L1Info) (hexutil.Bytes, error) {
-	l1Tx := types.NewTx(L1InfoDeposit(l2BlockHeight, l1Info))
+// L1InfoDepositBytes returns a serialized L1-info attributes transaction.
+func L1InfoDepositBytes(seqNumber uint64, l1Info L1Info) (hexutil.Bytes, error) {
+	l1Tx := types.NewTx(L1InfoDeposit(seqNumber, l1Info))
 	opaqueL1Tx, err := l1Tx.MarshalBinary()
 	if err != nil {
 		return nil, fmt.Errorf("failed to encode L1 info tx")
@@ -295,8 +339,8 @@ func L1InfoDepositBytes(l2BlockHeight uint64, l1Info L1Info) (hexutil.Bytes, err
 	return opaqueL1Tx, nil
 }
 
-func DeriveDeposits(l2BlockHeight uint64, receipts []*types.Receipt) ([]hexutil.Bytes, error) {
-	userDeposits, err := UserDeposits(l2BlockHeight, receipts)
+func DeriveDeposits(receipts []*types.Receipt) ([]hexutil.Bytes, error) {
+	userDeposits, err := UserDeposits(receipts)
 	if err != nil {
 		return nil, fmt.Errorf("failed to derive user deposits: %v", err)
 	}
