@@ -5,12 +5,11 @@ import (
 	"fmt"
 	"reflect"
 
-	"github.com/ethereum/go-ethereum/core/beacon"
-
 	"github.com/ethereum-optimism/optimistic-specs/opnode/eth"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/core/beacon"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/holiman/uint256"
 )
@@ -90,62 +89,57 @@ type Data = hexutil.Bytes
 type PayloadID = beacon.PayloadID
 
 type ExecutionPayload struct {
-	ParentHashField common.Hash     `json:"parentHash"`
-	FeeRecipient    common.Address  `json:"feeRecipient"`
-	StateRoot       Bytes32         `json:"stateRoot"`
-	ReceiptsRoot    Bytes32         `json:"receiptsRoot"`
-	LogsBloom       Bytes256        `json:"logsBloom"`
-	PrevRandao      Bytes32         `json:"prevRandao"`
-	BlockNumber     Uint64Quantity  `json:"blockNumber"`
-	GasLimit        Uint64Quantity  `json:"gasLimit"`
-	GasUsed         Uint64Quantity  `json:"gasUsed"`
-	Timestamp       Uint64Quantity  `json:"timestamp"`
-	ExtraData       BytesMax32      `json:"extraData"`
-	BaseFeePerGas   Uint256Quantity `json:"baseFeePerGas"`
-	BlockHash       common.Hash     `json:"blockHash"`
+	ParentHash    common.Hash     `json:"parentHash"`
+	FeeRecipient  common.Address  `json:"feeRecipient"`
+	StateRoot     Bytes32         `json:"stateRoot"`
+	ReceiptsRoot  Bytes32         `json:"receiptsRoot"`
+	LogsBloom     Bytes256        `json:"logsBloom"`
+	PrevRandao    Bytes32         `json:"prevRandao"`
+	BlockNumber   Uint64Quantity  `json:"blockNumber"`
+	GasLimit      Uint64Quantity  `json:"gasLimit"`
+	GasUsed       Uint64Quantity  `json:"gasUsed"`
+	Timestamp     Uint64Quantity  `json:"timestamp"`
+	ExtraData     BytesMax32      `json:"extraData"`
+	BaseFeePerGas Uint256Quantity `json:"baseFeePerGas"`
+	BlockHash     common.Hash     `json:"blockHash"`
 	// Array of transaction objects, each object is a byte list (DATA) representing
 	// TransactionType || TransactionPayload or LegacyTransaction as defined in EIP-2718
-	TransactionsField []Data `json:"transactions"`
+	Transactions []Data `json:"transactions"`
 }
 
 func (payload *ExecutionPayload) ID() eth.BlockID {
 	return eth.BlockID{Hash: payload.BlockHash, Number: uint64(payload.BlockNumber)}
 }
 
-// Implement block interface to enable derive.BlockReferences over a payload
-// type Block interface {
-// 	Hash() common.Hash
-// 	NumberU64() uint64
-// 	ParentHash() common.Hash
-// 	Transactions() types.Transactions
-// }
-
-func (payload *ExecutionPayload) Hash() common.Hash {
-	return payload.BlockHash
-}
-
-func (payload *ExecutionPayload) NumberU64() uint64 {
-	return uint64(payload.BlockNumber)
-}
-
-func (payload *ExecutionPayload) Time() uint64 {
-	return uint64(payload.Timestamp)
-}
-
-func (payload *ExecutionPayload) ParentHash() common.Hash {
-	return payload.ParentHashField
-}
-
-func (payload *ExecutionPayload) Transactions() types.Transactions {
-	res := make([]*types.Transaction, len(payload.TransactionsField))
-	for i, t := range payload.TransactionsField {
-		res[i] = new(types.Transaction)
-		err := res[i].UnmarshalBinary(t)
-		if err != nil {
-			panic(err)
-		}
+func BlockAsPayload(bl *types.Block) (*ExecutionPayload, error) {
+	baseFee, overflow := uint256.FromBig(bl.BaseFee())
+	if overflow {
+		return nil, fmt.Errorf("invalid base fee in block: %s", bl.BaseFee())
 	}
-	return res
+	opaqueTxs := make([]Data, len(bl.Transactions()))
+	for i, tx := range bl.Transactions() {
+		otx, err := tx.MarshalBinary()
+		if err != nil {
+			return nil, fmt.Errorf("tx %d failed to marshal: %v", i, err)
+		}
+		opaqueTxs[i] = otx
+	}
+	return &ExecutionPayload{
+		ParentHash:    bl.ParentHash(),
+		FeeRecipient:  bl.Coinbase(),
+		StateRoot:     Bytes32(bl.Root()),
+		ReceiptsRoot:  Bytes32(bl.ReceiptHash()),
+		LogsBloom:     Bytes256(bl.Bloom()),
+		PrevRandao:    Bytes32(bl.MixDigest()),
+		BlockNumber:   Uint64Quantity(bl.NumberU64()),
+		GasLimit:      Uint64Quantity(bl.GasLimit()),
+		GasUsed:       Uint64Quantity(bl.GasUsed()),
+		Timestamp:     Uint64Quantity(bl.Time()),
+		ExtraData:     bl.Extra(),
+		BaseFeePerGas: Uint256Quantity(*baseFee),
+		BlockHash:     bl.Hash(),
+		Transactions:  opaqueTxs,
+	}, nil
 }
 
 type PayloadAttributes struct {

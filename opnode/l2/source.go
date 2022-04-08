@@ -36,12 +36,30 @@ func (s *Source) Close() {
 	s.rpc.Close()
 }
 
-func (s *Source) BlockByHash(ctx context.Context, hash common.Hash) (*types.Block, error) {
-	return s.client.BlockByHash(ctx, hash)
+func (s *Source) PayloadByHash(ctx context.Context, hash common.Hash) (*ExecutionPayload, error) {
+	// TODO: we really do not need to parse every single tx and block detail, keeping transactions encoded is faster.
+	block, err := s.client.BlockByHash(ctx, hash)
+	if err != nil {
+		return nil, fmt.Errorf("failed to retrieve L2 block by hash: %v", err)
+	}
+	payload, err := BlockAsPayload(block)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read L2 block as payload: %w", err)
+	}
+	return payload, nil
 }
 
-func (s *Source) BlockByNumber(ctx context.Context, number *big.Int) (*types.Block, error) {
-	return s.client.BlockByNumber(ctx, number)
+func (s *Source) PayloadByNumber(ctx context.Context, number *big.Int) (*ExecutionPayload, error) {
+	// TODO: we really do not need to parse every single tx and block detail, keeping transactions encoded is faster.
+	block, err := s.client.BlockByNumber(ctx, number)
+	if err != nil {
+		return nil, fmt.Errorf("failed to retrieve L2 block by number: %v", err)
+	}
+	payload, err := BlockAsPayload(block)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read L2 block as payload: %w", err)
+	}
+	return payload, nil
 }
 
 // ForkchoiceUpdate updates the forkchoice on the execution client. If attributes is not nil, the engine client will also begin building a block
@@ -147,7 +165,7 @@ func (s *Source) L2BlockRefByNumber(ctx context.Context, l2Num *big.Int) (eth.L2
 		// w%: wrap the error, we still need to detect if a canonical block is not found, a.k.a. end of chain.
 		return eth.L2BlockRef{}, fmt.Errorf("failed to determine block-hash of height %v, could not get header: %w", l2Num, err)
 	}
-	return derive.BlockReferences(block, s.genesis)
+	return blockToBlockRef(block)
 }
 
 // L2BlockRefByHash returns the block & parent ids based on the supplied hash. The returned BlockRef may not be in the canonical chain
@@ -157,5 +175,53 @@ func (s *Source) L2BlockRefByHash(ctx context.Context, l2Hash common.Hash) (eth.
 		// w%: wrap the error, we still need to detect if a canonical block is not found, a.k.a. end of chain.
 		return eth.L2BlockRef{}, fmt.Errorf("failed to determine block-hash of height %v, could not get header: %w", l2Hash, err)
 	}
-	return derive.BlockReferences(block, s.genesis)
+	return blockToBlockRef(block)
+}
+
+func blockToBlockRef(block *types.Block) (eth.L2BlockRef, error) {
+	txs := block.Transactions()
+	if len(txs) == 0 {
+		return eth.L2BlockRef{}, fmt.Errorf("l2 block is missing L1 info deposit tx, block hash: %s", block.Hash())
+	}
+	tx := txs[0]
+	if tx.Type() != types.DepositTxType {
+		return eth.L2BlockRef{}, fmt.Errorf("first block tx has unexpected tx type: %d", tx.Type())
+	}
+	l1Number, _, _, l1Hash, err := derive.L1InfoDepositTxData(tx.Data())
+	if err != nil {
+		return eth.L2BlockRef{}, fmt.Errorf("failed to parse L1 info deposit tx from L2 block: %v", err)
+	}
+	return eth.L2BlockRef{
+		Hash:       block.Hash(),
+		Number:     block.NumberU64(),
+		ParentHash: block.ParentHash(),
+		Time:       block.Time(),
+		L1Origin:   eth.BlockID{Hash: l1Hash, Number: l1Number},
+	}, nil
+}
+
+func PayloadToBlockRef(payload *ExecutionPayload) (eth.L2BlockRef, error) {
+	if len(payload.Transactions) == 0 {
+		return eth.L2BlockRef{}, fmt.Errorf("l2 block is missing L1 info deposit tx, block hash: %s", payload.BlockHash)
+	}
+	var tx types.Transaction
+	if err := tx.UnmarshalBinary(payload.Transactions[0]); err != nil {
+		return eth.L2BlockRef{}, fmt.Errorf("failed to decode first tx to read l1 info from: %v", err)
+	}
+	if tx.Type() != types.DepositTxType {
+		return eth.L2BlockRef{}, fmt.Errorf("first payload tx has unexpected tx type: %d", tx.Type())
+	}
+	l1Number, _, _, l1Hash, err := derive.L1InfoDepositTxData(tx.Data())
+	if err != nil {
+		return eth.L2BlockRef{}, fmt.Errorf("failed to parse L1 info deposit tx from L2 block: %v", err)
+	}
+	l1Origin := eth.BlockID{Hash: l1Hash, Number: l1Number}
+
+	return eth.L2BlockRef{
+		Hash:       payload.BlockHash,
+		Number:     uint64(payload.BlockNumber),
+		ParentHash: payload.ParentHash,
+		Time:       uint64(payload.Timestamp),
+		L1Origin:   l1Origin,
+	}, nil
 }
