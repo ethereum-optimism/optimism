@@ -46,7 +46,7 @@ task('deposit', 'Deposits funds onto L2.')
       depositContractAddr,
       privateKey,
     } = args
-    const depositFeedArtifact = require('../artifacts/contracts/L1/DepositFeed.sol/DepositFeed.json')
+    const depositFeedArtifact = require('../artifacts/contracts/L1/OptimismPortal.sol/OptimismPortal.json')
 
     const l1Provider = new providers.JsonRpcProvider(l1ProviderUrl)
     const l2Provider = new providers.JsonRpcProvider(l2ProviderUrl)

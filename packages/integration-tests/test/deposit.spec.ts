@@ -7,7 +7,7 @@ import { DEPOSIT_FEED_ADDR } from './shared/constants'
 import { defaultTransactionFactory } from './shared/utils'
 import env from './shared/env'
 
-const depositFeedArtifact = require('../../contracts/artifacts/contracts/L1/DepositFeed.sol/DepositFeed.json')
+const depositFeedArtifact = require('../../contracts/artifacts/contracts/L1/OptimismPortal.sol/OptimismPortal.json')
 const counterArtifact = require('../artifacts/Counter.sol/Counter.json')
 const multiDepositorArtifact = require('../artifacts/MultiDepositor.sol/MultiDepositor.json')
 
