@@ -174,7 +174,14 @@ func (s *Server) HandleRPC(w http.ResponseWriter, r *http.Request) {
 		var batchContainsCached bool
 		for i := 0; i < len(reqs); i++ {
 			if ctx.Err() == context.DeadlineExceeded {
-				log.Info("short-circuiting batch RPC", "index", i, "batch_size", len(reqs))
+				log.Info(
+					"short-circuiting batch RPC",
+					"req_id", GetReqID(ctx),
+					"auth", GetAuthCtx(ctx),
+					"index", i,
+					"batch_size", len(reqs),
+				)
+				batchRPCShortCircuitsTotal.Inc()
 				writeRPCError(ctx, w, nil, ErrGatewayTimeout)
 				return
 			}
