@@ -57,33 +57,38 @@ func lastDeposit(txns []l2.Data) (int, error) {
 func (d *outputImpl) createNewBlock(ctx context.Context, l2Head eth.L2BlockRef, l2SafeHead eth.BlockID, l2Finalized eth.BlockID, l1Origin eth.L1BlockRef) (eth.L2BlockRef, *derive.BatchData, error) {
 	d.log.Info("creating new block", "l2Head", l2Head)
 
-	// If the L1 origin changed this block, then we are in the first block of the epoch
-	firstEpochBlock := l2Head.L1Origin.Number != l1Origin.Number
-
 	fetchCtx, cancel := context.WithTimeout(ctx, time.Second*20)
 	defer cancel()
 
 	var l1Info derive.L1Info
 	var receipts types.Receipts
 	var err error
-	// Include deposits if this is the first block of an epoch
-	if firstEpochBlock {
+
+	// If the L1 origin changed this block, then we are in the first block of the epoch. In this
+	// case we need to fetch all transaction receipts from the L1 origin block so we can scan for
+	// user deposits.
+	if l2Head.L1Origin.Number != l1Origin.Number {
 		l1Info, _, receipts, err = d.dl.Fetch(fetchCtx, l1Origin.Hash)
 	} else {
 		l1Info, err = d.dl.InfoByHash(fetchCtx, l1Origin.Hash)
-		// don't fetch receipts if we do not process deposits
 	}
 	if err != nil {
 		return l2Head, nil, fmt.Errorf("failed to fetch L1 block info of %s: %v", l1Origin, err)
 	}
 
+	// Start building the list of transactions to include in the new block.
+	var txns []l2.Data
+
+	// First transaction in every block is always the L1 info transaction.
 	seqNumber := l2Head.Number + 1 - l2SafeHead.Number
 	l1InfoTx, err := derive.L1InfoDepositBytes(seqNumber, l1Info)
 	if err != nil {
 		return l2Head, nil, err
 	}
-	var txns []l2.Data
 	txns = append(txns, l1InfoTx)
+
+	// Next we append user deposits. If we're not the first block in an epoch, then receipts will
+	// be empty and no deposits will be derived.
 	deposits, err := derive.DeriveDeposits(receipts)
 	d.log.Info("Derived deposits", "deposits", deposits, "l2Parent", l2Head, "l1Origin", l1Origin)
 	if err != nil {
@@ -91,24 +96,41 @@ func (d *outputImpl) createNewBlock(ctx context.Context, l2Head eth.L2BlockRef, 
 	}
 	txns = append(txns, deposits...)
 
+	// If our next L2 block timestamp is beyond the Sequencer drift threshold, then we must produce
+	// empty blocks (other than the L1 info deposit and any user deposits). We handle this by
+	// setting NoTxPool to true, which will cause the Sequencer to not include any transactions
+	// from the transaction pool.
+	nextL2Time := l2Head.Time + d.Config.BlockTime
+	shouldProduceEmptyBlock := nextL2Time >= l1Origin.Time+d.Config.MaxSequencerDrift
+
+	// Put together our payload attributes.
 	attrs := &l2.PayloadAttributes{
-		Timestamp:             hexutil.Uint64(l2Head.Time + d.Config.BlockTime),
+		Timestamp:             hexutil.Uint64(nextL2Time),
 		PrevRandao:            l2.Bytes32(l1Info.MixDigest()),
 		SuggestedFeeRecipient: d.Config.FeeRecipientAddress,
 		Transactions:          txns,
-		NoTxPool:              false,
+		NoTxPool:              shouldProduceEmptyBlock,
 	}
+
+	// And construct our fork choice state. This is our current fork choice state and will be
+	// updated as a result of executing the block based on the attributes described above.
 	fc := l2.ForkchoiceState{
 		HeadBlockHash:      l2Head.Hash,
 		SafeBlockHash:      l2SafeHead.Hash,
 		FinalizedBlockHash: l2Finalized.Hash,
 	}
 
+	// Actually execute the block and add it to the head of the chain.
 	payload, lastDeposit, err := d.insertHeadBlock(ctx, fc, attrs, false)
 	if err != nil {
 		return l2Head, nil, fmt.Errorf("failed to extend L2 chain: %v", err)
 	}
 
+	// Generate an L2 block ref from the payload.
+	ref, err := l2.PayloadToBlockRef(payload, &d.Config.Genesis)
+
+	// Derive relevant batch data so we can submit this block to L1.
+	// TODO: Can this be removed when batch submission is separated?
 	batch := &derive.BatchData{
 		BatchV1: derive.BatchV1{
 			Epoch:        rollup.Epoch(l1Info.NumberU64()),
@@ -116,7 +138,7 @@ func (d *outputImpl) createNewBlock(ctx context.Context, l2Head eth.L2BlockRef, 
 			Transactions: payload.Transactions[lastDeposit+1:],
 		},
 	}
-	ref, err := l2.PayloadToBlockRef(payload, &d.Config.Genesis)
+
 	return ref, batch, err
 }
 

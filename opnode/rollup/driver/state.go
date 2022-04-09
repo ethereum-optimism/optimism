@@ -117,11 +117,16 @@ func (s *state) l1WindowBufEnd() eth.BlockID {
 }
 
 func (s *state) handleNewL1Block(ctx context.Context, newL1Head eth.L1BlockRef) error {
+	// We don't need to do anything if the head hasn't changed.
 	if s.l1Head.Hash == newL1Head.Hash {
-		log.Trace("Received L1 head signal that is the same as the current head", "l1Head", newL1Head)
+		s.log.Trace("Received L1 head signal that is the same as the current head", "l1Head", newL1Head)
 		return nil
 	}
 
+	// We got a new L1 block whose parent hash is the same as the current L1 head. Means we're
+	// dealing with a linear extension (new block is the immediate child of the old one). We
+	// handle this by simply adding the new block to the window of blocks that we're considering
+	// when extending the L2 chain.
 	if s.l1Head.Hash == newL1Head.ParentHash {
 		s.log.Trace("Linear extension", "l1Head", newL1Head)
 		s.l1Head = newL1Head
@@ -130,7 +135,8 @@ func (s *state) handleNewL1Block(ctx context.Context, newL1Head eth.L1BlockRef) 
 		}
 		return nil
 	}
-	// New L1 Head is not the same as the current head or a single step linear extension.
+
+	// New L1 block is not the same as the current head or a single step linear extension.
 	// This could either be a long L1 extension, or a reorg. Both can be handled the same way.
 	s.log.Warn("L1 Head signal indicates an L1 re-org", "old_l1_head", s.l1Head, "new_l1_head_parent", newL1Head.ParentHash, "new_l1_head", newL1Head)
 	unsafeL2Head, safeL2Head, err := sync.FindL2Heads(ctx, s.l2Head, s.Config.SeqWindowSize, s.l1, s.l2, &s.Config.Genesis)
@@ -161,98 +167,81 @@ func (s *state) handleNewL1Block(ctx context.Context, newL1Head eth.L1BlockRef) 
 	return nil
 }
 
-// findNextL1Origin determines what the next L1 Origin should be.
+// findL1Origin determines what the next L1 Origin should be.
 // The L1 Origin is either the L2 Head's Origin, or the following L1 block
 // if the next L2 block's time is greater than or equal to the L2 Head's Origin.
-// Also return the max timestamp (incl.) that we can build a L2 block at using the returned origin.
-func (s *state) findNextL1Origin(ctx context.Context) (eth.L1BlockRef, uint64, error) {
+func (s *state) findL1Origin(ctx context.Context) (eth.L1BlockRef, error) {
 	// If we are at the head block, don't do a lookup.
-	// Don't do a timestamp check either as we are unable to get the next block even if we wanted to.
 	if s.l2Head.L1Origin.Hash == s.l1Head.Hash {
-		return s.l1Head, s.l1Head.Time + s.Config.MaxSequencerDrift, nil
+		return s.l1Head, nil
 	}
 
-	// Grab the block ref
+	// Grab a reference to the current L1 origin block.
 	currentOrigin, err := s.l1.L1BlockRefByHash(ctx, s.l2Head.L1Origin.Hash)
 	if err != nil {
-		return eth.L1BlockRef{}, 0, err
+		return eth.L1BlockRef{}, err
 	}
 
+	// Attempt to find the next L1 origin block, where the next origin is the immediate child of
+	// the current origin block.
 	nextOrigin, err := s.l1.L1BlockRefByNumber(ctx, currentOrigin.Number+1)
 	if errors.Is(err, ethereum.NotFound) {
-		// no new L1 origin found, keep the current one
-		s.log.Info("No new L1 origin, staying with current one", "l2Head", s.l2Head, "l1Origin", currentOrigin)
-		return currentOrigin, currentOrigin.Time + s.Config.MaxSequencerDrift, nil
+		return currentOrigin, nil
 	}
 
-	nextL2Time := s.l2Head.Time + s.Config.BlockTime
-
-	// If we can, start building on the next L1 origin
-	if nextL2Time >= nextOrigin.Time { // TODO: this is where we can add confirmation distance, instead of eagerly building on the very latest L1 block
-		s.log.Info("Advancing L1 Origin", "l2Head", s.l2Head, "previous_l1Origin", s.l2Head.L1Origin, "l1Origin", nextOrigin)
-		return nextOrigin, nextOrigin.Time + s.Config.MaxSequencerDrift, nil
+	// If the next L2 block time is greater than the next origin block's time, we can choose to
+	// start building on top of the next origin. Sequencer implementation has some leeway here and
+	// could decide to continue to build on top of the previous origin until the Sequencer runs out
+	// of slack. For simplicity, we implement our Sequencer to always start building on the latest
+	// L1 block when we can.
+	// TODO: Can add confirmation depth here if we want.
+	if s.l2Head.Time+s.Config.BlockTime >= nextOrigin.Time {
+		return nextOrigin, nil
 	}
 
-	// If there is no more slack left (including the sequencer drift), then we will have to start building on the next L1 origin
-	maxL2Time := currentOrigin.Time + s.Config.MaxSequencerDrift
-	if nextL2Time >= maxL2Time { // the maxL2Time is an excl. bound on the current epoch.
-		// If we are not matching the L1 origin (due to a large gap between L1 blocks), then we stay with the current origin.
-		// This matches the `next_l1_timestamp - l2_block_time` part of the `new_head_l2_timestamp`, the batches will still be valid.
-		if nextL2Time < nextOrigin.Time {
-			s.log.Warn("Ran out of slack with current epoch, but the next L1 block is still ahead in time, thus we continue the epoch",
-				"l2Head", s.l2Head, "previous_l1Origin", s.l2Head.L1Origin, "l1Origin", nextOrigin)
-			return currentOrigin, nextOrigin.Time, nil
-		}
-		// The L1 chain continues, and eventually the sequencer will be forced onto the chain with deposits from L1
-		s.log.Warn("Forced to advance to new L1 Origin", "l2Head", s.l2Head, "previous_l1Origin", s.l2Head.L1Origin, "l1Origin", nextOrigin)
-		return nextOrigin, nextOrigin.Time + s.Config.MaxSequencerDrift, nil
-	}
-
-	// If we have a next
-	s.log.Info("Next L1 Origin is the same as the previous", "l2Head", s.l2Head, "l1Origin", currentOrigin)
-	return currentOrigin, currentOrigin.Time + s.Config.MaxSequencerDrift, nil
+	return currentOrigin, nil
 }
 
-// createNewL2Block builds a L2 block on top of the L2 Head (unsafe)
-func (s *state) createNewL2Block(ctx context.Context) (eth.L1BlockRef, error) {
-	nextOrigin, maxL2Time, err := s.findNextL1Origin(ctx)
+// createNewL2Block builds a L2 block on top of the L2 Head (unsafe). Used by Sequencer nodes to
+// construct new L2 blocks. Verifier nodes will use handleEpoch instead.
+func (s *state) createNewL2Block(ctx context.Context) error {
+	// Figure out which L1 origin block we're going to be building on top of.
+	l1Origin, err := s.findL1Origin(ctx)
 	if err != nil {
 		s.log.Error("Error finding next L1 Origin", "err", err)
-		return eth.L1BlockRef{}, err
-	}
-	nextL2Time := s.l2Head.Time + s.Config.BlockTime
-	// If we are behind the L1 origin that we should be using then we broke the invariant
-	if nextL2Time < nextOrigin.Time {
-		s.log.Error("Cannot build L2 block for time before L1 origin",
-			"l2Head", s.l2Head, "nextL2Time", nextL2Time, "l1Origin", nextOrigin, "l1OriginTime", nextOrigin.Time)
-		return eth.L1BlockRef{}, fmt.Errorf("cannot build L2 block on top %s for time %d before L1 origin %s at time %d",
-			s.l2Head, nextL2Time, nextOrigin, nextOrigin.Time)
+		return err
 	}
 
-	// If the L1 origin changed this block, then we are in the first block of the epoch
-	isFirstEpochBlock := s.l2Head.L1Origin.Number != nextOrigin.Number
-
-	// We create at least 1 block per epoch. After that we have to enforce the max timestamp.
-	if !isFirstEpochBlock && nextL2Time >= maxL2Time {
-		s.log.Warn("Skipping block production because we have no slack left to sequence more blocks on the L1 origin",
-			"l2Head", s.l2Head, "nextL2Time", nextL2Time, "l1Origin", nextOrigin, "l1OriginTime", nextOrigin.Time)
-		return eth.L1BlockRef{}, nil
-	}
-	// Don't produce blocks until past the rollup-genesis block of the L1 chain
-	if nextOrigin.Number <= s.Config.Genesis.L1.Number {
+	// Rollup is configured to not start producing blocks until a specific L1 block has been
+	// reached. Don't produce any blocks until we're at that genesis block.
+	if l1Origin.Number <= s.Config.Genesis.L1.Number {
 		s.log.Info("Skipping block production because the next L1 Origin is behind the L1 genesis")
-		return eth.L1BlockRef{}, nil
+		return nil
 	}
-	// Actually create the new block
-	newUnsafeL2Head, batch, err := s.output.createNewBlock(ctx, s.l2Head, s.l2SafeHead.ID(), s.l2Finalized, nextOrigin)
+
+	// Should never happen. Sequencer will halt if we get into this situation somehow.
+	nextL2Time := s.l2Head.Time + s.Config.BlockTime
+	if nextL2Time < l1Origin.Time {
+		s.log.Error("Cannot build L2 block for time before L1 origin",
+			"l2Head", s.l2Head, "nextL2Time", nextL2Time, "l1Origin", l1Origin, "l1OriginTime", l1Origin.Time)
+		return fmt.Errorf("cannot build L2 block on top %s for time %d before L1 origin %s at time %d",
+			s.l2Head, nextL2Time, l1Origin, l1Origin.Time)
+	}
+
+	// Actually create the new block.
+	newUnsafeL2Head, batch, err := s.output.createNewBlock(ctx, s.l2Head, s.l2SafeHead.ID(), s.l2Finalized, l1Origin)
 	if err != nil {
-		s.log.Error("Could not extend chain as sequencer", "err", err, "l2UnsafeHead", s.l2Head, "l1Origin", nextOrigin)
-		return eth.L1BlockRef{}, err
+		s.log.Error("Could not extend chain as sequencer", "err", err, "l2UnsafeHead", s.l2Head, "l1Origin", l1Origin)
+		return err
 	}
-	// State update
+
+	// Update our L2 head block based on the new unsafe block we just generated.
 	s.l2Head = newUnsafeL2Head
 	s.log.Info("Sequenced new l2 block", "l2Head", s.l2Head, "l1Origin", s.l2Head.L1Origin, "txs", len(batch.Transactions), "time", s.l2Head.Time)
-	// Submit batch in separate thread
+
+	// Submit batch to L1. Right now this is part of the Sequencer loop inside of the rollup node
+	// but it's much cleaner to have it in a separate service. Will be removed from this loop
+	// before Bedrock goes into production.
 	s.wg.Add(1)
 	go func() {
 		defer s.wg.Done()
@@ -261,7 +250,8 @@ func (s *state) createNewL2Block(ctx context.Context) (eth.L1BlockRef, error) {
 			s.log.Error("Error submitting batch", "err", err)
 		}
 	}()
-	return nextOrigin, nil
+
+	return nil
 }
 
 // handleEpoch attempts to insert a full L2 epoch on top of the L2 Safe Head.
@@ -312,53 +302,71 @@ func (s *state) handleEpoch(ctx context.Context) (bool, error) {
 func (s *state) loop() {
 	defer s.wg.Done()
 	s.log.Info("State loop started")
+
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	var l2BlockCreation <-chan time.Time
+
+	// Start a ticker to produce L2 blocks at a constant rate. Ticker will only run if we're
+	// running in Sequencer mode.
+	var l2BlockCreationTickerCh <-chan time.Time
 	if s.sequencer {
 		l2BlockCreationTicker := time.NewTicker(time.Duration(s.Config.BlockTime) * time.Second)
 		defer l2BlockCreationTicker.Stop()
-		l2BlockCreation = l2BlockCreationTicker.C
+		l2BlockCreationTickerCh = l2BlockCreationTicker.C
 	}
 
-	stepRequest := make(chan struct{}, 1)
-	l2BlockCreationReq := make(chan struct{}, 1)
+	// stepReqCh is used to request that the driver attempts to step forward by one L1 block.
+	stepReqCh := make(chan struct{}, 1)
 
-	createBlock := func() {
+	// l2BlockCreationReqCh is used to request that the driver create a new L2 block. Only used if
+	// we're running in Sequencer mode, because otherwise we'll be deriving our blocks via the
+	// stepping process.
+	l2BlockCreationReqCh := make(chan struct{}, 1)
+
+	// reqL2BlockCreation requests that a block be created. Won't deadlock if the channel is full.
+	reqL2BlockCreation := func() {
 		select {
-		case l2BlockCreationReq <- struct{}{}:
+		case l2BlockCreationReqCh <- struct{}{}:
 		// Don't deadlock if the channel is already full
 		default:
 		}
 	}
 
-	requestStep := func() {
+	// reqStep requests that a driver stpe be taken. Won't deadlock if the channel is full.
+	// TODO: Rename step request
+	reqStep := func() {
 		select {
-		case stepRequest <- struct{}{}:
+		case stepReqCh <- struct{}{}:
 		// Don't deadlock if the channel is already full
 		default:
 		}
 	}
 
-	requestStep()
+	// We call reqStep right away to finish syncing to the tip of the chain if we're behind.
+	// reqStep will also be triggered when the L1 head moves forward or if there was a reorg on the
+	// L1 chain that we need to handle.
+	reqStep()
 
 	for {
 		select {
-		case <-s.done:
-			return
-		case <-l2BlockCreation:
+		case <-l2BlockCreationTickerCh:
 			s.log.Trace("L2 Creation Ticker")
-			createBlock()
-		case <-l2BlockCreationReq:
+			reqL2BlockCreation()
+
+		case <-l2BlockCreationReqCh:
 			ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
-			nextOrigin, err := s.createNewL2Block(ctx)
+			err := s.createNewL2Block(ctx)
 			cancel()
 			if err != nil {
 				s.log.Error("Error creating new L2 block", "err", err)
 			}
-			if nextOrigin.Time > s.l2Head.Time+s.Config.BlockTime {
+
+			// We need to catch up to the next origin as quickly as possible. We can do this by
+			// requesting a new block ASAP instead of waiting for the next tick.
+			// TODO: If we want to consider confirmations, need to consider here too.
+			if s.l1Head.Number > s.l2Head.L1Origin.Number {
 				s.log.Trace("Asking for a second L2 block asap", "l2Head", s.l2Head)
-				createBlock()
+				reqL2BlockCreation()
 			}
 
 		case newL1Head := <-s.l1Heads:
@@ -368,31 +376,48 @@ func (s *state) loop() {
 			if err != nil {
 				s.log.Error("Error in handling new L1 Head", "err", err)
 			}
-			// Run step if we are able to
+
+			// The block number of the L1 origin for the L2 safe head is at least SeqWindowSize
+			// behind the L1 head. We can therefore attempt to shift the safe head forward by at
+			// least one L1 block. If the node is holding on to unsafe blocks, this may trigger a
+			// reorg on L2 in the case that safe (published) data conflicts with local unsafe
+			// block data.
 			if s.l1Head.Number-s.l2SafeHead.L1Origin.Number >= s.Config.SeqWindowSize {
 				s.log.Trace("Requesting next step", "l1Head", s.l1Head, "l2Head", s.l2Head, "l1Origin", s.l2SafeHead.L1Origin)
-				requestStep()
+				reqStep()
 			}
-		case <-stepRequest:
+
+		case <-stepReqCh:
 			ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 			reorg, err := s.handleEpoch(ctx)
 			cancel()
 			if err != nil {
 				s.log.Error("Error in handling epoch", "err", err)
 			}
+
 			if reorg {
 				s.log.Warn("Got reorg")
+
+				// If we're in sequencer mode and experiencing a reorg, we should request a new
+				// block ASAP. Not strictly necessary but means we'll recover from the reorg much
+				// faster than if we waited for the next tick.
 				if s.sequencer {
-					createBlock()
+					reqL2BlockCreation()
 				}
 			}
 
-			// Immediately run next step if we have enough blocks.
+			// The block number of the L1 origin for the L2 safe head is at least SeqWindowSize
+			// behind the L1 head. We can therefore attempt to shift the safe head forward by at
+			// least one L1 block. If the node is holding on to unsafe blocks, this may trigger a
+			// reorg on L2 in the case that safe (published) data conflicts with local unsafe
+			// block data.
 			if s.l1Head.Number-s.l2SafeHead.L1Origin.Number >= s.Config.SeqWindowSize {
 				s.log.Trace("Requesting next step", "l1Head", s.l1Head, "l2Head", s.l2Head, "l1Origin", s.l2SafeHead.L1Origin)
-				requestStep()
+				reqStep()
 			}
+
+		case <-s.done:
+			return
 		}
 	}
-
 }
