@@ -19,7 +19,6 @@ import (
 var (
 	DepositEventABI     = "TransactionDeposited(address,address,uint256,uint256,uint256,bool,bytes)"
 	DepositEventABIHash = crypto.Keccak256Hash([]byte(DepositEventABI))
-	DepositContractAddr = common.HexToAddress("0xdeaddeaddeaddeaddeaddeaddeaddeaddead0001")
 	L1InfoFuncSignature = "setL1BlockValues(uint256,uint256,uint256,bytes32)"
 	L1InfoFuncBytes4    = crypto.Keccak256([]byte(L1InfoFuncSignature))[:4]
 	L1InfoPredeployAddr = common.HexToAddress("0x4200000000000000000000000000000000000015")
@@ -169,7 +168,7 @@ type L1Info interface {
 
 // L1InfoDeposit creats a L1 Info deposit transaction based on the L1 block,
 // and the L2 block-height difference with the start of the epoch.
-func L1InfoDeposit(seqNumber uint64, block L1Info) *types.DepositTx {
+func L1InfoDeposit(seqNumber uint64, block L1Info, depositContractAddr common.Address) *types.DepositTx {
 	data := make([]byte, 4+8+8+32+32)
 	offset := 0
 	copy(data[offset:4], L1InfoFuncBytes4)
@@ -189,7 +188,7 @@ func L1InfoDeposit(seqNumber uint64, block L1Info) *types.DepositTx {
 
 	return &types.DepositTx{
 		SourceHash: source.SourceHash(),
-		From:       DepositContractAddr,
+		From:       depositContractAddr,
 		To:         &L1InfoPredeployAddr,
 		Mint:       nil,
 		Value:      big.NewInt(0),
@@ -199,7 +198,7 @@ func L1InfoDeposit(seqNumber uint64, block L1Info) *types.DepositTx {
 }
 
 // UserDeposits transforms the L2 block-height and L1 receipts into the transaction inputs for a full L2 block
-func UserDeposits(receipts []*types.Receipt) ([]*types.DepositTx, error) {
+func UserDeposits(receipts []*types.Receipt, depositContractAddr common.Address) ([]*types.DepositTx, error) {
 	var out []*types.DepositTx
 
 	for _, rec := range receipts {
@@ -207,7 +206,7 @@ func UserDeposits(receipts []*types.Receipt) ([]*types.DepositTx, error) {
 			continue
 		}
 		for _, log := range rec.Logs {
-			if log.Address == DepositContractAddr {
+			if log.Address == depositContractAddr {
 				dep, err := UnmarshalLogEvent(log)
 				if err != nil {
 					return nil, fmt.Errorf("malformatted L1 deposit log: %v", err)
@@ -330,8 +329,8 @@ func FillMissingBatches(batches []*BatchData, epoch, blockTime, minL2Time, nextL
 }
 
 // L1InfoDepositBytes returns a serialized L1-info attributes transaction.
-func L1InfoDepositBytes(seqNumber uint64, l1Info L1Info) (hexutil.Bytes, error) {
-	l1Tx := types.NewTx(L1InfoDeposit(seqNumber, l1Info))
+func L1InfoDepositBytes(seqNumber uint64, l1Info L1Info, depositContractAddress common.Address) (hexutil.Bytes, error) {
+	l1Tx := types.NewTx(L1InfoDeposit(seqNumber, l1Info, depositContractAddress))
 	opaqueL1Tx, err := l1Tx.MarshalBinary()
 	if err != nil {
 		return nil, fmt.Errorf("failed to encode L1 info tx")
@@ -339,8 +338,8 @@ func L1InfoDepositBytes(seqNumber uint64, l1Info L1Info) (hexutil.Bytes, error) 
 	return opaqueL1Tx, nil
 }
 
-func DeriveDeposits(receipts []*types.Receipt) ([]hexutil.Bytes, error) {
-	userDeposits, err := UserDeposits(receipts)
+func DeriveDeposits(receipts []*types.Receipt, depositContractAddr common.Address) ([]hexutil.Bytes, error) {
+	userDeposits, err := UserDeposits(receipts, depositContractAddr)
 	if err != nil {
 		return nil, fmt.Errorf("failed to derive user deposits: %v", err)
 	}

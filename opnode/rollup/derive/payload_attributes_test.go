@@ -93,7 +93,7 @@ func GenerateDepositLog(deposit *types.DepositTx) *types.Log {
 		data = append(data, make([]byte, 32-(len(data)%32))...)
 	}
 
-	return GenerateLog(DepositContractAddr, topics, data)
+	return GenerateLog(MockDepositContractAddr, topics, data)
 }
 
 // Generates an EVM log entry with the given topics and data.
@@ -204,7 +204,7 @@ func TestDeriveUserDeposits(t *testing.T) {
 					TransactionIndex: uint(txIndex),
 				})
 			}
-			got, err := UserDeposits(receipts)
+			got, err := UserDeposits(receipts, MockDepositContractAddr)
 			assert.NoError(t, err)
 			assert.Equal(t, len(got), len(expectedDeposits))
 			for d, depTx := range got {

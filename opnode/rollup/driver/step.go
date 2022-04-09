@@ -81,7 +81,7 @@ func (d *outputImpl) createNewBlock(ctx context.Context, l2Head eth.L2BlockRef, 
 
 	// First transaction in every block is always the L1 info transaction.
 	seqNumber := l2Head.Number + 1 - l2SafeHead.Number
-	l1InfoTx, err := derive.L1InfoDepositBytes(seqNumber, l1Info)
+	l1InfoTx, err := derive.L1InfoDepositBytes(seqNumber, l1Info, d.Config.DepositContractAddress)
 	if err != nil {
 		return l2Head, nil, err
 	}
@@ -89,7 +89,7 @@ func (d *outputImpl) createNewBlock(ctx context.Context, l2Head eth.L2BlockRef, 
 
 	// Next we append user deposits. If we're not the first block in an epoch, then receipts will
 	// be empty and no deposits will be derived.
-	deposits, err := derive.DeriveDeposits(receipts)
+	deposits, err := derive.DeriveDeposits(receipts, d.Config.DepositContractAddress)
 	d.log.Info("Derived deposits", "deposits", deposits, "l2Parent", l2Head, "l1Origin", l1Origin)
 	if err != nil {
 		return l2Head, nil, fmt.Errorf("failed to derive deposits: %v", err)
@@ -175,7 +175,7 @@ func (d *outputImpl) insertEpoch(ctx context.Context, l2Head eth.L2BlockRef, l2S
 	if err != nil {
 		return l2Head, l2SafeHead, false, fmt.Errorf("failed to get L1 timestamp of next L1 block: %v", err)
 	}
-	deposits, err := derive.DeriveDeposits(receipts)
+	deposits, err := derive.DeriveDeposits(receipts, d.Config.DepositContractAddress)
 	if err != nil {
 		return l2Head, l2SafeHead, false, fmt.Errorf("failed to derive deposits: %w", err)
 	}
@@ -210,7 +210,7 @@ func (d *outputImpl) insertEpoch(ctx context.Context, l2Head eth.L2BlockRef, l2S
 	var reorg bool
 	for i, batch := range batches {
 		var txns []l2.Data
-		l1InfoTx, err := derive.L1InfoDepositBytes(uint64(i), l1Info)
+		l1InfoTx, err := derive.L1InfoDepositBytes(uint64(i), l1Info, d.Config.DepositContractAddress)
 		if err != nil {
 			return l2Head, l2SafeHead, false, fmt.Errorf("failed to create l1InfoTx: %w", err)
 		}

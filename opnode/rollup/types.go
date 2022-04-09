@@ -44,6 +44,8 @@ type Config struct {
 	BatchInboxAddress common.Address `json:"batch_inbox_address"`
 	// Acceptable batch-sender address
 	BatchSenderAddress common.Address `json:"batch_sender_address"`
+	// L1 Deposit Contract Address
+	DepositContractAddress common.Address `json:"deposit_contract_address"`
 }
 
 // Check verifies that the given configuration makes sense
@@ -62,6 +64,9 @@ func (cfg *Config) Check() error {
 	}
 	if cfg.Genesis.L2.Hash == cfg.Genesis.L1.Hash {
 		return errors.New("achievement get! rollup inception: L1 and L2 genesis cannot be the same")
+	}
+	if cfg.DepositContractAddress == (common.Address{}) {
+		return errors.New("did not provide deposit contract address ")
 	}
 	return nil
 }

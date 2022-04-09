@@ -31,6 +31,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// Temporary until the contract is deployed properly instead of as a pre-deploy to a specific address
+var MockDepositContractAddr = common.HexToAddress("0xdeaddeaddeaddeaddeaddeaddeaddeaddead0001")
+
 const (
 	cliqueSignerHDPath = "m/44'/60'/0'/0/0"
 	transactorHDPath   = "m/44'/60'/0'/0/1"
@@ -49,7 +52,7 @@ func defaultSystemConfig(t *testing.T) SystemConfig {
 		},
 		BatchSubmitterHDPath:       bssHDPath,
 		CliqueSignerDerivationPath: cliqueSignerHDPath,
-		DepositContractAddress:     derive.DepositContractAddr,
+		DepositContractAddress:     MockDepositContractAddr,
 		L1InfoPredeployAddress:     derive.L1InfoPredeployAddr,
 		L1WsAddr:                   "127.0.0.1",
 		L1WsPort:                   9090,
@@ -86,6 +89,7 @@ func defaultSystemConfig(t *testing.T) SystemConfig {
 			FeeRecipientAddress: common.Address{0xff, 0x01},
 			BatchInboxAddress:   common.Address{0xff, 0x02},
 			// Batch Sender address is filled out in system start
+			DepositContractAddress: MockDepositContractAddr,
 		},
 	}
 }
