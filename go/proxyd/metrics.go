@@ -193,6 +193,12 @@ var (
 		"key",
 	})
 
+	batchRPCShortCircuitsTotal = promauto.NewCounter(prometheus.CounterOpts{
+		Namespace: MetricsNamespace,
+		Name:      "batch_rpc_short_circuits_total",
+		Help:      "Count of total batch RPC short-circuits.",
+	})
+
 	rpcSpecialErrors = []string{
 		"nonce too low",
 		"gas price too high",

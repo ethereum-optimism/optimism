@@ -12,6 +12,9 @@ type ServerConfig struct {
 	WSHost           string `toml:"ws_host"`
 	WSPort           int    `toml:"ws_port"`
 	MaxBodySizeBytes int64  `toml:"max_body_size_bytes"`
+
+	// TimeoutSeconds specifies the maximum time spent serving an HTTP request. Note that isn't used for websocket connections
+	TimeoutSeconds int `toml:"timeout_seconds"`
 }
 
 type CacheConfig struct {
