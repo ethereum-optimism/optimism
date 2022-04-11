@@ -35,7 +35,7 @@ library WithdrawalVerifier {
         uint256 _value,
         uint256 _gasLimit,
         bytes calldata _data
-    ) external pure returns (bytes32) {
+    ) internal pure returns (bytes32) {
         return keccak256(abi.encode(_nonce, _sender, _target, _value, _gasLimit, _data));
     }
 

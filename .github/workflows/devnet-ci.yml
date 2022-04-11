@@ -28,10 +28,11 @@ jobs:
         with:
           version: nightly
 
-      - run: cd packages/contracts && yarn install && yarn build
-      - run: cd packages/integration-tests && yarn install && yarn build:contracts
+      - run: make build-ts
+        name: Build TS
 
       - run: make devnet-up
         name: Bring up the stack
 
-      - run: sleep 10 && docker ps && make integration-tests
+      - run: make test-integration
+        name: Run integration tests

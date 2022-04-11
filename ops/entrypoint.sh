@@ -31,6 +31,9 @@ else
 	echo "$GETH_CHAINDATA_DIR exists."
 fi
 
+# Warning: Archive mode is required, otherwise old trie nodes will be
+# pruned within minutes of starting the devnet.
+
 exec geth \
 	--datadir="$GETH_DATA_DIR" \
 	--verbosity="$VERBOSITY" \
@@ -39,7 +42,7 @@ exec geth \
 	--http.vhosts="*" \
 	--http.addr=0.0.0.0 \
 	--http.port=8545 \
-	--http.api=debug,eth,txpool,net,engine \
+	--http.api=web3,debug,eth,txpool,net,engine \
 	--ws \
 	--ws.addr=0.0.0.0 \
 	--ws.port=8546 \
@@ -54,4 +57,5 @@ exec geth \
 	--miner.etherbase=$BLOCK_SIGNER_ADDRESS \
 	--password="$GETH_DATA_DIR"/password \
 	--allow-insecure-unlock \
+	--gcmode=archive \
 	"$@"

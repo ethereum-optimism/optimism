@@ -97,6 +97,7 @@ contract WithdrawalsRelay_finalizeWithdrawalTransaction_Test is DSTest {
             l2BlockTime,
             genesisL2Output,
             historicalTotalBlocks,
+            initTime,
             sequencer
         );
         startingBlockTimestamp = block.timestamp;

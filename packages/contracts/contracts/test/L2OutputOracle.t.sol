@@ -36,6 +36,7 @@ contract L2OutputOracle_Initializer is DSTest {
             l2BlockTime,
             genesisL2Output,
             historicalTotalBlocks,
+            initTime,
             sequencer
         );
         startingBlockTimestamp = block.timestamp;

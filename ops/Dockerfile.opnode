@@ -7,18 +7,12 @@ COPY go.mod /app/go.mod
 COPY go.sum /app/go.sum
 
 WORKDIR /app
-COPY ./ops/opnode-entrypoint.sh /app/opnode-entrypoint.sh
-COPY ./ops/rollup.json /app/rollup.json
-
 COPY ./opnode /app/opnode
 RUN make opnode
 
 FROM alpine:3.15
 
-RUN apk add --no-cache curl jq
-
 COPY --from=builder /app/bin/op /usr/local/bin
-COPY --from=builder /app/opnode-entrypoint.sh /opnode-entrypoint.sh
-COPY --from=builder /app/rollup.json /rollup.json
+COPY ./ops/opnode-entrypoint.sh /opnode-entrypoint.sh
 
 ENTRYPOINT ["/bin/sh", "/opnode-entrypoint.sh"]

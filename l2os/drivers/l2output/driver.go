@@ -34,13 +34,13 @@ type Config struct {
 
 type Driver struct {
 	cfg             Config
-	l2ooContract    *l2oo.MockL2OutputOracle
+	l2ooContract    *l2oo.L2OutputOracle
 	rawL2ooContract *bind.BoundContract
 	walletAddr      common.Address
 }
 
 func NewDriver(cfg Config) (*Driver, error) {
-	l2ooContract, err := l2oo.NewMockL2OutputOracle(
+	l2ooContract, err := l2oo.NewL2OutputOracle(
 		cfg.L2OOAddr, cfg.L1Client,
 	)
 	if err != nil {
@@ -48,7 +48,7 @@ func NewDriver(cfg Config) (*Driver, error) {
 	}
 
 	parsed, err := abi.JSON(strings.NewReader(
-		l2oo.MockL2OutputOracleMetaData.ABI,
+		l2oo.L2OutputOracleMetaData.ABI,
 	))
 	if err != nil {
 		return nil, err
@@ -196,7 +196,12 @@ func (d *Driver) CraftTx(
 
 	numElements := new(big.Int).Sub(start, end).Uint64()
 	log.Info(name+" checkpoint constructed", "start", start, "end", end,
-		"nonce", nonce, "blocks_committed", numElements)
+		"nonce", nonce, "blocks_committed", numElements, "checkpoint_block", nextCheckpointBlock)
+
+	header, err := d.cfg.L1Client.HeaderByNumber(ctx, nil)
+	if err != nil {
+		return nil, fmt.Errorf("error resolving checkpoint block: %v", err)
+	}
 
 	opts, err := bind.NewKeyedTransactorWithChainID(
 		d.cfg.PrivKey, d.cfg.ChainID,
@@ -208,7 +213,7 @@ func (d *Driver) CraftTx(
 	opts.Nonce = nonce
 	opts.NoSend = true
 
-	return d.l2ooContract.AppendL2Output(opts, l2OutputRoot, timestamp)
+	return d.l2ooContract.AppendL2Output(opts, l2OutputRoot, timestamp, header.Hash(), header.Number)
 }
 
 // UpdateGasPrice signs an otherwise identical txn to the one provided but with

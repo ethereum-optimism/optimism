@@ -4,7 +4,7 @@ import (
 	"github.com/urfave/cli"
 )
 
-const envVarPrefix = "BATCH_SUBMITTER_"
+const envVarPrefix = "OUTPUT_SUBMITTER_"
 
 func prefixEnvVar(name string) string {
 	return envVarPrefix + name

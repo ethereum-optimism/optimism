@@ -206,7 +206,7 @@ func UserDeposits(receipts []*types.Receipt, depositContractAddr common.Address)
 			continue
 		}
 		for _, log := range rec.Logs {
-			if log.Address == depositContractAddr {
+			if log.Address == depositContractAddr && len(log.Topics) > 0 && log.Topics[0] == DepositEventABIHash {
 				dep, err := UnmarshalLogEvent(log)
 				if err != nil {
 					return nil, fmt.Errorf("malformatted L1 deposit log: %v", err)

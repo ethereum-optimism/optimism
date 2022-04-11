@@ -40,7 +40,9 @@ describe('RPCs', () => {
         counterArtifact.abi,
         counterArtifact.bytecode.object,
       ).connect(wallet)
-      const counter = await factory.deploy()
+      const counter = await factory.deploy({
+        gasLimit: 1_000_000
+      })
       await counter.deployed()
       expect(await env.l2Provider.getCode(counter.address)).not.to.equal('0x')
     })

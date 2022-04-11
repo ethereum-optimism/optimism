@@ -1,19 +1,8 @@
 FROM ethereumoptimism/reference-optimistic-geth:latest
 
-ARG L1_BLOCK_INFO_BYTECODE=""
-ARG WITHDRAWER_BYTECODE=""
-ARG GENESIS_TIMESTAMP=""
-
 RUN apk add --no-cache jq
 
 COPY entrypoint.sh /entrypoint.sh
-COPY genesis-l2.json /genesis.json
-
-RUN cat /genesis.json | jq ". | .alloc.\"4200000000000000000000000000000000000014\".code = \"$L1_BLOCK_INFO_BYTECODE\"" \
-        | jq ". | .alloc.\"4200000000000000000000000000000000000015\".code = \"$WITHDRAWER_BYTECODE\"" \
-        | jq ". | .timestamp = \"$GENESIS_TIMESTAMP\"" \
-        | tee /genesis-with-bytecode.json && \
-        mv /genesis-with-bytecode.json /genesis.json
 
 VOLUME ["/db"]
 

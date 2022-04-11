@@ -1,1 +1,1 @@
-export const DEPOSIT_FEED_ADDR = '0xdeaddeaddeaddeaddeaddeaddeaddeaddead0001'
+export const WITHDRAWER_ADDR = '0x4200000000000000000000000000000000000016'

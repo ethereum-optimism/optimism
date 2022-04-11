@@ -10,3 +10,4 @@ bin
 integration-tests/cache/
 integration-tests/artifacts/
 **/*.env
+.devnet

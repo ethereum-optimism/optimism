@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"net"
 	"net/http"
-	"strings"
 
 	"github.com/ethereum/go-ethereum"
 
@@ -52,8 +51,11 @@ func (s *rpcServer) Start() error {
 		return err
 	}
 
-	host := strings.Split(s.endpoint, ":")[0]
-	nodeHandler := node.NewHTTPHandlerStack(srv, nil, []string{host}, nil)
+	// The CORS and VHosts arguments below must be set in order for
+	// other services to connect to the opnode. VHosts in particular
+	// defaults to localhost, which will prevent containers from
+	// calling into the opnode without an "invalid host" error.
+	nodeHandler := node.NewHTTPHandlerStack(srv, []string{"*"}, []string{"*"}, nil)
 
 	mux := http.NewServeMux()
 	mux.Handle("/", nodeHandler)
