@@ -5,10 +5,10 @@ import (
 	"encoding/json"
 	"errors"
 	"math/big"
-	"sync"
 	"time"
 
-	"github.com/ethereum/go-ethereum"
+	"github.com/ethereum-optimism/optimism/go/indexer/services/util"
+
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -17,9 +17,9 @@ import (
 )
 
 const (
-	DefaultConnectionTimeout        = 20 * time.Second
+	DefaultConnectionTimeout        = 30 * time.Second
 	DefaultConfDepth         uint64 = 20
-	DefaultMaxBatchSize      uint64 = 100
+	DefaultMaxBatchSize             = 100
 )
 
 type NewHeader struct {
@@ -128,24 +128,34 @@ type ConfirmedHeaderSelector struct {
 	cfg HeaderSelectorConfig
 }
 
-func toBlockNumArg(number *big.Int) string {
-	if number == nil {
-		return "latest"
+func HeadersByRange(ctx context.Context, client *rpc.Client, startHeight uint64, count int) ([]*NewHeader, error) {
+	height := startHeight
+	batchElems := make([]rpc.BatchElem, count)
+	for i := 0; i < count; i++ {
+		batchElems[i] = rpc.BatchElem{
+			Method: "eth_getBlockByNumber",
+			Args: []interface{}{
+				util.ToBlockNumArg(new(big.Int).SetUint64(height + uint64(i))),
+				false,
+			},
+			Result: new(NewHeader),
+			Error:  nil,
+		}
 	}
-	pending := big.NewInt(-1)
-	if number.Cmp(pending) == 0 {
-		return "pending"
-	}
-	return hexutil.EncodeBig(number)
-}
 
-func HeaderByNumber(ctx context.Context, client *rpc.Client, height *big.Int) (*NewHeader, error) {
-	var head *NewHeader
-	err := client.CallContext(ctx, &head, "eth_getBlockByNumber", toBlockNumArg(height), false)
-	if err == nil && head == nil {
-		err = ethereum.NotFound
+	if err := client.BatchCallContext(ctx, batchElems); err != nil {
+		return nil, err
 	}
-	return head, err
+
+	out := make([]*NewHeader, count)
+	for i := 0; i < len(batchElems); i++ {
+		if batchElems[i].Error != nil {
+			return nil, batchElems[i].Error
+		}
+		out[i] = batchElems[i].Result.(*NewHeader)
+	}
+
+	return out, nil
 }
 
 func (f *ConfirmedHeaderSelector) NewHead(
@@ -153,7 +163,7 @@ func (f *ConfirmedHeaderSelector) NewHead(
 	lowest uint64,
 	header *types.Header,
 	client *rpc.Client,
-) []*NewHeader {
+) ([]*NewHeader, error) {
 
 	number := header.Number.Uint64()
 	blockHash := header.Hash
@@ -161,14 +171,14 @@ func (f *ConfirmedHeaderSelector) NewHead(
 	logger.Info("New block", "block", number, "hash", blockHash)
 
 	if number < f.cfg.ConfDepth {
-		return nil
+		return nil, nil
 	}
 	endHeight := number - f.cfg.ConfDepth + 1
 
 	minNextHeight := lowest + f.cfg.ConfDepth
 	if minNextHeight > number {
 		log.Info("Fork block ", "block", number, "hash", blockHash)
-		return nil
+		return nil, nil
 	}
 	startHeight := lowest + 1
 
@@ -177,34 +187,35 @@ func (f *ConfirmedHeaderSelector) NewHead(
 		endHeight = startHeight + f.cfg.MaxBatchSize - 1
 	}
 
-	nHeaders := endHeight - startHeight + 1
+	nHeaders := int(endHeight - startHeight + 1)
 	if nHeaders > 1 {
-		logger.Info("Loading block batch ",
+		logger.Info("Loading blocks",
 			"startHeight", startHeight, "endHeight", endHeight)
 	}
 
-	headers := make([]*NewHeader, nHeaders)
-	var wg sync.WaitGroup
-	for i := uint64(0); i < nHeaders; i++ {
-		wg.Add(1)
-		go func(ii uint64) {
-			defer wg.Done()
+	headers := make([]*NewHeader, 0)
+	height := startHeight
+	left := nHeaders - len(headers)
+	for left > 0 {
+		count := DefaultMaxBatchSize
+		if count > left {
+			count = left
+		}
 
-			ctxt, cancel := context.WithTimeout(ctx, DefaultConnectionTimeout)
-			defer cancel()
+		logger.Info("Loading block batch",
+			"height", height, "count", count)
 
-			height := startHeight + ii
-			bigHeight := new(big.Int).SetUint64(height)
-			header, err := HeaderByNumber(ctxt, client, bigHeight)
-			if err != nil {
-				log.Error("Unable to load block ", "block", height, "err", err)
-				return
-			}
+		ctxt, cancel := context.WithTimeout(ctx, DefaultConnectionTimeout)
+		fetched, err := HeadersByRange(ctxt, client, height, count)
+		cancel()
+		if err != nil {
+			return nil, err
+		}
 
-			headers[ii] = header
-		}(i)
+		headers = append(headers, fetched...)
+		left = nHeaders - len(headers)
+		height += uint64(count)
 	}
-	wg.Wait()
 
 	logger.Debug("Verifying block range ",
 		"startHeight", startHeight, "endHeight", endHeight)
@@ -233,7 +244,7 @@ func (f *ConfirmedHeaderSelector) NewHead(
 			"block", header.Number.Uint64(), "hash", header.Hash)
 	}
 
-	return headers
+	return headers, nil
 }
 
 func NewConfirmedHeaderSelector(cfg HeaderSelectorConfig) (*ConfirmedHeaderSelector,
