@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.21
+
+### Patch Changes
+
+- 5818decb: Remove l2 gas price hardhat task
+
 ## 0.5.20
 
 ### Patch Changes

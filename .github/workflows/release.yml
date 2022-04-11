@@ -152,7 +152,7 @@ jobs:
   go-builder:
     name: Publish go-builder ${{ needs.release.outputs.go-builder }}
     needs: release
-    if: needs.release.go-builder != ''
+    if: needs.release.outputs.go-builder != ''
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -170,15 +170,15 @@ jobs:
       - name: Publish go-builder
         uses: docker/build-push-action@v2
         with:
-          context: ./ops/docker/go-builder
-          file: ./Dockerfile
+          context: .
+          file: ./ops/docker/go-builder/Dockerfile
           push: true
           tags: ethereumoptimism/go-builder:${{ needs.release.outputs.go-builder }},ethereumoptimism/go-builder:latest
 
   js-builder:
     name: Publish js-builder ${{ needs.release.outputs.js-builder }}
     needs: release
-    if: needs.release.js-builder != ''
+    if: needs.release.outputs.js-builder != ''
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -196,8 +196,8 @@ jobs:
       - name: Publish js-builder
         uses: docker/build-push-action@v2
         with:
-          context: ./ops/docker/js-builder
-          file: ./Dockerfile
+          context: .
+          file: ./ops/docker/js-builder/Dockerfile
           push: true
           tags: ethereumoptimism/js-builder:${{ needs.release.outputs.js-builder }},ethereumoptimism/js-builder:latest
 

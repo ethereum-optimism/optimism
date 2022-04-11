@@ -1,6 +1,6 @@
 {
   "name": "@eth-optimism/js-builder",
-  "version": "0.0.1",
+  "version": "0.0.3",
   "scripts": {},
   "license": "MIT",
   "dependencies": {}

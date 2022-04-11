@@ -8,10 +8,13 @@
  * @param keys Keys to omit from the returned object.
  * @returns A copy of the given object with the given keys omitted.
  */
-export const omit = (obj: any, ...keys: string[]) => {
+export const omit = <T extends object, K extends string | number | symbol>(
+  obj: T,
+  ...keys: K[]
+): Omit<T, K> => {
   const copy = { ...obj }
   for (const key of keys) {
-    delete copy[key]
+    delete copy[key as string]
   }
   return copy
 }

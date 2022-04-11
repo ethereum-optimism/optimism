@@ -20,29 +20,29 @@ export class DAIBridgeAdapter extends StandardBridgeAdapter {
       [
         {
           inputs: [],
-          name: 'l1Token',
+          name: 'l1Token' as const,
           outputs: [
             {
-              internalType: 'address',
-              name: '',
-              type: 'address',
+              internalType: 'address' as const,
+              name: '' as const,
+              type: 'address' as const,
             },
           ],
-          stateMutability: 'view',
-          type: 'function',
+          stateMutability: 'view' as const,
+          type: 'function' as const,
         },
         {
           inputs: [],
-          name: 'l2Token',
+          name: 'l2Token' as const,
           outputs: [
             {
-              internalType: 'address',
-              name: '',
-              type: 'address',
+              internalType: 'address' as const,
+              name: '' as const,
+              type: 'address' as const,
             },
           ],
-          stateMutability: 'view',
-          type: 'function',
+          stateMutability: 'view' as const,
+          type: 'function' as const,
         },
       ],
       this.messenger.l1Provider

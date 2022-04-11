@@ -1,3 +1,5 @@
+import assert from 'assert'
+
 import { Provider, TransactionRequest } from '@ethersproject/abstract-provider'
 import { serialize } from '@ethersproject/transactions'
 import { Contract, BigNumber } from 'ethers'
@@ -6,6 +8,8 @@ import cloneDeep from 'lodash/cloneDeep'
 
 import { L2Provider, ProviderLike, NumberLike } from './interfaces'
 import { toProvider, toNumber, toBigNumber } from './utils'
+
+type ProviderTypeIsWrong = any
 
 /**
  * Returns a Contract object for the GasPriceOracle.
@@ -116,6 +120,24 @@ export const estimateTotalGasCost = async (
 }
 
 /**
+ * Determines if a given Provider is an L2Provider.  Will coerce type
+ * if true
+ *
+ * @param provider The provider to check
+ * @returns Boolean
+ * @example
+ * if (isL2Provider(provider)) {
+ *   // typescript now knows it is of type L2Provider
+ *   const gasPrice = await provider.estimateL2GasPrice(tx)
+ * }
+ */
+export const isL2Provider = <TProvider extends Provider>(
+  provider: TProvider
+): provider is L2Provider<TProvider> => {
+  return Boolean((provider as L2Provider<TProvider>)._isL2Provider)
+}
+
+/**
  * Returns an provider wrapped as an Optimism L2 provider. Adds a few extra helper functions to
  * simplify the process of estimating the gas usage for a transaction on Optimism. Returns a COPY
  * of the original provider.
@@ -126,22 +148,21 @@ export const estimateTotalGasCost = async (
 export const asL2Provider = <TProvider extends Provider>(
   provider: TProvider
 ): L2Provider<TProvider> => {
+  // Skip if we've already wrapped this provider.
+  if (isL2Provider(provider)) {
+    return provider
+  }
+
   // Make a copy of the provider since we'll be modifying some internals and don't want to mess
   // with the original object.
-  const l2Provider = cloneDeep(provider) as any
-
-  // Skip if we've already wrapped this provider.
-  if (l2Provider._isL2Provider) {
-    return l2Provider
-  }
+  const l2Provider = cloneDeep(provider) as L2Provider<TProvider>
 
   // Not exactly sure when the provider wouldn't have a formatter function, but throw an error if
   // it doesn't have one. The Provider type doesn't define it but every provider I've dealt with
   // seems to have it.
-  const formatter = l2Provider.formatter
-  if (formatter === undefined) {
-    throw new Error(`provider.formatter must be defined`)
-  }
+  // TODO this may be fixed if library has gotten updated since
+  const formatter = (l2Provider as ProviderTypeIsWrong).formatter
+  assert(formatter, `provider.formatter must be defined`)
 
   // Modify the block formatter to return the state root. Not strictly related to Optimism, just a
   // generally useful thing that really should've been on the Ethers block object to begin with.
