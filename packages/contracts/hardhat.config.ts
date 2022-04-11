@@ -2,11 +2,6 @@ import { HardhatUserConfig } from 'hardhat/types'
 import 'solidity-coverage'
 import * as dotenv from 'dotenv'
 
-import {
-  DEFAULT_ACCOUNTS_HARDHAT,
-  RUN_OVM_TEST_GAS,
-} from './test/helpers/constants'
-
 // Hardhat plugins
 import '@nomiclabs/hardhat-ethers'
 import '@nomiclabs/hardhat-waffle'
@@ -28,8 +23,6 @@ const deploy = process.env.DEPLOY_DIRECTORY || 'deploy'
 const config: HardhatUserConfig = {
   networks: {
     hardhat: {
-      accounts: DEFAULT_ACCOUNTS_HARDHAT,
-      blockGasLimit: RUN_OVM_TEST_GAS * 2,
       live: false,
       saveDeployments: false,
       tags: ['local'],
