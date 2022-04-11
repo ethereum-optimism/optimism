@@ -373,10 +373,15 @@ func TestMintOnRevertedDeposit(t *testing.T) {
 	cancel()
 	require.Nil(t, err)
 
+	ctx, cancel = context.WithTimeout(context.Background(), 1*time.Second)
+	startNonce, err := l2Verif.NonceAt(ctx, fromAddr, nil)
+	require.NoError(t, err)
+	cancel()
+
 	toAddr := common.Address{0xff, 0xff}
 	mintAmount := big.NewInt(9_000_000)
 	opts.Value = mintAmount
-	value := new(big.Int).Mul(common.Big2, startBalance) // triger a revert by transferring more than we have available
+	value := new(big.Int).Mul(common.Big2, startBalance) // trigger a revert by transferring more than we have available
 	tx, err := depositContract.DepositTransaction(opts, toAddr, value, big.NewInt(1_000_000), false, nil)
 	require.Nil(t, err, "with deposit tx")
 
@@ -404,6 +409,12 @@ func TestMintOnRevertedDeposit(t *testing.T) {
 	diff = diff.Sub(endBalance, startBalance)
 	require.Equal(t, mintAmount, diff, "Did not get expected balance change")
 	require.Equal(t, common.Big0.Int64(), toAddrBalance.Int64(), "The recipient account balance should be zero")
+
+	ctx, cancel = context.WithTimeout(context.Background(), 1*time.Second)
+	endNonce, err := l2Verif.NonceAt(ctx, fromAddr, nil)
+	require.NoError(t, err)
+	cancel()
+	require.Equal(t, startNonce+1, endNonce, "Nonce of deposit sender should increment on L2, even if the deposit fails")
 }
 
 func TestMissingBatchE2E(t *testing.T) {
