@@ -2,7 +2,6 @@ package test
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"math/big"
 	"testing"
@@ -11,7 +10,6 @@ import (
 	"github.com/ethereum-optimism/optimistic-specs/l2os"
 	"github.com/ethereum-optimism/optimistic-specs/l2os/bindings/l2oo"
 	"github.com/ethereum-optimism/optimistic-specs/l2os/rollupclient"
-	"github.com/ethereum-optimism/optimistic-specs/l2os/txmgr"
 	"github.com/ethereum-optimism/optimistic-specs/opnode/contracts/deposit"
 	"github.com/ethereum-optimism/optimistic-specs/opnode/internal/testlog"
 	rollupNode "github.com/ethereum-optimism/optimistic-specs/opnode/node"
@@ -24,8 +22,6 @@ import (
 	"github.com/ethereum/go-ethereum/accounts/keystore"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/stretchr/testify/require"
@@ -50,9 +46,19 @@ func defaultSystemConfig(t *testing.T) SystemConfig {
 			l2OutputHDPath:     10000000,
 			bssHDPath:          10000000,
 		},
+		DepositCFG: DepositContractConfig{
+			FinalizationPeriod: big.NewInt(60 * 60 * 24),
+		},
+		L2OOCfg: L2OOContractConfig{
+			// L2 Start time is set based off of the L2 Genesis time
+			SubmissionFrequency:   big.NewInt(2),
+			L2BlockTime:           big.NewInt(1),
+			HistoricalTotalBlocks: big.NewInt(0),
+		},
+		L2OutputHDPath:             l2OutputHDPath,
 		BatchSubmitterHDPath:       bssHDPath,
+		DeployerHDPath:             l2OutputHDPath,
 		CliqueSignerDerivationPath: cliqueSignerHDPath,
-		DepositContractAddress:     MockDepositContractAddr,
 		L1InfoPredeployAddress:     derive.L1InfoPredeployAddr,
 		L1WsAddr:                   "127.0.0.1",
 		L1WsPort:                   9090,
@@ -94,53 +100,6 @@ func defaultSystemConfig(t *testing.T) SystemConfig {
 	}
 }
 
-func waitForTransaction(hash common.Hash, client *ethclient.Client, timeout time.Duration) (*types.Receipt, error) {
-	timeoutCh := time.After(timeout)
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
-	defer cancel()
-	for {
-		receipt, err := client.TransactionReceipt(ctx, hash)
-		if receipt != nil && err == nil {
-			return receipt, nil
-		} else if err != nil && !errors.Is(err, ethereum.NotFound) {
-			return nil, err
-		}
-
-		select {
-		case <-timeoutCh:
-			return nil, errors.New("timeout")
-		case <-time.After(100 * time.Millisecond):
-		}
-	}
-}
-
-func waitForBlock(number *big.Int, client *ethclient.Client, timeout time.Duration) (*types.Block, error) {
-	timeoutCh := time.After(timeout)
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
-	defer cancel()
-
-	headChan := make(chan *types.Header, 100)
-	headSub, err := client.SubscribeNewHead(ctx, headChan)
-	if err != nil {
-		return nil, err
-	}
-	defer headSub.Unsubscribe()
-
-	for {
-		select {
-		case head := <-headChan:
-			if head.Number.Cmp(number) >= 0 {
-				return client.BlockByNumber(ctx, number)
-			}
-		case err := <-headSub.Err():
-			return nil, fmt.Errorf("Error in head subscription: %w", err)
-		case <-timeoutCh:
-			return nil, errors.New("timeout")
-		}
-	}
-
-}
-
 func TestL2OutputSubmitter(t *testing.T) {
 	log.Root().SetHandler(log.DiscardHandler()) // Comment this out to see geth l1/l2 logs
 
@@ -156,40 +115,8 @@ func TestL2OutputSubmitter(t *testing.T) {
 	require.Nil(t, err)
 	rollupClient := rollupclient.NewRollupClient(rollupRPCClient)
 
-	// Deploy StateRootOracle
-	l2OutputPrivKey, err := sys.wallet.PrivateKey(accounts.Account{
-		URL: accounts.URL{
-			Path: l2OutputHDPath,
-		},
-	})
-	require.Nil(t, err)
-	l2OutputAddr := crypto.PubkeyToAddress(l2OutputPrivKey.PublicKey)
-
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-	defer cancel()
-	nonce, err := l1Client.NonceAt(ctx, l2OutputAddr, nil)
-	require.Nil(t, err)
-
-	opts, err := bind.NewKeyedTransactorWithChainID(l2OutputPrivKey, cfg.L1ChainID)
-	require.Nil(t, err)
-	opts.Nonce = big.NewInt(int64(nonce))
-
-	submissionFrequency := big.NewInt(2) // 2 seconds
-	l2BlockTime := big.NewInt(1)         // 1 seconds
-	l2ooAddr, tx, l2OutputOracle, err := l2oo.DeployL2OutputOracle(
-		opts,
-		l1Client,
-		submissionFrequency,
-		l2BlockTime,
-		[32]byte{},
-		big.NewInt(0),
-		l2OutputAddr,
-	)
-	require.Nil(t, err)
-
-	ctx, cancel = context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	_, err = txmgr.WaitMined(ctx, l1Client, tx, time.Second, 1)
+	//  StateRootOracle is already deployed
+	l2OutputOracle, err := l2oo.NewL2OutputOracleCaller(sys.L2OOContractAddr, l1Client)
 	require.Nil(t, err)
 
 	initialSroTimestamp, err := l2OutputOracle.LatestBlockTimestamp(&bind.CallOpts{})
@@ -200,7 +127,7 @@ func TestL2OutputSubmitter(t *testing.T) {
 		L1EthRpc:                  "ws://127.0.0.1:9090",
 		L2EthRpc:                  cfg.Nodes["sequencer"].L2NodeAddr,
 		RollupRpc:                 fmt.Sprintf("http://%s:%d", cfg.Nodes["sequencer"].RPCListenAddr, cfg.Nodes["sequencer"].RPCListenPort),
-		L2OOAddress:               l2ooAddr.String(),
+		L2OOAddress:               sys.L2OOContractAddr.String(),
 		PollInterval:              2 * time.Second,
 		NumConfirmations:          1,
 		ResubmissionTimeout:       3 * time.Second,
@@ -239,7 +166,7 @@ func TestL2OutputSubmitter(t *testing.T) {
 			//
 			// NOTE: This assertion will change once the L2 output format is
 			// finalized.
-			ctx, cancel = context.WithTimeout(context.Background(), time.Second)
+			ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 			defer cancel()
 			l2Output, err := rollupClient.OutputAtBlock(ctx, l2ooBlockNumber)
 			require.Nil(t, err)
@@ -285,7 +212,7 @@ func TestSystemE2E(t *testing.T) {
 	fromAddr := common.HexToAddress("0x30ec912c5b1d14aa6d1cb9aa7a6682415c4f7eb0")
 
 	// Find deposit contract
-	depositContract, err := deposit.NewDeposit(cfg.DepositContractAddress, l1Client)
+	depositContract, err := deposit.NewOptimismPortal(sys.DepositContractAddr, l1Client)
 	require.Nil(t, err)
 	l1Node := sys.nodes["l1"]
 
@@ -366,7 +293,7 @@ func TestMintOnRevertedDeposit(t *testing.T) {
 	l2Verif := sys.Clients["verifier"]
 
 	// Find deposit contract
-	depositContract, err := deposit.NewDeposit(cfg.DepositContractAddress, l1Client)
+	depositContract, err := deposit.NewOptimismPortal(sys.DepositContractAddr, l1Client)
 	require.Nil(t, err)
 	l1Node := sys.nodes["l1"]
 

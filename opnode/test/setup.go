@@ -6,13 +6,16 @@ import (
 	"math/big"
 	"time"
 
+	"github.com/ethereum-optimism/optimistic-specs/l2os/bindings/l2oo"
 	"github.com/ethereum-optimism/optimistic-specs/opnode/contracts/deposit"
 	"github.com/ethereum-optimism/optimistic-specs/opnode/contracts/l1block"
 	rollupNode "github.com/ethereum-optimism/optimistic-specs/opnode/node"
 	"github.com/ethereum-optimism/optimistic-specs/opnode/rollup"
 	"github.com/ethereum/go-ethereum/accounts"
+	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/eth"
 	"github.com/ethereum/go-ethereum/ethclient"
@@ -40,13 +43,30 @@ func deriveAccount(w accounts.Wallet, path string) accounts.Account {
 	return account
 }
 
+type L2OOContractConfig struct {
+	SubmissionFrequency   *big.Int
+	L2StartTime           *big.Int
+	L2BlockTime           *big.Int
+	GenesisL2Output       [32]byte
+	HistoricalTotalBlocks *big.Int
+}
+
+type DepositContractConfig struct {
+	L2Oracle           common.Address
+	FinalizationPeriod *big.Int
+}
+
 type SystemConfig struct {
 	Mnemonic                   string
 	Premine                    map[string]int // Derivation path -> amount in ETH (not wei)
 	CliqueSignerDerivationPath string
+	L2OutputHDPath             string
 	BatchSubmitterHDPath       string
-	DepositContractAddress     common.Address
+	DeployerHDPath             string
 	L1InfoPredeployAddress     common.Address
+
+	L2OOCfg    L2OOContractConfig
+	DepositCFG DepositContractConfig
 
 	L1WsAddr     string
 	L1WsPort     int
@@ -64,11 +84,13 @@ type System struct {
 	wallet *hdwallet.Wallet
 
 	// Connections to running nodes
-	nodes        map[string]*node.Node
-	backends     map[string]*eth.Ethereum
-	Clients      map[string]*ethclient.Client
-	RolupGenesis rollup.Genesis
-	rollupNodes  map[string]*rollupNode.OpNode
+	nodes               map[string]*node.Node
+	backends            map[string]*eth.Ethereum
+	Clients             map[string]*ethclient.Client
+	RolupGenesis        rollup.Genesis
+	rollupNodes         map[string]*rollupNode.OpNode
+	L2OOContractAddr    common.Address
+	DepositContractAddr common.Address
 }
 
 func precompileAlloc() core.GenesisAlloc {
@@ -142,7 +164,18 @@ func (cfg SystemConfig) start() (*System, error) {
 	if err != nil {
 		return nil, err
 	}
-	submitterAddress := crypto.PubkeyToAddress(bssPrivKey.PublicKey)
+	batchSubmitterAddr := crypto.PubkeyToAddress(bssPrivKey.PublicKey)
+
+	// Create the L2 Outputsubmitter Address and set it here because it needs to be derived from the accounts
+	l2OOSubmitter, err := wallet.PrivateKey(accounts.Account{
+		URL: accounts.URL{
+			Path: cfg.L2OutputHDPath,
+		},
+	})
+	if err != nil {
+		return nil, err
+	}
+	l2OutputSubmitterAddr := crypto.PubkeyToAddress(l2OOSubmitter.PublicKey)
 
 	// Genesis
 	eth := new(big.Int).Exp(big.NewInt(10), big.NewInt(18), nil)
@@ -158,7 +191,6 @@ func (cfg SystemConfig) start() (*System, error) {
 		l2Alloc[addr] = core.GenesisAccount{Balance: balance}
 	}
 
-	l1Alloc[cfg.DepositContractAddress] = core.GenesisAccount{Code: common.FromHex(deposit.DepositDeployedBin), Balance: common.Big0}
 	l2Alloc[cfg.L1InfoPredeployAddress] = core.GenesisAccount{Code: common.FromHex(l1block.L1blockDeployedBin), Balance: common.Big0}
 
 	genesisTimestamp := uint64(time.Now().Unix())
@@ -288,12 +320,59 @@ func (cfg SystemConfig) start() (*System, error) {
 	}
 
 	sys.cfg.RollupConfig.Genesis = sys.RolupGenesis
-	sys.cfg.RollupConfig.BatchSenderAddress = submitterAddress
+	sys.cfg.RollupConfig.BatchSenderAddress = batchSubmitterAddr
+	sys.cfg.L2OOCfg.L2StartTime = new(big.Int).SetUint64(l2GenesisTime)
+
+	// Deploy Deposit Contract
+	deployerPrivKey, err := sys.wallet.PrivateKey(accounts.Account{
+		URL: accounts.URL{
+			Path: sys.cfg.DeployerHDPath,
+		},
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	opts, err := bind.NewKeyedTransactorWithChainID(deployerPrivKey, cfg.L1ChainID)
+	if err != nil {
+		return nil, err
+	}
+
+	// Deploy contracts
+	sys.L2OOContractAddr, _, _, err = l2oo.DeployL2OutputOracle(
+		opts,
+		l1Client,
+		sys.cfg.L2OOCfg.SubmissionFrequency,
+		sys.cfg.L2OOCfg.L2BlockTime,
+		sys.cfg.L2OOCfg.GenesisL2Output,
+		sys.cfg.L2OOCfg.HistoricalTotalBlocks,
+		sys.cfg.L2OOCfg.L2StartTime,
+		l2OutputSubmitterAddr,
+	)
+	sys.cfg.DepositCFG.L2Oracle = sys.L2OOContractAddr
+	if err != nil {
+		return nil, err
+	}
+	var tx *types.Transaction
+	sys.DepositContractAddr, tx, _, err = deposit.DeployOptimismPortal(
+		opts,
+		l1Client,
+		sys.cfg.DepositCFG.L2Oracle,
+		sys.cfg.DepositCFG.FinalizationPeriod,
+	)
+	if err != nil {
+		return nil, err
+	}
+	_, err = waitForTransaction(tx.Hash(), l1Client, 4*time.Second)
+	if err != nil {
+		return nil, fmt.Errorf("waiting for OptimismPortal: %w", err)
+	}
 
 	// Rollup nodes
 	for name, nodeConfig := range cfg.Nodes {
 		c := nodeConfig
 		c.Rollup = sys.cfg.RollupConfig
+		c.Rollup.DepositContractAddress = sys.DepositContractAddr
 		if c.Sequencer {
 			c.SubmitterPrivKey = bssPrivKey
 		}

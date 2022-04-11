@@ -3,6 +3,7 @@ package test
 import (
 	"context"
 	"crypto/ecdsa"
+	"errors"
 	"fmt"
 	"math/big"
 	"strconv"
@@ -10,9 +11,11 @@ import (
 	"time"
 
 	rollupEth "github.com/ethereum-optimism/optimistic-specs/opnode/eth"
+	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/accounts/keystore"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/eth"
 	"github.com/ethereum/go-ethereum/eth/catalyst"
 	"github.com/ethereum/go-ethereum/eth/ethconfig"
@@ -21,6 +24,52 @@ import (
 
 	hdwallet "github.com/miguelmota/go-ethereum-hdwallet"
 )
+
+func waitForTransaction(hash common.Hash, client *ethclient.Client, timeout time.Duration) (*types.Receipt, error) {
+	timeoutCh := time.After(timeout)
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	for {
+		receipt, err := client.TransactionReceipt(ctx, hash)
+		if receipt != nil && err == nil {
+			return receipt, nil
+		} else if err != nil && !errors.Is(err, ethereum.NotFound) {
+			return nil, err
+		}
+
+		select {
+		case <-timeoutCh:
+			return nil, errors.New("timeout")
+		case <-time.After(100 * time.Millisecond):
+		}
+	}
+}
+
+func waitForBlock(number *big.Int, client *ethclient.Client, timeout time.Duration) (*types.Block, error) {
+	timeoutCh := time.After(timeout)
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+
+	headChan := make(chan *types.Header, 100)
+	headSub, err := client.SubscribeNewHead(ctx, headChan)
+	if err != nil {
+		return nil, err
+	}
+	defer headSub.Unsubscribe()
+
+	for {
+		select {
+		case head := <-headChan:
+			if head.Number.Cmp(number) >= 0 {
+				return client.BlockByNumber(ctx, number)
+			}
+		case err := <-headSub.Err():
+			return nil, fmt.Errorf("Error in head subscription: %w", err)
+		case <-timeoutCh:
+			return nil, errors.New("timeout")
+		}
+	}
+}
 
 func getGenesisInfo(client *ethclient.Client) (id rollupEth.BlockID, timestamp uint64) {
 	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
@@ -44,9 +93,11 @@ func initL1Geth(cfg *SystemConfig, wallet *hdwallet.Wallet, genesis *core.Genesi
 		Genesis:   genesis,
 	}
 	nodeConfig := &node.Config{
-		Name:   "l1-geth",
-		WSHost: cfg.L1WsAddr,
-		WSPort: cfg.L1WsPort,
+		Name:        "l1-geth",
+		WSHost:      cfg.L1WsAddr,
+		WSPort:      cfg.L1WsPort,
+		WSModules:   []string{"debug", "admin", "eth", "txpool", "net", "rpc", "web3", "personal", "engine"},
+		HTTPModules: []string{"debug", "admin", "eth", "txpool", "net", "rpc", "web3", "personal", "engine"},
 	}
 
 	return createGethNode(false, nodeConfig, ethConfig, []*ecdsa.PrivateKey{pk})
@@ -68,9 +119,11 @@ func initL2Geth(name, addr string, l2ChainID *big.Int, genesis *core.Genesis) (*
 		return nil, nil, fmt.Errorf("failed to parse port from address: %w", err)
 	}
 	nodeConfig := &node.Config{
-		Name:   fmt.Sprintf("l2-geth-%v", name),
-		WSHost: host,
-		WSPort: int(port),
+		Name:        fmt.Sprintf("l2-geth-%v", name),
+		WSHost:      host,
+		WSPort:      int(port),
+		WSModules:   []string{"debug", "admin", "eth", "txpool", "net", "rpc", "web3", "personal", "engine"},
+		HTTPModules: []string{"debug", "admin", "eth", "txpool", "net", "rpc", "web3", "personal", "engine"},
 	}
 	return createGethNode(true, nodeConfig, ethConfig, nil)
 }
@@ -112,6 +165,7 @@ func createGethNode(l2 bool, nodeCfg *node.Config, ethCfg *ethconfig.Config, pri
 		return nil, nil, err
 
 	}
+
 	// Enable catalyst if l2
 	if l2 {
 		if err := catalyst.Register(n, backend); err != nil {

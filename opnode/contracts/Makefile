@@ -1,56 +1,49 @@
 SHELL := /bin/bash
 
-CONTRACTS_PATH := "../../packages/contracts/artifacts/contracts"
+CONTRACTS_PATH := "../../packages/contracts/"
+OPTIMISM_PORTAL := ../../packages/contracts/contracts/L1/OptimismPortal.sol
+L1_BLOCK_INFO := ../../packages/contracts/contracts/L2/L1Block.sol
 
-binding: abi
-	$(eval temp := $(shell mktemp))
 
-	cat abis/DepositFeed.json \
-		| jq -r .bytecode > $(temp)
+bindings: bindings-l1-block-info bindings-optimism-portal deployed-bin-l1-block-info
 
-	cat abis/DepositFeed.json \
-		| jq .abi \
-		| abigen --pkg deposit \
-		--abi - \
-		--out deposit/deposit_feed_raw.go \
-		--type deposit \
-		--bin $(temp)
 
-	$(eval deployedBytecode := $(shell cat abis/DepositFeed.json | jq -r .deployedBytecode))
-	echo "// Code generated - DO NOT EDIT." > deposit/deposit_feed_deployed.go
-	echo "// This file is a generated binding and any manual changes will be lost." >> deposit/deposit_feed_deployed.go
-	echo "package deposit" >> deposit/deposit_feed_deployed.go
-	echo "var DepositDeployedBin = \"$(deployedBytecode)\""  >> deposit/deposit_feed_deployed.go
-	gofmt -s -w deposit/deposit_feed_deployed.go
-
-	rm $(temp)
-
-	$(eval temp := $(shell mktemp))
-
-	cat abis/L1Block.json \
-		| jq -r .bytecode > $(temp)
-
-	cat abis/L1Block.json \
-		| jq .abi \
-		| abigen --pkg l1block \
-		--abi - \
-		--out l1block/l1_block_info_raw.go \
-		--type l1block \
-		--bin $(temp)
-
-	$(eval deployedBytecode := $(shell cat abis/L1Block.json | jq -r .deployedBytecode))
+# Split up b/c I don't know how to include this step in the L1 Block Info Bindings
+# What is occuring is that the `temp` variable is hard to pull into the `eval`
+deployed-bin-l1-block-info: bindings-l1-block-info
+	$(eval deployedBytecode := $(shell cat bin/l1block_deployed.hex))
 	echo "// Code generated - DO NOT EDIT." > l1block/l1_block_info_deployed.go
 	echo "// This file is a generated binding and any manual changes will be lost." >> l1block/l1_block_info_deployed.go
 	echo "package l1block" >> l1block/l1_block_info_deployed.go
 	echo "var L1blockDeployedBin = \"$(deployedBytecode)\""  >> l1block/l1_block_info_deployed.go
 	gofmt -s -w l1block/l1_block_info_deployed.go
 
-	rm $(temp)
+bindings-l1-block-info:
+	$(eval temp := $(shell mktemp -d))
+	solc \
+		--abi $(L1_BLOCK_INFO) \
+		--bin $(L1_BLOCK_INFO) \
+		--combined-json  abi,bin,bin-runtime \
+		--allow-paths $(CONTRACTS_PATH) \
+		-o $(temp)
+	abigen \
+		--combined-json $(temp)/combined.json \
+		--pkg l1block \
+		--type l1block \
+		--out ./l1block/l1_block_info_raw.go
+	cat $(temp)/combined.json | jq -r ".contracts | with_entries(select(.key | match(\"L1Block\")))[] | .\"bin-runtime\"" > bin/l1block_deployed.hex
 
-abi:
-	cat $(CONTRACTS_PATH)/L1/DepositFeed.sol/DepositFeed.json \
-		| jq '{abi,bytecode,deployedBytecode}' \
-		> abis/DepositFeed.json
-	cat $(CONTRACTS_PATH)/L2/L1Block.sol/L1Block.json \
-		| jq '{abi,bytecode,deployedBytecode}' \
-		> abis/L1Block.json
+
+bindings-optimism-portal:
+	$(eval temp := $(shell mktemp -d))
+	solc \
+		--abi $(OPTIMISM_PORTAL) \
+		--bin $(OPTIMISM_PORTAL) \
+		--combined-json  abi,bin,bin-runtime \
+		--allow-paths $(CONTRACTS_PATH) \
+		-o $(temp)
+	abigen \
+		--combined-json $(temp)/combined.json \
+		--pkg deposit \
+		--type deposit \
+		--out ./deposit/deposit_feed_raw.go
