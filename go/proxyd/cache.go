@@ -59,7 +59,10 @@ func newRedisCache(url string) (*redisCache, error) {
 }
 
 func (c *redisCache) Get(ctx context.Context, key string) (string, error) {
+	start := time.Now()
 	val, err := c.rdb.Get(ctx, key).Result()
+	redisCacheDurationSumm.WithLabelValues("GET").Observe(float64(time.Since(start).Milliseconds()))
+
 	if err == redis.Nil {
 		return "", nil
 	} else if err != nil {
@@ -70,7 +73,10 @@ func (c *redisCache) Get(ctx context.Context, key string) (string, error) {
 }
 
 func (c *redisCache) Put(ctx context.Context, key string, value string) error {
+	start := time.Now()
 	err := c.rdb.SetEX(ctx, key, value, redisTTL).Err()
+	redisCacheDurationSumm.WithLabelValues("SETEX").Observe(float64(time.Since(start).Milliseconds()))
+
 	if err != nil {
 		RecordRedisError("CacheSet")
 	}

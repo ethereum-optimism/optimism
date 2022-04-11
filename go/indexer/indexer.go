@@ -9,6 +9,8 @@ import (
 	"strconv"
 	"time"
 
+	l2rpc "github.com/ethereum-optimism/optimism/l2geth/rpc"
+
 	"github.com/ethereum-optimism/optimism/go/indexer/metrics"
 	"github.com/ethereum-optimism/optimism/go/indexer/server"
 	"github.com/rs/cors"
@@ -128,7 +130,7 @@ func NewIndexer(cfg Config, gitVersion string) (*Indexer, error) {
 		return nil, err
 	}
 
-	l2Client, err := dialL2EthClientWithTimeout(ctx, cfg.L2EthRpc)
+	l2Client, l2RPC, err := dialL2EthClientWithTimeout(ctx, cfg.L2EthRpc)
 	if err != nil {
 		return nil, err
 	}
@@ -180,6 +182,7 @@ func NewIndexer(cfg Config, gitVersion string) (*Indexer, error) {
 	l2IndexingService, err := l2.NewService(l2.ServiceConfig{
 		Context:            ctx,
 		Metrics:            m,
+		L2RPC:              l2RPC,
 		L2Client:           l2Client,
 		DB:                 db,
 		ConfDepth:          cfg.ConfDepth,
@@ -277,12 +280,17 @@ func dialL1EthClientWithTimeout(ctx context.Context, url string) (
 // provided URL. If the dial doesn't complete within defaultDialTimeout seconds,
 // this method will return an error.
 func dialL2EthClientWithTimeout(ctx context.Context, url string) (
-	*l2ethclient.Client, error) {
+	*l2ethclient.Client, *l2rpc.Client, error) {
 
 	ctxt, cancel := context.WithTimeout(ctx, defaultDialTimeout)
 	defer cancel()
 
-	return l2ethclient.DialContext(ctxt, url)
+	rpc, err := l2rpc.DialContext(ctxt, url)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return l2ethclient.NewClient(rpc), rpc, nil
 }
 
 // traceRateToFloat64 converts a time.Duration into a valid float64 for the

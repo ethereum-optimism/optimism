@@ -22,6 +22,7 @@ const (
 )
 
 var PayloadSizeBuckets = []float64{10, 50, 100, 500, 1000, 5000, 10000, 100000, 1000000}
+var MillisecondDurationBuckets = []float64{1, 10, 50, 100, 500, 1000, 5000, 10000, 100000}
 
 var (
 	rpcRequestsTotal = promauto.NewCounter(prometheus.CounterOpts{
@@ -204,6 +205,13 @@ var (
 		"gas price too low",
 		"invalid parameters",
 	}
+
+	redisCacheDurationSumm = promauto.NewHistogramVec(prometheus.HistogramOpts{
+		Namespace: MetricsNamespace,
+		Name:      "redis_cache_duration_milliseconds",
+		Help:      "Histogram of Redis command durations, in milliseconds.",
+		Buckets:   MillisecondDurationBuckets,
+	}, []string{"command"})
 )
 
 func RecordRedisError(source string) {
