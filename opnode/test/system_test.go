@@ -351,7 +351,78 @@ func TestSystemE2E(t *testing.T) {
 	seqBlock, err := l2Seq.BlockByNumber(context.Background(), receipt.BlockNumber)
 	require.Nil(t, err)
 	require.Equal(t, verifBlock.Hash(), seqBlock.Hash(), "Verifier and sequencer blocks not the same after including a batch tx")
+}
 
+func TestMintOnRevertedDeposit(t *testing.T) {
+	log.Root().SetHandler(log.DiscardHandler()) // Comment this out to see geth l1/l2 logs
+
+	cfg := defaultSystemConfig(t)
+
+	sys, err := cfg.start()
+	require.Nil(t, err, "Error starting up system")
+	defer sys.Close()
+
+	l1Client := sys.Clients["l1"]
+	l2Verif := sys.Clients["verifier"]
+
+	// Find deposit contract
+	depositContract, err := deposit.NewDeposit(cfg.DepositContractAddress, l1Client)
+	require.Nil(t, err)
+	l1Node := sys.nodes["l1"]
+
+	// create signer
+	ks := l1Node.AccountManager().Backends(keystore.KeyStoreType)[0].(*keystore.KeyStore)
+	opts, err := bind.NewKeyStoreTransactorWithChainID(ks, ks.Accounts()[0], cfg.L1ChainID)
+	require.Nil(t, err)
+	fromAddr := opts.From
+
+	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+	startBalance, err := l2Verif.BalanceAt(ctx, fromAddr, nil)
+	cancel()
+	require.Nil(t, err)
+
+	ctx, cancel = context.WithTimeout(context.Background(), 1*time.Second)
+	startNonce, err := l2Verif.NonceAt(ctx, fromAddr, nil)
+	require.NoError(t, err)
+	cancel()
+
+	toAddr := common.Address{0xff, 0xff}
+	mintAmount := big.NewInt(9_000_000)
+	opts.Value = mintAmount
+	value := new(big.Int).Mul(common.Big2, startBalance) // trigger a revert by transferring more than we have available
+	tx, err := depositContract.DepositTransaction(opts, toAddr, value, big.NewInt(1_000_000), false, nil)
+	require.Nil(t, err, "with deposit tx")
+
+	receipt, err := waitForTransaction(tx.Hash(), l1Client, 6*time.Second)
+	require.Nil(t, err, "Waiting for deposit tx on L1")
+
+	reconstructedDep, err := derive.UnmarshalLogEvent(receipt.Logs[0])
+	require.NoError(t, err, "Could not reconstruct L2 Deposit")
+	tx = types.NewTx(reconstructedDep)
+	receipt, err = waitForTransaction(tx.Hash(), l2Verif, 6*time.Second)
+	require.NoError(t, err)
+	require.Equal(t, receipt.Status, types.ReceiptStatusFailed)
+
+	// Confirm balance
+	ctx, cancel = context.WithTimeout(context.Background(), 1*time.Second)
+	endBalance, err := l2Verif.BalanceAt(ctx, fromAddr, nil)
+	cancel()
+	require.Nil(t, err)
+	ctx, cancel = context.WithTimeout(context.Background(), 1*time.Second)
+	toAddrBalance, err := l2Verif.BalanceAt(ctx, toAddr, nil)
+	require.NoError(t, err)
+	cancel()
+
+	diff := new(big.Int)
+	diff = diff.Sub(endBalance, startBalance)
+	require.Equal(t, mintAmount, diff, "Did not get expected balance change")
+	require.Equal(t, common.Big0.Int64(), toAddrBalance.Int64(), "The recipient account balance should be zero")
+
+	ctx, cancel = context.WithTimeout(context.Background(), 1*time.Second)
+	endNonce, err := l2Verif.NonceAt(ctx, fromAddr, nil)
+	require.NoError(t, err)
+	cancel()
+	require.Equal(t, startNonce+1, endNonce, "Nonce of deposit sender should increment on L2, even if the deposit fails")
 }
 
 func TestMissingBatchE2E(t *testing.T) {
