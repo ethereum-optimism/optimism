@@ -9,7 +9,6 @@
 [g-mpt]: glossary.md#merkle-patricia-trie
 [g-relayer]: glossary.md#withdrawals
 [g-execution-engine]: glossary.md#execution-engine
-**Table of Contents**
 
 [Withdrawals][g-withdrawal] are cross domain transactions which are initiated on L2, and finalized by a transaction
 executed on L1. Notably, withdrawals may be used by and L2 account to call an L1 contract, or to transfer ETH from
@@ -70,6 +69,8 @@ An L2 account sends a withdrawal message (and possibly also ETH) to the `Withdra
    from being replayed.
 
 ## The L2 Withdrawer Contract
+
+[withdrawer-contract]: #the-l2-withdrawer-contract
 
 A withdrawal is initiated by calling the Withdrawer contract's `initiateWithdrawal` function.
 The Withdrawer is a simple predeploy contract at `0x4200000000000000000000000000000000000016` which stores messages

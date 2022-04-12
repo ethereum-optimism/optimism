@@ -1,7 +1,9 @@
 # L2 Output Root Proposals Specification
 
 <!-- All glossary references in this file. -->
+
 [g-rollup-node]: glossary.md#rollup-node
+[g-mpt]: glossary.md#merkle-patricia-trie
 
 <!-- START doctoc generated TOC please keep comment here to allow auto update -->
 <!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
@@ -23,7 +25,7 @@ proving any piece of data captured by the outputs.
 Proposers submit the output roots to L1 and can be contested with a fault proof,
 with a bond at stake if the proof is wrong.
 
-*Note*: Although fault proof construction and verification [is implemented in Cannon][cannon],
+_Note_: Although fault proof construction and verification [is implemented in Cannon][cannon],
 the fault proof game specification and integration of a output-root challenger into the [rollup-node][g-rollup-node]
 are part of later specification milestones.
 
@@ -31,14 +33,15 @@ are part of later specification milestones.
 
 ## Proposing L2 Output Commitments
 
-The proposer's role is to construct and submit output commitments on a configurable interval to a contract on , which
-it does by running the [L2 output submitter](../l2os/). This service periodically queries the rollup
- node's [`optimism_outputAtBlock` rpc method](./rollup-node.md#l2-output-rpc-method) for the latest output root derived
- from the latest [finalized](rollup-node.md#finalization-guarantees) L1 block. The construction of this output root is
- described [below](#l2-output-commitment-construction).
+The proposer's role is to construct and submit output roots, which are commitments made on a configurable interval,
+to the `L2OutputOracle` contract running on L2. It does this by running the [L2 output submitter](../l2os/), a service
+which periodically queries the rollup node's
+[`optimism_outputAtBlock` rpc method](./rollup-node.md#l2-output-rpc-method) for the latest output root derived
+from the latest [finalized](rollup-node.md#finalization-guarantees) L1 block. The construction of this output root is
+described [below](#l2-output-commitment-construction).
 
 If there is no newly finalized output, the service continues querying until it receives one. It then submits this
-output, and the appropriate timestamp, to the [L2 Output Commitment](#l2-output-commitment-smart-contract) contract's
+output, and the appropriate timestamp, to the [L2 Output Root](#l2-output-root-smart-contract) contract's
 `appendL2Output()` function. The timestamp MUST be the next multiple of the `SUBMISSION_INTERVAL` value.
 
 > **Note regarding future work:** In the initial version of the system, the proposer will be the same entity as the
@@ -47,43 +50,44 @@ output, and the appropriate timestamp, to the [L2 Output Commitment](#l2-output-
 
 ## L2 Output Commitment Construction
 
-This merkle-structure is defined with [SSZ], a type system for merkleization and serialization, used in
-L1 (beacon-chain). However, we replace `sha256` with `keccak256` to save gas costs in the EVM.
+The `output_root` is a 32 byte string, which is derived based on the a versioned scheme:
 
-[SSZ]: https://github.com/ethereum/consensus-specs/blob/dev/ssz/simple-serialize.md
-
-```python
-class L2Output(Container):
-  state_root: Bytes32
-  withdrawal_storage_root: Bytes32  # TODO: withdrawals specification work-in-progress
-  latest_block: ExecutionPayload  # includes block hash
-  history_accumulator_root: Bytes32  # Not functional yet
-  extension: Bytes32
+```pseudocode
+output_root = keccak256(version_byte || payload)
 ```
 
-The `state_root` is the Merkle-Patricia-Trie ([MPT][g-mpt]) root of all execution-layer accounts,
-also found in `latest_block.state_root`: this field is frequently used and thus elevated closer to the L2 output root,
-as opposed to retrieving it from the pre-image of the block in `latest_block`,
-reducing the merkle proof depth and thus the cost of usage.
+where:
 
-The `withdrawal_storage_root` elevates the Merkle-Patricia-Trie ([MPT][g-mpt]) root of L2 Withdrawal contract storage.
-Instead of a MPT proof to the Withdrawal contract account in the account trie,
-one can directly access the MPT storage trie root, thus reducing the verification cost of withdrawals on L1.
+1. `version_byte` (`bytes32`) a simple version string which increments anytime the construction of the output root
+   is changed.
 
-The `latest_block` is an execution-layer block of L2, represented as the [`ExecutionPayload`][ExecutionPayload] SSZ type
-defined in L1. There may be multiple blocks per L2 output root, only the latest is presented.
+2. `payload` (`bytes`) is a byte string of arbitrary length.
 
-[ExecutionPayload]: https://github.com/ethereum/consensus-specs/blob/dev/specs/bellatrix/beacon-chain.md#executionpayload
+In the initial version of the output commitment construction, the version is `bytes32(0)`, and the payload is defined
+as:
 
-The `history_accumulator_root` is a reserved field, elevating a storage variable of the L2 chain that maintains
-the [SSZ] merkle root of an append-only `List[Bytes32, MAX_ITEM_COUNT]` (`keccak256` [SSZ] hash-tree-root),
-where each item is defined as `keccak256(l2_block_hash ++ l2_state_root)`, one per block of the L2 chain.
-While reserved, a zeroed `Bytes32` is used instead.
-This is a work-in-progress, see [issue 181](https://github.com/ethereum-optimism/optimistic-specs/issues/181).
-`MAX_ITEM_COUNT` and/or other parameters will be defined in the withdrawals milestone.
+```pseudocode
+payload = state_root || withdrawal_storage_root || latest_block
+```
 
-The `extension` is a zeroed `Bytes32`, to be substituted with a SSZ container to extend merkleized information in future
-upgrades. This keeps the static merkle structure forwards-compatible.
+where the concatenated variables are:
+
+1. The `state_root` (`bytes32`) is the Merkle-Patricia-Trie ([MPT][g-mpt]) root of all execution-layer accounts,
+   also found in `latest_block.state_root`: this field is frequently used and thus elevated closer to the L2 output
+   root, as opposed to retrieving it from the pre-image of the block in `latest_block`, reducing the merkle proof depth
+   and thus the cost of usage.
+
+1. The `withdrawal_storage_root` (`bytes32`) elevates the Merkle-Patricia-Trie ([MPT][g-mpt]) root of [L2 Withdrawal
+   contract](./withdrawals.md#withdrawer-contract) storage. Instead of making an MPT proof for a withdrawal against the
+   state root (proving first the storage root of the L2 withdrawal contract against the state root, then the withdrawal
+   against that storage root), we can prove against the L2 withdrawal contract's storage root directly, thus reducing
+   the verification cost of withdrawals on L1.
+
+1. The `latest_block` (`bytes32`) is an L2 block, represented as the
+   [`ExecutionPayload`][executionpayload] SSZ type defined in L1. There may be multiple blocks per L2 output root, only
+   the latest is presented.
+
+[executionpayload]: https://github.com/ethereum/consensus-specs/blob/dev/specs/bellatrix/beacon-chain.md#executionpayload
 
 ## L2 Output Oracle Smart Contract
 
@@ -137,7 +141,7 @@ will not match that of the block with that number and the call will revert.
 
 ### Constants
 
-| Name                   | Value | Unit    |
-| ---------------------- | ----- | ------- |
+| Name                  | Value  | Unit    |
+| --------------------- | ------ | ------- |
 | `SUBMISSION_INTERVAL` | `1800` | seconds |
-| `L2_BLOCK_TIME`        | `2`   | seconds |
+| `L2_BLOCK_TIME`       | `2`    | seconds |
