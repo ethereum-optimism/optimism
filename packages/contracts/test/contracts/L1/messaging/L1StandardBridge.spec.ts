@@ -40,7 +40,7 @@ describe('L1StandardBridge', () => {
   before(async () => {
     ;[l1MessengerImpersonator, alice, bob] = await ethers.getSigners()
 
-    await smock.fake<Contract>(await ethers.getContractFactory('OVM_ETH'))
+    await smock.fake<Contract>('OVM_ETH')
 
     // deploy an ERC20 contract on L1
     Factory__L1ERC20 = await smock.mock(
@@ -60,7 +60,7 @@ describe('L1StandardBridge', () => {
   beforeEach(async () => {
     // Get a new mock L1 messenger
     Fake__L1CrossDomainMessenger = await smock.fake<Contract>(
-      await ethers.getContractFactory('L1CrossDomainMessenger'),
+      'L1CrossDomainMessenger',
       { address: await l1MessengerImpersonator.getAddress() } // This allows us to use an ethers override {from: Mock__L2CrossDomainMessenger.address} to mock calls
     )
 
