@@ -1,5 +1,12 @@
 # @eth-optimism/proxyd
 
+## 3.8.4
+
+### Patch Changes
+
+- 08329ba2: proxyd: Record redis cache operation latency
+- ae112021: proxyd: Request-scoped context for fast batch RPC short-circuiting
+
 ## 3.8.3
 
 ### Patch Changes

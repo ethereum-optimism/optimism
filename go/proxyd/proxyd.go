@@ -211,6 +211,7 @@ func Start(config *Config) (func(), error) {
 		config.RPCMethodMappings,
 		config.Server.MaxBodySizeBytes,
 		resolvedAuth,
+		secondsToDuration(config.Server.TimeoutSeconds),
 		rpcCache,
 	)
 

@@ -69,17 +69,15 @@ describe('L1CrossDomainMessenger', () => {
 
   let CanonicalTransactionChain: Contract
   before(async () => {
-    Fake__TargetContract = await smock.fake<Contract>(
-      await ethers.getContractFactory('Helper_SimpleProxy')
-    )
+    Fake__TargetContract = await smock.fake<Contract>('Helper_SimpleProxy')
     Fake__L2CrossDomainMessenger = await smock.fake<Contract>(
-      await ethers.getContractFactory('L2CrossDomainMessenger'),
+      'L2CrossDomainMessenger',
       {
         address: predeploys.L2CrossDomainMessenger,
       }
     )
     Fake__StateCommitmentChain = await smock.fake<Contract>(
-      await ethers.getContractFactory('StateCommitmentChain')
+      'StateCommitmentChain'
     )
 
     await AddressManager.setAddress(

@@ -29,7 +29,7 @@ describe('StateCommitmentChain', () => {
   let Fake__BondManager: FakeContract
   before(async () => {
     Fake__CanonicalTransactionChain = await smock.fake<Contract>(
-      await ethers.getContractFactory('CanonicalTransactionChain')
+      'CanonicalTransactionChain'
     )
 
     await setProxyTarget(
@@ -38,9 +38,7 @@ describe('StateCommitmentChain', () => {
       Fake__CanonicalTransactionChain
     )
 
-    Fake__BondManager = await smock.fake<Contract>(
-      await ethers.getContractFactory('BondManager')
-    )
+    Fake__BondManager = await smock.fake<Contract>('BondManager')
 
     await setProxyTarget(AddressManager, 'BondManager', Fake__BondManager)
 

@@ -1,5 +1,11 @@
 # @eth-optimism/batch-submitter-service
 
+## 0.1.10
+
+### Patch Changes
+
+- 526eac8d: feat: bss less strict min-tx-size
+
 ## 0.1.9
 
 ### Patch Changes
