@@ -1,5 +1,11 @@
 # data transport layer
 
+## 0.5.27
+
+### Patch Changes
+
+- e12e8976: Use Basic Authentication in L1TransportServer
+
 ## 0.5.26
 
 ### Patch Changes
