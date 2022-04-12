@@ -215,7 +215,10 @@ func (s *Service) Update(newHeader *types.Header) error {
 		lowest = *highestConfirmed
 	}
 
-	headers := s.headerSelector.NewHead(s.ctx, lowest.Number, newHeader, s.cfg.RawL1Client)
+	headers, err := s.headerSelector.NewHead(s.ctx, lowest.Number, newHeader, s.cfg.RawL1Client)
+	if err != nil {
+		return err
+	}
 	if len(headers) == 0 {
 		return errNoNewBlocks
 	}

@@ -168,7 +168,7 @@ describe('CanonicalTransactionChain', () => {
 
       await expect(
         CanonicalTransactionChain.enqueue(target, gasLimit, data, {
-          gasLimit: 40000000,
+          gasLimit: 30_000_000,
         })
       ).to.be.revertedWith(
         'Transaction data size exceeds maximum for rollup transaction.'

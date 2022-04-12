@@ -10,6 +10,8 @@ import (
 	"sync"
 	"time"
 
+	l2rpc "github.com/ethereum-optimism/optimism/l2geth/rpc"
+
 	"github.com/ethereum-optimism/optimism/go/indexer/metrics"
 	"github.com/ethereum-optimism/optimism/go/indexer/server"
 	"github.com/prometheus/client_golang/prometheus"
@@ -58,6 +60,7 @@ func HeaderByNumberWithRetry(ctx context.Context,
 type ServiceConfig struct {
 	Context            context.Context
 	Metrics            *metrics.Metrics
+	L2RPC              *l2rpc.Client
 	L2Client           *l2ethclient.Client
 	ChainID            *big.Int
 	ConfDepth          uint64
@@ -190,7 +193,10 @@ func (s *Service) Update(newHeader *types.Header) error {
 		lowest = *highestConfirmed
 	}
 
-	headers := s.headerSelector.NewHead(s.ctx, lowest.Number, newHeader, s.cfg.L2Client)
+	headers, err := s.headerSelector.NewHead(s.ctx, lowest.Number, newHeader, s.cfg.L2RPC)
+	if err != nil {
+		return err
+	}
 	if len(headers) == 0 {
 		return errNoNewBlocks
 	}

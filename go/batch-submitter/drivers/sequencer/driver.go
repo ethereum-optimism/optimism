@@ -167,8 +167,9 @@ func (d *Driver) CraftBatchTx(
 		"nonce", nonce, "type", d.cfg.BatchType.String())
 
 	var (
-		batchElements []BatchElement
-		totalTxSize   uint64
+		batchElements  []BatchElement
+		totalTxSize    uint64
+		hasLargeNextTx bool
 	)
 	for i := new(big.Int).Set(start); i.Cmp(end) < 0; i.Add(i, bigOne) {
 		block, err := d.cfg.L2Client.BlockByNumber(ctx, i)
@@ -187,6 +188,12 @@ func (d *Driver) CraftBatchTx(
 			// size also adheres to this constraint.
 			txLen := batchElement.Tx.Size()
 			if totalTxSize+uint64(TxLenSize+txLen) > d.cfg.MaxTxSize {
+				// Adding this transaction causes the batch to be too large, but
+				// we also record if the batch size without the transaction
+				// fails to meet our minimum size constraint. This is used below
+				// to determine whether or not to ignore the minimum size check,
+				// since in this case it can't be avoided.
+				hasLargeNextTx = totalTxSize < d.cfg.MinTxSize
 				break
 			}
 			totalTxSize += uint64(TxLenSize + txLen)
@@ -214,6 +221,11 @@ func (d *Driver) CraftBatchTx(
 		appendSequencerBatchID := d.ctcABI.Methods[appendSequencerBatchMethodName].ID
 		plaintextCalldata := append(appendSequencerBatchID, plaintextBatchArguments...)
 
+		log.Info(name+" testing batch size",
+			"plaintext_size", len(plaintextCalldata),
+			"min_tx_size", d.cfg.MinTxSize,
+			"max_tx_size", d.cfg.MaxTxSize)
+
 		// Continue pruning until plaintext calldata size is less than
 		// configured max.
 		plaintextCalldataSize := uint64(len(plaintextCalldata))
@@ -222,16 +234,33 @@ func (d *Driver) CraftBatchTx(
 			newBatchElementsLen := (oldLen * 9) / 10
 			batchElements = batchElements[:newBatchElementsLen]
 			log.Info(name+" pruned batch",
-				"plaintext_size", plaintextCalldataSize,
-				"max_tx_size", d.cfg.MaxTxSize,
 				"old_num_txs", oldLen,
 				"new_num_txs", newBatchElementsLen)
 			pruneCount++
 			continue
-		} else if plaintextCalldataSize < d.cfg.MinTxSize {
+		}
+
+		// There are two specific cases in which we choose to ignore the minimum
+		// L1 tx size. These cases are permitted since they arise from
+		// situations where the difference between the configured MinTxSize and
+		// MaxTxSize is less than the maximum L2 tx size permitted by the
+		// mempool.
+		//
+		// This configuration is useful when trying to ensure the profitability
+		// is sufficient, and we permit batches to be submitted with less than
+		// our desired configuration only if it is not possible to construct a
+		// batch within the given parameters.
+		//
+		// The two cases are:
+		// 1. When the next elenent is larger than the difference between the
+		//    min and the max, causing the batch to be too small without the
+		//    element, and too large with it.
+		// 2. When pruning a batch that exceeds the mac size below, and then
+		//    becomes too small as a result. This is avoided by only applying
+		//    the min size check when the pruneCount is zero.
+		ignoreMinTxSize := pruneCount > 0 || hasLargeNextTx
+		if !ignoreMinTxSize && plaintextCalldataSize < d.cfg.MinTxSize {
 			log.Info(name+" batch tx size below minimum",
-				"plaintext_size", plaintextCalldataSize,
-				"min_tx_size", d.cfg.MinTxSize,
 				"num_txs", len(batchElements))
 			return nil, nil
 		}
@@ -249,7 +278,10 @@ func (d *Driver) CraftBatchTx(
 			calldata = append(appendSequencerBatchID, batchArguments...)
 		}
 
-		log.Info(name+" batch constructed", "num_txs", len(batchElements), "length", len(calldata))
+		log.Info(name+" batch constructed",
+			"num_txs", len(batchElements),
+			"final_size", len(calldata),
+			"batch_type", d.cfg.BatchType)
 
 		opts, err := bind.NewKeyedTransactorWithChainID(
 			d.cfg.PrivKey, d.cfg.ChainID,

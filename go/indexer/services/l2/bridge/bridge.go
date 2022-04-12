@@ -33,14 +33,14 @@ var defaultBridgeCfgs = []*implConfig{
 var customBridgeCfgs = map[uint64][]*implConfig{
 	// Mainnet
 	10: {
-		{"BitBTC", StandardBridgeImpl, "0xaBA2c5F108F7E820C049D5Af70B16ac266c8f128"},
-		//{"DAI", "DAIBridge", "0x10E6593CDda8c58a1d0f14C5164B376352a55f2F"},
+		{"BitBTC", StandardBridgeImpl, "0x158F513096923fF2d3aab2BcF4478536de6725e2"},
+		//{"DAI", "DAIBridge", "0x467194771dAe2967Aef3ECbEDD3Bf9a310C76C65"},
 	},
 	// Kovan
 	69: {
-		{"BitBTC", StandardBridgeImpl, "0x0b651A42F32069d62d5ECf4f2a7e5Bd3E9438746"},
-		{"USX", StandardBridgeImpl, "0x40E862341b2416345F02c41Ac70df08525150dC7"},
-		//{"DAI", "	DAIBridge", "0xb415e822C4983ecD6B1c1596e8a5f976cf6CD9e3"},
+		{"BitBTC", StandardBridgeImpl, "0x0CFb46528a7002a7D8877a5F7a69b9AaF1A9058e"},
+		{"USX", StandardBridgeImpl, "0xB4d37826b14Cd3CB7257A2A5094507d701fe715f"},
+		//{"DAI", "	DAIBridge", "0x467194771dAe2967Aef3ECbEDD3Bf9a310C76C65"},
 	},
 }
 
