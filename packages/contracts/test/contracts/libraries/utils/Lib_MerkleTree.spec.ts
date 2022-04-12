@@ -39,7 +39,7 @@ describe('Lib_MerkleTree', () => {
       await ethers.getContractFactory('TestLib_MerkleTree')
     ).deploy()
 
-    Fake__LibMerkleTree = await smock.fake( 'TestLib_MerkleTree')
+    Fake__LibMerkleTree = await smock.fake('TestLib_MerkleTree')
   })
 
   describe('getMerkleRoot', () => {
