@@ -66,6 +66,11 @@ var (
 		Code:    JSONRPCErrorInternal - 14,
 		Message: "too many RPC calls in batch request",
 	}
+	ErrGatewayTimeout = &RPCErr{
+		Code:          JSONRPCErrorInternal - 15,
+		Message:       "gateway timeout",
+		HTTPErrorCode: 504,
+	}
 )
 
 func ErrInvalidRequest(msg string) *RPCErr {
@@ -217,7 +222,7 @@ func (b *Backend) Forward(ctx context.Context, req *RPCReq) (*RPCRes, error) {
 			)
 			respTimer.ObserveDuration()
 			RecordRPCError(ctx, b.Name, req.Method, err)
-			time.Sleep(calcBackoff(i))
+			sleepContext(ctx, calcBackoff(i))
 			continue
 		}
 		respTimer.ObserveDuration()
@@ -331,7 +336,7 @@ func (b *Backend) setOffline() {
 func (b *Backend) doForward(ctx context.Context, rpcReq *RPCReq) (*RPCRes, error) {
 	body := mustMarshalJSON(rpcReq)
 
-	httpReq, err := http.NewRequest("POST", b.rpcURL, bytes.NewReader(body))
+	httpReq, err := http.NewRequestWithContext(ctx, "POST", b.rpcURL, bytes.NewReader(body))
 	if err != nil {
 		return nil, wrapErr(err, "error creating backend request")
 	}
@@ -680,4 +685,11 @@ func formatWSError(err error) []byte {
 		}
 	}
 	return m
+}
+
+func sleepContext(ctx context.Context, duration time.Duration) {
+	select {
+	case <-ctx.Done():
+	case <-time.After(duration):
+	}
 }
