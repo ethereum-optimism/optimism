@@ -14,7 +14,7 @@ var (
 	)
 	addressTotalElementsCallStatus = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
-			Name: "l2geth_total_elements_call_success",
+			Name: "l2geth_total_elements_call_status",
 			Help: "GetTotalElements call status."},
 		[]string{"status", "address"},
 	)
