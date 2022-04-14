@@ -1,4 +1,5 @@
 .github
+.husky
 
 node_modules
 .env

@@ -17,7 +17,8 @@
     "standards"
   ],
   "scripts": {
-    "postinstall": "git submodule update --init || exit 0",
+    "postinstall": "yarn submodules || exit 0",
+    "prebuild": "yarn submodules || exit 0",
     "build": "yarn build:contracts && yarn autogen:artifacts && yarn build:typescript",
     "build:typescript": "tsc -p ./tsconfig.build.json",
     "build:contracts": "hardhat compile --show-stack-traces",
@@ -42,6 +43,7 @@
     "clean": "rm -rf ./dist ./artifacts ./cache ./coverage ./tsconfig.build.tsbuildinfo",
     "prepublishOnly": "yarn copyfiles -u 1 -e \"**/test-*/**/*\" \"contracts/**/*\" ./",
     "postpublish": "rimraf chugsplash L1 L2 libraries standards",
+    "submodules": "git submodule update --init",
     "prepack": "yarn prepublishOnly",
     "postpack": "yarn postpublish",
     "pre-commit": "lint-staged",

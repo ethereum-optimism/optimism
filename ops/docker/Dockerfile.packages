@@ -10,9 +10,9 @@ RUN apk --no-cache add curl jq python3 ca-certificates git make gcc musl-dev lin
 # note: this approach can be a bit unhandy to maintain, but it allows
 # us to cache the installation steps
 WORKDIR /opt/optimism
-COPY *.json yarn.lock ./
-COPY .gitmodules ./
-COPY .git ./
+COPY *.json yarn.lock .gitmodules ./
+COPY .git ./.git
+
 COPY packages/sdk/package.json ./packages/sdk/package.json
 COPY packages/core-utils/package.json ./packages/core-utils/package.json
 COPY packages/common-ts/package.json ./packages/common-ts/package.json
@@ -22,13 +22,11 @@ COPY packages/message-relayer/package.json ./packages/message-relayer/package.js
 COPY packages/replica-healthcheck/package.json ./packages/replica-healthcheck/package.json
 COPY integration-tests/package.json ./integration-tests/package.json
 
-ENV HUSKY=0
 RUN yarn install --frozen-lockfile && yarn cache clean
 
 COPY ./packages ./packages
 COPY ./integration-tests ./integration-tests
 
-# build it!
 RUN yarn build
 
 FROM base as deployer
