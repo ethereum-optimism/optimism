@@ -18,6 +18,7 @@ type HealthcheckMetrics = {
   isCurrentlyDiverged: Gauge
   referenceHeight: Gauge
   targetHeight: Gauge
+  heightDifference: Gauge
   targetConnectionFailures: Counter
   referenceConnectionFailures: Counter
 }
@@ -66,6 +67,10 @@ export class HealthcheckService extends BaseServiceV2<
           type: Gauge,
           desc: 'Block height of the target client',
         },
+        heightDifference: {
+          type: Gauge,
+          desc: 'Difference in block heights between the two clients',
+        },
         targetConnectionFailures: {
           type: Counter,
           desc: 'Number of connection failures to the target client',
@@ -109,23 +114,36 @@ export class HealthcheckService extends BaseServiceV2<
       }
     }
 
+    // Later logic will depend on the height difference.
+    const heightDiff = Math.abs(referenceLatest.number - targetLatest.number)
+    const minBlock = Math.min(targetLatest.number, referenceLatest.number)
+
     // Update these metrics first so they'll refresh no matter what.
     this.metrics.targetHeight.set(targetLatest.number)
     this.metrics.referenceHeight.set(referenceLatest.number)
+    this.metrics.heightDifference.set(heightDiff)
 
     this.logger.info(`latest block heights`, {
       targetHeight: targetLatest.number,
       referenceHeight: referenceLatest.number,
-      heightDifference: referenceLatest.number - targetLatest.number,
+      heightDifference: heightDiff,
+      minBlockNumber: minBlock,
     })
 
-    const referenceCorresponding =
-      await this.options.referenceRpcProvider.getBlock(targetLatest.number)
-
-    if (!referenceCorresponding) {
+    const reference = await this.options.referenceRpcProvider.getBlock(minBlock)
+    if (!reference) {
       // This is ok, but we should log it and restart the loop.
-      this.logger.info(`reference client does not have block yet`, {
-        blockNumber: targetLatest.number,
+      this.logger.info(`reference block was not found`, {
+        blockNumber: reference.number,
+      })
+      return
+    }
+
+    const target = await this.options.targetRpcProvider.getBlock(minBlock)
+    if (!target) {
+      // This is ok, but we should log it and restart the loop.
+      this.logger.info(`target block was not found`, {
+        blockNumber: target.number,
       })
       return
     }
@@ -134,9 +152,11 @@ export class HealthcheckService extends BaseServiceV2<
     // catch discrepancies in blocks that may not impact the state. For example, if clients have
     // blocks with two different timestamps, the state root will only diverge if the timestamp is
     // actually used during the transaction(s) within the block.
-    if (referenceCorresponding.hash !== targetLatest.hash) {
+    if (reference.hash !== target.hash) {
       this.logger.error(`reference client has different hash for block`, {
-        blockNumber: targetLatest.number,
+        blockNumber: target.number,
+        referenceHash: reference.hash,
+        targetHash: target.hash,
       })
 
       // The main loop polls for "latest" so aren't checking every block. We need to use a binary
@@ -144,7 +164,7 @@ export class HealthcheckService extends BaseServiceV2<
       this.logger.info(`beginning binary search to find first mismatched block`)
 
       let start = 0
-      let end = targetLatest.number
+      let end = target.number
       while (start !== end) {
         const mid = Math.floor((start + end) / 2)
         this.logger.info(`checking block`, { blockNumber: mid })
@@ -171,11 +191,11 @@ export class HealthcheckService extends BaseServiceV2<
     }
 
     this.logger.info(`blocks are matching`, {
-      blockNumber: targetLatest.number,
+      blockNumber: target.number,
     })
 
     // Update latest matching state root height and reset the diverged metric in case it was set.
-    this.metrics.lastMatchingStateRootHeight.set(targetLatest.number)
+    this.metrics.lastMatchingStateRootHeight.set(target.number)
     this.metrics.isCurrentlyDiverged.set(0)
   }
 }

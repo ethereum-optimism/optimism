@@ -102,7 +102,7 @@ pull_request_rules:
   - name: Nag changesets
     conditions:
       - and:
-        - 'files~=\.(ts|go|js|mod|sum)$'
+        - 'files~=\.((?<!\.spec\.)ts|go|js|mod|sum)$'
         - '-files~=^\.changeset/(.*)\.md'
     actions:
       comment:

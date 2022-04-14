@@ -95,6 +95,9 @@ contract L2CrossDomainMessenger is IL2CrossDomainMessenger {
         bytes memory _message,
         uint256 _messageNonce
     ) public {
+        // Since it is impossible to deploy a contract to an address on L2 which matches
+        // the alias of the L1CrossDomainMessenger, this check can only pass when it is called in
+        // the first call from of a deposit transaction. Thus reentrancy is prevented here.
         require(
             AddressAliasHelper.undoL1ToL2Alias(msg.sender) == l1CrossDomainMessenger,
             "Provided message could not be verified."
