@@ -3,5 +3,6 @@ module.exports = {
   ignorePatterns: [
     'src/contract-artifacts.ts',
     'src/contract-deployed-artifacts.ts',
+    'lib'
   ],
 }

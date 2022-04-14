@@ -1,2 +1,3 @@
 src/contract-artifacts.ts
 src/contract-deployed-artifacts.ts
+forge-artifacts
