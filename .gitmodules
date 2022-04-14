@@ -4,3 +4,6 @@
 [submodule "packages/contracts/lib/ds-test"]
 	path = packages/contracts/lib/ds-test
 	url = https://github.com/dapphub/ds-test
+[submodule "packages/contracts/lib/forge-std"]
+	path = packages/contracts/lib/forge-std
+	url = https://github.com/brockelmore/forge-std
