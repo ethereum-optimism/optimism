@@ -17,6 +17,7 @@
     "standards"
   ],
   "scripts": {
+    "postinstall": "git submodule update --init",
     "build": "yarn build:contracts && yarn autogen:artifacts && yarn build:typescript",
     "build:typescript": "tsc -p ./tsconfig.build.json",
     "build:contracts": "hardhat compile --show-stack-traces",
