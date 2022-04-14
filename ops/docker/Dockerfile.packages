@@ -11,6 +11,7 @@ RUN apk --no-cache add curl jq python3 ca-certificates git make gcc musl-dev lin
 # us to cache the installation steps
 WORKDIR /opt/optimism
 COPY *.json yarn.lock ./
+COPY .git ./
 COPY packages/sdk/package.json ./packages/sdk/package.json
 COPY packages/core-utils/package.json ./packages/core-utils/package.json
 COPY packages/common-ts/package.json ./packages/common-ts/package.json
