@@ -1,0 +1,19 @@
+[server]
+rpc_port = 8545
+max_concurrent_rpcs = 2
+
+[backend]
+# this should cover blocked requests due to max_concurrent_rpcs
+response_timeout_seconds = 12
+
+[backends]
+[backends.good]
+rpc_url = "$GOOD_BACKEND_RPC_URL"
+ws_url = "$GOOD_BACKEND_RPC_URL"
+
+[backend_groups]
+[backend_groups.main]
+backends = ["good"]
+
+[rpc_method_mappings]
+eth_chainId = "main"
