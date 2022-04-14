@@ -51,7 +51,7 @@
     "lint:fix": "yarn lerna run lint:fix --parallel",
     "postinstall": "patch-package",
     "ready": "yarn lint && yarn test",
-    "prepare": "husky install",
+    "prepare": "husky install || exit 0",
     "release": "yarn build && yarn changeset publish"
   },
   "dependencies": {
