@@ -1,10 +1,11 @@
 package p2p
 
 import (
+	"net"
+
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/p2p/discover"
 	"github.com/ethereum/go-ethereum/p2p/enode"
-	"net"
 )
 
 func (conf *Config) Discovery(log log.Logger) (*enode.LocalNode, *discover.UDPv5, error) {
@@ -38,5 +39,9 @@ func (conf *Config) Discovery(log log.Logger) (*enode.LocalNode, *discover.UDPv5
 	if err != nil {
 		return nil, nil, err
 	}
+
+	// TODO: periodically we can pull the external IP from libp2p NAT service,
+	// and add it as a statement to keep the localNode accurate (if we trust the NAT device more than the discv5 statements)
+
 	return localNode, udpV5, nil
 }

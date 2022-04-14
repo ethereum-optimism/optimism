@@ -1,8 +1,9 @@
 package flags
 
 import (
-	"github.com/urfave/cli"
 	"time"
+
+	"github.com/urfave/cli"
 )
 
 func p2pEnv(v string) string {
@@ -134,11 +135,10 @@ var (
 		Value:    30 * time.Second,
 		EnvVar:   p2pEnv("PEERS_GRACE"),
 	}
-	NAT = cli.StringFlag{
+	NAT = cli.BoolFlag{
 		Name:     "p2p.nat",
-		Usage:    "NAT options. Empty for dynamic defaults. 'none' to disable. Set to 'extip:IPHERE' to use a static IP. Or 'upnp', or 'pmp'. Used to inform LibP2P of the external IP to put into multiaddrs.",
+		Usage:    "Enable NAT traversal with PMP/UPNP devices to learn external IP.",
 		Required: false,
-		Value:    "",
 		EnvVar:   p2pEnv("NAT"),
 	}
 	UserAgent = cli.StringFlag{

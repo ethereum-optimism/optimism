@@ -6,25 +6,30 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"io/ioutil"
+	"net"
+	"os"
+	"strings"
+	"time"
+
 	"github.com/ethereum-optimism/optimistic-specs/opnode/flags"
 	"github.com/ethereum/go-ethereum/p2p/enode"
 	ds "github.com/ipfs/go-datastore"
 	"github.com/ipfs/go-datastore/sync"
 	leveldb "github.com/ipfs/go-ds-leveldb"
 	core "github.com/libp2p/go-libp2p-core"
+	"github.com/libp2p/go-libp2p-core/connmgr"
 	"github.com/libp2p/go-libp2p-core/crypto"
+	"github.com/libp2p/go-libp2p-core/metrics"
 	mplex "github.com/libp2p/go-libp2p-mplex"
 	noise "github.com/libp2p/go-libp2p-noise"
 	tls "github.com/libp2p/go-libp2p-tls"
 	yamux "github.com/libp2p/go-libp2p-yamux"
 	lconf "github.com/libp2p/go-libp2p/config"
+	"github.com/libp2p/go-libp2p/p2p/net/conngater"
+	cmgr "github.com/libp2p/go-libp2p/p2p/net/connmgr"
 	"github.com/multiformats/go-multiaddr"
 	"github.com/urfave/cli"
-	"io/ioutil"
-	"net"
-	"os"
-	"strings"
-	"time"
 )
 
 type Config struct {
@@ -55,7 +60,8 @@ type Config struct {
 	PeersHi    uint
 	PeersGrace time.Duration
 
-	NAT string
+	// If true a NAT manager will host a NAT port mapping that is updated with PMP and UPNP by libp2p/go-nat
+	NAT bool
 
 	UserAgent string
 
@@ -65,6 +71,24 @@ type Config struct {
 
 	// Underlying store that hosts connection-gater and peerstore data.
 	Store ds.Batching
+
+	ConnGater func(conf *Config) (connmgr.ConnectionGater, error)
+	ConnMngr  func(conf *Config) (connmgr.ConnManager, error)
+	// nil to disable bandwidth metrics
+	BandwidthMetrics metrics.Reporter
+}
+
+func DefaultConnGater(conf *Config) (connmgr.ConnectionGater, error) {
+	return conngater.NewBasicConnectionGater(conf.Store)
+}
+
+func DefaultConnManager(conf *Config) (connmgr.ConnManager, error) {
+	return cmgr.NewConnManager(
+		int(conf.PeersLo),
+		int(conf.PeersHi),
+		cmgr.WithGracePeriod(conf.PeersGrace),
+		cmgr.WithSilencePeriod(time.Minute),
+		cmgr.WithEmergencyTrim(true))
 }
 
 func validatePort(p uint) (uint16, error) {
@@ -105,6 +129,9 @@ func NewConfig(ctx *cli.Context) (*Config, error) {
 	if err := conf.loadLibp2pOpts(ctx); err != nil {
 		return nil, fmt.Errorf("failed to load p2p options: %v", err)
 	}
+
+	conf.ConnGater = DefaultConnGater
+	conf.ConnMngr = DefaultConnManager
 
 	return conf, nil
 }
@@ -175,6 +202,38 @@ func (conf *Config) loadDiscoveryOpts(ctx *cli.Context) error {
 	return nil
 }
 
+func yamuxC() (lconf.MsMuxC, error) {
+	mtpt, err := lconf.MuxerConstructor(yamux.DefaultTransport)
+	if err != nil {
+		return lconf.MsMuxC{}, err
+	}
+	return lconf.MsMuxC{MuxC: mtpt, ID: "/yamux/1.0.0"}, nil
+}
+
+func mplexC() (lconf.MsMuxC, error) {
+	mtpt, err := lconf.MuxerConstructor(mplex.DefaultTransport)
+	if err != nil {
+		return lconf.MsMuxC{}, err
+	}
+	return lconf.MsMuxC{MuxC: mtpt, ID: "/mplex/6.7.0"}, nil
+}
+
+func noiseC() (lconf.MsSecC, error) {
+	stpt, err := lconf.SecurityConstructor(noise.New)
+	if err != nil {
+		return lconf.MsSecC{}, err
+	}
+	return lconf.MsSecC{SecC: stpt, ID: noise.ID}, nil
+}
+
+func tlsC() (lconf.MsSecC, error) {
+	stpt, err := lconf.SecurityConstructor(tls.New)
+	if err != nil {
+		return lconf.MsSecC{}, err
+	}
+	return lconf.MsSecC{SecC: stpt, ID: tls.ID}, nil
+}
+
 func (conf *Config) loadLibp2pOpts(ctx *cli.Context) error {
 
 	addrs := strings.Split(ctx.GlobalString(flags.StaticPeers.Name), ",")
@@ -189,48 +248,41 @@ func (conf *Config) loadLibp2pOpts(ctx *cli.Context) error {
 	for _, v := range strings.Split(ctx.GlobalString(flags.HostMux.Name), ",") {
 		v = strings.ToLower(strings.TrimSpace(v))
 		var mc lconf.MsMuxC
+		var err error
 		switch v {
 		case "yamux":
-			mtpt, err := lconf.MuxerConstructor(yamux.DefaultTransport)
-			if err != nil {
-				return err
-			}
-			mc = lconf.MsMuxC{MuxC: mtpt, ID: "/yamux/1.0.0"}
+			mc, err = yamuxC()
 		case "mplex":
-			mtpt, err := lconf.MuxerConstructor(mplex.DefaultTransport)
-			if err != nil {
-				return err
-			}
-			mc = lconf.MsMuxC{MuxC: mtpt, ID: "/mplex/6.7.0"}
+			mc, err = mplexC()
 		default:
 			return fmt.Errorf("could not recognize mux %s", v)
+		}
+		if err != nil {
+			return fmt.Errorf("failed to make %s constructor: %v", v, err)
 		}
 		conf.HostMux = append(conf.HostMux, mc)
 	}
 
 	secArr := strings.Split(ctx.GlobalString(flags.HostMux.Name), ",")
-	for _, secOpt := range secArr {
+	for _, v := range secArr {
+		v = strings.ToLower(strings.TrimSpace(v))
 		var sc lconf.MsSecC
-		switch secOpt {
+		var err error
+		switch v {
 		case "none": // no security, for debugging etc.
 			if len(conf.HostSecurity) > 0 || len(secArr) > 1 {
 				return errors.New("cannot mix secure transport protocols with no-security")
 			}
 			conf.NoTransportSecurity = true
 		case "noise":
-			stpt, err := lconf.SecurityConstructor(noise.New)
-			if err != nil {
-				return err
-			}
-			sc = lconf.MsSecC{SecC: stpt, ID: noise.ID}
+			sc, err = noiseC()
 		case "tls":
-			stpt, err := lconf.SecurityConstructor(tls.New)
-			if err != nil {
-				return err
-			}
-			sc = lconf.MsSecC{SecC: stpt, ID: tls.ID}
+			sc, err = tlsC()
 		default:
-			return fmt.Errorf("could not recognize security %s", secOpt)
+			return fmt.Errorf("could not recognize security %s", v)
+		}
+		if err != nil {
+			return fmt.Errorf("failed to make %s constructor: %v", v, err)
 		}
 		conf.HostSecurity = append(conf.HostSecurity, sc)
 	}
@@ -310,6 +362,10 @@ func parsePriv(data string) (*ecdsa.PrivateKey, error) {
 		return nil, errors.New("p2p priv key is not formatted in hex chars")
 	}
 	p, err := crypto.UnmarshalSecp256k1PrivateKey(b)
+	if err != nil {
+		// avoid logging the priv key in the error, but hint at likely input length problem
+		return nil, fmt.Errorf("failed to parse priv key from %d bytes", len(b))
+	}
 	return (*ecdsa.PrivateKey)((p).(*crypto.Secp256k1PrivateKey)), nil
 }
 
@@ -327,6 +383,12 @@ func (conf *Config) Check() error {
 	}
 	if conf.PeersLo == 0 || conf.PeersHi == 0 || conf.PeersLo > conf.PeersHi {
 		return fmt.Errorf("peers lo/hi tides are invalid: %d, %d", conf.PeersLo, conf.PeersHi)
+	}
+	if conf.ConnMngr == nil {
+		return errors.New("need a connection manager")
+	}
+	if conf.ConnGater == nil {
+		return errors.New("need a connection gater")
 	}
 	return nil
 }

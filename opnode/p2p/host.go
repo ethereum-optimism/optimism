@@ -3,102 +3,124 @@ package p2p
 import (
 	"context"
 	"fmt"
+	"net"
+	"time"
+
 	"github.com/libp2p/go-libp2p-core/crypto"
 	"github.com/libp2p/go-libp2p-core/host"
-	"github.com/libp2p/go-libp2p-core/metrics"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/libp2p/go-libp2p-peerstore/pstoreds"
-	"github.com/libp2p/go-libp2p-swarm"
+	lconf "github.com/libp2p/go-libp2p/config"
 	basichost "github.com/libp2p/go-libp2p/p2p/host/basic"
-	"github.com/libp2p/go-libp2p/p2p/net/conngater"
-	"github.com/libp2p/go-libp2p/p2p/net/connmgr"
+	tcp "github.com/libp2p/go-tcp-transport"
+	ma "github.com/multiformats/go-multiaddr"
 	madns "github.com/multiformats/go-multiaddr-dns"
-	"time"
 )
 
 func (conf *Config) Host() (host.Host, error) {
-	// We do some more effort than just calling libp2p.New() so we can:
-	// - configure the "swarm" setup, to use a more light one during testing
-	// - hook up new features as they come out
-	// - swap/customize components more easily
-	// - control the transport preferences / upgrades
-
 	// we cast the ecdsa key type to the libp2p wrapper, to then use the libp2p pubkey and ID interfaces.
 	var priv crypto.PrivKey = (*crypto.Secp256k1PrivateKey)(conf.Priv)
-	pid, err := peer.IDFromPublicKey(priv.GetPublic())
+	pub := priv.GetPublic()
+	pid, err := peer.IDFromPublicKey(pub)
 	if err != nil {
 		return nil, fmt.Errorf("failed to derive pubkey from network priv key: %v", err)
 	}
 
-	connManager, err := connmgr.NewConnManager(
-		int(conf.PeersLo),
-		int(conf.PeersHi),
-		connmgr.WithGracePeriod(conf.PeersGrace),
-		connmgr.WithSilencePeriod(time.Minute),
-		connmgr.WithEmergencyTrim(true))
-	if err != nil {
-		return nil, fmt.Errorf("failed to setup connection manager: %v", err)
-	}
-
-	bandwidthMetrics := metrics.NewBandwidthCounter()
-
-	peerstore, err := pstoreds.NewPeerstore(context.Background(), conf.Store, pstoreds.DefaultOpts())
+	ps, err := pstoreds.NewPeerstore(context.Background(), conf.Store, pstoreds.DefaultOpts())
 	if err != nil {
 		return nil, fmt.Errorf("failed to open peerstore: %v", err)
 	}
 
-	connGtr, err := conngater.NewBasicConnectionGater(conf.Store)
+	if err := ps.AddPrivKey(pid, priv); err != nil {
+		return nil, fmt.Errorf("failed to set up peerstore with priv key: %v", err)
+	}
+	if err := ps.AddPubKey(pid, pub); err != nil {
+		return nil, fmt.Errorf("failed to set up peerstore with pub key: %v", err)
+	}
+
+	connGtr, err := conf.ConnGater(conf)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open connection gater: %v", err)
 	}
 
-	// TODO: option to swap in the testing.GenSwarm(t, opts...) output here.
-
-	// TODO: we can add swarm.WithResourceManager() to manage resources per peer better.
-	network, err := swarm.NewSwarm(pid, peerstore,
-		swarm.WithMetrics(bandwidthMetrics),
-		swarm.WithDialTimeout(conf.TimeoutDial),
-		swarm.WithConnectionGater(connGtr))
+	connMngr, err := conf.ConnMngr(conf)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create libp2p network core: %v", err)
+		return nil, fmt.Errorf("failed to open connection manager: %v", err)
 	}
 
-	// TODO: combine muxers
-	// TODO: combine secure transports
-	// TODO: create transport upgrader
-	// TODO: add tptu transport to network
+	listenAddr, err := addrFromIPAndPort(conf.ListenIP, conf.ListenTCPPort)
+	if err != nil {
+		return nil, fmt.Errorf("failed to make listen addr: %v", err)
+	}
+	tcpTransport, err := lconf.TransportConstructor(
+		tcp.NewTCPTransport,
+		tcp.WithConnectionTimeout(time.Minute*60)) // break unused connections
+	if err != nil {
+		return nil, fmt.Errorf("failed to create TCP transport: %v", err)
+	}
+	// TODO: technically we can also run the node on websocket and QUIC transports. Maybe in the future?
 
-	h, err := basichost.NewHost(network, &basichost.HostOpts{
-		MultistreamMuxer:   nil,
-		NegotiationTimeout: conf.TimeoutNegotiation,
-		AddrsFactory:       nil,
-		// We can change / disable the DNS resolving of names in multi-addrs if we want to. Default is fine.
-		MultiaddrResolver: madns.DefaultResolver,
-		// The default NAT manager just tracks mappings. Auto-nat / fixed IP etc. options are separate.
-		NATManager:  basichost.NewNATManager,
-		ConnManager: connManager,
-		// Ping is a small built-in libp2p protocol that helps us check/debug latency between peers.
-		EnablePing: true,
-		// We don't enable relay for now, nodes should just rely on real NAT methods instead
-		EnableRelayService: false,
-		RelayServiceOpts:   nil,
+	var nat lconf.NATManagerC // disabled if nil
+	if conf.NAT {
+		nat = basichost.NewNATManager
+	}
+
+	p2pConf := &lconf.Config{
 		// Explicitly set the user-agent, so we can differentiate from other Go libp2p users.
 		UserAgent: conf.UserAgent,
-		// We don't strictly need these, but no harm in enabling
-		DisableSignedPeerRecord: false,
+
+		PeerKey:            priv,
+		Transports:         []lconf.TptC{tcpTransport},
+		Muxers:             conf.HostMux,
+		SecurityTransports: conf.HostSecurity,
+		Insecure:           conf.NoTransportSecurity,
+		PSK:                nil, // TODO: expose private subnet option to CLI / testing
+		DialTimeout:        conf.TimeoutDial,
+		// No relay services, direct connections between peers only.
+		RelayCustom:        false,
+		Relay:              false,
+		EnableRelayService: false,
+		RelayServiceOpts:   nil,
+		// host will start and listen to network directly after construction from config.
+		ListenAddrs: []ma.Multiaddr{listenAddr},
+
+		AddrsFactory:      nil,
+		ConnectionGater:   connGtr,
+		ConnManager:       connMngr,
+		ResourceManager:   nil, // TODO use resource manager interface to manage resources per peer better.
+		NATManager:        nat,
+		Peerstore:         ps,
+		Reporter:          conf.BandwidthMetrics, // may be nil if disabled
+		MultiaddrResolver: madns.DefaultResolver,
+		// Ping is a small built-in libp2p protocol that helps us check/debug latency between peers.
+		DisablePing:     false,
+		Routing:         nil,
+		EnableAutoRelay: false, // don't act as auto relay service
+		// Help peers with their NAT reachability status, but throttle to avoid too much work.
+		AutoNATConfig: lconf.AutoNATConfig{
+			ForceReachability:   nil,
+			EnableService:       true,
+			ThrottleGlobalLimit: 10,
+			ThrottlePeerLimit:   5,
+			ThrottleInterval:    time.Second * 60,
+		},
+		// no static-relays, a "sentry" type infra with static peers and redundancy seems better
+		StaticRelayOpt: nil,
+
 		// TODO: hole punching is new, need to review differences with NAT manager options
 		EnableHolePunching:  false,
 		HolePunchingOptions: nil,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("failed to setup new host: %v", err)
 	}
+	return p2pConf.NewNode()
+}
 
-	// TODO: do we want to immediately listen on the network?
-	//h.Network().Listen()
-
-	// TODO: maybe setup autonat, the new libp2p one (not old deprecated autonat)
-	// https://github.com/libp2p/go-libp2p/tree/master/p2p/host/autonat
-
-	return h, nil
+// Creates a multi-addr to bind to. Does not contain a PeerID component (required for usage by external peers)
+func addrFromIPAndPort(ip net.IP, port uint16) (ma.Multiaddr, error) {
+	ipScheme := "ip4"
+	if ip4 := ip.To4(); ip4 == nil {
+		ipScheme = "ip6"
+	} else {
+		ip = ip4
+	}
+	return ma.NewMultiaddr(fmt.Sprintf("/%s/%s/tcp/%d", ipScheme, ip.String(), port))
 }
