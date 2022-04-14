@@ -216,7 +216,7 @@ var (
 	tooManyRequestErrorsTotal = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: MetricsNamespace,
 		Name:      "too_many_request_errors_total",
-		Help:      "Count of request timneouts due to too many concurrent RPCs.",
+		Help:      "Count of request timeouts due to too many concurrent RPCs.",
 	}, []string{
 		"backend_name",
 	})
