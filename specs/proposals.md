@@ -67,27 +67,23 @@ In the initial version of the output commitment construction, the version is `by
 as:
 
 ```pseudocode
-payload = state_root || withdrawal_storage_root || latest_block
+payload = state_root || withdrawal_storage_root || latest_block_hash
 ```
 
-where the concatenated variables are:
+where:
 
-1. The `state_root` (`bytes32`) is the Merkle-Patricia-Trie ([MPT][g-mpt]) root of all execution-layer accounts,
-   also found in `latest_block.state_root`: this field is frequently used and thus elevated closer to the L2 output
-   root, as opposed to retrieving it from the pre-image of the block in `latest_block`, reducing the merkle proof depth
-   and thus the cost of usage.
+1. The `latest_block_hash` (`bytes32`) is the block hash for the latest L2 block.
 
-1. The `withdrawal_storage_root` (`bytes32`) elevates the Merkle-Patricia-Trie ([MPT][g-mpt]) root of [L2 Withdrawal
+1. The `state_root` (`bytes32`) is the Merkle-Patricia-Trie ([MPT][g-mpt]) root of all execution-layer accounts.
+   This value is frequently used and thus elevated closer to the L2 output root, which removes the need to prove its
+   inclusion in the pre-image of the `latest_block_hash`. This reduces the merkle proof depth and cost of accessing the
+   L2 state root on L1.
+
+1. The `withdrawal_storage_root` (`bytes32`) elevates the Merkle-Patricia-Trie ([MPT][g-mpt]) root of the [L2 Withdrawal
    contract](./withdrawals.md#withdrawer-contract) storage. Instead of making an MPT proof for a withdrawal against the
    state root (proving first the storage root of the L2 withdrawal contract against the state root, then the withdrawal
    against that storage root), we can prove against the L2 withdrawal contract's storage root directly, thus reducing
    the verification cost of withdrawals on L1.
-
-1. The `latest_block` (`bytes32`) is an L2 block, represented as the
-   [`ExecutionPayload`][executionpayload] SSZ type defined in L1. There may be multiple blocks per L2 output root, only
-   the latest is presented.
-
-[executionpayload]: https://github.com/ethereum/consensus-specs/blob/dev/specs/bellatrix/beacon-chain.md#executionpayload
 
 ## L2 Output Oracle Smart Contract
 
