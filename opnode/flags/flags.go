@@ -104,7 +104,7 @@ var requiredFlags = []cli.Flag{
 	RPCListenPort,
 }
 
-var optionalFlags = []cli.Flag{
+var optionalFlags = append([]cli.Flag{
 	L1TrustRPC,
 	SequencingEnabledFlag,
 	BatchSubmitterKeyFlag,
@@ -112,7 +112,7 @@ var optionalFlags = []cli.Flag{
 	LogLevelFlag,
 	LogFormatFlag,
 	LogColorFlag,
-}
+}, p2pFlags...)
 
 // Flags contains the list of configuration options available to the binary.
 var Flags = append(requiredFlags, optionalFlags...)

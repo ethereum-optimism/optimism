@@ -26,3 +26,16 @@ func TestOptionalFlagsDontSetRequired(t *testing.T) {
 		require.False(t, reqFlag.IsRequired())
 	}
 }
+
+// TestUniqueFlags asserts that all flag names are unique, to avoid accidental conflicts between the many flags.
+func TestUniqueFlags(t *testing.T) {
+	seenCLI := make(map[string]struct{})
+	for _, flag := range Flags {
+		name := flag.GetName()
+		if _, ok := seenCLI[name]; ok {
+			t.Errorf("duplicate flag %s", name)
+			continue
+		}
+		seenCLI[name] = struct{}{}
+	}
+}
