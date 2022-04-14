@@ -23,6 +23,7 @@ contract L2OutputOracle is Ownable {
      **********************/
 
     /// @notice The interval in seconds at which checkpoints must be submitted.
+    // slither-disable-next-line similar-names
     uint256 public immutable SUBMISSION_INTERVAL;
 
     /// @notice The time between blocks on L2.
@@ -66,7 +67,7 @@ contract L2OutputOracle is Ownable {
             _submissionInterval % _l2BlockTime == 0,
             "Submission Interval must be a multiple of L2 Block Time"
         );
-
+        // slither-disable-next-line similar-names
         SUBMISSION_INTERVAL = _submissionInterval;
         L2_BLOCK_TIME = _l2BlockTime;
         l2Outputs[_startingBlockTimestamp] = _genesisL2Output; // solhint-disable not-rely-on-time
