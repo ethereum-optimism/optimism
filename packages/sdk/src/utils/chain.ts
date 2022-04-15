@@ -105,7 +105,7 @@ export const toggleLayer = async <
     })
   } catch (e) {
     if (e?.code === MISSING_NETWORK_ERROR_CODE) {
-      addOptimismNetworkToProvider(provider)
+      addOptimismNetworkToProvider(provider, currentChain)
       return
     }
     throw e
