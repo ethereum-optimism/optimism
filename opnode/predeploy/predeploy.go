@@ -1,4 +1,4 @@
-package opnode
+package predeploy
 
 import "github.com/ethereum/go-ethereum/common"
 
