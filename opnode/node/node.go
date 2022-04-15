@@ -13,14 +13,12 @@ import (
 
 	"github.com/ethereum-optimism/optimistic-specs/opnode/backoff"
 
-	"github.com/ethereum-optimism/optimistic-specs/opnode/bss"
 	"github.com/ethereum-optimism/optimistic-specs/opnode/eth"
 	"github.com/ethereum-optimism/optimistic-specs/opnode/l1"
 	"github.com/ethereum-optimism/optimistic-specs/opnode/l2"
 	"github.com/ethereum-optimism/optimistic-specs/opnode/rollup/driver"
 
 	"github.com/ethereum/go-ethereum"
-	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rpc"
@@ -104,16 +102,7 @@ func New(ctx context.Context, cfg *Config, log log.Logger, appVersion string) (*
 			return nil, err
 		}
 
-		var submitter *bss.BatchSubmitter
-		if cfg.Sequencer {
-			submitter = &bss.BatchSubmitter{
-				Client:    ethclient.NewClient(l1Node),
-				ToAddress: cfg.Rollup.BatchInboxAddress,
-				ChainID:   cfg.Rollup.L1ChainID,
-				PrivKey:   cfg.SubmitterPrivKey,
-			}
-		}
-		engine := driver.NewDriver(cfg.Rollup, client, l1Source, log.New("engine", i, "Sequencer", cfg.Sequencer), submitter, cfg.Sequencer)
+		engine := driver.NewDriver(cfg.Rollup, client, l1Source, log.New("engine", i, "Sequencer", cfg.Sequencer), cfg.Sequencer)
 		l2Engines = append(l2Engines, engine)
 	}
 

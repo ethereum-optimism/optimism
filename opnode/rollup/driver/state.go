@@ -33,7 +33,6 @@ type state struct {
 	l1      L1Chain
 	l2      L2Chain
 	output  outputInterface
-	bss     BatchSubmitter
 
 	log  log.Logger
 	done chan struct{}
@@ -41,7 +40,7 @@ type state struct {
 	wg gosync.WaitGroup
 }
 
-func NewState(log log.Logger, config rollup.Config, l1 L1Chain, l2 L2Chain, output outputInterface, submitter BatchSubmitter, sequencer bool) *state {
+func NewState(log log.Logger, config rollup.Config, l1 L1Chain, l2 L2Chain, output outputInterface, sequencer bool) *state {
 	return &state{
 		Config:    config,
 		done:      make(chan struct{}),
@@ -49,7 +48,6 @@ func NewState(log log.Logger, config rollup.Config, l1 L1Chain, l2 L2Chain, outp
 		l1:        l1,
 		l2:        l2,
 		output:    output,
-		bss:       submitter,
 		sequencer: sequencer,
 	}
 }
