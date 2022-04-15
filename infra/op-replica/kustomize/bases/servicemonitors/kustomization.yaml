@@ -3,3 +3,4 @@ kind: Kustomization
 resources:
   - ./data-transport-layer.yaml
   - ./replica-healthcheck.yaml
+  - ./replica-healthcheck-v1.yaml

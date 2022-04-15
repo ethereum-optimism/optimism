@@ -28,7 +28,7 @@ describe.skip('OVM_L2ToL1MessagePasser', () => {
   let Fake__OVM_ExecutionManager: FakeContract
   before(async () => {
     Fake__OVM_ExecutionManager = await smock.fake<Contract>(
-      await ethers.getContractFactory('OVM_ExecutionManager')
+      'OVM_ExecutionManager'
     )
   })
 

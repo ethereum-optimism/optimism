@@ -78,7 +78,7 @@ describe('CanonicalTransactionChain', () => {
     )
 
     Fake__StateCommitmentChain = await smock.fake<Contract>(
-      await ethers.getContractFactory('StateCommitmentChain')
+      'StateCommitmentChain'
     )
 
     await setProxyTarget(
