@@ -212,6 +212,14 @@ var (
 		Help:      "Histogram of Redis command durations, in milliseconds.",
 		Buckets:   MillisecondDurationBuckets,
 	}, []string{"command"})
+
+	tooManyRequestErrorsTotal = promauto.NewCounterVec(prometheus.CounterOpts{
+		Namespace: MetricsNamespace,
+		Name:      "too_many_request_errors_total",
+		Help:      "Count of request timeouts due to too many concurrent RPCs.",
+	}, []string{
+		"backend_name",
+	})
 )
 
 func RecordRedisError(source string) {
