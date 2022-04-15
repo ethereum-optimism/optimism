@@ -5,24 +5,23 @@ queue_rules:
 pull_request_rules:
   - name: Automatic merge on approval
     conditions:
-      and: 
+      - and:
+        - "#review-threads-unresolved=0"
+        - "#approved-reviews-by>=2"
+        - "#changes-requested-reviews-by=0"
         - "label!=do-not-merge"
-        - and:
-          - "#review-threads-unresolved=0"
-          - "#approved-reviews-by>=2"
-          - "#changes-requested-reviews-by=0"
-          - or:
-            - and:
-              - "label!=SR-Risk"
-              - "label!=C-Protocol-Critical"
-            - and:
-              - "label=SR-Risk"
-              - "approved-reviews-by=maurelian"
-            - and:
-              - "label=C-Protocol-Critical"
-              - or:
-                - "approved-reviews-by=tynes"
-                - "approved-reviews-by=smartcontracts"
+        - or:
+          - and:
+            - "label!=SR-Risk"
+            - "label!=C-Protocol-Critical"
+          - and:
+            - "label=SR-Risk"
+            - "approved-reviews-by=maurelian"
+          - and:
+            - "label=C-Protocol-Critical"
+            - or:
+              - "approved-reviews-by=tynes"
+              - "approved-reviews-by=smartcontracts"
     actions:
       queue:
         name: default
