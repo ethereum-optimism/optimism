@@ -27,6 +27,7 @@ const (
 	MaxBatchRPCCalls        = 100
 	cacheStatusHdr          = "X-Proxyd-Cache-Status"
 	defaultServerTimeout    = time.Second * 10
+	maxLogLength            = 1000
 )
 
 type Server struct {
@@ -236,6 +237,12 @@ func (s *Server) handleSingleRPC(ctx context.Context, req *RPCReq) (*RPCRes, boo
 		RecordRPCError(ctx, BackendProxyd, MethodUnknown, ErrMethodNotWhitelisted)
 		return NewRPCErrorRes(req.ID, ErrMethodNotWhitelisted), false
 	}
+
+	log.Info("RPC request",
+		"method", req.Method,
+		"params", truncate(string(req.Params)),
+		"id", truncate(string(req.ID)),
+	)
 
 	var backendRes *RPCRes
 	backendRes, err := s.cache.GetRPC(ctx, req)
@@ -456,4 +463,12 @@ func (n *NoopRPCCache) GetRPC(context.Context, *RPCReq) (*RPCRes, error) {
 
 func (n *NoopRPCCache) PutRPC(context.Context, *RPCReq, *RPCRes) error {
 	return nil
+}
+
+func truncate(str string) string {
+	if len(str) > maxLogLength {
+		return str[:maxLogLength] + "..."
+	} else {
+		return str
+	}
 }
