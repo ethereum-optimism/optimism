@@ -119,7 +119,7 @@ func NewL2OutputSubmitter(cfg Config, gitVersion string) (*L2OutputSubmitter, er
 		return nil, err
 	}
 
-	rollupClient, err := dialRpcClientWithTimeout(ctx, cfg.RollupRpc)
+	rollupClient, err := dialRollupClientWithTimeout(ctx, cfg.RollupRpc)
 	if err != nil {
 		return nil, err
 	}
@@ -140,7 +140,7 @@ func NewL2OutputSubmitter(cfg Config, gitVersion string) (*L2OutputSubmitter, er
 		Name:         "L2Output Submitter",
 		L1Client:     l1Client,
 		L2Client:     l2Client,
-		RollupClient: rollupclient.NewRollupClient(rollupClient),
+		RollupClient: rollupClient,
 		L2OOAddr:     l2ooAddress,
 		ChainID:      chainID,
 		PrivKey:      l2OutputPrivKey,
@@ -183,14 +183,19 @@ func dialEthClientWithTimeout(ctx context.Context, url string) (
 	return ethclient.DialContext(ctxt, url)
 }
 
-// dialRpcClientWithTimeout attempts to dial the RPC provider using the provided
+// dialRollupClientWithTimeout attempts to dial the RPC provider using the provided
 // URL. If the dial doesn't complete within defaultDialTimeout seconds, this
 // method will return an error.
-func dialRpcClientWithTimeout(ctx context.Context, url string) (*rpc.Client, error) {
+func dialRollupClientWithTimeout(ctx context.Context, url string) (*rollupclient.RollupClient, error) {
 	ctxt, cancel := context.WithTimeout(ctx, defaultDialTimeout)
 	defer cancel()
 
-	return rpc.DialContext(ctxt, url)
+	client, err := rpc.DialContext(ctxt, url)
+	if err != nil {
+		return nil, err
+	}
+
+	return rollupclient.NewRollupClient(client), nil
 }
 
 // parseAddress parses an ETH address from a hex string. This method will fail if
