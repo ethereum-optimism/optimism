@@ -17,7 +17,12 @@ export enum Chain {
   GOERLI = 5,
   KOVAN = 42,
   HARDHAT_LOCAL = 31337,
+  OPTIMISM = 10,
+  OPTIMISM_KOVAN = 69,
 }
+
+export type L1Chain = Chain.MAINNET | Chain.KOVAN | Chain.HARDHAT_LOCAL
+export type L2Chain = Chain.OPTIMISM | Chain.OPTIMISM_KOVAN
 
 /**
  * L1 contract references.
