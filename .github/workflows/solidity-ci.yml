@@ -3,9 +3,9 @@ name: Contracts lint, test and static analysis
 on:
   push:
     branches:
-      - 'main'
-      - 'staging'
-      - 'feat/*'
+      - "main"
+      - "staging"
+      - "feat/*"
   pull_request:
   workflow_dispatch:
 
@@ -13,9 +13,9 @@ env:
   PYTEST_ADDOPTS: "--color=yes"
 
 defaults:
-    run:
-      shell: bash
-      working-directory: ./packages/contracts
+  run:
+    shell: bash
+    working-directory: ./packages/contracts
 
 jobs:
   yarn-test:
@@ -28,8 +28,8 @@ jobs:
 
       - uses: actions/setup-node@v2
         with:
-            node-version: '14'
-            cache: 'yarn'
+          node-version: "14"
+          cache: "yarn"
       - run: yarn install
 
       - name: Lint
@@ -54,6 +54,9 @@ jobs:
       - name: Test with Forge
         run: yarn test:forge
 
+      - name: Gas snapshot
+        run: forge snapshot && git diff --exit-code
+
   slither:
     runs-on: ubuntu-latest
     name: Slither
@@ -64,14 +67,14 @@ jobs:
 
       - uses: actions/setup-node@v2
         with:
-            node-version: '14'
-            cache: 'yarn'
+          node-version: "14"
+          cache: "yarn"
       - run: yarn install
 
       - name: Set up Python 3.8
         uses: actions/setup-python@v2
         with:
-          python-version: '3.8'
+          python-version: "3.8"
 
       - name: Install Slither
         run: pip3 install slither-analyzer
