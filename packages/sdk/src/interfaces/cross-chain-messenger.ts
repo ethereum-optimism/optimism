@@ -1,4 +1,4 @@
-import { Event, BigNumber, Overrides } from 'ethers'
+import { Event, BigNumber, Overrides, CallOverrides } from 'ethers'
 import {
   Provider,
   BlockTag,
@@ -697,7 +697,7 @@ export interface ICrossChainMessenger {
       message: CrossChainMessageRequest,
       opts?: {
         l2GasLimit?: NumberLike
-        overrides?: Overrides
+        overrides?: CallOverrides
       }
     ) => Promise<BigNumber>
 
@@ -714,7 +714,7 @@ export interface ICrossChainMessenger {
       message: MessageLike,
       messageGasLimit: NumberLike,
       opts?: {
-        overrides?: Overrides
+        overrides?: CallOverrides
       }
     ): Promise<BigNumber>
 
@@ -729,7 +729,7 @@ export interface ICrossChainMessenger {
     finalizeMessage(
       message: MessageLike,
       opts?: {
-        overrides?: Overrides
+        overrides?: CallOverrides
       }
     ): Promise<BigNumber>
 
@@ -748,7 +748,7 @@ export interface ICrossChainMessenger {
       l2Token: AddressLike,
       amount: NumberLike,
       opts?: {
-        overrides?: Overrides
+        overrides?: CallOverrides
       }
     ): Promise<BigNumber>
 
@@ -767,7 +767,7 @@ export interface ICrossChainMessenger {
       opts?: {
         recipient?: AddressLike
         l2GasLimit?: NumberLike
-        overrides?: Overrides
+        overrides?: CallOverrides
       }
     ): Promise<BigNumber>
 
@@ -784,7 +784,7 @@ export interface ICrossChainMessenger {
       amount: NumberLike,
       opts?: {
         recipient?: AddressLike
-        overrides?: Overrides
+        overrides?: CallOverrides
       }
     ): Promise<BigNumber>
 
@@ -807,7 +807,7 @@ export interface ICrossChainMessenger {
       opts?: {
         recipient?: AddressLike
         l2GasLimit?: NumberLike
-        overrides?: Overrides
+        overrides?: CallOverrides
       }
     ): Promise<BigNumber>
 
@@ -828,7 +828,7 @@ export interface ICrossChainMessenger {
       amount: NumberLike,
       opts?: {
         recipient?: AddressLike
-        overrides?: Overrides
+        overrides?: CallOverrides
       }
     ): Promise<BigNumber>
   }
