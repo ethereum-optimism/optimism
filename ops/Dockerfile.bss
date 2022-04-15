@@ -10,11 +10,13 @@ RUN go mod download -x
 
 COPY Makefile /app/Makefile
 COPY ./opnode /app/opnode
+COPY ./l2os /app/l2os
+COPY ./bss /app/bss
 
-RUN make opnode
+RUN make bss
 
 FROM alpine:3.15
 
-COPY --from=builder /app/bin/op /usr/local/bin
+COPY --from=builder /app/bin/bss /usr/local/bin
 
-CMD ["op"]
+ENTRYPOINT ["bss"]

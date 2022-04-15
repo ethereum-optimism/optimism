@@ -1,10 +1,10 @@
 COMPOSEFLAGS=-d
 ITESTS_L2_HOST=http://localhost:9545
 
-build: submodules opnode contracts integration-tests
+build: build-go contracts integration-tests
 .PHONY: build
 
-build-go: submodules opnode l2os
+build-go: submodules opnode l2os bss
 .PHONY: build-go
 
 build-ts: submodules contracts integration-tests
@@ -63,6 +63,10 @@ test-integration:
 devnet-genesis:
 	bash ./ops/devnet-genesis.sh
 .PHONY: devnet-genesis
+
+bss:
+	go build -o ./bin/bss ./bss/cmd/bss
+.PHONY: bss
 
 l2os:
 	go build -o ./bin/l2os ./l2os/cmd/l2os

@@ -135,10 +135,17 @@ jq ". | .genesis.l1.hash = \"$(echo $L1_GENESIS | jq -r '.result.hash')\"" < ./o
    jq ". | .genesis.l2_time = $(echo $L2_GENESIS | jq -r '.result.timestamp' | xargs printf "%d")" | \
    jq ". | .deposit_contract_address = \"$DEPOSIT_CONTRACT_ADDRESS\"" > ./.devnet/rollup.json
 
+
+SEQUENCER_GENESIS_HASH="$(echo $L2_GENESIS | jq -r '.result.hash')"
+SEQUENCER_BATCH_INBOX_ADDRESS="$(cat ./ops/rollup.json | jq -r '.batch_inbox_address')"
+
 # Bring up everything else.
 cd ops
 echo "Bringing up devnet..."
-L2OO_ADDRESS="$L2OO_ADDRESS" docker-compose up -d l2os
+L2OO_ADDRESS="$L2OO_ADDRESS" \
+	SEQUENCER_GENESIS_HASH="$SEQUENCER_GENESIS_HASH" \
+	SEQUENCER_BATCH_INBOX_ADDRESS="$SEQUENCER_BATCH_INBOX_ADDRESS" \
+	docker-compose up -d l2os bss
 cd ../
 
 echo "Devnet ready."
