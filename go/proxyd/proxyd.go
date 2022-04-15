@@ -220,6 +220,7 @@ func Start(config *Config) (func(), error) {
 		config.Server.MaxBodySizeBytes,
 		resolvedAuth,
 		secondsToDuration(config.Server.TimeoutSeconds),
+		config.Server.MaxUpstreamBatchSize,
 		rpcCache,
 	)
 

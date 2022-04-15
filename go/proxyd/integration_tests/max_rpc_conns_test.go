@@ -27,7 +27,7 @@ func TestMaxConcurrentRPCs(t *testing.T) {
 		mu.Unlock()
 
 		time.Sleep(time.Second * 2)
-		SingleResponseHandler(200, goodResponse)(w, r)
+		BatchedResponseHandler(200, goodResponse)(w, r)
 
 		mu.Lock()
 		concurrentRPCs--
