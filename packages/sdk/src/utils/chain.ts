@@ -27,17 +27,28 @@ export const Optimism = {
     `https://optimistic.etherscan.io/tx/${transactionHash}`,
 } as const
 
+export const OptimismLocal = {
+  chainId: Chain.OPTIMISM_LOCAL,
+  chainName: 'Optimism Local',
+  isTestChain: true,
+  isLocalChain: true,
+  // this is just copy paste
+  multicallAddress: '',
+}
+
 export const L1ToL2Mapping = {
   [Chain.MAINNET]: Chain.OPTIMISM,
   [Chain.KOVAN]: Chain.OPTIMISM_KOVAN,
+  [Chain.HARDHAT_LOCAL]: Chain.OPTIMISM_LOCAL,
 } as const
 
 export const L2ToL1Mapping = {
   [Chain.OPTIMISM]: Chain.MAINNET,
   [Chain.OPTIMISM_KOVAN]: Chain.KOVAN,
+  [Chain.OPTIMISM_LOCAL]: Chain.HARDHAT_LOCAL,
 } as const
 
-export const addOptimismNetworkToMetamask = async <
+export const addOptimismNetworkToProvider = async <
   TProvider extends Pick<EthereumProvider, 'request'>
 >(
   provider: TProvider,
@@ -59,12 +70,13 @@ export const addOptimismNetworkToMetamask = async <
 export const isTestChain = (id: number) =>
   [Chain.KOVAN, Chain.OPTIMISM_KOVAN].includes(id)
 
-export const isL1 = (id: number) => [Chain.MAINNET, Chain.KOVAN].includes(id)
+export const isL1 = (id: number) =>
+  [Chain.MAINNET, Chain.KOVAN, Chain.HARDHAT_LOCAL].includes(id)
 
 export const isL2 = (id: number) =>
-  [Chain.OPTIMISM, Chain.OPTIMISM_KOVAN].includes(id)
+  [Chain.OPTIMISM, Chain.OPTIMISM_KOVAN, Chain.OPTIMISM_LOCAL].includes(id)
 
-const METAMASK_MISSING_NETWORK_ERROR_CODE = 4902
+const MISSING_NETWORK_ERROR_CODE = 4902
 
 export const toggleLayer = async <
   TProvider extends Pick<EthereumProvider, 'request'>
@@ -78,7 +90,8 @@ export const toggleLayer = async <
     throw new Error('Not connect to a current chain')
   }
 
-  const otherLayer = L1ToL2Mapping[currentChain] ?? L2ToL1Mapping[currentChain]
+  const otherLayer: number | undefined =
+    L1ToL2Mapping[currentChain] ?? L2ToL1Mapping[currentChain]
   if (!otherLayer) {
     throw new Error(`Unknown current chain id ${currentChain}`)
   }
@@ -90,10 +103,9 @@ export const toggleLayer = async <
       method: 'wallet_switchEthereumChain',
       params: [{ chainId: formattedChainId }],
     })
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
   } catch (e) {
-    if (e?.code === METAMASK_MISSING_NETWORK_ERROR_CODE) {
-      addOptimismNetworkToMetamask(provider)
+    if (e?.code === MISSING_NETWORK_ERROR_CODE) {
+      addOptimismNetworkToProvider(provider)
       return
     }
     throw e

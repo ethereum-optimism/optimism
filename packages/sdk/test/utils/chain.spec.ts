@@ -2,7 +2,7 @@ import { expect } from 'chai'
 import sinon from 'sinon'
 
 import {
-  addOptimismNetworkToMetamask,
+  addOptimismNetworkToProvider,
   Optimism,
   toggleLayer,
 } from '../../src/utils/chain'
@@ -11,7 +11,7 @@ describe('chain utils', () => {
   describe('addOptimismNetworkToMetamask', () => {
     it('should issue an rpc request for wallet_addEthereumChain', async () => {
       const provider = { request: sinon.spy() }
-      await addOptimismNetworkToMetamask(provider)
+      await addOptimismNetworkToProvider(provider)
       expect(provider.request.getCalls()[0].firstArg.params[0]).to.eq(Optimism)
       expect(provider.request.getCalls()[0].firstArg.method).to.eql(
         'wallet_addEthereumChain'
