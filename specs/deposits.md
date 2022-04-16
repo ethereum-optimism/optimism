@@ -203,7 +203,7 @@ The contract has the following solidity interface, and can be interacted with ac
 
 #### L1 Attributes Predeployed Contract: Reference Implementation
 
-[l1-attr-ref-implem]: #l1-attributes-predeployed-contract--reference-implementation
+[l1-attr-ref-implem]: #l1-attributes-predeployed-contract-reference-implementation
 
 A reference implementation of the L1 Attributes predeploy contract can be found in [L1Block.sol].
 
