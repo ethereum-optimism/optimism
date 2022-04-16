@@ -391,14 +391,16 @@ meaning the head of the L1 chain changes to a block that is not the child of the
 descendant of an ancestor of the previous head. In that case, the rollup driver must first search for the common L1
 ancestor, and can re-derive the L2 chain from that L1 block and onward.
 
-The rollup node maintains two heads of the L2 Chain: the unsafe head (often called head) and the safe head.
-Each L2 block has an L1 Attributes block that it references in the L1 Info deposit transaction.
-The unsafe head is the head of the L2 chain. It's L1 Attributes should be canonical or potentially extending the
-canonical chain (if the rollup node has not yet seen the L1 block that it is based upon).
-The safe head is the the last L2 block of the last epoch whose sequencing window is complete
-(i.e. the epoch with number `L1Head.number` - `SEQUENCING_WINDOW_SIZE`).
+The rollup node maintains two heads of the L2 Chain: the unsafe head (often called head) and the safe head. Each L2
+block has an L1 origin block (corresponding to its epoch) that it references in the [L1 attributes deposited
+transaction][l1-attr-deposit]. The unsafe head is the head of the L2 chain. Its L1 origin block should be canonical or
+potentially extending the canonical chain (if the rollup node has not yet seen the L1 block that it is based upon). The
+safe head is the the last L2 block of the last epoch whose sequencing window is complete (i.e. the epoch with number
+`L1Head.number` - `SEQUENCING_WINDOW_SIZE`).
 
-Steps during a reorg
+[l1-attr-deposit]: glossary.md#l1-attributes-deposited-transaction
+
+Steps during a reorg:
 
 1. Set "unsafe head" to equal the l2 head we retrieved, just as default
 2. Set "latest block" to equal the l2 head we retrieved, also just as default
