@@ -2,9 +2,9 @@
 //
 // The Ethereum chain is a DAG of blocks with the root block being the genesis block. At any given
 // time, the head (or tip) of the chain can change if an offshoot/branch of the chain has a higher
-// number. This is known as a re-organization of the canonical chain. Each block points to a parent
-// block and the node is responsible for deciding which block is the head and thus the mapping from
-// block number to canonical block.
+// total difficulty. This is known as a re-organization of the canonical chain. Each block points to
+// a parent block and the node is responsible for deciding which block is the head and thus the
+// mapping from block number to canonical block.
 //
 // The Optimism (L2) chain has similar properties, but also retains references to the Ethereum (L1)
 // chain. Each L2 block retains a reference to an L1 block (its "L1 origin", i.e. L1 block
