@@ -1,32 +1,23 @@
-/* External Imports */
 import { ethers } from 'hardhat'
-import { Signer, ContractFactory, Contract } from 'ethers'
+import { ContractFactory, Contract } from 'ethers'
 import {
   smock,
   MockContractFactory,
   MockContract,
 } from '@defi-wonderland/smock'
 
-/* Internal Imports */
 import { expect } from '../../../setup'
-import { predeploys, getContractInterface } from '../../../../src'
+import { deploy } from '../../../helpers'
+import { predeploys } from '../../../../src'
 
 describe('L2StandardTokenFactory', () => {
-  let signer: Signer
   let Factory__L1ERC20: MockContractFactory<ContractFactory>
   let L1ERC20: MockContract<Contract>
   let L2StandardTokenFactory: Contract
   before(async () => {
-    ;[signer] = await ethers.getSigners()
-    // deploy an ERC20 contract on L1
-    Factory__L1ERC20 = await smock.mock(
-      '@openzeppelin/contracts/token/ERC20/ERC20.sol:ERC20'
-    )
+    Factory__L1ERC20 = await smock.mock('ERC20')
     L1ERC20 = await Factory__L1ERC20.deploy('L1ERC20', 'ERC')
-
-    L2StandardTokenFactory = await (
-      await ethers.getContractFactory('L2StandardTokenFactory')
-    ).deploy()
+    L2StandardTokenFactory = await deploy('L2StandardTokenFactory')
   })
 
   describe('Standard token factory', () => {
@@ -36,18 +27,18 @@ describe('L2StandardTokenFactory', () => {
         'L2ERC20',
         'ERC'
       )
-      const receipt = await tx.wait()
-      const [tokenCreatedEvent] = receipt.events
 
-      // Expect there to be an event emmited for the standard token creation
+      // Pull the token creation event from the receipt
+      const receipt = await tx.wait()
+      const tokenCreatedEvent = receipt.events[0]
+
+      // Expect there to be an event emitted for the standard token creation
       expect(tokenCreatedEvent.event).to.be.eq('StandardL2TokenCreated')
 
-      // Get the L2 token address from the emmited event and check it was created correctly
-      const l2TokenAddress = tokenCreatedEvent.args._l2Token
-      const l2Token = new Contract(
-        l2TokenAddress,
-        getContractInterface('L2StandardERC20'),
-        signer
+      // Get the L2 token address from the emitted event and check it was created correctly
+      const l2Token = await ethers.getContractAt(
+        'L2StandardERC20',
+        tokenCreatedEvent.args._l2Token
       )
 
       expect(await l2Token.l2Bridge()).to.equal(predeploys.L2StandardBridge)
