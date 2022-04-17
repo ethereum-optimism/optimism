@@ -8,7 +8,8 @@ This also enables faster historical sync to be bootstrapped by providing block h
 and only having to compare the L2 chain inputs to the L1 data as compared to processing everything one block at a time.
 
 The rollup node will *always* prioritize L1 and reorganize to match the canonical chain.
-The L2 data retrieved via the P2P interface is strictly a speculative extension to improve the happy case performance.
+The L2 data retrieved via the P2P interface is strictly a speculative extension, also known as the "unsafe" chain,
+to improve the happy case performance.
 
 This also means that P2P behavior is a soft-rule: nodes keep each other in check with scoring and eventual banning
 of malicious peers by identity or IP. Any behavior on the P2P layer does not affect the rollup security, at worst nodes
@@ -17,12 +18,45 @@ rely on higher-latency data from L1 to serve.
 In summary, the P2P stack looks like:
 
 - Discovery to find peers: [Discv5][discv5]
-- Connections, peering, transport security, multi-plexing, gossip: [LibP2P][libp2p]
+- Connections, peering, transport security, multiplexing, gossip: [LibP2P][libp2p]
 - Application-layer publishing and validation of gossiped messages like L2 blocks.
 
 This document only specifies the composition and configuration of these network libraries.
 These components have their own standards, implementations in Go/Rust/Java/Nim/JS/more,
 and are adopted by several other blockchains, most notably the [L1 consensus layer (Eth2)][eth2-p2p].
+
+<!-- START doctoc generated TOC please keep comment here to allow auto update -->
+<!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
+**Table of Contents**
+
+- [P2P configuration](#p2p-configuration)
+  - [Identification](#identification)
+  - [Discv5](#discv5)
+    - [Structure](#structure)
+  - [LibP2P](#libp2p)
+    - [Transport](#transport)
+    - [Dialing](#dialing)
+    - [NAT](#nat)
+    - [Peer management](#peer-management)
+    - [Transport security](#transport-security)
+    - [Protocol negotiation](#protocol-negotiation)
+    - [Identify](#identify)
+    - [Ping](#ping)
+    - [Multiplexing](#multiplexing)
+    - [GossipSub](#gossipsub)
+      - [Content-based message identification](#content-based-message-identification)
+      - [Message compression and limits](#message-compression-and-limits)
+      - [Message ID computation](#message-id-computation)
+    - [Heartbeat and parameters](#heartbeat-and-parameters)
+    - [Topic configuration](#topic-configuration)
+- [Gossip Topics](#gossip-topics)
+  - [`blocks`](#blocks)
+    - [Block encoding](#block-encoding)
+    - [Block validation](#block-validation)
+      - [Block processing](#block-processing)
+      - [Block topic scoring parameters](#block-topic-scoring-parameters)
+
+<!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
 ## P2P configuration
 

@@ -27,9 +27,10 @@ var (
 		Name: "p2p.priv.path",
 		Usage: "Read the hex-encoded 32-byte private key for the peer ID from this txt file. Created if not already exists." +
 			"Important to persist to keep the same network identity after restarting, maintaining the previous advertised identity.",
-		Required: false,
-		Value:    "opnode_p2p_priv.txt",
-		EnvVar:   p2pEnv("PRIV_PATH"),
+		Required:  false,
+		Value:     "opnode_p2p_priv.txt",
+		EnvVar:    p2pEnv("PRIV_PATH"),
+		TakesFile: true,
 	}
 	P2PPrivRaw = cli.StringFlag{
 		// sometimes it may be ok to not persist the peer priv key as file, and instead pass it directly.

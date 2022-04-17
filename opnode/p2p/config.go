@@ -290,9 +290,7 @@ func (conf *Config) loadLibp2pOpts(ctx *cli.Context) error {
 	conf.PeersLo = ctx.GlobalUint(flags.PeersLo.Name)
 	conf.PeersHi = ctx.GlobalUint(flags.PeersHi.Name)
 	conf.PeersGrace = ctx.GlobalDuration(flags.PeersGrace.Name)
-
-	// TODO parse NAT option
-
+	conf.NAT = ctx.GlobalBool(flags.NAT.Name)
 	conf.UserAgent = ctx.GlobalString(flags.UserAgent.Name)
 	conf.TimeoutNegotiation = ctx.GlobalDuration(flags.TimeoutNegotiation.Name)
 	conf.TimeoutAccept = ctx.GlobalDuration(flags.TimeoutAccept.Name)
