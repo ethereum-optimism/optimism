@@ -1,19 +1,17 @@
-/* External Imports */
 import { ethers } from 'hardhat'
-import { Signer, ContractFactory, Contract } from 'ethers'
+import { Contract } from 'ethers'
 import { smock, FakeContract } from '@defi-wonderland/smock'
 import {
   AppendSequencerBatchParams,
   encodeAppendSequencerBatch,
 } from '@eth-optimism/core-utils'
 import { TransactionResponse } from '@ethersproject/abstract-provider'
-import { keccak256 } from 'ethers/lib/utils'
+import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers'
 import _ from 'lodash'
 
-/* Internal Imports */
 import { expect } from '../../../setup'
 import {
-  makeAddressManager,
+  deploy,
   setProxyTarget,
   L2_GAS_DISCOUNT_DIVISOR,
   ENQUEUE_GAS_COST,
@@ -26,15 +24,6 @@ import { names } from '../../../../src/address-names'
 
 const ELEMENT_TEST_SIZES = [1, 2, 4, 8, 16]
 const MAX_GAS_LIMIT = 8_000_000
-
-const getTransactionHash = (
-  sender: string,
-  target: string,
-  gasLimit: number,
-  data: string
-): string => {
-  return keccak256(encodeQueueTransaction(sender, target, gasLimit, data))
-}
 
 const encodeQueueTransaction = (
   sender: string,
@@ -52,33 +41,30 @@ const appendSequencerBatch = async (
   CanonicalTransactionChain: Contract,
   batch: AppendSequencerBatchParams
 ): Promise<TransactionResponse> => {
-  const methodId = keccak256(Buffer.from('appendSequencerBatch()')).slice(2, 10)
-  const calldata = encodeAppendSequencerBatch(batch)
   return CanonicalTransactionChain.signer.sendTransaction({
     to: CanonicalTransactionChain.address,
-    data: '0x' + methodId + calldata,
+    data:
+      ethers.utils.id('appendSequencerBatch()').slice(0, 10) +
+      encodeAppendSequencerBatch(batch),
   })
 }
 
 describe('CanonicalTransactionChain', () => {
-  let addressManagerOwner: Signer
-  let sequencer: Signer
-  let otherSigner: Signer
+  let addressManagerOwner: SignerWithAddress
+  let sequencer: SignerWithAddress
+  let otherSigner: SignerWithAddress
   before(async () => {
     ;[addressManagerOwner, sequencer, otherSigner] = await ethers.getSigners()
   })
 
   let AddressManager: Contract
+  let CanonicalTransactionChain: Contract
   let Fake__StateCommitmentChain: FakeContract
-  before(async () => {
-    AddressManager = await makeAddressManager()
-    await AddressManager.setAddress(
-      'OVM_Sequencer',
-      await sequencer.getAddress()
-    )
+  beforeEach(async () => {
+    AddressManager = await deploy('Lib_AddressManager')
 
     Fake__StateCommitmentChain = await smock.fake<Contract>(
-      await ethers.getContractFactory('StateCommitmentChain')
+      'StateCommitmentChain'
     )
 
     await setProxyTarget(
@@ -86,33 +72,22 @@ describe('CanonicalTransactionChain', () => {
       'StateCommitmentChain',
       Fake__StateCommitmentChain
     )
-  })
 
-  let Factory__CanonicalTransactionChain: ContractFactory
-  let Factory__ChainStorageContainer: ContractFactory
-  before(async () => {
-    Factory__CanonicalTransactionChain = await ethers.getContractFactory(
-      'CanonicalTransactionChain'
-    )
+    CanonicalTransactionChain = await deploy('CanonicalTransactionChain', {
+      signer: sequencer,
+      args: [
+        AddressManager.address,
+        MAX_GAS_LIMIT,
+        L2_GAS_DISCOUNT_DIVISOR,
+        ENQUEUE_GAS_COST,
+      ],
+    })
 
-    Factory__ChainStorageContainer = await ethers.getContractFactory(
-      'ChainStorageContainer'
-    )
-  })
+    const batches = await deploy('ChainStorageContainer', {
+      args: [AddressManager.address, 'CanonicalTransactionChain'],
+    })
 
-  let CanonicalTransactionChain: Contract
-  beforeEach(async () => {
-    CanonicalTransactionChain = await Factory__CanonicalTransactionChain.deploy(
-      AddressManager.address,
-      MAX_GAS_LIMIT,
-      L2_GAS_DISCOUNT_DIVISOR,
-      ENQUEUE_GAS_COST
-    )
-
-    const batches = await Factory__ChainStorageContainer.deploy(
-      AddressManager.address,
-      'CanonicalTransactionChain'
-    )
+    await AddressManager.setAddress('OVM_Sequencer', sequencer.address)
 
     await AddressManager.setAddress(
       'ChainStorageContainer-CTC-batches',
@@ -197,19 +172,19 @@ describe('CanonicalTransactionChain', () => {
     })
 
     it('should revert if transaction gas limit does not cover rollup burn', async () => {
-      const _enqueueL2GasPrepaid =
+      const enqueueL2GasPrepaid =
         await CanonicalTransactionChain.enqueueL2GasPrepaid()
       const l2GasDiscountDivisor =
         await CanonicalTransactionChain.l2GasDiscountDivisor()
       const data = '0x' + '12'.repeat(1234)
 
       // Create a tx with high L2 gas limit, but insufficient L1 gas limit to cover burn.
-      const l2GasLimit = 2 * _enqueueL2GasPrepaid
+      const l2GasLimit = 2 * enqueueL2GasPrepaid
       // This l1GasLimit is equivalent to the gasToConsume amount calculated in the CTC. After
       // additional gas overhead, it will be enough trigger the gas burn, but not enough to cover
       // it.
       const l1GasLimit =
-        (l2GasLimit - _enqueueL2GasPrepaid) / l2GasDiscountDivisor
+        (l2GasLimit - enqueueL2GasPrepaid) / l2GasDiscountDivisor
 
       await expect(
         CanonicalTransactionChain.enqueue(target, l2GasLimit, data, {
@@ -219,12 +194,12 @@ describe('CanonicalTransactionChain', () => {
     })
 
     it('should burn L1 gas when L2 gas limit is high', async () => {
-      const _enqueueL2GasPrepaid =
+      const enqueueL2GasPrepaid =
         await CanonicalTransactionChain.enqueueL2GasPrepaid()
       const data = '0x' + '12'.repeat(1234)
 
       // Create a tx with high L2 gas limit
-      const l2GasLimit = 4 * _enqueueL2GasPrepaid
+      const l2GasLimit = 4 * enqueueL2GasPrepaid
 
       await expect(CanonicalTransactionChain.enqueue(target, l2GasLimit, data))
         .to.not.be.reverted
@@ -286,6 +261,7 @@ describe('CanonicalTransactionChain', () => {
           data
         )
         const receipt2 = await res2.wait()
+
         expect(receipt1.gasUsed).to.equal(receipt2.gasUsed)
       })
     })
@@ -312,21 +288,23 @@ describe('CanonicalTransactionChain', () => {
             const blockNumber = await getNextBlockNumber(ethers.provider)
             await setEthTime(ethers.provider, timestamp)
 
-            const transactionHash = getTransactionHash(
-              await addressManagerOwner.getAddress(),
-              target,
-              gasLimit,
-              data
-            )
-
-            await CanonicalTransactionChain.enqueue(target, gasLimit, data)
-
-            for (let i = 0; i < size; i++) {
-              await CanonicalTransactionChain.enqueue(
+            const transactionHash = ethers.utils.keccak256(
+              encodeQueueTransaction(
+                addressManagerOwner.address,
                 target,
                 gasLimit,
-                '0x' + '12'.repeat(i + 1)
+                data
               )
+            )
+
+            await CanonicalTransactionChain.connect(
+              addressManagerOwner
+            ).enqueue(target, gasLimit, data)
+
+            for (let i = 0; i < size; i++) {
+              await CanonicalTransactionChain.connect(
+                addressManagerOwner
+              ).enqueue(target, gasLimit, '0x' + '12'.repeat(i + 1))
             }
 
             expect(
@@ -356,20 +334,22 @@ describe('CanonicalTransactionChain', () => {
                 blockNumber = await getNextBlockNumber(ethers.provider)
                 await setEthTime(ethers.provider, timestamp)
 
-                transactionHash = getTransactionHash(
-                  await addressManagerOwner.getAddress(),
-                  target,
-                  gasLimit,
-                  data
+                transactionHash = ethers.utils.keccak256(
+                  encodeQueueTransaction(
+                    addressManagerOwner.address,
+                    target,
+                    gasLimit,
+                    data
+                  )
                 )
 
-                await CanonicalTransactionChain.enqueue(target, gasLimit, data)
+                await CanonicalTransactionChain.connect(
+                  addressManagerOwner
+                ).enqueue(target, gasLimit, data)
               } else {
-                await CanonicalTransactionChain.enqueue(
-                  target,
-                  gasLimit,
-                  '0x' + '12'.repeat(i + 1)
-                )
+                await CanonicalTransactionChain.connect(
+                  addressManagerOwner
+                ).enqueue(target, gasLimit, '0x' + '12'.repeat(i + 1))
               }
             }
 
@@ -399,20 +379,22 @@ describe('CanonicalTransactionChain', () => {
                 blockNumber = await getNextBlockNumber(ethers.provider)
                 await setEthTime(ethers.provider, timestamp)
 
-                transactionHash = getTransactionHash(
-                  await addressManagerOwner.getAddress(),
-                  target,
-                  gasLimit,
-                  data
+                transactionHash = ethers.utils.keccak256(
+                  encodeQueueTransaction(
+                    addressManagerOwner.address,
+                    target,
+                    gasLimit,
+                    data
+                  )
                 )
 
-                await CanonicalTransactionChain.enqueue(target, gasLimit, data)
+                await CanonicalTransactionChain.connect(
+                  addressManagerOwner
+                ).enqueue(target, gasLimit, data)
               } else {
-                await CanonicalTransactionChain.enqueue(
-                  target,
-                  gasLimit,
-                  '0x' + '12'.repeat(i + 1)
-                )
+                await CanonicalTransactionChain.connect(
+                  addressManagerOwner
+                ).enqueue(target, gasLimit, '0x' + '12'.repeat(i + 1))
               }
             }
 
@@ -432,10 +414,6 @@ describe('CanonicalTransactionChain', () => {
   })
 
   describe('appendSequencerBatch', () => {
-    beforeEach(() => {
-      CanonicalTransactionChain = CanonicalTransactionChain.connect(sequencer)
-    })
-
     it('should revert if expected start does not match current total batches', async () => {
       await expect(
         appendSequencerBatch(CanonicalTransactionChain, {
@@ -499,9 +477,7 @@ describe('CanonicalTransactionChain', () => {
 
     it('should emit the previous blockhash in the TransactionBatchAppended event', async () => {
       const timestamp = await getEthTime(ethers.provider)
-      const currentBlockHash = await (
-        await ethers.provider.getBlock('latest')
-      ).hash
+      const currentBlock = await ethers.provider.getBlock('latest')
       const blockNumber = await getNextBlockNumber(ethers.provider)
       const res = await appendSequencerBatch(CanonicalTransactionChain, {
         transactions: ['0x1234'],
@@ -525,7 +501,7 @@ describe('CanonicalTransactionChain', () => {
         receipt.logs[0].data
       )
 
-      await expect(eventArgs[0]).to.eq(currentBlockHash)
+      expect(eventArgs[0]).to.eq(currentBlock.hash)
     })
 
     for (const size of ELEMENT_TEST_SIZES) {
@@ -680,7 +656,7 @@ describe('CanonicalTransactionChain', () => {
             return '0x' + '12' + '34'.repeat(idx)
           })
 
-          const res = await appendSequencerBatch(
+          await appendSequencerBatch(
             CanonicalTransactionChain.connect(sequencer),
             {
               transactions,
@@ -689,7 +665,6 @@ describe('CanonicalTransactionChain', () => {
               totalElementsToAppend: size,
             }
           )
-          await res.wait()
 
           expect(await CanonicalTransactionChain.getLastTimestamp()).to.equal(
             timestamp

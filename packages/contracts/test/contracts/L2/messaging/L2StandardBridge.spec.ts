@@ -45,7 +45,7 @@ describe('L2StandardBridge', () => {
   beforeEach(async () => {
     // Get a new mock L2 messenger
     Fake__L2CrossDomainMessenger = await smock.fake<Contract>(
-      await ethers.getContractFactory('L2CrossDomainMessenger'),
+      'L2CrossDomainMessenger',
       // This allows us to use an ethers override {from: Mock__L2CrossDomainMessenger.address} to mock calls
       { address: await l2MessengerImpersonator.getAddress() }
     )
