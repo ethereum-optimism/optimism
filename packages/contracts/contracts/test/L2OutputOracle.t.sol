@@ -226,4 +226,50 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
         // This will fail when foundry no longer returns zerod block hashes
         oracle.appendL2Output(nonZeroHash, nextTimestamp, l1BlockHash, l1BlockNumber - 1);
     }
+
+    /****************
+     * Delete Tests *
+     ****************/
+
+    event l2OutputDeleted(bytes32 indexed _l2Output, uint256 indexed _l2timestamp);
+    function test_deleteL2Output() external {
+        uint256 latestBlockTimestamp = oracle.latestBlockTimestamp();
+        bytes32 outputToDelete = oracle.getL2Output(latestBlockTimestamp);
+        bytes32 newLatestOutput = oracle.getL2Output(latestBlockTimestamp - submissionInterval);
+
+        vm.prank(sequencer);
+        vm.expectEmit(true, true, false, false);
+        emit l2OutputDeleted(outputToDelete, latestBlockTimestamp);
+        oracle.deleteL2Output(outputToDelete);
+
+        // validate latestBlockTimestamp has been reduced
+        uint256 latestBlockTimestampAfter = oracle.latestBlockTimestamp();
+        assertEq(
+            latestBlockTimestamp - submissionInterval,
+            latestBlockTimestampAfter
+        );
+
+        // validate that the new latest output is as expected.
+        assertEq(
+            newLatestOutput,
+            oracle.getL2Output(latestBlockTimestampAfter)
+        );
+    }
+
+    function testCannot_deleteL2Output_ifNotSequencer() external {
+        uint256 latestBlockTimestamp = oracle.latestBlockTimestamp();
+        bytes32 outputToDelete = oracle.getL2Output(latestBlockTimestamp);
+
+        vm.expectRevert("Ownable: caller is not the owner");
+        oracle.deleteL2Output(outputToDelete);
+    }
+
+    function testCannot_deleteL2Output_ifWrongOutput() external {
+        uint256 previousBlockTimestamp = oracle.latestBlockTimestamp() - submissionInterval;
+        bytes32 outputToDelete = oracle.getL2Output(previousBlockTimestamp);
+
+        vm.prank(sequencer);
+        vm.expectRevert("Can only delete the most recent output.");
+        oracle.deleteL2Output(outputToDelete);
+    }
 }
