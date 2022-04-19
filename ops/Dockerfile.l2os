@@ -7,7 +7,6 @@ COPY go.mod /app/go.mod
 COPY go.sum /app/go.sum
 
 WORKDIR /app
-COPY ./ops/l2os-entrypoint.sh /app/l2os-entrypoint.sh
 
 COPY ./l2os /app/l2os
 COPY ./opnode /app/opnode
@@ -15,9 +14,6 @@ RUN make l2os
 
 FROM alpine:3.15
 
-RUN apk add --no-cache curl jq
-
 COPY --from=builder /app/bin/l2os /usr/local/bin
-COPY --from=builder /app/l2os-entrypoint.sh /l2os-entrypoint.sh
 
-ENTRYPOINT ["/bin/sh", "/l2os-entrypoint.sh"]
+CMD ["l2os"]

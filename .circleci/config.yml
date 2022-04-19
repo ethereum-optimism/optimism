@@ -1,0 +1,57 @@
+version: 2.1
+
+
+jobs:
+  build-dockerfile:
+    docker:
+      - image: cimg/base:2022.04
+    parameters:
+      image-name:
+        description: Image name
+        type: string
+      image-tag:
+        description: Image tag
+        type: string
+      target:
+        description: Dockerfile target
+        type: string
+        default: ""
+      dockerfile:
+        description: Dockerfile to use
+        type: string
+    steps:
+      - checkout
+      - setup_remote_docker:
+          version: 19.03.13
+      - run:
+          name: Build
+          command: |
+            echo "$DOCKER_PASS" | docker login -u "$DOCKER_USERNAME" --password-stdin
+            docker build -t "ethereumoptimism/<<parameters.image-name>>:<<parameters.image-tag>>" -f <<parameters.dockerfile>> <<#parameters.target>>--target <<parameters.target>><</parameters.target>> .
+            docker push "ethereumoptimism/<<parameters.image-name>>:<<parameters.image-tag>>"
+
+workflows:
+  main:
+    jobs:
+      - build-dockerfile:
+          context:
+            - optimism
+          filters:
+            branches:
+              only:
+                - main
+          image-name: opnode
+          image-tag: develop
+          dockerfile: ops/Dockerfile.opnode
+          name: Build opnode
+      - build-dockerfile:
+          context:
+            - optimism
+          filters:
+            branches:
+              only:
+                - main
+          image-name: l2os
+          image-tag: develop
+          dockerfile: ops/Dockerfile.l2os
+          name: Build L2 output submitter
