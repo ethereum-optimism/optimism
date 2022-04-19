@@ -137,6 +137,7 @@ abstract contract WithdrawalsRelay {
         if (finalizedWithdrawals[withdrawalHash] == true) {
             revert WithdrawalAlreadyFinalized();
         }
+        finalizedWithdrawals[withdrawalHash] = true;
 
         l2Sender = _sender;
         // Make the call.
@@ -146,7 +147,6 @@ abstract contract WithdrawalsRelay {
 
         // All withdrawals are immediately finalized. If the ability to replay a transaction is
         // required, that support can be provided in external contracts.
-        finalizedWithdrawals[withdrawalHash] = true;
         emit WithdrawalFinalized(withdrawalHash);
     }
 }
