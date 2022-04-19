@@ -18,12 +18,12 @@ const deployFn: DeployFunction = async (hre) => {
   await deploy('L2OutputOracle', {
     from: deployer,
     args: [
-      15,
-      2,
-      `0x${'00'.repeat(32)}`,
-      0,
+      6, // submission interval
+      2, // l2 block time
+      `0x${'00'.repeat(32)}`, // genesis output
+      0, // historical blocks
       process.env.L2OO_STARTING_BLOCK_TIMESTAMP,
-      '0x70997970C51812dc3A010C7d01b50e0d17dc79C8',
+      '0x70997970C51812dc3A010C7d01b50e0d17dc79C8', // sequencer
     ],
     log: true,
     waitConfirmations: 1,

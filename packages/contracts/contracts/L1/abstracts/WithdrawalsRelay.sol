@@ -98,7 +98,7 @@ abstract contract WithdrawalsRelay {
         WithdrawalVerifier.OutputRootProof calldata _outputRootProof,
         bytes calldata _withdrawalProof
     ) external {
-        // Check that the timestamp is 7 days old.
+        // Check that the timestamp is sufficiently finalized.
         unchecked {
             if (block.timestamp < _timestamp + FINALIZATION_PERIOD) {
                 revert NotYetFinal();

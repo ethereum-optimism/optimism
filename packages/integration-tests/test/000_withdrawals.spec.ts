@@ -121,38 +121,47 @@ describe('Withdrawals', () => {
         l2OOracleArtifact.abi,
       ).connect(recipient)
 
-      const nextTimestamp = (await oracle.nextTimestamp()).toNumber()
-      const difference = burnBlock.timestamp - nextTimestamp
-      this.timeout(difference * 1000 + 60000)
+      // Calculate the target output timestamp to make the withdrawal proof against. ie. the first
+      // output with a timestamp greater than the burn block timestamp
+      const submissionInterval = (await oracle.SUBMISSION_INTERVAL()).toNumber()
+      const startingBlockTimestamp = (await oracle.STARTING_BLOCK_TIMESTAMP()).toNumber()
+      let nextTimestamp = (await oracle.nextTimestamp()).toNumber()
+      let targetOutputTimestamp
+      if (burnBlock.timestamp < nextTimestamp) {
+        // Just use the next timestamp
+        targetOutputTimestamp = nextTimestamp
+      } else {
+        // Calculate the first timestamp greater than the burnBlock which will be appended.
+        targetOutputTimestamp =
+        Math.ceil(
+          (burnBlock.timestamp - startingBlockTimestamp)
+          / submissionInterval
+        )
+        * submissionInterval
+        + startingBlockTimestamp
+      }
 
-      let targetOutputTimestamp: number
-      await awaitCondition(
-        async () => {
-          const nextTimestamp = (await oracle.nextTimestamp()).toNumber()
-          const difference = burnBlock.timestamp - nextTimestamp
-          logger.info('Waiting for timestamp', {
-            burnTS: burnBlock.timestamp,
-            nextTS: nextTimestamp,
-            difference: difference,
-          })
-          // update this number on each iteration. When the condition is met, this will be the
-          // timestamp we want to prove against.
-          targetOutputTimestamp = nextTimestamp
-          return nextTimestamp > burnBlock.timestamp
-        },
-        2000,
-        100,
-      )
+      // Set the timeout based on the diff between latest output and target output timestamp
+      let latestBlockTimestamp = (await oracle.latestBlockTimestamp()).toNumber()
+      let difference = targetOutputTimestamp - latestBlockTimestamp
+      this.timeout(difference * 5000)
 
       let output: string
       await awaitCondition(async () => {
         output = await oracle.getL2Output(targetOutputTimestamp)
-        logger.info('Waiting for output submission', {
-          targetTimestamp: targetOutputTimestamp,
-          output,
-        })
+        latestBlockTimestamp = (await oracle.latestBlockTimestamp()).toNumber()
+        if(targetOutputTimestamp - latestBlockTimestamp < difference){
+          // Only log when a new output has been appended
+          difference = targetOutputTimestamp - latestBlockTimestamp
+          logger.info('Waiting for output submission', {
+            targetTimestamp: targetOutputTimestamp,
+            latestOracleTS: latestBlockTimestamp,
+            difference,
+            output,
+          })
+        }
         return output != constants.HashZero
-      }, 2000, 100)
+      }, 2000, 240)
 
       // suppress compilation errors since Typescript cannot detect
       // that awaitCondition above will throw if it times out.

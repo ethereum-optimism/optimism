@@ -23,16 +23,16 @@ contract L2OutputOracle is Ownable {
      **********************/
 
     /// @notice The interval in seconds at which checkpoints must be submitted.
-    uint256 public immutable submissionInterval;
+    uint256 public immutable SUBMISSION_INTERVAL;
 
     /// @notice The time between blocks on L2.
-    uint256 public immutable l2BlockTime;
+    uint256 public immutable L2_BLOCK_TIME;
 
     /// @notice The number of blocks in the chain before the first block in this contract.
-    uint256 public immutable historicalTotalBlocks;
+    uint256 public immutable HISTORICAL_TOTAL_BLOCKS;
 
     /// @notice The timestamp of the first L2 block recorded in this contract.
-    uint256 public immutable startingBlockTimestamp;
+    uint256 public immutable STARTING_BLOCK_TIMESTAMP;
 
     /// @notice The timestamp of the most recent L2 block recorded in this contract.
     uint256 public latestBlockTimestamp;
@@ -62,12 +62,17 @@ contract L2OutputOracle is Ownable {
         uint256 _startingBlockTimestamp,
         address sequencer
     ) {
-        submissionInterval = _submissionInterval;
-        l2BlockTime = _l2BlockTime;
+        require(
+            _submissionInterval % _l2BlockTime == 0,
+            "Submission Interval must be a multiple of L2 Block Time"
+        );
+
+        SUBMISSION_INTERVAL = _submissionInterval;
+        L2_BLOCK_TIME = _l2BlockTime;
         l2Outputs[_startingBlockTimestamp] = _genesisL2Output; // solhint-disable not-rely-on-time
-        historicalTotalBlocks = _historicalTotalBlocks;
+        HISTORICAL_TOTAL_BLOCKS = _historicalTotalBlocks;
         latestBlockTimestamp = _startingBlockTimestamp; // solhint-disable not-rely-on-time
-        startingBlockTimestamp = _startingBlockTimestamp; // solhint-disable not-rely-on-time
+        STARTING_BLOCK_TIMESTAMP = _startingBlockTimestamp; // solhint-disable not-rely-on-time
 
         _transferOwnership(sequencer);
     }
@@ -121,7 +126,7 @@ contract L2OutputOracle is Ownable {
      * @notice Computes the timestamp of the next L2 block that needs to be checkpointed.
      */
     function nextTimestamp() public view returns (uint256) {
-        return latestBlockTimestamp + submissionInterval;
+        return latestBlockTimestamp + SUBMISSION_INTERVAL;
     }
 
     /**
@@ -139,14 +144,16 @@ contract L2OutputOracle is Ownable {
      */
     function computeL2BlockNumber(uint256 _l2timestamp) external view returns (uint256) {
         require(
-            _l2timestamp >= startingBlockTimestamp,
+            _l2timestamp >= STARTING_BLOCK_TIMESTAMP,
             "Timestamp prior to startingBlockTimestamp"
         );
-        // For the first block recorded (ie. _l2timestamp = startingBlockTimestamp), the
-        // L2BlockNumber should be historicalTotalBlocks + 1.
+        // For the first block recorded (ie. _l2timestamp = STARTING_BLOCK_TIMESTAMP), the
+        // L2BlockNumber should be HISTORICAL_TOTAL_BLOCKS + 1.
         unchecked {
             return
-                historicalTotalBlocks + 1 + ((_l2timestamp - startingBlockTimestamp) / l2BlockTime);
+                HISTORICAL_TOTAL_BLOCKS +
+                1 +
+                ((_l2timestamp - STARTING_BLOCK_TIMESTAMP) / L2_BLOCK_TIME);
         }
     }
 }

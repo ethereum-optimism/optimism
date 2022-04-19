@@ -47,11 +47,11 @@ contract L2OutputOracle_Initializer is DSTest {
 contract L2OutputOracleTest_Constructor is L2OutputOracle_Initializer {
     function test_constructor() external {
         assertEq(oracle.owner(), sequencer);
-        assertEq(oracle.submissionInterval(), submissionInterval);
-        assertEq(oracle.l2BlockTime(), l2BlockTime);
-        assertEq(oracle.historicalTotalBlocks(), historicalTotalBlocks);
+        assertEq(oracle.SUBMISSION_INTERVAL(), submissionInterval);
+        assertEq(oracle.L2_BLOCK_TIME(), l2BlockTime);
+        assertEq(oracle.HISTORICAL_TOTAL_BLOCKS(), historicalTotalBlocks);
         assertEq(oracle.latestBlockTimestamp(), startingBlockTimestamp);
-        assertEq(oracle.startingBlockTimestamp(), startingBlockTimestamp);
+        assertEq(oracle.STARTING_BLOCK_TIMESTAMP(), startingBlockTimestamp);
         assertEq(oracle.getL2Output(startingBlockTimestamp), genesisL2Output);
     }
 }
