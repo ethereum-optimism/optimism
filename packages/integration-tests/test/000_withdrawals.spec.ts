@@ -15,8 +15,36 @@ import winston from 'winston'
 
 const withdrawerArtifact = require('../../contracts/artifacts/contracts/L2/Withdrawer.sol/Withdrawer.json')
 const l2OOracleArtifact = require('../../contracts/artifacts/contracts/L1/L2OutputOracle.sol/L2OutputOracle.json')
-const counterArtifact = require('../artifacts/Counter.sol/Counter.json')
-const multiDepositorArtifact = require('../artifacts/MultiDepositor.sol/MultiDepositor.json')
+
+
+/**
+ * Calculates the target output timestamp to make the withdrawal proof against. ie. the first
+ * output with a timestamp greater than the burn block timestamp.
+ * @param {Contract} oracle Address of the L2 Output Oracle.
+ * @param {number} withdrawalTimestamp L2 timestamp of the block the withdrawal was made in.
+ */
+const getTargetOutput = async (oracle: Contract, withdrawalTimestamp: number) => {
+  const submissionInterval = (await oracle.SUBMISSION_INTERVAL()).toNumber()
+  const startingBlockTimestamp = (await oracle.STARTING_BLOCK_TIMESTAMP()).toNumber()
+  let nextTimestamp = (await oracle.nextTimestamp()).toNumber()
+  let targetOutputTimestamp
+  if (withdrawalTimestamp < nextTimestamp) {
+    // Just use the next timestamp
+    targetOutputTimestamp = nextTimestamp
+  } else {
+    // Calculate the first timestamp greater than the burnBlock which will be appended.
+    targetOutputTimestamp =
+    Math.ceil(
+      (withdrawalTimestamp - startingBlockTimestamp)
+      / submissionInterval
+    )
+    * submissionInterval
+    + startingBlockTimestamp
+  }
+
+  return targetOutputTimestamp
+}
+
 
 describe('Withdrawals', () => {
   let logger: winston.Logger
@@ -121,27 +149,9 @@ describe('Withdrawals', () => {
         l2OOracleArtifact.abi,
       ).connect(recipient)
 
-      // Calculate the target output timestamp to make the withdrawal proof against. ie. the first
-      // output with a timestamp greater than the burn block timestamp
-      const submissionInterval = (await oracle.SUBMISSION_INTERVAL()).toNumber()
-      const startingBlockTimestamp = (await oracle.STARTING_BLOCK_TIMESTAMP()).toNumber()
-      let nextTimestamp = (await oracle.nextTimestamp()).toNumber()
-      let targetOutputTimestamp
-      if (burnBlock.timestamp < nextTimestamp) {
-        // Just use the next timestamp
-        targetOutputTimestamp = nextTimestamp
-      } else {
-        // Calculate the first timestamp greater than the burnBlock which will be appended.
-        targetOutputTimestamp =
-        Math.ceil(
-          (burnBlock.timestamp - startingBlockTimestamp)
-          / submissionInterval
-        )
-        * submissionInterval
-        + startingBlockTimestamp
-      }
+      const targetOutputTimestamp = await getTargetOutput(oracle, burnBlock.timestamp)
 
-      // Set the timeout based on the diff between latest output and target output timestamp
+      // Set the timeout based on the diff between latest output and target output timestamp.
       let latestBlockTimestamp = (await oracle.latestBlockTimestamp()).toNumber()
       let difference = targetOutputTimestamp - latestBlockTimestamp
       this.timeout(difference * 5000)
@@ -165,7 +175,6 @@ describe('Withdrawals', () => {
 
       // suppress compilation errors since Typescript cannot detect
       // that awaitCondition above will throw if it times out.
-      targetOutputTimestamp = targetOutputTimestamp!
       output = output!
 
       const blocksSinceBurn = Math.floor((targetOutputTimestamp - burnBlock.timestamp) / 2)
