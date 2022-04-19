@@ -407,7 +407,7 @@ workflows:
           docker_tags: ethereumoptimism/proxyd:latest
           docker_context: .
       - docker-publish:
-          name: lsgeth-exporter-release
+          name: l2geth-exporter-release
           docker_file: ops/docker/Dockerfile.l2geth-exporter
           docker_tags: ethereumoptimism/l2geth-exporter:latest
           docker_context: .
