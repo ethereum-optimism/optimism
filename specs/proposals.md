@@ -44,6 +44,9 @@ If there is no newly finalized output, the service continues querying until it r
 output, and the appropriate timestamp, to the [L2 Output Root](#l2-output-root-smart-contract) contract's
 `appendL2Output()` function. The timestamp MUST be the next multiple of the `SUBMISSION_INTERVAL` value.
 
+The proposer may also delete the most recent output root by calling the `deleteL2Output()` function.
+The function can be called repeatedly if it is necessary to roll back the state further.
+
 > **Note regarding future work:** In the initial version of the system, the proposer will be the same entity as the
 > sequencer, which is a trusted role. In the future proposers will need to submit a bond in order to post L2 output
 > roots, and some or all of this bond may be taken in the event of a faulty proposal.
@@ -111,6 +114,12 @@ function appendL2Output(
     uint256 _l1Blocknumber
 )
 
+/**
+ * @notice Deletes the most recent output.
+ * @param _l2Output The value of the most recent output. Used to prevent erroneously deleting
+ *  the wrong root
+ */
+function deleteL2Output(bytes32 _l2Output) external
 
 /**
  * Computes the timestamp of the next L2 block that needs to be checkpointed.
