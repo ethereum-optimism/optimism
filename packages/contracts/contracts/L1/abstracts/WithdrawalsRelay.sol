@@ -5,7 +5,7 @@ pragma solidity 0.8.10;
 import { L2OutputOracle } from "../L2OutputOracle.sol";
 
 /* Library Imports */
-import { WithdrawalVerifier } from "../libraries/Lib_WithdrawalVerifier.sol";
+import { WithdrawalVerifier } from "../../libraries/Lib_WithdrawalVerifier.sol";
 
 /**
  * @title WithdrawalsRelay

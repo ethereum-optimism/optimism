@@ -7,7 +7,7 @@ import { Vm } from "../../lib/forge-std/src/Vm.sol";
 
 /* Target contract dependencies */
 import { L2OutputOracle } from "../L1/L2OutputOracle.sol";
-import { WithdrawalVerifier } from "../L1/libraries/Lib_WithdrawalVerifier.sol";
+import { WithdrawalVerifier } from "../libraries/Lib_WithdrawalVerifier.sol";
 
 /* Target contract */
 import { WithdrawalsRelay } from "../L1/abstracts/WithdrawalsRelay.sol";

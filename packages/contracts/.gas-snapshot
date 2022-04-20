@@ -28,5 +28,5 @@ WithdrawalsRelay_finalizeWithdrawalTransaction_Test:test_cannotVerifyInvalidProo
 WithdrawalsRelay_finalizeWithdrawalTransaction_Test:test_cannotVerifyRecentWithdrawal() (gas: 39686)
 WithdrawalsRelay_finalizeWithdrawalTransaction_Test:test_verifyWithdrawal() (gas: 200110)
 WithdawerBurnTest:test_burn() (gas: 50276)
-WithdrawerTestInitiateWithdrawal:test_initiateWithdrawal_fromContract() (gas: 71947)
-WithdrawerTestInitiateWithdrawal:test_initiateWithdrawal_fromEOA() (gas: 72412)
+WithdrawerTestInitiateWithdrawal:test_initiateWithdrawal_fromContract() (gas: 72023)
+WithdrawerTestInitiateWithdrawal:test_initiateWithdrawal_fromEOA() (gas: 72488)
