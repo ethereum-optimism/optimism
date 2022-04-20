@@ -13,7 +13,7 @@ resources:
   - ../../bases/data-transport-layer
   - ../../bases/l2geth-replica
   - ../../bases/servicemonitors
-  - ../../bases/replica-healthcheck
+  - ../../bases/replica-healthcheck-v1
   - ./volumes.yaml
 
 images:
@@ -23,7 +23,7 @@ images:
   - name: ethereumoptimism/l2geth
     newName: ethereumoptimism/l2geth
     newTag: latest
-  - name: ethereumoptimism/replica-healthcheck
+  - name: ethereumoptimism/replica-healthcheck-v1
     newName: ethereumoptimism/replica-healthcheck
     newTag: latest
 
