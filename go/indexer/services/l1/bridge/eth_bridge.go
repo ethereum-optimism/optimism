@@ -25,9 +25,8 @@ func (e *EthBridge) GetDepositsByBlockRange(start, end uint64) (DepositsMap, err
 	depositsByBlockhash := make(DepositsMap)
 
 	iter, err := FilterETHDepositInitiatedWithRetry(e.filterer, &bind.FilterOpts{
-		Start:   start,
-		End:     &end,
-		Context: e.ctx,
+		Start: start,
+		End:   &end,
 	})
 	if err != nil {
 		logger.Error("Error fetching filter", "err", err)

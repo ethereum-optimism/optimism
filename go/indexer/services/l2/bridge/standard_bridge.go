@@ -26,9 +26,8 @@ func (s *StandardBridge) GetWithdrawalsByBlockRange(start, end uint64) (Withdraw
 	withdrawalsByBlockhash := make(map[common.Hash][]db.Withdrawal)
 
 	iter, err := FilterWithdrawalInitiatedWithRetry(s.filterer, &bind.FilterOpts{
-		Start:   start,
-		End:     &end,
-		Context: s.ctx,
+		Start: start,
+		End:   &end,
 	})
 	if err != nil {
 		logger.Error("Error fetching filter", "err", err)
