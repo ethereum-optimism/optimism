@@ -18,6 +18,9 @@ contract L2OutputOracle is Ownable {
     /// @notice Emitted when an output is appended.
     event l2OutputAppended(bytes32 indexed _l2Output, uint256 indexed _l2timestamp);
 
+    /// @notice Emitted when an output is deleted.
+    event l2OutputDeleted(bytes32 indexed _l2Output, uint256 indexed _l2timestamp);
+
     /**********************
      * Contract Variables *
      **********************/
@@ -120,6 +123,20 @@ contract L2OutputOracle is Ownable {
         latestBlockTimestamp = _l2timestamp;
 
         emit l2OutputAppended(_l2Output, _l2timestamp);
+    }
+
+    /**
+     * @notice Deletes the most recent output.
+     * @param _l2Output The value of the most recent output. Used to prevent erroneously deleting
+     *  the wrong root
+     */
+    function deleteL2Output(bytes32 _l2Output) external onlyOwner {
+        bytes32 outputToDelete = l2Outputs[latestBlockTimestamp];
+        require(_l2Output == outputToDelete, "Can only delete the most recent output.");
+        emit l2OutputDeleted(outputToDelete, latestBlockTimestamp);
+
+        delete l2Outputs[latestBlockTimestamp];
+        latestBlockTimestamp = latestBlockTimestamp - SUBMISSION_INTERVAL;
     }
 
     /**
