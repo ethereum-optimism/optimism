@@ -278,7 +278,7 @@ jobs:
     steps:
       - checkout
       - setup_remote_docker:
-            version: 20.10.12
+          version: 20.10.12
       - when:
           condition: <<parameters.target>>
           steps:
