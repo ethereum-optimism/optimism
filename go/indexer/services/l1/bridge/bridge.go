@@ -31,12 +31,14 @@ var customBridgeCfgs = map[uint64][]*implConfig{
 	1: {
 		{"BitBTC", "StandardBridge", common.HexToAddress("0xaBA2c5F108F7E820C049D5Af70B16ac266c8f128")},
 		{"DAI", "StandardBridge", common.HexToAddress("0x10E6593CDda8c58a1d0f14C5164B376352a55f2F")},
+		{"SNX", "StandardBridge", common.HexToAddress("0xCd9D4988C0AE61887B075bA77f08cbFAd2b65068")},
 	},
 	// Kovan
 	42: {
 		{"BitBTC", "StandardBridge", common.HexToAddress("0x0b651A42F32069d62d5ECf4f2a7e5Bd3E9438746")},
 		{"USX", "StandardBridge", common.HexToAddress("0x40E862341b2416345F02c41Ac70df08525150dC7")},
 		{"DAI", "StandardBridge", common.HexToAddress("0xb415e822C4983ecD6B1c1596e8a5f976cf6CD9e3")},
+		{"SNX", "StandardBridge", common.HexToAddress("0xD134Db47DDF5A6feB245452af17cCAf92ee53D3c")},
 	},
 }
 
