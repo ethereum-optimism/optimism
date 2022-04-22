@@ -99,6 +99,7 @@ type BatchBundleRequest struct {
 	// A batch-submitter may search the history using gaps to find a common point even with deep reorgs.
 	L2History []common.Hash
 
+	MinSize hexutil.Uint64
 	MaxSize hexutil.Uint64
 }
 
@@ -152,6 +153,8 @@ func (n *nodeAPI) GetBatchBundle(ctx context.Context, req *BatchBundleRequest) (
 	lastL2Hash := found.Hash
 	lastL2BlockNum := found.Number
 	var batches []*derive.BatchData
+	var totalBatchSizeBytes uint64
+	var hasLargeNextBatch bool
 	// Now continue fetching the next blocks, and build batches, until we either run out of space, or run out of blocks.
 	for i := found.Number + 1; i < found.Number+MaxL2BlocksPerBatchResponse+1; i++ {
 		l2Block, err := n.client.BlockByNumber(ctx, big.NewInt(int64(i)))
@@ -165,30 +168,92 @@ func (n *nodeAPI) GetBatchBundle(ctx context.Context, req *BatchBundleRequest) (
 		if err != nil {
 			return nil, fmt.Errorf("failed to convert L2 block %d (%s) to batch: %v", i, l2Block.Hash(), err)
 		}
-		lastL2Hash = l2Block.Hash()
-		lastL2BlockNum = l2Block.Number().Uint64()
 		if batch == nil { // empty block, nothing to submit as batch
+			lastL2Hash = l2Block.Hash()
+			lastL2BlockNum = l2Block.Number().Uint64()
 			continue
 		}
+
+		// Encode the single as a batch to get a size estimate. This should
+		// slightly overestimate the size of the final batch, since each
+		// serialization will contribute the bundle version byte that is
+		// typically amortized over the entire bundle.
+		//
+		// TODO(conner): use iterative encoder when switching to calldata
+		// compression.
+		var buf bytes.Buffer
+		err = derive.EncodeBatches(n.config, []*derive.BatchData{batch}, &buf)
+		if err != nil {
+			return nil, fmt.Errorf("failed to encode batch for size estimate: %v", err)
+		}
+
+		nextBatchSizeBytes := uint64(len(buf.Bytes()))
+		if totalBatchSizeBytes+nextBatchSizeBytes > uint64(req.MaxSize) {
+			// Adding this batch causes the bundle to be too large. Record
+			// whether the bundle size without the batch fails to meet the
+			// minimum size constraint. This is used below to determine whether
+			// or not to ignore the minimum size check, since in this scnario it
+			// can't be avoided, and the batch submitter must submit the
+			// undersized batch to avoid live locking.
+			hasLargeNextBatch = totalBatchSizeBytes < uint64(req.MinSize)
+			break
+		}
+
+		totalBatchSizeBytes += nextBatchSizeBytes
 		batches = append(batches, batch)
-		// TODO: estimate size of all batches so far (including compressing them together, if we reached max size yet)
+		lastL2Hash = l2Block.Hash()
+		lastL2BlockNum = l2Block.Number().Uint64()
 	}
 
-	var buf bytes.Buffer
-	if err := derive.EncodeBatches(n.config, batches, &buf); err != nil {
-		return nil, fmt.Errorf("failed to encode selected batches as bundle: %v", err)
-	}
+	var pruneCount int
+	for {
 
-	// sanity check the size is within desired limit as planned
-	if size := uint64(len(buf.Bytes())); size > uint64(req.MaxSize) {
-		return nil, fmt.Errorf("batch size is wrong, ended up with bundle that is too large: %d > %d", size, req.MaxSize)
-	}
+		var buf bytes.Buffer
+		if err := derive.EncodeBatches(n.config, batches, &buf); err != nil {
+			return nil, fmt.Errorf("failed to encode selected batches as bundle: %v", err)
+		}
 
-	return &BatchBundleResponse{
-		PrevL2BlockHash: found.Hash,
-		PrevL2BlockNum:  hexutil.Uint64(found.Number),
-		LastL2BlockHash: lastL2Hash,
-		LastL2BlockNum:  hexutil.Uint64(lastL2BlockNum),
-		Bundle:          hexutil.Bytes(buf.Bytes()),
-	}, nil
+		bundleSize := uint64(len(buf.Bytes()))
+
+		// Sanity check the bundle size respects the desired maximum. If we have
+		// exceeded the max size, prune the last block. This is very unlikely to
+		// occur since our initial greedy estimate has a very small, bounded
+		// error tolerance, so simply remove the last block and try again.
+		if bundleSize > uint64(req.MaxSize) {
+			batches = batches[:len(batches)-1]
+			pruneCount++
+			continue
+		}
+
+		// There are two specific cases in which we choose to ignore the minimum
+		// L1 tx size. These cases are permitted since they arise from
+		// situations where the difference between the configured MinTxSize and
+		// MaxTxSize is less than the maximum L2 tx size permitted by the
+		// mempool.
+		//
+		// This configuration is useful when trying to ensure the profitability
+		// is sufficient, and we permit batches to be submitted with less than
+		// our desired configuration only if it is not possible to construct a
+		// batch within the given parameters.
+		//
+		// The two cases are:
+		// 1. When the next batch is larger than the difference between the
+		//    min and the max, causing the batch to be too small without the
+		//    element, and too large with it.
+		// 2. When pruning a batch that initially exceeds the max size, and then
+		//    becomes too small as a result. This is avoided by only applying
+		//    the min size check when the pruneCount is zero.
+		ignoreMinSize := pruneCount > 0 || hasLargeNextBatch
+		if !ignoreMinSize && bundleSize < uint64(req.MinSize) {
+			return nil, nil
+		}
+
+		return &BatchBundleResponse{
+			PrevL2BlockHash: found.Hash,
+			PrevL2BlockNum:  hexutil.Uint64(found.Number),
+			LastL2BlockHash: lastL2Hash,
+			LastL2BlockNum:  hexutil.Uint64(lastL2BlockNum),
+			Bundle:          hexutil.Bytes(buf.Bytes()),
+		}, nil
+	}
 }
