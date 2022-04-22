@@ -76,8 +76,8 @@ components:
           type: string
         queueOrigin:
           type: string
-        queueIndex: number
-          type: string
+        queueIndex:
+          type: number
         decoded:
           type: object
           $ref: '#/components/schemas/DecodedSequencerBatchTransaction'
