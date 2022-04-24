@@ -256,6 +256,55 @@ jobs:
           command: yarn test:coverage
           working_directory: packages/<<parameters.package_name>>
 
+  docker-publish:
+    environment:
+      DOCKER_BUILDKIT: 1
+    parameters:
+      docker_tags:
+        description: Docker image tags as csv
+        type: string
+      docker_file:
+        description: Path to Dockerfile
+        type: string
+      docker_context:
+        description: Docker build context
+        type: string
+      target:
+        description: Docker build target
+        type: string
+        default: ""
+    docker:
+      - image: circleci/buildpack-deps:stretch
+    steps:
+      - checkout
+      - setup_remote_docker:
+          version: 20.10.12
+      - when:
+          condition: <<parameters.target>>
+          steps:
+            - run:
+                name: Build with context
+                command: |
+                    docker build \
+                    $(echo -ne "<< parameters.docker_tags >>" | sed "s/,/\n/g" | sed -e 's/^/-t /' | tr '\n' ' ') \
+                    -f <<parameters.docker_file>> \
+                    --target <<parameters.target>> \
+                    <<parameters.docker_context>>
+      - unless:
+          condition: <<parameters.target>>
+          steps:
+            - run:
+                name: Build
+                command: |
+                    docker build \
+                    $(echo -ne "<< parameters.docker_tags >>" | sed "s/,/\n/g" | sed -e 's/^/-t /' | tr '\n' ' ') \
+                    -f <<parameters.docker_file>> \
+                    <<parameters.docker_context>>
+      - run:
+          name: Publish
+          command: |
+            echo "$DOCKER_PASS" | docker login -u "$DOCKER_USERNAME" --password-stdin
+            docker push <<parameters.docker_tags>>
 
 workflows:
   main:
@@ -317,3 +366,123 @@ workflows:
             - yarn-monorepo
       - geth-tests
       - integration-tests
+
+  nightly:
+    triggers:
+      - schedule:
+          cron: "0 10 * * *"
+          filters:
+            branches:
+              only:
+                - develop
+    jobs:
+      - yarn-monorepo
+      - docker-publish:
+          name: l2geth-release
+          docker_file: ops/docker/Dockerfile.geth
+          docker_tags: ethereumoptimism/l2geth:nightly
+          docker_context: .
+          context:
+            - optimism
+      - docker-publish:
+          name: gas-oracle-release
+          docker_file: ops/docker/Dockerfile.gas-oracle
+          docker_tags: ethereumoptimism/gas-oracle:nightly
+          docker_context: .
+          context:
+            - optimism
+      - docker-publish:
+          name: hardhat-node-release
+          docker_file: ops/docker/hardhat/Dockerfile
+          docker_tags: ethereumoptimism/hardhat-node:nightly
+          docker_context: ops/docker/hardhat
+          context:
+            - optimism
+      - docker-publish:
+          name: go-builder-release
+          docker_file: ops/docker/go-builder/Dockerfile
+          docker_tags: ethereumoptimism/go-builder:nightly
+          docker_context: .
+          context:
+            - optimism
+      - docker-publish:
+          name: js-builder-release
+          docker_file: ops/docker/js-builder/Dockerfile
+          docker_tags: ethereumoptimism/js-builder:nightly
+          docker_context: .
+          context:
+            - optimism
+      - docker-publish:
+          name: proxyd-release
+          docker_file: go/proxyd/Dockerfile
+          docker_tags: ethereumoptimism/proxyd:nightly
+          docker_context: .
+          context:
+            - optimism
+      - docker-publish:
+          name: l2geth-exporter-release
+          docker_file: ops/docker/Dockerfile.l2geth-exporter
+          docker_tags: ethereumoptimism/l2geth-exporter:nightly
+          docker_context: .
+          context:
+            - optimism
+      - docker-publish:
+          name: op-exporter-release
+          docker_file: ops/docker/Dockerfile.op-exporter
+          docker_tags: ethereumoptimism/op-exporter:nightly
+          docker_context: .
+          context:
+            - optimism
+      - docker-publish:
+          name: message-relayer-release
+          docker_file: ops/docker/Dockerfile.packages
+          docker_tags: ethereumoptimism/message-relayer:nightly
+          docker_context: .
+          target: message-relayer
+          context:
+            - optimism
+      - docker-publish:
+          name: data-transport-layer-release
+          docker_file: ops/docker/Dockerfile.packages
+          docker_tags: ethereumoptimism/data-transport-layer:nightly
+          docker_context: .
+          target: data-transport-layer
+          context:
+            - optimism
+      - docker-publish:
+          name: deployer-release
+          docker_file: ops/docker/Dockerfile.packages
+          docker_tags: ethereumoptimism/deployer:nightly
+          docker_context: .
+          target: integration-tests
+          context:
+            - optimism
+      - docker-publish:
+          name: replica-healthcheck-release
+          docker_file: ops/docker/Dockerfile.packages
+          docker_tags: ethereumoptimism/replica-healthcheck:nightly
+          docker_context: .
+          target: replica-healthcheck
+          context:
+            - optimism
+      - docker-publish:
+          name: batch-submitter-service-release
+          docker_file: ops/docker/Dockerfile.batch-submitter-service
+          docker_tags: ethereumoptimism/batch-submitter-service:nightly
+          docker_context: .
+          context:
+            - optimism
+      - docker-publish:
+          name: indexer-release
+          docker_file: ops/docker/Dockerfile.indexer
+          docker_tags: ethereumoptimism/indexer:nightly
+          docker_context: .
+          context:
+            - optimism
+      - docker-publish:
+          name: teleportr-release
+          docker_file: ops/docker/Dockerfile.teleportr
+          docker_tags: ethereumoptimism/teleportr:nightly
+          docker_context: .
+          context:
+            - optimism
