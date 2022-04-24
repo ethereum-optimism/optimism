@@ -9,9 +9,6 @@ spec:
       containers:
         - name: replica-healthcheck
           image: ethereumoptimism/replica-healthcheck-v1
-          envFrom:
-            - configMapRef:
-                name: replica-healthcheck-v1
           ports:
             - containerPort: 7300
               name: metrics
