@@ -1,0 +1,15 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: replica-healthcheck-v1
+spec:
+  replicas: 1
+  template:
+    spec:
+      containers:
+        - name: replica-healthcheck
+          env:
+            - name: HEALTHCHECK__REFERENCE_RPC_PROVIDER
+              value: http://sequencer.default:8545
+            - name: HEALTHCHECK__TARGET_RPC_PROVIDER
+              value: http://l2geth-replica:8545
