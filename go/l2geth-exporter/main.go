@@ -31,9 +31,14 @@ func main() {
 		log.Error("L1_URL environmental variable is required")
 		os.Exit(1)
 	}
-	ctcAddress := os.Getenv("CTC_ADDRESS")
+	ctcAddress := os.Getenv("OVM_CTC_ADDRESS")
 	if ctcAddress == "" {
 		log.Error("CTC_ADDRESS environmental variable is required")
+		os.Exit(1)
+	}
+	sccAddress := os.Getenv("OVM_SCC_ADDRESS")
+	if sccAddress == "" {
+		log.Error("OVM_SCC_ADDRESS environmental variable is required")
 		os.Exit(1)
 	}
 	client, err := ethclient.Dial(l1Url)
@@ -51,7 +56,8 @@ func main() {
 		</body>
 		</html>`))
 	})
-	go getCTCTotalElements(ctcAddress, client)
+	go getCTCTotalElements(ctcAddress, "ctc", client)
+	go getSCCTotalElements(sccAddress, "scc", client)
 
 	log.Info("Program starting", "listenAddress", listenAddress, "GETH_URL", l1Url, "CTC_ADDRESS", ctcAddress)
 	if err := http.ListenAndServe(listenAddress, nil); err != nil {
@@ -60,7 +66,35 @@ func main() {
 
 }
 
-func getCTCTotalElements(address string, client *ethclient.Client) {
+func getSCCTotalElements(address string, addressLabel string, client *ethclient.Client) {
+	scc := l1contracts.SCC{
+		Address: common.HexToAddress(address),
+		Client:  client,
+	}
+
+	ticker := time.NewTicker(30 * time.Second)
+	defer ticker.Stop()
+	for {
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second*time.Duration(l1TimeoutSeconds))
+		totalElements, err := scc.GetTotalElements(ctx)
+		if err != nil {
+			addressTotalElementsCallStatus.WithLabelValues("error", addressLabel).Inc()
+			log.Error("Error calling GetTotalElements", "address", addressLabel, "error", err)
+			cancel()
+			continue
+		}
+		addressTotalElementsCallStatus.WithLabelValues("success", addressLabel).Inc()
+		totalElementsFloat, _ := new(big.Float).SetInt(totalElements).Float64()
+		addressTotalElements.WithLabelValues("latest", addressLabel).Set(totalElementsFloat)
+
+		log.Info(addressLabel, "TotalElements", totalElementsFloat)
+		cancel()
+		<-ticker.C
+
+	}
+}
+
+func getCTCTotalElements(address string, addressLabel string, client *ethclient.Client) {
 	ctc := l1contracts.CTC{
 		Address: common.HexToAddress(address),
 		Client:  client,
@@ -72,16 +106,16 @@ func getCTCTotalElements(address string, client *ethclient.Client) {
 		ctx, cancel := context.WithTimeout(context.Background(), time.Second*time.Duration(l1TimeoutSeconds))
 		totalElements, err := ctc.GetTotalElements(ctx)
 		if err != nil {
-			ctcTotalElementsCallSuccess.Set(0)
-			log.Error("Error calling GetTotalElements", "error", err)
+			addressTotalElementsCallStatus.WithLabelValues("error", addressLabel).Inc()
+			log.Error("Error calling GetTotalElements", "address", addressLabel, "error", err)
 			cancel()
 			continue
 		}
-		ctcTotalElementsCallSuccess.Set(1)
+		addressTotalElementsCallStatus.WithLabelValues("success", addressLabel).Inc()
 		totalElementsFloat, _ := new(big.Float).SetInt(totalElements).Float64()
-		ctcTotalElements.WithLabelValues(
-			"latest").Set(totalElementsFloat)
-		log.Info("ctc updated", "ctcTotalElements", totalElementsFloat)
+		addressTotalElements.WithLabelValues("latest", addressLabel).Set(totalElementsFloat)
+
+		log.Info(addressLabel, "TotalElements", totalElementsFloat)
 		cancel()
 		<-ticker.C
 

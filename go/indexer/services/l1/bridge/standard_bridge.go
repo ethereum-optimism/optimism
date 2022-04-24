@@ -24,10 +24,9 @@ func (s *StandardBridge) Address() common.Address {
 func (s *StandardBridge) GetDepositsByBlockRange(start, end uint64) (DepositsMap, error) {
 	depositsByBlockhash := make(DepositsMap)
 
-	iter, err := FilterERC20DepositInitiatedWithRetry(s.filterer, &bind.FilterOpts{
-		Start:   start,
-		End:     &end,
-		Context: s.ctx,
+	iter, err := FilterERC20DepositInitiatedWithRetry(s.ctx, s.filterer, &bind.FilterOpts{
+		Start: start,
+		End:   &end,
 	})
 	if err != nil {
 		logger.Error("Error fetching filter", "err", err)
