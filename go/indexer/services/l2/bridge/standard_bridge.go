@@ -25,10 +25,9 @@ func (s *StandardBridge) Address() common.Address {
 func (s *StandardBridge) GetWithdrawalsByBlockRange(start, end uint64) (WithdrawalsMap, error) {
 	withdrawalsByBlockhash := make(map[common.Hash][]db.Withdrawal)
 
-	iter, err := FilterWithdrawalInitiatedWithRetry(s.filterer, &bind.FilterOpts{
-		Start:   start,
-		End:     &end,
-		Context: s.ctx,
+	iter, err := FilterWithdrawalInitiatedWithRetry(s.ctx, s.filterer, &bind.FilterOpts{
+		Start: start,
+		End:   &end,
 	})
 	if err != nil {
 		logger.Error("Error fetching filter", "err", err)
