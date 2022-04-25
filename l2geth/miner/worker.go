@@ -34,6 +34,7 @@ import (
 	"github.com/ethereum-optimism/optimism/l2geth/core/types"
 	"github.com/ethereum-optimism/optimism/l2geth/event"
 	"github.com/ethereum-optimism/optimism/l2geth/log"
+	"github.com/ethereum-optimism/optimism/l2geth/metrics"
 	"github.com/ethereum-optimism/optimism/l2geth/params"
 )
 
@@ -85,6 +86,13 @@ var (
 	// l2geth, rather the actual execution error should be returned to the
 	// user.
 	ErrCannotCommitTxn = errors.New("Cannot commit transaction in miner")
+
+	// rollup apply transaction metrics
+	accountReadTimer   = metrics.NewRegisteredTimer("rollup/tx/account/reads", nil)
+	accountUpdateTimer = metrics.NewRegisteredTimer("rollup/tx/account/updates", nil)
+	storageReadTimer   = metrics.NewRegisteredTimer("rollup/tx/storage/reads", nil)
+	storageUpdateTimer = metrics.NewRegisteredTimer("rollup/tx/storage/updates", nil)
+	txExecutionTimer   = metrics.NewRegisteredTimer("rollup/tx/execution", nil)
 )
 
 // environment is the worker's current environment and holds all of the current state information.
@@ -771,6 +779,7 @@ func (w *worker) commitTransaction(tx *types.Transaction, coinbase common.Addres
 	}
 	snap := w.current.state.Snapshot()
 
+	start := time.Now()
 	receipt, err := core.ApplyTransaction(w.chainConfig, w.chain, &coinbase, w.current.gasPool, w.current.state, w.current.header, tx, &w.current.header.GasUsed, *w.chain.GetVMConfig())
 	if err != nil {
 		w.current.state.RevertToSnapshot(snap)
@@ -778,6 +787,8 @@ func (w *worker) commitTransaction(tx *types.Transaction, coinbase common.Addres
 	}
 	w.current.txs = append(w.current.txs, tx)
 	w.current.receipts = append(w.current.receipts, receipt)
+
+	updateTransactionStateMetrics(start, w.current.state)
 
 	return receipt.Logs, nil
 }
@@ -1142,4 +1153,14 @@ func (w *worker) postSideBlock(event core.ChainSideEvent) {
 	case w.chainSideCh <- event:
 	case <-w.exitCh:
 	}
+}
+
+func updateTransactionStateMetrics(start time.Time, state *state.StateDB) {
+	accountReadTimer.Update(state.AccountReads)
+	storageReadTimer.Update(state.StorageReads)
+	accountUpdateTimer.Update(state.AccountUpdates)
+	storageUpdateTimer.Update(state.StorageUpdates)
+
+	triehash := state.AccountHashes + state.StorageHashes
+	txExecutionTimer.Update(time.Since(start) - triehash)
 }
