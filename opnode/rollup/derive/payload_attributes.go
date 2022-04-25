@@ -17,11 +17,12 @@ import (
 )
 
 var (
-	DepositEventABI     = "TransactionDeposited(address,address,uint256,uint256,uint64,bool,bytes)"
-	DepositEventABIHash = crypto.Keccak256Hash([]byte(DepositEventABI))
-	L1InfoFuncSignature = "setL1BlockValues(uint256,uint256,uint256,bytes32)"
-	L1InfoFuncBytes4    = crypto.Keccak256([]byte(L1InfoFuncSignature))[:4]
-	L1InfoPredeployAddr = common.HexToAddress("0x4200000000000000000000000000000000000015")
+	DepositEventABI        = "TransactionDeposited(address,address,uint256,uint256,uint64,bool,bytes)"
+	DepositEventABIHash    = crypto.Keccak256Hash([]byte(DepositEventABI))
+	L1InfoFuncSignature    = "setL1BlockValues(uint256,uint256,uint256,bytes32)"
+	L1InfoFuncBytes4       = crypto.Keccak256([]byte(L1InfoFuncSignature))[:4]
+	L1InfoPredeployAddr    = common.HexToAddress("0x4200000000000000000000000000000000000015")
+	L1InfoDepositerAddress = common.HexToAddress("0xdeaddeaddeaddeaddeaddeaddeaddeaddead0001")
 )
 
 type UserDepositSource struct {
@@ -171,15 +172,15 @@ type L1Info interface {
 
 // L1InfoDeposit creats a L1 Info deposit transaction based on the L1 block,
 // and the L2 block-height difference with the start of the epoch.
-func L1InfoDeposit(seqNumber uint64, block L1Info, depositContractAddr common.Address) *types.DepositTx {
-	data := make([]byte, 4+8+8+32+32)
+func L1InfoDeposit(seqNumber uint64, block L1Info) *types.DepositTx {
+	data := make([]byte, 4+32+32+32+32)
 	offset := 0
 	copy(data[offset:4], L1InfoFuncBytes4)
 	offset += 4
-	binary.BigEndian.PutUint64(data[offset:offset+8], block.NumberU64())
-	offset += 8
-	binary.BigEndian.PutUint64(data[offset:offset+8], block.Time())
-	offset += 8
+	binary.BigEndian.PutUint64(data[offset+24:offset+32], block.NumberU64())
+	offset += 32
+	binary.BigEndian.PutUint64(data[offset+24:offset+32], block.Time())
+	offset += 32
 	block.BaseFee().FillBytes(data[offset : offset+32])
 	offset += 32
 	copy(data[offset:offset+32], block.Hash().Bytes())
@@ -191,7 +192,7 @@ func L1InfoDeposit(seqNumber uint64, block L1Info, depositContractAddr common.Ad
 
 	return &types.DepositTx{
 		SourceHash: source.SourceHash(),
-		From:       depositContractAddr,
+		From:       L1InfoDepositerAddress,
 		To:         &L1InfoPredeployAddr,
 		Mint:       nil,
 		Value:      big.NewInt(0),
@@ -334,8 +335,8 @@ func FillMissingBatches(batches []*BatchData, epoch, blockTime, minL2Time, nextL
 }
 
 // L1InfoDepositBytes returns a serialized L1-info attributes transaction.
-func L1InfoDepositBytes(seqNumber uint64, l1Info L1Info, depositContractAddress common.Address) (hexutil.Bytes, error) {
-	l1Tx := types.NewTx(L1InfoDeposit(seqNumber, l1Info, depositContractAddress))
+func L1InfoDepositBytes(seqNumber uint64, l1Info L1Info) (hexutil.Bytes, error) {
+	l1Tx := types.NewTx(L1InfoDeposit(seqNumber, l1Info))
 	opaqueL1Tx, err := l1Tx.MarshalBinary()
 	if err != nil {
 		return nil, fmt.Errorf("failed to encode L1 info tx")

@@ -103,7 +103,7 @@ type infoTest struct {
 	mkInfo func(rng *rand.Rand) *l1MockInfo
 }
 
-var MockDepositContractAddr = common.HexToAddress("0xdeaddeaddeaddeaddeaddeaddeaddeaddead0001")
+var MockDepositContractAddr = common.HexToAddress("0xdeadbeefdeadbeefdeadbeefdeadbeef00000000")
 
 func TestParseL1InfoDepositTxData(t *testing.T) {
 	// Go 1.18 will have native fuzzing for us to use, until then, we cover just the below cases
@@ -125,7 +125,7 @@ func TestParseL1InfoDepositTxData(t *testing.T) {
 	for i, testCase := range cases {
 		t.Run(testCase.name, func(t *testing.T) {
 			info := testCase.mkInfo(rand.New(rand.NewSource(int64(1234 + i))))
-			depTx := L1InfoDeposit(123, info, MockDepositContractAddr)
+			depTx := L1InfoDeposit(123, info)
 			nr, time, baseFee, h, err := L1InfoDepositTxData(depTx.Data)
 			assert.NoError(t, err, "expected valid deposit info")
 			assert.Equal(t, nr, info.num)
