@@ -125,10 +125,13 @@ func UnmarshalLogEvent(ev *types.Log) (*types.DepositTx, error) {
 		dep.To = &to
 	}
 	offset += 32
+	// dynamic fields are encoded in three parts. The fixed size portion is the offset of the start of the
+	// data. The first 32 bytes of a `bytes` object is the length of the bytes. Then are the actual bytes
+	// padded out to 32 byte increments.
 	var dataOffset uint256.Int
 	dataOffset.SetBytes(ev.Data[offset : offset+32])
 	offset += 32
-	if dataOffset.Eq(uint256.NewInt(128)) {
+	if !dataOffset.Eq(uint256.NewInt(offset)) {
 		return nil, fmt.Errorf("incorrect data offset: %v", dataOffset[0])
 	}
 
