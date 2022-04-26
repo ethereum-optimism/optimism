@@ -40,7 +40,7 @@ devnet-up:
 
 devnet-down:
 	@(cd ./ops && GENESIS_TIMESTAMP=$(shell date +%s) docker-compose stop)
-.PHONY: devnet-stop
+.PHONY: devnet-down
 
 devnet-clean:
 	rm -rf ./packages/contracts/deployments/devnetL1

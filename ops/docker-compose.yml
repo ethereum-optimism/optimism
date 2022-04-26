@@ -70,3 +70,4 @@ services:
       OUTPUT_SUBMITTER_RESUBMISSION_TIMEOUT: 30s
       OUTPUT_SUBMITTER_MNEMONIC: test test test test test test test test test test test junk
       OUTPUT_SUBMITTER_L2_OUTPUT_HD_PATH: "m/44'/60'/0'/0/1"
+      L2OO_ADDRESS: "${L2OO_ADDRESS}"

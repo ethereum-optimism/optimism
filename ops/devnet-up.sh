@@ -137,10 +137,8 @@ jq ". | .genesis.l1.hash = \"$(echo $L1_GENESIS | jq -r '.result.hash')\"" < ./o
 
 # Bring up everything else.
 cd ops
-echo "Bringing up rollup node..."
-docker-compose up -d opnode
-echo "Bringing up output submitter..."
-docker-compose run -e L2OO_ADDRESS="$L2OO_ADDRESS" -d --name ops-l2os-1 l2os
+echo "Bringing up devnet..."
+L2OO_ADDRESS="$L2OO_ADDRESS" docker-compose up -d l2os
 cd ../
 
 echo "Devnet ready."
