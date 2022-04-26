@@ -21,7 +21,7 @@ contract DepositFeedTest is DSTest {
     address immutable NON_ZERO_ADDRESS = address(1);
     uint256 immutable NON_ZERO_VALUE = 100;
     uint256 immutable ZERO_VALUE = 0;
-    uint256 immutable NON_ZERO_GASLIMIT = 50000;
+    uint64 immutable NON_ZERO_GASLIMIT = 50000;
     bytes NON_ZERO_DATA = hex"1111";
 
     Target df;
@@ -31,7 +31,7 @@ contract DepositFeedTest is DSTest {
         address indexed to,
         uint256 mint,
         uint256 value,
-        uint256 gasLimit,
+        uint64 gasLimit,
         bool isCreation,
         bytes data
     );

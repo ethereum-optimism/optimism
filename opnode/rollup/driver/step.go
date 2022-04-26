@@ -89,11 +89,12 @@ func (d *outputImpl) createNewBlock(ctx context.Context, l2Head eth.L2BlockRef, 
 
 	// Next we append user deposits. If we're not the first block in an epoch, then receipts will
 	// be empty and no deposits will be derived.
-	deposits, err := derive.DeriveDeposits(receipts, d.Config.DepositContractAddress)
+	deposits, errs := derive.DeriveDeposits(receipts, d.Config.DepositContractAddress)
 	d.log.Info("Derived deposits", "deposits", deposits, "l2Parent", l2Head, "l1Origin", l1Origin)
-	if err != nil {
-		return l2Head, nil, fmt.Errorf("failed to derive deposits: %v", err)
+	for _, err := range errs {
+		d.log.Error("Failed to derive a deposit", "l1OriginHash", l1Origin.Hash, "err", err)
 	}
+	// TODO: Should we halt if len(errs) > 0? Opens up a denial of service attack, but prevents lockup of funds.
 	txns = append(txns, deposits...)
 
 	// If our next L2 block timestamp is beyond the Sequencer drift threshold, then we must produce
@@ -175,10 +176,11 @@ func (d *outputImpl) insertEpoch(ctx context.Context, l2Head eth.L2BlockRef, l2S
 	if err != nil {
 		return l2Head, l2SafeHead, false, fmt.Errorf("failed to get L1 timestamp of next L1 block: %v", err)
 	}
-	deposits, err := derive.DeriveDeposits(receipts, d.Config.DepositContractAddress)
-	if err != nil {
-		return l2Head, l2SafeHead, false, fmt.Errorf("failed to derive deposits: %w", err)
+	deposits, errs := derive.DeriveDeposits(receipts, d.Config.DepositContractAddress)
+	for _, err := range errs {
+		d.log.Error("Failed to derive a deposit", "l1OriginHash", l1Input[0].Hash, "err", err)
 	}
+	// TODO: Should we halt if len(errs) > 0? Opens up a denial of service attack, but prevents lockup of funds.
 	// TODO: with sharding the blobs may be identified in more detail than L1 block hashes
 	transactions, err := d.dl.FetchAllTransactions(fetchCtx, l1Input)
 	if err != nil {

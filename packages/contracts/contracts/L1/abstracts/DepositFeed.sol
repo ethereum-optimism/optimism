@@ -33,7 +33,7 @@ abstract contract DepositFeed {
         address indexed to,
         uint256 mint,
         uint256 value,
-        uint256 gasLimit,
+        uint64 gasLimit,
         bool isCreation,
         bytes data
     );
@@ -54,7 +54,7 @@ abstract contract DepositFeed {
     function depositTransaction(
         address _to,
         uint256 _value,
-        uint256 _gasLimit,
+        uint64 _gasLimit,
         bool _isCreation,
         bytes memory _data
     ) public payable {

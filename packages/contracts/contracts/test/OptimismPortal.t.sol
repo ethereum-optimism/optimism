@@ -17,7 +17,7 @@ contract OptimismPortal_Test is DSTest {
         address indexed to,
         uint256 mint,
         uint256 value,
-        uint256 gasLimit,
+        uint64 gasLimit,
         bool isCreation,
         bytes data
     );

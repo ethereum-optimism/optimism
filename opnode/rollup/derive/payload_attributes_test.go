@@ -204,8 +204,8 @@ func TestDeriveUserDeposits(t *testing.T) {
 					TransactionIndex: uint(txIndex),
 				})
 			}
-			got, err := UserDeposits(receipts, MockDepositContractAddr)
-			assert.NoError(t, err)
+			got, errs := UserDeposits(receipts, MockDepositContractAddr)
+			assert.Equal(t, len(errs), 0)
 			assert.Equal(t, len(got), len(expectedDeposits))
 			for d, depTx := range got {
 				expected := expectedDeposits[d]

@@ -229,7 +229,7 @@ func TestSystemE2E(t *testing.T) {
 	// Finally send TX
 	mintAmount := big.NewInt(1_000_000_000_000)
 	opts.Value = mintAmount
-	tx, err := depositContract.DepositTransaction(opts, fromAddr, common.Big0, big.NewInt(1_000_000), false, nil)
+	tx, err := depositContract.DepositTransaction(opts, fromAddr, common.Big0, 1_000_000, false, nil)
 	require.Nil(t, err, "with deposit tx")
 
 	receipt, err := waitForTransaction(tx.Hash(), l1Client, 6*time.Second)
@@ -317,7 +317,7 @@ func TestMintOnRevertedDeposit(t *testing.T) {
 	mintAmount := big.NewInt(9_000_000)
 	opts.Value = mintAmount
 	value := new(big.Int).Mul(common.Big2, startBalance) // trigger a revert by transferring more than we have available
-	tx, err := depositContract.DepositTransaction(opts, toAddr, value, big.NewInt(1_000_000), false, nil)
+	tx, err := depositContract.DepositTransaction(opts, toAddr, value, 1_000_000, false, nil)
 	require.Nil(t, err, "with deposit tx")
 
 	receipt, err := waitForTransaction(tx.Hash(), l1Client, 6*time.Second)
