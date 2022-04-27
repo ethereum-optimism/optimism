@@ -2,6 +2,7 @@ package test
 
 import (
 	"context"
+	"flag"
 	"fmt"
 	"math/big"
 	"testing"
@@ -26,6 +27,19 @@ import (
 	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/stretchr/testify/require"
 )
+
+// Init testing to enable test flags
+var _ = func() bool {
+	testing.Init()
+	return true
+}()
+
+var verboseGethNodes bool
+
+func init() {
+	flag.BoolVar(&verboseGethNodes, "gethlogs", false, "Enable logs on geth nodes")
+	flag.Parse()
+}
 
 // Temporary until the contract is deployed properly instead of as a pre-deploy to a specific address
 var MockDepositContractAddr = common.HexToAddress("0xdeaddeaddeaddeaddeaddeaddeaddeaddead0001")
@@ -101,7 +115,9 @@ func defaultSystemConfig(t *testing.T) SystemConfig {
 }
 
 func TestL2OutputSubmitter(t *testing.T) {
-	log.Root().SetHandler(log.DiscardHandler()) // Comment this out to see geth l1/l2 logs
+	if !verboseGethNodes {
+		log.Root().SetHandler(log.DiscardHandler())
+	}
 
 	cfg := defaultSystemConfig(t)
 
@@ -188,8 +204,9 @@ func TestL2OutputSubmitter(t *testing.T) {
 // TestSystemE2E sets up a L1 Geth node, a rollup node, and a L2 geth node and then confirms that L1 deposits are reflected on L2.
 // All nodes are run in process (but are the full nodes, not mocked or stubbed).
 func TestSystemE2E(t *testing.T) {
-	log.Root().SetHandler(log.DiscardHandler()) // Comment this out to see geth l1/l2 logs
-
+	if !verboseGethNodes {
+		log.Root().SetHandler(log.DiscardHandler())
+	}
 	cfg := defaultSystemConfig(t)
 
 	sys, err := cfg.start()
@@ -281,8 +298,9 @@ func TestSystemE2E(t *testing.T) {
 }
 
 func TestMintOnRevertedDeposit(t *testing.T) {
-	log.Root().SetHandler(log.DiscardHandler()) // Comment this out to see geth l1/l2 logs
-
+	if !verboseGethNodes {
+		log.Root().SetHandler(log.DiscardHandler())
+	}
 	cfg := defaultSystemConfig(t)
 
 	sys, err := cfg.start()
@@ -353,8 +371,9 @@ func TestMintOnRevertedDeposit(t *testing.T) {
 }
 
 func TestMissingBatchE2E(t *testing.T) {
-	log.Root().SetHandler(log.DiscardHandler()) // Comment this out to see geth l1/l2 logs
-
+	if !verboseGethNodes {
+		log.Root().SetHandler(log.DiscardHandler())
+	}
 	cfg := defaultSystemConfig(t)
 	// Specifically set batch submitter balance to stop batches from being included
 	cfg.Premine[bssHDPath] = 0
