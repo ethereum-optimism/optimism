@@ -1,12 +1,11 @@
-/* External Imports */
 import { ethers } from 'hardhat'
-import { Signer, ContractFactory, Contract, constants } from 'ethers'
+import { Contract, constants } from 'ethers'
+import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers'
 import { smock, FakeContract } from '@defi-wonderland/smock'
 
-/* Internal Imports */
 import { expect } from '../../../setup'
 import {
-  makeAddressManager,
+  deploy,
   setProxyTarget,
   NON_NULL_BYTES32,
   getEthTime,
@@ -14,20 +13,19 @@ import {
 } from '../../../helpers'
 
 describe('StateCommitmentChain', () => {
-  let sequencer: Signer
-  let user: Signer
+  let sequencer: SignerWithAddress
+  let user: SignerWithAddress
+  const batch = [NON_NULL_BYTES32]
   before(async () => {
     ;[sequencer, user] = await ethers.getSigners()
   })
 
   let AddressManager: Contract
-  before(async () => {
-    AddressManager = await makeAddressManager()
-  })
-
   let Fake__CanonicalTransactionChain: FakeContract
   let Fake__BondManager: FakeContract
   before(async () => {
+    AddressManager = await deploy('Lib_AddressManager')
+
     Fake__CanonicalTransactionChain = await smock.fake<Contract>(
       'CanonicalTransactionChain'
     )
@@ -44,36 +42,23 @@ describe('StateCommitmentChain', () => {
 
     Fake__BondManager.isCollateralized.returns(true)
 
-    await AddressManager.setAddress(
-      'OVM_Proposer',
-      await sequencer.getAddress()
-    )
-  })
-
-  let Factory__StateCommitmentChain: ContractFactory
-  let Factory__ChainStorageContainer: ContractFactory
-  before(async () => {
-    Factory__StateCommitmentChain = await ethers.getContractFactory(
-      'StateCommitmentChain'
-    )
-
-    Factory__ChainStorageContainer = await ethers.getContractFactory(
-      'ChainStorageContainer'
-    )
+    await AddressManager.setAddress('OVM_Proposer', sequencer.address)
   })
 
   let StateCommitmentChain: Contract
   beforeEach(async () => {
-    StateCommitmentChain = await Factory__StateCommitmentChain.deploy(
-      AddressManager.address,
-      60 * 60 * 24 * 7, // 1 week fraud proof window
-      60 * 30 // 30 minute sequencer publish window
-    )
+    StateCommitmentChain = await deploy('StateCommitmentChain', {
+      signer: sequencer,
+      args: [
+        AddressManager.address,
+        60 * 60 * 24 * 7, // 1 week fraud proof window
+        60 * 30, // 30 minute sequencer publish window
+      ],
+    })
 
-    const batches = await Factory__ChainStorageContainer.deploy(
-      AddressManager.address,
-      'StateCommitmentChain'
-    )
+    const batches = await deploy('ChainStorageContainer', {
+      args: [AddressManager.address, 'StateCommitmentChain'],
+    })
 
     await AddressManager.setAddress(
       'ChainStorageContainer-SCC-batches',
@@ -88,18 +73,14 @@ describe('StateCommitmentChain', () => {
 
   describe('appendStateBatch', () => {
     describe('when the provided batch is empty', () => {
-      const batch = []
-
       it('should revert', async () => {
         await expect(
-          StateCommitmentChain.appendStateBatch(batch, 0)
+          StateCommitmentChain.appendStateBatch([], 0)
         ).to.be.revertedWith('Cannot submit an empty state batch.')
       })
     })
 
     describe('when the provided batch is not empty', () => {
-      const batch = [NON_NULL_BYTES32]
-
       describe('when start index does not match total elements', () => {
         it('should revert', async () => {
           await expect(
@@ -143,10 +124,7 @@ describe('StateCommitmentChain', () => {
             batch.length * 2
           )
 
-          await StateCommitmentChain.connect(sequencer).appendStateBatch(
-            batch,
-            0
-          )
+          await StateCommitmentChain.appendStateBatch(batch, 0)
         })
 
         describe('when inside sequencer publish window', () => {
@@ -193,7 +171,6 @@ describe('StateCommitmentChain', () => {
   })
 
   describe('deleteStateBatch', () => {
-    const batch = [NON_NULL_BYTES32]
     const batchHeader = {
       batchIndex: 0,
       batchRoot: NON_NULL_BYTES32,
@@ -211,7 +188,7 @@ describe('StateCommitmentChain', () => {
       await StateCommitmentChain.appendStateBatch(batch, 0)
       batchHeader.extraData = ethers.utils.defaultAbiCoder.encode(
         ['uint256', 'address'],
-        [await getEthTime(ethers.provider), await sequencer.getAddress()]
+        [await getEthTime(ethers.provider), sequencer.address]
       )
     })
 
@@ -234,10 +211,7 @@ describe('StateCommitmentChain', () => {
 
     describe('when the sender is the OVM_FraudVerifier', () => {
       before(async () => {
-        await AddressManager.setAddress(
-          'OVM_FraudVerifier',
-          await sequencer.getAddress()
-        )
+        await AddressManager.setAddress('OVM_FraudVerifier', sequencer.address)
       })
 
       describe('when the provided batch index is greater than the total submitted', () => {
@@ -300,13 +274,14 @@ describe('StateCommitmentChain', () => {
       prevTotalElements: 0,
       extraData: ethers.constants.HashZero,
     }
+
     it('should revert when timestamp is zero', async () => {
       await expect(
         StateCommitmentChain.insideFraudProofWindow({
           ...batchHeader,
           extraData: ethers.utils.defaultAbiCoder.encode(
             ['uint256', 'address'],
-            [0, await sequencer.getAddress()]
+            [0, sequencer.address]
           ),
         })
       ).to.be.revertedWith('Batch header timestamp cannot be zero')
@@ -322,7 +297,6 @@ describe('StateCommitmentChain', () => {
 
     describe('when one batch element has been inserted', () => {
       beforeEach(async () => {
-        const batch = [NON_NULL_BYTES32]
         Fake__CanonicalTransactionChain.getTotalElements.returns(batch.length)
         await StateCommitmentChain.appendStateBatch(batch, 0)
       })
@@ -334,9 +308,11 @@ describe('StateCommitmentChain', () => {
 
     describe('when 64 batch elements have been inserted in one batch', () => {
       beforeEach(async () => {
-        const batch = Array(64).fill(NON_NULL_BYTES32)
-        Fake__CanonicalTransactionChain.getTotalElements.returns(batch.length)
-        await StateCommitmentChain.appendStateBatch(batch, 0)
+        const batchArray = Array(64).fill(NON_NULL_BYTES32)
+        Fake__CanonicalTransactionChain.getTotalElements.returns(
+          batchArray.length
+        )
+        await StateCommitmentChain.appendStateBatch(batchArray, 0)
       })
 
       it('should return the number of inserted batch elements', async () => {
@@ -346,12 +322,12 @@ describe('StateCommitmentChain', () => {
 
     describe('when 32 batch elements have been inserted in each of two batches', () => {
       beforeEach(async () => {
-        const batch = Array(32).fill(NON_NULL_BYTES32)
+        const batchArray = Array(32).fill(NON_NULL_BYTES32)
         Fake__CanonicalTransactionChain.getTotalElements.returns(
-          batch.length * 2
+          batchArray.length * 2
         )
-        await StateCommitmentChain.appendStateBatch(batch, 0)
-        await StateCommitmentChain.appendStateBatch(batch, 32)
+        await StateCommitmentChain.appendStateBatch(batchArray, 0)
+        await StateCommitmentChain.appendStateBatch(batchArray, 32)
       })
 
       it('should return the number of inserted batch elements', async () => {
@@ -369,7 +345,6 @@ describe('StateCommitmentChain', () => {
 
     describe('when one batch has been inserted', () => {
       beforeEach(async () => {
-        const batch = [NON_NULL_BYTES32]
         Fake__CanonicalTransactionChain.getTotalElements.returns(batch.length)
         await StateCommitmentChain.appendStateBatch(batch, 0)
       })
@@ -381,7 +356,6 @@ describe('StateCommitmentChain', () => {
 
     describe('when 8 batches have been inserted', () => {
       beforeEach(async () => {
-        const batch = [NON_NULL_BYTES32]
         Fake__CanonicalTransactionChain.getTotalElements.returns(
           batch.length * 8
         )
@@ -409,7 +383,6 @@ describe('StateCommitmentChain', () => {
     describe('when one batch element has been inserted', () => {
       let timestamp
       beforeEach(async () => {
-        const batch = [NON_NULL_BYTES32]
         Fake__CanonicalTransactionChain.getTotalElements.returns(batch.length)
         await StateCommitmentChain.appendStateBatch(batch, 0)
         timestamp = await getEthTime(ethers.provider)
@@ -424,7 +397,6 @@ describe('StateCommitmentChain', () => {
   })
 
   describe('verifyStateCommitment()', () => {
-    const batch = [NON_NULL_BYTES32]
     const batchHeader = {
       batchIndex: 0,
       batchRoot: NON_NULL_BYTES32,
@@ -449,7 +421,7 @@ describe('StateCommitmentChain', () => {
       await StateCommitmentChain.appendStateBatch(batch, 0)
       batchHeader.extraData = ethers.utils.defaultAbiCoder.encode(
         ['uint256', 'address'],
-        [await getEthTime(ethers.provider), await sequencer.getAddress()]
+        [await getEthTime(ethers.provider), sequencer.address]
       )
     })
 
