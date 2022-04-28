@@ -156,9 +156,10 @@ func TestL2OutputSubmitter(t *testing.T) {
 		ResubmissionTimeout:       3 * time.Second,
 		SafeAbortNonceTooLowCount: 3,
 		LogLevel:                  "error",
+		LogTerminal:               true,
 		Mnemonic:                  cfg.Mnemonic,
 		L2OutputHDPath:            l2OutputHDPath,
-	}, "")
+	}, "", log.New())
 	require.Nil(t, err)
 
 	err = l2OutputSubmitter.Start()

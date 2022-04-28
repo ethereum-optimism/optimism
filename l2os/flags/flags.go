@@ -89,6 +89,12 @@ var (
 		Value:  "info",
 		EnvVar: prefixEnvVar("LOG_LEVEL"),
 	}
+	LogTerminalFlag = cli.BoolFlag{
+		Name: "log-terminal",
+		Usage: "If true, outputs logs in terminal format, otherwise prints " +
+			"in JSON format.",
+		EnvVar: prefixEnvVar("LOG_TERMINAL"),
+	}
 )
 
 var requiredFlags = []cli.Flag{
@@ -106,6 +112,7 @@ var requiredFlags = []cli.Flag{
 
 var optionalFlags = []cli.Flag{
 	LogLevelFlag,
+	LogTerminalFlag,
 }
 
 // Flags contains the list of configuration options available to the binary.

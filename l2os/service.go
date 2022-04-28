@@ -51,6 +51,7 @@ type Driver interface {
 }
 
 type ServiceConfig struct {
+	Log             log.Logger
 	Context         context.Context
 	Driver          Driver
 	PollInterval    time.Duration
@@ -61,9 +62,11 @@ type ServiceConfig struct {
 type Service struct {
 	cfg   ServiceConfig
 	txMgr txmgr.TxManager
+	l     log.Logger
 
-	done chan struct{}
-	wg   sync.WaitGroup
+	ctx    context.Context
+	cancel func()
+	wg     sync.WaitGroup
 }
 
 func NewService(cfg ServiceConfig) *Service {
@@ -71,10 +74,14 @@ func NewService(cfg ServiceConfig) *Service {
 		cfg.Driver.Name(), cfg.TxManagerConfig, cfg.L1Client,
 	)
 
+	ctx, cancel := context.WithCancel(cfg.Context)
+
 	return &Service{
-		cfg:   cfg,
-		txMgr: txMgr,
-		done:  make(chan struct{}),
+		cfg:    cfg,
+		txMgr:  txMgr,
+		l:      cfg.Log,
+		ctx:    ctx,
+		cancel: cancel,
 	}
 }
 
@@ -85,14 +92,12 @@ func (s *Service) Start() error {
 }
 
 func (s *Service) Stop() error {
-	close(s.done)
+	s.cancel()
 	s.wg.Wait()
 	return nil
 }
 
 func (s *Service) eventLoop() {
-	ctx, cancel := context.WithCancel(s.cfg.Context)
-	defer cancel()
 	defer s.wg.Done()
 
 	name := s.cfg.Driver.Name()
@@ -102,36 +107,36 @@ func (s *Service) eventLoop() {
 		case <-time.After(s.cfg.PollInterval):
 			// Determine the range of L2 blocks that the submitter has not
 			// processed, and needs to take action on.
-			log.Info(name + " fetching current block range")
-			start, end, err := s.cfg.Driver.GetBlockRange(ctx)
+			s.l.Info(name + " fetching current block range")
+			start, end, err := s.cfg.Driver.GetBlockRange(s.ctx)
 			if err != nil {
-				log.Error(name+" unable to get block range", "err", err)
+				s.l.Error(name+" unable to get block range", "err", err)
 				continue
 			}
 
 			// No new updates.
 			if start.Cmp(end) == 0 {
-				log.Info(name+" no updates", "start", start, "end", end)
+				s.l.Info(name+" no updates", "start", start, "end", end)
 				continue
 			}
-			log.Info(name+" block range", "start", start, "end", end)
+			s.l.Info(name+" block range", "start", start, "end", end)
 
 			// Query for the submitter's current nonce.
 			nonce64, err := s.cfg.L1Client.NonceAt(
-				ctx, s.cfg.Driver.WalletAddr(), nil,
+				s.ctx, s.cfg.Driver.WalletAddr(), nil,
 			)
 			if err != nil {
-				log.Error(name+" unable to get current nonce",
+				s.l.Error(name+" unable to get current nonce",
 					"err", err)
 				continue
 			}
 			nonce := new(big.Int).SetUint64(nonce64)
 
 			tx, err := s.cfg.Driver.CraftTx(
-				ctx, start, end, nonce,
+				s.ctx, start, end, nonce,
 			)
 			if err != nil {
-				log.Error(name+" unable to craft tx",
+				s.l.Error(name+" unable to craft tx",
 					"err", err)
 				continue
 			}
@@ -139,7 +144,7 @@ func (s *Service) eventLoop() {
 			// Construct the a closure that will update the txn with the current
 			// gas prices.
 			updateGasPrice := func(ctx context.Context) (*types.Transaction, error) {
-				log.Info(name+" updating batch tx gas price", "start", start,
+				s.l.Info(name+" updating batch tx gas price", "start", start,
 					"end", end, "nonce", nonce)
 
 				return s.cfg.Driver.UpdateGasPrice(ctx, tx)
@@ -148,19 +153,19 @@ func (s *Service) eventLoop() {
 			// Wait until one of our submitted transactions confirms. If no
 			// receipt is received it's likely our gas price was too low.
 			receipt, err := s.txMgr.Send(
-				ctx, updateGasPrice, s.cfg.Driver.SendTransaction,
+				s.ctx, updateGasPrice, s.cfg.Driver.SendTransaction,
 			)
 			if err != nil {
-				log.Error(name+" unable to publish tx", "err", err)
+				s.l.Error(name+" unable to publish tx", "err", err)
 				continue
 			}
 
 			// The transaction was successfully submitted.
-			log.Info(name+" tx successfully published",
+			s.l.Info(name+" tx successfully published",
 				"tx_hash", receipt.TxHash)
 
-		case <-s.done:
-			log.Info(name + " service shutting down")
+		case <-s.ctx.Done():
+			s.l.Info(name + " service shutting down")
 			return
 		}
 	}

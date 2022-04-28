@@ -12,6 +12,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
 )
 
@@ -45,6 +46,7 @@ func newTestHarness() *testHarness {
 
 func configWithNumConfs(numConfirmations uint64) txmgr.Config {
 	return txmgr.Config{
+		Log:                       log.New(),
 		ResubmissionTimeout:       time.Second,
 		ReceiptQueryInterval:      50 * time.Millisecond,
 		NumConfirmations:          numConfirmations,
