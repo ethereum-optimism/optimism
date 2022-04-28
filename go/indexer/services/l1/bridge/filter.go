@@ -15,54 +15,48 @@ var clientRetryInterval = 5 * time.Second
 
 // FilterStateBatchAppendedWithRetry retries the given func until it succeeds,
 // waiting for clientRetryInterval duration after every call.
-func FilterStateBatchAppendedWithRetry(filterer *scc.StateCommitmentChainFilterer, opts *bind.FilterOpts) (*scc.StateCommitmentChainStateBatchAppendedIterator, error) {
+func FilterStateBatchAppendedWithRetry(ctx context.Context, filterer *scc.StateCommitmentChainFilterer, opts *bind.FilterOpts) (*scc.StateCommitmentChainStateBatchAppendedIterator, error) {
 	for {
-		ctxt, cancel := context.WithTimeout(opts.Context, DefaultConnectionTimeout)
+		ctxt, cancel := context.WithTimeout(ctx, DefaultConnectionTimeout)
 		opts.Context = ctxt
 		res, err := filterer.FilterStateBatchAppended(opts, nil)
-		switch err {
-		case nil:
-			cancel()
-			return res, err
-		default:
-			logger.Error("Error fetching filter", "err", err)
+		cancel()
+		if err == nil {
+			return res, nil
 		}
+		logger.Error("Error fetching filter", "err", err)
 		time.Sleep(clientRetryInterval)
 	}
 }
 
 // FilterETHDepositInitiatedWithRetry retries the given func until it succeeds,
 // waiting for clientRetryInterval duration after every call.
-func FilterETHDepositInitiatedWithRetry(filterer *l1bridge.L1StandardBridgeFilterer, opts *bind.FilterOpts) (*l1bridge.L1StandardBridgeETHDepositInitiatedIterator, error) {
+func FilterETHDepositInitiatedWithRetry(ctx context.Context, filterer *l1bridge.L1StandardBridgeFilterer, opts *bind.FilterOpts) (*l1bridge.L1StandardBridgeETHDepositInitiatedIterator, error) {
 	for {
-		ctxt, cancel := context.WithTimeout(opts.Context, DefaultConnectionTimeout)
+		ctxt, cancel := context.WithTimeout(ctx, DefaultConnectionTimeout)
 		opts.Context = ctxt
 		res, err := filterer.FilterETHDepositInitiated(opts, nil, nil)
-		switch err {
-		case nil:
-			cancel()
-			return res, err
-		default:
-			logger.Error("Error fetching filter", "err", err)
+		cancel()
+		if err == nil {
+			return res, nil
 		}
+		logger.Error("Error fetching filter", "err", err)
 		time.Sleep(clientRetryInterval)
 	}
 }
 
 // FilterERC20DepositInitiatedWithRetry retries the given func until it succeeds,
 // waiting for clientRetryInterval duration after every call.
-func FilterERC20DepositInitiatedWithRetry(filterer *l1bridge.L1StandardBridgeFilterer, opts *bind.FilterOpts) (*l1bridge.L1StandardBridgeERC20DepositInitiatedIterator, error) {
+func FilterERC20DepositInitiatedWithRetry(ctx context.Context, filterer *l1bridge.L1StandardBridgeFilterer, opts *bind.FilterOpts) (*l1bridge.L1StandardBridgeERC20DepositInitiatedIterator, error) {
 	for {
-		ctxt, cancel := context.WithTimeout(opts.Context, DefaultConnectionTimeout)
+		ctxt, cancel := context.WithTimeout(ctx, DefaultConnectionTimeout)
 		opts.Context = ctxt
 		res, err := filterer.FilterERC20DepositInitiated(opts, nil, nil, nil)
-		switch err {
-		case nil:
-			cancel()
-			return res, err
-		default:
-			logger.Error("Error fetching filter", "err", err)
+		cancel()
+		if err == nil {
+			return res, nil
 		}
+		logger.Error("Error fetching filter", "err", err)
 		time.Sleep(clientRetryInterval)
 	}
 }

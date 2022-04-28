@@ -44,10 +44,9 @@ func QueryERC20(address common.Address, client *ethclient.Client) (*db.Token, er
 func QueryStateBatches(filterer *scc.StateCommitmentChainFilterer, startHeight, endHeight uint64, ctx context.Context) (map[common.Hash][]db.StateBatch, error) {
 	batches := make(map[common.Hash][]db.StateBatch)
 
-	iter, err := bridge.FilterStateBatchAppendedWithRetry(filterer, &bind.FilterOpts{
-		Start:   startHeight,
-		End:     &endHeight,
-		Context: ctx,
+	iter, err := bridge.FilterStateBatchAppendedWithRetry(ctx, filterer, &bind.FilterOpts{
+		Start: startHeight,
+		End:   &endHeight,
 	})
 	if err != nil {
 		return nil, err

@@ -1,42 +1,32 @@
-/* External Imports */
 import { ethers } from 'hardhat'
-import { Signer, ContractFactory, Contract } from 'ethers'
+import { Contract } from 'ethers'
 import { smock, FakeContract, MockContract } from '@defi-wonderland/smock'
+import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers'
 
-/* Internal Imports */
 import { expect } from '../../../setup'
-import { NON_NULL_BYTES32, NON_ZERO_ADDRESS } from '../../../helpers'
-import { getContractInterface } from '../../../../src'
+import { deploy, NON_NULL_BYTES32, NON_ZERO_ADDRESS } from '../../../helpers'
+import { getContractInterface, predeploys } from '../../../../src'
 
-const ERR_INVALID_MESSENGER = 'OVM_XCHAIN: messenger contract unauthenticated'
-const ERR_INVALID_X_DOMAIN_MSG_SENDER =
-  'OVM_XCHAIN: wrong sender of cross-domain message'
-const DUMMY_L1BRIDGE_ADDRESS: string =
-  '0x1234123412341234123412341234123412341234'
-const DUMMY_L1TOKEN_ADDRESS: string =
-  '0x2234223412342234223422342234223422342234'
-const OVM_ETH_ADDRESS: string = '0xDeadDeAddeAddEAddeadDEaDDEAdDeaDDeAD0000'
+// TODO: Maybe we should consider automatically generating these and exporting them?
+const ERROR_STRINGS = {
+  INVALID_MESSENGER: 'OVM_XCHAIN: messenger contract unauthenticated',
+  INVALID_X_DOMAIN_MSG_SENDER:
+    'OVM_XCHAIN: wrong sender of cross-domain message',
+}
+
+const DUMMY_L1_ERC20_ADDRESS = '0xaBBAABbaaBbAABbaABbAABbAABbaAbbaaBbaaBBa'
+const DUMMY_L1_BRIDGE_ADDRESS = '0xACDCacDcACdCaCDcacdcacdCaCdcACdCAcDcaCdc'
 
 describe('L2StandardBridge', () => {
-  let alice: Signer
-  let aliceAddress: string
-  let bob: Signer
-  let bobsAddress: string
-  let l2MessengerImpersonator: Signer
-  let Factory__L1StandardBridge: ContractFactory
   const INITIAL_TOTAL_SUPPLY = 100_000
   const ALICE_INITIAL_BALANCE = 50_000
+
+  let alice: SignerWithAddress
+  let bob: SignerWithAddress
+  let l2MessengerImpersonator: SignerWithAddress
   before(async () => {
     // Create a special signer which will enable us to send messages from the L2Messenger contract
     ;[alice, bob, l2MessengerImpersonator] = await ethers.getSigners()
-    aliceAddress = await alice.getAddress()
-    bobsAddress = await bob.getAddress()
-    Factory__L1StandardBridge = await ethers.getContractFactory(
-      'L1StandardBridge'
-    )
-
-    // get an L2ER20Bridge Interface
-    getContractInterface('IL2ERC20Bridge')
   })
 
   let L2StandardBridge: Contract
@@ -45,20 +35,25 @@ describe('L2StandardBridge', () => {
   beforeEach(async () => {
     // Get a new mock L2 messenger
     Fake__L2CrossDomainMessenger = await smock.fake<Contract>(
-      await ethers.getContractFactory('L2CrossDomainMessenger'),
+      'L2CrossDomainMessenger',
       // This allows us to use an ethers override {from: Mock__L2CrossDomainMessenger.address} to mock calls
       { address: await l2MessengerImpersonator.getAddress() }
     )
 
     // Deploy the contract under test
-    L2StandardBridge = await (
-      await ethers.getContractFactory('L2StandardBridge')
-    ).deploy(Fake__L2CrossDomainMessenger.address, DUMMY_L1BRIDGE_ADDRESS)
+    L2StandardBridge = await deploy('L2StandardBridge', {
+      args: [Fake__L2CrossDomainMessenger.address, DUMMY_L1_BRIDGE_ADDRESS],
+    })
 
     // Deploy an L2 ERC20
-    L2ERC20 = await (
-      await ethers.getContractFactory('L2StandardERC20', alice)
-    ).deploy(L2StandardBridge.address, DUMMY_L1TOKEN_ADDRESS, 'L2Token', 'L2T')
+    L2ERC20 = await deploy('L2StandardERC20', {
+      args: [
+        L2StandardBridge.address,
+        DUMMY_L1_ERC20_ADDRESS,
+        'L2Token',
+        'L2T',
+      ],
+    })
   })
 
   // test the transfer flow of moving a token from L2 to L1
@@ -66,14 +61,14 @@ describe('L2StandardBridge', () => {
     it('onlyFromCrossDomainAccount: should revert on calls from a non-crossDomainMessenger L2 account', async () => {
       await expect(
         L2StandardBridge.finalizeDeposit(
-          DUMMY_L1TOKEN_ADDRESS,
+          DUMMY_L1_ERC20_ADDRESS,
           NON_ZERO_ADDRESS,
           NON_ZERO_ADDRESS,
           NON_ZERO_ADDRESS,
           0,
           NON_NULL_BYTES32
         )
-      ).to.be.revertedWith(ERR_INVALID_MESSENGER)
+      ).to.be.revertedWith(ERROR_STRINGS.INVALID_MESSENGER)
     })
 
     it('onlyFromCrossDomainAccount: should revert on calls from the right crossDomainMessenger, but wrong xDomainMessageSender (ie. not the L1L1StandardBridge)', async () => {
@@ -83,7 +78,7 @@ describe('L2StandardBridge', () => {
 
       await expect(
         L2StandardBridge.connect(l2MessengerImpersonator).finalizeDeposit(
-          DUMMY_L1TOKEN_ADDRESS,
+          DUMMY_L1_ERC20_ADDRESS,
           NON_ZERO_ADDRESS,
           NON_ZERO_ADDRESS,
           NON_ZERO_ADDRESS,
@@ -93,19 +88,17 @@ describe('L2StandardBridge', () => {
             from: Fake__L2CrossDomainMessenger.address,
           }
         )
-      ).to.be.revertedWith(ERR_INVALID_X_DOMAIN_MSG_SENDER)
+      ).to.be.revertedWith(ERROR_STRINGS.INVALID_X_DOMAIN_MSG_SENDER)
     })
 
     it('should initialize a withdrawal if the L2 token is not compliant', async () => {
       // Deploy a non compliant ERC20
-      const NonCompliantERC20 = await (
-        await ethers.getContractFactory(
-          '@openzeppelin/contracts/token/ERC20/ERC20.sol:ERC20'
-        )
-      ).deploy('L2Token', 'L2T')
+      const NonCompliantERC20 = await deploy('ERC20', {
+        args: ['L2Token', 'L2T'],
+      })
 
       L2StandardBridge.connect(l2MessengerImpersonator).finalizeDeposit(
-        DUMMY_L1TOKEN_ADDRESS,
+        DUMMY_L1_ERC20_ADDRESS,
         NON_ZERO_ADDRESS,
         NON_ZERO_ADDRESS,
         NON_ZERO_ADDRESS,
@@ -117,14 +110,14 @@ describe('L2StandardBridge', () => {
       )
 
       Fake__L2CrossDomainMessenger.xDomainMessageSender.returns(
-        () => DUMMY_L1BRIDGE_ADDRESS
+        DUMMY_L1_BRIDGE_ADDRESS
       )
 
       await L2StandardBridge.connect(l2MessengerImpersonator).finalizeDeposit(
-        DUMMY_L1TOKEN_ADDRESS,
+        DUMMY_L1_ERC20_ADDRESS,
         NonCompliantERC20.address,
-        aliceAddress,
-        bobsAddress,
+        alice.address,
+        bob.address,
         100,
         NON_NULL_BYTES32,
         {
@@ -132,37 +125,37 @@ describe('L2StandardBridge', () => {
         }
       )
 
-      const withdrawalCallToMessenger =
-        Fake__L2CrossDomainMessenger.sendMessage.getCall(1)
-
-      expect(withdrawalCallToMessenger.args[0]).to.equal(DUMMY_L1BRIDGE_ADDRESS)
-      expect(withdrawalCallToMessenger.args[1]).to.equal(
-        Factory__L1StandardBridge.interface.encodeFunctionData(
+      expect(
+        Fake__L2CrossDomainMessenger.sendMessage.getCall(1).args
+      ).to.deep.equal([
+        DUMMY_L1_BRIDGE_ADDRESS,
+        getContractInterface('L1StandardBridge').encodeFunctionData(
           'finalizeERC20Withdrawal',
           [
-            DUMMY_L1TOKEN_ADDRESS,
+            DUMMY_L1_ERC20_ADDRESS,
             NonCompliantERC20.address,
-            bobsAddress,
-            aliceAddress,
+            bob.address,
+            alice.address,
             100,
             NON_NULL_BYTES32,
           ]
-        )
-      )
+        ),
+        0,
+      ])
     })
 
     it('should credit funds to the depositor', async () => {
       const depositAmount = 100
 
       Fake__L2CrossDomainMessenger.xDomainMessageSender.returns(
-        () => DUMMY_L1BRIDGE_ADDRESS
+        DUMMY_L1_BRIDGE_ADDRESS
       )
 
       await L2StandardBridge.connect(l2MessengerImpersonator).finalizeDeposit(
-        DUMMY_L1TOKEN_ADDRESS,
+        DUMMY_L1_ERC20_ADDRESS,
         L2ERC20.address,
-        aliceAddress,
-        bobsAddress,
+        alice.address,
+        bob.address,
         depositAmount,
         NON_NULL_BYTES32,
         {
@@ -170,37 +163,35 @@ describe('L2StandardBridge', () => {
         }
       )
 
-      const bobsBalance = await L2ERC20.balanceOf(bobsAddress)
-      bobsBalance.should.equal(depositAmount)
+      expect(await L2ERC20.balanceOf(bob.address)).to.equal(depositAmount)
     })
   })
 
   describe('withdrawals', () => {
     const withdrawAmount = 1_000
-    let Mock__L2Token: MockContract<Contract>
 
-    let Fake__OVM_ETH
-
+    let Fake__OVM_ETH: FakeContract<Contract>
     before(async () => {
       Fake__OVM_ETH = await smock.fake('OVM_ETH', {
-        address: OVM_ETH_ADDRESS,
+        address: predeploys.OVM_ETH,
       })
     })
 
+    let Mock__L2Token: MockContract<Contract>
     beforeEach(async () => {
       // Deploy a smodded gateway so we can give some balances to withdraw
       Mock__L2Token = await (
         await smock.mock('L2StandardERC20')
       ).deploy(
         L2StandardBridge.address,
-        DUMMY_L1TOKEN_ADDRESS,
+        DUMMY_L1_ERC20_ADDRESS,
         'L2Token',
         'L2T'
       )
 
       await Mock__L2Token.setVariable('_totalSupply', INITIAL_TOTAL_SUPPLY)
       await Mock__L2Token.setVariable('_balances', {
-        [aliceAddress]: ALICE_INITIAL_BALANCE,
+        [alice.address]: ALICE_INITIAL_BALANCE,
       })
       await Mock__L2Token.setVariable('l2Bridge', L2StandardBridge.address)
     })
@@ -213,25 +204,16 @@ describe('L2StandardBridge', () => {
         NON_NULL_BYTES32
       )
 
-      const withdrawalCallToMessenger =
-        Fake__L2CrossDomainMessenger.sendMessage.getCall(0)
-
-      // Assert the correct cross-chain call was sent:
-      // Message should be sent to the L1L1StandardBridge on L1
-      expect(withdrawalCallToMessenger.args[0]).to.equal(DUMMY_L1BRIDGE_ADDRESS)
-
-      // Message data should be a call telling the L1StandardBridge to finalize the withdrawal
-      expect(withdrawalCallToMessenger.args[1]).to.equal(
-        Factory__L1StandardBridge.interface.encodeFunctionData(
+      expect(
+        Fake__L2CrossDomainMessenger.sendMessage.getCall(0).args
+      ).to.deep.equal([
+        DUMMY_L1_BRIDGE_ADDRESS,
+        getContractInterface('L1StandardBridge').encodeFunctionData(
           'finalizeETHWithdrawal',
-          [
-            await alice.getAddress(),
-            await alice.getAddress(),
-            0,
-            NON_NULL_BYTES32,
-          ]
-        )
-      )
+          [alice.address, alice.address, 0, NON_NULL_BYTES32]
+        ),
+        0,
+      ])
     })
 
     it('withdraw() burns and sends the correct withdrawal message', async () => {
@@ -241,112 +223,94 @@ describe('L2StandardBridge', () => {
         0,
         NON_NULL_BYTES32
       )
-      const withdrawalCallToMessenger =
-        Fake__L2CrossDomainMessenger.sendMessage.getCall(0)
+
+      expect(
+        Fake__L2CrossDomainMessenger.sendMessage.getCall(0).args
+      ).to.deep.equal([
+        DUMMY_L1_BRIDGE_ADDRESS,
+        getContractInterface('L1StandardBridge').encodeFunctionData(
+          'finalizeERC20Withdrawal',
+          [
+            DUMMY_L1_ERC20_ADDRESS,
+            Mock__L2Token.address,
+            alice.address,
+            alice.address,
+            withdrawAmount,
+            NON_NULL_BYTES32,
+          ]
+        ),
+        0,
+      ])
 
       // Assert Alice's balance went down
-      const aliceBalance = await Mock__L2Token.balanceOf(
-        await alice.getAddress()
-      )
-      expect(aliceBalance).to.deep.equal(
+      expect(await Mock__L2Token.balanceOf(alice.address)).to.deep.equal(
         ethers.BigNumber.from(ALICE_INITIAL_BALANCE - withdrawAmount)
       )
 
       // Assert totalSupply went down
-      const newTotalSupply = await Mock__L2Token.totalSupply()
-      expect(newTotalSupply).to.deep.equal(
+      expect(await Mock__L2Token.totalSupply()).to.deep.equal(
         ethers.BigNumber.from(INITIAL_TOTAL_SUPPLY - withdrawAmount)
       )
-
-      // Assert the correct cross-chain call was sent:
-      // Message should be sent to the L1L1StandardBridge on L1
-      expect(withdrawalCallToMessenger.args[0]).to.equal(DUMMY_L1BRIDGE_ADDRESS)
-      // Message data should be a call telling the L1L1StandardBridge to finalize the withdrawal
-      expect(withdrawalCallToMessenger.args[1]).to.equal(
-        Factory__L1StandardBridge.interface.encodeFunctionData(
-          'finalizeERC20Withdrawal',
-          [
-            DUMMY_L1TOKEN_ADDRESS,
-            Mock__L2Token.address,
-            await alice.getAddress(),
-            await alice.getAddress(),
-            withdrawAmount,
-            NON_NULL_BYTES32,
-          ]
-        )
-      )
-      // gaslimit should be correct
-      expect(withdrawalCallToMessenger.args[2]).to.equal(0)
     })
 
     it('withdrawTo() burns and sends the correct withdrawal message', async () => {
       await L2StandardBridge.withdrawTo(
         Mock__L2Token.address,
-        await bob.getAddress(),
+        bob.address,
         withdrawAmount,
         0,
         NON_NULL_BYTES32
       )
-      const withdrawalCallToMessenger =
-        Fake__L2CrossDomainMessenger.sendMessage.getCall(0)
+
+      expect(
+        Fake__L2CrossDomainMessenger.sendMessage.getCall(0).args
+      ).to.deep.equal([
+        DUMMY_L1_BRIDGE_ADDRESS,
+        getContractInterface('L1StandardBridge').encodeFunctionData(
+          'finalizeERC20Withdrawal',
+          [
+            DUMMY_L1_ERC20_ADDRESS,
+            Mock__L2Token.address,
+            alice.address,
+            bob.address,
+            withdrawAmount,
+            NON_NULL_BYTES32,
+          ]
+        ),
+        0,
+      ])
 
       // Assert Alice's balance went down
-      const aliceBalance = await Mock__L2Token.balanceOf(
-        await alice.getAddress()
-      )
-      expect(aliceBalance).to.deep.equal(
+      expect(await Mock__L2Token.balanceOf(alice.address)).to.deep.equal(
         ethers.BigNumber.from(ALICE_INITIAL_BALANCE - withdrawAmount)
       )
 
       // Assert totalSupply went down
-      const newTotalSupply = await Mock__L2Token.totalSupply()
-      expect(newTotalSupply).to.deep.equal(
+      expect(await Mock__L2Token.totalSupply()).to.deep.equal(
         ethers.BigNumber.from(INITIAL_TOTAL_SUPPLY - withdrawAmount)
       )
-
-      // Assert the correct cross-chain call was sent.
-      // Message should be sent to the L1L1StandardBridge on L1
-      expect(withdrawalCallToMessenger.args[0]).to.equal(DUMMY_L1BRIDGE_ADDRESS)
-      // The message data should be a call telling the L1L1StandardBridge to finalize the withdrawal
-      expect(withdrawalCallToMessenger.args[1]).to.equal(
-        Factory__L1StandardBridge.interface.encodeFunctionData(
-          'finalizeERC20Withdrawal',
-          [
-            DUMMY_L1TOKEN_ADDRESS,
-            Mock__L2Token.address,
-            await alice.getAddress(),
-            await bob.getAddress(),
-            withdrawAmount,
-            NON_NULL_BYTES32,
-          ]
-        )
-      )
-      // gas value is ignored and set to 0.
-      expect(withdrawalCallToMessenger.args[2]).to.equal(0)
     })
   })
 
   describe('standard erc20', () => {
     it('should not allow anyone but the L2 bridge to mint and burn', async () => {
-      expect(L2ERC20.connect(alice).mint(aliceAddress, 100)).to.be.revertedWith(
-        'Only L2 Bridge can mint and burn'
-      )
-      expect(L2ERC20.connect(alice).burn(aliceAddress, 100)).to.be.revertedWith(
-        'Only L2 Bridge can mint and burn'
-      )
+      expect(
+        L2ERC20.connect(alice).mint(alice.address, 100)
+      ).to.be.revertedWith('Only L2 Bridge can mint and burn')
+
+      expect(
+        L2ERC20.connect(alice).burn(alice.address, 100)
+      ).to.be.revertedWith('Only L2 Bridge can mint and burn')
     })
 
     it('should return the correct interface support', async () => {
-      const supportsERC165 = await L2ERC20.supportsInterface(0x01ffc9a7)
-      expect(supportsERC165).to.be.true
+      // ERC165
+      expect(await L2ERC20.supportsInterface(0x01ffc9a7)).to.be.true
 
-      const supportsL2TokenInterface = await L2ERC20.supportsInterface(
-        0x1d1d8b63
-      )
-      expect(supportsL2TokenInterface).to.be.true
+      // L2StandardERC20
+      expect(await L2ERC20.supportsInterface(0x1d1d8b63)).to.be.true
 
-      const badSupports = await L2ERC20.supportsInterface(0xffffffff)
-      expect(badSupports).to.be.false
+      expect(await L2ERC20.supportsInterface(0xffffffff)).to.be.false
     })
   })
 })

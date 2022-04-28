@@ -25,10 +25,10 @@ lint:
 	golangci-lint run ./...
 
 binding:
-	$(eval temp := $(shell mktemp))
+	$(eval tempCTC := $(shell mktemp))
 
 	cat ../../packages/contracts/deployments/mainnet/CanonicalTransactionChain.json \
-		| jq -r .bytecode > $(temp)
+		| jq -r .bytecode > $(tempCTC)
 
 	cat ../../packages/contracts/deployments/mainnet/CanonicalTransactionChain.json \
 		| jq .abi \
@@ -36,6 +36,21 @@ binding:
 		--abi - \
 		--out bindings/CanonicalTransactionChain.go \
 		--type CanonicalTransactionChain \
-		--bin $(temp)
+		--bin $(tempCTC)
 
-	rm $(temp)
+	rm $(tempCTC)
+
+	$(eval tempSCC := $(shell mktemp))
+
+	cat ../../packages/contracts/deployments/mainnet/StateCommitmentChain.json \
+		| jq -r .bytecode > $(tempSCC)
+
+	cat ../../packages/contracts/deployments/mainnet/StateCommitmentChain.json \
+		| jq .abi \
+		| abigen --pkg bindings \
+		--abi - \
+		--out bindings/StateCommitmentChain.go \
+		--type StateCommitmentChain \
+		--bin $(tempSCC)
+
+	rm $(tempSCC)

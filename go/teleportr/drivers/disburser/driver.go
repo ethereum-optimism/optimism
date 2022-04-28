@@ -291,7 +291,7 @@ func (d *Driver) UpdateGasPrice(
 	tx *types.Transaction,
 ) (*types.Transaction, error) {
 
-	gasPrice, err := d.cfg.L1Client.SuggestGasPrice(ctx)
+	gasPrice, err := d.cfg.L2Client.SuggestGasPrice(ctx)
 	if err != nil {
 		return nil, err
 	}

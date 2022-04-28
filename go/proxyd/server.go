@@ -27,6 +27,7 @@ const (
 	MaxBatchRPCCalls        = 100
 	cacheStatusHdr          = "X-Proxyd-Cache-Status"
 	defaultServerTimeout    = time.Second * 10
+	maxLogLength            = 2000
 )
 
 type Server struct {
@@ -149,6 +150,12 @@ func (s *Server) HandleRPC(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	RecordRequestPayloadSize(ctx, len(body))
+
+	log.Info("Raw RPC request",
+		"body", truncate(string(body)),
+		"req_id", GetReqID(ctx),
+		"auth", GetAuthCtx(ctx),
+	)
 
 	if IsBatch(body) {
 		reqs, err := ParseBatchRPCReq(body)
@@ -456,4 +463,12 @@ func (n *NoopRPCCache) GetRPC(context.Context, *RPCReq) (*RPCRes, error) {
 
 func (n *NoopRPCCache) PutRPC(context.Context, *RPCReq, *RPCRes) error {
 	return nil
+}
+
+func truncate(str string) string {
+	if len(str) > maxLogLength {
+		return str[:maxLogLength] + "..."
+	} else {
+		return str
+	}
 }
