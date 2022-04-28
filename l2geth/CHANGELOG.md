@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.5.18
+
+### Patch Changes
+
+- 935a98e6: rollup: fix log.Crit usage
+- 81f09f16: l2geth: Record rollup transaction metrics
+
 ## 0.5.17
 
 ### Patch Changes

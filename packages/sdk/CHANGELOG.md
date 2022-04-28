@@ -1,5 +1,11 @@
 # @eth-optimism/sdk
 
+## 1.1.1
+
+### Patch Changes
+
+- 1338135c: Fixes a bug where the wrong Overrides type was being used for gas estimation functions
+
 ## 1.1.0
 
 ### Minor Changes
