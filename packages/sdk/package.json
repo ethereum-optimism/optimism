@@ -1,6 +1,6 @@
 {
   "name": "@eth-optimism/sdk",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "[Optimism] Tools for working with Optimism",
   "main": "dist/index",
   "types": "dist/index",
