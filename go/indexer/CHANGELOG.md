@@ -1,5 +1,15 @@
 # @eth-optimism/indexer
 
+## 0.1.0
+
+### Minor Changes
+
+- 79be3e80: Add airdrops API
+
+### Patch Changes
+
+- d7bb9625: fix context reuse
+
 ## 0.0.4
 
 ### Patch Changes

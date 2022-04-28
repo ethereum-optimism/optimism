@@ -1,5 +1,11 @@
 # @eth-optimism/integration-tests
 
+## 0.5.10
+
+### Patch Changes
+
+- db02f97f: Add tests for system addrs on verifiers/replicas
+
 ## 0.5.9
 
 ### Patch Changes
