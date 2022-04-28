@@ -27,7 +27,7 @@ const (
 	MaxBatchRPCCalls        = 100
 	cacheStatusHdr          = "X-Proxyd-Cache-Status"
 	defaultServerTimeout    = time.Second * 10
-	maxLogLength            = 1000
+	maxLogLength            = 2000
 )
 
 type Server struct {
@@ -151,6 +151,12 @@ func (s *Server) HandleRPC(w http.ResponseWriter, r *http.Request) {
 	}
 	RecordRequestPayloadSize(ctx, len(body))
 
+	log.Info("Raw RPC request",
+		"body", truncate(string(body)),
+		"req_id", GetReqID(ctx),
+		"auth", GetAuthCtx(ctx),
+	)
+
 	if IsBatch(body) {
 		reqs, err := ParseBatchRPCReq(body)
 		if err != nil {
@@ -237,12 +243,6 @@ func (s *Server) handleSingleRPC(ctx context.Context, req *RPCReq) (*RPCRes, boo
 		RecordRPCError(ctx, BackendProxyd, MethodUnknown, ErrMethodNotWhitelisted)
 		return NewRPCErrorRes(req.ID, ErrMethodNotWhitelisted), false
 	}
-
-	log.Info("RPC request",
-		"method", req.Method,
-		"params", truncate(string(req.Params)),
-		"id", truncate(string(req.ID)),
-	)
 
 	var backendRes *RPCRes
 	backendRes, err := s.cache.GetRPC(ctx, req)
