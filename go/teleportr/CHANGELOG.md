@@ -1,5 +1,11 @@
 # @eth-optimism/teleportr
 
+## 0.0.4
+
+### Patch Changes
+
+- 7a320e22: Use L2 gas price in driver
+
 ## 0.0.3
 
 ### Patch Changes
