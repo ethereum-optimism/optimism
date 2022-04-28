@@ -2,7 +2,6 @@ package test
 
 import (
 	"context"
-	"errors"
 	"flag"
 	"fmt"
 	"math/big"
@@ -447,25 +446,15 @@ func L1InfoFromState(ctx context.Context, contract *l1block.L1Block, l2Number *b
 		Context:     ctx,
 	}
 
-	number, err := contract.Number(&opts)
+	out.Number, err = contract.Number(&opts)
 	if err != nil {
 		return derive.L1BlockInfo{}, fmt.Errorf("failed to get number: %w", err)
 	}
-	if !number.IsUint64() {
-		return derive.L1BlockInfo{}, errors.New("number does not fit in a uint64")
 
-	}
-	out.Number = number.Uint64()
-
-	time, err := contract.Timestamp(&opts)
+	out.Time, err = contract.Timestamp(&opts)
 	if err != nil {
 		return derive.L1BlockInfo{}, fmt.Errorf("failed to get timestamp: %w", err)
 	}
-	if !time.IsUint64() {
-		return derive.L1BlockInfo{}, errors.New("time does not fit in a uint64")
-
-	}
-	out.Time = time.Uint64()
 
 	out.BaseFee, err = contract.Basefee(&opts)
 	if err != nil {
@@ -477,6 +466,11 @@ func L1InfoFromState(ctx context.Context, contract *l1block.L1Block, l2Number *b
 		return derive.L1BlockInfo{}, fmt.Errorf("failed to get block hash: %w", err)
 	}
 	out.BlockHash = common.BytesToHash(blockHashBytes[:])
+
+	out.SequenceNumber, err = contract.SequenceNumber(&opts)
+	if err != nil {
+		return derive.L1BlockInfo{}, fmt.Errorf("failed to get sequence number: %w", err)
+	}
 
 	return out, nil
 }
@@ -539,8 +533,8 @@ func TestL1InfoContract(t *testing.T) {
 	fillInfoLists := func(start *types.Block, contract *l1block.L1Block, client *ethclient.Client) ([]derive.L1BlockInfo, []derive.L1BlockInfo) {
 		var txList, stateList []derive.L1BlockInfo
 		for b := start; ; {
-			infoFromTx, err := derive.L1InfoDepositTxDataToStruct(b.Transactions()[0].Data())
-			require.Nil(t, err)
+			var infoFromTx derive.L1BlockInfo
+			require.NoError(t, infoFromTx.UnmarshalBinary(b.Transactions()[0].Data()))
 			txList = append(txList, infoFromTx)
 
 			infoFromState, err := L1InfoFromState(ctx, contract, b.Number())
@@ -566,10 +560,11 @@ func TestL1InfoContract(t *testing.T) {
 		require.Nil(t, err)
 
 		l1blocks[h] = derive.L1BlockInfo{
-			Number:    b.NumberU64(),
-			Time:      b.Time(),
-			BaseFee:   b.BaseFee(),
-			BlockHash: h,
+			Number:         b.NumberU64(),
+			Time:           b.Time(),
+			BaseFee:        b.BaseFee(),
+			BlockHash:      h,
+			SequenceNumber: 0, // ignored, will be overwritten
 		}
 
 		h = b.ParentHash()
@@ -581,9 +576,9 @@ func TestL1InfoContract(t *testing.T) {
 	checkInfoList := func(name string, list []derive.L1BlockInfo) {
 		for _, info := range list {
 			if expected, ok := l1blocks[info.BlockHash]; ok {
+				expected.SequenceNumber = info.SequenceNumber // the seq nr is not part of the L1 info we know in advance, so we ignore it.
 				require.Equal(t, expected, info)
 			} else {
-
 				t.Fatalf("Did not find block hash for L1 Info: %v in test %s", info, name)
 			}
 		}

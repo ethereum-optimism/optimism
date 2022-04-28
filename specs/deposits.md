@@ -193,6 +193,10 @@ A predeployed contract on L2 at address `0x4200000000000000000000000000000000000
 certain block variables from the corresponding L1 block in storage, so that they may be accessed
 during the execution of the subsequent deposited transactions.
 
+Apart from the regular L1 attributes, a `sequenceNumber` attribute is stored.
+This equals the L2 block number relative to the start of the epoch, i.e. the L2 block distance to the
+L2 block height that the L1 attributes last changed, and reset to 0 at the start of a new epoch.
+
 The contract implements an authorization scheme, such that it only accepts state-changing calls from
 the [depositor account][depositor-account].
 

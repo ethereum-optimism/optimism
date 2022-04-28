@@ -30,8 +30,8 @@ var (
 
 // L1BlockMetaData contains all meta data concerning the L1Block contract.
 var L1BlockMetaData = &bind.MetaData{
-	ABI: "[{\"inputs\":[],\"name\":\"OnlyDepositor\",\"type\":\"error\"},{\"inputs\":[],\"name\":\"DEPOSITOR_ACCOUNT\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"basefee\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"hash\",\"outputs\":[{\"internalType\":\"bytes32\",\"name\":\"\",\"type\":\"bytes32\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"number\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"_number\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"_timestamp\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"_basefee\",\"type\":\"uint256\"},{\"internalType\":\"bytes32\",\"name\":\"_hash\",\"type\":\"bytes32\"}],\"name\":\"setL1BlockValues\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"timestamp\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"}]",
-	Bin: "0x608060405234801561001057600080fd5b506101cc806100206000396000f3fe608060405234801561001057600080fd5b50600436106100725760003560e01c8063b80777ea11610050578063b80777ea146100a5578063c03ba43e146100ae578063e591b282146100c357600080fd5b806309bd5a60146100775780635cf24969146100935780638381f58a1461009c575b600080fd5b61008060035481565b6040519081526020015b60405180910390f35b61008060025481565b61008060005481565b61008060015481565b6100c16100bc366004610164565b610103565b005b6100de73deaddeaddeaddeaddeaddeaddeaddeaddead000181565b60405173ffffffffffffffffffffffffffffffffffffffff909116815260200161008a565b3373deaddeaddeaddeaddeaddeaddeaddeaddead000114610150576040517fce8c104800000000000000000000000000000000000000000000000000000000815260040160405180910390fd5b600093909355600191909155600255600355565b6000806000806080858703121561017a57600080fd5b505082359460208401359450604084013593606001359250905056fea26469706673582212202030f0b19d5ff0b7a5d094d184635f40535b3dd5b50e391125e80dcd7c4dfb1564736f6c634300080a0033",
+	ABI: "[{\"inputs\":[],\"name\":\"OnlyDepositor\",\"type\":\"error\"},{\"inputs\":[],\"name\":\"DEPOSITOR_ACCOUNT\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"basefee\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"hash\",\"outputs\":[{\"internalType\":\"bytes32\",\"name\":\"\",\"type\":\"bytes32\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"number\",\"outputs\":[{\"internalType\":\"uint64\",\"name\":\"\",\"type\":\"uint64\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"sequenceNumber\",\"outputs\":[{\"internalType\":\"uint64\",\"name\":\"\",\"type\":\"uint64\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint64\",\"name\":\"_number\",\"type\":\"uint64\"},{\"internalType\":\"uint64\",\"name\":\"_timestamp\",\"type\":\"uint64\"},{\"internalType\":\"uint256\",\"name\":\"_basefee\",\"type\":\"uint256\"},{\"internalType\":\"bytes32\",\"name\":\"_hash\",\"type\":\"bytes32\"},{\"internalType\":\"uint64\",\"name\":\"_sequenceNumber\",\"type\":\"uint64\"}],\"name\":\"setL1BlockValues\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"timestamp\",\"outputs\":[{\"internalType\":\"uint64\",\"name\":\"\",\"type\":\"uint64\"}],\"stateMutability\":\"view\",\"type\":\"function\"}]",
+	Bin: "0x608060405234801561001057600080fd5b506102b0806100206000396000f3fe608060405234801561001057600080fd5b506004361061007d5760003560e01c806364ca23ef1161005b57806364ca23ef146100bc5780638381f58a146100e9578063b80777ea146100fd578063e591b2821461011d57600080fd5b8063042c2f571461008257806309bd5a60146100975780635cf24969146100b3575b600080fd5b61009561009036600461024c565b61015d565b005b6100a060025481565b6040519081526020015b60405180910390f35b6100a060015481565b6003546100d09067ffffffffffffffff1681565b60405167ffffffffffffffff90911681526020016100aa565b6000546100d09067ffffffffffffffff1681565b6000546100d09068010000000000000000900467ffffffffffffffff1681565b61013873deaddeaddeaddeaddeaddeaddeaddeaddead000181565b60405173ffffffffffffffffffffffffffffffffffffffff90911681526020016100aa565b3373deaddeaddeaddeaddeaddeaddeaddeaddead0001146101aa576040517fce8c104800000000000000000000000000000000000000000000000000000000815260040160405180910390fd5b6000805467ffffffffffffffff9687167fffffffffffffffffffffffffffffffff0000000000000000000000000000000090911617680100000000000000009587169590950294909417909355600191909155600255600380547fffffffffffffffffffffffffffffffffffffffffffffffff00000000000000001691909216179055565b803567ffffffffffffffff8116811461024757600080fd5b919050565b600080600080600060a0868803121561026457600080fd5b61026d8661022f565b945061027b6020870161022f565b935060408601359250606086013591506102976080870161022f565b9050929550929590935056fea164736f6c634300080a000a",
 }
 
 // L1BlockABI is the input ABI used to generate the binding from.
@@ -296,16 +296,16 @@ func (_L1Block *L1BlockCallerSession) Hash() ([32]byte, error) {
 
 // Number is a free data retrieval call binding the contract method 0x8381f58a.
 //
-// Solidity: function number() view returns(uint256)
-func (_L1Block *L1BlockCaller) Number(opts *bind.CallOpts) (*big.Int, error) {
+// Solidity: function number() view returns(uint64)
+func (_L1Block *L1BlockCaller) Number(opts *bind.CallOpts) (uint64, error) {
 	var out []interface{}
 	err := _L1Block.contract.Call(opts, &out, "number")
 
 	if err != nil {
-		return *new(*big.Int), err
+		return *new(uint64), err
 	}
 
-	out0 := *abi.ConvertType(out[0], new(*big.Int)).(**big.Int)
+	out0 := *abi.ConvertType(out[0], new(uint64)).(*uint64)
 
 	return out0, err
 
@@ -313,30 +313,61 @@ func (_L1Block *L1BlockCaller) Number(opts *bind.CallOpts) (*big.Int, error) {
 
 // Number is a free data retrieval call binding the contract method 0x8381f58a.
 //
-// Solidity: function number() view returns(uint256)
-func (_L1Block *L1BlockSession) Number() (*big.Int, error) {
+// Solidity: function number() view returns(uint64)
+func (_L1Block *L1BlockSession) Number() (uint64, error) {
 	return _L1Block.Contract.Number(&_L1Block.CallOpts)
 }
 
 // Number is a free data retrieval call binding the contract method 0x8381f58a.
 //
-// Solidity: function number() view returns(uint256)
-func (_L1Block *L1BlockCallerSession) Number() (*big.Int, error) {
+// Solidity: function number() view returns(uint64)
+func (_L1Block *L1BlockCallerSession) Number() (uint64, error) {
 	return _L1Block.Contract.Number(&_L1Block.CallOpts)
+}
+
+// SequenceNumber is a free data retrieval call binding the contract method 0x64ca23ef.
+//
+// Solidity: function sequenceNumber() view returns(uint64)
+func (_L1Block *L1BlockCaller) SequenceNumber(opts *bind.CallOpts) (uint64, error) {
+	var out []interface{}
+	err := _L1Block.contract.Call(opts, &out, "sequenceNumber")
+
+	if err != nil {
+		return *new(uint64), err
+	}
+
+	out0 := *abi.ConvertType(out[0], new(uint64)).(*uint64)
+
+	return out0, err
+
+}
+
+// SequenceNumber is a free data retrieval call binding the contract method 0x64ca23ef.
+//
+// Solidity: function sequenceNumber() view returns(uint64)
+func (_L1Block *L1BlockSession) SequenceNumber() (uint64, error) {
+	return _L1Block.Contract.SequenceNumber(&_L1Block.CallOpts)
+}
+
+// SequenceNumber is a free data retrieval call binding the contract method 0x64ca23ef.
+//
+// Solidity: function sequenceNumber() view returns(uint64)
+func (_L1Block *L1BlockCallerSession) SequenceNumber() (uint64, error) {
+	return _L1Block.Contract.SequenceNumber(&_L1Block.CallOpts)
 }
 
 // Timestamp is a free data retrieval call binding the contract method 0xb80777ea.
 //
-// Solidity: function timestamp() view returns(uint256)
-func (_L1Block *L1BlockCaller) Timestamp(opts *bind.CallOpts) (*big.Int, error) {
+// Solidity: function timestamp() view returns(uint64)
+func (_L1Block *L1BlockCaller) Timestamp(opts *bind.CallOpts) (uint64, error) {
 	var out []interface{}
 	err := _L1Block.contract.Call(opts, &out, "timestamp")
 
 	if err != nil {
-		return *new(*big.Int), err
+		return *new(uint64), err
 	}
 
-	out0 := *abi.ConvertType(out[0], new(*big.Int)).(**big.Int)
+	out0 := *abi.ConvertType(out[0], new(uint64)).(*uint64)
 
 	return out0, err
 
@@ -344,35 +375,35 @@ func (_L1Block *L1BlockCaller) Timestamp(opts *bind.CallOpts) (*big.Int, error) 
 
 // Timestamp is a free data retrieval call binding the contract method 0xb80777ea.
 //
-// Solidity: function timestamp() view returns(uint256)
-func (_L1Block *L1BlockSession) Timestamp() (*big.Int, error) {
+// Solidity: function timestamp() view returns(uint64)
+func (_L1Block *L1BlockSession) Timestamp() (uint64, error) {
 	return _L1Block.Contract.Timestamp(&_L1Block.CallOpts)
 }
 
 // Timestamp is a free data retrieval call binding the contract method 0xb80777ea.
 //
-// Solidity: function timestamp() view returns(uint256)
-func (_L1Block *L1BlockCallerSession) Timestamp() (*big.Int, error) {
+// Solidity: function timestamp() view returns(uint64)
+func (_L1Block *L1BlockCallerSession) Timestamp() (uint64, error) {
 	return _L1Block.Contract.Timestamp(&_L1Block.CallOpts)
 }
 
-// SetL1BlockValues is a paid mutator transaction binding the contract method 0xc03ba43e.
+// SetL1BlockValues is a paid mutator transaction binding the contract method 0x042c2f57.
 //
-// Solidity: function setL1BlockValues(uint256 _number, uint256 _timestamp, uint256 _basefee, bytes32 _hash) returns()
-func (_L1Block *L1BlockTransactor) SetL1BlockValues(opts *bind.TransactOpts, _number *big.Int, _timestamp *big.Int, _basefee *big.Int, _hash [32]byte) (*types.Transaction, error) {
-	return _L1Block.contract.Transact(opts, "setL1BlockValues", _number, _timestamp, _basefee, _hash)
+// Solidity: function setL1BlockValues(uint64 _number, uint64 _timestamp, uint256 _basefee, bytes32 _hash, uint64 _sequenceNumber) returns()
+func (_L1Block *L1BlockTransactor) SetL1BlockValues(opts *bind.TransactOpts, _number uint64, _timestamp uint64, _basefee *big.Int, _hash [32]byte, _sequenceNumber uint64) (*types.Transaction, error) {
+	return _L1Block.contract.Transact(opts, "setL1BlockValues", _number, _timestamp, _basefee, _hash, _sequenceNumber)
 }
 
-// SetL1BlockValues is a paid mutator transaction binding the contract method 0xc03ba43e.
+// SetL1BlockValues is a paid mutator transaction binding the contract method 0x042c2f57.
 //
-// Solidity: function setL1BlockValues(uint256 _number, uint256 _timestamp, uint256 _basefee, bytes32 _hash) returns()
-func (_L1Block *L1BlockSession) SetL1BlockValues(_number *big.Int, _timestamp *big.Int, _basefee *big.Int, _hash [32]byte) (*types.Transaction, error) {
-	return _L1Block.Contract.SetL1BlockValues(&_L1Block.TransactOpts, _number, _timestamp, _basefee, _hash)
+// Solidity: function setL1BlockValues(uint64 _number, uint64 _timestamp, uint256 _basefee, bytes32 _hash, uint64 _sequenceNumber) returns()
+func (_L1Block *L1BlockSession) SetL1BlockValues(_number uint64, _timestamp uint64, _basefee *big.Int, _hash [32]byte, _sequenceNumber uint64) (*types.Transaction, error) {
+	return _L1Block.Contract.SetL1BlockValues(&_L1Block.TransactOpts, _number, _timestamp, _basefee, _hash, _sequenceNumber)
 }
 
-// SetL1BlockValues is a paid mutator transaction binding the contract method 0xc03ba43e.
+// SetL1BlockValues is a paid mutator transaction binding the contract method 0x042c2f57.
 //
-// Solidity: function setL1BlockValues(uint256 _number, uint256 _timestamp, uint256 _basefee, bytes32 _hash) returns()
-func (_L1Block *L1BlockTransactorSession) SetL1BlockValues(_number *big.Int, _timestamp *big.Int, _basefee *big.Int, _hash [32]byte) (*types.Transaction, error) {
-	return _L1Block.Contract.SetL1BlockValues(&_L1Block.TransactOpts, _number, _timestamp, _basefee, _hash)
+// Solidity: function setL1BlockValues(uint64 _number, uint64 _timestamp, uint256 _basefee, bytes32 _hash, uint64 _sequenceNumber) returns()
+func (_L1Block *L1BlockTransactorSession) SetL1BlockValues(_number uint64, _timestamp uint64, _basefee *big.Int, _hash [32]byte, _sequenceNumber uint64) (*types.Transaction, error) {
+	return _L1Block.Contract.SetL1BlockValues(&_L1Block.TransactOpts, _number, _timestamp, _basefee, _hash, _sequenceNumber)
 }

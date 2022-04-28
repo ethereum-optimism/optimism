@@ -55,7 +55,7 @@ func lastDeposit(txns []l2.Data) (int, error) {
 }
 
 func (d *outputImpl) createNewBlock(ctx context.Context, l2Head eth.L2BlockRef, l2SafeHead eth.BlockID, l2Finalized eth.BlockID, l1Origin eth.L1BlockRef) (eth.L2BlockRef, *derive.BatchData, error) {
-	d.log.Info("creating new block", "l2Head", l2Head)
+	d.log.Info("creating new block", "parent", l2Head, "l1Origin", l1Origin)
 
 	fetchCtx, cancel := context.WithTimeout(ctx, time.Second*20)
 	defer cancel()
@@ -64,11 +64,14 @@ func (d *outputImpl) createNewBlock(ctx context.Context, l2Head eth.L2BlockRef, 
 	var receipts types.Receipts
 	var err error
 
+	seqNumber := l2Head.SequenceNumber + 1
+
 	// If the L1 origin changed this block, then we are in the first block of the epoch. In this
 	// case we need to fetch all transaction receipts from the L1 origin block so we can scan for
 	// user deposits.
 	if l2Head.L1Origin.Number != l1Origin.Number {
 		l1Info, _, receipts, err = d.dl.Fetch(fetchCtx, l1Origin.Hash)
+		seqNumber = 0 // reset sequence number at the start of the epoch
 	} else {
 		l1Info, err = d.dl.InfoByHash(fetchCtx, l1Origin.Hash)
 	}
@@ -80,7 +83,6 @@ func (d *outputImpl) createNewBlock(ctx context.Context, l2Head eth.L2BlockRef, 
 	var txns []l2.Data
 
 	// First transaction in every block is always the L1 info transaction.
-	seqNumber := l2Head.Number + 1 - l2SafeHead.Number
 	l1InfoTx, err := derive.L1InfoDepositBytes(seqNumber, l1Info)
 	if err != nil {
 		return l2Head, nil, err
@@ -154,8 +156,7 @@ func (d *outputImpl) insertEpoch(ctx context.Context, l2Head eth.L2BlockRef, l2S
 		return l2Head, l2SafeHead, false, errors.New("invalid sequencing window size")
 	}
 
-	logger := d.log.New("input_l1_first", l1Input[0], "input_l1_last", l1Input[len(l1Input)-1], "input_l2_parent", l2SafeHead, "finalized_l2", l2Finalized)
-	logger.Trace("Running update step on the L2 node")
+	d.log.Debug("inserting epoch", "input_l1_first", l1Input[0], "input_l1_last", l1Input[len(l1Input)-1], "input_l2_parent", l2SafeHead, "finalized_l2", l2Finalized)
 
 	// Get inputs from L1 and L2
 	epoch := rollup.Epoch(l1Input[0].Number)
@@ -231,11 +232,17 @@ func (d *outputImpl) insertEpoch(ctx context.Context, l2Head eth.L2BlockRef, l2S
 			NoTxPool: true,
 		}
 
+		d.log.Debug("inserting epoch batch", "safeHeadL1Origin", lastSafeHead.L1Origin, "l1Info", l1Info.ID(), "seqnr", i)
+
 		// We are either verifying blocks (with a potential for a reorg) or inserting a safe head to the chain
 		if lastHead.Hash != lastSafeHead.Hash {
+			d.log.Debug("verifying derived attributes matches L2 block",
+				"lastHead", lastHead, "lastSafeHead", lastSafeHead, "epoch", epoch,
+				"lastSafeHead_l1origin", lastSafeHead.L1Origin, "lastHead_l1origin", lastHead.L1Origin)
 			payload, reorg, err = d.verifySafeBlock(ctx, fc, attrs, lastSafeHead.ID())
 
 		} else {
+			d.log.Debug("inserting new batch after lastHead", "lastHead", lastHead.ID())
 			payload, _, err = d.insertHeadBlock(ctx, fc, attrs, true)
 		}
 		if err != nil {
@@ -292,6 +299,11 @@ func (d *outputImpl) verifySafeBlock(ctx context.Context, fc l2.ForkchoiceState,
 	if err != nil {
 		return nil, false, fmt.Errorf("failed to get L2 block: %w", err)
 	}
+	ref, err := l2.PayloadToBlockRef(payload, &d.Config.Genesis)
+	if err != nil {
+		return nil, false, fmt.Errorf("failed to parse block ref: %w", err)
+	}
+	d.log.Debug("verifySafeBlock", "parentl2", parent, "payload", payload.ID(), "payloadOrigin", ref.L1Origin, "payloadSeq", ref.SequenceNumber)
 	err = attributesMatchBlock(attrs, parent.Hash, payload)
 	if err != nil {
 		// Have reorg

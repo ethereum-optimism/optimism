@@ -182,11 +182,13 @@ func (s *Source) L2BlockRefByHash(ctx context.Context, l2Hash common.Hash) (eth.
 // falling back to genesis information if necessary.
 func blockToBlockRef(block *types.Block, genesis *rollup.Genesis) (eth.L2BlockRef, error) {
 	var l1Origin eth.BlockID
+	var sequenceNumber uint64
 	if block.NumberU64() == genesis.L2.Number {
 		if block.Hash() != genesis.L2.Hash {
 			return eth.L2BlockRef{}, fmt.Errorf("expected L2 genesis hash to match L2 block at genesis block number %d: %s <> %s", genesis.L2.Number, block.Hash(), genesis.L2.Hash)
 		}
 		l1Origin = genesis.L1
+		sequenceNumber = 0
 	} else {
 		txs := block.Transactions()
 		if len(txs) == 0 {
@@ -196,18 +198,20 @@ func blockToBlockRef(block *types.Block, genesis *rollup.Genesis) (eth.L2BlockRe
 		if tx.Type() != types.DepositTxType {
 			return eth.L2BlockRef{}, fmt.Errorf("first block tx has unexpected tx type: %d", tx.Type())
 		}
-		l1Number, _, _, l1Hash, err := derive.L1InfoDepositTxData(tx.Data())
+		info, err := derive.L1InfoDepositTxData(tx.Data())
 		if err != nil {
 			return eth.L2BlockRef{}, fmt.Errorf("failed to parse L1 info deposit tx from L2 block: %v", err)
 		}
-		l1Origin = eth.BlockID{Hash: l1Hash, Number: l1Number}
+		l1Origin = eth.BlockID{Hash: info.BlockHash, Number: info.Number}
+		sequenceNumber = info.SequenceNumber
 	}
 	return eth.L2BlockRef{
-		Hash:       block.Hash(),
-		Number:     block.NumberU64(),
-		ParentHash: block.ParentHash(),
-		Time:       block.Time(),
-		L1Origin:   l1Origin,
+		Hash:           block.Hash(),
+		Number:         block.NumberU64(),
+		ParentHash:     block.ParentHash(),
+		Time:           block.Time(),
+		L1Origin:       l1Origin,
+		SequenceNumber: sequenceNumber,
 	}, nil
 }
 
@@ -215,11 +219,13 @@ func blockToBlockRef(block *types.Block, genesis *rollup.Genesis) (eth.L2BlockRe
 // falling back to genesis information if necessary.
 func PayloadToBlockRef(payload *ExecutionPayload, genesis *rollup.Genesis) (eth.L2BlockRef, error) {
 	var l1Origin eth.BlockID
+	var sequenceNumber uint64
 	if uint64(payload.BlockNumber) == genesis.L2.Number {
 		if payload.BlockHash != genesis.L2.Hash {
 			return eth.L2BlockRef{}, fmt.Errorf("expected L2 genesis hash to match L2 block at genesis block number %d: %s <> %s", genesis.L2.Number, payload.BlockHash, genesis.L2.Hash)
 		}
 		l1Origin = genesis.L1
+		sequenceNumber = 0
 	} else {
 		if len(payload.Transactions) == 0 {
 			return eth.L2BlockRef{}, fmt.Errorf("l2 block is missing L1 info deposit tx, block hash: %s", payload.BlockHash)
@@ -231,18 +237,20 @@ func PayloadToBlockRef(payload *ExecutionPayload, genesis *rollup.Genesis) (eth.
 		if tx.Type() != types.DepositTxType {
 			return eth.L2BlockRef{}, fmt.Errorf("first payload tx has unexpected tx type: %d", tx.Type())
 		}
-		l1Number, _, _, l1Hash, err := derive.L1InfoDepositTxData(tx.Data())
+		info, err := derive.L1InfoDepositTxData(tx.Data())
 		if err != nil {
 			return eth.L2BlockRef{}, fmt.Errorf("failed to parse L1 info deposit tx from L2 block: %v", err)
 		}
-		l1Origin = eth.BlockID{Hash: l1Hash, Number: l1Number}
+		l1Origin = eth.BlockID{Hash: info.BlockHash, Number: info.Number}
+		sequenceNumber = info.SequenceNumber
 	}
 
 	return eth.L2BlockRef{
-		Hash:       payload.BlockHash,
-		Number:     uint64(payload.BlockNumber),
-		ParentHash: payload.ParentHash,
-		Time:       uint64(payload.Timestamp),
-		L1Origin:   l1Origin,
+		Hash:           payload.BlockHash,
+		Number:         uint64(payload.BlockNumber),
+		ParentHash:     payload.ParentHash,
+		Time:           uint64(payload.Timestamp),
+		L1Origin:       l1Origin,
+		SequenceNumber: sequenceNumber,
 	}, nil
 }

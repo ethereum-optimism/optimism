@@ -3,11 +3,11 @@
 // turned back into L1 data.
 //
 // The flow is data is as follows
-// receipts -> l2.PayloadAttributes with `payload_attributes.go`
+// receipts, batches -> l2.PayloadAttributes with `payload_attributes.go`
 // l2.PayloadAttributes -> l2.ExecutionPayload with `execution_payload.go`
-// L2 block -> Corresponding L1 block with `invert.go`
+// L2 block -> Corresponding L1 block info with `l1_block_info.go`
 //
-// The Payload Atrribute derivation stage is a pure function.
+// The Payload Attributes derivation stage is a pure function.
 // The Execution Payload derivation stage relies on the L2 execution engine to perform the
 // state update.
 // The inversion step is a pure function.
