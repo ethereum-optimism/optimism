@@ -15,7 +15,6 @@
       "ops/docker/js-builder"
     ],
     "nohoist": [
-      "examples/*",
       "**/typechain",
       "**/@typechain/*"
     ]
