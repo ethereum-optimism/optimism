@@ -1,12 +1,13 @@
 import { ethers } from 'hardhat'
-import { Contract, Signer } from 'ethers'
+import { Contract } from 'ethers'
+import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers'
 
 import { expect } from '../../../setup'
 import { deploy } from '../../../helpers'
 
 describe('ChugSplashDictator', () => {
-  let signer1: Signer
-  let signer2: Signer
+  let signer1: SignerWithAddress
+  let signer2: SignerWithAddress
   before(async () => {
     ;[signer1, signer2] = await ethers.getSigners()
   })
@@ -16,14 +17,14 @@ describe('ChugSplashDictator', () => {
   beforeEach(async () => {
     L1ChugSplashProxy = await deploy('L1ChugSplashProxy', {
       signer: signer1,
-      args: [await signer1.getAddress()],
+      args: [signer1.address],
     })
 
     ChugSplashDictator = await deploy('ChugSplashDictator', {
       signer: signer1,
       args: [
         L1ChugSplashProxy.address,
-        await signer1.getAddress(),
+        signer1.address,
         ethers.utils.keccak256('0x1111'),
         ethers.utils.keccak256('0x1234'),
         ethers.utils.keccak256('0x5678'),
@@ -32,9 +33,7 @@ describe('ChugSplashDictator', () => {
       ],
     })
 
-    await L1ChugSplashProxy.connect(signer1).setOwner(
-      ChugSplashDictator.address
-    )
+    await L1ChugSplashProxy.setOwner(ChugSplashDictator.address)
   })
 
   describe('doActions', () => {
@@ -45,15 +44,13 @@ describe('ChugSplashDictator', () => {
     })
 
     it('should set the proxy code, storage & owner', async () => {
-      await expect(ChugSplashDictator.connect(signer1).doActions('0x1111')).to
-        .not.be.reverted
+      await expect(ChugSplashDictator.doActions('0x1111')).to.not.be.reverted
     })
   })
 
   describe('returnOwnership', () => {
     it('should transfer contractc ownership to finalOwner', async () => {
-      await expect(ChugSplashDictator.connect(signer1).returnOwnership()).to.not
-        .be.reverted
+      await expect(ChugSplashDictator.returnOwnership()).to.not.be.reverted
     })
 
     it('should revert when called by non-owner', async () => {
