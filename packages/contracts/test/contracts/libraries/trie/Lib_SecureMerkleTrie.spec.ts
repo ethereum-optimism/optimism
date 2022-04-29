@@ -1,19 +1,14 @@
-/* External Imports */
-import { ethers } from 'hardhat'
 import { Contract } from 'ethers'
 
-/* Internal Imports */
 import { expect } from '../../../setup'
-import { TrieTestGenerator } from '../../../helpers'
+import { deploy, TrieTestGenerator } from '../../../helpers'
 
 const NODE_COUNTS = [1, 2, 128]
 
 describe('Lib_SecureMerkleTrie', () => {
   let Lib_SecureMerkleTrie: Contract
   before(async () => {
-    Lib_SecureMerkleTrie = await (
-      await ethers.getContractFactory('TestLib_SecureMerkleTrie')
-    ).deploy()
+    Lib_SecureMerkleTrie = await deploy('TestLib_SecureMerkleTrie')
   })
 
   describe('verifyInclusionProof', () => {
