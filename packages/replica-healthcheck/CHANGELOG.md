@@ -1,5 +1,11 @@
 # @eth-optimism/replica-healthcheck
 
+## 1.0.5
+
+### Patch Changes
+
+- bc289e91: Fixes a bug that would cause the service to stop properly checking blocks when the target client consistently leads the reference client
+
 ## 1.0.4
 
 ### Patch Changes

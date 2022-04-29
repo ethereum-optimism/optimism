@@ -6,6 +6,8 @@ import (
 	"runtime/debug"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/go/indexer/metrics"
+
 	"github.com/ethereum/go-ethereum/log"
 )
 
@@ -50,7 +52,7 @@ func (rw *responseWriter) WriteHeader(code int) {
 }
 
 // LoggingMiddleware logs the incoming HTTP request & its duration.
-func LoggingMiddleware(logger log.Logger) func(http.Handler) http.Handler {
+func LoggingMiddleware(metrics *metrics.Metrics, logger log.Logger) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		fn := func(w http.ResponseWriter, r *http.Request) {
 			defer func() {
@@ -64,16 +66,19 @@ func LoggingMiddleware(logger log.Logger) func(http.Handler) http.Handler {
 				}
 			}()
 
+			metrics.RecordHTTPRequest()
 			start := time.Now()
 			wrapped := wrapResponseWriter(w)
 			next.ServeHTTP(wrapped, r)
+			dur := time.Since(start)
 			logger.Info(
 				"served request",
 				"status", wrapped.status,
 				"method", r.Method,
 				"path", r.URL.EscapedPath(),
-				"duration", time.Since(start),
+				"duration", dur,
 			)
+			metrics.RecordHTTPResponse(wrapped.status, dur)
 		}
 
 		return http.HandlerFunc(fn)

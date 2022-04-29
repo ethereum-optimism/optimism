@@ -10,9 +10,11 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/ethereum/go-ethereum/common/math"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"golang.org/x/sync/semaphore"
 )
 
 func Start(config *Config) (func(), error) {
@@ -52,6 +54,12 @@ func Start(config *Config) (func(), error) {
 			return nil, err
 		}
 	}
+
+	maxConcurrentRPCs := config.Server.MaxConcurrentRPCs
+	if maxConcurrentRPCs == 0 {
+		maxConcurrentRPCs = math.MaxInt64
+	}
+	rpcRequestSemaphore := semaphore.NewWeighted(maxConcurrentRPCs)
 
 	backendNames := make([]string, 0)
 	backendsByName := make(map[string]*Backend)
@@ -111,7 +119,7 @@ func Start(config *Config) (func(), error) {
 			opts = append(opts, WithStrippedTrailingXFF())
 		}
 		opts = append(opts, WithProxydIP(os.Getenv("PROXYD_IP")))
-		back := NewBackend(name, rpcURL, wsURL, lim, opts...)
+		back := NewBackend(name, rpcURL, wsURL, lim, rpcRequestSemaphore, opts...)
 		backendNames = append(backendNames, name)
 		backendsByName[name] = back
 		log.Info("configured backend", "name", name, "rpc_url", rpcURL, "ws_url", wsURL)
