@@ -15,7 +15,3 @@ export const setProxyTarget = async (
   await SimpleProxy.setTarget(target.address)
   await AddressManager.setAddress(name, SimpleProxy.address)
 }
-
-export const makeAddressManager = async (): Promise<Contract> => {
-  return (await ethers.getContractFactory('Lib_AddressManager')).deploy()
-}
