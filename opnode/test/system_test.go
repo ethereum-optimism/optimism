@@ -2,6 +2,7 @@ package test
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"math/big"
@@ -12,6 +13,7 @@ import (
 	"github.com/ethereum-optimism/optimistic-specs/l2os/bindings/l2oo"
 	"github.com/ethereum-optimism/optimistic-specs/l2os/rollupclient"
 	"github.com/ethereum-optimism/optimistic-specs/opnode/contracts/deposit"
+	"github.com/ethereum-optimism/optimistic-specs/opnode/contracts/l1block"
 	"github.com/ethereum-optimism/optimistic-specs/opnode/internal/testlog"
 	rollupNode "github.com/ethereum-optimism/optimistic-specs/opnode/node"
 	"github.com/ethereum-optimism/optimistic-specs/opnode/rollup"
@@ -23,6 +25,7 @@ import (
 	"github.com/ethereum/go-ethereum/accounts/keystore"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/stretchr/testify/require"
@@ -288,6 +291,7 @@ func TestSystemE2E(t *testing.T) {
 
 	receipt, err = waitForTransaction(tx.Hash(), l2Verif, 6*time.Second)
 	require.Nil(t, err, "Waiting for L2 tx on verifier")
+	require.Equal(t, types.ReceiptStatusSuccessful, receipt.Status, "TX should have succeeded")
 
 	// Verify blocks match after batch submission on verifiers and sequencers
 	verifBlock, err := l2Verif.BlockByNumber(context.Background(), receipt.BlockNumber)
@@ -431,4 +435,137 @@ func TestMissingBatchE2E(t *testing.T) {
 	block, err := l2Seq.BlockByNumber(ctx, receipt.BlockNumber)
 	require.Nil(t, err, "Get block from sequencer")
 	require.NotEqual(t, block.Hash(), receipt.BlockHash, "L2 Sequencer did not reorg out transaction on it's safe chain")
+}
+
+func L1InfoFromState(ctx context.Context, contract *l1block.L1Block, l2Number *big.Int) (derive.L1BlockInfo, error) {
+	var err error
+	var out derive.L1BlockInfo
+	opts := bind.CallOpts{
+		BlockNumber: l2Number,
+		Context:     ctx,
+	}
+
+	number, err := contract.Number(&opts)
+	if err != nil {
+		return derive.L1BlockInfo{}, fmt.Errorf("failed to get number: %w", err)
+	}
+	if !number.IsUint64() {
+		return derive.L1BlockInfo{}, errors.New("number does not fit in a uint64")
+
+	}
+	out.Number = number.Uint64()
+
+	time, err := contract.Timestamp(&opts)
+	if err != nil {
+		return derive.L1BlockInfo{}, fmt.Errorf("failed to get timestamp: %w", err)
+	}
+	if !time.IsUint64() {
+		return derive.L1BlockInfo{}, errors.New("time does not fit in a uint64")
+
+	}
+	out.Time = time.Uint64()
+
+	out.BaseFee, err = contract.Basefee(&opts)
+	if err != nil {
+		return derive.L1BlockInfo{}, fmt.Errorf("failed to get timestamp: %w", err)
+	}
+
+	blockHashBytes, err := contract.Hash(&opts)
+	if err != nil {
+		return derive.L1BlockInfo{}, fmt.Errorf("failed to get block hash: %w", err)
+	}
+	out.BlockHash = common.BytesToHash(blockHashBytes[:])
+
+	return out, nil
+}
+
+func TestL1InfoContract(t *testing.T) {
+	if !verboseGethNodes {
+		log.Root().SetHandler(log.DiscardHandler())
+	}
+
+	cfg := defaultSystemConfig(t)
+
+	sys, err := cfg.start()
+	require.Nil(t, err, "Error starting up system")
+	defer sys.Close()
+
+	l1Client := sys.Clients["l1"]
+	l2Seq := sys.Clients["sequencer"]
+	l2Verif := sys.Clients["verifier"]
+
+	endVerifBlockNumber := big.NewInt(4)
+	endSeqBlockNumber := big.NewInt(6)
+	endVerifBlock, err := waitForBlock(endVerifBlockNumber, l2Verif, time.Minute)
+	require.Nil(t, err)
+	endSeqBlock, err := waitForBlock(endSeqBlockNumber, l2Seq, time.Minute)
+	require.Nil(t, err)
+
+	seqL1Info, err := l1block.NewL1Block(cfg.L1InfoPredeployAddress, l2Seq)
+	require.Nil(t, err)
+
+	verifL1Info, err := l1block.NewL1Block(cfg.L1InfoPredeployAddress, l2Verif)
+	require.Nil(t, err)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel()
+
+	fillInfoLists := func(start *types.Block, contract *l1block.L1Block, client *ethclient.Client) ([]derive.L1BlockInfo, []derive.L1BlockInfo) {
+		var txList, stateList []derive.L1BlockInfo
+		for b := start; ; {
+			infoFromTx, err := derive.L1InfoDepositTxDataToStruct(b.Transactions()[0].Data())
+			require.Nil(t, err)
+			txList = append(txList, infoFromTx)
+
+			infoFromState, err := L1InfoFromState(ctx, contract, b.Number())
+			require.Nil(t, err)
+			stateList = append(stateList, infoFromState)
+
+			// Genesis L2 block contains no L1 Deposit TX
+			if b.NumberU64() == 1 {
+				return txList, stateList
+			}
+			b, err = client.BlockByHash(ctx, b.ParentHash())
+			require.Nil(t, err)
+		}
+	}
+
+	l1InfosFromSequencerTransactions, l1InfosFromSequencerState := fillInfoLists(endSeqBlock, seqL1Info, l2Seq)
+	l1InfosFromVerifierTransactions, l1InfosFromVerifierState := fillInfoLists(endVerifBlock, verifL1Info, l2Verif)
+
+	l1blocks := make(map[common.Hash]derive.L1BlockInfo)
+	maxL1Hash := l1InfosFromSequencerTransactions[0].BlockHash
+	for h := maxL1Hash; ; {
+		b, err := l1Client.BlockByHash(ctx, h)
+		require.Nil(t, err)
+
+		l1blocks[h] = derive.L1BlockInfo{
+			Number:    b.NumberU64(),
+			Time:      b.Time(),
+			BaseFee:   b.BaseFee(),
+			BlockHash: h,
+		}
+
+		h = b.ParentHash()
+		if b.NumberU64() == 0 {
+			break
+		}
+	}
+
+	checkInfoList := func(name string, list []derive.L1BlockInfo) {
+		for _, info := range list {
+			if expected, ok := l1blocks[info.BlockHash]; ok {
+				require.Equal(t, expected, info)
+			} else {
+
+				t.Fatalf("Did not find block hash for L1 Info: %v in test %s", info, name)
+			}
+		}
+	}
+
+	checkInfoList("On sequencer with tx", l1InfosFromSequencerTransactions)
+	checkInfoList("On sequencer with state", l1InfosFromSequencerState)
+	checkInfoList("On verifier with tx", l1InfosFromVerifierTransactions)
+	checkInfoList("On verifier with state", l1InfosFromVerifierState)
+
 }

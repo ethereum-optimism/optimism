@@ -81,7 +81,7 @@ func (d *outputImpl) createNewBlock(ctx context.Context, l2Head eth.L2BlockRef, 
 
 	// First transaction in every block is always the L1 info transaction.
 	seqNumber := l2Head.Number + 1 - l2SafeHead.Number
-	l1InfoTx, err := derive.L1InfoDepositBytes(seqNumber, l1Info, d.Config.DepositContractAddress)
+	l1InfoTx, err := derive.L1InfoDepositBytes(seqNumber, l1Info)
 	if err != nil {
 		return l2Head, nil, err
 	}
@@ -212,7 +212,7 @@ func (d *outputImpl) insertEpoch(ctx context.Context, l2Head eth.L2BlockRef, l2S
 	var reorg bool
 	for i, batch := range batches {
 		var txns []l2.Data
-		l1InfoTx, err := derive.L1InfoDepositBytes(uint64(i), l1Info, d.Config.DepositContractAddress)
+		l1InfoTx, err := derive.L1InfoDepositBytes(uint64(i), l1Info)
 		if err != nil {
 			return l2Head, l2SafeHead, false, fmt.Errorf("failed to create l1InfoTx: %w", err)
 		}
