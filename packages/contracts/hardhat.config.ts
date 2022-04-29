@@ -110,7 +110,10 @@ const config: HardhatUserConfig = {
     outputFile: process.env.CI ? 'gas-report.txt' : undefined,
   },
   etherscan: {
-    apiKey: process.env.ETHERSCAN_API_KEY,
+    apiKey: {
+      mainnet: process.env.ETHERSCAN_API_KEY,
+      optimisticEthereum: process.env.OPTIMISTIC_ETHERSCAN_API_KEY,
+    },
   },
   dodoc: {
     runOnCompile: true,
