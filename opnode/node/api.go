@@ -150,9 +150,7 @@ func (n *nodeAPI) GetBatchBundle(ctx context.Context, req *BatchBundleRequest) (
 		return nil, ethereum.NotFound
 	}
 
-	lastL2Hash := found.Hash
-	lastL2BlockNum := found.Number
-	var batches []*derive.BatchData
+	var bundleBuilder = NewBundleBuilder(found)
 	var totalBatchSizeBytes uint64
 	var hasLargeNextBatch bool
 	// Now continue fetching the next blocks, and build batches, until we either run out of space, or run out of blocks.
@@ -169,8 +167,13 @@ func (n *nodeAPI) GetBatchBundle(ctx context.Context, req *BatchBundleRequest) (
 			return nil, fmt.Errorf("failed to convert L2 block %d (%s) to batch: %v", i, l2Block.Hash(), err)
 		}
 		if batch == nil { // empty block, nothing to submit as batch
-			lastL2Hash = l2Block.Hash()
-			lastL2BlockNum = l2Block.Number().Uint64()
+			bundleBuilder.AddCandidate(BundleCandidate{
+				ID: eth.BlockID{
+					Hash:   l2Block.Hash(),
+					Number: l2Block.Number().Uint64(),
+				},
+				Batch: nil,
+			})
 			continue
 		}
 
@@ -200,16 +203,24 @@ func (n *nodeAPI) GetBatchBundle(ctx context.Context, req *BatchBundleRequest) (
 		}
 
 		totalBatchSizeBytes += nextBatchSizeBytes
-		batches = append(batches, batch)
-		lastL2Hash = l2Block.Hash()
-		lastL2BlockNum = l2Block.Number().Uint64()
+		bundleBuilder.AddCandidate(BundleCandidate{
+			ID: eth.BlockID{
+				Hash:   l2Block.Hash(),
+				Number: l2Block.Number().Uint64(),
+			},
+			Batch: batch,
+		})
 	}
 
 	var pruneCount int
 	for {
+		if !bundleBuilder.HasNonEmptyCandidate() {
+			return bundleBuilder.Response(nil), nil
+		}
 
 		var buf bytes.Buffer
-		if err := derive.EncodeBatches(n.config, batches, &buf); err != nil {
+		err := derive.EncodeBatches(n.config, bundleBuilder.Batches(), &buf)
+		if err != nil {
 			return nil, fmt.Errorf("failed to encode selected batches as bundle: %v", err)
 		}
 
@@ -220,7 +231,7 @@ func (n *nodeAPI) GetBatchBundle(ctx context.Context, req *BatchBundleRequest) (
 		// occur since our initial greedy estimate has a very small, bounded
 		// error tolerance, so simply remove the last block and try again.
 		if bundleSize > uint64(req.MaxSize) {
-			batches = batches[:len(batches)-1]
+			bundleBuilder.PruneLastNonEmpty()
 			pruneCount++
 			continue
 		}
@@ -248,12 +259,6 @@ func (n *nodeAPI) GetBatchBundle(ctx context.Context, req *BatchBundleRequest) (
 			return nil, nil
 		}
 
-		return &BatchBundleResponse{
-			PrevL2BlockHash: found.Hash,
-			PrevL2BlockNum:  hexutil.Uint64(found.Number),
-			LastL2BlockHash: lastL2Hash,
-			LastL2BlockNum:  hexutil.Uint64(lastL2BlockNum),
-			Bundle:          hexutil.Bytes(buf.Bytes()),
-		}, nil
+		return bundleBuilder.Response(buf.Bytes()), nil
 	}
 }
