@@ -3,7 +3,6 @@ package integration_tests
 import (
 	"net/http"
 	"os"
-	"sync"
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/go/proxyd"
@@ -68,11 +67,8 @@ func TestBatching(t *testing.T) {
 			numExpectedForwards: 1,
 		},
 		{
-			name: "backend returns single RPC response object for minibatches",
-			handler: SequencedRespnseHandler(
-				SingleResponseHandler(500, `{"jsonrpc":"2.0","error":{"code":-32001,"message":"internal server error"},"id":1}`),
-				SingleResponseHandler(500, `{"jsonrpc":"2.0","error":{"code":-32001,"message":"internal server error"},"id":1}`),
-			),
+			name:    "backend returns single RPC response object for minibatches",
+			handler: SingleResponseHandler(500, `{"jsonrpc":"2.0","error":{"code":-32001,"message":"internal server error"},"id":1}`),
 			reqs: []*proxyd.RPCReq{
 				NewRPCReq("1", "eth_chainId", nil),
 				NewRPCReq("2", "eth_chainId", nil),
@@ -141,20 +137,5 @@ func TestBatching(t *testing.T) {
 				}
 			}
 		})
-	}
-}
-
-func SequencedRespnseHandler(hs ...http.HandlerFunc) http.HandlerFunc {
-	var seq int
-	var m sync.Mutex
-
-	return func(w http.ResponseWriter, r *http.Request) {
-		m.Lock()
-		defer m.Unlock()
-		if seq == len(hs) {
-			panic("insufficient handlers defined")
-		}
-		hs[seq].ServeHTTP(w, r)
-		seq++
 	}
 }
