@@ -1,5 +1,13 @@
 # @eth-optimism/proxyd
 
+## 3.8.5
+
+### Patch Changes
+
+- 2a062b11: proxyd: Log ssanitized RPC requests
+- d9f058ce: proxyd: Reduced RPC request logging
+- a4bfd9e7: proxyd: Limit the number of concurrent RPCs to backends
+
 ## 3.8.4
 
 ### Patch Changes
