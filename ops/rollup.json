@@ -19,6 +19,10 @@
 
   "l1_chain_id": 900,
 
+  "l2_chain_id": 901,
+
+  "p2p_sequencer_address": "TODOTODO",
+
   "fee_recipient_address":  "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
 
   "batch_inbox_address":  "0xff00000000000000000000000000000000000002",

@@ -114,7 +114,9 @@ func defaultSystemConfig(t *testing.T) SystemConfig {
 			MaxSequencerDrift: 10,
 			SeqWindowSize:     2,
 			L1ChainID:         big.NewInt(900),
+			L2ChainID:         big.NewInt(901),
 			// TODO pick defaults
+			P2PSequencerAddress: common.Address{}, // TODO configure sequencer p2p key
 			FeeRecipientAddress: common.Address{0xff, 0x01},
 			BatchInboxAddress:   batchInboxAddress,
 			// Batch Sender address is filled out in system start

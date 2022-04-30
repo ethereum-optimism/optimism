@@ -209,7 +209,7 @@ GossipSub [parameters][gossip-parameters]:
 - `fanout_ttl` (ttl for fanout maps for topics we are not subscribed to but have published to, seconds): 24
 - `mcache_len` (number of windows to retain full messages in cache for `IWANT` responses): 12
 - `mcache_gossip` (number of windows to gossip about): 3
-- `seen_ttl` (number of heartbeat intervals to retain message IDs): 40
+- `seen_ttl` (number of heartbeat intervals to retain message IDs): 80 (= 40 seconds)
 
 Notable differences from L1 consensus (Eth2):
 
@@ -250,18 +250,21 @@ To ensure malicious peers get scored based on application behavior the validatio
 
 In order of operation:
 
-- `[REJECT]` if the encoding or compression is not valid
+- `[REJECT]` if the compression is not valid
+- `[REJECT]` if the block encoding is not valid
 - `[REJECT]` if the block timestamp is older than 20 seconds in the past
   (graceful boundary for worst-case propagation and clock skew)
 - `[REJECT]` if the block timestamp is more than 5 seconds into the future (graceful boundary for clock skew)
-- `[REJECT]` if the signature by the sequencer is not valid
 - `[REJECT]` if more than 5 blocks have been seen with the same block height
-- `[IGNORE]` if a conflicting block was already seen on L1.
-  It may not be malicious due to racing between L1 confirmation and L2 propagation, but should be filtered out.
+- `[REJECT]` if the signature by the sequencer is not valid
 
 The block is signed by the corresponding sequencer, to filter malicious messages.
 The sequencer model is singular but may change to multiple sequencers in the future.
 A default sequencer pubkey is distributed with rollup nodes and should be configurable.
+
+Note that blocks that a block may still be propagated even if the L1 already confirmed a different block.
+The local L1 view of the node may be wrong, and the time and signature validation will prevent spam.
+Hence, calling into the execution engine with a block lookup every propagation step is not worth the added delay.
 
 ##### Block processing
 

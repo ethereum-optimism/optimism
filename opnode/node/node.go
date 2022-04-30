@@ -6,6 +6,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/ethereum-optimism/optimistic-specs/opnode/p2p"
+
 	"github.com/ethereum/go-ethereum/p2p/discover"
 	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/libp2p/go-libp2p-core/host"
@@ -36,6 +38,7 @@ type OpNode struct {
 	p2pCtx    context.Context  // all p2p activity take this context so p2p can be shut down without stopping the node.
 	p2pClose  context.CancelFunc
 	gs        *pubsub.PubSub
+	blocks    chan p2p.BlockMessage // incoming unsafe block messages
 	done      chan struct{}
 	wg        sync.WaitGroup
 }
@@ -127,6 +130,7 @@ func New(ctx context.Context, cfg *Config, log log.Logger, appVersion string) (*
 		server:    server,
 		done:      make(chan struct{}),
 		l2Nodes:   l2Nodes,
+		blocks:    make(chan p2p.BlockMessage, 10),
 	}
 
 	if cfg.P2P != nil {
@@ -145,17 +149,24 @@ func New(ctx context.Context, cfg *Config, log log.Logger, appVersion string) (*
 			// not a context leak, gossipsub is closed with a context.
 			// TODO: maybe we can improve this, or closing the Host is enough?
 			n.p2pCtx, n.p2pClose = context.WithCancel(context.Background())
-			gs, err := pubsub.NewGossipSub(n.p2pCtx, n.host) // TODO options
-			if err != nil {
-				// close p2p stack if we cannot create the opnode successfully
+			closeP2P := func() {
 				if n.dv5Udp != nil {
 					n.dv5Udp.Close()
 				}
 				_ = n.host.Close()
 				n.p2pClose()
+			}
+			gs, err := p2p.NewGossipSub(n.p2pCtx, n.host, &cfg.Rollup)
+			if err != nil {
+				closeP2P()
 				return nil, fmt.Errorf("failed to start gossipsub router: %v", err)
 			}
 			n.gs = gs
+
+			if err := p2p.JoinGossip(n.p2pCtx, n.gs, log, &cfg.Rollup, n.blocks); err != nil {
+				closeP2P()
+				return nil, fmt.Errorf("failed to join blocks gossip topic: %v", err)
+			}
 		}
 	}
 
@@ -225,6 +236,9 @@ func (c *OpNode) Start(ctx context.Context) error {
 		defer c.wg.Done()
 		for {
 			select {
+			case l2Block := <-c.blocks:
+				c.log.Info("Received L2 unsafe block", "hash", l2Block.Block.BlockHash, "from", l2Block.ReceivedFrom)
+				// TODO: process unsafe block in all engines
 			case l1Head := <-l1Heads:
 				c.log.Info("New L1 head", "head", l1Head, "parent", l1Head.ParentHash)
 			// TODO: maybe log other info on interval or other chain events (individual engines also log things)
