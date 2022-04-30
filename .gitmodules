@@ -1,12 +1,6 @@
-[submodule "packages/contracts/lib/ds-test"]
-	path = packages/contracts/lib/ds-test
-	url = https://github.com/dapphub/ds-test
-[submodule "packages/contracts/lib/openzeppelin-contracts"]
-	path = packages/contracts/lib/openzeppelin-contracts
-	url = https://github.com/openzeppelin/openzeppelin-contracts
 [submodule "packages/contracts/lib/forge-std"]
 	path = packages/contracts/lib/forge-std
-	url = https://github.com/brockelmore/forge-std
-[submodule "packages/contracts/lib/optimism"]
-	path = packages/contracts/lib/optimism
-	url = https://github.com/ethereum-optimism/optimism
+	url = https://github.com/foundry-rs/forge-std
+[submodule "packages/contracts/lib/solmate"]
+	path = packages/contracts/lib/solmate
+	url = https://github.com/rari-capital/solmate

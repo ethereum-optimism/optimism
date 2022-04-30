@@ -99,6 +99,8 @@ abstract contract WithdrawalsRelay {
         bytes calldata _withdrawalProof
     ) external {
         // Check that the timestamp is sufficiently finalized.
+        // The timestamp corresponds to a particular L2 output,
+        // so it is safe to be passed in by a user.
         unchecked {
             if (block.timestamp < _timestamp + FINALIZATION_PERIOD) {
                 revert NotYetFinal();

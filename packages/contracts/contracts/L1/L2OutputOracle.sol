@@ -2,7 +2,7 @@
 pragma solidity 0.8.10;
 
 /* Library Imports */
-import { Ownable } from "../../lib/openzeppelin-contracts/contracts/access/Ownable.sol";
+import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 
 /**
  * @title L2OutputOracle

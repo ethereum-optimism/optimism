@@ -5,3 +5,8 @@ src = 'contracts'
 out = 'forge-artifacts'
 optimizer = true
 optimizer_runs = 999999
+remappings = [
+  '@openzeppelin/contracts-upgradeable/=node_modules/@openzeppelin/contracts-upgradeable/',
+  '@openzeppelin/contracts/=node_modules/@openzeppelin/contracts/',
+  '@eth-optimism/contracts/=node_modules/@eth-optimism/contracts/'
+]

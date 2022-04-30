@@ -1,16 +1,16 @@
 //SPDX-License-Identifier: MIT
 pragma solidity 0.8.10;
 
+import { IDepositFeed } from "./IDepositFeed.sol";
+
 /* Library Imports */
-import {
-    AddressAliasHelper
-} from "../../../lib/optimism/packages/contracts/contracts/standards/AddressAliasHelper.sol";
+import { AddressAliasHelper } from "@eth-optimism/contracts/standards/AddressAliasHelper.sol";
 
 /**
  * @title DepositFeed
  * @notice Implements the logic for depositing from L1 to L2.
  */
-abstract contract DepositFeed {
+abstract contract DepositFeed is IDepositFeed {
     /**********
      * Errors *
      **********/

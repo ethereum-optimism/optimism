@@ -2,27 +2,19 @@
 pragma solidity 0.8.10;
 
 /* Testing utilities */
-import { DSTest } from "../../lib/ds-test/src/test.sol";
-import { Vm } from "../../lib/forge-std/src/Vm.sol";
+import { CommonTest } from "./CommonTest.t.sol";
 
 /* Library Imports */
 import {
     AddressAliasHelper
-} from "../../lib/optimism/packages/contracts/contracts/standards/AddressAliasHelper.sol";
+} from "@eth-optimism/contracts/standards/AddressAliasHelper.sol";
 
 /* Target contract */
 import { DepositFeed } from "../L1/abstracts/DepositFeed.sol";
 
 contract Target is DepositFeed {}
 
-contract DepositFeedTest is DSTest {
-    Vm vm = Vm(HEVM_ADDRESS);
-    address immutable ZERO_ADDRESS = address(0);
-    address immutable NON_ZERO_ADDRESS = address(1);
-    uint256 immutable NON_ZERO_VALUE = 100;
-    uint256 immutable ZERO_VALUE = 0;
-    uint64 immutable NON_ZERO_GASLIMIT = 50000;
-    bytes NON_ZERO_DATA = hex"1111";
+contract DepositFeedTest is CommonTest {
 
     Target df;
 

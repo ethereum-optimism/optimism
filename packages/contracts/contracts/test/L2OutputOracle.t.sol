@@ -1,14 +1,13 @@
 //SPDX-License-Identifier: MIT
 pragma solidity 0.8.10;
 
-import { DSTest } from "../../lib/ds-test/src/test.sol";
-import { Vm } from "../../lib/forge-std/src/Vm.sol";
+/* Testing utilities */
+import { CommonTest } from "./CommonTest.t.sol";
+
 import { L2OutputOracle } from "../L1/L2OutputOracle.sol";
 
-contract L2OutputOracle_Initializer is DSTest {
+contract L2OutputOracle_Initializer is CommonTest {
     // Utility variables
-    Vm vm = Vm(HEVM_ADDRESS);
-    bytes32 nonZeroHash = keccak256(abi.encode("NON_ZERO"));
     uint256 appendedTimestamp;
 
     // Test target

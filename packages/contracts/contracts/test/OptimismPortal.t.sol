@@ -2,8 +2,7 @@
 pragma solidity 0.8.10;
 
 /* Testing utilities */
-import { DSTest } from "../../lib/ds-test/src/test.sol";
-import { Vm } from "../../lib/forge-std/src/Vm.sol";
+import { CommonTest } from "./CommonTest.t.sol";
 
 /* Target contract dependencies */
 import { L2OutputOracle } from "../L1/L2OutputOracle.sol";
@@ -11,7 +10,7 @@ import { L2OutputOracle } from "../L1/L2OutputOracle.sol";
 /* Target contract */
 import { OptimismPortal } from "../L1/OptimismPortal.sol";
 
-contract OptimismPortal_Test is DSTest {
+contract OptimismPortal_Test is CommonTest {
     event TransactionDeposited(
         address indexed from,
         address indexed to,
@@ -21,10 +20,6 @@ contract OptimismPortal_Test is DSTest {
         bool isCreation,
         bytes data
     );
-
-    // Utilities
-    Vm vm = Vm(HEVM_ADDRESS);
-    bytes32 nonZeroHash = keccak256(abi.encode("NON_ZERO"));
 
     // Dependencies
     L2OutputOracle oracle;

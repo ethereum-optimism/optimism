@@ -2,9 +2,7 @@
 pragma solidity 0.8.10;
 
 /* Library Imports */
-import {
-    AddressAliasHelper
-} from "../../lib/optimism/packages/contracts/contracts/standards/AddressAliasHelper.sol";
+import { AddressAliasHelper } from "@eth-optimism/contracts/standards/AddressAliasHelper.sol";
 import { WithdrawalVerifier } from "../libraries/Lib_WithdrawalVerifier.sol";
 
 /* Interaction imports */
@@ -71,6 +69,7 @@ contract Withdrawer {
         if (msg.sender != tx.origin) {
             from = AddressAliasHelper.undoL1ToL2Alias(msg.sender);
         }
+
         bytes32 withdrawalHash = WithdrawalVerifier._deriveWithdrawalHash(
             nonce,
             msg.sender,
@@ -83,7 +82,7 @@ contract Withdrawer {
 
         emit WithdrawalInitiated(nonce, from, _target, msg.value, _gasLimit, _data);
         unchecked {
-            nonce++;
+            ++nonce;
         }
     }
 

@@ -1,4 +1,5 @@
-import { HardhatUserConfig, task } from 'hardhat/config'
+import { HardhatUserConfig, task, subtask } from 'hardhat/config'
+import { TASK_COMPILE_SOLIDITY_GET_SOURCE_PATHS } from 'hardhat/builtin-tasks/task-names'
 import '@nomiclabs/hardhat-waffle'
 import '@typechain/hardhat'
 import 'hardhat-gas-reporter'
@@ -7,7 +8,15 @@ import 'hardhat-deploy'
 
 import './tasks/deposits'
 
-task('accounts', 'Prints the list of accounts', async (taskArgs, hre) => {
+subtask(TASK_COMPILE_SOLIDITY_GET_SOURCE_PATHS).setAction(
+  async (_, __, runSuper) => {
+    const paths = await runSuper()
+
+    return paths.filter((p: string) => !p.endsWith('.t.sol'))
+  }
+)
+
+task('accounts', 'Prints the list of accounts', async (_, hre) => {
   const accounts = await hre.ethers.getSigners()
 
   for (const account of accounts) {

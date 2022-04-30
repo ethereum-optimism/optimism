@@ -1,8 +1,8 @@
 //SPDX-License-Identifier: MIT
 pragma solidity 0.8.10;
 
-import { DSTest } from "../../lib/ds-test/src/test.sol";
-import { Vm } from "../../lib/forge-std/src/Vm.sol";
+import { DSTest } from "forge-std/Test.sol";
+import { Vm } from "forge-std/Vm.sol";
 import { L1Block } from "../L2/L1Block.sol";
 
 contract L1BLockTest is DSTest {

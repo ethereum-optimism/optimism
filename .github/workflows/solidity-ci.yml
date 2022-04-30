@@ -48,6 +48,9 @@ jobs:
         with:
           version: nightly
 
+      - name: Install deps
+        run: yarn install
+
       - name: Build with Forge
         run: yarn build:forge
 
