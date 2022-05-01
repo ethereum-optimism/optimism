@@ -1,0 +1,32 @@
+name: Go lint and test
+
+on:
+  push:
+    branches:
+      - 'main'
+      - 'staging'
+      - 'feat/*'
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install Go
+        uses: actions/setup-go@v2
+        with:
+          go-version: 1.18
+      - name: Checkout code
+        uses: actions/checkout@v2
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v2
+        with:
+          version: v1.45.0  # version of golangci-lint, not the action
+          skip-go-installation: true
+          # rules: https://golangci-lint.run/usage/quick-start/
+          args: -E asciicheck,goimports,misspell
+      - name: Test and generate coverage
+        run: go test -coverpkg=./... -coverprofile=coverage.out -covermode=atomic ./...
+      - name: Upload coverage output
+        uses: codecov/codecov-action@v2
