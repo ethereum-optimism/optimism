@@ -2,8 +2,8 @@
 # be used to build any of the follow-on services
 #
 # ### BASE: Install deps
-FROM node:16-alpine3.14 as base
 FROM ghcr.io/gakonst/foundry:latest as foundry
+FROM node:16-alpine3.14 as base
 
 COPY --from=foundry /usr/local/bin/forge /usr/local/bin/forge
 COPY --from=foundry /usr/local/bin/cast /usr/local/bin/cast
