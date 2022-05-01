@@ -9,11 +9,11 @@ import (
 
 	"github.com/ethereum/go-ethereum"
 
-	"github.com/ethereum-optimism/optimistic-specs/opnode/eth"
-	"github.com/ethereum-optimism/optimistic-specs/opnode/l2"
-	"github.com/ethereum-optimism/optimistic-specs/opnode/rollup"
-	"github.com/ethereum-optimism/optimistic-specs/opnode/rollup/derive"
-	"github.com/ethereum-optimism/optimistic-specs/opnode/rollup/sync"
+	"github.com/ethereum-optimism/optimism/opnode/eth"
+	"github.com/ethereum-optimism/optimism/opnode/l2"
+	"github.com/ethereum-optimism/optimism/opnode/rollup"
+	"github.com/ethereum-optimism/optimism/opnode/rollup/derive"
+	"github.com/ethereum-optimism/optimism/opnode/rollup/sync"
 	"github.com/ethereum/go-ethereum/log"
 )
 

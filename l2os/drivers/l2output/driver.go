@@ -7,9 +7,9 @@ import (
 	"math/big"
 	"strings"
 
-	"github.com/ethereum-optimism/optimistic-specs/l2os/bindings/l2oo"
-	"github.com/ethereum-optimism/optimistic-specs/l2os/rollupclient"
-	"github.com/ethereum-optimism/optimistic-specs/opnode/l2"
+	"github.com/ethereum-optimism/optimism/l2os/bindings/l2oo"
+	"github.com/ethereum-optimism/optimism/l2os/rollupclient"
+	"github.com/ethereum-optimism/optimism/opnode/l2"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"

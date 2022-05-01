@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	rollupEth "github.com/ethereum-optimism/optimistic-specs/opnode/eth"
+	rollupEth "github.com/ethereum-optimism/optimism/opnode/eth"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/accounts/keystore"
 	"github.com/ethereum/go-ethereum/common"

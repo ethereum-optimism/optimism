@@ -7,8 +7,8 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/urfave/cli"
 
-	"github.com/ethereum-optimism/optimistic-specs/l2os"
-	"github.com/ethereum-optimism/optimistic-specs/l2os/flags"
+	"github.com/ethereum-optimism/optimism/l2os"
+	"github.com/ethereum-optimism/optimism/l2os/flags"
 )
 
 var (

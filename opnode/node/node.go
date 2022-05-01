@@ -6,13 +6,13 @@ import (
 	"sync"
 	"time"
 
-	"github.com/ethereum-optimism/optimistic-specs/opnode/backoff"
+	"github.com/ethereum-optimism/optimism/opnode/backoff"
 
-	"github.com/ethereum-optimism/optimistic-specs/opnode/bss"
-	"github.com/ethereum-optimism/optimistic-specs/opnode/eth"
-	"github.com/ethereum-optimism/optimistic-specs/opnode/l1"
-	"github.com/ethereum-optimism/optimistic-specs/opnode/l2"
-	"github.com/ethereum-optimism/optimistic-specs/opnode/rollup/driver"
+	"github.com/ethereum-optimism/optimism/opnode/bss"
+	"github.com/ethereum-optimism/optimism/opnode/eth"
+	"github.com/ethereum-optimism/optimism/opnode/l1"
+	"github.com/ethereum-optimism/optimism/opnode/l2"
+	"github.com/ethereum-optimism/optimism/opnode/rollup/driver"
 
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/ethclient"

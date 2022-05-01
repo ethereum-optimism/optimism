@@ -7,9 +7,9 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/ethereum-optimism/optimistic-specs/opnode/flags"
-	"github.com/ethereum-optimism/optimistic-specs/opnode/node"
-	"github.com/ethereum-optimism/optimistic-specs/opnode/rollup"
+	"github.com/ethereum-optimism/optimism/opnode/flags"
+	"github.com/ethereum-optimism/optimism/opnode/node"
+	"github.com/ethereum-optimism/optimism/opnode/rollup"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/urfave/cli"

@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ethereum-optimism/optimistic-specs/opnode/flags"
+	"github.com/ethereum-optimism/optimism/opnode/flags"
 	"github.com/ethereum/go-ethereum/p2p/enode"
 	ds "github.com/ipfs/go-datastore"
 	"github.com/ipfs/go-datastore/sync"

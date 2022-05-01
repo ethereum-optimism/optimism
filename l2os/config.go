@@ -5,7 +5,7 @@ import (
 
 	"github.com/urfave/cli"
 
-	"github.com/ethereum-optimism/optimistic-specs/l2os/flags"
+	"github.com/ethereum-optimism/optimism/l2os/flags"
 )
 
 type Config struct {

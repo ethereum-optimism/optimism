@@ -4,7 +4,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/ethereum-optimism/optimistic-specs/l2os/txmgr"
+	"github.com/ethereum-optimism/optimism/l2os/txmgr"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/stretchr/testify/require"

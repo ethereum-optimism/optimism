@@ -7,7 +7,10 @@ use (
 	./indexer
 	./l2geth
 	./l2geth-exporter
+	./l2os
 	./op-exporter
+	./ope2e
+	./opnode
 	./proxyd
 	./teleportr
 )
@@ -15,3 +18,5 @@ use (
 replace github.com/ethereum-optimism/optimism/bss-core v0.0.0 => ./bss-core
 
 replace github.com/ethereum-optimism/optimism/l2geth v0.0.0 => ./l2geth
+
+replace github.com/ethereum/go-ethereum v1.10.16 => github.com/ethereum-optimism/reference-optimistic-geth v0.0.0-20220427171107-d0070e0a6ead
