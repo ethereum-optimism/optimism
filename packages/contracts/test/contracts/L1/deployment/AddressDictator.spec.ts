@@ -1,12 +1,13 @@
 import { ethers } from 'hardhat'
-import { Contract, Signer } from 'ethers'
+import { Contract } from 'ethers'
+import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers'
 
 import { expect } from '../../../setup'
 import { deploy, NON_ZERO_ADDRESS } from '../../../helpers'
 
 describe('AddressDictator', () => {
-  let signer1: Signer
-  let signer2: Signer
+  let signer1: SignerWithAddress
+  let signer2: SignerWithAddress
   before(async () => {
     ;[signer1, signer2] = await ethers.getSigners()
   })
@@ -22,15 +23,13 @@ describe('AddressDictator', () => {
       signer: signer1,
       args: [
         Lib_AddressManager.address,
-        await signer1.getAddress(),
+        signer1.address,
         ['addr1'],
         [NON_ZERO_ADDRESS],
       ],
     })
 
-    Lib_AddressManager.connect(signer1).transferOwnership(
-      AddressDictator.address
-    )
+    Lib_AddressManager.transferOwnership(AddressDictator.address)
   })
 
   describe('initialize', () => {
@@ -40,7 +39,7 @@ describe('AddressDictator', () => {
           signer: signer1,
           args: [
             Lib_AddressManager.address,
-            await signer1.getAddress(),
+            signer1.address,
             ['addr1', 'addr2'],
             [NON_ZERO_ADDRESS],
           ],
@@ -70,8 +69,7 @@ describe('AddressDictator', () => {
 
   describe('returnOwnership', () => {
     it('should transfer contract ownership to finalOwner', async () => {
-      await expect(AddressDictator.connect(signer1).returnOwnership()).to.not.be
-        .reverted
+      await expect(AddressDictator.returnOwnership()).to.not.be.reverted
     })
 
     it('should revert when called by non-owner', async () => {
