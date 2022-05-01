@@ -3,7 +3,10 @@
 #
 # ### BASE: Install deps
 FROM node:16-alpine3.14 as base
+FROM ghcr.io/gakonst/foundry:latest as base
 
+COPY --from=foundry /usr/local/bin/forge /usr/local/bin/forge
+COPY --from=foundry /usr/local/bin/cast /usr/local/bin/cast
 RUN apk --no-cache add curl jq python3 ca-certificates git make gcc musl-dev linux-headers bash
 
 # copy over the needed configs to run the dep installation

@@ -1,4 +1,5 @@
 FROM python:3.8.12-slim-buster
+FROM ghcr.io/gakonst/foundry:latest as foundry
 
 RUN apt-get update && \
 	apt-get install -y curl openssh-client git build-essential ca-certificates && \
@@ -8,3 +9,6 @@ RUN apt-get update && \
 	npm i -g yarn && \
 	npm i -g depcheck && \
 	pip install slither-analyzer
+
+COPY --from=foundry /usr/local/bin/forge /usr/local/bin/forge
+COPY --from=foundry /usr/local/bin/cast /usr/local/bin/cast
