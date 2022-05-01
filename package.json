@@ -5,7 +5,13 @@
   "license": "MIT",
   "workspaces": {
     "packages": [
-      "packages/*",
+      "packages/common-ts",
+      "packages/contracts",
+      "packages/core-utils",
+      "packages/data-transport-layer",
+      "packages/message-relayer",
+      "packages/replica-healthcheck",
+      "packages/sdk",
       "l2geth",
       "integration-tests",
       "go/*",
