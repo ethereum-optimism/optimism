@@ -1,6 +1,6 @@
 {
   "private": true,
-  "name": "@eth-optimism/integration-tests",
+  "name": "@eth-optimism/bedrock-integration-tests",
   "version": "0.5.9",
   "description": "[Optimism] Integration tests",
   "scripts": {
