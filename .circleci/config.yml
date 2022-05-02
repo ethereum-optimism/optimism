@@ -450,9 +450,9 @@ workflows:
           context:
             - optimism
       - docker-publish:
-          name: deployer-release
+          name: integration-tests-release
           docker_file: ops/docker/Dockerfile.packages
-          docker_tags: ethereumoptimism/deployer:nightly
+          docker_tags: ethereumoptimism/integration-tests:nightly
           docker_context: .
           target: integration-tests
           context:
