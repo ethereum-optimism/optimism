@@ -1,5 +1,32 @@
 # @eth-optimism/replica-healthcheck
 
+## 1.0.5
+
+### Patch Changes
+
+- bc289e91: Fixes a bug that would cause the service to stop properly checking blocks when the target client consistently leads the reference client
+
+## 1.0.4
+
+### Patch Changes
+
+- b57014d1: Update to typescript@4.6.2
+- Updated dependencies [b57014d1]
+  - @eth-optimism/common-ts@0.2.6
+  - @eth-optimism/core-utils@0.8.3
+
+## 1.0.3
+
+### Patch Changes
+
+- c1957126: Update Dockerfile to use Alpine
+- Updated dependencies [e36b085c]
+- Updated dependencies [c1957126]
+- Updated dependencies [51673b90]
+- Updated dependencies [7a179003]
+  - @eth-optimism/common-ts@0.2.5
+  - @eth-optimism/core-utils@0.8.2
+
 ## 1.0.2
 
 ### Patch Changes

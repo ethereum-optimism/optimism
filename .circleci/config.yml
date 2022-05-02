@@ -1,13 +1,4 @@
 version: 2.1
-orbs:
-  gcp-gke: circleci/gcp-gke@1.3.0
-  slack: circleci/slack@4.5.1
-slack-nightly-build-fail-post-step: &slack-nightly-build-fail-post-step
-  post-steps:
-    - slack/notify:
-        channel: $SLACK_DEFAULT_CHANNEL
-        event: fail
-        template: basic_fail-1
 
 executors:
   go-builder:
@@ -15,29 +6,6 @@ executors:
       - image: ethereumoptimism/go-builder:latest
 
 commands:
-  build-dockerfile:
-    parameters:
-      image-name:
-        description: Image name
-        type: string
-      target:
-        description: Dockerfile target
-        type: string
-        default: ""
-      dockerfile:
-        description: Dockerfile to use
-        type: string
-    steps:
-      - checkout
-      - setup_remote_docker:
-          version: 19.03.13
-      - run:
-          name: Build
-          command: |
-            echo -n "$STACKMAN_REPO_AUTH" | docker login -u _json_key --password-stdin https://us-east4-docker.pkg.dev
-            docker build -t "$STACKMAN_REPO/<<parameters.image-name>>:nightly" -f <<parameters.dockerfile>> <<#parameters.target>>--target <<parameters.target>><</parameters.target>> .
-            docker push "$STACKMAN_REPO/<<parameters.image-name>>:nightly"
-
   go-lint-test:
     parameters:
       working_directory:
@@ -59,118 +27,6 @@ commands:
           path: /test-results
 
 jobs:
-  build-dtl:
-    docker:
-      - image: cimg/base:2021.04
-    steps:
-      - build-dockerfile:
-          image-name: data-transport-layer
-          target: data-transport-layer
-          dockerfile: ./ops/docker/Dockerfile.packages
-  build-go-batch-submitter:
-    docker:
-      - image: cimg/base:2021.04
-    steps:
-      - build-dockerfile:
-          image-name: go-batch-submitter
-          dockerfile: ./ops/docker/Dockerfile.batch-submitter-service
-  build-deployer:
-    docker:
-      - image: cimg/base:2021.04
-    steps:
-      - build-dockerfile:
-          image-name: deployer
-          target: deployer
-          dockerfile: ./ops/docker/Dockerfile.packages
-  build-l2geth:
-    docker:
-      - image: cimg/base:2021.04
-    steps:
-      - build-dockerfile:
-          image-name: l2geth
-          dockerfile: ./ops/docker/Dockerfile.geth
-  build-gas-oracle:
-    docker:
-      - image: cimg/base:2021.04
-    steps:
-      - build-dockerfile:
-          image-name: gas-oracle
-          dockerfile: ./ops/docker/Dockerfile.gas-oracle
-  build-integration-tests:
-    docker:
-      - image: cimg/base:2021.04
-    steps:
-      - build-dockerfile:
-          image-name: integration-tests
-          target: integration-tests
-          dockerfile: ./ops/docker/Dockerfile.packages
-  build-proxyd:
-    docker:
-      - image: cimg/base:2021.04
-    steps:
-      - build-dockerfile:
-          image-name: proxyd
-          dockerfile: ./go/proxyd/Dockerfile
-  deploy-nightly:
-    docker:
-      - image: cimg/base:2021.04
-    steps:
-      - gcp-gke/install
-      - gcp-gke/update-kubeconfig-with-credentials:
-          cluster: $STACKMAN_CLUSTER
-          gcloud-service-key: STACKMAN_SERVICE_KEY
-          google-compute-region: STACKMAN_COMPUTE_REGION
-          google-compute-zone: STACKMAN_COMPUTE_ZONE
-          google-project-id: STACKMAN_PROJECT_ID
-          install-kubectl: yes
-          perform-login: yes
-      - run:
-          name: Deploy
-          command: |
-            echo "Current nightly pods:"
-            kubectl get pods --namespace nightly
-            echo "Redeploying pods:"
-            kubectl rollout restart statefulset nightly-sequencer --namespace nightly
-            kubectl rollout restart statefulset nightly-go-batch-submitter --namespace nightly
-            kubectl rollout restart statefulset nightly-dtl --namespace nightly
-            kubectl rollout restart deployment nightly-gas-oracle --namespace nightly
-            kubectl rollout restart deployment edge-proxyd --namespace nightly
-  run-itests-nightly:
-    docker:
-      - image: cimg/base:2021.04
-    steps:
-      - setup_remote_docker:
-          version: 19.03.13
-      - run:
-          name: Run integration tests
-          command: |
-            docker run \
-              --env PRIVATE_KEY=$NIGHTLY_ITESTS_PRIVKEY \
-              --env L1_URL=https://nightly-l1.optimism-stacks.net \
-              --env L2_URL=https://nightly-l2.optimism-stacks.net \
-              --env ADDRESS_MANAGER=0xfcA6De8Db94C4d99bD5a7f5De1bb7A039265Ac42 \
-              --env L2_CHAINID=69 \
-              --env MOCHA_BAIL=true \
-              --env MOCHA_TIMEOUT=300000 \
-              --env L1_GAS_PRICE=onchain \
-              --env L2_GAS_PRICE=onchain \
-              --env RUN_DEBUG_TRACE_TESTS=false \
-              --env RUN_REPLICA_TESTS=false \
-              --env RUN_HEALTHCHECK_TESTS=false \
-              --env RUN_STRESS_TESTS=false \
-              --env OVMCONTEXT_SPEC_NUM_TXS=1 \
-              --env DTL_ENQUEUE_CONFIRMATIONS=12 \
-              "$STACKMAN_REPO/integration-tests:nightly" \
-              yarn test:integration:live
-  notify:
-    docker:
-      - image: cimg/base:2021.04
-    steps:
-      - run:
-          name: Success
-          command: |
-            echo "Dummy job."
-
   go-lint-test:
     parameters:
       working_directory:
@@ -267,6 +123,10 @@ jobs:
       - run:
           name: Lint
           command: yarn lint:check
+          working_directory: packages/contracts
+      - run:
+          name: Check deployment docs
+          command: yarn autogen:markdown && git diff --exit-code
           working_directory: packages/contracts
       - run:
           name: Slither
@@ -396,6 +256,55 @@ jobs:
           command: yarn test:coverage
           working_directory: packages/<<parameters.package_name>>
 
+  docker-publish:
+    environment:
+      DOCKER_BUILDKIT: 1
+    parameters:
+      docker_tags:
+        description: Docker image tags as csv
+        type: string
+      docker_file:
+        description: Path to Dockerfile
+        type: string
+      docker_context:
+        description: Docker build context
+        type: string
+      target:
+        description: Docker build target
+        type: string
+        default: ""
+    docker:
+      - image: circleci/buildpack-deps:stretch
+    steps:
+      - checkout
+      - setup_remote_docker:
+          version: 20.10.12
+      - when:
+          condition: <<parameters.target>>
+          steps:
+            - run:
+                name: Build with context
+                command: |
+                    docker build \
+                    $(echo -ne "<< parameters.docker_tags >>" | sed "s/,/\n/g" | sed -e 's/^/-t /' | tr '\n' ' ') \
+                    -f <<parameters.docker_file>> \
+                    --target <<parameters.target>> \
+                    <<parameters.docker_context>>
+      - unless:
+          condition: <<parameters.target>>
+          steps:
+            - run:
+                name: Build
+                command: |
+                    docker build \
+                    $(echo -ne "<< parameters.docker_tags >>" | sed "s/,/\n/g" | sed -e 's/^/-t /' | tr '\n' ' ') \
+                    -f <<parameters.docker_file>> \
+                    <<parameters.docker_context>>
+      - run:
+          name: Publish
+          command: |
+            echo "$DOCKER_PASS" | docker login -u "$DOCKER_USERNAME" --password-stdin
+            docker push <<parameters.docker_tags>>
 
 workflows:
   main:
@@ -458,166 +367,122 @@ workflows:
       - geth-tests
       - integration-tests
 
-
-  nightly-itests:
-    triggers:
-      - schedule:
-          cron: "0 1 * * * "
-          filters:
-            branches:
-              only:
-                - develop
-    jobs:
-      - run-itests-nightly:
-          context:
-            - optimism
-          post-steps:
-            - slack/notify:
-                channel: $SLACK_DEFAULT_CHANNEL
-                event: fail
-                custom: |
-                  {
-                    "text": "",
-                    "blocks": [
-                      {
-                        "type": "section",
-                        "text": {
-                          "type": "mrkdwn",
-                          "text": "🔴 Nightly integration tests failed!"
-                        }
-                      },
-                      {
-                        "type": "actions",
-                        "elements": [
-                          {
-                            "type": "button",
-                            "text": {
-                              "type": "plain_text",
-                              "text": "View Job"
-                            },
-                            "url": "${CIRCLE_BUILD_URL}"
-                          }
-                        ]
-                      }
-                    ]
-                  }
-            - slack/notify:
-                channel: $SLACK_DEFAULT_CHANNEL
-                event: pass
-                custom: |
-                  {
-                    "text": "",
-                    "blocks": [
-                      {
-                        "type": "section",
-                        "text": {
-                          "type": "mrkdwn",
-                          "text": "✅ Nightly integration tests passed."
-                        }
-                      },
-                      {
-                        "type": "actions",
-                        "elements": [
-                          {
-                            "type": "button",
-                            "text": {
-                              "type": "plain_text",
-                              "text": "View Job"
-                            },
-                            "url": "${CIRCLE_BUILD_URL}"
-                          }
-                        ]
-                      }
-                    ]
-                  }
-
   nightly:
     triggers:
       - schedule:
-          cron: "0 0 * * * "
+          cron: "0 10 * * *"
           filters:
             branches:
               only:
                 - develop
     jobs:
-      - build-dtl:
+      - yarn-monorepo
+      - docker-publish:
+          name: l2geth-release
+          docker_file: ops/docker/Dockerfile.geth
+          docker_tags: ethereumoptimism/l2geth:nightly
+          docker_context: .
           context:
             - optimism
-            - slack
-          <<: *slack-nightly-build-fail-post-step
-      - build-deployer:
+      - docker-publish:
+          name: gas-oracle-release
+          docker_file: ops/docker/Dockerfile.gas-oracle
+          docker_tags: ethereumoptimism/gas-oracle:nightly
+          docker_context: .
           context:
             - optimism
-            - slack
-          <<: *slack-nightly-build-fail-post-step
-      - build-l2geth:
+      - docker-publish:
+          name: hardhat-node-release
+          docker_file: ops/docker/hardhat/Dockerfile
+          docker_tags: ethereumoptimism/hardhat-node:nightly
+          docker_context: ops/docker/hardhat
           context:
             - optimism
-            - slack
-          <<: *slack-nightly-build-fail-post-step
-      - build-gas-oracle:
+      - docker-publish:
+          name: go-builder-release
+          docker_file: ops/docker/go-builder/Dockerfile
+          docker_tags: ethereumoptimism/go-builder:nightly
+          docker_context: .
           context:
             - optimism
-            - slack
-          <<: *slack-nightly-build-fail-post-step
-      - build-integration-tests:
+      - docker-publish:
+          name: js-builder-release
+          docker_file: ops/docker/js-builder/Dockerfile
+          docker_tags: ethereumoptimism/js-builder:nightly
+          docker_context: .
           context:
             - optimism
-            - slack
-          <<: *slack-nightly-build-fail-post-step
-      - build-go-batch-submitter:
+      - docker-publish:
+          name: proxyd-release
+          docker_file: go/proxyd/Dockerfile
+          docker_tags: ethereumoptimism/proxyd:nightly
+          docker_context: .
           context:
             - optimism
-            - slack
-          <<: *slack-nightly-build-fail-post-step
-      - build-proxyd:
+      - docker-publish:
+          name: l2geth-exporter-release
+          docker_file: ops/docker/Dockerfile.l2geth-exporter
+          docker_tags: ethereumoptimism/l2geth-exporter:nightly
+          docker_context: .
           context:
             - optimism
-            - slack
-          <<: *slack-nightly-build-fail-post-step
-      - deploy-nightly:
+      - docker-publish:
+          name: op-exporter-release
+          docker_file: ops/docker/Dockerfile.op-exporter
+          docker_tags: ethereumoptimism/op-exporter:nightly
+          docker_context: .
           context:
             - optimism
-            - slack
-          <<: *slack-nightly-build-fail-post-step
-          requires:
-            - build-dtl
-            - build-go-batch-submitter
-            - build-deployer
-            - build-l2geth
-            - build-gas-oracle
-            - build-integration-tests
-            - build-proxyd
-      - notify:
-          context: slack
-          requires:
-            - deploy-nightly
-          post-steps:
-            - slack/notify:
-                custom: |
-                  {
-                    "text": "",
-                    "blocks": [
-                      {
-                        "type": "section",
-                        "text": {
-                          "type": "mrkdwn",
-                          "text": "✅ Nightly successfully deployed."
-                        }
-                      },
-                      {
-                        "type": "actions",
-                        "elements": [
-                          {
-                            "type": "button",
-                            "text": {
-                              "type": "plain_text",
-                              "text": "View Job"
-                            },
-                            "url": "${CIRCLE_BUILD_URL}"
-                          }
-                        ]
-                      }
-                    ]
-                  }
-                event: always
+      - docker-publish:
+          name: message-relayer-release
+          docker_file: ops/docker/Dockerfile.packages
+          docker_tags: ethereumoptimism/message-relayer:nightly
+          docker_context: .
+          target: message-relayer
+          context:
+            - optimism
+      - docker-publish:
+          name: data-transport-layer-release
+          docker_file: ops/docker/Dockerfile.packages
+          docker_tags: ethereumoptimism/data-transport-layer:nightly
+          docker_context: .
+          target: data-transport-layer
+          context:
+            - optimism
+      - docker-publish:
+          name: deployer-release
+          docker_file: ops/docker/Dockerfile.packages
+          docker_tags: ethereumoptimism/deployer:nightly
+          docker_context: .
+          target: integration-tests
+          context:
+            - optimism
+      - docker-publish:
+          name: replica-healthcheck-release
+          docker_file: ops/docker/Dockerfile.packages
+          docker_tags: ethereumoptimism/replica-healthcheck:nightly
+          docker_context: .
+          target: replica-healthcheck
+          context:
+            - optimism
+      - docker-publish:
+          name: batch-submitter-service-release
+          docker_file: ops/docker/Dockerfile.batch-submitter-service
+          docker_tags: ethereumoptimism/batch-submitter-service:nightly
+          docker_context: .
+          context:
+            - optimism
+      - docker-publish:
+          name: indexer-release
+          docker_file: ops/docker/Dockerfile.indexer
+          docker_tags: ethereumoptimism/indexer:nightly
+          docker_context: .
+          context:
+            - optimism
+      - docker-publish:
+          name: teleportr-release
+          docker_file: ops/docker/Dockerfile.teleportr
+          docker_tags: ethereumoptimism/teleportr:nightly
+          docker_context: .
+          context:
+            - optimism

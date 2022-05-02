@@ -1,5 +1,17 @@
 # @eth-optimism/gas-oracle
 
+## 0.1.11
+
+### Patch Changes
+
+- 160f4c3d: Update docker image to use golang 1.18.0
+
+## 0.1.10
+
+### Patch Changes
+
+- 162ff89c: Fixes a bug that would cause the service to crash on startup if the RPC URLs were not immediately available
+
 ## 0.1.9
 
 ### Patch Changes

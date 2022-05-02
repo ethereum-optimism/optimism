@@ -7,11 +7,15 @@ import (
 )
 
 type ServerConfig struct {
-	RPCHost          string `toml:"rpc_host"`
-	RPCPort          int    `toml:"rpc_port"`
-	WSHost           string `toml:"ws_host"`
-	WSPort           int    `toml:"ws_port"`
-	MaxBodySizeBytes int64  `toml:"max_body_size_bytes"`
+	RPCHost           string `toml:"rpc_host"`
+	RPCPort           int    `toml:"rpc_port"`
+	WSHost            string `toml:"ws_host"`
+	WSPort            int    `toml:"ws_port"`
+	MaxBodySizeBytes  int64  `toml:"max_body_size_bytes"`
+	MaxConcurrentRPCs int64  `toml:"max_concurrent_rpcs"`
+
+	// TimeoutSeconds specifies the maximum time spent serving an HTTP request. Note that isn't used for websocket connections
+	TimeoutSeconds int `toml:"timeout_seconds"`
 }
 
 type CacheConfig struct {

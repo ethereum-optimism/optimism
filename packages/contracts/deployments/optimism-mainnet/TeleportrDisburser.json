@@ -1,0 +1,322 @@
+{
+  "address": "0x52ec2F3d7C5977A8E558C8D9C6000B615098E8fC",
+  "abi": [
+    {
+      "inputs": [],
+      "stateMutability": "nonpayable",
+      "type": "constructor"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "owner",
+          "type": "address"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "balance",
+          "type": "uint256"
+        }
+      ],
+      "name": "BalanceWithdrawn",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "uint256",
+          "name": "depositId",
+          "type": "uint256"
+        },
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "to",
+          "type": "address"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "amount",
+          "type": "uint256"
+        }
+      ],
+      "name": "DisbursementFailed",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "uint256",
+          "name": "depositId",
+          "type": "uint256"
+        },
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "to",
+          "type": "address"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "amount",
+          "type": "uint256"
+        }
+      ],
+      "name": "DisbursementSuccess",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "previousOwner",
+          "type": "address"
+        },
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "newOwner",
+          "type": "address"
+        }
+      ],
+      "name": "OwnershipTransferred",
+      "type": "event"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "_nextDepositId",
+          "type": "uint256"
+        },
+        {
+          "components": [
+            {
+              "internalType": "uint256",
+              "name": "amount",
+              "type": "uint256"
+            },
+            {
+              "internalType": "address",
+              "name": "addr",
+              "type": "address"
+            }
+          ],
+          "internalType": "struct TeleportrDisburser.Disbursement[]",
+          "name": "_disbursements",
+          "type": "tuple[]"
+        }
+      ],
+      "name": "disburse",
+      "outputs": [],
+      "stateMutability": "payable",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "owner",
+      "outputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "renounceOwnership",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "totalDisbursements",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "newOwner",
+          "type": "address"
+        }
+      ],
+      "name": "transferOwnership",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "withdrawBalance",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    }
+  ],
+  "transactionHash": "0x318376cdfce4b2954986e7938c14fbd61ff567c7ad4a9de0b1c0116297824427",
+  "receipt": {
+    "to": null,
+    "from": "0xe07E50264CD86EC96a22C930f3581EFb46bA3A34",
+    "contractAddress": "0x52ec2F3d7C5977A8E558C8D9C6000B615098E8fC",
+    "transactionIndex": 0,
+    "gasUsed": "622414",
+    "logsBloom": "0x00000000000000000000000000000000000000000000000000800000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000020000000000000000000800200000000000000200000000004000400000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000008000000000001000000000000000000000000000000000020000002000000000000000000000000000000000000000000000000000000000000",
+    "blockHash": "0x9fc3f4663da5721a769959107ea8f364d221c982c2d1caf661fa9394a61ef150",
+    "transactionHash": "0x318376cdfce4b2954986e7938c14fbd61ff567c7ad4a9de0b1c0116297824427",
+    "logs": [
+      {
+        "transactionIndex": 0,
+        "blockNumber": 5884959,
+        "transactionHash": "0x318376cdfce4b2954986e7938c14fbd61ff567c7ad4a9de0b1c0116297824427",
+        "address": "0x52ec2F3d7C5977A8E558C8D9C6000B615098E8fC",
+        "topics": [
+          "0x8be0079c531659141344cd1fd0a4f28419497f9722a3daafe3b4186f6b6457e0",
+          "0x0000000000000000000000000000000000000000000000000000000000000000",
+          "0x000000000000000000000000e07e50264cd86ec96a22c930f3581efb46ba3a34"
+        ],
+        "data": "0x",
+        "logIndex": 0,
+        "blockHash": "0x9fc3f4663da5721a769959107ea8f364d221c982c2d1caf661fa9394a61ef150"
+      }
+    ],
+    "blockNumber": 5884959,
+    "cumulativeGasUsed": "622414",
+    "status": 1,
+    "byzantium": true
+  },
+  "args": [],
+  "solcInputHash": "ad04ab9565e42a9370aa7f055041028d",
+  "metadata": "{\"compiler\":{\"version\":\"0.8.9+commit.e5eed63a\"},\"language\":\"Solidity\",\"output\":{\"abi\":[{\"inputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"constructor\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"address\",\"name\":\"owner\",\"type\":\"address\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"balance\",\"type\":\"uint256\"}],\"name\":\"BalanceWithdrawn\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"uint256\",\"name\":\"depositId\",\"type\":\"uint256\"},{\"indexed\":true,\"internalType\":\"address\",\"name\":\"to\",\"type\":\"address\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"amount\",\"type\":\"uint256\"}],\"name\":\"DisbursementFailed\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"uint256\",\"name\":\"depositId\",\"type\":\"uint256\"},{\"indexed\":true,\"internalType\":\"address\",\"name\":\"to\",\"type\":\"address\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"amount\",\"type\":\"uint256\"}],\"name\":\"DisbursementSuccess\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"address\",\"name\":\"previousOwner\",\"type\":\"address\"},{\"indexed\":true,\"internalType\":\"address\",\"name\":\"newOwner\",\"type\":\"address\"}],\"name\":\"OwnershipTransferred\",\"type\":\"event\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"_nextDepositId\",\"type\":\"uint256\"},{\"components\":[{\"internalType\":\"uint256\",\"name\":\"amount\",\"type\":\"uint256\"},{\"internalType\":\"address\",\"name\":\"addr\",\"type\":\"address\"}],\"internalType\":\"struct TeleportrDisburser.Disbursement[]\",\"name\":\"_disbursements\",\"type\":\"tuple[]\"}],\"name\":\"disburse\",\"outputs\":[],\"stateMutability\":\"payable\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"owner\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"renounceOwnership\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"totalDisbursements\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"newOwner\",\"type\":\"address\"}],\"name\":\"transferOwnership\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"withdrawBalance\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"}],\"devdoc\":{\"events\":{\"BalanceWithdrawn(address,uint256)\":{\"params\":{\"balance\":\"The current contract balance paid to the owner.\",\"owner\":\"The current owner and recipient of the funds.\"}},\"DisbursementFailed(uint256,address,uint256)\":{\"params\":{\"amount\":\"The amount intended to be sent to the recipient.\",\"depositId\":\"The unique sequence number identifying the deposit.\",\"to\":\"The intended recipient of the disbursement.\"}},\"DisbursementSuccess(uint256,address,uint256)\":{\"params\":{\"amount\":\"The amount sent to the recipient.\",\"depositId\":\"The unique sequence number identifying the deposit.\",\"to\":\"The recipient of the disbursement.\"}}},\"kind\":\"dev\",\"methods\":{\"disburse(uint256,(uint256,address)[])\":{\"params\":{\"_disbursements\":\"A list of Disbursements to process.\",\"_nextDepositId\":\"The depositId of the first Dispursement.\"}},\"owner()\":{\"details\":\"Returns the address of the current owner.\"},\"renounceOwnership()\":{\"details\":\"Leaves the contract without owner. It will not be possible to call `onlyOwner` functions anymore. Can only be called by the current owner. NOTE: Renouncing ownership will leave the contract without an owner, thereby removing any functionality that is only available to the owner.\"},\"transferOwnership(address)\":{\"details\":\"Transfers ownership of the contract to a new account (`newOwner`). Can only be called by the current owner.\"}},\"title\":\"TeleportrDisburser\",\"version\":1},\"userdoc\":{\"events\":{\"BalanceWithdrawn(address,uint256)\":{\"notice\":\"Emitted any time the balance is withdrawn by the owner.\"},\"DisbursementFailed(uint256,address,uint256)\":{\"notice\":\"Emitted any time a disbursement fails to send.\"},\"DisbursementSuccess(uint256,address,uint256)\":{\"notice\":\"Emitted any time a disbursement is successfuly sent.\"}},\"kind\":\"user\",\"methods\":{\"constructor\":{\"notice\":\"Initializes a new TeleportrDisburser contract.\"},\"disburse(uint256,(uint256,address)[])\":{\"notice\":\"Accepts a list of Disbursements and forwards the amount paid to the contract to each recipient. The method reverts if there are zero disbursements, the total amount to forward differs from the amount sent in the transaction, or the _nextDepositId is unexpected. Failed disbursements will not cause the method to revert, but will instead be held by the contract and availabe for the owner to withdraw.\"},\"totalDisbursements()\":{\"notice\":\"The total number of disbursements processed.\"},\"withdrawBalance()\":{\"notice\":\"Sends the contract's current balance to the owner.\"}},\"version\":1}},\"settings\":{\"compilationTarget\":{\"contracts/L2/teleportr/TeleportrDisburser.sol\":\"TeleportrDisburser\"},\"evmVersion\":\"london\",\"libraries\":{},\"metadata\":{\"bytecodeHash\":\"ipfs\",\"useLiteralContent\":true},\"optimizer\":{\"enabled\":true,\"runs\":10000},\"remappings\":[]},\"sources\":{\"@openzeppelin/contracts/access/Ownable.sol\":{\"content\":\"// SPDX-License-Identifier: MIT\\n\\npragma solidity ^0.8.0;\\n\\nimport \\\"../utils/Context.sol\\\";\\n\\n/**\\n * @dev Contract module which provides a basic access control mechanism, where\\n * there is an account (an owner) that can be granted exclusive access to\\n * specific functions.\\n *\\n * By default, the owner account will be the one that deploys the contract. This\\n * can later be changed with {transferOwnership}.\\n *\\n * This module is used through inheritance. It will make available the modifier\\n * `onlyOwner`, which can be applied to your functions to restrict their use to\\n * the owner.\\n */\\nabstract contract Ownable is Context {\\n    address private _owner;\\n\\n    event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);\\n\\n    /**\\n     * @dev Initializes the contract setting the deployer as the initial owner.\\n     */\\n    constructor() {\\n        _setOwner(_msgSender());\\n    }\\n\\n    /**\\n     * @dev Returns the address of the current owner.\\n     */\\n    function owner() public view virtual returns (address) {\\n        return _owner;\\n    }\\n\\n    /**\\n     * @dev Throws if called by any account other than the owner.\\n     */\\n    modifier onlyOwner() {\\n        require(owner() == _msgSender(), \\\"Ownable: caller is not the owner\\\");\\n        _;\\n    }\\n\\n    /**\\n     * @dev Leaves the contract without owner. It will not be possible to call\\n     * `onlyOwner` functions anymore. Can only be called by the current owner.\\n     *\\n     * NOTE: Renouncing ownership will leave the contract without an owner,\\n     * thereby removing any functionality that is only available to the owner.\\n     */\\n    function renounceOwnership() public virtual onlyOwner {\\n        _setOwner(address(0));\\n    }\\n\\n    /**\\n     * @dev Transfers ownership of the contract to a new account (`newOwner`).\\n     * Can only be called by the current owner.\\n     */\\n    function transferOwnership(address newOwner) public virtual onlyOwner {\\n        require(newOwner != address(0), \\\"Ownable: new owner is the zero address\\\");\\n        _setOwner(newOwner);\\n    }\\n\\n    function _setOwner(address newOwner) private {\\n        address oldOwner = _owner;\\n        _owner = newOwner;\\n        emit OwnershipTransferred(oldOwner, newOwner);\\n    }\\n}\\n\",\"keccak256\":\"0x6bb804a310218875e89d12c053e94a13a4607cdf7cc2052f3e52bd32a0dc50a1\",\"license\":\"MIT\"},\"@openzeppelin/contracts/utils/Context.sol\":{\"content\":\"// SPDX-License-Identifier: MIT\\n\\npragma solidity ^0.8.0;\\n\\n/**\\n * @dev Provides information about the current execution context, including the\\n * sender of the transaction and its data. While these are generally available\\n * via msg.sender and msg.data, they should not be accessed in such a direct\\n * manner, since when dealing with meta-transactions the account sending and\\n * paying for execution may not be the actual sender (as far as an application\\n * is concerned).\\n *\\n * This contract is only required for intermediate, library-like contracts.\\n */\\nabstract contract Context {\\n    function _msgSender() internal view virtual returns (address) {\\n        return msg.sender;\\n    }\\n\\n    function _msgData() internal view virtual returns (bytes calldata) {\\n        return msg.data;\\n    }\\n}\\n\",\"keccak256\":\"0x90565a39ae45c80f0468dc96c7b20d0afc3055f344c8203a0c9258239f350b9f\",\"license\":\"MIT\"},\"contracts/L2/teleportr/TeleportrDisburser.sol\":{\"content\":\"// SPDX-License-Identifier: MIT\\npragma solidity >=0.8.9;\\n\\nimport { Ownable } from \\\"@openzeppelin/contracts/access/Ownable.sol\\\";\\n\\n/**\\n * @title TeleportrDisburser\\n */\\ncontract TeleportrDisburser is Ownable {\\n    /**\\n     * @notice A struct holding the address and amount to disbursement.\\n     */\\n    struct Disbursement {\\n        uint256 amount;\\n        address addr;\\n    }\\n\\n    /// The total number of disbursements processed.\\n    uint256 public totalDisbursements;\\n\\n    /**\\n     * @notice Emitted any time the balance is withdrawn by the owner.\\n     * @param owner The current owner and recipient of the funds.\\n     * @param balance The current contract balance paid to the owner.\\n     */\\n    event BalanceWithdrawn(address indexed owner, uint256 balance);\\n\\n    /**\\n     * @notice Emitted any time a disbursement is successfuly sent.\\n     * @param depositId The unique sequence number identifying the deposit.\\n     * @param to The recipient of the disbursement.\\n     * @param amount The amount sent to the recipient.\\n     */\\n    event DisbursementSuccess(uint256 indexed depositId, address indexed to, uint256 amount);\\n\\n    /**\\n     * @notice Emitted any time a disbursement fails to send.\\n     * @param depositId The unique sequence number identifying the deposit.\\n     * @param to The intended recipient of the disbursement.\\n     * @param amount The amount intended to be sent to the recipient.\\n     */\\n    event DisbursementFailed(uint256 indexed depositId, address indexed to, uint256 amount);\\n\\n    /**\\n     * @notice Initializes a new TeleportrDisburser contract.\\n     */\\n    constructor() {\\n        totalDisbursements = 0;\\n    }\\n\\n    /**\\n     * @notice Accepts a list of Disbursements and forwards the amount paid to\\n     * the contract to each recipient. The method reverts if there are zero\\n     * disbursements, the total amount to forward differs from the amount sent\\n     * in the transaction, or the _nextDepositId is unexpected. Failed\\n     * disbursements will not cause the method to revert, but will instead be\\n     * held by the contract and availabe for the owner to withdraw.\\n     * @param _nextDepositId The depositId of the first Dispursement.\\n     * @param _disbursements A list of Disbursements to process.\\n     */\\n    function disburse(uint256 _nextDepositId, Disbursement[] calldata _disbursements)\\n        external\\n        payable\\n        onlyOwner\\n    {\\n        // Ensure there are disbursements to process.\\n        uint256 _numDisbursements = _disbursements.length;\\n        require(_numDisbursements > 0, \\\"No disbursements\\\");\\n\\n        // Ensure the _nextDepositId matches our expected value.\\n        uint256 _depositId = totalDisbursements;\\n        require(_depositId == _nextDepositId, \\\"Unexpected next deposit id\\\");\\n        unchecked {\\n            totalDisbursements += _numDisbursements;\\n        }\\n\\n        // Ensure the amount sent in the transaction is equal to the sum of the\\n        // disbursements.\\n        uint256 _totalDisbursed = 0;\\n        for (uint256 i = 0; i < _numDisbursements; i++) {\\n            _totalDisbursed += _disbursements[i].amount;\\n        }\\n        require(_totalDisbursed == msg.value, \\\"Disbursement total != amount sent\\\");\\n\\n        // Process disbursements.\\n        for (uint256 i = 0; i < _numDisbursements; i++) {\\n            uint256 _amount = _disbursements[i].amount;\\n            address _addr = _disbursements[i].addr;\\n\\n            // Deliver the dispursement amount to the receiver. If the\\n            // disbursement fails, the amount will be kept by the contract\\n            // rather than reverting to prevent blocking progress on other\\n            // disbursements.\\n\\n            // slither-disable-next-line calls-loop,reentrancy-events\\n            (bool success, ) = _addr.call{ value: _amount, gas: 2300 }(\\\"\\\");\\n            if (success) emit DisbursementSuccess(_depositId, _addr, _amount);\\n            else emit DisbursementFailed(_depositId, _addr, _amount);\\n\\n            unchecked {\\n                _depositId += 1;\\n            }\\n        }\\n    }\\n\\n    /**\\n     * @notice Sends the contract's current balance to the owner.\\n     */\\n    function withdrawBalance() external onlyOwner {\\n        address _owner = owner();\\n        uint256 balance = address(this).balance;\\n        emit BalanceWithdrawn(_owner, balance);\\n        payable(_owner).transfer(balance);\\n    }\\n}\\n\",\"keccak256\":\"0xd50edb075f01356e6bde13bceca93749253390e714d9a55e16013b8216ac8344\",\"license\":\"MIT\"}},\"version\":1}",
+  "bytecode": "0x608060405234801561001057600080fd5b5061001a33610024565b6000600155610074565b600080546001600160a01b038381166001600160a01b0319831681178455604051919092169283917f8be0079c531659141344cd1fd0a4f28419497f9722a3daafe3b4186f6b6457e09190a35050565b6109e1806100836000396000f3fe6080604052600436106100655760003560e01c80638da5cb5b116100435780638da5cb5b146100bf578063ad48144d146100f4578063f2fde38b1461010757600080fd5b806325999e7f1461006a5780635fd8c71014610093578063715018a6146100aa575b600080fd5b34801561007657600080fd5b5061008060015481565b6040519081526020015b60405180910390f35b34801561009f57600080fd5b506100a8610127565b005b3480156100b657600080fd5b506100a8610248565b3480156100cb57600080fd5b5060005460405173ffffffffffffffffffffffffffffffffffffffff909116815260200161008a565b6100a8610102366004610840565b6102d5565b34801561011357600080fd5b506100a86101223660046108bf565b61069b565b60005473ffffffffffffffffffffffffffffffffffffffff1633146101ad576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820181905260248201527f4f776e61626c653a2063616c6c6572206973206e6f7420746865206f776e657260448201526064015b60405180910390fd5b6000546040805147808252915173ffffffffffffffffffffffffffffffffffffffff9093169283917fddc398b321237a8d40ac914388309c2f52a08c134e4dc4ce61e32f57cb7d80f1919081900360200190a260405173ffffffffffffffffffffffffffffffffffffffff83169082156108fc029083906000818181858888f19350505050158015610243573d6000803e3d6000fd5b505050565b60005473ffffffffffffffffffffffffffffffffffffffff1633146102c9576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820181905260248201527f4f776e61626c653a2063616c6c6572206973206e6f7420746865206f776e657260448201526064016101a4565b6102d360006107cb565b565b60005473ffffffffffffffffffffffffffffffffffffffff163314610356576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820181905260248201527f4f776e61626c653a2063616c6c6572206973206e6f7420746865206f776e657260448201526064016101a4565b80806103be576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152601060248201527f4e6f2064697362757273656d656e74730000000000000000000000000000000060448201526064016101a4565b60015484811461042a576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152601a60248201527f556e6578706563746564206e657874206465706f73697420696400000000000060448201526064016101a4565b60018054830190556000805b8381101561047757858582818110610450576104506108fc565b610463926040909102013590508361095a565b91508061046f81610972565b915050610436565b50348114610507576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152602160248201527f44697362757273656d656e7420746f74616c20213d20616d6f756e742073656e60448201527f740000000000000000000000000000000000000000000000000000000000000060648201526084016101a4565b60005b83811015610692576000868683818110610526576105266108fc565b9050604002016000013590506000878784818110610546576105466108fc565b905060400201602001602081019061055e91906108bf565b905060008173ffffffffffffffffffffffffffffffffffffffff16836108fc90604051600060405180830381858888f193505050503d80600081146105bf576040519150601f19603f3d011682016040523d82523d6000602084013e6105c4565b606091505b505090508015610624578173ffffffffffffffffffffffffffffffffffffffff16867feaa22fd2d7b875476355b32cf719794faf9d91b66e73bc6375a053cace9caaee8560405161061791815260200190565b60405180910390a3610676565b8173ffffffffffffffffffffffffffffffffffffffff16867f9b478c095979d3d3a7d602ffd9ee1f0843204d853558ae0882c8fcc0a5bc78cf8560405161066d91815260200190565b60405180910390a35b600186019550505050808061068a90610972565b91505061050a565b50505050505050565b60005473ffffffffffffffffffffffffffffffffffffffff16331461071c576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820181905260248201527f4f776e61626c653a2063616c6c6572206973206e6f7420746865206f776e657260448201526064016101a4565b73ffffffffffffffffffffffffffffffffffffffff81166107bf576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152602660248201527f4f776e61626c653a206e6577206f776e657220697320746865207a65726f206160448201527f646472657373000000000000000000000000000000000000000000000000000060648201526084016101a4565b6107c8816107cb565b50565b6000805473ffffffffffffffffffffffffffffffffffffffff8381167fffffffffffffffffffffffff0000000000000000000000000000000000000000831681178455604051919092169283917f8be0079c531659141344cd1fd0a4f28419497f9722a3daafe3b4186f6b6457e09190a35050565b60008060006040848603121561085557600080fd5b83359250602084013567ffffffffffffffff8082111561087457600080fd5b818601915086601f83011261088857600080fd5b81358181111561089757600080fd5b8760208260061b85010111156108ac57600080fd5b6020830194508093505050509250925092565b6000602082840312156108d157600080fd5b813573ffffffffffffffffffffffffffffffffffffffff811681146108f557600080fd5b9392505050565b7f4e487b7100000000000000000000000000000000000000000000000000000000600052603260045260246000fd5b7f4e487b7100000000000000000000000000000000000000000000000000000000600052601160045260246000fd5b6000821982111561096d5761096d61092b565b500190565b60007fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff8214156109a4576109a461092b565b506001019056fea26469706673582212209c98cb9cc04bc2bf5e8c0baf23ef87d045122afe6cfbb0e3c31bd854dd7fad7d64736f6c63430008090033",
+  "deployedBytecode": "0x6080604052600436106100655760003560e01c80638da5cb5b116100435780638da5cb5b146100bf578063ad48144d146100f4578063f2fde38b1461010757600080fd5b806325999e7f1461006a5780635fd8c71014610093578063715018a6146100aa575b600080fd5b34801561007657600080fd5b5061008060015481565b6040519081526020015b60405180910390f35b34801561009f57600080fd5b506100a8610127565b005b3480156100b657600080fd5b506100a8610248565b3480156100cb57600080fd5b5060005460405173ffffffffffffffffffffffffffffffffffffffff909116815260200161008a565b6100a8610102366004610840565b6102d5565b34801561011357600080fd5b506100a86101223660046108bf565b61069b565b60005473ffffffffffffffffffffffffffffffffffffffff1633146101ad576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820181905260248201527f4f776e61626c653a2063616c6c6572206973206e6f7420746865206f776e657260448201526064015b60405180910390fd5b6000546040805147808252915173ffffffffffffffffffffffffffffffffffffffff9093169283917fddc398b321237a8d40ac914388309c2f52a08c134e4dc4ce61e32f57cb7d80f1919081900360200190a260405173ffffffffffffffffffffffffffffffffffffffff83169082156108fc029083906000818181858888f19350505050158015610243573d6000803e3d6000fd5b505050565b60005473ffffffffffffffffffffffffffffffffffffffff1633146102c9576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820181905260248201527f4f776e61626c653a2063616c6c6572206973206e6f7420746865206f776e657260448201526064016101a4565b6102d360006107cb565b565b60005473ffffffffffffffffffffffffffffffffffffffff163314610356576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820181905260248201527f4f776e61626c653a2063616c6c6572206973206e6f7420746865206f776e657260448201526064016101a4565b80806103be576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152601060248201527f4e6f2064697362757273656d656e74730000000000000000000000000000000060448201526064016101a4565b60015484811461042a576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152601a60248201527f556e6578706563746564206e657874206465706f73697420696400000000000060448201526064016101a4565b60018054830190556000805b8381101561047757858582818110610450576104506108fc565b610463926040909102013590508361095a565b91508061046f81610972565b915050610436565b50348114610507576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152602160248201527f44697362757273656d656e7420746f74616c20213d20616d6f756e742073656e60448201527f740000000000000000000000000000000000000000000000000000000000000060648201526084016101a4565b60005b83811015610692576000868683818110610526576105266108fc565b9050604002016000013590506000878784818110610546576105466108fc565b905060400201602001602081019061055e91906108bf565b905060008173ffffffffffffffffffffffffffffffffffffffff16836108fc90604051600060405180830381858888f193505050503d80600081146105bf576040519150601f19603f3d011682016040523d82523d6000602084013e6105c4565b606091505b505090508015610624578173ffffffffffffffffffffffffffffffffffffffff16867feaa22fd2d7b875476355b32cf719794faf9d91b66e73bc6375a053cace9caaee8560405161061791815260200190565b60405180910390a3610676565b8173ffffffffffffffffffffffffffffffffffffffff16867f9b478c095979d3d3a7d602ffd9ee1f0843204d853558ae0882c8fcc0a5bc78cf8560405161066d91815260200190565b60405180910390a35b600186019550505050808061068a90610972565b91505061050a565b50505050505050565b60005473ffffffffffffffffffffffffffffffffffffffff16331461071c576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820181905260248201527f4f776e61626c653a2063616c6c6572206973206e6f7420746865206f776e657260448201526064016101a4565b73ffffffffffffffffffffffffffffffffffffffff81166107bf576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152602660248201527f4f776e61626c653a206e6577206f776e657220697320746865207a65726f206160448201527f646472657373000000000000000000000000000000000000000000000000000060648201526084016101a4565b6107c8816107cb565b50565b6000805473ffffffffffffffffffffffffffffffffffffffff8381167fffffffffffffffffffffffff0000000000000000000000000000000000000000831681178455604051919092169283917f8be0079c531659141344cd1fd0a4f28419497f9722a3daafe3b4186f6b6457e09190a35050565b60008060006040848603121561085557600080fd5b83359250602084013567ffffffffffffffff8082111561087457600080fd5b818601915086601f83011261088857600080fd5b81358181111561089757600080fd5b8760208260061b85010111156108ac57600080fd5b6020830194508093505050509250925092565b6000602082840312156108d157600080fd5b813573ffffffffffffffffffffffffffffffffffffffff811681146108f557600080fd5b9392505050565b7f4e487b7100000000000000000000000000000000000000000000000000000000600052603260045260246000fd5b7f4e487b7100000000000000000000000000000000000000000000000000000000600052601160045260246000fd5b6000821982111561096d5761096d61092b565b500190565b60007fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff8214156109a4576109a461092b565b506001019056fea26469706673582212209c98cb9cc04bc2bf5e8c0baf23ef87d045122afe6cfbb0e3c31bd854dd7fad7d64736f6c63430008090033",
+  "devdoc": {
+    "events": {
+      "BalanceWithdrawn(address,uint256)": {
+        "params": {
+          "balance": "The current contract balance paid to the owner.",
+          "owner": "The current owner and recipient of the funds."
+        }
+      },
+      "DisbursementFailed(uint256,address,uint256)": {
+        "params": {
+          "amount": "The amount intended to be sent to the recipient.",
+          "depositId": "The unique sequence number identifying the deposit.",
+          "to": "The intended recipient of the disbursement."
+        }
+      },
+      "DisbursementSuccess(uint256,address,uint256)": {
+        "params": {
+          "amount": "The amount sent to the recipient.",
+          "depositId": "The unique sequence number identifying the deposit.",
+          "to": "The recipient of the disbursement."
+        }
+      }
+    },
+    "kind": "dev",
+    "methods": {
+      "disburse(uint256,(uint256,address)[])": {
+        "params": {
+          "_disbursements": "A list of Disbursements to process.",
+          "_nextDepositId": "The depositId of the first Dispursement."
+        }
+      },
+      "owner()": {
+        "details": "Returns the address of the current owner."
+      },
+      "renounceOwnership()": {
+        "details": "Leaves the contract without owner. It will not be possible to call `onlyOwner` functions anymore. Can only be called by the current owner. NOTE: Renouncing ownership will leave the contract without an owner, thereby removing any functionality that is only available to the owner."
+      },
+      "transferOwnership(address)": {
+        "details": "Transfers ownership of the contract to a new account (`newOwner`). Can only be called by the current owner."
+      }
+    },
+    "title": "TeleportrDisburser",
+    "version": 1
+  },
+  "userdoc": {
+    "events": {
+      "BalanceWithdrawn(address,uint256)": {
+        "notice": "Emitted any time the balance is withdrawn by the owner."
+      },
+      "DisbursementFailed(uint256,address,uint256)": {
+        "notice": "Emitted any time a disbursement fails to send."
+      },
+      "DisbursementSuccess(uint256,address,uint256)": {
+        "notice": "Emitted any time a disbursement is successfuly sent."
+      }
+    },
+    "kind": "user",
+    "methods": {
+      "constructor": {
+        "notice": "Initializes a new TeleportrDisburser contract."
+      },
+      "disburse(uint256,(uint256,address)[])": {
+        "notice": "Accepts a list of Disbursements and forwards the amount paid to the contract to each recipient. The method reverts if there are zero disbursements, the total amount to forward differs from the amount sent in the transaction, or the _nextDepositId is unexpected. Failed disbursements will not cause the method to revert, but will instead be held by the contract and availabe for the owner to withdraw."
+      },
+      "totalDisbursements()": {
+        "notice": "The total number of disbursements processed."
+      },
+      "withdrawBalance()": {
+        "notice": "Sends the contract's current balance to the owner."
+      }
+    },
+    "version": 1
+  },
+  "storageLayout": {
+    "storage": [
+      {
+        "astId": 393,
+        "contract": "contracts/L2/teleportr/TeleportrDisburser.sol:TeleportrDisburser",
+        "label": "_owner",
+        "offset": 0,
+        "slot": "0",
+        "type": "t_address"
+      },
+      {
+        "astId": 6419,
+        "contract": "contracts/L2/teleportr/TeleportrDisburser.sol:TeleportrDisburser",
+        "label": "totalDisbursements",
+        "offset": 0,
+        "slot": "1",
+        "type": "t_uint256"
+      }
+    ],
+    "types": {
+      "t_address": {
+        "encoding": "inplace",
+        "label": "address",
+        "numberOfBytes": "20"
+      },
+      "t_uint256": {
+        "encoding": "inplace",
+        "label": "uint256",
+        "numberOfBytes": "32"
+      }
+    }
+  }
+}

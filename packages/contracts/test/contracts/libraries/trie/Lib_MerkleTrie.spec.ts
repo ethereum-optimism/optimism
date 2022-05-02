@@ -2,14 +2,11 @@
 import * as rlp from 'rlp'
 import { ethers } from 'hardhat'
 import { Contract } from 'ethers'
-import { fromHexString, toHexString } from '@eth-optimism/core-utils'
-import { Trie } from 'merkle-patricia-tree/dist/baseTrie'
+import { toHexString } from '@eth-optimism/core-utils'
 
 /* Internal Imports */
 import { expect } from '../../../setup'
 import { TrieTestGenerator } from '../../../helpers'
-import * as officialTestJson from '../../../data/json/libraries/trie/trietest.json'
-import * as officialTestAnyOrderJson from '../../../data/json/libraries/trie/trieanyorder.json'
 
 const NODE_COUNTS = [1, 2, 32, 128]
 
@@ -22,100 +19,6 @@ describe('Lib_MerkleTrie', () => {
   })
 
   // Eth-foundation tests: https://github.com/ethereum/tests/tree/develop/TrieTests
-  describe('official tests', () => {
-    for (const testName of Object.keys(officialTestJson.tests)) {
-      it(`should perform official test: ${testName}`, async () => {
-        const trie = new Trie()
-        const inputs = officialTestJson.tests[testName].in
-        const expected = officialTestJson.tests[testName].root
-
-        for (const input of inputs) {
-          let key: Buffer
-          if (input[0].startsWith('0x')) {
-            key = fromHexString(input[0])
-          } else {
-            key = fromHexString(
-              ethers.utils.hexlify(ethers.utils.toUtf8Bytes(input[0]))
-            )
-          }
-
-          let val: Buffer
-          if (input[1] === null) {
-            throw new Error('deletions not supported, check your tests')
-          } else if (input[1].startsWith('0x')) {
-            val = fromHexString(input[1])
-          } else {
-            val = fromHexString(
-              ethers.utils.hexlify(ethers.utils.toUtf8Bytes(input[1]))
-            )
-          }
-
-          const proof = await Trie.createProof(trie, key)
-          const root = trie.root
-          await trie.put(key, val)
-
-          const out = await Lib_MerkleTrie.update(
-            toHexString(key),
-            toHexString(val),
-            toHexString(rlp.encode(proof)),
-            root
-          )
-
-          expect(out).to.equal(toHexString(trie.root))
-        }
-
-        expect(toHexString(trie.root)).to.equal(expected)
-      })
-    }
-  })
-
-  describe('official tests - trie any order', () => {
-    for (const testName of Object.keys(officialTestAnyOrderJson.tests)) {
-      it(`should perform official test: ${testName}`, async () => {
-        const trie = new Trie()
-        const inputs = officialTestAnyOrderJson.tests[testName].in
-        const expected = officialTestAnyOrderJson.tests[testName].root
-
-        for (const input of Object.keys(inputs)) {
-          let key: Buffer
-          if (input.startsWith('0x')) {
-            key = fromHexString(input)
-          } else {
-            key = fromHexString(
-              ethers.utils.hexlify(ethers.utils.toUtf8Bytes(input))
-            )
-          }
-
-          let val: Buffer
-          if (inputs[input] === null) {
-            throw new Error('deletions not supported, check your tests')
-          } else if (inputs[input].startsWith('0x')) {
-            val = fromHexString(inputs[input])
-          } else {
-            val = fromHexString(
-              ethers.utils.hexlify(ethers.utils.toUtf8Bytes(inputs[input]))
-            )
-          }
-
-          const proof = await Trie.createProof(trie, key)
-          const root = trie.root
-          await trie.put(key, val)
-
-          const out = await Lib_MerkleTrie.update(
-            toHexString(key),
-            toHexString(val),
-            toHexString(rlp.encode(proof)),
-            root
-          )
-
-          expect(out).to.equal(toHexString(trie.root))
-        }
-
-        expect(toHexString(trie.root)).to.equal(expected)
-      })
-    }
-  })
-
   describe('verifyInclusionProof', () => {
     for (const nodeCount of NODE_COUNTS) {
       describe(`inside a trie with ${nodeCount} nodes and keys/vals of size ${nodeCount} bytes`, () => {
@@ -150,62 +53,6 @@ describe('Lib_MerkleTrie', () => {
         }
       })
     }
-  })
-
-  describe('update', () => {
-    for (const nodeCount of NODE_COUNTS) {
-      describe(`inside a trie with ${nodeCount} nodes and keys/vals of size ${nodeCount} bytes`, () => {
-        let generator: TrieTestGenerator
-        before(async () => {
-          generator = await TrieTestGenerator.fromRandom({
-            seed: `seed.update.${nodeCount}`,
-            nodeCount,
-            secure: false,
-            keySize: nodeCount,
-            valSize: nodeCount,
-          })
-        })
-
-        for (
-          let i = 0;
-          i < nodeCount;
-          i += nodeCount / (nodeCount > 8 ? 8 : 1)
-        ) {
-          it(`should correctly update node #${i}`, async () => {
-            const test = await generator.makeNodeUpdateTest(
-              i,
-              '0x1234123412341234'
-            )
-
-            expect(
-              await Lib_MerkleTrie.update(
-                test.key,
-                test.val,
-                test.proof,
-                test.root
-              )
-            ).to.equal(test.newRoot)
-          })
-        }
-      })
-    }
-
-    it('should return the single-node root hash if the trie was previously empty', async () => {
-      const key = '0x1234'
-      const val = '0x5678'
-
-      const trie = new Trie()
-      await trie.put(fromHexString(key), fromHexString(val))
-
-      expect(
-        await Lib_MerkleTrie.update(
-          key,
-          val,
-          '0x', // Doesn't require a proof
-          ethers.utils.keccak256('0x80') // Empty Merkle trie root hash
-        )
-      ).to.equal(toHexString(trie.root))
-    })
   })
 
   describe('get', () => {

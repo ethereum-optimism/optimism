@@ -1,5 +1,24 @@
 # @eth-optimism/common-ts
 
+## 0.2.6
+
+### Patch Changes
+
+- b57014d1: Update to typescript@4.6.2
+- Updated dependencies [b57014d1]
+  - @eth-optimism/core-utils@0.8.3
+
+## 0.2.5
+
+### Patch Changes
+
+- e36b085c: Adds hard stop to BaseServiceV2 when multiple exit signals are received
+- c1957126: Update Dockerfile to use Alpine
+- 51673b90: Have BaseServiceV2 throw when options are undefined
+- 7a179003: Adds the jsonRpcProvider validator as an input validator
+- Updated dependencies [c1957126]
+  - @eth-optimism/core-utils@0.8.2
+
 ## 0.2.4
 
 ### Patch Changes

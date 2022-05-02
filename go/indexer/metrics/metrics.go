@@ -3,6 +3,8 @@ package metrics
 import (
 	"fmt"
 	"net/http"
+	"strconv"
+	"time"
 
 	l2common "github.com/ethereum-optimism/optimism/l2geth/common"
 	"github.com/ethereum/go-ethereum/common"
@@ -31,6 +33,12 @@ type Metrics struct {
 	UpdateDuration *prometheus.SummaryVec
 
 	CachedTokensCount *prometheus.CounterVec
+
+	HTTPRequestsCount prometheus.Counter
+
+	HTTPResponsesCount *prometheus.CounterVec
+
+	HTTPRequestDurationSecs prometheus.Summary
 
 	tokenAddrs map[string]string
 }
@@ -110,6 +118,27 @@ func NewMetrics(monitoredTokens map[string]string) *Metrics {
 			"chain",
 		}),
 
+		HTTPRequestsCount: promauto.NewCounter(prometheus.CounterOpts{
+			Name:      "http_requests_count",
+			Help:      "How many HTTP requests this instance has seen",
+			Namespace: metricsNamespace,
+		}),
+
+		HTTPResponsesCount: promauto.NewCounterVec(prometheus.CounterOpts{
+			Name:      "http_responses_count",
+			Help:      "How many HTTP responses this instance has served",
+			Namespace: metricsNamespace,
+		}, []string{
+			"status_code",
+		}),
+
+		HTTPRequestDurationSecs: promauto.NewSummary(prometheus.SummaryOpts{
+			Name:       "http_request_duration_secs",
+			Help:       "How long each HTTP request took",
+			Namespace:  metricsNamespace,
+			Objectives: map[float64]float64{0.5: 0.05, 0.9: 0.01, 0.95: 0.005, 0.99: 0.001},
+		}),
+
 		tokenAddrs: mts,
 	}
 }
@@ -174,6 +203,15 @@ func (m *Metrics) IncL1CachedTokensCount() {
 
 func (m *Metrics) IncL2CachedTokensCount() {
 	m.CachedTokensCount.WithLabelValues("l2").Inc()
+}
+
+func (m *Metrics) RecordHTTPRequest() {
+	m.HTTPRequestsCount.Inc()
+}
+
+func (m *Metrics) RecordHTTPResponse(code int, dur time.Duration) {
+	m.HTTPResponsesCount.WithLabelValues(strconv.Itoa(code)).Inc()
+	m.HTTPRequestDurationSecs.Observe(float64(dur) / float64(time.Second))
 }
 
 func (m *Metrics) Serve(hostname string, port uint64) (*http.Server, error) {

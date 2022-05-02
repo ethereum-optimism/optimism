@@ -1,5 +1,19 @@
 # @eth-optimism/integration-tests
 
+## 0.5.10
+
+### Patch Changes
+
+- db02f97f: Add tests for system addrs on verifiers/replicas
+
+## 0.5.9
+
+### Patch Changes
+
+- 5bf390b4: Update chainid
+- c1957126: Update Dockerfile to use Alpine
+- d9a51154: Bump to hardhat@2.9.1
+
 ## 0.5.8
 
 ### Patch Changes

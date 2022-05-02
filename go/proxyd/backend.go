@@ -19,6 +19,7 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/gorilla/websocket"
 	"github.com/prometheus/client_golang/prometheus"
+	"golang.org/x/sync/semaphore"
 )
 
 const (
@@ -66,6 +67,11 @@ var (
 		Code:    JSONRPCErrorInternal - 14,
 		Message: "too many RPC calls in batch request",
 	}
+	ErrGatewayTimeout = &RPCErr{
+		Code:          JSONRPCErrorInternal - 15,
+		Message:       "gateway timeout",
+		HTTPErrorCode: 504,
+	}
 )
 
 func ErrInvalidRequest(msg string) *RPCErr {
@@ -83,7 +89,7 @@ type Backend struct {
 	authUsername         string
 	authPassword         string
 	rateLimiter          RateLimiter
-	client               *http.Client
+	client               *LimitedHTTPClient
 	dialer               *websocket.Dialer
 	maxRetries           int
 	maxResponseSize      int64
@@ -165,6 +171,7 @@ func NewBackend(
 	rpcURL string,
 	wsURL string,
 	rateLimiter RateLimiter,
+	rpcSemaphore *semaphore.Weighted,
 	opts ...BackendOpt,
 ) *Backend {
 	backend := &Backend{
@@ -173,8 +180,10 @@ func NewBackend(
 		wsURL:           wsURL,
 		rateLimiter:     rateLimiter,
 		maxResponseSize: math.MaxInt64,
-		client: &http.Client{
-			Timeout: 5 * time.Second,
+		client: &LimitedHTTPClient{
+			Client:      http.Client{Timeout: 5 * time.Second},
+			sem:         rpcSemaphore,
+			backendName: name,
 		},
 		dialer: &websocket.Dialer{},
 	}
@@ -217,7 +226,7 @@ func (b *Backend) Forward(ctx context.Context, req *RPCReq) (*RPCRes, error) {
 			)
 			respTimer.ObserveDuration()
 			RecordRPCError(ctx, b.Name, req.Method, err)
-			time.Sleep(calcBackoff(i))
+			sleepContext(ctx, calcBackoff(i))
 			continue
 		}
 		respTimer.ObserveDuration()
@@ -331,7 +340,7 @@ func (b *Backend) setOffline() {
 func (b *Backend) doForward(ctx context.Context, rpcReq *RPCReq) (*RPCRes, error) {
 	body := mustMarshalJSON(rpcReq)
 
-	httpReq, err := http.NewRequest("POST", b.rpcURL, bytes.NewReader(body))
+	httpReq, err := http.NewRequestWithContext(ctx, "POST", b.rpcURL, bytes.NewReader(body))
 	if err != nil {
 		return nil, wrapErr(err, "error creating backend request")
 	}
@@ -353,7 +362,7 @@ func (b *Backend) doForward(ctx context.Context, rpcReq *RPCReq) (*RPCRes, error
 	httpReq.Header.Set("content-type", "application/json")
 	httpReq.Header.Set("X-Forwarded-For", xForwardedFor)
 
-	httpRes, err := b.client.Do(httpReq)
+	httpRes, err := b.client.DoLimited(httpReq)
 	if err != nil {
 		return nil, wrapErr(err, "error in backend request")
 	}
@@ -680,4 +689,26 @@ func formatWSError(err error) []byte {
 		}
 	}
 	return m
+}
+
+func sleepContext(ctx context.Context, duration time.Duration) {
+	select {
+	case <-ctx.Done():
+	case <-time.After(duration):
+	}
+}
+
+type LimitedHTTPClient struct {
+	http.Client
+	sem         *semaphore.Weighted
+	backendName string
+}
+
+func (c *LimitedHTTPClient) DoLimited(req *http.Request) (*http.Response, error) {
+	if err := c.sem.Acquire(req.Context(), 1); err != nil {
+		tooManyRequestErrorsTotal.WithLabelValues(c.backendName).Inc()
+		return nil, wrapErr(err, "too many requests")
+	}
+	defer c.sem.Release(1)
+	return c.Do(req)
 }

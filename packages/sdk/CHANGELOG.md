@@ -1,5 +1,43 @@
 # @eth-optimism/sdk
 
+## 1.1.1
+
+### Patch Changes
+
+- 1338135c: Fixes a bug where the wrong Overrides type was being used for gas estimation functions
+
+## 1.1.0
+
+### Minor Changes
+
+- a9f8e577: New isL2Provider helper function. Internal cleanups.
+
+### Patch Changes
+
+- Updated dependencies [5818decb]
+  - @eth-optimism/contracts@0.5.21
+
+## 1.0.4
+
+### Patch Changes
+
+- b57014d1: Update to typescript@4.6.2
+- Updated dependencies [d040a8d9]
+- Updated dependencies [b57014d1]
+  - @eth-optimism/contracts@0.5.20
+  - @eth-optimism/core-utils@0.8.3
+
+## 1.0.3
+
+### Patch Changes
+
+- c1957126: Update Dockerfile to use Alpine
+- d9a51154: Bump to hardhat@2.9.1
+- Updated dependencies [c1957126]
+- Updated dependencies [d9a51154]
+  - @eth-optimism/contracts@0.5.19
+  - @eth-optimism/core-utils@0.8.2
+
 ## 1.0.2
 
 ### Patch Changes

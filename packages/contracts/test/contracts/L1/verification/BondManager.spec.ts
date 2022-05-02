@@ -1,43 +1,40 @@
-/* External Imports */
 import { ethers } from 'hardhat'
-import { Signer, Contract } from 'ethers'
+import { Contract } from 'ethers'
+import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers'
 
-/* Internal Imports */
 import { expect } from '../../../setup'
-import { makeAddressManager } from '../../../helpers'
+import { deploy } from '../../../helpers'
 
 describe('BondManager', () => {
-  let sequencer: Signer
-  let nonSequencer: Signer
+  let sequencer: SignerWithAddress
+  let nonSequencer: SignerWithAddress
   before(async () => {
     ;[sequencer, nonSequencer] = await ethers.getSigners()
   })
 
   let AddressManager: Contract
-  before(async () => {
-    AddressManager = await makeAddressManager()
-  })
-
   let BondManager: Contract
-  before(async () => {
-    BondManager = await (
-      await ethers.getContractFactory('BondManager')
-    ).deploy(AddressManager.address)
+  beforeEach(async () => {
+    AddressManager = await deploy('Lib_AddressManager')
 
-    AddressManager.setAddress('OVM_Proposer', await sequencer.getAddress())
+    BondManager = await deploy('BondManager', {
+      args: [AddressManager.address],
+    })
+
+    AddressManager.setAddress('OVM_Proposer', sequencer.address)
   })
 
   describe('isCollateralized', () => {
     it('should return true for OVM_Proposer', async () => {
-      expect(
-        await BondManager.isCollateralized(await sequencer.getAddress())
-      ).to.equal(true)
+      expect(await BondManager.isCollateralized(sequencer.address)).to.equal(
+        true
+      )
     })
 
     it('should return false for non-sequencer', async () => {
-      expect(
-        await BondManager.isCollateralized(await nonSequencer.getAddress())
-      ).to.equal(false)
+      expect(await BondManager.isCollateralized(nonSequencer.address)).to.equal(
+        false
+      )
     })
   })
 })

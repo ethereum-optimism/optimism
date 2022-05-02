@@ -1,5 +1,26 @@
 # @eth-optimism/proxyd
 
+## 3.8.5
+
+### Patch Changes
+
+- 2a062b11: proxyd: Log ssanitized RPC requests
+- d9f058ce: proxyd: Reduced RPC request logging
+- a4bfd9e7: proxyd: Limit the number of concurrent RPCs to backends
+
+## 3.8.4
+
+### Patch Changes
+
+- 08329ba2: proxyd: Record redis cache operation latency
+- ae112021: proxyd: Request-scoped context for fast batch RPC short-circuiting
+
+## 3.8.3
+
+### Patch Changes
+
+- 160f4c3d: Update docker image to use golang 1.18.0
+
 ## 3.8.2
 
 ### Patch Changes

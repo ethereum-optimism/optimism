@@ -14,6 +14,7 @@ resources:
   - ../../bases/l2geth-replica
   - ../../bases/servicemonitors
   - ../../bases/replica-healthcheck
+  - ../../bases/replica-healthcheck-v1
   - ./volumes.yaml
   - ./ingress.yaml
 
@@ -27,6 +28,9 @@ images:
   - name: ethereumoptimism/replica-healthcheck
     newName: ethereumoptimism/replica-healthcheck
     newTag: 0.3.3
+  - name: ethereumoptimism/replica-healthcheck-v1
+    newName: ethereumoptimism/replica-healthcheck
+    newTag: 1.0.4
 
 patchesStrategicMerge:
   - ./patches/dtl.yaml
@@ -40,3 +44,8 @@ patches:
       version: v1
       kind: StatefulSet
       name: l2geth-replica
+
+configMapGenerator:
+  - name: replica-healthcheck-v1
+    envs:
+      - ./replica-healthcheck-v1.env

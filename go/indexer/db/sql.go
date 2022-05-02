@@ -107,6 +107,21 @@ CREATE UNIQUE INDEX IF NOT EXISTS l1_blocks_number ON l1_blocks(number);
 CREATE UNIQUE INDEX IF NOT EXISTS l2_blocks_number ON l2_blocks(number);
 `
 
+const createAirdropsTable = `
+CREATE TABLE IF NOT EXISTS airdrops (
+	address VARCHAR(42) PRIMARY KEY,
+	voter_amount VARCHAR NOT NULL DEFAULT '0' CHECK(voter_amount ~ '^\d+$') ,
+	multisig_signer_amount VARCHAR NOT NULL DEFAULT '0' CHECK(multisig_signer_amount ~ '^\d+$'),
+	gitcoin_amount VARCHAR NOT NULL DEFAULT '0' CHECK(gitcoin_amount ~ '^\d+$'),
+	active_bridged_amount VARCHAR NOT NULL DEFAULT '0' CHECK(active_bridged_amount ~ '^\d+$'),
+	op_user_amount VARCHAR NOT NULL DEFAULT '0' CHECK(op_user_amount ~ '^\d+$'),
+	op_repeat_user_amount VARCHAR NOT NULL DEFAULT '0' CHECK(op_user_amount ~ '^\d+$'),
+	op_og_amount VARCHAR NOT NULL DEFAULT '0' CHECK(op_og_amount ~ '^\d+$'),
+	bonus_amount VARCHAR NOT NULL DEFAULT '0' CHECK(bonus_amount ~ '^\d+$'),
+	total_amount VARCHAR NOT NULL CHECK(voter_amount ~ '^\d+$')
+)
+`
+
 var schema = []string{
 	createL1BlocksTable,
 	createL2BlocksTable,
@@ -118,4 +133,5 @@ var schema = []string{
 	createDepositsTable,
 	createWithdrawalsTable,
 	createL1L2NumberIndex,
+	createAirdropsTable,
 }

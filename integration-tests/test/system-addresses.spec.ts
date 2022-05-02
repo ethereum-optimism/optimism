@@ -2,6 +2,7 @@
 import { BigNumber, Contract, ContractFactory, utils, Wallet } from 'ethers'
 import { ethers } from 'hardhat'
 import { futurePredeploys } from '@eth-optimism/contracts'
+import { sleep } from '@eth-optimism/core-utils'
 
 /* Imports: Internal */
 import { expect } from './shared/setup'
@@ -101,5 +102,43 @@ describe('System addresses', () => {
       expect(receipt.contractAddress).not.to.eq(SYSTEM_ADDRESSES[i])
       expect(receipt.contractAddress).not.to.eq(null)
     }
+  })
+
+  const testReplica = async (otherProvider) => {
+    const seqBlock = await env.l2Provider.getBlock('latest')
+    while (true) {
+      const verHeight = await otherProvider.getBlockNumber()
+      if (verHeight >= seqBlock.number) {
+        break
+      }
+      await sleep(200)
+    }
+
+    const verBlock = await otherProvider.getBlock(seqBlock.number)
+    expect(verBlock).to.deep.eq(seqBlock)
+
+    for (const addr of SYSTEM_ADDRESSES) {
+      const seqCode = await env.l2Provider.getCode(addr)
+      const verCode = await otherProvider.getCode(addr)
+      expect(seqCode).to.eq(verCode)
+    }
+  }
+
+  it('should be properly handled on verifiers', async function () {
+    if (!envConfig.RUN_VERIFIER_TESTS) {
+      this.skip()
+      return
+    }
+
+    await testReplica(env.verifierProvider)
+  })
+
+  it('should be properly handled on replicas', async function () {
+    if (!envConfig.RUN_REPLICA_TESTS) {
+      this.skip()
+      return
+    }
+
+    await testReplica(env.replicaProvider)
   })
 })

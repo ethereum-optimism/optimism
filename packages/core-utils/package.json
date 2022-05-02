@@ -1,6 +1,6 @@
 {
   "name": "@eth-optimism/core-utils",
-  "version": "0.8.1",
+  "version": "0.8.3",
   "description": "[Optimism] Core typescript utilities",
   "main": "dist/index",
   "types": "dist/index",
@@ -60,6 +60,6 @@
     "nyc": "^15.1.0",
     "prettier": "^2.3.1",
     "ts-mocha": "^8.0.0",
-    "typescript": "^4.3.5"
+    "typescript": "^4.6.2"
   }
 }

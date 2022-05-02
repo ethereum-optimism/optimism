@@ -1,5 +1,46 @@
 # data transport layer
 
+## 0.5.27
+
+### Patch Changes
+
+- e12e8976: Use Basic Authentication in L1TransportServer
+
+## 0.5.26
+
+### Patch Changes
+
+- Updated dependencies [5818decb]
+  - @eth-optimism/contracts@0.5.21
+
+## 0.5.25
+
+### Patch Changes
+
+- b57014d1: Update to typescript@4.6.2
+- Updated dependencies [d040a8d9]
+- Updated dependencies [b57014d1]
+  - @eth-optimism/contracts@0.5.20
+  - @eth-optimism/common-ts@0.2.6
+  - @eth-optimism/core-utils@0.8.3
+
+## 0.5.24
+
+### Patch Changes
+
+- 3e5b2092: Patch for Kovan DTL halting issue
+- 05894239: Add new metrics to the data-transport-layer
+- c1957126: Update Dockerfile to use Alpine
+- d9a51154: Bump to hardhat@2.9.1
+- Updated dependencies [e36b085c]
+- Updated dependencies [c1957126]
+- Updated dependencies [51673b90]
+- Updated dependencies [7a179003]
+- Updated dependencies [d9a51154]
+  - @eth-optimism/common-ts@0.2.5
+  - @eth-optimism/contracts@0.5.19
+  - @eth-optimism/core-utils@0.8.2
+
 ## 0.5.23
 
 ### Patch Changes

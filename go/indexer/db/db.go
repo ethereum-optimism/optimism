@@ -3,6 +3,8 @@ package db
 import (
 	"database/sql"
 	"errors"
+	"fmt"
+	"strings"
 
 	l2common "github.com/ethereum-optimism/optimism/l2geth/common"
 	"github.com/ethereum/go-ethereum/common"
@@ -15,6 +17,31 @@ import (
 type Database struct {
 	db     *sql.DB
 	config string
+}
+
+// NewDatabase returns the database for the given connection string.
+func NewDatabase(config string) (*Database, error) {
+	db, err := sql.Open("postgres", config)
+	if err != nil {
+		return nil, err
+	}
+
+	err = db.Ping()
+	if err != nil {
+		return nil, err
+	}
+
+	for _, migration := range schema {
+		_, err = db.Exec(migration)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return &Database{
+		db:     db,
+		config: config,
+	}, nil
 }
 
 // Close closes the database.
@@ -633,27 +660,38 @@ func (d *Database) GetIndexedL1BlockByHash(hash common.Hash) (*IndexedL1Block, e
 	return block, nil
 }
 
-// NewDatabase returns the database for the given connection string.
-func NewDatabase(config string) (*Database, error) {
-	db, err := sql.Open("postgres", config)
+const getAirdropQuery = `
+SELECT 
+	address, voter_amount, multisig_signer_amount, gitcoin_amount,
+	active_bridged_amount, op_user_amount, op_repeat_user_amount, 
+    bonus_amount, total_amount
+FROM airdrops
+WHERE address = $1
+`
+
+func (d *Database) GetAirdrop(address common.Address) (*Airdrop, error) {
+	row := d.db.QueryRow(getAirdropQuery, strings.ToLower(address.String()))
+	if row.Err() != nil {
+		return nil, fmt.Errorf("error getting airdrop: %v", row.Err())
+	}
+
+	airdrop := new(Airdrop)
+	err := row.Scan(
+		&airdrop.Address,
+		&airdrop.VoterAmount,
+		&airdrop.MultisigSignerAmount,
+		&airdrop.GitcoinAmount,
+		&airdrop.ActiveBridgedAmount,
+		&airdrop.OpUserAmount,
+		&airdrop.OpRepeatUserAmount,
+		&airdrop.BonusAmount,
+		&airdrop.TotalAmount,
+	)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	}
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error scanning airdrop: %v", err)
 	}
-
-	err = db.Ping()
-	if err != nil {
-		return nil, err
-	}
-
-	for _, migration := range schema {
-		_, err = db.Exec(migration)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	return &Database{
-		db:     db,
-		config: config,
-	}, nil
+	return airdrop, nil
 }

@@ -11,6 +11,7 @@ import {
   TransactionEntry,
 } from '../../../types'
 import { parseSignatureVParam } from '../../../utils'
+import { MissingElementError } from './errors'
 
 export const handleSequencerBlock = {
   parseBlock: async (
@@ -22,9 +23,12 @@ export const handleSequencerBlock = {
   }> => {
     const transaction = block.transactions[0]
     const transactionIndex =
-      transaction.index === null || transaction.index === undefined
-        ? BigNumber.from(transaction.blockNumber).toNumber() - 1
-        : BigNumber.from(transaction.index).toNumber()
+      BigNumber.from(transaction.blockNumber).toNumber() - 1
+
+    // We make the assumption that you don't need to sync the genesis block
+    if (transactionIndex < 0) {
+      throw new Error('should not happen, attempted to sync genesis block')
+    }
 
     let transactionEntry: Partial<TransactionEntry> = {
       // Legacy support.
@@ -111,6 +115,17 @@ export const handleSequencerBlock = {
     },
     db: TransportDB
   ): Promise<void> => {
+    if (entry.transactionEntry.index > 0) {
+      const prevTransactionEntry = await db.getUnconfirmedTransactionByIndex(
+        entry.transactionEntry.index - 1
+      )
+
+      // We should *always* have a previous transaction here.
+      if (prevTransactionEntry === null) {
+        throw new MissingElementError('SequencerTransaction')
+      }
+    }
+
     // Having separate indices for confirmed/unconfirmed means we never have to worry about
     // accidentally overwriting a confirmed transaction with an unconfirmed one. Unconfirmed
     // transactions are purely extra information.

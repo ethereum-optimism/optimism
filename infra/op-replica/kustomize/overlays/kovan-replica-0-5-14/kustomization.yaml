@@ -6,12 +6,12 @@ commonLabels:
   provider: internal
 
 bases:
-  - ../../envs/kovan-gen5-berlin
+  - ../../../envs/kovan-gen5-berlin
+  - ../../../scripts
 
 resources:
   - ../../bases/data-transport-layer
   - ../../bases/l2geth-replica
-  - ../../bases/configmaps
   - ../../bases/servicemonitors
   - ../../bases/replica-healthcheck
   - ./volumes.yaml
@@ -19,7 +19,7 @@ resources:
 images:
   - name: ethereumoptimism/data-transport-layer
     newName: ethereumoptimism/data-transport-layer
-    newTag: 0.5.21
+    newTag: 0.5.24
   - name: ethereumoptimism/l2geth
     newName: ethereumoptimism/l2geth
     newTag: 0.5.14

@@ -14,18 +14,16 @@ var clientRetryInterval = 5 * time.Second
 
 // FilterWithdrawalInitiatedWithRetry retries the given func until it succeeds,
 // waiting for clientRetryInterval duration after every call.
-func FilterWithdrawalInitiatedWithRetry(filterer *l2bridge.L2StandardBridgeFilterer, opts *bind.FilterOpts) (*l2bridge.L2StandardBridgeWithdrawalInitiatedIterator, error) {
+func FilterWithdrawalInitiatedWithRetry(ctx context.Context, filterer *l2bridge.L2StandardBridgeFilterer, opts *bind.FilterOpts) (*l2bridge.L2StandardBridgeWithdrawalInitiatedIterator, error) {
 	for {
-		ctxt, cancel := context.WithTimeout(opts.Context, DefaultConnectionTimeout)
+		ctxt, cancel := context.WithTimeout(ctx, DefaultConnectionTimeout)
 		opts.Context = ctxt
 		res, err := filterer.FilterWithdrawalInitiated(opts, nil, nil, nil)
-		switch err {
-		case nil:
-			cancel()
-			return res, err
-		default:
-			logger.Error("Error fetching filter", "err", err)
+		cancel()
+		if err == nil {
+			return res, nil
 		}
+		logger.Error("Error fetching filter", "err", err)
 		time.Sleep(clientRetryInterval)
 	}
 }
