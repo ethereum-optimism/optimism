@@ -4,7 +4,7 @@ import (
 	"context"
 	"math/big"
 
-	"github.com/ethereum-optimism/optimistic-specs/opnode/l2"
+	"github.com/ethereum-optimism/optimism/opnode/l2"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/rpc"
 )

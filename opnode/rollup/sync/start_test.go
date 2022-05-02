@@ -4,10 +4,10 @@ import (
 	"context"
 	"testing"
 
-	"github.com/ethereum-optimism/optimistic-specs/opnode/eth"
-	"github.com/ethereum-optimism/optimistic-specs/opnode/internal/testlog"
-	"github.com/ethereum-optimism/optimistic-specs/opnode/internal/testutils"
-	"github.com/ethereum-optimism/optimistic-specs/opnode/rollup"
+	"github.com/ethereum-optimism/optimism/opnode/eth"
+	"github.com/ethereum-optimism/optimism/opnode/internal/testlog"
+	"github.com/ethereum-optimism/optimism/opnode/internal/testutils"
+	"github.com/ethereum-optimism/optimism/opnode/rollup"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
 )

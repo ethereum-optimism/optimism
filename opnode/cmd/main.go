@@ -6,10 +6,10 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/ethereum-optimism/optimistic-specs/opnode"
-	"github.com/ethereum-optimism/optimistic-specs/opnode/flags"
+	"github.com/ethereum-optimism/optimism/opnode"
+	"github.com/ethereum-optimism/optimism/opnode/flags"
 
-	"github.com/ethereum-optimism/optimistic-specs/opnode/node"
+	"github.com/ethereum-optimism/optimism/opnode/node"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/urfave/cli"
 )

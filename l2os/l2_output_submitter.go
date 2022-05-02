@@ -8,9 +8,9 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/ethereum-optimism/optimistic-specs/l2os/drivers/l2output"
-	"github.com/ethereum-optimism/optimistic-specs/l2os/rollupclient"
-	"github.com/ethereum-optimism/optimistic-specs/l2os/txmgr"
+	"github.com/ethereum-optimism/optimism/l2os/drivers/l2output"
+	"github.com/ethereum-optimism/optimism/l2os/rollupclient"
+	"github.com/ethereum-optimism/optimism/l2os/txmgr"
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"

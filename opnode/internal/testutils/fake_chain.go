@@ -9,9 +9,9 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 
-	"github.com/ethereum-optimism/optimistic-specs/opnode/eth"
-	"github.com/ethereum-optimism/optimistic-specs/opnode/l2"
-	"github.com/ethereum-optimism/optimistic-specs/opnode/rollup"
+	"github.com/ethereum-optimism/optimism/opnode/eth"
+	"github.com/ethereum-optimism/optimism/opnode/l2"
+	"github.com/ethereum-optimism/optimism/opnode/rollup"
 )
 
 func FakeGenesis(l1 rune, l2 rune, l1GenesisNumber int) rollup.Genesis {
