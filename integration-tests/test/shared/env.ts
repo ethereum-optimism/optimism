@@ -60,6 +60,16 @@ export class OptimismEnv {
       l1SignerOrProvider: l1Wallet,
       l2SignerOrProvider: l2Wallet,
       l1ChainId: network.chainId,
+      contracts: {
+        l1: {
+          AddressManager: envConfig.ADDRESS_MANAGER,
+          L1CrossDomainMessenger: envConfig.L1_CROSS_DOMAIN_MESSENGER,
+          L1StandardBridge: envConfig.L1_STANDARD_BRIDGE,
+          StateCommitmentChain: envConfig.STATE_COMMITMENT_CHAIN,
+          CanonicalTransactionChain: envConfig.CANONICAL_TRANSACTION_CHAIN,
+          BondManager: envConfig.BOND_MANAGER,
+        }
+      }
     })
 
     // fund the user if needed

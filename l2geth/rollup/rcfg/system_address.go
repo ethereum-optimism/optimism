@@ -66,6 +66,12 @@ var SystemAddressDeployers = map[uint64]SystemAddressDeployer{
 		common.HexToAddress("0xc30276833798867c1dbc5c468bf51ca900b44e4c"),
 		common.HexToAddress("0x5c679a57e018f5f146838138d3e032ef4913d551"),
 	},
+
+	// Goerli nightly
+	421: {
+		common.HexToAddress("0xc30276833798867c1dbc5c468bf51ca900b44e4c"),
+		common.HexToAddress("0x5c679a57e018f5f146838138d3e032ef4913d551"),
+	},
 }
 
 var envSystemAddressDeployer SystemAddressDeployer
