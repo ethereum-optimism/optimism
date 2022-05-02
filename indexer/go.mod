@@ -2,6 +2,8 @@ module github.com/ethereum-optimism/optimism/indexer
 
 go 1.17
 
+replace github.com/ethereum-optimism/optimism/l2geth v0.0.0 => ../l2geth
+
 require (
 	github.com/ethereum-optimism/optimism/l2geth v0.0.0
 	github.com/ethereum/go-ethereum v1.10.16

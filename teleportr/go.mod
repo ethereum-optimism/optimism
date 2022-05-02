@@ -2,6 +2,8 @@ module github.com/ethereum-optimism/optimism/teleportr
 
 go 1.17
 
+replace github.com/ethereum-optimism/optimism/bss-core v0.0.0 => ../bss-core
+
 require (
 	github.com/ethereum-optimism/optimism/bss-core v0.0.0
 	github.com/ethereum/go-ethereum v1.10.16
