@@ -1,0 +1,38 @@
+name: Devnet integration tests
+
+on:
+  push:
+    branches:
+      - 'main'
+      - 'staging'
+      - 'feat/*'
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  compose-devnet:
+    runs-on: ubuntu-latest
+    name: Run integration tests on devnet
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          submodules: recursive
+
+      - uses: actions/setup-node@v2
+        with:
+          node-version: '14'
+          cache: 'yarn'
+
+      - name: Install Foundry
+        uses: onbjerg/foundry-toolchain@v1
+        with:
+          version: nightly
+
+      - run: make build-ts
+        name: Build TS
+
+      - run: make devnet-up
+        name: Bring up the stack
+
+      - run: make test-integration
+        name: Run integration tests
