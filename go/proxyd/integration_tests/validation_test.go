@@ -19,7 +19,7 @@ const (
 )
 
 func TestSingleRPCValidation(t *testing.T) {
-	goodBackend := NewMockBackend(SingleResponseHandler(200, goodResponse))
+	goodBackend := NewMockBackend(BatchedResponseHandler(200, goodResponse))
 	defer goodBackend.Close()
 
 	require.NoError(t, os.Setenv("GOOD_BACKEND_RPC_URL", goodBackend.URL()))
@@ -103,7 +103,7 @@ func TestSingleRPCValidation(t *testing.T) {
 }
 
 func TestBatchRPCValidation(t *testing.T) {
-	goodBackend := NewMockBackend(SingleResponseHandler(200, goodResponse))
+	goodBackend := NewMockBackend(BatchedResponseHandler(200, goodResponse))
 	defer goodBackend.Close()
 
 	require.NoError(t, os.Setenv("GOOD_BACKEND_RPC_URL", goodBackend.URL()))

@@ -6,10 +6,12 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"os"
 	"testing"
 
 	"github.com/BurntSushi/toml"
 	"github.com/ethereum-optimism/optimism/go/proxyd"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
 )
 
@@ -94,4 +96,14 @@ func NewRPCReq(id string, method string, params []interface{}) *proxyd.RPCReq {
 		Params:  jsonParams,
 		ID:      []byte(id),
 	}
+}
+
+func InitLogger() {
+	log.Root().SetHandler(
+		log.LvlFilterHandler(log.LvlDebug,
+			log.StreamHandler(
+				os.Stdout,
+				log.TerminalFormat(false),
+			)),
+	)
 }

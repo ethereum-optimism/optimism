@@ -21,27 +21,29 @@ import (
 )
 
 const (
-	ContextKeyAuth          = "authorization"
-	ContextKeyReqID         = "req_id"
-	ContextKeyXForwardedFor = "x_forwarded_for"
-	MaxBatchRPCCalls        = 100
-	cacheStatusHdr          = "X-Proxyd-Cache-Status"
-	defaultServerTimeout    = time.Second * 10
-	maxLogLength            = 2000
+	ContextKeyAuth              = "authorization"
+	ContextKeyReqID             = "req_id"
+	ContextKeyXForwardedFor     = "x_forwarded_for"
+	MaxBatchRPCCalls            = 100
+	cacheStatusHdr              = "X-Proxyd-Cache-Status"
+	defaultServerTimeout        = time.Second * 10
+	maxLogLength                = 2000
+	defaultMaxUpstreamBatchSize = 10
 )
 
 type Server struct {
-	backendGroups      map[string]*BackendGroup
-	wsBackendGroup     *BackendGroup
-	wsMethodWhitelist  *StringSet
-	rpcMethodMappings  map[string]string
-	maxBodySize        int64
-	authenticatedPaths map[string]string
-	timeout            time.Duration
-	upgrader           *websocket.Upgrader
-	rpcServer          *http.Server
-	wsServer           *http.Server
-	cache              RPCCache
+	backendGroups        map[string]*BackendGroup
+	wsBackendGroup       *BackendGroup
+	wsMethodWhitelist    *StringSet
+	rpcMethodMappings    map[string]string
+	maxBodySize          int64
+	authenticatedPaths   map[string]string
+	timeout              time.Duration
+	maxUpstreamBatchSize int
+	upgrader             *websocket.Upgrader
+	rpcServer            *http.Server
+	wsServer             *http.Server
+	cache                RPCCache
 }
 
 func NewServer(
@@ -52,6 +54,7 @@ func NewServer(
 	maxBodySize int64,
 	authenticatedPaths map[string]string,
 	timeout time.Duration,
+	maxUpstreamBatchSize int,
 	cache RPCCache,
 ) *Server {
 	if cache == nil {
@@ -66,15 +69,20 @@ func NewServer(
 		timeout = defaultServerTimeout
 	}
 
+	if maxUpstreamBatchSize == 0 {
+		maxUpstreamBatchSize = defaultMaxUpstreamBatchSize
+	}
+
 	return &Server{
-		backendGroups:      backendGroups,
-		wsBackendGroup:     wsBackendGroup,
-		wsMethodWhitelist:  wsMethodWhitelist,
-		rpcMethodMappings:  rpcMethodMappings,
-		maxBodySize:        maxBodySize,
-		authenticatedPaths: authenticatedPaths,
-		timeout:            timeout,
-		cache:              cache,
+		backendGroups:        backendGroups,
+		wsBackendGroup:       wsBackendGroup,
+		wsMethodWhitelist:    wsMethodWhitelist,
+		rpcMethodMappings:    rpcMethodMappings,
+		maxBodySize:          maxBodySize,
+		authenticatedPaths:   authenticatedPaths,
+		timeout:              timeout,
+		maxUpstreamBatchSize: maxUpstreamBatchSize,
+		cache:                cache,
 		upgrader: &websocket.Upgrader{
 			HandshakeTimeout: 5 * time.Second,
 		},
@@ -177,34 +185,14 @@ func (s *Server) HandleRPC(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		batchRes := make([]*RPCRes, len(reqs))
-		var batchContainsCached bool
-		for i := 0; i < len(reqs); i++ {
-			if ctx.Err() == context.DeadlineExceeded {
-				log.Info(
-					"short-circuiting batch RPC",
-					"req_id", GetReqID(ctx),
-					"auth", GetAuthCtx(ctx),
-					"index", i,
-					"batch_size", len(reqs),
-				)
-				batchRPCShortCircuitsTotal.Inc()
-				writeRPCError(ctx, w, nil, ErrGatewayTimeout)
-				return
-			}
-
-			req, err := ParseRPCReq(reqs[i])
-			if err != nil {
-				log.Info("error parsing RPC call", "source", "rpc", "err", err)
-				batchRes[i] = NewRPCErrorRes(nil, err)
-				continue
-			}
-
-			var cached bool
-			batchRes[i], cached = s.handleSingleRPC(ctx, req)
-			if cached {
-				batchContainsCached = true
-			}
+		batchRes, batchContainsCached, err := s.handleBatchRPC(ctx, reqs, true)
+		if err == context.DeadlineExceeded {
+			writeRPCError(ctx, w, nil, ErrGatewayTimeout)
+			return
+		}
+		if err != nil {
+			writeRPCError(ctx, w, nil, ErrInternal)
+			return
 		}
 
 		setCacheHeader(w, batchContainsCached)
@@ -212,73 +200,131 @@ func (s *Server) HandleRPC(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	req, err := ParseRPCReq(body)
+	rawBody := json.RawMessage(body)
+	backendRes, cached, err := s.handleBatchRPC(ctx, []json.RawMessage{rawBody}, false)
 	if err != nil {
-		log.Info("error parsing RPC call", "source", "rpc", "err", err)
-		writeRPCError(ctx, w, nil, err)
+		writeRPCError(ctx, w, nil, ErrInternal)
 		return
 	}
-
-	backendRes, cached := s.handleSingleRPC(ctx, req)
 	setCacheHeader(w, cached)
-	writeRPCRes(ctx, w, backendRes)
+	writeRPCRes(ctx, w, backendRes[0])
 }
 
-func (s *Server) handleSingleRPC(ctx context.Context, req *RPCReq) (*RPCRes, bool) {
-	if err := ValidateRPCReq(req); err != nil {
-		RecordRPCError(ctx, BackendProxyd, MethodUnknown, err)
-		return NewRPCErrorRes(nil, err), false
+func (s *Server) handleBatchRPC(ctx context.Context, reqs []json.RawMessage, isBatch bool) ([]*RPCRes, bool, error) {
+	// A request set is transformed into groups of batches.
+	// Each batch group maps to a forwarded JSON-RPC batch request (subject to maxUpstreamBatchSize constraints)
+	// A groupID is used to decouple Requests that have duplicate ID so they're not part of the same batch that's
+	// forwarded to the backend. This is done to ensure that the order of JSON-RPC Responses match the Request order
+	// as the backend MAY return Responses out of order.
+	// NOTE: Duplicate request ids induces 1-sized JSON-RPC batches
+	type batchGroup struct {
+		groupID      int
+		backendGroup string
 	}
 
-	group := s.rpcMethodMappings[req.Method]
-	if group == "" {
-		// use unknown below to prevent DOS vector that fills up memory
-		// with arbitrary method names.
-		log.Info(
-			"blocked request for non-whitelisted method",
-			"source", "rpc",
-			"req_id", GetReqID(ctx),
-			"method", req.Method,
-		)
-		RecordRPCError(ctx, BackendProxyd, MethodUnknown, ErrMethodNotWhitelisted)
-		return NewRPCErrorRes(req.ID, ErrMethodNotWhitelisted), false
-	}
+	responses := make([]*RPCRes, len(reqs))
+	batches := make(map[batchGroup][]batchElem)
+	ids := make(map[string]int, len(reqs))
 
-	var backendRes *RPCRes
-	backendRes, err := s.cache.GetRPC(ctx, req)
-	if err != nil {
-		log.Warn(
-			"cache lookup error",
-			"req_id", GetReqID(ctx),
-			"err", err,
-		)
-	}
-	if backendRes != nil {
-		return backendRes, true
-	}
+	for i := range reqs {
+		parsedReq, err := ParseRPCReq(reqs[i])
+		if err != nil {
+			log.Info("error parsing RPC call", "source", "rpc", "err", err)
+			responses[i] = NewRPCErrorRes(nil, err)
+			continue
+		}
 
-	backendRes, err = s.backendGroups[group].Forward(ctx, req)
-	if err != nil {
-		log.Error(
-			"error forwarding RPC request",
-			"method", req.Method,
-			"req_id", GetReqID(ctx),
-			"err", err,
-		)
-		return NewRPCErrorRes(req.ID, err), false
-	}
+		if err := ValidateRPCReq(parsedReq); err != nil {
+			RecordRPCError(ctx, BackendProxyd, MethodUnknown, err)
+			responses[i] = NewRPCErrorRes(nil, err)
+			continue
+		}
 
-	if backendRes.Error == nil && backendRes.Result != nil {
-		if err = s.cache.PutRPC(ctx, req, backendRes); err != nil {
-			log.Warn(
-				"cache put error",
+		group := s.rpcMethodMappings[parsedReq.Method]
+		if group == "" {
+			// use unknown below to prevent DOS vector that fills up memory
+			// with arbitrary method names.
+			log.Info(
+				"blocked request for non-whitelisted method",
+				"source", "rpc",
 				"req_id", GetReqID(ctx),
-				"err", err,
+				"method", parsedReq.Method,
 			)
+			RecordRPCError(ctx, BackendProxyd, MethodUnknown, ErrMethodNotWhitelisted)
+			responses[i] = NewRPCErrorRes(parsedReq.ID, ErrMethodNotWhitelisted)
+			continue
+		}
+
+		id := string(parsedReq.ID)
+		// If this is a duplicate Request ID, move the Request to a new batchGroup
+		ids[id]++
+		batchGroupID := ids[id]
+		batchGroup := batchGroup{groupID: batchGroupID, backendGroup: group}
+		batches[batchGroup] = append(batches[batchGroup], batchElem{parsedReq, i})
+	}
+
+	var cached bool
+	for group, batch := range batches {
+		var cacheMisses []batchElem
+
+		for _, req := range batch {
+			backendRes, _ := s.cache.GetRPC(ctx, req.Req)
+			if backendRes != nil {
+				responses[req.Index] = backendRes
+				cached = true
+			} else {
+				cacheMisses = append(cacheMisses, req)
+			}
+		}
+
+		// Create minibatches - each minibatch must be no larger than the maxUpstreamBatchSize
+		numBatches := int(math.Ceil(float64(len(cacheMisses)) / float64(s.maxUpstreamBatchSize)))
+		for i := 0; i < numBatches; i++ {
+			if ctx.Err() == context.DeadlineExceeded {
+				log.Info("short-circuiting batch RPC",
+					"req_id", GetReqID(ctx),
+					"auth", GetAuthCtx(ctx),
+					"batch_index", i,
+				)
+				batchRPCShortCircuitsTotal.Inc()
+				return nil, false, context.DeadlineExceeded
+			}
+
+			start := i * s.maxUpstreamBatchSize
+			end := int(math.Min(float64(start+s.maxUpstreamBatchSize), float64(len(cacheMisses))))
+			elems := cacheMisses[start:end]
+			res, err := s.backendGroups[group.backendGroup].Forward(ctx, createBatchRequest(elems), isBatch)
+			if err != nil {
+				log.Error(
+					"error forwarding RPC batch",
+					"batch_size", len(elems),
+					"backend_group", group,
+					"err", err,
+				)
+				res = nil
+				for _, elem := range elems {
+					res = append(res, NewRPCErrorRes(elem.Req.ID, err))
+				}
+			}
+
+			for i := range elems {
+				responses[elems[i].Index] = res[i]
+
+				// TODO(inphi): batch put these
+				if res[i].Error == nil && res[i].Result != nil {
+					if err := s.cache.PutRPC(ctx, elems[i].Req, res[i]); err != nil {
+						log.Warn(
+							"cache put error",
+							"req_id", GetReqID(ctx),
+							"err", err,
+						)
+					}
+				}
+			}
 		}
 	}
 
-	return backendRes, false
+	return responses, cached, nil
 }
 
 func (s *Server) HandleWS(w http.ResponseWriter, r *http.Request) {
@@ -471,4 +517,17 @@ func truncate(str string) string {
 	} else {
 		return str
 	}
+}
+
+type batchElem struct {
+	Req   *RPCReq
+	Index int
+}
+
+func createBatchRequest(elems []batchElem) []*RPCReq {
+	batch := make([]*RPCReq, len(elems))
+	for i := range elems {
+		batch[i] = elems[i].Req
+	}
+	return batch
 }

@@ -16,6 +16,8 @@ type ServerConfig struct {
 
 	// TimeoutSeconds specifies the maximum time spent serving an HTTP request. Note that isn't used for websocket connections
 	TimeoutSeconds int `toml:"timeout_seconds"`
+
+	MaxUpstreamBatchSize int `toml:"max_upstream_batch_size"`
 }
 
 type CacheConfig struct {
