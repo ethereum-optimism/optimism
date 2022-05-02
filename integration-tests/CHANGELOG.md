@@ -1,5 +1,11 @@
 # @eth-optimism/integration-tests
 
+## 0.5.11
+
+### Patch Changes
+
+- 36a91c30: Fix various actor tests
+
 ## 0.5.10
 
 ### Patch Changes

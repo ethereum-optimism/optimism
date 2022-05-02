@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.5.19
+
+### Patch Changes
+
+- 1bcee8f1: Fix `eth_getBlockRange`
+- c799535d: Add system addresses for nightly goerli
+
 ## 0.5.18
 
 ### Patch Changes
