@@ -17,10 +17,11 @@ actor('Value sender', () => {
 
   setupRun(async () => {
     const wallet = Wallet.createRandom()
-    await env.l2Wallet.sendTransaction({
+    const tx = await env.l2Wallet.sendTransaction({
       to: wallet.address,
       value: utils.parseEther('0.01'),
     })
+    await tx.wait()
     return {
       wallet: wallet.connect(env.l2Wallet.provider),
     }
@@ -29,10 +30,11 @@ actor('Value sender', () => {
   run(async (b, ctx: Context) => {
     const randWallet = Wallet.createRandom().connect(env.l2Wallet.provider)
     await b.bench('send funds', async () => {
-      await ctx.wallet.sendTransaction({
+      const tx = await ctx.wallet.sendTransaction({
         to: randWallet.address,
         value: 0x42,
       })
+      await tx.wait()
     })
     expect((await randWallet.getBalance()).toString()).to.deep.equal('66')
   })

@@ -6,7 +6,6 @@ import { smock, FakeContract } from '@defi-wonderland/smock'
 import { expect } from '../../../setup'
 import {
   deploy,
-  setProxyTarget,
   NON_NULL_BYTES32,
   getEthTime,
   increaseEthTime,
@@ -30,15 +29,14 @@ describe('StateCommitmentChain', () => {
       'CanonicalTransactionChain'
     )
 
-    await setProxyTarget(
-      AddressManager,
+    await AddressManager.setAddress(
       'CanonicalTransactionChain',
-      Fake__CanonicalTransactionChain
+      Fake__CanonicalTransactionChain.address
     )
 
     Fake__BondManager = await smock.fake<Contract>('BondManager')
 
-    await setProxyTarget(AddressManager, 'BondManager', Fake__BondManager)
+    await AddressManager.setAddress('BondManager', Fake__BondManager.address)
 
     Fake__BondManager.isCollateralized.returns(true)
 
