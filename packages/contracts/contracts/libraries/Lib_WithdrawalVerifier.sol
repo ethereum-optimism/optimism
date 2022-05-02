@@ -82,7 +82,7 @@ library WithdrawalVerifier {
 
         return
             Lib_SecureMerkleTrie.verifyInclusionProof(
-                abi.encodePacked(storageKey),
+                abi.encode(storageKey),
                 hex"01",
                 _withdrawalProof,
                 _withdrawerStorageRoot
