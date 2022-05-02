@@ -1,7 +1,7 @@
 {
   "private": true,
   "name": "@eth-optimism/integration-tests",
-  "version": "0.5.11",
+  "version": "0.5.12",
   "description": "[Optimism] Integration tests",
   "scripts": {
     "lint": "yarn lint:fix && yarn lint:check",

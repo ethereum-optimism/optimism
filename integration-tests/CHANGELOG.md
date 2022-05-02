@@ -1,5 +1,11 @@
 # @eth-optimism/integration-tests
 
+## 0.5.12
+
+### Patch Changes
+
+- 53fac1df: Facilitate actor testing on nightly
+
 ## 0.5.11
 
 ### Patch Changes
