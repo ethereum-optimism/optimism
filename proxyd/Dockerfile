@@ -6,18 +6,9 @@ ARG GITVERSION=docker
 
 RUN apk add make jq git gcc musl-dev linux-headers
 
-WORKDIR /app
+COPY ./proxyd /app
 
-COPY ./batch-submitter /app/
-COPY ./bss-core /app/
-COPY ./gas-oracle /app/
-COPY ./indexer /app/
-COPY ./l2geth /app/
-COPY ./l2geth-exporter /app/
-COPY ./op-exporter /app/
-COPY ./proxyd /app/
-COPY ./teleportr /app/
-COPY ./go.work /app/go.work
+WORKDIR /app
 
 RUN make proxyd
 
