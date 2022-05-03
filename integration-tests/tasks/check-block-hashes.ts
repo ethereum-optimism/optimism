@@ -1,5 +1,6 @@
 import { task } from 'hardhat/config'
 import { providers } from 'ethers'
+import { getChainId } from '@eth-optimism/core-utils'
 
 import { die, logStderr } from '../test/shared/utils'
 
@@ -16,13 +17,13 @@ task(
     let netA
     let netB
     try {
-      netA = await providerA.getNetwork()
+      netA = await getChainId(providerA)
     } catch (e) {
       console.error(`Error getting network from ${replicaA}:`)
       die(e)
     }
     try {
-      netB = await providerA.getNetwork()
+      netB = await getChainId(providerB)
     } catch (e) {
       console.error(`Error getting network from ${replicaB}:`)
       die(e)
