@@ -1,5 +1,5 @@
 /* Imports: External */
-import { expectApprox, sleep } from '@eth-optimism/core-utils'
+import { expectApprox, getChainId, sleep } from '@eth-optimism/core-utils'
 import { Wallet, BigNumber, Contract, ContractFactory, constants } from 'ethers'
 import { serialize } from '@ethersproject/transactions'
 import { ethers } from 'hardhat'
@@ -471,7 +471,7 @@ describe('Basic RPC tests', () => {
 
   describe('eth_chainId', () => {
     it('should get the correct chainid', async () => {
-      const { chainId } = await env.l2Provider.getNetwork()
+      const chainId = await getChainId(env.l2Provider)
       expect(chainId).to.be.eq(L2_CHAINID)
     })
   })

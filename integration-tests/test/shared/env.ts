@@ -4,7 +4,7 @@ import {
   TransactionResponse,
   TransactionReceipt,
 } from '@ethersproject/providers'
-import { sleep } from '@eth-optimism/core-utils'
+import { getChainId, sleep } from '@eth-optimism/core-utils'
 import {
   CrossChainMessenger,
   MessageStatus,
@@ -54,12 +54,10 @@ export class OptimismEnv {
   }
 
   static async new(): Promise<OptimismEnv> {
-    const network = await l1Provider.getNetwork()
-
     const messenger = new CrossChainMessenger({
       l1SignerOrProvider: l1Wallet,
       l2SignerOrProvider: l2Wallet,
-      l1ChainId: network.chainId,
+      l1ChainId: await getChainId(l1Provider),
       contracts: {
         l1: {
           AddressManager: envConfig.ADDRESS_MANAGER,
@@ -68,8 +66,8 @@ export class OptimismEnv {
           StateCommitmentChain: envConfig.STATE_COMMITMENT_CHAIN,
           CanonicalTransactionChain: envConfig.CANONICAL_TRANSACTION_CHAIN,
           BondManager: envConfig.BOND_MANAGER,
-        }
-      }
+        },
+      },
     })
 
     // fund the user if needed

@@ -1,7 +1,7 @@
 /* Imports: External */
 import { BaseService, Metrics } from '@eth-optimism/common-ts'
 import { StaticJsonRpcProvider } from '@ethersproject/providers'
-import { sleep, toRpcHexString } from '@eth-optimism/core-utils'
+import { getChainId, sleep, toRpcHexString } from '@eth-optimism/core-utils'
 import { BigNumber } from 'ethers'
 import { LevelUp } from 'levelup'
 import axios from 'axios'
@@ -127,9 +127,9 @@ export class L2IngestionService extends BaseService<L2IngestionServiceOptions> {
   }
 
   protected async checkConsistency(): Promise<void> {
-    const network = await this.state.l2RpcProvider.getNetwork()
+    const networkId = await getChainId(this.state.l2RpcProvider)
     const shouldDoCheck = !(await this.state.db.getConsistencyCheckFlag())
-    if (shouldDoCheck && network.chainId === 69) {
+    if (shouldDoCheck && networkId === 69) {
       this.logger.info('performing consistency check')
       const highestBlock =
         await this.state.db.getHighestSyncedUnconfirmedBlock()

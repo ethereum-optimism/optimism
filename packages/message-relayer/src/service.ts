@@ -1,6 +1,6 @@
 /* Imports: External */
 import { Signer } from 'ethers'
-import { sleep } from '@eth-optimism/core-utils'
+import { sleep, getChainId } from '@eth-optimism/core-utils'
 import {
   BaseServiceV2,
   validators,
@@ -80,12 +80,10 @@ export class MessageRelayerService extends BaseServiceV2<
       this.options.l1RpcProvider
     )
 
-    const l1Network = await this.state.wallet.provider.getNetwork()
-    const l1ChainId = l1Network.chainId
     this.state.messenger = new CrossChainMessenger({
       l1SignerOrProvider: this.state.wallet,
       l2SignerOrProvider: this.options.l2RpcProvider,
-      l1ChainId,
+      l1ChainId: await getChainId(this.state.wallet.provider),
     })
 
     this.state.highestCheckedL2Tx = this.options.fromL2TransactionIndex || 1
