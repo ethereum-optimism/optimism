@@ -48,7 +48,7 @@ contract WithdrawerTestInitiateWithdrawal is WithdrawerTestCommon {
         vm.expectEmit(true, true, true, true);
         emit WithdrawalInitiated(
             0,
-            AddressAliasHelper.undoL1ToL2Alias(address(this)),
+            address(this),
             NON_ZERO_ADDRESS,
             NON_ZERO_VALUE,
             NON_ZERO_GASLIMIT,
