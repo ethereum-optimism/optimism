@@ -31,7 +31,7 @@ bindings-l1-block-info:
 		--abi $(temp)/L1Block.abi \
 		--bin $(temp)/L1Block.bin \
 		--pkg l1block \
-		--type l1block \
+		--type L1Block \
 		--out ./l1block/l1_block_info_raw.go
 
 bindings-optimism-portal:
@@ -44,5 +44,5 @@ bindings-optimism-portal:
 		--abi $(temp)/OptimismPortal.abi \
 		--bin $(temp)/OptimismPortal.bin \
 		--pkg deposit \
-		--type deposit \
+		--type OptimismPortal \
 		--out ./deposit/deposit_feed_raw.go
