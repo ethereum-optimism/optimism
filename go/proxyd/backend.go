@@ -12,6 +12,7 @@ import (
 	"math"
 	"math/rand"
 	"net/http"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -199,13 +200,13 @@ func NewBackend(
 	return backend
 }
 
-func (b *Backend) Forward(ctx context.Context, req *RPCReq) (*RPCRes, error) {
+func (b *Backend) Forward(ctx context.Context, reqs []*RPCReq, isBatch bool) ([]*RPCRes, error) {
 	if !b.Online() {
-		RecordRPCError(ctx, b.Name, req.Method, ErrBackendOffline)
+		RecordBatchRPCError(ctx, b.Name, reqs, ErrBackendOffline)
 		return nil, ErrBackendOffline
 	}
 	if b.IsRateLimited() {
-		RecordRPCError(ctx, b.Name, req.Method, ErrBackendOverCapacity)
+		RecordBatchRPCError(ctx, b.Name, reqs, ErrBackendOverCapacity)
 		return nil, ErrBackendOverCapacity
 	}
 
@@ -213,9 +214,20 @@ func (b *Backend) Forward(ctx context.Context, req *RPCReq) (*RPCRes, error) {
 	// <= to account for the first attempt not technically being
 	// a retry
 	for i := 0; i <= b.maxRetries; i++ {
-		RecordRPCForward(ctx, b.Name, req.Method, RPCRequestSourceHTTP)
-		respTimer := prometheus.NewTimer(rpcBackendRequestDurationSumm.WithLabelValues(b.Name, req.Method))
-		res, err := b.doForward(ctx, req)
+		RecordBatchRPCForward(ctx, b.Name, reqs, RPCRequestSourceHTTP)
+		metricLabelMethod := reqs[0].Method
+		if isBatch {
+			metricLabelMethod = "<batch>"
+		}
+		timer := prometheus.NewTimer(
+			rpcBackendRequestDurationSumm.WithLabelValues(
+				b.Name,
+				metricLabelMethod,
+				strconv.FormatBool(isBatch),
+			),
+		)
+
+		res, err := b.doForward(ctx, reqs, isBatch)
 		if err != nil {
 			lastError = err
 			log.Warn(
@@ -224,31 +236,14 @@ func (b *Backend) Forward(ctx context.Context, req *RPCReq) (*RPCRes, error) {
 				"req_id", GetReqID(ctx),
 				"err", err,
 			)
-			respTimer.ObserveDuration()
-			RecordRPCError(ctx, b.Name, req.Method, err)
+			timer.ObserveDuration()
+			RecordBatchRPCError(ctx, b.Name, reqs, err)
 			sleepContext(ctx, calcBackoff(i))
 			continue
 		}
-		respTimer.ObserveDuration()
-		if res.IsError() {
-			RecordRPCError(ctx, b.Name, req.Method, res.Error)
-			log.Info(
-				"backend responded with RPC error",
-				"backend", b.Name,
-				"code", res.Error.Code,
-				"msg", res.Error.Message,
-				"req_id", GetReqID(ctx),
-				"source", "rpc",
-				"auth", GetAuthCtx(ctx),
-			)
-		} else {
-			log.Info("forwarded RPC request",
-				"backend", b.Name,
-				"method", req.Method,
-				"auth", GetAuthCtx(ctx),
-				"req_id", GetReqID(ctx),
-			)
-		}
+		timer.ObserveDuration()
+
+		MaybeRecordErrorsInRPCRes(ctx, b.Name, reqs, res)
 		return res, nil
 	}
 
@@ -337,8 +332,8 @@ func (b *Backend) setOffline() {
 	}
 }
 
-func (b *Backend) doForward(ctx context.Context, rpcReq *RPCReq) (*RPCRes, error) {
-	body := mustMarshalJSON(rpcReq)
+func (b *Backend) doForward(ctx context.Context, rpcReqs []*RPCReq, isBatch bool) ([]*RPCRes, error) {
+	body := mustMarshalJSON(rpcReqs)
 
 	httpReq, err := http.NewRequestWithContext(ctx, "POST", b.rpcURL, bytes.NewReader(body))
 	if err != nil {
@@ -367,11 +362,16 @@ func (b *Backend) doForward(ctx context.Context, rpcReq *RPCReq) (*RPCRes, error
 		return nil, wrapErr(err, "error in backend request")
 	}
 
+	metricLabelMethod := rpcReqs[0].Method
+	if isBatch {
+		metricLabelMethod = "<batch>"
+	}
 	rpcBackendHTTPResponseCodesTotal.WithLabelValues(
 		GetAuthCtx(ctx),
 		b.Name,
-		rpcReq.Method,
+		metricLabelMethod,
 		strconv.Itoa(httpRes.StatusCode),
+		strconv.FormatBool(isBatch),
 	).Inc()
 
 	// Alchemy returns a 400 on bad JSONs, so handle that case
@@ -385,18 +385,44 @@ func (b *Backend) doForward(ctx context.Context, rpcReq *RPCReq) (*RPCRes, error
 		return nil, wrapErr(err, "error reading response body")
 	}
 
-	res := new(RPCRes)
-	if err := json.Unmarshal(resB, res); err != nil {
+	var res []*RPCRes
+	if err := json.Unmarshal(resB, &res); err != nil {
+		return nil, ErrBackendBadResponse
+	}
+
+	// Alas! Certain node providers (Infura) always return a single JSON object for some types of errors
+	if len(rpcReqs) != len(res) {
 		return nil, ErrBackendBadResponse
 	}
 
 	// capture the HTTP status code in the response. this will only
 	// ever be 400 given the status check on line 318 above.
 	if httpRes.StatusCode != 200 {
-		res.Error.HTTPErrorCode = httpRes.StatusCode
+		for _, res := range res {
+			res.Error.HTTPErrorCode = httpRes.StatusCode
+		}
 	}
 
+	sortBatchRPCResponse(rpcReqs, res)
 	return res, nil
+}
+
+// sortBatchRPCResponse sorts the RPCRes slice according to the position of its corresponding ID in the RPCReq slice
+func sortBatchRPCResponse(req []*RPCReq, res []*RPCRes) {
+	pos := make(map[string]int, len(req))
+	for i, r := range req {
+		key := string(r.ID)
+		if _, ok := pos[key]; ok {
+			panic("bug! detected requests with duplicate IDs")
+		}
+		pos[key] = i
+	}
+
+	sort.Slice(res, func(i, j int) bool {
+		l := res[i].ID
+		r := res[j].ID
+		return pos[string(l)] < pos[string(r)]
+	})
 }
 
 type BackendGroup struct {
@@ -404,11 +430,15 @@ type BackendGroup struct {
 	Backends []*Backend
 }
 
-func (b *BackendGroup) Forward(ctx context.Context, rpcReq *RPCReq) (*RPCRes, error) {
+func (b *BackendGroup) Forward(ctx context.Context, rpcReqs []*RPCReq, isBatch bool) ([]*RPCRes, error) {
+	if len(rpcReqs) == 0 {
+		return nil, nil
+	}
+
 	rpcRequestsTotal.Inc()
 
 	for _, back := range b.Backends {
-		res, err := back.Forward(ctx, rpcReq)
+		res, err := back.Forward(ctx, rpcReqs, isBatch)
 		if errors.Is(err, ErrMethodNotWhitelisted) {
 			return nil, err
 		}
@@ -711,4 +741,45 @@ func (c *LimitedHTTPClient) DoLimited(req *http.Request) (*http.Response, error)
 	}
 	defer c.sem.Release(1)
 	return c.Do(req)
+}
+
+func RecordBatchRPCError(ctx context.Context, backendName string, reqs []*RPCReq, err error) {
+	for _, req := range reqs {
+		RecordRPCError(ctx, backendName, req.Method, err)
+	}
+}
+
+func MaybeRecordErrorsInRPCRes(ctx context.Context, backendName string, reqs []*RPCReq, resBatch []*RPCRes) {
+	log.Info("forwarded RPC request",
+		"backend", backendName,
+		"auth", GetAuthCtx(ctx),
+		"req_id", GetReqID(ctx),
+		"batch_size", len(reqs),
+	)
+
+	var lastError *RPCErr
+	for i, res := range resBatch {
+		if res.IsError() {
+			lastError = res.Error
+			RecordRPCError(ctx, backendName, reqs[i].Method, res.Error)
+		}
+	}
+
+	if lastError != nil {
+		log.Info(
+			"backend responded with RPC error",
+			"backend", backendName,
+			"last_error_code", lastError.Code,
+			"last_error_msg", lastError.Message,
+			"req_id", GetReqID(ctx),
+			"source", "rpc",
+			"auth", GetAuthCtx(ctx),
+		)
+	}
+}
+
+func RecordBatchRPCForward(ctx context.Context, backendName string, reqs []*RPCReq, source string) {
+	for _, req := range reqs {
+		RecordRPCForward(ctx, backendName, req.Method, source)
+	}
 }

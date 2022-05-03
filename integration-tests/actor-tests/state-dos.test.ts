@@ -24,10 +24,11 @@ actor('Trie DoS accounts', () => {
 
   setupRun(async () => {
     const wallet = Wallet.createRandom()
-    await env.l2Wallet.sendTransaction({
+    const tx = await env.l2Wallet.sendTransaction({
       to: wallet.address,
       value: utils.parseEther('1'),
     })
+    await tx.wait()
     return {
       wallet: wallet.connect(env.l2Wallet.provider),
     }

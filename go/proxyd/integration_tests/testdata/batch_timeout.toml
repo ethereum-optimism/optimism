@@ -1,6 +1,7 @@
 [server]
 rpc_port = 8545
 timeout_seconds = 1
+max_upstream_batch_size = 1
 
 [backend]
 response_timeout_seconds = 1
