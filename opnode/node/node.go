@@ -6,6 +6,11 @@ import (
 	"sync"
 	"time"
 
+	"github.com/ethereum/go-ethereum/p2p/discover"
+	"github.com/ethereum/go-ethereum/p2p/enode"
+	"github.com/libp2p/go-libp2p-core/host"
+	pubsub "github.com/libp2p/go-libp2p-pubsub"
+
 	"github.com/ethereum-optimism/optimistic-specs/opnode/backoff"
 
 	"github.com/ethereum-optimism/optimistic-specs/opnode/bss"
@@ -26,7 +31,13 @@ type OpNode struct {
 	l1Source  *l1.Source       // Source to fetch data from (also implements the Downloader interface)
 	l2Engines []*driver.Driver // engines to keep synced
 	l2Nodes   []*rpc.Client    // L2 Execution Engines to close at shutdown
-	server    *rpcServer
+	server    *rpcServer       // RPC server hosting the rollup-node API
+	host      host.Host        // p2p host (optional, may be nil)
+	dv5Local  *enode.LocalNode // p2p discovery identity (optional, may be nil)
+	dv5Udp    *discover.UDPv5  // p2p discovery service (optional, may be nil)
+	p2pCtx    context.Context  // all p2p activity take this context so p2p can be shut down without stopping the node.
+	p2pClose  context.CancelFunc
+	gs        *pubsub.PubSub
 	done      chan struct{}
 	wg        sync.WaitGroup
 }
@@ -124,6 +135,36 @@ func New(ctx context.Context, cfg *Config, log log.Logger, appVersion string) (*
 		l2Nodes:   l2Nodes,
 	}
 
+	if cfg.P2P != nil {
+		// All nil if disabled.
+		n.dv5Local, n.dv5Udp, err = cfg.P2P.Discovery(log.New("p2p", "discv5"))
+		if err != nil {
+			return nil, fmt.Errorf("failed to start discv5: %v", err)
+		}
+
+		// nil if disabled.
+		n.host, err = cfg.P2P.Host()
+		if err != nil {
+			return nil, fmt.Errorf("failed to start p2p host: %v", err)
+		}
+		if n.host != nil {
+			// not a context leak, gossipsub is closed with a context.
+			// TODO: maybe we can improve this, or closing the Host is enough?
+			n.p2pCtx, n.p2pClose = context.WithCancel(context.Background())
+			gs, err := pubsub.NewGossipSub(n.p2pCtx, n.host) // TODO options
+			if err != nil {
+				// close p2p stack if we cannot create the opnode successfully
+				if n.dv5Udp != nil {
+					n.dv5Udp.Close()
+				}
+				_ = n.host.Close()
+				n.p2pClose()
+				return nil, fmt.Errorf("failed to start gossipsub router: %v", err)
+			}
+			n.gs = gs
+		}
+	}
+
 	return n, nil
 }
 
@@ -195,13 +236,26 @@ func (c *OpNode) Start(ctx context.Context) error {
 			// TODO: maybe log other info on interval or other chain events (individual engines also log things)
 			case <-c.done:
 				c.log.Info("Closing OpNode")
+				if c.dv5Udp != nil {
+					c.dv5Udp.Close()
+				}
+				if c.host != nil {
+					if err := c.host.Close(); err != nil {
+						c.log.Error("failed to close p2p host cleanly: %v", err)
+					}
+				}
+				if c.p2pClose != nil {
+					c.p2pClose()
+				}
 				// close all tasks
 				for _, f := range unsub {
 					f()
 				}
 				// close L2 engines
 				for _, eng := range c.l2Engines {
-					eng.Close()
+					if err := eng.Close(); err != nil {
+						c.log.Error("failed to close L2 engine driver cleanly: %v", err)
+					}
 				}
 				// close L2 nodes
 				for _, n := range c.l2Nodes {

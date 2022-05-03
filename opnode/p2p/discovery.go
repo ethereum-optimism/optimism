@@ -9,6 +9,9 @@ import (
 )
 
 func (conf *Config) Discovery(log log.Logger) (*enode.LocalNode, *discover.UDPv5, error) {
+	if conf.NoDiscovery {
+		return nil, nil, nil
+	}
 	localNode := enode.NewLocalNode(conf.DiscoveryDB, conf.Priv)
 	if conf.AdvertiseIP != nil {
 		localNode.SetStaticIP(conf.AdvertiseIP)

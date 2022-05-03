@@ -18,6 +18,9 @@ import (
 )
 
 func (conf *Config) Host() (host.Host, error) {
+	if conf.DisableP2P {
+		return nil, nil
+	}
 	// we cast the ecdsa key type to the libp2p wrapper, to then use the libp2p pubkey and ID interfaces.
 	var priv crypto.PrivKey = (*crypto.Secp256k1PrivateKey)(conf.Priv)
 	pub := priv.GetPublic()

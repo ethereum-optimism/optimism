@@ -77,6 +77,7 @@ func defaultSystemConfig(t *testing.T) SystemConfig {
 		DeployerHDPath:             l2OutputHDPath,
 		CliqueSignerDerivationPath: cliqueSignerHDPath,
 		L1InfoPredeployAddress:     derive.L1InfoPredeployAddr,
+		L1BlockTime:                2,
 		L1WsAddr:                   "127.0.0.1",
 		L1WsPort:                   9090,
 		L1ChainID:                  big.NewInt(900),
@@ -114,6 +115,7 @@ func defaultSystemConfig(t *testing.T) SystemConfig {
 			// Batch Sender address is filled out in system start
 			DepositContractAddress: MockDepositContractAddr,
 		},
+		P2PTopology: nil, // no P2P connectivity by default
 	}
 }
 
@@ -252,13 +254,13 @@ func TestSystemE2E(t *testing.T) {
 	tx, err := depositContract.DepositTransaction(opts, fromAddr, common.Big0, 1_000_000, false, nil)
 	require.Nil(t, err, "with deposit tx")
 
-	receipt, err := waitForTransaction(tx.Hash(), l1Client, 6*time.Second)
+	receipt, err := waitForTransaction(tx.Hash(), l1Client, 3*time.Duration(cfg.L1BlockTime)*time.Second)
 	require.Nil(t, err, "Waiting for deposit tx on L1")
 
 	reconstructedDep, err := derive.UnmarshalLogEvent(receipt.Logs[0])
 	require.NoError(t, err, "Could not reconstruct L2 Deposit")
 	tx = types.NewTx(reconstructedDep)
-	receipt, err = waitForTransaction(tx.Hash(), l2Verif, 6*time.Second)
+	receipt, err = waitForTransaction(tx.Hash(), l2Verif, 3*time.Duration(cfg.L1BlockTime)*time.Second)
 	require.NoError(t, err)
 	require.Equal(t, receipt.Status, types.ReceiptStatusSuccessful)
 
@@ -286,10 +288,10 @@ func TestSystemE2E(t *testing.T) {
 	err = l2Seq.SendTransaction(context.Background(), tx)
 	require.Nil(t, err, "Sending L2 tx to sequencer")
 
-	_, err = waitForTransaction(tx.Hash(), l2Seq, 6*time.Second)
+	_, err = waitForTransaction(tx.Hash(), l2Seq, 3*time.Duration(cfg.L1BlockTime)*time.Second)
 	require.Nil(t, err, "Waiting for L2 tx on sequencer")
 
-	receipt, err = waitForTransaction(tx.Hash(), l2Verif, 6*time.Second)
+	receipt, err = waitForTransaction(tx.Hash(), l2Verif, 3*time.Duration(cfg.L1BlockTime)*time.Second)
 	require.Nil(t, err, "Waiting for L2 tx on verifier")
 	require.Equal(t, types.ReceiptStatusSuccessful, receipt.Status, "TX should have succeeded")
 
@@ -342,13 +344,13 @@ func TestMintOnRevertedDeposit(t *testing.T) {
 	tx, err := depositContract.DepositTransaction(opts, toAddr, value, 1_000_000, false, nil)
 	require.Nil(t, err, "with deposit tx")
 
-	receipt, err := waitForTransaction(tx.Hash(), l1Client, 6*time.Second)
+	receipt, err := waitForTransaction(tx.Hash(), l1Client, 3*time.Duration(cfg.L1BlockTime)*time.Second)
 	require.Nil(t, err, "Waiting for deposit tx on L1")
 
 	reconstructedDep, err := derive.UnmarshalLogEvent(receipt.Logs[0])
 	require.NoError(t, err, "Could not reconstruct L2 Deposit")
 	tx = types.NewTx(reconstructedDep)
-	receipt, err = waitForTransaction(tx.Hash(), l2Verif, 6*time.Second)
+	receipt, err = waitForTransaction(tx.Hash(), l2Verif, 3*time.Duration(cfg.L1BlockTime)*time.Second)
 	require.NoError(t, err)
 	require.Equal(t, receipt.Status, types.ReceiptStatusFailed)
 
@@ -414,7 +416,7 @@ func TestMissingBatchE2E(t *testing.T) {
 	require.Nil(t, err, "Sending L2 tx to sequencer")
 
 	// Let it show up on the unsafe chain
-	receipt, err := waitForTransaction(tx.Hash(), l2Seq, 6*time.Second)
+	receipt, err := waitForTransaction(tx.Hash(), l2Seq, 3*time.Duration(cfg.L1BlockTime)*time.Second)
 	require.Nil(t, err, "Waiting for L2 tx on sequencer")
 
 	// Wait until the block it was first included in shows up in the safe chain on the verifier
@@ -477,6 +479,30 @@ func L1InfoFromState(ctx context.Context, contract *l1block.L1Block, l2Number *b
 	out.BlockHash = common.BytesToHash(blockHashBytes[:])
 
 	return out, nil
+}
+
+// TestSystemMockP2P sets up a L1 Geth node, a rollup node, and a L2 geth node and then confirms that
+// the nodes can sync L2 blocks before they are confirmed on L1.
+func TestSystemMockP2P(t *testing.T) {
+	if !verboseGethNodes {
+		log.Root().SetHandler(log.DiscardHandler())
+	}
+
+	cfg := defaultSystemConfig(t)
+	// slow down L1 blocks so we can see the L2 blocks arrive before the L1 blocks do.
+	cfg.L1BlockTime = 10
+	// connect the nodes
+	cfg.P2PTopology = map[string][]string{
+		"verifier": []string{"sequencer"},
+	}
+
+	sys, err := cfg.start()
+	require.Nil(t, err, "Error starting up system")
+	defer sys.Close()
+
+	t.Log("successfully set up network")
+
+	// TODO: await L2 blocks going from sequencer to verifier, ahead of L1
 }
 
 func TestL1InfoContract(t *testing.T) {

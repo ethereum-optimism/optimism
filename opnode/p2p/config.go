@@ -12,6 +12,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/p2p/discover"
+	"github.com/libp2p/go-libp2p-core/host"
+
 	"github.com/ethereum-optimism/optimistic-specs/opnode/flags"
 	"github.com/ethereum/go-ethereum/p2p/enode"
 	ds "github.com/ipfs/go-datastore"
@@ -32,6 +36,17 @@ import (
 	"github.com/urfave/cli"
 )
 
+// SetupP2P provides a host and discovery service for usage in the rollup node.
+type SetupP2P interface {
+	Check() error
+	// Host creates a libp2p host service. Returns nil, nil if p2p is disabled.
+	Host() (host.Host, error)
+	// Discovery creates a disc-v5 service. Returns nil, nil, nil if discovery is disabled.
+	Discovery(log log.Logger) (*enode.LocalNode, *discover.UDPv5, error)
+}
+
+// Config sets up a p2p host and discv5 service from configuration.
+// This implements SetupP2P.
 type Config struct {
 	Priv *ecdsa.PrivateKey
 

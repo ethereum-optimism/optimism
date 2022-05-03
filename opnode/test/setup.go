@@ -4,9 +4,13 @@ import (
 	"context"
 	"fmt"
 	"math/big"
+	"strings"
 	"time"
 
 	"github.com/ethereum-optimism/optimistic-specs/l2os/bindings/l2oo"
+	"github.com/ethereum-optimism/optimistic-specs/opnode/p2p"
+	mocknet "github.com/libp2p/go-libp2p/p2p/net/mock"
+
 	"github.com/ethereum-optimism/optimistic-specs/opnode/contracts/deposit"
 	"github.com/ethereum-optimism/optimistic-specs/opnode/contracts/l1block"
 	rollupNode "github.com/ethereum-optimism/optimistic-specs/opnode/node"
@@ -75,6 +79,13 @@ type SystemConfig struct {
 	Nodes        map[string]rollupNode.Config // Per node config. Don't use populate rollup.Config
 	Loggers      map[string]log.Logger
 	RollupConfig rollup.Config // Shared rollup configs
+
+	L1BlockTime uint64
+
+	// map of outbound connections to other nodes. Node names prefixed with "~" are unconnected but linked.
+	// A nil map disables P2P completely.
+	// Any node name not in the topology will not have p2p enabled.
+	P2PTopology map[string][]string
 }
 
 type System struct {
@@ -91,6 +102,7 @@ type System struct {
 	rollupNodes         map[string]*rollupNode.OpNode
 	L2OOContractAddr    common.Address
 	DepositContractAddr common.Address
+	Mocknet             mocknet.Mocknet
 }
 
 func precompileAlloc() core.GenesisAlloc {
@@ -126,6 +138,7 @@ func (sys *System) Close() {
 	for _, node := range sys.nodes {
 		node.Close()
 	}
+	sys.Mocknet.Close()
 }
 
 func (cfg SystemConfig) start() (*System, error) {
@@ -209,7 +222,7 @@ func (cfg SystemConfig) start() (*System, error) {
 			BerlinBlock:         common.Big0,
 			LondonBlock:         common.Big0,
 			Clique: &params.CliqueConfig{
-				Period: 2,
+				Period: cfg.L1BlockTime,
 				Epoch:  30000,
 			},
 		},
@@ -363,11 +376,63 @@ func (cfg SystemConfig) start() (*System, error) {
 	if err != nil {
 		return nil, err
 	}
-	_, err = waitForTransaction(tx.Hash(), l1Client, 4*time.Second)
+	_, err = waitForTransaction(tx.Hash(), l1Client, time.Duration(cfg.L1BlockTime)*time.Second*2)
 	if err != nil {
 		return nil, fmt.Errorf("waiting for OptimismPortal: %w", err)
 	}
 
+	sys.Mocknet = mocknet.New()
+
+	p2pNodes := make(map[string]*p2p.Prepared)
+	if cfg.P2PTopology != nil {
+		// create the peer if it doesn't exist yet.
+		initHostMaybe := func(name string) (*p2p.Prepared, error) {
+			if p, ok := p2pNodes[name]; ok {
+				return p, nil
+			}
+			h, err := sys.Mocknet.GenPeer()
+			if err != nil {
+				return nil, fmt.Errorf("failed to init p2p host for node %s", name)
+			}
+			_, ok := cfg.Nodes[name]
+			if !ok {
+				return nil, fmt.Errorf("node %s from p2p topology not found in actual nodes map", name)
+			}
+			// TODO we can enable discv5 in the testnodes to test discovery of new peers.
+			// Would need to mock though, and the discv5 implementation does not provide nice mocks here.
+			p := &p2p.Prepared{
+				HostP2P:   h,
+				LocalNode: nil,
+				UDPv5:     nil,
+			}
+			p2pNodes[name] = p
+			return p, nil
+		}
+		for k, vs := range cfg.P2PTopology {
+			peerA, err := initHostMaybe(k)
+			if err != nil {
+				return nil, fmt.Errorf("failed to setup mocknet peer %s", k)
+			}
+			for _, v := range vs {
+				unconnected := strings.HasPrefix(v, "~")
+				if unconnected {
+					v = v[1:]
+				}
+				peerB, err := initHostMaybe(v)
+				if err != nil {
+					return nil, fmt.Errorf("failed to setup mocknet peer %s (peer of %s)", v, k)
+				}
+				if _, err := sys.Mocknet.LinkPeers(peerA.HostP2P.ID(), peerB.HostP2P.ID()); err != nil {
+					return nil, fmt.Errorf("failed to setup mocknet link between %s and %s", k, v)
+				}
+				if !unconnected {
+					if _, err := sys.Mocknet.ConnectPeers(peerA.HostP2P.ID(), peerB.HostP2P.ID()); err != nil {
+						return nil, fmt.Errorf("failed to setup mocknet connection between %s and %s", k, v)
+					}
+				}
+			}
+		}
+	}
 	// Rollup nodes
 	for name, nodeConfig := range cfg.Nodes {
 		c := nodeConfig
@@ -375,6 +440,9 @@ func (cfg SystemConfig) start() (*System, error) {
 		c.Rollup.DepositContractAddress = sys.DepositContractAddr
 		if c.Sequencer {
 			c.SubmitterPrivKey = bssPrivKey
+		}
+		if p, ok := p2pNodes[name]; ok {
+			c.P2P = p
 		}
 
 		node, err := rollupNode.New(context.Background(), &c, cfg.Loggers[name], "")

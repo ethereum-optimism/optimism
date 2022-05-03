@@ -4,6 +4,8 @@ import (
 	"crypto/ecdsa"
 	"fmt"
 
+	"github.com/ethereum-optimism/optimistic-specs/opnode/p2p"
+
 	"github.com/ethereum-optimism/optimistic-specs/opnode/rollup"
 	"github.com/ethereum/go-ethereum/common"
 )
@@ -30,6 +32,8 @@ type Config struct {
 	RPCListenAddr          string
 	RPCListenPort          int
 	WithdrawalContractAddr common.Address
+
+	P2P p2p.SetupP2P
 }
 
 // Check verifies that the given configuration makes sense
@@ -37,6 +41,10 @@ func (cfg *Config) Check() error {
 	if err := cfg.Rollup.Check(); err != nil {
 		return fmt.Errorf("rollup config error: %v", err)
 	}
-
+	if cfg.P2P != nil {
+		if err := cfg.P2P.Check(); err != nil {
+			return fmt.Errorf("p2p config error: %v", err)
+		}
+	}
 	return nil
 }
