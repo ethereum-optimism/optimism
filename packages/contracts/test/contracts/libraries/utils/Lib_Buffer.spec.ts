@@ -1,15 +1,12 @@
-import hre from 'hardhat'
 import { Contract, ethers } from 'ethers'
 
 import { expect } from '../../../setup'
+import { deploy } from '../../../helpers'
 
 describe('Lib_Buffer', () => {
   let Lib_Buffer: Contract
   beforeEach(async () => {
-    const Factory__Lib_Buffer = await hre.ethers.getContractFactory(
-      'TestLib_Buffer'
-    )
-    Lib_Buffer = await Factory__Lib_Buffer.deploy()
+    Lib_Buffer = await deploy('TestLib_Buffer')
   })
 
   describe('push(bytes32,bytes27)', () => {
