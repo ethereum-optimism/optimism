@@ -1,0 +1,9 @@
+ignores: [
+  "@openzeppelin/contracts",
+  "@types/node",
+  "hardhat-deploy",
+  "ts-node",
+  "typescript",
+  "prettier-plugin-solidity",
+  "solhint-plugin-prettier",
+]
