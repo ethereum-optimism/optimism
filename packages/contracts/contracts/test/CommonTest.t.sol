@@ -2,11 +2,10 @@
 pragma solidity 0.8.10;
 
 /* Testing utilities */
-import { DSTest } from "forge-std/Test.sol";
+import { Test } from "forge-std/Test.sol";
 import { Vm } from "forge-std/Vm.sol";
 
-contract CommonTest is DSTest {
-    Vm vm = Vm(HEVM_ADDRESS);
+contract CommonTest is Test {
     address immutable ZERO_ADDRESS = address(0);
     address immutable NON_ZERO_ADDRESS = address(1);
     uint256 immutable NON_ZERO_VALUE = 100;
