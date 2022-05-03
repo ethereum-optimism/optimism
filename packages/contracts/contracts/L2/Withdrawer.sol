@@ -65,10 +65,6 @@ contract Withdrawer {
         bytes calldata _data
     ) external payable {
         address from = msg.sender;
-        // Transform the from-address to its L1 alias if the caller is a contract.
-        if (msg.sender != tx.origin) {
-            from = AddressAliasHelper.undoL1ToL2Alias(msg.sender);
-        }
 
         bytes32 withdrawalHash = WithdrawalVerifier._deriveWithdrawalHash(
             nonce,
