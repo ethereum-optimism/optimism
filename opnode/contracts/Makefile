@@ -20,30 +20,29 @@ deployed-bin-l1-block-info: bindings-l1-block-info
 
 bindings-l1-block-info:
 	$(eval temp := $(shell mktemp -d))
-	solc \
-		--abi $(L1_BLOCK_INFO) \
-		--bin $(L1_BLOCK_INFO) \
-		--combined-json  abi,bin,bin-runtime \
-		--allow-paths $(CONTRACTS_PATH) \
-		-o $(temp)
+	$(eval cwd := $(shell pwd))
+	mkdir -p bin
+	cd ../../packages/contracts; \
+		forge build \
+		&& forge inspect L1Block abi > $(temp)/L1Block.abi \
+		&& forge inspect L1Block bytecode > $(temp)/L1Block.bin \
+		&& forge inspect L1Block deployedBytecode > $(cwd)/bin/l1block_deployed.hex
 	abigen \
-		--combined-json $(temp)/combined.json \
+		--abi $(temp)/L1Block.abi \
+		--bin $(temp)/L1Block.bin \
 		--pkg l1block \
 		--type l1block \
 		--out ./l1block/l1_block_info_raw.go
-	cat $(temp)/combined.json | jq -r ".contracts | with_entries(select(.key | match(\"L1Block\")))[] | .\"bin-runtime\"" > bin/l1block_deployed.hex
-
 
 bindings-optimism-portal:
 	$(eval temp := $(shell mktemp -d))
-	solc \
-		--abi $(OPTIMISM_PORTAL) \
-		--bin $(OPTIMISM_PORTAL) \
-		--combined-json  abi,bin,bin-runtime \
-		--allow-paths $(CONTRACTS_PATH) \
-		-o $(temp)
+	cd ../../packages/contracts; \
+		forge build \
+		&& forge inspect OptimismPortal abi > $(temp)/OptimismPortal.abi \
+		&& forge inspect OptimismPortal bytecode > $(temp)/OptimismPortal.bin
 	abigen \
-		--combined-json $(temp)/combined.json \
+		--abi $(temp)/OptimismPortal.abi \
+		--bin $(temp)/OptimismPortal.bin \
 		--pkg deposit \
 		--type deposit \
 		--out ./deposit/deposit_feed_raw.go

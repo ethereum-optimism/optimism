@@ -7,8 +7,6 @@ LDFLAGSSTRING +=-X main.GitDate=$(GITDATE)
 LDFLAGSSTRING +=-X main.Version=$(VERSION)
 LDFLAGS := -ldflags "$(LDFLAGSSTRING)"
 
-L2_OUTPUT_ORACLE_SOL := ../packages/contracts/contracts/L1/L2OutputOracle.sol
-
 l2os:
 	env GO111MODULE=on go build -v $(LDFLAGS) ./cmd/l2os
 
