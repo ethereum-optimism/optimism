@@ -29,7 +29,7 @@ func TestBatchTimeout(t *testing.T) {
 	slowBackend.SetHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// check the config. The sleep duration should be at least double the server.timeout_seconds config to prevent flakes
 		time.Sleep(time.Second * 2)
-		SingleResponseHandler(200, goodResponse)(w, r)
+		BatchedResponseHandler(200, goodResponse)(w, r)
 	}))
 	res, statusCode, err := client.SendBatchRPC(
 		NewRPCReq("1", "eth_chainId", nil),

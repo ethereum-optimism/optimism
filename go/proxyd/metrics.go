@@ -51,6 +51,7 @@ var (
 		"backend_name",
 		"method_name",
 		"status_code",
+		"batched",
 	})
 
 	rpcErrorsTotal = promauto.NewCounterVec(prometheus.CounterOpts{
@@ -83,6 +84,7 @@ var (
 	}, []string{
 		"backend_name",
 		"method_name",
+		"batched",
 	})
 
 	activeClientWsConnsGauge = promauto.NewGaugeVec(prometheus.GaugeOpts{

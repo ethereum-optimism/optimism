@@ -13,7 +13,6 @@ import { TransactionResponse } from '@ethersproject/abstract-provider'
 /* Internal Imports */
 import {
   deploy,
-  setProxyTarget,
   L2_GAS_DISCOUNT_DIVISOR,
   ENQUEUE_GAS_COST,
   getEthTime,
@@ -59,10 +58,9 @@ describe('[GAS BENCHMARK] CanonicalTransactionChain [ @skip-on-coverage ]', () =
       'StateCommitmentChain'
     )
 
-    await setProxyTarget(
-      AddressManager,
+    await AddressManager.setAddress(
       'StateCommitmentChain',
-      Fake__StateCommitmentChain
+      Fake__StateCommitmentChain.address
     )
 
     CanonicalTransactionChain = await deploy('CanonicalTransactionChain', {
