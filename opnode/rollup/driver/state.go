@@ -84,10 +84,11 @@ func (s *state) Start(ctx context.Context, l1Heads <-chan eth.L1BlockRef) error 
 		// TODO: Test this codepath. That requires setting up L1, letting it run, and then creating the L2 genesis from there.
 		// Note: This will not work for setting the the genesis normally, but if the L1 node is not yet synced we could get this case.
 		l2genesis := eth.L2BlockRef{
-			Hash:     s.Config.Genesis.L2.Hash,
-			Number:   s.Config.Genesis.L2.Number,
-			Time:     s.Config.Genesis.L2Time,
-			L1Origin: s.Config.Genesis.L1,
+			Hash:           s.Config.Genesis.L2.Hash,
+			Number:         s.Config.Genesis.L2.Number,
+			Time:           s.Config.Genesis.L2Time,
+			L1Origin:       s.Config.Genesis.L1,
+			SequenceNumber: 0,
 		}
 		s.l2Head = l2genesis
 		s.l2SafeHead = l2genesis

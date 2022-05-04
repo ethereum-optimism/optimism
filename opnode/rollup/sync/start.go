@@ -184,7 +184,7 @@ func FindL2Heads(ctx context.Context, start eth.L2BlockRef, seqWindowSize uint64
 		// Genesis is always safe.
 		if n.Hash == genesis.L2.Hash || n.Number == genesis.L2.Number {
 			safe = eth.L2BlockRef{Hash: genesis.L2.Hash, Number: genesis.L2.Number,
-				Time: genesis.L2Time, L1Origin: genesis.L1}
+				Time: genesis.L2Time, L1Origin: genesis.L1, SequenceNumber: 0}
 			return highestPlausibleCanonicalOrigin, safe, nil
 		}
 

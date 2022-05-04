@@ -15,15 +15,15 @@ contract L1BLockTest is DSTest {
         lb = new L1Block();
         depositor = lb.DEPOSITOR_ACCOUNT();
         vm.prank(depositor);
-        lb.setL1BlockValues(1, 2, 3, NON_ZERO_HASH);
+        lb.setL1BlockValues(uint64(1), uint64(2), 3, NON_ZERO_HASH, uint64(4));
     }
 
     function test_number() external {
-        assertEq(lb.number(), 1);
+        assertEq(lb.number(), uint64(1));
     }
 
     function test_timestamp() external {
-        assertEq(lb.timestamp(), 2);
+        assertEq(lb.timestamp(), uint64(2));
     }
 
     function test_basefee() external {
@@ -32,5 +32,9 @@ contract L1BLockTest is DSTest {
 
     function test_hash() external {
         assertEq(lb.hash(), NON_ZERO_HASH);
+    }
+
+    function test_sequenceNumber() external {
+        assertEq(lb.sequenceNumber(), uint64(4));
     }
 }

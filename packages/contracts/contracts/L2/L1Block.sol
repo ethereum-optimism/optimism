@@ -12,16 +12,18 @@ contract L1Block {
 
     address public constant DEPOSITOR_ACCOUNT = 0xDeaDDEaDDeAdDeAdDEAdDEaddeAddEAdDEAd0001;
 
-    uint256 public number;
-    uint256 public timestamp;
+    uint64 public number;
+    uint64 public timestamp;
     uint256 public basefee;
     bytes32 public hash;
+    uint64 public sequenceNumber;
 
     function setL1BlockValues(
-        uint256 _number,
-        uint256 _timestamp,
+        uint64 _number,
+        uint64 _timestamp,
         uint256 _basefee,
-        bytes32 _hash
+        bytes32 _hash,
+        uint64 _sequenceNumber
     ) external {
         if (msg.sender != DEPOSITOR_ACCOUNT) {
             revert OnlyDepositor();
@@ -31,5 +33,6 @@ contract L1Block {
         timestamp = _timestamp;
         basefee = _basefee;
         hash = _hash;
+        sequenceNumber = _sequenceNumber;
     }
 }

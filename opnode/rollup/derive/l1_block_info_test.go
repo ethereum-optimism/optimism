@@ -5,6 +5,8 @@ import (
 	"math/rand"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/ethereum/go-ethereum/core/types"
 
 	"github.com/ethereum-optimism/optimistic-specs/opnode/eth"
@@ -14,14 +16,15 @@ import (
 )
 
 type l1MockInfo struct {
-	hash        common.Hash
-	parentHash  common.Hash
-	root        common.Hash
-	num         uint64
-	time        uint64
-	mixDigest   [32]byte
-	baseFee     *big.Int
-	receiptRoot common.Hash
+	hash           common.Hash
+	parentHash     common.Hash
+	root           common.Hash
+	num            uint64
+	time           uint64
+	mixDigest      [32]byte
+	baseFee        *big.Int
+	receiptRoot    common.Hash
+	sequenceNumber uint64
 }
 
 func (l *l1MockInfo) Hash() common.Hash {
@@ -76,13 +79,14 @@ func randomHash(rng *rand.Rand) (out common.Hash) {
 
 func randomL1Info(rng *rand.Rand) *l1MockInfo {
 	return &l1MockInfo{
-		parentHash:  randomHash(rng),
-		num:         rng.Uint64(),
-		time:        rng.Uint64(),
-		hash:        randomHash(rng),
-		baseFee:     big.NewInt(rng.Int63n(1000_000 * 1e9)), // a million GWEI
-		receiptRoot: types.EmptyRootHash,
-		root:        randomHash(rng),
+		parentHash:     randomHash(rng),
+		num:            rng.Uint64(),
+		time:           rng.Uint64(),
+		hash:           randomHash(rng),
+		baseFee:        big.NewInt(rng.Int63n(1000_000 * 1e9)), // a million GWEI
+		receiptRoot:    types.EmptyRootHash,
+		root:           randomHash(rng),
+		sequenceNumber: rng.Uint64(),
 	}
 }
 
@@ -118,6 +122,9 @@ func TestParseL1InfoDepositTxData(t *testing.T) {
 		{"zero num", makeInfo(func(l *l1MockInfo) {
 			l.num = 0
 		})},
+		{"zero seq", makeInfo(func(l *l1MockInfo) {
+			l.sequenceNumber = 0
+		})},
 		{"all zero", func(rng *rand.Rand) *l1MockInfo {
 			return &l1MockInfo{baseFee: new(big.Int)}
 		}},
@@ -125,26 +132,27 @@ func TestParseL1InfoDepositTxData(t *testing.T) {
 	for i, testCase := range cases {
 		t.Run(testCase.name, func(t *testing.T) {
 			info := testCase.mkInfo(rand.New(rand.NewSource(int64(1234 + i))))
-			depTx := L1InfoDeposit(123, info)
-			nr, time, baseFee, h, err := L1InfoDepositTxData(depTx.Data)
-			assert.NoError(t, err, "expected valid deposit info")
-			assert.Equal(t, nr, info.num)
-			assert.Equal(t, time, info.time)
-			assert.True(t, baseFee.Sign() >= 0)
-			assert.Equal(t, baseFee.Bytes(), info.baseFee.Bytes())
-			assert.Equal(t, h, info.hash)
+			depTx, err := L1InfoDeposit(123, info)
+			require.NoError(t, err)
+			res, err := L1InfoDepositTxData(depTx.Data)
+			require.NoError(t, err, "expected valid deposit info")
+			assert.Equal(t, res.Number, info.num)
+			assert.Equal(t, res.Time, info.time)
+			assert.True(t, res.BaseFee.Sign() >= 0)
+			assert.Equal(t, res.BaseFee.Bytes(), info.baseFee.Bytes())
+			assert.Equal(t, res.BlockHash, info.hash)
 		})
 	}
 	t.Run("no data", func(t *testing.T) {
-		_, _, _, _, err := L1InfoDepositTxData(nil)
+		_, err := L1InfoDepositTxData(nil)
 		assert.Error(t, err)
 	})
 	t.Run("not enough data", func(t *testing.T) {
-		_, _, _, _, err := L1InfoDepositTxData([]byte{1, 2, 3, 4})
+		_, err := L1InfoDepositTxData([]byte{1, 2, 3, 4})
 		assert.Error(t, err)
 	})
 	t.Run("too much data", func(t *testing.T) {
-		_, _, _, _, err := L1InfoDepositTxData(make([]byte, 4+8+8+32+32+1))
+		_, err := L1InfoDepositTxData(make([]byte, 4+32+32+32+32+32+1))
 		assert.Error(t, err)
 	})
 }
