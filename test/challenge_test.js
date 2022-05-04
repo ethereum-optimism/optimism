@@ -2,6 +2,8 @@ const { expect } = require("chai")
 const fs = require("fs")
 const { deploy, getTrieNodesForCall } = require("../scripts/lib")
 
+// This test needs preimages to run correctly.
+// It is skipped when running `make test_contracts`, but can be run with `make test_challenge`.
 describe("Challenge contract", function () {
   if (!fs.existsSync("/tmp/cannon/golden.json")) {
     console.log("golden file doesn't exist, skipping test")

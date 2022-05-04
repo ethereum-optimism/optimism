@@ -65,6 +65,7 @@ test_minigeth:
 	minigeth/go-ethereum 13303075
 
 test_contracts:
+	$(call clear_cache)
 	npx hardhat test
 
 test: test_challenge test_mipsevm test_minigeth
