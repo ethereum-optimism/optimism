@@ -1,21 +1,17 @@
-/* External Imports */
 import * as rlp from 'rlp'
 import { ethers } from 'hardhat'
 import { Contract } from 'ethers'
 import { toHexString } from '@eth-optimism/core-utils'
 
-/* Internal Imports */
 import { expect } from '../../../setup'
-import { TrieTestGenerator } from '../../../helpers'
+import { deploy, TrieTestGenerator } from '../../../helpers'
 
 const NODE_COUNTS = [1, 2, 32, 128]
 
 describe('Lib_MerkleTrie', () => {
   let Lib_MerkleTrie: Contract
   before(async () => {
-    Lib_MerkleTrie = await (
-      await ethers.getContractFactory('TestLib_MerkleTrie')
-    ).deploy()
+    Lib_MerkleTrie = await deploy('TestLib_MerkleTrie')
   })
 
   // Eth-foundation tests: https://github.com/ethereum/tests/tree/develop/TrieTests

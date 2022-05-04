@@ -1,20 +1,18 @@
-/* External Imports */
-import { ethers } from 'hardhat'
 import { Contract } from 'ethers'
 
-/* Internal Imports */
 import { expect } from '../../../setup'
 import { Lib_RLPWriter_TEST_JSON } from '../../../data'
+import { deploy } from '../../../helpers'
 
 const encode = async (Lib_RLPWriter: Contract, input: any): Promise<void> => {
   if (Array.isArray(input)) {
-    const elements = await Promise.all(
-      input.map(async (el) => {
-        return encode(Lib_RLPWriter, el)
-      })
+    return Lib_RLPWriter.writeList(
+      await Promise.all(
+        input.map(async (el) => {
+          return encode(Lib_RLPWriter, el)
+        })
+      )
     )
-
-    return Lib_RLPWriter.writeList(elements)
   } else if (Number.isInteger(input)) {
     return Lib_RLPWriter.writeUint(input)
   } else {
@@ -25,9 +23,7 @@ const encode = async (Lib_RLPWriter: Contract, input: any): Promise<void> => {
 describe('Lib_RLPWriter', () => {
   let Lib_RLPWriter: Contract
   before(async () => {
-    Lib_RLPWriter = await (
-      await ethers.getContractFactory('TestLib_RLPWriter')
-    ).deploy()
+    Lib_RLPWriter = await deploy('TestLib_RLPWriter')
   })
 
   describe('Official Ethereum RLP Tests', () => {
@@ -50,14 +46,11 @@ describe('Lib_RLPWriter', () => {
 
   describe('Use of library with other memory-modifying operations', () => {
     it('should allow creation of a contract beforehand and still work', async () => {
-      const randomAddress = '0x1234123412341234123412341234123412341234'
-      const rlpEncodedRandomAddress =
-        '0x941234123412341234123412341234123412341234'
-      const encoded =
+      expect(
         await Lib_RLPWriter.callStatic.writeAddressWithTaintedMemory(
-          randomAddress
+          '0x1234123412341234123412341234123412341234'
         )
-      expect(encoded).to.eq(rlpEncodedRandomAddress)
+      ).to.eq('0x941234123412341234123412341234123412341234')
     })
   })
 })

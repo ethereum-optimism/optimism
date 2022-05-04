@@ -1,17 +1,12 @@
-/* External Imports */
-import { ethers } from 'hardhat'
 import { Contract } from 'ethers'
 
-/* Internal Imports */
 import { expect } from '../../../setup'
-import { NON_ZERO_ADDRESS } from '../../../helpers'
+import { NON_ZERO_ADDRESS, deploy } from '../../../helpers'
 
 describe('Lib_OVMCodec', () => {
   let Lib_OVMCodec: Contract
   before(async () => {
-    Lib_OVMCodec = await (
-      await ethers.getContractFactory('TestLib_OVMCodec')
-    ).deploy()
+    Lib_OVMCodec = await deploy('TestLib_OVMCodec')
   })
 
   describe('hashTransaction', () => {
