@@ -37,7 +37,7 @@ contracts -- A Merkleized MIPS processor on chain + the challenge logic
 
 ## Building
 
-Pre-requisites: Go, Node.js, Yarn (`npm install -g yarn`) and Make.
+Pre-requisites: Go, Node.js, and Make.
 
 ```
 make build

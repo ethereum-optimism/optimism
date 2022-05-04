@@ -21,11 +21,15 @@ minigeth_default_arch:
 mipsevm:
 	cd mipsevm && go build
 
-contracts: yarn
+contracts: nodejs
 	npx hardhat compile
 
-yarn:
-	yarn install
+nodejs:
+	if [ -x "$(command -v pnpm)" ]; then \
+		pnpm install; \
+	else \
+		npm install; \
+	fi
 
 define clear_cache
 	rm -rf /tmp/cannon
@@ -78,4 +82,4 @@ mrproper: clean
 	rm -rf mipigo/venv
 
 .PHONY: build unicorn submodule minigeth_mips minigeth_default_arch mipsevm contracts \
-	yarn clean mrproper test_challenge test_mipsevm test_minigeth test
+	nodejs clean mrproper test_challenge test_mipsevm test_minigeth test
