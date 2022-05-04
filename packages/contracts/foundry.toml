@@ -10,3 +10,4 @@ remappings = [
   '@openzeppelin/contracts/=node_modules/@openzeppelin/contracts/',
   '@eth-optimism/contracts/=node_modules/@eth-optimism/contracts/'
 ]
+bytecode_hash = "none"

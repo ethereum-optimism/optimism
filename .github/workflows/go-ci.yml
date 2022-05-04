@@ -30,3 +30,49 @@ jobs:
         run: go test -coverpkg=./... -coverprofile=coverage.out -covermode=atomic ./...
       - name: Upload coverage output
         uses: codecov/codecov-action@v2
+
+  build:
+    runs-on: ubuntu-latest
+    name: Builds Bindings
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          submodules: recursive
+
+      - name: Install Go
+        uses: actions/setup-go@v2
+        with:
+          go-version: 1.18
+
+      - name: Install abigen
+        run: |
+          git clone https://github.com/ethereum/go-ethereum /tmp/geth
+          cd /tmp/geth
+          make devtools
+
+      - name: Install Foundry
+        uses: onbjerg/foundry-toolchain@v1
+        with:
+          version: nightly
+
+      - uses: actions/setup-node@v2
+        with:
+          node-version: "16"
+          cache: "yarn"
+
+      - name: Install Dependencies
+        run: |
+          cd packages/contracts
+          yarn install
+
+      - name: opnode Contracts
+        run: |
+          cd opnode/contracts
+          make
+          git diff --exit-code
+
+      - name: l2os Bindings
+        run: |
+          cd l2os
+          make bindings
+          git diff --exit-code
