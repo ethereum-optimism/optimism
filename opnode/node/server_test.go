@@ -3,7 +3,13 @@ package node
 import (
 	"context"
 	"encoding/json"
+	"math/big"
 	"testing"
+
+	"github.com/ethereum-optimism/optimistic-specs/opnode/eth"
+	"github.com/ethereum-optimism/optimistic-specs/opnode/predeploy"
+	"github.com/ethereum-optimism/optimistic-specs/opnode/rollup"
+	"github.com/stretchr/testify/mock"
 
 	"github.com/ethereum-optimism/optimistic-specs/opnode/internal/testlog"
 	"github.com/ethereum-optimism/optimistic-specs/opnode/l2"
@@ -59,17 +65,23 @@ func TestOutputAtBlock(t *testing.T) {
 		"nonce": "0x1",
 		"storageHash": "0xc1917a80cb25ccc50d0d1921525a44fb619b4601194ca726ae32312f08a799f8"
 	}`
-	var result AccountResult
+	var result l2.AccountResult
 	err = json.Unmarshal([]byte(resultTestData), &result)
 	assert.NoError(t, err)
 
-	l2Client := &mockL2Client{
-		head:   &header,
-		result: &result,
+	rpcCfg := &RPCConfig{
+		ListenAddr: "localhost",
+		ListenPort: 0,
+	}
+	rollupCfg := &rollup.Config{
+		// ignore other rollup config info in this test
 	}
 
-	addr := common.HexToAddress("0x00000000219ab540356cBB839Cbe05303d7705Fa")
-	server, err := newRPCServer(context.Background(), "localhost", 0, l2Client, addr, log, "0.0")
+	l2Client := &mockL2Client{}
+	l2Client.mock.On("GetBlockHeader", "latest").Return(&header)
+	l2Client.mock.On("GetProof", predeploy.WithdrawalContractAddress, "latest").Return(&result)
+
+	server, err := newRPCServer(context.Background(), rpcCfg, rollupCfg, l2Client, log, "0.0")
 	assert.NoError(t, err)
 	assert.NoError(t, server.Start())
 	defer server.Stop()
@@ -81,17 +93,29 @@ func TestOutputAtBlock(t *testing.T) {
 	err = client.CallContext(context.Background(), &out, "optimism_outputAtBlock", "latest")
 	assert.NoError(t, err)
 	assert.Len(t, out, 2)
+	l2Client.mock.AssertExpectations(t)
 }
 
 type mockL2Client struct {
-	head   *types.Header
-	result *AccountResult
+	mock mock.Mock
+}
+
+func (c *mockL2Client) BlockByNumber(ctx context.Context, number *big.Int) (*types.Block, error) {
+	return c.mock.MethodCalled("BlockByNumber", number).Get(0).(*types.Block), nil
+}
+
+func (c *mockL2Client) L2BlockRefByNumber(ctx context.Context, l2Num *big.Int) (eth.L2BlockRef, error) {
+	return c.mock.MethodCalled("L2BlockRefByNumber", l2Num).Get(0).(eth.L2BlockRef), nil
+}
+
+func (c *mockL2Client) L2BlockRefByHash(ctx context.Context, l2Hash common.Hash) (eth.L2BlockRef, error) {
+	return c.mock.MethodCalled("L2BlockRefByHash", l2Hash).Get(0).(eth.L2BlockRef), nil
 }
 
 func (c *mockL2Client) GetBlockHeader(ctx context.Context, blockTag string) (*types.Header, error) {
-	return c.head, nil
+	return c.mock.MethodCalled("GetBlockHeader", blockTag).Get(0).(*types.Header), nil
 }
 
-func (c *mockL2Client) GetProof(ctx context.Context, address common.Address, blockTag string) (*AccountResult, error) {
-	return c.result, nil
+func (c *mockL2Client) GetProof(ctx context.Context, address common.Address, blockTag string) (*l2.AccountResult, error) {
+	return c.mock.MethodCalled("GetProof", address, blockTag).Get(0).(*l2.AccountResult), nil
 }

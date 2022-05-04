@@ -8,12 +8,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ethereum-optimism/optimistic-specs/l2os"
 	"github.com/ethereum-optimism/optimistic-specs/l2os/bindings/l2oo"
 	"github.com/ethereum-optimism/optimistic-specs/l2os/rollupclient"
 	"github.com/ethereum-optimism/optimistic-specs/opnode/contracts/deposit"
 	"github.com/ethereum-optimism/optimistic-specs/opnode/contracts/l1block"
 	"github.com/ethereum-optimism/optimistic-specs/opnode/internal/testlog"
+	"github.com/ethereum-optimism/optimistic-specs/opnode/node"
 	rollupNode "github.com/ethereum-optimism/optimistic-specs/opnode/node"
 	"github.com/ethereum-optimism/optimistic-specs/opnode/rollup"
 	"github.com/ethereum-optimism/optimistic-specs/opnode/rollup/derive"
@@ -51,6 +51,10 @@ const (
 	transactorHDPath   = "m/44'/60'/0'/0/1"
 	l2OutputHDPath     = "m/44'/60'/0'/0/3"
 	bssHDPath          = "m/44'/60'/0'/0/4"
+)
+
+var (
+	batchInboxAddress = common.Address{0xff, 0x02}
 )
 
 func defaultSystemConfig(t *testing.T) SystemConfig {
@@ -95,8 +99,10 @@ func defaultSystemConfig(t *testing.T) SystemConfig {
 				L1TrustRPC:    false,
 				Sequencer:     true,
 				// Submitter PrivKey is set in system start for rollup nodes where sequencer = true
-				RPCListenAddr: "127.0.0.1",
-				RPCListenPort: 9093,
+				RPC: node.RPCConfig{
+					ListenAddr: "127.0.0.1",
+					ListenPort: 9093,
+				},
 			},
 		},
 		Loggers: map[string]log.Logger{
@@ -110,7 +116,7 @@ func defaultSystemConfig(t *testing.T) SystemConfig {
 			L1ChainID:         big.NewInt(900),
 			// TODO pick defaults
 			FeeRecipientAddress: common.Address{0xff, 0x01},
-			BatchInboxAddress:   common.Address{0xff, 0x02},
+			BatchInboxAddress:   batchInboxAddress,
 			// Batch Sender address is filled out in system start
 			DepositContractAddress: MockDepositContractAddr,
 		},
@@ -131,7 +137,7 @@ func TestL2OutputSubmitter(t *testing.T) {
 
 	l1Client := sys.Clients["l1"]
 
-	rollupRPCClient, err := rpc.DialContext(context.Background(), fmt.Sprintf("http://%s:%d", cfg.Nodes["sequencer"].RPCListenAddr, cfg.Nodes["sequencer"].RPCListenPort))
+	rollupRPCClient, err := rpc.DialContext(context.Background(), fmt.Sprintf("http://%s:%d", cfg.Nodes["sequencer"].RPC.ListenAddr, cfg.Nodes["sequencer"].RPC.ListenPort))
 	require.Nil(t, err)
 	rollupClient := rollupclient.NewRollupClient(rollupRPCClient)
 
@@ -141,26 +147,6 @@ func TestL2OutputSubmitter(t *testing.T) {
 
 	initialSroTimestamp, err := l2OutputOracle.LatestBlockTimestamp(&bind.CallOpts{})
 	require.Nil(t, err)
-
-	// L2Output Submitter
-	l2OutputSubmitter, err := l2os.NewL2OutputSubmitter(l2os.Config{
-		L1EthRpc:                  "ws://127.0.0.1:9090",
-		L2EthRpc:                  cfg.Nodes["sequencer"].L2NodeAddr,
-		RollupRpc:                 fmt.Sprintf("http://%s:%d", cfg.Nodes["sequencer"].RPCListenAddr, cfg.Nodes["sequencer"].RPCListenPort),
-		L2OOAddress:               sys.L2OOContractAddr.String(),
-		PollInterval:              2 * time.Second,
-		NumConfirmations:          1,
-		ResubmissionTimeout:       3 * time.Second,
-		SafeAbortNonceTooLowCount: 3,
-		LogLevel:                  "error",
-		Mnemonic:                  cfg.Mnemonic,
-		L2OutputHDPath:            l2OutputHDPath,
-	}, "")
-	require.Nil(t, err)
-
-	err = l2OutputSubmitter.Start()
-	require.Nil(t, err)
-	defer l2OutputSubmitter.Stop()
 
 	// Wait for batch submitter to update L2 output oracle.
 	timeoutCh := time.After(15 * time.Second)
@@ -211,6 +197,7 @@ func TestSystemE2E(t *testing.T) {
 	if !verboseGethNodes {
 		log.Root().SetHandler(log.DiscardHandler())
 	}
+
 	cfg := defaultSystemConfig(t)
 
 	sys, err := cfg.start()
@@ -382,8 +369,6 @@ func TestMissingBatchE2E(t *testing.T) {
 	cfg := defaultSystemConfig(t)
 	// Specifically set batch submitter balance to stop batches from being included
 	cfg.Premine[bssHDPath] = 0
-	// Don't pollute log with expected "Error submitting batch" logs
-	cfg.Loggers["sequencer"] = testlog.Logger(t, log.LvlCrit)
 
 	sys, err := cfg.start()
 	require.Nil(t, err, "Error starting up system")

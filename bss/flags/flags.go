@@ -4,7 +4,7 @@ import (
 	"github.com/urfave/cli"
 )
 
-const envVarPrefix = "OUTPUT_SUBMITTER_"
+const envVarPrefix = "BATCH_SUBMITTER_"
 
 func prefixEnvVar(name string) string {
 	return envVarPrefix + name
@@ -31,11 +31,17 @@ var (
 		Required: true,
 		EnvVar:   "ROLLUP_RPC",
 	}
-	L2OOAddressFlag = cli.StringFlag{
-		Name:     "l2oo-address",
-		Usage:    "Address of the L2OutputOracle contract",
+	MinL1TxSizeBytesFlag = cli.Uint64Flag{
+		Name:     "min-l1-tx-size-bytes",
+		Usage:    "The minimum size of a batch tx submitted to L1.",
 		Required: true,
-		EnvVar:   "L2OO_ADDRESS",
+		EnvVar:   prefixEnvVar("MIN_L1_TX_SIZE_BYTES"),
+	}
+	MaxL1TxSizeBytesFlag = cli.Uint64Flag{
+		Name:     "max-l1-tx-size-bytes",
+		Usage:    "The maximum size of a batch tx submitted to L1.",
+		Required: true,
+		EnvVar:   prefixEnvVar("MAX_L1_TX_SIZE_BYTES"),
 	}
 	PollIntervalFlag = cli.DurationFlag{
 		Name: "poll-interval",
@@ -73,12 +79,31 @@ var (
 		Required: true,
 		EnvVar:   prefixEnvVar("MNEMONIC"),
 	}
-	L2OutputHDPathFlag = cli.StringFlag{
-		Name: "l2-output-hd-path",
-		Usage: "The HD path used to derive the l2output wallet from the " +
+	SequencerHDPathFlag = cli.StringFlag{
+		Name: "sequencer-hd-path",
+		Usage: "The HD path used to derive the sequencer wallet from the " +
 			"mnemonic. The mnemonic flag must also be set.",
 		Required: true,
-		EnvVar:   prefixEnvVar("L2_OUTPUT_HD_PATH"),
+		EnvVar:   prefixEnvVar("SEQUENCER_HD_PATH"),
+	}
+	SequencerHistoryDBFilenameFlag = cli.StringFlag{
+		Name: "sequencer-history-db-filename",
+		Usage: "File name used to identify the latest L2 batches submitted " +
+			"by the sequencer",
+		Required: true,
+		EnvVar:   prefixEnvVar("SEQUENCER_HISTORY_DB_FILENAME"),
+	}
+	SequencerGenesisHashFlag = cli.StringFlag{
+		Name:     "sequencer-genesis-hash",
+		Usage:    "Genesis hash of the L2 chain",
+		Required: true,
+		EnvVar:   prefixEnvVar("SEQUENCER_GENESIS_HASH"),
+	}
+	SequencerBatchInboxAddressFlag = cli.StringFlag{
+		Name:     "sequencer-batch-inbox-address",
+		Usage:    "L1 Address to receive batch transactions",
+		Required: true,
+		EnvVar:   prefixEnvVar("SEQUENCER_BATCH_INBOX_ADDRESS"),
 	}
 
 	/* Optional Flags */
@@ -101,13 +126,17 @@ var requiredFlags = []cli.Flag{
 	L1EthRpcFlag,
 	L2EthRpcFlag,
 	RollupRpcFlag,
-	L2OOAddressFlag,
+	MinL1TxSizeBytesFlag,
+	MaxL1TxSizeBytesFlag,
 	PollIntervalFlag,
 	NumConfirmationsFlag,
 	SafeAbortNonceTooLowCountFlag,
 	ResubmissionTimeoutFlag,
 	MnemonicFlag,
-	L2OutputHDPathFlag,
+	SequencerHDPathFlag,
+	SequencerHistoryDBFilenameFlag,
+	SequencerGenesisHashFlag,
+	SequencerBatchInboxAddressFlag,
 }
 
 var optionalFlags = []cli.Flag{

@@ -1,4 +1,4 @@
-package l2os
+package bss
 
 import (
 	"context"
@@ -8,7 +8,9 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/ethereum-optimism/optimistic-specs/l2os/drivers/l2output"
+	"github.com/ethereum-optimism/optimistic-specs/bss/db"
+	"github.com/ethereum-optimism/optimistic-specs/bss/sequencer"
+	"github.com/ethereum-optimism/optimistic-specs/l2os"
 	"github.com/ethereum-optimism/optimistic-specs/l2os/rollupclient"
 	"github.com/ethereum-optimism/optimistic-specs/l2os/txmgr"
 	"github.com/ethereum/go-ethereum/accounts"
@@ -26,7 +28,7 @@ const (
 	defaultDialTimeout = 5 * time.Second
 )
 
-// Main is the entrypoint into the L2 Output Submitter. This method returns a
+// Main is the entrypoint into the Batch Submitter. This method returns a
 // closure that executes the service and blocks until the service exits. The use
 // of a closure allows the parameters bound to the top-level main package, e.g.
 // GitVersion, to be captured and used once the function is executed.
@@ -50,23 +52,23 @@ func Main(version string) func(ctx *cli.Context) error {
 		l := log.New()
 		l.SetHandler(log.LvlFilterHandler(logLevel, logHandler))
 
-		l.Info("Initializing L2 Output Submitter")
+		l.Info("Initializing Batch Submitter")
 
-		l2OutputSubmitter, err := NewL2OutputSubmitter(cfg, version, l)
+		batchSubmitter, err := NewBatchSubmitter(cfg, version, l)
 		if err != nil {
-			l.Error("Unable to create L2 Output Submitter", "error", err)
+			l.Error("Unable to create Batch Submitter", "error", err)
 			return err
 		}
 
-		l.Info("Starting L2 Output Submitter")
+		l.Info("Starting Batch Submitter")
 
-		if err := l2OutputSubmitter.Start(); err != nil {
-			l.Error("Unable to start L2 Output Submitter", "error", err)
+		if err := batchSubmitter.Start(); err != nil {
+			l.Error("Unable to start Batch Submitter", "error", err)
 			return err
 		}
-		defer l2OutputSubmitter.Stop()
+		defer batchSubmitter.Stop()
 
-		l.Info("L2 Output Submitter started")
+		l.Info("Batch Submitter started")
 
 		interruptChannel := make(chan os.Signal, 1)
 		signal.Notify(interruptChannel, []os.Signal{
@@ -81,42 +83,45 @@ func Main(version string) func(ctx *cli.Context) error {
 	}
 }
 
-// L2OutputSubmitter encapsulates a service responsible for submitting
-// L2Outputs to the L2OutputOracle contract.
-type L2OutputSubmitter struct {
-	ctx             context.Context
-	l2OutputService *Service
+// BatchSubmitter encapsulates a service responsible for submitting L2 tx
+// batches to L1 for availability.
+type BatchSubmitter struct {
+	ctx              context.Context
+	sequencerService *l2os.Service
 }
 
-// NewL2OutputSubmitter initializes the L2OutputSubmitter, gathering any resources
+// NewBatchSubmitter initializes the BatchSubmitter, gathering any resources
 // that will be needed during operation.
-func NewL2OutputSubmitter(
+func NewBatchSubmitter(
 	cfg Config,
 	gitVersion string,
 	l log.Logger,
-) (*L2OutputSubmitter, error) {
+) (*BatchSubmitter, error) {
 
 	ctx := context.Background()
 
-	// Parse l2output wallet private key and L2OO contract address.
+	// Parse wallet private key that will be used to submit L2 txs to the batch
+	// inbox address.
 	wallet, err := hdwallet.NewFromMnemonic(cfg.Mnemonic)
 	if err != nil {
 		return nil, err
 	}
 
-	l2OutputPrivKey, err := wallet.PrivateKey(accounts.Account{
+	sequencerPrivKey, err := wallet.PrivateKey(accounts.Account{
 		URL: accounts.URL{
-			Path: cfg.L2OutputHDPath,
+			Path: cfg.SequencerHDPath,
 		},
 	})
 	if err != nil {
 		return nil, err
 	}
 
-	l2ooAddress, err := parseAddress(cfg.L2OOAddress)
+	batchInboxAddress, err := parseAddress(cfg.SequencerBatchInboxAddress)
 	if err != nil {
 		return nil, err
 	}
+
+	genesisHash := common.HexToHash(cfg.SequencerGenesisHash)
 
 	// Connect to L1 and L2 providers. Perform these last since they are the
 	// most expensive.
@@ -135,6 +140,13 @@ func NewL2OutputSubmitter(
 		return nil, err
 	}
 
+	historyDB, err := db.OpenJSONFileDatabase(
+		cfg.SequencerHistoryDBFilename, 600, genesisHash,
+	)
+	if err != nil {
+		return nil, err
+	}
+
 	chainID, err := l1Client.ChainID(ctx)
 	if err != nil {
 		return nil, err
@@ -142,48 +154,51 @@ func NewL2OutputSubmitter(
 
 	txManagerConfig := txmgr.Config{
 		Log:                       l,
-		Name:                      "L2Output Submitter",
+		Name:                      "Batch Submitter",
 		ResubmissionTimeout:       cfg.ResubmissionTimeout,
 		ReceiptQueryInterval:      time.Second,
 		NumConfirmations:          cfg.NumConfirmations,
 		SafeAbortNonceTooLowCount: cfg.SafeAbortNonceTooLowCount,
 	}
 
-	l2OutputDriver, err := l2output.NewDriver(l2output.Config{
-		Log:          l,
-		Name:         "L2Output Submitter",
-		L1Client:     l1Client,
-		L2Client:     l2Client,
-		RollupClient: rollupClient,
-		L2OOAddr:     l2ooAddress,
-		ChainID:      chainID,
-		PrivKey:      l2OutputPrivKey,
+	sequencerDriver, err := sequencer.NewDriver(sequencer.Config{
+		Log:               l,
+		Name:              "Batch Submitter",
+		L1Client:          l1Client,
+		L2Client:          l2Client,
+		RollupClient:      rollupClient,
+		MinL1TxSize:       cfg.MinL1TxSize,
+		MaxL1TxSize:       cfg.MaxL1TxSize,
+		BatchInboxAddress: batchInboxAddress,
+		HistoryDB:         historyDB,
+		ChainID:           chainID,
+		PrivKey:           sequencerPrivKey,
 	})
 	if err != nil {
 		return nil, err
 	}
 
-	l2OutputService := NewService(ServiceConfig{
+	sequencerService := l2os.NewService(l2os.ServiceConfig{
 		Log:             l,
 		Context:         ctx,
-		Driver:          l2OutputDriver,
+		Driver:          sequencerDriver,
 		PollInterval:    cfg.PollInterval,
 		L1Client:        l1Client,
 		TxManagerConfig: txManagerConfig,
 	})
 
-	return &L2OutputSubmitter{
-		ctx:             ctx,
-		l2OutputService: l2OutputService,
+	return &BatchSubmitter{
+		ctx:              ctx,
+		sequencerService: sequencerService,
 	}, nil
 }
 
-func (l *L2OutputSubmitter) Start() error {
-	return l.l2OutputService.Start()
+func (l *BatchSubmitter) Start() error {
+	return l.sequencerService.Start()
 }
 
-func (l *L2OutputSubmitter) Stop() {
-	_ = l.l2OutputService.Stop()
+func (l *BatchSubmitter) Stop() {
+	_ = l.sequencerService.Stop()
 }
 
 // dialEthClientWithTimeout attempts to dial the L1 provider using the provided

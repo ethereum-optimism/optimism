@@ -7,10 +7,9 @@ import (
 	"net"
 	"net/http"
 
-	"github.com/ethereum/go-ethereum"
+	"github.com/ethereum-optimism/optimistic-specs/opnode/l2"
+	"github.com/ethereum-optimism/optimistic-specs/opnode/rollup"
 
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/node"
 	"github.com/ethereum/go-ethereum/rpc"
@@ -25,11 +24,13 @@ type rpcServer struct {
 	appVersion string
 	listenAddr net.Addr
 	log        log.Logger
+	l2.Source
 }
 
-func newRPCServer(ctx context.Context, addr string, port int, l2Client l2EthClient, withdrawalContractAddress common.Address, log log.Logger, appVersion string) (*rpcServer, error) {
-	api := newNodeAPI(l2Client, withdrawalContractAddress, log.New("rpc", "node"))
-	endpoint := fmt.Sprintf("%s:%d", addr, port)
+func newRPCServer(ctx context.Context, rpcCfg *RPCConfig, rollupCfg *rollup.Config, l2Client l2EthClient, log log.Logger, appVersion string) (*rpcServer, error) {
+	api := newNodeAPI(rollupCfg, l2Client, log.New("rpc", "node"))
+	// TODO: extend RPC config with options for WS, IPC and HTTP RPC connections
+	endpoint := fmt.Sprintf("%s:%d", rpcCfg.ListenAddr, rpcCfg.ListenPort)
 	r := &rpcServer{
 		endpoint:   endpoint,
 		api:        api,
@@ -88,23 +89,4 @@ func healthzHandler(appVersion string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte(appVersion))
 	}
-}
-
-type l2EthClientImpl struct {
-	l2RPCClient *rpc.Client
-}
-
-func (c *l2EthClientImpl) GetBlockHeader(ctx context.Context, blockTag string) (*types.Header, error) {
-	var head *types.Header
-	err := c.l2RPCClient.CallContext(ctx, &head, "eth_getBlockByNumber", blockTag, false)
-	return head, err
-}
-
-func (c *l2EthClientImpl) GetProof(ctx context.Context, address common.Address, blockTag string) (*AccountResult, error) {
-	var getProofResponse *AccountResult
-	err := c.l2RPCClient.CallContext(ctx, &getProofResponse, "eth_getProof", address, []common.Hash{}, blockTag)
-	if err == nil && getProofResponse == nil {
-		err = ethereum.NotFound
-	}
-	return getProofResponse, err
 }

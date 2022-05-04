@@ -145,7 +145,7 @@ func (tc *stateTestCase) Run(t *testing.T) {
 		return r.l2Head, r.l2Head, false, r.err
 	}
 	config := rollup.Config{SeqWindowSize: uint64(tc.seqWindow), Genesis: tc.genesis, BlockTime: 2}
-	state := NewState(log, config, chainSource, chainSource, outputHandlerFn(outputHandler), nil, false)
+	state := NewState(log, config, chainSource, chainSource, outputHandlerFn(outputHandler), false)
 	defer func() {
 		assert.NoError(t, state.Close(), "Error closing state")
 	}()

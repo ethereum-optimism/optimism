@@ -23,7 +23,7 @@
 
   "batch_inbox_address":  "0xff00000000000000000000000000000000000002",
 
-  "batch_sender_address": "0xde3829a23df1479438622a08a116e8eb3f620bb5",
+  "batch_sender_address": "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC",
 
   "deposit_contract_address": "0xdeaddeaddeaddeaddeaddeaddeaddeaddead0001"
 }

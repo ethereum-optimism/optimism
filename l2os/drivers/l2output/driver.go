@@ -23,6 +23,7 @@ var bigOne = big.NewInt(1)
 var supportedL2OutputVersion = l2.Bytes32{}
 
 type Config struct {
+	Log          log.Logger
 	Name         string
 	L1Client     *ethclient.Client
 	L2Client     *ethclient.Client
@@ -37,6 +38,7 @@ type Driver struct {
 	l2ooContract    *l2oo.L2OutputOracle
 	rawL2ooContract *bind.BoundContract
 	walletAddr      common.Address
+	l               log.Logger
 }
 
 func NewDriver(cfg Config) (*Driver, error) {
@@ -65,6 +67,7 @@ func NewDriver(cfg Config) (*Driver, error) {
 		l2ooContract:    l2ooContract,
 		rawL2ooContract: rawL2ooContract,
 		walletAddr:      walletAddr,
+		l:               cfg.Log,
 	}, nil
 }
 
@@ -96,12 +99,12 @@ func (d *Driver) GetBlockRange(
 	// adding one.
 	l2ooTimestamp, err := d.l2ooContract.LatestBlockTimestamp(callOpts)
 	if err != nil {
-		log.Error(name+" unable to get latest block timestamp", "err", err)
+		d.l.Error(name+" unable to get latest block timestamp", "err", err)
 		return nil, nil, err
 	}
 	start, err := d.l2ooContract.ComputeL2BlockNumber(callOpts, l2ooTimestamp)
 	if err != nil {
-		log.Error(name+" unable to compute latest l2 block number", "err", err)
+		d.l.Error(name+" unable to compute latest l2 block number", "err", err)
 		return nil, nil, err
 	}
 	start.Add(start, bigOne)
@@ -112,12 +115,12 @@ func (d *Driver) GetBlockRange(
 	// the latter inspects the timestamp of the latest block.
 	nextTimestamp, err := d.l2ooContract.NextTimestamp(callOpts)
 	if err != nil {
-		log.Error(name+" unable to get next block timestamp", "err", err)
+		d.l.Error(name+" unable to get next block timestamp", "err", err)
 		return nil, nil, err
 	}
 	latestHeader, err := d.cfg.L1Client.HeaderByNumber(ctx, nil)
 	if err != nil {
-		log.Error(name+" unable to retrieve latest header", "err", err)
+		d.l.Error(name+" unable to retrieve latest header", "err", err)
 		return nil, nil, err
 	}
 	currentTimestamp := big.NewInt(int64(latestHeader.Time))
@@ -126,12 +129,12 @@ func (d *Driver) GetBlockRange(
 	// submitting our L2 output commitment. Return start as the end value which
 	// will signal that there is no work to be done.
 	if currentTimestamp.Cmp(nextTimestamp) < 0 {
-		log.Info(name+" submission interval has not elapsed",
+		d.l.Info(name+" submission interval has not elapsed",
 			"currentTimestamp", currentTimestamp, "nextTimestamp", nextTimestamp)
 		return start, start, nil
 	}
 
-	log.Info(name+" submission interval has elapsed",
+	d.l.Info(name+" submission interval has elapsed",
 		"currentTimestamp", currentTimestamp, "nextTimestamp", nextTimestamp)
 
 	// Otherwise the submission interval has elapsed. Transform the next
@@ -139,7 +142,7 @@ func (d *Driver) GetBlockRange(
 	// exclusive.
 	end, err := d.l2ooContract.ComputeL2BlockNumber(callOpts, nextTimestamp)
 	if err != nil {
-		log.Error(name+" unable to compute next l2 block number", "err", err)
+		d.l.Error(name+" unable to compute next l2 block number", "err", err)
 		return nil, nil, err
 	}
 	end.Add(end, bigOne)
@@ -158,7 +161,7 @@ func (d *Driver) CraftTx(
 
 	name := d.cfg.Name
 
-	log.Info(name+" crafting checkpoint tx", "start", start, "end", end,
+	d.l.Info(name+" crafting checkpoint tx", "start", start, "end", end,
 		"nonce", nonce)
 
 	// Fetch the final block in the range, as this is the only L2 output we need
@@ -195,7 +198,7 @@ func (d *Driver) CraftTx(
 	}
 
 	numElements := new(big.Int).Sub(start, end).Uint64()
-	log.Info(name+" checkpoint constructed", "start", start, "end", end,
+	d.l.Info(name+" checkpoint constructed", "start", start, "end", end,
 		"nonce", nonce, "blocks_committed", numElements, "checkpoint_block", nextCheckpointBlock)
 
 	header, err := d.cfg.L1Client.HeaderByNumber(ctx, nil)

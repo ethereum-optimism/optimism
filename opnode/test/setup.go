@@ -3,10 +3,14 @@ package test
 import (
 	"context"
 	"fmt"
+	"io/ioutil"
 	"math/big"
+	"os"
 	"strings"
 	"time"
 
+	"github.com/ethereum-optimism/optimistic-specs/bss"
+	"github.com/ethereum-optimism/optimistic-specs/l2os"
 	"github.com/ethereum-optimism/optimistic-specs/l2os/bindings/l2oo"
 	"github.com/ethereum-optimism/optimistic-specs/opnode/p2p"
 	mocknet "github.com/libp2p/go-libp2p/p2p/net/mock"
@@ -14,6 +18,7 @@ import (
 	"github.com/ethereum-optimism/optimistic-specs/opnode/contracts/deposit"
 	"github.com/ethereum-optimism/optimistic-specs/opnode/contracts/l1block"
 	rollupNode "github.com/ethereum-optimism/optimistic-specs/opnode/node"
+	"github.com/ethereum-optimism/optimistic-specs/opnode/predeploy"
 	"github.com/ethereum-optimism/optimistic-specs/opnode/rollup"
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
@@ -95,14 +100,17 @@ type System struct {
 	wallet *hdwallet.Wallet
 
 	// Connections to running nodes
-	nodes               map[string]*node.Node
-	backends            map[string]*eth.Ethereum
-	Clients             map[string]*ethclient.Client
-	RolupGenesis        rollup.Genesis
-	rollupNodes         map[string]*rollupNode.OpNode
-	L2OOContractAddr    common.Address
-	DepositContractAddr common.Address
-	Mocknet             mocknet.Mocknet
+	nodes                      map[string]*node.Node
+	backends                   map[string]*eth.Ethereum
+	Clients                    map[string]*ethclient.Client
+	RolupGenesis               rollup.Genesis
+	rollupNodes                map[string]*rollupNode.OpNode
+	l2OutputSubmitter          *l2os.L2OutputSubmitter
+	sequencerHistoryDBFileName string
+	batchSubmitter             *bss.BatchSubmitter
+	L2OOContractAddr           common.Address
+	DepositContractAddr        common.Address
+	Mocknet                    mocknet.Mocknet
 }
 
 func precompileAlloc() core.GenesisAlloc {
@@ -132,6 +140,16 @@ func cliqueExtraData(w accounts.Wallet, signers []string) []byte {
 }
 
 func (sys *System) Close() {
+	if sys.l2OutputSubmitter != nil {
+		sys.l2OutputSubmitter.Stop()
+	}
+	if sys.batchSubmitter != nil {
+		sys.batchSubmitter.Stop()
+	}
+	if sys.sequencerHistoryDBFileName != "" {
+		_ = os.Remove(sys.sequencerHistoryDBFileName)
+	}
+
 	for _, node := range sys.rollupNodes {
 		node.Stop()
 	}
@@ -205,6 +223,7 @@ func (cfg SystemConfig) start() (*System, error) {
 	}
 
 	l2Alloc[cfg.L1InfoPredeployAddress] = core.GenesisAccount{Code: common.FromHex(l1block.L1blockDeployedBin), Balance: common.Big0}
+	l2Alloc[predeploy.WithdrawalContractAddress] = core.GenesisAccount{Code: []byte{}, Balance: common.Big0}
 
 	genesisTimestamp := uint64(time.Now().Unix())
 
@@ -457,6 +476,71 @@ func (cfg SystemConfig) start() (*System, error) {
 		}
 		sys.rollupNodes[name] = node
 
+	}
+
+	rollupEndpoint := fmt.Sprintf(
+		"http://%s:%d",
+		sys.cfg.Nodes["sequencer"].RPC.ListenAddr,
+		sys.cfg.Nodes["sequencer"].RPC.ListenPort,
+	)
+
+	// L2Output Submitter
+	sys.l2OutputSubmitter, err = l2os.NewL2OutputSubmitter(l2os.Config{
+		L1EthRpc:                  "ws://127.0.0.1:9090",
+		L2EthRpc:                  sys.cfg.Nodes["sequencer"].L2NodeAddr,
+		RollupRpc:                 rollupEndpoint,
+		L2OOAddress:               sys.L2OOContractAddr.String(),
+		PollInterval:              50 * time.Millisecond,
+		NumConfirmations:          1,
+		ResubmissionTimeout:       3 * time.Second,
+		SafeAbortNonceTooLowCount: 3,
+		LogLevel:                  "info",
+		LogTerminal:               true,
+		Mnemonic:                  sys.cfg.Mnemonic,
+		L2OutputHDPath:            sys.cfg.L2OutputHDPath,
+	}, "", log.New())
+	if err != nil {
+		return nil, fmt.Errorf("unable to setup l2 output submitter: %w", err)
+	}
+
+	if err := sys.l2OutputSubmitter.Start(); err != nil {
+		return nil, fmt.Errorf("unable to start l2 output submitter: %w", err)
+	}
+
+	sequencerHistoryDBFile, err := ioutil.TempFile("", "bss.*.json")
+	if err != nil {
+		return nil, fmt.Errorf("unable to create sequencer history db file: %w", err)
+	}
+	sys.sequencerHistoryDBFileName = sequencerHistoryDBFile.Name()
+	if err = sequencerHistoryDBFile.Close(); err != nil {
+		return nil, fmt.Errorf("unable to close sequencer history db file: %w", err)
+	}
+
+	// Batch Submitter
+	sys.batchSubmitter, err = bss.NewBatchSubmitter(bss.Config{
+		L1EthRpc:                   "ws://127.0.0.1:9090",
+		L2EthRpc:                   sys.cfg.Nodes["sequencer"].L2NodeAddr,
+		RollupRpc:                  rollupEndpoint,
+		MinL1TxSize:                1,
+		MaxL1TxSize:                120000,
+		PollInterval:               50 * time.Millisecond,
+		NumConfirmations:           1,
+		ResubmissionTimeout:        5 * time.Second,
+		SafeAbortNonceTooLowCount:  3,
+		LogLevel:                   "info",
+		LogTerminal:                true,
+		Mnemonic:                   sys.cfg.Mnemonic,
+		SequencerHDPath:            sys.cfg.BatchSubmitterHDPath,
+		SequencerHistoryDBFilename: sys.sequencerHistoryDBFileName,
+		SequencerGenesisHash:       sys.RolupGenesis.L2.Hash.String(),
+		SequencerBatchInboxAddress: sys.cfg.RollupConfig.BatchInboxAddress.String(),
+	}, "", log.New())
+	if err != nil {
+		return nil, fmt.Errorf("failed to setup batch submitter: %w", err)
+	}
+
+	if err := sys.batchSubmitter.Start(); err != nil {
+		return nil, fmt.Errorf("unable to start batch submitter: %w", err)
 	}
 
 	return sys, nil
