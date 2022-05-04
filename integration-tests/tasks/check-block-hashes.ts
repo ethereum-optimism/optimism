@@ -14,22 +14,22 @@ task(
     const providerA = new providers.JsonRpcProvider(replicaA)
     const providerB = new providers.JsonRpcProvider(replicaB)
 
-    let netA
-    let netB
+    let chainIdA
+    let chainIdB
     try {
-      netA = await getChainId(providerA)
+      chainIdA = await getChainId(providerA)
     } catch (e) {
-      console.error(`Error getting network from ${replicaA}:`)
+      console.error(`Error getting network chainId from ${replicaA}:`)
       die(e)
     }
     try {
-      netB = await getChainId(providerB)
+      chainIdB = await getChainId(providerB)
     } catch (e) {
-      console.error(`Error getting network from ${replicaB}:`)
+      console.error(`Error getting network chainId from ${replicaB}:`)
       die(e)
     }
 
-    if (netA.chainId !== netB.chainId) {
+    if (chainIdA !== chainIdB) {
       die('Chain IDs do not match')
       return
     }
