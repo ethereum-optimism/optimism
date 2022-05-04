@@ -66,10 +66,10 @@ test_contracts:
 test: test_challenge test_mipsevm test_minigeth
 
 clean:
-	rm minigeth/go-ethereum
-	rm mipigo/minigeth
-	rm mipigo/minigeth.bin
-	rm mipsevm/mipsevm
+	rm -f minigeth/go-ethereum
+	rm -f mipigo/minigeth
+	rm -f mipigo/minigeth.bin
+	rm -f mipsevm/mipsevm
 	rm -rf artifacts
 
 mrproper: clean
