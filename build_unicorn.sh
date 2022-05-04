@@ -1,16 +1,15 @@
-#!/usr/bin/env bash
-if [[ ! -d unicorn2 ]]; then
-    git clone https://github.com/geohot/unicorn.git -b dev unicorn2
-    #git clone https://github.com/unicorn-engine/unicorn.git -b dev unicorn2
-fi
-
-cd unicorn2
-cmake . -DUNICORN_ARCH=mips -DCMAKE_BUILD_TYPE=Release
-#cmake . -DUNICORN_ARCH=mips -DCMAKE_BUILD_TYPE=Debug
+cd unicorn
+mkdir -p build
+cd build
+cmake .. -DUNICORN_ARCH=mips -DCMAKE_BUILD_TYPE=Release
 make -j8
+
+# The Go linker / runtime expects these to be there!
+cp libunicorn.so.1 ..
+cp libunicorn.so.2 ..
 
 # export LIBUNICORN_PATH for Github CI
 # TODO: is this actually needed?
 if [[ ! -z "$GITHUB_ENV" ]]; then
-    echo "LIBUNICORN_PATH=$(pwd)/unicorn2/" >> $GITHUB_ENV
+    echo "LIBUNICORN_PATH=$(pwd)/unicorn/" >> $GITHUB_ENV
 fi

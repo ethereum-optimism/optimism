@@ -1,11 +1,11 @@
 SHELL := /bin/bash
 
-build: unicorn submodule minigeth_mips minigeth_default_arch mipsevm contracts
+build: submodules unicorn minigeth_mips minigeth_default_arch mipsevm contracts
 
 unicorn:
 	./build_unicorn.sh
 
-submodule:
+submodules:
 	# CI will checkout submodules on its own (and fails on these commands)
 	if [[ -z "$$GITHUB_ENV" ]]; then \
 		git submodule init; \
@@ -31,10 +31,15 @@ nodejs:
 		npm install; \
 	fi
 
+# Must be a definition and not a rule, otherwise it gets only called once and
+# not before each test as we wish.
 define clear_cache
 	rm -rf /tmp/cannon
 	mkdir -p /tmp/cannon
 endef
+
+clear_cache:
+	$(call clear_cache)
 
 test_challenge:
 	$(call clear_cache)
@@ -82,5 +87,5 @@ mrproper: clean
 	rm -rf node_modules
 	rm -rf mipigo/venv
 
-.PHONY: build unicorn submodule minigeth_mips minigeth_default_arch mipsevm contracts \
-	nodejs clean mrproper test_challenge test_mipsevm test_minigeth test
+.PHONY: build unicorn submodules minigeth_mips minigeth_default_arch mipsevm contracts \
+	nodejs clean mrproper test_challenge test_mipsevm test_minigeth test clear_cache

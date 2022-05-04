@@ -4,7 +4,7 @@ go 1.17
 
 replace github.com/ethereum/go-ethereum => ../minigeth
 
-replace github.com/unicorn-engine/unicorn => ../unicorn2
+replace github.com/unicorn-engine/unicorn => ../unicorn
 
 require (
 	github.com/ethereum/go-ethereum v1.10.8
