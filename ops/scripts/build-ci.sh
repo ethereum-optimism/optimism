@@ -15,7 +15,7 @@ function build() {
 }
 
 mkdir -p /tmp/.buildx-cache-new
-build l2geth "ethereumoptimism/l2geth:latest" "./ops/docker/Dockerfile.geth" .
+build l2geth "ethereumoptimism/l2geth:latest" "./l2geth/Dockerfile" .
 build l1chain "ethereumoptimism/hardhat:latest" "./ops/docker/hardhat/Dockerfile" ./ops/docker/hardhat
 
 wait
