@@ -1,13 +1,13 @@
 {
   "dependencies": {
-    "@nomiclabs/hardhat-ethers": "^2.0.2",
-    "@types/node": "^16.9.2",
-    "chai": "^4.3.4",
-    "ethereum-waffle": "^3.4.0",
-    "ethers": "^5.4.7",
-    "hardhat": "^2.6.4",
-    "hardhat-gas-reporter": "^1.0.4",
-    "rlp": "^2.2.6",
-    "typescript": "^4.4.3"
+    "@nomiclabs/hardhat-ethers": "^2.0.5",
+    "@types/node": "^17.0.31",
+    "chai": "^4.3.6",
+    "ethereum-waffle": "^3.4.4",
+    "ethers": "5.6.1",
+    "hardhat": "^2.6.5",
+    "hardhat-gas-reporter": "^1.0.8",
+    "rlp": "^3.0.0",
+    "typescript": "^4.6.4"
   }
 }
