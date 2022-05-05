@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.23
+
+### Patch Changes
+
+- 412688d5: Replace calls to getNetwork() with getChainId util
+
 ## 0.5.22
 
 ### Patch Changes

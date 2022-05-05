@@ -1,5 +1,11 @@
 # @eth-optimism/teleportr
 
+## 0.0.5
+
+### Patch Changes
+
+- 44c293d8: Fix confs_remaining calculation to prevent underflow
+
 ## 0.0.4
 
 ### Patch Changes
