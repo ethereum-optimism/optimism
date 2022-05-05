@@ -478,8 +478,8 @@ func (s *Server) HandleTrack(
 
 	var confsRemaining uint64
 	if teleport.Deposit.BlockNumber+s.numConfirmations > blockNumber+1 {
-		confsRemaining = blockNumber + 1 -
-			(teleport.Deposit.BlockNumber + s.numConfirmations)
+		confsRemaining = teleport.Deposit.BlockNumber + s.numConfirmations -
+			(blockNumber + 1)
 	}
 
 	resp := TrackResponse{
