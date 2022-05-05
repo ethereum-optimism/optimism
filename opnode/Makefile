@@ -19,8 +19,15 @@ test:
 lint:
 	golangci-lint run -E asciicheck,goimports,misspell ./...
 
+fuzz:
+	go test -run NOTAREALTEST -v -fuzztime 10s -fuzz FuzzL1InfoRoundTrip ./rollup/derive
+	go test -run NOTAREALTEST -v -fuzztime 10s -fuzz FuzzL1InfoAgainstContract ./rollup/derive
+	go test -run NOTAREALTEST -v -fuzztime 10s -fuzz FuzzUnmarshallLogEvent ./rollup/derive
+
+
 .PHONY: \
 	bss \
 	clean \
 	test \
-	lint
+	lint \
+	fuzz
