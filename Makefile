@@ -1,7 +1,15 @@
 SHELL := /bin/bash
 
-build: submodules unicorn minigeth_mips minigeth_default_arch mipsevm contracts
+build: submodules unicorn minigeth_mips minigeth_prefetch mipsevm contracts
 .PHONY: build
+
+submodules:
+	# CI will checkout submodules on its own (and fails on these commands)
+	if [[ -z "$$GITHUB_ENV" ]]; then \
+		git submodule init; \
+		git submodule update; \
+	fi
+.PHONY: submodules
 
 # Approximation, use `make unicorn_rebuild` to force.
 unicorn/build: unicorn/CMakeLists.txt
@@ -20,21 +28,13 @@ unicorn_rebuild:
 	make unicorn
 .PHONY: unicorn_rebuild
 
-submodules:
-	# CI will checkout submodules on its own (and fails on these commands)
-	if [[ -z "$$GITHUB_ENV" ]]; then \
-		git submodule init; \
-		git submodule update; \
-	fi
-.PHONY: submodules
-
 minigeth_mips:
 	cd mipigo && ./build.sh
 .PHONY: minigeth_mips
 
-minigeth_default_arch:
+minigeth_prefetch:
 	cd minigeth && go build
-.PHONY: minigeth_default_arch
+.PHONY: minigeth_prefetch
 
 mipsevm:
 	cd mipsevm && go build
