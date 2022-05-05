@@ -11,8 +11,10 @@ components:
       properties:
         blockNumber:
           type: integer
+          format: "int64"
         timestamp:
           type: integer
+          format: "int64"
         blockHash:
           type: string
     EnqueueEntry:
@@ -179,8 +181,10 @@ paths:
                     type: boolean
                   currentTransactionIndex:
                     type: integer
+                    format: "int64"
                   highestKnownTransactionIndex:
                     type: integer
+                    format: "int64"
 
   /eth/context/latest:
     get:
