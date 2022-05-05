@@ -30,7 +30,7 @@ images:
     newTag: 0.3.3
   - name: ethereumoptimism/replica-healthcheck-v1
     newName: ethereumoptimism/replica-healthcheck
-    newTag: 1.0.4
+    newTag: 1.0.6
 
 patchesStrategicMerge:
   - ./patches/dtl.yaml
