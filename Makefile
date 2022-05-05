@@ -1,6 +1,6 @@
 SHELL := /bin/bash
 
-build: submodules unicorn minigeth_mips minigeth_prefetch mipsevm contracts
+build: submodules libunicorn minigeth_mips minigeth_prefetch mipsevm contracts
 .PHONY: build
 
 submodules:
@@ -11,22 +11,28 @@ submodules:
 	fi
 .PHONY: submodules
 
-# Approximation, use `make unicorn_rebuild` to force.
+# Approximation, use `make libunicorn_rebuild` to force.
 unicorn/build: unicorn/CMakeLists.txt
 	mkdir -p unicorn/build
 	cd unicorn/build && cmake .. -DUNICORN_ARCH=mips -DCMAKE_BUILD_TYPE=Release
 
-unicorn: unicorn/build
+# Rebuild whenever anything in the directory changes.
+unicorn/build/libunicorn.so.1 unicorn/build/libunicorn.so.2: unicorn/build unicorn
 	cd unicorn/build && make -j8
 	# The Go linker / runtime expects these to be there!
-	cp unicorn/build/libunicorn.so.1 unicorn
 	cp unicorn/build/libunicorn.so.2 unicorn
-.PHONY: unicorn
+	cp unicorn/build/libunicorn.so.1 unicorn
+	# Update timestamp to make them more recent than the directory
+	touch unicorn/build/libunicorn.so.1
+	touch unicorn/build/libunicorn.so.2
 
-unicorn_rebuild:
+libunicorn: unicorn/build/libunicorn.so.1 unicorn/build/libunicorn.so.2
+.PHONY: libunicorn
+
+libunicorn_rebuild:
 	touch unicorn/CMakeLists.txt
-	make unicorn
-.PHONY: unicorn_rebuild
+	make libunicorn
+.PHONY: libunicorn_rebuild
 
 minigeth_mips:
 	cd mipigo && ./build.sh
@@ -108,10 +114,12 @@ clean:
 	rm -f mipigo/minigeth.bin
 	rm -f mipsevm/mipsevm
 	rm -rf artifacts
+	rm -r
 .PHONY: clean
 
 mrproper: clean
 	rm -rf cache
 	rm -rf node_modules
 	rm -rf mipigo/venv
+	rm -rf unicorn/build
 .PHONY:  mrproper
