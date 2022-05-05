@@ -17,16 +17,16 @@ unicorn/build: unicorn/CMakeLists.txt
 	cd unicorn/build && cmake .. -DUNICORN_ARCH=mips -DCMAKE_BUILD_TYPE=Release
 
 # Rebuild whenever anything in the directory changes.
-unicorn/build/libunicorn.so.1 unicorn/build/libunicorn.so.2: unicorn/build unicorn
+unicorn/build/libunicorn.so unicorn/build/libunicorn.so.1: unicorn/build unicorn
 	cd unicorn/build && make -j8
 	# The Go linker / runtime expects these to be there!
-	cp unicorn/build/libunicorn.so.2 unicorn
 	cp unicorn/build/libunicorn.so.1 unicorn
-	# Update timestamp to make them more recent than the directory
+	cp unicorn/build/libunicorn.so unicorn
+	# Update timestamp to make it more recent than the directory
 	touch unicorn/build/libunicorn.so.1
-	touch unicorn/build/libunicorn.so.2
+	touch unicorn/build/libunicorn.so
 
-libunicorn: unicorn/build/libunicorn.so.1 unicorn/build/libunicorn.so.2
+libunicorn: unicorn/build/libunicorn.so unicorn/build/libunicorn.so.1
 .PHONY: libunicorn
 
 libunicorn_rebuild:
