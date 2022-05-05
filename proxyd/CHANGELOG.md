@@ -1,5 +1,11 @@
 # @eth-optimism/proxyd
 
+## 3.8.6
+
+### Patch Changes
+
+- d79d40c4: proxyd: Proxy requests using batch JSON-RPC
+
 ## 3.8.5
 
 ### Patch Changes
