@@ -207,6 +207,7 @@ paths:
           name: number
           schema:
             type: integer
+            format: "int64"
           required: true
       summary: Returns the Ethereum Layer one context at a specific height
       description: |
@@ -240,6 +241,7 @@ paths:
           name: index
           schema:
             type: integer
+            format: "int64"
           required: true
       summary: Returns the enqueued transaction by index
       description: |
@@ -273,6 +275,7 @@ paths:
           name: index
           schema:
             type: integer
+            format: "int64"
           required: true
       summary: Returns a Canonical Transaction Chain transaction by index
       description: |
@@ -307,6 +310,7 @@ paths:
           name: index
           schema:
             type: integer
+            format: "int64"
           required: true
       summary: Returns the Batch to be appended to the Canonical Transaction Chain by index
       description: |
@@ -340,6 +344,7 @@ paths:
           name: index
           schema:
             type: integer
+            format: "int64"
           required: true
       summary: Returns the state root by index
       description: |
@@ -373,6 +378,7 @@ paths:
           name: index
           schema:
             type: integer
+            format: "int64"
           required: true
       description: |
         This returns a state root batch appended to the State Commitment Chain by index
