@@ -124,7 +124,7 @@ type Source struct {
 
 func NewSource(client RPCClient, log log.Logger, config *SourceConfig) (*Source, error) {
 	if err := config.Check(); err != nil {
-		return nil, fmt.Errorf("bad config, cannot create L1 source: %v", err)
+		return nil, fmt.Errorf("bad config, cannot create L1 source: %w", err)
 	}
 	// no errors if the size is positive, as already validated by Check() above.
 	receiptsCache, _ := lru.New(config.ReceiptsCacheSize)
@@ -277,7 +277,7 @@ func (s *Source) FetchAllTransactions(ctx context.Context, window []eth.BlockID)
 		if blockRequests[i].Error == nil {
 			info, txs, err := blockRequests[i].Result.(*rpcBlock).Info(s.trustRPC)
 			if err != nil {
-				return nil, fmt.Errorf("bad block data for block %s: %v", blockRequests[i].Args[0], err)
+				return nil, fmt.Errorf("bad block data for block %s: %w", blockRequests[i].Args[0], err)
 			}
 			s.headersCache.Add(info.hash, info)
 			s.transactionsCache.Add(info.hash, txs)
@@ -287,7 +287,7 @@ func (s *Source) FetchAllTransactions(ctx context.Context, window []eth.BlockID)
 
 	for i := 0; i < len(blockRequests); i++ {
 		if blockRequests[i].Error != nil {
-			return nil, fmt.Errorf("failed to retrieve transactions of block %s in batch of %d blocks: %v", window[i], len(blockRequests), blockRequests[i].Error)
+			return nil, fmt.Errorf("failed to retrieve transactions of block %s in batch of %d blocks: %w", window[i], len(blockRequests), blockRequests[i].Error)
 		}
 	}
 
@@ -297,7 +297,7 @@ func (s *Source) FetchAllTransactions(ctx context.Context, window []eth.BlockID)
 func (s *Source) L1HeadBlockRef(ctx context.Context) (eth.L1BlockRef, error) {
 	head, err := s.InfoHead(ctx)
 	if err != nil {
-		return eth.L1BlockRef{}, fmt.Errorf("failed to fetch head header: %v", err)
+		return eth.L1BlockRef{}, fmt.Errorf("failed to fetch head header: %w", err)
 	}
 	return head.BlockRef(), nil
 }
@@ -305,7 +305,7 @@ func (s *Source) L1HeadBlockRef(ctx context.Context) (eth.L1BlockRef, error) {
 func (s *Source) L1BlockRefByNumber(ctx context.Context, l1Num uint64) (eth.L1BlockRef, error) {
 	head, err := s.InfoByNumber(ctx, l1Num)
 	if err != nil {
-		return eth.L1BlockRef{}, fmt.Errorf("failed to fetch header by num %d: %v", l1Num, err)
+		return eth.L1BlockRef{}, fmt.Errorf("failed to fetch header by num %d: %w", l1Num, err)
 	}
 	return head.BlockRef(), nil
 }
@@ -345,7 +345,7 @@ func (s *Source) L1Range(ctx context.Context, begin eth.BlockID, max uint64) ([]
 			}
 			info, err := result.Info(s.trustRPC)
 			if err != nil {
-				return nil, fmt.Errorf("bad header data for block %s: %v", headerRequests[i].Args[0], err)
+				return nil, fmt.Errorf("bad header data for block %s: %w", headerRequests[i].Args[0], err)
 			}
 			s.headersCache.Add(info.hash, info)
 			out = append(out, info.ID())
@@ -359,7 +359,7 @@ func (s *Source) L1Range(ctx context.Context, begin eth.BlockID, max uint64) ([]
 		} else if errors.Is(headerRequests[i].Error, ethereum.NotFound) {
 			break // no more headers from here
 		} else {
-			return nil, fmt.Errorf("failed to retrieve block: %s: %v", headerRequests[i].Args[0], headerRequests[i].Error)
+			return nil, fmt.Errorf("failed to retrieve block: %s: %w", headerRequests[i].Args[0], headerRequests[i].Error)
 		}
 	}
 	return out, nil

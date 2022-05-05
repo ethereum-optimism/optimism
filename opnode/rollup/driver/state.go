@@ -2,12 +2,9 @@ package driver
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	gosync "sync"
 	"time"
-
-	"github.com/ethereum/go-ethereum"
 
 	"github.com/ethereum-optimism/optimistic-specs/opnode/eth"
 	"github.com/ethereum-optimism/optimistic-specs/opnode/l2"
@@ -183,7 +180,8 @@ func (s *state) findL1Origin(ctx context.Context) (eth.L1BlockRef, error) {
 	// Attempt to find the next L1 origin block, where the next origin is the immediate child of
 	// the current origin block.
 	nextOrigin, err := s.l1.L1BlockRefByNumber(ctx, currentOrigin.Number+1)
-	if errors.Is(err, ethereum.NotFound) {
+	if err != nil {
+		s.log.Error("Failed to get next origin. Falling back to current origin", "err", err)
 		return currentOrigin, nil
 	}
 
