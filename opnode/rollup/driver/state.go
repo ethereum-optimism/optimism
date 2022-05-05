@@ -352,7 +352,8 @@ func (s *state) loop() {
 			// TODO: If we want to consider confirmations, need to consider here too.
 			if s.l1Head.Number > s.l2Head.L1Origin.Number {
 				s.log.Trace("Asking for a second L2 block asap", "l2Head", s.l2Head)
-				reqL2BlockCreation()
+				// But not too quickly to minimize busy-waiting for new blocks
+				time.AfterFunc(time.Millisecond*10, reqL2BlockCreation)
 			}
 
 		case newL1Head := <-s.l1Heads:
