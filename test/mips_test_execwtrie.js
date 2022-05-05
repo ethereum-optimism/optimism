@@ -33,7 +33,7 @@ describe("MIPS contract", function () {
       }
       console.log(i, root)
     }
-  });
+  }).timeout(40_000);
 
   it("oracle should work", async function () {
     let root = await addPreimages(mm, trieOracle)
@@ -58,6 +58,6 @@ describe("MIPS contract", function () {
     }
     expect(out1).to.equal(1)
     expect(out2).to.equal(1)
-  }).timeout(120000);
+  }).timeout(200_000);
 
 });

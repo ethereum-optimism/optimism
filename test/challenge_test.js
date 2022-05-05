@@ -48,5 +48,5 @@ describe("Challenge contract", function () {
 
     // the real issue here is from step 0->1 when we write the input hash
     // TODO: prove the challenger wrong?
-  }).timeout(120000)
+  }).timeout(200_000)
 })
