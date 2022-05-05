@@ -1,0 +1,20 @@
+[server]
+rpc_port = 8545
+timeout_seconds = 1
+max_upstream_batch_size = 1
+
+[backend]
+response_timeout_seconds = 1
+max_retries = 3
+
+[backends]
+[backends.slow]
+rpc_url = "$SLOW_BACKEND_RPC_URL"
+ws_url = "$SLOW_BACKEND_RPC_URL"
+
+[backend_groups]
+[backend_groups.main]
+backends = ["slow"]
+
+[rpc_method_mappings]
+eth_chainId = "main"

@@ -1,5 +1,6 @@
 import { task } from 'hardhat/config'
 import { providers } from 'ethers'
+import { getChainId } from '@eth-optimism/core-utils'
 
 import { die, logStderr } from '../test/shared/utils'
 
@@ -13,22 +14,22 @@ task(
     const providerA = new providers.JsonRpcProvider(replicaA)
     const providerB = new providers.JsonRpcProvider(replicaB)
 
-    let netA
-    let netB
+    let chainIdA
+    let chainIdB
     try {
-      netA = await providerA.getNetwork()
+      chainIdA = await getChainId(providerA)
     } catch (e) {
-      console.error(`Error getting network from ${replicaA}:`)
+      console.error(`Error getting network chainId from ${replicaA}:`)
       die(e)
     }
     try {
-      netB = await providerA.getNetwork()
+      chainIdB = await getChainId(providerB)
     } catch (e) {
-      console.error(`Error getting network from ${replicaB}:`)
+      console.error(`Error getting network chainId from ${replicaB}:`)
       die(e)
     }
 
-    if (netA.chainId !== netB.chainId) {
+    if (chainIdA !== chainIdB) {
       die('Chain IDs do not match')
       return
     }
