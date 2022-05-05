@@ -2,8 +2,20 @@ SHELL := /bin/bash
 
 build: submodules unicorn minigeth_mips minigeth_default_arch mipsevm contracts
 
-unicorn:
-	./build_unicorn.sh
+# Approximation, use `make unicorn_rebuild` to force.
+unicorn/build: unicorn/CMakeLists.txt
+	mkdir -p unicorn/build
+	cd unicorn/build && cmake .. -DUNICORN_ARCH=mips -DCMAKE_BUILD_TYPE=Release
+
+unicorn: unicorn/build
+	cd unicorn/build && make -j8
+	# The Go linker / runtime expects these to be there!
+	cp unicorn/build/libunicorn.so.1 unicorn
+	cp unicorn/build/libunicorn.so.2 unicorn
+
+unicorn_rebuild:
+	touch unicorn/CMakeLists.txt
+	make unicorn
 
 submodules:
 	# CI will checkout submodules on its own (and fails on these commands)
@@ -88,4 +100,5 @@ mrproper: clean
 	rm -rf mipigo/venv
 
 .PHONY: build unicorn submodules minigeth_mips minigeth_default_arch mipsevm contracts \
-	nodejs clean mrproper test_challenge test_mipsevm test_minigeth test clear_cache
+	nodejs clean mrproper test_challenge test_mipsevm test_minigeth test
+	clear_cache unicorn_rebuild
