@@ -12,7 +12,8 @@ jobs:
     - name: Install Toolchain (Node and Make)
       run: |
         sudo apt-get update
-        sudo apt-get -y --no-install-recommends install nodejs npm make
+        sudo apt-get -y --no-install-recommends install nodejs make
+        npm install --global pnpm
     - name: Install Dependencies
       run: make nodejs
     - name: Hardhat Test

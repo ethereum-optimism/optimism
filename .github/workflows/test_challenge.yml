@@ -14,7 +14,8 @@ jobs:
     - name: Install Toolchain (Go, Node.js and Make)
       run: |
         sudo apt-get update
-        sudo apt-get -y --no-install-recommends install golang-1.16 nodejs npm make
+        sudo apt-get -y --no-install-recommends install golang-1.16 nodejs make
+        npm install --global pnpm
     - name: Build
       run: make libunicorn minigeth_mips minigeth_prefetch mipsevm nodejs
     - name: Run test challenge
