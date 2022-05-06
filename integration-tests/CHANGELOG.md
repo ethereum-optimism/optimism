@@ -1,5 +1,23 @@
 # @eth-optimism/integration-tests
 
+## 0.5.13
+
+### Patch Changes
+
+- 412688d5: Replace calls to getNetwork() with getChainId util
+
+## 0.5.12
+
+### Patch Changes
+
+- 53fac1df: Facilitate actor testing on nightly
+
+## 0.5.11
+
+### Patch Changes
+
+- 36a91c30: Fix various actor tests
+
 ## 0.5.10
 
 ### Patch Changes

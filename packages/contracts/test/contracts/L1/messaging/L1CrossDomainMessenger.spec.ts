@@ -34,7 +34,7 @@ describe('L1CrossDomainMessenger', () => {
   let Fake__L2CrossDomainMessenger: FakeContract
   let Fake__StateCommitmentChain: FakeContract
   before(async () => {
-    Fake__TargetContract = await smock.fake<Contract>('Helper_SimpleProxy')
+    Fake__TargetContract = await smock.fake<Contract>('TestERC20')
     Fake__L2CrossDomainMessenger = await smock.fake<Contract>(
       'L2CrossDomainMessenger',
       {
@@ -403,20 +403,18 @@ describe('L1CrossDomainMessenger', () => {
     let calldata: string
     before(async () => {
       target = Fake__TargetContract.address
-      message = Fake__TargetContract.interface.encodeFunctionData('setTarget', [
+      message = Fake__TargetContract.interface.encodeFunctionData('mint', [
         NON_ZERO_ADDRESS,
+        ethers.utils.parseEther('1'),
       ])
-
-      const mockProof = await generateMockRelayMessageProof(
+      ;({ proof, calldata } = await generateMockRelayMessageProof(
         target,
         signer1.address,
         message
-      )
-      proof = mockProof.proof
-      calldata = mockProof.calldata
+      ))
     })
 
-    beforeEach(async () => {
+    beforeEach(() => {
       Fake__StateCommitmentChain.verifyStateCommitment.returns(true)
       Fake__StateCommitmentChain.insideFraudProofWindow.returns(false)
     })

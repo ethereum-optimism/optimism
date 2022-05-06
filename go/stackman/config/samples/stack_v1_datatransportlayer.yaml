@@ -1,6 +1,0 @@
-apiVersion: stack.optimism-stacks.net/v1
-kind: DataTransportLayer
-metadata:
-  name: datatransportlayer-sample
-spec:
-  # Add fields here

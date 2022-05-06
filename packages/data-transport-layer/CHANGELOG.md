@@ -1,5 +1,24 @@
 # data transport layer
 
+## 0.5.29
+
+### Patch Changes
+
+- 412688d5: Replace calls to getNetwork() with getChainId util
+- Updated dependencies [412688d5]
+  - @eth-optimism/contracts@0.5.23
+
+## 0.5.28
+
+### Patch Changes
+
+- Updated dependencies [51adb389]
+- Updated dependencies [5cb3a5f7]
+- Updated dependencies [6b9fc055]
+  - @eth-optimism/contracts@0.5.22
+  - @eth-optimism/core-utils@0.8.4
+  - @eth-optimism/common-ts@0.2.7
+
 ## 0.5.27
 
 ### Patch Changes

@@ -113,7 +113,7 @@ jobs:
         uses: docker/build-push-action@v2
         with:
           context: .
-          file: ./ops/docker/Dockerfile.geth
+          file: ./l2geth/Dockerfile
           push: true
           tags: ethereumoptimism/l2geth:${{ needs.canary-publish.outputs.canary-docker-tag }}
 
@@ -139,7 +139,7 @@ jobs:
         uses: docker/build-push-action@v2
         with:
           context: .
-          file: ./ops/docker/Dockerfile.gas-oracle
+          file: ./gas-oracle/Dockerfile
           push: true
           tags: ethereumoptimism/gas-oracle:${{ needs.canary-publish.outputs.canary-docker-tag }}
 
@@ -326,14 +326,14 @@ jobs:
         id: build_args
         run: |
           echo ::set-output name=GITDATE::"$(date +%d-%m-%Y)"
-          echo ::set-output name=GITVERSION::$(jq -r .version ./go/proxyd/package.json)
+          echo ::set-output name=GITVERSION::$(jq -r .version ./proxyd/package.json)
           echo ::set-output name=GITCOMMIT::"$GITHUB_SHA"
 
       - name: Build and push
         uses: docker/build-push-action@v2
         with:
           context: .
-          file: ./go/proxyd/Dockerfile
+          file: ./proxyd/Dockerfile
           push: true
           tags: ethereumoptimism/proxyd:${{ needs.canary-publish.outputs.proxyd }}
           build-args: |
@@ -363,14 +363,14 @@ jobs:
         id: build_args
         run: |
           echo ::set-output name=GITDATE::"$(date +%d-%m-%Y)"
-          echo ::set-output name=GITVERSION::$(jq -r .version ./go/op-exporter/package.json)
+          echo ::set-output name=GITVERSION::$(jq -r .version ./op-exporter/package.json)
           echo ::set-output name=GITCOMMIT::"$GITHUB_SHA"
 
       - name: Build and push
         uses: docker/build-push-action@v2
         with:
           context: .
-          file: ./ops/docker/Dockerfile.op-exporter
+          file: ./op-exporter/Dockerfile=
           push: true
           tags: ethereumoptimism/op-exporter:${{ needs.canary-publish.outputs.op-exporter }}
           build-args: |
@@ -400,14 +400,14 @@ jobs:
         id: build_args
         run: |
           echo ::set-output name=GITDATE::"$(date +%d-%m-%Y)"
-          echo ::set-output name=GITVERSION::$(jq -r .version ./go/l2geth-exporter/package.json)
+          echo ::set-output name=GITVERSION::$(jq -r .version ./l2geth-exporter/package.json)
           echo ::set-output name=GITCOMMIT::"$GITHUB_SHA"
 
       - name: Build and push
         uses: docker/build-push-action@v2
         with:
           context: .
-          file: ./ops/docker/Dockerfile.l2geth-exporter
+          file: ./l2geth-exporter/Dockerfile
           push: true
           tags: ethereumoptimism/l2geth-exporter:${{ needs.canary-publish.outputs.l2geth-exporter }}
           build-args: |
@@ -437,7 +437,7 @@ jobs:
         uses: docker/build-push-action@v2
         with:
           context: .
-          file: ./ops/docker/Dockerfile.batch-submitter-service
+          file: ./batch-submitter/Dockerfile
           push: true
           tags: ethereumoptimism/batch-submitter-service:${{ needs.canary-publish.outputs.batch-submitter-service }}
 
@@ -463,14 +463,14 @@ jobs:
         id: build_args
         run: |
           echo ::set-output name=GITDATE::"$(date +%d-%m-%Y)"
-          echo ::set-output name=GITVERSION::$(jq -r .version ./go/indexer/package.json)
+          echo ::set-output name=GITVERSION::$(jq -r .version ./indexer/package.json)
           echo ::set-output name=GITCOMMIT::"$GITHUB_SHA"
 
       - name: Build and push
         uses: docker/build-push-action@v2
         with:
           context: .
-          file: ./ops/docker/Dockerfile.indexer
+          file: ./indexer/Dockerfile
           push: true
           tags: ethereumoptimism/indexer:${{ needs.canary-publish.outputs.indexer }}
           build-args: |
@@ -500,14 +500,14 @@ jobs:
         id: build_args
         run: |
           echo ::set-output name=GITDATE::"$(date +%d-%m-%Y)"
-          echo ::set-output name=GITVERSION::$(jq -r .version ./go/teleportr/package.json)
+          echo ::set-output name=GITVERSION::$(jq -r .version ./teleportr/package.json)
           echo ::set-output name=GITCOMMIT::"$GITHUB_SHA"
 
       - name: Build and push
         uses: docker/build-push-action@v2
         with:
           context: .
-          file: ./ops/docker/Dockerfile.teleportr
+          file: ./teleportr/Dockerfile
           push: true
           tags: ethereumoptimism/teleportr:${{ needs.canary-publish.outputs.teleportr }}
           build-args: |
