@@ -436,7 +436,7 @@ func (d *Driver) processPendingTxs(ctx context.Context) error {
 	d.metrics.SuccessfulDisbursements.Add(float64(successfulDisbursements))
 	d.metrics.FailedDisbursements.Add(float64(failedDisbursements))
 	d.metrics.FailedDatabaseMethods.With(DBMethodUpsertDisbursement).
-		Inc()
+		Add(float64(failedUpserts))
 
 	// We have completed our post-processing once all of the disbursements are
 	// written without failures.
