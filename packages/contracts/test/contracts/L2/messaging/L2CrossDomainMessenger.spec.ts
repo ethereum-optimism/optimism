@@ -24,7 +24,7 @@ describe('L2CrossDomainMessenger', () => {
   let Fake__L1CrossDomainMessenger: FakeContract
   let Fake__OVM_L2ToL1MessagePasser: FakeContract
   before(async () => {
-    Fake__TargetContract = await smock.fake<Contract>('Helper_SimpleProxy')
+    Fake__TargetContract = await smock.fake<Contract>('TestERC20')
     Fake__L1CrossDomainMessenger = await smock.fake<Contract>(
       'L1CrossDomainMessenger'
     )
@@ -45,6 +45,7 @@ describe('L2CrossDomainMessenger', () => {
   let L2CrossDomainMessenger: Contract
   beforeEach(async () => {
     L2CrossDomainMessenger = await deploy('L2CrossDomainMessenger', {
+      signer: impersonatedL1CrossDomainMessengerSender,
       args: [Fake__L1CrossDomainMessenger.address],
     })
   })
@@ -72,7 +73,7 @@ describe('L2CrossDomainMessenger', () => {
   describe('sendMessage', () => {
     it('should be able to send a single message', async () => {
       await expect(
-        L2CrossDomainMessenger.sendMessage(
+        L2CrossDomainMessenger.connect(signer).sendMessage(
           NON_ZERO_ADDRESS,
           NON_NULL_BYTES32,
           100_000
@@ -84,7 +85,7 @@ describe('L2CrossDomainMessenger', () => {
       ).to.deep.equal(
         encodeXDomainCalldata(
           NON_ZERO_ADDRESS,
-          await signer.getAddress(),
+          signer.address,
           NON_NULL_BYTES32,
           0
         )
@@ -92,14 +93,14 @@ describe('L2CrossDomainMessenger', () => {
     })
 
     it('should be able to send the same message twice', async () => {
-      await L2CrossDomainMessenger.sendMessage(
+      await L2CrossDomainMessenger.connect(signer).sendMessage(
         NON_ZERO_ADDRESS,
         NON_NULL_BYTES32,
         100_000
       )
 
       await expect(
-        L2CrossDomainMessenger.sendMessage(
+        L2CrossDomainMessenger.connect(signer).sendMessage(
           NON_ZERO_ADDRESS,
           NON_NULL_BYTES32,
           100_000
@@ -109,32 +110,36 @@ describe('L2CrossDomainMessenger', () => {
   })
 
   describe('relayMessage', () => {
+    let target: string
+    let message: string
+    before(() => {
+      target = Fake__TargetContract.address
+      message = Fake__TargetContract.interface.encodeFunctionData('mint', [
+        NON_ZERO_ADDRESS,
+        ethers.utils.parseEther('1'),
+      ])
+    })
+
     it('should revert if the L1 message sender is not the L1CrossDomainMessenger', async () => {
       await expect(
         L2CrossDomainMessenger.connect(signer).relayMessage(
-          Fake__TargetContract.address,
+          target,
           signer.address,
-          Fake__TargetContract.interface.encodeFunctionData('setTarget', [
-            NON_ZERO_ADDRESS,
-          ]),
+          message,
           0
         )
       ).to.be.revertedWith('Provided message could not be verified.')
     })
 
     it('should send a call to the target contract', async () => {
-      await L2CrossDomainMessenger.connect(
-        impersonatedL1CrossDomainMessengerSender
-      ).relayMessage(
-        Fake__TargetContract.address,
+      await L2CrossDomainMessenger.relayMessage(
+        target,
         signer.address,
-        Fake__TargetContract.interface.encodeFunctionData('setTarget', [
-          NON_ZERO_ADDRESS,
-        ]),
+        message,
         0
       )
 
-      expect(Fake__TargetContract.setTarget.getCall(0).args[0]).to.deep.equal(
+      expect(Fake__TargetContract.mint.getCall(0).args[0]).to.deep.equal(
         NON_ZERO_ADDRESS
       )
     })
@@ -144,14 +149,10 @@ describe('L2CrossDomainMessenger', () => {
         L2CrossDomainMessenger.xDomainMessageSender()
       ).to.be.revertedWith('xDomainMessageSender is not set')
 
-      await L2CrossDomainMessenger.connect(
-        impersonatedL1CrossDomainMessengerSender
-      ).relayMessage(
-        Fake__TargetContract.address,
+      await L2CrossDomainMessenger.relayMessage(
+        target,
         signer.address,
-        Fake__TargetContract.interface.encodeFunctionData('setTarget', [
-          NON_ZERO_ADDRESS,
-        ]),
+        message,
         0
       )
 
@@ -161,35 +162,20 @@ describe('L2CrossDomainMessenger', () => {
     })
 
     it('should revert if trying to send the same message twice', async () => {
-      await L2CrossDomainMessenger.connect(
-        impersonatedL1CrossDomainMessengerSender
-      ).relayMessage(
-        Fake__TargetContract.address,
+      await L2CrossDomainMessenger.relayMessage(
+        target,
         signer.address,
-        Fake__TargetContract.interface.encodeFunctionData('setTarget', [
-          NON_ZERO_ADDRESS,
-        ]),
+        message,
         0
       )
 
       await expect(
-        L2CrossDomainMessenger.connect(
-          impersonatedL1CrossDomainMessengerSender
-        ).relayMessage(
-          Fake__TargetContract.address,
-          signer.address,
-          Fake__TargetContract.interface.encodeFunctionData('setTarget', [
-            NON_ZERO_ADDRESS,
-          ]),
-          0
-        )
+        L2CrossDomainMessenger.relayMessage(target, signer.address, message, 0)
       ).to.be.revertedWith('Provided message has already been received.')
     })
 
     it('should not make a call if the target is the L2 MessagePasser', async () => {
-      const resProm = L2CrossDomainMessenger.connect(
-        impersonatedL1CrossDomainMessengerSender
-      ).relayMessage(
+      const tx = await L2CrossDomainMessenger.relayMessage(
         predeploys.OVM_L2ToL1MessagePasser,
         signer.address,
         Fake__OVM_L2ToL1MessagePasser.interface.encodeFunctionData(
@@ -199,21 +185,10 @@ describe('L2CrossDomainMessenger', () => {
         0
       )
 
-      // The call to relayMessage() should succeed.
-      await expect(resProm).to.not.be.reverted
-
-      // There should be no 'relayedMessage' event logged in the receipt.
       expect(
-        (
-          await Fake__OVM_L2ToL1MessagePasser.provider.getTransactionReceipt(
-            (
-              await resProm
-            ).hash
-          )
-        ).logs
+        (await ethers.provider.getTransactionReceipt(tx.hash)).logs
       ).to.deep.equal([])
 
-      // The message should be registered as successful.
       expect(
         await L2CrossDomainMessenger.successfulMessages(
           ethers.utils.solidityKeccak256(

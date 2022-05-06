@@ -199,13 +199,13 @@ jobs:
       - run:
           name: Lint
           command: golangci-lint run -E goimports -E sqlclosecheck -E bodyclose -E asciicheck ./...
-          working_directory: go/bss-core
+          working_directory: bss-core
       - run:
           name: Test
           command: |
             mkdir -p /test-results
             gotestsum --junitfile /test-results/tests.xml
-          working_directory: go/bss-core
+          working_directory: bss-core
       - store_test_results:
           path: /test-results
 
@@ -313,26 +313,26 @@ workflows:
       - go-lint-test-build:
           name: batch-submitter-tests
           binary_name: batch-submitter
-          working_directory: go/batch-submitter
+          working_directory: batch-submitter
       - go-lint-test-build:
           name: proxyd-tests
           binary_name: proxyd
-          working_directory: go/proxyd
+          working_directory: proxyd
       - go-lint-test-build:
           name: teleportr-tests
           binary_name: teleportr
-          working_directory: go/teleportr
+          working_directory: teleportr
       - go-lint-test-build:
           name: gas-oracle-tests
           binary_name: gas-oracle
-          working_directory: go/gas-oracle
+          working_directory: gas-oracle
       - go-lint-test-build:
           name: indexer-tests
           binary_name: indexer
-          working_directory: go/indexer
+          working_directory: indexer
       - go-lint-test:
           name: bss-core-tests
-          working_directory: go/bss-core
+          working_directory: bss-core
       - contracts-tests:
           requires:
             - yarn-monorepo
@@ -379,14 +379,14 @@ workflows:
       - yarn-monorepo
       - docker-publish:
           name: l2geth-release
-          docker_file: ops/docker/Dockerfile.geth
+          docker_file: l2geth/Dockerfile
           docker_tags: ethereumoptimism/l2geth:nightly
           docker_context: .
           context:
             - optimism
       - docker-publish:
           name: gas-oracle-release
-          docker_file: ops/docker/Dockerfile.gas-oracle
+          docker_file: gas-oracle/Dockerfile
           docker_tags: ethereumoptimism/gas-oracle:nightly
           docker_context: .
           context:
@@ -414,21 +414,21 @@ workflows:
             - optimism
       - docker-publish:
           name: proxyd-release
-          docker_file: go/proxyd/Dockerfile
+          docker_file: proxyd/Dockerfile
           docker_tags: ethereumoptimism/proxyd:nightly
           docker_context: .
           context:
             - optimism
       - docker-publish:
           name: l2geth-exporter-release
-          docker_file: ops/docker/Dockerfile.l2geth-exporter
+          docker_file: l2geth-exporter/Dockerfile
           docker_tags: ethereumoptimism/l2geth-exporter:nightly
           docker_context: .
           context:
             - optimism
       - docker-publish:
           name: op-exporter-release
-          docker_file: ops/docker/Dockerfile.op-exporter
+          docker_file: op-exporter/Dockerfile
           docker_tags: ethereumoptimism/op-exporter:nightly
           docker_context: .
           context:
@@ -467,21 +467,21 @@ workflows:
             - optimism
       - docker-publish:
           name: batch-submitter-service-release
-          docker_file: ops/docker/Dockerfile.batch-submitter-service
+          docker_file: ops/docker/Dockerfile
           docker_tags: ethereumoptimism/batch-submitter-service:nightly
           docker_context: .
           context:
             - optimism
       - docker-publish:
           name: indexer-release
-          docker_file: ops/docker/Dockerfile.indexer
+          docker_file: indexer/Dockerfile
           docker_tags: ethereumoptimism/indexer:nightly
           docker_context: .
           context:
             - optimism
       - docker-publish:
           name: teleportr-release
-          docker_file: ops/docker/Dockerfile.teleportr
+          docker_file: teleportr/Dockerfile
           docker_tags: ethereumoptimism/teleportr:nightly
           docker_context: .
           context:

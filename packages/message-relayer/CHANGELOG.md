@@ -1,5 +1,12 @@
 # @eth-optimism/message-relayer
 
+## 0.4.8
+
+### Patch Changes
+
+- 412688d5: Replace calls to getNetwork() with getChainId util
+  - @eth-optimism/sdk@1.1.3
+
 ## 0.4.7
 
 ### Patch Changes

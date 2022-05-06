@@ -73,7 +73,7 @@ services:
       - deployer
     build:
       context: ..
-      dockerfile: ./ops/docker/Dockerfile.geth
+      dockerfile: ./l2geth/Dockerfile
     image: ethereumoptimism/l2geth:${DOCKER_TAG_L2GETH:-latest}
     # override with the geth script and the env vars required for it
     entrypoint: sh ./geth.sh
@@ -127,7 +127,7 @@ services:
       replicas: 1
     build:
       context: ..
-      dockerfile: ./ops/docker/Dockerfile.geth
+      dockerfile: ./l2geth/Dockerfile
     image: ethereumoptimism/l2geth:${DOCKER_TAG_L2GETH:-latest}
     entrypoint: sh ./geth.sh
     env_file:
@@ -154,7 +154,7 @@ services:
       replicas: 1
     build:
       context: ..
-      dockerfile: ./ops/docker/Dockerfile.geth
+      dockerfile: ./l2geth/Dockerfile
     image: ethereumoptimism/l2geth:${DOCKER_TAG_L2GETH:-latest}
     entrypoint: sh ./geth.sh
     env_file:
@@ -221,7 +221,7 @@ services:
       replicas: 0
     build:
       context: ..
-      dockerfile: ./ops/docker/Dockerfile.gas-oracle
+      dockerfile: ./gas-oracle/Dockerfile
     image: ethereumoptimism/gas-oracle:${DOCKER_TAG_GAS_ORACLE:-latest}
     environment:
       GAS_PRICE_ORACLE_ETHEREUM_HTTP_URL: http://l1_chain:8545
@@ -236,7 +236,7 @@ services:
       - l2geth
     build:
       context: ..
-      dockerfile: ./ops/docker/Dockerfile.batch-submitter-service
+      dockerfile: ./batch-submitter/Dockerfile
     image: ethereumoptimism/batch-submitter-service:${DOCKER_TAG_BATCH_SUBMITTER_SERVICE:-latest}
     entrypoint: ./batch-submitter.sh
     env_file:
