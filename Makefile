@@ -15,18 +15,22 @@ submodules:
 unicorn/build: unicorn/CMakeLists.txt
 	mkdir -p unicorn/build
 	cd unicorn/build && cmake .. -DUNICORN_ARCH=mips -DCMAKE_BUILD_TYPE=Release
+	# Not sure why, but the second invocation is needed for fresh installs on MacOS.
+	if [ "$(uname)" == "Darwin" ]; then \
+		cd unicorn/build && cmake .. -DUNICORN_ARCH=mips -DCMAKE_BUILD_TYPE=Release; \
+	fi
 
-# Rebuild whenever anything in the directory changes.
-unicorn/build/libunicorn.so unicorn/build/libunicorn.so.1: unicorn/build unicorn
+# Rebuild whenever anything in the unicorn/ directory changes.
+unicorn/build/libunicorn.so: unicorn/build unicorn
 	cd unicorn/build && make -j8
-	# The Go linker / runtime expects these to be there!
-	cp unicorn/build/libunicorn.so.1 unicorn
-	cp unicorn/build/libunicorn.so unicorn
-	# Update timestamp to make it more recent than the directory
-	touch unicorn/build/libunicorn.so.1
+	# The Go linker / runtime expects dynamic libraries in the unicorn/ dir.
+	find ./unicorn/build -name "libunicorn.*" | xargs -L 1 -I {} cp {} ./unicorn/
+	# Update timestamp on libunicorn.so to make it more recent than the build/ dir.
+	# On Mac this will create a new empty file (dyn libraries are .dylib), but works
+	# fine for the purpose of avoiding recompilation.
 	touch unicorn/build/libunicorn.so
 
-libunicorn: unicorn/build/libunicorn.so unicorn/build/libunicorn.so.1
+libunicorn: unicorn/build/libunicorn.so
 .PHONY: libunicorn
 
 libunicorn_rebuild:
@@ -51,7 +55,7 @@ contracts: nodejs
 .PHONY: contracts
 
 nodejs:
-	if [ -x "$(command -v pnpm)" ]; then \
+	if [ -x "$$(command -v pnpm)" ]; then \
 		pnpm install; \
 	else \
 		npm install; \
@@ -114,7 +118,7 @@ clean:
 	rm -f mipigo/minigeth.bin
 	rm -f mipsevm/mipsevm
 	rm -rf artifacts
-	rm -r
+	rm -f unicorn/libunicorn.*
 .PHONY: clean
 
 mrproper: clean
