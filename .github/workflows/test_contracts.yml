@@ -12,7 +12,7 @@ jobs:
     - name: Install Toolchain (Node and Make)
       run: |
         sudo apt-get update
-        sudo apt-get -y --no-install-recommends install nodejs make
+        sudo apt-get -y --no-install-recommends install nodejs make cmake pkg-config
         npm install --global pnpm
     - name: Install Dependencies
       run: make nodejs
