@@ -18,6 +18,7 @@ import (
 	bsscore "github.com/ethereum-optimism/optimism/bss-core"
 	"github.com/ethereum-optimism/optimism/bss-core/dial"
 	"github.com/ethereum-optimism/optimism/bss-core/drivers"
+	"github.com/ethereum-optimism/optimism/bss-core/metrics"
 	"github.com/ethereum-optimism/optimism/bss-core/txmgr"
 	"github.com/ethereum-optimism/optimism/teleportr/bindings/deposit"
 	"github.com/ethereum-optimism/optimism/teleportr/db"
@@ -84,6 +85,10 @@ func Main(gitVersion string) func(*cli.Context) error {
 		}
 		defer database.Close()
 
+		if cfg.MetricsServerEnable {
+			go metrics.RunServer(cfg.MetricsHostname, cfg.MetricsPort)
+		}
+
 		server := NewServer(
 			ctx,
 			l1Client,
@@ -124,33 +129,40 @@ func Main(gitVersion string) func(*cli.Context) error {
 }
 
 type Config struct {
-	Hostname          string
-	Port              uint16
-	L1EthRpc          string
-	DepositAddress    string
-	NumConfirmations  uint64
-	PostgresHost      string
-	PostgresPort      uint16
-	PostgresUser      string
-	PostgresPassword  string
-	PostgresDBName    string
-	PostgresEnableSSL bool
-	DisableHTTP2      bool
+	Hostname            string
+	Port                uint16
+	L1EthRpc            string
+	DepositAddress      string
+	NumConfirmations    uint64
+	PostgresHost        string
+	PostgresPort        uint16
+	PostgresUser        string
+	PostgresPassword    string
+	PostgresDBName      string
+	PostgresEnableSSL   bool
+	MetricsServerEnable bool
+	MetricsHostname     string
+	MetricsPort         uint64
+	DisableHTTP2        bool
 }
 
 func NewConfig(ctx *cli.Context) (Config, error) {
 	return Config{
-		Hostname:          ctx.GlobalString(flags.APIHostnameFlag.Name),
-		Port:              uint16(ctx.GlobalUint64(flags.APIPortFlag.Name)),
-		L1EthRpc:          ctx.GlobalString(flags.L1EthRpcFlag.Name),
-		DepositAddress:    ctx.GlobalString(flags.DepositAddressFlag.Name),
-		NumConfirmations:  ctx.GlobalUint64(flags.NumDepositConfirmationsFlag.Name),
-		PostgresHost:      ctx.GlobalString(flags.PostgresHostFlag.Name),
-		PostgresPort:      uint16(ctx.GlobalUint64(flags.PostgresPortFlag.Name)),
-		PostgresUser:      ctx.GlobalString(flags.PostgresUserFlag.Name),
-		PostgresPassword:  ctx.GlobalString(flags.PostgresPasswordFlag.Name),
-		PostgresDBName:    ctx.GlobalString(flags.PostgresDBNameFlag.Name),
-		PostgresEnableSSL: ctx.GlobalBool(flags.PostgresEnableSSLFlag.Name),
+		Hostname:            ctx.GlobalString(flags.APIHostnameFlag.Name),
+		Port:                uint16(ctx.GlobalUint64(flags.APIPortFlag.Name)),
+		L1EthRpc:            ctx.GlobalString(flags.L1EthRpcFlag.Name),
+		DepositAddress:      ctx.GlobalString(flags.DepositAddressFlag.Name),
+		NumConfirmations:    ctx.GlobalUint64(flags.NumDepositConfirmationsFlag.Name),
+		PostgresHost:        ctx.GlobalString(flags.PostgresHostFlag.Name),
+		PostgresPort:        uint16(ctx.GlobalUint64(flags.PostgresPortFlag.Name)),
+		PostgresUser:        ctx.GlobalString(flags.PostgresUserFlag.Name),
+		PostgresPassword:    ctx.GlobalString(flags.PostgresPasswordFlag.Name),
+		PostgresDBName:      ctx.GlobalString(flags.PostgresDBNameFlag.Name),
+		PostgresEnableSSL:   ctx.GlobalBool(flags.PostgresEnableSSLFlag.Name),
+		MetricsServerEnable: ctx.GlobalBool(flags.MetricsServerEnableFlag.Name),
+		MetricsHostname:     ctx.GlobalString(flags.MetricsHostnameFlag.Name),
+		MetricsPort:         ctx.GlobalUint64(flags.MetricsPortFlag.Name),
+		DisableHTTP2:        ctx.GlobalBool(flags.HTTP2DisableFlag.Name),
 	}, nil
 }
 

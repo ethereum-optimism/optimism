@@ -38,4 +38,8 @@ var APIFlags = []cli.Flag{
 	PostgresPasswordFlag,
 	PostgresDBNameFlag,
 	PostgresEnableSSLFlag,
+	MetricsServerEnableFlag,
+	MetricsHostnameFlag,
+	MetricsPortFlag,
+	HTTP2DisableFlag,
 }
