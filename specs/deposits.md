@@ -266,4 +266,4 @@ it possible for users to interact with contracts on L2 even when the Sequencer i
 
 A reference implementation of the Deposit Feed contract can be found in [DepositFeed.sol].
 
-[DepositFeed.sol]: ../packages/contracts/contracts/L1/DepositFeed.sol
+[DepositFeed.sol]: ../packages/contracts/contracts/L1/abstracts/DepositFeed.sol
