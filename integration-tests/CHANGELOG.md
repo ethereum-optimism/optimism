@@ -1,5 +1,11 @@
 # @eth-optimism/integration-tests
 
+## 0.5.13
+
+### Patch Changes
+
+- 412688d5: Replace calls to getNetwork() with getChainId util
+
 ## 0.5.12
 
 ### Patch Changes
