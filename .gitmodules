@@ -4,4 +4,4 @@
 	url = git@github.com:ethereum-optimism/minigeth.git
 [submodule "unicorn"]
 	path = unicorn
-	url = git@github.com:unicorn-engine/unicorn.git
+	url = git@github.com:geohot/unicorn.git
