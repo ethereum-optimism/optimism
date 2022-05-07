@@ -17,6 +17,7 @@ COPY packages/common-ts/package.json ./packages/common-ts/package.json
 COPY packages/contracts/package.json ./packages/contracts/package.json
 COPY packages/data-transport-layer/package.json ./packages/data-transport-layer/package.json
 COPY packages/message-relayer/package.json ./packages/message-relayer/package.json
+COPY packages/fault-detector/package.json ./packages/fault-detector/package.json
 COPY packages/replica-healthcheck/package.json ./packages/replica-healthcheck/package.json
 COPY integration-tests/package.json ./integration-tests/package.json
 
@@ -50,6 +51,12 @@ CMD ["yarn", "test:integration"]
 FROM base as message-relayer
 WORKDIR /opt/optimism/packages/message-relayer
 COPY ./ops/scripts/relayer.sh .
+CMD ["npm", "run", "start"]
+
+
+FROM base as fault-detector
+WORKDIR /opt/optimism/packages/fault-detector
+COPY ./ops/scripts/detector.sh .
 CMD ["npm", "run", "start"]
 
 
