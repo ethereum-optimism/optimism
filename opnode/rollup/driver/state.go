@@ -26,10 +26,12 @@ type state struct {
 	sequencer bool
 
 	// Connections (in/out)
-	l1Heads <-chan eth.L1BlockRef
-	l1      L1Chain
-	l2      L2Chain
-	output  outputInterface
+	l1Heads          chan eth.L1BlockRef
+	unsafeL2Payloads chan *l2.ExecutionPayload
+	l1               L1Chain
+	l2               L2Chain
+	output           outputInterface
+	network          Network // may be nil, network for is optional
 
 	log  log.Logger
 	done chan struct{}
@@ -37,7 +39,9 @@ type state struct {
 	wg gosync.WaitGroup
 }
 
-func NewState(log log.Logger, config rollup.Config, l1 L1Chain, l2 L2Chain, output outputInterface, sequencer bool) *state {
+// NewState creates a new driver state. State changes take effect though the given output.
+// Optionally a network can be provided to publish things to other nodes than the engine of the driver.
+func NewState(log log.Logger, config rollup.Config, l1 L1Chain, l2 L2Chain, output outputInterface, network Network, sequencer bool) *state {
 	return &state{
 		Config:    config,
 		done:      make(chan struct{}),
@@ -45,13 +49,15 @@ func NewState(log log.Logger, config rollup.Config, l1 L1Chain, l2 L2Chain, outp
 		l1:        l1,
 		l2:        l2,
 		output:    output,
+		network:   network,
 		sequencer: sequencer,
+		l1Heads:   make(chan eth.L1BlockRef, 10),
 	}
 }
 
-// Start starts up the state loop. The context is only for initilization.
+// Start starts up the state loop. The context is only for initialization.
 // The loop will have been started iff err is not nil.
-func (s *state) Start(ctx context.Context, l1Heads <-chan eth.L1BlockRef) error {
+func (s *state) Start(ctx context.Context) error {
 	l1Head, err := s.l1.L1HeadBlockRef(ctx)
 	if err != nil {
 		return err
@@ -89,7 +95,6 @@ func (s *state) Start(ctx context.Context, l1Heads <-chan eth.L1BlockRef) error 
 	}
 
 	s.l1Head = l1Head
-	s.l1Heads = l1Heads
 
 	s.wg.Add(1)
 	go s.loop()
@@ -100,6 +105,24 @@ func (s *state) Close() error {
 	close(s.done)
 	s.wg.Wait()
 	return nil
+}
+
+func (s *state) OnL1Head(ctx context.Context, head eth.L1BlockRef) error {
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case s.l1Heads <- head:
+		return nil
+	}
+}
+
+func (s *state) OnUnsafeL2Payload(ctx context.Context, payload *l2.ExecutionPayload) error {
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case s.unsafeL2Payloads <- payload:
+		return nil
+	}
 }
 
 // l1WindowBufEnd returns the last block that should be used as `base` to L1ChainWindow.
@@ -225,7 +248,7 @@ func (s *state) createNewL2Block(ctx context.Context) error {
 	}
 
 	// Actually create the new block.
-	newUnsafeL2Head, batch, err := s.output.createNewBlock(ctx, s.l2Head, s.l2SafeHead.ID(), s.l2Finalized, l1Origin)
+	newUnsafeL2Head, payload, err := s.output.createNewBlock(ctx, s.l2Head, s.l2SafeHead.ID(), s.l2Finalized, l1Origin)
 	if err != nil {
 		s.log.Error("Could not extend chain as sequencer", "err", err, "l2UnsafeHead", s.l2Head, "l1Origin", l1Origin)
 		return err
@@ -233,7 +256,14 @@ func (s *state) createNewL2Block(ctx context.Context) error {
 
 	// Update our L2 head block based on the new unsafe block we just generated.
 	s.l2Head = newUnsafeL2Head
-	s.log.Info("Sequenced new l2 block", "l2Head", s.l2Head, "l1Origin", s.l2Head.L1Origin, "txs", len(batch.Transactions), "time", s.l2Head.Time)
+	s.log.Info("Sequenced new l2 block", "l2Head", s.l2Head, "l1Origin", s.l2Head.L1Origin, "txs", len(payload.Transactions), "time", s.l2Head.Time)
+
+	if s.network != nil {
+		if err := s.network.PublishL2Payload(ctx, payload); err != nil {
+			s.log.Warn("failed to publish newly created block", "id", payload.ID(), "err", err)
+			return err
+		}
+	}
 
 	return nil
 }
@@ -353,6 +383,10 @@ func (s *state) loop() {
 				// But not too quickly to minimize busy-waiting for new blocks
 				time.AfterFunc(time.Millisecond*10, reqL2BlockCreation)
 			}
+
+		case payload := <-s.unsafeL2Payloads:
+			s.log.Info("Optimistically processing unsafe L2 execution payload", "id", payload.ID())
+			// TODO process the L2 payload
 
 		case newL1Head := <-s.l1Heads:
 			ctx, cancel := context.WithTimeout(ctx, 10*time.Second)

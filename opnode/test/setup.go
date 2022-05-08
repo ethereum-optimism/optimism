@@ -71,6 +71,7 @@ type SystemConfig struct {
 	CliqueSignerDerivationPath string
 	L2OutputHDPath             string
 	BatchSubmitterHDPath       string
+	P2PSignerHDPath            string
 	DeployerHDPath             string
 	L1InfoPredeployAddress     common.Address
 
@@ -151,7 +152,7 @@ func (sys *System) Close() {
 	}
 
 	for _, node := range sys.rollupNodes {
-		node.Stop()
+		node.Close()
 	}
 	for _, node := range sys.nodes {
 		node.Close()
@@ -171,7 +172,7 @@ func (cfg SystemConfig) start() (*System, error) {
 	defer func() {
 		if didErrAfterStart {
 			for _, node := range sys.rollupNodes {
-				node.Stop()
+				node.Close()
 			}
 			for _, node := range sys.nodes {
 				node.Close()
@@ -196,6 +197,16 @@ func (cfg SystemConfig) start() (*System, error) {
 		return nil, err
 	}
 	batchSubmitterAddr := crypto.PubkeyToAddress(bssPrivKey.PublicKey)
+
+	p2pSignerPrivKey, err := wallet.PrivateKey(accounts.Account{
+		URL: accounts.URL{
+			Path: cfg.P2PSignerHDPath,
+		},
+	})
+	if err != nil {
+		return nil, err
+	}
+	p2pSignerAddr := crypto.PubkeyToAddress(p2pSignerPrivKey.PublicKey)
 
 	// Create the L2 Outputsubmitter Address and set it here because it needs to be derived from the accounts
 	l2OOSubmitter, err := wallet.PrivateKey(accounts.Account{
@@ -353,6 +364,7 @@ func (cfg SystemConfig) start() (*System, error) {
 
 	sys.cfg.RollupConfig.Genesis = sys.RolupGenesis
 	sys.cfg.RollupConfig.BatchSenderAddress = batchSubmitterAddr
+	sys.cfg.RollupConfig.P2PSequencerAddress = p2pSignerAddr
 	sys.cfg.L2OOCfg.L2StartTime = new(big.Int).SetUint64(l2GenesisTime)
 
 	// Deploy Deposit Contract
@@ -457,11 +469,13 @@ func (cfg SystemConfig) start() (*System, error) {
 		c := nodeConfig
 		c.Rollup = sys.cfg.RollupConfig
 		c.Rollup.DepositContractAddress = sys.DepositContractAddr
-		if c.Sequencer {
-			c.SubmitterPrivKey = bssPrivKey
-		}
+
 		if p, ok := p2pNodes[name]; ok {
 			c.P2P = p
+
+			if c.Sequencer {
+				c.P2PSigner = &p2p.PreparedSigner{Signer: p2p.NewLocalSigner(p2pSignerPrivKey)}
+			}
 		}
 
 		node, err := rollupNode.New(context.Background(), &c, cfg.Loggers[name], "")

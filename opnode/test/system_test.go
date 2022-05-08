@@ -51,6 +51,7 @@ const (
 	transactorHDPath   = "m/44'/60'/0'/0/1"
 	l2OutputHDPath     = "m/44'/60'/0'/0/3"
 	bssHDPath          = "m/44'/60'/0'/0/4"
+	p2pSignerHDPath    = "m/44'/60'/0'/0/5"
 )
 
 var (
@@ -77,6 +78,7 @@ func defaultSystemConfig(t *testing.T) SystemConfig {
 		},
 		L2OutputHDPath:             l2OutputHDPath,
 		BatchSubmitterHDPath:       bssHDPath,
+		P2PSignerHDPath:            p2pSignerHDPath,
 		DeployerHDPath:             l2OutputHDPath,
 		CliqueSignerDerivationPath: cliqueSignerHDPath,
 		L1InfoPredeployAddress:     derive.L1InfoPredeployAddr,

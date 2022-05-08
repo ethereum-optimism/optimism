@@ -84,7 +84,7 @@ func RollupNodeMain(ctx *cli.Context) error {
 		log.Error("Unable to start rollup node", "error", err)
 		return err
 	}
-	defer n.Stop()
+	defer n.Close()
 
 	log.Info("Rollup node started")
 

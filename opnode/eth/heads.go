@@ -9,7 +9,7 @@ import (
 )
 
 // HeadSignalFn is used as callback function to accept head-signals
-type HeadSignalFn func(sig L1BlockRef)
+type HeadSignalFn func(ctx context.Context, sig L1BlockRef)
 
 type NewHeadSource interface {
 	SubscribeNewHead(ctx context.Context, ch chan<- *types.Header) (ethereum.Subscription, error)
@@ -27,7 +27,7 @@ func WatchHeadChanges(ctx context.Context, src NewHeadSource, fn HeadSignalFn) (
 		for {
 			select {
 			case header := <-headChanges:
-				fn(L1BlockRef{
+				fn(ctx, L1BlockRef{
 					Hash:       header.Hash(),
 					Number:     header.Number.Uint64(),
 					ParentHash: header.ParentHash,

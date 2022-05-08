@@ -6,10 +6,11 @@ import (
 	"crypto/sha256"
 	"encoding/binary"
 	"fmt"
-	"github.com/ethereum/go-ethereum/common"
-	lru "github.com/hashicorp/golang-lru"
 	"sync"
 	"time"
+
+	"github.com/ethereum/go-ethereum/common"
+	lru "github.com/hashicorp/golang-lru"
 
 	"github.com/ethereum-optimism/optimistic-specs/opnode/l2"
 	"github.com/ethereum-optimism/optimistic-specs/opnode/rollup"
@@ -24,6 +25,7 @@ import (
 
 func init() {
 	// TODO: a PR is open to make this configurable upstream as option instead of having to override a global
+	// https://github.com/libp2p/go-libp2p-pubsub/pull/484
 	pubsub.TimeCacheDuration = 80 * pubsub.GossipSubHeartbeatInterval
 }
 
@@ -233,67 +235,89 @@ func BuildBlocksValidator(log log.Logger, cfg *rollup.Config) pubsub.ValidatorEx
 	}
 }
 
-func BlockSigningHash(cfg *rollup.Config, payloadBytes []byte) common.Hash {
-	var msgInput [32 + 32 + 32]byte
-	// domain: first 32 bytes, always zero for now
-	// chain_id: second 32 bytes
-	cfg.L2ChainID.FillBytes(msgInput[32:64])
-	// payload_hash: third 32 bytes, hash of encoded payload
-	copy(msgInput[32:], crypto.Keccak256(payloadBytes))
-
-	return crypto.Keccak256Hash(msgInput[:])
+type GossipIn interface {
+	ReceiveL2Payload(ctx context.Context, from peer.ID, msg *l2.ExecutionPayload) error
 }
 
-type BlockMessage struct {
-	ReceivedFrom peer.ID
-	Block        *l2.ExecutionPayload
+type GossipOut interface {
+	PublishL2Payload(ctx context.Context, msg *l2.ExecutionPayload, signer Signer) error
+	BlocksTopicPeers() []peer.ID
+	Close() error
 }
 
-func JoinGossip(p2pCtx context.Context, ps *pubsub.PubSub, log log.Logger, cfg *rollup.Config, blocks chan<- BlockMessage) error {
+type publisher struct {
+	cfg         *rollup.Config
+	blocksTopic *pubsub.Topic
+}
+
+var _ GossipOut = (*publisher)(nil)
+
+func (p *publisher) BlocksTopicPeers() []peer.ID {
+	return p.blocksTopic.ListPeers()
+}
+
+func (p *publisher) PublishL2Payload(ctx context.Context, msg *l2.ExecutionPayload, signer Signer) error {
+	var buf bytes.Buffer
+	buf.Write(make([]byte, 65))
+	if _, err := msg.MarshalSSZ(&buf); err != nil {
+		return fmt.Errorf("failed to encoded execution payload to publish: %v", err)
+	}
+	data := buf.Bytes()
+	payloadData := data[65:]
+	sig, err := signer.Sign(ctx, SigningDomainBlocksV1, p.cfg.L2ChainID, payloadData)
+	if err != nil {
+		return fmt.Errorf("failed to sign execution payload with signer: %v", err)
+	}
+	copy(data[:65], sig[:])
+
+	return p.blocksTopic.Publish(ctx, data)
+}
+
+func (p *publisher) Close() error {
+	return p.blocksTopic.Close()
+}
+
+func JoinGossip(p2pCtx context.Context, ps *pubsub.PubSub, log log.Logger, cfg *rollup.Config, gossipIn GossipIn) (GossipOut, error) {
 	val := BuildBlocksValidator(log, cfg)
-	topicName := blocksTopicV1(cfg)
-	err := ps.RegisterTopicValidator(topicName,
+	blocksTopicName := blocksTopicV1(cfg)
+	err := ps.RegisterTopicValidator(blocksTopicName,
 		val,
 		pubsub.WithValidatorTimeout(3*time.Second),
 		pubsub.WithValidatorConcurrency(4))
 	if err != nil {
-		return fmt.Errorf("failed to register blocks gossip topic: %v", err)
+		return nil, fmt.Errorf("failed to register blocks gossip topic: %v", err)
 	}
-	topic, err := ps.Join(topicName)
+	blocksTopic, err := ps.Join(blocksTopicName)
 	if err != nil {
-		return fmt.Errorf("failed to join blocks gossip topic: %v", err)
+		return nil, fmt.Errorf("failed to join blocks gossip topic: %v", err)
 	}
 	// TODO: block topic scoring parameters
 	// See prysm: https://github.com/prysmaticlabs/prysm/blob/develop/beacon-chain/p2p/gossip_scoring_params.go
 	// And research from lighthouse: https://gist.github.com/blacktemplar/5c1862cb3f0e32a1a7fb0b25e79e6e2c
 	// And docs: https://github.com/libp2p/specs/blob/master/pubsub/gossipsub/gossipsub-v1.1.md#topic-parameter-calculation-and-decay
-	//err := topic.SetScoreParams(&pubsub.TopicScoreParams{......})
+	//err := blocksTopic.SetScoreParams(&pubsub.TopicScoreParams{......})
 
-	subscription, err := topic.Subscribe()
+	subscription, err := blocksTopic.Subscribe()
 	if err != nil {
-		return fmt.Errorf("failed to subscribe to blocks gossip topic: %v", err)
+		return nil, fmt.Errorf("failed to subscribe to blocks gossip topic: %v", err)
 	}
 
-	subscriber := MakeSubscriber(log, BlocksHandler(blocks))
+	subscriber := MakeSubscriber(log, BlocksHandler(gossipIn.ReceiveL2Payload))
 	go subscriber(p2pCtx, subscription)
-	return nil
+
+	return &publisher{cfg: cfg, blocksTopic: blocksTopic}, nil
 }
 
 type TopicSubscriber func(ctx context.Context, sub *pubsub.Subscription)
 type MessageHandler func(ctx context.Context, from peer.ID, msg interface{}) error
 
-func BlocksHandler(out chan<- BlockMessage) MessageHandler {
+func BlocksHandler(onBlock func(ctx context.Context, from peer.ID, msg *l2.ExecutionPayload) error) MessageHandler {
 	return func(ctx context.Context, from peer.ID, msg interface{}) error {
 		payload, ok := msg.(*l2.ExecutionPayload)
 		if !ok {
 			return fmt.Errorf("expected topic validator to parse and validate data into execution payload, but got %T", msg)
 		}
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case out <- BlockMessage{ReceivedFrom: from, Block: payload}:
-			return nil
-		}
+		return onBlock(ctx, from, payload)
 	}
 }
 

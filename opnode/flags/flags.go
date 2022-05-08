@@ -63,13 +63,6 @@ var (
 		EnvVar: prefixEnvVar("SEQUENCING_ENABLED"),
 	}
 
-	// TODO: move batch submitter to stand-alone process
-	BatchSubmitterKeyFlag = cli.StringFlag{
-		Name:   "batchsubmitter.key",
-		Usage:  "key for batch submitting",
-		EnvVar: prefixEnvVar("BATCHSUBMITTER_KEY"),
-	}
-
 	LogLevelFlag = cli.StringFlag{
 		Name:   "log.level",
 		Usage:  "The lowest log level that will be output",
@@ -101,7 +94,6 @@ var requiredFlags = []cli.Flag{
 var optionalFlags = append([]cli.Flag{
 	L1TrustRPC,
 	SequencingEnabledFlag,
-	BatchSubmitterKeyFlag,
 	LogLevelFlag,
 	LogFormatFlag,
 	LogColorFlag,
