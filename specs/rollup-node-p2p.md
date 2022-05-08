@@ -52,6 +52,7 @@ and are adopted by several other blockchains, most notably the [L1 consensus lay
 - [Gossip Topics](#gossip-topics)
   - [`blocks`](#blocks)
     - [Block encoding](#block-encoding)
+    - [Block signatures](#block-signatures)
     - [Block validation](#block-validation)
       - [Block processing](#block-processing)
       - [Block topic scoring parameters](#block-topic-scoring-parameters)
