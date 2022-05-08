@@ -226,7 +226,7 @@ Topics have string identifiers and are communicated with messages and subscripti
 `/optimism/chain_id/hardfork_version/Name`
 
 - `chain_id`: replace with decimal representation of chain ID
-- `hardfork_version`: replace with decimal representation of hardfork
+- `hardfork_version`: replace with decimal representation of hardfork, starting at `0`
 - `Name`: topic application-name
 
 Note that the topic encoding depends on the topic, unlike L1,
