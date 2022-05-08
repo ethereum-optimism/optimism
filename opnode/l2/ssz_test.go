@@ -3,9 +3,10 @@ package l2
 import (
 	"bytes"
 	"encoding/binary"
+	"testing"
+
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/google/go-cmp/cmp"
-	"testing"
 )
 
 // FuzzExecutionPayloadUnmarshal checks that our SSZ decoding never panics

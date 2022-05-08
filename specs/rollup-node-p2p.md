@@ -239,9 +239,24 @@ The primary topic of the L2, to distribute blocks to other nodes faster than pro
 
 #### Block encoding
 
-TODO: encode execution payload (SSZ or RLP), with sequencer identifier and signature.
+A block is structured as the concatenation of:
 
-TODO: signature type and verification (`secp256k1` like transactions, with some different signature domain)
+- `signature`: A `secp256k1` signature, always 65 bytes, `r (uint256), s (uint256), y_parity (uint8)`
+- `payload`: A SSZ-encoded `ExecutionPayload`, always the remaining bytes.
+
+The topic uses Snappy block-compression (i.e. no snappy frames):
+the above needs to be compressed after encoding, and decompressed before decoding.
+
+#### Block signatures
+
+The `signature` is a `secp256k1` signature, and signs over a message:
+`keccak256(domain ++ chain_id ++ payload_hash)`, where:
+
+- `domain` is 32 bytes, reserved for message types and versioning info. All zero for this signature.
+- `chain_id` is a big-endian encoded `uint256`.
+- `payload_hash` is `keccak256(payload)`, where `payload` is the SSZ-encoded `ExecutionPayload`
+
+The `secp256k1` signature must have `y_parity = 1 or 0`, the `chain_id` is already signed over.
 
 #### Block validation
 
@@ -252,11 +267,14 @@ In order of operation:
 
 - `[REJECT]` if the compression is not valid
 - `[REJECT]` if the block encoding is not valid
-- `[REJECT]` if the block timestamp is older than 20 seconds in the past
+- `[REJECT]` if the `payload.timestamp` is older than 20 seconds in the past
   (graceful boundary for worst-case propagation and clock skew)
-- `[REJECT]` if the block timestamp is more than 5 seconds into the future (graceful boundary for clock skew)
-- `[REJECT]` if more than 5 blocks have been seen with the same block height
+- `[REJECT]` if the `payload.timestamp` is more than 5 seconds into the future
+- `[REJECT]` if the `block_hash` in the `payload` is not valid
+- `[REJECT]` if more than 5 different blocks have been seen with the same block height
+  - `[IGNORE]` if the block has already been seen
 - `[REJECT]` if the signature by the sequencer is not valid
+- Mark the block as seen for the given block height
 
 The block is signed by the corresponding sequencer, to filter malicious messages.
 The sequencer model is singular but may change to multiple sequencers in the future.

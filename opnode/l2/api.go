@@ -4,9 +4,10 @@ package l2
 import (
 	"bytes"
 	"fmt"
-	"github.com/ethereum/go-ethereum/trie"
 	"math/big"
 	"reflect"
+
+	"github.com/ethereum/go-ethereum/trie"
 
 	"github.com/ethereum-optimism/optimistic-specs/opnode/eth"
 
