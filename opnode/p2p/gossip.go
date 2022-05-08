@@ -257,9 +257,11 @@ func (p *publisher) BlocksTopicPeers() []peer.ID {
 }
 
 func (p *publisher) PublishL2Payload(ctx context.Context, msg *l2.ExecutionPayload, signer Signer) error {
-	var buf bytes.Buffer
+	res := msgBufPool.Get().(*[]byte)
+	defer msgBufPool.Put(res)
+	buf := bytes.NewBuffer(*res)
 	buf.Write(make([]byte, 65))
-	if _, err := msg.MarshalSSZ(&buf); err != nil {
+	if _, err := msg.MarshalSSZ(buf); err != nil {
 		return fmt.Errorf("failed to encoded execution payload to publish: %v", err)
 	}
 	data := buf.Bytes()
@@ -270,7 +272,10 @@ func (p *publisher) PublishL2Payload(ctx context.Context, msg *l2.ExecutionPaylo
 	}
 	copy(data[:65], sig[:])
 
-	return p.blocksTopic.Publish(ctx, data)
+	// compress the full message
+	out := snappy.Encode(nil, data)
+
+	return p.blocksTopic.Publish(ctx, out)
 }
 
 func (p *publisher) Close() error {
