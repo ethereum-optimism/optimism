@@ -272,12 +272,11 @@ func (c *OpNode) OnNewL1Head(ctx context.Context, sig eth.L1BlockRef) {
 	c.l2Lock.Lock()
 	defer c.l2Lock.Unlock()
 
-	ctx, cancel := context.WithTimeout(ctx, time.Second*30)
-	defer cancel()
-
 	// fan-out to all engine drivers
 	for _, eng := range c.l2Engines {
 		go func(eng *driver.Driver) {
+			ctx, cancel := context.WithTimeout(ctx, time.Second*10)
+			defer cancel()
 			if err := eng.OnL1Head(ctx, sig); err != nil {
 				c.log.Warn("failed to notify engine driver of L1 head change", "err", err)
 			}
