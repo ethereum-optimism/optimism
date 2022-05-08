@@ -56,6 +56,9 @@ type outputInterface interface {
 
 	// createNewBlock builds a new block based on the L2 Head, L1 Origin, and the current mempool.
 	createNewBlock(ctx context.Context, l2Head eth.L2BlockRef, l2SafeHead eth.BlockID, l2Finalized eth.BlockID, l1Origin eth.L1BlockRef) (eth.L2BlockRef, *l2.ExecutionPayload, error)
+
+	// processBlock simply tries to add the block to the chain, reorging if necessary, and updates the forkchoice of the engine.
+	processBlock(ctx context.Context, l2Head eth.L2BlockRef, l2SafeHead eth.BlockID, l2Finalized eth.BlockID, payload *l2.ExecutionPayload) error
 }
 
 type Network interface {

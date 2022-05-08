@@ -115,6 +115,14 @@ func (payload *ExecutionPayload) ID() eth.BlockID {
 	return eth.BlockID{Hash: payload.BlockHash, Number: uint64(payload.BlockNumber)}
 }
 
+func (payload *ExecutionPayload) ParentID() eth.BlockID {
+	n := uint64(payload.BlockNumber)
+	if n > 0 {
+		n -= 1
+	}
+	return eth.BlockID{Hash: payload.ParentHash, Number: n}
+}
+
 type rawTransactions []Data
 
 func (s rawTransactions) Len() int { return len(s) }

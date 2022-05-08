@@ -46,6 +46,11 @@ func (id testID) ID() eth.BlockID {
 
 type outputHandlerFn func(ctx context.Context, l2Head eth.L2BlockRef, l2SafeHead eth.L2BlockRef, l2Finalized eth.BlockID, l1Input []eth.BlockID) (eth.L2BlockRef, eth.L2BlockRef, bool, error)
 
+func (fn outputHandlerFn) processBlock(ctx context.Context, l2Head eth.L2BlockRef, l2SafeHead eth.BlockID, l2Finalized eth.BlockID, payload *l2.ExecutionPayload) error {
+	// TODO: maybe mock a failed block?
+	return nil
+}
+
 func (fn outputHandlerFn) insertEpoch(ctx context.Context, l2Head eth.L2BlockRef, l2SafeHead eth.L2BlockRef, l2Finalized eth.BlockID, l1Input []eth.BlockID) (eth.L2BlockRef, eth.L2BlockRef, bool, error) {
 	return fn(ctx, l2Head, l2SafeHead, l2Finalized, l1Input)
 }

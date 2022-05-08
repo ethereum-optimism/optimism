@@ -54,6 +54,27 @@ func lastDeposit(txns []l2.Data) (int, error) {
 	return lastDeposit, nil
 }
 
+func (d *outputImpl) processBlock(ctx context.Context, l2Head eth.L2BlockRef, l2SafeHead eth.BlockID, l2Finalized eth.BlockID, payload *l2.ExecutionPayload) error {
+	d.log.Info("processing new block", "parent", payload.ParentID(), "l2Head", l2Head, "id", payload.ID())
+	if err := d.l2.NewPayload(ctx, payload); err != nil {
+		return fmt.Errorf("failed to insert new payload: %v", err)
+	}
+	// now try to persist a reorg to the new payload
+	fc := l2.ForkchoiceState{
+		HeadBlockHash:      payload.BlockHash,
+		SafeBlockHash:      l2SafeHead.Hash,
+		FinalizedBlockHash: l2Finalized.Hash,
+	}
+	res, err := d.l2.ForkchoiceUpdate(ctx, &fc, nil)
+	if err != nil {
+		return fmt.Errorf("failed to update forkchoice to point to new payload: %v", err)
+	}
+	if res.PayloadStatus.Status != l2.ExecutionValid {
+		return fmt.Errorf("failed to persist forkchoice update: %v", err)
+	}
+	return nil
+}
+
 func (d *outputImpl) createNewBlock(ctx context.Context, l2Head eth.L2BlockRef, l2SafeHead eth.BlockID, l2Finalized eth.BlockID, l1Origin eth.L1BlockRef) (eth.L2BlockRef, *l2.ExecutionPayload, error) {
 	d.log.Info("creating new block", "parent", l2Head, "l1Origin", l1Origin)
 
@@ -323,6 +344,9 @@ func (d *outputImpl) insertHeadBlock(ctx context.Context, fc l2.ForkchoiceState,
 	if err != nil {
 		return nil, fmt.Errorf("failed to create new block via forkchoice: %w", err)
 	}
+	if fcRes.PayloadStatus.Status != l2.ExecutionValid {
+		return nil, fmt.Errorf("engine not ready, forkchoice pre-state is not valid: %s", fcRes.PayloadStatus.Status)
+	}
 	id := fcRes.PayloadID
 	if id == nil {
 		return nil, errors.New("nil id in forkchoice result when expecting a valid ID")
@@ -371,9 +395,12 @@ func (d *outputImpl) insertHeadBlock(ctx context.Context, fc l2.ForkchoiceState,
 		fc.SafeBlockHash = payload.BlockHash
 	}
 	d.log.Debug("Inserted L2 head block", "number", uint64(payload.BlockNumber), "hash", payload.BlockHash, "update_safe", updateSafe)
-	_, err = d.l2.ForkchoiceUpdate(ctx, &fc, nil)
+	fcRes, err = d.l2.ForkchoiceUpdate(ctx, &fc, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to make the new L2 block canonical via forkchoice: %w", err)
+	}
+	if fcRes.PayloadStatus.Status != l2.ExecutionValid {
+		return nil, fmt.Errorf("failed to persist forkchoice change: %s", fcRes.PayloadStatus.Status)
 	}
 	return payload, nil
 }

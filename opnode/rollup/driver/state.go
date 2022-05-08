@@ -312,6 +312,39 @@ func (s *state) handleEpoch(ctx context.Context) (bool, error) {
 
 }
 
+func (s *state) handleUnsafeL2Payload(ctx context.Context, payload *l2.ExecutionPayload) error {
+	if s.l2SafeHead.Number > uint64(payload.BlockNumber) {
+		s.log.Info("ignoring unsafe L2 execution payload, already have safe payload", "id", payload.ID())
+		return nil
+	}
+
+	if uint64(payload.Timestamp) < s.l2SafeHead.Time {
+		s.log.Warn("received payload rewinds L2 chain beyond current L2 safe head")
+	}
+
+	if uint64(payload.Timestamp) > s.l2Head.Time+s.Config.BlockTime {
+		return fmt.Errorf("payload is too new: %d, l2 head is at %d", payload.Timestamp, s.l2Head.Time)
+	}
+
+	if uint64(payload.BlockNumber)+128 < s.l2Head.Number {
+		return fmt.Errorf("unsafe payload reorgs more than 128 blocks, ignoring it: %d, head at %d", payload.BlockNumber, s.l2Head.Number)
+	}
+
+	l2Ref, err := l2.PayloadToBlockRef(payload, &s.Config.Genesis)
+	if err != nil {
+		return fmt.Errorf("failed to derive L2 block ref from payload: %v", err)
+	}
+
+	if err := s.output.processBlock(ctx, s.l2Head, s.l2SafeHead.ID(), s.l2Finalized, payload); err != nil {
+		return fmt.Errorf("failed to process unsafe L2 payload: %v", err)
+	}
+
+	// We successfully processed the block, so update the safe head, while leaving the safe head etc. the same.
+	s.l2Head = l2Ref
+
+	return nil
+}
+
 // loop is the event loop that responds to L1 changes and internal timers to produce L2 blocks.
 func (s *state) loop() {
 	defer s.wg.Done()
@@ -386,7 +419,10 @@ func (s *state) loop() {
 
 		case payload := <-s.unsafeL2Payloads:
 			s.log.Info("Optimistically processing unsafe L2 execution payload", "id", payload.ID())
-			// TODO process the L2 payload
+			err := s.handleUnsafeL2Payload(ctx, payload)
+			if err != nil {
+				s.log.Warn("Failed to process L2 execution payload received from p2p", "err", err)
+			}
 
 		case newL1Head := <-s.l1Heads:
 			ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
