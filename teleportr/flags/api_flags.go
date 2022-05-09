@@ -24,12 +24,20 @@ var (
 		Required: true,
 		EnvVar:   prefixAPIEnvVar("PORT"),
 	}
+	DisburserWalletAddressFlag = cli.StringFlag{
+		Name:     "disburser-wallet-address",
+		Usage:    "The address of the disburser wallet",
+		Required: true,
+		EnvVar:   prefixAPIEnvVar("DISBURSER_WALLET_ADDRESS"),
+	}
 )
 
 var APIFlags = []cli.Flag{
 	APIHostnameFlag,
 	APIPortFlag,
+	DisburserWalletAddressFlag,
 	L1EthRpcFlag,
+	L2EthRpcFlag,
 	DepositAddressFlag,
 	NumDepositConfirmationsFlag,
 	PostgresHostFlag,
