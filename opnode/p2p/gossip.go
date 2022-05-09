@@ -127,9 +127,35 @@ func NewGossipSub(p2pCtx context.Context, h host.Host, cfg *rollup.Config) (*pub
 		pubsub.WithValidateThrottle(globalValidateThrottle),
 		pubsub.WithPeerExchange(false),
 		pubsub.WithBlacklist(denyList),
-		pubsub.WithGossipSubParams(BuildGlobalGossipParams(cfg)))
-	// TODO: pubsub.WithDiscovery(discover) to search for peers instead of randomly grabbing from open connections
+		pubsub.WithGossipSubParams(BuildGlobalGossipParams(cfg)),
+	)
 	// TODO: pubsub.WithPeerScoreInspect(inspect, InspectInterval) to update peerstore scores with gossip scores
+}
+
+func validationResultString(v pubsub.ValidationResult) string {
+	switch v {
+	case pubsub.ValidationAccept:
+		return "ACCEPT"
+	case pubsub.ValidationIgnore:
+		return "IGNORE"
+	case pubsub.ValidationReject:
+		return "REJECT"
+	default:
+		return fmt.Sprintf("UNKNOWN_%d", v)
+	}
+}
+
+func logValidationResult(self peer.ID, msg string, log log.Logger, fn pubsub.ValidatorEx) pubsub.ValidatorEx {
+	return func(ctx context.Context, id peer.ID, message *pubsub.Message) pubsub.ValidationResult {
+		res := fn(ctx, id, message)
+		var src interface{}
+		src = id
+		if id == self {
+			src = "self"
+		}
+		log.Debug(msg, "result", validationResultString(res), "from", src)
+		return res
+	}
 }
 
 func BuildBlocksValidator(log log.Logger, cfg *rollup.Config) pubsub.ValidatorEx {
@@ -257,7 +283,7 @@ func (p *publisher) BlocksTopicPeers() []peer.ID {
 	return p.blocksTopic.ListPeers()
 }
 
-func (p *publisher) PublishL2Payload(ctx context.Context, msg *l2.ExecutionPayload, signer Signer) error {
+func (p *publisher) PublishL2Payload(ctx context.Context, payload *l2.ExecutionPayload, signer Signer) error {
 	res := msgBufPool.Get().(*[]byte)
 	buf := bytes.NewBuffer((*res)[:0])
 	defer func() {
@@ -266,7 +292,7 @@ func (p *publisher) PublishL2Payload(ctx context.Context, msg *l2.ExecutionPaylo
 	}()
 
 	buf.Write(make([]byte, 65))
-	if _, err := msg.MarshalSSZ(buf); err != nil {
+	if _, err := payload.MarshalSSZ(buf); err != nil {
 		return fmt.Errorf("failed to encoded execution payload to publish: %v", err)
 	}
 	data := buf.Bytes()
@@ -288,8 +314,8 @@ func (p *publisher) Close() error {
 	return p.blocksTopic.Close()
 }
 
-func JoinGossip(p2pCtx context.Context, ps *pubsub.PubSub, log log.Logger, cfg *rollup.Config, gossipIn GossipIn) (GossipOut, error) {
-	val := BuildBlocksValidator(log, cfg)
+func JoinGossip(p2pCtx context.Context, self peer.ID, ps *pubsub.PubSub, log log.Logger, cfg *rollup.Config, gossipIn GossipIn) (GossipOut, error) {
+	val := logValidationResult(self, "validated block", log, BuildBlocksValidator(log, cfg))
 	blocksTopicName := blocksTopicV1(cfg)
 	err := ps.RegisterTopicValidator(blocksTopicName,
 		val,
@@ -302,6 +328,12 @@ func JoinGossip(p2pCtx context.Context, ps *pubsub.PubSub, log log.Logger, cfg *
 	if err != nil {
 		return nil, fmt.Errorf("failed to join blocks gossip topic: %v", err)
 	}
+	blocksTopicEvents, err := blocksTopic.EventHandler()
+	if err != nil {
+		return nil, fmt.Errorf("failed to create blocks gossip topic handler: %v", err)
+	}
+	go LogTopicEvents(p2pCtx, log.New("topic", "blocks"), blocksTopicEvents)
+
 	// TODO: block topic scoring parameters
 	// See prysm: https://github.com/prysmaticlabs/prysm/blob/develop/beacon-chain/p2p/gossip_scoring_params.go
 	// And research from lighthouse: https://gist.github.com/blacktemplar/5c1862cb3f0e32a1a7fb0b25e79e6e2c
@@ -348,6 +380,24 @@ func MakeSubscriber(log log.Logger, msgHandler MessageHandler) TopicSubscriber {
 			if err := msgHandler(ctx, msg.ReceivedFrom, msg.ValidatorData); err != nil {
 				topicLog.Error("failed to process gossip message", "err", err)
 			}
+		}
+	}
+}
+
+func LogTopicEvents(ctx context.Context, log log.Logger, evHandler *pubsub.TopicEventHandler) {
+	defer evHandler.Cancel()
+	for {
+		ev, err := evHandler.NextPeerEvent(ctx)
+		if err != nil {
+			return // ctx closed
+		}
+		switch ev.Type {
+		case pubsub.PeerJoin:
+			log.Debug("peer joined topic", "peer", ev.Peer)
+		case pubsub.PeerLeave:
+			log.Debug("peer left topic", "peer", ev.Peer)
+		default:
+			log.Warn("unrecognized topic event", "ev", ev)
 		}
 	}
 }

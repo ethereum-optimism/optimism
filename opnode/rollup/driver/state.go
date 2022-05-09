@@ -41,17 +41,18 @@ type state struct {
 
 // NewState creates a new driver state. State changes take effect though the given output.
 // Optionally a network can be provided to publish things to other nodes than the engine of the driver.
-func NewState(log log.Logger, config rollup.Config, l1 L1Chain, l2 L2Chain, output outputInterface, network Network, sequencer bool) *state {
+func NewState(log log.Logger, config rollup.Config, l1Chain L1Chain, l2Chain L2Chain, output outputInterface, network Network, sequencer bool) *state {
 	return &state{
-		Config:    config,
-		done:      make(chan struct{}),
-		log:       log,
-		l1:        l1,
-		l2:        l2,
-		output:    output,
-		network:   network,
-		sequencer: sequencer,
-		l1Heads:   make(chan eth.L1BlockRef, 10),
+		Config:           config,
+		done:             make(chan struct{}),
+		log:              log,
+		l1:               l1Chain,
+		l2:               l2Chain,
+		output:           output,
+		network:          network,
+		sequencer:        sequencer,
+		l1Heads:          make(chan eth.L1BlockRef, 10),
+		unsafeL2Payloads: make(chan *l2.ExecutionPayload, 10),
 	}
 }
 
@@ -233,8 +234,8 @@ func (s *state) createNewL2Block(ctx context.Context) error {
 
 	// Rollup is configured to not start producing blocks until a specific L1 block has been
 	// reached. Don't produce any blocks until we're at that genesis block.
-	if l1Origin.Number <= s.Config.Genesis.L1.Number {
-		s.log.Info("Skipping block production because the next L1 Origin is behind the L1 genesis")
+	if l1Origin.Number < s.Config.Genesis.L1.Number {
+		s.log.Info("Skipping block production because the next L1 Origin is behind the L1 genesis", "next", l1Origin.ID(), "genesis", s.Config.Genesis.L1)
 		return nil
 	}
 
