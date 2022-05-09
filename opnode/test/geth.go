@@ -19,6 +19,7 @@ import (
 	"github.com/ethereum/go-ethereum/eth"
 	"github.com/ethereum/go-ethereum/eth/catalyst"
 	"github.com/ethereum/go-ethereum/eth/ethconfig"
+	"github.com/ethereum/go-ethereum/eth/tracers"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/node"
 
@@ -165,6 +166,8 @@ func createGethNode(l2 bool, nodeCfg *node.Config, ethCfg *ethconfig.Config, pri
 		return nil, nil, err
 
 	}
+
+	n.RegisterAPIs(tracers.APIs(backend.APIBackend))
 
 	// Enable catalyst if l2
 	if l2 {
