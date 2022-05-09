@@ -163,16 +163,17 @@ func (n *OpNode) AttachEngine(ctx context.Context, cfg *Config, addr string) err
 		return err
 	}
 
+	engLog := n.log.New("engine", addr)
+
 	// TODO: we may need to authenticate the connection with L2
 	// backend.SetHeader()
-	client, err := l2.NewSource(l2Node, &cfg.Rollup.Genesis, n.log.New("engine", addr))
+	client, err := l2.NewSource(l2Node, &cfg.Rollup.Genesis, engLog)
 	if err != nil {
 		l2Node.Close()
 		return err
 	}
 
-	driverLog := log.New("engine", addr, "Sequencer", cfg.Sequencer)
-	engine := driver.NewDriver(cfg.Rollup, client, n.l1Source, n, driverLog, cfg.Sequencer)
+	engine := driver.NewDriver(cfg.Rollup, client, n.l1Source, n, engLog, cfg.Sequencer)
 
 	n.l2Nodes = append(n.l2Nodes, l2Node)
 	n.l2Engines = append(n.l2Engines, engine)
@@ -216,7 +217,7 @@ func (n *OpNode) initP2P(ctx context.Context, cfg *Config) error {
 	}
 	var err error
 	// All nil if disabled.
-	n.dv5Local, n.dv5Udp, err = cfg.P2P.Discovery(log.New("p2p", "discv5"))
+	n.dv5Local, n.dv5Udp, err = cfg.P2P.Discovery(n.log.New("p2p", "discv5"))
 	if err != nil {
 		return fmt.Errorf("failed to start discv5: %v", err)
 	}
@@ -226,16 +227,18 @@ func (n *OpNode) initP2P(ctx context.Context, cfg *Config) error {
 	if err != nil {
 		return fmt.Errorf("failed to start p2p host: %v", err)
 	}
+
 	if n.host != nil {
 		n.gs, err = p2p.NewGossipSub(n.resourcesCtx, n.host, &cfg.Rollup)
 		if err != nil {
 			return fmt.Errorf("failed to start gossipsub router: %v", err)
 		}
 
-		n.gsOut, err = p2p.JoinGossip(n.resourcesCtx, n.gs, n.log, &cfg.Rollup, n)
+		n.gsOut, err = p2p.JoinGossip(n.resourcesCtx, n.host.ID(), n.gs, n.log, &cfg.Rollup, n)
 		if err != nil {
 			return fmt.Errorf("failed to join blocks gossip topic: %v", err)
 		}
+		n.log.Info("started p2p host", "addrs", n.host.Addrs(), "peerID", n.host.ID().Pretty())
 	}
 	return nil
 }
@@ -290,6 +293,7 @@ func (c *OpNode) PublishL2Payload(ctx context.Context, payload *l2.ExecutionPayl
 		if c.p2pSigner == nil {
 			return fmt.Errorf("node has no p2p signer, payload %s cannot be published", payload.ID())
 		}
+		c.log.Info("Publishing signed execution payload on p2p", "id", payload.ID())
 		return c.gsOut.PublishL2Payload(ctx, payload, c.p2pSigner)
 	}
 	// if p2p is not enabled then we just don't publish the payload
@@ -299,6 +303,13 @@ func (c *OpNode) PublishL2Payload(ctx context.Context, payload *l2.ExecutionPayl
 func (c *OpNode) ReceiveL2Payload(ctx context.Context, from peer.ID, payload *l2.ExecutionPayload) error {
 	c.l2Lock.Lock()
 	defer c.l2Lock.Unlock()
+
+	// ignore if it's from ourselves
+	if from == c.host.ID() {
+		return nil
+	}
+
+	c.log.Info("Received signed execution payload from p2p", "id", payload.ID(), "peer", from)
 
 	// fan-out to all engine drivers
 	for _, eng := range c.l2Engines {
