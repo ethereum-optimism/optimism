@@ -131,7 +131,7 @@ func (s rawTransactions) EncodeIndex(i int, w *bytes.Buffer) {
 }
 
 // CheckBlockHash recomputes the block hash and returns if the embedded block hash matches.
-func (payload *ExecutionPayload) CheckBlockHash() bool {
+func (payload *ExecutionPayload) CheckBlockHash() (actual common.Hash, ok bool) {
 	hasher := trie.NewStackTrie(nil)
 	txHash := types.DeriveSha(rawTransactions(payload.Transactions), hasher)
 
@@ -154,7 +154,7 @@ func (payload *ExecutionPayload) CheckBlockHash() bool {
 		BaseFee:     payload.BaseFeePerGas.ToBig(),
 	}
 	blockHash := header.Hash()
-	return blockHash == payload.BlockHash
+	return blockHash, blockHash == payload.BlockHash
 }
 
 func BlockAsPayload(bl *types.Block) (*ExecutionPayload, error) {

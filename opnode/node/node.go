@@ -300,12 +300,11 @@ func (c *OpNode) ReceiveL2Payload(ctx context.Context, from peer.ID, payload *l2
 	c.l2Lock.Lock()
 	defer c.l2Lock.Unlock()
 
-	ctx, cancel := context.WithTimeout(ctx, time.Second*30)
-	defer cancel()
-
 	// fan-out to all engine drivers
 	for _, eng := range c.l2Engines {
 		go func(eng *driver.Driver) {
+			ctx, cancel := context.WithTimeout(ctx, time.Second*30)
+			defer cancel()
 			if err := eng.OnUnsafeL2Payload(ctx, payload); err != nil {
 				c.log.Warn("failed to notify engine driver of new L2 payload", "err", err, "id", payload.ID())
 			}

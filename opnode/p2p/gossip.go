@@ -188,8 +188,8 @@ func BuildBlocksValidator(log log.Logger, cfg *rollup.Config) pubsub.ValidatorEx
 		}
 
 		// [REJECT] if the `block_hash` in the `payload` is not valid
-		if !payload.CheckBlockHash() {
-			log.Warn("payload has bad block hash", "bad_hash", payload.BlockHash)
+		if actual, ok := payload.CheckBlockHash(); !ok {
+			log.Warn("payload has bad block hash", "bad_hash", payload.BlockHash.String(), "actual", actual.String())
 			return pubsub.ValidationReject
 		}
 
@@ -230,7 +230,7 @@ func BuildBlocksValidator(log log.Logger, cfg *rollup.Config) pubsub.ValidatorEx
 		blockHeightLRU.Add(uint64(payload.BlockNumber), seen)
 
 		// remember the decoded payload for later usage in topic subscriber.
-		message.ValidatorData = payload
+		message.ValidatorData = &payload
 		return pubsub.ValidationAccept
 	}
 }
@@ -246,6 +246,7 @@ type GossipOut interface {
 }
 
 type publisher struct {
+	log         log.Logger
 	cfg         *rollup.Config
 	blocksTopic *pubsub.Topic
 }
@@ -258,8 +259,12 @@ func (p *publisher) BlocksTopicPeers() []peer.ID {
 
 func (p *publisher) PublishL2Payload(ctx context.Context, msg *l2.ExecutionPayload, signer Signer) error {
 	res := msgBufPool.Get().(*[]byte)
-	defer msgBufPool.Put(res)
-	buf := bytes.NewBuffer(*res)
+	buf := bytes.NewBuffer((*res)[:0])
+	defer func() {
+		*res = buf.Bytes()
+		defer msgBufPool.Put(res)
+	}()
+
 	buf.Write(make([]byte, 65))
 	if _, err := msg.MarshalSSZ(buf); err != nil {
 		return fmt.Errorf("failed to encoded execution payload to publish: %v", err)
@@ -273,6 +278,7 @@ func (p *publisher) PublishL2Payload(ctx context.Context, msg *l2.ExecutionPaylo
 	copy(data[:65], sig[:])
 
 	// compress the full message
+	// This also copies the data, freeing up the original buffer to go back into the pool
 	out := snappy.Encode(nil, data)
 
 	return p.blocksTopic.Publish(ctx, out)
@@ -310,7 +316,7 @@ func JoinGossip(p2pCtx context.Context, ps *pubsub.PubSub, log log.Logger, cfg *
 	subscriber := MakeSubscriber(log, BlocksHandler(gossipIn.ReceiveL2Payload))
 	go subscriber(p2pCtx, subscription)
 
-	return &publisher{cfg: cfg, blocksTopic: blocksTopic}, nil
+	return &publisher{log: log, cfg: cfg, blocksTopic: blocksTopic}, nil
 }
 
 type TopicSubscriber func(ctx context.Context, sub *pubsub.Subscription)
