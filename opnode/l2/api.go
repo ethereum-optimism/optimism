@@ -143,7 +143,7 @@ func (payload *ExecutionPayload) CheckBlockHash() (actual common.Hash, ok bool) 
 		TxHash:      txHash,
 		ReceiptHash: common.Hash(payload.ReceiptsRoot),
 		Bloom:       types.Bloom(payload.LogsBloom),
-		Difficulty:  big.NewInt(0), // zeroed, proof-of-work legacy
+		Difficulty:  common.Big0, // zeroed, proof-of-work legacy
 		Number:      big.NewInt(int64(payload.BlockNumber)),
 		GasLimit:    uint64(payload.GasLimit),
 		GasUsed:     uint64(payload.GasUsed),
