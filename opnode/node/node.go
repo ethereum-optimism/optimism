@@ -99,27 +99,21 @@ func New(ctx context.Context, cfg *Config, log log.Logger, appVersion string) (*
 }
 
 func (n *OpNode) init(ctx context.Context, cfg *Config) error {
-
 	if err := n.initL1(ctx, cfg); err != nil {
 		return err
 	}
-
 	if err := n.initL2(ctx, cfg); err != nil {
 		return err
 	}
-
 	if err := n.initRPCServer(ctx, cfg); err != nil {
 		return err
 	}
-
 	if err := n.initP2PSigner(ctx, cfg); err != nil {
 		return err
 	}
-
 	if err := n.initP2P(ctx, cfg); err != nil {
 		return err
 	}
-
 	return nil
 }
 

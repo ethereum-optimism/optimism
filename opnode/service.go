@@ -5,10 +5,9 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/ethereum-optimism/optimistic-specs/opnode/p2p"
-
 	"github.com/ethereum-optimism/optimistic-specs/opnode/flags"
 	"github.com/ethereum-optimism/optimistic-specs/opnode/node"
+	"github.com/ethereum-optimism/optimistic-specs/opnode/p2p"
 	"github.com/ethereum-optimism/optimistic-specs/opnode/rollup"
 	"github.com/urfave/cli"
 )
