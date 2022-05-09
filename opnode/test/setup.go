@@ -445,10 +445,7 @@ func (cfg SystemConfig) start() (*System, error) {
 				return nil, fmt.Errorf("failed to setup mocknet peer %s", k)
 			}
 			for _, v := range vs {
-				unconnected := strings.HasPrefix(v, "~")
-				if unconnected {
-					v = v[1:]
-				}
+				v = strings.TrimPrefix(v, "~")
 				peerB, err := initHostMaybe(v)
 				if err != nil {
 					return nil, fmt.Errorf("failed to setup mocknet peer %s (peer of %s)", v, k)
@@ -456,11 +453,7 @@ func (cfg SystemConfig) start() (*System, error) {
 				if _, err := sys.Mocknet.LinkPeers(peerA.HostP2P.ID(), peerB.HostP2P.ID()); err != nil {
 					return nil, fmt.Errorf("failed to setup mocknet link between %s and %s", k, v)
 				}
-				if !unconnected {
-					if _, err := sys.Mocknet.ConnectPeers(peerA.HostP2P.ID(), peerB.HostP2P.ID()); err != nil {
-						return nil, fmt.Errorf("failed to setup mocknet connection between %s and %s", k, v)
-					}
-				}
+				// connect the peers after starting the full rollup node
 			}
 		}
 	}
@@ -489,7 +482,27 @@ func (cfg SystemConfig) start() (*System, error) {
 			return nil, err
 		}
 		sys.rollupNodes[name] = node
+	}
 
+	if cfg.P2PTopology != nil {
+		// We only set up the connections after starting the actual nodes,
+		// so GossipSub and other p2p protocols can be started before the connections go live.
+		// This way protocol negotiation happens correctly.
+		for k, vs := range cfg.P2PTopology {
+			peerA := p2pNodes[k]
+			for _, v := range vs {
+				unconnected := strings.HasPrefix(v, "~")
+				if unconnected {
+					v = v[1:]
+				}
+				if !unconnected {
+					peerB := p2pNodes[v]
+					if _, err := sys.Mocknet.ConnectPeers(peerA.HostP2P.ID(), peerB.HostP2P.ID()); err != nil {
+						return nil, fmt.Errorf("failed to setup mocknet connection between %s and %s", k, v)
+					}
+				}
+			}
+		}
 	}
 
 	rollupEndpoint := fmt.Sprintf(
