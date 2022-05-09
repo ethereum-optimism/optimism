@@ -207,7 +207,11 @@ func (conf *Config) loadDiscoveryOpts(ctx *cli.Context) error {
 
 	records := strings.Split(ctx.GlobalString(flags.Bootnodes.Name), ",")
 	for i, recordB64 := range records {
-		nodeRecord, err := enode.Parse(enode.ValidSchemes, strings.TrimSpace(recordB64))
+		recordB64 = strings.TrimSpace(recordB64)
+		if recordB64 == "" { // ignore empty records
+			continue
+		}
+		nodeRecord, err := enode.Parse(enode.ValidSchemes, recordB64)
 		if err != nil {
 			return fmt.Errorf("bootnode record %d (of %d) is invalid: %q err: %v", i, len(records), recordB64, err)
 		}
@@ -253,6 +257,10 @@ func (conf *Config) loadLibp2pOpts(ctx *cli.Context) error {
 
 	addrs := strings.Split(ctx.GlobalString(flags.StaticPeers.Name), ",")
 	for i, addr := range addrs {
+		addr = strings.TrimSpace(addr)
+		if addr == "" {
+			continue // skip empty multi addrs
+		}
 		a, err := multiaddr.NewMultiaddr(addr)
 		if err != nil {
 			return fmt.Errorf("failed to parse multi addr of static peer %d (out of %d): %q err: %v", i, len(addrs), addr, err)
@@ -278,7 +286,7 @@ func (conf *Config) loadLibp2pOpts(ctx *cli.Context) error {
 		conf.HostMux = append(conf.HostMux, mc)
 	}
 
-	secArr := strings.Split(ctx.GlobalString(flags.HostMux.Name), ",")
+	secArr := strings.Split(ctx.GlobalString(flags.HostSecurity.Name), ",")
 	for _, v := range secArr {
 		v = strings.ToLower(strings.TrimSpace(v))
 		var sc lconf.MsSecC
@@ -362,7 +370,7 @@ func loadNetworkPrivKey(ctx *cli.Context) (*ecdsa.PrivateKey, error) {
 		if err != nil {
 			return nil, fmt.Errorf("failed to read priv key file: %v", err)
 		}
-		return parsePriv(string(data))
+		return parsePriv(strings.TrimSpace(string(data)))
 	}
 }
 
