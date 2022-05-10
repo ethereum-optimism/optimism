@@ -71,6 +71,7 @@ type SystemConfig struct {
 	CliqueSignerDerivationPath string
 	L2OutputHDPath             string
 	BatchSubmitterHDPath       string
+	P2PSignerHDPath            string
 	DeployerHDPath             string
 	L1InfoPredeployAddress     common.Address
 
@@ -81,7 +82,7 @@ type SystemConfig struct {
 	L1WsPort     int
 	L1ChainID    *big.Int
 	L2ChainID    *big.Int
-	Nodes        map[string]rollupNode.Config // Per node config. Don't use populate rollup.Config
+	Nodes        map[string]*rollupNode.Config // Per node config. Don't use populate rollup.Config
 	Loggers      map[string]log.Logger
 	RollupConfig rollup.Config // Shared rollup configs
 
@@ -151,7 +152,7 @@ func (sys *System) Close() {
 	}
 
 	for _, node := range sys.rollupNodes {
-		node.Stop()
+		node.Close()
 	}
 	for _, node := range sys.nodes {
 		node.Close()
@@ -171,7 +172,7 @@ func (cfg SystemConfig) start() (*System, error) {
 	defer func() {
 		if didErrAfterStart {
 			for _, node := range sys.rollupNodes {
-				node.Stop()
+				node.Close()
 			}
 			for _, node := range sys.nodes {
 				node.Close()
@@ -196,6 +197,16 @@ func (cfg SystemConfig) start() (*System, error) {
 		return nil, err
 	}
 	batchSubmitterAddr := crypto.PubkeyToAddress(bssPrivKey.PublicKey)
+
+	p2pSignerPrivKey, err := wallet.PrivateKey(accounts.Account{
+		URL: accounts.URL{
+			Path: cfg.P2PSignerHDPath,
+		},
+	})
+	if err != nil {
+		return nil, err
+	}
+	p2pSignerAddr := crypto.PubkeyToAddress(p2pSignerPrivKey.PublicKey)
 
 	// Create the L2 Outputsubmitter Address and set it here because it needs to be derived from the accounts
 	l2OOSubmitter, err := wallet.PrivateKey(accounts.Account{
@@ -353,6 +364,7 @@ func (cfg SystemConfig) start() (*System, error) {
 
 	sys.cfg.RollupConfig.Genesis = sys.RolupGenesis
 	sys.cfg.RollupConfig.BatchSenderAddress = batchSubmitterAddr
+	sys.cfg.RollupConfig.P2PSequencerAddress = p2pSignerAddr
 	sys.cfg.L2OOCfg.L2StartTime = new(big.Int).SetUint64(l2GenesisTime)
 
 	// Deploy Deposit Contract
@@ -433,10 +445,7 @@ func (cfg SystemConfig) start() (*System, error) {
 				return nil, fmt.Errorf("failed to setup mocknet peer %s", k)
 			}
 			for _, v := range vs {
-				unconnected := strings.HasPrefix(v, "~")
-				if unconnected {
-					v = v[1:]
-				}
+				v = strings.TrimPrefix(v, "~")
 				peerB, err := initHostMaybe(v)
 				if err != nil {
 					return nil, fmt.Errorf("failed to setup mocknet peer %s (peer of %s)", v, k)
@@ -444,24 +453,22 @@ func (cfg SystemConfig) start() (*System, error) {
 				if _, err := sys.Mocknet.LinkPeers(peerA.HostP2P.ID(), peerB.HostP2P.ID()); err != nil {
 					return nil, fmt.Errorf("failed to setup mocknet link between %s and %s", k, v)
 				}
-				if !unconnected {
-					if _, err := sys.Mocknet.ConnectPeers(peerA.HostP2P.ID(), peerB.HostP2P.ID()); err != nil {
-						return nil, fmt.Errorf("failed to setup mocknet connection between %s and %s", k, v)
-					}
-				}
+				// connect the peers after starting the full rollup node
 			}
 		}
 	}
 	// Rollup nodes
 	for name, nodeConfig := range cfg.Nodes {
-		c := nodeConfig
+		c := *nodeConfig // copy
 		c.Rollup = sys.cfg.RollupConfig
 		c.Rollup.DepositContractAddress = sys.DepositContractAddr
-		if c.Sequencer {
-			c.SubmitterPrivKey = bssPrivKey
-		}
+
 		if p, ok := p2pNodes[name]; ok {
 			c.P2P = p
+
+			if c.Sequencer {
+				c.P2PSigner = &p2p.PreparedSigner{Signer: p2p.NewLocalSigner(p2pSignerPrivKey)}
+			}
 		}
 
 		node, err := rollupNode.New(context.Background(), &c, cfg.Loggers[name], "")
@@ -475,7 +482,27 @@ func (cfg SystemConfig) start() (*System, error) {
 			return nil, err
 		}
 		sys.rollupNodes[name] = node
+	}
 
+	if cfg.P2PTopology != nil {
+		// We only set up the connections after starting the actual nodes,
+		// so GossipSub and other p2p protocols can be started before the connections go live.
+		// This way protocol negotiation happens correctly.
+		for k, vs := range cfg.P2PTopology {
+			peerA := p2pNodes[k]
+			for _, v := range vs {
+				unconnected := strings.HasPrefix(v, "~")
+				if unconnected {
+					v = v[1:]
+				}
+				if !unconnected {
+					peerB := p2pNodes[v]
+					if _, err := sys.Mocknet.ConnectPeers(peerA.HostP2P.ID(), peerB.HostP2P.ID()); err != nil {
+						return nil, fmt.Errorf("failed to setup mocknet connection between %s and %s", k, v)
+					}
+				}
+			}
+		}
 	}
 
 	rollupEndpoint := fmt.Sprintf(

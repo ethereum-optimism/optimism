@@ -8,6 +8,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ethereum-optimism/optimistic-specs/opnode/l2"
+	"github.com/libp2p/go-libp2p-core/peer"
+
 	"github.com/ethereum-optimism/optimistic-specs/l2os/bindings/l2oo"
 	"github.com/ethereum-optimism/optimistic-specs/l2os/rollupclient"
 	"github.com/ethereum-optimism/optimistic-specs/opnode/contracts/deposit"
@@ -51,6 +54,7 @@ const (
 	transactorHDPath   = "m/44'/60'/0'/0/1"
 	l2OutputHDPath     = "m/44'/60'/0'/0/3"
 	bssHDPath          = "m/44'/60'/0'/0/4"
+	p2pSignerHDPath    = "m/44'/60'/0'/0/5"
 )
 
 var (
@@ -77,6 +81,7 @@ func defaultSystemConfig(t *testing.T) SystemConfig {
 		},
 		L2OutputHDPath:             l2OutputHDPath,
 		BatchSubmitterHDPath:       bssHDPath,
+		P2PSignerHDPath:            p2pSignerHDPath,
 		DeployerHDPath:             l2OutputHDPath,
 		CliqueSignerDerivationPath: cliqueSignerHDPath,
 		L1InfoPredeployAddress:     derive.L1InfoPredeployAddr,
@@ -85,7 +90,7 @@ func defaultSystemConfig(t *testing.T) SystemConfig {
 		L1WsPort:                   9090,
 		L1ChainID:                  big.NewInt(900),
 		L2ChainID:                  big.NewInt(901),
-		Nodes: map[string]rollupNode.Config{
+		Nodes: map[string]*rollupNode.Config{
 			"verifier": {
 				L1NodeAddr:    "ws://127.0.0.1:9090",
 				L2EngineAddrs: []string{"ws://127.0.0.1:9091"},
@@ -106,15 +111,17 @@ func defaultSystemConfig(t *testing.T) SystemConfig {
 			},
 		},
 		Loggers: map[string]log.Logger{
-			"verifier":  testlog.Logger(t, log.LvlError),
-			"sequencer": testlog.Logger(t, log.LvlError),
+			"verifier":  testlog.Logger(t, log.LvlError).New("role", "verifier"),
+			"sequencer": testlog.Logger(t, log.LvlError).New("role", "sequencer"),
 		},
 		RollupConfig: rollup.Config{
 			BlockTime:         1,
 			MaxSequencerDrift: 10,
 			SeqWindowSize:     2,
 			L1ChainID:         big.NewInt(900),
+			L2ChainID:         big.NewInt(901),
 			// TODO pick defaults
+			P2PSequencerAddress: common.Address{}, // TODO configure sequencer p2p key
 			FeeRecipientAddress: common.Address{0xff, 0x01},
 			BatchInboxAddress:   batchInboxAddress,
 			// Batch Sender address is filled out in system start
@@ -468,20 +475,70 @@ func TestSystemMockP2P(t *testing.T) {
 	}
 
 	cfg := defaultSystemConfig(t)
-	// slow down L1 blocks so we can see the L2 blocks arrive before the L1 blocks do.
+	// slow down L1 blocks so we can see the L2 blocks arrive well before the L1 blocks do.
+	// Keep the seq window small so the L2 chain is started quick
 	cfg.L1BlockTime = 10
+
 	// connect the nodes
 	cfg.P2PTopology = map[string][]string{
 		"verifier": []string{"sequencer"},
 	}
 
+	var published, received []common.Hash
+	seqTracer, verifTracer := new(FnTracer), new(FnTracer)
+	seqTracer.OnPublishL2PayloadFn = func(ctx context.Context, payload *l2.ExecutionPayload) {
+		published = append(published, payload.BlockHash)
+	}
+	verifTracer.OnUnsafeL2PayloadFn = func(ctx context.Context, from peer.ID, payload *l2.ExecutionPayload) {
+		received = append(received, payload.BlockHash)
+	}
+	cfg.Nodes["sequencer"].Tracer = seqTracer
+	cfg.Nodes["verifier"].Tracer = verifTracer
+
 	sys, err := cfg.start()
 	require.Nil(t, err, "Error starting up system")
 	defer sys.Close()
 
-	t.Log("successfully set up network")
+	l2Seq := sys.Clients["sequencer"]
+	l2Verif := sys.Clients["verifier"]
 
-	// TODO: await L2 blocks going from sequencer to verifier, ahead of L1
+	// Transactor Account
+	ethPrivKey, err := sys.wallet.PrivateKey(accounts.Account{
+		URL: accounts.URL{
+			Path: transactorHDPath,
+		},
+	})
+	require.Nil(t, err)
+
+	// Submit TX to L2 sequencer node
+	toAddr := common.Address{0xff, 0xff}
+	tx := types.MustSignNewTx(ethPrivKey, types.LatestSignerForChainID(cfg.L2ChainID), &types.DynamicFeeTx{
+		ChainID:   cfg.L2ChainID,
+		Nonce:     0,
+		To:        &toAddr,
+		Value:     big.NewInt(1_000_000_000),
+		GasTipCap: big.NewInt(10),
+		GasFeeCap: big.NewInt(200),
+		Gas:       21000,
+	})
+	err = l2Seq.SendTransaction(context.Background(), tx)
+	require.Nil(t, err, "Sending L2 tx to sequencer")
+
+	// Wait for tx to be mined on the L2 sequencer chain
+	receiptSeq, err := waitForTransaction(tx.Hash(), l2Seq, 3*time.Duration(cfg.RollupConfig.BlockTime)*time.Second)
+	require.Nil(t, err, "Waiting for L2 tx on sequencer")
+
+	// Wait until the block it was first included in shows up in the safe chain on the verifier
+	receiptVerif, err := waitForTransaction(tx.Hash(), l2Verif, 3*time.Duration(cfg.RollupConfig.BlockTime)*time.Second)
+	require.Nil(t, err, "Waiting for L2 tx on verifier")
+
+	require.Equal(t, receiptSeq, receiptVerif)
+
+	// Verify that everything that was published was received
+	require.Equal(t, published, received)
+
+	// Verify that the tx was received via p2p
+	require.Contains(t, published, receiptVerif.BlockHash)
 }
 
 func TestL1InfoContract(t *testing.T) {

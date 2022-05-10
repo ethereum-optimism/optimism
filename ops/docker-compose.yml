@@ -36,20 +36,26 @@ services:
     build:
       context: ../
       dockerfile: ./ops/Dockerfile.opnode
-    command:
-      - op
-      - --l1=ws://l1:8546
-      - --l2=ws://l2:8546
-      - --sequencing.enabled
-      - --rollup.config=/rollup.json
-      - --batchsubmitter.key=/config/bss-key.txt
-      - --l2.eth=http://l2:8545
-      - --rpc.addr=0.0.0.0
-      - --rpc.port=8545
+    command: >
+      op
+      --l1=ws://l1:8546
+      --l2=ws://l2:8546
+      --sequencing.enabled
+      --p2p.sequencer.key=/config/p2p-sequencer-key.txt
+      --rollup.config=/rollup.json
+      --l2.eth=http://l2:8545
+      --rpc.addr=0.0.0.0
+      --rpc.port=8545
+      --p2p.listen.ip=0.0.0.0
+      --p2p.listen.tcp=9003
+      --p2p.listen.udp=9003
+      --p2p.priv.path=/config/p2p-node-key.txt
     ports:
         - "7545:8545"
+        - "9003:9003"
     volumes:
-      - ${PWD}/bss-key.txt:/config/bss-key.txt
+      - ${PWD}/p2p-sequencer-key.txt:/config/p2p-sequencer-key.txt
+      - ${PWD}/p2p-node-key.txt:/config/p2p-node-key.txt
       - ${PWD}/../.devnet/rollup.json:/rollup.json
 
   l2os:

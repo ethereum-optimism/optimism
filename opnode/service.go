@@ -1,16 +1,14 @@
 package opnode
 
 import (
-	"crypto/ecdsa"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"os"
 
 	"github.com/ethereum-optimism/optimistic-specs/opnode/flags"
 	"github.com/ethereum-optimism/optimistic-specs/opnode/node"
+	"github.com/ethereum-optimism/optimistic-specs/opnode/p2p"
 	"github.com/ethereum-optimism/optimistic-specs/opnode/rollup"
-	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/urfave/cli"
 )
 
@@ -23,33 +21,29 @@ func NewConfig(ctx *cli.Context) (*node.Config, error) {
 
 	enableSequencing := ctx.GlobalBool(flags.SequencingEnabledFlag.Name)
 
-	var batchSubmitterKey *ecdsa.PrivateKey
-	if enableSequencing {
-		keyFile := ctx.GlobalString(flags.BatchSubmitterKeyFlag.Name)
-		if keyFile == "" {
-			return nil, errors.New("sequencer mode needs batch-submitter key")
-		}
-		// TODO we should be using encrypted keystores.
-		// Mnemonics are bad because they leak *all* keys when they leak
-		// Unencrypted keys from file are bad because they are easy to leak (and we are not checking file permissions)
-		batchSubmitterKey, err = crypto.LoadECDSA(keyFile)
-		if err != nil {
-			return nil, fmt.Errorf("failed to read batch submitter key: %v", err)
-		}
+	p2pSignerSetup, err := p2p.LoadSignerSetup(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load p2p signer: %v", err)
+	}
+
+	p2pConfig, err := p2p.NewConfig(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load p2p config: %v", err)
 	}
 
 	cfg := &node.Config{
-		L1NodeAddr:       ctx.GlobalString(flags.L1NodeAddr.Name),
-		L2EngineAddrs:    ctx.GlobalStringSlice(flags.L2EngineAddrs.Name),
-		L2NodeAddr:       ctx.GlobalString(flags.L2EthNodeAddr.Name),
-		L1TrustRPC:       ctx.GlobalBool(flags.L1TrustRPC.Name),
-		Rollup:           *rollupConfig,
-		Sequencer:        enableSequencing,
-		SubmitterPrivKey: batchSubmitterKey,
+		L1NodeAddr:    ctx.GlobalString(flags.L1NodeAddr.Name),
+		L2EngineAddrs: ctx.GlobalStringSlice(flags.L2EngineAddrs.Name),
+		L2NodeAddr:    ctx.GlobalString(flags.L2EthNodeAddr.Name),
+		L1TrustRPC:    ctx.GlobalBool(flags.L1TrustRPC.Name),
+		Rollup:        *rollupConfig,
+		Sequencer:     enableSequencing,
 		RPC: node.RPCConfig{
 			ListenAddr: ctx.GlobalString(flags.RPCListenAddr.Name),
 			ListenPort: ctx.GlobalInt(flags.RPCListenPort.Name),
 		},
+		P2P:       p2pConfig,
+		P2PSigner: p2pSignerSetup,
 	}
 	if err := cfg.Check(); err != nil {
 		return nil, err

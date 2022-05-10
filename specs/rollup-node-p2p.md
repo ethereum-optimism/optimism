@@ -49,9 +49,11 @@ and are adopted by several other blockchains, most notably the [L1 consensus lay
       - [Message ID computation](#message-id-computation)
     - [Heartbeat and parameters](#heartbeat-and-parameters)
     - [Topic configuration](#topic-configuration)
+    - [Topic validation](#topic-validation)
 - [Gossip Topics](#gossip-topics)
   - [`blocks`](#blocks)
     - [Block encoding](#block-encoding)
+    - [Block signatures](#block-signatures)
     - [Block validation](#block-validation)
       - [Block processing](#block-processing)
       - [Block topic scoring parameters](#block-topic-scoring-parameters)
@@ -205,11 +207,11 @@ GossipSub [parameters][gossip-parameters]:
 - `D_low` (topic stable mesh low watermark): 6
 - `D_high` (topic stable mesh high watermark): 12
 - `D_lazy` (gossip target): 6
-- `heartbeat_interval` (frequency of heartbeat, seconds): 0.5
-- `fanout_ttl` (ttl for fanout maps for topics we are not subscribed to but have published to, seconds): 24
+- `heartbeat_interval` (interval of heartbeat, in seconds): 0.5
+- `fanout_ttl` (ttl for fanout maps for topics we are not subscribed to but have published to, in seconds): 24
 - `mcache_len` (number of windows to retain full messages in cache for `IWANT` responses): 12
 - `mcache_gossip` (number of windows to gossip about): 3
-- `seen_ttl` (number of heartbeat intervals to retain message IDs): 40
+- `seen_ttl` (number of heartbeat intervals to retain message IDs): 80 (= 40 seconds)
 
 Notable differences from L1 consensus (Eth2):
 
@@ -225,11 +227,21 @@ Topics have string identifiers and are communicated with messages and subscripti
 `/optimism/chain_id/hardfork_version/Name`
 
 - `chain_id`: replace with decimal representation of chain ID
-- `hardfork_version`: replace with decimal representation of hardfork
+- `hardfork_version`: replace with decimal representation of hardfork, starting at `0`
 - `Name`: topic application-name
 
 Note that the topic encoding depends on the topic, unlike L1,
 since there are less topics, and all are snappy-compressed.
+
+#### Topic validation
+
+To ensure only valid messages are relayed, and malicious peers get scored based on application behavior,
+an [extended validator][extended-validator] checks the message before it is relayed or processed.
+The extended validator emits one of the following validation signals:
+
+- `ACCEPT` valid, relayed to other peers and passed to local topic subscriber
+- `IGNORE` scored like inactivity, message is dropped and not processed
+- `REJECT` score penalties, message is dropped
 
 ## Gossip Topics
 
@@ -239,29 +251,47 @@ The primary topic of the L2, to distribute blocks to other nodes faster than pro
 
 #### Block encoding
 
-TODO: encode execution payload (SSZ or RLP), with sequencer identifier and signature.
+A block is structured as the concatenation of:
 
-TODO: signature type and verification (`secp256k1` like transactions, with some different signature domain)
+- `signature`: A `secp256k1` signature, always 65 bytes, `r (uint256), s (uint256), y_parity (uint8)`
+- `payload`: A SSZ-encoded `ExecutionPayload`, always the remaining bytes.
+
+The topic uses Snappy block-compression (i.e. no snappy frames):
+the above needs to be compressed after encoding, and decompressed before decoding.
+
+#### Block signatures
+
+The `signature` is a `secp256k1` signature, and signs over a message:
+`keccak256(domain ++ chain_id ++ payload_hash)`, where:
+
+- `domain` is 32 bytes, reserved for message types and versioning info. All zero for this signature.
+- `chain_id` is a big-endian encoded `uint256`.
+- `payload_hash` is `keccak256(payload)`, where `payload` is the SSZ-encoded `ExecutionPayload`
+
+The `secp256k1` signature must have `y_parity = 1 or 0`, the `chain_id` is already signed over.
 
 #### Block validation
 
-To ensure malicious peers get scored based on application behavior the validation signals
-`ACCEPT` (valid), `IGNORE` (like inactivity) or `REJECT` (score penalties).
+An [extended-validator] checks the incoming messages as follows, in order of operation:
 
-In order of operation:
-
-- `[REJECT]` if the encoding or compression is not valid
-- `[REJECT]` if the block timestamp is older than 20 seconds in the past
+- `[REJECT]` if the compression is not valid
+- `[REJECT]` if the block encoding is not valid
+- `[REJECT]` if the `payload.timestamp` is older than 20 seconds in the past
   (graceful boundary for worst-case propagation and clock skew)
-- `[REJECT]` if the block timestamp is more than 5 seconds into the future (graceful boundary for clock skew)
+- `[REJECT]` if the `payload.timestamp` is more than 5 seconds into the future
+- `[REJECT]` if the `block_hash` in the `payload` is not valid
+- `[REJECT]` if more than 5 different blocks have been seen with the same block height
+- `[IGNORE]` if the block has already been seen
 - `[REJECT]` if the signature by the sequencer is not valid
-- `[REJECT]` if more than 5 blocks have been seen with the same block height
-- `[IGNORE]` if a conflicting block was already seen on L1.
-  It may not be malicious due to racing between L1 confirmation and L2 propagation, but should be filtered out.
+- Mark the block as seen for the given block height
 
 The block is signed by the corresponding sequencer, to filter malicious messages.
 The sequencer model is singular but may change to multiple sequencers in the future.
 A default sequencer pubkey is distributed with rollup nodes and should be configurable.
+
+Note that blocks that a block may still be propagated even if the L1 already confirmed a different block.
+The local L1 view of the node may be wrong, and the time and signature validation will prevent spam.
+Hence, calling into the execution engine with a block lookup every propagation step is not worth the added delay.
 
 ##### Block processing
 
@@ -290,3 +320,4 @@ TODO: GossipSub per-topic scoring to fine-tune incentives for ideal propagation 
 [snappy]: https://github.com/google/snappy
 [l1-message-id]: https://github.com/ethereum/consensus-specs/blob/dev/specs/phase0/p2p-interface.md#topics-and-messages
 [gossip-parameters]: https://github.com/libp2p/specs/blob/master/pubsub/gossipsub/gossipsub-v1.0.md#parameters
+[extended-validator]: https://github.com/libp2p/specs/blob/master/pubsub/gossipsub/gossipsub-v1.1.md#extended-validators

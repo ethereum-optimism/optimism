@@ -2,8 +2,12 @@
 package l2
 
 import (
+	"bytes"
 	"fmt"
+	"math/big"
 	"reflect"
+
+	"github.com/ethereum/go-ethereum/trie"
 
 	"github.com/ethereum-optimism/optimistic-specs/opnode/eth"
 
@@ -109,6 +113,48 @@ type ExecutionPayload struct {
 
 func (payload *ExecutionPayload) ID() eth.BlockID {
 	return eth.BlockID{Hash: payload.BlockHash, Number: uint64(payload.BlockNumber)}
+}
+
+func (payload *ExecutionPayload) ParentID() eth.BlockID {
+	n := uint64(payload.BlockNumber)
+	if n > 0 {
+		n -= 1
+	}
+	return eth.BlockID{Hash: payload.ParentHash, Number: n}
+}
+
+type rawTransactions []Data
+
+func (s rawTransactions) Len() int { return len(s) }
+func (s rawTransactions) EncodeIndex(i int, w *bytes.Buffer) {
+	w.Write(s[i])
+}
+
+// CheckBlockHash recomputes the block hash and returns if the embedded block hash matches.
+func (payload *ExecutionPayload) CheckBlockHash() (actual common.Hash, ok bool) {
+	hasher := trie.NewStackTrie(nil)
+	txHash := types.DeriveSha(rawTransactions(payload.Transactions), hasher)
+
+	header := types.Header{
+		ParentHash:  payload.ParentHash,
+		UncleHash:   types.EmptyUncleHash,
+		Coinbase:    payload.FeeRecipient,
+		Root:        common.Hash(payload.StateRoot),
+		TxHash:      txHash,
+		ReceiptHash: common.Hash(payload.ReceiptsRoot),
+		Bloom:       types.Bloom(payload.LogsBloom),
+		Difficulty:  common.Big0, // zeroed, proof-of-work legacy
+		Number:      big.NewInt(int64(payload.BlockNumber)),
+		GasLimit:    uint64(payload.GasLimit),
+		GasUsed:     uint64(payload.GasUsed),
+		Time:        uint64(payload.Timestamp),
+		Extra:       payload.ExtraData,
+		MixDigest:   common.Hash(payload.PrevRandao),
+		Nonce:       types.BlockNonce{}, // zeroed, proof-of-work legacy
+		BaseFee:     payload.BaseFeePerGas.ToBig(),
+	}
+	blockHash := header.Hash()
+	return blockHash, blockHash == payload.BlockHash
 }
 
 func BlockAsPayload(bl *types.Block) (*ExecutionPayload, error) {

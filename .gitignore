@@ -11,3 +11,6 @@ integration-tests/cache/
 integration-tests/artifacts/
 **/*.env
 .devnet
+
+# Ignore local fuzzing results
+**/testdata/fuzz/

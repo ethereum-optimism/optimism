@@ -6,10 +6,16 @@ import (
 	"sync"
 	"time"
 
+	"github.com/libp2p/go-libp2p-core/peer"
+
+	"github.com/ethereum-optimism/optimistic-specs/opnode/p2p"
+
 	"github.com/ethereum/go-ethereum/p2p/discover"
 	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/libp2p/go-libp2p-core/host"
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
+
+	multierror "github.com/hashicorp/go-multierror"
 
 	"github.com/ethereum-optimism/optimistic-specs/opnode/backoff"
 
@@ -25,20 +31,30 @@ import (
 )
 
 type OpNode struct {
-	log       log.Logger
-	l1Source  *l1.Source       // Source to fetch data from (also implements the Downloader interface)
-	l2Engines []*driver.Driver // engines to keep synced
-	l2Nodes   []*rpc.Client    // L2 Execution Engines to close at shutdown
-	server    *rpcServer       // RPC server hosting the rollup-node API
-	host      host.Host        // p2p host (optional, may be nil)
-	dv5Local  *enode.LocalNode // p2p discovery identity (optional, may be nil)
-	dv5Udp    *discover.UDPv5  // p2p discovery service (optional, may be nil)
-	p2pCtx    context.Context  // all p2p activity take this context so p2p can be shut down without stopping the node.
-	p2pClose  context.CancelFunc
-	gs        *pubsub.PubSub
-	done      chan struct{}
-	wg        sync.WaitGroup
+	log        log.Logger
+	appVersion string
+	l1HeadsSub ethereum.Subscription // Subscription to get L1 heads (automatically re-subscribes on error)
+	l1Source   *l1.Source            // Source to fetch data from (also implements the Downloader interface)
+	l2Lock     sync.Mutex            // Mutex to safely add and use different L2 resources in parallel
+	l2Engines  []*driver.Driver      // engines to keep synced
+	l2Nodes    []*rpc.Client         // L2 Execution Engines to close at shutdown
+	server     *rpcServer            // RPC server hosting the rollup-node API
+	host       host.Host             // p2p host (optional, may be nil)
+	dv5Local   *enode.LocalNode      // p2p discovery identity (optional, may be nil)
+	dv5Udp     *discover.UDPv5       // p2p discovery service (optional, may be nil)
+	gs         *pubsub.PubSub        // p2p gossip router (optional, may be nil)
+	gsOut      p2p.GossipOut         // p2p gossip application interface for publishing (optional, may be nil)
+	p2pSigner  p2p.Signer            // p2p gogssip application messages will be signed with this signer
+	tracer     Tracer                // tracer to get events for testing/debugging
+
+	// some resources cannot be stopped directly, like the p2p gossipsub router (not our design),
+	// and depend on this ctx to be closed.
+	resourcesCtx   context.Context
+	resourcesClose context.CancelFunc
 }
+
+// The OpNode handles incoming gossip
+var _ p2p.GossipIn = (*OpNode)(nil)
 
 func dialRPCClientWithBackoff(ctx context.Context, log log.Logger, addr string) (*rpc.Client, error) {
 	bOff := backoff.Exponential()
@@ -65,210 +81,309 @@ func New(ctx context.Context, cfg *Config, log log.Logger, appVersion string) (*
 		return nil, err
 	}
 
-	l1Node, err := dialRPCClientWithBackoff(ctx, log, cfg.L1NodeAddr)
+	n := &OpNode{
+		log:        log,
+		appVersion: appVersion,
+	}
+	// not a context leak, gossipsub is closed with a context.
+	n.resourcesCtx, n.resourcesClose = context.WithCancel(context.Background())
+
+	err := n.init(ctx, cfg)
 	if err != nil {
-		return nil, fmt.Errorf("failed to dial L1 address (%s): %w", cfg.L1NodeAddr, err)
+		// ensure we always close the node resources if we fail to initialize the node.
+		if closeErr := n.Close(); closeErr != nil {
+			return nil, multierror.Append(err, closeErr)
+		}
+		return nil, err
+	}
+	return n, nil
+}
+
+func (n *OpNode) init(ctx context.Context, cfg *Config) error {
+	if err := n.initTracer(ctx, cfg); err != nil {
+		return err
+	}
+	if err := n.initL1(ctx, cfg); err != nil {
+		return err
+	}
+	if err := n.initL2(ctx, cfg); err != nil {
+		return err
+	}
+	if err := n.initRPCServer(ctx, cfg); err != nil {
+		return err
+	}
+	if err := n.initP2PSigner(ctx, cfg); err != nil {
+		return err
+	}
+	if err := n.initP2P(ctx, cfg); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (n *OpNode) initTracer(ctx context.Context, cfg *Config) error {
+	if cfg.Tracer != nil {
+		n.tracer = cfg.Tracer
+	} else {
+		n.tracer = new(noOpTracer)
+	}
+	return nil
+}
+
+func (n *OpNode) initL1(ctx context.Context, cfg *Config) error {
+	l1Node, err := dialRPCClientWithBackoff(ctx, n.log, cfg.L1NodeAddr)
+	if err != nil {
+		return fmt.Errorf("failed to dial L1 address (%s): %w", cfg.L1NodeAddr, err)
 	}
 
 	// TODO: we may need to authenticate the connection with L1
 	// l1Node.SetHeader()
-	l1Source, err := l1.NewSource(l1Node, log, l1.DefaultConfig(&cfg.Rollup, cfg.L1TrustRPC))
+	n.l1Source, err = l1.NewSource(l1Node, n.log, l1.DefaultConfig(&cfg.Rollup, cfg.L1TrustRPC))
 	if err != nil {
-		return nil, fmt.Errorf("failed to create L1 source: %v", err)
-	}
-	var l2Engines []*driver.Driver
-	genesis := cfg.Rollup.Genesis
-
-	var l2Nodes []*rpc.Client
-	closeNodes := func() {
-		for _, n := range l2Nodes {
-			n.Close()
-		}
-	}
-
-	for i, addr := range cfg.L2EngineAddrs {
-		l2Node, err := dialRPCClientWithBackoff(ctx, log, addr)
-		if err != nil {
-			closeNodes()
-			return nil, err
-		}
-		l2Nodes = append(l2Nodes, l2Node)
-
-		// TODO: we may need to authenticate the connection with L2
-		// backend.SetHeader()
-		client, err := l2.NewSource(l2Node, &genesis, log.New("engine_client", i))
-		if err != nil {
-			closeNodes()
-			return nil, err
-		}
-
-		engine := driver.NewDriver(cfg.Rollup, client, l1Source, log.New("engine", i, "Sequencer", cfg.Sequencer), cfg.Sequencer)
-		l2Engines = append(l2Engines, engine)
-	}
-
-	l2Node, err := dialRPCClientWithBackoff(ctx, log, cfg.L2NodeAddr)
-	if err != nil {
-		return nil, fmt.Errorf("failed to dial l2 address (%s): %w", cfg.L2NodeAddr, err)
-	}
-
-	client, err := l2.NewReadOnlySource(l2Node, &genesis, log)
-	if err != nil {
-		return nil, err
-	}
-	server, err := newRPCServer(ctx, &cfg.RPC, &cfg.Rollup, client, log, appVersion)
-	if err != nil {
-		return nil, err
-	}
-
-	n := &OpNode{
-		log:       log,
-		l1Source:  l1Source,
-		l2Engines: l2Engines,
-		server:    server,
-		done:      make(chan struct{}),
-		l2Nodes:   l2Nodes,
-	}
-
-	if cfg.P2P != nil {
-		// All nil if disabled.
-		n.dv5Local, n.dv5Udp, err = cfg.P2P.Discovery(log.New("p2p", "discv5"))
-		if err != nil {
-			return nil, fmt.Errorf("failed to start discv5: %v", err)
-		}
-
-		// nil if disabled.
-		n.host, err = cfg.P2P.Host()
-		if err != nil {
-			return nil, fmt.Errorf("failed to start p2p host: %v", err)
-		}
-		if n.host != nil {
-			// not a context leak, gossipsub is closed with a context.
-			// TODO: maybe we can improve this, or closing the Host is enough?
-			n.p2pCtx, n.p2pClose = context.WithCancel(context.Background())
-			gs, err := pubsub.NewGossipSub(n.p2pCtx, n.host) // TODO options
-			if err != nil {
-				// close p2p stack if we cannot create the opnode successfully
-				if n.dv5Udp != nil {
-					n.dv5Udp.Close()
-				}
-				_ = n.host.Close()
-				n.p2pClose()
-				return nil, fmt.Errorf("failed to start gossipsub router: %v", err)
-			}
-			n.gs = gs
-		}
-	}
-
-	return n, nil
-}
-
-func (c *OpNode) Start(ctx context.Context) error {
-	c.log.Info("Starting OpNode")
-
-	var unsub []func()
-	handleUnsubscribe := func(sub ethereum.Subscription, errMsg string) {
-		unsub = append(unsub, sub.Unsubscribe)
-		go func() {
-			err, ok := <-sub.Err()
-			if !ok {
-				return
-			}
-			c.log.Error(errMsg, "err", err)
-		}()
-	}
-
-	c.log.Info("Fetching rollup starting point")
-
-	// Feed of eth.L1BlockRef
-	var l1HeadsFeed event.Feed
-
-	c.log.Info("Attaching execution engine(s)")
-	for _, eng := range c.l2Engines {
-		// Request initial head update, default to genesis otherwise
-		reqCtx, reqCancel := context.WithTimeout(ctx, time.Second*10)
-
-		// driver subscribes to L1 head changes
-		l1SubCh := make(chan eth.L1BlockRef, 10)
-		l1HeadsFeed.Subscribe(l1SubCh)
-		// start driving engine: sync blocks by deriving them from L1 and driving them into the engine
-		err := eng.Start(reqCtx, l1SubCh)
-		reqCancel()
-		if err != nil {
-			c.log.Error("Could not start a rollup node", "err", err)
-			return err
-		}
+		return fmt.Errorf("failed to create L1 source: %v", err)
 	}
 
 	// Keep subscribed to the L1 heads, which keeps the L1 maintainer pointing to the best headers to sync
-	l1HeadsSub := event.ResubscribeErr(time.Second*10, func(ctx context.Context, err error) (event.Subscription, error) {
+	n.l1HeadsSub = event.ResubscribeErr(time.Second*10, func(ctx context.Context, err error) (event.Subscription, error) {
 		if err != nil {
-			c.log.Warn("resubscribing after failed L1 subscription", "err", err)
+			n.log.Warn("resubscribing after failed L1 subscription", "err", err)
 		}
-		return eth.WatchHeadChanges(context.Background(), c.l1Source, func(sig eth.L1BlockRef) {
-			l1HeadsFeed.Send(sig)
-		})
+		return eth.WatchHeadChanges(n.resourcesCtx, n.l1Source, n.OnNewL1Head)
 	})
-	handleUnsubscribe(l1HeadsSub, "l1 heads subscription failed")
-
-	// subscribe to L1 heads for info
-	l1Heads := make(chan eth.L1BlockRef, 10)
-	l1HeadsFeed.Subscribe(l1Heads)
-
-	c.log.Info("Starting JSON-RPC server")
-	if err := c.server.Start(); err != nil {
-		return fmt.Errorf("unable to start RPC server: %w", err)
-	}
-
-	c.log.Info("Start-up complete!")
-	c.wg.Add(1)
 	go func() {
-		defer c.wg.Done()
-		for {
-			select {
-			case l1Head := <-l1Heads:
-				c.log.Info("New L1 head", "head", l1Head, "parent", l1Head.ParentHash)
-			// TODO: maybe log other info on interval or other chain events (individual engines also log things)
-			case <-c.done:
-				c.log.Info("Closing OpNode")
-				if c.dv5Udp != nil {
-					c.dv5Udp.Close()
-				}
-				if c.host != nil {
-					if err := c.host.Close(); err != nil {
-						c.log.Error("failed to close p2p host cleanly: %v", err)
-					}
-				}
-				if c.p2pClose != nil {
-					c.p2pClose()
-				}
-				// close all tasks
-				for _, f := range unsub {
-					f()
-				}
-				// close L2 engines
-				for _, eng := range c.l2Engines {
-					if err := eng.Close(); err != nil {
-						c.log.Error("failed to close L2 engine driver cleanly: %v", err)
-					}
-				}
-				// close L2 nodes
-				for _, n := range c.l2Nodes {
-					n.Close()
-				}
-				// close L1 data source
-				c.l1Source.Close()
-
-				return
-			}
+		err, ok := <-n.l1HeadsSub.Err()
+		if !ok {
+			return
 		}
+		n.log.Error("l1 heads subscription error", "err", err)
 	}()
 	return nil
 }
 
-func (c *OpNode) Stop() {
-	if c.done != nil {
-		close(c.done)
+// AttachEngine attaches an engine to the rollup node.
+func (n *OpNode) AttachEngine(ctx context.Context, cfg *Config, addr string) error {
+	n.l2Lock.Lock()
+	defer n.l2Lock.Unlock()
+
+	l2Node, err := dialRPCClientWithBackoff(ctx, n.log, addr)
+	if err != nil {
+		return err
 	}
-	c.wg.Wait()
-	c.server.Stop()
+
+	engLog := n.log.New("engine", addr)
+
+	// TODO: we may need to authenticate the connection with L2
+	// backend.SetHeader()
+	client, err := l2.NewSource(l2Node, &cfg.Rollup.Genesis, engLog)
+	if err != nil {
+		l2Node.Close()
+		return err
+	}
+
+	engine := driver.NewDriver(cfg.Rollup, client, n.l1Source, n, engLog, cfg.Sequencer)
+
+	n.l2Nodes = append(n.l2Nodes, l2Node)
+	n.l2Engines = append(n.l2Engines, engine)
+	return nil
+}
+
+func (n *OpNode) initL2(ctx context.Context, cfg *Config) error {
+	for i, addr := range cfg.L2EngineAddrs {
+		if err := n.AttachEngine(ctx, cfg, addr); err != nil {
+			return fmt.Errorf("failed to attach configured engine %d (%s): %v", i, addr, err)
+		}
+	}
+	return nil
+}
+
+func (n *OpNode) initRPCServer(ctx context.Context, cfg *Config) error {
+	l2Node, err := dialRPCClientWithBackoff(ctx, n.log, cfg.L2NodeAddr)
+	if err != nil {
+		return fmt.Errorf("failed to dial l2 address (%s): %w", cfg.L2NodeAddr, err)
+	}
+
+	client, err := l2.NewReadOnlySource(l2Node, &cfg.Rollup.Genesis, n.log)
+	if err != nil {
+		return err
+	}
+	n.server, err = newRPCServer(ctx, &cfg.RPC, &cfg.Rollup, client, n.log, n.appVersion)
+	if err != nil {
+		return err
+	}
+	n.log.Info("Starting JSON-RPC server")
+	if err := n.server.Start(); err != nil {
+		return fmt.Errorf("unable to start RPC server: %w", err)
+	}
+	return nil
+}
+
+func (n *OpNode) initP2P(ctx context.Context, cfg *Config) error {
+	// the p2p setup is optional
+	if cfg.P2P == nil {
+		return nil
+	}
+	var err error
+	// All nil if disabled.
+	n.dv5Local, n.dv5Udp, err = cfg.P2P.Discovery(n.log.New("p2p", "discv5"))
+	if err != nil {
+		return fmt.Errorf("failed to start discv5: %v", err)
+	}
+
+	// nil if disabled.
+	n.host, err = cfg.P2P.Host()
+	if err != nil {
+		return fmt.Errorf("failed to start p2p host: %v", err)
+	}
+
+	if n.host != nil {
+		n.gs, err = p2p.NewGossipSub(n.resourcesCtx, n.host, &cfg.Rollup)
+		if err != nil {
+			return fmt.Errorf("failed to start gossipsub router: %v", err)
+		}
+
+		n.gsOut, err = p2p.JoinGossip(n.resourcesCtx, n.host.ID(), n.gs, n.log, &cfg.Rollup, n)
+		if err != nil {
+			return fmt.Errorf("failed to join blocks gossip topic: %v", err)
+		}
+		n.log.Info("started p2p host", "addrs", n.host.Addrs(), "peerID", n.host.ID().Pretty())
+	}
+	return nil
+}
+
+func (n *OpNode) initP2PSigner(ctx context.Context, cfg *Config) error {
+	// the p2p signer setup is optional
+	if cfg.P2PSigner == nil {
+		return nil
+	}
+	// p2pSigner may still be nil, the signer setup may not create any signer, the signer is optional
+	var err error
+	n.p2pSigner, err = cfg.P2PSigner.SetupSigner(ctx)
+	return err
+}
+
+func (n *OpNode) Start(ctx context.Context) error {
+	n.log.Info("Starting execution engine driver(s)")
+	for _, eng := range n.l2Engines {
+		// Request initial head update, default to genesis otherwise
+		reqCtx, reqCancel := context.WithTimeout(ctx, time.Second*10)
+		// start driving engine: sync blocks by deriving them from L1 and driving them into the engine
+		err := eng.Start(reqCtx)
+		reqCancel()
+		if err != nil {
+			n.log.Error("Could not start a rollup node", "err", err)
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (n *OpNode) OnNewL1Head(ctx context.Context, sig eth.L1BlockRef) {
+	n.l2Lock.Lock()
+	defer n.l2Lock.Unlock()
+
+	n.tracer.OnNewL1Head(ctx, sig)
+
+	// fan-out to all engine drivers
+	for _, eng := range n.l2Engines {
+		go func(eng *driver.Driver) {
+			ctx, cancel := context.WithTimeout(ctx, time.Second*10)
+			defer cancel()
+			if err := eng.OnL1Head(ctx, sig); err != nil {
+				n.log.Warn("failed to notify engine driver of L1 head change", "err", err)
+			}
+		}(eng)
+	}
+}
+
+func (n *OpNode) PublishL2Payload(ctx context.Context, payload *l2.ExecutionPayload) error {
+	n.tracer.OnPublishL2Payload(ctx, payload)
+
+	// publish to p2p, if we are running p2p at all
+	if n.gsOut != nil {
+		if n.p2pSigner == nil {
+			return fmt.Errorf("node has no p2p signer, payload %s cannot be published", payload.ID())
+		}
+		n.log.Info("Publishing signed execution payload on p2p", "id", payload.ID())
+		return n.gsOut.PublishL2Payload(ctx, payload, n.p2pSigner)
+	}
+	// if p2p is not enabled then we just don't publish the payload
+	return nil
+}
+
+func (n *OpNode) OnUnsafeL2Payload(ctx context.Context, from peer.ID, payload *l2.ExecutionPayload) error {
+	n.l2Lock.Lock()
+	defer n.l2Lock.Unlock()
+
+	// ignore if it's from ourselves
+	if from == n.host.ID() {
+		return nil
+	}
+
+	n.tracer.OnUnsafeL2Payload(ctx, from, payload)
+
+	n.log.Info("Received signed execution payload from p2p", "id", payload.ID(), "peer", from)
+
+	// fan-out to all engine drivers
+	for _, eng := range n.l2Engines {
+		go func(eng *driver.Driver) {
+			ctx, cancel := context.WithTimeout(ctx, time.Second*30)
+			defer cancel()
+			if err := eng.OnUnsafeL2Payload(ctx, payload); err != nil {
+				n.log.Warn("failed to notify engine driver of new L2 payload", "err", err, "id", payload.ID())
+			}
+		}(eng)
+	}
+	return nil
+}
+
+// Close closes all resources.
+func (n *OpNode) Close() error {
+	var result *multierror.Error
+
+	if n.server != nil {
+		n.server.Stop()
+	}
+	if n.dv5Udp != nil {
+		n.dv5Udp.Close()
+	}
+	if n.gsOut != nil {
+		if err := n.gsOut.Close(); err != nil {
+			result = multierror.Append(result, fmt.Errorf("failed to close gossip cleanly: %v", err))
+		}
+	}
+	if n.p2pSigner != nil {
+		if err := n.p2pSigner.Close(); err != nil {
+			result = multierror.Append(result, fmt.Errorf("failed to close p2p signer: %v", err))
+		}
+	}
+	if n.host != nil {
+		if err := n.host.Close(); err != nil {
+			result = multierror.Append(result, fmt.Errorf("failed to close p2p host cleanly: %v", err))
+		}
+	}
+	if n.resourcesClose != nil {
+		n.resourcesClose()
+	}
+
+	// stop L1 heads feed
+	if n.l1HeadsSub != nil {
+		n.l1HeadsSub.Unsubscribe()
+	}
+
+	// close L2 engines
+	for _, eng := range n.l2Engines {
+		if err := eng.Close(); err != nil {
+			result = multierror.Append(result, fmt.Errorf("failed to close L2 engine driver cleanly: %v", err))
+		}
+	}
+	// close L2 nodes
+	for _, n := range n.l2Nodes {
+		n.Close()
+	}
+	// close L1 data source
+	if n.l1Source != nil {
+		n.l1Source.Close()
+	}
+	return result.ErrorOrNil()
 }

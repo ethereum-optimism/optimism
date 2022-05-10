@@ -10,11 +10,12 @@ import (
 	"github.com/ethereum-optimism/optimistic-specs/opnode/eth"
 	"github.com/ethereum-optimism/optimistic-specs/opnode/internal/testlog"
 	"github.com/ethereum-optimism/optimistic-specs/opnode/internal/testutils"
+	"github.com/ethereum-optimism/optimistic-specs/opnode/l2"
 	"github.com/ethereum-optimism/optimistic-specs/opnode/rollup"
-	"github.com/ethereum-optimism/optimistic-specs/opnode/rollup/derive"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 var _ L1Chain = (*testutils.FakeChainSource)(nil)
@@ -44,11 +45,16 @@ func (id testID) ID() eth.BlockID {
 
 type outputHandlerFn func(ctx context.Context, l2Head eth.L2BlockRef, l2SafeHead eth.L2BlockRef, l2Finalized eth.BlockID, l1Input []eth.BlockID) (eth.L2BlockRef, eth.L2BlockRef, bool, error)
 
+func (fn outputHandlerFn) processBlock(ctx context.Context, l2Head eth.L2BlockRef, l2SafeHead eth.BlockID, l2Finalized eth.BlockID, payload *l2.ExecutionPayload) error {
+	// TODO: maybe mock a failed block?
+	return nil
+}
+
 func (fn outputHandlerFn) insertEpoch(ctx context.Context, l2Head eth.L2BlockRef, l2SafeHead eth.L2BlockRef, l2Finalized eth.BlockID, l1Input []eth.BlockID) (eth.L2BlockRef, eth.L2BlockRef, bool, error) {
 	return fn(ctx, l2Head, l2SafeHead, l2Finalized, l1Input)
 }
 
-func (fn outputHandlerFn) createNewBlock(ctx context.Context, l2Head eth.L2BlockRef, l2SafeHead eth.BlockID, l2Finalized eth.BlockID, l1Origin eth.L1BlockRef) (eth.L2BlockRef, *derive.BatchData, error) {
+func (fn outputHandlerFn) createNewBlock(ctx context.Context, l2Head eth.L2BlockRef, l2SafeHead eth.BlockID, l2Finalized eth.BlockID, l1Origin eth.L1BlockRef) (eth.L2BlockRef, *l2.ExecutionPayload, error) {
 	panic("Unimplemented")
 }
 
@@ -70,27 +76,27 @@ type stateTestCaseStep struct {
 	window []testID
 
 	// l1act and l2act are ran at each step
-	l1act func(t *testing.T, s *state, src *testutils.FakeChainSource, l1Heads chan eth.L1BlockRef)
+	l1act func(t *testing.T, s *state, src *testutils.FakeChainSource)
 	l2act func(t *testing.T, expectedWindow []testID, s *state, src *testutils.FakeChainSource, outputIn chan outputArgs, outputReturn chan outputReturnArgs)
 	reorg bool
 }
 
-func advanceL1(t *testing.T, s *state, src *testutils.FakeChainSource, l1Heads chan eth.L1BlockRef) {
-	l1Heads <- src.AdvanceL1()
+func advanceL1(t *testing.T, s *state, src *testutils.FakeChainSource) {
+	require.NoError(t, s.OnL1Head(context.Background(), src.AdvanceL1()))
 }
 
-func stutterL1(t *testing.T, s *state, src *testutils.FakeChainSource, l1Heads chan eth.L1BlockRef) {
-	l1Heads <- src.L1Head()
+func stutterL1(t *testing.T, s *state, src *testutils.FakeChainSource) {
+	require.NoError(t, s.OnL1Head(context.Background(), src.L1Head()))
 }
 
-func stutterAdvance(t *testing.T, s *state, src *testutils.FakeChainSource, l1Heads chan eth.L1BlockRef) {
-	l1Heads <- src.L1Head()
-	l1Heads <- src.L1Head()
-	l1Heads <- src.L1Head()
-	l1Heads <- src.AdvanceL1()
-	l1Heads <- src.L1Head()
-	l1Heads <- src.L1Head()
-	l1Heads <- src.L1Head()
+func stutterAdvance(t *testing.T, s *state, src *testutils.FakeChainSource) {
+	stutterL1(t, s, src)
+	stutterL1(t, s, src)
+	stutterL1(t, s, src)
+	advanceL1(t, s, src)
+	stutterL1(t, s, src)
+	stutterL1(t, s, src)
+	stutterL1(t, s, src)
 }
 
 func stutterL2(t *testing.T, expectedWindow []testID, s *state, src *testutils.FakeChainSource, outputIn chan outputArgs, outputReturn chan outputReturnArgs) {
@@ -134,7 +140,7 @@ type stateTestCase struct {
 func (tc *stateTestCase) Run(t *testing.T) {
 	log := testlog.Logger(t, log.LvlError)
 	chainSource := testutils.NewFakeChainSource(tc.l1Chains, tc.l2Chains, 0, log)
-	l1headsCh := make(chan eth.L1BlockRef, 10)
+
 	// Unbuffered channels to force a sync point between the test and the state loop.
 	outputIn := make(chan outputArgs)
 	outputReturn := make(chan outputReturnArgs)
@@ -145,19 +151,19 @@ func (tc *stateTestCase) Run(t *testing.T) {
 		return r.l2Head, r.l2Head, false, r.err
 	}
 	config := rollup.Config{SeqWindowSize: uint64(tc.seqWindow), Genesis: tc.genesis, BlockTime: 2}
-	state := NewState(log, config, chainSource, chainSource, outputHandlerFn(outputHandler), false)
+	state := NewState(log, config, chainSource, chainSource, outputHandlerFn(outputHandler), nil, false)
 	defer func() {
 		assert.NoError(t, state.Close(), "Error closing state")
 	}()
 
-	err := state.Start(context.Background(), l1headsCh)
+	err := state.Start(context.Background())
 	assert.NoError(t, err, "Error starting the state object")
 
 	for _, step := range tc.steps {
 		if step.reorg {
 			chainSource.ReorgL1()
 		}
-		step.l1act(t, state, chainSource, l1headsCh)
+		step.l1act(t, state, chainSource)
 		<-time.After(5 * time.Millisecond)
 		step.l2act(t, step.window, state, chainSource, outputIn, outputReturn)
 		<-time.After(5 * time.Millisecond)
