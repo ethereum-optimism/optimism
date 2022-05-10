@@ -18,6 +18,7 @@ import (
 	bsscore "github.com/ethereum-optimism/optimism/bss-core"
 	"github.com/ethereum-optimism/optimism/bss-core/dial"
 	"github.com/ethereum-optimism/optimism/bss-core/drivers"
+	"github.com/ethereum-optimism/optimism/bss-core/metrics"
 	"github.com/ethereum-optimism/optimism/bss-core/txmgr"
 	"github.com/ethereum-optimism/optimism/teleportr/bindings/deposit"
 	"github.com/ethereum-optimism/optimism/teleportr/db"
@@ -55,6 +56,11 @@ func Main(gitVersion string) func(*cli.Context) error {
 			return err
 		}
 
+		disburserWalletAddr, err := bsscore.ParseAddress(cfg.DisburserWalletAddress)
+		if err != nil {
+			return err
+		}
+
 		l1Client, err := dial.L1EthClientWithTimeout(
 			ctx, cfg.L1EthRpc, cfg.DisableHTTP2,
 		)
@@ -62,6 +68,14 @@ func Main(gitVersion string) func(*cli.Context) error {
 			return err
 		}
 		defer l1Client.Close()
+
+		l2Client, err := dial.L1EthClientWithTimeout(
+			ctx, cfg.L2EthRpc, cfg.DisableHTTP2,
+		)
+		if err != nil {
+			return err
+		}
+		defer l2Client.Close()
 
 		depositContract, err := deposit.NewTeleportrDeposit(
 			depositAddr, l1Client,
@@ -84,11 +98,17 @@ func Main(gitVersion string) func(*cli.Context) error {
 		}
 		defer database.Close()
 
+		if cfg.MetricsServerEnable {
+			go metrics.RunServer(cfg.MetricsHostname, cfg.MetricsPort)
+		}
+
 		server := NewServer(
 			ctx,
 			l1Client,
+			l2Client,
 			database,
 			depositAddr,
+			disburserWalletAddr,
 			depositContract,
 			cfg.NumConfirmations,
 		)
@@ -124,33 +144,44 @@ func Main(gitVersion string) func(*cli.Context) error {
 }
 
 type Config struct {
-	Hostname          string
-	Port              uint16
-	L1EthRpc          string
-	DepositAddress    string
-	NumConfirmations  uint64
-	PostgresHost      string
-	PostgresPort      uint16
-	PostgresUser      string
-	PostgresPassword  string
-	PostgresDBName    string
-	PostgresEnableSSL bool
-	DisableHTTP2      bool
+	Hostname               string
+	Port                   uint16
+	L1EthRpc               string
+	L2EthRpc               string
+	DepositAddress         string
+	NumConfirmations       uint64
+	DisburserWalletAddress string
+	PostgresHost           string
+	PostgresPort           uint16
+	PostgresUser           string
+	PostgresPassword       string
+	PostgresDBName         string
+	PostgresEnableSSL      bool
+	MetricsServerEnable    bool
+	MetricsHostname        string
+	MetricsPort            uint64
+	DisableHTTP2           bool
 }
 
 func NewConfig(ctx *cli.Context) (Config, error) {
 	return Config{
-		Hostname:          ctx.GlobalString(flags.APIHostnameFlag.Name),
-		Port:              uint16(ctx.GlobalUint64(flags.APIPortFlag.Name)),
-		L1EthRpc:          ctx.GlobalString(flags.L1EthRpcFlag.Name),
-		DepositAddress:    ctx.GlobalString(flags.DepositAddressFlag.Name),
-		NumConfirmations:  ctx.GlobalUint64(flags.NumDepositConfirmationsFlag.Name),
-		PostgresHost:      ctx.GlobalString(flags.PostgresHostFlag.Name),
-		PostgresPort:      uint16(ctx.GlobalUint64(flags.PostgresPortFlag.Name)),
-		PostgresUser:      ctx.GlobalString(flags.PostgresUserFlag.Name),
-		PostgresPassword:  ctx.GlobalString(flags.PostgresPasswordFlag.Name),
-		PostgresDBName:    ctx.GlobalString(flags.PostgresDBNameFlag.Name),
-		PostgresEnableSSL: ctx.GlobalBool(flags.PostgresEnableSSLFlag.Name),
+		Hostname:               ctx.GlobalString(flags.APIHostnameFlag.Name),
+		Port:                   uint16(ctx.GlobalUint64(flags.APIPortFlag.Name)),
+		L1EthRpc:               ctx.GlobalString(flags.L1EthRpcFlag.Name),
+		L2EthRpc:               ctx.GlobalString(flags.L2EthRpcFlag.Name),
+		DepositAddress:         ctx.GlobalString(flags.DepositAddressFlag.Name),
+		NumConfirmations:       ctx.GlobalUint64(flags.NumDepositConfirmationsFlag.Name),
+		DisburserWalletAddress: ctx.GlobalString(flags.DisburserWalletAddressFlag.Name),
+		PostgresHost:           ctx.GlobalString(flags.PostgresHostFlag.Name),
+		PostgresPort:           uint16(ctx.GlobalUint64(flags.PostgresPortFlag.Name)),
+		PostgresUser:           ctx.GlobalString(flags.PostgresUserFlag.Name),
+		PostgresPassword:       ctx.GlobalString(flags.PostgresPasswordFlag.Name),
+		PostgresDBName:         ctx.GlobalString(flags.PostgresDBNameFlag.Name),
+		PostgresEnableSSL:      ctx.GlobalBool(flags.PostgresEnableSSLFlag.Name),
+		MetricsServerEnable:    ctx.GlobalBool(flags.MetricsServerEnableFlag.Name),
+		MetricsHostname:        ctx.GlobalString(flags.MetricsHostnameFlag.Name),
+		MetricsPort:            ctx.GlobalUint64(flags.MetricsPortFlag.Name),
+		DisableHTTP2:           ctx.GlobalBool(flags.HTTP2DisableFlag.Name),
 	}, nil
 }
 
@@ -162,12 +193,14 @@ const (
 )
 
 type Server struct {
-	ctx              context.Context
-	l1Client         *ethclient.Client
-	database         *db.Database
-	depositAddr      common.Address
-	depositContract  *deposit.TeleportrDeposit
-	numConfirmations uint64
+	ctx                 context.Context
+	l1Client            *ethclient.Client
+	l2Client            *ethclient.Client
+	database            *db.Database
+	depositAddr         common.Address
+	disburserWalletAddr common.Address
+	depositContract     *deposit.TeleportrDeposit
+	numConfirmations    uint64
 
 	httpServer *http.Server
 }
@@ -175,23 +208,26 @@ type Server struct {
 func NewServer(
 	ctx context.Context,
 	l1Client *ethclient.Client,
+	l2Client *ethclient.Client,
 	database *db.Database,
 	depositAddr common.Address,
+	disburserWalletAddr common.Address,
 	depositContract *deposit.TeleportrDeposit,
 	numConfirmations uint64,
 ) *Server {
-
 	if numConfirmations == 0 {
 		panic("NumConfirmations cannot be zero")
 	}
 
 	return &Server{
-		ctx:              ctx,
-		l1Client:         l1Client,
-		database:         database,
-		depositAddr:      depositAddr,
-		depositContract:  depositContract,
-		numConfirmations: numConfirmations,
+		ctx:                 ctx,
+		l1Client:            l1Client,
+		l2Client:            l2Client,
+		database:            database,
+		depositAddr:         depositAddr,
+		disburserWalletAddr: disburserWalletAddr,
+		depositContract:     depositContract,
+		numConfirmations:    numConfirmations,
 	}
 }
 
@@ -234,11 +270,12 @@ func HandleHealthz(w http.ResponseWriter, r *http.Request) {
 }
 
 type StatusResponse struct {
-	CurrentBalanceWei   string `json:"current_balance_wei"`
-	MaximumBalanceWei   string `json:"maximum_balance_wei"`
-	MinDepositAmountWei string `json:"min_deposit_amount_wei"`
-	MaxDepositAmountWei string `json:"max_deposit_amount_wei"`
-	IsAvailable         bool   `json:"is_available"`
+	DisburserWalletBalanceWei string `json:"disburser_wallet_balance_wei"`
+	DepositContractBalanceWei string `json:"deposit_contract_balance_wei"`
+	MaximumBalanceWei         string `json:"maximum_balance_wei"`
+	MinDepositAmountWei       string `json:"min_deposit_amount_wei"`
+	MaxDepositAmountWei       string `json:"max_deposit_amount_wei"`
+	IsAvailable               bool   `json:"is_available"`
 }
 
 func (s *Server) HandleStatus(
@@ -273,21 +310,28 @@ func (s *Server) HandleStatus(
 
 	curBalance, err := s.l1Client.BalanceAt(ctx, s.depositAddr, nil)
 	if err != nil {
-		rpcErrorsTotal.WithLabelValues("balance_at").Inc()
+		rpcErrorsTotal.WithLabelValues("deposit_balance_at").Inc()
+		return err
+	}
+
+	disburserWalletBal, err := s.l2Client.BalanceAt(ctx, s.disburserWalletAddr, nil)
+	if err != nil {
+		rpcErrorsTotal.WithLabelValues("disburser_wallet_balance_at").Inc()
 		return err
 	}
 
 	balanceAfterMaxDeposit := new(big.Int).Add(
 		curBalance, maxDepositAmount,
 	)
-	isAvailable := maxBalance.Cmp(balanceAfterMaxDeposit) >= 0
+	isAvailable := maxBalance.Cmp(balanceAfterMaxDeposit) >= 0 && disburserWalletBal.Cmp(maxDepositAmount) > 0
 
 	resp := StatusResponse{
-		CurrentBalanceWei:   curBalance.String(),
-		MaximumBalanceWei:   maxBalance.String(),
-		MinDepositAmountWei: minDepositAmount.String(),
-		MaxDepositAmountWei: maxDepositAmount.String(),
-		IsAvailable:         isAvailable,
+		DisburserWalletBalanceWei: disburserWalletBal.String(),
+		DepositContractBalanceWei: curBalance.String(),
+		MaximumBalanceWei:         maxBalance.String(),
+		MinDepositAmountWei:       minDepositAmount.String(),
+		MaxDepositAmountWei:       maxDepositAmount.String(),
+		IsAvailable:               isAvailable,
 	}
 
 	jsonResp, err := json.Marshal(resp)
