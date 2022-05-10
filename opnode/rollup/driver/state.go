@@ -319,7 +319,7 @@ func (s *state) handleUnsafeL2Payload(ctx context.Context, payload *l2.Execution
 		return nil
 	}
 
-	// Not that the payload may cause reorgs. The l2SafeHead may get out of sync because of this.
+	// Note that the payload may cause reorgs. The l2SafeHead may get out of sync because of this.
 	// The engine should never reorg past the finalized block hash however.
 	// The engine may attempt syncing via p2p if there is a larger gap in the L2 chain.
 
