@@ -16,7 +16,7 @@ unicorn/build: unicorn/CMakeLists.txt
 	mkdir -p unicorn/build
 	cd unicorn/build && cmake .. -DUNICORN_ARCH=mips -DCMAKE_BUILD_TYPE=Release
 	# Not sure why, but the second invocation is needed for fresh installs on MacOS.
-	if [ "$(uname)" == "Darwin" ]; then \
+	if [ "$(shell uname)" == "Darwin" ]; then \
 		cd unicorn/build && cmake .. -DUNICORN_ARCH=mips -DCMAKE_BUILD_TYPE=Release; \
 	fi
 
