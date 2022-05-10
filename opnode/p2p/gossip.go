@@ -286,7 +286,7 @@ func BuildBlocksValidator(log log.Logger, cfg *rollup.Config) pubsub.ValidatorEx
 }
 
 type GossipIn interface {
-	ReceiveL2Payload(ctx context.Context, from peer.ID, msg *l2.ExecutionPayload) error
+	OnUnsafeL2Payload(ctx context.Context, from peer.ID, msg *l2.ExecutionPayload) error
 }
 
 type GossipOut interface {
@@ -369,7 +369,7 @@ func JoinGossip(p2pCtx context.Context, self peer.ID, ps *pubsub.PubSub, log log
 		return nil, fmt.Errorf("failed to subscribe to blocks gossip topic: %v", err)
 	}
 
-	subscriber := MakeSubscriber(log, BlocksHandler(gossipIn.ReceiveL2Payload))
+	subscriber := MakeSubscriber(log, BlocksHandler(gossipIn.OnUnsafeL2Payload))
 	go subscriber(p2pCtx, subscription)
 
 	return &publisher{log: log, cfg: cfg, blocksTopic: blocksTopic}, nil

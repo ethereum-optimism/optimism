@@ -82,7 +82,7 @@ type SystemConfig struct {
 	L1WsPort     int
 	L1ChainID    *big.Int
 	L2ChainID    *big.Int
-	Nodes        map[string]rollupNode.Config // Per node config. Don't use populate rollup.Config
+	Nodes        map[string]*rollupNode.Config // Per node config. Don't use populate rollup.Config
 	Loggers      map[string]log.Logger
 	RollupConfig rollup.Config // Shared rollup configs
 
@@ -459,7 +459,7 @@ func (cfg SystemConfig) start() (*System, error) {
 	}
 	// Rollup nodes
 	for name, nodeConfig := range cfg.Nodes {
-		c := nodeConfig
+		c := *nodeConfig // copy
 		c.Rollup = sys.cfg.RollupConfig
 		c.Rollup.DepositContractAddress = sys.DepositContractAddr
 

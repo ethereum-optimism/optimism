@@ -45,6 +45,7 @@ type OpNode struct {
 	gs         *pubsub.PubSub        // p2p gossip router (optional, may be nil)
 	gsOut      p2p.GossipOut         // p2p gossip application interface for publishing (optional, may be nil)
 	p2pSigner  p2p.Signer            // p2p gogssip application messages will be signed with this signer
+	tracer     Tracer                // tracer to get events for testing/debugging
 
 	// some resources cannot be stopped directly, like the p2p gossipsub router (not our design),
 	// and depend on this ctx to be closed.
@@ -99,6 +100,9 @@ func New(ctx context.Context, cfg *Config, log log.Logger, appVersion string) (*
 }
 
 func (n *OpNode) init(ctx context.Context, cfg *Config) error {
+	if err := n.initTracer(ctx, cfg); err != nil {
+		return err
+	}
 	if err := n.initL1(ctx, cfg); err != nil {
 		return err
 	}
@@ -113,6 +117,15 @@ func (n *OpNode) init(ctx context.Context, cfg *Config) error {
 	}
 	if err := n.initP2P(ctx, cfg); err != nil {
 		return err
+	}
+	return nil
+}
+
+func (n *OpNode) initTracer(ctx context.Context, cfg *Config) error {
+	if cfg.Tracer != nil {
+		n.tracer = cfg.Tracer
+	} else {
+		n.tracer = new(noOpTracer)
 	}
 	return nil
 }
@@ -248,16 +261,16 @@ func (n *OpNode) initP2PSigner(ctx context.Context, cfg *Config) error {
 	return err
 }
 
-func (c *OpNode) Start(ctx context.Context) error {
-	c.log.Info("Starting execution engine driver(s)")
-	for _, eng := range c.l2Engines {
+func (n *OpNode) Start(ctx context.Context) error {
+	n.log.Info("Starting execution engine driver(s)")
+	for _, eng := range n.l2Engines {
 		// Request initial head update, default to genesis otherwise
 		reqCtx, reqCancel := context.WithTimeout(ctx, time.Second*10)
 		// start driving engine: sync blocks by deriving them from L1 and driving them into the engine
 		err := eng.Start(reqCtx)
 		reqCancel()
 		if err != nil {
-			c.log.Error("Could not start a rollup node", "err", err)
+			n.log.Error("Could not start a rollup node", "err", err)
 			return err
 		}
 	}
@@ -265,53 +278,59 @@ func (c *OpNode) Start(ctx context.Context) error {
 	return nil
 }
 
-func (c *OpNode) OnNewL1Head(ctx context.Context, sig eth.L1BlockRef) {
-	c.l2Lock.Lock()
-	defer c.l2Lock.Unlock()
+func (n *OpNode) OnNewL1Head(ctx context.Context, sig eth.L1BlockRef) {
+	n.l2Lock.Lock()
+	defer n.l2Lock.Unlock()
+
+	n.tracer.OnNewL1Head(ctx, sig)
 
 	// fan-out to all engine drivers
-	for _, eng := range c.l2Engines {
+	for _, eng := range n.l2Engines {
 		go func(eng *driver.Driver) {
 			ctx, cancel := context.WithTimeout(ctx, time.Second*10)
 			defer cancel()
 			if err := eng.OnL1Head(ctx, sig); err != nil {
-				c.log.Warn("failed to notify engine driver of L1 head change", "err", err)
+				n.log.Warn("failed to notify engine driver of L1 head change", "err", err)
 			}
 		}(eng)
 	}
 }
 
-func (c *OpNode) PublishL2Payload(ctx context.Context, payload *l2.ExecutionPayload) error {
+func (n *OpNode) PublishL2Payload(ctx context.Context, payload *l2.ExecutionPayload) error {
+	n.tracer.OnPublishL2Payload(ctx, payload)
+
 	// publish to p2p, if we are running p2p at all
-	if c.gsOut != nil {
-		if c.p2pSigner == nil {
+	if n.gsOut != nil {
+		if n.p2pSigner == nil {
 			return fmt.Errorf("node has no p2p signer, payload %s cannot be published", payload.ID())
 		}
-		c.log.Info("Publishing signed execution payload on p2p", "id", payload.ID())
-		return c.gsOut.PublishL2Payload(ctx, payload, c.p2pSigner)
+		n.log.Info("Publishing signed execution payload on p2p", "id", payload.ID())
+		return n.gsOut.PublishL2Payload(ctx, payload, n.p2pSigner)
 	}
 	// if p2p is not enabled then we just don't publish the payload
 	return nil
 }
 
-func (c *OpNode) ReceiveL2Payload(ctx context.Context, from peer.ID, payload *l2.ExecutionPayload) error {
-	c.l2Lock.Lock()
-	defer c.l2Lock.Unlock()
+func (n *OpNode) OnUnsafeL2Payload(ctx context.Context, from peer.ID, payload *l2.ExecutionPayload) error {
+	n.l2Lock.Lock()
+	defer n.l2Lock.Unlock()
 
 	// ignore if it's from ourselves
-	if from == c.host.ID() {
+	if from == n.host.ID() {
 		return nil
 	}
 
-	c.log.Info("Received signed execution payload from p2p", "id", payload.ID(), "peer", from)
+	n.tracer.OnUnsafeL2Payload(ctx, from, payload)
+
+	n.log.Info("Received signed execution payload from p2p", "id", payload.ID(), "peer", from)
 
 	// fan-out to all engine drivers
-	for _, eng := range c.l2Engines {
+	for _, eng := range n.l2Engines {
 		go func(eng *driver.Driver) {
 			ctx, cancel := context.WithTimeout(ctx, time.Second*30)
 			defer cancel()
 			if err := eng.OnUnsafeL2Payload(ctx, payload); err != nil {
-				c.log.Warn("failed to notify engine driver of new L2 payload", "err", err, "id", payload.ID())
+				n.log.Warn("failed to notify engine driver of new L2 payload", "err", err, "id", payload.ID())
 			}
 		}(eng)
 	}
@@ -319,52 +338,52 @@ func (c *OpNode) ReceiveL2Payload(ctx context.Context, from peer.ID, payload *l2
 }
 
 // Close closes all resources.
-func (c *OpNode) Close() error {
+func (n *OpNode) Close() error {
 	var result *multierror.Error
 
-	if c.server != nil {
-		c.server.Stop()
+	if n.server != nil {
+		n.server.Stop()
 	}
-	if c.dv5Udp != nil {
-		c.dv5Udp.Close()
+	if n.dv5Udp != nil {
+		n.dv5Udp.Close()
 	}
-	if c.gsOut != nil {
-		if err := c.gsOut.Close(); err != nil {
+	if n.gsOut != nil {
+		if err := n.gsOut.Close(); err != nil {
 			result = multierror.Append(result, fmt.Errorf("failed to close gossip cleanly: %v", err))
 		}
 	}
-	if c.p2pSigner != nil {
-		if err := c.p2pSigner.Close(); err != nil {
+	if n.p2pSigner != nil {
+		if err := n.p2pSigner.Close(); err != nil {
 			result = multierror.Append(result, fmt.Errorf("failed to close p2p signer: %v", err))
 		}
 	}
-	if c.host != nil {
-		if err := c.host.Close(); err != nil {
+	if n.host != nil {
+		if err := n.host.Close(); err != nil {
 			result = multierror.Append(result, fmt.Errorf("failed to close p2p host cleanly: %v", err))
 		}
 	}
-	if c.resourcesClose != nil {
-		c.resourcesClose()
+	if n.resourcesClose != nil {
+		n.resourcesClose()
 	}
 
 	// stop L1 heads feed
-	if c.l1HeadsSub != nil {
-		c.l1HeadsSub.Unsubscribe()
+	if n.l1HeadsSub != nil {
+		n.l1HeadsSub.Unsubscribe()
 	}
 
 	// close L2 engines
-	for _, eng := range c.l2Engines {
+	for _, eng := range n.l2Engines {
 		if err := eng.Close(); err != nil {
 			result = multierror.Append(result, fmt.Errorf("failed to close L2 engine driver cleanly: %v", err))
 		}
 	}
 	// close L2 nodes
-	for _, n := range c.l2Nodes {
+	for _, n := range n.l2Nodes {
 		n.Close()
 	}
 	// close L1 data source
-	if c.l1Source != nil {
-		c.l1Source.Close()
+	if n.l1Source != nil {
+		n.l1Source.Close()
 	}
 	return result.ErrorOrNil()
 }

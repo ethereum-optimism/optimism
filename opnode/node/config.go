@@ -31,6 +31,9 @@ type Config struct {
 	RPC RPCConfig
 
 	P2P p2p.SetupP2P
+
+	// Optional
+	Tracer Tracer
 }
 
 type RPCConfig struct {

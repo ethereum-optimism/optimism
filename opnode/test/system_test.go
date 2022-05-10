@@ -8,6 +8,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ethereum-optimism/optimistic-specs/opnode/l2"
+	"github.com/libp2p/go-libp2p-core/peer"
+
 	"github.com/ethereum-optimism/optimistic-specs/l2os/bindings/l2oo"
 	"github.com/ethereum-optimism/optimistic-specs/l2os/rollupclient"
 	"github.com/ethereum-optimism/optimistic-specs/opnode/contracts/deposit"
@@ -87,7 +90,7 @@ func defaultSystemConfig(t *testing.T) SystemConfig {
 		L1WsPort:                   9090,
 		L1ChainID:                  big.NewInt(900),
 		L2ChainID:                  big.NewInt(901),
-		Nodes: map[string]rollupNode.Config{
+		Nodes: map[string]*rollupNode.Config{
 			"verifier": {
 				L1NodeAddr:    "ws://127.0.0.1:9090",
 				L2EngineAddrs: []string{"ws://127.0.0.1:9091"},
@@ -481,11 +484,20 @@ func TestSystemMockP2P(t *testing.T) {
 		"verifier": []string{"sequencer"},
 	}
 
+	var published, received []common.Hash
+	seqTracer, verifTracer := new(FnTracer), new(FnTracer)
+	seqTracer.OnPublishL2PayloadFn = func(ctx context.Context, payload *l2.ExecutionPayload) {
+		published = append(published, payload.BlockHash)
+	}
+	verifTracer.OnUnsafeL2PayloadFn = func(ctx context.Context, from peer.ID, payload *l2.ExecutionPayload) {
+		received = append(received, payload.BlockHash)
+	}
+	cfg.Nodes["sequencer"].Tracer = seqTracer
+	cfg.Nodes["verifier"].Tracer = verifTracer
+
 	sys, err := cfg.start()
 	require.Nil(t, err, "Error starting up system")
 	defer sys.Close()
-
-	t.Log("successfully set up network")
 
 	l2Seq := sys.Clients["sequencer"]
 	l2Verif := sys.Clients["verifier"]
@@ -521,6 +533,12 @@ func TestSystemMockP2P(t *testing.T) {
 	require.Nil(t, err, "Waiting for L2 tx on verifier")
 
 	require.Equal(t, receiptSeq, receiptVerif)
+
+	// Verify that everything that was published was received
+	require.Equal(t, published, received)
+
+	// Verify that the tx was received via p2p
+	require.Contains(t, published, receiptVerif.BlockHash)
 }
 
 func TestL1InfoContract(t *testing.T) {
