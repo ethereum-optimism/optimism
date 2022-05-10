@@ -103,8 +103,8 @@ func BuildGlobalGossipParams(cfg *rollup.Config) pubsub.GossipSubParams {
 	params.Dlo = 6                                    // topic stable mesh low watermark
 	params.Dhi = 12                                   // topic stable mesh high watermark
 	params.Dlazy = 6                                  // gossip target
-	params.HeartbeatInterval = 500 * time.Millisecond // frequency of heartbeat, seconds
-	params.FanoutTTL = 24 * time.Second               // ttl for fanout maps for topics we are not subscribed to but have published to, seconds
+	params.HeartbeatInterval = 500 * time.Millisecond // interval of heartbeat
+	params.FanoutTTL = 24 * time.Second               // ttl for fanout maps for topics we are not subscribed to but have published to
 	params.HistoryLength = 12                         // number of windows to retain full messages in cache for IWANT responses
 	params.HistoryGossip = 3                          // number of windows to gossip about
 

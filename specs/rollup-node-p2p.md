@@ -207,8 +207,8 @@ GossipSub [parameters][gossip-parameters]:
 - `D_low` (topic stable mesh low watermark): 6
 - `D_high` (topic stable mesh high watermark): 12
 - `D_lazy` (gossip target): 6
-- `heartbeat_interval` (frequency of heartbeat, seconds): 0.5
-- `fanout_ttl` (ttl for fanout maps for topics we are not subscribed to but have published to, seconds): 24
+- `heartbeat_interval` (interval of heartbeat, in seconds): 0.5
+- `fanout_ttl` (ttl for fanout maps for topics we are not subscribed to but have published to, in seconds): 24
 - `mcache_len` (number of windows to retain full messages in cache for `IWANT` responses): 12
 - `mcache_gossip` (number of windows to gossip about): 3
 - `seen_ttl` (number of heartbeat intervals to retain message IDs): 80 (= 40 seconds)
