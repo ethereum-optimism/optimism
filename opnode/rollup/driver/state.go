@@ -319,17 +319,9 @@ func (s *state) handleUnsafeL2Payload(ctx context.Context, payload *l2.Execution
 		return nil
 	}
 
-	if uint64(payload.Timestamp) < s.l2SafeHead.Time {
-		s.log.Warn("received payload rewinds L2 chain beyond current L2 safe head")
-	}
-
-	if uint64(payload.Timestamp) > s.l2Head.Time+s.Config.BlockTime {
-		return fmt.Errorf("payload is too new: %d, l2 head is at %d", payload.Timestamp, s.l2Head.Time)
-	}
-
-	if uint64(payload.BlockNumber)+128 < s.l2Head.Number {
-		return fmt.Errorf("unsafe payload reorgs more than 128 blocks, ignoring it: %d, head at %d", payload.BlockNumber, s.l2Head.Number)
-	}
+	// Not that the payload may cause reorgs. The l2SafeHead may get out of sync because of this.
+	// The engine should never reorg past the finalized block hash however.
+	// The engine may attempt syncing via p2p if there is a larger gap in the L2 chain.
 
 	l2Ref, err := l2.PayloadToBlockRef(payload, &s.Config.Genesis)
 	if err != nil {
