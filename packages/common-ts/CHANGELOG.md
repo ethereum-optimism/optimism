@@ -1,5 +1,13 @@
 # @eth-optimism/common-ts
 
+## 0.2.7
+
+### Patch Changes
+
+- Updated dependencies [5cb3a5f7]
+- Updated dependencies [6b9fc055]
+  - @eth-optimism/core-utils@0.8.4
+
 ## 0.2.6
 
 ### Patch Changes

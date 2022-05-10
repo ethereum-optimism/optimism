@@ -12,7 +12,6 @@ import _ from 'lodash'
 import { expect } from '../../../setup'
 import {
   deploy,
-  setProxyTarget,
   L2_GAS_DISCOUNT_DIVISOR,
   ENQUEUE_GAS_COST,
   setEthTime,
@@ -67,10 +66,9 @@ describe('CanonicalTransactionChain', () => {
       'StateCommitmentChain'
     )
 
-    await setProxyTarget(
-      AddressManager,
+    await AddressManager.setAddress(
       'StateCommitmentChain',
-      Fake__StateCommitmentChain
+      Fake__StateCommitmentChain.address
     )
 
     CanonicalTransactionChain = await deploy('CanonicalTransactionChain', {

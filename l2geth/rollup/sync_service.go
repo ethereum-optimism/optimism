@@ -247,10 +247,10 @@ func (s *SyncService) Start() error {
 	} else {
 		go func() {
 			if err := s.syncTransactionsToTip(); err != nil {
-				log.Crit("Sequencer cannot sync transactions to tip: %w", err)
+				log.Crit("Sequencer cannot sync transactions to tip", "err", err)
 			}
 			if err := s.syncQueueToTip(); err != nil {
-				log.Crit("Sequencer cannot sync queue to tip: %w", err)
+				log.Crit("Sequencer cannot sync queue to tip", "err", err)
 			}
 			s.setSyncStatus(false)
 			go s.SequencerLoop()

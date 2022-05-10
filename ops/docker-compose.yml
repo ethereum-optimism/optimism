@@ -73,7 +73,7 @@ services:
       - deployer
     build:
       context: ..
-      dockerfile: ./ops/docker/Dockerfile.geth
+      dockerfile: ./l2geth/Dockerfile
     image: ethereumoptimism/l2geth:${DOCKER_TAG_L2GETH:-latest}
     # override with the geth script and the env vars required for it
     entrypoint: sh ./geth.sh
@@ -117,6 +117,23 @@ services:
       MESSAGE_RELAYER__L1_WALLET: '0xdbda1821b80551c9d65939329250298aa3472ba22feea921c0cf5d620ea67b97'
       RETRIES: 60
 
+  fault_detector:
+    depends_on:
+      - l1_chain
+      - l2geth
+    deploy:
+      replicas: 0
+    build:
+      context: ..
+      dockerfile: ./ops/docker/Dockerfile.packages
+      target: fault-detector
+    image: ethereumoptimism/fault-detector:${DOCKER_TAG_FAULT_DETECTOR:-latest}
+    entrypoint: ./detector.sh
+    environment:
+      FAULT_DETECTOR__L1_RPC_PROVIDER: http://l1_chain:8545
+      FAULT_DETECTOR__L2_RPC_PROVIDER: http://l2geth:8545
+      RETRIES: 60
+
   verifier:
     depends_on:
       - l1_chain
@@ -127,7 +144,7 @@ services:
       replicas: 1
     build:
       context: ..
-      dockerfile: ./ops/docker/Dockerfile.geth
+      dockerfile: ./l2geth/Dockerfile
     image: ethereumoptimism/l2geth:${DOCKER_TAG_L2GETH:-latest}
     entrypoint: sh ./geth.sh
     env_file:
@@ -154,7 +171,7 @@ services:
       replicas: 1
     build:
       context: ..
-      dockerfile: ./ops/docker/Dockerfile.geth
+      dockerfile: ./l2geth/Dockerfile
     image: ethereumoptimism/l2geth:${DOCKER_TAG_L2GETH:-latest}
     entrypoint: sh ./geth.sh
     env_file:
@@ -221,7 +238,7 @@ services:
       replicas: 0
     build:
       context: ..
-      dockerfile: ./ops/docker/Dockerfile.gas-oracle
+      dockerfile: ./gas-oracle/Dockerfile
     image: ethereumoptimism/gas-oracle:${DOCKER_TAG_GAS_ORACLE:-latest}
     environment:
       GAS_PRICE_ORACLE_ETHEREUM_HTTP_URL: http://l1_chain:8545
@@ -236,7 +253,7 @@ services:
       - l2geth
     build:
       context: ..
-      dockerfile: ./ops/docker/Dockerfile.batch-submitter-service
+      dockerfile: ./batch-submitter/Dockerfile
     image: ethereumoptimism/batch-submitter-service:${DOCKER_TAG_BATCH_SUBMITTER_SERVICE:-latest}
     entrypoint: ./batch-submitter.sh
     env_file:

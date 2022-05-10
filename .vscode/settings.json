@@ -10,6 +10,7 @@
     {"directory": "packages/data-transport-layer", "changeProcessCWD": true },
     {"directory": "packages/batch-submitter", "changeProcessCWD": true },
     {"directory": "packages/message-relayer", "changeProcessCWD": true },
+    {"directory": "packages/fault-detector", "changeProcessCWD": true },
   ],
   "eslint.nodePath": "./node_modules/eslint/bin/",
   "eslint.format.enable": true,

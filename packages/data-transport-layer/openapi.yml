@@ -10,9 +10,11 @@ components:
       type: object
       properties:
         blockNumber:
-          type: uint64
+          type: integer
+          format: "int64"
         timestamp:
-          type: uint64
+          type: integer
+          format: "int64"
         blockHash:
           type: string
     EnqueueEntry:
@@ -76,8 +78,8 @@ components:
           type: string
         queueOrigin:
           type: string
-        queueIndex: number
-          type: string
+        queueIndex:
+          type: number
         decoded:
           type: object
           $ref: '#/components/schemas/DecodedSequencerBatchTransaction'
@@ -131,22 +133,22 @@ components:
     StateRootEntry:
       type: object
       properties:
-      index:
-        type: number
-      batchIndex:
-        type: number
-      value:
-        type: string
+        index:
+          type: number
+        batchIndex:
+          type: number
+        value:
+          type: string
 
     StateRootResponse:
       type: object
       properties:
-      batch:
-        type: object
-        $ref: '#/components/schemas/BatchEntry'
-      stateRoot:
-        type: object
-        $ref: '#/components/schemas/StateRootEntry'
+        batch:
+          type: object
+          $ref: '#/components/schemas/BatchEntry'
+        stateRoot:
+          type: object
+          $ref: '#/components/schemas/StateRootEntry'
 
     StateRootBatchResponse:
       type: object
@@ -178,9 +180,11 @@ paths:
                   syncing:
                     type: boolean
                   currentTransactionIndex:
-                    type: uint64
+                    type: integer
+                    format: "int64"
                   highestKnownTransactionIndex:
-                    type: uint64
+                    type: integer
+                    format: "int64"
 
   /eth/context/latest:
     get:
@@ -198,6 +202,13 @@ paths:
 
   /eth/context/blocknumber/{number}:
     get:
+      parameters:
+        - in: path
+          name: number
+          schema:
+            type: integer
+            format: "int64"
+          required: true
       summary: Returns the Ethereum Layer one context at a specific height
       description: |
         This returns the L1 blocknumber, block hash and timestamp corresponding to a specific
@@ -225,6 +236,13 @@ paths:
 
   /enqueue/index/{index}:
     get:
+      parameters:
+        - in: path
+          name: index
+          schema:
+            type: integer
+            format: "int64"
+          required: true
       summary: Returns the enqueued transaction by index
       description: |
         This returns the Canonical Transaction Chain `enqueue()` by index
@@ -252,6 +270,13 @@ paths:
 
   /transaction/index/{index}:
     get:
+      parameters:
+        - in: path
+          name: index
+          schema:
+            type: integer
+            format: "int64"
+          required: true
       summary: Returns a Canonical Transaction Chain transaction by index
       description: |
         This returns a transaction that has been appended to the Canonical Transaction
@@ -280,6 +305,13 @@ paths:
 
   /batch/transaction/index/{index}:
     get:
+      parameters:
+        - in: path
+          name: index
+          schema:
+            type: integer
+            format: "int64"
+          required: true
       summary: Returns the Batch to be appended to the Canonical Transaction Chain by index
       description: |
         This returns a batch that has been appended to the Canonical Transaction
@@ -307,6 +339,13 @@ paths:
 
   /stateroot/index/{index}:
     get:
+      parameters:
+        - in: path
+          name: index
+          schema:
+            type: integer
+            format: "int64"
+          required: true
       summary: Returns the state root by index
       description: |
         This returns a state root appended to the State Commitment Chain by index
@@ -334,6 +373,13 @@ paths:
   /batch/stateroot/index/{index}:
     get:
       summary: Returns the state root batch by index
+      parameters:
+        - in: path
+          name: index
+          schema:
+            type: integer
+            format: "int64"
+          required: true
       description: |
         This returns a state root batch appended to the State Commitment Chain by index
       responses:

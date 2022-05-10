@@ -13,6 +13,7 @@ jobs:
     outputs:
       l2geth: ${{ steps.packages.outputs.l2geth }}
       message-relayer: ${{ steps.packages.outputs.message-relayer }}
+      fault-detector: ${{ steps.packages.outputs.fault-detector }}
       data-transport-layer: ${{ steps.packages.outputs.data-transport-layer }}
       contracts: ${{ steps.packages.outputs.contracts }}
       gas-oracle: ${{ steps.packages.outputs.gas-oracle }}
@@ -93,7 +94,7 @@ jobs:
         uses: docker/build-push-action@v2
         with:
           context: .
-          file: ./ops/docker/Dockerfile.geth
+          file: ./ops/docker/Dockerfile
           push: true
           tags: ethereumoptimism/l2geth:${{ needs.release.outputs.l2geth }},ethereumoptimism/l2geth:latest
 
@@ -119,7 +120,7 @@ jobs:
         uses: docker/build-push-action@v2
         with:
           context: .
-          file: ./ops/docker/Dockerfile.gas-oracle
+          file: ./gas-oracle/Dockerfile
           push: true
           tags: ethereumoptimism/gas-oracle:${{ needs.release.outputs.gas-oracle }},ethereumoptimism/gas-oracle:latest
 
@@ -223,14 +224,14 @@ jobs:
         id: build_args
         run: |
           echo ::set-output name=GITDATE::"$(date +%d-%m-%Y)"
-          echo ::set-output name=GITVERSION::$(jq -r .version ./go/proxyd/package.json)
+          echo ::set-output name=GITVERSION::$(jq -r .version ./proxyd/package.json)
           echo ::set-output name=GITCOMMIT::"$GITHUB_SHA"
 
       - name: Build and push
         uses: docker/build-push-action@v2
         with:
           context: .
-          file: ./go/proxyd/Dockerfile
+          file: ./proxyd/Dockerfile
           push: true
           tags: ethereumoptimism/proxyd:${{ needs.release.outputs.proxyd }},ethereumoptimism/proxyd:latest
           build-args: |
@@ -260,14 +261,14 @@ jobs:
         id: build_args
         run: |
           echo ::set-output name=GITDATE::"$(date +%d-%m-%Y)"
-          echo ::set-output name=GITVERSION::$(jq -r .version ./go/l2geth-exporter/package.json)
+          echo ::set-output name=GITVERSION::$(jq -r .version ./l2geth-exporter/package.json)
           echo ::set-output name=GITCOMMIT::"$GITHUB_SHA"
 
       - name: Build and push
         uses: docker/build-push-action@v2
         with:
           context: .
-          file: ./ops/docker/Dockerfile.l2geth-exporter
+          file: ./l2geth-exporter/Dockerfile
           push: true
           tags: ethereumoptimism/l2geth-exporter:${{ needs.release.outputs.l2geth-exporter }},ethereumoptimism/l2geth-exporter:latest
           build-args: |
@@ -297,14 +298,14 @@ jobs:
         id: build_args
         run: |
           echo ::set-output name=GITDATE::"$(date +%d-%m-%Y)"
-          echo ::set-output name=GITVERSION::$(jq -r .version ./go/op-exporter/package.json)
+          echo ::set-output name=GITVERSION::$(jq -r .version ./op-exporter/package.json)
           echo ::set-output name=GITCOMMIT::"$GITHUB_SHA"
 
       - name: Build and push
         uses: docker/build-push-action@v2
         with:
           context: .
-          file: ./ops/docker/Dockerfile.op-exporter
+          file: ./op-exporter/Dockerfile
           push: true
           tags: ethereumoptimism/op-exporter:${{ needs.release.outputs.op-exporter }},ethereumoptimism/op-exporter:latest
           build-args: |
@@ -338,6 +339,33 @@ jobs:
           target: message-relayer
           push: true
           tags: ethereumoptimism/message-relayer:${{ needs.release.outputs.message-relayer }},ethereumoptimism/message-relayer:latest
+
+  fault-detector:
+    name: Publish Fault Detector Version ${{ needs.release.outputs.fault-detector }}
+    needs: release
+    if: needs.release.outputs.fault-detector != ''
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v1
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v1
+        with:
+          username: ${{ secrets.DOCKERHUB_ACCESS_TOKEN_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_ACCESS_TOKEN_SECRET }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v2
+        with:
+          context: .
+          file: ./ops/docker/Dockerfile.packages
+          target: fault-detector
+          push: true
+          tags: ethereumoptimism/fault-detector:${{ needs.release.outputs.fault-detector }},ethereumoptimism/fault-detector:latest
 
   data-transport-layer:
     name: Publish Data Transport Layer Version ${{ needs.release.outputs.data-transport-layer }}
@@ -469,7 +497,7 @@ jobs:
         uses: docker/build-push-action@v2
         with:
           context: .
-          file: ./ops/docker/Dockerfile.batch-submitter-service
+          file: ./batch-submitter/Dockerfile
           push: true
           tags: ethereumoptimism/batch-submitter-service:${{ needs.release.outputs.batch-submitter-service }},ethereumoptimism/batch-submitter-service:latest
 
@@ -495,14 +523,14 @@ jobs:
         id: build_args
         run: |
           echo ::set-output name=GITDATE::"$(date +%d-%m-%Y)"
-          echo ::set-output name=GITVERSION::$(jq -r .version ./go/indexer/package.json)
+          echo ::set-output name=GITVERSION::$(jq -r .version ./indexer/package.json)
           echo ::set-output name=GITCOMMIT::"$GITHUB_SHA"
 
       - name: Publish Indexer
         uses: docker/build-push-action@v2
         with:
           context: .
-          file: ./ops/docker/Dockerfile.indexer
+          file: ./indexer/Dockerfile
           push: true
           tags: ethereumoptimism/indexer:${{ needs.release.outputs.indexer }},ethereumoptimism/indexer:latest
           build-args: |
@@ -532,14 +560,14 @@ jobs:
         id: build_args
         run: |
           echo ::set-output name=GITDATE::"$(date +%d-%m-%Y)"
-          echo ::set-output name=GITVERSION::$(jq -r .version ./go/teleportr/package.json)
+          echo ::set-output name=GITVERSION::$(jq -r .version ./teleportr/package.json)
           echo ::set-output name=GITCOMMIT::"$GITHUB_SHA"
 
       - name: Publish Teleportr
         uses: docker/build-push-action@v2
         with:
           context: .
-          file: ./ops/docker/Dockerfile.teleportr
+          file: ./teleportr/Dockerfile
           push: true
           tags: ethereumoptimism/teleportr:${{ needs.release.outputs.teleportr }},ethereumoptimism/teleportr:latest
           build-args: |

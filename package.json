@@ -6,16 +6,21 @@
   "workspaces": {
     "packages": [
       "packages/*",
-      "l2geth",
+      "batch-submitter",
+      "bss-core",
+      "gas-oracle",
+      "indexer",
       "integration-tests",
-      "go/*",
+      "l2geth-exporter",
+      "l2geth",
       "ops/docker/rpc-proxy",
       "ops/docker/hardhat",
       "ops/docker/go-builder",
-      "ops/docker/js-builder"
+      "ops/docker/js-builder",
+      "proxyd",
+      "teleportr"
     ],
     "nohoist": [
-      "examples/*",
       "**/typechain",
       "**/@typechain/*"
     ]
