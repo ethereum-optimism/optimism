@@ -67,7 +67,7 @@ func (payload *ExecutionPayload) MarshalSSZ(w io.Writer) (n int, err error) {
 	offset := uint32(0)
 	copy(buf[offset:offset+32], payload.ParentHash[:])
 	offset += 32
-	copy(buf[offset:offset+32], payload.FeeRecipient[:])
+	copy(buf[offset:offset+20], payload.FeeRecipient[:])
 	offset += 20
 	copy(buf[offset:offset+32], payload.StateRoot[:])
 	offset += 32
