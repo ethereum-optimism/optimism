@@ -158,10 +158,34 @@ func logValidationResult(self peer.ID, msg string, log log.Logger, fn pubsub.Val
 	}
 }
 
+type seenBlocks struct {
+	sync.Mutex
+	blockHashes []common.Hash
+}
+
+// hasSeen checks if the hash has been marked as seen, and how many have been seen.
+func (sb *seenBlocks) hasSeen(h common.Hash) (count int, hasSeen bool) {
+	sb.Lock()
+	defer sb.Unlock()
+	for _, prev := range sb.blockHashes {
+		if prev == h {
+			return len(sb.blockHashes), true
+		}
+	}
+	return len(sb.blockHashes), false
+}
+
+// markSeen marks the block hash as seen
+func (sb *seenBlocks) markSeen(h common.Hash) {
+	sb.Lock()
+	defer sb.Unlock()
+	sb.blockHashes = append(sb.blockHashes, h)
+}
+
 func BuildBlocksValidator(log log.Logger, cfg *rollup.Config) pubsub.ValidatorEx {
 
 	// Seen block hashes per block height
-	// uint64 -> []common.Hash
+	// uint64 -> *seenBlocks
 	blockHeightLRU, err := lru.New(100)
 	if err != nil {
 		panic(fmt.Errorf("failed to set up block height LRU cache: %v", err))
@@ -219,21 +243,20 @@ func BuildBlocksValidator(log log.Logger, cfg *rollup.Config) pubsub.ValidatorEx
 			return pubsub.ValidationReject
 		}
 
-		// [REJECT] if more than 5 blocks have been seen with the same block height
 		seen, ok := blockHeightLRU.Get(uint64(payload.BlockNumber))
 		if !ok {
-			seen = []common.Hash{}
+			seen = new(seenBlocks)
+			blockHeightLRU.Add(uint64(payload.BlockNumber), seen)
 		}
-		if len(seen.([]common.Hash)) > 5 {
+
+		if count, hasSeen := seen.(*seenBlocks).hasSeen(payload.BlockHash); count > 5 {
+			// [REJECT] if more than 5 blocks have been seen with the same block height
 			log.Warn("seen too many different blocks at same height", "height", payload.BlockNumber)
 			return pubsub.ValidationReject
-		}
-		for _, prev := range seen.([]common.Hash) {
+		} else if hasSeen {
 			// [IGNORE] if the block has already been seen
-			if prev == payload.BlockHash {
-				log.Warn("validated already seen message again")
-				return pubsub.ValidationIgnore
-			}
+			log.Warn("validated already seen message again")
+			return pubsub.ValidationIgnore
 		}
 
 		// [REJECT] if the signature by the sequencer is not valid
@@ -252,8 +275,9 @@ func BuildBlocksValidator(log log.Logger, cfg *rollup.Config) pubsub.ValidatorEx
 			return pubsub.ValidationReject
 		}
 
-		seen = append(seen.([]common.Hash), payload.BlockHash)
-		blockHeightLRU.Add(uint64(payload.BlockNumber), seen)
+		// mark it as seen. (note: with concurrent validation more than 5 blocks may be marked as seen still,
+		// but validator concurrency is limited anyway)
+		seen.(*seenBlocks).markSeen(payload.BlockHash)
 
 		// remember the decoded payload for later usage in topic subscriber.
 		message.ValidatorData = &payload

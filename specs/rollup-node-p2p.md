@@ -49,6 +49,7 @@ and are adopted by several other blockchains, most notably the [L1 consensus lay
       - [Message ID computation](#message-id-computation)
     - [Heartbeat and parameters](#heartbeat-and-parameters)
     - [Topic configuration](#topic-configuration)
+    - [Topic validation](#topic-validation)
 - [Gossip Topics](#gossip-topics)
   - [`blocks`](#blocks)
     - [Block encoding](#block-encoding)
@@ -232,6 +233,16 @@ Topics have string identifiers and are communicated with messages and subscripti
 Note that the topic encoding depends on the topic, unlike L1,
 since there are less topics, and all are snappy-compressed.
 
+#### Topic validation
+
+To ensure only valid messages are relayed, and malicious peers get scored based on application behavior,
+an [extended validator][extended-validator] checks the message before it is relayed or processed.
+The extended validator emits one of the following validation signals:
+
+- `ACCEPT` valid, relayed to other peers and passed to local topic subscriber
+- `IGNORE` scored like inactivity, message is dropped and not processed
+- `REJECT` score penalties, message is dropped
+
 ## Gossip Topics
 
 ### `blocks`
@@ -261,10 +272,7 @@ The `secp256k1` signature must have `y_parity = 1 or 0`, the `chain_id` is alrea
 
 #### Block validation
 
-To ensure malicious peers get scored based on application behavior the validation signals
-`ACCEPT` (valid), `IGNORE` (like inactivity) or `REJECT` (score penalties).
-
-In order of operation:
+An [extended-validator] checks the incoming messages as follows, in order of operation:
 
 - `[REJECT]` if the compression is not valid
 - `[REJECT]` if the block encoding is not valid
@@ -273,7 +281,7 @@ In order of operation:
 - `[REJECT]` if the `payload.timestamp` is more than 5 seconds into the future
 - `[REJECT]` if the `block_hash` in the `payload` is not valid
 - `[REJECT]` if more than 5 different blocks have been seen with the same block height
-  - `[IGNORE]` if the block has already been seen
+- `[IGNORE]` if the block has already been seen
 - `[REJECT]` if the signature by the sequencer is not valid
 - Mark the block as seen for the given block height
 
@@ -312,3 +320,4 @@ TODO: GossipSub per-topic scoring to fine-tune incentives for ideal propagation 
 [snappy]: https://github.com/google/snappy
 [l1-message-id]: https://github.com/ethereum/consensus-specs/blob/dev/specs/phase0/p2p-interface.md#topics-and-messages
 [gossip-parameters]: https://github.com/libp2p/specs/blob/master/pubsub/gossipsub/gossipsub-v1.0.md#parameters
+[extended-validator]: https://github.com/libp2p/specs/blob/master/pubsub/gossipsub/gossipsub-v1.1.md#extended-validators
