@@ -74,6 +74,10 @@ type Config struct {
 	// by the batch submitter.
 	MaxL1TxSize uint64
 
+	// MaxPlaintextL1TxSize is the maximum size in bytes of the plaintext tx
+	// data encoded in batches.
+	MaxPlaintextBatchSize uint64
+
 	// MinStateRootElements is the minimum number of state root elements that
 	// can be submitted in single proposer batch.
 	MinStateRootElements uint64
@@ -203,6 +207,7 @@ func NewConfig(ctx *cli.Context) (Config, error) {
 		SCCAddress:                ctx.GlobalString(flags.SCCAddressFlag.Name),
 		MinL1TxSize:               ctx.GlobalUint64(flags.MinL1TxSizeFlag.Name),
 		MaxL1TxSize:               ctx.GlobalUint64(flags.MaxL1TxSizeFlag.Name),
+		MaxPlaintextBatchSize:     ctx.GlobalUint64(flags.MaxPlaintextBatchSizeFlag.Name),
 		MinStateRootElements:      ctx.GlobalUint64(flags.MinStateRootElementsFlag.Name),
 		MaxStateRootElements:      ctx.GlobalUint64(flags.MinStateRootElementsFlag.Name),
 		MaxBatchSubmissionTime:    ctx.GlobalDuration(flags.MaxBatchSubmissionTimeFlag.Name),
