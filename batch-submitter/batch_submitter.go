@@ -121,16 +121,17 @@ func Main(gitVersion string) func(ctx *cli.Context) error {
 		var services []*bsscore.Service
 		if cfg.RunTxBatchSubmitter {
 			batchTxDriver, err := sequencer.NewDriver(sequencer.Config{
-				Name:        "Sequencer",
-				L1Client:    l1Client,
-				L2Client:    l2Client,
-				BlockOffset: cfg.BlockOffset,
-				MinTxSize:   cfg.MinL1TxSize,
-				MaxTxSize:   cfg.MaxL1TxSize,
-				CTCAddr:     ctcAddress,
-				ChainID:     chainID,
-				PrivKey:     sequencerPrivKey,
-				BatchType:   sequencer.BatchTypeFromString(cfg.SequencerBatchType),
+				Name:                  "Sequencer",
+				L1Client:              l1Client,
+				L2Client:              l2Client,
+				BlockOffset:           cfg.BlockOffset,
+				MinTxSize:             cfg.MinL1TxSize,
+				MaxTxSize:             cfg.MaxL1TxSize,
+				MaxPlaintextBatchSize: cfg.MaxPlaintextBatchSize,
+				CTCAddr:               ctcAddress,
+				ChainID:               chainID,
+				PrivKey:               sequencerPrivKey,
+				BatchType:             sequencer.BatchTypeFromString(cfg.SequencerBatchType),
 			})
 			if err != nil {
 				return err

@@ -66,6 +66,13 @@ var (
 		Required: true,
 		EnvVar:   prefixEnvVar("MAX_L1_TX_SIZE"),
 	}
+	MaxPlaintextBatchSizeFlag = cli.Uint64Flag{
+		Name: "max-plaintext-batch-size",
+		Usage: "Maximum size in bytes of of the plaintext tx data " +
+			"encoded in batches",
+		Required: true,
+		EnvVar:   prefixEnvVar("MAX_PLAINTEXT_BATCH_SIZE"),
+	}
 	MinStateRootElementsFlag = cli.Uint64Flag{
 		Name: "min-state-root-elements",
 		Usage: "Minimum number of elements required to submit a state " +
@@ -254,6 +261,7 @@ var requiredFlags = []cli.Flag{
 	SCCAddressFlag,
 	MinL1TxSizeFlag,
 	MaxL1TxSizeFlag,
+	MaxPlaintextBatchSizeFlag,
 	MinStateRootElementsFlag,
 	MaxStateRootElementsFlag,
 	MaxBatchSubmissionTimeFlag,
