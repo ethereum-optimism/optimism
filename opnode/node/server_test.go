@@ -4,6 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"math/big"
+
+	"github.com/ethereum-optimism/optimistic-specs/opnode/version"
+
 	"testing"
 
 	"github.com/ethereum-optimism/optimistic-specs/opnode/eth"
@@ -94,6 +97,30 @@ func TestOutputAtBlock(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Len(t, out, 2)
 	l2Client.mock.AssertExpectations(t)
+}
+
+func TestVersion(t *testing.T) {
+	log := testlog.Logger(t, log.LvlError)
+	l2Client := &mockL2Client{}
+	rpcCfg := &RPCConfig{
+		ListenAddr: "localhost",
+		ListenPort: 0,
+	}
+	rollupCfg := &rollup.Config{
+		// ignore other rollup config info in this test
+	}
+	server, err := newRPCServer(context.Background(), rpcCfg, rollupCfg, l2Client, log, "0.0")
+	assert.NoError(t, err)
+	assert.NoError(t, server.Start())
+	defer server.Stop()
+
+	client, err := dialRPCClientWithBackoff(context.Background(), log, "http://"+server.Addr().String())
+	assert.NoError(t, err)
+
+	var out string
+	err = client.CallContext(context.Background(), &out, "optimism_version")
+	assert.NoError(t, err)
+	assert.Equal(t, version.Version+"-"+version.Meta, out)
 }
 
 type mockL2Client struct {

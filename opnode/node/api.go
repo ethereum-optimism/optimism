@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"math/big"
 
+	"github.com/ethereum-optimism/optimistic-specs/opnode/version"
+
 	"github.com/ethereum-optimism/optimistic-specs/opnode/eth"
 	"github.com/ethereum-optimism/optimistic-specs/opnode/l2"
 	"github.com/ethereum-optimism/optimistic-specs/opnode/predeploy"
@@ -78,6 +80,10 @@ func (n *nodeAPI) OutputAtBlock(ctx context.Context, number rpc.BlockNumber) ([]
 	l2OutputRoot := l2.ComputeL2OutputRoot(l2OutputRootVersion, head.Hash(), head.Root, proof.StorageHash)
 
 	return []l2.Bytes32{l2OutputRootVersion, l2OutputRoot}, nil
+}
+
+func (n *nodeAPI) Version(ctx context.Context) (string, error) {
+	return version.Version + "-" + version.Meta, nil
 }
 
 func toBlockNumArg(number rpc.BlockNumber) string {

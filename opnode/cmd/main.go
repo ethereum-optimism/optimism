@@ -6,6 +6,8 @@ import (
 	"os/signal"
 	"syscall"
 
+	"github.com/ethereum-optimism/optimistic-specs/opnode/version"
+
 	"github.com/ethereum-optimism/optimistic-specs/opnode"
 	"github.com/ethereum-optimism/optimistic-specs/opnode/flags"
 
@@ -15,23 +17,21 @@ import (
 )
 
 var (
-	Version     = "0.0.0"
-	GitCommit   = ""
-	GitDate     = ""
-	VersionMeta = "dev"
+	GitCommit = ""
+	GitDate   = ""
 )
 
 // VersionWithMeta holds the textual version string including the metadata.
 var VersionWithMeta = func() string {
-	v := Version
+	v := version.Version
 	if GitCommit != "" {
 		v += "-" + GitCommit[:8]
 	}
 	if GitDate != "" {
 		v += "-" + GitDate
 	}
-	if VersionMeta != "" {
-		v += "-" + VersionMeta
+	if version.Meta != "" {
+		v += "-" + version.Meta
 	}
 	return v
 }()
