@@ -56,7 +56,7 @@ contract L2CrossDomainMessenger_Test is Messenger_Initializer {
             abi.encodeWithSelector(
                 L2ToL1MessagePasser.initiateWithdrawal.selector,
                 address(L1Messenger),
-                100,
+                100 + L2Messenger.baseGas(hex"ff"),
                 CrossDomainHashing.getVersionedEncoding(
                     L2Messenger.messageNonce(),
                     alice,
@@ -75,7 +75,7 @@ contract L2CrossDomainMessenger_Test is Messenger_Initializer {
             address(L2Messenger),
             address(L1Messenger),
             0,
-            100,
+            100 + L2Messenger.baseGas(hex"ff"),
             CrossDomainHashing.getVersionedEncoding(
                 L2Messenger.messageNonce(),
                 alice,

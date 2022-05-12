@@ -54,6 +54,10 @@ abstract contract CrossDomainMessenger is
 
     uint16 public constant MESSAGE_VERSION = 1;
 
+    uint32 public constant MIN_GAS_DYNAMIC_OVERHEAD = 1;
+
+    uint32 public constant MIN_GAS_CONSTANT_OVERHEAD = 100000;
+
     /*************
      * Variables *
      *************/
@@ -120,22 +124,41 @@ abstract contract CrossDomainMessenger is
     }
 
     /**
+     * Base amount of gas required to make sure that the message will be received without
+     * running out of gas. Amount of gas provided to the L2 call will be the gas requested by
+     * the user PLUS this gas value so that if the message is not successful, it can always be
+     * replayed on the other end.
+     *
+     * @param _message Message to compute base gas for.
+     * @return Base gas required for message.
+     */
+    function baseGas(bytes memory _message) public pure returns (uint32) {
+        // TODO: Values here are meant to be good enough to get a devnet running. We need to do
+        // some simple experimentation with the smallest and largest possible message sizes to find
+        // the correct constant and dynamic overhead values.
+        return (uint32(_message.length) * MIN_GAS_DYNAMIC_OVERHEAD) + MIN_GAS_CONSTANT_OVERHEAD;
+    }
+
+    /**
      * @param _target Target contract address.
      * @param _message Message to send to the target.
      * @param _minGasLimit Gas limit for the provided message.
      */
     function sendMessage(
         address _target,
-        bytes memory _message,
+        bytes calldata _message,
         uint32 _minGasLimit
     ) external payable {
-        // TODO: Enforce minimum gas limit.
-
+        // Triggers a message to the other messenger. Note that the amount of gas provided to the
+        // message is the amount of gas requested by the user PLUS the base gas value. We want to
+        // guarantee the property that the call to the target contract will always have at least
+        // the minimum gas limit specified by the user.
         _sendMessage(
             otherMessenger,
-            _minGasLimit, // TODO: Pad this value.
+            _minGasLimit + baseGas(_message),
             msg.value,
-            CrossDomainHashing.getVersionedEncoding(
+            abi.encodeWithSelector(
+                this.relayMessage.selector,
                 messageNonce(),
                 msg.sender,
                 _target,
