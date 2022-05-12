@@ -4,7 +4,7 @@ pragma solidity 0.8.10;
 import { CommonTest } from "./CommonTest.t.sol";
 import { L1Block } from "../L2/L1Block.sol";
 
-contract L1BLockTest is CommonTest {
+contract L1BlockTest is CommonTest {
     L1Block lb;
     address depositor;
     bytes32 immutable NON_ZERO_HASH = keccak256(abi.encode(1));
