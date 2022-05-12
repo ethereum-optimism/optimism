@@ -30,7 +30,7 @@
   "devDependencies": {
     "@eth-optimism/contracts": "0.5.24",
     "@eth-optimism/core-utils": "0.8.4",
-    "@eth-optimism/sdk": "1.1.4",
+    "@eth-optimism/sdk": "1.1.5",
     "@ethersproject/abstract-provider": "^5.5.1",
     "@ethersproject/providers": "^5.5.3",
     "@ethersproject/transactions": "^5.5.0",
