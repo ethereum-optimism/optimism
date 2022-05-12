@@ -49,10 +49,10 @@ func newRPCServer(ctx context.Context, rpcCfg *RPCConfig, rollupCfg *rollup.Conf
 
 func (s *rpcServer) EnableP2P(backend *p2p.APIBackend) {
 	s.apis = append(s.apis, rpc.API{
-		Namespace:     "",
+		Namespace:     p2p.NamespaceRPC,
 		Version:       "",
-		Service:       nil,
-		Public:        false,
+		Service:       backend,
+		Public:        true,
 		Authenticated: false,
 	})
 }

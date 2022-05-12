@@ -8,6 +8,7 @@ import (
 	"net"
 	"time"
 
+	gcrypto "github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/p2p/discover"
 	"github.com/ethereum/go-ethereum/p2p/enode"
@@ -18,6 +19,7 @@ import (
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/libp2p/go-libp2p-core/peerstore"
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
+	"github.com/libp2p/go-libp2p-testing/netutil"
 	ma "github.com/multiformats/go-multiaddr"
 )
 
@@ -56,33 +58,13 @@ type APIBackend struct {
 	log  log.Logger
 }
 
+var _ API = (*APIBackend)(nil)
+
 func NewP2PAPIBackend(node Node, log log.Logger) *APIBackend {
 	return &APIBackend{
 		node: node,
 		log:  log,
 	}
-}
-
-type PeerInfo struct {
-	PeerID          peer.ID        `json:"peerID"`
-	NodeID          enode.ID       `json:"nodeID"`
-	UserAgent       string         `json:"userAgent"`
-	ProtocolVersion string         `json:"protocolVersion"`
-	ENR             string         `json:"ENR"`       // might not always be known, e.g. if the peer connected us instead of us discovering them
-	Addresses       []ma.Multiaddr `json:"addresses"` // may be mix of LAN / docker / external IPs. All of them are communicated.
-	Protocols       []string       `json:"protocols"` // negotiated protocols list
-	//GossipScore float64
-	//PeerScore float64
-	Connectedness network.Connectedness `json:"connectedness"` // "NotConnected", "Connected", "CanConnect" (gracefully disconnected), or "CannotConnect" (tried but failed)
-	Direction     network.Direction     `json:"direction"`     // "Unknown", "Inbound" (if the peer contacted us), "Outbound" (if we connected to them)
-	BannedID      bool                  `json:"bannedID"`      // If the peer has been banned by peer ID
-	BannedIP      bool                  `json:"bannedIP"`      // If the peer has been banned by IP address
-	BannedSubnet  bool                  `json:"bannedSubnet"`  // If the peer has been banned as part of a whole IP subnet
-	Protected     bool                  `json:"protected"`     // Protected peers do not get
-	ChainID       uint64                `json:"chainID"`       // some peers might try to connect, but we figure out they are on a different chain later. This may be 0 if the peer is not an optimism node at all.
-	Latency       time.Duration         `json:"latency"`
-
-	GossipBlocks bool `json:"gossipBlocks"` // if the peer is in our gossip topic
 }
 
 func dumpPeer(id peer.ID, nw network.Network, pstore peerstore.Peerstore, connMgr connmgr.ConnManager) (*PeerInfo, error) {
@@ -93,11 +75,15 @@ func dumpPeer(id peer.ID, nw network.Network, pstore peerstore.Peerstore, connMg
 	// we might not have the pubkey if it's from a multi-addr and if we never discovered/connected them
 	pub := pstore.PubKey(id)
 	if pub != nil {
-		typedPub, ok := pub.(*crypto.Secp256k1PublicKey)
-		if !ok {
-			return nil, fmt.Errorf("unexpected pubkey type: %T", pub)
+		if testPub, ok := pub.(netutil.TestBogusPublicKey); ok {
+			info.NodeID = enode.ID(gcrypto.Keccak256Hash(testPub))
+		} else {
+			typedPub, ok := pub.(*crypto.Secp256k1PublicKey)
+			if !ok {
+				return nil, fmt.Errorf("unexpected pubkey type: %T", pub)
+			}
+			info.NodeID = enode.PubkeyToIDV4((*ecdsa.PublicKey)(typedPub))
 		}
-		info.NodeID = enode.PubkeyToIDV4((*ecdsa.PublicKey)(typedPub))
 	}
 	if dat, err := pstore.Get(id, "ProtocolVersion"); err != nil {
 		protocolVersion, ok := dat.(string)
@@ -117,7 +103,13 @@ func dumpPeer(id peer.ID, nw network.Network, pstore peerstore.Peerstore, connMg
 			info.ENR = enodeData.String()
 		}
 	}
-	info.Addresses = pstore.Addrs(id)
+	// include the /p2p/ address component in all of the addresses for convenience of the API user.
+	p2pAddrs, err := peer.AddrInfoToP2pAddrs(&peer.AddrInfo{ID: id, Addrs: pstore.Addrs(id)})
+	if err != nil {
+		for _, addr := range p2pAddrs {
+			info.Addresses = append(info.Addresses, addr.String())
+		}
+	}
 	info.Connectedness = nw.Connectedness(id)
 	if protocols, err := pstore.GetProtocols(id); err != nil {
 		info.Protocols = protocols
@@ -141,14 +133,6 @@ func dumpPeer(id peer.ID, nw network.Network, pstore peerstore.Peerstore, connMg
 	return info, nil
 }
 
-type PeerDump struct {
-	TotalConnected uint                  `json:"totalConnected"`
-	Peers          map[peer.ID]*PeerInfo `json:"peers"`
-	BannedPeers    []peer.ID             `json:"bannedPeers"`
-	BannedIPS      []net.IP              `json:"bannedIPS"`
-	BannedSubnets  []*net.IPNet          `json:"bannedSubnets"`
-}
-
 // Peers lists information of peers. Optionally filter to only retrieve connected peers.
 func (s *APIBackend) Peers(ctx context.Context, connected bool) (*PeerDump, error) {
 	h := s.node.Host()
@@ -165,18 +149,22 @@ func (s *APIBackend) Peers(ctx context.Context, connected bool) (*PeerDump, erro
 		peers = pstore.Peers()
 	}
 
-	dump := &PeerDump{Peers: make(map[peer.ID]*PeerInfo)}
+	dump := &PeerDump{Peers: make(map[string]*PeerInfo)}
 	for _, id := range peers {
 		peerInfo, err := dumpPeer(id, nw, pstore, s.node.ConnectionManager())
 		if err != nil {
-			dump.Peers[id] = peerInfo
+			s.log.Debug("failed to dump peer info in RPC request", "peer", id, "err", err)
+			continue
 		}
+		// We don't use the peer.ID type as key,
+		// since JSON decoding can't use the provided json unmarshaler (on *string type).
+		dump.Peers[id.String()] = peerInfo
 		if peerInfo.Connectedness == network.Connected {
 			dump.TotalConnected += 1
 		}
 	}
 	for _, id := range s.node.GossipTopicInfo().BlocksTopicPeers() {
-		if p, ok := dump.Peers[id]; ok {
+		if p, ok := dump.Peers[id.String()]; ok {
 			p.GossipBlocks = true
 		}
 	}
@@ -196,7 +184,7 @@ type PeerStats struct {
 	Known       uint `json:"known"`
 }
 
-func (s *APIBackend) PeerStats() (*PeerStats, error) {
+func (s *APIBackend) PeerStats(_ context.Context) (*PeerStats, error) {
 	h := s.node.Host()
 	if h == nil {
 		return nil, DisabledP2P
@@ -221,7 +209,7 @@ func (s *APIBackend) PeerStats() (*PeerStats, error) {
 	return stats, nil
 }
 
-func (s *APIBackend) DiscoveryTable() ([]*enode.Node, error) {
+func (s *APIBackend) DiscoveryTable(_ context.Context) ([]*enode.Node, error) {
 	if dv5 := s.node.Dv5Udp(); dv5 != nil {
 		return dv5.AllNodes(), nil
 	} else {
@@ -229,7 +217,7 @@ func (s *APIBackend) DiscoveryTable() ([]*enode.Node, error) {
 	}
 }
 
-func (s *APIBackend) BlockPeer(p peer.ID) error {
+func (s *APIBackend) BlockPeer(_ context.Context, p peer.ID) error {
 	if gater := s.node.ConnectionGater(); gater == nil {
 		return NoConnectionGater
 	} else {
@@ -237,7 +225,7 @@ func (s *APIBackend) BlockPeer(p peer.ID) error {
 	}
 }
 
-func (s *APIBackend) UnblockPeer(p peer.ID) error {
+func (s *APIBackend) UnblockPeer(_ context.Context, p peer.ID) error {
 	if gater := s.node.ConnectionGater(); gater == nil {
 		return NoConnectionGater
 	} else {
@@ -245,7 +233,7 @@ func (s *APIBackend) UnblockPeer(p peer.ID) error {
 	}
 }
 
-func (s *APIBackend) ListBlockedPeers() ([]peer.ID, error) {
+func (s *APIBackend) ListBlockedPeers(_ context.Context) ([]peer.ID, error) {
 	if gater := s.node.ConnectionGater(); gater == nil {
 		return nil, NoConnectionGater
 	} else {
@@ -255,7 +243,7 @@ func (s *APIBackend) ListBlockedPeers() ([]peer.ID, error) {
 
 // BlockAddr adds an IP address to the set of blocked addresses.
 // Note: active connections to the IP address are not automatically closed.
-func (s *APIBackend) BlockAddr(ip net.IP) error {
+func (s *APIBackend) BlockAddr(_ context.Context, ip net.IP) error {
 	if gater := s.node.ConnectionGater(); gater == nil {
 		return NoConnectionGater
 	} else {
@@ -263,7 +251,7 @@ func (s *APIBackend) BlockAddr(ip net.IP) error {
 	}
 }
 
-func (s *APIBackend) UnblockAddr(ip net.IP) error {
+func (s *APIBackend) UnblockAddr(_ context.Context, ip net.IP) error {
 	if gater := s.node.ConnectionGater(); gater == nil {
 		return NoConnectionGater
 	} else {
@@ -271,7 +259,7 @@ func (s *APIBackend) UnblockAddr(ip net.IP) error {
 	}
 }
 
-func (s *APIBackend) ListBlockedAddrs() ([]net.IP, error) {
+func (s *APIBackend) ListBlockedAddrs(_ context.Context) ([]net.IP, error) {
 	if gater := s.node.ConnectionGater(); gater == nil {
 		return nil, NoConnectionGater
 	} else {
@@ -281,7 +269,7 @@ func (s *APIBackend) ListBlockedAddrs() ([]net.IP, error) {
 
 // BlockSubnet adds an IP subnet to the set of blocked addresses.
 // Note: active connections to the IP subnet are not automatically closed.
-func (s *APIBackend) BlockSubnet(ipnet *net.IPNet) error {
+func (s *APIBackend) BlockSubnet(_ context.Context, ipnet *net.IPNet) error {
 	if gater := s.node.ConnectionGater(); gater == nil {
 		return NoConnectionGater
 	} else {
@@ -289,7 +277,7 @@ func (s *APIBackend) BlockSubnet(ipnet *net.IPNet) error {
 	}
 }
 
-func (s *APIBackend) UnblockSubnet(ipnet *net.IPNet) error {
+func (s *APIBackend) UnblockSubnet(_ context.Context, ipnet *net.IPNet) error {
 	if gater := s.node.ConnectionGater(); gater == nil {
 		return NoConnectionGater
 	} else {
@@ -297,7 +285,7 @@ func (s *APIBackend) UnblockSubnet(ipnet *net.IPNet) error {
 	}
 }
 
-func (s *APIBackend) ListBlockedSubnets() ([]*net.IPNet, error) {
+func (s *APIBackend) ListBlockedSubnets(_ context.Context) ([]*net.IPNet, error) {
 	if gater := s.node.ConnectionGater(); gater == nil {
 		return nil, NoConnectionGater
 	} else {
@@ -305,7 +293,7 @@ func (s *APIBackend) ListBlockedSubnets() ([]*net.IPNet, error) {
 	}
 }
 
-func (s *APIBackend) ProtectPeer(p peer.ID) error {
+func (s *APIBackend) ProtectPeer(_ context.Context, p peer.ID) error {
 	if manager := s.node.ConnectionManager(); manager == nil {
 		return NoConnectionManager
 	} else {
@@ -314,7 +302,7 @@ func (s *APIBackend) ProtectPeer(p peer.ID) error {
 	}
 }
 
-func (s *APIBackend) UnprotectPeer(p peer.ID) error {
+func (s *APIBackend) UnprotectPeer(_ context.Context, p peer.ID) error {
 	if manager := s.node.ConnectionManager(); manager == nil {
 		return NoConnectionManager
 	} else {
@@ -339,7 +327,7 @@ func (s *APIBackend) ConnectPeer(ctx context.Context, addr ma.Multiaddr) error {
 	return h.Connect(ctx, *addrInfo)
 }
 
-func (s *APIBackend) DisconnectPeer(id peer.ID) error {
+func (s *APIBackend) DisconnectPeer(_ context.Context, id peer.ID) error {
 	h := s.node.Host()
 	if h == nil {
 		return DisabledP2P
