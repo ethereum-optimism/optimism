@@ -119,14 +119,16 @@ func TestP2PFull(t *testing.T) {
 	require.NoError(t, err)
 	defer hostA.Close()
 
+	conns := make(chan network.Conn, 1)
+	hostA.Network().Notify(&network.NotifyBundle{
+		ConnectedF: func(n network.Network, conn network.Conn) {
+			conns <- conn
+			t.Log("connected")
+		}})
+
 	// Set up B to connect statically
 	confB.StaticPeers, err = peer.AddrInfoToP2pAddrs(&peer.AddrInfo{ID: hostA.ID(), Addrs: hostA.Addrs()})
 	require.NoError(t, err)
-
-	conns := make(chan network.Conn, 1)
-	hostA.Network().Notify(&network.NotifyBundle{ConnectedF: func(n network.Network, conn network.Conn) {
-		conns <- conn
-	}})
 
 	hostB, err := confB.Host(testlog.Logger(t, log.LvlError).New("host", "B"))
 	require.NoError(t, err)
@@ -135,10 +137,9 @@ func TestP2PFull(t *testing.T) {
 	select {
 	case <-time.After(time.Second):
 		t.Fatal("failed to connect new host")
-	case <-conns:
+	case c := <-conns:
+		require.Equal(t, hostB.ID(), c.RemotePeer())
 	}
-	require.NoError(t, err, "failed to connect to peer B from peer A")
-	require.Equal(t, hostB.Network().Connectedness(hostA.ID()), network.Connected)
 }
 
 // Most tests should use mocknets instead of using the actual local host network
