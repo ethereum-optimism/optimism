@@ -539,6 +539,9 @@ func TestSystemMockP2P(t *testing.T) {
 
 	// Verify that the tx was received via p2p
 	require.Contains(t, published, receiptVerif.BlockHash)
+
+	// Try get p2p debug info from the RPC
+	// TODO: RPC client bindings for p2p api
 }
 
 func TestL1InfoContract(t *testing.T) {

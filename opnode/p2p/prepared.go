@@ -31,7 +31,7 @@ func (p *Prepared) Check() error {
 }
 
 // Host creates a libp2p host service. Returns nil, nil if p2p is disabled.
-func (p *Prepared) Host() (host.Host, error) {
+func (p *Prepared) Host(log log.Logger) (host.Host, error) {
 	return p.HostP2P, nil
 }
 

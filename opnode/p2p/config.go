@@ -12,6 +12,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/libp2p/go-libp2p-core/peer"
+
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/p2p/discover"
 	"github.com/libp2p/go-libp2p-core/host"
@@ -40,7 +42,7 @@ import (
 type SetupP2P interface {
 	Check() error
 	// Host creates a libp2p host service. Returns nil, nil if p2p is disabled.
-	Host() (host.Host, error)
+	Host(log log.Logger) (host.Host, error)
 	// Discovery creates a disc-v5 service. Returns nil, nil, nil if discovery is disabled.
 	Discovery(log log.Logger) (*enode.LocalNode, *discover.UDPv5, error)
 }
@@ -91,6 +93,28 @@ type Config struct {
 	ConnMngr  func(conf *Config) (connmgr.ConnManager, error)
 	// nil to disable bandwidth metrics
 	BandwidthMetrics metrics.Reporter
+}
+
+type ConnectionGater interface {
+	connmgr.ConnectionGater
+
+	// BlockPeer adds a peer to the set of blocked peers.
+	// Note: active connections to the peer are not automatically closed.
+	BlockPeer(p peer.ID) error
+	UnblockPeer(p peer.ID) error
+	ListBlockedPeers() []peer.ID
+
+	// BlockAddr adds an IP address to the set of blocked addresses.
+	// Note: active connections to the IP address are not automatically closed.
+	BlockAddr(ip net.IP) error
+	UnblockAddr(ip net.IP) error
+	ListBlockedAddrs() []net.IP
+
+	// BlockSubnet adds an IP subnet to the set of blocked addresses.
+	// Note: active connections to the IP subnet are not automatically closed.
+	BlockSubnet(ipnet *net.IPNet) error
+	UnblockSubnet(ipnet *net.IPNet) error
+	ListBlockedSubnets() []*net.IPNet
 }
 
 func DefaultConnGater(conf *Config) (connmgr.ConnectionGater, error) {

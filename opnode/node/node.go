@@ -6,6 +6,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/libp2p/go-libp2p-core/connmgr"
+	"github.com/libp2p/go-libp2p/p2p/protocol/identify"
+
 	"github.com/libp2p/go-libp2p-core/peer"
 
 	"github.com/ethereum-optimism/optimistic-specs/opnode/p2p"
@@ -40,6 +43,8 @@ type OpNode struct {
 	l2Nodes    []*rpc.Client         // L2 Execution Engines to close at shutdown
 	server     *rpcServer            // RPC server hosting the rollup-node API
 	host       host.Host             // p2p host (optional, may be nil)
+	gater      p2p.ConnectionGater   // p2p gater, to ban/unban peers with, may be nil even with p2p enabled
+	connMgr    connmgr.ConnManager   // p2p conn manager, to keep a reliable number of peers, may be nil even with p2p enabled
 	dv5Local   *enode.LocalNode      // p2p discovery identity (optional, may be nil)
 	dv5Udp     *discover.UDPv5       // p2p discovery service (optional, may be nil)
 	gs         *pubsub.PubSub        // p2p gossip router (optional, may be nil)
@@ -109,13 +114,14 @@ func (n *OpNode) init(ctx context.Context, cfg *Config) error {
 	if err := n.initL2(ctx, cfg); err != nil {
 		return err
 	}
-	if err := n.initRPCServer(ctx, cfg); err != nil {
-		return err
-	}
 	if err := n.initP2PSigner(ctx, cfg); err != nil {
 		return err
 	}
 	if err := n.initP2P(ctx, cfg); err != nil {
+		return err
+	}
+	// Only expose the server at the end, ensuring all RPC backend components are initialized.
+	if err := n.initRPCServer(ctx, cfg); err != nil {
 		return err
 	}
 	return nil
@@ -210,6 +216,9 @@ func (n *OpNode) initRPCServer(ctx context.Context, cfg *Config) error {
 	if err != nil {
 		return err
 	}
+	if n.host != nil {
+		n.server.EnableP2P(p2p.NewP2PAPIBackend(n, n.log))
+	}
 	n.log.Info("Starting JSON-RPC server")
 	if err := n.server.Start(); err != nil {
 		return fmt.Errorf("unable to start RPC server: %w", err)
@@ -230,12 +239,21 @@ func (n *OpNode) initP2P(ctx context.Context, cfg *Config) error {
 	}
 
 	// nil if disabled.
-	n.host, err = cfg.P2P.Host()
+	n.host, err = cfg.P2P.Host(n.log)
 	if err != nil {
 		return fmt.Errorf("failed to start p2p host: %v", err)
 	}
 
 	if n.host != nil {
+		// Enable extra features, if any. During testing we don't setup the most advanced host all the time.
+		if extra, ok := n.host.(p2p.ExtraHostFeatures); ok {
+			n.gater = extra.ConnectionGater()
+			n.connMgr = extra.ConnectionManager()
+		}
+		// notify of any new connections/streams/etc.
+		n.host.Network().Notify(p2p.NewNetworkNotifier(n.log))
+		// unregister identify-push handler. Only identifying on dial is fine, and more robust against spam
+		n.host.RemoveStreamHandler(identify.IDDelta)
 		n.gs, err = p2p.NewGossipSub(n.resourcesCtx, n.host, &cfg.Rollup)
 		if err != nil {
 			return fmt.Errorf("failed to start gossipsub router: %v", err)
@@ -335,6 +353,34 @@ func (n *OpNode) OnUnsafeL2Payload(ctx context.Context, from peer.ID, payload *l
 		}(eng)
 	}
 	return nil
+}
+
+func (n *OpNode) Host() host.Host {
+	return n.host
+}
+
+func (n *OpNode) Dv5Local() *enode.LocalNode {
+	return n.dv5Local
+}
+
+func (n *OpNode) Dv5Udp() *discover.UDPv5 {
+	return n.dv5Udp
+}
+
+func (n *OpNode) GossipSub() *pubsub.PubSub {
+	return n.gs
+}
+
+func (n *OpNode) GossipTopicInfo() p2p.GossipTopicInfo {
+	return n.gsOut
+}
+
+func (n *OpNode) ConnectionGater() p2p.ConnectionGater {
+	return n.gater
+}
+
+func (n *OpNode) ConnectionManager() connmgr.ConnManager {
+	return n.connMgr
 }
 
 // Close closes all resources.

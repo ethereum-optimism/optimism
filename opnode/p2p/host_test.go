@@ -8,6 +8,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ethereum-optimism/optimistic-specs/opnode/internal/testlog"
+	"github.com/ethereum/go-ethereum/log"
+
 	ds "github.com/ipfs/go-datastore"
 	"github.com/ipfs/go-datastore/sync"
 	"github.com/libp2p/go-libp2p-core/connmgr"
@@ -57,10 +60,10 @@ func TestingConfig(t *testing.T) *Config {
 func TestP2PSimple(t *testing.T) {
 	confA := TestingConfig(t)
 	confB := TestingConfig(t)
-	hostA, err := confA.Host()
+	hostA, err := confA.Host(testlog.Logger(t, log.LvlError).New("host", "A"))
 	require.NoError(t, err, "failed to launch host A")
 	defer hostA.Close()
-	hostB, err := confB.Host()
+	hostB, err := confB.Host(testlog.Logger(t, log.LvlError).New("host", "B"))
 	require.NoError(t, err, "failed to launch host B")
 	defer hostB.Close()
 	err = hostA.Connect(context.Background(), peer.AddrInfo{ID: hostB.ID(), Addrs: hostB.Addrs()})
@@ -112,13 +115,28 @@ func TestP2PFull(t *testing.T) {
 	confB.Store = sync.MutexWrap(ds.NewMapDatastore())
 	// TODO: maybe swap the order of sec/mux preferences, to test that negotiation works
 
-	hostA, err := confA.Host()
+	hostA, err := confA.Host(testlog.Logger(t, log.LvlError).New("host", "A"))
 	require.NoError(t, err)
 	defer hostA.Close()
-	hostB, err := confB.Host()
+
+	// Set up B to connect statically
+	confB.StaticPeers, err = peer.AddrInfoToP2pAddrs(&peer.AddrInfo{ID: hostA.ID(), Addrs: hostA.Addrs()})
+	require.NoError(t, err)
+
+	conns := make(chan network.Conn, 1)
+	hostA.Network().Notify(&network.NotifyBundle{ConnectedF: func(n network.Network, conn network.Conn) {
+		conns <- conn
+	}})
+
+	hostB, err := confB.Host(testlog.Logger(t, log.LvlError).New("host", "B"))
 	require.NoError(t, err)
 	defer hostB.Close()
-	err = hostA.Connect(context.Background(), peer.AddrInfo{ID: hostB.ID(), Addrs: hostB.Addrs()})
+
+	select {
+	case <-time.After(time.Second):
+		t.Fatal("failed to connect new host")
+	case <-conns:
+	}
 	require.NoError(t, err, "failed to connect to peer B from peer A")
 	require.Equal(t, hostB.Network().Connectedness(hostA.ID()), network.Connected)
 }

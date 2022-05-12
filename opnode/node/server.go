@@ -7,6 +7,8 @@ import (
 	"net"
 	"net/http"
 
+	"github.com/ethereum-optimism/optimistic-specs/opnode/p2p"
+
 	"github.com/ethereum-optimism/optimistic-specs/opnode/l2"
 	"github.com/ethereum-optimism/optimistic-specs/opnode/rollup"
 
@@ -19,7 +21,7 @@ import (
 
 type rpcServer struct {
 	endpoint   string
-	api        *nodeAPI
+	apis       []rpc.API
 	httpServer *http.Server
 	appVersion string
 	listenAddr net.Addr
@@ -32,23 +34,32 @@ func newRPCServer(ctx context.Context, rpcCfg *RPCConfig, rollupCfg *rollup.Conf
 	// TODO: extend RPC config with options for WS, IPC and HTTP RPC connections
 	endpoint := fmt.Sprintf("%s:%d", rpcCfg.ListenAddr, rpcCfg.ListenPort)
 	r := &rpcServer{
-		endpoint:   endpoint,
-		api:        api,
+		endpoint: endpoint,
+		apis: []rpc.API{{
+			Namespace:     "optimism",
+			Service:       api,
+			Public:        true,
+			Authenticated: false,
+		}},
 		appVersion: appVersion,
 		log:        log,
 	}
 	return r, nil
 }
 
-func (s *rpcServer) Start() error {
-	apis := []rpc.API{{
-		Namespace:     "optimism",
-		Service:       s.api,
-		Public:        true,
+func (s *rpcServer) EnableP2P(backend *p2p.APIBackend) {
+	s.apis = append(s.apis, rpc.API{
+		Namespace:     "",
+		Version:       "",
+		Service:       nil,
+		Public:        false,
 		Authenticated: false,
-	}}
+	})
+}
+
+func (s *rpcServer) Start() error {
 	srv := rpc.NewServer()
-	if err := node.RegisterApis(apis, nil, srv, true); err != nil {
+	if err := node.RegisterApis(s.apis, nil, srv, true); err != nil {
 		return err
 	}
 
