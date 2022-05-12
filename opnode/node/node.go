@@ -76,7 +76,7 @@ func dialRPCClientWithBackoff(ctx context.Context, log log.Logger, addr string) 
 	return ret, nil
 }
 
-func New(ctx context.Context, cfg *Config, log log.Logger, appVersion string) (*OpNode, error) {
+func New(ctx context.Context, cfg *Config, log log.Logger, snapshotLog log.Logger, appVersion string) (*OpNode, error) {
 	if err := cfg.Check(); err != nil {
 		return nil, err
 	}
@@ -88,7 +88,7 @@ func New(ctx context.Context, cfg *Config, log log.Logger, appVersion string) (*
 	// not a context leak, gossipsub is closed with a context.
 	n.resourcesCtx, n.resourcesClose = context.WithCancel(context.Background())
 
-	err := n.init(ctx, cfg)
+	err := n.init(ctx, cfg, snapshotLog)
 	if err != nil {
 		// ensure we always close the node resources if we fail to initialize the node.
 		if closeErr := n.Close(); closeErr != nil {
@@ -99,14 +99,14 @@ func New(ctx context.Context, cfg *Config, log log.Logger, appVersion string) (*
 	return n, nil
 }
 
-func (n *OpNode) init(ctx context.Context, cfg *Config) error {
+func (n *OpNode) init(ctx context.Context, cfg *Config, snapshotLog log.Logger) error {
 	if err := n.initTracer(ctx, cfg); err != nil {
 		return err
 	}
 	if err := n.initL1(ctx, cfg); err != nil {
 		return err
 	}
-	if err := n.initL2(ctx, cfg); err != nil {
+	if err := n.initL2(ctx, cfg, snapshotLog); err != nil {
 		return err
 	}
 	if err := n.initRPCServer(ctx, cfg); err != nil {
@@ -161,7 +161,7 @@ func (n *OpNode) initL1(ctx context.Context, cfg *Config) error {
 }
 
 // AttachEngine attaches an engine to the rollup node.
-func (n *OpNode) AttachEngine(ctx context.Context, cfg *Config, addr string) error {
+func (n *OpNode) AttachEngine(ctx context.Context, cfg *Config, addr string, snapshotLog log.Logger) error {
 	n.l2Lock.Lock()
 	defer n.l2Lock.Unlock()
 
@@ -180,16 +180,17 @@ func (n *OpNode) AttachEngine(ctx context.Context, cfg *Config, addr string) err
 		return err
 	}
 
-	engine := driver.NewDriver(cfg.Rollup, client, n.l1Source, n, engLog, cfg.Sequencer)
+	snap := snapshotLog.New("engine_addr", addr)
+	engine := driver.NewDriver(cfg.Rollup, client, n.l1Source, n, engLog, snap, cfg.Sequencer)
 
 	n.l2Nodes = append(n.l2Nodes, l2Node)
 	n.l2Engines = append(n.l2Engines, engine)
 	return nil
 }
 
-func (n *OpNode) initL2(ctx context.Context, cfg *Config) error {
+func (n *OpNode) initL2(ctx context.Context, cfg *Config, snapshotLog log.Logger) error {
 	for i, addr := range cfg.L2EngineAddrs {
-		if err := n.AttachEngine(ctx, cfg, addr); err != nil {
+		if err := n.AttachEngine(ctx, cfg, addr, snapshotLog); err != nil {
 			return fmt.Errorf("failed to attach configured engine %d (%s): %v", i, addr, err)
 		}
 	}
@@ -202,6 +203,7 @@ func (n *OpNode) initRPCServer(ctx context.Context, cfg *Config) error {
 		return fmt.Errorf("failed to dial l2 address (%s): %w", cfg.L2NodeAddr, err)
 	}
 
+	// TODO: attach the p2p node ID to the snapshot logger
 	client, err := l2.NewReadOnlySource(l2Node, &cfg.Rollup.Genesis, n.log)
 	if err != nil {
 		return err

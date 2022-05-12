@@ -7,6 +7,8 @@ version: '3.4'
 volumes:
   l1_data:
   l2_data:
+  op_log:
+
 
 services:
   l1:
@@ -49,14 +51,16 @@ services:
       --p2p.listen.ip=0.0.0.0
       --p2p.listen.tcp=9003
       --p2p.listen.udp=9003
+      --snapshotlog.file=/op_log/snapshot.log
       --p2p.priv.path=/config/p2p-node-key.txt
     ports:
-        - "7545:8545"
-        - "9003:9003"
+      - "7545:8545"
+      - "9003:9003"
     volumes:
       - ${PWD}/p2p-sequencer-key.txt:/config/p2p-sequencer-key.txt
       - ${PWD}/p2p-node-key.txt:/config/p2p-node-key.txt
       - ${PWD}/../.devnet/rollup.json:/rollup.json
+      - op_log:/op_log
 
   l2os:
     depends_on:
@@ -103,3 +107,17 @@ services:
       BATCH_SUBMITTER_SEQUENCER_GENESIS_HASH: "${SEQUENCER_GENESIS_HASH}"
       BATCH_SUBMITTER_SEQUENCER_BATCH_INBOX_ADDRESS: "${SEQUENCER_BATCH_INBOX_ADDRESS}"
       BATCH_SUBMITTER_LOG_TERMINAL: "true"
+
+  stateviz:
+    build:
+      context: ../
+      dockerfile: ./ops/Dockerfile.stateviz
+    command:
+      - stateviz
+      - -addr=0.0.0.0:8080
+      - -snapshot=/op_log/snapshot.log
+      - -refresh=10s
+    ports:
+      - "9090:8080"
+    volumes:
+      - op_log:/op_log:ro

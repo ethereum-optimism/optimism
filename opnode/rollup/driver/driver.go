@@ -66,7 +66,7 @@ type Network interface {
 	PublishL2Payload(ctx context.Context, payload *l2.ExecutionPayload) error
 }
 
-func NewDriver(cfg rollup.Config, l2 *l2.Source, l1 *l1.Source, network Network, log log.Logger, sequencer bool) *Driver {
+func NewDriver(cfg rollup.Config, l2 *l2.Source, l1 *l1.Source, network Network, log log.Logger, snapshotLog log.Logger, sequencer bool) *Driver {
 	output := &outputImpl{
 		Config: cfg,
 		dl:     l1,
@@ -74,7 +74,7 @@ func NewDriver(cfg rollup.Config, l2 *l2.Source, l1 *l1.Source, network Network,
 		log:    log,
 	}
 	return &Driver{
-		s: NewState(log, cfg, l1, l2, output, network, sequencer),
+		s: NewState(log, snapshotLog, cfg, l1, l2, output, network, sequencer),
 	}
 }
 

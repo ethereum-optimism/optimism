@@ -2,6 +2,7 @@ package driver
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	gosync "sync"
 	"time"
@@ -33,19 +34,21 @@ type state struct {
 	output           outputInterface
 	network          Network // may be nil, network for is optional
 
-	log  log.Logger
-	done chan struct{}
+	log         log.Logger
+	snapshotLog log.Logger
+	done        chan struct{}
 
 	wg gosync.WaitGroup
 }
 
 // NewState creates a new driver state. State changes take effect though the given output.
 // Optionally a network can be provided to publish things to other nodes than the engine of the driver.
-func NewState(log log.Logger, config rollup.Config, l1Chain L1Chain, l2Chain L2Chain, output outputInterface, network Network, sequencer bool) *state {
+func NewState(log log.Logger, snapshotLog log.Logger, config rollup.Config, l1Chain L1Chain, l2Chain L2Chain, output outputInterface, network Network, sequencer bool) *state {
 	return &state{
 		Config:           config,
 		done:             make(chan struct{}),
 		log:              log,
+		snapshotLog:      snapshotLog,
 		l1:               l1Chain,
 		l2:               l2Chain,
 		output:           output,
@@ -274,8 +277,8 @@ func (s *state) createNewL2Block(ctx context.Context) error {
 func (s *state) handleEpoch(ctx context.Context) (bool, error) {
 	s.log.Trace("Handling epoch", "l2Head", s.l2Head, "l2SafeHead", s.l2SafeHead)
 	// Extend cached window if we do not have enough saved blocks
+	// attempt to buffer up to 2x the size of a sequence window of L1 blocks, to speed up later handleEpoch calls
 	if len(s.l1WindowBuf) < int(s.Config.SeqWindowSize) {
-		// attempt to buffer up to 2x the size of a sequence window of L1 blocks, to speed up later handleEpoch calls
 		nexts, err := s.l1.L1Range(ctx, s.l1WindowBufEnd(), 2*s.Config.SeqWindowSize)
 		if err != nil {
 			s.log.Error("Could not extend the cached L1 window", "err", err, "l2Head", s.l2Head, "l2SafeHead", s.l2SafeHead, "l1Head", s.l1Head, "window_end", s.l1WindowBufEnd())
@@ -391,9 +394,11 @@ func (s *state) loop() {
 		select {
 		case <-l2BlockCreationTickerCh:
 			s.log.Trace("L2 Creation Ticker")
+			s.snapshot("L2 Creation Ticker")
 			reqL2BlockCreation()
 
 		case <-l2BlockCreationReqCh:
+			s.snapshot("L2 Block Creation Request")
 			ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 			err := s.createNewL2Block(ctx)
 			cancel()
@@ -418,6 +423,7 @@ func (s *state) loop() {
 			}
 
 		case newL1Head := <-s.l1Heads:
+			s.snapshot("New L1 Head")
 			ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 			err := s.handleNewL1Block(ctx, newL1Head)
 			cancel()
@@ -436,6 +442,7 @@ func (s *state) loop() {
 			}
 
 		case <-stepReqCh:
+			s.snapshot("Step Request")
 			ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 			reorg, err := s.handleEpoch(ctx)
 			cancel()
@@ -468,4 +475,20 @@ func (s *state) loop() {
 			return
 		}
 	}
+}
+
+func (s *state) snapshot(event string) {
+	l1HeadJSON, _ := json.Marshal(s.l1Head)
+	l2HeadJSON, _ := json.Marshal(s.l2Head)
+	l2SafeHeadJSON, _ := json.Marshal(s.l2SafeHead)
+	l2FinalizedHeadJSON, _ := json.Marshal(s.l2Finalized)
+	l1WindowBufJSON, _ := json.Marshal(s.l1WindowBuf)
+
+	s.snapshotLog.Info("Rollup State Snapshot",
+		"event", event,
+		"l1Head", string(l1HeadJSON),
+		"l2Head", string(l2HeadJSON),
+		"l2SafeHead", string(l2SafeHeadJSON),
+		"l2FinalizedHead", string(l2FinalizedHeadJSON),
+		"l1WindowBuf", string(l1WindowBufJSON))
 }

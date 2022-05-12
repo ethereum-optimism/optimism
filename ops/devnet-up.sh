@@ -160,6 +160,10 @@ L2OO_ADDRESS="$L2OO_ADDRESS" \
 	SEQUENCER_GENESIS_HASH="$SEQUENCER_GENESIS_HASH" \
 	SEQUENCER_BATCH_INBOX_ADDRESS="$SEQUENCER_BATCH_INBOX_ADDRESS" \
 	docker-compose up -d l2os bss
+
+echo "Bringin up stateviz webserver..."
+docker-compose up -d stateviz
+
 cd ../
 
 echo "Devnet ready."

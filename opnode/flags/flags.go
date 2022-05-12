@@ -80,6 +80,12 @@ var (
 		Usage:  "Color the log output",
 		EnvVar: prefixEnvVar("LOG_COLOR"),
 	}
+
+	SnapshotLog = cli.StringFlag{
+		Name:   "snapshotlog.file",
+		Usage:  "Path to the snapshot log file",
+		EnvVar: prefixEnvVar("SNAPSHOT_LOG"),
+	}
 )
 
 var requiredFlags = []cli.Flag{
@@ -97,6 +103,7 @@ var optionalFlags = append([]cli.Flag{
 	LogLevelFlag,
 	LogFormatFlag,
 	LogColorFlag,
+	SnapshotLog,
 }, p2pFlags...)
 
 // Flags contains the list of configuration options available to the binary.

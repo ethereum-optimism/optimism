@@ -471,7 +471,7 @@ func (cfg SystemConfig) start() (*System, error) {
 			}
 		}
 
-		node, err := rollupNode.New(context.Background(), &c, cfg.Loggers[name], "")
+		node, err := rollupNode.New(context.Background(), &c, cfg.Loggers[name], cfg.Loggers[name], "")
 		if err != nil {
 			didErrAfterStart = true
 			return nil, err
