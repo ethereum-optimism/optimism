@@ -83,10 +83,10 @@ where:
    L2 state root on L1.
 
 1. The `withdrawal_storage_root` (`bytes32`) elevates the Merkle-Patricia-Trie ([MPT][g-mpt]) root of the [L2 Withdrawal
-   contract](./withdrawals.md#withdrawer-contract) storage. Instead of making an MPT proof for a withdrawal against the
-   state root (proving first the storage root of the L2 withdrawal contract against the state root, then the withdrawal
-   against that storage root), we can prove against the L2 withdrawal contract's storage root directly, thus reducing
-   the verification cost of withdrawals on L1.
+   contract](./withdrawals.md#the-l2tol1messagepasser-contract) storage. Instead of making an MPT proof for a withdrawal
+   against the state root (proving first the storage root of the L2 withdrawal contract against the state root, then
+   the withdrawal against that storage root), we can prove against the L2 withdrawal contract's storage root directly,
+   thus reducing the verification cost of withdrawals on L1.
 
 ## L2 Output Oracle Smart Contract
 

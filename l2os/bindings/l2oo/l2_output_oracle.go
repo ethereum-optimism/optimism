@@ -28,10 +28,16 @@ var (
 	_ = event.NewSubscription
 )
 
+// L2OutputOracleOutputProposal is an auto generated low-level Go binding around an user-defined struct.
+type L2OutputOracleOutputProposal struct {
+	OutputRoot [32]byte
+	Timestamp  *big.Int
+}
+
 // L2OutputOracleMetaData contains all meta data concerning the L2OutputOracle contract.
 var L2OutputOracleMetaData = &bind.MetaData{
-	ABI: "[{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"_submissionInterval\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"_l2BlockTime\",\"type\":\"uint256\"},{\"internalType\":\"bytes32\",\"name\":\"_genesisL2Output\",\"type\":\"bytes32\"},{\"internalType\":\"uint256\",\"name\":\"_historicalTotalBlocks\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"_startingBlockTimestamp\",\"type\":\"uint256\"},{\"internalType\":\"address\",\"name\":\"sequencer\",\"type\":\"address\"}],\"stateMutability\":\"nonpayable\",\"type\":\"constructor\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"address\",\"name\":\"previousOwner\",\"type\":\"address\"},{\"indexed\":true,\"internalType\":\"address\",\"name\":\"newOwner\",\"type\":\"address\"}],\"name\":\"OwnershipTransferred\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"bytes32\",\"name\":\"_l2Output\",\"type\":\"bytes32\"},{\"indexed\":true,\"internalType\":\"uint256\",\"name\":\"_l2timestamp\",\"type\":\"uint256\"}],\"name\":\"l2OutputAppended\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"bytes32\",\"name\":\"_l2Output\",\"type\":\"bytes32\"},{\"indexed\":true,\"internalType\":\"uint256\",\"name\":\"_l2timestamp\",\"type\":\"uint256\"}],\"name\":\"l2OutputDeleted\",\"type\":\"event\"},{\"inputs\":[],\"name\":\"HISTORICAL_TOTAL_BLOCKS\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"L2_BLOCK_TIME\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"STARTING_BLOCK_TIMESTAMP\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"SUBMISSION_INTERVAL\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"bytes32\",\"name\":\"_l2Output\",\"type\":\"bytes32\"},{\"internalType\":\"uint256\",\"name\":\"_l2timestamp\",\"type\":\"uint256\"},{\"internalType\":\"bytes32\",\"name\":\"_l1Blockhash\",\"type\":\"bytes32\"},{\"internalType\":\"uint256\",\"name\":\"_l1Blocknumber\",\"type\":\"uint256\"}],\"name\":\"appendL2Output\",\"outputs\":[],\"stateMutability\":\"payable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"_l2timestamp\",\"type\":\"uint256\"}],\"name\":\"computeL2BlockNumber\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"bytes32\",\"name\":\"_l2Output\",\"type\":\"bytes32\"}],\"name\":\"deleteL2Output\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"_l2Timestamp\",\"type\":\"uint256\"}],\"name\":\"getL2Output\",\"outputs\":[{\"internalType\":\"bytes32\",\"name\":\"\",\"type\":\"bytes32\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"latestBlockTimestamp\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"nextTimestamp\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"owner\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"renounceOwnership\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"newOwner\",\"type\":\"address\"}],\"name\":\"transferOwnership\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"}]",
-	Bin: "0x61010060405234801561001157600080fd5b50604051610e3d380380610e3d83398101604081905261003091610148565b610039336100f8565b61004385876101ac565b156100ba5760405162461bcd60e51b815260206004820152603760248201527f5375626d697373696f6e20496e74657276616c206d7573742062652061206d7560448201527f6c7469706c65206f66204c3220426c6f636b2054696d65000000000000000000606482015260840160405180910390fd5b608086905260a0859052600082815260026020526040902084905560c0839052600182905560e08290526100ed816100f8565b5050505050506101ce565b600080546001600160a01b038381166001600160a01b0319831681178455604051919092169283917f8be0079c531659141344cd1fd0a4f28419497f9722a3daafe3b4186f6b6457e09190a35050565b60008060008060008060c0878903121561016157600080fd5b86516020880151604089015160608a015160808b015160a08c0151949a50929850909650945092506001600160a01b038116811461019e57600080fd5b809150509295509295509295565b6000826101c957634e487b7160e01b600052601260045260246000fd5b500690565b60805160a05160c05160e051610c0d610230600039600081816101af015281816102d401526103aa01526000818161028e01526103db01526000818160e801526103890152600081816101e30152818161085801526108880152610c0d6000f3fe6080604052600436106100d15760003560e01c806341840fa61161007f5780638da5cb5b116100595780638da5cb5b1461021a578063a25ae5571461024f578063a4771aad1461027c578063f2fde38b146102b057600080fd5b806341840fa61461019d578063529933df146101d1578063715018a61461020557600080fd5b806325188104116100b057806325188104146101535780632b5d15d914610168578063357e951f1461018857600080fd5b80622134cc146100d657806302e513451461011d5780630c1952d31461013d575b600080fd5b3480156100e257600080fd5b5061010a7f000000000000000000000000000000000000000000000000000000000000000081565b6040519081526020015b60405180910390f35b34801561012957600080fd5b5061010a610138366004610aeb565b6102d0565b34801561014957600080fd5b5061010a60015481565b610166610161366004610b04565b610405565b005b34801561017457600080fd5b50610166610183366004610aeb565b6106ee565b34801561019457600080fd5b5061010a610884565b3480156101a957600080fd5b5061010a7f000000000000000000000000000000000000000000000000000000000000000081565b3480156101dd57600080fd5b5061010a7f000000000000000000000000000000000000000000000000000000000000000081565b34801561021157600080fd5b506101666108b9565b34801561022657600080fd5b5060005460405173ffffffffffffffffffffffffffffffffffffffff9091168152602001610114565b34801561025b57600080fd5b5061010a61026a366004610aeb565b60009081526002602052604090205490565b34801561028857600080fd5b5061010a7f000000000000000000000000000000000000000000000000000000000000000081565b3480156102bc57600080fd5b506101666102cb366004610b36565b610946565b60007f0000000000000000000000000000000000000000000000000000000000000000821015610387576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152602960248201527f54696d657374616d70207072696f7220746f207374617274696e67426c6f636b60448201527f54696d657374616d70000000000000000000000000000000000000000000000060648201526084015b60405180910390fd5b7f00000000000000000000000000000000000000000000000000000000000000007f00000000000000000000000000000000000000000000000000000000000000008303816103d8576103d8610b73565b047f0000000000000000000000000000000000000000000000000000000000000000600101019050919050565b60005473ffffffffffffffffffffffffffffffffffffffff163314610486576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820181905260248201527f4f776e61626c653a2063616c6c6572206973206e6f7420746865206f776e6572604482015260640161037e565b428310610515576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152602160248201527f43616e6e6f7420617070656e64204c32206f757470757420696e20667574757260448201527f6500000000000000000000000000000000000000000000000000000000000000606482015260840161037e565b61051d610884565b83146105ab576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152602e60248201527f54696d657374616d70206e6f7420657175616c20746f206e657874206578706560448201527f637465642074696d657374616d70000000000000000000000000000000000000606482015260840161037e565b83610612576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152601d60248201527f43616e6e6f74207375626d697420656d707479204c32206f7574707574000000604482015260640161037e565b81156106a857818140146106a8576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152603960248201527f426c6f636b6861736820646f6573206e6f74206d61746368207468652068617360448201527f6820617420746865206578706563746564206865696768742e00000000000000606482015260840161037e565b600083815260026020526040808220869055600185905551849186917f92701dc658a5d84c16077ea6de344b9995e21a96a05d45e4cd22f37a3d266f8b9190a350505050565b60005473ffffffffffffffffffffffffffffffffffffffff16331461076f576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820181905260248201527f4f776e61626c653a2063616c6c6572206973206e6f7420746865206f776e6572604482015260640161037e565b600154600090815260026020526040902054818114610810576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152602760248201527f43616e206f6e6c792064656c65746520746865206d6f737420726563656e742060448201527f6f75747075742e00000000000000000000000000000000000000000000000000606482015260840161037e565b60015460405182907f36160157c233b38fe28ace444408a0db0f7b3d02e652bb27ea9604cbd2a3f26690600090a3600180546000908152600260205260408120555461087d907f000000000000000000000000000000000000000000000000000000000000000090610bd1565b6001555050565b60007f00000000000000000000000000000000000000000000000000000000000000006001546108b49190610be8565b905090565b60005473ffffffffffffffffffffffffffffffffffffffff16331461093a576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820181905260248201527f4f776e61626c653a2063616c6c6572206973206e6f7420746865206f776e6572604482015260640161037e565b6109446000610a76565b565b60005473ffffffffffffffffffffffffffffffffffffffff1633146109c7576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820181905260248201527f4f776e61626c653a2063616c6c6572206973206e6f7420746865206f776e6572604482015260640161037e565b73ffffffffffffffffffffffffffffffffffffffff8116610a6a576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152602660248201527f4f776e61626c653a206e6577206f776e657220697320746865207a65726f206160448201527f6464726573730000000000000000000000000000000000000000000000000000606482015260840161037e565b610a7381610a76565b50565b6000805473ffffffffffffffffffffffffffffffffffffffff8381167fffffffffffffffffffffffff0000000000000000000000000000000000000000831681178455604051919092169283917f8be0079c531659141344cd1fd0a4f28419497f9722a3daafe3b4186f6b6457e09190a35050565b600060208284031215610afd57600080fd5b5035919050565b60008060008060808587031215610b1a57600080fd5b5050823594602084013594506040840135936060013592509050565b600060208284031215610b4857600080fd5b813573ffffffffffffffffffffffffffffffffffffffff81168114610b6c57600080fd5b9392505050565b7f4e487b7100000000000000000000000000000000000000000000000000000000600052601260045260246000fd5b7f4e487b7100000000000000000000000000000000000000000000000000000000600052601160045260246000fd5b600082821015610be357610be3610ba2565b500390565b60008219821115610bfb57610bfb610ba2565b50019056fea164736f6c634300080a000a",
+	ABI: "[{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"_submissionInterval\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"_l2BlockTime\",\"type\":\"uint256\"},{\"internalType\":\"bytes32\",\"name\":\"_genesisL2Output\",\"type\":\"bytes32\"},{\"internalType\":\"uint256\",\"name\":\"_historicalTotalBlocks\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"_startingBlockTimestamp\",\"type\":\"uint256\"},{\"internalType\":\"address\",\"name\":\"sequencer\",\"type\":\"address\"}],\"stateMutability\":\"nonpayable\",\"type\":\"constructor\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"address\",\"name\":\"previousOwner\",\"type\":\"address\"},{\"indexed\":true,\"internalType\":\"address\",\"name\":\"newOwner\",\"type\":\"address\"}],\"name\":\"OwnershipTransferred\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"bytes32\",\"name\":\"_l2Output\",\"type\":\"bytes32\"},{\"indexed\":true,\"internalType\":\"uint256\",\"name\":\"_l1Timestamp\",\"type\":\"uint256\"},{\"indexed\":true,\"internalType\":\"uint256\",\"name\":\"_l2timestamp\",\"type\":\"uint256\"}],\"name\":\"l2OutputAppended\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"bytes32\",\"name\":\"_l2Output\",\"type\":\"bytes32\"},{\"indexed\":true,\"internalType\":\"uint256\",\"name\":\"_l1Timestamp\",\"type\":\"uint256\"},{\"indexed\":true,\"internalType\":\"uint256\",\"name\":\"_l2timestamp\",\"type\":\"uint256\"}],\"name\":\"l2OutputDeleted\",\"type\":\"event\"},{\"inputs\":[],\"name\":\"HISTORICAL_TOTAL_BLOCKS\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"L2_BLOCK_TIME\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"STARTING_BLOCK_TIMESTAMP\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"SUBMISSION_INTERVAL\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"bytes32\",\"name\":\"_l2Output\",\"type\":\"bytes32\"},{\"internalType\":\"uint256\",\"name\":\"_l2timestamp\",\"type\":\"uint256\"},{\"internalType\":\"bytes32\",\"name\":\"_l1Blockhash\",\"type\":\"bytes32\"},{\"internalType\":\"uint256\",\"name\":\"_l1Blocknumber\",\"type\":\"uint256\"}],\"name\":\"appendL2Output\",\"outputs\":[],\"stateMutability\":\"payable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"_l2timestamp\",\"type\":\"uint256\"}],\"name\":\"computeL2BlockNumber\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"components\":[{\"internalType\":\"bytes32\",\"name\":\"outputRoot\",\"type\":\"bytes32\"},{\"internalType\":\"uint256\",\"name\":\"timestamp\",\"type\":\"uint256\"}],\"internalType\":\"structL2OutputOracle.OutputProposal\",\"name\":\"_proposal\",\"type\":\"tuple\"}],\"name\":\"deleteL2Output\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"_l2Timestamp\",\"type\":\"uint256\"}],\"name\":\"getL2Output\",\"outputs\":[{\"components\":[{\"internalType\":\"bytes32\",\"name\":\"outputRoot\",\"type\":\"bytes32\"},{\"internalType\":\"uint256\",\"name\":\"timestamp\",\"type\":\"uint256\"}],\"internalType\":\"structL2OutputOracle.OutputProposal\",\"name\":\"\",\"type\":\"tuple\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"latestBlockTimestamp\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"nextTimestamp\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"owner\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"renounceOwnership\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"newOwner\",\"type\":\"address\"}],\"name\":\"transferOwnership\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"}]",
+	Bin: "0x61010060405234801561001157600080fd5b50604051610fa1380380610fa183398101604081905261003091610164565b61003933610114565b61004385876101c8565b156100ba5760405162461bcd60e51b815260206004820152603760248201527f5375626d697373696f6e20496e74657276616c206d7573742062652061206d7560448201527f6c7469706c65206f66204c3220426c6f636b2054696d65000000000000000000606482015260840160405180910390fd5b608086905260a0859052604080518082018252858152426020808301918252600086815260029091529290922090518155905160019182015560c084905282905560e082905261010981610114565b5050505050506101ea565b600080546001600160a01b038381166001600160a01b0319831681178455604051919092169283917f8be0079c531659141344cd1fd0a4f28419497f9722a3daafe3b4186f6b6457e09190a35050565b60008060008060008060c0878903121561017d57600080fd5b86516020880151604089015160608a015160808b015160a08c0151949a50929850909650945092506001600160a01b03811681146101ba57600080fd5b809150509295509295509295565b6000826101e557634e487b7160e01b600052601260045260246000fd5b500690565b60805160a05160c05160e051610d5561024c600039600081816101af0152818161031b01526103f10152600081816102d5015261042201526000818160e801526103d00152600081816101e301528181610625015261095a0152610d556000f3fe6080604052600436106100d15760003560e01c806341840fa61161007f5780638da5cb5b116100595780638da5cb5b1461021a578063a25ae5571461024f578063a4771aad146102c3578063f2fde38b146102f757600080fd5b806341840fa61461019d578063529933df146101d1578063715018a61461020557600080fd5b80630c1952d3116100b05780630c1952d31461015f5780632518810414610175578063357e951f1461018857600080fd5b80622134cc146100d657806302e513451461011d578063093b3d901461013d575b600080fd5b3480156100e257600080fd5b5061010a7f000000000000000000000000000000000000000000000000000000000000000081565b6040519081526020015b60405180910390f35b34801561012957600080fd5b5061010a610138366004610bbd565b610317565b34801561014957600080fd5b5061015d610158366004610bd6565b61044c565b005b34801561016b57600080fd5b5061010a60015481565b61015d610183366004610c4c565b610651565b34801561019457600080fd5b5061010a610956565b3480156101a957600080fd5b5061010a7f000000000000000000000000000000000000000000000000000000000000000081565b3480156101dd57600080fd5b5061010a7f000000000000000000000000000000000000000000000000000000000000000081565b34801561021157600080fd5b5061015d61098b565b34801561022657600080fd5b5060005460405173ffffffffffffffffffffffffffffffffffffffff9091168152602001610114565b34801561025b57600080fd5b506102a861026a366004610bbd565b604080518082019091526000808252602082015250600090815260026020908152604091829020825180840190935280548352600101549082015290565b60408051825181526020928301519281019290925201610114565b3480156102cf57600080fd5b5061010a7f000000000000000000000000000000000000000000000000000000000000000081565b34801561030357600080fd5b5061015d610312366004610c7e565b610a18565b60007f00000000000000000000000000000000000000000000000000000000000000008210156103ce576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152602960248201527f54696d657374616d70207072696f7220746f207374617274696e67426c6f636b60448201527f54696d657374616d70000000000000000000000000000000000000000000000060648201526084015b60405180910390fd5b7f00000000000000000000000000000000000000000000000000000000000000007f000000000000000000000000000000000000000000000000000000000000000083038161041f5761041f610cbb565b047f0000000000000000000000000000000000000000000000000000000000000000600101019050919050565b60005473ffffffffffffffffffffffffffffffffffffffff1633146104cd576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820181905260248201527f4f776e61626c653a2063616c6c6572206973206e6f7420746865206f776e657260448201526064016103c5565b6001805460009081526002602090815260409182902082518084019093528054808452930154908201528251909114610588576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152602760248201527f43616e206f6e6c792064656c65746520746865206d6f737420726563656e742060448201527f6f75747075742e0000000000000000000000000000000000000000000000000060648201526084016103c5565b80602001518260200151146105d3576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152600060248201526044016103c5565b600154602082015182516040517f6897e92e2fea3b89bf0d45ed867487716da71bfa624c6878569d227d736c700990600090a46001805460009081526002602052604081208181558201555461064a907f000000000000000000000000000000000000000000000000000000000000000090610d19565b6001555050565b60005473ffffffffffffffffffffffffffffffffffffffff1633146106d2576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820181905260248201527f4f776e61626c653a2063616c6c6572206973206e6f7420746865206f776e657260448201526064016103c5565b428310610761576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152602160248201527f43616e6e6f7420617070656e64204c32206f757470757420696e20667574757260448201527f650000000000000000000000000000000000000000000000000000000000000060648201526084016103c5565b610769610956565b83146107f7576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152602e60248201527f54696d657374616d70206e6f7420657175616c20746f206e657874206578706560448201527f637465642074696d657374616d7000000000000000000000000000000000000060648201526084016103c5565b8361085e576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152601d60248201527f43616e6e6f74207375626d697420656d707479204c32206f757470757400000060448201526064016103c5565b81156108f457818140146108f4576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152603960248201527f426c6f636b6861736820646f6573206e6f74206d61746368207468652068617360448201527f6820617420746865206578706563746564206865696768742e0000000000000060648201526084016103c5565b60408051808201825285815242602080830182815260008881526002909252848220935184555160019384015591869055915185929187917f54fbf9b58db0b6543a3a0cb9fbd4e98a7c7b88878978fa125b84a2c7f51d34ba9190a450505050565b60007f00000000000000000000000000000000000000000000000000000000000000006001546109869190610d30565b905090565b60005473ffffffffffffffffffffffffffffffffffffffff163314610a0c576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820181905260248201527f4f776e61626c653a2063616c6c6572206973206e6f7420746865206f776e657260448201526064016103c5565b610a166000610b48565b565b60005473ffffffffffffffffffffffffffffffffffffffff163314610a99576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820181905260248201527f4f776e61626c653a2063616c6c6572206973206e6f7420746865206f776e657260448201526064016103c5565b73ffffffffffffffffffffffffffffffffffffffff8116610b3c576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152602660248201527f4f776e61626c653a206e6577206f776e657220697320746865207a65726f206160448201527f646472657373000000000000000000000000000000000000000000000000000060648201526084016103c5565b610b4581610b48565b50565b6000805473ffffffffffffffffffffffffffffffffffffffff8381167fffffffffffffffffffffffff0000000000000000000000000000000000000000831681178455604051919092169283917f8be0079c531659141344cd1fd0a4f28419497f9722a3daafe3b4186f6b6457e09190a35050565b600060208284031215610bcf57600080fd5b5035919050565b600060408284031215610be857600080fd5b6040516040810181811067ffffffffffffffff82111715610c32577f4e487b7100000000000000000000000000000000000000000000000000000000600052604160045260246000fd5b604052823581526020928301359281019290925250919050565b60008060008060808587031215610c6257600080fd5b5050823594602084013594506040840135936060013592509050565b600060208284031215610c9057600080fd5b813573ffffffffffffffffffffffffffffffffffffffff81168114610cb457600080fd5b9392505050565b7f4e487b7100000000000000000000000000000000000000000000000000000000600052601260045260246000fd5b7f4e487b7100000000000000000000000000000000000000000000000000000000600052601160045260246000fd5b600082821015610d2b57610d2b610cea565b500390565b60008219821115610d4357610d43610cea565b50019056fea164736f6c634300080a000a",
 }
 
 // L2OutputOracleABI is the input ABI used to generate the binding from.
@@ -358,16 +364,16 @@ func (_L2OutputOracle *L2OutputOracleCallerSession) ComputeL2BlockNumber(_l2time
 
 // GetL2Output is a free data retrieval call binding the contract method 0xa25ae557.
 //
-// Solidity: function getL2Output(uint256 _l2Timestamp) view returns(bytes32)
-func (_L2OutputOracle *L2OutputOracleCaller) GetL2Output(opts *bind.CallOpts, _l2Timestamp *big.Int) ([32]byte, error) {
+// Solidity: function getL2Output(uint256 _l2Timestamp) view returns((bytes32,uint256))
+func (_L2OutputOracle *L2OutputOracleCaller) GetL2Output(opts *bind.CallOpts, _l2Timestamp *big.Int) (L2OutputOracleOutputProposal, error) {
 	var out []interface{}
 	err := _L2OutputOracle.contract.Call(opts, &out, "getL2Output", _l2Timestamp)
 
 	if err != nil {
-		return *new([32]byte), err
+		return *new(L2OutputOracleOutputProposal), err
 	}
 
-	out0 := *abi.ConvertType(out[0], new([32]byte)).(*[32]byte)
+	out0 := *abi.ConvertType(out[0], new(L2OutputOracleOutputProposal)).(*L2OutputOracleOutputProposal)
 
 	return out0, err
 
@@ -375,15 +381,15 @@ func (_L2OutputOracle *L2OutputOracleCaller) GetL2Output(opts *bind.CallOpts, _l
 
 // GetL2Output is a free data retrieval call binding the contract method 0xa25ae557.
 //
-// Solidity: function getL2Output(uint256 _l2Timestamp) view returns(bytes32)
-func (_L2OutputOracle *L2OutputOracleSession) GetL2Output(_l2Timestamp *big.Int) ([32]byte, error) {
+// Solidity: function getL2Output(uint256 _l2Timestamp) view returns((bytes32,uint256))
+func (_L2OutputOracle *L2OutputOracleSession) GetL2Output(_l2Timestamp *big.Int) (L2OutputOracleOutputProposal, error) {
 	return _L2OutputOracle.Contract.GetL2Output(&_L2OutputOracle.CallOpts, _l2Timestamp)
 }
 
 // GetL2Output is a free data retrieval call binding the contract method 0xa25ae557.
 //
-// Solidity: function getL2Output(uint256 _l2Timestamp) view returns(bytes32)
-func (_L2OutputOracle *L2OutputOracleCallerSession) GetL2Output(_l2Timestamp *big.Int) ([32]byte, error) {
+// Solidity: function getL2Output(uint256 _l2Timestamp) view returns((bytes32,uint256))
+func (_L2OutputOracle *L2OutputOracleCallerSession) GetL2Output(_l2Timestamp *big.Int) (L2OutputOracleOutputProposal, error) {
 	return _L2OutputOracle.Contract.GetL2Output(&_L2OutputOracle.CallOpts, _l2Timestamp)
 }
 
@@ -501,25 +507,25 @@ func (_L2OutputOracle *L2OutputOracleTransactorSession) AppendL2Output(_l2Output
 	return _L2OutputOracle.Contract.AppendL2Output(&_L2OutputOracle.TransactOpts, _l2Output, _l2timestamp, _l1Blockhash, _l1Blocknumber)
 }
 
-// DeleteL2Output is a paid mutator transaction binding the contract method 0x2b5d15d9.
+// DeleteL2Output is a paid mutator transaction binding the contract method 0x093b3d90.
 //
-// Solidity: function deleteL2Output(bytes32 _l2Output) returns()
-func (_L2OutputOracle *L2OutputOracleTransactor) DeleteL2Output(opts *bind.TransactOpts, _l2Output [32]byte) (*types.Transaction, error) {
-	return _L2OutputOracle.contract.Transact(opts, "deleteL2Output", _l2Output)
+// Solidity: function deleteL2Output((bytes32,uint256) _proposal) returns()
+func (_L2OutputOracle *L2OutputOracleTransactor) DeleteL2Output(opts *bind.TransactOpts, _proposal L2OutputOracleOutputProposal) (*types.Transaction, error) {
+	return _L2OutputOracle.contract.Transact(opts, "deleteL2Output", _proposal)
 }
 
-// DeleteL2Output is a paid mutator transaction binding the contract method 0x2b5d15d9.
+// DeleteL2Output is a paid mutator transaction binding the contract method 0x093b3d90.
 //
-// Solidity: function deleteL2Output(bytes32 _l2Output) returns()
-func (_L2OutputOracle *L2OutputOracleSession) DeleteL2Output(_l2Output [32]byte) (*types.Transaction, error) {
-	return _L2OutputOracle.Contract.DeleteL2Output(&_L2OutputOracle.TransactOpts, _l2Output)
+// Solidity: function deleteL2Output((bytes32,uint256) _proposal) returns()
+func (_L2OutputOracle *L2OutputOracleSession) DeleteL2Output(_proposal L2OutputOracleOutputProposal) (*types.Transaction, error) {
+	return _L2OutputOracle.Contract.DeleteL2Output(&_L2OutputOracle.TransactOpts, _proposal)
 }
 
-// DeleteL2Output is a paid mutator transaction binding the contract method 0x2b5d15d9.
+// DeleteL2Output is a paid mutator transaction binding the contract method 0x093b3d90.
 //
-// Solidity: function deleteL2Output(bytes32 _l2Output) returns()
-func (_L2OutputOracle *L2OutputOracleTransactorSession) DeleteL2Output(_l2Output [32]byte) (*types.Transaction, error) {
-	return _L2OutputOracle.Contract.DeleteL2Output(&_L2OutputOracle.TransactOpts, _l2Output)
+// Solidity: function deleteL2Output((bytes32,uint256) _proposal) returns()
+func (_L2OutputOracle *L2OutputOracleTransactorSession) DeleteL2Output(_proposal L2OutputOracleOutputProposal) (*types.Transaction, error) {
+	return _L2OutputOracle.Contract.DeleteL2Output(&_L2OutputOracle.TransactOpts, _proposal)
 }
 
 // RenounceOwnership is a paid mutator transaction binding the contract method 0x715018a6.
@@ -787,46 +793,55 @@ func (it *L2OutputOracleL2OutputAppendedIterator) Close() error {
 // L2OutputOracleL2OutputAppended represents a L2OutputAppended event raised by the L2OutputOracle contract.
 type L2OutputOracleL2OutputAppended struct {
 	L2Output    [32]byte
+	L1Timestamp *big.Int
 	L2timestamp *big.Int
 	Raw         types.Log // Blockchain specific contextual infos
 }
 
-// FilterL2OutputAppended is a free log retrieval operation binding the contract event 0x92701dc658a5d84c16077ea6de344b9995e21a96a05d45e4cd22f37a3d266f8b.
+// FilterL2OutputAppended is a free log retrieval operation binding the contract event 0x54fbf9b58db0b6543a3a0cb9fbd4e98a7c7b88878978fa125b84a2c7f51d34ba.
 //
-// Solidity: event l2OutputAppended(bytes32 indexed _l2Output, uint256 indexed _l2timestamp)
-func (_L2OutputOracle *L2OutputOracleFilterer) FilterL2OutputAppended(opts *bind.FilterOpts, _l2Output [][32]byte, _l2timestamp []*big.Int) (*L2OutputOracleL2OutputAppendedIterator, error) {
+// Solidity: event l2OutputAppended(bytes32 indexed _l2Output, uint256 indexed _l1Timestamp, uint256 indexed _l2timestamp)
+func (_L2OutputOracle *L2OutputOracleFilterer) FilterL2OutputAppended(opts *bind.FilterOpts, _l2Output [][32]byte, _l1Timestamp []*big.Int, _l2timestamp []*big.Int) (*L2OutputOracleL2OutputAppendedIterator, error) {
 
 	var _l2OutputRule []interface{}
 	for _, _l2OutputItem := range _l2Output {
 		_l2OutputRule = append(_l2OutputRule, _l2OutputItem)
+	}
+	var _l1TimestampRule []interface{}
+	for _, _l1TimestampItem := range _l1Timestamp {
+		_l1TimestampRule = append(_l1TimestampRule, _l1TimestampItem)
 	}
 	var _l2timestampRule []interface{}
 	for _, _l2timestampItem := range _l2timestamp {
 		_l2timestampRule = append(_l2timestampRule, _l2timestampItem)
 	}
 
-	logs, sub, err := _L2OutputOracle.contract.FilterLogs(opts, "l2OutputAppended", _l2OutputRule, _l2timestampRule)
+	logs, sub, err := _L2OutputOracle.contract.FilterLogs(opts, "l2OutputAppended", _l2OutputRule, _l1TimestampRule, _l2timestampRule)
 	if err != nil {
 		return nil, err
 	}
 	return &L2OutputOracleL2OutputAppendedIterator{contract: _L2OutputOracle.contract, event: "l2OutputAppended", logs: logs, sub: sub}, nil
 }
 
-// WatchL2OutputAppended is a free log subscription operation binding the contract event 0x92701dc658a5d84c16077ea6de344b9995e21a96a05d45e4cd22f37a3d266f8b.
+// WatchL2OutputAppended is a free log subscription operation binding the contract event 0x54fbf9b58db0b6543a3a0cb9fbd4e98a7c7b88878978fa125b84a2c7f51d34ba.
 //
-// Solidity: event l2OutputAppended(bytes32 indexed _l2Output, uint256 indexed _l2timestamp)
-func (_L2OutputOracle *L2OutputOracleFilterer) WatchL2OutputAppended(opts *bind.WatchOpts, sink chan<- *L2OutputOracleL2OutputAppended, _l2Output [][32]byte, _l2timestamp []*big.Int) (event.Subscription, error) {
+// Solidity: event l2OutputAppended(bytes32 indexed _l2Output, uint256 indexed _l1Timestamp, uint256 indexed _l2timestamp)
+func (_L2OutputOracle *L2OutputOracleFilterer) WatchL2OutputAppended(opts *bind.WatchOpts, sink chan<- *L2OutputOracleL2OutputAppended, _l2Output [][32]byte, _l1Timestamp []*big.Int, _l2timestamp []*big.Int) (event.Subscription, error) {
 
 	var _l2OutputRule []interface{}
 	for _, _l2OutputItem := range _l2Output {
 		_l2OutputRule = append(_l2OutputRule, _l2OutputItem)
+	}
+	var _l1TimestampRule []interface{}
+	for _, _l1TimestampItem := range _l1Timestamp {
+		_l1TimestampRule = append(_l1TimestampRule, _l1TimestampItem)
 	}
 	var _l2timestampRule []interface{}
 	for _, _l2timestampItem := range _l2timestamp {
 		_l2timestampRule = append(_l2timestampRule, _l2timestampItem)
 	}
 
-	logs, sub, err := _L2OutputOracle.contract.WatchLogs(opts, "l2OutputAppended", _l2OutputRule, _l2timestampRule)
+	logs, sub, err := _L2OutputOracle.contract.WatchLogs(opts, "l2OutputAppended", _l2OutputRule, _l1TimestampRule, _l2timestampRule)
 	if err != nil {
 		return nil, err
 	}
@@ -858,9 +873,9 @@ func (_L2OutputOracle *L2OutputOracleFilterer) WatchL2OutputAppended(opts *bind.
 	}), nil
 }
 
-// ParseL2OutputAppended is a log parse operation binding the contract event 0x92701dc658a5d84c16077ea6de344b9995e21a96a05d45e4cd22f37a3d266f8b.
+// ParseL2OutputAppended is a log parse operation binding the contract event 0x54fbf9b58db0b6543a3a0cb9fbd4e98a7c7b88878978fa125b84a2c7f51d34ba.
 //
-// Solidity: event l2OutputAppended(bytes32 indexed _l2Output, uint256 indexed _l2timestamp)
+// Solidity: event l2OutputAppended(bytes32 indexed _l2Output, uint256 indexed _l1Timestamp, uint256 indexed _l2timestamp)
 func (_L2OutputOracle *L2OutputOracleFilterer) ParseL2OutputAppended(log types.Log) (*L2OutputOracleL2OutputAppended, error) {
 	event := new(L2OutputOracleL2OutputAppended)
 	if err := _L2OutputOracle.contract.UnpackLog(event, "l2OutputAppended", log); err != nil {
@@ -940,46 +955,55 @@ func (it *L2OutputOracleL2OutputDeletedIterator) Close() error {
 // L2OutputOracleL2OutputDeleted represents a L2OutputDeleted event raised by the L2OutputOracle contract.
 type L2OutputOracleL2OutputDeleted struct {
 	L2Output    [32]byte
+	L1Timestamp *big.Int
 	L2timestamp *big.Int
 	Raw         types.Log // Blockchain specific contextual infos
 }
 
-// FilterL2OutputDeleted is a free log retrieval operation binding the contract event 0x36160157c233b38fe28ace444408a0db0f7b3d02e652bb27ea9604cbd2a3f266.
+// FilterL2OutputDeleted is a free log retrieval operation binding the contract event 0x6897e92e2fea3b89bf0d45ed867487716da71bfa624c6878569d227d736c7009.
 //
-// Solidity: event l2OutputDeleted(bytes32 indexed _l2Output, uint256 indexed _l2timestamp)
-func (_L2OutputOracle *L2OutputOracleFilterer) FilterL2OutputDeleted(opts *bind.FilterOpts, _l2Output [][32]byte, _l2timestamp []*big.Int) (*L2OutputOracleL2OutputDeletedIterator, error) {
+// Solidity: event l2OutputDeleted(bytes32 indexed _l2Output, uint256 indexed _l1Timestamp, uint256 indexed _l2timestamp)
+func (_L2OutputOracle *L2OutputOracleFilterer) FilterL2OutputDeleted(opts *bind.FilterOpts, _l2Output [][32]byte, _l1Timestamp []*big.Int, _l2timestamp []*big.Int) (*L2OutputOracleL2OutputDeletedIterator, error) {
 
 	var _l2OutputRule []interface{}
 	for _, _l2OutputItem := range _l2Output {
 		_l2OutputRule = append(_l2OutputRule, _l2OutputItem)
+	}
+	var _l1TimestampRule []interface{}
+	for _, _l1TimestampItem := range _l1Timestamp {
+		_l1TimestampRule = append(_l1TimestampRule, _l1TimestampItem)
 	}
 	var _l2timestampRule []interface{}
 	for _, _l2timestampItem := range _l2timestamp {
 		_l2timestampRule = append(_l2timestampRule, _l2timestampItem)
 	}
 
-	logs, sub, err := _L2OutputOracle.contract.FilterLogs(opts, "l2OutputDeleted", _l2OutputRule, _l2timestampRule)
+	logs, sub, err := _L2OutputOracle.contract.FilterLogs(opts, "l2OutputDeleted", _l2OutputRule, _l1TimestampRule, _l2timestampRule)
 	if err != nil {
 		return nil, err
 	}
 	return &L2OutputOracleL2OutputDeletedIterator{contract: _L2OutputOracle.contract, event: "l2OutputDeleted", logs: logs, sub: sub}, nil
 }
 
-// WatchL2OutputDeleted is a free log subscription operation binding the contract event 0x36160157c233b38fe28ace444408a0db0f7b3d02e652bb27ea9604cbd2a3f266.
+// WatchL2OutputDeleted is a free log subscription operation binding the contract event 0x6897e92e2fea3b89bf0d45ed867487716da71bfa624c6878569d227d736c7009.
 //
-// Solidity: event l2OutputDeleted(bytes32 indexed _l2Output, uint256 indexed _l2timestamp)
-func (_L2OutputOracle *L2OutputOracleFilterer) WatchL2OutputDeleted(opts *bind.WatchOpts, sink chan<- *L2OutputOracleL2OutputDeleted, _l2Output [][32]byte, _l2timestamp []*big.Int) (event.Subscription, error) {
+// Solidity: event l2OutputDeleted(bytes32 indexed _l2Output, uint256 indexed _l1Timestamp, uint256 indexed _l2timestamp)
+func (_L2OutputOracle *L2OutputOracleFilterer) WatchL2OutputDeleted(opts *bind.WatchOpts, sink chan<- *L2OutputOracleL2OutputDeleted, _l2Output [][32]byte, _l1Timestamp []*big.Int, _l2timestamp []*big.Int) (event.Subscription, error) {
 
 	var _l2OutputRule []interface{}
 	for _, _l2OutputItem := range _l2Output {
 		_l2OutputRule = append(_l2OutputRule, _l2OutputItem)
+	}
+	var _l1TimestampRule []interface{}
+	for _, _l1TimestampItem := range _l1Timestamp {
+		_l1TimestampRule = append(_l1TimestampRule, _l1TimestampItem)
 	}
 	var _l2timestampRule []interface{}
 	for _, _l2timestampItem := range _l2timestamp {
 		_l2timestampRule = append(_l2timestampRule, _l2timestampItem)
 	}
 
-	logs, sub, err := _L2OutputOracle.contract.WatchLogs(opts, "l2OutputDeleted", _l2OutputRule, _l2timestampRule)
+	logs, sub, err := _L2OutputOracle.contract.WatchLogs(opts, "l2OutputDeleted", _l2OutputRule, _l1TimestampRule, _l2timestampRule)
 	if err != nil {
 		return nil, err
 	}
@@ -1011,9 +1035,9 @@ func (_L2OutputOracle *L2OutputOracleFilterer) WatchL2OutputDeleted(opts *bind.W
 	}), nil
 }
 
-// ParseL2OutputDeleted is a log parse operation binding the contract event 0x36160157c233b38fe28ace444408a0db0f7b3d02e652bb27ea9604cbd2a3f266.
+// ParseL2OutputDeleted is a log parse operation binding the contract event 0x6897e92e2fea3b89bf0d45ed867487716da71bfa624c6878569d227d736c7009.
 //
-// Solidity: event l2OutputDeleted(bytes32 indexed _l2Output, uint256 indexed _l2timestamp)
+// Solidity: event l2OutputDeleted(bytes32 indexed _l2Output, uint256 indexed _l1Timestamp, uint256 indexed _l2timestamp)
 func (_L2OutputOracle *L2OutputOracleFilterer) ParseL2OutputDeleted(log types.Log) (*L2OutputOracleL2OutputDeleted, error) {
 	event := new(L2OutputOracleL2OutputDeleted)
 	if err := _L2OutputOracle.contract.UnpackLog(event, "l2OutputDeleted", log); err != nil {

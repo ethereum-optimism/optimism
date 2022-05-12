@@ -1,49 +1,16 @@
 //SPDX-License-Identifier: MIT
 pragma solidity 0.8.10;
 
-/* Testing utilities */
-import { CommonTest } from "./CommonTest.t.sol";
-
+import { L2OutputOracle_Initializer } from "./CommonTest.t.sol";
 import { L2OutputOracle } from "../L1/L2OutputOracle.sol";
 
-contract L2OutputOracle_Initializer is CommonTest {
-    // Utility variables
-    uint256 appendedTimestamp;
+contract L2OutputOracleTest is L2OutputOracle_Initializer {
+    bytes32 appendedOutput1 = keccak256(abi.encode(1));
 
-    // Test target
-    L2OutputOracle oracle;
-
-    // Constructor arguments
-    address sequencer = 0x000000000000000000000000000000000000AbBa;
-    uint256 submissionInterval = 1800;
-    uint256 l2BlockTime = 2;
-    bytes32 genesisL2Output = keccak256(abi.encode(0));
-    uint256 historicalTotalBlocks = 100;
-
-    // Cache of the initial L2 timestamp
-    uint256 startingBlockTimestamp;
-
-    // By default the first block has timestamp zero, which will cause underflows in the tests
-    uint256 initTime = 1000;
-
-    constructor() {
-        // Move time forward so we have a non-zero starting timestamp
-        vm.warp(initTime);
-        // Deploy the L2OutputOracle and transfer owernship to the sequencer
-        oracle = new L2OutputOracle(
-            submissionInterval,
-            l2BlockTime,
-            genesisL2Output,
-            historicalTotalBlocks,
-            initTime,
-            sequencer
-        );
-        startingBlockTimestamp = block.timestamp;
+    function setUp() public override {
+        super.setUp();
     }
-}
 
-// Define this test in a standalone contract to ensure it runs immediately after the constructor.
-contract L2OutputOracleTest_Constructor is L2OutputOracle_Initializer {
     function test_constructor() external {
         assertEq(oracle.owner(), sequencer);
         assertEq(oracle.SUBMISSION_INTERVAL(), submissionInterval);
@@ -51,20 +18,10 @@ contract L2OutputOracleTest_Constructor is L2OutputOracle_Initializer {
         assertEq(oracle.HISTORICAL_TOTAL_BLOCKS(), historicalTotalBlocks);
         assertEq(oracle.latestBlockTimestamp(), startingBlockTimestamp);
         assertEq(oracle.STARTING_BLOCK_TIMESTAMP(), startingBlockTimestamp);
-        assertEq(oracle.getL2Output(startingBlockTimestamp), genesisL2Output);
-    }
-}
 
-contract L2OutputOracleTest is L2OutputOracle_Initializer {
-    bytes32 appendedOutput1 = keccak256(abi.encode(1));
-
-    constructor() {
-        appendedTimestamp = oracle.nextTimestamp();
-
-        // Warp to after the timestamp we'll append
-        vm.warp(appendedTimestamp + 1);
-        vm.prank(sequencer);
-        oracle.appendL2Output(appendedOutput1, appendedTimestamp, 0, 0);
+        L2OutputOracle.OutputProposal memory proposal = oracle.getL2Output(startingBlockTimestamp);
+        assertEq(proposal.outputRoot, genesisL2Output);
+        assertEq(proposal.timestamp, initTime);
     }
 
     /****************
@@ -73,13 +30,30 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
 
     // Test: latestBlockTimestamp() should return the correct value
     function test_latestBlockTimestamp() external {
+        uint256 appendedTimestamp = oracle.nextTimestamp();
+
+        // Warp to after the timestamp we'll append
+        vm.warp(appendedTimestamp + 1);
+        vm.prank(sequencer);
+        oracle.appendL2Output(appendedOutput1, appendedTimestamp, 0, 0);
         assertEq(oracle.latestBlockTimestamp(), appendedTimestamp);
     }
 
     // Test: getL2Output() should return the correct value
     function test_getL2Output() external {
-        assertEq(oracle.getL2Output(appendedTimestamp), appendedOutput1);
-        assertEq(oracle.getL2Output(appendedTimestamp + 1), 0);
+        uint256 nextTimestamp = oracle.nextTimestamp();
+
+        vm.warp(nextTimestamp + 1);
+        vm.prank(sequencer);
+        oracle.appendL2Output(appendedOutput1, nextTimestamp, 0, 0);
+
+        L2OutputOracle.OutputProposal memory proposal = oracle.getL2Output(nextTimestamp);
+        assertEq(proposal.outputRoot, appendedOutput1);
+        assertEq(proposal.timestamp, nextTimestamp + 1);
+
+        L2OutputOracle.OutputProposal memory proposal2 = oracle.getL2Output(0);
+        assertEq(proposal2.outputRoot, bytes32(0));
+        assertEq(proposal2.timestamp, 0);
 
     }
 
@@ -88,7 +62,7 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
         assertEq(
             oracle.nextTimestamp(),
             // The return value should match this arithmetic
-            initTime + submissionInterval * 2
+            oracle.latestBlockTimestamp() + oracle.SUBMISSION_INTERVAL()
         );
     }
 
@@ -109,6 +83,7 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
         expected = historicalTotalBlocks + 1 + (33 / l2BlockTime);
         assertEq(oracle.computeL2BlockNumber(argTimestamp), expected);
     }
+
     // Test: computeL2BlockNumber() fails with a blockNumber from before the startingBlockTimestamp
     function testCannot_computePreHistoricalL2BlockNumber() external {
         bytes memory expectedError = "Timestamp prior to startingBlockTimestamp";
@@ -123,9 +98,11 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
 
     // Test: appendL2Output succeeds when given valid input, and no block hash and number are
     // specified.
-    function test_appendingAnotherOutput() external {
+    function test_appendingAnotherOutput() public {
         bytes32 appendedOutput2 = keccak256(abi.encode(2));
         uint256 nextTimestamp = oracle.nextTimestamp();
+
+        uint256 appendedTimestamp = oracle.latestBlockTimestamp();
 
         // Ensure the submissionInterval is enforced
         assertEq(nextTimestamp, appendedTimestamp + submissionInterval);
@@ -164,6 +141,7 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
     function testCannot_appendOutputIfNotSequencer() external {
         uint256 nextTimestamp = oracle.nextTimestamp();
 
+        vm.prank(address(128));
         vm.warp(nextTimestamp + 1);
         vm.expectRevert("Ownable: caller is not the owner");
         oracle.appendL2Output(nonZeroHash, nextTimestamp, 0, 0);
@@ -230,16 +208,27 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
      * Delete Tests *
      ****************/
 
-    event l2OutputDeleted(bytes32 indexed _l2Output, uint256 indexed _l2timestamp);
+    event l2OutputDeleted(
+        bytes32 indexed _l2Output,
+        uint256 indexed _l1Timestamp,
+        uint256 indexed _l2timestamp
+    );
+
     function test_deleteL2Output() external {
+        test_appendingAnotherOutput();
+
         uint256 latestBlockTimestamp = oracle.latestBlockTimestamp();
-        bytes32 outputToDelete = oracle.getL2Output(latestBlockTimestamp);
-        bytes32 newLatestOutput = oracle.getL2Output(latestBlockTimestamp - submissionInterval);
+        L2OutputOracle.OutputProposal memory proposalToDelete = oracle.getL2Output(latestBlockTimestamp);
+        L2OutputOracle.OutputProposal memory newLatestOutput = oracle.getL2Output(latestBlockTimestamp - submissionInterval);
 
         vm.prank(sequencer);
         vm.expectEmit(true, true, false, false);
-        emit l2OutputDeleted(outputToDelete, latestBlockTimestamp);
-        oracle.deleteL2Output(outputToDelete);
+        emit l2OutputDeleted(
+            proposalToDelete.outputRoot,
+            proposalToDelete.timestamp,
+            latestBlockTimestamp
+        );
+        oracle.deleteL2Output(proposalToDelete);
 
         // validate latestBlockTimestamp has been reduced
         uint256 latestBlockTimestampAfter = oracle.latestBlockTimestamp();
@@ -248,27 +237,28 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
             latestBlockTimestampAfter
         );
 
+        L2OutputOracle.OutputProposal memory proposal = oracle.getL2Output(latestBlockTimestampAfter);
         // validate that the new latest output is as expected.
-        assertEq(
-            newLatestOutput,
-            oracle.getL2Output(latestBlockTimestampAfter)
-        );
+        assertEq(newLatestOutput.outputRoot, proposal.outputRoot);
+        assertEq(newLatestOutput.timestamp, proposal.timestamp);
     }
 
     function testCannot_deleteL2Output_ifNotSequencer() external {
         uint256 latestBlockTimestamp = oracle.latestBlockTimestamp();
-        bytes32 outputToDelete = oracle.getL2Output(latestBlockTimestamp);
+        L2OutputOracle.OutputProposal memory proposal = oracle.getL2Output(latestBlockTimestamp);
 
         vm.expectRevert("Ownable: caller is not the owner");
-        oracle.deleteL2Output(outputToDelete);
+        oracle.deleteL2Output(proposal);
     }
 
-    function testCannot_deleteL2Output_ifWrongOutput() external {
+    function testCannot_deleteWrongL2Output() external {
+        test_appendingAnotherOutput();
+
         uint256 previousBlockTimestamp = oracle.latestBlockTimestamp() - submissionInterval;
-        bytes32 outputToDelete = oracle.getL2Output(previousBlockTimestamp);
+        L2OutputOracle.OutputProposal memory proposalToDelete = oracle.getL2Output(previousBlockTimestamp);
 
         vm.prank(sequencer);
         vm.expectRevert("Can only delete the most recent output.");
-        oracle.deleteL2Output(outputToDelete);
+        oracle.deleteL2Output(proposalToDelete);
     }
 }

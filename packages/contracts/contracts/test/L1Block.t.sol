@@ -1,12 +1,10 @@
 //SPDX-License-Identifier: MIT
 pragma solidity 0.8.10;
 
-import { DSTest } from "forge-std/Test.sol";
-import { Vm } from "forge-std/Vm.sol";
+import { CommonTest } from "./CommonTest.t.sol";
 import { L1Block } from "../L2/L1Block.sol";
 
-contract L1BLockTest is DSTest {
-    Vm vm = Vm(HEVM_ADDRESS);
+contract L1BLockTest is CommonTest {
     L1Block lb;
     address depositor;
     bytes32 immutable NON_ZERO_HASH = keccak256(abi.encode(1));
@@ -16,6 +14,16 @@ contract L1BLockTest is DSTest {
         depositor = lb.DEPOSITOR_ACCOUNT();
         vm.prank(depositor);
         lb.setL1BlockValues(uint64(1), uint64(2), 3, NON_ZERO_HASH, uint64(4));
+    }
+
+    function test_updatesValues(uint64 n, uint64 t, uint256 b, bytes32 h, uint64 s) external {
+        vm.prank(depositor);
+        lb.setL1BlockValues(n, t, b, h, s);
+        assertEq(lb.number(), n);
+        assertEq(lb.timestamp(), t);
+        assertEq(lb.basefee(), b);
+        assertEq(lb.hash(), h);
+        assertEq(lb.sequenceNumber(), s);
     }
 
     function test_number() external {

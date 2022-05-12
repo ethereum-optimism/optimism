@@ -81,9 +81,17 @@ else
   echo "Contracts already deployed, skipping."
 fi
 
+function get_deployed_bytecode() {
+    echo $(jq -r .deployedBytecode ./packages/contracts/artifacts/contracts/$1)
+}
+
 # Pull out the necessary bytecode/addresses from the artifacts/deployments.
-WITHDRAWER_BYTECODE=$(jq -r .deployedBytecode < ./packages/contracts/artifacts/contracts/L2/Withdrawer.sol/Withdrawer.json)
-L1_BLOCK_INFO_BYTECODE=$(jq -r .deployedBytecode < ./packages/contracts/artifacts/contracts/L2/L1Block.sol/L1Block.json)
+L2_TO_L1_MESSAGE_PASSER_BYTECODE=$(get_deployed_bytecode L2/L2ToL1MessagePasser.sol/L2ToL1MessagePasser.json)
+L2_CROSS_DOMAIN_MESSENGER_BYTECODE=$(get_deployed_bytecode L2/L2CrossDomainMessenger.sol/L2CrossDomainMessenger.json)
+OPTIMISM_MINTABLE_TOKEN_FACTORY_BYTECODE=$(get_deployed_bytecode universal/OptimismMintableTokenFactory.sol/OptimismMintableTokenFactory.json)
+L2_STANDARD_BRIDGE_BYTECODE=$(get_deployed_bytecode L2/L2StandardBridge.sol/L2StandardBridge.json)
+L1_BLOCK_INFO_BYTECODE=$(get_deployed_bytecode L2/L1Block.sol/L1Block.json)
+
 DEPOSIT_CONTRACT_ADDRESS=$(jq -r .address < ./packages/contracts/deployments/devnetL1/OptimismPortal.json)
 L2OO_ADDRESS=$(jq -r .address < ./packages/contracts/deployments/devnetL1/L2OutputOracle.json)
 
@@ -91,8 +99,14 @@ L2OO_ADDRESS=$(jq -r .address < ./packages/contracts/deployments/devnetL1/L2Outp
 # since the replaced values will be the same.
 jq ". | .alloc.\"4200000000000000000000000000000000000015\".code = \"$L1_BLOCK_INFO_BYTECODE\"" < ./ops/genesis-l2.json | \
   jq ". | .alloc.\"4200000000000000000000000000000000000015\".balance = \"0x0\"" | \
-  jq ". | .alloc.\"4200000000000000000000000000000000000016\".code = \"$WITHDRAWER_BYTECODE\"" | \
-  jq ". | .alloc.\"4200000000000000000000000000000000000016\".balance = \"0x0\"" | \
+  jq ". | .alloc.\"4200000000000000000000000000000000000000\".code = \"$L2_TO_L1_MESSAGE_PASSER_BYTECODE\"" | \
+  jq ". | .alloc.\"4200000000000000000000000000000000000000\".balance = \"0x0\"" | \
+  jq ". | .alloc.\"4200000000000000000000000000000000000007\".code = \"$L2_CROSS_DOMAIN_MESSENGER_BYTECODE\"" | \
+  jq ". | .alloc.\"4200000000000000000000000000000000000007\".balance = \"0x0\"" | \
+  jq ". | .alloc.\"4200000000000000000000000000000000000012\".code = \"$OPTIMISM_MINTABLE_TOKEN_FACTORY_BYTECODE\"" | \
+  jq ". | .alloc.\"4200000000000000000000000000000000000012\".balance = \"0x0\"" | \
+  jq ". | .alloc.\"4200000000000000000000000000000000000010\".code = \"$L2_STANDARD_BRIDGE_BYTECODE\"" | \
+  jq ". | .alloc.\"4200000000000000000000000000000000000010\".balance = \"0x0\"" | \
   jq ". | .timestamp = \"$GENESIS_TIMESTAMP\" " > ./.devnet/genesis-l2.json
 
 # Bring up L2.

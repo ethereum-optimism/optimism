@@ -1,19 +1,14 @@
-//SPDX-License-Identifier: MIT
-pragma solidity 0.8.10;
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.9;
 
-/* Library Imports */
-import { AddressAliasHelper } from "@eth-optimism/contracts/standards/AddressAliasHelper.sol";
 import { WithdrawalVerifier } from "../libraries/Lib_WithdrawalVerifier.sol";
-
-/* Interaction imports */
 import { Burner } from "./Burner.sol";
 
 /**
- * @title Withdrawer
- * @notice The Withdrawer contract facilitates sending both ETH value and data from L2 to L1.
- * It is predeployed in the L2 state at address 0x4200000000000000000000000000000000000016.
+ * @title L2ToL1MessagePasser
+ * TODO: should this be renamed to L2OptimismPortal?
  */
-contract Withdrawer {
+contract L2ToL1MessagePasser {
     /**********
      * Events *
      **********/
@@ -36,25 +31,42 @@ contract Withdrawer {
         bytes data
     );
 
-    /// @notice Emitted when the balance of this contract is burned.
+    /**
+     * @notice Emitted when the balance of this contract is burned.
+     */
     event WithdrawerBalanceBurnt(uint256 indexed amount);
 
-    /**********************
-     * Contract Variables *
-     **********************/
+    /*************
+     * Variables *
+     *************/
 
-    /// @notice A unique value hashed with each withdrawal.
+    /**
+     * @notice Includes the message hashes for all withdrawals
+     */
+    mapping(bytes32 => bool) public sentMessages;
+
+    /**
+     * @notice A unique value hashed with each withdrawal.
+     */
     uint256 public nonce;
 
-    /// @notice A mapping listing withdrawals which have been initiated herein.
-    mapping(bytes32 => bool) public withdrawals;
+    /********************
+     * Public Functions *
+     ********************/
 
-    /**********************
-     * External Functions *
-     **********************/
+    /**
+     * @notice Allow users to withdraw by sending ETH
+     * directly to this contract.
+     * TODO: maybe this should be only EOA
+     */
+    receive() external payable {
+        initiateWithdrawal(msg.sender, 100000, bytes(""));
+    }
 
     /**
      * @notice Initiates a withdrawal to execute on L1.
+     * TODO: message hashes must be migrated since the legacy
+     * hashes are computed differently
      * @param _target Address to call on L1 execution.
      * @param _gasLimit GasLimit to provide on L1.
      * @param _data Data to forward to L1 target.
@@ -62,11 +74,9 @@ contract Withdrawer {
     function initiateWithdrawal(
         address _target,
         uint256 _gasLimit,
-        bytes calldata _data
-    ) external payable {
-        address from = msg.sender;
-
-        bytes32 withdrawalHash = WithdrawalVerifier._deriveWithdrawalHash(
+        bytes memory _data
+    ) public payable {
+        bytes32 withdrawalHash = WithdrawalVerifier.withdrawalHash(
             nonce,
             msg.sender,
             _target,
@@ -74,9 +84,10 @@ contract Withdrawer {
             _gasLimit,
             _data
         );
-        withdrawals[withdrawalHash] = true;
 
-        emit WithdrawalInitiated(nonce, from, _target, msg.value, _gasLimit, _data);
+        sentMessages[withdrawalHash] = true;
+
+        emit WithdrawalInitiated(nonce, msg.sender, _target, msg.value, _gasLimit, _data);
         unchecked {
             ++nonce;
         }

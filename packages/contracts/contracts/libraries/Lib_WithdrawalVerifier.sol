@@ -5,6 +5,9 @@ pragma solidity 0.8.10;
 import {
     Lib_SecureMerkleTrie
 } from "@eth-optimism/contracts/libraries/trie/Lib_SecureMerkleTrie.sol";
+import {
+    Lib_CrossDomainUtils
+} from "@eth-optimism/contracts/libraries/bridge/Lib_CrossDomainUtils.sol";
 
 /**
  * @title WithdrawalVerifier
@@ -28,13 +31,13 @@ library WithdrawalVerifier {
      * @param _gasLimit Gas to be forwarded to the target.
      * @param _data Data to send to the target.
      */
-    function _deriveWithdrawalHash(
+    function withdrawalHash(
         uint256 _nonce,
         address _sender,
         address _target,
         uint256 _value,
         uint256 _gasLimit,
-        bytes calldata _data
+        bytes memory _data
     ) internal pure returns (bytes32) {
         return keccak256(abi.encode(_nonce, _sender, _target, _value, _gasLimit, _data));
     }
@@ -44,7 +47,7 @@ library WithdrawalVerifier {
      * @param _outputRootProof The elements which were hashed together to generate the output root.
      * @return Whether or not the output root matches the hashed output of the proof.
      */
-    function _deriveOutputRoot(OutputRootProof calldata _outputRootProof)
+    function _deriveOutputRoot(OutputRootProof memory _outputRootProof)
         internal
         pure
         returns (bytes32)
@@ -71,12 +74,12 @@ library WithdrawalVerifier {
     function _verifyWithdrawalInclusion(
         bytes32 _withdrawalHash,
         bytes32 _withdrawerStorageRoot,
-        bytes calldata _withdrawalProof
+        bytes memory _withdrawalProof
     ) internal pure returns (bool) {
         bytes32 storageKey = keccak256(
             abi.encode(
                 _withdrawalHash,
-                uint256(1) // The withdrawals mapping is at the second slot in the layout.
+                uint256(0) // The withdrawals mapping is at the first slot in the layout.
             )
         );
 

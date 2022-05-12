@@ -1,8 +1,7 @@
 //SPDX-License-Identifier: MIT
 pragma solidity 0.8.10;
 
-import { CommonTest } from "./CommonTest.t.sol";
-import { L2OutputOracle_Initializer } from "./L2OutputOracle.t.sol";
+import { Messenger_Initializer } from "./CommonTest.t.sol";
 
 import {
     Lib_PredeployAddresses
@@ -12,13 +11,12 @@ import {
 } from "@eth-optimism/contracts/libraries/bridge/Lib_CrossDomainUtils.sol";
 import { AddressAliasHelper } from "@eth-optimism/contracts/standards/AddressAliasHelper.sol";
 
+import { L2ToL1MessagePasser } from "../L2/L2ToL1MessagePasser.sol";
 import { L2OutputOracle } from "../L1/L2OutputOracle.sol";
-import { OptimismPortal } from "../L1/OptimismPortal.sol";
-import { L2CrossDomainMessenger } from "../L2/messaging/L2CrossDomainMessenger.sol";
-import { L1CrossDomainMessenger } from "../L1/messaging/L1CrossDomainMessenger.sol";
-import { Withdrawer } from "../L2/Withdrawer.sol";
-import { IWithdrawer } from "../L2/IWithdrawer.sol";
+import { L2CrossDomainMessenger } from "../L2/L2CrossDomainMessenger.sol";
+import { L1CrossDomainMessenger } from "../L1/L1CrossDomainMessenger.sol";
 import { Lib_BedrockPredeployAddresses } from "../libraries/Lib_BedrockPredeployAddresses.sol";
+import { CrossDomainHashing } from "../libraries/Lib_CrossDomainHashing.sol";
 
 import {
     Lib_DefaultValues
@@ -26,180 +24,156 @@ import {
 
 import { console } from "forge-std/console.sol";
 
-contract L2CrossDomainMessenger_Test is CommonTest, L2OutputOracle_Initializer {
+contract L2CrossDomainMessenger_Test is Messenger_Initializer {
+    // Receiver address for testing
+    address recipient = address(0xabbaacdc);
 
-    // Dependencies
-    OptimismPortal op;
-
-    IWithdrawer W;
-    L1CrossDomainMessenger L1Messenger;
-    L2CrossDomainMessenger L2Messenger;
-
-    event SentMessage(
-        address indexed target,
-        address sender,
-        bytes message,
-        uint256 messageNonce,
-        uint256 gasLimit
-    );
-
-    event WithdrawalInitiated(
-        uint256 indexed nonce,
-        address indexed sender,
-        address indexed target,
-        uint256 value,
-        uint256 gasLimit,
-        bytes data
-    );
-
-    function setUp() external {
-        op = new OptimismPortal(oracle, 100);
-        L1Messenger = new L1CrossDomainMessenger();
-        L1Messenger.initialize(op, Lib_PredeployAddresses.L2_CROSS_DOMAIN_MESSENGER);
-
-        L2Messenger = new L2CrossDomainMessenger(address(L1Messenger));
-
-        // Deploy the Withdrawer and then get its code to set at the
-        // correct address
-        Withdrawer w = new Withdrawer();
-        bytes memory code = address(w).code;
-        vm.etch(Lib_BedrockPredeployAddresses.WITHDRAWER, code);
-        W = IWithdrawer(Lib_BedrockPredeployAddresses.WITHDRAWER);
+    function setUp() public override {
+        super.setUp();
     }
 
-    // xDomainMessageSender: should return correct L1Messenger address
-    function test_L2MessengerCorrectL1Messenger() external {
-        address l1 = L2Messenger.l1CrossDomainMessenger();
-        assertEq(l1, address(L1Messenger));
+    function test_L2MessengerPause() external {
+        L2Messenger.pause();
+        assert(L2Messenger.paused());
     }
 
-    // xDomainMessageSender: should return the xDomainMsgSender address
-    function test_L2MessengerxDomainMsgSender() external {
+    function testCannot_L2MessengerPause() external {
+        vm.expectRevert("Ownable: caller is not the owner");
+        vm.prank(address(0xABBA));
+        L2Messenger.pause();
+    }
+
+    function test_L2MessengerMessageVersion() external {
+        assertEq(
+            CrossDomainHashing.getVersionFromNonce(L2Messenger.messageNonce()),
+            L2Messenger.MESSAGE_VERSION()
+        );
+    }
+
+    function test_L2MessengerSendMessage() external {
+        vm.expectCall(
+            address(messagePasser),
+            abi.encodeWithSelector(
+                L2ToL1MessagePasser.initiateWithdrawal.selector,
+                address(L1Messenger),
+                100,
+                CrossDomainHashing.getVersionedEncoding(
+                    L2Messenger.messageNonce(),
+                    alice,
+                    recipient,
+                    0,
+                    100,
+                    hex"ff"
+                )
+            )
+        );
+
+        // WithdrawalInitiated event
+        vm.expectEmit(true, true, true, true);
+        emit WithdrawalInitiated(
+            messagePasser.nonce(),
+            address(L2Messenger),
+            address(L1Messenger),
+            0,
+            100,
+            CrossDomainHashing.getVersionedEncoding(
+                L2Messenger.messageNonce(),
+                alice,
+                recipient,
+                0,
+                100,
+                hex"ff"
+            )
+        );
+
+        vm.prank(alice);
+        L2Messenger.sendMessage(recipient, hex"ff", uint32(100));
+    }
+
+    function test_L2MessengerTwiceSendMessage() external {
+        uint256 nonce = L2Messenger.messageNonce();
+        L2Messenger.sendMessage(recipient, hex"aa", uint32(500_000));
+        L2Messenger.sendMessage(recipient, hex"aa", uint32(500_000));
+        // the nonce increments for each message sent
+        assertEq(
+            nonce + 2,
+            L2Messenger.messageNonce()
+        );
+    }
+
+    function test_L2MessengerXDomainSenderReverts() external {
         vm.expectRevert("xDomainMessageSender is not set");
         L2Messenger.xDomainMessageSender();
-
-        bytes32 slot = vm.load(address(L2Messenger), bytes32(uint256(4)));
-        assertEq(address(uint160(uint256(slot))), Lib_DefaultValues.DEFAULT_XDOMAIN_SENDER);
     }
 
-    // sendMessage: should be able to send a single message
-    function test_L2MessengerSendMessage() external {
-        address target = address(0);
-        bytes memory message = hex"";
-        uint32 gasLimit = 1000;
+    function test_L2MessengerRelayMessageSucceeds() external {
+        address target = address(0xabcd);
+        address sender = address(L1Messenger);
+        address caller = AddressAliasHelper.applyL1ToL2Alias(address(L1Messenger));
 
-        uint256 nonce = W.nonce();
-        address sender = address(L2Messenger);
+        vm.expectCall(target, hex"1111");
+
+        vm.prank(caller);
 
         vm.expectEmit(true, true, true, true);
-        emit SentMessage(target, address(this), message, nonce, gasLimit);
-        vm.expectEmit(true, true, true, true);
-        emit WithdrawalInitiated(nonce, sender, address(L1Messenger), 0, gasLimit, message);
 
-        L2Messenger.sendMessage(target, message, gasLimit);
-    }
-
-    // sendMessage: should be able to send the same message twice
-    function test_L2MessengerSendSameMessageTwice() external {
-        L2Messenger.sendMessage(address(0), hex"", 1000);
-        L2Messenger.sendMessage(address(0), hex"", 1000);
-        // TODO: assertion on events, nonce increments
-    }
-
-    // relayMessage: should revert if the L1 message sender is not the L1CrossDomainMessenger
-    function test_L2MessengerRevertInvalidL1XDomainMessenger() external {
-        vm.expectRevert("Provided message could not be verified.");
-        vm.prank(address(0));
-        L2Messenger.relayMessage(
-            address(0),
-            address(0),
-            hex"",
-            0
-        );
-    }
-
-    // relayMessage: should send a call to the target contract
-    function test_L2MessengerCallsTarget() external {
-        address target = address(4);
-
-        vm.expectCall(target, hex"ff");
-        vm.prank(AddressAliasHelper.applyL1ToL2Alias(address(L1Messenger)));
-        L2Messenger.relayMessage(
+        bytes32 hash = CrossDomainHashing.getVersionedHash(
+            0,
+            sender,
             target,
-            address(this),
-            hex"ff",
-            1000
+            0,
+            0,
+            hex"1111"
         );
+
+        emit RelayedMessage(hash);
+
+        L2Messenger.relayMessage(
+            0, // nonce
+            sender,
+            target,
+            0, // value
+            0,
+            hex"1111"
+        );
+
+        // the message hash is in the successfulMessages mapping
+        assert(L2Messenger.successfulMessages(hash));
+        // it is not in the received messages mapping
+        assertEq(L2Messenger.receivedMessages(hash), false);
+    }
+
+    // relayMessage: should revert if attempting to relay a message sent to an L1 system contract
+    function test_L2MessengerRelayMessageToSystemContract() external {
+        address target = address(messagePasser);
+        address sender = address(L1Messenger);
+        address caller = AddressAliasHelper.applyL1ToL2Alias(address(L1Messenger));
+        bytes memory message = hex"1111";
+
+        vm.prank(caller);
+        vm.expectRevert("Message cannot be replayed.");
+        L1Messenger.relayMessage(0, sender, target, 0, 0, message);
     }
 
     // relayMessage: the xDomainMessageSender is reset to the original value
-    function test_L2MessengerXDomainMessageSenderReset() external {
+    function test_L2MessengerxDomainMessageSenderResets() external {
         vm.expectRevert("xDomainMessageSender is not set");
         L2Messenger.xDomainMessageSender();
 
-        vm.expectCall(address(4), hex"ff");
-        vm.prank(AddressAliasHelper.applyL1ToL2Alias(address(L1Messenger)));
-        L2Messenger.relayMessage(
-            address(4),
-            address(this),
-            hex"ff",
-            1000
-        );
+        address caller = AddressAliasHelper.applyL1ToL2Alias(address(L1Messenger));
+        vm.prank(caller);
+        L2Messenger.relayMessage(0, address(0), address(0), 0, 0, hex"");
 
         vm.expectRevert("xDomainMessageSender is not set");
         L2Messenger.xDomainMessageSender();
-        bytes32 slot = vm.load(address(L2Messenger), bytes32(uint256(4)));
-        assertEq(address(uint160(uint256(slot))), Lib_DefaultValues.DEFAULT_XDOMAIN_SENDER);
     }
 
-    // relayMessage: should revert if trying to send the same message twice
-    function test_L2MessengerCannotRelaySameMessageTwice() external {
-        vm.expectCall(address(4), hex"ff");
-        vm.prank(AddressAliasHelper.applyL1ToL2Alias(address(L1Messenger)));
-        L2Messenger.relayMessage(
-            address(4),
-            address(this),
-            hex"ff",
-            1000
-        );
+    // relayMessage: should revert if paused
+    function test_L2MessengerRelayShouldRevertIfPaused() external {
+        vm.prank(L2Messenger.owner());
+        L2Messenger.pause();
 
-        vm.expectRevert("Provided message has already been received.");
-        vm.prank(AddressAliasHelper.applyL1ToL2Alias(address(L1Messenger)));
-        L2Messenger.relayMessage(
-            address(4),
-            address(this),
-            hex"ff",
-            1000
-        );
-    }
-
-    // relayMessage: should not make a call if the target is the L2 MessagePasser
-    function test_L2MessengerCannotCallL2MessagePasser() external {
-        address target = Lib_BedrockPredeployAddresses.WITHDRAWER;
-
-        vm.prank(AddressAliasHelper.applyL1ToL2Alias(address(L1Messenger)));
-        L2Messenger.relayMessage(
-            target,
-            address(this),
-            hex"ff",
-            1000
-        );
-
-        bytes memory xDomainCalldata = Lib_CrossDomainUtils.encodeXDomainCalldata(
-            target,
-            address(this),
-            hex"ff",
-            1000
-        );
-        bytes32 hash = keccak256(xDomainCalldata);
-        assert(L2Messenger.successfulMessages(hash) == true);
-
-        bytes32 relayId = keccak256(abi.encodePacked(
-            xDomainCalldata,
-            AddressAliasHelper.applyL1ToL2Alias(address(L1Messenger)),
-            block.number
-        ));
-
-        assert(L2Messenger.relayedMessages(relayId) == false);
+        vm.expectRevert("Pausable: paused");
+        L2Messenger.relayMessage(0, address(0), address(0), 0, 0, hex"");
     }
 }

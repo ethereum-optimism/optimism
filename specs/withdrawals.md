@@ -36,7 +36,7 @@ finalization.
 - [Withdrawal Flow](#withdrawal-flow)
   - [On L2](#on-l2)
   - [On L1](#on-l1)
-- [The L2 Withdrawer Contract](#the-l2-withdrawer-contract)
+- [The L2ToL1MessagePasser Contract](#the-l2tol1messagepasser-contract)
   - [Address Aliasing](#address-aliasing)
 - [The Optimism Portal Contract](#the-optimism-portal-contract)
 - [Withdrawal Verification and Finalization](#withdrawal-verification-and-finalization)
@@ -54,7 +54,7 @@ We first describe the end to end flow of initiating and finalizing a withdrawal:
 
 ### On L2
 
-An L2 account sends a withdrawal message (and possibly also ETH) to the `Withdrawer` predeploy contract.
+An L2 account sends a withdrawal message (and possibly also ETH) to the `L2ToL1MessagePasser` predeploy contract.
    This is a very simple contract that stores the a hash of the withdrawal data.
 
 ### On L1
@@ -68,34 +68,36 @@ An L2 account sends a withdrawal message (and possibly also ETH) to the `Withdra
 3. If verification fails, the call reverts. Otherwise the call is forwarded, and the hash is recorded to prevent it from
    from being replayed.
 
-## The L2 Withdrawer Contract
+## The L2ToL1MessagePasser Contract
 
-[withdrawer-contract]: #the-l2-withdrawer-contract
+[message-passer-contract]: #the-l2tol1messagepasser-contract
 
-A withdrawal is initiated by calling the Withdrawer contract's `initiateWithdrawal` function.
-The Withdrawer is a simple predeploy contract at `0x4200000000000000000000000000000000000016` which stores messages
-to be withdrawn.
+A withdrawal is initiated by calling the L2ToL1MessagePasser contract's `initiateWithdrawal` function.
+The L2ToL1MessagePasser is a simple predeploy contract at `0x4200000000000000000000000000000000000000`
+which stores messages to be withdrawn.
 
 ```js
-interface Withdrawer {
-
-    event WithdrawalMessage(
+interface L2ToL1MessagePasser {
+    event WithdrawalInitiated(
         uint256 indexed nonce, // this is a global nonce value for all withdrawal messages
         address indexed sender,
         address indexed target,
         uint256 value,
         uint256 gasLimit,
-        bytes message
+        bytes data
     );
 
-    function initiateWithdrawal(
-        address target,
-        uint256 gasLimit,
-        bytes data,
-    ) external payable;
+    event WithdrawerBalanceBurnt(uint256 indexed amount);
 
-    function burn();
+    function burn() external;
+
+    function initiateWithdrawal(address _target, uint256 _gasLimit, bytes memory _data) payable external;
+
+    function nonce() view external returns (uint256);
+
+    function sentMessages(bytes32) view external returns (bool);
 }
+
 ```
 
 ### Address Aliasing
@@ -145,7 +147,7 @@ The following inputs are required to verify and finalize a withdrawal:
 - Proof and verification data:
   - `timestamp`: The L2 timestamp corresponding with the output root.
   - `outputRootProof`: Four `bytes32` values which are used to derive the output root.
-  - `withdrawalProof`: An inclusion proof for the given withdrawal in the withdrawer contract.
+  - `withdrawalProof`: An inclusion proof for the given withdrawal in the L2ToL1MessagePasser contract.
 
 These inputs must satisfy the following conditions:
 
@@ -153,7 +155,7 @@ These inputs must satisfy the following conditions:
 1. `OutputOracle.l2Outputs(timestamp)` returns a non-zero value `l2Output`.
 1. The keccak256 hash of the `outputRootProof` values is equal to the `l2Output`.
 1. The `withdrawalProof` is a valid inclusion proof demonstrating that a hash of the Withdrawal transaction data
-   is contained in the storage of the Withdrawer contract on L2.
+   is contained in the storage of the L2ToL1MessagePasser contract on L2.
 
 ## Security Considerations
 

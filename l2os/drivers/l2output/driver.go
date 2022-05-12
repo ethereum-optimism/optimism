@@ -61,6 +61,7 @@ func NewDriver(cfg Config) (*Driver, error) {
 	)
 
 	walletAddr := crypto.PubkeyToAddress(cfg.PrivKey.PublicKey)
+	log.Info("Configured driver", "wallet", walletAddr, "l2-output-contract", cfg.L2OOAddr)
 
 	return &Driver{
 		cfg:             cfg,

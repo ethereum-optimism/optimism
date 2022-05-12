@@ -1,12 +1,8 @@
 SHELL := /bin/bash
 
 CONTRACTS_PATH := "../../packages/contracts/"
-OPTIMISM_PORTAL := ../../packages/contracts/contracts/L1/OptimismPortal.sol
-L1_BLOCK_INFO := ../../packages/contracts/contracts/L2/L1Block.sol
-
 
 bindings: bindings-l1-block-info bindings-optimism-portal deployed-bin-l1-block-info deployed-bin-optimism-portal
-
 
 # Split up b/c I don't know how to include this step in the L1 Block Info Bindings
 # What is occuring is that the `temp` variable is hard to pull into the `eval`
