@@ -58,6 +58,15 @@ abstract contract StandardBridge {
         bytes _data
     );
 
+    event ERC20BridgeFailed(
+        address indexed _localToken,
+        address indexed _remoteToken,
+        address indexed _from,
+        address _to,
+        uint256 _amount,
+        bytes _data
+    );
+
     /*************
      * Variables *
      *************/
@@ -97,6 +106,11 @@ abstract contract StandardBridge {
                 messenger.xDomainMessageSender() == address(otherBridge),
             "Could not authenticate bridge message."
         );
+        _;
+    }
+
+    modifier onlySelf() {
+        require(msg.sender == address(this), "Function can only be called by self.");
         _;
     }
 
@@ -188,6 +202,7 @@ abstract contract StandardBridge {
         bytes calldata _data
     ) public payable onlyOtherBridge {
         require(msg.value == _amount, "Amount sent does not match amount required.");
+        require(_to != address(this), "Cannot send to self.");
 
         emit ETHBridgeFinalized(_from, _to, _amount, _data);
         (bool success, ) = _to.call{ value: _amount }(new bytes(0));
@@ -205,14 +220,45 @@ abstract contract StandardBridge {
         uint256 _amount,
         bytes calldata _data
     ) public onlyOtherBridge {
-        if (_isOptimismMintable(_localToken, _remoteToken)) {
+        try this.completeOutboundTransfer(_localToken, _remoteToken, _to, _amount) {
+            emit ERC20BridgeFinalized(_localToken, _remoteToken, _from, _to, _amount, _data);
+        } catch {
+            // Something went wrong during the bridging process, return to sender.
+            // Can happen if a bridge UI specifies the wrong L2 token.
+            _initiateBridgeERC20Unchecked(
+                _remoteToken,
+                _localToken,
+                _from,
+                _to,
+                _amount,
+                0, // _minGasLimit, 0 is fine here
+                _data
+            );
+            emit ERC20BridgeFailed(_localToken, _remoteToken, _from, _to, _amount, _data);
+        }
+    }
+
+    function completeOutboundTransfer(
+        address _localToken,
+        address _remoteToken,
+        address _to,
+        uint256 _amount
+    ) public onlySelf {
+        // Make sure external function calls can't be used to trigger calls to
+        // completeOutboundTransfer. We only make external (write) calls to _localToken.
+        require(_localToken != address(this), "Local token cannot be self");
+
+        if (_isOptimismMintableERC20(_localToken)) {
+            require(
+                _isCorrectTokenPair(_localToken, _remoteToken),
+                "Wrong remote token for Optimism Mintable ERC20 local token"
+            );
+
             OptimismMintableERC20(_localToken).mint(_to, _amount);
         } else {
             deposits[_localToken][_remoteToken] = deposits[_localToken][_remoteToken] - _amount;
             IERC20(_localToken).safeTransfer(_to, _amount);
         }
-
-        emit ERC20BridgeFinalized(_localToken, _remoteToken, _from, _to, _amount, _data);
     }
 
     /**********************
@@ -262,13 +308,46 @@ abstract contract StandardBridge {
         uint32 _minGasLimit,
         bytes calldata _data
     ) internal {
-        if (_isOptimismMintable(_localToken, _remoteToken)) {
+        // Make sure external function calls can't be used to trigger calls to
+        // completeOutboundTransfer. We only make external (write) calls to _localToken.
+        require(_localToken != address(this), "Local token cannot be self");
+
+        if (_isOptimismMintableERC20(_localToken)) {
+            require(
+                _isCorrectTokenPair(_localToken, _remoteToken),
+                "Wrong remote token for Optimism Mintable ERC20 local token"
+            );
+
             OptimismMintableERC20(_localToken).burn(msg.sender, _amount);
         } else {
+            // TODO: Do we need to confirm that the transfer was successful?
             IERC20(_localToken).safeTransferFrom(_from, address(this), _amount);
             deposits[_localToken][_remoteToken] = deposits[_localToken][_remoteToken] + _amount;
         }
 
+        _initiateBridgeERC20Unchecked(
+            _localToken,
+            _remoteToken,
+            _from,
+            _to,
+            _amount,
+            _minGasLimit,
+            _data
+        );
+    }
+
+    /**
+     * @notice Bridge an ERC20 to the remote chain through the messengers
+     */
+    function _initiateBridgeERC20Unchecked(
+        address _localToken,
+        address _remoteToken,
+        address _from,
+        address _to,
+        uint256 _amount,
+        uint32 _minGasLimit,
+        bytes calldata _data
+    ) internal {
         messenger.sendMessage(
             address(otherBridge),
             abi.encodeWithSelector(
@@ -287,23 +366,29 @@ abstract contract StandardBridge {
     }
 
     /**
-     * @notice Check to make sure that the token pair is an OptimismMintable
-     * token pair.
-     * The selector 0x1d1d8b63 represents the ERC165 representation of
-     * the methods l1Token(), mint(address,uint256), burn(address,uint256)
-     * the selector 0x0bc32271 represents the ERC165 representation of
-     * remoteToken(), mint(address,uint256), burn(address,uint256).
-     * Both are required as l1Token() is a legacy function, prefer calling
-     * remoteToken()
+     * Checks if a given address is an OptimismMintableERC20. Not perfect, but good enough.
+     * Just the way we like it.
+     *
+     * @param _token Address of the token to check.
+     * @return True if the token is an OptimismMintableERC20.
      */
-    function _isOptimismMintable(address _localToken, address _remoteToken)
+    function _isOptimismMintableERC20(address _token) internal view returns (bool) {
+        // 0x1d1d8b63 is mint ^ burn ^ l1Token
+        return ERC165Checker.supportsInterface(_token, 0x1d1d8b63);
+    }
+
+    /**
+     * Checks if the "other token" is the correct pair token for the OptimismMintableERC20.
+     *
+     * @param _mintableToken OptimismMintableERC20 to check against.
+     * @param _otherToken Pair token to check.
+     * @return True if the other token is the correct pair token for the OptimismMintableERC20.
+     */
+    function _isCorrectTokenPair(address _mintableToken, address _otherToken)
         internal
         view
         returns (bool)
     {
-        return ((ERC165Checker.supportsInterface(_localToken, 0x1d1d8b63) &&
-            _remoteToken == OptimismMintableERC20(_localToken).l1Token()) ||
-            (ERC165Checker.supportsInterface(_localToken, 0x0bc32271) &&
-                _remoteToken == OptimismMintableERC20(_localToken).remoteToken()));
+        return _otherToken == OptimismMintableERC20(_mintableToken).l1Token();
     }
 }

@@ -109,53 +109,12 @@ contract L2StandardBridge is StandardBridge {
         uint256 _amount,
         bytes calldata _data
     ) external payable virtual {
-        // Check to see if the bridge is being used to deposit ETH.
-        // The `msg.value` must match the `_amount` to prevent
-        // ETH from getting stuck in the contract
-        if (
-            _l1Token == address(0) &&
-            _l2Token == Lib_PredeployAddresses.OVM_ETH &&
-            msg.value == _amount
-        ) {
-            // An ETH deposit is being made via the Token Bridge.
-            // We simply forward it on. If this call fails, ETH will be stuck, but the L1Bridge
-            // uses onlyEOA on the receive function, so anyone sending to a contract knows
-            // what they are doing.
+        if (_l1Token == address(0) && _l2Token == Lib_PredeployAddresses.OVM_ETH) {
             finalizeBridgeETH(_from, _to, _amount, _data);
-            emit DepositFinalized(_l1Token, _l2Token, _from, _to, _amount, _data);
-        } else if (
-            _isOptimismMintable(_l2Token, _l1Token)
-        ) // Check the target token is compliant and
-        // verify the deposited token on L1 matches the L2 deposited token representation here
-        // slither-disable-next-line reentrancy-events
-        {
-            // When a deposit is finalized, we credit the account on L2 with the same amount of
-            // tokens.
-            // slither-disable-next-line reentrancy-events
-            finalizeBridgeERC20(_l2Token, _l1Token, _from, _to, _amount, _data);
-            // slither-disable-next-line reentrancy-events
-            emit DepositFinalized(_l1Token, _l2Token, _from, _to, _amount, _data);
         } else {
-            // Either the L2 token which is being deposited-into disagrees about the correct address
-            // of its L1 token, or does not support the correct interface.
-            // This should only happen if there is a  malicious L2 token, or if a user somehow
-            // specified the wrong L2 token address to deposit into.
-            // In either case, we stop the process here and construct a withdrawal
-            // message so that users can get their funds out in some cases.
-            // There is no way to prevent malicious token contracts altogether, but this does limit
-            // user error and mitigate some forms of malicious contract behavior.
-            emit DepositFailed(_l1Token, _l2Token, _from, _to, _amount, _data);
-
-            // Withdraw ETH in the case that the user submitted a bad ETH
-            // deposit to prevent ETH from getting stuck
-            // TODO: can this be wrapped into _initiateWithdrawal?
-            // need to handle using `msg.value` here instead of `_value`
-            if (_l2Token == Lib_PredeployAddresses.OVM_ETH) {
-                _initiateBridgeETH(_from, _to, msg.value, 0, _data);
-            } else {
-                _initiateBridgeERC20(_l2Token, _l1Token, _from, _to, _amount, 0, _data);
-            }
+            finalizeBridgeERC20(_l2Token, _l1Token, _from, _to, _amount, _data);
         }
+        emit DepositFinalized(_l1Token, _l2Token, _from, _to, _amount, _data);
     }
 
     /**********************
@@ -176,11 +135,11 @@ contract L2StandardBridge is StandardBridge {
         bytes calldata _data
     ) internal {
         address l1Token = OptimismMintableERC20(_l2Token).l1Token();
-        emit WithdrawalInitiated(l1Token, _l2Token, msg.sender, _to, _amount, _data);
         if (_l2Token == Lib_PredeployAddresses.OVM_ETH) {
             _initiateBridgeETH(_from, _to, _amount, _minGasLimit, _data);
         } else {
             _initiateBridgeERC20(_l2Token, l1Token, _from, _to, _amount, _minGasLimit, _data);
         }
+        emit WithdrawalInitiated(l1Token, _l2Token, msg.sender, _to, _amount, _data);
     }
 }
