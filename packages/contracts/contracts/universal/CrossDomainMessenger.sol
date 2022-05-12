@@ -146,7 +146,7 @@ abstract contract CrossDomainMessenger is
      */
     function sendMessage(
         address _target,
-        bytes memory _message,
+        bytes calldata _message,
         uint32 _minGasLimit
     ) external payable {
         // Triggers a message to the other messenger. Note that the amount of gas provided to the
@@ -157,7 +157,8 @@ abstract contract CrossDomainMessenger is
             otherMessenger,
             _minGasLimit + baseGas(_message),
             msg.value,
-            CrossDomainHashing.getVersionedEncoding(
+            abi.encodeWithSelector(
+                this.relayMessage.selector,
                 messageNonce(),
                 msg.sender,
                 _target,
