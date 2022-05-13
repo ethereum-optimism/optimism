@@ -15,13 +15,13 @@
   yarn build
   yarn test
   cd ../..
-  
+
   # 2.2: Confirm contract bindings are up-to-date
-  cd opnode/contracts
+  cd op-node/contracts
   make abi
   make binding
   cd ../..
-  
+
   # 2.3: Run Go tests (including end-to-end tests)
   go test -v ../..
   ```

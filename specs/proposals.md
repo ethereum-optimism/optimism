@@ -34,8 +34,8 @@ are part of later specification milestones.
 ## Proposing L2 Output Commitments
 
 The proposer's role is to construct and submit output roots, which are commitments made on a configurable interval,
-to the `L2OutputOracle` contract running on L2. It does this by running the [L2 output submitter](../l2os/), a service
-which periodically queries the rollup node's
+to the `L2OutputOracle` contract running on L2. It does this by running the [L2 output proposer](../op-proposer/),
+a service which periodically queries the rollup node's
 [`optimism_outputAtBlock` rpc method](./rollup-node.md#l2-output-rpc-method) for the latest output root derived
 from the latest [finalized](rollup-node.md#finalization-guarantees) L1 block. The construction of this output root is
 described [below](#l2-output-commitment-construction).

@@ -14,3 +14,5 @@ integration-tests/artifacts/
 
 # Ignore local fuzzing results
 **/testdata/fuzz/
+
+coverage.out

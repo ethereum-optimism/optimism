@@ -19,17 +19,56 @@ jobs:
           go-version: 1.18
       - name: Checkout code
         uses: actions/checkout@v2
-      - name: golangci-lint
-        uses: golangci/golangci-lint-action@v2
+
+      - name: golangci-lint op-node
+        uses: golangci/golangci-lint-action@v3
         with:
-          version: v1.45.0  # version of golangci-lint, not the action
-          skip-go-installation: true
+          version: v1.45.2  # version of golangci-lint, not the action
+          working-directory: op-node
           # rules: https://golangci-lint.run/usage/quick-start/
           args: -E asciicheck,goimports,misspell
-      - name: Test and generate coverage
-        run: go test -coverpkg=./... -coverprofile=coverage.out -covermode=atomic ./...
+      - name: golangci-lint op-proposer
+        uses: golangci/golangci-lint-action@v3
+        with:
+          version: v1.45.2  # version of golangci-lint, not the action
+          working-directory: op-proposer
+          args: -E asciicheck,goimports,misspell
+      - name: golangci-lint op-batcher
+        uses: golangci/golangci-lint-action@v3
+        with:
+          version: v1.45.2  # version of golangci-lint, not the action
+          working-directory: op-batcher
+          args: -E asciicheck,goimports,misspell
+      - name: golangci-lint op-e2e
+        uses: golangci/golangci-lint-action@v3
+        with:
+          version: v1.45.2  # version of golangci-lint, not the action
+          working-directory: op-e2e
+          args: -E asciicheck,goimports,misspell
+      - name: Test op-node
+        run: |
+          cd op-node
+          go test -coverpkg=github.com/ethereum-optimism/optimism/... -coverprofile=coverage.out -covermode=atomic ./...
+      - name: Test op-proposer
+        run: |
+          cd op-proposer
+          go test -coverpkg=github.com/ethereum-optimism/optimism/... -coverprofile=coverage.out -covermode=atomic ./...
+      - name: Test op-batcher
+        run: |
+          cd op-batcher
+          go test -coverpkg=github.com/ethereum-optimism/optimism/... -coverprofile=coverage.out -covermode=atomic ./...
+      - name: Test op-e2e
+        run: |
+          cd op-e2e
+          go test -coverpkg=github.com/ethereum-optimism/optimism/... -coverprofile=coverage.out -covermode=atomic ./...
+
       - name: Upload coverage output
         uses: codecov/codecov-action@v2
+        with:
+          files: ./op-node/coverage.out,./op-proposer/coverage.out,./op-batcher/coverage.out,./op-e2e/coverage.out
+          flags: unittests
+          name: codecov-umbrella
+          verbose: true
 
   build:
     runs-on: ubuntu-latest
@@ -65,19 +104,19 @@ jobs:
           cd packages/contracts
           yarn install
 
-      - name: opnode Contracts
+      - name: op-node Contracts
         run: |
-          cd opnode/contracts
+          cd op-node/contracts
           make
           git diff --exit-code
 
-      - name: l2os Bindings
+      - name: op-proposer Bindings
         run: |
-          cd l2os
+          cd op-proposer
           make bindings
           git diff --exit-code
 
-  opnode-fuzz:
+  op-node-fuzz:
     runs-on: ubuntu-latest
     name: Fuzz parsers in the opnode
     steps:
@@ -89,5 +128,5 @@ jobs:
         uses: actions/checkout@v2
       - name: Fuzz
         run: |
-          cd opnode
+          cd op-node
           make fuzz

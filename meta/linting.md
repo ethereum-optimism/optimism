@@ -59,7 +59,9 @@ Justification for linting rules:
 
 ```shell
 # Install linter globally (should not affect go.mod)
-go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.45.0
+go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.45.2
+# Disabling goanalysis_metalinter
+# See https://github.com/golangci/golangci-lint/issues/2788
 # run linter, add --fix option to fix problems (where supported)
-golangci-lint run -E asciicheck,goimports,misspell
+golangci-lint run -E asciicheck,goimports,misspell -D goanalysis_metalinter
 ```

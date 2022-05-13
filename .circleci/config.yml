@@ -40,10 +40,10 @@ workflows:
             branches:
               only:
                 - main
-          image-name: opnode
+          image-name: op-node
           image-tag: develop
-          dockerfile: ops/Dockerfile.opnode
-          name: Build opnode
+          dockerfile: ops-bedrock/Dockerfile.node
+          name: Build op-node
       - build-dockerfile:
           context:
             - optimism
@@ -51,7 +51,18 @@ workflows:
             branches:
               only:
                 - main
-          image-name: l2os
+          image-name: op-proposer
           image-tag: develop
-          dockerfile: ops/Dockerfile.l2os
-          name: Build L2 output submitter
+          dockerfile: ops-bedrock/Dockerfile.proposer
+          name: Build op-proposer
+      - build-dockerfile:
+          context:
+            - optimism
+          filters:
+            branches:
+              only:
+                - main
+          image-name: op-batcher
+          image-tag: develop
+          dockerfile: ops-bedrock/Dockerfile.batcher
+          name: Build op-batcher

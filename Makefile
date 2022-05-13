@@ -4,7 +4,7 @@ ITESTS_L2_HOST=http://localhost:9545
 build: build-go contracts integration-tests
 .PHONY: build
 
-build-go: submodules opnode l2os bss
+build-go: submodules op-node op-proposer op-batcher
 .PHONY: build-go
 
 build-ts: submodules contracts integration-tests
@@ -18,9 +18,17 @@ submodules:
 	fi
 .PHONY: submodules
 
-opnode:
-	go build -o ./bin/op ./opnode/cmd
-.PHONY: opnode
+op-node:
+	make -C ./op-node op-node
+.PHONY: op-node
+
+op-batcher:
+	make -C ./op-batcher op-batcher
+.PHONY: op-batcher
+
+op-proposer:
+	make -C ./op-proposer op-proposer
+.PHONY: op-proposer
 
 contracts:
 	cd ./packages/contracts && yarn install && yarn build
@@ -35,39 +43,34 @@ clean:
 .PHONY: clean
 
 devnet-up:
-	@bash ./ops/devnet-up.sh
+	@bash ./ops-bedrock/devnet-up.sh
 .PHONY: devnet-up
 
 devnet-down:
-	@(cd ./ops && GENESIS_TIMESTAMP=$(shell date +%s) docker-compose stop)
+	@(cd ./ops-bedrock && GENESIS_TIMESTAMP=$(shell date +%s) docker-compose stop)
 .PHONY: devnet-down
 
 devnet-clean:
 	rm -rf ./packages/contracts/deployments/devnetL1
 	rm -rf ./.devnet
-	cd ./ops && docker-compose down
+	cd ./ops-bedrock && docker-compose down
 	docker volume rm ops_l1_data
 	docker volume rm ops_l2_data
 .PHONY: devnet-clean
 
 test-unit:
-	cd ./opnode && make test
+	make -C ./op-node test
+	make -C ./op-proposer test
+	make -C ./op-batcher test
+	make -C ./op-e2e test
 	cd ./packages/contracts && yarn test
 .PHONY: test-unit
 
 test-integration:
-	bash ./ops/test-integration.sh \
+	bash ./ops-bedrock/test-integration.sh \
 		./packages/contracts/deployments/devnetL1
 .PHONY: test-integration
 
 devnet-genesis:
-	bash ./ops/devnet-genesis.sh
+	bash ./ops-bedrock/devnet-genesis.sh
 .PHONY: devnet-genesis
-
-bss:
-	go build -o ./bin/bss ./bss/cmd/bss
-.PHONY: bss
-
-l2os:
-	go build -o ./bin/l2os ./l2os/cmd/l2os
-.PHONY: l2os
