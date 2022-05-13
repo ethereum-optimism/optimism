@@ -165,6 +165,11 @@ func TestP2PFull(t *testing.T) {
 	}
 
 	ctx := context.Background()
+
+	selfInfoA, err := p2pClientA.Self(ctx)
+	require.NoError(t, err)
+	require.Equal(t, selfInfoA.PeerID, hostA.ID())
+
 	_, err = p2pClientA.DiscoveryTable(ctx)
 	// rpc does not preserve error type
 	require.Equal(t, err.Error(), DisabledDiscovery.Error(), "expecting discv5 to be disabled")

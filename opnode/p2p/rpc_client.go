@@ -25,6 +25,12 @@ func prefixRPC(method string) string {
 	return NamespaceRPC + "_" + method
 }
 
+func (c *Client) Self(ctx context.Context) (*PeerInfo, error) {
+	var out *PeerInfo
+	err := c.c.CallContext(ctx, &out, prefixRPC("self"))
+	return out, err
+}
+
 func (c *Client) Peers(ctx context.Context, connected bool) (*PeerDump, error) {
 	var out *PeerDump
 	err := c.c.CallContext(ctx, &out, prefixRPC("peers"), connected)

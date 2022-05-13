@@ -22,9 +22,6 @@ type PeerInfo struct {
 	//PeerScore float64
 	Connectedness network.Connectedness `json:"connectedness"` // "NotConnected", "Connected", "CanConnect" (gracefully disconnected), or "CannotConnect" (tried but failed)
 	Direction     network.Direction     `json:"direction"`     // "Unknown", "Inbound" (if the peer contacted us), "Outbound" (if we connected to them)
-	BannedID      bool                  `json:"bannedID"`      // If the peer has been banned by peer ID
-	BannedIP      bool                  `json:"bannedIP"`      // If the peer has been banned by IP address
-	BannedSubnet  bool                  `json:"bannedSubnet"`  // If the peer has been banned as part of a whole IP subnet
 	Protected     bool                  `json:"protected"`     // Protected peers do not get
 	ChainID       uint64                `json:"chainID"`       // some peers might try to connect, but we figure out they are on a different chain later. This may be 0 if the peer is not an optimism node at all.
 	Latency       time.Duration         `json:"latency"`
@@ -41,6 +38,7 @@ type PeerDump struct {
 }
 
 type API interface {
+	Self(ctx context.Context) (*PeerInfo, error)
 	Peers(ctx context.Context, connected bool) (*PeerDump, error)
 	PeerStats(ctx context.Context) (*PeerStats, error)
 	DiscoveryTable(ctx context.Context) ([]*enode.Node, error)

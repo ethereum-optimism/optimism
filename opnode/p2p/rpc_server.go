@@ -67,6 +67,22 @@ func NewP2PAPIBackend(node Node, log log.Logger) *APIBackend {
 	}
 }
 
+func (s *APIBackend) Self(ctx context.Context) (*PeerInfo, error) {
+	h := s.node.Host()
+	nw := h.Network()
+	pstore := h.Peerstore()
+	info, err := dumpPeer(h.ID(), nw, pstore, s.node.ConnectionManager())
+	if err != nil {
+		return nil, err
+	}
+	info.GossipBlocks = true
+	info.Latency = 0
+	if local := s.node.Dv5Local(); local != nil {
+		info.ENR = local.Node().String()
+	}
+	return info, nil
+}
+
 func dumpPeer(id peer.ID, nw network.Network, pstore peerstore.Peerstore, connMgr connmgr.ConnManager) (*PeerInfo, error) {
 	info := &PeerInfo{
 		PeerID: id,
