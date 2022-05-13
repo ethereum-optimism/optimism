@@ -47,7 +47,7 @@ func NewNodeP2P(resourcesCtx context.Context, rollupCfg *rollup.Config, log log.
 func (n *NodeP2P) init(resourcesCtx context.Context, rollupCfg *rollup.Config, log log.Logger, setup SetupP2P, gossipIn GossipIn) error {
 	var err error
 	// All nil if disabled.
-	n.dv5Local, n.dv5Udp, err = setup.Discovery(log.New("p2p", "discv5"))
+	n.dv5Local, n.dv5Udp, err = setup.Discovery(log.New("p2p", "discv5"), rollupCfg)
 	if err != nil {
 		return fmt.Errorf("failed to start discv5: %v", err)
 	}

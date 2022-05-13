@@ -86,10 +86,10 @@ The Ethereum Node Record (ENR) for an Optimism rollup node must contain the foll
 - A UDP port (`udp` field) representing the local discv5 listening port.
 - An Optimism (`optimism` field) L2 network identifier
 
-The `optimism` value is encoded as the concatenation of:
+The `optimism` value is encoded as a single RLP `bytes` value, the concatenation of:
 
-- chain ID (`varint`)
-- fork ID (`varint`)
+- chain ID (`unsigned varint`)
+- fork ID (`unsigned varint`)
 
 Note that DiscV5 is a shared DHT (Distributed Hash Table): the L1 consensus and execution nodes,
 as well as testnet nodes, and even external IOT nodes, all communicate records in this large common DHT.

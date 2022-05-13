@@ -12,6 +12,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ethereum-optimism/optimistic-specs/opnode/rollup"
+
 	"github.com/libp2p/go-libp2p-core/peer"
 
 	"github.com/ethereum/go-ethereum/log"
@@ -44,7 +46,8 @@ type SetupP2P interface {
 	// Host creates a libp2p host service. Returns nil, nil if p2p is disabled.
 	Host(log log.Logger) (host.Host, error)
 	// Discovery creates a disc-v5 service. Returns nil, nil, nil if discovery is disabled.
-	Discovery(log log.Logger) (*enode.LocalNode, *discover.UDPv5, error)
+	Discovery(log log.Logger, rollupCfg *rollup.Config) (*enode.LocalNode, *discover.UDPv5, error)
+	TargetPeers() uint
 }
 
 // Config sets up a p2p host and discv5 service from configuration.
@@ -173,6 +176,10 @@ func NewConfig(ctx *cli.Context) (*Config, error) {
 	conf.ConnMngr = DefaultConnManager
 
 	return conf, nil
+}
+
+func (conf *Config) TargetPeers() uint {
+	return conf.PeersLo
 }
 
 func (conf *Config) loadListenOpts(ctx *cli.Context) error {

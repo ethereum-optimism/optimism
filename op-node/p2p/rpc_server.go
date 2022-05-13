@@ -5,7 +5,6 @@ import (
 	"crypto/ecdsa"
 	"errors"
 	"fmt"
-	"io"
 	"net"
 	"time"
 
@@ -26,8 +25,6 @@ import (
 // TODO: dynamic peering
 // - req-resp protocol to ensure peers from a different chain learn they shouldn't be connected
 // - banning peers based on score
-// - store enode in peerstore in dynamic-peering background process
-// - peers must be tagged with the "optimism" tag and marked with high value if the chain ID matches
 
 var (
 	DisabledDiscovery   = errors.New("discovery disabled")
@@ -50,7 +47,6 @@ type Node interface {
 	ConnectionGater() ConnectionGater
 	// ConnectionManager returns the connection manager, to protect peers with, may be nil
 	ConnectionManager() connmgr.ConnManager
-	io.Closer
 }
 
 type APIBackend struct {

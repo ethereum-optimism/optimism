@@ -34,7 +34,7 @@ type OpNode struct {
 	l2Engines  []*driver.Driver      // engines to keep synced
 	l2Nodes    []*rpc.Client         // L2 Execution Engines to close at shutdown
 	server     *rpcServer            // RPC server hosting the rollup-node API
-	p2pNode    p2p.Node              // P2P node functionality
+	p2pNode    *p2p.NodeP2P          // P2P node functionality
 	p2pSigner  p2p.Signer            // p2p gogssip application messages will be signed with this signer
 	tracer     Tracer                // tracer to get events for testing/debugging
 
@@ -221,6 +221,9 @@ func (n *OpNode) initP2P(ctx context.Context, cfg *Config) error {
 			return err
 		}
 		n.p2pNode = p2pNode
+		if n.p2pNode.Dv5Udp() != nil {
+			n.p2pNode.DiscoveryProcess(n.resourcesCtx, n.log, &cfg.Rollup, cfg.P2P.TargetPeers())
+		}
 	}
 	return nil
 }
