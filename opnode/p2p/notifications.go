@@ -19,7 +19,6 @@ func (notif *notifications) ListenClose(n network.Network, a ma.Multiaddr) {
 	notif.log.Info("stopped listening network address", "addr", a)
 }
 func (notif *notifications) Connected(n network.Network, v network.Conn) {
-
 	notif.log.Info("connected to peer", "peer", v.RemotePeer(), "addr", v.RemoteMultiaddr())
 }
 func (notif *notifications) Disconnected(n network.Network, v network.Conn) {
