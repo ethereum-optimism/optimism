@@ -198,7 +198,6 @@ contract L2OutputOracle is Ownable {
         unchecked {
             return
                 HISTORICAL_TOTAL_BLOCKS +
-                1 +
                 ((_l2timestamp - STARTING_BLOCK_TIMESTAMP) / L2_BLOCK_TIME);
         }
     }

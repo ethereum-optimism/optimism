@@ -207,6 +207,15 @@ func (d *Driver) CraftTx(
 		return nil, fmt.Errorf("error resolving checkpoint block: %v", err)
 	}
 
+	l2Header, err := d.cfg.L2Client.HeaderByNumber(ctx, nextCheckpointBlock)
+	if err != nil {
+		return nil, fmt.Errorf("error resolving checkpoint block: %v", err)
+	}
+
+	if l2Header.Time != timestamp.Uint64() {
+		return nil, fmt.Errorf("invalid timestamp: next timestamp is %v, timestamp of block is %v", timestamp, l2Header.Time)
+	}
+
 	opts, err := bind.NewKeyedTransactorWithChainID(
 		d.cfg.PrivKey, d.cfg.ChainID,
 	)

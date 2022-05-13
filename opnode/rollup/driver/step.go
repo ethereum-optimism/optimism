@@ -297,7 +297,7 @@ func attributesMatchBlock(attrs *l2.PayloadAttributes, parentHash common.Hash, b
 	}
 	for i, otx := range attrs.Transactions {
 		if expect := block.Transactions[i]; !bytes.Equal(otx, expect) {
-			return fmt.Errorf("transaction %d does not match. expected: %x. got: %x", i, expect, otx)
+			return fmt.Errorf("transaction %d does not match. expected: %v. got: %v", i, expect, otx)
 		}
 	}
 	return nil

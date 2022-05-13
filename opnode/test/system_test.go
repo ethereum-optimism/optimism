@@ -155,6 +155,15 @@ func TestL2OutputSubmitter(t *testing.T) {
 	initialSroTimestamp, err := l2OutputOracle.LatestBlockTimestamp(&bind.CallOpts{})
 	require.Nil(t, err)
 
+	// Wait until the second output submission from L2. The output submitter submits outputs from the
+	// unsafe portion of the chain which gets reorged on startup. The sequencer has an out of date view
+	// when it creates it's first block and uses and old L1 Origin. It then does not submit a batch
+	// for that block and subsequently reorgs to match what the verifier derives when running the
+	// reconcillation process.
+	l2Verif := sys.Clients["verifier"]
+	_, err = waitForBlock(big.NewInt(6), l2Verif, 10*time.Duration(cfg.RollupConfig.BlockTime)*time.Second)
+	require.Nil(t, err)
+
 	// Wait for batch submitter to update L2 output oracle.
 	timeoutCh := time.After(15 * time.Second)
 	for {
