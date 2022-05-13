@@ -76,7 +76,7 @@ task('deploy-receiver')
     await tx1.wait()
 
     console.log(`transferring ownership to: ${args.owner}...`)
-    const tx2 = await receiver.transferOwnership(args.owner)
+    const tx2 = await receiver.setOwner(args.owner)
 
     console.log(`waiting for tx: ${tx2.hash}...`)
     await tx2.wait()

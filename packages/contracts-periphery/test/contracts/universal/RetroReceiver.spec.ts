@@ -58,12 +58,6 @@ describe('RetroReceiver', () => {
     })
   })
 
-  describe('initialize', () => {
-    it('should revert', async () => {
-      await expect(RetroReceiver.initialize(signer1.address)).to.be.reverted
-    })
-  })
-
   describe('withdrawETH(address)', () => {
     describe('when called by the owner', () => {
       it('should withdraw all ETH in the contract', async () => {

@@ -2988,6 +2988,11 @@
   dependencies:
     squirrelly "^8.0.8"
 
+"@rari-capital/solmate@^6.3.0":
+  version "6.3.0"
+  resolved "https://registry.yarnpkg.com/@rari-capital/solmate/-/solmate-6.3.0.tgz#01050e276e71dc4cd4169cf8002b447eb07d90c3"
+  integrity sha512-SWPbnfZUCe4ahHNqcb0qsPrzzAzMZMoA3x6SxZn04g0dLm0xupVeHonM3LK13uhPGIULF8HzXg8CgXE/fEnMlQ==
+
 "@resolver-engine/core@^0.3.3":
   version "0.3.3"
   resolved "https://registry.yarnpkg.com/@resolver-engine/core/-/core-0.3.3.tgz#590f77d85d45bc7ecc4e06c654f41345db6ca967"

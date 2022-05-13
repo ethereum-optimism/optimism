@@ -1,16 +1,16 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.9;
 
-import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
-import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import { ERC721 } from "@openzeppelin/contracts/token/ERC721/ERC721.sol";
+import { Owned } from "@rari-capital/solmate/src/auth/Owned.sol";
+import { ERC20 } from "@rari-capital/solmate/src/tokens/ERC20.sol";
+import { ERC721 } from "@rari-capital/solmate/src/tokens/ERC721.sol";
 
 /**
  * @title RetroReceiver
  * @notice RetroReceiver is a minimal contract for receiving funds, meant to be deployed at the
  * same address on every chain that supports EIP-2470.
  */
-contract RetroReceiver is Ownable {
+contract RetroReceiver is Owned {
     /**
      * Emitted when ETH is received by this address.
      */
@@ -44,9 +44,7 @@ contract RetroReceiver is Ownable {
     /**
      * @param _owner Address to initially own the contract.
      */
-    constructor(address _owner) {
-        transferOwnership(_owner);
-    }
+    constructor(address _owner) Owned(_owner) {}
 
     /**
      * Make sure we can receive ETH.
