@@ -425,6 +425,7 @@ func (cfg SystemConfig) start() (*System, error) {
 			if err != nil {
 				return nil, fmt.Errorf("failed to init p2p host for node %s", name)
 			}
+			h.Network()
 			_, ok := cfg.Nodes[name]
 			if !ok {
 				return nil, fmt.Errorf("node %s from p2p topology not found in actual nodes map", name)

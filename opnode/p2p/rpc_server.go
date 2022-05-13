@@ -5,6 +5,7 @@ import (
 	"crypto/ecdsa"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"time"
 
@@ -20,7 +21,6 @@ import (
 	"github.com/libp2p/go-libp2p-core/peerstore"
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
 	"github.com/libp2p/go-libp2p-testing/netutil"
-	ma "github.com/multiformats/go-multiaddr"
 )
 
 // TODO: dynamic peering
@@ -30,14 +30,13 @@ import (
 // - peers must be tagged with the "optimism" tag and marked with high value if the chain ID matches
 
 var (
-	DisabledP2P         = errors.New("p2p is disabled")
 	DisabledDiscovery   = errors.New("discovery disabled")
 	NoConnectionManager = errors.New("no connection manager")
 	NoConnectionGater   = errors.New("no connection gater")
 )
 
 type Node interface {
-	// Host returns the libp2p host, nil if disabled
+	// Host returns the libp2p host
 	Host() host.Host
 	// Dv5Local returns the control over the Discv5 data of the local node, nil if disabled
 	Dv5Local() *enode.LocalNode
@@ -45,12 +44,13 @@ type Node interface {
 	Dv5Udp() *discover.UDPv5
 	// GossipSub returns the gossip router
 	GossipSub() *pubsub.PubSub
-	// GossipTopicInfo returns the gossip topic info handle
-	GossipTopicInfo() GossipTopicInfo
+	// GossipOut returns the gossip output/info control
+	GossipOut() GossipOut
 	// ConnectionGater returns the connection gater, to ban/unban peers with, may be nil
 	ConnectionGater() ConnectionGater
 	// ConnectionManager returns the connection manager, to protect peers with, may be nil
 	ConnectionManager() connmgr.ConnManager
+	io.Closer
 }
 
 type APIBackend struct {
@@ -105,7 +105,7 @@ func dumpPeer(id peer.ID, nw network.Network, pstore peerstore.Peerstore, connMg
 	}
 	// include the /p2p/ address component in all of the addresses for convenience of the API user.
 	p2pAddrs, err := peer.AddrInfoToP2pAddrs(&peer.AddrInfo{ID: id, Addrs: pstore.Addrs(id)})
-	if err != nil {
+	if err == nil {
 		for _, addr := range p2pAddrs {
 			info.Addresses = append(info.Addresses, addr.String())
 		}
@@ -136,10 +136,6 @@ func dumpPeer(id peer.ID, nw network.Network, pstore peerstore.Peerstore, connMg
 // Peers lists information of peers. Optionally filter to only retrieve connected peers.
 func (s *APIBackend) Peers(ctx context.Context, connected bool) (*PeerDump, error) {
 	h := s.node.Host()
-	if h == nil {
-		return nil, DisabledP2P
-	}
-
 	nw := h.Network()
 	pstore := h.Peerstore()
 	var peers []peer.ID
@@ -163,7 +159,7 @@ func (s *APIBackend) Peers(ctx context.Context, connected bool) (*PeerDump, erro
 			dump.TotalConnected += 1
 		}
 	}
-	for _, id := range s.node.GossipTopicInfo().BlocksTopicPeers() {
+	for _, id := range s.node.GossipOut().BlocksTopicPeers() {
 		if p, ok := dump.Peers[id.String()]; ok {
 			p.GossipBlocks = true
 		}
@@ -186,17 +182,13 @@ type PeerStats struct {
 
 func (s *APIBackend) PeerStats(_ context.Context) (*PeerStats, error) {
 	h := s.node.Host()
-	if h == nil {
-		return nil, DisabledP2P
-	}
-
 	nw := h.Network()
 	pstore := h.Peerstore()
 
 	stats := &PeerStats{
 		Connected:   uint(len(nw.Peers())),
 		Table:       0,
-		BlocksTopic: uint(len(s.node.GossipTopicInfo().BlocksTopicPeers())),
+		BlocksTopic: uint(len(s.node.GossipOut().BlocksTopicPeers())),
 		Banned:      0,
 		Known:       uint(len(pstore.Peers())),
 	}
@@ -312,12 +304,9 @@ func (s *APIBackend) UnprotectPeer(_ context.Context, p peer.ID) error {
 }
 
 // ConnectPeer connects to a given peer address, and wait for protocol negotiation & identification of the peer
-func (s *APIBackend) ConnectPeer(ctx context.Context, addr ma.Multiaddr) error {
+func (s *APIBackend) ConnectPeer(ctx context.Context, addr string) error {
 	h := s.node.Host()
-	if h == nil {
-		return DisabledP2P
-	}
-	addrInfo, err := peer.AddrInfoFromP2pAddr(addr)
+	addrInfo, err := peer.AddrInfoFromString(addr)
 	if err != nil {
 		return fmt.Errorf("bad peer address: %v", err)
 	}
@@ -328,9 +317,5 @@ func (s *APIBackend) ConnectPeer(ctx context.Context, addr ma.Multiaddr) error {
 }
 
 func (s *APIBackend) DisconnectPeer(_ context.Context, id peer.ID) error {
-	h := s.node.Host()
-	if h == nil {
-		return DisabledP2P
-	}
-	return h.Network().ClosePeer(id)
+	return s.node.Host().Network().ClosePeer(id)
 }

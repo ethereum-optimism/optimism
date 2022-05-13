@@ -7,7 +7,6 @@ import (
 	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/libp2p/go-libp2p-core/peer"
-	ma "github.com/multiformats/go-multiaddr"
 )
 
 var NamespaceRPC = "opp2p"
@@ -94,7 +93,7 @@ func (c *Client) UnprotectPeer(ctx context.Context, p peer.ID) error {
 	return c.c.CallContext(ctx, nil, prefixRPC("unprotectPeer"), p)
 }
 
-func (c *Client) ConnectPeer(ctx context.Context, addr ma.Multiaddr) error {
+func (c *Client) ConnectPeer(ctx context.Context, addr string) error {
 	return c.c.CallContext(ctx, nil, prefixRPC("connectPeer"), addr)
 }
 

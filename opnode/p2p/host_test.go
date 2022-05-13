@@ -9,8 +9,10 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimistic-specs/opnode/internal/testlog"
+	"github.com/ethereum-optimism/optimistic-specs/opnode/l2"
+	"github.com/ethereum-optimism/optimistic-specs/opnode/rollup"
 	"github.com/ethereum/go-ethereum/log"
-
+	"github.com/ethereum/go-ethereum/rpc"
 	ds "github.com/ipfs/go-datastore"
 	"github.com/ipfs/go-datastore/sync"
 	"github.com/libp2p/go-libp2p-core/connmgr"
@@ -71,6 +73,17 @@ func TestP2PSimple(t *testing.T) {
 	require.Equal(t, hostB.Network().Connectedness(hostA.ID()), network.Connected)
 }
 
+type mockGossipIn struct {
+	OnUnsafeL2PayloadFn func(ctx context.Context, from peer.ID, msg *l2.ExecutionPayload) error
+}
+
+func (m *mockGossipIn) OnUnsafeL2Payload(ctx context.Context, from peer.ID, msg *l2.ExecutionPayload) error {
+	if m.OnUnsafeL2PayloadFn != nil {
+		return m.OnUnsafeL2PayloadFn(ctx, from, msg)
+	}
+	return nil
+}
+
 // Full setup, using negotiated transport security and muxes
 func TestP2PFull(t *testing.T) {
 	pA, _, err := crypto.GenerateSecp256k1Key(rand.Reader)
@@ -115,24 +128,34 @@ func TestP2PFull(t *testing.T) {
 	confB.Store = sync.MutexWrap(ds.NewMapDatastore())
 	// TODO: maybe swap the order of sec/mux preferences, to test that negotiation works
 
-	hostA, err := confA.Host(testlog.Logger(t, log.LvlError).New("host", "A"))
+	logA := testlog.Logger(t, log.LvlError).New("host", "A")
+	nodeA, err := NewNodeP2P(context.Background(), &rollup.Config{}, logA, &confA, &mockGossipIn{})
 	require.NoError(t, err)
-	defer hostA.Close()
+	defer nodeA.Close()
 
 	conns := make(chan network.Conn, 1)
+	hostA := nodeA.Host()
 	hostA.Network().Notify(&network.NotifyBundle{
 		ConnectedF: func(n network.Network, conn network.Conn) {
 			conns <- conn
-			t.Log("connected")
 		}})
+
+	backend := NewP2PAPIBackend(nodeA, logA)
+	srv := rpc.NewServer()
+	require.NoError(t, srv.RegisterName("opp2p", backend))
+	client := rpc.DialInProc(srv)
+	p2pClientA := NewClient(client)
 
 	// Set up B to connect statically
 	confB.StaticPeers, err = peer.AddrInfoToP2pAddrs(&peer.AddrInfo{ID: hostA.ID(), Addrs: hostA.Addrs()})
 	require.NoError(t, err)
 
-	hostB, err := confB.Host(testlog.Logger(t, log.LvlError).New("host", "B"))
+	logB := testlog.Logger(t, log.LvlError).New("host", "B")
+
+	nodeB, err := NewNodeP2P(context.Background(), &rollup.Config{}, logB, &confB, &mockGossipIn{})
 	require.NoError(t, err)
-	defer hostB.Close()
+	defer nodeB.Close()
+	hostB := nodeB.Host()
 
 	select {
 	case <-time.After(time.Second):
@@ -140,6 +163,58 @@ func TestP2PFull(t *testing.T) {
 	case c := <-conns:
 		require.Equal(t, hostB.ID(), c.RemotePeer())
 	}
+
+	ctx := context.Background()
+	_, err = p2pClientA.DiscoveryTable(ctx)
+	// rpc does not preserve error type
+	require.Equal(t, err.Error(), DisabledDiscovery.Error(), "expecting discv5 to be disabled")
+
+	require.NoError(t, p2pClientA.BlockPeer(ctx, hostB.ID()))
+	blockedPeers, err := p2pClientA.ListBlockedPeers(ctx)
+	require.NoError(t, err)
+	require.Equal(t, []peer.ID{hostB.ID()}, blockedPeers)
+	require.NoError(t, p2pClientA.UnblockPeer(ctx, hostB.ID()))
+
+	require.NoError(t, p2pClientA.BlockAddr(ctx, net.IP{123, 123, 123, 123}))
+	blockedIPs, err := p2pClientA.ListBlockedAddrs(ctx)
+	require.NoError(t, err)
+	require.Len(t, blockedIPs, 1)
+	require.Equal(t, net.IP{123, 123, 123, 123}, blockedIPs[0].To4())
+	require.NoError(t, p2pClientA.UnblockAddr(ctx, net.IP{123, 123, 123, 123}))
+
+	subnet := &net.IPNet{IP: net.IP{123, 0, 0, 0}.To16(), Mask: net.IPMask{0xff, 0, 0, 0}}
+	require.NoError(t, p2pClientA.BlockSubnet(ctx, subnet))
+	blockedSubnets, err := p2pClientA.ListBlockedSubnets(ctx)
+	require.NoError(t, err)
+	require.Len(t, blockedSubnets, 1)
+	require.Equal(t, subnet, blockedSubnets[0])
+	require.NoError(t, p2pClientA.UnblockSubnet(ctx, subnet))
+
+	// Ask host A for all peer information they have
+	peerDump, err := p2pClientA.Peers(ctx, false)
+	require.Nil(t, err)
+	require.Contains(t, peerDump.Peers, hostB.ID().String())
+	data := peerDump.Peers[hostB.ID().String()]
+	require.Equal(t, data.Direction, network.DirInbound)
+
+	stats, err := p2pClientA.PeerStats(ctx)
+	require.Nil(t, err)
+	require.Equal(t, uint(1), stats.Connected)
+
+	// disconnect
+	require.NoError(t, p2pClientA.DisconnectPeer(ctx, hostB.ID()))
+	peerDump, err = p2pClientA.Peers(ctx, false)
+	require.Nil(t, err)
+	data = peerDump.Peers[hostB.ID().String()]
+	require.Equal(t, data.Connectedness, network.NotConnected)
+
+	// reconnect
+	addrsB, err := peer.AddrInfoToP2pAddrs(&peer.AddrInfo{ID: hostB.ID(), Addrs: hostB.Addrs()})
+	require.NoError(t, err)
+	require.NoError(t, p2pClientA.ConnectPeer(ctx, addrsB[0].String()))
+
+	require.NoError(t, p2pClientA.ProtectPeer(ctx, hostB.ID()))
+	require.NoError(t, p2pClientA.UnprotectPeer(ctx, hostB.ID()))
 }
 
 // Most tests should use mocknets instead of using the actual local host network

@@ -8,7 +8,6 @@ import (
 	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/libp2p/go-libp2p-core/network"
 	"github.com/libp2p/go-libp2p-core/peer"
-	ma "github.com/multiformats/go-multiaddr"
 )
 
 type PeerInfo struct {
@@ -56,6 +55,6 @@ type API interface {
 	ListBlockedSubnets(ctx context.Context) ([]*net.IPNet, error)
 	ProtectPeer(ctx context.Context, p peer.ID) error
 	UnprotectPeer(ctx context.Context, p peer.ID) error
-	ConnectPeer(ctx context.Context, addr ma.Multiaddr) error
+	ConnectPeer(ctx context.Context, addr string) error
 	DisconnectPeer(ctx context.Context, id peer.ID) error
 }

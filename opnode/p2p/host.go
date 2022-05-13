@@ -21,6 +21,7 @@ import (
 )
 
 type ExtraHostFeatures interface {
+	host.Host
 	ConnectionGater() ConnectionGater
 	ConnectionManager() connmgr.ConnManager
 }
@@ -31,7 +32,15 @@ type extraHost struct {
 	connMgr connmgr.ConnManager
 }
 
-var _ host.Host = (*extraHost)(nil)
+func (e *extraHost) ConnectionGater() ConnectionGater {
+	return e.gater
+}
+
+func (e *extraHost) ConnectionManager() connmgr.ConnManager {
+	return e.connMgr
+}
+
+var _ ExtraHostFeatures = (*extraHost)(nil)
 
 func (conf *Config) Host(log log.Logger) (host.Host, error) {
 	if conf.DisableP2P {
