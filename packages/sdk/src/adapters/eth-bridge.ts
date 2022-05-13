@@ -119,7 +119,7 @@ export class ETHBridgeAdapter extends StandardBridgeAdapter {
       opts?: {
         overrides?: Overrides
       }
-    ): Promise<TransactionRequest> => {
+    ): Promise<never> => {
       throw new Error(`approvals not necessary for ETH bridge`)
     },
 

@@ -1,5 +1,41 @@
 # Changelog
 
+## 0.5.24
+
+### Patch Changes
+
+- b7a04acf: Remove unused network name parameter in contract deploy configs
+
+## 0.5.23
+
+### Patch Changes
+
+- 412688d5: Replace calls to getNetwork() with getChainId util
+
+## 0.5.22
+
+### Patch Changes
+
+- 51adb389: Add Teleportr mainnet deployment
+- Updated dependencies [5cb3a5f7]
+- Updated dependencies [6b9fc055]
+  - @eth-optimism/core-utils@0.8.4
+
+## 0.5.21
+
+### Patch Changes
+
+- 5818decb: Remove l2 gas price hardhat task
+
+## 0.5.20
+
+### Patch Changes
+
+- d040a8d9: Deleted update and helper functions/tests from Lib_MerkleTrie.sol and Lib_SecureMerkleTrie.sol
+- b57014d1: Update to typescript@4.6.2
+- Updated dependencies [b57014d1]
+  - @eth-optimism/core-utils@0.8.3
+
 ## 0.5.19
 
 ### Patch Changes

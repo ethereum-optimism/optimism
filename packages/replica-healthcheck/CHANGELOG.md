@@ -1,5 +1,29 @@
 # @eth-optimism/replica-healthcheck
 
+## 1.0.6
+
+### Patch Changes
+
+- Updated dependencies [5cb3a5f7]
+- Updated dependencies [6b9fc055]
+  - @eth-optimism/core-utils@0.8.4
+  - @eth-optimism/common-ts@0.2.7
+
+## 1.0.5
+
+### Patch Changes
+
+- bc289e91: Fixes a bug that would cause the service to stop properly checking blocks when the target client consistently leads the reference client
+
+## 1.0.4
+
+### Patch Changes
+
+- b57014d1: Update to typescript@4.6.2
+- Updated dependencies [b57014d1]
+  - @eth-optimism/common-ts@0.2.6
+  - @eth-optimism/core-utils@0.8.3
+
 ## 1.0.3
 
 ### Patch Changes

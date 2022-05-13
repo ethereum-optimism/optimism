@@ -35,13 +35,14 @@ root
 │   ├── <a href="./packages/core-utils">core-utils</a>: Low-level utilities that make building Optimism easier
 │   ├── <a href="./packages/common-ts">common-ts</a>: Common tools for building apps in TypeScript
 │   ├── <a href="./packages/data-transport-layer">data-transport-layer</a>: Service for indexing Optimism-related L1 data
+│   ├── <a href="./packages/fault-detector">fault-detector</a>: Service for detecting faulty L2 output proposals
 │   ├── <a href="./packages/message-relayer">message-relayer</a>: Tool for automatically relaying L1<>L2 messages in development
 │   └── <a href="./packages/replica-healthcheck">replica-healthcheck</a>: Service for monitoring the health of a replica node
 ├── <a href="./go">go</a>
-│   ├── <a href="./go/batch-submitter">batch-submitter</a>: Service for submitting batches of transactions and results to L1
-│   ├── <a href="./go/bss-core">bss-core</a>: Core batch-submitter logic and utilities
-│   ├── <a href="./go/gas-oracle">gas-oracle</a>: Service for updating L1 gas prices on L2
-│   └── <a href="./go/proxyd">proxyd</a>: Configurable RPC request router and proxy
+│   ├── <a href="./batch-submitter">batch-submitter</a>: Service for submitting batches of transactions and results to L1
+│   ├── <a href="./bss-core">bss-core</a>: Core batch-submitter logic and utilities
+│   ├── <a href="./gas-oracle">gas-oracle</a>: Service for updating L1 gas prices on L2
+│   └── <a href="./proxyd">proxyd</a>: Configurable RPC request router and proxy
 ├── <a href="./l2geth">l2geth</a>: Optimism client software, a fork of <a href="https://github.com/ethereum/go-ethereum/tree/v1.9.10">geth v1.9.10</a>
 ├── <a href="./integration-tests">integration-tests</a>: Various integration tests for the Optimism network
 └── <a href="./ops">ops</a>: Tools for running Optimism nodes and networks

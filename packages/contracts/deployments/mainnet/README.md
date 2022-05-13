@@ -95,6 +95,16 @@ StateCommitmentChain
 </a>
 </td>
 </tr>
+<tr>
+<td>
+TeleportrDeposit
+</td>
+<td align="center">
+<a href="https://etherscan.io/address/0x52ec2F3d7C5977A8E558C8D9C6000B615098E8fC">
+<code>0x52ec2F3d7C5977A8E558C8D9C6000B615098E8fC</code>
+</a>
+</td>
+</tr>
 </table>
 
 ## Layer 2 Contracts

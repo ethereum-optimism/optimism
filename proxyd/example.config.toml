@@ -1,0 +1,96 @@
+# List of WS methods to whitelist.
+ws_method_whitelist = [
+  "eth_subscribe",
+  "eth_call",
+  "eth_chainId"
+]
+# Enable WS on this backend group. There can only be one WS-enabled backend group.
+ws_backend_group = "main"
+
+[server]
+# Host for the proxyd RPC server to listen on.
+rpc_host = "0.0.0.0"
+# Port for the above.
+rpc_port = 8080
+# Host for the proxyd WS server to listen on.
+ws_host = "0.0.0.0"
+# Port for the above
+ws_port = 8085
+# Maximum client body size, in bytes, that the server will accept.
+max_body_size_bytes = 10485760
+max_concurrent_rpcs = 1000
+
+[redis]
+# URL to a Redis instance.
+url = "redis://localhost:6379"
+
+[metrics]
+# Whether or not to enable Prometheus metrics.
+enabled = true
+# Host for the Prometheus metrics endpoint to listen on.
+host = "0.0.0.0"
+# Port for the above.
+port = 9761
+
+[backend]
+# How long proxyd should wait for a backend response before timing out.
+response_timeout_seconds = 5
+# Maximum response size, in bytes, that proxyd will accept from a backend.
+max_response_size_bytes = 5242880
+# Maximum number of times proxyd will try a backend before giving up.
+max_retries = 3
+# Number of seconds to wait before trying an unhealthy backend again.
+out_of_service_seconds = 600
+
+[backends]
+# A map of backends by name.
+[backends.infura]
+# The URL to contact the backend at. Will be read from the environment
+# if an environment variable prefixed with $ is provided.
+rpc_url = ""
+# The WS URL to contact the backend at. Will be read from the environment
+# if an environment variable prefixed with $ is provided.
+ws_url = ""
+username = ""
+# An HTTP Basic password to authenticate with the backend. Will be read from
+# the environment if an environment variable prefixed with $ is provided.
+password = ""
+max_rps = 3
+max_ws_conns = 1
+# Path to a custom root CA.
+ca_file = ""
+# Path to a custom client cert file.
+client_cert_file = ""
+# Path to a custom client key file.
+client_key_file = ""
+
+[backends.alchemy]
+rpc_url = ""
+ws_url = ""
+username = ""
+password = ""
+max_rps = 3
+max_ws_conns = 1
+
+[backend_groups]
+[backend_groups.main]
+backends = ["infura"]
+
+[backend_groups.alchemy]
+backends = ["alchemy"]
+
+# If the authentication group below is in the config,
+# proxyd will only accept authenticated requests.
+[authentication]
+# Mapping of auth key to alias. The alias is used to provide a human-
+# readable name for the auth key in monitoring. The auth key will be
+# read from the environment if an environment variable prefixed with $
+# is provided. Note that you will need to quote the environment variable
+# in order for it to be value TOML, e.g. "$FOO_AUTH_KEY" = "foo_alias".
+secret = "test"
+
+# Mapping of methods to backend groups.
+[rpc_method_mappings]
+eth_call = "main"
+eth_chainId = "main"
+eth_blockNumber = "alchemy"

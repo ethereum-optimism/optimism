@@ -1,5 +1,62 @@
 # @eth-optimism/sdk
 
+## 1.1.5
+
+### Patch Changes
+
+- 86901552: Fixes a bug in the SDK which would cause the SDK to throw if no tx nonce is provided
+
+## 1.1.4
+
+### Patch Changes
+
+- Updated dependencies [b7a04acf]
+  - @eth-optimism/contracts@0.5.24
+
+## 1.1.3
+
+### Patch Changes
+
+- Updated dependencies [412688d5]
+  - @eth-optimism/contracts@0.5.23
+
+## 1.1.2
+
+### Patch Changes
+
+- Updated dependencies [51adb389]
+- Updated dependencies [5cb3a5f7]
+- Updated dependencies [6b9fc055]
+  - @eth-optimism/contracts@0.5.22
+  - @eth-optimism/core-utils@0.8.4
+
+## 1.1.1
+
+### Patch Changes
+
+- 1338135c: Fixes a bug where the wrong Overrides type was being used for gas estimation functions
+
+## 1.1.0
+
+### Minor Changes
+
+- a9f8e577: New isL2Provider helper function. Internal cleanups.
+
+### Patch Changes
+
+- Updated dependencies [5818decb]
+  - @eth-optimism/contracts@0.5.21
+
+## 1.0.4
+
+### Patch Changes
+
+- b57014d1: Update to typescript@4.6.2
+- Updated dependencies [d040a8d9]
+- Updated dependencies [b57014d1]
+  - @eth-optimism/contracts@0.5.20
+  - @eth-optimism/core-utils@0.8.3
+
 ## 1.0.3
 
 ### Patch Changes

@@ -1,5 +1,18 @@
 # @eth-optimism/core-utils
 
+## 0.8.4
+
+### Patch Changes
+
+- 5cb3a5f7: Add a `calldataCost` function that computes the cost of calldata
+- 6b9fc055: Adds a one-liner for getting chain ID from provider
+
+## 0.8.3
+
+### Patch Changes
+
+- b57014d1: Update to typescript@4.6.2
+
 ## 0.8.2
 
 ### Patch Changes

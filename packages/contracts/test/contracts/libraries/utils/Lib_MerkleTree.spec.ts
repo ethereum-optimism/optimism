@@ -1,25 +1,18 @@
-/* External Imports */
 import { ethers } from 'hardhat'
 import { Contract, BigNumber } from 'ethers'
 import { MerkleTree } from 'merkletreejs'
 import { fromHexString, toHexString } from '@eth-optimism/core-utils'
 import { smock, FakeContract } from '@defi-wonderland/smock'
 
-/* Internal Imports */
 import { expect } from '../../../setup'
-import { NON_NULL_BYTES32 } from '../../../helpers'
+import { deploy, NON_NULL_BYTES32 } from '../../../helpers'
 
 const NODE_COUNTS = [
   2, 3, 7, 9, 13, 63, 64, 123, 128, 129, 255, 1021, 1023, 1024,
 ]
 
-const hash = (el: Buffer | string): Buffer => {
-  return Buffer.from(ethers.utils.keccak256(el).slice(2), 'hex')
-}
-
-const fillDefaultHashes = (elements: string[]): string[] => {
+const makeMerkleTree = (elements: string[]): MerkleTree => {
   const filled: string[] = []
-
   for (let i = 0; i < Math.pow(2, Math.ceil(Math.log2(elements.length))); i++) {
     if (i < elements.length) {
       filled.push(elements[i])
@@ -28,20 +21,20 @@ const fillDefaultHashes = (elements: string[]): string[] => {
     }
   }
 
-  return filled
+  return new MerkleTree(
+    filled.map(fromHexString),
+    (el: Buffer | string): Buffer => {
+      return fromHexString(ethers.utils.keccak256(el))
+    }
+  )
 }
 
 describe('Lib_MerkleTree', () => {
   let Lib_MerkleTree: Contract
   let Fake__LibMerkleTree: FakeContract<Contract>
   before(async () => {
-    Lib_MerkleTree = await (
-      await ethers.getContractFactory('TestLib_MerkleTree')
-    ).deploy()
-
-    Fake__LibMerkleTree = await smock.fake(
-      await ethers.getContractFactory('TestLib_MerkleTree')
-    )
+    Lib_MerkleTree = await deploy('TestLib_MerkleTree')
+    Fake__LibMerkleTree = await smock.fake('TestLib_MerkleTree')
   })
 
   describe('getMerkleRoot', () => {
@@ -68,17 +61,13 @@ describe('Lib_MerkleTree', () => {
     describe('when more than one element is provided', () => {
       for (const size of NODE_COUNTS) {
         it(`should generate the correct root when ${size} elements are provided`, async () => {
-          const elements = [...Array(size)].map((_, i) => {
-            return ethers.utils.keccak256(BigNumber.from(i).toHexString())
-          })
+          const tree = makeMerkleTree(
+            [...Array(size)].map((_, i) => {
+              return ethers.utils.keccak256(BigNumber.from(i).toHexString())
+            })
+          )
 
-          const bufs = fillDefaultHashes(elements).map((element) => {
-            return fromHexString(element)
-          })
-
-          const tree = new MerkleTree(bufs, hash)
-
-          expect(await Lib_MerkleTree.getMerkleRoot(bufs)).to.equal(
+          expect(await Lib_MerkleTree.getMerkleRoot(tree.getLeaves())).to.equal(
             toHexString(tree.getRoot())
           )
         })
@@ -100,24 +89,6 @@ describe('Lib_MerkleTree', () => {
   })
 
   describe('verify', () => {
-    describe('when total elements is zero', () => {
-      const totalLeaves = 0
-
-      it('should revert', async () => {
-        await expect(
-          Lib_MerkleTree.verify(
-            ethers.constants.HashZero,
-            ethers.constants.HashZero,
-            0,
-            [],
-            totalLeaves
-          )
-        ).to.be.revertedWith(
-          'Lib_MerkleTree: Total leaves must be greater than zero.'
-        )
-      })
-    })
-
     describe('when total elements is zero', () => {
       const totalLeaves = 0
 
@@ -189,26 +160,24 @@ describe('Lib_MerkleTree', () => {
     describe('with valid proof for more than one element', () => {
       for (const size of NODE_COUNTS) {
         describe(`for a tree with ${size} total elements`, () => {
-          const elements = [...Array(size)].map((_, i) => {
-            return ethers.utils.keccak256(BigNumber.from(i).toHexString())
-          })
-
-          const bufs = fillDefaultHashes(elements).map((element) => {
-            return fromHexString(element)
-          })
-
-          const tree = new MerkleTree(bufs, hash)
+          const tree = makeMerkleTree(
+            [...Array(size)].map((_, i) => {
+              return ethers.utils.keccak256(BigNumber.from(i).toHexString())
+            })
+          )
 
           for (let i = 0; i < size; i += Math.ceil(size / 8)) {
             it(`should verify a proof for the ${i}(th/st/rd, whatever) element`, async () => {
-              const proof = tree.getProof(bufs[i], i).map((element) => {
-                return element.data
-              })
+              const proof = tree
+                .getProof(tree.getLeaves()[i], i)
+                .map((element) => {
+                  return element.data
+                })
 
               expect(
                 await Lib_MerkleTree.verify(
                   tree.getRoot(),
-                  bufs[i],
+                  tree.getLeaves()[i],
                   i,
                   proof,
                   size

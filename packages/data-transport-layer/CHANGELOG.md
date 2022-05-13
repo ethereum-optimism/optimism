@@ -1,5 +1,55 @@
 # data transport layer
 
+## 0.5.30
+
+### Patch Changes
+
+- Updated dependencies [b7a04acf]
+  - @eth-optimism/contracts@0.5.24
+
+## 0.5.29
+
+### Patch Changes
+
+- 412688d5: Replace calls to getNetwork() with getChainId util
+- Updated dependencies [412688d5]
+  - @eth-optimism/contracts@0.5.23
+
+## 0.5.28
+
+### Patch Changes
+
+- Updated dependencies [51adb389]
+- Updated dependencies [5cb3a5f7]
+- Updated dependencies [6b9fc055]
+  - @eth-optimism/contracts@0.5.22
+  - @eth-optimism/core-utils@0.8.4
+  - @eth-optimism/common-ts@0.2.7
+
+## 0.5.27
+
+### Patch Changes
+
+- e12e8976: Use Basic Authentication in L1TransportServer
+
+## 0.5.26
+
+### Patch Changes
+
+- Updated dependencies [5818decb]
+  - @eth-optimism/contracts@0.5.21
+
+## 0.5.25
+
+### Patch Changes
+
+- b57014d1: Update to typescript@4.6.2
+- Updated dependencies [d040a8d9]
+- Updated dependencies [b57014d1]
+  - @eth-optimism/contracts@0.5.20
+  - @eth-optimism/common-ts@0.2.6
+  - @eth-optimism/core-utils@0.8.3
+
 ## 0.5.24
 
 ### Patch Changes

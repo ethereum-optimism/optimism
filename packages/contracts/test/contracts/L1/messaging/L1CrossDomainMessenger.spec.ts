@@ -1,22 +1,11 @@
-/* External Imports */
 import { ethers } from 'hardhat'
-import { Signer, ContractFactory, Contract, BigNumber } from 'ethers'
-import {
-  smock,
-  MockContractFactory,
-  FakeContract,
-} from '@defi-wonderland/smock'
-import {
-  remove0x,
-  toHexString,
-  applyL1ToL2Alias,
-} from '@eth-optimism/core-utils'
+import { Contract, BigNumber } from 'ethers'
+import { smock, FakeContract, MockContract } from '@defi-wonderland/smock'
+import { toHexString, applyL1ToL2Alias } from '@eth-optimism/core-utils'
+import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers'
 
-/* Internal Imports */
 import { expect } from '../../../setup'
 import {
-  makeAddressManager,
-  setProxyTarget,
   NON_NULL_BYTES32,
   NON_ZERO_ADDRESS,
   DUMMY_BATCH_HEADERS,
@@ -28,97 +17,62 @@ import {
   encodeXDomainCalldata,
   getEthTime,
   setEthTime,
+  deploy,
 } from '../../../helpers'
 import { predeploys } from '../../../../src'
 
 const MAX_GAS_LIMIT = 8_000_000
 
-const deployProxyXDomainMessenger = async (
-  addressManager: Contract,
-  l1XDomainMessenger: Contract
-): Promise<Contract> => {
-  await addressManager.setAddress(
-    'L1CrossDomainMessenger',
-    l1XDomainMessenger.address
-  )
-  const proxy = await (
-    await ethers.getContractFactory('Lib_ResolvedDelegateProxy')
-  ).deploy(addressManager.address, 'L1CrossDomainMessenger')
-  return l1XDomainMessenger.attach(proxy.address)
-}
-
 describe('L1CrossDomainMessenger', () => {
-  let signer: Signer
-  let signer2: Signer
+  let signer1: SignerWithAddress
+  let signer2: SignerWithAddress
   before(async () => {
-    ;[signer, signer2] = await ethers.getSigners()
-  })
-
-  let AddressManager: Contract
-  before(async () => {
-    AddressManager = await makeAddressManager()
+    ;[signer1, signer2] = await ethers.getSigners()
   })
 
   let Fake__TargetContract: FakeContract
   let Fake__L2CrossDomainMessenger: FakeContract
   let Fake__StateCommitmentChain: FakeContract
-
-  let Factory__CanonicalTransactionChain: ContractFactory
-  let Factory__ChainStorageContainer: ContractFactory
-  let Factory__L1CrossDomainMessenger: ContractFactory
-
-  let CanonicalTransactionChain: Contract
   before(async () => {
-    Fake__TargetContract = await smock.fake<Contract>(
-      await ethers.getContractFactory('Helper_SimpleProxy')
-    )
+    Fake__TargetContract = await smock.fake<Contract>('TestERC20')
     Fake__L2CrossDomainMessenger = await smock.fake<Contract>(
-      await ethers.getContractFactory('L2CrossDomainMessenger'),
+      'L2CrossDomainMessenger',
       {
         address: predeploys.L2CrossDomainMessenger,
       }
     )
     Fake__StateCommitmentChain = await smock.fake<Contract>(
-      await ethers.getContractFactory('StateCommitmentChain')
+      'StateCommitmentChain'
     )
+  })
+
+  let AddressManager: Contract
+  let CanonicalTransactionChain: Contract
+  before(async () => {
+    AddressManager = await deploy('Lib_AddressManager')
 
     await AddressManager.setAddress(
       'L2CrossDomainMessenger',
       Fake__L2CrossDomainMessenger.address
     )
 
-    await setProxyTarget(
-      AddressManager,
+    await AddressManager.setAddress(
       'StateCommitmentChain',
-      Fake__StateCommitmentChain
+      Fake__StateCommitmentChain.address
     )
 
-    Factory__CanonicalTransactionChain = await ethers.getContractFactory(
-      'CanonicalTransactionChain'
-    )
+    CanonicalTransactionChain = await deploy('CanonicalTransactionChain', {
+      args: [
+        AddressManager.address,
+        MAX_GAS_LIMIT,
+        L2_GAS_DISCOUNT_DIVISOR,
+        ENQUEUE_GAS_COST,
+      ],
+    })
 
-    Factory__ChainStorageContainer = await ethers.getContractFactory(
-      'ChainStorageContainer'
-    )
-
-    Factory__L1CrossDomainMessenger = await ethers.getContractFactory(
-      'L1CrossDomainMessenger'
-    )
-    CanonicalTransactionChain = await Factory__CanonicalTransactionChain.deploy(
-      AddressManager.address,
-      MAX_GAS_LIMIT,
-      L2_GAS_DISCOUNT_DIVISOR,
-      ENQUEUE_GAS_COST
-    )
-
-    const batches = await Factory__ChainStorageContainer.deploy(
-      AddressManager.address,
-      'CanonicalTransactionChain'
-    )
-    await Factory__ChainStorageContainer.deploy(
-      AddressManager.address,
-      'CanonicalTransactionChain'
-    )
+    const batches = await deploy('ChainStorageContainer', {
+      args: [AddressManager.address, 'CanonicalTransactionChain'],
+    })
 
     await AddressManager.setAddress(
       'ChainStorageContainer-CTC-batches',
@@ -133,12 +87,19 @@ describe('L1CrossDomainMessenger', () => {
 
   let L1CrossDomainMessenger: Contract
   beforeEach(async () => {
-    const xDomainMessengerImpl = await Factory__L1CrossDomainMessenger.deploy()
-    // We use an upgradable proxy for the XDomainMessenger--deploy & set up the proxy.
-    L1CrossDomainMessenger = await deployProxyXDomainMessenger(
-      AddressManager,
-      xDomainMessengerImpl
+    const xDomainMessengerImpl = await deploy('L1CrossDomainMessenger')
+
+    await AddressManager.setAddress(
+      'L1CrossDomainMessenger',
+      xDomainMessengerImpl.address
     )
+
+    const proxy = await deploy('Lib_ResolvedDelegateProxy', {
+      args: [AddressManager.address, 'L1CrossDomainMessenger'],
+    })
+
+    L1CrossDomainMessenger = xDomainMessengerImpl.attach(proxy.address)
+
     await L1CrossDomainMessenger.initialize(AddressManager.address)
   })
 
@@ -172,7 +133,7 @@ describe('L1CrossDomainMessenger', () => {
 
       const calldata = encodeXDomainCalldata(
         target,
-        await signer.getAddress(),
+        signer1.address,
         message,
         0
       )
@@ -209,14 +170,9 @@ describe('L1CrossDomainMessenger', () => {
     const oldGasLimit = 100_000
     const newGasLimit = 200_000
 
-    let sender: string
-    before(async () => {
-      sender = await signer.getAddress()
-    })
-
     let queueIndex: number
     beforeEach(async () => {
-      await L1CrossDomainMessenger.connect(signer).sendMessage(
+      await L1CrossDomainMessenger.connect(signer1).sendMessage(
         target,
         message,
         oldGasLimit
@@ -231,7 +187,7 @@ describe('L1CrossDomainMessenger', () => {
         await expect(
           L1CrossDomainMessenger.replayMessage(
             ethers.constants.AddressZero, // Wrong target
-            sender,
+            signer1.address,
             message,
             queueIndex,
             oldGasLimit,
@@ -257,7 +213,7 @@ describe('L1CrossDomainMessenger', () => {
         await expect(
           L1CrossDomainMessenger.replayMessage(
             target,
-            sender,
+            signer1.address,
             '0x', // Wrong message
             queueIndex,
             oldGasLimit,
@@ -270,7 +226,7 @@ describe('L1CrossDomainMessenger', () => {
         await expect(
           L1CrossDomainMessenger.replayMessage(
             target,
-            sender,
+            signer1.address,
             message,
             queueIndex - 1, // Wrong queue index
             oldGasLimit,
@@ -283,7 +239,7 @@ describe('L1CrossDomainMessenger', () => {
         await expect(
           L1CrossDomainMessenger.replayMessage(
             target,
-            sender,
+            signer1.address,
             message,
             queueIndex,
             oldGasLimit + 1, // Wrong gas limit
@@ -298,7 +254,7 @@ describe('L1CrossDomainMessenger', () => {
         await expect(
           L1CrossDomainMessenger.replayMessage(
             target,
-            sender,
+            signer1.address,
             message,
             queueIndex,
             oldGasLimit,
@@ -315,7 +271,7 @@ describe('L1CrossDomainMessenger', () => {
         await expect(
           L1CrossDomainMessenger.replayMessage(
             target,
-            sender,
+            signer1.address,
             message,
             queueIndex,
             oldGasLimit,
@@ -327,7 +283,7 @@ describe('L1CrossDomainMessenger', () => {
             applyL1ToL2Alias(L1CrossDomainMessenger.address),
             Fake__L2CrossDomainMessenger.address,
             newGasLimit,
-            encodeXDomainCalldata(target, sender, message, queueIndex),
+            encodeXDomainCalldata(target, signer1.address, message, queueIndex),
             newQueueIndex,
             newTimestamp
           )
@@ -341,7 +297,7 @@ describe('L1CrossDomainMessenger', () => {
       await expect(
         L1CrossDomainMessenger.replayMessage(
           target,
-          await signer.getAddress(),
+          signer1.address,
           message,
           queueLength - 1,
           oldGasLimit,
@@ -352,24 +308,22 @@ describe('L1CrossDomainMessenger', () => {
   })
 
   describe('xDomainMessageSender', () => {
-    let Mock__Factory__L1CrossDomainMessenger: MockContractFactory<ContractFactory>
-    let Mock__L1CrossDomainMessenger
+    let Mock__L1CrossDomainMessenger: MockContract<Contract>
     before(async () => {
-      Mock__Factory__L1CrossDomainMessenger = await smock.mock(
-        'L1CrossDomainMessenger'
-      )
-      Mock__L1CrossDomainMessenger =
-        await Mock__Factory__L1CrossDomainMessenger.deploy()
+      Mock__L1CrossDomainMessenger = await (
+        await smock.mock('L1CrossDomainMessenger')
+      ).deploy()
     })
 
     it('should return the xDomainMsgSender address', async () => {
       await Mock__L1CrossDomainMessenger.setVariable(
         'xDomainMsgSender',
-        '0x0000000000000000000000000000000000000000'
+        NON_ZERO_ADDRESS
       )
+
       expect(
         await Mock__L1CrossDomainMessenger.xDomainMessageSender()
-      ).to.equal('0x0000000000000000000000000000000000000000')
+      ).to.equal(NON_ZERO_ADDRESS)
     })
   })
 
@@ -390,10 +344,17 @@ describe('L1CrossDomainMessenger', () => {
     )
 
     const storageKey = ethers.utils.keccak256(
-      ethers.utils.keccak256(
-        calldata + remove0x(Fake__L2CrossDomainMessenger.address)
-      ) + '00'.repeat(32)
+      ethers.utils.hexConcat([
+        ethers.utils.keccak256(
+          ethers.utils.hexConcat([
+            calldata,
+            Fake__L2CrossDomainMessenger.address,
+          ])
+        ),
+        ethers.constants.HashZero,
+      ])
     )
+
     const storageGenerator = await TrieTestGenerator.fromNodes({
       nodes: [
         {
@@ -437,27 +398,23 @@ describe('L1CrossDomainMessenger', () => {
 
   describe('relayMessage', () => {
     let target: string
-    let sender: string
     let message: string
     let proof: any
     let calldata: string
     before(async () => {
       target = Fake__TargetContract.address
-      message = Fake__TargetContract.interface.encodeFunctionData('setTarget', [
+      message = Fake__TargetContract.interface.encodeFunctionData('mint', [
         NON_ZERO_ADDRESS,
+        ethers.utils.parseEther('1'),
       ])
-      sender = await signer.getAddress()
-
-      const mockProof = await generateMockRelayMessageProof(
+      ;({ proof, calldata } = await generateMockRelayMessageProof(
         target,
-        sender,
+        signer1.address,
         message
-      )
-      proof = mockProof.proof
-      calldata = mockProof.calldata
+      ))
     })
 
-    beforeEach(async () => {
+    beforeEach(() => {
       Fake__StateCommitmentChain.verifyStateCommitment.returns(true)
       Fake__StateCommitmentChain.insideFraudProofWindow.returns(false)
     })
@@ -474,21 +431,27 @@ describe('L1CrossDomainMessenger', () => {
       }
 
       await expect(
-        L1CrossDomainMessenger.relayMessage(target, sender, message, 0, proof1)
+        L1CrossDomainMessenger.relayMessage(
+          target,
+          signer1.address,
+          message,
+          0,
+          proof1
+        )
       ).to.be.revertedWith('Provided message could not be verified.')
     })
 
     it('should revert if attempting to relay a message sent to an L1 system contract', async () => {
       const maliciousProof = await generateMockRelayMessageProof(
         CanonicalTransactionChain.address,
-        sender,
+        signer1.address,
         message
       )
 
       await expect(
         L1CrossDomainMessenger.relayMessage(
           CanonicalTransactionChain.address,
-          sender,
+          signer1.address,
           message,
           0,
           maliciousProof.proof
@@ -510,25 +473,43 @@ describe('L1CrossDomainMessenger', () => {
       }
 
       await expect(
-        L1CrossDomainMessenger.relayMessage(target, sender, message, 0, proof1)
+        L1CrossDomainMessenger.relayMessage(
+          target,
+          signer1.address,
+          message,
+          0,
+          proof1
+        )
       ).to.be.revertedWith('Provided message could not be verified.')
     })
 
     it('should revert if provided an invalid storage trie witness', async () => {
       await expect(
-        L1CrossDomainMessenger.relayMessage(target, sender, message, 0, {
-          ...proof,
-          storageTrieWitness: '0x',
-        })
+        L1CrossDomainMessenger.relayMessage(
+          target,
+          signer1.address,
+          message,
+          0,
+          {
+            ...proof,
+            storageTrieWitness: '0x',
+          }
+        )
       ).to.be.reverted
     })
 
     it('should revert if provided an invalid state trie witness', async () => {
       await expect(
-        L1CrossDomainMessenger.relayMessage(target, sender, message, 0, {
-          ...proof,
-          stateTrieWitness: '0x',
-        })
+        L1CrossDomainMessenger.relayMessage(
+          target,
+          signer1.address,
+          message,
+          0,
+          {
+            ...proof,
+            stateTrieWitness: '0x',
+          }
+        )
       ).to.be.reverted
     })
 
@@ -537,7 +518,7 @@ describe('L1CrossDomainMessenger', () => {
 
       await L1CrossDomainMessenger.relayMessage(
         target,
-        sender,
+        signer1.address,
         message,
         0,
         proof
@@ -552,12 +533,14 @@ describe('L1CrossDomainMessenger', () => {
       expect(
         await L1CrossDomainMessenger.relayedMessages(
           ethers.utils.keccak256(
-            calldata +
-              remove0x(await signer.getAddress()) +
-              remove0x(BigNumber.from(blockNumber).toHexString()).padStart(
-                64,
-                '0'
-              )
+            ethers.utils.hexConcat([
+              calldata,
+              signer1.address,
+              ethers.utils.hexZeroPad(
+                BigNumber.from(blockNumber).toHexString(),
+                32
+              ),
+            ])
           )
         )
       ).to.equal(true)
@@ -567,13 +550,15 @@ describe('L1CrossDomainMessenger', () => {
       await expect(
         L1CrossDomainMessenger.xDomainMessageSender()
       ).to.be.revertedWith('xDomainMessageSender is not set')
+
       await L1CrossDomainMessenger.relayMessage(
         target,
-        sender,
+        signer1.address,
         message,
         0,
         proof
       )
+
       await expect(
         L1CrossDomainMessenger.xDomainMessageSender()
       ).to.be.revertedWith('xDomainMessageSender is not set')
@@ -582,14 +567,20 @@ describe('L1CrossDomainMessenger', () => {
     it('should revert if trying to send the same message twice', async () => {
       await L1CrossDomainMessenger.relayMessage(
         target,
-        sender,
+        signer1.address,
         message,
         0,
         proof
       )
 
       await expect(
-        L1CrossDomainMessenger.relayMessage(target, sender, message, 0, proof)
+        L1CrossDomainMessenger.relayMessage(
+          target,
+          signer1.address,
+          message,
+          0,
+          proof
+        )
       ).to.be.revertedWith('Provided message has already been received.')
     })
 
@@ -597,13 +588,20 @@ describe('L1CrossDomainMessenger', () => {
       await L1CrossDomainMessenger.pause()
 
       await expect(
-        L1CrossDomainMessenger.relayMessage(target, sender, message, 0, proof)
+        L1CrossDomainMessenger.relayMessage(
+          target,
+          signer1.address,
+          message,
+          0,
+          proof
+        )
       ).to.be.revertedWith('Pausable: paused')
     })
 
     describe('blockMessage and allowMessage', () => {
       it('should revert if called by an account other than the owner', async () => {
         const L1CrossDomainMessenger2 = L1CrossDomainMessenger.connect(signer2)
+
         await expect(
           L1CrossDomainMessenger2.blockMessage(ethers.utils.keccak256(calldata))
         ).to.be.revertedWith('Ownable: caller is not the owner')
@@ -619,7 +617,13 @@ describe('L1CrossDomainMessenger', () => {
         )
 
         await expect(
-          L1CrossDomainMessenger.relayMessage(target, sender, message, 0, proof)
+          L1CrossDomainMessenger.relayMessage(
+            target,
+            signer1.address,
+            message,
+            0,
+            proof
+          )
         ).to.be.revertedWith('Provided message has been blocked.')
       })
 
@@ -629,7 +633,13 @@ describe('L1CrossDomainMessenger', () => {
         )
 
         await expect(
-          L1CrossDomainMessenger.relayMessage(target, sender, message, 0, proof)
+          L1CrossDomainMessenger.relayMessage(
+            target,
+            signer1.address,
+            message,
+            0,
+            proof
+          )
         ).to.be.revertedWith('Provided message has been blocked.')
 
         await L1CrossDomainMessenger.allowMessage(
@@ -637,7 +647,13 @@ describe('L1CrossDomainMessenger', () => {
         )
 
         await expect(
-          L1CrossDomainMessenger.relayMessage(target, sender, message, 0, proof)
+          L1CrossDomainMessenger.relayMessage(
+            target,
+            signer1.address,
+            message,
+            0,
+            proof
+          )
         ).to.not.be.reverted
       })
     })

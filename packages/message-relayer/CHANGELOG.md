@@ -1,5 +1,59 @@
 # @eth-optimism/message-relayer
 
+## 0.4.10
+
+### Patch Changes
+
+- Updated dependencies [86901552]
+  - @eth-optimism/sdk@1.1.5
+
+## 0.4.9
+
+### Patch Changes
+
+- @eth-optimism/sdk@1.1.4
+
+## 0.4.8
+
+### Patch Changes
+
+- 412688d5: Replace calls to getNetwork() with getChainId util
+  - @eth-optimism/sdk@1.1.3
+
+## 0.4.7
+
+### Patch Changes
+
+- Updated dependencies [5cb3a5f7]
+- Updated dependencies [6b9fc055]
+  - @eth-optimism/core-utils@0.8.4
+  - @eth-optimism/sdk@1.1.2
+  - @eth-optimism/common-ts@0.2.7
+
+## 0.4.6
+
+### Patch Changes
+
+- Updated dependencies [1338135c]
+  - @eth-optimism/sdk@1.1.1
+
+## 0.4.5
+
+### Patch Changes
+
+- Updated dependencies [a9f8e577]
+  - @eth-optimism/sdk@1.1.0
+
+## 0.4.4
+
+### Patch Changes
+
+- b57014d1: Update to typescript@4.6.2
+- Updated dependencies [b57014d1]
+  - @eth-optimism/common-ts@0.2.6
+  - @eth-optimism/core-utils@0.8.3
+  - @eth-optimism/sdk@1.0.4
+
 ## 0.4.3
 
 ### Patch Changes

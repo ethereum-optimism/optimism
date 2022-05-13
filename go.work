@@ -1,0 +1,17 @@
+go 1.18
+
+use (
+	./batch-submitter
+	./bss-core
+	./gas-oracle
+	./indexer
+	./l2geth
+	./l2geth-exporter
+	./op-exporter
+	./proxyd
+	./teleportr
+)
+
+replace github.com/ethereum-optimism/optimism/bss-core v0.0.0 => ./bss-core
+
+replace github.com/ethereum-optimism/optimism/l2geth v0.0.0 => ./l2geth

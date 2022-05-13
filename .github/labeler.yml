@@ -7,6 +7,7 @@
   - 'packages/contracts/**/*'
   - 'packages/data-transport-layer/**/*'
   - 'packages/message-relayer/**/*'
+  - 'packages/fault-detector/**/*'
   - 'patches/**/*'
 
 M-ci:
@@ -37,4 +38,6 @@ M-ops:
   - any: ['ops/**/*']
 
 C-Protocol-Critical:
-  - any: ['packages/data-transport-layer/**/*.ts', 'packages/contracts/**/*.sol', 'l2geth/**/*.go']
+  - 'packages/data-transport-layer/**/*.ts'
+  - 'packages/contracts/**/*.sol'
+  - 'l2geth/**/*.go'

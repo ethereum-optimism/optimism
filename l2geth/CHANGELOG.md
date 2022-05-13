@@ -1,5 +1,29 @@
 # Changelog
 
+## 0.5.19
+
+### Patch Changes
+
+- 1bcee8f1: Fix `eth_getBlockRange`
+- c799535d: Add system addresses for nightly goerli
+
+## 0.5.18
+
+### Patch Changes
+
+- 935a98e6: rollup: fix log.Crit usage
+- 81f09f16: l2geth: Record rollup transaction metrics
+
+## 0.5.17
+
+### Patch Changes
+
+- 13524da4: Style fix in the sync service
+- 160f4c3d: Update docker image to use golang 1.18.0
+- 1a28ba5f: Skip account cmd tests
+- 45582fcc: Skip unused tests in l2geth
+- 0c4d4e08: l2geth: Revert transaction pubsub feature
+
 ## 0.5.16
 
 ### Patch Changes
