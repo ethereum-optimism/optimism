@@ -12,12 +12,15 @@ import (
 	"github.com/ethereum-optimism/optimistic-specs/l2os/rollupclient"
 	"github.com/ethereum-optimism/optimistic-specs/opnode/contracts/deposit"
 	"github.com/ethereum-optimism/optimistic-specs/opnode/contracts/l1block"
+	"github.com/ethereum-optimism/optimistic-specs/opnode/contracts/withdrawer"
 	"github.com/ethereum-optimism/optimistic-specs/opnode/internal/testlog"
 	"github.com/ethereum-optimism/optimistic-specs/opnode/l2"
 	"github.com/ethereum-optimism/optimistic-specs/opnode/node"
 	rollupNode "github.com/ethereum-optimism/optimistic-specs/opnode/node"
+	"github.com/ethereum-optimism/optimistic-specs/opnode/predeploy"
 	"github.com/ethereum-optimism/optimistic-specs/opnode/rollup"
 	"github.com/ethereum-optimism/optimistic-specs/opnode/rollup/derive"
+	"github.com/ethereum-optimism/optimistic-specs/opnode/withdrawals"
 
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/accounts"
@@ -25,6 +28,7 @@ import (
 	"github.com/ethereum/go-ethereum/accounts/keystore"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rpc"
@@ -640,4 +644,197 @@ func TestL1InfoContract(t *testing.T) {
 	checkInfoList("On verifier with tx", l1InfosFromVerifierTransactions)
 	checkInfoList("On verifier with state", l1InfosFromVerifierState)
 
+}
+
+// calcGasFees determines the actual cost of the transaction given a specific basefee
+func calcGasFees(gasUsed uint64, gasTipCap *big.Int, gasFeeCap *big.Int, baseFee *big.Int) *big.Int {
+	x := new(big.Int).Add(gasTipCap, baseFee)
+	// If tip + basefee > gas fee cap, clamp it to the gas fee cap
+	if x.Cmp(gasFeeCap) > 0 {
+		x = gasFeeCap
+	}
+	return x.Mul(x, new(big.Int).SetUint64(gasUsed))
+}
+
+// TestWithdrawals checks that a deposit and then withdrawal execution succeeds. It verifies the
+// balance changes on L1 and L2 and has to include gas fees in the balance checks.
+// It does not check that the withdrawal can be executed prior to the end of the finality period.
+func TestWithdrawals(t *testing.T) {
+	if !verboseGethNodes {
+		log.Root().SetHandler(log.DiscardHandler())
+	}
+
+	cfg := defaultSystemConfig(t)
+	cfg.DepositCFG.FinalizationPeriod = big.NewInt(2) // 2s finalization period
+
+	sys, err := cfg.start()
+	require.Nil(t, err, "Error starting up system")
+	defer sys.Close()
+
+	l1Client := sys.Clients["l1"]
+	l2Seq := sys.Clients["sequencer"]
+	l2Verif := sys.Clients["verifier"]
+
+	// Transactor Account
+	ethPrivKey, err := sys.wallet.PrivateKey(accounts.Account{
+		URL: accounts.URL{
+			Path: transactorHDPath,
+		},
+	})
+	require.Nil(t, err)
+	fromAddr := crypto.PubkeyToAddress(ethPrivKey.PublicKey)
+
+	// Find deposit contract
+	depositContract, err := deposit.NewOptimismPortal(sys.DepositContractAddr, l1Client)
+	require.Nil(t, err)
+
+	// Create L1 signer
+	opts, err := bind.NewKeyedTransactorWithChainID(ethPrivKey, cfg.L1ChainID)
+	require.Nil(t, err)
+
+	// Start L2 balance
+	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+	defer cancel()
+	startBalance, err := l2Verif.BalanceAt(ctx, fromAddr, nil)
+	require.Nil(t, err)
+
+	// Finally send TX
+	mintAmount := big.NewInt(1_000_000_000_000)
+	opts.Value = mintAmount
+	tx, err := depositContract.DepositTransaction(opts, fromAddr, common.Big0, 1_000_000, false, nil)
+	require.Nil(t, err, "with deposit tx")
+
+	receipt, err := waitForTransaction(tx.Hash(), l1Client, 3*time.Duration(cfg.L1BlockTime)*time.Second)
+	require.Nil(t, err, "Waiting for deposit tx on L1")
+
+	// Bind L2 Withdrawer Contract
+	l2withdrawer, err := withdrawer.NewWithdrawer(predeploy.WithdrawalContractAddress, l2Seq)
+	require.Nil(t, err, "binding withdrawer on L2")
+
+	// Wait for deposit to arrive
+	reconstructedDep, err := derive.UnmarshalLogEvent(receipt.Logs[0])
+	require.NoError(t, err, "Could not reconstruct L2 Deposit")
+	tx = types.NewTx(reconstructedDep)
+	receipt, err = waitForTransaction(tx.Hash(), l2Verif, 3*time.Duration(cfg.L1BlockTime)*time.Second)
+	require.NoError(t, err)
+	require.Equal(t, receipt.Status, types.ReceiptStatusSuccessful)
+
+	// Confirm L2 balance
+	ctx, cancel = context.WithTimeout(context.Background(), 1*time.Second)
+	defer cancel()
+	endBalance, err := l2Verif.BalanceAt(ctx, fromAddr, nil)
+	require.Nil(t, err)
+
+	diff := new(big.Int)
+	diff = diff.Sub(endBalance, startBalance)
+	require.Equal(t, mintAmount, diff, "Did not get expected balance change after mint")
+
+	// Start L2 balance for withdrawal
+	ctx, cancel = context.WithTimeout(context.Background(), 1*time.Second)
+	defer cancel()
+	startBalance, err = l2Seq.BalanceAt(ctx, fromAddr, nil)
+	require.Nil(t, err)
+
+	// Intiate Withdrawal
+	withdrawAmount := big.NewInt(500_000_000_000)
+	l2opts, err := bind.NewKeyedTransactorWithChainID(ethPrivKey, cfg.L2ChainID)
+	require.Nil(t, err)
+	l2opts.Value = withdrawAmount
+	tx, err = l2withdrawer.InitiateWithdrawal(l2opts, fromAddr, big.NewInt(21000), nil)
+	require.Nil(t, err, "sending initiate withdraw tx")
+
+	receipt, err = waitForTransaction(tx.Hash(), l2Seq, 3*time.Duration(cfg.L1BlockTime)*time.Second)
+	require.Nil(t, err, "withdrawal initiated on L2 sequencer")
+	require.Equal(t, receipt.Status, types.ReceiptStatusSuccessful, "transaction failed")
+
+	// Verify L2 balance after withdrawal
+	ctx, cancel = context.WithTimeout(context.Background(), 1*time.Second)
+	defer cancel()
+	header, err := l2Seq.HeaderByNumber(ctx, receipt.BlockNumber)
+	require.Nil(t, err)
+
+	ctx, cancel = context.WithTimeout(context.Background(), 1*time.Second)
+	defer cancel()
+	endBalance, err = l2Seq.BalanceAt(ctx, fromAddr, nil)
+	require.Nil(t, err)
+
+	// Take fee into account
+	diff = new(big.Int).Sub(startBalance, endBalance)
+	fees := calcGasFees(receipt.GasUsed, tx.GasTipCap(), tx.GasFeeCap(), header.BaseFee)
+	diff = diff.Sub(diff, fees)
+	require.Equal(t, withdrawAmount, diff)
+
+	// Take start balance on L1
+	ctx, cancel = context.WithTimeout(context.Background(), 1*time.Second)
+	defer cancel()
+	startBalance, err = l1Client.BalanceAt(ctx, fromAddr, nil)
+	require.Nil(t, err)
+
+	// Wait for finalization and then create the Finalized Withdrawal Transaction
+	l2OutputOracle, err := l2oo.NewL2OutputOracleCaller(sys.L2OOContractAddr, l1Client)
+	require.Nil(t, err)
+
+	ctx, cancel = context.WithTimeout(context.Background(), 10*time.Duration(cfg.L1BlockTime)*time.Second)
+	defer cancel()
+	timestamp, err := withdrawals.WaitForFinalizationPeriod(ctx, l1Client, sys.DepositContractAddr, header.Time)
+	require.Nil(t, err)
+
+	ctx, cancel = context.WithTimeout(context.Background(), 1*time.Second)
+	defer cancel()
+	blockNumber, err := l2OutputOracle.ComputeL2BlockNumber(&bind.CallOpts{Context: ctx}, new(big.Int).SetUint64(timestamp))
+	require.Nil(t, err)
+
+	ctx, cancel = context.WithTimeout(context.Background(), 1*time.Second)
+	defer cancel()
+	header, err = l2Seq.HeaderByNumber(ctx, blockNumber)
+	require.Nil(t, err)
+
+	rpc, err := rpc.Dial(cfg.Nodes["sequencer"].L2NodeAddr)
+	require.Nil(t, err)
+	l2client := withdrawals.NewClient(rpc)
+
+	// Now create withdrawal
+	params, err := withdrawals.FinalizeWithdrawalParameters(context.Background(), l2client, tx.Hash(), header)
+	require.Nil(t, err)
+
+	portal, err := deposit.NewOptimismPortal(sys.DepositContractAddr, l1Client)
+	require.Nil(t, err)
+
+	opts.Value = nil
+	tx, err = portal.FinalizeWithdrawalTransaction(
+		opts,
+		params.Nonce,
+		params.Sender,
+		params.Target,
+		params.Value,
+		params.GasLimit,
+		params.Data,
+		params.Timestamp,
+		params.OutputRootProof,
+		params.WithdrawalProof,
+	)
+
+	require.Nil(t, err)
+
+	receipt, err = waitForTransaction(tx.Hash(), l1Client, 3*time.Duration(cfg.L1BlockTime)*time.Second)
+	require.Nil(t, err, "finalize withdrawal")
+	require.Equal(t, types.ReceiptStatusSuccessful, receipt.Status)
+
+	// Verify balance after withdrawal
+	ctx, cancel = context.WithTimeout(context.Background(), 1*time.Second)
+	defer cancel()
+	header, err = l1Client.HeaderByNumber(ctx, receipt.BlockNumber)
+	require.Nil(t, err)
+
+	ctx, cancel = context.WithTimeout(context.Background(), 1*time.Second)
+	defer cancel()
+	endBalance, err = l1Client.BalanceAt(ctx, fromAddr, nil)
+	require.Nil(t, err)
+
+	// Ensure that withdrawal - gas fees are added to the L1 balance
+	// Fun fact, the fee is greater than the withdrawal amount
+	diff = new(big.Int).Sub(endBalance, startBalance)
+	fees = calcGasFees(receipt.GasUsed, tx.GasTipCap(), tx.GasFeeCap(), header.BaseFee)
+	withdrawAmount = withdrawAmount.Sub(withdrawAmount, fees)
+	require.Equal(t, withdrawAmount, diff)
 }

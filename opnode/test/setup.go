@@ -12,14 +12,14 @@ import (
 	"github.com/ethereum-optimism/optimistic-specs/bss"
 	"github.com/ethereum-optimism/optimistic-specs/l2os"
 	"github.com/ethereum-optimism/optimistic-specs/l2os/bindings/l2oo"
-	"github.com/ethereum-optimism/optimistic-specs/opnode/p2p"
-	mocknet "github.com/libp2p/go-libp2p/p2p/net/mock"
-
 	"github.com/ethereum-optimism/optimistic-specs/opnode/contracts/deposit"
 	"github.com/ethereum-optimism/optimistic-specs/opnode/contracts/l1block"
+	"github.com/ethereum-optimism/optimistic-specs/opnode/contracts/withdrawer"
 	rollupNode "github.com/ethereum-optimism/optimistic-specs/opnode/node"
+	"github.com/ethereum-optimism/optimistic-specs/opnode/p2p"
 	"github.com/ethereum-optimism/optimistic-specs/opnode/predeploy"
 	"github.com/ethereum-optimism/optimistic-specs/opnode/rollup"
+
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
@@ -31,7 +31,7 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/node"
 	"github.com/ethereum/go-ethereum/params"
-
+	mocknet "github.com/libp2p/go-libp2p/p2p/net/mock"
 	hdwallet "github.com/miguelmota/go-ethereum-hdwallet"
 )
 
@@ -234,7 +234,7 @@ func (cfg SystemConfig) start() (*System, error) {
 	}
 
 	l2Alloc[cfg.L1InfoPredeployAddress] = core.GenesisAccount{Code: common.FromHex(l1block.L1blockDeployedBin), Balance: common.Big0}
-	l2Alloc[predeploy.WithdrawalContractAddress] = core.GenesisAccount{Code: []byte{}, Balance: common.Big0}
+	l2Alloc[predeploy.WithdrawalContractAddress] = core.GenesisAccount{Code: common.FromHex(withdrawer.WithdrawerDeployedBin), Balance: common.Big0}
 
 	genesisTimestamp := uint64(time.Now().Unix())
 
@@ -407,6 +407,7 @@ func (cfg SystemConfig) start() (*System, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	_, err = waitForTransaction(tx.Hash(), l1Client, time.Duration(cfg.L1BlockTime)*time.Second*2)
 	if err != nil {
 		return nil, fmt.Errorf("waiting for OptimismPortal: %w", err)

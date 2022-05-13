@@ -134,6 +134,7 @@ func initL2Geth(name, addr string, l2ChainID *big.Int, genesis *core.Genesis) (*
 // If the node is l2, catalyst is enabled.
 // The node should be started and then closed when done.
 func createGethNode(l2 bool, nodeCfg *node.Config, ethCfg *ethconfig.Config, privateKeys []*ecdsa.PrivateKey) (*node.Node, *eth.Ethereum, error) {
+	ethCfg.NoPruning = true // force everything to be an archive node
 	n, err := node.New(nodeCfg)
 	if err != nil {
 		n.Close()
