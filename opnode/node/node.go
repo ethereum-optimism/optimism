@@ -10,11 +10,6 @@ import (
 
 	"github.com/ethereum-optimism/optimistic-specs/opnode/p2p"
 
-	"github.com/ethereum/go-ethereum/p2p/discover"
-	"github.com/ethereum/go-ethereum/p2p/enode"
-	"github.com/libp2p/go-libp2p-core/host"
-	pubsub "github.com/libp2p/go-libp2p-pubsub"
-
 	multierror "github.com/hashicorp/go-multierror"
 
 	"github.com/ethereum-optimism/optimistic-specs/opnode/backoff"
@@ -39,11 +34,7 @@ type OpNode struct {
 	l2Engines  []*driver.Driver      // engines to keep synced
 	l2Nodes    []*rpc.Client         // L2 Execution Engines to close at shutdown
 	server     *rpcServer            // RPC server hosting the rollup-node API
-	host       host.Host             // p2p host (optional, may be nil)
-	dv5Local   *enode.LocalNode      // p2p discovery identity (optional, may be nil)
-	dv5Udp     *discover.UDPv5       // p2p discovery service (optional, may be nil)
-	gs         *pubsub.PubSub        // p2p gossip router (optional, may be nil)
-	gsOut      p2p.GossipOut         // p2p gossip application interface for publishing (optional, may be nil)
+	p2pNode    p2p.Node              // P2P node functionality
 	p2pSigner  p2p.Signer            // p2p gogssip application messages will be signed with this signer
 	tracer     Tracer                // tracer to get events for testing/debugging
 
@@ -109,13 +100,14 @@ func (n *OpNode) init(ctx context.Context, cfg *Config, snapshotLog log.Logger) 
 	if err := n.initL2(ctx, cfg, snapshotLog); err != nil {
 		return err
 	}
-	if err := n.initRPCServer(ctx, cfg); err != nil {
-		return err
-	}
 	if err := n.initP2PSigner(ctx, cfg); err != nil {
 		return err
 	}
 	if err := n.initP2P(ctx, cfg); err != nil {
+		return err
+	}
+	// Only expose the server at the end, ensuring all RPC backend components are initialized.
+	if err := n.initRPCServer(ctx, cfg); err != nil {
 		return err
 	}
 	return nil
@@ -212,6 +204,9 @@ func (n *OpNode) initRPCServer(ctx context.Context, cfg *Config) error {
 	if err != nil {
 		return err
 	}
+	if n.p2pNode != nil {
+		n.server.EnableP2P(p2p.NewP2PAPIBackend(n.p2pNode, n.log))
+	}
 	n.log.Info("Starting JSON-RPC server")
 	if err := n.server.Start(); err != nil {
 		return fmt.Errorf("unable to start RPC server: %w", err)
@@ -220,34 +215,12 @@ func (n *OpNode) initRPCServer(ctx context.Context, cfg *Config) error {
 }
 
 func (n *OpNode) initP2P(ctx context.Context, cfg *Config) error {
-	// the p2p setup is optional
-	if cfg.P2P == nil {
-		return nil
-	}
-	var err error
-	// All nil if disabled.
-	n.dv5Local, n.dv5Udp, err = cfg.P2P.Discovery(n.log.New("p2p", "discv5"))
-	if err != nil {
-		return fmt.Errorf("failed to start discv5: %v", err)
-	}
-
-	// nil if disabled.
-	n.host, err = cfg.P2P.Host()
-	if err != nil {
-		return fmt.Errorf("failed to start p2p host: %v", err)
-	}
-
-	if n.host != nil {
-		n.gs, err = p2p.NewGossipSub(n.resourcesCtx, n.host, &cfg.Rollup)
+	if cfg.P2P != nil {
+		p2pNode, err := p2p.NewNodeP2P(n.resourcesCtx, &cfg.Rollup, n.log, cfg.P2P, n)
 		if err != nil {
-			return fmt.Errorf("failed to start gossipsub router: %v", err)
+			return err
 		}
-
-		n.gsOut, err = p2p.JoinGossip(n.resourcesCtx, n.host.ID(), n.gs, n.log, &cfg.Rollup, n)
-		if err != nil {
-			return fmt.Errorf("failed to join blocks gossip topic: %v", err)
-		}
-		n.log.Info("started p2p host", "addrs", n.host.Addrs(), "peerID", n.host.ID().Pretty())
+		n.p2pNode = p2pNode
 	}
 	return nil
 }
@@ -302,12 +275,12 @@ func (n *OpNode) PublishL2Payload(ctx context.Context, payload *l2.ExecutionPayl
 	n.tracer.OnPublishL2Payload(ctx, payload)
 
 	// publish to p2p, if we are running p2p at all
-	if n.gsOut != nil {
+	if n.p2pNode != nil {
 		if n.p2pSigner == nil {
 			return fmt.Errorf("node has no p2p signer, payload %s cannot be published", payload.ID())
 		}
 		n.log.Info("Publishing signed execution payload on p2p", "id", payload.ID())
-		return n.gsOut.PublishL2Payload(ctx, payload, n.p2pSigner)
+		return n.p2pNode.GossipOut().PublishL2Payload(ctx, payload, n.p2pSigner)
 	}
 	// if p2p is not enabled then we just don't publish the payload
 	return nil
@@ -318,7 +291,7 @@ func (n *OpNode) OnUnsafeL2Payload(ctx context.Context, from peer.ID, payload *l
 	defer n.l2Lock.Unlock()
 
 	// ignore if it's from ourselves
-	if from == n.host.ID() {
+	if n.p2pNode != nil && from == n.p2pNode.Host().ID() {
 		return nil
 	}
 
@@ -339,6 +312,10 @@ func (n *OpNode) OnUnsafeL2Payload(ctx context.Context, from peer.ID, payload *l
 	return nil
 }
 
+func (n *OpNode) P2P() p2p.Node {
+	return n.p2pNode
+}
+
 // Close closes all resources.
 func (n *OpNode) Close() error {
 	var result *multierror.Error
@@ -346,12 +323,9 @@ func (n *OpNode) Close() error {
 	if n.server != nil {
 		n.server.Stop()
 	}
-	if n.dv5Udp != nil {
-		n.dv5Udp.Close()
-	}
-	if n.gsOut != nil {
-		if err := n.gsOut.Close(); err != nil {
-			result = multierror.Append(result, fmt.Errorf("failed to close gossip cleanly: %v", err))
+	if n.p2pNode != nil {
+		if err := n.p2pNode.Close(); err != nil {
+			result = multierror.Append(result, fmt.Errorf("failed to close p2p node: %v", err))
 		}
 	}
 	if n.p2pSigner != nil {
@@ -359,11 +333,7 @@ func (n *OpNode) Close() error {
 			result = multierror.Append(result, fmt.Errorf("failed to close p2p signer: %v", err))
 		}
 	}
-	if n.host != nil {
-		if err := n.host.Close(); err != nil {
-			result = multierror.Append(result, fmt.Errorf("failed to close p2p host cleanly: %v", err))
-		}
-	}
+
 	if n.resourcesClose != nil {
 		n.resourcesClose()
 	}

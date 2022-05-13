@@ -6,6 +6,9 @@ import (
 	"net"
 	"time"
 
+	"github.com/ethereum/go-ethereum/log"
+	"github.com/libp2p/go-libp2p-core/connmgr"
+
 	"github.com/libp2p/go-libp2p-core/crypto"
 	"github.com/libp2p/go-libp2p-core/host"
 	"github.com/libp2p/go-libp2p-core/peer"
@@ -17,7 +20,29 @@ import (
 	madns "github.com/multiformats/go-multiaddr-dns"
 )
 
-func (conf *Config) Host() (host.Host, error) {
+type ExtraHostFeatures interface {
+	host.Host
+	ConnectionGater() ConnectionGater
+	ConnectionManager() connmgr.ConnManager
+}
+
+type extraHost struct {
+	host.Host
+	gater   ConnectionGater
+	connMgr connmgr.ConnManager
+}
+
+func (e *extraHost) ConnectionGater() ConnectionGater {
+	return e.gater
+}
+
+func (e *extraHost) ConnectionManager() connmgr.ConnManager {
+	return e.connMgr
+}
+
+var _ ExtraHostFeatures = (*extraHost)(nil)
+
+func (conf *Config) Host(log log.Logger) (host.Host, error) {
 	if conf.DisableP2P {
 		return nil, nil
 	}
@@ -114,7 +139,35 @@ func (conf *Config) Host() (host.Host, error) {
 		EnableHolePunching:  false,
 		HolePunchingOptions: nil,
 	}
-	return p2pConf.NewNode()
+	h, err := p2pConf.NewNode()
+	if err != nil {
+		return nil, err
+	}
+	for _, peerAddr := range conf.StaticPeers {
+		addr, err := peer.AddrInfoFromP2pAddr(peerAddr)
+		if err != nil {
+			return nil, fmt.Errorf("bad peer address: %v", err)
+		}
+		h.Peerstore().AddAddrs(addr.ID, addr.Addrs, time.Hour*24*7)
+		// We protect the peer, so the connection manager doesn't decide to prune it.
+		// We tag it with "static" so other protects/unprotects with different tags don't affect this protection.
+		connMngr.Protect(addr.ID, "static")
+		// Try to dial the node in the background
+		go func() {
+			log.Info("Dialing static peer", "peer", addr.ID, "addrs", addr.Addrs)
+			ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
+			defer cancel()
+			if _, err := h.Network().DialPeer(ctx, addr.ID); err != nil {
+				log.Warn("Failed to dial static peer", "peer", addr.ID, "addrs", addr.Addrs)
+			}
+		}()
+	}
+	out := &extraHost{Host: h, connMgr: connMngr}
+	// Only add the connection gater if it offers the full interface we're looking for.
+	if g, ok := connGtr.(ConnectionGater); ok {
+		out.gater = g
+	}
+	return out, nil
 }
 
 // Creates a multi-addr to bind to. Does not contain a PeerID component (required for usage by external peers)

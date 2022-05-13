@@ -147,7 +147,7 @@ var (
 		Usage:    "User-agent string to share via LibP2P identify. If empty it defaults to 'optimism-VERSIONHERE'.",
 		Hidden:   true,
 		Required: false,
-		Value:    "",
+		Value:    "optimism",
 		EnvVar:   p2pEnv("AGENT"),
 	}
 	TimeoutNegotiation = cli.DurationFlag{

@@ -8,14 +8,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ethereum-optimism/optimistic-specs/opnode/l2"
-	"github.com/libp2p/go-libp2p-core/peer"
-
 	"github.com/ethereum-optimism/optimistic-specs/l2os/bindings/l2oo"
 	"github.com/ethereum-optimism/optimistic-specs/l2os/rollupclient"
 	"github.com/ethereum-optimism/optimistic-specs/opnode/contracts/deposit"
 	"github.com/ethereum-optimism/optimistic-specs/opnode/contracts/l1block"
 	"github.com/ethereum-optimism/optimistic-specs/opnode/internal/testlog"
+	"github.com/ethereum-optimism/optimistic-specs/opnode/l2"
 	"github.com/ethereum-optimism/optimistic-specs/opnode/node"
 	rollupNode "github.com/ethereum-optimism/optimistic-specs/opnode/node"
 	"github.com/ethereum-optimism/optimistic-specs/opnode/rollup"
@@ -30,6 +28,7 @@ import (
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rpc"
+	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/stretchr/testify/require"
 )
 
@@ -543,11 +542,12 @@ func TestSystemMockP2P(t *testing.T) {
 
 	require.Equal(t, receiptSeq, receiptVerif)
 
-	// Verify that everything that was published was received
-	require.Equal(t, published, received)
+	// Verify that everything that was received was published
+	require.GreaterOrEqual(t, len(published), len(received))
+	require.Equal(t, received, published[:len(received)])
 
 	// Verify that the tx was received via p2p
-	require.Contains(t, published, receiptVerif.BlockHash)
+	require.Contains(t, received, receiptVerif.BlockHash)
 }
 
 func TestL1InfoContract(t *testing.T) {

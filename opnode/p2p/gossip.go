@@ -289,9 +289,13 @@ type GossipIn interface {
 	OnUnsafeL2Payload(ctx context.Context, from peer.ID, msg *l2.ExecutionPayload) error
 }
 
-type GossipOut interface {
-	PublishL2Payload(ctx context.Context, msg *l2.ExecutionPayload, signer Signer) error
+type GossipTopicInfo interface {
 	BlocksTopicPeers() []peer.ID
+}
+
+type GossipOut interface {
+	GossipTopicInfo
+	PublishL2Payload(ctx context.Context, msg *l2.ExecutionPayload, signer Signer) error
 	Close() error
 }
 
