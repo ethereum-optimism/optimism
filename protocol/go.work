@@ -1,0 +1,13 @@
+go 1.18
+
+use (
+	./op-batcher
+	./op-e2e
+	./op-node
+	./op-proposer
+)
+
+replace github.com/ethereum/go-ethereum v1.10.16 => github.com/ethereum-optimism/reference-optimistic-geth v0.0.0-20220512193241-32ef0bba48ce
+
+// For local debugging:
+// replace github.com/ethereum/go-ethereum v1.10.16 => ../go-ethereum
