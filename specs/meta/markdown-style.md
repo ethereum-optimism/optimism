@@ -27,9 +27,9 @@ Notably:
 In general:
 
 - Use link references preferentially.
-    - e.g. `[my text][link-ref]` and then on its own line `[link-ref]: https://mylink.com`
-    - e.g. `[my text]` and then on its own line: `[my text]: https://mylink.com`
-    - exceptions: where it fits neatly on a single line, in particular in lists of links
+  - e.g. `[my text][link-ref]` and then on its own line `[link-ref]: https://mylink.com`
+  - e.g. `[my text]` and then on its own line: `[my text]: https://mylink.com`
+  - exceptions: where it fits neatly on a single line, in particular in lists of links
 - Excepted for internal and glossary links (see below), add the link reference definition directly
   after the paragraph where the link first appears.
 
