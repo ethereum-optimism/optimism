@@ -1,5 +1,8 @@
 version: 2.1
 
+orbs:
+  node: circleci/node@5.0.2
+
 executors:
   go-builder:
     docker:
@@ -421,6 +424,29 @@ jobs:
           name: Fuzz
           command: make fuzz
           working_directory: op-node
+
+  bedrock-integration-tests:
+    machine:
+      image: ubuntu-2004:202111-02
+      docker_layer_caching: true
+    steps:
+      - checkout
+      - node/install:
+          install-yarn: true
+          node-version: '16.13'
+      - run:
+          name: install Foundry
+          command: |
+            curl -L https://foundry.paradigm.xyz | bash
+      - run:
+          name: build typescript
+          command: make build-ts
+      - run:
+          name: start devnet
+          command: make devnet-up
+      - run:
+          name: run itests
+          command: make test-integration
 
 workflows:
   main:

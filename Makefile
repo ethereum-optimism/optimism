@@ -31,11 +31,11 @@ op-proposer:
 .PHONY: op-proposer
 
 contracts:
-	cd ./packages/contracts && yarn install && yarn build
+	cd ./packages/contracts-bedrock && yarn install && yarn build
 .PHONY: contracts
 
 integration-tests:
-	cd ./packages/integration-tests && yarn install && yarn build:contracts
+	cd ./packages/integration-tests-bedrock && yarn install && yarn build:contracts
 .PHONY: integration-tests
 
 clean:
@@ -51,7 +51,7 @@ devnet-down:
 .PHONY: devnet-down
 
 devnet-clean:
-	rm -rf ./packages/contracts/deployments/devnetL1
+	rm -rf ./packages/contracts-bedrock/deployments/devnetL1
 	rm -rf ./.devnet
 	cd ./ops-bedrock && docker-compose down
 	docker volume rm ops_l1_data
@@ -63,12 +63,12 @@ test-unit:
 	make -C ./op-proposer test
 	make -C ./op-batcher test
 	make -C ./op-e2e test
-	cd ./packages/contracts && yarn test
+	cd ./packages/contracts-bedrock && yarn test
 .PHONY: test-unit
 
 test-integration:
 	bash ./ops-bedrock/test-integration.sh \
-		./packages/contracts/deployments/devnetL1
+		./packages/contracts-bedrock/deployments/devnetL1
 .PHONY: test-integration
 
 devnet-genesis:
