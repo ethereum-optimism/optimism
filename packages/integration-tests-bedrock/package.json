@@ -1,6 +1,6 @@
 {
   "private": true,
-  "name": "@eth-optimism/integration-tests",
+  "name": "@eth-optimism/integration-tests-bedrock",
   "version": "0.5.9",
   "description": "[Optimism] Integration tests",
   "scripts": {
@@ -11,8 +11,7 @@
     "test": "ts-mocha --timeout 30000 test/**/*.spec.ts",
     "test:actor": "IS_LIVE_NETWORK=true ts-node actor-tests/lib/runner.ts",
     "test:integration:live": "NO_NETWORK=true IS_LIVE_NETWORK=true hardhat --network optimism test",
-    "clean": "rimraf cache artifacts",
-    "pre-commit": "lint-staged"
+    "clean": "rimraf cache artifacts"
   },
   "keywords": [
     "optimism",
