@@ -455,6 +455,7 @@ workflows:
       - bedrock-go-tests
       - bedrock-solidity
       - bedrock-markdown
+      - bedrock-integration-tests
       - fuzz-op-node
       - go-lint-test-build:
           name: batch-submitter-tests
