@@ -431,6 +431,11 @@ jobs:
       docker_layer_caching: true
     steps:
       - checkout
+      - run:
+          name: init submodules
+          command: |
+            git submodule sync --recursive
+            git submodule update --recursive --init
       - node/install:
           install-yarn: true
           node-version: '16.13'
