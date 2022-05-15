@@ -443,6 +443,8 @@ jobs:
           name: install Foundry
           command: |
             curl -L https://foundry.paradigm.xyz | bash
+            source /home/circleci/.bashrc
+            foundryup
       - run:
           name: build typescript
           command: make build-ts
