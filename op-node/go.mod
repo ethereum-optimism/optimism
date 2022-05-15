@@ -3,6 +3,7 @@ module github.com/ethereum-optimism/optimism/op-node
 go 1.18
 
 require (
+	github.com/ethereum-optimism/optimism/op-proposer v0.0.0
 	github.com/ethereum/go-ethereum v1.10.16
 	github.com/golang/snappy v0.0.4
 	github.com/google/go-cmp v0.5.8
@@ -144,11 +145,10 @@ require (
 	github.com/shirou/gopsutil v3.21.11+incompatible // indirect
 	github.com/spacemonkeygo/spacelog v0.0.0-20180420211403-2296661a0572 // indirect
 	github.com/status-im/keycard-go v0.0.0-20211109104530-b0e0482ba91d // indirect
-	github.com/stretchr/objx v0.1.1 // indirect
+	github.com/stretchr/objx v0.2.0 // indirect
 	github.com/syndtr/goleveldb v1.0.1-0.20210819022825-2ae1ddf74ef7 // indirect
 	github.com/tklauser/go-sysconf v0.3.10 // indirect
 	github.com/tklauser/numcpus v0.4.0 // indirect
-	github.com/tyler-smith/go-bip39 v1.1.0 // indirect
 	github.com/whyrusleeping/multiaddr-filter v0.0.0-20160516205228-e903e4adabd7 // indirect
 	github.com/whyrusleeping/timecache v0.0.0-20160911033111-cfcb2f1abfee // indirect
 	github.com/yusufpapurcu/wmi v1.2.2 // indirect
@@ -172,6 +172,8 @@ require (
 )
 
 replace github.com/ethereum/go-ethereum v1.10.16 => github.com/ethereum-optimism/reference-optimistic-geth v0.0.0-20220428214415-643b449b5818
+
+replace github.com/ethereum-optimism/optimism/op-proposer v0.0.0 => ../op-proposer
 
 // For local debugging:
 // replace github.com/ethereum/go-ethereum v1.10.16 => ../go-ethereum
