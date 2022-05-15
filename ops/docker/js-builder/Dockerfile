@@ -1,3 +1,5 @@
+FROM ghcr.io/foundry-rs/foundry:latest as foundry
+
 FROM python:3.8.12-slim-buster
 
 RUN apt-get update && \
@@ -8,3 +10,6 @@ RUN apt-get update && \
 	npm i -g yarn && \
 	npm i -g depcheck && \
 	pip install slither-analyzer
+
+COPY --from=foundry /usr/local/bin/forge /usr/local/bin/forge
+COPY --from=foundry /usr/local/bin/cast /usr/local/bin/cast
