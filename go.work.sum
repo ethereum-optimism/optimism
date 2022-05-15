@@ -1,9 +1,6 @@
 github.com/btcsuite/btcd/chaincfg/chainhash v1.0.0 h1:MSskdM4/xJYcFzy0altH/C/xHopifpWzHUi1JeVI34Q=
 github.com/coreos/go-systemd v0.0.0-20181012123002-c6f51f82210d h1:t5Wuyh53qYyg9eqn4BbnlIT+vmhyww0TatL+zT3uWgI=
-github.com/cpuguy83/go-md2man v1.0.10 h1:BSKMNlYxDvnunlTymqtgONjNnaRV1sTpcovwwjF22jk=
-github.com/ethereum-optimism/reference-optimistic-geth v0.0.0-20220512193241-32ef0bba48ce h1:Wa0BVNdeyzIoJkrZtI7o2NEw8F98vVIzkPpiFACbdCA=
-github.com/ethereum-optimism/reference-optimistic-geth v0.0.0-20220512193241-32ef0bba48ce/go.mod h1:zwRwhzbX7GhQgG12DdrLr9aRGGLObKwmZxYrCLICIRc=
-github.com/google/go-cmp v0.5.8/go.mod h1:17dUlkBOakJ0+DkrSSNjCkIjxS6bF9zb3elmeNGIjoY=
+github.com/golang-jwt/jwt v3.2.2+incompatible h1:IfV12K8xAKAnZqdXVzCZ+TOjboZ2keLg81eXfW3O+oY=
 github.com/klauspost/cpuid v0.0.0-20170728055534-ae7887de9fa5 h1:2U0HzY8BJ8hVwDKIzp7y4voR9CX/nvcfymLmg2UiOio=
 github.com/libp2p/go-yamux v1.4.1 h1:P1Fe9vF4th5JOxxgQvfbOHkrGqIZniTLf+ddhZp8YTI=
-github.com/russross/blackfriday v1.5.2 h1:HyvC0ARfnZBqnXwABFeSZHpKvJHJJfPz81GNueLj0oo=
+golang.org/x/sys v0.0.0-20211216021012-1d35b9e2eb4e/go.mod h1:oPkhp1MJrh7nUepCBck5+mAzfO9JrbApNNgaTdGDITg=

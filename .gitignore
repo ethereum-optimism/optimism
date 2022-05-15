@@ -26,3 +26,10 @@ packages/data-transport-layer/db
 .env*
 !.env.example
 *.log
+
+.devnet
+
+# Ignore local fuzzing results
+**/testdata/fuzz/
+
+coverage.out
