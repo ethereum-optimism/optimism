@@ -6,6 +6,8 @@ temp
 coverage.json
 *.tsbuildinfo
 
+yarn-error.log
+
 dist
 artifacts
 cache
@@ -18,6 +20,9 @@ packages/contracts/@openzeppelin*
 packages/contracts/hardhat*
 
 packages/data-transport-layer/db
+
+packages/integration-tests-bedrock/cache
+packages/integration-tests-bedrock/artifacts
 
 # vim
 *.sw*
