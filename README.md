@@ -35,6 +35,7 @@ root
 │   ├── <a href="./packages/core-utils">core-utils</a>: Low-level utilities that make building Optimism easier
 │   ├── <a href="./packages/common-ts">common-ts</a>: Common tools for building apps in TypeScript
 │   ├── <a href="./packages/data-transport-layer">data-transport-layer</a>: Service for indexing Optimism-related L1 data
+│   ├── <a href="./packages/fault-detector">fault-detector</a>: Service for detecting faulty L2 output proposals
 │   ├── <a href="./packages/message-relayer">message-relayer</a>: Tool for automatically relaying L1<>L2 messages in development
 │   └── <a href="./packages/replica-healthcheck">replica-healthcheck</a>: Service for monitoring the health of a replica node
 ├── <a href="./go">go</a>

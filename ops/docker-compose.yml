@@ -117,6 +117,23 @@ services:
       MESSAGE_RELAYER__L1_WALLET: '0xdbda1821b80551c9d65939329250298aa3472ba22feea921c0cf5d620ea67b97'
       RETRIES: 60
 
+  fault_detector:
+    depends_on:
+      - l1_chain
+      - l2geth
+    deploy:
+      replicas: 0
+    build:
+      context: ..
+      dockerfile: ./ops/docker/Dockerfile.packages
+      target: fault-detector
+    image: ethereumoptimism/fault-detector:${DOCKER_TAG_FAULT_DETECTOR:-latest}
+    entrypoint: ./detector.sh
+    environment:
+      FAULT_DETECTOR__L1_RPC_PROVIDER: http://l1_chain:8545
+      FAULT_DETECTOR__L2_RPC_PROVIDER: http://l2geth:8545
+      RETRIES: 60
+
   verifier:
     depends_on:
       - l1_chain

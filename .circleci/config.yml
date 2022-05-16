@@ -86,6 +86,7 @@ jobs:
             - packages/contracts/node_modules
             - packages/core-utils/node_modules
             - packages/data-transport-layer/node_modules
+            - packages/fault-detector/node_modules
             - packages/message-relayer/node_modules
             - packages/replica-healthcheck/node_modules
             - packages/sdk/node_modules
@@ -352,6 +353,11 @@ workflows:
           requires:
             - yarn-monorepo
       - js-lint-test:
+          name: fault-detector-tests
+          package_name: fault-detector
+          requires:
+            - yarn-monorepo
+      - js-lint-test:
           name: message-relayer-tests
           package_name: message-relayer
           requires:
@@ -434,6 +440,14 @@ workflows:
           context:
             - optimism
       - docker-publish:
+          name: fault-detector-release
+          docker_file: ops/docker/Dockerfile.packages
+          docker_tags: ethereumoptimism/fault-detector:nightly
+          docker_context: .
+          target: fault-detector
+          context:
+            - optimism
+      - docker-publish:
           name: message-relayer-release
           docker_file: ops/docker/Dockerfile.packages
           docker_tags: ethereumoptimism/message-relayer:nightly
@@ -450,9 +464,9 @@ workflows:
           context:
             - optimism
       - docker-publish:
-          name: deployer-release
+          name: integration-tests-release
           docker_file: ops/docker/Dockerfile.packages
-          docker_tags: ethereumoptimism/deployer:nightly
+          docker_tags: ethereumoptimism/integration-tests:nightly
           docker_context: .
           target: integration-tests
           context:

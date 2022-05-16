@@ -1,5 +1,19 @@
 # @eth-optimism/teleportr
 
+## 0.0.6
+
+### Patch Changes
+
+- df61d215: Add disburser balance to status
+- 32639605: Fix teleportr FailedDatabaseOperations method for upsert_disbursement
+- 32639605: Expose metrics server
+
+## 0.0.5
+
+### Patch Changes
+
+- 44c293d8: Fix confs_remaining calculation to prevent underflow
+
 ## 0.0.4
 
 ### Patch Changes

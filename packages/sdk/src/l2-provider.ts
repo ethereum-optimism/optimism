@@ -12,6 +12,27 @@ import { toProvider, toNumber, toBigNumber } from './utils'
 type ProviderTypeIsWrong = any
 
 /**
+ * Gets a reasonable nonce for the transaction.
+ *
+ * @param provider Provider to get the nonce from.
+ * @param tx Requested transaction.
+ * @returns A reasonable nonce for the transaction.
+ */
+const getNonceForTx = async (
+  provider: ProviderLike,
+  tx: TransactionRequest
+): Promise<number> => {
+  if (tx.nonce !== undefined) {
+    return toNumber(tx.nonce as NumberLike)
+  } else if (tx.from !== undefined) {
+    return toProvider(provider).getTransactionCount(tx.from)
+  } else {
+    // Large nonce with lots of non-zero bytes
+    return 0xffffffff
+  }
+}
+
+/**
  * Returns a Contract object for the GasPriceOracle.
  *
  * @param provider Provider to attach the contract to.
@@ -57,7 +78,7 @@ export const estimateL1Gas = async (
       gasPrice: tx.gasPrice,
       type: tx.type,
       gasLimit: tx.gasLimit,
-      nonce: toNumber(tx.nonce as NumberLike),
+      nonce: await getNonceForTx(l2Provider, tx),
     })
   )
 }
@@ -81,7 +102,7 @@ export const estimateL1GasCost = async (
       gasPrice: tx.gasPrice,
       type: tx.type,
       gasLimit: tx.gasLimit,
-      nonce: toNumber(tx.nonce as NumberLike),
+      nonce: await getNonceForTx(l2Provider, tx),
     })
   )
 }
