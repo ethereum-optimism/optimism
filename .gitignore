@@ -18,6 +18,9 @@ packages/contracts/coverage*
 packages/contracts/@ens*
 packages/contracts/@openzeppelin*
 packages/contracts/hardhat*
+packages/contracts-periphery/coverage*
+packages/contracts-periphery/@openzeppelin*
+packages/contracts-periphery/hardhat*
 
 packages/data-transport-layer/db
 

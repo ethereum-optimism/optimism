@@ -33,6 +33,7 @@ root
 ├── <a href="./packages">packages</a>
 │   ├── <a href="./packages/common-ts">common-ts</a>: Common tools for building apps in TypeScript
 │   ├── <a href="./packages/contracts">contracts</a>: L1 and L2 smart contracts for Optimism
+│   ├── <a href="./packages/contracts-periphery">contracts-periphery</a>: Peripheral contracts for Optimism
 │   ├── <a href="./packages/core-utils">core-utils</a>: Low-level utilities that make building Optimism easier
 │   ├── <a href="./packages/data-transport-layer">data-transport-layer</a>: Service for indexing Optimism-related L1 data
 │   ├── <a href="./packages/fault-detector">fault-detector</a>:
