@@ -25,6 +25,16 @@ contract L2CrossDomainMessenger is CrossDomainMessenger {
         _initialize(_l1CrossDomainMessenger, blockedSystemAddresses);
     }
 
+    /**
+     * @notice Legacy getter for the remote messenger. This is included
+     * to prevent any existing contracts that relay messages from breaking.
+     * Use `otherMessenger()` for a standard API that works on both
+     * the L1 and L2 cross domain messengers.
+     */
+    function l1CrossDomainMessenger() public returns (address) {
+        return otherMessenger;
+    }
+
     /**********************
      * Internal Functions *
      **********************/
