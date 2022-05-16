@@ -19,24 +19,7 @@ test:
 lint:
 	golangci-lint run -E asciicheck,goimports,misspell ./...
 
-bindings: bindings-l2-output-oracle
-
-bindings-l2-output-oracle:
-	$(eval temp := $(shell mktemp -d))
-	cd ../packages/contracts; \
-		forge build \
-		&& forge inspect L2OutputOracle abi > $(temp)/L2OutputOracle.abi \
-		&& forge inspect L2OutputOracle bytecode > $(temp)/L2OutputOracle.bin
-	abigen \
-		--abi $(temp)/L2OutputOracle.abi \
-		--bin $(temp)/L2OutputOracle.bin \
-		--pkg l2oo \
-		--type L2OutputOracle \
-		--out ./bindings/l2oo/l2_output_oracle.go
-
 .PHONY: \
-	bindings \
-	bindings-mock-l2-output-oracle \
 	clean \
 	op-proposer \
 	test \

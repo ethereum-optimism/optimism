@@ -8,9 +8,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/op-node/contracts/deposit"
-	"github.com/ethereum-optimism/optimism/op-node/contracts/l1block"
-	"github.com/ethereum-optimism/optimism/op-node/contracts/withdrawer"
+	"github.com/ethereum-optimism/optimism/op-bindings/deposit"
+	"github.com/ethereum-optimism/optimism/op-bindings/l1block"
+	"github.com/ethereum-optimism/optimism/op-bindings/l2oo"
+	"github.com/ethereum-optimism/optimism/op-bindings/withdrawer"
 	"github.com/ethereum-optimism/optimism/op-node/l2"
 	"github.com/ethereum-optimism/optimism/op-node/node"
 	rollupNode "github.com/ethereum-optimism/optimism/op-node/node"
@@ -19,7 +20,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/testlog"
 	"github.com/ethereum-optimism/optimism/op-node/withdrawals"
-	"github.com/ethereum-optimism/optimism/op-proposer/bindings/l2oo"
 	"github.com/ethereum-optimism/optimism/op-proposer/rollupclient"
 
 	"github.com/ethereum/go-ethereum"

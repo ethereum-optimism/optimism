@@ -4,9 +4,10 @@ go 1.18
 
 require (
 	github.com/ethereum-optimism/optimism/op-batcher v0.0.0
+	github.com/ethereum-optimism/optimism/op-bindings v0.0.0
 	github.com/ethereum-optimism/optimism/op-node v0.0.0
 	github.com/ethereum-optimism/optimism/op-proposer v0.0.0
-	github.com/ethereum/go-ethereum v1.10.16
+	github.com/ethereum/go-ethereum v1.10.17
 	github.com/libp2p/go-libp2p v0.18.1
 	github.com/libp2p/go-libp2p-core v0.15.0
 	github.com/miguelmota/go-ethereum-hdwallet v0.1.1
@@ -161,8 +162,9 @@ require (
 
 replace (
 	github.com/ethereum-optimism/optimism/op-batcher v0.0.0 => ../op-batcher
+	github.com/ethereum-optimism/optimism/op-bindings v0.0.0 => ../op-bindings
 	github.com/ethereum-optimism/optimism/op-node v0.0.0 => ../op-node
 	github.com/ethereum-optimism/optimism/op-proposer v0.0.0 => ../op-proposer
 )
 
-replace github.com/ethereum/go-ethereum v1.10.16 => github.com/ethereum-optimism/reference-optimistic-geth v0.0.0-20220512193241-32ef0bba48ce
+replace github.com/ethereum/go-ethereum v1.10.17 => github.com/ethereum-optimism/reference-optimistic-geth v0.0.0-20220512193241-32ef0bba48ce

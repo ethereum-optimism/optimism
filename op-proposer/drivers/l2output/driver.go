@@ -7,8 +7,8 @@ import (
 	"math/big"
 	"strings"
 
+	"github.com/ethereum-optimism/optimism/op-bindings/l2oo"
 	"github.com/ethereum-optimism/optimism/op-node/l2"
-	"github.com/ethereum-optimism/optimism/op-proposer/bindings/l2oo"
 	"github.com/ethereum-optimism/optimism/op-proposer/rollupclient"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
