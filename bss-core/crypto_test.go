@@ -6,6 +6,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/tyler-smith/go-bip39"
+
 	bsscore "github.com/ethereum-optimism/optimism/bss-core"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -100,7 +102,7 @@ func TestDerivePrivateKey(t *testing.T) {
 			name:     "invalid mnemonic",
 			mnemonic: invalidMnemonic,
 			hdPath:   validHDPath,
-			expErr:   errors.New("Checksum incorrect"),
+			expErr:   bip39.ErrInvalidMnemonic, // the bip39 lib spells mnemonic wrong...
 		},
 		{
 			name:     "valid mnemonic invalid hdpath",

@@ -6,6 +6,8 @@ temp
 coverage.json
 *.tsbuildinfo
 
+yarn-error.log
+
 dist
 artifacts
 cache
@@ -19,6 +21,9 @@ packages/contracts/hardhat*
 
 packages/data-transport-layer/db
 
+packages/integration-tests-bedrock/cache
+packages/integration-tests-bedrock/artifacts
+
 # vim
 *.sw*
 
@@ -26,3 +31,10 @@ packages/data-transport-layer/db
 .env*
 !.env.example
 *.log
+
+.devnet
+
+# Ignore local fuzzing results
+**/testdata/fuzz/
+
+coverage.out
