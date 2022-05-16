@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ethereum-optimism/optimistic-specs/opnode/rollup"
+	"github.com/ethereum-optimism/optimism/op-node/rollup"
 
 	"github.com/libp2p/go-libp2p-core/peer"
 
@@ -46,7 +46,7 @@ type SetupP2P interface {
 	// Host creates a libp2p host service. Returns nil, nil if p2p is disabled.
 	Host(log log.Logger) (host.Host, error)
 	// Discovery creates a disc-v5 service. Returns nil, nil, nil if discovery is disabled.
-	Discovery(log log.Logger, rollupCfg *rollup.Config) (*enode.LocalNode, *discover.UDPv5, error)
+	Discovery(log log.Logger, rollupCfg *rollup.Config, tcpPort uint16) (*enode.LocalNode, *discover.UDPv5, error)
 	TargetPeers() uint
 }
 

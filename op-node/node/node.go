@@ -222,7 +222,7 @@ func (n *OpNode) initP2P(ctx context.Context, cfg *Config) error {
 		}
 		n.p2pNode = p2pNode
 		if n.p2pNode.Dv5Udp() != nil {
-			n.p2pNode.DiscoveryProcess(n.resourcesCtx, n.log, &cfg.Rollup, cfg.P2P.TargetPeers())
+			go n.p2pNode.DiscoveryProcess(n.resourcesCtx, n.log, &cfg.Rollup, cfg.P2P.TargetPeers())
 		}
 	}
 	return nil

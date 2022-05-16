@@ -11,7 +11,9 @@ import (
 	"net"
 	"time"
 
-	"github.com/ethereum-optimism/optimistic-specs/opnode/rollup"
+	gcrypto "github.com/ethereum/go-ethereum/crypto"
+
+	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum/go-ethereum/p2p/enr"
 	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/libp2p/go-libp2p-core/crypto"
@@ -24,16 +26,28 @@ import (
 	"github.com/ethereum/go-ethereum/p2p/enode"
 )
 
-func (conf *Config) Discovery(log log.Logger, rollupCfg *rollup.Config) (*enode.LocalNode, *discover.UDPv5, error) {
+func (conf *Config) Discovery(log log.Logger, rollupCfg *rollup.Config, tcpPort uint16) (*enode.LocalNode, *discover.UDPv5, error) {
 	if conf.NoDiscovery {
 		return nil, nil, nil
 	}
-	localNode := enode.NewLocalNode(conf.DiscoveryDB, conf.Priv)
+	priv := *conf.Priv
+	// use the geth curve definition. Same crypto, but geth needs to detect it as *their* definition of the curve.
+	priv.Curve = gcrypto.S256()
+	localNode := enode.NewLocalNode(conf.DiscoveryDB, &priv)
 	if conf.AdvertiseIP != nil {
 		localNode.SetStaticIP(conf.AdvertiseIP)
 	}
 	if conf.AdvertiseUDPPort != 0 {
 		localNode.SetFallbackUDP(int(conf.AdvertiseUDPPort))
+	}
+	if conf.AdvertiseTCPPort != 0 { // explicitly advertised port gets priority
+		localNode.Set(enr.TCP(conf.AdvertiseTCPPort))
+	} else if tcpPort != 0 { // otherwise try to pick up whatever port LibP2P binded to (listen port, or dynamically picked)
+		localNode.Set(enr.TCP(tcpPort))
+	} else if conf.ListenTCPPort != 0 { // otherwise default to the port we configured it to listen on
+		localNode.Set(enr.TCP(conf.ListenTCPPort))
+	} else {
+		return nil, nil, fmt.Errorf("no TCP port to put in discovery record")
 	}
 	dat := OptimismENRData{
 		chainID: rollupCfg.L2ChainID.Uint64(),
@@ -50,9 +64,13 @@ func (conf *Config) Discovery(log log.Logger, rollupCfg *rollup.Config) (*enode.
 	if err != nil {
 		return nil, nil, err
 	}
+	if udpAddr.Port == 0 { // if we picked a port dynamically, then find the port we got, and update our node record
+		localUDPAddr := conn.LocalAddr().(*net.UDPAddr)
+		localNode.SetFallbackUDP(localUDPAddr.Port)
+	}
 
 	cfg := discover.Config{
-		PrivateKey:   conf.Priv,
+		PrivateKey:   &priv,
 		NetRestrict:  nil,
 		Bootnodes:    conf.Bootnodes,
 		Unhandled:    nil, // Not used in dv5
@@ -64,7 +82,9 @@ func (conf *Config) Discovery(log log.Logger, rollupCfg *rollup.Config) (*enode.
 		return nil, nil, err
 	}
 
-	// TODO: periodically we can pull the external IP from libp2p NAT service,
+	log.Info("started discovery service", "enr", localNode.Node(), "id", localNode.ID())
+
+	// TODO: periodically we can pull the external IP and TCP port from libp2p NAT service,
 	// and add it as a statement to keep the localNode accurate (if we trust the NAT device more than the discv5 statements)
 
 	return localNode, udpV5, nil
@@ -104,6 +124,15 @@ func (o *OptimismENRData) ENRKey() string {
 	return "optimism"
 }
 
+func (o *OptimismENRData) EncodeRLP(w io.Writer) error {
+	out := make([]byte, 2*binary.MaxVarintLen64)
+	offset := binary.PutUvarint(out, o.chainID)
+	offset += binary.PutUvarint(out[offset:], o.version)
+	out = out[:offset]
+	// encode as byte-string
+	return rlp.Encode(w, out)
+}
+
 func (o *OptimismENRData) DecodeRLP(s *rlp.Stream) error {
 	b, err := s.Bytes()
 	if err != nil {
@@ -127,20 +156,23 @@ func (o *OptimismENRData) DecodeRLP(s *rlp.Stream) error {
 
 var _ enr.Entry = (*OptimismENRData)(nil)
 
-func FilterEnodes(cfg *rollup.Config) func(node *enode.Node) bool {
+func FilterEnodes(log log.Logger, cfg *rollup.Config) func(node *enode.Node) bool {
 	return func(node *enode.Node) bool {
 		var dat OptimismENRData
 		err := node.Load(&dat)
 		// if the entry does not exist, or if it is invalid, then ignore the node
 		if err != nil {
+			log.Debug("discovered node record has no optimism info", "node", node.ID(), "err", err)
 			return false
 		}
 		// check chain ID matches
 		if cfg.L2ChainID.Uint64() != dat.chainID {
+			log.Debug("discovered node record has no matching chain ID", "node", node.ID(), "got", dat.chainID, "expected", cfg.L2ChainID.Uint64())
 			return false
 		}
 		// check version matches
 		if dat.version != 0 {
+			log.Debug("discovered node record has no matching version", "node", node.ID(), "got", dat.version, "expected", 0)
 			return false
 		}
 		return true
@@ -156,17 +188,35 @@ func (n *NodeP2P) DiscoveryProcess(ctx context.Context, log log.Logger, cfg *rol
 		log.Warn("peer discovery is disabled")
 		return
 	}
+	filter := FilterEnodes(log, cfg)
+	// We pull nodes from discv5 DHT in random order to find new peers.
+	// Eventually we'll find a peer record that matches our filter.
 	randomNodeIter := n.dv5Udp.RandomNodes()
-	randomNodeIter = enode.Filter(randomNodeIter, FilterEnodes(cfg))
 
+	randomNodeIter = enode.Filter(randomNodeIter, filter)
+	defer randomNodeIter.Close()
+
+	// We pull from the DHT in a slow/fast interval, depending on the need to find more peers
 	discoverTicker := time.NewTicker(time.Second * 5)
 	defer discoverTicker.Stop()
 
-	connectTicker := time.NewTicker(time.Second * 20)
+	// We connect to the peers we know of to maintain a target,
+	// but do so with polling to avoid scanning the connection count continuously
+	connectTicker := time.NewTicker(time.Second * 5)
 	defer connectTicker.Stop()
 
-	connAttempts := make(chan peer.ID, 10)
+	// We can go faster/slower depending on the need
+	slower := func() {
+		discoverTicker.Reset(time.Second * 20)
+		connectTicker.Reset(time.Second * 20)
+	}
+	faster := func() {
+		discoverTicker.Reset(time.Second * 5)
+		connectTicker.Reset(time.Second * 5)
+	}
 
+	// We try to connect to peers in parallel: some may be slow to respond
+	connAttempts := make(chan peer.ID, 10)
 	connectWorker := func(ctx context.Context) {
 		for {
 			id, ok := <-connAttempts
@@ -183,6 +233,7 @@ func (n *NodeP2P) DiscoveryProcess(ctx context.Context, log log.Logger, cfg *rol
 			}
 		}
 	}
+
 	// stops all the workers when we are done
 	defer close(connAttempts)
 	// start workers to try connect to peers
@@ -190,18 +241,58 @@ func (n *NodeP2P) DiscoveryProcess(ctx context.Context, log log.Logger, cfg *rol
 		go connectWorker(ctx)
 	}
 
+	// buffer 10 nodes
+	randomNodesCh := make(chan *enode.Node, 3)
+	defer close(randomNodesCh)
+	bufferNodes := func() {
+		for {
+			select {
+			case <-discoverTicker.C:
+				if !randomNodeIter.Next() {
+					log.Info("discv5 DHT iteration stopped, closing peer discovery now...")
+					return
+				}
+				found := randomNodeIter.Node()
+				select {
+				// block once we have found enough nodes
+				case randomNodesCh <- found:
+					continue
+				case <-ctx.Done():
+					return
+				}
+			case <-ctx.Done():
+				return
+			}
+		}
+	}
+	// Walk the DHT in parallel, the discv5 interface does not use channels for the iteration
+	go bufferNodes()
+
+	// Kick off by trying the nodes we have in our table (previous nodes from last run and/or bootnodes)
+	go func() {
+		<-time.After(time.Second * 3)
+		// At the start we might have trouble walking the DHT,
+		// but we do have a table with some nodes,
+		// so take the table and feed it into the discovery process
+		for _, rec := range n.dv5Udp.AllNodes() {
+			if filter(rec) {
+				select {
+				case randomNodesCh <- rec:
+					continue
+				case <-ctx.Done():
+					return
+				}
+			}
+		}
+	}()
+
 	pstore := n.Host().Peerstore()
 	for {
 		select {
 		case <-ctx.Done():
 			log.Info("stopped peer discovery")
 			return // no ctx error, expected close
-		case <-discoverTicker.C:
-			if !randomNodeIter.Next() {
-				log.Info("discv5 DHT iteration stopped, closing peer discovery now...")
-				return
-			}
-			found := randomNodeIter.Node()
+		case found := <-randomNodesCh:
 			var dat OptimismENRData
 			if err := found.Load(&dat); err != nil { // we already filtered on chain ID and version
 				continue
@@ -221,7 +312,14 @@ func (n *NodeP2P) DiscoveryProcess(ctx context.Context, log log.Logger, cfg *rol
 			log.Debug("discovered peer", "peer", info.ID, "nodeID", found.ID(), "addr", info.Addrs[0])
 		case <-connectTicker.C:
 			connected := n.Host().Network().Peers()
+			log.Debug("peering tick", "connected", len(connected),
+				"advertised_udp", n.dv5Local.Node().UDP(),
+				"advertised_tcp", n.dv5Local.Node().TCP(),
+				"advertised_ip", n.dv5Local.Node().IP())
 			if uint(len(connected)) < connectGoal {
+				// Start looking for more peers more actively again
+				faster()
+
 				peersWithAddrs := n.Host().Peerstore().PeersWithAddrs()
 				if err := shufflePeers(peersWithAddrs); err != nil {
 					continue
@@ -238,6 +336,10 @@ func (n *NodeP2P) DiscoveryProcess(ctx context.Context, log log.Logger, cfg *rol
 				// connect to 4 peers in parallel
 			peerLoop:
 				for _, id := range peersWithAddrs {
+					// never dial ourselves
+					if n.Host().ID() == id {
+						continue
+					}
 					// skip peers that we are already connected to
 					if _, ok := existing[id]; ok {
 						continue
@@ -246,7 +348,7 @@ func (n *NodeP2P) DiscoveryProcess(ctx context.Context, log log.Logger, cfg *rol
 					if n.Host().Network().Connectedness(id) == network.CannotConnect {
 						continue
 					}
-					// schedule, if there is still space to schedule
+					// schedule, if there is still space to schedule (this may block)
 					select {
 					case connAttempts <- id:
 					case <-ctx.Done():
@@ -254,6 +356,9 @@ func (n *NodeP2P) DiscoveryProcess(ctx context.Context, log log.Logger, cfg *rol
 					}
 				}
 				cancel()
+			} else {
+				// we have enough connections, slow down actively filling the peerstore
+				slower()
 			}
 		}
 	}
