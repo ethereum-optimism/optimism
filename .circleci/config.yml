@@ -87,6 +87,7 @@ jobs:
             - node_modules
             - packages/common-ts/node_modules
             - packages/contracts/node_modules
+            - packages/contracts-periphery/node_modules
             - packages/core-utils/node_modules
             - packages/data-transport-layer/node_modules
             - packages/fault-detector/node_modules
@@ -141,6 +142,24 @@ jobs:
           command: yarn test:coverage
           working_directory: packages/contracts
 
+  contracts-periphery-tests:
+    docker:
+      - image: ethereumoptimism/js-builder:latest
+    resource_class: xlarge
+    steps:
+      - restore_cache:
+          keys:
+            - v2-cache-yarn-build-{{ .Revision }}
+      - checkout
+      - run:
+          name: Lint
+          command: yarn lint:check
+          working_directory: packages/contracts-periphery
+      - run:
+          name: Test
+          command: yarn test:coverage
+          working_directory: packages/contracts-periphery
+
   dtl-tests:
     docker:
       - image: ethereumoptimism/js-builder:latest
@@ -178,6 +197,10 @@ jobs:
           name: Check contracts
           command: npx depcheck
           working_directory: packages/contracts
+      - run:
+          name: Check contracts-periphery
+          command: npx depcheck
+          working_directory: packages/contracts-periphery
       - run:
           name: Check core-utils
           command: npx depcheck
@@ -487,6 +510,9 @@ workflows:
           name: bss-core-tests
           working_directory: bss-core
       - contracts-tests:
+          requires:
+            - yarn-monorepo
+      - contracts-periphery-tests:
           requires:
             - yarn-monorepo
       - js-lint-test:
