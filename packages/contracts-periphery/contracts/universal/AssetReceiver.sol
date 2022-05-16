@@ -1,16 +1,16 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.9;
 
-import { Owned } from "@rari-capital/solmate/src/auth/Owned.sol";
-import { ERC20 } from "@rari-capital/solmate/src/tokens/ERC20.sol";
-import { ERC721 } from "@rari-capital/solmate/src/tokens/ERC721.sol";
+import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import { ERC721 } from "@openzeppelin/contracts/token/ERC721/ERC721.sol";
+import { Transactor } from "./Transactor.sol";
 
 /**
- * @title RetroReceiver
- * @notice RetroReceiver is a minimal contract for receiving funds, meant to be deployed at the
- * same address on every chain that supports EIP-2470.
+ * @title AssetReceiver
+ * @notice AssetReceiver is a minimal contract for receiving funds assets in the form of either
+ * ETH, ERC20 tokens, or ERC721 tokens. Only the contract owner may withdraw the assets.
  */
-contract RetroReceiver is Owned {
+contract AssetReceiver is Transactor {
     /**
      * Emitted when ETH is received by this address.
      */
@@ -42,9 +42,9 @@ contract RetroReceiver is Owned {
     );
 
     /**
-     * @param _owner Address to initially own the contract.
+     * @param _owner Initial contract owner.
      */
-    constructor(address _owner) Owned(_owner) {}
+    constructor(address _owner) Transactor(_owner) {}
 
     /**
      * Make sure we can receive ETH.
@@ -58,7 +58,7 @@ contract RetroReceiver is Owned {
      *
      * @param _to Address to receive the ETH balance.
      */
-    function withdrawETH(address payable _to) public onlyOwner {
+    function withdrawETH(address payable _to) external onlyOwner {
         withdrawETH(_to, address(this).balance);
     }
 
@@ -69,6 +69,7 @@ contract RetroReceiver is Owned {
      * @param _amount Amount of ETH to withdraw.
      */
     function withdrawETH(address payable _to, uint256 _amount) public onlyOwner {
+        // slither-disable-next-line reentrancy-unlimited-gas
         _to.transfer(_amount);
         emit WithdrewETH(msg.sender, _to, _amount);
     }
@@ -79,7 +80,7 @@ contract RetroReceiver is Owned {
      * @param _asset ERC20 token to withdraw.
      * @param _to Address to receive the ERC20 balance.
      */
-    function withdrawERC20(ERC20 _asset, address _to) public onlyOwner {
+    function withdrawERC20(ERC20 _asset, address _to) external onlyOwner {
         withdrawERC20(_asset, _to, _asset.balanceOf(address(this)));
     }
 
@@ -95,7 +96,9 @@ contract RetroReceiver is Owned {
         address _to,
         uint256 _amount
     ) public onlyOwner {
+        // slither-disable-next-line unchecked-transfer
         _asset.transfer(_to, _amount);
+        // slither-disable-next-line reentrancy-events
         emit WithdrewERC20(msg.sender, _to, address(_asset), _amount);
     }
 
@@ -110,8 +113,9 @@ contract RetroReceiver is Owned {
         ERC721 _asset,
         address _to,
         uint256 _id
-    ) public onlyOwner {
+    ) external onlyOwner {
         _asset.transferFrom(address(this), _to, _id);
+        // slither-disable-next-line reentrancy-events
         emit WithdrewERC721(msg.sender, _to, address(_asset), _id);
     }
 }

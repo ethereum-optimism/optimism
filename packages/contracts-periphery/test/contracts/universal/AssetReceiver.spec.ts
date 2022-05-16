@@ -5,7 +5,7 @@ import { Contract } from 'ethers'
 import { expect } from '../../setup'
 import { deploy } from '../../helpers'
 
-describe('RetroReceiver', () => {
+describe('AssetReceiver', () => {
   const DEFAULT_TOKEN_ID = 0
   const DEFAULT_AMOUNT = hre.ethers.constants.WeiPerEther
   const DEFAULT_RECIPIENT = '0x' + '11'.repeat(20)
@@ -18,11 +18,11 @@ describe('RetroReceiver', () => {
 
   let TestERC20: Contract
   let TestERC721: Contract
-  let RetroReceiver: Contract
+  let AssetReceiver: Contract
   beforeEach('deploy contracts', async () => {
     TestERC20 = await deploy('TestERC20', { signer: signer1 })
     TestERC721 = await deploy('TestERC721', { signer: signer1 })
-    RetroReceiver = await deploy('RetroReceiver', {
+    AssetReceiver = await deploy('AssetReceiver', {
       signer: signer1,
       args: [signer1.address],
     })
@@ -37,41 +37,35 @@ describe('RetroReceiver', () => {
     ])
   })
 
-  describe('constructor', () => {
-    it('should set the owner', async () => {
-      expect(await RetroReceiver.owner()).to.equal(signer1.address)
-    })
-  })
-
   describe('receive', () => {
     it('should be able to receive ETH', async () => {
       await expect(
         signer1.sendTransaction({
-          to: RetroReceiver.address,
+          to: AssetReceiver.address,
           value: DEFAULT_AMOUNT,
         })
       ).to.not.be.reverted
 
       expect(
-        await hre.ethers.provider.getBalance(RetroReceiver.address)
+        await hre.ethers.provider.getBalance(AssetReceiver.address)
       ).to.equal(DEFAULT_AMOUNT)
     })
   })
 
   describe('withdrawETH(address)', () => {
-    describe('when called by the owner', () => {
+    describe('when called by authorized address', () => {
       it('should withdraw all ETH in the contract', async () => {
         await signer1.sendTransaction({
-          to: RetroReceiver.address,
+          to: AssetReceiver.address,
           value: DEFAULT_AMOUNT,
         })
 
-        await expect(RetroReceiver['withdrawETH(address)'](DEFAULT_RECIPIENT))
-          .to.emit(RetroReceiver, 'WithdrewETH')
+        await expect(AssetReceiver['withdrawETH(address)'](DEFAULT_RECIPIENT))
+          .to.emit(AssetReceiver, 'WithdrewETH')
           .withArgs(signer1.address, DEFAULT_RECIPIENT, DEFAULT_AMOUNT)
 
         expect(
-          await hre.ethers.provider.getBalance(RetroReceiver.address)
+          await hre.ethers.provider.getBalance(AssetReceiver.address)
         ).to.equal(0)
 
         expect(
@@ -80,36 +74,36 @@ describe('RetroReceiver', () => {
       })
     })
 
-    describe('when called by not the owner', () => {
+    describe('when called by not authorized address', () => {
       it('should revert', async () => {
         await expect(
-          RetroReceiver.connect(signer2)['withdrawETH(address)'](
+          AssetReceiver.connect(signer2)['withdrawETH(address)'](
             signer2.address
           )
-        ).to.be.revertedWith('UNAUTHORIZED')
+        ).to.be.revertedWith('Ownable: caller is not the owner')
       })
     })
   })
 
   describe('withdrawETH(address,uint256)', () => {
-    describe('when called by the owner', () => {
+    describe('when called by authorized address', () => {
       it('should withdraw the given amount of ETH', async () => {
         await signer1.sendTransaction({
-          to: RetroReceiver.address,
+          to: AssetReceiver.address,
           value: DEFAULT_AMOUNT.mul(2),
         })
 
         await expect(
-          RetroReceiver['withdrawETH(address,uint256)'](
+          AssetReceiver['withdrawETH(address,uint256)'](
             DEFAULT_RECIPIENT,
             DEFAULT_AMOUNT
           )
         )
-          .to.emit(RetroReceiver, 'WithdrewETH')
+          .to.emit(AssetReceiver, 'WithdrewETH')
           .withArgs(signer1.address, DEFAULT_RECIPIENT, DEFAULT_AMOUNT)
 
         expect(
-          await hre.ethers.provider.getBalance(RetroReceiver.address)
+          await hre.ethers.provider.getBalance(AssetReceiver.address)
         ).to.equal(DEFAULT_AMOUNT)
 
         expect(
@@ -118,30 +112,30 @@ describe('RetroReceiver', () => {
       })
     })
 
-    describe('when called by not the owner', () => {
+    describe('when called by not authorized address', () => {
       it('should revert', async () => {
         await expect(
-          RetroReceiver.connect(signer2)['withdrawETH(address,uint256)'](
+          AssetReceiver.connect(signer2)['withdrawETH(address,uint256)'](
             DEFAULT_RECIPIENT,
             DEFAULT_AMOUNT
           )
-        ).to.be.revertedWith('UNAUTHORIZED')
+        ).to.be.revertedWith('Ownable: caller is not the owner')
       })
     })
   })
 
   describe('withdrawERC20(address,address)', () => {
-    describe('when called by the owner', () => {
+    describe('when called by authorized address', () => {
       it('should withdraw all ERC20 balance held by the contract', async () => {
-        await TestERC20.transfer(RetroReceiver.address, DEFAULT_AMOUNT)
+        await TestERC20.transfer(AssetReceiver.address, DEFAULT_AMOUNT)
 
         await expect(
-          RetroReceiver['withdrawERC20(address,address)'](
+          AssetReceiver['withdrawERC20(address,address)'](
             TestERC20.address,
             DEFAULT_RECIPIENT
           )
         )
-          .to.emit(RetroReceiver, 'WithdrewERC20')
+          .to.emit(AssetReceiver, 'WithdrewERC20')
           .withArgs(
             signer1.address,
             DEFAULT_RECIPIENT,
@@ -155,31 +149,31 @@ describe('RetroReceiver', () => {
       })
     })
 
-    describe('when called by not the owner', () => {
+    describe('when called by not authorized address', () => {
       it('should revert', async () => {
         await expect(
-          RetroReceiver.connect(signer2)['withdrawERC20(address,address)'](
+          AssetReceiver.connect(signer2)['withdrawERC20(address,address)'](
             TestERC20.address,
             DEFAULT_RECIPIENT
           )
-        ).to.be.revertedWith('UNAUTHORIZED')
+        ).to.be.revertedWith('Ownable: caller is not the owner')
       })
     })
   })
 
   describe('withdrawERC20(address,address,uint256)', () => {
-    describe('when called by the owner', () => {
+    describe('when called by authorized address', () => {
       it('should withdraw the given ERC20 amount', async () => {
-        await TestERC20.transfer(RetroReceiver.address, DEFAULT_AMOUNT.mul(2))
+        await TestERC20.transfer(AssetReceiver.address, DEFAULT_AMOUNT.mul(2))
 
         await expect(
-          RetroReceiver['withdrawERC20(address,address,uint256)'](
+          AssetReceiver['withdrawERC20(address,address,uint256)'](
             TestERC20.address,
             DEFAULT_RECIPIENT,
             DEFAULT_AMOUNT
           )
         )
-          .to.emit(RetroReceiver, 'WithdrewERC20')
+          .to.emit(AssetReceiver, 'WithdrewERC20')
           .withArgs(
             signer1.address,
             DEFAULT_RECIPIENT,
@@ -193,34 +187,34 @@ describe('RetroReceiver', () => {
       })
     })
 
-    describe('when called by not the owner', () => {
+    describe('when called by not authorized address', () => {
       it('should revert', async () => {
         await expect(
-          RetroReceiver.connect(signer2)[
+          AssetReceiver.connect(signer2)[
             'withdrawERC20(address,address,uint256)'
           ](TestERC20.address, DEFAULT_RECIPIENT, DEFAULT_AMOUNT)
-        ).to.be.revertedWith('UNAUTHORIZED')
+        ).to.be.revertedWith('Ownable: caller is not the owner')
       })
     })
   })
 
   describe('withdrawERC721', () => {
-    describe('when called by the owner', () => {
+    describe('when called by authorized address', () => {
       it('should withdraw the token', async () => {
         await TestERC721.transferFrom(
           signer1.address,
-          RetroReceiver.address,
+          AssetReceiver.address,
           DEFAULT_TOKEN_ID
         )
 
         await expect(
-          RetroReceiver.withdrawERC721(
+          AssetReceiver.withdrawERC721(
             TestERC721.address,
             DEFAULT_RECIPIENT,
             DEFAULT_TOKEN_ID
           )
         )
-          .to.emit(RetroReceiver, 'WithdrewERC721')
+          .to.emit(AssetReceiver, 'WithdrewERC721')
           .withArgs(
             signer1.address,
             DEFAULT_RECIPIENT,
@@ -234,15 +228,15 @@ describe('RetroReceiver', () => {
       })
     })
 
-    describe('when called by not the owner', () => {
+    describe('when called by not authorized address', () => {
       it('should revert', async () => {
         await expect(
-          RetroReceiver.connect(signer2).withdrawERC721(
+          AssetReceiver.connect(signer2).withdrawERC721(
             TestERC721.address,
             DEFAULT_RECIPIENT,
             DEFAULT_TOKEN_ID
           )
-        ).to.be.revertedWith('UNAUTHORIZED')
+        ).to.be.revertedWith('Ownable: caller is not the owner')
       })
     })
   })
