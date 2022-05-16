@@ -11,19 +11,30 @@ import (
 	"net"
 	"time"
 
-	gcrypto "github.com/ethereum/go-ethereum/crypto"
-
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	gcrypto "github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/p2p/discover"
+	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/ethereum/go-ethereum/p2p/enr"
 	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/libp2p/go-libp2p-core/crypto"
 	"github.com/libp2p/go-libp2p-core/network"
 	"github.com/libp2p/go-libp2p-core/peer"
-	ma "github.com/multiformats/go-multiaddr"
+	"github.com/multiformats/go-multiaddr"
+)
 
-	"github.com/ethereum/go-ethereum/log"
-	"github.com/ethereum/go-ethereum/p2p/discover"
-	"github.com/ethereum/go-ethereum/p2p/enode"
+const (
+	discoverIntervalFast   = time.Second * 5
+	discoverIntervalSlow   = time.Second * 20
+	connectionIntervalFast = time.Second * 5
+	connectionIntervalSlow = time.Second * 20
+	connectionWorkerCount  = 4
+	connectionBufferSize   = 10
+	discoveredNodesBuffer  = 3
+	tableKickoffDelay      = time.Second * 3
+	discoveredAddrTTL      = time.Hour * 24
+	collectiveDialTimeout  = time.Second * 30
 )
 
 func (conf *Config) Discovery(log log.Logger, rollupCfg *rollup.Config, tcpPort uint16) (*enode.LocalNode, *discover.UDPv5, error) {
@@ -98,7 +109,7 @@ func enrToAddrInfo(r *enode.Node) (*peer.AddrInfo, error) {
 	} else {
 		ip = ip4
 	}
-	mAddr, err := ma.NewMultiaddr(fmt.Sprintf("/%s/%s/tcp/%d", ipScheme, ip.String(), r.TCP()))
+	mAddr, err := multiaddr.NewMultiaddr(fmt.Sprintf("/%s/%s/tcp/%d", ipScheme, ip.String(), r.TCP()))
 	if err != nil {
 		return nil, fmt.Errorf("could not construct multi addr: %v", err)
 	}
@@ -109,7 +120,7 @@ func enrToAddrInfo(r *enode.Node) (*peer.AddrInfo, error) {
 	}
 	return &peer.AddrInfo{
 		ID:    peerID,
-		Addrs: []ma.Multiaddr{mAddr},
+		Addrs: []multiaddr.Multiaddr{mAddr},
 	}, nil
 }
 
@@ -197,26 +208,26 @@ func (n *NodeP2P) DiscoveryProcess(ctx context.Context, log log.Logger, cfg *rol
 	defer randomNodeIter.Close()
 
 	// We pull from the DHT in a slow/fast interval, depending on the need to find more peers
-	discoverTicker := time.NewTicker(time.Second * 5)
+	discoverTicker := time.NewTicker(discoverIntervalFast)
 	defer discoverTicker.Stop()
 
 	// We connect to the peers we know of to maintain a target,
 	// but do so with polling to avoid scanning the connection count continuously
-	connectTicker := time.NewTicker(time.Second * 5)
+	connectTicker := time.NewTicker(connectionIntervalFast)
 	defer connectTicker.Stop()
 
 	// We can go faster/slower depending on the need
 	slower := func() {
-		discoverTicker.Reset(time.Second * 20)
-		connectTicker.Reset(time.Second * 20)
+		discoverTicker.Reset(discoverIntervalSlow)
+		connectTicker.Reset(connectionIntervalSlow)
 	}
 	faster := func() {
-		discoverTicker.Reset(time.Second * 5)
-		connectTicker.Reset(time.Second * 5)
+		discoverTicker.Reset(discoverIntervalFast)
+		connectTicker.Reset(connectionIntervalFast)
 	}
 
 	// We try to connect to peers in parallel: some may be slow to respond
-	connAttempts := make(chan peer.ID, 10)
+	connAttempts := make(chan peer.ID, connectionBufferSize)
 	connectWorker := func(ctx context.Context) {
 		for {
 			id, ok := <-connAttempts
@@ -237,12 +248,12 @@ func (n *NodeP2P) DiscoveryProcess(ctx context.Context, log log.Logger, cfg *rol
 	// stops all the workers when we are done
 	defer close(connAttempts)
 	// start workers to try connect to peers
-	for i := 0; i < 4; i++ {
+	for i := 0; i < connectionWorkerCount; i++ {
 		go connectWorker(ctx)
 	}
 
-	// buffer 10 nodes
-	randomNodesCh := make(chan *enode.Node, 3)
+	// buffer discovered nodes, so don't stall on the dht iteration as much
+	randomNodesCh := make(chan *enode.Node, discoveredNodesBuffer)
 	defer close(randomNodesCh)
 	bufferNodes := func() {
 		for {
@@ -270,7 +281,7 @@ func (n *NodeP2P) DiscoveryProcess(ctx context.Context, log log.Logger, cfg *rol
 
 	// Kick off by trying the nodes we have in our table (previous nodes from last run and/or bootnodes)
 	go func() {
-		<-time.After(time.Second * 3)
+		<-time.After(tableKickoffDelay)
 		// At the start we might have trouble walking the DHT,
 		// but we do have a table with some nodes,
 		// so take the table and feed it into the discovery process
@@ -301,9 +312,9 @@ func (n *NodeP2P) DiscoveryProcess(ctx context.Context, log log.Logger, cfg *rol
 			if err != nil {
 				continue
 			}
-			// We add the addresses to the peerstore, and update the address TTL to 24 hours.
+			// We add the addresses to the peerstore, and update the address TTL.
 			//After that we stop using the address, assuming it may not be valid anymore (until we rediscover the node)
-			pstore.AddAddrs(info.ID, info.Addrs, time.Hour*24)
+			pstore.AddAddrs(info.ID, info.Addrs, discoveredAddrTTL)
 			_ = pstore.AddPubKey(info.ID, (*crypto.Secp256k1PublicKey)(found.Pubkey()))
 			// Tag the peer, we'd rather have the connection manager prune away old peers,
 			// or peers on different chains, or anyone we have not seen via discovery.
@@ -330,10 +341,9 @@ func (n *NodeP2P) DiscoveryProcess(ctx context.Context, log log.Logger, cfg *rol
 					existing[p] = struct{}{}
 				}
 
-				// For 30 seconds, keep using these peers, and don't try new discovery/connections.
+				// Keep using these peers, and don't try new discovery/connections.
 				// We don't need to search for more peers and try new connections if we already have plenty
-				ctx, cancel := context.WithTimeout(ctx, time.Second*30)
-				// connect to 4 peers in parallel
+				ctx, cancel := context.WithTimeout(ctx, collectiveDialTimeout)
 			peerLoop:
 				for _, id := range peersWithAddrs {
 					// never dial ourselves
