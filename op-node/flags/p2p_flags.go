@@ -144,7 +144,7 @@ var (
 	}
 	UserAgent = cli.StringFlag{
 		Name:     "p2p.useragent",
-		Usage:    "User-agent string to share via LibP2P identify. If empty it defaults to 'optimism-VERSIONHERE'.",
+		Usage:    "User-agent string to share via LibP2P identify. If empty it defaults to 'optimism'.",
 		Hidden:   true,
 		Required: false,
 		Value:    "optimism",
