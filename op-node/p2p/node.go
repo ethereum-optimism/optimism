@@ -4,6 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
+
+	ma "github.com/multiformats/go-multiaddr"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum/go-ethereum/log"
@@ -17,13 +20,14 @@ import (
 )
 
 type NodeP2P struct {
-	host     host.Host           // p2p host (optional, may be nil)
-	gater    ConnectionGater     // p2p gater, to ban/unban peers with, may be nil even with p2p enabled
-	connMgr  connmgr.ConnManager // p2p conn manager, to keep a reliable number of peers, may be nil even with p2p enabled
-	dv5Local *enode.LocalNode    // p2p discovery identity (optional, may be nil)
-	dv5Udp   *discover.UDPv5     // p2p discovery service (optional, may be nil)
-	gs       *pubsub.PubSub      // p2p gossip router (optional, may be nil)
-	gsOut    GossipOut           // p2p gossip application interface for publishing (optional, may be nil)
+	host    host.Host           // p2p host (optional, may be nil)
+	gater   ConnectionGater     // p2p gater, to ban/unban peers with, may be nil even with p2p enabled
+	connMgr connmgr.ConnManager // p2p conn manager, to keep a reliable number of peers, may be nil even with p2p enabled
+	// the below components are all optional, and may be nil. They require the host to not be nil.
+	dv5Local *enode.LocalNode // p2p discovery identity
+	dv5Udp   *discover.UDPv5  // p2p discovery service
+	gs       *pubsub.PubSub   // p2p gossip router
+	gsOut    GossipOut        // p2p gossip application interface for publishing
 }
 
 func NewNodeP2P(resourcesCtx context.Context, rollupCfg *rollup.Config, log log.Logger, setup SetupP2P, gossipIn GossipIn) (*NodeP2P, error) {
@@ -46,12 +50,6 @@ func NewNodeP2P(resourcesCtx context.Context, rollupCfg *rollup.Config, log log.
 
 func (n *NodeP2P) init(resourcesCtx context.Context, rollupCfg *rollup.Config, log log.Logger, setup SetupP2P, gossipIn GossipIn) error {
 	var err error
-	// All nil if disabled.
-	n.dv5Local, n.dv5Udp, err = setup.Discovery(log.New("p2p", "discv5"))
-	if err != nil {
-		return fmt.Errorf("failed to start discv5: %v", err)
-	}
-
 	// nil if disabled.
 	n.host, err = setup.Host(log)
 	if err != nil {
@@ -81,6 +79,17 @@ func (n *NodeP2P) init(resourcesCtx context.Context, rollupCfg *rollup.Config, l
 			return fmt.Errorf("failed to join blocks gossip topic: %v", err)
 		}
 		log.Info("started p2p host", "addrs", n.host.Addrs(), "peerID", n.host.ID().Pretty())
+
+		tcpPort, err := FindActiveTCPPort(n.host)
+		if err != nil {
+			log.Warn("failed to find what TCP port p2p is binded to", "err", err)
+		}
+
+		// All nil if disabled.
+		n.dv5Local, n.dv5Udp, err = setup.Discovery(log.New("p2p", "discv5"), rollupCfg, tcpPort)
+		if err != nil {
+			return fmt.Errorf("failed to start discv5: %v", err)
+		}
 	}
 	return nil
 }
@@ -129,4 +138,21 @@ func (n *NodeP2P) Close() error {
 		}
 	}
 	return result.ErrorOrNil()
+}
+
+func FindActiveTCPPort(h host.Host) (uint16, error) {
+	var tcpPort uint16
+	for _, addr := range h.Addrs() {
+		tcpPortStr, err := addr.ValueForProtocol(ma.P_TCP)
+		if err != nil {
+			continue
+		}
+		v, err := strconv.ParseUint(tcpPortStr, 10, 16)
+		if err != nil {
+			continue
+		}
+		tcpPort = uint16(v)
+		break
+	}
+	return tcpPort, nil
 }
