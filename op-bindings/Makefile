@@ -1,10 +1,10 @@
 SHELL := /bin/bash
-CONTRACTS_PATH := "../../packages/contracts/"
+CONTRACTS_PATH := "../contracts-bedrock/"
 
 
 all: bindings deployed
 
-bindings: bindings-l1-block-info bindings-optimism-portal bindings-L2ToL1MessagePasser
+bindings: bindings-l1-block-info bindings-optimism-portal bindings-L2ToL1MessagePasser bindings-l2-output-oracle
 deployed: deployed-bin-l1-block-info deployed-bin-optimism-portal deployed-bin-L2ToL1MessagePasser
 
 # Deployed bindings are split because they depend on the bin file
@@ -83,3 +83,19 @@ bindings-optimism-portal:
 		--type OptimismPortal \
 		--out ./deposit/deposit_feed_raw.go
 
+
+
+bindings-l2-output-oracle:
+	$(eval temp := $(shell mktemp -d))
+	$(eval cwd := $(shell pwd))
+	cd $(CONTRACTS_PATH); \
+		forge build \
+		&& forge inspect L2OutputOracle abi > $(temp)/L2OutputOracle.abi \
+		&& forge inspect L2OutputOracle bytecode > $(temp)/L2OutputOracle.bin \
+		&& forge inspect L2OutputOracle deployedBytecode > $(cwd)/bin/l2_output_oracle_deployed.hex
+	abigen \
+		--abi $(temp)/L2OutputOracle.abi \
+		--bin $(temp)/L2OutputOracle.bin \
+		--pkg l2oo \
+		--type L2OutputOracle \
+		--out ./l2oo/l2_output_oracle.go

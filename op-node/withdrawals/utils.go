@@ -7,10 +7,10 @@ import (
 	"math/big"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/op-node/contracts/deposit"
-	"github.com/ethereum-optimism/optimism/op-node/contracts/withdrawer"
+	"github.com/ethereum-optimism/optimism/op-bindings/deposit"
+	"github.com/ethereum-optimism/optimism/op-bindings/l2oo"
+	"github.com/ethereum-optimism/optimism/op-bindings/withdrawer"
 	"github.com/ethereum-optimism/optimism/op-node/predeploy"
-	"github.com/ethereum-optimism/optimism/op-proposer/bindings/l2oo"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"

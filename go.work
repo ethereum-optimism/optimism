@@ -8,6 +8,7 @@ use (
 	./l2geth
 	./l2geth-exporter
 	./op-batcher
+	./op-bindings
 	./op-e2e
 	./op-exporter
 	./op-node
@@ -16,8 +17,7 @@ use (
 	./teleportr
 )
 
-replace github.com/ethereum-optimism/optimism/bss-core v0.0.0 => ./bss-core
+replace github.com/ethereum/go-ethereum v1.10.17 => github.com/ethereum-optimism/reference-optimistic-geth v0.0.0-20220512193241-32ef0bba48ce
 
-replace github.com/ethereum-optimism/optimism/l2geth v0.0.0 => ./l2geth
-
-replace github.com/ethereum/go-ethereum v1.10.16 => github.com/ethereum-optimism/reference-optimistic-geth v0.0.0-20220512193241-32ef0bba48ce
+// For local debugging:
+// replace github.com/ethereum/go-ethereum v1.10.17 => ../go-ethereum

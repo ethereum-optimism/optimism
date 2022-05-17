@@ -41,3 +41,6 @@ packages/integration-tests-bedrock/artifacts
 **/testdata/fuzz/
 
 coverage.out
+
+# Ignore bedrock go bindings local output files
+op-bindings/bin

@@ -5,7 +5,7 @@ go 1.18
 require (
 	github.com/ethereum-optimism/optimism/op-node v0.0.0
 	github.com/ethereum-optimism/optimism/op-proposer v0.0.0
-	github.com/ethereum/go-ethereum v1.10.16
+	github.com/ethereum/go-ethereum v1.10.17
 	github.com/miguelmota/go-ethereum-hdwallet v0.1.1
 	github.com/stretchr/testify v1.7.0
 	github.com/urfave/cli v1.22.5
@@ -29,6 +29,7 @@ require (
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.0.1 // indirect
 	github.com/docker/go-units v0.4.0 // indirect
 	github.com/elastic/gosigar v0.12.0 // indirect
+	github.com/ethereum-optimism/optimism/op-bindings v0.0.0 // indirect
 	github.com/fjl/memsize v0.0.1 // indirect
 	github.com/flynn/noise v1.0.0 // indirect
 	github.com/go-ole/go-ole v1.2.6 // indirect
@@ -154,8 +155,9 @@ require (
 )
 
 replace (
+	github.com/ethereum-optimism/optimism/op-bindings v0.0.0 => ../op-bindings
 	github.com/ethereum-optimism/optimism/op-node v0.0.0 => ../op-node
 	github.com/ethereum-optimism/optimism/op-proposer v0.0.0 => ../op-proposer
 )
 
-replace github.com/ethereum/go-ethereum v1.10.16 => github.com/ethereum-optimism/reference-optimistic-geth v0.0.0-20220427171107-d0070e0a6ead
+replace github.com/ethereum/go-ethereum v1.10.17 => github.com/ethereum-optimism/reference-optimistic-geth v0.0.0-20220427171107-d0070e0a6ead

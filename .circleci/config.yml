@@ -385,13 +385,22 @@ jobs:
           name: gas snapshot
           command: forge snapshot
           working_directory: contracts-bedrock
-
+      - run:
+          name: check go bindings
+          command: |
+            make && git diff --exit-code
+          working_directory: op-bindings
 
   bedrock-go-tests:
     docker:
       - image: ethereumoptimism/go-builder:latest
     steps:
       - checkout
+      - run:
+          name: lint op-bindings
+          command: |
+            golangci-lint run -E goimports,sqlclosecheck,bodyclose,asciicheck,misspell ./...
+          working_directory: op-bindings
       - run:
           name: lint op-node
           command: |

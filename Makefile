@@ -18,6 +18,10 @@ submodules:
 	fi
 .PHONY: submodules
 
+op-bindings:
+	make -C ./op-bindings
+.PHONY: op-bindings
+
 op-node:
 	make -C ./op-node op-node
 .PHONY: op-node
