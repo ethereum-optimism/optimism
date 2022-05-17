@@ -4,7 +4,7 @@
 # ### BASE: Install deps
 FROM node:16-alpine3.14 as base
 
-RUN apk --no-cache add curl jq python3 ca-certificates git make gcc musl-dev linux-headers bash eudev-dev build-base
+RUN apk --no-cache add curl jq python3 ca-certificates git make gcc musl-dev linux-headers bash build-base
 
 # copy over the needed configs to run the dep installation
 # note: this approach can be a bit unhandy to maintain, but it allows
