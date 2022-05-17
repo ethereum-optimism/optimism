@@ -1,5 +1,8 @@
 version: 2.1
 
+orbs:
+  node: circleci/node@5.0.2
+
 executors:
   go-builder:
     docker:
@@ -84,6 +87,7 @@ jobs:
             - node_modules
             - packages/common-ts/node_modules
             - packages/contracts/node_modules
+            - packages/contracts-periphery/node_modules
             - packages/core-utils/node_modules
             - packages/data-transport-layer/node_modules
             - packages/fault-detector/node_modules
@@ -138,6 +142,24 @@ jobs:
           command: yarn test:coverage
           working_directory: packages/contracts
 
+  contracts-periphery-tests:
+    docker:
+      - image: ethereumoptimism/js-builder:latest
+    resource_class: xlarge
+    steps:
+      - restore_cache:
+          keys:
+            - v2-cache-yarn-build-{{ .Revision }}
+      - checkout
+      - run:
+          name: Lint
+          command: yarn lint:check
+          working_directory: packages/contracts-periphery
+      - run:
+          name: Test
+          command: yarn test:coverage
+          working_directory: packages/contracts-periphery
+
   dtl-tests:
     docker:
       - image: ethereumoptimism/js-builder:latest
@@ -175,6 +197,10 @@ jobs:
           name: Check contracts
           command: npx depcheck
           working_directory: packages/contracts
+      - run:
+          name: Check contracts-periphery
+          command: npx depcheck
+          working_directory: packages/contracts-periphery
       - run:
           name: Check core-utils
           command: npx depcheck
@@ -307,10 +333,168 @@ jobs:
             echo "$DOCKER_PASS" | docker login -u "$DOCKER_USERNAME" --password-stdin
             docker push <<parameters.docker_tags>>
 
+  bedrock-markdown:
+    machine:
+      image: ubuntu-2004:202111-02
+    steps:
+      - checkout
+      - run:
+          name: markdown lint
+          command: |
+            docker run -v `pwd`:/workdir davidanson/markdownlint-cli2:0.4.0 "op-node/README.md" "./specs/**/*.md" "#**/node_modules"
+      - run:
+          name: link lint
+          command: |
+            docker run --init -it -v `pwd`:/input lycheeverse/lychee --verbose --no-progress --exclude-loopback --exclude twitter.com --exclude-mail /input/README.md "/input/specs/**/*.md" "/input/meta/**/*.md" "/input/op-node/**/*.md" || exit 0
+
+  bedrock-solidity:
+    docker:
+      - image: ethereumoptimism/js-builder:0.0.4
+    steps:
+      - checkout
+      - run:
+          name: init submodules
+          command: |
+            git submodule sync --recursive
+            git submodule update --recursive --init
+      - run:
+          name: install
+          command: yarn install
+          working_directory: contracts-bedrock
+      - run:
+          name: lint
+          command: |
+            # remove prettierrc in root of repo since it doesn't work with non-Lerna packages
+            mv ../.eslintrc.js ../.eslintrc.bak
+            yarn lint:check
+            mv ../.eslintrc.bak ../.eslintrc.js
+          working_directory: contracts-bedrock
+      - run:
+          name: slither
+          command: yarn slither || exit 0
+          working_directory: contracts-bedrock
+      - run:
+          name: build forge
+          command: yarn build:forge
+          working_directory: contracts-bedrock
+      - run:
+          name: test forge
+          command: yarn test:forge
+          working_directory: contracts-bedrock
+      - run:
+          name: gas snapshot
+          command: forge snapshot
+          working_directory: contracts-bedrock
+      - run:
+          name: check go bindings
+          command: |
+            make && git diff --exit-code
+          working_directory: op-bindings
+
+  bedrock-go-tests:
+    docker:
+      - image: ethereumoptimism/go-builder:latest
+    steps:
+      - checkout
+      - run:
+          name: lint op-bindings
+          command: |
+            golangci-lint run -E goimports,sqlclosecheck,bodyclose,asciicheck,misspell ./...
+          working_directory: op-bindings
+      - run:
+          name: lint op-node
+          command: |
+            golangci-lint run -E goimports,sqlclosecheck,bodyclose,asciicheck,misspell ./...
+          working_directory: op-node
+      - run:
+          name: lint op-proposer
+          command: |
+            golangci-lint run -E goimports,sqlclosecheck,bodyclose,asciicheck,misspell ./...
+          working_directory: op-proposer
+      - run:
+          name: lint op-batcher
+          command: |
+            golangci-lint run -E goimports,sqlclosecheck,bodyclose,asciicheck,misspell ./...
+          working_directory: op-batcher
+      - run:
+          name: lint op-e2e
+          command: |
+            golangci-lint run -E goimports,sqlclosecheck,bodyclose,asciicheck,misspell ./...
+          working_directory: op-e2e
+      - run:
+          name: prep results dir
+          command: mkdir -p /test-results
+      - run:
+          name: test op-node
+          command: |
+            gotestsum --junitfile /test-results/op-node.xml -- -coverpkg=github.com/ethereum-optimism/optimism/... -coverprofile=coverage.out -covermode=atomic ./...
+          working_directory: op-node
+      - run:
+          name: test op-proposer
+          command: |
+            gotestsum --junitfile /test-results/op-proposer.xml -- -coverpkg=github.com/ethereum-optimism/optimism/... -coverprofile=coverage.out -covermode=atomic ./...
+          working_directory: op-proposer
+      - run:
+          name: test op-batcher
+          command: |
+            gotestsum --junitfile /test-results/op-batcher.xml -- -coverpkg=github.com/ethereum-optimism/optimism/... -coverprofile=coverage.out -covermode=atomic ./...
+          working_directory: op-batcher
+      - run:
+          name: test op-e2e
+          command: |
+            gotestsum --junitfile /test-results/op-e2e.xml -- -coverpkg=github.com/ethereum-optimism/optimism/... -coverprofile=coverage.out -covermode=atomic ./...
+          working_directory: op-e2e
+      - store_test_results:
+          path: /test-results
+
+  fuzz-op-node:
+    docker:
+      - image: ethereumoptimism/go-builder:latest
+    steps:
+      - checkout
+      - run:
+          name: Fuzz
+          command: make fuzz
+          working_directory: op-node
+
+  bedrock-integration-tests:
+    machine:
+      image: ubuntu-2004:202111-02
+      docker_layer_caching: true
+    steps:
+      - checkout
+      - run:
+          name: init submodules
+          command: |
+            git submodule sync --recursive
+            git submodule update --recursive --init
+      - node/install:
+          install-yarn: true
+          node-version: '16.13'
+      - run:
+          name: install Foundry
+          command: |
+            curl -L https://foundry.paradigm.xyz | bash
+            source /home/circleci/.bashrc
+            foundryup
+      - run:
+          name: build typescript
+          command: make build-ts
+      - run:
+          name: start devnet
+          command: make devnet-up
+      - run:
+          name: run itests
+          command: make test-integration
+
 workflows:
   main:
     jobs:
       - yarn-monorepo
+      - bedrock-go-tests
+      - bedrock-solidity
+      - bedrock-markdown
+      - fuzz-op-node
       - go-lint-test-build:
           name: batch-submitter-tests
           binary_name: batch-submitter
@@ -335,6 +519,9 @@ workflows:
           name: bss-core-tests
           working_directory: bss-core
       - contracts-tests:
+          requires:
+            - yarn-monorepo
+      - contracts-periphery-tests:
           requires:
             - yarn-monorepo
       - js-lint-test:
