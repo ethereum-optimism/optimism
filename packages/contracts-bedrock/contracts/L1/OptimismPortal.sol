@@ -5,12 +5,13 @@ import { L2OutputOracle } from "./L2OutputOracle.sol";
 import { WithdrawalVerifier } from "../libraries/Lib_WithdrawalVerifier.sol";
 import { AddressAliasHelper } from "../libraries/AddressAliasHelper.sol";
 import { ExcessivelySafeCall } from "../libraries/ExcessivelySafeCall.sol";
+import { ResourceMetering } from "./ResourceMetering.sol";
 
 /**
  * @title OptimismPortal
  * This contract should be deployed behind an upgradable proxy.
  */
-contract OptimismPortal {
+contract OptimismPortal is ResourceMetering {
     /**
      * Emitted when a Transaction is deposited from L1 to L2. The parameters of this
      * event are read by the rollup node and used to derive deposit transactions on L2.
@@ -92,7 +93,7 @@ contract OptimismPortal {
         uint64 _gasLimit,
         bool _isCreation,
         bytes memory _data
-    ) public payable {
+    ) public payable metered(_gasLimit) {
         // Just to be safe, make sure that people specify address(0) as the target when doing
         // contract creations.
         // TODO: Do we really need this? Prevents some user error, but adds gas.
@@ -109,6 +110,8 @@ contract OptimismPortal {
             from = AddressAliasHelper.applyL1ToL2Alias(msg.sender);
         }
 
+        // Emit a TransactionDeposited event so that the rollup node can derive a deposit
+        // transaction for this deposit.
         emit TransactionDeposited(from, _to, msg.value, _value, _gasLimit, _isCreation, _data);
     }
 
@@ -136,8 +139,14 @@ contract OptimismPortal {
         WithdrawalVerifier.OutputRootProof calldata _outputRootProof,
         bytes calldata _withdrawalProof
     ) external payable {
-        // Prevent direct reentrancy and prevent users from creating a deposit transaction where
-        // this address is the message sender on L2.
+        // Prevent reentrancy.
+        require(
+            l2Sender == DEFAULT_L2_SENDER,
+            "OptimismPortal: can only trigger one withdrawal per transaction"
+        );
+
+        // Prevent users from creating a deposit transaction where this address is the message
+        // sender on L2.
         require(
             _target != address(this),
             "OptimismPortal: you cannot send messages to the portal contract"
@@ -203,10 +212,6 @@ contract OptimismPortal {
 
         // Set the l2Sender so contracts know who triggered this withdrawal on L2.
         l2Sender = _sender;
-
-        // TODO: Do we want reentrancy protection by checking that l2Sender is not the default L2
-        // sender value? Right now it's possible to reenter this function if you really wanted to
-        // (with a different withdrawal, can't be the same withdrawal twice).
 
         // Trigger the call to the target contract. We use excessivelySafeCall because we don't
         // care about the returndata and we don't want target contracts to be able to force this
