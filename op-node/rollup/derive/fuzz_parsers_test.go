@@ -5,8 +5,8 @@ import (
 	"math/big"
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/op-node/contracts/deposit"
-	"github.com/ethereum-optimism/optimism/op-node/contracts/l1block"
+	"github.com/ethereum-optimism/optimism/op-bindings/deposit"
+	"github.com/ethereum-optimism/optimism/op-bindings/l1block"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/rawdb"
