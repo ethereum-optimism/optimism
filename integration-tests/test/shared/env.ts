@@ -9,7 +9,10 @@ import {
   CrossChainMessenger,
   MessageStatus,
   MessageDirection,
+  StandardBridgeAdapter,
+  ETHBridgeAdapter,
 } from '@eth-optimism/sdk'
+import { predeploys } from '@eth-optimism/contracts'
 
 /* Imports: Internal */
 import {
@@ -68,8 +71,20 @@ export class OptimismEnv {
           StateCommitmentChain: envConfig.STATE_COMMITMENT_CHAIN,
           CanonicalTransactionChain: envConfig.CANONICAL_TRANSACTION_CHAIN,
           BondManager: envConfig.BOND_MANAGER,
-        }
-      }
+        },
+      },
+      bridges: {
+        Standard: {
+          Adapter: StandardBridgeAdapter,
+          l1Bridge: envConfig.L1_STANDARD_BRIDGE,
+          l2Bridge: predeploys.L2StandardBridge,
+        },
+        ETH: {
+          Adapter: ETHBridgeAdapter,
+          l1Bridge: envConfig.L1_STANDARD_BRIDGE,
+          l2Bridge: predeploys.L2StandardBridge,
+        },
+      },
     })
 
     // fund the user if needed
