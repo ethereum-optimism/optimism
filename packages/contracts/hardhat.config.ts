@@ -132,6 +132,7 @@ const config: HardhatUserConfig = {
       'TestLib_Bytes32Utils',
       'TestLib_BytesUtils',
       'TestLib_MerkleTree',
+      'TestLib_Strings',
     ],
   },
   outputValidator: {
