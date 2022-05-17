@@ -1,5 +1,11 @@
 # @eth-optimism/batch-submitter-service
 
+## 0.1.11
+
+### Patch Changes
+
+- b2aa08e0: Add MAX_PLAINTEXT_BATCH_SIZE parameter to max out compression
+
 ## 0.1.10
 
 ### Patch Changes

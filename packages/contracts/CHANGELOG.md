@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.24
+
+### Patch Changes
+
+- b7a04acf: Remove unused network name parameter in contract deploy configs
+
 ## 0.5.23
 
 ### Patch Changes

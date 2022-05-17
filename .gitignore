@@ -6,6 +6,8 @@ temp
 coverage.json
 *.tsbuildinfo
 
+yarn-error.log
+
 dist
 artifacts
 cache
@@ -16,8 +18,14 @@ packages/contracts/coverage*
 packages/contracts/@ens*
 packages/contracts/@openzeppelin*
 packages/contracts/hardhat*
+packages/contracts-periphery/coverage*
+packages/contracts-periphery/@openzeppelin*
+packages/contracts-periphery/hardhat*
 
 packages/data-transport-layer/db
+
+packages/integration-tests-bedrock/cache
+packages/integration-tests-bedrock/artifacts
 
 # vim
 *.sw*
@@ -26,3 +34,13 @@ packages/data-transport-layer/db
 .env*
 !.env.example
 *.log
+
+.devnet
+
+# Ignore local fuzzing results
+**/testdata/fuzz/
+
+coverage.out
+
+# Ignore bedrock go bindings local output files
+op-bindings/bin

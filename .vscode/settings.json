@@ -7,6 +7,7 @@
     {"directory": "packages/core-utils", "changeProcessCWD": true },
     {"directory": "packages/common-ts", "changeProcessCWD": true },
     {"directory": "packages/contracts", "changeProcessCWD": true },
+    {"directory": "packages/contracts-periphery", "changeProcessCWD": true },
     {"directory": "packages/data-transport-layer", "changeProcessCWD": true },
     {"directory": "packages/batch-submitter", "changeProcessCWD": true },
     {"directory": "packages/message-relayer", "changeProcessCWD": true },

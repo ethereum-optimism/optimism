@@ -1,0 +1,12 @@
+{
+  "line_length": {
+    "line_length": 120,
+    "strict": false,
+    "stern": true,
+    "code_blocks": false,
+    "tables": false,
+  },
+  "no-blanks-blockquote": false,
+  "single-title": false,
+  "no-emphasis-as-heading": false,
+}

@@ -5,6 +5,7 @@
   - 'ops/**/*'
   - 'packages/batch-submitter/**/*'
   - 'packages/contracts/**/*'
+  - 'packages/contracts-periphery/**/*'
   - 'packages/data-transport-layer/**/*'
   - 'packages/message-relayer/**/*'
   - 'packages/fault-detector/**/*'
@@ -24,6 +25,9 @@ M-batch-submitter:
 
 M-contracts:
   - any: ['packages/contracts/**/*']
+
+M-contracts-periphery:
+  - any: ['packages/contracts-periphery/**/*']
 
 M-core-utils:
   - any: ['packages/core-utils/**/*']
