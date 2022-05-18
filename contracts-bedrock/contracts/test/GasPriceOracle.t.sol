@@ -81,7 +81,8 @@ contract GasPriceOracle_Test is CommonTest {
 
     function test_l1BaseFee() external {
         uint256 l1BaseFee = gasOracle.l1BaseFee();
-        assertEq(l1BaseFee, 100);
+        uint256 expect = 100 * (uint256(7) / uint256(10)) + 0 * (uint256(3) / uint256(10));
+        assertEq(l1BaseFee, expect);
     }
 
     function test_gasPrice() external {
