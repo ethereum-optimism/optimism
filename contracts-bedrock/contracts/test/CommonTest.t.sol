@@ -14,13 +14,13 @@ import { L2ToL1MessagePasser } from "../L2/L2ToL1MessagePasser.sol";
 import { L1CrossDomainMessenger } from "../L1/L1CrossDomainMessenger.sol";
 import { L2CrossDomainMessenger } from "../L2/L2CrossDomainMessenger.sol";
 import { AddressAliasHelper } from "@eth-optimism/contracts/standards/AddressAliasHelper.sol";
+import { OVM_ETH } from "../L2/OVM_ETH.sol";
 
 import {
     Lib_PredeployAddresses
 } from "@eth-optimism/contracts/libraries/constants/Lib_PredeployAddresses.sol";
 
 import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import { console } from "forge-std/console.sol";
 
 contract CommonTest is Test {
     address alice = address(128);
@@ -81,8 +81,8 @@ contract L2OutputOracle_Initializer is CommonTest {
 contract Messenger_Initializer is L2OutputOracle_Initializer {
     OptimismPortal op;
     L1CrossDomainMessenger L1Messenger;
-    L2CrossDomainMessenger L2Messenger;
-    L2ToL1MessagePasser messagePasser;
+    L2CrossDomainMessenger L2Messenger = L2CrossDomainMessenger(Lib_PredeployAddresses.L2_CROSS_DOMAIN_MESSENGER);
+    L2ToL1MessagePasser messagePasser = L2ToL1MessagePasser(payable(Lib_PredeployAddresses.L2_TO_L1_MESSAGE_PASSER));
 
     event SentMessage(
         address indexed target,
@@ -125,16 +125,23 @@ contract Messenger_Initializer is L2OutputOracle_Initializer {
         L1Messenger = new L1CrossDomainMessenger();
         L1Messenger.initialize(op);
 
-        L2CrossDomainMessenger l2m = new L2CrossDomainMessenger();
-        vm.etch(Lib_PredeployAddresses.L2_CROSS_DOMAIN_MESSENGER, address(l2m).code);
-        L2Messenger = L2CrossDomainMessenger(Lib_PredeployAddresses.L2_CROSS_DOMAIN_MESSENGER);
+        vm.etch(
+            Lib_PredeployAddresses.L2_CROSS_DOMAIN_MESSENGER,
+            address(new L2CrossDomainMessenger()).code
+        );
 
         L2Messenger.initialize(address(L1Messenger));
 
         // Set the L2ToL1MessagePasser at the correct address
-        L2ToL1MessagePasser mp = new L2ToL1MessagePasser();
-        vm.etch(Lib_PredeployAddresses.L2_TO_L1_MESSAGE_PASSER, address(mp).code);
-        messagePasser = L2ToL1MessagePasser(payable(Lib_PredeployAddresses.L2_TO_L1_MESSAGE_PASSER));
+        vm.etch(
+            Lib_PredeployAddresses.L2_TO_L1_MESSAGE_PASSER,
+            address(new L2ToL1MessagePasser()).code
+        );
+
+        vm.label(
+            Lib_PredeployAddresses.OVM_ETH,
+            "OVM_ETH"
+        );
 
         vm.label(
             Lib_PredeployAddresses.L2_TO_L1_MESSAGE_PASSER,
@@ -284,6 +291,11 @@ contract Bridge_Initializer is Messenger_Initializer {
         vm.etch(Lib_PredeployAddresses.L2_STANDARD_TOKEN_FACTORY, address(factory).code);
         L2TokenFactory = OptimismMintableTokenFactory(Lib_PredeployAddresses.L2_STANDARD_TOKEN_FACTORY);
         L2TokenFactory.initialize(Lib_PredeployAddresses.L2_STANDARD_BRIDGE);
+
+        vm.etch(
+            Lib_PredeployAddresses.OVM_ETH,
+            address(new OVM_ETH()).code
+        );
 
         L1Token = new ERC20("Native L1 Token", "L1T");
 
