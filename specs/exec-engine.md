@@ -20,7 +20,7 @@
 
 This document outlines the modifications, configuration and usage of a L1 execution engine for L2.
 
-## Depositited transaction processing
+## Deposited transaction processing
 
 The Engine interfaces abstract away transaction types with [EIP-2718][eip-2718].
 
