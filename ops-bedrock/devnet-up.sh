@@ -22,7 +22,7 @@
 # time in this script.
 #
 # This script is safe to run multiple times. It stores state in `.devnet`, and
-# packages/contracts/deployments/devnetL1.
+# contracts-bedrock/deployments/devnetL1.
 #
 # Don't run this script directly. Run it using the makefile, e.g. `make devnet-up`.
 # To clean up your devnet, run `make devnet-clean`.
@@ -72,17 +72,17 @@ wait_up $L1_URL
 cd ../
 
 # Deploy contracts using Hardhat.
-if [ ! -f ./packages/contracts/deployments/devnetL1/OptimismPortal.json ]; then
+if [ ! -f ./contracts-bedrock/deployments/devnetL1/OptimismPortal.json ]; then
   echo "Deploying contracts."
-  cd ./packages/contracts
+  cd ./contracts-bedrock
   L2OO_STARTING_BLOCK_TIMESTAMP=$GENESIS_TIMESTAMP yarn hardhat --network devnetL1 deploy
-  cd ../../
+  cd ../
 else
   echo "Contracts already deployed, skipping."
 fi
 
 function get_deployed_bytecode() {
-    echo $(jq -r .deployedBytecode ./packages/contracts/artifacts/contracts/$1)
+    echo $(jq -r .deployedBytecode ./contracts-bedrock/artifacts/contracts/$1)
 }
 
 # Pull out the necessary bytecode/addresses from the artifacts/deployments.
@@ -92,8 +92,8 @@ OPTIMISM_MINTABLE_TOKEN_FACTORY_BYTECODE=$(get_deployed_bytecode universal/Optim
 L2_STANDARD_BRIDGE_BYTECODE=$(get_deployed_bytecode L2/L2StandardBridge.sol/L2StandardBridge.json)
 L1_BLOCK_INFO_BYTECODE=$(get_deployed_bytecode L2/L1Block.sol/L1Block.json)
 
-DEPOSIT_CONTRACT_ADDRESS=$(jq -r .address < ./packages/contracts/deployments/devnetL1/OptimismPortal.json)
-L2OO_ADDRESS=$(jq -r .address < ./packages/contracts/deployments/devnetL1/L2OutputOracle.json)
+DEPOSIT_CONTRACT_ADDRESS=$(jq -r .address < ./contracts-bedrock/deployments/devnetL1/OptimismPortal.json)
+L2OO_ADDRESS=$(jq -r .address < ./contracts-bedrock/deployments/devnetL1/L2OutputOracle.json)
 
 # Replace values in the L2 genesis file. It doesn't matter if this gets run every time,
 # since the replaced values will be the same.
