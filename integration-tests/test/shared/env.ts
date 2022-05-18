@@ -11,6 +11,7 @@ import {
   MessageDirection,
   StandardBridgeAdapter,
   ETHBridgeAdapter,
+  BridgeAdapterData,
 } from '@eth-optimism/sdk'
 import { predeploys } from '@eth-optimism/contracts'
 
@@ -59,6 +60,22 @@ export class OptimismEnv {
   static async new(): Promise<OptimismEnv> {
     const network = await l1Provider.getNetwork()
 
+    let bridgeOverrides: BridgeAdapterData
+    if (envConfig.L1_STANDARD_BRIDGE) {
+      bridgeOverrides = {
+        Standard: {
+          Adapter: StandardBridgeAdapter,
+          l1Bridge: envConfig.L1_STANDARD_BRIDGE,
+          l2Bridge: predeploys.L2StandardBridge,
+        },
+        ETH: {
+          Adapter: ETHBridgeAdapter,
+          l1Bridge: envConfig.L1_STANDARD_BRIDGE,
+          l2Bridge: predeploys.L2StandardBridge,
+        },
+      }
+    }
+
     const messenger = new CrossChainMessenger({
       l1SignerOrProvider: l1Wallet,
       l2SignerOrProvider: l2Wallet,
@@ -73,18 +90,7 @@ export class OptimismEnv {
           BondManager: envConfig.BOND_MANAGER,
         },
       },
-      bridges: {
-        Standard: {
-          Adapter: StandardBridgeAdapter,
-          l1Bridge: envConfig.L1_STANDARD_BRIDGE,
-          l2Bridge: predeploys.L2StandardBridge,
-        },
-        ETH: {
-          Adapter: ETHBridgeAdapter,
-          l1Bridge: envConfig.L1_STANDARD_BRIDGE,
-          l2Bridge: predeploys.L2StandardBridge,
-        },
-      },
+      bridges: bridgeOverrides,
     })
 
     // fund the user if needed
