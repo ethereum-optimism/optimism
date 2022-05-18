@@ -83,7 +83,7 @@ var (
 		Usage:    "The UDP port to advertise in Discv5 as fallback if not determined by Discv5, put into the ENR of the node. Set to p2p.listen.udp value if 0.",
 		Required: false,
 		Value:    0,
-		EnvVar:   p2pEnv("ADVERTISE_TCP"),
+		EnvVar:   p2pEnv("ADVERTISE_UDP"),
 	}
 	Bootnodes = cli.StringFlag{
 		Name:     "p2p.bootnodes",
