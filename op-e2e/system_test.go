@@ -8,10 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/op-bindings/deposit"
-	"github.com/ethereum-optimism/optimism/op-bindings/l1block"
-	"github.com/ethereum-optimism/optimism/op-bindings/l2oo"
-	"github.com/ethereum-optimism/optimism/op-bindings/withdrawer"
+	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-node/l2"
 	"github.com/ethereum-optimism/optimism/op-node/node"
 	rollupNode "github.com/ethereum-optimism/optimism/op-node/node"
@@ -152,7 +149,7 @@ func TestL2OutputSubmitter(t *testing.T) {
 	rollupClient := rollupclient.NewRollupClient(rollupRPCClient)
 
 	//  StateRootOracle is already deployed
-	l2OutputOracle, err := l2oo.NewL2OutputOracleCaller(sys.L2OOContractAddr, l1Client)
+	l2OutputOracle, err := bindings.NewL2OutputOracleCaller(sys.L2OOContractAddr, l1Client)
 	require.Nil(t, err)
 
 	initialSroTimestamp, err := l2OutputOracle.LatestBlockTimestamp(&bind.CallOpts{})
@@ -239,7 +236,7 @@ func TestSystemE2E(t *testing.T) {
 	fromAddr := common.HexToAddress("0x30ec912c5b1d14aa6d1cb9aa7a6682415c4f7eb0")
 
 	// Find deposit contract
-	depositContract, err := deposit.NewOptimismPortal(sys.DepositContractAddr, l1Client)
+	depositContract, err := bindings.NewOptimismPortal(sys.DepositContractAddr, l1Client)
 	require.Nil(t, err)
 	l1Node := sys.nodes["l1"]
 
@@ -322,7 +319,7 @@ func TestMintOnRevertedDeposit(t *testing.T) {
 	l2Verif := sys.Clients["verifier"]
 
 	// Find deposit contract
-	depositContract, err := deposit.NewOptimismPortal(sys.DepositContractAddr, l1Client)
+	depositContract, err := bindings.NewOptimismPortal(sys.DepositContractAddr, l1Client)
 	require.Nil(t, err)
 	l1Node := sys.nodes["l1"]
 
@@ -442,7 +439,7 @@ func TestMissingBatchE2E(t *testing.T) {
 	require.NotEqual(t, block.Hash(), receipt.BlockHash, "L2 Sequencer did not reorg out transaction on it's safe chain")
 }
 
-func L1InfoFromState(ctx context.Context, contract *l1block.L1Block, l2Number *big.Int) (derive.L1BlockInfo, error) {
+func L1InfoFromState(ctx context.Context, contract *bindings.L1Block, l2Number *big.Int) (derive.L1BlockInfo, error) {
 	var err error
 	var out derive.L1BlockInfo
 	opts := bind.CallOpts{
@@ -576,16 +573,16 @@ func TestL1InfoContract(t *testing.T) {
 	endSeqBlock, err := waitForBlock(endSeqBlockNumber, l2Seq, time.Minute)
 	require.Nil(t, err)
 
-	seqL1Info, err := l1block.NewL1Block(cfg.L1InfoPredeployAddress, l2Seq)
+	seqL1Info, err := bindings.NewL1Block(cfg.L1InfoPredeployAddress, l2Seq)
 	require.Nil(t, err)
 
-	verifL1Info, err := l1block.NewL1Block(cfg.L1InfoPredeployAddress, l2Verif)
+	verifL1Info, err := bindings.NewL1Block(cfg.L1InfoPredeployAddress, l2Verif)
 	require.Nil(t, err)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
 
-	fillInfoLists := func(start *types.Block, contract *l1block.L1Block, client *ethclient.Client) ([]derive.L1BlockInfo, []derive.L1BlockInfo) {
+	fillInfoLists := func(start *types.Block, contract *bindings.L1Block, client *ethclient.Client) ([]derive.L1BlockInfo, []derive.L1BlockInfo) {
 		var txList, stateList []derive.L1BlockInfo
 		for b := start; ; {
 			var infoFromTx derive.L1BlockInfo
@@ -685,7 +682,7 @@ func TestWithdrawals(t *testing.T) {
 	fromAddr := crypto.PubkeyToAddress(ethPrivKey.PublicKey)
 
 	// Find deposit contract
-	depositContract, err := deposit.NewOptimismPortal(sys.DepositContractAddr, l1Client)
+	depositContract, err := bindings.NewOptimismPortal(sys.DepositContractAddr, l1Client)
 	require.Nil(t, err)
 
 	// Create L1 signer
@@ -708,7 +705,7 @@ func TestWithdrawals(t *testing.T) {
 	require.Nil(t, err, "Waiting for deposit tx on L1")
 
 	// Bind L2 Withdrawer Contract
-	l2withdrawer, err := withdrawer.NewWithdrawer(predeploy.WithdrawalContractAddress, l2Seq)
+	l2withdrawer, err := bindings.NewL2ToL1MessagePasser(predeploy.WithdrawalContractAddress, l2Seq)
 	require.Nil(t, err, "binding withdrawer on L2")
 
 	// Wait for deposit to arrive
@@ -771,7 +768,7 @@ func TestWithdrawals(t *testing.T) {
 	require.Nil(t, err)
 
 	// Wait for finalization and then create the Finalized Withdrawal Transaction
-	l2OutputOracle, err := l2oo.NewL2OutputOracleCaller(sys.L2OOContractAddr, l1Client)
+	l2OutputOracle, err := bindings.NewL2OutputOracleCaller(sys.L2OOContractAddr, l1Client)
 	require.Nil(t, err)
 
 	ctx, cancel = context.WithTimeout(context.Background(), 10*time.Duration(cfg.L1BlockTime)*time.Second)
@@ -797,7 +794,7 @@ func TestWithdrawals(t *testing.T) {
 	params, err := withdrawals.FinalizeWithdrawalParameters(context.Background(), l2client, tx.Hash(), header)
 	require.Nil(t, err)
 
-	portal, err := deposit.NewOptimismPortal(sys.DepositContractAddr, l1Client)
+	portal, err := bindings.NewOptimismPortal(sys.DepositContractAddr, l1Client)
 	require.Nil(t, err)
 
 	opts.Value = nil

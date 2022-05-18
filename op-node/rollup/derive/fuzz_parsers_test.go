@@ -5,8 +5,7 @@ import (
 	"math/big"
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/op-bindings/deposit"
-	"github.com/ethereum-optimism/optimism/op-bindings/l1block"
+	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/rawdb"
@@ -22,8 +21,8 @@ var (
 	addr                   = common.Address{0x42, 0xff}
 	opts, _                = bind.NewKeyedTransactorWithChainID(pk, common.Big1)
 	from                   = crypto.PubkeyToAddress(pk.PublicKey)
-	portalContract, _      = deposit.NewOptimismPortal(addr, nil)
-	l1BlockInfoContract, _ = l1block.NewL1Block(addr, nil)
+	portalContract, _      = bindings.NewOptimismPortal(addr, nil)
+	l1BlockInfoContract, _ = bindings.NewL1Block(addr, nil)
 )
 
 func cap_byte_slice(b []byte, c int) []byte {
@@ -174,7 +173,7 @@ func FuzzUnmarshallLogEvent(f *testing.F) {
 			t.Fatal(err)
 		}
 		state.SetBalance(from, BytesToBigInt([]byte{0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff}))
-		state.SetCode(addr, common.FromHex(deposit.OptimismPortalDeployedBin))
+		state.SetCode(addr, common.FromHex(bindings.OptimismPortalDeployedBin))
 		_, err = state.Commit(false)
 		if err != nil {
 			t.Fatal(err)
@@ -208,7 +207,7 @@ func FuzzUnmarshallLogEvent(f *testing.F) {
 			t.Fatalf("Could not unmarshal log that was emitted by the deposit contract: %v", err)
 		}
 
-		reconstructed := &deposit.OptimismPortalTransactionDeposited{
+		reconstructed := &bindings.OptimismPortalTransactionDeposited{
 			From:       dep.From,
 			Value:      dep.Value,
 			GasLimit:   dep.Gas,
@@ -229,7 +228,7 @@ func FuzzUnmarshallLogEvent(f *testing.F) {
 			t.Fatalf("The deposit tx did not match. tx: %v. actual: %v", reconstructed, depositEvent)
 		}
 
-		inputArgs := &deposit.OptimismPortalTransactionDeposited{
+		inputArgs := &bindings.OptimismPortalTransactionDeposited{
 			From:       from,
 			To:         to,
 			Mint:       mint,

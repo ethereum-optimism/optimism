@@ -7,7 +7,7 @@ import (
 	"math/big"
 	"strings"
 
-	"github.com/ethereum-optimism/optimism/op-bindings/l2oo"
+	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-node/l2"
 	"github.com/ethereum-optimism/optimism/op-proposer/rollupclient"
 	"github.com/ethereum/go-ethereum/accounts/abi"
@@ -35,14 +35,14 @@ type Config struct {
 
 type Driver struct {
 	cfg             Config
-	l2ooContract    *l2oo.L2OutputOracle
+	l2ooContract    *bindings.L2OutputOracle
 	rawL2ooContract *bind.BoundContract
 	walletAddr      common.Address
 	l               log.Logger
 }
 
 func NewDriver(cfg Config) (*Driver, error) {
-	l2ooContract, err := l2oo.NewL2OutputOracle(
+	l2ooContract, err := bindings.NewL2OutputOracle(
 		cfg.L2OOAddr, cfg.L1Client,
 	)
 	if err != nil {
@@ -50,7 +50,7 @@ func NewDriver(cfg Config) (*Driver, error) {
 	}
 
 	parsed, err := abi.JSON(strings.NewReader(
-		l2oo.L2OutputOracleMetaData.ABI,
+		bindings.L2OutputOracleMetaData.ABI,
 	))
 	if err != nil {
 		return nil, err
