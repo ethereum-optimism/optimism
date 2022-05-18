@@ -4,7 +4,7 @@
 <!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
 **Table of Contents**
 
-- [Depositited transaction processing](#depositited-transaction-processing)
+- [Deposited transaction processing](#deposited-transaction-processing)
   - [Deposited transaction boundaries](#deposited-transaction-boundaries)
 - [Engine API](#engine-api)
   - [`engine_forkchoiceUpdatedV1`](#engine_forkchoiceupdatedv1)
