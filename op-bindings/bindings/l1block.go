@@ -30,8 +30,8 @@ var (
 
 // L1BlockMetaData contains all meta data concerning the L1Block contract.
 var L1BlockMetaData = &bind.MetaData{
-	ABI: "[{\"inputs\":[],\"name\":\"OnlyDepositor\",\"type\":\"error\"},{\"inputs\":[],\"name\":\"DEPOSITOR_ACCOUNT\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"basefee\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"hash\",\"outputs\":[{\"internalType\":\"bytes32\",\"name\":\"\",\"type\":\"bytes32\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"number\",\"outputs\":[{\"internalType\":\"uint64\",\"name\":\"\",\"type\":\"uint64\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"sequenceNumber\",\"outputs\":[{\"internalType\":\"uint64\",\"name\":\"\",\"type\":\"uint64\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint64\",\"name\":\"_number\",\"type\":\"uint64\"},{\"internalType\":\"uint64\",\"name\":\"_timestamp\",\"type\":\"uint64\"},{\"internalType\":\"uint256\",\"name\":\"_basefee\",\"type\":\"uint256\"},{\"internalType\":\"bytes32\",\"name\":\"_hash\",\"type\":\"bytes32\"},{\"internalType\":\"uint64\",\"name\":\"_sequenceNumber\",\"type\":\"uint64\"}],\"name\":\"setL1BlockValues\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"timestamp\",\"outputs\":[{\"internalType\":\"uint64\",\"name\":\"\",\"type\":\"uint64\"}],\"stateMutability\":\"view\",\"type\":\"function\"}]",
-	Bin: "0x608060405234801561001057600080fd5b506102b0806100206000396000f3fe608060405234801561001057600080fd5b506004361061007d5760003560e01c806364ca23ef1161005b57806364ca23ef146100bc5780638381f58a146100e9578063b80777ea146100fd578063e591b2821461011d57600080fd5b8063042c2f571461008257806309bd5a60146100975780635cf24969146100b3575b600080fd5b61009561009036600461024c565b61015d565b005b6100a060025481565b6040519081526020015b60405180910390f35b6100a060015481565b6003546100d09067ffffffffffffffff1681565b60405167ffffffffffffffff90911681526020016100aa565b6000546100d09067ffffffffffffffff1681565b6000546100d09068010000000000000000900467ffffffffffffffff1681565b61013873deaddeaddeaddeaddeaddeaddeaddeaddead000181565b60405173ffffffffffffffffffffffffffffffffffffffff90911681526020016100aa565b3373deaddeaddeaddeaddeaddeaddeaddeaddead0001146101aa576040517fce8c104800000000000000000000000000000000000000000000000000000000815260040160405180910390fd5b6000805467ffffffffffffffff9687167fffffffffffffffffffffffffffffffff0000000000000000000000000000000090911617680100000000000000009587169590950294909417909355600191909155600255600380547fffffffffffffffffffffffffffffffffffffffffffffffff00000000000000001691909216179055565b803567ffffffffffffffff8116811461024757600080fd5b919050565b600080600080600060a0868803121561026457600080fd5b61026d8661022f565b945061027b6020870161022f565b935060408601359250606086013591506102976080870161022f565b9050929550929590935056fea164736f6c634300080a000a",
+	ABI: "[{\"inputs\":[],\"name\":\"OnlyDepositor\",\"type\":\"error\"},{\"inputs\":[],\"name\":\"DEPOSITOR_ACCOUNT\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"basefee\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"name\":\"basefees\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"hash\",\"outputs\":[{\"internalType\":\"bytes32\",\"name\":\"\",\"type\":\"bytes32\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"number\",\"outputs\":[{\"internalType\":\"uint64\",\"name\":\"\",\"type\":\"uint64\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"sequenceNumber\",\"outputs\":[{\"internalType\":\"uint64\",\"name\":\"\",\"type\":\"uint64\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint64\",\"name\":\"_number\",\"type\":\"uint64\"},{\"internalType\":\"uint64\",\"name\":\"_timestamp\",\"type\":\"uint64\"},{\"internalType\":\"uint256\",\"name\":\"_basefee\",\"type\":\"uint256\"},{\"internalType\":\"bytes32\",\"name\":\"_hash\",\"type\":\"bytes32\"},{\"internalType\":\"uint64\",\"name\":\"_sequenceNumber\",\"type\":\"uint64\"}],\"name\":\"setL1BlockValues\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"timestamp\",\"outputs\":[{\"internalType\":\"uint64\",\"name\":\"\",\"type\":\"uint64\"}],\"stateMutability\":\"view\",\"type\":\"function\"}]",
+	Bin: "0x608060405234801561001057600080fd5b50610449806100206000396000f3fe608060405234801561001057600080fd5b50600436106100885760003560e01c80637ebe2f3e1161005b5780637ebe2f3e146100f45780638381f58a14610107578063b80777ea1461011b578063e591b2821461013b57600080fd5b8063042c2f571461008d57806309bd5a60146100a25780635cf24969146100be57806364ca23ef146100c7575b600080fd5b6100a061009b366004610333565b61017b565b005b6100ab60025481565b6040519081526020015b60405180910390f35b6100ab60015481565b6003546100db9067ffffffffffffffff1681565b60405167ffffffffffffffff90911681526020016100b5565b6100ab61010236600461038a565b61027e565b6000546100db9067ffffffffffffffff1681565b6000546100db9068010000000000000000900467ffffffffffffffff1681565b61015673deaddeaddeaddeaddeaddeaddeaddeaddead000181565b60405173ffffffffffffffffffffffffffffffffffffffff90911681526020016100b5565b3373deaddeaddeaddeaddeaddeaddeaddeaddead0001146101c8576040517fce8c104800000000000000000000000000000000000000000000000000000000815260040160405180910390fd5b8260046101d7610100436103d2565b61010081106101e8576101e861040d565b01556000805467ffffffffffffffff86811668010000000000000000027fffffffffffffffffffffffffffffffff0000000000000000000000000000000090921690881617179055610238610296565b600155600291909155600380547fffffffffffffffffffffffffffffffffffffffffffffffff00000000000000001667ffffffffffffffff909216919091179055505050565b600481610100811061028f57600080fd5b0154905081565b60008080805b6101008110156102f057600060048261010081106102bc576102bc61040d565b0154905080156102e75760048261010081106102da576102da61040d565b0154840193508260010192505b5060010161029c565b50806102ff5760009250505090565b80828161030e5761030e6103a3565b049250505090565b803567ffffffffffffffff8116811461032e57600080fd5b919050565b600080600080600060a0868803121561034b57600080fd5b61035486610316565b945061036260208701610316565b9350604086013592506060860135915061037e60808701610316565b90509295509295909350565b60006020828403121561039c57600080fd5b5035919050565b7f4e487b7100000000000000000000000000000000000000000000000000000000600052601260045260246000fd5b600082610408577f4e487b7100000000000000000000000000000000000000000000000000000000600052601260045260246000fd5b500690565b7f4e487b7100000000000000000000000000000000000000000000000000000000600052603260045260246000fdfea164736f6c634300080a000a",
 }
 
 // L1BlockABI is the input ABI used to generate the binding from.
@@ -261,6 +261,37 @@ func (_L1Block *L1BlockSession) Basefee() (*big.Int, error) {
 // Solidity: function basefee() view returns(uint256)
 func (_L1Block *L1BlockCallerSession) Basefee() (*big.Int, error) {
 	return _L1Block.Contract.Basefee(&_L1Block.CallOpts)
+}
+
+// Basefees is a free data retrieval call binding the contract method 0x7ebe2f3e.
+//
+// Solidity: function basefees(uint256 ) view returns(uint256)
+func (_L1Block *L1BlockCaller) Basefees(opts *bind.CallOpts, arg0 *big.Int) (*big.Int, error) {
+	var out []interface{}
+	err := _L1Block.contract.Call(opts, &out, "basefees", arg0)
+
+	if err != nil {
+		return *new(*big.Int), err
+	}
+
+	out0 := *abi.ConvertType(out[0], new(*big.Int)).(**big.Int)
+
+	return out0, err
+
+}
+
+// Basefees is a free data retrieval call binding the contract method 0x7ebe2f3e.
+//
+// Solidity: function basefees(uint256 ) view returns(uint256)
+func (_L1Block *L1BlockSession) Basefees(arg0 *big.Int) (*big.Int, error) {
+	return _L1Block.Contract.Basefees(&_L1Block.CallOpts, arg0)
+}
+
+// Basefees is a free data retrieval call binding the contract method 0x7ebe2f3e.
+//
+// Solidity: function basefees(uint256 ) view returns(uint256)
+func (_L1Block *L1BlockCallerSession) Basefees(arg0 *big.Int) (*big.Int, error) {
+	return _L1Block.Contract.Basefees(&_L1Block.CallOpts, arg0)
 }
 
 // Hash is a free data retrieval call binding the contract method 0x09bd5a60.
