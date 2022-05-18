@@ -10,10 +10,7 @@ import (
 	"time"
 
 	bss "github.com/ethereum-optimism/optimism/op-batcher"
-	"github.com/ethereum-optimism/optimism/op-bindings/deposit"
-	"github.com/ethereum-optimism/optimism/op-bindings/l1block"
-	"github.com/ethereum-optimism/optimism/op-bindings/l2oo"
-	"github.com/ethereum-optimism/optimism/op-bindings/withdrawer"
+	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	rollupNode "github.com/ethereum-optimism/optimism/op-node/node"
 	"github.com/ethereum-optimism/optimism/op-node/p2p"
 	"github.com/ethereum-optimism/optimism/op-node/predeploy"
@@ -233,8 +230,8 @@ func (cfg SystemConfig) start() (*System, error) {
 		l2Alloc[addr] = core.GenesisAccount{Balance: balance}
 	}
 
-	l2Alloc[cfg.L1InfoPredeployAddress] = core.GenesisAccount{Code: common.FromHex(l1block.L1blockDeployedBin), Balance: common.Big0}
-	l2Alloc[predeploy.WithdrawalContractAddress] = core.GenesisAccount{Code: common.FromHex(withdrawer.WithdrawerDeployedBin), Balance: common.Big0}
+	l2Alloc[cfg.L1InfoPredeployAddress] = core.GenesisAccount{Code: common.FromHex(bindings.L1BlockDeployedBin), Balance: common.Big0}
+	l2Alloc[predeploy.WithdrawalContractAddress] = core.GenesisAccount{Code: common.FromHex(bindings.L2ToL1MessagePasserDeployedBin), Balance: common.Big0}
 
 	genesisTimestamp := uint64(time.Now().Unix())
 
@@ -383,7 +380,7 @@ func (cfg SystemConfig) start() (*System, error) {
 	}
 
 	// Deploy contracts
-	sys.L2OOContractAddr, _, _, err = l2oo.DeployL2OutputOracle(
+	sys.L2OOContractAddr, _, _, err = bindings.DeployL2OutputOracle(
 		opts,
 		l1Client,
 		sys.cfg.L2OOCfg.SubmissionFrequency,
@@ -398,7 +395,7 @@ func (cfg SystemConfig) start() (*System, error) {
 		return nil, err
 	}
 	var tx *types.Transaction
-	sys.DepositContractAddr, tx, _, err = deposit.DeployOptimismPortal(
+	sys.DepositContractAddr, tx, _, err = bindings.DeployOptimismPortal(
 		opts,
 		l1Client,
 		sys.cfg.DepositCFG.L2Oracle,
