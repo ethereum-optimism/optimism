@@ -4,6 +4,8 @@ pragma solidity 0.8.10;
 import { CommonTest } from "./CommonTest.t.sol";
 import { L1Block } from "../L2/L1Block.sol";
 
+import { console } from "forge-std/console.sol";
+
 contract L1BlockTest is CommonTest {
     L1Block lb;
     address depositor;
@@ -49,5 +51,34 @@ contract L1BlockTest is CommonTest {
     function test_updateValues() external {
         vm.prank(depositor);
         lb.setL1BlockValues(type(uint64).max, type(uint64).max, type(uint256).max, keccak256(abi.encode(1)), type(uint64).max);
+    }
+
+    function test_averageBasefee() external {
+        vm.startPrank(depositor);
+        for (uint256 i = 0; i < 256; i++) {
+            // set the block number
+            vm.roll(i);
+
+            lb.setL1BlockValues(
+                type(uint64).max,
+                type(uint64).max,
+                i,
+                keccak256(abi.encode(1)),
+                type(uint64).max
+            );
+        }
+        vm.stopPrank();
+
+        // each value should be set correctly
+        for (uint256 i = 0; i < 256; i++) {
+            uint256 sample = lb.basefees(i);
+            assertEq(sample, i);
+        }
+
+        // The average basefee is 128
+        assertEq(
+            lb.basefee(),
+            128
+        );
     }
 }
