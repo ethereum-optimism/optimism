@@ -12,8 +12,6 @@ import { AddressAliasHelper } from "@eth-optimism/contracts/standards/AddressAli
 import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import { stdStorage, StdStorage } from "forge-std/Test.sol";
 
-import { console } from "forge-std/console.sol";
-
 contract L1StandardBridge_Test is Bridge_Initializer {
     using stdStorage for StdStorage;
 

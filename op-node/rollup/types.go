@@ -70,8 +70,32 @@ func (cfg *Config) Check() error {
 	if cfg.Genesis.L2.Hash == cfg.Genesis.L1.Hash {
 		return errors.New("achievement get! rollup inception: L1 and L2 genesis cannot be the same")
 	}
+	if cfg.Genesis.L2Time == 0 {
+		return errors.New("missing L2 genesis time")
+	}
+	if cfg.P2PSequencerAddress == (common.Address{}) {
+		return errors.New("missing p2p sequencer address")
+	}
+	if cfg.FeeRecipientAddress == (common.Address{}) {
+		return errors.New("missing fee recipient address")
+	}
+	if cfg.BatchInboxAddress == (common.Address{}) {
+		return errors.New("missing batch inbox address")
+	}
+	if cfg.BatchSenderAddress == (common.Address{}) {
+		return errors.New("missing batch sender address")
+	}
 	if cfg.DepositContractAddress == (common.Address{}) {
-		return errors.New("did not provide deposit contract address ")
+		return errors.New("missing deposit contract address")
+	}
+	if cfg.L1ChainID == nil {
+		return errors.New("l1 chain ID must not be nil")
+	}
+	if cfg.L2ChainID == nil {
+		return errors.New("l2 chain ID must not be nil")
+	}
+	if cfg.L1ChainID.Cmp(cfg.L2ChainID) == 0 {
+		return errors.New("l1 and l2 chain IDs must be different")
 	}
 	return nil
 }

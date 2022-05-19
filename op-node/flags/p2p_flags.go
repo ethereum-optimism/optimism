@@ -64,7 +64,7 @@ var (
 	}
 	AdvertiseIP = cli.StringFlag{
 		Name:     "p2p.advertise.ip",
-		Usage:    "The IP address to advertise in Discv5, put into the ENR of the node",
+		Usage:    "The IP address to advertise in Discv5, put into the ENR of the node. This may also be a hostname / domain name to resolve to an IP.",
 		Required: false,
 		// Ignored by default, nodes can discover their own external IP in the happy case,
 		// by communicating with bootnodes. Fixed IP is recommended for faster bootstrap though.
@@ -83,7 +83,7 @@ var (
 		Usage:    "The UDP port to advertise in Discv5 as fallback if not determined by Discv5, put into the ENR of the node. Set to p2p.listen.udp value if 0.",
 		Required: false,
 		Value:    0,
-		EnvVar:   p2pEnv("ADVERTISE_TCP"),
+		EnvVar:   p2pEnv("ADVERTISE_UDP"),
 	}
 	Bootnodes = cli.StringFlag{
 		Name:     "p2p.bootnodes",

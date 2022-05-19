@@ -6,8 +6,6 @@ import { GasPriceOracle } from "../L2/GasPriceOracle.sol";
 import { L1Block } from "../L2/L1Block.sol";
 import { Lib_BedrockPredeployAddresses } from "../libraries/Lib_BedrockPredeployAddresses.sol";
 
-import { console } from "forge-std/console.sol";
-
 contract GasPriceOracle_Test is CommonTest {
 
     event OverheadUpdated(uint256);
@@ -89,14 +87,12 @@ contract GasPriceOracle_Test is CommonTest {
     function test_gasPrice() external {
         vm.fee(100);
         uint256 gasPrice = gasOracle.gasPrice();
-        console.log(gasPrice);
         assertEq(gasPrice, 100);
     }
 
     function test_baseFee() external {
         vm.fee(64);
         uint256 gasPrice = gasOracle.baseFee();
-        console.log(gasPrice);
         assertEq(gasPrice, 64);
     }
 
