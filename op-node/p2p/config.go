@@ -218,7 +218,17 @@ func (conf *Config) loadDiscoveryOpts(ctx *cli.Context) error {
 	}
 	adIP := ctx.GlobalString(flags.AdvertiseIP.Name)
 	if adIP != "" { // optional
-		conf.AdvertiseIP = net.ParseIP(adIP)
+		ips, err := net.LookupIP(adIP)
+		if err != nil {
+			return fmt.Errorf("failed to lookup IP of %q to advertise in ENR: %v", adIP, err)
+		}
+		// Find the first v4 IP it resolves to
+		for _, ip := range ips {
+			if ipv4 := ip.To4(); ipv4 != nil {
+				conf.AdvertiseIP = ipv4
+				break
+			}
+		}
 		if conf.AdvertiseIP == nil {
 			return fmt.Errorf("failed to parse IP %q", adIP)
 		}
