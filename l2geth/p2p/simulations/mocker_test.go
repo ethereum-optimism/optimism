@@ -27,7 +27,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/l2geth/p2p/enode"
+	"github.com/tenderly/optimism/l2geth/p2p/enode"
 )
 
 func TestMocker(t *testing.T) {

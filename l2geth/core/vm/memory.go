@@ -20,7 +20,7 @@ import (
 	"fmt"
 	"math/big"
 
-	"github.com/ethereum-optimism/optimism/l2geth/common/math"
+	"github.com/tenderly/optimism/l2geth/common/math"
 )
 
 // Memory implements a simple memory model for the ethereum virtual machine.

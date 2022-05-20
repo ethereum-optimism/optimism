@@ -21,10 +21,10 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/ethereum-optimism/optimism/l2geth/common/math"
-	"github.com/ethereum-optimism/optimism/l2geth/crypto"
-	"github.com/ethereum-optimism/optimism/l2geth/p2p/enr"
-	"github.com/ethereum-optimism/optimism/l2geth/rlp"
+	"github.com/tenderly/optimism/l2geth/common/math"
+	"github.com/tenderly/optimism/l2geth/crypto"
+	"github.com/tenderly/optimism/l2geth/p2p/enr"
+	"github.com/tenderly/optimism/l2geth/rlp"
 	"golang.org/x/crypto/sha3"
 )
 

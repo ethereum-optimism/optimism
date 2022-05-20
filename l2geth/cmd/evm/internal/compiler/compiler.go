@@ -20,7 +20,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/ethereum-optimism/optimism/l2geth/core/asm"
+	"github.com/tenderly/optimism/l2geth/core/asm"
 )
 
 func Compile(fn string, src []byte, debug bool) (string, error) {

@@ -10,19 +10,19 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/l2geth/common"
-	"github.com/ethereum-optimism/optimism/l2geth/core"
-	"github.com/ethereum-optimism/optimism/l2geth/core/state"
-	"github.com/ethereum-optimism/optimism/l2geth/ethdb"
-	"github.com/ethereum-optimism/optimism/l2geth/event"
-	"github.com/ethereum-optimism/optimism/l2geth/log"
+	"github.com/tenderly/optimism/l2geth/common"
+	"github.com/tenderly/optimism/l2geth/core"
+	"github.com/tenderly/optimism/l2geth/core/state"
+	"github.com/tenderly/optimism/l2geth/ethdb"
+	"github.com/tenderly/optimism/l2geth/event"
+	"github.com/tenderly/optimism/l2geth/log"
 
-	"github.com/ethereum-optimism/optimism/l2geth/core/rawdb"
-	"github.com/ethereum-optimism/optimism/l2geth/core/types"
+	"github.com/tenderly/optimism/l2geth/core/rawdb"
+	"github.com/tenderly/optimism/l2geth/core/types"
 
-	"github.com/ethereum-optimism/optimism/l2geth/eth/gasprice"
-	"github.com/ethereum-optimism/optimism/l2geth/rollup/fees"
-	"github.com/ethereum-optimism/optimism/l2geth/rollup/rcfg"
+	"github.com/tenderly/optimism/l2geth/eth/gasprice"
+	"github.com/tenderly/optimism/l2geth/rollup/fees"
+	"github.com/tenderly/optimism/l2geth/rollup/rcfg"
 )
 
 var (

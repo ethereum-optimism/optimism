@@ -35,7 +35,7 @@ package whisperv6
 import (
 	"time"
 
-	"github.com/ethereum-optimism/optimism/l2geth/crypto"
+	"github.com/tenderly/optimism/l2geth/crypto"
 )
 
 // Whisper protocol parameters

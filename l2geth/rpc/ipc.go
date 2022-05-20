@@ -20,8 +20,8 @@ import (
 	"context"
 	"net"
 
-	"github.com/ethereum-optimism/optimism/l2geth/log"
-	"github.com/ethereum-optimism/optimism/l2geth/p2p/netutil"
+	"github.com/tenderly/optimism/l2geth/log"
+	"github.com/tenderly/optimism/l2geth/p2p/netutil"
 )
 
 // ServeListener accepts connections on l, serving JSON-RPC on them.

@@ -10,7 +10,7 @@ import (
 	"sync"
 	"time"
 
-	l2rpc "github.com/ethereum-optimism/optimism/l2geth/rpc"
+	l2rpc "github.com/tenderly/optimism/l2geth/rpc"
 
 	"github.com/ethereum-optimism/optimism/go/indexer/metrics"
 	"github.com/ethereum-optimism/optimism/go/indexer/server"
@@ -18,9 +18,9 @@ import (
 
 	"github.com/ethereum-optimism/optimism/go/indexer/db"
 	"github.com/ethereum-optimism/optimism/go/indexer/services/l2/bridge"
-	"github.com/ethereum-optimism/optimism/l2geth/common"
-	"github.com/ethereum-optimism/optimism/l2geth/core/types"
-	l2ethclient "github.com/ethereum-optimism/optimism/l2geth/ethclient"
+	"github.com/tenderly/optimism/l2geth/common"
+	"github.com/tenderly/optimism/l2geth/core/types"
+	l2ethclient "github.com/tenderly/optimism/l2geth/ethclient"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/gorilla/mux"
 )

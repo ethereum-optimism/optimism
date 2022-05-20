@@ -23,10 +23,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/l2geth/accounts/scwallet"
-	"github.com/ethereum-optimism/optimism/l2geth/accounts/usbwallet"
-	"github.com/ethereum-optimism/optimism/l2geth/log"
-	"github.com/ethereum-optimism/optimism/l2geth/rpc"
+	"github.com/tenderly/optimism/l2geth/accounts/scwallet"
+	"github.com/tenderly/optimism/l2geth/accounts/usbwallet"
+	"github.com/tenderly/optimism/l2geth/log"
+	"github.com/tenderly/optimism/l2geth/rpc"
 	"github.com/robertkrimen/otto"
 )
 

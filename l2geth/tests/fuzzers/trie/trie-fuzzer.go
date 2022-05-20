@@ -21,9 +21,9 @@ import (
 	"encoding/binary"
 	"fmt"
 
-	"github.com/ethereum-optimism/optimism/l2geth/common"
-	"github.com/ethereum-optimism/optimism/l2geth/ethdb/memorydb"
-	"github.com/ethereum-optimism/optimism/l2geth/trie"
+	"github.com/tenderly/optimism/l2geth/common"
+	"github.com/tenderly/optimism/l2geth/ethdb/memorydb"
+	"github.com/tenderly/optimism/l2geth/trie"
 )
 
 // randTest performs random trie operations.

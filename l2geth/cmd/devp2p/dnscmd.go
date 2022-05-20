@@ -25,11 +25,11 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/l2geth/accounts/keystore"
-	"github.com/ethereum-optimism/optimism/l2geth/common"
-	"github.com/ethereum-optimism/optimism/l2geth/console"
-	"github.com/ethereum-optimism/optimism/l2geth/p2p/dnsdisc"
-	"github.com/ethereum-optimism/optimism/l2geth/p2p/enode"
+	"github.com/tenderly/optimism/l2geth/accounts/keystore"
+	"github.com/tenderly/optimism/l2geth/common"
+	"github.com/tenderly/optimism/l2geth/console"
+	"github.com/tenderly/optimism/l2geth/p2p/dnsdisc"
+	"github.com/tenderly/optimism/l2geth/p2p/enode"
 	cli "gopkg.in/urfave/cli.v1"
 )
 

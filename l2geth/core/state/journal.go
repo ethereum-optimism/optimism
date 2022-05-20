@@ -19,7 +19,7 @@ package state
 import (
 	"math/big"
 
-	"github.com/ethereum-optimism/optimism/l2geth/common"
+	"github.com/tenderly/optimism/l2geth/common"
 )
 
 // journalEntry is a modification entry in the state change journal that can be

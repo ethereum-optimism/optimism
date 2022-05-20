@@ -21,7 +21,7 @@ import (
 	"fmt"
 	"io/ioutil"
 
-	"github.com/ethereum-optimism/optimism/l2geth/cmd/evm/internal/compiler"
+	"github.com/tenderly/optimism/l2geth/cmd/evm/internal/compiler"
 
 	cli "gopkg.in/urfave/cli.v1"
 )

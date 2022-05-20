@@ -6,13 +6,13 @@ import (
 	"math/big"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/l2geth/common"
-	"github.com/ethereum-optimism/optimism/l2geth/consensus/ethash"
-	"github.com/ethereum-optimism/optimism/l2geth/core"
-	"github.com/ethereum-optimism/optimism/l2geth/eth/downloader"
-	"github.com/ethereum-optimism/optimism/l2geth/eth/gasprice"
-	"github.com/ethereum-optimism/optimism/l2geth/miner"
-	"github.com/ethereum-optimism/optimism/l2geth/params"
+	"github.com/tenderly/optimism/l2geth/common"
+	"github.com/tenderly/optimism/l2geth/consensus/ethash"
+	"github.com/tenderly/optimism/l2geth/core"
+	"github.com/tenderly/optimism/l2geth/eth/downloader"
+	"github.com/tenderly/optimism/l2geth/eth/gasprice"
+	"github.com/tenderly/optimism/l2geth/miner"
+	"github.com/tenderly/optimism/l2geth/params"
 )
 
 // MarshalTOML marshals as TOML.

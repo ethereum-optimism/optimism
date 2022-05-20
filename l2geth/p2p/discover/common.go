@@ -20,9 +20,9 @@ import (
 	"crypto/ecdsa"
 	"net"
 
-	"github.com/ethereum-optimism/optimism/l2geth/log"
-	"github.com/ethereum-optimism/optimism/l2geth/p2p/enode"
-	"github.com/ethereum-optimism/optimism/l2geth/p2p/netutil"
+	"github.com/tenderly/optimism/l2geth/log"
+	"github.com/tenderly/optimism/l2geth/p2p/enode"
+	"github.com/tenderly/optimism/l2geth/p2p/netutil"
 )
 
 // UDPConn is a network connection on which discovery can operate.

@@ -26,7 +26,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/ethereum-optimism/optimism/l2geth/log"
+	"github.com/tenderly/optimism/l2geth/log"
 )
 
 // makeWizard creates and returns a new puppeth wizard.

@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"strings"
 
-	l2common "github.com/ethereum-optimism/optimism/l2geth/common"
+	l2common "github.com/tenderly/optimism/l2geth/common"
 	"github.com/ethereum/go-ethereum/common"
 
 	// NOTE: Only postgresql backend is supported at the moment.
@@ -661,9 +661,9 @@ func (d *Database) GetIndexedL1BlockByHash(hash common.Hash) (*IndexedL1Block, e
 }
 
 const getAirdropQuery = `
-SELECT 
+SELECT
 	address, voter_amount, multisig_signer_amount, gitcoin_amount,
-	active_bridged_amount, op_user_amount, op_repeat_user_amount, 
+	active_bridged_amount, op_user_amount, op_repeat_user_amount,
     bonus_amount, total_amount
 FROM airdrops
 WHERE address = $1

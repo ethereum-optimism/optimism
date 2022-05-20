@@ -19,8 +19,8 @@ package core
 import (
 	"sync"
 
-	"github.com/ethereum-optimism/optimism/l2geth/common"
-	"github.com/ethereum-optimism/optimism/l2geth/core/state"
+	"github.com/tenderly/optimism/l2geth/common"
+	"github.com/tenderly/optimism/l2geth/core/state"
 )
 
 // txNoncer is a tiny virtual state database to manage the executable nonces of

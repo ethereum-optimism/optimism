@@ -1,8 +1,8 @@
 package dump
 
 import (
-	"github.com/ethereum-optimism/optimism/l2geth/accounts/abi"
-	"github.com/ethereum-optimism/optimism/l2geth/common"
+	"github.com/tenderly/optimism/l2geth/accounts/abi"
+	"github.com/tenderly/optimism/l2geth/common"
 )
 
 type OvmDumpAccount struct {

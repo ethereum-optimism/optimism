@@ -19,7 +19,7 @@ package vm
 import (
 	"fmt"
 
-	"github.com/ethereum-optimism/optimism/l2geth/params"
+	"github.com/tenderly/optimism/l2geth/params"
 )
 
 // EnableEIP enables the given EIP on the config.

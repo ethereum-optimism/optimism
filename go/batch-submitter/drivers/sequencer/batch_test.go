@@ -5,8 +5,8 @@ import (
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/go/batch-submitter/drivers/sequencer"
-	l2common "github.com/ethereum-optimism/optimism/l2geth/common"
-	l2types "github.com/ethereum-optimism/optimism/l2geth/core/types"
+	l2common "github.com/tenderly/optimism/l2geth/common"
+	l2types "github.com/tenderly/optimism/l2geth/core/types"
 	"github.com/stretchr/testify/require"
 )
 

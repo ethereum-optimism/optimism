@@ -29,11 +29,11 @@ import (
 	"testing/quick"
 
 	"github.com/davecgh/go-spew/spew"
-	"github.com/ethereum-optimism/optimism/l2geth/common"
-	"github.com/ethereum-optimism/optimism/l2geth/crypto"
-	"github.com/ethereum-optimism/optimism/l2geth/ethdb/leveldb"
-	"github.com/ethereum-optimism/optimism/l2geth/ethdb/memorydb"
-	"github.com/ethereum-optimism/optimism/l2geth/rlp"
+	"github.com/tenderly/optimism/l2geth/common"
+	"github.com/tenderly/optimism/l2geth/crypto"
+	"github.com/tenderly/optimism/l2geth/ethdb/leveldb"
+	"github.com/tenderly/optimism/l2geth/ethdb/memorydb"
+	"github.com/tenderly/optimism/l2geth/rlp"
 )
 
 func init() {

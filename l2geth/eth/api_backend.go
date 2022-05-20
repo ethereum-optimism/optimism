@@ -22,23 +22,23 @@ import (
 	"fmt"
 	"math/big"
 
-	"github.com/ethereum-optimism/optimism/l2geth/accounts"
-	"github.com/ethereum-optimism/optimism/l2geth/common"
-	"github.com/ethereum-optimism/optimism/l2geth/common/math"
-	"github.com/ethereum-optimism/optimism/l2geth/core"
-	"github.com/ethereum-optimism/optimism/l2geth/core/bloombits"
-	"github.com/ethereum-optimism/optimism/l2geth/core/rawdb"
-	"github.com/ethereum-optimism/optimism/l2geth/core/state"
-	"github.com/ethereum-optimism/optimism/l2geth/core/types"
-	"github.com/ethereum-optimism/optimism/l2geth/core/vm"
-	"github.com/ethereum-optimism/optimism/l2geth/eth/downloader"
-	"github.com/ethereum-optimism/optimism/l2geth/eth/gasprice"
-	"github.com/ethereum-optimism/optimism/l2geth/ethdb"
-	"github.com/ethereum-optimism/optimism/l2geth/event"
-	"github.com/ethereum-optimism/optimism/l2geth/log"
-	"github.com/ethereum-optimism/optimism/l2geth/params"
-	"github.com/ethereum-optimism/optimism/l2geth/rollup/rcfg"
-	"github.com/ethereum-optimism/optimism/l2geth/rpc"
+	"github.com/tenderly/optimism/l2geth/accounts"
+	"github.com/tenderly/optimism/l2geth/common"
+	"github.com/tenderly/optimism/l2geth/common/math"
+	"github.com/tenderly/optimism/l2geth/core"
+	"github.com/tenderly/optimism/l2geth/core/bloombits"
+	"github.com/tenderly/optimism/l2geth/core/rawdb"
+	"github.com/tenderly/optimism/l2geth/core/state"
+	"github.com/tenderly/optimism/l2geth/core/types"
+	"github.com/tenderly/optimism/l2geth/core/vm"
+	"github.com/tenderly/optimism/l2geth/eth/downloader"
+	"github.com/tenderly/optimism/l2geth/eth/gasprice"
+	"github.com/tenderly/optimism/l2geth/ethdb"
+	"github.com/tenderly/optimism/l2geth/event"
+	"github.com/tenderly/optimism/l2geth/log"
+	"github.com/tenderly/optimism/l2geth/params"
+	"github.com/tenderly/optimism/l2geth/rollup/rcfg"
+	"github.com/tenderly/optimism/l2geth/rpc"
 )
 
 // EthAPIBackend implements ethapi.Backend for full nodes
@@ -255,7 +255,7 @@ func (b *EthAPIBackend) GetTd(blockHash common.Hash) *big.Int {
 
 func (b *EthAPIBackend) GetEVM(ctx context.Context, msg core.Message, state *state.StateDB, header *types.Header, vmCfg *vm.Config) (*vm.EVM, func() error, error) {
 	// This was removed upstream:
-	// https://github.com/ethereum-optimism/optimism/l2geth/commit/39f502329fac4640cfb71959c3496f19ea88bc85#diff-9886da3412b43831145f62cec6e895eb3613a175b945e5b026543b7463454603
+	// https://github.com/tenderly/optimism/l2geth/commit/39f502329fac4640cfb71959c3496f19ea88bc85#diff-9886da3412b43831145f62cec6e895eb3613a175b945e5b026543b7463454603
 	// We're throwing this behind a UsingOVM flag for now as to not break
 	// any tests that may depend on this behavior.
 	if !rcfg.UsingOVM {

@@ -7,11 +7,11 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/go/indexer/services/util"
-	"github.com/ethereum-optimism/optimism/l2geth/rpc"
+	"github.com/tenderly/optimism/l2geth/rpc"
 
-	"github.com/ethereum-optimism/optimism/l2geth/core/types"
-	"github.com/ethereum-optimism/optimism/l2geth/log"
-	l2rpc "github.com/ethereum-optimism/optimism/l2geth/rpc"
+	"github.com/tenderly/optimism/l2geth/core/types"
+	"github.com/tenderly/optimism/l2geth/log"
+	l2rpc "github.com/tenderly/optimism/l2geth/rpc"
 )
 
 const (

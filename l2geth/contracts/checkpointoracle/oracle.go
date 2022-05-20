@@ -23,10 +23,10 @@ import (
 	"errors"
 	"math/big"
 
-	"github.com/ethereum-optimism/optimism/l2geth/accounts/abi/bind"
-	"github.com/ethereum-optimism/optimism/l2geth/common"
-	"github.com/ethereum-optimism/optimism/l2geth/contracts/checkpointoracle/contract"
-	"github.com/ethereum-optimism/optimism/l2geth/core/types"
+	"github.com/tenderly/optimism/l2geth/accounts/abi/bind"
+	"github.com/tenderly/optimism/l2geth/common"
+	"github.com/tenderly/optimism/l2geth/contracts/checkpointoracle/contract"
+	"github.com/tenderly/optimism/l2geth/core/types"
 )
 
 // CheckpointOracle is a Go wrapper around an on-chain checkpoint oracle contract.

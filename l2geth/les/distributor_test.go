@@ -22,7 +22,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/l2geth/common/mclock"
+	"github.com/tenderly/optimism/l2geth/common/mclock"
 )
 
 type testDistReq struct {

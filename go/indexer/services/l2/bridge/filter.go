@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/go/indexer/bindings/l2bridge"
-	"github.com/ethereum-optimism/optimism/l2geth/accounts/abi/bind"
+	"github.com/tenderly/optimism/l2geth/accounts/abi/bind"
 )
 
 // clientRetryInterval is the interval to wait between retrying client API

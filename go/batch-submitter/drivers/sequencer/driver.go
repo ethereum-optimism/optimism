@@ -11,7 +11,7 @@ import (
 	"github.com/ethereum-optimism/optimism/go/bss-core/drivers"
 	"github.com/ethereum-optimism/optimism/go/bss-core/metrics"
 	"github.com/ethereum-optimism/optimism/go/bss-core/txmgr"
-	l2ethclient "github.com/ethereum-optimism/optimism/l2geth/ethclient"
+	l2ethclient "github.com/tenderly/optimism/l2geth/ethclient"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"

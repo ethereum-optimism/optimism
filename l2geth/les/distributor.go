@@ -21,7 +21,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/l2geth/common/mclock"
+	"github.com/tenderly/optimism/l2geth/common/mclock"
 )
 
 // requestDistributor implements a mechanism that distributes requests to

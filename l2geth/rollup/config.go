@@ -4,7 +4,7 @@ import (
 	"math/big"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/l2geth/common"
+	"github.com/tenderly/optimism/l2geth/common"
 )
 
 type Config struct {

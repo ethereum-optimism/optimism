@@ -24,7 +24,7 @@ import (
 	"crypto/elliptic"
 	"fmt"
 
-	"github.com/ethereum-optimism/optimism/l2geth/common/math"
+	"github.com/tenderly/optimism/l2geth/common/math"
 	"github.com/ethereum/go-ethereum/crypto/secp256k1"
 )
 

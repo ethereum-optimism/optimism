@@ -8,8 +8,8 @@ import (
 	"github.com/ethereum-optimism/optimism/go/indexer/bindings/l2bridge"
 	"github.com/ethereum-optimism/optimism/go/indexer/db"
 
-	"github.com/ethereum-optimism/optimism/l2geth/accounts/abi/bind"
-	"github.com/ethereum-optimism/optimism/l2geth/common"
+	"github.com/tenderly/optimism/l2geth/accounts/abi/bind"
+	"github.com/tenderly/optimism/l2geth/common"
 )
 
 type WithdrawalsMap map[common.Hash][]db.Withdrawal

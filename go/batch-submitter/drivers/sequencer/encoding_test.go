@@ -8,8 +8,8 @@ import (
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/go/batch-submitter/drivers/sequencer"
-	l2types "github.com/ethereum-optimism/optimism/l2geth/core/types"
-	l2rlp "github.com/ethereum-optimism/optimism/l2geth/rlp"
+	l2types "github.com/tenderly/optimism/l2geth/core/types"
+	l2rlp "github.com/tenderly/optimism/l2geth/rlp"
 	"github.com/stretchr/testify/require"
 )
 

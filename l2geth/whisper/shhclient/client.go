@@ -19,10 +19,10 @@ package shhclient
 import (
 	"context"
 
-	ethereum "github.com/ethereum-optimism/optimism/l2geth"
-	"github.com/ethereum-optimism/optimism/l2geth/common/hexutil"
-	"github.com/ethereum-optimism/optimism/l2geth/rpc"
-	whisper "github.com/ethereum-optimism/optimism/l2geth/whisper/whisperv6"
+	ethereum "github.com/tenderly/optimism/l2geth"
+	"github.com/tenderly/optimism/l2geth/common/hexutil"
+	"github.com/tenderly/optimism/l2geth/rpc"
+	whisper "github.com/tenderly/optimism/l2geth/whisper/whisperv6"
 )
 
 // Client defines typed wrappers for the Whisper v6 RPC API.

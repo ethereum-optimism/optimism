@@ -23,7 +23,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/l2geth/p2p/simulations/pipes"
+	"github.com/tenderly/optimism/l2geth/p2p/simulations/pipes"
 )
 
 func TestTCPPipe(t *testing.T) {

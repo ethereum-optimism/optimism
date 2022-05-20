@@ -22,7 +22,7 @@ import (
 	"testing"
 
 	"github.com/davecgh/go-spew/spew"
-	"github.com/ethereum-optimism/optimism/l2geth/common"
+	"github.com/tenderly/optimism/l2geth/common"
 )
 
 // typeWithoutStringer is a alias for the Type type which simply doesn't implement

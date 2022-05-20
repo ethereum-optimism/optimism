@@ -19,8 +19,8 @@
 package geth
 
 import (
-	"github.com/ethereum-optimism/optimism/l2geth/whisper/shhclient"
-	whisper "github.com/ethereum-optimism/optimism/l2geth/whisper/whisperv6"
+	"github.com/tenderly/optimism/l2geth/whisper/shhclient"
+	whisper "github.com/tenderly/optimism/l2geth/whisper/whisperv6"
 )
 
 // WhisperClient provides access to the Ethereum APIs.

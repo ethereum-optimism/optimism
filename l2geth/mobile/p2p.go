@@ -21,7 +21,7 @@ package geth
 import (
 	"errors"
 
-	"github.com/ethereum-optimism/optimism/l2geth/p2p"
+	"github.com/tenderly/optimism/l2geth/p2p"
 )
 
 // NodeInfo represents pi short summary of the information known about the host.

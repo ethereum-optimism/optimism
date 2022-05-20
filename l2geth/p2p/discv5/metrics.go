@@ -16,7 +16,7 @@
 
 package discv5
 
-import "github.com/ethereum-optimism/optimism/l2geth/metrics"
+import "github.com/tenderly/optimism/l2geth/metrics"
 
 var (
 	ingressTrafficMeter = metrics.NewRegisteredMeter("discv5/InboundTraffic", nil)

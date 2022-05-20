@@ -21,7 +21,7 @@ import (
 	"encoding/hex"
 	"fmt"
 
-	"github.com/ethereum-optimism/optimism/l2geth/core/vm"
+	"github.com/tenderly/optimism/l2geth/core/vm"
 )
 
 // Iterator for disassembled EVM instructions

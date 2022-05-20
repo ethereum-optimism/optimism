@@ -23,8 +23,8 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/ethereum-optimism/optimism/l2geth/common"
-	"github.com/ethereum-optimism/optimism/l2geth/crypto"
+	"github.com/tenderly/optimism/l2geth/common"
+	"github.com/tenderly/optimism/l2geth/crypto"
 )
 
 // The ABI holds information about a contract's context and available

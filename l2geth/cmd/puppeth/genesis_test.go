@@ -25,7 +25,7 @@ import (
 	"testing"
 
 	"github.com/davecgh/go-spew/spew"
-	"github.com/ethereum-optimism/optimism/l2geth/core"
+	"github.com/tenderly/optimism/l2geth/core"
 )
 
 // Tests the go-ethereum to Aleth chainspec conversion for the Stureby testnet.

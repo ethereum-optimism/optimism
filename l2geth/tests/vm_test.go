@@ -19,7 +19,7 @@ package tests
 import (
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/l2geth/core/vm"
+	"github.com/tenderly/optimism/l2geth/core/vm"
 )
 
 func TestVM(t *testing.T) {

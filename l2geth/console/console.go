@@ -28,9 +28,9 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/ethereum-optimism/optimism/l2geth/internal/jsre"
-	"github.com/ethereum-optimism/optimism/l2geth/internal/web3ext"
-	"github.com/ethereum-optimism/optimism/l2geth/rpc"
+	"github.com/tenderly/optimism/l2geth/internal/jsre"
+	"github.com/tenderly/optimism/l2geth/internal/web3ext"
+	"github.com/tenderly/optimism/l2geth/rpc"
 	"github.com/mattn/go-colorable"
 	"github.com/peterh/liner"
 	"github.com/robertkrimen/otto"

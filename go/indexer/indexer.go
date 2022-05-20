@@ -11,7 +11,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/go/indexer/services"
 
-	l2rpc "github.com/ethereum-optimism/optimism/l2geth/rpc"
+	l2rpc "github.com/tenderly/optimism/l2geth/rpc"
 
 	"github.com/ethereum-optimism/optimism/go/indexer/metrics"
 	"github.com/ethereum-optimism/optimism/go/indexer/server"
@@ -20,7 +20,7 @@ import (
 	database "github.com/ethereum-optimism/optimism/go/indexer/db"
 	"github.com/ethereum-optimism/optimism/go/indexer/services/l1"
 	"github.com/ethereum-optimism/optimism/go/indexer/services/l2"
-	l2ethclient "github.com/ethereum-optimism/optimism/l2geth/ethclient"
+	l2ethclient "github.com/tenderly/optimism/l2geth/ethclient"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rpc"

@@ -20,7 +20,7 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/ethereum-optimism/optimism/l2geth/event"
+	"github.com/tenderly/optimism/l2geth/event"
 )
 
 // This example demonstrates how SubscriptionScope can be used to control the lifetime of

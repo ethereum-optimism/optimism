@@ -4,7 +4,7 @@ import (
 	"errors"
 	"fmt"
 
-	l2types "github.com/ethereum-optimism/optimism/l2geth/core/types"
+	l2types "github.com/tenderly/optimism/l2geth/core/types"
 )
 
 var (

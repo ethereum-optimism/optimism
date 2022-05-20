@@ -16,7 +16,7 @@
 
 package core
 
-import "github.com/ethereum-optimism/optimism/l2geth/common"
+import "github.com/tenderly/optimism/l2geth/common"
 
 // BadHashes represent a set of manually tracked bad hashes (usually hard forks)
 var BadHashes = map[common.Hash]bool{

@@ -22,7 +22,7 @@ import (
 	"testing"
 
 	"github.com/docker/docker/pkg/reexec"
-	"github.com/ethereum-optimism/optimism/l2geth/internal/cmdtest"
+	"github.com/tenderly/optimism/l2geth/internal/cmdtest"
 )
 
 type testEthkey struct {

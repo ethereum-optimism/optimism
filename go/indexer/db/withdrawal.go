@@ -3,7 +3,7 @@ package db
 import (
 	"math/big"
 
-	l2common "github.com/ethereum-optimism/optimism/l2geth/common"
+	l2common "github.com/tenderly/optimism/l2geth/common"
 )
 
 // Withdrawal contains transaction data for withdrawals made via the L2 to L1 bridge.

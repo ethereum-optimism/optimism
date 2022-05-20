@@ -25,7 +25,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/l2geth/metrics"
+	"github.com/tenderly/optimism/l2geth/metrics"
 )
 
 func init() {

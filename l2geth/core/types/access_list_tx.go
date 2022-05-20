@@ -17,7 +17,7 @@
 package types
 
 import (
-	"github.com/ethereum-optimism/optimism/l2geth/common"
+	"github.com/tenderly/optimism/l2geth/common"
 )
 
 //go:generate gencodec -type AccessTuple -out gen_access_tuple.go

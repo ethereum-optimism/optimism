@@ -5,7 +5,7 @@ package whisperv6
 import (
 	"encoding/json"
 
-	"github.com/ethereum-optimism/optimism/l2geth/common/hexutil"
+	"github.com/tenderly/optimism/l2geth/common/hexutil"
 )
 
 var _ = (*newMessageOverride)(nil)

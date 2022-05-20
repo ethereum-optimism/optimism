@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"time"
 
-	l2common "github.com/ethereum-optimism/optimism/l2geth/common"
+	l2common "github.com/tenderly/optimism/l2geth/common"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"

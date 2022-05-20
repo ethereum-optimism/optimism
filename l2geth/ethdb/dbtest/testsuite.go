@@ -22,7 +22,7 @@ import (
 	"sort"
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/l2geth/ethdb"
+	"github.com/tenderly/optimism/l2geth/ethdb"
 )
 
 // TestDatabaseSuite runs a suite of tests against a KeyValueStore database

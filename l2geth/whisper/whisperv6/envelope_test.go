@@ -22,7 +22,7 @@ import (
 	mrand "math/rand"
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/l2geth/crypto"
+	"github.com/tenderly/optimism/l2geth/crypto"
 )
 
 func TestPoWCalculationsWithNoLeadingZeros(t *testing.T) {

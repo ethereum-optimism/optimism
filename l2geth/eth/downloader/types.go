@@ -19,7 +19,7 @@ package downloader
 import (
 	"fmt"
 
-	"github.com/ethereum-optimism/optimism/l2geth/core/types"
+	"github.com/tenderly/optimism/l2geth/core/types"
 )
 
 // peerDropFn is a callback type for dropping a peer detected as malicious.

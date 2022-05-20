@@ -4,7 +4,7 @@ import (
 	"math/big"
 	"os"
 
-	"github.com/ethereum-optimism/optimism/l2geth/common"
+	"github.com/tenderly/optimism/l2geth/common"
 )
 
 // SystemAddress0 is the first deployable system address.

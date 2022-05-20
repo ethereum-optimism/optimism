@@ -1,6 +1,6 @@
 package db
 
-import l2common "github.com/ethereum-optimism/optimism/l2geth/common"
+import l2common "github.com/tenderly/optimism/l2geth/common"
 
 // ETHL1Token is a placeholder token for differentiating ETH transactions from
 // ERC20 transactions on L1.

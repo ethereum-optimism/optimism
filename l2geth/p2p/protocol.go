@@ -19,8 +19,8 @@ package p2p
 import (
 	"fmt"
 
-	"github.com/ethereum-optimism/optimism/l2geth/p2p/enode"
-	"github.com/ethereum-optimism/optimism/l2geth/p2p/enr"
+	"github.com/tenderly/optimism/l2geth/p2p/enode"
+	"github.com/tenderly/optimism/l2geth/p2p/enr"
 )
 
 // Protocol represents a P2P subprotocol implementation.
