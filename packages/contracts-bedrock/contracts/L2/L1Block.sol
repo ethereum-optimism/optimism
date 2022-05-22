@@ -31,6 +31,11 @@ contract L1Block {
     uint64 public timestamp;
 
     /**
+     * @notice The number of L2 blocks in the same epoch
+     */
+    uint64 public sequenceNumber;
+
+    /**
      * @notice The latest L1 basefee
      */
     uint256 public basefee;
@@ -39,11 +44,6 @@ contract L1Block {
      * @notice The latest L1 blockhash
      */
     bytes32 public hash;
-
-    /**
-     * @notice The number of L2 blocks in the same epoch
-     */
-    uint64 public sequenceNumber;
 
     /**
      * @notice Sets the L1 values
@@ -64,10 +64,16 @@ contract L1Block {
             revert OnlyDepositor();
         }
 
-        number = _number;
-        timestamp = _timestamp;
-        basefee = _basefee;
-        hash = _hash;
-        sequenceNumber = _sequenceNumber;
+        bytes32 slot;
+        assembly {
+            // _number, _timestamp and _sequenceNumber are all uint64 and will
+            // be tightly packed together in the first storage slot
+            slot := or(slot, _number)
+            slot := or(slot, shl(64, _timestamp))
+            slot := or(slot, shl(128, _sequenceNumber))
+            sstore(0, slot)
+            sstore(basefee.slot, _basefee)
+            sstore(hash.slot, _hash)
+        }
     }
 }
