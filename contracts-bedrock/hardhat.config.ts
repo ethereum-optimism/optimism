@@ -25,7 +25,6 @@ task('accounts', 'Prints the list of accounts', async (_, hre) => {
 })
 
 const config: HardhatUserConfig = {
-  solidity: '0.8.10',
   networks: {
     devnetL1: {
       url: 'http://localhost:8545',
@@ -41,6 +40,32 @@ const config: HardhatUserConfig = {
   namedAccounts: {
     deployer: {
       default: 0,
+    },
+  },
+  solidity: {
+    compilers: [
+      {
+        version: '0.8.10',
+        settings: {
+          optimizer: { enabled: true, runs: 10_000 },
+        },
+      },
+      {
+        version: '0.5.17', // Required for WETH9
+        settings: {
+          optimizer: { enabled: true, runs: 10_000 },
+        },
+      },
+    ],
+    settings: {
+      metadata: {
+        bytecodeHash: 'none',
+      },
+      outputSelection: {
+        '*': {
+          '*': ['metadata', 'storageLayout'],
+        },
+      },
     },
   },
 }
