@@ -18,7 +18,9 @@ The `data-transport-layer` should run with 1 CPU and 256Mb of memory.
 
 The `l2geth` process should run with 1 or 2 CPUs and between 4 and 8Gb of memory.
 
-With this configuration a synchronization from block 0 to current height is expect to take about 8 hours.
+With this configuration a synchronization from block 0 to current height is expect to take about 8 hours (mid 2022, obviously it will take longer as time passes).
+
+For disk we recomment at least 1 TB, solid state.
 
 ## Software Packages
 
