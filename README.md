@@ -1,5 +1,5 @@
 <div align="center">
-  <a href="https://community.optimism.io"><img alt="Optimism" src="https://user-images.githubusercontent.com/14298799/122151157-0b197500-ce2d-11eb-89d8-6240e3ebe130.png" width=280></a>
+  <a href="https://community.optimism.io"><img alt="Optimism" src="https://raw.githubusercontent.com/ethereum-optimism/brand-kit/ad481978ceac19f5c1db91ca4586bf2ab238f46b/assets/svg/Profile-Logo.svg" width=280></a>
   <br />
   <h1> The Optimism Monorepo</h1>
 </div>

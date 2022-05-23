@@ -7,9 +7,7 @@ import (
 	"math/big"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/op-bindings/deposit"
-	"github.com/ethereum-optimism/optimism/op-bindings/l2oo"
-	"github.com/ethereum-optimism/optimism/op-bindings/withdrawer"
+	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-node/predeploy"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
@@ -30,7 +28,7 @@ func WaitForFinalizationPeriod(ctx context.Context, client *ethclient.Client, po
 	opts := &bind.CallOpts{Context: ctx}
 	timestampBig := new(big.Int).SetUint64(timestamp)
 
-	portal, err := deposit.NewOptimismPortalCaller(portalAddr, client)
+	portal, err := bindings.NewOptimismPortalCaller(portalAddr, client)
 	if err != nil {
 		return 0, err
 	}
@@ -38,7 +36,7 @@ func WaitForFinalizationPeriod(ctx context.Context, client *ethclient.Client, po
 	if err != nil {
 		return 0, err
 	}
-	l2OO, err := l2oo.NewL2OutputOracleCaller(l2OOAddress, client)
+	l2OO, err := bindings.NewL2OutputOracleCaller(l2OOAddress, client)
 	if err != nil {
 		return 0, err
 	}
@@ -142,7 +140,7 @@ type FinalizedWithdrawalParameters struct {
 	GasLimit        *big.Int
 	Timestamp       *big.Int
 	Data            []byte
-	OutputRootProof deposit.WithdrawalVerifierOutputRootProof
+	OutputRootProof bindings.WithdrawalVerifierOutputRootProof
 	WithdrawalProof []byte // RLP Encoded list of trie nodes to prove L2 storage
 }
 
@@ -198,7 +196,7 @@ func FinalizeWithdrawalParameters(ctx context.Context, l2client ProofClient, txH
 		GasLimit:  ev.GasLimit,
 		Timestamp: new(big.Int).SetUint64(header.Time),
 		Data:      ev.Data,
-		OutputRootProof: deposit.WithdrawalVerifierOutputRootProof{
+		OutputRootProof: bindings.WithdrawalVerifierOutputRootProof{
 			Version:               [32]byte{}, // Empty for version 1
 			StateRoot:             header.Root,
 			WithdrawerStorageRoot: p.StorageHash,
@@ -220,7 +218,7 @@ var (
 // 	- I don't like having to use the ABI Generated struct
 // 	- There should be a better way to run the ABI encoding
 //	- These needs to be fuzzed against the solidity
-func WithdrawalHash(ev *withdrawer.WithdrawerWithdrawalInitiated) (common.Hash, error) {
+func WithdrawalHash(ev *bindings.L2ToL1MessagePasserWithdrawalInitiated) (common.Hash, error) {
 	//  abi.encode(nonce, msg.sender, _target, msg.value, _gasLimit, _data)
 	args := abi.Arguments{
 		{Name: "nonce", Type: Uint256Type},
@@ -238,8 +236,8 @@ func WithdrawalHash(ev *withdrawer.WithdrawerWithdrawalInitiated) (common.Hash, 
 }
 
 // ParseWithdrawalInitiated parses
-func ParseWithdrawalInitiated(receipt *types.Receipt) (*withdrawer.WithdrawerWithdrawalInitiated, error) {
-	contract, err := withdrawer.NewWithdrawer(common.Address{}, nil)
+func ParseWithdrawalInitiated(receipt *types.Receipt) (*bindings.L2ToL1MessagePasserWithdrawalInitiated, error) {
+	contract, err := bindings.NewL2ToL1MessagePasser(common.Address{}, nil)
 	if err != nil {
 		return nil, err
 	}

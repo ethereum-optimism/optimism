@@ -47,7 +47,6 @@ require (
 	github.com/deckarep/golang-set v1.8.0 // indirect
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.0.1 // indirect
 	github.com/docker/go-units v0.4.0 // indirect
-	github.com/edsrzf/mmap-go v1.1.0 // indirect
 	github.com/elastic/gosigar v0.12.0 // indirect
 	github.com/fjl/memsize v0.0.1 // indirect
 	github.com/flynn/noise v1.0.0 // indirect
@@ -173,7 +172,7 @@ require (
 
 replace github.com/ethereum-optimism/optimism/op-bindings v0.0.0 => ../op-bindings
 
-replace github.com/ethereum/go-ethereum v1.10.17 => github.com/ethereum-optimism/reference-optimistic-geth v0.0.0-20220428214415-643b449b5818
+replace github.com/ethereum/go-ethereum v1.10.17 => github.com/ethereum-optimism/reference-optimistic-geth v0.0.0-20220518163235-a32d414959ea
 
 replace github.com/ethereum-optimism/optimism/op-proposer v0.0.0 => ../op-proposer
 

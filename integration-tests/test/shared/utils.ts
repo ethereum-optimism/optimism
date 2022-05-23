@@ -32,9 +32,13 @@ const gasPriceValidator = makeValidator((gasPrice) => {
 })
 
 const addressValidator = makeValidator((addr) => {
-  if (!addr) { return '' }
-  else if (utils.isAddress(addr)) { return addr }
-  else { throw new Error('Expected an address') }
+  if (!addr) {
+    return ''
+  } else if (utils.isAddress(addr)) {
+    return addr
+  } else {
+    throw new Error('Expected an address')
+  }
 })
 
 const procEnv = cleanEnv(process.env, {

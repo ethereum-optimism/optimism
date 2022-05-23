@@ -45,4 +45,9 @@ contract L1BlockTest is CommonTest {
     function test_sequenceNumber() external {
         assertEq(lb.sequenceNumber(), uint64(4));
     }
+
+    function test_updateValues() external {
+        vm.prank(depositor);
+        lb.setL1BlockValues(type(uint64).max, type(uint64).max, type(uint256).max, keccak256(abi.encode(1)), type(uint64).max);
+    }
 }
