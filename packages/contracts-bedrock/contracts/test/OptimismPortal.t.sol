@@ -284,10 +284,10 @@ contract OptimismPortal_Test is L2OutputOracle_Initializer {
         );
 
         // warp to the finalization period
-        vm.warp(op.FINALIZATION_PERIOD());
+        vm.warp(op.FINALIZATION_PERIOD_SECONDS());
         assertEq(op.isOutputFinalized(0), false);
         // warp past the finalization period
-        vm.warp(op.FINALIZATION_PERIOD() + 1);
+        vm.warp(op.FINALIZATION_PERIOD_SECONDS() + 1);
         assertEq(op.isOutputFinalized(0), true);
     }
 }
