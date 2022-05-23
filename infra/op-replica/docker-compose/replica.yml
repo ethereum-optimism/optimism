@@ -15,7 +15,7 @@ services:
       - ${SHARED_ENV_PATH}/data-transport-layer.env
       - .env
     volumes:
-      - dtl:/db
+      - /var/replica/dtl:/db
     <<: *logging
   l2geth-replica:
     image: ethereumoptimism/l2geth:${L2GETH_IMAGE_TAG:-latest}
@@ -30,7 +30,7 @@ services:
       - ${SHARED_ENV_PATH}/l2geth-replica.env
       - .env
     volumes:
-      - geth:/geth
+      - /var/replica/geth:/geth
       - ../scripts/:/scripts/
     <<: *logging
   replica-healthcheck:
@@ -43,6 +43,3 @@ services:
     volumes:
       - ../scripts/:/scripts/
     <<: *logging
-volumes:
-  dtl:
-  geth:
