@@ -34,6 +34,14 @@ op-proposer:
 	make -C ./op-proposer op-proposer
 .PHONY: op-proposer
 
+mod-tidy:
+	cd ./op-node && go mod tidy && cd .. && \
+	cd ./op-proposer && go mod tidy && cd ..  && \
+	cd ./op-batcher && go mod tidy && cd ..  && \
+	cd ./op-bindings && go mod tidy && cd ..  && \
+	cd ./op-e2e && go mod tidy && cd ..
+.PHONY: mod-tidy
+
 contracts:
 	cd ./contracts-bedrock && yarn install && yarn build
 .PHONY: contracts
