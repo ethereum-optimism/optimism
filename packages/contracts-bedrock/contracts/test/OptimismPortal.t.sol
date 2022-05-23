@@ -268,4 +268,26 @@ contract OptimismPortal_Test is L2OutputOracle_Initializer {
         vm.expectRevert("OptimismPortal: invalid output root proof");
         op.finalizeWithdrawalTransaction(0, alice, alice, 0, 0, hex"", 0, outputRootProof, hex"");
     }
+
+    function test_isOutputFinalized() external {
+        vm.mockCall(
+            address(op.L2_ORACLE()),
+            abi.encodeWithSelector(
+                L2OutputOracle.getL2Output.selector
+            ),
+            abi.encode(
+                L2OutputOracle.OutputProposal(
+                    bytes32(uint256(1)),
+                    0
+                )
+            )
+        );
+
+        // warp to the finalization period
+        vm.warp(op.FINALIZATION_PERIOD());
+        assertEq(op.isOutputFinalized(0), false);
+        // warp past the finalization period
+        vm.warp(op.FINALIZATION_PERIOD() + 1);
+        assertEq(op.isOutputFinalized(0), true);
+    }
 }
