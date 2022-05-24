@@ -7,6 +7,15 @@ if [ "$#" -ne 2 ]; then
 	exit 1
 fi
 
+need_cmd() {
+  if ! command -v "$1" > /dev/null 2>&1; then
+    echo "need '$1' (command not found)"
+    exit 1
+  fi
+}
+
+need_cmd gofmt
+
 
 TYPE=$1
 PACKAGE=$2
