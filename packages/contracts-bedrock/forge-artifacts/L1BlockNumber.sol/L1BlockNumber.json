@@ -1,0 +1,660 @@
+{
+  "abi": [
+    {
+      "stateMutability": "payable",
+      "type": "fallback"
+    },
+    {
+      "inputs": [],
+      "name": "getL1BlockNumber",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "stateMutability": "payable",
+      "type": "receive"
+    }
+  ],
+  "bytecode": {
+    "object": "0x608060405234801561001057600080fd5b50610140806100206000396000f3fe6080604052600436106100225760003560e01c8063b9b3efe9146100475761003d565b3661003d57600061003161006e565b90508060005260206000f35b600061003161006e565b34801561005357600080fd5b5061005c61006e565b60405190815260200160405180910390f35b600073420000000000000000000000000000000000001573ffffffffffffffffffffffffffffffffffffffff16638381f58a6040518163ffffffff1660e01b8152600401602060405180830381865afa1580156100cf573d6000803e3d6000fd5b505050506040513d601f19601f820116820180604052508101906100f39190610102565b67ffffffffffffffff16905090565b60006020828403121561011457600080fd5b815167ffffffffffffffff8116811461012c57600080fd5b939250505056fea164736f6c634300080a000a",
+    "sourceMap": "562:542:8:-:0;;;;;;;;;;;;;;;;;;;",
+    "linkReferences": {}
+  },
+  "deployedBytecode": {
+    "object": "0x6080604052600436106100225760003560e01c8063b9b3efe9146100475761003d565b3661003d57600061003161006e565b90508060005260206000f35b600061003161006e565b34801561005357600080fd5b5061005c61006e565b60405190815260200160405180910390f35b600073420000000000000000000000000000000000001573ffffffffffffffffffffffffffffffffffffffff16638381f58a6040518163ffffffff1660e01b8152600401602060405180830381865afa1580156100cf573d6000803e3d6000fd5b505050506040513d601f19601f820116820180604052508101906100f39190610102565b67ffffffffffffffff16905090565b60006020828403121561011457600080fd5b815167ffffffffffffffff8116811461012c57600080fd5b939250505056fea164736f6c634300080a000a",
+    "sourceMap": "562:542:8:-:0;;;;;;;;;;;;;;;;;;;;;;;628:21;652:18;:16;:18::i;:::-;628:42;;713:13;710:1;703:24;750:2;747:1;740:13;562:542;813:21;837:18;:16;:18::i;960:142::-;;;;;;;;;;;;;:::i;:::-;;;160:25:69;;;148:2;133:18;960:142:8;;;;;;;;1009:7;1259:42:20;1035:58:8;;;:60;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;:::i;:::-;1028:67;;;;960:142;:::o;196:288:69:-;265:6;318:2;306:9;297:7;293:23;289:32;286:52;;;334:1;331;324:12;286:52;366:9;360:16;416:18;409:5;405:30;398:5;395:41;385:69;;450:1;447;440:12;385:69;473:5;196:288;-1:-1:-1;;;196:288:69:o",
+    "linkReferences": {}
+  },
+  "methodIdentifiers": {
+    "getL1BlockNumber()": "b9b3efe9"
+  },
+  "ast": {
+    "absolutePath": "/home/tynes/Projects/github.com/ethereum-optimism/opti2/optimism/packages/contracts-bedrock/contracts/L2/L1BlockNumber.sol",
+    "id": 1504,
+    "exportedSymbols": {
+      "L1Block": [
+        1462
+      ],
+      "L1BlockNumber": [
+        1503
+      ],
+      "Lib_PredeployAddresses": [
+        3074
+      ]
+    },
+    "nodeType": "SourceUnit",
+    "src": "31:1074:8",
+    "nodes": [
+      {
+        "id": 1464,
+        "nodeType": "PragmaDirective",
+        "src": "31:23:8",
+        "literals": [
+          "solidity",
+          "0.8",
+          ".10"
+        ]
+      },
+      {
+        "id": 1466,
+        "nodeType": "ImportDirective",
+        "src": "56:40:8",
+        "absolutePath": "/home/tynes/Projects/github.com/ethereum-optimism/opti2/optimism/packages/contracts-bedrock/contracts/L2/L1Block.sol",
+        "file": "./L1Block.sol",
+        "nameLocation": "-1:-1:-1",
+        "scope": 1504,
+        "sourceUnit": 1463,
+        "symbolAliases": [
+          {
+            "foreign": {
+              "id": 1465,
+              "name": "L1Block",
+              "nodeType": "Identifier",
+              "overloadedDeclarations": [],
+              "src": "65:7:8",
+              "typeDescriptions": {}
+            },
+            "nameLocation": "-1:-1:-1"
+          }
+        ],
+        "unitAlias": ""
+      },
+      {
+        "id": 1468,
+        "nodeType": "ImportDirective",
+        "src": "97:81:8",
+        "absolutePath": "/home/tynes/Projects/github.com/ethereum-optimism/opti2/optimism/packages/contracts-bedrock/contracts/libraries/Lib_PredeployAddresses.sol",
+        "file": "../libraries/Lib_PredeployAddresses.sol",
+        "nameLocation": "-1:-1:-1",
+        "scope": 1504,
+        "sourceUnit": 3075,
+        "symbolAliases": [
+          {
+            "foreign": {
+              "id": 1467,
+              "name": "Lib_PredeployAddresses",
+              "nodeType": "Identifier",
+              "overloadedDeclarations": [],
+              "src": "106:22:8",
+              "typeDescriptions": {}
+            },
+            "nameLocation": "-1:-1:-1"
+          }
+        ],
+        "unitAlias": ""
+      },
+      {
+        "id": 1503,
+        "nodeType": "ContractDefinition",
+        "src": "562:542:8",
+        "nodes": [
+          {
+            "id": 1479,
+            "nodeType": "FunctionDefinition",
+            "src": "591:178:8",
+            "body": {
+              "id": 1478,
+              "nodeType": "Block",
+              "src": "618:151:8",
+              "statements": [
+                {
+                  "assignments": [
+                    1473
+                  ],
+                  "declarations": [
+                    {
+                      "constant": false,
+                      "id": 1473,
+                      "mutability": "mutable",
+                      "name": "l1BlockNumber",
+                      "nameLocation": "636:13:8",
+                      "nodeType": "VariableDeclaration",
+                      "scope": 1478,
+                      "src": "628:21:8",
+                      "stateVariable": false,
+                      "storageLocation": "default",
+                      "typeDescriptions": {
+                        "typeIdentifier": "t_uint256",
+                        "typeString": "uint256"
+                      },
+                      "typeName": {
+                        "id": 1472,
+                        "name": "uint256",
+                        "nodeType": "ElementaryTypeName",
+                        "src": "628:7:8",
+                        "typeDescriptions": {
+                          "typeIdentifier": "t_uint256",
+                          "typeString": "uint256"
+                        }
+                      },
+                      "visibility": "internal"
+                    }
+                  ],
+                  "id": 1476,
+                  "initialValue": {
+                    "arguments": [],
+                    "expression": {
+                      "argumentTypes": [],
+                      "id": 1474,
+                      "name": "getL1BlockNumber",
+                      "nodeType": "Identifier",
+                      "overloadedDeclarations": [],
+                      "referencedDeclaration": 1502,
+                      "src": "652:16:8",
+                      "typeDescriptions": {
+                        "typeIdentifier": "t_function_internal_view$__$returns$_t_uint256_$",
+                        "typeString": "function () view returns (uint256)"
+                      }
+                    },
+                    "id": 1475,
+                    "isConstant": false,
+                    "isLValue": false,
+                    "isPure": false,
+                    "kind": "functionCall",
+                    "lValueRequested": false,
+                    "names": [],
+                    "nodeType": "FunctionCall",
+                    "src": "652:18:8",
+                    "tryCall": false,
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_uint256",
+                      "typeString": "uint256"
+                    }
+                  },
+                  "nodeType": "VariableDeclarationStatement",
+                  "src": "628:42:8"
+                },
+                {
+                  "AST": {
+                    "nodeType": "YulBlock",
+                    "src": "689:74:8",
+                    "statements": [
+                      {
+                        "expression": {
+                          "arguments": [
+                            {
+                              "kind": "number",
+                              "nodeType": "YulLiteral",
+                              "src": "710:1:8",
+                              "type": "",
+                              "value": "0"
+                            },
+                            {
+                              "name": "l1BlockNumber",
+                              "nodeType": "YulIdentifier",
+                              "src": "713:13:8"
+                            }
+                          ],
+                          "functionName": {
+                            "name": "mstore",
+                            "nodeType": "YulIdentifier",
+                            "src": "703:6:8"
+                          },
+                          "nodeType": "YulFunctionCall",
+                          "src": "703:24:8"
+                        },
+                        "nodeType": "YulExpressionStatement",
+                        "src": "703:24:8"
+                      },
+                      {
+                        "expression": {
+                          "arguments": [
+                            {
+                              "kind": "number",
+                              "nodeType": "YulLiteral",
+                              "src": "747:1:8",
+                              "type": "",
+                              "value": "0"
+                            },
+                            {
+                              "kind": "number",
+                              "nodeType": "YulLiteral",
+                              "src": "750:2:8",
+                              "type": "",
+                              "value": "32"
+                            }
+                          ],
+                          "functionName": {
+                            "name": "return",
+                            "nodeType": "YulIdentifier",
+                            "src": "740:6:8"
+                          },
+                          "nodeType": "YulFunctionCall",
+                          "src": "740:13:8"
+                        },
+                        "nodeType": "YulExpressionStatement",
+                        "src": "740:13:8"
+                      }
+                    ]
+                  },
+                  "evmVersion": "london",
+                  "externalReferences": [
+                    {
+                      "declaration": 1473,
+                      "isOffset": false,
+                      "isSlot": false,
+                      "src": "713:13:8",
+                      "valueSize": 1
+                    }
+                  ],
+                  "id": 1477,
+                  "nodeType": "InlineAssembly",
+                  "src": "680:83:8"
+                }
+              ]
+            },
+            "implemented": true,
+            "kind": "receive",
+            "modifiers": [],
+            "name": "",
+            "nameLocation": "-1:-1:-1",
+            "parameters": {
+              "id": 1470,
+              "nodeType": "ParameterList",
+              "parameters": [],
+              "src": "598:2:8"
+            },
+            "returnParameters": {
+              "id": 1471,
+              "nodeType": "ParameterList",
+              "parameters": [],
+              "src": "618:0:8"
+            },
+            "scope": 1503,
+            "stateMutability": "payable",
+            "virtual": false,
+            "visibility": "external"
+          },
+          {
+            "id": 1489,
+            "nodeType": "FunctionDefinition",
+            "src": "775:179:8",
+            "body": {
+              "id": 1488,
+              "nodeType": "Block",
+              "src": "803:151:8",
+              "statements": [
+                {
+                  "assignments": [
+                    1483
+                  ],
+                  "declarations": [
+                    {
+                      "constant": false,
+                      "id": 1483,
+                      "mutability": "mutable",
+                      "name": "l1BlockNumber",
+                      "nameLocation": "821:13:8",
+                      "nodeType": "VariableDeclaration",
+                      "scope": 1488,
+                      "src": "813:21:8",
+                      "stateVariable": false,
+                      "storageLocation": "default",
+                      "typeDescriptions": {
+                        "typeIdentifier": "t_uint256",
+                        "typeString": "uint256"
+                      },
+                      "typeName": {
+                        "id": 1482,
+                        "name": "uint256",
+                        "nodeType": "ElementaryTypeName",
+                        "src": "813:7:8",
+                        "typeDescriptions": {
+                          "typeIdentifier": "t_uint256",
+                          "typeString": "uint256"
+                        }
+                      },
+                      "visibility": "internal"
+                    }
+                  ],
+                  "id": 1486,
+                  "initialValue": {
+                    "arguments": [],
+                    "expression": {
+                      "argumentTypes": [],
+                      "id": 1484,
+                      "name": "getL1BlockNumber",
+                      "nodeType": "Identifier",
+                      "overloadedDeclarations": [],
+                      "referencedDeclaration": 1502,
+                      "src": "837:16:8",
+                      "typeDescriptions": {
+                        "typeIdentifier": "t_function_internal_view$__$returns$_t_uint256_$",
+                        "typeString": "function () view returns (uint256)"
+                      }
+                    },
+                    "id": 1485,
+                    "isConstant": false,
+                    "isLValue": false,
+                    "isPure": false,
+                    "kind": "functionCall",
+                    "lValueRequested": false,
+                    "names": [],
+                    "nodeType": "FunctionCall",
+                    "src": "837:18:8",
+                    "tryCall": false,
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_uint256",
+                      "typeString": "uint256"
+                    }
+                  },
+                  "nodeType": "VariableDeclarationStatement",
+                  "src": "813:42:8"
+                },
+                {
+                  "AST": {
+                    "nodeType": "YulBlock",
+                    "src": "874:74:8",
+                    "statements": [
+                      {
+                        "expression": {
+                          "arguments": [
+                            {
+                              "kind": "number",
+                              "nodeType": "YulLiteral",
+                              "src": "895:1:8",
+                              "type": "",
+                              "value": "0"
+                            },
+                            {
+                              "name": "l1BlockNumber",
+                              "nodeType": "YulIdentifier",
+                              "src": "898:13:8"
+                            }
+                          ],
+                          "functionName": {
+                            "name": "mstore",
+                            "nodeType": "YulIdentifier",
+                            "src": "888:6:8"
+                          },
+                          "nodeType": "YulFunctionCall",
+                          "src": "888:24:8"
+                        },
+                        "nodeType": "YulExpressionStatement",
+                        "src": "888:24:8"
+                      },
+                      {
+                        "expression": {
+                          "arguments": [
+                            {
+                              "kind": "number",
+                              "nodeType": "YulLiteral",
+                              "src": "932:1:8",
+                              "type": "",
+                              "value": "0"
+                            },
+                            {
+                              "kind": "number",
+                              "nodeType": "YulLiteral",
+                              "src": "935:2:8",
+                              "type": "",
+                              "value": "32"
+                            }
+                          ],
+                          "functionName": {
+                            "name": "return",
+                            "nodeType": "YulIdentifier",
+                            "src": "925:6:8"
+                          },
+                          "nodeType": "YulFunctionCall",
+                          "src": "925:13:8"
+                        },
+                        "nodeType": "YulExpressionStatement",
+                        "src": "925:13:8"
+                      }
+                    ]
+                  },
+                  "evmVersion": "london",
+                  "externalReferences": [
+                    {
+                      "declaration": 1483,
+                      "isOffset": false,
+                      "isSlot": false,
+                      "src": "898:13:8",
+                      "valueSize": 1
+                    }
+                  ],
+                  "id": 1487,
+                  "nodeType": "InlineAssembly",
+                  "src": "865:83:8"
+                }
+              ]
+            },
+            "implemented": true,
+            "kind": "fallback",
+            "modifiers": [],
+            "name": "",
+            "nameLocation": "-1:-1:-1",
+            "parameters": {
+              "id": 1480,
+              "nodeType": "ParameterList",
+              "parameters": [],
+              "src": "783:2:8"
+            },
+            "returnParameters": {
+              "id": 1481,
+              "nodeType": "ParameterList",
+              "parameters": [],
+              "src": "803:0:8"
+            },
+            "scope": 1503,
+            "stateMutability": "payable",
+            "virtual": false,
+            "visibility": "external"
+          },
+          {
+            "id": 1502,
+            "nodeType": "FunctionDefinition",
+            "src": "960:142:8",
+            "body": {
+              "id": 1501,
+              "nodeType": "Block",
+              "src": "1018:84:8",
+              "statements": [
+                {
+                  "expression": {
+                    "arguments": [],
+                    "expression": {
+                      "argumentTypes": [],
+                      "expression": {
+                        "arguments": [
+                          {
+                            "expression": {
+                              "id": 1495,
+                              "name": "Lib_PredeployAddresses",
+                              "nodeType": "Identifier",
+                              "overloadedDeclarations": [],
+                              "referencedDeclaration": 3074,
+                              "src": "1043:22:8",
+                              "typeDescriptions": {
+                                "typeIdentifier": "t_type$_t_contract$_Lib_PredeployAddresses_$3074_$",
+                                "typeString": "type(library Lib_PredeployAddresses)"
+                              }
+                            },
+                            "id": 1496,
+                            "isConstant": false,
+                            "isLValue": false,
+                            "isPure": false,
+                            "lValueRequested": false,
+                            "memberName": "L1_BLOCK_ATTRIBUTES",
+                            "nodeType": "MemberAccess",
+                            "referencedDeclaration": 3073,
+                            "src": "1043:42:8",
+                            "typeDescriptions": {
+                              "typeIdentifier": "t_address",
+                              "typeString": "address"
+                            }
+                          }
+                        ],
+                        "expression": {
+                          "argumentTypes": [
+                            {
+                              "typeIdentifier": "t_address",
+                              "typeString": "address"
+                            }
+                          ],
+                          "id": 1494,
+                          "name": "L1Block",
+                          "nodeType": "Identifier",
+                          "overloadedDeclarations": [],
+                          "referencedDeclaration": 1462,
+                          "src": "1035:7:8",
+                          "typeDescriptions": {
+                            "typeIdentifier": "t_type$_t_contract$_L1Block_$1462_$",
+                            "typeString": "type(contract L1Block)"
+                          }
+                        },
+                        "id": 1497,
+                        "isConstant": false,
+                        "isLValue": false,
+                        "isPure": false,
+                        "kind": "typeConversion",
+                        "lValueRequested": false,
+                        "names": [],
+                        "nodeType": "FunctionCall",
+                        "src": "1035:51:8",
+                        "tryCall": false,
+                        "typeDescriptions": {
+                          "typeIdentifier": "t_contract$_L1Block_$1462",
+                          "typeString": "contract L1Block"
+                        }
+                      },
+                      "id": 1498,
+                      "isConstant": false,
+                      "isLValue": false,
+                      "isPure": false,
+                      "lValueRequested": false,
+                      "memberName": "number",
+                      "nodeType": "MemberAccess",
+                      "referencedDeclaration": 1405,
+                      "src": "1035:58:8",
+                      "typeDescriptions": {
+                        "typeIdentifier": "t_function_external_view$__$returns$_t_uint64_$",
+                        "typeString": "function () view external returns (uint64)"
+                      }
+                    },
+                    "id": 1499,
+                    "isConstant": false,
+                    "isLValue": false,
+                    "isPure": false,
+                    "kind": "functionCall",
+                    "lValueRequested": false,
+                    "names": [],
+                    "nodeType": "FunctionCall",
+                    "src": "1035:60:8",
+                    "tryCall": false,
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_uint64",
+                      "typeString": "uint64"
+                    }
+                  },
+                  "functionReturnParameters": 1493,
+                  "id": 1500,
+                  "nodeType": "Return",
+                  "src": "1028:67:8"
+                }
+              ]
+            },
+            "functionSelector": "b9b3efe9",
+            "implemented": true,
+            "kind": "function",
+            "modifiers": [],
+            "name": "getL1BlockNumber",
+            "nameLocation": "969:16:8",
+            "parameters": {
+              "id": 1490,
+              "nodeType": "ParameterList",
+              "parameters": [],
+              "src": "985:2:8"
+            },
+            "returnParameters": {
+              "id": 1493,
+              "nodeType": "ParameterList",
+              "parameters": [
+                {
+                  "constant": false,
+                  "id": 1492,
+                  "mutability": "mutable",
+                  "name": "",
+                  "nameLocation": "-1:-1:-1",
+                  "nodeType": "VariableDeclaration",
+                  "scope": 1502,
+                  "src": "1009:7:8",
+                  "stateVariable": false,
+                  "storageLocation": "default",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_uint256",
+                    "typeString": "uint256"
+                  },
+                  "typeName": {
+                    "id": 1491,
+                    "name": "uint256",
+                    "nodeType": "ElementaryTypeName",
+                    "src": "1009:7:8",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_uint256",
+                      "typeString": "uint256"
+                    }
+                  },
+                  "visibility": "internal"
+                }
+              ],
+              "src": "1008:9:8"
+            },
+            "scope": 1503,
+            "stateMutability": "view",
+            "virtual": false,
+            "visibility": "public"
+          }
+        ],
+        "abstract": false,
+        "baseContracts": [],
+        "canonicalName": "L1BlockNumber",
+        "contractDependencies": [],
+        "contractKind": "contract",
+        "documentation": {
+          "id": 1469,
+          "nodeType": "StructuredDocumentation",
+          "src": "180:381:8",
+          "text": " @title L1BlockNumber\n @dev L1BlockNumber is a legacy contract that fills the roll of the OVM_L1BlockNumber contract in\n the old version of the Optimism system. Only necessary for backwards compatibility. If you want\n to access the L1 block number going forward, you should use the L1Block contract instead.\n ADDRESS: 0x4200000000000000000000000000000000000013"
+        },
+        "fullyImplemented": true,
+        "linearizedBaseContracts": [
+          1503
+        ],
+        "name": "L1BlockNumber",
+        "nameLocation": "571:13:8",
+        "scope": 1504,
+        "usedErrors": []
+      }
+    ],
+    "license": "MIT"
+  }
+}

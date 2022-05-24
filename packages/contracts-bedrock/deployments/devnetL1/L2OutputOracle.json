@@ -1,0 +1,553 @@
+{
+  "address": "0x5FbDB2315678afecb367f032d93F642f64180aa3",
+  "abi": [
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "_submissionInterval",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "_l2BlockTime",
+          "type": "uint256"
+        },
+        {
+          "internalType": "bytes32",
+          "name": "_genesisL2Output",
+          "type": "bytes32"
+        },
+        {
+          "internalType": "uint256",
+          "name": "_historicalTotalBlocks",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "_startingBlockTimestamp",
+          "type": "uint256"
+        },
+        {
+          "internalType": "address",
+          "name": "sequencer",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "nonpayable",
+      "type": "constructor"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "previousOwner",
+          "type": "address"
+        },
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "newOwner",
+          "type": "address"
+        }
+      ],
+      "name": "OwnershipTransferred",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "bytes32",
+          "name": "_l2Output",
+          "type": "bytes32"
+        },
+        {
+          "indexed": true,
+          "internalType": "uint256",
+          "name": "_l1Timestamp",
+          "type": "uint256"
+        },
+        {
+          "indexed": true,
+          "internalType": "uint256",
+          "name": "_l2timestamp",
+          "type": "uint256"
+        }
+      ],
+      "name": "l2OutputAppended",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "bytes32",
+          "name": "_l2Output",
+          "type": "bytes32"
+        },
+        {
+          "indexed": true,
+          "internalType": "uint256",
+          "name": "_l1Timestamp",
+          "type": "uint256"
+        },
+        {
+          "indexed": true,
+          "internalType": "uint256",
+          "name": "_l2timestamp",
+          "type": "uint256"
+        }
+      ],
+      "name": "l2OutputDeleted",
+      "type": "event"
+    },
+    {
+      "inputs": [],
+      "name": "HISTORICAL_TOTAL_BLOCKS",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "L2_BLOCK_TIME",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "STARTING_BLOCK_TIMESTAMP",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "SUBMISSION_INTERVAL",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "bytes32",
+          "name": "_l2Output",
+          "type": "bytes32"
+        },
+        {
+          "internalType": "uint256",
+          "name": "_l2timestamp",
+          "type": "uint256"
+        },
+        {
+          "internalType": "bytes32",
+          "name": "_l1Blockhash",
+          "type": "bytes32"
+        },
+        {
+          "internalType": "uint256",
+          "name": "_l1Blocknumber",
+          "type": "uint256"
+        }
+      ],
+      "name": "appendL2Output",
+      "outputs": [],
+      "stateMutability": "payable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "_l2timestamp",
+          "type": "uint256"
+        }
+      ],
+      "name": "computeL2BlockNumber",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "components": [
+            {
+              "internalType": "bytes32",
+              "name": "outputRoot",
+              "type": "bytes32"
+            },
+            {
+              "internalType": "uint256",
+              "name": "timestamp",
+              "type": "uint256"
+            }
+          ],
+          "internalType": "struct L2OutputOracle.OutputProposal",
+          "name": "_proposal",
+          "type": "tuple"
+        }
+      ],
+      "name": "deleteL2Output",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "_l2Timestamp",
+          "type": "uint256"
+        }
+      ],
+      "name": "getL2Output",
+      "outputs": [
+        {
+          "components": [
+            {
+              "internalType": "bytes32",
+              "name": "outputRoot",
+              "type": "bytes32"
+            },
+            {
+              "internalType": "uint256",
+              "name": "timestamp",
+              "type": "uint256"
+            }
+          ],
+          "internalType": "struct L2OutputOracle.OutputProposal",
+          "name": "",
+          "type": "tuple"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "latestBlockTimestamp",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "nextTimestamp",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "owner",
+      "outputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "renounceOwnership",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "newOwner",
+          "type": "address"
+        }
+      ],
+      "name": "transferOwnership",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    }
+  ],
+  "transactionHash": "0xafa2619a7e1093f3027a1bdaeac77609154fbbf3b1d6557dc23244e6f82de6a7",
+  "receipt": {
+    "to": null,
+    "from": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+    "contractAddress": "0x5FbDB2315678afecb367f032d93F642f64180aa3",
+    "transactionIndex": 0,
+    "gasUsed": "807134",
+    "logsBloom": "0x00000000000000000002000000000000000000000000000000800000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001000000000000000000000000000000000840020000000000000100000800000000000000000000000000000000400000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000000000000000000040000000200000000000000000000000002000000000000000000020000000000000000000000000000000000001000000000000000000000000000000",
+    "blockHash": "0x72578c471635a4bec8f5587cdbb4653030566bac60448359ea15d601ab1dd838",
+    "transactionHash": "0xafa2619a7e1093f3027a1bdaeac77609154fbbf3b1d6557dc23244e6f82de6a7",
+    "logs": [
+      {
+        "transactionIndex": 0,
+        "blockNumber": 1,
+        "transactionHash": "0xafa2619a7e1093f3027a1bdaeac77609154fbbf3b1d6557dc23244e6f82de6a7",
+        "address": "0x5FbDB2315678afecb367f032d93F642f64180aa3",
+        "topics": [
+          "0x8be0079c531659141344cd1fd0a4f28419497f9722a3daafe3b4186f6b6457e0",
+          "0x0000000000000000000000000000000000000000000000000000000000000000",
+          "0x000000000000000000000000f39fd6e51aad88f6f4ce6ab8827279cfffb92266"
+        ],
+        "data": "0x",
+        "logIndex": 0,
+        "blockHash": "0x72578c471635a4bec8f5587cdbb4653030566bac60448359ea15d601ab1dd838"
+      },
+      {
+        "transactionIndex": 0,
+        "blockNumber": 1,
+        "transactionHash": "0xafa2619a7e1093f3027a1bdaeac77609154fbbf3b1d6557dc23244e6f82de6a7",
+        "address": "0x5FbDB2315678afecb367f032d93F642f64180aa3",
+        "topics": [
+          "0x8be0079c531659141344cd1fd0a4f28419497f9722a3daafe3b4186f6b6457e0",
+          "0x000000000000000000000000f39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+          "0x00000000000000000000000070997970c51812dc3a010c7d01b50e0d17dc79c8"
+        ],
+        "data": "0x",
+        "logIndex": 1,
+        "blockHash": "0x72578c471635a4bec8f5587cdbb4653030566bac60448359ea15d601ab1dd838"
+      }
+    ],
+    "blockNumber": 1,
+    "cumulativeGasUsed": "807134",
+    "status": 1,
+    "byzantium": true
+  },
+  "args": [
+    6,
+    2,
+    "0x0000000000000000000000000000000000000000000000000000000000000000",
+    0,
+    "0x628bd878",
+    "0x70997970C51812dc3A010C7d01b50e0d17dc79C8"
+  ],
+  "numDeployments": 1,
+  "solcInputHash": "6f1b19ba097550efb2ca70fb1ff05547",
+  "metadata": "{\"compiler\":{\"version\":\"0.8.10+commit.fc410830\"},\"language\":\"Solidity\",\"output\":{\"abi\":[{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"_submissionInterval\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"_l2BlockTime\",\"type\":\"uint256\"},{\"internalType\":\"bytes32\",\"name\":\"_genesisL2Output\",\"type\":\"bytes32\"},{\"internalType\":\"uint256\",\"name\":\"_historicalTotalBlocks\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"_startingBlockTimestamp\",\"type\":\"uint256\"},{\"internalType\":\"address\",\"name\":\"sequencer\",\"type\":\"address\"}],\"stateMutability\":\"nonpayable\",\"type\":\"constructor\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"address\",\"name\":\"previousOwner\",\"type\":\"address\"},{\"indexed\":true,\"internalType\":\"address\",\"name\":\"newOwner\",\"type\":\"address\"}],\"name\":\"OwnershipTransferred\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"bytes32\",\"name\":\"_l2Output\",\"type\":\"bytes32\"},{\"indexed\":true,\"internalType\":\"uint256\",\"name\":\"_l1Timestamp\",\"type\":\"uint256\"},{\"indexed\":true,\"internalType\":\"uint256\",\"name\":\"_l2timestamp\",\"type\":\"uint256\"}],\"name\":\"l2OutputAppended\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"bytes32\",\"name\":\"_l2Output\",\"type\":\"bytes32\"},{\"indexed\":true,\"internalType\":\"uint256\",\"name\":\"_l1Timestamp\",\"type\":\"uint256\"},{\"indexed\":true,\"internalType\":\"uint256\",\"name\":\"_l2timestamp\",\"type\":\"uint256\"}],\"name\":\"l2OutputDeleted\",\"type\":\"event\"},{\"inputs\":[],\"name\":\"HISTORICAL_TOTAL_BLOCKS\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"L2_BLOCK_TIME\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"STARTING_BLOCK_TIMESTAMP\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"SUBMISSION_INTERVAL\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"bytes32\",\"name\":\"_l2Output\",\"type\":\"bytes32\"},{\"internalType\":\"uint256\",\"name\":\"_l2timestamp\",\"type\":\"uint256\"},{\"internalType\":\"bytes32\",\"name\":\"_l1Blockhash\",\"type\":\"bytes32\"},{\"internalType\":\"uint256\",\"name\":\"_l1Blocknumber\",\"type\":\"uint256\"}],\"name\":\"appendL2Output\",\"outputs\":[],\"stateMutability\":\"payable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"_l2timestamp\",\"type\":\"uint256\"}],\"name\":\"computeL2BlockNumber\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"components\":[{\"internalType\":\"bytes32\",\"name\":\"outputRoot\",\"type\":\"bytes32\"},{\"internalType\":\"uint256\",\"name\":\"timestamp\",\"type\":\"uint256\"}],\"internalType\":\"struct L2OutputOracle.OutputProposal\",\"name\":\"_proposal\",\"type\":\"tuple\"}],\"name\":\"deleteL2Output\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"_l2Timestamp\",\"type\":\"uint256\"}],\"name\":\"getL2Output\",\"outputs\":[{\"components\":[{\"internalType\":\"bytes32\",\"name\":\"outputRoot\",\"type\":\"bytes32\"},{\"internalType\":\"uint256\",\"name\":\"timestamp\",\"type\":\"uint256\"}],\"internalType\":\"struct L2OutputOracle.OutputProposal\",\"name\":\"\",\"type\":\"tuple\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"latestBlockTimestamp\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"nextTimestamp\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"owner\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"renounceOwnership\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"newOwner\",\"type\":\"address\"}],\"name\":\"transferOwnership\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"}],\"devdoc\":{\"kind\":\"dev\",\"methods\":{\"appendL2Output(bytes32,uint256,bytes32,uint256)\":{\"params\":{\"_l1Blockhash\":\"A block hash which must be included in the current chain.\",\"_l1Blocknumber\":\"The block number with the specified block hash.\",\"_l2Output\":\"The L2 output of the checkpoint block.\",\"_l2timestamp\":\"The L2 block timestamp that resulted in _l2Output.\"}},\"computeL2BlockNumber(uint256)\":{\"params\":{\"_l2timestamp\":\"The L2 block timestamp of the target block.\"}},\"constructor\":{\"params\":{\"_genesisL2Output\":\"The initial L2 output of the L2 chain.\",\"_historicalTotalBlocks\":\"The number of blocks that preceding the        initialization of the L2 chain.\",\"_l2BlockTime\":\"The desired L2 inter-block time in seconds.\",\"_startingBlockTimestamp\":\"The timestamp to start L2 block at.\",\"_submissionInterval\":\"The desired interval in seconds at which        checkpoints must be submitted.\"}},\"deleteL2Output((bytes32,uint256))\":{\"params\":{\"_proposal\":\"Represents the output proposal to delete\"}},\"getL2Output(uint256)\":{\"params\":{\"_l2Timestamp\":\"The L2 block timestamp of the target block.\"}},\"owner()\":{\"details\":\"Returns the address of the current owner.\"},\"renounceOwnership()\":{\"details\":\"Leaves the contract without owner. It will not be possible to call `onlyOwner` functions anymore. Can only be called by the current owner. NOTE: Renouncing ownership will leave the contract without an owner, thereby removing any functionality that is only available to the owner.\"},\"transferOwnership(address)\":{\"details\":\"Transfers ownership of the contract to a new account (`newOwner`). Can only be called by the current owner.\"}},\"title\":\"L2OutputOracle\",\"version\":1},\"userdoc\":{\"events\":{\"l2OutputAppended(bytes32,uint256,uint256)\":{\"notice\":\"Emitted when an output is appended.\"},\"l2OutputDeleted(bytes32,uint256,uint256)\":{\"notice\":\"Emitted when an output is deleted.\"}},\"kind\":\"user\",\"methods\":{\"HISTORICAL_TOTAL_BLOCKS()\":{\"notice\":\"The number of blocks in the chain before the first block in this contract.\"},\"L2_BLOCK_TIME()\":{\"notice\":\"The time between blocks on L2.\"},\"STARTING_BLOCK_TIMESTAMP()\":{\"notice\":\"The timestamp of the first L2 block recorded in this contract.\"},\"SUBMISSION_INTERVAL()\":{\"notice\":\"The interval in seconds at which checkpoints must be submitted.\"},\"appendL2Output(bytes32,uint256,bytes32,uint256)\":{\"notice\":\"Accepts an L2 outputRoot and the timestamp of the corresponding L2 block. The timestamp must be equal to the current value returned by `nextTimestamp()` in order to be accepted. This function may only be called by the Sequencer.\"},\"computeL2BlockNumber(uint256)\":{\"notice\":\"Computes the L2 block number given a target L2 block timestamp.\"},\"constructor\":{\"notice\":\"Initialize the L2OutputOracle contract.\"},\"deleteL2Output((bytes32,uint256))\":{\"notice\":\"Deletes the most recent output.\"},\"getL2Output(uint256)\":{\"notice\":\"Returns the L2 output proposal given a target L2 block timestamp. Returns a null output proposal if none is found.\"},\"latestBlockTimestamp()\":{\"notice\":\"The timestamp of the most recent L2 block recorded in this contract.\"},\"nextTimestamp()\":{\"notice\":\"Computes the timestamp of the next L2 block that needs to be checkpointed.\"}},\"notice\":\"The L2 state is committed to in this contract The payable keyword is used on appendL2Output to save gas on the msg.value check. This contract should be deployed behind an upgradable proxy\",\"version\":1}},\"settings\":{\"compilationTarget\":{\"contracts/L1/L2OutputOracle.sol\":\"L2OutputOracle\"},\"evmVersion\":\"london\",\"libraries\":{},\"metadata\":{\"bytecodeHash\":\"ipfs\",\"useLiteralContent\":true},\"optimizer\":{\"enabled\":true,\"runs\":10000},\"remappings\":[]},\"sources\":{\"@openzeppelin/contracts/access/Ownable.sol\":{\"content\":\"// SPDX-License-Identifier: MIT\\n// OpenZeppelin Contracts v4.4.1 (access/Ownable.sol)\\n\\npragma solidity ^0.8.0;\\n\\nimport \\\"../utils/Context.sol\\\";\\n\\n/**\\n * @dev Contract module which provides a basic access control mechanism, where\\n * there is an account (an owner) that can be granted exclusive access to\\n * specific functions.\\n *\\n * By default, the owner account will be the one that deploys the contract. This\\n * can later be changed with {transferOwnership}.\\n *\\n * This module is used through inheritance. It will make available the modifier\\n * `onlyOwner`, which can be applied to your functions to restrict their use to\\n * the owner.\\n */\\nabstract contract Ownable is Context {\\n    address private _owner;\\n\\n    event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);\\n\\n    /**\\n     * @dev Initializes the contract setting the deployer as the initial owner.\\n     */\\n    constructor() {\\n        _transferOwnership(_msgSender());\\n    }\\n\\n    /**\\n     * @dev Returns the address of the current owner.\\n     */\\n    function owner() public view virtual returns (address) {\\n        return _owner;\\n    }\\n\\n    /**\\n     * @dev Throws if called by any account other than the owner.\\n     */\\n    modifier onlyOwner() {\\n        require(owner() == _msgSender(), \\\"Ownable: caller is not the owner\\\");\\n        _;\\n    }\\n\\n    /**\\n     * @dev Leaves the contract without owner. It will not be possible to call\\n     * `onlyOwner` functions anymore. Can only be called by the current owner.\\n     *\\n     * NOTE: Renouncing ownership will leave the contract without an owner,\\n     * thereby removing any functionality that is only available to the owner.\\n     */\\n    function renounceOwnership() public virtual onlyOwner {\\n        _transferOwnership(address(0));\\n    }\\n\\n    /**\\n     * @dev Transfers ownership of the contract to a new account (`newOwner`).\\n     * Can only be called by the current owner.\\n     */\\n    function transferOwnership(address newOwner) public virtual onlyOwner {\\n        require(newOwner != address(0), \\\"Ownable: new owner is the zero address\\\");\\n        _transferOwnership(newOwner);\\n    }\\n\\n    /**\\n     * @dev Transfers ownership of the contract to a new account (`newOwner`).\\n     * Internal function without access restriction.\\n     */\\n    function _transferOwnership(address newOwner) internal virtual {\\n        address oldOwner = _owner;\\n        _owner = newOwner;\\n        emit OwnershipTransferred(oldOwner, newOwner);\\n    }\\n}\\n\",\"keccak256\":\"0x24e0364e503a9bbde94c715d26573a76f14cd2a202d45f96f52134ab806b67b9\",\"license\":\"MIT\"},\"@openzeppelin/contracts/utils/Context.sol\":{\"content\":\"// SPDX-License-Identifier: MIT\\n// OpenZeppelin Contracts v4.4.1 (utils/Context.sol)\\n\\npragma solidity ^0.8.0;\\n\\n/**\\n * @dev Provides information about the current execution context, including the\\n * sender of the transaction and its data. While these are generally available\\n * via msg.sender and msg.data, they should not be accessed in such a direct\\n * manner, since when dealing with meta-transactions the account sending and\\n * paying for execution may not be the actual sender (as far as an application\\n * is concerned).\\n *\\n * This contract is only required for intermediate, library-like contracts.\\n */\\nabstract contract Context {\\n    function _msgSender() internal view virtual returns (address) {\\n        return msg.sender;\\n    }\\n\\n    function _msgData() internal view virtual returns (bytes calldata) {\\n        return msg.data;\\n    }\\n}\\n\",\"keccak256\":\"0xe2e337e6dde9ef6b680e07338c493ebea1b5fd09b43424112868e9cc1706bca7\",\"license\":\"MIT\"},\"contracts/L1/L2OutputOracle.sol\":{\"content\":\"//SPDX-License-Identifier: MIT\\npragma solidity 0.8.10;\\n\\nimport { Ownable } from \\\"@openzeppelin/contracts/access/Ownable.sol\\\";\\n\\n/**\\n * @title L2OutputOracle\\n * @notice The L2 state is committed to in this contract\\n * The payable keyword is used on appendL2Output to save gas on the msg.value check.\\n * This contract should be deployed behind an upgradable proxy\\n */\\n// slither-disable-next-line locked-ether\\ncontract L2OutputOracle is Ownable {\\n    /**********\\n     * Events *\\n     **********/\\n\\n    /// @notice Emitted when an output is appended.\\n    event l2OutputAppended(\\n        bytes32 indexed _l2Output,\\n        uint256 indexed _l1Timestamp,\\n        uint256 indexed _l2timestamp\\n    );\\n\\n    /// @notice Emitted when an output is deleted.\\n    event l2OutputDeleted(\\n        bytes32 indexed _l2Output,\\n        uint256 indexed _l1Timestamp,\\n        uint256 indexed _l2timestamp\\n    );\\n\\n    /**********************\\n     * Contract Variables *\\n     **********************/\\n\\n    /// @notice The interval in seconds at which checkpoints must be submitted.\\n    uint256 public immutable SUBMISSION_INTERVAL;\\n\\n    /// @notice The time between blocks on L2.\\n    uint256 public immutable L2_BLOCK_TIME;\\n\\n    /// @notice The number of blocks in the chain before the first block in this contract.\\n    uint256 public immutable HISTORICAL_TOTAL_BLOCKS;\\n\\n    /// @notice The timestamp of the first L2 block recorded in this contract.\\n    uint256 public immutable STARTING_BLOCK_TIMESTAMP;\\n\\n    /// @notice The timestamp of the most recent L2 block recorded in this contract.\\n    uint256 public latestBlockTimestamp;\\n\\n    /// @notice A mapping from L2 timestamps to the output root for the block with that timestamp.\\n    mapping(uint256 => OutputProposal) internal l2Outputs;\\n\\n    /// @notice OutputProposal represents a commitment to the L2 state.\\n    /// The timestamp is the L1 timestamp that the output root is posted.\\n    /// This timestamp is used to verify that the finalization period\\n    /// has passed since the output root was submitted.\\n    struct OutputProposal {\\n        bytes32 outputRoot;\\n        uint256 timestamp;\\n    }\\n\\n    /***************\\n     * Constructor *\\n     ***************/\\n\\n    /**\\n     * @notice Initialize the L2OutputOracle contract.\\n     * @param _submissionInterval The desired interval in seconds at which\\n     *        checkpoints must be submitted.\\n     * @param _l2BlockTime The desired L2 inter-block time in seconds.\\n     * @param _genesisL2Output The initial L2 output of the L2 chain.\\n     * @param _historicalTotalBlocks The number of blocks that preceding the\\n     *        initialization of the L2 chain.\\n     * @param _startingBlockTimestamp The timestamp to start L2 block at.\\n     */\\n    constructor(\\n        uint256 _submissionInterval,\\n        uint256 _l2BlockTime,\\n        bytes32 _genesisL2Output,\\n        uint256 _historicalTotalBlocks,\\n        uint256 _startingBlockTimestamp,\\n        address sequencer\\n    ) {\\n        require(\\n            _submissionInterval % _l2BlockTime == 0,\\n            \\\"Submission Interval must be a multiple of L2 Block Time\\\"\\n        );\\n\\n        SUBMISSION_INTERVAL = _submissionInterval;\\n        L2_BLOCK_TIME = _l2BlockTime;\\n        // solhint-disable-next-line not-rely-on-time\\n        l2Outputs[_startingBlockTimestamp] = OutputProposal(_genesisL2Output, block.timestamp);\\n        HISTORICAL_TOTAL_BLOCKS = _historicalTotalBlocks;\\n        // solhint-disable-next-line not-rely-on-time\\n        latestBlockTimestamp = _startingBlockTimestamp;\\n        // solhint-disable-next-line not-rely-on-time\\n        STARTING_BLOCK_TIMESTAMP = _startingBlockTimestamp;\\n\\n        _transferOwnership(sequencer);\\n    }\\n\\n    /*********************************\\n     * External and Public Functions *\\n     *********************************/\\n\\n    /**\\n     * @notice Accepts an L2 outputRoot and the timestamp of the corresponding L2 block. The\\n     * timestamp must be equal to the current value returned by `nextTimestamp()` in order to be\\n     * accepted.\\n     * This function may only be called by the Sequencer.\\n     * @param _l2Output The L2 output of the checkpoint block.\\n     * @param _l2timestamp The L2 block timestamp that resulted in _l2Output.\\n     * @param _l1Blockhash A block hash which must be included in the current chain.\\n     * @param _l1Blocknumber The block number with the specified block hash.\\n     */\\n    function appendL2Output(\\n        bytes32 _l2Output,\\n        uint256 _l2timestamp,\\n        bytes32 _l1Blockhash,\\n        uint256 _l1Blocknumber\\n    ) external payable onlyOwner {\\n        require(_l2timestamp < block.timestamp, \\\"Cannot append L2 output in future\\\");\\n        require(_l2timestamp == nextTimestamp(), \\\"Timestamp not equal to next expected timestamp\\\");\\n        require(_l2Output != bytes32(0), \\\"Cannot submit empty L2 output\\\");\\n\\n        if (_l1Blockhash != bytes32(0)) {\\n            // This check allows the sequencer to append an output based on a given L1 block,\\n            // without fear that it will be reorged out.\\n            // It will also revert if the blockheight provided is more than 256 blocks behind the\\n            // chain tip (as the hash will return as zero). This does open the door to a griefing\\n            // attack in which the sequencer's submission is censored until the block is no longer\\n            // retrievable, if the sequencer is experiencing this attack it can simply leave out the\\n            // blockhash value, and delay submission until it is confident that the L1 block is\\n            // finalized.\\n            require(\\n                blockhash(_l1Blocknumber) == _l1Blockhash,\\n                \\\"Blockhash does not match the hash at the expected height.\\\"\\n            );\\n        }\\n\\n        l2Outputs[_l2timestamp] = OutputProposal(_l2Output, block.timestamp);\\n        latestBlockTimestamp = _l2timestamp;\\n\\n        emit l2OutputAppended(_l2Output, block.timestamp, _l2timestamp);\\n    }\\n\\n    /**\\n     * @notice Deletes the most recent output.\\n     * @param _proposal Represents the output proposal to delete\\n     */\\n    function deleteL2Output(OutputProposal memory _proposal) external onlyOwner {\\n        OutputProposal memory outputToDelete = l2Outputs[latestBlockTimestamp];\\n\\n        require(\\n            _proposal.outputRoot == outputToDelete.outputRoot,\\n            \\\"Can only delete the most recent output.\\\"\\n        );\\n        require(_proposal.timestamp == outputToDelete.timestamp, \\\"\\\");\\n\\n        emit l2OutputDeleted(\\n            outputToDelete.outputRoot,\\n            outputToDelete.timestamp,\\n            latestBlockTimestamp\\n        );\\n\\n        delete l2Outputs[latestBlockTimestamp];\\n        latestBlockTimestamp = latestBlockTimestamp - SUBMISSION_INTERVAL;\\n    }\\n\\n    /**\\n     * @notice Computes the timestamp of the next L2 block that needs to be checkpointed.\\n     */\\n    function nextTimestamp() public view returns (uint256) {\\n        return latestBlockTimestamp + SUBMISSION_INTERVAL;\\n    }\\n\\n    /**\\n     * @notice Returns the L2 output proposal given a target L2 block timestamp.\\n     * Returns a null output proposal if none is found.\\n     * @param _l2Timestamp The L2 block timestamp of the target block.\\n     */\\n    function getL2Output(uint256 _l2Timestamp) external view returns (OutputProposal memory) {\\n        return l2Outputs[_l2Timestamp];\\n    }\\n\\n    /**\\n     * @notice Computes the L2 block number given a target L2 block timestamp.\\n     * @param _l2timestamp The L2 block timestamp of the target block.\\n     */\\n    function computeL2BlockNumber(uint256 _l2timestamp) external view returns (uint256) {\\n        require(\\n            _l2timestamp >= STARTING_BLOCK_TIMESTAMP,\\n            \\\"Timestamp prior to startingBlockTimestamp\\\"\\n        );\\n        // For the first block recorded (ie. _l2timestamp = STARTING_BLOCK_TIMESTAMP), the\\n        // L2BlockNumber should be HISTORICAL_TOTAL_BLOCKS + 1.\\n        unchecked {\\n            return\\n                HISTORICAL_TOTAL_BLOCKS +\\n                ((_l2timestamp - STARTING_BLOCK_TIMESTAMP) / L2_BLOCK_TIME);\\n        }\\n    }\\n}\\n\",\"keccak256\":\"0x1d3bad04089ce74d59a80b291252a817854cbcc71341549c4e9f33976addf240\",\"license\":\"MIT\"}},\"version\":1}",
+  "bytecode": "0x61010060405234801561001157600080fd5b50604051610e8f380380610e8f83398101604081905261003091610164565b61003933610114565b61004385876101c8565b156100ba5760405162461bcd60e51b815260206004820152603760248201527f5375626d697373696f6e20496e74657276616c206d7573742062652061206d7560448201527f6c7469706c65206f66204c3220426c6f636b2054696d65000000000000000000606482015260840160405180910390fd5b608086905260a0859052604080518082018252858152426020808301918252600086815260029091529290922090518155905160019182015560c084905282905560e082905261010981610114565b5050505050506101ea565b600080546001600160a01b038381166001600160a01b0319831681178455604051919092169283917f8be0079c531659141344cd1fd0a4f28419497f9722a3daafe3b4186f6b6457e09190a35050565b60008060008060008060c0878903121561017d57600080fd5b86516020880151604089015160608a015160808b015160a08c0151949a50929850909650945092506001600160a01b03811681146101ba57600080fd5b809150509295509295509295565b6000826101e557634e487b7160e01b600052601260045260246000fd5b500690565b60805160a05160c05160e051610c4361024c600039600081816101af0152818161031b01526103d70152600081816102d5015261040801526000818160e801526103b60152600081816101e3015281816105ba015261086d0152610c436000f3fe6080604052600436106100d15760003560e01c806341840fa61161007f5780638da5cb5b116100595780638da5cb5b1461021a578063a25ae5571461024f578063a4771aad146102c3578063f2fde38b146102f757600080fd5b806341840fa61461019d578063529933df146101d1578063715018a61461020557600080fd5b80630c1952d3116100b05780630c1952d31461015f5780632518810414610175578063357e951f1461018857600080fd5b80622134cc146100d657806302e513451461011d578063093b3d901461013d575b600080fd5b3480156100e257600080fd5b5061010a7f000000000000000000000000000000000000000000000000000000000000000081565b6040519081526020015b60405180910390f35b34801561012957600080fd5b5061010a610138366004610a82565b610317565b34801561014957600080fd5b5061015d610158366004610a9b565b61042f565b005b34801561016b57600080fd5b5061010a60015481565b61015d610183366004610b11565b6105e6565b34801561019457600080fd5b5061010a610869565b3480156101a957600080fd5b5061010a7f000000000000000000000000000000000000000000000000000000000000000081565b3480156101dd57600080fd5b5061010a7f000000000000000000000000000000000000000000000000000000000000000081565b34801561021157600080fd5b5061015d61089e565b34801561022657600080fd5b5060005460405173ffffffffffffffffffffffffffffffffffffffff9091168152602001610114565b34801561025b57600080fd5b506102a861026a366004610a82565b604080518082019091526000808252602082015250600090815260026020908152604091829020825180840190935280548352600101549082015290565b60408051825181526020928301519281019290925201610114565b3480156102cf57600080fd5b5061010a7f000000000000000000000000000000000000000000000000000000000000000081565b34801561030357600080fd5b5061015d610312366004610b43565b610911565b60007f00000000000000000000000000000000000000000000000000000000000000008210156103b45760405162461bcd60e51b815260206004820152602960248201527f54696d657374616d70207072696f7220746f207374617274696e67426c6f636b60448201527f54696d657374616d70000000000000000000000000000000000000000000000060648201526084015b60405180910390fd5b7f00000000000000000000000000000000000000000000000000000000000000007f000000000000000000000000000000000000000000000000000000000000000083038161040557610405610b80565b047f0000000000000000000000000000000000000000000000000000000000000000019050919050565b60005473ffffffffffffffffffffffffffffffffffffffff1633146104965760405162461bcd60e51b815260206004820181905260248201527f4f776e61626c653a2063616c6c6572206973206e6f7420746865206f776e657260448201526064016103ab565b60018054600090815260026020908152604091829020825180840190935280548084529301549082015282519091146105375760405162461bcd60e51b815260206004820152602760248201527f43616e206f6e6c792064656c65746520746865206d6f737420726563656e742060448201527f6f75747075742e0000000000000000000000000000000000000000000000000060648201526084016103ab565b80602001518260200151146105685760405162461bcd60e51b815260206004820152600060248201526044016103ab565b600154602082015182516040517f6897e92e2fea3b89bf0d45ed867487716da71bfa624c6878569d227d736c700990600090a4600180546000908152600260205260408120818155820155546105df907f000000000000000000000000000000000000000000000000000000000000000090610bde565b6001555050565b60005473ffffffffffffffffffffffffffffffffffffffff16331461064d5760405162461bcd60e51b815260206004820181905260248201527f4f776e61626c653a2063616c6c6572206973206e6f7420746865206f776e657260448201526064016103ab565b4283106106c25760405162461bcd60e51b815260206004820152602160248201527f43616e6e6f7420617070656e64204c32206f757470757420696e20667574757260448201527f650000000000000000000000000000000000000000000000000000000000000060648201526084016103ab565b6106ca610869565b831461073e5760405162461bcd60e51b815260206004820152602e60248201527f54696d657374616d70206e6f7420657175616c20746f206e657874206578706560448201527f637465642074696d657374616d7000000000000000000000000000000000000060648201526084016103ab565b8361078b5760405162461bcd60e51b815260206004820152601d60248201527f43616e6e6f74207375626d697420656d707479204c32206f757470757400000060448201526064016103ab565b811561080757818140146108075760405162461bcd60e51b815260206004820152603960248201527f426c6f636b6861736820646f6573206e6f74206d61746368207468652068617360448201527f6820617420746865206578706563746564206865696768742e0000000000000060648201526084016103ab565b60408051808201825285815242602080830182815260008881526002909252848220935184555160019384015591869055915185929187917f54fbf9b58db0b6543a3a0cb9fbd4e98a7c7b88878978fa125b84a2c7f51d34ba9190a450505050565b60007f00000000000000000000000000000000000000000000000000000000000000006001546108999190610bf5565b905090565b60005473ffffffffffffffffffffffffffffffffffffffff1633146109055760405162461bcd60e51b815260206004820181905260248201527f4f776e61626c653a2063616c6c6572206973206e6f7420746865206f776e657260448201526064016103ab565b61090f6000610a0d565b565b60005473ffffffffffffffffffffffffffffffffffffffff1633146109785760405162461bcd60e51b815260206004820181905260248201527f4f776e61626c653a2063616c6c6572206973206e6f7420746865206f776e657260448201526064016103ab565b73ffffffffffffffffffffffffffffffffffffffff8116610a015760405162461bcd60e51b815260206004820152602660248201527f4f776e61626c653a206e6577206f776e657220697320746865207a65726f206160448201527f646472657373000000000000000000000000000000000000000000000000000060648201526084016103ab565b610a0a81610a0d565b50565b6000805473ffffffffffffffffffffffffffffffffffffffff8381167fffffffffffffffffffffffff0000000000000000000000000000000000000000831681178455604051919092169283917f8be0079c531659141344cd1fd0a4f28419497f9722a3daafe3b4186f6b6457e09190a35050565b600060208284031215610a9457600080fd5b5035919050565b600060408284031215610aad57600080fd5b6040516040810181811067ffffffffffffffff82111715610af7577f4e487b7100000000000000000000000000000000000000000000000000000000600052604160045260246000fd5b604052823581526020928301359281019290925250919050565b60008060008060808587031215610b2757600080fd5b5050823594602084013594506040840135936060013592509050565b600060208284031215610b5557600080fd5b813573ffffffffffffffffffffffffffffffffffffffff81168114610b7957600080fd5b9392505050565b7f4e487b7100000000000000000000000000000000000000000000000000000000600052601260045260246000fd5b7f4e487b7100000000000000000000000000000000000000000000000000000000600052601160045260246000fd5b600082821015610bf057610bf0610baf565b500390565b60008219821115610c0857610c08610baf565b50019056fea2646970667358221220734bbd44aa805eb92f55255740088454b3a6d4ef0d1557341a65f6b222aa25bc64736f6c634300080a0033",
+  "deployedBytecode": "0x6080604052600436106100d15760003560e01c806341840fa61161007f5780638da5cb5b116100595780638da5cb5b1461021a578063a25ae5571461024f578063a4771aad146102c3578063f2fde38b146102f757600080fd5b806341840fa61461019d578063529933df146101d1578063715018a61461020557600080fd5b80630c1952d3116100b05780630c1952d31461015f5780632518810414610175578063357e951f1461018857600080fd5b80622134cc146100d657806302e513451461011d578063093b3d901461013d575b600080fd5b3480156100e257600080fd5b5061010a7f000000000000000000000000000000000000000000000000000000000000000081565b6040519081526020015b60405180910390f35b34801561012957600080fd5b5061010a610138366004610a82565b610317565b34801561014957600080fd5b5061015d610158366004610a9b565b61042f565b005b34801561016b57600080fd5b5061010a60015481565b61015d610183366004610b11565b6105e6565b34801561019457600080fd5b5061010a610869565b3480156101a957600080fd5b5061010a7f000000000000000000000000000000000000000000000000000000000000000081565b3480156101dd57600080fd5b5061010a7f000000000000000000000000000000000000000000000000000000000000000081565b34801561021157600080fd5b5061015d61089e565b34801561022657600080fd5b5060005460405173ffffffffffffffffffffffffffffffffffffffff9091168152602001610114565b34801561025b57600080fd5b506102a861026a366004610a82565b604080518082019091526000808252602082015250600090815260026020908152604091829020825180840190935280548352600101549082015290565b60408051825181526020928301519281019290925201610114565b3480156102cf57600080fd5b5061010a7f000000000000000000000000000000000000000000000000000000000000000081565b34801561030357600080fd5b5061015d610312366004610b43565b610911565b60007f00000000000000000000000000000000000000000000000000000000000000008210156103b45760405162461bcd60e51b815260206004820152602960248201527f54696d657374616d70207072696f7220746f207374617274696e67426c6f636b60448201527f54696d657374616d70000000000000000000000000000000000000000000000060648201526084015b60405180910390fd5b7f00000000000000000000000000000000000000000000000000000000000000007f000000000000000000000000000000000000000000000000000000000000000083038161040557610405610b80565b047f0000000000000000000000000000000000000000000000000000000000000000019050919050565b60005473ffffffffffffffffffffffffffffffffffffffff1633146104965760405162461bcd60e51b815260206004820181905260248201527f4f776e61626c653a2063616c6c6572206973206e6f7420746865206f776e657260448201526064016103ab565b60018054600090815260026020908152604091829020825180840190935280548084529301549082015282519091146105375760405162461bcd60e51b815260206004820152602760248201527f43616e206f6e6c792064656c65746520746865206d6f737420726563656e742060448201527f6f75747075742e0000000000000000000000000000000000000000000000000060648201526084016103ab565b80602001518260200151146105685760405162461bcd60e51b815260206004820152600060248201526044016103ab565b600154602082015182516040517f6897e92e2fea3b89bf0d45ed867487716da71bfa624c6878569d227d736c700990600090a4600180546000908152600260205260408120818155820155546105df907f000000000000000000000000000000000000000000000000000000000000000090610bde565b6001555050565b60005473ffffffffffffffffffffffffffffffffffffffff16331461064d5760405162461bcd60e51b815260206004820181905260248201527f4f776e61626c653a2063616c6c6572206973206e6f7420746865206f776e657260448201526064016103ab565b4283106106c25760405162461bcd60e51b815260206004820152602160248201527f43616e6e6f7420617070656e64204c32206f757470757420696e20667574757260448201527f650000000000000000000000000000000000000000000000000000000000000060648201526084016103ab565b6106ca610869565b831461073e5760405162461bcd60e51b815260206004820152602e60248201527f54696d657374616d70206e6f7420657175616c20746f206e657874206578706560448201527f637465642074696d657374616d7000000000000000000000000000000000000060648201526084016103ab565b8361078b5760405162461bcd60e51b815260206004820152601d60248201527f43616e6e6f74207375626d697420656d707479204c32206f757470757400000060448201526064016103ab565b811561080757818140146108075760405162461bcd60e51b815260206004820152603960248201527f426c6f636b6861736820646f6573206e6f74206d61746368207468652068617360448201527f6820617420746865206578706563746564206865696768742e0000000000000060648201526084016103ab565b60408051808201825285815242602080830182815260008881526002909252848220935184555160019384015591869055915185929187917f54fbf9b58db0b6543a3a0cb9fbd4e98a7c7b88878978fa125b84a2c7f51d34ba9190a450505050565b60007f00000000000000000000000000000000000000000000000000000000000000006001546108999190610bf5565b905090565b60005473ffffffffffffffffffffffffffffffffffffffff1633146109055760405162461bcd60e51b815260206004820181905260248201527f4f776e61626c653a2063616c6c6572206973206e6f7420746865206f776e657260448201526064016103ab565b61090f6000610a0d565b565b60005473ffffffffffffffffffffffffffffffffffffffff1633146109785760405162461bcd60e51b815260206004820181905260248201527f4f776e61626c653a2063616c6c6572206973206e6f7420746865206f776e657260448201526064016103ab565b73ffffffffffffffffffffffffffffffffffffffff8116610a015760405162461bcd60e51b815260206004820152602660248201527f4f776e61626c653a206e6577206f776e657220697320746865207a65726f206160448201527f646472657373000000000000000000000000000000000000000000000000000060648201526084016103ab565b610a0a81610a0d565b50565b6000805473ffffffffffffffffffffffffffffffffffffffff8381167fffffffffffffffffffffffff0000000000000000000000000000000000000000831681178455604051919092169283917f8be0079c531659141344cd1fd0a4f28419497f9722a3daafe3b4186f6b6457e09190a35050565b600060208284031215610a9457600080fd5b5035919050565b600060408284031215610aad57600080fd5b6040516040810181811067ffffffffffffffff82111715610af7577f4e487b7100000000000000000000000000000000000000000000000000000000600052604160045260246000fd5b604052823581526020928301359281019290925250919050565b60008060008060808587031215610b2757600080fd5b5050823594602084013594506040840135936060013592509050565b600060208284031215610b5557600080fd5b813573ffffffffffffffffffffffffffffffffffffffff81168114610b7957600080fd5b9392505050565b7f4e487b7100000000000000000000000000000000000000000000000000000000600052601260045260246000fd5b7f4e487b7100000000000000000000000000000000000000000000000000000000600052601160045260246000fd5b600082821015610bf057610bf0610baf565b500390565b60008219821115610c0857610c08610baf565b50019056fea2646970667358221220734bbd44aa805eb92f55255740088454b3a6d4ef0d1557341a65f6b222aa25bc64736f6c634300080a0033",
+  "devdoc": {
+    "kind": "dev",
+    "methods": {
+      "appendL2Output(bytes32,uint256,bytes32,uint256)": {
+        "params": {
+          "_l1Blockhash": "A block hash which must be included in the current chain.",
+          "_l1Blocknumber": "The block number with the specified block hash.",
+          "_l2Output": "The L2 output of the checkpoint block.",
+          "_l2timestamp": "The L2 block timestamp that resulted in _l2Output."
+        }
+      },
+      "computeL2BlockNumber(uint256)": {
+        "params": {
+          "_l2timestamp": "The L2 block timestamp of the target block."
+        }
+      },
+      "constructor": {
+        "params": {
+          "_genesisL2Output": "The initial L2 output of the L2 chain.",
+          "_historicalTotalBlocks": "The number of blocks that preceding the        initialization of the L2 chain.",
+          "_l2BlockTime": "The desired L2 inter-block time in seconds.",
+          "_startingBlockTimestamp": "The timestamp to start L2 block at.",
+          "_submissionInterval": "The desired interval in seconds at which        checkpoints must be submitted."
+        }
+      },
+      "deleteL2Output((bytes32,uint256))": {
+        "params": {
+          "_proposal": "Represents the output proposal to delete"
+        }
+      },
+      "getL2Output(uint256)": {
+        "params": {
+          "_l2Timestamp": "The L2 block timestamp of the target block."
+        }
+      },
+      "owner()": {
+        "details": "Returns the address of the current owner."
+      },
+      "renounceOwnership()": {
+        "details": "Leaves the contract without owner. It will not be possible to call `onlyOwner` functions anymore. Can only be called by the current owner. NOTE: Renouncing ownership will leave the contract without an owner, thereby removing any functionality that is only available to the owner."
+      },
+      "transferOwnership(address)": {
+        "details": "Transfers ownership of the contract to a new account (`newOwner`). Can only be called by the current owner."
+      }
+    },
+    "title": "L2OutputOracle",
+    "version": 1
+  },
+  "userdoc": {
+    "events": {
+      "l2OutputAppended(bytes32,uint256,uint256)": {
+        "notice": "Emitted when an output is appended."
+      },
+      "l2OutputDeleted(bytes32,uint256,uint256)": {
+        "notice": "Emitted when an output is deleted."
+      }
+    },
+    "kind": "user",
+    "methods": {
+      "HISTORICAL_TOTAL_BLOCKS()": {
+        "notice": "The number of blocks in the chain before the first block in this contract."
+      },
+      "L2_BLOCK_TIME()": {
+        "notice": "The time between blocks on L2."
+      },
+      "STARTING_BLOCK_TIMESTAMP()": {
+        "notice": "The timestamp of the first L2 block recorded in this contract."
+      },
+      "SUBMISSION_INTERVAL()": {
+        "notice": "The interval in seconds at which checkpoints must be submitted."
+      },
+      "appendL2Output(bytes32,uint256,bytes32,uint256)": {
+        "notice": "Accepts an L2 outputRoot and the timestamp of the corresponding L2 block. The timestamp must be equal to the current value returned by `nextTimestamp()` in order to be accepted. This function may only be called by the Sequencer."
+      },
+      "computeL2BlockNumber(uint256)": {
+        "notice": "Computes the L2 block number given a target L2 block timestamp."
+      },
+      "constructor": {
+        "notice": "Initialize the L2OutputOracle contract."
+      },
+      "deleteL2Output((bytes32,uint256))": {
+        "notice": "Deletes the most recent output."
+      },
+      "getL2Output(uint256)": {
+        "notice": "Returns the L2 output proposal given a target L2 block timestamp. Returns a null output proposal if none is found."
+      },
+      "latestBlockTimestamp()": {
+        "notice": "The timestamp of the most recent L2 block recorded in this contract."
+      },
+      "nextTimestamp()": {
+        "notice": "Computes the timestamp of the next L2 block that needs to be checkpointed."
+      }
+    },
+    "notice": "The L2 state is committed to in this contract The payable keyword is used on appendL2Output to save gas on the msg.value check. This contract should be deployed behind an upgradable proxy",
+    "version": 1
+  },
+  "storageLayout": {
+    "storage": [
+      {
+        "astId": 3029,
+        "contract": "contracts/L1/L2OutputOracle.sol:L2OutputOracle",
+        "label": "_owner",
+        "offset": 0,
+        "slot": "0",
+        "type": "t_address"
+      },
+      {
+        "astId": 5027,
+        "contract": "contracts/L1/L2OutputOracle.sol:L2OutputOracle",
+        "label": "latestBlockTimestamp",
+        "offset": 0,
+        "slot": "1",
+        "type": "t_uint256"
+      },
+      {
+        "astId": 5033,
+        "contract": "contracts/L1/L2OutputOracle.sol:L2OutputOracle",
+        "label": "l2Outputs",
+        "offset": 0,
+        "slot": "2",
+        "type": "t_mapping(t_uint256,t_struct(OutputProposal)5038_storage)"
+      }
+    ],
+    "types": {
+      "t_address": {
+        "encoding": "inplace",
+        "label": "address",
+        "numberOfBytes": "20"
+      },
+      "t_bytes32": {
+        "encoding": "inplace",
+        "label": "bytes32",
+        "numberOfBytes": "32"
+      },
+      "t_mapping(t_uint256,t_struct(OutputProposal)5038_storage)": {
+        "encoding": "mapping",
+        "key": "t_uint256",
+        "label": "mapping(uint256 => struct L2OutputOracle.OutputProposal)",
+        "numberOfBytes": "32",
+        "value": "t_struct(OutputProposal)5038_storage"
+      },
+      "t_struct(OutputProposal)5038_storage": {
+        "encoding": "inplace",
+        "label": "struct L2OutputOracle.OutputProposal",
+        "members": [
+          {
+            "astId": 5035,
+            "contract": "contracts/L1/L2OutputOracle.sol:L2OutputOracle",
+            "label": "outputRoot",
+            "offset": 0,
+            "slot": "0",
+            "type": "t_bytes32"
+          },
+          {
+            "astId": 5037,
+            "contract": "contracts/L1/L2OutputOracle.sol:L2OutputOracle",
+            "label": "timestamp",
+            "offset": 0,
+            "slot": "1",
+            "type": "t_uint256"
+          }
+        ],
+        "numberOfBytes": "64"
+      },
+      "t_uint256": {
+        "encoding": "inplace",
+        "label": "uint256",
+        "numberOfBytes": "32"
+      }
+    }
+  }
+}
