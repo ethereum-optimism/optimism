@@ -1183,6 +1183,11 @@
   resolved "https://registry.yarnpkg.com/@openzeppelin/contracts/-/contracts-4.5.0.tgz#3fd75d57de172b3743cdfc1206883f56430409cc"
   integrity sha512-fdkzKPYMjrRiPK6K4y64e6GzULR7R7RwxSigHS8DDp7aWDeoReqsQI+cxHV1UuhAqX69L1lAaWDxenfP+xiqzA==
 
+"@rari-capital/solmate@7.0.0-alpha.1":
+  version "7.0.0-alpha.1"
+  resolved "https://registry.yarnpkg.com/@rari-capital/solmate/-/solmate-7.0.0-alpha.1.tgz#d5defd0489f0bc4bb8b15022752233e473fa5e3c"
+  integrity sha512-BS88U+DKcP6kpvxpIzKOKLlzJlJJBAKJbQNgmb3o/pRALbIAb2IT686cmWSCI5Kl13as6In8HnVxq92r418haw==
+
 "@resolver-engine/core@^0.3.3":
   version "0.3.3"
   resolved "https://registry.yarnpkg.com/@resolver-engine/core/-/core-0.3.3.tgz#590f77d85d45bc7ecc4e06c654f41345db6ca967"
@@ -3813,6 +3818,10 @@ drbg.js@^1.0.1:
     create-hash "^1.1.2"
     create-hmac "^1.1.4"
 
+"ds-test@https://github.com/dapphub/ds-test.git#9310e879db8ba3ea6d5c6489a579118fd264a3f5":
+  version "0.0.0"
+  resolved "https://github.com/dapphub/ds-test.git#9310e879db8ba3ea6d5c6489a579118fd264a3f5"
+
 duplexer3@^0.1.4:
   version "0.1.4"
   resolved "https://registry.yarnpkg.com/duplexer3/-/duplexer3-0.1.4.tgz#ee01dd1cac0ed3cbc7fdbea37dc0a8f1ce002ce2"
@@ -5226,6 +5235,10 @@ forever-agent@~0.6.1:
   version "0.6.1"
   resolved "https://registry.yarnpkg.com/forever-agent/-/forever-agent-0.6.1.tgz#fbc71f0c41adeb37f96c577ad1ed42d8fdacca91"
   integrity sha1-+8cfDEGt6zf5bFd60e1C2P2sypE=
+
+"forge-std@https://github.com/foundry-rs/forge-std.git#1680d7fb3e00b7b197a7336e7c88e838c7e6a3ec":
+  version "0.0.0"
+  resolved "https://github.com/foundry-rs/forge-std.git#1680d7fb3e00b7b197a7336e7c88e838c7e6a3ec"
 
 form-data@^2.2.0:
   version "2.5.1"
