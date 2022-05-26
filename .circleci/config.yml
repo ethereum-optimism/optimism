@@ -102,6 +102,7 @@ jobs:
             curl -L https://foundry.paradigm.xyz | bash
             source $HOME/.bashrc
             foundryup
+            forge --version
       - run:
           name: Build monorepo
           command: yarn build
