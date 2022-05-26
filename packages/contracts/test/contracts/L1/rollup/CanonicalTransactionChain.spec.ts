@@ -269,9 +269,7 @@ describe('CanonicalTransactionChain', () => {
     it('should revert when accessing a non-existent element', async () => {
       await expect(
         CanonicalTransactionChain.getQueueElement(0)
-      ).to.be.revertedWith(
-        'reverted with panic code 0x32 (Array accessed at an out-of-bounds or negative index)'
-      )
+      ).to.be.revertedWith('reverted with panic code 50')
     })
 
     describe('when the requested element exists', () => {
