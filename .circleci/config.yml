@@ -99,6 +99,7 @@ jobs:
       - run:
           name: install Foundry
           command: |
+            curl https://sh.rustup.rs -sSf | sh
             curl -L https://foundry.paradigm.xyz | bash
             source $HOME/.bashrc
             foundryup -b master
