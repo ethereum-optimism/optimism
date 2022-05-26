@@ -8,7 +8,7 @@
     "lint:fix": "yarn lint:check --fix",
     "lint:check": "eslint . --max-warnings=0",
     "build:contracts": "forge build --root . -c contracts -o artifacts",
-    "test": "ts-mocha --timeout 30000 test/**/*.spec.ts",
+    "test": "echo 'no unit tests'",
     "test:actor": "IS_LIVE_NETWORK=true ts-node actor-tests/lib/runner.ts",
     "test:integration:live": "NO_NETWORK=true IS_LIVE_NETWORK=true hardhat --network optimism test",
     "clean": "rimraf cache artifacts"
