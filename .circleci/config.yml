@@ -97,6 +97,12 @@ jobs:
             - packages/sdk/node_modules
             - integration-tests/node_modules
       - run:
+          name: install Foundry
+          command: |
+            curl -L https://foundry.paradigm.xyz | bash
+            source /home/circleci/.bashrc
+            foundryup
+      - run:
           name: Build monorepo
           command: yarn build
       - save_cache:
