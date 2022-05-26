@@ -1,5 +1,4 @@
 import { task, types } from 'hardhat/config'
-import hre from 'hardhat'
 import { Contract, providers, utils, Wallet, Event } from 'ethers'
 import dotenv from 'dotenv'
 
@@ -38,7 +37,7 @@ task('deposit', 'Deposits funds onto L2.')
     'deaddeaddeaddeaddeaddeaddeaddeaddead0001',
     types.string
   )
-  .setAction(async (args) => {
+  .setAction(async (args, hre) => {
     const {
       l1ProviderUrl,
       l2ProviderUrl,
