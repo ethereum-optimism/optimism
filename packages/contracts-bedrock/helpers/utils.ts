@@ -170,7 +170,9 @@ export class DepositTx {
   }
 
   fromL1Receipt(receipt: ContractReceipt, index: number): DepositTx {
-    if (!receipt.events) throw new Error('cannot parse receipt')
+    if (!receipt.events) {
+      throw new Error('cannot parse receipt')
+    }
     const event = receipt.events[index]
     if (!event) {
       throw new Error(`event index ${index} does not exist`)
@@ -183,27 +185,38 @@ export class DepositTx {
   }
 
   fromL1Event(event: Event): DepositTx {
-    if (event.event !== 'TransactionDeposited')
+    if (event.event !== 'TransactionDeposited') {
       throw new Error(`incorrect event type: ${event.event}`)
-    if (typeof event.args === 'undefined') throw new Error('no event args')
-    if (typeof event.args.from === 'undefined')
+    }
+    if (typeof event.args === 'undefined') {
+      throw new Error('no event args')
+    }
+    if (typeof event.args.from === 'undefined') {
       throw new Error('"from" undefined')
+    }
     this.from = event.args.from
-    if (typeof event.args.isCreation === 'undefined')
+    if (typeof event.args.isCreation === 'undefined') {
       throw new Error('"isCreation" undefined')
-    if (typeof event.args.to === 'undefined') throw new Error('"to" undefined')
+    }
+    if (typeof event.args.to === 'undefined') {
+      throw new Error('"to" undefined')
+    }
     this.to = event.args.isCreation ? null : event.args.to
-    if (typeof event.args.mint === 'undefined')
+    if (typeof event.args.mint === 'undefined') {
       throw new Error('"mint" undefined')
+    }
     this.mint = event.args.mint
-    if (typeof event.args.value === 'undefined')
+    if (typeof event.args.value === 'undefined') {
       throw new Error('"value" undefined')
+    }
     this.value = event.args.value
-    if (typeof event.args.gasLimit === 'undefined')
+    if (typeof event.args.gasLimit === 'undefined') {
       throw new Error('"gasLimit" undefined')
+    }
     this.gas = event.args.gasLimit
-    if (typeof event.args.data === 'undefined')
+    if (typeof event.args.data === 'undefined') {
       throw new Error('"data" undefined')
+    }
     this.data = event.args.data
     this.domain = SourceHashDomain.UserDeposit
     this.l1BlockHash = event.blockHash

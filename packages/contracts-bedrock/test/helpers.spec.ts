@@ -1,9 +1,12 @@
 import { expect } from 'chai'
+import { BigNumber } from 'ethers'
+
 import { DepositTx, SourceHashDomain } from '../helpers'
-import { BigNumber } from '@ethersproject/bignumber'
 
 describe('Helpers', () => {
   describe('DepositTx', () => {
+    // TODO(tynes): this is out of date now that the subversion
+    // byte has been added
     it('should serialize/deserialize and hash', () => {
       // constants serialized using optimistic-geth
       // TODO(tynes): more tests

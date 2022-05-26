@@ -1,8 +1,8 @@
 import { task, types } from 'hardhat/config'
-import { Contract, providers, utils, Wallet } from 'ethers'
-import { Event } from '@ethersproject/contracts'
+import { Contract, providers, utils, Wallet, Event } from 'ethers'
 import dotenv from 'dotenv'
-import { DepositTx, SourceHashDomain } from '../helpers/index'
+
+import { DepositTx } from '../helpers/index'
 
 dotenv.config()
 
@@ -95,8 +95,8 @@ task('deposit', 'Deposits funds onto L2.')
     console.log(`Waiting for L2 TX hash ${hash}`)
 
     while (true) {
-      const tx = await l2Provider.send('eth_getTransactionByHash', [hash])
-      if (tx) {
+      const expected = await l2Provider.send('eth_getTransactionByHash', [hash])
+      if (expected) {
         console.log('Deposit success')
         break
       }
