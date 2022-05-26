@@ -87,6 +87,7 @@ jobs:
             - node_modules
             - packages/common-ts/node_modules
             - packages/contracts/node_modules
+            - packages/contracts-bedrock/node_modules
             - packages/contracts-periphery/node_modules
             - packages/core-utils/node_modules
             - packages/data-transport-layer/node_modules

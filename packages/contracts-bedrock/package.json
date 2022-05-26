@@ -24,7 +24,7 @@
     "test:forge": "forge test",
     "gas-snapshot": "forge snapshot",
     "slither": "slither .",
-    "clean": "rm -rf ./artifacts ./forge-artifacts ./cache ./coverage ./tsconfig.build.tsbuildinfo",
+    "clean": "rm -rf ./artifacts ./forge-artifacts ./cache ./coverage ./tsconfig.tsbuildinfo",
     "lint:ts:check": "eslint .",
     "lint:contracts:check": "yarn solhint -f table 'contracts/**/*.sol'",
     "lint:check": "yarn lint:contracts:check && yarn lint:ts:check",
