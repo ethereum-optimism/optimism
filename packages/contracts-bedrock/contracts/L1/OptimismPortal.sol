@@ -3,7 +3,7 @@ pragma solidity 0.8.10;
 
 import { L2OutputOracle } from "./L2OutputOracle.sol";
 import { WithdrawalVerifier } from "../libraries/Lib_WithdrawalVerifier.sol";
-import { AddressAliasHelper } from "@eth-optimism/contracts/standards/AddressAliasHelper.sol";
+import { AddressAliasHelper } from "../libraries/AddressAliasHelper.sol";
 import { ExcessivelySafeCall } from "../libraries/ExcessivelySafeCall.sol";
 
 /**

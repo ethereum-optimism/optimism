@@ -1,13 +1,11 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.9;
 
-import {
-    Lib_PredeployAddresses
-} from "@eth-optimism/contracts/libraries/constants/Lib_PredeployAddresses.sol";
-
 import { Bridge_Initializer } from "./CommonTest.t.sol";
+
 import { SequencerFeeVault } from "../L2/SequencerFeeVault.sol";
 import { L2StandardBridge } from "../L2/L2StandardBridge.sol";
+import { Lib_PredeployAddresses } from "../libraries/Lib_PredeployAddresses.sol";
 
 contract SequencerFeeVault_Test is Bridge_Initializer {
     SequencerFeeVault vault =

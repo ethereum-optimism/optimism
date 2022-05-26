@@ -3,7 +3,7 @@ pragma solidity ^0.8.10;
 
 /* External Imports */
 import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
-import { Lib_BedrockPredeployAddresses } from "../libraries/Lib_BedrockPredeployAddresses.sol";
+import { Lib_PredeployAddresses } from "../libraries/Lib_PredeployAddresses.sol";
 import { L1Block } from "../L2/L1Block.sol";
 
 /**
@@ -68,7 +68,7 @@ contract GasPriceOracle is Ownable {
     }
 
     function l1BaseFee() public view returns (uint256) {
-        return L1Block(Lib_BedrockPredeployAddresses.L1_BLOCK_ATTRIBUTES).basefee();
+        return L1Block(Lib_PredeployAddresses.L1_BLOCK_ATTRIBUTES).basefee();
     }
 
     /**

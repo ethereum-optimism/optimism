@@ -2,9 +2,7 @@
 pragma solidity ^0.8.9;
 
 /* Library Imports */
-import {
-    Lib_PredeployAddresses
-} from "@eth-optimism/contracts/libraries/constants/Lib_PredeployAddresses.sol";
+import { Lib_PredeployAddresses } from "../libraries/Lib_PredeployAddresses.sol";
 
 /* Contract Imports */
 import { OptimismMintableERC20 } from "../universal/OptimismMintableERC20.sol";

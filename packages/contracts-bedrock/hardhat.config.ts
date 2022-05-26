@@ -28,23 +28,23 @@ task('accounts', 'Prints the list of accounts', async (_, hre) => {
   }
 })
 
-const getAllFiles = function(directory: string, arrayOfFiles: Array<string> = []) {
-  const files = fs.readdirSync(directory)
-
-  for (const file of files) {
-    const next = path.join(directory, file)
-    if (fs.statSync(next).isDirectory()) {
-      arrayOfFiles = getAllFiles(next, arrayOfFiles)
-    } else {
-      arrayOfFiles.push(next)
-    }
-  }
-
-  return arrayOfFiles
-}
-
+// TODO(tynes): migrate this functionality upstream
 task('compile').setAction(async (taskArgs, hre, runSuper) => {
   await runSuper(taskArgs)
+
+  const getAllFiles = function(directory: string, allFiles: Array<string> = []) {
+    const files = fs.readdirSync(directory)
+
+    for (const file of files) {
+      const next = path.join(directory, file)
+      if (fs.statSync(next).isDirectory()) {
+        allFiles = getAllFiles(next, allFiles)
+      } else {
+        allFiles.push(next)
+      }
+    }
+    return allFiles
+  }
 
   // recursively get all of the source code and
   // get the relative paths to each file
@@ -95,30 +95,6 @@ task('compile').setAction(async (taskArgs, hre, runSuper) => {
   }
 });
 
-/*
-preprocess: {
-    eachLine: (hre) => ({
-      transform: (line: string) => {
-        if (line.match(/^\s*import /i)) {
-          getRemappings().forEach(([find, replace]) => {
-            if (line.match('"' + find)) {
-              line = line.replace('"' + find, '"' + replace);
-            }
-          });
-        }
-        return line;
-      },
-    }),
-  },
-
-function getRemappings() {
-  return fs
-    .readFileSync("remappings.txt", "utf8")
-    .split("\n")
-    .map((line) => line.trim().split("="));
-}
-*/
-
 const config: HardhatUserConfig = {
   networks: {
     devnetL1: {
@@ -137,6 +113,7 @@ const config: HardhatUserConfig = {
       default: 0,
     },
   },
+  /*
   solidity: {
     compilers: [
       {
@@ -163,6 +140,7 @@ const config: HardhatUserConfig = {
       },
     },
   },
+  */
 }
 
 export default config

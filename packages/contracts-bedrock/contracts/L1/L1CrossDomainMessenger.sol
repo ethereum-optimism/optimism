@@ -1,9 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.9;
 
-import {
-    Lib_PredeployAddresses
-} from "@eth-optimism/contracts/libraries/constants/Lib_PredeployAddresses.sol";
+import { Lib_PredeployAddresses } from "../libraries/Lib_PredeployAddresses.sol";
 import { OptimismPortal } from "./OptimismPortal.sol";
 import { CrossDomainMessenger } from "../universal/CrossDomainMessenger.sol";
 

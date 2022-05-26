@@ -2,12 +2,8 @@
 pragma solidity 0.8.10;
 
 /* Library Imports */
-import {
-    Lib_SecureMerkleTrie
-} from "@eth-optimism/contracts/libraries/trie/Lib_SecureMerkleTrie.sol";
-import {
-    Lib_CrossDomainUtils
-} from "@eth-optimism/contracts/libraries/bridge/Lib_CrossDomainUtils.sol";
+import { Lib_SecureMerkleTrie } from "./trie/Lib_SecureMerkleTrie.sol";
+import { Lib_CrossDomainUtils } from "./Lib_CrossDomainUtils.sol";
 
 /**
  * @title WithdrawalVerifier

@@ -3,10 +3,7 @@ pragma solidity ^0.8.9;
 
 import { CommonTest } from "./CommonTest.t.sol";
 import { OVM_ETH } from "../L2/OVM_ETH.sol";
-
-import {
-    Lib_PredeployAddresses
-} from "@eth-optimism/contracts/libraries/constants/Lib_PredeployAddresses.sol";
+import { Lib_PredeployAddresses } from "../libraries/Lib_PredeployAddresses.sol";
 
 contract OVM_ETH_Test is CommonTest {
     OVM_ETH eth;

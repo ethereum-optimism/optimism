@@ -5,10 +5,10 @@ src = 'contracts'
 out = 'forge-artifacts'
 optimizer = true
 optimizer_runs = 999999
+
 remappings = [
   '@openzeppelin/contracts-upgradeable/=node_modules/@openzeppelin/contracts-upgradeable/',
   '@openzeppelin/contracts/=node_modules/@openzeppelin/contracts/',
-  '@eth-optimism/contracts/=node_modules/@eth-optimism/contracts/',
   'excessively-safe-call/=node_modules/excessively-safe-call/src/',
   'solmate/=node_modules/@rari-capital/solmate/src',
   'forge-std/=node_modules/forge-std/src',

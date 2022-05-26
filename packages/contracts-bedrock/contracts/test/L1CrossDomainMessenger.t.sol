@@ -6,18 +6,10 @@ import { Messenger_Initializer } from "./CommonTest.t.sol";
 import { L2OutputOracle_Initializer } from "./L2OutputOracle.t.sol";
 
 /* Libraries */
-import {
-    AddressAliasHelper
-} from "@eth-optimism/contracts/standards/AddressAliasHelper.sol";
-import {
-    Lib_DefaultValues
-} from "@eth-optimism/contracts/libraries/constants/Lib_DefaultValues.sol";
-import {
-    Lib_PredeployAddresses
-} from "@eth-optimism/contracts/libraries/constants/Lib_PredeployAddresses.sol";
-import {
-    Lib_CrossDomainUtils
-} from "@eth-optimism/contracts/libraries/bridge/Lib_CrossDomainUtils.sol";
+import { AddressAliasHelper } from "../libraries/AddressAliasHelper.sol";
+import { Lib_DefaultValues } from "../libraries/Lib_DefaultValues.sol";
+import { Lib_PredeployAddresses } from "../libraries/Lib_PredeployAddresses.sol";
+import { Lib_CrossDomainUtils } from "../libraries/Lib_CrossDomainUtils.sol";
 import { WithdrawalVerifier } from "../libraries/Lib_WithdrawalVerifier.sol";
 
 /* Target contract dependencies */
@@ -28,10 +20,6 @@ import { CrossDomainHashing } from "../libraries/Lib_CrossDomainHashing.sol";
 
 /* Target contract */
 import { L1CrossDomainMessenger } from "../L1/L1CrossDomainMessenger.sol";
-
-import {
-    ICrossDomainMessenger
-} from "@eth-optimism/contracts/libraries/bridge/ICrossDomainMessenger.sol";
 
 contract L1CrossDomainMessenger_Test is Messenger_Initializer {
     // Receiver address for testing

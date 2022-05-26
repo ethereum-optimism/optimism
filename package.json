@@ -22,7 +22,11 @@
     ],
     "nohoist": [
       "**/typechain",
-      "**/@typechain/*"
+      "**/@typechain/*",
+      "@eth-optimism/contracts-bedrock/ds-test",
+      "@eth-optimism/contracts-bedrock/forge-std",
+      "@eth-optimism/contracts-bedrock/@rari-capital/solmate",
+      "@eth-optimism/contracts-bedrock/@eth-optimism/contracts"
     ]
   },
   "private": true,

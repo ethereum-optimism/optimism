@@ -4,9 +4,7 @@ pragma solidity ^0.8.9;
 // solhint-disable max-line-length
 
 /* Library Imports */
-import {
-    Lib_DefaultValues
-} from "@eth-optimism/contracts/libraries/constants/Lib_DefaultValues.sol";
+import { Lib_DefaultValues } from "../libraries/Lib_DefaultValues.sol";
 import { CrossDomainHashing } from "../libraries/Lib_CrossDomainHashing.sol";
 
 /* External Imports */

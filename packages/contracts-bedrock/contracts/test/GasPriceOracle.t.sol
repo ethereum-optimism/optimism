@@ -4,7 +4,7 @@ pragma solidity 0.8.10;
 import { CommonTest } from "./CommonTest.t.sol";
 import { GasPriceOracle } from "../L2/GasPriceOracle.sol";
 import { L1Block } from "../L2/L1Block.sol";
-import { Lib_BedrockPredeployAddresses } from "../libraries/Lib_BedrockPredeployAddresses.sol";
+import { Lib_PredeployAddresses } from "../libraries/Lib_PredeployAddresses.sol";
 
 contract GasPriceOracle_Test is CommonTest {
 
@@ -19,11 +19,11 @@ contract GasPriceOracle_Test is CommonTest {
     function setUp() external {
         // place the L1Block contract at the predeploy address
         vm.etch(
-            Lib_BedrockPredeployAddresses.L1_BLOCK_ATTRIBUTES,
+            Lib_PredeployAddresses.L1_BLOCK_ATTRIBUTES,
             address(new L1Block()).code
         );
 
-        l1Block = L1Block(Lib_BedrockPredeployAddresses.L1_BLOCK_ATTRIBUTES);
+        l1Block = L1Block(Lib_PredeployAddresses.L1_BLOCK_ATTRIBUTES);
         depositor = l1Block.DEPOSITOR_ACCOUNT();
 
         // We are not setting the gas oracle at its predeploy

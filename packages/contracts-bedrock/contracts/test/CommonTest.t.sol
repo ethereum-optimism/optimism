@@ -13,13 +13,9 @@ import { OptimismPortal } from "../L1/OptimismPortal.sol";
 import { L2ToL1MessagePasser } from "../L2/L2ToL1MessagePasser.sol";
 import { L1CrossDomainMessenger } from "../L1/L1CrossDomainMessenger.sol";
 import { L2CrossDomainMessenger } from "../L2/L2CrossDomainMessenger.sol";
-import { AddressAliasHelper } from "@eth-optimism/contracts/standards/AddressAliasHelper.sol";
+import { AddressAliasHelper } from "../libraries/AddressAliasHelper.sol";
 import { OVM_ETH } from "../L2/OVM_ETH.sol";
-
-import {
-    Lib_PredeployAddresses
-} from "@eth-optimism/contracts/libraries/constants/Lib_PredeployAddresses.sol";
-
+import { Lib_PredeployAddresses } from "../libraries/Lib_PredeployAddresses.sol";
 import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
 contract CommonTest is Test {

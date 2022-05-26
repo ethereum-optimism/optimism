@@ -2,7 +2,7 @@
 pragma solidity 0.8.10;
 
 import { L1Block } from "./L1Block.sol";
-import { Lib_BedrockPredeployAddresses } from "../libraries/Lib_BedrockPredeployAddresses.sol";
+import { Lib_PredeployAddresses } from "../libraries/Lib_PredeployAddresses.sol";
 
 /**
  * @title L1BlockNumber
@@ -30,6 +30,6 @@ contract L1BlockNumber {
     }
 
     function getL1BlockNumber() public view returns (uint256) {
-        return L1Block(Lib_BedrockPredeployAddresses.L1_BLOCK_ATTRIBUTES).number();
+        return L1Block(Lib_PredeployAddresses.L1_BLOCK_ATTRIBUTES).number();
     }
 }
