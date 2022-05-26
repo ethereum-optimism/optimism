@@ -362,6 +362,14 @@ jobs:
     steps:
       - checkout
       - run:
+          name: install Foundry
+          command: |
+            curl https://sh.rustup.rs -sSf | sh -s -- -y
+            curl -L https://foundry.paradigm.xyz | bash
+            source $HOME/.bashrc
+            foundryup -b master
+            forge --version
+      - run:
           name: install
           command: yarn install
           working_directory: packages/contracts-bedrock
