@@ -475,9 +475,11 @@ jobs:
       - run:
           name: install Foundry
           command: |
+            curl https://sh.rustup.rs -sSf | sh -s -- -y
             curl -L https://foundry.paradigm.xyz | bash
             source $HOME/.bashrc
-            foundryup
+            foundryup -b master
+            forge --version
       - run:
           name: build typescript
           command: make build-ts
