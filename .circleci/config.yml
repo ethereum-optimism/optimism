@@ -353,21 +353,13 @@ jobs:
     steps:
       - checkout
       - run:
-          name: init submodules
-          command: |
-            git submodule sync --recursive
-            git submodule update --recursive --init
-      - run:
           name: install
           command: yarn install
           working_directory: contracts-bedrock
       - run:
           name: lint
           command: |
-            # remove prettierrc in root of repo since it doesn't work with non-Lerna packages
-            mv ../.eslintrc.js ../.eslintrc.bak
             yarn lint:check
-            mv ../.eslintrc.bak ../.eslintrc.js
           working_directory: contracts-bedrock
       - run:
           name: slither
@@ -375,11 +367,11 @@ jobs:
           working_directory: contracts-bedrock
       - run:
           name: build forge
-          command: yarn build:forge
+          command: yarn build
           working_directory: contracts-bedrock
       - run:
           name: test forge
-          command: yarn test:forge
+          command: yarn test
           working_directory: contracts-bedrock
       - run:
           name: gas snapshot
