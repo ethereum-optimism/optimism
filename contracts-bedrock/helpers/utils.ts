@@ -1,19 +1,7 @@
-import * as RLP from '@ethersproject/rlp'
-import { BigNumber, BigNumberish } from '@ethersproject/bignumber'
-import { getAddress } from '@ethersproject/address'
-import {
-  hexConcat,
-  stripZeros,
-  zeroPad,
-  arrayify,
-  BytesLike,
-} from '@ethersproject/bytes'
-import { keccak256 } from '@ethersproject/keccak256'
-import { Zero } from '@ethersproject/constants'
-import { ContractReceipt, Event } from '@ethersproject/contracts'
+import { BigNumber, BigNumberish, BytesLike, ContractReceipt, ethers, Event } from 'ethers'
 
 function formatNumber(value: BigNumberish, name: string): Uint8Array {
-  const result = stripZeros(BigNumber.from(value).toHexString())
+  const result = ethers.utils.stripZeros(BigNumber.from(value).toHexString())
   if (result.length > 32) {
     throw new Error(`invalid length for ${name}`)
   }
@@ -22,7 +10,7 @@ function formatNumber(value: BigNumberish, name: string): Uint8Array {
 
 function handleNumber(value: string): BigNumber {
   if (value === '0x') {
-    return Zero
+    return ethers.constants.Zero
   }
   return BigNumber.from(value)
 }
@@ -32,7 +20,7 @@ function handleAddress(value: string): string {
     // @ts-ignore
     return null
   }
-  return getAddress(value)
+  return ethers.utils.getAddress(value)
 }
 
 export enum SourceHashDomain {
@@ -92,7 +80,7 @@ export class DepositTx {
 
   hash() {
     const encoded = this.encode()
-    return keccak256(encoded)
+    return ethers.utils.keccak256(encoded)
   }
 
   sourceHash() {
@@ -114,11 +102,11 @@ export class DepositTx {
       }
 
       const l1BlockHash = this.l1BlockHash
-      const input = hexConcat([l1BlockHash, zeroPad(marker, 32)])
-      const depositIDHash = keccak256(input)
+      const input = ethers.utils.hexConcat([l1BlockHash, ethers.utils.zeroPad(marker, 32)])
+      const depositIDHash = ethers.utils.keccak256(input)
       const domain = BigNumber.from(this.domain).toHexString()
-      const domainInput = hexConcat([zeroPad(domain, 32), depositIDHash])
-      this._sourceHash = keccak256(domainInput)
+      const domainInput = ethers.utils.hexConcat([ethers.utils.zeroPad(domain, 32), depositIDHash])
+      this._sourceHash = ethers.utils.keccak256(domainInput)
     }
     return this._sourceHash
   }
@@ -126,20 +114,20 @@ export class DepositTx {
   encode() {
     const fields: any = [
       this.sourceHash() || '0x',
-      getAddress(this.from) || '0x',
-      this.to != null ? getAddress(this.to) : '0x',
+      ethers.utils.getAddress(this.from) || '0x',
+      this.to != null ? ethers.utils.getAddress(this.to) : '0x',
       formatNumber(this.mint || 0, 'mint'),
       formatNumber(this.value || 0, 'value'),
       formatNumber(this.gas || 0, 'gas'),
       this.data || '0x',
     ]
 
-    return hexConcat([this.type, RLP.encode(fields)])
+    return ethers.utils.hexConcat([this.type, ethers.utils.RLP.encode(fields)])
   }
 
   decode(raw: BytesLike, extra: DepostTxExtraOpts = {}) {
-    const payload = arrayify(raw)
-    const transaction = RLP.decode(payload.slice(1))
+    const payload = ethers.utils.arrayify(raw)
+    const transaction = ethers.utils.RLP.decode(payload.slice(1))
 
     this._sourceHash = transaction[0]
     this.from = handleAddress(transaction[1])

@@ -6,12 +6,14 @@ import * as dotenv from 'dotenv'
 import '@nomiclabs/hardhat-ethers'
 import '@nomiclabs/hardhat-waffle'
 import '@nomiclabs/hardhat-etherscan'
-import 'hardhat-deploy'
-import '@typechain/hardhat'
-import './tasks'
-import 'hardhat-gas-reporter'
 import '@primitivefi/hardhat-dodoc'
+import '@typechain/hardhat'
+import 'hardhat-deploy'
+import 'hardhat-gas-reporter'
 import 'hardhat-output-validator'
+
+// Hardhat tasks
+import './tasks'
 
 // Load environment variables from .env
 dotenv.config()
