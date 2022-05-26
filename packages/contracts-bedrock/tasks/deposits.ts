@@ -1,4 +1,5 @@
 import { task, types } from 'hardhat/config'
+import { hre } from 'hardhat'
 import { Contract, providers, utils, Wallet, Event } from 'ethers'
 import dotenv from 'dotenv'
 
@@ -6,7 +7,7 @@ import { DepositTx } from '../helpers/index'
 
 dotenv.config()
 
-async function sleep(ms: number) {
+const sleep = async (ms: number) => {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
@@ -46,7 +47,7 @@ task('deposit', 'Deposits funds onto L2.')
       depositContractAddr,
       privateKey,
     } = args
-    const depositFeedArtifact = require('../artifacts/contracts/L1/OptimismPortal.sol/OptimismPortal.json')
+    const depositFeedArtifact = await hre.deployments.get('OptimismPortal')
 
     const l1Provider = new providers.JsonRpcProvider(l1ProviderUrl)
     const l2Provider = new providers.JsonRpcProvider(l2ProviderUrl)

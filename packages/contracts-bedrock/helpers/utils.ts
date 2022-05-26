@@ -7,7 +7,7 @@ import {
   Event,
 } from 'ethers'
 
-function formatNumber(value: BigNumberish, name: string): Uint8Array {
+const formatNumber = (value: BigNumberish, name: string): Uint8Array => {
   const result = ethers.utils.stripZeros(BigNumber.from(value).toHexString())
   if (result.length > 32) {
     throw new Error(`invalid length for ${name}`)
@@ -15,14 +15,14 @@ function formatNumber(value: BigNumberish, name: string): Uint8Array {
   return result
 }
 
-function handleNumber(value: string): BigNumber {
+const handleNumber = (value: string): BigNumber => {
   if (value === '0x') {
     return ethers.constants.Zero
   }
   return BigNumber.from(value)
 }
 
-function handleAddress(value: string): string {
+const handleAddress = (value: string): string => {
   if (value === '0x') {
     // @ts-ignore
     return null

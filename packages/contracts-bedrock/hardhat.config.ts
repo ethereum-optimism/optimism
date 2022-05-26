@@ -32,21 +32,18 @@ task('accounts', 'Prints the list of accounts', async (_, hre) => {
 task('compile').setAction(async (taskArgs, hre, runSuper) => {
   await runSuper(taskArgs)
 
-  const getAllFiles = function (
-    directory: string,
-    allFiles: Array<string> = []
-  ) {
-    const files = fs.readdirSync(directory)
+  const getAllFiles = (directory: string, files: Array<string> = []) => {
+    const current = fs.readdirSync(directory)
 
-    for (const file of files) {
+    for (const file of current) {
       const next = path.join(directory, file)
       if (fs.statSync(next).isDirectory()) {
-        allFiles = getAllFiles(next, allFiles)
+        files = getAllFiles(next, files)
       } else {
-        allFiles.push(next)
+        files.push(next)
       }
     }
-    return allFiles
+    return files
   }
 
   // recursively get all of the source code and
