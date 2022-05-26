@@ -88,6 +88,7 @@ export class HealthcheckService extends BaseServiceV2<
     let targetLatest: Block
     try {
       targetLatest = await this.options.targetRpcProvider.getBlock('latest')
+      this.metrics.targetConnectionFailures.reset()
     } catch (err) {
       if (err.message.includes('could not detect network')) {
         this.logger.error('target client not connected')
@@ -99,11 +100,10 @@ export class HealthcheckService extends BaseServiceV2<
     }
 
     // Get the latest block from the reference client and check for connection failures.
-    let referenceLatest: Block
+    let refLatest: Block
     try {
-      referenceLatest = await this.options.referenceRpcProvider.getBlock(
-        'latest'
-      )
+      refLatest = await this.options.referenceRpcProvider.getBlock('latest')
+      this.metrics.referenceConnectionFailures.reset()
     } catch (err) {
       if (err.message.includes('could not detect network')) {
         this.logger.error('reference client not connected')
@@ -115,17 +115,17 @@ export class HealthcheckService extends BaseServiceV2<
     }
 
     // Later logic will depend on the height difference.
-    const heightDiff = Math.abs(referenceLatest.number - targetLatest.number)
-    const minBlock = Math.min(targetLatest.number, referenceLatest.number)
+    const heightDiff = Math.abs(refLatest.number - targetLatest.number)
+    const minBlock = Math.min(targetLatest.number, refLatest.number)
 
     // Update these metrics first so they'll refresh no matter what.
     this.metrics.targetHeight.set(targetLatest.number)
-    this.metrics.referenceHeight.set(referenceLatest.number)
+    this.metrics.referenceHeight.set(refLatest.number)
     this.metrics.heightDifference.set(heightDiff)
 
     this.logger.info(`latest block heights`, {
       targetHeight: targetLatest.number,
-      referenceHeight: referenceLatest.number,
+      referenceHeight: refLatest.number,
       heightDifference: heightDiff,
       minBlockNumber: minBlock,
     })
