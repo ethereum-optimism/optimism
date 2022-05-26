@@ -101,7 +101,7 @@ jobs:
           command: |
             curl -L https://foundry.paradigm.xyz | bash
             source $HOME/.bashrc
-            foundryup
+            foundryup -b master
             forge --version
       - run:
           name: Build monorepo
@@ -357,7 +357,7 @@ jobs:
 
   bedrock-solidity:
     docker:
-      - image: ethereumoptimism/js-builder:0.0.4
+      - image: ethereumoptimism/js-builder:latest
     steps:
       - checkout
       - run:
@@ -374,11 +374,11 @@ jobs:
           command: yarn slither || exit 0
           working_directory: packages/contracts-bedrock
       - run:
-          name: build forge
+          name: build
           command: yarn build
           working_directory: packages/contracts-bedrock
       - run:
-          name: test forge
+          name: test
           command: yarn test
           working_directory: packages/contracts-bedrock
       - run:
@@ -475,7 +475,7 @@ jobs:
           name: install Foundry
           command: |
             curl -L https://foundry.paradigm.xyz | bash
-            source /home/circleci/.bashrc
+            source $HOME/.bashrc
             foundryup
       - run:
           name: build typescript
