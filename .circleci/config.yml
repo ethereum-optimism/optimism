@@ -355,28 +355,28 @@ jobs:
       - run:
           name: install
           command: yarn install
-          working_directory: contracts-bedrock
+          working_directory: packages/contracts-bedrock
       - run:
           name: lint
           command: |
             yarn lint:check
-          working_directory: contracts-bedrock
+          working_directory: packages/contracts-bedrock
       - run:
           name: slither
           command: yarn slither || exit 0
-          working_directory: contracts-bedrock
+          working_directory: packages/contracts-bedrock
       - run:
           name: build forge
           command: yarn build
-          working_directory: contracts-bedrock
+          working_directory: packages/contracts-bedrock
       - run:
           name: test forge
           command: yarn test
-          working_directory: contracts-bedrock
+          working_directory: packages/contracts-bedrock
       - run:
           name: gas snapshot
           command: forge snapshot
-          working_directory: contracts-bedrock
+          working_directory: packages/contracts-bedrock
       - run:
           name: check go bindings
           command: |
