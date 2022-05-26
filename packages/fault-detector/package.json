@@ -11,8 +11,8 @@
   "scripts": {
     "start": "ts-node ./src/service.ts",
     "test:coverage": "echo 'No tests defined.'",
-    "build": "tsc -p tsconfig.build.json",
-    "clean": "rimraf dist/ ./tsconfig.build.tsbuildinfo",
+    "build": "tsc -p tsconfig.json",
+    "clean": "rimraf dist/ ./tsconfig.tsbuildinfo",
     "lint": "yarn lint:fix && yarn lint:check",
     "pre-commit": "lint-staged",
     "lint:fix": "yarn lint:check --fix",
@@ -33,11 +33,9 @@
   },
   "devDependencies": {
     "@types/dateformat": "^5.0.0",
-    "@types/node": "^17.0.23",
     "dateformat": "^4.5.1",
     "ethers": "^5.6.8",
-    "ts-node": "^10.7.0",
-    "typescript": "^4.6.3"
+    "ts-node": "^10.7.0"
   },
   "dependencies": {
     "@eth-optimism/common-ts": "^0.2.4",

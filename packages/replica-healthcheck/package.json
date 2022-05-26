@@ -11,8 +11,8 @@
   "scripts": {
     "start": "ts-node ./src/service",
     "test:coverage": "echo 'No tests defined.'",
-    "build": "tsc -p tsconfig.build.json",
-    "clean": "rimraf ./dist ./tsconfig.build.tsbuildinfo",
+    "build": "tsc -p tsconfig.json",
+    "clean": "rimraf ./dist ./tsconfig.tsbuildinfo",
     "lint": "yarn run lint:fix && yarn run lint:check",
     "pre-commit": "lint-staged",
     "lint:fix": "yarn lint:check --fix",
@@ -37,19 +37,6 @@
     "@ethersproject/abstract-provider": "^5.6.1"
   },
   "devDependencies": {
-    "@types/node": "^15.12.2",
-    "@typescript-eslint/eslint-plugin": "^4.26.0",
-    "@typescript-eslint/parser": "^4.26.0",
-    "babel-eslint": "^10.1.0",
-    "eslint-config-prettier": "^8.3.0",
-    "eslint-plugin-import": "^2.23.4",
-    "eslint-plugin-jsdoc": "^35.1.2",
-    "eslint-plugin-prefer-arrow": "^1.2.3",
-    "eslint-plugin-prettier": "^3.4.0",
-    "eslint-plugin-react": "^7.24.0",
-    "eslint-plugin-unicorn": "^32.0.1",
-    "lint-staged": "11.0.0",
-    "ts-node": "^10.0.0",
-    "typescript": "^4.6.2"
+    "ts-node": "^10.0.0"
   }
 }
