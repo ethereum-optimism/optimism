@@ -38,10 +38,10 @@ describe('RPCs', () => {
     it('should correctly process a contract creation', async () => {
       const factory = new ContractFactory(
         counterArtifact.abi,
-        counterArtifact.bytecode.object,
+        counterArtifact.bytecode.object
       ).connect(wallet)
       const counter = await factory.deploy({
-        gasLimit: 1_000_000
+        gasLimit: 1_000_000,
       })
       await counter.deployed()
       expect(await env.l2Provider.getCode(counter.address)).not.to.equal('0x')

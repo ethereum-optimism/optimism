@@ -29,7 +29,7 @@ describe('Deposits', () => {
       [],
       {
         value: tx.value,
-      },
+      }
     )
     await result.wait()
 
@@ -44,7 +44,7 @@ describe('Deposits', () => {
     const value = utils.parseEther('0.1')
     const factory = new ContractFactory(
       multiDepositorArtifact.abi,
-      multiDepositorArtifact.bytecode.object,
+      multiDepositorArtifact.bytecode.object
     ).connect(env.l1Wallet)
     const contract = await factory.deploy(portal.address)
     await contract.deployed()
@@ -63,7 +63,7 @@ describe('Deposits', () => {
     const value = utils.parseEther('0.1')
     const factory = new ContractFactory(
       counterArtifact.abi,
-      counterArtifact.bytecode.object,
+      counterArtifact.bytecode.object
     )
     const tx = await factory.getDeployTransaction()
     const result = await portal.depositTransaction(
@@ -73,8 +73,8 @@ describe('Deposits', () => {
       true,
       tx.data,
       {
-        value: value,
-      },
+        value,
+      }
     )
     await result.wait()
     const l2Nonce = await env.l2Wallet.getTransactionCount()

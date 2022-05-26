@@ -2,16 +2,24 @@
 // can fall behind.
 
 /* Imports: External */
-import { BigNumber, constants, Contract, ContractReceipt, utils, Wallet } from 'ethers'
+import {
+  BigNumber,
+  constants,
+  Contract,
+  ContractReceipt,
+  utils,
+  Wallet,
+} from 'ethers'
 import { awaitCondition } from '@eth-optimism/core-utils'
 import * as rlp from 'rlp'
 import { Block } from '@ethersproject/abstract-provider'
 
 /* Imports: Internal */
-import env from './shared/env'
-import { expect } from './shared/setup'
 import winston from 'winston'
 import { predeploys } from '@eth-optimism/contracts'
+
+import env from './shared/env'
+import { expect } from './shared/setup'
 
 const l2ToL1MessagePasserArtifact = require('../../contracts/artifacts/contracts/L2/L2ToL1MessagePasser.sol/L2ToL1MessagePasser.json')
 const l2OOracleArtifact = require('../../contracts/artifacts/contracts/L1/L2OutputOracle.sol/L2OutputOracle.json')
@@ -19,13 +27,19 @@ const l2OOracleArtifact = require('../../contracts/artifacts/contracts/L1/L2Outp
 /**
  * Calculates the target output timestamp to make the withdrawal proof against. ie. the first
  * output with a timestamp greater than the burn block timestamp.
+ *
  * @param {Contract} oracle Address of the L2 Output Oracle.
  * @param {number} withdrawalTimestamp L2 timestamp of the block the withdrawal was made in.
  */
-const getTargetOutput = async (oracle: Contract, withdrawalTimestamp: number) => {
+const getTargetOutput = async (
+  oracle: Contract,
+  withdrawalTimestamp: number
+) => {
   const submissionInterval = (await oracle.SUBMISSION_INTERVAL()).toNumber()
-  const startingBlockTimestamp = (await oracle.STARTING_BLOCK_TIMESTAMP()).toNumber()
-  let nextTimestamp = (await oracle.nextTimestamp()).toNumber()
+  const startingBlockTimestamp = (
+    await oracle.STARTING_BLOCK_TIMESTAMP()
+  ).toNumber()
+  const nextTimestamp = (await oracle.nextTimestamp()).toNumber()
   let targetOutputTimestamp
   if (withdrawalTimestamp < nextTimestamp) {
     // Just use the next timestamp
@@ -33,17 +47,15 @@ const getTargetOutput = async (oracle: Contract, withdrawalTimestamp: number) =>
   } else {
     // Calculate the first timestamp greater than the burnBlock which will be appended.
     targetOutputTimestamp =
-    Math.ceil(
-      (withdrawalTimestamp - startingBlockTimestamp)
-      / submissionInterval
-    )
-    * submissionInterval
-    + startingBlockTimestamp
+      Math.ceil(
+        (withdrawalTimestamp - startingBlockTimestamp) / submissionInterval
+      ) *
+        submissionInterval +
+      startingBlockTimestamp
   }
 
   return targetOutputTimestamp
 }
-
 
 describe('Withdrawals', () => {
   let logger: winston.Logger
@@ -58,7 +70,7 @@ describe('Withdrawals', () => {
 
     withdrawer = new Contract(
       predeploys.OVM_L2ToL1MessagePasser,
-      l2ToL1MessagePasserArtifact.abi,
+      l2ToL1MessagePasserArtifact.abi
     )
   })
 
@@ -78,16 +90,18 @@ describe('Withdrawals', () => {
         recipient: recipient.address,
       })
       logger.info('Depositing to new address on L2')
-      let tx = await portal.connect(env.l1Wallet).depositTransaction(
-        recipient.address,
-        utils.parseEther('1.337'),
-        gasLimit,
-        false,
-        [],
-        {
-          value: utils.parseEther('1.337'),
-        },
-      )
+      let tx = await portal
+        .connect(env.l1Wallet)
+        .depositTransaction(
+          recipient.address,
+          utils.parseEther('1.337'),
+          gasLimit,
+          false,
+          [],
+          {
+            value: utils.parseEther('1.337'),
+          }
+        )
       await tx.wait()
 
       await awaitCondition(async () => {
@@ -111,7 +125,7 @@ describe('Withdrawals', () => {
         [],
         {
           value,
-        },
+        }
       )
       const receipt: ContractReceipt = await tx.wait()
       expect(receipt.events!.length).to.eq(1)
@@ -135,8 +149,8 @@ describe('Withdrawals', () => {
             value,
             gasLimit,
             '0x',
-          ],
-        ),
+          ]
+        )
       )
 
       const included = await withdrawer.sentMessages(withdrawalHash)
@@ -150,39 +164,52 @@ describe('Withdrawals', () => {
       portal = portal.connect(recipient)
       const oracle = new Contract(
         await portal.L2_ORACLE(),
-        l2OOracleArtifact.abi,
+        l2OOracleArtifact.abi
       ).connect(recipient)
 
-      const targetOutputTimestamp = await getTargetOutput(oracle, burnBlock.timestamp)
+      const targetOutputTimestamp = await getTargetOutput(
+        oracle,
+        burnBlock.timestamp
+      )
 
       // Set the timeout based on the diff between latest output and target output timestamp.
-      let latestBlockTimestamp = (await oracle.latestBlockTimestamp()).toNumber()
+      let latestBlockTimestamp = (
+        await oracle.latestBlockTimestamp()
+      ).toNumber()
       let difference = targetOutputTimestamp - latestBlockTimestamp
       this.timeout(difference * 5000)
 
       let output: string
-      await awaitCondition(async () => {
-        const proposal = await oracle.getL2Output(targetOutputTimestamp)
-        output = proposal.outputRoot
-        latestBlockTimestamp = (await oracle.latestBlockTimestamp()).toNumber()
-        if(targetOutputTimestamp - latestBlockTimestamp < difference){
-          // Only log when a new output has been appended
-          difference = targetOutputTimestamp - latestBlockTimestamp
-          logger.info('Waiting for output submission', {
-            targetTimestamp: targetOutputTimestamp,
-            latestOracleTS: latestBlockTimestamp,
-            difference,
-            output,
-          })
-        }
-        return output != constants.HashZero
-      }, 2000, 2*difference)
+      await awaitCondition(
+        async () => {
+          const proposal = await oracle.getL2Output(targetOutputTimestamp)
+          output = proposal.outputRoot
+          latestBlockTimestamp = (
+            await oracle.latestBlockTimestamp()
+          ).toNumber()
+          if (targetOutputTimestamp - latestBlockTimestamp < difference) {
+            // Only log when a new output has been appended
+            difference = targetOutputTimestamp - latestBlockTimestamp
+            logger.info('Waiting for output submission', {
+              targetTimestamp: targetOutputTimestamp,
+              latestOracleTS: latestBlockTimestamp,
+              difference,
+              output,
+            })
+          }
+          return output != constants.HashZero
+        },
+        2000,
+        2 * difference
+      )
 
       // suppress compilation errors since Typescript cannot detect
       // that awaitCondition above will throw if it times out.
       output = output!
 
-      const blocksSinceBurn = Math.floor((targetOutputTimestamp - burnBlock.timestamp) / 2)
+      const blocksSinceBurn = Math.floor(
+        (targetOutputTimestamp - burnBlock.timestamp) / 2
+      )
       const targetBlockNum = burnBlock.number + blocksSinceBurn + 1
       const targetBlockNumHex = utils.hexValue(targetBlockNum)
       const storageSlot = '00'.repeat(31) + '01' // i.e the second variable declared in the contract
@@ -192,19 +219,19 @@ describe('Withdrawals', () => {
         targetBlockNumHex,
       ])
 
-      const {stateRoot: targetStateRoot, hash: targetHash} = await env.l2Provider.send(
-        'eth_getBlockByNumber',
-        [
+      const { stateRoot: targetStateRoot, hash: targetHash } =
+        await env.l2Provider.send('eth_getBlockByNumber', [
           targetBlockNumHex,
           false,
-        ],
-      )
+        ])
 
       const finalizationPeriod = (await portal.FINALIZATION_PERIOD()).toNumber()
       logger.info('Waiting finalization period', {
         seconds: finalizationPeriod,
       })
-      await new Promise((resolve) => setTimeout(resolve, finalizationPeriod * 1000))
+      await new Promise((resolve) =>
+        setTimeout(resolve, finalizationPeriod * 1000)
+      )
 
       logger.info('Finalizing withdrawal')
       const initialBal = await recipient.getBalance()
@@ -225,7 +252,7 @@ describe('Withdrawals', () => {
         rlp.encode(proof.storageProof[0].proof),
         {
           gasLimit,
-        },
+        }
       )
       await tx.wait()
       const finalBal = await recipient.getBalance()

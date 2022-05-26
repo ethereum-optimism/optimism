@@ -4,7 +4,7 @@ import { bool, cleanEnv, num, str } from 'envalid'
 import dotenv from 'dotenv'
 import winston, { info } from 'winston'
 
-const {combine, timestamp, printf, colorize, align} = winston.format
+const { combine, timestamp, printf, colorize, align } = winston.format
 
 /* Imports: Internal */
 const portalArtifact = require('../../../contracts/artifacts/contracts/L1/OptimismPortal.sol/OptimismPortal.json')
@@ -12,17 +12,16 @@ const portalArtifact = require('../../../contracts/artifacts/contracts/L1/Optimi
 dotenv.config()
 
 const procEnv = cleanEnv(process.env, {
-  L1_URL: str({default: 'http://localhost:8545'}),
-  L1_POLLING_INTERVAL: num({default: 10}),
+  L1_URL: str({ default: 'http://localhost:8545' }),
+  L1_POLLING_INTERVAL: num({ default: 10 }),
 
-  L2_URL: str({default: 'http://localhost:9545'}),
-  L2_POLLING_INTERVAL: num({default: 1}),
+  L2_URL: str({ default: 'http://localhost:9545' }),
+  L2_POLLING_INTERVAL: num({ default: 1 }),
 
   OPTIMISM_PORTAL_ADDRESS: str(),
 
   PRIVATE_KEY: str({
-    default:
-      'ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80',
+    default: 'ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80',
   }),
 
   MOCHA_TIMEOUT: num({
@@ -72,7 +71,7 @@ export class OptimismEnv {
     this.l2Provider = l2Provider
     this.optimismPortal = new Contract(
       procEnv.OPTIMISM_PORTAL_ADDRESS,
-      portalArtifact.abi,
+      portalArtifact.abi
     )
     this.logger = winston.createLogger({
       level: process.env.LOG_LEVEL || 'info',
@@ -87,16 +86,18 @@ export class OptimismEnv {
             return info
           },
         },
-        colorize({all: true}),
+        colorize({ all: true }),
         timestamp({
           format: 'YYYY-MM-DD hh:mm:ss.SSS A',
         }),
         align(),
-        printf((info) => `[${info.timestamp}] ${info.level}: ${info.message}`),
+        printf((info) => `[${info.timestamp}] ${info.level}: ${info.message}`)
       ),
-      transports: [new winston.transports.Stream({
-        stream: process.stderr,
-      })],
+      transports: [
+        new winston.transports.Stream({
+          stream: process.stderr,
+        }),
+      ],
     })
   }
 }
