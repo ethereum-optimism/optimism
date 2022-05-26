@@ -100,7 +100,7 @@ jobs:
           name: install Foundry
           command: |
             curl -L https://foundry.paradigm.xyz | bash
-            source /home/circleci/.bashrc
+            source $HOME/.bashrc
             foundryup
       - run:
           name: Build monorepo
