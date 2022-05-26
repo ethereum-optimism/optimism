@@ -1,5 +1,5 @@
 import { task, types } from 'hardhat/config'
-import { hre } from 'hardhat'
+import hre from 'hardhat'
 import { Contract, providers, utils, Wallet, Event } from 'ethers'
 import dotenv from 'dotenv'
 
