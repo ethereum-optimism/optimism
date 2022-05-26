@@ -101,10 +101,12 @@ func (s *Service) eventLoop() {
 	defer s.wg.Done()
 
 	name := s.cfg.Driver.Name()
+	ticker := time.NewTicker(s.cfg.PollInterval)
+	defer ticker.Stop()
 
 	for {
 		select {
-		case <-time.After(s.cfg.PollInterval):
+		case <-ticker.C:
 			// Determine the range of L2 blocks that the submitter has not
 			// processed, and needs to take action on.
 			s.l.Info(name + " fetching current block range")
