@@ -13,16 +13,13 @@ import {
 import { awaitCondition } from '@eth-optimism/core-utils'
 import * as rlp from 'rlp'
 import { Block } from '@ethersproject/abstract-provider'
-
-/* Imports: Internal */
 import winston from 'winston'
 import { predeploys } from '@eth-optimism/contracts'
 
 import env from './shared/env'
 import { expect } from './shared/setup'
-
-const l2ToL1MessagePasserArtifact = require('../../contracts/artifacts/contracts/L2/L2ToL1MessagePasser.sol/L2ToL1MessagePasser.json')
-const l2OOracleArtifact = require('../../contracts/artifacts/contracts/L1/L2OutputOracle.sol/L2OutputOracle.json')
+import l2ToL1MessagePasserArtifact from '../../contracts-bedrock/artifacts/contracts/L2/L2ToL1MessagePasser.sol/L2ToL1MessagePasser.json'
+import l2OOracleArtifact from '../../contracts-bedrock/artifacts/contracts/L1/L2OutputOracle.sol/L2OutputOracle.json'
 
 /**
  * Calculates the target output timestamp to make the withdrawal proof against. ie. the first
@@ -197,7 +194,7 @@ describe('Withdrawals', () => {
               output,
             })
           }
-          return output != constants.HashZero
+          return output !== constants.HashZero
         },
         2000,
         2 * difference

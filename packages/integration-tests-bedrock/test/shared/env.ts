@@ -2,12 +2,12 @@
 import { Wallet, providers, Contract } from 'ethers'
 import { bool, cleanEnv, num, str } from 'envalid'
 import dotenv from 'dotenv'
-import winston, { info } from 'winston'
+import winston from 'winston'
 
 const { combine, timestamp, printf, colorize, align } = winston.format
 
 /* Imports: Internal */
-const portalArtifact = require('../../../contracts/artifacts/contracts/L1/OptimismPortal.sol/OptimismPortal.json')
+import portalArtifact from '../../../contracts-bedrock/artifacts/contracts/L1/OptimismPortal.sol/OptimismPortal.json'
 
 dotenv.config()
 
@@ -77,7 +77,7 @@ export class OptimismEnv {
       level: process.env.LOG_LEVEL || 'info',
       format: combine(
         {
-          transform(info) {
+          transform: (info) => {
             // @ts-ignore
             const args = info[Symbol.for('splat')]
             const meta = args ? args[0] : null
