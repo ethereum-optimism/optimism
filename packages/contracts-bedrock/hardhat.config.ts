@@ -32,7 +32,10 @@ task('accounts', 'Prints the list of accounts', async (_, hre) => {
 task('compile').setAction(async (taskArgs, hre, runSuper) => {
   await runSuper(taskArgs)
 
-  const getAllFiles = function(directory: string, allFiles: Array<string> = []) {
+  const getAllFiles = function (
+    directory: string,
+    allFiles: Array<string> = []
+  ) {
     const files = fs.readdirSync(directory)
 
     for (const file of files) {
@@ -48,8 +51,9 @@ task('compile').setAction(async (taskArgs, hre, runSuper) => {
 
   // recursively get all of the source code and
   // get the relative paths to each file
-  const allFiles = getAllFiles(hre.config.paths.sources)
-    .map(f => path.relative(__dirname, f))
+  const allFiles = getAllFiles(hre.config.paths.sources).map((f) =>
+    path.relative(__dirname, f)
+  )
 
   // get the configured artifacts output path
   const artifactsPath = hre.config.paths.artifacts
@@ -89,11 +93,11 @@ task('compile').setAction(async (taskArgs, hre, runSuper) => {
 
     // write the artifact
     const dir = path.join(artifactsPath, target)
-    fs.mkdirSync(dir, {recursive: true})
+    fs.mkdirSync(dir, { recursive: true })
     const out = path.join(dir, info.base)
     fs.writeFileSync(out, JSON.stringify(artifact, null, 2))
   }
-});
+})
 
 const config: HardhatUserConfig = {
   networks: {

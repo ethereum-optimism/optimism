@@ -1,4 +1,11 @@
-import { BigNumber, BigNumberish, BytesLike, ContractReceipt, ethers, Event } from 'ethers'
+import {
+  BigNumber,
+  BigNumberish,
+  BytesLike,
+  ContractReceipt,
+  ethers,
+  Event,
+} from 'ethers'
 
 function formatNumber(value: BigNumberish, name: string): Uint8Array {
   const result = ethers.utils.stripZeros(BigNumber.from(value).toHexString())
@@ -102,10 +109,16 @@ export class DepositTx {
       }
 
       const l1BlockHash = this.l1BlockHash
-      const input = ethers.utils.hexConcat([l1BlockHash, ethers.utils.zeroPad(marker, 32)])
+      const input = ethers.utils.hexConcat([
+        l1BlockHash,
+        ethers.utils.zeroPad(marker, 32),
+      ])
       const depositIDHash = ethers.utils.keccak256(input)
       const domain = BigNumber.from(this.domain).toHexString()
-      const domainInput = ethers.utils.hexConcat([ethers.utils.zeroPad(domain, 32), depositIDHash])
+      const domainInput = ethers.utils.hexConcat([
+        ethers.utils.zeroPad(domain, 32),
+        depositIDHash,
+      ])
       this._sourceHash = ethers.utils.keccak256(domainInput)
     }
     return this._sourceHash
