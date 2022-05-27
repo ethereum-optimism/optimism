@@ -73,6 +73,8 @@ var (
 		Message:       "gateway timeout",
 		HTTPErrorCode: 504,
 	}
+
+	ErrBackendUnexpectedJSONRPC = errors.New("backend returned an unexpected JSON-RPC response")
 )
 
 func ErrInvalidRequest(msg string) *RPCErr {
@@ -228,7 +230,20 @@ func (b *Backend) Forward(ctx context.Context, reqs []*RPCReq, isBatch bool) ([]
 		)
 
 		res, err := b.doForward(ctx, reqs, isBatch)
-		if err != nil {
+		switch err {
+		case nil: // do nothing
+		// ErrBackendUnexpectedJSONRPC occurs because infura responds with a single JSON-RPC object
+		// to a batch request whenever any Request Object in the batch would induce a partial error.
+		// We don't label the the backend offline in this case. But the error is still returned to
+		// callers so failover can occur if needed.
+		case ErrBackendUnexpectedJSONRPC:
+			log.Debug(
+				"Reecived unexpected JSON-RPC response",
+				"name", b.Name,
+				"req_id", GetReqID(ctx),
+				"err", err,
+			)
+		default:
 			lastError = err
 			log.Warn(
 				"backend request failed, trying again",
@@ -244,7 +259,7 @@ func (b *Backend) Forward(ctx context.Context, reqs []*RPCReq, isBatch bool) ([]
 		timer.ObserveDuration()
 
 		MaybeRecordErrorsInRPCRes(ctx, b.Name, reqs, res)
-		return res, nil
+		return res, err
 	}
 
 	b.setOffline()
@@ -387,12 +402,15 @@ func (b *Backend) doForward(ctx context.Context, rpcReqs []*RPCReq, isBatch bool
 
 	var res []*RPCRes
 	if err := json.Unmarshal(resB, &res); err != nil {
+		// Infura may return a single JSON-RPC response if, for example, the batch contains a request for an unsupported method
+		if responseIsNotBatched(resB) {
+			return nil, ErrBackendUnexpectedJSONRPC
+		}
 		return nil, ErrBackendBadResponse
 	}
 
-	// Alas! Certain node providers (Infura) always return a single JSON object for some types of errors
 	if len(rpcReqs) != len(res) {
-		return nil, ErrBackendBadResponse
+		return nil, ErrBackendUnexpectedJSONRPC
 	}
 
 	// capture the HTTP status code in the response. this will only
@@ -405,6 +423,11 @@ func (b *Backend) doForward(ctx context.Context, rpcReqs []*RPCReq, isBatch bool
 
 	sortBatchRPCResponse(rpcReqs, res)
 	return res, nil
+}
+
+func responseIsNotBatched(b []byte) bool {
+	var r RPCRes
+	return json.Unmarshal(b, &r) == nil
 }
 
 // sortBatchRPCResponse sorts the RPCRes slice according to the position of its corresponding ID in the RPCReq slice
