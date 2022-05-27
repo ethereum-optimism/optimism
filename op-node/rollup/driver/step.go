@@ -78,6 +78,11 @@ func (d *outputImpl) processBlock(ctx context.Context, l2Head eth.L2BlockRef, l2
 func (d *outputImpl) createNewBlock(ctx context.Context, l2Head eth.L2BlockRef, l2SafeHead eth.BlockID, l2Finalized eth.BlockID, l1Origin eth.L1BlockRef) (eth.L2BlockRef, *l2.ExecutionPayload, error) {
 	d.log.Info("creating new block", "parent", l2Head, "l1Origin", l1Origin)
 
+	// Check if the block builds on or right after the current L1 origin.
+	if l2Head.L1Origin.Hash != l1Origin.Hash && l2Head.L1Origin.Hash != l1Origin.ParentHash {
+		return l2Head, nil, fmt.Errorf("cannot create L2 block that builds on disconnected L1 origin %s", l1Origin)
+	}
+
 	fetchCtx, cancel := context.WithTimeout(ctx, time.Second*20)
 	defer cancel()
 
@@ -296,6 +301,9 @@ func attributesMatchBlock(attrs *l2.PayloadAttributes, parentHash common.Hash, b
 	if attrs.PrevRandao != block.PrevRandao {
 		return fmt.Errorf("random field does not match. expected: %v. got: %v", attrs.PrevRandao, block.PrevRandao)
 	}
+	if attrs.SuggestedFeeRecipient != block.FeeRecipient {
+		return fmt.Errorf("fee recipient does not match. expected %s. got: %s", attrs.SuggestedFeeRecipient, block.FeeRecipient)
+	}
 	if len(attrs.Transactions) != len(block.Transactions) {
 		return fmt.Errorf("transaction count does not match. expected: %v. got: %v", len(attrs.Transactions), block.Transactions)
 	}
@@ -382,12 +390,6 @@ func (d *outputImpl) insertHeadBlock(ctx context.Context, fc l2.ForkchoiceState,
 			d.log.Error("Produced an invalid block where the deposit txns are not all at the start of the block", "tx_idx", i, "lastDeposit", lastDeposit)
 			return nil, fmt.Errorf("deposit tx (%d) after other tx in l2 block with prev deposit at idx %d", i, lastDeposit)
 		}
-	}
-	// If this is an unsafe block, it has deposits & transactions included from L2.
-	// Record if the execution engine dropped deposits. The verification process would see a mismatch
-	// between attributes and the block, but then execute the correct block.
-	if !updateSafe && lastDeposit+1 != len(attrs.Transactions) {
-		d.log.Error("Dropped deposits when executing L2 block")
 	}
 
 	err = d.l2.NewPayload(ctx, payload)

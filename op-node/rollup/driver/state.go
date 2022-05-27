@@ -67,6 +67,10 @@ func (s *state) Start(ctx context.Context) error {
 		return err
 	}
 
+	// Updating the finalized block reference is not supported yet.
+	// However, we can define the rollup genesis as finalized.
+	s.l2Finalized = s.Config.Genesis.L2
+
 	// Check that we are past the genesis
 	if l1Head.Number > s.Config.Genesis.L1.Number {
 		l2Head, err := s.l2.L2BlockRefByNumber(ctx, nil)
@@ -212,12 +216,23 @@ func (s *state) findL1Origin(ctx context.Context) (eth.L1BlockRef, error) {
 		return currentOrigin, nil
 	}
 
+	// First check confirmation depth, before checking the consistency,
+	// as the consistency does not matter if we are below confirmation depth,
+	// because we expect small L1 reorgs below that depth.
+	// TODO: add conf depth config variable
+	//if nextOrigin.Number + s.Config.ConfDepth > s.l1Head.Number {
+	//	return currentOrigin, nil
+	//}
+
+	if nextOrigin.ParentHash != currentOrigin.Hash {
+		return eth.L1BlockRef{}, fmt.Errorf("next L1 origin %s does not build on previous L1 origin %s, a reorg is required before adopting new L1 origins", nextOrigin, currentOrigin)
+	}
+
 	// If the next L2 block time is greater than the next origin block's time, we can choose to
 	// start building on top of the next origin. Sequencer implementation has some leeway here and
 	// could decide to continue to build on top of the previous origin until the Sequencer runs out
 	// of slack. For simplicity, we implement our Sequencer to always start building on the latest
 	// L1 block when we can.
-	// TODO: Can add confirmation depth here if we want.
 	if s.l2Head.Time+s.Config.BlockTime >= nextOrigin.Time {
 		return nextOrigin, nil
 	}
