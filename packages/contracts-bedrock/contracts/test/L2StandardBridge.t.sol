@@ -146,13 +146,12 @@ contract L2StandardBridge_Test is Bridge_Initializer {
     // - invalid deposit calls Withdrawer.initiateWithdrawal
     function test_finalizeDeposit_failsToCompleteOutboundTransfer() external {
         // TODO: events and calls
-        address invalidL2Token = address(0x1234);
-
         vm.mockCall(
             address(L2Bridge.messenger()),
             abi.encodeWithSelector(CrossDomainMessenger.xDomainMessageSender.selector),
             abi.encode(address(L2Bridge.otherBridge()))
         );
+        address invalidL2Token = address(0x1234);
         vm.prank(address(L2Messenger));
         vm.expectEmit(true, true, true, true);
         emit ERC20BridgeInitiated(
@@ -180,6 +179,22 @@ contract L2StandardBridge_Test is Bridge_Initializer {
             100,
             hex""
         );
+    }
+
+    // finalizeBridgeERC20
+    // - fails when the local token's address equals bridge address
+    function test_ERC20BridgeFailed_whenLocalTokenIsBridge() external {
+        vm.mockCall(
+            address(L2Bridge.messenger()),
+            abi.encodeWithSelector(CrossDomainMessenger.xDomainMessageSender.selector),
+            abi.encode(address(L2Bridge.otherBridge()))
+        );
+        // fails when the local token's address equals bridge address
+        vm.expectEmit(true, true, true, true);
+        emit ERC20BridgeFailed(address(L2Bridge), address(L1Token), alice, bob, 100, hex"");
+
+        vm.prank(address(L2Messenger));
+        L2Bridge.finalizeDeposit(address(L1Token), address(L2Bridge), alice, bob, 100, hex"");
     }
 }
 
