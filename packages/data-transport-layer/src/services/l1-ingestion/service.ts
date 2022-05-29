@@ -4,7 +4,7 @@ import { BaseService, Metrics } from '@eth-optimism/common-ts'
 import { TypedEvent } from '@eth-optimism/contracts/dist/types/common'
 import { BaseProvider, StaticJsonRpcProvider } from '@ethersproject/providers'
 import { LevelUp } from 'levelup'
-import { constants } from 'ethers'
+//import { constants } from 'ethers'
 import { Gauge, Counter } from 'prom-client'
 
 /* Imports: Internal */
@@ -376,7 +376,7 @@ export class L1IngestionService extends BaseService<L1IngestionServiceOptions> {
       eventRanges.push({
         address: await this._getContractAddressAtBlock(
           contractName,
-          addressSetEvent.blockNumber
+          //addressSetEvent.blockNumber
         ),
         fromBlock: l1BlockRangeStart,
         toBlock: addressSetEvent.blockNumber,
@@ -387,7 +387,7 @@ export class L1IngestionService extends BaseService<L1IngestionServiceOptions> {
 
     // Add one more range to get us to the end of the user-provided block range.
     eventRanges.push({
-      address: await this._getContractAddressAtBlock(contractName, toL1Block),
+      address: await this._getContractAddressAtBlock(contractName, /* toL1Block */),
       fromBlock: l1BlockRangeStart,
       toBlock: toL1Block,
     })
@@ -439,8 +439,12 @@ export class L1IngestionService extends BaseService<L1IngestionServiceOptions> {
    */
   private async _getContractAddressAtBlock(
     contractName: string,
-    blockNumber: number
+    //blockNumber: number
   ): Promise<string> {
+    return this.state.contracts.Lib_AddressManager.getAddress(contractName)
+    // HACK: for now assume we haven't changed the contract address in the past.
+    // The commented out code below is too expensive as could use a very large block range
+    /*
     const events = await this.state.contracts.Lib_AddressManager.queryFilter(
       this.state.contracts.Lib_AddressManager.filters.AddressSet(contractName),
       this.state.startingL1BlockNumber,
@@ -453,6 +457,7 @@ export class L1IngestionService extends BaseService<L1IngestionServiceOptions> {
       // Address wasn't set before this.
       return constants.AddressZero
     }
+    */
   }
 
   private async _findStartingL1BlockNumber(): Promise<number> {
