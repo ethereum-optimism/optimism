@@ -236,11 +236,13 @@ abstract contract StandardBridge {
         } catch {
             // Something went wrong during the bridging process, return to sender.
             // Can happen if a bridge UI specifies the wrong L2 token.
+            // We reverse both the local and remote token addresses, as well as the to and from
+            // addresses. This will preserve the accuracy of accounting based on emitted events.
             _initiateBridgeERC20Unchecked(
                 _remoteToken,
                 _localToken,
-                _from,
                 _to,
+                _from,
                 _amount,
                 0, // _minGasLimit, 0 is fine here
                 _data
