@@ -385,6 +385,7 @@ jobs:
       - run:
           name: build
           command: |
+            source $HOME/.bashrc
             forge --version
             yarn build
           working_directory: packages/contracts-bedrock
