@@ -384,7 +384,9 @@ jobs:
           working_directory: packages/contracts-bedrock
       - run:
           name: build
-          command: yarn build
+          command: |
+            forge --version
+            yarn build
           working_directory: packages/contracts-bedrock
       - run:
           name: test
@@ -392,7 +394,7 @@ jobs:
           working_directory: packages/contracts-bedrock
       - run:
           name: gas snapshot
-          command: forge snapshot
+          command: forge snapshot && git diff --exit-code
           working_directory: packages/contracts-bedrock
       - run:
           name: check go bindings
