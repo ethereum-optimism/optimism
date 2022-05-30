@@ -105,14 +105,18 @@ const config: HardhatUserConfig = {
       ],
     },
   },
-  gasReporter: {
-    enabled: process.env.REPORT_GAS !== undefined,
-    currency: 'USD',
+  typechain: {
+    outDir: 'dist/types',
+    target: 'ethers-v5',
   },
   namedAccounts: {
     deployer: {
       default: 0,
     },
+  },
+  gasReporter: {
+    enabled: process.env.REPORT_GAS !== undefined,
+    currency: 'USD',
   },
 }
 
