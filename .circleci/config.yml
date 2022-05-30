@@ -102,7 +102,7 @@ jobs:
             curl https://sh.rustup.rs -sSf | sh -s -- -y
             curl -L https://foundry.paradigm.xyz | bash
             source $HOME/.bashrc
-            foundryup -b master
+            CARGO_NET_GIT_FETCH_WITH_CLI=true foundryup -b master
             forge --version
       - run:
           name: Build monorepo
@@ -367,7 +367,7 @@ jobs:
             curl https://sh.rustup.rs -sSf | sh -s -- -y
             curl -L https://foundry.paradigm.xyz | bash
             source $HOME/.bashrc
-            foundryup -b master
+            CARGO_NET_GIT_FETCH_WITH_CLI=true foundryup -b master
             forge --version
       - run:
           name: install
@@ -486,7 +486,7 @@ jobs:
             curl https://sh.rustup.rs -sSf | sh -s -- -y
             curl -L https://foundry.paradigm.xyz | bash
             source $HOME/.bashrc
-            foundryup -b master
+            CARGO_NET_GIT_FETCH_WITH_CLI=true foundryup -b master
             forge --version
       - run:
           name: build typescript
