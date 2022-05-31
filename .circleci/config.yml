@@ -668,7 +668,7 @@ workflows:
             - optimism
       - docker-publish:
           name: batch-submitter-service-release
-          docker_file: ops/docker/Dockerfile
+          docker_file: batch-submitter/Dockerfile
           docker_tags: ethereumoptimism/batch-submitter-service:nightly
           docker_context: .
           context:
