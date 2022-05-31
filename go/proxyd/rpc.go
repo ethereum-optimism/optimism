@@ -174,7 +174,7 @@ func isArchiveRequest(req *RPCReq, getBlockNum GetLatestBlockNumFn) (bool, error
 		err            error
 	)
 	switch req.Method {
-	case "eth_call", "eth_getBalance", "eth_getTransactionCount":
+	case "eth_call", "eth_getBalance", "eth_getTransactionCount", "eth_getStorageAt", "eth_getCode":
 		tag, err = extractTerminalBlockTag(req)
 	case "eth_getBlockByNumber":
 		tag, _, err = decodeGetBlockByNumberParams(req.Params)
@@ -210,6 +210,6 @@ func extractTerminalBlockTag(req *RPCReq) (string, error) {
 		return "", nil
 	}
 	var blockTag string
-	err := json.Unmarshal(input[1], &blockTag)
+	err := json.Unmarshal(input[len(input)-1], &blockTag)
 	return blockTag, err
 }
