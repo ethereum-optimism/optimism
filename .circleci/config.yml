@@ -63,7 +63,7 @@ jobs:
 
   yarn-monorepo:
     docker:
-      - image: ethereumoptimism/js-builder:latest
+      - image: ethereumoptimism/js-builder:nightly
     steps:
       - restore_cache:
           keys:
@@ -97,16 +97,9 @@ jobs:
             - packages/sdk/node_modules
             - integration-tests/node_modules
       - run:
-          name: install Foundry
-          command: |
-            curl https://sh.rustup.rs -sSf | sh -s -- -y
-            curl -L https://foundry.paradigm.xyz | bash
-            source $HOME/.bashrc
-            CARGO_NET_GIT_FETCH_WITH_CLI=true foundryup -b master
-            forge --version
-      - run:
           name: Build monorepo
-          command: yarn build
+          command: |
+            yarn build
       - save_cache:
           key: v2-cache-yarn-build-{{ .Revision }}
           paths:
@@ -358,17 +351,9 @@ jobs:
 
   bedrock-solidity:
     docker:
-      - image: ethereumoptimism/js-builder:latest
+      - image: ethereumoptimism/js-builder:nightly
     steps:
       - checkout
-      - run:
-          name: install Foundry
-          command: |
-            curl https://sh.rustup.rs -sSf | sh -s -- -y
-            curl -L https://foundry.paradigm.xyz | bash
-            source $HOME/.bashrc
-            CARGO_NET_GIT_FETCH_WITH_CLI=true foundryup -b master
-            forge --version
       - run:
           name: install
           command: yarn install
@@ -471,29 +456,17 @@ jobs:
 
   bedrock-integration-tests:
     machine:
-      image: ubuntu-2004:202111-02
+      image: ethereumoptimism/js-builder:nightly
       docker_layer_caching: true
     steps:
       - checkout
-      - run:
-          name: init submodules
-          command: |
-            git submodule sync --recursive
-            git submodule update --recursive --init
       - node/install:
           install-yarn: true
           node-version: '16.13'
       - run:
-          name: install Foundry
-          command: |
-            curl https://sh.rustup.rs -sSf | sh -s -- -y
-            curl -L https://foundry.paradigm.xyz | bash
-            source $HOME/.bashrc
-            CARGO_NET_GIT_FETCH_WITH_CLI=true foundryup -b master
-            forge --version
-      - run:
           name: build typescript
-          command: make build-ts
+          command: |
+            make build-ts
       - run:
           name: start devnet
           command: make devnet-up
