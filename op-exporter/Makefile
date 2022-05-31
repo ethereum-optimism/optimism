@@ -10,9 +10,9 @@ ifndef BUILDDATE
 BUILDDATE := `date +%Y-%m-%d`
 endif
 
-LDFLAGSSTRING :=-X github.com/ethereum-optimism/op_exporter/version.Version=$(VERSION)
-LDFLAGSSTRING +=-X github.com/ethereum-optimism/op_exporter/version.GitCommit=$(GITCOMMIT)
-LDFLAGSSTRING +=-X github.com/ethereum-optimism/op_exporter/version.BuildDate=$(BUILDDATE)
+LDFLAGSSTRING :=-X github.com/ethereum-optimism/op-exporter/version.Version=$(VERSION)
+LDFLAGSSTRING +=-X github.com/ethereum-optimism/op-exporter/version.GitCommit=$(GITCOMMIT)
+LDFLAGSSTRING +=-X github.com/ethereum-optimism/op-exporter/version.BuildDate=$(BUILDDATE)
 
 LDFLAGS :=-ldflags "$(LDFLAGSSTRING)"
 
