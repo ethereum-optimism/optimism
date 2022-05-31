@@ -1,10 +1,13 @@
 package proxyd
 
 import (
+	"context"
 	"encoding/json"
 	"io"
 	"io/ioutil"
 	"strings"
+
+	"github.com/ethereum/go-ethereum/log"
 )
 
 type RPCReq struct {
@@ -108,7 +111,7 @@ func ParseRPCRes(r io.Reader) (*RPCRes, error) {
 	return res, nil
 }
 
-func ValidateRPCReq(req *RPCReq) error {
+func ValidateRPCReq(req *RPCReq, getBlockNum GetLatestBlockNumFn) error {
 	if req.JSONRPC != JSONRPCVersion {
 		return ErrInvalidRequest("invalid JSON-RPC version")
 	}
@@ -121,6 +124,15 @@ func ValidateRPCReq(req *RPCReq) error {
 		return ErrInvalidRequest("invalid ID")
 	}
 
+	archive, err := isArchiveRequest(req, getBlockNum)
+	if err != nil {
+		// ignore errors and pass em up the request handler chain
+		log.Warn("failed to decode request for archive", "err", err)
+		return nil
+	}
+	if archive {
+		return ErrInvalidRequest("unsupported archive request")
+	}
 	return nil
 }
 
@@ -151,4 +163,53 @@ func IsBatch(raw []byte) bool {
 		return c == '['
 	}
 	return false
+}
+
+func isArchiveRequest(req *RPCReq, getBlockNum GetLatestBlockNumFn) (bool, error) {
+	const BLOCK_NUM_ARCHIVE_HEIGHT = 256
+
+	var (
+		tag            string
+		latestBlockNum uint64
+		err            error
+	)
+	switch req.Method {
+	case "eth_call", "eth_getBalance", "eth_getTransactionCount":
+		tag, err = extractTerminalBlockTag(req)
+	case "eth_getBlockByNumber":
+		tag, _, err = decodeGetBlockByNumberParams(req.Params)
+	default:
+		return false, nil
+	}
+
+	if err != nil {
+		return false, err
+	}
+	if tag == "" || isBlockDependentParam(tag) {
+		return false, nil
+	}
+	// NOTE: we're reading from an in-memory getBlockNum LVC, which doesn't block
+	if latestBlockNum, err = getBlockNum(context.Background()); err != nil {
+		return false, err
+	}
+
+	blockNum, err := decodeBlockInput(tag)
+	if err != nil {
+		return false, err
+	}
+	return blockNum+uint64(BLOCK_NUM_ARCHIVE_HEIGHT) < latestBlockNum, nil
+}
+
+// quick hack: if the request looks like a request containing a quantity|tag at the end, then return the tag
+func extractTerminalBlockTag(req *RPCReq) (string, error) {
+	var input []json.RawMessage
+	if err := json.Unmarshal(req.Params, &input); err != nil {
+		return "", err
+	}
+	if len(input) < 2 {
+		return "", nil
+	}
+	var blockTag string
+	err := json.Unmarshal(input[1], &blockTag)
+	return blockTag, err
 }

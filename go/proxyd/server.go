@@ -41,6 +41,9 @@ type Server struct {
 	rpcServer          *http.Server
 	wsServer           *http.Server
 	cache              RPCCache
+
+	blockNumLVC       *EthLastValueCache
+	getLatestBlockNum GetLatestBlockNumFn
 }
 
 func NewServer(
@@ -52,6 +55,8 @@ func NewServer(
 	authenticatedPaths map[string]string,
 	timeout time.Duration,
 	cache RPCCache,
+	blockNumLVC *EthLastValueCache,
+	getLatestBlockNum GetLatestBlockNumFn,
 ) *Server {
 	if cache == nil {
 		cache = &NoopRPCCache{}
@@ -77,6 +82,9 @@ func NewServer(
 		upgrader: &websocket.Upgrader{
 			HandshakeTimeout: 5 * time.Second,
 		},
+
+		blockNumLVC:       blockNumLVC,
+		getLatestBlockNum: getLatestBlockNum,
 	}
 }
 
@@ -218,7 +226,7 @@ func (s *Server) HandleRPC(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleSingleRPC(ctx context.Context, req *RPCReq) (*RPCRes, bool) {
-	if err := ValidateRPCReq(req); err != nil {
+	if err := ValidateRPCReq(req, s.getLatestBlockNum); err != nil {
 		RecordRPCError(ctx, BackendProxyd, MethodUnknown, err)
 		return NewRPCErrorRes(nil, err), false
 	}

@@ -169,6 +169,18 @@ func Start(config *Config) (func(), error) {
 		blockNumLVC *EthLastValueCache
 		gasPriceLVC *EthLastValueCache
 	)
+
+	blockSyncRPCURL, err := ReadFromEnvOrConfig(config.Cache.BlockSyncRPCURL)
+	if err != nil {
+		return nil, err
+	}
+	// Ideally, the BlocKSyncRPCURL should be the sequencer or a HA replica that's not far behind
+	ethClient, err := ethclient.Dial(blockSyncRPCURL)
+	if err != nil {
+		return nil, err
+	}
+	defer ethClient.Close()
+
 	if config.Cache.Enabled {
 		var (
 			cache      Cache
@@ -179,10 +191,6 @@ func Start(config *Config) (func(), error) {
 		if config.Cache.BlockSyncRPCURL == "" {
 			return nil, fmt.Errorf("block sync node required for caching")
 		}
-		blockSyncRPCURL, err := ReadFromEnvOrConfig(config.Cache.BlockSyncRPCURL)
-		if err != nil {
-			return nil, err
-		}
 
 		if redisURL != "" {
 			if cache, err = newRedisCache(redisURL); err != nil {
@@ -192,17 +200,14 @@ func Start(config *Config) (func(), error) {
 			log.Warn("redis is not configured, using in-memory cache")
 			cache = newMemoryCache()
 		}
-		// Ideally, the BlocKSyncRPCURL should be the sequencer or a HA replica that's not far behind
-		ethClient, err := ethclient.Dial(blockSyncRPCURL)
-		if err != nil {
-			return nil, err
-		}
-		defer ethClient.Close()
 
 		blockNumLVC, blockNumFn = makeGetLatestBlockNumFn(ethClient, cache)
 		gasPriceLVC, gasPriceFn = makeGetLatestGasPriceFn(ethClient, cache)
 		rpcCache = newRPCCache(newCacheWithCompression(cache), blockNumFn, gasPriceFn, config.Cache.NumBlockConfirmations)
 	}
+
+	// in-memory lvc; used irrespective of cache settings
+	blockNumLVC, blockNumFn := makeGetLatestBlockNumFn(ethClient, newMemoryCache())
 
 	srv := NewServer(
 		backendGroups,
@@ -213,6 +218,9 @@ func Start(config *Config) (func(), error) {
 		resolvedAuth,
 		secondsToDuration(config.Server.TimeoutSeconds),
 		rpcCache,
+
+		blockNumLVC,
+		blockNumFn,
 	)
 
 	if config.Metrics.Enabled {
