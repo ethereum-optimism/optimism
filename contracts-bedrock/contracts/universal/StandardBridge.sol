@@ -129,11 +129,6 @@ abstract contract StandardBridge {
      ********************/
 
     /**
-     * @notice Send ETH to this contract. This is used during upgrades
-     */
-    function donateETH() external payable {}
-
-    /**
      * @notice EOAs can simply send ETH to this contract to have it be deposited
      * to L2 through the standard bridge.
      */
