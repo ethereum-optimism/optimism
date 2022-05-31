@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/ecdsa"
 	"errors"
-	"math"
 	"math/big"
 	"strings"
 	"time"
@@ -33,6 +32,8 @@ var DisbursementSuccessTopic = common.HexToHash(
 var DisbursementFailedTopic = common.HexToHash(
 	"0x9b478c095979d3d3a7d602ffd9ee1f0843204d853558ae0882c8fcc0a5bc78cf",
 )
+
+const MaxDisbursements = 5
 
 type Config struct {
 	Name                 string
@@ -194,7 +195,7 @@ func (d *Driver) GetBatchBlockRange(
 	// After successfully ingesting deposits, check to see if there are any
 	// now-confirmed deposits that we can attempt to disburse.
 	confirmedDeposits, err := d.loadConfirmedDepositsInRange(
-		blockNumber, startID64, math.MaxUint64,
+		blockNumber, startID64, startID64+MaxDisbursements,
 	)
 	if err != nil {
 		return nil, nil, err
