@@ -166,7 +166,7 @@ func IsBatch(raw []byte) bool {
 }
 
 func isArchiveRequest(req *RPCReq, getBlockNum GetLatestBlockNumFn) (bool, error) {
-	const BLOCK_NUM_ARCHIVE_HEIGHT = 256
+	const BLOCK_NUM_ARCHIVE_HEIGHT = 64
 
 	var (
 		tag            string
