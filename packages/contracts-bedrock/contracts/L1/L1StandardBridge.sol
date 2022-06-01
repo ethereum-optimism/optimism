@@ -118,7 +118,9 @@ contract L1StandardBridge is StandardBridge {
 
     /**
      * @custom:legacy
-     * @notice Deposits some amount of ETH into a target account on L2.
+     * @notice Deposits some amount of ETH into a target account on L2. Note that if ETH is sent to
+     *         a contract on L2 and the call fails, then that ETH will be locked in the
+     *         L2StandardBridge.
      *
      * @param _to          Address of the recipient on L2.
      * @param _minGasLimit Minimum gas limit for the deposit message on L2.

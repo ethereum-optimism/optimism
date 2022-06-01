@@ -106,7 +106,9 @@ contract L2StandardBridge is StandardBridge {
 
     /**
      * @custom:legacy
-     * @notice Initiates a withdrawal from L2 to L1 to a target account on L1.
+     * @notice Initiates a withdrawal from L2 to L1 to a target account on L1. Note that if ETH is
+     *         sent to a contract on L1 and the call fails, then that ETH will be locked in the
+     *         L1StandardBridge.
      *
      * @param _l2Token     Address of the L2 token to withdraw.
      * @param _to          Recipient account on L1.
@@ -121,6 +123,7 @@ contract L2StandardBridge is StandardBridge {
         uint32 _minGasLimit,
         bytes calldata _data
     ) external payable virtual {
+        // TODO: add onlyEOA check on ETH withdrawals to match L1Bridge.depositETHTo?
         _initiateWithdrawal(_l2Token, msg.sender, _to, _amount, _minGasLimit, _data);
     }
 
