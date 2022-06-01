@@ -1,5 +1,11 @@
 # @eth-optimism/batch-submitter-service
 
+## 0.1.12
+
+### Patch Changes
+
+- 6f458607: Bump go-ethereum to 1.10.17
+
 ## 0.1.11
 
 ### Patch Changes

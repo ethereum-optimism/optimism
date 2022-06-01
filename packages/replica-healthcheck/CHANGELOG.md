@@ -1,5 +1,15 @@
 # @eth-optimism/replica-healthcheck
 
+## 1.0.7
+
+### Patch Changes
+
+- d18ae135: Updates all ethers versions in response to BN.js bug
+- Updated dependencies [f16383f2]
+- Updated dependencies [d18ae135]
+  - @eth-optimism/common-ts@0.2.8
+  - @eth-optimism/core-utils@0.8.5
+
 ## 1.0.6
 
 ### Patch Changes
