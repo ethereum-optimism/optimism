@@ -182,7 +182,11 @@ contract OptimismPortal {
         WithdrawalVerifier.OutputRootProof calldata _outputRootProof,
         bytes calldata _withdrawalProof
     ) external payable {
-        // Prevent reentrency
+        // Prevent immediate reentrancy to other functions on this contract.
+        // Note that reentrancy to _this_ function is also prevented by the l2Sender check below,
+        // but this check is also an efficient mechanism of preventing the portal from calling
+        // its own receive() or depositTransaction() functions, without the need for a nonReentrant
+        // modifier.
         require(_target != address(this), "Cannot send message to self.");
 
         // Get the output root.
@@ -235,6 +239,13 @@ contract OptimismPortal {
         require(
             gasleft() >= _gasLimit + FINALIZE_GAS_BUFFER,
             "Insufficient gas to finalize withdrawal."
+        );
+
+
+        // Disallow withdrawals during reentrancy to this function.
+        require(
+            l2Sender == DEFAULT_L2_SENDER,
+            "Cannot withdraw a transaction within another withdrawal transaction."
         );
 
         // Set the l2Sender so that other contracts can know which account
