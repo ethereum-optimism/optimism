@@ -241,7 +241,6 @@ contract OptimismPortal {
             "Insufficient gas to finalize withdrawal."
         );
 
-
         // Disallow withdrawals during reentrancy to this function.
         require(
             l2Sender == DEFAULT_L2_SENDER,
