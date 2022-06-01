@@ -318,7 +318,7 @@ abstract contract StandardBridge {
                 "Wrong remote token for Optimism Mintable ERC20 local token"
             );
 
-            OptimismMintableERC20(_localToken).burn(msg.sender, _amount);
+            OptimismMintableERC20(_localToken).burn(_from, _amount);
         } else {
             // TODO: Do we need to confirm that the transfer was successful?
             IERC20(_localToken).safeTransferFrom(_from, address(this), _amount);
