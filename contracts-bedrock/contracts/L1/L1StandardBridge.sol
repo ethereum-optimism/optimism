@@ -85,7 +85,8 @@ contract L1StandardBridge is StandardBridge {
     }
 
     /**
-     * @dev Deposit an amount of ETH to a recipient's balance on L2.
+     * @dev Deposit an amount of ETH to a recipient's balance on L2. Note that if ETH is sent to a
+     *      contract on L2 and the call fails, then that ETH will be locked in the L2StandardBridge.
      * @param _to L2 address to credit the withdrawal to.
      * @param _minGasLimit Gas limit required to complete the deposit on L2.
      * @param _data Optional data to forward to L2. This data is provided

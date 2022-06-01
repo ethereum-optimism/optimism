@@ -139,7 +139,8 @@ abstract contract StandardBridge {
     }
 
     /**
-     * @notice Send ETH to a specified account on the remote domain
+     * @notice Send ETH to a specified account on the remote domain. Note that if ETH is sent to a
+     *         contract and the call fails, then that ETH will be locked in the other bridge.
      */
     function bridgeETHTo(
         address _to,

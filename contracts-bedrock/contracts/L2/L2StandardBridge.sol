@@ -77,7 +77,9 @@ contract L2StandardBridge is StandardBridge {
     }
 
     /**
-     * @notice Withdraw tokens to an address on L1
+     * @notice Withdraw tokens to an address on L1. Note that if ETH is sent to a
+     *         contract on L1 and the call fails, then that ETH will be locked in the
+     *         L1StandardBridge.
      * @param _l2Token The L2 token address to withdraw
      * @param _to The L1 account to withdraw to
      * @param _amount The amount of L2 token to withdraw
@@ -91,6 +93,7 @@ contract L2StandardBridge is StandardBridge {
         uint32 _minGasLimit,
         bytes calldata _data
     ) external payable virtual {
+        // TODO: add onlyEOA check on ETH withdrawals to match L1Bridge.depositETHTo?
         _initiateWithdrawal(_l2Token, msg.sender, _to, _amount, _minGasLimit, _data);
     }
 
