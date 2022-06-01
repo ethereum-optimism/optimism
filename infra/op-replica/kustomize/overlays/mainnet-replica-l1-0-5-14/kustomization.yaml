@@ -20,10 +20,10 @@ resources:
 images:
   - name: ethereumoptimism/data-transport-layer
     newName: ethereumoptimism/data-transport-layer
-    newTag: 0.5.21
+    newTag: prerelease-dtl-race
   - name: ethereumoptimism/l2geth
     newName: ethereumoptimism/l2geth
-    newTag: 0.5.14
+    newTag: prerelease-l2g-l1-sync-recovery
   - name: ethereumoptimism/replica-healthcheck
     newName: ethereumoptimism/replica-healthcheck
     newTag: 0.3.6
