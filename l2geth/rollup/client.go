@@ -120,6 +120,7 @@ type RollupClient interface {
 	GetEnqueue(index uint64) (*types.Transaction, error)
 	GetLatestEnqueue() (*types.Transaction, error)
 	GetLatestEnqueueIndex() (*uint64, error)
+	GetRawTransaction(uint64, Backend) (*TransactionResponse, error)
 	GetTransaction(uint64, Backend) (*types.Transaction, error)
 	GetLatestTransaction(Backend) (*types.Transaction, error)
 	GetLatestTransactionIndex(Backend) (*uint64, error)
@@ -419,7 +420,7 @@ func batchedTransactionToTransaction(res *transaction, chainID *big.Int) (*types
 }
 
 // GetTransaction will get a transaction by Canonical Transaction Chain index
-func (c *Client) GetTransaction(index uint64, backend Backend) (*types.Transaction, error) {
+func (c *Client) GetRawTransaction(index uint64, backend Backend) (*TransactionResponse, error) {
 	str := strconv.FormatUint(index, 10)
 	response, err := c.client.R().
 		SetPathParams(map[string]string{
@@ -437,6 +438,15 @@ func (c *Client) GetTransaction(index uint64, backend Backend) (*types.Transacti
 	res, ok := response.Result().(*TransactionResponse)
 	if !ok {
 		return nil, fmt.Errorf("could not get tx with index %d", index)
+	}
+	return res, nil
+}
+
+// GetTransaction will get a transaction by Canonical Transaction Chain index
+func (c *Client) GetTransaction(index uint64, backend Backend) (*types.Transaction, error) {
+	res, err := c.GetRawTransaction(index, backend)
+	if err != nil {
+		return nil, err
 	}
 	return batchedTransactionToTransaction(res.Transaction, c.chainID)
 }
