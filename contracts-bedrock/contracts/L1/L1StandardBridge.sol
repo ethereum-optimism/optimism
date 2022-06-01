@@ -11,6 +11,9 @@ import { StandardBridge } from "../universal/StandardBridge.sol";
  * @dev The L1 ETH and ERC20 Bridge is a contract which stores deposited L1 funds and standard
  * tokens that are in use on L2. It synchronizes a corresponding L2 Bridge, informing it of deposits
  * and listening to it for newly finalized withdrawals.
+ * Note that this contract is not intended to support all variations of ERC20 tokens; this
+ * includes, but is not limited to tokens with transfer fees, rebasing tokens, and
+ * tokens with blocklists.
  */
 contract L1StandardBridge is StandardBridge {
     /**********

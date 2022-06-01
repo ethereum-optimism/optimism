@@ -11,6 +11,9 @@ import { OptimismMintableERC20 } from "../universal/OptimismMintableERC20.sol";
  * @title L2StandardBridge
  * @dev This contract is an L2 predeploy that is responsible for facilitating
  * deposits of tokens from L1 to L2.
+ * Note that this contract is not intended to support all variations of ERC20 tokens; this
+ * includes, but is not limited to tokens with transfer fees, rebasing tokens, and
+ * tokens with blocklists.
  * TODO: ensure that this has 1:1 backwards compatibility
  */
 contract L2StandardBridge is StandardBridge {
