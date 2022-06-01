@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.20
+
+### Patch Changes
+
+- 359bc604: Patch for L1 syncing nodes that got stuck after DTL batch sync errors
+
 ## 0.5.19
 
 ### Patch Changes

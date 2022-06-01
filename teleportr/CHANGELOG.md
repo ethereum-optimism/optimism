@@ -1,5 +1,12 @@
 # @eth-optimism/teleportr
 
+## 0.0.7
+
+### Patch Changes
+
+- 6f458607: Bump go-ethereum to 1.10.17
+- cd15c40a: Only do 5 disbursements at a time
+
 ## 0.0.6
 
 ### Patch Changes

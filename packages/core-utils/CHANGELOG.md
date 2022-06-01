@@ -1,5 +1,11 @@
 # @eth-optimism/core-utils
 
+## 0.8.5
+
+### Patch Changes
+
+- d18ae135: Updates all ethers versions in response to BN.js bug
+
 ## 0.8.4
 
 ### Patch Changes
