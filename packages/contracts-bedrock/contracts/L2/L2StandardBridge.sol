@@ -11,6 +11,10 @@ import { OptimismMintableERC20 } from "../universal/OptimismMintableERC20.sol";
  * @title L2StandardBridge
  * @notice The L2StandardBridge is responsible for transfering ETH and ERC20 tokens between L1 and
  *         L2. ERC20 tokens sent to L1 are escrowed within this contract.
+ *         Note that this contract is not intended to support all variations of ERC20 tokens; this
+ *         includes, but is not limited to tokens with transfer fees, rebasing tokens, and
+ *         tokens with blocklists.
+ *         TODO: ensure that this has 1:1 backwards compatibility
  */
 contract L2StandardBridge is StandardBridge {
     /**
