@@ -26,25 +26,6 @@
     ]
   },
   "private": true,
-  "devDependencies": {
-    "@typescript-eslint/eslint-plugin": "^4.26.0",
-    "@typescript-eslint/parser": "^4.26.0",
-    "babel-eslint": "^10.1.0",
-    "eslint": "^7.27.0",
-    "eslint-config-prettier": "^8.3.0",
-    "eslint-plugin-import": "^2.23.4",
-    "eslint-plugin-jsdoc": "^35.1.2",
-    "eslint-plugin-prefer-arrow": "^1.2.3",
-    "eslint-plugin-prettier": "^3.4.0",
-    "eslint-plugin-react": "^7.24.0",
-    "eslint-plugin-unicorn": "^32.0.1",
-    "husky": "^6.0.0",
-    "lerna": "^4.0.0",
-    "lint-staged": "11.0.0",
-    "patch-package": "^6.4.7",
-    "prettier": "^2.3.1",
-    "typescript": "^4.6.2"
-  },
   "scripts": {
     "clean": "yarn lerna run clean --parallel",
     "build": "yarn lerna run build",
@@ -59,10 +40,32 @@
     "prepare": "husky install",
     "release": "yarn build && yarn changeset publish"
   },
+  "devDependencies": {
+    "@typescript-eslint/eslint-plugin": "^4.26.0",
+    "@typescript-eslint/parser": "^4.26.0",
+    "babel-eslint": "^10.1.0",
+    "doctoc": "2.1.0",
+    "eslint": "^7.27.0",
+    "eslint-config-prettier": "^8.3.0",
+    "eslint-plugin-import": "^2.23.4",
+    "eslint-plugin-jsdoc": "^35.1.2",
+    "eslint-plugin-prefer-arrow": "^1.2.3",
+    "eslint-plugin-prettier": "^3.4.0",
+    "eslint-plugin-react": "^7.24.0",
+    "eslint-plugin-unicorn": "^32.0.1",
+    "husky": "^6.0.0",
+    "lerna": "^4.0.0",
+    "lint-staged": "11.0.0",
+    "markdownlint": "^0.24.0",
+    "markdownlint-cli2": "^0.3.2",
+    "patch-package": "^6.4.7",
+    "prettier": "^2.3.1",
+    "typescript": "^4.6.2"
+  },
   "dependencies": {
     "@changesets/cli": "^2.16.0",
     "@codechecks/client": "^0.1.11",
-    "@ethersproject/abstract-provider": "5.5.1",
+    "@ethersproject/abstract-provider": "^5.6.1",
     "@openzeppelin/contracts": "^4.3.2",
     "@openzeppelin/contracts-upgradeable": "^4.3.2"
   }

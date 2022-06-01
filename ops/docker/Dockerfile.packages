@@ -4,7 +4,7 @@
 # ### BASE: Install deps
 FROM node:16-alpine3.14 as base
 
-RUN apk --no-cache add curl jq python3 ca-certificates git make gcc musl-dev linux-headers bash
+RUN apk --no-cache add curl jq python3 ca-certificates git make gcc musl-dev linux-headers bash build-base
 
 # copy over the needed configs to run the dep installation
 # note: this approach can be a bit unhandy to maintain, but it allows
@@ -15,6 +15,7 @@ COPY packages/sdk/package.json ./packages/sdk/package.json
 COPY packages/core-utils/package.json ./packages/core-utils/package.json
 COPY packages/common-ts/package.json ./packages/common-ts/package.json
 COPY packages/contracts/package.json ./packages/contracts/package.json
+COPY packages/contracts-periphery/package.json ./packages/contracts-periphery/package.json
 COPY packages/data-transport-layer/package.json ./packages/data-transport-layer/package.json
 COPY packages/message-relayer/package.json ./packages/message-relayer/package.json
 COPY packages/fault-detector/package.json ./packages/fault-detector/package.json

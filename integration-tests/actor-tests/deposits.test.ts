@@ -37,18 +37,18 @@ actor('Funds depositor', () => {
     const balBefore = await l2Wallet.getBalance()
     await b.bench('deposit', async () => {
       await env.waitForXDomainTransaction(
-        env.messenger.contracts.l1.L1StandardBridge
-          .connect(l1Wallet)
-          .depositETH(DEFAULT_TEST_GAS_L2, '0xFFFF', {
-            value: 0x42,
-            gasLimit: DEFAULT_TEST_GAS_L1,
-          })
+        env.messenger.contracts.l1.L1StandardBridge.connect(
+          l1Wallet
+        ).depositETH(DEFAULT_TEST_GAS_L2, '0xFFFF', {
+          value: 0x42,
+          gasLimit: DEFAULT_TEST_GAS_L1,
+        })
       )
     })
     // Converting BigNumber to hex string prevents chai from incorrectly considering inherited properties
     // for strict equality - https://github.com/chaijs/chai/issues/948
-    expect((await l2Wallet.getBalance()).sub(balBefore).toString()).to.deep.equal(
-      BigNumber.from(0x42).toString()
-    )
+    expect(
+      (await l2Wallet.getBalance()).sub(balBefore).toString()
+    ).to.deep.equal(BigNumber.from(0x42).toString())
   })
 })

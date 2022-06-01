@@ -278,6 +278,23 @@ func (s *SyncService) initializeLatestL1(ctcDeployHeight *big.Int) error {
 		s.SetLatestL1Timestamp(context.Timestamp)
 		s.SetLatestL1BlockNumber(context.BlockNumber)
 	} else {
+		// Recover from accidentally skipped batches if necessary.
+		if s.verifier && s.backend == BackendL1 {
+			tx, err := s.client.GetRawTransaction(*index, s.backend)
+			if err != nil {
+				return fmt.Errorf("Cannot fetch transaction from dtl at index %d: %w", *index, err)
+			}
+
+			oldbatchIndex := s.GetLatestBatchIndex()
+			newBatchIndex := tx.Transaction.BatchIndex
+			if tx.Transaction.BatchIndex > 0 {
+				newBatchIndex -= 1
+			}
+
+			log.Info("Updating batch index", "old", oldbatchIndex, "new", newBatchIndex)
+			s.SetLatestBatchIndex(&newBatchIndex)
+		}
+
 		log.Info("Found latest index", "index", *index)
 		block := s.bc.GetBlockByNumber(*index + 1)
 		if block == nil {

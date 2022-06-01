@@ -1,5 +1,5 @@
 <div align="center">
-  <a href="https://community.optimism.io"><img alt="Optimism" src="https://user-images.githubusercontent.com/14298799/122151157-0b197500-ce2d-11eb-89d8-6240e3ebe130.png" width=280></a>
+  <a href="https://community.optimism.io"><img alt="Optimism" src="https://raw.githubusercontent.com/ethereum-optimism/brand-kit/ad481978ceac19f5c1db91ca4586bf2ab238f46b/assets/svg/Profile-Logo.svg" width=280></a>
   <br />
   <h1> The Optimism Monorepo</h1>
 </div>
@@ -31,21 +31,40 @@ Then check out our list of [good first issues](https://github.com/ethereum-optim
 <pre>
 root
 ├── <a href="./packages">packages</a>
-│   ├── <a href="./packages/contracts">contracts</a>: L1 and L2 smart contracts for Optimism
-│   ├── <a href="./packages/core-utils">core-utils</a>: Low-level utilities that make building Optimism easier
 │   ├── <a href="./packages/common-ts">common-ts</a>: Common tools for building apps in TypeScript
+│   ├── <a href="./packages/contracts">contracts</a>: L1 and L2 smart contracts for Optimism
+│   ├── <a href="./packages/contracts-periphery">contracts-periphery</a>: Peripheral contracts for Optimism
+│   ├── <a href="./packages/core-utils">core-utils</a>: Low-level utilities that make building Optimism easier
 │   ├── <a href="./packages/data-transport-layer">data-transport-layer</a>: Service for indexing Optimism-related L1 data
-│   ├── <a href="./packages/fault-detector">fault-detector</a>: Service for detecting faulty L2 output proposals
+│   ├── <a href="./packages/fault-detector">fault-detector</a>:
+│   ├── <a href="./packages/integration-tests-bedrock">integration-tests-bedrock</a> (BEDROCK upgrade): Bedrock integration tests.
 │   ├── <a href="./packages/message-relayer">message-relayer</a>: Tool for automatically relaying L1<>L2 messages in development
-│   └── <a href="./packages/replica-healthcheck">replica-healthcheck</a>: Service for monitoring the health of a replica node
-├── <a href="./go">go</a>
-│   ├── <a href="./batch-submitter">batch-submitter</a>: Service for submitting batches of transactions and results to L1
-│   ├── <a href="./bss-core">bss-core</a>: Core batch-submitter logic and utilities
-│   ├── <a href="./gas-oracle">gas-oracle</a>: Service for updating L1 gas prices on L2
-│   └── <a href="./proxyd">proxyd</a>: Configurable RPC request router and proxy
-├── <a href="./l2geth">l2geth</a>: Optimism client software, a fork of <a href="https://github.com/ethereum/go-ethereum/tree/v1.9.10">geth v1.9.10</a>
+│   ├── <a href="./packages/replica-healthcheck">replica-healthcheck</a>: Service for monitoring the health of a replica node
+│   └── <a href="./packages/sdk">sdk</a>: provides a set of tools for interacting with Optimism
+
+~~ Production ~~
+├── <a href="./batch-submitter">batch-submitter</a>: Service for submitting batches of transactions and results to L1
+├── <a href="./bss-core">bss-core</a>: Core batch-submitter logic and utilities
+├── <a href="./gas-oracle">gas-oracle</a>: Service for updating L1 gas prices on L2
+├── <a href="./indexer">indexer</a>: indexes and syncs transactions
+├── <a href="./infra/op-replica">infra/op-replica</a>: Deployment examples and resources for running an Optimism replica
 ├── <a href="./integration-tests">integration-tests</a>: Various integration tests for the Optimism network
-└── <a href="./ops">ops</a>: Tools for running Optimism nodes and networks
+├── <a href="./l2geth">l2geth</a>: Optimism client software, a fork of <a href="https://github.com/ethereum/go-ethereum/tree/v1.9.10">geth v1.9.10</a>  (deprecated for BEDROCK upgrade)
+├── <a href="./l2geth-exporter">l2geth-exporter</a>: A prometheus exporter to collect/serve metrics from an L2 geth node
+├── <a href="./op-exporter">op-exporter</a>: A prometheus exporter to collect/serve metrics from an Optimism node
+├── <a href="./proxyd">proxyd</a>: Configurable RPC request router and proxy
+├── <a href="./technical-documents">technical-documents</a>: audits and post-mortem documents
+├── <a href="./teleportr">teleportr</a>: Bridge for teleporting ETH between L1 and L2 at low cost
+
+~~ BEDROCK upgrade - Not production-ready yet, part of next major upgrade ~~
+├── <a href="./contracts-bedrock">contracts-bedrock</a>: Bedrock smart contracts. To be merged with ./packages/contracts.
+├── <a href="./op-bindings">op-bindings</a>: Go bindings for Bedrock smart contracts.
+├── <a href="./op-batcher">op-batcher</a>: L2-Batch Submitter, submits bundles of batches to L1
+├── <a href="./op-e2e">op-e2e</a>: End-to-End testing of all bedrock components in Go
+├── <a href="./op-node">op-node</a>: rollup consensus-layer client.
+├── <a href="./op-proposer">op-proposer</a>: L2-Output Submitter, submits proposals to L1
+├── <a href="./ops-bedrock">ops-bedrock</a>: Bedrock devnet work
+└── <a href="./specs">specs</a>: Specs of the rollup starting at the Bedrock upgrade
 </pre>
 
 ## Branching Model and Releases

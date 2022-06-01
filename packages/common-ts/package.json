@@ -37,7 +37,7 @@
     "commander": "^9.0.0",
     "dotenv": "^16.0.0",
     "envalid": "^7.2.2",
-    "ethers": "^5.5.4",
+    "ethers": "^5.6.8",
     "express": "^4.17.1",
     "lodash": "^4.17.21",
     "pino": "^6.11.3",
@@ -46,8 +46,8 @@
     "prom-client": "^13.1.0"
   },
   "devDependencies": {
-    "@ethersproject/abstract-provider": "^5.5.1",
-    "@ethersproject/abstract-signer": "^5.5.0",
+    "@ethersproject/abstract-provider": "^5.6.1",
+    "@ethersproject/abstract-signer": "^5.6.2",
     "@types/chai": "^4.2.18",
     "@types/express": "^4.17.12",
     "@types/mocha": "^8.2.2",

@@ -56,7 +56,7 @@ export const createMetricsServer = async (
   })
 
   const port = options.port || 7300
-  const hostname = options.hostname || '127.0.0.1'
+  const hostname = options.hostname || '0.0.0.0'
   const server = app.listen(port, hostname, () => {
     logger.info('Metrics server started', {
       port,

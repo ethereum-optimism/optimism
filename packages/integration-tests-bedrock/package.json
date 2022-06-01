@@ -1,0 +1,70 @@
+{
+  "private": true,
+  "name": "@eth-optimism/integration-tests-bedrock",
+  "version": "0.5.9",
+  "description": "[Optimism] Integration tests",
+  "scripts": {
+    "lint": "yarn lint:fix && yarn lint:check",
+    "lint:fix": "yarn lint:check --fix",
+    "lint:check": "eslint . --max-warnings=0",
+    "build:contracts": "forge build --root . -c contracts -o artifacts",
+    "test": "ts-mocha --timeout 30000 test/**/*.spec.ts",
+    "test:actor": "IS_LIVE_NETWORK=true ts-node actor-tests/lib/runner.ts",
+    "test:integration:live": "NO_NETWORK=true IS_LIVE_NETWORK=true hardhat --network optimism test",
+    "clean": "rimraf cache artifacts"
+  },
+  "keywords": [
+    "optimism",
+    "ethereum",
+    "integration",
+    "tests"
+  ],
+  "homepage": "https://github.com/ethereum-optimism/optimism/tree/develop/packages/integration-tests#readme",
+  "license": "MIT",
+  "author": "Optimism PBC",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ethereum-optimism/optimism.git"
+  },
+  "devDependencies": {
+    "@eth-optimism/contracts": "0.5.24",
+    "@eth-optimism/core-utils": "0.8.4",
+    "@eth-optimism/sdk": "1.1.5",
+    "@ethersproject/abstract-provider": "^5.6.1",
+    "@ethersproject/providers": "^5.6.8",
+    "@ethersproject/transactions": "^5.6.2",
+    "@types/chai": "^4.2.18",
+    "@types/chai-as-promised": "^7.1.4",
+    "@types/mocha": "^8.2.2",
+    "@types/rimraf": "^3.0.0",
+    "@typescript-eslint/eslint-plugin": "^4.26.0",
+    "@typescript-eslint/parser": "^4.26.0",
+    "async-mutex": "^0.3.2",
+    "babel-eslint": "^10.1.0",
+    "chai": "^4.3.4",
+    "chai-as-promised": "^7.1.1",
+    "commander": "^8.3.0",
+    "dotenv": "^10.0.0",
+    "envalid": "^7.1.0",
+    "eslint": "^7.27.0",
+    "eslint-config-prettier": "^8.3.0",
+    "eslint-plugin-import": "^2.23.4",
+    "eslint-plugin-jsdoc": "^35.1.2",
+    "eslint-plugin-prefer-arrow": "^1.2.3",
+    "eslint-plugin-prettier": "^3.4.0",
+    "eslint-plugin-react": "^7.24.0",
+    "eslint-plugin-unicorn": "^32.0.1",
+    "ethereum-waffle": "^3.3.0",
+    "ethers": "^5.6.8",
+    "mocha": "^8.4.0",
+    "node-fetch": "^2.6.7",
+    "prom-client": "^14.0.1",
+    "rimraf": "^3.0.2",
+    "ts-node": "^10.7.0",
+    "typescript": "^4.3.5"
+  },
+  "dependencies": {
+    "ts-mocha": "^9.0.2",
+    "winston": "^3.7.2"
+  }
+}
