@@ -10,8 +10,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/ethereum-optimism/op_exporter/k8sClient"
-	"github.com/ethereum-optimism/op_exporter/version"
+	"github.com/ethereum-optimism/optimism/op-exporter/k8sClient"
+	"github.com/ethereum-optimism/optimism/op-exporter/version"
+
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	log "github.com/sirupsen/logrus"
@@ -76,7 +77,7 @@ func main() {
 	kingpin.Parse()
 	if *versionFlag {
 		fmt.Printf("(version=%s, gitcommit=%s)\n", version.Version, version.GitCommit)
-		fmt.Printf("(go=%s, user=%s, date=%s)\n", version.GoVersion, version.BuildUser, version.BuildDate)
+		fmt.Printf("(go=%s, date=%s)\n", version.GoVersion, version.BuildDate)
 		os.Exit(0)
 	}
 	log.Infoln("exporter config", *listenAddress, *rpcProvider, *networkLabel)
