@@ -165,7 +165,7 @@ contract OptimismPortal is ResourceMetering {
         WithdrawalVerifier.OutputRootProof calldata _outputRootProof,
         bytes calldata _withdrawalProof
     ) external payable {
-        // Prevent reentrancy.
+        // Prevent nested withdrawals within withdrawals.
         require(
             l2Sender == DEFAULT_L2_SENDER,
             "OptimismPortal: can only trigger one withdrawal per transaction"
