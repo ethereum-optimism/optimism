@@ -63,7 +63,7 @@ jobs:
 
   yarn-monorepo:
     docker:
-      - image: ethereumoptimism/js-builder:latest
+      - image: ethereumoptimism/js-builder:nightly
     steps:
       - restore_cache:
           keys:
@@ -87,6 +87,7 @@ jobs:
             - node_modules
             - packages/common-ts/node_modules
             - packages/contracts/node_modules
+            - packages/contracts-bedrock/node_modules
             - packages/contracts-periphery/node_modules
             - packages/core-utils/node_modules
             - packages/data-transport-layer/node_modules
@@ -97,7 +98,8 @@ jobs:
             - integration-tests/node_modules
       - run:
           name: Build monorepo
-          command: yarn build
+          command: |
+            yarn build
       - save_cache:
           key: v2-cache-yarn-build-{{ .Revision }}
           paths:
@@ -366,46 +368,36 @@ jobs:
 
   bedrock-solidity:
     docker:
-      - image: ethereumoptimism/js-builder:0.0.4
+      - image: ethereumoptimism/js-builder:nightly
     steps:
       - checkout
       - run:
-          name: init submodules
-          command: |
-            git submodule sync --recursive
-            git submodule update --recursive --init
-      - run:
           name: install
           command: yarn install
-          working_directory: contracts-bedrock
+          working_directory: packages/contracts-bedrock
       - run:
           name: lint
-          command: |
-            # remove prettierrc in root of repo since it doesn't work with non-Lerna packages
-            mv ../.eslintrc.js ../.eslintrc.bak
-            yarn lint:check
-            mv ../.eslintrc.bak ../.eslintrc.js
-          working_directory: contracts-bedrock
+          command: yarn lint:check
+          working_directory: packages/contracts-bedrock
       - run:
           name: slither
           command: yarn slither || exit 0
-          working_directory: contracts-bedrock
+          working_directory: packages/contracts-bedrock
       - run:
-          name: build forge
-          command: yarn build:forge
-          working_directory: contracts-bedrock
+          name: build
+          command: yarn build
+          working_directory: packages/contracts-bedrock
       - run:
-          name: test forge
-          command: yarn test:forge
-          working_directory: contracts-bedrock
+          name: test
+          command: yarn test
+          working_directory: packages/contracts-bedrock
       - run:
           name: gas snapshot
-          command: forge snapshot
-          working_directory: contracts-bedrock
+          command: forge snapshot && git diff --exit-code
+          working_directory: packages/contracts-bedrock
       - run:
           name: check go bindings
-          command: |
-            make && git diff --exit-code
+          command: make && git diff --exit-code
           working_directory: op-bindings
 
   bedrock-go-tests:
@@ -476,24 +468,13 @@ jobs:
 
   bedrock-integration-tests:
     machine:
-      image: ubuntu-2004:202111-02
+      image: ethereumoptimism/js-builder:nightly
       docker_layer_caching: true
     steps:
       - checkout
-      - run:
-          name: init submodules
-          command: |
-            git submodule sync --recursive
-            git submodule update --recursive --init
       - node/install:
           install-yarn: true
           node-version: '16.13'
-      - run:
-          name: install Foundry
-          command: |
-            curl -L https://foundry.paradigm.xyz | bash
-            source /home/circleci/.bashrc
-            foundryup
       - run:
           name: build typescript
           command: make build-ts
