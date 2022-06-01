@@ -189,14 +189,16 @@ func L1InfoDeposit(seqNumber uint64, block L1Info) (*types.DepositTx, error) {
 		L1BlockHash: block.Hash(),
 		SeqNumber:   seqNumber,
 	}
-
+	// Uses ~30k normal case
+	// Uses ~70k on first transaction
+	// Round up to 75k to ensure that we always have enough gas.
 	return &types.DepositTx{
 		SourceHash: source.SourceHash(),
 		From:       L1InfoDepositerAddress,
 		To:         &L1InfoPredeployAddr,
 		Mint:       nil,
 		Value:      big.NewInt(0),
-		Gas:        99_999_999,
+		Gas:        75_000,
 		Data:       data,
 	}, nil
 }
