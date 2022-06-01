@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.5.25
+
+### Patch Changes
+
+- d18ae135: Updates all ethers versions in response to BN.js bug
+- Updated dependencies [d18ae135]
+  - @eth-optimism/core-utils@0.8.5
+
 ## 0.5.24
 
 ### Patch Changes

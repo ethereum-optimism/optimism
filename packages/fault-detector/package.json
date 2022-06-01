@@ -1,7 +1,7 @@
 {
   "private": true,
   "name": "@eth-optimism/fault-detector",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "[Optimism] Service for detecting faulty L2 output proposals",
   "main": "dist/index",
   "types": "dist/index",
@@ -40,9 +40,9 @@
     "typescript": "^4.6.3"
   },
   "dependencies": {
-    "@eth-optimism/common-ts": "^0.2.4",
-    "@eth-optimism/core-utils": "^0.8.1",
-    "@eth-optimism/sdk": "^1.1.4",
+    "@eth-optimism/common-ts": "^0.2.8",
+    "@eth-optimism/core-utils": "^0.8.5",
+    "@eth-optimism/sdk": "^1.1.6",
     "@ethersproject/abstract-provider": "^5.6.1"
   }
 }
