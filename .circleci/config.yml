@@ -116,6 +116,19 @@ jobs:
           command: yarn test:slither
           working_directory: packages/contracts
 
+  contracts-periphery-slither:
+    docker:
+      - image: ethereumoptimism/js-builder:latest
+    steps:
+      - restore_cache:
+          keys:
+            - v2-cache-yarn-build-{{ .Revision }}
+      - checkout
+      - run:
+          name: Run Slither
+          command: yarn test:slither
+          working_directory: packages/contracts-periphery
+
   contracts-tests:
     docker:
       - image: ethereumoptimism/js-builder:latest
@@ -155,6 +168,10 @@ jobs:
           name: Lint
           command: yarn lint:check
           working_directory: packages/contracts-periphery
+      - run:
+          name: Slither
+          command: yarn test:slither
+          working_directory: packages/contracts
       - run:
           name: Test
           command: yarn test:coverage
