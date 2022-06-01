@@ -140,6 +140,6 @@ contract L2StandardBridge is StandardBridge {
         } else {
             _initiateBridgeERC20(_l2Token, l1Token, _from, _to, _amount, _minGasLimit, _data);
         }
-        emit WithdrawalInitiated(l1Token, _l2Token, msg.sender, _to, _amount, _data);
+        emit WithdrawalInitiated(l1Token, _l2Token, _from, _to, _amount, _data);
     }
 }
