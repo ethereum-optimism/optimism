@@ -67,6 +67,16 @@ contract OptimismPortal {
      */
     address internal constant DEFAULT_L2_SENDER = 0x000000000000000000000000000000000000dEaD;
 
+    /**
+     * @notice The L2 gas limit set when eth is deposited using the receive() function.
+     */
+    uint64 internal constant RECEIVE_DEFAULT_GAS_LIMIT = 100_000;
+
+    /**
+     * @notice Additional gas reserved for clean up after finalizing a transaction withdrawal.
+     */
+    uint256 internal constant FINALIZE_GAS_BUFFER = 20_000;
+
     /*************
      * Variables *
      *************/
@@ -115,7 +125,7 @@ contract OptimismPortal {
      * address aliasing.
      */
     receive() external payable {
-        depositTransaction(msg.sender, msg.value, 100000, false, bytes(""));
+        depositTransaction(msg.sender, msg.value, RECEIVE_DEFAULT_GAS_LIMIT, false, bytes(""));
     }
 
     /**
@@ -222,7 +232,10 @@ contract OptimismPortal {
         finalizedWithdrawals[withdrawalHash] = true;
 
         // Save enough gas so that the call cannot use up all of the gas
-        require(gasleft() >= _gasLimit + 20000, "Insufficient gas to finalize withdrawal.");
+        require(
+            gasleft() >= _gasLimit + FINALIZE_GAS_BUFFER,
+            "Insufficient gas to finalize withdrawal."
+        );
 
         // Set the l2Sender so that other contracts can know which account
         // on L2 is making the withdrawal

@@ -69,6 +69,15 @@ abstract contract StandardBridge {
     );
 
     /*************
+     * Constants *
+     *************/
+
+    /**
+     * @notice The L2 gas limit set when eth is depoisited using the receive() function.
+     */
+    uint32 internal constant RECEIVE_DEFAULT_GAS_LIMIT = 200_000;
+
+    /*************
      * Variables *
      *************/
 
@@ -129,7 +138,7 @@ abstract contract StandardBridge {
      * to L2 through the standard bridge.
      */
     receive() external payable onlyEOA {
-        _initiateBridgeETH(msg.sender, msg.sender, msg.value, 200_000, bytes(""));
+        _initiateBridgeETH(msg.sender, msg.sender, msg.value, RECEIVE_DEFAULT_GAS_LIMIT, bytes(""));
     }
 
     /**
