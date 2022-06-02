@@ -3,6 +3,7 @@ pragma solidity ^0.8.9;
 
 /* Interface Imports */
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "./SupportedInterfaces.sol";
 
 /* Library Imports */
 import { ERC165Checker } from "@openzeppelin/contracts/utils/introspection/ERC165Checker.sol";
@@ -377,8 +378,7 @@ abstract contract StandardBridge {
      * @return True if the token is an OptimismMintableERC20.
      */
     function _isOptimismMintableERC20(address _token) internal view returns (bool) {
-        // 0x1d1d8b63 is mint ^ burn ^ l1Token
-        return ERC165Checker.supportsInterface(_token, 0x1d1d8b63);
+        return ERC165Checker.supportsInterface(_token, type(IL1Token).interfaceId);
     }
 
     /**
