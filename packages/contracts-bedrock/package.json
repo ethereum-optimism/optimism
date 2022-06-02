@@ -1,6 +1,6 @@
 {
   "name": "@eth-optimism/contracts-bedrock",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Contracts for Optimism Specs",
   "main": "dist/index",
   "types": "dist/index",
@@ -40,7 +40,7 @@
     "lint": "yarn lint:fix && yarn lint:check"
   },
   "devDependencies": {
-    "@eth-optimism/core-utils": "^0.7.3",
+    "@eth-optimism/core-utils": "^0.8.6",
     "@foundry-rs/hardhat-forge": "^0.1.5",
     "@nomiclabs/hardhat-ethers": "^2.0.0",
     "@nomiclabs/hardhat-etherscan": "^2.1.3",

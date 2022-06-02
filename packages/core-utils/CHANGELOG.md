@@ -1,5 +1,11 @@
 # @eth-optimism/core-utils
 
+## 0.8.6
+
+### Patch Changes
+
+- 17962ca9: Update geth genesis type
+
 ## 0.8.5
 
 ### Patch Changes
