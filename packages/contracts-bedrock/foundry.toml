@@ -1,7 +1,5 @@
 [default]
 src = 'contracts'
- # We need to build seperate artifacts for forge and hh, because they each expect a different
- # structure for the artifacts directory.
 out = 'forge-artifacts'
 optimizer = true
 optimizer_runs = 999999
@@ -14,4 +12,5 @@ remappings = [
   'forge-std/=node_modules/forge-std/src',
   'ds-test/=node_modules/ds-test/src'
 ]
+extra_output = ['devdoc', 'userdoc', 'metadata', 'storageLayout']
 bytecode_hash = "none"
