@@ -94,7 +94,8 @@ contract OptimismPortal is ResourceMetering {
     /**
      * @notice Accepts value so that users can send ETH directly to this contract and have the
      *         funds be deposited to their address on L2. This is intended as a convenience
-     *         function for EOAs. Contracts should call the depositTransaction() function directly.
+     *         function for EOAs. Contracts should call the depositTransaction() function directly
+     *         otherwise any deposited funds will be lost due to address aliasing.
      */
     receive() external payable {
         depositTransaction(msg.sender, msg.value, RECEIVE_DEFAULT_GAS_LIMIT, false, bytes(""));

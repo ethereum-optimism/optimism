@@ -217,7 +217,7 @@ abstract contract StandardBridge {
 
         emit ETHBridgeFinalized(_from, _to, _amount, _data);
         (bool success, ) = _to.call{ value: _amount }(new bytes(0));
-        require(success, "TransferHelper::safeTransferETH: ETH transfer failed");
+        require(success, "ETH transfer failed.");
     }
 
     /**
