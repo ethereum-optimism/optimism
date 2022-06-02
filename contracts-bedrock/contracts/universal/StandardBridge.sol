@@ -384,7 +384,7 @@ abstract contract StandardBridge {
      * @return True if the token is an OptimismMintableERC20.
      */
     function _isOptimismMintableERC20(address _token) internal view returns (bool) {
-        return ERC165Checker.supportsInterface(_token, type(L1TokenId).interfaceId);
+        return ERC165Checker.supportsInterface(_token, type(IL1Token).interfaceId);
     }
 
     /**
