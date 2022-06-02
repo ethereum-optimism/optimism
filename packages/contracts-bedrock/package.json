@@ -1,6 +1,6 @@
 {
   "name": "@eth-optimism/contracts-bedrock",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Contracts for Optimism Specs",
   "main": "dist/index",
   "types": "dist/index",
@@ -25,13 +25,12 @@
   },
   "scripts": {
     "build:forge": "forge build",
-    "build": "yarn hardhat compile",
-    "test:hh": "yarn hardhat test",
-    "test": "yarn test:forge",
-    "test:forge": "forge test",
+    "build": "hardhat compile && tsc && hardhat typechain",
+    "build:ts": "tsc",
+    "test": "forge test",
     "gas-snapshot": "forge snapshot",
     "slither": "slither .",
-    "clean": "rm -rf ./artifacts ./forge-artifacts ./cache ./coverage ./tsconfig.tsbuildinfo",
+    "clean": "rm -rf ./dist ./artifacts ./forge-artifacts ./cache ./coverage ./tsconfig.tsbuildinfo",
     "lint:ts:check": "eslint .",
     "lint:contracts:check": "yarn solhint -f table 'contracts/**/*.sol'",
     "lint:check": "yarn lint:contracts:check && yarn lint:ts:check",
@@ -41,7 +40,7 @@
     "lint": "yarn lint:fix && yarn lint:check"
   },
   "devDependencies": {
-    "@eth-optimism/core-utils": "^0.7.3",
+    "@eth-optimism/core-utils": "^0.8.6",
     "@foundry-rs/hardhat-forge": "^0.1.5",
     "@nomiclabs/hardhat-ethers": "^2.0.0",
     "@nomiclabs/hardhat-etherscan": "^2.1.3",
