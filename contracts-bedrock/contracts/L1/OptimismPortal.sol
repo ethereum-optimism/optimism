@@ -83,7 +83,7 @@ contract OptimismPortal {
 
     /**
      * @notice Public variable which can be used to read the address of the L2 account which
-     * initated the withdrawal. Can also be used to determine whether or not execution is occuring
+     * initiated the withdrawal. Can also be used to determine whether or not execution is occuring
      * downstream of a call to finalizeWithdrawalTransaction().
      */
     address public l2Sender = DEFAULT_L2_SENDER;
@@ -111,7 +111,8 @@ contract OptimismPortal {
      * @notice Accepts value so that users can send ETH directly to this contract and
      * have the funds be deposited to their address on L2.
      * @dev This is intended as a convenience function for EOAs. Contracts should call the
-     * depositTransaction() function directly.
+     * depositTransaction() function directly otherwise any deposited funds will be lost due to
+     * address aliasing.
      */
     receive() external payable {
         depositTransaction(msg.sender, msg.value, 100000, false, bytes(""));

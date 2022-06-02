@@ -87,7 +87,7 @@ contract L1StandardBridge is StandardBridge {
     /**
      * @dev Deposit an amount of ETH to a recipient's balance on L2. Note that if ETH is sent to a
      *      contract on L2 and the call fails, then that ETH will be locked in the L2StandardBridge.
-     * @param _to L2 address to credit the withdrawal to.
+     * @param _to L2 address to credit the deposit to.
      * @param _minGasLimit Gas limit required to complete the deposit on L2.
      * @param _data Optional data to forward to L2. This data is provided
      *        solely as a convenience for external contracts. Aside from enforcing a maximum
@@ -103,9 +103,9 @@ contract L1StandardBridge is StandardBridge {
 
     /**
      * @dev deposit an amount of the ERC20 to the caller's balance on L2.
-     * @param _l1Token Address of the L1 ERC20 we are depositing
-     * @param _l2Token Address of the L1 respective L2 ERC20
-     * @param _amount Amount of the ERC20 to deposit
+     * @param _l1Token Address of the L1 ERC20 we are depositing.
+     * @param _l2Token Address of the L2 token we are depositing to.
+     * @param _amount Amount of the ERC20 to deposit.
      * @param _minGasLimit limit required to complete the deposit on L2.
      * @param _data Optional data to forward to L2. This data is provided
      *        solely as a convenience for external contracts. Aside from enforcing a maximum
@@ -131,9 +131,9 @@ contract L1StandardBridge is StandardBridge {
 
     /**
      * @dev deposit an amount of ERC20 to a recipient's balance on L2.
-     * @param _l1Token Address of the L1 ERC20 we are depositing
-     * @param _l2Token Address of the L1 respective L2 ERC20
-     * @param _to L2 address to credit the withdrawal to.
+     * @param _l1Token Address of the L1 ERC20 we are depositing.
+     * @param _l2Token Address of the L2 token we are depositing to.
+     * @param _to L2 address to credit the deposit to.
      * @param _amount Amount of the ERC20 to deposit.
      * @param _minGasLimit Gas limit required to complete the deposit on L2.
      * @param _data Optional data to forward to L2. This data is provided

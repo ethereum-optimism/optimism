@@ -43,6 +43,7 @@ contract OptimismMintableTokenFactory {
      * @param _remoteToken Address of the corresponding L1 token.
      * @param _name ERC20 name.
      * @param _symbol ERC20 symbol.
+     * @return Address of the new token.
      */
     function createStandardL2Token(
         address _remoteToken,
