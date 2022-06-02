@@ -226,32 +226,33 @@ func UserDeposits(receipts []*types.Receipt, depositContractAddr common.Address)
 	return out, errs
 }
 
-func BatchesFromEVMTransactions(config *rollup.Config, txLists []types.Transactions) ([]*BatchData, error) {
+func BatchesFromEVMTransactions(config *rollup.Config, txLists []types.Transactions) ([]*BatchData, []error) {
 	var out []*BatchData
+	var errs []error
 	l1Signer := config.L1Signer()
-	for _, txs := range txLists {
-		for _, tx := range txs {
+	for i, txs := range txLists {
+		for j, tx := range txs {
 			if to := tx.To(); to != nil && *to == config.BatchInboxAddress {
 				seqDataSubmitter, err := l1Signer.Sender(tx) // optimization: only derive sender if To is correct
 				if err != nil {
-					// TODO: log error
+					errs = append(errs, fmt.Errorf("invalid signature: tx list: %d, tx: %d, err: %w", i, j, err))
 					continue // bad signature, ignore
 				}
 				// some random L1 user might have sent a transaction to our batch inbox, ignore them
 				if seqDataSubmitter != config.BatchSenderAddress {
-					// TODO: log/record metric
+					errs = append(errs, fmt.Errorf("unauthorized batch submitter: tx list: %d, tx: %d", i, j))
 					continue // not an authorized batch submitter, ignore
 				}
 				batches, err := DecodeBatches(config, bytes.NewReader(tx.Data()))
 				if err != nil {
-					// TODO: log/record metric
+					errs = append(errs, fmt.Errorf("invalid batch: tx list: %d, tx: %d, err: %w", i, j, err))
 					continue
 				}
 				out = append(out, batches...)
 			}
 		}
 	}
-	return out, nil
+	return out, errs
 }
 
 func FilterBatches(config *rollup.Config, epoch rollup.Epoch, minL2Time uint64, maxL2Time uint64, batches []*BatchData) (out []*BatchData) {
