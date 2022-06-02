@@ -198,7 +198,7 @@ func L1InfoDeposit(seqNumber uint64, block L1Info) (*types.DepositTx, error) {
 		To:         &L1InfoPredeployAddr,
 		Mint:       nil,
 		Value:      big.NewInt(0),
-		Gas:        75_000,
+		Gas:        150_000, // TODO: temporary work around. Block 1 seems to require more gas than specced.
 		Data:       data,
 	}, nil
 }
