@@ -652,6 +652,27 @@
     minimatch "^3.1.2"
     strip-json-comments "^3.1.1"
 
+"@eth-optimism/contracts@^0.5.26":
+  version "0.5.26"
+  resolved "https://registry.yarnpkg.com/@eth-optimism/contracts/-/contracts-0.5.26.tgz#60fb8943b6a920bdadf3740674c6e540eb9798a3"
+  integrity sha512-2X59p+V9069sgLloEuCteqUIXOghixCA8jzEvy0ufvqlRD0vpR4jWljmaTzkYUYa4+bjOCeglcQIvdGe5WyTWw==
+  dependencies:
+    "@eth-optimism/core-utils" "0.8.6"
+    "@ethersproject/abstract-provider" "^5.6.1"
+    "@ethersproject/abstract-signer" "^5.6.2"
+
+"@eth-optimism/core-utils@0.8.6", "@eth-optimism/core-utils@^0.8.6":
+  version "0.8.6"
+  resolved "https://registry.yarnpkg.com/@eth-optimism/core-utils/-/core-utils-0.8.6.tgz#a449e9a36c57e00b11ab7231e9002482299f5266"
+  integrity sha512-SbjboVZFGOe2NhRAVz5UFRtRkvusImUtQcSe2Dk/Rv6FUl7s3ECsCsLGizQuKAlPg/lAis3TJVgPhG7k+HPRqA==
+  dependencies:
+    "@ethersproject/abstract-provider" "^5.6.1"
+    "@ethersproject/providers" "^5.6.8"
+    "@ethersproject/transactions" "^5.6.2"
+    bufio "^1.0.7"
+    chai "^4.3.4"
+    ethers "^5.6.8"
+
 "@eth-optimism/core-utils@^0.7.3":
   version "0.7.7"
   resolved "https://registry.yarnpkg.com/@eth-optimism/core-utils/-/core-utils-0.7.7.tgz#c993d45d2be7a1956284621ad18129a88880c658"
