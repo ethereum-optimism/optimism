@@ -1,5 +1,11 @@
 # @eth-optimism/proxyd
 
+## 3.8.7
+
+### Patch Changes
+
+- 6f458607: Bump go-ethereum to 1.10.17
+
 ## 3.8.6
 
 ### Patch Changes

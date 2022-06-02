@@ -1,12 +1,3 @@
 [submodule "tests"]
 	path = l2geth/tests/testdata
 	url = https://github.com/ethereum/tests
-[submodule "packages/contracts-bedrock/lib/forge-std"]
-	path = contracts-bedrock/lib/forge-std
-	url = https://github.com/foundry-rs/forge-std.git
-[submodule "packages/contracts-bedrock/lib/solmate"]
-	path = contracts-bedrock/lib/solmate
-	url = https://github.com/rari-capital/solmate.git
-[submodule "packages/contracts-bedrock/lib/ds-test"]
-	path = contracts-bedrock/lib/ds-test
-	url = https://github.com/dapphub/ds-test.git

@@ -1,6 +1,6 @@
 {
   "name": "@eth-optimism/core-utils",
-  "version": "0.8.4",
+  "version": "0.8.5",
   "description": "[Optimism] Core typescript utilities",
   "main": "dist/index",
   "types": "dist/index",
@@ -9,8 +9,8 @@
   ],
   "scripts": {
     "all": "yarn clean && yarn build && yarn test && yarn lint:fix && yarn lint",
-    "build": "tsc -p tsconfig.build.json",
-    "clean": "rimraf dist/ ./tsconfig.build.tsbuildinfo",
+    "build": "tsc -p tsconfig.json",
+    "clean": "rimraf dist/ ./tsconfig.tsbuildinfo",
     "lint": "yarn lint:fix && yarn lint:check",
     "lint:check": "eslint . --max-warnings=0",
     "lint:fix": "yarn lint:check --fix",
@@ -40,24 +40,6 @@
     "ethers": "^5.6.8"
   },
   "devDependencies": {
-    "@types/chai": "^4.2.18",
-    "@types/mocha": "^8.2.2",
-    "@typescript-eslint/eslint-plugin": "^4.26.0",
-    "@typescript-eslint/parser": "^4.26.0",
-    "babel-eslint": "^10.1.0",
-    "eslint": "^7.27.0",
-    "eslint-config-prettier": "^8.3.0",
-    "eslint-plugin-import": "^2.23.4",
-    "eslint-plugin-jsdoc": "^35.1.2",
-    "eslint-plugin-prefer-arrow": "^1.2.3",
-    "eslint-plugin-prettier": "^3.4.0",
-    "eslint-plugin-react": "^7.24.0",
-    "eslint-plugin-unicorn": "^32.0.1",
-    "lint-staged": "11.0.0",
-    "mocha": "^8.4.0",
-    "nyc": "^15.1.0",
-    "prettier": "^2.3.1",
-    "ts-mocha": "^8.0.0",
-    "typescript": "^4.6.2"
+      "mocha": "^10.0.0"
   }
 }

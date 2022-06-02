@@ -8,4 +8,3 @@ export const defaultTransactionFactory = () => {
     value: BigNumber.from(0),
   }
 }
-

@@ -32,6 +32,8 @@ set -eu
 L1_URL="http://localhost:8545"
 L2_URL="http://localhost:9545"
 
+CONTRACTS_BEDROCK=./packages/contracts-bedrock
+
 # Helper method that waits for a given URL to be up. Can't use
 # cURL's built-in retry logic because connection reset errors
 # are ignored unless you're using a very recent version of cURL
@@ -64,25 +66,27 @@ else
 fi
 
 # Bring up L1.
-cd ops-bedrock
-echo "Bringing up L1..."
-DOCKER_BUILDKIT=1 docker-compose build
-docker-compose up -d l1
-wait_up $L1_URL
-cd ../
+(
+  cd ops-bedrock
+  echo "Bringing up L1..."
+  DOCKER_BUILDKIT=1 docker-compose build
+  docker-compose up -d l1
+  wait_up $L1_URL
+)
 
 # Deploy contracts using Hardhat.
-if [ ! -f ./contracts-bedrock/deployments/devnetL1/OptimismPortal.json ]; then
+if [ ! -f $CONTRACTS_BEDROCK/deployments/devnetL1/OptimismPortal.json ]; then
   echo "Deploying contracts."
-  cd ./contracts-bedrock
-  L2OO_STARTING_BLOCK_TIMESTAMP=$GENESIS_TIMESTAMP yarn hardhat --network devnetL1 deploy
-  cd ../
+  (
+    cd $CONTRACTS_BEDROCK
+    L2OO_STARTING_BLOCK_TIMESTAMP=$GENESIS_TIMESTAMP yarn hardhat --network devnetL1 deploy
+  )
 else
   echo "Contracts already deployed, skipping."
 fi
 
 function get_deployed_bytecode() {
-    echo $(jq -r .deployedBytecode ./contracts-bedrock/artifacts/contracts/$1)
+    echo $(jq -r .deployedBytecode $CONTRACTS_BEDROCK/artifacts/contracts/$1)
 }
 
 # Pull out the necessary bytecode/addresses from the artifacts/deployments.
@@ -92,8 +96,8 @@ OPTIMISM_MINTABLE_TOKEN_FACTORY_BYTECODE=$(get_deployed_bytecode universal/Optim
 L2_STANDARD_BRIDGE_BYTECODE=$(get_deployed_bytecode L2/L2StandardBridge.sol/L2StandardBridge.json)
 L1_BLOCK_INFO_BYTECODE=$(get_deployed_bytecode L2/L1Block.sol/L1Block.json)
 
-DEPOSIT_CONTRACT_ADDRESS=$(jq -r .address < ./contracts-bedrock/deployments/devnetL1/OptimismPortal.json)
-L2OO_ADDRESS=$(jq -r .address < ./contracts-bedrock/deployments/devnetL1/L2OutputOracle.json)
+DEPOSIT_CONTRACT_ADDRESS=$(jq -r .address < $CONTRACTS_BEDROCK/deployments/devnetL1/OptimismPortal.json)
+L2OO_ADDRESS=$(jq -r .address < $CONTRACTS_BEDROCK/deployments/devnetL1/L2OutputOracle.json)
 
 # Replace values in the L2 genesis file. It doesn't matter if this gets run every time,
 # since the replaced values will be the same.
@@ -110,11 +114,12 @@ jq ". | .alloc.\"4200000000000000000000000000000000000015\".code = \"$L1_BLOCK_I
   jq ". | .timestamp = \"$GENESIS_TIMESTAMP\" " > ./.devnet/genesis-l2.json
 
 # Bring up L2.
-cd ops-bedrock
-echo "Bringing up L2..."
-docker-compose up -d l2
-wait_up $L2_URL
-cd ../
+(
+  cd ops-bedrock
+  echo "Bringing up L2..."
+  docker-compose up -d l2
+  wait_up $L2_URL
+)
 
 # Start putting together the rollup config.
 echo "Building rollup config..."
@@ -154,16 +159,16 @@ SEQUENCER_GENESIS_HASH="$(echo $L2_GENESIS | jq -r '.result.hash')"
 SEQUENCER_BATCH_INBOX_ADDRESS="$(cat ./ops-bedrock/rollup.json | jq -r '.batch_inbox_address')"
 
 # Bring up everything else.
-cd ops-bedrock
-echo "Bringing up devnet..."
-L2OO_ADDRESS="$L2OO_ADDRESS" \
-	SEQUENCER_GENESIS_HASH="$SEQUENCER_GENESIS_HASH" \
-	SEQUENCER_BATCH_INBOX_ADDRESS="$SEQUENCER_BATCH_INBOX_ADDRESS" \
-	docker-compose up -d op-proposer op-batcher
+(
+  cd ops-bedrock
+  echo "Bringing up devnet..."
+  L2OO_ADDRESS="$L2OO_ADDRESS" \
+      SEQUENCER_GENESIS_HASH="$SEQUENCER_GENESIS_HASH" \
+      SEQUENCER_BATCH_INBOX_ADDRESS="$SEQUENCER_BATCH_INBOX_ADDRESS" \
+      docker-compose up -d op-proposer op-batcher
 
-echo "Bringin up stateviz webserver..."
-docker-compose up -d stateviz
-
-cd ../
+  echo "Bringin up stateviz webserver..."
+  docker-compose up -d stateviz
+)
 
 echo "Devnet ready."

@@ -1,7 +1,7 @@
 {
   "private": true,
   "name": "@eth-optimism/fault-detector",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "[Optimism] Service for detecting faulty L2 output proposals",
   "main": "dist/index",
   "types": "dist/index",
@@ -11,8 +11,8 @@
   "scripts": {
     "start": "ts-node ./src/service.ts",
     "test:coverage": "echo 'No tests defined.'",
-    "build": "tsc -p tsconfig.build.json",
-    "clean": "rimraf dist/ ./tsconfig.build.tsbuildinfo",
+    "build": "tsc -p tsconfig.json",
+    "clean": "rimraf dist/ ./tsconfig.tsbuildinfo",
     "lint": "yarn lint:fix && yarn lint:check",
     "pre-commit": "lint-staged",
     "lint:fix": "yarn lint:check --fix",
@@ -33,16 +33,14 @@
   },
   "devDependencies": {
     "@types/dateformat": "^5.0.0",
-    "@types/node": "^17.0.23",
     "dateformat": "^4.5.1",
     "ethers": "^5.6.8",
-    "ts-node": "^10.7.0",
-    "typescript": "^4.6.3"
+    "ts-node": "^10.7.0"
   },
   "dependencies": {
-    "@eth-optimism/common-ts": "^0.2.4",
-    "@eth-optimism/core-utils": "^0.8.1",
-    "@eth-optimism/sdk": "^1.1.4",
+    "@eth-optimism/common-ts": "^0.2.8",
+    "@eth-optimism/core-utils": "^0.8.5",
+    "@eth-optimism/sdk": "^1.1.6",
     "@ethersproject/abstract-provider": "^5.6.1"
   }
 }

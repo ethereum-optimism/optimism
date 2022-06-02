@@ -1,5 +1,11 @@
 # @eth-optimism/indexer
 
+## 0.1.1
+
+### Patch Changes
+
+- 6f458607: Bump go-ethereum to 1.10.17
+
 ## 0.1.0
 
 ### Minor Changes
