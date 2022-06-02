@@ -130,7 +130,6 @@ contract L2StandardBridge is StandardBridge {
     /**
      * @notice Handle withdrawals, taking into account the legacy form of ETH
      * when it was represented as an ERC20 at the OVM_ETH contract.
-     * TODO: require(msg.value == _value) for OVM_ETH case?
      */
     function _initiateWithdrawal(
         address _l2Token,
@@ -142,6 +141,7 @@ contract L2StandardBridge is StandardBridge {
     ) internal {
         address l1Token = OptimismMintableERC20(_l2Token).l1Token();
         if (_l2Token == Lib_PredeployAddresses.OVM_ETH) {
+            require(msg.value == _amount, "ETH withdrawals must include sufficient ETH value.");
             _initiateBridgeETH(_from, _to, _amount, _minGasLimit, _data);
         } else {
             _initiateBridgeERC20(_l2Token, l1Token, _from, _to, _amount, _minGasLimit, _data);
