@@ -68,6 +68,16 @@ contract OptimismPortal is ResourceMetering {
     address public l2Sender = DEFAULT_L2_SENDER;
 
     /**
+     * @notice The L2 gas limit set when eth is deposited using the receive() function.
+     */
+    uint64 internal constant RECEIVE_DEFAULT_GAS_LIMIT = 100_000;
+
+    /**
+     * @notice Additional gas reserved for clean up after finalizing a transaction withdrawal.
+     */
+    uint256 internal constant FINALIZE_GAS_BUFFER = 20_000;
+
+    /**
      * @notice A list of withdrawal hashes which have been successfully finalized.
      */
     mapping(bytes32 => bool) public finalizedWithdrawals;
@@ -87,7 +97,7 @@ contract OptimismPortal is ResourceMetering {
      *         function for EOAs. Contracts should call the depositTransaction() function directly.
      */
     receive() external payable {
-        depositTransaction(msg.sender, msg.value, 100000, false, bytes(""));
+        depositTransaction(msg.sender, msg.value, RECEIVE_DEFAULT_GAS_LIMIT, false, bytes(""));
     }
 
     /**
@@ -221,7 +231,7 @@ contract OptimismPortal is ResourceMetering {
         // target contract is at least the gas limit specified by the user. We can do this by
         // enforcing that, at this point in time, we still have gaslimit + buffer gas available.
         require(
-            gasleft() >= _gasLimit + 20000,
+            gasleft() >= _gasLimit + FINALIZE_GAS_BUFFER,
             "OptimismPortal: insufficient gas to finalize withdrawal"
         );
 
