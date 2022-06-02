@@ -3,6 +3,8 @@ pragma solidity 0.8.10;
 
 import { Bridge_Initializer } from "./CommonTest.t.sol";
 import { LibRLP } from "./Lib_RLP.t.sol";
+import "../universal/SupportedInterfaces.sol";
+import { IERC165 } from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 
 contract OptimismMintableTokenFactory_Test is Bridge_Initializer {
     event Mint(address indexed _account, uint256 _amount);
@@ -63,5 +65,25 @@ contract OptimismMintableTokenFactory_Test is Bridge_Initializer {
         vm.expectRevert("Only L2 Bridge can mint and burn");
         vm.prank(address(alice));
         L2Token.burn(alice, 100);
+    }
+
+    function test_erc165_supportsInterface() external {
+        // The assertEq calls in this test are comparing the manual calculation of the iface,
+        // with what is returned by the solidity's type().interfaceId, just to be safe.
+        bytes4 iface1 = bytes4(keccak256("supportsInterface(bytes4)"));
+        assertEq(iface1, type(IERC165).interfaceId);
+        assert(L2Token.supportsInterface(iface1));
+        emit log_bytes32(bytes32(iface1));
+
+        bytes4 iface2 = L2Token.l1Token.selector ^ L2Token.mint.selector ^ L2Token.burn.selector;
+        assertEq(iface2, type(L1TokenId).interfaceId);
+        assert(L2Token.supportsInterface(iface2));
+        emit log_bytes32(bytes32(iface2));
+
+        bytes4 iface3 = L2Token.remoteToken.selector ^ L2Token.mint.selector ^ L2Token.burn.selector;
+        assertEq(iface3, type(RemoteTokenId).interfaceId);
+        assert(L2Token.supportsInterface(iface3));
+        emit log_bytes32(bytes32(iface3));
+
     }
 }
