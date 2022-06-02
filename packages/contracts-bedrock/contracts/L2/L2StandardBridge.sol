@@ -175,6 +175,7 @@ contract L2StandardBridge is StandardBridge {
     ) internal {
         address l1Token = OptimismMintableERC20(_l2Token).l1Token();
         if (_l2Token == Lib_PredeployAddresses.OVM_ETH) {
+            require(msg.value == _amount, "ETH withdrawals must include sufficient ETH value.");
             _initiateBridgeETH(_from, _to, _amount, _minGasLimit, _data);
         } else {
             _initiateBridgeERC20(_l2Token, l1Token, _from, _to, _amount, _minGasLimit, _data);
