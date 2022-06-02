@@ -758,15 +758,20 @@ func (api *PrivateDebugAPI) traceTx(ctx context.Context, message core.Message, v
 				return nil, err
 			}
 		}
-		// Constuct the JavaScript tracer to execute with
-		if tracer, err = tracers.New(*config.Tracer); err != nil {
-			return nil, err
+		if *config.Tracer == "rosetta" {
+			// Use custom optimized Go tracer
+			tracer = tracers.NewRosettaTracer()
+		} else {
+			// Constuct the JavaScript tracer to execute with
+			if tracer, err = tracers.New(*config.Tracer); err != nil {
+				return nil, err
+			}
 		}
 		// Handle timeouts and RPC cancellations
 		deadlineCtx, cancel := context.WithTimeout(ctx, timeout)
 		go func() {
 			<-deadlineCtx.Done()
-			tracer.(*tracers.Tracer).Stop(errors.New("execution timeout"))
+			tracer.(tracers.JSONResultTracer).Stop(errors.New("execution timeout"))
 		}()
 		defer cancel()
 
@@ -804,9 +809,8 @@ func (api *PrivateDebugAPI) traceTx(ctx context.Context, message core.Message, v
 			StructLogs:  ethapi.FormatLogs(tracer.StructLogs()),
 		}, nil
 
-	case *tracers.Tracer:
+	case tracers.JSONResultTracer:
 		return tracer.GetResult()
-
 	default:
 		panic(fmt.Sprintf("bad tracer type %T", tracer))
 	}

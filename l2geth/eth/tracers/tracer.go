@@ -274,6 +274,12 @@ func (cw *contractWrapper) pushObject(vm *duktape.Context) {
 	vm.PutPropString(obj, "getInput")
 }
 
+type JSONResultTracer interface {
+	vm.Tracer
+	Stop(err error)
+	GetResult() (json.RawMessage, error)
+}
+
 // Tracer provides an implementation of Tracer that evaluates a Javascript
 // function for each VM execution step.
 type Tracer struct {
