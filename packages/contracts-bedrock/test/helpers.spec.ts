@@ -1,7 +1,7 @@
 import { expect } from 'chai'
 import { BigNumber } from 'ethers'
 
-import { DepositTx, SourceHashDomain } from '../helpers'
+import { DepositTx, SourceHashDomain } from '../src'
 
 describe('Helpers', () => {
   describe('DepositTx', () => {
