@@ -23,8 +23,8 @@
     "lint:ts:check": "eslint .",
     "lint:contracts:check": "yarn solhint -f table 'contracts/**/*.sol'",
     "lint:check": "yarn lint:contracts:check && yarn lint:ts:check",
-    "lint:ts:fix": "prettier --write .",
-    "lint:contracts:fix": "prettier --write 'contracts/**/*.sol'",
+    "lint:ts:fix": "yarn prettier --write .",
+    "lint:contracts:fix": "yarn prettier --write 'contracts/**/*.sol'",
     "lint:fix": "yarn lint:contracts:fix && yarn lint:ts:fix",
     "lint": "yarn lint:fix && yarn lint:check"
   },
