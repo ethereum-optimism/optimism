@@ -43,8 +43,9 @@ The total amount of guaranteed gas that can be bought in a single L1 block must 
 prevent a denial of service attack against L2 as well as allow the total amount of guaranteed gas
 to be below the L2 block gas limit.
 
-We set a guaranteed gas limit of 2,500,000 gas per L1 block. This corresponds to the L2 gas target
-that we expect.
+We set a guaranteed gas limit of 8,000,000 gas per L1 block and a target of 2,000,000 gas per L1
+block. These numbers enabled occasional large transactions while staying within our target and
+maximum gas usage on l2.
 
 ## 1559 Fee Market
 
