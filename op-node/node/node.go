@@ -2,6 +2,7 @@ package node
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -11,8 +12,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/p2p"
 
 	multierror "github.com/hashicorp/go-multierror"
-
-	"github.com/ethereum-optimism/optimism/op-node/backoff"
 
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/l1"
@@ -47,26 +46,6 @@ type OpNode struct {
 // The OpNode handles incoming gossip
 var _ p2p.GossipIn = (*OpNode)(nil)
 
-func dialRPCClientWithBackoff(ctx context.Context, log log.Logger, addr string) (*rpc.Client, error) {
-	bOff := backoff.Exponential()
-	var ret *rpc.Client
-	err := backoff.Do(10, bOff, func() error {
-		client, err := rpc.DialContext(ctx, addr)
-		if err != nil {
-			if client == nil {
-				return fmt.Errorf("failed to dial address (%s): %w", addr, err)
-			}
-			log.Warn("failed to dial address, but may connect later", "addr", addr, "err", err)
-		}
-		ret = client
-		return nil
-	})
-	if err != nil {
-		return nil, err
-	}
-	return ret, nil
-}
-
 func New(ctx context.Context, cfg *Config, log log.Logger, snapshotLog log.Logger, appVersion string) (*OpNode, error) {
 	if err := cfg.Check(); err != nil {
 		return nil, err
@@ -97,7 +76,7 @@ func (n *OpNode) init(ctx context.Context, cfg *Config, snapshotLog log.Logger) 
 	if err := n.initL1(ctx, cfg); err != nil {
 		return err
 	}
-	if err := n.initL2(ctx, cfg, snapshotLog); err != nil {
+	if err := n.initL2s(ctx, cfg, snapshotLog); err != nil {
 		return err
 	}
 	if err := n.initP2PSigner(ctx, cfg); err != nil {
@@ -123,14 +102,12 @@ func (n *OpNode) initTracer(ctx context.Context, cfg *Config) error {
 }
 
 func (n *OpNode) initL1(ctx context.Context, cfg *Config) error {
-	l1Node, err := dialRPCClientWithBackoff(ctx, n.log, cfg.L1NodeAddr)
+	l1Node, trustRPC, err := cfg.L1.Setup(ctx, n.log)
 	if err != nil {
-		return fmt.Errorf("failed to dial L1 address (%s): %w", cfg.L1NodeAddr, err)
+		return fmt.Errorf("failed to get L1 RPC client: %w", err)
 	}
 
-	// TODO: we may need to authenticate the connection with L1
-	// l1Node.SetHeader()
-	n.l1Source, err = l1.NewSource(l1Node, n.log, l1.DefaultConfig(&cfg.Rollup, cfg.L1TrustRPC))
+	n.l1Source, err = l1.NewSource(l1Node, n.log, l1.DefaultConfig(&cfg.Rollup, trustRPC))
 	if err != nil {
 		return fmt.Errorf("failed to create L1 source: %v", err)
 	}
@@ -153,47 +130,44 @@ func (n *OpNode) initL1(ctx context.Context, cfg *Config) error {
 }
 
 // AttachEngine attaches an engine to the rollup node.
-func (n *OpNode) AttachEngine(ctx context.Context, cfg *Config, addr string, snapshotLog log.Logger) error {
+func (n *OpNode) AttachEngine(ctx context.Context, cfg *Config, tag string, cl *rpc.Client, snapshotLog log.Logger) error {
 	n.l2Lock.Lock()
 	defer n.l2Lock.Unlock()
 
-	l2Node, err := dialRPCClientWithBackoff(ctx, n.log, addr)
+	engLog := n.log.New("engine", tag)
+
+	client, err := l2.NewSource(cl, &cfg.Rollup.Genesis, engLog)
 	if err != nil {
+		cl.Close()
 		return err
 	}
 
-	engLog := n.log.New("engine", addr)
-
-	// TODO: we may need to authenticate the connection with L2
-	// backend.SetHeader()
-	client, err := l2.NewSource(l2Node, &cfg.Rollup.Genesis, engLog)
-	if err != nil {
-		l2Node.Close()
-		return err
-	}
-
-	snap := snapshotLog.New("engine_addr", addr)
+	snap := snapshotLog.New("engine_addr", tag)
 	engine := driver.NewDriver(cfg.Rollup, client, n.l1Source, n, engLog, snap, cfg.Sequencer)
 
-	n.l2Nodes = append(n.l2Nodes, l2Node)
+	n.l2Nodes = append(n.l2Nodes, cl)
 	n.l2Engines = append(n.l2Engines, engine)
 	return nil
 }
 
-func (n *OpNode) initL2(ctx context.Context, cfg *Config, snapshotLog log.Logger) error {
-	for i, addr := range cfg.L2EngineAddrs {
-		if err := n.AttachEngine(ctx, cfg, addr, snapshotLog); err != nil {
-			return fmt.Errorf("failed to attach configured engine %d (%s): %v", i, addr, err)
+func (n *OpNode) initL2s(ctx context.Context, cfg *Config, snapshotLog log.Logger) error {
+	clients, err := cfg.L2s.Setup(ctx, n.log)
+	if err != nil {
+		return fmt.Errorf("failed to setup L2 execution-engine RPC client(s): %v", err)
+	}
+	for i, cl := range clients {
+		if err := n.AttachEngine(ctx, cfg, fmt.Sprintf("eng_%d", i), cl, snapshotLog); err != nil {
+			return fmt.Errorf("failed to attach configured engine %d: %v", i, err)
 		}
 	}
 	return nil
 }
 
 func (n *OpNode) initRPCServer(ctx context.Context, cfg *Config) error {
-	l2Node, err := dialRPCClientWithBackoff(ctx, n.log, cfg.L2NodeAddr)
-	if err != nil {
-		return fmt.Errorf("failed to dial l2 address (%s): %w", cfg.L2NodeAddr, err)
+	if len(n.l2Nodes) == 0 {
+		return errors.New("need at least one L2 node to serve rollup RPC")
 	}
+	l2Node := n.l2Nodes[0]
 
 	// TODO: attach the p2p node ID to the snapshot logger
 	client, err := l2.NewReadOnlySource(l2Node, &cfg.Rollup.Genesis, n.log)
