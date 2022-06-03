@@ -78,8 +78,11 @@ contract OptimismPortal is ResourceMetering {
     }
 
     /**
-     * Accepts deposits of ETH and data, and emits a TransactionDeposited event for use in deriving
-     * deposit transactions.
+     * @notice Accepts deposits of ETH and data, and emits a TransactionDeposited event for use in
+     * deriving deposit transactions. Note that if a deposit is made by a contract, its address will
+     * be aliased when retrieved using `tx.origin` or `msg.sender`. This can lead to loss of funds
+     * in some cases which the depositing contract may not have accounted for. Consider using the
+     * Bridge or CrossDomainMessenger contracts which provide additional safety assurances.
      *
      * @param _to The L2 destination address.
      * @param _value The ETH value to send in the deposit transaction.
