@@ -31,12 +31,6 @@ var (
 		Required: true,
 		EnvVar:   prefixEnvVar("ROLLUP_CONFIG"),
 	}
-	L2EthNodeAddr = cli.StringFlag{
-		Name:     "l2.eth",
-		Usage:    "Address of L2 User JSON-RPC endpoint to use (eth namespace required)",
-		Required: true,
-		EnvVar:   prefixEnvVar("L2_ETH_RPC"),
-	}
 	RPCListenAddr = cli.StringFlag{
 		Name:     "rpc.addr",
 		Usage:    "RPC listening address",
@@ -56,7 +50,14 @@ var (
 		Usage:  "Trust the L1 RPC, sync faster at risk of malicious/buggy RPC providing bad or inconsistent L1 data",
 		EnvVar: prefixEnvVar("L1_TRUST_RPC"),
 	}
-
+	L2EngineJWTSecret = cli.StringSliceFlag{
+		Name: "l2.jwt-secret",
+		Usage: "Paths to JWT secret keys, one per L2 endpoint, in the same order as the provided l2 addresses. " +
+			"Keys are 32 bytes, hex encoded in a file. A new key per endpoint will be generated if left empty.",
+		Required: false,
+		Value:    &cli.StringSlice{},
+		EnvVar:   prefixEnvVar("L2_ENGINE_AUTH"),
+	}
 	SequencingEnabledFlag = cli.BoolFlag{
 		Name:   "sequencing.enabled",
 		Usage:  "enable sequencing",
@@ -92,13 +93,13 @@ var requiredFlags = []cli.Flag{
 	L1NodeAddr,
 	L2EngineAddrs,
 	RollupConfig,
-	L2EthNodeAddr,
 	RPCListenAddr,
 	RPCListenPort,
 }
 
 var optionalFlags = append([]cli.Flag{
 	L1TrustRPC,
+	L2EngineJWTSecret,
 	SequencingEnabledFlag,
 	LogLevelFlag,
 	LogFormatFlag,
