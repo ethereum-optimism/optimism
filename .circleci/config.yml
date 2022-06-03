@@ -63,7 +63,7 @@ jobs:
 
   yarn-monorepo:
     docker:
-      - image: ethereumoptimism/js-builder:nightly
+      - image: ethereumoptimism/js-builder:latest
     steps:
       - restore_cache:
           keys:
@@ -98,8 +98,7 @@ jobs:
             - integration-tests/node_modules
       - run:
           name: Build monorepo
-          command: |
-            yarn build
+          command: yarn build
       - save_cache:
           key: v2-cache-yarn-build-{{ .Revision }}
           paths:
@@ -368,7 +367,7 @@ jobs:
 
   bedrock-solidity:
     docker:
-      - image: ethereumoptimism/js-builder:nightly
+      - image: ethereumoptimism/js-builder:latest
     steps:
       - checkout
       - run:
@@ -468,7 +467,7 @@ jobs:
 
   bedrock-integration-tests:
     machine:
-      image: ethereumoptimism/js-builder:nightly
+      image: ethereumoptimism/js-builder:latest
       docker_layer_caching: true
     steps:
       - checkout
