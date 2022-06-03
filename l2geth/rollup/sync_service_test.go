@@ -957,6 +957,8 @@ func newTestSyncService(isVerifier bool, alloc *common.Address) (*SyncService, c
 type mockClient struct {
 	getEnqueueCallCount            int
 	getEnqueue                     []*types.Transaction
+	getRawTransactionCallCount     int
+	getRawTransaction              []*TransactionResponse
 	getTransactionCallCount        int
 	getTransaction                 []*types.Transaction
 	getEthContextCallCount         int
@@ -974,6 +976,7 @@ func setupMockClient(service *SyncService, responses map[string]interface{}) {
 
 func newMockClient(responses map[string]interface{}) *mockClient {
 	getEnqueueResponses := []*types.Transaction{}
+	getRawTransactionResponses := []*TransactionResponse{}
 	getTransactionResponses := []*types.Transaction{}
 	getEthContextResponses := []*EthContext{}
 	getLatestEthContextResponse := &EthContext{}
@@ -982,6 +985,10 @@ func newMockClient(responses map[string]interface{}) *mockClient {
 	enqueue, ok := responses["GetEnqueue"]
 	if ok {
 		getEnqueueResponses = enqueue.([]*types.Transaction)
+	}
+	getRawTx, ok := responses["GetRawTransaction"]
+	if ok {
+		getRawTransactionResponses = getRawTx.([]*TransactionResponse)
 	}
 	getTx, ok := responses["GetTransaction"]
 	if ok {
@@ -1002,6 +1009,7 @@ func newMockClient(responses map[string]interface{}) *mockClient {
 
 	return &mockClient{
 		getEnqueue:            getEnqueueResponses,
+		getRawTransaction:     getRawTransactionResponses,
 		getTransaction:        getTransactionResponses,
 		getEthContext:         getEthContextResponses,
 		getLatestEthContext:   getLatestEthContextResponse,
@@ -1023,6 +1031,15 @@ func (m *mockClient) GetLatestEnqueue() (*types.Transaction, error) {
 		return &types.Transaction{}, errors.New("enqueue not found")
 	}
 	return m.getEnqueue[len(m.getEnqueue)-1], nil
+}
+
+func (m *mockClient) GetRawTransaction(index uint64, backend Backend) (*TransactionResponse, error) {
+	if m.getRawTransactionCallCount < len(m.getRawTransaction) {
+		tx := m.getRawTransaction[m.getRawTransactionCallCount]
+		m.getRawTransactionCallCount++
+		return tx, nil
+	}
+	return nil, fmt.Errorf("Cannot get raw transaction: mocks (%d), call count (%d)", len(m.getRawTransaction), m.getRawTransactionCallCount)
 }
 
 func (m *mockClient) GetTransaction(index uint64, backend Backend) (*types.Transaction, error) {

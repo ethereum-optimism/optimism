@@ -1,1 +1,1 @@
-export * from './deploy-receiver'
+export * from './install-drippie-config'
