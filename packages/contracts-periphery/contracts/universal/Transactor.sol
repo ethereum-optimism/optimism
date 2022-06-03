@@ -1,19 +1,17 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.9;
 
-import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
+import { Owned } from "@rari-capital/solmate/src/auth/Owned.sol";
 
 /**
  * @title Transactor
  * @notice Transactor is a minimal contract that can send transactions.
  */
-contract Transactor is Ownable {
+contract Transactor is Owned {
     /**
      * @param _owner Initial contract owner.
      */
-    constructor(address _owner) Ownable() {
-        transferOwnership(_owner);
-    }
+    constructor(address _owner) Owned(_owner) {}
 
     /**
      * Sends a CALL to a target address.
