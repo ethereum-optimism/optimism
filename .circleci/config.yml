@@ -365,15 +365,14 @@ jobs:
           command: |
             docker run --init -it -v `pwd`:/input lycheeverse/lychee --verbose --no-progress --exclude-loopback --exclude twitter.com --exclude-mail /input/README.md "/input/specs/**/*.md" "/input/meta/**/*.md" "/input/op-node/**/*.md" || exit 0
 
-  bedrock-solidity:
+  contracts-bedrock-tests:
     docker:
       - image: ethereumoptimism/js-builder:latest
     steps:
+      - restore_cache:
+          keys:
+            - v2-cache-yarn-build-{{ .Revision }}
       - checkout
-      - run:
-          name: install
-          command: yarn install
-          working_directory: packages/contracts-bedrock
       - run:
           name: lint
           command: yarn lint:check
@@ -381,10 +380,6 @@ jobs:
       - run:
           name: slither
           command: yarn slither || exit 0
-          working_directory: packages/contracts-bedrock
-      - run:
-          name: build
-          command: yarn build
           working_directory: packages/contracts-bedrock
       - run:
           name: test
@@ -489,7 +484,6 @@ workflows:
     jobs:
       - yarn-monorepo
       - bedrock-go-tests
-      - bedrock-solidity
       - bedrock-markdown
       - fuzz-op-node
       - go-lint-test-build:
@@ -519,6 +513,9 @@ workflows:
           requires:
             - yarn-monorepo
       - contracts-periphery-tests:
+          requires:
+            - yarn-monorepo
+      - contracts-bedrock-tests:
           requires:
             - yarn-monorepo
       - js-lint-test:
