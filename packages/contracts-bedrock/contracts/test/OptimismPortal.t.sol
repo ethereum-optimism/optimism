@@ -24,6 +24,7 @@ contract OptimismPortal_Test is CommonTest {
     OptimismPortal op;
 
     function setUp() external {
+        _setUp();
         oracle = new L2OutputOracle(
             1800,
             2,
@@ -36,7 +37,7 @@ contract OptimismPortal_Test is CommonTest {
     }
 
     function test_OptimismPortalConstructor() external {
-        assertEq(op.FINALIZATION_PERIOD(), 7 days);
+        assertEq(op.FINALIZATION_PERIOD_SECONDS(), 7 days);
         assertEq(address(op.L2_ORACLE()), address(oracle));
         assertEq(op.l2Sender(), 0x000000000000000000000000000000000000dEaD);
     }
@@ -67,7 +68,7 @@ contract OptimismPortal_Test is CommonTest {
     // Test: depositTransaction fails when contract creation has a non-zero destination address
     function test_OptimismPortalContractCreationReverts() external {
         // contract creation must have a target of address(0)
-        vm.expectRevert(abi.encodeWithSignature("NonZeroCreationTarget()"));
+        vm.expectRevert("OptimismPortal: must send to address(0) when creating a contract");
         op.depositTransaction(address(1), 1, 0, true, hex"");
     }
 
@@ -260,7 +261,7 @@ contract OptimismPortal_Test is CommonTest {
             latestBlockhash: bytes32(0)
         });
 
-        vm.expectRevert("Proposal is not yet finalized.");
+        vm.expectRevert("OptimismPortal: proposal is not yet finalized");
         op.finalizeWithdrawalTransaction(
             0,
             alice,
@@ -282,8 +283,8 @@ contract OptimismPortal_Test is CommonTest {
             latestBlockhash: bytes32(0)
         });
 
-        vm.warp(oracle.nextTimestamp() + op.FINALIZATION_PERIOD());
-        vm.expectRevert(abi.encodeWithSignature("InvalidOutputRootProof()"));
+        vm.warp(oracle.nextTimestamp() + op.FINALIZATION_PERIOD_SECONDS());
+        vm.expectRevert("OptimismPortal: invalid output root proof");
         op.finalizeWithdrawalTransaction(
             0,
             alice,
