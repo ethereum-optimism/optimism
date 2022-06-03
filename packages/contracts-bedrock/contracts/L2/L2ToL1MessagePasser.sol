@@ -2,7 +2,7 @@
 pragma solidity ^0.8.9;
 
 import { WithdrawalVerifier } from "../libraries/Lib_WithdrawalVerifier.sol";
-import { Burner } from "./Burner.sol";
+import { Burn } from "../libraries/Burn.sol";
 
 /**
  * @title L2ToL1MessagePasser
@@ -101,7 +101,7 @@ contract L2ToL1MessagePasser {
      */
     function burn() external {
         uint256 balance = address(this).balance;
-        new Burner{ value: balance }();
+        Burn.eth(balance);
         emit WithdrawerBalanceBurnt(balance);
     }
 }
