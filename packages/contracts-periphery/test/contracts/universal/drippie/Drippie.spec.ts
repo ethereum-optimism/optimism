@@ -96,7 +96,7 @@ describe('Drippie', () => {
             DEFAULT_DRIP_NAME,
             DEFAULT_DRIP_CONFIG
           )
-        ).to.be.revertedWith('Ownable: caller is not the owner')
+        ).to.be.revertedWith('UNAUTHORIZED')
       })
     })
   })
@@ -182,7 +182,7 @@ describe('Drippie', () => {
       it('should revert', async () => {
         await expect(
           Drippie.connect(signer2).status(DEFAULT_DRIP_NAME, 1)
-        ).to.be.revertedWith('Ownable: caller is not the owner')
+        ).to.be.revertedWith('UNAUTHORIZED')
       })
     })
   })
