@@ -1,7 +1,7 @@
 {
   "private": true,
   "name": "@eth-optimism/data-transport-layer",
-  "version": "0.5.31",
+  "version": "0.5.32",
   "description": "[Optimism] Service for shuttling data from L1 into L2",
   "main": "dist/index",
   "types": "dist/index",
@@ -9,7 +9,7 @@
     "dist/index"
   ],
   "scripts": {
-    "clean": "rimraf ./dist ./tsconfig.build.tsbuildinfo",
+    "clean": "rimraf ./dist ./tsconfig.tsbuildinfo",
     "clean:db": "rimraf ./db",
     "lint": "yarn run lint:fix && yarn run lint:check",
     "lint:fix": "yarn lint:check --fix",
@@ -18,7 +18,7 @@
     "start:local": "ts-node ./src/services/run.ts | pino-pretty",
     "test": "hardhat --config test/config/hardhat.config.ts test",
     "test:coverage": "nyc hardhat --config test/config/hardhat.config.ts test && nyc merge .nyc_output coverage.json",
-    "build": "tsc -p tsconfig.build.json",
+    "build": "tsc -p tsconfig.json",
     "pre-commit": "lint-staged"
   },
   "keywords": [
@@ -36,9 +36,9 @@
     "url": "https://github.com/ethereum-optimism/optimism.git"
   },
   "dependencies": {
-    "@eth-optimism/common-ts": "0.2.8",
-    "@eth-optimism/contracts": "0.5.25",
-    "@eth-optimism/core-utils": "0.8.5",
+    "@eth-optimism/common-ts": "0.2.9",
+    "@eth-optimism/contracts": "0.5.26",
+    "@eth-optimism/core-utils": "0.8.6",
     "@ethersproject/providers": "^5.6.8",
     "@ethersproject/transactions": "^5.6.2",
     "@sentry/node": "^6.3.1",
@@ -56,33 +56,16 @@
     "levelup": "^4.4.0"
   },
   "devDependencies": {
-    "@types/chai": "^4.2.18",
-    "@types/chai-as-promised": "^7.1.4",
     "@types/cors": "^2.8.9",
     "@types/levelup": "^4.3.0",
-    "@types/mocha": "^8.2.2",
-    "@typescript-eslint/eslint-plugin": "^4.26.0",
-    "@typescript-eslint/parser": "^4.26.0",
-    "babel-eslint": "^10.1.0",
     "bfj": "^7.0.2",
-    "chai": "^4.3.4",
     "chai-as-promised": "^7.1.1",
-    "eslint": "^7.27.0",
-    "eslint-config-prettier": "^8.3.0",
-    "eslint-plugin-import": "^2.23.4",
-    "eslint-plugin-jsdoc": "^35.1.2",
-    "eslint-plugin-prefer-arrow": "^1.2.3",
-    "eslint-plugin-prettier": "^3.4.0",
-    "eslint-plugin-react": "^7.24.0",
-    "eslint-plugin-unicorn": "^32.0.1",
     "hardhat": "^2.9.6",
-    "lint-staged": "11.0.0",
     "mocha": "^8.4.0",
     "pino-pretty": "^4.7.1",
     "prettier": "^2.3.1",
     "prom-client": "^13.1.0",
     "rimraf": "^3.0.2",
-    "ts-node": "^10.0.0",
-    "typescript": "^4.6.2"
+    "ts-node": "^10.0.0"
   }
 }

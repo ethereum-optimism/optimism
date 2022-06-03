@@ -5,6 +5,8 @@ import (
 	"flag"
 	"fmt"
 	"math/big"
+	"os"
+	"path"
 	"testing"
 	"time"
 
@@ -24,6 +26,7 @@ import (
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/accounts/keystore"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
@@ -59,7 +62,17 @@ const (
 
 var (
 	batchInboxAddress = common.Address{0xff, 0x02}
+	testingJWTSecret  = [32]byte{123}
 )
+
+func writeDefaultJWT(t *testing.T) string {
+	// Sadly the geth node config cannot load JWT secret from memory, it has to be a file
+	jwtPath := path.Join(t.TempDir(), "jwt_secret")
+	if err := os.WriteFile(jwtPath, []byte(hexutil.Encode(testingJWTSecret[:])), 0600); err != nil {
+		t.Fatalf("failed to prepare jwt file for geth: %v", err)
+	}
+	return jwtPath
+}
 
 func defaultSystemConfig(t *testing.T) SystemConfig {
 	return SystemConfig{
@@ -86,23 +99,14 @@ func defaultSystemConfig(t *testing.T) SystemConfig {
 		CliqueSignerDerivationPath: cliqueSignerHDPath,
 		L1InfoPredeployAddress:     derive.L1InfoPredeployAddr,
 		L1BlockTime:                2,
-		L1WsAddr:                   "127.0.0.1",
-		L1WsPort:                   9090,
 		L1ChainID:                  big.NewInt(900),
 		L2ChainID:                  big.NewInt(901),
+		JWTFilePath:                writeDefaultJWT(t),
+		JWTSecret:                  testingJWTSecret,
 		Nodes: map[string]*rollupNode.Config{
-			"verifier": {
-				L1NodeAddr:    "ws://127.0.0.1:9090",
-				L2EngineAddrs: []string{"ws://127.0.0.1:9091"},
-				L2NodeAddr:    "ws://127.0.0.1:9091",
-				L1TrustRPC:    false,
-			},
+			"verifier": {},
 			"sequencer": {
-				L1NodeAddr:    "ws://127.0.0.1:9090",
-				L2EngineAddrs: []string{"ws://127.0.0.1:9092"},
-				L2NodeAddr:    "ws://127.0.0.1:9092",
-				L1TrustRPC:    false,
-				Sequencer:     true,
+				Sequencer: true,
 				// Submitter PrivKey is set in system start for rollup nodes where sequencer = true
 				RPC: node.RPCConfig{
 					ListenAddr: "127.0.0.1",
@@ -786,7 +790,7 @@ func TestWithdrawals(t *testing.T) {
 	header, err = l2Seq.HeaderByNumber(ctx, blockNumber)
 	require.Nil(t, err)
 
-	rpc, err := rpc.Dial(cfg.Nodes["sequencer"].L2NodeAddr)
+	rpc, err := rpc.Dial(sys.nodes["sequencer"].WSEndpoint())
 	require.Nil(t, err)
 	l2client := withdrawals.NewClient(rpc)
 

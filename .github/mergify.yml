@@ -10,6 +10,7 @@ pull_request_rules:
         - "#approved-reviews-by>=2"
         - "#changes-requested-reviews-by=0"
         - "label!=do-not-merge"
+        - "label!=mergify-ignore"
         - or:
           - and:
             - "label!=SR-Risk"
