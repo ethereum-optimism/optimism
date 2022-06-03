@@ -1,0 +1,59 @@
+{
+  "name": "@eth-optimism/contracts-governance",
+  "version": "0.1.0",
+  "author": "Optimism PBC",
+  "license": "MIT",
+  "main": "dist/index",
+  "types": "dist/index",
+  "files": [
+    "dist/**/*.js",
+    "dist/**/*.d.ts",
+    "dist/types/*.ts",
+    "artifacts/**/*.json",
+    "deployments/**/*.json"
+  ],
+  "scripts": {
+    "build": "npx hardhat compile",
+    "test": "npx hardhat test",
+    "test:coverage": "IS_COVERAGE=true npx hardhat coverage",
+    "lint:js:check": "eslint . --max-warnings=0",
+    "lint:contracts:check": "yarn solhint -f table 'contracts/**/*.sol'",
+    "lint:check": "yarn lint:contracts:check && yarn lint:js:check",
+    "lint:js:fix": "eslint --fix .",
+    "lint:contracts:fix": "yarn prettier --write 'contracts/**/*.sol'",
+    "lint:fix": "yarn lint:contracts:fix && yarn lint:js:fix",
+    "lint": "yarn lint:fix && yarn lint:check",
+    "deploy:test": "npx hardhat deploy-token --network optimism",
+    "deploy:kovan": "npx hardhat deploy-token --network 'optimism-kovan'",
+    "deploy:mainnet": "npx hardhat deploy-token --network 'optimism-mainnet'"
+  },
+  "dependencies": {
+    "@eth-optimism/sdk": "^1.0.1",
+    "@ethersproject/hardware-wallets": "^5.6.0",
+    "@nomiclabs/hardhat-ethers": "^2.0.2",
+    "@nomiclabs/hardhat-web3": "^2.0.0",
+    "@nomiclabs/hardhat-etherscan": "^3.0.1",
+    "@nomiclabs/hardhat-waffle": "^2.0.2",
+    "@openzeppelin/contracts": "4.5.0",
+    "ethers": "^5.6.2",
+    "ethereumjs-util": "^7.1.4",
+    "commander": "^9.3.0",
+    "csv-parse": "^5.0.4",
+    "hardhat": "^2.8.4"
+  },
+  "devDependencies": {
+    "@types/mocha": "^9.1.1",
+    "chai": "^4.3.6",
+    "dotenv": "^16.0.0",
+    "eslint": "^8.9.0",
+    "eth-sig-util": "^3.0.1",
+    "ethereum-waffle": "^3.4.0",
+    "hardhat-gas-reporter": "^1.0.7",
+    "prettier": "^2.5.1",
+    "prettier-plugin-solidity": "^1.0.0-beta.19",
+    "solhint": "^3.3.7",
+    "solidity-coverage": "^0.7.19",
+    "ts-node": "^10.7.0",
+    "typescript": "^4.6.3"
+  }
+}
