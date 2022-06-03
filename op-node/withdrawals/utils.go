@@ -41,7 +41,7 @@ func WaitForFinalizationPeriod(ctx context.Context, client *ethclient.Client, po
 		return 0, err
 	}
 
-	finalizationPeriod, err := portal.FINALIZATIONPERIOD(opts)
+	finalizationPeriod, err := portal.FINALIZATIONPERIODSECONDS(opts)
 	if err != nil {
 		return 0, err
 	}
