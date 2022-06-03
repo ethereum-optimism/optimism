@@ -15,6 +15,7 @@
   - [Receipt](#receipt)
   - [Transaction Type](#transaction-type)
   - [Fork Choice Rule](#fork-choice-rule)
+  - [Priority Gas Auction](#priority-gas-auction)
 - [Sequencing](#sequencing)
   - [Sequencing window](#sequencing-window)
   - [Sequencing epoch](#sequencing-epoch)
@@ -139,10 +140,19 @@ Different transaction types can contain different payloads, and be handled diffe
 The fork choice rule is the rule used to determined which block is to be considered as the head of a blockchain. On L1,
 this is determined by the proof of stake rules.
 
-L2 also has a fork choice rule, although the rules vary depending on wether we want the sequencer-confirmed head, the
+L2 also has a fork choice rule, although the rules vary depending on whether we want the sequencer-confirmed head, the
 on-chain-confirmed head, or the on-chain-finalized head.
 
 > TODO: define and link to those concepts
+
+## Priority Gas Auction
+
+Transactions are in ethereum are ordered by the price that the transaction pays to the miner. Priority Gas Auctions
+(PGAs) occur when multiple parties are competing to be the first transaction in a block. Each party continuously
+updates the gas price of their transaction. PGAs occur when there is value in submitting a transaction before other
+parties (like being the first deposit or submitting a deposit before there is not more guaranteed gas remaining).
+PGAs tend to have negative externalities on the network due to a large amount of transactions being submitted in a
+very short amount of time.
 
 ------------------------------------------------------------------------------------------------------------------------
 
