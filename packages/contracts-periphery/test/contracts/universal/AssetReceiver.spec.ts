@@ -80,7 +80,7 @@ describe('AssetReceiver', () => {
           AssetReceiver.connect(signer2)['withdrawETH(address)'](
             signer2.address
           )
-        ).to.be.revertedWith('Ownable: caller is not the owner')
+        ).to.be.revertedWith('UNAUTHORIZED')
       })
     })
   })
@@ -119,7 +119,7 @@ describe('AssetReceiver', () => {
             DEFAULT_RECIPIENT,
             DEFAULT_AMOUNT
           )
-        ).to.be.revertedWith('Ownable: caller is not the owner')
+        ).to.be.revertedWith('UNAUTHORIZED')
       })
     })
   })
@@ -156,7 +156,7 @@ describe('AssetReceiver', () => {
             TestERC20.address,
             DEFAULT_RECIPIENT
           )
-        ).to.be.revertedWith('Ownable: caller is not the owner')
+        ).to.be.revertedWith('UNAUTHORIZED')
       })
     })
   })
@@ -193,7 +193,7 @@ describe('AssetReceiver', () => {
           AssetReceiver.connect(signer2)[
             'withdrawERC20(address,address,uint256)'
           ](TestERC20.address, DEFAULT_RECIPIENT, DEFAULT_AMOUNT)
-        ).to.be.revertedWith('Ownable: caller is not the owner')
+        ).to.be.revertedWith('UNAUTHORIZED')
       })
     })
   })
@@ -236,7 +236,7 @@ describe('AssetReceiver', () => {
             DEFAULT_RECIPIENT,
             DEFAULT_TOKEN_ID
           )
-        ).to.be.revertedWith('Ownable: caller is not the owner')
+        ).to.be.revertedWith('UNAUTHORIZED')
       })
     })
   })
