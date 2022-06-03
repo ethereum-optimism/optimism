@@ -36,16 +36,16 @@ type ctx struct {
 }
 
 type call struct {
-	Type    vm.OpCode      `json:"type"`
-	From    common.Address `json:"from,omitempty"`
-	To      common.Address `json:"to,omitempty"`
-	Input   string         `json:"input,omitempty"`
-	Err     error          `json:"error,omitempty"`
-	Calls   []*call        `json:"calls,omitempty"`
-	GasUsed uint64         `json:"gasUsed,omitempty"`
-	Value   *big.Int       `json:"value,omitempty"`
+	Type    vm.OpCode
+	From    common.Address
+	To      common.Address
+	Input   string
+	Err     error
+	Calls   []*call
+	GasUsed uint64
+	Value   *big.Int
 
-	// accounting fields - not included in the trace result
+	// ephemeral fields for accounting
 	GasIn   uint64
 	GasCost uint64
 	Gas     uint64
@@ -82,7 +82,7 @@ func (r *RosettaTracer) CaptureStart(from common.Address, to common.Address, cre
 	r.ctx.To = to
 	r.ctx.Input = input
 	r.ctx.Gas = gas
-	r.ctx.Value = value
+	r.ctx.Value = new(big.Int).Set(value)
 	return nil
 }
 
@@ -140,7 +140,7 @@ func (r *RosettaTracer) doStep(op vm.OpCode, stk *vm.Stack, mem *vm.Memory, cont
 			Input:   hexutil.Encode(sliceVMMemory(mem, inOff, inEnd)),
 			GasIn:   gas,
 			GasCost: cost,
-			Value:   peekVMStack(stk, 0),
+			Value:   new(big.Int).Set(peekVMStack(stk, 0)),
 		}
 		r.stk = append(r.stk, call)
 		r.descended = true
@@ -180,7 +180,7 @@ func (r *RosettaTracer) doStep(op vm.OpCode, stk *vm.Stack, mem *vm.Memory, cont
 			OutLen:  peekVMStack(stk, 5+off).Int64(),
 		}
 		if op != vm.DELEGATECALL && op != vm.STATICCALL {
-			call.Value = peekVMStack(stk, 2)
+			call.Value = new(big.Int).Set(peekVMStack(stk, 2))
 		}
 		r.stk = append(r.stk, call)
 		r.descended = true
@@ -210,8 +210,7 @@ func (r *RosettaTracer) doStep(op vm.OpCode, stk *vm.Stack, mem *vm.Memory, cont
 				call.GasUsed = call.GasIn - call.GasCost - gas
 				call.GasIn = 0
 				call.GasCost = 0
-				ret := peekVMStack(stk, 0)
-				if ret.Int64() != 0 {
+				if ret := peekVMStack(stk, 0); ret.Int64() != 0 {
 					call.To = common.BigToAddress(ret)
 					call.Output = state.GetCode(call.To)
 				} else if call.Err == nil {
@@ -222,8 +221,7 @@ func (r *RosettaTracer) doStep(op vm.OpCode, stk *vm.Stack, mem *vm.Memory, cont
 				if call.Gas != 0 {
 					call.GasUsed = call.GasIn - call.GasCost + call.Gas - gas
 				}
-				ret := peekVMStack(stk, 0)
-				if ret.Int64() != 0 {
+				if ret := peekVMStack(stk, 0); ret.Int64() != 0 {
 					call.Output = sliceVMMemory(mem, call.OutOff, call.OutOff+call.OutLen)
 				} else if call.Err == nil {
 					call.Err = errors.New("internal failure")
@@ -249,7 +247,7 @@ type Result struct {
 	Output  string         `json:"output"`
 	GasUsed hexutil.Uint64 `json:"gasUsed"`
 	Time    time.Duration  `json:"time"`
-	Err     string         `json:"err"`
+	Err     string         `json:"error"`
 	Calls   []*call        `json:"calls"`
 }
 
