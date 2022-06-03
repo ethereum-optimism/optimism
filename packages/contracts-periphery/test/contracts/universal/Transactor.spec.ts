@@ -74,7 +74,7 @@ describe('AssetReceiver', () => {
               gasLimit: 2_000_000,
             }
           )
-        ).to.be.revertedWith('Ownable: caller is not the owner')
+        ).to.be.revertedWith('UNAUTHORIZED')
       })
     })
   })
@@ -109,7 +109,7 @@ describe('AssetReceiver', () => {
               gasLimit: 2_000_000,
             }
           )
-        ).to.be.revertedWith('Ownable: caller is not the owner')
+        ).to.be.revertedWith('UNAUTHORIZED')
       })
     })
   })

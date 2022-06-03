@@ -90,7 +90,7 @@ func TestOutputAtBlock(t *testing.T) {
 	assert.NoError(t, server.Start())
 	defer server.Stop()
 
-	client, err := dialRPCClientWithBackoff(context.Background(), log, "http://"+server.Addr().String())
+	client, err := dialRPCClientWithBackoff(context.Background(), log, "http://"+server.Addr().String(), nil)
 	assert.NoError(t, err)
 
 	var out []l2.Bytes32
@@ -115,7 +115,7 @@ func TestVersion(t *testing.T) {
 	assert.NoError(t, server.Start())
 	defer server.Stop()
 
-	client, err := dialRPCClientWithBackoff(context.Background(), log, "http://"+server.Addr().String())
+	client, err := dialRPCClientWithBackoff(context.Background(), log, "http://"+server.Addr().String(), nil)
 	assert.NoError(t, err)
 
 	var out string

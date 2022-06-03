@@ -1,9 +1,15 @@
 package opnode
 
 import (
+	"crypto/rand"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
+	"strings"
+
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 
 	"github.com/ethereum/go-ethereum/log"
 
@@ -15,7 +21,7 @@ import (
 )
 
 // NewConfig creates a Config from the provided flags or environment variables.
-func NewConfig(ctx *cli.Context) (*node.Config, error) {
+func NewConfig(ctx *cli.Context, log log.Logger) (*node.Config, error) {
 	rollupConfig, err := NewRollupConfig(ctx)
 	if err != nil {
 		return nil, err
@@ -33,13 +39,21 @@ func NewConfig(ctx *cli.Context) (*node.Config, error) {
 		return nil, fmt.Errorf("failed to load p2p config: %v", err)
 	}
 
+	l1Endpoint, err := NewL1EndpointConfig(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load l1 endpoint info: %v", err)
+	}
+
+	l2Endpoints, err := NewL2EndpointsConfig(ctx, log)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load l2 endpoints info: %v", err)
+	}
+
 	cfg := &node.Config{
-		L1NodeAddr:    ctx.GlobalString(flags.L1NodeAddr.Name),
-		L2EngineAddrs: ctx.GlobalStringSlice(flags.L2EngineAddrs.Name),
-		L2NodeAddr:    ctx.GlobalString(flags.L2EthNodeAddr.Name),
-		L1TrustRPC:    ctx.GlobalBool(flags.L1TrustRPC.Name),
-		Rollup:        *rollupConfig,
-		Sequencer:     enableSequencing,
+		L1:        l1Endpoint,
+		L2s:       l2Endpoints,
+		Rollup:    *rollupConfig,
+		Sequencer: enableSequencing,
 		RPC: node.RPCConfig{
 			ListenAddr: ctx.GlobalString(flags.RPCListenAddr.Name),
 			ListenPort: ctx.GlobalInt(flags.RPCListenPort.Name),
@@ -51,6 +65,48 @@ func NewConfig(ctx *cli.Context) (*node.Config, error) {
 		return nil, err
 	}
 	return cfg, nil
+}
+
+func NewL1EndpointConfig(ctx *cli.Context) (*node.L1EndpointConfig, error) {
+	return &node.L1EndpointConfig{
+		L1NodeAddr: ctx.GlobalString(flags.L1NodeAddr.Name),
+		L1TrustRPC: ctx.GlobalBool(flags.L1TrustRPC.Name),
+	}, nil
+}
+
+func NewL2EndpointsConfig(ctx *cli.Context, log log.Logger) (*node.L2EndpointsConfig, error) {
+	l2Addrs := ctx.GlobalStringSlice(flags.L2EngineAddrs.Name)
+	engineJWTSecrets := ctx.GlobalStringSlice(flags.L2EngineJWTSecret.Name)
+	var secrets [][32]byte
+	for i, fileName := range engineJWTSecrets {
+		fileName = strings.TrimSpace(fileName)
+		if fileName == "" {
+			return nil, fmt.Errorf("file-name of jwt secret %d is empty", i)
+		}
+		if data, err := os.ReadFile(fileName); err == nil {
+			jwtSecret := common.FromHex(strings.TrimSpace(string(data)))
+			if len(jwtSecret) != 32 {
+				return nil, fmt.Errorf("invalid jwt secret in path %s, not 32 hex-formatted bytes", fileName)
+			}
+			var secret [32]byte
+			copy(secret[:], jwtSecret)
+			secrets = append(secrets, secret)
+		} else {
+			log.Warn("Failed to read JWT secret from file, generating a new one now. Configure L2 geth with --authrpc.jwt-secret=" + fmt.Sprintf("%q", fileName))
+			var secret [32]byte
+			if _, err := io.ReadFull(rand.Reader, secret[:]); err != nil {
+				return nil, fmt.Errorf("failed to generate jwt secret: %v", err)
+			}
+			secrets = append(secrets, secret)
+			if err := os.WriteFile(fileName, []byte(hexutil.Encode(secret[:])), 0600); err != nil {
+				return nil, err
+			}
+		}
+	}
+	return &node.L2EndpointsConfig{
+		L2EngineAddrs:      l2Addrs,
+		L2EngineJWTSecrets: secrets,
+	}, nil
 }
 
 func NewRollupConfig(ctx *cli.Context) (*rollup.Config, error) {
