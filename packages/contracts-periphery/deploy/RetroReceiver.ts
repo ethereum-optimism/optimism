@@ -11,7 +11,7 @@ const deployFn: DeployFunction = async (hre) => {
   const { deploy } = await hre.deployments.deterministic('AssetReceiver', {
     salt: hre.ethers.utils.solidityKeccak256(['string'], ['RetroReceiver']),
     from: deployer,
-    args: [config.retroReceiverOwner],
+    args: [config.ddd],
     log: true,
   })
 
