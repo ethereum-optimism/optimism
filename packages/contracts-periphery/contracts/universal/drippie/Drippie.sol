@@ -52,6 +52,7 @@ contract Drippie is AssetReceiver {
         DripStatus status;
         DripConfig config;
         uint256 last;
+        uint256 count;
     }
 
     /**
@@ -275,6 +276,7 @@ contract Drippie is AssetReceiver {
             );
         }
 
+        state.count++;
         emit DripExecuted(_name, _name, msg.sender, block.timestamp);
     }
 }
