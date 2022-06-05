@@ -137,7 +137,7 @@ task('genesis-l2', 'create a genesis config')
 
     // Set a proxy at each predeploy address
     const proxy = await hre.artifacts.readArtifact('Proxy')
-    for (let i = 0; i <= 0xffff; i++) {
+    for (let i = 0; i <= 2048; i++) {
       const num = ethers.utils.hexZeroPad('0x' + i.toString(16), 2)
       const addr = ethers.utils.getAddress(
         ethers.utils.hexConcat([prefix, num])

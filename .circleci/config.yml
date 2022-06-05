@@ -485,24 +485,65 @@ jobs:
           command: make fuzz
           working_directory: op-node
 
-  bedrock-integration-tests:
+  bedrock-devnet-tests:
     machine:
-      image: ethereumoptimism/js-builder:latest
+      image: ubuntu-2004:2022.04.1
       docker_layer_caching: true
     steps:
       - checkout
-      - node/install:
-          install-yarn: true
-          node-version: '16.13'
       - run:
-          name: build typescript
-          command: make build-ts
+          name: install nvm script
+          command: |
+            echo 'export NVM_DIR="/opt/circleci/.nvm"' >> ./load-nvm.sh
+            echo '[ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"' >> ./load-nvm.sh
+            chmod +x ./load-nvm.sh
+            echo './load-nvm.sh' >> ./setup-node.sh
+            echo 'nvm use 14' >> ./setup-node.sh
+            echo 'node --version' >> ./setup-node.sh
+            chmod +x ./setup-node.sh
+      - run:
+          name: install deps
+          command: |
+            ./load-nvm.sh
+            nvm install 14
+            nvm alias default 14
+            npm i -g yarn
+            npm --version
+            node --version
+            yarn --version
+            sudo apt-get update
+            sudo apt-get install -y curl openssh-client git build-essential ca-certificates musl jq gpg lsb-release
+            curl -sL https://go.dev/dl/go1.18.2.linux-amd64.tar.gz -o go1.18.2.linux-amd64.tar.gz 
+            sudo tar -C /usr/local/ -xzf go1.18.2.linux-amd64.tar.gz 
+            curl -L https://foundry.paradigm.xyz | bash
+      - run:
+          name: foundryup
+          command: foundryup
+      - run:
+          name: yarn install
+          command: |
+            ./setup-node.sh
+            nvm use default
+            node -v
+            yarn --frozen-lockfile
+      - run:
+          name: build
+          command: |
+            ./setup-node.sh
+            nvm use default
+            yarn build
       - run:
           name: start devnet
-          command: make devnet-up
+          command: |
+            ./setup-node.sh
+            nvm use default
+            make devnet-up
       - run:
-          name: run itests
-          command: make test-integration
+          name: assert devnet works
+          command: |
+            curl -H 'Content-Type: application/json' 'http://localhost:9545' -d '{"id": 1, "jsonrpc": "2.0", "method": "eth_blockNumber", "params": []}'
+            curl -H 'Content-Type: application/json' 'http://localhost:8545' -d '{"id": 1, "jsonrpc": "2.0", "method": "eth_blockNumber", "params": []}'
+            echo "Devnet is up."
 
   semgrep-scan:
     parameters:
@@ -626,6 +667,7 @@ workflows:
             - yarn-monorepo
       - geth-tests
       - integration-tests
+      - bedrock-devnet-tests
 
   nightly:
     triggers:
