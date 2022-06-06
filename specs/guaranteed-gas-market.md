@@ -128,7 +128,8 @@ If we collect ETH directly we need to add the payable selector. Some projects ar
 this. The alternative is to burn L1 gas. Unfortunately this is quite wastefull. As such, we provide
 two options to buy L2 gas:
 
-1. Burn L1 Gas 2. Send ETH to the Optimism Portal
+1. Burn L1 Gas
+2. Send ETH to the Optimism Portal (Not yet supported)
 
 The payable version (Option 2) will likely have discout applied to it (or conversly, #1 has a
 premium applied to it).
