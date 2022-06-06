@@ -47,6 +47,7 @@
   },
   "dependencies": {
     "@eth-optimism/contracts": "0.5.29",
+    "@eth-optimism/contracts-bedrock": "0.1.3",
     "@eth-optimism/core-utils": "0.9.0",
     "lodash": "^4.17.21",
     "merkletreejs": "^0.2.27",

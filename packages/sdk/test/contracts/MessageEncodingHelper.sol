@@ -1,42 +1,60 @@
 pragma solidity ^0.8.9;
 
+import { CrossDomainHashing } from "@eth-optimism/contracts-bedrock/contracts/libraries/Lib_CrossDomainHashing.sol";
+import { WithdrawalVerifier } from "@eth-optimism/contracts-bedrock/contracts/libraries/Lib_WithdrawalVerifier.sol";
+
 contract MessageEncodingHelper {
-    // This function is copy/pasted from the Lib_CrossDomainUtils library. We have to do this
-    // because the Lib_CrossDomainUtils library does not provide a function for hashing. Instead,
-    // I'm duplicating the functionality of the library here and exposing an additional method that
-    // does the required hashing. This is fragile and will break if we ever update the way that our
-    // contracts hash the encoded data, but at least it works for now.
-    // TODO: Next time we're planning to upgrade the contracts, make sure that the library also
-    // contains a function for hashing.
-    function encodeXDomainCalldata(
-        address _target,
+    function getVersionedEncoding(
+        uint256 _nonce,
         address _sender,
-        bytes memory _message,
-        uint256 _messageNonce
-    ) public pure returns (bytes memory) {
-        return
-            abi.encodeWithSignature(
-                "relayMessage(address,address,bytes,uint256)",
-                _target,
-                _sender,
-                _message,
-                _messageNonce
-            );
+        address _target,
+        uint256 _value,
+        uint256 _gasLimit,
+        bytes memory _data
+    ) external pure returns (bytes memory) {
+        return CrossDomainHashing.getVersionedEncoding(
+            _nonce,
+            _sender,
+            _target,
+            _value,
+            _gasLimit,
+            _data
+        );
     }
 
-    function hashXDomainCalldata(
-        address _target,
+    function getVersionedHash(
+        uint256 _nonce,
         address _sender,
-        bytes memory _message,
-        uint256 _messageNonce
-    ) public pure returns (bytes32) {
-        return keccak256(
-            encodeXDomainCalldata(
-                _target,
-                _sender,
-                _message,
-                _messageNonce
-            )
+        address _target,
+        uint256 _value,
+        uint256 _gasLimit,
+        bytes memory _data
+    ) external pure returns (bytes32) {
+        return CrossDomainHashing.getVersionedHash(
+            _nonce,
+            _sender,
+            _target,
+            _value,
+            _gasLimit,
+            _data
+        );
+    }
+
+    function withdrawalHash(
+        uint256 _nonce,
+        address _sender,
+        address _target,
+        uint256 _value,
+        uint256 _gasLimit,
+        bytes memory _data
+    ) external pure returns (bytes32) {
+        return WithdrawalVerifier.withdrawalHash(
+            _nonce,
+            _sender,
+            _target,
+            _value,
+            _gasLimit,
+            _data
         );
     }
 }
