@@ -9,8 +9,8 @@ import (
 )
 
 type Config struct {
-	L1  L1EndpointSetup
-	L2s L2EndpointsSetup
+	L1 L1EndpointSetup
+	L2 L2EndpointsSetup
 
 	Rollup rollup.Config
 
@@ -36,7 +36,7 @@ type RPCConfig struct {
 
 // Check verifies that the given configuration makes sense
 func (cfg *Config) Check() error {
-	if err := cfg.L2s.Check(); err != nil {
+	if err := cfg.L2.Check(); err != nil {
 		return fmt.Errorf("l2 endpoint config error: %v", err)
 	}
 	if err := cfg.Rollup.Check(); err != nil {
