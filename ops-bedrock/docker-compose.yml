@@ -34,7 +34,7 @@ services:
     entrypoint:  # pass the L2 specific flags by overriding the entry-point and adding extra arguments
       - "/bin/sh"
       - "/entrypoint.sh"
-      - "--authrpc.jwt-secret=/config/test-jwt-secret.txt"
+      - "--authrpc.jwtsecret=/config/test-jwt-secret.txt"
 
   op-node:
     depends_on:
