@@ -66,6 +66,10 @@ type Metrics struct {
 	// the disburser contract.
 	ContractNextDisbursementID prometheus.Gauge
 
+	// ContractNextDepositID tracks the next deposit id expected by the deposit
+	// contract.
+	ContractNextDepositID prometheus.Gauge
+
 	// DisburserBalance tracks Teleportr's disburser account balance.
 	DisburserBalance prometheus.Gauge
 
@@ -115,6 +119,11 @@ func NewMetrics(subsystem string) *Metrics {
 		ContractNextDisbursementID: promauto.NewGauge(prometheus.GaugeOpts{
 			Name:      "contract_next_disbursement_id",
 			Help:      "Next disbursement id expected by the disburser contract",
+			Subsystem: base.SubsystemName(),
+		}),
+		ContractNextDepositID: promauto.NewGauge(prometheus.GaugeOpts{
+			Name:      "contract_next_deposit_id",
+			Help:      "next deposit id expected by the deposit contract",
 			Subsystem: base.SubsystemName(),
 		}),
 		DisburserBalance: promauto.NewGauge(prometheus.GaugeOpts{
