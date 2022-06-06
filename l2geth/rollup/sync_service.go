@@ -16,6 +16,7 @@ import (
 	"github.com/ethereum-optimism/optimism/l2geth/ethdb"
 	"github.com/ethereum-optimism/optimism/l2geth/event"
 	"github.com/ethereum-optimism/optimism/l2geth/log"
+	"github.com/ethereum-optimism/optimism/l2geth/metrics"
 
 	"github.com/ethereum-optimism/optimism/l2geth/core/rawdb"
 	"github.com/ethereum-optimism/optimism/l2geth/core/types"
@@ -36,6 +37,8 @@ var (
 	// with gas price zero and fees are currently enforced
 	errZeroGasPriceTx = errors.New("cannot accept 0 gas price transaction")
 	float1            = big.NewFloat(1)
+	// queueSizeGauge represents the size of the pending transaction queue
+	queueSizeGauge = metrics.NewRegisteredGauge("syncservice/queue", nil)
 )
 
 // SyncService implements the main functionality around pulling in transactions
@@ -68,6 +71,7 @@ type SyncService struct {
 	signer                         types.Signer
 	feeThresholdUp                 *big.Float
 	feeThresholdDown               *big.Float
+	queueSize                      int64
 }
 
 // NewSyncService returns an initialized sync service
@@ -455,6 +459,8 @@ func (s *SyncService) SequencerLoop() {
 		if err := s.updateL1BlockNumber(); err != nil {
 			log.Error("Could not update execution context", "error", err)
 		}
+		// Take a metric of the queue size each poll interval
+		queueSizeGauge.Update(atomic.LoadInt64(&s.queueSize))
 	}
 }
 
@@ -1027,6 +1033,10 @@ func (s *SyncService) ValidateAndApplySequencerTransaction(tx *types.Transaction
 	if tx == nil {
 		return errors.New("nil transaction passed to ValidateAndApplySequencerTransaction")
 	}
+	atomic.AddInt64(&s.queueSize, 1)
+	defer func() {
+		atomic.AddInt64(&s.queueSize, -1)
+	}()
 	s.txLock.Lock()
 	defer s.txLock.Unlock()
 	if err := s.verifyFee(tx); err != nil {
