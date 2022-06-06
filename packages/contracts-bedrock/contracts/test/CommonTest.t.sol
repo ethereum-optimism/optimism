@@ -37,6 +37,9 @@ contract CommonTest is Test {
 
         vm.label(alice, "alice");
         vm.label(bob, "bob");
+
+        // Make sure we have a non-zero base fee
+        vm.fee(1000000000);
     }
 }
 contract L2OutputOracle_Initializer is CommonTest {

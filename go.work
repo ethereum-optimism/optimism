@@ -17,7 +17,7 @@ use (
 	./teleportr
 )
 
-replace github.com/ethereum/go-ethereum v1.10.17 => github.com/ethereum-optimism/reference-optimistic-geth v0.0.0-20220518163235-a32d414959ea
+replace github.com/ethereum/go-ethereum v1.10.17 => github.com/ethereum-optimism/reference-optimistic-geth v0.0.0-20220602230953-dd2e24b3359f
 
 // For local debugging:
-// replace github.com/ethereum/go-ethereum v1.10.17 => ../go-ethereum
+//replace github.com/ethereum/go-ethereum v1.10.17 => ../go-ethereum
