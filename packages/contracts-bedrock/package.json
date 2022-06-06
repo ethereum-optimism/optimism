@@ -9,7 +9,7 @@
     "dist/**/*.js",
     "dist/**/*.d.ts",
     "dist/types/*.ts",
-    "artifacts/src/**/*.json",
+    "artifacts/contracts/**/*.json",
     "deployments/**/*.json",
     "contracts/**/*.sol"
   ],
