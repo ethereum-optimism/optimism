@@ -1,71 +1,145 @@
-import { Contract, Signer } from 'ethers'
-import { ethers } from 'hardhat'
-import { getContractFactory } from '@eth-optimism/contracts'
+import { ethers, Contract } from 'ethers'
+import hre from 'hardhat'
 
 import { expect } from '../setup'
 import {
   CoreCrossChainMessage,
   encodeCrossChainMessage,
   hashCrossChainMessage,
+  encodeV0,
+  encodeV1,
+  hashWithdrawal,
 } from '../../src'
+import { DUMMY_MESSAGE } from '../helpers'
+
+const addVersionToNonce = (
+  nonce: ethers.BigNumber,
+  version: number
+): ethers.BigNumber => {
+  return ethers.BigNumber.from(version).shl(240).or(nonce)
+}
 
 describe('message encoding utils', () => {
-  let signers: Signer[]
+  let MessageEncodingHelper: Contract
   before(async () => {
-    signers = (await ethers.getSigners()) as any
+    MessageEncodingHelper = (await (
+      await hre.ethers.getContractFactory('MessageEncodingHelper')
+    ).deploy()) as any
+  })
+
+  describe('encodeV0', () => {
+    it('should properly encode a v0 message', async () => {
+      const message: CoreCrossChainMessage = DUMMY_MESSAGE
+
+      const actual = encodeV0(message)
+      const expected = await MessageEncodingHelper.getVersionedEncoding(
+        message.messageNonce,
+        message.sender,
+        message.target,
+        message.value,
+        message.minGasLimit,
+        message.message
+      )
+
+      expect(actual).to.equal(expected)
+    })
+  })
+
+  describe('encodeV1', () => {
+    it('should properly encode a v1 message', async () => {
+      const message: CoreCrossChainMessage = {
+        ...DUMMY_MESSAGE,
+        messageNonce: addVersionToNonce(DUMMY_MESSAGE.messageNonce, 1),
+      }
+
+      const actual = encodeV1(message)
+      const expected = await MessageEncodingHelper.getVersionedEncoding(
+        message.messageNonce,
+        message.sender,
+        message.target,
+        message.value,
+        message.minGasLimit,
+        message.message
+      )
+
+      expect(actual).to.equal(expected)
+    })
   })
 
   describe('encodeCrossChainMessage', () => {
-    let Lib_CrossDomainUtils: Contract
-    before(async () => {
-      Lib_CrossDomainUtils = (await getContractFactory(
-        'TestLib_CrossDomainUtils',
-        signers[0]
-      ).deploy()) as any
+    it('should return the v0 encoding for a v0 message', async () => {
+      const message: CoreCrossChainMessage = DUMMY_MESSAGE
+
+      const actual = encodeCrossChainMessage(message)
+      const expected = encodeV0(message)
+
+      expect(actual).to.equal(expected)
     })
 
-    it('should properly encode a message', async () => {
+    it('should return the v1 encoding for a v1 message', async () => {
       const message: CoreCrossChainMessage = {
-        target: '0x' + '11'.repeat(20),
-        sender: '0x' + '22'.repeat(20),
-        message: '0x' + '1234'.repeat(32),
-        messageNonce: 1234,
+        ...DUMMY_MESSAGE,
+        messageNonce: addVersionToNonce(DUMMY_MESSAGE.messageNonce, 1),
       }
 
       const actual = encodeCrossChainMessage(message)
-      const expected = await Lib_CrossDomainUtils.encodeXDomainCalldata(
-        message.target,
-        message.sender,
-        message.message,
-        message.messageNonce
-      )
+      const expected = encodeV1(message)
+
       expect(actual).to.equal(expected)
     })
   })
 
   describe('hashCrossChainMessage', () => {
-    let MessageEncodingHelper: Contract
-    before(async () => {
-      MessageEncodingHelper = (await (
-        await ethers.getContractFactory('MessageEncodingHelper')
-      ).deploy()) as any
+    it('should properly hash a v0 message', async () => {
+      const message: CoreCrossChainMessage = DUMMY_MESSAGE
+
+      const actual = hashCrossChainMessage(message)
+      const expected = await MessageEncodingHelper.getVersionedHash(
+        message.messageNonce,
+        message.sender,
+        message.target,
+        message.value,
+        message.minGasLimit,
+        message.message
+      )
+
+      expect(actual).to.equal(expected)
     })
 
-    it('should properly hash a message', async () => {
+    it('should properly hash a v1 message', async () => {
       const message: CoreCrossChainMessage = {
-        target: '0x' + '11'.repeat(20),
-        sender: '0x' + '22'.repeat(20),
-        message: '0x' + '1234'.repeat(32),
-        messageNonce: 1234,
+        ...DUMMY_MESSAGE,
+        messageNonce: addVersionToNonce(DUMMY_MESSAGE.messageNonce, 1),
       }
 
       const actual = hashCrossChainMessage(message)
-      const expected = await MessageEncodingHelper.hashXDomainCalldata(
-        message.target,
+      const expected = await MessageEncodingHelper.getVersionedHash(
+        message.messageNonce,
         message.sender,
-        message.message,
-        message.messageNonce
+        message.target,
+        message.value,
+        message.minGasLimit,
+        message.message
       )
+
+      expect(actual).to.equal(expected)
+    })
+  })
+
+  describe('hashWithdrawal', () => {
+    it('should properly hash a withdrawal message', async () => {
+      const message: CoreCrossChainMessage = DUMMY_MESSAGE
+
+      const actual = hashWithdrawal(message)
+      const expected = await MessageEncodingHelper.withdrawalHash(
+        message.messageNonce,
+        message.sender,
+        message.target,
+        message.value,
+        message.minGasLimit,
+        message.message
+      )
+
       expect(actual).to.equal(expected)
     })
   })
