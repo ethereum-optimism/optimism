@@ -99,8 +99,6 @@ elif prev_num != now_num :
 # This is not exactly the same as iterating the above function, but quite close for reasonable
 # gas target values. It is also constant time wrt the number of missed blocks which is important
 # for keeping gas usage stable.
-# TODO: Update this to a fixed point exponentiation for constant time results. This loop is currently
-# bounded to take no more than 12 iterations to exit.
 if prev_num + 1 < now_num:
     n = now_num - prev_num - 1
     # Apply 7/8 reduction to prev_basefee for the n empty blocks in a row.
