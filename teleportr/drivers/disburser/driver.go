@@ -33,7 +33,7 @@ var DisbursementFailedTopic = common.HexToHash(
 	"0x9b478c095979d3d3a7d602ffd9ee1f0843204d853558ae0882c8fcc0a5bc78cf",
 )
 
-const MaxDisbursements = 5
+const MaxDisbursements = 15
 
 type Config struct {
 	Name                 string
