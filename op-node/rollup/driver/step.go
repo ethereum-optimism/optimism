@@ -198,10 +198,14 @@ func (d *outputImpl) insertEpoch(ctx context.Context, l2Head eth.L2BlockRef, l2S
 	if err != nil {
 		return l2Head, l2SafeHead, false, fmt.Errorf("failed to fetch transactions from %s: %v", l1Input, err)
 	}
-	batches, err := derive.BatchesFromEVMTransactions(&d.Config, transactions)
-	if err != nil {
-		return l2Head, l2SafeHead, false, fmt.Errorf("failed to fetch create batches from transactions: %w", err)
+	batches, errs := derive.BatchesFromEVMTransactions(&d.Config, transactions)
+	// Some input to derive.BatchesFromEVMTransactions may be invalid and produce errors.
+	// We log the errors, but keep going as this process is designed to be resilient to these errors
+	// and we have defaults in case no valid (or partial) batches were submitted.
+	for i, err := range errs {
+		d.log.Error("Failed to decode batch", "err_idx", i, "err", err)
 	}
+
 	// Make batches contiguous
 	minL2Time := uint64(l2Info.Timestamp) + d.Config.BlockTime
 	maxL2Time := l1Info.Time() + d.Config.MaxSequencerDrift

@@ -30,6 +30,11 @@ services:
     volumes:
       - "l2_data:/db"
       - ${PWD}/../.devnet/genesis-l2.json:/genesis.json
+      - ${PWD}/test-jwt-secret.txt:/config/test-jwt-secret.txt
+    entrypoint:  # pass the L2 specific flags by overriding the entry-point and adding extra arguments
+      - "/bin/sh"
+      - "/entrypoint.sh"
+      - "--authrpc.jwtsecret=/config/test-jwt-secret.txt"
 
   op-node:
     depends_on:
@@ -42,10 +47,10 @@ services:
       op-node
       --l1=ws://l1:8546
       --l2=ws://l2:8546
+      --l2.jwt-secret=/config/test-jwt-secret.txt
       --sequencing.enabled
       --p2p.sequencer.key=/config/p2p-sequencer-key.txt
       --rollup.config=/rollup.json
-      --l2.eth=http://l2:8545
       --rpc.addr=0.0.0.0
       --rpc.port=8545
       --p2p.listen.ip=0.0.0.0
@@ -59,6 +64,7 @@ services:
     volumes:
       - ${PWD}/p2p-sequencer-key.txt:/config/p2p-sequencer-key.txt
       - ${PWD}/p2p-node-key.txt:/config/p2p-node-key.txt
+      - ${PWD}/test-jwt-secret.txt:/config/test-jwt-secret.txt
       - ${PWD}/../.devnet/rollup.json:/rollup.json
       - op_log:/op_log
 

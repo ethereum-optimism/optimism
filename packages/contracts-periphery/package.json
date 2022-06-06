@@ -1,6 +1,6 @@
 {
   "name": "@eth-optimism/contracts-periphery",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "[Optimism] External (out-of-protocol) L1 and L2 smart contracts for Optimism",
   "main": "dist/index",
   "types": "dist/index",
@@ -78,14 +78,13 @@
     "hardhat-gas-reporter": "^1.0.8",
     "istanbul": "^0.4.5",
     "lint-staged": "11.0.0",
-    "mocha": "^8.4.0",
+    "mocha": "^10.0.0",
     "node-fetch": "^2.6.7",
     "prettier": "^2.3.1",
     "prettier-plugin-solidity": "^1.0.0-beta.18",
     "solhint": "^3.3.6",
     "solhint-plugin-prettier": "^0.0.5",
     "solidity-coverage": "^0.7.17",
-    "ts-node": "^10.0.0",
-    "mocha": "^10.0.0"
+    "ts-node": "^10.0.0"
   }
 }

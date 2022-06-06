@@ -6,8 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
-	"strconv"
-	"strings"
 	"time"
 
 	"github.com/ethereum/go-ethereum"
@@ -98,8 +96,8 @@ func initL1Geth(cfg *SystemConfig, wallet *hdwallet.Wallet, genesis *core.Genesi
 	}
 	nodeConfig := &node.Config{
 		Name:        "l1-geth",
-		WSHost:      cfg.L1WsAddr,
-		WSPort:      cfg.L1WsPort,
+		WSHost:      "127.0.0.1",
+		WSPort:      0,
 		WSModules:   []string{"debug", "admin", "eth", "txpool", "net", "rpc", "web3", "personal", "engine"},
 		HTTPModules: []string{"debug", "admin", "eth", "txpool", "net", "rpc", "web3", "personal", "engine"},
 	}
@@ -107,27 +105,21 @@ func initL1Geth(cfg *SystemConfig, wallet *hdwallet.Wallet, genesis *core.Genesi
 	return createGethNode(false, nodeConfig, ethConfig, []*ecdsa.PrivateKey{pk})
 }
 
-func initL2Geth(name, addr string, l2ChainID *big.Int, genesis *core.Genesis) (*node.Node, *eth.Ethereum, error) {
+// init a geth node.
+func initL2Geth(name string, l2ChainID *big.Int, genesis *core.Genesis, jwtPath string) (*node.Node, *eth.Ethereum, error) {
 	ethConfig := &ethconfig.Config{
 		NetworkId: l2ChainID.Uint64(),
 		Genesis:   genesis,
 	}
-	// Parsing ws://127.0.0.1:9091 for "127.0.0.1" and "9091"
-	s := strings.Split(addr, ":")
-	_, host, ok := strings.Cut(s[1], "//")
-	if !ok {
-		return nil, nil, fmt.Errorf("could not find ws host in %s", addr)
-	}
-	port, err := strconv.ParseInt(s[2], 10, 32)
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to parse port from address: %w", err)
-	}
 	nodeConfig := &node.Config{
 		Name:        fmt.Sprintf("l2-geth-%v", name),
-		WSHost:      host,
-		WSPort:      int(port),
+		WSHost:      "127.0.0.1",
+		WSPort:      0,
+		AuthAddr:    "127.0.0.1",
+		AuthPort:    0,
 		WSModules:   []string{"debug", "admin", "eth", "txpool", "net", "rpc", "web3", "personal", "engine"},
 		HTTPModules: []string{"debug", "admin", "eth", "txpool", "net", "rpc", "web3", "personal", "engine"},
+		JWTSecret:   jwtPath,
 	}
 	return createGethNode(true, nodeConfig, ethConfig, nil)
 }

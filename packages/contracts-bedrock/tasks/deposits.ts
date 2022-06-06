@@ -2,7 +2,7 @@ import { task, types } from 'hardhat/config'
 import { Contract, providers, utils, Wallet, Event } from 'ethers'
 import dotenv from 'dotenv'
 
-import { DepositTx } from '../helpers/index'
+import { DepositTx } from '../src'
 
 dotenv.config()
 

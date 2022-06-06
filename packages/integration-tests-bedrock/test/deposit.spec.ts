@@ -5,8 +5,8 @@ import { awaitCondition } from '@eth-optimism/core-utils'
 /* Imports: Internal */
 import { defaultTransactionFactory } from './shared/utils'
 import env from './shared/env'
-import counterArtifact from '../artifacts/Counter.sol/Counter.json'
-import multiDepositorArtifact from '../artifacts/MultiDepositor.sol/MultiDepositor.json'
+import counterArtifact from '../forge-artifacts/Counter.sol/Counter.json'
+import multiDepositorArtifact from '../forge-artifacts/MultiDepositor.sol/MultiDepositor.json'
 
 describe('Deposits', () => {
   let portal: Contract

@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.21
+
+### Patch Changes
+
+- 248f73c5: Rerelease the previous version
+
 ## 0.5.20
 
 ### Patch Changes
