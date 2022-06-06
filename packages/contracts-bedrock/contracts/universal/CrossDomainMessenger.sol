@@ -42,6 +42,8 @@ abstract contract CrossDomainMessenger is
         uint256 gasLimit
     );
 
+    event SentMessageExtraData(address indexed sender, uint256 value);
+
     event RelayedMessage(bytes32 indexed msgHash);
 
     event FailedRelayedMessage(bytes32 indexed msgHash);
@@ -180,6 +182,7 @@ abstract contract CrossDomainMessenger is
         );
 
         emit SentMessage(_target, msg.sender, _message, messageNonce(), _minGasLimit);
+        emit SentMessageExtraData(msg.sender, msg.value);
 
         unchecked {
             ++msgNonce;

@@ -134,6 +134,11 @@ contract Messenger_Initializer is L2OutputOracle_Initializer {
         uint256 gasLimit
     );
 
+    event SentMessageExtraData(
+        address indexed sender,
+        uint256 value
+    );
+
     event WithdrawalInitiated(
         uint256 indexed nonce,
         address indexed sender,
