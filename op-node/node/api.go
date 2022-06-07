@@ -219,7 +219,7 @@ func (n *nodeAPI) GetBatchBundle(ctx context.Context, req *BatchBundleRequest) (
 
 	var pruneCount int
 	for {
-		if !bundleBuilder.HasNonEmptyCandidate() {
+		if !bundleBuilder.HasCandidate() {
 			return bundleBuilder.Response(nil), nil
 		}
 
@@ -236,7 +236,7 @@ func (n *nodeAPI) GetBatchBundle(ctx context.Context, req *BatchBundleRequest) (
 		// occur since our initial greedy estimate has a very small, bounded
 		// error tolerance, so simply remove the last block and try again.
 		if bundleSize > uint64(req.MaxSize) {
-			bundleBuilder.PruneLastNonEmpty()
+			bundleBuilder.PruneLast()
 			pruneCount++
 			continue
 		}

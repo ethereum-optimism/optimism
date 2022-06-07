@@ -1,5 +1,21 @@
 # @eth-optimism/common-ts
 
+## 0.2.9
+
+### Patch Changes
+
+- Updated dependencies [17962ca9]
+  - @eth-optimism/core-utils@0.8.6
+
+## 0.2.8
+
+### Patch Changes
+
+- f16383f2: Have legacy BaseService metrics bind to 0.0.0.0 by default
+- d18ae135: Updates all ethers versions in response to BN.js bug
+- Updated dependencies [d18ae135]
+  - @eth-optimism/core-utils@0.8.5
+
 ## 0.2.7
 
 ### Patch Changes

@@ -1,7 +1,7 @@
 #/bin/bash
 set -eu
 
-CONTRACTS_PATH="../contracts-bedrock/"
+CONTRACTS_PATH="../packages/contracts-bedrock/"
 
 
 if [ "$#" -ne 2 ]; then

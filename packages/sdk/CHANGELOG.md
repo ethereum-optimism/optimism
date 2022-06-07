@@ -1,5 +1,22 @@
 # @eth-optimism/sdk
 
+## 1.1.7
+
+### Patch Changes
+
+- Updated dependencies [17962ca9]
+  - @eth-optimism/core-utils@0.8.6
+  - @eth-optimism/contracts@0.5.26
+
+## 1.1.6
+
+### Patch Changes
+
+- d18ae135: Updates all ethers versions in response to BN.js bug
+- Updated dependencies [d18ae135]
+  - @eth-optimism/contracts@0.5.25
+  - @eth-optimism/core-utils@0.8.5
+
 ## 1.1.5
 
 ### Patch Changes

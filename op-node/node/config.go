@@ -9,15 +9,8 @@ import (
 )
 
 type Config struct {
-	// L1 and L2 nodes
-	L1NodeAddr    string   // Address of L1 User JSON-RPC endpoint to use (eth namespace required)
-	L2EngineAddrs []string // Addresses of L2 Engine JSON-RPC endpoints to use (engine and eth namespace required)
-	L2NodeAddr    string   // Address of L2 User JSON-RPC endpoint to use (eth namespace required)
-
-	// L1TrustRPC: if we trust the L1 RPC we do not have to validate L1 response contents like headers
-	// against block hashes, or cached transaction sender addresses.
-	// Thus we can sync faster at the risk of the source RPC being wrong.
-	L1TrustRPC bool
+	L1 L1EndpointSetup
+	L2 L2EndpointSetup
 
 	Rollup rollup.Config
 
@@ -43,6 +36,9 @@ type RPCConfig struct {
 
 // Check verifies that the given configuration makes sense
 func (cfg *Config) Check() error {
+	if err := cfg.L2.Check(); err != nil {
+		return fmt.Errorf("l2 endpoint config error: %v", err)
+	}
 	if err := cfg.Rollup.Check(); err != nil {
 		return fmt.Errorf("rollup config error: %v", err)
 	}

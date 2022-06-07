@@ -3,7 +3,7 @@ module github.com/ethereum-optimism/optimism/op-exporter
 go 1.18
 
 require (
-	github.com/ethereum/go-ethereum v1.10.16
+	github.com/ethereum/go-ethereum v1.10.17
 	github.com/prometheus/client_golang v1.11.0
 	github.com/sirupsen/logrus v1.7.0
 	github.com/ybbus/jsonrpc v2.1.2+incompatible
@@ -42,7 +42,6 @@ require (
 	google.golang.org/protobuf v1.27.1 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
-	gopkg.in/yaml.v3 v3.0.0-20210107192922-496545a6307b // indirect
 	k8s.io/api v0.21.2 // indirect
 	k8s.io/klog/v2 v2.8.0 // indirect
 	k8s.io/utils v0.0.0-20201110183641-67b214c5f920 // indirect

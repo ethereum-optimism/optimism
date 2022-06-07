@@ -63,14 +63,16 @@ func main() {
 
 func RollupNodeMain(ctx *cli.Context) error {
 	log.Info("Initializing Rollup Node")
-	cfg, err := opnode.NewConfig(ctx)
-	if err != nil {
-		log.Error("Unable to create the rollup node config", "error", err)
-		return err
-	}
 	logCfg, err := opnode.NewLogConfig(ctx)
 	if err != nil {
 		log.Error("Unable to create the log config", "error", err)
+		return err
+	}
+	log := logCfg.NewLogger()
+
+	cfg, err := opnode.NewConfig(ctx, log)
+	if err != nil {
+		log.Error("Unable to create the rollup node config", "error", err)
 		return err
 	}
 	snapshotLog, err := opnode.NewSnapshotLogger(ctx)
@@ -79,7 +81,7 @@ func RollupNodeMain(ctx *cli.Context) error {
 		return err
 	}
 
-	n, err := node.New(context.Background(), cfg, logCfg.NewLogger(), snapshotLog, VersionWithMeta)
+	n, err := node.New(context.Background(), cfg, log, snapshotLog, VersionWithMeta)
 	if err != nil {
 		log.Error("Unable to create the rollup node", "error", err)
 		return err
