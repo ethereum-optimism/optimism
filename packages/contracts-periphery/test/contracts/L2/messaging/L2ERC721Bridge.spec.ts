@@ -1,15 +1,14 @@
-/* External Imports */
+/* Imports */
 import { ethers } from 'hardhat'
-import { Signer, ContractFactory, Contract } from 'ethers'
+import { Signer, ContractFactory, Contract, constants } from 'ethers'
 import { smock, FakeContract, MockContract } from '@defi-wonderland/smock'
+import ICrossDomainMessenger from '@eth-optimism/contracts/artifacts/contracts/libraries/bridge/ICrossDomainMessenger.sol/ICrossDomainMessenger.json'
 
-/* Internal Imports */
 import { expect } from '../../../setup'
 import {
   NON_NULL_BYTES32,
   NON_ZERO_ADDRESS,
 } from '../../../../../contracts/test/helpers'
-import ICrossDomainMessenger from '../../../../artifacts/@eth-optimism/contracts/libraries/bridge/ICrossDomainMessenger.sol/ICrossDomainMessenger.json'
 
 const ERR_INVALID_MESSENGER = 'OVM_XCHAIN: messenger contract unauthenticated'
 const ERR_INVALID_X_DOMAIN_MSG_SENDER =
@@ -114,17 +113,29 @@ describe('L2ERC721Bridge', () => {
         DUMMY_L1BRIDGE_ADDRESS
       )
 
-      await L2ERC721Bridge.connect(l2MessengerImpersonator).finalizeDeposit(
-        DUMMY_L1ERC721_ADDRESS,
-        NonCompliantERC721.address,
-        aliceAddress,
-        bobsAddress,
-        TOKEN_ID,
-        NON_NULL_BYTES32,
-        {
-          from: Fake__L2CrossDomainMessenger.address,
-        }
+      // A failed attempt to finalize the deposit causes a DepositFailed event to be emitted.
+      await expect(
+        L2ERC721Bridge.connect(l2MessengerImpersonator).finalizeDeposit(
+          DUMMY_L1ERC721_ADDRESS,
+          NonCompliantERC721.address,
+          aliceAddress,
+          bobsAddress,
+          TOKEN_ID,
+          NON_NULL_BYTES32,
+          {
+            from: Fake__L2CrossDomainMessenger.address,
+          }
+        )
       )
+        .to.emit(L2ERC721Bridge, 'DepositFailed')
+        .withArgs(
+          DUMMY_L1ERC721_ADDRESS,
+          NonCompliantERC721.address,
+          aliceAddress,
+          bobsAddress,
+          TOKEN_ID,
+          NON_NULL_BYTES32
+        )
 
       const withdrawalCallToMessenger =
         Fake__L2CrossDomainMessenger.sendMessage.getCall(0)
@@ -151,18 +162,44 @@ describe('L2ERC721Bridge', () => {
         DUMMY_L1BRIDGE_ADDRESS
       )
 
-      await L2ERC721Bridge.connect(l2MessengerImpersonator).finalizeDeposit(
-        DUMMY_L1ERC721_ADDRESS,
-        L2ERC721.address,
-        aliceAddress,
-        bobsAddress,
-        TOKEN_ID,
-        NON_NULL_BYTES32,
-        {
-          from: Fake__L2CrossDomainMessenger.address,
-        }
+      // Assert that nobody owns the L2 token initially
+      await expect(L2ERC721.ownerOf(TOKEN_ID)).to.be.revertedWith(
+        'ERC721: owner query for nonexistent token'
       )
 
+      // Successfully finalizes the deposit.
+      const expectedResult = expect(
+        L2ERC721Bridge.connect(l2MessengerImpersonator).finalizeDeposit(
+          DUMMY_L1ERC721_ADDRESS,
+          L2ERC721.address,
+          aliceAddress,
+          bobsAddress,
+          TOKEN_ID,
+          NON_NULL_BYTES32,
+          {
+            from: Fake__L2CrossDomainMessenger.address,
+          }
+        )
+      )
+
+      // Depositing causes a DepositFinalized event to be emitted.
+      await expectedResult.to
+        .emit(L2ERC721Bridge, 'DepositFinalized')
+        .withArgs(
+          DUMMY_L1ERC721_ADDRESS,
+          L2ERC721.address,
+          aliceAddress,
+          bobsAddress,
+          TOKEN_ID,
+          NON_NULL_BYTES32
+        )
+
+      // Causes a Transfer event to be emitted from the L2 ERC721.
+      await expectedResult.to
+        .emit(L2ERC721, 'Transfer')
+        .withArgs(constants.AddressZero, bobsAddress, TOKEN_ID)
+
+      // Bob is now the owner of the L2 ERC721
       const tokenIdOwner = await L2ERC721.ownerOf(TOKEN_ID)
       tokenIdOwner.should.equal(bobsAddress)
     })
@@ -213,15 +250,36 @@ describe('L2ERC721Bridge', () => {
     })
 
     it('withdraw() burns and sends the correct withdrawal message', async () => {
-      await L2ERC721Bridge.connect(alice).withdraw(
-        Mock__L2Token.address,
-        TOKEN_ID,
-        0,
-        NON_NULL_BYTES32
+      // Make sure that alice begins as the NFT owner
+      expect(await Mock__L2Token.ownerOf(TOKEN_ID)).to.equal(aliceAddress)
+
+      // Initiates a successful withdrawal.
+      const expectedResult = expect(
+        L2ERC721Bridge.connect(alice).withdraw(
+          Mock__L2Token.address,
+          TOKEN_ID,
+          0,
+          NON_NULL_BYTES32
+        )
       )
 
-      const withdrawalCallToMessenger =
-        Fake__L2CrossDomainMessenger.sendMessage.getCall(0)
+      // A successful withdrawal causes a WithdrawalInitiated event to be emitted from the L2 ERC721 Bridge.
+      await expectedResult.to
+        .emit(L2ERC721Bridge, 'WithdrawalInitiated')
+        .withArgs(
+          DUMMY_L1ERC721_ADDRESS,
+          Mock__L2Token.address,
+          aliceAddress,
+          aliceAddress,
+          TOKEN_ID,
+          NON_NULL_BYTES32
+        )
+
+      // A withdrawal also causes a Transfer event to be emitted the L2 ERC721, signifying that the L2 token
+      // has been burnt.
+      await expectedResult.to
+        .emit(Mock__L2Token, 'Transfer')
+        .withArgs(aliceAddress, constants.AddressZero, TOKEN_ID)
 
       // Assert Alice's balance went down
       const aliceBalance = await Mock__L2Token.balanceOf(aliceAddress)
@@ -231,6 +289,9 @@ describe('L2ERC721Bridge', () => {
       await expect(Mock__L2Token.ownerOf(TOKEN_ID)).to.be.revertedWith(
         'ERC721: owner query for nonexistent token'
       )
+
+      const withdrawalCallToMessenger =
+        Fake__L2CrossDomainMessenger.sendMessage.getCall(0)
 
       // Assert the correct cross-chain call was sent:
       // Message should be sent to the L1ERC721Bridge on L1
@@ -265,15 +326,37 @@ describe('L2ERC721Bridge', () => {
     })
 
     it('withdrawTo() burns and sends the correct withdrawal message', async () => {
-      await L2ERC721Bridge.connect(alice).withdrawTo(
-        Mock__L2Token.address,
-        bobsAddress,
-        TOKEN_ID,
-        0,
-        NON_NULL_BYTES32
+      // Make sure that alice begins as the NFT owner
+      expect(await Mock__L2Token.ownerOf(TOKEN_ID)).to.equal(aliceAddress)
+
+      // Initiates a successful withdrawal.
+      const expectedResult = expect(
+        L2ERC721Bridge.connect(alice).withdrawTo(
+          Mock__L2Token.address,
+          bobsAddress,
+          TOKEN_ID,
+          0,
+          NON_NULL_BYTES32
+        )
       )
-      const withdrawalCallToMessenger =
-        Fake__L2CrossDomainMessenger.sendMessage.getCall(0)
+
+      // A successful withdrawal causes a WithdrawalInitiated event to be emitted from the L2 ERC721 Bridge.
+      await expectedResult.to
+        .emit(L2ERC721Bridge, 'WithdrawalInitiated')
+        .withArgs(
+          DUMMY_L1ERC721_ADDRESS,
+          Mock__L2Token.address,
+          aliceAddress,
+          bobsAddress,
+          TOKEN_ID,
+          NON_NULL_BYTES32
+        )
+
+      // A withdrawal also causes a Transfer event to be emitted the L2 ERC721, signifying that the L2 token
+      // has been burnt.
+      await expectedResult.to
+        .emit(Mock__L2Token, 'Transfer')
+        .withArgs(aliceAddress, constants.AddressZero, TOKEN_ID)
 
       // Assert Alice's balance went down
       const aliceBalance = await Mock__L2Token.balanceOf(aliceAddress)
@@ -283,6 +366,9 @@ describe('L2ERC721Bridge', () => {
       await expect(Mock__L2Token.ownerOf(TOKEN_ID)).to.be.revertedWith(
         'ERC721: owner query for nonexistent token'
       )
+
+      const withdrawalCallToMessenger =
+        Fake__L2CrossDomainMessenger.sendMessage.getCall(0)
 
       // Assert the correct cross-chain call was sent.
       // Message should be sent to the L1ERC721Bridge on L1
