@@ -9,7 +9,7 @@ import { IERC721 } from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 /* Library Imports */
 import {
     CrossDomainEnabled
-} from "@eth-optimism/contracts/libraries/bridge/CrossDomainEnabled.sol";
+} from "@eth-optimism/contracts/contracts/libraries/bridge/CrossDomainEnabled.sol";
 import { Address } from "@openzeppelin/contracts/utils/Address.sol";
 
 /**

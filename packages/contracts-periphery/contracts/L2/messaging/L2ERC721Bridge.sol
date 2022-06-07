@@ -7,10 +7,10 @@ import { IL1ERC721Bridge } from "../../L1/messaging/IL1ERC721Bridge.sol";
 import { IL2ERC721Bridge } from "./IL2ERC721Bridge.sol";
 
 /* Library Imports */
-import { ERC165Checker } from "@openzeppelin/contracts/utils/introspection/ERC165Checker.sol";
 import {
     CrossDomainEnabled
-} from "@eth-optimism/contracts/libraries/bridge/CrossDomainEnabled.sol";
+} from "@eth-optimism/contracts/contracts/libraries/bridge/CrossDomainEnabled.sol";
+import { ERC165Checker } from "@openzeppelin/contracts/utils/introspection/ERC165Checker.sol";
 import { Address } from "@openzeppelin/contracts/utils/Address.sol";
 
 /* Contract Imports */
