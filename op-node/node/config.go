@@ -10,7 +10,7 @@ import (
 
 type Config struct {
 	L1 L1EndpointSetup
-	L2 L2EndpointsSetup
+	L2 L2EndpointSetup
 
 	Rollup rollup.Config
 

@@ -132,15 +132,13 @@ func (n *OpNode) initL2(ctx context.Context, cfg *Config, snapshotLog log.Logger
 		return fmt.Errorf("failed to setup L2 execution-engine RPC client: %w", err)
 	}
 	n.l2Node = rpcClient
-	// TODO: New tag on the log?. Note: must be key-value pair.
-	engLog := n.log.New()
-	client, err := l2.NewSource(rpcClient, &cfg.Rollup.Genesis, engLog)
+	client, err := l2.NewSource(rpcClient, &cfg.Rollup.Genesis, n.log)
 	if err != nil {
 		return err
 	}
 
 	snap := snapshotLog.New()
-	n.l2Engine = driver.NewDriver(cfg.Rollup, client, n.l1Source, n, engLog, snap, cfg.Sequencer)
+	n.l2Engine = driver.NewDriver(cfg.Rollup, client, n.l1Source, n, n.log, snap, cfg.Sequencer)
 
 	return nil
 }

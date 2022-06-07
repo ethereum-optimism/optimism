@@ -10,7 +10,7 @@ import (
 	"github.com/ethereum/go-ethereum/rpc"
 )
 
-type L2EndpointsSetup interface {
+type L2EndpointSetup interface {
 	// Setup a RPC client to a L2 execution engine to process rollup blocks with.
 	Setup(ctx context.Context, log log.Logger) (cl *rpc.Client, err error)
 	Check() error
@@ -29,7 +29,7 @@ type L2EndpointConfig struct {
 	L2EngineJWTSecret [32]byte
 }
 
-var _ L2EndpointsSetup = (*L2EndpointConfig)(nil)
+var _ L2EndpointSetup = (*L2EndpointConfig)(nil)
 
 func (cfg *L2EndpointConfig) Check() error {
 	if cfg.L2EngineAddr == "" {
@@ -64,7 +64,7 @@ func (p *PreparedL2Endpoints) Check() error {
 	return nil
 }
 
-var _ L2EndpointsSetup = (*PreparedL2Endpoints)(nil)
+var _ L2EndpointSetup = (*PreparedL2Endpoints)(nil)
 
 func (p *PreparedL2Endpoints) Setup(ctx context.Context, log log.Logger) (*rpc.Client, error) {
 	return p.Client, nil

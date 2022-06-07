@@ -44,14 +44,14 @@ func NewConfig(ctx *cli.Context, log log.Logger) (*node.Config, error) {
 		return nil, fmt.Errorf("failed to load l1 endpoint info: %v", err)
 	}
 
-	l2Endpoints, err := NewL2EndpointConfig(ctx, log)
+	l2Endpoint, err := NewL2EndpointConfig(ctx, log)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load l2 endpoints info: %v", err)
 	}
 
 	cfg := &node.Config{
 		L1:        l1Endpoint,
-		L2:        l2Endpoints,
+		L2:        l2Endpoint,
 		Rollup:    *rollupConfig,
 		Sequencer: enableSequencing,
 		RPC: node.RPCConfig{
