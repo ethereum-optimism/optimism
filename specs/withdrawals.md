@@ -106,6 +106,7 @@ interface L2ToL1MessagePasser {
 
 When a contract makes a deposit, the sender's address is [aliased](./deposits.md#address-aliasing). The same is not true
 of withdrawals, which do not modify the sender's address. The difference is that:
+
 - on L2, the deposit sender's address is returned by the `CALLER` opcode, meaning a contract cannot easily tell if the
   call originated on L1 or L2, whereas
 - on L1, the withdrawal sender's address is accessed by calling the `l2Sender`() function on the `OptimismPortal`
