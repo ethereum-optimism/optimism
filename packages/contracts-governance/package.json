@@ -29,17 +29,17 @@
   },
   "dependencies": {
     "@eth-optimism/sdk": "^1.0.1",
-    "@ethersproject/hardware-wallets": "^5.6.0",
+    "@ethersproject/hardware-wallets": "^5.6.1",
     "@nomiclabs/hardhat-ethers": "^2.0.2",
-    "@nomiclabs/hardhat-web3": "^2.0.0",
     "@nomiclabs/hardhat-etherscan": "^3.0.1",
     "@nomiclabs/hardhat-waffle": "^2.0.2",
+    "@nomiclabs/hardhat-web3": "^2.0.0",
     "@openzeppelin/contracts": "4.5.0",
-    "ethers": "^5.6.2",
-    "ethereumjs-util": "^7.1.4",
     "commander": "^9.3.0",
     "csv-parse": "^5.0.4",
-    "hardhat": "^2.8.4"
+    "ethereumjs-util": "^7.1.4",
+    "ethers": "^5.6.8",
+    "hardhat": "^2.9.6"
   },
   "devDependencies": {
     "@types/mocha": "^9.1.1",
