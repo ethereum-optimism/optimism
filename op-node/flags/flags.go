@@ -19,9 +19,9 @@ var (
 		Value:    "http://127.0.0.1:8545",
 		EnvVar:   prefixEnvVar("L1_ETH_RPC"),
 	}
-	L2EngineAddrs = cli.StringSliceFlag{
+	L2EngineAddr = cli.StringFlag{
 		Name:     "l2",
-		Usage:    "Addresses of L2 Engine JSON-RPC endpoints to use (engine and eth namespace required)",
+		Usage:    "Address of L2 Engine JSON-RPC endpoints to use (engine and eth namespace required)",
 		Required: true,
 		EnvVar:   prefixEnvVar("L2_ENGINE_RPC"),
 	}
@@ -50,13 +50,13 @@ var (
 		Usage:  "Trust the L1 RPC, sync faster at risk of malicious/buggy RPC providing bad or inconsistent L1 data",
 		EnvVar: prefixEnvVar("L1_TRUST_RPC"),
 	}
-	L2EngineJWTSecret = cli.StringSliceFlag{
-		Name: "l2.jwt-secret",
-		Usage: "Paths to JWT secret keys, one per L2 endpoint, in the same order as the provided l2 addresses. " +
-			"Keys are 32 bytes, hex encoded in a file. A new key per endpoint will be generated if left empty.",
-		Required: false,
-		Value:    &cli.StringSlice{},
-		EnvVar:   prefixEnvVar("L2_ENGINE_AUTH"),
+	L2EngineJWTSecret = cli.StringFlag{
+		Name:        "l2.jwt-secret",
+		Usage:       "Path to JWT secret key. Keys are 32 bytes, hex encoded in a file. A new key will be generated if left empty.",
+		EnvVar:      prefixEnvVar("L2_ENGINE_AUTH"),
+		Required:    false,
+		Value:       "",
+		Destination: new(string),
 	}
 	SequencingEnabledFlag = cli.BoolFlag{
 		Name:   "sequencing.enabled",
@@ -91,7 +91,7 @@ var (
 
 var requiredFlags = []cli.Flag{
 	L1NodeAddr,
-	L2EngineAddrs,
+	L2EngineAddr,
 	RollupConfig,
 	RPCListenAddr,
 	RPCListenPort,
