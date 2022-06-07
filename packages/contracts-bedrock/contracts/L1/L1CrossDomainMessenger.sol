@@ -6,28 +6,22 @@ import { OptimismPortal } from "./OptimismPortal.sol";
 import { CrossDomainMessenger } from "../universal/CrossDomainMessenger.sol";
 
 /**
+ * @custom:proxied
  * @title L1CrossDomainMessenger
- * @dev The L1 Cross Domain Messenger contract sends messages from L1 to L2, and relays messages
- * from L2 onto L1.
- * This contract should be deployed behind an upgradable proxy
+ * @notice The L1CrossDomainMessenger is a message passing interface between L1 and L2 responsible
+ *         for sending and receiving data on the L1 side. Users are encouraged to use this
+ *         interface instead of interacting with lower-level contracts directly.
  */
 contract L1CrossDomainMessenger is CrossDomainMessenger {
-    /*************
-     * Variables *
-     *************/
-
     /**
      * @notice Address of the OptimismPortal.
      */
     OptimismPortal public portal;
 
-    /********************
-     * Public Functions *
-     ********************/
-
     /**
-     * @notice Initialize the L1CrossDomainMessenger
-     * @param _portal The OptimismPortal
+     * @notice Initializes the L1CrossDomainMessenger.
+     *
+     * @param _portal Address of the OptimismPortal to send and receive messages through.
      */
     function initialize(OptimismPortal _portal) external {
         portal = _portal;
@@ -38,21 +32,22 @@ contract L1CrossDomainMessenger is CrossDomainMessenger {
         _initialize(Lib_PredeployAddresses.L2_CROSS_DOMAIN_MESSENGER, blockedSystemAddresses);
     }
 
-    /**********************
-     * Internal Functions *
-     **********************/
-
     /**
-     * @notice Ensure that the L1CrossDomainMessenger can only be called
-     * by the OptimismPortal and the L2 sender is the L2CrossDomainMessenger.
+     * @notice Checks whether the message being sent from the other messenger.
+     *
+     * @return True if the message was sent from the messenger, false otherwise.
      */
     function _isSystemMessageSender() internal view override returns (bool) {
         return msg.sender == address(portal) && portal.l2Sender() == otherMessenger;
     }
 
     /**
-     * @notice Sending a message in the L1CrossDomainMessenger involves
-     * depositing through the OptimismPortal.
+     * @notice Sends a message via the OptimismPortal contract.
+     *
+     * @param _to       Address of the recipient on L2.
+     * @param _gasLimit Minimum gas limit that the message can be executed with.
+     * @param _value    ETH value to attach to the message and send to the recipient.
+     * @param _data     Data to attach to the message and call the recipient with.
      */
     function _sendMessage(
         address _to,

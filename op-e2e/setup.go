@@ -335,9 +335,9 @@ func (cfg SystemConfig) start() (*System, error) {
 			L1NodeAddr: l1Node.WSEndpoint(),
 			L1TrustRPC: false,
 		}
-		rollupCfg.L2s = &rollupNode.L2EndpointsConfig{
-			L2EngineAddrs:      []string{sys.nodes[name].WSAuthEndpoint()},
-			L2EngineJWTSecrets: [][32]byte{cfg.JWTSecret},
+		rollupCfg.L2 = &rollupNode.L2EndpointConfig{
+			L2EngineAddr:      sys.nodes[name].WSAuthEndpoint(),
+			L2EngineJWTSecret: cfg.JWTSecret,
 		}
 	}
 
