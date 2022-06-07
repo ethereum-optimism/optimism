@@ -1,76 +1,48 @@
 package deriver
 
 import (
-	"bytes"
-	"encoding/binary"
+	"compress/zlib"
 	"fmt"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/stages"
-	"github.com/golang/snappy"
 	"io"
 	"sync"
 )
 
-type byteReader struct {
-	io.Reader
-}
-
-func (b *byteReader) ReadByte() (byte, error) {
-	var tmp [1]byte
-	_, err := b.Read(tmp[:])
-	return tmp[0], err
-}
-
 type Decompressor struct {
-	mu    sync.Mutex
-	Inner BinaryReaderStage
-	buf   []byte
-}
-
-func (cs *Decompressor) next() error {
-	br := byteReader{cs.Inner}
-	version, err := br.ReadByte()
-	if err != nil {
-		return fmt.Errorf("failed to read compression version: %w", err)
-	}
-	if version != stages.CompressionVersion0 {
-		return fmt.Errorf("unknown compression version: %d", version)
-	}
-
-	compressedLen, err := binary.ReadUvarint(&br)
-	if err != nil {
-		return fmt.Errorf("failed to read compressed length: %w", err)
-	}
-	if compressedLen > uint64(snappy.MaxEncodedLen(stages.CompressionVersion0MaxFrameSize)) {
-		return fmt.Errorf("read compressed length is too large: %d", compressedLen)
-	}
-	var buf bytes.Buffer
-	if _, err := io.CopyN(&buf, cs.Inner, int64(compressedLen)); err != nil {
-		return fmt.Errorf("failed to fully read compression frame: %v", err)
-	}
-	inData := buf.Bytes()
-	// zip-bomb protection
-	if len(inData) > stages.CompressionVersion0MaxFrameSize {
-		return fmt.Errorf("bad compressed data, length %d is too large", len(inData))
-	}
-	out, err := snappy.Decode(nil, inData)
-	if err != nil {
-		return fmt.Errorf("failed to decompress: %v", err)
-	}
-	cs.buf = out
-	return nil
+	mu         sync.Mutex
+	openReader io.ReadCloser
+	Inner      BinaryReaderStage
 }
 
 func (cs *Decompressor) Read(p []byte) (n int, err error) {
 	cs.mu.Lock()
 	defer cs.mu.Unlock()
-	if len(cs.buf) == 0 {
-		if err := cs.next(); err != nil {
-			return 0, err
+
+	if len(p) == 0 {
+		return 0, nil
+	}
+
+	if cs.openReader == nil {
+		var versionByte [1]byte
+		if _, err := io.ReadFull(cs.Inner, versionByte[:]); err != nil {
+			return 0, fmt.Errorf("failed to read version byte: %v", err)
+		}
+		switch versionByte[0] {
+		case stages.CompressionVersion0:
+			r, err := zlib.NewReaderDict(cs.Inner, nil) // TODO: maybe provide a dict for better performance.
+			if err != nil {
+				return 0, fmt.Errorf("failed to create new zlib reader: %v", err)
+			}
+			cs.openReader = r
+		// new compression types or configurations, may be supported in the future.
+		default:
+			return 0, fmt.Errorf("unknown compression version: %d", versionByte[0])
 		}
 	}
-	n = copy(p, cs.buf)
-	cs.buf = cs.buf[n:]
-	return n, nil
+
+	// We assume here that the reader internally, for temporary allocations,
+	// is not vulnerable to zip-bombs etc. We only read as much from the reader as is necessary.
+	return cs.openReader.Read(p)
 }
 
 func (cs *Decompressor) Close() error {
