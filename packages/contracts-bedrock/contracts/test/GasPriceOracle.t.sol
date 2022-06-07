@@ -5,6 +5,7 @@ import { CommonTest } from "./CommonTest.t.sol";
 import { GasPriceOracle } from "../L2/GasPriceOracle.sol";
 import { L1Block } from "../L2/L1Block.sol";
 import { Lib_PredeployAddresses } from "../libraries/Lib_PredeployAddresses.sol";
+import { Lib_FeeSmoothing } from "../libraries/Lib_FeeSmoothing.sol";
 
 contract GasPriceOracle_Test is CommonTest {
 
@@ -81,7 +82,8 @@ contract GasPriceOracle_Test is CommonTest {
 
     function test_l1BaseFee() external {
         uint256 l1BaseFee = gasOracle.l1BaseFee();
-        assertEq(l1BaseFee, 100);
+        uint256 expect = Lib_FeeSmoothing.rollingAverage(0, 100);
+        assertEq(l1BaseFee, expect);
     }
 
     function test_gasPrice() external {

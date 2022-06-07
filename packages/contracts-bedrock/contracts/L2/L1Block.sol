@@ -1,6 +1,8 @@
 //SPDX-License-Identifier: MIT
 pragma solidity 0.8.10;
 
+import { Lib_FeeSmoothing } from "../libraries/Lib_FeeSmoothing.sol";
+
 /**
  * @title L1Block
  * @dev This is an L2 predeploy contract that holds values from the L1
@@ -41,6 +43,11 @@ contract L1Block {
     uint256 public basefee;
 
     /**
+     * @notice The average L1 basefee
+     */
+    uint256 public averageBasefee;
+
+    /**
      * @notice The latest L1 blockhash
      */
     bytes32 public hash;
@@ -75,5 +82,15 @@ contract L1Block {
             sstore(basefee.slot, _basefee)
             sstore(hash.slot, _hash)
         }
+
+        averageBasefee = _nextAverageBasefee(_basefee);
+    }
+
+    /**
+     * @notice Compute the running average L1 basefee
+     */
+
+    function _nextAverageBasefee(uint256 _basefee) internal returns (uint256) {
+        return Lib_FeeSmoothing.rollingAverage(averageBasefee, _basefee);
     }
 }

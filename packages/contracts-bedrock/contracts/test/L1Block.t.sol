@@ -3,11 +3,14 @@ pragma solidity 0.8.10;
 
 import { CommonTest } from "./CommonTest.t.sol";
 import { L1Block } from "../L2/L1Block.sol";
+import { Lib_FeeSmoothing } from "../libraries/Lib_FeeSmoothing.sol";
 
 contract L1BlockTest is CommonTest {
     L1Block lb;
     address depositor;
     bytes32 immutable NON_ZERO_HASH = keccak256(abi.encode(1));
+
+    uint256 averageBasefee;
 
     function setUp() external {
         lb = new L1Block();
@@ -17,11 +20,14 @@ contract L1BlockTest is CommonTest {
     }
 
     function test_updatesValues(uint64 n, uint64 t, uint256 b, bytes32 h, uint64 s) external {
+        averageBasefee = Lib_FeeSmoothing.rollingAverage(averageBasefee, b);
+
         vm.prank(depositor);
         lb.setL1BlockValues(n, t, b, h, s);
         assertEq(lb.number(), n);
         assertEq(lb.timestamp(), t);
         assertEq(lb.basefee(), b);
+        assertEq(lb.averageBasefee(), averageBasefee);
         assertEq(lb.hash(), h);
         assertEq(lb.sequenceNumber(), s);
     }
@@ -36,6 +42,11 @@ contract L1BlockTest is CommonTest {
 
     function test_basefee() external {
         assertEq(lb.basefee(), 3);
+    }
+
+    function test_averageBasefee() external {
+        uint256 expect = Lib_FeeSmoothing.rollingAverage(0, 3);
+        assertEq(lb.averageBasefee(), expect);
     }
 
     function test_hash() external {

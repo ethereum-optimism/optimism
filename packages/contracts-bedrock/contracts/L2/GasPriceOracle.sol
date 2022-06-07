@@ -68,7 +68,7 @@ contract GasPriceOracle is Ownable {
     }
 
     function l1BaseFee() public view returns (uint256) {
-        return L1Block(Lib_PredeployAddresses.L1_BLOCK_ATTRIBUTES).basefee();
+        return L1Block(Lib_PredeployAddresses.L1_BLOCK_ATTRIBUTES).averageBasefee();
     }
 
     /**

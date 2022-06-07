@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Unlicense
 pragma solidity >=0.8.0;
 
-import {Bytes32AddressLib} from "solmate/utils/Bytes32AddressLib.sol";
+import {Bytes32AddressLib} from "@rari-capital/solmate/src/utils/Bytes32AddressLib.sol";
 
 // prettier-ignore
 library LibRLP {
