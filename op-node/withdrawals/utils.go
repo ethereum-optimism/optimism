@@ -23,10 +23,10 @@ import (
 // WaitForFinalizationPeriod waits until the timestamp has been submitted to the L2 Output Oracle on L1 and
 // then waits for the finalization period to be up.
 // This functions polls and can block for a very long time if used on mainnet.
-// This returns the timestamp to use for the proof generation.
-func WaitForFinalizationPeriod(ctx context.Context, client *ethclient.Client, portalAddr common.Address, timestamp uint64) (uint64, error) {
+// This returns the block number to use for the proof generation.
+func WaitForFinalizationPeriod(ctx context.Context, client *ethclient.Client, portalAddr common.Address, timestamp uint64, blockNumber uint64) (uint64, error) {
 	opts := &bind.CallOpts{Context: ctx}
-	timestampBig := new(big.Int).SetUint64(timestamp)
+	blockNumberBig := new(big.Int).SetUint64(blockNumber)
 
 	portal, err := bindings.NewOptimismPortalCaller(portalAddr, client)
 	if err != nil {
@@ -46,14 +46,14 @@ func WaitForFinalizationPeriod(ctx context.Context, client *ethclient.Client, po
 		return 0, err
 	}
 
-	next, err := l2OO.LatestBlockTimestamp(opts)
+	next, err := l2OO.LatestBlockNumber(opts)
 	if err != nil {
 		return 0, err
 	}
 
 	// Now poll
 	var ticker *time.Ticker
-	diff := new(big.Int).Sub(timestampBig, next)
+	diff := new(big.Int).Sub(blockNumberBig, next)
 	if diff.Cmp(big.NewInt(60)) > 0 {
 		ticker = time.NewTicker(time.Minute)
 	} else {
@@ -64,12 +64,12 @@ loop:
 	for {
 		select {
 		case <-ticker.C:
-			next, err = l2OO.LatestBlockTimestamp(opts)
+			next, err = l2OO.LatestBlockNumber(opts)
 			if err != nil {
 				return 0, err
 			}
 			// Already passed next
-			if next.Cmp(timestampBig) > 0 {
+			if next.Cmp(blockNumberBig) > 0 {
 				break loop
 			}
 		case <-ctx.Done():
