@@ -36,7 +36,7 @@
     "hardhat": "^2.9.6",
     "@rari-capital/solmate": "https://github.com/rari-capital/solmate.git#8f9b23f8838670afda0fd8983f2c41e8037ae6bc",
     "ds-test": "https://github.com/dapphub/ds-test.git#9310e879db8ba3ea6d5c6489a579118fd264a3f5",
-    "forge-std": "https://github.com/foundry-rs/forge-std.git#1680d7fb3e00b7b197a7336e7c88e838c7e6a3ec",
+    "forge-std": "https://github.com/foundry-rs/forge-std.git#564510058ab3db01577b772c275e081e678373f2",
     "merkle-patricia-tree": "^4.2.4",
     "rlp": "^2.2.7"
   },
