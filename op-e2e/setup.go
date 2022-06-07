@@ -53,7 +53,6 @@ func deriveAccount(w accounts.Wallet, path string) accounts.Account {
 type L2OOContractConfig struct {
 	SubmissionFrequency   *big.Int
 	L2StartTime           *big.Int
-	L2BlockTime           *big.Int
 	GenesisL2Output       [32]byte
 	HistoricalTotalBlocks *big.Int
 }
@@ -414,7 +413,6 @@ func (cfg SystemConfig) start() (*System, error) {
 		opts,
 		l1Client,
 		sys.cfg.L2OOCfg.SubmissionFrequency,
-		sys.cfg.L2OOCfg.L2BlockTime,
 		sys.cfg.L2OOCfg.GenesisL2Output,
 		sys.cfg.L2OOCfg.HistoricalTotalBlocks,
 		sys.cfg.L2OOCfg.L2StartTime,
