@@ -89,7 +89,6 @@ func defaultSystemConfig(t *testing.T) SystemConfig {
 		L2OOCfg: L2OOContractConfig{
 			// L2 Start time is set based off of the L2 Genesis time
 			SubmissionFrequency:   big.NewInt(2),
-			L2BlockTime:           big.NewInt(1),
 			HistoricalTotalBlocks: big.NewInt(0),
 		},
 		L2OutputHDPath:             l2OutputHDPath,
@@ -152,11 +151,11 @@ func TestL2OutputSubmitter(t *testing.T) {
 	require.Nil(t, err)
 	rollupClient := rollupclient.NewRollupClient(rollupRPCClient)
 
-	//  StateRootOracle is already deployed
+	//  OutputOracle is already deployed
 	l2OutputOracle, err := bindings.NewL2OutputOracleCaller(sys.L2OOContractAddr, l1Client)
 	require.Nil(t, err)
 
-	initialSroTimestamp, err := l2OutputOracle.LatestBlockTimestamp(&bind.CallOpts{})
+	initialOutputBlockNumber, err := l2OutputOracle.LatestBlockNumber(&bind.CallOpts{})
 	require.Nil(t, err)
 
 	// Wait until the second output submission from L2. The output submitter submits outputs from the
@@ -173,20 +172,14 @@ func TestL2OutputSubmitter(t *testing.T) {
 	ticker := time.NewTicker(1 * time.Second)
 	defer ticker.Stop()
 	for {
-		l2ooTimestamp, err := l2OutputOracle.LatestBlockTimestamp(&bind.CallOpts{})
+		l2ooBlockNumber, err := l2OutputOracle.LatestBlockNumber(&bind.CallOpts{})
 		require.Nil(t, err)
 
 		// Wait for the L2 output oracle to have been changed from the initial
 		// timestamp set in the contract constructor.
-		if l2ooTimestamp.Cmp(initialSroTimestamp) > 0 {
+		if l2ooBlockNumber.Cmp(initialOutputBlockNumber) > 0 {
 			// Retrieve the l2 output committed at this updated timestamp.
-			committedL2Output, err := l2OutputOracle.GetL2Output(&bind.CallOpts{}, l2ooTimestamp)
-			require.Nil(t, err)
-
-			// Compute the committed L2 output's L2 block number.
-			l2ooBlockNumber, err := l2OutputOracle.ComputeL2BlockNumber(
-				&bind.CallOpts{}, l2ooTimestamp,
-			)
+			committedL2Output, err := l2OutputOracle.GetL2Output(&bind.CallOpts{}, l2ooBlockNumber)
 			require.Nil(t, err)
 
 			// Fetch the corresponding L2 block and assert the committed L2
@@ -774,8 +767,8 @@ func TestWithdrawals(t *testing.T) {
 	require.Nil(t, err)
 
 	// Wait for finalization and then create the Finalized Withdrawal Transaction
-	l2OutputOracle, err := bindings.NewL2OutputOracleCaller(sys.L2OOContractAddr, l1Client)
-	require.Nil(t, err)
+	// l2OutputOracle, err := bindings.NewL2OutputOracleCaller(sys.L2OOContractAddr, l1Client)
+	// require.Nil(t, err)
 
 	ctx, cancel = context.WithTimeout(context.Background(), 10*time.Duration(cfg.L1BlockTime)*time.Second)
 	defer cancel()
@@ -784,12 +777,10 @@ func TestWithdrawals(t *testing.T) {
 
 	ctx, cancel = context.WithTimeout(context.Background(), 1*time.Second)
 	defer cancel()
-	blockNumber, err := l2OutputOracle.ComputeL2BlockNumber(&bind.CallOpts{Context: ctx}, new(big.Int).SetUint64(timestamp))
-	require.Nil(t, err)
 
 	ctx, cancel = context.WithTimeout(context.Background(), 1*time.Second)
 	defer cancel()
-	header, err = l2Seq.HeaderByNumber(ctx, blockNumber)
+	header, err = l2Seq.HeaderByNumber(ctx, new (big.Int).SetUint64(blockNumber))
 	require.Nil(t, err)
 
 	rpc, err := rpc.Dial(sys.nodes["sequencer"].WSEndpoint())
