@@ -100,13 +100,19 @@ interface L2ToL1MessagePasser {
 
 ```
 
-### Address Aliasing
+### Addresses are not Aliased on Withdrawals
 
-[address-aliasing]: #address-aliasing
+[address-aliasing]: #no-address-aliasing
 
-If called by a contract, the `initiateWithdrawal` function will alias the `sender` address by subtracting
-`0x1111000000000000000000000000000000001111`. This is the reverse of the
-transformation described in the [deposits spec](./deposits.md#address-aliasing).
+When a contract makes a deposit, the sender's address is [aliased](./deposits.md#address-aliasing). The same is not true
+of withdrawals, which do not modify the sender's address. The difference is that:
+- on L2, the deposit sender's address is returned by the `CALLER` opcode, meaning a contract cannot easily tell if the
+  call originated on L1 or L2, whereas
+- on L1, the withdrawal sender's address is accessed by calling the `l2Sender`() function on the `OptimismPortal`
+  contract.
+
+Calling `l2Sender()` removes any ambiguity about which domain the call originated from. Still, developers will need to
+recognize that having the same address does not imply that a contract on L2 will behave the same as a contract on L1.
 
 ## The Optimism Portal Contract
 
@@ -118,6 +124,8 @@ withdrawals:
 interface OptimismPortal {
 
     event WithdrawalFinalized(bytes32 indexed);
+
+    function l2Sender() returns(address) external;
 
     function finalizeWithdrawalTransaction(
         uint256 _nonce,
