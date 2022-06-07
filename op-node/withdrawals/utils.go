@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
-	"github.com/ethereum-optimism/optimism/op-node/predeploy"
+	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
@@ -164,7 +164,7 @@ func FinalizeWithdrawalParameters(ctx context.Context, l2client ProofClient, txH
 		return FinalizedWithdrawalParameters{}, err
 	}
 	slot := StorageSlotOfWithdrawalHash(withdrawalHash)
-	p, err := l2client.GetProof(ctx, predeploy.WithdrawalContractAddress, []string{slot.String()}, header.Number)
+	p, err := l2client.GetProof(ctx, common.HexToAddress(predeploys.L2ToL1MessagePasser), []string{slot.String()}, header.Number)
 	if err != nil {
 		return FinalizedWithdrawalParameters{}, err
 	}

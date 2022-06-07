@@ -11,9 +11,9 @@ import (
 
 	bss "github.com/ethereum-optimism/optimism/op-batcher"
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
+	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
 	rollupNode "github.com/ethereum-optimism/optimism/op-node/node"
 	"github.com/ethereum-optimism/optimism/op-node/p2p"
-	"github.com/ethereum-optimism/optimism/op-node/predeploy"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	l2os "github.com/ethereum-optimism/optimism/op-proposer"
 
@@ -234,7 +234,7 @@ func (cfg SystemConfig) start() (*System, error) {
 	}
 
 	l2Alloc[cfg.L1InfoPredeployAddress] = core.GenesisAccount{Code: common.FromHex(bindings.L1BlockDeployedBin), Balance: common.Big0}
-	l2Alloc[predeploy.WithdrawalContractAddress] = core.GenesisAccount{Code: common.FromHex(bindings.L2ToL1MessagePasserDeployedBin), Balance: common.Big0}
+	l2Alloc[common.HexToAddress(predeploys.L2ToL1MessagePasser)] = core.GenesisAccount{Code: common.FromHex(bindings.L2ToL1MessagePasserDeployedBin), Balance: common.Big0}
 
 	genesisTimestamp := uint64(time.Now().Unix())
 
@@ -335,9 +335,9 @@ func (cfg SystemConfig) start() (*System, error) {
 			L1NodeAddr: l1Node.WSEndpoint(),
 			L1TrustRPC: false,
 		}
-		rollupCfg.L2s = &rollupNode.L2EndpointsConfig{
-			L2EngineAddrs:      []string{sys.nodes[name].WSAuthEndpoint()},
-			L2EngineJWTSecrets: [][32]byte{cfg.JWTSecret},
+		rollupCfg.L2 = &rollupNode.L2EndpointConfig{
+			L2EngineAddr:      sys.nodes[name].WSAuthEndpoint(),
+			L2EngineJWTSecret: cfg.JWTSecret,
 		}
 	}
 
