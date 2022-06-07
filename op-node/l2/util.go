@@ -82,7 +82,6 @@ func (res *AccountResult) Verify(stateRoot common.Hash) error {
 }
 
 // BlockToBatch converts a L2 block to batch-data.
-// Empty L2 blocks (i.e. only a L1 info deposit tx) return a nil batch with nil error.
 // Invalid L2 blocks may return an error.
 func BlockToBatch(config *rollup.Config, block *types.Block) (*derive.BatchData, error) {
 	txs := block.Transactions()
@@ -91,9 +90,6 @@ func BlockToBatch(config *rollup.Config, block *types.Block) (*derive.BatchData,
 	}
 	if typ := txs[0].Type(); typ != types.DepositTxType {
 		return nil, fmt.Errorf("expected first tx to be a deposit of L1 info, but got type: %d", typ)
-	}
-	if len(txs) == 1 { // the L1 info deposit tx, but empty otherwise, no batch data to submit
-		return nil, nil
 	}
 
 	// encode non-deposit transactions
