@@ -44,14 +44,14 @@ func NewConfig(ctx *cli.Context, log log.Logger) (*node.Config, error) {
 		return nil, fmt.Errorf("failed to load l1 endpoint info: %v", err)
 	}
 
-	l2Endpoints, err := NewL2EndpointsConfig(ctx, log)
+	l2Endpoint, err := NewL2EndpointConfig(ctx, log)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load l2 endpoints info: %v", err)
 	}
 
 	cfg := &node.Config{
 		L1:        l1Endpoint,
-		L2s:       l2Endpoints,
+		L2:        l2Endpoint,
 		Rollup:    *rollupConfig,
 		Sequencer: enableSequencing,
 		RPC: node.RPCConfig{
@@ -74,38 +74,33 @@ func NewL1EndpointConfig(ctx *cli.Context) (*node.L1EndpointConfig, error) {
 	}, nil
 }
 
-func NewL2EndpointsConfig(ctx *cli.Context, log log.Logger) (*node.L2EndpointsConfig, error) {
-	l2Addrs := ctx.GlobalStringSlice(flags.L2EngineAddrs.Name)
-	engineJWTSecrets := ctx.GlobalStringSlice(flags.L2EngineJWTSecret.Name)
-	var secrets [][32]byte
-	for i, fileName := range engineJWTSecrets {
-		fileName = strings.TrimSpace(fileName)
-		if fileName == "" {
-			return nil, fmt.Errorf("file-name of jwt secret %d is empty", i)
+func NewL2EndpointConfig(ctx *cli.Context, log log.Logger) (*node.L2EndpointConfig, error) {
+	l2Addr := ctx.GlobalString(flags.L2EngineAddr.Name)
+	fileName := ctx.GlobalString(flags.L2EngineJWTSecret.Name)
+	var secret [32]byte
+	fileName = strings.TrimSpace(fileName)
+	if fileName == "" {
+		return nil, fmt.Errorf("file-name of jwt secret is empty")
+	}
+	if data, err := os.ReadFile(fileName); err == nil {
+		jwtSecret := common.FromHex(strings.TrimSpace(string(data)))
+		if len(jwtSecret) != 32 {
+			return nil, fmt.Errorf("invalid jwt secret in path %s, not 32 hex-formatted bytes", fileName)
 		}
-		if data, err := os.ReadFile(fileName); err == nil {
-			jwtSecret := common.FromHex(strings.TrimSpace(string(data)))
-			if len(jwtSecret) != 32 {
-				return nil, fmt.Errorf("invalid jwt secret in path %s, not 32 hex-formatted bytes", fileName)
-			}
-			var secret [32]byte
-			copy(secret[:], jwtSecret)
-			secrets = append(secrets, secret)
-		} else {
-			log.Warn("Failed to read JWT secret from file, generating a new one now. Configure L2 geth with --authrpc.jwt-secret=" + fmt.Sprintf("%q", fileName))
-			var secret [32]byte
-			if _, err := io.ReadFull(rand.Reader, secret[:]); err != nil {
-				return nil, fmt.Errorf("failed to generate jwt secret: %v", err)
-			}
-			secrets = append(secrets, secret)
-			if err := os.WriteFile(fileName, []byte(hexutil.Encode(secret[:])), 0600); err != nil {
-				return nil, err
-			}
+		copy(secret[:], jwtSecret)
+	} else {
+		log.Warn("Failed to read JWT secret from file, generating a new one now. Configure L2 geth with --authrpc.jwt-secret=" + fmt.Sprintf("%q", fileName))
+		if _, err := io.ReadFull(rand.Reader, secret[:]); err != nil {
+			return nil, fmt.Errorf("failed to generate jwt secret: %v", err)
+		}
+		if err := os.WriteFile(fileName, []byte(hexutil.Encode(secret[:])), 0600); err != nil {
+			return nil, err
 		}
 	}
-	return &node.L2EndpointsConfig{
-		L2EngineAddrs:      l2Addrs,
-		L2EngineJWTSecrets: secrets,
+
+	return &node.L2EndpointConfig{
+		L2EngineAddr:      l2Addr,
+		L2EngineJWTSecret: secret,
 	}, nil
 }
 
