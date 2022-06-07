@@ -5,42 +5,15 @@ import { L2OutputOracle } from "./L2OutputOracle.sol";
 import { WithdrawalVerifier } from "../libraries/Lib_WithdrawalVerifier.sol";
 import { AddressAliasHelper } from "../libraries/AddressAliasHelper.sol";
 import { ExcessivelySafeCall } from "../libraries/ExcessivelySafeCall.sol";
+import { ResourceMetering } from "./ResourceMetering.sol";
 
 /**
  * @title OptimismPortal
  * This contract should be deployed behind an upgradable proxy.
  */
-contract OptimismPortal {
-    /**********
-     * Errors *
-     **********/
-
+contract OptimismPortal is ResourceMetering {
     /**
-     * @notice Error emitted when the output root proof is invalid.
-     */
-    error InvalidOutputRootProof();
-
-    /**
-     * @notice Error emitted when the withdrawal inclusion proof is invalid.
-     */
-    error InvalidWithdrawalInclusionProof();
-
-    /**
-     * @notice Error emitted when a withdrawal has already been finalized.
-     */
-    error WithdrawalAlreadyFinalized();
-
-    /**
-     * @notice Error emitted on deposits which create a new contract with a non-zero target.
-     */
-    error NonZeroCreationTarget();
-
-    /**********
-     * Events *
-     **********/
-
-    /**
-     * @notice Emitted when a Transaction is deposited from L1 to L2. The parameters of this
+     * Emitted when a Transaction is deposited from L1 to L2. The parameters of this
      * event are read by the rollup node and used to derive deposit transactions on L2.
      */
     event TransactionDeposited(
@@ -54,64 +27,51 @@ contract OptimismPortal {
     );
 
     /**
-     * @notice Emitted when a withdrawal is finalized
+     * Emitted when a withdrawal is finalized
      */
     event WithdrawalFinalized(bytes32 indexed, bool success);
 
-    /*************
-     * Constants *
-     *************/
-
     /**
-     * @notice Value used to reset the l2Sender, this is more efficient than setting it to zero.
+     * Value used to reset the l2Sender, this is more efficient than setting it to zero.
      */
     address internal constant DEFAULT_L2_SENDER = 0x000000000000000000000000000000000000dEaD;
 
-    /*************
-     * Variables *
-     *************/
-
     /**
-     * @notice Minimum time that must elapse before a withdrawal can be finalized.
+     * Minimum time that must elapse before a withdrawal can be finalized.
      */
-    uint256 public immutable FINALIZATION_PERIOD;
+    uint256 public immutable FINALIZATION_PERIOD_SECONDS;
 
     /**
-     * @notice Address of the L2OutputOracle.
+     * Address of the L2OutputOracle.
      */
     L2OutputOracle public immutable L2_ORACLE;
 
     /**
-     * @notice Public variable which can be used to read the address of the L2 account which
-     * initated the withdrawal. Can also be used to determine whether or not execution is occuring
-     * downstream of a call to finalizeWithdrawalTransaction().
+     * Public variable which can be used to read the address of the L2 account which initiated the
+     * withdrawal. Can also be used to determine whether or not execution is occuring downstream of
+     * a call to finalizeWithdrawalTransaction().
      */
     address public l2Sender = DEFAULT_L2_SENDER;
 
     /**
-     * @notice A list of withdrawal hashes which have been successfully finalized.
+     * A list of withdrawal hashes which have been successfully finalized.
      * Used for replay protection.
      */
     mapping(bytes32 => bool) public finalizedWithdrawals;
 
-    /***************
-     * Constructor *
-     ***************/
-
-    constructor(L2OutputOracle _l2Oracle, uint256 _finalizationPeriod) {
+    /**
+     * @param _l2Oracle Address of the L2OutputOracle.
+     * @param _finalizationPeriodSeconds Finalization time in seconds.
+     */
+    constructor(L2OutputOracle _l2Oracle, uint256 _finalizationPeriodSeconds) {
         L2_ORACLE = _l2Oracle;
-        FINALIZATION_PERIOD = _finalizationPeriod;
+        FINALIZATION_PERIOD_SECONDS = _finalizationPeriodSeconds;
     }
 
-    /********************
-     * Public Functions *
-     ********************/
-
     /**
-     * @notice Accepts value so that users can send ETH directly to this contract and
-     * have the funds be deposited to their address on L2.
-     * @dev This is intended as a convenience function for EOAs. Contracts should call the
-     * depositTransaction() function directly.
+     * Accepts value so that users can send ETH directly to this contract and have the funds be
+     * deposited to their address on L2. This is intended as a convenience function for EOAs.
+     * Contracts should call the depositTransaction() function directly.
      */
     receive() external payable {
         depositTransaction(msg.sender, msg.value, 100000, false, bytes(""));
@@ -119,7 +79,11 @@ contract OptimismPortal {
 
     /**
      * @notice Accepts deposits of ETH and data, and emits a TransactionDeposited event for use in
-     * deriving deposit transactions.
+     * deriving deposit transactions. Note that if a deposit is made by a contract, its address will
+     * be aliased when retrieved using `tx.origin` or `msg.sender`. This can lead to loss of funds
+     * in some cases which the depositing contract may not have accounted for. Consider using the
+     * Bridge or CrossDomainMessenger contracts which provide additional safety assurances.
+     *
      * @param _to The L2 destination address.
      * @param _value The ETH value to send in the deposit transaction.
      * @param _gasLimit The L2 gasLimit.
@@ -132,24 +96,31 @@ contract OptimismPortal {
         uint64 _gasLimit,
         bool _isCreation,
         bytes memory _data
-    ) public payable {
-        // Differentiate between sending to address(0)
-        // and creating a contract
-        if (_isCreation && _to != address(0)) {
-            revert NonZeroCreationTarget();
+    ) public payable metered(_gasLimit) {
+        // Just to be safe, make sure that people specify address(0) as the target when doing
+        // contract creations.
+        // TODO: Do we really need this? Prevents some user error, but adds gas.
+        if (_isCreation) {
+            require(
+                _to == address(0),
+                "OptimismPortal: must send to address(0) when creating a contract"
+            );
         }
 
-        address from = msg.sender;
         // Transform the from-address to its alias if the caller is a contract.
+        address from = msg.sender;
         if (msg.sender != tx.origin) {
             from = AddressAliasHelper.applyL1ToL2Alias(msg.sender);
         }
 
+        // Emit a TransactionDeposited event so that the rollup node can derive a deposit
+        // transaction for this deposit.
         emit TransactionDeposited(from, _to, msg.value, _value, _gasLimit, _isCreation, _data);
     }
 
     /**
-     * @notice Finalizes a withdrawal transaction.
+     * Finalizes a withdrawal transaction.
+     *
      * @param _nonce Nonce for the provided message.
      * @param _sender Message sender address on L2.
      * @param _target Target address on L1.
@@ -171,27 +142,39 @@ contract OptimismPortal {
         WithdrawalVerifier.OutputRootProof calldata _outputRootProof,
         bytes calldata _withdrawalProof
     ) external payable {
-        // Prevent reentrency
-        require(_target != address(this), "Cannot send message to self.");
+        // Prevent reentrancy.
+        require(
+            l2Sender == DEFAULT_L2_SENDER,
+            "OptimismPortal: can only trigger one withdrawal per transaction"
+        );
+
+        // Prevent users from creating a deposit transaction where this address is the message
+        // sender on L2.
+        require(
+            _target != address(this),
+            "OptimismPortal: you cannot send messages to the portal contract"
+        );
 
         // Get the output root.
         L2OutputOracle.OutputProposal memory proposal = L2_ORACLE.getL2Output(_l2Timestamp);
 
-        // Ensure that enough time has passed since the proposal was submitted
-        // before allowing a withdrawal. A fault proof should be submitted
-        // before this check is allowed to pass.
+        // Ensure that enough time has passed since the proposal was submitted before allowing a
+        // withdrawal. Under the assumption that the fault proof mechanism is operating correctly,
+        // we can infer that any withdrawal that has passed the finalization period must be valid
+        // and can therefore be operated on.
         require(
-            block.timestamp > proposal.timestamp + FINALIZATION_PERIOD,
-            "Proposal is not yet finalized."
+            block.timestamp > proposal.timestamp + FINALIZATION_PERIOD_SECONDS,
+            "OptimismPortal: proposal is not yet finalized"
         );
 
         // Verify that the output root can be generated with the elements in the proof.
-        if (proposal.outputRoot != WithdrawalVerifier._deriveOutputRoot(_outputRootProof)) {
-            revert InvalidOutputRootProof();
-        }
+        require(
+            proposal.outputRoot == WithdrawalVerifier._deriveOutputRoot(_outputRootProof),
+            "OptimismPortal: invalid output root proof"
+        );
 
-        // Verify that the hash of the withdrawal transaction's arguments are included in the
-        // storage hash of the withdrawer contract.
+        // All withdrawals have a unique hash, we'll use this as the identifier for the withdrawal
+        // and to prevent replay attacks.
         bytes32 withdrawalHash = WithdrawalVerifier.withdrawalHash(
             _nonce,
             _sender,
@@ -201,33 +184,41 @@ contract OptimismPortal {
             _data
         );
 
-        // Verify proof that a withdrawal on L2 was initated
-        if (
+        // Verify that the hash of this withdrawal was stored in the withdrawal contract on L2. If
+        // this is true, then we know that this withdrawal was actually triggered on L2 can can
+        // therefore be relayed on L1.
+        require(
             WithdrawalVerifier._verifyWithdrawalInclusion(
                 withdrawalHash,
                 _outputRootProof.withdrawerStorageRoot,
                 _withdrawalProof
-            ) == false
-        ) {
-            revert InvalidWithdrawalInclusionProof();
-        }
+            ),
+            "OptimismPortal: invalid withdrawal inclusion proof"
+        );
 
-        // Check that this withdrawal has not already been finalized.
-        if (finalizedWithdrawals[withdrawalHash] == true) {
-            revert WithdrawalAlreadyFinalized();
-        }
+        // Check that this withdrawal has not already been finalized, this is replay protection.
+        require(
+            finalizedWithdrawals[withdrawalHash] == false,
+            "OptimismPortal: withdrawal has already been finalized"
+        );
 
-        // Set the withdrawal as finalized
+        // Mark the withdrawal as finalized so it can't be replayed.
         finalizedWithdrawals[withdrawalHash] = true;
 
-        // Save enough gas so that the call cannot use up all of the gas
-        require(gasleft() >= _gasLimit + 20000, "Insufficient gas to finalize withdrawal.");
+        // We want to maintain the property that the amount of gas supplied to the call to the
+        // target contract is at least the gas limit specified by the user. We can do this by
+        // enforcing that, at this point in time, we still have gaslimit + buffer gas available.
+        require(
+            gasleft() >= _gasLimit + 20000,
+            "OptimismPortal: insufficient gas to finalize withdrawal"
+        );
 
-        // Set the l2Sender so that other contracts can know which account
-        // on L2 is making the withdrawal
+        // Set the l2Sender so contracts know who triggered this withdrawal on L2.
         l2Sender = _sender;
-        // Make the call and ensure that a contract cannot out of gas
-        // us by returning a huge amount of data
+
+        // Trigger the call to the target contract. We use excessivelySafeCall because we don't
+        // care about the returndata and we don't want target contracts to be able to force this
+        // call to run out of gas.
         (bool success, ) = ExcessivelySafeCall.excessivelySafeCall(
             _target,
             _gasLimit,
@@ -235,7 +226,8 @@ contract OptimismPortal {
             0,
             _data
         );
-        // Be sure to reset the l2Sender
+
+        // Reset the l2Sender back to the default value.
         l2Sender = DEFAULT_L2_SENDER;
 
         // All withdrawals are immediately finalized. Replayability can
