@@ -12,9 +12,7 @@ type BundleCandidate struct {
 	// ID is the block ID of an L2 block.
 	ID eth.BlockID
 
-	// Batch is batch data drived from the L2 Block. If Batch is nil, the block
-	// is considered to be empty. Empty blocks do not contribute to the size of
-	// a bundle.
+	// Batch is batch data drived from the L2 Block.
 	Batch *derive.BatchData
 }
 
@@ -24,7 +22,6 @@ type BundleCandidate struct {
 type BundleBuilder struct {
 	prevBlockID eth.BlockID
 	candidates  []BundleCandidate
-	numNonEmpty int
 }
 
 // NewBundleBuilder creates a new instance of a BundleBuilder, where prevBlockID
@@ -33,52 +30,37 @@ func NewBundleBuilder(prevBlockID eth.BlockID) *BundleBuilder {
 	return &BundleBuilder{
 		prevBlockID: prevBlockID,
 		candidates:  nil,
-		numNonEmpty: 0,
 	}
 }
 
 // AddCandidate appends a candidate block to the BundleBuilder.
 func (b *BundleBuilder) AddCandidate(candidate BundleCandidate) {
 	b.candidates = append(b.candidates, candidate)
-	if candidate.Batch != nil {
-		b.numNonEmpty++
-	}
 }
 
-// HasNonEmptyCandidate returns true if there are a non-zero number of
+// HasCandidate returns true if there are a non-zero number of
 // non-empty bundle candidates.
-func (b *BundleBuilder) HasNonEmptyCandidate() bool {
-	return b.numNonEmpty > 0
+func (b *BundleBuilder) HasCandidate() bool {
+	return len(b.candidates) > 0
 }
 
-// PruneLastNonEmpty removes the latest non-empty candidate block and all empty
-// blocks follow it. This method is used to reduce the size of the encoded
+// PruneLast removes the last candidate block.
+// This method is used to reduce the size of the encoded
 // bundle in order to satisfy the desired size constraints.
-func (b *BundleBuilder) PruneLastNonEmpty() {
-	if b.numNonEmpty == 0 {
+func (b *BundleBuilder) PruneLast() {
+	if len(b.candidates) == 0 {
 		return
 	}
-
-	for i := len(b.candidates) - 1; i >= 0; i-- {
-		candidate := b.candidates[i]
-		if candidate.Batch != nil {
-			b.candidates = b.candidates[:i]
-			b.numNonEmpty--
-			return
-		}
-	}
+	b.candidates = b.candidates[:len(b.candidates)-1]
 }
 
 // Batches returns a slice of all non-nil batches contained within the candidate
 // blocks.
 func (b *BundleBuilder) Batches() []*derive.BatchData {
-	var batches = make([]*derive.BatchData, 0, b.numNonEmpty)
+	var batches = make([]*derive.BatchData, 0, len(b.candidates))
 	for _, candidate := range b.candidates {
-		if candidate.Batch != nil {
-			batches = append(batches, candidate.Batch)
-		}
+		batches = append(batches, candidate.Batch)
 	}
-
 	return batches
 }
 
