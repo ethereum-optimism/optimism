@@ -48,32 +48,32 @@ contract L2OutputOracle_Initializer is CommonTest {
 
     // Constructor arguments
     address sequencer = 0x000000000000000000000000000000000000AbBa;
-    uint256 submissionInterval = 1800;
-    uint256 l2BlockTime = 2;
+    uint256 submissionInterval = 42;
     bytes32 genesisL2Output = keccak256(abi.encode(0));
-    uint256 historicalTotalBlocks = 100;
+    uint256 historicalTotalBlocks = 199;
 
-    // Cache of the initial L2 timestamp
-    uint256 startingBlockTimestamp;
+    // Cache of the initial L2 Number
+    uint256 startingBlockNumber;
 
-    // By default the first block has timestamp zero, which will cause underflows in the tests
+    // By default the first block has timestamp and number zero, which will cause underflows in the
+    // tests, so we'll move forward to these block values.
     uint256 initTime = 1000;
+    uint256 initNumber = 200;
 
     function setUp() public virtual {
         _setUp();
 
-        // Move time forward so we have a non-zero starting timestamp
         vm.warp(initTime);
+        vm.roll(initNumber);
         // Deploy the L2OutputOracle and transfer owernship to the sequencer
         oracle = new L2OutputOracle(
             submissionInterval,
-            l2BlockTime,
             genesisL2Output,
             historicalTotalBlocks,
-            initTime,
+            initNumber,
             sequencer
         );
-        startingBlockTimestamp = block.timestamp;
+        startingBlockNumber = initNumber;
     }
 }
 

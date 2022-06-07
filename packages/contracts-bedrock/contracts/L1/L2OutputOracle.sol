@@ -11,45 +11,9 @@ import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
  */
 // slither-disable-next-line locked-ether
 contract L2OutputOracle is Ownable {
-    /**********
-     * Events *
-     **********/
-
-    /// @notice Emitted when an output is appended.
-    event l2OutputAppended(
-        bytes32 indexed _l2Output,
-        uint256 indexed _l1Timestamp,
-        uint256 indexed _l2timestamp
-    );
-
-    /// @notice Emitted when an output is deleted.
-    event l2OutputDeleted(
-        bytes32 indexed _l2Output,
-        uint256 indexed _l1Timestamp,
-        uint256 indexed _l2timestamp
-    );
-
-    /**********************
-     * Contract Variables *
-     **********************/
-
-    /// @notice The interval in seconds at which checkpoints must be submitted.
-    uint256 public immutable SUBMISSION_INTERVAL;
-
-    /// @notice The time between blocks on L2.
-    uint256 public immutable L2_BLOCK_TIME;
-
-    /// @notice The number of blocks in the chain before the first block in this contract.
-    uint256 public immutable HISTORICAL_TOTAL_BLOCKS;
-
-    /// @notice The timestamp of the first L2 block recorded in this contract.
-    uint256 public immutable STARTING_BLOCK_TIMESTAMP;
-
-    /// @notice The timestamp of the most recent L2 block recorded in this contract.
-    uint256 public latestBlockTimestamp;
-
-    /// @notice A mapping from L2 timestamps to the output root for the block with that timestamp.
-    mapping(uint256 => OutputProposal) internal l2Outputs;
+    /*********
+     * Types *
+     *********/
 
     /// @notice OutputProposal represents a commitment to the L2 state.
     /// The timestamp is the L1 timestamp that the output root is posted.
@@ -60,6 +24,43 @@ contract L2OutputOracle is Ownable {
         uint256 timestamp;
     }
 
+    /**********
+     * Events *
+     **********/
+
+    /// @notice Emitted when an output is appended.
+    event l2OutputAppended(
+        bytes32 indexed _l2Output,
+        uint256 indexed _l1Timestamp,
+        uint256 indexed _l2BlockNumber
+    );
+
+    /// @notice Emitted when an output is deleted.
+    event l2OutputDeleted(
+        bytes32 indexed _l2Output,
+        uint256 indexed _l1Timestamp,
+        uint256 indexed _l2BlockNumber
+    );
+
+    /**********************
+     * Contract Variables *
+     **********************/
+
+    /// @notice The interval in L2 blocks at which checkpoints must be submitted.
+    uint256 public immutable SUBMISSION_INTERVAL;
+
+    /// @notice The number of blocks in the chain before the first block in this contract.
+    uint256 public immutable HISTORICAL_TOTAL_BLOCKS;
+
+    /// @notice The number of the first L2 block recorded in this contract.
+    uint256 public immutable STARTING_BLOCK_NUMBER;
+
+    /// @notice The number of the most recent L2 block recorded in this contract.
+    uint256 public latestBlockNumber;
+
+    /// @notice A mapping from L2 block numbers to the respective output root.
+    mapping(uint256 => OutputProposal) internal l2Outputs;
+
     /***************
      * Constructor *
      ***************/
@@ -68,34 +69,24 @@ contract L2OutputOracle is Ownable {
      * @notice Initialize the L2OutputOracle contract.
      * @param _submissionInterval The desired interval in seconds at which
      *        checkpoints must be submitted.
-     * @param _l2BlockTime The desired L2 inter-block time in seconds.
      * @param _genesisL2Output The initial L2 output of the L2 chain.
      * @param _historicalTotalBlocks The number of blocks that preceding the
      *        initialization of the L2 chain.
-     * @param _startingBlockTimestamp The timestamp to start L2 block at.
+     * @param _startingBlockNumber The number to start L2 block at.
      */
     constructor(
         uint256 _submissionInterval,
-        uint256 _l2BlockTime,
         bytes32 _genesisL2Output,
         uint256 _historicalTotalBlocks,
-        uint256 _startingBlockTimestamp,
+        uint256 _startingBlockNumber,
         address sequencer
     ) {
-        require(
-            _submissionInterval % _l2BlockTime == 0,
-            "Submission Interval must be a multiple of L2 Block Time"
-        );
-
         SUBMISSION_INTERVAL = _submissionInterval;
-        L2_BLOCK_TIME = _l2BlockTime;
-        // solhint-disable-next-line not-rely-on-time
-        l2Outputs[_startingBlockTimestamp] = OutputProposal(_genesisL2Output, block.timestamp);
+        l2Outputs[_startingBlockNumber] = OutputProposal(_genesisL2Output, block.timestamp);
         HISTORICAL_TOTAL_BLOCKS = _historicalTotalBlocks;
-        // solhint-disable-next-line not-rely-on-time
-        latestBlockTimestamp = _startingBlockTimestamp;
-        // solhint-disable-next-line not-rely-on-time
-        STARTING_BLOCK_TIMESTAMP = _startingBlockTimestamp;
+        latestBlockNumber = _startingBlockNumber;
+        // TODO: I think we can just remove this now. It's no longer needed in computeL2BlockNumber.
+        STARTING_BLOCK_NUMBER = _startingBlockNumber;
 
         _transferOwnership(sequencer);
     }
@@ -110,18 +101,20 @@ contract L2OutputOracle is Ownable {
      * accepted.
      * This function may only be called by the Sequencer.
      * @param _l2Output The L2 output of the checkpoint block.
-     * @param _l2timestamp The L2 block timestamp that resulted in _l2Output.
+     * @param _l2BlockNumber The L2 block number that resulted in _l2Output.
      * @param _l1Blockhash A block hash which must be included in the current chain.
-     * @param _l1Blocknumber The block number with the specified block hash.
+     * @param _l1BlockNumber The block number with the specified block hash.
      */
     function appendL2Output(
         bytes32 _l2Output,
-        uint256 _l2timestamp,
+        uint256 _l2BlockNumber,
         bytes32 _l1Blockhash,
-        uint256 _l1Blocknumber
+        uint256 _l1BlockNumber
     ) external payable onlyOwner {
-        require(_l2timestamp < block.timestamp, "Cannot append L2 output in future");
-        require(_l2timestamp == nextTimestamp(), "Timestamp not equal to next expected timestamp");
+        require(
+            _l2BlockNumber == nextBlockNumber(),
+            "Block number must be equal to next expected block number"
+        );
         require(_l2Output != bytes32(0), "Cannot submit empty L2 output");
 
         if (_l1Blockhash != bytes32(0)) {
@@ -134,15 +127,15 @@ contract L2OutputOracle is Ownable {
             // blockhash value, and delay submission until it is confident that the L1 block is
             // finalized.
             require(
-                blockhash(_l1Blocknumber) == _l1Blockhash,
+                blockhash(_l1BlockNumber) == _l1Blockhash,
                 "Blockhash does not match the hash at the expected height."
             );
         }
 
-        l2Outputs[_l2timestamp] = OutputProposal(_l2Output, block.timestamp);
-        latestBlockTimestamp = _l2timestamp;
+        l2Outputs[_l2BlockNumber] = OutputProposal(_l2Output, block.timestamp);
+        latestBlockNumber = _l2BlockNumber;
 
-        emit l2OutputAppended(_l2Output, block.timestamp, _l2timestamp);
+        emit l2OutputAppended(_l2Output, block.timestamp, _l2BlockNumber);
     }
 
     /**
@@ -150,55 +143,40 @@ contract L2OutputOracle is Ownable {
      * @param _proposal Represents the output proposal to delete
      */
     function deleteL2Output(OutputProposal memory _proposal) external onlyOwner {
-        OutputProposal memory outputToDelete = l2Outputs[latestBlockTimestamp];
+        OutputProposal memory outputToDelete = l2Outputs[latestBlockNumber];
 
         require(
             _proposal.outputRoot == outputToDelete.outputRoot,
-            "Can only delete the most recent output."
+            "The output root to delete does not match the that of the most recent output proposal."
         );
-        require(_proposal.timestamp == outputToDelete.timestamp, "");
+        require(
+            _proposal.timestamp == outputToDelete.timestamp,
+            "The timestamp to delete does not match the that of the most recent output proposal."
+        );
 
         emit l2OutputDeleted(
             outputToDelete.outputRoot,
             outputToDelete.timestamp,
-            latestBlockTimestamp
+            latestBlockNumber
         );
 
-        delete l2Outputs[latestBlockTimestamp];
-        latestBlockTimestamp = latestBlockTimestamp - SUBMISSION_INTERVAL;
+        delete l2Outputs[latestBlockNumber];
+        latestBlockNumber = latestBlockNumber - SUBMISSION_INTERVAL;
     }
 
     /**
-     * @notice Computes the timestamp of the next L2 block that needs to be checkpointed.
+     * @notice Computes the block number of the next L2 block that needs to be checkpointed.
      */
-    function nextTimestamp() public view returns (uint256) {
-        return latestBlockTimestamp + SUBMISSION_INTERVAL;
+    function nextBlockNumber() public view returns (uint256) {
+        return latestBlockNumber + SUBMISSION_INTERVAL;
     }
 
     /**
-     * @notice Returns the L2 output proposal given a target L2 block timestamp.
+     * @notice Returns the L2 output proposal given a target L2 block number.
      * Returns a null output proposal if none is found.
-     * @param _l2Timestamp The L2 block timestamp of the target block.
+     * @param _l2BlockNumber The L2 block number of the target block.
      */
-    function getL2Output(uint256 _l2Timestamp) external view returns (OutputProposal memory) {
-        return l2Outputs[_l2Timestamp];
-    }
-
-    /**
-     * @notice Computes the L2 block number given a target L2 block timestamp.
-     * @param _l2timestamp The L2 block timestamp of the target block.
-     */
-    function computeL2BlockNumber(uint256 _l2timestamp) external view returns (uint256) {
-        require(
-            _l2timestamp >= STARTING_BLOCK_TIMESTAMP,
-            "Timestamp prior to startingBlockTimestamp"
-        );
-        // For the first block recorded (ie. _l2timestamp = STARTING_BLOCK_TIMESTAMP), the
-        // L2BlockNumber should be HISTORICAL_TOTAL_BLOCKS + 1.
-        unchecked {
-            return
-                HISTORICAL_TOTAL_BLOCKS +
-                ((_l2timestamp - STARTING_BLOCK_TIMESTAMP) / L2_BLOCK_TIME);
-        }
+    function getL2Output(uint256 _l2BlockNumber) external view returns (OutputProposal memory) {
+        return l2Outputs[_l2BlockNumber];
     }
 }
