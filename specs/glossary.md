@@ -147,7 +147,7 @@ on-chain-confirmed head, or the on-chain-finalized head.
 
 ## Priority Gas Auction
 
-Transactions are in ethereum are ordered by the price that the transaction pays to the miner. Priority Gas Auctions
+Transactions in ethereum are ordered by the price that the transaction pays to the miner. Priority Gas Auctions
 (PGAs) occur when multiple parties are competing to be the first transaction in a block. Each party continuously
 updates the gas price of their transaction. PGAs occur when there is value in submitting a transaction before other
 parties (like being the first deposit or submitting a deposit before there is not more guaranteed gas remaining).

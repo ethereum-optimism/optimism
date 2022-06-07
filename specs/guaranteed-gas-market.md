@@ -6,8 +6,6 @@
 
 - [Gas Stipend](#gas-stipend)
 - [Limiting Guaranteed Gas](#limiting-guaranteed-gas)
-- [1559 Fee Market](#1559-fee-market)
-  - [Exponent Based Fee Reduction](#exponent-based-fee-reduction)
 - [Rationale for burning L1 Gas](#rationale-for-burning-l1-gas)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
@@ -24,34 +22,33 @@ it is sometimes paid for with a gas burn and there may not be any ETH left to re
 The **guaranteed gas** is composed of a gas stipend, and of any guaranteed gas the user would like
 to purchase (on L1) on top of that.
 
-Guaranteed gas on L2 is bought in the following manner. An L2 gas price is calculated via a 1559
-style gas market. The total amount of ETH required to buy that gas is then calculated
+Guaranteed gas on L2 is bought in the following manner. An L2 gas price is calculated via an EIP-1559
+style algorithm. The total amount of ETH required to buy that gas is then calculated as
 (`guaranteed gas * L2 deposit basefee`). The contract then accepts that amount of ETH (in a future
 upgrade) or (only method right now), burns an amount of L1 gas that corresponds to the L2 cost
-(`L2 cost / L1 Basefee`).
+(`L2 cost / L1 Basefee`). The L2 gas price for guaranteed gas is not synchronized with the basefee
+on L2 and will likely be different.
 
 ## Gas Stipend
 
-To offset the gas spent on the deposit event, we credit the amount of gas spent on the metering step
-times the current basefee to the cost of the L2 gas. The amount of gas is selected to represent the
-cost to the user. If the ETH price of the gas (gas times current L1 baseefee) is greater than the
-requested guaranteed gas times the L2 gas price, no L1 gas is burnt.
+To offset the gas spent on the deposit event, we credit `gas spent * L1 basefee` ETH to the cost of
+the L2 gas, where `gas spent` is the amount of L1 gas spent processing the deposit. If the ETH value
+of this credit is greater than the ETH value of the requested guaranteed gas
+(`requested guaranteed gas * L2 gas price`), no L1 gas is burnt.
 
 ## Limiting Guaranteed Gas
 
 The total amount of guaranteed gas that can be bought in a single L1 block must be limited to
-prevent a denial of service attack against L2 as well as allow the total amount of guaranteed gas
-to be below the L2 block gas limit.
+prevent a denial of service attack against L2 as well as ensure the total amount of guaranteed gas
+stays below the L2 block gas limit.
 
 We set a guaranteed gas limit of 8,000,000 gas per L1 block and a target of 2,000,000 gas per L1
 block. These numbers enabled occasional large transactions while staying within our target and
-maximum gas usage on l2.
+maximum gas usage on L2.
 
-## 1559 Fee Market
-
-To reduce [Priority Gas Auctions](./glossary.md#priority-gas-auction) and accurately price gas, we
-implement a 1559 style fee market on L1 with the following pseudocode. We also use this opporunity
-to place a hard limit on the amount of guaranteed gas that is provided.
+Because the amount of guaranteed L2 gas that can be purchased in a single block is now limited,
+we implement an EIP-1559-style fee market to reduce congestion on deposits. By setting the limit
+at a multiple of the target, we enable deposits to temporarily use more L2 gas at a greater cost.
 
 ```python
 # Pseudocode to update the L2 Deposit Basefee and cap the amount of guaranteed gas
@@ -84,7 +81,6 @@ if prev_num == now_num:
     now_basefee = prev_basefee
     now_bought_gas = prev_bought_gas + requested_gas
 elif prev_num != now_num :
-    # New formula
     # Width extension and conversion to signed integer math
     gas_used_delta = int128(prev_bought_gas) - int128(TARGET_RESOURCE_LIMIT)
     # Use truncating (round to 0) division - solidity's default.
@@ -107,31 +103,19 @@ if prev_num + 1 < now_num:
 
 require(now_bought_gas < MAX_RESOURCE_LIMIT)
 
-
 pack_and_store(now_basefee, now_bought_gas, now_num)
 ```
 
-### Exponent Based Fee Reduction
-
-When there are stretches where no deposits are executed on L1, the basefee should be decaying, but
-is not. If there is the case that the basefee spiked, this mechanism is needed to enable a more
-accurate decay. It uses exponentiation to run in constant (relative to the number of missed blocks)
-gas.
-
-The current loop based approach will always converge in no more than 12 steps, however it is possible
-to go to a loopless form (with slightly more error), but adpoting a fixed point exponentiation
-algorithm.
-
 ## Rationale for burning L1 Gas
 
-If we collect ETH directly we need to add the payable selector. Some projects are not able to do
-this. The alternative is to burn L1 gas. Unfortunately this is quite wastefull. As such, we provide
-two options to buy L2 gas:
+If we collect ETH directly to pay for L2 gas, every (indirect) caller of the deposit function will need
+to be marked with the payable selector. This won't be possible for many existing projects. Unfortunately
+this is quite wasteful. As such, we will provide two options to buy L2 gas:
 
 1. Burn L1 Gas
 2. Send ETH to the Optimism Portal (Not yet supported)
 
-The payable version (Option 2) will likely have discout applied to it (or conversly, #1 has a
+The payable version (Option 2) will likely have discount applied to it (or conversely, #1 has a
 premium applied to it).
 
 For the initial release of bedrock, only #1 is supported.
