@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/alicebob/miniredis"
 	"github.com/ethereum-optimism/optimism/proxyd"
 	"github.com/stretchr/testify/require"
 )
@@ -15,6 +16,7 @@ import (
 const (
 	goodResponse       = `{"jsonrpc": "2.0", "result": "hello", "id": 999}`
 	noBackendsResponse = `{"error":{"code":-32011,"message":"no backends available for method"},"id":999,"jsonrpc":"2.0"}`
+	unexpectedResponse = `{"error":{"code":-32011,"message":"some error"},"id":999,"jsonrpc":"2.0"}`
 )
 
 func TestFailover(t *testing.T) {
@@ -239,4 +241,53 @@ func TestBatchWithPartialFailover(t *testing.T) {
 	RequireEqualJSON(t, []byte(asArray(goodResponse, goodResponse, goodResponse, goodResponse)), res)
 	require.Equal(t, 2, len(badBackend.Requests()))
 	require.Equal(t, 2, len(goodBackend.Requests()))
+}
+
+func TestInfuraFailoverOnUnexpectedResponse(t *testing.T) {
+	InitLogger()
+	// Scenario:
+	// 1. Send batch to BAD_BACKEND (Infura)
+	// 2. Infura fails completely due to a partially errorneous batch request (one of N+1 request object is invalid)
+	// 3. Assert that the request batch is re-routed to the failover provider
+	// 4. Assert that BAD_BACKEND is NOT labeled offline
+	// 5. Assert that BAD_BACKEND is NOT retried
+
+	redis, err := miniredis.Run()
+	require.NoError(t, err)
+	defer redis.Close()
+
+	config := ReadConfig("failover")
+	config.Server.MaxUpstreamBatchSize = 2
+	config.BackendOptions.MaxRetries = 2
+	// Setup redis to detect offline backends
+	config.Redis.URL = fmt.Sprintf("redis://127.0.0.1:%s", redis.Port())
+
+	goodBackend := NewMockBackend(BatchedResponseHandler(200, goodResponse, goodResponse))
+	defer goodBackend.Close()
+	badBackend := NewMockBackend(SingleResponseHandler(200, unexpectedResponse))
+	defer badBackend.Close()
+
+	require.NoError(t, os.Setenv("GOOD_BACKEND_RPC_URL", goodBackend.URL()))
+	require.NoError(t, os.Setenv("BAD_BACKEND_RPC_URL", badBackend.URL()))
+
+	client := NewProxydClient("http://127.0.0.1:8545")
+	shutdown, err := proxyd.Start(config)
+	require.NoError(t, err)
+	defer shutdown()
+
+	res, statusCode, err := client.SendBatchRPC(
+		NewRPCReq("1", "eth_chainId", nil),
+		NewRPCReq("2", "eth_chainId", nil),
+	)
+	require.NoError(t, err)
+	require.Equal(t, 200, statusCode)
+	RequireEqualJSON(t, []byte(asArray(goodResponse, goodResponse)), res)
+	require.Equal(t, 1, len(badBackend.Requests()))
+	require.Equal(t, 1, len(goodBackend.Requests()))
+
+	rr, err := proxyd.NewRedisRateLimiter(config.Redis.URL)
+	require.NoError(t, err)
+	online, err := rr.IsBackendOnline("bad")
+	require.NoError(t, err)
+	require.Equal(t, true, online)
 }

@@ -1,0 +1,45 @@
+{
+  "private": true,
+  "name": "@eth-optimism/drippie-mon",
+  "version": "0.2.0",
+  "description": "[Optimism] Service for monitoring Drippie instances",
+  "main": "dist/index",
+  "types": "dist/index",
+  "files": [
+    "dist/*"
+  ],
+  "scripts": {
+    "start": "ts-node ./src/service.ts",
+    "test:coverage": "echo 'No tests defined.'",
+    "build": "tsc -p ./tsconfig.json",
+    "clean": "rimraf  dist/ ./tsconfig.tsbuildinfo",
+    "lint": "yarn lint:fix && yarn lint:check",
+    "pre-commit": "lint-staged",
+    "lint:fix": "yarn lint:check --fix",
+    "lint:check": "eslint . --max-warnings=0"
+  },
+  "keywords": [
+    "optimism",
+    "ethereum",
+    "drippie",
+    "monitoring"
+  ],
+  "homepage": "https://github.com/ethereum-optimism/optimism/tree/develop/packages/drippie-mon#readme",
+  "license": "MIT",
+  "author": "Optimism PBC",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ethereum-optimism/optimism.git"
+  },
+  "dependencies": {
+    "@eth-optimism/common-ts": "0.2.10",
+    "@eth-optimism/contracts-periphery": "0.1.2",
+    "@eth-optimism/core-utils": "0.8.6",
+    "@eth-optimism/sdk": "1.1.8",
+    "ethers": "^5.6.8"
+  },
+  "devDependencies": {
+    "@ethersproject/abstract-provider": "^5.6.1",
+    "ts-node": "^10.0.0"
+  }
+}

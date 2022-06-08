@@ -108,9 +108,7 @@ L1 re-orgs can happen because of network conditions or attacks. L2 re-orgs are a
 
 A contract placed in the L2 genesis state (i.e. at the start of the chain).
 
-Optimism has the following predeploys:
-
-- [L1 Attributes Predeployed Contract][l1-attr-predeploy]
+All predeploy contracts are specified in the [predeploys specification][./predeploys.md].
 
 ## Receipt
 

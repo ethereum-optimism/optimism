@@ -9,7 +9,7 @@
 - [Engine API](#engine-api)
   - [`engine_forkchoiceUpdatedV1`](#engine_forkchoiceupdatedv1)
     - [Extended PayloadAttributesV1](#extended-payloadattributesv1)
-  - [`engine_executePayloadV1`](#engine_executepayloadv1)
+  - [`engine_newPayloadV1`](#engine_newpayloadv1)
   - [`engine_getPayloadV1`](#engine_getpayloadv1)
 - [Networking](#networking)
 - [Sync](#sync)
@@ -103,9 +103,9 @@ The `noTxPool` is optional as well, and extends the `transactions` meaning:
 
 [rollup-driver]: rollup-node.md
 
-### `engine_executePayloadV1`
+### `engine_newPayloadV1`
 
-No modifications to [`engine_executePayloadV1`][engine_executePayloadV1].
+No modifications to [`engine_newPayloadV1`][engine_newPayloadV1].
 Applies a L2 block to the engine state.
 
 ### `engine_getPayloadV1`
@@ -157,7 +157,7 @@ as the engine implementation can sync state faster through methods like [snap-sy
 ### Happy-path sync
 
 1. The rollup node informs the engine of the L2 chain head, unconditionally (part of regular node operation):
-   - [`engine_executePayloadV1`][engine_executePayloadV1] is called with latest L2 block derived from L1.
+   - [`engine_newPayloadV1`][engine_newPayloadV1] is called with latest L2 block derived from L1.
    - [`engine_forkchoiceUpdatedV1`][engine_forkchoiceUpdatedV1] is called with the current
      `unsafe`/`safe`/`finalized` L2 block hashes.
 2. The engine requests headers from peers, in reverse till the parent hash matches the local chain
@@ -174,18 +174,18 @@ the operation within the engine is the exact same as with L1 (although with an E
 2. The rollup node maintains latest head from engine (poll `eth_getBlockByNumber` and/or maintain a header subscription)
 3. The rollup node activates sync if the engine is out of sync but not syncing through P2P (`eth_syncing`)
 4. The rollup node inserts blocks, derived from L1, one by one, potentially adapting to L1 reorg(s),
-   as outlined in the [rollup node spec] (`engine_forkchoiceUpdatedV1`, `engine_executePayloadV1`)
+   as outlined in the [rollup node spec] (`engine_forkchoiceUpdatedV1`, `engine_newPayloadV1`)
 
 [rollup node spec]: rollup-node.md
 
 [eip-2718]: https://eips.ethereum.org/EIPS/eip-2718
 [eip-2718-transactions]: https://eips.ethereum.org/EIPS/eip-2718#transactions
-[exec-api-data]: https://github.com/ethereum/execution-apis/blob/v1.0.0-alpha.5/src/engine/specification.md#structures
-[l1-api-spec]: https://github.com/ethereum/execution-apis/blob/v1.0.0-alpha.5/src/engine/specification.md
-[PayloadAttributesV1]: https://github.com/ethereum/execution-apis/blob/v1.0.0-alpha.5/src/engine/specification.md#PayloadAttributesV1
-[ExecutionPayloadV1]: https://github.com/ethereum/execution-apis/blob/v1.0.0-alpha.5/src/engine/specification.md#ExecutionPayloadV1
-[engine_forkchoiceUpdatedV1]: https://github.com/ethereum/execution-apis/blob/v1.0.0-alpha.5/src/engine/specification.md#engine_forkchoiceupdatedv1
-[engine_executePayloadV1]: https://github.com/ethereum/execution-apis/blob/v1.0.0-alpha.5/src/engine/specification.md#engine_executePayloadV1
-[engine_getPayloadV1]: https://github.com/ethereum/execution-apis/blob/v1.0.0-alpha.5/src/engine/specification.md#engine_getPayloadV1
+[exec-api-data]: https://github.com/ethereum/execution-apis/blob/769c53c94c4e487337ad0edea9ee0dce49c79bfa/src/engine/specification.md#structures
+[l1-api-spec]: https://github.com/ethereum/execution-apis/blob/769c53c94c4e487337ad0edea9ee0dce49c79bfa/src/engine/specification.md
+[PayloadAttributesV1]: https://github.com/ethereum/execution-apis/blob/769c53c94c4e487337ad0edea9ee0dce49c79bfa/src/engine/specification.md#PayloadAttributesV1
+[ExecutionPayloadV1]: https://github.com/ethereum/execution-apis/blob/769c53c94c4e487337ad0edea9ee0dce49c79bfa/src/engine/specification.md#ExecutionPayloadV1
+[engine_forkchoiceUpdatedV1]: https://github.com/ethereum/execution-apis/blob/769c53c94c4e487337ad0edea9ee0dce49c79bfa/src/engine/specification.md#engine_forkchoiceupdatedv1
+[engine_newPayloadV1]: https://github.com/ethereum/execution-apis/blob/769c53c94c4e487337ad0edea9ee0dce49c79bfa/src/engine/specification.md#engine_newPayloadV1
+[engine_getPayloadV1]: https://github.com/ethereum/execution-apis/blob/769c53c94c4e487337ad0edea9ee0dce49c79bfa/src/engine/specification.md#engine_getPayloadV1
 [HEX value encoding]: https://eth.wiki/json-rpc/API#hex-value-encoding
 [JSON-RPC-API]: https://github.com/ethereum/execution-apis

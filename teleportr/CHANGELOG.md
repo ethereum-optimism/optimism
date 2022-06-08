@@ -1,5 +1,12 @@
 # @eth-optimism/teleportr
 
+## 0.0.8
+
+### Patch Changes
+
+- 487a9731: Improve metrics
+- b5ee3c70: Increase max disbursements to 15
+
 ## 0.0.7
 
 ### Patch Changes
