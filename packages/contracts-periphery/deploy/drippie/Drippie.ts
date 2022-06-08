@@ -11,7 +11,7 @@ const deployFn: DeployFunction = async (hre) => {
   const { deploy } = await hre.deployments.deterministic('Drippie', {
     salt: hre.ethers.utils.solidityKeccak256(['string'], ['Drippie']),
     from: deployer,
-    args: [config.drippieOwner],
+    args: [config.ddd],
     log: true,
   })
 

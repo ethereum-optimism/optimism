@@ -248,7 +248,7 @@ if (status != "SUCCESS") error()
 // retrieve and execute the execution payload
 [executionPayload, error] = engine_getPayloadV1(payloadID)
 if (error != null) error()
-[status, latestValidHash, validationError] = engine_executePayloadV1(executionPayload)
+[status, latestValidHash, validationError] = engine_newPayloadV1(executionPayload)
 if (status != "VALID" || validationError != null) error()
 
 refL2 = latestValidHash
@@ -277,11 +277,11 @@ The following JSON-RPC methods are part of the [execution engine API][exec-engin
 - [`engine_forkchoiceUpdatedV1`] — updates the forkchoice (i.e. the chain head) to `headBlockHash` if different, and
   instructs the engine to start building an execution payload given payload attributes the second argument isn't `null`
 - [`engine_getPayloadV1`] — retrieves a previously requested execution payload
-- [`engine_executePayloadV1`] — executes an execution payload to create a block
+- [`engine_newPayloadV1`] — executes an execution payload to create a block
 
 [`engine_forkchoiceUpdatedV1`]: exec-engine.md#engine_forkchoiceUpdatedV1
-[`engine_getPayloadV1`]: exec-engine.md#engine_executepayloadv1
-[`engine_executePayloadV1`]: exec-engine.md#engine_executepayloadv1
+[`engine_getPayloadV1`]: exec-engine.md#engine_newPayloadV1
+[`engine_newPayloadV1`]: exec-engine.md#engine_newPayloadV1
 
 The execution payload is an object of type [`ExecutionPayloadV1`].
 
@@ -308,7 +308,7 @@ for more details.
 
 [error-handling]: #engine-api-error-handling
 
-All invocations of [`engine_forkchoiceUpdatedV1`], [`engine_getPayloadV1`] and [`engine_executePayloadV1`] by the
+All invocations of [`engine_forkchoiceUpdatedV1`], [`engine_getPayloadV1`] and [`engine_newPayloadV1`] by the
 rollup driver should not result in errors assuming conformity with the specification. Said otherwise, all errors are
 implementation concerns and it is up to them to handle them (e.g. by retrying, or by stopping the chain derivation and
 requiring manual user intervention).
@@ -316,8 +316,8 @@ requiring manual user intervention).
 The following scenarios are assimilated to errors:
 
 - [`engine_forkchoiceUpdatedV1`] returning a `status` of `"SYNCING"` instead of `"SUCCESS"` whenever passed a
-  `headBlockHash` that it retrieved from a previous call to [`engine_executePayloadV1`].
-- [`engine_executePayloadV1`] returning a `status` of `"SYNCING"` or `"INVALID"` whenever passed an execution payload
+  `headBlockHash` that it retrieved from a previous call to [`engine_newPayloadV1`].
+- [`engine_newPayloadV1`] returning a `status` of `"SYNCING"` or `"INVALID"` whenever passed an execution payload
   that was obtained by a previous call to [`engine_getPayloadV1`].
 
 ### Finalization Guarantees
