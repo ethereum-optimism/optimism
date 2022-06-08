@@ -12,16 +12,6 @@ export interface DeployConfig {
    * the DDD to transfer ownership to the final contract owner very quickly after deployment.
    */
   ddd: string
-
-  /**
-   * Initial RetroReceiver owner.
-   */
-  retroReceiverOwner: string
-
-  /**
-   * Initial Drippie owner.
-   */
-  drippieOwner: string
 }
 
 /**
@@ -34,12 +24,6 @@ const configSpec: {
   }
 } = {
   ddd: {
-    type: 'address',
-  },
-  retroReceiverOwner: {
-    type: 'address',
-  },
-  drippieOwner: {
     type: 'address',
   },
 }
