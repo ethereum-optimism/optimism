@@ -8,16 +8,22 @@ const deployFn: DeployFunction = async (hre) => {
 
   const config = getDeployConfig(hre.network.name)
 
-  const { deploy } = await hre.deployments.deterministic('AssetReceiver', {
-    salt: hre.ethers.utils.solidityKeccak256(['string'], ['RetroReceiver']),
-    from: deployer,
-    args: [config.retroReceiverOwner],
-    log: true,
-  })
+  const { deploy } = await hre.deployments.deterministic(
+    'TeleportrWithdrawer',
+    {
+      salt: hre.ethers.utils.solidityKeccak256(
+        ['string'],
+        ['TeleportrWithdrawer']
+      ),
+      from: deployer,
+      args: [config.ddd],
+      log: true,
+    }
+  )
 
   await deploy()
 }
 
-deployFn.tags = ['RetroReceiver']
+deployFn.tags = ['TeleportrWithdrawer']
 
 export default deployFn
