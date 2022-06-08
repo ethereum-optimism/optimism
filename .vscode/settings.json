@@ -9,6 +9,7 @@
     {"directory": "packages/contracts", "changeProcessCWD": true },
     {"directory": "packages/contracts-periphery", "changeProcessCWD": true },
     {"directory": "packages/data-transport-layer", "changeProcessCWD": true },
+    {"directory": "packages/drippie-mon", "changeProcessCWD": true },
     {"directory": "packages/batch-submitter", "changeProcessCWD": true },
     {"directory": "packages/message-relayer", "changeProcessCWD": true },
     {"directory": "packages/fault-detector", "changeProcessCWD": true },

@@ -91,6 +91,7 @@ jobs:
             - packages/contracts-periphery/node_modules
             - packages/core-utils/node_modules
             - packages/data-transport-layer/node_modules
+            - packages/drippie-mon/node_modules
             - packages/fault-detector/node_modules
             - packages/message-relayer/node_modules
             - packages/replica-healthcheck/node_modules
@@ -177,6 +178,24 @@ jobs:
           name: Test
           command: yarn test:coverage
           working_directory: packages/contracts-periphery
+
+  contracts-governance-tests:
+    docker:
+      - image: ethereumoptimism/js-builder:latest
+    resource_class: xlarge
+    steps:
+      - restore_cache:
+          keys:
+            - v2-cache-yarn-build-{{ .Revision }}
+      - checkout
+      - run:
+          name: Lint
+          command: yarn lint:check
+          working_directory: packages/contracts-governance
+      - run:
+          name: Test
+          command: yarn test
+          working_directory: packages/contracts-governance
 
   dtl-tests:
     docker:
@@ -518,6 +537,9 @@ workflows:
       - contracts-bedrock-tests:
           requires:
             - yarn-monorepo
+      - contracts-governance-tests:
+          requires:
+            - yarn-monorepo
       - js-lint-test:
           name: dtl-tests
           package_name: data-transport-layer
@@ -536,6 +558,11 @@ workflows:
       - js-lint-test:
           name: fault-detector-tests
           package_name: fault-detector
+          requires:
+            - yarn-monorepo
+      - js-lint-test:
+          name: drippie-mon-tests
+          package_name: drippie-mon
           requires:
             - yarn-monorepo
       - js-lint-test:
@@ -626,6 +653,14 @@ workflows:
           docker_tags: ethereumoptimism/fault-detector:nightly
           docker_context: .
           target: fault-detector
+          context:
+            - optimism
+      - docker-publish:
+          name: drippie-mon-release
+          docker_file: ops/docker/Dockerfile.packages
+          docker_tags: ethereumoptimism/drippie-mon:nightly
+          docker_context: .
+          target: drippie-mon
           context:
             - optimism
       - docker-publish:

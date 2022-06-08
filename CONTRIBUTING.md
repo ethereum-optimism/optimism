@@ -64,6 +64,7 @@ You'll need the following:
 * [Yarn](https://classic.yarnpkg.com/en/docs/install)
 * [Docker](https://docs.docker.com/get-docker/)
 * [Docker Compose](https://docs.docker.com/compose/install/)
+* [Foundry](https://getfoundry.sh)
 
 ### Setup
 
@@ -84,6 +85,10 @@ nvm use
 ```
 
 ### Building the TypeScript packages
+
+[foundry](https://github.com/foundry-rs/foundry) is used for some smart contract
+development in the monorepo. It is required to build the TypeScript packages
+and compile the smart contracts. Install foundry [here](https://getfoundry.sh/).
 
 To build all of the [TypeScript packages](./packages), run:
 

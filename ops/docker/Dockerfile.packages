@@ -22,6 +22,7 @@ COPY packages/common-ts/package.json ./packages/common-ts/package.json
 COPY packages/contracts/package.json ./packages/contracts/package.json
 COPY packages/contracts-bedrock/package.json ./packages/contracts-bedrock/package.json
 COPY packages/contracts-periphery/package.json ./packages/contracts-periphery/package.json
+COPY packages/contracts-governance/package.json ./packages/contracts-governance/package.json
 COPY packages/data-transport-layer/package.json ./packages/data-transport-layer/package.json
 COPY packages/message-relayer/package.json ./packages/message-relayer/package.json
 COPY packages/fault-detector/package.json ./packages/fault-detector/package.json
