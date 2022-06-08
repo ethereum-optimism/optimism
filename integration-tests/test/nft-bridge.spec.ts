@@ -86,8 +86,7 @@ describe('ERC721 Bridge', () => {
     await L1ERC721Bridge.deployed()
 
     L2ERC721Bridge = await Factory__L2ERC721Bridge.deploy(
-      predeploys.L2CrossDomainMessenger,
-      L1ERC721Bridge.address
+      predeploys.L2CrossDomainMessenger
     )
     await L2ERC721Bridge.deployed()
 
@@ -113,20 +112,22 @@ describe('ERC721 Bridge', () => {
     )
     await L2StandardERC721.deployed()
 
-    // Initialize the L1 ERC721 Bridge
+    // Initialize the bridge contracts
     const tx1 = await L1ERC721Bridge.initialize(
       env.messenger.contracts.l1.L1CrossDomainMessenger.address,
       L2ERC721Bridge.address
     )
     await tx1.wait()
-
-    // Mint an L1 ERC721 to Bob on L1
-    const tx2 = await L1ERC721.mint(bobAddress, TOKEN_ID)
+    const tx2 = await L2ERC721Bridge.initialize(L1ERC721Bridge.address)
     await tx2.wait()
 
-    // Approve the L1 Bridge to operate the NFT
-    const tx3 = await L1ERC721.approve(L1ERC721Bridge.address, TOKEN_ID)
+    // Mint an L1 ERC721 to Bob on L1
+    const tx3 = await L1ERC721.mint(bobAddress, TOKEN_ID)
     await tx3.wait()
+
+    // Approve the L1 Bridge to operate the NFT
+    const tx4 = await L1ERC721.approve(L1ERC721Bridge.address, TOKEN_ID)
+    await tx4.wait()
   })
 
   it('depositERC721', async () => {

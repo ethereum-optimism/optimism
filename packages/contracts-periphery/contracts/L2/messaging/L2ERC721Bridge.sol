@@ -38,11 +38,19 @@ contract L2ERC721Bridge is IL2ERC721Bridge, CrossDomainEnabled {
 
     /**
      * @param _l2CrossDomainMessenger Cross-domain messenger used by this contract.
+     */
+    constructor(address _l2CrossDomainMessenger) CrossDomainEnabled(_l2CrossDomainMessenger) {}
+
+    /******************
+     * Initialization *
+     ******************/
+
+    /**
      * @param _l1ERC721Bridge Address of the L1 bridge deployed to the main chain.
      */
-    constructor(address _l2CrossDomainMessenger, address _l1ERC721Bridge)
-        CrossDomainEnabled(_l2CrossDomainMessenger)
-    {
+    // slither-disable-next-line external-function
+    function initialize(address _l1ERC721Bridge) public {
+        require(l1ERC721Bridge == address(0), "Contract has already been initialized.");
         l1ERC721Bridge = _l1ERC721Bridge;
     }
 

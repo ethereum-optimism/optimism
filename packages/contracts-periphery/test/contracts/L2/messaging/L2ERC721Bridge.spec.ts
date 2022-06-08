@@ -10,6 +10,7 @@ import {
   NON_ZERO_ADDRESS,
 } from '../../../../../contracts/test/helpers'
 
+const ERR_ALREADY_INITIALIZED = 'Contract has already been initialized.'
 const ERR_INVALID_MESSENGER = 'OVM_XCHAIN: messenger contract unauthenticated'
 const ERR_INVALID_X_DOMAIN_MSG_SENDER =
   'OVM_XCHAIN: wrong sender of cross-domain message'
@@ -52,7 +53,10 @@ describe('L2ERC721Bridge', () => {
     // Deploy the contract under test
     L2ERC721Bridge = await (
       await ethers.getContractFactory('L2ERC721Bridge')
-    ).deploy(Fake__L2CrossDomainMessenger.address, DUMMY_L1BRIDGE_ADDRESS)
+    ).deploy(Fake__L2CrossDomainMessenger.address)
+
+    // Initialize the contract
+    await L2ERC721Bridge.initialize(DUMMY_L1BRIDGE_ADDRESS)
 
     // Deploy an L2 ERC721
     L2ERC721 = await (
@@ -64,6 +68,14 @@ describe('L2ERC721Bridge', () => {
       'L2T',
       { gasLimit: 4_000_000 } // Necessary to avoid an out-of-gas error
     )
+  })
+
+  describe('initialize', () => {
+    it('Should only be callable once', async () => {
+      await expect(
+        L2ERC721Bridge.initialize(DUMMY_L1BRIDGE_ADDRESS)
+      ).to.be.revertedWith(ERR_ALREADY_INITIALIZED)
+    })
   })
 
   // test the transfer flow of moving a token from L1 to L2
