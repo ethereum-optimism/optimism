@@ -506,7 +506,6 @@ jobs:
       - run:
           name: "Semgrep scan"
           command: semgrep ci
-          # command: git ls-files && semgrep scan --config=r/dgryski.semgrep-go.timeafter.leaky-time-after --verbose .
 
 workflows:
   main:
