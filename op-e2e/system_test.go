@@ -117,6 +117,8 @@ func defaultSystemConfig(t *testing.T) SystemConfig {
 			"verifier":  testlog.Logger(t, log.LvlError).New("role", "verifier"),
 			"sequencer": testlog.Logger(t, log.LvlError).New("role", "sequencer"),
 		},
+		ProposerLogger: testlog.Logger(t, log.LvlCrit).New("role", "proposer"), // Proposer is noisy on shutdown
+		BatcherLogger:  testlog.Logger(t, log.LvlCrit).New("role", "batcher"),  // Batcher (txmgr really) is noisy on shutdown
 		RollupConfig: rollup.Config{
 			BlockTime:         1,
 			MaxSequencerDrift: 10,
@@ -739,19 +741,19 @@ func TestWithdrawals(t *testing.T) {
 	tx, err = l2withdrawer.InitiateWithdrawal(l2opts, fromAddr, big.NewInt(21000), nil)
 	require.Nil(t, err, "sending initiate withdraw tx")
 
-	receipt, err = waitForTransaction(tx.Hash(), l2Seq, 3*time.Duration(cfg.L1BlockTime)*time.Second)
+	receipt, err = waitForTransaction(tx.Hash(), l2Verif, 5*time.Duration(cfg.L1BlockTime)*time.Second)
 	require.Nil(t, err, "withdrawal initiated on L2 sequencer")
 	require.Equal(t, receipt.Status, types.ReceiptStatusSuccessful, "transaction failed")
 
 	// Verify L2 balance after withdrawal
 	ctx, cancel = context.WithTimeout(context.Background(), 1*time.Second)
 	defer cancel()
-	header, err := l2Seq.HeaderByNumber(ctx, receipt.BlockNumber)
+	header, err := l2Verif.HeaderByNumber(ctx, receipt.BlockNumber)
 	require.Nil(t, err)
 
 	ctx, cancel = context.WithTimeout(context.Background(), 1*time.Second)
 	defer cancel()
-	endBalance, err = l2Seq.BalanceAt(ctx, fromAddr, nil)
+	endBalance, err = l2Verif.BalanceAt(ctx, fromAddr, nil)
 	require.Nil(t, err)
 
 	// Take fee into account
@@ -767,23 +769,17 @@ func TestWithdrawals(t *testing.T) {
 	require.Nil(t, err)
 
 	// Wait for finalization and then create the Finalized Withdrawal Transaction
-	// l2OutputOracle, err := bindings.NewL2OutputOracleCaller(sys.L2OOContractAddr, l1Client)
-	// require.Nil(t, err)
-
 	ctx, cancel = context.WithTimeout(context.Background(), 10*time.Duration(cfg.L1BlockTime)*time.Second)
 	defer cancel()
-	timestamp, err := withdrawals.WaitForFinalizationPeriod(ctx, l1Client, sys.DepositContractAddr, header.Time)
+	blockNumber, err := withdrawals.WaitForFinalizationPeriod(ctx, l1Client, sys.DepositContractAddr, receipt.BlockNumber)
 	require.Nil(t, err)
 
 	ctx, cancel = context.WithTimeout(context.Background(), 1*time.Second)
 	defer cancel()
-
-	ctx, cancel = context.WithTimeout(context.Background(), 1*time.Second)
-	defer cancel()
-	header, err = l2Seq.HeaderByNumber(ctx, new (big.Int).SetUint64(blockNumber))
+	header, err = l2Verif.HeaderByNumber(ctx, new(big.Int).SetUint64(blockNumber))
 	require.Nil(t, err)
 
-	rpc, err := rpc.Dial(sys.nodes["sequencer"].WSEndpoint())
+	rpc, err := rpc.Dial(sys.nodes["verifier"].WSEndpoint())
 	require.Nil(t, err)
 	l2client := withdrawals.NewClient(rpc)
 
@@ -803,7 +799,7 @@ func TestWithdrawals(t *testing.T) {
 		params.Value,
 		params.GasLimit,
 		params.Data,
-		params.Timestamp,
+		params.BlockNumber,
 		params.OutputRootProof,
 		params.WithdrawalProof,
 	)
