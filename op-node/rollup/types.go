@@ -32,6 +32,8 @@ type Config struct {
 	MaxSequencerDrift uint64 `json:"max_sequencer_drift"`
 	// Number of epochs (L1 blocks) per sequencing window
 	SeqWindowSize uint64 `json:"seq_window_size"`
+	// Number of seconds (w.r.t. L1 time) that a frame can be valid when included in L1
+	ChannelTimeout uint64 `json:"channel_timeout"`
 	// Required to verify L1 signatures
 	L1ChainID *big.Int `json:"l1_chain_id"`
 	// Required to identify the L2 network and create p2p signatures unique for this chain.

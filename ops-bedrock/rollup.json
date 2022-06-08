@@ -17,6 +17,8 @@
 
   "seq_window_size": 2,
 
+  "channel_timeout": 10,
+
   "l1_chain_id": 900,
 
   "l2_chain_id": 901,
