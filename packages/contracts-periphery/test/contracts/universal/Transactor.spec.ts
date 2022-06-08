@@ -5,7 +5,7 @@ import { Contract } from 'ethers'
 import { expect } from '../../setup'
 import { decodeSolidityRevert, deploy } from '../../helpers'
 
-describe('AssetReceiver', () => {
+describe('Transactor', () => {
   let signer1: SignerWithAddress
   let signer2: SignerWithAddress
   before('signer setup', async () => {

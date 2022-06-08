@@ -5,6 +5,15 @@ import { ethers } from 'ethers'
  */
 export interface DeployConfig {
   /**
+   * Dedicated Deterministic Deployer address (DDD).
+   * When deploying authenticated deterministic smart contracts to the same address on various
+   * chains, it's necessary to have a single root address that will initially own the contract and
+   * later transfer ownership to the final contract owner. We call this address the DDD. We expect
+   * the DDD to transfer ownership to the final contract owner very quickly after deployment.
+   */
+  ddd: string
+
+  /**
    * Initial RetroReceiver owner.
    */
   retroReceiverOwner: string
@@ -24,6 +33,9 @@ const configSpec: {
     default?: any
   }
 } = {
+  ddd: {
+    type: 'address',
+  },
   retroReceiverOwner: {
     type: 'address',
   },

@@ -8,13 +8,24 @@ import { ExcessivelySafeCall } from "../libraries/ExcessivelySafeCall.sol";
 import { ResourceMetering } from "./ResourceMetering.sol";
 
 /**
+ * @custom:proxied
  * @title OptimismPortal
- * This contract should be deployed behind an upgradable proxy.
+ * @notice The OptimismPortal is a low-level contract responsible for passing messages between L1
+ *         and L2. Messages sent directly to the OptimismPortal have no form of replayability.
+ *         Users are encouraged to use the L1CrossDomainMessenger for a higher-level interface.
  */
 contract OptimismPortal is ResourceMetering {
     /**
-     * Emitted when a Transaction is deposited from L1 to L2. The parameters of this
-     * event are read by the rollup node and used to derive deposit transactions on L2.
+     * @notice Emitted when a transaction is deposited from L1 to L2. The parameters of this event
+     *         are read by the rollup node and used to derive deposit transactions on L2.
+     *
+     * @param from       Address that triggered the deposit transaction.
+     * @param to         Address that the deposit transaction is directed to.
+     * @param mint       Amount of ETH to mint to the sender on L2.
+     * @param value      Amount of ETH to send to the recipient.
+     * @param gasLimit   Minimum gas limit that the message can be executed with.
+     * @param isCreation Whether the message is a contract creation.
+     * @param data       Data to attach to the message and call the recipient with.
      */
     event TransactionDeposited(
         address indexed from,
@@ -27,40 +38,42 @@ contract OptimismPortal is ResourceMetering {
     );
 
     /**
-     * Emitted when a withdrawal is finalized
+     * @notice Emitted when a withdrawal transaction is finalized.
+     *
+     * @param withdrawalHash Hash of the withdrawal transaction.
+     * @param success        Whether the withdrawal transaction was successful.
      */
-    event WithdrawalFinalized(bytes32 indexed, bool success);
+    event WithdrawalFinalized(bytes32 indexed withdrawalHash, bool success);
 
     /**
-     * Value used to reset the l2Sender, this is more efficient than setting it to zero.
+     * @notice Value used to reset the l2Sender, this is more efficient than setting it to zero.
      */
     address internal constant DEFAULT_L2_SENDER = 0x000000000000000000000000000000000000dEaD;
 
     /**
-     * Minimum time that must elapse before a withdrawal can be finalized.
+     * @notice Minimum time (in seconds) that must elapse before a withdrawal can be finalized.
      */
     uint256 public immutable FINALIZATION_PERIOD_SECONDS;
 
     /**
-     * Address of the L2OutputOracle.
+     * @notice Address of the L2OutputOracle.
      */
     L2OutputOracle public immutable L2_ORACLE;
 
     /**
-     * Public variable which can be used to read the address of the L2 account which initiated the
-     * withdrawal. Can also be used to determine whether or not execution is occuring downstream of
-     * a call to finalizeWithdrawalTransaction().
+     * @notice Address of the L2 account which initiated a withdrawal in this transaction. If the
+     *         of this variable is the default L2 sender address, then we are NOT inside of a call
+     *         to finalizeWithdrawalTransaction.
      */
     address public l2Sender = DEFAULT_L2_SENDER;
 
     /**
-     * A list of withdrawal hashes which have been successfully finalized.
-     * Used for replay protection.
+     * @notice A list of withdrawal hashes which have been successfully finalized.
      */
     mapping(bytes32 => bool) public finalizedWithdrawals;
 
     /**
-     * @param _l2Oracle Address of the L2OutputOracle.
+     * @param _l2Oracle                  Address of the L2OutputOracle.
      * @param _finalizationPeriodSeconds Finalization time in seconds.
      */
     constructor(L2OutputOracle _l2Oracle, uint256 _finalizationPeriodSeconds) {
@@ -69,9 +82,9 @@ contract OptimismPortal is ResourceMetering {
     }
 
     /**
-     * Accepts value so that users can send ETH directly to this contract and have the funds be
-     * deposited to their address on L2. This is intended as a convenience function for EOAs.
-     * Contracts should call the depositTransaction() function directly.
+     * @notice Accepts value so that users can send ETH directly to this contract and have the
+     *         funds be deposited to their address on L2. This is intended as a convenience
+     *         function for EOAs. Contracts should call the depositTransaction() function directly.
      */
     receive() external payable {
         depositTransaction(msg.sender, msg.value, 100000, false, bytes(""));
@@ -79,16 +92,15 @@ contract OptimismPortal is ResourceMetering {
 
     /**
      * @notice Accepts deposits of ETH and data, and emits a TransactionDeposited event for use in
-     * deriving deposit transactions. Note that if a deposit is made by a contract, its address will
-     * be aliased when retrieved using `tx.origin` or `msg.sender`. This can lead to loss of funds
-     * in some cases which the depositing contract may not have accounted for. Consider using the
-     * Bridge or CrossDomainMessenger contracts which provide additional safety assurances.
+     *         deriving deposit transactions. Note that if a deposit is made by a contract, its
+     *         address will be aliased when retrieved using `tx.origin` or `msg.sender`. Consider
+     *         using the CrossDomainMessenger contracts for a simpler developer experience.
      *
-     * @param _to The L2 destination address.
-     * @param _value The ETH value to send in the deposit transaction.
-     * @param _gasLimit The L2 gasLimit.
-     * @param _isCreation Whether or not the transaction should be contract creation.
-     * @param _data The input data.
+     * @param _to         Target address on L2.
+     * @param _value      ETH value to send to the recipient.
+     * @param _gasLimit   Minimum L2 gas limit (can be greater than or equal to this value).
+     * @param _isCreation Whether or not the transaction is a contract creation.
+     * @param _data       Data to trigger the recipient with.
      */
     function depositTransaction(
         address _to,
@@ -119,15 +131,15 @@ contract OptimismPortal is ResourceMetering {
     }
 
     /**
-     * Finalizes a withdrawal transaction.
+     * @notice Finalizes a withdrawal transaction.
      *
-     * @param _nonce Nonce for the provided message.
-     * @param _sender Message sender address on L2.
-     * @param _target Target address on L1.
-     * @param _value ETH to send to the target.
-     * @param _gasLimit Gas to be forwarded to the target.
-     * @param _data Data to send to the target.
-     * @param _l2Timestamp L2 timestamp of the outputRoot.
+     * @param _nonce           Nonce for the provided message.
+     * @param _sender          Message sender address on L2.
+     * @param _target          Target address on L1.
+     * @param _value           ETH to send to the target.
+     * @param _gasLimit        Minumum gas to be forwarded to the target.
+     * @param _data            Data to send to the target.
+     * @param _l2Timestamp     L2 timestamp of the outputRoot.
      * @param _outputRootProof Inclusion proof of the withdrawer contracts storage root.
      * @param _withdrawalProof Inclusion proof for the given withdrawal in the withdrawer contract.
      */

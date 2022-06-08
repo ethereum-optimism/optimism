@@ -19,6 +19,5 @@ const deployFn: DeployFunction = async (hre) => {
 }
 
 deployFn.tags = ['Drippie']
-deployFn.dependencies = ['OptimismAuthority']
 
 export default deployFn

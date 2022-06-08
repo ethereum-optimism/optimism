@@ -8918,9 +8918,9 @@ forever-agent@~0.6.1:
   resolved "https://registry.yarnpkg.com/forever-agent/-/forever-agent-0.6.1.tgz#fbc71f0c41adeb37f96c577ad1ed42d8fdacca91"
   integrity sha1-+8cfDEGt6zf5bFd60e1C2P2sypE=
 
-"forge-std@https://github.com/foundry-rs/forge-std.git#1680d7fb3e00b7b197a7336e7c88e838c7e6a3ec":
+"forge-std@https://github.com/foundry-rs/forge-std.git#564510058ab3db01577b772c275e081e678373f2":
   version "0.0.0"
-  resolved "https://github.com/foundry-rs/forge-std.git#1680d7fb3e00b7b197a7336e7c88e838c7e6a3ec"
+  resolved "https://github.com/foundry-rs/forge-std.git#564510058ab3db01577b772c275e081e678373f2"
 
 form-data@^2.2.0:
   version "2.5.1"

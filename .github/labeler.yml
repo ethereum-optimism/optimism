@@ -7,6 +7,7 @@
   - 'packages/contracts/**/*'
   - 'packages/contracts-periphery/**/*'
   - 'packages/data-transport-layer/**/*'
+  - 'packages/drippie-mon/**/*'
   - 'packages/message-relayer/**/*'
   - 'packages/fault-detector/**/*'
   - 'patches/**/*'

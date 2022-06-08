@@ -91,6 +91,7 @@ jobs:
             - packages/contracts-periphery/node_modules
             - packages/core-utils/node_modules
             - packages/data-transport-layer/node_modules
+            - packages/drippie-mon/node_modules
             - packages/fault-detector/node_modules
             - packages/message-relayer/node_modules
             - packages/replica-healthcheck/node_modules
@@ -560,6 +561,11 @@ workflows:
           requires:
             - yarn-monorepo
       - js-lint-test:
+          name: drippie-mon-tests
+          package_name: drippie-mon
+          requires:
+            - yarn-monorepo
+      - js-lint-test:
           name: message-relayer-tests
           package_name: message-relayer
           requires:
@@ -647,6 +653,14 @@ workflows:
           docker_tags: ethereumoptimism/fault-detector:nightly
           docker_context: .
           target: fault-detector
+          context:
+            - optimism
+      - docker-publish:
+          name: drippie-mon-release
+          docker_file: ops/docker/Dockerfile.packages
+          docker_tags: ethereumoptimism/drippie-mon:nightly
+          docker_context: .
+          target: drippie-mon
           context:
             - optimism
       - docker-publish:

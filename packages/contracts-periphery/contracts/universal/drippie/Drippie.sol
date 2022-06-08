@@ -52,22 +52,39 @@ contract Drippie is AssetReceiver {
         DripStatus status;
         DripConfig config;
         uint256 last;
+        uint256 count;
     }
 
     /**
      * Emitted when a new drip is created.
      */
-    event DripCreated(string indexed name, DripConfig config);
+    event DripCreated(
+        // Emit name twice because indexed version is hashed.
+        string indexed nameref,
+        string name,
+        DripConfig config
+    );
 
     /**
      * Emitted when a drip status is updated.
      */
-    event DripStatusUpdated(string indexed name, DripStatus status);
+    event DripStatusUpdated(
+        // Emit name twice because indexed version is hashed.
+        string indexed nameref,
+        string name,
+        DripStatus status
+    );
 
     /**
      * Emitted when a drip is executed.
      */
-    event DripExecuted(string indexed name, address indexed executor, uint256 timestamp);
+    event DripExecuted(
+        // Emit name twice because indexed version is hashed.
+        string indexed nameref,
+        string name,
+        address executor,
+        uint256 timestamp
+    );
 
     /**
      * Maps from drip names to drip states.
@@ -109,7 +126,7 @@ contract Drippie is AssetReceiver {
         }
 
         // Tell the world!
-        emit DripCreated(_name, _config);
+        emit DripCreated(_name, _name, _config);
     }
 
     /**
@@ -163,20 +180,16 @@ contract Drippie is AssetReceiver {
 
         // If we made it here then we can safely update the status.
         drips[_name].status = _status;
-        emit DripStatusUpdated(_name, drips[_name].status);
+        emit DripStatusUpdated(_name, _name, drips[_name].status);
     }
 
     /**
-     * Triggers a drip. This function is deliberately left as a public function because the
-     * assumption being made here is that setting the drip to ACTIVE is an affirmative signal that
-     * the drip should be executable according to the drip parameters, drip check, and drip
-     * interval. Note that drip parameters are read entirely from the state and are not supplied as
-     * user input, so there should not be any way for a non-authorized user to influence the
-     * behavior of the drip.
+     * Checks if a given drip is executable.
      *
-     * @param _name Name of the drip to trigger.
+     * @param _name Drip to check.
+     * @return True if the drip is executable, false otherwise.
      */
-    function drip(string memory _name) external {
+    function executable(string memory _name) public view returns (bool) {
         DripState storage state = drips[_name];
 
         // Only allow active drips to be executed, an obvious security measure.
@@ -199,6 +212,29 @@ contract Drippie is AssetReceiver {
         require(
             state.config.dripcheck.check(state.config.checkparams),
             "Drippie: dripcheck failed so drip is not yet ready to be triggered"
+        );
+
+        // Alright, we're good to execute.
+        return true;
+    }
+
+    /**
+     * Triggers a drip. This function is deliberately left as a public function because the
+     * assumption being made here is that setting the drip to ACTIVE is an affirmative signal that
+     * the drip should be executable according to the drip parameters, drip check, and drip
+     * interval. Note that drip parameters are read entirely from the state and are not supplied as
+     * user input, so there should not be any way for a non-authorized user to influence the
+     * behavior of the drip.
+     *
+     * @param _name Name of the drip to trigger.
+     */
+    function drip(string memory _name) external {
+        DripState storage state = drips[_name];
+
+        // Make sure the drip can be executed.
+        require(
+            executable(_name) == true,
+            "Drippie: drip cannot be executed at this time, try again later"
         );
 
         // Update the last execution time for this drip before the call. Note that it's entirely
@@ -240,6 +276,7 @@ contract Drippie is AssetReceiver {
             );
         }
 
-        emit DripExecuted(_name, msg.sender, block.timestamp);
+        state.count++;
+        emit DripExecuted(_name, _name, msg.sender, block.timestamp);
     }
 }
