@@ -1,5 +1,12 @@
 # @eth-optimism/proxyd
 
+## 3.8.8
+
+### Patch Changes
+
+- 58dc7adc: Improve robustness against unexpected JSON-RPC from upstream
+- 552cd641: Fix concurrent write panic in WS
+
 ## 3.8.7
 
 ### Patch Changes

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"math/big"
 
+	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 
@@ -21,8 +22,8 @@ var (
 	DepositEventABIHash    = crypto.Keccak256Hash([]byte(DepositEventABI))
 	L1InfoFuncSignature    = "setL1BlockValues(uint64,uint64,uint256,bytes32,uint64)"
 	L1InfoFuncBytes4       = crypto.Keccak256([]byte(L1InfoFuncSignature))[:4]
-	L1InfoPredeployAddr    = common.HexToAddress("0x4200000000000000000000000000000000000015")
 	L1InfoDepositerAddress = common.HexToAddress("0xdeaddeaddeaddeaddeaddeaddeaddeaddead0001")
+	L1BlockAddress         = common.HexToAddress(predeploys.L1Block)
 )
 
 type UserDepositSource struct {
@@ -195,7 +196,7 @@ func L1InfoDeposit(seqNumber uint64, block L1Info) (*types.DepositTx, error) {
 	return &types.DepositTx{
 		SourceHash: source.SourceHash(),
 		From:       L1InfoDepositerAddress,
-		To:         &L1InfoPredeployAddr,
+		To:         &L1BlockAddress,
 		Mint:       nil,
 		Value:      big.NewInt(0),
 		Gas:        150_000, // TODO: temporary work around. Block 1 seems to require more gas than specced.

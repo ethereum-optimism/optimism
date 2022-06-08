@@ -27,7 +27,7 @@ const config: HardhatUserConfig = {
         },
       },
     },
-    opkovan: {
+    'optimism-kovan': {
       chainId: 69,
       url: 'https://kovan.optimism.io',
       verify: {
@@ -97,7 +97,10 @@ const config: HardhatUserConfig = {
     },
   },
   namedAccounts: {
-    deployer: `ledger://${getenv('LEDGER_ADDRESS')}`,
+    deployer: {
+      default: `ledger://${getenv('LEDGER_ADDRESS')}`,
+      hardhat: 0,
+    },
   },
 }
 
