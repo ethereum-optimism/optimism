@@ -9,11 +9,12 @@ import { Burn } from "../libraries/Burn.sol";
 /**
  * @title ResourceMetering
  * @notice ResourceMetering implements an EIP-1559 style resource metering system where pricing
- * updates automatically based on current demand.
+ *         updates automatically based on current demand.
  */
 contract ResourceMetering {
     /**
-     * Struct representing current resource parameters.
+     * @notice Represents the various parameters that control the way in which resources are
+     *         metered. Corresponds to the EIP-1559 resource metering system.
      */
     struct ResourceParams {
         uint128 prevBaseFee;
@@ -22,42 +23,42 @@ contract ResourceMetering {
     }
 
     /**
-     * Along with the resource limit, determines the target resource limit.
-     */
-    int256 public constant ELASTICITY_MULTIPLIER = 4;
-
-    /**
-     * Denominator that determines max change on fee per block.
-     */
-    int256 public constant BASE_FEE_MAX_CHANGE_DENOMINATOR = 8;
-
-    /**
-     * Maximum amount of deposit gas that can be used within this block.
+     * @notice Maximum amount of the resource that can be used within this block.
      */
     int256 public constant MAX_RESOURCE_LIMIT = 8_000_000;
 
     /**
-     * Target amount of deposit gas that should be used within this block.
+     * @notice Along with the resource limit, determines the target resource limit.
+     */
+    int256 public constant ELASTICITY_MULTIPLIER = 4;
+
+    /**
+     * @notice Target amount of the resource that should be used within this block.
      */
     int256 public constant TARGET_RESOURCE_LIMIT = MAX_RESOURCE_LIMIT / ELASTICITY_MULTIPLIER;
 
     /**
-     * Minimum base fee value, cannot go lower than this.
+     * @notice Denominator that determines max change on fee per block.
+     */
+    int256 public constant BASE_FEE_MAX_CHANGE_DENOMINATOR = 8;
+
+    /**
+     * @notice Minimum base fee value, cannot go lower than this.
      */
     int256 public constant MINIMUM_BASE_FEE = 10_000;
 
     /**
-     * Initial base fee value.
+     * @notice Initial base fee value.
      */
     uint128 public constant INITIAL_BASE_FEE = 1_000_000_000;
 
     /**
-     * EIP-1559 style gas parameters.
+     * @notice EIP-1559 style gas parameters.
      */
     ResourceParams public params;
 
     /**
-     * Sets the initial resource values.
+     * @notice Sets initial resource parameter values.
      */
     constructor() {
         params = ResourceParams({
@@ -68,7 +69,7 @@ contract ResourceMetering {
     }
 
     /**
-     * Meters access to a function based an amount of a requested resource.
+     * @notice Meters access to a function based an amount of a requested resource.
      *
      * @param _amount Amount of the resource requested.
      */
