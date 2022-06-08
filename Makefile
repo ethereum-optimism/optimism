@@ -59,8 +59,8 @@ devnet-clean:
 	rm -rf ./packages/contracts-bedrock/deployments/devnetL1
 	rm -rf ./.devnet
 	cd ./ops-bedrock && docker-compose down
-	docker image ls | grep ops-bedrock_ | cut -d ' ' -f 1 | xargs docker rmi
-	docker volume ls | grep ops-bedrock_ | cut -d ' ' -f 1 | xargs docker volume rm
+	docker image ls 'ops-bedrock*' --format='{{.Repository}}' | xargs docker rmi
+	docker volume ls --filter name=ops-bedrock --format='{{.Name}}' | xargs docker volume rm
 
 .PHONY: devnet-clean
 

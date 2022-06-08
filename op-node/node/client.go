@@ -10,9 +10,9 @@ import (
 	"github.com/ethereum/go-ethereum/rpc"
 )
 
-type L2EndpointsSetup interface {
+type L2EndpointSetup interface {
 	// Setup a RPC client to a L2 execution engine to process rollup blocks with.
-	Setup(ctx context.Context, log log.Logger) (cl []*rpc.Client, err error)
+	Setup(ctx context.Context, log log.Logger) (cl *rpc.Client, err error)
 	Check() error
 }
 
@@ -21,62 +21,53 @@ type L1EndpointSetup interface {
 	Setup(ctx context.Context, log log.Logger) (cl *rpc.Client, trust bool, err error)
 }
 
-type L2EndpointsConfig struct {
-	L2EngineAddrs []string // Addresses of L2 Engine JSON-RPC endpoints to use (engine and eth namespace required)
+type L2EndpointConfig struct {
+	L2EngineAddr string // Address of L2 Engine JSON-RPC endpoint to use (engine and eth namespace required)
 
-	// JWT secrets for L2 Engine API authentication during HTTP or initial Websocket communication, one per L2 engine.
+	// JWT secrets for L2 Engine API authentication during HTTP or initial Websocket communication.
 	// Any value for an IPC connection.
-	L2EngineJWTSecrets [][32]byte
+	L2EngineJWTSecret [32]byte
 }
 
-var _ L2EndpointsSetup = (*L2EndpointsConfig)(nil)
+var _ L2EndpointSetup = (*L2EndpointConfig)(nil)
 
-func (cfg *L2EndpointsConfig) Check() error {
-	if len(cfg.L2EngineAddrs) == 0 {
-		return errors.New("need at least one L2 engine to connect to")
+func (cfg *L2EndpointConfig) Check() error {
+	if cfg.L2EngineAddr == "" {
+		return errors.New("empty L2 Engine Address")
 	}
-	if len(cfg.L2EngineAddrs) != len(cfg.L2EngineJWTSecrets) {
-		return fmt.Errorf("have %d L2 engines, but %d authentication secrets", len(cfg.L2EngineAddrs), len(cfg.L2EngineJWTSecrets))
-	}
+
 	return nil
 }
 
-func (cfg *L2EndpointsConfig) Setup(ctx context.Context, log log.Logger) ([]*rpc.Client, error) {
+func (cfg *L2EndpointConfig) Setup(ctx context.Context, log log.Logger) (*rpc.Client, error) {
 	if err := cfg.Check(); err != nil {
 		return nil, err
 	}
-	var out []*rpc.Client
-	for i, addr := range cfg.L2EngineAddrs {
-		auth := rpc.NewJWTAuthProvider(cfg.L2EngineJWTSecrets[i])
-		l2Node, err := dialRPCClientWithBackoff(ctx, log, addr, auth)
-		if err != nil {
-			// close clients again if we cannot complete the full setup
-			for _, cl := range out {
-				cl.Close()
-			}
-			return out, err
-		}
-		out = append(out, l2Node)
+	auth := rpc.NewJWTAuthProvider(cfg.L2EngineJWTSecret)
+	l2Node, err := dialRPCClientWithBackoff(ctx, log, cfg.L2EngineAddr, auth)
+	if err != nil {
+		return nil, err
 	}
-	return out, nil
+
+	return l2Node, nil
 }
 
 // PreparedL2Endpoints enables testing with in-process pre-setup RPC connections to L2 engines
 type PreparedL2Endpoints struct {
-	Clients []*rpc.Client
+	Client *rpc.Client
 }
 
 func (p *PreparedL2Endpoints) Check() error {
-	if len(p.Clients) == 0 {
-		return errors.New("need at least one L2 engine to connect to")
+	if p.Client == nil {
+		return errors.New("client cannot be nil")
 	}
 	return nil
 }
 
-var _ L2EndpointsSetup = (*PreparedL2Endpoints)(nil)
+var _ L2EndpointSetup = (*PreparedL2Endpoints)(nil)
 
-func (p *PreparedL2Endpoints) Setup(ctx context.Context, log log.Logger) ([]*rpc.Client, error) {
-	return p.Clients, nil
+func (p *PreparedL2Endpoints) Setup(ctx context.Context, log log.Logger) (*rpc.Client, error) {
+	return p.Client, nil
 }
 
 type L1EndpointConfig struct {
