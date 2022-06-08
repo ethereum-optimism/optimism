@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.5.27
+
+### Patch Changes
+
+- 7c5ac36f: goerli redeploy
+- 3d4d988c: package: contracts-governance
+
 ## 0.5.26
 
 ### Patch Changes

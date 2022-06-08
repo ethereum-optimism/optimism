@@ -1,6 +1,6 @@
 {
   "name": "@eth-optimism/contracts-periphery",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "[Optimism] External (out-of-protocol) L1 and L2 smart contracts for Optimism",
   "main": "dist/index",
   "types": "dist/index",

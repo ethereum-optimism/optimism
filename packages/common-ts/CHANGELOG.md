@@ -1,5 +1,11 @@
 # @eth-optimism/common-ts
 
+## 0.2.10
+
+### Patch Changes
+
+- 9ecbf3e5: Expose service internal options as environment or cli options
+
 ## 0.2.9
 
 ### Patch Changes
