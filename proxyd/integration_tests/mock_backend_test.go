@@ -7,9 +7,11 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync"
 
 	"github.com/ethereum-optimism/optimism/proxyd"
+	"github.com/gorilla/websocket"
 )
 
 type RecordedRequest struct {
@@ -250,4 +252,73 @@ func (m *MockBackend) wrappedHandler(w http.ResponseWriter, r *http.Request) {
 	})
 	m.handler.ServeHTTP(w, clone)
 	m.mtx.Unlock()
+}
+
+type MockWSBackend struct {
+	connCB   MockWSBackendOnConnect
+	msgCB    MockWSBackendOnMessage
+	closeCB  MockWSBackendOnClose
+	server   *httptest.Server
+	upgrader websocket.Upgrader
+	conns    []*websocket.Conn
+	connsMu  sync.Mutex
+}
+
+type MockWSBackendOnConnect func(conn *websocket.Conn)
+type MockWSBackendOnMessage func(conn *websocket.Conn, msgType int, data []byte)
+type MockWSBackendOnClose func(conn *websocket.Conn, err error)
+
+func NewMockWSBackend(
+	connCB MockWSBackendOnConnect,
+	msgCB MockWSBackendOnMessage,
+	closeCB MockWSBackendOnClose,
+) *MockWSBackend {
+	mb := &MockWSBackend{
+		connCB:  connCB,
+		msgCB:   msgCB,
+		closeCB: closeCB,
+	}
+	mb.server = httptest.NewServer(mb)
+	return mb
+}
+
+func (m *MockWSBackend) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	conn, err := m.upgrader.Upgrade(w, r, nil)
+	if err != nil {
+		panic(err)
+	}
+	if m.connCB != nil {
+		m.connCB(conn)
+	}
+	go func() {
+		for {
+			mType, msg, err := conn.ReadMessage()
+			if err != nil {
+				if m.closeCB != nil {
+					m.closeCB(conn, err)
+				}
+				return
+			}
+			if m.msgCB != nil {
+				m.msgCB(conn, mType, msg)
+			}
+		}
+	}()
+	m.connsMu.Lock()
+	m.conns = append(m.conns, conn)
+	m.connsMu.Unlock()
+}
+
+func (m *MockWSBackend) URL() string {
+	return strings.Replace(m.server.URL, "http://", "ws://", 1)
+}
+
+func (m *MockWSBackend) Close() {
+	m.server.Close()
+
+	m.connsMu.Lock()
+	for _, conn := range m.conns {
+		conn.Close()
+	}
+	m.connsMu.Unlock()
 }

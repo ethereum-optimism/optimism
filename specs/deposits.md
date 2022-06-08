@@ -84,7 +84,7 @@ The `sourceHash` of a deposit transaction is computed based on the origin:
   Where the `l1BlockHash`, and `l1LogIndex` all refer to the inclusion of the deposit log event on L1.
   `l1LogIndex` is the index of the deposit event log in the combined list of log events of the block.
 - L1 attributes deposited:
-  `keccak256(bytes32(uint256(1)), keccak256(bytes32(uint256(l1BlockHash)), bytes32(uint256(seqNumber))`.
+  `keccak256(bytes32(uint256(1)), keccak256(l1BlockHash), bytes32(uint256(seqNumber)))`.
   Where `l1BlockHash` refers to the L1 block hash of which the info attributes are deposited.
   And `seqNumber = l2BlockNum - l2EpochStartBlockNum`,
   where `l2BlockNum` is the L2 block number of the inclusion of the deposit tx in L2,
@@ -256,8 +256,7 @@ The deposit contract handles two special cases:
 [address-aliasing]: #address-aliasing
 
 If the caller is a contract, the address will be transformed by adding
-`0x1111000000000000000000000000000000001111` to it. This is the reverse of the
-transformation described in the [deposits spec](./withdrawals.md#address-aliasing). This prevents attacks in which a
+`0x1111000000000000000000000000000000001111` to it. This prevents attacks in which a
 contract on L1 has the same address as a contract on L2 but doesn't have the same code. We can safely ignore this
 for EOAs because they're guaranteed to have the same "code" (i.e. no code at all). This also makes
 it possible for users to interact with contracts on L2 even when the Sequencer is down.
