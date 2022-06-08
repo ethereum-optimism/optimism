@@ -5,9 +5,8 @@ import { awaitCondition } from '@eth-optimism/core-utils'
 /* Imports: Internal */
 import { defaultTransactionFactory } from './shared/utils'
 import env from './shared/env'
-
-const counterArtifact = require('../artifacts/Counter.sol/Counter.json')
-const multiDepositorArtifact = require('../artifacts/MultiDepositor.sol/MultiDepositor.json')
+import counterArtifact from '../forge-artifacts/Counter.sol/Counter.json'
+import multiDepositorArtifact from '../forge-artifacts/MultiDepositor.sol/MultiDepositor.json'
 
 describe('Deposits', () => {
   let portal: Contract
@@ -29,7 +28,7 @@ describe('Deposits', () => {
       [],
       {
         value: tx.value,
-      },
+      }
     )
     await result.wait()
 
@@ -44,7 +43,7 @@ describe('Deposits', () => {
     const value = utils.parseEther('0.1')
     const factory = new ContractFactory(
       multiDepositorArtifact.abi,
-      multiDepositorArtifact.bytecode.object,
+      multiDepositorArtifact.bytecode.object
     ).connect(env.l1Wallet)
     const contract = await factory.deploy(portal.address)
     await contract.deployed()
@@ -63,7 +62,7 @@ describe('Deposits', () => {
     const value = utils.parseEther('0.1')
     const factory = new ContractFactory(
       counterArtifact.abi,
-      counterArtifact.bytecode.object,
+      counterArtifact.bytecode.object
     )
     const tx = await factory.getDeployTransaction()
     const result = await portal.depositTransaction(
@@ -73,8 +72,8 @@ describe('Deposits', () => {
       true,
       tx.data,
       {
-        value: value,
-      },
+        value,
+      }
     )
     await result.wait()
     const l2Nonce = await env.l2Wallet.getTransactionCount()

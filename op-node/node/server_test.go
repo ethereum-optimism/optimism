@@ -12,7 +12,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/testlog"
 
 	"github.com/ethereum-optimism/optimism/op-node/eth"
-	"github.com/ethereum-optimism/optimism/op-node/predeploy"
+
+	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/stretchr/testify/mock"
 
@@ -83,14 +84,14 @@ func TestOutputAtBlock(t *testing.T) {
 
 	l2Client := &mockL2Client{}
 	l2Client.mock.On("GetBlockHeader", "latest").Return(&header)
-	l2Client.mock.On("GetProof", predeploy.WithdrawalContractAddress, "latest").Return(&result)
+	l2Client.mock.On("GetProof", common.HexToAddress(predeploys.L2ToL1MessagePasser), "latest").Return(&result)
 
 	server, err := newRPCServer(context.Background(), rpcCfg, rollupCfg, l2Client, log, "0.0")
 	assert.NoError(t, err)
 	assert.NoError(t, server.Start())
 	defer server.Stop()
 
-	client, err := dialRPCClientWithBackoff(context.Background(), log, "http://"+server.Addr().String())
+	client, err := dialRPCClientWithBackoff(context.Background(), log, "http://"+server.Addr().String(), nil)
 	assert.NoError(t, err)
 
 	var out []l2.Bytes32
@@ -115,7 +116,7 @@ func TestVersion(t *testing.T) {
 	assert.NoError(t, server.Start())
 	defer server.Stop()
 
-	client, err := dialRPCClientWithBackoff(context.Background(), log, "http://"+server.Addr().String())
+	client, err := dialRPCClientWithBackoff(context.Background(), log, "http://"+server.Addr().String(), nil)
 	assert.NoError(t, err)
 
 	var out string

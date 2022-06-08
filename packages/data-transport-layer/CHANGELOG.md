@@ -1,5 +1,26 @@
 # data transport layer
 
+## 0.5.32
+
+### Patch Changes
+
+- Updated dependencies [17962ca9]
+  - @eth-optimism/core-utils@0.8.6
+  - @eth-optimism/common-ts@0.2.9
+  - @eth-optimism/contracts@0.5.26
+
+## 0.5.31
+
+### Patch Changes
+
+- 553180e9: Fix race condition
+- d18ae135: Updates all ethers versions in response to BN.js bug
+- Updated dependencies [f16383f2]
+- Updated dependencies [d18ae135]
+  - @eth-optimism/common-ts@0.2.8
+  - @eth-optimism/contracts@0.5.25
+  - @eth-optimism/core-utils@0.8.5
+
 ## 0.5.30
 
 ### Patch Changes

@@ -11,8 +11,8 @@ jobs:
         ports:
           - 5000:5000
     env:
-        DOCKER_BUILDKIT: 1
-        COMPOSE_DOCKER_CLI_BUILD: 1
+      DOCKER_BUILDKIT: 1
+      COMPOSE_DOCKER_CLI_BUILD: 1
     steps:
       - uses: actions/checkout@v2
 
@@ -53,7 +53,7 @@ jobs:
       - name: Run the sync tests
         working-directory: ./integration-tests
         run: |
-          yarn
+          yarn --frozen-lockfile
           yarn build
           yarn test:sync
 

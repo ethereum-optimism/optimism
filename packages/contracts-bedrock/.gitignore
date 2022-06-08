@@ -1,0 +1,8 @@
+artifacts
+forge-artifacts
+cache
+typechain
+coverage.out
+.deps
+deployments
+broadcast

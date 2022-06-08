@@ -5,14 +5,16 @@ import (
 	"flag"
 	"fmt"
 	"math/big"
+	"os"
+	"path"
 	"testing"
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
+	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
 	"github.com/ethereum-optimism/optimism/op-node/l2"
 	"github.com/ethereum-optimism/optimism/op-node/node"
 	rollupNode "github.com/ethereum-optimism/optimism/op-node/node"
-	"github.com/ethereum-optimism/optimism/op-node/predeploy"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/testlog"
@@ -24,6 +26,7 @@ import (
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/accounts/keystore"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
@@ -59,7 +62,17 @@ const (
 
 var (
 	batchInboxAddress = common.Address{0xff, 0x02}
+	testingJWTSecret  = [32]byte{123}
 )
+
+func writeDefaultJWT(t *testing.T) string {
+	// Sadly the geth node config cannot load JWT secret from memory, it has to be a file
+	jwtPath := path.Join(t.TempDir(), "jwt_secret")
+	if err := os.WriteFile(jwtPath, []byte(hexutil.Encode(testingJWTSecret[:])), 0600); err != nil {
+		t.Fatalf("failed to prepare jwt file for geth: %v", err)
+	}
+	return jwtPath
+}
 
 func defaultSystemConfig(t *testing.T) SystemConfig {
 	return SystemConfig{
@@ -84,25 +97,16 @@ func defaultSystemConfig(t *testing.T) SystemConfig {
 		P2PSignerHDPath:            p2pSignerHDPath,
 		DeployerHDPath:             l2OutputHDPath,
 		CliqueSignerDerivationPath: cliqueSignerHDPath,
-		L1InfoPredeployAddress:     derive.L1InfoPredeployAddr,
+		L1InfoPredeployAddress:     common.HexToAddress(predeploys.L1Block),
 		L1BlockTime:                2,
-		L1WsAddr:                   "127.0.0.1",
-		L1WsPort:                   9090,
 		L1ChainID:                  big.NewInt(900),
 		L2ChainID:                  big.NewInt(901),
+		JWTFilePath:                writeDefaultJWT(t),
+		JWTSecret:                  testingJWTSecret,
 		Nodes: map[string]*rollupNode.Config{
-			"verifier": {
-				L1NodeAddr:    "ws://127.0.0.1:9090",
-				L2EngineAddrs: []string{"ws://127.0.0.1:9091"},
-				L2NodeAddr:    "ws://127.0.0.1:9091",
-				L1TrustRPC:    false,
-			},
+			"verifier": {},
 			"sequencer": {
-				L1NodeAddr:    "ws://127.0.0.1:9090",
-				L2EngineAddrs: []string{"ws://127.0.0.1:9092"},
-				L2NodeAddr:    "ws://127.0.0.1:9092",
-				L1TrustRPC:    false,
-				Sequencer:     true,
+				Sequencer: true,
 				// Submitter PrivKey is set in system start for rollup nodes where sequencer = true
 				RPC: node.RPCConfig{
 					ListenAddr: "127.0.0.1",
@@ -705,7 +709,7 @@ func TestWithdrawals(t *testing.T) {
 	require.Nil(t, err, "Waiting for deposit tx on L1")
 
 	// Bind L2 Withdrawer Contract
-	l2withdrawer, err := bindings.NewL2ToL1MessagePasser(predeploy.WithdrawalContractAddress, l2Seq)
+	l2withdrawer, err := bindings.NewL2ToL1MessagePasser(common.HexToAddress(predeploys.L2ToL1MessagePasser), l2Seq)
 	require.Nil(t, err, "binding withdrawer on L2")
 
 	// Wait for deposit to arrive
@@ -786,7 +790,7 @@ func TestWithdrawals(t *testing.T) {
 	header, err = l2Seq.HeaderByNumber(ctx, blockNumber)
 	require.Nil(t, err)
 
-	rpc, err := rpc.Dial(cfg.Nodes["sequencer"].L2NodeAddr)
+	rpc, err := rpc.Dial(sys.nodes["sequencer"].WSEndpoint())
 	require.Nil(t, err)
 	l2client := withdrawals.NewClient(rpc)
 
