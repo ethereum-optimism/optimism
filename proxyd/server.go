@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/ethereum/go-ethereum/log"
@@ -44,6 +45,7 @@ type Server struct {
 	rpcServer            *http.Server
 	wsServer             *http.Server
 	cache                RPCCache
+	srvMu                sync.Mutex
 }
 
 func NewServer(
@@ -90,6 +92,7 @@ func NewServer(
 }
 
 func (s *Server) RPCListenAndServe(host string, port int) error {
+	s.srvMu.Lock()
 	hdlr := mux.NewRouter()
 	hdlr.HandleFunc("/healthz", s.HandleHealthz).Methods("GET")
 	hdlr.HandleFunc("/", s.HandleRPC).Methods("POST")
@@ -103,10 +106,12 @@ func (s *Server) RPCListenAndServe(host string, port int) error {
 		Addr:    addr,
 	}
 	log.Info("starting HTTP server", "addr", addr)
+	s.srvMu.Unlock()
 	return s.rpcServer.ListenAndServe()
 }
 
 func (s *Server) WSListenAndServe(host string, port int) error {
+	s.srvMu.Lock()
 	hdlr := mux.NewRouter()
 	hdlr.HandleFunc("/", s.HandleWS)
 	hdlr.HandleFunc("/{authorization}", s.HandleWS)
@@ -119,10 +124,13 @@ func (s *Server) WSListenAndServe(host string, port int) error {
 		Addr:    addr,
 	}
 	log.Info("starting WS server", "addr", addr)
+	s.srvMu.Unlock()
 	return s.wsServer.ListenAndServe()
 }
 
 func (s *Server) Shutdown() {
+	s.srvMu.Lock()
+	defer s.srvMu.Unlock()
 	if s.rpcServer != nil {
 		_ = s.rpcServer.Shutdown(context.Background())
 	}
