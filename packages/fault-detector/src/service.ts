@@ -162,10 +162,10 @@ export class FaultDetector extends BaseServiceV2<Options, Metrics, State> {
       }
     }
 
+    this.state.highestCheckedBatchIndex++
     this.metrics.highestCheckedBatchIndex.set(
       this.state.highestCheckedBatchIndex
     )
-    this.state.highestCheckedBatchIndex++
 
     // If we got through the above without throwing an error, we should be fine to reset.
     this.metrics.isCurrentlyMismatched.set(0)
