@@ -8,6 +8,8 @@ import (
 	"os"
 	"strings"
 
+	"github.com/ethereum-optimism/optimism/op-node/rollup/driver"
+
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 
@@ -27,7 +29,10 @@ func NewConfig(ctx *cli.Context, log log.Logger) (*node.Config, error) {
 		return nil, err
 	}
 
-	enableSequencing := ctx.GlobalBool(flags.SequencingEnabledFlag.Name)
+	driverConfig, err := NewDriverConfig(ctx)
+	if err != nil {
+		return nil, err
+	}
 
 	p2pSignerSetup, err := p2p.LoadSignerSetup(ctx)
 	if err != nil {
@@ -50,10 +55,10 @@ func NewConfig(ctx *cli.Context, log log.Logger) (*node.Config, error) {
 	}
 
 	cfg := &node.Config{
-		L1:        l1Endpoint,
-		L2:        l2Endpoint,
-		Rollup:    *rollupConfig,
-		Sequencer: enableSequencing,
+		L1:     l1Endpoint,
+		L2:     l2Endpoint,
+		Rollup: *rollupConfig,
+		Driver: *driverConfig,
 		RPC: node.RPCConfig{
 			ListenAddr: ctx.GlobalString(flags.RPCListenAddr.Name),
 			ListenPort: ctx.GlobalInt(flags.RPCListenPort.Name),
@@ -106,6 +111,14 @@ func NewL2EndpointConfig(ctx *cli.Context, log log.Logger) (*node.L2EndpointConf
 	return &node.L2EndpointConfig{
 		L2EngineAddr:      l2Addr,
 		L2EngineJWTSecret: secret,
+	}, nil
+}
+
+func NewDriverConfig(ctx *cli.Context) (*driver.Config, error) {
+	return &driver.Config{
+		VerifierConfDepth:  ctx.GlobalUint64(flags.VerifierL1Confs.Name),
+		SequencerConfDepth: ctx.GlobalUint64(flags.SequencerL1Confs.Name),
+		SequencerEnabled:   ctx.GlobalBool(flags.SequencerEnabledFlag.Name),
 	}, nil
 }
 
