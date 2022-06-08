@@ -23,9 +23,9 @@
     "lint:contracts:fix": "yarn prettier --write 'contracts/**/*.sol'",
     "lint:fix": "yarn lint:contracts:fix && yarn lint:js:fix",
     "lint": "yarn lint:fix && yarn lint:check",
-    "deploy:test": "npx hardhat deploy-token --network optimism",
-    "deploy:kovan": "npx hardhat deploy-token --network 'optimism-kovan'",
-    "deploy:mainnet": "npx hardhat deploy-token --network 'optimism-mainnet'"
+    "deploy:test": "hardhat deploy-token --network optimism",
+    "deploy:kovan": "hardhat deploy-token --network 'optimism-kovan'",
+    "deploy:mainnet": "hardhat deploy-token --network 'optimism-mainnet'"
   },
   "dependencies": {
     "@eth-optimism/sdk": "^1.0.1",
