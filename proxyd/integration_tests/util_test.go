@@ -8,22 +8,26 @@ import (
 	"net/http"
 	"os"
 	"testing"
+	"time"
+
+	"github.com/ethereum/go-ethereum/log"
+
+	"github.com/gorilla/websocket"
 
 	"github.com/BurntSushi/toml"
 	"github.com/ethereum-optimism/optimism/proxyd"
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
 )
 
-type ProxydClient struct {
+type ProxydHTTPClient struct {
 	url string
 }
 
-func NewProxydClient(url string) *ProxydClient {
-	return &ProxydClient{url: url}
+func NewProxydClient(url string) *ProxydHTTPClient {
+	return &ProxydHTTPClient{url: url}
 }
 
-func (p *ProxydClient) SendRPC(method string, params []interface{}) ([]byte, int, error) {
+func (p *ProxydHTTPClient) SendRPC(method string, params []interface{}) ([]byte, int, error) {
 	rpcReq := NewRPCReq("999", method, params)
 	body, err := json.Marshal(rpcReq)
 	if err != nil {
@@ -32,7 +36,7 @@ func (p *ProxydClient) SendRPC(method string, params []interface{}) ([]byte, int
 	return p.SendRequest(body)
 }
 
-func (p *ProxydClient) SendBatchRPC(reqs ...*proxyd.RPCReq) ([]byte, int, error) {
+func (p *ProxydHTTPClient) SendBatchRPC(reqs ...*proxyd.RPCReq) ([]byte, int, error) {
 	body, err := json.Marshal(reqs)
 	if err != nil {
 		panic(err)
@@ -40,7 +44,7 @@ func (p *ProxydClient) SendBatchRPC(reqs ...*proxyd.RPCReq) ([]byte, int, error)
 	return p.SendRequest(body)
 }
 
-func (p *ProxydClient) SendRequest(body []byte) ([]byte, int, error) {
+func (p *ProxydHTTPClient) SendRequest(body []byte) ([]byte, int, error) {
 	res, err := http.Post(p.url, "application/json", bytes.NewReader(body))
 	if err != nil {
 		return nil, -1, err
@@ -96,6 +100,70 @@ func NewRPCReq(id string, method string, params []interface{}) *proxyd.RPCReq {
 		Params:  jsonParams,
 		ID:      []byte(id),
 	}
+}
+
+type ProxydWSClient struct {
+	conn    *websocket.Conn
+	msgCB   ProxydWSClientOnMessage
+	closeCB ProxydWSClientOnClose
+}
+
+type WSMessage struct {
+	Type int
+	Body []byte
+}
+
+type ProxydWSClientOnMessage func(msgType int, data []byte)
+type ProxydWSClientOnClose func(err error)
+
+func NewProxydWSClient(
+	url string,
+	msgCB ProxydWSClientOnMessage,
+	closeCB ProxydWSClientOnClose,
+) (*ProxydWSClient, error) {
+	conn, _, err := websocket.DefaultDialer.Dial(url, nil) // nolint:bodyclose
+	if err != nil {
+		return nil, err
+	}
+
+	c := &ProxydWSClient{
+		conn:    conn,
+		msgCB:   msgCB,
+		closeCB: closeCB,
+	}
+	go c.readPump()
+	return c, nil
+}
+
+func (h *ProxydWSClient) readPump() {
+	for {
+		mType, msg, err := h.conn.ReadMessage()
+		if err != nil {
+			if h.closeCB != nil {
+				h.closeCB(err)
+			}
+			return
+		}
+		if h.msgCB != nil {
+			h.msgCB(mType, msg)
+		}
+	}
+}
+
+func (h *ProxydWSClient) HardClose() {
+	h.conn.Close()
+}
+
+func (h *ProxydWSClient) SoftClose() error {
+	return h.WriteMessage(websocket.CloseMessage, nil)
+}
+
+func (h *ProxydWSClient) WriteMessage(msgType int, msg []byte) error {
+	return h.conn.WriteMessage(msgType, msg)
+}
+
+func (h *ProxydWSClient) WriteControlMessage(msgType int, msg []byte) error {
+	return h.conn.WriteControl(msgType, msg, time.Now().Add(time.Minute))
 }
 
 func InitLogger() {

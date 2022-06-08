@@ -15,6 +15,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/ethereum/go-ethereum/log"
@@ -73,6 +74,8 @@ var (
 		Message:       "gateway timeout",
 		HTTPErrorCode: 504,
 	}
+
+	ErrBackendUnexpectedJSONRPC = errors.New("backend returned an unexpected JSON-RPC response")
 )
 
 func ErrInvalidRequest(msg string) *RPCErr {
@@ -228,7 +231,20 @@ func (b *Backend) Forward(ctx context.Context, reqs []*RPCReq, isBatch bool) ([]
 		)
 
 		res, err := b.doForward(ctx, reqs, isBatch)
-		if err != nil {
+		switch err {
+		case nil: // do nothing
+		// ErrBackendUnexpectedJSONRPC occurs because infura responds with a single JSON-RPC object
+		// to a batch request whenever any Request Object in the batch would induce a partial error.
+		// We don't label the the backend offline in this case. But the error is still returned to
+		// callers so failover can occur if needed.
+		case ErrBackendUnexpectedJSONRPC:
+			log.Debug(
+				"Reecived unexpected JSON-RPC response",
+				"name", b.Name,
+				"req_id", GetReqID(ctx),
+				"err", err,
+			)
+		default:
 			lastError = err
 			log.Warn(
 				"backend request failed, trying again",
@@ -244,7 +260,7 @@ func (b *Backend) Forward(ctx context.Context, reqs []*RPCReq, isBatch bool) ([]
 		timer.ObserveDuration()
 
 		MaybeRecordErrorsInRPCRes(ctx, b.Name, reqs, res)
-		return res, nil
+		return res, err
 	}
 
 	b.setOffline()
@@ -387,12 +403,15 @@ func (b *Backend) doForward(ctx context.Context, rpcReqs []*RPCReq, isBatch bool
 
 	var res []*RPCRes
 	if err := json.Unmarshal(resB, &res); err != nil {
+		// Infura may return a single JSON-RPC response if, for example, the batch contains a request for an unsupported method
+		if responseIsNotBatched(resB) {
+			return nil, ErrBackendUnexpectedJSONRPC
+		}
 		return nil, ErrBackendBadResponse
 	}
 
-	// Alas! Certain node providers (Infura) always return a single JSON object for some types of errors
 	if len(rpcReqs) != len(res) {
-		return nil, ErrBackendBadResponse
+		return nil, ErrBackendUnexpectedJSONRPC
 	}
 
 	// capture the HTTP status code in the response. this will only
@@ -405,6 +424,11 @@ func (b *Backend) doForward(ctx context.Context, rpcReqs []*RPCReq, isBatch bool
 
 	sortBatchRPCResponse(rpcReqs, res)
 	return res, nil
+}
+
+func responseIsNotBatched(b []byte) bool {
+	var r RPCRes
+	return json.Unmarshal(b, &r) == nil
 }
 
 // sortBatchRPCResponse sorts the RPCRes slice according to the position of its corresponding ID in the RPCReq slice
@@ -525,6 +549,7 @@ type WSProxier struct {
 	clientConn      *websocket.Conn
 	backendConn     *websocket.Conn
 	methodWhitelist *StringSet
+	clientConnMu    sync.Mutex
 }
 
 func NewWSProxier(backend *Backend, clientConn, backendConn *websocket.Conn, methodWhitelist *StringSet) *WSProxier {
@@ -547,12 +572,11 @@ func (w *WSProxier) Proxy(ctx context.Context) error {
 
 func (w *WSProxier) clientPump(ctx context.Context, errC chan error) {
 	for {
-		outConn := w.backendConn
 		// Block until we get a message.
 		msgType, msg, err := w.clientConn.ReadMessage()
 		if err != nil {
 			errC <- err
-			if err := outConn.WriteMessage(websocket.CloseMessage, formatWSError(err)); err != nil {
+			if err := w.backendConn.WriteMessage(websocket.CloseMessage, formatWSError(err)); err != nil {
 				log.Error("error writing backendConn message", "err", err)
 			}
 			return
@@ -563,7 +587,7 @@ func (w *WSProxier) clientPump(ctx context.Context, errC chan error) {
 		// Route control messages to the backend. These don't
 		// count towards the total RPC requests count.
 		if msgType != websocket.TextMessage && msgType != websocket.BinaryMessage {
-			err := outConn.WriteMessage(msgType, msg)
+			err := w.backendConn.WriteMessage(msgType, msg)
 			if err != nil {
 				errC <- err
 				return
@@ -589,20 +613,27 @@ func (w *WSProxier) clientPump(ctx context.Context, errC chan error) {
 				"req_id", GetReqID(ctx),
 				"err", err,
 			)
-			outConn = w.clientConn
 			msg = mustMarshalJSON(NewRPCErrorRes(id, err))
 			RecordRPCError(ctx, BackendProxyd, method, err)
-		} else {
-			RecordRPCForward(ctx, w.backend.Name, req.Method, RPCRequestSourceWS)
-			log.Info(
-				"forwarded WS message to backend",
-				"method", req.Method,
-				"auth", GetAuthCtx(ctx),
-				"req_id", GetReqID(ctx),
-			)
+
+			// Send error response to client
+			err = w.writeClientConn(msgType, msg)
+			if err != nil {
+				errC <- err
+				return
+			}
+			continue
 		}
 
-		err = outConn.WriteMessage(msgType, msg)
+		RecordRPCForward(ctx, w.backend.Name, req.Method, RPCRequestSourceWS)
+		log.Info(
+			"forwarded WS message to backend",
+			"method", req.Method,
+			"auth", GetAuthCtx(ctx),
+			"req_id", GetReqID(ctx),
+		)
+
+		err = w.backendConn.WriteMessage(msgType, msg)
 		if err != nil {
 			errC <- err
 			return
@@ -616,7 +647,7 @@ func (w *WSProxier) backendPump(ctx context.Context, errC chan error) {
 		msgType, msg, err := w.backendConn.ReadMessage()
 		if err != nil {
 			errC <- err
-			if err := w.clientConn.WriteMessage(websocket.CloseMessage, formatWSError(err)); err != nil {
+			if err := w.writeClientConn(websocket.CloseMessage, formatWSError(err)); err != nil {
 				log.Error("error writing clientConn message", "err", err)
 			}
 			return
@@ -626,7 +657,7 @@ func (w *WSProxier) backendPump(ctx context.Context, errC chan error) {
 
 		// Route control messages directly to the client.
 		if msgType != websocket.TextMessage && msgType != websocket.BinaryMessage {
-			err := w.clientConn.WriteMessage(msgType, msg)
+			err := w.writeClientConn(msgType, msg)
 			if err != nil {
 				errC <- err
 				return
@@ -641,26 +672,28 @@ func (w *WSProxier) backendPump(ctx context.Context, errC chan error) {
 				id = res.ID
 			}
 			msg = mustMarshalJSON(NewRPCErrorRes(id, err))
-		}
-		if res.IsError() {
-			log.Info(
-				"backend responded with RPC error",
-				"code", res.Error.Code,
-				"msg", res.Error.Message,
-				"source", "ws",
-				"auth", GetAuthCtx(ctx),
-				"req_id", GetReqID(ctx),
-			)
-			RecordRPCError(ctx, w.backend.Name, MethodUnknown, res.Error)
+			log.Info("backend responded with error", "err", err)
 		} else {
-			log.Info(
-				"forwarded WS message to client",
-				"auth", GetAuthCtx(ctx),
-				"req_id", GetReqID(ctx),
-			)
+			if res.IsError() {
+				log.Info(
+					"backend responded with RPC error",
+					"code", res.Error.Code,
+					"msg", res.Error.Message,
+					"source", "ws",
+					"auth", GetAuthCtx(ctx),
+					"req_id", GetReqID(ctx),
+				)
+				RecordRPCError(ctx, w.backend.Name, MethodUnknown, res.Error)
+			} else {
+				log.Info(
+					"forwarded WS message to client",
+					"auth", GetAuthCtx(ctx),
+					"req_id", GetReqID(ctx),
+				)
+			}
 		}
 
-		err = w.clientConn.WriteMessage(msgType, msg)
+		err = w.writeClientConn(msgType, msg)
 		if err != nil {
 			errC <- err
 			return
@@ -701,6 +734,13 @@ func (w *WSProxier) parseBackendMsg(msg []byte) (*RPCRes, error) {
 		return res, ErrBackendBadResponse
 	}
 	return res, nil
+}
+
+func (w *WSProxier) writeClientConn(msgType int, msg []byte) error {
+	w.clientConnMu.Lock()
+	err := w.clientConn.WriteMessage(msgType, msg)
+	w.clientConnMu.Unlock()
+	return err
 }
 
 func mustMarshalJSON(in interface{}) []byte {

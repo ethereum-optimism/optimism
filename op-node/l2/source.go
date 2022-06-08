@@ -143,7 +143,7 @@ func (s *Source) GetPayload(ctx context.Context, payloadId PayloadID) (*Executio
 	var result ExecutionPayload
 	err := s.rpc.CallContext(ctx, &result, "engine_getPayloadV1", payloadId)
 	if err != nil {
-		e = e.New("payload_id", "err", err)
+		e = e.New("payload_id", payloadId, "err", err)
 		if rpcErr, ok := err.(rpc.Error); ok {
 			code := ErrorCode(rpcErr.ErrorCode())
 			if code != UnavailablePayload {

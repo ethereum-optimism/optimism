@@ -1,5 +1,13 @@
 # @eth-optimism/contracts-periphery
 
+## 0.1.2
+
+### Patch Changes
+
+- e0b89fcd: Re-deploy RetroReceiver
+- 982cb980: Tweaks Drippie contract for client-side ease
+- 9142adc4: Adds new TeleportrWithdrawer contract for withdrawing from Teleportr
+
 ## 0.1.1
 
 ### Patch Changes
