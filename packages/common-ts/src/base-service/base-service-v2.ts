@@ -284,10 +284,10 @@ export abstract class BaseServiceV2<
       if (currSignalCount === 1) {
         this.logger.info(`stopping service with signal`, { signal })
         await this.stop()
-        process.exit(0)
+        await this.kill()
       } else if (currSignalCount >= maxSignalCount) {
         this.logger.info(`performing hard stop`)
-        process.exit(0)
+        await this.kill()
       } else {
         this.logger.info(
           `send ${maxSignalCount - currSignalCount} more signal(s) to hard stop`
@@ -391,6 +391,14 @@ export abstract class BaseServiceV2<
       this.logger.info('metrics server stopped')
       this.metricsServer = undefined
     }
+  }
+
+  /**
+   * Kills the service.
+   */
+  public async kill(): Promise<void> {
+    this.logger.info(`killing service`)
+    process.exit(0)
   }
 
   /**
