@@ -1,9 +1,14 @@
 import { BaseServiceV2, Gauge, validators } from '@eth-optimism/common-ts'
-import { sleep, toRpcHexString } from '@eth-optimism/core-utils'
+import { getChainId, sleep, toRpcHexString } from '@eth-optimism/core-utils'
 import { CrossChainMessenger } from '@eth-optimism/sdk'
 import { Provider } from '@ethersproject/abstract-provider'
-import { ethers } from 'ethers'
+import { Contract, ethers } from 'ethers'
 import dateformat from 'dateformat'
+
+import {
+  findFirstUnfinalizedStateBatchIndex,
+  findEventForStateBatch,
+} from './helpers'
 
 type Options = {
   l1RpcProvider: Provider
@@ -19,6 +24,7 @@ type Metrics = {
 }
 
 type State = {
+  scc: Contract
   messenger: CrossChainMessenger
   highestCheckedBatchIndex: number
 }
@@ -41,7 +47,7 @@ export class FaultDetector extends BaseServiceV2<Options, Metrics, State> {
         },
         startBatchIndex: {
           validator: validators.num,
-          default: 0,
+          default: -1,
           desc: 'Batch index to start checking from',
         },
       },
@@ -67,19 +73,31 @@ export class FaultDetector extends BaseServiceV2<Options, Metrics, State> {
   }
 
   async init(): Promise<void> {
-    const network = await this.options.l1RpcProvider.getNetwork()
     this.state.messenger = new CrossChainMessenger({
       l1SignerOrProvider: this.options.l1RpcProvider,
       l2SignerOrProvider: this.options.l2RpcProvider,
-      l1ChainId: network.chainId,
+      l1ChainId: await getChainId(this.options.l1RpcProvider),
     })
 
-    this.state.highestCheckedBatchIndex = this.options.startBatchIndex
+    // We use this a lot, a bit cleaner to pull out to the top level of the state object.
+    this.state.scc = this.state.messenger.contracts.l1.StateCommitmentChain
+
+    // Figure out where to start syncing from.
+    if (this.options.startBatchIndex === -1) {
+      this.logger.info(`finding appropriate starting height`)
+      this.state.highestCheckedBatchIndex =
+        await findFirstUnfinalizedStateBatchIndex(this.state.scc)
+    } else {
+      this.state.highestCheckedBatchIndex = this.options.startBatchIndex
+    }
+
+    this.logger.info(`starting height`, {
+      startBatchIndex: this.state.highestCheckedBatchIndex,
+    })
   }
 
   async main(): Promise<void> {
-    const latestBatchIndex =
-      await this.state.messenger.contracts.l1.StateCommitmentChain.getTotalBatches()
+    const latestBatchIndex = await this.state.scc.getTotalBatches()
     if (this.state.highestCheckedBatchIndex >= latestBatchIndex.toNumber()) {
       await sleep(15000)
       return
@@ -89,41 +107,30 @@ export class FaultDetector extends BaseServiceV2<Options, Metrics, State> {
 
     this.logger.info(`checking batch`, {
       batchIndex: this.state.highestCheckedBatchIndex,
+      latestIndex: latestBatchIndex.toNumber(),
     })
 
-    const targetEvents =
-      await this.state.messenger.contracts.l1.StateCommitmentChain.queryFilter(
-        this.state.messenger.contracts.l1.StateCommitmentChain.filters.StateBatchAppended(
-          this.state.highestCheckedBatchIndex
-        )
+    let event: ethers.Event
+    try {
+      event = await findEventForStateBatch(
+        this.state.scc,
+        this.state.highestCheckedBatchIndex
       )
-
-    if (targetEvents.length === 0) {
-      this.logger.error(`unable to find event for batch`, {
+    } catch (err) {
+      this.logger.error(`got unexpected error while searching for batch`, {
         batchIndex: this.state.highestCheckedBatchIndex,
+        error: err,
       })
-      this.metrics.inUnexpectedErrorState.set(1)
-      return
     }
 
-    if (targetEvents.length > 1) {
-      this.logger.error(`found too many events for batch`, {
-        batchIndex: this.state.highestCheckedBatchIndex,
-      })
-      this.metrics.inUnexpectedErrorState.set(1)
-      return
-    }
+    const batchTransaction = await event.getTransaction()
+    const [stateRoots] = this.state.scc.interface.decodeFunctionData(
+      'appendStateBatch',
+      batchTransaction.data
+    )
 
-    const targetEvent = targetEvents[0]
-    const batchTransaction = await targetEvent.getTransaction()
-    const [stateRoots] =
-      this.state.messenger.contracts.l1.StateCommitmentChain.interface.decodeFunctionData(
-        'appendStateBatch',
-        batchTransaction.data
-      )
-
-    const batchStart = targetEvent.args._prevTotalElements.toNumber() + 1
-    const batchSize = targetEvent.args._batchSize.toNumber()
+    const batchStart = event.args._prevTotalElements.toNumber() + 1
+    const batchSize = event.args._batchSize.toNumber()
 
     // `getBlockRange` has a limit of 1000 blocks, so we have to break this request out into
     // multiple requests of maximum 1000 blocks in the case that batchSize > 1000.
@@ -143,8 +150,7 @@ export class FaultDetector extends BaseServiceV2<Options, Metrics, State> {
     for (const [i, stateRoot] of stateRoots.entries()) {
       if (blocks[i].stateRoot !== stateRoot) {
         this.metrics.isCurrentlyMismatched.set(1)
-        const fpw =
-          await this.state.messenger.contracts.l1.StateCommitmentChain.FRAUD_PROOF_WINDOW()
+        const fpw = await this.state.scc.FRAUD_PROOF_WINDOW()
         this.logger.error(`state root mismatch`, {
           blockNumber: blocks[i].number,
           expectedStateRoot: blocks[i].stateRoot,
