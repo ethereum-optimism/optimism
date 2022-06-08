@@ -6,8 +6,11 @@ import { Command, Option } from 'commander'
 import { ValidatorSpec, Spec, cleanEnv } from 'envalid'
 import { sleep } from '@eth-optimism/core-utils'
 import snakeCase from 'lodash/snakeCase'
-import express from 'express'
+import express, { Router } from 'express'
 import prometheus, { Registry } from 'prom-client'
+import promBundle from 'express-prom-bundle'
+import bodyParser from 'body-parser'
+import morgan from 'morgan'
 
 import { Logger } from '../common/logger'
 import { Metric } from './metrics'
@@ -19,8 +22,8 @@ export type Options = {
 
 export type StandardOptions = {
   loopIntervalMs?: number
-  metricsServerPort?: number
-  metricsServerHostname?: string
+  port?: number
+  hostname?: string
 }
 
 export type OptionsSpec<TOptions extends Options> = {
@@ -42,6 +45,8 @@ export type MetricsSpec<TMetrics extends MetricsV2> = {
     labels?: string[]
   }
 }
+
+export type ExpressRouter = Router
 
 /**
  * BaseServiceV2 is an advanced but simple base class for long-running TypeScript services.
@@ -72,6 +77,11 @@ export abstract class BaseServiceV2<
   protected done: boolean
 
   /**
+   * Whether or not the service is currently healthy.
+   */
+  protected healthy: boolean
+
+  /**
    * Logger class for this service.
    */
   protected logger: Logger
@@ -97,19 +107,19 @@ export abstract class BaseServiceV2<
   protected readonly metricsRegistry: Registry
 
   /**
-   * Metrics server.
+   * App server.
    */
-  protected metricsServer: Server
+  protected server: Server
 
   /**
-   * Port for the metrics server.
+   * Port for the app server.
    */
-  protected readonly metricsServerPort: number
+  protected readonly port: number
 
   /**
-   * Hostname for the metrics server.
+   * Hostname for the app server.
    */
-  protected readonly metricsServerHostname: string
+  protected readonly hostname: string
 
   /**
    * @param params Options for the construction of the service.
@@ -122,8 +132,8 @@ export abstract class BaseServiceV2<
    * @param params.options Options to pass to the service.
    * @param params.loops Whether or not the service should loop. Defaults to true.
    * @param params.loopIntervalMs Loop interval in milliseconds. Defaults to zero.
-   * @param params.metricsServerPort Port for the metrics server. Defaults to 7300.
-   * @param params.metricsServerHostname Hostname for the metrics server. Defaults to 0.0.0.0.
+   * @param params.port Port for the app server. Defaults to 7300.
+   * @param params.hostname Hostname for the app server. Defaults to 0.0.0.0.
    */
   constructor(params: {
     name: string
@@ -132,8 +142,8 @@ export abstract class BaseServiceV2<
     options?: Partial<TOptions>
     loop?: boolean
     loopIntervalMs?: number
-    metricsServerPort?: number
-    metricsServerHostname?: string
+    port?: number
+    hostname?: string
   }) {
     this.loop = params.loop !== undefined ? params.loop : true
     this.state = {} as TServiceState
@@ -148,15 +158,15 @@ export abstract class BaseServiceV2<
         desc: 'Loop interval in milliseconds',
         default: params.loopIntervalMs || 0,
       },
-      metricsServerPort: {
+      port: {
         validator: validators.num,
-        desc: 'Port for the metrics server',
-        default: params.metricsServerPort || 7300,
+        desc: 'Port for the app server',
+        default: params.port || 7300,
       },
-      metricsServerHostname: {
+      hostname: {
         validator: validators.str,
-        desc: 'Hostname for the metrics server',
-        default: params.metricsServerHostname || '0.0.0.0',
+        desc: 'Hostname for the app server',
+        default: params.hostname || '0.0.0.0',
       },
     }
 
@@ -268,12 +278,13 @@ export abstract class BaseServiceV2<
 
     // Create the metrics server.
     this.metricsRegistry = prometheus.register
-    this.metricsServerPort = this.options.metricsServerPort
-    this.metricsServerHostname = this.options.metricsServerHostname
+    this.port = this.options.port
+    this.hostname = this.options.hostname
 
     // Set up everything else.
     this.loopIntervalMs = this.options.loopIntervalMs
     this.logger = new Logger({ name: params.name })
+    this.healthy = true
 
     // Gracefully handle stop signals.
     const maxSignalCount = 3
@@ -307,30 +318,69 @@ export abstract class BaseServiceV2<
   public async run(): Promise<void> {
     this.done = false
 
-    // Start the metrics server if not yet running.
-    if (!this.metricsServer) {
-      this.logger.info('starting metrics server')
+    // Start the app server if not yet running.
+    if (!this.server) {
+      this.logger.info('starting app server')
 
-      await new Promise((resolve) => {
-        const app = express()
+      // Start building the app.
+      const app = express()
 
-        app.get('/metrics', async (_, res) => {
-          res.status(200).send(await this.metricsRegistry.metrics())
+      // Body parsing.
+      app.use(bodyParser.json())
+      app.use(bodyParser.urlencoded({ extended: true }))
+
+      // Logging.
+      app.use(
+        morgan((tokens, req, res) => {
+          return [
+            tokens.method(req, res),
+            tokens.url(req, res),
+            tokens.status(req, res),
+            JSON.stringify(req.body),
+            '\n',
+            tokens.res(req, res, 'content-length'),
+            '-',
+            tokens['response-time'](req, res),
+            'ms',
+          ].join(' ')
         })
+      )
 
-        this.metricsServer = app.listen(
-          this.metricsServerPort,
-          this.metricsServerHostname,
-          () => {
-            resolve(null)
-          }
-        )
+      // Metrics.
+      // Will expose a /metrics endpoint by default.
+      app.use(
+        promBundle({
+          promRegistry: this.metricsRegistry,
+          includeMethod: true,
+          includePath: true,
+          includeStatusCode: true,
+        })
+      )
+
+      // Health status.
+      app.get('/healthz', async (req, res) => {
+        return res.json({
+          ok: this.healthy,
+        })
       })
 
-      this.logger.info(`metrics started`, {
-        port: this.metricsServerPort,
-        hostname: this.metricsServerHostname,
-        route: '/metrics',
+      // Registery user routes.
+      if (this.routes) {
+        const router = express.Router()
+        this.routes(router)
+        app.use('/api', router)
+      }
+
+      // Wait for server to come up.
+      await new Promise((resolve) => {
+        this.server = app.listen(this.port, this.hostname, () => {
+          resolve(null)
+        })
+      })
+
+      this.logger.info(`app server started`, {
+        port: this.port,
+        hostname: this.hostname,
       })
     }
 
@@ -381,15 +431,15 @@ export abstract class BaseServiceV2<
     }
 
     // Shut down the metrics server if it's running.
-    if (this.metricsServer) {
+    if (this.server) {
       this.logger.info('stopping metrics server')
       await new Promise((resolve) => {
-        this.metricsServer.close(() => {
+        this.server.close(() => {
           resolve(null)
         })
       })
       this.logger.info('metrics server stopped')
-      this.metricsServer = undefined
+      this.server = undefined
     }
   }
 
@@ -397,6 +447,13 @@ export abstract class BaseServiceV2<
    * Initialization function. Runs once before the main function.
    */
   protected init?(): Promise<void>
+
+  /**
+   * Initialization function for router.
+   *
+   * @param router Express router.
+   */
+  protected routes?(router: ExpressRouter): Promise<void>
 
   /**
    * Main function. Runs repeatedly when run() is called.
