@@ -1,0 +1,23 @@
+# Common large paths
+node_modules/
+build/
+dist/
+vendor/
+.env/
+.venv/
+.tox/
+*.min.js
+
+# Common test paths
+test/
+tests/
+
+# Semgrep rules folder
+.semgrep
+
+# Semgrep-action log folder
+.semgrep_logs/
+
+l2geth/
+packages/*/node_modules
+packages/*/test
