@@ -204,12 +204,12 @@ func (d *Driver) CraftTx(
 
 	header, err := d.cfg.L1Client.HeaderByNumber(ctx, nil)
 	if err != nil {
-		return nil, fmt.Errorf("error resolving checkpoint block: %v", err)
+		return nil, fmt.Errorf("error resolving checkpoint block: %w", err)
 	}
 
 	l2Header, err := d.cfg.L2Client.HeaderByNumber(ctx, nextCheckpointBlock)
 	if err != nil {
-		return nil, fmt.Errorf("error resolving checkpoint block: %v", err)
+		return nil, fmt.Errorf("error resolving checkpoint block: %w", err)
 	}
 
 	if l2Header.Time != timestamp.Uint64() {

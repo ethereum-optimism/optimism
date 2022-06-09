@@ -156,20 +156,20 @@ func NewConfig(ctx *cli.Context) (*Config, error) {
 
 	p, err := loadNetworkPrivKey(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("failed to load p2p priv key: %v", err)
+		return nil, fmt.Errorf("failed to load p2p priv key: %w", err)
 	}
 	conf.Priv = p
 
 	if err := conf.loadListenOpts(ctx); err != nil {
-		return nil, fmt.Errorf("failed to load p2p listen options: %v", err)
+		return nil, fmt.Errorf("failed to load p2p listen options: %w", err)
 	}
 
 	if err := conf.loadDiscoveryOpts(ctx); err != nil {
-		return nil, fmt.Errorf("failed to load p2p discovery options: %v", err)
+		return nil, fmt.Errorf("failed to load p2p discovery options: %w", err)
 	}
 
 	if err := conf.loadLibp2pOpts(ctx); err != nil {
-		return nil, fmt.Errorf("failed to load p2p options: %v", err)
+		return nil, fmt.Errorf("failed to load p2p options: %w", err)
 	}
 
 	conf.ConnGater = DefaultConnGater
@@ -193,11 +193,11 @@ func (conf *Config) loadListenOpts(ctx *cli.Context) error {
 	var err error
 	conf.ListenTCPPort, err = validatePort(ctx.GlobalUint(flags.ListenTCPPort.Name))
 	if err != nil {
-		return fmt.Errorf("bad listen TCP port: %v", err)
+		return fmt.Errorf("bad listen TCP port: %w", err)
 	}
 	conf.ListenUDPPort, err = validatePort(ctx.GlobalUint(flags.ListenUDPPort.Name))
 	if err != nil {
-		return fmt.Errorf("bad listen UDP port: %v", err)
+		return fmt.Errorf("bad listen UDP port: %w", err)
 	}
 	return nil
 }
@@ -210,17 +210,17 @@ func (conf *Config) loadDiscoveryOpts(ctx *cli.Context) error {
 	var err error
 	conf.AdvertiseTCPPort, err = validatePort(ctx.GlobalUint(flags.AdvertiseTCPPort.Name))
 	if err != nil {
-		return fmt.Errorf("bad advertised TCP port: %v", err)
+		return fmt.Errorf("bad advertised TCP port: %w", err)
 	}
 	conf.AdvertiseUDPPort, err = validatePort(ctx.GlobalUint(flags.AdvertiseUDPPort.Name))
 	if err != nil {
-		return fmt.Errorf("bad advertised UDP port: %v", err)
+		return fmt.Errorf("bad advertised UDP port: %w", err)
 	}
 	adIP := ctx.GlobalString(flags.AdvertiseIP.Name)
 	if adIP != "" { // optional
 		ips, err := net.LookupIP(adIP)
 		if err != nil {
-			return fmt.Errorf("failed to lookup IP of %q to advertise in ENR: %v", adIP, err)
+			return fmt.Errorf("failed to lookup IP of %q to advertise in ENR: %w", adIP, err)
 		}
 		// Find the first v4 IP it resolves to
 		for _, ip := range ips {
@@ -243,7 +243,7 @@ func (conf *Config) loadDiscoveryOpts(ctx *cli.Context) error {
 	}
 	conf.DiscoveryDB, err = enode.OpenDB(dbPath)
 	if err != nil {
-		return fmt.Errorf("failed to open discovery db: %v", err)
+		return fmt.Errorf("failed to open discovery db: %w", err)
 	}
 
 	records := strings.Split(ctx.GlobalString(flags.Bootnodes.Name), ",")
@@ -254,7 +254,7 @@ func (conf *Config) loadDiscoveryOpts(ctx *cli.Context) error {
 		}
 		nodeRecord, err := enode.Parse(enode.ValidSchemes, recordB64)
 		if err != nil {
-			return fmt.Errorf("bootnode record %d (of %d) is invalid: %q err: %v", i, len(records), recordB64, err)
+			return fmt.Errorf("bootnode record %d (of %d) is invalid: %q err: %w", i, len(records), recordB64, err)
 		}
 		conf.Bootnodes = append(conf.Bootnodes, nodeRecord)
 	}
@@ -322,7 +322,7 @@ func (conf *Config) loadLibp2pOpts(ctx *cli.Context) error {
 			return fmt.Errorf("could not recognize mux %s", v)
 		}
 		if err != nil {
-			return fmt.Errorf("failed to make %s constructor: %v", v, err)
+			return fmt.Errorf("failed to make %s constructor: %w", v, err)
 		}
 		conf.HostMux = append(conf.HostMux, mc)
 	}
@@ -346,7 +346,7 @@ func (conf *Config) loadLibp2pOpts(ctx *cli.Context) error {
 			return fmt.Errorf("could not recognize security %s", v)
 		}
 		if err != nil {
-			return fmt.Errorf("failed to make %s constructor: %v", v, err)
+			return fmt.Errorf("failed to make %s constructor: %w", v, err)
 		}
 		conf.HostSecurity = append(conf.HostSecurity, sc)
 	}
@@ -372,7 +372,7 @@ func (conf *Config) loadLibp2pOpts(ctx *cli.Context) error {
 	} else {
 		store, err = leveldb.NewDatastore(peerstorePath, nil) // default leveldb options are fine
 		if err != nil {
-			return fmt.Errorf("failed to open leveldb db for peerstore: %v", err)
+			return fmt.Errorf("failed to open leveldb db for peerstore: %w", err)
 		}
 	}
 	conf.Store = store
@@ -390,26 +390,26 @@ func loadNetworkPrivKey(ctx *cli.Context) (*ecdsa.PrivateKey, error) {
 	if os.IsNotExist(err) {
 		p, _, err := crypto.GenerateSecp256k1Key(rand.Reader)
 		if err != nil {
-			return nil, fmt.Errorf("failed to generate new p2p priv key: %v", err)
+			return nil, fmt.Errorf("failed to generate new p2p priv key: %w", err)
 		}
 		b, err := p.Raw()
 		if err != nil {
-			return nil, fmt.Errorf("failed to encode new p2p priv key: %v", err)
+			return nil, fmt.Errorf("failed to encode new p2p priv key: %w", err)
 		}
 		f, err := os.OpenFile(keyPath, os.O_CREATE|os.O_WRONLY, 0600)
 		if err != nil {
-			return nil, fmt.Errorf("failed to store new p2p priv key: %v", err)
+			return nil, fmt.Errorf("failed to store new p2p priv key: %w", err)
 		}
 		defer f.Close()
 		if _, err := f.WriteString(hex.EncodeToString(b)); err != nil {
-			return nil, fmt.Errorf("failed to write new p2p priv key: %v", err)
+			return nil, fmt.Errorf("failed to write new p2p priv key: %w", err)
 		}
 		return (*ecdsa.PrivateKey)((p).(*crypto.Secp256k1PrivateKey)), nil
 	} else {
 		defer f.Close()
 		data, err := ioutil.ReadAll(f)
 		if err != nil {
-			return nil, fmt.Errorf("failed to read priv key file: %v", err)
+			return nil, fmt.Errorf("failed to read priv key file: %w", err)
 		}
 		return parsePriv(strings.TrimSpace(string(data)))
 	}

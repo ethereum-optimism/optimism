@@ -328,11 +328,11 @@ func (s *state) handleUnsafeL2Payload(ctx context.Context, payload *l2.Execution
 
 	l2Ref, err := l2.PayloadToBlockRef(payload, &s.Config.Genesis)
 	if err != nil {
-		return fmt.Errorf("failed to derive L2 block ref from payload: %v", err)
+		return fmt.Errorf("failed to derive L2 block ref from payload: %w", err)
 	}
 
 	if err := s.output.processBlock(ctx, s.l2Head, s.l2SafeHead.ID(), s.l2Finalized, payload); err != nil {
-		return fmt.Errorf("failed to process unsafe L2 payload: %v", err)
+		return fmt.Errorf("failed to process unsafe L2 payload: %w", err)
 	}
 
 	// We successfully processed the block, so update the safe head, while leaving the safe head etc. the same.

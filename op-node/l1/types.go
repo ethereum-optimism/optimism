@@ -138,7 +138,7 @@ func (block *rpcBlock) Info(trustCache bool) (*HeaderInfo, types.Transactions, e
 	// verify the header data
 	info, err := block.header.Info(trustCache)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to verify block from RPC: %v", err)
+		return nil, nil, fmt.Errorf("failed to verify block from RPC: %w", err)
 	}
 
 	if !trustCache { // verify the list of transactions matches the tx-root

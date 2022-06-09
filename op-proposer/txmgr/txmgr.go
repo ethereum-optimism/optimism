@@ -2,6 +2,7 @@ package txmgr
 
 import (
 	"context"
+	"errors"
 	"math/big"
 	"strings"
 	"sync"
@@ -141,7 +142,8 @@ func (m *SimpleTxManager) Send(
 
 		tx, err := updateGasPrice(ctxc)
 		if err != nil {
-			if err == context.Canceled ||
+			// TODO: With properly wrapped errors we should not need the string check
+			if errors.Is(err, context.Canceled) ||
 				strings.Contains(err.Error(), "context canceled") {
 				return
 			}
@@ -160,7 +162,8 @@ func (m *SimpleTxManager) Send(
 		err = sendTx(ctxc, tx)
 		sendState.ProcessSendError(err)
 		if err != nil {
-			if err == context.Canceled ||
+			// TODO: With properly wrapped errors we should not need the string check
+			if errors.Is(err, context.Canceled) ||
 				strings.Contains(err.Error(), "context canceled") {
 				return
 			}

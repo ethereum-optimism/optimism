@@ -33,7 +33,7 @@ func fetchReceipts(ctx context.Context, block eth.BlockID, receiptHash common.Ha
 		}
 	}
 	if err := getBatch(ctx, receiptRequests); err != nil {
-		return nil, fmt.Errorf("failed to fetch batch of receipts: %v", err)
+		return nil, fmt.Errorf("failed to fetch batch of receipts: %w", err)
 	}
 
 	// We don't trust the RPC to provide consistent cached receipt info that we use for critical rollup derivation work.

@@ -178,7 +178,7 @@ func (payload *ExecutionPayload) UnmarshalSSZ(scope uint32, r io.Reader) error {
 	copy(payload.ExtraData, buf[extraDataOffset:transactionsOffset])
 	txs, err := unmarshalTransactions(buf[transactionsOffset:])
 	if err != nil {
-		return fmt.Errorf("failed to unmarshal transactions list: %v", err)
+		return fmt.Errorf("failed to unmarshal transactions list: %w", err)
 	}
 	payload.Transactions = txs
 	return nil

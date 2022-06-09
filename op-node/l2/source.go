@@ -2,6 +2,7 @@ package l2
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math/big"
 	"time"
@@ -42,7 +43,7 @@ func (s *Source) PayloadByHash(ctx context.Context, hash common.Hash) (*Executio
 	// TODO: we really do not need to parse every single tx and block detail, keeping transactions encoded is faster.
 	block, err := s.client.BlockByHash(ctx, hash)
 	if err != nil {
-		return nil, fmt.Errorf("failed to retrieve L2 block by hash: %v", err)
+		return nil, fmt.Errorf("failed to retrieve L2 block by hash: %w", err)
 	}
 	payload, err := BlockAsPayload(block)
 	if err != nil {
@@ -55,7 +56,7 @@ func (s *Source) PayloadByNumber(ctx context.Context, number *big.Int) (*Executi
 	// TODO: we really do not need to parse every single tx and block detail, keeping transactions encoded is faster.
 	block, err := s.client.BlockByNumber(ctx, number)
 	if err != nil {
-		return nil, fmt.Errorf("failed to retrieve L2 block by number: %v", err)
+		return nil, fmt.Errorf("failed to retrieve L2 block by number: %w", err)
 	}
 	payload, err := BlockAsPayload(block)
 	if err != nil {
@@ -81,7 +82,8 @@ func (s *Source) ForkchoiceUpdate(ctx context.Context, fc *ForkchoiceState, attr
 		}
 	} else {
 		e = e.New("err", err)
-		if rpcErr, ok := err.(rpc.Error); ok {
+		var rpcErr rpc.Error
+		if errors.As(err, &rpcErr) {
 			code := ErrorCode(rpcErr.ErrorCode())
 			e.Warn("Unexpected error code in forkchoice-updated response", "code", code)
 		} else {
@@ -90,12 +92,12 @@ func (s *Source) ForkchoiceUpdate(ctx context.Context, fc *ForkchoiceState, attr
 	}
 	switch result.PayloadStatus.Status {
 	case ExecutionSyncing:
-		return nil, fmt.Errorf("updated forkchoice, but node is syncing: %v", err)
+		return nil, fmt.Errorf("updated forkchoice, but node is syncing: %w", err)
 	case ExecutionAccepted, ExecutionInvalidTerminalBlock, ExecutionInvalidBlockHash:
 		// ACCEPTED, INVALID_TERMINAL_BLOCK, INVALID_BLOCK_HASH are only for execution
-		return nil, fmt.Errorf("unexpected %s status, could not update forkchoice: %v", result.PayloadStatus.Status, err)
+		return nil, fmt.Errorf("unexpected %s status, could not update forkchoice: %w", result.PayloadStatus.Status, err)
 	case ExecutionInvalid:
-		return nil, fmt.Errorf("cannot update forkchoice, block is invalid: %v", err)
+		return nil, fmt.Errorf("cannot update forkchoice, block is invalid: %w", err)
 	case ExecutionValid:
 		return &result, nil
 	default:
@@ -115,7 +117,7 @@ func (s *Source) NewPayload(ctx context.Context, payload *ExecutionPayload) erro
 	e.Debug("Received payload execution result", "status", result.Status, "latestValidHash", result.LatestValidHash, "message", result.ValidationError)
 	if err != nil {
 		e.Error("Payload execution failed", "err", err)
-		return fmt.Errorf("failed to execute payload: %v", err)
+		return fmt.Errorf("failed to execute payload: %w", err)
 	}
 
 	switch result.Status {
@@ -144,7 +146,8 @@ func (s *Source) GetPayload(ctx context.Context, payloadId PayloadID) (*Executio
 	err := s.rpc.CallContext(ctx, &result, "engine_getPayloadV1", payloadId)
 	if err != nil {
 		e = e.New("payload_id", payloadId, "err", err)
-		if rpcErr, ok := err.(rpc.Error); ok {
+		var rpcErr rpc.Error
+		if errors.As(err, &rpcErr) {
 			code := ErrorCode(rpcErr.ErrorCode())
 			if code != UnavailablePayload {
 				e.Warn("unexpected error code in get-payload response", "code", code)
@@ -202,7 +205,7 @@ func blockToBlockRef(block *types.Block, genesis *rollup.Genesis) (eth.L2BlockRe
 		}
 		info, err := derive.L1InfoDepositTxData(tx.Data())
 		if err != nil {
-			return eth.L2BlockRef{}, fmt.Errorf("failed to parse L1 info deposit tx from L2 block: %v", err)
+			return eth.L2BlockRef{}, fmt.Errorf("failed to parse L1 info deposit tx from L2 block: %w", err)
 		}
 		l1Origin = eth.BlockID{Hash: info.BlockHash, Number: info.Number}
 		sequenceNumber = info.SequenceNumber
@@ -234,14 +237,14 @@ func PayloadToBlockRef(payload *ExecutionPayload, genesis *rollup.Genesis) (eth.
 		}
 		var tx types.Transaction
 		if err := tx.UnmarshalBinary(payload.Transactions[0]); err != nil {
-			return eth.L2BlockRef{}, fmt.Errorf("failed to decode first tx to read l1 info from: %v", err)
+			return eth.L2BlockRef{}, fmt.Errorf("failed to decode first tx to read l1 info from: %w", err)
 		}
 		if tx.Type() != types.DepositTxType {
 			return eth.L2BlockRef{}, fmt.Errorf("first payload tx has unexpected tx type: %d", tx.Type())
 		}
 		info, err := derive.L1InfoDepositTxData(tx.Data())
 		if err != nil {
-			return eth.L2BlockRef{}, fmt.Errorf("failed to parse L1 info deposit tx from L2 block: %v", err)
+			return eth.L2BlockRef{}, fmt.Errorf("failed to parse L1 info deposit tx from L2 block: %w", err)
 		}
 		l1Origin = eth.BlockID{Hash: info.BlockHash, Number: info.Number}
 		sequenceNumber = info.SequenceNumber

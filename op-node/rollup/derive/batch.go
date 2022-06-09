@@ -60,13 +60,13 @@ type BatchData struct {
 func DecodeBatches(config *rollup.Config, r io.Reader) ([]*BatchData, error) {
 	var typeData [1]byte
 	if _, err := io.ReadFull(r, typeData[:]); err != nil {
-		return nil, fmt.Errorf("failed to read batch bundle type byte: %v", err)
+		return nil, fmt.Errorf("failed to read batch bundle type byte: %w", err)
 	}
 	switch typeData[0] {
 	case BatchBundleV1Type:
 		var out []*BatchData
 		if err := rlp.Decode(r, &out); err != nil {
-			return nil, fmt.Errorf("failed to decode v1 batches list: %v", err)
+			return nil, fmt.Errorf("failed to decode v1 batches list: %w", err)
 		}
 		return out, nil
 	case BatchBundleV2Type:
@@ -87,7 +87,7 @@ func EncodeBatches(config *rollup.Config, batches []*BatchData, w io.Writer) err
 	switch bundleType {
 	case BatchBundleV1Type:
 		if err := rlp.Encode(w, batches); err != nil {
-			return fmt.Errorf("failed to encode RLP-list payload of v1 bundle: %v", err)
+			return fmt.Errorf("failed to encode RLP-list payload of v1 bundle: %w", err)
 		}
 		return nil
 	case BatchBundleV2Type:

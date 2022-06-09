@@ -135,7 +135,7 @@ func (n *nodeAPI) GetBatchBundle(ctx context.Context, req *BatchBundleRequest) (
 			if errors.Is(err, ethereum.NotFound) { // on reorgs and such we expect that blocks may be missing
 				continue
 			}
-			return nil, fmt.Errorf("failed to check L2 history for block hash %d in request %s: %v", i, h, err)
+			return nil, fmt.Errorf("failed to check L2 history for block hash %d in request %s: %w", i, h, err)
 		}
 		// found a block that exists! Now make sure it's really a canonical block of L2
 		canonBlock, err := n.client.L2BlockRefByNumber(ctx, big.NewInt(int64(l2Ref.Number)))
@@ -143,7 +143,7 @@ func (n *nodeAPI) GetBatchBundle(ctx context.Context, req *BatchBundleRequest) (
 			if errors.Is(err, ethereum.NotFound) {
 				continue
 			}
-			return nil, fmt.Errorf("failed to check L2 history for block number %d, expecting block %s: %v", l2Ref.Number, h, err)
+			return nil, fmt.Errorf("failed to check L2 history for block number %d, expecting block %s: %w", l2Ref.Number, h, err)
 		}
 		if canonBlock.Hash == h {
 			// found a common canonical block!
@@ -165,11 +165,11 @@ func (n *nodeAPI) GetBatchBundle(ctx context.Context, req *BatchBundleRequest) (
 			if errors.Is(err, ethereum.NotFound) { // block number too high
 				break
 			}
-			return nil, fmt.Errorf("failed to retrieve L2 block by number %d: %v", i, err)
+			return nil, fmt.Errorf("failed to retrieve L2 block by number %d: %w", i, err)
 		}
 		batch, err := l2.BlockToBatch(n.config, l2Block)
 		if err != nil {
-			return nil, fmt.Errorf("failed to convert L2 block %d (%s) to batch: %v", i, l2Block.Hash(), err)
+			return nil, fmt.Errorf("failed to convert L2 block %d (%s) to batch: %w", i, l2Block.Hash(), err)
 		}
 		if batch == nil { // empty block, nothing to submit as batch
 			bundleBuilder.AddCandidate(BundleCandidate{
@@ -192,7 +192,7 @@ func (n *nodeAPI) GetBatchBundle(ctx context.Context, req *BatchBundleRequest) (
 		var buf bytes.Buffer
 		err = derive.EncodeBatches(n.config, []*derive.BatchData{batch}, &buf)
 		if err != nil {
-			return nil, fmt.Errorf("failed to encode batch for size estimate: %v", err)
+			return nil, fmt.Errorf("failed to encode batch for size estimate: %w", err)
 		}
 
 		nextBatchSizeBytes := uint64(len(buf.Bytes()))
@@ -226,7 +226,7 @@ func (n *nodeAPI) GetBatchBundle(ctx context.Context, req *BatchBundleRequest) (
 		var buf bytes.Buffer
 		err := derive.EncodeBatches(n.config, bundleBuilder.Batches(), &buf)
 		if err != nil {
-			return nil, fmt.Errorf("failed to encode selected batches as bundle: %v", err)
+			return nil, fmt.Errorf("failed to encode selected batches as bundle: %w", err)
 		}
 
 		bundleSize := uint64(len(buf.Bytes()))

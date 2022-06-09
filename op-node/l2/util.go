@@ -46,7 +46,7 @@ func (res *AccountResult) Verify(stateRoot common.Hash) error {
 	accountClaimed := []interface{}{uint64(res.Nonce), (*big.Int)(res.Balance).Bytes(), res.StorageHash, res.CodeHash}
 	accountClaimedValue, err := rlp.EncodeToBytes(accountClaimed)
 	if err != nil {
-		return fmt.Errorf("failed to encode account from retrieved values: %v", err)
+		return fmt.Errorf("failed to encode account from retrieved values: %w", err)
 	}
 
 	// create a db with all trie nodes
@@ -54,7 +54,7 @@ func (res *AccountResult) Verify(stateRoot common.Hash) error {
 	for i, encodedNode := range res.AccountProof {
 		nodeKey := crypto.Keccak256(encodedNode)
 		if err := db.Put(nodeKey, encodedNode); err != nil {
-			return fmt.Errorf("failed to load proof value %d into mem db: %v", i, err)
+			return fmt.Errorf("failed to load proof value %d into mem db: %w", i, err)
 		}
 	}
 
@@ -70,7 +70,7 @@ func (res *AccountResult) Verify(stateRoot common.Hash) error {
 	// now get the full value from the account proof, and check that it matches the JSON contents
 	accountProofValue, err := proofTrie.TryGet(key[:])
 	if err != nil {
-		return fmt.Errorf("failed to retrieve account value: %v", err)
+		return fmt.Errorf("failed to retrieve account value: %w", err)
 	}
 
 	if !bytes.Equal(accountClaimedValue, accountProofValue) {
@@ -100,7 +100,7 @@ func BlockToBatch(config *rollup.Config, block *types.Block) (*derive.BatchData,
 		}
 		otx, err := tx.MarshalBinary()
 		if err != nil {
-			return nil, fmt.Errorf("failed to encode tx %d in block: %v", i, err)
+			return nil, fmt.Errorf("failed to encode tx %d in block: %w", i, err)
 		}
 		opaqueTxs = append(opaqueTxs, otx)
 	}
@@ -108,7 +108,7 @@ func BlockToBatch(config *rollup.Config, block *types.Block) (*derive.BatchData,
 	// figure out which L1 epoch this L2 block was derived from
 	l1Info, err := derive.L1InfoDepositTxData(txs[0].Data())
 	if err != nil {
-		return nil, fmt.Errorf("invalid L1 info deposit tx in block: %v", err)
+		return nil, fmt.Errorf("invalid L1 info deposit tx in block: %w", err)
 	}
 	return &derive.BatchData{BatchV1: derive.BatchV1{
 		Epoch:        rollup.Epoch(l1Info.Number), // the L1 block number equals the L2 epoch.
