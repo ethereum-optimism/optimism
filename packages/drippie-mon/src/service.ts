@@ -14,7 +14,6 @@ type DrippieMonOptions = {
 }
 
 type DrippieMonMetrics = {
-  metadata: Gauge
   isExecutable: Gauge
   executedDripCount: Gauge
   unexpectedRpcErrors: Counter
@@ -31,6 +30,8 @@ export class DrippieMonService extends BaseServiceV2<
 > {
   constructor(options?: Partial<DrippieMonOptions>) {
     super({
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      version: require('../package.json').version,
       name: 'drippie-mon',
       loop: true,
       loopIntervalMs: 60_000,
@@ -39,6 +40,7 @@ export class DrippieMonService extends BaseServiceV2<
         rpc: {
           validator: validators.provider,
           desc: 'Provider for network where Drippie is deployed',
+          secret: true,
         },
         drippieAddress: {
           validator: validators.str,
@@ -46,11 +48,6 @@ export class DrippieMonService extends BaseServiceV2<
         },
       },
       metricsSpec: {
-        metadata: {
-          type: Gauge,
-          desc: 'Drippie Monitor metadata',
-          labels: ['version', 'address'],
-        },
         isExecutable: {
           type: Gauge,
           desc: 'Whether or not the drip is currently executable',
@@ -75,15 +72,6 @@ export class DrippieMonService extends BaseServiceV2<
       this.options.drippieAddress,
       DrippieArtifact.abi,
       this.options.rpc
-    )
-
-    this.metrics.metadata.set(
-      {
-        // eslint-disable-next-line @typescript-eslint/no-var-requires
-        version: require('../package.json').version,
-        address: this.options.drippieAddress,
-      },
-      1
     )
   }
 
