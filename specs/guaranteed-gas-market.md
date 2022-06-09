@@ -22,8 +22,8 @@ it is sometimes paid for with a gas burn and there may not be any ETH left to re
 The **guaranteed gas** is composed of a gas stipend, and of any guaranteed gas the user would like
 to purchase (on L1) on top of that.
 
-Guaranteed gas on L2 is bought in the following manner. An L2 gas price is calculated via an EIP-1559
-style algorithm. The total amount of ETH required to buy that gas is then calculated as
+Guaranteed gas on L2 is bought in the following manner. An L2 gas price is calculated via an
+EIP-1559-style algorithm. The total amount of ETH required to buy that gas is then calculated as
 (`guaranteed gas * L2 deposit basefee`). The contract then accepts that amount of ETH (in a future
 upgrade) or (only method right now), burns an amount of L1 gas that corresponds to the L2 cost
 (`L2 cost / L1 Basefee`). The L2 gas price for guaranteed gas is not synchronized with the basefee
@@ -61,7 +61,7 @@ TARGET_RESOURCE_LIMIT = MAX_RESOURCE_LIMIT / ELASTICITY_MULTIPLIER
 MINIMUM_BASEFEE=10000
 
 # prev_basefee is a u128, prev_bought_gas and prev_num are u64s
-prev_basefee, prev_bought_gas, prev_num = load_and_unpack_storage()
+prev_basefee, prev_bought_gas, prev_num = <values from previous update>
 now_num = block.number
 
 # Clamp the full basefee to a specific range. The minimum value in the range should be around 100-1000
@@ -103,7 +103,7 @@ if prev_num + 1 < now_num:
 
 require(now_bought_gas < MAX_RESOURCE_LIMIT)
 
-pack_and_store(now_basefee, now_bought_gas, now_num)
+store_values(now_basefee, now_bought_gas, now_num)
 ```
 
 ## Rationale for burning L1 Gas
