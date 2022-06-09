@@ -36,8 +36,8 @@ type L2OutputOracleOutputProposal struct {
 
 // L2OutputOracleMetaData contains all meta data concerning the L2OutputOracle contract.
 var L2OutputOracleMetaData = &bind.MetaData{
-	ABI: "[{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"_submissionInterval\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"_l2BlockTime\",\"type\":\"uint256\"},{\"internalType\":\"bytes32\",\"name\":\"_genesisL2Output\",\"type\":\"bytes32\"},{\"internalType\":\"uint256\",\"name\":\"_historicalTotalBlocks\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"_startingBlockTimestamp\",\"type\":\"uint256\"},{\"internalType\":\"address\",\"name\":\"_sequencer\",\"type\":\"address\"}],\"stateMutability\":\"nonpayable\",\"type\":\"constructor\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"address\",\"name\":\"previousOwner\",\"type\":\"address\"},{\"indexed\":true,\"internalType\":\"address\",\"name\":\"newOwner\",\"type\":\"address\"}],\"name\":\"OwnershipTransferred\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"bytes32\",\"name\":\"_l2Output\",\"type\":\"bytes32\"},{\"indexed\":true,\"internalType\":\"uint256\",\"name\":\"_l1Timestamp\",\"type\":\"uint256\"},{\"indexed\":true,\"internalType\":\"uint256\",\"name\":\"_l2timestamp\",\"type\":\"uint256\"}],\"name\":\"l2OutputAppended\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"bytes32\",\"name\":\"_l2Output\",\"type\":\"bytes32\"},{\"indexed\":true,\"internalType\":\"uint256\",\"name\":\"_l1Timestamp\",\"type\":\"uint256\"},{\"indexed\":true,\"internalType\":\"uint256\",\"name\":\"_l2timestamp\",\"type\":\"uint256\"}],\"name\":\"l2OutputDeleted\",\"type\":\"event\"},{\"inputs\":[],\"name\":\"HISTORICAL_TOTAL_BLOCKS\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"L2_BLOCK_TIME\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"STARTING_BLOCK_TIMESTAMP\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"SUBMISSION_INTERVAL\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"bytes32\",\"name\":\"_l2Output\",\"type\":\"bytes32\"},{\"internalType\":\"uint256\",\"name\":\"_l2timestamp\",\"type\":\"uint256\"},{\"internalType\":\"bytes32\",\"name\":\"_l1Blockhash\",\"type\":\"bytes32\"},{\"internalType\":\"uint256\",\"name\":\"_l1Blocknumber\",\"type\":\"uint256\"}],\"name\":\"appendL2Output\",\"outputs\":[],\"stateMutability\":\"payable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"_l2timestamp\",\"type\":\"uint256\"}],\"name\":\"computeL2BlockNumber\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"components\":[{\"internalType\":\"bytes32\",\"name\":\"outputRoot\",\"type\":\"bytes32\"},{\"internalType\":\"uint256\",\"name\":\"timestamp\",\"type\":\"uint256\"}],\"internalType\":\"structL2OutputOracle.OutputProposal\",\"name\":\"_proposal\",\"type\":\"tuple\"}],\"name\":\"deleteL2Output\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"_l2Timestamp\",\"type\":\"uint256\"}],\"name\":\"getL2Output\",\"outputs\":[{\"components\":[{\"internalType\":\"bytes32\",\"name\":\"outputRoot\",\"type\":\"bytes32\"},{\"internalType\":\"uint256\",\"name\":\"timestamp\",\"type\":\"uint256\"}],\"internalType\":\"structL2OutputOracle.OutputProposal\",\"name\":\"\",\"type\":\"tuple\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"latestBlockTimestamp\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"nextTimestamp\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"owner\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"renounceOwnership\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"newOwner\",\"type\":\"address\"}],\"name\":\"transferOwnership\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"}]",
-	Bin: "0x61010060405234801561001157600080fd5b50604051610f9e380380610f9e83398101604081905261003091610164565b61003933610114565b61004385876101c8565b156100ba5760405162461bcd60e51b815260206004820152603760248201527f5375626d697373696f6e20496e74657276616c206d7573742062652061206d7560448201527f6c7469706c65206f66204c3220426c6f636b2054696d65000000000000000000606482015260840160405180910390fd5b608086905260a0859052604080518082018252858152426020808301918252600086815260029091529290922090518155905160019182015560c084905282905560e082905261010981610114565b5050505050506101ea565b600080546001600160a01b038381166001600160a01b0319831681178455604051919092169283917f8be0079c531659141344cd1fd0a4f28419497f9722a3daafe3b4186f6b6457e09190a35050565b60008060008060008060c0878903121561017d57600080fd5b86516020880151604089015160608a015160808b015160a08c0151949a50929850909650945092506001600160a01b03811681146101ba57600080fd5b809150509295509295509295565b6000826101e557634e487b7160e01b600052601260045260246000fd5b500690565b60805160a05160c05160e051610d5261024c600039600081816101af0152818161031b01526103f10152600081816102d5015261042201526000818160e801526103d00152600081816101e30152818161062201526109570152610d526000f3fe6080604052600436106100d15760003560e01c806341840fa61161007f5780638da5cb5b116100595780638da5cb5b1461021a578063a25ae5571461024f578063a4771aad146102c3578063f2fde38b146102f757600080fd5b806341840fa61461019d578063529933df146101d1578063715018a61461020557600080fd5b80630c1952d3116100b05780630c1952d31461015f5780632518810414610175578063357e951f1461018857600080fd5b80622134cc146100d657806302e513451461011d578063093b3d901461013d575b600080fd5b3480156100e257600080fd5b5061010a7f000000000000000000000000000000000000000000000000000000000000000081565b6040519081526020015b60405180910390f35b34801561012957600080fd5b5061010a610138366004610bba565b610317565b34801561014957600080fd5b5061015d610158366004610bd3565b610449565b005b34801561016b57600080fd5b5061010a60015481565b61015d610183366004610c49565b61064e565b34801561019457600080fd5b5061010a610953565b3480156101a957600080fd5b5061010a7f000000000000000000000000000000000000000000000000000000000000000081565b3480156101dd57600080fd5b5061010a7f000000000000000000000000000000000000000000000000000000000000000081565b34801561021157600080fd5b5061015d610988565b34801561022657600080fd5b5060005460405173ffffffffffffffffffffffffffffffffffffffff9091168152602001610114565b34801561025b57600080fd5b506102a861026a366004610bba565b604080518082019091526000808252602082015250600090815260026020908152604091829020825180840190935280548352600101549082015290565b60408051825181526020928301519281019290925201610114565b3480156102cf57600080fd5b5061010a7f000000000000000000000000000000000000000000000000000000000000000081565b34801561030357600080fd5b5061015d610312366004610c7b565b610a15565b60007f00000000000000000000000000000000000000000000000000000000000000008210156103ce576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152602960248201527f54696d657374616d70207072696f7220746f207374617274696e67426c6f636b60448201527f54696d657374616d70000000000000000000000000000000000000000000000060648201526084015b60405180910390fd5b7f00000000000000000000000000000000000000000000000000000000000000007f000000000000000000000000000000000000000000000000000000000000000083038161041f5761041f610cb8565b047f0000000000000000000000000000000000000000000000000000000000000000019050919050565b60005473ffffffffffffffffffffffffffffffffffffffff1633146104ca576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820181905260248201527f4f776e61626c653a2063616c6c6572206973206e6f7420746865206f776e657260448201526064016103c5565b6001805460009081526002602090815260409182902082518084019093528054808452930154908201528251909114610585576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152602760248201527f43616e206f6e6c792064656c65746520746865206d6f737420726563656e742060448201527f6f75747075742e0000000000000000000000000000000000000000000000000060648201526084016103c5565b80602001518260200151146105d0576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152600060248201526044016103c5565b600154602082015182516040517f6897e92e2fea3b89bf0d45ed867487716da71bfa624c6878569d227d736c700990600090a460018054600090815260026020526040812081815582015554610647907f000000000000000000000000000000000000000000000000000000000000000090610d16565b6001555050565b60005473ffffffffffffffffffffffffffffffffffffffff1633146106cf576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820181905260248201527f4f776e61626c653a2063616c6c6572206973206e6f7420746865206f776e657260448201526064016103c5565b42831061075e576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152602160248201527f43616e6e6f7420617070656e64204c32206f757470757420696e20667574757260448201527f650000000000000000000000000000000000000000000000000000000000000060648201526084016103c5565b610766610953565b83146107f4576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152602e60248201527f54696d657374616d70206e6f7420657175616c20746f206e657874206578706560448201527f637465642074696d657374616d7000000000000000000000000000000000000060648201526084016103c5565b8361085b576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152601d60248201527f43616e6e6f74207375626d697420656d707479204c32206f757470757400000060448201526064016103c5565b81156108f157818140146108f1576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152603960248201527f426c6f636b6861736820646f6573206e6f74206d61746368207468652068617360448201527f6820617420746865206578706563746564206865696768742e0000000000000060648201526084016103c5565b60408051808201825285815242602080830182815260008881526002909252848220935184555160019384015591869055915185929187917f54fbf9b58db0b6543a3a0cb9fbd4e98a7c7b88878978fa125b84a2c7f51d34ba9190a450505050565b60007f00000000000000000000000000000000000000000000000000000000000000006001546109839190610d2d565b905090565b60005473ffffffffffffffffffffffffffffffffffffffff163314610a09576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820181905260248201527f4f776e61626c653a2063616c6c6572206973206e6f7420746865206f776e657260448201526064016103c5565b610a136000610b45565b565b60005473ffffffffffffffffffffffffffffffffffffffff163314610a96576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820181905260248201527f4f776e61626c653a2063616c6c6572206973206e6f7420746865206f776e657260448201526064016103c5565b73ffffffffffffffffffffffffffffffffffffffff8116610b39576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152602660248201527f4f776e61626c653a206e6577206f776e657220697320746865207a65726f206160448201527f646472657373000000000000000000000000000000000000000000000000000060648201526084016103c5565b610b4281610b45565b50565b6000805473ffffffffffffffffffffffffffffffffffffffff8381167fffffffffffffffffffffffff0000000000000000000000000000000000000000831681178455604051919092169283917f8be0079c531659141344cd1fd0a4f28419497f9722a3daafe3b4186f6b6457e09190a35050565b600060208284031215610bcc57600080fd5b5035919050565b600060408284031215610be557600080fd5b6040516040810181811067ffffffffffffffff82111715610c2f577f4e487b7100000000000000000000000000000000000000000000000000000000600052604160045260246000fd5b604052823581526020928301359281019290925250919050565b60008060008060808587031215610c5f57600080fd5b5050823594602084013594506040840135936060013592509050565b600060208284031215610c8d57600080fd5b813573ffffffffffffffffffffffffffffffffffffffff81168114610cb157600080fd5b9392505050565b7f4e487b7100000000000000000000000000000000000000000000000000000000600052601260045260246000fd5b7f4e487b7100000000000000000000000000000000000000000000000000000000600052601160045260246000fd5b600082821015610d2857610d28610ce7565b500390565b60008219821115610d4057610d40610ce7565b50019056fea164736f6c634300080a000a",
+	ABI: "[{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"_submissionInterval\",\"type\":\"uint256\"},{\"internalType\":\"bytes32\",\"name\":\"_genesisL2Output\",\"type\":\"bytes32\"},{\"internalType\":\"uint256\",\"name\":\"_historicalTotalBlocks\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"_startingBlockNumber\",\"type\":\"uint256\"},{\"internalType\":\"address\",\"name\":\"_sequencer\",\"type\":\"address\"}],\"stateMutability\":\"nonpayable\",\"type\":\"constructor\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"address\",\"name\":\"previousOwner\",\"type\":\"address\"},{\"indexed\":true,\"internalType\":\"address\",\"name\":\"newOwner\",\"type\":\"address\"}],\"name\":\"OwnershipTransferred\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"bytes32\",\"name\":\"_l2Output\",\"type\":\"bytes32\"},{\"indexed\":true,\"internalType\":\"uint256\",\"name\":\"_l1Timestamp\",\"type\":\"uint256\"},{\"indexed\":true,\"internalType\":\"uint256\",\"name\":\"_l2BlockNumber\",\"type\":\"uint256\"}],\"name\":\"l2OutputAppended\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"bytes32\",\"name\":\"_l2Output\",\"type\":\"bytes32\"},{\"indexed\":true,\"internalType\":\"uint256\",\"name\":\"_l1Timestamp\",\"type\":\"uint256\"},{\"indexed\":true,\"internalType\":\"uint256\",\"name\":\"_l2BlockNumber\",\"type\":\"uint256\"}],\"name\":\"l2OutputDeleted\",\"type\":\"event\"},{\"inputs\":[],\"name\":\"HISTORICAL_TOTAL_BLOCKS\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"STARTING_BLOCK_NUMBER\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"SUBMISSION_INTERVAL\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"bytes32\",\"name\":\"_l2Output\",\"type\":\"bytes32\"},{\"internalType\":\"uint256\",\"name\":\"_l2BlockNumber\",\"type\":\"uint256\"},{\"internalType\":\"bytes32\",\"name\":\"_l1Blockhash\",\"type\":\"bytes32\"},{\"internalType\":\"uint256\",\"name\":\"_l1BlockNumber\",\"type\":\"uint256\"}],\"name\":\"appendL2Output\",\"outputs\":[],\"stateMutability\":\"payable\",\"type\":\"function\"},{\"inputs\":[{\"components\":[{\"internalType\":\"bytes32\",\"name\":\"outputRoot\",\"type\":\"bytes32\"},{\"internalType\":\"uint256\",\"name\":\"timestamp\",\"type\":\"uint256\"}],\"internalType\":\"structL2OutputOracle.OutputProposal\",\"name\":\"_proposal\",\"type\":\"tuple\"}],\"name\":\"deleteL2Output\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"_l2BlockNumber\",\"type\":\"uint256\"}],\"name\":\"getL2Output\",\"outputs\":[{\"components\":[{\"internalType\":\"bytes32\",\"name\":\"outputRoot\",\"type\":\"bytes32\"},{\"internalType\":\"uint256\",\"name\":\"timestamp\",\"type\":\"uint256\"}],\"internalType\":\"structL2OutputOracle.OutputProposal\",\"name\":\"\",\"type\":\"tuple\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"latestBlockNumber\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"nextBlockNumber\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"owner\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"renounceOwnership\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"newOwner\",\"type\":\"address\"}],\"name\":\"transferOwnership\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"}]",
+	Bin: "0x60e060405234801561001057600080fd5b50604051610d0a380380610d0a83398101604081905261002f916100dc565b6100383361008c565b608085905260a083905260c082905260408051808201825285815242602080830191825260008681526002909152929092209051815590516001918201558290556100828161008c565b5050505050610137565b600080546001600160a01b038381166001600160a01b0319831681178455604051919092169283917f8be0079c531659141344cd1fd0a4f28419497f9722a3daafe3b4186f6b6457e09190a35050565b600080600080600060a086880312156100f457600080fd5b855160208701516040880151606089015160808a0151939850919650945092506001600160a01b038116811461012957600080fd5b809150509295509295909350565b60805160a05160c051610b966101746000396000610131015260006102570152600081816101650152818161052401526108570152610b966000f3fe6080604052600436106100bc5760003560e01c8063715018a611610074578063a4771aad1161004e578063a4771aad14610245578063dcec334814610279578063f2fde38b1461028e57600080fd5b8063715018a6146101875780638da5cb5b1461019c578063a25ae557146101d157600080fd5b80634599c788116100a55780634599c788146100f65780634ab65d731461011f578063529933df1461015357600080fd5b8063093b3d90146100c157806325188104146100e3575b600080fd5b3480156100cd57600080fd5b506100e16100dc366004610a2d565b6102ae565b005b6100e16100f1366004610aa3565b610550565b34801561010257600080fd5b5061010c60015481565b6040519081526020015b60405180910390f35b34801561012b57600080fd5b5061010c7f000000000000000000000000000000000000000000000000000000000000000081565b34801561015f57600080fd5b5061010c7f000000000000000000000000000000000000000000000000000000000000000081565b34801561019357600080fd5b506100e16107c6565b3480156101a857600080fd5b5060005460405173ffffffffffffffffffffffffffffffffffffffff9091168152602001610116565b3480156101dd57600080fd5b5061022a6101ec366004610ad5565b604080518082019091526000808252602082015250600090815260026020908152604091829020825180840190935280548352600101549082015290565b60408051825181526020928301519281019290925201610116565b34801561025157600080fd5b5061010c7f000000000000000000000000000000000000000000000000000000000000000081565b34801561028557600080fd5b5061010c610853565b34801561029a57600080fd5b506100e16102a9366004610aee565b610888565b60005473ffffffffffffffffffffffffffffffffffffffff163314610334576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820181905260248201527f4f776e61626c653a2063616c6c6572206973206e6f7420746865206f776e657260448201526064015b60405180910390fd5b6001805460009081526002602090815260409182902082518084019093528054808452930154908201528251909114610415576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152605560248201527f546865206f757470757420726f6f7420746f2064656c65746520646f6573206e60448201527f6f74206d61746368207468652074686174206f6620746865206d6f737420726560648201527f63656e74206f75747075742070726f706f73616c2e0000000000000000000000608482015260a40161032b565b80602001518260200151146104d2576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152605360248201527f5468652074696d657374616d7020746f2064656c65746520646f6573206e6f7460448201527f206d61746368207468652074686174206f6620746865206d6f7374207265636560648201527f6e74206f75747075742070726f706f73616c2e00000000000000000000000000608482015260a40161032b565b600154602082015182516040517f6897e92e2fea3b89bf0d45ed867487716da71bfa624c6878569d227d736c700990600090a460018054600090815260026020526040812081815582015554610549907f000000000000000000000000000000000000000000000000000000000000000090610b5a565b6001555050565b60005473ffffffffffffffffffffffffffffffffffffffff1633146105d1576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820181905260248201527f4f776e61626c653a2063616c6c6572206973206e6f7420746865206f776e6572604482015260640161032b565b6105d9610853565b8314610667576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152603860248201527f426c6f636b206e756d626572206d75737420626520657175616c20746f206e6560448201527f787420657870656374656420626c6f636b206e756d6265720000000000000000606482015260840161032b565b836106ce576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152601d60248201527f43616e6e6f74207375626d697420656d707479204c32206f7574707574000000604482015260640161032b565b81156107645781814014610764576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152603960248201527f426c6f636b6861736820646f6573206e6f74206d61746368207468652068617360448201527f6820617420746865206578706563746564206865696768742e00000000000000606482015260840161032b565b60408051808201825285815242602080830182815260008881526002909252848220935184555160019384015591869055915185929187917f54fbf9b58db0b6543a3a0cb9fbd4e98a7c7b88878978fa125b84a2c7f51d34ba9190a450505050565b60005473ffffffffffffffffffffffffffffffffffffffff163314610847576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820181905260248201527f4f776e61626c653a2063616c6c6572206973206e6f7420746865206f776e6572604482015260640161032b565b61085160006109b8565b565b60007f00000000000000000000000000000000000000000000000000000000000000006001546108839190610b71565b905090565b60005473ffffffffffffffffffffffffffffffffffffffff163314610909576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820181905260248201527f4f776e61626c653a2063616c6c6572206973206e6f7420746865206f776e6572604482015260640161032b565b73ffffffffffffffffffffffffffffffffffffffff81166109ac576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152602660248201527f4f776e61626c653a206e6577206f776e657220697320746865207a65726f206160448201527f6464726573730000000000000000000000000000000000000000000000000000606482015260840161032b565b6109b5816109b8565b50565b6000805473ffffffffffffffffffffffffffffffffffffffff8381167fffffffffffffffffffffffff0000000000000000000000000000000000000000831681178455604051919092169283917f8be0079c531659141344cd1fd0a4f28419497f9722a3daafe3b4186f6b6457e09190a35050565b600060408284031215610a3f57600080fd5b6040516040810181811067ffffffffffffffff82111715610a89577f4e487b7100000000000000000000000000000000000000000000000000000000600052604160045260246000fd5b604052823581526020928301359281019290925250919050565b60008060008060808587031215610ab957600080fd5b5050823594602084013594506040840135936060013592509050565b600060208284031215610ae757600080fd5b5035919050565b600060208284031215610b0057600080fd5b813573ffffffffffffffffffffffffffffffffffffffff81168114610b2457600080fd5b9392505050565b7f4e487b7100000000000000000000000000000000000000000000000000000000600052601160045260246000fd5b600082821015610b6c57610b6c610b2b565b500390565b60008219821115610b8457610b84610b2b565b50019056fea164736f6c634300080a000a",
 }
 
 // L2OutputOracleABI is the input ABI used to generate the binding from.
@@ -49,7 +49,7 @@ var L2OutputOracleABI = L2OutputOracleMetaData.ABI
 var L2OutputOracleBin = L2OutputOracleMetaData.Bin
 
 // DeployL2OutputOracle deploys a new Ethereum contract, binding an instance of L2OutputOracle to it.
-func DeployL2OutputOracle(auth *bind.TransactOpts, backend bind.ContractBackend, _submissionInterval *big.Int, _l2BlockTime *big.Int, _genesisL2Output [32]byte, _historicalTotalBlocks *big.Int, _startingBlockTimestamp *big.Int, _sequencer common.Address) (common.Address, *types.Transaction, *L2OutputOracle, error) {
+func DeployL2OutputOracle(auth *bind.TransactOpts, backend bind.ContractBackend, _submissionInterval *big.Int, _genesisL2Output [32]byte, _historicalTotalBlocks *big.Int, _startingBlockNumber *big.Int, _sequencer common.Address) (common.Address, *types.Transaction, *L2OutputOracle, error) {
 	parsed, err := L2OutputOracleMetaData.GetAbi()
 	if err != nil {
 		return common.Address{}, nil, nil, err
@@ -58,7 +58,7 @@ func DeployL2OutputOracle(auth *bind.TransactOpts, backend bind.ContractBackend,
 		return common.Address{}, nil, nil, errors.New("GetABI returned nil")
 	}
 
-	address, tx, contract, err := bind.DeployContract(auth, *parsed, common.FromHex(L2OutputOracleBin), backend, _submissionInterval, _l2BlockTime, _genesisL2Output, _historicalTotalBlocks, _startingBlockTimestamp, _sequencer)
+	address, tx, contract, err := bind.DeployContract(auth, *parsed, common.FromHex(L2OutputOracleBin), backend, _submissionInterval, _genesisL2Output, _historicalTotalBlocks, _startingBlockNumber, _sequencer)
 	if err != nil {
 		return common.Address{}, nil, nil, err
 	}
@@ -238,12 +238,12 @@ func (_L2OutputOracle *L2OutputOracleCallerSession) HISTORICALTOTALBLOCKS() (*bi
 	return _L2OutputOracle.Contract.HISTORICALTOTALBLOCKS(&_L2OutputOracle.CallOpts)
 }
 
-// L2BLOCKTIME is a free data retrieval call binding the contract method 0x002134cc.
+// STARTINGBLOCKNUMBER is a free data retrieval call binding the contract method 0x4ab65d73.
 //
-// Solidity: function L2_BLOCK_TIME() view returns(uint256)
-func (_L2OutputOracle *L2OutputOracleCaller) L2BLOCKTIME(opts *bind.CallOpts) (*big.Int, error) {
+// Solidity: function STARTING_BLOCK_NUMBER() view returns(uint256)
+func (_L2OutputOracle *L2OutputOracleCaller) STARTINGBLOCKNUMBER(opts *bind.CallOpts) (*big.Int, error) {
 	var out []interface{}
-	err := _L2OutputOracle.contract.Call(opts, &out, "L2_BLOCK_TIME")
+	err := _L2OutputOracle.contract.Call(opts, &out, "STARTING_BLOCK_NUMBER")
 
 	if err != nil {
 		return *new(*big.Int), err
@@ -255,49 +255,18 @@ func (_L2OutputOracle *L2OutputOracleCaller) L2BLOCKTIME(opts *bind.CallOpts) (*
 
 }
 
-// L2BLOCKTIME is a free data retrieval call binding the contract method 0x002134cc.
+// STARTINGBLOCKNUMBER is a free data retrieval call binding the contract method 0x4ab65d73.
 //
-// Solidity: function L2_BLOCK_TIME() view returns(uint256)
-func (_L2OutputOracle *L2OutputOracleSession) L2BLOCKTIME() (*big.Int, error) {
-	return _L2OutputOracle.Contract.L2BLOCKTIME(&_L2OutputOracle.CallOpts)
+// Solidity: function STARTING_BLOCK_NUMBER() view returns(uint256)
+func (_L2OutputOracle *L2OutputOracleSession) STARTINGBLOCKNUMBER() (*big.Int, error) {
+	return _L2OutputOracle.Contract.STARTINGBLOCKNUMBER(&_L2OutputOracle.CallOpts)
 }
 
-// L2BLOCKTIME is a free data retrieval call binding the contract method 0x002134cc.
+// STARTINGBLOCKNUMBER is a free data retrieval call binding the contract method 0x4ab65d73.
 //
-// Solidity: function L2_BLOCK_TIME() view returns(uint256)
-func (_L2OutputOracle *L2OutputOracleCallerSession) L2BLOCKTIME() (*big.Int, error) {
-	return _L2OutputOracle.Contract.L2BLOCKTIME(&_L2OutputOracle.CallOpts)
-}
-
-// STARTINGBLOCKTIMESTAMP is a free data retrieval call binding the contract method 0x41840fa6.
-//
-// Solidity: function STARTING_BLOCK_TIMESTAMP() view returns(uint256)
-func (_L2OutputOracle *L2OutputOracleCaller) STARTINGBLOCKTIMESTAMP(opts *bind.CallOpts) (*big.Int, error) {
-	var out []interface{}
-	err := _L2OutputOracle.contract.Call(opts, &out, "STARTING_BLOCK_TIMESTAMP")
-
-	if err != nil {
-		return *new(*big.Int), err
-	}
-
-	out0 := *abi.ConvertType(out[0], new(*big.Int)).(**big.Int)
-
-	return out0, err
-
-}
-
-// STARTINGBLOCKTIMESTAMP is a free data retrieval call binding the contract method 0x41840fa6.
-//
-// Solidity: function STARTING_BLOCK_TIMESTAMP() view returns(uint256)
-func (_L2OutputOracle *L2OutputOracleSession) STARTINGBLOCKTIMESTAMP() (*big.Int, error) {
-	return _L2OutputOracle.Contract.STARTINGBLOCKTIMESTAMP(&_L2OutputOracle.CallOpts)
-}
-
-// STARTINGBLOCKTIMESTAMP is a free data retrieval call binding the contract method 0x41840fa6.
-//
-// Solidity: function STARTING_BLOCK_TIMESTAMP() view returns(uint256)
-func (_L2OutputOracle *L2OutputOracleCallerSession) STARTINGBLOCKTIMESTAMP() (*big.Int, error) {
-	return _L2OutputOracle.Contract.STARTINGBLOCKTIMESTAMP(&_L2OutputOracle.CallOpts)
+// Solidity: function STARTING_BLOCK_NUMBER() view returns(uint256)
+func (_L2OutputOracle *L2OutputOracleCallerSession) STARTINGBLOCKNUMBER() (*big.Int, error) {
+	return _L2OutputOracle.Contract.STARTINGBLOCKNUMBER(&_L2OutputOracle.CallOpts)
 }
 
 // SUBMISSIONINTERVAL is a free data retrieval call binding the contract method 0x529933df.
@@ -331,43 +300,12 @@ func (_L2OutputOracle *L2OutputOracleCallerSession) SUBMISSIONINTERVAL() (*big.I
 	return _L2OutputOracle.Contract.SUBMISSIONINTERVAL(&_L2OutputOracle.CallOpts)
 }
 
-// ComputeL2BlockNumber is a free data retrieval call binding the contract method 0x02e51345.
-//
-// Solidity: function computeL2BlockNumber(uint256 _l2timestamp) view returns(uint256)
-func (_L2OutputOracle *L2OutputOracleCaller) ComputeL2BlockNumber(opts *bind.CallOpts, _l2timestamp *big.Int) (*big.Int, error) {
-	var out []interface{}
-	err := _L2OutputOracle.contract.Call(opts, &out, "computeL2BlockNumber", _l2timestamp)
-
-	if err != nil {
-		return *new(*big.Int), err
-	}
-
-	out0 := *abi.ConvertType(out[0], new(*big.Int)).(**big.Int)
-
-	return out0, err
-
-}
-
-// ComputeL2BlockNumber is a free data retrieval call binding the contract method 0x02e51345.
-//
-// Solidity: function computeL2BlockNumber(uint256 _l2timestamp) view returns(uint256)
-func (_L2OutputOracle *L2OutputOracleSession) ComputeL2BlockNumber(_l2timestamp *big.Int) (*big.Int, error) {
-	return _L2OutputOracle.Contract.ComputeL2BlockNumber(&_L2OutputOracle.CallOpts, _l2timestamp)
-}
-
-// ComputeL2BlockNumber is a free data retrieval call binding the contract method 0x02e51345.
-//
-// Solidity: function computeL2BlockNumber(uint256 _l2timestamp) view returns(uint256)
-func (_L2OutputOracle *L2OutputOracleCallerSession) ComputeL2BlockNumber(_l2timestamp *big.Int) (*big.Int, error) {
-	return _L2OutputOracle.Contract.ComputeL2BlockNumber(&_L2OutputOracle.CallOpts, _l2timestamp)
-}
-
 // GetL2Output is a free data retrieval call binding the contract method 0xa25ae557.
 //
-// Solidity: function getL2Output(uint256 _l2Timestamp) view returns((bytes32,uint256))
-func (_L2OutputOracle *L2OutputOracleCaller) GetL2Output(opts *bind.CallOpts, _l2Timestamp *big.Int) (L2OutputOracleOutputProposal, error) {
+// Solidity: function getL2Output(uint256 _l2BlockNumber) view returns((bytes32,uint256))
+func (_L2OutputOracle *L2OutputOracleCaller) GetL2Output(opts *bind.CallOpts, _l2BlockNumber *big.Int) (L2OutputOracleOutputProposal, error) {
 	var out []interface{}
-	err := _L2OutputOracle.contract.Call(opts, &out, "getL2Output", _l2Timestamp)
+	err := _L2OutputOracle.contract.Call(opts, &out, "getL2Output", _l2BlockNumber)
 
 	if err != nil {
 		return *new(L2OutputOracleOutputProposal), err
@@ -381,24 +319,24 @@ func (_L2OutputOracle *L2OutputOracleCaller) GetL2Output(opts *bind.CallOpts, _l
 
 // GetL2Output is a free data retrieval call binding the contract method 0xa25ae557.
 //
-// Solidity: function getL2Output(uint256 _l2Timestamp) view returns((bytes32,uint256))
-func (_L2OutputOracle *L2OutputOracleSession) GetL2Output(_l2Timestamp *big.Int) (L2OutputOracleOutputProposal, error) {
-	return _L2OutputOracle.Contract.GetL2Output(&_L2OutputOracle.CallOpts, _l2Timestamp)
+// Solidity: function getL2Output(uint256 _l2BlockNumber) view returns((bytes32,uint256))
+func (_L2OutputOracle *L2OutputOracleSession) GetL2Output(_l2BlockNumber *big.Int) (L2OutputOracleOutputProposal, error) {
+	return _L2OutputOracle.Contract.GetL2Output(&_L2OutputOracle.CallOpts, _l2BlockNumber)
 }
 
 // GetL2Output is a free data retrieval call binding the contract method 0xa25ae557.
 //
-// Solidity: function getL2Output(uint256 _l2Timestamp) view returns((bytes32,uint256))
-func (_L2OutputOracle *L2OutputOracleCallerSession) GetL2Output(_l2Timestamp *big.Int) (L2OutputOracleOutputProposal, error) {
-	return _L2OutputOracle.Contract.GetL2Output(&_L2OutputOracle.CallOpts, _l2Timestamp)
+// Solidity: function getL2Output(uint256 _l2BlockNumber) view returns((bytes32,uint256))
+func (_L2OutputOracle *L2OutputOracleCallerSession) GetL2Output(_l2BlockNumber *big.Int) (L2OutputOracleOutputProposal, error) {
+	return _L2OutputOracle.Contract.GetL2Output(&_L2OutputOracle.CallOpts, _l2BlockNumber)
 }
 
-// LatestBlockTimestamp is a free data retrieval call binding the contract method 0x0c1952d3.
+// LatestBlockNumber is a free data retrieval call binding the contract method 0x4599c788.
 //
-// Solidity: function latestBlockTimestamp() view returns(uint256)
-func (_L2OutputOracle *L2OutputOracleCaller) LatestBlockTimestamp(opts *bind.CallOpts) (*big.Int, error) {
+// Solidity: function latestBlockNumber() view returns(uint256)
+func (_L2OutputOracle *L2OutputOracleCaller) LatestBlockNumber(opts *bind.CallOpts) (*big.Int, error) {
 	var out []interface{}
-	err := _L2OutputOracle.contract.Call(opts, &out, "latestBlockTimestamp")
+	err := _L2OutputOracle.contract.Call(opts, &out, "latestBlockNumber")
 
 	if err != nil {
 		return *new(*big.Int), err
@@ -410,26 +348,26 @@ func (_L2OutputOracle *L2OutputOracleCaller) LatestBlockTimestamp(opts *bind.Cal
 
 }
 
-// LatestBlockTimestamp is a free data retrieval call binding the contract method 0x0c1952d3.
+// LatestBlockNumber is a free data retrieval call binding the contract method 0x4599c788.
 //
-// Solidity: function latestBlockTimestamp() view returns(uint256)
-func (_L2OutputOracle *L2OutputOracleSession) LatestBlockTimestamp() (*big.Int, error) {
-	return _L2OutputOracle.Contract.LatestBlockTimestamp(&_L2OutputOracle.CallOpts)
+// Solidity: function latestBlockNumber() view returns(uint256)
+func (_L2OutputOracle *L2OutputOracleSession) LatestBlockNumber() (*big.Int, error) {
+	return _L2OutputOracle.Contract.LatestBlockNumber(&_L2OutputOracle.CallOpts)
 }
 
-// LatestBlockTimestamp is a free data retrieval call binding the contract method 0x0c1952d3.
+// LatestBlockNumber is a free data retrieval call binding the contract method 0x4599c788.
 //
-// Solidity: function latestBlockTimestamp() view returns(uint256)
-func (_L2OutputOracle *L2OutputOracleCallerSession) LatestBlockTimestamp() (*big.Int, error) {
-	return _L2OutputOracle.Contract.LatestBlockTimestamp(&_L2OutputOracle.CallOpts)
+// Solidity: function latestBlockNumber() view returns(uint256)
+func (_L2OutputOracle *L2OutputOracleCallerSession) LatestBlockNumber() (*big.Int, error) {
+	return _L2OutputOracle.Contract.LatestBlockNumber(&_L2OutputOracle.CallOpts)
 }
 
-// NextTimestamp is a free data retrieval call binding the contract method 0x357e951f.
+// NextBlockNumber is a free data retrieval call binding the contract method 0xdcec3348.
 //
-// Solidity: function nextTimestamp() view returns(uint256)
-func (_L2OutputOracle *L2OutputOracleCaller) NextTimestamp(opts *bind.CallOpts) (*big.Int, error) {
+// Solidity: function nextBlockNumber() view returns(uint256)
+func (_L2OutputOracle *L2OutputOracleCaller) NextBlockNumber(opts *bind.CallOpts) (*big.Int, error) {
 	var out []interface{}
-	err := _L2OutputOracle.contract.Call(opts, &out, "nextTimestamp")
+	err := _L2OutputOracle.contract.Call(opts, &out, "nextBlockNumber")
 
 	if err != nil {
 		return *new(*big.Int), err
@@ -441,18 +379,18 @@ func (_L2OutputOracle *L2OutputOracleCaller) NextTimestamp(opts *bind.CallOpts) 
 
 }
 
-// NextTimestamp is a free data retrieval call binding the contract method 0x357e951f.
+// NextBlockNumber is a free data retrieval call binding the contract method 0xdcec3348.
 //
-// Solidity: function nextTimestamp() view returns(uint256)
-func (_L2OutputOracle *L2OutputOracleSession) NextTimestamp() (*big.Int, error) {
-	return _L2OutputOracle.Contract.NextTimestamp(&_L2OutputOracle.CallOpts)
+// Solidity: function nextBlockNumber() view returns(uint256)
+func (_L2OutputOracle *L2OutputOracleSession) NextBlockNumber() (*big.Int, error) {
+	return _L2OutputOracle.Contract.NextBlockNumber(&_L2OutputOracle.CallOpts)
 }
 
-// NextTimestamp is a free data retrieval call binding the contract method 0x357e951f.
+// NextBlockNumber is a free data retrieval call binding the contract method 0xdcec3348.
 //
-// Solidity: function nextTimestamp() view returns(uint256)
-func (_L2OutputOracle *L2OutputOracleCallerSession) NextTimestamp() (*big.Int, error) {
-	return _L2OutputOracle.Contract.NextTimestamp(&_L2OutputOracle.CallOpts)
+// Solidity: function nextBlockNumber() view returns(uint256)
+func (_L2OutputOracle *L2OutputOracleCallerSession) NextBlockNumber() (*big.Int, error) {
+	return _L2OutputOracle.Contract.NextBlockNumber(&_L2OutputOracle.CallOpts)
 }
 
 // Owner is a free data retrieval call binding the contract method 0x8da5cb5b.
@@ -488,23 +426,23 @@ func (_L2OutputOracle *L2OutputOracleCallerSession) Owner() (common.Address, err
 
 // AppendL2Output is a paid mutator transaction binding the contract method 0x25188104.
 //
-// Solidity: function appendL2Output(bytes32 _l2Output, uint256 _l2timestamp, bytes32 _l1Blockhash, uint256 _l1Blocknumber) payable returns()
-func (_L2OutputOracle *L2OutputOracleTransactor) AppendL2Output(opts *bind.TransactOpts, _l2Output [32]byte, _l2timestamp *big.Int, _l1Blockhash [32]byte, _l1Blocknumber *big.Int) (*types.Transaction, error) {
-	return _L2OutputOracle.contract.Transact(opts, "appendL2Output", _l2Output, _l2timestamp, _l1Blockhash, _l1Blocknumber)
+// Solidity: function appendL2Output(bytes32 _l2Output, uint256 _l2BlockNumber, bytes32 _l1Blockhash, uint256 _l1BlockNumber) payable returns()
+func (_L2OutputOracle *L2OutputOracleTransactor) AppendL2Output(opts *bind.TransactOpts, _l2Output [32]byte, _l2BlockNumber *big.Int, _l1Blockhash [32]byte, _l1BlockNumber *big.Int) (*types.Transaction, error) {
+	return _L2OutputOracle.contract.Transact(opts, "appendL2Output", _l2Output, _l2BlockNumber, _l1Blockhash, _l1BlockNumber)
 }
 
 // AppendL2Output is a paid mutator transaction binding the contract method 0x25188104.
 //
-// Solidity: function appendL2Output(bytes32 _l2Output, uint256 _l2timestamp, bytes32 _l1Blockhash, uint256 _l1Blocknumber) payable returns()
-func (_L2OutputOracle *L2OutputOracleSession) AppendL2Output(_l2Output [32]byte, _l2timestamp *big.Int, _l1Blockhash [32]byte, _l1Blocknumber *big.Int) (*types.Transaction, error) {
-	return _L2OutputOracle.Contract.AppendL2Output(&_L2OutputOracle.TransactOpts, _l2Output, _l2timestamp, _l1Blockhash, _l1Blocknumber)
+// Solidity: function appendL2Output(bytes32 _l2Output, uint256 _l2BlockNumber, bytes32 _l1Blockhash, uint256 _l1BlockNumber) payable returns()
+func (_L2OutputOracle *L2OutputOracleSession) AppendL2Output(_l2Output [32]byte, _l2BlockNumber *big.Int, _l1Blockhash [32]byte, _l1BlockNumber *big.Int) (*types.Transaction, error) {
+	return _L2OutputOracle.Contract.AppendL2Output(&_L2OutputOracle.TransactOpts, _l2Output, _l2BlockNumber, _l1Blockhash, _l1BlockNumber)
 }
 
 // AppendL2Output is a paid mutator transaction binding the contract method 0x25188104.
 //
-// Solidity: function appendL2Output(bytes32 _l2Output, uint256 _l2timestamp, bytes32 _l1Blockhash, uint256 _l1Blocknumber) payable returns()
-func (_L2OutputOracle *L2OutputOracleTransactorSession) AppendL2Output(_l2Output [32]byte, _l2timestamp *big.Int, _l1Blockhash [32]byte, _l1Blocknumber *big.Int) (*types.Transaction, error) {
-	return _L2OutputOracle.Contract.AppendL2Output(&_L2OutputOracle.TransactOpts, _l2Output, _l2timestamp, _l1Blockhash, _l1Blocknumber)
+// Solidity: function appendL2Output(bytes32 _l2Output, uint256 _l2BlockNumber, bytes32 _l1Blockhash, uint256 _l1BlockNumber) payable returns()
+func (_L2OutputOracle *L2OutputOracleTransactorSession) AppendL2Output(_l2Output [32]byte, _l2BlockNumber *big.Int, _l1Blockhash [32]byte, _l1BlockNumber *big.Int) (*types.Transaction, error) {
+	return _L2OutputOracle.Contract.AppendL2Output(&_L2OutputOracle.TransactOpts, _l2Output, _l2BlockNumber, _l1Blockhash, _l1BlockNumber)
 }
 
 // DeleteL2Output is a paid mutator transaction binding the contract method 0x093b3d90.
@@ -792,16 +730,16 @@ func (it *L2OutputOracleL2OutputAppendedIterator) Close() error {
 
 // L2OutputOracleL2OutputAppended represents a L2OutputAppended event raised by the L2OutputOracle contract.
 type L2OutputOracleL2OutputAppended struct {
-	L2Output    [32]byte
-	L1Timestamp *big.Int
-	L2timestamp *big.Int
-	Raw         types.Log // Blockchain specific contextual infos
+	L2Output      [32]byte
+	L1Timestamp   *big.Int
+	L2BlockNumber *big.Int
+	Raw           types.Log // Blockchain specific contextual infos
 }
 
 // FilterL2OutputAppended is a free log retrieval operation binding the contract event 0x54fbf9b58db0b6543a3a0cb9fbd4e98a7c7b88878978fa125b84a2c7f51d34ba.
 //
-// Solidity: event l2OutputAppended(bytes32 indexed _l2Output, uint256 indexed _l1Timestamp, uint256 indexed _l2timestamp)
-func (_L2OutputOracle *L2OutputOracleFilterer) FilterL2OutputAppended(opts *bind.FilterOpts, _l2Output [][32]byte, _l1Timestamp []*big.Int, _l2timestamp []*big.Int) (*L2OutputOracleL2OutputAppendedIterator, error) {
+// Solidity: event l2OutputAppended(bytes32 indexed _l2Output, uint256 indexed _l1Timestamp, uint256 indexed _l2BlockNumber)
+func (_L2OutputOracle *L2OutputOracleFilterer) FilterL2OutputAppended(opts *bind.FilterOpts, _l2Output [][32]byte, _l1Timestamp []*big.Int, _l2BlockNumber []*big.Int) (*L2OutputOracleL2OutputAppendedIterator, error) {
 
 	var _l2OutputRule []interface{}
 	for _, _l2OutputItem := range _l2Output {
@@ -811,12 +749,12 @@ func (_L2OutputOracle *L2OutputOracleFilterer) FilterL2OutputAppended(opts *bind
 	for _, _l1TimestampItem := range _l1Timestamp {
 		_l1TimestampRule = append(_l1TimestampRule, _l1TimestampItem)
 	}
-	var _l2timestampRule []interface{}
-	for _, _l2timestampItem := range _l2timestamp {
-		_l2timestampRule = append(_l2timestampRule, _l2timestampItem)
+	var _l2BlockNumberRule []interface{}
+	for _, _l2BlockNumberItem := range _l2BlockNumber {
+		_l2BlockNumberRule = append(_l2BlockNumberRule, _l2BlockNumberItem)
 	}
 
-	logs, sub, err := _L2OutputOracle.contract.FilterLogs(opts, "l2OutputAppended", _l2OutputRule, _l1TimestampRule, _l2timestampRule)
+	logs, sub, err := _L2OutputOracle.contract.FilterLogs(opts, "l2OutputAppended", _l2OutputRule, _l1TimestampRule, _l2BlockNumberRule)
 	if err != nil {
 		return nil, err
 	}
@@ -825,8 +763,8 @@ func (_L2OutputOracle *L2OutputOracleFilterer) FilterL2OutputAppended(opts *bind
 
 // WatchL2OutputAppended is a free log subscription operation binding the contract event 0x54fbf9b58db0b6543a3a0cb9fbd4e98a7c7b88878978fa125b84a2c7f51d34ba.
 //
-// Solidity: event l2OutputAppended(bytes32 indexed _l2Output, uint256 indexed _l1Timestamp, uint256 indexed _l2timestamp)
-func (_L2OutputOracle *L2OutputOracleFilterer) WatchL2OutputAppended(opts *bind.WatchOpts, sink chan<- *L2OutputOracleL2OutputAppended, _l2Output [][32]byte, _l1Timestamp []*big.Int, _l2timestamp []*big.Int) (event.Subscription, error) {
+// Solidity: event l2OutputAppended(bytes32 indexed _l2Output, uint256 indexed _l1Timestamp, uint256 indexed _l2BlockNumber)
+func (_L2OutputOracle *L2OutputOracleFilterer) WatchL2OutputAppended(opts *bind.WatchOpts, sink chan<- *L2OutputOracleL2OutputAppended, _l2Output [][32]byte, _l1Timestamp []*big.Int, _l2BlockNumber []*big.Int) (event.Subscription, error) {
 
 	var _l2OutputRule []interface{}
 	for _, _l2OutputItem := range _l2Output {
@@ -836,12 +774,12 @@ func (_L2OutputOracle *L2OutputOracleFilterer) WatchL2OutputAppended(opts *bind.
 	for _, _l1TimestampItem := range _l1Timestamp {
 		_l1TimestampRule = append(_l1TimestampRule, _l1TimestampItem)
 	}
-	var _l2timestampRule []interface{}
-	for _, _l2timestampItem := range _l2timestamp {
-		_l2timestampRule = append(_l2timestampRule, _l2timestampItem)
+	var _l2BlockNumberRule []interface{}
+	for _, _l2BlockNumberItem := range _l2BlockNumber {
+		_l2BlockNumberRule = append(_l2BlockNumberRule, _l2BlockNumberItem)
 	}
 
-	logs, sub, err := _L2OutputOracle.contract.WatchLogs(opts, "l2OutputAppended", _l2OutputRule, _l1TimestampRule, _l2timestampRule)
+	logs, sub, err := _L2OutputOracle.contract.WatchLogs(opts, "l2OutputAppended", _l2OutputRule, _l1TimestampRule, _l2BlockNumberRule)
 	if err != nil {
 		return nil, err
 	}
@@ -875,7 +813,7 @@ func (_L2OutputOracle *L2OutputOracleFilterer) WatchL2OutputAppended(opts *bind.
 
 // ParseL2OutputAppended is a log parse operation binding the contract event 0x54fbf9b58db0b6543a3a0cb9fbd4e98a7c7b88878978fa125b84a2c7f51d34ba.
 //
-// Solidity: event l2OutputAppended(bytes32 indexed _l2Output, uint256 indexed _l1Timestamp, uint256 indexed _l2timestamp)
+// Solidity: event l2OutputAppended(bytes32 indexed _l2Output, uint256 indexed _l1Timestamp, uint256 indexed _l2BlockNumber)
 func (_L2OutputOracle *L2OutputOracleFilterer) ParseL2OutputAppended(log types.Log) (*L2OutputOracleL2OutputAppended, error) {
 	event := new(L2OutputOracleL2OutputAppended)
 	if err := _L2OutputOracle.contract.UnpackLog(event, "l2OutputAppended", log); err != nil {
@@ -954,16 +892,16 @@ func (it *L2OutputOracleL2OutputDeletedIterator) Close() error {
 
 // L2OutputOracleL2OutputDeleted represents a L2OutputDeleted event raised by the L2OutputOracle contract.
 type L2OutputOracleL2OutputDeleted struct {
-	L2Output    [32]byte
-	L1Timestamp *big.Int
-	L2timestamp *big.Int
-	Raw         types.Log // Blockchain specific contextual infos
+	L2Output      [32]byte
+	L1Timestamp   *big.Int
+	L2BlockNumber *big.Int
+	Raw           types.Log // Blockchain specific contextual infos
 }
 
 // FilterL2OutputDeleted is a free log retrieval operation binding the contract event 0x6897e92e2fea3b89bf0d45ed867487716da71bfa624c6878569d227d736c7009.
 //
-// Solidity: event l2OutputDeleted(bytes32 indexed _l2Output, uint256 indexed _l1Timestamp, uint256 indexed _l2timestamp)
-func (_L2OutputOracle *L2OutputOracleFilterer) FilterL2OutputDeleted(opts *bind.FilterOpts, _l2Output [][32]byte, _l1Timestamp []*big.Int, _l2timestamp []*big.Int) (*L2OutputOracleL2OutputDeletedIterator, error) {
+// Solidity: event l2OutputDeleted(bytes32 indexed _l2Output, uint256 indexed _l1Timestamp, uint256 indexed _l2BlockNumber)
+func (_L2OutputOracle *L2OutputOracleFilterer) FilterL2OutputDeleted(opts *bind.FilterOpts, _l2Output [][32]byte, _l1Timestamp []*big.Int, _l2BlockNumber []*big.Int) (*L2OutputOracleL2OutputDeletedIterator, error) {
 
 	var _l2OutputRule []interface{}
 	for _, _l2OutputItem := range _l2Output {
@@ -973,12 +911,12 @@ func (_L2OutputOracle *L2OutputOracleFilterer) FilterL2OutputDeleted(opts *bind.
 	for _, _l1TimestampItem := range _l1Timestamp {
 		_l1TimestampRule = append(_l1TimestampRule, _l1TimestampItem)
 	}
-	var _l2timestampRule []interface{}
-	for _, _l2timestampItem := range _l2timestamp {
-		_l2timestampRule = append(_l2timestampRule, _l2timestampItem)
+	var _l2BlockNumberRule []interface{}
+	for _, _l2BlockNumberItem := range _l2BlockNumber {
+		_l2BlockNumberRule = append(_l2BlockNumberRule, _l2BlockNumberItem)
 	}
 
-	logs, sub, err := _L2OutputOracle.contract.FilterLogs(opts, "l2OutputDeleted", _l2OutputRule, _l1TimestampRule, _l2timestampRule)
+	logs, sub, err := _L2OutputOracle.contract.FilterLogs(opts, "l2OutputDeleted", _l2OutputRule, _l1TimestampRule, _l2BlockNumberRule)
 	if err != nil {
 		return nil, err
 	}
@@ -987,8 +925,8 @@ func (_L2OutputOracle *L2OutputOracleFilterer) FilterL2OutputDeleted(opts *bind.
 
 // WatchL2OutputDeleted is a free log subscription operation binding the contract event 0x6897e92e2fea3b89bf0d45ed867487716da71bfa624c6878569d227d736c7009.
 //
-// Solidity: event l2OutputDeleted(bytes32 indexed _l2Output, uint256 indexed _l1Timestamp, uint256 indexed _l2timestamp)
-func (_L2OutputOracle *L2OutputOracleFilterer) WatchL2OutputDeleted(opts *bind.WatchOpts, sink chan<- *L2OutputOracleL2OutputDeleted, _l2Output [][32]byte, _l1Timestamp []*big.Int, _l2timestamp []*big.Int) (event.Subscription, error) {
+// Solidity: event l2OutputDeleted(bytes32 indexed _l2Output, uint256 indexed _l1Timestamp, uint256 indexed _l2BlockNumber)
+func (_L2OutputOracle *L2OutputOracleFilterer) WatchL2OutputDeleted(opts *bind.WatchOpts, sink chan<- *L2OutputOracleL2OutputDeleted, _l2Output [][32]byte, _l1Timestamp []*big.Int, _l2BlockNumber []*big.Int) (event.Subscription, error) {
 
 	var _l2OutputRule []interface{}
 	for _, _l2OutputItem := range _l2Output {
@@ -998,12 +936,12 @@ func (_L2OutputOracle *L2OutputOracleFilterer) WatchL2OutputDeleted(opts *bind.W
 	for _, _l1TimestampItem := range _l1Timestamp {
 		_l1TimestampRule = append(_l1TimestampRule, _l1TimestampItem)
 	}
-	var _l2timestampRule []interface{}
-	for _, _l2timestampItem := range _l2timestamp {
-		_l2timestampRule = append(_l2timestampRule, _l2timestampItem)
+	var _l2BlockNumberRule []interface{}
+	for _, _l2BlockNumberItem := range _l2BlockNumber {
+		_l2BlockNumberRule = append(_l2BlockNumberRule, _l2BlockNumberItem)
 	}
 
-	logs, sub, err := _L2OutputOracle.contract.WatchLogs(opts, "l2OutputDeleted", _l2OutputRule, _l1TimestampRule, _l2timestampRule)
+	logs, sub, err := _L2OutputOracle.contract.WatchLogs(opts, "l2OutputDeleted", _l2OutputRule, _l1TimestampRule, _l2BlockNumberRule)
 	if err != nil {
 		return nil, err
 	}
@@ -1037,7 +975,7 @@ func (_L2OutputOracle *L2OutputOracleFilterer) WatchL2OutputDeleted(opts *bind.W
 
 // ParseL2OutputDeleted is a log parse operation binding the contract event 0x6897e92e2fea3b89bf0d45ed867487716da71bfa624c6878569d227d736c7009.
 //
-// Solidity: event l2OutputDeleted(bytes32 indexed _l2Output, uint256 indexed _l1Timestamp, uint256 indexed _l2timestamp)
+// Solidity: event l2OutputDeleted(bytes32 indexed _l2Output, uint256 indexed _l1Timestamp, uint256 indexed _l2BlockNumber)
 func (_L2OutputOracle *L2OutputOracleFilterer) ParseL2OutputDeleted(log types.Log) (*L2OutputOracleL2OutputDeleted, error) {
 	event := new(L2OutputOracleL2OutputDeleted)
 	if err := _L2OutputOracle.contract.UnpackLog(event, "l2OutputDeleted", log); err != nil {
