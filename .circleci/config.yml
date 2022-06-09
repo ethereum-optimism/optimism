@@ -406,7 +406,9 @@ jobs:
           working_directory: packages/contracts-bedrock
       - run:
           name: gas snapshot
-          command: forge snapshot && git diff --exit-code
+          command: |
+            forge --version
+            forge snapshot && git diff --exit-code .gas-snapshot
           working_directory: packages/contracts-bedrock
       - run:
           name: check go bindings
