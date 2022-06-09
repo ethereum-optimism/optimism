@@ -75,6 +75,10 @@ type Metrics struct {
 
 	// DepositContractBalance tracks Teleportr's deposit contract balance.
 	DepositContractBalance prometheus.Gauge
+
+	// FailedTXSubmissions tracks failed requests to eth_sendRawTransaction
+	// during transaction submission.
+	FailedTXSubmissions *prometheus.CounterVec
 }
 
 // NewMetrics initializes a new, extended metrics object.
@@ -135,6 +139,13 @@ func NewMetrics(subsystem string) *Metrics {
 			Name:      "deposit_contract_balance",
 			Help:      "Balance in Wei of Teleportr's deposit contract",
 			Subsystem: base.SubsystemName(),
+		}),
+		FailedTXSubmissions: promauto.NewCounterVec(prometheus.CounterOpts{
+			Name:      "failed_tx_submissions",
+			Help:      "Number of failed transaction submissions",
+			Subsystem: base.SubsystemName(),
+		}, []string{
+			"type",
 		}),
 	}
 }

@@ -21,10 +21,10 @@ import (
 	"github.com/ethereum-optimism/optimism/bss-core/metrics"
 	"github.com/ethereum-optimism/optimism/bss-core/txmgr"
 	"github.com/ethereum-optimism/optimism/teleportr/bindings/deposit"
+	"github.com/ethereum-optimism/optimism/teleportr/bindings/disburse"
 	"github.com/ethereum-optimism/optimism/teleportr/db"
 	"github.com/ethereum-optimism/optimism/teleportr/flags"
 	"github.com/ethereum/go-ethereum"
-	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
@@ -39,6 +39,8 @@ type ContextKey string
 
 const (
 	ContextKeyReqID ContextKey = "req_id"
+
+	MaxLagBeforeUnavailable = 10
 )
 
 func Main(gitVersion string) func(*cli.Context) error {
@@ -57,6 +59,11 @@ func Main(gitVersion string) func(*cli.Context) error {
 		}
 
 		disburserWalletAddr, err := bsscore.ParseAddress(cfg.DisburserWalletAddress)
+		if err != nil {
+			return err
+		}
+
+		disburserAddr, err := bsscore.ParseAddress(cfg.DisburserAddress)
 		if err != nil {
 			return err
 		}
@@ -84,6 +91,22 @@ func Main(gitVersion string) func(*cli.Context) error {
 			return err
 		}
 
+		disburserContract, err := disburse.NewTeleportrDisburser(
+			disburserAddr, l2Client,
+		)
+		if err != nil {
+			return err
+		}
+
+		cdr := NewChainDataReader(
+			l1Client,
+			l2Client,
+			depositAddr,
+			disburserWalletAddr,
+			depositContract,
+			disburserContract,
+		)
+
 		// TODO(conner): make read-only
 		database, err := db.Open(db.Config{
 			Host:      cfg.PostgresHost,
@@ -107,9 +130,8 @@ func Main(gitVersion string) func(*cli.Context) error {
 			l1Client,
 			l2Client,
 			database,
+			NewCachingChainDataReader(cdr, time.Minute),
 			depositAddr,
-			disburserWalletAddr,
-			depositContract,
 			cfg.NumConfirmations,
 		)
 
@@ -151,6 +173,7 @@ type Config struct {
 	DepositAddress         string
 	NumConfirmations       uint64
 	DisburserWalletAddress string
+	DisburserAddress       string
 	PostgresHost           string
 	PostgresPort           uint16
 	PostgresUser           string
@@ -172,6 +195,7 @@ func NewConfig(ctx *cli.Context) (Config, error) {
 		DepositAddress:         ctx.GlobalString(flags.DepositAddressFlag.Name),
 		NumConfirmations:       ctx.GlobalUint64(flags.NumDepositConfirmationsFlag.Name),
 		DisburserWalletAddress: ctx.GlobalString(flags.DisburserWalletAddressFlag.Name),
+		DisburserAddress:       ctx.GlobalString(flags.DisburserAddressFlag.Name),
 		PostgresHost:           ctx.GlobalString(flags.PostgresHostFlag.Name),
 		PostgresPort:           uint16(ctx.GlobalUint64(flags.PostgresPortFlag.Name)),
 		PostgresUser:           ctx.GlobalString(flags.PostgresUserFlag.Name),
@@ -193,14 +217,13 @@ const (
 )
 
 type Server struct {
-	ctx                 context.Context
-	l1Client            *ethclient.Client
-	l2Client            *ethclient.Client
-	database            *db.Database
-	depositAddr         common.Address
-	disburserWalletAddr common.Address
-	depositContract     *deposit.TeleportrDeposit
-	numConfirmations    uint64
+	ctx              context.Context
+	l1Client         *ethclient.Client
+	l2Client         *ethclient.Client
+	database         *db.Database
+	chainDataReader  ChainDataReader
+	depositAddr      common.Address
+	numConfirmations uint64
 
 	httpServer *http.Server
 }
@@ -210,9 +233,8 @@ func NewServer(
 	l1Client *ethclient.Client,
 	l2Client *ethclient.Client,
 	database *db.Database,
+	chainDataReader ChainDataReader,
 	depositAddr common.Address,
-	disburserWalletAddr common.Address,
-	depositContract *deposit.TeleportrDeposit,
 	numConfirmations uint64,
 ) *Server {
 	if numConfirmations == 0 {
@@ -220,14 +242,13 @@ func NewServer(
 	}
 
 	return &Server{
-		ctx:                 ctx,
-		l1Client:            l1Client,
-		l2Client:            l2Client,
-		database:            database,
-		depositAddr:         depositAddr,
-		disburserWalletAddr: disburserWalletAddr,
-		depositContract:     depositContract,
-		numConfirmations:    numConfirmations,
+		ctx:              ctx,
+		l1Client:         l1Client,
+		l2Client:         l2Client,
+		database:         database,
+		chainDataReader:  chainDataReader,
+		depositAddr:      depositAddr,
+		numConfirmations: numConfirmations,
 	}
 }
 
@@ -275,6 +296,7 @@ type StatusResponse struct {
 	MaximumBalanceWei         string `json:"maximum_balance_wei"`
 	MinDepositAmountWei       string `json:"min_deposit_amount_wei"`
 	MaxDepositAmountWei       string `json:"max_deposit_amount_wei"`
+	DisbursementLag           uint64 `json:"disbursement_lag"`
 	IsAvailable               bool   `json:"is_available"`
 }
 
@@ -283,54 +305,26 @@ func (s *Server) HandleStatus(
 	w http.ResponseWriter,
 	r *http.Request,
 ) error {
-
-	maxBalance, err := s.depositContract.MaxBalance(&bind.CallOpts{
-		Context: ctx,
-	})
+	chainData, err := s.chainDataReader.Get(ctx)
 	if err != nil {
-		rpcErrorsTotal.WithLabelValues("max_balance").Inc()
-		return err
-	}
-
-	minDepositAmount, err := s.depositContract.MinDepositAmount(&bind.CallOpts{
-		Context: ctx,
-	})
-	if err != nil {
-		rpcErrorsTotal.WithLabelValues("min_deposit_amount").Inc()
-		return err
-	}
-
-	maxDepositAmount, err := s.depositContract.MaxDepositAmount(&bind.CallOpts{
-		Context: ctx,
-	})
-	if err != nil {
-		rpcErrorsTotal.WithLabelValues("max_deposit_amount").Inc()
-		return err
-	}
-
-	curBalance, err := s.l1Client.BalanceAt(ctx, s.depositAddr, nil)
-	if err != nil {
-		rpcErrorsTotal.WithLabelValues("deposit_balance_at").Inc()
-		return err
-	}
-
-	disburserWalletBal, err := s.l2Client.BalanceAt(ctx, s.disburserWalletAddr, nil)
-	if err != nil {
-		rpcErrorsTotal.WithLabelValues("disburser_wallet_balance_at").Inc()
 		return err
 	}
 
 	balanceAfterMaxDeposit := new(big.Int).Add(
-		curBalance, maxDepositAmount,
+		chainData.DepositContractBalance, chainData.MaxDepositAmount,
 	)
-	isAvailable := maxBalance.Cmp(balanceAfterMaxDeposit) >= 0 && disburserWalletBal.Cmp(maxDepositAmount) > 0
+	disbursementLag := chainData.NextDepositID - chainData.NextDisbursementID
+	isAvailable := chainData.MaxBalance.Cmp(balanceAfterMaxDeposit) >= 0 &&
+		chainData.DisburserBalance.Cmp(chainData.MaxDepositAmount) > 0 &&
+		disbursementLag < MaxLagBeforeUnavailable
 
 	resp := StatusResponse{
-		DisburserWalletBalanceWei: disburserWalletBal.String(),
-		DepositContractBalanceWei: curBalance.String(),
-		MaximumBalanceWei:         maxBalance.String(),
-		MinDepositAmountWei:       minDepositAmount.String(),
-		MaxDepositAmountWei:       maxDepositAmount.String(),
+		DisburserWalletBalanceWei: chainData.DisburserBalance.String(),
+		DepositContractBalanceWei: chainData.DepositContractBalance.String(),
+		MaximumBalanceWei:         chainData.MaxBalance.String(),
+		MinDepositAmountWei:       chainData.MinDepositAmount.String(),
+		MaxDepositAmountWei:       chainData.MaxDepositAmount.String(),
+		DisbursementLag:           disbursementLag,
 		IsAvailable:               isAvailable,
 	}
 
