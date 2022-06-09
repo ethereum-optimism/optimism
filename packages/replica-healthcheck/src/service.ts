@@ -32,17 +32,21 @@ export class HealthcheckService extends BaseServiceV2<
 > {
   constructor(options?: Partial<HealthcheckOptions>) {
     super({
-      name: 'Healthcheck',
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      version: require('../package.json').version,
+      name: 'healthcheck',
       loopIntervalMs: 5000,
       options,
       optionsSpec: {
         referenceRpcProvider: {
           validator: validators.provider,
           desc: 'Provider for interacting with L1',
+          secret: true,
         },
         targetRpcProvider: {
           validator: validators.provider,
           desc: 'Provider for interacting with L2',
+          secret: true,
         },
         onDivergenceWaitMs: {
           validator: validators.num,
