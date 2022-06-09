@@ -132,9 +132,9 @@ contract L2OutputOracle is Ownable {
     ) external payable onlyOwner {
         require(
             _l2BlockNumber == nextBlockNumber(),
-            "Block number must be equal to next expected block number"
+            "OutputOracle: Block number must be equal to next expected block number."
         );
-        require(_l2Output != bytes32(0), "Cannot submit empty L2 output");
+        require(_l2Output != bytes32(0), "OutputOracle: Cannot submit empty L2 output.");
 
         if (_l1Blockhash != bytes32(0)) {
             // This check allows the sequencer to append an output based on a given L1 block,
@@ -147,7 +147,7 @@ contract L2OutputOracle is Ownable {
             // finalized.
             require(
                 blockhash(_l1BlockNumber) == _l1Blockhash,
-                "Blockhash does not match the hash at the expected height."
+                "OutputOracle: Blockhash does not match the hash at the expected height."
             );
         }
 
@@ -167,11 +167,11 @@ contract L2OutputOracle is Ownable {
 
         require(
             _proposal.outputRoot == outputToDelete.outputRoot,
-            "The output root to delete does not match the that of the most recent output proposal."
+            "OutputOracle: The output root to delete does not match the latest output proposal."
         );
         require(
             _proposal.timestamp == outputToDelete.timestamp,
-            "The timestamp to delete does not match the that of the most recent output proposal."
+            "OutputOracle: The timestamp to delete does not match the latest output proposal."
         );
 
         emit l2OutputDeleted(
