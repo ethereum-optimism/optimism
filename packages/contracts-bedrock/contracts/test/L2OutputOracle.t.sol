@@ -124,16 +124,16 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
         uint256 nextBlockNumber = oracle.nextBlockNumber();
         vm.roll(nextBlockNumber + 1);
         vm.prank(sequencer);
-        vm.expectRevert("Cannot submit empty L2 output");
+        vm.expectRevert("OutputOracle: Cannot submit empty L2 output.");
         oracle.appendL2Output(outputToAppend, nextBlockNumber, 0, 0);
     }
 
     // Test: appendL2Output fails if the block number doesn't match the next expected number.
     function testCannot_appendUnexpectedBlockNumber() external {
         uint256 nextBlockNumber = oracle.nextBlockNumber();
-        vm.roll(nextBlockNumber + 1);
+        // vm.roll(nextBlockNumber + 1);
         vm.prank(sequencer);
-        vm.expectRevert("Block number must be equal to next expected block number");
+        vm.expectRevert("OutputOracle: Block number must be equal to next expected block number.");
         oracle.appendL2Output(nonZeroHash, nextBlockNumber - 1, 0, 0);
     }
 
@@ -212,7 +212,7 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
         L2OutputOracle.OutputProposal memory proposalToDelete = oracle.getL2Output(previousBlockNumber);
 
         vm.prank(sequencer);
-        vm.expectRevert("The output root to delete does not match the that of the most recent output proposal.");
+        vm.expectRevert("OutputOracle: The output root to delete does not match the latest output proposal.");
         oracle.deleteL2Output(proposalToDelete);
     }
 }
