@@ -21,4 +21,3 @@ tests/
 l2geth/
 packages/*/node_modules
 packages/*/test
-
