@@ -515,6 +515,7 @@ jobs:
 
     docker:
       - image: returntocorp/semgrep
+    resource_class: xlarge
     steps:
       - checkout
       - run:
