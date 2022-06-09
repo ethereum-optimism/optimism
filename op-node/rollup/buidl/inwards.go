@@ -188,7 +188,11 @@ const ChannelVersion0 = 0
 const minimumFrameSize = 1 + 1 + 1 + 1 + 1
 
 // ChannelTimeout is the number of seconds until a channel is removed if it's not read
-const ChannelTimeout = 100
+const ChannelTimeout = 10 * 60
+
+// ChannelBufferTime is the number of seconds until a channel is read.
+// Other data submissions have the time to front-run the reading with a lower channel ID until this.
+const ChannelBufferTime = 10
 
 // ChannelFutureMargin is the number of seconds in the future to allow a channel to be scheduled for.
 const ChannelFutureMargin = 10
@@ -218,7 +222,7 @@ func (ib *ChannelBank) Read() *TaggedData {
 		return nil
 	}
 	// if the channel is not ready yet, wait
-	if lowestCh.id < ChannelID(ib.currentL1Origin.Time) {
+	if lowestCh.id+ChannelBufferTime > ChannelID(ib.currentL1Origin.Time) {
 		return nil
 	}
 	out := lowestCh.Read()
@@ -348,22 +352,40 @@ func (ib *ChannelBank) IngestData(data []byte) error {
 // and then replay everything with pullData to get a channel bank ready for reading from l1Start.
 func NewChannelBank(ctx context.Context, l1Start eth.L1BlockRef,
 	lookupParent func(ctx context.Context, id eth.BlockID) (eth.L1BlockRef, error),
-	pullData func(id eth.BlockID, ingest func(data []byte) error) error) (*ChannelBank, error) {
+	pullData func(id eth.BlockID, txIndex uint64) ([]byte, error)) (*ChannelBank, error) {
 	block := l1Start
-	var blocks []eth.BlockID
+	var blocks []eth.L1BlockRef
 	for block.Time+ChannelTimeout > l1Start.Time && block.Number > 0 {
 		parent, err := lookupParent(ctx, block.ParentID())
 		if err != nil {
 			return nil, fmt.Errorf("failed to find channel bank block, failed to retrieve L1 reference: %w", err)
 		}
 		block = parent
-		blocks = append(blocks, parent.ID())
+		blocks = append(blocks, parent)
 	}
 	bank := &ChannelBank{channels: ChannelQueue{}, currentL1Origin: l1Start}
+
 	// now replay all the blocks
 	for i := len(blocks) - 1; i >= 0; i-- {
-		if err := pullData(blocks[i], bank.IngestData); err != nil {
-			return nil, fmt.Errorf("failed to replay data of %s: %w", blocks[i], err)
+		ref := blocks[i]
+		if err := bank.NextL1(ref); err != nil {
+			return nil, fmt.Errorf("failed to continue replay at block %s: %v", ref, err)
+		}
+		for j := uint64(0); ; j++ {
+			txData, err := pullData(ref.ID(), j)
+			if err == io.EOF {
+				break
+			}
+			if err != nil {
+				return nil, fmt.Errorf("failed to replay data of %s: %w", blocks[i], err)
+			}
+			if err := bank.IngestData(txData); err != nil {
+				// TODO log that tx was bad and had to be ignored, but don't stop replay.
+				continue
+			}
+		}
+		for bank.Read() != nil {
+			// we drain before ingesting more, since writes affect reads this is mandatory
 		}
 	}
 	return bank, nil
