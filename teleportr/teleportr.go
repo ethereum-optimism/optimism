@@ -110,7 +110,8 @@ func Main(gitVersion string) func(ctx *cli.Context) error {
 			DisburserAddr:        disburserAddr,
 			ChainID:              chainID,
 			PrivKey:              disburserPrivKey,
-		})
+			ChainMetricsEnable:   cfg.MetricsServerEnable,
+		}, ctx)
 		if err != nil {
 			return err
 		}

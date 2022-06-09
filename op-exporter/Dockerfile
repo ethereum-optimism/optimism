@@ -1,8 +1,10 @@
 FROM golang:1.18.0-alpine3.15 as builder
 
+# build from root of repo
 COPY ./op-exporter /app
 
 WORKDIR /app/
+RUN apk --no-cache add make bash jq git
 RUN make build
 
 FROM alpine:3.15

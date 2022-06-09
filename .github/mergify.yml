@@ -10,6 +10,7 @@ pull_request_rules:
         - "#approved-reviews-by>=2"
         - "#changes-requested-reviews-by=0"
         - "label!=do-not-merge"
+        - "label!=mergify-ignore"
         - or:
           - and:
             - "label!=SR-Risk"
@@ -26,11 +27,22 @@ pull_request_rules:
       queue:
         name: default
         method: squash
+  - name: Add merge train label
+    conditions:
+      - "queue-position >= 0"
+    actions:
       comment:
-        message: |
-          This PR has been added to the merge queue, and will be merged soon.
+          message: |
+            This PR has been added to the merge queue, and will be merged soon.
       label:
         add:
+          - on-merge-train
+  - name: Remove merge train label
+    conditions:
+      - "queue-position = -1"
+    actions:
+      label:
+        remove:
           - on-merge-train
   - name: Handle security critical PRs
     conditions:
@@ -95,9 +107,6 @@ pull_request_rules:
       comment:
         message: |
           Merge failed. Please see automated check logs for more details.
-      label:
-        remove:
-          - on-merge-train
   - name: Nag changesets
     conditions:
       - and:

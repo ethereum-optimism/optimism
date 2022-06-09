@@ -1,5 +1,12 @@
 # @eth-optimism/go-builder
 
+## 0.0.4
+
+### Patch Changes
+
+- 7317e2be: Bump versions
+- 10e07754: Add abigen and gotestsum to go-builder
+
 ## 0.0.3
 
 ### Patch Changes

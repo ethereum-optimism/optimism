@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"math/big"
 
+	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 
@@ -21,8 +22,8 @@ var (
 	DepositEventABIHash    = crypto.Keccak256Hash([]byte(DepositEventABI))
 	L1InfoFuncSignature    = "setL1BlockValues(uint64,uint64,uint256,bytes32,uint64)"
 	L1InfoFuncBytes4       = crypto.Keccak256([]byte(L1InfoFuncSignature))[:4]
-	L1InfoPredeployAddr    = common.HexToAddress("0x4200000000000000000000000000000000000015")
 	L1InfoDepositerAddress = common.HexToAddress("0xdeaddeaddeaddeaddeaddeaddeaddeaddead0001")
+	L1BlockAddress         = common.HexToAddress(predeploys.L1Block)
 )
 
 type UserDepositSource struct {
@@ -189,14 +190,16 @@ func L1InfoDeposit(seqNumber uint64, block L1Info) (*types.DepositTx, error) {
 		L1BlockHash: block.Hash(),
 		SeqNumber:   seqNumber,
 	}
-
+	// Uses ~30k normal case
+	// Uses ~70k on first transaction
+	// Round up to 75k to ensure that we always have enough gas.
 	return &types.DepositTx{
 		SourceHash: source.SourceHash(),
 		From:       L1InfoDepositerAddress,
-		To:         &L1InfoPredeployAddr,
+		To:         &L1BlockAddress,
 		Mint:       nil,
 		Value:      big.NewInt(0),
-		Gas:        99_999_999,
+		Gas:        150_000, // TODO: temporary work around. Block 1 seems to require more gas than specced.
 		Data:       data,
 	}, nil
 }
@@ -224,32 +227,33 @@ func UserDeposits(receipts []*types.Receipt, depositContractAddr common.Address)
 	return out, errs
 }
 
-func BatchesFromEVMTransactions(config *rollup.Config, txLists []types.Transactions) ([]*BatchData, error) {
+func BatchesFromEVMTransactions(config *rollup.Config, txLists []types.Transactions) ([]*BatchData, []error) {
 	var out []*BatchData
+	var errs []error
 	l1Signer := config.L1Signer()
-	for _, txs := range txLists {
-		for _, tx := range txs {
+	for i, txs := range txLists {
+		for j, tx := range txs {
 			if to := tx.To(); to != nil && *to == config.BatchInboxAddress {
 				seqDataSubmitter, err := l1Signer.Sender(tx) // optimization: only derive sender if To is correct
 				if err != nil {
-					// TODO: log error
+					errs = append(errs, fmt.Errorf("invalid signature: tx list: %d, tx: %d, err: %w", i, j, err))
 					continue // bad signature, ignore
 				}
 				// some random L1 user might have sent a transaction to our batch inbox, ignore them
 				if seqDataSubmitter != config.BatchSenderAddress {
-					// TODO: log/record metric
+					errs = append(errs, fmt.Errorf("unauthorized batch submitter: tx list: %d, tx: %d", i, j))
 					continue // not an authorized batch submitter, ignore
 				}
 				batches, err := DecodeBatches(config, bytes.NewReader(tx.Data()))
 				if err != nil {
-					// TODO: log/record metric
+					errs = append(errs, fmt.Errorf("invalid batch: tx list: %d, tx: %d, err: %w", i, j, err))
 					continue
 				}
 				out = append(out, batches...)
 			}
 		}
 	}
-	return out, nil
+	return out, errs
 }
 
 func FilterBatches(config *rollup.Config, epoch rollup.Epoch, minL2Time uint64, maxL2Time uint64, batches []*BatchData) (out []*BatchData) {

@@ -1,5 +1,33 @@
 # @eth-optimism/message-relayer
 
+## 0.4.13
+
+### Patch Changes
+
+- Updated dependencies [9ecbf3e5]
+  - @eth-optimism/common-ts@0.2.10
+  - @eth-optimism/sdk@1.1.8
+
+## 0.4.12
+
+### Patch Changes
+
+- Updated dependencies [17962ca9]
+  - @eth-optimism/core-utils@0.8.6
+  - @eth-optimism/common-ts@0.2.9
+  - @eth-optimism/sdk@1.1.7
+
+## 0.4.11
+
+### Patch Changes
+
+- d18ae135: Updates all ethers versions in response to BN.js bug
+- Updated dependencies [f16383f2]
+- Updated dependencies [d18ae135]
+  - @eth-optimism/common-ts@0.2.8
+  - @eth-optimism/core-utils@0.8.5
+  - @eth-optimism/sdk@1.1.6
+
 ## 0.4.10
 
 ### Patch Changes

@@ -1,13 +1,14 @@
 COMPOSEFLAGS=-d
 ITESTS_L2_HOST=http://localhost:9545
 
-build: build-go contracts integration-tests
+build: build-go build-ts
 .PHONY: build
 
 build-go: submodules op-node op-proposer op-batcher
 .PHONY: build-go
 
-build-ts: submodules contracts integration-tests
+build-ts: submodules
+	yarn build
 .PHONY: build-ts
 
 submodules:
@@ -42,14 +43,6 @@ mod-tidy:
 	cd ./op-e2e && go mod tidy && cd ..
 .PHONY: mod-tidy
 
-contracts:
-	cd ./contracts-bedrock && yarn install && yarn build
-.PHONY: contracts
-
-integration-tests:
-	cd ./packages/integration-tests-bedrock && yarn install && yarn build:contracts
-.PHONY: integration-tests
-
 clean:
 	rm -rf ./bin
 .PHONY: clean
@@ -63,12 +56,12 @@ devnet-down:
 .PHONY: devnet-down
 
 devnet-clean:
-	rm -rf ./contracts-bedrock/deployments/devnetL1
+	rm -rf ./packages/contracts-bedrock/deployments/devnetL1
 	rm -rf ./.devnet
 	cd ./ops-bedrock && docker-compose down
-	docker volume rm ops-bedrock_l1_data
-	docker volume rm ops-bedrock_l2_data
-	docker volume rm ops-bedrock_op_log
+	docker image ls 'ops-bedrock*' --format='{{.Repository}}' | xargs docker rmi
+	docker volume ls --filter name=ops-bedrock --format='{{.Name}}' | xargs docker volume rm
+
 .PHONY: devnet-clean
 
 test-unit:
@@ -76,12 +69,12 @@ test-unit:
 	make -C ./op-proposer test
 	make -C ./op-batcher test
 	make -C ./op-e2e test
-	cd ./contracts-bedrock && yarn test
+	yarn test
 .PHONY: test-unit
 
 test-integration:
 	bash ./ops-bedrock/test-integration.sh \
-		./contracts-bedrock/deployments/devnetL1
+		./packages/contracts-bedrock/deployments/devnetL1
 .PHONY: test-integration
 
 devnet-genesis:

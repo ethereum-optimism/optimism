@@ -11,9 +11,9 @@ import (
 
 	bss "github.com/ethereum-optimism/optimism/op-batcher"
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
+	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
 	rollupNode "github.com/ethereum-optimism/optimism/op-node/node"
 	"github.com/ethereum-optimism/optimism/op-node/p2p"
-	"github.com/ethereum-optimism/optimism/op-node/predeploy"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	l2os "github.com/ethereum-optimism/optimism/op-proposer"
 
@@ -28,6 +28,7 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/node"
 	"github.com/ethereum/go-ethereum/params"
+	"github.com/ethereum/go-ethereum/rpc"
 	mocknet "github.com/libp2p/go-libp2p/p2p/net/mock"
 	hdwallet "github.com/miguelmota/go-ethereum-hdwallet"
 )
@@ -75,10 +76,12 @@ type SystemConfig struct {
 	L2OOCfg    L2OOContractConfig
 	DepositCFG DepositContractConfig
 
-	L1WsAddr     string
-	L1WsPort     int
-	L1ChainID    *big.Int
-	L2ChainID    *big.Int
+	L1ChainID *big.Int
+	L2ChainID *big.Int
+
+	JWTFilePath string
+	JWTSecret   [32]byte
+
 	Nodes        map[string]*rollupNode.Config // Per node config. Don't use populate rollup.Config
 	Loggers      map[string]log.Logger
 	RollupConfig rollup.Config // Shared rollup configs
@@ -231,7 +234,7 @@ func (cfg SystemConfig) start() (*System, error) {
 	}
 
 	l2Alloc[cfg.L1InfoPredeployAddress] = core.GenesisAccount{Code: common.FromHex(bindings.L1BlockDeployedBin), Balance: common.Big0}
-	l2Alloc[predeploy.WithdrawalContractAddress] = core.GenesisAccount{Code: common.FromHex(bindings.L2ToL1MessagePasserDeployedBin), Balance: common.Big0}
+	l2Alloc[common.HexToAddress(predeploys.L2ToL1MessagePasser)] = core.GenesisAccount{Code: common.FromHex(bindings.L2ToL1MessagePasserDeployedBin), Balance: common.Big0}
 
 	genesisTimestamp := uint64(time.Now().Unix())
 
@@ -293,8 +296,9 @@ func (cfg SystemConfig) start() (*System, error) {
 	}
 	sys.nodes["l1"] = l1Node
 	sys.backends["l1"] = l1Backend
-	for name, l2Cfg := range cfg.Nodes {
-		node, backend, err := initL2Geth(name, l2Cfg.L2EngineAddrs[0], cfg.L2ChainID, l2Genesis)
+
+	for name := range cfg.Nodes {
+		node, backend, err := initL2Geth(name, cfg.L2ChainID, l2Genesis, cfg.JWTFilePath)
 		if err != nil {
 			return nil, err
 		}
@@ -324,14 +328,28 @@ func (cfg SystemConfig) start() (*System, error) {
 		}
 	}
 
+	// Configure connections to L1 and L2 for rollup nodes.
+	// TODO: refactor testing to use in-process rpc connections instead of websockets.
+	for name, rollupCfg := range cfg.Nodes {
+		rollupCfg.L1 = &rollupNode.L1EndpointConfig{
+			L1NodeAddr: l1Node.WSEndpoint(),
+			L1TrustRPC: false,
+		}
+		rollupCfg.L2 = &rollupNode.L2EndpointConfig{
+			L2EngineAddr:      sys.nodes[name].WSAuthEndpoint(),
+			L2EngineJWTSecret: cfg.JWTSecret,
+		}
+	}
+
 	// Geth Clients
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
-	l1Client, err := ethclient.DialContext(ctx, fmt.Sprintf("ws://%s:%d", cfg.L1WsAddr, cfg.L1WsPort))
+	l1Srv, err := l1Node.RPCHandler()
 	if err != nil {
 		didErrAfterStart = true
 		return nil, err
 	}
+	l1Client := ethclient.NewClient(rpc.DialInProc(l1Srv))
 	sys.Clients["l1"] = l1Client
 	for name, node := range sys.nodes {
 		client, err := ethclient.DialContext(ctx, node.WSEndpoint())
@@ -512,8 +530,8 @@ func (cfg SystemConfig) start() (*System, error) {
 
 	// L2Output Submitter
 	sys.l2OutputSubmitter, err = l2os.NewL2OutputSubmitter(l2os.Config{
-		L1EthRpc:                  "ws://127.0.0.1:9090",
-		L2EthRpc:                  sys.cfg.Nodes["sequencer"].L2NodeAddr,
+		L1EthRpc:                  sys.nodes["l1"].WSEndpoint(),
+		L2EthRpc:                  sys.nodes["sequencer"].WSEndpoint(),
 		RollupRpc:                 rollupEndpoint,
 		L2OOAddress:               sys.L2OOContractAddr.String(),
 		PollInterval:              50 * time.Millisecond,
@@ -544,8 +562,8 @@ func (cfg SystemConfig) start() (*System, error) {
 
 	// Batch Submitter
 	sys.batchSubmitter, err = bss.NewBatchSubmitter(bss.Config{
-		L1EthRpc:                   "ws://127.0.0.1:9090",
-		L2EthRpc:                   sys.cfg.Nodes["sequencer"].L2NodeAddr,
+		L1EthRpc:                   sys.nodes["l1"].WSEndpoint(),
+		L2EthRpc:                   sys.nodes["sequencer"].WSEndpoint(),
 		RollupRpc:                  rollupEndpoint,
 		MinL1TxSize:                1,
 		MaxL1TxSize:                120000,

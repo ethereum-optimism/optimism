@@ -7,4 +7,16 @@ ignores: [
   "typescript",
   "prettier-plugin-solidity",
   "solhint-plugin-prettier",
+  "@babel/eslint-parser",
+  "@typescript-eslint/parser",
+  "eslint-plugin-import",
+  "eslint-plugin-unicorn",
+  "eslint-plugin-jsdoc",
+  "eslint-plugin-prefer-arrow",
+  "eslint-plugin-react",
+  "@typescript-eslint/eslint-plugin",
+  "eslint-config-prettier",
+  "eslint-plugin-prettier",
+  "chai",
+  "babel-eslint"
 ]
