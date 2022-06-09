@@ -272,15 +272,6 @@ func (ib *ChannelBank) IngestData(data []byte) error {
 			return nil
 		}
 
-		// data channels must not be opened in the future, to ensure future data-transactions cannot be front-run way in advance
-		if chIDNumber > ib.lastOrigin.Time+ChannelFutureMargin {
-			return fmt.Errorf("channel ID %d cannot be higher than L1 block time %d (margin: %d)", chIDNumber, ib.lastOrigin.Time, ChannelFutureMargin)
-		}
-		// if the channel is old, ignore it
-		if chIDNumber+ChannelTimeout < ib.lastOrigin.Time {
-			return fmt.Errorf("channel ID %d is too old for L1 block time %d (timeout: %d)", chIDNumber, ib.lastOrigin.Time, ChannelTimeout)
-		}
-
 		frameNumber, n := binary.Uvarint(data[offset:])
 		if n <= 0 {
 			return fmt.Errorf("failed to read frame number")
@@ -295,6 +286,32 @@ func (ib *ChannelBank) IngestData(data []byte) error {
 		}
 		chID := ChannelID(chIDNumber)
 
+		frameData := data[offset : uint64(offset)+frameLength]
+		offset += int(frameLength)
+
+		if offset >= len(data) {
+			return fmt.Errorf("failed to read frame end byte, no data left, offset past length %d", len(data))
+		}
+		isLastNum := data[offset]
+		if isLastNum > 1 {
+			return fmt.Errorf("invalid isLast bool value: %d", data[offset])
+		}
+		isLast := isLastNum == 1
+		offset += 1
+
+		// data channels must not be opened in the future, to ensure future data-transactions cannot be front-run way in advance
+		if chIDNumber > ib.lastOrigin.Time+ChannelFutureMargin {
+			// TODO: log error
+			//fmt.Errorf("channel ID %d cannot be higher than L1 block time %d (margin: %d)", chIDNumber, ib.lastOrigin.Time, ChannelFutureMargin)
+			continue
+		}
+		// if the channel is old, ignore it
+		if chIDNumber+ChannelTimeout < ib.lastOrigin.Time {
+			// TODO: log error
+			//fmt.Errorf("channel ID %d is too old for L1 block time %d (timeout: %d)", chIDNumber, ib.lastOrigin.Time, ChannelTimeout)
+			continue
+		}
+
 		var currentCh *Channel
 		for _, ch := range ib.channels {
 			if ch.id == chID {
@@ -307,15 +324,6 @@ func (ib *ChannelBank) IngestData(data []byte) error {
 			currentCh = &Channel{id: chID, endsAt: ^uint64(0)}
 			heap.Push(&ib.channels, currentCh)
 		}
-
-		frameData := data[offset : uint64(offset)+frameLength]
-		offset += int(frameLength)
-
-		if offset >= len(data) {
-			return fmt.Errorf("failed to read frame end byte, no data left, offset past length %d", len(data))
-		}
-		isLast := data[offset] == 1
-		offset += 1
 
 		if err := currentCh.IngestData(ib.lastOrigin, frameNumber, isLast, frameData); err != nil {
 			return fmt.Errorf("failed to ingest frame %d of channel %d: %w", frameNumber, chID, err)
