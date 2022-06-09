@@ -190,13 +190,13 @@ const minimumFrameSize = 1 + 1 + 1 + 1 + 1
 // ChannelTimeout is the number of seconds until a channel is removed if it's not read
 const ChannelTimeout = 100
 
-// ChannelFutureMargin is the number of seconds in the future to allow a channel to have
+// ChannelFutureMargin is the number of seconds in the future to allow a channel to be scheduled for.
 const ChannelFutureMargin = 10
 
 // MaxChannelBankSize is the amount of memory space, in number of bytes,
 // till the bank is pruned and channels get pruned,
 // starting with the oldest channel first.
-const MaxChannelBankSize = 10_000_000
+const MaxChannelBankSize = 100_000_000
 
 // Read returns nil if there is nothing new to Read.
 func (ib *ChannelBank) Read() *TaggedData {
@@ -254,8 +254,11 @@ func (ib *ChannelBank) IngestData(data []byte) error {
 	for _, ch := range ib.channels {
 		totalSize += ch.size
 	}
-	// TODO: we should drop channels if we're getting too large, but we'll lose data. Maybe we persist it instead?
-	//if totalSize > MaxChannelBankSize {}
+	// prune until it is reasonable again. The high-priority channel failed to be read, so we start pruning there.
+	for totalSize > MaxChannelBankSize {
+		ch := heap.Pop(&ib.channels).(*Channel)
+		totalSize -= ch.size
+	}
 
 	// Iterate over all frames. They may have different channel IDs to indicate that they stream consumer should reset.
 	for {
