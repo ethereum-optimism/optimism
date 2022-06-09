@@ -33,7 +33,9 @@ contract L1ERC721Bridge is IL1ERC721Bridge, CrossDomainEnabled {
      ***************/
 
     // This contract lives behind a proxy, so the constructor parameters will go unused.
-    constructor() CrossDomainEnabled(address(0)) {}
+    constructor(address _l1messenger, address _l2ERC721Bridge) CrossDomainEnabled(address(0)) {
+        _initialize(_l1messenger, _l2ERC721Bridge);
+    }
 
     /******************
      * Initialization *
@@ -43,9 +45,7 @@ contract L1ERC721Bridge is IL1ERC721Bridge, CrossDomainEnabled {
      * @param _l1messenger L1 Messenger address being used for cross-chain communications.
      * @param _l2ERC721Bridge L2 ERC721 bridge address.
      */
-    // slither-disable-next-line external-function
-    function initialize(address _l1messenger, address _l2ERC721Bridge) public {
-        require(messenger == address(0), "Contract has already been initialized.");
+    function _initialize(address _l1messenger, address _l2ERC721Bridge) internal {
         messenger = _l1messenger;
         l2ERC721Bridge = _l2ERC721Bridge;
     }
@@ -113,9 +113,9 @@ contract L1ERC721Bridge is IL1ERC721Bridge, CrossDomainEnabled {
         // slither-disable-next-line reentrancy-events, reentrancy-benign
         IERC721(_l1Token).transferFrom(_from, address(this), _tokenId);
 
-        // Construct calldata for _l2Token.finalizeDeposit(_to, _tokenId)
+        // Construct calldata for _l2Token.finalizeERC721Deposit(_to, _tokenId)
         bytes memory message = abi.encodeWithSelector(
-            IL2ERC721Bridge.finalizeDeposit.selector,
+            IL2ERC721Bridge.finalizeERC721Deposit.selector,
             _l1Token,
             _l2Token,
             _from,

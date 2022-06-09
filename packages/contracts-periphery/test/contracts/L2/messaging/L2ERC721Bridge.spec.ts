@@ -79,10 +79,10 @@ describe('L2ERC721Bridge', () => {
   })
 
   // test the transfer flow of moving a token from L1 to L2
-  describe('finalizeDeposit', () => {
+  describe('finalizeERC721Deposit', () => {
     it('onlyFromCrossDomainAccount: should revert on calls from a non-crossDomainMessenger L2 account', async () => {
       await expect(
-        L2ERC721Bridge.connect(alice).finalizeDeposit(
+        L2ERC721Bridge.connect(alice).finalizeERC721Deposit(
           DUMMY_L1ERC721_ADDRESS,
           NON_ZERO_ADDRESS,
           NON_ZERO_ADDRESS,
@@ -99,7 +99,7 @@ describe('L2ERC721Bridge', () => {
       )
 
       await expect(
-        L2ERC721Bridge.connect(l2MessengerImpersonator).finalizeDeposit(
+        L2ERC721Bridge.connect(l2MessengerImpersonator).finalizeERC721Deposit(
           DUMMY_L1ERC721_ADDRESS,
           NON_ZERO_ADDRESS,
           NON_ZERO_ADDRESS,
@@ -125,9 +125,9 @@ describe('L2ERC721Bridge', () => {
         DUMMY_L1BRIDGE_ADDRESS
       )
 
-      // A failed attempt to finalize the deposit causes a DepositFailed event to be emitted.
+      // A failed attempt to finalize the deposit causes an ERC721DepositFailed event to be emitted.
       await expect(
-        L2ERC721Bridge.connect(l2MessengerImpersonator).finalizeDeposit(
+        L2ERC721Bridge.connect(l2MessengerImpersonator).finalizeERC721Deposit(
           DUMMY_L1ERC721_ADDRESS,
           NonCompliantERC721.address,
           aliceAddress,
@@ -139,7 +139,7 @@ describe('L2ERC721Bridge', () => {
           }
         )
       )
-        .to.emit(L2ERC721Bridge, 'DepositFailed')
+        .to.emit(L2ERC721Bridge, 'ERC721DepositFailed')
         .withArgs(
           DUMMY_L1ERC721_ADDRESS,
           NonCompliantERC721.address,
@@ -181,7 +181,7 @@ describe('L2ERC721Bridge', () => {
 
       // Successfully finalizes the deposit.
       const expectedResult = expect(
-        L2ERC721Bridge.connect(l2MessengerImpersonator).finalizeDeposit(
+        L2ERC721Bridge.connect(l2MessengerImpersonator).finalizeERC721Deposit(
           DUMMY_L1ERC721_ADDRESS,
           L2ERC721.address,
           aliceAddress,
@@ -194,9 +194,9 @@ describe('L2ERC721Bridge', () => {
         )
       )
 
-      // Depositing causes a DepositFinalized event to be emitted.
+      // Depositing causes an ERC721DepositFinalized event to be emitted.
       await expectedResult.to
-        .emit(L2ERC721Bridge, 'DepositFinalized')
+        .emit(L2ERC721Bridge, 'ERC721DepositFinalized')
         .withArgs(
           DUMMY_L1ERC721_ADDRESS,
           L2ERC721.address,
@@ -239,9 +239,9 @@ describe('L2ERC721Bridge', () => {
       })
     })
 
-    it('withdraw() reverts when called by non-owner of nft', async () => {
+    it('withdrawERC721() reverts when called by non-owner of nft', async () => {
       await expect(
-        L2ERC721Bridge.connect(bob).withdraw(
+        L2ERC721Bridge.connect(bob).withdrawERC721(
           Mock__L2Token.address,
           TOKEN_ID,
           0,
@@ -250,9 +250,9 @@ describe('L2ERC721Bridge', () => {
       ).to.be.revertedWith(ERR_INVALID_WITHDRAWAL)
     })
 
-    it('withdraw() reverts if called by a contract', async () => {
+    it('withdrawERC721() reverts if called by a contract', async () => {
       await expect(
-        L2ERC721Bridge.connect(l2MessengerImpersonator).withdraw(
+        L2ERC721Bridge.connect(l2MessengerImpersonator).withdrawERC721(
           Mock__L2Token.address,
           TOKEN_ID,
           0,
@@ -261,13 +261,13 @@ describe('L2ERC721Bridge', () => {
       ).to.be.revertedWith('Account not EOA')
     })
 
-    it('withdraw() burns and sends the correct withdrawal message', async () => {
+    it('withdrawERC721() burns and sends the correct withdrawal message', async () => {
       // Make sure that alice begins as the NFT owner
       expect(await Mock__L2Token.ownerOf(TOKEN_ID)).to.equal(aliceAddress)
 
       // Initiates a successful withdrawal.
       const expectedResult = expect(
-        L2ERC721Bridge.connect(alice).withdraw(
+        L2ERC721Bridge.connect(alice).withdrawERC721(
           Mock__L2Token.address,
           TOKEN_ID,
           0,
@@ -275,9 +275,9 @@ describe('L2ERC721Bridge', () => {
         )
       )
 
-      // A successful withdrawal causes a WithdrawalInitiated event to be emitted from the L2 ERC721 Bridge.
+      // A successful withdrawal causes an ERC721WithdrawalInitiated event to be emitted from the L2 ERC721 Bridge.
       await expectedResult.to
-        .emit(L2ERC721Bridge, 'WithdrawalInitiated')
+        .emit(L2ERC721Bridge, 'ERC721WithdrawalInitiated')
         .withArgs(
           DUMMY_L1ERC721_ADDRESS,
           Mock__L2Token.address,
@@ -326,10 +326,11 @@ describe('L2ERC721Bridge', () => {
       expect(withdrawalCallToMessenger.args[2]).to.equal(0)
     })
 
-    it('withdrawTo() reverts when called by non-owner of nft', async () => {
+    it('withdrawERC721To() reverts when called by non-owner of nft', async () => {
       await expect(
-        L2ERC721Bridge.connect(bob).withdraw(
+        L2ERC721Bridge.connect(bob).withdrawERC721To(
           Mock__L2Token.address,
+          bobsAddress,
           TOKEN_ID,
           0,
           NON_NULL_BYTES32
@@ -337,13 +338,13 @@ describe('L2ERC721Bridge', () => {
       ).to.be.revertedWith(ERR_INVALID_WITHDRAWAL)
     })
 
-    it('withdrawTo() burns and sends the correct withdrawal message', async () => {
+    it('withdrawERC721To() burns and sends the correct withdrawal message', async () => {
       // Make sure that alice begins as the NFT owner
       expect(await Mock__L2Token.ownerOf(TOKEN_ID)).to.equal(aliceAddress)
 
       // Initiates a successful withdrawal.
       const expectedResult = expect(
-        L2ERC721Bridge.connect(alice).withdrawTo(
+        L2ERC721Bridge.connect(alice).withdrawERC721To(
           Mock__L2Token.address,
           bobsAddress,
           TOKEN_ID,
@@ -352,9 +353,9 @@ describe('L2ERC721Bridge', () => {
         )
       )
 
-      // A successful withdrawal causes a WithdrawalInitiated event to be emitted from the L2 ERC721 Bridge.
+      // A successful withdrawal causes an ERC721WithdrawalInitiated event to be emitted from the L2 ERC721 Bridge.
       await expectedResult.to
-        .emit(L2ERC721Bridge, 'WithdrawalInitiated')
+        .emit(L2ERC721Bridge, 'ERC721WithdrawalInitiated')
         .withArgs(
           DUMMY_L1ERC721_ADDRESS,
           Mock__L2Token.address,

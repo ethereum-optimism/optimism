@@ -10,8 +10,9 @@ import {
 /* Internal Imports */
 import { expect } from '../../../setup'
 
-const L2_ERC721_BRIDGE_ADDRESS: string =
-  '0xA779A0cA89556A9dffD47527F0aad1c2e0d66e46'
+const DUMMY_L2_BRIDGE_ADDRESS: string = ethers.utils.getAddress(
+  '0x' + 'acdc'.repeat(10)
+)
 
 describe('L2StandardERC721Factory', () => {
   let signer: Signer
@@ -32,7 +33,7 @@ describe('L2StandardERC721Factory', () => {
 
     L2StandardERC721Factory = await (
       await ethers.getContractFactory('L2StandardERC721Factory')
-    ).deploy(L2_ERC721_BRIDGE_ADDRESS)
+    ).deploy(DUMMY_L2_BRIDGE_ADDRESS)
 
     chainId = await signer.getChainId()
     baseURI = ''.concat(
@@ -46,7 +47,7 @@ describe('L2StandardERC721Factory', () => {
 
   it('should be deployed with the correct constructor argument', async () => {
     expect(await L2StandardERC721Factory.l2ERC721Bridge()).to.equal(
-      L2_ERC721_BRIDGE_ADDRESS
+      DUMMY_L2_BRIDGE_ADDRESS
     )
   })
 
@@ -72,7 +73,7 @@ describe('L2StandardERC721Factory', () => {
       signer
     )
 
-    expect(await L2StandardERC721.l2Bridge()).to.equal(L2_ERC721_BRIDGE_ADDRESS)
+    expect(await L2StandardERC721.l2Bridge()).to.equal(DUMMY_L2_BRIDGE_ADDRESS)
     expect(await L2StandardERC721.l1Token()).to.equal(L1ERC721.address)
     expect(await L2StandardERC721.name()).to.equal('L2ERC721')
     expect(await L2StandardERC721.symbol()).to.equal('ERC')

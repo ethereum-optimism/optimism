@@ -19,8 +19,16 @@ contract L2StandardERC721Factory {
     // with the L2StandardERC721Factory.
     mapping(address => bool) public isStandardERC721;
 
-    // Maps an L1 ERC721 token address to an L2 Standard ERC721 token address. This mapping can
-    // only be updated once per L1 ERC721 token.
+    // Maps an L1 ERC721 to its L2 Standard ERC721 contract, if it exists. This mapping enforces
+    // that there is one, and only one, L2 Standard ERC721 for each L1 ERC721. The purpose of this
+    // is to prevent multiple L2 Standard ERC721s from existing for a single L1 ERC721, which
+    // would result in unnecessary fragmentation, since the Standard ERC721s deployed by this
+    // factory implement the exact same functionality. This mapping should NOT be interpreted as
+    // a token list. This is because a custom L2 ERC721 may be recognized by the community as
+    // the official L2 contract for an L1 ERC721, but the custom contract address wouldn't appear
+    // in this mapping. An off-chain token list will serve as the official source of truth for
+    // L2 ERC721s, similar to Optimism's ERC20 token list:
+    // https://github.com/ethereum-optimism/ethereum-optimism.github.io
     mapping(address => address) public standardERC721Mapping;
 
     constructor(address _l2ERC721Bridge) {

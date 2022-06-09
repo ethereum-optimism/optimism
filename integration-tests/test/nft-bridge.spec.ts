@@ -82,13 +82,16 @@ describe('ERC721 Bridge', () => {
     L1ERC721 = await Factory__L1ERC721.deploy()
     await L1ERC721.deployed()
 
-    L1ERC721Bridge = await Factory__L1ERC721Bridge.deploy()
-    await L1ERC721Bridge.deployed()
-
     L2ERC721Bridge = await Factory__L2ERC721Bridge.deploy(
       predeploys.L2CrossDomainMessenger
     )
     await L2ERC721Bridge.deployed()
+
+    L1ERC721Bridge = await Factory__L1ERC721Bridge.deploy(
+      env.messenger.contracts.l1.L1CrossDomainMessenger.address,
+      L2ERC721Bridge.address
+    )
+    await L1ERC721Bridge.deployed()
 
     L2StandardERC721Factory = await Factory__L2StandardERC721Factory.deploy(
       L2ERC721Bridge.address
@@ -112,22 +115,17 @@ describe('ERC721 Bridge', () => {
     )
     await L2StandardERC721.deployed()
 
-    // Initialize the bridge contracts
-    const tx1 = await L1ERC721Bridge.initialize(
-      env.messenger.contracts.l1.L1CrossDomainMessenger.address,
-      L2ERC721Bridge.address
-    )
+    // Initialize the L2 bridge contract
+    const tx1 = await L2ERC721Bridge.initialize(L1ERC721Bridge.address)
     await tx1.wait()
-    const tx2 = await L2ERC721Bridge.initialize(L1ERC721Bridge.address)
-    await tx2.wait()
 
     // Mint an L1 ERC721 to Bob on L1
-    const tx3 = await L1ERC721.mint(bobAddress, TOKEN_ID)
-    await tx3.wait()
+    const tx2 = await L1ERC721.mint(bobAddress, TOKEN_ID)
+    await tx2.wait()
 
     // Approve the L1 Bridge to operate the NFT
-    const tx4 = await L1ERC721.approve(L1ERC721Bridge.address, TOKEN_ID)
-    await tx4.wait()
+    const tx3 = await L1ERC721.approve(L1ERC721Bridge.address, TOKEN_ID)
+    await tx3.wait()
   })
 
   it('depositERC721', async () => {
@@ -167,7 +165,7 @@ describe('ERC721 Bridge', () => {
     expect(await L2StandardERC721.ownerOf(TOKEN_ID)).to.equal(aliceAddress)
   })
 
-  withdrawalTest('withdraw', async () => {
+  withdrawalTest('withdrawERC721', async () => {
     // Deposit an NFT into L2 so that there's something to withdraw
     await env.messenger.waitForMessageReceipt(
       await L1ERC721Bridge.depositERC721(
@@ -185,7 +183,7 @@ describe('ERC721 Bridge', () => {
     // Also check that Bob owns the NFT on L2 initially
     expect(await L2StandardERC721.ownerOf(TOKEN_ID)).to.equal(bobAddress)
 
-    const tx = await L2ERC721Bridge.withdraw(
+    const tx = await L2ERC721Bridge.withdrawERC721(
       L2StandardERC721.address,
       TOKEN_ID,
       0,
@@ -201,7 +199,7 @@ describe('ERC721 Bridge', () => {
     await expect(L2StandardERC721.ownerOf(TOKEN_ID)).to.be.reverted
   })
 
-  withdrawalTest('withdrawTo', async () => {
+  withdrawalTest('withdrawERC721To', async () => {
     // Deposit an NFT into L2 so that there's something to withdraw
     await env.messenger.waitForMessageReceipt(
       await L1ERC721Bridge.depositERC721(
@@ -219,7 +217,7 @@ describe('ERC721 Bridge', () => {
     // Also check that Bob owns the NFT on L2 initially
     expect(await L2StandardERC721.ownerOf(TOKEN_ID)).to.equal(bobAddress)
 
-    const tx = await L2ERC721Bridge.withdrawTo(
+    const tx = await L2ERC721Bridge.withdrawERC721To(
       L2StandardERC721.address,
       aliceAddress,
       TOKEN_ID,
@@ -270,7 +268,9 @@ describe('ERC721 Bridge', () => {
       )
 
       // Alice withdraws the NFT from the fake contract to L1, hoping to receive the legitimate L1 NFT.
-      const withdrawalTx = await L2ERC721Bridge.connect(aliceWalletL2).withdraw(
+      const withdrawalTx = await L2ERC721Bridge.connect(
+        aliceWalletL2
+      ).withdrawERC721(
         FakeL2StandardERC721.address,
         TOKEN_ID,
         0,

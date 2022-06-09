@@ -19,7 +19,6 @@ import {
 const ERR_INVALID_MESSENGER = 'OVM_XCHAIN: messenger contract unauthenticated'
 const ERR_INVALID_X_DOMAIN_MSG_SENDER =
   'OVM_XCHAIN: wrong sender of cross-domain message'
-const ERR_ALREADY_INITIALIZED = 'Contract has already been initialized.'
 const DUMMY_L2_ERC721_ADDRESS = ethers.utils.getAddress(
   '0x' + 'abba'.repeat(10)
 )
@@ -73,11 +72,7 @@ describe('L1ERC721Bridge', () => {
     // Deploy the contract under test
     L1ERC721Bridge = await (
       await ethers.getContractFactory('L1ERC721Bridge')
-    ).deploy()
-    await L1ERC721Bridge.initialize(
-      Fake__L1CrossDomainMessenger.address,
-      DUMMY_L2_BRIDGE_ADDRESS
-    )
+    ).deploy(Fake__L1CrossDomainMessenger.address, DUMMY_L2_BRIDGE_ADDRESS)
 
     L1ERC721 = await Factory__L1ERC721.deploy('L1ERC721', 'ERC')
 
@@ -86,17 +81,6 @@ describe('L1ERC721Bridge', () => {
     })
     await L1ERC721.setVariable('_balances', {
       [aliceAddress]: aliceInitialBalance,
-    })
-  })
-
-  describe('initialize', () => {
-    it('Should only be callable once', async () => {
-      await expect(
-        L1ERC721Bridge.initialize(
-          ethers.constants.AddressZero,
-          DUMMY_L2_BRIDGE_ADDRESS
-        )
-      ).to.be.revertedWith(ERR_ALREADY_INITIALIZED)
     })
   })
 
@@ -145,7 +129,7 @@ describe('L1ERC721Bridge', () => {
 
       // the L1 bridge sends the correct message to the L1 messenger
       expect(depositCallToMessenger.args[1]).to.equal(
-        IL2ERC721Bridge.encodeFunctionData('finalizeDeposit', [
+        IL2ERC721Bridge.encodeFunctionData('finalizeERC721Deposit', [
           L1ERC721.address,
           DUMMY_L2_ERC721_ADDRESS,
           aliceAddress,
@@ -211,7 +195,7 @@ describe('L1ERC721Bridge', () => {
 
       // the L1 bridge sends the correct message to the L1 messenger
       expect(depositCallToMessenger.args[1]).to.equal(
-        IL2ERC721Bridge.encodeFunctionData('finalizeDeposit', [
+        IL2ERC721Bridge.encodeFunctionData('finalizeERC721Deposit', [
           L1ERC721.address,
           DUMMY_L2_ERC721_ADDRESS,
           aliceAddress,
