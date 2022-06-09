@@ -505,7 +505,7 @@ jobs:
           default: develop
     environment:
       # Scan changed files in PRs, block on new issues only (existing issues ignored)
-      # SEMGREP_BASELINE_REF: << parameters.diff_branch >>
+      SEMGREP_BASELINE_REF: << parameters.diff_branch >>
       SEMGREP_REPO_URL: << pipeline.project.git_url >>
       SEMGREP_BRANCH: << pipeline.git.branch >>
       SEMGREP_COMMIT: << pipeline.git.revision >>
@@ -521,9 +521,9 @@ jobs:
       - run:
           name: "Set environment variables" # for PR comments and in-app hyperlinks to findings
           command: |
-              echo 'export SEMGREP_PR_ID=${CIRCLE_PULL_REQUEST}' >> $BASH_ENV
+              echo 'export SEMGREP_PR_ID=${CIRCLE_PULL_REQUEST##*/}' >> $BASH_ENV
               echo 'export SEMGREP_JOB_URL=$CIRCLE_BUILD_URL' >> $BASH_ENV
-              echo 'export SEMGREP_REPO_NAME=$CIRCLE_PROJECT_REPONAME' >> $BASH_ENV
+              echo 'export SEMGREP_REPO_NAME=$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME' >> $BASH_ENV
       - run:
           name: "Semgrep scan"
           command: semgrep ci
