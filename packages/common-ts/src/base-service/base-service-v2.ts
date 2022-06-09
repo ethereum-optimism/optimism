@@ -4,7 +4,6 @@ import Config from 'bcfg'
 import * as dotenv from 'dotenv'
 import { Command, Option } from 'commander'
 import { ValidatorSpec, Spec, cleanEnv } from 'envalid'
-import { sleep } from '@eth-optimism/core-utils'
 import snakeCase from 'lodash/snakeCase'
 import express, { Router } from 'express'
 import prometheus, { Registry } from 'prom-client'
@@ -62,6 +61,12 @@ export abstract class BaseServiceV2<
   TMetrics extends MetricsV2,
   TServiceState
 > {
+  /**
+   * Stops the main loop from running
+   */
+  private stopLoop: () => void = () => {
+    this.running = false
+  }
   /**
    * Whether or not the service will loop.
    */
@@ -446,7 +451,8 @@ export abstract class BaseServiceV2<
     if (this.loop) {
       this.logger.info('starting main loop')
       this.running = true
-      while (this.running) {
+
+      const doLoop = async () => {
         try {
           await this.main()
         } catch (err) {
@@ -460,9 +466,14 @@ export abstract class BaseServiceV2<
 
         // Sleep between loops if we're still running (service not stopped).
         if (this.running) {
-          await sleep(this.loopIntervalMs)
+          const timeout = setTimeout(doLoop, this.loopIntervalMs)
+          this.stopLoop = () => {
+            this.running = false
+            clearTimeout(timeout)
+          }
         }
       }
+      doLoop()
     } else {
       this.logger.info('running main function')
       await this.main()
@@ -476,13 +487,7 @@ export abstract class BaseServiceV2<
    * iteration is finished and will then stop looping.
    */
   public async stop(): Promise<void> {
-    this.running = false
-
-    // Wait until the main loop has finished.
-    this.logger.info('stopping service, waiting for main loop to finish')
-    while (!this.done) {
-      await sleep(1000)
-    }
+    this.stopLoop()
 
     // Shut down the metrics server if it's running.
     if (this.server) {
