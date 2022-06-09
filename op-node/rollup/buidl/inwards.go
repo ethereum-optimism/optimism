@@ -1,7 +1,6 @@
 package buidl
 
 import (
-	"container/heap"
 	"context"
 	"encoding/binary"
 	"errors"
@@ -9,76 +8,59 @@ import (
 	"io"
 
 	"github.com/ethereum-optimism/optimism/op-node/eth"
+	"github.com/ethereum/go-ethereum/log"
 )
+
+// count the tagging info as 200 in terms of buffer size.
+const frameOverhead = 200
+
+const DerivationVersion0 = 0
+
+// channel ID, frame number, frame length, last frame bool
+const minimumFrameSize = ChannelIDSize + 1 + 1 + 1
+
+// ChannelTimeout is the number of seconds until a channel is removed if it's not read
+const ChannelTimeout = 10 * 60
+
+// MaxChannelBankSize is the amount of memory space, in number of bytes,
+// till the bank is pruned by removing channels,
+// starting with the oldest channel.
+const MaxChannelBankSize = 100_000_000
+
+// DuplicateErr is returned when a newly read frame is already known
+var DuplicateErr = errors.New("duplicate frame")
+
+// ChannelIDSize defines the length of a channel ID
+const ChannelIDSize = 32 // TODO: we can maybe use smaller IDs. As long as we don't get random collisions
 
 // ChannelID identifies a "channel" a stream encoding a sequence of L2 information.
 // A channelID is not a perfect nonce number, but is based on time instead:
 // only once the L1 block time passes the channel ID, the channel can be read.
 // A channel is not read before that, and instead buffered for later consumption.
-type ChannelID uint64
+type ChannelID [ChannelIDSize]byte
 
 type TaggedData struct {
-	L1Origin eth.L1BlockRef
-	// ResetFirst indicates that any previous buffered data needs to be dropped before this frame can be consumed
-	ResetFirst bool
-	ChannelID  ChannelID
-	Data       []byte
-}
-
-type Pipeline struct {
-	queue    chan TaggedData
-	l1Source eth.L1BlockRef
-	buf      []byte
-}
-
-// Read data from the pipeline. An EOF is returned when the system closes. No errors are returned otherwise.
-// The reader automatically moves to the next data sources as the current one gets exhausted.
-// It's up to the caller to check CurrentSource() before reading more information.
-// The CurrentSource() does not change until the first Read() after the old source has been completely exhausted.
-func (p *Pipeline) Read(dest []byte) (n int, err error) {
-	// if we're out of data, then rotate to the next,
-	// and return an EOF to indicate that the reader should reset before trying again.
-	if len(p.buf) == 0 {
-		next, ok := <-p.queue
-		if !ok {
-			return 0, io.EOF
-		}
-		p.l1Source = next.L1Origin
-		p.buf = next.Data
-	}
-	// try to consume current item
-	n = copy(dest, p.buf)
-	p.buf = p.buf[n:]
-	return n, nil
-}
-
-// CurrentSource returns the L1 block that encodes the data that is currently being read.
-// Batches should be filtered based on this source.
-// Note that the source might not be canonical anymore by the time the data is processed.
-func (p *Pipeline) CurrentSource() eth.L1BlockRef {
-	return p.l1Source
+	L1Origin  eth.L1BlockRef
+	ChannelID ChannelID
+	Data      []byte
 }
 
 type Channel struct {
 	// id of the channel
 	id ChannelID
-	// index within the slice that backs the priority queue
-	index int
+
 	// estimated memory size, used to drop the channel if we have too much data
 	size uint64
 
 	progress uint64
+
+	firstSeen uint64
 
 	// final frame number (inclusive). Max value if we haven't seen the end yet.
 	endsAt uint64
 
 	inputs map[uint64]*TaggedData
 }
-
-var DuplicateErr = errors.New("duplicate frame")
-
-// count the tagging info as 200 in terms of buffer size.
-const frameOverhead = 200
 
 // IngestData buffers a frame in the channel, and potentially forwards it, along with any previously buffered frames
 func (ch *Channel) IngestData(ref eth.L1BlockRef, frameNum uint64, isLast bool, frameData []byte) error {
@@ -129,106 +111,49 @@ func (ch *Channel) Closed() bool {
 	return ch.progress > ch.endsAt
 }
 
-type ChannelQueue []*Channel
-
-func (pq ChannelQueue) Len() int { return len(pq) }
-
-func (pq ChannelQueue) Less(i, j int) bool {
-	// prioritize the channel with the lowest ID. Pop will give the lowest channel ID first.
-	return pq[i].id < pq[j].id
-}
-
-func (pq ChannelQueue) Swap(i, j int) {
-	pq[i], pq[j] = pq[j], pq[i]
-	pq[i].index = i
-	pq[j].index = j
-}
-
-// Push implements the heap interface. Use heap.Push if you want to add to the priority queue.
-func (pq *ChannelQueue) Push(x any) {
-	n := len(*pq)
-	item := x.(*Channel)
-	item.index = n
-	*pq = append(*pq, item)
-}
-
-// Pop implements the heap interface. Use heap.Pop if you want to pop from the priority queue
-// (yes, the result is different, and the heap.Pop keeps the heap structure consistent)
-func (pq *ChannelQueue) Pop() any {
-	old := *pq
-	n := len(old)
-	item := old[n-1]
-	old[n-1] = nil  // avoid memory leak
-	item.index = -1 // for safety
-	*pq = old[0 : n-1]
-	return item
-}
-
-// Peek returns what Pop would return, without actually removing the element.
-func (pq ChannelQueue) Peek() *Channel {
-	if len(pq) == 0 {
-		return nil
-	}
-	// The root of the tree has the highest priority (and the lowest channel ID)
-	return pq[0]
-}
-
 // ChannelBank buffers channel frames, and emits TaggedData to an onProgress channel.
 type ChannelBank struct {
-	// A priority queue, lower channel IDs are prioritized.
-	channels ChannelQueue
+	log log.Logger
+
+	// channels by ID
+	channels map[ChannelID]*Channel
+	// channels in FIFO order
+	channelQueue []ChannelID
 
 	// Current L1 origin that we have seen. Used to filter channels and continue reading.
 	currentL1Origin eth.L1BlockRef
 }
 
-const ChannelVersion0 = 0
-
-// version byte, channel ID, frame number, frame length, last frame bool
-const minimumFrameSize = 1 + 1 + 1 + 1 + 1
-
-// ChannelTimeout is the number of seconds until a channel is removed if it's not read
-const ChannelTimeout = 10 * 60
-
-// ChannelBufferTime is the number of seconds until a channel is read.
-// Other data submissions have the time to front-run the reading with a lower channel ID until this.
-const ChannelBufferTime = 10
-
-// ChannelFutureMargin is the number of seconds in the future to allow a channel to be scheduled for.
-const ChannelFutureMargin = 10
-
-// MaxChannelBankSize is the amount of memory space, in number of bytes,
-// till the bank is pruned and channels get pruned,
-// starting with the oldest channel first.
-const MaxChannelBankSize = 100_000_000
-
 // Read returns nil if there is nothing new to Read.
 func (ib *ChannelBank) Read() *TaggedData {
 	// clear timed out channel(s) first
 	for {
-		lowestCh := ib.channels.Peek()
-		if lowestCh == nil {
+		if len(ib.channelQueue) == 0 {
 			return nil
 		}
-		if uint64(lowestCh.id)+ChannelTimeout < ib.currentL1Origin.Time {
-			heap.Pop(&ib.channels)
+		first := ib.channelQueue[0]
+		ch := ib.channels[first]
+		if ch.firstSeen+ChannelTimeout < ib.currentL1Origin.Time {
+			ib.log.Info("channel timed out", "channel", ch, "frames", len(ch.inputs), "progress", ch.progress, "first_seen", ch.firstSeen)
+			delete(ib.channels, first)
+			ib.channelQueue = ib.channelQueue[1:]
 		} else {
 			break
 		}
 	}
 
-	lowestCh := ib.channels.Peek()
-	if lowestCh == nil {
+	if len(ib.channelQueue) == 0 {
 		return nil
 	}
-	// if the channel is not ready yet, wait
-	if lowestCh.id+ChannelBufferTime > ChannelID(ib.currentL1Origin.Time) {
-		return nil
-	}
-	out := lowestCh.Read()
+	first := ib.channelQueue[0]
+	ch := ib.channels[first]
+
+	out := ch.Read() // may be nil if there is nothing to read
 	// if this caused the channel to get closed (i.e. read all data), remove it
-	if lowestCh.Closed() {
-		heap.Pop(&ib.channels)
+	if ch.Closed() {
+		ib.log.Debug("channel closed", "channel", ch, "progress", ch.progress, "first_seen", ch.firstSeen)
+		delete(ib.channels, first)
+		ib.channelQueue = ib.channelQueue[1:]
 	}
 	return out
 }
@@ -250,13 +175,13 @@ func (ib *ChannelBank) NextL1(ref eth.L1BlockRef) error {
 // Read() should be called repeatedly first, until everything has been read, before adding new data.
 // Then NextL1(ref) should be called to move forward to the next L1 input
 func (ib *ChannelBank) IngestData(data []byte) error {
-	if len(data) < minimumFrameSize {
-		return fmt.Errorf("data must be at least have 1 frame")
+	if len(data) < 1 {
+		return fmt.Errorf("data must be at least have a version byte")
 	}
-	if data[0] != ChannelVersion0 {
-		return fmt.Errorf("unrecognized channel version: %d", data)
+
+	if data[0] != DerivationVersion0 {
+		return fmt.Errorf("unrecognized derivation version: %d", data)
 	}
-	offset := 1
 
 	// check total size
 	totalSize := uint64(0)
@@ -265,22 +190,28 @@ func (ib *ChannelBank) IngestData(data []byte) error {
 	}
 	// prune until it is reasonable again. The high-priority channel failed to be read, so we start pruning there.
 	for totalSize > MaxChannelBankSize {
-		ch := heap.Pop(&ib.channels).(*Channel)
+		id := ib.channelQueue[0]
+		ch := ib.channels[id]
+		ib.channelQueue = ib.channelQueue[1:]
+		delete(ib.channels, id)
 		totalSize -= ch.size
+	}
+
+	offset := 1
+	if len(data[offset:]) < minimumFrameSize {
+		return fmt.Errorf("data must be at least have one frame")
 	}
 
 	// Iterate over all frames. They may have different channel IDs to indicate that they stream consumer should reset.
 	for {
-		if len(data) <= offset {
+		if len(data) < offset+ChannelIDSize {
 			return nil
 		}
-
-		chIDNumber, n := binary.Uvarint(data[offset:])
-		if n <= 0 {
-			return fmt.Errorf("failed to read frame number")
-		}
-		// stop reading and ignore remaining data if we encounter a zero
-		if chIDNumber == 0 {
+		var chID ChannelID
+		copy(chID[:], data[offset:])
+		offset += ChannelIDSize
+		// stop reading and ignore remaining data if we encounter a zeroed ID
+		if chID == (ChannelID{}) {
 			return nil
 		}
 
@@ -288,16 +219,17 @@ func (ib *ChannelBank) IngestData(data []byte) error {
 		if n <= 0 {
 			return fmt.Errorf("failed to read frame number")
 		}
+		offset += n
+
 		frameLength, n := binary.Uvarint(data[offset:])
 		if n <= 0 {
 			return fmt.Errorf("failed to read frame length")
 		}
 		offset += n
+
 		if remaining := uint64(len(data) - offset); remaining < frameLength {
 			return fmt.Errorf("not enough data left for frame: %d < %d", remaining, frameLength)
 		}
-		chID := ChannelID(chIDNumber)
-
 		frameData := data[offset : uint64(offset)+frameLength]
 		offset += int(frameLength)
 
@@ -311,35 +243,15 @@ func (ib *ChannelBank) IngestData(data []byte) error {
 		isLast := isLastNum == 1
 		offset += 1
 
-		// data channels must not be opened in the future, to ensure future data-transactions cannot be front-run way in advance
-		if chIDNumber > ib.currentL1Origin.Time+ChannelFutureMargin {
-			// TODO: log error
-			//fmt.Errorf("channel ID %d cannot be higher than L1 block time %d (margin: %d)", chIDNumber, ib.currentL1Origin.Time, ChannelFutureMargin)
-			continue
-		}
-		// if the channel is old, ignore it
-		if chIDNumber+ChannelTimeout < ib.currentL1Origin.Time {
-			// TODO: log error
-			//fmt.Errorf("channel ID %d is too old for L1 block time %d (timeout: %d)", chIDNumber, ib.currentL1Origin.Time, ChannelTimeout)
-			continue
-		}
-
-		var currentCh *Channel
-		for _, ch := range ib.channels {
-			if ch.id == chID {
-				currentCh = ch
-				break
-			}
-		}
-		if currentCh == nil {
-			// create new channel if it doesn't exist yet
-			currentCh = &Channel{id: chID, endsAt: ^uint64(0)}
-			heap.Push(&ib.channels, currentCh)
+		currentCh, ok := ib.channels[chID]
+		if !ok { // create new channel if it doesn't exist yet
+			currentCh = &Channel{id: chID, endsAt: ^uint64(0), firstSeen: ib.currentL1Origin.Time}
+			ib.channels[chID] = currentCh
+			ib.channelQueue = append(ib.channelQueue, chID)
 		}
 
 		if err := currentCh.IngestData(ib.currentL1Origin, frameNumber, isLast, frameData); err != nil {
-			// TODO: log error
-			// fmt.Errorf("failed to ingest frame %d of channel %d: %w", frameNumber, chID, err)
+			ib.log.Debug("failed to ingest frame into channel", "frame_number", frameNumber, "channel", chID, "err", err)
 			continue
 		}
 	}
@@ -350,7 +262,7 @@ func (ib *ChannelBank) IngestData(data []byte) error {
 // Upon a reorg, or startup, a channel bank should be constructed with the last consumed L1 block as l1Start.
 // It will traverse back with the provided lookupParent to find the continuation point,
 // and then replay everything with pullData to get a channel bank ready for reading from l1Start.
-func NewChannelBank(ctx context.Context, l1Start eth.L1BlockRef,
+func NewChannelBank(ctx context.Context, log log.Logger, l1Start eth.L1BlockRef,
 	lookupParent func(ctx context.Context, id eth.BlockID) (eth.L1BlockRef, error),
 	pullData func(id eth.BlockID, txIndex uint64) ([]byte, error)) (*ChannelBank, error) {
 	block := l1Start
@@ -363,7 +275,11 @@ func NewChannelBank(ctx context.Context, l1Start eth.L1BlockRef,
 		block = parent
 		blocks = append(blocks, parent)
 	}
-	bank := &ChannelBank{channels: ChannelQueue{}, currentL1Origin: blocks[len(blocks)-1]}
+	bank := &ChannelBank{
+		log:             log,
+		channels:        make(map[ChannelID]*Channel),
+		currentL1Origin: blocks[len(blocks)-1],
+	}
 
 	// now replay all the parent blocks
 	for i := len(blocks) - 1; i >= 0; i-- {
@@ -382,7 +298,7 @@ func NewChannelBank(ctx context.Context, l1Start eth.L1BlockRef,
 				return nil, fmt.Errorf("failed to replay data of %s: %w", blocks[i], err)
 			}
 			if err := bank.IngestData(txData); err != nil {
-				// TODO log that tx was bad and had to be ignored, but don't stop replay.
+				log.Debug("encountered bad tx during replay", "replay_index", i, "block", ref.ID(), "tx_index", j, "err", err)
 				continue
 			}
 		}
