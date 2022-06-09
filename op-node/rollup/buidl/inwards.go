@@ -363,13 +363,15 @@ func NewChannelBank(ctx context.Context, l1Start eth.L1BlockRef,
 		block = parent
 		blocks = append(blocks, parent)
 	}
-	bank := &ChannelBank{channels: ChannelQueue{}, currentL1Origin: l1Start}
+	bank := &ChannelBank{channels: ChannelQueue{}, currentL1Origin: blocks[len(blocks)-1]}
 
-	// now replay all the blocks
+	// now replay all the parent blocks
 	for i := len(blocks) - 1; i >= 0; i-- {
 		ref := blocks[i]
-		if err := bank.NextL1(ref); err != nil {
-			return nil, fmt.Errorf("failed to continue replay at block %s: %v", ref, err)
+		if i != len(blocks)-1 {
+			if err := bank.NextL1(ref); err != nil {
+				return nil, fmt.Errorf("failed to continue replay at block %s: %v", ref, err)
+			}
 		}
 		for j := uint64(0); ; j++ {
 			txData, err := pullData(ref.ID(), j)
@@ -387,6 +389,9 @@ func NewChannelBank(ctx context.Context, l1Start eth.L1BlockRef,
 		for bank.Read() != nil {
 			// we drain before ingesting more, since writes affect reads this is mandatory
 		}
+	}
+	if err := bank.NextL1(l1Start); err != nil {
+		return nil, fmt.Errorf("failed to move bank origin to final %s: %v", l1Start, err)
 	}
 	return bank, nil
 }
