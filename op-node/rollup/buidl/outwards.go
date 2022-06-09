@@ -110,7 +110,7 @@ type OutputData struct {
 }
 
 // history is the collection of channels that have been submitted, and the frame ID of the last submission
-func (og *Outgoing) Output(ctx context.Context, history map[ChannelID]uint64, maxSize uint64, maxBlocksPerFrame uint64) (*OutputData, error) {
+func (og *Outgoing) Output(ctx context.Context, history map[ChannelID]uint64, maxSize uint64, maxBlocksPerChannel uint64) (*OutputData, error) {
 	if og.channels == nil {
 		og.channels = make(map[ChannelID]*OutChannel)
 	}
@@ -234,8 +234,8 @@ func (og *Outgoing) Output(ctx context.Context, history map[ChannelID]uint64, ma
 
 		blocks := unsafeBlocksSorted
 		// don't put too many L2 blocks into the same frame.
-		if uint64(len(blocks)) > maxBlocksPerFrame {
-			blocks = blocks[:maxBlocksPerFrame]
+		if uint64(len(blocks)) > maxBlocksPerChannel {
+			blocks = blocks[:maxBlocksPerChannel]
 		}
 		// TODO construct reader for encoding the data
 		var r io.Reader
