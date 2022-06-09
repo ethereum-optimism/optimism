@@ -244,7 +244,12 @@ func (ib *ChannelBank) IngestData(data []byte) error {
 		offset += 1
 
 		currentCh, ok := ib.channels[chID]
-		if !ok { // create new channel if it doesn't exist yet
+		if ok { // check if the channel is not timed out
+			if currentCh.firstSeen+ChannelTimeout < ib.currentL1Origin.Time {
+				ib.log.Info("channel is timed out, ignore frame", "channel", chID, "first_seen", currentCh.firstSeen, "frame", frameNumber)
+				continue
+			}
+		} else { // create new channel if it doesn't exist yet
 			currentCh = &Channel{id: chID, endsAt: ^uint64(0), firstSeen: ib.currentL1Origin.Time}
 			ib.channels[chID] = currentCh
 			ib.channelQueue = append(ib.channelQueue, chID)
