@@ -72,9 +72,14 @@ export abstract class BaseServiceV2<
    */
   private mainPromise: ReturnType<typeof this.main>
 
-  private stopMainLoop = () => {
+  private stopMainLoop = async () => {
+    this.logger.info('Stopping main loop...')
     this.running = false
     clearTimeout(this.pollingTimeout)
+    this.logger.info('Waiting for main to complete')
+    // if main is in the middle of running wait for it to complete
+    await this.mainPromise
+    this.logger.info('Main loop stoped.')
   }
 
   /**
@@ -485,12 +490,7 @@ export abstract class BaseServiceV2<
    * iteration is finished and will then stop looping.
    */
   public async stop(): Promise<void> {
-    this.logger.info('Stopping main loop...')
-    this.stopMainLoop()
-    this.logger.info('Waiting for main to complete')
-    // if main is in the middle of running wait for it to complete
-    await this.mainPromise
-    this.logger.info('Main loop stoped.')
+    await this.stopMainLoop()
 
     // Shut down the metrics server if it's running.
     if (this.server) {
