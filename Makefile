@@ -77,3 +77,10 @@ test-integration:
 		./packages/contracts-bedrock/deployments/devnetL1
 .PHONY: test-integration
 
+lint:
+	make -C op-bindings lint
+	make -C op-proposer lint
+	make -C op-node lint
+	make -C op-e2e lint
+	make -C op-batcher lint
+.PHONY: lint
