@@ -200,13 +200,13 @@ const MaxChannelBankSize = 100_000_000
 
 // Read returns nil if there is nothing new to Read.
 func (ib *ChannelBank) Read() *TaggedData {
-	// clear closed or timed out channel(s) first
+	// clear timed out channel(s) first
 	for {
 		lowestCh := ib.channels.Peek()
 		if lowestCh == nil {
 			return nil
 		}
-		if lowestCh.Closed() || uint64(lowestCh.id)+ChannelTimeout < ib.currentL1Origin.Time {
+		if uint64(lowestCh.id)+ChannelTimeout < ib.currentL1Origin.Time {
 			heap.Pop(&ib.channels)
 		} else {
 			break
@@ -218,10 +218,15 @@ func (ib *ChannelBank) Read() *TaggedData {
 		return nil
 	}
 	// if the channel is not ready yet, wait
-	if lowestCh.id < ChannelID(ib.currentL1Origin.Time)+ChannelFutureMargin {
+	if lowestCh.id < ChannelID(ib.currentL1Origin.Time) {
 		return nil
 	}
-	return lowestCh.Read()
+	out := lowestCh.Read()
+	// if this caused the channel to get closed (i.e. read all data), remove it
+	if lowestCh.Closed() {
+		heap.Pop(&ib.channels)
+	}
+	return out
 }
 
 func (ib *ChannelBank) CurrentL1() eth.L1BlockRef {
