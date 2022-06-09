@@ -178,8 +178,8 @@ type ChannelBank struct {
 	// A priority queue, lower channel IDs are prioritized.
 	channels ChannelQueue
 
-	// Last L1 origin that we have seen. Used to filter channels and continue reading.
-	lastOrigin eth.L1BlockRef
+	// Current L1 origin that we have seen. Used to filter channels and continue reading.
+	currentL1Origin eth.L1BlockRef
 }
 
 const ChannelVersion0 = 0
@@ -206,7 +206,7 @@ func (ib *ChannelBank) Read() *TaggedData {
 		if lowestCh == nil {
 			return nil
 		}
-		if lowestCh.Closed() || uint64(lowestCh.id)+ChannelTimeout < ib.lastOrigin.Time {
+		if lowestCh.Closed() || uint64(lowestCh.id)+ChannelTimeout < ib.currentL1Origin.Time {
 			heap.Pop(&ib.channels)
 		} else {
 			break
@@ -218,22 +218,22 @@ func (ib *ChannelBank) Read() *TaggedData {
 		return nil
 	}
 	// if the channel is not ready yet, wait
-	if lowestCh.id < ChannelID(ib.lastOrigin.Time) {
+	if lowestCh.id < ChannelID(ib.currentL1Origin.Time)+ChannelFutureMargin {
 		return nil
 	}
 	return lowestCh.Read()
 }
 
 func (ib *ChannelBank) CurrentL1() eth.L1BlockRef {
-	return ib.lastOrigin
+	return ib.currentL1Origin
 }
 
 // NextL1 updates the channel bank to tag new data with the next L1 reference
 func (ib *ChannelBank) NextL1(ref eth.L1BlockRef) error {
-	if ref.ParentHash != ib.lastOrigin.Hash {
-		return fmt.Errorf("reorg detected, cannot start consuming this L1 block without using a new channel bank: new.parent: %s, expected: %s", ref.ParentID(), ib.lastOrigin.ParentID())
+	if ref.ParentHash != ib.currentL1Origin.Hash {
+		return fmt.Errorf("reorg detected, cannot start consuming this L1 block without using a new channel bank: new.parent: %s, expected: %s", ref.ParentID(), ib.currentL1Origin.ParentID())
 	}
-	ib.lastOrigin = ref
+	ib.currentL1Origin = ref
 	return nil
 }
 
@@ -300,15 +300,15 @@ func (ib *ChannelBank) IngestData(data []byte) error {
 		offset += 1
 
 		// data channels must not be opened in the future, to ensure future data-transactions cannot be front-run way in advance
-		if chIDNumber > ib.lastOrigin.Time+ChannelFutureMargin {
+		if chIDNumber > ib.currentL1Origin.Time+ChannelFutureMargin {
 			// TODO: log error
-			//fmt.Errorf("channel ID %d cannot be higher than L1 block time %d (margin: %d)", chIDNumber, ib.lastOrigin.Time, ChannelFutureMargin)
+			//fmt.Errorf("channel ID %d cannot be higher than L1 block time %d (margin: %d)", chIDNumber, ib.currentL1Origin.Time, ChannelFutureMargin)
 			continue
 		}
 		// if the channel is old, ignore it
-		if chIDNumber+ChannelTimeout < ib.lastOrigin.Time {
+		if chIDNumber+ChannelTimeout < ib.currentL1Origin.Time {
 			// TODO: log error
-			//fmt.Errorf("channel ID %d is too old for L1 block time %d (timeout: %d)", chIDNumber, ib.lastOrigin.Time, ChannelTimeout)
+			//fmt.Errorf("channel ID %d is too old for L1 block time %d (timeout: %d)", chIDNumber, ib.currentL1Origin.Time, ChannelTimeout)
 			continue
 		}
 
@@ -325,8 +325,10 @@ func (ib *ChannelBank) IngestData(data []byte) error {
 			heap.Push(&ib.channels, currentCh)
 		}
 
-		if err := currentCh.IngestData(ib.lastOrigin, frameNumber, isLast, frameData); err != nil {
-			return fmt.Errorf("failed to ingest frame %d of channel %d: %w", frameNumber, chID, err)
+		if err := currentCh.IngestData(ib.currentL1Origin, frameNumber, isLast, frameData); err != nil {
+			// TODO: log error
+			// fmt.Errorf("failed to ingest frame %d of channel %d: %w", frameNumber, chID, err)
+			continue
 		}
 	}
 }
@@ -349,7 +351,7 @@ func NewChannelBank(ctx context.Context, l1Start eth.L1BlockRef,
 		block = parent
 		blocks = append(blocks, parent.ID())
 	}
-	bank := &ChannelBank{channels: ChannelQueue{}, lastOrigin: l1Start}
+	bank := &ChannelBank{channels: ChannelQueue{}, currentL1Origin: l1Start}
 	// now replay all the blocks
 	for i := len(blocks) - 1; i >= 0; i-- {
 		if err := pullData(blocks[i], bank.IngestData); err != nil {
