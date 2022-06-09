@@ -517,7 +517,7 @@ jobs:
     steps:
       - checkout
       - run:
-          name: "Set environment variables" # for PR comments and  in-app hyperlinks to findings
+          name: "Set environment variables" # for PR comments and in-app hyperlinks to findings
           command: |
               echo 'export SEMGREP_COMMIT=$CIRCLE_SHA1' >> $BASH_ENV
               echo 'export SEMGREP_PR_ID=${CIRCLE_PULL_REQUEST##*/}' >> $BASH_ENV
