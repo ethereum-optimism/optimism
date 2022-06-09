@@ -27,3 +27,5 @@ optimism-portal-bindings:
 l2-output-oracle-bindings:
 	./gen_bindings.sh L2OutputOracle bindings
 
+lint:
+	golangci-lint run -E goimports,sqlclosecheck,bodyclose,asciicheck,misspell ./...
