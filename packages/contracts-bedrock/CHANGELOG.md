@@ -1,5 +1,11 @@
 # @eth-optimism/contracts-bedrock
 
+## 0.1.3
+
+### Patch Changes
+
+- c258acd4: Update comments and style for L1 contracts
+
 ## 0.1.2
 
 ### Patch Changes

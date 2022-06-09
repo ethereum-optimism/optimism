@@ -9,9 +9,9 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-node/version"
 
+	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/l2"
-	"github.com/ethereum-optimism/optimism/op-node/predeploy"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum/go-ethereum"
@@ -62,7 +62,7 @@ func (n *nodeAPI) OutputAtBlock(ctx context.Context, number rpc.BlockNumber) ([]
 		return nil, ethereum.NotFound
 	}
 
-	proof, err := n.client.GetProof(ctx, predeploy.WithdrawalContractAddress, toBlockNumArg(number))
+	proof, err := n.client.GetProof(ctx, common.HexToAddress(predeploys.L2ToL1MessagePasser), toBlockNumArg(number))
 	if err != nil {
 		n.log.Error("failed to get contract proof", "err", err)
 		return nil, err

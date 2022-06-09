@@ -11,9 +11,16 @@ import prometheus, { Registry } from 'prom-client'
 
 import { Logger } from '../common/logger'
 import { Metric } from './metrics'
+import { validators } from './validators'
 
 export type Options = {
   [key: string]: any
+}
+
+export type StandardOptions = {
+  loopIntervalMs?: number
+  metricsServerPort?: number
+  metricsServerHostname?: string
 }
 
 export type OptionsSpec<TOptions extends Options> = {
@@ -77,7 +84,7 @@ export abstract class BaseServiceV2<
   /**
    * Service options.
    */
-  protected readonly options: TOptions
+  protected readonly options: TOptions & StandardOptions
 
   /**
    * Metrics.
@@ -129,9 +136,29 @@ export abstract class BaseServiceV2<
     metricsServerHostname?: string
   }) {
     this.loop = params.loop !== undefined ? params.loop : true
-    this.loopIntervalMs =
-      params.loopIntervalMs !== undefined ? params.loopIntervalMs : 0
     this.state = {} as TServiceState
+
+    // Add default options to options spec.
+    ;(params.optionsSpec as any) = {
+      ...(params.optionsSpec || {}),
+
+      // Users cannot set these options.
+      loopIntervalMs: {
+        validator: validators.num,
+        desc: 'Loop interval in milliseconds',
+        default: params.loopIntervalMs || 0,
+      },
+      metricsServerPort: {
+        validator: validators.num,
+        desc: 'Port for the metrics server',
+        default: params.metricsServerPort || 7300,
+      },
+      metricsServerHostname: {
+        validator: validators.str,
+        desc: 'Hostname for the metrics server',
+        default: params.metricsServerHostname || '0.0.0.0',
+      },
+    }
 
     /**
      * Special snake_case function which accounts for the common strings "L1" and "L2" which would
@@ -241,9 +268,11 @@ export abstract class BaseServiceV2<
 
     // Create the metrics server.
     this.metricsRegistry = prometheus.register
-    this.metricsServerPort = params.metricsServerPort || 7300
-    this.metricsServerHostname = params.metricsServerHostname || '0.0.0.0'
+    this.metricsServerPort = this.options.metricsServerPort
+    this.metricsServerHostname = this.options.metricsServerHostname
 
+    // Set up everything else.
+    this.loopIntervalMs = this.options.loopIntervalMs
     this.logger = new Logger({ name: params.name })
 
     // Gracefully handle stop signals.
