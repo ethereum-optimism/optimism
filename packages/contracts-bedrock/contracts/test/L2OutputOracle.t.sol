@@ -85,23 +85,14 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
 
     // Test: appendL2Output succeeds when given valid input, and when a block hash and number are
     // specified for reorg protection.
-    // This tests is disabled (w/ skip_ prefix) because all blocks in Foundry currently have a
-    // blockhash of zero.
-    function skip_test_appendWithBlockhashAndHeight() external {
-        // Move ahead to block 100 so that we can reference historical blocks
-        vm.roll(100);
-
+    function test_appendWithBlockhashAndHeight() external {
         // Get the number and hash of a previous block in the chain
-        uint256 l1BlockNumber = block.number - 1;
-        bytes32 l1BlockHash = blockhash(l1BlockNumber);
+        uint256 prevL1BlockNumber = block.number - 1;
+        bytes32 prevL1BlockHash = blockhash(prevL1BlockNumber);
 
         uint256 nextBlockNumber = oracle.nextBlockNumber();
-        vm.roll(nextBlockNumber + 1);
         vm.prank(sequencer);
-
-        // Changing the l1BlockNumber argument should break this tests, however it does not
-        // per the comment preceding this test.
-        oracle.appendL2Output(nonZeroHash, nextBlockNumber, l1BlockHash, l1BlockNumber);
+        oracle.appendL2Output(nonZeroHash, nextBlockNumber, prevL1BlockHash, prevL1BlockNumber);
     }
 
     /***************************
@@ -135,6 +126,20 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
         vm.prank(sequencer);
         vm.expectRevert("OutputOracle: Block number must be equal to next expected block number.");
         oracle.appendL2Output(nonZeroHash, nextBlockNumber - 1, 0, 0);
+    }
+
+    // Test: appendL2Output fails if a non-existent L1 block hash and number are provided for reorg
+    // protection.
+    function testCannot_appendOnWrongFork() external {
+        uint256 nextBlockNumber = oracle.nextBlockNumber();
+        vm.prank(sequencer);
+        vm.expectRevert("OutputOracle: Blockhash does not match the hash at the expected height.");
+        oracle.appendL2Output(
+            nonZeroHash,
+            nextBlockNumber,
+            bytes32(uint256(0x01)),
+            block.number - 1
+        );
     }
 
     // Test: appendL2Output fails when given valid input, but the block hash and number do not
