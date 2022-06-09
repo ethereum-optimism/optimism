@@ -62,11 +62,21 @@ export abstract class BaseServiceV2<
   TServiceState
 > {
   /**
-   * Stops the main loop from running
+   * The timeout that controls the polling interval
+   * If clearTimeout(this.pollingTimeout) is called the timeout will stop
    */
-  private stopLoop: () => void = () => {
+  private pollingTimeout: NodeJS.Timeout
+
+  /**
+   * The promise representing this.main
+   */
+  private mainPromise: ReturnType<typeof this.main>
+
+  private stopMainLoop = () => {
     this.running = false
+    clearTimeout(this.pollingTimeout)
   }
+
   /**
    * Whether or not the service will loop.
    */
@@ -81,11 +91,6 @@ export abstract class BaseServiceV2<
    * Whether or not the service is currently running.
    */
   protected running: boolean
-
-  /**
-   * Whether or not the service has run to completion.
-   */
-  protected done: boolean
 
   /**
    * Whether or not the service is currently healthy.
@@ -378,8 +383,6 @@ export abstract class BaseServiceV2<
    * main function. Will also catch unhandled errors.
    */
   public async run(): Promise<void> {
-    this.done = false
-
     // Start the app server if not yet running.
     if (!this.server) {
       this.logger.info('starting app server')
@@ -454,7 +457,8 @@ export abstract class BaseServiceV2<
 
       const doLoop = async () => {
         try {
-          await this.main()
+          this.mainPromise = this.main()
+          await this.mainPromise
         } catch (err) {
           this.metrics.unhandledErrors.inc()
           this.logger.error('caught an unhandled exception', {
@@ -466,11 +470,7 @@ export abstract class BaseServiceV2<
 
         // Sleep between loops if we're still running (service not stopped).
         if (this.running) {
-          const timeout = setTimeout(doLoop, this.loopIntervalMs)
-          this.stopLoop = () => {
-            this.running = false
-            clearTimeout(timeout)
-          }
+          this.pollingTimeout = setTimeout(doLoop, this.loopIntervalMs)
         }
       }
       doLoop()
@@ -478,8 +478,6 @@ export abstract class BaseServiceV2<
       this.logger.info('running main function')
       await this.main()
     }
-
-    this.done = true
   }
 
   /**
@@ -487,7 +485,9 @@ export abstract class BaseServiceV2<
    * iteration is finished and will then stop looping.
    */
   public async stop(): Promise<void> {
-    this.stopLoop()
+    this.stopMainLoop()
+    // if main is in the middle of running wait for it to complete
+    await this.mainPromise
 
     // Shut down the metrics server if it's running.
     if (this.server) {
