@@ -36,6 +36,7 @@ var APIFlags = []cli.Flag{
 	APIHostnameFlag,
 	APIPortFlag,
 	DisburserWalletAddressFlag,
+	DisburserAddressFlag,
 	L1EthRpcFlag,
 	L2EthRpcFlag,
 	DepositAddressFlag,

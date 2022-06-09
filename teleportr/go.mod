@@ -1,6 +1,6 @@
 module github.com/ethereum-optimism/optimism/teleportr
 
-go 1.17
+go 1.18
 
 replace github.com/ethereum-optimism/optimism/bss-core v0.0.0 => ../bss-core
 
@@ -20,6 +20,7 @@ require (
 	github.com/VictoriaMetrics/fastcache v1.9.0 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/btcsuite/btcd/btcec/v2 v2.1.2 // indirect
+	github.com/cenkalti/backoff v2.2.1+incompatible // indirect
 	github.com/cespare/xxhash/v2 v2.1.2 // indirect
 	github.com/cpuguy83/go-md2man/v2 v2.0.1 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
