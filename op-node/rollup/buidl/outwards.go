@@ -132,7 +132,7 @@ func (og *Outgoing) Output(ctx context.Context, history map[ChannelID]uint64, ma
 	// TODO scan from safe-head to unsafe-head and fill unsafeBlocks
 
 	out := &OutputData{Channels: make(map[ChannelID]uint64)}
-	out.Data = append(out.Data, ChannelVersion0)
+	out.Data = append(out.Data, DerivationVersion0)
 
 	// check full history, and add data for any channels we still consider to be open.
 	for chID, frameNr := range history {
@@ -214,6 +214,11 @@ func (og *Outgoing) Output(ctx context.Context, history map[ChannelID]uint64, ma
 	// Open new channels while we have space left to output to.
 	for {
 		if ctx.Err() != nil { // return what we have if we run out of time.
+			return out, nil
+		}
+
+		// submitted everything, yay!
+		if len(unsafeBlocksSorted) == 0 {
 			return out, nil
 		}
 
