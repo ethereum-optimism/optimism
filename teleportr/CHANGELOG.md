@@ -1,5 +1,11 @@
 # @eth-optimism/teleportr
 
+## 0.0.9
+
+### Patch Changes
+
+- 23dcba53: Better availability endpoint + retries
+
 ## 0.0.8
 
 ### Patch Changes
