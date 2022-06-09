@@ -27,8 +27,6 @@ import (
 
 func waitForTransaction(hash common.Hash, client *ethclient.Client, timeout time.Duration) (*types.Receipt, error) {
 	timeoutCh := time.After(timeout)
-	ticker := time.NewTicker(100 * time.Millisecond)
-	defer ticker.Stop()
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 	for {
@@ -42,7 +40,7 @@ func waitForTransaction(hash common.Hash, client *ethclient.Client, timeout time
 		select {
 		case <-timeoutCh:
 			return nil, errors.New("timeout")
-		case <-ticker.C:
+		case <-time.After(100 * time.Millisecond):
 		}
 	}
 }
