@@ -18,16 +18,6 @@ import { validators } from './validators'
 export type Options = {
   [key: string]: any
 }
-interface BaseServiceV2Params<TOptions, TMetrics extends MetricsV2> {
-  name: string
-  optionsSpec: OptionsSpec<TOptions>
-  metricsSpec: MetricsSpec<TMetrics>
-  options?: Partial<TOptions>
-  loop?: boolean
-  loopIntervalMs?: number
-  port?: number
-  hostname?: string
-}
 
 export type StandardOptions = {
   loopIntervalMs?: number
@@ -91,6 +81,11 @@ export abstract class BaseServiceV2<
    * Waiting period in ms between loops, if the service will loop.
    */
   protected loopIntervalMs: number
+
+  /**
+   * Whether or not the service is currently running.
+   */
+  protected running: boolean
 
   /**
    * Whether or not the service is currently healthy.
@@ -383,8 +378,6 @@ export abstract class BaseServiceV2<
    * main function. Will also catch unhandled errors.
    */
   public async run(): Promise<void> {
-    // reset this.loop to the user provided option
-    this.loop = this.params.loop
     // Start the app server if not yet running.
     if (!this.server) {
       this.logger.info('starting app server')
@@ -455,6 +448,7 @@ export abstract class BaseServiceV2<
 
     if (this.loop) {
       this.logger.info('starting main loop')
+      this.running = true
 
       const doLoop = async () => {
         try {
@@ -470,7 +464,7 @@ export abstract class BaseServiceV2<
         }
 
         // Sleep between loops if we're still running (service not stopped).
-        if (this.loop) {
+        if (this.running) {
           this.pollingTimeout = setTimeout(doLoop, this.loopIntervalMs)
         }
       }
@@ -487,7 +481,7 @@ export abstract class BaseServiceV2<
    */
   public async stop(): Promise<void> {
     this.logger.info('Stopping main loop...')
-    this.loop = false
+    this.running = false
     clearTimeout(this.pollingTimeout)
     this.logger.info('Waiting for main to complete')
     // if main is in the middle of running wait for it to complete
