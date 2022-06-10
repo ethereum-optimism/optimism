@@ -381,7 +381,17 @@ export abstract class BaseServiceV2<
       app.use(bodyParser.urlencoded({ extended: true }))
 
       // Logging.
-      app.use(morgan('short'))
+      app.use(
+        morgan('short', {
+          stream: {
+            write: (str: string) => {
+              this.logger.info(`server log`, {
+                log: str,
+              })
+            },
+          },
+        })
+      )
 
       // Metrics.
       // Will expose a /metrics endpoint by default.
