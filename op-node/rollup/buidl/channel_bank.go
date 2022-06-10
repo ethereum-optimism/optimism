@@ -3,7 +3,6 @@ package buidl
 import (
 	"context"
 	"encoding/binary"
-	"errors"
 	"fmt"
 	"io"
 
@@ -11,112 +10,12 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 )
 
-// count the tagging info as 200 in terms of buffer size.
-const frameOverhead = 200
-
-const DerivationVersion0 = 0
-
-// channel ID, frame number, frame length, last frame bool
-const minimumFrameSize = ChannelIDSize + 1 + 1 + 1
-
-// ChannelTimeout is the number of seconds until a channel is removed if it's not read
-const ChannelTimeout = 10 * 60
-
-// MaxChannelBankSize is the amount of memory space, in number of bytes,
-// till the bank is pruned by removing channels,
-// starting with the oldest channel.
-const MaxChannelBankSize = 100_000_000
-
-// DuplicateErr is returned when a newly read frame is already known
-var DuplicateErr = errors.New("duplicate frame")
-
-// ChannelIDSize defines the length of a channel ID
-const ChannelIDSize = 32 // TODO: we can maybe use smaller IDs. As long as we don't get random collisions
-
-// ChannelID identifies a "channel" a stream encoding a sequence of L2 information.
-// A channelID is not a perfect nonce number, but is based on time instead:
-// only once the L1 block time passes the channel ID, the channel can be read.
-// A channel is not read before that, and instead buffered for later consumption.
-type ChannelID [ChannelIDSize]byte
-
-type TaggedData struct {
-	L1Origin  eth.L1BlockRef
-	ChannelID ChannelID
-	Data      []byte
-}
-
-type Channel struct {
-	// id of the channel
-	id ChannelID
-
-	// estimated memory size, used to drop the channel if we have too much data
-	size uint64
-
-	progress uint64
-
-	firstSeen uint64
-
-	// final frame number (inclusive). Max value if we haven't seen the end yet.
-	endsAt uint64
-
-	inputs map[uint64]*TaggedData
-}
-
-// IngestData buffers a frame in the channel, and potentially forwards it, along with any previously buffered frames
-func (ch *Channel) IngestData(ref eth.L1BlockRef, frameNum uint64, isLast bool, frameData []byte) error {
-	if frameNum < ch.progress {
-		// already consumed a frame with equal number, this must be a duplicate
-		return DuplicateErr
-	}
-	if frameNum > ch.endsAt {
-		return fmt.Errorf("channel already ended ingesting inputs")
-	}
-	// the frame is from the current or future, it will be read from the buffer later
-
-	// create buffer if it didn't exist yet
-	if ch.inputs == nil {
-		ch.inputs = make(map[uint64]*TaggedData)
-	}
-	if _, exists := ch.inputs[frameNum]; exists {
-		// already seen a frame for this channel with this frame number
-		return DuplicateErr
-	}
-	// buffer the frame
-	ch.inputs[frameNum] = &TaggedData{
-		L1Origin:  ref,
-		ChannelID: ch.id,
-		Data:      frameData,
-	}
-	if isLast {
-		ch.endsAt = frameNum
-	}
-	ch.size += uint64(len(frameData)) + frameOverhead
-	return nil
-}
-
-// Read next tagged piece of data. This may return nil if there is none.
-func (ch *Channel) Read() *TaggedData {
-	taggedData, ok := ch.inputs[ch.progress]
-	if !ok {
-		return nil
-	}
-	ch.size -= uint64(len(taggedData.Data)) + frameOverhead
-	delete(ch.inputs, ch.progress)
-	ch.progress += 1
-	return taggedData
-}
-
-// Closed returns if this channel has been fully read yet.
-func (ch *Channel) Closed() bool {
-	return ch.progress > ch.endsAt
-}
-
 // ChannelBank buffers channel frames, and emits TaggedData to an onProgress channel.
 type ChannelBank struct {
 	log log.Logger
 
 	// channels by ID
-	channels map[ChannelID]*Channel
+	channels map[ChannelID]*ChannelIn
 	// channels in FIFO order
 	channelQueue []ChannelID
 
@@ -250,7 +149,7 @@ func (ib *ChannelBank) IngestData(data []byte) error {
 				continue
 			}
 		} else { // create new channel if it doesn't exist yet
-			currentCh = &Channel{id: chID, endsAt: ^uint64(0), firstSeen: ib.currentL1Origin.Time}
+			currentCh = &ChannelIn{id: chID, endsAt: ^uint64(0), firstSeen: ib.currentL1Origin.Time}
 			ib.channels[chID] = currentCh
 			ib.channelQueue = append(ib.channelQueue, chID)
 		}
@@ -282,7 +181,7 @@ func NewChannelBank(ctx context.Context, log log.Logger, l1Start eth.L1BlockRef,
 	}
 	bank := &ChannelBank{
 		log:             log,
-		channels:        make(map[ChannelID]*Channel),
+		channels:        make(map[ChannelID]*ChannelIn),
 		currentL1Origin: blocks[len(blocks)-1],
 	}
 

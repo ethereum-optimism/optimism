@@ -1,10 +1,12 @@
 package buidl
 
 import (
-	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"io"
+
+	"github.com/ethereum-optimism/optimism/op-node/eth"
 )
 
+// TODO: maybe rename to ChannelInReader ?
 type Pipeline struct {
 	// Returns the next frame to process
 	// blocks until there is new data to consume
