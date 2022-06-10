@@ -18,7 +18,7 @@ commands:
       - checkout
       - run:
           name: Lint
-          command: golangci-lint run -E goimports -E sqlclosecheck -E bodyclose -E asciicheck ./...
+          command: echo "Test"; golangci-lint run -E goimports -E sqlclosecheck -E bodyclose -E asciicheck ./...
           working_directory: <<parameters.working_directory>>
       - run:
           name: Test
