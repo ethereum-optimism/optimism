@@ -4,6 +4,7 @@ namespace: goerli-replica-0-5-14-beta
 commonLabels:
   network: goerli
   provider: internal
+  sync_source: l2
 
 bases:
   - ../../../envs/goerli-devnet

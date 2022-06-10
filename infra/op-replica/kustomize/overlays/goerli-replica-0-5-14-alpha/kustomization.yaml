@@ -4,6 +4,7 @@ namespace: goerli-replica-0-5-14-alpha
 commonLabels:
   network: goerli
   provider: internal
+  sync_source: l2
 
 bases:
   - ../../../envs/goerli-devnet
@@ -23,9 +24,6 @@ images:
   - name: ethereumoptimism/l2geth
     newName: ethereumoptimism/l2geth
     newTag: 0.5.14
-  - name: ethereumoptimism/replica-healthcheck
-    newName: ethereumoptimism/replica-healthcheck
-    newTag: 0.3.6
   - name: ethereumoptimism/replica-healthcheck-v1
     newName: ethereumoptimism/replica-healthcheck
     newTag: 1.0.6
