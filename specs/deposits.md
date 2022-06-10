@@ -50,9 +50,11 @@ transaction types:
 1. They are derived from Layer 1 blocks, and must be included as part of the protocol.
 2. They do not include signature validation (see [User-Deposited Transactions][user-deposited]
    for the rationale).
+3. They buy their L2 gas on L1 and, as such, the L2 gas is not refundable.
 
-We define a new [EIP-2718] compatible transaction type with the prefix `0x7E`, and the following
-fields (rlp encoded in the order they appear here):
+We define a new [EIP-2718] compatible transaction type with the prefix `0x7E`, and then a versioned
+byte sequence. The first version has `0x00` as the version byte and then as the following fields
+(rlp encoded in the order they appear here):
 
 [EIP-2718]: https://eips.ethereum.org/EIPS/eip-2718
 
@@ -75,6 +77,9 @@ Picking a high identifier minimizes the risk that the identifier will be used be
 transaction type on the L1 chain in the future. We don't pick `0x7F` itself in case it becomes used
 for a variable-length encoding scheme.
 
+We chose to add a version field to the deposit transaction to enable the protocol to upgrade the deposit
+transaction type without having to take another [EIP-2718] transaction type selector.
+
 ### Source hash computation
 
 The `sourceHash` of a deposit transaction is computed based on the origin:
@@ -84,7 +89,7 @@ The `sourceHash` of a deposit transaction is computed based on the origin:
   Where the `l1BlockHash`, and `l1LogIndex` all refer to the inclusion of the deposit log event on L1.
   `l1LogIndex` is the index of the deposit event log in the combined list of log events of the block.
 - L1 attributes deposited:
-  `keccak256(bytes32(uint256(1)), keccak256(bytes32(uint256(l1BlockHash)), bytes32(uint256(seqNumber))`.
+  `keccak256(bytes32(uint256(1)), keccak256(l1BlockHash), bytes32(uint256(seqNumber)))`.
   Where `l1BlockHash` refers to the L1 block hash of which the info attributes are deposited.
   And `seqNumber = l2BlockNum - l2EpochStartBlockNum`,
   where `l2BlockNum` is the L2 block number of the inclusion of the deposit tx in L2,
@@ -138,6 +143,11 @@ follows:
 - `context.gas` set to `gasLimit`
 - `context.value` set to `sendValue`
 
+No gas is bought on L2 and no refund is provided. The gas used for the deposit is subtracted from
+the gas pool on L2. Gas usage exactly matches other transaction types (including intrinsic gas).
+If a deposit runs out of gas or has some other failure, the mint will succeed and the nonce of the
+account will be increased, but no other state transition will occur.
+
 #### Nonce Handling
 
 Despite the lack of signature validation, we still increment the nonce of the `from` account when a
@@ -163,7 +173,7 @@ This transaction MUST have the following values:
    contract][predeploy]).
 3. `mint` is `0`
 4. `value` is `0`
-5. `gasLimit` is set to the maximum available.
+5. `gasLimit` is set to 75,000.
 6. `data` is an [ABI] encoded call to the [L1 attributes predeployed contract][predeploy]'s
    `setL1BlockValues()` function with correct values associated with the corresponding L1 block (cf.
    [reference implementation][l1-attr-ref-implem]).
@@ -244,6 +254,10 @@ feed contract][deposit-feed-contract] on L1.
 The deposit contract is deployed to L1. Deposited transactions are derived from the values in
 the `TransactionDeposited` event(s) emitted by the deposit contract.
 
+The deposit contract is responsible for maintaing the [guaranteed gas market](./guaranteed-gas-market.md),
+charging deposits for gas to be used on L2, and ensuring that the total amount of guaranted
+gas in a single L1 block does not exceed the L2 block gas limit.
+
 The deposit contract handles two special cases:
 
 1. A contract creation deposit, which is indicated by setting the `isCreation` flag to `true`.
@@ -256,8 +270,7 @@ The deposit contract handles two special cases:
 [address-aliasing]: #address-aliasing
 
 If the caller is a contract, the address will be transformed by adding
-`0x1111000000000000000000000000000000001111` to it. This is the reverse of the
-transformation described in the [deposits spec](./withdrawals.md#address-aliasing). This prevents attacks in which a
+`0x1111000000000000000000000000000000001111` to it. This prevents attacks in which a
 contract on L1 has the same address as a contract on L2 but doesn't have the same code. We can safely ignore this
 for EOAs because they're guaranteed to have the same "code" (i.e. no code at all). This also makes
 it possible for users to interact with contracts on L2 even when the Sequencer is down.

@@ -37,20 +37,25 @@ export class MessageRelayerService extends BaseServiceV2<
 > {
   constructor(options?: Partial<MessageRelayerOptions>) {
     super({
-      name: 'Message_Relayer',
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      version: require('../package.json').version,
+      name: 'message-relayer',
       options,
       optionsSpec: {
         l1RpcProvider: {
           validator: validators.provider,
           desc: 'Provider for interacting with L1.',
+          secret: true,
         },
         l2RpcProvider: {
           validator: validators.provider,
           desc: 'Provider for interacting with L2.',
+          secret: true,
         },
         l1Wallet: {
           validator: validators.wallet,
           desc: 'Wallet used to interact with L1.',
+          secret: true,
         },
         fromL2TransactionIndex: {
           validator: validators.num,

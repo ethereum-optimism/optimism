@@ -498,9 +498,40 @@ jobs:
           name: run itests
           command: make test-integration
 
+  semgrep-scan:
+    parameters:
+        diff_branch:
+          type: string
+          default: develop
+    environment:
+      # Scan changed files in PRs, block on new issues only (existing issues ignored)
+      SEMGREP_BASELINE_REF: << parameters.diff_branch >>
+      SEMGREP_REPO_URL: << pipeline.project.git_url >>
+      SEMGREP_BRANCH: << pipeline.git.branch >>
+      SEMGREP_COMMIT: << pipeline.git.revision >>
+
+      # Change job timeout (default is 1800 seconds; set to 0 to disable)
+      SEMGREP_TIMEOUT: 3000
+
+    docker:
+      - image: returntocorp/semgrep
+    resource_class: xlarge
+    steps:
+      - checkout
+      - run:
+          name: "Set environment variables" # for PR comments and in-app hyperlinks to findings
+          command: |
+              echo 'export SEMGREP_PR_ID=${CIRCLE_PULL_REQUEST##*/}' >> $BASH_ENV
+              echo 'export SEMGREP_JOB_URL=$CIRCLE_BUILD_URL' >> $BASH_ENV
+              echo 'export SEMGREP_REPO_NAME=$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME' >> $BASH_ENV
+      - run:
+          name: "Semgrep scan"
+          command: semgrep ci
+
 workflows:
   main:
     jobs:
+      - semgrep-scan
       - yarn-monorepo
       - bedrock-go-tests
       - bedrock-markdown

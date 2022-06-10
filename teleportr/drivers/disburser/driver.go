@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/cenkalti/backoff"
 	"github.com/ethereum-optimism/optimism/bss-core/metrics"
 	"github.com/ethereum-optimism/optimism/bss-core/txmgr"
 	"github.com/ethereum-optimism/optimism/teleportr/bindings/deposit"
@@ -344,7 +345,23 @@ func (d *Driver) SendTransaction(
 		return err
 	}
 
-	return d.cfg.L2Client.SendTransaction(ctx, tx)
+	// This requires special handling - if this request fails,
+	// then teleportr will halt. Use exponential backoff here to
+	// handle expected failures (e.g., 503s, 524s, etc.).
+	return backoff.Retry(func() error {
+		subCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+		defer cancel()
+		err := d.cfg.L2Client.SendTransaction(subCtx, tx)
+		if err == nil {
+			return err
+		}
+		if !IsRetryableError(err) {
+			d.metrics.FailedTXSubmissions.WithLabelValues("permanent").Inc()
+			return backoff.Permanent(err)
+		}
+		d.metrics.FailedTXSubmissions.WithLabelValues("recoverable").Inc()
+		return err
+	}, DefaultBackoff)
 }
 
 // processPendingTxs is a helper method which updates Postgres with the effects

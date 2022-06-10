@@ -1,5 +1,32 @@
 # @eth-optimism/replica-healthcheck
 
+## 1.1.1
+
+### Patch Changes
+
+- Updated dependencies [9ba869a7]
+- Updated dependencies [050859fd]
+  - @eth-optimism/common-ts@0.3.1
+
+## 1.1.0
+
+### Minor Changes
+
+- 84a8934c: BaseServiceV2 exposes service name and version as standard synthetic metric
+
+### Patch Changes
+
+- Updated dependencies [d9e39931]
+- Updated dependencies [84a8934c]
+  - @eth-optimism/common-ts@0.3.0
+
+## 1.0.9
+
+### Patch Changes
+
+- Updated dependencies [9ecbf3e5]
+  - @eth-optimism/common-ts@0.2.10
+
 ## 1.0.8
 
 ### Patch Changes

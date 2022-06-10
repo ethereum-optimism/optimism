@@ -170,6 +170,8 @@ func TestL2OutputSubmitter(t *testing.T) {
 
 	// Wait for batch submitter to update L2 output oracle.
 	timeoutCh := time.After(15 * time.Second)
+	ticker := time.NewTicker(1 * time.Second)
+	defer ticker.Stop()
 	for {
 		l2ooTimestamp, err := l2OutputOracle.LatestBlockTimestamp(&bind.CallOpts{})
 		require.Nil(t, err)
@@ -205,7 +207,7 @@ func TestL2OutputSubmitter(t *testing.T) {
 		select {
 		case <-timeoutCh:
 			t.Fatalf("State root oracle not updated")
-		case <-time.After(time.Second):
+		case <-ticker.C:
 		}
 	}
 
