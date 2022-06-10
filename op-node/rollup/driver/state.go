@@ -7,8 +7,9 @@ import (
 	gosync "sync"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
+
 	"github.com/ethereum-optimism/optimism/op-node/eth"
-	"github.com/ethereum-optimism/optimism/op-node/l2"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	"github.com/ethereum/go-ethereum/log"
@@ -28,7 +29,7 @@ type state struct {
 
 	// Connections (in/out)
 	l1Heads          chan eth.L1BlockRef
-	unsafeL2Payloads chan *l2.ExecutionPayload
+	unsafeL2Payloads chan *eth.ExecutionPayload
 	l1               L1Chain
 	l2               L2Chain
 	output           outputInterface
@@ -55,7 +56,7 @@ func NewState(log log.Logger, snapshotLog log.Logger, config rollup.Config, l1Ch
 		network:          network,
 		sequencer:        sequencer,
 		l1Heads:          make(chan eth.L1BlockRef, 10),
-		unsafeL2Payloads: make(chan *l2.ExecutionPayload, 10),
+		unsafeL2Payloads: make(chan *eth.ExecutionPayload, 10),
 	}
 }
 
@@ -120,7 +121,7 @@ func (s *state) OnL1Head(ctx context.Context, head eth.L1BlockRef) error {
 	}
 }
 
-func (s *state) OnUnsafeL2Payload(ctx context.Context, payload *l2.ExecutionPayload) error {
+func (s *state) OnUnsafeL2Payload(ctx context.Context, payload *eth.ExecutionPayload) error {
 	select {
 	case <-ctx.Done():
 		return ctx.Err()
@@ -167,7 +168,7 @@ func (s *state) handleNewL1Block(ctx context.Context, newL1Head eth.L1BlockRef) 
 		return err
 	}
 	// Update forkchoice
-	fc := l2.ForkchoiceState{
+	fc := eth.ForkchoiceState{
 		HeadBlockHash:      unsafeL2Head.Hash,
 		SafeBlockHash:      safeL2Head.Hash,
 		FinalizedBlockHash: s.l2Finalized.Hash,
@@ -316,7 +317,7 @@ func (s *state) handleEpoch(ctx context.Context) (bool, error) {
 
 }
 
-func (s *state) handleUnsafeL2Payload(ctx context.Context, payload *l2.ExecutionPayload) error {
+func (s *state) handleUnsafeL2Payload(ctx context.Context, payload *eth.ExecutionPayload) error {
 	if s.l2SafeHead.Number > uint64(payload.BlockNumber) {
 		s.log.Info("ignoring unsafe L2 execution payload, already have safe payload", "id", payload.ID())
 		return nil
@@ -326,7 +327,7 @@ func (s *state) handleUnsafeL2Payload(ctx context.Context, payload *l2.Execution
 	// The engine should never reorg past the finalized block hash however.
 	// The engine may attempt syncing via p2p if there is a larger gap in the L2 chain.
 
-	l2Ref, err := l2.PayloadToBlockRef(payload, &s.Config.Genesis)
+	l2Ref, err := derive.PayloadToBlockRef(payload, &s.Config.Genesis)
 	if err != nil {
 		return fmt.Errorf("failed to derive L2 block ref from payload: %v", err)
 	}

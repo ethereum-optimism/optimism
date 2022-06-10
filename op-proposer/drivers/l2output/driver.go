@@ -7,8 +7,9 @@ import (
 	"math/big"
 	"strings"
 
+	"github.com/ethereum-optimism/optimism/op-node/eth"
+
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
-	"github.com/ethereum-optimism/optimism/op-node/l2"
 	"github.com/ethereum-optimism/optimism/op-proposer/rollupclient"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
@@ -20,7 +21,7 @@ import (
 )
 
 var bigOne = big.NewInt(1)
-var supportedL2OutputVersion = l2.Bytes32{}
+var supportedL2OutputVersion = eth.Bytes32{}
 
 type Config struct {
 	Log          log.Logger
@@ -261,16 +262,16 @@ func (d *Driver) SendTransaction(
 	return d.cfg.L1Client.SendTransaction(ctx, tx)
 }
 
-func (d *Driver) outputRootAtBlock(ctx context.Context, blockNum *big.Int) (l2.Bytes32, error) {
+func (d *Driver) outputRootAtBlock(ctx context.Context, blockNum *big.Int) (eth.Bytes32, error) {
 	output, err := d.cfg.RollupClient.OutputAtBlock(ctx, blockNum)
 	if err != nil {
-		return l2.Bytes32{}, err
+		return eth.Bytes32{}, err
 	}
 	if len(output) != 2 {
-		return l2.Bytes32{}, fmt.Errorf("invalid outputAtBlock response")
+		return eth.Bytes32{}, fmt.Errorf("invalid outputAtBlock response")
 	}
 	if version := output[0]; version != supportedL2OutputVersion {
-		return l2.Bytes32{}, fmt.Errorf("unsupported l2 output version")
+		return eth.Bytes32{}, fmt.Errorf("unsupported l2 output version")
 	}
 	return output[1], nil
 }

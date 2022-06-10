@@ -1,5 +1,4 @@
-// Package l2 connects to the L2 execution engine over the Engine API.
-package l2
+package eth
 
 import (
 	"bytes"
@@ -8,8 +7,6 @@ import (
 	"reflect"
 
 	"github.com/ethereum/go-ethereum/trie"
-
-	"github.com/ethereum-optimism/optimism/op-node/eth"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -111,16 +108,16 @@ type ExecutionPayload struct {
 	Transactions []Data `json:"transactions"`
 }
 
-func (payload *ExecutionPayload) ID() eth.BlockID {
-	return eth.BlockID{Hash: payload.BlockHash, Number: uint64(payload.BlockNumber)}
+func (payload *ExecutionPayload) ID() BlockID {
+	return BlockID{Hash: payload.BlockHash, Number: uint64(payload.BlockNumber)}
 }
 
-func (payload *ExecutionPayload) ParentID() eth.BlockID {
+func (payload *ExecutionPayload) ParentID() BlockID {
 	n := uint64(payload.BlockNumber)
 	if n > 0 {
 		n -= 1
 	}
-	return eth.BlockID{Hash: payload.ParentHash, Number: n}
+	return BlockID{Hash: payload.ParentHash, Number: n}
 }
 
 type rawTransactions []Data
