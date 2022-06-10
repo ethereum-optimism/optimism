@@ -49,6 +49,23 @@ export type MetricsSpec<TMetrics extends MetricsV2> = {
   }
 }
 
+export interface BaseServiceV2Params<TOptions, TMetrics extends MetricsV2> {
+  name: string
+  version: string
+  optionsSpec: OptionsSpec<TOptions>
+  metricsSpec: MetricsSpec<TMetrics>
+  options?: Partial<TOptions>
+  loop?: boolean
+  loopIntervalMs?: number
+  port?: number
+  hostname?: string
+  /**
+   * Optionally override promBundleConfig defaults
+   * https://www.npmjs.com/package/express-prom-bundle
+   */
+  promBundleConfig?: promBundle.Opts
+}
+
 export type ExpressRouter = Router
 
 /**
@@ -144,17 +161,9 @@ export abstract class BaseServiceV2<
    * @param params.port Port for the app server. Defaults to 7300.
    * @param params.hostname Hostname for the app server. Defaults to 0.0.0.0.
    */
-  constructor(params: {
-    name: string
-    version: string
-    optionsSpec: OptionsSpec<TOptions>
-    metricsSpec: MetricsSpec<TMetrics>
-    options?: Partial<TOptions>
-    loop?: boolean
-    loopIntervalMs?: number
-    port?: number
-    hostname?: string
-  }) {
+  constructor(
+    private readonly params: BaseServiceV2Params<TOptions, TMetrics>
+  ) {
     this.loop = params.loop !== undefined ? params.loop : true
     this.state = {} as TServiceState
 
@@ -408,6 +417,7 @@ export abstract class BaseServiceV2<
           includeMethod: true,
           includePath: true,
           includeStatusCode: true,
+          ...this.params.promBundleConfig,
         })
       )
 
