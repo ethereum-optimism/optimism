@@ -15,10 +15,9 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
         assertEq(oracle.owner(), sequencer);
         assertEq(oracle.SUBMISSION_INTERVAL(), submissionInterval);
         assertEq(oracle.HISTORICAL_TOTAL_BLOCKS(), historicalTotalBlocks);
-        assertEq(oracle.latestBlockNumber(), startingBlockNumber);
-        assertEq(oracle.STARTING_BLOCK_NUMBER(), startingBlockNumber);
+        assertEq(oracle.latestBlockNumber(), oracle.HISTORICAL_TOTAL_BLOCKS() + 1);
 
-        L2OutputOracle.OutputProposal memory proposal = oracle.getL2Output(startingBlockNumber);
+        L2OutputOracle.OutputProposal memory proposal = oracle.getL2Output(initNumber);
         assertEq(proposal.outputRoot, genesisL2Output);
         assertEq(proposal.timestamp, initTime);
     }

@@ -52,13 +52,11 @@ contract L2OutputOracle_Initializer is CommonTest {
     bytes32 genesisL2Output = keccak256(abi.encode(0));
     uint256 historicalTotalBlocks = 199;
 
-    // Cache of the initial L2 Number
-    uint256 startingBlockNumber;
 
     // By default the first block has timestamp and number zero, which will cause underflows in the
     // tests, so we'll move forward to these block values.
     uint256 initTime = 1000;
-    uint256 initNumber = 200;
+    uint256 initNumber = historicalTotalBlocks + 1;
 
     function setUp() public virtual {
         _setUp();
@@ -70,10 +68,8 @@ contract L2OutputOracle_Initializer is CommonTest {
             submissionInterval,
             genesisL2Output,
             historicalTotalBlocks,
-            initNumber,
             sequencer
         );
-        startingBlockNumber = initNumber;
     }
 }
 
