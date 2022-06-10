@@ -175,6 +175,14 @@ func FinalizeWithdrawalParameters(ctx context.Context, l2client ProofClient, txH
 		return FinalizedWithdrawalParameters{}, err
 	}
 	slot := StorageSlotOfWithdrawalHash(withdrawalHash)
+
+	// temp for debugging.
+	// This does not seem to be the source of error.
+	// In the previous commit for which this test is  working the output is:
+	// Slot: 0x0fc5f1f8a00bac48be88365a30af798f877e907941a92407d9f4b15fef77eea1
+	fmt.Println("Expected Slot Value: 0x0fc5f1f8a00bac48be88365a30af798f877e907941a92407d9f4b15fef77eea1")
+	fmt.Println("Actual Slot Value:", slot)
+
 	p, err := l2client.GetProof(ctx, common.HexToAddress(predeploys.L2ToL1MessagePasser), []string{slot.String()}, header.Number)
 	if err != nil {
 		return FinalizedWithdrawalParameters{}, err

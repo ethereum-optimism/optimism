@@ -791,6 +791,22 @@ func TestWithdrawals(t *testing.T) {
 	require.Nil(t, err)
 
 	opts.Value = nil
+	fmt.Println(common.BytesToHash(params.OutputRootProof.LatestBlockhash[:]))
+	// Passing output: 0xf83e8be03362a2d3525c1c0e20c702911fb0c4d744859031e6a710e7bb60bcae
+	// Failing output: 0x1a01f543cc2c50b9a3486f0a3a875be9f691a36a05462cc8d47fbed2136b1ff8
+
+	fmt.Println(common.BytesToHash(params.OutputRootProof.Version[:]))
+	// Passing output: 0x0000000000000000000000000000000000000000000000000000000000000000
+	// Failing output: 0x0000000000000000000000000000000000000000000000000000000000000000
+
+	fmt.Println(common.BytesToHash(params.OutputRootProof.StateRoot[:]))
+	// Passing output: 0x05e4dec541f09ebf78007fe4f9a459f5d2fa8baf64209b9346389a179106b141
+	// Failing output: 0x52fbd1769a7291f97fbd725199e7ec4e1301c7ea4c9848619b56a967c259f7e1
+
+	fmt.Println(common.BytesToHash(params.OutputRootProof.WithdrawerStorageRoot[:]))
+	// Passing output: 0xa0bf87ca157c40178a859dfd4ab4987d7b94402384a40eece46fb8be4f5b020e
+	// Failing output: 0xa0bf87ca157c40178a859dfd4ab4987d7b94402384a40eece46fb8be4f5b020e
+
 	tx, err = portal.FinalizeWithdrawalTransaction(
 		opts,
 		params.Nonce,

@@ -405,7 +405,6 @@ func (cfg SystemConfig) start() (*System, error) {
 		sys.cfg.L2OOCfg.SubmissionFrequency,
 		sys.cfg.L2OOCfg.GenesisL2Output,
 		sys.cfg.L2OOCfg.HistoricalTotalBlocks,
-		sys.cfg.L2OOCfg.L2StartingBlock,
 		l2OutputSubmitterAddr,
 	)
 	sys.cfg.DepositCFG.L2Oracle = sys.L2OOContractAddr
