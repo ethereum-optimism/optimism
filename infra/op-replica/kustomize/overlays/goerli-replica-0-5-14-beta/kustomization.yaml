@@ -23,9 +23,6 @@ images:
   - name: ethereumoptimism/l2geth
     newName: ethereumoptimism/l2geth
     newTag: 0.5.14
-  - name: ethereumoptimism/replica-healthcheck
-    newName: ethereumoptimism/replica-healthcheck
-    newTag: 0.3.6
   - name: ethereumoptimism/replica-healthcheck-v1
     newName: ethereumoptimism/replica-healthcheck
     newTag: 1.0.6
@@ -49,6 +46,12 @@ patches:
       name: data-transport-layer
 
 configMapGenerator:
+  - name: data-transport-layer-sync-source
+    envs:
+      - ./data-transport-layer-sync-source.env
+  - name: l2geth-replica-sync-source
+    envs:
+      - ./l2geth-replica-sync-source.env
   - name: replica-healthcheck-v1
     envs:
       - ./replica-healthcheck-v1.env

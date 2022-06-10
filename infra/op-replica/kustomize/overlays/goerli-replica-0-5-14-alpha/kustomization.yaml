@@ -49,6 +49,12 @@ patches:
       name: data-transport-layer
 
 configMapGenerator:
+  - name: data-transport-layer-sync-source
+    envs:
+      - ./data-transport-layer-sync-source.env
+  - name: l2geth-replica-sync-source
+    envs:
+      - ./l2geth-replica-sync-source.env
   - name: replica-healthcheck-v1
     envs:
       - ./replica-healthcheck-v1.env
