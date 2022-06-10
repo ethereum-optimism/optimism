@@ -266,7 +266,7 @@ func TestSystemE2E(t *testing.T) {
 	receipt, err := waitForTransaction(tx.Hash(), l1Client, 3*time.Duration(cfg.L1BlockTime)*time.Second)
 	require.Nil(t, err, "Waiting for deposit tx on L1")
 
-	reconstructedDep, err := derive.UnmarshalLogEvent(receipt.Logs[0])
+	reconstructedDep, err := derive.UnmarshalDepositLogEvent(receipt.Logs[0])
 	require.NoError(t, err, "Could not reconstruct L2 Deposit")
 	tx = types.NewTx(reconstructedDep)
 	receipt, err = waitForTransaction(tx.Hash(), l2Verif, 3*time.Duration(cfg.L1BlockTime)*time.Second)
@@ -356,7 +356,7 @@ func TestMintOnRevertedDeposit(t *testing.T) {
 	receipt, err := waitForTransaction(tx.Hash(), l1Client, 3*time.Duration(cfg.L1BlockTime)*time.Second)
 	require.Nil(t, err, "Waiting for deposit tx on L1")
 
-	reconstructedDep, err := derive.UnmarshalLogEvent(receipt.Logs[0])
+	reconstructedDep, err := derive.UnmarshalDepositLogEvent(receipt.Logs[0])
 	require.NoError(t, err, "Could not reconstruct L2 Deposit")
 	tx = types.NewTx(reconstructedDep)
 	receipt, err = waitForTransaction(tx.Hash(), l2Verif, 3*time.Duration(cfg.L1BlockTime)*time.Second)
@@ -716,7 +716,7 @@ func TestWithdrawals(t *testing.T) {
 	require.Nil(t, err, "binding withdrawer on L2")
 
 	// Wait for deposit to arrive
-	reconstructedDep, err := derive.UnmarshalLogEvent(receipt.Logs[0])
+	reconstructedDep, err := derive.UnmarshalDepositLogEvent(receipt.Logs[0])
 	require.NoError(t, err, "Could not reconstruct L2 Deposit")
 	tx = types.NewTx(reconstructedDep)
 	receipt, err = waitForTransaction(tx.Hash(), l2Verif, 3*time.Duration(cfg.L1BlockTime)*time.Second)
