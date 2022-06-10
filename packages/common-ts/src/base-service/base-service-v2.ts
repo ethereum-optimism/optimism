@@ -13,7 +13,7 @@ import bodyParser from 'body-parser'
 import morgan from 'morgan'
 
 import { Logger } from '../common/logger'
-import { Metric } from './metrics'
+import { Metric, Gauge, Counter } from './metrics'
 import { validators } from './validators'
 
 export type Options = {
@@ -31,11 +31,17 @@ export type OptionsSpec<TOptions extends Options> = {
     validator: (spec?: Spec<TOptions[P]>) => ValidatorSpec<TOptions[P]>
     desc: string
     default?: TOptions[P]
+    secret?: boolean
   }
 }
 
 export type MetricsV2 = {
   [key: string]: Metric
+}
+
+export type StandardMetrics = {
+  metadata: Gauge
+  unhandledErrors: Counter
 }
 
 export type MetricsSpec<TMetrics extends MetricsV2> = {
@@ -99,7 +105,7 @@ export abstract class BaseServiceV2<
   /**
    * Metrics.
    */
-  protected readonly metrics: TMetrics
+  protected readonly metrics: TMetrics & StandardMetrics
 
   /**
    * Registry for prometheus metrics.
@@ -137,6 +143,7 @@ export abstract class BaseServiceV2<
    */
   constructor(params: {
     name: string
+    version: string
     optionsSpec: OptionsSpec<TOptions>
     metricsSpec: MetricsSpec<TMetrics>
     options?: Partial<TOptions>
@@ -167,6 +174,31 @@ export abstract class BaseServiceV2<
         validator: validators.str,
         desc: 'Hostname for the app server',
         default: params.hostname || '0.0.0.0',
+      },
+    }
+
+    // List of options that can safely be logged.
+    const publicOptionNames = Object.entries(params.optionsSpec)
+      .filter(([, spec]) => {
+        return spec.secret !== true
+      })
+      .map(([key]) => {
+        return key
+      })
+
+    // Add default metrics to metrics spec.
+    ;(params.metricsSpec as any) = {
+      ...(params.metricsSpec || {}),
+
+      // Users cannot set these options.
+      metadata: {
+        type: Gauge,
+        desc: 'Service metadata',
+        labels: ['name', 'version'].concat(publicOptionNames),
+      },
+      unhandledErrors: {
+        type: Counter,
+        desc: 'Unhandled errors',
       },
     }
 
@@ -274,7 +306,7 @@ export abstract class BaseServiceV2<
         labelNames: spec.labels || [],
       })
       return acc
-    }, {}) as TMetrics
+    }, {}) as TMetrics & StandardMetrics
 
     // Create the metrics server.
     this.metricsRegistry = prometheus.register
@@ -309,6 +341,19 @@ export abstract class BaseServiceV2<
     // Handle stop signals.
     process.on('SIGTERM', stop)
     process.on('SIGINT', stop)
+
+    // Set metadata synthetic metric.
+    this.metrics.metadata.set(
+      {
+        name: params.name,
+        version: params.version,
+        ...publicOptionNames.reduce((acc, key) => {
+          acc[key] = config.str(key)
+          return acc
+        }, {}),
+      },
+      1
+    )
   }
 
   /**
@@ -330,21 +375,7 @@ export abstract class BaseServiceV2<
       app.use(bodyParser.urlencoded({ extended: true }))
 
       // Logging.
-      app.use(
-        morgan((tokens, req, res) => {
-          return [
-            tokens.method(req, res),
-            tokens.url(req, res),
-            tokens.status(req, res),
-            JSON.stringify(req.body),
-            '\n',
-            tokens.res(req, res, 'content-length'),
-            '-',
-            tokens['response-time'](req, res),
-            'ms',
-          ].join(' ')
-        })
-      )
+      app.use(morgan('short'))
 
       // Metrics.
       // Will expose a /metrics endpoint by default.
@@ -397,6 +428,7 @@ export abstract class BaseServiceV2<
         try {
           await this.main()
         } catch (err) {
+          this.metrics.unhandledErrors.inc()
           this.logger.error('caught an unhandled exception', {
             message: err.message,
             stack: err.stack,

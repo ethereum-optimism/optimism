@@ -32,6 +32,8 @@ type State = {
 export class FaultDetector extends BaseServiceV2<Options, Metrics, State> {
   constructor(options?: Partial<Options>) {
     super({
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      version: require('../package.json').version,
       name: 'fault-detector',
       loop: true,
       loopIntervalMs: 1000,
@@ -40,10 +42,12 @@ export class FaultDetector extends BaseServiceV2<Options, Metrics, State> {
         l1RpcProvider: {
           validator: validators.provider,
           desc: 'Provider for interacting with L1',
+          secret: true,
         },
         l2RpcProvider: {
           validator: validators.provider,
           desc: 'Provider for interacting with L2',
+          secret: true,
         },
         startBatchIndex: {
           validator: validators.num,

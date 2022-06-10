@@ -352,6 +352,9 @@ func (d *Driver) SendTransaction(
 		subCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 		defer cancel()
 		err := d.cfg.L2Client.SendTransaction(subCtx, tx)
+		if err == nil {
+			return err
+		}
 		if !IsRetryableError(err) {
 			d.metrics.FailedTXSubmissions.WithLabelValues("permanent").Inc()
 			return backoff.Permanent(err)
