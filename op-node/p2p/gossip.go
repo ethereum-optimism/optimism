@@ -188,7 +188,7 @@ func BuildBlocksValidator(log log.Logger, cfg *rollup.Config) pubsub.ValidatorEx
 	// uint64 -> *seenBlocks
 	blockHeightLRU, err := lru.New(100)
 	if err != nil {
-		panic(fmt.Errorf("failed to set up block height LRU cache: %v", err))
+		panic(fmt.Errorf("failed to set up block height LRU cache: %w", err))
 	}
 
 	return func(ctx context.Context, id peer.ID, message *pubsub.Message) pubsub.ValidationResult {
@@ -321,13 +321,13 @@ func (p *publisher) PublishL2Payload(ctx context.Context, payload *l2.ExecutionP
 
 	buf.Write(make([]byte, 65))
 	if _, err := payload.MarshalSSZ(buf); err != nil {
-		return fmt.Errorf("failed to encoded execution payload to publish: %v", err)
+		return fmt.Errorf("failed to encoded execution payload to publish: %w", err)
 	}
 	data := buf.Bytes()
 	payloadData := data[65:]
 	sig, err := signer.Sign(ctx, SigningDomainBlocksV1, p.cfg.L2ChainID, payloadData)
 	if err != nil {
-		return fmt.Errorf("failed to sign execution payload with signer: %v", err)
+		return fmt.Errorf("failed to sign execution payload with signer: %w", err)
 	}
 	copy(data[:65], sig[:])
 
@@ -350,15 +350,15 @@ func JoinGossip(p2pCtx context.Context, self peer.ID, ps *pubsub.PubSub, log log
 		pubsub.WithValidatorTimeout(3*time.Second),
 		pubsub.WithValidatorConcurrency(4))
 	if err != nil {
-		return nil, fmt.Errorf("failed to register blocks gossip topic: %v", err)
+		return nil, fmt.Errorf("failed to register blocks gossip topic: %w", err)
 	}
 	blocksTopic, err := ps.Join(blocksTopicName)
 	if err != nil {
-		return nil, fmt.Errorf("failed to join blocks gossip topic: %v", err)
+		return nil, fmt.Errorf("failed to join blocks gossip topic: %w", err)
 	}
 	blocksTopicEvents, err := blocksTopic.EventHandler()
 	if err != nil {
-		return nil, fmt.Errorf("failed to create blocks gossip topic handler: %v", err)
+		return nil, fmt.Errorf("failed to create blocks gossip topic handler: %w", err)
 	}
 	go LogTopicEvents(p2pCtx, log.New("topic", "blocks"), blocksTopicEvents)
 
@@ -370,7 +370,7 @@ func JoinGossip(p2pCtx context.Context, self peer.ID, ps *pubsub.PubSub, log log
 
 	subscription, err := blocksTopic.Subscribe()
 	if err != nil {
-		return nil, fmt.Errorf("failed to subscribe to blocks gossip topic: %v", err)
+		return nil, fmt.Errorf("failed to subscribe to blocks gossip topic: %w", err)
 	}
 
 	subscriber := MakeSubscriber(log, BlocksHandler(gossipIn.OnUnsafeL2Payload))

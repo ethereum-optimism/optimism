@@ -304,7 +304,7 @@ func (conf *Config) loadLibp2pOpts(ctx *cli.Context) error {
 		}
 		a, err := multiaddr.NewMultiaddr(addr)
 		if err != nil {
-			return fmt.Errorf("failed to parse multi addr of static peer %d (out of %d): %q err: %v", i, len(addrs), addr, err)
+			return fmt.Errorf("failed to parse multi addr of static peer %d (out of %d): %q err: %w", i, len(addrs), addr, err)
 		}
 		conf.StaticPeers = append(conf.StaticPeers, a)
 	}

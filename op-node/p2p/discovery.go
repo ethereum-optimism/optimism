@@ -111,12 +111,12 @@ func enrToAddrInfo(r *enode.Node) (*peer.AddrInfo, error) {
 	}
 	mAddr, err := multiaddr.NewMultiaddr(fmt.Sprintf("/%s/%s/tcp/%d", ipScheme, ip.String(), r.TCP()))
 	if err != nil {
-		return nil, fmt.Errorf("could not construct multi addr: %v", err)
+		return nil, fmt.Errorf("could not construct multi addr: %w", err)
 	}
 	pub := r.Pubkey()
 	peerID, err := peer.IDFromPublicKey((*crypto.Secp256k1PublicKey)(pub))
 	if err != nil {
-		return nil, fmt.Errorf("could not compute peer ID from pubkey for multi-addr: %v", err)
+		return nil, fmt.Errorf("could not compute peer ID from pubkey for multi-addr: %w", err)
 	}
 	return &peer.AddrInfo{
 		ID:    peerID,
@@ -147,18 +147,18 @@ func (o *OptimismENRData) EncodeRLP(w io.Writer) error {
 func (o *OptimismENRData) DecodeRLP(s *rlp.Stream) error {
 	b, err := s.Bytes()
 	if err != nil {
-		return fmt.Errorf("failed to decode outer ENR entry: %v", err)
+		return fmt.Errorf("failed to decode outer ENR entry: %w", err)
 	}
 	// We don't check the byte length: the below readers are limited, and the ENR itself has size limits.
 	// Future "optimism" entries may contain additional data, and will be tagged with a newer version etc.
 	r := bytes.NewReader(b)
 	chainID, err := binary.ReadUvarint(r)
 	if err != nil {
-		return fmt.Errorf("failed to read chain ID var int: %v", err)
+		return fmt.Errorf("failed to read chain ID var int: %w", err)
 	}
 	version, err := binary.ReadUvarint(r)
 	if err != nil {
-		return fmt.Errorf("failed to read version var int: %v", err)
+		return fmt.Errorf("failed to read version var int: %w", err)
 	}
 	o.chainID = chainID
 	o.version = version

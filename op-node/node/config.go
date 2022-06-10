@@ -37,14 +37,14 @@ type RPCConfig struct {
 // Check verifies that the given configuration makes sense
 func (cfg *Config) Check() error {
 	if err := cfg.L2.Check(); err != nil {
-		return fmt.Errorf("l2 endpoint config error: %v", err)
+		return fmt.Errorf("l2 endpoint config error: %w", err)
 	}
 	if err := cfg.Rollup.Check(); err != nil {
-		return fmt.Errorf("rollup config error: %v", err)
+		return fmt.Errorf("rollup config error: %w", err)
 	}
 	if cfg.P2P != nil {
 		if err := cfg.P2P.Check(); err != nil {
-			return fmt.Errorf("p2p config error: %v", err)
+			return fmt.Errorf("p2p config error: %w", err)
 		}
 	}
 	return nil

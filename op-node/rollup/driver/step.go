@@ -57,7 +57,7 @@ func lastDeposit(txns []l2.Data) (int, error) {
 func (d *outputImpl) processBlock(ctx context.Context, l2Head eth.L2BlockRef, l2SafeHead eth.BlockID, l2Finalized eth.BlockID, payload *l2.ExecutionPayload) error {
 	d.log.Info("processing new block", "parent", payload.ParentID(), "l2Head", l2Head, "id", payload.ID())
 	if err := d.l2.NewPayload(ctx, payload); err != nil {
-		return fmt.Errorf("failed to insert new payload: %v", err)
+		return fmt.Errorf("failed to insert new payload: %w", err)
 	}
 	// now try to persist a reorg to the new payload
 	fc := l2.ForkchoiceState{
@@ -67,10 +67,10 @@ func (d *outputImpl) processBlock(ctx context.Context, l2Head eth.L2BlockRef, l2
 	}
 	res, err := d.l2.ForkchoiceUpdate(ctx, &fc, nil)
 	if err != nil {
-		return fmt.Errorf("failed to update forkchoice to point to new payload: %v", err)
+		return fmt.Errorf("failed to update forkchoice to point to new payload: %w", err)
 	}
 	if res.PayloadStatus.Status != l2.ExecutionValid {
-		return fmt.Errorf("failed to persist forkchoice update: %v", err)
+		return fmt.Errorf("failed to persist forkchoice update: %w", err)
 	}
 	return nil
 }
@@ -97,7 +97,7 @@ func (d *outputImpl) createNewBlock(ctx context.Context, l2Head eth.L2BlockRef, 
 		l1Info, err = d.dl.InfoByHash(fetchCtx, l1Origin.Hash)
 	}
 	if err != nil {
-		return l2Head, nil, fmt.Errorf("failed to fetch L1 block info of %s: %v", l1Origin, err)
+		return l2Head, nil, fmt.Errorf("failed to fetch L1 block info of %s: %w", l1Origin, err)
 	}
 
 	// Start building the list of transactions to include in the new block.
@@ -147,7 +147,7 @@ func (d *outputImpl) createNewBlock(ctx context.Context, l2Head eth.L2BlockRef, 
 	// Actually execute the block and add it to the head of the chain.
 	payload, err := d.insertHeadBlock(ctx, fc, attrs, false)
 	if err != nil {
-		return l2Head, nil, fmt.Errorf("failed to extend L2 chain: %v", err)
+		return l2Head, nil, fmt.Errorf("failed to extend L2 chain: %w", err)
 	}
 
 	// Generate an L2 block ref from the payload.
@@ -186,7 +186,7 @@ func (d *outputImpl) insertEpoch(ctx context.Context, l2Head eth.L2BlockRef, l2S
 	}
 	nextL1Block, err := d.dl.InfoByHash(ctx, l1Input[1].Hash)
 	if err != nil {
-		return l2Head, l2SafeHead, false, fmt.Errorf("failed to get L1 timestamp of next L1 block: %v", err)
+		return l2Head, l2SafeHead, false, fmt.Errorf("failed to get L1 timestamp of next L1 block: %w", err)
 	}
 	deposits, errs := derive.DeriveDeposits(receipts, d.Config.DepositContractAddress)
 	for _, err := range errs {
@@ -196,7 +196,7 @@ func (d *outputImpl) insertEpoch(ctx context.Context, l2Head eth.L2BlockRef, l2S
 	// TODO: with sharding the blobs may be identified in more detail than L1 block hashes
 	transactions, err := d.dl.FetchAllTransactions(fetchCtx, l1Input)
 	if err != nil {
-		return l2Head, l2SafeHead, false, fmt.Errorf("failed to fetch transactions from %s: %v", l1Input, err)
+		return l2Head, l2SafeHead, false, fmt.Errorf("failed to fetch transactions from %s: %w", l1Input, err)
 	}
 	batches, errs := derive.BatchesFromEVMTransactions(&d.Config, transactions)
 	// Some input to derive.BatchesFromEVMTransactions may be invalid and produce errors.
