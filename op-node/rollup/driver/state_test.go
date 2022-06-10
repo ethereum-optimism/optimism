@@ -2,8 +2,6 @@ package driver
 
 import (
 	"context"
-	"strconv"
-	"strings"
 	"testing"
 	"time"
 
@@ -11,7 +9,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/testlog"
 	"github.com/ethereum-optimism/optimism/op-node/testutils"
-	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -20,27 +17,7 @@ import (
 var _ L1Chain = (*testutils.FakeChainSource)(nil)
 var _ L2Chain = (*testutils.FakeChainSource)(nil)
 
-type testID string
-
-func (id testID) ID() eth.BlockID {
-	parts := strings.Split(string(id), ":")
-	if len(parts) != 2 {
-		panic("bad id")
-	}
-	if len(parts[0]) > 32 {
-		panic("test ID hash too long")
-	}
-	var h common.Hash
-	copy(h[:], parts[0])
-	v, err := strconv.ParseUint(parts[1], 0, 64)
-	if err != nil {
-		panic(err)
-	}
-	return eth.BlockID{
-		Hash:   h,
-		Number: v,
-	}
-}
+type TestID = testutils.TestID
 
 type outputHandlerFn func(ctx context.Context, l2Head eth.L2BlockRef, l2SafeHead eth.L2BlockRef, l2Finalized eth.BlockID, l1Input []eth.BlockID) (eth.L2BlockRef, eth.L2BlockRef, bool, error)
 
@@ -70,13 +47,13 @@ type outputReturnArgs struct {
 
 type stateTestCaseStep struct {
 	// Expect l1head, l2head, and sequence window
-	l1head testID
-	l2head testID
-	window []testID
+	l1head TestID
+	l2head TestID
+	window []TestID
 
 	// l1act and l2act are ran at each step
 	l1act func(t *testing.T, s *state, src *testutils.FakeChainSource)
-	l2act func(t *testing.T, expectedWindow []testID, s *state, src *testutils.FakeChainSource, outputIn chan outputArgs, outputReturn chan outputReturnArgs)
+	l2act func(t *testing.T, expectedWindow []TestID, s *state, src *testutils.FakeChainSource, outputIn chan outputArgs, outputReturn chan outputReturnArgs)
 	reorg bool
 }
 
@@ -98,7 +75,7 @@ func stutterAdvance(t *testing.T, s *state, src *testutils.FakeChainSource) {
 	stutterL1(t, s, src)
 }
 
-func stutterL2(t *testing.T, expectedWindow []testID, s *state, src *testutils.FakeChainSource, outputIn chan outputArgs, outputReturn chan outputReturnArgs) {
+func stutterL2(t *testing.T, expectedWindow []TestID, s *state, src *testutils.FakeChainSource, outputIn chan outputArgs, outputReturn chan outputReturnArgs) {
 	select {
 	case <-outputIn:
 		t.Error("Got a step when no step should have occurred (l1 only advance)")
@@ -106,7 +83,7 @@ func stutterL2(t *testing.T, expectedWindow []testID, s *state, src *testutils.F
 	}
 }
 
-func advanceL2(t *testing.T, expectedWindow []testID, s *state, src *testutils.FakeChainSource, outputIn chan outputArgs, outputReturn chan outputReturnArgs) {
+func advanceL2(t *testing.T, expectedWindow []TestID, s *state, src *testutils.FakeChainSource, outputIn chan outputArgs, outputReturn chan outputReturnArgs) {
 	args := <-outputIn
 	assert.Equal(t, int(s.Config.SeqWindowSize), len(args.l1Window), "Invalid L1 window size")
 	assert.Equal(t, len(expectedWindow), len(args.l1Window), "L1 Window size does not match expectedWindow")
@@ -116,7 +93,7 @@ func advanceL2(t *testing.T, expectedWindow []testID, s *state, src *testutils.F
 	outputReturn <- outputReturnArgs{l2Head: src.SetL2Head(int(args.l2Head.Number) + 1), err: nil}
 }
 
-func reorg__L2(t *testing.T, expectedWindow []testID, s *state, src *testutils.FakeChainSource, outputIn chan outputArgs, outputReturn chan outputReturnArgs) {
+func reorg__L2(t *testing.T, expectedWindow []TestID, s *state, src *testutils.FakeChainSource, outputIn chan outputArgs, outputReturn chan outputReturnArgs) {
 	args := <-outputIn
 	assert.Equal(t, int(s.Config.SeqWindowSize), len(args.l1Window), "Invalid L1 window size")
 	assert.Equal(t, len(expectedWindow), len(args.l1Window), "L1 Window size does not match expectedWindow")
@@ -182,12 +159,12 @@ func TestDriver(t *testing.T) {
 			genesis:   testutils.FakeGenesis('a', 'A', 0),
 			steps: []stateTestCaseStep{
 				{l1act: stutterL1, l2act: stutterL2, l1head: "a:0", l2head: "A:0"},
-				{l1act: advanceL1, l2act: stutterL2, l1head: "b:1", l2head: "A:0", window: []testID{"a:0", "b:1"}},
-				{l1act: advanceL1, l2act: advanceL2, l1head: "c:2", l2head: "B:1", window: []testID{"b:1", "c:2"}},
-				{l1act: advanceL1, l2act: advanceL2, l1head: "d:3", l2head: "C:2", window: []testID{"c:2", "d:3"}},
-				{l1act: advanceL1, l2act: advanceL2, l1head: "e:4", l2head: "D:3", window: []testID{"d:3", "e:4"}},
-				{l1act: advanceL1, l2act: advanceL2, l1head: "f:5", l2head: "E:4", window: []testID{"e:4", "f:5"}},
-				{l1act: advanceL1, l2act: advanceL2, l1head: "g:6", l2head: "F:5", window: []testID{"f:5", "g:6"}},
+				{l1act: advanceL1, l2act: stutterL2, l1head: "b:1", l2head: "A:0", window: []TestID{"a:0", "b:1"}},
+				{l1act: advanceL1, l2act: advanceL2, l1head: "c:2", l2head: "B:1", window: []TestID{"b:1", "c:2"}},
+				{l1act: advanceL1, l2act: advanceL2, l1head: "d:3", l2head: "C:2", window: []TestID{"c:2", "d:3"}},
+				{l1act: advanceL1, l2act: advanceL2, l1head: "e:4", l2head: "D:3", window: []TestID{"d:3", "e:4"}},
+				{l1act: advanceL1, l2act: advanceL2, l1head: "f:5", l2head: "E:4", window: []TestID{"e:4", "f:5"}},
+				{l1act: advanceL1, l2act: advanceL2, l1head: "g:6", l2head: "F:5", window: []TestID{"f:5", "g:6"}},
 			},
 		},
 		{
@@ -198,17 +175,17 @@ func TestDriver(t *testing.T) {
 			genesis:   testutils.FakeGenesis('a', 'A', 0),
 			steps: []stateTestCaseStep{
 				{l1act: stutterL1, l2act: stutterL2, l1head: "a:0", l2head: "A:0"},
-				{l1act: advanceL1, l2act: stutterL2, l1head: "b:1", l2head: "A:0", window: []testID{"a:0", "b:1"}},
-				{l1act: advanceL1, l2act: advanceL2, l1head: "c:2", l2head: "B:1", window: []testID{"b:1", "c:2"}},
-				{l1act: advanceL1, l2act: advanceL2, l1head: "d:3", l2head: "C:2", window: []testID{"c:2", "d:3"}},
-				{l1act: advanceL1, l2act: advanceL2, l1head: "e:4", l2head: "D:3", window: []testID{"d:3", "e:4"}},
-				{l1act: advanceL1, l2act: advanceL2, l1head: "f:5", l2head: "E:4", window: []testID{"e:4", "f:5"}},
-				{l1act: advanceL1, l2act: advanceL2, l1head: "g:6", l2head: "F:5", window: []testID{"f:5", "g:6"}},
-				{l1act: stutterL1, l2act: reorg__L2, l1head: "z:6", l2head: "C:2", window: []testID{"c:2", "w:3"}, reorg: true},
-				{l1act: stutterL1, l2act: advanceL2, l1head: "z:6", l2head: "W:3", window: []testID{"w:3", "x:4"}},
-				{l1act: stutterL1, l2act: advanceL2, l1head: "z:6", l2head: "X:4", window: []testID{"x:4", "y:5"}},
-				{l1act: stutterL1, l2act: advanceL2, l1head: "z:6", l2head: "Y:5", window: []testID{"y:5", "z:6"}},
-				{l1act: stutterL1, l2act: stutterL2, l1head: "z:6", l2head: "Y:5", window: []testID{}},
+				{l1act: advanceL1, l2act: stutterL2, l1head: "b:1", l2head: "A:0", window: []TestID{"a:0", "b:1"}},
+				{l1act: advanceL1, l2act: advanceL2, l1head: "c:2", l2head: "B:1", window: []TestID{"b:1", "c:2"}},
+				{l1act: advanceL1, l2act: advanceL2, l1head: "d:3", l2head: "C:2", window: []TestID{"c:2", "d:3"}},
+				{l1act: advanceL1, l2act: advanceL2, l1head: "e:4", l2head: "D:3", window: []TestID{"d:3", "e:4"}},
+				{l1act: advanceL1, l2act: advanceL2, l1head: "f:5", l2head: "E:4", window: []TestID{"e:4", "f:5"}},
+				{l1act: advanceL1, l2act: advanceL2, l1head: "g:6", l2head: "F:5", window: []TestID{"f:5", "g:6"}},
+				{l1act: stutterL1, l2act: reorg__L2, l1head: "z:6", l2head: "C:2", window: []TestID{"c:2", "w:3"}, reorg: true},
+				{l1act: stutterL1, l2act: advanceL2, l1head: "z:6", l2head: "W:3", window: []TestID{"w:3", "x:4"}},
+				{l1act: stutterL1, l2act: advanceL2, l1head: "z:6", l2head: "X:4", window: []TestID{"x:4", "y:5"}},
+				{l1act: stutterL1, l2act: advanceL2, l1head: "z:6", l2head: "Y:5", window: []TestID{"y:5", "z:6"}},
+				{l1act: stutterL1, l2act: stutterL2, l1head: "z:6", l2head: "Y:5", window: []TestID{}},
 			},
 		},
 		{
@@ -219,12 +196,12 @@ func TestDriver(t *testing.T) {
 			genesis:   testutils.FakeGenesis('a', 'A', 0),
 			steps: []stateTestCaseStep{
 				{l1act: stutterL1, l2act: stutterL2, l1head: "a:0", l2head: "A:0"},
-				{l1act: advanceL1, l2act: stutterL2, l1head: "b:1", l2head: "A:0", window: []testID{"a:0", "b:1"}},
-				{l1act: stutterAdvance, l2act: advanceL2, l1head: "c:2", l2head: "B:1", window: []testID{"b:1", "c:2"}},
-				{l1act: advanceL1, l2act: advanceL2, l1head: "d:3", l2head: "C:2", window: []testID{"c:2", "d:3"}},
-				{l1act: advanceL1, l2act: advanceL2, l1head: "e:4", l2head: "D:3", window: []testID{"d:3", "e:4"}},
-				{l1act: advanceL1, l2act: advanceL2, l1head: "f:5", l2head: "E:4", window: []testID{"e:4", "f:5"}},
-				{l1act: advanceL1, l2act: advanceL2, l1head: "g:6", l2head: "F:5", window: []testID{"f:5", "g:6"}},
+				{l1act: advanceL1, l2act: stutterL2, l1head: "b:1", l2head: "A:0", window: []TestID{"a:0", "b:1"}},
+				{l1act: stutterAdvance, l2act: advanceL2, l1head: "c:2", l2head: "B:1", window: []TestID{"b:1", "c:2"}},
+				{l1act: advanceL1, l2act: advanceL2, l1head: "d:3", l2head: "C:2", window: []TestID{"c:2", "d:3"}},
+				{l1act: advanceL1, l2act: advanceL2, l1head: "e:4", l2head: "D:3", window: []TestID{"d:3", "e:4"}},
+				{l1act: advanceL1, l2act: advanceL2, l1head: "f:5", l2head: "E:4", window: []TestID{"e:4", "f:5"}},
+				{l1act: advanceL1, l2act: advanceL2, l1head: "g:6", l2head: "F:5", window: []TestID{"f:5", "g:6"}},
 			},
 		},
 	}

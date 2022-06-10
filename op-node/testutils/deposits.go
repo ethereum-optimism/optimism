@@ -8,17 +8,6 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 )
 
-func GenerateAddress(rng *rand.Rand) (out common.Address) {
-	rng.Read(out[:])
-	return
-}
-
-func RandETH(rng *rand.Rand, max int64) *big.Int {
-	x := big.NewInt(rng.Int63n(max))
-	x = new(big.Int).Mul(x, big.NewInt(1e18))
-	return x
-}
-
 // Returns a DepositEvent customized on the basis of the id parameter.
 func GenerateDeposit(sourceHash common.Hash, rng *rand.Rand) *types.DepositTx {
 	dataLen := rng.Int63n(10_000)
@@ -27,19 +16,19 @@ func GenerateDeposit(sourceHash common.Hash, rng *rand.Rand) *types.DepositTx {
 
 	var to *common.Address
 	if rng.Intn(2) == 0 {
-		x := GenerateAddress(rng)
+		x := RandomAddress(rng)
 		to = &x
 	}
 	var mint *big.Int
 	if rng.Intn(2) == 0 {
-		mint = RandETH(rng, 200)
+		mint = RandomETH(rng, 200)
 	}
 
 	dep := &types.DepositTx{
 		SourceHash: sourceHash,
-		From:       GenerateAddress(rng),
+		From:       RandomAddress(rng),
 		To:         to,
-		Value:      RandETH(rng, 200),
+		Value:      RandomETH(rng, 200),
 		Gas:        uint64(rng.Int63n(10 * 1e6)), // 10 M gas max
 		Data:       data,
 		Mint:       mint,

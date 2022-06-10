@@ -15,7 +15,7 @@ func TestUnmarshalLogEvent(t *testing.T) {
 		t.Run(fmt.Sprintf("random_deposit_%d", i), func(t *testing.T) {
 			rng := rand.New(rand.NewSource(1234 + i))
 			source := UserDepositSource{
-				L1BlockHash: randomHash(rng),
+				L1BlockHash: testutils.RandomHash(rng),
 				LogIndex:    uint64(rng.Intn(10000)),
 			}
 			depInput := testutils.GenerateDeposit(source.SourceHash(), rng)
@@ -67,7 +67,7 @@ func TestDeriveUserDeposits(t *testing.T) {
 			var receipts []*types.Receipt
 			var expectedDeposits []*types.DepositTx
 			logIndex := uint(0)
-			blockHash := randomHash(rng)
+			blockHash := testutils.RandomHash(rng)
 			for txIndex, rData := range testCase.receipts {
 				var logs []*types.Log
 				status := types.ReceiptStatusSuccessful
@@ -84,7 +84,7 @@ func TestDeriveUserDeposits(t *testing.T) {
 						}
 						ev = MarshalDepositLogEvent(MockDepositContractAddr, dep)
 					} else {
-						ev = testutils.GenerateLog(testutils.GenerateAddress(rng), nil, nil)
+						ev = testutils.GenerateLog(testutils.RandomAddress(rng), nil, nil)
 					}
 					ev.TxIndex = uint(txIndex)
 					ev.Index = logIndex
