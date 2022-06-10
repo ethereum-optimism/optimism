@@ -1,118 +1,77 @@
 package buidl
 
 import (
-	"bytes"
 	"context"
 	"crypto/rand"
-	"encoding/binary"
 	"fmt"
-	"io"
 	"sort"
+	"sync"
+
+	"github.com/ethereum-optimism/optimism/op-node/l2"
+	"github.com/ethereum-optimism/optimism/op-node/rollup"
 
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum/go-ethereum/log"
 )
 
-type OutChannel struct {
-	id ChannelID
-
-	// the L2 blocks that were encoded in this channel
-	blocks []eth.BlockID
-
-	// Frame ID of the next frame to emit. Increment after emitting
-	frame uint64
-
-	// How much we've pulled from the reader so far
-	offset uint64
-
-	// time of creation, to prune out old timed-out channels
-	created uint64
-
-	// Nil when closed
-	reader io.Reader
-
-	// scratch for temporary buffering
-	scratch bytes.Buffer
+type BlocksSource interface {
+	Block(ctx context.Context, id eth.BlockID) (*l2.ExecutionPayload, error)
 }
 
-func makeUVarint(x uint64) []byte {
-	var tmp [binary.MaxVarintLen64]byte
-	n := binary.PutUvarint(tmp[:], x)
-	return tmp[:n]
+type UnsafeBlocksSource interface {
+	BlocksSource
+	UnsafeBlockIDs(ctx context.Context, max uint64) ([]eth.BlockID, error)
 }
 
-func (oc *OutChannel) Closed() bool {
-	return oc.reader == nil
+type OutputData struct {
+	// Channels identifies all channels that were involved in this output, with their last frame ID.
+	// Empty if no new data was produced.
+	Channels map[ChannelID]uint64 `json:"channels"`
+
+	// Data to post to L1, encodes channel version byte and one or more frames
+	Data []byte `json:"data"`
 }
 
-func (oc *OutChannel) Output(maxSize uint64) ([]byte, error) {
-	if oc.reader == nil {
-		return nil, fmt.Errorf("channel is closed")
-	}
+// ChannelEmitter maintains open channels and emits data with channel frames to confirm the L2 unsafe blocks.
+type ChannelEmitter struct {
+	mu sync.Mutex
 
-	var out []byte
-	out = append(out, oc.id[:]...)
-	out = append(out, makeUVarint(oc.frame)...)
-	// +1 for single byte of frame content, +1 for lastFrame bool
-	if uint64(len(out))+2 > maxSize {
-		return nil, fmt.Errorf("no more space: %d > %d", len(out), maxSize)
-	}
-
-	remaining := maxSize - uint64(len(out))
-	maxFrameLen := remaining - 1 // -1 for the bool at the end
-	// estimate how many bytes we lose with encoding the length of the frame
-	// by encoding the max length (larger uvarints take more space)
-	maxFrameLen -= uint64(len(makeUVarint(maxFrameLen)))
-
-	oc.scratch.Reset()
-	_, err := io.CopyN(&oc.scratch, oc.reader, int64(maxFrameLen))
-	frameLen := uint64(len(oc.scratch.Bytes()))
-	oc.offset += frameLen
-	lastFrame := err == io.EOF
-	if err != nil && !lastFrame {
-		return nil, fmt.Errorf("failed to read data for frame: %w", err)
-	}
-	out = append(out, makeUVarint(frameLen)...)
-	out = append(out, oc.scratch.Bytes()...)
-	if lastFrame {
-		out = append(out, 1)
-		oc.reader = nil // close the channel
-	} else {
-		out = append(out, 0)
-	}
-	oc.frame += 1
-	return out, nil
-}
-
-type Outgoing struct {
 	log log.Logger
 
+	cfg *rollup.Config
+
+	source UnsafeBlocksSource
+
 	// pruned when timed out. We keep track of fully read channels to avoid resubmitting data.
-	channels map[ChannelID]*OutChannel
+	channels map[ChannelID]*ChannelOut
 
 	l1Head eth.L1BlockRef
 }
 
+func NewChannelEmitter(log log.Logger, cfg *rollup.Config, source UnsafeBlocksSource, l1Head eth.L1BlockRef) *ChannelEmitter {
+	return &ChannelEmitter{
+		log:      log,
+		cfg:      cfg,
+		source:   source,
+		channels: make(map[ChannelID]*ChannelOut),
+		l1Head:   l1Head,
+	}
+}
+
 // SetL1Head updates the L1 head, so the old channels can be pruned
-func (og *Outgoing) SetL1Head(head eth.L1BlockRef) {
+func (og *ChannelEmitter) SetL1Head(head eth.L1BlockRef) {
 	og.l1Head = head
 }
 
 // TODO: based on previous data we may be able to reconstruct a partially-consumed channel, to continue it on a fresh (restarted or different instance) rollup node.
 
-type OutputData struct {
-	// Channels identifies all channels that were involved in this output, with their last frame ID.
-	// Empty if no new data was produced.
-	Channels map[ChannelID]uint64
-
-	// Data to post to L1, encodes channel version byte and one or more frames
-	Data []byte
-}
-
 // history is the collection of channels that have been submitted, and the frame ID of the last submission
-func (og *Outgoing) Output(ctx context.Context, history map[ChannelID]uint64, maxSize uint64, maxBlocksPerChannel uint64) (*OutputData, error) {
+func (og *ChannelEmitter) Output(ctx context.Context, history map[ChannelID]uint64, maxSize uint64, maxBlocksPerChannel uint64) (*OutputData, error) {
+	og.mu.Lock()
+	defer og.mu.Unlock()
+
 	if og.channels == nil {
-		og.channels = make(map[ChannelID]*OutChannel)
+		og.channels = make(map[ChannelID]*ChannelOut)
 	}
 
 	// prune timed out channels, before adding new ones
@@ -129,7 +88,13 @@ func (og *Outgoing) Output(ctx context.Context, history map[ChannelID]uint64, ma
 
 	// We find the first 1000 unsafe blocks that we may want to put in the output
 	unsafeBlocks := make(map[eth.BlockID]struct{})
-	// TODO scan from safe-head to unsafe-head and fill unsafeBlocks
+	if blocks, err := og.source.UnsafeBlockIDs(ctx, 1000); err != nil {
+		return nil, fmt.Errorf("failed to get list of unsafe blocks to submit: %v", err)
+	} else {
+		for _, b := range blocks {
+			unsafeBlocks[b] = struct{}{}
+		}
+	}
 
 	out := &OutputData{Channels: make(map[ChannelID]uint64)}
 	out.Data = append(out.Data, DerivationVersion0)
@@ -242,9 +207,14 @@ func (og *Outgoing) Output(ctx context.Context, history map[ChannelID]uint64, ma
 		if uint64(len(blocks)) > maxBlocksPerChannel {
 			blocks = blocks[:maxBlocksPerChannel]
 		}
-		// TODO construct reader for encoding the data
-		var r io.Reader
-		outCh := &OutChannel{
+		// and don't repeat them
+		unsafeBlocksSorted = unsafeBlocksSorted[len(blocks):]
+		r, err := newChannelOutReader(ctx, &og.cfg.Genesis, og.source, blocks)
+		if err != nil {
+			// no log&continue, something is wrong, abort.
+			return nil, fmt.Errorf("failed to create channel reader for blocks: %v", err)
+		}
+		outCh := &ChannelOut{
 			id:      id,
 			blocks:  blocks,
 			frame:   0,
