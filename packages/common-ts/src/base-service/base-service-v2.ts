@@ -360,6 +360,12 @@ export abstract class BaseServiceV2<
       },
       1
     )
+
+    // Collect default node metrics.
+    prometheus.collectDefaultMetrics({
+      register: this.metricsRegistry,
+      labels: { name: params.name, version: params.version },
+    })
   }
 
   /**
