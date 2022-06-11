@@ -1,5 +1,17 @@
 # @eth-optimism/teleportr
 
+## 0.0.10
+
+### Patch Changes
+
+- ed3a39fb: Fix panic
+
+## 0.0.9
+
+### Patch Changes
+
+- 23dcba53: Better availability endpoint + retries
+
 ## 0.0.8
 
 ### Patch Changes
