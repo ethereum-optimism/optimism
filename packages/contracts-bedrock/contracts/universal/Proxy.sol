@@ -183,7 +183,7 @@ contract Proxy {
     }
 
     /**
-     * @dev Performs the proxy call via a delegatecall.
+     * @notice Performs the proxy call via a delegatecall.
      */
     function _doProxyCall() internal {
         address implementation = _getImplementation();

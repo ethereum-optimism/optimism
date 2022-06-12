@@ -159,6 +159,8 @@ contract Proxy_Test is Test {
 
         // Set the new SimpleStorage as the implementation
         // and call.
+        vm.expectEmit(true, true, true, true);
+        emit Upgraded(address(simpleStorage));
         vm.prank(alice);
         proxy.upgradeToAndCall(
             address(simpleStorage),
