@@ -65,6 +65,8 @@ func (cr *ChannelInReader) readChannel(p []byte) (n int, err error) {
 		if err != nil {
 			return 0, fmt.Errorf("channel reader source failed: %w", err)
 		}
+		// always keep L1 origin up to date: it may change per frame
+		cr.l1Origin = next.L1Origin
 		// reset if we switched to a new channel, append frame data otherwise
 		if cr.channel != next.ChannelID {
 			if err := cr.reset(next.Data, next.ChannelID); err != nil {
