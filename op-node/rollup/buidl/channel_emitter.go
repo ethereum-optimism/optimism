@@ -7,7 +7,6 @@ import (
 	"sort"
 	"sync"
 
-	"github.com/ethereum-optimism/optimism/op-node/l2"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 
 	"github.com/ethereum-optimism/optimism/op-node/eth"
@@ -15,7 +14,7 @@ import (
 )
 
 type BlocksSource interface {
-	Block(ctx context.Context, id eth.BlockID) (*l2.ExecutionPayload, error)
+	Block(ctx context.Context, id eth.BlockID) (*eth.ExecutionPayload, error)
 }
 
 type UnsafeBlocksSource interface {
