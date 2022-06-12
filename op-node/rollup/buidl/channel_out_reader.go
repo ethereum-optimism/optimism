@@ -90,17 +90,22 @@ func (cr *channelOutReader) Read(p []byte) (n int, err error) {
 	bufN, err := cr.buf.Read(p)
 	if err != nil {
 		if err == io.EOF {
-			err = nil
-			if bufN != 0 {
-				return bufN, nil
-			}
 			// if the buffer is empty, then encode the next block to it
 			if err := cr.encodeNext(); err != nil {
-				return 0, err
+				if err == io.EOF { // if there are no more blocks, close (includes flush) the compression stream
+					if err := cr.compress.Close(); err != nil {
+						return 0, err
+					}
+					// read what remains (if any). May return an EOF if the flush left nothing.
+					return cr.buf.Read(p)
+				} else if err != nil {
+					return 0, err
+				}
 			}
 			// and read from the new buffer
 			return cr.buf.Read(p)
 		} else {
+			// the buffer never errors at the same time as reading data.
 			return 0, err
 		}
 	}
