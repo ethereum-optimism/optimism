@@ -44,9 +44,10 @@ func (ch *ChannelIn) IngestData(ref eth.L1BlockRef, frameNum uint64, isLast bool
 	}
 	// buffer the frame
 	ch.inputs[frameNum] = &TaggedData{
-		L1Origin:  ref,
-		ChannelID: ch.id,
-		Data:      frameData,
+		L1Origin:    ref,
+		ChannelID:   ch.id,
+		FrameNumber: frameNum,
+		Data:        frameData,
 	}
 	if isLast {
 		ch.endsAt = frameNum
