@@ -7,7 +7,6 @@ import (
 	"io"
 
 	"github.com/ethereum-optimism/optimism/op-node/eth"
-	"github.com/ethereum-optimism/optimism/op-node/l2"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -44,7 +43,7 @@ func newChannelOutReader(ctx context.Context, genesis *rollup.Genesis, source Bl
 	}, nil
 }
 
-func (cr *channelOutReader) readPayload() (*l2.ExecutionPayload, error) {
+func (cr *channelOutReader) readPayload() (*eth.ExecutionPayload, error) {
 	if len(cr.blocks) == 0 {
 		return nil, io.EOF
 	}
@@ -60,7 +59,7 @@ func (cr *channelOutReader) readBatch() (*derive.BatchData, error) {
 	if err != nil {
 		return nil, err
 	}
-	ref, err := l2.PayloadToBlockRef(payload, cr.genesis)
+	ref, err := derive.PayloadToBlockRef(payload, cr.genesis)
 	if err != nil {
 		return nil, err
 	}

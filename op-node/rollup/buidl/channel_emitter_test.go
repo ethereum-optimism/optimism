@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-node/eth"
-	"github.com/ethereum-optimism/optimism/op-node/l2"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/testlog"
@@ -17,10 +16,10 @@ import (
 )
 
 type mockUnsafeSource struct {
-	blocks []*l2.ExecutionPayload
+	blocks []*eth.ExecutionPayload
 }
 
-func (m *mockUnsafeSource) Block(ctx context.Context, id eth.BlockID) (*l2.ExecutionPayload, error) {
+func (m *mockUnsafeSource) Block(ctx context.Context, id eth.BlockID) (*eth.ExecutionPayload, error) {
 	for _, b := range m.blocks {
 		if b.ID() == id {
 			return b, nil
@@ -59,26 +58,26 @@ func TestOutput(t *testing.T) {
 	var l1Info derive.L1Info // derive.randomL1Info()
 	l1InfoTx, err := derive.L1InfoDepositBytes(2, l1Info)
 	require.NoError(t, err)
-	src := &mockUnsafeSource{blocks: []*l2.ExecutionPayload{
-		&l2.ExecutionPayload{
+	src := &mockUnsafeSource{blocks: []*eth.ExecutionPayload{
+		&eth.ExecutionPayload{
 			BlockNumber:  1,
 			BlockHash:    common.Hash{1},
-			Transactions: []l2.Data{l1InfoTx, randomData(5000), randomData(3000)},
+			Transactions: []eth.Data{l1InfoTx, randomData(5000), randomData(3000)},
 		},
-		&l2.ExecutionPayload{
+		&eth.ExecutionPayload{
 			BlockNumber:  2,
 			BlockHash:    common.Hash{2},
-			Transactions: []l2.Data{l1InfoTx, randomData(4000)}, // will be partially in previous tx, and part in the next
+			Transactions: []eth.Data{l1InfoTx, randomData(4000)}, // will be partially in previous tx, and part in the next
 		},
-		&l2.ExecutionPayload{
+		&eth.ExecutionPayload{
 			BlockNumber:  3,
 			BlockHash:    common.Hash{3},
-			Transactions: []l2.Data{l1InfoTx, randomData(3000), randomData(3000)},
+			Transactions: []eth.Data{l1InfoTx, randomData(3000), randomData(3000)},
 		},
-		&l2.ExecutionPayload{
+		&eth.ExecutionPayload{
 			BlockNumber:  4,
 			BlockHash:    common.Hash{4},
-			Transactions: []l2.Data{l1InfoTx, randomData(5000), randomData(6000)},
+			Transactions: []eth.Data{l1InfoTx, randomData(5000), randomData(6000)},
 		},
 	}}
 	cfg := &rollup.Config{
