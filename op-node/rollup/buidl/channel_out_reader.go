@@ -43,6 +43,16 @@ func newChannelOutReader(ctx context.Context, genesis *rollup.Genesis, source Bl
 	}, nil
 }
 
+// TODO: it would be nice to re-use the channel reader for new channels,
+// but only after the channel is removed and the old channel is no longer read
+func (cr *channelOutReader) Reset(ctx context.Context, blocks []eth.BlockID) {
+	cr.blocks = blocks
+	cr.i = 0
+	cr.buf.Reset()
+	cr.compress.Reset(cr.buf)
+	cr.ctx = ctx
+}
+
 func (cr *channelOutReader) readPayload() (*eth.ExecutionPayload, error) {
 	if len(cr.blocks) == 0 {
 		return nil, io.EOF
@@ -88,26 +98,21 @@ func (cr *channelOutReader) encodeNext() error {
 func (cr *channelOutReader) Read(p []byte) (n int, err error) {
 	// try to empty the buffer first, we cannot write to it until we have read it all
 	bufN, err := cr.buf.Read(p)
-	if err != nil {
-		if err == io.EOF {
-			// if the buffer is empty, then encode the next block to it
-			if err := cr.encodeNext(); err != nil {
-				if err == io.EOF { // if there are no more blocks, close (includes flush) the compression stream
-					if err := cr.compress.Close(); err != nil {
-						return 0, err
-					}
-					// read what remains (if any). May return an EOF if the flush left nothing.
-					return cr.buf.Read(p)
-				} else if err != nil {
+	if err != nil { // *bytes.Buffer.Read() only returns io.EOF errors, and only if the buffer is empty.
+		// if the buffer is empty, then encode the next block to it
+		if err := cr.encodeNext(); err != nil {
+			if err == io.EOF { // if there are no more blocks, close (includes flush) the compression stream
+				if err := cr.compress.Close(); err != nil {
 					return 0, err
 				}
+				// read what remains (if any). May return an EOF if the flush left nothing.
+				return cr.buf.Read(p)
+			} else if err != nil {
+				return 0, err
 			}
-			// and read from the new buffer
-			return cr.buf.Read(p)
-		} else {
-			// the buffer never errors at the same time as reading data.
-			return 0, err
 		}
+		// and start reading the new data from the refilled buffer (never empty, never io.EOF error return here)
+		return cr.buf.Read(p)
 	}
 	return bufN, nil
 }
