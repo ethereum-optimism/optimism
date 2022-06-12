@@ -35,7 +35,8 @@ const ChannelIDSize = 32 // TODO: we can maybe use smaller IDs. As long as we do
 type ChannelID [ChannelIDSize]byte
 
 type TaggedData struct {
-	L1Origin  eth.L1BlockRef
-	ChannelID ChannelID
-	Data      []byte
+	L1Origin    eth.L1BlockRef
+	ChannelID   ChannelID
+	FrameNumber uint64
+	Data        []byte
 }
