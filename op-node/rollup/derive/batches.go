@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
-
 	"github.com/ethereum/go-ethereum/core/types"
 )
 

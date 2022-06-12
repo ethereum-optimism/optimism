@@ -5,7 +5,6 @@ import (
 	"math/big"
 
 	"github.com/ethereum-optimism/optimism/op-node/eth"
-
 	"github.com/ethereum-optimism/optimism/op-node/node"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/rpc"
