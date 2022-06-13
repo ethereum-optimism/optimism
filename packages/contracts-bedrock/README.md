@@ -43,3 +43,12 @@ To run only solidity tests:
 ```shell
 yarn test:forge
 ```
+
+## Deployment
+
+Create a file that corresponds to the network name in the `deploy-config`
+directory and then run the command:
+
+```shell
+npx hardhat deploy --network <network-name>
+```
