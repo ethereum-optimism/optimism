@@ -8,17 +8,16 @@ import { L1ChugSplashProxy } from "../legacy/L1ChugSplashProxy.sol";
 
 /**
  * @title ProxyAdmin
- * @dev This is an auxiliary contract meant to be assigned as the admin of a
- *      Proxy, based on the OpenZeppelin implementation. It has backwards
- *      compatibility logic to work with the various types of proxies that
- *      have been deployed by Optimism.
+ * @dev This is an auxiliary contract meant to be assigned as the admin of a Proxy, based on
+ *      the OpenZeppelin implementation. It has backwards compatibility logic to work with the
+ *      various types of proxies that have been deployed by Optimism.
  */
 contract ProxyAdmin is Owned {
     /**
      * @notice The proxy types that the ProxyAdmin can manage.
      *
-     * @custom:field OpenZeppelin     Represents the OpenZeppelin style transparent
-     *                                proxy interface, this is the standard.
+     * @custom:field OpenZeppelin     Represents the OpenZeppelin style transparent proxy
+     *                                interface, this is the standard.
      * @custom:field Chugsplash       Represents the Chugsplash proxy interface,
      *                                this is legacy.
      * @custom:field ResolvedDelegate Represents the ResolvedDelegate proxy
@@ -38,24 +37,22 @@ contract ProxyAdmin is Owned {
 
     /**
      * @custom:legacy
-     * @notice         A reverse mapping of addresses to names held in the
-     *                 AddressManager. This must be manually kept up to date
-     *                 with changes in the AddressManager for this contract
-     *                 to be able to work as an admin for the
-     *                 Lib_ResolvedDelegateProxy type.
+     * @notice A reverse mapping of addresses to names held in the AddressManager. This must be
+     *         manually kept up to date with changes in the AddressManager for this contract
+     *         to be able to work as an admin for the Lib_ResolvedDelegateProxy type.
      */
     mapping(address => string) public proxyName;
 
     /**
      * @custom:legacy
-     * @notice        The address of the address manager, this is required
-     *                to manage the Lib_ResolvedDelegateProxy type.
+     * @notice The address of the address manager, this is required to manage the
+     *         Lib_ResolvedDelegateProxy type.
      */
     Lib_AddressManager public addressManager;
 
     /**
      * @custom:legacy
-     * @notice        A legacy upgrading indicator used by the old Chugsplash Proxy.
+     * @notice A legacy upgrading indicator used by the old Chugsplash Proxy.
      */
     bool internal upgrading = false;
 
@@ -75,8 +72,8 @@ contract ProxyAdmin is Owned {
     }
 
     /**
-     * @notice Set the proxy type in the mapping. This needs to be kept up to
-     *         date by the owner of the contract.
+     * @notice Set the proxy type in the mapping. This needs to be kept up to date by the owner of
+     *         the contract.
      *
      * @param _address The address to be named.
      * @param _name    The name of the address.
@@ -86,8 +83,8 @@ contract ProxyAdmin is Owned {
     }
 
     /**
-     * @notice Set the address of the address manager. This is required to
-     *         manage the legacy `Lib_ResolvedDelegateProxy`.
+     * @notice Set the address of the address manager. This is required to manage the legacy
+     *         `Lib_ResolvedDelegateProxy`.
      *
      * @param _address The address of the address manager.
      */
@@ -97,9 +94,8 @@ contract ProxyAdmin is Owned {
 
     /**
      * @custom:legacy
-     * @notice Set an address in the address manager. This is required
-     *         because only the owner of the AddressManager can set the
-     *         addresses in it.
+     * @notice Set an address in the address manager. This is required because only the owner of
+     *         the AddressManager can set the addresses in it.
      *
      * @param _name    The name of the address to set in the address manager.
      * @param _address The address to set in the address manager.
@@ -110,8 +106,8 @@ contract ProxyAdmin is Owned {
 
     /**
      * @custom:legacy
-     * @notice Legacy function used by the old Chugsplash proxy
-     *      to determine if an upgrade is happening.
+     * @notice Legacy function used by the old Chugsplash proxy to determine if an upgrade is
+     *         happening.
      *
      * @return Whether or not there is an upgrade going on
      */
@@ -168,7 +164,7 @@ contract ProxyAdmin is Owned {
     function getProxyAdmin(Proxy proxy) external view returns (address) {
         ProxyType proxyType = proxyType[address(proxy)];
 
-        // We need to manually run the static call since the getter cannot be flagged as view
+        // We need to manually run the static call since the getter cannot be flagged as view.
         if (proxyType == ProxyType.OpenZeppelin) {
             (bool success, bytes memory returndata) = address(proxy).staticcall(
                 abi.encodePacked(Proxy.admin.selector)
@@ -187,8 +183,8 @@ contract ProxyAdmin is Owned {
     }
 
     /**
-     * @dev Changes the admin of `proxy` to `newAdmin`.
-     *      This contract must be the current admin of `proxy`.
+     * @dev Changes the admin of `proxy` to `newAdmin`. This contract must be the current admin
+     *      of `proxy`.
      *
      * @param proxy    The proxy that will have its admin updated.
      * @param newAdmin The address of the admin to update to.
@@ -206,8 +202,7 @@ contract ProxyAdmin is Owned {
     }
 
     /**
-     * @dev Upgrades `proxy` to `implementation`.
-     *      This contract must be the admin of `proxy`.
+     * @dev Upgrades `proxy` to `implementation`. This contract must be the admin of `proxy`.
      *
      * @param proxy          The address of the proxy.
      * @param implementation The address of the implementation.
