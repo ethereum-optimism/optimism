@@ -6,6 +6,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
+	"io"
 	"math/big"
 )
 
@@ -38,12 +39,17 @@ func (l2d *L2Derivation) Input(origin eth.L1BlockRef) {
 
 }
 
-// Step tries to progress the buffer,
-// and returns true if another step is expected to follow without new data in the buffer.
-func (l2d *L2Derivation) Step() (readyNext bool) {
+// Step tries to progress the buffer.
+// When no error is returned, the buffer is ready for the next Step() immediately.
+//
+// When io.EOF is returned, the buffered data is exhausted to a point where no new L2 payload
+// can be derived without more L1 data first. Step() should not be called until new L1 data.
+//
+// Other errors are critical, and the caller should reset the derivation process.
+func (l2d *L2Derivation) Step() error {
 	taggedData := l2d.bank.Read()
 	if taggedData == nil {
-		return false
+		return io.EOF
 	}
 	l2d.taggedData = append(l2d.taggedData, taggedData)
 
@@ -59,7 +65,7 @@ func (l2d *L2Derivation) Step() (readyNext bool) {
 		// if the stream is not closed, we can recover by resetting.
 		// E.g. a channel had invalid data, but a new batch submission on new channel can be read cleanly.
 		l2d.batchReader.Reset()
-		return true
+		return nil
 	}
 
 	currentOrigin := l2d.batchReader.CurrentL1Origin()
@@ -69,8 +75,8 @@ func (l2d *L2Derivation) Step() (readyNext bool) {
 		l2d.batchQueue.AddOrigin()
 	}
 
-	if err := queue.AddBatch(&batch); err != nil {
-		return nil, fmt.Errorf("failed to add batch to queue: %v", err)
+	if err := l2d.batchQueue.AddBatch(&batch); err != nil {
+		return fmt.Errorf("failed to add batch to queue: %v", err)
 	}
 
 	return queue.DeriveL2Inputs(), nil
