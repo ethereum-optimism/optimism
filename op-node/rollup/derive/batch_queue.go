@@ -2,7 +2,10 @@ package derive
 
 import (
 	"fmt"
+
 	"github.com/ethereum-optimism/optimism/op-node/eth"
+	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/log"
 )
 
@@ -11,10 +14,13 @@ type BatchesWithOrigin struct {
 	Batches []*BatchData
 }
 
+// BatchQueue contains a set of batches for every L1 block.
+// L1 blocks are contiguous and this does not support reorgs.
 type BatchQueue struct {
 	log    log.Logger
 	inputs []BatchesWithOrigin
 	last   eth.L2BlockRef
+	config *rollup.Config
 }
 
 func (bq *BatchQueue) lastOrigin() eth.BlockID {
@@ -45,16 +51,64 @@ func (bq *BatchQueue) AddBatch(batch *BatchData) error {
 }
 
 // derive any L2 chain inputs, if we have any new batches
-func (bq *BatchQueue) DeriveL2Inputs() []*eth.PayloadAttributes {
+func (bq *BatchQueue) DeriveL2Inputs(lastL2Timestamp uint64) []*eth.PayloadAttributes {
 	if len(bq.inputs) == 0 {
 		return nil
 	}
+	if uint64(len(bq.inputs)) < bq.config.SeqWindowSize {
+		return nil
+	}
 
-	// TODO implement sequencing window filtering
-	batches := FilterBatches() // some refactoring to do
+	// TODO: pull in this data from l1Origin
+	var l1Info L1Info
 
-	// TODO: if it is time for the next batch, output it
-	return nil
+	// TODO: Need receipts for every block as well.
+	var deposits []hexutil.Bytes
+	// deposits, errs := DeriveDeposits(receipts, d.Config.DepositContractAddress)
+	// for _, err := range errs {
+	// 	d.log.Error("Failed to derive a deposit", "l1OriginHash", l1Input[0].Hash, "err", err)
+	// }
+
+	l1Origin := bq.inputs[0].Origin
+	nextL1Block := bq.inputs[1].Origin
+	epoch := rollup.Epoch(l1Origin.Number)
+	minL2Time := uint64(lastL2Timestamp) + bq.config.BlockTime
+	maxL2Time := l1Origin.Time + bq.config.MaxSequencerDrift
+	if minL2Time+bq.config.BlockTime > maxL2Time {
+		maxL2Time = minL2Time + bq.config.BlockTime
+	}
+	var batches []*BatchData
+	for _, b := range bq.inputs {
+		batches = append(batches, b.Batches...)
+	}
+	batches = FilterBatches(bq.config, epoch, minL2Time, maxL2Time, batches)
+	batches = FillMissingBatches(batches, uint64(epoch), bq.config.BlockTime, minL2Time, nextL1Block.Time)
+	var attributes []*eth.PayloadAttributes
+
+	for i, batch := range batches {
+		var txns []eth.Data
+		l1InfoTx, err := L1InfoDepositBytes(uint64(i), l1Info)
+		if err != nil {
+			return nil // , fmt.Errorf("failed to create l1InfoTx: %w", err)
+		}
+		txns = append(txns, l1InfoTx)
+		if i == 0 {
+			txns = append(txns, deposits...)
+		}
+		txns = append(txns, batch.Transactions...)
+		attrs := &eth.PayloadAttributes{
+			Timestamp:             hexutil.Uint64(batch.Timestamp),
+			PrevRandao:            eth.Bytes32(l1Info.MixDigest()),
+			SuggestedFeeRecipient: bq.config.FeeRecipientAddress,
+			Transactions:          txns,
+			// we are verifying, not sequencing, we've got all transactions and do not pull from the tx-pool
+			// (that would make the block derivation non-deterministic)
+			NoTxPool: true,
+		}
+		attributes = append(attributes, attrs) // TOOD: direct assignment here
+	}
+
+	return attributes
 }
 
 func (bq *BatchQueue) Reset(head eth.L2BlockRef) {
