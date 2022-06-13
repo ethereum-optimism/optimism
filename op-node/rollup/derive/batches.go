@@ -1,37 +1,29 @@
 package derive
 
 import (
-	"bytes"
 	"fmt"
-
+	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum/go-ethereum/core/types"
 )
 
-func BatchesFromEVMTransactions(config *rollup.Config, txLists []types.Transactions) ([]*BatchData, []error) {
-	var out []*BatchData
+func DataFromEVMTransactions(config *rollup.Config, txs types.Transactions) ([]eth.Data, []error) {
+	var out []eth.Data
 	var errs []error
 	l1Signer := config.L1Signer()
-	for i, txs := range txLists {
-		for j, tx := range txs {
-			if to := tx.To(); to != nil && *to == config.BatchInboxAddress {
-				seqDataSubmitter, err := l1Signer.Sender(tx) // optimization: only derive sender if To is correct
-				if err != nil {
-					errs = append(errs, fmt.Errorf("invalid signature: tx list: %d, tx: %d, err: %w", i, j, err))
-					continue // bad signature, ignore
-				}
-				// some random L1 user might have sent a transaction to our batch inbox, ignore them
-				if seqDataSubmitter != config.BatchSenderAddress {
-					errs = append(errs, fmt.Errorf("unauthorized batch submitter: tx list: %d, tx: %d", i, j))
-					continue // not an authorized batch submitter, ignore
-				}
-				batches, err := DecodeBatches(config, bytes.NewReader(tx.Data()))
-				if err != nil {
-					errs = append(errs, fmt.Errorf("invalid batch: tx list: %d, tx: %d, err: %w", i, j, err))
-					continue
-				}
-				out = append(out, batches...)
+	for j, tx := range txs {
+		if to := tx.To(); to != nil && *to == config.BatchInboxAddress {
+			seqDataSubmitter, err := l1Signer.Sender(tx) // optimization: only derive sender if To is correct
+			if err != nil {
+				errs = append(errs, fmt.Errorf("invalid signature: tx list: %d, tx: %d, err: %w", i, j, err))
+				continue // bad signature, ignore
 			}
+			// some random L1 user might have sent a transaction to our batch inbox, ignore them
+			if seqDataSubmitter != config.BatchSenderAddress {
+				errs = append(errs, fmt.Errorf("unauthorized batch submitter: tx list: %d, tx: %d", i, j))
+				continue // not an authorized batch submitter, ignore
+			}
+			out = append(out, tx.Data())
 		}
 	}
 	return out, errs
