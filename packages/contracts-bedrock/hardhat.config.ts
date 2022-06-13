@@ -1,3 +1,4 @@
+import { ethers } from 'ethers'
 import { HardhatUserConfig, task, subtask } from 'hardhat/config'
 import { TASK_COMPILE_SOLIDITY_GET_SOURCE_PATHS } from 'hardhat/builtin-tasks/task-names'
 import '@nomiclabs/hardhat-waffle'
@@ -46,6 +47,27 @@ const config: HardhatUserConfig = {
   namedAccounts: {
     deployer: {
       default: 0,
+    },
+  },
+  deployConfigSpec: {
+    submissionInterval: {
+      type: 'number',
+    },
+    l2BlockTime: {
+      type: 'number',
+    },
+    genesisOutput: {
+      type: 'string',
+      default: ethers.constants.HashZero,
+    },
+    historicalBlocks: {
+      type: 'number',
+    },
+    startingBlockTimestamp: {
+      type: 'number',
+    },
+    sequencerAddress: {
+      type: 'address',
     },
   },
   solidity: {
