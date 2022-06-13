@@ -93,6 +93,9 @@ loop:
 	if err != nil {
 		return 0, err
 	}
+	if output.OutputRoot == [32]byte{} {
+		return 0, errors.New("empty output root. likely no proposal at timestamp")
+	}
 	targetTimestamp := new(big.Int).Add(output.Timestamp, finalizationPeriod)
 	targetTime := time.Unix(targetTimestamp.Int64(), 0)
 	// Assume clock is relatively correct

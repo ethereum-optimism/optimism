@@ -393,7 +393,7 @@ func (cfg SystemConfig) start() (*System, error) {
 	sys.cfg.RollupConfig.Genesis = sys.RolupGenesis
 	sys.cfg.RollupConfig.BatchSenderAddress = batchSubmitterAddr
 	sys.cfg.RollupConfig.P2PSequencerAddress = p2pSignerAddr
-	sys.cfg.L2OOCfg.L2StartingBlock = new(big.Int)
+	sys.cfg.L2OOCfg.L2StartingBlock = new(big.Int).SetUint64(l2GenesisID.Number)
 
 	// Deploy Deposit Contract
 	deployerPrivKey, err := sys.wallet.PrivateKey(accounts.Account{

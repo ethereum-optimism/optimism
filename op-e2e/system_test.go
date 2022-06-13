@@ -183,6 +183,7 @@ func TestL2OutputSubmitter(t *testing.T) {
 		if l2ooBlockNumber.Cmp(initialOutputBlockNumber) > 0 {
 			// Retrieve the l2 output committed at this updated timestamp.
 			committedL2Output, err := l2OutputOracle.GetL2Output(&bind.CallOpts{}, l2ooBlockNumber)
+			require.NotEqual(t, [32]byte{}, committedL2Output.OutputRoot, "Empty L2 Output")
 			require.Nil(t, err)
 
 			// Fetch the corresponding L2 block and assert the committed L2
