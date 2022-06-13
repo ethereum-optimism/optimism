@@ -1,4 +1,4 @@
-package buidl
+package derive
 
 import (
 	"bytes"
@@ -8,7 +8,6 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
-	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/rlp"
@@ -64,12 +63,12 @@ func (cr *channelOutReader) readPayload() (*eth.ExecutionPayload, error) {
 	return payload, err
 }
 
-func (cr *channelOutReader) readBatch() (*derive.BatchData, error) {
+func (cr *channelOutReader) readBatch() (*BatchData, error) {
 	payload, err := cr.readPayload()
 	if err != nil {
 		return nil, err
 	}
-	ref, err := derive.PayloadToBlockRef(payload, cr.genesis)
+	ref, err := PayloadToBlockRef(payload, cr.genesis)
 	if err != nil {
 		return nil, err
 	}
@@ -80,7 +79,7 @@ func (cr *channelOutReader) readBatch() (*derive.BatchData, error) {
 		}
 		opaqueTxs = append(opaqueTxs, otx)
 	}
-	return &derive.BatchData{BatchV1: derive.BatchV1{
+	return &BatchData{BatchV1: BatchV1{
 		Epoch:        rollup.Epoch(ref.L1Origin.Number), // the L1 block number equals the L2 epoch.
 		Timestamp:    uint64(payload.Timestamp),
 		Transactions: opaqueTxs,
