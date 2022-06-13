@@ -1,13 +1,22 @@
 package derive
 
 import (
+	"context"
+	"errors"
 	"fmt"
+	"time"
 
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 )
+
+type Downloader interface {
+	Fetch(ctx context.Context, blockHash common.Hash) (L1Info, types.Transactions, types.Receipts, error)
+}
 
 type BatchesWithOrigin struct {
 	Origin  eth.L1BlockRef
@@ -21,6 +30,7 @@ type BatchQueue struct {
 	inputs []BatchesWithOrigin
 	last   eth.L2BlockRef
 	config *rollup.Config
+	dl     Downloader
 }
 
 func (bq *BatchQueue) lastOrigin() eth.BlockID {
@@ -42,7 +52,7 @@ func (bq *BatchQueue) AddOrigin(origin eth.L1BlockRef) error {
 	return nil
 }
 
-func (bq *BatchQueue) AddBatch(batch *BatchData) error {
+func (bq *BatchQueue) AddBatch(ctx context.Context, batch *BatchData) error {
 	if len(bq.inputs) == 0 {
 		return fmt.Errorf("cannot add batch with timestamp %d, no origin was prepared", batch.Timestamp)
 	}
@@ -51,26 +61,29 @@ func (bq *BatchQueue) AddBatch(batch *BatchData) error {
 }
 
 // derive any L2 chain inputs, if we have any new batches
-func (bq *BatchQueue) DeriveL2Inputs(lastL2Timestamp uint64) []*eth.PayloadAttributes {
+func (bq *BatchQueue) DeriveL2Inputs(ctx context.Context, lastL2Timestamp uint64) ([]*eth.PayloadAttributes, error) {
 	if len(bq.inputs) == 0 {
-		return nil
+		return nil, errors.New("empty BatchQueue")
 	}
 	if uint64(len(bq.inputs)) < bq.config.SeqWindowSize {
-		return nil
+		return nil, errors.New("batch queue window not full")
 	}
-
-	// TODO: pull in this data from l1Origin
-	var l1Info L1Info
-
-	// TODO: Need receipts for every block as well.
-	var deposits []hexutil.Bytes
-	// deposits, errs := DeriveDeposits(receipts, d.Config.DepositContractAddress)
-	// for _, err := range errs {
-	// 	d.log.Error("Failed to derive a deposit", "l1OriginHash", l1Input[0].Hash, "err", err)
-	// }
-
 	l1Origin := bq.inputs[0].Origin
 	nextL1Block := bq.inputs[1].Origin
+
+	fetchCtx, cancel := context.WithTimeout(ctx, 20*time.Second)
+	defer cancel()
+	l1Info, _, receipts, err := bq.dl.Fetch(fetchCtx, l1Origin.Hash)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch L1 block info of %s: %w", l1Origin, err)
+	}
+
+	var deposits []hexutil.Bytes
+	deposits, errs := DeriveDeposits(receipts, bq.config.DepositContractAddress)
+	for _, err := range errs {
+		bq.log.Error("Failed to derive a deposit", "l1OriginHash", l1Origin.Hash, "err", err)
+	}
+
 	epoch := rollup.Epoch(l1Origin.Number)
 	minL2Time := uint64(lastL2Timestamp) + bq.config.BlockTime
 	maxL2Time := l1Origin.Time + bq.config.MaxSequencerDrift
@@ -89,7 +102,7 @@ func (bq *BatchQueue) DeriveL2Inputs(lastL2Timestamp uint64) []*eth.PayloadAttri
 		var txns []eth.Data
 		l1InfoTx, err := L1InfoDepositBytes(uint64(i), l1Info)
 		if err != nil {
-			return nil // , fmt.Errorf("failed to create l1InfoTx: %w", err)
+			return nil, fmt.Errorf("failed to create l1InfoTx: %w", err)
 		}
 		txns = append(txns, l1InfoTx)
 		if i == 0 {
@@ -108,7 +121,9 @@ func (bq *BatchQueue) DeriveL2Inputs(lastL2Timestamp uint64) []*eth.PayloadAttri
 		attributes = append(attributes, attrs) // TOOD: direct assignment here
 	}
 
-	return attributes
+	bq.inputs = bq.inputs[1:]
+
+	return attributes, nil
 }
 
 func (bq *BatchQueue) Reset(head eth.L2BlockRef) {
