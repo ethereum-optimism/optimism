@@ -5,6 +5,7 @@ import '@typechain/hardhat'
 import 'solidity-coverage'
 import 'hardhat-deploy'
 import '@foundry-rs/hardhat-forge'
+import '@eth-optimism/hardhat-deploy-config'
 
 import './tasks/deposits'
 
@@ -32,6 +33,11 @@ const config: HardhatUserConfig = {
         'ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80',
       ],
     },
+  },
+  paths: {
+    deploy: './deploy',
+    deployments: './deployments',
+    deployConfig: './deploy-config',
   },
   typechain: {
     outDir: 'dist/types',
