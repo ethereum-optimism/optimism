@@ -80,7 +80,7 @@ contract Proxy_Test is Test {
         assertEq(owner, address(6));
     }
 
-    function test_implementationProxyCallIfNotOwner() external {
+    function test_implementationProxyCallIfNotAdmin() external {
         // The implementation does not have a `upgradeTo`
         // method, calling `upgradeTo` not as the owner
         // should revert.
@@ -100,7 +100,7 @@ contract Proxy_Test is Test {
         assertEq(impl, address(64));
     }
 
-    function test_ownerProxyCallIfNotOwner() external {
+    function test_ownerProxyCallIfNotAdmin() external {
         // Calling `changeAdmin` not as the owner should revert
         // as the implementation does not have a `changeAdmin` method.
         vm.expectRevert();

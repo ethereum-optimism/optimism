@@ -64,7 +64,7 @@ contract Proxy {
      *         inspection. It is assumed that nobody controls the private
      *         key for `address(0)`.
      */
-    modifier proxyCallIfNotOwner() {
+    modifier proxyCallIfNotAdmin() {
         if (msg.sender == _getAdmin() || msg.sender == address(0)) {
             _;
         } else {
@@ -79,7 +79,7 @@ contract Proxy {
      *
      * @param _implementation The address of the implementation contract
      */
-    function upgradeTo(address _implementation) external proxyCallIfNotOwner {
+    function upgradeTo(address _implementation) external proxyCallIfNotAdmin {
         _setImplementation(_implementation);
     }
 
@@ -95,7 +95,7 @@ contract Proxy {
     function upgradeToAndCall(address _implementation, bytes calldata _data)
         external
         payable
-        proxyCallIfNotOwner
+        proxyCallIfNotAdmin
         returns (bytes memory)
     {
         _setImplementation(_implementation);
@@ -109,7 +109,7 @@ contract Proxy {
      *
      * @param _owner New owner of the proxy contract.
      */
-    function changeAdmin(address _owner) external proxyCallIfNotOwner {
+    function changeAdmin(address _owner) external proxyCallIfNotAdmin {
         _changeAdmin(_owner);
     }
 
@@ -118,7 +118,7 @@ contract Proxy {
      *
      * @return Owner address.
      */
-    function admin() external proxyCallIfNotOwner returns (address) {
+    function admin() external proxyCallIfNotAdmin returns (address) {
         return _getAdmin();
     }
 
@@ -127,7 +127,7 @@ contract Proxy {
      *
      * @return Implementation address.
      */
-    function implementation() external proxyCallIfNotOwner returns (address) {
+    function implementation() external proxyCallIfNotAdmin returns (address) {
         return _getImplementation();
     }
 
