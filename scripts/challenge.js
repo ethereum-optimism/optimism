@@ -39,7 +39,10 @@ async function main() {
   for (n of nodes) {
     await mm.AddTrieNode(n)
   }
-  let ret = await c.initiateChallenge(...args)
+// TODO: Setting the gas limit explicitly here shouldn't be necessary, for some
+//    weird reason (to be investigated), it is for L2.
+//  let ret = await c.initiateChallenge(...args)
+  let ret = await c.initiateChallenge(...args, { gasLimit: 10_000_000 })
   let receipt = await ret.wait()
   // ChallengeCreated event
   let challengeId = receipt.events[0].args['challengeId'].toNumber()

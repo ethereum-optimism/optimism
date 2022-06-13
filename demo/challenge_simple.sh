@@ -77,6 +77,10 @@ fi
 
 # --- CHALLENGE SETUP ----------------------------------------------------------
 
+# hardhat network to use
+NETWORK=${NETWORK:-l1}
+export NETWORK
+
 # challenge ID, read by respond.js and assert.js
 export ID=0
 
@@ -96,7 +100,7 @@ shout "GENERATING INITIAL MEMORY STATE CHECKPOINT"
 mipsevm/mipsevm
 
 shout "DEPLOYING CONTRACTS"
-npx hardhat run scripts/deploy.js --network hosthat
+npx hardhat run scripts/deploy.js --network $NETWORK
 
 # challenger will use same initial memory checkpoint and deployed contracts
 cp /tmp/cannon/{golden,deployed}.json /tmp/cannon_fault/
@@ -119,23 +123,23 @@ ln -s /tmp/cannon_fault/0_$WRONG_BLOCK /tmp/cannon_fault/0_$BLOCK
 # --- BINARY SEARCH ------------------------------------------------------------
 
 shout "STARTING CHALLENGE"
-BASEDIR=/tmp/cannon_fault npx hardhat run scripts/challenge.js --network hosthat
+BASEDIR=/tmp/cannon_fault npx hardhat run scripts/challenge.js --network $NETWORK
 
 shout "BINARY SEARCH"
 for i in {1..23}; do
     echo ""
     echo "--- STEP $i / 23 ---"
     echo ""
-    BASEDIR=/tmp/cannon_fault CHALLENGER=1 npx hardhat run scripts/respond.js --network hosthat
-    npx hardhat run scripts/respond.js --network hosthat
+    BASEDIR=/tmp/cannon_fault CHALLENGER=1 npx hardhat run scripts/respond.js --network $NETWORK
+    npx hardhat run scripts/respond.js --network $NETWORK
 done
 
 # --- SINGLE STEP EXECUTION ----------------------------------------------------
 
 shout "ASSERTING AS CHALLENGER (should fail)"
 set +e # this should fail!
-BASEDIR=/tmp/cannon_fault CHALLENGER=1 npx hardhat run scripts/assert.js --network hosthat
+BASEDIR=/tmp/cannon_fault CHALLENGER=1 npx hardhat run scripts/assert.js --network $NETWORK
 set -e
 
 shout "ASSERTING AS DEFENDER (should pass)"
-npx hardhat run scripts/assert.js --network hosthat
+npx hardhat run scripts/assert.js --network $NETWORK

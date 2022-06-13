@@ -17,14 +17,15 @@ try {
 module.exports = {
   //defaultNetwork: "hosthat",
   networks: {
-    hosthat: {
+    l1: {
       url: "http://127.0.0.1:8545/",
       accounts: ["0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"],
       timeout: 600_000,
     },
-    cheapeth: {
-      url: "https://rpc.cheapeth.org/rpc",
-      accounts: [private]
+    l2: {
+      url: "http://127.0.0.1:9545/",
+      accounts: ["0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"],
+      timeout: 600_000,
     },
   },
   solidity: {

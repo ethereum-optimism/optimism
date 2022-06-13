@@ -1,5 +1,12 @@
 #!/usr/bin/env bash
 
+# The following variables can be overridden as environment variables:
+# * BLOCK (block whose transition will be challenged)
+# * SKIP_NODE (skip forking a node, useful if you've already forked a node)
+#
+# Example usage:
+# SKIP_NODE=1 BLOCK=13284469 ./demo/challenge_fault.sh
+
 # --- DOC ----------------------------------------------------------------------
 
 # Unlike the simple scenario (cf. challenge_simple.sh), in this
@@ -60,24 +67,31 @@ trap "exit_trap" SIGINT SIGTERM EXIT
 
 # --- BOOT MAINNET FORK --------------------------------------------------------
 
-NODE_LOG="challenge_fault_node.log"
+if [[ ! "$SKIP_NODE" ]]; then
+    NODE_LOG="challenge_fault_node.log"
 
-shout "BOOTING MAINNET FORK NODE IN BACKGROUND (LOG: $NODE_LOG)"
+    shout "BOOTING MAINNET FORK NODE IN BACKGROUND (LOG: $NODE_LOG)"
 
-# get directory containing this file
-SCRIPT_DIR=$(dirname "$(readlink -f "$0")")
+    # get directory containing this file
+    SCRIPT_DIR=$(dirname "$(readlink -f "$0")")
 
-# run a hardhat mainnet fork node
-"$SCRIPT_DIR/forked_node.sh" > "$NODE_LOG" 2>&1 &
+    # run a hardhat mainnet fork node
+    "$SCRIPT_DIR/forked_node.sh" > "$NODE_LOG" 2>&1 &
 
-# give the node some time to boot up
-sleep 10
+    # give the node some time to boot up
+    sleep 10
+fi
 
 # --- CHALLENGE SETUP ----------------------------------------------------------
 
+# hardhat network to use
+NETWORK=${NETWORK:-l1}
+export NETWORK
+
 # block whose transition will be challenged
 # this variable is read by challenge.js, respond.js and assert.js
-export BLOCK=13284491
+BLOCK=${BLOCK:-13284491}
+export BLOCK
 
 # challenge ID, read by respond.js and assert.js
 export ID=0
@@ -90,7 +104,7 @@ shout "GENERATING INITIAL MEMORY STATE CHECKPOINT"
 mipsevm/mipsevm
 
 shout "DEPLOYING CONTRACTS"
-npx hardhat run scripts/deploy.js --network hosthat
+npx hardhat run scripts/deploy.js --network $NETWORK
 
 # challenger will use same initial memory checkpoint and deployed contracts
 cp /tmp/cannon/{golden,deployed}.json /tmp/cannon_fault/
@@ -116,23 +130,23 @@ OUTPUTFAULT=1 BASEDIR=/tmp/cannon_fault mipsevm/mipsevm $BLOCK
 # --- BINARY SEARCH ------------------------------------------------------------
 
 shout "STARTING CHALLENGE"
-BASEDIR=/tmp/cannon_fault npx hardhat run scripts/challenge.js --network hosthat
+BASEDIR=/tmp/cannon_fault npx hardhat run scripts/challenge.js --network $NETWORK
 
 shout "BINARY SEARCH"
 for i in {1..25}; do
     echo ""
     echo "--- STEP $i / 25 --"
     echo ""
-    OUTPUTFAULT=1 BASEDIR=/tmp/cannon_fault CHALLENGER=1 npx hardhat run scripts/respond.js --network hosthat
-    npx hardhat run scripts/respond.js --network hosthat
+    OUTPUTFAULT=1 BASEDIR=/tmp/cannon_fault CHALLENGER=1 npx hardhat run scripts/respond.js --network $NETWORK
+    npx hardhat run scripts/respond.js --network $NETWORK
 done
 
 # --- SINGLE STEP EXECUTION ----------------------------------------------------
 
 shout "ASSERTING AS CHALLENGER (should fail)"
 set +e # this should fail!
-BASEDIR=/tmp/cannon_fault CHALLENGER=1 npx hardhat run scripts/assert.js --network hosthat
+BASEDIR=/tmp/cannon_fault CHALLENGER=1 npx hardhat run scripts/assert.js --network $NETWORK
 set -e
 
 shout "ASSERTING AS DEFENDER (should pass)"
-npx hardhat run scripts/assert.js --network hosthat
+npx hardhat run scripts/assert.js --network $NETWORK
