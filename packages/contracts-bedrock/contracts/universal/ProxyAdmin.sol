@@ -136,22 +136,27 @@ contract ProxyAdmin is Owned {
         ProxyType proxyType = proxyType[address(proxy)];
 
         // We need to manually run the static call since the getter cannot be flagged as view
+        address target;
+        bytes memory data;
         if (proxyType == ProxyType.OpenZeppelin) {
-            (bool success, bytes memory returndata) = address(proxy).staticcall(
-                abi.encodePacked(Proxy.implementation.selector)
-            );
-            require(success);
-            return abi.decode(returndata, (address));
+            target = address(proxy);
+            data = abi.encodeWithSelector(Proxy.implementation.selector);
         } else if (proxyType == ProxyType.Chugsplash) {
-            (bool success, bytes memory returndata) = address(proxy).staticcall(
-                abi.encodePacked(L1ChugSplashProxy.getImplementation.selector)
-            );
-            require(success);
-            return abi.decode(returndata, (address));
+            target = address(proxy);
+            data = abi.encodeWithSelector(L1ChugSplashProxy.getImplementation.selector);
         } else if (proxyType == ProxyType.ResolvedDelegate) {
-            string memory name = proxyName[address(proxy)];
-            return addressManager.getAddress(name);
+            target = address(addressManager);
+            data = abi.encodeWithSelector(
+                Lib_AddressManager.getAddress.selector,
+                proxyName[address(proxy)]
+            );
+        } else {
+            revert("ProxyAdmin: unknown proxy type");
         }
+
+        (bool success, bytes memory returndata) = target.staticcall(data);
+        require(success);
+        return abi.decode(returndata, (address));
     }
 
     /**
@@ -164,22 +169,25 @@ contract ProxyAdmin is Owned {
     function getProxyAdmin(Proxy proxy) external view returns (address) {
         ProxyType proxyType = proxyType[address(proxy)];
 
-        // We need to manually run the static call since the getter cannot be flagged as view.
+        // We need to manually run the static call since the getter cannot be flagged as view
+        address target;
+        bytes memory data;
         if (proxyType == ProxyType.OpenZeppelin) {
-            (bool success, bytes memory returndata) = address(proxy).staticcall(
-                abi.encodePacked(Proxy.admin.selector)
-            );
-            require(success);
-            return abi.decode(returndata, (address));
+            target = address(proxy);
+            data = abi.encodeWithSelector(Proxy.admin.selector);
         } else if (proxyType == ProxyType.Chugsplash) {
-            (bool success, bytes memory returndata) = address(proxy).staticcall(
-                abi.encodePacked(L1ChugSplashProxy.getOwner.selector)
-            );
-            require(success);
-            return abi.decode(returndata, (address));
+            target = address(proxy);
+            data = abi.encodeWithSelector(L1ChugSplashProxy.getOwner.selector);
         } else if (proxyType == ProxyType.ResolvedDelegate) {
-            return addressManager.owner();
+            target = address(addressManager);
+            data = abi.encodeWithSignature("owner()");
+        } else {
+            revert("ProxyAdmin: unknown proxy type");
         }
+
+        (bool success, bytes memory returndata) = target.staticcall(data);
+        require(success);
+        return abi.decode(returndata, (address));
     }
 
     /**
