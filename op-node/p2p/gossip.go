@@ -9,10 +9,11 @@ import (
 	"sync"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-node/eth"
+
 	"github.com/ethereum/go-ethereum/common"
 	lru "github.com/hashicorp/golang-lru"
 
-	"github.com/ethereum-optimism/optimism/op-node/l2"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
@@ -216,7 +217,7 @@ func BuildBlocksValidator(log log.Logger, cfg *rollup.Config) pubsub.ValidatorEx
 		signatureBytes, payloadBytes := data[:65], data[65:]
 
 		// [REJECT] if the block encoding is not valid
-		var payload l2.ExecutionPayload
+		var payload eth.ExecutionPayload
 		if err := payload.UnmarshalSSZ(uint32(len(payloadBytes)), bytes.NewReader(payloadBytes)); err != nil {
 			log.Warn("invalid payload", "err", err, "peer", id)
 			return pubsub.ValidationReject
@@ -286,7 +287,7 @@ func BuildBlocksValidator(log log.Logger, cfg *rollup.Config) pubsub.ValidatorEx
 }
 
 type GossipIn interface {
-	OnUnsafeL2Payload(ctx context.Context, from peer.ID, msg *l2.ExecutionPayload) error
+	OnUnsafeL2Payload(ctx context.Context, from peer.ID, msg *eth.ExecutionPayload) error
 }
 
 type GossipTopicInfo interface {
@@ -295,7 +296,7 @@ type GossipTopicInfo interface {
 
 type GossipOut interface {
 	GossipTopicInfo
-	PublishL2Payload(ctx context.Context, msg *l2.ExecutionPayload, signer Signer) error
+	PublishL2Payload(ctx context.Context, msg *eth.ExecutionPayload, signer Signer) error
 	Close() error
 }
 
@@ -311,7 +312,7 @@ func (p *publisher) BlocksTopicPeers() []peer.ID {
 	return p.blocksTopic.ListPeers()
 }
 
-func (p *publisher) PublishL2Payload(ctx context.Context, payload *l2.ExecutionPayload, signer Signer) error {
+func (p *publisher) PublishL2Payload(ctx context.Context, payload *eth.ExecutionPayload, signer Signer) error {
 	res := msgBufPool.Get().(*[]byte)
 	buf := bytes.NewBuffer((*res)[:0])
 	defer func() {
@@ -382,9 +383,9 @@ func JoinGossip(p2pCtx context.Context, self peer.ID, ps *pubsub.PubSub, log log
 type TopicSubscriber func(ctx context.Context, sub *pubsub.Subscription)
 type MessageHandler func(ctx context.Context, from peer.ID, msg interface{}) error
 
-func BlocksHandler(onBlock func(ctx context.Context, from peer.ID, msg *l2.ExecutionPayload) error) MessageHandler {
+func BlocksHandler(onBlock func(ctx context.Context, from peer.ID, msg *eth.ExecutionPayload) error) MessageHandler {
 	return func(ctx context.Context, from peer.ID, msg interface{}) error {
-		payload, ok := msg.(*l2.ExecutionPayload)
+		payload, ok := msg.(*eth.ExecutionPayload)
 		if !ok {
 			return fmt.Errorf("expected topic validator to parse and validate data into execution payload, but got %T", msg)
 		}
