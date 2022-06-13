@@ -21,7 +21,9 @@
     "optimism",
     "ethereum",
     "common",
-    "typescript"
+    "typescript",
+    "testing",
+    "supertest"
   ],
   "homepage": "https://github.com/ethereum-optimism/optimism/tree/develop/packages/common-ts#readme",
   "license": "MIT",

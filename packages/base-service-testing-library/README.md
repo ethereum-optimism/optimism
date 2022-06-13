@@ -1,6 +1,5 @@
-# @eth-optimism/common-ts
+# @eth-optimism/base-service-testing-library
 
 ## What is this?
 
-`@eth-optimism/common-ts` contains useful tools for logging, metrics, and other Node stuff.
-
+`@eth-optimism/base-service-testing-library` contains useful tools testing BaseServiceV2
