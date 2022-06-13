@@ -48,7 +48,7 @@ contract ProxyAdmin_Test is Test {
         // Set the reverse lookup of the Lib_ResolvedDelegateProxy
         // proxy
         vm.prank(alice);
-        admin.setProxyName(address(resolved), "a");
+        admin.setImplementationName(address(resolved), "a");
 
         // Set the proxy types
         vm.prank(alice);
@@ -59,11 +59,11 @@ contract ProxyAdmin_Test is Test {
         implementation = new SimpleStorage();
     }
 
-    function test_setProxyName() external {
+    function test_setImplementationName() external {
         vm.prank(alice);
-        admin.setProxyName(address(1), "foo");
+        admin.setImplementationName(address(1), "foo");
         assertEq(
-            admin.proxyName(address(1)),
+            admin.implementationName(address(1)),
             "foo"
         );
     }
@@ -73,9 +73,9 @@ contract ProxyAdmin_Test is Test {
         admin.setAddressManager(address(0));
     }
 
-    function test_onlyOwnerSetProxyName() external {
+    function test_onlyOwnerSetImplementationName() external {
         vm.expectRevert("UNAUTHORIZED");
-        admin.setProxyName(address(0), "foo");
+        admin.setImplementationName(address(0), "foo");
     }
 
     function test_onlyOwnerSetProxyType() external {

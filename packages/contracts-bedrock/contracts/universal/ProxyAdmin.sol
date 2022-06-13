@@ -41,7 +41,7 @@ contract ProxyAdmin is Owned {
      *         manually kept up to date with changes in the AddressManager for this contract
      *         to be able to work as an admin for the Lib_ResolvedDelegateProxy type.
      */
-    mapping(address => string) public proxyName;
+    mapping(address => string) public implementationName;
 
     /**
      * @custom:legacy
@@ -78,8 +78,8 @@ contract ProxyAdmin is Owned {
      * @param _address The address to be named.
      * @param _name    The name of the address.
      */
-    function setProxyName(address _address, string memory _name) external onlyOwner {
-        proxyName[_address] = _name;
+    function setImplementationName(address _address, string memory _name) external onlyOwner {
+        implementationName[_address] = _name;
     }
 
     /**
@@ -148,7 +148,7 @@ contract ProxyAdmin is Owned {
             target = address(addressManager);
             data = abi.encodeWithSelector(
                 Lib_AddressManager.getAddress.selector,
-                proxyName[address(proxy)]
+                implementationName[address(proxy)]
             );
         } else {
             revert("ProxyAdmin: unknown proxy type");
@@ -226,7 +226,7 @@ contract ProxyAdmin is Owned {
                 bytes32(uint256(uint160(implementation)))
             );
         } else if (proxyType == ProxyType.ResolvedDelegate) {
-            string memory name = proxyName[address(proxy)];
+            string memory name = implementationName[address(proxy)];
             Lib_AddressManager(addressManager).setAddress(name, implementation);
         }
     }
