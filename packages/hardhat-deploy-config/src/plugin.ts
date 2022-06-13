@@ -59,6 +59,11 @@ export const parseDeployConfig = (
   // are expected to be objects or functions etc.
   const parsed = { ...config }
 
+  // If the deployConfigSpec is not provided, do no validation
+  if (!hre.config.deployConfigSpec) {
+    return parsed
+  }
+
   for (const [key, spec] of Object.entries(hre.config.deployConfigSpec)) {
     // Make sure the value is defined, or use a default.
     if (parsed[key] === undefined) {
