@@ -6,8 +6,33 @@ import (
 	"fmt"
 	"math/big"
 
+	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
+	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/crypto"
 )
+
+var (
+	L1InfoFuncSignature    = "setL1BlockValues(uint64,uint64,uint256,bytes32,uint64)"
+	L1InfoFuncBytes4       = crypto.Keccak256([]byte(L1InfoFuncSignature))[:4]
+	L1InfoDepositerAddress = common.HexToAddress("0xdeaddeaddeaddeaddeaddeaddeaddeaddead0001")
+	L1BlockAddress         = common.HexToAddress(predeploys.L1Block)
+)
+
+type L1Info interface {
+	Hash() common.Hash
+	ParentHash() common.Hash
+	Root() common.Hash // state-root
+	NumberU64() uint64
+	Time() uint64
+	// MixDigest field, reused for randomness after The Merge (Bellatrix hardfork)
+	MixDigest() common.Hash
+	BaseFee() *big.Int
+	ID() eth.BlockID
+	BlockRef() eth.L1BlockRef
+	ReceiptHash() common.Hash
+}
 
 // L1BlockInfo presents the information stored in a L1Block.setL1BlockValues call
 type L1BlockInfo struct {
@@ -69,4 +94,51 @@ func L1InfoDepositTxData(data []byte) (L1BlockInfo, error) {
 	var info L1BlockInfo
 	err := info.UnmarshalBinary(data)
 	return info, err
+}
+
+// L1InfoDeposit creates a L1 Info deposit transaction based on the L1 block,
+// and the L2 block-height difference with the start of the epoch.
+func L1InfoDeposit(seqNumber uint64, block L1Info) (*types.DepositTx, error) {
+	infoDat := L1BlockInfo{
+		Number:         block.NumberU64(),
+		Time:           block.Time(),
+		BaseFee:        block.BaseFee(),
+		BlockHash:      block.Hash(),
+		SequenceNumber: seqNumber,
+	}
+	data, err := infoDat.MarshalBinary()
+	if err != nil {
+		return nil, err
+	}
+
+	source := L1InfoDepositSource{
+		L1BlockHash: block.Hash(),
+		SeqNumber:   seqNumber,
+	}
+	// Uses ~30k normal case
+	// Uses ~70k on first transaction
+	// Round up to 75k to ensure that we always have enough gas.
+	return &types.DepositTx{
+		SourceHash: source.SourceHash(),
+		From:       L1InfoDepositerAddress,
+		To:         &L1BlockAddress,
+		Mint:       nil,
+		Value:      big.NewInt(0),
+		Gas:        150_000, // TODO: temporary work around. Block 1 seems to require more gas than specced.
+		Data:       data,
+	}, nil
+}
+
+// L1InfoDepositBytes returns a serialized L1-info attributes transaction.
+func L1InfoDepositBytes(seqNumber uint64, l1Info L1Info) ([]byte, error) {
+	dep, err := L1InfoDeposit(seqNumber, l1Info)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create L1 info tx: %v", err)
+	}
+	l1Tx := types.NewTx(dep)
+	opaqueL1Tx, err := l1Tx.MarshalBinary()
+	if err != nil {
+		return nil, fmt.Errorf("failed to encode L1 info tx: %v", err)
+	}
+	return opaqueL1Tx, nil
 }

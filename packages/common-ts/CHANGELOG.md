@@ -1,5 +1,12 @@
 # @eth-optimism/common-ts
 
+## 0.3.1
+
+### Patch Changes
+
+- 9ba869a7: Log server messages to logger instead of stdout
+- 050859fd: Include default options in metadata metric
+
 ## 0.3.0
 
 ### Minor Changes

@@ -155,11 +155,7 @@ export abstract class BaseServiceV2<
     this.loop = params.loop !== undefined ? params.loop : true
     this.state = {} as TServiceState
 
-    // Add default options to options spec.
-    ;(params.optionsSpec as any) = {
-      ...(params.optionsSpec || {}),
-
-      // Users cannot set these options.
+    const stdOptionsSpec: OptionsSpec<StandardOptions> = {
       loopIntervalMs: {
         validator: validators.num,
         desc: 'Loop interval in milliseconds',
@@ -175,6 +171,12 @@ export abstract class BaseServiceV2<
         desc: 'Hostname for the app server',
         default: params.hostname || '0.0.0.0',
       },
+    }
+
+    // Add default options to options spec.
+    ;(params.optionsSpec as any) = {
+      ...(params.optionsSpec || {}),
+      ...stdOptionsSpec,
     }
 
     // List of options that can safely be logged.
@@ -348,12 +350,22 @@ export abstract class BaseServiceV2<
         name: params.name,
         version: params.version,
         ...publicOptionNames.reduce((acc, key) => {
-          acc[key] = config.str(key)
+          if (key in stdOptionsSpec) {
+            acc[key] = this.options[key].toString()
+          } else {
+            acc[key] = config.str(key)
+          }
           return acc
         }, {}),
       },
       1
     )
+
+    // Collect default node metrics.
+    prometheus.collectDefaultMetrics({
+      register: this.metricsRegistry,
+      labels: { name: params.name, version: params.version },
+    })
   }
 
   /**
@@ -375,7 +387,17 @@ export abstract class BaseServiceV2<
       app.use(bodyParser.urlencoded({ extended: true }))
 
       // Logging.
-      app.use(morgan('short'))
+      app.use(
+        morgan('short', {
+          stream: {
+            write: (str: string) => {
+              this.logger.info(`server log`, {
+                log: str,
+              })
+            },
+          },
+        })
+      )
 
       // Metrics.
       // Will expose a /metrics endpoint by default.

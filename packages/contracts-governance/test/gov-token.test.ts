@@ -154,7 +154,7 @@ describe('Governance Token Testing', () => {
 
       // Minting the full 2% after the first year
       let totalSupply = await governanceToken.totalSupply()
-      let maxInflationAmount = totalSupply.mul(200).div(1000)
+      let maxInflationAmount = totalSupply.mul(20).div(1000)
 
       await fastForwardDays(365)
       await mintManager
@@ -168,7 +168,7 @@ describe('Governance Token Testing', () => {
       // Minting the full 2% after the second year
       await fastForwardDays(365)
       totalSupply = await governanceToken.totalSupply()
-      maxInflationAmount = totalSupply.mul(200).div(1000)
+      maxInflationAmount = totalSupply.mul(20).div(1000)
 
       await mintManager
         .connect(minter)
@@ -181,7 +181,7 @@ describe('Governance Token Testing', () => {
       // Minting the full 2% after the third year
       await fastForwardDays(365)
       totalSupply = await governanceToken.totalSupply()
-      maxInflationAmount = totalSupply.mul(200).div(1000)
+      maxInflationAmount = totalSupply.mul(20).div(1000)
 
       await mintManager
         .connect(minter)
@@ -198,14 +198,14 @@ describe('Governance Token Testing', () => {
         .mint(optimismMultisig.address, initialSupply)
 
       await fastForwardDays(365)
-      const inflationAmount = initialSupply.mul(200).div(1000).sub(1)
+      const inflationAmount = initialSupply.mul(20).div(1000).sub(1)
 
       await mintManager
         .connect(minter)
         .mint(optimismMultisig.address, inflationAmount)
 
       const updatedTotalSupply = await governanceToken.totalSupply()
-      const newTotalSupply = await initialSupply.add(inflationAmount)
+      const newTotalSupply = initialSupply.add(inflationAmount)
       expect(updatedTotalSupply).to.equal(newTotalSupply)
     })
 
@@ -215,7 +215,7 @@ describe('Governance Token Testing', () => {
         .mint(optimismMultisig.address, initialSupply)
 
       await fastForwardDays(369)
-      const inflationAmount = initialSupply.mul(200).div(1000).add(1)
+      const inflationAmount = initialSupply.mul(20).div(1000).add(1)
 
       await expect(
         mintManager
