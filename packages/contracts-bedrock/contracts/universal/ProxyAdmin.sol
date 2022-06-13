@@ -16,11 +16,11 @@ contract ProxyAdmin is Owned {
     /**
      * @notice The proxy types that the ProxyAdmin can manage.
      *
-     * @custom:field OpenZeppelin     Represents the OpenZeppelin style transparent proxy
+     * @custom:value OpenZeppelin     Represents the OpenZeppelin style transparent proxy
      *                                interface, this is the standard.
-     * @custom:field Chugsplash       Represents the Chugsplash proxy interface,
+     * @custom:value Chugsplash       Represents the Chugsplash proxy interface,
      *                                this is legacy.
-     * @custom:field ResolvedDelegate Represents the ResolvedDelegate proxy
+     * @custom:value ResolvedDelegate Represents the ResolvedDelegate proxy
      *                                interface, this is legacy.
      */
     enum ProxyType {
