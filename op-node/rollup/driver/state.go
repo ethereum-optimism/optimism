@@ -20,7 +20,6 @@ type state struct {
 	l2Head      eth.L2BlockRef // L2 Unsafe Head
 	l2SafeHead  eth.L2BlockRef // L2 Safe Head - this is the head of the L2 chain as derived from L1 (thus it is Sequencer window blocks behind)
 	l2Finalized eth.BlockID    // L2 Block that will never be reversed
-	l1WindowBuf []eth.BlockID  // l1WindowBuf buffers the next L1 block IDs to derive new L2 blocks from, with increasing block height.
 
 	// Rollup config
 	Config    rollup.Config
@@ -44,6 +43,7 @@ type state struct {
 // NewState creates a new driver state. State changes take effect though the given output.
 // Optionally a network can be provided to publish things to other nodes than the engine of the driver.
 func NewState(log log.Logger, snapshotLog log.Logger, config rollup.Config, l1Chain L1Chain, l2Chain L2Chain, output outputInterface, network Network, sequencer bool) *state {
+	// TODO init bank
 	return &state{
 		Config:           config,
 		done:             make(chan struct{}),
@@ -129,15 +129,6 @@ func (s *state) OnUnsafeL2Payload(ctx context.Context, payload *eth.ExecutionPay
 	}
 }
 
-// l1WindowBufEnd returns the last block that should be used as `base` to L1ChainWindow.
-// This is either the last block of the window, or the L1 base block if the window is not populated.
-func (s *state) l1WindowBufEnd() eth.BlockID {
-	if len(s.l1WindowBuf) == 0 {
-		return s.l2SafeHead.L1Origin
-	}
-	return s.l1WindowBuf[len(s.l1WindowBuf)-1]
-}
-
 func (s *state) handleNewL1Block(ctx context.Context, newL1Head eth.L1BlockRef) error {
 	// We don't need to do anything if the head hasn't changed.
 	if s.l1Head.Hash == newL1Head.Hash {
@@ -152,8 +143,11 @@ func (s *state) handleNewL1Block(ctx context.Context, newL1Head eth.L1BlockRef) 
 	if s.l1Head.Hash == newL1Head.ParentHash {
 		s.log.Trace("Linear extension", "l1Head", newL1Head)
 		s.l1Head = newL1Head
-		if s.l1WindowBufEnd().Hash == newL1Head.ParentHash {
-			s.l1WindowBuf = append(s.l1WindowBuf, newL1Head.ID())
+		if err := s.bank.NextL1(newL1Head); err != nil {
+			return fmt.Errorf("failed to move channel bank to new L1 head: %v", err)
+		}
+		if err := s.batchQueue.AddOrigin(newL1Head); err != nil {
+			return fmt.Errorf("failed to add new L1 head to batch queue: %v", err)
 		}
 		return nil
 	}
@@ -179,7 +173,8 @@ func (s *state) handleNewL1Block(ctx context.Context, newL1Head eth.L1BlockRef) 
 	}
 	// State Update
 	s.l1Head = newL1Head
-	s.l1WindowBuf = nil
+	s.bank = derive.NewChannelBank(context.Background(), s.log)
+	s.batchQueue.Reset(safeL2Head)
 	s.l2Head = unsafeL2Head
 	// Don't advance l2SafeHead past it's current value
 	if s.l2SafeHead.Number >= safeL2Head.Number {
@@ -270,6 +265,13 @@ func (s *state) createNewL2Block(ctx context.Context) error {
 	}
 
 	return nil
+}
+
+func (s *state) continueStream() {
+	// TODO derive more batches if we can
+	// TODO apply batches if we have any
+	// TODO derive any L2 chain segments
+
 }
 
 // handleEpoch attempts to insert a full L2 epoch on top of the L2 Safe Head.
@@ -391,6 +393,19 @@ func (s *state) loop() {
 	reqStep()
 
 	for {
+		// read anything we can from the bank before continuing
+		for {
+			dat := s.bank.Read()
+			if dat == nil {
+				break
+			}
+			// TODO: update derivation pipeline
+		}
+
+		// find the next tx to apply to the bank
+		// TODO s.bank.CurrentL1()
+		// TODO DataFromEVMTransactions
+
 		select {
 		case <-l2BlockCreationTickerCh:
 			s.log.Trace("L2 Creation Ticker")

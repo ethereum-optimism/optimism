@@ -3,7 +3,6 @@ package derive
 import (
 	"bytes"
 	"compress/zlib"
-	"fmt"
 	"io"
 
 	"github.com/ethereum-optimism/optimism/l2geth/rlp"
@@ -38,13 +37,13 @@ type ChannelInReader struct {
 	frameNr  uint64
 }
 
-func NewChannelInReader(source func() *TaggedData) (*ChannelInReader, error) {
+func NewChannelInReader(source func() *TaggedData) *ChannelInReader {
 	cr := &ChannelInReader{
 		source: source,
 		buf:    bytes.NewBuffer(make([]byte, 1000)),
 	}
-	err := cr.Reset()
-	return cr, err
+	cr.Reset()
+	return cr
 }
 
 // ReadBatch returns a decoded rollup batch, or an error:
@@ -83,9 +82,7 @@ func (cr *ChannelInReader) readChannel(p []byte) (n int, err error) {
 
 		// reset if we switched to a new channel, append frame data otherwise
 		if cr.channel != next.ChannelID {
-			if err := cr.reset(next.Data, next.ChannelID); err != nil {
-				return 0, fmt.Errorf("failed to reset ChannelInReader for next channel %s: %w", next.ChannelID, err)
-			}
+			cr.reset(next.Data, next.ChannelID)
 		} else {
 			cr.buf.Write(next.Data)
 		}
@@ -99,25 +96,25 @@ func (cr *ChannelInReader) readChannel(p []byte) (n int, err error) {
 
 // Reset forces the next read to continue with the next channel,
 // resetting any decoding/decompression state to a fresh start.
-func (cr *ChannelInReader) Reset() error {
+func (cr *ChannelInReader) Reset() {
 	// empty channel ID, always different from the next thing that is read, since 0 is not a valid ID
-	return cr.reset(nil, ChannelID{})
+	cr.reset(nil, ChannelID{})
 }
 
-func (cr *ChannelInReader) reset(data []byte, chID ChannelID) error {
+func (cr *ChannelInReader) reset(data []byte, chID ChannelID) {
 	cr.buf.Reset()
 	cr.buf.Write(data)
 	cr.channel = chID
 
 	if err := cr.readZlib.Reset(readFn(cr.readChannel), nil); err != nil {
-		return nil
+		// TODO: this only errors because it pro-actively reads from the channel. It shouldn't do this. We can switch to the zlib algo without the header etc. data.
+		panic(err)
 	}
 
 	// Set input limit for ZLIB as a whole:
 	// we don't want to decode a crazy large batch (zip bomb).
 	// but we also don't want to decode the same tiny batch 1000x
 	cr.readRLP.Reset(cr.readZlib, 10_000_000) // TODO: define a max number of bytes per channel, or per batch (and then be more careful about reading batches)
-	return nil
 }
 
 // CurrentL1Origin returns the L1 block that encodes the data that is currently being read.
