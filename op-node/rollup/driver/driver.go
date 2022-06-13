@@ -29,11 +29,11 @@ type Downloader interface {
 }
 
 type Engine interface {
-	GetPayload(ctx context.Context, payloadId l2.PayloadID) (*l2.ExecutionPayload, error)
-	ForkchoiceUpdate(ctx context.Context, state *l2.ForkchoiceState, attr *l2.PayloadAttributes) (*l2.ForkchoiceUpdatedResult, error)
-	NewPayload(ctx context.Context, payload *l2.ExecutionPayload) error
-	PayloadByHash(context.Context, common.Hash) (*l2.ExecutionPayload, error)
-	PayloadByNumber(context.Context, *big.Int) (*l2.ExecutionPayload, error)
+	GetPayload(ctx context.Context, payloadId eth.PayloadID) (*eth.ExecutionPayload, error)
+	ForkchoiceUpdate(ctx context.Context, state *eth.ForkchoiceState, attr *eth.PayloadAttributes) (*eth.ForkchoiceUpdatedResult, error)
+	NewPayload(ctx context.Context, payload *eth.ExecutionPayload) error
+	PayloadByHash(context.Context, common.Hash) (*eth.ExecutionPayload, error)
+	PayloadByNumber(context.Context, *big.Int) (*eth.ExecutionPayload, error)
 }
 
 type L1Chain interface {
@@ -44,7 +44,7 @@ type L1Chain interface {
 }
 
 type L2Chain interface {
-	ForkchoiceUpdate(ctx context.Context, state *l2.ForkchoiceState, attr *l2.PayloadAttributes) (*l2.ForkchoiceUpdatedResult, error)
+	ForkchoiceUpdate(ctx context.Context, state *eth.ForkchoiceState, attr *eth.PayloadAttributes) (*eth.ForkchoiceUpdatedResult, error)
 	L2BlockRefByNumber(ctx context.Context, l2Num *big.Int) (eth.L2BlockRef, error)
 	L2BlockRefByHash(ctx context.Context, l2Hash common.Hash) (eth.L2BlockRef, error)
 }
@@ -55,15 +55,15 @@ type outputInterface interface {
 	insertEpoch(ctx context.Context, l2Head eth.L2BlockRef, l2SafeHead eth.L2BlockRef, l2Finalized eth.BlockID, l1Input []eth.BlockID) (eth.L2BlockRef, eth.L2BlockRef, bool, error)
 
 	// createNewBlock builds a new block based on the L2 Head, L1 Origin, and the current mempool.
-	createNewBlock(ctx context.Context, l2Head eth.L2BlockRef, l2SafeHead eth.BlockID, l2Finalized eth.BlockID, l1Origin eth.L1BlockRef) (eth.L2BlockRef, *l2.ExecutionPayload, error)
+	createNewBlock(ctx context.Context, l2Head eth.L2BlockRef, l2SafeHead eth.BlockID, l2Finalized eth.BlockID, l1Origin eth.L1BlockRef) (eth.L2BlockRef, *eth.ExecutionPayload, error)
 
 	// processBlock simply tries to add the block to the chain, reorging if necessary, and updates the forkchoice of the engine.
-	processBlock(ctx context.Context, l2Head eth.L2BlockRef, l2SafeHead eth.BlockID, l2Finalized eth.BlockID, payload *l2.ExecutionPayload) error
+	processBlock(ctx context.Context, l2Head eth.L2BlockRef, l2SafeHead eth.BlockID, l2Finalized eth.BlockID, payload *eth.ExecutionPayload) error
 }
 
 type Network interface {
 	// PublishL2Payload is called by the driver whenever there is a new payload to publish, synchronously with the driver main loop.
-	PublishL2Payload(ctx context.Context, payload *l2.ExecutionPayload) error
+	PublishL2Payload(ctx context.Context, payload *eth.ExecutionPayload) error
 }
 
 func NewDriver(cfg rollup.Config, l2 *l2.Source, l1 *l1.Source, network Network, log log.Logger, snapshotLog log.Logger, sequencer bool) *Driver {
@@ -82,7 +82,7 @@ func (d *Driver) OnL1Head(ctx context.Context, head eth.L1BlockRef) error {
 	return d.s.OnL1Head(ctx, head)
 }
 
-func (d *Driver) OnUnsafeL2Payload(ctx context.Context, payload *l2.ExecutionPayload) error {
+func (d *Driver) OnUnsafeL2Payload(ctx context.Context, payload *eth.ExecutionPayload) error {
 	return d.s.OnUnsafeL2Payload(ctx, payload)
 }
 
