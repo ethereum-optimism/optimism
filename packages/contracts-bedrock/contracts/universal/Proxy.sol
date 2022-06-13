@@ -44,11 +44,11 @@ contract Proxy {
      *         owner is stored at the eip1967 owner storage slot so that
      *         storage collision with the implementation is not possible.
      *
-     * @param _owner Address of the initial contract owner. The owner has
+     * @param _admin Address of the initial contract owner. The owner has
      *               the ability to access the transparent proxy interface.
      */
-    constructor(address _owner) {
-        _changeAdmin(_owner);
+    constructor(address _admin) {
+        _changeAdmin(_admin);
     }
 
     // slither-disable-next-line locked-ether
@@ -107,10 +107,10 @@ contract Proxy {
     /**
      * @notice Changes the owner of the proxy contract. Only callable by the owner.
      *
-     * @param _owner New owner of the proxy contract.
+     * @param _admin New owner of the proxy contract.
      */
-    function changeAdmin(address _owner) external proxyCallIfNotAdmin {
-        _changeAdmin(_owner);
+    function changeAdmin(address _admin) external proxyCallIfNotAdmin {
+        _changeAdmin(_admin);
     }
 
     /**
@@ -159,14 +159,14 @@ contract Proxy {
     /**
      * @notice Changes the owner of the proxy contract.
      *
-     * @param _owner New owner of the proxy contract.
+     * @param _admin New owner of the proxy contract.
      */
-    function _changeAdmin(address _owner) internal {
+    function _changeAdmin(address _admin) internal {
         address previous = _getAdmin();
         assembly {
-            sstore(OWNER_KEY, _owner)
+            sstore(OWNER_KEY, _admin)
         }
-        emit AdminChanged(previous, _owner);
+        emit AdminChanged(previous, _admin);
     }
 
     /**
