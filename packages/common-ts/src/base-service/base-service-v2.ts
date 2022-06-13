@@ -116,12 +116,6 @@ export abstract class BaseServiceV2<
    * App server.
    */
   protected server: Server
-  get testServer() {
-    if (process.env.NODE_ENV !== 'test') {
-      throw new Error('Server is only available in tests')
-    }
-    return this.server
-  }
 
   /**
    * Port for the app server.
