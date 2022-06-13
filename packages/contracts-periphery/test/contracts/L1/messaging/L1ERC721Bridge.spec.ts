@@ -89,11 +89,11 @@ describe('L1ERC721Bridge', () => {
       await L1ERC721.connect(alice).approve(L1ERC721Bridge.address, tokenId)
     })
 
-    it('depositERC721() escrows the deposit and sends the correct deposit message', async () => {
+    it('bridgeERC721() escrows the deposit and sends the correct deposit message', async () => {
       // alice calls deposit on the bridge and the L1 bridge calls transferFrom on the token.
-      // emits an ERC721DepositInitiated event with the correct arguments.
+      // emits an ERC721BridgeInitiated event with the correct arguments.
       await expect(
-        L1ERC721Bridge.connect(alice).depositERC721(
+        L1ERC721Bridge.connect(alice).bridgeERC721(
           L1ERC721.address,
           DUMMY_L2_ERC721_ADDRESS,
           tokenId,
@@ -101,7 +101,7 @@ describe('L1ERC721Bridge', () => {
           NON_NULL_BYTES32
         )
       )
-        .to.emit(L1ERC721Bridge, 'ERC721DepositInitiated')
+        .to.emit(L1ERC721Bridge, 'ERC721BridgeInitiated')
         .withArgs(
           L1ERC721.address,
           DUMMY_L2_ERC721_ADDRESS,
@@ -129,7 +129,7 @@ describe('L1ERC721Bridge', () => {
 
       // the L1 bridge sends the correct message to the L1 messenger
       expect(depositCallToMessenger.args[1]).to.equal(
-        IL2ERC721Bridge.encodeFunctionData('finalizeERC721Deposit', [
+        IL2ERC721Bridge.encodeFunctionData('finalizeBridgeERC721', [
           L1ERC721.address,
           DUMMY_L2_ERC721_ADDRESS,
           aliceAddress,
@@ -150,11 +150,11 @@ describe('L1ERC721Bridge', () => {
       ).to.equal(true)
     })
 
-    it('depositERC721To() escrows the deposited NFT and sends the correct deposit message', async () => {
+    it('bridgeERC721To() escrows the deposited NFT and sends the correct deposit message', async () => {
       // depositor calls deposit on the bridge and the L1 bridge calls transferFrom on the token.
-      // emits an ERC721DepositInitiated event with the correct arguments.
+      // emits an ERC721BridgeInitiated event with the correct arguments.
       await expect(
-        L1ERC721Bridge.connect(alice).depositERC721To(
+        L1ERC721Bridge.connect(alice).bridgeERC721To(
           L1ERC721.address,
           DUMMY_L2_ERC721_ADDRESS,
           bobsAddress,
@@ -163,7 +163,7 @@ describe('L1ERC721Bridge', () => {
           NON_NULL_BYTES32
         )
       )
-        .to.emit(L1ERC721Bridge, 'ERC721DepositInitiated')
+        .to.emit(L1ERC721Bridge, 'ERC721BridgeInitiated')
         .withArgs(
           L1ERC721.address,
           DUMMY_L2_ERC721_ADDRESS,
@@ -195,7 +195,7 @@ describe('L1ERC721Bridge', () => {
 
       // the L1 bridge sends the correct message to the L1 messenger
       expect(depositCallToMessenger.args[1]).to.equal(
-        IL2ERC721Bridge.encodeFunctionData('finalizeERC721Deposit', [
+        IL2ERC721Bridge.encodeFunctionData('finalizeBridgeERC721', [
           L1ERC721.address,
           DUMMY_L2_ERC721_ADDRESS,
           aliceAddress,
@@ -216,22 +216,22 @@ describe('L1ERC721Bridge', () => {
       ).to.equal(true)
     })
 
-    it('cannot depositERC721 from a contract account', async () => {
+    it('cannot bridgeERC721 from a contract account', async () => {
       await expect(
-        L1ERC721Bridge.depositERC721(
+        L1ERC721Bridge.bridgeERC721(
           L1ERC721.address,
           DUMMY_L2_ERC721_ADDRESS,
           tokenId,
           FINALIZATION_GAS,
           NON_NULL_BYTES32
         )
-      ).to.be.revertedWith('Account not EOA')
+      ).to.be.revertedWith('L1ERC721Bridge: account is not externally owned')
     })
 
     describe('Handling ERC721.transferFrom() failures that revert', () => {
-      it('depositERC721(): will revert if ERC721.transferFrom() reverts', async () => {
+      it('bridgeERC721(): will revert if ERC721.transferFrom() reverts', async () => {
         await expect(
-          L1ERC721Bridge.connect(bob).depositERC721To(
+          L1ERC721Bridge.connect(bob).bridgeERC721To(
             L1ERC721.address,
             DUMMY_L2_ERC721_ADDRESS,
             bobsAddress,
@@ -242,9 +242,9 @@ describe('L1ERC721Bridge', () => {
         ).to.be.revertedWith('ERC721: transfer from incorrect owner')
       })
 
-      it('depositERC721To(): will revert if ERC721.transferFrom() reverts', async () => {
+      it('bridgeERC721To(): will revert if ERC721.transferFrom() reverts', async () => {
         await expect(
-          L1ERC721Bridge.connect(bob).depositERC721To(
+          L1ERC721Bridge.connect(bob).bridgeERC721To(
             L1ERC721.address,
             DUMMY_L2_ERC721_ADDRESS,
             bobsAddress,
@@ -255,9 +255,9 @@ describe('L1ERC721Bridge', () => {
         ).to.be.revertedWith('ERC721: transfer from incorrect owner')
       })
 
-      it('depositERC721To(): will revert if the L1 ERC721 is zero address', async () => {
+      it('bridgeERC721To(): will revert if the L1 ERC721 is zero address', async () => {
         await expect(
-          L1ERC721Bridge.connect(alice).depositERC721To(
+          L1ERC721Bridge.connect(alice).bridgeERC721To(
             constants.AddressZero,
             DUMMY_L2_ERC721_ADDRESS,
             bobsAddress,
@@ -268,9 +268,9 @@ describe('L1ERC721Bridge', () => {
         ).to.be.revertedWith('function call to a non-contract account')
       })
 
-      it('depositERC721To(): will revert if the L1 ERC721 has no code', async () => {
+      it('bridgeERC721To(): will revert if the L1 ERC721 has no code', async () => {
         await expect(
-          L1ERC721Bridge.connect(alice).depositERC721To(
+          L1ERC721Bridge.connect(alice).bridgeERC721To(
             bobsAddress,
             DUMMY_L2_ERC721_ADDRESS,
             bobsAddress,
@@ -286,7 +286,7 @@ describe('L1ERC721Bridge', () => {
   describe('ERC721 withdrawals', () => {
     it('onlyFromCrossDomainAccount: should revert on calls from a non-crossDomainMessenger L1 account', async () => {
       await expect(
-        L1ERC721Bridge.connect(alice).finalizeERC721Withdrawal(
+        L1ERC721Bridge.connect(alice).finalizeBridgeERC721(
           L1ERC721.address,
           DUMMY_L2_ERC721_ADDRESS,
           constants.AddressZero,
@@ -299,7 +299,7 @@ describe('L1ERC721Bridge', () => {
 
     it('onlyFromCrossDomainAccount: should revert on calls from the right crossDomainMessenger, but wrong xDomainMessageSender (ie. not the L2DepositedERC721)', async () => {
       await expect(
-        L1ERC721Bridge.finalizeERC721Withdrawal(
+        L1ERC721Bridge.finalizeBridgeERC721(
           L1ERC721.address,
           DUMMY_L2_ERC721_ADDRESS,
           constants.AddressZero,
@@ -318,7 +318,7 @@ describe('L1ERC721Bridge', () => {
         // First Alice will send an NFT so that there's a balance to be withdrawn
         await L1ERC721.connect(alice).approve(L1ERC721Bridge.address, tokenId)
 
-        await L1ERC721Bridge.connect(alice).depositERC721(
+        await L1ERC721Bridge.connect(alice).bridgeERC721(
           L1ERC721.address,
           DUMMY_L2_ERC721_ADDRESS,
           tokenId,
@@ -336,7 +336,7 @@ describe('L1ERC721Bridge', () => {
 
       it('should revert if the l1/l2 token pair has a token ID that has not been escrowed in the l1 bridge', async () => {
         await expect(
-          L1ERC721Bridge.finalizeERC721Withdrawal(
+          L1ERC721Bridge.finalizeBridgeERC721(
             L1ERC721.address,
             DUMMY_L2_BRIDGE_ADDRESS, // incorrect l2 token address
             constants.AddressZero,
@@ -351,9 +351,9 @@ describe('L1ERC721Bridge', () => {
       })
 
       it('should credit funds to the withdrawer and not use too much gas', async () => {
-        // finalizing the withdrawal emits an ERC721DepositInitiated event with the correct arguments.
+        // finalizing the withdrawal emits an ERC721BridgeFinalized event with the correct arguments.
         await expect(
-          L1ERC721Bridge.finalizeERC721Withdrawal(
+          L1ERC721Bridge.finalizeBridgeERC721(
             L1ERC721.address,
             DUMMY_L2_ERC721_ADDRESS,
             NON_ZERO_ADDRESS,
@@ -363,7 +363,7 @@ describe('L1ERC721Bridge', () => {
             { from: Fake__L1CrossDomainMessenger.address }
           )
         )
-          .to.emit(L1ERC721Bridge, 'ERC721WithdrawalFinalized')
+          .to.emit(L1ERC721Bridge, 'ERC721BridgeFinalized')
           .withArgs(
             L1ERC721.address,
             DUMMY_L2_ERC721_ADDRESS,
