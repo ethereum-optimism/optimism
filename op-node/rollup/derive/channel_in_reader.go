@@ -1,12 +1,12 @@
-package buidl
+package derive
 
 import (
 	"bytes"
 	"compress/zlib"
 	"fmt"
-	"github.com/ethereum-optimism/optimism/l2geth/rlp"
-	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"io"
+
+	"github.com/ethereum-optimism/optimism/l2geth/rlp"
 
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 )
@@ -61,7 +61,7 @@ func NewChannelInReader(source func() *TaggedData) (*ChannelInReader, error) {
 // The reader automatically moves to the next data sources as the current one gets exhausted.
 // It's up to the caller to check CurrentL1Origin() before reading more information.
 // The CurrentL1Origin() does not change until the first ReadBatch() after the old source has been completely exhausted.
-func (cr *ChannelInReader) ReadBatch(dest *derive.BatchData) error {
+func (cr *ChannelInReader) ReadBatch(dest *BatchData) error {
 	return cr.readRLP.Decode(dest)
 }
 
