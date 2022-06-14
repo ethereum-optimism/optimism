@@ -130,8 +130,8 @@ describe('L1ERC721Bridge', () => {
       // the L1 bridge sends the correct message to the L1 messenger
       expect(depositCallToMessenger.args[1]).to.equal(
         IL2ERC721Bridge.encodeFunctionData('finalizeBridgeERC721', [
-          L1ERC721.address,
           DUMMY_L2_ERC721_ADDRESS,
+          L1ERC721.address,
           aliceAddress,
           aliceAddress,
           tokenId,
@@ -196,8 +196,8 @@ describe('L1ERC721Bridge', () => {
       // the L1 bridge sends the correct message to the L1 messenger
       expect(depositCallToMessenger.args[1]).to.equal(
         IL2ERC721Bridge.encodeFunctionData('finalizeBridgeERC721', [
-          L1ERC721.address,
           DUMMY_L2_ERC721_ADDRESS,
+          L1ERC721.address,
           aliceAddress,
           bobsAddress,
           tokenId,
