@@ -94,6 +94,11 @@ export interface ICrossChainMessenger {
   l1BlockTimeSeconds: number
 
   /**
+   * Whether or not the messenger is using Bedrock mode.
+   */
+  bedrock: boolean
+
+  /**
    * Retrieves all cross chain messages sent within a given transaction.
    *
    * @param transaction Transaction hash or receipt to find messages from.
