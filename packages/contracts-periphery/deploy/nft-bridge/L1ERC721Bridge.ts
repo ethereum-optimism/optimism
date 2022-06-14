@@ -2,8 +2,9 @@
 import { DeployFunction } from 'hardhat-deploy/dist/types'
 
 const deployFn: DeployFunction = async (hre) => {
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
-  const Artifact__L1CrossDomainMessenger = require(`@eth-optimism/contracts/deployments/${hre.network.name}/Proxy__OVM_L1CrossDomainMessenger.json`)
+  const Artifact__L1CrossDomainMessenger = await hre.deployments.get(
+    'Proxy__OVM_L1CrossDomainMessenger'
+  )
 
   const { deployer } = await hre.getNamedAccounts()
   const L2ERC721Bridge = await hre.companionNetworks['l2'].deployments.get(

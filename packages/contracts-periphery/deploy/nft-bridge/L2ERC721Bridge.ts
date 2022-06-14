@@ -5,9 +5,13 @@ import { predeploys } from '@eth-optimism/contracts'
 const deployFn: DeployFunction = async (hre) => {
   const { deployer } = await hre.getNamedAccounts()
 
+  const L1ERC721Bridge = await hre.companionNetworks['l1'].deployments.get(
+    'L1ERC721Bridge'
+  )
+
   await hre.deployments.deploy('L2ERC721Bridge', {
     from: deployer,
-    args: [predeploys.L2CrossDomainMessenger],
+    args: [predeploys.L2CrossDomainMessenger, L1ERC721Bridge.address],
     log: true,
   })
 }

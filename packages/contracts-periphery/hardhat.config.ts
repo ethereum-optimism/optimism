@@ -85,6 +85,19 @@ const config: HardhatUserConfig = {
       },
     },
   },
+  external: {
+    contracts: [
+      {
+        artifacts: '../contracts-bedrock/artifacts',
+      },
+      {
+        artifacts: '../contracts/artifacts',
+      },
+    ],
+    deployments: {
+      kovan: ['../contracts/deployments/kovan'],
+    },
+  },
   mocha: {
     timeout: 50000,
   },
