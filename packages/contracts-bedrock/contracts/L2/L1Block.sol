@@ -2,56 +2,53 @@
 pragma solidity 0.8.10;
 
 /**
+ * @custom:proxied
+ * @custom:predeploy 0x4200000000000000000000000000000000000015
  * @title L1Block
- * @dev This is an L2 predeploy contract that holds values from the L1
- * chain. It can only be updated by a special account that has no private
- * key managed by the L2 system. Transactions sent to this contract can
- * be thought of as "L2 system transactions".
+ * @notice The L1Block predeploy gives users access to information about the last known L1 block.
+ *         Values within this contract are updated once per epoch (every L1 block) and can only be
+ *         set by the "depositor" account, a special system address. Depositor account transactions
+ *         are created by the protocol whenever we move to a new epoch.
  */
 contract L1Block {
     /**
-     * @notice Only the Depositor account may call setL1BlockValues().
-     */
-    error OnlyDepositor();
-
-    /**
-     * @notice The depositor account is a special account that sends
-     * transactions to this contract.
+     * @notice Address of the special depositor account.
      */
     address public constant DEPOSITOR_ACCOUNT = 0xDeaDDEaDDeAdDeAdDEAdDEaddeAddEAdDEAd0001;
 
     /**
-     * @notice The latest L1 block number known by the L2 system
+     * @notice The latest L1 block number known by the L2 system.
      */
     uint64 public number;
 
     /**
-     * @notice The latest L1 timestamp known by the L2 system
+     * @notice The latest L1 timestamp known by the L2 system.
      */
     uint64 public timestamp;
 
     /**
-     * @notice The latest L1 basefee
+     * @notice The latest L1 basefee.
      */
     uint256 public basefee;
 
     /**
-     * @notice The latest L1 blockhash
+     * @notice The latest L1 blockhash.
      */
     bytes32 public hash;
 
     /**
-     * @notice The number of L2 blocks in the same epoch
+     * @notice The number of L2 blocks in the same epoch.
      */
     uint64 public sequenceNumber;
 
     /**
-     * @notice Sets the L1 values
-     * @param _number L1 blocknumber
-     * @param _timestamp L1 timestamp
-     * @param _basefee L1 basefee
-     * @param _hash L1 blockhash
-     * @param _sequenceNumber Number of L2 blocks since epoch start
+     * @notice Updates the L1 block values.
+     *
+     * @param _number         L1 blocknumber.
+     * @param _timestamp      L1 timestamp.
+     * @param _basefee        L1 basefee.
+     * @param _hash           L1 blockhash.
+     * @param _sequenceNumber Number of L2 blocks since epoch start.
      */
     function setL1BlockValues(
         uint64 _number,
@@ -60,9 +57,10 @@ contract L1Block {
         bytes32 _hash,
         uint64 _sequenceNumber
     ) external {
-        if (msg.sender != DEPOSITOR_ACCOUNT) {
-            revert OnlyDepositor();
-        }
+        require(
+            msg.sender == DEPOSITOR_ACCOUNT,
+            "L1Block: only the depositor account can set L1 block values"
+        );
 
         number = _number;
         timestamp = _timestamp;

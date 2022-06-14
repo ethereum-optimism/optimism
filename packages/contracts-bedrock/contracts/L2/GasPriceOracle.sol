@@ -1,43 +1,47 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.10;
 
-/* External Imports */
 import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 import { Lib_PredeployAddresses } from "../libraries/Lib_PredeployAddresses.sol";
 import { L1Block } from "../L2/L1Block.sol";
 
 /**
+ * @custom:proxied
+ * @custom:predeploy 0x420000000000000000000000000000000000000F
  * @title GasPriceOracle
- * @dev This contract maintains the variables responsible for computing the L1
- * portion of the total fee charged on L2. The values stored in the contract
- * are looked up as part of the L2 state transition function and used to compute
- * the total fee paid by the user.
- * The contract exposes an API that is useful for knowing how large the L1
- * portion of their transaction fee will be.
- * This predeploy is found at 0x420000000000000000000000000000000000000F in the
- * L2 state.
- * This contract should be behind an upgradable proxy such that when the gas
- * prices change, the values can be updated accordingly.
+ * @notice This contract maintains the variables responsible for computing the L1 portion of the
+ *         total fee charged on L2. The values stored in the contract are looked up as part of the
+ *         L2 state transition function and used to compute the total fee paid by the user. The
+ *         contract exposes an API that is useful for knowing how large the L1 portion of their
+ *         transaction fee will be.
  */
 contract GasPriceOracle is Ownable {
-    /*************
-     * Variables *
-     *************/
-
-    // backwards compatibility
+    /**
+     * @custom:legacy
+     * @notice Spacer for backwards compatibility.
+     */
     uint256 internal spacer0;
+
+    /**
+     * @custom:legacy
+     * @notice Spacer for backwards compatibility.
+     */
     uint256 internal spacer1;
 
-    // Amortized cost of batch submission per transaction
+    /**
+     * @notice Constant L1 gas overhead per transaction.
+     */
     uint256 public overhead;
-    // Value to scale the fee up by
-    uint256 public scalar;
-    // Number of decimals of the scalar
-    uint256 public decimals;
 
-    /***************
-     * Constructor *
-     ***************/
+    /**
+     * @notice Dynamic L1 gas overhead per transaction.
+     */
+    uint256 public scalar;
+
+    /**
+     * @notice Number of decimals used in the scalar.
+     */
+    uint256 public decimals;
 
     /**
      * @param _owner Address that will initially own this contract.
@@ -46,70 +50,87 @@ contract GasPriceOracle is Ownable {
         transferOwnership(_owner);
     }
 
-    /**********
-     * Events *
-     **********/
+    /**
+     * @notice Emitted when the overhead value is updated.
+     */
+    event OverheadUpdated(uint256 overhead);
 
-    event OverheadUpdated(uint256);
-    event ScalarUpdated(uint256);
-    event DecimalsUpdated(uint256);
+    /**
+     * @notice Emitted when the scalar value is updated.
+     */
+    event ScalarUpdated(uint256 scalar);
 
-    /********************
-     * Public Functions *
-     ********************/
+    /**
+     * @notice Emitted when the decimals value is updated.
+     */
+    event DecimalsUpdated(uint256 decimals);
 
-    // legacy backwards compat
+    /**
+     * @notice Retrieves the current gas price (base fee).
+     *
+     * @return Current L2 gas price (base fee).
+     */
     function gasPrice() public returns (uint256) {
         return block.basefee;
     }
 
+    /**
+     * @notice Retrieves the current base fee.
+     *
+     * @return Current L2 base fee.
+     */
     function baseFee() public returns (uint256) {
         return block.basefee;
     }
 
+    /**
+     * @notice Retrieves the latest known L1 base fee.
+     *
+     * @return Latest known L1 base fee.
+     */
     function l1BaseFee() public view returns (uint256) {
         return L1Block(Lib_PredeployAddresses.L1_BLOCK_ATTRIBUTES).basefee();
     }
 
     /**
-     * Allows the owner to modify the overhead.
-     * @param _overhead New overhead
+     * @notice Allows the owner to modify the overhead.
+     *
+     * @param _overhead New overhead value.
      */
-    // slither-disable-next-line external-function
-    function setOverhead(uint256 _overhead) public onlyOwner {
+    function setOverhead(uint256 _overhead) external onlyOwner {
         overhead = _overhead;
         emit OverheadUpdated(_overhead);
     }
 
     /**
-     * Allows the owner to modify the scalar.
-     * @param _scalar New scalar
+     * @notice Allows the owner to modify the scalar.
+     *
+     * @param _scalar New scalar value.
      */
-    // slither-disable-next-line external-function
-    function setScalar(uint256 _scalar) public onlyOwner {
+    function setScalar(uint256 _scalar) external onlyOwner {
         scalar = _scalar;
         emit ScalarUpdated(_scalar);
     }
 
     /**
-     * Allows the owner to modify the decimals.
-     * @param _decimals New decimals
+     * @notice Allows the owner to modify the decimals.
+     *
+     * @param _decimals New decimals value.
      */
-    // slither-disable-next-line external-function
-    function setDecimals(uint256 _decimals) public onlyOwner {
+    function setDecimals(uint256 _decimals) external onlyOwner {
         decimals = _decimals;
         emit DecimalsUpdated(_decimals);
     }
 
     /**
-     * Computes the L1 portion of the fee
-     * based on the size of the RLP encoded tx
-     * and the current l1BaseFee
-     * @param _data Unsigned RLP encoded tx, 6 elements
+     * @notice Computes the L1 portion of the fee based on the size of the rlp encoded input
+     *         transaction, the current L1 base fee, and the various dynamic parameters.
+     *
+     * @param _data Unsigned fully RLP-encoded transaction to get the L1 fee for.
+     *
      * @return L1 fee that should be paid for the tx
      */
-    // slither-disable-next-line external-function
-    function getL1Fee(bytes memory _data) public view returns (uint256) {
+    function getL1Fee(bytes memory _data) external view returns (uint256) {
         uint256 l1GasUsed = getL1GasUsed(_data);
         uint256 l1Fee = l1GasUsed * l1BaseFee();
         uint256 divisor = 10**decimals;
@@ -118,30 +139,16 @@ contract GasPriceOracle is Ownable {
         return scaled;
     }
 
-    // solhint-disable max-line-length
     /**
-     * Computes the amount of L1 gas used for a transaction
-     * The overhead represents the per batch gas overhead of
-     * posting both transaction and state roots to L1 given larger
-     * batch sizes.
-     * 4 gas for 0 byte
-     * https://github.com/ethereum/go-ethereum/blob/9ada4a2e2c415e6b0b51c50e901336872e028872/params/protocol_params.go#L33
-     * 16 gas for non zero byte
-     * https://github.com/ethereum/go-ethereum/blob/9ada4a2e2c415e6b0b51c50e901336872e028872/params/protocol_params.go#L87
-     * This will need to be updated if calldata gas prices change
-     * Account for the transaction being unsigned
-     * Padding is added to account for lack of signature on transaction
-     * 1 byte for RLP V prefix
-     * 1 byte for V
-     * 1 byte for RLP R prefix
-     * 32 bytes for R
-     * 1 byte for RLP S prefix
-     * 32 bytes for S
-     * Total: 68 bytes of padding
-     * @param _data Unsigned RLP encoded tx, 6 elements
-     * @return Amount of L1 gas used for a transaction
+     * @notice Computes the amount of L1 gas used for a transaction. Adds the overhead which
+     *         represents the per-transaction gas overhead of posting the transaction and state
+     *         roots to L1. Adds 68 bytes of padding to account for the fact that the input does
+     *         not have a signature.
+     *
+     * @param _data Unsigned fully RLP-encoded transaction to get the L1 gas for.
+     *
+     * @return Amount of L1 gas used to publish the transaction.
      */
-    // solhint-enable max-line-length
     function getL1GasUsed(bytes memory _data) public view returns (uint256) {
         uint256 total = 0;
         uint256 length = _data.length;

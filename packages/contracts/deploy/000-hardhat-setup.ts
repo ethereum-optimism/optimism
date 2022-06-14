@@ -9,12 +9,10 @@ import {
   sendImpersonatedTx,
   BIG_BALANCE,
 } from '../src/deploy-utils'
-import { getDeployConfig } from '../src/deploy-config'
 import { names } from '../src/address-names'
 
 const deployFn: DeployFunction = async (hre) => {
-  const deployConfig = getDeployConfig(hre.network.name)
-  if (!deployConfig.isForkedNetwork) {
+  if (!hre.deployConfig.isForkedNetwork) {
     return
   }
 
