@@ -10,11 +10,9 @@ import (
 // DerivationPipeline is updated with new L1 data, and the Step() function can be iterated on to keep the L2 Engine in sync.
 type DerivationPipeline struct {
 	log         log.Logger
-	nextL1      func() eth.L1BlockRef // Where we fetch new L1 data from
-	bank        *ChannelBank          // Where we buffer all incoming L1 data
-	batchReader *ChannelInReader      // Where we buffer tagged data to read batches from (TODO: this API is blocking, we can't handle that currently)
-	batchQueue  *BatchQueue           // Where we buffer all derived L2 batches
-	engineQueue *EngineQueue          // Where we buffer payload attributes, and apply/consolidate them with the L2 engine
+	batchReader *ChannelInReader // Where we buffer tagged data to read batches from, this is blocking.
+	batchQueue  *BatchQueue      // Where we buffer all derived L2 batches
+	engineQueue *EngineQueue     // Where we buffer payload attributes, and apply/consolidate them with the L2 engine
 }
 
 func (dp *DerivationPipeline) Reset(l2Head eth.L2BlockRef) error {

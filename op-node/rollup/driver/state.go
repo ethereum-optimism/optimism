@@ -21,6 +21,8 @@ type state struct {
 	l2SafeHead  eth.L2BlockRef // L2 Safe Head - this is the head of the L2 chain as derived from L1 (thus it is Sequencer window blocks behind)
 	l2Finalized eth.BlockID    // L2 Block that will never be reversed
 
+	bank *derive.ChannelBank // Where we buffer all incoming L1 data
+
 	derivationInput chan *derive.TaggedData
 	// requests for the next tagged data, while providing the current L1 block reference
 	derivationSourceRequest chan eth.L1BlockRef
@@ -53,17 +55,19 @@ type state struct {
 func NewState(log log.Logger, snapshotLog log.Logger, config rollup.Config, l1Chain L1Chain, l2Chain L2Chain, output outputInterface, network Network, sequencer bool) *state {
 	// TODO init derivation pipeline
 	return &state{
-		Config:           config,
-		done:             make(chan struct{}),
-		log:              log,
-		snapshotLog:      snapshotLog,
-		l1:               l1Chain,
-		l2:               l2Chain,
-		output:           output,
-		network:          network,
-		sequencer:        sequencer,
-		l1Heads:          make(chan eth.L1BlockRef, 10),
-		unsafeL2Payloads: make(chan *eth.ExecutionPayload, 10),
+		Config:                  config,
+		done:                    make(chan struct{}),
+		derivationInput:         make(chan *derive.TaggedData, 1),
+		derivationSourceRequest: make(chan eth.L1BlockRef, 1),
+		log:                     log,
+		snapshotLog:             snapshotLog,
+		l1:                      l1Chain,
+		l2:                      l2Chain,
+		output:                  output,
+		network:                 network,
+		sequencer:               sequencer,
+		l1Heads:                 make(chan eth.L1BlockRef, 10),
+		unsafeL2Payloads:        make(chan *eth.ExecutionPayload, 10),
 	}
 }
 
@@ -155,12 +159,6 @@ func (s *state) handleNewL1Block(ctx context.Context, newL1Head eth.L1BlockRef) 
 	if s.l1Head.Hash == newL1Head.ParentHash {
 		s.log.Trace("Linear extension", "l1Head", newL1Head)
 		s.l1Head = newL1Head
-		if err := s.bank.NextL1(newL1Head); err != nil {
-			return fmt.Errorf("failed to move channel bank to new L1 head: %v", err)
-		}
-		if err := s.batchQueue.AddOrigin(newL1Head); err != nil {
-			return fmt.Errorf("failed to add new L1 head to batch queue: %v", err)
-		}
 		return nil
 	}
 
@@ -366,11 +364,6 @@ func (s *state) eventLoop() {
 	}
 
 	for {
-
-		// find the next tx to apply to the bank
-		// TODO s.bank.CurrentL1()
-		// TODO DataFromEVMTransactions
-
 		select {
 		case <-l2BlockCreationTickerCh:
 			s.log.Trace("L2 Creation Ticker")
@@ -410,13 +403,21 @@ func (s *state) eventLoop() {
 			if err != nil {
 				s.log.Error("Error in handling new L1 Head", "err", err)
 			}
-
 		case onto := <-s.derivationSourceRequest:
-			s.log.Info("The derivation process requested new L1 block", "onto", onto)
-			// TODO, on a reorg we close the existing input.
-			s.derivationInput <- newInput
+			s.log.Info("The derivation process requested new tagged data", "onto", onto)
 
+			tagData := s.bank.Read()
+			if tagData == nil {
+				// TODO: update the channel bank, move it to a next origin
+				// check if we have a next L1 block.
+				// if not found, then reschedule the derivationSourceRequest
+
+				// TODO, on a reorg we send nil to the derivation input channel
+			} else {
+				s.derivationInput <- tagData
+			}
 		case <-s.done:
+			close(s.derivationInput)
 			return
 		}
 	}
@@ -427,13 +428,13 @@ func (s *state) snapshot(event string) {
 	l2HeadJSON, _ := json.Marshal(s.l2Head)
 	l2SafeHeadJSON, _ := json.Marshal(s.l2SafeHead)
 	l2FinalizedHeadJSON, _ := json.Marshal(s.l2Finalized)
-	l1WindowBufJSON, _ := json.Marshal(s.l1WindowBuf)
+	// TODO: removed in batch derivation, may need to update the snapshot logging tool
+	//l1WindowBufJSON, _ := json.Marshal(s.l1WindowBuf)
 
 	s.snapshotLog.Info("Rollup State Snapshot",
 		"event", event,
 		"l1Head", string(l1HeadJSON),
 		"l2Head", string(l2HeadJSON),
 		"l2SafeHead", string(l2SafeHeadJSON),
-		"l2FinalizedHead", string(l2FinalizedHeadJSON),
-		"l1WindowBuf", string(l1WindowBufJSON))
+		"l2FinalizedHead", string(l2FinalizedHeadJSON))
 }
