@@ -23,39 +23,28 @@ type ChannelBank struct {
 	currentL1Origin eth.L1BlockRef
 }
 
+// Read the raw data of the first channel, if it's timed-out or closed
 // Read returns a zeroed channel ID and nil data if there is nothing new to Read.
-// The caller should tag the data with CurrentL1() to track what
+// The caller should tag the data with CurrentL1() to track the last L1 block the channel data depends on.
 func (ib *ChannelBank) Read() (chID ChannelID, data []byte) {
-	// clear timed out channel(s) first
-	for {
-		if len(ib.channelQueue) == 0 {
-			return ChannelID{}, nil
-		}
-		first := ib.channelQueue[0]
-		ch := ib.channels[first]
-		if ch.firstSeen+ChannelTimeout < ib.currentL1Origin.Time {
-			ib.log.Info("channel timed out", "channel", ch, "frames", len(ch.inputs), "progress", ch.progress, "first_seen", ch.firstSeen)
-			delete(ib.channels, first)
-			ib.channelQueue = ib.channelQueue[1:]
-		} else {
-			break
-		}
-	}
-
 	if len(ib.channelQueue) == 0 {
 		return ChannelID{}, nil
 	}
 	first := ib.channelQueue[0]
 	ch := ib.channels[first]
-
-	out := ch.Read() // may be nil if there is nothing to read
-	// if this caused the channel to get closed (i.e. read all data), remove it
-	if ch.Closed() {
-		ib.log.Debug("channel closed", "channel", ch, "progress", ch.progress, "first_seen", ch.firstSeen)
-		delete(ib.channels, first)
-		ib.channelQueue = ib.channelQueue[1:]
+	timedOut := ch.firstSeen+ChannelTimeout < ib.currentL1Origin.Time
+	if timedOut {
+		ib.log.Info("channel timed out", "channel", ch, "frames", len(ch.inputs), "first_seen", ch.firstSeen)
 	}
-	return first, out
+	if ch.closed {
+		ib.log.Debug("channel closed", "channel", ch, "first_seen", ch.firstSeen)
+	}
+	if !timedOut && !ch.closed {
+		return ChannelID{}, nil
+	}
+	delete(ib.channels, first)
+	ib.channelQueue = ib.channelQueue[1:]
+	return first, ch.Read()
 }
 
 func (ib *ChannelBank) CurrentL1() eth.L1BlockRef {
@@ -150,7 +139,7 @@ func (ib *ChannelBank) IngestData(data []byte) error {
 				continue
 			}
 		} else { // create new channel if it doesn't exist yet
-			currentCh = &ChannelIn{id: chID, endsAt: ^uint64(0), firstSeen: ib.currentL1Origin.Time}
+			currentCh = &ChannelIn{id: chID, firstSeen: ib.currentL1Origin.Time}
 			ib.channels[chID] = currentCh
 			ib.channelQueue = append(ib.channelQueue, chID)
 		}

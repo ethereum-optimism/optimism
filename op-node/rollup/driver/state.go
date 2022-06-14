@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	gosync "sync"
 	"time"
 
@@ -18,18 +19,12 @@ type state struct {
 	// Chain State
 	l1Head      eth.L1BlockRef // Latest recorded head of the L1 Chain
 	l2Head      eth.L2BlockRef // L2 Unsafe Head
-	l2SafeHead  eth.L2BlockRef // L2 Safe Head - this is the head of the L2 chain as derived from L1 (thus it is Sequencer window blocks behind)
+	l2SafeHead  eth.L2BlockRef // L2 Safe Head - this is the head of the L2 chain as derived from L1
 	l2Finalized eth.BlockID    // L2 Block that will never be reversed
-
-	bank *derive.ChannelBank // Where we buffer all incoming L1 data
-
-	derivationInput chan *derive.TaggedData
-	// requests for the next tagged data, while providing the current L1 block reference
-	derivationSourceRequest chan eth.L1BlockRef
 
 	// The derivation pipeline is reset whenever we reorg.
 	// The derivation pipeline determines the new l2SafeHead.
-	derivation derive.DerivationPipeline
+	derivation *derive.DerivationPipeline
 
 	// Rollup config
 	Config    rollup.Config
@@ -55,19 +50,17 @@ type state struct {
 func NewState(log log.Logger, snapshotLog log.Logger, config rollup.Config, l1Chain L1Chain, l2Chain L2Chain, output outputInterface, network Network, sequencer bool) *state {
 	// TODO init derivation pipeline
 	return &state{
-		Config:                  config,
-		done:                    make(chan struct{}),
-		derivationInput:         make(chan *derive.TaggedData, 1),
-		derivationSourceRequest: make(chan eth.L1BlockRef, 1),
-		log:                     log,
-		snapshotLog:             snapshotLog,
-		l1:                      l1Chain,
-		l2:                      l2Chain,
-		output:                  output,
-		network:                 network,
-		sequencer:               sequencer,
-		l1Heads:                 make(chan eth.L1BlockRef, 10),
-		unsafeL2Payloads:        make(chan *eth.ExecutionPayload, 10),
+		Config:           config,
+		done:             make(chan struct{}),
+		log:              log,
+		snapshotLog:      snapshotLog,
+		l1:               l1Chain,
+		l2:               l2Chain,
+		output:           output,
+		network:          network,
+		sequencer:        sequencer,
+		l1Heads:          make(chan eth.L1BlockRef, 10),
+		unsafeL2Payloads: make(chan *eth.ExecutionPayload, 10),
 	}
 }
 
@@ -94,7 +87,9 @@ func (s *state) Start(ctx context.Context) error {
 		}
 		s.l2Head = unsafeHead
 		s.l2SafeHead = safeHead
-
+		if err := s.derivation.Reset(safeHead); err != nil {
+			s.log.Error("failed to reset derivation pipeline", "err", err)
+		}
 	} else {
 		// Not yet reached genesis block
 		// TODO: Test this codepath. That requires setting up L1, letting it run, and then creating the L2 genesis from there.
@@ -114,9 +109,8 @@ func (s *state) Start(ctx context.Context) error {
 
 	s.l1Head = l1Head
 
-	s.wg.Add(2)
+	s.wg.Add(1)
 	go s.eventLoop()
-	go s.derivationLoop()
 
 	return nil
 }
@@ -301,37 +295,6 @@ func (s *state) handleUnsafeL2Payload(ctx context.Context, payload *eth.Executio
 	return nil
 }
 
-// Called by the eventLoop, to reset the derivation input
-func (s *state) onReorg() {
-	close(s.derivationInput)
-	s.derivationInput = make(chan *derive.TaggedData)
-	s.derivationSourceRequest = make(chan eth.L1BlockRef)
-}
-
-// next is the source for the channel reader in the derivation pipeline.
-// Called internally by the derivationLoop.
-func (s *state) next(onto eth.L1BlockRef) *derive.TaggedData {
-	s.derivationSourceRequest <- onto
-	out, ok := <-s.derivationInput
-	if !ok {
-		close(s.derivationSourceRequest)
-		return nil // this will close the pipeline
-	}
-	return out
-}
-
-// the derivationLoop runs the derivation pipeline, and requests new L1 data when it is ready for it.
-func (s *state) derivationLoop() {
-	defer s.wg.Done()
-	for {
-		err := s.derivation.Step()
-		if err != nil {
-			s.log.Warn("exiting derivation loop", "err", err)
-			return
-		}
-	}
-}
-
 // the eventLoop responds to L1 changes and internal timers to produce L2 blocks.
 func (s *state) eventLoop() {
 	defer s.wg.Done()
@@ -349,6 +312,9 @@ func (s *state) eventLoop() {
 		l2BlockCreationTickerCh = l2BlockCreationTicker.C
 	}
 
+	// stepReqCh is used to request that the driver attempts to step forward by one L1 block.
+	stepReqCh := make(chan struct{}, 1)
+
 	// l2BlockCreationReqCh is used to request that the driver create a new L2 block. Only used if
 	// we're running in Sequencer mode, because otherwise we'll be deriving our blocks via the
 	// stepping process.
@@ -362,6 +328,21 @@ func (s *state) eventLoop() {
 		default:
 		}
 	}
+
+	// reqStep requests that a driver stpe be taken. Won't deadlock if the channel is full.
+	// TODO: Rename step request
+	reqStep := func() {
+		select {
+		case stepReqCh <- struct{}{}:
+		// Don't deadlock if the channel is already full
+		default:
+		}
+	}
+
+	// We call reqStep right away to finish syncing to the tip of the chain if we're behind.
+	// reqStep will also be triggered when the L1 head moves forward or if there was a reorg on the
+	// L1 chain that we need to handle.
+	reqStep()
 
 	for {
 		select {
@@ -403,25 +384,27 @@ func (s *state) eventLoop() {
 			if err != nil {
 				s.log.Error("Error in handling new L1 Head", "err", err)
 			}
-		case onto := <-s.derivationSourceRequest:
-			s.log.Info("The derivation process requested new tagged data", "onto", onto)
-
-			chID, data := s.bank.Read()
-			if chID == (derive.ChannelID{}) {
-				// TODO: update the channel bank, move it to a next origin
-				// check if we have a next L1 block.
-				// if not found, then reschedule the derivationSourceRequest
-
-				// TODO, on a reorg we send nil to the derivation input channel
-			} else {
-				s.derivationInput <- &derive.TaggedData{
-					L1Origin:  s.bank.CurrentL1(),
-					ChannelID: chID,
-					Data:      data,
+			// a new L1 head may mean we have the data to not get an EOF again.
+			reqStep()
+		case <-stepReqCh:
+			s.log.Debug("Derivation process step", "onto", s.derivation.CurrentL1())
+			if err := s.derivation.Step(); err == io.EOF {
+				// TODO: try to fetch next L1 data, and apply it to the pipeline.
+				// if we fail to fetch the L1 data, simply not update the derivation pipeline yet,
+				// we'll hit an EOF later again and retry.
+			} else if err != nil {
+				// TODO: maybe make the log less scary if it failed because of a L1 reorg.
+				s.log.Error("derivation pipeline failed", "err", err)
+				// If the pipeline corrupts, simply reset it to the last known l2 safe head
+				if err := s.derivation.Reset(s.l2SafeHead); err != nil {
+					s.log.Error("failed to reset derivation pipeline after failing step", "err", err)
 				}
+			} else {
+				// update safe head (it may or may not have changed)
+				s.l2SafeHead = s.derivation.SafeL2Head()
+				reqStep() // continue with the next step if we can
 			}
 		case <-s.done:
-			close(s.derivationInput)
 			return
 		}
 	}

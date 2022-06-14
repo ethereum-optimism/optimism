@@ -25,6 +25,10 @@ func (eq *EngineQueue) AddAttributes(attributes *eth.PayloadAttributes) {
 	eq.attributes = append(eq.attributes)
 }
 
+func (eq *EngineQueue) SafeL2Head() eth.L2BlockRef {
+	return eth.L2BlockRef{} // TODO
+}
+
 func (eq *EngineQueue) Step() error {
 	// TODO: implement below spec
 	// 1. return io.EOF if there are no payload attributes buffered

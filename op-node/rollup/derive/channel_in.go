@@ -11,30 +11,20 @@ type ChannelIn struct {
 	// estimated memory size, used to drop the channel if we have too much data
 	size uint64
 
-	progress uint64
-
+	// timestamp of the L1 block the channel was first seen, to time out the channel reading
 	firstSeen uint64
 
-	// final frame number (inclusive). Max value if we haven't seen the end yet.
-	endsAt uint64
+	// true if we have buffered the last frame
+	closed bool
 
 	inputs map[uint64][]byte
 }
 
 // IngestData buffers a frame in the channel
 func (ch *ChannelIn) IngestData(frameNum uint64, isLast bool, frameData []byte) error {
-	if frameNum < ch.progress {
-		// already consumed a frame with equal number, this must be a duplicate
-		return DuplicateErr
-	}
-	if frameNum > ch.endsAt {
-		return fmt.Errorf("channel already ended ingesting inputs")
-	}
-	if ch.endsAt != ^uint64(0) && isLast {
+	if ch.closed {
 		return fmt.Errorf("already received a closing frame")
 	}
-	// the frame is from the current or future, it will be read from the buffer later
-
 	// create buffer if it didn't exist yet
 	if ch.inputs == nil {
 		ch.inputs = make(map[uint64][]byte)
@@ -45,26 +35,18 @@ func (ch *ChannelIn) IngestData(frameNum uint64, isLast bool, frameData []byte) 
 	}
 	// buffer the frame
 	ch.inputs[frameNum] = frameData
-	if isLast {
-		ch.endsAt = frameNum
-	}
+	ch.closed = isLast
 	ch.size += uint64(len(frameData)) + frameOverhead
 	return nil
 }
 
-// Read next tagged piece of data. This may return nil if there is none.
-func (ch *ChannelIn) Read() []byte {
-	data, ok := ch.inputs[ch.progress]
-	if !ok {
-		return nil
+// Read full channel content (it may be incomplete if the channel is not Closed)
+func (ch *ChannelIn) Read() (out []byte) {
+	for frameNr := uint64(0); ; frameNr++ {
+		data, ok := ch.inputs[frameNr]
+		if !ok {
+			out = append(out, data...)
+			return
+		}
 	}
-	ch.size -= uint64(len(data)) + frameOverhead
-	delete(ch.inputs, ch.progress)
-	ch.progress += 1
-	return data
-}
-
-// Closed returns if this channel has been fully read yet.
-func (ch *ChannelIn) Closed() bool {
-	return ch.progress > ch.endsAt
 }
