@@ -5,7 +5,7 @@ import (
 	"compress/zlib"
 	"io"
 
-	"github.com/ethereum-optimism/optimism/l2geth/rlp"
+	"github.com/ethereum/go-ethereum/rlp"
 
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 )
