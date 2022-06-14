@@ -16,6 +16,6 @@ const deployFn: DeployFunction = async (hre) => {
   })
 }
 
-deployFn.tags = ['nft-bridge', 'L2ERC721Bridge']
+deployFn.tags = ['l2-nft-bridge', 'L2ERC721Bridge']
 
 export default deployFn

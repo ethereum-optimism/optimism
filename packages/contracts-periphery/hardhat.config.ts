@@ -18,6 +18,11 @@ dotenv.config()
 
 const config: HardhatUserConfig = {
   networks: {
+    hardhat: {
+      companionNetworks: {
+        l2: 'hardhat',
+      },
+    },
     optimism: {
       chainId: 10,
       url: 'https://mainnet.optimism.io',
