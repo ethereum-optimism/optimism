@@ -1,5 +1,11 @@
 # @eth-optimism/teleportr
 
+## 0.0.10
+
+### Patch Changes
+
+- ed3a39fb: Fix panic
+
 ## 0.0.9
 
 ### Patch Changes
