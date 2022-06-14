@@ -1,6 +1,7 @@
 import { HardhatUserConfig } from 'hardhat/types'
 import 'solidity-coverage'
 import * as dotenv from 'dotenv'
+import { ethers } from 'ethers'
 
 // Hardhat plugins
 import '@nomiclabs/hardhat-ethers'
@@ -11,6 +12,7 @@ import '@typechain/hardhat'
 import 'hardhat-deploy'
 import 'hardhat-gas-reporter'
 import 'hardhat-output-validator'
+import '@eth-optimism/hardhat-deploy-config'
 
 // Hardhat tasks
 import './tasks'
@@ -22,7 +24,7 @@ const enableGasReport = !!process.env.ENABLE_GAS_REPORT
 const privateKey = process.env.PRIVATE_KEY || '0x' + '11'.repeat(32) // this is to avoid hardhat error
 const deploy = process.env.DEPLOY_DIRECTORY || 'deploy'
 
-const config: HardhatUserConfig | any = {
+const config: HardhatUserConfig = {
   networks: {
     hardhat: {
       live: false,
@@ -99,6 +101,7 @@ const config: HardhatUserConfig | any = {
   paths: {
     deploy: './deploy',
     deployments: './deployments',
+    deployConfig: './deploy-config',
   },
   namedAccounts: {
     deployer: {
@@ -145,6 +148,87 @@ const config: HardhatUserConfig | any = {
       variables: false,
     },
     exclude: ['contracts/test-helpers', 'contracts/test-libraries'],
+  },
+  deployConfigSpec: {
+    isForkedNetwork: {
+      type: 'boolean',
+      default: false,
+    },
+    numDeployConfirmations: {
+      type: 'number',
+      default: 0,
+    },
+    gasPrice: {
+      type: 'number',
+      default: undefined,
+    },
+    l1BlockTimeSeconds: {
+      type: 'number',
+    },
+    l2BlockGasLimit: {
+      type: 'number',
+    },
+    l2ChainId: {
+      type: 'number',
+    },
+    ctcL2GasDiscountDivisor: {
+      type: 'number',
+    },
+    ctcEnqueueGasCost: {
+      type: 'number',
+    },
+    sccFaultProofWindowSeconds: {
+      type: 'number',
+    },
+    sccSequencerPublishWindowSeconds: {
+      type: 'number',
+    },
+    ovmSequencerAddress: {
+      type: 'address',
+    },
+    ovmProposerAddress: {
+      type: 'address',
+    },
+    ovmBlockSignerAddress: {
+      type: 'address',
+    },
+    ovmFeeWalletAddress: {
+      type: 'address',
+    },
+    ovmAddressManagerOwner: {
+      type: 'address',
+    },
+    ovmGasPriceOracleOwner: {
+      type: 'address',
+    },
+    ovmWhitelistOwner: {
+      type: 'address',
+      default: ethers.constants.AddressZero,
+    },
+    gasPriceOracleOverhead: {
+      type: 'number',
+      default: 2750,
+    },
+    gasPriceOracleScalar: {
+      type: 'number',
+      default: 1_500_000,
+    },
+    gasPriceOracleDecimals: {
+      type: 'number',
+      default: 6,
+    },
+    gasPriceOracleL1BaseFee: {
+      type: 'number',
+      default: 1,
+    },
+    gasPriceOracleL2GasPrice: {
+      type: 'number',
+      default: 1,
+    },
+    hfBerlinBlock: {
+      type: 'number',
+      default: 0,
+    },
   },
 }
 
