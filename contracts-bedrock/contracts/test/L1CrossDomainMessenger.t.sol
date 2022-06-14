@@ -54,6 +54,21 @@ contract L1CrossDomainMessenger_Test is Messenger_Initializer {
         L1Messenger.pause();
     }
 
+    // unpause: should unpause the contract when called by the current owner
+    function test_L1MessengerUnpause() external {
+        L1Messenger.pause();
+        assert(L1Messenger.paused());
+        L1Messenger.unpause();
+        assert(!L1Messenger.paused());
+    }
+
+    // unpause: should not unpause the contract when called by account other than the owner
+    function testCannot_L1MessengerUnpause() external {
+        vm.expectRevert("Ownable: caller is not the owner");
+        vm.prank(address(0xABBA));
+        L1Messenger.unpause();
+    }
+
     // the version is encoded in the nonce
     function test_L1MessengerMessageVersion() external {
         assertEq(

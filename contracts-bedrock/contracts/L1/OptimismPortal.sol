@@ -67,6 +67,16 @@ contract OptimismPortal {
      */
     address internal constant DEFAULT_L2_SENDER = 0x000000000000000000000000000000000000dEaD;
 
+    /**
+     * @notice The L2 gas limit set when eth is deposited using the receive() function.
+     */
+    uint64 internal constant RECEIVE_DEFAULT_GAS_LIMIT = 100_000;
+
+    /**
+     * @notice Additional gas reserved for clean up after finalizing a transaction withdrawal.
+     */
+    uint256 internal constant FINALIZE_GAS_BUFFER = 20_000;
+
     /*************
      * Variables *
      *************/
@@ -83,7 +93,7 @@ contract OptimismPortal {
 
     /**
      * @notice Public variable which can be used to read the address of the L2 account which
-     * initated the withdrawal. Can also be used to determine whether or not execution is occuring
+     * initiated the withdrawal. Can also be used to determine whether or not execution is occuring
      * downstream of a call to finalizeWithdrawalTransaction().
      */
     address public l2Sender = DEFAULT_L2_SENDER;
@@ -111,10 +121,11 @@ contract OptimismPortal {
      * @notice Accepts value so that users can send ETH directly to this contract and
      * have the funds be deposited to their address on L2.
      * @dev This is intended as a convenience function for EOAs. Contracts should call the
-     * depositTransaction() function directly.
+     * depositTransaction() function directly otherwise any deposited funds will be lost due to
+     * address aliasing.
      */
     receive() external payable {
-        depositTransaction(msg.sender, msg.value, 100000, false, bytes(""));
+        depositTransaction(msg.sender, msg.value, RECEIVE_DEFAULT_GAS_LIMIT, false, bytes(""));
     }
 
     /**
@@ -171,7 +182,11 @@ contract OptimismPortal {
         WithdrawalVerifier.OutputRootProof calldata _outputRootProof,
         bytes calldata _withdrawalProof
     ) external payable {
-        // Prevent reentrency
+        // Prevent immediate reentrancy to other functions on this contract.
+        // Note that reentrancy to _this_ function is also prevented by the l2Sender check below,
+        // but this check is also an efficient mechanism of preventing the portal from calling
+        // its own receive() or depositTransaction() functions, without the need for a nonReentrant
+        // modifier.
         require(_target != address(this), "Cannot send message to self.");
 
         // Get the output root.
@@ -221,7 +236,16 @@ contract OptimismPortal {
         finalizedWithdrawals[withdrawalHash] = true;
 
         // Save enough gas so that the call cannot use up all of the gas
-        require(gasleft() >= _gasLimit + 20000, "Insufficient gas to finalize withdrawal.");
+        require(
+            gasleft() >= _gasLimit + FINALIZE_GAS_BUFFER,
+            "Insufficient gas to finalize withdrawal."
+        );
+
+        // Disallow withdrawals during reentrancy to this function.
+        require(
+            l2Sender == DEFAULT_L2_SENDER,
+            "Cannot withdraw a transaction within another withdrawal transaction."
+        );
 
         // Set the l2Sender so that other contracts can know which account
         // on L2 is making the withdrawal

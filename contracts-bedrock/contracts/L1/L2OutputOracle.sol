@@ -73,6 +73,7 @@ contract L2OutputOracle is Ownable {
      * @param _historicalTotalBlocks The number of blocks that preceding the
      *        initialization of the L2 chain.
      * @param _startingBlockTimestamp The timestamp to start L2 block at.
+     * @param sequencer The address of the sequencer.
      */
     constructor(
         uint256 _submissionInterval,
