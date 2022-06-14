@@ -21,6 +21,9 @@ const config: HardhatUserConfig = {
     optimism: {
       chainId: 10,
       url: 'https://mainnet.optimism.io',
+      companionNetworks: {
+        l1: 'mainnet',
+      },
       verify: {
         etherscan: {
           apiKey: getenv('OPTIMISTIC_ETHERSCAN_API_KEY'),
@@ -30,6 +33,9 @@ const config: HardhatUserConfig = {
     'optimism-kovan': {
       chainId: 69,
       url: 'https://kovan.optimism.io',
+      companionNetworks: {
+        l1: 'kovan',
+      },
       verify: {
         etherscan: {
           apiKey: getenv('OPTIMISTIC_ETHERSCAN_API_KEY'),
@@ -39,6 +45,9 @@ const config: HardhatUserConfig = {
     ethereum: {
       chainId: 1,
       url: `https://mainnet.infura.io/v3/${getenv('INFURA_PROJECT_ID')}`,
+      companionNetworks: {
+        l2: 'optimism',
+      },
       verify: {
         etherscan: {
           apiKey: getenv('ETHEREUM_ETHERSCAN_API_KEY'),
@@ -66,6 +75,9 @@ const config: HardhatUserConfig = {
     kovan: {
       chainId: 42,
       url: `https://kovan.infura.io/v3/${getenv('INFURA_PROJECT_ID')}`,
+      companionNetworks: {
+        l2: 'optimism-kovan',
+      },
       verify: {
         etherscan: {
           apiKey: getenv('ETHEREUM_ETHERSCAN_API_KEY'),

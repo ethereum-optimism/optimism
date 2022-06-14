@@ -3,14 +3,13 @@
 // turned back into L1 data.
 //
 // The flow is data is as follows
-// receipts, batches -> l2.PayloadAttributes with `payload_attributes.go`
-// l2.PayloadAttributes -> l2.ExecutionPayload with `execution_payload.go`
-// L2 block -> Corresponding L1 block info with `l1_block_info.go`
+// receipts, batches -> eth.PayloadAttributes, by parsing the L1 data and deriving L2 inputs
+// l2.PayloadAttributes -> l2.ExecutionPayload, by running the EVM (using an Execution Engine)
+// L2 block -> Corresponding L1 block info, by parsing the first deposited transaction
 //
 // The Payload Attributes derivation stage is a pure function.
-// The Execution Payload derivation stage relies on the L2 execution engine to perform the
-// state update.
+// The Execution Payload derivation stage relies on the L2 execution engine to perform the state update.
 // The inversion step is a pure function.
 //
-// The steps should be keep separate to enable easier testing.
+// The steps should be kept separate to enable easier testing.
 package derive

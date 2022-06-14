@@ -7,12 +7,9 @@ import {
   deployAndVerifyAndThen,
   getContractFromArtifact,
 } from '../src/deploy-utils'
-import { getDeployConfig } from '../src/deploy-config'
 import { names } from '../src/address-names'
 
 const deployFn: DeployFunction = async (hre) => {
-  const deployConfig = getDeployConfig(hre.network.name)
-
   const Lib_AddressManager = await getContractFromArtifact(
     hre,
     names.unmanaged.Lib_AddressManager
@@ -48,7 +45,7 @@ const deployFn: DeployFunction = async (hre) => {
       console.log(
         `Transferring ownership of L1CrossDomainMessenger (implementation)...`
       )
-      const owner = deployConfig.ovmAddressManagerOwner
+      const owner = hre.deployConfig.ovmAddressManagerOwner
       await contract.transferOwnership(owner)
 
       console.log(`Checking that contract owner was correctly set...`)
