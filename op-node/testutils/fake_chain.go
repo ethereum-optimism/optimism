@@ -11,7 +11,6 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/op-node/eth"
-	"github.com/ethereum-optimism/optimism/op-node/l2"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 )
 
@@ -167,7 +166,7 @@ func (m *FakeChainSource) L2BlockRefByHash(ctx context.Context, l2Hash common.Ha
 	return eth.L2BlockRef{}, ethereum.NotFound
 }
 
-func (m *FakeChainSource) ForkchoiceUpdate(ctx context.Context, state *l2.ForkchoiceState, attr *l2.PayloadAttributes) (*l2.ForkchoiceUpdatedResult, error) {
+func (m *FakeChainSource) ForkchoiceUpdate(ctx context.Context, state *eth.ForkchoiceState, attr *eth.PayloadAttributes) (*eth.ForkchoiceUpdatedResult, error) {
 	m.log.Trace("ForkchoiceUpdate", "newHead", state.HeadBlockHash, "l2Head", m.l2head, "reorg", m.l2reorg)
 	m.l2reorg++
 	if m.l2reorg >= len(m.l2s) {
