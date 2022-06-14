@@ -20,6 +20,8 @@ spec:
           envFrom:
             - configMapRef:
                 name: l2geth-replica
+            - configMapRef:
+                name: l2geth-replica-sync-source
           volumeMounts:
             - name: geth-scripts
               mountPath: /geth-scripts
@@ -31,6 +33,8 @@ spec:
           envFrom:
             - configMapRef:
                 name: l2geth-replica
+            - configMapRef:
+                name: l2geth-replica-sync-source
           volumeMounts:
           - name: wait-scripts
             mountPath: /script/wait
@@ -64,6 +68,8 @@ spec:
         envFrom:
           - configMapRef:
               name: l2geth-replica
+          - configMapRef:
+              name: l2geth-replica-sync-source
         volumeMounts:
           - name: liveliness-script
             mountPath: /script/liveliness
