@@ -1,4 +1,4 @@
-const commandExistsSync = require('command-exists').sync
+import { sync as commandExistsSync } from 'command-exists'
 
 if (!commandExistsSync('forge')) {
   console.error(
