@@ -228,8 +228,8 @@ contract L1ERC721Bridge is CrossDomainEnabled, OwnableUpgradeable {
         // Construct calldata for _l2Token.finalizeBridgeERC721(_to, _tokenId)
         bytes memory message = abi.encodeWithSelector(
             L2ERC721Bridge.finalizeBridgeERC721.selector,
-            _localToken,
             _remoteToken,
+            _localToken,
             _from,
             _to,
             _tokenId,

@@ -270,17 +270,17 @@ describe('ERC721 Bridge', () => {
       // Deploy a fake L2 ERC721, which:
       // - Returns the address of the legitimate L1 token from its l1Token() getter.
       // - Allows the L2 bridge to call its burn() function.
-      const FakeL2StandardERC721 = await (
-        await ethers.getContractFactory('FakeL2StandardERC721', bobWalletL2)
+      const FakeOptimismMintableERC721 = await (
+        await ethers.getContractFactory('FakeOptimismMintableERC721', bobWalletL2)
       ).deploy(L1ERC721.address, L2ERC721Bridge.address)
-      await FakeL2StandardERC721.deployed()
+      await FakeOptimismMintableERC721.deployed()
 
       // Use the fake contract to mint Alice an NFT with the same token ID
-      const tx = await FakeL2StandardERC721.mint(aliceAddress, TOKEN_ID)
+      const tx = await FakeOptimismMintableERC721.mint(aliceAddress, TOKEN_ID)
       await tx.wait()
 
       // Check that Alice owns the NFT from the fake ERC721 contract
-      expect(await FakeL2StandardERC721.ownerOf(TOKEN_ID)).to.equal(
+      expect(await FakeOptimismMintableERC721.ownerOf(TOKEN_ID)).to.equal(
         aliceAddress
       )
 
@@ -288,7 +288,7 @@ describe('ERC721 Bridge', () => {
       const withdrawalTx = await L2ERC721Bridge.connect(
         aliceWalletL2
       ).bridgeERC721(
-        FakeL2StandardERC721.address,
+        FakeOptimismMintableERC721.address,
         L1ERC721.address,
         TOKEN_ID,
         0,
