@@ -40,12 +40,7 @@ type ChannelInReader struct {
 func NewChannelInReader(source func() *TaggedData) *ChannelInReader {
 	cr := &ChannelInReader{
 		source: source,
-		buf:    bytes.NewBuffer(make([]byte, 1000)),
 	}
-	zlib.NewReader()
-	// TODO: need to init the zlib reader: zlib.NewReader(nil)
-	// But it reads from the source buffer immediately upon creation, and needs a full header to not error.
-	cr.Reset()
 	return cr
 }
 
@@ -64,9 +59,20 @@ func NewChannelInReader(source func() *TaggedData) *ChannelInReader {
 // It's up to the caller to check CurrentL1Origin() before reading more information.
 // The CurrentL1Origin() does not change until the first ReadBatch() after the old source has been completely exhausted.
 func (cr *ChannelInReader) ReadBatch(dest *BatchData) error {
-	// TODO: introspect RLP stream to check if we have sufficient data
-	cr.readRLP.Kind()
-	cr.readZlib.Read()
+	// The channel reader may not be initialized yet,
+	// and initializing involves reading (zlib header data), so we do that now.
+	if cr.buf == nil {
+		buf := bytes.NewBuffer(make([]byte, 1000))
+		buf.Reset()
+		// creating a new zlib reader involves resetting it
+		zr, err := zlib.NewReader(readFn(cr.readChannel))
+		if err != nil {
+			return err
+		}
+		cr.buf = buf
+		cr.readZlib = zr.(zlibReader)
+		cr.readRLP = rlp.NewStream(cr.readZlib, 10_000_000)
+	}
 	return cr.readRLP.Decode(dest)
 }
 
