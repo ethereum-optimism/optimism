@@ -31,6 +31,7 @@ func (eq *EngineQueue) Step() error {
 	// 2. peek into first payload attributes
 	// 3. check if the engine has synced past these attributes
 	//     3.1 if yes, compare the engine attributes
+	//           -> see derive.VerifySafeBlock
 	//        3.1.1 mark the attributes as safe (forkchoice update, without changing unsafe head) (with timeout)
 	//             or log error and return nil if this fails
 	//        3.1.2 pop the attributes from buffer
@@ -38,6 +39,7 @@ func (eq *EngineQueue) Step() error {
 	//        3.1.4 pop from the buffer
 	//        3.1.5 return nil
 	//     3.2 if not, re-apply the engine attributes
+	//           -> see derive.InsertHeadBlock
 	//        3.2.1 forkchoice update to make the safe block the head (with timeout)
 	//             or log error and return nil if this fails
 	//        3.2.2 try to apply the payload attributes to the engine (with timeout)
