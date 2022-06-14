@@ -229,7 +229,7 @@ contract Challenge {
   ///         in the binary search (cf. `getStepNumber`). He can only do this after the challenger
   ///         has submitted his own state hash for this step.
   ///         If the defender believes there are less steps in the execution of the fault proof
-  ///         program than the current step number, he should submit a state hash of 0.
+  ///         program than the current step number, he should submit the final state hash.
   function respondState(uint256 challengeId, bytes32 stateHash) external {
     ChallengeData storage c = challenges[challengeId];
     require(c.challenger != address(0), "invalid challenge");
