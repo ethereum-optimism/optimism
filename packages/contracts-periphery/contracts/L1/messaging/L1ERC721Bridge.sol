@@ -1,138 +1,160 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.9;
 
-/* Interface Imports */
-import { IL1ERC721Bridge } from "./IL1ERC721Bridge.sol";
-import { IL2ERC721Bridge } from "../../L2/messaging/IL2ERC721Bridge.sol";
-import { IERC721 } from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
-
-/* Library Imports */
 import {
     CrossDomainEnabled
 } from "@eth-optimism/contracts/contracts/libraries/bridge/CrossDomainEnabled.sol";
+import {
+    OwnableUpgradeable
+} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import { IERC721 } from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import { Address } from "@openzeppelin/contracts/utils/Address.sol";
+import { L2ERC721Bridge } from "../../L2/messaging/L2ERC721Bridge.sol";
 
 /**
  * @title L1ERC721Bridge
- * @dev The L1 ERC721 Bridge is a contract which stores deposited L1 NFTs that are in use
- * on L2. It synchronizes a corresponding L2 Bridge, informing it of deposits and listening
- * to it for newly finalized withdrawals.
+ * @notice The L1 ERC721 bridge is a contract which works together with the L2 ERC721 bridge to
+ *         make it possible to transfer ERC721 tokens between Optimism and Ethereum. This contract
+ *         acts as an escrow for ERC721 tokens deposted into L2.
  */
-contract L1ERC721Bridge is IL1ERC721Bridge, CrossDomainEnabled {
-    /********************************
-     * External Contract References *
-     ********************************/
+contract L1ERC721Bridge is CrossDomainEnabled, OwnableUpgradeable {
+    /**
+     * @notice Contract version number.
+     */
+    uint8 public constant VERSION = 1;
 
-    address public l2ERC721Bridge;
+    /**
+     * @notice Emitted when an ERC721 bridge to the other network is initiated.
+     *
+     * @param localToken  Address of the token on this domain.
+     * @param remoteToken Address of the token on the remote domain.
+     * @param from        Address that initiated bridging action.
+     * @param to          Address to receive the token.
+     * @param tokenId     ID of the specific token deposited.
+     * @param extraData   Extra data for use on the client-side.
+     */
+    event ERC721BridgeInitiated(
+        address indexed localToken,
+        address indexed remoteToken,
+        address indexed from,
+        address to,
+        uint256 tokenId,
+        bytes extraData
+    );
+
+    /**
+     * @notice Emitted when an ERC721 bridge from the other network is finalized.
+     *
+     * @param localToken  Address of the token on this domain.
+     * @param remoteToken Address of the token on the remote domain.
+     * @param from        Address that initiated bridging action.
+     * @param to          Address to receive the token.
+     * @param tokenId     ID of the specific token deposited.
+     * @param extraData   Extra data for use on the client-side.
+     */
+    event ERC721BridgeFinalized(
+        address indexed localToken,
+        address indexed remoteToken,
+        address indexed from,
+        address to,
+        uint256 tokenId,
+        bytes extraData
+    );
+
+    /**
+     * @notice Address of the bridge on the other network.
+     */
+    address public otherBridge;
 
     // Maps L1 token to L2 token to token ID to a boolean indicating if the token is deposited
+    /**
+     * @notice Mapping of L1 token to L2 token to ID to boolean, indicating if the given L1 token
+     *         by ID was deposited for a given L2 token.
+     */
     mapping(address => mapping(address => mapping(uint256 => bool))) public deposits;
 
-    /***************
-     * Constructor *
-     ***************/
-
-    // This contract lives behind a proxy, so the constructor parameters will go unused.
-    constructor(address _l1messenger, address _l2ERC721Bridge) CrossDomainEnabled(address(0)) {
-        _initialize(_l1messenger, _l2ERC721Bridge);
-    }
-
-    /******************
-     * Initialization *
-     ******************/
-
     /**
-     * @param _l1messenger L1 Messenger address being used for cross-chain communications.
-     * @param _l2ERC721Bridge L2 ERC721 bridge address.
+     * @param _messenger   Address of the CrossDomainMessenger on this network.
+     * @param _otherBridge Address of the ERC721 bridge on the other network.
      */
-    function _initialize(address _l1messenger, address _l2ERC721Bridge) internal {
-        messenger = _l1messenger;
-        l2ERC721Bridge = _l2ERC721Bridge;
+    constructor(address _messenger, address _otherBridge) CrossDomainEnabled(address(0)) {
+        initialize(_messenger, _otherBridge);
     }
 
-    /**************
-     * Depositing *
-     **************/
-
     /**
-     * @inheritdoc IL1ERC721Bridge
+     * @param _messenger   Address of the CrossDomainMessenger on this network.
+     * @param _otherBridge Address of the ERC721 bridge on the other network.
      */
-    function depositERC721(
-        address _l1Token,
-        address _l2Token,
-        uint256 _tokenId,
-        uint32 _l2Gas,
-        bytes calldata _data
-    ) external virtual {
-        // Modifier requiring sender to be EOA.  This check could be bypassed by a malicious
-        // contract via initcode, but it takes care of the user error we want to avoid.
-        require(!Address.isContract(msg.sender), "Account not EOA");
+    function initialize(address _messenger, address _otherBridge) public reinitializer(VERSION) {
+        messenger = _messenger;
+        otherBridge = _otherBridge;
 
-        _initiateERC721Deposit(_l1Token, _l2Token, msg.sender, msg.sender, _tokenId, _l2Gas, _data);
+        // Initialize upgradable OZ contracts
+        __Ownable_init();
     }
 
     /**
-     * @inheritdoc IL1ERC721Bridge
-     */
-    function depositERC721To(
-        address _l1Token,
-        address _l2Token,
-        address _to,
-        uint256 _tokenId,
-        uint32 _l2Gas,
-        bytes calldata _data
-    ) external virtual {
-        _initiateERC721Deposit(_l1Token, _l2Token, msg.sender, _to, _tokenId, _l2Gas, _data);
-    }
-
-    /**
-     * @dev Performs the logic for deposits by informing the L2 Deposited Token
-     * contract of the deposit and calling a handler to lock the L1 NFT. (e.g. transferFrom)
+     * @notice Initiates a bridge of an NFT to the caller's account on L2.
      *
-     * @param _l1Token Address of the L1 ERC721 we are depositing
-     * @param _l2Token Address of the L1 respective L2 ERC721
-     * @param _from Account to pull the deposit from on L1
-     * @param _to Account to give the deposit to on L2
-     * @param _tokenId Token ID of the ERC721 to deposit.
-     * @param _l2Gas Gas limit required to complete the deposit on L2.
-     * @param _data Optional data to forward to L2. This data is provided
-     *        solely as a convenience for external contracts. Aside from enforcing a maximum
-     *        length, these contracts provide no guarantees about its content.
+     * @param _localToken  Address of the ERC721 on this domain.
+     * @param _remoteToken Address of the ERC721 on the remote domain.
+     * @param _tokenId     Token ID to bridge.
+     * @param _minGasLimit Minimum gas limit for the bridge message on the other domain.
+     * @param _extraData   Optional data to forward to L2. Data supplied here will not be used to
+     *                     execute any code on L2 and is only emitted as extra data for the
+     *                     convenience of off-chain tooling.
      */
-    function _initiateERC721Deposit(
-        address _l1Token,
-        address _l2Token,
-        address _from,
+    function bridgeERC721(
+        address _localToken,
+        address _remoteToken,
+        uint256 _tokenId,
+        uint32 _minGasLimit,
+        bytes calldata _extraData
+    ) external {
+        // Modifier requiring sender to be EOA. This check could be bypassed by a malicious
+        // contract via initcode, but it takes care of the user error we want to avoid.
+        require(!Address.isContract(msg.sender), "L1ERC721Bridge: account is not externally owned");
+
+        _initiateBridgeERC721(
+            _localToken,
+            _remoteToken,
+            msg.sender,
+            msg.sender,
+            _tokenId,
+            _minGasLimit,
+            _extraData
+        );
+    }
+
+    /**
+     * @notice Initiates a bridge of an NFT to some recipient's account on L2.
+     *
+     * @param _localToken  Address of the ERC721 on this domain.
+     * @param _remoteToken Address of the ERC721 on the remote domain.
+     * @param _to          Address to receive the token on the other domain.
+     * @param _tokenId     Token ID to bridge.
+     * @param _minGasLimit Minimum gas limit for the bridge message on the other domain.
+     * @param _extraData   Optional data to forward to L2. Data supplied here will not be used to
+     *                     execute any code on L2 and is only emitted as extra data for the
+     *                     convenience of off-chain tooling.
+     */
+    function bridgeERC721To(
+        address _localToken,
+        address _remoteToken,
         address _to,
         uint256 _tokenId,
-        uint32 _l2Gas,
-        bytes calldata _data
-    ) internal {
-        // When a deposit is initiated on L1, the L1 Bridge transfers the NFT to itself for future
-        // withdrawals.
-        // slither-disable-next-line reentrancy-events, reentrancy-benign
-        IERC721(_l1Token).transferFrom(_from, address(this), _tokenId);
-
-        // Construct calldata for _l2Token.finalizeERC721Deposit(_to, _tokenId)
-        bytes memory message = abi.encodeWithSelector(
-            IL2ERC721Bridge.finalizeERC721Deposit.selector,
-            _l1Token,
-            _l2Token,
-            _from,
+        uint32 _minGasLimit,
+        bytes calldata _extraData
+    ) external {
+        _initiateBridgeERC721(
+            _localToken,
+            _remoteToken,
+            msg.sender,
             _to,
             _tokenId,
-            _data
+            _minGasLimit,
+            _extraData
         );
-
-        // Send calldata into L2
-        // slither-disable-next-line reentrancy-events, reentrancy-benign
-        sendCrossDomainMessage(l2ERC721Bridge, _l2Gas, message);
-
-        // slither-disable-next-line reentrancy-benign
-        deposits[_l1Token][_l2Token][_tokenId] = true;
-
-        // slither-disable-next-line reentrancy-events
-        emit ERC721DepositInitiated(_l1Token, _l2Token, _from, _to, _tokenId, _data);
     }
 
     /*************************
@@ -140,29 +162,81 @@ contract L1ERC721Bridge is IL1ERC721Bridge, CrossDomainEnabled {
      *************************/
 
     /**
-     * @inheritdoc IL1ERC721Bridge
+     * @notice Completes an ERC721 bridge from the other domain and sends the ERC721 token to the
+     *         recipient on this domain.
+     *
+     * @param _localToken  Address of the ERC721 token on this domain.
+     * @param _remoteToken Address of the ERC721 token on the other domain.
+     * @param _from        Address that triggered the bridge on the other domain.
+     * @param _to          Address to receive the token on this domain.
+     * @param _tokenId     ID of the token being deposited.
+     * @param _extraData   Optional data to forward to L2. Data supplied here will not be used to
+     *                     execute any code on L2 and is only emitted as extra data for the
+     *                     convenience of off-chain tooling.
      */
-    function finalizeERC721Withdrawal(
-        address _l1Token,
-        address _l2Token,
+    function finalizeBridgeERC721(
+        address _localToken,
+        address _remoteToken,
         address _from,
         address _to,
         uint256 _tokenId,
-        bytes calldata _data
-    ) external onlyFromCrossDomainAccount(l2ERC721Bridge) {
+        bytes calldata _extraData
+    ) external onlyFromCrossDomainAccount(otherBridge) {
         // Checks that the L1/L2 token pair has a token ID that is escrowed in the L1 Bridge
         require(
-            deposits[_l1Token][_l2Token][_tokenId] == true,
+            deposits[_localToken][_remoteToken][_tokenId] == true,
             "Token ID is not escrowed in the L1 Bridge"
         );
 
-        deposits[_l1Token][_l2Token][_tokenId] = false;
+        deposits[_localToken][_remoteToken][_tokenId] = false;
 
         // When a withdrawal is finalized on L1, the L1 Bridge transfers the NFT to the withdrawer
         // slither-disable-next-line reentrancy-events
-        IERC721(_l1Token).transferFrom(address(this), _to, _tokenId);
+        IERC721(_localToken).transferFrom(address(this), _to, _tokenId);
 
         // slither-disable-next-line reentrancy-events
-        emit ERC721WithdrawalFinalized(_l1Token, _l2Token, _from, _to, _tokenId, _data);
+        emit ERC721BridgeFinalized(_localToken, _remoteToken, _from, _to, _tokenId, _extraData);
+    }
+
+    /**
+     * @notice Internal function for initiating a token bridge to the other domain.
+     *
+     * @param _localToken  Address of the ERC721 on this domain.
+     * @param _remoteToken Address of the ERC721 on the remote domain.
+     * @param _from        Address of the sender on this domain.
+     * @param _to          Address to receive the token on the other domain.
+     * @param _tokenId     Token ID to bridge.
+     * @param _minGasLimit Minimum gas limit for the bridge message on the other domain.
+     * @param _extraData   Optional data to forward to L2. Data supplied here will not be used to
+     *                     execute any code on L2 and is only emitted as extra data for the
+     *                     convenience of off-chain tooling.
+     */
+    function _initiateBridgeERC721(
+        address _localToken,
+        address _remoteToken,
+        address _from,
+        address _to,
+        uint256 _tokenId,
+        uint32 _minGasLimit,
+        bytes calldata _extraData
+    ) internal {
+        // Construct calldata for _l2Token.finalizeBridgeERC721(_to, _tokenId)
+        bytes memory message = abi.encodeWithSelector(
+            L2ERC721Bridge.finalizeBridgeERC721.selector,
+            _remoteToken,
+            _localToken,
+            _from,
+            _to,
+            _tokenId,
+            _extraData
+        );
+
+        // Lock token into bridge
+        deposits[_localToken][_remoteToken][_tokenId] = true;
+        IERC721(_localToken).transferFrom(_from, address(this), _tokenId);
+
+        // Send calldata into L2
+        sendCrossDomainMessage(otherBridge, _minGasLimit, message);
+        emit ERC721BridgeInitiated(_localToken, _remoteToken, _from, _to, _tokenId, _extraData);
     }
 }

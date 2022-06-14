@@ -1,5 +1,6 @@
 ignores: [
   "@openzeppelin/contracts",
+  "@openzeppelin/contracts-upgradeable",
   "@rari-capital/solmate",
   "@types/node",
   "hardhat-deploy",

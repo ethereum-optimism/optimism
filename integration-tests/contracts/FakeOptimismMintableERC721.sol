@@ -3,14 +3,14 @@ pragma solidity ^0.8.9;
 
 import { ERC721 } from "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 
-contract FakeL2StandardERC721 is ERC721 {
+contract FakeOptimismMintableERC721 is ERC721 {
 
-    address public immutable l1Token;
-    address public immutable l2Bridge;
+    address public immutable remoteToken;
+    address public immutable bridge;
 
-    constructor(address _l1Token, address _l2Bridge) ERC721("FakeERC721", "FAKE") {
-        l1Token = _l1Token;
-        l2Bridge = _l2Bridge;
+    constructor(address _remoteToken, address _bridge) ERC721("FakeERC721", "FAKE") {
+        remoteToken = _remoteToken;
+        bridge = _bridge;
     }
 
     function mint(address to, uint256 tokenId) public {
