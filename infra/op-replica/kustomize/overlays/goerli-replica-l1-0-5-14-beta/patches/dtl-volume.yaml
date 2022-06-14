@@ -1,0 +1,7 @@
+---
+- op: replace
+  path: /spec/template/spec/volumes/0
+  value:
+    name: data-transport-layer
+    persistentVolumeClaim:
+      claimName: data-transport-layer-data
