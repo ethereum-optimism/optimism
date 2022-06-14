@@ -12,6 +12,11 @@ import { OptimismMintableERC721 } from "./OptimismMintableERC721.sol";
  */
 contract OptimismMintableERC721Factory is OwnableUpgradeable {
     /**
+     * @notice Contract version number.
+     */
+    uint8 public constant VERSION = 1;
+
+    /**
      * @notice Emitted whenever a new OptimismMintableERC721 contract is created.
      *
      * @param remoteToken Address of the token on the remote domain.
@@ -41,7 +46,7 @@ contract OptimismMintableERC721Factory is OwnableUpgradeable {
      *
      * @param _bridge Address of the ERC721 bridge on this network.
      */
-    function intialize(address _bridge) public initializer {
+    function intialize(address _bridge) public reinitializer(VERSION) {
         bridge = _bridge;
 
         // Initialize upgradable OZ contracts

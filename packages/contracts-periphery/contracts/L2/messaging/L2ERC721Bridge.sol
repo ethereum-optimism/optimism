@@ -21,6 +21,11 @@ import { IOptimismMintableERC721 } from "../../universal/op-erc721/IOptimismMint
  */
 contract L2ERC721Bridge is CrossDomainEnabled, OwnableUpgradeable {
     /**
+     * @notice Contract version number.
+     */
+    uint8 public constant VERSION = 1;
+
+    /**
      * @notice Emitted when an ERC721 bridge to the other network is initiated.
      *
      * @param localToken  Address of the token on this domain.
@@ -94,7 +99,7 @@ contract L2ERC721Bridge is CrossDomainEnabled, OwnableUpgradeable {
      * @param _messenger   Address of the CrossDomainMessenger on this network.
      * @param _otherBridge Address of the ERC721 bridge on the other network.
      */
-    function initialize(address _messenger, address _otherBridge) public initializer {
+    function initialize(address _messenger, address _otherBridge) public reinitializer(VERSION) {
         messenger = _messenger;
         otherBridge = _otherBridge;
 
