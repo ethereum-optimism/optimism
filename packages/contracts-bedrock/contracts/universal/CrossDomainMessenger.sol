@@ -56,7 +56,10 @@ abstract contract CrossDomainMessenger is
 
     uint32 public constant MIN_GAS_CONSTANT_OVERHEAD = 100_000;
 
+    /// @notice Minimum amount of gas required prior to relaying a message.
     uint256 internal constant RELAY_GAS_REQUIRED = 45_000;
+
+    /// @notice Amount of gas held in reserve for accounting after relaying a message.
     uint256 internal constant RELAY_GAS_BUFFER = RELAY_GAS_REQUIRED - 5000;
 
     /*************

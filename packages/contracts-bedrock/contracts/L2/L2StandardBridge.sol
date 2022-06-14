@@ -11,8 +11,9 @@ import { OptimismMintableERC20 } from "../universal/OptimismMintableERC20.sol";
  * @title L2StandardBridge
  * @notice The L2StandardBridge is responsible for transfering ETH and ERC20 tokens between L1 and
  *         L2. ERC20 tokens sent to L1 are escrowed within this contract.
- *         Note that this contract is not intended to support all variations of ERC20 tokens; this
- *         includes, but is not limited to tokens with transfer fees, rebasing tokens, and
+ *         Note that this contract is not intended to support all variations of ERC20 tokens.
+ *         Examples of some token types that may not be properly supported by this contract include,
+ *         but are not limited to: tokens with transfer fees, rebasing tokens, and
  *         tokens with blocklists.
  *         TODO: ensure that this has 1:1 backwards compatibility
  */
@@ -100,15 +101,17 @@ contract L2StandardBridge is StandardBridge {
         uint256 _amount,
         uint32 _minGasLimit,
         bytes calldata _data
-    ) external payable virtual {
+    ) external payable virtual onlyEOA {
         _initiateWithdrawal(_l2Token, msg.sender, msg.sender, _amount, _minGasLimit, _data);
     }
 
     /**
      * @custom:legacy
-     * @notice Initiates a withdrawal from L2 to L1 to a target account on L1. Note that if ETH is
-     *         sent to a contract on L1 and the call fails, then that ETH will be locked in the
-     *         L1StandardBridge.
+     * @notice Initiates a withdrawal from L2 to L1 to a target account on L1.
+     *         Note that if ETH is sent to a contract on L1 and the call fails, then that ETH will
+     *         be locked in the L1StandardBridge. ETH may be recoverable if the call can be
+     *         successfully replayed by increasing the amount of gas supplied to the call. If the
+     *         call will fail for any amount of gas, then the ETH will be locked permanently.
      *
      * @param _l2Token     Address of the L2 token to withdraw.
      * @param _to          Recipient account on L1.
@@ -123,7 +126,6 @@ contract L2StandardBridge is StandardBridge {
         uint32 _minGasLimit,
         bytes calldata _data
     ) external payable virtual {
-        // TODO: add onlyEOA check on ETH withdrawals to match L1Bridge.depositETHTo?
         _initiateWithdrawal(_l2Token, msg.sender, _to, _amount, _minGasLimit, _data);
     }
 
