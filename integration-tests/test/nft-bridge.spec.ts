@@ -82,16 +82,17 @@ describe('ERC721 Bridge', () => {
     L1ERC721 = await Factory__L1ERC721.deploy()
     await L1ERC721.deployed()
 
-    L2ERC721Bridge = await Factory__L2ERC721Bridge.deploy(
-      predeploys.L2CrossDomainMessenger
-    )
-    await L2ERC721Bridge.deployed()
-
     L1ERC721Bridge = await Factory__L1ERC721Bridge.deploy(
       env.messenger.contracts.l1.L1CrossDomainMessenger.address,
       L2ERC721Bridge.address
     )
     await L1ERC721Bridge.deployed()
+
+    L2ERC721Bridge = await Factory__L2ERC721Bridge.deploy(
+      predeploys.L2CrossDomainMessenger,
+      L1ERC721Bridge.address
+    )
+    await L2ERC721Bridge.deployed()
 
     OptimismMintableERC721Factory =
       await Factory__OptimismMintableERC721Factory.deploy(
