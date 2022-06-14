@@ -24,14 +24,14 @@ contract L1StandardBridge is StandardBridge {
         address indexed _from,
         address indexed _to,
         uint256 _amount,
-        bytes _data
+        bytes _extraData
     );
 
     event ETHWithdrawalFinalized(
         address indexed _from,
         address indexed _to,
         uint256 _amount,
-        bytes _data
+        bytes _extraData
     );
 
     event ERC20DepositInitiated(
@@ -40,7 +40,7 @@ contract L1StandardBridge is StandardBridge {
         address indexed _from,
         address _to,
         uint256 _amount,
-        bytes _data
+        bytes _extraData
     );
 
     event ERC20WithdrawalFinalized(
@@ -49,7 +49,7 @@ contract L1StandardBridge is StandardBridge {
         address indexed _from,
         address _to,
         uint256 _amount,
-        bytes _data
+        bytes _extraData
     );
 
     /********************
@@ -76,12 +76,12 @@ contract L1StandardBridge is StandardBridge {
     /**
      * @dev Deposit an amount of the ETH to the caller's balance on L2.
      * @param _minGasLimit limit required to complete the deposit on L2.
-     * @param _data Optional data to forward to L2. This data is provided
-     *        solely as a convenience for external contracts. Aside from enforcing a maximum
-     *        length, these contracts provide no guarantees about its content.
+     * @param _extraData Optional data to forward to L2. This data is provided solely as a
+     *        convenience for external contracts which may validate that the data is included in the
+     *        CrossDomainMessenger's sentMessages mapping.
      */
-    function depositETH(uint32 _minGasLimit, bytes calldata _data) external payable onlyEOA {
-        _initiateETHDeposit(msg.sender, msg.sender, _minGasLimit, _data);
+    function depositETH(uint32 _minGasLimit, bytes calldata _extraData) external payable onlyEOA {
+        _initiateETHDeposit(msg.sender, msg.sender, _minGasLimit, _extraData);
     }
 
     /**
@@ -89,16 +89,16 @@ contract L1StandardBridge is StandardBridge {
      *      contract on L2 and the call fails, then that ETH will be locked in the L2StandardBridge.
      * @param _to L2 address to credit the deposit to.
      * @param _minGasLimit Gas limit required to complete the deposit on L2.
-     * @param _data Optional data to forward to L2. This data is provided
-     *        solely as a convenience for external contracts. Aside from enforcing a maximum
-     *        length, these contracts provide no guarantees about its content.
+     * @param _extraData Optional data to forward to L2. This data is provided solely as a
+     *        convenience for external contracts which may validate that the data is included in the
+     *        CrossDomainMessenger's sentMessages mapping.
      */
     function depositETHTo(
         address _to,
         uint32 _minGasLimit,
-        bytes calldata _data
+        bytes calldata _extraData
     ) external payable {
-        _initiateETHDeposit(msg.sender, _to, _minGasLimit, _data);
+        _initiateETHDeposit(msg.sender, _to, _minGasLimit, _extraData);
     }
 
     /**
@@ -107,16 +107,17 @@ contract L1StandardBridge is StandardBridge {
      * @param _l2Token Address of the L2 token we are depositing to.
      * @param _amount Amount of the ERC20 to deposit.
      * @param _minGasLimit limit required to complete the deposit on L2.
-     * @param _data Optional data to forward to L2. This data is provided
-     *        solely as a convenience for external contracts. Aside from enforcing a maximum
-     *        length, these contracts provide no guarantees about its content.
+     * @param _extraData Optional data to forward to L2.  This data is not forwarded to the
+     *        token contract and is provided solely as a convenience for external contracts
+     *        which may validate that the data is included in the CrossDomainMessenger's
+     *        sentMessages mapping.
      */
     function depositERC20(
         address _l1Token,
         address _l2Token,
         uint256 _amount,
         uint32 _minGasLimit,
-        bytes calldata _data
+        bytes calldata _extraData
     ) external virtual onlyEOA {
         _initiateERC20Deposit(
             _l1Token,
@@ -125,7 +126,7 @@ contract L1StandardBridge is StandardBridge {
             msg.sender,
             _amount,
             _minGasLimit,
-            _data
+            _extraData
         );
     }
 
@@ -136,9 +137,10 @@ contract L1StandardBridge is StandardBridge {
      * @param _to L2 address to credit the deposit to.
      * @param _amount Amount of the ERC20 to deposit.
      * @param _minGasLimit Gas limit required to complete the deposit on L2.
-     * @param _data Optional data to forward to L2. This data is provided
-     *        solely as a convenience for external contracts. Aside from enforcing a maximum
-     *        length, these contracts provide no guarantees about its content.
+     * @param _extraData Optional data to forward to L2.  This data is not forwarded to the
+     *        token contract and is provided solely as a convenience for external contracts
+     *        which may validate that the data is included in the CrossDomainMessenger's
+     *        sentMessages mapping.
      */
     function depositERC20To(
         address _l1Token,
@@ -146,9 +148,17 @@ contract L1StandardBridge is StandardBridge {
         address _to,
         uint256 _amount,
         uint32 _minGasLimit,
-        bytes calldata _data
+        bytes calldata _extraData
     ) external virtual {
-        _initiateERC20Deposit(_l1Token, _l2Token, msg.sender, _to, _amount, _minGasLimit, _data);
+        _initiateERC20Deposit(
+            _l1Token,
+            _l2Token,
+            msg.sender,
+            _to,
+            _amount,
+            _minGasLimit,
+            _extraData
+        );
     }
 
     function finalizeETHWithdrawal(
@@ -171,9 +181,10 @@ contract L1StandardBridge is StandardBridge {
      * @param _from L2 address initiating the transfer.
      * @param _to L1 address to credit the withdrawal to.
      * @param _amount Amount of the ERC20 to deposit.
-     * @param _data Data provided by the sender on L2. This data is provided
-     *   solely as a convenience for external contracts. Aside from enforcing a maximum
-     *   length, these contracts provide no guarantees about its content.
+     * @param _extraData Data provided by the sender on L2. This data is not forwarded to the
+     *   token contract. It is provided solely as a convenience for external contracts which
+     *   may validate that the data is included in the CrossDomainMessenger's sentMessages
+     *   mapping.
      */
     function finalizeERC20Withdrawal(
         address _l1Token,
@@ -181,10 +192,10 @@ contract L1StandardBridge is StandardBridge {
         address _from,
         address _to,
         uint256 _amount,
-        bytes calldata _data
+        bytes calldata _extraData
     ) external onlyOtherBridge {
-        emit ERC20WithdrawalFinalized(_l1Token, _l2Token, _from, _to, _amount, _data);
-        finalizeBridgeERC20(_l1Token, _l2Token, _from, _to, _amount, _data);
+        emit ERC20WithdrawalFinalized(_l1Token, _l2Token, _from, _to, _amount, _extraData);
+        finalizeBridgeERC20(_l1Token, _l2Token, _from, _to, _amount, _extraData);
     }
 
     /**********************
@@ -195,10 +206,10 @@ contract L1StandardBridge is StandardBridge {
         address _from,
         address _to,
         uint32 _minGasLimit,
-        bytes memory _data
+        bytes memory _extraData
     ) internal {
-        emit ETHDepositInitiated(_from, _to, msg.value, _data);
-        _initiateBridgeETH(_from, _to, msg.value, _minGasLimit, _data);
+        emit ETHDepositInitiated(_from, _to, msg.value, _extraData);
+        _initiateBridgeETH(_from, _to, msg.value, _minGasLimit, _extraData);
     }
 
     function _initiateERC20Deposit(
@@ -208,9 +219,9 @@ contract L1StandardBridge is StandardBridge {
         address _to,
         uint256 _amount,
         uint32 _minGasLimit,
-        bytes calldata _data
+        bytes calldata _extraData
     ) internal {
-        emit ERC20DepositInitiated(_l1Token, _l2Token, _from, _to, _amount, _data);
-        _initiateBridgeERC20(_l1Token, _l2Token, _from, _to, _amount, _minGasLimit, _data);
+        emit ERC20DepositInitiated(_l1Token, _l2Token, _from, _to, _amount, _extraData);
+        _initiateBridgeERC20(_l1Token, _l2Token, _from, _to, _amount, _minGasLimit, _extraData);
     }
 }

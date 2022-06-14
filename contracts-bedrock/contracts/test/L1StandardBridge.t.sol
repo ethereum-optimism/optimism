@@ -394,13 +394,4 @@ contract L1StandardBridge_Test is Bridge_Initializer {
             hex""
         );
     }
-
-    // donateETH
-    // - can send ETH to the contract
-    function test_donateETH() external {
-        assertEq(address(L1Bridge).balance, 0);
-        vm.prank(alice);
-        L1Bridge.donateETH{ value: 1000 }();
-        assertEq(address(L1Bridge).balance, 1000);
-    }
 }

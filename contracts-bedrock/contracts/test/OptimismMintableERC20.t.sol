@@ -76,12 +76,12 @@ contract OptimismMintableTokenFactory_Test is Bridge_Initializer {
         emit log_bytes32(bytes32(iface1));
 
         bytes4 iface2 = L2Token.l1Token.selector ^ L2Token.mint.selector ^ L2Token.burn.selector;
-        assertEq(iface2, type(L1TokenId).interfaceId);
+        assertEq(iface2, type(IL1Token).interfaceId);
         assert(L2Token.supportsInterface(iface2));
         emit log_bytes32(bytes32(iface2));
 
         bytes4 iface3 = L2Token.remoteToken.selector ^ L2Token.mint.selector ^ L2Token.burn.selector;
-        assertEq(iface3, type(RemoteTokenId).interfaceId);
+        assertEq(iface3, type(IRemoteToken).interfaceId);
         assert(L2Token.supportsInterface(iface3));
         emit log_bytes32(bytes32(iface3));
 

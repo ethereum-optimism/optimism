@@ -27,7 +27,7 @@ contract L2StandardBridge is StandardBridge {
         address indexed _from,
         address _to,
         uint256 _amount,
-        bytes _data
+        bytes _extraData
     );
 
     event DepositFinalized(
@@ -36,7 +36,7 @@ contract L2StandardBridge is StandardBridge {
         address indexed _from,
         address _to,
         uint256 _amount,
-        bytes _data
+        bytes _extraData
     );
 
     event DepositFailed(
@@ -45,7 +45,7 @@ contract L2StandardBridge is StandardBridge {
         address indexed _from,
         address _to,
         uint256 _amount,
-        bytes _data
+        bytes _extraData
     );
 
     /********************
@@ -65,15 +65,18 @@ contract L2StandardBridge is StandardBridge {
      * @param _l2Token The L2 token address to withdraw
      * @param _amount The amount of L2 token to withdraw
      * @param _minGasLimit The min gas limit in the withdrawing call
-     * @param _data Additional calldata to pass along
+     * @param _extraData Optional data to forward to L1. This data is not forwarded to the
+     *        token contract. It is provided solely as a convenience for external contracts which
+     *        may validate that the data is included in the CrossDomainMessenger's sentMessages
+     *        mapping.
      */
     function withdraw(
         address _l2Token,
         uint256 _amount,
         uint32 _minGasLimit,
-        bytes calldata _data
+        bytes calldata _extraData
     ) external payable virtual {
-        _initiateWithdrawal(_l2Token, msg.sender, msg.sender, _amount, _minGasLimit, _data);
+        _initiateWithdrawal(_l2Token, msg.sender, msg.sender, _amount, _minGasLimit, _extraData);
     }
 
     /**
@@ -84,17 +87,20 @@ contract L2StandardBridge is StandardBridge {
      * @param _to The L1 account to withdraw to
      * @param _amount The amount of L2 token to withdraw
      * @param _minGasLimit The min gas limit in the withdrawing call
-     * @param _data Additional calldata to pass along
+     * @param _extraData Optional data to forward to L1. This data is not forwarded to the
+     *        token contract. It is provided solely as a convenience for external contracts which
+     *        may validate that the data is included in the CrossDomainMessenger's sentMessages
+     *        mapping.
      */
     function withdrawTo(
         address _l2Token,
         address _to,
         uint256 _amount,
         uint32 _minGasLimit,
-        bytes calldata _data
+        bytes calldata _extraData
     ) external payable virtual {
         // TODO: add onlyEOA check on ETH withdrawals to match L1Bridge.depositETHTo?
-        _initiateWithdrawal(_l2Token, msg.sender, _to, _amount, _minGasLimit, _data);
+        _initiateWithdrawal(_l2Token, msg.sender, _to, _amount, _minGasLimit, _extraData);
     }
 
     /**
@@ -105,7 +111,10 @@ contract L2StandardBridge is StandardBridge {
      * @param _from The sender of the tokens
      * @param _to The recipient of the tokens
      * @param _amount The amount of tokens
-     * @param _data Additional calldata
+     * @param _extraData Data provided by the sender on L1. This data is not forwarded to the
+     *        token contract. It is provided solely as a convenience for external contracts which
+     *        may validate that the data is included in the CrossDomainMessenger's sentMessages
+     *        mapping.
      */
     function finalizeDeposit(
         address _l1Token,
@@ -113,14 +122,14 @@ contract L2StandardBridge is StandardBridge {
         address _from,
         address _to,
         uint256 _amount,
-        bytes calldata _data
+        bytes calldata _extraData
     ) external payable virtual {
         if (_l1Token == address(0) && _l2Token == Lib_PredeployAddresses.OVM_ETH) {
-            finalizeBridgeETH(_from, _to, _amount, _data);
+            finalizeBridgeETH(_from, _to, _amount, _extraData);
         } else {
-            finalizeBridgeERC20(_l2Token, _l1Token, _from, _to, _amount, _data);
+            finalizeBridgeERC20(_l2Token, _l1Token, _from, _to, _amount, _extraData);
         }
-        emit DepositFinalized(_l1Token, _l2Token, _from, _to, _amount, _data);
+        emit DepositFinalized(_l1Token, _l2Token, _from, _to, _amount, _extraData);
     }
 
     /**********************
@@ -137,15 +146,15 @@ contract L2StandardBridge is StandardBridge {
         address _to,
         uint256 _amount,
         uint32 _minGasLimit,
-        bytes calldata _data
+        bytes calldata _extraData
     ) internal {
         address l1Token = OptimismMintableERC20(_l2Token).l1Token();
         if (_l2Token == Lib_PredeployAddresses.OVM_ETH) {
             require(msg.value == _amount, "ETH withdrawals must include sufficient ETH value.");
-            _initiateBridgeETH(_from, _to, _amount, _minGasLimit, _data);
+            _initiateBridgeETH(_from, _to, _amount, _minGasLimit, _extraData);
         } else {
-            _initiateBridgeERC20(_l2Token, l1Token, _from, _to, _amount, _minGasLimit, _data);
+            _initiateBridgeERC20(_l2Token, l1Token, _from, _to, _amount, _minGasLimit, _extraData);
         }
-        emit WithdrawalInitiated(l1Token, _l2Token, _from, _to, _amount, _data);
+        emit WithdrawalInitiated(l1Token, _l2Token, _from, _to, _amount, _extraData);
     }
 }

@@ -73,11 +73,9 @@ contract OptimismMintableERC20 is ERC20 {
      */
     // slither-disable-next-line external-function
     function supportsInterface(bytes4 _interfaceId) public pure returns (bool) {
-        // Interfaces are ordered based on how often we expect each one to be queried for a small
-        // amount of gas savings.
-        bytes4 iface1 = type(L1TokenId).interfaceId;
-        bytes4 iface2 = type(RemoteTokenId).interfaceId;
-        bytes4 iface3 = type(IERC165).interfaceId;
+        bytes4 iface1 = type(IERC165).interfaceId;
+        bytes4 iface2 = type(IL1Token).interfaceId;
+        bytes4 iface3 = type(IRemoteToken).interfaceId;
         return _interfaceId == iface1 || _interfaceId == iface2 || _interfaceId == iface3;
     }
 
