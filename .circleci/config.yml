@@ -406,7 +406,9 @@ jobs:
           working_directory: packages/contracts-bedrock
       - run:
           name: gas snapshot
-          command: forge snapshot --check
+          command: |
+            forge --version
+            forge snapshot --check
           working_directory: packages/contracts-bedrock
       - run:
           name: check go bindings
@@ -504,8 +506,7 @@ jobs:
           type: string
           default: develop
     environment:
-      # Scan changed files in PRs, block on new issues only (existing issues ignored)
-      SEMGREP_BASELINE_REF: << parameters.diff_branch >>
+      TEMPORARY_BASELINE_REF: << parameters.diff_branch >>
       SEMGREP_REPO_URL: << pipeline.project.git_url >>
       SEMGREP_BRANCH: << pipeline.git.branch >>
       SEMGREP_COMMIT: << pipeline.git.revision >>
@@ -518,6 +519,16 @@ jobs:
     resource_class: xlarge
     steps:
       - checkout
+      - unless:
+          condition:
+            equal: [ "develop", << pipeline.git.branch >>]
+          steps:
+            - run:
+                # Scan changed files in PRs, block on new issues only (existing issues ignored)
+                # Do a full scan when scanning develop, otherwise do an incremental scan.
+                name: "Conditionally set BASELINE env var"
+                command: |
+                    echo 'export SEMGREP_BASELINE_REF=${TEMPORARY_BASELINE_REF}' >> $BASH_ENV
       - run:
           name: "Set environment variables" # for PR comments and in-app hyperlinks to findings
           command: |
