@@ -31,7 +31,7 @@ contract L1ERC721Bridge is CrossDomainEnabled, OwnableUpgradeable {
      * @param from        Address that initiated bridging action.
      * @param to          Address to receive the token.
      * @param tokenId     ID of the specific token deposited.
-     * @param data        Extra data for use on the client-side.
+     * @param extraData   Extra data for use on the client-side.
      */
     event ERC721BridgeInitiated(
         address indexed localToken,
@@ -39,7 +39,7 @@ contract L1ERC721Bridge is CrossDomainEnabled, OwnableUpgradeable {
         address indexed from,
         address to,
         uint256 tokenId,
-        bytes data
+        bytes extraData
     );
 
     /**
@@ -50,7 +50,7 @@ contract L1ERC721Bridge is CrossDomainEnabled, OwnableUpgradeable {
      * @param from        Address that initiated bridging action.
      * @param to          Address to receive the token.
      * @param tokenId     ID of the specific token deposited.
-     * @param data        Extra data for use on the client-side.
+     * @param extraData   Extra data for use on the client-side.
      */
     event ERC721BridgeFinalized(
         address indexed localToken,
@@ -58,7 +58,7 @@ contract L1ERC721Bridge is CrossDomainEnabled, OwnableUpgradeable {
         address indexed from,
         address to,
         uint256 tokenId,
-        bytes data
+        bytes extraData
     );
 
     /**
@@ -100,7 +100,7 @@ contract L1ERC721Bridge is CrossDomainEnabled, OwnableUpgradeable {
      * @param _remoteToken Address of the ERC721 on the remote domain.
      * @param _tokenId     Token ID to bridge.
      * @param _minGasLimit Minimum gas limit for the bridge message on the other domain.
-     * @param _data        Optional data to forward to L2. Data supplied here will not be used to
+     * @param _extraData   Optional data to forward to L2. Data supplied here will not be used to
      *                     execute any code on L2 and is only emitted as extra data for the
      *                     convenience of off-chain tooling.
      */
@@ -109,7 +109,7 @@ contract L1ERC721Bridge is CrossDomainEnabled, OwnableUpgradeable {
         address _remoteToken,
         uint256 _tokenId,
         uint32 _minGasLimit,
-        bytes calldata _data
+        bytes calldata _extraData
     ) external {
         // Modifier requiring sender to be EOA. This check could be bypassed by a malicious
         // contract via initcode, but it takes care of the user error we want to avoid.
@@ -122,7 +122,7 @@ contract L1ERC721Bridge is CrossDomainEnabled, OwnableUpgradeable {
             msg.sender,
             _tokenId,
             _minGasLimit,
-            _data
+            _extraData
         );
     }
 
@@ -134,7 +134,7 @@ contract L1ERC721Bridge is CrossDomainEnabled, OwnableUpgradeable {
      * @param _to          Address to receive the token on the other domain.
      * @param _tokenId     Token ID to bridge.
      * @param _minGasLimit Minimum gas limit for the bridge message on the other domain.
-     * @param _data        Optional data to forward to L2. Data supplied here will not be used to
+     * @param _extraData   Optional data to forward to L2. Data supplied here will not be used to
      *                     execute any code on L2 and is only emitted as extra data for the
      *                     convenience of off-chain tooling.
      */
@@ -144,7 +144,7 @@ contract L1ERC721Bridge is CrossDomainEnabled, OwnableUpgradeable {
         address _to,
         uint256 _tokenId,
         uint32 _minGasLimit,
-        bytes calldata _data
+        bytes calldata _extraData
     ) external {
         _initiateBridgeERC721(
             _localToken,
@@ -153,7 +153,7 @@ contract L1ERC721Bridge is CrossDomainEnabled, OwnableUpgradeable {
             _to,
             _tokenId,
             _minGasLimit,
-            _data
+            _extraData
         );
     }
 
@@ -170,7 +170,7 @@ contract L1ERC721Bridge is CrossDomainEnabled, OwnableUpgradeable {
      * @param _from        Address that triggered the bridge on the other domain.
      * @param _to          Address to receive the token on this domain.
      * @param _tokenId     ID of the token being deposited.
-     * @param _data        Optional data to forward to L2. Data supplied here will not be used to
+     * @param _extraData   Optional data to forward to L2. Data supplied here will not be used to
      *                     execute any code on L2 and is only emitted as extra data for the
      *                     convenience of off-chain tooling.
      */
@@ -180,7 +180,7 @@ contract L1ERC721Bridge is CrossDomainEnabled, OwnableUpgradeable {
         address _from,
         address _to,
         uint256 _tokenId,
-        bytes calldata _data
+        bytes calldata _extraData
     ) external onlyFromCrossDomainAccount(otherBridge) {
         // Checks that the L1/L2 token pair has a token ID that is escrowed in the L1 Bridge
         require(
@@ -195,7 +195,7 @@ contract L1ERC721Bridge is CrossDomainEnabled, OwnableUpgradeable {
         IERC721(_localToken).transferFrom(address(this), _to, _tokenId);
 
         // slither-disable-next-line reentrancy-events
-        emit ERC721BridgeFinalized(_localToken, _remoteToken, _from, _to, _tokenId, _data);
+        emit ERC721BridgeFinalized(_localToken, _remoteToken, _from, _to, _tokenId, _extraData);
     }
 
     /**
@@ -207,7 +207,7 @@ contract L1ERC721Bridge is CrossDomainEnabled, OwnableUpgradeable {
      * @param _to          Address to receive the token on the other domain.
      * @param _tokenId     Token ID to bridge.
      * @param _minGasLimit Minimum gas limit for the bridge message on the other domain.
-     * @param _data        Optional data to forward to L2. Data supplied here will not be used to
+     * @param _extraData   Optional data to forward to L2. Data supplied here will not be used to
      *                     execute any code on L2 and is only emitted as extra data for the
      *                     convenience of off-chain tooling.
      */
@@ -218,7 +218,7 @@ contract L1ERC721Bridge is CrossDomainEnabled, OwnableUpgradeable {
         address _to,
         uint256 _tokenId,
         uint32 _minGasLimit,
-        bytes calldata _data
+        bytes calldata _extraData
     ) internal {
         // Construct calldata for _l2Token.finalizeBridgeERC721(_to, _tokenId)
         bytes memory message = abi.encodeWithSelector(
@@ -228,7 +228,7 @@ contract L1ERC721Bridge is CrossDomainEnabled, OwnableUpgradeable {
             _from,
             _to,
             _tokenId,
-            _data
+            _extraData
         );
 
         // Lock token into bridge
@@ -237,6 +237,6 @@ contract L1ERC721Bridge is CrossDomainEnabled, OwnableUpgradeable {
 
         // Send calldata into L2
         sendCrossDomainMessage(otherBridge, _minGasLimit, message);
-        emit ERC721BridgeInitiated(_localToken, _remoteToken, _from, _to, _tokenId, _data);
+        emit ERC721BridgeInitiated(_localToken, _remoteToken, _from, _to, _tokenId, _extraData);
     }
 }
