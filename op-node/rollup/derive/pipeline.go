@@ -1,31 +1,19 @@
 package derive
 
 import (
-	"context"
 	"github.com/ethereum-optimism/optimism/op-node/eth"
-	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 	"io"
-	"math/big"
 )
-
-type Engine interface {
-	GetPayload(ctx context.Context, payloadId eth.PayloadID) (*eth.ExecutionPayload, error)
-	ForkchoiceUpdate(ctx context.Context, state *eth.ForkchoiceState, attr *eth.PayloadAttributes) (*eth.ForkchoiceUpdatedResult, error)
-	NewPayload(ctx context.Context, payload *eth.ExecutionPayload) error
-	PayloadByHash(context.Context, common.Hash) (*eth.ExecutionPayload, error)
-	PayloadByNumber(context.Context, *big.Int) (*eth.ExecutionPayload, error)
-}
 
 // DerivationPipeline is updated with new L1 data, and the Step() function can be iterated on to keep the L2 Engine in sync.
 type DerivationPipeline struct {
 	log         log.Logger
-	nextL1      func() eth.L1BlockRef    // Where we fetch new L1 data from
-	bank        *ChannelBank             // Where we buffer all incoming L1 data
-	batchReader *ChannelInReader         // Where we buffer tagged data to read batches from (TODO: this API is blocking, we can't handle that currently)
-	batchQueue  *BatchQueue              // Where we buffer all derived L2 batches
-	attributes  []*eth.PayloadAttributes // Where we buffer all derived payload attributes
-	engine      Engine                   // Final destination: the execution engine (EVM + chain and state DB)
+	nextL1      func() eth.L1BlockRef // Where we fetch new L1 data from
+	bank        *ChannelBank          // Where we buffer all incoming L1 data
+	batchReader *ChannelInReader      // Where we buffer tagged data to read batches from (TODO: this API is blocking, we can't handle that currently)
+	batchQueue  *BatchQueue           // Where we buffer all derived L2 batches
+	engineQueue *EngineQueue          // Where we buffer payload attributes, and apply/consolidate them with the L2 engine
 }
 
 func (dp *DerivationPipeline) Reset(l2Head eth.L2BlockRef) error {
@@ -92,28 +80,12 @@ func (dp *DerivationPipeline) readAttributes() error {
 	// 1. try to derive payload attributes from the BatchQueue
 	// 2. if none were returned, return io.EOF
 	// 3. if an error was returned (e.g. failed to fetch L1 receipts), log it and return nil
-	// 4. if any were returned, append them to the queue of attributes to be consolidated/applied to the engine, and return nil
+	// 4. if any were returned, append them to the engineQueue, and return nil
 	return nil
 }
 
 func (dp *DerivationPipeline) applyToEngine() error {
-	// TODO: implement below spec  (and put the buffer of payload attributes into a separate struct type from the L2 derivation, to test it in isolation)
-	// 1. return io.EOF if there are no payload attributes buffered
-	// 2. peek into first payload attributes
-	// 3. check if the engine has synced past these attributes
-	//     3.1 if yes, compare the engine attributes
-	//        3.1.1 mark the attributes as safe (forkchoice update, without changing unsafe head) (with timeout)
-	//             or log error and return nil if this fails
-	//        3.1.2 pop the attributes from buffer
-	//        3.1.3 log what we just consolidated
-	//        3.1.4 pop from the buffer
-	//        3.1.5 return nil
-	//     3.2 if not, re-apply the engine attributes
-	//        3.2.1 forkchoice update to make the safe block the head (with timeout)
-	//             or log error and return nil if this fails
-	//        3.2.2 try to apply the payload attributes to the engine (with timeout)
-	//             if RPC error: log it, and return nil
-	//        3.2.3 if invalid payload: log it (err level), pop it, and then return nil
-	//        3.2.4 if valid payload: log it (info level), pop it, and then return nil
+	// TODO: implement below spec
+	// 1. call EngineQueue.Step()
 	return nil
 }
