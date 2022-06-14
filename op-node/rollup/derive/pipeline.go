@@ -1,6 +1,7 @@
 package derive
 
 import (
+	"fmt"
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum/go-ethereum/log"
 	"io"
@@ -22,48 +23,26 @@ func (dp *DerivationPipeline) Reset(l2Head eth.L2BlockRef) error {
 }
 
 // Step tries to progress the buffer.
-// When no error is returned, the buffer is ready for the next Step() immediately.
-//
-// When io.EOF is returned, the buffered data is exhausted to a point where no new L2 payload
-// can be derived without more L1 data first. Step() should not be called until new L1 data.
-//
-// Other errors are critical, and the caller should reset the derivation process.
+// An error is critical and the derivation pipeline should be reset.
+// An error is expected when the underlying source closes.
 func (dp *DerivationPipeline) Step() error {
-	// try to apply previous buffered information to the engine
-	if err := dp.applyToEngine(); err != io.EOF {
-		return err
+	for {
+		// try to apply previous buffered information to the engine
+		if err := dp.applyToEngine(); err == nil {
+			continue
+		} else if err != io.EOF {
+			return fmt.Errorf("critical failure while applying payload attributes to engine: %w", err)
+		}
+		// try to derive new payload attributes from buffered batch(es)
+		if err := dp.readAttributes(); err == nil {
+			continue
+		} else if err != io.EOF {
+			return fmt.Errorf("critical failure while reading payload attributes: %w", err)
+		}
+		// read a batch from buffered tagged data.
+		// This step may be blocking until additional L1 data is available.
+		return dp.readBatch()
 	}
-	// try to derive new payload attributes from buffered batch(es)
-	if err := dp.readAttributes(); err != io.EOF {
-		return err
-	}
-	// read a batch from buffered tagged data
-	if err := dp.readBatch(); err != io.EOF {
-		return err
-	}
-	if err := dp.readNextL1Origin(); err != io.EOF {
-		return err
-	}
-	return dp.readL1InputData()
-}
-
-func (dp *DerivationPipeline) readL1InputData() error {
-	// 1. if all data has been fetched already, return io.EOF
-	// 2. if not, fetch remaining data
-	//    2.1 if fetching error, log it and return nil
-	//    2.2 if new data, buffer it
-	// 3. when data is complete, flush it to the channel bank
-	return nil
-}
-
-func (dp *DerivationPipeline) readNextL1Origin() error {
-	// 1. try to read the next canonical L1 origin
-	//   1.1 return io.EOF if there is no new L1 origin yet
-	// 2. check if the parent hash matches the current origin
-	//   2.1 return an error if it does not match
-	// 3. update the BatchQueue with the new origin
-	// 4. update the ChannelBank with the new origin
-	return nil
 }
 
 func (dp *DerivationPipeline) readBatch() error {

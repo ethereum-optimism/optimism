@@ -32,6 +32,9 @@ func (ch *ChannelIn) IngestData(ref eth.L1BlockRef, frameNum uint64, isLast bool
 	if frameNum > ch.endsAt {
 		return fmt.Errorf("channel already ended ingesting inputs")
 	}
+	if ch.endsAt != ^uint64(0) && isLast {
+		return fmt.Errorf("already received a closing frame")
+	}
 	// the frame is from the current or future, it will be read from the buffer later
 
 	// create buffer if it didn't exist yet
@@ -47,6 +50,7 @@ func (ch *ChannelIn) IngestData(ref eth.L1BlockRef, frameNum uint64, isLast bool
 		L1Origin:    ref,
 		ChannelID:   ch.id,
 		FrameNumber: frameNum,
+		IsLast:      isLast,
 		Data:        frameData,
 	}
 	if isLast {

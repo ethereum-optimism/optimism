@@ -38,5 +38,6 @@ type TaggedData struct {
 	L1Origin    eth.L1BlockRef
 	ChannelID   ChannelID
 	FrameNumber uint64
+	IsLast      bool
 	Data        []byte
 }

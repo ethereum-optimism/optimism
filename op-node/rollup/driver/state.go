@@ -21,6 +21,14 @@ type state struct {
 	l2SafeHead  eth.L2BlockRef // L2 Safe Head - this is the head of the L2 chain as derived from L1 (thus it is Sequencer window blocks behind)
 	l2Finalized eth.BlockID    // L2 Block that will never be reversed
 
+	derivationInput chan *derive.TaggedData
+	// requests for the next tagged data, while providing the current L1 block reference
+	derivationSourceRequest chan eth.L1BlockRef
+
+	// The derivation pipeline is reset whenever we reorg.
+	// The derivation pipeline determines the new l2SafeHead.
+	derivation derive.DerivationPipeline
+
 	// Rollup config
 	Config    rollup.Config
 	sequencer bool
@@ -43,7 +51,7 @@ type state struct {
 // NewState creates a new driver state. State changes take effect though the given output.
 // Optionally a network can be provided to publish things to other nodes than the engine of the driver.
 func NewState(log log.Logger, snapshotLog log.Logger, config rollup.Config, l1Chain L1Chain, l2Chain L2Chain, output outputInterface, network Network, sequencer bool) *state {
-	// TODO init bank
+	// TODO init derivation pipeline
 	return &state{
 		Config:           config,
 		done:             make(chan struct{}),
@@ -98,10 +106,14 @@ func (s *state) Start(ctx context.Context) error {
 		s.l2SafeHead = l2genesis
 	}
 
+	// TODO: reset derivation pipeline to the correct point
+
 	s.l1Head = l1Head
 
-	s.wg.Add(1)
-	go s.loop()
+	s.wg.Add(2)
+	go s.eventLoop()
+	go s.derivationLoop()
+
 	return nil
 }
 
@@ -173,8 +185,7 @@ func (s *state) handleNewL1Block(ctx context.Context, newL1Head eth.L1BlockRef) 
 	}
 	// State Update
 	s.l1Head = newL1Head
-	s.bank = derive.NewChannelBank(context.Background(), s.log)
-	s.batchQueue.Reset(safeL2Head)
+
 	s.l2Head = unsafeL2Head
 	// Don't advance l2SafeHead past it's current value
 	if s.l2SafeHead.Number >= safeL2Head.Number {
@@ -267,57 +278,6 @@ func (s *state) createNewL2Block(ctx context.Context) error {
 	return nil
 }
 
-func (s *state) continueStream() {
-	// TODO derive more batches if we can
-	// TODO apply batches if we have any
-	// TODO derive any L2 chain segments
-
-}
-
-// handleEpoch attempts to insert a full L2 epoch on top of the L2 Safe Head.
-// It ensures that a full sequencing window is available and updates the state as needed.
-func (s *state) handleEpoch(ctx context.Context) (bool, error) {
-	s.log.Trace("Handling epoch", "l2Head", s.l2Head, "l2SafeHead", s.l2SafeHead)
-	// Extend cached window if we do not have enough saved blocks
-	// attempt to buffer up to 2x the size of a sequence window of L1 blocks, to speed up later handleEpoch calls
-	if len(s.l1WindowBuf) < int(s.Config.SeqWindowSize) {
-		nexts, err := s.l1.L1Range(ctx, s.l1WindowBufEnd(), 2*s.Config.SeqWindowSize)
-		if err != nil {
-			s.log.Error("Could not extend the cached L1 window", "err", err, "l2Head", s.l2Head, "l2SafeHead", s.l2SafeHead, "l1Head", s.l1Head, "window_end", s.l1WindowBufEnd())
-			return false, err
-		}
-		s.l1WindowBuf = append(s.l1WindowBuf, nexts...)
-
-	}
-	// Ensure that there are enough blocks in the cached window
-	if len(s.l1WindowBuf) < int(s.Config.SeqWindowSize) {
-		s.log.Debug("Not enough cached blocks to run step", "cached_window_len", len(s.l1WindowBuf))
-		return false, nil
-	}
-
-	// Insert the epoch
-	window := s.l1WindowBuf[:s.Config.SeqWindowSize]
-	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
-	newL2Head, newL2SafeHead, reorg, err := s.output.insertEpoch(ctx, s.l2Head, s.l2SafeHead, s.l2Finalized, window)
-	cancel()
-	if err != nil {
-		// Cannot easily check that s.l1WindowBuf[0].ParentHash == s.l2Safehead.L1Origin.Hash in this function, so if insertEpoch
-		// may have found a problem with that, clear the buffer and try again later.
-		s.l1WindowBuf = nil
-		s.log.Error("Error in running the output step.", "err", err, "l2Head", s.l2Head, "l2SafeHead", s.l2SafeHead)
-		return false, err
-	}
-
-	// State update
-	s.l2Head = newL2Head
-	s.l2SafeHead = newL2SafeHead
-	s.l1WindowBuf = s.l1WindowBuf[1:]
-	s.log.Info("Inserted a new epoch", "l2Head", s.l2Head, "l2SafeHead", s.l2SafeHead, "reorg", reorg)
-	// TODO: l2Finalized
-	return reorg, nil
-
-}
-
 func (s *state) handleUnsafeL2Payload(ctx context.Context, payload *eth.ExecutionPayload) error {
 	if s.l2SafeHead.Number > uint64(payload.BlockNumber) {
 		s.log.Info("ignoring unsafe L2 execution payload, already have safe payload", "id", payload.ID())
@@ -343,8 +303,39 @@ func (s *state) handleUnsafeL2Payload(ctx context.Context, payload *eth.Executio
 	return nil
 }
 
-// loop is the event loop that responds to L1 changes and internal timers to produce L2 blocks.
-func (s *state) loop() {
+// Called by the eventLoop, to reset the derivation input
+func (s *state) onReorg() {
+	close(s.derivationInput)
+	s.derivationInput = make(chan *derive.TaggedData)
+	s.derivationSourceRequest = make(chan eth.L1BlockRef)
+}
+
+// next is the source for the channel reader in the derivation pipeline.
+// Called internally by the derivationLoop.
+func (s *state) next(onto eth.L1BlockRef) *derive.TaggedData {
+	s.derivationSourceRequest <- onto
+	out, ok := <-s.derivationInput
+	if !ok {
+		close(s.derivationSourceRequest)
+		return nil // this will close the pipeline
+	}
+	return out
+}
+
+// the derivationLoop runs the derivation pipeline, and requests new L1 data when it is ready for it.
+func (s *state) derivationLoop() {
+	defer s.wg.Done()
+	for {
+		err := s.derivation.Step()
+		if err != nil {
+			s.log.Warn("exiting derivation loop", "err", err)
+			return
+		}
+	}
+}
+
+// the eventLoop responds to L1 changes and internal timers to produce L2 blocks.
+func (s *state) eventLoop() {
 	defer s.wg.Done()
 	s.log.Info("State loop started")
 
@@ -360,9 +351,6 @@ func (s *state) loop() {
 		l2BlockCreationTickerCh = l2BlockCreationTicker.C
 	}
 
-	// stepReqCh is used to request that the driver attempts to step forward by one L1 block.
-	stepReqCh := make(chan struct{}, 1)
-
 	// l2BlockCreationReqCh is used to request that the driver create a new L2 block. Only used if
 	// we're running in Sequencer mode, because otherwise we'll be deriving our blocks via the
 	// stepping process.
@@ -377,30 +365,7 @@ func (s *state) loop() {
 		}
 	}
 
-	// reqStep requests that a driver stpe be taken. Won't deadlock if the channel is full.
-	// TODO: Rename step request
-	reqStep := func() {
-		select {
-		case stepReqCh <- struct{}{}:
-		// Don't deadlock if the channel is already full
-		default:
-		}
-	}
-
-	// We call reqStep right away to finish syncing to the tip of the chain if we're behind.
-	// reqStep will also be triggered when the L1 head moves forward or if there was a reorg on the
-	// L1 chain that we need to handle.
-	reqStep()
-
 	for {
-		// read anything we can from the bank before continuing
-		for {
-			dat := s.bank.Read()
-			if dat == nil {
-				break
-			}
-			// TODO: update derivation pipeline
-		}
 
 		// find the next tx to apply to the bank
 		// TODO s.bank.CurrentL1()
@@ -446,45 +411,10 @@ func (s *state) loop() {
 				s.log.Error("Error in handling new L1 Head", "err", err)
 			}
 
-			// The block number of the L1 origin for the L2 safe head is at least SeqWindowSize
-			// behind the L1 head. We can therefore attempt to shift the safe head forward by at
-			// least one L1 block. If the node is holding on to unsafe blocks, this may trigger a
-			// reorg on L2 in the case that safe (published) data conflicts with local unsafe
-			// block data.
-			if s.l1Head.Number-s.l2SafeHead.L1Origin.Number >= s.Config.SeqWindowSize {
-				s.log.Trace("Requesting next step", "l1Head", s.l1Head, "l2Head", s.l2Head, "l1Origin", s.l2SafeHead.L1Origin)
-				reqStep()
-			}
-
-		case <-stepReqCh:
-			s.snapshot("Step Request")
-			ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
-			reorg, err := s.handleEpoch(ctx)
-			cancel()
-			if err != nil {
-				s.log.Error("Error in handling epoch", "err", err)
-			}
-
-			if reorg {
-				s.log.Warn("Got reorg")
-
-				// If we're in sequencer mode and experiencing a reorg, we should request a new
-				// block ASAP. Not strictly necessary but means we'll recover from the reorg much
-				// faster than if we waited for the next tick.
-				if s.sequencer {
-					reqL2BlockCreation()
-				}
-			}
-
-			// The block number of the L1 origin for the L2 safe head is at least SeqWindowSize
-			// behind the L1 head. We can therefore attempt to shift the safe head forward by at
-			// least one L1 block. If the node is holding on to unsafe blocks, this may trigger a
-			// reorg on L2 in the case that safe (published) data conflicts with local unsafe
-			// block data.
-			if s.l1Head.Number-s.l2SafeHead.L1Origin.Number >= s.Config.SeqWindowSize {
-				s.log.Trace("Requesting next step", "l1Head", s.l1Head, "l2Head", s.l2Head, "l1Origin", s.l2SafeHead.L1Origin)
-				reqStep()
-			}
+		case onto := <-s.derivationSourceRequest:
+			s.log.Info("The derivation process requested new L1 block", "onto", onto)
+			// TODO, on a reorg we close the existing input.
+			s.derivationInput <- newInput
 
 		case <-s.done:
 			return
