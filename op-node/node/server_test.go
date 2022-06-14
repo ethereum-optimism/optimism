@@ -94,7 +94,7 @@ func TestOutputAtBlock(t *testing.T) {
 	client, err := dialRPCClientWithBackoff(context.Background(), log, "http://"+server.Addr().String(), nil)
 	assert.NoError(t, err)
 
-	var out []l2.Bytes32
+	var out []eth.Bytes32
 	err = client.CallContext(context.Background(), &out, "optimism_outputAtBlock", "latest")
 	assert.NoError(t, err)
 	assert.Len(t, out, 2)

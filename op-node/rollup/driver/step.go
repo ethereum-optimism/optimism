@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-node/eth"
-	"github.com/ethereum-optimism/optimism/op-node/l2"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 
@@ -28,7 +27,7 @@ type outputImpl struct {
 
 // isDepositTx checks an opaqueTx to determine if it is a Deposit Trransaction
 // It has to return an error in the case the transaction is empty
-func isDepositTx(opaqueTx l2.Data) (bool, error) {
+func isDepositTx(opaqueTx eth.Data) (bool, error) {
 	if len(opaqueTx) == 0 {
 		return false, errors.New("empty transaction")
 	}
@@ -38,7 +37,7 @@ func isDepositTx(opaqueTx l2.Data) (bool, error) {
 // lastDeposit finds the index of last deposit at the start of the transactions.
 // It walks the transactions from the start until it finds a non-deposit tx.
 // An error is returned if any looked at transaction cannot be decoded
-func lastDeposit(txns []l2.Data) (int, error) {
+func lastDeposit(txns []eth.Data) (int, error) {
 	var lastDeposit int
 	for i, tx := range txns {
 		deposit, err := isDepositTx(tx)
@@ -54,13 +53,13 @@ func lastDeposit(txns []l2.Data) (int, error) {
 	return lastDeposit, nil
 }
 
-func (d *outputImpl) processBlock(ctx context.Context, l2Head eth.L2BlockRef, l2SafeHead eth.BlockID, l2Finalized eth.BlockID, payload *l2.ExecutionPayload) error {
+func (d *outputImpl) processBlock(ctx context.Context, l2Head eth.L2BlockRef, l2SafeHead eth.BlockID, l2Finalized eth.BlockID, payload *eth.ExecutionPayload) error {
 	d.log.Info("processing new block", "parent", payload.ParentID(), "l2Head", l2Head, "id", payload.ID())
 	if err := d.l2.NewPayload(ctx, payload); err != nil {
 		return fmt.Errorf("failed to insert new payload: %v", err)
 	}
 	// now try to persist a reorg to the new payload
-	fc := l2.ForkchoiceState{
+	fc := eth.ForkchoiceState{
 		HeadBlockHash:      payload.BlockHash,
 		SafeBlockHash:      l2SafeHead.Hash,
 		FinalizedBlockHash: l2Finalized.Hash,
@@ -69,13 +68,13 @@ func (d *outputImpl) processBlock(ctx context.Context, l2Head eth.L2BlockRef, l2
 	if err != nil {
 		return fmt.Errorf("failed to update forkchoice to point to new payload: %v", err)
 	}
-	if res.PayloadStatus.Status != l2.ExecutionValid {
+	if res.PayloadStatus.Status != eth.ExecutionValid {
 		return fmt.Errorf("failed to persist forkchoice update: %v", err)
 	}
 	return nil
 }
 
-func (d *outputImpl) createNewBlock(ctx context.Context, l2Head eth.L2BlockRef, l2SafeHead eth.BlockID, l2Finalized eth.BlockID, l1Origin eth.L1BlockRef) (eth.L2BlockRef, *l2.ExecutionPayload, error) {
+func (d *outputImpl) createNewBlock(ctx context.Context, l2Head eth.L2BlockRef, l2SafeHead eth.BlockID, l2Finalized eth.BlockID, l1Origin eth.L1BlockRef) (eth.L2BlockRef, *eth.ExecutionPayload, error) {
 	d.log.Info("creating new block", "parent", l2Head, "l1Origin", l1Origin)
 
 	fetchCtx, cancel := context.WithTimeout(ctx, time.Second*20)
@@ -101,7 +100,7 @@ func (d *outputImpl) createNewBlock(ctx context.Context, l2Head eth.L2BlockRef, 
 	}
 
 	// Start building the list of transactions to include in the new block.
-	var txns []l2.Data
+	var txns []eth.Data
 
 	// First transaction in every block is always the L1 info transaction.
 	l1InfoTx, err := derive.L1InfoDepositBytes(seqNumber, l1Info)
@@ -128,9 +127,9 @@ func (d *outputImpl) createNewBlock(ctx context.Context, l2Head eth.L2BlockRef, 
 	shouldProduceEmptyBlock := nextL2Time >= l1Origin.Time+d.Config.MaxSequencerDrift
 
 	// Put together our payload attributes.
-	attrs := &l2.PayloadAttributes{
+	attrs := &eth.PayloadAttributes{
 		Timestamp:             hexutil.Uint64(nextL2Time),
-		PrevRandao:            l2.Bytes32(l1Info.MixDigest()),
+		PrevRandao:            eth.Bytes32(l1Info.MixDigest()),
 		SuggestedFeeRecipient: d.Config.FeeRecipientAddress,
 		Transactions:          txns,
 		NoTxPool:              shouldProduceEmptyBlock,
@@ -138,7 +137,7 @@ func (d *outputImpl) createNewBlock(ctx context.Context, l2Head eth.L2BlockRef, 
 
 	// And construct our fork choice state. This is our current fork choice state and will be
 	// updated as a result of executing the block based on the attributes described above.
-	fc := l2.ForkchoiceState{
+	fc := eth.ForkchoiceState{
 		HeadBlockHash:      l2Head.Hash,
 		SafeBlockHash:      l2SafeHead.Hash,
 		FinalizedBlockHash: l2Finalized.Hash,
@@ -151,7 +150,7 @@ func (d *outputImpl) createNewBlock(ctx context.Context, l2Head eth.L2BlockRef, 
 	}
 
 	// Generate an L2 block ref from the payload.
-	ref, err := l2.PayloadToBlockRef(payload, &d.Config.Genesis)
+	ref, err := derive.PayloadToBlockRef(payload, &d.Config.Genesis)
 
 	return ref, payload, err
 }
@@ -215,7 +214,7 @@ func (d *outputImpl) insertEpoch(ctx context.Context, l2Head eth.L2BlockRef, l2S
 	batches = derive.FilterBatches(&d.Config, epoch, minL2Time, maxL2Time, batches)
 	batches = derive.FillMissingBatches(batches, uint64(epoch), d.Config.BlockTime, minL2Time, nextL1Block.Time())
 
-	fc := l2.ForkchoiceState{
+	fc := eth.ForkchoiceState{
 		HeadBlockHash:      l2Head.Hash,
 		SafeBlockHash:      l2SafeHead.Hash,
 		FinalizedBlockHash: l2Finalized.Hash,
@@ -224,10 +223,10 @@ func (d *outputImpl) insertEpoch(ctx context.Context, l2Head eth.L2BlockRef, l2S
 	lastHead := l2Head
 	lastSafeHead := l2SafeHead
 	didReorg := false
-	var payload *l2.ExecutionPayload
+	var payload *eth.ExecutionPayload
 	var reorg bool
 	for i, batch := range batches {
-		var txns []l2.Data
+		var txns []eth.Data
 		l1InfoTx, err := derive.L1InfoDepositBytes(uint64(i), l1Info)
 		if err != nil {
 			return l2Head, l2SafeHead, false, fmt.Errorf("failed to create l1InfoTx: %w", err)
@@ -237,9 +236,9 @@ func (d *outputImpl) insertEpoch(ctx context.Context, l2Head eth.L2BlockRef, l2S
 			txns = append(txns, deposits...)
 		}
 		txns = append(txns, batch.Transactions...)
-		attrs := &l2.PayloadAttributes{
+		attrs := &eth.PayloadAttributes{
 			Timestamp:             hexutil.Uint64(batch.Timestamp),
-			PrevRandao:            l2.Bytes32(l1Info.MixDigest()),
+			PrevRandao:            eth.Bytes32(l1Info.MixDigest()),
 			SuggestedFeeRecipient: d.Config.FeeRecipientAddress,
 			Transactions:          txns,
 			// we are verifying, not sequencing, we've got all transactions and do not pull from the tx-pool
@@ -264,7 +263,7 @@ func (d *outputImpl) insertEpoch(ctx context.Context, l2Head eth.L2BlockRef, l2S
 			return lastHead, lastSafeHead, didReorg, fmt.Errorf("failed to extend L2 chain at block %d/%d of epoch %d: %w", i, len(batches), epoch, err)
 		}
 
-		newLast, err := l2.PayloadToBlockRef(payload, &d.Config.Genesis)
+		newLast, err := derive.PayloadToBlockRef(payload, &d.Config.Genesis)
 		if err != nil {
 			return lastHead, lastSafeHead, didReorg, fmt.Errorf("failed to derive block references: %w", err)
 		}
@@ -286,7 +285,7 @@ func (d *outputImpl) insertEpoch(ctx context.Context, l2Head eth.L2BlockRef, l2S
 
 // attributesMatchBlock checks if the L2 attributes pre-inputs match the output
 // nil if it is a match. If err is not nil, the error contains the reason for the mismatch
-func attributesMatchBlock(attrs *l2.PayloadAttributes, parentHash common.Hash, block *l2.ExecutionPayload) error {
+func attributesMatchBlock(attrs *eth.PayloadAttributes, parentHash common.Hash, block *eth.ExecutionPayload) error {
 	if parentHash != block.ParentHash {
 		return fmt.Errorf("parent hash field does not match. expected: %v. got: %v", parentHash, block.ParentHash)
 	}
@@ -309,12 +308,12 @@ func attributesMatchBlock(attrs *l2.PayloadAttributes, parentHash common.Hash, b
 
 // verifySafeBlock reconciles the supplied payload attributes against the actual L2 block.
 // If they do not match, it inserts the new block and sets the head and safe head to the new block in the FC.
-func (d *outputImpl) verifySafeBlock(ctx context.Context, fc l2.ForkchoiceState, attrs *l2.PayloadAttributes, parent eth.BlockID) (*l2.ExecutionPayload, bool, error) {
+func (d *outputImpl) verifySafeBlock(ctx context.Context, fc eth.ForkchoiceState, attrs *eth.PayloadAttributes, parent eth.BlockID) (*eth.ExecutionPayload, bool, error) {
 	payload, err := d.l2.PayloadByNumber(ctx, new(big.Int).SetUint64(parent.Number+1))
 	if err != nil {
 		return nil, false, fmt.Errorf("failed to get L2 block: %w", err)
 	}
-	ref, err := l2.PayloadToBlockRef(payload, &d.Config.Genesis)
+	ref, err := derive.PayloadToBlockRef(payload, &d.Config.Genesis)
 	if err != nil {
 		return nil, false, fmt.Errorf("failed to parse block ref: %w", err)
 	}
@@ -343,12 +342,12 @@ func (d *outputImpl) verifySafeBlock(ctx context.Context, fc l2.ForkchoiceState,
 // sets the FC to the same safe and finalized hashes, but updates the head hash to the new block.
 // If updateSafe is true, the head block is considered to be the safe head as well as the head.
 // It returns the payload, the count of deposits, and an error.
-func (d *outputImpl) insertHeadBlock(ctx context.Context, fc l2.ForkchoiceState, attrs *l2.PayloadAttributes, updateSafe bool) (*l2.ExecutionPayload, error) {
+func (d *outputImpl) insertHeadBlock(ctx context.Context, fc eth.ForkchoiceState, attrs *eth.PayloadAttributes, updateSafe bool) (*eth.ExecutionPayload, error) {
 	fcRes, err := d.l2.ForkchoiceUpdate(ctx, &fc, attrs)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create new block via forkchoice: %w", err)
 	}
-	if fcRes.PayloadStatus.Status != l2.ExecutionValid {
+	if fcRes.PayloadStatus.Status != eth.ExecutionValid {
 		return nil, fmt.Errorf("engine not ready, forkchoice pre-state is not valid: %s", fcRes.PayloadStatus.Status)
 	}
 	id := fcRes.PayloadID
@@ -403,7 +402,7 @@ func (d *outputImpl) insertHeadBlock(ctx context.Context, fc l2.ForkchoiceState,
 	if err != nil {
 		return nil, fmt.Errorf("failed to make the new L2 block canonical via forkchoice: %w", err)
 	}
-	if fcRes.PayloadStatus.Status != l2.ExecutionValid {
+	if fcRes.PayloadStatus.Status != eth.ExecutionValid {
 		return nil, fmt.Errorf("failed to persist forkchoice change: %s", fcRes.PayloadStatus.Status)
 	}
 	return payload, nil
