@@ -1,6 +1,4 @@
-import { DeployConfig } from '../src/deploy-config'
-
-const config: DeployConfig = {
+const config = {
   l1BlockTimeSeconds: 15,
   l2BlockGasLimit: 15_000_000,
   l2ChainId: 421,

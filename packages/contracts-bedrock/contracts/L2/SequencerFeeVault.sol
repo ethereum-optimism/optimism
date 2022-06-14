@@ -8,38 +8,32 @@ import { Lib_PredeployAddresses } from "../libraries/Lib_PredeployAddresses.sol"
 import { L2StandardBridge } from "./L2StandardBridge.sol";
 
 /**
+ * @custom:proxied
+ * @custom:predeploy 0x4200000000000000000000000000000000000011
  * @title SequencerFeeVault
- * @dev Simple holding contract for fees paid to the Sequencer
+ * @notice The SequencerFeeVault is the contract that holds any fees paid to the Sequencer during
+ *         transaction processing and block production.
  */
 contract SequencerFeeVault {
-    /*************
-     * Constants *
-     *************/
-
-    // Minimum ETH balance that can be withdrawn in a single withdrawal.
+    /**
+     * @notice Minimum balance before a withdrawal can be triggered.
+     */
     uint256 public constant MIN_WITHDRAWAL_AMOUNT = 15 ether;
 
-    /*************
-     * Variables *
-     *************/
-
-    // Address on L1 that will hold the fees once withdrawn. Dynamically
-    // initialized in the genesis state
+    /**
+     * @notice Wallet that will receive the fees on L1.
+     */
     address public l1FeeWallet;
 
-    /************
-     * Fallback *
-     ************/
-
-    // slither-disable-next-line locked-ether
+    /**
+     * @notice Allow the contract to receive ETH.
+     */
     receive() external payable {}
 
-    /********************
-     * Public Functions *
-     ********************/
-
-    // slither-disable-next-line external-function
-    function withdraw() public {
+    /**
+     * @notice Triggers a withdrawal of funds to the L1 fee wallet.
+     */
+    function withdraw() external {
         require(
             address(this).balance >= MIN_WITHDRAWAL_AMOUNT,
             // solhint-disable-next-line max-line-length
