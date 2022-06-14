@@ -77,6 +77,8 @@ test-integration:
 		./packages/contracts-bedrock/deployments/devnetL1
 .PHONY: test-integration
 
-devnet-genesis:
-	bash ./ops-bedrock/devnet-genesis.sh
-.PHONY: devnet-genesis
+# Remove the baseline-commit to generate a base reading & show all issues
+semgrep:
+	$(eval DEV_REF := $(shell git rev-parse develop))
+	SEMGREP_REPO_NAME=ethereum-optimism/optimism semgrep ci --baseline-commit=$(DEV_REF)
+.PHONY: semgrep
