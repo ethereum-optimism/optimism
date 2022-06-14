@@ -110,7 +110,7 @@ contract L1ERC721Bridge is CrossDomainEnabled, OwnableUpgradeable {
         uint256 _tokenId,
         uint32 _minGasLimit,
         bytes calldata _data
-    ) external virtual {
+    ) external {
         // Modifier requiring sender to be EOA. This check could be bypassed by a malicious
         // contract via initcode, but it takes care of the user error we want to avoid.
         require(!Address.isContract(msg.sender), "L1ERC721Bridge: account is not externally owned");
@@ -145,7 +145,7 @@ contract L1ERC721Bridge is CrossDomainEnabled, OwnableUpgradeable {
         uint256 _tokenId,
         uint32 _minGasLimit,
         bytes calldata _data
-    ) external virtual {
+    ) external {
         _initiateBridgeERC721(
             _localToken,
             _remoteToken,
@@ -181,7 +181,7 @@ contract L1ERC721Bridge is CrossDomainEnabled, OwnableUpgradeable {
         address _to,
         uint256 _tokenId,
         bytes calldata _data
-    ) external virtual onlyFromCrossDomainAccount(otherBridge) {
+    ) external onlyFromCrossDomainAccount(otherBridge) {
         // Checks that the L1/L2 token pair has a token ID that is escrowed in the L1 Bridge
         require(
             deposits[_localToken][_remoteToken][_tokenId] == true,
@@ -220,11 +220,6 @@ contract L1ERC721Bridge is CrossDomainEnabled, OwnableUpgradeable {
         uint32 _minGasLimit,
         bytes calldata _data
     ) internal {
-        // When a deposit is initiated on L1, the L1 Bridge transfers the NFT to itself for future
-        // withdrawals.
-        // slither-disable-next-line reentrancy-events, reentrancy-benign
-        IERC721(_localToken).transferFrom(_from, address(this), _tokenId);
-
         // Construct calldata for _l2Token.finalizeBridgeERC721(_to, _tokenId)
         bytes memory message = abi.encodeWithSelector(
             L2ERC721Bridge.finalizeBridgeERC721.selector,
@@ -236,14 +231,12 @@ contract L1ERC721Bridge is CrossDomainEnabled, OwnableUpgradeable {
             _data
         );
 
-        // Send calldata into L2
-        // slither-disable-next-line reentrancy-events, reentrancy-benign
-        sendCrossDomainMessage(otherBridge, _minGasLimit, message);
-
-        // slither-disable-next-line reentrancy-benign
+        // Lock token into bridge
         deposits[_localToken][_remoteToken][_tokenId] = true;
+        IERC721(_localToken).transferFrom(_from, address(this), _tokenId);
 
-        // slither-disable-next-line reentrancy-events
+        // Send calldata into L2
+        sendCrossDomainMessage(otherBridge, _minGasLimit, message);
         emit ERC721BridgeInitiated(_localToken, _remoteToken, _from, _to, _tokenId, _data);
     }
 }

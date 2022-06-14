@@ -124,7 +124,7 @@ contract L2ERC721Bridge is CrossDomainEnabled, OwnableUpgradeable {
         uint256 _tokenId,
         uint32 _minGasLimit,
         bytes calldata _data
-    ) external virtual {
+    ) external {
         // Modifier requiring sender to be EOA. This check could be bypassed by a malicious
         // contract via initcode, but it takes care of the user error we want to avoid.
         require(!Address.isContract(msg.sender), "L2ERC721Bridge: account is not externally owned");
@@ -159,7 +159,7 @@ contract L2ERC721Bridge is CrossDomainEnabled, OwnableUpgradeable {
         uint256 _tokenId,
         uint32 _minGasLimit,
         bytes calldata _data
-    ) external virtual {
+    ) external {
         _initiateBridgeERC721(
             _localToken,
             _remoteToken,
@@ -191,7 +191,7 @@ contract L2ERC721Bridge is CrossDomainEnabled, OwnableUpgradeable {
         address _to,
         uint256 _tokenId,
         bytes calldata _data
-    ) external virtual onlyFromCrossDomainAccount(otherBridge) {
+    ) external onlyFromCrossDomainAccount(otherBridge) {
         // Check the target token is compliant and verify the deposited token on L1 matches the L2
         // deposited token representation.
         if (
