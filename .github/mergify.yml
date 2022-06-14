@@ -57,17 +57,6 @@ pull_request_rules:
 
           1. The risks present in this PR.
           2. The mitigations you have added to try and reduce those risks.
-  - name: Request reviewers
-    conditions:
-      - -closed
-    actions:
-      request_reviews:
-        users:
-          - cfromknecht
-          - mslipper
-          - inphi
-          - tuxcanfly
-        random_count: 2
   - name: Request protocol critical reviewers
     conditions:
       - label=C-Protocol-Critical
