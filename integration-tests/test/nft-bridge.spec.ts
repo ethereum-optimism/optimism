@@ -82,14 +82,18 @@ describe('ERC721 Bridge', () => {
     L1ERC721 = await Factory__L1ERC721.deploy()
     await L1ERC721.deployed()
 
-    const l1BridgeAddress = ethers.utils.getContractAddress({
-      from: await bobWalletL1.getAddress(),
-      nonce: await bobWalletL1.getTransactionCount()
-    })
+    L1ERC721Bridge = await Factory__L1ERC721Bridge.deploy(
+      env.messenger.contracts.l1.L1CrossDomainMessenger.address,
+      ethers.utils.getContractAddress({
+        from: await Factory__L2ERC721Bridge.signer.getAddress(),
+        nonce: await Factory__L2ERC721Bridge.signer.getTransactionCount(),
+      })
+    )
+    await L1ERC721Bridge.deployed()
 
     L2ERC721Bridge = await Factory__L2ERC721Bridge.deploy(
       predeploys.L2CrossDomainMessenger,
-      l1BridgeAddress
+      L1ERC721Bridge.address
     )
     await L2ERC721Bridge.deployed()
 
@@ -105,22 +109,26 @@ describe('ERC721 Bridge', () => {
       )
     await OptimismMintableERC721Factory.deployed()
 
-    // Create a L2 Standard ERC721 with the Standard ERC721 Factory
-    const tx = await OptimismMintableERC721Factory.createStandardL2ERC721(
-      L1ERC721.address,
-      'L2ERC721',
-      'L2'
+    expect(await OptimismMintableERC721Factory.bridge()).to.equal(
+      L2ERC721Bridge.address
     )
-    await tx.wait()
 
-    // Retrieve the deployed L2 Standard ERC721
-    const OptimismMintableERC721Address =
-      await OptimismMintableERC721Factory.standardERC721Mapping(
-        L1ERC721.address
+    // Create a L2 Standard ERC721 with the Standard ERC721 Factory
+    const tx =
+      await OptimismMintableERC721Factory.createStandardOptimismMintableERC721(
+        L1ERC721.address,
+        'L2ERC721',
+        'L2'
       )
+    const receipt = await tx.wait()
+
+    // Get the OptimismMintableERC721Created event
+    const erc721CreatedEvent = receipt.events[0]
+    expect(erc721CreatedEvent.event).to.be.eq('OptimismMintableERC721Created')
+
     OptimismMintableERC721 = await ethers.getContractAt(
       Artifact__OptimismMintableERC721.abi,
-      OptimismMintableERC721Address
+      erc721CreatedEvent.args.localToken
     )
     await OptimismMintableERC721.deployed()
 
