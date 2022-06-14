@@ -34,7 +34,6 @@ type ChannelInReader struct {
 
 	l1Origin eth.L1BlockRef
 	channel  ChannelID
-	frameNr  uint64
 }
 
 func NewChannelInReader(source func() *TaggedData) *ChannelInReader {
@@ -89,7 +88,6 @@ func (cr *ChannelInReader) readChannel(p []byte) (n int, err error) {
 		}
 		// always keep L1 origin up to date: it may change per frame
 		cr.l1Origin = next.L1Origin
-		cr.frameNr = next.FrameNumber
 
 		// reset if we switched to a new channel, append frame data otherwise
 		if cr.channel != next.ChannelID {
@@ -138,11 +136,6 @@ func (cr *ChannelInReader) CurrentL1Origin() eth.L1BlockRef {
 // CurrentChannel returns the channel that is being read from.
 func (cr *ChannelInReader) CurrentChannel() ChannelID {
 	return cr.channel
-}
-
-// CurrentFrameNumber returns the frame number of the frame that is being read from in the current channel.
-func (cr *ChannelInReader) CurrentFrameNumber() uint64 {
-	return cr.frameNr
 }
 
 // Closed returns true when no additional data may be read from the underlying stream.

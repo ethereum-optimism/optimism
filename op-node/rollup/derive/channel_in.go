@@ -2,8 +2,6 @@ package derive
 
 import (
 	"fmt"
-
-	"github.com/ethereum-optimism/optimism/op-node/eth"
 )
 
 type ChannelIn struct {
@@ -20,11 +18,11 @@ type ChannelIn struct {
 	// final frame number (inclusive). Max value if we haven't seen the end yet.
 	endsAt uint64
 
-	inputs map[uint64]*TaggedData
+	inputs map[uint64][]byte
 }
 
-// IngestData buffers a frame in the channel, and potentially forwards it, along with any previously buffered frames
-func (ch *ChannelIn) IngestData(ref eth.L1BlockRef, frameNum uint64, isLast bool, frameData []byte) error {
+// IngestData buffers a frame in the channel
+func (ch *ChannelIn) IngestData(frameNum uint64, isLast bool, frameData []byte) error {
 	if frameNum < ch.progress {
 		// already consumed a frame with equal number, this must be a duplicate
 		return DuplicateErr
@@ -39,20 +37,14 @@ func (ch *ChannelIn) IngestData(ref eth.L1BlockRef, frameNum uint64, isLast bool
 
 	// create buffer if it didn't exist yet
 	if ch.inputs == nil {
-		ch.inputs = make(map[uint64]*TaggedData)
+		ch.inputs = make(map[uint64][]byte)
 	}
 	if _, exists := ch.inputs[frameNum]; exists {
 		// already seen a frame for this channel with this frame number
 		return DuplicateErr
 	}
 	// buffer the frame
-	ch.inputs[frameNum] = &TaggedData{
-		L1Origin:    ref,
-		ChannelID:   ch.id,
-		FrameNumber: frameNum,
-		IsLast:      isLast,
-		Data:        frameData,
-	}
+	ch.inputs[frameNum] = frameData
 	if isLast {
 		ch.endsAt = frameNum
 	}
@@ -61,15 +53,15 @@ func (ch *ChannelIn) IngestData(ref eth.L1BlockRef, frameNum uint64, isLast bool
 }
 
 // Read next tagged piece of data. This may return nil if there is none.
-func (ch *ChannelIn) Read() *TaggedData {
-	taggedData, ok := ch.inputs[ch.progress]
+func (ch *ChannelIn) Read() []byte {
+	data, ok := ch.inputs[ch.progress]
 	if !ok {
 		return nil
 	}
-	ch.size -= uint64(len(taggedData.Data)) + frameOverhead
+	ch.size -= uint64(len(data)) + frameOverhead
 	delete(ch.inputs, ch.progress)
 	ch.progress += 1
-	return taggedData
+	return data
 }
 
 // Closed returns if this channel has been fully read yet.

@@ -26,7 +26,7 @@ func (dp *DerivationPipeline) Reset(l2Head eth.L2BlockRef) error {
 func (dp *DerivationPipeline) Step() error {
 	for {
 		// try to apply previous buffered information to the engine
-		if err := dp.applyToEngine(); err == nil {
+		if err := dp.engineQueue.Step(); err == nil {
 			continue
 		} else if err != io.EOF {
 			return fmt.Errorf("critical failure while applying payload attributes to engine: %w", err)
@@ -48,7 +48,8 @@ func (dp *DerivationPipeline) readBatch() error {
 	// 1. try to read a batch from the ChannelInReader
 	// 2. if no batch was returned, return io.EOF
 	// 3. if a batch was returned:
-	//   3.1 get the CurrentOrigin from the reader, and update the BatchQueue with all origins since the
+	//   3.1 get the CurrentOrigin from the reader, and update the BatchQueue with all origins since then
+
 	return nil
 }
 
@@ -58,11 +59,8 @@ func (dp *DerivationPipeline) readAttributes() error {
 	// 2. if none were returned, return io.EOF
 	// 3. if an error was returned (e.g. failed to fetch L1 receipts), log it and return nil
 	// 4. if any were returned, append them to the engineQueue, and return nil
-	return nil
-}
 
-func (dp *DerivationPipeline) applyToEngine() error {
-	// TODO: implement below spec
-	// 1. call EngineQueue.Step()
+	//dp.batchQueue.DeriveL2Inputs()
+
 	return nil
 }

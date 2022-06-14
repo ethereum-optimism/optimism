@@ -23,12 +23,13 @@ type ChannelBank struct {
 	currentL1Origin eth.L1BlockRef
 }
 
-// Read returns nil if there is nothing new to Read.
-func (ib *ChannelBank) Read() *TaggedData {
+// Read returns a zeroed channel ID and nil data if there is nothing new to Read.
+// The caller should tag the data with CurrentL1() to track what
+func (ib *ChannelBank) Read() (chID ChannelID, data []byte) {
 	// clear timed out channel(s) first
 	for {
 		if len(ib.channelQueue) == 0 {
-			return nil
+			return ChannelID{}, nil
 		}
 		first := ib.channelQueue[0]
 		ch := ib.channels[first]
@@ -42,7 +43,7 @@ func (ib *ChannelBank) Read() *TaggedData {
 	}
 
 	if len(ib.channelQueue) == 0 {
-		return nil
+		return ChannelID{}, nil
 	}
 	first := ib.channelQueue[0]
 	ch := ib.channels[first]
@@ -54,7 +55,7 @@ func (ib *ChannelBank) Read() *TaggedData {
 		delete(ib.channels, first)
 		ib.channelQueue = ib.channelQueue[1:]
 	}
-	return out
+	return first, out
 }
 
 func (ib *ChannelBank) CurrentL1() eth.L1BlockRef {
@@ -154,7 +155,7 @@ func (ib *ChannelBank) IngestData(data []byte) error {
 			ib.channelQueue = append(ib.channelQueue, chID)
 		}
 
-		if err := currentCh.IngestData(ib.currentL1Origin, frameNumber, isLast, frameData); err != nil {
+		if err := currentCh.IngestData(frameNumber, isLast, frameData); err != nil {
 			ib.log.Debug("failed to ingest frame into channel", "frame_number", frameNumber, "channel", chID, "err", err)
 			continue
 		}
@@ -206,8 +207,11 @@ func NewChannelBank(ctx context.Context, log log.Logger, l1Start eth.L1BlockRef,
 				continue
 			}
 		}
-		for bank.Read() != nil {
-			// we drain before ingesting more, since writes affect reads this is mandatory
+		// we drain before ingesting more, since writes affect reads this is mandatory
+		for {
+			if chID, _ := bank.Read(); chID == (ChannelID{}) {
+				break
+			}
 		}
 	}
 	if err := bank.NextL1(l1Start); err != nil {

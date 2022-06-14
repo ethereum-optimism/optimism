@@ -406,15 +406,19 @@ func (s *state) eventLoop() {
 		case onto := <-s.derivationSourceRequest:
 			s.log.Info("The derivation process requested new tagged data", "onto", onto)
 
-			tagData := s.bank.Read()
-			if tagData == nil {
+			chID, data := s.bank.Read()
+			if chID == (derive.ChannelID{}) {
 				// TODO: update the channel bank, move it to a next origin
 				// check if we have a next L1 block.
 				// if not found, then reschedule the derivationSourceRequest
 
 				// TODO, on a reorg we send nil to the derivation input channel
 			} else {
-				s.derivationInput <- tagData
+				s.derivationInput <- &derive.TaggedData{
+					L1Origin:  s.bank.CurrentL1(),
+					ChannelID: chID,
+					Data:      data,
+				}
 			}
 		case <-s.done:
 			close(s.derivationInput)
