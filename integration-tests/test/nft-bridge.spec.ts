@@ -5,8 +5,8 @@ import { predeploys } from '@eth-optimism/contracts'
 import Artifact__TestERC721 from '@eth-optimism/contracts-periphery/artifacts/contracts/testing/helpers/TestERC721.sol/TestERC721.json'
 import Artifact__L1ERC721Bridge from '@eth-optimism/contracts-periphery/artifacts/contracts/L1/messaging/L1ERC721Bridge.sol/L1ERC721Bridge.json'
 import Artifact__L2ERC721Bridge from '@eth-optimism/contracts-periphery/artifacts/contracts/L2/messaging/L2ERC721Bridge.sol/L2ERC721Bridge.json'
-import Artifact__L2StandardERC721Factory from '@eth-optimism/contracts-periphery/artifacts/contracts/L2/messaging/L2StandardERC721Factory.sol/L2StandardERC721Factory.json'
-import Artifact__L2StandardERC721 from '@eth-optimism/contracts-periphery/artifacts/contracts/standards/L2StandardERC721.sol/L2StandardERC721.json'
+import Artifact__OptimismMintableERC721Factory from '@eth-optimism/contracts-periphery/artifacts/contracts/universal/op-erc721/OptimismMintableERC721Factory.sol/OptimismMintableERC721Factory.json'
+import Artifact__OptimismMintableERC721 from '@eth-optimism/contracts-periphery/artifacts/contracts/universal/op-erc721/OptimismMintableERC721.sol/OptimismMintableERC721.json'
 
 /* Imports: Internal */
 import { expect } from './shared/setup'
@@ -49,7 +49,7 @@ describe('ERC721 Bridge', () => {
   let Factory__L1ERC721: ContractFactory
   let Factory__L1ERC721Bridge: ContractFactory
   let Factory__L2ERC721Bridge: ContractFactory
-  let Factory__L2StandardERC721Factory: ContractFactory
+  let Factory__OptimismMintableERC721Factory: ContractFactory
   before(async () => {
     Factory__L1ERC721 = await ethers.getContractFactory(
       Artifact__TestERC721.abi,
@@ -66,9 +66,9 @@ describe('ERC721 Bridge', () => {
       Artifact__L2ERC721Bridge.bytecode,
       bobWalletL2
     )
-    Factory__L2StandardERC721Factory = await ethers.getContractFactory(
-      Artifact__L2StandardERC721Factory.abi,
-      Artifact__L2StandardERC721Factory.bytecode,
+    Factory__OptimismMintableERC721Factory = await ethers.getContractFactory(
+      Artifact__OptimismMintableERC721Factory.abi,
+      Artifact__OptimismMintableERC721Factory.bytecode,
       bobWalletL2
     )
   })
@@ -76,8 +76,8 @@ describe('ERC721 Bridge', () => {
   let L1ERC721: Contract
   let L1ERC721Bridge: Contract
   let L2ERC721Bridge: Contract
-  let L2StandardERC721Factory: Contract
-  let L2StandardERC721: Contract
+  let OptimismMintableERC721Factory: Contract
+  let OptimismMintableERC721: Contract
   beforeEach(async () => {
     L1ERC721 = await Factory__L1ERC721.deploy()
     await L1ERC721.deployed()
@@ -93,13 +93,14 @@ describe('ERC721 Bridge', () => {
     )
     await L1ERC721Bridge.deployed()
 
-    L2StandardERC721Factory = await Factory__L2StandardERC721Factory.deploy(
-      L2ERC721Bridge.address
-    )
-    await L2StandardERC721Factory.deployed()
+    OptimismMintableERC721Factory =
+      await Factory__OptimismMintableERC721Factory.deploy(
+        L2ERC721Bridge.address
+      )
+    await OptimismMintableERC721Factory.deployed()
 
     // Create a L2 Standard ERC721 with the Standard ERC721 Factory
-    const tx = await L2StandardERC721Factory.createStandardL2ERC721(
+    const tx = await OptimismMintableERC721Factory.createStandardL2ERC721(
       L1ERC721.address,
       'L2ERC721',
       'L2'
@@ -107,13 +108,15 @@ describe('ERC721 Bridge', () => {
     await tx.wait()
 
     // Retrieve the deployed L2 Standard ERC721
-    const L2StandardERC721Address =
-      await L2StandardERC721Factory.standardERC721Mapping(L1ERC721.address)
-    L2StandardERC721 = await ethers.getContractAt(
-      Artifact__L2StandardERC721.abi,
-      L2StandardERC721Address
+    const OptimismMintableERC721Address =
+      await OptimismMintableERC721Factory.standardERC721Mapping(
+        L1ERC721.address
+      )
+    OptimismMintableERC721 = await ethers.getContractAt(
+      Artifact__OptimismMintableERC721.abi,
+      OptimismMintableERC721Address
     )
-    await L2StandardERC721.deployed()
+    await OptimismMintableERC721.deployed()
 
     // Initialize the L2 bridge contract
     const tx1 = await L2ERC721Bridge.initialize(L1ERC721Bridge.address)
@@ -132,7 +135,7 @@ describe('ERC721 Bridge', () => {
     await env.messenger.waitForMessageReceipt(
       await L1ERC721Bridge.depositERC721(
         L1ERC721.address,
-        L2StandardERC721.address,
+        OptimismMintableERC721.address,
         TOKEN_ID,
         FINALIZATION_GAS,
         NON_NULL_BYTES
@@ -143,14 +146,14 @@ describe('ERC721 Bridge', () => {
     expect(await L1ERC721.ownerOf(TOKEN_ID)).to.equal(L1ERC721Bridge.address)
 
     // Bob owns the NFT on L2
-    expect(await L2StandardERC721.ownerOf(TOKEN_ID)).to.equal(bobAddress)
+    expect(await OptimismMintableERC721.ownerOf(TOKEN_ID)).to.equal(bobAddress)
   })
 
   it('depositERC721To', async () => {
     await env.messenger.waitForMessageReceipt(
       await L1ERC721Bridge.depositERC721To(
         L1ERC721.address,
-        L2StandardERC721.address,
+        OptimismMintableERC721.address,
         aliceAddress,
         TOKEN_ID,
         FINALIZATION_GAS,
@@ -162,7 +165,9 @@ describe('ERC721 Bridge', () => {
     expect(await L1ERC721.ownerOf(TOKEN_ID)).to.equal(L1ERC721Bridge.address)
 
     // Alice owns the NFT on L2
-    expect(await L2StandardERC721.ownerOf(TOKEN_ID)).to.equal(aliceAddress)
+    expect(await OptimismMintableERC721.ownerOf(TOKEN_ID)).to.equal(
+      aliceAddress
+    )
   })
 
   withdrawalTest('withdrawERC721', async () => {
@@ -170,7 +175,7 @@ describe('ERC721 Bridge', () => {
     await env.messenger.waitForMessageReceipt(
       await L1ERC721Bridge.depositERC721(
         L1ERC721.address,
-        L2StandardERC721.address,
+        OptimismMintableERC721.address,
         TOKEN_ID,
         FINALIZATION_GAS,
         NON_NULL_BYTES
@@ -181,10 +186,10 @@ describe('ERC721 Bridge', () => {
     expect(await L1ERC721.ownerOf(TOKEN_ID)).to.equal(L1ERC721Bridge.address)
 
     // Also check that Bob owns the NFT on L2 initially
-    expect(await L2StandardERC721.ownerOf(TOKEN_ID)).to.equal(bobAddress)
+    expect(await OptimismMintableERC721.ownerOf(TOKEN_ID)).to.equal(bobAddress)
 
     const tx = await L2ERC721Bridge.withdrawERC721(
-      L2StandardERC721.address,
+      OptimismMintableERC721.address,
       TOKEN_ID,
       0,
       NON_NULL_BYTES
@@ -196,7 +201,7 @@ describe('ERC721 Bridge', () => {
     expect(await L1ERC721.ownerOf(TOKEN_ID)).to.equal(bobAddress)
 
     // L2 NFT is burned
-    await expect(L2StandardERC721.ownerOf(TOKEN_ID)).to.be.reverted
+    await expect(OptimismMintableERC721.ownerOf(TOKEN_ID)).to.be.reverted
   })
 
   withdrawalTest('withdrawERC721To', async () => {
@@ -204,7 +209,7 @@ describe('ERC721 Bridge', () => {
     await env.messenger.waitForMessageReceipt(
       await L1ERC721Bridge.depositERC721(
         L1ERC721.address,
-        L2StandardERC721.address,
+        OptimismMintableERC721.address,
         TOKEN_ID,
         FINALIZATION_GAS,
         NON_NULL_BYTES
@@ -215,10 +220,10 @@ describe('ERC721 Bridge', () => {
     expect(await L1ERC721.ownerOf(TOKEN_ID)).to.equal(L1ERC721Bridge.address)
 
     // Also check that Bob owns the NFT on L2 initially
-    expect(await L2StandardERC721.ownerOf(TOKEN_ID)).to.equal(bobAddress)
+    expect(await OptimismMintableERC721.ownerOf(TOKEN_ID)).to.equal(bobAddress)
 
     const tx = await L2ERC721Bridge.withdrawERC721To(
-      L2StandardERC721.address,
+      OptimismMintableERC721.address,
       aliceAddress,
       TOKEN_ID,
       0,
@@ -231,7 +236,7 @@ describe('ERC721 Bridge', () => {
     expect(await L1ERC721.ownerOf(TOKEN_ID)).to.equal(aliceAddress)
 
     // L2 NFT is burned
-    await expect(L2StandardERC721.ownerOf(TOKEN_ID)).to.be.reverted
+    await expect(OptimismMintableERC721.ownerOf(TOKEN_ID)).to.be.reverted
   })
 
   withdrawalTest(
@@ -241,7 +246,7 @@ describe('ERC721 Bridge', () => {
       await env.messenger.waitForMessageReceipt(
         await L1ERC721Bridge.depositERC721(
           L1ERC721.address,
-          L2StandardERC721.address,
+          OptimismMintableERC721.address,
           TOKEN_ID,
           FINALIZATION_GAS,
           NON_NULL_BYTES
