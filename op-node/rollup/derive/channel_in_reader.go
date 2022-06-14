@@ -42,6 +42,8 @@ func NewChannelInReader(source func() *TaggedData) *ChannelInReader {
 		source: source,
 		buf:    bytes.NewBuffer(make([]byte, 1000)),
 	}
+	// TODO: need to init the zlib reader: zlib.NewReader(nil)
+	// But it reads from the source buffer immediately upon creation, and needs a full header to not error.
 	cr.Reset()
 	return cr
 }
@@ -61,6 +63,8 @@ func NewChannelInReader(source func() *TaggedData) *ChannelInReader {
 // It's up to the caller to check CurrentL1Origin() before reading more information.
 // The CurrentL1Origin() does not change until the first ReadBatch() after the old source has been completely exhausted.
 func (cr *ChannelInReader) ReadBatch(dest *BatchData) error {
+	// TODO: introspect RLP stream to check if we have sufficient data
+	cr.readZlib.Read()
 	return cr.readRLP.Decode(dest)
 }
 
@@ -70,7 +74,6 @@ func (cr *ChannelInReader) readChannel(p []byte) (n int, err error) {
 		if cr.source == nil {
 			return 0, io.EOF
 		}
-		// if we're out of data, then rotate to the next frame
 		next := cr.source()
 		if next == nil {
 			cr.source = nil // close source
