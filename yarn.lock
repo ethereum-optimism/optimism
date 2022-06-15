@@ -652,25 +652,6 @@
     minimatch "^3.1.2"
     strip-json-comments "^3.1.1"
 
-"@eth-optimism/common-ts@^0.2.8":
-  version "0.2.10"
-  resolved "https://registry.yarnpkg.com/@eth-optimism/common-ts/-/common-ts-0.2.10.tgz#d9867770ff7c0d338bbef4fa598eb4d3f1842f70"
-  integrity sha512-0Ndl44AL0/ONe6QmSQ4/HenGXk/EkELwKDU6u2IG5IyUfmnXxDJjCGsxOTIfuj5GsMn3EL3fNtNxW6BcTqXWjg==
-  dependencies:
-    "@eth-optimism/core-utils" "0.8.6"
-    "@sentry/node" "^6.3.1"
-    bcfg "^0.1.7"
-    commander "^9.0.0"
-    dotenv "^16.0.0"
-    envalid "^7.2.2"
-    ethers "^5.6.8"
-    express "^4.17.1"
-    lodash "^4.17.21"
-    pino "^6.11.3"
-    pino-multi-stream "^5.3.0"
-    pino-sentry "^0.7.0"
-    prom-client "^13.1.0"
-
 "@ethereum-waffle/chai@^3.4.0":
   version "3.4.0"
   resolved "https://registry.yarnpkg.com/@ethereum-waffle/chai/-/chai-3.4.0.tgz#2477877410a96bf370edd64df905b04fb9aba9d5"
@@ -1633,10 +1614,10 @@
     command-exists "^1.2.9"
     ts-interface-checker "^0.1.9"
 
-"@foundry-rs/hardhat-forge@^0.1.5":
-  version "0.1.5"
-  resolved "https://registry.yarnpkg.com/@foundry-rs/hardhat-forge/-/hardhat-forge-0.1.5.tgz#0be652185e97ff7b36dbd77aaa4da6f3ed622bcd"
-  integrity sha512-vrDGQXhS/NZKmBQX8jgAepwVyd9j7J8Bx/62mQezZ8YySBzQNfhEqSrCFZX8fP7gHiF3/lNLYLOg27DhJiTCFQ==
+"@foundry-rs/hardhat-forge@^0.1.7":
+  version "0.1.7"
+  resolved "https://registry.yarnpkg.com/@foundry-rs/hardhat-forge/-/hardhat-forge-0.1.7.tgz#54f3224d426811cbb2dee5b0516aa593d553a856"
+  integrity sha512-6aDXmzy4V4NyOeclTrskrKFf5A0hOx0xDdjm8e8qAzFdC3Y0HlXdr66uUFBVHMsQbWLRVf6IzqeISzCcc6ZJ2g==
   dependencies:
     "@foundry-rs/easy-foundryup" "^0.1.3"
     "@nomiclabs/hardhat-ethers" "^2.0.0"
