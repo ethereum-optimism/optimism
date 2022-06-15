@@ -4,7 +4,7 @@ import (
 	"context"
 	"math/big"
 
-	"github.com/ethereum-optimism/optimism/op-node/l2"
+	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/node"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/rpc"
@@ -28,8 +28,8 @@ func (r *RollupClient) GetBatchBundle(
 	return batchResponse, err
 }
 
-func (r *RollupClient) OutputAtBlock(ctx context.Context, blockNum *big.Int) ([]l2.Bytes32, error) {
-	var output []l2.Bytes32
+func (r *RollupClient) OutputAtBlock(ctx context.Context, blockNum *big.Int) ([]eth.Bytes32, error) {
+	var output []eth.Bytes32
 	err := r.rpc.CallContext(ctx, &output, "optimism_outputAtBlock", hexutil.EncodeBig(blockNum))
 	return output, err
 }

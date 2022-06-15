@@ -1,0 +1,38 @@
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: data-transport-layer
+spec:
+  template:
+    spec:
+      initContainers:
+        - name: wait-for-l1
+          env:
+            - name: L1_NODE_WEB3_URL
+              valueFrom:
+                secretKeyRef:
+                  name: replica-secrets
+                  key: L1_RPC_ENDPOINT
+      containers:
+        - name: data-transport-layer
+          resources:
+            limits:
+              cpu: "2"
+              memory: 4Gi
+            requests:
+              cpu: "1"
+              memory: 1Gi
+          env:
+            - name: DATA_TRANSPORT_LAYER__L1_RPC_ENDPOINT
+              valueFrom:
+                secretKeyRef:
+                  name: replica-secrets
+                  key: L1_RPC_ENDPOINT
+            - name: DATA_TRANSPORT_LAYER__L2_RPC_ENDPOINT
+              value: http://sequencer.default:8545
+            - name: L1_NODE_WEB3_URL
+              valueFrom:
+                secretKeyRef:
+                  name: replica-secrets
+                  key: L1_RPC_ENDPOINT

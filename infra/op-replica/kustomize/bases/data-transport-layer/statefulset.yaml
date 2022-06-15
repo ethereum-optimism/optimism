@@ -20,8 +20,8 @@ spec:
         envFrom:
           - configMapRef:
               name: data-transport-layer
-          # - configMapRef:
-          #     name: data-transport-layer-incluster
+          - configMapRef:
+              name: data-transport-layer-sync-source
       containers:
       - name: data-transport-layer
         image: ethereumoptimism/data-transport-layer
@@ -29,8 +29,8 @@ spec:
         envFrom:
           - configMapRef:
               name: data-transport-layer
-          # - configMapRef:
-          #     name: data-transport-layer-incluster
+          - configMapRef:
+              name: data-transport-layer-sync-source
         ports:
           - containerPort: 7878
             protocol: TCP

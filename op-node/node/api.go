@@ -50,7 +50,7 @@ func newNodeAPI(config *rollup.Config, l2Client l2EthClient, log log.Logger) *no
 	}
 }
 
-func (n *nodeAPI) OutputAtBlock(ctx context.Context, number rpc.BlockNumber) ([]l2.Bytes32, error) {
+func (n *nodeAPI) OutputAtBlock(ctx context.Context, number rpc.BlockNumber) ([]eth.Bytes32, error) {
 	// TODO: rpc.BlockNumber doesn't support the "safe" tag. Need a new type
 
 	head, err := n.client.GetBlockHeader(ctx, toBlockNumArg(number))
@@ -76,10 +76,10 @@ func (n *nodeAPI) OutputAtBlock(ctx context.Context, number rpc.BlockNumber) ([]
 		return nil, fmt.Errorf("invalid withdrawal root hash")
 	}
 
-	var l2OutputRootVersion l2.Bytes32 // it's zero for now
+	var l2OutputRootVersion eth.Bytes32 // it's zero for now
 	l2OutputRoot := l2.ComputeL2OutputRoot(l2OutputRootVersion, head.Hash(), head.Root, proof.StorageHash)
 
-	return []l2.Bytes32{l2OutputRootVersion, l2OutputRoot}, nil
+	return []eth.Bytes32{l2OutputRootVersion, l2OutputRoot}, nil
 }
 
 func (n *nodeAPI) Version(ctx context.Context) (string, error) {

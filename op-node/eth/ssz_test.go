@@ -1,4 +1,4 @@
-package l2
+package eth
 
 import (
 	"bytes"

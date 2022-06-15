@@ -12,7 +12,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
-	"github.com/ethereum-optimism/optimism/op-node/l2"
+	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/node"
 	rollupNode "github.com/ethereum-optimism/optimism/op-node/node"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
@@ -20,7 +20,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/testlog"
 	"github.com/ethereum-optimism/optimism/op-node/withdrawals"
 	"github.com/ethereum-optimism/optimism/op-proposer/rollupclient"
-
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
@@ -265,7 +264,7 @@ func TestSystemE2E(t *testing.T) {
 	receipt, err := waitForTransaction(tx.Hash(), l1Client, 3*time.Duration(cfg.L1BlockTime)*time.Second)
 	require.Nil(t, err, "Waiting for deposit tx on L1")
 
-	reconstructedDep, err := derive.UnmarshalLogEvent(receipt.Logs[0])
+	reconstructedDep, err := derive.UnmarshalDepositLogEvent(receipt.Logs[0])
 	require.NoError(t, err, "Could not reconstruct L2 Deposit")
 	tx = types.NewTx(reconstructedDep)
 	receipt, err = waitForTransaction(tx.Hash(), l2Verif, 3*time.Duration(cfg.L1BlockTime)*time.Second)
@@ -355,7 +354,7 @@ func TestMintOnRevertedDeposit(t *testing.T) {
 	receipt, err := waitForTransaction(tx.Hash(), l1Client, 3*time.Duration(cfg.L1BlockTime)*time.Second)
 	require.Nil(t, err, "Waiting for deposit tx on L1")
 
-	reconstructedDep, err := derive.UnmarshalLogEvent(receipt.Logs[0])
+	reconstructedDep, err := derive.UnmarshalDepositLogEvent(receipt.Logs[0])
 	require.NoError(t, err, "Could not reconstruct L2 Deposit")
 	tx = types.NewTx(reconstructedDep)
 	receipt, err = waitForTransaction(tx.Hash(), l2Verif, 3*time.Duration(cfg.L1BlockTime)*time.Second)
@@ -501,10 +500,10 @@ func TestSystemMockP2P(t *testing.T) {
 
 	var published, received []common.Hash
 	seqTracer, verifTracer := new(FnTracer), new(FnTracer)
-	seqTracer.OnPublishL2PayloadFn = func(ctx context.Context, payload *l2.ExecutionPayload) {
+	seqTracer.OnPublishL2PayloadFn = func(ctx context.Context, payload *eth.ExecutionPayload) {
 		published = append(published, payload.BlockHash)
 	}
-	verifTracer.OnUnsafeL2PayloadFn = func(ctx context.Context, from peer.ID, payload *l2.ExecutionPayload) {
+	verifTracer.OnUnsafeL2PayloadFn = func(ctx context.Context, from peer.ID, payload *eth.ExecutionPayload) {
 		received = append(received, payload.BlockHash)
 	}
 	cfg.Nodes["sequencer"].Tracer = seqTracer
@@ -715,7 +714,7 @@ func TestWithdrawals(t *testing.T) {
 	require.Nil(t, err, "binding withdrawer on L2")
 
 	// Wait for deposit to arrive
-	reconstructedDep, err := derive.UnmarshalLogEvent(receipt.Logs[0])
+	reconstructedDep, err := derive.UnmarshalDepositLogEvent(receipt.Logs[0])
 	require.NoError(t, err, "Could not reconstruct L2 Deposit")
 	tx = types.NewTx(reconstructedDep)
 	receipt, err = waitForTransaction(tx.Hash(), l2Verif, 3*time.Duration(cfg.L1BlockTime)*time.Second)

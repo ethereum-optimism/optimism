@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"math/big"
 
+	"github.com/ethereum-optimism/optimism/op-node/eth"
+
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -20,13 +22,13 @@ import (
 	"github.com/ethereum/go-ethereum/trie"
 )
 
-func ComputeL2OutputRoot(l2OutputRootVersion Bytes32, blockHash common.Hash, blockRoot common.Hash, storageRoot common.Hash) Bytes32 {
+func ComputeL2OutputRoot(l2OutputRootVersion eth.Bytes32, blockHash common.Hash, blockRoot common.Hash, storageRoot common.Hash) eth.Bytes32 {
 	var buf bytes.Buffer
 	buf.Write(l2OutputRootVersion[:])
 	buf.Write(blockRoot.Bytes())
 	buf.Write(storageRoot[:])
 	buf.Write(blockHash.Bytes())
-	return Bytes32(crypto.Keccak256Hash(buf.Bytes()))
+	return eth.Bytes32(crypto.Keccak256Hash(buf.Bytes()))
 }
 
 type AccountResult struct {

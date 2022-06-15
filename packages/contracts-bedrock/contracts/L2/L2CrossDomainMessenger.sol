@@ -6,14 +6,19 @@ import { Lib_PredeployAddresses } from "../libraries/Lib_PredeployAddresses.sol"
 import { CrossDomainMessenger } from "../universal/CrossDomainMessenger.sol";
 import { L2ToL1MessagePasser } from "./L2ToL1MessagePasser.sol";
 
+/**
+ * @custom:proxied
+ * @custom:predeploy 0x4200000000000000000000000000000000000007
+ * @title L2CrossDomainMessenger
+ * @notice The L2CrossDomainMessenger is a high-level interface for message passing between L1 and
+ *         L2 on the L2 side. Users are generally encouraged to use this contract instead of lower
+ *         level message passing contracts.
+ */
 contract L2CrossDomainMessenger is CrossDomainMessenger {
-    /********************
-     * Public Functions *
-     ********************/
-
     /**
-     * @notice initialize the L2CrossDomainMessenger by giving
-     * it the address of the L1CrossDomainMessenger on L1
+     * @notice Initializes the L2CrossDomainMessenger.
+     *
+     * @param _l1CrossDomainMessenger Address of the L1CrossDomainMessenger contract.
      */
     function initialize(address _l1CrossDomainMessenger) external {
         address[] memory blockedSystemAddresses = new address[](2);
@@ -24,31 +29,31 @@ contract L2CrossDomainMessenger is CrossDomainMessenger {
     }
 
     /**
-     * @notice Legacy getter for the remote messenger. This is included
-     * to prevent any existing contracts that relay messages from breaking.
-     * Use `otherMessenger()` for a standard API that works on both
-     * the L1 and L2 cross domain messengers.
+     * @custom:legacy
+     * @notice Legacy getter for the remote messenger. Use otherMessenger going forward.
+     *
+     * @return Address of the L1CrossDomainMessenger contract.
      */
     function l1CrossDomainMessenger() public returns (address) {
         return otherMessenger;
     }
 
-    /**********************
-     * Internal Functions *
-     **********************/
-
     /**
-     * @notice Only the L1CrossDomainMessenger can call the
-     * L2CrossDomainMessenger
+     * @notice Checks that the message sender is the L1CrossDomainMessenger on L1.
+     *
+     * @return True if the message sender is the L1CrossDomainMessenger on L1.
      */
     function _isSystemMessageSender() internal view override returns (bool) {
         return AddressAliasHelper.undoL1ToL2Alias(msg.sender) == otherMessenger;
     }
 
     /**
-     * @notice Sending a message from L2 to L1 involves calling the L2ToL1MessagePasser
-     * where it stores in a storage slot a commitment to the message being
-     * sent to L1. A proof is then verified against that storage slot on L1.
+     * @notice Sends a message from L2 to L1.
+     *
+     * @param _to       Address to send the message to.
+     * @param _gasLimit Minimum gas limit to execute the message with.
+     * @param _value    ETH value to send with the message.
+     * @param _data     Data to trigger the recipient with.
      */
     function _sendMessage(
         address _to,

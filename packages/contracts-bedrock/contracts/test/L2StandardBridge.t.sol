@@ -109,5 +109,48 @@ contract L2StandardBridge_Test is Bridge_Initializer {
             hex""
         );
     }
+
+    // finalizeDeposit
+    // - only callable by l1TokenBridge
+    // - supported token pair emits DepositFinalized
+    // - invalid deposit emits DepositFailed
+    // - invalid deposit calls Withdrawer.initiateWithdrawal
+    function test_finalizeDeposit_failsToCompleteOutboundTransfer() external {
+        // TODO: events and calls
+        address invalidL2Token = address(0x1234);
+
+        vm.mockCall(
+            address(L2Bridge.messenger()),
+            abi.encodeWithSelector(CrossDomainMessenger.xDomainMessageSender.selector),
+            abi.encode(address(L2Bridge.otherBridge()))
+        );
+        vm.prank(address(L2Messenger));
+        vm.expectEmit(true, true, true, true);
+        emit ERC20BridgeInitiated(
+            invalidL2Token,
+            address(L1Token),
+            alice,
+            alice,
+            100,
+            hex""
+        );
+        vm.expectEmit(true, true, true, true);
+        emit ERC20BridgeFailed(
+            invalidL2Token,
+            address(L1Token),
+            alice,
+            alice,
+            100,
+            hex""
+        );
+        L2Bridge.finalizeDeposit(
+            address(L1Token),
+            invalidL2Token,
+            alice,
+            alice,
+            100,
+            hex""
+        );
+    }
 }
 
