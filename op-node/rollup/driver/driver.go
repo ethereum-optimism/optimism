@@ -18,33 +18,18 @@ type Driver struct {
 	s *state
 }
 
-type BatchSubmitter interface {
-	Submit(config *rollup.Config, batches []*derive.BatchData) (common.Hash, error)
-}
-
 type Downloader interface {
 	InfoByHash(ctx context.Context, hash common.Hash) (derive.L1Info, error)
 	Fetch(ctx context.Context, blockHash common.Hash) (derive.L1Info, types.Transactions, types.Receipts, error)
-	FetchAllTransactions(ctx context.Context, window []eth.BlockID) ([]types.Transactions, error)
-}
-
-type Engine interface {
-	GetPayload(ctx context.Context, payloadId eth.PayloadID) (*eth.ExecutionPayload, error)
-	ForkchoiceUpdate(ctx context.Context, state *eth.ForkchoiceState, attr *eth.PayloadAttributes) (*eth.ForkchoiceUpdatedResult, error)
-	NewPayload(ctx context.Context, payload *eth.ExecutionPayload) (*eth.PayloadStatusV1, error)
-	PayloadByHash(context.Context, common.Hash) (*eth.ExecutionPayload, error)
-	PayloadByNumber(context.Context, *big.Int) (*eth.ExecutionPayload, error)
 }
 
 type L1Chain interface {
-	L1BlockRefByNumber(context.Context, uint64) (eth.L1BlockRef, error)
-	L1BlockRefByHash(context.Context, common.Hash) (eth.L1BlockRef, error)
+	derive.L1Fetcher
 	L1HeadBlockRef(context.Context) (eth.L1BlockRef, error)
-	L1Range(ctx context.Context, base eth.BlockID, max uint64) ([]eth.BlockID, error)
 }
 
 type L2Chain interface {
-	ForkchoiceUpdate(ctx context.Context, state *eth.ForkchoiceState, attr *eth.PayloadAttributes) (*eth.ForkchoiceUpdatedResult, error)
+	derive.Engine
 	L2BlockRefByNumber(ctx context.Context, l2Num *big.Int) (eth.L2BlockRef, error)
 	L2BlockRefByHash(ctx context.Context, l2Hash common.Hash) (eth.L2BlockRef, error)
 }
@@ -67,7 +52,7 @@ func NewDriver(cfg rollup.Config, l2 *l2.Source, l1 *l1.Source, network Network,
 		log:    log,
 	}
 	return &Driver{
-		s: NewState(log, snapshotLog, cfg, l1, l2, output, network, sequencer),
+		s: NewState(log, snapshotLog, &cfg, l1, l2, output, network, sequencer),
 	}
 }
 

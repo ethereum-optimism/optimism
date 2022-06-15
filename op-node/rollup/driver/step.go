@@ -16,7 +16,7 @@ import (
 
 type outputImpl struct {
 	dl     Downloader
-	l2     Engine
+	l2     derive.Engine
 	log    log.Logger
 	Config rollup.Config
 }

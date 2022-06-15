@@ -11,21 +11,59 @@ import (
 	"io"
 )
 
-// TODO: replace pipeline field types with interfaces, to test the pipeline with mocked stages.
+type L1BlockRefByNumberFetcher interface {
+	L1BlockRefByNumber(context.Context, uint64) (eth.L1BlockRef, error)
+}
+
+type L1Fetcher interface {
+	L1BlockRefByNumberFetcher
+	L1BlockRefByHashFetcher
+	L1ReceiptsFetcher
+	L1TransactionFetcher
+}
 
 type DataAvailabilitySource interface {
 	Fetch(ctx context.Context, id eth.BlockID) (eth.L1BlockRef, []eth.Data, error)
 }
 
-type L1InfoByNumberFetcher interface {
-	InfoByNumber(ctx context.Context, number uint64) (L1Info, error)
+type ChannelBankStage interface {
+	CurrentL1() eth.L1BlockRef
+	NextL1(ref eth.L1BlockRef) error
+	IngestData(data []byte) error
+
+	Read() (chID ChannelID, data []byte)
+	Reset(origin eth.L1BlockRef)
 }
 
-type L1Fetcher interface {
-	L1InfoByNumberFetcher
-	L1InfoByHashFetcher
-	L1ReceiptsFetcher
-	L1TransactionFetcher
+type ChannelInReaderStage interface {
+	CurrentL1Origin() eth.L1BlockRef
+	AddOrigin(origin eth.L1BlockRef) error
+	WriteChannel(data []byte)
+	NextChannel()
+	ReadBatch(dest *BatchData) error
+	Reset(origin eth.L1BlockRef)
+}
+
+type BatchQueueStage interface {
+	LastL1Origin() eth.L1BlockRef
+	AddOrigin(origin eth.L1BlockRef) error
+	AddBatch(batch *BatchData) error
+	DeriveL2Inputs(ctx context.Context, lastL2Timestamp uint64) ([]*eth.PayloadAttributes, error)
+	Reset(l1Origin eth.L1BlockRef)
+}
+
+type EngineQueueStage interface {
+	Finalized() eth.L2BlockRef
+	UnsafeL2Head() eth.L2BlockRef
+	SafeL2Head() eth.L2BlockRef
+	LastL2Time() uint64
+
+	Finalize(l1Origin eth.BlockID)
+	AddSafeAttributes(attributes *eth.PayloadAttributes)
+	AddUnsafePayload(payload *eth.ExecutionPayload)
+
+	Step(ctx context.Context) error
+	Reset(safeHead eth.L2BlockRef)
 }
 
 // DerivationPipeline is updated with new L1 data, and the Step() function can be iterated on to keep the L2 Engine in sync.
@@ -34,10 +72,10 @@ type DerivationPipeline struct {
 	cfg         *rollup.Config
 	l1InfoSrc   L1Fetcher              // Where we traverse the L1 chain with to the next L1 input
 	dataAvail   DataAvailabilitySource // Where we extract L1 data from
-	bank        *ChannelBank           // Where we buffer L1 data to read channel data from
-	chInReader  *ChannelInReader       // Where we buffer channel data to read batches from
-	batchQueue  *BatchQueue            // Where we buffer all derived L2 batches
-	engineQueue *EngineQueue           // Where we buffer payload attributes, and apply/consolidate them with the L2 engine
+	bank        ChannelBankStage       // Where we buffer L1 data to read channel data from
+	chInReader  ChannelInReaderStage   // Where we buffer channel data to read batches from
+	batchQueue  BatchQueueStage        // Where we buffer all derived L2 batches
+	engineQueue EngineQueueStage       // Where we buffer payload attributes, and apply/consolidate them with the L2 engine
 }
 
 // NewDerivationPipeline creates a derivation pipeline, which should be reset before use.
@@ -54,9 +92,11 @@ func NewDerivationPipeline(log log.Logger, cfg *rollup.Config, l1Src L1Fetcher, 
 	}
 }
 
-func (dp *DerivationPipeline) Reset(ctx context.Context, l1SafeHead eth.L1BlockRef) error {
-	// TODO: determine l2SafeHead
-	var l2SafeHead eth.L2BlockRef
+func (dp *DerivationPipeline) Reset(ctx context.Context, l2SafeHead eth.L2BlockRef) error {
+	l1SafeHead, err := dp.l1InfoSrc.L1BlockRefByHash(ctx, l2SafeHead.L1Origin.Hash)
+	if err != nil {
+		return fmt.Errorf("failed to find L1 reference corresponding to L1 origin %s of L2 block %s: %v", l2SafeHead.L1Origin, l2SafeHead.ID(), err)
+	}
 
 	bankStart, err := FindChannelBankStart(ctx, l1SafeHead, dp.l1InfoSrc)
 	if err != nil {
@@ -135,7 +175,7 @@ func (dp *DerivationPipeline) readL1(ctx context.Context) error {
 
 	// TODO: we need to add confirmation depth in the source here, and return ethereum.NotFound when the data is not ready to be read.
 
-	l1Info, err := dp.l1InfoSrc.InfoByNumber(ctx, current.Number+1)
+	nextL1Origin, err := dp.l1InfoSrc.L1BlockRefByNumber(ctx, current.Number+1)
 	if errors.Is(err, ethereum.NotFound) {
 		dp.log.Debug("can't find next L1 block info", "number", current.Number+1)
 		return io.EOF
@@ -144,23 +184,22 @@ func (dp *DerivationPipeline) readL1(ctx context.Context) error {
 		return nil
 	}
 
-	if l1Info.ParentHash() != current.Hash {
+	if nextL1Origin.ParentHash != current.Hash {
 		// reorg, time to reset the pipeline
 		return fmt.Errorf("reorg on L1, found %s with parent %s but expected parent to be %s",
-			l1Info.Hash(), l1Info.ParentHash(), current.Hash)
+			nextL1Origin.ID(), nextL1Origin.ParentID(), current.ID())
 	}
-	id := l1Info.ID()
-	_, datas, err := dp.dataAvail.Fetch(ctx, id)
+	_, datas, err := dp.dataAvail.Fetch(ctx, nextL1Origin.ID())
 	if err != nil {
-		dp.log.Debug("can't fetch L1 data", "origin", id)
+		dp.log.Debug("can't fetch L1 data", "origin", nextL1Origin)
 		return nil
 	}
-	if err := dp.bank.NextL1(l1Info.BlockRef()); err != nil {
+	if err := dp.bank.NextL1(nextL1Origin); err != nil {
 		return err
 	}
 	for i, data := range datas {
 		if err := dp.bank.IngestData(data); err != nil {
-			dp.log.Warn("invalid data from availability source", "origin", id, "index", i, "length", len(data))
+			dp.log.Warn("invalid data from availability source", "origin", nextL1Origin, "index", i, "length", len(data))
 		}
 	}
 	return nil
@@ -169,7 +208,7 @@ func (dp *DerivationPipeline) readL1(ctx context.Context) error {
 func (dp *DerivationPipeline) readChannel() error {
 	// If the bank is behind the channel reader, then we are replaying old data to prepare the bank.
 	// Read if we can, and drop if it gives anything
-	if dp.chInReader.l1Origin.Number > dp.bank.CurrentL1().Number {
+	if dp.chInReader.CurrentL1Origin().Number > dp.bank.CurrentL1().Number {
 		id, _ := dp.bank.Read()
 		if id == (ChannelID{}) {
 			return io.EOF

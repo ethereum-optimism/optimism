@@ -167,23 +167,23 @@ func (ib *ChannelBank) Reset(origin eth.L1BlockRef) {
 	ib.channelQueue = ib.channelQueue[:0]
 }
 
-type L1InfoByHashFetcher interface {
-	InfoByHash(ctx context.Context, hash common.Hash) (L1Info, error)
+type L1BlockRefByHashFetcher interface {
+	L1BlockRefByHash(context.Context, common.Hash) (eth.L1BlockRef, error)
 }
 
 // FindChannelBankStart takes a L1 origin, and walks back the L1 chain to find the origin that the channel bank should be reset to,
 // to get consistent reads starting at origin.
 // Any channel data before this origin will be timed out by the time the channel bank is synced up to the origin,
 // so it is not relevant to replay it into the bank.
-func FindChannelBankStart(ctx context.Context, origin eth.L1BlockRef, l1Chain L1InfoByHashFetcher) (eth.L1BlockRef, error) {
+func FindChannelBankStart(ctx context.Context, origin eth.L1BlockRef, l1Chain L1BlockRefByHashFetcher) (eth.L1BlockRef, error) {
 	// traverse the header chain, to find the first block we need to replay
 	block := origin
 	for !(block.Time+ChannelTimeout < origin.Time || block.Number == 0) {
-		parentInfo, err := l1Chain.InfoByHash(ctx, block.ParentHash)
+		parent, err := l1Chain.L1BlockRefByHash(ctx, block.ParentHash)
 		if err != nil {
 			return eth.L1BlockRef{}, fmt.Errorf("failed to find channel bank block, failed to retrieve L1 reference: %w", err)
 		}
-		block = parentInfo.BlockRef()
+		block = parent
 	}
 	return block, nil
 }

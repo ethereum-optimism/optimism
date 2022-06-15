@@ -15,6 +15,16 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 )
 
+type DerivationPipeline interface {
+	Reset(ctx context.Context, l2SafeHead eth.L2BlockRef) error
+	Step(ctx context.Context) error
+	AddUnsafePayload(payload *eth.ExecutionPayload)
+	Finalized() eth.L2BlockRef
+	SafeL2Head() eth.L2BlockRef
+	UnsafeL2Head() eth.L2BlockRef
+	CurrentL1() eth.L1BlockRef
+}
+
 type state struct {
 	// Chain State
 	l1Head      eth.L1BlockRef // Latest recorded head of the L1 Chain
@@ -24,10 +34,10 @@ type state struct {
 
 	// The derivation pipeline is reset whenever we reorg.
 	// The derivation pipeline determines the new l2SafeHead.
-	derivation *derive.DerivationPipeline
+	derivation DerivationPipeline
 
 	// Rollup config
-	Config    rollup.Config
+	Config    *rollup.Config
 	sequencer bool
 
 	// Connections (in/out)
@@ -47,9 +57,9 @@ type state struct {
 
 // NewState creates a new driver state. State changes take effect though the given output.
 // Optionally a network can be provided to publish things to other nodes than the engine of the driver.
-func NewState(log log.Logger, snapshotLog log.Logger, config rollup.Config, l1Chain L1Chain, l2Chain L2Chain, output outputInterface, network Network, sequencer bool) *state {
-	// TODO init derivation pipeline
+func NewState(log log.Logger, snapshotLog log.Logger, config *rollup.Config, l1Chain L1Chain, l2Chain L2Chain, output outputInterface, network Network, sequencer bool) *state {
 	return &state{
+		derivation:       derive.NewDerivationPipeline(log, config, l1Chain, l2Chain),
 		Config:           config,
 		done:             make(chan struct{}),
 		log:              log,
@@ -87,10 +97,6 @@ func (s *state) Start(ctx context.Context) error {
 		}
 		s.l2Head = unsafeHead
 		s.l2SafeHead = safeHead
-		// TODO: reset to l1 origin corresponding  to the safe head we found
-		if err := s.derivation.Reset(ctx); err != nil {
-			s.log.Error("failed to reset derivation pipeline", "err", err)
-		}
 	} else {
 		// Not yet reached genesis block
 		// TODO: Test this codepath. That requires setting up L1, letting it run, and then creating the L2 genesis from there.
@@ -106,7 +112,9 @@ func (s *state) Start(ctx context.Context) error {
 		s.l2SafeHead = l2genesis
 	}
 
-	// TODO: reset derivation pipeline to the correct point
+	if err := s.derivation.Reset(ctx, s.l2SafeHead); err != nil {
+		return fmt.Errorf("failed to reset derivation pipeline to starting point")
+	}
 
 	s.l1Head = l1Head
 
@@ -183,8 +191,7 @@ func (s *state) handleNewL1Block(ctx context.Context, newL1Head eth.L1BlockRef) 
 	if s.l2SafeHead.Number >= safeL2Head.Number {
 		s.l2SafeHead = safeL2Head
 	}
-	// TODO
-	if err := s.derivation.Reset(ctx); err != nil {
+	if err := s.derivation.Reset(ctx, safeL2Head); err != nil {
 		s.log.Error("Failed to reset derivation pipeline after reorg was detected", "err", err)
 		return err
 	}
@@ -372,18 +379,18 @@ func (s *state) eventLoop() {
 			if err == io.EOF {
 				continue
 			} else if err != nil {
-				// TODO: maybe make the log less scary if it failed because of a L1 reorg.
-				s.log.Error("derivation pipeline failed", "err", err)
+				s.log.Warn("derivation pipeline critically failed, resetting it", "err", err)
 				// If the pipeline corrupts, simply reset it to the last known l2 safe head
 				if err := s.derivation.Reset(ctx, s.l2SafeHead); err != nil {
 					s.log.Error("failed to reset derivation pipeline after failing step", "err", err)
 				}
 			} else {
-				// update the heads
 				finalized, safe, unsafe := s.derivation.Finalized(), s.derivation.SafeL2Head(), s.derivation.UnsafeL2Head()
+				// log sync progress when it changes
 				if s.l2Finalized != finalized || s.l2SafeHead != safe || s.l2Head != unsafe {
 					s.log.Info("sync progress", "finalized", finalized, "safe", safe, "unsafe", unsafe)
 				}
+				// update the heads
 				s.l2Finalized = finalized
 				s.l2SafeHead = safe
 				s.l2Head = unsafe
@@ -393,10 +400,6 @@ func (s *state) eventLoop() {
 			return
 		}
 	}
-}
-
-func (s *state) tryFetchL1() {
-
 }
 
 func (s *state) snapshot(event string) {
