@@ -21,27 +21,6 @@ type outputImpl struct {
 	Config rollup.Config
 }
 
-func (d *outputImpl) processBlock(ctx context.Context, l2Head eth.L2BlockRef, l2SafeHead eth.BlockID, l2Finalized eth.BlockID, payload *eth.ExecutionPayload) error {
-	d.log.Info("processing new block", "parent", payload.ParentID(), "l2Head", l2Head, "id", payload.ID())
-	if err := d.l2.NewPayload(ctx, payload); err != nil {
-		return fmt.Errorf("failed to insert new payload: %v", err)
-	}
-	// now try to persist a reorg to the new payload
-	fc := eth.ForkchoiceState{
-		HeadBlockHash:      payload.BlockHash,
-		SafeBlockHash:      l2SafeHead.Hash,
-		FinalizedBlockHash: l2Finalized.Hash,
-	}
-	res, err := d.l2.ForkchoiceUpdate(ctx, &fc, nil)
-	if err != nil {
-		return fmt.Errorf("failed to update forkchoice to point to new payload: %v", err)
-	}
-	if res.PayloadStatus.Status != eth.ExecutionValid {
-		return fmt.Errorf("failed to persist forkchoice update: %v", err)
-	}
-	return nil
-}
-
 func (d *outputImpl) createNewBlock(ctx context.Context, l2Head eth.L2BlockRef, l2SafeHead eth.BlockID, l2Finalized eth.BlockID, l1Origin eth.L1BlockRef) (eth.L2BlockRef, *eth.ExecutionPayload, error) {
 	d.log.Info("creating new block", "parent", l2Head, "l1Origin", l1Origin)
 
@@ -112,9 +91,12 @@ func (d *outputImpl) createNewBlock(ctx context.Context, l2Head eth.L2BlockRef, 
 	}
 
 	// Actually execute the block and add it to the head of the chain.
-	payload, err := derive.InsertHeadBlock(ctx, d.log, d.l2, fc, attrs, false)
-	if err != nil {
-		return l2Head, nil, fmt.Errorf("failed to extend L2 chain: %v", err)
+	payload, rpcErr, payloadErr := derive.InsertHeadBlock(ctx, d.log, d.l2, fc, attrs, false)
+	if rpcErr != nil {
+		return l2Head, nil, fmt.Errorf("failed to extend L2 chain due to RPC error: %v", rpcErr)
+	}
+	if payloadErr != nil {
+		return l2Head, nil, fmt.Errorf("failed to extend L2 chain, cannot produce valid payload: %v", payloadErr)
 	}
 
 	// Generate an L2 block ref from the payload.

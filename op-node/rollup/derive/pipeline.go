@@ -24,7 +24,9 @@ func NewDerivationPipeline() *DerivationPipeline {
 	return nil
 }
 
-func (dp *DerivationPipeline) Reset(ctx context.Context, l1SafeHead eth.L1BlockRef, l2SafeHead eth.L2BlockRef) error {
+func (dp *DerivationPipeline) Reset(ctx context.Context, l2SafeHead eth.L2BlockRef) error {
+	// TODO: determine l1SafeHead
+	var l1SafeHead eth.L1BlockRef
 	bank, err := NewChannelBank(ctx, dp.log, l1SafeHead, nil, nil) // TODO
 	if err != nil {
 		return fmt.Errorf("failed to init channel bank: %w", err)

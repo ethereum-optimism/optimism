@@ -31,7 +31,7 @@ type Downloader interface {
 type Engine interface {
 	GetPayload(ctx context.Context, payloadId eth.PayloadID) (*eth.ExecutionPayload, error)
 	ForkchoiceUpdate(ctx context.Context, state *eth.ForkchoiceState, attr *eth.PayloadAttributes) (*eth.ForkchoiceUpdatedResult, error)
-	NewPayload(ctx context.Context, payload *eth.ExecutionPayload) error
+	NewPayload(ctx context.Context, payload *eth.ExecutionPayload) (*eth.PayloadStatusV1, error)
 	PayloadByHash(context.Context, common.Hash) (*eth.ExecutionPayload, error)
 	PayloadByNumber(context.Context, *big.Int) (*eth.ExecutionPayload, error)
 }
@@ -52,9 +52,6 @@ type L2Chain interface {
 type outputInterface interface {
 	// createNewBlock builds a new block based on the L2 Head, L1 Origin, and the current mempool.
 	createNewBlock(ctx context.Context, l2Head eth.L2BlockRef, l2SafeHead eth.BlockID, l2Finalized eth.BlockID, l1Origin eth.L1BlockRef) (eth.L2BlockRef, *eth.ExecutionPayload, error)
-
-	// processBlock simply tries to add the block to the chain, reorging if necessary, and updates the forkchoice of the engine.
-	processBlock(ctx context.Context, l2Head eth.L2BlockRef, l2SafeHead eth.BlockID, l2Finalized eth.BlockID, payload *eth.ExecutionPayload) error
 }
 
 type Network interface {

@@ -87,7 +87,7 @@ func (s *state) Start(ctx context.Context) error {
 		}
 		s.l2Head = unsafeHead
 		s.l2SafeHead = safeHead
-		if err := s.derivation.Reset(safeHead); err != nil {
+		if err := s.derivation.Reset(ctx, safeHead); err != nil {
 			s.log.Error("failed to reset derivation pipeline", "err", err)
 		}
 	} else {
@@ -177,11 +177,14 @@ func (s *state) handleNewL1Block(ctx context.Context, newL1Head eth.L1BlockRef) 
 	}
 	// State Update
 	s.l1Head = newL1Head
-
 	s.l2Head = unsafeL2Head
 	// Don't advance l2SafeHead past it's current value
 	if s.l2SafeHead.Number >= safeL2Head.Number {
 		s.l2SafeHead = safeL2Head
+	}
+	if err := s.derivation.Reset(ctx, s.l2SafeHead); err != nil {
+		s.log.Error("Failed to reset derivation pipeline after reorg was detected", "err", err)
+		return err
 	}
 
 	return nil
@@ -270,31 +273,6 @@ func (s *state) createNewL2Block(ctx context.Context) error {
 	return nil
 }
 
-func (s *state) handleUnsafeL2Payload(ctx context.Context, payload *eth.ExecutionPayload) error {
-	if s.l2SafeHead.Number > uint64(payload.BlockNumber) {
-		s.log.Info("ignoring unsafe L2 execution payload, already have safe payload", "id", payload.ID())
-		return nil
-	}
-
-	// Note that the payload may cause reorgs. The l2SafeHead may get out of sync because of this.
-	// The engine should never reorg past the finalized block hash however.
-	// The engine may attempt syncing via p2p if there is a larger gap in the L2 chain.
-
-	l2Ref, err := derive.PayloadToBlockRef(payload, &s.Config.Genesis)
-	if err != nil {
-		return fmt.Errorf("failed to derive L2 block ref from payload: %v", err)
-	}
-
-	if err := s.output.processBlock(ctx, s.l2Head, s.l2SafeHead.ID(), s.l2Finalized, payload); err != nil {
-		return fmt.Errorf("failed to process unsafe L2 payload: %v", err)
-	}
-
-	// We successfully processed the block, so update the safe head, while leaving the safe head etc. the same.
-	s.l2Head = l2Ref
-
-	return nil
-}
-
 // the eventLoop responds to L1 changes and internal timers to produce L2 blocks.
 func (s *state) eventLoop() {
 	defer s.wg.Done()
@@ -370,11 +348,9 @@ func (s *state) eventLoop() {
 			}
 
 		case payload := <-s.unsafeL2Payloads:
-			s.log.Info("Optimistically processing unsafe L2 execution payload", "id", payload.ID())
-			err := s.handleUnsafeL2Payload(ctx, payload)
-			if err != nil {
-				s.log.Warn("Failed to process L2 execution payload received from p2p", "err", err)
-			}
+			s.log.Info("Optimistically queueing unsafe L2 execution payload", "id", payload.ID())
+			s.derivation.AddUnsafePayload(payload)
+			reqStep()
 
 		case newL1Head := <-s.l1Heads:
 			s.snapshot("New L1 Head")
@@ -388,7 +364,10 @@ func (s *state) eventLoop() {
 			reqStep()
 		case <-stepReqCh:
 			s.log.Debug("Derivation process step", "onto", s.derivation.CurrentL1())
-			if err := s.derivation.Step(); err == io.EOF {
+			stepCtx, cancel := context.WithTimeout(ctx, time.Second*10) // TODO pick a timeout for executing a single step
+			err := s.derivation.Step(stepCtx)
+			cancel()
+			if err == io.EOF {
 				// TODO: try to fetch next L1 data, and apply it to the pipeline.
 				// if we fail to fetch the L1 data, simply not update the derivation pipeline yet,
 				// we'll hit an EOF later again and retry.
@@ -396,7 +375,7 @@ func (s *state) eventLoop() {
 				// TODO: maybe make the log less scary if it failed because of a L1 reorg.
 				s.log.Error("derivation pipeline failed", "err", err)
 				// If the pipeline corrupts, simply reset it to the last known l2 safe head
-				if err := s.derivation.Reset(s.l2SafeHead); err != nil {
+				if err := s.derivation.Reset(ctx, s.l2SafeHead); err != nil {
 					s.log.Error("failed to reset derivation pipeline after failing step", "err", err)
 				}
 			} else {
