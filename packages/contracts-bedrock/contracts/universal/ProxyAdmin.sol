@@ -22,9 +22,9 @@ interface IStatic_L1ChugSplashProxy {
 
 /**
  * @title ProxyAdmin
- * @dev This is an auxiliary contract meant to be assigned as the admin of a Proxy, based on
- *      the OpenZeppelin implementation. It has backwards compatibility logic to work with the
- *      various types of proxies that have been deployed by Optimism.
+ * @dev This is an auxiliary contract meant to be assigned as the admin of an ERC1967 Proxy,
+ *      based on the OpenZeppelin implementation. It has backwards compatibility logic to work with
+ *      the various types of proxies that have been deployed by Optimism.
  */
 contract ProxyAdmin is Owned {
     /**
@@ -149,7 +149,7 @@ contract ProxyAdmin is Owned {
     function getProxyImplementation(Proxy proxy) external view returns (address) {
         ProxyType proxyType = proxyType[address(proxy)];
 
-         if (proxyType == ProxyType.ERC1967) {
+        if (proxyType == ProxyType.ERC1967) {
             return IStatic_ERC1967Proxy(address(proxy)).implementation();
         } else if (proxyType == ProxyType.Chugsplash) {
             return IStatic_L1ChugSplashProxy(address(proxy)).getImplementation();
