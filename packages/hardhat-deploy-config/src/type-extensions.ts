@@ -1,20 +1,15 @@
 import 'hardhat/types/runtime'
 import 'hardhat/types/config'
 
-interface DeployConfigSpec {
-  [key: string]: {
-    type: 'address' | 'number' | 'string' | 'boolean'
-    default?: any
-  }
-}
+import { DeployConfigSpec } from './types'
 
 declare module 'hardhat/types/config' {
   interface HardhatUserConfig {
-    deployConfigSpec?: DeployConfigSpec
+    deployConfigSpec?: DeployConfigSpec<any>
   }
 
   interface HardhatConfig {
-    deployConfigSpec?: DeployConfigSpec
+    deployConfigSpec?: DeployConfigSpec<any>
   }
 
   interface ProjectPathsUserConfig {
