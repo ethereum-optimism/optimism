@@ -6,16 +6,24 @@ import { StandardBridge } from "../universal/StandardBridge.sol";
 import { OptimismMintableERC20 } from "../universal/OptimismMintableERC20.sol";
 
 /**
+ * @custom:proxied
+ * @custom:predeploy 0x4200000000000000000000000000000000000010
  * @title L2StandardBridge
- * @dev This contract is an L2 predeploy that is responsible for facilitating
- * deposits of tokens from L1 to L2.
- * TODO: ensure that this has 1:1 backwards compatibility
+ * @notice The L2StandardBridge is responsible for transfering ETH and ERC20 tokens between L1 and
+ *         L2. ERC20 tokens sent to L1 are escrowed within this contract.
  */
 contract L2StandardBridge is StandardBridge {
-    /**********
-     * Events *
-     **********/
-
+    /**
+     * @custom:legacy
+     * @notice Emitted whenever a withdrawal from L2 to L1 is initiated.
+     *
+     * @param _l1Token Address of the token on L1.
+     * @param _l2Token Address of the corresponding token on L2.
+     * @param _from    Address of the withdrawer.
+     * @param _to      Address of the recipient on L1.
+     * @param _amount  Amount of the ERC20 withdrawn.
+     * @param _data    Extra data attached to the withdrawal.
+     */
     event WithdrawalInitiated(
         address indexed _l1Token,
         address indexed _l2Token,
@@ -25,6 +33,17 @@ contract L2StandardBridge is StandardBridge {
         bytes _data
     );
 
+    /**
+     * @custom:legacy
+     * @notice Emitted whenever an ERC20 deposit is finalized.
+     *
+     * @param _l1Token Address of the token on L1.
+     * @param _l2Token Address of the corresponding token on L2.
+     * @param _from    Address of the depositor.
+     * @param _to      Address of the recipient on L2.
+     * @param _amount  Amount of the ERC20 deposited.
+     * @param _data    Extra data attached to the deposit.
+     */
     event DepositFinalized(
         address indexed _l1Token,
         address indexed _l2Token,
@@ -34,6 +53,17 @@ contract L2StandardBridge is StandardBridge {
         bytes _data
     );
 
+    /**
+     * @custom:legacy
+     * @notice Emitted whenever a deposit fails.
+     *
+     * @param _l1Token Address of the token on L1.
+     * @param _l2Token Address of the corresponding token on L2.
+     * @param _from    Address of the depositor.
+     * @param _to      Address of the recipient on L2.
+     * @param _amount  Amount of the ERC20 deposited.
+     * @param _data    Extra data attached to the deposit.
+     */
     event DepositFailed(
         address indexed _l1Token,
         address indexed _l2Token,
@@ -43,24 +73,23 @@ contract L2StandardBridge is StandardBridge {
         bytes _data
     );
 
-    /********************
-     * Public Functions *
-     ********************/
-
     /**
-     * @notice Initialize the L2StandardBridge. This must only be callable
-     * once. `_initialize` ensures this.
+     * @notice Initializes the L2StandardBridge.
+     *
+     * @param _otherBridge Address of the L1StandardBridge.
      */
     function initialize(address payable _otherBridge) public {
         _initialize(payable(Lib_PredeployAddresses.L2_CROSS_DOMAIN_MESSENGER), _otherBridge);
     }
 
     /**
-     * @notice Withdraw tokens to self on L1
-     * @param _l2Token The L2 token address to withdraw
-     * @param _amount The amount of L2 token to withdraw
-     * @param _minGasLimit The min gas limit in the withdrawing call
-     * @param _data Additional calldata to pass along
+     * @custom:legacy
+     * @notice Initiates a withdrawal from L2 to L1.
+     *
+     * @param _l2Token     Address of the L2 token to withdraw.
+     * @param _amount      Amount of the L2 token to withdraw.
+     * @param _minGasLimit Minimum gas limit to use for the transaction.
+     * @param _data        Extra data attached to the withdrawal.
      */
     function withdraw(
         address _l2Token,
@@ -72,12 +101,14 @@ contract L2StandardBridge is StandardBridge {
     }
 
     /**
-     * @notice Withdraw tokens to an address on L1
-     * @param _l2Token The L2 token address to withdraw
-     * @param _to The L1 account to withdraw to
-     * @param _amount The amount of L2 token to withdraw
-     * @param _minGasLimit The min gas limit in the withdrawing call
-     * @param _data Additional calldata to pass along
+     * @custom:legacy
+     * @notice Initiates a withdrawal from L2 to L1 to a target account on L1.
+     *
+     * @param _l2Token     Address of the L2 token to withdraw.
+     * @param _to          Recipient account on L1.
+     * @param _amount      Amount of the L2 token to withdraw.
+     * @param _minGasLimit Minimum gas limit to use for the transaction.
+     * @param _data        Extra data attached to the withdrawal.
      */
     function withdrawTo(
         address _l2Token,
@@ -90,14 +121,15 @@ contract L2StandardBridge is StandardBridge {
     }
 
     /**
-     * @notice Finalize the L1 to L2 deposit. This should only be callable by
-     * a deposit through the L1StandardBridge.
-     * @param _l1Token The L1 token address
-     * @param _l2Token The corresponding L2 token address
-     * @param _from The sender of the tokens
-     * @param _to The recipient of the tokens
-     * @param _amount The amount of tokens
-     * @param _data Additional calldata
+     * @custom:legacy
+     * @notice Finalizes a deposit from L1 to L2.
+     *
+     * @param _l1Token Address of the L1 token to deposit.
+     * @param _l2Token Address of the corresponding L2 token.
+     * @param _from    Address of the depositor.
+     * @param _to      Address of the recipient.
+     * @param _amount  Amount of the tokens being deposited.
+     * @param _data    Extra data attached to the deposit.
      */
     function finalizeDeposit(
         address _l1Token,
@@ -115,14 +147,16 @@ contract L2StandardBridge is StandardBridge {
         emit DepositFinalized(_l1Token, _l2Token, _from, _to, _amount, _data);
     }
 
-    /**********************
-     * Internal Functions *
-     **********************/
-
     /**
-     * @notice Handle withdrawals, taking into account the legacy form of ETH
-     * when it was represented as an ERC20 at the OVM_ETH contract.
-     * TODO: require(msg.value == _value) for OVM_ETH case?
+     * @custom:legacy
+     * @notice Internal function to a withdrawal from L2 to L1 to a target account on L1.
+     *
+     * @param _l2Token     Address of the L2 token to withdraw.
+     * @param _from        Address of the withdrawer.
+     * @param _to          Recipient account on L1.
+     * @param _amount      Amount of the L2 token to withdraw.
+     * @param _minGasLimit Minimum gas limit to use for the transaction.
+     * @param _data        Extra data attached to the withdrawal.
      */
     function _initiateWithdrawal(
         address _l2Token,
