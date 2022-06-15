@@ -2,10 +2,13 @@ import { HardhatUserConfig } from 'hardhat/types'
 import { getenv } from '@eth-optimism/core-utils'
 import * as dotenv from 'dotenv'
 
+import { configSpec } from './src/config/deploy'
+
 // Hardhat plugins
 import '@nomiclabs/hardhat-ethers'
 import '@nomiclabs/hardhat-waffle'
 import '@nomiclabs/hardhat-etherscan'
+import '@eth-optimism/hardhat-deploy-config'
 import 'solidity-coverage'
 import 'hardhat-gas-reporter'
 import 'hardhat-deploy'
@@ -21,9 +24,6 @@ const config: HardhatUserConfig = {
     optimism: {
       chainId: 10,
       url: 'https://mainnet.optimism.io',
-      companionNetworks: {
-        l1: 'mainnet',
-      },
       verify: {
         etherscan: {
           apiKey: getenv('OPTIMISTIC_ETHERSCAN_API_KEY'),
@@ -33,9 +33,6 @@ const config: HardhatUserConfig = {
     'optimism-kovan': {
       chainId: 69,
       url: 'https://kovan.optimism.io',
-      companionNetworks: {
-        l1: 'kovan',
-      },
       verify: {
         etherscan: {
           apiKey: getenv('OPTIMISTIC_ETHERSCAN_API_KEY'),
@@ -45,9 +42,6 @@ const config: HardhatUserConfig = {
     ethereum: {
       chainId: 1,
       url: `https://mainnet.infura.io/v3/${getenv('INFURA_PROJECT_ID')}`,
-      companionNetworks: {
-        l2: 'optimism',
-      },
       verify: {
         etherscan: {
           apiKey: getenv('ETHEREUM_ETHERSCAN_API_KEY'),
@@ -75,15 +69,23 @@ const config: HardhatUserConfig = {
     kovan: {
       chainId: 42,
       url: `https://kovan.infura.io/v3/${getenv('INFURA_PROJECT_ID')}`,
-      companionNetworks: {
-        l2: 'optimism-kovan',
-      },
       verify: {
         etherscan: {
           apiKey: getenv('ETHEREUM_ETHERSCAN_API_KEY'),
         },
       },
     },
+  },
+  paths: {
+    deployConfig: './config/deploy',
+  },
+  deployConfigSpec: configSpec,
+  external: {
+    contracts: [
+      {
+        artifacts: '../contracts-bedrock/artifacts',
+      },
+    ],
   },
   mocha: {
     timeout: 50000,
