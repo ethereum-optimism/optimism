@@ -86,6 +86,7 @@ func (eq *EngineQueue) LastL2Time() uint64 {
 
 func (eq *EngineQueue) Step(ctx context.Context) error {
 	// TODO: check if engine unsafehead/safehead/finalized data match, return error and reset pipeline if not.
+	// maybe better to do in the driver instead.
 
 	//  TODO: implement finalization
 	//if eq.finalized.ID() != eq.toFinalize {

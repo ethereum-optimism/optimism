@@ -17,12 +17,13 @@ type DataAvailabilitySource interface {
 	Fetch(ctx context.Context, id eth.BlockID) (eth.L1BlockRef, []eth.Data, error)
 }
 
-type L1InfoFetcher interface {
+type L1InfoByNumberFetcher interface {
 	InfoByNumber(ctx context.Context, number uint64) (L1Info, error)
 }
 
 type L1Fetcher interface {
-	L1InfoFetcher
+	L1InfoByNumberFetcher
+	L1InfoByHashFetcher
 	L1ReceiptsFetcher
 	L1TransactionFetcher
 }
@@ -31,7 +32,7 @@ type L1Fetcher interface {
 type DerivationPipeline struct {
 	log         log.Logger
 	cfg         *rollup.Config
-	l1InfoSrc   L1InfoFetcher          // Where we traverse the L1 chain with to the next L1 input
+	l1InfoSrc   L1Fetcher              // Where we traverse the L1 chain with to the next L1 input
 	dataAvail   DataAvailabilitySource // Where we extract L1 data from
 	bank        *ChannelBank           // Where we buffer L1 data to read channel data from
 	chInReader  *ChannelInReader       // Where we buffer channel data to read batches from
@@ -57,9 +58,13 @@ func (dp *DerivationPipeline) Reset(ctx context.Context, l1SafeHead eth.L1BlockR
 	// TODO: determine l2SafeHead
 	var l2SafeHead eth.L2BlockRef
 
-	// TODO: requires replay of data to get into consistent state again
-	dp.bank.Reset(l1SafeHead)
+	bankStart, err := FindChannelBankStart(ctx, l1SafeHead, dp.l1InfoSrc)
+	if err != nil {
+		return fmt.Errorf("failed to find channel bank start: %v", err)
+	}
 
+	// the bank will catch up first, before the remaining part of the pipeline will start getting data.
+	dp.bank.Reset(bankStart)
 	dp.chInReader.Reset(l1SafeHead)
 	dp.batchQueue.Reset(l1SafeHead)
 	dp.engineQueue.Reset(l2SafeHead)
@@ -162,6 +167,16 @@ func (dp *DerivationPipeline) readL1(ctx context.Context) error {
 }
 
 func (dp *DerivationPipeline) readChannel() error {
+	// If the bank is behind the channel reader, then we are replaying old data to prepare the bank.
+	// Read if we can, and drop if it gives anything
+	if dp.chInReader.l1Origin.Number > dp.bank.CurrentL1().Number {
+		id, _ := dp.bank.Read()
+		if id == (ChannelID{}) {
+			return io.EOF
+		}
+		return nil
+	}
+
 	// move forward the ch reader if the bank has new L1 data
 	if dp.chInReader.CurrentL1Origin() != dp.bank.CurrentL1() {
 		return dp.chInReader.AddOrigin(dp.bank.CurrentL1())

@@ -4,9 +4,8 @@ import (
 	"context"
 	"encoding/binary"
 	"fmt"
-	"io"
-
 	"github.com/ethereum-optimism/optimism/op-node/eth"
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 )
 
@@ -162,61 +161,29 @@ func (ib *ChannelBank) Read() (chID ChannelID, data []byte) {
 	return first, ch.Read()
 }
 
-// Reset prepares a new bank to be ready to read data from starting at a point where we can be sure no channel data is missing.
-// Upon a reorg, or startup, a channel bank should be reset with the last consumed L1 block as origin.
-func (ib *ChannelBank) Reset(ctx context.Context, origin eth.L1BlockRef, source DataAvailabilitySource) error {
+func (ib *ChannelBank) Reset(origin eth.L1BlockRef) {
 	ib.currentL1Origin = origin
 	ib.channels = make(map[ChannelID]*ChannelIn)
 	ib.channelQueue = ib.channelQueue[:0]
+}
 
-	// TODO
+type L1InfoByHashFetcher interface {
+	InfoByHash(ctx context.Context, hash common.Hash) (L1Info, error)
+}
 
+// FindChannelBankStart takes a L1 origin, and walks back the L1 chain to find the origin that the channel bank should be reset to,
+// to get consistent reads starting at origin.
+// Any channel data before this origin will be timed out by the time the channel bank is synced up to the origin,
+// so it is not relevant to replay it into the bank.
+func FindChannelBankStart(ctx context.Context, origin eth.L1BlockRef, l1Chain L1InfoByHashFetcher) (eth.L1BlockRef, error) {
+	// traverse the header chain, to find the first block we need to replay
 	block := origin
-	var blocks []eth.L1BlockRef
-	for block.Time+ChannelTimeout > l1Start.Time && block.Number > 0 {
-		parent, err := lookupParent(ctx, block.ParentID())
+	for !(block.Time+ChannelTimeout < origin.Time || block.Number == 0) {
+		parentInfo, err := l1Chain.InfoByHash(ctx, block.ParentHash)
 		if err != nil {
-			return nil, fmt.Errorf("failed to find channel bank block, failed to retrieve L1 reference: %w", err)
+			return eth.L1BlockRef{}, fmt.Errorf("failed to find channel bank block, failed to retrieve L1 reference: %w", err)
 		}
-		block = parent
-		blocks = append(blocks, parent)
+		block = parentInfo.BlockRef()
 	}
-	bank := &ChannelBank{
-		log:             log,
-		channels:        make(map[ChannelID]*ChannelIn),
-		currentL1Origin: blocks[len(blocks)-1],
-	}
-
-	// now replay all the parent blocks
-	for i := len(blocks) - 1; i >= 0; i-- {
-		ref := blocks[i]
-		if i != len(blocks)-1 {
-			if err := bank.NextL1(ref); err != nil {
-				return nil, fmt.Errorf("failed to continue replay at block %s: %v", ref, err)
-			}
-		}
-		for j := uint64(0); ; j++ {
-			txData, err := pullData(ref.ID(), j)
-			if err == io.EOF {
-				break
-			}
-			if err != nil {
-				return nil, fmt.Errorf("failed to replay data of %s: %w", blocks[i], err)
-			}
-			if err := bank.IngestData(txData); err != nil {
-				log.Debug("encountered bad tx during replay", "replay_index", i, "block", ref.ID(), "tx_index", j, "err", err)
-				continue
-			}
-		}
-		// we drain before ingesting more, since writes affect reads this is mandatory
-		for {
-			if chID, _ := bank.Read(); chID == (ChannelID{}) {
-				break
-			}
-		}
-	}
-	if err := bank.NextL1(l1Start); err != nil {
-		return nil, fmt.Errorf("failed to move bank origin to final %s: %v", l1Start, err)
-	}
-	return bank, nil
+	return block, nil
 }
