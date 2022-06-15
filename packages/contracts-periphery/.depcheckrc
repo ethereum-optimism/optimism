@@ -1,4 +1,5 @@
 ignores: [
+  "@eth-optimism/contracts-bedrock",
   "@openzeppelin/contracts",
   "@openzeppelin/contracts-upgradeable",
   "@rari-capital/solmate",
