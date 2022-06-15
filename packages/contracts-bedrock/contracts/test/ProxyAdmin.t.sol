@@ -45,7 +45,7 @@ contract ProxyAdmin_Test is Test {
         // Set the address of the address manager in the admin so that it
         // can resolve the implementation address of legacy
         // Lib_ResolvedDelegateProxy based proxies.
-        admin.setAddressManager(address(addressManager));
+        admin.setAddressManager(addressManager);
         // Set the reverse lookup of the Lib_ResolvedDelegateProxy
         // proxy
         admin.setImplementationName(address(resolved), "a");
@@ -70,7 +70,7 @@ contract ProxyAdmin_Test is Test {
 
     function test_onlyOwnerSetAddressManager() external {
         vm.expectRevert("UNAUTHORIZED");
-        admin.setAddressManager(address(0));
+        admin.setAddressManager(Lib_AddressManager((address(0))));
     }
 
     function test_onlyOwnerSetImplementationName() external {
@@ -164,13 +164,20 @@ contract ProxyAdmin_Test is Test {
         vm.prank(alice);
         admin.changeProxyAdmin(_proxy, address(128));
 
-        // The proxy is not longer the admin and can
+        // The proxy is no longer the admin and can
         // no longer call the proxy interface except for
-        // the ResolvedDelegate type which anybody can call
-        // the admin interface
-        if (proxyType != ProxyAdmin.ProxyType.ResolvedDelegate) {
-            vm.expectRevert();
+        // the ResolvedDelegate type on which anybody can
+        // call the admin interface.
+        if (proxyType == ProxyAdmin.ProxyType.ERC1967) {
+            vm.expectRevert("Proxy: implementation not initialized");
             admin.getProxyAdmin(_proxy);
+        } else if (proxyType == ProxyAdmin.ProxyType.Chugsplash) {
+            vm.expectRevert("L1ChugSplashProxy: implementation is not set yet");
+            admin.getProxyAdmin(_proxy);
+        } else if (proxyType == ProxyAdmin.ProxyType.ResolvedDelegate) {
+            // Just an empty block to show that all cases are covered
+        } else {
+            vm.expectRevert("ProxyAdmin: unknown proxy type");
         }
 
         // Call the proxy contract directly to get the admin.

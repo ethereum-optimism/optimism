@@ -6,6 +6,20 @@ import { Owned } from "@rari-capital/solmate/src/auth/Owned.sol";
 import { Lib_AddressManager } from "../legacy/Lib_AddressManager.sol";
 import { L1ChugSplashProxy } from "../legacy/L1ChugSplashProxy.sol";
 
+// Define static interfaces of these proxies so that we can easily
+// use staticcall on the getters we need.
+interface IStatic_ERC1967Proxy {
+    function implementation() external view returns (address);
+
+    function admin() external view returns (address);
+}
+
+interface IStatic_L1ChugSplashProxy {
+    function getImplementation() external view returns (address);
+
+    function getOwner() external view returns (address);
+}
+
 /**
  * @title ProxyAdmin
  * @dev This is an auxiliary contract meant to be assigned as the admin of a Proxy, based on
@@ -16,7 +30,7 @@ contract ProxyAdmin is Owned {
     /**
      * @notice The proxy types that the ProxyAdmin can manage.
      *
-     * @custom:value ERC1967          Represents an OpenZeppelin style transparent proxy
+     * @custom:value ERC1967          Represents an ERC1967 compliant transparent proxy
      *                                interface, this is the default.
      * @custom:value Chugsplash       Represents the Chugsplash proxy interface,
      *                                this is legacy.
@@ -88,8 +102,8 @@ contract ProxyAdmin is Owned {
      *
      * @param _address The address of the address manager.
      */
-    function setAddressManager(address _address) external onlyOwner {
-        addressManager = Lib_AddressManager(_address);
+    function setAddressManager(Lib_AddressManager _address) external onlyOwner {
+        addressManager = _address;
     }
 
     /**
@@ -135,28 +149,15 @@ contract ProxyAdmin is Owned {
     function getProxyImplementation(Proxy proxy) external view returns (address) {
         ProxyType proxyType = proxyType[address(proxy)];
 
-        // We need to manually run the static call since the getter cannot be flagged as view
-        address target;
-        bytes memory data;
-        if (proxyType == ProxyType.ERC1967) {
-            target = address(proxy);
-            data = abi.encodeWithSelector(Proxy.implementation.selector);
+         if (proxyType == ProxyType.ERC1967) {
+            return IStatic_ERC1967Proxy(address(proxy)).implementation();
         } else if (proxyType == ProxyType.Chugsplash) {
-            target = address(proxy);
-            data = abi.encodeWithSelector(L1ChugSplashProxy.getImplementation.selector);
+            return IStatic_L1ChugSplashProxy(address(proxy)).getImplementation();
         } else if (proxyType == ProxyType.ResolvedDelegate) {
-            target = address(addressManager);
-            data = abi.encodeWithSelector(
-                Lib_AddressManager.getAddress.selector,
-                implementationName[address(proxy)]
-            );
+            return addressManager.getAddress(implementationName[address(proxy)]);
         } else {
             revert("ProxyAdmin: unknown proxy type");
         }
-
-        (bool success, bytes memory returndata) = target.staticcall(data);
-        require(success);
-        return abi.decode(returndata, (address));
     }
 
     /**
@@ -169,25 +170,15 @@ contract ProxyAdmin is Owned {
     function getProxyAdmin(Proxy proxy) external view returns (address) {
         ProxyType proxyType = proxyType[address(proxy)];
 
-        // We need to manually run the static call since the getter cannot be flagged as view
-        address target;
-        bytes memory data;
         if (proxyType == ProxyType.ERC1967) {
-            target = address(proxy);
-            data = abi.encodeWithSelector(Proxy.admin.selector);
+            return IStatic_ERC1967Proxy(address(proxy)).admin();
         } else if (proxyType == ProxyType.Chugsplash) {
-            target = address(proxy);
-            data = abi.encodeWithSelector(L1ChugSplashProxy.getOwner.selector);
+            return IStatic_L1ChugSplashProxy(address(proxy)).getOwner();
         } else if (proxyType == ProxyType.ResolvedDelegate) {
-            target = address(addressManager);
-            data = abi.encodeWithSignature("owner()");
+            return addressManager.owner();
         } else {
             revert("ProxyAdmin: unknown proxy type");
         }
-
-        (bool success, bytes memory returndata) = target.staticcall(data);
-        require(success);
-        return abi.decode(returndata, (address));
     }
 
     /**
@@ -205,7 +196,9 @@ contract ProxyAdmin is Owned {
         } else if (proxyType == ProxyType.Chugsplash) {
             L1ChugSplashProxy(payable(proxy)).setOwner(newAdmin);
         } else if (proxyType == ProxyType.ResolvedDelegate) {
-            Lib_AddressManager(addressManager).transferOwnership(newAdmin);
+            addressManager.transferOwnership(newAdmin);
+        } else {
+            revert("ProxyAdmin: unknown proxy type");
         }
     }
 
@@ -227,7 +220,9 @@ contract ProxyAdmin is Owned {
             );
         } else if (proxyType == ProxyType.ResolvedDelegate) {
             string memory name = implementationName[address(proxy)];
-            Lib_AddressManager(addressManager).setAddress(name, implementation);
+            addressManager.setAddress(name, implementation);
+        } else {
+            revert("ProxyAdmin: unknown proxy type");
         }
     }
 
@@ -249,6 +244,7 @@ contract ProxyAdmin is Owned {
         if (proxyType == ProxyType.ERC1967) {
             proxy.upgradeToAndCall{ value: msg.value }(implementation, data);
         } else {
+            // reverts if proxy type is unknown
             upgrade(proxy, implementation);
             (bool success, ) = address(proxy).call{ value: msg.value }(data);
             require(success);
