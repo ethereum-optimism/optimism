@@ -20,7 +20,7 @@ type state struct {
 	l1Head      eth.L1BlockRef // Latest recorded head of the L1 Chain
 	l2Head      eth.L2BlockRef // L2 Unsafe Head
 	l2SafeHead  eth.L2BlockRef // L2 Safe Head - this is the head of the L2 chain as derived from L1
-	l2Finalized eth.BlockID    // L2 Block that will never be reversed
+	l2Finalized eth.L2BlockRef // L2 Block that will never be reversed
 
 	// The derivation pipeline is reset whenever we reorg.
 	// The derivation pipeline determines the new l2SafeHead.
@@ -253,7 +253,7 @@ func (s *state) createNewL2Block(ctx context.Context) error {
 	}
 
 	// Actually create the new block.
-	newUnsafeL2Head, payload, err := s.output.createNewBlock(ctx, s.l2Head, s.l2SafeHead.ID(), s.l2Finalized, l1Origin)
+	newUnsafeL2Head, payload, err := s.output.createNewBlock(ctx, s.l2Head, s.l2SafeHead.ID(), s.l2Finalized.ID(), l1Origin)
 	if err != nil {
 		s.log.Error("Could not extend chain as sequencer", "err", err, "l2UnsafeHead", s.l2Head, "l1Origin", l1Origin)
 		return err
@@ -379,8 +379,14 @@ func (s *state) eventLoop() {
 					s.log.Error("failed to reset derivation pipeline after failing step", "err", err)
 				}
 			} else {
-				// update safe head (it may or may not have changed)
-				s.l2SafeHead = s.derivation.SafeL2Head()
+				// update the heads
+				finalized, safe, unsafe := s.derivation.Finalized(), s.derivation.SafeL2Head(), s.derivation.UnsafeL2Head()
+				if s.l2Finalized != finalized || s.l2SafeHead != safe || s.l2Head != unsafe {
+					s.log.Info("sync progress", "finalized", finalized, "safe", safe, "unsafe", unsafe)
+				}
+				s.l2Finalized = finalized
+				s.l2SafeHead = safe
+				s.l2Head = unsafe
 				reqStep() // continue with the next step if we can
 			}
 		case <-s.done:
