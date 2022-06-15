@@ -20,6 +20,9 @@ type Engine interface {
 	PayloadByNumber(context.Context, *big.Int) (*eth.ExecutionPayload, error)
 }
 
+// Max number of unsafe payloads that may be queued up for execution
+const maxUnsafePayloads = 50
+
 // EngineQueue queues up payload attributes to consolidate or process with the provided Engine
 type EngineQueue struct {
 	log log.Logger
@@ -37,7 +40,15 @@ type EngineQueue struct {
 	engine Engine
 }
 
+func (eq *EngineQueue) Reset(safeHead eth.L2BlockRef) {
+	eq.safeHead = safeHead
+	eq.unsafeHead = safeHead
+}
+
 func (eq *EngineQueue) AddUnsafePayload(payload *eth.ExecutionPayload) {
+	if len(eq.unsafePayloads) > maxUnsafePayloads {
+		return // don't DoS ourselves by buffering too many unsafe payloads
+	}
 	eq.unsafePayloads = append(eq.unsafePayloads)
 }
 
@@ -87,6 +98,12 @@ func (eq *EngineQueue) Step(ctx context.Context) error {
 
 func (eq *EngineQueue) tryNextUnsafePayload(ctx context.Context) error {
 	first := eq.unsafePayloads[0]
+
+	if uint64(first.BlockNumber) <= eq.safeHead.Number {
+		eq.log.Error("skipping unsafe payload, since it is older than safe head", "safe", eq.safeHead.ID(), "unsafe", first.ID())
+		eq.unsafePayloads = eq.unsafePayloads[1:]
+		return nil
+	}
 
 	ref, err := PayloadToBlockRef(first, &eq.cfg.Genesis)
 	if err != nil {
