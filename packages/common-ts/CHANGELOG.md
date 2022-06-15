@@ -1,5 +1,18 @@
 # @eth-optimism/common-ts
 
+## 0.4.0
+
+### Minor Changes
+
+- 52b26878: More gracefully shut down base service
+
+### Patch Changes
+
+- c201f3f1: Collect default node metrics
+- 29ff7462: Revert es target back to 2017
+- Updated dependencies [29ff7462]
+  - @eth-optimism/core-utils@0.8.7
+
 ## 0.3.1
 
 ### Patch Changes

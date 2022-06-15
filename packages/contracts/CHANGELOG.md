@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.5.28
+
+### Patch Changes
+
+- 27234f68: Use hardhat-deploy-config for deployments
+- 29ff7462: Revert es target back to 2017
+- Updated dependencies [29ff7462]
+  - @eth-optimism/core-utils@0.8.7
+
 ## 0.5.27
 
 ### Patch Changes
