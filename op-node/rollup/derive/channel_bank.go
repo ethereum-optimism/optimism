@@ -10,41 +10,24 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 )
 
-// ChannelBank buffers channel frames, and emits TaggedData to an onProgress channel.
+// ChannelBank buffers channel frames, and emits full channel data
 type ChannelBank struct {
 	log log.Logger
 
-	// channels by ID
-	channels map[ChannelID]*ChannelIn
-	// channels in FIFO order
-	channelQueue []ChannelID
+	channels     map[ChannelID]*ChannelIn // channels by ID
+	channelQueue []ChannelID              // channels in FIFO order
 
 	// Current L1 origin that we have seen. Used to filter channels and continue reading.
 	currentL1Origin eth.L1BlockRef
 }
 
-// Read the raw data of the first channel, if it's timed-out or closed
-// Read returns a zeroed channel ID and nil data if there is nothing new to Read.
-// The caller should tag the data with CurrentL1() to track the last L1 block the channel data depends on.
-func (ib *ChannelBank) Read() (chID ChannelID, data []byte) {
-	if len(ib.channelQueue) == 0 {
-		return ChannelID{}, nil
+// NewChannelBank creates a ChannelBank, which should be Reset(origin) before use.
+func NewChannelBank(log log.Logger) *ChannelBank {
+	return &ChannelBank{
+		log:          log,
+		channels:     make(map[ChannelID]*ChannelIn),
+		channelQueue: make([]ChannelID, 0, 10),
 	}
-	first := ib.channelQueue[0]
-	ch := ib.channels[first]
-	timedOut := ch.firstSeen+ChannelTimeout < ib.currentL1Origin.Time
-	if timedOut {
-		ib.log.Info("channel timed out", "channel", ch, "frames", len(ch.inputs), "first_seen", ch.firstSeen)
-	}
-	if ch.closed {
-		ib.log.Debug("channel closed", "channel", ch, "first_seen", ch.firstSeen)
-	}
-	if !timedOut && !ch.closed {
-		return ChannelID{}, nil
-	}
-	delete(ib.channels, first)
-	ib.channelQueue = ib.channelQueue[1:]
-	return first, ch.Read()
 }
 
 func (ib *ChannelBank) CurrentL1() eth.L1BlockRef {
@@ -60,18 +43,7 @@ func (ib *ChannelBank) NextL1(ref eth.L1BlockRef) error {
 	return nil
 }
 
-// IngestData adds new L1 data to the channel bank.
-// Read() should be called repeatedly first, until everything has been read, before adding new data.
-// Then NextL1(ref) should be called to move forward to the next L1 input
-func (ib *ChannelBank) IngestData(data []byte) error {
-	if len(data) < 1 {
-		return fmt.Errorf("data must be at least have a version byte")
-	}
-
-	if data[0] != DerivationVersion0 {
-		return fmt.Errorf("unrecognized derivation version: %d", data)
-	}
-
+func (ib *ChannelBank) prune() {
 	// check total size
 	totalSize := uint64(0)
 	for _, ch := range ib.channels {
@@ -85,6 +57,21 @@ func (ib *ChannelBank) IngestData(data []byte) error {
 		delete(ib.channels, id)
 		totalSize -= ch.size
 	}
+}
+
+// IngestData adds new L1 data to the channel bank.
+// Read() should be called repeatedly first, until everything has been read, before adding new data.
+// Then NextL1(ref) should be called to move forward to the next L1 input
+func (ib *ChannelBank) IngestData(data []byte) error {
+	if len(data) < 1 {
+		return fmt.Errorf("data must be at least have a version byte")
+	}
+
+	if data[0] != DerivationVersion0 {
+		return fmt.Errorf("unrecognized derivation version: %d", data)
+	}
+
+	ib.prune()
 
 	offset := 1
 	if len(data[offset:]) < minimumFrameSize {
@@ -151,15 +138,40 @@ func (ib *ChannelBank) IngestData(data []byte) error {
 	}
 }
 
-// NewChannelBank prepares a new channel bank,
-// ready to read data from starting at a point where we can be sure no channel data is missing.
-// Upon a reorg, or startup, a channel bank should be constructed with the last consumed L1 block as l1Start.
-// It will traverse back with the provided lookupParent to find the continuation point,
-// and then replay everything with pullData to get a channel bank ready for reading from l1Start.
-func NewChannelBank(ctx context.Context, log log.Logger, l1Start eth.L1BlockRef,
-	lookupParent func(ctx context.Context, id eth.BlockID) (eth.L1BlockRef, error),
-	pullData func(id eth.BlockID, txIndex uint64) ([]byte, error)) (*ChannelBank, error) {
-	block := l1Start
+// Read the raw data of the first channel, if it's timed-out or closed
+// Read returns a zeroed channel ID and nil data if there is nothing new to Read.
+// The caller should tag the data with CurrentL1() to track the last L1 block the channel data depends on.
+func (ib *ChannelBank) Read() (chID ChannelID, data []byte) {
+	if len(ib.channelQueue) == 0 {
+		return ChannelID{}, nil
+	}
+	first := ib.channelQueue[0]
+	ch := ib.channels[first]
+	timedOut := ch.firstSeen+ChannelTimeout < ib.currentL1Origin.Time
+	if timedOut {
+		ib.log.Info("channel timed out", "channel", ch, "frames", len(ch.inputs), "first_seen", ch.firstSeen)
+	}
+	if ch.closed {
+		ib.log.Debug("channel closed", "channel", ch, "first_seen", ch.firstSeen)
+	}
+	if !timedOut && !ch.closed {
+		return ChannelID{}, nil
+	}
+	delete(ib.channels, first)
+	ib.channelQueue = ib.channelQueue[1:]
+	return first, ch.Read()
+}
+
+// Reset prepares a new bank to be ready to read data from starting at a point where we can be sure no channel data is missing.
+// Upon a reorg, or startup, a channel bank should be reset with the last consumed L1 block as origin.
+func (ib *ChannelBank) Reset(ctx context.Context, origin eth.L1BlockRef, source DataAvailabilitySource) error {
+	ib.currentL1Origin = origin
+	ib.channels = make(map[ChannelID]*ChannelIn)
+	ib.channelQueue = ib.channelQueue[:0]
+
+	// TODO
+
+	block := origin
 	var blocks []eth.L1BlockRef
 	for block.Time+ChannelTimeout > l1Start.Time && block.Number > 0 {
 		parent, err := lookupParent(ctx, block.ParentID())

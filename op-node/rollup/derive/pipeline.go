@@ -46,7 +46,7 @@ func NewDerivationPipeline(log log.Logger, cfg *rollup.Config, l1Src L1Fetcher, 
 		cfg:         cfg,
 		l1InfoSrc:   l1Src,
 		dataAvail:   NewCalldataSource(log, cfg, l1Src), // this may change to pull EIP-4844 data (or pull both)
-		bank:        nil,                                // TODO: init channel bank
+		bank:        NewChannelBank(log),
 		chInReader:  NewChannelInReader(),
 		batchQueue:  NewBatchQueue(log, cfg, l1Src),
 		engineQueue: NewEngineQueue(log, cfg, engine),
@@ -56,11 +56,10 @@ func NewDerivationPipeline(log log.Logger, cfg *rollup.Config, l1Src L1Fetcher, 
 func (dp *DerivationPipeline) Reset(ctx context.Context, l1SafeHead eth.L1BlockRef) error {
 	// TODO: determine l2SafeHead
 	var l2SafeHead eth.L2BlockRef
-	bank, err := NewChannelBank(ctx, dp.log, l1SafeHead, nil, nil) // TODO
-	if err != nil {
-		return fmt.Errorf("failed to init channel bank: %w", err)
-	}
-	dp.bank = bank
+
+	// TODO: requires replay of data to get into consistent state again
+	dp.bank.Reset(l1SafeHead)
+
 	dp.chInReader.Reset(l1SafeHead)
 	dp.batchQueue.Reset(l1SafeHead)
 	dp.engineQueue.Reset(l2SafeHead)
