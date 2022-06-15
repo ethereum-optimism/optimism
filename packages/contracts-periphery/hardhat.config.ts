@@ -80,13 +80,6 @@ const config: HardhatUserConfig = {
     deployConfig: './config/deploy',
   },
   deployConfigSpec: configSpec,
-  external: {
-    contracts: [
-      {
-        artifacts: '../contracts-bedrock/artifacts',
-      },
-    ],
-  },
   mocha: {
     timeout: 50000,
   },

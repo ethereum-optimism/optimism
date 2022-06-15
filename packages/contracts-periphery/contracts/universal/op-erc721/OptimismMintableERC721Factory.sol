@@ -38,7 +38,7 @@ contract OptimismMintableERC721Factory is OwnableUpgradeable {
      * @param _bridge Address of the ERC721 bridge on this network.
      */
     constructor(address _bridge) {
-        intialize(_bridge);
+        initialize(_bridge);
     }
 
     /**
@@ -46,7 +46,7 @@ contract OptimismMintableERC721Factory is OwnableUpgradeable {
      *
      * @param _bridge Address of the ERC721 bridge on this network.
      */
-    function intialize(address _bridge) public reinitializer(VERSION) {
+    function initialize(address _bridge) public reinitializer(VERSION) {
         bridge = _bridge;
 
         // Initialize upgradable OZ contracts
