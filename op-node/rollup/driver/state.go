@@ -87,7 +87,8 @@ func (s *state) Start(ctx context.Context) error {
 		}
 		s.l2Head = unsafeHead
 		s.l2SafeHead = safeHead
-		if err := s.derivation.Reset(ctx, safeHead); err != nil {
+		// TODO: reset to l1 origin corresponding  to the safe head we found
+		if err := s.derivation.Reset(ctx); err != nil {
 			s.log.Error("failed to reset derivation pipeline", "err", err)
 		}
 	} else {
@@ -182,7 +183,8 @@ func (s *state) handleNewL1Block(ctx context.Context, newL1Head eth.L1BlockRef) 
 	if s.l2SafeHead.Number >= safeL2Head.Number {
 		s.l2SafeHead = safeL2Head
 	}
-	if err := s.derivation.Reset(ctx, s.l2SafeHead); err != nil {
+	// TODO
+	if err := s.derivation.Reset(ctx); err != nil {
 		s.log.Error("Failed to reset derivation pipeline after reorg was detected", "err", err)
 		return err
 	}
@@ -368,6 +370,7 @@ func (s *state) eventLoop() {
 			err := s.derivation.Step(stepCtx)
 			cancel()
 			if err == io.EOF {
+
 				// TODO: try to fetch next L1 data, and apply it to the pipeline.
 				// if we fail to fetch the L1 data, simply not update the derivation pipeline yet,
 				// we'll hit an EOF later again and retry.
@@ -393,6 +396,10 @@ func (s *state) eventLoop() {
 			return
 		}
 	}
+}
+
+func (s *state) tryFetchL1() {
+
 }
 
 func (s *state) snapshot(event string) {

@@ -40,6 +40,11 @@ type EngineQueue struct {
 	engine Engine
 }
 
+// NewEngineQueue creates a new EngineQueue, which should be Reset(origin) before use.
+func NewEngineQueue(log log.Logger, cfg *rollup.Config, engine Engine) *EngineQueue {
+	return &EngineQueue{log: log, cfg: cfg, engine: engine}
+}
+
 func (eq *EngineQueue) Reset(safeHead eth.L2BlockRef) {
 	eq.safeHead = safeHead
 	eq.unsafeHead = safeHead

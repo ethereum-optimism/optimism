@@ -34,6 +34,11 @@ type ChannelInReader struct {
 	data     []byte
 }
 
+// NewChannelInReader creates a ChannelInReader, which should be Reset(origin) before use.
+func NewChannelInReader() *ChannelInReader {
+	return &ChannelInReader{}
+}
+
 func (cr *ChannelInReader) AddOrigin(origin eth.L1BlockRef) error {
 	if cr.l1Origin.Hash != origin.ParentHash {
 		return fmt.Errorf("next origin %s does not build on top of current origin %s, but on %s", origin.ID(), cr.l1Origin.ID(), origin.ParentID())
@@ -42,7 +47,7 @@ func (cr *ChannelInReader) AddOrigin(origin eth.L1BlockRef) error {
 	return nil
 }
 
-func (cr *ChannelInReader) ResetChannel(data []byte) {
+func (cr *ChannelInReader) WriteChannel(data []byte) {
 	cr.data = data
 	cr.ready = false
 }
@@ -50,7 +55,7 @@ func (cr *ChannelInReader) ResetChannel(data []byte) {
 // ReadBatch returns a decoded rollup batch, or an error:
 // - io.EOF, if the ChannelInReader source needs more data, to be provided with NextL1Origin() and ResetChannel().
 // - any other error (e.g. invalid compression or batch data):
-//   the caller should ChannelInReader.Reset() before continuing reading the next batch.
+//   the caller should ChannelInReader.NextChannel() before continuing reading the next batch.
 //
 // It's up to the caller to check CurrentL1Origin() before reading more information.
 // The CurrentL1Origin() does not change until the first ReadBatch() after the old source has been completely exhausted.
@@ -86,13 +91,13 @@ func (cr *ChannelInReader) ReadBatch(dest *BatchData) error {
 	return cr.readRLP.Decode(dest)
 }
 
-// Reset forces the next read to continue with the next channel,
+// NextChannel forces the next read to continue with the next channel,
 // resetting any decoding/decompression state to a fresh start.
-func (cr *ChannelInReader) Reset() {
+func (cr *ChannelInReader) NextChannel() {
 	cr.ready = false
 }
 
-func (cr *ChannelInReader) ResetOrigin(origin eth.L1BlockRef) {
+func (cr *ChannelInReader) Reset(origin eth.L1BlockRef) {
 	cr.ready = false
 	cr.l1Origin = origin
 }

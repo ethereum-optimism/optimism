@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/ethereum-optimism/optimism/op-node/eth"
+	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum/go-ethereum/log"
 	"io"
 )
@@ -13,28 +14,48 @@ import (
 // DerivationPipeline is updated with new L1 data, and the Step() function can be iterated on to keep the L2 Engine in sync.
 type DerivationPipeline struct {
 	log         log.Logger
+	cfg         *rollup.Config
+	dl          Downloader
 	bank        *ChannelBank     // Where we buffer L1 data to read channel data from
 	chInReader  *ChannelInReader // Where we buffer channel data to read batches from
 	batchQueue  *BatchQueue      // Where we buffer all derived L2 batches
 	engineQueue *EngineQueue     // Where we buffer payload attributes, and apply/consolidate them with the L2 engine
 }
 
-func NewDerivationPipeline() *DerivationPipeline {
-	// TODO
-	return nil
+// NewDerivationPipeline creates a derivation pipeline, which should be reset before use.
+func NewDerivationPipeline(log log.Logger, cfg *rollup.Config, dl Downloader, engine Engine) *DerivationPipeline {
+	return &DerivationPipeline{
+		log:         log,
+		cfg:         cfg,
+		bank:        nil, // TODO: init channel bank
+		chInReader:  NewChannelInReader(),
+		batchQueue:  NewBatchQueue(log, cfg, dl),
+		engineQueue: NewEngineQueue(log, cfg, engine),
+	}
 }
 
-func (dp *DerivationPipeline) Reset(ctx context.Context, l2SafeHead eth.L2BlockRef) error {
-	// TODO: determine l1SafeHead
-	var l1SafeHead eth.L1BlockRef
+func (dp *DerivationPipeline) Reset(ctx context.Context, l1SafeHead eth.L1BlockRef) error {
+	// TODO: determine l2SafeHead
+	var l2SafeHead eth.L2BlockRef
 	bank, err := NewChannelBank(ctx, dp.log, l1SafeHead, nil, nil) // TODO
 	if err != nil {
 		return fmt.Errorf("failed to init channel bank: %w", err)
 	}
 	dp.bank = bank
-	dp.chInReader.ResetOrigin(l1SafeHead)
+	dp.chInReader.Reset(l1SafeHead)
 	dp.batchQueue.Reset(l1SafeHead)
 	dp.engineQueue.Reset(l2SafeHead)
+	return nil
+}
+
+func (dp *DerivationPipeline) NextL1(ctx context.Context) error {
+	//current := dp.bank.CurrentL1()
+	// TODO:
+	// get current.num + 1
+	// sanity check that it builds on top of current, if it does not, then we reorged
+	// get data from the transactions   - DataFromEVMTransactions()
+	// move forward bank to new origin  - dp.bank.NextL1()
+	// apply data to bank  - dp.bank.IngestData()
 	return nil
 }
 
@@ -103,7 +124,7 @@ func (dp *DerivationPipeline) readChannel() error {
 	if id == (ChannelID{}) { // need new L1 data in the bank before we can read more channel data
 		return io.EOF
 	}
-	dp.chInReader.ResetChannel(data)
+	dp.chInReader.WriteChannel(data)
 	return nil
 }
 
@@ -116,8 +137,8 @@ func (dp *DerivationPipeline) readBatch() error {
 	if err := dp.chInReader.ReadBatch(&batch); err == io.EOF {
 		return io.EOF
 	} else if err != nil {
-		dp.log.Warn("failed to read batch from channel reader, resetting it", "err", err)
-		dp.chInReader.Reset()
+		dp.log.Warn("failed to read batch from channel reader, skipping to next channel now", "err", err)
+		dp.chInReader.NextChannel()
 		return nil
 	}
 	return dp.batchQueue.AddBatch(&batch)

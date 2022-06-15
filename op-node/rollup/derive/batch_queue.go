@@ -33,6 +33,15 @@ type BatchQueue struct {
 	dl           Downloader
 }
 
+// NewBatchQueue creates a BatchQueue, which should be Reset(origin) before use.
+func NewBatchQueue(log log.Logger, cfg *rollup.Config, dl Downloader) *BatchQueue {
+	return &BatchQueue{
+		log:    log,
+		config: cfg,
+		dl:     dl,
+	}
+}
+
 func (bq *BatchQueue) LastL1Origin() eth.L1BlockRef {
 	last := bq.lastL1Origin
 	if len(bq.inputs) != 0 {
@@ -131,4 +140,5 @@ func (bq *BatchQueue) DeriveL2Inputs(ctx context.Context, lastL2Timestamp uint64
 func (bq *BatchQueue) Reset(l1Origin eth.L1BlockRef) {
 	bq.lastL1Origin = l1Origin
 	bq.inputs = bq.inputs[:0]
+	bq.inputs = append(bq.inputs, BatchesWithOrigin{Origin: l1Origin, Batches: nil})
 }
