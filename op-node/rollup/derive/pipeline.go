@@ -31,12 +31,12 @@ type L1Fetcher interface {
 type DerivationPipeline struct {
 	log         log.Logger
 	cfg         *rollup.Config
-	l1InfoSrc   L1InfoFetcher
-	dataAvail   DataAvailabilitySource
-	bank        *ChannelBank     // Where we buffer L1 data to read channel data from
-	chInReader  *ChannelInReader // Where we buffer channel data to read batches from
-	batchQueue  *BatchQueue      // Where we buffer all derived L2 batches
-	engineQueue *EngineQueue     // Where we buffer payload attributes, and apply/consolidate them with the L2 engine
+	l1InfoSrc   L1InfoFetcher          // Where we traverse the L1 chain with to the next L1 input
+	dataAvail   DataAvailabilitySource // Where we extract L1 data from
+	bank        *ChannelBank           // Where we buffer L1 data to read channel data from
+	chInReader  *ChannelInReader       // Where we buffer channel data to read batches from
+	batchQueue  *BatchQueue            // Where we buffer all derived L2 batches
+	engineQueue *EngineQueue           // Where we buffer payload attributes, and apply/consolidate them with the L2 engine
 }
 
 // NewDerivationPipeline creates a derivation pipeline, which should be reset before use.
@@ -44,9 +44,10 @@ func NewDerivationPipeline(log log.Logger, cfg *rollup.Config, l1Src L1Fetcher, 
 	return &DerivationPipeline{
 		log:         log,
 		cfg:         cfg,
-		bank:        nil, // TODO: init channel bank
-		chInReader:  NewChannelInReader(),
+		l1InfoSrc:   l1Src,
 		dataAvail:   NewCalldataSource(log, cfg, l1Src), // this may change to pull EIP-4844 data (or pull both)
+		bank:        nil,                                // TODO: init channel bank
+		chInReader:  NewChannelInReader(),
 		batchQueue:  NewBatchQueue(log, cfg, l1Src),
 		engineQueue: NewEngineQueue(log, cfg, engine),
 	}
