@@ -50,6 +50,8 @@ Create a file that corresponds to the network name in the `deploy-config`
 directory and then run the command:
 
 ```shell
+L1_RPC=<ETHEREUM L1 RPC endpoint> \
+PRIVATE_KEY_DEPLOYER=<PRIVATE KEY TO PAY FOR THE DEPLOYMENT> \
 npx hardhat deploy --network <network-name>
 ```
 
