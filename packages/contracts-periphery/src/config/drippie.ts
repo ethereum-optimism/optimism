@@ -17,7 +17,7 @@ export interface DripConfig {
       | string
       | {
           fn: string
-          args: any[]
+          args?: any[]
         }
   }>
 }
@@ -79,7 +79,10 @@ export const parseDrippieConfig = async (
       } else {
         const abi = await etherscan.getContractABI(action.target)
         const iface = new ethers.utils.Interface(abi)
-        action.data = iface.encodeFunctionData(action.data.fn, action.data.args)
+        action.data = iface.encodeFunctionData(
+          action.data.fn,
+          action.data.args || []
+        )
       }
 
       if (action.value === undefined) {

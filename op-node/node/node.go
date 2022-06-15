@@ -215,7 +215,7 @@ func (n *OpNode) OnNewL1Head(ctx context.Context, sig eth.L1BlockRef) {
 
 }
 
-func (n *OpNode) PublishL2Payload(ctx context.Context, payload *l2.ExecutionPayload) error {
+func (n *OpNode) PublishL2Payload(ctx context.Context, payload *eth.ExecutionPayload) error {
 	n.tracer.OnPublishL2Payload(ctx, payload)
 
 	// publish to p2p, if we are running p2p at all
@@ -230,7 +230,7 @@ func (n *OpNode) PublishL2Payload(ctx context.Context, payload *l2.ExecutionPayl
 	return nil
 }
 
-func (n *OpNode) OnUnsafeL2Payload(ctx context.Context, from peer.ID, payload *l2.ExecutionPayload) error {
+func (n *OpNode) OnUnsafeL2Payload(ctx context.Context, from peer.ID, payload *eth.ExecutionPayload) error {
 	// ignore if it's from ourselves
 	if n.p2pNode != nil && from == n.p2pNode.Host().ID() {
 		return nil

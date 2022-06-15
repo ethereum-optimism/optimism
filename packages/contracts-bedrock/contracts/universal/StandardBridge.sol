@@ -226,8 +226,8 @@ abstract contract StandardBridge {
             // Something went wrong during the bridging process, return to sender.
             // Can happen if a bridge UI specifies the wrong L2 token.
             _initiateBridgeERC20Unchecked(
-                _remoteToken,
                 _localToken,
+                _remoteToken,
                 _from,
                 _to,
                 _amount,
@@ -352,6 +352,9 @@ abstract contract StandardBridge {
             address(otherBridge),
             abi.encodeWithSelector(
                 this.finalizeBridgeERC20.selector,
+                // Because this call will be executed on the remote chain, we reverse the order of
+                // the remote and local token addresses relative to their order in the
+                // finalizeBridgeERC20 function.
                 _remoteToken,
                 _localToken,
                 _from,

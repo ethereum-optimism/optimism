@@ -1,0 +1,7 @@
+---
+- op: replace
+  path: /spec/template/spec/volumes/0
+  value:
+    name: l2geth-replica-data
+    persistentVolumeClaim:
+      claimName: l2geth-replica-data

@@ -43,3 +43,18 @@ To run only solidity tests:
 ```shell
 yarn test:forge
 ```
+
+## Deployment
+
+Create a file that corresponds to the network name in the `deploy-config`
+directory and then run the command:
+
+```shell
+L1_RPC=<ETHEREUM L1 RPC endpoint> \
+PRIVATE_KEY_DEPLOYER=<PRIVATE KEY TO PAY FOR THE DEPLOYMENT> \
+npx hardhat deploy --network <network-name>
+```
+
+In the `hardhat.config.ts`, there is a `deployConfigSpec` field that validates that the types
+are correct, be sure to export an object in the `deploy-config/<network-name>.ts` file that
+has a key for each property in the `deployConfigSpec`.
