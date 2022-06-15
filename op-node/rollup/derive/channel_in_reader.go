@@ -92,6 +92,11 @@ func (cr *ChannelInReader) Reset() {
 	cr.ready = false
 }
 
+func (cr *ChannelInReader) ResetOrigin(origin eth.L1BlockRef) {
+	cr.ready = false
+	cr.l1Origin = origin
+}
+
 // CurrentL1Origin returns the L1 block that encodes the data that is currently being read.
 // Batches should be filtered based on this source.
 // Note that the source might not be canonical anymore by the time the data is processed.

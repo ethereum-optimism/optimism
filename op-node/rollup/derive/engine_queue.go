@@ -72,6 +72,13 @@ func (eq *EngineQueue) SafeL2Head() eth.L2BlockRef {
 	return eq.safeHead
 }
 
+func (eq *EngineQueue) LastL2Time() uint64 {
+	if len(eq.safeAttributes) == 0 {
+		return eq.safeHead.Time
+	}
+	return uint64(eq.safeAttributes[len(eq.safeAttributes)-1].Timestamp)
+}
+
 func (eq *EngineQueue) Step(ctx context.Context) error {
 	// TODO: check if engine unsafehead/safehead/finalized data match, return error and reset pipeline if not.
 

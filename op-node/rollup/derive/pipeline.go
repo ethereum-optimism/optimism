@@ -32,8 +32,8 @@ func (dp *DerivationPipeline) Reset(ctx context.Context, l2SafeHead eth.L2BlockR
 		return fmt.Errorf("failed to init channel bank: %w", err)
 	}
 	dp.bank = bank
-	dp.chInReader.Reset()
-	dp.batchQueue.Reset(l2SafeHead)
+	dp.chInReader.ResetOrigin(l1SafeHead)
+	dp.batchQueue.Reset(l1SafeHead)
 	dp.engineQueue.Reset(l2SafeHead)
 	return nil
 }
@@ -94,32 +94,42 @@ func (dp *DerivationPipeline) Step(ctx context.Context) error {
 }
 
 func (dp *DerivationPipeline) readChannel() error {
-	// TODO: implement below spec
-	// 1. try to read channel data from the ChannelBank
-	// 2. if no data was returned, try read the L1 origin and move forward the batch reader
-	// 3. if the L1 origin did not change, then return io.EOF
-	// 4. if data was returned, reset the channel reader with it
+	// move forward the ch reader if the bank has new L1 data
+	if dp.chInReader.CurrentL1Origin() != dp.bank.CurrentL1() {
+		return dp.chInReader.AddOrigin(dp.bank.CurrentL1())
+	}
+	// otherwise, read the next channel data from the bank
+	id, data := dp.bank.Read()
+	if id == (ChannelID{}) { // need new L1 data in the bank before we can read more channel data
+		return io.EOF
+	}
+	dp.chInReader.ResetChannel(data)
 	return nil
 }
 
 func (dp *DerivationPipeline) readBatch() error {
-	// TODO: implement below spec
-	// 1. try to read a batch from the ChannelInReader
-	// 2. if no batch was returned, return io.EOF
-	// 3. if a batch was returned:
-	//   3.1 get the CurrentOrigin from the reader, and update the BatchQueue with all origins since then
-
-	return nil
+	// move forward the batch queue if the ch reader has new L1 data
+	if dp.batchQueue.LastL1Origin() != dp.chInReader.CurrentL1Origin() {
+		return dp.batchQueue.AddOrigin(dp.chInReader.CurrentL1Origin())
+	}
+	var batch BatchData
+	if err := dp.chInReader.ReadBatch(&batch); err == io.EOF {
+		return io.EOF
+	} else if err != nil {
+		dp.log.Warn("failed to read batch from channel reader, resetting it", "err", err)
+		dp.chInReader.Reset()
+		return nil
+	}
+	return dp.batchQueue.AddBatch(&batch)
 }
 
 func (dp *DerivationPipeline) readAttributes(ctx context.Context) error {
-	// TODO: implement below spec
-	// 1. try to derive payload attributes from the BatchQueue
-	// 2. if none were returned, return io.EOF
-	// 3. if an error was returned (e.g. failed to fetch L1 receipts), log it and return nil
-	// 4. if any were returned, append them to the engineQueue, and return nil
-
-	//dp.batchQueue.DeriveL2Inputs()
-
+	attrs, err := dp.batchQueue.DeriveL2Inputs(ctx, dp.engineQueue.LastL2Time())
+	if err != nil {
+		return err
+	}
+	for _, attr := range attrs {
+		dp.engineQueue.AddSafeAttributes(attr)
+	}
 	return nil
 }
