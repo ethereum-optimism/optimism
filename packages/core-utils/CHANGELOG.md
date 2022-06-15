@@ -1,5 +1,11 @@
 # @eth-optimism/core-utils
 
+## 0.8.7
+
+### Patch Changes
+
+- 29ff7462: Revert es target back to 2017
+
 ## 0.8.6
 
 ### Patch Changes

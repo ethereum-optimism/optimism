@@ -1,5 +1,17 @@
 # @eth-optimism/message-relayer
 
+## 0.5.2
+
+### Patch Changes
+
+- 29ff7462: Revert es target back to 2017
+- Updated dependencies [c201f3f1]
+- Updated dependencies [29ff7462]
+- Updated dependencies [52b26878]
+  - @eth-optimism/common-ts@0.4.0
+  - @eth-optimism/core-utils@0.8.7
+  - @eth-optimism/sdk@1.1.9
+
 ## 0.5.1
 
 ### Patch Changes

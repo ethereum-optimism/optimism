@@ -1,5 +1,19 @@
 # @eth-optimism/fault-detector
 
+## 0.2.1
+
+### Patch Changes
+
+- 29ff7462: Revert es target back to 2017
+- Updated dependencies [27234f68]
+- Updated dependencies [c201f3f1]
+- Updated dependencies [29ff7462]
+- Updated dependencies [52b26878]
+  - @eth-optimism/contracts@0.5.28
+  - @eth-optimism/common-ts@0.4.0
+  - @eth-optimism/core-utils@0.8.7
+  - @eth-optimism/sdk@1.1.9
+
 ## 0.2.0
 
 ### Minor Changes

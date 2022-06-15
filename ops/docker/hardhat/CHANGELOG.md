@@ -1,5 +1,11 @@
 # @eth-optimism/hardhat-node
 
+## 0.1.5
+
+### Patch Changes
+
+- 29ff7462: Revert es target back to 2017
+
 ## 0.1.4
 
 ### Patch Changes

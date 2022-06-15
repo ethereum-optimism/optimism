@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.22
+
+### Patch Changes
+
+- ff0723aa: Have L2Geth Verifier sync in parallel with the DTL.
+
 ## 0.5.21
 
 ### Patch Changes
