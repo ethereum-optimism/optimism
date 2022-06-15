@@ -11,10 +11,6 @@ import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
  */
 // slither-disable-next-line locked-ether
 contract L2OutputOracle is Ownable {
-    /*********
-     * Types *
-     *********/
-
     /**
      * @notice OutputProposal represents a commitment to the L2 state.
      *         The timestamp is the L1 timestamp that the output root is posted.
@@ -25,10 +21,6 @@ contract L2OutputOracle is Ownable {
         bytes32 outputRoot;
         uint256 timestamp;
     }
-
-    /**********
-     * Events *
-     **********/
 
     /**
      * @notice Emitted when an output is appended.
@@ -47,10 +39,6 @@ contract L2OutputOracle is Ownable {
         uint256 indexed _l1Timestamp,
         uint256 indexed _l2BlockNumber
     );
-
-    /**********************
-     * Contract Variables *
-     **********************/
 
     /**
      * @notice The interval in L2 blocks at which checkpoints must be submitted.
@@ -73,13 +61,11 @@ contract L2OutputOracle is Ownable {
     uint256 public latestBlockNumber;
 
     /**
-     * @notice A mapping from L2 block numbers to the respective output root.
+     * @notice A mapping from L2 block numbers to the respective output root. Note that these
+     *         outputs should not be considered finalized until the finalization period (as defined
+     *        in the Optimism Portal) has passed.
      */
     mapping(uint256 => OutputProposal) internal l2Outputs;
-
-    /***************
-     * Constructor *
-     ***************/
 
     /**
      * @notice Initialize the L2OutputOracle contract.
@@ -108,10 +94,6 @@ contract L2OutputOracle is Ownable {
 
         _transferOwnership(_sequencer);
     }
-
-    /*********************************
-     * External and Public Functions *
-     *********************************/
 
     /**
      * @notice Accepts an L2 outputRoot and the timestamp of the corresponding L2 block. The
