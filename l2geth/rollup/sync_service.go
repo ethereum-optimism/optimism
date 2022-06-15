@@ -172,19 +172,21 @@ func NewSyncService(ctx context.Context, cfg Config, txpool *core.TxPool, bc *co
 			}
 		}
 
-		// Wait until the remote service is done syncing
-		tStatus := time.NewTicker(10 * time.Second)
-		for ; true; <-tStatus.C {
-			status, err := service.client.SyncStatus(service.backend)
-			if err != nil {
-				log.Error("Cannot get sync status")
-				continue
+		if !cfg.IsVerifier || cfg.Backend == BackendL2 {
+			// Wait until the remote service is done syncing
+			tStatus := time.NewTicker(10 * time.Second)
+			for ; true; <-tStatus.C {
+				status, err := service.client.SyncStatus(service.backend)
+				if err != nil {
+					log.Error("Cannot get sync status")
+					continue
+				}
+				if !status.Syncing {
+					tStatus.Stop()
+					break
+				}
+				log.Info("Still syncing", "index", status.CurrentTransactionIndex, "tip", status.HighestKnownTransactionIndex)
 			}
-			if !status.Syncing {
-				tStatus.Stop()
-				break
-			}
-			log.Info("Still syncing", "index", status.CurrentTransactionIndex, "tip", status.HighestKnownTransactionIndex)
 		}
 
 		// Initialize the latest L1 data here to make sure that
