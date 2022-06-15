@@ -165,7 +165,7 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
      * Delete Tests *
      ****************/
 
-    event l2OutputDeleted(
+    event L2OutputDeleted(
         bytes32 indexed _l2Output,
         uint256 indexed _l1Timestamp,
         uint256 indexed _l2BlockNumber
@@ -181,7 +181,7 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
 
         vm.prank(sequencer);
         vm.expectEmit(true, true, false, false);
-        emit l2OutputDeleted(
+        emit L2OutputDeleted(
             proposalToDelete.outputRoot,
             proposalToDelete.timestamp,
             latestBlockNumber

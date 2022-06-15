@@ -36,8 +36,8 @@ type L2OutputOracleOutputProposal struct {
 
 // L2OutputOracleMetaData contains all meta data concerning the L2OutputOracle contract.
 var L2OutputOracleMetaData = &bind.MetaData{
-	ABI: "[{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"_submissionInterval\",\"type\":\"uint256\"},{\"internalType\":\"bytes32\",\"name\":\"_genesisL2Output\",\"type\":\"bytes32\"},{\"internalType\":\"uint256\",\"name\":\"_historicalTotalBlocks\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"_startingBlockNumber\",\"type\":\"uint256\"},{\"internalType\":\"address\",\"name\":\"_sequencer\",\"type\":\"address\"}],\"stateMutability\":\"nonpayable\",\"type\":\"constructor\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"address\",\"name\":\"previousOwner\",\"type\":\"address\"},{\"indexed\":true,\"internalType\":\"address\",\"name\":\"newOwner\",\"type\":\"address\"}],\"name\":\"OwnershipTransferred\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"bytes32\",\"name\":\"_l2Output\",\"type\":\"bytes32\"},{\"indexed\":true,\"internalType\":\"uint256\",\"name\":\"_l1Timestamp\",\"type\":\"uint256\"},{\"indexed\":true,\"internalType\":\"uint256\",\"name\":\"_l2BlockNumber\",\"type\":\"uint256\"}],\"name\":\"l2OutputAppended\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"bytes32\",\"name\":\"_l2Output\",\"type\":\"bytes32\"},{\"indexed\":true,\"internalType\":\"uint256\",\"name\":\"_l1Timestamp\",\"type\":\"uint256\"},{\"indexed\":true,\"internalType\":\"uint256\",\"name\":\"_l2BlockNumber\",\"type\":\"uint256\"}],\"name\":\"l2OutputDeleted\",\"type\":\"event\"},{\"inputs\":[],\"name\":\"HISTORICAL_TOTAL_BLOCKS\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"STARTING_BLOCK_NUMBER\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"SUBMISSION_INTERVAL\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"bytes32\",\"name\":\"_l2Output\",\"type\":\"bytes32\"},{\"internalType\":\"uint256\",\"name\":\"_l2BlockNumber\",\"type\":\"uint256\"},{\"internalType\":\"bytes32\",\"name\":\"_l1Blockhash\",\"type\":\"bytes32\"},{\"internalType\":\"uint256\",\"name\":\"_l1BlockNumber\",\"type\":\"uint256\"}],\"name\":\"appendL2Output\",\"outputs\":[],\"stateMutability\":\"payable\",\"type\":\"function\"},{\"inputs\":[{\"components\":[{\"internalType\":\"bytes32\",\"name\":\"outputRoot\",\"type\":\"bytes32\"},{\"internalType\":\"uint256\",\"name\":\"timestamp\",\"type\":\"uint256\"}],\"internalType\":\"structL2OutputOracle.OutputProposal\",\"name\":\"_proposal\",\"type\":\"tuple\"}],\"name\":\"deleteL2Output\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"_l2BlockNumber\",\"type\":\"uint256\"}],\"name\":\"getL2Output\",\"outputs\":[{\"components\":[{\"internalType\":\"bytes32\",\"name\":\"outputRoot\",\"type\":\"bytes32\"},{\"internalType\":\"uint256\",\"name\":\"timestamp\",\"type\":\"uint256\"}],\"internalType\":\"structL2OutputOracle.OutputProposal\",\"name\":\"\",\"type\":\"tuple\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"latestBlockNumber\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"nextBlockNumber\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"owner\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"renounceOwnership\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"newOwner\",\"type\":\"address\"}],\"name\":\"transferOwnership\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"}]",
-	Bin: "0x60e060405234801561001057600080fd5b50604051610d7c380380610d7c83398101604081905261002f916100dc565b6100383361008c565b608085905260a083905260c082905260408051808201825285815242602080830191825260008681526002909152929092209051815590516001918201558290556100828161008c565b5050505050610137565b600080546001600160a01b038381166001600160a01b0319831681178455604051919092169283917f8be0079c531659141344cd1fd0a4f28419497f9722a3daafe3b4186f6b6457e09190a35050565b600080600080600060a086880312156100f457600080fd5b855160208701516040880151606089015160808a0151939850919650945092506001600160a01b038116811461012957600080fd5b809150509295509295909350565b60805160a05160c051610c086101746000396000610131015260006102570152600081816101650152818161052401526108c90152610c086000f3fe6080604052600436106100bc5760003560e01c8063715018a611610074578063a4771aad1161004e578063a4771aad14610245578063dcec334814610279578063f2fde38b1461028e57600080fd5b8063715018a6146101875780638da5cb5b1461019c578063a25ae557146101d157600080fd5b80634599c788116100a55780634599c788146100f65780634ab65d731461011f578063529933df1461015357600080fd5b8063093b3d90146100c157806325188104146100e3575b600080fd5b3480156100cd57600080fd5b506100e16100dc366004610a9f565b6102ae565b005b6100e16100f1366004610b15565b610550565b34801561010257600080fd5b5061010c60015481565b6040519081526020015b60405180910390f35b34801561012b57600080fd5b5061010c7f000000000000000000000000000000000000000000000000000000000000000081565b34801561015f57600080fd5b5061010c7f000000000000000000000000000000000000000000000000000000000000000081565b34801561019357600080fd5b506100e1610838565b3480156101a857600080fd5b5060005460405173ffffffffffffffffffffffffffffffffffffffff9091168152602001610116565b3480156101dd57600080fd5b5061022a6101ec366004610b47565b604080518082019091526000808252602082015250600090815260026020908152604091829020825180840190935280548352600101549082015290565b60408051825181526020928301519281019290925201610116565b34801561025157600080fd5b5061010c7f000000000000000000000000000000000000000000000000000000000000000081565b34801561028557600080fd5b5061010c6108c5565b34801561029a57600080fd5b506100e16102a9366004610b60565b6108fa565b60005473ffffffffffffffffffffffffffffffffffffffff163314610334576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820181905260248201527f4f776e61626c653a2063616c6c6572206973206e6f7420746865206f776e657260448201526064015b60405180910390fd5b6001805460009081526002602090815260409182902082518084019093528054808452930154908201528251909114610415576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152605260248201527f4f75747075744f7261636c653a20546865206f757470757420726f6f7420746f60448201527f2064656c65746520646f6573206e6f74206d6174636820746865206c6174657360648201527f74206f75747075742070726f706f73616c2e0000000000000000000000000000608482015260a40161032b565b80602001518260200151146104d2576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152605060248201527f4f75747075744f7261636c653a205468652074696d657374616d7020746f206460448201527f656c65746520646f6573206e6f74206d6174636820746865206c61746573742060648201527f6f75747075742070726f706f73616c2e00000000000000000000000000000000608482015260a40161032b565b600154602082015182516040517f6897e92e2fea3b89bf0d45ed867487716da71bfa624c6878569d227d736c700990600090a460018054600090815260026020526040812081815582015554610549907f000000000000000000000000000000000000000000000000000000000000000090610bcc565b6001555050565b60005473ffffffffffffffffffffffffffffffffffffffff1633146105d1576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820181905260248201527f4f776e61626c653a2063616c6c6572206973206e6f7420746865206f776e6572604482015260640161032b565b6105d96108c5565b831461068d576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152604760248201527f4f75747075744f7261636c653a20426c6f636b206e756d626572206d7573742060448201527f626520657175616c20746f206e65787420657870656374656420626c6f636b2060648201527f6e756d6265722e00000000000000000000000000000000000000000000000000608482015260a40161032b565b8361071a576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152602c60248201527f4f75747075744f7261636c653a2043616e6e6f74207375626d697420656d707460448201527f79204c32206f75747075742e0000000000000000000000000000000000000000606482015260840161032b565b81156107d657818140146107d6576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152604760248201527f4f75747075744f7261636c653a20426c6f636b6861736820646f6573206e6f7460448201527f206d61746368207468652068617368206174207468652065787065637465642060648201527f6865696768742e00000000000000000000000000000000000000000000000000608482015260a40161032b565b60408051808201825285815242602080830182815260008881526002909252848220935184555160019384015591869055915185929187917f54fbf9b58db0b6543a3a0cb9fbd4e98a7c7b88878978fa125b84a2c7f51d34ba9190a450505050565b60005473ffffffffffffffffffffffffffffffffffffffff1633146108b9576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820181905260248201527f4f776e61626c653a2063616c6c6572206973206e6f7420746865206f776e6572604482015260640161032b565b6108c36000610a2a565b565b60007f00000000000000000000000000000000000000000000000000000000000000006001546108f59190610be3565b905090565b60005473ffffffffffffffffffffffffffffffffffffffff16331461097b576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820181905260248201527f4f776e61626c653a2063616c6c6572206973206e6f7420746865206f776e6572604482015260640161032b565b73ffffffffffffffffffffffffffffffffffffffff8116610a1e576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152602660248201527f4f776e61626c653a206e6577206f776e657220697320746865207a65726f206160448201527f6464726573730000000000000000000000000000000000000000000000000000606482015260840161032b565b610a2781610a2a565b50565b6000805473ffffffffffffffffffffffffffffffffffffffff8381167fffffffffffffffffffffffff0000000000000000000000000000000000000000831681178455604051919092169283917f8be0079c531659141344cd1fd0a4f28419497f9722a3daafe3b4186f6b6457e09190a35050565b600060408284031215610ab157600080fd5b6040516040810181811067ffffffffffffffff82111715610afb577f4e487b7100000000000000000000000000000000000000000000000000000000600052604160045260246000fd5b604052823581526020928301359281019290925250919050565b60008060008060808587031215610b2b57600080fd5b5050823594602084013594506040840135936060013592509050565b600060208284031215610b5957600080fd5b5035919050565b600060208284031215610b7257600080fd5b813573ffffffffffffffffffffffffffffffffffffffff81168114610b9657600080fd5b9392505050565b7f4e487b7100000000000000000000000000000000000000000000000000000000600052601160045260246000fd5b600082821015610bde57610bde610b9d565b500390565b60008219821115610bf657610bf6610b9d565b50019056fea164736f6c634300080a000a",
+	ABI: "[{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"_submissionInterval\",\"type\":\"uint256\"},{\"internalType\":\"bytes32\",\"name\":\"_genesisL2Output\",\"type\":\"bytes32\"},{\"internalType\":\"uint256\",\"name\":\"_historicalTotalBlocks\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"_startingBlockNumber\",\"type\":\"uint256\"},{\"internalType\":\"address\",\"name\":\"_sequencer\",\"type\":\"address\"}],\"stateMutability\":\"nonpayable\",\"type\":\"constructor\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"bytes32\",\"name\":\"_l2Output\",\"type\":\"bytes32\"},{\"indexed\":true,\"internalType\":\"uint256\",\"name\":\"_l1Timestamp\",\"type\":\"uint256\"},{\"indexed\":true,\"internalType\":\"uint256\",\"name\":\"_l2BlockNumber\",\"type\":\"uint256\"}],\"name\":\"L2OutputAppended\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"bytes32\",\"name\":\"_l2Output\",\"type\":\"bytes32\"},{\"indexed\":true,\"internalType\":\"uint256\",\"name\":\"_l1Timestamp\",\"type\":\"uint256\"},{\"indexed\":true,\"internalType\":\"uint256\",\"name\":\"_l2BlockNumber\",\"type\":\"uint256\"}],\"name\":\"L2OutputDeleted\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"address\",\"name\":\"previousOwner\",\"type\":\"address\"},{\"indexed\":true,\"internalType\":\"address\",\"name\":\"newOwner\",\"type\":\"address\"}],\"name\":\"OwnershipTransferred\",\"type\":\"event\"},{\"inputs\":[],\"name\":\"HISTORICAL_TOTAL_BLOCKS\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"STARTING_BLOCK_NUMBER\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"SUBMISSION_INTERVAL\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"bytes32\",\"name\":\"_l2Output\",\"type\":\"bytes32\"},{\"internalType\":\"uint256\",\"name\":\"_l2BlockNumber\",\"type\":\"uint256\"},{\"internalType\":\"bytes32\",\"name\":\"_l1Blockhash\",\"type\":\"bytes32\"},{\"internalType\":\"uint256\",\"name\":\"_l1BlockNumber\",\"type\":\"uint256\"}],\"name\":\"appendL2Output\",\"outputs\":[],\"stateMutability\":\"payable\",\"type\":\"function\"},{\"inputs\":[{\"components\":[{\"internalType\":\"bytes32\",\"name\":\"outputRoot\",\"type\":\"bytes32\"},{\"internalType\":\"uint256\",\"name\":\"timestamp\",\"type\":\"uint256\"}],\"internalType\":\"structL2OutputOracle.OutputProposal\",\"name\":\"_proposal\",\"type\":\"tuple\"}],\"name\":\"deleteL2Output\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"_l2BlockNumber\",\"type\":\"uint256\"}],\"name\":\"getL2Output\",\"outputs\":[{\"components\":[{\"internalType\":\"bytes32\",\"name\":\"outputRoot\",\"type\":\"bytes32\"},{\"internalType\":\"uint256\",\"name\":\"timestamp\",\"type\":\"uint256\"}],\"internalType\":\"structL2OutputOracle.OutputProposal\",\"name\":\"\",\"type\":\"tuple\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"latestBlockNumber\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"nextBlockNumber\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"owner\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"renounceOwnership\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"newOwner\",\"type\":\"address\"}],\"name\":\"transferOwnership\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"}]",
+	Bin: "0x60e060405234801561001057600080fd5b50604051610d7c380380610d7c83398101604081905261002f916100dc565b6100383361008c565b608085905260a083905260c082905260408051808201825285815242602080830191825260008681526002909152929092209051815590516001918201558290556100828161008c565b5050505050610137565b600080546001600160a01b038381166001600160a01b0319831681178455604051919092169283917f8be0079c531659141344cd1fd0a4f28419497f9722a3daafe3b4186f6b6457e09190a35050565b600080600080600060a086880312156100f457600080fd5b855160208701516040880151606089015160808a0151939850919650945092506001600160a01b038116811461012957600080fd5b809150509295509295909350565b60805160a05160c051610c086101746000396000610131015260006102570152600081816101650152818161052401526108c90152610c086000f3fe6080604052600436106100bc5760003560e01c8063715018a611610074578063a4771aad1161004e578063a4771aad14610245578063dcec334814610279578063f2fde38b1461028e57600080fd5b8063715018a6146101875780638da5cb5b1461019c578063a25ae557146101d157600080fd5b80634599c788116100a55780634599c788146100f65780634ab65d731461011f578063529933df1461015357600080fd5b8063093b3d90146100c157806325188104146100e3575b600080fd5b3480156100cd57600080fd5b506100e16100dc366004610a9f565b6102ae565b005b6100e16100f1366004610b15565b610550565b34801561010257600080fd5b5061010c60015481565b6040519081526020015b60405180910390f35b34801561012b57600080fd5b5061010c7f000000000000000000000000000000000000000000000000000000000000000081565b34801561015f57600080fd5b5061010c7f000000000000000000000000000000000000000000000000000000000000000081565b34801561019357600080fd5b506100e1610838565b3480156101a857600080fd5b5060005460405173ffffffffffffffffffffffffffffffffffffffff9091168152602001610116565b3480156101dd57600080fd5b5061022a6101ec366004610b47565b604080518082019091526000808252602082015250600090815260026020908152604091829020825180840190935280548352600101549082015290565b60408051825181526020928301519281019290925201610116565b34801561025157600080fd5b5061010c7f000000000000000000000000000000000000000000000000000000000000000081565b34801561028557600080fd5b5061010c6108c5565b34801561029a57600080fd5b506100e16102a9366004610b60565b6108fa565b60005473ffffffffffffffffffffffffffffffffffffffff163314610334576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820181905260248201527f4f776e61626c653a2063616c6c6572206973206e6f7420746865206f776e657260448201526064015b60405180910390fd5b6001805460009081526002602090815260409182902082518084019093528054808452930154908201528251909114610415576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152605260248201527f4f75747075744f7261636c653a20546865206f757470757420726f6f7420746f60448201527f2064656c65746520646f6573206e6f74206d6174636820746865206c6174657360648201527f74206f75747075742070726f706f73616c2e0000000000000000000000000000608482015260a40161032b565b80602001518260200151146104d2576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152605060248201527f4f75747075744f7261636c653a205468652074696d657374616d7020746f206460448201527f656c65746520646f6573206e6f74206d6174636820746865206c61746573742060648201527f6f75747075742070726f706f73616c2e00000000000000000000000000000000608482015260a40161032b565b600154602082015182516040517f7320566fd5256cf8923648a5d9f560f1e92f1435a1bb32ddd1fe107f224ad35990600090a460018054600090815260026020526040812081815582015554610549907f000000000000000000000000000000000000000000000000000000000000000090610bcc565b6001555050565b60005473ffffffffffffffffffffffffffffffffffffffff1633146105d1576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820181905260248201527f4f776e61626c653a2063616c6c6572206973206e6f7420746865206f776e6572604482015260640161032b565b6105d96108c5565b831461068d576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152604760248201527f4f75747075744f7261636c653a20426c6f636b206e756d626572206d7573742060448201527f626520657175616c20746f206e65787420657870656374656420626c6f636b2060648201527f6e756d6265722e00000000000000000000000000000000000000000000000000608482015260a40161032b565b8361071a576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152602c60248201527f4f75747075744f7261636c653a2043616e6e6f74207375626d697420656d707460448201527f79204c32206f75747075742e0000000000000000000000000000000000000000606482015260840161032b565b81156107d657818140146107d6576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152604760248201527f4f75747075744f7261636c653a20426c6f636b6861736820646f6573206e6f7460448201527f206d61746368207468652068617368206174207468652065787065637465642060648201527f6865696768742e00000000000000000000000000000000000000000000000000608482015260a40161032b565b60408051808201825285815242602080830182815260008881526002909252848220935184555160019384015591869055915185929187917fd6703ded1701060d9ae1793db76d594790a4e775781225f79b5aa8a77987c0809190a450505050565b60005473ffffffffffffffffffffffffffffffffffffffff1633146108b9576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820181905260248201527f4f776e61626c653a2063616c6c6572206973206e6f7420746865206f776e6572604482015260640161032b565b6108c36000610a2a565b565b60007f00000000000000000000000000000000000000000000000000000000000000006001546108f59190610be3565b905090565b60005473ffffffffffffffffffffffffffffffffffffffff16331461097b576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820181905260248201527f4f776e61626c653a2063616c6c6572206973206e6f7420746865206f776e6572604482015260640161032b565b73ffffffffffffffffffffffffffffffffffffffff8116610a1e576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152602660248201527f4f776e61626c653a206e6577206f776e657220697320746865207a65726f206160448201527f6464726573730000000000000000000000000000000000000000000000000000606482015260840161032b565b610a2781610a2a565b50565b6000805473ffffffffffffffffffffffffffffffffffffffff8381167fffffffffffffffffffffffff0000000000000000000000000000000000000000831681178455604051919092169283917f8be0079c531659141344cd1fd0a4f28419497f9722a3daafe3b4186f6b6457e09190a35050565b600060408284031215610ab157600080fd5b6040516040810181811067ffffffffffffffff82111715610afb577f4e487b7100000000000000000000000000000000000000000000000000000000600052604160045260246000fd5b604052823581526020928301359281019290925250919050565b60008060008060808587031215610b2b57600080fd5b5050823594602084013594506040840135936060013592509050565b600060208284031215610b5957600080fd5b5035919050565b600060208284031215610b7257600080fd5b813573ffffffffffffffffffffffffffffffffffffffff81168114610b9657600080fd5b9392505050565b7f4e487b7100000000000000000000000000000000000000000000000000000000600052601160045260246000fd5b600082821015610bde57610bde610b9d565b500390565b60008219821115610bf657610bf6610b9d565b50019056fea164736f6c634300080a000a",
 }
 
 // L2OutputOracleABI is the input ABI used to generate the binding from.
@@ -508,6 +508,330 @@ func (_L2OutputOracle *L2OutputOracleTransactorSession) TransferOwnership(newOwn
 	return _L2OutputOracle.Contract.TransferOwnership(&_L2OutputOracle.TransactOpts, newOwner)
 }
 
+// L2OutputOracleL2OutputAppendedIterator is returned from FilterL2OutputAppended and is used to iterate over the raw logs and unpacked data for L2OutputAppended events raised by the L2OutputOracle contract.
+type L2OutputOracleL2OutputAppendedIterator struct {
+	Event *L2OutputOracleL2OutputAppended // Event containing the contract specifics and raw log
+
+	contract *bind.BoundContract // Generic contract to use for unpacking event data
+	event    string              // Event name to use for unpacking event data
+
+	logs chan types.Log        // Log channel receiving the found contract events
+	sub  ethereum.Subscription // Subscription for errors, completion and termination
+	done bool                  // Whether the subscription completed delivering logs
+	fail error                 // Occurred error to stop iteration
+}
+
+// Next advances the iterator to the subsequent event, returning whether there
+// are any more events found. In case of a retrieval or parsing error, false is
+// returned and Error() can be queried for the exact failure.
+func (it *L2OutputOracleL2OutputAppendedIterator) Next() bool {
+	// If the iterator failed, stop iterating
+	if it.fail != nil {
+		return false
+	}
+	// If the iterator completed, deliver directly whatever's available
+	if it.done {
+		select {
+		case log := <-it.logs:
+			it.Event = new(L2OutputOracleL2OutputAppended)
+			if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
+				it.fail = err
+				return false
+			}
+			it.Event.Raw = log
+			return true
+
+		default:
+			return false
+		}
+	}
+	// Iterator still in progress, wait for either a data or an error event
+	select {
+	case log := <-it.logs:
+		it.Event = new(L2OutputOracleL2OutputAppended)
+		if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
+			it.fail = err
+			return false
+		}
+		it.Event.Raw = log
+		return true
+
+	case err := <-it.sub.Err():
+		it.done = true
+		it.fail = err
+		return it.Next()
+	}
+}
+
+// Error returns any retrieval or parsing error occurred during filtering.
+func (it *L2OutputOracleL2OutputAppendedIterator) Error() error {
+	return it.fail
+}
+
+// Close terminates the iteration process, releasing any pending underlying
+// resources.
+func (it *L2OutputOracleL2OutputAppendedIterator) Close() error {
+	it.sub.Unsubscribe()
+	return nil
+}
+
+// L2OutputOracleL2OutputAppended represents a L2OutputAppended event raised by the L2OutputOracle contract.
+type L2OutputOracleL2OutputAppended struct {
+	L2Output      [32]byte
+	L1Timestamp   *big.Int
+	L2BlockNumber *big.Int
+	Raw           types.Log // Blockchain specific contextual infos
+}
+
+// FilterL2OutputAppended is a free log retrieval operation binding the contract event 0xd6703ded1701060d9ae1793db76d594790a4e775781225f79b5aa8a77987c080.
+//
+// Solidity: event L2OutputAppended(bytes32 indexed _l2Output, uint256 indexed _l1Timestamp, uint256 indexed _l2BlockNumber)
+func (_L2OutputOracle *L2OutputOracleFilterer) FilterL2OutputAppended(opts *bind.FilterOpts, _l2Output [][32]byte, _l1Timestamp []*big.Int, _l2BlockNumber []*big.Int) (*L2OutputOracleL2OutputAppendedIterator, error) {
+
+	var _l2OutputRule []interface{}
+	for _, _l2OutputItem := range _l2Output {
+		_l2OutputRule = append(_l2OutputRule, _l2OutputItem)
+	}
+	var _l1TimestampRule []interface{}
+	for _, _l1TimestampItem := range _l1Timestamp {
+		_l1TimestampRule = append(_l1TimestampRule, _l1TimestampItem)
+	}
+	var _l2BlockNumberRule []interface{}
+	for _, _l2BlockNumberItem := range _l2BlockNumber {
+		_l2BlockNumberRule = append(_l2BlockNumberRule, _l2BlockNumberItem)
+	}
+
+	logs, sub, err := _L2OutputOracle.contract.FilterLogs(opts, "L2OutputAppended", _l2OutputRule, _l1TimestampRule, _l2BlockNumberRule)
+	if err != nil {
+		return nil, err
+	}
+	return &L2OutputOracleL2OutputAppendedIterator{contract: _L2OutputOracle.contract, event: "L2OutputAppended", logs: logs, sub: sub}, nil
+}
+
+// WatchL2OutputAppended is a free log subscription operation binding the contract event 0xd6703ded1701060d9ae1793db76d594790a4e775781225f79b5aa8a77987c080.
+//
+// Solidity: event L2OutputAppended(bytes32 indexed _l2Output, uint256 indexed _l1Timestamp, uint256 indexed _l2BlockNumber)
+func (_L2OutputOracle *L2OutputOracleFilterer) WatchL2OutputAppended(opts *bind.WatchOpts, sink chan<- *L2OutputOracleL2OutputAppended, _l2Output [][32]byte, _l1Timestamp []*big.Int, _l2BlockNumber []*big.Int) (event.Subscription, error) {
+
+	var _l2OutputRule []interface{}
+	for _, _l2OutputItem := range _l2Output {
+		_l2OutputRule = append(_l2OutputRule, _l2OutputItem)
+	}
+	var _l1TimestampRule []interface{}
+	for _, _l1TimestampItem := range _l1Timestamp {
+		_l1TimestampRule = append(_l1TimestampRule, _l1TimestampItem)
+	}
+	var _l2BlockNumberRule []interface{}
+	for _, _l2BlockNumberItem := range _l2BlockNumber {
+		_l2BlockNumberRule = append(_l2BlockNumberRule, _l2BlockNumberItem)
+	}
+
+	logs, sub, err := _L2OutputOracle.contract.WatchLogs(opts, "L2OutputAppended", _l2OutputRule, _l1TimestampRule, _l2BlockNumberRule)
+	if err != nil {
+		return nil, err
+	}
+	return event.NewSubscription(func(quit <-chan struct{}) error {
+		defer sub.Unsubscribe()
+		for {
+			select {
+			case log := <-logs:
+				// New log arrived, parse the event and forward to the user
+				event := new(L2OutputOracleL2OutputAppended)
+				if err := _L2OutputOracle.contract.UnpackLog(event, "L2OutputAppended", log); err != nil {
+					return err
+				}
+				event.Raw = log
+
+				select {
+				case sink <- event:
+				case err := <-sub.Err():
+					return err
+				case <-quit:
+					return nil
+				}
+			case err := <-sub.Err():
+				return err
+			case <-quit:
+				return nil
+			}
+		}
+	}), nil
+}
+
+// ParseL2OutputAppended is a log parse operation binding the contract event 0xd6703ded1701060d9ae1793db76d594790a4e775781225f79b5aa8a77987c080.
+//
+// Solidity: event L2OutputAppended(bytes32 indexed _l2Output, uint256 indexed _l1Timestamp, uint256 indexed _l2BlockNumber)
+func (_L2OutputOracle *L2OutputOracleFilterer) ParseL2OutputAppended(log types.Log) (*L2OutputOracleL2OutputAppended, error) {
+	event := new(L2OutputOracleL2OutputAppended)
+	if err := _L2OutputOracle.contract.UnpackLog(event, "L2OutputAppended", log); err != nil {
+		return nil, err
+	}
+	event.Raw = log
+	return event, nil
+}
+
+// L2OutputOracleL2OutputDeletedIterator is returned from FilterL2OutputDeleted and is used to iterate over the raw logs and unpacked data for L2OutputDeleted events raised by the L2OutputOracle contract.
+type L2OutputOracleL2OutputDeletedIterator struct {
+	Event *L2OutputOracleL2OutputDeleted // Event containing the contract specifics and raw log
+
+	contract *bind.BoundContract // Generic contract to use for unpacking event data
+	event    string              // Event name to use for unpacking event data
+
+	logs chan types.Log        // Log channel receiving the found contract events
+	sub  ethereum.Subscription // Subscription for errors, completion and termination
+	done bool                  // Whether the subscription completed delivering logs
+	fail error                 // Occurred error to stop iteration
+}
+
+// Next advances the iterator to the subsequent event, returning whether there
+// are any more events found. In case of a retrieval or parsing error, false is
+// returned and Error() can be queried for the exact failure.
+func (it *L2OutputOracleL2OutputDeletedIterator) Next() bool {
+	// If the iterator failed, stop iterating
+	if it.fail != nil {
+		return false
+	}
+	// If the iterator completed, deliver directly whatever's available
+	if it.done {
+		select {
+		case log := <-it.logs:
+			it.Event = new(L2OutputOracleL2OutputDeleted)
+			if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
+				it.fail = err
+				return false
+			}
+			it.Event.Raw = log
+			return true
+
+		default:
+			return false
+		}
+	}
+	// Iterator still in progress, wait for either a data or an error event
+	select {
+	case log := <-it.logs:
+		it.Event = new(L2OutputOracleL2OutputDeleted)
+		if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
+			it.fail = err
+			return false
+		}
+		it.Event.Raw = log
+		return true
+
+	case err := <-it.sub.Err():
+		it.done = true
+		it.fail = err
+		return it.Next()
+	}
+}
+
+// Error returns any retrieval or parsing error occurred during filtering.
+func (it *L2OutputOracleL2OutputDeletedIterator) Error() error {
+	return it.fail
+}
+
+// Close terminates the iteration process, releasing any pending underlying
+// resources.
+func (it *L2OutputOracleL2OutputDeletedIterator) Close() error {
+	it.sub.Unsubscribe()
+	return nil
+}
+
+// L2OutputOracleL2OutputDeleted represents a L2OutputDeleted event raised by the L2OutputOracle contract.
+type L2OutputOracleL2OutputDeleted struct {
+	L2Output      [32]byte
+	L1Timestamp   *big.Int
+	L2BlockNumber *big.Int
+	Raw           types.Log // Blockchain specific contextual infos
+}
+
+// FilterL2OutputDeleted is a free log retrieval operation binding the contract event 0x7320566fd5256cf8923648a5d9f560f1e92f1435a1bb32ddd1fe107f224ad359.
+//
+// Solidity: event L2OutputDeleted(bytes32 indexed _l2Output, uint256 indexed _l1Timestamp, uint256 indexed _l2BlockNumber)
+func (_L2OutputOracle *L2OutputOracleFilterer) FilterL2OutputDeleted(opts *bind.FilterOpts, _l2Output [][32]byte, _l1Timestamp []*big.Int, _l2BlockNumber []*big.Int) (*L2OutputOracleL2OutputDeletedIterator, error) {
+
+	var _l2OutputRule []interface{}
+	for _, _l2OutputItem := range _l2Output {
+		_l2OutputRule = append(_l2OutputRule, _l2OutputItem)
+	}
+	var _l1TimestampRule []interface{}
+	for _, _l1TimestampItem := range _l1Timestamp {
+		_l1TimestampRule = append(_l1TimestampRule, _l1TimestampItem)
+	}
+	var _l2BlockNumberRule []interface{}
+	for _, _l2BlockNumberItem := range _l2BlockNumber {
+		_l2BlockNumberRule = append(_l2BlockNumberRule, _l2BlockNumberItem)
+	}
+
+	logs, sub, err := _L2OutputOracle.contract.FilterLogs(opts, "L2OutputDeleted", _l2OutputRule, _l1TimestampRule, _l2BlockNumberRule)
+	if err != nil {
+		return nil, err
+	}
+	return &L2OutputOracleL2OutputDeletedIterator{contract: _L2OutputOracle.contract, event: "L2OutputDeleted", logs: logs, sub: sub}, nil
+}
+
+// WatchL2OutputDeleted is a free log subscription operation binding the contract event 0x7320566fd5256cf8923648a5d9f560f1e92f1435a1bb32ddd1fe107f224ad359.
+//
+// Solidity: event L2OutputDeleted(bytes32 indexed _l2Output, uint256 indexed _l1Timestamp, uint256 indexed _l2BlockNumber)
+func (_L2OutputOracle *L2OutputOracleFilterer) WatchL2OutputDeleted(opts *bind.WatchOpts, sink chan<- *L2OutputOracleL2OutputDeleted, _l2Output [][32]byte, _l1Timestamp []*big.Int, _l2BlockNumber []*big.Int) (event.Subscription, error) {
+
+	var _l2OutputRule []interface{}
+	for _, _l2OutputItem := range _l2Output {
+		_l2OutputRule = append(_l2OutputRule, _l2OutputItem)
+	}
+	var _l1TimestampRule []interface{}
+	for _, _l1TimestampItem := range _l1Timestamp {
+		_l1TimestampRule = append(_l1TimestampRule, _l1TimestampItem)
+	}
+	var _l2BlockNumberRule []interface{}
+	for _, _l2BlockNumberItem := range _l2BlockNumber {
+		_l2BlockNumberRule = append(_l2BlockNumberRule, _l2BlockNumberItem)
+	}
+
+	logs, sub, err := _L2OutputOracle.contract.WatchLogs(opts, "L2OutputDeleted", _l2OutputRule, _l1TimestampRule, _l2BlockNumberRule)
+	if err != nil {
+		return nil, err
+	}
+	return event.NewSubscription(func(quit <-chan struct{}) error {
+		defer sub.Unsubscribe()
+		for {
+			select {
+			case log := <-logs:
+				// New log arrived, parse the event and forward to the user
+				event := new(L2OutputOracleL2OutputDeleted)
+				if err := _L2OutputOracle.contract.UnpackLog(event, "L2OutputDeleted", log); err != nil {
+					return err
+				}
+				event.Raw = log
+
+				select {
+				case sink <- event:
+				case err := <-sub.Err():
+					return err
+				case <-quit:
+					return nil
+				}
+			case err := <-sub.Err():
+				return err
+			case <-quit:
+				return nil
+			}
+		}
+	}), nil
+}
+
+// ParseL2OutputDeleted is a log parse operation binding the contract event 0x7320566fd5256cf8923648a5d9f560f1e92f1435a1bb32ddd1fe107f224ad359.
+//
+// Solidity: event L2OutputDeleted(bytes32 indexed _l2Output, uint256 indexed _l1Timestamp, uint256 indexed _l2BlockNumber)
+func (_L2OutputOracle *L2OutputOracleFilterer) ParseL2OutputDeleted(log types.Log) (*L2OutputOracleL2OutputDeleted, error) {
+	event := new(L2OutputOracleL2OutputDeleted)
+	if err := _L2OutputOracle.contract.UnpackLog(event, "L2OutputDeleted", log); err != nil {
+		return nil, err
+	}
+	event.Raw = log
+	return event, nil
+}
+
 // L2OutputOracleOwnershipTransferredIterator is returned from FilterOwnershipTransferred and is used to iterate over the raw logs and unpacked data for OwnershipTransferred events raised by the L2OutputOracle contract.
 type L2OutputOracleOwnershipTransferredIterator struct {
 	Event *L2OutputOracleOwnershipTransferred // Event containing the contract specifics and raw log
@@ -655,330 +979,6 @@ func (_L2OutputOracle *L2OutputOracleFilterer) WatchOwnershipTransferred(opts *b
 func (_L2OutputOracle *L2OutputOracleFilterer) ParseOwnershipTransferred(log types.Log) (*L2OutputOracleOwnershipTransferred, error) {
 	event := new(L2OutputOracleOwnershipTransferred)
 	if err := _L2OutputOracle.contract.UnpackLog(event, "OwnershipTransferred", log); err != nil {
-		return nil, err
-	}
-	event.Raw = log
-	return event, nil
-}
-
-// L2OutputOracleL2OutputAppendedIterator is returned from FilterL2OutputAppended and is used to iterate over the raw logs and unpacked data for L2OutputAppended events raised by the L2OutputOracle contract.
-type L2OutputOracleL2OutputAppendedIterator struct {
-	Event *L2OutputOracleL2OutputAppended // Event containing the contract specifics and raw log
-
-	contract *bind.BoundContract // Generic contract to use for unpacking event data
-	event    string              // Event name to use for unpacking event data
-
-	logs chan types.Log        // Log channel receiving the found contract events
-	sub  ethereum.Subscription // Subscription for errors, completion and termination
-	done bool                  // Whether the subscription completed delivering logs
-	fail error                 // Occurred error to stop iteration
-}
-
-// Next advances the iterator to the subsequent event, returning whether there
-// are any more events found. In case of a retrieval or parsing error, false is
-// returned and Error() can be queried for the exact failure.
-func (it *L2OutputOracleL2OutputAppendedIterator) Next() bool {
-	// If the iterator failed, stop iterating
-	if it.fail != nil {
-		return false
-	}
-	// If the iterator completed, deliver directly whatever's available
-	if it.done {
-		select {
-		case log := <-it.logs:
-			it.Event = new(L2OutputOracleL2OutputAppended)
-			if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
-				it.fail = err
-				return false
-			}
-			it.Event.Raw = log
-			return true
-
-		default:
-			return false
-		}
-	}
-	// Iterator still in progress, wait for either a data or an error event
-	select {
-	case log := <-it.logs:
-		it.Event = new(L2OutputOracleL2OutputAppended)
-		if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
-			it.fail = err
-			return false
-		}
-		it.Event.Raw = log
-		return true
-
-	case err := <-it.sub.Err():
-		it.done = true
-		it.fail = err
-		return it.Next()
-	}
-}
-
-// Error returns any retrieval or parsing error occurred during filtering.
-func (it *L2OutputOracleL2OutputAppendedIterator) Error() error {
-	return it.fail
-}
-
-// Close terminates the iteration process, releasing any pending underlying
-// resources.
-func (it *L2OutputOracleL2OutputAppendedIterator) Close() error {
-	it.sub.Unsubscribe()
-	return nil
-}
-
-// L2OutputOracleL2OutputAppended represents a L2OutputAppended event raised by the L2OutputOracle contract.
-type L2OutputOracleL2OutputAppended struct {
-	L2Output      [32]byte
-	L1Timestamp   *big.Int
-	L2BlockNumber *big.Int
-	Raw           types.Log // Blockchain specific contextual infos
-}
-
-// FilterL2OutputAppended is a free log retrieval operation binding the contract event 0x54fbf9b58db0b6543a3a0cb9fbd4e98a7c7b88878978fa125b84a2c7f51d34ba.
-//
-// Solidity: event l2OutputAppended(bytes32 indexed _l2Output, uint256 indexed _l1Timestamp, uint256 indexed _l2BlockNumber)
-func (_L2OutputOracle *L2OutputOracleFilterer) FilterL2OutputAppended(opts *bind.FilterOpts, _l2Output [][32]byte, _l1Timestamp []*big.Int, _l2BlockNumber []*big.Int) (*L2OutputOracleL2OutputAppendedIterator, error) {
-
-	var _l2OutputRule []interface{}
-	for _, _l2OutputItem := range _l2Output {
-		_l2OutputRule = append(_l2OutputRule, _l2OutputItem)
-	}
-	var _l1TimestampRule []interface{}
-	for _, _l1TimestampItem := range _l1Timestamp {
-		_l1TimestampRule = append(_l1TimestampRule, _l1TimestampItem)
-	}
-	var _l2BlockNumberRule []interface{}
-	for _, _l2BlockNumberItem := range _l2BlockNumber {
-		_l2BlockNumberRule = append(_l2BlockNumberRule, _l2BlockNumberItem)
-	}
-
-	logs, sub, err := _L2OutputOracle.contract.FilterLogs(opts, "l2OutputAppended", _l2OutputRule, _l1TimestampRule, _l2BlockNumberRule)
-	if err != nil {
-		return nil, err
-	}
-	return &L2OutputOracleL2OutputAppendedIterator{contract: _L2OutputOracle.contract, event: "l2OutputAppended", logs: logs, sub: sub}, nil
-}
-
-// WatchL2OutputAppended is a free log subscription operation binding the contract event 0x54fbf9b58db0b6543a3a0cb9fbd4e98a7c7b88878978fa125b84a2c7f51d34ba.
-//
-// Solidity: event l2OutputAppended(bytes32 indexed _l2Output, uint256 indexed _l1Timestamp, uint256 indexed _l2BlockNumber)
-func (_L2OutputOracle *L2OutputOracleFilterer) WatchL2OutputAppended(opts *bind.WatchOpts, sink chan<- *L2OutputOracleL2OutputAppended, _l2Output [][32]byte, _l1Timestamp []*big.Int, _l2BlockNumber []*big.Int) (event.Subscription, error) {
-
-	var _l2OutputRule []interface{}
-	for _, _l2OutputItem := range _l2Output {
-		_l2OutputRule = append(_l2OutputRule, _l2OutputItem)
-	}
-	var _l1TimestampRule []interface{}
-	for _, _l1TimestampItem := range _l1Timestamp {
-		_l1TimestampRule = append(_l1TimestampRule, _l1TimestampItem)
-	}
-	var _l2BlockNumberRule []interface{}
-	for _, _l2BlockNumberItem := range _l2BlockNumber {
-		_l2BlockNumberRule = append(_l2BlockNumberRule, _l2BlockNumberItem)
-	}
-
-	logs, sub, err := _L2OutputOracle.contract.WatchLogs(opts, "l2OutputAppended", _l2OutputRule, _l1TimestampRule, _l2BlockNumberRule)
-	if err != nil {
-		return nil, err
-	}
-	return event.NewSubscription(func(quit <-chan struct{}) error {
-		defer sub.Unsubscribe()
-		for {
-			select {
-			case log := <-logs:
-				// New log arrived, parse the event and forward to the user
-				event := new(L2OutputOracleL2OutputAppended)
-				if err := _L2OutputOracle.contract.UnpackLog(event, "l2OutputAppended", log); err != nil {
-					return err
-				}
-				event.Raw = log
-
-				select {
-				case sink <- event:
-				case err := <-sub.Err():
-					return err
-				case <-quit:
-					return nil
-				}
-			case err := <-sub.Err():
-				return err
-			case <-quit:
-				return nil
-			}
-		}
-	}), nil
-}
-
-// ParseL2OutputAppended is a log parse operation binding the contract event 0x54fbf9b58db0b6543a3a0cb9fbd4e98a7c7b88878978fa125b84a2c7f51d34ba.
-//
-// Solidity: event l2OutputAppended(bytes32 indexed _l2Output, uint256 indexed _l1Timestamp, uint256 indexed _l2BlockNumber)
-func (_L2OutputOracle *L2OutputOracleFilterer) ParseL2OutputAppended(log types.Log) (*L2OutputOracleL2OutputAppended, error) {
-	event := new(L2OutputOracleL2OutputAppended)
-	if err := _L2OutputOracle.contract.UnpackLog(event, "l2OutputAppended", log); err != nil {
-		return nil, err
-	}
-	event.Raw = log
-	return event, nil
-}
-
-// L2OutputOracleL2OutputDeletedIterator is returned from FilterL2OutputDeleted and is used to iterate over the raw logs and unpacked data for L2OutputDeleted events raised by the L2OutputOracle contract.
-type L2OutputOracleL2OutputDeletedIterator struct {
-	Event *L2OutputOracleL2OutputDeleted // Event containing the contract specifics and raw log
-
-	contract *bind.BoundContract // Generic contract to use for unpacking event data
-	event    string              // Event name to use for unpacking event data
-
-	logs chan types.Log        // Log channel receiving the found contract events
-	sub  ethereum.Subscription // Subscription for errors, completion and termination
-	done bool                  // Whether the subscription completed delivering logs
-	fail error                 // Occurred error to stop iteration
-}
-
-// Next advances the iterator to the subsequent event, returning whether there
-// are any more events found. In case of a retrieval or parsing error, false is
-// returned and Error() can be queried for the exact failure.
-func (it *L2OutputOracleL2OutputDeletedIterator) Next() bool {
-	// If the iterator failed, stop iterating
-	if it.fail != nil {
-		return false
-	}
-	// If the iterator completed, deliver directly whatever's available
-	if it.done {
-		select {
-		case log := <-it.logs:
-			it.Event = new(L2OutputOracleL2OutputDeleted)
-			if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
-				it.fail = err
-				return false
-			}
-			it.Event.Raw = log
-			return true
-
-		default:
-			return false
-		}
-	}
-	// Iterator still in progress, wait for either a data or an error event
-	select {
-	case log := <-it.logs:
-		it.Event = new(L2OutputOracleL2OutputDeleted)
-		if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
-			it.fail = err
-			return false
-		}
-		it.Event.Raw = log
-		return true
-
-	case err := <-it.sub.Err():
-		it.done = true
-		it.fail = err
-		return it.Next()
-	}
-}
-
-// Error returns any retrieval or parsing error occurred during filtering.
-func (it *L2OutputOracleL2OutputDeletedIterator) Error() error {
-	return it.fail
-}
-
-// Close terminates the iteration process, releasing any pending underlying
-// resources.
-func (it *L2OutputOracleL2OutputDeletedIterator) Close() error {
-	it.sub.Unsubscribe()
-	return nil
-}
-
-// L2OutputOracleL2OutputDeleted represents a L2OutputDeleted event raised by the L2OutputOracle contract.
-type L2OutputOracleL2OutputDeleted struct {
-	L2Output      [32]byte
-	L1Timestamp   *big.Int
-	L2BlockNumber *big.Int
-	Raw           types.Log // Blockchain specific contextual infos
-}
-
-// FilterL2OutputDeleted is a free log retrieval operation binding the contract event 0x6897e92e2fea3b89bf0d45ed867487716da71bfa624c6878569d227d736c7009.
-//
-// Solidity: event l2OutputDeleted(bytes32 indexed _l2Output, uint256 indexed _l1Timestamp, uint256 indexed _l2BlockNumber)
-func (_L2OutputOracle *L2OutputOracleFilterer) FilterL2OutputDeleted(opts *bind.FilterOpts, _l2Output [][32]byte, _l1Timestamp []*big.Int, _l2BlockNumber []*big.Int) (*L2OutputOracleL2OutputDeletedIterator, error) {
-
-	var _l2OutputRule []interface{}
-	for _, _l2OutputItem := range _l2Output {
-		_l2OutputRule = append(_l2OutputRule, _l2OutputItem)
-	}
-	var _l1TimestampRule []interface{}
-	for _, _l1TimestampItem := range _l1Timestamp {
-		_l1TimestampRule = append(_l1TimestampRule, _l1TimestampItem)
-	}
-	var _l2BlockNumberRule []interface{}
-	for _, _l2BlockNumberItem := range _l2BlockNumber {
-		_l2BlockNumberRule = append(_l2BlockNumberRule, _l2BlockNumberItem)
-	}
-
-	logs, sub, err := _L2OutputOracle.contract.FilterLogs(opts, "l2OutputDeleted", _l2OutputRule, _l1TimestampRule, _l2BlockNumberRule)
-	if err != nil {
-		return nil, err
-	}
-	return &L2OutputOracleL2OutputDeletedIterator{contract: _L2OutputOracle.contract, event: "l2OutputDeleted", logs: logs, sub: sub}, nil
-}
-
-// WatchL2OutputDeleted is a free log subscription operation binding the contract event 0x6897e92e2fea3b89bf0d45ed867487716da71bfa624c6878569d227d736c7009.
-//
-// Solidity: event l2OutputDeleted(bytes32 indexed _l2Output, uint256 indexed _l1Timestamp, uint256 indexed _l2BlockNumber)
-func (_L2OutputOracle *L2OutputOracleFilterer) WatchL2OutputDeleted(opts *bind.WatchOpts, sink chan<- *L2OutputOracleL2OutputDeleted, _l2Output [][32]byte, _l1Timestamp []*big.Int, _l2BlockNumber []*big.Int) (event.Subscription, error) {
-
-	var _l2OutputRule []interface{}
-	for _, _l2OutputItem := range _l2Output {
-		_l2OutputRule = append(_l2OutputRule, _l2OutputItem)
-	}
-	var _l1TimestampRule []interface{}
-	for _, _l1TimestampItem := range _l1Timestamp {
-		_l1TimestampRule = append(_l1TimestampRule, _l1TimestampItem)
-	}
-	var _l2BlockNumberRule []interface{}
-	for _, _l2BlockNumberItem := range _l2BlockNumber {
-		_l2BlockNumberRule = append(_l2BlockNumberRule, _l2BlockNumberItem)
-	}
-
-	logs, sub, err := _L2OutputOracle.contract.WatchLogs(opts, "l2OutputDeleted", _l2OutputRule, _l1TimestampRule, _l2BlockNumberRule)
-	if err != nil {
-		return nil, err
-	}
-	return event.NewSubscription(func(quit <-chan struct{}) error {
-		defer sub.Unsubscribe()
-		for {
-			select {
-			case log := <-logs:
-				// New log arrived, parse the event and forward to the user
-				event := new(L2OutputOracleL2OutputDeleted)
-				if err := _L2OutputOracle.contract.UnpackLog(event, "l2OutputDeleted", log); err != nil {
-					return err
-				}
-				event.Raw = log
-
-				select {
-				case sink <- event:
-				case err := <-sub.Err():
-					return err
-				case <-quit:
-					return nil
-				}
-			case err := <-sub.Err():
-				return err
-			case <-quit:
-				return nil
-			}
-		}
-	}), nil
-}
-
-// ParseL2OutputDeleted is a log parse operation binding the contract event 0x6897e92e2fea3b89bf0d45ed867487716da71bfa624c6878569d227d736c7009.
-//
-// Solidity: event l2OutputDeleted(bytes32 indexed _l2Output, uint256 indexed _l1Timestamp, uint256 indexed _l2BlockNumber)
-func (_L2OutputOracle *L2OutputOracleFilterer) ParseL2OutputDeleted(log types.Log) (*L2OutputOracleL2OutputDeleted, error) {
-	event := new(L2OutputOracleL2OutputDeleted)
-	if err := _L2OutputOracle.contract.UnpackLog(event, "l2OutputDeleted", log); err != nil {
 		return nil, err
 	}
 	event.Raw = log
