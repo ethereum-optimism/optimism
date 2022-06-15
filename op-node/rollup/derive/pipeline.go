@@ -63,7 +63,7 @@ type EngineQueueStage interface {
 	AddUnsafePayload(payload *eth.ExecutionPayload)
 
 	Step(ctx context.Context) error
-	Reset(safeHead eth.L2BlockRef)
+	Reset(safeHead eth.L2BlockRef, unsafeL2Head eth.L2BlockRef)
 }
 
 // DerivationPipeline is updated with new L1 data, and the Step() function can be iterated on to keep the L2 Engine in sync.
@@ -92,7 +92,7 @@ func NewDerivationPipeline(log log.Logger, cfg *rollup.Config, l1Src L1Fetcher, 
 	}
 }
 
-func (dp *DerivationPipeline) Reset(ctx context.Context, l2SafeHead eth.L2BlockRef) error {
+func (dp *DerivationPipeline) Reset(ctx context.Context, l2SafeHead eth.L2BlockRef, unsafeL2Head eth.L2BlockRef) error {
 	l1SafeHead, err := dp.l1InfoSrc.L1BlockRefByHash(ctx, l2SafeHead.L1Origin.Hash)
 	if err != nil {
 		return fmt.Errorf("failed to find L1 reference corresponding to L1 origin %s of L2 block %s: %v", l2SafeHead.L1Origin, l2SafeHead.ID(), err)
@@ -107,7 +107,7 @@ func (dp *DerivationPipeline) Reset(ctx context.Context, l2SafeHead eth.L2BlockR
 	dp.bank.Reset(bankStart)
 	dp.chInReader.Reset(l1SafeHead)
 	dp.batchQueue.Reset(l1SafeHead)
-	dp.engineQueue.Reset(l2SafeHead)
+	dp.engineQueue.Reset(l2SafeHead, unsafeL2Head)
 	return nil
 }
 

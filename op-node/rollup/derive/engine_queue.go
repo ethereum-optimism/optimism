@@ -45,9 +45,9 @@ func NewEngineQueue(log log.Logger, cfg *rollup.Config, engine Engine) *EngineQu
 	return &EngineQueue{log: log, cfg: cfg, engine: engine}
 }
 
-func (eq *EngineQueue) Reset(safeHead eth.L2BlockRef) {
+func (eq *EngineQueue) Reset(safeHead eth.L2BlockRef, unsafeL2Head eth.L2BlockRef) {
 	eq.safeHead = safeHead
-	eq.unsafeHead = safeHead
+	eq.unsafeHead = unsafeL2Head
 }
 
 func (eq *EngineQueue) AddUnsafePayload(payload *eth.ExecutionPayload) {

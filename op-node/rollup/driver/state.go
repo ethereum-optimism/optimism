@@ -16,7 +16,7 @@ import (
 )
 
 type DerivationPipeline interface {
-	Reset(ctx context.Context, l2SafeHead eth.L2BlockRef) error
+	Reset(ctx context.Context, l2SafeHead eth.L2BlockRef, unsafeL2Head eth.L2BlockRef) error
 	Step(ctx context.Context) error
 	AddUnsafePayload(payload *eth.ExecutionPayload)
 	Finalized() eth.L2BlockRef
@@ -27,7 +27,7 @@ type DerivationPipeline interface {
 
 type state struct {
 	// Chain State
-	l1Head      eth.L1BlockRef // Latest recorded head of the L1 Chain
+	l1Head      eth.L1BlockRef // Latest recorded head of the L1 Chain, independent of derivation work
 	l2Head      eth.L2BlockRef // L2 Unsafe Head
 	l2SafeHead  eth.L2BlockRef // L2 Safe Head - this is the head of the L2 chain as derived from L1
 	l2Finalized eth.L2BlockRef // L2 Block that will never be reversed
@@ -81,42 +81,11 @@ func (s *state) Start(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	s.l1Head = l1Head
 
-	// Check that we are past the genesis
-	if l1Head.Number > s.Config.Genesis.L1.Number {
-		l2Head, err := s.l2.L2BlockRefByNumber(ctx, nil)
-		if err != nil {
-			return err
-		}
-		// Ensure that we are on the correct chain. Note that we cannot rely on rely on the UnsafeHead being more than
-		// a sequence window behind the L1 Head and must walk back 1 sequence window as we do not track the end L1 block
-		// hash of the sequence window when we derive an L2 block.
-		unsafeHead, safeHead, err := sync.FindL2Heads(ctx, l2Head, s.Config.SeqWindowSize, s.l1, s.l2, &s.Config.Genesis)
-		if err != nil {
-			return err
-		}
-		s.l2Head = unsafeHead
-		s.l2SafeHead = safeHead
-	} else {
-		// Not yet reached genesis block
-		// TODO: Test this codepath. That requires setting up L1, letting it run, and then creating the L2 genesis from there.
-		// Note: This will not work for setting the the genesis normally, but if the L1 node is not yet synced we could get this case.
-		l2genesis := eth.L2BlockRef{
-			Hash:           s.Config.Genesis.L2.Hash,
-			Number:         s.Config.Genesis.L2.Number,
-			Time:           s.Config.Genesis.L2Time,
-			L1Origin:       s.Config.Genesis.L1,
-			SequenceNumber: 0,
-		}
-		s.l2Head = l2genesis
-		s.l2SafeHead = l2genesis
-	}
-
-	if err := s.derivation.Reset(ctx, s.l2SafeHead); err != nil {
+	if err := s.resetDerivation(ctx); err != nil {
 		return fmt.Errorf("failed to reset derivation pipeline to starting point")
 	}
-
-	s.l1Head = l1Head
 
 	s.wg.Add(1)
 	go s.eventLoop()
@@ -153,49 +122,48 @@ func (s *state) handleNewL1Block(ctx context.Context, newL1Head eth.L1BlockRef) 
 	if s.l1Head.Hash == newL1Head.Hash {
 		s.log.Trace("Received L1 head signal that is the same as the current head", "l1Head", newL1Head)
 		return nil
+	} else if s.l1Head.Hash == newL1Head.ParentHash {
+		// We got a new L1 block whose parent hash is the same as the current L1 head. Means we're
+		// dealing with a linear extension (new block is the immediate child of the old one).
+		s.log.Debug("L1 head moved forward", "l1Head", newL1Head)
+	} else {
+		// New L1 block is not the same as the current head or a single step linear extension.
+		// This could either be a long L1 extension, or a reorg. Both can be handled the same way.
+		s.log.Warn("L1 Head signal indicates an L1 re-org", "old_l1_head", s.l1Head, "new_l1_head_parent", newL1Head.ParentHash, "new_l1_head", newL1Head)
 	}
-
-	// We got a new L1 block whose parent hash is the same as the current L1 head. Means we're
-	// dealing with a linear extension (new block is the immediate child of the old one). We
-	// handle this by simply adding the new block to the window of blocks that we're considering
-	// when extending the L2 chain.
-	if s.l1Head.Hash == newL1Head.ParentHash {
-		s.log.Trace("Linear extension", "l1Head", newL1Head)
-		s.l1Head = newL1Head
-		return nil
-	}
-
-	// New L1 block is not the same as the current head or a single step linear extension.
-	// This could either be a long L1 extension, or a reorg. Both can be handled the same way.
-	s.log.Warn("L1 Head signal indicates an L1 re-org", "old_l1_head", s.l1Head, "new_l1_head_parent", newL1Head.ParentHash, "new_l1_head", newL1Head)
-	unsafeL2Head, safeL2Head, err := sync.FindL2Heads(ctx, s.l2Head, s.Config.SeqWindowSize, s.l1, s.l2, &s.Config.Genesis)
-	if err != nil {
-		s.log.Error("Could not get new unsafe L2 head when trying to handle a re-org", "err", err)
-		return err
-	}
-	// Update forkchoice
-	fc := eth.ForkchoiceState{
-		HeadBlockHash:      unsafeL2Head.Hash,
-		SafeBlockHash:      safeL2Head.Hash,
-		FinalizedBlockHash: s.l2Finalized.Hash,
-	}
-	_, err = s.l2.ForkchoiceUpdate(ctx, &fc, nil)
-	if err != nil {
-		s.log.Error("Could not set new forkchoice when trying to handle a re-org", "err", err)
-		return err
-	}
-	// State Update
 	s.l1Head = newL1Head
-	s.l2Head = unsafeL2Head
-	// Don't advance l2SafeHead past it's current value
-	if s.l2SafeHead.Number >= safeL2Head.Number {
-		s.l2SafeHead = safeL2Head
+	return nil
+}
+
+func (s *state) resetDerivation(ctx context.Context) error {
+	var unsafeL2Head, safeL2Head eth.L2BlockRef
+	// Check that we are past the genesis
+	if s.l1Head.Number > s.Config.Genesis.L1.Number {
+		// Upon resetting, make sure we are on the correct chain.
+		// The engine might be way behind/ahead of what we previously thought it was at.
+		var err error
+		unsafeL2Head, safeL2Head, err = sync.FindL2Heads(ctx, s.l2Head, s.Config.SeqWindowSize, s.l1, s.l2, &s.Config.Genesis)
+		if err != nil {
+			s.log.Error("Could not get new unsafe L2 head when trying to handle a re-org", "err", err)
+			return err
+		}
+	} else {
+		// pre-genesis (i.e. our L1 view is behind, even though we know the L1 block we anchor the rollup at)
+		// we just reset the derivation pipeline to the known L2 starting point
+		unsafeL2Head = eth.L2BlockRef{
+			Hash:           s.Config.Genesis.L2.Hash,
+			Number:         s.Config.Genesis.L2.Number,
+			Time:           s.Config.Genesis.L2Time,
+			L1Origin:       s.Config.Genesis.L1,
+			SequenceNumber: 0,
+		}
+		safeL2Head = unsafeL2Head
 	}
-	if err := s.derivation.Reset(ctx, safeL2Head); err != nil {
+
+	if err := s.derivation.Reset(ctx, safeL2Head, unsafeL2Head); err != nil {
 		s.log.Error("Failed to reset derivation pipeline after reorg was detected", "err", err)
 		return err
 	}
-
 	return nil
 }
 
@@ -380,8 +348,8 @@ func (s *state) eventLoop() {
 				continue
 			} else if err != nil {
 				s.log.Warn("derivation pipeline critically failed, resetting it", "err", err)
-				// If the pipeline corrupts, simply reset it to the last known l2 safe head
-				if err := s.derivation.Reset(ctx, s.l2SafeHead); err != nil {
+				// If the pipeline corrupts, simply reset it
+				if err := s.resetDerivation(ctx); err != nil {
 					s.log.Error("failed to reset derivation pipeline after failing step", "err", err)
 				}
 			} else {
