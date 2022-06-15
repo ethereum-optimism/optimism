@@ -1,5 +1,11 @@
 # @eth-optimism/teleportr
 
+## 0.0.11
+
+### Patch Changes
+
+- 29ff7462: Revert es target back to 2017
+
 ## 0.0.10
 
 ### Patch Changes

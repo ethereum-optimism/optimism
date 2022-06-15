@@ -1,5 +1,22 @@
 # @eth-optimism/drippie-mon
 
+## 0.3.2
+
+### Patch Changes
+
+- 29ff7462: Revert es target back to 2017
+- Updated dependencies [c201f3f1]
+- Updated dependencies [da1633a3]
+- Updated dependencies [61a30273]
+- Updated dependencies [a320e744]
+- Updated dependencies [29ff7462]
+- Updated dependencies [604dd315]
+- Updated dependencies [52b26878]
+  - @eth-optimism/common-ts@0.4.0
+  - @eth-optimism/contracts-periphery@0.1.3
+  - @eth-optimism/core-utils@0.8.7
+  - @eth-optimism/sdk@1.1.9
+
 ## 0.3.1
 
 ### Patch Changes
