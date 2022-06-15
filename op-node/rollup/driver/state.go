@@ -370,10 +370,7 @@ func (s *state) eventLoop() {
 			err := s.derivation.Step(stepCtx)
 			cancel()
 			if err == io.EOF {
-
-				// TODO: try to fetch next L1 data, and apply it to the pipeline.
-				// if we fail to fetch the L1 data, simply not update the derivation pipeline yet,
-				// we'll hit an EOF later again and retry.
+				continue
 			} else if err != nil {
 				// TODO: maybe make the log less scary if it failed because of a L1 reorg.
 				s.log.Error("derivation pipeline failed", "err", err)

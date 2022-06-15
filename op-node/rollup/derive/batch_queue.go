@@ -14,7 +14,7 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 )
 
-type Downloader interface {
+type L1ReceiptsFetcher interface {
 	Fetch(ctx context.Context, blockHash common.Hash) (L1Info, types.Transactions, types.Receipts, error)
 }
 
@@ -30,11 +30,11 @@ type BatchQueue struct {
 	inputs       []BatchesWithOrigin
 	lastL1Origin eth.L1BlockRef
 	config       *rollup.Config
-	dl           Downloader
+	dl           L1ReceiptsFetcher
 }
 
 // NewBatchQueue creates a BatchQueue, which should be Reset(origin) before use.
-func NewBatchQueue(log log.Logger, cfg *rollup.Config, dl Downloader) *BatchQueue {
+func NewBatchQueue(log log.Logger, cfg *rollup.Config, dl L1ReceiptsFetcher) *BatchQueue {
 	return &BatchQueue{
 		log:    log,
 		config: cfg,
