@@ -5,22 +5,23 @@ import { WithdrawalVerifier } from "../libraries/Lib_WithdrawalVerifier.sol";
 import { Burn } from "../libraries/Burn.sol";
 
 /**
+ * @custom:proxied
+ * @custom:predeploy 0x4200000000000000000000000000000000000000
  * @title L2ToL1MessagePasser
- * TODO: should this be renamed to L2OptimismPortal?
+ * @notice The L2ToL1MessagePasser is a dedicated contract where messages that are being sent from
+ *         L2 to L1 can be stored. The storage root of this contract is pulled up to the top level
+ *         of the L2 output to reduce the cost of proving the existence of sent messages.
  */
 contract L2ToL1MessagePasser {
-    /**********
-     * Events *
-     **********/
-
     /**
      * @notice Emitted any time a withdrawal is initiated.
-     * @param nonce Unique value corresponding to each withdrawal.
-     * @param sender The L2 account address which initiated the withdrawal.
-     * @param target The L1 account address the call will be send to.
-     * @param value The ETH value submitted for withdrawal, to be forwarded to the target.
+     *
+     * @param nonce    Unique value corresponding to each withdrawal.
+     * @param sender   The L2 account address which initiated the withdrawal.
+     * @param target   The L1 account address the call will be send to.
+     * @param value    The ETH value submitted for withdrawal, to be forwarded to the target.
      * @param gasLimit The minimum amount of gas that must be provided when withdrawing on L1.
-     * @param data The data to be forwarded to the target on L1.
+     * @param data     The data to be forwarded to the target on L1.
      */
     event WithdrawalInitiated(
         uint256 indexed nonce,
@@ -33,12 +34,10 @@ contract L2ToL1MessagePasser {
 
     /**
      * @notice Emitted when the balance of this contract is burned.
+     *
+     * @param amount Amount of ETh that was burned.
      */
     event WithdrawerBalanceBurnt(uint256 indexed amount);
-
-    /*************
-     * Variables *
-     *************/
 
     /**
      * @notice Includes the message hashes for all withdrawals
@@ -50,26 +49,19 @@ contract L2ToL1MessagePasser {
      */
     uint256 public nonce;
 
-    /********************
-     * Public Functions *
-     ********************/
-
     /**
-     * @notice Allow users to withdraw by sending ETH
-     * directly to this contract.
-     * TODO: maybe this should be only EOA
+     * @notice Allows users to withdraw ETH by sending directly to this contract.
      */
     receive() external payable {
         initiateWithdrawal(msg.sender, 100000, bytes(""));
     }
 
     /**
-     * @notice Initiates a withdrawal to execute on L1.
-     * TODO: message hashes must be migrated since the legacy
-     * hashes are computed differently
-     * @param _target Address to call on L1 execution.
-     * @param _gasLimit GasLimit to provide on L1.
-     * @param _data Data to forward to L1 target.
+     * @notice Sends a message from L2 to L1.
+     *
+     * @param _target   Address to call on L1 execution.
+     * @param _gasLimit Minimum gas limit for executing the message on L1.
+     * @param _data     Data to forward to L1 target.
      */
     function initiateWithdrawal(
         address _target,
@@ -94,10 +86,10 @@ contract L2ToL1MessagePasser {
     }
 
     /**
-     * @notice Removes all ETH held in this contract from the state, by deploying a contract which
-     * immediately self destructs.
-     * For simplicity, this call is not incentivized as it costs very little to run.
-     * Inspired by https://etherscan.io/address/0xb69fba56b2e67e7dda61c8aa057886a8d1468575#code
+     * @notice Removes all ETH held by this contract from the state. Used to prevent the amount of
+     *         ETH on L2 inflating when ETH is withdrawn. Currently only way to do this is to
+     *         create a contract and self-destruct it to itself. Anyone can call this function. Not
+     *         incentivized since this function is very cheap.
      */
     function burn() external {
         uint256 balance = address(this).balance;

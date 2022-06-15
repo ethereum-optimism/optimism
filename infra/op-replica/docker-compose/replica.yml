@@ -35,10 +35,9 @@ services:
     <<: *logging
   replica-healthcheck:
     # TODO: Update this to latest when we fix the environment variables
-    image: ethereumoptimism/replica-healthcheck:${HC_IMAGE_TAG:-0.3.11}
+    image: ethereumoptimism/replica-healthcheck:${HC_IMAGE_TAG:-1.0.6}
     restart: ${RESTART}
     env_file:
-      - ${SHARED_ENV_PATH}/replica-healthcheck.env
       - .env
     volumes:
       - ../scripts/:/scripts/

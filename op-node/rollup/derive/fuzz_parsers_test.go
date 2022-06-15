@@ -125,7 +125,7 @@ func FuzzL1InfoAgainstContract(f *testing.F) {
 }
 
 // FuzzUnmarshallLogEvent runs a deposit event through the EVM and checks that output of the abigen parsing matches
-// what was inputted and what we parsed during the UnmarshalLogEvent function (which turns it into a deposit tx)
+// what was inputted and what we parsed during the UnmarshalDepositLogEvent function (which turns it into a deposit tx)
 // The purpose is to check that we can never create a transaction that emits a log that we cannot parse as well
 // as ensuring that our custom marshalling matches abigen.
 func FuzzUnmarshallLogEvent(f *testing.F) {
@@ -202,7 +202,7 @@ func FuzzUnmarshallLogEvent(f *testing.F) {
 		depositEvent.Raw = types.Log{} // Clear out the log
 
 		// Verify that is passes our custom unmarshalling logic
-		dep, err := UnmarshalLogEvent(logs[0])
+		dep, err := UnmarshalDepositLogEvent(logs[0])
 		if err != nil {
 			t.Fatalf("Could not unmarshal log that was emitted by the deposit contract: %v", err)
 		}

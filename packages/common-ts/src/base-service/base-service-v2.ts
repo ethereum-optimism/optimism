@@ -4,7 +4,6 @@ import Config from 'bcfg'
 import * as dotenv from 'dotenv'
 import { Command, Option } from 'commander'
 import { ValidatorSpec, Spec, cleanEnv } from 'envalid'
-import { sleep } from '@eth-optimism/core-utils'
 import snakeCase from 'lodash/snakeCase'
 import express, { Router } from 'express'
 import prometheus, { Registry } from 'prom-client'
@@ -13,7 +12,7 @@ import bodyParser from 'body-parser'
 import morgan from 'morgan'
 
 import { Logger } from '../common/logger'
-import { Metric } from './metrics'
+import { Metric, Gauge, Counter } from './metrics'
 import { validators } from './validators'
 
 export type Options = {
@@ -31,11 +30,17 @@ export type OptionsSpec<TOptions extends Options> = {
     validator: (spec?: Spec<TOptions[P]>) => ValidatorSpec<TOptions[P]>
     desc: string
     default?: TOptions[P]
+    secret?: boolean
   }
 }
 
 export type MetricsV2 = {
   [key: string]: Metric
+}
+
+export type StandardMetrics = {
+  metadata: Gauge
+  unhandledErrors: Counter
 }
 
 export type MetricsSpec<TMetrics extends MetricsV2> = {
@@ -57,6 +62,17 @@ export abstract class BaseServiceV2<
   TServiceState
 > {
   /**
+   * The timeout that controls the polling interval
+   * If clearTimeout(this.pollingTimeout) is called the timeout will stop
+   */
+  private pollingTimeout: NodeJS.Timeout
+
+  /**
+   * The promise representing this.main
+   */
+  private mainPromise: ReturnType<typeof this.main>
+
+  /**
    * Whether or not the service will loop.
    */
   protected loop: boolean
@@ -70,11 +86,6 @@ export abstract class BaseServiceV2<
    * Whether or not the service is currently running.
    */
   protected running: boolean
-
-  /**
-   * Whether or not the service has run to completion.
-   */
-  protected done: boolean
 
   /**
    * Whether or not the service is currently healthy.
@@ -99,7 +110,7 @@ export abstract class BaseServiceV2<
   /**
    * Metrics.
    */
-  protected readonly metrics: TMetrics
+  protected readonly metrics: TMetrics & StandardMetrics
 
   /**
    * Registry for prometheus metrics.
@@ -137,6 +148,7 @@ export abstract class BaseServiceV2<
    */
   constructor(params: {
     name: string
+    version: string
     optionsSpec: OptionsSpec<TOptions>
     metricsSpec: MetricsSpec<TMetrics>
     options?: Partial<TOptions>
@@ -148,11 +160,7 @@ export abstract class BaseServiceV2<
     this.loop = params.loop !== undefined ? params.loop : true
     this.state = {} as TServiceState
 
-    // Add default options to options spec.
-    ;(params.optionsSpec as any) = {
-      ...(params.optionsSpec || {}),
-
-      // Users cannot set these options.
+    const stdOptionsSpec: OptionsSpec<StandardOptions> = {
       loopIntervalMs: {
         validator: validators.num,
         desc: 'Loop interval in milliseconds',
@@ -167,6 +175,37 @@ export abstract class BaseServiceV2<
         validator: validators.str,
         desc: 'Hostname for the app server',
         default: params.hostname || '0.0.0.0',
+      },
+    }
+
+    // Add default options to options spec.
+    ;(params.optionsSpec as any) = {
+      ...(params.optionsSpec || {}),
+      ...stdOptionsSpec,
+    }
+
+    // List of options that can safely be logged.
+    const publicOptionNames = Object.entries(params.optionsSpec)
+      .filter(([, spec]) => {
+        return spec.secret !== true
+      })
+      .map(([key]) => {
+        return key
+      })
+
+    // Add default metrics to metrics spec.
+    ;(params.metricsSpec as any) = {
+      ...(params.metricsSpec || {}),
+
+      // Users cannot set these options.
+      metadata: {
+        type: Gauge,
+        desc: 'Service metadata',
+        labels: ['name', 'version'].concat(publicOptionNames),
+      },
+      unhandledErrors: {
+        type: Counter,
+        desc: 'Unhandled errors',
       },
     }
 
@@ -274,7 +313,7 @@ export abstract class BaseServiceV2<
         labelNames: spec.labels || [],
       })
       return acc
-    }, {}) as TMetrics
+    }, {}) as TMetrics & StandardMetrics
 
     // Create the metrics server.
     this.metricsRegistry = prometheus.register
@@ -309,6 +348,29 @@ export abstract class BaseServiceV2<
     // Handle stop signals.
     process.on('SIGTERM', stop)
     process.on('SIGINT', stop)
+
+    // Set metadata synthetic metric.
+    this.metrics.metadata.set(
+      {
+        name: params.name,
+        version: params.version,
+        ...publicOptionNames.reduce((acc, key) => {
+          if (key in stdOptionsSpec) {
+            acc[key] = this.options[key].toString()
+          } else {
+            acc[key] = config.str(key)
+          }
+          return acc
+        }, {}),
+      },
+      1
+    )
+
+    // Collect default node metrics.
+    prometheus.collectDefaultMetrics({
+      register: this.metricsRegistry,
+      labels: { name: params.name, version: params.version },
+    })
   }
 
   /**
@@ -316,8 +378,6 @@ export abstract class BaseServiceV2<
    * main function. Will also catch unhandled errors.
    */
   public async run(): Promise<void> {
-    this.done = false
-
     // Start the app server if not yet running.
     if (!this.server) {
       this.logger.info('starting app server')
@@ -331,18 +391,14 @@ export abstract class BaseServiceV2<
 
       // Logging.
       app.use(
-        morgan((tokens, req, res) => {
-          return [
-            tokens.method(req, res),
-            tokens.url(req, res),
-            tokens.status(req, res),
-            JSON.stringify(req.body),
-            '\n',
-            tokens.res(req, res, 'content-length'),
-            '-',
-            tokens['response-time'](req, res),
-            'ms',
-          ].join(' ')
+        morgan('short', {
+          stream: {
+            write: (str: string) => {
+              this.logger.info(`server log`, {
+                log: str,
+              })
+            },
+          },
         })
       )
 
@@ -393,10 +449,13 @@ export abstract class BaseServiceV2<
     if (this.loop) {
       this.logger.info('starting main loop')
       this.running = true
-      while (this.running) {
+
+      const doLoop = async () => {
         try {
-          await this.main()
+          this.mainPromise = this.main()
+          await this.mainPromise
         } catch (err) {
+          this.metrics.unhandledErrors.inc()
           this.logger.error('caught an unhandled exception', {
             message: err.message,
             stack: err.stack,
@@ -406,15 +465,14 @@ export abstract class BaseServiceV2<
 
         // Sleep between loops if we're still running (service not stopped).
         if (this.running) {
-          await sleep(this.loopIntervalMs)
+          this.pollingTimeout = setTimeout(doLoop, this.loopIntervalMs)
         }
       }
+      doLoop()
     } else {
       this.logger.info('running main function')
       await this.main()
     }
-
-    this.done = true
   }
 
   /**
@@ -422,13 +480,13 @@ export abstract class BaseServiceV2<
    * iteration is finished and will then stop looping.
    */
   public async stop(): Promise<void> {
+    this.logger.info('stopping main loop...')
     this.running = false
-
-    // Wait until the main loop has finished.
-    this.logger.info('stopping service, waiting for main loop to finish')
-    while (!this.done) {
-      await sleep(1000)
-    }
+    clearTimeout(this.pollingTimeout)
+    this.logger.info('waiting for main to complete')
+    // if main is in the middle of running wait for it to complete
+    await this.mainPromise
+    this.logger.info('main loop stoped.')
 
     // Shut down the metrics server if it's running.
     if (this.server) {

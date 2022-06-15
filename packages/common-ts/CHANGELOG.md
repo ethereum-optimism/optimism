@@ -1,5 +1,19 @@
 # @eth-optimism/common-ts
 
+## 0.3.1
+
+### Patch Changes
+
+- 9ba869a7: Log server messages to logger instead of stdout
+- 050859fd: Include default options in metadata metric
+
+## 0.3.0
+
+### Minor Changes
+
+- d9e39931: Minor upgrade to BaseServiceV2 to expose a full customizable server, instead of just metrics.
+- 84a8934c: BaseServiceV2 exposes service name and version as standard synthetic metric
+
 ## 0.2.10
 
 ### Patch Changes

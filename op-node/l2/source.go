@@ -38,26 +38,26 @@ func (s *Source) Close() {
 	s.rpc.Close()
 }
 
-func (s *Source) PayloadByHash(ctx context.Context, hash common.Hash) (*ExecutionPayload, error) {
+func (s *Source) PayloadByHash(ctx context.Context, hash common.Hash) (*eth.ExecutionPayload, error) {
 	// TODO: we really do not need to parse every single tx and block detail, keeping transactions encoded is faster.
 	block, err := s.client.BlockByHash(ctx, hash)
 	if err != nil {
 		return nil, fmt.Errorf("failed to retrieve L2 block by hash: %v", err)
 	}
-	payload, err := BlockAsPayload(block)
+	payload, err := eth.BlockAsPayload(block)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read L2 block as payload: %w", err)
 	}
 	return payload, nil
 }
 
-func (s *Source) PayloadByNumber(ctx context.Context, number *big.Int) (*ExecutionPayload, error) {
+func (s *Source) PayloadByNumber(ctx context.Context, number *big.Int) (*eth.ExecutionPayload, error) {
 	// TODO: we really do not need to parse every single tx and block detail, keeping transactions encoded is faster.
 	block, err := s.client.BlockByNumber(ctx, number)
 	if err != nil {
 		return nil, fmt.Errorf("failed to retrieve L2 block by number: %v", err)
 	}
-	payload, err := BlockAsPayload(block)
+	payload, err := eth.BlockAsPayload(block)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read L2 block as payload: %w", err)
 	}
@@ -67,12 +67,12 @@ func (s *Source) PayloadByNumber(ctx context.Context, number *big.Int) (*Executi
 // ForkchoiceUpdate updates the forkchoice on the execution client. If attributes is not nil, the engine client will also begin building a block
 // based on attributes after the new head block and return the payload ID.
 // May return an error in ForkChoiceResult, but the error is marshalled into the error return
-func (s *Source) ForkchoiceUpdate(ctx context.Context, fc *ForkchoiceState, attributes *PayloadAttributes) (*ForkchoiceUpdatedResult, error) {
+func (s *Source) ForkchoiceUpdate(ctx context.Context, fc *eth.ForkchoiceState, attributes *eth.PayloadAttributes) (*eth.ForkchoiceUpdatedResult, error) {
 	e := s.log.New("state", fc, "attr", attributes)
 	e.Debug("Sharing forkchoice-updated signal")
 	fcCtx, cancel := context.WithTimeout(ctx, time.Second*5)
 	defer cancel()
-	var result ForkchoiceUpdatedResult
+	var result eth.ForkchoiceUpdatedResult
 	err := s.rpc.CallContext(fcCtx, &result, "engine_forkchoiceUpdatedV1", fc, attributes)
 	if err == nil {
 		e.Debug("Shared forkchoice-updated signal")
@@ -82,21 +82,21 @@ func (s *Source) ForkchoiceUpdate(ctx context.Context, fc *ForkchoiceState, attr
 	} else {
 		e = e.New("err", err)
 		if rpcErr, ok := err.(rpc.Error); ok {
-			code := ErrorCode(rpcErr.ErrorCode())
+			code := eth.ErrorCode(rpcErr.ErrorCode())
 			e.Warn("Unexpected error code in forkchoice-updated response", "code", code)
 		} else {
 			e.Error("Failed to share forkchoice-updated signal")
 		}
 	}
 	switch result.PayloadStatus.Status {
-	case ExecutionSyncing:
+	case eth.ExecutionSyncing:
 		return nil, fmt.Errorf("updated forkchoice, but node is syncing: %v", err)
-	case ExecutionAccepted, ExecutionInvalidTerminalBlock, ExecutionInvalidBlockHash:
+	case eth.ExecutionAccepted, eth.ExecutionInvalidTerminalBlock, eth.ExecutionInvalidBlockHash:
 		// ACCEPTED, INVALID_TERMINAL_BLOCK, INVALID_BLOCK_HASH are only for execution
 		return nil, fmt.Errorf("unexpected %s status, could not update forkchoice: %v", result.PayloadStatus.Status, err)
-	case ExecutionInvalid:
+	case eth.ExecutionInvalid:
 		return nil, fmt.Errorf("cannot update forkchoice, block is invalid: %v", err)
-	case ExecutionValid:
+	case eth.ExecutionValid:
 		return &result, nil
 	default:
 		return nil, fmt.Errorf("unknown forkchoice status on %s: %q, ", fc.SafeBlockHash, string(result.PayloadStatus.Status))
@@ -104,13 +104,13 @@ func (s *Source) ForkchoiceUpdate(ctx context.Context, fc *ForkchoiceState, attr
 }
 
 // ExecutePayload executes a built block on the execution engine and returns an error if it was not successful.
-func (s *Source) NewPayload(ctx context.Context, payload *ExecutionPayload) error {
+func (s *Source) NewPayload(ctx context.Context, payload *eth.ExecutionPayload) error {
 	e := s.log.New("block_hash", payload.BlockHash)
 	e.Debug("sending payload for execution")
 
 	execCtx, cancel := context.WithTimeout(ctx, time.Second*5)
 	defer cancel()
-	var result PayloadStatusV1
+	var result eth.PayloadStatusV1
 	err := s.rpc.CallContext(execCtx, &result, "engine_newPayloadV1", payload)
 	e.Debug("Received payload execution result", "status", result.Status, "latestValidHash", result.LatestValidHash, "message", result.ValidationError)
 	if err != nil {
@@ -119,17 +119,17 @@ func (s *Source) NewPayload(ctx context.Context, payload *ExecutionPayload) erro
 	}
 
 	switch result.Status {
-	case ExecutionValid:
+	case eth.ExecutionValid:
 		return nil
-	case ExecutionSyncing:
+	case eth.ExecutionSyncing:
 		return fmt.Errorf("failed to execute payload %s, node is syncing", payload.ID())
-	case ExecutionInvalid:
+	case eth.ExecutionInvalid:
 		return fmt.Errorf("execution payload %s was INVALID! Latest valid hash is %s, ignoring bad block: %q", payload.ID(), result.LatestValidHash, result.ValidationError)
-	case ExecutionInvalidBlockHash:
+	case eth.ExecutionInvalidBlockHash:
 		return fmt.Errorf("execution payload %s has INVALID BLOCKHASH! %v", payload.BlockHash, result.ValidationError)
-	case ExecutionInvalidTerminalBlock:
+	case eth.ExecutionInvalidTerminalBlock:
 		return fmt.Errorf("engine is misconfigured. Received invalid-terminal-block error while engine API should be active at genesis. err: %v", result.ValidationError)
-	case ExecutionAccepted:
+	case eth.ExecutionAccepted:
 		return fmt.Errorf("execution payload cannot be validated yet, latest valid hash is %s", result.LatestValidHash)
 	default:
 		return fmt.Errorf("unknown execution status on %s: %q, ", payload.ID(), string(result.Status))
@@ -137,16 +137,16 @@ func (s *Source) NewPayload(ctx context.Context, payload *ExecutionPayload) erro
 }
 
 // GetPayload gets the execution payload associated with the PayloadId
-func (s *Source) GetPayload(ctx context.Context, payloadId PayloadID) (*ExecutionPayload, error) {
+func (s *Source) GetPayload(ctx context.Context, payloadId eth.PayloadID) (*eth.ExecutionPayload, error) {
 	e := s.log.New("payload_id", payloadId)
 	e.Debug("getting payload")
-	var result ExecutionPayload
+	var result eth.ExecutionPayload
 	err := s.rpc.CallContext(ctx, &result, "engine_getPayloadV1", payloadId)
 	if err != nil {
 		e = e.New("payload_id", payloadId, "err", err)
 		if rpcErr, ok := err.(rpc.Error); ok {
-			code := ErrorCode(rpcErr.ErrorCode())
-			if code != UnavailablePayload {
+			code := eth.ErrorCode(rpcErr.ErrorCode())
+			if code != eth.UnavailablePayload {
 				e.Warn("unexpected error code in get-payload response", "code", code)
 			} else {
 				e.Warn("unavailable payload in get-payload request")
@@ -212,46 +212,6 @@ func blockToBlockRef(block *types.Block, genesis *rollup.Genesis) (eth.L2BlockRe
 		Number:         block.NumberU64(),
 		ParentHash:     block.ParentHash(),
 		Time:           block.Time(),
-		L1Origin:       l1Origin,
-		SequenceNumber: sequenceNumber,
-	}, nil
-}
-
-// PayloadToBlockRef extracts the essential L2BlockRef information from an execution payload,
-// falling back to genesis information if necessary.
-func PayloadToBlockRef(payload *ExecutionPayload, genesis *rollup.Genesis) (eth.L2BlockRef, error) {
-	var l1Origin eth.BlockID
-	var sequenceNumber uint64
-	if uint64(payload.BlockNumber) == genesis.L2.Number {
-		if payload.BlockHash != genesis.L2.Hash {
-			return eth.L2BlockRef{}, fmt.Errorf("expected L2 genesis hash to match L2 block at genesis block number %d: %s <> %s", genesis.L2.Number, payload.BlockHash, genesis.L2.Hash)
-		}
-		l1Origin = genesis.L1
-		sequenceNumber = 0
-	} else {
-		if len(payload.Transactions) == 0 {
-			return eth.L2BlockRef{}, fmt.Errorf("l2 block is missing L1 info deposit tx, block hash: %s", payload.BlockHash)
-		}
-		var tx types.Transaction
-		if err := tx.UnmarshalBinary(payload.Transactions[0]); err != nil {
-			return eth.L2BlockRef{}, fmt.Errorf("failed to decode first tx to read l1 info from: %v", err)
-		}
-		if tx.Type() != types.DepositTxType {
-			return eth.L2BlockRef{}, fmt.Errorf("first payload tx has unexpected tx type: %d", tx.Type())
-		}
-		info, err := derive.L1InfoDepositTxData(tx.Data())
-		if err != nil {
-			return eth.L2BlockRef{}, fmt.Errorf("failed to parse L1 info deposit tx from L2 block: %v", err)
-		}
-		l1Origin = eth.BlockID{Hash: info.BlockHash, Number: info.Number}
-		sequenceNumber = info.SequenceNumber
-	}
-
-	return eth.L2BlockRef{
-		Hash:           payload.BlockHash,
-		Number:         uint64(payload.BlockNumber),
-		ParentHash:     payload.ParentHash,
-		Time:           uint64(payload.Timestamp),
 		L1Origin:       l1Origin,
 		SequenceNumber: sequenceNumber,
 	}, nil

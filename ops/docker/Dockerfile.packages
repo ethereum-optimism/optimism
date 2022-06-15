@@ -24,6 +24,7 @@ COPY packages/contracts-bedrock/package.json ./packages/contracts-bedrock/packag
 COPY packages/contracts-periphery/package.json ./packages/contracts-periphery/package.json
 COPY packages/contracts-governance/package.json ./packages/contracts-governance/package.json
 COPY packages/data-transport-layer/package.json ./packages/data-transport-layer/package.json
+COPY packages/hardhat-deploy-config/package.json ./packages/hardhat-deploy-config/package.json
 COPY packages/message-relayer/package.json ./packages/message-relayer/package.json
 COPY packages/fault-detector/package.json ./packages/fault-detector/package.json
 COPY packages/replica-healthcheck/package.json ./packages/replica-healthcheck/package.json

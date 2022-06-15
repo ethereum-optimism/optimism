@@ -1,5 +1,19 @@
 # @eth-optimism/fault-detector
 
+## 0.2.0
+
+### Minor Changes
+
+- 84a8934c: BaseServiceV2 exposes service name and version as standard synthetic metric
+
+### Patch Changes
+
+- 37dfe4f6: Smarter starting height for fault-detector
+- 6fe58eb2: Fix order in which a metric was bumped then emitted to fix off by one issue
+- Updated dependencies [d9e39931]
+- Updated dependencies [84a8934c]
+  - @eth-optimism/common-ts@0.3.0
+
 ## 0.1.1
 
 ### Patch Changes

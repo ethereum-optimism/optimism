@@ -8,6 +8,10 @@ build-go: submodules op-node op-proposer op-batcher
 .PHONY: build-go
 
 build-ts: submodules
+	if [ -n "$$NVM_DIR" ]; then \
+		. $$NVM_DIR/nvm.sh && nvm use; \
+	fi
+	yarn install
 	yarn build
 .PHONY: build-ts
 
@@ -47,6 +51,10 @@ clean:
 	rm -rf ./bin
 .PHONY: clean
 
+nuke: clean devnet-clean
+	git clean -Xdf
+.PHONY: nuke
+
 devnet-up:
 	@bash ./ops-bedrock/devnet-up.sh
 .PHONY: devnet-up
@@ -59,9 +67,8 @@ devnet-clean:
 	rm -rf ./packages/contracts-bedrock/deployments/devnetL1
 	rm -rf ./.devnet
 	cd ./ops-bedrock && docker-compose down
-	docker image ls 'ops-bedrock*' --format='{{.Repository}}' | xargs docker rmi
-	docker volume ls --filter name=ops-bedrock --format='{{.Name}}' | xargs docker volume rm
-
+	docker image ls 'ops-bedrock*' --format='{{.Repository}}' | xargs -r docker rmi
+	docker volume ls --filter name=ops-bedrock --format='{{.Name}}' | xargs -r docker volume rm
 .PHONY: devnet-clean
 
 test-unit:
@@ -77,6 +84,8 @@ test-integration:
 		./packages/contracts-bedrock/deployments/devnetL1
 .PHONY: test-integration
 
-devnet-genesis:
-	bash ./ops-bedrock/devnet-genesis.sh
-.PHONY: devnet-genesis
+# Remove the baseline-commit to generate a base reading & show all issues
+semgrep:
+	$(eval DEV_REF := $(shell git rev-parse develop))
+	SEMGREP_REPO_NAME=ethereum-optimism/optimism semgrep ci --baseline-commit=$(DEV_REF)
+.PHONY: semgrep

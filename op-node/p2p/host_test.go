@@ -9,7 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/op-node/l2"
+	"github.com/ethereum-optimism/optimism/op-node/eth"
+
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/testlog"
 	"github.com/ethereum/go-ethereum/log"
@@ -76,10 +77,10 @@ func TestP2PSimple(t *testing.T) {
 }
 
 type mockGossipIn struct {
-	OnUnsafeL2PayloadFn func(ctx context.Context, from peer.ID, msg *l2.ExecutionPayload) error
+	OnUnsafeL2PayloadFn func(ctx context.Context, from peer.ID, msg *eth.ExecutionPayload) error
 }
 
-func (m *mockGossipIn) OnUnsafeL2Payload(ctx context.Context, from peer.ID, msg *l2.ExecutionPayload) error {
+func (m *mockGossipIn) OnUnsafeL2Payload(ctx context.Context, from peer.ID, msg *eth.ExecutionPayload) error {
 	if m.OnUnsafeL2PayloadFn != nil {
 		return m.OnUnsafeL2PayloadFn(ctx, from, msg)
 	}
