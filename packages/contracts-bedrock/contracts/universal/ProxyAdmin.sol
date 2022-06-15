@@ -16,15 +16,15 @@ contract ProxyAdmin is Owned {
     /**
      * @notice The proxy types that the ProxyAdmin can manage.
      *
-     * @custom:value OpenZeppelin     Represents the OpenZeppelin style transparent proxy
-     *                                interface, this is the standard.
+     * @custom:value ERC1967          Represents an OpenZeppelin style transparent proxy
+     *                                interface, this is the default.
      * @custom:value Chugsplash       Represents the Chugsplash proxy interface,
      *                                this is legacy.
      * @custom:value ResolvedDelegate Represents the ResolvedDelegate proxy
      *                                interface, this is legacy.
      */
     enum ProxyType {
-        OpenZeppelin,
+        ERC1967,
         Chugsplash,
         ResolvedDelegate
     }
@@ -138,7 +138,7 @@ contract ProxyAdmin is Owned {
         // We need to manually run the static call since the getter cannot be flagged as view
         address target;
         bytes memory data;
-        if (proxyType == ProxyType.OpenZeppelin) {
+        if (proxyType == ProxyType.ERC1967) {
             target = address(proxy);
             data = abi.encodeWithSelector(Proxy.implementation.selector);
         } else if (proxyType == ProxyType.Chugsplash) {
@@ -172,7 +172,7 @@ contract ProxyAdmin is Owned {
         // We need to manually run the static call since the getter cannot be flagged as view
         address target;
         bytes memory data;
-        if (proxyType == ProxyType.OpenZeppelin) {
+        if (proxyType == ProxyType.ERC1967) {
             target = address(proxy);
             data = abi.encodeWithSelector(Proxy.admin.selector);
         } else if (proxyType == ProxyType.Chugsplash) {
@@ -200,7 +200,7 @@ contract ProxyAdmin is Owned {
     function changeProxyAdmin(Proxy proxy, address newAdmin) external onlyOwner {
         ProxyType proxyType = proxyType[address(proxy)];
 
-        if (proxyType == ProxyType.OpenZeppelin) {
+        if (proxyType == ProxyType.ERC1967) {
             proxy.changeAdmin(newAdmin);
         } else if (proxyType == ProxyType.Chugsplash) {
             L1ChugSplashProxy(payable(proxy)).setOwner(newAdmin);
@@ -218,7 +218,7 @@ contract ProxyAdmin is Owned {
     function upgrade(Proxy proxy, address implementation) public onlyOwner {
         ProxyType proxyType = proxyType[address(proxy)];
 
-        if (proxyType == ProxyType.OpenZeppelin) {
+        if (proxyType == ProxyType.ERC1967) {
             proxy.upgradeTo(implementation);
         } else if (proxyType == ProxyType.Chugsplash) {
             L1ChugSplashProxy(payable(proxy)).setStorage(
@@ -246,7 +246,7 @@ contract ProxyAdmin is Owned {
     ) external payable onlyOwner {
         ProxyType proxyType = proxyType[address(proxy)];
 
-        if (proxyType == ProxyType.OpenZeppelin) {
+        if (proxyType == ProxyType.ERC1967) {
             proxy.upgradeToAndCall{ value: msg.value }(implementation, data);
         } else {
             upgrade(proxy, implementation);

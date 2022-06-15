@@ -40,21 +40,21 @@ contract ProxyAdmin_Test is Test {
         // that is used for the implementation.
         resolved = new Lib_ResolvedDelegateProxy(address(addressManager), "a");
 
+        // Impersonate alice for setting up the admin.
+        vm.startPrank(alice);
         // Set the address of the address manager in the admin so that it
         // can resolve the implementation address of legacy
         // Lib_ResolvedDelegateProxy based proxies.
-        vm.prank(alice);
         admin.setAddressManager(address(addressManager));
         // Set the reverse lookup of the Lib_ResolvedDelegateProxy
         // proxy
-        vm.prank(alice);
         admin.setImplementationName(address(resolved), "a");
 
         // Set the proxy types
-        vm.prank(alice);
+        admin.setProxyType(address(proxy), ProxyAdmin.ProxyType.ERC1967);
         admin.setProxyType(address(chugsplash), ProxyAdmin.ProxyType.Chugsplash);
-        vm.prank(alice);
         admin.setProxyType(address(resolved), ProxyAdmin.ProxyType.ResolvedDelegate);
+        vm.stopPrank();
 
         implementation = new SimpleStorage();
     }
@@ -90,7 +90,7 @@ contract ProxyAdmin_Test is Test {
     function test_proxyType() external {
         assertEq(
             uint256(admin.proxyType(address(proxy))),
-            uint256(ProxyAdmin.ProxyType.OpenZeppelin)
+            uint256(ProxyAdmin.ProxyType.ERC1967)
         );
         assertEq(
             uint256(admin.proxyType(address(chugsplash))),
@@ -102,7 +102,7 @@ contract ProxyAdmin_Test is Test {
         );
     }
 
-    function test_openZeppelinGetProxyImplementation() external {
+    function test_erc1967GetProxyImplementation() external {
         getProxyImplementation(proxy);
     }
 
@@ -129,7 +129,7 @@ contract ProxyAdmin_Test is Test {
         }
     }
 
-    function test_openZeppelinGetProxyAdmin() external {
+    function test_erc1967GetProxyAdmin() external {
         getProxyAdmin(proxy);
     }
 
@@ -146,7 +146,7 @@ contract ProxyAdmin_Test is Test {
         assertEq(owner, address(admin));
     }
 
-    function test_openZeppelinChangeProxyAdmin() external {
+    function test_erc1967ChangeProxyAdmin() external {
         changeProxyAdmin(proxy);
     }
 
@@ -176,7 +176,7 @@ contract ProxyAdmin_Test is Test {
         // Call the proxy contract directly to get the admin.
         // Different proxy types have different interfaces.
         vm.prank(address(128));
-        if (proxyType == ProxyAdmin.ProxyType.OpenZeppelin) {
+        if (proxyType == ProxyAdmin.ProxyType.ERC1967) {
             assertEq(_proxy.admin(), address(128));
         } else if (proxyType == ProxyAdmin.ProxyType.Chugsplash) {
             assertEq(
@@ -193,7 +193,7 @@ contract ProxyAdmin_Test is Test {
         }
     }
 
-    function test_openZeppelinUpgrade() external {
+    function test_erc1967Upgrade() external {
         upgrade(proxy);
     }
 
@@ -213,7 +213,7 @@ contract ProxyAdmin_Test is Test {
         assertEq(impl, address(implementation));
     }
 
-    function test_openZeppelinUpgradeAndCall() external {
+    function test_erc1967UpgradeAndCall() external {
         upgradeAndCall(proxy);
     }
 
