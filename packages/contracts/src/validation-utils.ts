@@ -24,12 +24,10 @@ const codes = {
   yellow: '\x1b[1;33m',
 }
 
-export const color = Object.fromEntries(
-  Object.entries(codes).map(([k]) => [
-    k,
-    (msg: string) => `${codes[k]}${msg}${codes.reset}`,
-  ])
-)
+export const color = Object.entries(codes).reduce((obj, [k]) => {
+  obj[k] = (msg: string) => `${codes[k]}${msg}${codes.reset}`
+  return obj
+}, {}) as any
 
 // helper for finding the right artifact from the deployed name
 const locateArtifact = (name: string) => {
