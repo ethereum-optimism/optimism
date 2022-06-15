@@ -9,6 +9,7 @@ import { ResourceMetering } from "./ResourceMetering.sol";
 
 /**
  * @custom:proxied
+ *
  * @title OptimismPortal
  * @notice The OptimismPortal is a low-level contract responsible for passing messages between L1
  *         and L2. Messages sent directly to the OptimismPortal have no form of replayability.

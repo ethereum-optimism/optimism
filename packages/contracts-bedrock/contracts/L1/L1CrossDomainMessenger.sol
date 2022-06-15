@@ -7,6 +7,7 @@ import { CrossDomainMessenger } from "../universal/CrossDomainMessenger.sol";
 
 /**
  * @custom:proxied
+ *
  * @title L1CrossDomainMessenger
  * @notice The L1CrossDomainMessenger is a message passing interface between L1 and L2 responsible
  *         for sending and receiving data on the L1 side. Users are encouraged to use this

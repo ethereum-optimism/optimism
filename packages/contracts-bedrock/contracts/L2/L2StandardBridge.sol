@@ -8,6 +8,7 @@ import { OptimismMintableERC20 } from "../universal/OptimismMintableERC20.sol";
 /**
  * @custom:proxied
  * @custom:predeploy 0x4200000000000000000000000000000000000010
+ *
  * @title L2StandardBridge
  * @notice The L2StandardBridge is responsible for transfering ETH and ERC20 tokens between L1 and
  *         L2. ERC20 tokens sent to L1 are escrowed within this contract.
@@ -139,7 +140,7 @@ contract L2StandardBridge is StandardBridge {
         uint256 _amount,
         bytes calldata _data
     ) external payable virtual {
-        if (_l1Token == address(0) && _l2Token == Lib_PredeployAddresses.OVM_ETH) {
+        if (_l1Token == address(0) && _l2Token == Lib_PredeployAddresses.ETH) {
             finalizeBridgeETH(_from, _to, _amount, _data);
         } else {
             finalizeBridgeERC20(_l2Token, _l1Token, _from, _to, _amount, _data);
@@ -167,7 +168,7 @@ contract L2StandardBridge is StandardBridge {
         bytes calldata _data
     ) internal {
         address l1Token = OptimismMintableERC20(_l2Token).l1Token();
-        if (_l2Token == Lib_PredeployAddresses.OVM_ETH) {
+        if (_l2Token == Lib_PredeployAddresses.ETH) {
             _initiateBridgeETH(_from, _to, _amount, _minGasLimit, _data);
         } else {
             _initiateBridgeERC20(_l2Token, l1Token, _from, _to, _amount, _minGasLimit, _data);

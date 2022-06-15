@@ -8,7 +8,7 @@ library Lib_PredeployAddresses {
     address internal constant L2_TO_L1_MESSAGE_PASSER = 0x4200000000000000000000000000000000000000;
     address internal constant L1_MESSAGE_SENDER = 0x4200000000000000000000000000000000000001;
     address internal constant DEPLOYER_WHITELIST = 0x4200000000000000000000000000000000000002;
-    address payable internal constant OVM_ETH = payable(0xDeadDeAddeAddEAddeadDEaDDEAdDeaDDeAD0000);
+    address payable internal constant ETH = payable(0xDeadDeAddeAddEAddeadDEaDDEAdDeaDDeAD0000);
     address internal constant L2_CROSS_DOMAIN_MESSENGER =
         0x4200000000000000000000000000000000000007;
     address internal constant LIB_ADDRESS_MANAGER = 0x4200000000000000000000000000000000000008;

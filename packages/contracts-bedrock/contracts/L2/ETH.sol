@@ -1,19 +1,18 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.9;
 
-/* Library Imports */
 import { Lib_PredeployAddresses } from "../libraries/Lib_PredeployAddresses.sol";
-
-/* Contract Imports */
 import { OptimismMintableERC20 } from "../universal/OptimismMintableERC20.sol";
 
 /**
+ * @custom:legacy
  * @custom:proxied
  * @custom:predeploy 0xDeadDeAddeAddEAddeadDEaDDEAdDeaDDeAD0000
- * @title OVM_ETH
+ *
+ * @title ETH
  * @notice Legacy contract which used to hold ETH balances on L2.
  */
-contract OVM_ETH is OptimismMintableERC20 {
+contract ETH is OptimismMintableERC20 {
     /**
      * @notice Initializes the contract as an Optimism Mintable ERC20.
      */
@@ -28,7 +27,7 @@ contract OVM_ETH is OptimismMintableERC20 {
      * @param _amount Amount of ETH to mint.
      */
     function mint(address _to, uint256 _amount) public virtual override {
-        revert("OVM_ETH: mint is disabled");
+        revert("ETH: mint is disabled");
     }
 
     /**
@@ -38,7 +37,7 @@ contract OVM_ETH is OptimismMintableERC20 {
      * @param _amount Amount of ETH to burn.
      */
     function burn(address _from, uint256 _amount) public virtual override {
-        revert("OVM_ETH: burn is disabled");
+        revert("ETH: burn is disabled");
     }
 
     /**
@@ -48,7 +47,7 @@ contract OVM_ETH is OptimismMintableERC20 {
      * @param _amount    Amount of ETH to send.
      */
     function transfer(address _recipient, uint256 _amount) public virtual override returns (bool) {
-        revert("OVM_ETH: transfer is disabled");
+        revert("ETH: transfer is disabled");
     }
 
     /**
@@ -58,7 +57,7 @@ contract OVM_ETH is OptimismMintableERC20 {
      * @param _amount  Amount of ETH to approve.
      */
     function approve(address _spender, uint256 _amount) public virtual override returns (bool) {
-        revert("OVM_ETH: approve is disabled");
+        revert("ETH: approve is disabled");
     }
 
     /**
@@ -73,7 +72,7 @@ contract OVM_ETH is OptimismMintableERC20 {
         address _recipient,
         uint256 _amount
     ) public virtual override returns (bool) {
-        revert("OVM_ETH: transferFrom is disabled");
+        revert("ETH: transferFrom is disabled");
     }
 
     /**
@@ -88,7 +87,7 @@ contract OVM_ETH is OptimismMintableERC20 {
         override
         returns (bool)
     {
-        revert("OVM_ETH: increaseAllowance is disabled");
+        revert("ETH: increaseAllowance is disabled");
     }
 
     /**
@@ -103,6 +102,6 @@ contract OVM_ETH is OptimismMintableERC20 {
         override
         returns (bool)
     {
-        revert("OVM_ETH: decreaseAllowance is disabled");
+        revert("ETH: decreaseAllowance is disabled");
     }
 }

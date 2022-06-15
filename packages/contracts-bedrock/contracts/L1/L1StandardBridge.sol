@@ -6,6 +6,7 @@ import { StandardBridge } from "../universal/StandardBridge.sol";
 
 /**
  * @custom:proxied
+ *
  * @title L1StandardBridge
  * @notice The L1StandardBridge is responsible for transfering ETH and ERC20 tokens between L1 and
  *         L2. ERC20 tokens deposited into L2 are escrowed within this contract until withdrawal.

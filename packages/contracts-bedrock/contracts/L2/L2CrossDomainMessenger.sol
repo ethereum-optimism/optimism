@@ -9,6 +9,7 @@ import { L2ToL1MessagePasser } from "./L2ToL1MessagePasser.sol";
 /**
  * @custom:proxied
  * @custom:predeploy 0x4200000000000000000000000000000000000007
+ *
  * @title L2CrossDomainMessenger
  * @notice The L2CrossDomainMessenger is a high-level interface for message passing between L1 and
  *         L2 on the L2 side. Users are generally encouraged to use this contract instead of lower

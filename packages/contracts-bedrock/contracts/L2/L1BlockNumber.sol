@@ -8,6 +8,7 @@ import { Lib_PredeployAddresses } from "../libraries/Lib_PredeployAddresses.sol"
  * @custom:legacy
  * @custom:proxied
  * @custom:predeploy 0x4200000000000000000000000000000000000013
+ *
  * @title L1BlockNumber
  * @notice L1BlockNumber is a legacy contract that fills the roll of the OVM_L1BlockNumber contract
  *         in the old version of the Optimism system. Only necessary for backwards compatibility.

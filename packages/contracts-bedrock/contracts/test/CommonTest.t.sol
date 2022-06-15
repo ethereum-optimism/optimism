@@ -14,7 +14,7 @@ import { L2ToL1MessagePasser } from "../L2/L2ToL1MessagePasser.sol";
 import { L1CrossDomainMessenger } from "../L1/L1CrossDomainMessenger.sol";
 import { L2CrossDomainMessenger } from "../L2/L2CrossDomainMessenger.sol";
 import { AddressAliasHelper } from "../libraries/AddressAliasHelper.sol";
-import { OVM_ETH } from "../L2/OVM_ETH.sol";
+import { ETH } from "../L2/ETH.sol";
 import { Lib_PredeployAddresses } from "../libraries/Lib_PredeployAddresses.sol";
 import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
@@ -138,8 +138,8 @@ contract Messenger_Initializer is L2OutputOracle_Initializer {
         );
 
         vm.label(
-            Lib_PredeployAddresses.OVM_ETH,
-            "OVM_ETH"
+            Lib_PredeployAddresses.ETH,
+            "ETH"
         );
 
         vm.label(
@@ -301,8 +301,8 @@ contract Bridge_Initializer is Messenger_Initializer {
         L2TokenFactory.initialize(Lib_PredeployAddresses.L2_STANDARD_BRIDGE);
 
         vm.etch(
-            Lib_PredeployAddresses.OVM_ETH,
-            address(new OVM_ETH()).code
+            Lib_PredeployAddresses.ETH,
+            address(new ETH()).code
         );
 
         L1Token = new ERC20("Native L1 Token", "L1T");
