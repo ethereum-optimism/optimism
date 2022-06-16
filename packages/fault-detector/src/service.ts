@@ -81,6 +81,7 @@ export class FaultDetector extends BaseServiceV2<Options, Metrics, State> {
       l1SignerOrProvider: this.options.l1RpcProvider,
       l2SignerOrProvider: this.options.l2RpcProvider,
       l1ChainId: await getChainId(this.options.l1RpcProvider),
+      l2ChainId: await getChainId(this.options.l2RpcProvider),
     })
 
     // We use this a lot, a bit cleaner to pull out to the top level of the state object.

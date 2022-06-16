@@ -7,6 +7,7 @@ import 'solidity-coverage'
 import { task, types } from 'hardhat/config'
 import { providers, utils, Wallet } from 'ethers'
 import { CrossChainMessenger } from '@eth-optimism/sdk'
+import { getChainId } from '@eth-optimism/core-utils'
 
 import './scripts/deploy-token'
 import './scripts/multi-send'
@@ -42,11 +43,13 @@ task('deposit', 'Deposits funds onto Optimism.')
     }
 
     const l1Provider = new providers.JsonRpcProvider(l1ProviderUrl)
+    const l2Provider = new providers.JsonRpcProvider(l2ProviderUrl)
     const l1Wallet = new Wallet(privateKey, l1Provider)
     const messenger = new CrossChainMessenger({
       l1SignerOrProvider: l1Wallet,
-      l2SignerOrProvider: l2ProviderUrl,
-      l1ChainId: (await l1Provider.getNetwork()).chainId,
+      l2SignerOrProvider: l2Provider,
+      l1ChainId: await getChainId(l1Provider),
+      l2ChainId: await getChainId(l2Provider),
     })
 
     const amountWei = utils.parseEther(amountEth)
@@ -56,8 +59,6 @@ task('deposit', 'Deposits funds onto Optimism.')
     })
     console.log(`Got TX hash ${tx.hash}. Waiting...`)
     await tx.wait()
-
-    const l2Provider = new providers.JsonRpcProvider(l2ProviderUrl)
 
     const l1WalletOnL2 = new Wallet(privateKey, l2Provider)
     await l1WalletOnL2.sendTransaction({
