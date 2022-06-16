@@ -7,8 +7,10 @@ coverage.json
 *.tsbuildinfo
 
 yarn-error.log
-.yarn/
-!.yarn/releases/
+.yarn/*
+!.yarn/releases
+!.yarn/plugins
+.pnp.*
 
 dist
 artifacts
