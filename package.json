@@ -41,7 +41,8 @@
     "postinstall": "patch-package",
     "ready": "yarn lint && yarn test",
     "prepare": "husky install",
-    "release": "yarn build && yarn changeset publish"
+    "release": "yarn build && yarn changeset publish",
+    "update:yarn": "yarn set version 1.x"
   },
   "devDependencies": {
     "@babel/eslint-parser": "^7.18.2",

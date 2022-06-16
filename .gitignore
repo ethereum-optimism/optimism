@@ -7,6 +7,8 @@ coverage.json
 *.tsbuildinfo
 
 yarn-error.log
+.yarn/
+!.yarn/releases/
 
 dist
 artifacts
