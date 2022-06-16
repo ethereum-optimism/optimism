@@ -1,5 +1,5 @@
 ---
-'@eth-optimism/contracts-bedrock': minor
+'@eth-optimism/contracts-bedrock': patch
 ---
 
 Fixes to medium severity OZ findings
