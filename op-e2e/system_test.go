@@ -96,7 +96,7 @@ func defaultSystemConfig(t *testing.T) SystemConfig {
 		P2PSignerHDPath:            p2pSignerHDPath,
 		DeployerHDPath:             l2OutputHDPath,
 		CliqueSignerDerivationPath: cliqueSignerHDPath,
-		L1InfoPredeployAddress:     common.HexToAddress(predeploys.L1Block),
+		L1InfoPredeployAddress:     predeploys.L1BlockAddr,
 		L1BlockTime:                2,
 		L1ChainID:                  big.NewInt(900),
 		L2ChainID:                  big.NewInt(901),
@@ -710,7 +710,7 @@ func TestWithdrawals(t *testing.T) {
 	require.Nil(t, err, "Waiting for deposit tx on L1")
 
 	// Bind L2 Withdrawer Contract
-	l2withdrawer, err := bindings.NewL2ToL1MessagePasser(common.HexToAddress(predeploys.L2ToL1MessagePasser), l2Seq)
+	l2withdrawer, err := bindings.NewL2ToL1MessagePasser(predeploys.L2ToL1MessagePasserAddr, l2Seq)
 	require.Nil(t, err, "binding withdrawer on L2")
 
 	// Wait for deposit to arrive
