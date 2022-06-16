@@ -73,6 +73,7 @@ contract L2OutputOracle is Ownable {
      * @param _historicalTotalBlocks The number of blocks that preceding the
      *        initialization of the L2 chain.
      * @param _startingBlockTimestamp The timestamp to start L2 block at.
+     * @param _sequencer The address of the _sequencer.
      */
     constructor(
         uint256 _submissionInterval,
@@ -80,7 +81,7 @@ contract L2OutputOracle is Ownable {
         bytes32 _genesisL2Output,
         uint256 _historicalTotalBlocks,
         uint256 _startingBlockTimestamp,
-        address sequencer
+        address _sequencer
     ) {
         require(
             _submissionInterval % _l2BlockTime == 0,
@@ -97,7 +98,7 @@ contract L2OutputOracle is Ownable {
         // solhint-disable-next-line not-rely-on-time
         STARTING_BLOCK_TIMESTAMP = _startingBlockTimestamp;
 
-        _transferOwnership(sequencer);
+        _transferOwnership(_sequencer);
     }
 
     /*********************************

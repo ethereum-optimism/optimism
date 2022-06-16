@@ -4,6 +4,7 @@ pragma solidity 0.8.10;
 import { Bridge_Initializer } from "./CommonTest.t.sol";
 import { stdStorage, StdStorage } from "forge-std/Test.sol";
 import { CrossDomainMessenger } from "../universal/CrossDomainMessenger.sol";
+import { Lib_PredeployAddresses } from "../libraries/Lib_PredeployAddresses.sol";
 import { console } from "forge-std/console.sol";
 
 contract L2StandardBridge_Test is Bridge_Initializer {
@@ -43,6 +44,21 @@ contract L2StandardBridge_Test is Bridge_Initializer {
         assertEq(address(messagePasser).balance, 100);
     }
 
+    // withrdraw
+    // - requires amount == msg.value
+    function test_cannotWithdrawEthWithoutSendingIt() external {
+        assertEq(address(messagePasser).balance, 0);
+
+        vm.expectRevert("ETH withdrawals must include sufficient ETH value.");
+        vm.prank(alice, alice);
+        L2Bridge.withdraw(
+            address(Lib_PredeployAddresses.OVM_ETH),
+            100,
+            1000,
+            hex""
+        );
+    }
+
     // withdraw
     // - token is burned
     // - emits WithdrawalInitiated
@@ -63,6 +79,19 @@ contract L2StandardBridge_Test is Bridge_Initializer {
         // TODO: events and calls
 
         assertEq(L2Token.balanceOf(alice), 0);
+    }
+
+    function test_withdraw_onlyEOA() external {
+        // This contract has 100 L2Token
+        deal(address(L2Token), address(this), 100, true);
+
+        vm.expectRevert("Account not EOA");
+        L2Bridge.withdraw(
+            address(L2Token),
+            100,
+            1000,
+            hex""
+        );
     }
 
     // withdrawTo
