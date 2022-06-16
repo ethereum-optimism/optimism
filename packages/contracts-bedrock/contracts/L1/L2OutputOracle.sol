@@ -64,6 +64,16 @@ contract L2OutputOracle is Ownable {
     uint256 public immutable STARTING_BLOCK_NUMBER;
 
     /**
+     * @notice The timestamp of the first L2 block recorded in this contract.
+     */
+    uint256 public immutable STARTING_TIMESTAMP;
+
+    /**
+     * @notice The time between L2 blocks in seconds.
+     */
+    uint256 public immutable L2_BLOCK_TIME;
+
+    /**
      * @notice The number of the most recent L2 block recorded in this contract.
      */
     uint256 public latestBlockNumber;
@@ -82,20 +92,30 @@ contract L2OutputOracle is Ownable {
      *                               checkpoints must be submitted.
      * @param _genesisL2Output       The initial L2 output of the L2 chain.
      * @param _historicalTotalBlocks The number of blocks that preceding the
-     *        initialization of the L2 chain.
-     * @param _startingBlockNumber The number to start L2 block at.
-     * @param _sequencer The address of the _sequencer.
+     *                               initialization of the L2 chain.
+     * @param _startingBlockNumber   The number of the first L2 block.
+     * @param _startingTimestamp     The timestamp of the first L2 block.
+     * @param _l2BlockTime           The timestamp of the first L2 block.
+     * @param _sequencer             The address of the sequencer.
      */
     constructor(
         uint256 _submissionInterval,
         bytes32 _genesisL2Output,
         uint256 _historicalTotalBlocks,
         uint256 _startingBlockNumber,
+        uint256 _startingTimestamp,
+        uint256 _l2BlockTime,
         address _sequencer
     ) {
+        require(
+            _l2BlockTime < block.timestamp,
+            "Output Oracle: Initial L2 block time must be less than current time"
+        );
         SUBMISSION_INTERVAL = _submissionInterval;
         HISTORICAL_TOTAL_BLOCKS = _historicalTotalBlocks;
         STARTING_BLOCK_NUMBER = _startingBlockNumber;
+        STARTING_TIMESTAMP = _startingTimestamp;
+        L2_BLOCK_TIME = _l2BlockTime;
 
         l2Outputs[_startingBlockNumber] = OutputProposal(_genesisL2Output, block.timestamp);
         latestBlockNumber = _startingBlockNumber;
@@ -123,6 +143,10 @@ contract L2OutputOracle is Ownable {
         require(
             _l2BlockNumber == nextBlockNumber(),
             "OutputOracle: Block number must be equal to next expected block number."
+        );
+        require(
+            computeL2Timestamp(_l2BlockNumber) < block.timestamp,
+            "OutputOracle: Cannot append L2 output in future."
         );
         require(_l2Output != bytes32(0), "OutputOracle: Cannot submit empty L2 output.");
 
@@ -189,5 +213,21 @@ contract L2OutputOracle is Ownable {
      */
     function getL2Output(uint256 _l2BlockNumber) external view returns (OutputProposal memory) {
         return l2Outputs[_l2BlockNumber];
+    }
+
+    /**
+     * @notice Returns the L2 timestamp corresponding to a given L2 block number.
+     *         Returns a null output proposal if none is found.
+     *
+     * @param _l2BlockNumber The L2 block number of the target block.
+     */
+    function computeL2Timestamp(uint256 _l2BlockNumber) public view returns (uint256) {
+        require(
+            _l2BlockNumber >= STARTING_BLOCK_NUMBER,
+            "OutputOracle: Block number must be greater than or equal to the starting block number."
+        );
+
+        return
+            STARTING_TIMESTAMP + ((_l2BlockNumber - STARTING_BLOCK_NUMBER) * SUBMISSION_INTERVAL);
     }
 }

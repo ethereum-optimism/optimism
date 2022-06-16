@@ -11,16 +11,23 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
         super.setUp();
     }
 
+    // advance the evm state to meet the L2OutputOracle's requirements for appendL2Output
+    function oracleWarpRoll(uint256 _nextBlockNumber) public {
+        vm.roll(_nextBlockNumber);
+        vm.warp(oracle.computeL2Timestamp(_nextBlockNumber) + 1);
+    }
+
     function test_constructor() external {
         assertEq(oracle.owner(), sequencer);
         assertEq(oracle.SUBMISSION_INTERVAL(), submissionInterval);
         assertEq(oracle.HISTORICAL_TOTAL_BLOCKS(), historicalTotalBlocks);
         assertEq(oracle.latestBlockNumber(), startingBlockNumber);
         assertEq(oracle.STARTING_BLOCK_NUMBER(), startingBlockNumber);
+        assertEq(oracle.STARTING_TIMESTAMP(), startingTimestamp);
 
         L2OutputOracle.OutputProposal memory proposal = oracle.getL2Output(startingBlockNumber);
         assertEq(proposal.outputRoot, genesisL2Output);
-        assertEq(proposal.timestamp, initTime);
+        assertEq(proposal.timestamp, initL1Time);
     }
 
     /****************
@@ -32,7 +39,7 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
         uint256 appendedNumber = oracle.nextBlockNumber();
 
         // Roll to after the block number we'll append
-        vm.roll(appendedNumber + 1);
+        oracleWarpRoll(appendedNumber);
         vm.prank(sequencer);
         oracle.appendL2Output(appendedOutput1, appendedNumber, 0, 0);
         assertEq(oracle.latestBlockNumber(), appendedNumber);
@@ -41,7 +48,7 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
     // Test: getL2Output() should return the correct value
     function test_getL2Output() external {
         uint256 nextBlockNumber = oracle.nextBlockNumber();
-
+        oracleWarpRoll(nextBlockNumber);
         vm.prank(sequencer);
         oracle.appendL2Output(appendedOutput1, nextBlockNumber, 0, 0);
 
@@ -63,6 +70,22 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
         );
     }
 
+    function test_computeL2Timestamp() external {
+        // reverts if timestamp is too low
+        vm.expectRevert("OutputOracle: Block number must be greater than or equal to the starting block number.");
+        oracle.computeL2Timestamp(startingBlockNumber - 1);
+
+        // returns the correct value...
+        // ... for the very first block
+        assertEq(oracle.computeL2Timestamp(startingBlockNumber), startingTimestamp);
+
+        // ... for the first block after the starting block
+        assertEq(oracle.computeL2Timestamp(startingBlockNumber + 1), startingTimestamp + submissionInterval);
+
+        // ... for some other block number
+        assertEq(oracle.computeL2Timestamp(startingBlockNumber + 96024), startingTimestamp + submissionInterval * 96024);
+    }
+
     /*****************************
      * Append Tests - Happy Path *
      *****************************/
@@ -72,7 +95,7 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
     function test_appendingAnotherOutput() public {
         bytes32 appendedOutput2 = keccak256(abi.encode(2));
         uint256 nextBlockNumber = oracle.nextBlockNumber();
-
+        oracleWarpRoll(nextBlockNumber);
         uint256 appendedNumber = oracle.latestBlockNumber();
 
         // Ensure the submissionInterval is enforced
@@ -91,6 +114,7 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
         bytes32 prevL1BlockHash = blockhash(prevL1BlockNumber);
 
         uint256 nextBlockNumber = oracle.nextBlockNumber();
+        oracleWarpRoll(nextBlockNumber);
         vm.prank(sequencer);
         oracle.appendL2Output(nonZeroHash, nextBlockNumber, prevL1BlockHash, prevL1BlockNumber);
     }
@@ -102,9 +126,9 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
     // Test: appendL2Output fails if called by a party that is not the sequencer.
     function testCannot_appendOutputIfNotSequencer() external {
         uint256 nextBlockNumber = oracle.nextBlockNumber();
+        oracleWarpRoll(nextBlockNumber);
 
         vm.prank(address(128));
-        vm.roll(nextBlockNumber + 1);
         vm.expectRevert("Ownable: caller is not the owner");
         oracle.appendL2Output(nonZeroHash, nextBlockNumber, 0, 0);
     }
@@ -113,7 +137,7 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
     function testCannot_appendEmptyOutput() external {
         bytes32 outputToAppend = bytes32(0);
         uint256 nextBlockNumber = oracle.nextBlockNumber();
-        vm.roll(nextBlockNumber + 1);
+        oracleWarpRoll(nextBlockNumber);
         vm.prank(sequencer);
         vm.expectRevert("OutputOracle: Cannot submit empty L2 output.");
         oracle.appendL2Output(outputToAppend, nextBlockNumber, 0, 0);
@@ -122,15 +146,26 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
     // Test: appendL2Output fails if the block number doesn't match the next expected number.
     function testCannot_appendUnexpectedBlockNumber() external {
         uint256 nextBlockNumber = oracle.nextBlockNumber();
+        oracleWarpRoll(nextBlockNumber);
         vm.prank(sequencer);
         vm.expectRevert("OutputOracle: Block number must be equal to next expected block number.");
         oracle.appendL2Output(nonZeroHash, nextBlockNumber - 1, 0, 0);
+    }
+    // Test: appendL2Output fails if it would have a timestamp in the future.
+    function testCannot_appendFutureTimetamp() external {
+        uint256 nextBlockNumber = oracle.nextBlockNumber();
+        uint256 nextTimestamp = oracle.computeL2Timestamp(nextBlockNumber);
+        vm.warp(nextTimestamp);
+        vm.prank(sequencer);
+        vm.expectRevert("OutputOracle: Cannot append L2 output in future.");
+        oracle.appendL2Output(nonZeroHash, nextBlockNumber, 0, 0);
     }
 
     // Test: appendL2Output fails if a non-existent L1 block hash and number are provided for reorg
     // protection.
     function testCannot_appendOnWrongFork() external {
         uint256 nextBlockNumber = oracle.nextBlockNumber();
+        oracleWarpRoll(nextBlockNumber);
         vm.prank(sequencer);
         vm.expectRevert("OutputOracle: Blockhash does not match the hash at the expected height.");
         oracle.appendL2Output(
@@ -154,7 +189,7 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
         bytes32 l1BlockHash = blockhash(l1BlockNumber);
 
         uint256 nextBlockNumber = oracle.nextBlockNumber();
-        vm.roll(nextBlockNumber + 1);
+        oracleWarpRoll(nextBlockNumber);
         vm.prank(sequencer);
 
         // This will fail when foundry no longer returns zerod block hashes

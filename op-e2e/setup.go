@@ -55,6 +55,8 @@ type L2OOContractConfig struct {
 	L2StartingBlock       *big.Int
 	GenesisL2Output       [32]byte
 	HistoricalTotalBlocks *big.Int
+	L2StartingTimeStamp   *big.Int
+	L2BlockTime           *big.Int
 }
 
 type DepositContractConfig struct {
@@ -394,6 +396,8 @@ func (cfg SystemConfig) start() (*System, error) {
 	sys.cfg.RollupConfig.BatchSenderAddress = batchSubmitterAddr
 	sys.cfg.RollupConfig.P2PSequencerAddress = p2pSignerAddr
 	sys.cfg.L2OOCfg.L2StartingBlock = new(big.Int).SetUint64(l2GenesisID.Number)
+	sys.cfg.L2OOCfg.L2StartingTimeStamp = new(big.Int).SetUint64(l2Genesis.Timestamp)
+	sys.cfg.L2OOCfg.L2BlockTime = new(big.Int).SetUint64(2)
 
 	// Deploy Deposit Contract
 	deployerPrivKey, err := sys.wallet.PrivateKey(accounts.Account{
@@ -418,6 +422,8 @@ func (cfg SystemConfig) start() (*System, error) {
 		sys.cfg.L2OOCfg.GenesisL2Output,
 		sys.cfg.L2OOCfg.HistoricalTotalBlocks,
 		sys.cfg.L2OOCfg.L2StartingBlock,
+		sys.cfg.L2OOCfg.L2StartingTimeStamp,
+		sys.cfg.L2OOCfg.L2BlockTime,
 		l2OutputSubmitterAddr,
 	)
 	sys.cfg.DepositCFG.L2Oracle = sys.L2OOContractAddr
