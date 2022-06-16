@@ -8,6 +8,3 @@ configMapGenerator:
   - name: l2geth-replica
     envs:
       - ./l2geth-replica.env
-  - name: replica-healthcheck
-    envs:
-      - ./replica-healthcheck.env
