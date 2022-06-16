@@ -39,6 +39,19 @@ contract L2ToL1MessagePasser {
      */
     event WithdrawerBalanceBurnt(uint256 indexed amount);
 
+    /*************
+     * Constants *
+     *************/
+
+    /**
+     * @notice The L1 gas limit set when eth is withdrawn using the receive() function.
+     */
+    uint256 internal constant RECEIVE_DEFAULT_GAS_LIMIT = 100_000;
+
+    /*************
+     * Variables *
+     *************/
+
     /**
      * @notice Includes the message hashes for all withdrawals
      */
@@ -53,7 +66,7 @@ contract L2ToL1MessagePasser {
      * @notice Allows users to withdraw ETH by sending directly to this contract.
      */
     receive() external payable {
-        initiateWithdrawal(msg.sender, 100000, bytes(""));
+        initiateWithdrawal(msg.sender, RECEIVE_DEFAULT_GAS_LIMIT, bytes(""));
     }
 
     /**

@@ -2,6 +2,7 @@
 pragma solidity ^0.8.9;
 
 import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import "./SupportedInterfaces.sol";
 
 /**
  * @title OptimismMintableERC20
@@ -72,10 +73,10 @@ contract OptimismMintableERC20 is ERC20 {
      */
     // slither-disable-next-line external-function
     function supportsInterface(bytes4 _interfaceId) public pure returns (bool) {
-        bytes4 iface1 = bytes4(keccak256("supportsInterface(bytes4)")); // ERC165
-        bytes4 iface2 = this.l1Token.selector ^ this.mint.selector ^ this.burn.selector;
-        bytes4 iface3 = this.remoteToken.selector ^ this.mint.selector ^ this.burn.selector;
-        return _interfaceId == iface1 || _interfaceId == iface3 || _interfaceId == iface2;
+        bytes4 iface1 = type(IERC165).interfaceId;
+        bytes4 iface2 = type(IL1Token).interfaceId;
+        bytes4 iface3 = type(IRemoteToken).interfaceId;
+        return _interfaceId == iface1 || _interfaceId == iface2 || _interfaceId == iface3;
     }
 
     /**

@@ -3,6 +3,7 @@ pragma solidity ^0.8.9;
 
 /* Interface Imports */
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "./SupportedInterfaces.sol";
 
 /* Library Imports */
 import { ERC165Checker } from "@openzeppelin/contracts/utils/introspection/ERC165Checker.sol";
@@ -68,6 +69,15 @@ abstract contract StandardBridge {
     );
 
     /*************
+     * Constants *
+     *************/
+
+    /**
+     * @notice The L2 gas limit set when eth is depoisited using the receive() function.
+     */
+    uint32 internal constant RECEIVE_DEFAULT_GAS_LIMIT = 200_000;
+
+    /*************
      * Variables *
      *************/
 
@@ -128,7 +138,7 @@ abstract contract StandardBridge {
      * to L2 through the standard bridge.
      */
     receive() external payable onlyEOA {
-        _initiateBridgeETH(msg.sender, msg.sender, msg.value, 200_000, bytes(""));
+        _initiateBridgeETH(msg.sender, msg.sender, msg.value, RECEIVE_DEFAULT_GAS_LIMIT, bytes(""));
     }
 
     /**
@@ -139,7 +149,8 @@ abstract contract StandardBridge {
     }
 
     /**
-     * @notice Send ETH to a specified account on the remote domain
+     * @notice Send ETH to a specified account on the remote domain. Note that if ETH is sent to a
+     *         contract and the call fails, then that ETH will be locked in the other bridge.
      */
     function bridgeETHTo(
         address _to,
@@ -206,7 +217,7 @@ abstract contract StandardBridge {
 
         emit ETHBridgeFinalized(_from, _to, _amount, _data);
         (bool success, ) = _to.call{ value: _amount }(new bytes(0));
-        require(success, "TransferHelper::safeTransferETH: ETH transfer failed");
+        require(success, "ETH transfer failed.");
     }
 
     /**
@@ -318,7 +329,7 @@ abstract contract StandardBridge {
                 "Wrong remote token for Optimism Mintable ERC20 local token"
             );
 
-            OptimismMintableERC20(_localToken).burn(msg.sender, _amount);
+            OptimismMintableERC20(_localToken).burn(_from, _amount);
         } else {
             // TODO: Do we need to confirm that the transfer was successful?
             IERC20(_localToken).safeTransferFrom(_from, address(this), _amount);
@@ -376,8 +387,7 @@ abstract contract StandardBridge {
      * @return True if the token is an OptimismMintableERC20.
      */
     function _isOptimismMintableERC20(address _token) internal view returns (bool) {
-        // 0x1d1d8b63 is mint ^ burn ^ l1Token
-        return ERC165Checker.supportsInterface(_token, 0x1d1d8b63);
+        return ERC165Checker.supportsInterface(_token, type(IL1Token).interfaceId);
     }
 
     /**
