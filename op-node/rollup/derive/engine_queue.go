@@ -3,13 +3,14 @@ package derive
 import (
 	"context"
 	"fmt"
+	"io"
+	"math/big"
+	"time"
+
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
-	"io"
-	"math/big"
-	"time"
 )
 
 type Engine interface {
@@ -18,6 +19,7 @@ type Engine interface {
 	NewPayload(ctx context.Context, payload *eth.ExecutionPayload) (*eth.PayloadStatusV1, error)
 	PayloadByHash(context.Context, common.Hash) (*eth.ExecutionPayload, error)
 	PayloadByNumber(context.Context, *big.Int) (*eth.ExecutionPayload, error)
+	UnsafeBlockIDs(ctx context.Context, safeHead eth.BlockID, max uint64) ([]eth.BlockID, error)
 }
 
 // Max number of unsafe payloads that may be queued up for execution
@@ -54,11 +56,11 @@ func (eq *EngineQueue) AddUnsafePayload(payload *eth.ExecutionPayload) {
 	if len(eq.unsafePayloads) > maxUnsafePayloads {
 		return // don't DoS ourselves by buffering too many unsafe payloads
 	}
-	eq.unsafePayloads = append(eq.unsafePayloads)
+	eq.unsafePayloads = append(eq.unsafePayloads, payload)
 }
 
 func (eq *EngineQueue) AddSafeAttributes(attributes *eth.PayloadAttributes) {
-	eq.safeAttributes = append(eq.safeAttributes)
+	eq.safeAttributes = append(eq.safeAttributes, attributes)
 }
 
 func (eq *EngineQueue) Finalize(l1Origin eth.BlockID) {

@@ -129,7 +129,7 @@ func (bq *BatchQueue) DeriveL2Inputs(ctx context.Context, lastL2Timestamp uint64
 			// (that would make the block derivation non-deterministic)
 			NoTxPool: true,
 		}
-		attributes = append(attributes, attrs) // TOOD: direct assignment here
+		attributes = append(attributes, attrs) // TODO: direct assignment here
 	}
 
 	bq.inputs = bq.inputs[1:]

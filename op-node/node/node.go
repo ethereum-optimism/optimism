@@ -138,7 +138,7 @@ func (n *OpNode) initL2(ctx context.Context, cfg *Config, snapshotLog log.Logger
 	}
 
 	snap := snapshotLog.New()
-	n.l2Engine = driver.NewDriver(cfg.Rollup, client, n.l1Source, n, n.log, snap, cfg.Sequencer)
+	n.l2Engine = driver.NewDriver(&cfg.Rollup, client, n.l1Source, n, n.log, snap, cfg.Sequencer)
 
 	return nil
 }
@@ -149,7 +149,7 @@ func (n *OpNode) initRPCServer(ctx context.Context, cfg *Config) error {
 	if err != nil {
 		return err
 	}
-	n.server, err = newRPCServer(ctx, &cfg.RPC, &cfg.Rollup, client, n.log, n.appVersion)
+	n.server, err = newRPCServer(ctx, &cfg.RPC, &cfg.Rollup, client, n.l2Engine.Emitter(), n.log, n.appVersion)
 	if err != nil {
 		return err
 	}

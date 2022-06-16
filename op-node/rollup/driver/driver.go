@@ -67,6 +67,10 @@ func NewDriver(cfg *rollup.Config, l2 *l2.Source, l1 *l1.Source, network Network
 	}
 }
 
+func (d *Driver) Emitter() *derive.ChannelEmitter {
+	return d.s.Emitter()
+}
+
 func (d *Driver) OnL1Head(ctx context.Context, head eth.L1BlockRef) error {
 	return d.s.OnL1Head(ctx, head)
 }

@@ -1,10 +1,7 @@
 package derive
 
 import (
-	"bytes"
 	"testing"
-
-	"github.com/ethereum-optimism/optimism/op-node/rollup"
 
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/stretchr/testify/assert"
@@ -36,10 +33,4 @@ func TestBatchRoundTrip(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Equal(t, batch, &dec, "Batch not equal test case %v", i)
 	}
-	var buf bytes.Buffer
-	err := EncodeBatches(&rollup.Config{}, batches, &buf)
-	assert.NoError(t, err)
-	out, err := DecodeBatches(&rollup.Config{}, &buf)
-	assert.NoError(t, err)
-	assert.Equal(t, batches, out)
 }

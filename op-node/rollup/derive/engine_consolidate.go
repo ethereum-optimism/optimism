@@ -3,6 +3,7 @@ package derive
 import (
 	"bytes"
 	"fmt"
+
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum/go-ethereum/common"
 )

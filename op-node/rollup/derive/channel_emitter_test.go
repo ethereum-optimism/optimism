@@ -5,6 +5,8 @@ import (
 	"math/rand"
 	"testing"
 
+	"github.com/ethereum-optimism/optimism/op-node/testutils"
+
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/testlog"
@@ -18,19 +20,22 @@ type mockUnsafeSource struct {
 	blocks []*eth.ExecutionPayload
 }
 
-func (m *mockUnsafeSource) Block(ctx context.Context, id eth.BlockID) (*eth.ExecutionPayload, error) {
+func (m *mockUnsafeSource) PayloadByHash(ctx context.Context, hash common.Hash) (*eth.ExecutionPayload, error) {
 	for _, b := range m.blocks {
-		if b.ID() == id {
+		if b.BlockHash == hash {
 			return b, nil
 		}
 	}
 	return nil, ethereum.NotFound
 }
 
-func (m *mockUnsafeSource) UnsafeBlockIDs(ctx context.Context, max uint64) (out []eth.BlockID, err error) {
-	for i, b := range m.blocks {
-		if uint64(i) > max {
+func (m *mockUnsafeSource) UnsafeBlockIDs(ctx context.Context, safeHead eth.BlockID, max uint64) (out []eth.BlockID, err error) {
+	for _, b := range m.blocks {
+		if uint64(len(out)) >= max {
 			return
+		}
+		if uint64(b.BlockNumber) < safeHead.Number {
+			continue
 		}
 		out = append(out, b.ID())
 	}
@@ -41,42 +46,39 @@ var _ UnsafeBlocksSource = (*mockUnsafeSource)(nil)
 
 func TestOutput(t *testing.T) {
 	// TODO more helper funcs to create mock data for better testing
-	head := eth.L1BlockRef{
-		Hash:       common.Hash{5},
-		Number:     5,
-		ParentHash: common.Hash{4},
-		Time:       100,
-	}
 	randomData := func(size int) []byte {
 		out := make([]byte, size)
 		rand.Read(out[:])
 		return out
 	}
 
-	// TODO: not exposed, but need that testing util
-	var l1Info eth.L1Info // derive.randomL1Info()
-	l1InfoTx, err := L1InfoDepositBytes(2, l1Info)
-	require.NoError(t, err)
+	rng := rand.New(rand.NewSource(1234))
+	randInfoTx := func() []byte {
+		l1Info := testutils.RandomL1Info(rng)
+		l1InfoTx, err := L1InfoDepositBytes(rng.Uint64(), l1Info)
+		require.NoError(t, err)
+		return l1InfoTx
+	}
 	src := &mockUnsafeSource{blocks: []*eth.ExecutionPayload{
 		&eth.ExecutionPayload{
 			BlockNumber:  1,
 			BlockHash:    common.Hash{1},
-			Transactions: []eth.Data{l1InfoTx, randomData(5000), randomData(3000)},
+			Transactions: []eth.Data{randInfoTx(), randomData(5000), randomData(3000)},
 		},
 		&eth.ExecutionPayload{
 			BlockNumber:  2,
 			BlockHash:    common.Hash{2},
-			Transactions: []eth.Data{l1InfoTx, randomData(4000)}, // will be partially in previous tx, and part in the next
+			Transactions: []eth.Data{randInfoTx(), randomData(4000)}, // will be partially in previous tx, and part in the next
 		},
 		&eth.ExecutionPayload{
 			BlockNumber:  3,
 			BlockHash:    common.Hash{3},
-			Transactions: []eth.Data{l1InfoTx, randomData(3000), randomData(3000)},
+			Transactions: []eth.Data{randInfoTx(), randomData(3000), randomData(3000)},
 		},
 		&eth.ExecutionPayload{
 			BlockNumber:  4,
 			BlockHash:    common.Hash{4},
-			Transactions: []eth.Data{l1InfoTx, randomData(5000), randomData(6000)},
+			Transactions: []eth.Data{randInfoTx(), randomData(5000), randomData(6000)},
 		},
 	}}
 	cfg := &rollup.Config{
@@ -87,16 +89,17 @@ func TestOutput(t *testing.T) {
 		},
 		// the other fields don't matter in this test
 	}
-	og := NewChannelEmitter(testlog.Logger(t, log.LvlDebug), cfg, src, head)
+	og := NewChannelEmitter(testlog.Logger(t, log.LvlDebug), cfg, src)
 	history := map[ChannelID]uint64{}
+	minSize := uint64(1000)
 	maxSize := uint64(10_000)
 	maxBlocksPerChannel := uint64(20)
 
 	// produce some outputs
 	for i := 0; i < 3; i++ {
-		out, err := og.Output(context.Background(), history, maxSize, maxBlocksPerChannel)
+		out, err := og.Output(context.Background(), history, minSize, maxSize, maxBlocksPerChannel)
 		require.NoError(t, err)
-		require.Less(t, 1, len(out.Data), "expecting at least a version byte and some frame data")
+		require.Less(t, minSize, len(out.Data), "expecting at least a the minimum size")
 		require.Less(t, 0, len(out.Channels), "expecting at least one new channel to be opened")
 		// update history by merging in the results
 		for chID, frameNr := range out.Channels {

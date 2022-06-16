@@ -8,6 +8,8 @@ import (
 	gosync "sync"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
+
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
@@ -24,6 +26,8 @@ type state struct {
 	// The derivation pipeline is reset whenever we reorg.
 	// The derivation pipeline determines the new l2SafeHead.
 	derivation DerivationPipeline
+
+	emitter *derive.ChannelEmitter
 
 	// Rollup config
 	Config    *rollup.Config
@@ -50,6 +54,7 @@ func NewState(log log.Logger, snapshotLog log.Logger, config *rollup.Config, l1C
 	output outputInterface, derivationPipeline DerivationPipeline, network Network, sequencer bool) *state {
 	return &state{
 		derivation:       derivationPipeline,
+		emitter:          derive.NewChannelEmitter(log, config, l2Chain),
 		Config:           config,
 		done:             make(chan struct{}),
 		log:              log,
@@ -81,6 +86,10 @@ func (s *state) Start(ctx context.Context) error {
 	go s.eventLoop()
 
 	return nil
+}
+
+func (s *state) Emitter() *derive.ChannelEmitter {
+	return s.emitter
 }
 
 func (s *state) Close() error {
@@ -121,6 +130,7 @@ func (s *state) handleNewL1Block(newL1Head eth.L1BlockRef) {
 		s.log.Warn("L1 Head signal indicates an L1 re-org", "old_l1_head", s.l1Head, "new_l1_head_parent", newL1Head.ParentHash, "new_l1_head", newL1Head)
 	}
 	s.l1Head = newL1Head
+	s.emitter.SetL1Time(newL1Head.Time)
 }
 
 func (s *state) resetDerivation(ctx context.Context) error {
@@ -345,6 +355,7 @@ func (s *state) eventLoop() {
 				s.l2Finalized = finalized
 				s.l2SafeHead = safe
 				s.l2Head = unsafe
+				s.emitter.SetL2SafeHead(safe.ID())
 				reqStep() // continue with the next step if we can
 			}
 		case <-s.done:

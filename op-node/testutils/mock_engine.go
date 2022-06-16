@@ -2,10 +2,11 @@ package testutils
 
 import (
 	"context"
+	"math/big"
+
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/mock"
-	"math/big"
 )
 
 type MockEngine struct {
@@ -35,4 +36,9 @@ func (m *MockEngine) PayloadByHash(ctx context.Context, hash common.Hash) (*eth.
 func (m *MockEngine) PayloadByNumber(ctx context.Context, b *big.Int) (*eth.ExecutionPayload, error) {
 	out := m.Mock.MethodCalled("PayloadByNumber", b)
 	return out[0].(*eth.ExecutionPayload), out[1].(error)
+}
+
+func (m *MockEngine) UnsafeBlockIDs(ctx context.Context, safeHead eth.BlockID, max uint64) ([]eth.BlockID, error) {
+	out := m.Mock.MethodCalled("UnsafeBlockIDs", safeHead, max)
+	return out[0].([]eth.BlockID), out[1].(error)
 }

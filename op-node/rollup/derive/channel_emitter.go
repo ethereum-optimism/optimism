@@ -7,6 +7,8 @@ import (
 	"sort"
 	"sync"
 
+	"github.com/ethereum/go-ethereum/common"
+
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 
 	"github.com/ethereum-optimism/optimism/op-node/eth"
@@ -14,12 +16,12 @@ import (
 )
 
 type BlocksSource interface {
-	Block(ctx context.Context, id eth.BlockID) (*eth.ExecutionPayload, error)
+	PayloadByHash(context.Context, common.Hash) (*eth.ExecutionPayload, error)
 }
 
 type UnsafeBlocksSource interface {
 	BlocksSource
-	UnsafeBlockIDs(ctx context.Context, max uint64) ([]eth.BlockID, error)
+	UnsafeBlockIDs(ctx context.Context, safeHead eth.BlockID, max uint64) ([]eth.BlockID, error)
 }
 
 type OutputData struct {
@@ -44,30 +46,38 @@ type ChannelEmitter struct {
 	// pruned when timed out. We keep track of fully read channels to avoid resubmitting data.
 	channels map[ChannelID]*ChannelOut
 
-	l1Head eth.L1BlockRef
+	l1Time     uint64
+	l2SafeHead eth.BlockID
 }
 
-func NewChannelEmitter(log log.Logger, cfg *rollup.Config, source UnsafeBlocksSource, l1Head eth.L1BlockRef) *ChannelEmitter {
+func NewChannelEmitter(log log.Logger, cfg *rollup.Config, source UnsafeBlocksSource) *ChannelEmitter {
 	return &ChannelEmitter{
 		log:      log,
 		cfg:      cfg,
 		source:   source,
 		channels: make(map[ChannelID]*ChannelOut),
-		l1Head:   l1Head,
+		l1Time:   0,
 	}
 }
 
-// SetL1Head updates the L1 head, so the old channels can be pruned
-func (og *ChannelEmitter) SetL1Head(head eth.L1BlockRef) {
-	og.l1Head = head
+// SetL1Time updates the tracked L1 time, so the old channels can be pruned
+func (og *ChannelEmitter) SetL1Time(l1Time uint64) {
+	og.l1Time = l1Time
+}
+
+// SetSafeHead updates the tracked L2 safe head, so we can submit data for all unsafe blocks after it
+func (og *ChannelEmitter) SetL2SafeHead(l2SafeHead eth.BlockID) {
+	og.l2SafeHead = l2SafeHead
 }
 
 // TODO: based on previous data we may be able to reconstruct a partially-consumed channel, to continue it on a fresh (restarted or different instance) rollup node.
 
 // history is the collection of channels that have been submitted, and the frame ID of the last submission
-func (og *ChannelEmitter) Output(ctx context.Context, history map[ChannelID]uint64, maxSize uint64, maxBlocksPerChannel uint64) (*OutputData, error) {
+func (og *ChannelEmitter) Output(ctx context.Context, history map[ChannelID]uint64, minSize uint64, maxSize uint64, maxBlocksPerChannel uint64) (*OutputData, error) {
 	og.mu.Lock()
 	defer og.mu.Unlock()
+
+	// TODO: handle minSize argument
 
 	if og.channels == nil {
 		og.channels = make(map[ChannelID]*ChannelOut)
@@ -75,7 +85,7 @@ func (og *ChannelEmitter) Output(ctx context.Context, history map[ChannelID]uint
 
 	// prune timed out channels, before adding new ones
 	for id, ch := range og.channels {
-		if ch.created+ChannelTimeout < og.l1Head.Time {
+		if ch.created+ChannelTimeout < og.l1Time {
 			if ch.Closed() {
 				og.log.Debug("cleaning up closed timed-out channel", "channel", ch)
 			} else {
@@ -87,7 +97,7 @@ func (og *ChannelEmitter) Output(ctx context.Context, history map[ChannelID]uint
 
 	// We find the first 1000 unsafe blocks that we may want to put in the output
 	unsafeBlocks := make(map[eth.BlockID]struct{})
-	if blocks, err := og.source.UnsafeBlockIDs(ctx, 1000); err != nil {
+	if blocks, err := og.source.UnsafeBlockIDs(ctx, og.l2SafeHead, 1000); err != nil {
 		return nil, fmt.Errorf("failed to get list of unsafe blocks to submit: %v", err)
 	} else {
 		for _, b := range blocks {
@@ -218,7 +228,7 @@ func (og *ChannelEmitter) Output(ctx context.Context, history map[ChannelID]uint
 			blocks:  blocks,
 			frame:   0,
 			offset:  0,
-			created: og.l1Head.Time,
+			created: og.l1Time,
 			reader:  r,
 		}
 		og.channels[id] = outCh

@@ -56,7 +56,7 @@ func (cr *channelOutReader) readPayload() (*eth.ExecutionPayload, error) {
 	if len(cr.blocks) == 0 {
 		return nil, io.EOF
 	}
-	payload, err := cr.source.Block(cr.ctx, cr.blocks[0])
+	payload, err := cr.source.PayloadByHash(cr.ctx, cr.blocks[0].Hash)
 	if err == nil {
 		cr.blocks = cr.blocks[1:]
 	}

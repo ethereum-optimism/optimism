@@ -1,13 +1,14 @@
 package derive
 
 import (
+	"math/big"
+	"testing"
+
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/testlog"
 	"github.com/ethereum-optimism/optimism/op-node/testutils"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
-	"math/big"
-	"testing"
 )
 
 var _ Engine = (*testutils.MockEngine)(nil)

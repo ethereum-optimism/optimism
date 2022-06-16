@@ -17,13 +17,6 @@ type zlibReader interface {
 	zlib.Resetter
 }
 
-// read function is an util to expose a function as io.Reader, e.g. to not expose the reading to public API.
-type readFn func(p []byte) (n int, err error)
-
-func (fn readFn) Read(p []byte) (n int, err error) {
-	return fn(p)
-}
-
 type ChannelInReader struct {
 	ready    bool
 	r        *bytes.Reader
