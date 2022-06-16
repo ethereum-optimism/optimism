@@ -234,7 +234,7 @@ func (cfg SystemConfig) start() (*System, error) {
 	}
 
 	l2Alloc[cfg.L1InfoPredeployAddress] = core.GenesisAccount{Code: common.FromHex(bindings.L1BlockDeployedBin), Balance: common.Big0}
-	l2Alloc[common.HexToAddress(predeploys.L2ToL1MessagePasser)] = core.GenesisAccount{Code: common.FromHex(bindings.L2ToL1MessagePasserDeployedBin), Balance: common.Big0}
+	l2Alloc[predeploys.L2ToL1MessagePasserAddr] = core.GenesisAccount{Code: common.FromHex(bindings.L2ToL1MessagePasserDeployedBin), Balance: common.Big0}
 
 	genesisTimestamp := uint64(time.Now().Unix())
 

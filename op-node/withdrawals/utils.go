@@ -164,7 +164,7 @@ func FinalizeWithdrawalParameters(ctx context.Context, l2client ProofClient, txH
 		return FinalizedWithdrawalParameters{}, err
 	}
 	slot := StorageSlotOfWithdrawalHash(withdrawalHash)
-	p, err := l2client.GetProof(ctx, common.HexToAddress(predeploys.L2ToL1MessagePasser), []string{slot.String()}, header.Number)
+	p, err := l2client.GetProof(ctx, predeploys.L2ToL1MessagePasserAddr, []string{slot.String()}, header.Number)
 	if err != nil {
 		return FinalizedWithdrawalParameters{}, err
 	}

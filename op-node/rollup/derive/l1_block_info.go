@@ -17,7 +17,7 @@ var (
 	L1InfoFuncSignature    = "setL1BlockValues(uint64,uint64,uint256,bytes32,uint64)"
 	L1InfoFuncBytes4       = crypto.Keccak256([]byte(L1InfoFuncSignature))[:4]
 	L1InfoDepositerAddress = common.HexToAddress("0xdeaddeaddeaddeaddeaddeaddeaddeaddead0001")
-	L1BlockAddress         = common.HexToAddress(predeploys.L1Block)
+	L1BlockAddress         = predeploys.L1BlockAddr
 )
 
 type L1Info interface {
