@@ -62,7 +62,7 @@ func (n *nodeAPI) OutputAtBlock(ctx context.Context, number rpc.BlockNumber) ([]
 		return nil, ethereum.NotFound
 	}
 
-	proof, err := n.client.GetProof(ctx, common.HexToAddress(predeploys.L2ToL1MessagePasser), toBlockNumArg(number))
+	proof, err := n.client.GetProof(ctx, predeploys.L2ToL1MessagePasserAddr, toBlockNumArg(number))
 	if err != nil {
 		n.log.Error("failed to get contract proof", "err", err)
 		return nil, err
