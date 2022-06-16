@@ -54,7 +54,7 @@ func TestOutput(t *testing.T) {
 	}
 
 	// TODO: not exposed, but need that testing util
-	var l1Info L1Info // derive.randomL1Info()
+	var l1Info eth.L1Info // derive.randomL1Info()
 	l1InfoTx, err := L1InfoDepositBytes(2, l1Info)
 	require.NoError(t, err)
 	src := &mockUnsafeSource{blocks: []*eth.ExecutionPayload{

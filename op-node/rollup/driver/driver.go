@@ -19,8 +19,8 @@ type Driver struct {
 }
 
 type Downloader interface {
-	InfoByHash(ctx context.Context, hash common.Hash) (derive.L1Info, error)
-	Fetch(ctx context.Context, blockHash common.Hash) (derive.L1Info, types.Transactions, types.Receipts, error)
+	InfoByHash(ctx context.Context, hash common.Hash) (eth.L1Info, error)
+	Fetch(ctx context.Context, blockHash common.Hash) (eth.L1Info, types.Transactions, types.Receipts, error)
 }
 
 type L1Chain interface {
@@ -34,6 +34,16 @@ type L2Chain interface {
 	L2BlockRefByHash(ctx context.Context, l2Hash common.Hash) (eth.L2BlockRef, error)
 }
 
+type DerivationPipeline interface {
+	Reset(ctx context.Context, l2SafeHead eth.L2BlockRef, unsafeL2Head eth.L2BlockRef) error
+	Step(ctx context.Context) error
+	AddUnsafePayload(payload *eth.ExecutionPayload)
+	Finalized() eth.L2BlockRef
+	SafeL2Head() eth.L2BlockRef
+	UnsafeL2Head() eth.L2BlockRef
+	CurrentL1() eth.L1BlockRef
+}
+
 type outputInterface interface {
 	// createNewBlock builds a new block based on the L2 Head, L1 Origin, and the current mempool.
 	createNewBlock(ctx context.Context, l2Head eth.L2BlockRef, l2SafeHead eth.BlockID, l2Finalized eth.BlockID, l1Origin eth.L1BlockRef) (eth.L2BlockRef, *eth.ExecutionPayload, error)
@@ -44,15 +54,16 @@ type Network interface {
 	PublishL2Payload(ctx context.Context, payload *eth.ExecutionPayload) error
 }
 
-func NewDriver(cfg rollup.Config, l2 *l2.Source, l1 *l1.Source, network Network, log log.Logger, snapshotLog log.Logger, sequencer bool) *Driver {
+func NewDriver(cfg *rollup.Config, l2 *l2.Source, l1 *l1.Source, network Network, log log.Logger, snapshotLog log.Logger, sequencer bool) *Driver {
 	output := &outputImpl{
 		Config: cfg,
 		dl:     l1,
 		l2:     l2,
 		log:    log,
 	}
+	derivationPipeline := derive.NewDerivationPipeline(log, cfg, l1, l2)
 	return &Driver{
-		s: NewState(log, snapshotLog, &cfg, l1, l2, output, network, sequencer),
+		s: NewState(log, snapshotLog, cfg, l1, l2, output, derivationPipeline, network, sequencer),
 	}
 }
 

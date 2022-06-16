@@ -1,6 +1,7 @@
 package derive
 
 import (
+	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"math/big"
 	"math/rand"
 	"testing"
@@ -11,7 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-var _ L1Info = (*testutils.MockL1Info)(nil)
+var _ eth.L1Info = (*testutils.MockL1Info)(nil)
 
 type infoTest struct {
 	name   string

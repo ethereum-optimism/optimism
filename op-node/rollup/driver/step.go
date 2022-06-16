@@ -18,7 +18,7 @@ type outputImpl struct {
 	dl     Downloader
 	l2     derive.Engine
 	log    log.Logger
-	Config rollup.Config
+	Config *rollup.Config
 }
 
 func (d *outputImpl) createNewBlock(ctx context.Context, l2Head eth.L2BlockRef, l2SafeHead eth.BlockID, l2Finalized eth.BlockID, l1Origin eth.L1BlockRef) (eth.L2BlockRef, *eth.ExecutionPayload, error) {
@@ -27,7 +27,7 @@ func (d *outputImpl) createNewBlock(ctx context.Context, l2Head eth.L2BlockRef, 
 	fetchCtx, cancel := context.WithTimeout(ctx, time.Second*20)
 	defer cancel()
 
-	var l1Info derive.L1Info
+	var l1Info eth.L1Info
 	var receipts types.Receipts
 	var err error
 

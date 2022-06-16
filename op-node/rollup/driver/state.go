@@ -10,20 +10,9 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
-	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	"github.com/ethereum/go-ethereum/log"
 )
-
-type DerivationPipeline interface {
-	Reset(ctx context.Context, l2SafeHead eth.L2BlockRef, unsafeL2Head eth.L2BlockRef) error
-	Step(ctx context.Context) error
-	AddUnsafePayload(payload *eth.ExecutionPayload)
-	Finalized() eth.L2BlockRef
-	SafeL2Head() eth.L2BlockRef
-	UnsafeL2Head() eth.L2BlockRef
-	CurrentL1() eth.L1BlockRef
-}
 
 type state struct {
 	// Chain State
@@ -55,11 +44,12 @@ type state struct {
 	wg gosync.WaitGroup
 }
 
-// NewState creates a new driver state. State changes take effect though the given output.
-// Optionally a network can be provided to publish things to other nodes than the engine of the driver.
-func NewState(log log.Logger, snapshotLog log.Logger, config *rollup.Config, l1Chain L1Chain, l2Chain L2Chain, output outputInterface, network Network, sequencer bool) *state {
+// NewState creates a new driver state. State changes take effect though
+// the given output, derivation pipeline and network interfaces.
+func NewState(log log.Logger, snapshotLog log.Logger, config *rollup.Config, l1Chain L1Chain, l2Chain L2Chain,
+	output outputInterface, derivationPipeline DerivationPipeline, network Network, sequencer bool) *state {
 	return &state{
-		derivation:       derive.NewDerivationPipeline(log, config, l1Chain, l2Chain),
+		derivation:       derivationPipeline,
 		Config:           config,
 		done:             make(chan struct{}),
 		log:              log,
@@ -94,7 +84,7 @@ func (s *state) Start(ctx context.Context) error {
 }
 
 func (s *state) Close() error {
-	close(s.done)
+	s.done <- struct{}{}
 	s.wg.Wait()
 	return nil
 }
@@ -117,11 +107,10 @@ func (s *state) OnUnsafeL2Payload(ctx context.Context, payload *eth.ExecutionPay
 	}
 }
 
-func (s *state) handleNewL1Block(ctx context.Context, newL1Head eth.L1BlockRef) error {
+func (s *state) handleNewL1Block(newL1Head eth.L1BlockRef) {
 	// We don't need to do anything if the head hasn't changed.
 	if s.l1Head.Hash == newL1Head.Hash {
 		s.log.Trace("Received L1 head signal that is the same as the current head", "l1Head", newL1Head)
-		return nil
 	} else if s.l1Head.Hash == newL1Head.ParentHash {
 		// We got a new L1 block whose parent hash is the same as the current L1 head. Means we're
 		// dealing with a linear extension (new block is the immediate child of the old one).
@@ -132,7 +121,6 @@ func (s *state) handleNewL1Block(ctx context.Context, newL1Head eth.L1BlockRef) 
 		s.log.Warn("L1 Head signal indicates an L1 re-org", "old_l1_head", s.l1Head, "new_l1_head_parent", newL1Head.ParentHash, "new_l1_head", newL1Head)
 	}
 	s.l1Head = newL1Head
-	return nil
 }
 
 func (s *state) resetDerivation(ctx context.Context) error {
@@ -325,22 +313,17 @@ func (s *state) eventLoop() {
 			}
 
 		case payload := <-s.unsafeL2Payloads:
+			s.snapshot("New unsafe payload")
 			s.log.Info("Optimistically queueing unsafe L2 execution payload", "id", payload.ID())
 			s.derivation.AddUnsafePayload(payload)
 			reqStep()
 
 		case newL1Head := <-s.l1Heads:
 			s.snapshot("New L1 Head")
-			ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
-			err := s.handleNewL1Block(ctx, newL1Head)
-			cancel()
-			if err != nil {
-				s.log.Error("Error in handling new L1 Head", "err", err)
-			}
-			// a new L1 head may mean we have the data to not get an EOF again.
-			reqStep()
+			s.handleNewL1Block(newL1Head)
+			reqStep() // a new L1 head may mean we have the data to not get an EOF again.
 		case <-stepReqCh:
-			s.log.Debug("Derivation process step", "onto", s.derivation.CurrentL1())
+			s.log.Trace("Derivation process step", "onto", s.derivation.CurrentL1())
 			stepCtx, cancel := context.WithTimeout(ctx, time.Second*10) // TODO pick a timeout for executing a single step
 			err := s.derivation.Step(stepCtx)
 			cancel()
@@ -372,15 +355,15 @@ func (s *state) eventLoop() {
 
 func (s *state) snapshot(event string) {
 	l1HeadJSON, _ := json.Marshal(s.l1Head)
+	l1CurrentJSON, _ := json.Marshal(s.l2Head)
 	l2HeadJSON, _ := json.Marshal(s.l2Head)
 	l2SafeHeadJSON, _ := json.Marshal(s.l2SafeHead)
 	l2FinalizedHeadJSON, _ := json.Marshal(s.l2Finalized)
-	// TODO: removed in batch derivation, may need to update the snapshot logging tool
-	//l1WindowBufJSON, _ := json.Marshal(s.l1WindowBuf)
 
 	s.snapshotLog.Info("Rollup State Snapshot",
 		"event", event,
 		"l1Head", string(l1HeadJSON),
+		"l1Current", string(l1CurrentJSON),
 		"l2Head", string(l2HeadJSON),
 		"l2SafeHead", string(l2SafeHeadJSON),
 		"l2FinalizedHead", string(l2FinalizedHeadJSON))

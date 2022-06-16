@@ -11,7 +11,7 @@ import (
 )
 
 type L1TransactionFetcher interface {
-	InfoAndTxsByHash(ctx context.Context, hash common.Hash) (L1Info, types.Transactions, error)
+	InfoAndTxsByHash(ctx context.Context, hash common.Hash) (eth.L1Info, types.Transactions, error)
 }
 
 type CalldataSource struct {

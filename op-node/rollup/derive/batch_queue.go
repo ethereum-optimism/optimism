@@ -15,7 +15,7 @@ import (
 )
 
 type L1ReceiptsFetcher interface {
-	Fetch(ctx context.Context, blockHash common.Hash) (L1Info, types.Transactions, types.Receipts, error)
+	Fetch(ctx context.Context, blockHash common.Hash) (eth.L1Info, types.Transactions, types.Receipts, error)
 }
 
 type BatchesWithOrigin struct {
