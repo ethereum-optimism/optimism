@@ -34,9 +34,7 @@ export type OptionsSpec<TOptions extends Options> = {
   }
 }
 
-export type MetricsV2 = {
-  [key: string]: Metric
-}
+export type MetricsV2 = Record<any, Metric>
 
 export type StandardMetrics = {
   metadata: Gauge
