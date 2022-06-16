@@ -1,5 +1,12 @@
 # @eth-optimism/js-builder
 
+## 0.0.5
+
+### Patch Changes
+
+- 8a8efd51: Cache Solc 0.8.9 and 0.8.10 for use in CI
+- 8dc50095: Fix broken build
+
 ## 0.0.4
 
 ### Patch Changes

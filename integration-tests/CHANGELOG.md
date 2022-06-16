@@ -1,5 +1,11 @@
 # @eth-optimism/integration-tests
 
+## 0.5.15
+
+### Patch Changes
+
+- 29ff7462: Revert es target back to 2017
+
 ## 0.5.14
 
 ### Patch Changes

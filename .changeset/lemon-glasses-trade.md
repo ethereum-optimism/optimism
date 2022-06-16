@@ -2,4 +2,4 @@
 '@eth-optimism/contracts-bedrock': patch
 ---
 
-Add proxy contract
+bedrock: Simplify ProxyAdmin static calls

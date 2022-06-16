@@ -1,5 +1,15 @@
 # @eth-optimism/sdk
 
+## 1.1.9
+
+### Patch Changes
+
+- 29ff7462: Revert es target back to 2017
+- Updated dependencies [27234f68]
+- Updated dependencies [29ff7462]
+  - @eth-optimism/contracts@0.5.28
+  - @eth-optimism/core-utils@0.8.7
+
 ## 1.1.8
 
 ### Patch Changes

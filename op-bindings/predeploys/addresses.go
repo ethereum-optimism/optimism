@@ -1,5 +1,7 @@
 package predeploys
 
+import "github.com/ethereum/go-ethereum/common"
+
 const (
 	L2ToL1MessagePasser          = "0x4200000000000000000000000000000000000000"
 	OVM_DeployerWhitelist        = "0x4200000000000000000000000000000000000002"
@@ -13,4 +15,19 @@ const (
 	OVM_GasPriceOracle           = "0x420000000000000000000000000000000000000F"
 	L1Block                      = "0x4200000000000000000000000000000000000015"
 	GovernanceToken              = "0x4200000000000000000000000000000000000042"
+)
+
+var (
+	L2ToL1MessagePasserAddr          = common.HexToAddress(L2ToL1MessagePasser)
+	OVM_DeployerWhitelistAddr        = common.HexToAddress(OVM_DeployerWhitelist)
+	OVM_ETHAddr                      = common.HexToAddress(OVM_ETH)
+	WETH9Addr                        = common.HexToAddress(WETH9)
+	L2CrossDomainMessengerAddr       = common.HexToAddress(L2CrossDomainMessenger)
+	L2StandardBridgeAddr             = common.HexToAddress(L2StandardBridge)
+	SequencerFeeVaultAddr            = common.HexToAddress(SequencerFeeVault)
+	OptimismMintableTokenFactoryAddr = common.HexToAddress(OptimismMintableTokenFactory)
+	L1BlockNumberAddr                = common.HexToAddress(L1BlockNumber)
+	OVM_GasPriceOracleAddr           = common.HexToAddress(OVM_GasPriceOracle)
+	L1BlockAddr                      = common.HexToAddress(L1Block)
+	GovernanceTokenAddr              = common.HexToAddress(GovernanceToken)
 )

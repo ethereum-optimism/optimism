@@ -1,6 +1,8 @@
 import { ethers } from 'ethers'
 import { HardhatUserConfig, task, subtask } from 'hardhat/config'
 import { TASK_COMPILE_SOLIDITY_GET_SOURCE_PATHS } from 'hardhat/builtin-tasks/task-names'
+
+// Hardhat plugins
 import '@nomiclabs/hardhat-waffle'
 import '@typechain/hardhat'
 import 'solidity-coverage'
@@ -8,6 +10,7 @@ import 'hardhat-deploy'
 import '@foundry-rs/hardhat-forge'
 import '@eth-optimism/hardhat-deploy-config'
 
+// Hardhat tasks
 import './tasks/deposits'
 
 subtask(TASK_COMPILE_SOLIDITY_GET_SOURCE_PATHS).setAction(
@@ -32,6 +35,13 @@ const config: HardhatUserConfig = {
       url: 'http://localhost:8545',
       accounts: [
         'ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80',
+      ],
+    },
+    goerli: {
+      chainId: 5,
+      url: (process.env.L1_RPC || ''),
+      accounts: [
+        (process.env.PRIVATE_KEY_DEPLOYER || ethers.constants.HashZero),
       ],
     },
   },
