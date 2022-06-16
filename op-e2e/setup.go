@@ -92,6 +92,9 @@ type SystemConfig struct {
 	// A nil map disables P2P completely.
 	// Any node name not in the topology will not have p2p enabled.
 	P2PTopology map[string][]string
+
+	BaseFeeRecipient common.Address
+	L1FeeRecipient   common.Address
 }
 
 type System struct {
@@ -235,6 +238,10 @@ func (cfg SystemConfig) start() (*System, error) {
 
 	l2Alloc[cfg.L1InfoPredeployAddress] = core.GenesisAccount{Code: common.FromHex(bindings.L1BlockDeployedBin), Balance: common.Big0}
 	l2Alloc[predeploys.L2ToL1MessagePasserAddr] = core.GenesisAccount{Code: common.FromHex(bindings.L2ToL1MessagePasserDeployedBin), Balance: common.Big0}
+	l2Alloc[predeploys.OVM_GasPriceOracleAddr] = core.GenesisAccount{Code: common.FromHex(bindings.GasPriceOracleDeployedBin), Balance: common.Big0, Storage: map[common.Hash]common.Hash{
+		// storage for GasPriceOracle to have transctorPath wallet as owner
+		common.BigToHash(big.NewInt(0)): common.HexToHash("0x8A0A996b22B103B500Cd0F20d62dF2Ba3364D295"),
+	}}
 
 	genesisTimestamp := uint64(time.Now().Unix())
 
@@ -279,6 +286,11 @@ func (cfg SystemConfig) start() (*System, error) {
 			LondonBlock:             common.Big0,
 			MergeForkBlock:          common.Big0,
 			TerminalTotalDifficulty: common.Big0,
+			Optimism: &params.OptimismConfig{
+				Enabled:          true,
+				BaseFeeRecipient: cfg.BaseFeeRecipient,
+				L1FeeRecipient:   cfg.L1FeeRecipient,
+			},
 		},
 		Alloc:      l2Alloc,
 		Difficulty: common.Big1,
