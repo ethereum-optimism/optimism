@@ -13,7 +13,12 @@
     "berlinBlock": 0,
     "londonBlock": 0,
     "mergeForkBlock": 0,
-    "terminalTotalDifficulty": 0
+    "terminalTotalDifficulty": 0,
+    "optimism": {
+      "enabled": true,
+      "baseFeeRecipient": "0xBcd4042DE499D14e55001CcbB24a551F3b954096",
+      "l1FeeRecipient": "0x71bE63f3384f5fb98995898A86B02Fb2426c5788"
+    }
   },
   "nonce": "0x1234",
   "timestamp": "",
