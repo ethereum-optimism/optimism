@@ -42,18 +42,20 @@ contract CommonTest is Test {
         vm.fee(1000000000);
     }
 }
+
 contract L2OutputOracle_Initializer is CommonTest {
     // Test target
     L2OutputOracle oracle;
 
     // Constructor arguments
-    uint256 submissionInterval = 42;
+    address sequencer = 0x000000000000000000000000000000000000AbBa;
+    address owner = 0x000000000000000000000000000000000000ACDC;
+    uint256 submissionInterval = 1800;
+    uint256 l2BlockTime = 2;
     bytes32 genesisL2Output = keccak256(abi.encode(0));
     uint256 historicalTotalBlocks = 199;
     uint256 startingBlockNumber = 200;
     uint256 startingTimestamp = 1000;
-    uint256 l2BlockTime = 2;
-    address sequencer = 0x000000000000000000000000000000000000AbBa;
 
     // Test data
     uint256 initL1Time;
@@ -74,7 +76,8 @@ contract L2OutputOracle_Initializer is CommonTest {
             startingBlockNumber,
             startingTimestamp,
             l2BlockTime,
-            sequencer
+            sequencer,
+            owner
         );
     }
 }
@@ -82,8 +85,10 @@ contract L2OutputOracle_Initializer is CommonTest {
 contract Messenger_Initializer is L2OutputOracle_Initializer {
     OptimismPortal op;
     L1CrossDomainMessenger L1Messenger;
-    L2CrossDomainMessenger L2Messenger = L2CrossDomainMessenger(Lib_PredeployAddresses.L2_CROSS_DOMAIN_MESSENGER);
-    L2ToL1MessagePasser messagePasser = L2ToL1MessagePasser(payable(Lib_PredeployAddresses.L2_TO_L1_MESSAGE_PASSER));
+    L2CrossDomainMessenger L2Messenger =
+        L2CrossDomainMessenger(Lib_PredeployAddresses.L2_CROSS_DOMAIN_MESSENGER);
+    L2ToL1MessagePasser messagePasser =
+        L2ToL1MessagePasser(payable(Lib_PredeployAddresses.L2_TO_L1_MESSAGE_PASSER));
 
     event SentMessage(
         address indexed target,
@@ -139,20 +144,11 @@ contract Messenger_Initializer is L2OutputOracle_Initializer {
             address(new L2ToL1MessagePasser()).code
         );
 
-        vm.label(
-            Lib_PredeployAddresses.OVM_ETH,
-            "OVM_ETH"
-        );
+        vm.label(Lib_PredeployAddresses.OVM_ETH, "OVM_ETH");
 
-        vm.label(
-            Lib_PredeployAddresses.L2_TO_L1_MESSAGE_PASSER,
-            "L2ToL1MessagePasser"
-        );
+        vm.label(Lib_PredeployAddresses.L2_TO_L1_MESSAGE_PASSER, "L2ToL1MessagePasser");
 
-        vm.label(
-            Lib_PredeployAddresses.L2_CROSS_DOMAIN_MESSENGER,
-            "L2CrossDomainMessenger"
-        );
+        vm.label(Lib_PredeployAddresses.L2_CROSS_DOMAIN_MESSENGER, "L2CrossDomainMessenger");
 
         vm.label(
             AddressAliasHelper.applyL1ToL2Alias(address(L1Messenger)),
@@ -274,14 +270,8 @@ contract Bridge_Initializer is Messenger_Initializer {
     function setUp() public virtual override {
         super.setUp();
 
-        vm.label(
-            Lib_PredeployAddresses.L2_STANDARD_BRIDGE,
-            "L2StandardBridge"
-        );
-        vm.label(
-            Lib_PredeployAddresses.L2_STANDARD_TOKEN_FACTORY,
-            "L2StandardTokenFactory"
-        );
+        vm.label(Lib_PredeployAddresses.L2_STANDARD_BRIDGE, "L2StandardBridge");
+        vm.label(Lib_PredeployAddresses.L2_STANDARD_TOKEN_FACTORY, "L2StandardTokenFactory");
 
         // Deploy the L1 bridge and initialize it with the address of the
         // L1CrossDomainMessenger
@@ -299,32 +289,34 @@ contract Bridge_Initializer is Messenger_Initializer {
         // Set up the L2 mintable token factory
         OptimismMintableTokenFactory factory = new OptimismMintableTokenFactory();
         vm.etch(Lib_PredeployAddresses.L2_STANDARD_TOKEN_FACTORY, address(factory).code);
-        L2TokenFactory = OptimismMintableTokenFactory(Lib_PredeployAddresses.L2_STANDARD_TOKEN_FACTORY);
+        L2TokenFactory = OptimismMintableTokenFactory(
+            Lib_PredeployAddresses.L2_STANDARD_TOKEN_FACTORY
+        );
         L2TokenFactory.initialize(Lib_PredeployAddresses.L2_STANDARD_BRIDGE);
 
-        vm.etch(
-            Lib_PredeployAddresses.OVM_ETH,
-            address(new OVM_ETH()).code
-        );
+        vm.etch(Lib_PredeployAddresses.OVM_ETH, address(new OVM_ETH()).code);
 
         L1Token = new ERC20("Native L1 Token", "L1T");
 
         // Deploy the L2 ERC20 now
-        L2Token = OptimismMintableERC20(L2TokenFactory.createStandardL2Token(
-            address(L1Token),
-            string(abi.encodePacked("L2-", L1Token.name())),
-            string(abi.encodePacked("L2-", L1Token.symbol()))
-        ));
+        L2Token = OptimismMintableERC20(
+            L2TokenFactory.createStandardL2Token(
+                address(L1Token),
+                string(abi.encodePacked("L2-", L1Token.name())),
+                string(abi.encodePacked("L2-", L1Token.symbol()))
+            )
+        );
 
         NativeL2Token = new ERC20("Native L2 Token", "L2T");
         L1TokenFactory = new OptimismMintableTokenFactory();
         L1TokenFactory.initialize(address(L1Bridge));
 
-        RemoteL1Token = OptimismMintableERC20(L1TokenFactory.createStandardL2Token(
-            address(NativeL2Token),
-            string(abi.encodePacked("L1-", NativeL2Token.name())),
-            string(abi.encodePacked("L1-", NativeL2Token.symbol()))
-        ));
+        RemoteL1Token = OptimismMintableERC20(
+            L1TokenFactory.createStandardL2Token(
+                address(NativeL2Token),
+                string(abi.encodePacked("L1-", NativeL2Token.name())),
+                string(abi.encodePacked("L1-", NativeL2Token.symbol()))
+            )
+        );
     }
 }
-

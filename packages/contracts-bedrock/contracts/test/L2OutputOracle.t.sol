@@ -18,7 +18,7 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
     }
 
     function test_constructor() external {
-        assertEq(oracle.owner(), sequencer);
+        assertEq(oracle.owner(), owner);
         assertEq(oracle.SUBMISSION_INTERVAL(), submissionInterval);
         assertEq(oracle.HISTORICAL_TOTAL_BLOCKS(), historicalTotalBlocks);
         assertEq(oracle.latestBlockNumber(), startingBlockNumber);
@@ -86,6 +86,13 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
         assertEq(oracle.computeL2Timestamp(startingBlockNumber + 96024), startingTimestamp + submissionInterval * 96024);
     }
 
+    /*******************
+     * Ownership tests *
+     *******************/
+
+     // Test changing sequencer
+     // Test updating owner
+
     /*****************************
      * Append Tests - Happy Path *
      *****************************/
@@ -129,7 +136,7 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
         oracleWarpRoll(nextBlockNumber);
 
         vm.prank(address(128));
-        vm.expectRevert("Ownable: caller is not the owner");
+        vm.expectRevert("OutputOracle: caller is not the sequencer");
         oracle.appendL2Output(nonZeroHash, nextBlockNumber, 0, 0);
     }
 
@@ -214,7 +221,7 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
         L2OutputOracle.OutputProposal memory proposalToDelete = oracle.getL2Output(latestBlockNumber);
         L2OutputOracle.OutputProposal memory newLatestOutput = oracle.getL2Output(latestBlockNumber - submissionInterval);
 
-        vm.prank(sequencer);
+        vm.prank(owner);
         vm.expectEmit(true, true, false, false);
         emit L2OutputDeleted(
             proposalToDelete.outputRoot,
@@ -236,7 +243,7 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
         assertEq(newLatestOutput.timestamp, proposal.timestamp);
     }
 
-    function testCannot_deleteL2Output_ifNotSequencer() external {
+    function testCannot_deleteL2Output_ifNotOwner() external {
         uint256 latestBlockNumber = oracle.latestBlockNumber();
         L2OutputOracle.OutputProposal memory proposal = oracle.getL2Output(latestBlockNumber);
 
@@ -250,7 +257,7 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
         uint256 previousBlockNumber = oracle.latestBlockNumber() - submissionInterval;
         L2OutputOracle.OutputProposal memory proposalToDelete = oracle.getL2Output(previousBlockNumber);
 
-        vm.prank(sequencer);
+        vm.prank(owner);
         vm.expectRevert("OutputOracle: The output root to delete does not match the latest output proposal.");
         oracle.deleteL2Output(proposalToDelete);
     }

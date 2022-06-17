@@ -425,6 +425,7 @@ func (cfg SystemConfig) start() (*System, error) {
 		sys.cfg.L2OOCfg.L2StartingTimeStamp,
 		sys.cfg.L2OOCfg.L2BlockTime,
 		l2OutputSubmitterAddr,
+		l2OutputSubmitterAddr, // todo: what account should this be?
 	)
 	sys.cfg.DepositCFG.L2Oracle = sys.L2OOContractAddr
 	if err != nil {
