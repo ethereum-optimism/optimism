@@ -20,19 +20,16 @@ var _ L2Chain = (*testutils.FakeChainSource)(nil)
 // - The L2 chain is based off of the L1 chain
 // - The actual L1 chain is the New L1 chain
 // - Both heads are at the tip of their respective chains
-func (c *syncStartTestCase) generateFakeL2(t *testing.T) (*testutils.FakeChainSource, eth.L2BlockRef, rollup.Genesis) {
+func (c *syncStartTestCase) generateFakeL2(t *testing.T) (*testutils.FakeChainSource, rollup.Genesis) {
 	log := testlog.Logger(t, log.LvlError)
 	chain := testutils.NewFakeChainSource([]string{c.L1, c.NewL1}, []string{c.L2}, int(c.GenesisL1Num), log)
 	chain.SetL2Head(len(c.L2) - 1)
 	genesis := testutils.FakeGenesis(c.GenesisL1, c.GenesisL2, int(c.GenesisL1Num))
-	head, err := chain.L2BlockRefByNumber(context.Background(), nil)
-	require.Nil(t, err)
 	chain.ReorgL1()
 	for i := 0; i < len(c.NewL1)-1; i++ {
 		chain.AdvanceL1()
 	}
-	return chain, head, genesis
-
+	return chain, genesis
 }
 
 type syncStartTestCase struct {
@@ -57,9 +54,9 @@ func refToRune(r eth.BlockID) rune {
 }
 
 func (c *syncStartTestCase) Run(t *testing.T) {
-	chain, l2Head, genesis := c.generateFakeL2(t)
+	chain, genesis := c.generateFakeL2(t)
 
-	unsafeL2Head, safeHead, err := FindL2Heads(context.Background(), l2Head, c.SeqWindowSize, chain, chain, &genesis)
+	unsafeL2Head, safeHead, err := FindL2Heads(context.Background(), c.SeqWindowSize, chain, chain, &genesis)
 
 	if c.ExpectedErr != nil {
 		require.Error(t, err, "Expecting an error in this test case")

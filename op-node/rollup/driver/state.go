@@ -140,7 +140,7 @@ func (s *state) resetDerivation(ctx context.Context) error {
 		// Upon resetting, make sure we are on the correct chain.
 		// The engine might be way behind/ahead of what we previously thought it was at.
 		var err error
-		unsafeL2Head, safeL2Head, err = sync.FindL2Heads(ctx, s.l2Head, s.Config.SeqWindowSize, s.l1, s.l2, &s.Config.Genesis)
+		unsafeL2Head, safeL2Head, err = sync.FindL2Heads(ctx, s.Config.SeqWindowSize, s.l1, s.l2, &s.Config.Genesis)
 		if err != nil {
 			s.log.Error("Could not get new unsafe L2 head when trying to handle a re-org", "err", err)
 			return err

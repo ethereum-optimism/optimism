@@ -52,6 +52,7 @@ type L1Chain interface {
 }
 
 type L2Chain interface {
+	L2BlockRefHead(ctx context.Context) (eth.L2BlockRef, error)
 	L2BlockRefByHash(ctx context.Context, l2Hash common.Hash) (eth.L2BlockRef, error)
 }
 
@@ -77,8 +78,8 @@ func isAheadOrCanonical(ctx context.Context, l1 L1Chain, block eth.BlockID) (ahe
 	}
 }
 
-// FindL2Heads walks back from `start` (the previous unsafe L2 block) and finds the unsafe and safe
-// L2 blocks.
+// FindL2Heads walks back from the current unsafe L2 head, and finds the unsafe and safe
+// L2 blocks consistent with the L1 chain.
 //
 //     - The *unsafe L2 block*: This is the highest L2 block whose L1 origin is a plausible (1)
 //       extension of the canonical L1 chain (as known to the op-node).
@@ -88,8 +89,13 @@ func isAheadOrCanonical(ctx context.Context, l1 L1Chain, block eth.BlockID) (ahe
 // (1) Plausible meaning that the blockhash of the L2 block's L1 origin (as reported in the L1
 //     Attributes deposit within the L2 block) is not canonical at another height in the L1 chain,
 //     and the same holds for all its ancestors.
-func FindL2Heads(ctx context.Context, start eth.L2BlockRef, seqWindowSize uint64,
+func FindL2Heads(ctx context.Context, seqWindowSize uint64,
 	l1 L1Chain, l2 L2Chain, genesis *rollup.Genesis) (unsafe eth.L2BlockRef, safe eth.L2BlockRef, err error) {
+
+	start, err := l2.L2BlockRefHead(ctx)
+	if err != nil {
+		return eth.L2BlockRef{}, eth.L2BlockRef{}, fmt.Errorf("failed to find L2 head and sync starting point: %v", err)
+	}
 
 	// Loop 1. Walk the L2 chain backwards until we find an L2 block whose L1 origin is canonical.
 

@@ -146,6 +146,16 @@ func (s *Source) GetPayload(ctx context.Context, payloadId eth.PayloadID) (*eth.
 	return &result, nil
 }
 
+// L2BlockRefHead returns the canonical block and parent ids.
+func (s *Source) L2BlockRefHead(ctx context.Context) (eth.L2BlockRef, error) {
+	block, err := s.client.BlockByNumber(ctx, nil)
+	if err != nil {
+		// w%: wrap the error, we still need to detect if a canonical block is not found, a.k.a. end of chain.
+		return eth.L2BlockRef{}, fmt.Errorf("failed to determine block-hash of head, could not get header: %w", err)
+	}
+	return blockToBlockRef(block, s.genesis)
+}
+
 // L2BlockRefByNumber returns the canonical block and parent ids.
 func (s *Source) L2BlockRefByNumber(ctx context.Context, l2Num *big.Int) (eth.L2BlockRef, error) {
 	block, err := s.client.BlockByNumber(ctx, l2Num)
