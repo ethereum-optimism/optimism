@@ -226,7 +226,7 @@ jobs:
         with:
           context: .
           file: ./ops/docker/Dockerfile.packages
-          target: relayer
+          target: fault-detector
           push: true
           tags: ethereumoptimism/fault-detector:${{ needs.canary-publish.outputs.canary-docker-tag }}
 
@@ -253,7 +253,7 @@ jobs:
         with:
           context: .
           file: ./ops/docker/Dockerfile.packages
-          target: relayer
+          target: drippie-mon
           push: true
           tags: ethereumoptimism/drippie-mon:${{ needs.canary-publish.outputs.canary-docker-tag }}
 

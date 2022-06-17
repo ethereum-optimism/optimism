@@ -28,6 +28,7 @@ COPY packages/hardhat-deploy-config/package.json ./packages/hardhat-deploy-confi
 COPY packages/message-relayer/package.json ./packages/message-relayer/package.json
 COPY packages/fault-detector/package.json ./packages/fault-detector/package.json
 COPY packages/replica-healthcheck/package.json ./packages/replica-healthcheck/package.json
+COPY packages/drippie-mon/package.json ./packages/drippie-mon/package.json
 COPY integration-tests/package.json ./integration-tests/package.json
 
 RUN yarn install --frozen-lockfile && yarn cache clean
@@ -71,4 +72,8 @@ CMD ["npm", "run", "start"]
 
 FROM base as replica-healthcheck
 WORKDIR /opt/optimism/packages/replica-healthcheck
+ENTRYPOINT ["npm", "run", "start"]
+
+FROM base as drippie-mon
+WORKDIR /opt/optimism/packages/drippie-mon
 ENTRYPOINT ["npm", "run", "start"]
