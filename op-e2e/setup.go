@@ -3,7 +3,6 @@ package op_e2e
 import (
 	"context"
 	"fmt"
-	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"io/ioutil"
 	"math/big"
 	"os"
@@ -16,8 +15,8 @@ import (
 	rollupNode "github.com/ethereum-optimism/optimism/op-node/node"
 	"github.com/ethereum-optimism/optimism/op-node/p2p"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	l2os "github.com/ethereum-optimism/optimism/op-proposer"
-
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
@@ -561,7 +560,7 @@ func (cfg SystemConfig) start() (*System, error) {
 		LogTerminal:               true,
 		Mnemonic:                  sys.cfg.Mnemonic,
 		L2OutputHDPath:            sys.cfg.L2OutputHDPath,
-	}, "", cfg.ProposerLogger)
+	}, "", sys.cfg.Loggers["proposer"])
 	if err != nil {
 		return nil, fmt.Errorf("unable to setup l2 output submitter: %w", err)
 	}
@@ -591,13 +590,13 @@ func (cfg SystemConfig) start() (*System, error) {
 		NumConfirmations:           1,
 		ResubmissionTimeout:        5 * time.Second,
 		SafeAbortNonceTooLowCount:  3,
-		LogLevel:                   "info",
-		LogTerminal:                true,
+		LogLevel:                   "info", // ignored if started in-process this way
+		LogTerminal:                true,   // ignored
 		Mnemonic:                   sys.cfg.Mnemonic,
 		SequencerHDPath:            sys.cfg.BatchSubmitterHDPath,
 		SequencerHistoryDBFilename: sys.sequencerHistoryDBFileName,
 		SequencerBatchInboxAddress: sys.cfg.RollupConfig.BatchInboxAddress.String(),
-	}, "", cfg.BatcherLogger)
+	}, "", sys.cfg.Loggers["batcher"])
 	if err != nil {
 		return nil, fmt.Errorf("failed to setup batch submitter: %w", err)
 	}

@@ -113,11 +113,11 @@ func defaultSystemConfig(t *testing.T) SystemConfig {
 			},
 		},
 		Loggers: map[string]log.Logger{
-			"verifier":  testlog.Logger(t, log.LvlError).New("role", "verifier"),
-			"sequencer": testlog.Logger(t, log.LvlError).New("role", "sequencer"),
+			"verifier":  testlog.Logger(t, log.LvlDebug).New("role", "verifier"),
+			"sequencer": testlog.Logger(t, log.LvlDebug).New("role", "sequencer"),
+			"batcher":   testlog.Logger(t, log.LvlDebug).New("role", "batcher"),
+			"proposer":  testlog.Logger(t, log.LvlError).New("role", "proposer"),
 		},
-		ProposerLogger: testlog.Logger(t, log.LvlCrit).New("role", "proposer"), // Proposer is noisy on shutdown
-		BatcherLogger:  testlog.Logger(t, log.LvlCrit).New("role", "batcher"),  // Batcher (txmgr really) is noisy on shutdown
 		RollupConfig: rollup.Config{
 			BlockTime:         1,
 			MaxSequencerDrift: 10,
