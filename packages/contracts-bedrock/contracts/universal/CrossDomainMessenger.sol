@@ -102,6 +102,13 @@ abstract contract CrossDomainMessenger is
     }
 
     /**
+     * Unpause relaying.
+     */
+    function unpause() external onlyOwner {
+        _unpause();
+    }
+
+    /**
      * Retrieves the address of the x-domain message sender. Will throw an error
      * if the sender is not currently set (equal to the default sender).
      * This function is meant to be called on the remote side of a cross domain
