@@ -3,10 +3,13 @@ package sequencer
 import (
 	"context"
 	"crypto/ecdsa"
+	"fmt"
 	"math/big"
+	"time"
+
+	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 
 	"github.com/ethereum-optimism/optimism/op-batcher/db"
-	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/node"
 	"github.com/ethereum-optimism/optimism/op-proposer/rollupclient"
 	"github.com/ethereum-optimism/optimism/op-proposer/txmgr"
@@ -20,17 +23,38 @@ import (
 )
 
 type Config struct {
-	Log               log.Logger
-	Name              string
-	L1Client          *ethclient.Client
-	L2Client          *ethclient.Client
-	RollupClient      *rollupclient.RollupClient
-	MinL1TxSize       uint64
-	MaxL1TxSize       uint64
+	Log  log.Logger
+	Name string
+
+	// API to submit txs to
+	L1Client *ethclient.Client
+
+	// API to hit for batch data
+	RollupClient *rollupclient.RollupClient
+
+	// Limit the size of txs
+	MinL1TxSize uint64
+	MaxL1TxSize uint64
+
+	// Limit the amounts of blocks per channel
+	MaxBlocksPerChannel uint64
+
+	// Where to send the batch txs to.
 	BatchInboxAddress common.Address
-	HistoryDB         db.HistoryDatabase
-	ChainID           *big.Int
-	PrivKey           *ecdsa.PrivateKey
+
+	// Persists progress of submitting block data, to avoid redoing any work
+	HistoryDB db.HistoryDatabase
+
+	// The batcher can decide to set it shorter than the actual timeout,
+	//  since submitting continued channel data to L1 is not instantaneous.
+	//  It's not worth it to work with nearly timed-out channels.
+	ChannelTimeout uint64
+
+	// Chain ID of the L1 chain to submit txs to.
+	ChainID *big.Int
+
+	// Private key to sign batch txs with
+	PrivKey *ecdsa.PrivateKey
 }
 
 type Driver struct {
@@ -38,7 +62,7 @@ type Driver struct {
 	walletAddr common.Address
 	l          log.Logger
 
-	currentBatch *node.BatchBundleResponse
+	currentResp *derive.BatcherChannelData
 }
 
 func NewDriver(cfg Config) (*Driver, error) {
@@ -68,74 +92,48 @@ func (d *Driver) GetBlockRange(
 	ctx context.Context,
 ) (*big.Int, *big.Int, error) {
 
-	// Clear prior batch, if any.
-	d.currentBatch = nil
+	// Clear prior best attempt at building data to output, if any.
+	d.currentResp = nil
 
 	history, err := d.cfg.HistoryDB.LoadHistory()
 	if err != nil {
 		return nil, nil, err
 	}
 
-	latestBlockID := history.LatestID()
-	ancestors := history.Ancestors()
+	// prune the in-memory history copy, to see if we can drop stuck channels,
+	// and resubmit involved L2 blocks if necessary
+	history.Update(nil, d.cfg.ChannelTimeout, uint64(time.Now().Unix()))
 
-	d.l.Info("Fetching bundle",
-		"latest_number", latestBlockID.Number,
-		"lastest_hash", latestBlockID.Hash,
-		"num_ancestors", len(ancestors),
+	d.l.Info("Fetching batch data",
+		"num_history", len(history.Channels),
 		"min_tx_size", d.cfg.MinL1TxSize,
-		"max_tx_size", d.cfg.MaxL1TxSize)
+		"max_tx_size", d.cfg.MaxL1TxSize,
+		"max_blocks_per_channel", d.cfg.MaxBlocksPerChannel)
 
-	batchResp, err := d.cfg.RollupClient.GetBatchBundle(
+	// TODO: the API needs to be less stateful. If we request to continue from an older frame number, we should be able to do so.
+	// Since we sometimes drop the API response, and restart with the previous history.
+	// E.g. if profitability is not enough, if there is a crash, etc.
+	// Currently we rely on channel timeouts to get rid of the failed channel in such situation, to then start fresh again.
+	resp, err := d.cfg.RollupClient.GetBatchBundle(
 		ctx,
 		&node.BatchBundleRequest{
-			L2History: ancestors,
-			MinSize:   hexutil.Uint64(d.cfg.MinL1TxSize),
-			MaxSize:   hexutil.Uint64(d.cfg.MaxL1TxSize),
+			History:             history.Channels,
+			MinSize:             hexutil.Uint64(d.cfg.MinL1TxSize),
+			MaxSize:             hexutil.Uint64(d.cfg.MaxL1TxSize),
+			MaxBlocksPerChannel: hexutil.Uint64(d.cfg.MaxBlocksPerChannel),
 		},
 	)
 	if err != nil {
 		return nil, nil, err
 	}
+	d.l.Info("Fetched batch data", "data_size", len(resp.Data), "channels", len(resp.Channels),
+		"opened_blocks", resp.Meta.OpenedBlocks, "closed_blocks", resp.Meta.ClosedBlocks,
+		"safe_head", resp.Meta.SafeHead, "unsafe_head", resp.Meta.UnsafeHead)
 
-	// Bundle is not available yet, return the next expected block number.
-	if batchResp == nil {
-		start64 := latestBlockID.Number + 1
-		start := big.NewInt(int64(start64))
-		return start, start, nil
-	}
-
-	// There is nothing to be done if the rollup returns a last block hash equal
-	// to the previous block hash. Return identical start and end block heights
-	// to signal that there is no work to be done.
-	start := big.NewInt(int64(batchResp.PrevL2BlockNum) + 1)
-	if batchResp.LastL2BlockHash == batchResp.PrevL2BlockHash {
-		return start, start, nil
-	}
-
-	if batchResp.PrevL2BlockHash != latestBlockID.Hash {
-		d.l.Warn("Reorg", "rpc_prev_block_hash", batchResp.PrevL2BlockHash,
-			"db_prev_block_hash", latestBlockID.Hash)
-	}
-
-	// If the bundle is empty, this implies that all blocks in the range were
-	// empty blocks. Simply commit the new head and return that there is no work
-	// to be done.
-	if len(batchResp.Bundle) == 0 {
-		err = d.cfg.HistoryDB.AppendEntry(eth.BlockID{
-			Number: uint64(batchResp.LastL2BlockNum),
-			Hash:   batchResp.LastL2BlockHash,
-		})
-		if err != nil {
-			return nil, nil, err
-		}
-
-		next := big.NewInt(int64(batchResp.LastL2BlockNum + 1))
-		return next, next, nil
-	}
-
-	d.currentBatch = batchResp
-	end := big.NewInt(int64(batchResp.LastL2BlockNum + 1))
+	// The main loop is robust / dumb: if we have not reached the unsafe head,
+	// then we need to continue submitting txs.
+	start := new(big.Int).SetUint64(resp.Meta.SafeHead.Number)
+	end := new(big.Int).SetUint64(resp.Meta.UnsafeHead.Number)
 
 	return start, end, nil
 }
@@ -168,7 +166,7 @@ func (d *Driver) CraftTx(
 		To:        &d.cfg.BatchInboxAddress,
 		GasTipCap: gasTipCap,
 		GasFeeCap: gasFeeCap,
-		Data:      d.currentBatch.Bundle,
+		Data:      d.currentResp.Data,
 	}
 
 	gas, err := core.IntrinsicGas(rawTx.Data, nil, false, true, true)
@@ -225,13 +223,9 @@ func (d *Driver) SendTransaction(
 	ctx context.Context,
 	tx *types.Transaction,
 ) error {
-
-	err := d.cfg.HistoryDB.AppendEntry(eth.BlockID{
-		Number: uint64(d.currentBatch.LastL2BlockNum),
-		Hash:   d.currentBatch.LastL2BlockHash,
-	})
-	if err != nil {
-		return err
+	// Persist that we are working on certain channels
+	if err := d.cfg.HistoryDB.Update(d.currentResp.Channels, d.cfg.ChannelTimeout, uint64(time.Now().Unix())); err != nil {
+		return fmt.Errorf("failed to update history db: %v", err)
 	}
 
 	return d.cfg.L1Client.SendTransaction(ctx, tx)

@@ -80,12 +80,19 @@ func (ib *ChannelBank) IngestData(data []byte) error {
 
 	// Iterate over all frames. They may have different channel IDs to indicate that they stream consumer should reset.
 	for {
-		if len(data) < offset+ChannelIDSize {
+		if len(data) < offset+ChannelIDDataSize+1 {
 			return nil
 		}
 		var chID ChannelID
-		copy(chID[:], data[offset:])
-		offset += ChannelIDSize
+		copy(chID.Data[:], data[offset:])
+		offset += ChannelIDDataSize
+		chIDTime, n := binary.Uvarint(data[offset:])
+		if n <= 0 {
+			return fmt.Errorf("failed to read frame number")
+		}
+		offset += n
+		chID.Time = chIDTime
+
 		// stop reading and ignore remaining data if we encounter a zeroed ID
 		if chID == (ChannelID{}) {
 			return nil
@@ -119,14 +126,20 @@ func (ib *ChannelBank) IngestData(data []byte) error {
 		isLast := isLastNum == 1
 		offset += 1
 
+		// check if the channel is not timed out
+		if chID.Time+ChannelTimeout < ib.currentL1Origin.Time {
+			ib.log.Info("channel is timed out, ignore frame", "channel", chID, "id_time", chID.Time, "frame", frameNumber)
+			continue
+		}
+		// check if the channel is not included too soon (otherwise timeouts wouldn't be effective)
+		if chID.Time > ib.currentL1Origin.Time {
+			ib.log.Info("channel claims to be from the future, ignore frame", "channel", chID, "id_time", chID.Time, "frame", frameNumber)
+			continue
+		}
+
 		currentCh, ok := ib.channels[chID]
-		if ok { // check if the channel is not timed out
-			if currentCh.firstSeen+ChannelTimeout < ib.currentL1Origin.Time {
-				ib.log.Info("channel is timed out, ignore frame", "channel", chID, "first_seen", currentCh.firstSeen, "frame", frameNumber)
-				continue
-			}
-		} else { // create new channel if it doesn't exist yet
-			currentCh = &ChannelIn{id: chID, firstSeen: ib.currentL1Origin.Time}
+		if !ok { // create new channel if it doesn't exist yet
+			currentCh = &ChannelIn{id: chID}
 			ib.channels[chID] = currentCh
 			ib.channelQueue = append(ib.channelQueue, chID)
 		}
@@ -147,12 +160,12 @@ func (ib *ChannelBank) Read() (chID ChannelID, data []byte) {
 	}
 	first := ib.channelQueue[0]
 	ch := ib.channels[first]
-	timedOut := ch.firstSeen+ChannelTimeout < ib.currentL1Origin.Time
+	timedOut := first.Time+ChannelTimeout < ib.currentL1Origin.Time
 	if timedOut {
-		ib.log.Info("channel timed out", "channel", ch, "frames", len(ch.inputs), "first_seen", ch.firstSeen)
+		ib.log.Info("channel timed out", "channel", ch, "frames", len(ch.inputs), "id_time", first.Time)
 	}
 	if ch.closed {
-		ib.log.Debug("channel closed", "channel", ch, "first_seen", ch.firstSeen)
+		ib.log.Debug("channel closed", "channel", ch, "id_time", first.Time)
 	}
 	if !timedOut && !ch.closed {
 		return ChannelID{}, nil

@@ -1,7 +1,10 @@
 package derive
 
 import (
+	"encoding/hex"
 	"errors"
+	"fmt"
+	"strconv"
 
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 )
@@ -11,8 +14,8 @@ const frameOverhead = 200
 
 const DerivationVersion0 = 0
 
-// channel ID, frame number, frame length, last frame bool
-const minimumFrameSize = ChannelIDSize + 1 + 1 + 1
+// channel ID (data + time), frame number, frame length, last frame bool
+const minimumFrameSize = (ChannelIDDataSize + 1) + 1 + 1 + 1
 
 // ChannelTimeout is the number of seconds until a channel is removed if it's not read
 const ChannelTimeout = 10 * 60
@@ -25,14 +28,48 @@ const MaxChannelBankSize = 100_000_000
 // DuplicateErr is returned when a newly read frame is already known
 var DuplicateErr = errors.New("duplicate frame")
 
-// ChannelIDSize defines the length of a channel ID
-const ChannelIDSize = 32 // TODO: we can maybe use smaller IDs. As long as we don't get random collisions
+// ChannelIDDataSize defines the length of the channel ID data part
+const ChannelIDDataSize = 32
 
 // ChannelID identifies a "channel" a stream encoding a sequence of L2 information.
-// A channelID is not a perfect nonce number, but is based on time instead:
-// only once the L1 block time passes the channel ID, the channel can be read.
-// A channel is not read before that, and instead buffered for later consumption.
-type ChannelID [ChannelIDSize]byte
+// A channelID is part random data (this may become a hash commitment to restrict who opens which channel),
+// and part timestamp. The timestamp invalidates the ID,
+// to ensure channels cannot be re-opened after timeout, or opened too soon.
+//
+// The ChannelID type is flat and can be used as map key.
+type ChannelID struct {
+	Data [ChannelIDDataSize]byte
+	Time uint64
+}
+
+func (id ChannelID) String() string {
+	return fmt.Sprintf("%x:%d", id.Data[:], id.Time)
+}
+
+func (id ChannelID) MarshalText() ([]byte, error) {
+	return []byte(id.String()), nil
+}
+
+func (id *ChannelID) UnmarshalText(text []byte) error {
+	if id == nil {
+		return errors.New("cannot unmarshal text into nil Channel ID")
+	}
+	if len(text) < ChannelIDDataSize+1 {
+		return fmt.Errorf("channel ID too short: %d", len(text))
+	}
+	if _, err := hex.Decode(id.Data[:], text[:ChannelIDDataSize]); err != nil {
+		return fmt.Errorf("failed to unmarshal hex data part of channel ID: %v", err)
+	}
+	if c := text[ChannelIDDataSize]; c != ':' {
+		return fmt.Errorf("expected : separator in channel ID, but got %d", c)
+	}
+	v, err := strconv.ParseUint(string(text[ChannelIDDataSize+1:]), 10, 64)
+	if err != nil {
+		return fmt.Errorf("failed to unmarshal decimal time part of channel ID: %v", err)
+	}
+	id.Time = v
+	return nil
+}
 
 type TaggedData struct {
 	L1Origin  eth.L1BlockRef

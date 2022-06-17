@@ -1,6 +1,7 @@
 package flags
 
 import (
+	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/urfave/cli"
 )
 
@@ -19,12 +20,6 @@ var (
 		Required: true,
 		EnvVar:   "L1_ETH_RPC",
 	}
-	L2EthRpcFlag = cli.StringFlag{
-		Name:     "l2-eth-rpc",
-		Usage:    "HTTP provider URL for L2",
-		Required: true,
-		EnvVar:   "L2_ETH_RPC",
-	}
 	RollupRpcFlag = cli.StringFlag{
 		Name:     "rollup-rpc",
 		Usage:    "HTTP provider URL for the rollup node",
@@ -42,6 +37,19 @@ var (
 		Usage:    "The maximum size of a batch tx submitted to L1.",
 		Required: true,
 		EnvVar:   prefixEnvVar("MAX_L1_TX_SIZE_BYTES"),
+	}
+	MaxBlocksPerChannelFlag = cli.Uint64Flag{
+		Name:     "max-blocks-per-channel",
+		Usage:    "The maximum number of blocks per channel. Lowering this will reduce the effect of missing L1 txs, at the cost of efficiency.",
+		Required: true,
+		EnvVar:   prefixEnvVar("MAX_BLOCKS_PER_CHANNEL"),
+	}
+	ChannelTimeoutFlag = cli.Uint64Flag{
+		Name:     "channel-timeout",
+		Usage:    "The maximum amount of time to attempt completing an opened channel, as opposed to submitting L2 blocks into a new channel.",
+		Required: false,
+		Value:    derive.ChannelTimeout,
+		EnvVar:   prefixEnvVar("CHANNEL_TIMEOUT"),
 	}
 	PollIntervalFlag = cli.DurationFlag{
 		Name: "poll-interval",
@@ -93,12 +101,6 @@ var (
 		Required: true,
 		EnvVar:   prefixEnvVar("SEQUENCER_HISTORY_DB_FILENAME"),
 	}
-	SequencerGenesisHashFlag = cli.StringFlag{
-		Name:     "sequencer-genesis-hash",
-		Usage:    "Genesis hash of the L2 chain",
-		Required: true,
-		EnvVar:   prefixEnvVar("SEQUENCER_GENESIS_HASH"),
-	}
 	SequencerBatchInboxAddressFlag = cli.StringFlag{
 		Name:     "sequencer-batch-inbox-address",
 		Usage:    "L1 Address to receive batch transactions",
@@ -124,10 +126,10 @@ var (
 
 var requiredFlags = []cli.Flag{
 	L1EthRpcFlag,
-	L2EthRpcFlag,
 	RollupRpcFlag,
 	MinL1TxSizeBytesFlag,
 	MaxL1TxSizeBytesFlag,
+	MaxBlocksPerChannelFlag,
 	PollIntervalFlag,
 	NumConfirmationsFlag,
 	SafeAbortNonceTooLowCountFlag,
@@ -135,11 +137,11 @@ var requiredFlags = []cli.Flag{
 	MnemonicFlag,
 	SequencerHDPathFlag,
 	SequencerHistoryDBFilenameFlag,
-	SequencerGenesisHashFlag,
 	SequencerBatchInboxAddressFlag,
 }
 
 var optionalFlags = []cli.Flag{
+	ChannelTimeoutFlag,
 	LogLevelFlag,
 	LogTerminalFlag,
 }

@@ -24,13 +24,33 @@ type UnsafeBlocksSource interface {
 	UnsafeBlockIDs(ctx context.Context, safeHead eth.BlockID, max uint64) ([]eth.BlockID, error)
 }
 
-type OutputData struct {
+type OutputMetaData struct {
+	// Current safe-point of the L2 chain, derived from L1 data.
+	SafeHead eth.L2BlockRef `json:"safe_head"`
+
+	// Current tip of the L2 chain
+	UnsafeHead eth.L2BlockRef `json:"unsafe_head"`
+
+	// Number of blocks that have been included in a channel, but not finished yet.
+	// Within the channel timeout.
+	// This may include non-canonical L2 blocks, if L1 reorged the L2 chain.
+	OpenedBlocks uint64 `json:"opened_blocks"`
+
+	// Number of blocks that have been fully submitted (i.e. closed channel).
+	// Within the channel timeout.
+	// This may include non-canonical L2 blocks, if L1 reorged the L2 chain.
+	ClosedBlocks uint64 `json:"closed_blocks"`
+}
+
+type BatcherChannelData struct {
 	// Channels identifies all channels that were involved in this output, with their last frame ID.
 	// Empty if no new data was produced.
 	Channels map[ChannelID]uint64 `json:"channels"`
 
-	// Data to post to L1, encodes channel version byte and one or more frames
+	// Data to post to L1, encodes channel version byte and one or more frames.
 	Data []byte `json:"data"`
+
+	Meta OutputMetaData `json:"meta"`
 }
 
 // ChannelEmitter maintains open channels and emits data with channel frames to confirm the L2 unsafe blocks.
@@ -46,8 +66,9 @@ type ChannelEmitter struct {
 	// pruned when timed out. We keep track of fully read channels to avoid resubmitting data.
 	channels map[ChannelID]*ChannelOut
 
-	l1Time     uint64
-	l2SafeHead eth.BlockID
+	l1Time       uint64
+	l2SafeHead   eth.L2BlockRef
+	l2UnsafeHead eth.L2BlockRef
 }
 
 func NewChannelEmitter(log log.Logger, cfg *rollup.Config, source UnsafeBlocksSource) *ChannelEmitter {
@@ -65,15 +86,21 @@ func (og *ChannelEmitter) SetL1Time(l1Time uint64) {
 	og.l1Time = l1Time
 }
 
-// SetSafeHead updates the tracked L2 safe head, so we can submit data for all unsafe blocks after it
-func (og *ChannelEmitter) SetL2SafeHead(l2SafeHead eth.BlockID) {
+// SetL2SafeHead updates the tracked L2 safe head,
+// so we can submit data for all unsafe blocks after it, and provide it as metadata in responses.
+func (og *ChannelEmitter) SetL2SafeHead(l2SafeHead eth.L2BlockRef) {
 	og.l2SafeHead = l2SafeHead
+}
+
+// SetL2UnsafeHead updates the tracked L2 unsafe head, to provide as metadata in responses
+func (og *ChannelEmitter) SetL2UnsafeHead(l2UnsafeHead eth.L2BlockRef) {
+	og.l2UnsafeHead = l2UnsafeHead
 }
 
 // TODO: based on previous data we may be able to reconstruct a partially-consumed channel, to continue it on a fresh (restarted or different instance) rollup node.
 
 // history is the collection of channels that have been submitted, and the frame ID of the last submission
-func (og *ChannelEmitter) Output(ctx context.Context, history map[ChannelID]uint64, minSize uint64, maxSize uint64, maxBlocksPerChannel uint64) (*OutputData, error) {
+func (og *ChannelEmitter) Output(ctx context.Context, history map[ChannelID]uint64, minSize uint64, maxSize uint64, maxBlocksPerChannel uint64) (*BatcherChannelData, error) {
 	og.mu.Lock()
 	defer og.mu.Unlock()
 
@@ -85,11 +112,11 @@ func (og *ChannelEmitter) Output(ctx context.Context, history map[ChannelID]uint
 
 	// prune timed out channels, before adding new ones
 	for id, ch := range og.channels {
-		if ch.created+ChannelTimeout < og.l1Time {
+		if id.Time+ChannelTimeout < og.l1Time {
 			if ch.Closed() {
-				og.log.Debug("cleaning up closed timed-out channel", "channel", ch)
+				og.log.Debug("cleaning up closed timed-out channel", "channel", id)
 			} else {
-				og.log.Warn("channel timed out without completing", "channel", ch, "frame", ch.frame, "created", ch.created, "offset", ch.offset)
+				og.log.Warn("channel timed out without completing", "channel", id, "frame", ch.frame, "offset", ch.offset)
 			}
 			delete(og.channels, id)
 		}
@@ -97,7 +124,7 @@ func (og *ChannelEmitter) Output(ctx context.Context, history map[ChannelID]uint
 
 	// We find the first 1000 unsafe blocks that we may want to put in the output
 	unsafeBlocks := make(map[eth.BlockID]struct{})
-	if blocks, err := og.source.UnsafeBlockIDs(ctx, og.l2SafeHead, 1000); err != nil {
+	if blocks, err := og.source.UnsafeBlockIDs(ctx, og.l2SafeHead.ID(), 1000); err != nil {
 		return nil, fmt.Errorf("failed to get list of unsafe blocks to submit: %v", err)
 	} else {
 		for _, b := range blocks {
@@ -105,7 +132,25 @@ func (og *ChannelEmitter) Output(ctx context.Context, history map[ChannelID]uint
 		}
 	}
 
-	out := &OutputData{Channels: make(map[ChannelID]uint64)}
+	out := &BatcherChannelData{
+		Channels: make(map[ChannelID]uint64),
+		Data:     make([]byte, 0, 1000),
+		Meta: OutputMetaData{
+			SafeHead:     og.l2SafeHead,
+			UnsafeHead:   og.l2UnsafeHead,
+			OpenedBlocks: 0,
+			ClosedBlocks: 0,
+		},
+	}
+
+	for _, ch := range og.channels {
+		if ch.Closed() {
+			out.Meta.ClosedBlocks += uint64(len(ch.blocks))
+		} else {
+			out.Meta.OpenedBlocks += uint64(len(ch.blocks))
+		}
+	}
+
 	out.Data = append(out.Data, DerivationVersion0)
 
 	// check full history, and add data for any channels we still consider to be open.
@@ -202,9 +247,10 @@ func (og *ChannelEmitter) Output(ctx context.Context, history map[ChannelID]uint
 		}
 
 		var id ChannelID
-		if _, err := rand.Read(id[:]); err != nil {
+		if _, err := rand.Read(id.Data[:]); err != nil {
 			return nil, fmt.Errorf("failed to create new random ID: %v", err)
 		}
+		id.Time = og.l1Time
 
 		if _, ok := og.channels[id]; ok {
 			log.Warn("generated a channel ID that already exists", "channel", id)
@@ -224,12 +270,11 @@ func (og *ChannelEmitter) Output(ctx context.Context, history map[ChannelID]uint
 			return nil, fmt.Errorf("failed to create channel reader for blocks: %v", err)
 		}
 		outCh := &ChannelOut{
-			id:      id,
-			blocks:  blocks,
-			frame:   0,
-			offset:  0,
-			created: og.l1Time,
-			reader:  r,
+			id:     id,
+			blocks: blocks,
+			frame:  0,
+			offset: 0,
+			reader: r,
 		}
 		og.channels[id] = outCh
 

@@ -21,9 +21,6 @@ type ChannelOut struct {
 	// How much we've pulled from the reader so far
 	offset uint64
 
-	// time of creation, to prune out old timed-out channels
-	created uint64
-
 	// Nil when closed
 	reader io.Reader
 
@@ -47,7 +44,8 @@ func (co *ChannelOut) Output(maxSize uint64) ([]byte, error) {
 	}
 
 	var out []byte
-	out = append(out, co.id[:]...)
+	out = append(out, co.id.Data[:]...)
+	out = append(out, makeUVarint(co.id.Time)...)
 	out = append(out, makeUVarint(co.frame)...)
 	// +1 for single byte of frame content, +1 for lastFrame bool
 	if uint64(len(out))+2 > maxSize {

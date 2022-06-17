@@ -3,6 +3,7 @@ package op_e2e
 import (
 	"context"
 	"fmt"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"io/ioutil"
 	"math/big"
 	"os"
@@ -581,10 +582,11 @@ func (cfg SystemConfig) start() (*System, error) {
 	// Batch Submitter
 	sys.batchSubmitter, err = bss.NewBatchSubmitter(bss.Config{
 		L1EthRpc:                   sys.nodes["l1"].WSEndpoint(),
-		L2EthRpc:                   sys.nodes["sequencer"].WSEndpoint(),
 		RollupRpc:                  rollupEndpoint,
 		MinL1TxSize:                1,
 		MaxL1TxSize:                120000,
+		MaxBlocksPerChannel:        20,
+		ChannelTimeout:             derive.ChannelTimeout,
 		PollInterval:               50 * time.Millisecond,
 		NumConfirmations:           1,
 		ResubmissionTimeout:        5 * time.Second,
@@ -594,7 +596,6 @@ func (cfg SystemConfig) start() (*System, error) {
 		Mnemonic:                   sys.cfg.Mnemonic,
 		SequencerHDPath:            sys.cfg.BatchSubmitterHDPath,
 		SequencerHistoryDBFilename: sys.sequencerHistoryDBFileName,
-		SequencerGenesisHash:       sys.RolupGenesis.L2.Hash.String(),
 		SequencerBatchInboxAddress: sys.cfg.RollupConfig.BatchInboxAddress.String(),
 	}, "", cfg.BatcherLogger)
 	if err != nil {

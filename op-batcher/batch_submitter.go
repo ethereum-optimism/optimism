@@ -121,16 +121,9 @@ func NewBatchSubmitter(
 		return nil, err
 	}
 
-	genesisHash := common.HexToHash(cfg.SequencerGenesisHash)
-
 	// Connect to L1 and L2 providers. Perform these last since they are the
 	// most expensive.
 	l1Client, err := dialEthClientWithTimeout(ctx, cfg.L1EthRpc)
-	if err != nil {
-		return nil, err
-	}
-
-	l2Client, err := dialEthClientWithTimeout(ctx, cfg.L2EthRpc)
 	if err != nil {
 		return nil, err
 	}
@@ -140,9 +133,7 @@ func NewBatchSubmitter(
 		return nil, err
 	}
 
-	historyDB, err := db.OpenJSONFileDatabase(
-		cfg.SequencerHistoryDBFilename, 600, genesisHash,
-	)
+	historyDB, err := db.OpenJSONFileDatabase(cfg.SequencerHistoryDBFilename)
 	if err != nil {
 		return nil, err
 	}
@@ -162,17 +153,18 @@ func NewBatchSubmitter(
 	}
 
 	sequencerDriver, err := sequencer.NewDriver(sequencer.Config{
-		Log:               l,
-		Name:              "Batch Submitter",
-		L1Client:          l1Client,
-		L2Client:          l2Client,
-		RollupClient:      rollupClient,
-		MinL1TxSize:       cfg.MinL1TxSize,
-		MaxL1TxSize:       cfg.MaxL1TxSize,
-		BatchInboxAddress: batchInboxAddress,
-		HistoryDB:         historyDB,
-		ChainID:           chainID,
-		PrivKey:           sequencerPrivKey,
+		Log:                 l,
+		Name:                "Batch Submitter",
+		L1Client:            l1Client,
+		RollupClient:        rollupClient,
+		MinL1TxSize:         cfg.MinL1TxSize,
+		MaxL1TxSize:         cfg.MaxL1TxSize,
+		MaxBlocksPerChannel: cfg.MaxBlocksPerChannel,
+		BatchInboxAddress:   batchInboxAddress,
+		HistoryDB:           historyDB,
+		ChannelTimeout:      cfg.ChannelTimeout,
+		ChainID:             chainID,
+		PrivKey:             sequencerPrivKey,
 	})
 	if err != nil {
 		return nil, err

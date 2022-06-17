@@ -31,7 +31,7 @@ type l2EthClient interface {
 }
 
 type ChannelEmitter interface {
-	Output(ctx context.Context, history map[derive.ChannelID]uint64, minSize uint64, maxSize uint64, maxBlocksPerChannel uint64) (*derive.OutputData, error)
+	Output(ctx context.Context, history map[derive.ChannelID]uint64, minSize uint64, maxSize uint64, maxBlocksPerChannel uint64) (*derive.BatcherChannelData, error)
 }
 
 type nodeAPI struct {
@@ -108,12 +108,17 @@ type BatchBundleRequest struct {
 	MinSize hexutil.Uint64
 	// Maximum size of the data to return
 	MaxSize hexutil.Uint64
+
+	// MaxBlocksPerChannel is the maximum number of L2 blocks that may be compressed together in a channel.
+	// The output may still have multiple channels and thus more blocks.
+	//
+	// If the batch-submitter has trouble to submit blocks across multiple txs (e.g. many txs drop)
+	// then this can be reduced, which should reduce the effect of incomplete channels.
+	//
+	// If this is set very large, then a many L2 blocks can be compressed together, but the L1 tx inclusion is more important
+	MaxBlocksPerChannel hexutil.Uint64
 }
 
-// MaxBlocksPerChannel is the maximum number of L2 blocks that may be compressed together in a channel.
-// The output may still have multiple channels and thus more blocks.
-const MaxBlocksPerChannel = 20
-
-func (n *nodeAPI) GetBatchBundle(ctx context.Context, req *BatchBundleRequest) (*derive.OutputData, error) {
-	return n.emitter.Output(ctx, req.History, uint64(req.MinSize), uint64(req.MaxSize), MaxBlocksPerChannel)
+func (n *nodeAPI) GetBatchBundle(ctx context.Context, req *BatchBundleRequest) (*derive.BatcherChannelData, error) {
+	return n.emitter.Output(ctx, req.History, uint64(req.MinSize), uint64(req.MaxSize), uint64(req.MaxBlocksPerChannel))
 }

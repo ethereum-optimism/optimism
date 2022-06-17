@@ -4,6 +4,8 @@ import (
 	"context"
 	"math/big"
 
+	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
+
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/node"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -21,9 +23,8 @@ func NewRollupClient(rpc *rpc.Client) *RollupClient {
 func (r *RollupClient) GetBatchBundle(
 	ctx context.Context,
 	req *node.BatchBundleRequest,
-) (*node.BatchBundleResponse, error) {
-
-	var batchResponse = new(node.BatchBundleResponse)
+) (*derive.BatcherChannelData, error) {
+	var batchResponse = new(derive.BatcherChannelData)
 	err := r.rpc.CallContext(ctx, &batchResponse, "optimism_getBatchBundle", req)
 	return batchResponse, err
 }

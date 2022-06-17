@@ -11,9 +11,6 @@ type ChannelIn struct {
 	// estimated memory size, used to drop the channel if we have too much data
 	size uint64
 
-	// timestamp of the L1 block the channel was first seen, to time out the channel reading
-	firstSeen uint64
-
 	// true if we have buffered the last frame
 	closed bool
 

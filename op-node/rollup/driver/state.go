@@ -355,7 +355,8 @@ func (s *state) eventLoop() {
 				s.l2Finalized = finalized
 				s.l2SafeHead = safe
 				s.l2Head = unsafe
-				s.emitter.SetL2SafeHead(safe.ID())
+				s.emitter.SetL2SafeHead(safe)
+				s.emitter.SetL2UnsafeHead(unsafe)
 				reqStep() // continue with the next step if we can
 			}
 		case <-s.done:
