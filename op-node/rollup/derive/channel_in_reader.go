@@ -56,6 +56,9 @@ func (cr *ChannelInReader) ReadBatch(dest *BatchData) error {
 	// The channel reader may not be initialized yet,
 	// and initializing involves reading (zlib header data), so we do that now.
 	if !cr.ready {
+		if cr.data == nil {
+			return io.EOF
+		}
 		if cr.r == nil {
 			cr.r = bytes.NewReader(cr.data)
 		} else {
@@ -88,6 +91,7 @@ func (cr *ChannelInReader) ReadBatch(dest *BatchData) error {
 // resetting any decoding/decompression state to a fresh start.
 func (cr *ChannelInReader) NextChannel() {
 	cr.ready = false
+	cr.data = nil
 }
 
 func (cr *ChannelInReader) Reset(origin eth.L1BlockRef) {
