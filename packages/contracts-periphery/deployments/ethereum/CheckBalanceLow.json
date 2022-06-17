@@ -1,0 +1,87 @@
+{
+  "address": "0x00B1D6438A4E7E3733Bd9fCe4A068b07A0E47620",
+  "abi": [
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "components": [
+            {
+              "internalType": "address",
+              "name": "target",
+              "type": "address"
+            },
+            {
+              "internalType": "uint256",
+              "name": "threshold",
+              "type": "uint256"
+            }
+          ],
+          "indexed": false,
+          "internalType": "struct CheckBalanceLow.Params",
+          "name": "params",
+          "type": "tuple"
+        }
+      ],
+      "name": "_EventToExposeStructInABI__Params",
+      "type": "event"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "bytes",
+          "name": "_params",
+          "type": "bytes"
+        }
+      ],
+      "name": "check",
+      "outputs": [
+        {
+          "internalType": "bool",
+          "name": "",
+          "type": "bool"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    }
+  ],
+  "transactionHash": "0x65f0d04160b33d020aed8bfc4207f169d230549d8cff494f600b104fe0e689a1",
+  "receipt": {
+    "to": "0x4e59b44847b379578588920cA78FbF26c0B4956C",
+    "from": "0xc37f6a6c4AB335E20d10F034B90386E2fb70bbF5",
+    "contractAddress": null,
+    "transactionIndex": 81,
+    "gasUsed": "176640",
+    "logsBloom": "0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+    "blockHash": "0xb1ddf0d044777738b0a1e53a28129e5d58076dbaa9b190843b76354706d8880b",
+    "transactionHash": "0x65f0d04160b33d020aed8bfc4207f169d230549d8cff494f600b104fe0e689a1",
+    "logs": [],
+    "blockNumber": 14981100,
+    "cumulativeGasUsed": "5262258",
+    "status": 1,
+    "byzantium": true
+  },
+  "args": [],
+  "numDeployments": 1,
+  "solcInputHash": "b09909e91a3ff9823ceba49a3a845230",
+  "metadata": "{\"compiler\":{\"version\":\"0.8.9+commit.e5eed63a\"},\"language\":\"Solidity\",\"output\":{\"abi\":[{\"anonymous\":false,\"inputs\":[{\"components\":[{\"internalType\":\"address\",\"name\":\"target\",\"type\":\"address\"},{\"internalType\":\"uint256\",\"name\":\"threshold\",\"type\":\"uint256\"}],\"indexed\":false,\"internalType\":\"struct CheckBalanceLow.Params\",\"name\":\"params\",\"type\":\"tuple\"}],\"name\":\"_EventToExposeStructInABI__Params\",\"type\":\"event\"},{\"inputs\":[{\"internalType\":\"bytes\",\"name\":\"_params\",\"type\":\"bytes\"}],\"name\":\"check\",\"outputs\":[{\"internalType\":\"bool\",\"name\":\"\",\"type\":\"bool\"}],\"stateMutability\":\"view\",\"type\":\"function\"}],\"devdoc\":{\"kind\":\"dev\",\"methods\":{},\"title\":\"CheckBalanceLow\",\"version\":1},\"userdoc\":{\"kind\":\"user\",\"methods\":{},\"notice\":\"DripCheck for checking if an account's balance is below a given threshold.\",\"version\":1}},\"settings\":{\"compilationTarget\":{\"contracts/universal/drippie/dripchecks/CheckBalanceLow.sol\":\"CheckBalanceLow\"},\"evmVersion\":\"london\",\"libraries\":{},\"metadata\":{\"bytecodeHash\":\"ipfs\",\"useLiteralContent\":true},\"optimizer\":{\"enabled\":true,\"runs\":10000},\"remappings\":[]},\"sources\":{\"contracts/universal/drippie/IDripCheck.sol\":{\"content\":\"// SPDX-License-Identifier: MIT\\npragma solidity ^0.8.9;\\n\\ninterface IDripCheck {\\n    // DripCheck contracts that want to take parameters as inputs MUST expose a struct called\\n    // Params and an event _EventForExposingParamsStructInABI(Params params). This makes it\\n    // possible to easily encode parameters on the client side. Solidity does not support generics\\n    // so it's not possible to do this with explicit typing.\\n\\n    function check(bytes memory _params) external view returns (bool);\\n}\\n\",\"keccak256\":\"0x73db6ada63ed1f0eba24efd36099139e66908aa45c79c0d1defe2a59a9e9eb9d\",\"license\":\"MIT\"},\"contracts/universal/drippie/dripchecks/CheckBalanceLow.sol\":{\"content\":\"// SPDX-License-Identifier: MIT\\npragma solidity ^0.8.9;\\n\\nimport { IDripCheck } from \\\"../IDripCheck.sol\\\";\\n\\n/**\\n * @title CheckBalanceLow\\n * @notice DripCheck for checking if an account's balance is below a given threshold.\\n */\\ncontract CheckBalanceLow is IDripCheck {\\n    event _EventToExposeStructInABI__Params(Params params);\\n    struct Params {\\n        address target;\\n        uint256 threshold;\\n    }\\n\\n    function check(bytes memory _params) external view returns (bool) {\\n        Params memory params = abi.decode(_params, (Params));\\n\\n        // Check target ETH balance is below threshold.\\n        return params.target.balance < params.threshold;\\n    }\\n}\\n\",\"keccak256\":\"0xd6d8e6abcc1428666132e9d8140243fff23c564b6474927e18f30fe078801842\",\"license\":\"MIT\"}},\"version\":1}",
+  "bytecode": "0x608060405234801561001057600080fd5b50610239806100206000396000f3fe608060405234801561001057600080fd5b506004361061002b5760003560e01c8063c64b3bb514610030575b600080fd5b61004361003e3660046100c3565b610057565b604051901515815260200160405180910390f35b6000808280602001905181019061006e9190610192565b6020810151905173ffffffffffffffffffffffffffffffffffffffff1631109392505050565b7f4e487b7100000000000000000000000000000000000000000000000000000000600052604160045260246000fd5b6000602082840312156100d557600080fd5b813567ffffffffffffffff808211156100ed57600080fd5b818401915084601f83011261010157600080fd5b81358181111561011357610113610094565b604051601f82017fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0908116603f0116810190838211818310171561015957610159610094565b8160405282815287602084870101111561017257600080fd5b826020860160208301376000928101602001929092525095945050505050565b6000604082840312156101a457600080fd5b6040516040810181811067ffffffffffffffff821117156101c7576101c7610094565b604052825173ffffffffffffffffffffffffffffffffffffffff811681146101ee57600080fd5b8152602092830151928101929092525091905056fea264697066735822122075d8f6816a6709f5b54613834c7be6979cb3af4abf6a1d38244135be431d562b64736f6c63430008090033",
+  "deployedBytecode": "0x608060405234801561001057600080fd5b506004361061002b5760003560e01c8063c64b3bb514610030575b600080fd5b61004361003e3660046100c3565b610057565b604051901515815260200160405180910390f35b6000808280602001905181019061006e9190610192565b6020810151905173ffffffffffffffffffffffffffffffffffffffff1631109392505050565b7f4e487b7100000000000000000000000000000000000000000000000000000000600052604160045260246000fd5b6000602082840312156100d557600080fd5b813567ffffffffffffffff808211156100ed57600080fd5b818401915084601f83011261010157600080fd5b81358181111561011357610113610094565b604051601f82017fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0908116603f0116810190838211818310171561015957610159610094565b8160405282815287602084870101111561017257600080fd5b826020860160208301376000928101602001929092525095945050505050565b6000604082840312156101a457600080fd5b6040516040810181811067ffffffffffffffff821117156101c7576101c7610094565b604052825173ffffffffffffffffffffffffffffffffffffffff811681146101ee57600080fd5b8152602092830151928101929092525091905056fea264697066735822122075d8f6816a6709f5b54613834c7be6979cb3af4abf6a1d38244135be431d562b64736f6c63430008090033",
+  "devdoc": {
+    "kind": "dev",
+    "methods": {},
+    "title": "CheckBalanceLow",
+    "version": 1
+  },
+  "userdoc": {
+    "kind": "user",
+    "methods": {},
+    "notice": "DripCheck for checking if an account's balance is below a given threshold.",
+    "version": 1
+  },
+  "storageLayout": {
+    "storage": [],
+    "types": null
+  }
+}
