@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"fmt"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"sort"
 	"sync"
 
@@ -151,6 +152,10 @@ func (og *ChannelEmitter) Output(ctx context.Context, history map[ChannelID]uint
 		}
 	}
 
+	if og.l1Time == 0 { // ig l1 time is not initialized, don't create new channels with it
+		return out, nil
+	}
+
 	out.Data = append(out.Data, DerivationVersion0)
 
 	// check full history, and add data for any channels we still consider to be open.
@@ -213,7 +218,7 @@ func (og *ChannelEmitter) Output(ctx context.Context, history map[ChannelID]uint
 		if err != nil {
 			// remove the channel (it may be closed, not canonical chain anymore, or corrupted somehow)
 			delete(og.channels, outCh.id)
-			log.Error("failed to output frame for channel", "channel", outCh.id, "err", err)
+			og.log.Error("failed to output frame for channel", "channel", outCh.id, "err", err)
 			continue
 		}
 		out.Data = append(out.Data, frame...)
@@ -253,7 +258,7 @@ func (og *ChannelEmitter) Output(ctx context.Context, history map[ChannelID]uint
 		id.Time = og.l1Time
 
 		if _, ok := og.channels[id]; ok {
-			log.Warn("generated a channel ID that already exists", "channel", id)
+			og.log.Warn("generated a channel ID that already exists", "channel", id)
 			continue
 		}
 
@@ -280,9 +285,10 @@ func (og *ChannelEmitter) Output(ctx context.Context, history map[ChannelID]uint
 
 		frame, err := outCh.Output(maxSize - uint64(len(out.Data)))
 		if err != nil {
-			log.Error("failed to output frame for new channel", "channel", id, "err", err)
+			og.log.Error("failed to output frame for new channel", "channel", id, "err", err)
 			continue
 		}
+		og.log.Info("frame", "data", hexutil.Bytes(outCh.scratch.Bytes()), "blocks", len(blocks))
 		out.Data = append(out.Data, frame...)
 		out.Channels[id] = 0
 	}

@@ -135,6 +135,8 @@ func (d *Driver) GetBlockRange(
 	start := new(big.Int).SetUint64(resp.Meta.SafeHead.Number)
 	end := new(big.Int).SetUint64(resp.Meta.UnsafeHead.Number)
 
+	d.currentResp = resp
+
 	return start, end, nil
 }
 

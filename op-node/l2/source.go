@@ -43,6 +43,9 @@ func (s *Source) UnsafeBlockIDs(ctx context.Context, safeHead eth.BlockID, max u
 	var out []eth.BlockID
 	for i := uint64(0); i < max; i++ {
 		header, err := s.client.HeaderByNumber(ctx, new(big.Int).SetUint64(safeHead.Number+i))
+		if err == ethereum.NotFound {
+			return out, nil
+		}
 		if err != nil {
 			return out, err
 		}

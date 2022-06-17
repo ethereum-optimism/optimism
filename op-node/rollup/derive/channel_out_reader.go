@@ -21,6 +21,7 @@ type channelOutReader struct {
 	i        int
 	compress *zlib.Writer
 	buf      *bytes.Buffer
+	closed   bool
 	genesis  *rollup.Genesis
 	ctx      context.Context
 }
@@ -50,6 +51,7 @@ func (cr *channelOutReader) Reset(ctx context.Context, blocks []eth.BlockID) {
 	cr.buf.Reset()
 	cr.compress.Reset(cr.buf)
 	cr.ctx = ctx
+	cr.closed = false
 }
 
 func (cr *channelOutReader) readPayload() (*eth.ExecutionPayload, error) {
@@ -57,10 +59,11 @@ func (cr *channelOutReader) readPayload() (*eth.ExecutionPayload, error) {
 		return nil, io.EOF
 	}
 	payload, err := cr.source.PayloadByHash(cr.ctx, cr.blocks[0].Hash)
-	if err == nil {
-		cr.blocks = cr.blocks[1:]
+	if err != nil {
+		return nil, err
 	}
-	return payload, err
+	cr.blocks = cr.blocks[1:]
+	return payload, nil
 }
 
 func (cr *channelOutReader) readBatch() (*BatchData, error) {
@@ -98,12 +101,16 @@ func (cr *channelOutReader) Read(p []byte) (n int, err error) {
 	// try to empty the buffer first, we cannot write to it until we have read it all
 	bufN, err := cr.buf.Read(p)
 	if err != nil { // *bytes.Buffer.Read() only returns io.EOF errors, and only if the buffer is empty.
+		if cr.closed {
+			return 0, io.EOF
+		}
 		// if the buffer is empty, then encode the next block to it
 		if err := cr.encodeNext(); err != nil {
 			if err == io.EOF { // if there are no more blocks, close (includes flush) the compression stream
 				if err := cr.compress.Close(); err != nil {
 					return 0, err
 				}
+				cr.closed = true
 				// read what remains (if any). May return an EOF if the flush left nothing.
 				return cr.buf.Read(p)
 			} else if err != nil {

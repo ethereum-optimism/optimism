@@ -135,7 +135,10 @@ func TestUpdate(t *testing.T) {
 		require.NotContains(t, history.Channels, id)
 	}
 
+	// try store history back in the db
+	require.NoError(t, hdb.Update(history.Channels, 0, 0))
+
 	// time out everything
-	history.Update(nil, 0, 2000)
+	history.Update(nil, 0, 2400)
 	require.Len(t, history.Channels, 0)
 }

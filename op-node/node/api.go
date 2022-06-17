@@ -43,9 +43,10 @@ type nodeAPI struct {
 
 func newNodeAPI(config *rollup.Config, l2Client l2EthClient, emitter ChannelEmitter, log log.Logger) *nodeAPI {
 	return &nodeAPI{
-		config: config,
-		client: l2Client,
-		log:    log,
+		config:  config,
+		client:  l2Client,
+		emitter: emitter,
+		log:     log,
 	}
 }
 

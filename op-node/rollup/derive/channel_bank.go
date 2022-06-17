@@ -144,8 +144,9 @@ func (ib *ChannelBank) IngestData(data []byte) error {
 			ib.channelQueue = append(ib.channelQueue, chID)
 		}
 
+		ib.log.Debug("ingesting frame", "channel", chID, "frame_number", frameNumber, "length", len(frameData))
 		if err := currentCh.IngestData(frameNumber, isLast, frameData); err != nil {
-			ib.log.Debug("failed to ingest frame into channel", "frame_number", frameNumber, "channel", chID, "err", err)
+			ib.log.Debug("failed to ingest frame into channel", "channel", chID, "frame_number", frameNumber, "err", err)
 			continue
 		}
 	}
@@ -162,10 +163,10 @@ func (ib *ChannelBank) Read() (chID ChannelID, data []byte) {
 	ch := ib.channels[first]
 	timedOut := first.Time+ChannelTimeout < ib.currentL1Origin.Time
 	if timedOut {
-		ib.log.Info("channel timed out", "channel", ch, "frames", len(ch.inputs), "id_time", first.Time)
+		ib.log.Info("channel timed out", "channel", first, "frames", len(ch.inputs))
 	}
 	if ch.closed {
-		ib.log.Debug("channel closed", "channel", ch, "id_time", first.Time)
+		ib.log.Debug("channel closed", "channel", first)
 	}
 	if !timedOut && !ch.closed {
 		return ChannelID{}, nil
