@@ -1,7 +1,5 @@
 import {
   EnqueueEntry,
-  StateRootBatchEntry,
-  StateRootEntry,
   TransactionBatchEntry,
   TransactionEntry,
 } from './database-types'
@@ -18,16 +16,6 @@ export interface TransactionResponse {
 export interface TransactionBatchResponse {
   batch: TransactionBatchEntry
   transactions: TransactionEntry[]
-}
-
-export interface StateRootResponse {
-  batch: StateRootBatchEntry
-  stateRoot: StateRootEntry
-}
-
-export interface StateRootBatchResponse {
-  batch: StateRootBatchEntry
-  stateRoots: StateRootEntry[]
 }
 
 export interface ContextResponse {

@@ -52,11 +52,3 @@ interface BatchEntry {
 }
 
 export type TransactionBatchEntry = BatchEntry
-export type StateRootBatchEntry = BatchEntry
-
-export interface StateRootEntry {
-  index: number
-  batchIndex: number
-  value: string
-  confirmed: boolean
-}

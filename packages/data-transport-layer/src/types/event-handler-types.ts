@@ -2,12 +2,7 @@ import { BaseProvider } from '@ethersproject/providers'
 import { BigNumber } from 'ethers'
 import { TypedEvent } from '@eth-optimism/contracts/dist/types/common'
 
-import {
-  TransactionBatchEntry,
-  TransactionEntry,
-  StateRootBatchEntry,
-  StateRootEntry,
-} from './database-types'
+import { TransactionBatchEntry, TransactionEntry } from './database-types'
 import { TransportDB } from '../db/transport-db'
 
 export type GetExtraDataHandler<TEvent extends TypedEvent, TExtraData> = (
@@ -54,17 +49,4 @@ export interface SequencerBatchAppendedExtraData {
 export interface SequencerBatchAppendedParsedEvent {
   transactionBatchEntry: TransactionBatchEntry
   transactionEntries: TransactionEntry[]
-}
-
-export interface StateBatchAppendedExtraData {
-  timestamp: number
-  blockNumber: number
-  submitter: string
-  l1TransactionHash: string
-  l1TransactionData: string
-}
-
-export interface StateBatchAppendedParsedEvent {
-  stateRootBatchEntry: StateRootBatchEntry
-  stateRootEntries: StateRootEntry[]
 }

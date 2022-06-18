@@ -10,7 +10,6 @@ describe('Handlers: handleSequencerBlock', () => {
 
       const output1 = await handleSequencerBlock.parseBlock(...input1)
 
-      expect(output1.stateRootEntry.value).to.equal(l2Block.stateRoot)
       expect(output1.transactionEntry.decoded.data).to.equal(
         l2Block.transactions[0].input
       )

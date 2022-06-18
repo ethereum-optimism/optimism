@@ -8,8 +8,6 @@ import { SimpleDB } from './simple-db'
 import { PATCH_CONTEXTS, BSS_HF1_INDEX } from '../config'
 import {
   EnqueueEntry,
-  StateRootBatchEntry,
-  StateRootEntry,
   TransactionBatchEntry,
   TransactionEntry,
 } from '../types/database-types'
@@ -21,9 +19,6 @@ const TRANSPORT_DB_KEYS = {
   UNCONFIRMED_TRANSACTION: `unconfirmed:transaction`,
   UNCONFIRMED_HIGHEST: `unconfirmed:highest`,
   TRANSACTION_BATCH: `batch:transaction`,
-  STATE_ROOT: `stateroot`,
-  UNCONFIRMED_STATE_ROOT: `unconfirmed:stateroot`,
-  STATE_ROOT_BATCH: `batch:stateroot`,
   STARTING_L1_BLOCK: `l1:starting`,
   HIGHEST_L2_BLOCK: `l2:highest`,
   HIGHEST_SYNCED_BLOCK: `synced:highest`,
@@ -67,22 +62,6 @@ export class TransportDB {
     entries: TransactionBatchEntry[]
   ): Promise<void> {
     await this._putEntries(TRANSPORT_DB_KEYS.TRANSACTION_BATCH, entries)
-  }
-
-  public async putStateRootEntries(entries: StateRootEntry[]): Promise<void> {
-    await this._putEntries(TRANSPORT_DB_KEYS.STATE_ROOT, entries)
-  }
-
-  public async putUnconfirmedStateRootEntries(
-    entries: StateRootEntry[]
-  ): Promise<void> {
-    await this._putEntries(TRANSPORT_DB_KEYS.UNCONFIRMED_STATE_ROOT, entries)
-  }
-
-  public async putStateRootBatchEntries(
-    entries: StateRootBatchEntry[]
-  ): Promise<void> {
-    await this._putEntries(TRANSPORT_DB_KEYS.STATE_ROOT_BATCH, entries)
   }
 
   public async putTransactionIndexByQueueIndex(
@@ -139,32 +118,6 @@ export class TransportDB {
     return entry
   }
 
-  public async getStateRootByIndex(index: number): Promise<StateRootEntry> {
-    return this._getEntryByIndex(TRANSPORT_DB_KEYS.STATE_ROOT, index)
-  }
-
-  public async getUnconfirmedStateRootByIndex(
-    index: number
-  ): Promise<StateRootEntry> {
-    return this._getEntryByIndex(
-      TRANSPORT_DB_KEYS.UNCONFIRMED_STATE_ROOT,
-      index
-    )
-  }
-
-  public async getStateRootsByIndexRange(
-    start: number,
-    end: number
-  ): Promise<StateRootEntry[]> {
-    return this._getEntries(TRANSPORT_DB_KEYS.STATE_ROOT, start, end)
-  }
-
-  public async getStateRootBatchByIndex(
-    index: number
-  ): Promise<StateRootBatchEntry> {
-    return this._getEntryByIndex(TRANSPORT_DB_KEYS.STATE_ROOT_BATCH, index)
-  }
-
   public async getLatestEnqueue(): Promise<EnqueueEntry> {
     return this._getLatestEntry(TRANSPORT_DB_KEYS.ENQUEUE)
   }
@@ -185,18 +138,6 @@ export class TransportDB {
       entry.type = BatchType[BatchType.LEGACY]
     }
     return entry
-  }
-
-  public async getLatestStateRoot(): Promise<StateRootEntry> {
-    return this._getLatestEntry(TRANSPORT_DB_KEYS.STATE_ROOT)
-  }
-
-  public async getLatestUnconfirmedStateRoot(): Promise<StateRootEntry> {
-    return this._getLatestEntry(TRANSPORT_DB_KEYS.UNCONFIRMED_STATE_ROOT)
-  }
-
-  public async getLatestStateRootBatch(): Promise<StateRootBatchEntry> {
-    return this._getLatestEntry(TRANSPORT_DB_KEYS.STATE_ROOT_BATCH)
   }
 
   public async getHighestL2BlockNumber(): Promise<number> {

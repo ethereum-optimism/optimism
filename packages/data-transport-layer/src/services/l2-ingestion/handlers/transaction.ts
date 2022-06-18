@@ -7,7 +7,6 @@ import { padHexString } from '@eth-optimism/core-utils'
 import { TransportDB } from '../../../db/transport-db'
 import {
   DecodedSequencerBatchTransaction,
-  StateRootEntry,
   TransactionEntry,
 } from '../../../types'
 import { parseSignatureVParam } from '../../../utils'
@@ -19,7 +18,6 @@ export const handleSequencerBlock = {
     chainId: number
   ): Promise<{
     transactionEntry: TransactionEntry
-    stateRootEntry: StateRootEntry
   }> => {
     const transaction = block.transactions[0]
     const transactionIndex =
@@ -96,22 +94,13 @@ export const handleSequencerBlock = {
       }
     }
 
-    const stateRootEntry: StateRootEntry = {
-      index: transactionIndex,
-      batchIndex: null,
-      value: block.stateRoot,
-      confirmed: false,
-    }
-
     return {
       transactionEntry: transactionEntry as TransactionEntry, // Not the cleanest thing in the world. Could be improved.
-      stateRootEntry,
     }
   },
   storeBlock: async (
     entry: {
       transactionEntry: TransactionEntry
-      stateRootEntry: StateRootEntry
     },
     db: TransportDB
   ): Promise<void> => {
@@ -130,6 +119,5 @@ export const handleSequencerBlock = {
     // accidentally overwriting a confirmed transaction with an unconfirmed one. Unconfirmed
     // transactions are purely extra information.
     await db.putUnconfirmedTransactionEntries([entry.transactionEntry])
-    await db.putUnconfirmedStateRootEntries([entry.stateRootEntry])
   },
 }
