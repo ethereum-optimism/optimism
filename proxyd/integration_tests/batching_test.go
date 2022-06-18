@@ -18,6 +18,8 @@ func TestBatching(t *testing.T) {
 	netVersionResponse1 := `{"jsonrpc": "2.0", "result": "1.0", "id": 1}`
 	callResponse1 := `{"jsonrpc": "2.0", "result": "ekans1", "id": 1}`
 
+	ethAccountsResponse2 := `{"jsonrpc": "2.0", "result": [], "id": 2}`
+
 	type mockResult struct {
 		method string
 		id     string
@@ -97,6 +99,19 @@ func TestBatching(t *testing.T) {
 			expectedRes:         asArray(netVersionResponse1, chainIDResponse2, chainIDResponse1, callResponse1),
 			maxBatchSize:        2,
 			numExpectedForwards: 3,
+		},
+		{
+			name: "eth_accounts does not get forwarded",
+			mocks: []mockResult{
+				callMock1,
+			},
+			reqs: []*proxyd.RPCReq{
+				NewRPCReq("1", "eth_call", nil),
+				NewRPCReq("2", "eth_accounts", nil),
+			},
+			expectedRes:         asArray(callResponse1, ethAccountsResponse2),
+			maxBatchSize:        2,
+			numExpectedForwards: 1,
 		},
 	}
 

@@ -1,6 +1,6 @@
 {
   "name": "@eth-optimism/contracts",
-  "version": "0.5.27",
+  "version": "0.5.28",
   "description": "[Optimism] L1 and L2 smart contracts for Optimism",
   "main": "dist/index",
   "types": "dist/index",
@@ -57,14 +57,14 @@
     "url": "https://github.com/ethereum-optimism/optimism.git"
   },
   "dependencies": {
-    "@eth-optimism/core-utils": "0.8.6",
+    "@eth-optimism/core-utils": "0.8.7",
     "@ethersproject/abstract-provider": "^5.6.1",
     "@ethersproject/abstract-signer": "^5.6.2"
   },
   "devDependencies": {
     "@codechecks/client": "^0.1.11",
     "@defi-wonderland/smock": "^2.0.2",
-    "@eth-optimism/hardhat-deploy-config": "^0.1.0",
+    "@eth-optimism/hardhat-deploy-config": "^0.2.0",
     "@ethersproject/abi": "^5.6.3",
     "@ethersproject/bytes": "^5.6.1",
     "@ethersproject/hardware-wallets": "^5.6.1",

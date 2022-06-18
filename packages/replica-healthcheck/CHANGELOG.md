@@ -1,5 +1,24 @@
 # @eth-optimism/replica-healthcheck
 
+## 1.1.3
+
+### Patch Changes
+
+- Updated dependencies [cb71fcde]
+- Updated dependencies [10e41522]
+  - @eth-optimism/common-ts@0.5.0
+
+## 1.1.2
+
+### Patch Changes
+
+- 29ff7462: Revert es target back to 2017
+- Updated dependencies [c201f3f1]
+- Updated dependencies [29ff7462]
+- Updated dependencies [52b26878]
+  - @eth-optimism/common-ts@0.4.0
+  - @eth-optimism/core-utils@0.8.7
+
 ## 1.1.1
 
 ### Patch Changes

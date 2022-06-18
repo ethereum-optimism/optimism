@@ -84,7 +84,7 @@ func TestOutputAtBlock(t *testing.T) {
 
 	l2Client := &mockL2Client{}
 	l2Client.mock.On("GetBlockHeader", "latest").Return(&header)
-	l2Client.mock.On("GetProof", common.HexToAddress(predeploys.L2ToL1MessagePasser), "latest").Return(&result)
+	l2Client.mock.On("GetProof", predeploys.L2ToL1MessagePasserAddr, "latest").Return(&result)
 
 	server, err := newRPCServer(context.Background(), rpcCfg, rollupCfg, l2Client, log, "0.0")
 	assert.NoError(t, err)

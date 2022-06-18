@@ -32,6 +32,8 @@ const (
 	defaultMaxUpstreamBatchSize = 10
 )
 
+var emptyArrayResponse = json.RawMessage("[]")
+
 type Server struct {
 	backendGroups        map[string]*BackendGroup
 	wsBackendGroup       *BackendGroup
@@ -245,6 +247,12 @@ func (s *Server) handleBatchRPC(ctx context.Context, reqs []json.RawMessage, isB
 		if err := ValidateRPCReq(parsedReq); err != nil {
 			RecordRPCError(ctx, BackendProxyd, MethodUnknown, err)
 			responses[i] = NewRPCErrorRes(nil, err)
+			continue
+		}
+
+		if parsedReq.Method == "eth_accounts" {
+			RecordRPCForward(ctx, BackendProxyd, "eth_accounts", RPCRequestSourceHTTP)
+			responses[i] = NewRPCRes(parsedReq.ID, emptyArrayResponse)
 			continue
 		}
 

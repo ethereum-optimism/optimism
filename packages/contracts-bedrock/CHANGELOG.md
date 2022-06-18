@@ -1,5 +1,45 @@
 # @eth-optimism/contracts-bedrock
 
+## 0.3.0
+
+### Minor Changes
+
+- 35757456: Replaces L2 timestamps with block numbers as the key in mapping(uint => OutputProposal).
+
+### Patch Changes
+
+- f23bae0b: bedrock: ProxyAdmin rename OpenZeppelin proxy to ERC1967
+- fadb1a93: OZ Audit fixes with a Low or informational severity:
+
+  - Hardcode constant values
+  - Require that msg.value == \_amount on ETH withdrawals
+  - use \_from in place of msg.sender when applicable in internal functions
+
+- f23bae0b: bedrock: Simplify ProxyAdmin static calls
+- 650ca6d4: Fixes to medium severity OZ findings
+
+  - Disallow reentrant withdrawals
+  - remove donateEth
+  - Correct ordering of \_from and \_to arguments on refunds of failed deposits
+
+- 9aa8049c: Have contracts-bedrock properly include contract sources in npm package
+
+## 0.2.0
+
+### Minor Changes
+
+- 04884132: Corrects the ordering of token addresses when a finalizeBridgeERC20 call fails
+
+### Patch Changes
+
+- 0a5ca8bf: Deployment for bedrock contracts on goerli
+- 2f3fae0e: Fix hh artifact schema
+- a96cbe7c: Fix style for L2 contracts to match L1 contracts
+- 29ff7462: Revert es target back to 2017
+- 14dd80f3: Add proxy contract
+- Updated dependencies [29ff7462]
+  - @eth-optimism/core-utils@0.8.7
+
 ## 0.1.3
 
 ### Patch Changes

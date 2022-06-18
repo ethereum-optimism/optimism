@@ -1,5 +1,21 @@
 # @eth-optimism/contracts-periphery
 
+## 0.1.4
+
+### Patch Changes
+
+- 9aa8049c: Deploy NFT bridge contracts
+
+## 0.1.3
+
+### Patch Changes
+
+- da1633a3: ERC721 bridge from Eth Mainnet to Optimism
+- 61a30273: Simplify, cleanup, and standardize ERC721 bridge contracts.
+- a320e744: Updates contracts-periphery to use the standardized hardhat deploy config plugin
+- 29ff7462: Revert es target back to 2017
+- 604dd315: Deploy Drippie to kovan and OP kovan
+
 ## 0.1.2
 
 ### Patch Changes
