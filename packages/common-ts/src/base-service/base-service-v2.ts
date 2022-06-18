@@ -144,17 +144,19 @@ export abstract class BaseServiceV2<
    * @param params.port Port for the app server. Defaults to 7300.
    * @param params.hostname Hostname for the app server. Defaults to 0.0.0.0.
    */
-  constructor(params: {
-    name: string
-    version: string
-    optionsSpec: OptionsSpec<TOptions>
-    metricsSpec: MetricsSpec<TMetrics>
-    options?: Partial<TOptions>
-    loop?: boolean
-    loopIntervalMs?: number
-    port?: number
-    hostname?: string
-  }) {
+  constructor(
+    private readonly params: {
+      name: string
+      version: string
+      optionsSpec: OptionsSpec<TOptions>
+      metricsSpec: MetricsSpec<TMetrics>
+      options?: Partial<TOptions>
+      loop?: boolean
+      loopIntervalMs?: number
+      port?: number
+      hostname?: string
+    }
+  ) {
     this.loop = params.loop !== undefined ? params.loop : true
     this.state = {} as TServiceState
 
@@ -404,6 +406,7 @@ export abstract class BaseServiceV2<
       app.get('/healthz', async (req, res) => {
         return res.json({
           ok: this.healthy,
+          version: this.params.version,
         })
       })
 
@@ -429,7 +432,7 @@ export abstract class BaseServiceV2<
             }
 
             return '/invalid_path_not_a_real_route'
-          }
+          },
         })
       )
 
