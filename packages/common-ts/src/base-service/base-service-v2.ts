@@ -34,9 +34,7 @@ export type OptionsSpec<TOptions extends Options> = {
   }
 }
 
-export type MetricsV2 = {
-  [key: string]: Metric
-}
+export type MetricsV2 = Record<any, Metric>
 
 export type StandardMetrics = {
   metadata: Gauge
@@ -402,6 +400,19 @@ export abstract class BaseServiceV2<
         })
       )
 
+      // Health status.
+      app.get('/healthz', async (req, res) => {
+        return res.json({
+          ok: this.healthy,
+        })
+      })
+
+      // Register user routes.
+      const router = express.Router()
+      if (this.routes) {
+        this.routes(router)
+      }
+
       // Metrics.
       // Will expose a /metrics endpoint by default.
       app.use(
@@ -410,22 +421,19 @@ export abstract class BaseServiceV2<
           includeMethod: true,
           includePath: true,
           includeStatusCode: true,
+          normalizePath: (req) => {
+            for (const layer of router.stack) {
+              if (layer.route && req.path.match(layer.regexp)) {
+                return layer.route.path
+              }
+            }
+
+            return '/invalid_path_not_a_real_route'
+          }
         })
       )
 
-      // Health status.
-      app.get('/healthz', async (req, res) => {
-        return res.json({
-          ok: this.healthy,
-        })
-      })
-
-      // Registery user routes.
-      if (this.routes) {
-        const router = express.Router()
-        this.routes(router)
-        app.use('/api', router)
-      }
+      app.use('/api', router)
 
       // Wait for server to come up.
       await new Promise((resolve) => {
