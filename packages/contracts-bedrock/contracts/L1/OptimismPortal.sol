@@ -68,6 +68,16 @@ contract OptimismPortal is ResourceMetering {
     address public l2Sender = DEFAULT_L2_SENDER;
 
     /**
+     * @notice The L2 gas limit set when eth is deposited using the receive() function.
+     */
+    uint64 internal constant RECEIVE_DEFAULT_GAS_LIMIT = 100_000;
+
+    /**
+     * @notice Additional gas reserved for clean up after finalizing a transaction withdrawal.
+     */
+    uint256 internal constant FINALIZE_GAS_BUFFER = 20_000;
+
+    /**
      * @notice A list of withdrawal hashes which have been successfully finalized.
      */
     mapping(bytes32 => bool) public finalizedWithdrawals;
@@ -84,10 +94,11 @@ contract OptimismPortal is ResourceMetering {
     /**
      * @notice Accepts value so that users can send ETH directly to this contract and have the
      *         funds be deposited to their address on L2. This is intended as a convenience
-     *         function for EOAs. Contracts should call the depositTransaction() function directly.
+     *         function for EOAs. Contracts should call the depositTransaction() function directly
+     *         otherwise any deposited funds will be lost due to address aliasing.
      */
     receive() external payable {
-        depositTransaction(msg.sender, msg.value, 100000, false, bytes(""));
+        depositTransaction(msg.sender, msg.value, RECEIVE_DEFAULT_GAS_LIMIT, false, bytes(""));
     }
 
     /**
@@ -139,7 +150,7 @@ contract OptimismPortal is ResourceMetering {
      * @param _value           ETH to send to the target.
      * @param _gasLimit        Minumum gas to be forwarded to the target.
      * @param _data            Data to send to the target.
-     * @param _l2Timestamp     L2 timestamp of the outputRoot.
+     * @param _l2BlockNumber   L2 block number of the outputRoot.
      * @param _outputRootProof Inclusion proof of the withdrawer contracts storage root.
      * @param _withdrawalProof Inclusion proof for the given withdrawal in the withdrawer contract.
      */
@@ -150,11 +161,11 @@ contract OptimismPortal is ResourceMetering {
         uint256 _value,
         uint256 _gasLimit,
         bytes calldata _data,
-        uint256 _l2Timestamp,
+        uint256 _l2BlockNumber,
         WithdrawalVerifier.OutputRootProof calldata _outputRootProof,
         bytes calldata _withdrawalProof
     ) external payable {
-        // Prevent reentrancy.
+        // Prevent nested withdrawals within withdrawals.
         require(
             l2Sender == DEFAULT_L2_SENDER,
             "OptimismPortal: can only trigger one withdrawal per transaction"
@@ -168,7 +179,7 @@ contract OptimismPortal is ResourceMetering {
         );
 
         // Get the output root.
-        L2OutputOracle.OutputProposal memory proposal = L2_ORACLE.getL2Output(_l2Timestamp);
+        L2OutputOracle.OutputProposal memory proposal = L2_ORACLE.getL2Output(_l2BlockNumber);
 
         // Ensure that enough time has passed since the proposal was submitted before allowing a
         // withdrawal. Under the assumption that the fault proof mechanism is operating correctly,
@@ -221,7 +232,7 @@ contract OptimismPortal is ResourceMetering {
         // target contract is at least the gas limit specified by the user. We can do this by
         // enforcing that, at this point in time, we still have gaslimit + buffer gas available.
         require(
-            gasleft() >= _gasLimit + 20000,
+            gasleft() >= _gasLimit + FINALIZE_GAS_BUFFER,
             "OptimismPortal: insufficient gas to finalize withdrawal"
         );
 

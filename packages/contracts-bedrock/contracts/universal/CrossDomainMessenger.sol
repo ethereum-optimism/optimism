@@ -54,7 +54,13 @@ abstract contract CrossDomainMessenger is
 
     uint32 public constant MIN_GAS_DYNAMIC_OVERHEAD = 1;
 
-    uint32 public constant MIN_GAS_CONSTANT_OVERHEAD = 100000;
+    uint32 public constant MIN_GAS_CONSTANT_OVERHEAD = 100_000;
+
+    /// @notice Minimum amount of gas required prior to relaying a message.
+    uint256 internal constant RELAY_GAS_REQUIRED = 45_000;
+
+    /// @notice Amount of gas held in reserve for accounting after relaying a message.
+    uint256 internal constant RELAY_GAS_BUFFER = RELAY_GAS_REQUIRED - 5000;
 
     /*************
      * Variables *
@@ -93,6 +99,13 @@ abstract contract CrossDomainMessenger is
      */
     function pause() external onlyOwner {
         _pause();
+    }
+
+    /**
+     * Unpause relaying.
+     */
+    function unpause() external onlyOwner {
+        _unpause();
     }
 
     /**
@@ -209,12 +222,15 @@ abstract contract CrossDomainMessenger is
         require(successfulMessages[versionedHash] == false, "Message has already been relayed.");
 
         // TODO: Make sure this will always give us enough gas.
-        require(gasleft() >= _minGasLimit + 45000, "Insufficient gas to relay message.");
+        require(
+            gasleft() >= _minGasLimit + RELAY_GAS_REQUIRED,
+            "Insufficient gas to relay message."
+        );
 
         xDomainMsgSender = _sender;
         (bool success, ) = ExcessivelySafeCall.excessivelySafeCall(
             _target,
-            gasleft() - 40000,
+            gasleft() - RELAY_GAS_BUFFER,
             _value,
             0,
             _message

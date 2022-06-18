@@ -91,28 +91,28 @@ where:
 ## L2 Output Oracle Smart Contract
 
 L2 blocks are produced at a constant rate of `L2_BLOCK_TIME` (2 seconds).
-A new L2 output MUST be appended to the chain once per `SUBMISSION_INTERVAL` (1800 seconds). Note that this interval is\
-based on L2 time. It is OK to have L2 outputs submitted at larger or small intervals.
+A new L2 output MUST be appended to the chain once per `SUBMISSION_INTERVAL` which is based on a number of blocks.
+The exact number is yet to be determined, and will depend on the design of the fault proving game.
 
 The L2 Output Oracle contract implements the following interface:
 
 ```js
 /**
- * Accepts an L2 output checkpoint and the timestamp of the corresponding L2
- * block. The timestamp must be equal to the current value returned by
- * `nextTimestamp()` in order to be accepted.
+ * @notice Accepts an L2 outputRoot and the timestamp of the corresponding L2 block. The
+ * timestamp must be equal to the current value returned by `nextTimestamp()` in order to be
+ * accepted.
  * This function may only be called by the Sequencer.
- * @param _l2Output The L2 output of the checkpoint block.
- * @param _l2timestamp The L2 block timestamp that resulted in _l2Output.
- * @param _l1Blockhash A block hash which must be included in the current chain.
- * @param _l1Blocknumber The block number with the specified block hash.
- */
-function appendL2Output(
-    bytes32 _l2Output,
-    uint256 _l2timestamp,
-    bytes32 _l1Blockhash,
-    uint256 _l1Blocknumber
-)
+ * @param _l2Output      The L2 output of the checkpoint block.
+ * @param _l2BlockNumber The L2 block number that resulted in _l2Output.
+ * @param _l1Blockhash   A block hash which must be included in the current chain.
+ * @param _l1BlockNumber The block number with the specified block hash.
+*/
+  function appendL2Output(
+      bytes32 _l2Output,
+      uint256 _l2BlockNumber,
+      bytes32 _l1Blockhash,
+      uint256 _l1BlockNumber
+  )
 
 /**
  * @notice Deletes the most recent output.
@@ -122,15 +122,9 @@ function appendL2Output(
 function deleteL2Output(bytes32 _l2Output) external
 
 /**
- * Computes the timestamp of the next L2 block that needs to be checkpointed.
+ * @notice Computes the block number of the next L2 block that needs to be checkpointed.
  */
-function nextTimestamp() public view returns (uint256)
-
-/**
- * Computes the L2 block number given a target L2 block timestamp.
- * @param _timestamp The L2 block timestamp of the target block.
- */
-function computeL2BlockNumber(uint256 _timestamp) public view returns (uint256)
+function nextBlockNumber() public view returns (uint256) {
 ```
 
 ## Security Considerations
