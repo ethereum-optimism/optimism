@@ -1,6 +1,6 @@
 {
   "private": true,
-  "name": "@eth-optimism/message-relayer",
+  "name": "@eth-optimism/turbo-dtl",
   "version": "0.5.2",
   "description": "[Optimism] Service for automatically relaying L2 to L1 transactions",
   "main": "dist/index",
@@ -32,12 +32,14 @@
   },
   "dependencies": {
     "@eth-optimism/common-ts": "0.4.0",
+    "@eth-optimism/contracts": "0.5.28",
     "@eth-optimism/core-utils": "0.8.7",
     "@eth-optimism/sdk": "1.1.9",
     "ethers": "^5.6.8"
   },
   "devDependencies": {
     "@ethersproject/abstract-provider": "^5.6.1",
+    "@ethersproject/transactions": "^5.6.2",
     "@nomiclabs/hardhat-ethers": "^2.0.2",
     "@nomiclabs/hardhat-waffle": "^2.0.1",
     "ethereum-waffle": "^3.3.0",
