@@ -6,13 +6,23 @@ import {
   validators,
 } from '@eth-optimism/common-ts'
 import { Provider } from '@ethersproject/abstract-provider'
+import { getContractInterface } from '@eth-optimism/contracts'
+
+import {
+  parseTransactionEnqueued,
+  parseTransactionBatchAppended,
+  EventParsingFunction,
+} from './events'
+import { ErrEntryInconsistency } from './consistency'
+import { Keys } from './db'
 
 type DTLOptions = {
   l1RpcProvider: Provider
-  l2RpcProvider: Provider
+  l2ChainId: number
   l1StartHeight: number
-  canSyncUnconfirmedTransactions: boolean
-  numConfirmations: number
+  confirmations: number
+  blocksPerLogQuery: number
+  addressManager: string
 }
 
 type DTLMetrics = {}
@@ -20,6 +30,9 @@ type DTLMetrics = {}
 type DTLState = {
   // TODO: Fix this
   db: any
+  highestKnownL1Block: number
+  AddressManager: ethers.Contract
+  CanonicalTransactionChain: ethers.Contract
 }
 
 export class DTLService extends BaseServiceV2<
@@ -39,31 +52,31 @@ export class DTLService extends BaseServiceV2<
           desc: 'provider for interacting with L1',
           secret: true,
         },
-        l2RpcProvider: {
-          validator: validators.provider,
-          desc: 'provider for interacting with L2',
-          default: new ethers.providers.JsonRpcProvider(),
-          secret: true,
+        l2ChainId: {
+          validator: validators.num,
+          desc: 'chain ID for the L2 chain',
         },
         l1StartHeight: {
           validator: validators.num,
           desc: 'L1 block height where the L2 chain starts',
         },
-        canSyncUnconfirmedTransactions: {
-          validator: validators.bool,
-          desc: 'whether or not to sync unconfirmed blocks from L2',
-          default: true,
-        },
-        numConfirmations: {
+        confirmations: {
           validator: validators.num,
           desc: 'number of confirmations when syncing from L1',
+        },
+        blocksPerLogQuery: {
+          validator: validators.num,
+          desc: 'size of the range of the log query in block',
+          default: 2000,
+        },
+        addressManager: {
+          validator: validators.str,
+          desc: 'address of the AddressManager contract on L1',
         },
       },
       metricsSpec: {},
     })
   }
-
-  protected async init(): Promise<void> {}
 
   protected async routes(router: ExpressRouter): Promise<void> {
     router.get('/eth/syncing', async (req, res) => {
@@ -91,7 +104,7 @@ export class DTLService extends BaseServiceV2<
 
     router.get('/eth/context/latest', async (req, res) => {
       const head = await this.options.l1RpcProvider.getBlockNumber()
-      const safeHead = Math.max(0, head - this.options.numConfirmations)
+      const safeHead = Math.max(0, head - this.options.confirmations)
 
       const block = await this.options.l1RpcProvider.getBlock(safeHead)
       if (block === null) {
@@ -112,7 +125,7 @@ export class DTLService extends BaseServiceV2<
     router.get('/eth/context/blocknumber/:number', async (req, res) => {
       const number = ethers.BigNumber.from(req.params.number).toNumber()
       const head = await this.options.l1RpcProvider.getBlockNumber()
-      const safeHead = Math.max(0, head - this.options.numConfirmations)
+      const safeHead = Math.max(0, head - this.options.confirmations)
 
       if (number > safeHead) {
         return res.json({
@@ -292,7 +305,127 @@ export class DTLService extends BaseServiceV2<
     })
   }
 
-  protected async main(): Promise<void> {}
+  protected async init(): Promise<void> {
+    // Connect to the AddressManager and CTC.
+    this.state.AddressManager = new ethers.Contract(
+      this.options.addressManager,
+      getContractInterface('Lib_AddressManager'),
+      this.options.l1RpcProvider
+    )
+    this.state.CanonicalTransactionChain = new ethers.Contract(
+      await this.state.AddressManager.getAddress('CanonicalTransactionChain'),
+      getContractInterface('CanonicalTransactionChain'),
+      this.options.l1RpcProvider
+    )
+
+    // Initialize the highest synced L1 block number if necessary.
+    const highestSyncedL1Block = await this.state.db.get(
+      keys.HIGHEST_SYNCED_L1_BLOCK_KEY
+    )
+    if (highestSyncedL1Block === null) {
+      await this.state.db.put(
+        keys.HIGHEST_SYNCED_L1_BLOCK_KEY,
+        this.options.l1StartHeight
+      )
+    }
+
+    // We cache the highest known L1 block to avoid making unnecessary requests. We're only going
+    // to update this number if we actually sync all the way up to this block. This way we don't
+    // need to query the latest block on every loop.
+    this.state.highestKnownL1Block =
+      await this.options.l1RpcProvider.getBlockNumber()
+  }
+
+  protected async main(): Promise<void> {
+    const highestSyncedL1Block = await this.state.db.get(
+      Keys.HIGHEST_SYNCED_L1_BLOCK
+    )
+
+    // Don't try to sync past the allowable tip based on the number of confirmations.
+    const syncRangeEndBlock = Math.min(
+      highestSyncedL1Block + this.options.blocksPerLogQuery,
+      Math.max(0, this.state.highestKnownL1Block - this.options.confirmations)
+    )
+
+    if (highestSyncedL1Block === syncRangeEndBlock) {
+      const latestL1Block = await this.options.l1RpcProvider.getBlockNumber()
+      if (latestL1Block > this.state.highestKnownL1Block) {
+        this.state.highestKnownL1Block = latestL1Block
+      } else {
+        // Latest L1 block number hasn't updated yet and we've already synced all of the available
+        // blocks so we'll just wait for the next iteration of the loop.
+        // TODO: Sleep here.
+        return
+      }
+    }
+
+    try {
+      await this.syncEventsFromCTC(
+        highestSyncedL1Block,
+        syncRangeEndBlock,
+        'TransactionEnqueued',
+        parseTransactionEnqueued
+      )
+    } catch (err) {
+      if (err === ErrEntryInconsistency) {
+        return
+      } else {
+        throw err
+      }
+    }
+
+    try {
+      await this.syncEventsFromCTC(
+        highestSyncedL1Block,
+        syncRangeEndBlock,
+        'TransactionBatchAppended',
+        parseTransactionBatchAppended
+      )
+    } catch (err) {
+      if (err === ErrEntryInconsistency) {
+        return
+      } else {
+        throw err
+      }
+    }
+  }
+
+  public async syncEventsFromCTC(
+    startBlock: number,
+    endBlock: number,
+    eventName: string,
+    eventParsingFunction: EventParsingFunction
+  ): Promise<void> {
+    const entries = await eventParsingFunction(
+      await this.state.CanonicalTransactionChain.queryFilter(
+        this.state.CanonicalTransactionChain.filters[eventName](),
+        startBlock,
+        endBlock
+      ),
+      this.options.l1RpcProvider,
+      this.options.l2ChainId
+    )
+
+    for (const entry of entries) {
+      try {
+        await this.state.db.put(entry.key, entry.index, entry)
+      } catch (err) {
+        if (err === ErrEntryInconsistency) {
+          const latest = await this.state.db.get(entry.key, 'latest')
+          if (latest === null) {
+            await this.state.db.put(
+              Keys.HIGHEST_SYNCED_L1_BLOCK,
+              this.options.l1StartHeight
+            )
+          } else {
+            await this.state.db.put(Keys.HIGHEST_SYNCED_L1_BLOCK, latest.index)
+          }
+        }
+
+        throw err
+      }
+    }
+  }
 }
 
 if (require.main === module) {

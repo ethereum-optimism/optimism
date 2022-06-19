@@ -1,0 +1,5 @@
+export enum Keys {
+  ENQUEUE_TRANSACTION = '00',
+  BATCHED_TRANSACTION = '01',
+  HIGHEST_SYNCED_L1_BLOCK = '02',
+}
