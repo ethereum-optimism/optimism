@@ -412,10 +412,11 @@ export class DTLService extends BaseServiceV2<
       } catch (err) {
         if (err === ErrEntryInconsistency) {
           const latest = await this.state.db.get(entry.key, 'latest')
+          const latestL1Block =
           if (latest === null) {
             await this.state.db.put(
               Keys.HIGHEST_SYNCED_L1_BLOCK,
-              this.options.l1StartHeight
+
             )
           } else {
             await this.state.db.put(Keys.HIGHEST_SYNCED_L1_BLOCK, latest.index)
