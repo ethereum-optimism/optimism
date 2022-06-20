@@ -1,12 +1,13 @@
 //SPDX-License-Identifier: MIT
 pragma solidity 0.8.10;
 
-import { L2OutputOracle_Initializer } from "./CommonTest.t.sol";
+import { L2OutputOracle_Initializer, CommonTest } from "./CommonTest.t.sol";
 
 import { AddressAliasHelper } from "../libraries/AddressAliasHelper.sol";
 import { L2OutputOracle } from "../L1/L2OutputOracle.sol";
 import { OptimismPortal } from "../L1/OptimismPortal.sol";
 import { WithdrawalVerifier } from "../libraries/Lib_WithdrawalVerifier.sol";
+import { Proxy } from "../universal/Proxy.sol";
 
 contract OptimismPortal_Test is L2OutputOracle_Initializer {
     event TransactionDeposited(
@@ -317,5 +318,43 @@ contract OptimismPortal_Test is L2OutputOracle_Initializer {
         assertEq(op.isOutputFinalized(checkpoint - 1), true);
         // But not the block after it.
         assertEq(op.isOutputFinalized(checkpoint + 1), false);
+    }
+}
+
+contract OptimismPortalUpgradeable_Test is CommonTest {
+    OptimismPortal opImpl;
+    Proxy internal proxy;
+    L2OutputOracle oracle = L2OutputOracle(address(0));
+    uint64 initialBlockNum;
+
+    function setUp() external {
+        _setUp();
+        initialBlockNum = uint64(block.number);
+        opImpl = new OptimismPortal(oracle, 7 days);
+        proxy = new Proxy(alice);
+        vm.prank(alice);
+        proxy.upgradeToAndCall(
+            address(opImpl),
+            abi.encodeWithSelector(OptimismPortal.initialize.selector)
+        );
+    }
+
+    function test_initValuesOnProxy() external {
+        (uint128 prevBaseFee, uint64 prevBoughtGas, uint64 prevBlockNum) = OptimismPortal(
+            payable(address(proxy))
+        ).params();
+        assertEq(prevBaseFee, opImpl.INITIAL_BASE_FEE());
+        assertEq(prevBoughtGas, 0);
+        assertEq(prevBlockNum, initialBlockNum);
+    }
+
+    function test_cannotInitProxy() external {
+        vm.expectRevert("Initializable: contract is already initialized");
+        address(proxy).call(abi.encodeWithSelector(OptimismPortal.initialize.selector));
+    }
+
+    function test_cannotInitImpl() external {
+        vm.expectRevert("Initializable: contract is already initialized");
+        address(opImpl).call(abi.encodeWithSelector(OptimismPortal.initialize.selector));
     }
 }

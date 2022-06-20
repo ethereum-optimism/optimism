@@ -6,6 +6,7 @@ import { WithdrawalVerifier } from "../libraries/Lib_WithdrawalVerifier.sol";
 import { AddressAliasHelper } from "../libraries/AddressAliasHelper.sol";
 import { ExcessivelySafeCall } from "../libraries/ExcessivelySafeCall.sol";
 import { ResourceMetering } from "./ResourceMetering.sol";
+import { Initializable } from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
 
 /**
  * @custom:proxied
@@ -14,7 +15,12 @@ import { ResourceMetering } from "./ResourceMetering.sol";
  *         and L2. Messages sent directly to the OptimismPortal have no form of replayability.
  *         Users are encouraged to use the L1CrossDomainMessenger for a higher-level interface.
  */
-contract OptimismPortal is ResourceMetering {
+contract OptimismPortal is ResourceMetering, Initializable {
+    /**
+     * @notice Contract version number.
+     */
+    uint8 public constant OPTIMISM_PORTAL_VERSION = 1;
+
     /**
      * @notice Emitted when a transaction is deposited from L1 to L2. The parameters of this event
      *         are read by the rollup node and used to derive deposit transactions on L2.
@@ -83,12 +89,28 @@ contract OptimismPortal is ResourceMetering {
     mapping(bytes32 => bool) public finalizedWithdrawals;
 
     /**
-     * @param _l2Oracle                  Address of the L2OutputOracle.
-     * @param _finalizationPeriodSeconds Finalization time in seconds.
+     * @notice Reserve extra slots (to to a total of 50) in the storage layout for future upgrades.
+     */
+    uint256[48] private __gap;
+
+    /**
+     * @notice The constructor sets immutable values in the implementation.
+     *         This means that these values can only changed by an upgrade. But the efficiency gains
+     *         are worthwhile.
+     *         Also ensures that the implementation is initialized upon deployment.
      */
     constructor(L2OutputOracle _l2Oracle, uint256 _finalizationPeriodSeconds) {
+        // Set these immutable values into the bytcode of the implementation.
         L2_ORACLE = _l2Oracle;
         FINALIZATION_PERIOD_SECONDS = _finalizationPeriodSeconds;
+        initialize();
+    }
+
+    /**
+     * @notice Initializes the contract and parent contract(s).
+     */
+    function initialize() public reinitializer(OPTIMISM_PORTAL_VERSION) {
+        __ResourceMetering_init();
     }
 
     /**

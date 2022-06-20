@@ -125,7 +125,7 @@ contract Messenger_Initializer is L2OutputOracle_Initializer {
         super.setUp();
 
         // Deploy the OptimismPortal
-        op = new OptimismPortal(oracle, 100);
+        op = new OptimismPortal(oracle, 7 days);
         vm.label(address(op), "OptimismPortal");
 
         L1Messenger = new L1CrossDomainMessenger();

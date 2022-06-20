@@ -11,7 +11,7 @@ import { Burn } from "../libraries/Burn.sol";
  * @notice ResourceMetering implements an EIP-1559 style resource metering system where pricing
  *         updates automatically based on current demand.
  */
-contract ResourceMetering {
+abstract contract ResourceMetering {
     /**
      * @notice Represents the various parameters that control the way in which resources are
      *         metered. Corresponds to the EIP-1559 resource metering system.
@@ -58,9 +58,16 @@ contract ResourceMetering {
     ResourceParams public params;
 
     /**
-     * @notice Sets initial resource parameter values.
+     * @notice Reserve extra slots (to a total of 50) in the storage layout for future upgrades.
      */
-    constructor() {
+    uint256[49] private __gap;
+
+    /**
+     * @notice Sets initial resource parameter values. This function must either be called by the
+     *         initializer function of an upgradeable child contract, or else in the constructor
+     *         of a non-upgradeable child contract.
+     */
+    function __ResourceMetering_init() internal {
         params = ResourceParams({
             prevBaseFee: INITIAL_BASE_FEE,
             prevBoughtGas: 0,
