@@ -371,14 +371,17 @@ jobs:
             docker push <<parameters.docker_tags>>
 
   bedrock-markdown:
-    machine:
-      image: ubuntu-2004:202111-02
+    docker:
+      - image: ethereumoptimism/js-builder:latest
     steps:
+      - restore_cache:
+          keys:
+            - v2-cache-yarn-build-{{ .Revision }}
       - checkout
       - run:
           name: markdown lint
           command: |
-            docker run -v `pwd`:/workdir davidanson/markdownlint-cli2:0.4.0 "op-node/README.md" "./specs/**/*.md" "#**/node_modules"
+            yarn markdownlint-cli2 "op-node/README.md" "./specs/**/*.md" "#**/node_modules"
       - run:
           name: link lint
           command: |
