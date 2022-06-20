@@ -5,19 +5,23 @@ import {
   ExpressRouter,
   validators,
 } from '@eth-optimism/common-ts'
-import { Provider } from '@ethersproject/abstract-provider'
 import { getContractInterface } from '@eth-optimism/contracts'
+import { sleep } from '@eth-optimism/core-utils'
+import level from 'level'
 
 import {
   parseTransactionEnqueued,
   parseTransactionBatchAppended,
   EventParsingFunction,
 } from './events'
-import { ErrEntryInconsistency } from './consistency'
-import { Keys } from './db'
+import { ErrEntryInconsistency } from './errors'
+import { SimpleDB } from './db'
+import { Keys } from './entries'
+import { getRangeEnd } from './helpers'
 
 type DTLOptions = {
-  l1RpcProvider: Provider
+  db: string
+  l1RpcProvider: ethers.providers.JsonRpcBatchProvider
   l2ChainId: number
   l1StartHeight: number
   confirmations: number
@@ -28,8 +32,7 @@ type DTLOptions = {
 type DTLMetrics = {}
 
 type DTLState = {
-  // TODO: Fix this
-  db: any
+  db: SimpleDB
   highestKnownL1Block: number
   AddressManager: ethers.Contract
   CanonicalTransactionChain: ethers.Contract
@@ -47,8 +50,12 @@ export class DTLService extends BaseServiceV2<
       name: 'dtl',
       options,
       optionsSpec: {
+        db: {
+          validator: validators.str,
+          desc: 'path to database folder',
+        },
         l1RpcProvider: {
-          validator: validators.provider,
+          validator: validators.batchJsonRpcProvider,
           desc: 'provider for interacting with L1',
           secret: true,
         },
@@ -81,10 +88,12 @@ export class DTLService extends BaseServiceV2<
   protected async routes(router: ExpressRouter): Promise<void> {
     router.get('/eth/syncing', async (req, res) => {
       const highestSyncedL2Block = await this.state.db.get(
-        keys.HIGHEST_SYNCED_L2_BLOCK_KEY
+        Keys.HIGHEST_SYNCED_L2_BLOCK,
+        'latest'
       )
       const highestKnownL2Block = await this.state.db.get(
-        keys.HIGHEST_KNOWN_L2_BLOCK_KEY
+        Keys.HIGHEST_KNOWN_L2_BLOCK,
+        'latest'
       )
 
       if (highestSyncedL2Block === null || highestKnownL2Block === null) {
@@ -150,7 +159,7 @@ export class DTLService extends BaseServiceV2<
 
     router.get('/enqueue/latest', async (req, res) => {
       const enqueue = await this.state.db.get(
-        keys.ENQUEUE_TRANSACTION_KEY,
+        Keys.ENQUEUE_TRANSACTION,
         'latest'
       )
 
@@ -172,7 +181,7 @@ export class DTLService extends BaseServiceV2<
 
     router.get('/enqueue/index/:index', async (req, res) => {
       const enqueue = await this.state.db.get(
-        keys.ENQUEUE_TRANSACTION_KEY,
+        Keys.ENQUEUE_TRANSACTION,
         req.params.index
       )
 
@@ -194,7 +203,7 @@ export class DTLService extends BaseServiceV2<
 
     router.get('/transaction/latest', async (req, res) => {
       const transaction = await this.state.db.get(
-        keys.CHAIN_TRANSACTION_KEY,
+        Keys.BATCHED_TRANSACTION,
         'latest'
       )
 
@@ -205,10 +214,7 @@ export class DTLService extends BaseServiceV2<
         })
       }
 
-      const batch = await this.state.db.get(
-        keys.TRANSACTION_BATCH_KEY,
-        transaction.batchIndex
-      )
+      const batch = await this.state.db.get(Keys.BATCH, transaction.batchIndex)
 
       if (batch === null) {
         return res.json({
@@ -225,7 +231,7 @@ export class DTLService extends BaseServiceV2<
 
     router.get('/transaction/index/:index', async (req, res) => {
       const transaction = await this.state.db.get(
-        keys.CHAIN_TRANSACTION_KEY,
+        Keys.BATCHED_TRANSACTION,
         req.params.index
       )
 
@@ -236,10 +242,7 @@ export class DTLService extends BaseServiceV2<
         })
       }
 
-      const batch = await this.state.db.get(
-        keys.TRANSACTION_BATCH_KEY,
-        transaction.batchIndex
-      )
+      const batch = await this.state.db.get(Keys.BATCH, transaction.batchIndex)
 
       if (batch === null) {
         return res.json({
@@ -255,10 +258,7 @@ export class DTLService extends BaseServiceV2<
     })
 
     router.get('/batch/transaction/latest', async (req, res) => {
-      const batch = await this.state.db.get(
-        keys.TRANSACTION_BATCH_KEY,
-        'latest'
-      )
+      const batch = await this.state.db.get(Keys.BATCH, 'latest')
 
       if (batch === null) {
         return res.json({
@@ -267,11 +267,18 @@ export class DTLService extends BaseServiceV2<
         })
       }
 
-      const transactions = await this.state.db.get(
-        keys.CHAIN_TRANSACTION_KEY,
+      const transactions = await this.state.db.range(
+        Keys.BATCHED_TRANSACTION,
         batch.prevTotalElements,
         batch.prevTotalElements + batch.size
       )
+
+      if (transactions === null) {
+        return res.json({
+          batch: null,
+          transactions: [],
+        })
+      }
 
       return res.json({
         batch,
@@ -280,10 +287,7 @@ export class DTLService extends BaseServiceV2<
     })
 
     router.get('/batch/transaction/index/:index', async (req, res) => {
-      const batch = await this.state.db.get(
-        keys.TRANSACTION_BATCH_KEY,
-        req.params.index
-      )
+      const batch = await this.state.db.get(Keys.BATCH, req.params.index)
 
       if (batch === null) {
         return res.json({
@@ -292,11 +296,18 @@ export class DTLService extends BaseServiceV2<
         })
       }
 
-      const transactions = await this.state.db.get(
-        keys.CHAIN_TRANSACTION_KEY,
+      const transactions = await this.state.db.range(
+        Keys.BATCHED_TRANSACTION,
         batch.prevTotalElements,
         batch.prevTotalElements + batch.size
       )
+
+      if (transactions === null) {
+        return res.json({
+          batch: null,
+          transactions: [],
+        })
+      }
 
       return res.json({
         batch,
@@ -306,6 +317,11 @@ export class DTLService extends BaseServiceV2<
   }
 
   protected async init(): Promise<void> {
+    // Set up DB connection.
+    const db = level(this.options.db)
+    await db.open()
+    this.state.db = new SimpleDB(db)
+
     // Connect to the AddressManager and CTC.
     this.state.AddressManager = new ethers.Contract(
       this.options.addressManager,
@@ -319,12 +335,10 @@ export class DTLService extends BaseServiceV2<
     )
 
     // Initialize the highest synced L1 block number if necessary.
-    const highestSyncedL1Block = await this.state.db.get(
-      keys.HIGHEST_SYNCED_L1_BLOCK_KEY
-    )
-    if (highestSyncedL1Block === null) {
+    if (!(await this.state.db.get(Keys.HIGHEST_SYNCED_L1_BLOCK, 'latest'))) {
       await this.state.db.put(
-        keys.HIGHEST_SYNCED_L1_BLOCK_KEY,
+        Keys.HIGHEST_SYNCED_L1_BLOCK,
+        'latest',
         this.options.l1StartHeight
       )
     }
@@ -338,23 +352,27 @@ export class DTLService extends BaseServiceV2<
 
   protected async main(): Promise<void> {
     const highestSyncedL1Block = await this.state.db.get(
-      Keys.HIGHEST_SYNCED_L1_BLOCK
+      Keys.HIGHEST_SYNCED_L1_BLOCK,
+      'latest'
     )
 
-    // Don't try to sync past the allowable tip based on the number of confirmations.
-    const syncRangeEndBlock = Math.min(
-      highestSyncedL1Block + this.options.blocksPerLogQuery,
-      Math.max(0, this.state.highestKnownL1Block - this.options.confirmations)
+    const syncRangeEnd = getRangeEnd(
+      highestSyncedL1Block,
+      this.state.highestKnownL1Block - this.options.confirmations,
+      this.options.blocksPerLogQuery
     )
 
-    if (highestSyncedL1Block === syncRangeEndBlock) {
+    if (highestSyncedL1Block === syncRangeEnd) {
+      this.logger.info('synced to tip, checking for new L1 blocks')
       const latestL1Block = await this.options.l1RpcProvider.getBlockNumber()
       if (latestL1Block > this.state.highestKnownL1Block) {
+        this.logger.info('new L1 block found')
         this.state.highestKnownL1Block = latestL1Block
       } else {
         // Latest L1 block number hasn't updated yet and we've already synced all of the available
         // blocks so we'll just wait for the next iteration of the loop.
-        // TODO: Sleep here.
+        this.logger.info('no new L1 blocks found, trying again in 15s')
+        await sleep(15000)
         return
       }
     }
@@ -362,7 +380,7 @@ export class DTLService extends BaseServiceV2<
     try {
       await this.syncEventsFromCTC(
         highestSyncedL1Block,
-        syncRangeEndBlock,
+        syncRangeEnd,
         'TransactionEnqueued',
         parseTransactionEnqueued
       )
@@ -377,7 +395,7 @@ export class DTLService extends BaseServiceV2<
     try {
       await this.syncEventsFromCTC(
         highestSyncedL1Block,
-        syncRangeEndBlock,
+        syncRangeEnd,
         'TransactionBatchAppended',
         parseTransactionBatchAppended
       )
@@ -388,6 +406,13 @@ export class DTLService extends BaseServiceV2<
         throw err
       }
     }
+
+    // If we made it all the way here then we successfully synced to the end of the range.
+    await this.state.db.put(
+      Keys.HIGHEST_SYNCED_L1_BLOCK,
+      'latest',
+      syncRangeEnd
+    )
   }
 
   public async syncEventsFromCTC(
@@ -396,12 +421,21 @@ export class DTLService extends BaseServiceV2<
     eventName: string,
     eventParsingFunction: EventParsingFunction
   ): Promise<void> {
+    const tick = Date.now()
+    this.logger.info('started syncing events', {
+      eventName,
+      startBlock,
+      endBlock,
+    })
+
+    const events = await this.state.CanonicalTransactionChain.queryFilter(
+      this.state.CanonicalTransactionChain.filters[eventName](),
+      startBlock,
+      endBlock
+    )
+
     const entries = await eventParsingFunction(
-      await this.state.CanonicalTransactionChain.queryFilter(
-        this.state.CanonicalTransactionChain.filters[eventName](),
-        startBlock,
-        endBlock
-      ),
+      events,
       this.options.l1RpcProvider,
       this.options.l2ChainId
     )
@@ -411,21 +445,23 @@ export class DTLService extends BaseServiceV2<
         await this.state.db.put(entry.key, entry.index, entry)
       } catch (err) {
         if (err === ErrEntryInconsistency) {
+          this.logger.warn('found event inconsistency, rolling back')
           const latest = await this.state.db.get(entry.key, 'latest')
-          const latestL1Block =
-          if (latest === null) {
-            await this.state.db.put(
-              Keys.HIGHEST_SYNCED_L1_BLOCK,
-
-            )
-          } else {
-            await this.state.db.put(Keys.HIGHEST_SYNCED_L1_BLOCK, latest.index)
-          }
+          const latestIndex = latest ? this.options.l1StartHeight : latest.index
+          await this.state.db.put(
+            Keys.HIGHEST_SYNCED_L1_BLOCK,
+            'latest',
+            latestIndex
+          )
         }
-
         throw err
       }
     }
+
+    this.logger.info(`finished syncing events`, {
+      count: events.length,
+      time: Date.now() - tick,
+    })
   }
 }
 

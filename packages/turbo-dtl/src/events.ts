@@ -8,11 +8,12 @@ import {
   toHexString,
 } from '@eth-optimism/core-utils'
 
-import { Keys } from './db'
 import {
+  Keys,
   IndexedEntry,
   BatchTransactionEntry,
   DecodedBatchTransaction,
+  BatchEntry,
 } from './entries'
 
 export type EventParsingFunction = (
@@ -47,30 +48,35 @@ export const parseTransactionBatchAppended: EventParsingFunction = async (
   return (
     await Promise.all(
       events.map(async (event) => {
-        const block = await provider.getBlockWithTransactions(event.blockHash)
-        const txhash = event.transactionHash
-        const txn = block.transactions.find((tx) => tx.hash === txhash)
-        const receipt = await provider.getTransactionReceipt(txhash)
+        const transaction = await provider.getTransaction(event.transactionHash)
+        const receipt = await provider.getTransactionReceipt(
+          event.transactionHash
+        )
 
-        // TransactionBatchAppended should be preceeded by SequencerBatchAppended, which we need
-        // so we can access the starting queue index field.
+        // TransactionBatchAppended should be followed by SequencerBatchAppended, which we need so
+        // we can access the starting queue index field.
         const event2 = getContractInterface(
           'CanonicalTransactionChain'
-        ).parseLog(receipt.logs[event.logIndex - 1])
+        ).parseLog(
+          receipt.logs.find((log) => {
+            return log.logIndex === event.logIndex + 1
+          })
+        )
 
         // Decode batch into entries.
         let enqCount = 0
         let txnCount = 0
-        const entries: BatchTransactionEntry[] = []
-        const decoded = SequencerBatch.prototype.fromHex(txn.data)
+        const txnEntries: BatchTransactionEntry[] = []
+        const decoded: SequencerBatch = (SequencerBatch as any).fromHex(
+          transaction.data
+        )
         for (const context of decoded.contexts) {
           for (let i = 0; i < context.numSequencedTransactions; i++) {
-            const buf = decoded.transactions[txnCount]
-            const tx = buf.toTransaction()
-            entries.push({
+            const tx = decoded.transactions[txnCount].toTransaction()
+            txnEntries.push({
               key: Keys.BATCHED_TRANSACTION,
               index: event.args._prevTotalElements
-                .add(entries.length)
+                .add(txnEntries.length)
                 .toNumber(),
               batchIndex: event.args._batchIndex.toNumber(),
               blockNumber: context.blockNumber,
@@ -98,14 +104,15 @@ export const parseTransactionBatchAppended: EventParsingFunction = async (
               queueIndex: null,
               decoded: decodeBatchTransaction(tx, l2ChainId),
             })
+
             txnCount++
           }
 
           for (let i = 0; i < context.numSubsequentQueueTransactions; i++) {
-            entries.push({
+            txnEntries.push({
               key: Keys.BATCHED_TRANSACTION,
               index: event.args._prevTotalElements
-                .add(entries.length)
+                .add(txnEntries.length)
                 .toNumber(),
               batchIndex: event.args._batchIndex.toNumber(),
               blockNumber: 0,
@@ -119,11 +126,19 @@ export const parseTransactionBatchAppended: EventParsingFunction = async (
               queueIndex: event2.args._startingQueueIndex.add(enqCount),
               decoded: null,
             })
+
             enqCount++
           }
         }
 
-        return entries
+        const batchEntry: BatchEntry = {
+          key: Keys.BATCH,
+          index: event.args._batchIndex.toNumber(),
+          prevTotalElements: event.args._prevTotalElements.toNumber(),
+          size: event.args._batchSize.toNumber(),
+        }
+
+        return [...txnEntries, batchEntry]
       })
     )
   ).reduce((acc, entries) => {
