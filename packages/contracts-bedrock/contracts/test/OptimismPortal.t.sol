@@ -7,6 +7,7 @@ import { AddressAliasHelper } from "../libraries/AddressAliasHelper.sol";
 import { L2OutputOracle } from "../L1/L2OutputOracle.sol";
 import { OptimismPortal } from "../L1/OptimismPortal.sol";
 import { WithdrawalVerifier } from "../libraries/Lib_WithdrawalVerifier.sol";
+import { Proxy } from "../universal/Proxy.sol";
 
 contract OptimismPortal_Test is CommonTest {
     event TransactionDeposited(
@@ -25,14 +26,7 @@ contract OptimismPortal_Test is CommonTest {
 
     function setUp() external {
         _setUp();
-        oracle = new L2OutputOracle(
-            1800,
-            2,
-            keccak256(abi.encode(0)),
-            100,
-            1,
-            address(666)
-        );
+        oracle = new L2OutputOracle(1800, 2, keccak256(abi.encode(0)), 100, 1, address(666));
         op = new OptimismPortal(oracle, 7 days);
     }
 
@@ -44,15 +38,7 @@ contract OptimismPortal_Test is CommonTest {
 
     function test_OptimismPortalReceiveEth() external {
         vm.expectEmit(true, true, false, true);
-        emit TransactionDeposited(
-            alice,
-            alice,
-            100,
-            100,
-            100_000,
-            false,
-            hex""
-        );
+        emit TransactionDeposited(alice, alice, 100, 100, 100_000, false, hex"");
 
         // give alice money and send as an eoa
         vm.deal(alice, 2**64);
@@ -254,47 +240,67 @@ contract OptimismPortal_Test is CommonTest {
     // function test_verifyWithdrawal() external {}
 
     function test_cannotVerifyRecentWithdrawal() external {
-        WithdrawalVerifier.OutputRootProof memory outputRootProof = WithdrawalVerifier.OutputRootProof({
-            version: bytes32(0),
-            stateRoot: bytes32(0),
-            withdrawerStorageRoot: bytes32(0),
-            latestBlockhash: bytes32(0)
-        });
+        WithdrawalVerifier.OutputRootProof memory outputRootProof = WithdrawalVerifier
+            .OutputRootProof({
+                version: bytes32(0),
+                stateRoot: bytes32(0),
+                withdrawerStorageRoot: bytes32(0),
+                latestBlockhash: bytes32(0)
+            });
 
         vm.expectRevert("OptimismPortal: proposal is not yet finalized");
-        op.finalizeWithdrawalTransaction(
-            0,
-            alice,
-            alice,
-            0,
-            0,
-            hex"",
-            0,
-            outputRootProof,
-            hex""
-        );
+        op.finalizeWithdrawalTransaction(0, alice, alice, 0, 0, hex"", 0, outputRootProof, hex"");
     }
 
     function test_invalidWithdrawalProof() external {
-        WithdrawalVerifier.OutputRootProof memory outputRootProof = WithdrawalVerifier.OutputRootProof({
-            version: bytes32(0),
-            stateRoot: bytes32(0),
-            withdrawerStorageRoot: bytes32(0),
-            latestBlockhash: bytes32(0)
-        });
+        WithdrawalVerifier.OutputRootProof memory outputRootProof = WithdrawalVerifier
+            .OutputRootProof({
+                version: bytes32(0),
+                stateRoot: bytes32(0),
+                withdrawerStorageRoot: bytes32(0),
+                latestBlockhash: bytes32(0)
+            });
 
         vm.warp(oracle.nextTimestamp() + op.FINALIZATION_PERIOD_SECONDS());
         vm.expectRevert("OptimismPortal: invalid output root proof");
-        op.finalizeWithdrawalTransaction(
-            0,
-            alice,
-            alice,
-            0,
-            0,
-            hex"",
-            0,
-            outputRootProof,
-            hex""
+        op.finalizeWithdrawalTransaction(0, alice, alice, 0, 0, hex"", 0, outputRootProof, hex"");
+    }
+}
+
+contract OptimismPortalUpgradeable_Test is CommonTest {
+    OptimismPortal opImpl;
+    Proxy internal proxy;
+    L2OutputOracle oracle = L2OutputOracle(address(0));
+    uint64 initialBlockNum;
+
+    function setUp() external {
+        _setUp();
+        initialBlockNum = uint64(block.number);
+        opImpl = new OptimismPortal(oracle, 7 days);
+        proxy = new Proxy(alice);
+        vm.prank(alice);
+        proxy.upgradeToAndCall(
+            address(opImpl),
+            abi.encodeWithSelector(OptimismPortal.initialize.selector)
         );
+    }
+
+    function test_initValuesOnProxy() external {
+        (uint128 prevBaseFee, uint64 prevBoughtGas, uint64 prevBlockNum) = OptimismPortal(
+            payable(address(proxy))
+        ).params();
+        assertEq(prevBaseFee, opImpl.INITIAL_BASE_FEE());
+        assertEq(prevBoughtGas, 0);
+        assertEq(prevBlockNum, initialBlockNum);
+    }
+
+    function test_cannotInitProxy() external {
+        vm.expectRevert("Initializable: contract is already initialized");
+        address(proxy).call(abi.encodeWithSelector(OptimismPortal.initialize.selector));
+    }
+
+    function test_cannotInitImpl() external {
+        vm.expectRevert("Initializable: contract is already initialized");
+        address(opImpl).call(abi.encodeWithSelector(OptimismPortal.initialize.selector));
     }
 }
