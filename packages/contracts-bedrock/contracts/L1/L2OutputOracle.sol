@@ -1,7 +1,9 @@
 //SPDX-License-Identifier: MIT
 pragma solidity 0.8.10;
 
-import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
+import {
+    OwnableUpgradeable
+} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 
 /**
  * @title L2OutputOracle
@@ -10,7 +12,12 @@ import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
  *         This contract should be deployed behind an upgradable proxy
  */
 // slither-disable-next-line locked-ether
-contract L2OutputOracle is Ownable {
+contract L2OutputOracle is OwnableUpgradeable {
+    /**
+     * @notice Contract version number.
+     */
+    uint8 public constant L2_OUTPUT_ORACLE_VERSION = 1;
+
     /**
      * @notice OutputProposal represents a commitment to the L2 state.
      *         The timestamp is the L1 timestamp that the output root is posted.
@@ -140,8 +147,26 @@ contract L2OutputOracle is Ownable {
         STARTING_TIMESTAMP = _startingTimestamp;
         L2_BLOCK_TIME = _l2BlockTime;
 
+        initialize(_genesisL2Output, _startingBlockNumber, _sequencer, _owner);
+    }
+
+    /**
+     * @notice Initialize the L2OutputOracle contract.
+     *
+     * @param _genesisL2Output        The initial L2 output of the L2 chain.
+     * @param _startingBlockNumber The timestamp to start L2 block at.
+     * @param _sequencer              The address of the sequencer.
+     * @param _owner                 The address of the owner.
+     */
+    function initialize(
+        bytes32 _genesisL2Output,
+        uint256 _startingBlockNumber,
+        address _sequencer,
+        address _owner
+    ) public reinitializer(L2_OUTPUT_ORACLE_VERSION) {
         l2Outputs[_startingBlockNumber] = OutputProposal(_genesisL2Output, block.timestamp);
         latestBlockNumber = _startingBlockNumber;
+        __Ownable_init();
 
         changeSequencer(_sequencer);
         _transferOwnership(_owner);
