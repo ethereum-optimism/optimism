@@ -1,5 +1,13 @@
 # data transport layer
 
+## 0.5.37
+
+### Patch Changes
+
+- Updated dependencies [cb71fcde]
+- Updated dependencies [10e41522]
+  - @eth-optimism/common-ts@0.5.0
+
 ## 0.5.36
 
 ### Patch Changes

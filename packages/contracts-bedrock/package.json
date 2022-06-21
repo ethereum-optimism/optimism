@@ -1,6 +1,6 @@
 {
   "name": "@eth-optimism/contracts-bedrock",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Contracts for Optimism Specs",
   "main": "dist/index",
   "types": "dist/index",
@@ -22,7 +22,7 @@
     "gas-snapshot": "forge snapshot",
     "slither": "slither .",
     "clean": "rm -rf ./dist ./artifacts ./forge-artifacts ./cache ./coverage ./tsconfig.tsbuildinfo",
-    "lint:ts:check": "eslint .",
+    "lint:ts:check": "eslint . --max-warnings=0",
     "lint:contracts:check": "yarn solhint -f table 'contracts/**/*.sol'",
     "lint:check": "yarn lint:contracts:check && yarn lint:ts:check",
     "lint:ts:fix": "yarn prettier --write .",
