@@ -138,7 +138,6 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
         vm.stopPrank();
     }
 
-
     /*****************************
      * Append Tests - Happy Path *
      *****************************/
