@@ -15,7 +15,7 @@ const deployFn: DeployFunction = async (hre) => {
   })
 
   const provider = hre.ethers.provider.getSigner(deployer)
-  const oracle = await hre.deployments.get('L2OutputOracle')
+  const portal = await hre.deployments.get('OptimismPortal')
   const messenger = await hre.deployments.get('L1CrossDomainMessenger')
 
   const L1CrossDomainMessenger = new Contract(
@@ -24,9 +24,9 @@ const deployFn: DeployFunction = async (hre) => {
     provider
   )
 
-  const tx = await L1CrossDomainMessenger.initialize(oracle.address)
+  const tx = await L1CrossDomainMessenger.initialize(portal.address)
   const receipt = await tx.wait()
-  console.log(`${receipt.transactionHash}: initialize(${oracle.address})`)
+  console.log(`${receipt.transactionHash}: initialize(${portal.address})`)
 }
 
 deployFn.tags = ['L1CrossDomainMessenger']
