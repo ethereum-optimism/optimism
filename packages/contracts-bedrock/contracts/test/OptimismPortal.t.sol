@@ -1,14 +1,14 @@
 //SPDX-License-Identifier: MIT
 pragma solidity 0.8.10;
 
-import { CommonTest } from "./CommonTest.t.sol";
+import { L2OutputOracle_Initializer } from "./CommonTest.t.sol";
 
 import { AddressAliasHelper } from "../libraries/AddressAliasHelper.sol";
 import { L2OutputOracle } from "../L1/L2OutputOracle.sol";
 import { OptimismPortal } from "../L1/OptimismPortal.sol";
 import { WithdrawalVerifier } from "../libraries/Lib_WithdrawalVerifier.sol";
 
-contract OptimismPortal_Test is CommonTest {
+contract OptimismPortal_Test is L2OutputOracle_Initializer {
     event TransactionDeposited(
         address indexed from,
         address indexed to,
@@ -20,19 +20,11 @@ contract OptimismPortal_Test is CommonTest {
     );
 
     // Dependencies
-    L2OutputOracle oracle;
+    // L2OutputOracle oracle;
     OptimismPortal op;
 
-    function setUp() external {
-        _setUp();
-        oracle = new L2OutputOracle(
-            1800,
-            2,
-            keccak256(abi.encode(0)),
-            100,
-            1,
-            address(666)
-        );
+    function setUp() public override {
+        L2OutputOracle_Initializer.setUp();
         op = new OptimismPortal(oracle, 7 days);
     }
 
@@ -44,15 +36,7 @@ contract OptimismPortal_Test is CommonTest {
 
     function test_OptimismPortalReceiveEth() external {
         vm.expectEmit(true, true, false, true);
-        emit TransactionDeposited(
-            alice,
-            alice,
-            100,
-            100,
-            100_000,
-            false,
-            hex""
-        );
+        emit TransactionDeposited(alice, alice, 100, 100, 100_000, false, hex"");
 
         // give alice money and send as an eoa
         vm.deal(alice, 2**64);
@@ -254,47 +238,35 @@ contract OptimismPortal_Test is CommonTest {
     // function test_verifyWithdrawal() external {}
 
     function test_cannotVerifyRecentWithdrawal() external {
-        WithdrawalVerifier.OutputRootProof memory outputRootProof = WithdrawalVerifier.OutputRootProof({
-            version: bytes32(0),
-            stateRoot: bytes32(0),
-            withdrawerStorageRoot: bytes32(0),
-            latestBlockhash: bytes32(0)
-        });
+        WithdrawalVerifier.OutputRootProof memory outputRootProof = WithdrawalVerifier
+            .OutputRootProof({
+                version: bytes32(0),
+                stateRoot: bytes32(0),
+                withdrawerStorageRoot: bytes32(0),
+                latestBlockhash: bytes32(0)
+            });
 
         vm.expectRevert("OptimismPortal: proposal is not yet finalized");
-        op.finalizeWithdrawalTransaction(
-            0,
-            alice,
-            alice,
-            0,
-            0,
-            hex"",
-            0,
-            outputRootProof,
-            hex""
-        );
+        op.finalizeWithdrawalTransaction(0, alice, alice, 0, 0, hex"", 0, outputRootProof, hex"");
     }
 
     function test_invalidWithdrawalProof() external {
-        WithdrawalVerifier.OutputRootProof memory outputRootProof = WithdrawalVerifier.OutputRootProof({
-            version: bytes32(0),
-            stateRoot: bytes32(0),
-            withdrawerStorageRoot: bytes32(0),
-            latestBlockhash: bytes32(0)
-        });
+        WithdrawalVerifier.OutputRootProof memory outputRootProof = WithdrawalVerifier
+            .OutputRootProof({
+                version: bytes32(0),
+                stateRoot: bytes32(0),
+                withdrawerStorageRoot: bytes32(0),
+                latestBlockhash: bytes32(0)
+            });
 
-        vm.warp(oracle.nextTimestamp() + op.FINALIZATION_PERIOD_SECONDS());
-        vm.expectRevert("OptimismPortal: invalid output root proof");
-        op.finalizeWithdrawalTransaction(
-            0,
-            alice,
-            alice,
-            0,
-            0,
-            hex"",
-            0,
-            outputRootProof,
-            hex""
+        vm.warp(
+            oracle.getL2Output(
+                oracle.latestBlockNumber()
+            ).timestamp
+            + op.FINALIZATION_PERIOD_SECONDS()
         );
+
+        vm.expectRevert("OptimismPortal: invalid output root proof");
+        op.finalizeWithdrawalTransaction(0, alice, alice, 0, 0, hex"", 0, outputRootProof, hex"");
     }
 }

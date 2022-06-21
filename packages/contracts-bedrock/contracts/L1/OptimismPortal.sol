@@ -150,7 +150,7 @@ contract OptimismPortal is ResourceMetering {
      * @param _value           ETH to send to the target.
      * @param _gasLimit        Minumum gas to be forwarded to the target.
      * @param _data            Data to send to the target.
-     * @param _l2Timestamp     L2 timestamp of the outputRoot.
+     * @param _l2BlockNumber   L2 block number of the outputRoot.
      * @param _outputRootProof Inclusion proof of the withdrawer contracts storage root.
      * @param _withdrawalProof Inclusion proof for the given withdrawal in the withdrawer contract.
      */
@@ -161,11 +161,11 @@ contract OptimismPortal is ResourceMetering {
         uint256 _value,
         uint256 _gasLimit,
         bytes calldata _data,
-        uint256 _l2Timestamp,
+        uint256 _l2BlockNumber,
         WithdrawalVerifier.OutputRootProof calldata _outputRootProof,
         bytes calldata _withdrawalProof
     ) external payable {
-        // Prevent reentrancy.
+        // Prevent nested withdrawals within withdrawals.
         require(
             l2Sender == DEFAULT_L2_SENDER,
             "OptimismPortal: can only trigger one withdrawal per transaction"
@@ -179,7 +179,7 @@ contract OptimismPortal is ResourceMetering {
         );
 
         // Get the output root.
-        L2OutputOracle.OutputProposal memory proposal = L2_ORACLE.getL2Output(_l2Timestamp);
+        L2OutputOracle.OutputProposal memory proposal = L2_ORACLE.getL2Output(_l2BlockNumber);
 
         // Ensure that enough time has passed since the proposal was submitted before allowing a
         // withdrawal. Under the assumption that the fault proof mechanism is operating correctly,

@@ -142,6 +142,14 @@ func NewRPCErrorRes(id json.RawMessage, err error) *RPCRes {
 	}
 }
 
+func NewRPCRes(id json.RawMessage, result interface{}) *RPCRes {
+	return &RPCRes{
+		JSONRPC: JSONRPCVersion,
+		Result:  result,
+		ID:      id,
+	}
+}
+
 func IsBatch(raw []byte) bool {
 	for _, c := range raw {
 		// skip insignificant whitespace (http://www.ietf.org/rfc/rfc4627.txt)

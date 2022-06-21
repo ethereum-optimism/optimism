@@ -31,14 +31,14 @@ abstract contract StandardBridge {
         address indexed _from,
         address indexed _to,
         uint256 _amount,
-        bytes _data
+        bytes _extraData
     );
 
     event ETHBridgeFinalized(
         address indexed _from,
         address indexed _to,
         uint256 _amount,
-        bytes _data
+        bytes _extraData
     );
 
     event ERC20BridgeInitiated(
@@ -47,7 +47,7 @@ abstract contract StandardBridge {
         address indexed _from,
         address _to,
         uint256 _amount,
-        bytes _data
+        bytes _extraData
     );
 
     event ERC20BridgeFinalized(
@@ -56,7 +56,7 @@ abstract contract StandardBridge {
         address indexed _from,
         address _to,
         uint256 _amount,
-        bytes _data
+        bytes _extraData
     );
 
     event ERC20BridgeFailed(
@@ -65,7 +65,7 @@ abstract contract StandardBridge {
         address indexed _from,
         address _to,
         uint256 _amount,
-        bytes _data
+        bytes _extraData
     );
 
     /*************
@@ -129,11 +129,6 @@ abstract contract StandardBridge {
      ********************/
 
     /**
-     * @notice Send ETH to this contract. This is used during upgrades
-     */
-    function donateETH() external payable {}
-
-    /**
      * @notice EOAs can simply send ETH to this contract to have it be deposited
      * to L2 through the standard bridge.
      */
@@ -144,8 +139,8 @@ abstract contract StandardBridge {
     /**
      * @notice Send ETH to the message sender on the remote domain
      */
-    function bridgeETH(uint32 _minGasLimit, bytes calldata _data) public payable onlyEOA {
-        _initiateBridgeETH(msg.sender, msg.sender, msg.value, _minGasLimit, _data);
+    function bridgeETH(uint32 _minGasLimit, bytes calldata _extraData) public payable onlyEOA {
+        _initiateBridgeETH(msg.sender, msg.sender, msg.value, _minGasLimit, _extraData);
     }
 
     /**
@@ -155,9 +150,9 @@ abstract contract StandardBridge {
     function bridgeETHTo(
         address _to,
         uint32 _minGasLimit,
-        bytes calldata _data
+        bytes calldata _extraData
     ) public payable {
-        _initiateBridgeETH(msg.sender, _to, msg.value, _minGasLimit, _data);
+        _initiateBridgeETH(msg.sender, _to, msg.value, _minGasLimit, _extraData);
     }
 
     /**
@@ -168,7 +163,7 @@ abstract contract StandardBridge {
         address _remoteToken,
         uint256 _amount,
         uint32 _minGasLimit,
-        bytes calldata _data
+        bytes calldata _extraData
     ) public virtual onlyEOA {
         _initiateBridgeERC20(
             _localToken,
@@ -177,7 +172,7 @@ abstract contract StandardBridge {
             msg.sender,
             _amount,
             _minGasLimit,
-            _data
+            _extraData
         );
     }
 
@@ -190,7 +185,7 @@ abstract contract StandardBridge {
         address _to,
         uint256 _amount,
         uint32 _minGasLimit,
-        bytes calldata _data
+        bytes calldata _extraData
     ) public virtual {
         _initiateBridgeERC20(
             _localToken,
@@ -199,7 +194,7 @@ abstract contract StandardBridge {
             _to,
             _amount,
             _minGasLimit,
-            _data
+            _extraData
         );
     }
 
@@ -210,12 +205,12 @@ abstract contract StandardBridge {
         address _from,
         address _to,
         uint256 _amount,
-        bytes calldata _data
+        bytes calldata _extraData
     ) public payable onlyOtherBridge {
         require(msg.value == _amount, "Amount sent does not match amount required.");
         require(_to != address(this), "Cannot send to self.");
 
-        emit ETHBridgeFinalized(_from, _to, _amount, _data);
+        emit ETHBridgeFinalized(_from, _to, _amount, _extraData);
         (bool success, ) = _to.call{ value: _amount }(new bytes(0));
         require(success, "ETH transfer failed.");
     }
@@ -229,23 +224,25 @@ abstract contract StandardBridge {
         address _from,
         address _to,
         uint256 _amount,
-        bytes calldata _data
+        bytes calldata _extraData
     ) public onlyOtherBridge {
         try this.completeOutboundTransfer(_localToken, _remoteToken, _to, _amount) {
-            emit ERC20BridgeFinalized(_localToken, _remoteToken, _from, _to, _amount, _data);
+            emit ERC20BridgeFinalized(_localToken, _remoteToken, _from, _to, _amount, _extraData);
         } catch {
             // Something went wrong during the bridging process, return to sender.
             // Can happen if a bridge UI specifies the wrong L2 token.
+            // We reverse both the local and remote token addresses, as well as the to and from
+            // addresses. This will preserve the accuracy of accounting based on emitted events.
             _initiateBridgeERC20Unchecked(
                 _localToken,
                 _remoteToken,
-                _from,
                 _to,
+                _from,
                 _amount,
                 0, // _minGasLimit, 0 is fine here
-                _data
+                _extraData
             );
-            emit ERC20BridgeFailed(_localToken, _remoteToken, _from, _to, _amount, _data);
+            emit ERC20BridgeFailed(_localToken, _remoteToken, _from, _to, _amount, _extraData);
         }
     }
 
@@ -296,13 +293,19 @@ abstract contract StandardBridge {
         address _to,
         uint256 _amount,
         uint32 _minGasLimit,
-        bytes memory _data
+        bytes memory _extraData
     ) internal {
-        emit ETHBridgeInitiated(_from, _to, _amount, _data);
+        emit ETHBridgeInitiated(_from, _to, _amount, _extraData);
 
         messenger.sendMessage{ value: _amount }(
             address(otherBridge),
-            abi.encodeWithSelector(this.finalizeBridgeETH.selector, _from, _to, _amount, _data),
+            abi.encodeWithSelector(
+                this.finalizeBridgeETH.selector,
+                _from,
+                _to,
+                _amount,
+                _extraData
+            ),
             _minGasLimit
         );
     }
@@ -317,7 +320,7 @@ abstract contract StandardBridge {
         address _to,
         uint256 _amount,
         uint32 _minGasLimit,
-        bytes calldata _data
+        bytes calldata _extraData
     ) internal {
         // Make sure external function calls can't be used to trigger calls to
         // completeOutboundTransfer. We only make external (write) calls to _localToken.
@@ -343,7 +346,7 @@ abstract contract StandardBridge {
             _to,
             _amount,
             _minGasLimit,
-            _data
+            _extraData
         );
     }
 
@@ -357,7 +360,7 @@ abstract contract StandardBridge {
         address _to,
         uint256 _amount,
         uint32 _minGasLimit,
-        bytes calldata _data
+        bytes calldata _extraData
     ) internal {
         messenger.sendMessage(
             address(otherBridge),
@@ -371,12 +374,12 @@ abstract contract StandardBridge {
                 _from,
                 _to,
                 _amount,
-                _data
+                _extraData
             ),
             _minGasLimit
         );
 
-        emit ERC20BridgeInitiated(_localToken, _remoteToken, _from, _to, _amount, _data);
+        emit ERC20BridgeInitiated(_localToken, _remoteToken, _from, _to, _amount, _extraData);
     }
 
     /**

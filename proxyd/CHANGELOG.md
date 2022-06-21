@@ -1,5 +1,11 @@
 # @eth-optimism/proxyd
 
+## 3.8.9
+
+### Patch Changes
+
+- 063c55cf: Use canned response for eth_accounts
+
 ## 3.8.8
 
 ### Patch Changes

@@ -1,5 +1,11 @@
 # @eth-optimism/contracts-periphery
 
+## 0.1.4
+
+### Patch Changes
+
+- 9aa8049c: Deploy NFT bridge contracts
+
 ## 0.1.3
 
 ### Patch Changes
