@@ -7,6 +7,7 @@ import {
   toRpcHexString,
   toHexString,
 } from '@eth-optimism/core-utils'
+import pmap from 'p-map'
 
 import {
   Keys,
@@ -14,7 +15,8 @@ import {
   BatchTransactionEntry,
   DecodedBatchTransaction,
   BatchEntry,
-} from './entries'
+  EnqueueLinkEntry,
+} from './db'
 
 export type EventParsingFunction = (
   events: ethers.Event[],
@@ -46,15 +48,21 @@ export const parseTransactionBatchAppended: EventParsingFunction = async (
   l2ChainId
 ): Promise<any> => {
   return (
-    await Promise.all(
-      events.map(async (event) => {
+    await pmap(
+      events,
+      async (event) => {
         const transaction = await provider.getTransaction(event.transactionHash)
-        const receipt = await provider.getTransactionReceipt(
-          event.transactionHash
+        const decoded: SequencerBatch = (SequencerBatch as any).fromHex(
+          transaction.data
         )
 
         // TransactionBatchAppended should be followed by SequencerBatchAppended, which we need so
-        // we can access the starting queue index field.
+        // we can access the starting queue index field. There are stateful ways to remove this
+        // event query by looking things up in the database, but that introduces even more
+        // dependencies and means events can't easily be processed in parallel.
+        const receipt = await provider.getTransactionReceipt(
+          event.transactionHash
+        )
         const event2 = getContractInterface(
           'CanonicalTransactionChain'
         ).parseLog(
@@ -67,12 +75,11 @@ export const parseTransactionBatchAppended: EventParsingFunction = async (
         let enqCount = 0
         let txnCount = 0
         const txnEntries: BatchTransactionEntry[] = []
-        const decoded: SequencerBatch = (SequencerBatch as any).fromHex(
-          transaction.data
-        )
+        const enqEntries: EnqueueLinkEntry[] = []
         for (const context of decoded.contexts) {
           for (let i = 0; i < context.numSequencedTransactions; i++) {
             const tx = decoded.transactions[txnCount].toTransaction()
+
             txnEntries.push({
               key: Keys.BATCHED_TRANSACTION,
               index: event.args._prevTotalElements
@@ -109,11 +116,16 @@ export const parseTransactionBatchAppended: EventParsingFunction = async (
           }
 
           for (let i = 0; i < context.numSubsequentQueueTransactions; i++) {
+            const chainIndex = event.args._prevTotalElements
+              .add(txnEntries.length)
+              .toNumber()
+            const queueIndex = event2.args._startingQueueIndex
+              .add(enqCount)
+              .toNumber()
+
             txnEntries.push({
               key: Keys.BATCHED_TRANSACTION,
-              index: event.args._prevTotalElements
-                .add(txnEntries.length)
-                .toNumber(),
+              index: chainIndex,
               batchIndex: event.args._batchIndex.toNumber(),
               blockNumber: 0,
               timestamp: context.timestamp,
@@ -123,8 +135,14 @@ export const parseTransactionBatchAppended: EventParsingFunction = async (
               value: '0x0',
               data: '0x',
               queueOrigin: 'l1',
-              queueIndex: event2.args._startingQueueIndex.add(enqCount),
+              queueIndex,
               decoded: null,
+            })
+
+            enqEntries.push({
+              key: Keys.ENQUEUE_LINK,
+              index: queueIndex,
+              chainIndex,
             })
 
             enqCount++
@@ -139,14 +157,15 @@ export const parseTransactionBatchAppended: EventParsingFunction = async (
         }
 
         return [...txnEntries, batchEntry]
-      })
+      },
+      { concurrency: 100 }
     )
   ).reduce((acc, entries) => {
     return acc.concat(entries)
   }, [])
 }
 
-const decodeBatchTransaction = (
+export const decodeBatchTransaction = (
   tx: Transaction,
   l2ChainId: number
 ): DecodedBatchTransaction => {

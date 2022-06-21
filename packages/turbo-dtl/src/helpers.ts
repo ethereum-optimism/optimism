@@ -9,3 +9,9 @@ export const getRangeEnd = (
 
   return Math.min(start + size, max)
 }
+
+export const range = (start: number, length: number): Array<number> => {
+  return [...Array(length).keys()].map((i) => {
+    return i + start
+  })
+}

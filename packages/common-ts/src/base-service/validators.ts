@@ -9,32 +9,32 @@ import {
   json,
   makeValidator,
 } from 'envalid'
-import { Provider } from '@ethersproject/abstract-provider'
 import { Signer } from '@ethersproject/abstract-signer'
 import { ethers } from 'ethers'
 
-const provider = makeValidator<Provider>((input) => {
-  const parsed = url()._parse(input)
-  return new ethers.providers.JsonRpcProvider(parsed)
-})
-
-const jsonRpcProvider = makeValidator<ethers.providers.JsonRpcProvider>(
+const ethersJsonRpcProvider = makeValidator<ethers.providers.JsonRpcProvider>(
   (input) => {
     const parsed = url()._parse(input)
     return new ethers.providers.JsonRpcProvider(parsed)
   }
 )
 
-const staticJsonRpcProvider =
+const ethersStaticJsonRpcProvider =
   makeValidator<ethers.providers.StaticJsonRpcProvider>((input) => {
     const parsed = url()._parse(input)
     return new ethers.providers.StaticJsonRpcProvider(parsed)
   })
 
-const batchJsonRpcProvider =
+const ethersJsonRpcBatchProvider =
   makeValidator<ethers.providers.JsonRpcBatchProvider>((input) => {
     const parsed = url()._parse(input)
     return new ethers.providers.JsonRpcBatchProvider(parsed)
+  })
+
+const ethersWebSocketProvider =
+  makeValidator<ethers.providers.WebSocketProvider>((input) => {
+    const parsed = url()._parse(input)
+    return new ethers.providers.WebSocketProvider(parsed)
   })
 
 const wallet = makeValidator<Signer>((input) => {
@@ -55,8 +55,8 @@ export const validators = {
   url,
   json,
   wallet,
-  provider,
-  jsonRpcProvider,
-  staticJsonRpcProvider,
-  batchJsonRpcProvider,
+  ethersJsonRpcProvider,
+  ethersJsonRpcBatchProvider,
+  ethersStaticJsonRpcProvider,
+  ethersWebSocketProvider,
 }

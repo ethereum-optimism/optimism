@@ -28,6 +28,7 @@ packages/contracts-periphery/hardhat*
 packages/contracts-periphery/forge-artifacts*
 
 packages/data-transport-layer/db
+packages/turbo-dtl/db
 
 packages/integration-tests-bedrock/cache
 packages/integration-tests-bedrock/artifacts

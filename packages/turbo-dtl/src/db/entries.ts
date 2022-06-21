@@ -14,7 +14,7 @@ export interface DecodedBatchTransaction {
 
 export interface IndexedEntry {
   index: number
-  key: Keys
+  key: number
 }
 
 export interface EnqueueTransactionEntry extends IndexedEntry {
@@ -41,17 +41,12 @@ export interface BatchTransactionEntry extends IndexedEntry {
   decoded: DecodedBatchTransaction | null
 }
 
+export interface EnqueueLinkEntry extends IndexedEntry {
+  chainIndex: number
+}
+
 export interface BatchEntry extends IndexedEntry {
   index: number
   prevTotalElements: number
   size: number
-}
-
-export enum Keys {
-  ENQUEUE_TRANSACTION,
-  BATCHED_TRANSACTION,
-  BATCH,
-  HIGHEST_SYNCED_L1_BLOCK,
-  HIGHEST_SYNCED_L2_BLOCK,
-  HIGHEST_KNOWN_L2_BLOCK,
 }
