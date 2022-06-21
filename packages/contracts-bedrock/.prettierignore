@@ -9,6 +9,7 @@ forge-artifacts
 cache
 typechain
 coverage*
+deployments
 
 contracts/L2/WETH9.sol
 

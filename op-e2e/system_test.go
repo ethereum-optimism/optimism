@@ -88,7 +88,6 @@ func defaultSystemConfig(t *testing.T) SystemConfig {
 		L2OOCfg: L2OOContractConfig{
 			// L2 Start time is set based off of the L2 Genesis time
 			SubmissionFrequency:   big.NewInt(2),
-			L2BlockTime:           big.NewInt(1),
 			HistoricalTotalBlocks: big.NewInt(0),
 		},
 		L2OutputHDPath:             l2OutputHDPath,
@@ -117,6 +116,8 @@ func defaultSystemConfig(t *testing.T) SystemConfig {
 			"verifier":  testlog.Logger(t, log.LvlError).New("role", "verifier"),
 			"sequencer": testlog.Logger(t, log.LvlError).New("role", "sequencer"),
 		},
+		ProposerLogger: testlog.Logger(t, log.LvlCrit).New("role", "proposer"), // Proposer is noisy on shutdown
+		BatcherLogger:  testlog.Logger(t, log.LvlCrit).New("role", "batcher"),  // Batcher (txmgr really) is noisy on shutdown
 		RollupConfig: rollup.Config{
 			BlockTime:         1,
 			MaxSequencerDrift: 10,
@@ -130,7 +131,9 @@ func defaultSystemConfig(t *testing.T) SystemConfig {
 			// Batch Sender address is filled out in system start
 			DepositContractAddress: MockDepositContractAddr,
 		},
-		P2PTopology: nil, // no P2P connectivity by default
+		P2PTopology:      nil, // no P2P connectivity by default
+		BaseFeeRecipient: common.HexToAddress("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"),
+		L1FeeRecipient:   common.HexToAddress("0xDe3829A23DF1479438622a08a116E8Eb3f620BB5"),
 	}
 }
 
@@ -151,11 +154,11 @@ func TestL2OutputSubmitter(t *testing.T) {
 	require.Nil(t, err)
 	rollupClient := rollupclient.NewRollupClient(rollupRPCClient)
 
-	//  StateRootOracle is already deployed
+	//  OutputOracle is already deployed
 	l2OutputOracle, err := bindings.NewL2OutputOracleCaller(sys.L2OOContractAddr, l1Client)
 	require.Nil(t, err)
 
-	initialSroTimestamp, err := l2OutputOracle.LatestBlockTimestamp(&bind.CallOpts{})
+	initialOutputBlockNumber, err := l2OutputOracle.LatestBlockNumber(&bind.CallOpts{})
 	require.Nil(t, err)
 
 	// Wait until the second output submission from L2. The output submitter submits outputs from the
@@ -172,20 +175,15 @@ func TestL2OutputSubmitter(t *testing.T) {
 	ticker := time.NewTicker(1 * time.Second)
 	defer ticker.Stop()
 	for {
-		l2ooTimestamp, err := l2OutputOracle.LatestBlockTimestamp(&bind.CallOpts{})
+		l2ooBlockNumber, err := l2OutputOracle.LatestBlockNumber(&bind.CallOpts{})
 		require.Nil(t, err)
 
 		// Wait for the L2 output oracle to have been changed from the initial
 		// timestamp set in the contract constructor.
-		if l2ooTimestamp.Cmp(initialSroTimestamp) > 0 {
+		if l2ooBlockNumber.Cmp(initialOutputBlockNumber) > 0 {
 			// Retrieve the l2 output committed at this updated timestamp.
-			committedL2Output, err := l2OutputOracle.GetL2Output(&bind.CallOpts{}, l2ooTimestamp)
-			require.Nil(t, err)
-
-			// Compute the committed L2 output's L2 block number.
-			l2ooBlockNumber, err := l2OutputOracle.ComputeL2BlockNumber(
-				&bind.CallOpts{}, l2ooTimestamp,
-			)
+			committedL2Output, err := l2OutputOracle.GetL2Output(&bind.CallOpts{}, l2ooBlockNumber)
+			require.NotEqual(t, [32]byte{}, committedL2Output.OutputRoot, "Empty L2 Output")
 			require.Nil(t, err)
 
 			// Fetch the corresponding L2 block and assert the committed L2
@@ -658,6 +656,24 @@ func calcGasFees(gasUsed uint64, gasTipCap *big.Int, gasFeeCap *big.Int, baseFee
 	return x.Mul(x, new(big.Int).SetUint64(gasUsed))
 }
 
+// calcL1GasUsed returns the gas used to include the transaction data in
+// the calldata on L1
+func calcL1GasUsed(data []byte, overhead *big.Int) *big.Int {
+	var zeroes, ones uint64
+	for _, byt := range data {
+		if byt == 0 {
+			zeroes++
+		} else {
+			ones++
+		}
+	}
+
+	zeroesGas := zeroes * 4     // params.TxDataZeroGas
+	onesGas := (ones + 68) * 16 // params.TxDataNonZeroGasEIP2028
+	l1Gas := new(big.Int).SetUint64(zeroesGas + onesGas)
+	return new(big.Int).Add(l1Gas, overhead)
+}
+
 // TestWithdrawals checks that a deposit and then withdrawal execution succeeds. It verifies the
 // balance changes on L1 and L2 and has to include gas fees in the balance checks.
 // It does not check that the withdrawal can be executed prior to the end of the finality period.
@@ -745,19 +761,19 @@ func TestWithdrawals(t *testing.T) {
 	tx, err = l2withdrawer.InitiateWithdrawal(l2opts, fromAddr, big.NewInt(21000), nil)
 	require.Nil(t, err, "sending initiate withdraw tx")
 
-	receipt, err = waitForTransaction(tx.Hash(), l2Seq, 3*time.Duration(cfg.L1BlockTime)*time.Second)
+	receipt, err = waitForTransaction(tx.Hash(), l2Verif, 5*time.Duration(cfg.L1BlockTime)*time.Second)
 	require.Nil(t, err, "withdrawal initiated on L2 sequencer")
 	require.Equal(t, receipt.Status, types.ReceiptStatusSuccessful, "transaction failed")
 
 	// Verify L2 balance after withdrawal
 	ctx, cancel = context.WithTimeout(context.Background(), 1*time.Second)
 	defer cancel()
-	header, err := l2Seq.HeaderByNumber(ctx, receipt.BlockNumber)
+	header, err := l2Verif.HeaderByNumber(ctx, receipt.BlockNumber)
 	require.Nil(t, err)
 
 	ctx, cancel = context.WithTimeout(context.Background(), 1*time.Second)
 	defer cancel()
-	endBalance, err = l2Seq.BalanceAt(ctx, fromAddr, nil)
+	endBalance, err = l2Verif.BalanceAt(ctx, fromAddr, nil)
 	require.Nil(t, err)
 
 	// Take fee into account
@@ -773,25 +789,17 @@ func TestWithdrawals(t *testing.T) {
 	require.Nil(t, err)
 
 	// Wait for finalization and then create the Finalized Withdrawal Transaction
-	l2OutputOracle, err := bindings.NewL2OutputOracleCaller(sys.L2OOContractAddr, l1Client)
-	require.Nil(t, err)
-
 	ctx, cancel = context.WithTimeout(context.Background(), 10*time.Duration(cfg.L1BlockTime)*time.Second)
 	defer cancel()
-	timestamp, err := withdrawals.WaitForFinalizationPeriod(ctx, l1Client, sys.DepositContractAddr, header.Time)
+	blockNumber, err := withdrawals.WaitForFinalizationPeriod(ctx, l1Client, sys.DepositContractAddr, receipt.BlockNumber)
 	require.Nil(t, err)
 
 	ctx, cancel = context.WithTimeout(context.Background(), 1*time.Second)
 	defer cancel()
-	blockNumber, err := l2OutputOracle.ComputeL2BlockNumber(&bind.CallOpts{Context: ctx}, new(big.Int).SetUint64(timestamp))
+	header, err = l2Verif.HeaderByNumber(ctx, new(big.Int).SetUint64(blockNumber))
 	require.Nil(t, err)
 
-	ctx, cancel = context.WithTimeout(context.Background(), 1*time.Second)
-	defer cancel()
-	header, err = l2Seq.HeaderByNumber(ctx, blockNumber)
-	require.Nil(t, err)
-
-	rpc, err := rpc.Dial(sys.nodes["sequencer"].WSEndpoint())
+	rpc, err := rpc.Dial(sys.nodes["verifier"].WSEndpoint())
 	require.Nil(t, err)
 	l2client := withdrawals.NewClient(rpc)
 
@@ -811,7 +819,7 @@ func TestWithdrawals(t *testing.T) {
 		params.Value,
 		params.GasLimit,
 		params.Data,
-		params.Timestamp,
+		params.BlockNumber,
 		params.OutputRootProof,
 		params.WithdrawalProof,
 	)
@@ -839,4 +847,177 @@ func TestWithdrawals(t *testing.T) {
 	fees = calcGasFees(receipt.GasUsed, tx.GasTipCap(), tx.GasFeeCap(), header.BaseFee)
 	withdrawAmount = withdrawAmount.Sub(withdrawAmount, fees)
 	require.Equal(t, withdrawAmount, diff)
+}
+
+// TestFees checks that L1/L2 fees are handled.
+func TestFees(t *testing.T) {
+	if !verboseGethNodes {
+		log.Root().SetHandler(log.DiscardHandler())
+	}
+
+	cfg := defaultSystemConfig(t)
+
+	sys, err := cfg.start()
+	require.Nil(t, err, "Error starting up system")
+	defer sys.Close()
+
+	l2Seq := sys.Clients["sequencer"]
+	l2Verif := sys.Clients["verifier"]
+
+	// Transactor Account
+	ethPrivKey, err := sys.wallet.PrivateKey(accounts.Account{
+		URL: accounts.URL{
+			Path: transactorHDPath,
+		},
+	})
+	require.Nil(t, err)
+	fromAddr := crypto.PubkeyToAddress(ethPrivKey.PublicKey)
+
+	// Find gaspriceoracle contract
+	gpoContract, err := bindings.NewGasPriceOracle(common.HexToAddress(predeploys.OVM_GasPriceOracle), l2Seq)
+	require.Nil(t, err)
+
+	// GPO signer
+	l2opts, err := bind.NewKeyedTransactorWithChainID(ethPrivKey, cfg.L2ChainID)
+	require.Nil(t, err)
+
+	// Update overhead
+	tx, err := gpoContract.SetOverhead(l2opts, big.NewInt(2100))
+	require.Nil(t, err, "sending overhead update tx")
+
+	receipt, err := waitForTransaction(tx.Hash(), l2Verif, 10*time.Duration(cfg.L1BlockTime)*time.Second)
+	require.Nil(t, err, "waiting for overhead update tx")
+	require.Equal(t, receipt.Status, types.ReceiptStatusSuccessful, "transaction failed")
+
+	// Update decimals
+	tx, err = gpoContract.SetDecimals(l2opts, big.NewInt(6))
+	require.Nil(t, err, "sending gpo update tx")
+
+	receipt, err = waitForTransaction(tx.Hash(), l2Verif, 10*time.Duration(cfg.L1BlockTime)*time.Second)
+	require.Nil(t, err, "waiting for gpo decimals update tx")
+	require.Equal(t, receipt.Status, types.ReceiptStatusSuccessful, "transaction failed")
+
+	// Update scalar
+	tx, err = gpoContract.SetScalar(l2opts, big.NewInt(1_000_000))
+	require.Nil(t, err, "sending gpo update tx")
+
+	receipt, err = waitForTransaction(tx.Hash(), l2Verif, 10*time.Duration(cfg.L1BlockTime)*time.Second)
+	require.Nil(t, err, "waiting for gpo scalar update tx")
+	require.Equal(t, receipt.Status, types.ReceiptStatusSuccessful, "transaction failed")
+
+	overhead, err := gpoContract.Overhead(&bind.CallOpts{})
+	require.Nil(t, err, "reading gpo overhead")
+	decimals, err := gpoContract.Decimals(&bind.CallOpts{})
+	require.Nil(t, err, "reading gpo decimals")
+	scalar, err := gpoContract.Scalar(&bind.CallOpts{})
+	require.Nil(t, err, "reading gpo scalar")
+
+	require.Equal(t, overhead.Uint64(), uint64(2100), "wrong gpo overhead")
+	require.Equal(t, decimals.Uint64(), uint64(6), "wrong gpo decimals")
+	require.Equal(t, scalar.Uint64(), uint64(1_000_000), "wrong gpo scalar")
+
+	// BaseFee Recipient
+	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+	defer cancel()
+	baseFeeRecipientStartBalance, err := l2Seq.BalanceAt(ctx, cfg.BaseFeeRecipient, nil)
+	require.Nil(t, err)
+
+	// L1Fee Recipient
+	ctx, cancel = context.WithTimeout(context.Background(), 1*time.Second)
+	defer cancel()
+	l1FeeRecipientStartBalance, err := l2Seq.BalanceAt(ctx, cfg.L1FeeRecipient, nil)
+	require.Nil(t, err)
+
+	// Simple transfer from signer to random account
+	ctx, cancel = context.WithTimeout(context.Background(), 1*time.Second)
+	defer cancel()
+	startBalance, err := l2Verif.BalanceAt(ctx, fromAddr, nil)
+	require.Nil(t, err)
+
+	toAddr := common.Address{0xff, 0xff}
+	transferAmount := big.NewInt(1_000_000_000)
+	gasTip := big.NewInt(10)
+	tx = types.MustSignNewTx(ethPrivKey, types.LatestSignerForChainID(cfg.L2ChainID), &types.DynamicFeeTx{
+		ChainID:   cfg.L2ChainID,
+		Nonce:     3, // Already have deposit
+		To:        &toAddr,
+		Value:     transferAmount,
+		GasTipCap: gasTip,
+		GasFeeCap: big.NewInt(200),
+		Gas:       21000,
+	})
+	err = l2Seq.SendTransaction(context.Background(), tx)
+	require.Nil(t, err, "Sending L2 tx to sequencer")
+
+	_, err = waitForTransaction(tx.Hash(), l2Seq, 3*time.Duration(cfg.L1BlockTime)*time.Second)
+	require.Nil(t, err, "Waiting for L2 tx on sequencer")
+
+	receipt, err = waitForTransaction(tx.Hash(), l2Verif, 3*time.Duration(cfg.L1BlockTime)*time.Second)
+	require.Nil(t, err, "Waiting for L2 tx on verifier")
+	require.Equal(t, types.ReceiptStatusSuccessful, receipt.Status, "TX should have succeeded")
+
+	ctx, cancel = context.WithTimeout(context.Background(), 1*time.Second)
+	defer cancel()
+	header, err := l2Seq.HeaderByNumber(ctx, receipt.BlockNumber)
+	require.Nil(t, err)
+
+	ctx, cancel = context.WithTimeout(context.Background(), 1*time.Second)
+	defer cancel()
+	coinbaseStartBalance, err := l2Seq.BalanceAt(ctx, header.Coinbase, header.Number.Sub(header.Number, big.NewInt(1)))
+	require.Nil(t, err)
+
+	ctx, cancel = context.WithTimeout(context.Background(), 1*time.Second)
+	defer cancel()
+	coinbaseEndBalance, err := l2Seq.BalanceAt(ctx, header.Coinbase, nil)
+	require.Nil(t, err)
+
+	ctx, cancel = context.WithTimeout(context.Background(), 1*time.Second)
+	defer cancel()
+	endBalance, err := l2Seq.BalanceAt(ctx, fromAddr, nil)
+	require.Nil(t, err)
+
+	ctx, cancel = context.WithTimeout(context.Background(), 1*time.Second)
+	defer cancel()
+	baseFeeRecipientEndBalance, err := l2Seq.BalanceAt(ctx, cfg.BaseFeeRecipient, nil)
+	require.Nil(t, err)
+
+	ctx, cancel = context.WithTimeout(context.Background(), 1*time.Second)
+	defer cancel()
+	l1FeeRecipientEndBalance, err := l2Seq.BalanceAt(ctx, cfg.L1FeeRecipient, nil)
+	require.Nil(t, err)
+
+	// Diff fee recipient + coinbase balances
+	baseFeeRecipientDiff := new(big.Int).Sub(baseFeeRecipientEndBalance, baseFeeRecipientStartBalance)
+	l1FeeRecipientDiff := new(big.Int).Sub(l1FeeRecipientEndBalance, l1FeeRecipientStartBalance)
+	coinbaseDiff := new(big.Int).Sub(coinbaseEndBalance, coinbaseStartBalance)
+
+	// Tally L2 Fee
+	l2Fee := gasTip.Mul(gasTip, new(big.Int).SetUint64(receipt.GasUsed))
+	require.Equal(t, l2Fee, coinbaseDiff, "l2 fee mismatch")
+
+	// Tally BaseFee
+	baseFee := new(big.Int).Mul(header.BaseFee, new(big.Int).SetUint64(receipt.GasUsed))
+	require.Equal(t, baseFee, baseFeeRecipientDiff, "base fee fee mismatch")
+
+	// Tally L1 Fee
+	bytes, err := tx.MarshalBinary()
+	require.Nil(t, err)
+	l1GasUsed := calcL1GasUsed(bytes, overhead)
+	divisor := new(big.Int).Exp(big.NewInt(10), decimals, nil)
+	l1Fee := new(big.Int).Mul(l1GasUsed, header.BaseFee)
+	l1Fee = l1Fee.Mul(l1Fee, scalar)
+	l1Fee = l1Fee.Div(l1Fee, divisor)
+	require.Equal(t, l1Fee, l1FeeRecipientDiff, "l1 fee mismatch")
+
+	// Tally L1 fee against GasPriceOracle
+	gpoL1Fee, err := gpoContract.GetL1Fee(&bind.CallOpts{}, bytes)
+	require.Nil(t, err)
+	require.Equal(t, l1Fee, gpoL1Fee, "l1 fee mismatch")
+
+	// Calculate total fee
+	baseFeeRecipientDiff.Add(baseFeeRecipientDiff, coinbaseDiff)
+	totalFee := new(big.Int).Add(baseFeeRecipientDiff, l1FeeRecipientDiff)
+	balanceDiff := new(big.Int).Sub(startBalance, endBalance)
+	balanceDiff.Sub(balanceDiff, transferAmount)
+	require.Equal(t, balanceDiff, totalFee, "balances should add up")
 }
