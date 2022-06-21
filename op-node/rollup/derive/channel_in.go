@@ -42,8 +42,8 @@ func (ch *ChannelIn) Read() (out []byte) {
 	for frameNr := uint64(0); ; frameNr++ {
 		data, ok := ch.inputs[frameNr]
 		if !ok {
-			out = append(out, data...)
 			return
 		}
+		out = append(out, data...)
 	}
 }
