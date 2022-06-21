@@ -117,8 +117,8 @@ func (cr *channelOutReader) Read(p []byte) (n int, err error) {
 				return 0, err
 			}
 		}
-		// and start reading the new data from the refilled buffer (never empty, never io.EOF error return here)
-		return cr.buf.Read(p)
+		// compression may have buffered new data, but it may not be flushed. Read more from buf next call.
+		return 0, nil
 	}
 	return bufN, nil
 }
