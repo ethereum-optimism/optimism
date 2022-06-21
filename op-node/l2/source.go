@@ -41,7 +41,8 @@ func (s *Source) Close() {
 func (s *Source) UnsafeBlockIDs(ctx context.Context, safeHead eth.BlockID, max uint64) ([]eth.BlockID, error) {
 	// TODO: batching these calls would be a lot better
 	var out []eth.BlockID
-	for i := uint64(0); i < max; i++ {
+	// don't include the safe head
+	for i := uint64(1); i <= max; i++ {
 		header, err := s.client.HeaderByNumber(ctx, new(big.Int).SetUint64(safeHead.Number+i))
 		if err == ethereum.NotFound {
 			return out, nil

@@ -280,6 +280,9 @@ func (og *ChannelEmitter) Output(ctx context.Context, history map[ChannelID]uint
 		if uint64(len(blocks)) > maxBlocksPerChannel {
 			blocks = blocks[:maxBlocksPerChannel]
 		}
+		for _, b := range blocks {
+			og.log.Debug("opening channel with block", "block", b, "id", id)
+		}
 		// and don't repeat them
 		unsafeBlocksSorted = unsafeBlocksSorted[len(blocks):]
 		// use the emitter ctx, not the request ctx, since this reader may live longer than the request

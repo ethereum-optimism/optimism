@@ -23,8 +23,9 @@ type ChannelInReader struct {
 	readZlib zlibReader
 	readRLP  *rlp.Stream
 
-	l1Origin eth.L1BlockRef
-	data     []byte
+	l1Origin       eth.L1BlockRef
+	originComplete bool
+	data           []byte
 }
 
 // NewChannelInReader creates a ChannelInReader, which should be Reset(origin) before use.
@@ -37,7 +38,16 @@ func (cr *ChannelInReader) AddOrigin(origin eth.L1BlockRef) error {
 		return fmt.Errorf("next origin %s does not build on top of current origin %s, but on %s", origin.ID(), cr.l1Origin.ID(), origin.ParentID())
 	}
 	cr.l1Origin = origin
+	cr.originComplete = false
 	return nil
+}
+
+func (cr *ChannelInReader) EndOrigin() {
+	cr.originComplete = true
+}
+
+func (cr *ChannelInReader) OriginDone() bool {
+	return cr.originComplete
 }
 
 func (cr *ChannelInReader) WriteChannel(data []byte) {

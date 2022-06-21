@@ -39,6 +39,8 @@ type ChannelBankStage interface {
 type ChannelInReaderStage interface {
 	CurrentL1Origin() eth.L1BlockRef
 	AddOrigin(origin eth.L1BlockRef) error
+	EndOrigin()
+	OriginDone() bool
 	WriteChannel(data []byte)
 	NextChannel()
 	ReadBatch(dest *BatchData) error
@@ -49,6 +51,7 @@ type BatchQueueStage interface {
 	LastL1Origin() eth.L1BlockRef
 	AddOrigin(origin eth.L1BlockRef) error
 	AddBatch(batch *BatchData) error
+	EndOrigin()
 	DeriveL2Inputs(ctx context.Context, lastL2Timestamp uint64) ([]*eth.PayloadAttributes, error)
 	Reset(l1Origin eth.L1BlockRef)
 }
@@ -224,8 +227,10 @@ func (dp *DerivationPipeline) readChannel() error {
 	// otherwise, read the next channel data from the bank
 	id, data := dp.bank.Read()
 	if id == (ChannelID{}) { // need new L1 data in the bank before we can read more channel data
+		dp.chInReader.EndOrigin()
 		return io.EOF
 	}
+	dp.log.Info("writing channel", "channel", id)
 	dp.chInReader.WriteChannel(data)
 	return nil
 }
@@ -237,12 +242,17 @@ func (dp *DerivationPipeline) readBatch() error {
 	}
 	var batch BatchData
 	if err := dp.chInReader.ReadBatch(&batch); err == io.EOF {
+		// mark the origin as ended if the ch reader marked it as ended
+		if dp.chInReader.OriginDone() {
+			dp.batchQueue.EndOrigin()
+		}
 		return io.EOF
 	} else if err != nil {
 		dp.log.Warn("failed to read batch from channel reader, skipping to next channel now", "err", err)
 		dp.chInReader.NextChannel()
 		return nil
 	}
+	dp.log.Debug("reading channel", "batch_epoch", batch.Epoch, "batch_timestamp", batch.Timestamp, "txs", len(batch.Transactions))
 	return dp.batchQueue.AddBatch(&batch)
 }
 

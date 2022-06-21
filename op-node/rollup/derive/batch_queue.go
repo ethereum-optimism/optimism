@@ -26,11 +26,12 @@ type BatchesWithOrigin struct {
 // BatchQueue contains a set of batches for every L1 block.
 // L1 blocks are contiguous and this does not support reorgs.
 type BatchQueue struct {
-	log          log.Logger
-	inputs       []BatchesWithOrigin
-	lastL1Origin eth.L1BlockRef
-	config       *rollup.Config
-	dl           L1ReceiptsFetcher
+	log            log.Logger
+	inputs         []BatchesWithOrigin
+	originComplete bool // false if the last origin expects more batches
+	lastL1Origin   eth.L1BlockRef
+	config         *rollup.Config
+	dl             L1ReceiptsFetcher
 }
 
 // NewBatchQueue creates a BatchQueue, which should be Reset(origin) before use.
@@ -56,6 +57,7 @@ func (bq *BatchQueue) AddOrigin(origin eth.L1BlockRef) error {
 		return fmt.Errorf("cannot process L1 reorg from %s to %s (parent %s)", parent, origin.ID(), origin.ParentID())
 	}
 	bq.inputs = append(bq.inputs, BatchesWithOrigin{Origin: origin, Batches: nil})
+	bq.originComplete = false
 	return nil
 }
 
@@ -67,9 +69,13 @@ func (bq *BatchQueue) AddBatch(batch *BatchData) error {
 	return nil
 }
 
+func (bq *BatchQueue) EndOrigin() {
+	bq.originComplete = true
+}
+
 // derive any L2 chain inputs, if we have any new batches
 func (bq *BatchQueue) DeriveL2Inputs(ctx context.Context, lastL2Timestamp uint64) ([]*eth.PayloadAttributes, error) {
-	if len(bq.inputs) == 0 {
+	if !bq.originComplete || len(bq.inputs) == 0 {
 		return nil, io.EOF
 	}
 	if uint64(len(bq.inputs)) < bq.config.SeqWindowSize {
