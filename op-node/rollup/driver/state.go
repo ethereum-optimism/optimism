@@ -362,6 +362,9 @@ func (s *state) eventLoop() {
 				reqStep() // continue with the next step if we can
 			}
 		case <-s.done:
+			if err := s.emitter.Close(); err != nil {
+				s.log.Error("failed to close emitter", "err", err)
+			}
 			return
 		}
 	}

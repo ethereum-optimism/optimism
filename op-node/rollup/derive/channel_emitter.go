@@ -67,19 +67,32 @@ type ChannelEmitter struct {
 	// pruned when timed out. We keep track of fully read channels to avoid resubmitting data.
 	channels map[ChannelID]*ChannelOut
 
+	// context used to fetch data for channels, might outlive a single request
+	ctx context.Context
+	// cancels above context
+	cancel context.CancelFunc
+
 	l1Time       uint64
 	l2SafeHead   eth.L2BlockRef
 	l2UnsafeHead eth.L2BlockRef
 }
 
 func NewChannelEmitter(log log.Logger, cfg *rollup.Config, source UnsafeBlocksSource) *ChannelEmitter {
+	ctx, cancel := context.WithCancel(context.Background())
 	return &ChannelEmitter{
 		log:      log,
 		cfg:      cfg,
 		source:   source,
 		channels: make(map[ChannelID]*ChannelOut),
+		ctx:      ctx,
+		cancel:   cancel,
 		l1Time:   0,
 	}
+}
+
+func (og *ChannelEmitter) Close() error {
+	og.cancel()
+	return nil
 }
 
 // SetL1Time updates the tracked L1 time, so the old channels can be pruned
@@ -269,7 +282,8 @@ func (og *ChannelEmitter) Output(ctx context.Context, history map[ChannelID]uint
 		}
 		// and don't repeat them
 		unsafeBlocksSorted = unsafeBlocksSorted[len(blocks):]
-		r, err := newChannelOutReader(ctx, &og.cfg.Genesis, og.source, blocks)
+		// use the emitter ctx, not the request ctx, since this reader may live longer than the request
+		r, err := newChannelOutReader(og.ctx, &og.cfg.Genesis, og.source, blocks)
 		if err != nil {
 			// no log&continue, something is wrong, abort.
 			return nil, fmt.Errorf("failed to create channel reader for blocks: %v", err)

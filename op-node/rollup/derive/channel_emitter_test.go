@@ -89,7 +89,7 @@ func TestOutput(t *testing.T) {
 		},
 		// the other fields don't matter in this test
 	}
-	og := NewChannelEmitter(testlog.Logger(t, log.LvlDebug), cfg, src)
+	og := NewChannelEmitter(context.Background(), testlog.Logger(t, log.LvlDebug), cfg, src)
 	history := map[ChannelID]uint64{}
 	minSize := uint64(1000)
 	maxSize := uint64(10_000)
