@@ -20,6 +20,7 @@
     "build:ts": "tsc",
     "test": "forge test",
     "gas-snapshot": "forge snapshot",
+    "storage-snapshot": "./scripts/storage-snapshot.sh",
     "slither": "slither .",
     "clean": "rm -rf ./dist ./artifacts ./forge-artifacts ./cache ./coverage ./tsconfig.tsbuildinfo",
     "lint:ts:check": "eslint . --max-warnings=0",
