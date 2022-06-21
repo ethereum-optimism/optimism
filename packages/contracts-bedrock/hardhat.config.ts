@@ -39,10 +39,8 @@ const config: HardhatUserConfig = {
     },
     goerli: {
       chainId: 5,
-      url: (process.env.L1_RPC || ''),
-      accounts: [
-        (process.env.PRIVATE_KEY_DEPLOYER || ethers.constants.HashZero),
-      ],
+      url: process.env.L1_RPC || '',
+      accounts: [process.env.PRIVATE_KEY_DEPLOYER || ethers.constants.HashZero],
     },
   },
   paths: {

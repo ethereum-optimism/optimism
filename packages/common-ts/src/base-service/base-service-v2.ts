@@ -34,9 +34,7 @@ export type OptionsSpec<TOptions extends Options> = {
   }
 }
 
-export type MetricsV2 = {
-  [key: string]: Metric
-}
+export type MetricsV2 = Record<any, Metric>
 
 export type StandardMetrics = {
   metadata: Gauge
@@ -146,17 +144,19 @@ export abstract class BaseServiceV2<
    * @param params.port Port for the app server. Defaults to 7300.
    * @param params.hostname Hostname for the app server. Defaults to 0.0.0.0.
    */
-  constructor(params: {
-    name: string
-    version: string
-    optionsSpec: OptionsSpec<TOptions>
-    metricsSpec: MetricsSpec<TMetrics>
-    options?: Partial<TOptions>
-    loop?: boolean
-    loopIntervalMs?: number
-    port?: number
-    hostname?: string
-  }) {
+  constructor(
+    private readonly params: {
+      name: string
+      version: string
+      optionsSpec: OptionsSpec<TOptions>
+      metricsSpec: MetricsSpec<TMetrics>
+      options?: Partial<TOptions>
+      loop?: boolean
+      loopIntervalMs?: number
+      port?: number
+      hostname?: string
+    }
+  ) {
     this.loop = params.loop !== undefined ? params.loop : true
     this.state = {} as TServiceState
 
@@ -402,6 +402,20 @@ export abstract class BaseServiceV2<
         })
       )
 
+      // Health status.
+      app.get('/healthz', async (req, res) => {
+        return res.json({
+          ok: this.healthy,
+          version: this.params.version,
+        })
+      })
+
+      // Register user routes.
+      const router = express.Router()
+      if (this.routes) {
+        this.routes(router)
+      }
+
       // Metrics.
       // Will expose a /metrics endpoint by default.
       app.use(
@@ -410,22 +424,19 @@ export abstract class BaseServiceV2<
           includeMethod: true,
           includePath: true,
           includeStatusCode: true,
+          normalizePath: (req) => {
+            for (const layer of router.stack) {
+              if (layer.route && req.path.match(layer.regexp)) {
+                return layer.route.path
+              }
+            }
+
+            return '/invalid_path_not_a_real_route'
+          },
         })
       )
 
-      // Health status.
-      app.get('/healthz', async (req, res) => {
-        return res.json({
-          ok: this.healthy,
-        })
-      })
-
-      // Registery user routes.
-      if (this.routes) {
-        const router = express.Router()
-        this.routes(router)
-        app.use('/api', router)
-      }
+      app.use('/api', router)
 
       // Wait for server to come up.
       await new Promise((resolve) => {
