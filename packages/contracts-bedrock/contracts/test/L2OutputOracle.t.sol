@@ -90,7 +90,42 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
      * Ownership tests *
      *******************/
 
-     // Test changing sequencer
+    event SequencerChanged(address indexed, address indexed);
+
+    function test_changeSequencer() public {
+        address newSequencer = address(20);
+        vm.expectRevert("Ownable: caller is not the owner");
+        oracle.changeSequencer(newSequencer);
+
+        vm.startPrank(owner);
+        vm.expectRevert("OutputOracle: new sequencer is the zero address");
+        oracle.changeSequencer(address(0));
+
+        // Double check sequencer has not changed.
+        assertEq(sequencer, oracle.sequencer());
+
+        vm.expectEmit(true, true, true, true);
+        emit SequencerChanged(sequencer, newSequencer);
+        oracle.changeSequencer(newSequencer);
+        vm.stopPrank();
+    }
+
+    event OwnershipTransferred(address indexed, address indexed);
+
+    function test_updateOwner() public {
+        address newOwner = address(21);
+        vm.expectRevert("Ownable: caller is not the owner");
+        oracle.transferOwnership(newOwner);
+        // Double check owner has not changed.
+        assertEq(owner, oracle.owner());
+
+        vm.startPrank(owner);
+        vm.expectEmit(true, true, true, true);
+        emit OwnershipTransferred(owner, newOwner);
+        oracle.transferOwnership(newOwner);
+        vm.stopPrank();
+    }
+
      // Test updating owner
 
     /*****************************

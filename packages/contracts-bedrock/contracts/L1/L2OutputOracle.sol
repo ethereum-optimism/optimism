@@ -50,6 +50,9 @@ contract L2OutputOracle is Ownable {
 
     /**
      * @notice Emitted when the sequencer address is changed.
+     *
+     * @param previousSequencer The previous sequencer address.
+     * @param newSequencer      The new sequencer address.
      */
     event SequencerChanged(address indexed previousSequencer, address indexed newSequencer);
 
