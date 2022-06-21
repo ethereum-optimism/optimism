@@ -1,14 +1,24 @@
 package derive
 
 import (
+	"errors"
+	"fmt"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/log"
 )
 
-func FilterBatches(config *rollup.Config, epoch rollup.Epoch, minL2Time uint64, maxL2Time uint64, batches []*BatchData) (out []*BatchData) {
+var DifferentEpoch = errors.New("batch is of different epoch")
+
+func FilterBatches(log log.Logger, config *rollup.Config, epoch rollup.Epoch, minL2Time uint64, maxL2Time uint64, batches []*BatchData) (out []*BatchData) {
 	uniqueTime := make(map[uint64]struct{})
 	for _, batch := range batches {
-		if !ValidBatch(batch, config, epoch, minL2Time, maxL2Time) {
+		if err := ValidBatch(batch, config, epoch, minL2Time, maxL2Time); err != nil {
+			if err == DifferentEpoch {
+				log.Trace("ignoring batch of different epoch", "epoch", batch.Epoch, "expected_epoch", epoch, "timestamp", batch.Timestamp, "txs", len(batch.Transactions))
+			} else {
+				log.Warn("filtered batch", "epoch", batch.Epoch, "timestamp", batch.Timestamp, "txs", len(batch.Transactions), "err", err)
+			}
 			continue
 		}
 		// Check if we have already seen a batch for this L2 block
@@ -22,31 +32,31 @@ func FilterBatches(config *rollup.Config, epoch rollup.Epoch, minL2Time uint64, 
 	return
 }
 
-func ValidBatch(batch *BatchData, config *rollup.Config, epoch rollup.Epoch, minL2Time uint64, maxL2Time uint64) bool {
+func ValidBatch(batch *BatchData, config *rollup.Config, epoch rollup.Epoch, minL2Time uint64, maxL2Time uint64) error {
 	if batch.Epoch != epoch {
 		// Batch was tagged for past or future epoch,
 		// i.e. it was included too late or depends on the given L1 block to be processed first.
-		return false
+		return DifferentEpoch
 	}
 	if (batch.Timestamp-config.Genesis.L2Time)%config.BlockTime != 0 {
-		return false // bad timestamp, not a multiple of the block time
+		return fmt.Errorf("bad timestamp %d, not a multiple of the block time", batch.Timestamp)
 	}
 	if batch.Timestamp < minL2Time {
-		return false // old batch
+		return fmt.Errorf("old batch: %d < %d", batch.Timestamp, minL2Time)
 	}
 	// limit timestamp upper bound to avoid huge amount of empty blocks
 	if batch.Timestamp >= maxL2Time {
-		return false // too far in future
+		return fmt.Errorf("batch too far into future: %d > %d", batch.Timestamp, maxL2Time)
 	}
-	for _, txBytes := range batch.Transactions {
+	for i, txBytes := range batch.Transactions {
 		if len(txBytes) == 0 {
-			return false // transaction data must not be empty
+			return fmt.Errorf("transaction data must not be empty, but tx %d is empty", i)
 		}
 		if txBytes[0] == types.DepositTxType {
-			return false // sequencers may not embed any deposits into batch data
+			return fmt.Errorf("sequencers may not embed any deposits into batch data, but tx %d has one", i)
 		}
 	}
-	return true
+	return nil
 }
 
 // FillMissingBatches turns a collection of batches to the input batches for a series of blocks

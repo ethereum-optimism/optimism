@@ -76,6 +76,9 @@ func (bq *BatchQueue) DeriveL2Inputs(ctx context.Context, lastL2Timestamp uint64
 		bq.log.Debug("not enough batches in batch queue, not deriving anything yet", "inputs", len(bq.inputs))
 		return nil, io.EOF
 	}
+	if uint64(len(bq.inputs)) > bq.config.SeqWindowSize {
+		return nil, fmt.Errorf("unexpectedly buffered more L1 inputs than sequencing window: %d", len(bq.inputs))
+	}
 	l1Origin := bq.inputs[0].Origin
 	nextL1Block := bq.inputs[1].Origin
 
@@ -105,7 +108,7 @@ func (bq *BatchQueue) DeriveL2Inputs(ctx context.Context, lastL2Timestamp uint64
 	for _, b := range bq.inputs {
 		batches = append(batches, b.Batches...)
 	}
-	batches = FilterBatches(bq.config, epoch, minL2Time, maxL2Time, batches)
+	batches = FilterBatches(bq.log, bq.config, epoch, minL2Time, maxL2Time, batches)
 	batches = FillMissingBatches(batches, uint64(epoch), bq.config.BlockTime, minL2Time, nextL1Block.Time)
 	var attributes []*eth.PayloadAttributes
 
