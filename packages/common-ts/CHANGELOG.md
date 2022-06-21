@@ -1,5 +1,15 @@
 # @eth-optimism/common-ts
 
+## 0.5.0
+
+### Minor Changes
+
+- cb71fcde: Make typescript type more permissive for MetricsV2
+
+### Patch Changes
+
+- 10e41522: Fix potential metrics DoS vector in recent commit to BSV2
+
 ## 0.4.0
 
 ### Minor Changes
