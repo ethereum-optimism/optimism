@@ -4,7 +4,7 @@ import {
   TransactionResponse,
   TransactionReceipt,
 } from '@ethersproject/providers'
-import { sleep } from '@eth-optimism/core-utils'
+import { getChainId, sleep } from '@eth-optimism/core-utils'
 import {
   CrossChainMessenger,
   MessageStatus,
@@ -58,8 +58,6 @@ export class OptimismEnv {
   }
 
   static async new(): Promise<OptimismEnv> {
-    const network = await l1Provider.getNetwork()
-
     let bridgeOverrides: BridgeAdapterData
     if (envConfig.L1_STANDARD_BRIDGE) {
       bridgeOverrides = {
@@ -79,7 +77,8 @@ export class OptimismEnv {
     const messenger = new CrossChainMessenger({
       l1SignerOrProvider: l1Wallet,
       l2SignerOrProvider: l2Wallet,
-      l1ChainId: network.chainId,
+      l1ChainId: await getChainId(l1Provider),
+      l2ChainId: await getChainId(l2Provider),
       contracts: {
         l1: {
           AddressManager: envConfig.ADDRESS_MANAGER,
