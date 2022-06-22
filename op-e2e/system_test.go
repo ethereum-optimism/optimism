@@ -57,6 +57,7 @@ const (
 	l2OutputHDPath     = "m/44'/60'/0'/0/3"
 	bssHDPath          = "m/44'/60'/0'/0/4"
 	p2pSignerHDPath    = "m/44'/60'/0'/0/5"
+	deployerHDPath     = "m/44'/60'/0'/0/6"
 )
 
 var (
@@ -81,6 +82,7 @@ func defaultSystemConfig(t *testing.T) SystemConfig {
 			transactorHDPath:   10000000,
 			l2OutputHDPath:     10000000,
 			bssHDPath:          10000000,
+			deployerHDPath:     10000000,
 		},
 		DepositCFG: DepositContractConfig{
 			FinalizationPeriod: big.NewInt(60 * 60 * 24),
@@ -94,7 +96,7 @@ func defaultSystemConfig(t *testing.T) SystemConfig {
 		L2OutputHDPath:             l2OutputHDPath,
 		BatchSubmitterHDPath:       bssHDPath,
 		P2PSignerHDPath:            p2pSignerHDPath,
-		DeployerHDPath:             l2OutputHDPath,
+		DeployerHDPath:             deployerHDPath,
 		CliqueSignerDerivationPath: cliqueSignerHDPath,
 		L1InfoPredeployAddress:     predeploys.L1BlockAddr,
 		L1BlockTime:                2,
