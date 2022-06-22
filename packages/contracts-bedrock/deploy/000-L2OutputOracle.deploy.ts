@@ -2,6 +2,8 @@
 import { DeployFunction } from 'hardhat-deploy/dist/types'
 import { BigNumber } from 'ethers'
 import 'hardhat-deploy'
+import '@nomiclabs/hardhat-ethers'
+import '@eth-optimism/hardhat-deploy-config'
 
 const deployFn: DeployFunction = async (hre) => {
   const { deploy } = hre.deployments
@@ -35,7 +37,7 @@ const deployFn: DeployFunction = async (hre) => {
       deployConfig.startingTimestamp,
       deployConfig.l2BlockTime,
       deployConfig.sequencerAddress,
-      deployConfig.ownerAddress
+      deployConfig.ownerAddress,
     ],
     log: true,
     waitConfirmations: deployConfig.deploymentWaitConfirmations,
