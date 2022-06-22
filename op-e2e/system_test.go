@@ -790,7 +790,7 @@ func TestWithdrawals(t *testing.T) {
 	require.Nil(t, err)
 
 	// Wait for finalization and then create the Finalized Withdrawal Transaction
-	ctx, cancel = context.WithTimeout(context.Background(), 10*time.Duration(cfg.L1BlockTime)*time.Second)
+	ctx, cancel = context.WithTimeout(context.Background(), 20*time.Duration(cfg.L1BlockTime)*time.Second)
 	defer cancel()
 	blockNumber, err := withdrawals.WaitForFinalizationPeriod(ctx, l1Client, sys.DepositContractAddr, receipt.BlockNumber)
 	require.Nil(t, err)
