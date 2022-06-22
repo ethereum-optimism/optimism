@@ -46,7 +46,7 @@ Then we iteratively apply the derivation process, using the [derivation pipeline
 
 > **TODO** specify genesis block
 
-## Stream
+## Rollup Stream format
 
 The stream is ***multiplexed*** and ***buffered***, to handle serve the required properties:
 
@@ -64,7 +64,11 @@ The multiplexed and buffered stream consists of:
 - Channels: independent of each other, a bounded stream submitted by a single actor, encoding a range of L2 bock derivation inputs.
 - Frames: numbered slices of channel data, which can be confirmed on L1 out of order and mixed with other channels.
 
-## Frame format:
+The types of data are illustrated in the diagram below.
+
+![](./assets/batch-deriv-chain.svg)
+
+### Frame format:
 
 ```text
 frame = channel_id | frame_number | frame_data_length | frame_data | is_last
@@ -76,7 +80,7 @@ frame_data        = bytes    # data to add to the channel, after frame max(frame
 is_last           = bool     # 1 byte, channel is closed if 1, stays open if 0, invalid otherwise
 ```
 
-## L1 transaction data format:
+### L1 transaction data format:
 
 ```text
 transaction_data = version_byte | rollup_payload
@@ -109,7 +113,7 @@ The pipeline consists of:
 2. The Channel Bank: parses data-inputs, buffering raw channel frames
 3. The Channel Input Reader: reads channels one at a time, decompressing and decoding the data into batches
 4. The Batch Queue: buffers and orders batches for at most a full sequencing window, and dequeues as soon as possible
-5. The Payload Attributes deriver: reads a batch and outputs payload attributes
+5. The PayloadAttributes Queue: reads a batch and outputs payload attributes
 6. The Engine Queue: buffers payload attributes, as well as full execution payloads that were received out-of-band,
    to consolidate or process with the external Engine.
 
@@ -120,6 +124,8 @@ and thus liveness of user deposits without relying on the sequencer.
 
 ### Recovering from L1 reorgs
 
+![](./assets/batch-deriv-pipeline.svg)
+
 The Derivation Pipeline assumes linear progression of the L1 chain.
 It is also applicable for batch processing, meaning that any given point in time, the canonical L2 chain is given by
 processing the whole L1 chain since the [L2 chain inception][g-inception].
@@ -128,39 +134,54 @@ If the L1 Chain re-orgs, the rollup node must re-derive sections of the L2 chain
 that a rollup node would derive if it only followed the new L1 chain.
 
 A [reorg][g-reorg] can be recovered without re-deriving the full L2 chain, by resetting the pipeline as follows:
-1. Determine the safe L2 block to continue from, and optionally any unsafe L2 block that plausibly builds on the safe L2 block.
-   The "safe L2 block" is determined with following algorithm:
-     1. Set "unsafe head" to equal the l2 head we retrieved, just as default
-     2. Set "latest block" to equal the l2 head we retrieved, also just as default
-     3. Walk back L2, and stop until block.l1Origin is found AND canonical, and update "latest block" to this block.
-        And don't override "unsafe head" if it's not found, but do override it when block.l1Origin does not match the
-        canonical L1 block at that height.
-     4. Walk back L2 from the "latest block" until a full sequencing window of L1 blocks has been passed.
-        This is the "safe block".
-2. Wipe the contents of each of the pipeline stages
-3. Reset all the stages back to the desired L1 origin, except:
-     1. the Channel Bank: refill requires additional L1 inputs.
-     2. the Engine Queue: this is reset to track the L2 safe head, and optionally the unsafe head.
+1. Reset the Engine Queue
+2. Reset the Batch Queue, starting at the common L1 origin found during the Engine Queue reset.
+3. Reset the stages down until the Channel Bank, wiping the contents and copying the safe origin of the Batch Queue.
+4. Reset the Channel Bank
+5. Reset the L1 source by wiping any buffered data, and copying the safe origin of the Channel Bank.
 
-When walking back on the L2 chain, care should be taken to not walk past the rollup genesis.
+When walking back on the L2 chain, care should be taken to not walk past the rollup or L1 genesis.
 
-#### Why walk a full sequencing window behind the fork block?
+After the resets are performed (possibly in smaller iterative chain traversal steps),
+the regular pipeline derivation can dry-run to heal the buffer contents
+(i.e. drop any outputs of a stage that lags behind the next stage closer to L2).
 
-The purpose of this is to ensure that if the sequencing window for a L2 block has changed since it was derived,
+#### Resetting the Engine Queue
+
+The engine queue has two starting points:
+- The `safe` block: everything up to and including this block can be fully derived from the canonical L1 chain.
+- The `unsafe` block: local data that serves the sequencer and happy-path sync,
+  considered to be "unsafe" while not confirmed on L1 yet.
+
+Starting at the previous `safe` head the execution knows of (i.e. fully derivable from L1 chain),
+traverse back the L2 chain until a block with a canonical L1 origin is found.
+This L2 block will be the `safe` head.
+
+The `unsafe` block starts as the last known tip of the L2 chain,
+but is reset back to equal the `safe` block if at any point the `unsafe` block height is known but non-canonical.
+An `unsafe` head with an origin beyond the `safe` origin is considered "plausible":
+retaining the existing data is preferable, but it may be reorganized at a later point if consolidation with the `safe` chain fails.
+
+
+#### Resetting the Batch Queue
+
+The Batch Queue is reset back by an additional `SEQUENCING_WINDOW` number of L1 blocks,
+to ensure that if the sequencing window for a L2 block has changed since it was derived,
 that L2 block is re-derived.
 
-The first L1 block of the sequencing window is the L1 attributes for that L2 block. The end of the sequencing
-window is the canonical L1 block whose number is `SEQUENCING_WINDOW` larger than the start. The end of the
-window must be selected by number otherwise the sequencer would not be able to create batches. The problem
-with selecting the end of the window by number is that when an L1 reorg occurs, the blocks (and thus batches)
-in the window could change. We must find the first L2 block whose complete sequencing window is
-unchanged in the reorg.
+The first L1 block of the sequencing window contains the L1 attributes for that L2 block.
+The end of the sequencing window is the canonical L1 block whose number is `SEQUENCING_WINDOW` larger than the start.
+The end of the window must be selected by number otherwise the sequencer would not be able to create batches.
+The problem with selecting the end of the window by number is that when an L1 reorg occurs,
+the blocks (and thus batches) in the window could change.
+We must find the first L2 block whose complete sequencing window is unchanged in the reorg.
 
 [merge]: https://ethereum.org/en/eth2/merge/
 
 #### Resetting the Channel Bank
 
-In the case of the Channel Bank the origin has to be reset further back, by a full `CHANNEL_TIMEOUT` behind the desired L1 origin to continue the pipeline from.
+In the case of the Channel Bank the origin has to be reset further back,
+by a full `CHANNEL_TIMEOUT` behind the desired L1 origin to continue the pipeline from.
 The pipeline will drop the outputs from the Channel Bank stage until it has caught up to the next origins.
 
 This ensures the reset is performed in the same pipeline of small recoverable specs, without additional complexity.
