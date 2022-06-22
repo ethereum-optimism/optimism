@@ -25,6 +25,7 @@ const deployFn: DeployFunction = async (hre) => {
       hre.deployConfig.startingTimestamp,
       hre.deployConfig.l2BlockTime,
       hre.deployConfig.sequencerAddress,
+      hre.deployConfig.ownerAddress,
     ],
     log: true,
     waitConfirmations: 1,
