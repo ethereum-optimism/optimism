@@ -60,6 +60,10 @@ func (bq *BatchQueue) CurrentOrigin() eth.L1BlockRef {
 }
 
 func (bq *BatchQueue) OpenOrigin(origin eth.L1BlockRef) error {
+	if bq.originOpen {
+		panic("double open")
+	}
+	bq.log.Warn("open origin", "origin", origin)
 	parent := bq.CurrentOrigin()
 	if parent.Hash != origin.ParentHash {
 		return fmt.Errorf("cannot process L1 reorg from %s to %s (parent %s)", parent, origin.ID(), origin.ParentID())
@@ -70,6 +74,10 @@ func (bq *BatchQueue) OpenOrigin(origin eth.L1BlockRef) error {
 }
 
 func (bq *BatchQueue) AddBatch(batch *BatchData) error {
+	if !bq.originOpen {
+		panic("write batch while closed")
+	}
+	bq.log.Warn("add batch", "origin", bq.CurrentOrigin())
 	if len(bq.inputs) == 0 {
 		return fmt.Errorf("cannot add batch with timestamp %d, no origin was prepared", batch.Timestamp)
 	}
@@ -78,6 +86,10 @@ func (bq *BatchQueue) AddBatch(batch *BatchData) error {
 }
 
 func (bq *BatchQueue) CloseOrigin() {
+	if !bq.originOpen {
+		panic("double close")
+	}
+	bq.log.Warn("close origin", "origin", bq.CurrentOrigin())
 	bq.originOpen = false
 }
 
@@ -97,6 +109,7 @@ func (bq *BatchQueue) DeriveL2Inputs(ctx context.Context, lastL2Timestamp uint64
 	if uint64(len(bq.inputs)) > bq.config.SeqWindowSize {
 		return nil, fmt.Errorf("unexpectedly buffered more L1 inputs than sequencing window: %d", len(bq.inputs))
 	}
+	bq.log.Warn("deriving attributes")
 	l1Origin := bq.inputs[0].Origin
 	nextL1Block := bq.inputs[1].Origin
 
@@ -158,10 +171,6 @@ func (bq *BatchQueue) DeriveL2Inputs(ctx context.Context, lastL2Timestamp uint64
 	return attributes, nil
 }
 
-func (bq *BatchQueue) Reset(l1Origin eth.L1BlockRef) {
-	bq.lastL1Origin = l1Origin
-}
-
 func (bq *BatchQueue) Step(ctx context.Context) error {
 	attrs, err := bq.DeriveL2Inputs(ctx, bq.next.SafeL2Head().Time)
 	if err != nil {
@@ -186,19 +195,23 @@ func (bq *BatchQueue) ResetStep(ctx context.Context, l1Fetcher L1Fetcher) error 
 		if err != nil {
 			return fmt.Errorf("failed to find L1 reference corresponding to L1 origin %s of L2 block %s: %v", l2SafeHead.L1Origin, l2SafeHead.ID(), err)
 		}
+		bq.log.Debug("set initial reset origin for batch queue", "origin", bq.lastL1Origin)
 		bq.lastL1Origin = l1SafeHead
 		bq.resetting = true
 		return nil
 	}
 
 	// we are done resetting if we have sufficient distance from the next stage to produce coherent results once we reach the origin of that stage.
-	if bq.lastL1Origin.Number+bq.config.SeqWindowSize <= bq.next.SafeL2Head().L1Origin.Number || bq.lastL1Origin.Number == 0 {
+	if bq.lastL1Origin.Number+bq.config.SeqWindowSize < bq.next.SafeL2Head().L1Origin.Number || bq.lastL1Origin.Number == 0 {
+		bq.log.Debug("found reset origin for batch queue", "origin", bq.lastL1Origin)
 		bq.inputs = bq.inputs[:0]
 		bq.inputs = append(bq.inputs, BatchesWithOrigin{Origin: bq.lastL1Origin, Batches: nil})
 		bq.originOpen = true
 		bq.resetting = false
 		return io.EOF
 	}
+
+	bq.log.Debug("walking back to find reset origin for batch queue", "origin", bq.lastL1Origin)
 
 	// not far back enough yet, do one more step
 	parent, err := l1Fetcher.L1BlockRefByHash(ctx, bq.lastL1Origin.ParentHash)

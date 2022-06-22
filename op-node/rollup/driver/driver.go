@@ -38,6 +38,7 @@ type L2Chain interface {
 type DerivationPipeline interface {
 	Reset()
 	Step(ctx context.Context) error
+	SetUnsafeHead(head eth.L2BlockRef)
 	AddUnsafePayload(payload *eth.ExecutionPayload)
 	Finalized() eth.L2BlockRef
 	SafeL2Head() eth.L2BlockRef

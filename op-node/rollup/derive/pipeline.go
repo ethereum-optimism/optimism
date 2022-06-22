@@ -50,6 +50,7 @@ type EngineQueueStage interface {
 	Finalized() eth.L2BlockRef
 	UnsafeL2Head() eth.L2BlockRef
 	SafeL2Head() eth.L2BlockRef
+	SetUnsafeHead(head eth.L2BlockRef)
 
 	Finalize(l1Origin eth.BlockID)
 	AddSafeAttributes(attributes *eth.PayloadAttributes)
@@ -119,6 +120,10 @@ func (dp *DerivationPipeline) SafeL2Head() eth.L2BlockRef {
 // UnsafeL2Head returns the head of the L2 chain that we are deriving for, this may be past what we derived from L1
 func (dp *DerivationPipeline) UnsafeL2Head() eth.L2BlockRef {
 	return dp.eng.UnsafeL2Head()
+}
+
+func (dp *DerivationPipeline) SetUnsafeHead(head eth.L2BlockRef) {
+	dp.eng.SetUnsafeHead(head)
 }
 
 // AddUnsafePayload schedules an execution payload to be processed, ahead of deriving it from L1

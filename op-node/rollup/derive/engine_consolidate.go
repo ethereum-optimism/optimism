@@ -21,7 +21,7 @@ func AttributesMatchBlock(attrs *eth.PayloadAttributes, parentHash common.Hash, 
 		return fmt.Errorf("random field does not match. expected: %v. got: %v", attrs.PrevRandao, block.PrevRandao)
 	}
 	if len(attrs.Transactions) != len(block.Transactions) {
-		return fmt.Errorf("transaction count does not match. expected: %v. got: %v", len(attrs.Transactions), block.Transactions)
+		return fmt.Errorf("transaction count does not match. expected: %d. got: %d", len(attrs.Transactions), len(block.Transactions))
 	}
 	for i, otx := range attrs.Transactions {
 		if expect := block.Transactions[i]; !bytes.Equal(otx, expect) {

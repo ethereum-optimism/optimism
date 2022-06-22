@@ -47,6 +47,9 @@ func NewChannelInReader(log log.Logger, next BatchQueueStage) *ChannelInReader {
 }
 
 func (cr *ChannelInReader) OpenOrigin(origin eth.L1BlockRef) error {
+	if cr.originOpen {
+		panic("double open")
+	}
 	if cr.currentOrigin.Hash != origin.ParentHash {
 		return fmt.Errorf("next origin %s does not build on top of current origin %s, but on %s", origin.ID(), cr.currentOrigin.ID(), origin.ParentID())
 	}
@@ -63,6 +66,9 @@ func (cr *ChannelInReader) CurrentOrigin() eth.L1BlockRef {
 }
 
 func (cr *ChannelInReader) CloseOrigin() {
+	if !cr.originOpen {
+		panic("double close")
+	}
 	cr.originOpen = false
 }
 
@@ -71,17 +77,20 @@ func (cr *ChannelInReader) IsOriginOpen() bool {
 }
 
 func (cr *ChannelInReader) WriteChannel(data []byte) {
+	if !cr.originOpen {
+		panic("write channel while closed")
+	}
 	cr.data = data
 	cr.ready = false
 }
 
 // ReadBatch returns a decoded rollup batch, or an error:
-// - io.EOF, if the ChannelInReader source needs more data, to be provided with NextL1Origin() and ResetChannel().
+// - io.EOF, if the ChannelInReader source needs more data, to be provided with WriteChannel()/
 // - any other error (e.g. invalid compression or batch data):
 //   the caller should ChannelInReader.NextChannel() before continuing reading the next batch.
 //
-// It's up to the caller to check CurrentL1Origin() before reading more information.
-// The CurrentL1Origin() does not change until the first ReadBatch() after the old source has been completely exhausted.
+// It's up to the caller to check CurrentOrigin() before reading more information.
+// The CurrentOrigin() does not change until the first ReadBatch() after the old source has been completely exhausted.
 func (cr *ChannelInReader) ReadBatch(dest *BatchData) error {
 	// The channel reader may not be initialized yet,
 	// and initializing involves reading (zlib header data), so we do that now.
@@ -127,14 +136,15 @@ func (cr *ChannelInReader) NextChannel() {
 func (cr *ChannelInReader) Step(ctx context.Context) error {
 	// move forward the batch queue if the ch reader has new L1 data
 	if cr.next.CurrentOrigin() != cr.CurrentOrigin() {
+		// mark the origin as ended if the ch reader marked it as ended
+		if cr.next.IsOriginOpen() {
+			cr.next.CloseOrigin()
+			return nil
+		}
 		return cr.next.OpenOrigin(cr.CurrentOrigin())
 	}
 	var batch BatchData
 	if err := cr.ReadBatch(&batch); err == io.EOF {
-		// mark the origin as ended if the ch reader marked it as ended
-		if !cr.IsOriginOpen() {
-			cr.next.CloseOrigin()
-		}
 		return io.EOF
 	} else if err != nil {
 		cr.log.Warn("failed to read batch from channel reader, skipping to next channel now", "err", err)
@@ -149,5 +159,6 @@ func (cr *ChannelInReader) ResetStep(ctx context.Context, l1Fetcher L1Fetcher) e
 	cr.ready = false
 	cr.currentOrigin = cr.next.CurrentOrigin()
 	cr.originOpen = true
+	cr.data = nil
 	return io.EOF
 }

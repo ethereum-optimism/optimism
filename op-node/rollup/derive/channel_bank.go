@@ -53,6 +53,9 @@ func (ib *ChannelBank) CurrentOrigin() eth.L1BlockRef {
 
 // OpenOrigin updates the channel bank to tag new data with the next L1 reference
 func (ib *ChannelBank) OpenOrigin(ref eth.L1BlockRef) error {
+	if ib.originOpen {
+		panic("double open")
+	}
 	if ref.ParentHash != ib.currentOrigin.Hash {
 		return fmt.Errorf("reorg detected, cannot start consuming this L1 block without using a new channel bank: new.parent: %s, expected: %s", ref.ParentID(), ib.currentOrigin.ParentID())
 	}
@@ -62,6 +65,9 @@ func (ib *ChannelBank) OpenOrigin(ref eth.L1BlockRef) error {
 }
 
 func (ib *ChannelBank) CloseOrigin() {
+	if !ib.originOpen {
+		panic("double close")
+	}
 	ib.originOpen = false
 }
 
@@ -89,6 +95,10 @@ func (ib *ChannelBank) prune() {
 // Read() should be called repeatedly first, until everything has been read, before adding new data.
 // Then NextL1(ref) should be called to move forward to the next L1 input
 func (ib *ChannelBank) IngestData(data []byte) error {
+	if !ib.originOpen {
+		panic("write data to bank while closed")
+	}
+	ib.log.Warn("ingest data", "origin", ib.currentOrigin, "data_len", len(data))
 	if len(data) < 1 {
 		ib.log.Error("data must be at least have a version byte, but got empty string")
 		return nil
@@ -179,12 +189,11 @@ func (ib *ChannelBank) IngestData(data []byte) error {
 	}
 }
 
-// Read the raw data of the first channel, if it's timed-out or closed
-// Read returns a zeroed channel ID and nil data if there is nothing new to Read.
-// The caller should tag the data with CurrentL1() to track the last L1 block the channel data depends on.
-func (ib *ChannelBank) Read() (chID ChannelID, data []byte) {
+// Read the raw data of the first channel, if it's timed-out or closed.
+// Read returns io.EOF if there is nothing new to read.
+func (ib *ChannelBank) Read() (data []byte, err error) {
 	if len(ib.channelQueue) == 0 {
-		return ChannelID{}, nil
+		return nil, io.EOF
 	}
 	first := ib.channelQueue[0]
 	ch := ib.channels[first]
@@ -195,12 +204,12 @@ func (ib *ChannelBank) Read() (chID ChannelID, data []byte) {
 	if ch.closed {
 		ib.log.Debug("channel closed", "channel", first)
 	}
-	if !timedOut && !ch.closed {
-		return ChannelID{}, nil
+	if !timedOut && !ch.closed { // check if channel is done (can then be read)
+		return nil, io.EOF
 	}
 	delete(ib.channels, first)
 	ib.channelQueue = ib.channelQueue[1:]
-	return first, ch.Read()
+	return ch.Read(), nil
 }
 
 func (ib *ChannelBank) Reset(origin eth.L1BlockRef) {
@@ -214,24 +223,27 @@ func (ib *ChannelBank) Step(ctx context.Context) error {
 	// If the bank is behind the channel reader, then we are replaying old data to prepare the bank.
 	// Read if we can, and drop if it gives anything
 	if ib.next.CurrentOrigin().Number > ib.CurrentOrigin().Number {
-		id, _ := ib.Read()
-		if id == (ChannelID{}) {
-			return io.EOF
-		}
-		return nil
+		_, err := ib.Read()
+		return err
 	}
 
 	// move forward the ch reader if the bank has new L1 data
 	if ib.next.CurrentOrigin() != ib.CurrentOrigin() {
+		if ib.next.IsOriginOpen() {
+			ib.next.CloseOrigin()
+			return nil
+		}
+
 		return ib.next.OpenOrigin(ib.CurrentOrigin())
 	}
+
 	// otherwise, read the next channel data from the bank
-	id, data := ib.Read()
-	if id == (ChannelID{}) { // need new L1 data in the bank before we can read more channel data
-		ib.next.CloseOrigin()
+	data, err := ib.Read()
+	if err == io.EOF { // need new L1 data in the bank before we can read more channel data
 		return io.EOF
+	} else if err != nil {
+		return err
 	}
-	ib.log.Info("writing channel", "channel", id)
 	ib.next.WriteChannel(data)
 	return nil
 }
@@ -244,17 +256,23 @@ func (ib *ChannelBank) Step(ctx context.Context) error {
 func (ib *ChannelBank) ResetStep(ctx context.Context, l1Fetcher L1Fetcher) error {
 	if !ib.resetting {
 		ib.currentOrigin = ib.next.CurrentOrigin()
-		ib.originOpen = false
+		ib.originOpen = true
 		ib.resetting = true
+		return nil
 	}
 	if ib.currentOrigin.Time+ChannelTimeout < ib.next.CurrentOrigin().Time || ib.currentOrigin.Number == 0 {
+		ib.log.Warn("found reset origin for channel bank", "origin", ib.currentOrigin)
 		ib.resetting = false
 		return io.EOF
 	}
+
+	ib.log.Debug("walking back to find reset origin for channel bank", "origin", ib.currentOrigin)
+
 	// go back in history if we are not distant enough from the next stage
 	parent, err := l1Fetcher.L1BlockRefByHash(ctx, ib.currentOrigin.ParentHash)
 	if err != nil {
 		ib.log.Error("failed to find channel bank block, failed to retrieve L1 reference", "err", err)
+		return nil
 	}
 	ib.currentOrigin = parent
 	return nil

@@ -23,6 +23,7 @@ func FilterBatches(log log.Logger, config *rollup.Config, epoch rollup.Epoch, mi
 		}
 		// Check if we have already seen a batch for this L2 block
 		if _, ok := uniqueTime[batch.Timestamp]; ok {
+			log.Warn("duplicate batch", "epoch", batch.Epoch, "timestamp", batch.Timestamp, "txs", len(batch.Transactions))
 			// block already exists, batch is duplicate (first batch persists, others are ignored)
 			continue
 		}

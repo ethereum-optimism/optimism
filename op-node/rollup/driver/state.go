@@ -200,10 +200,11 @@ func (s *state) createNewL2Block(ctx context.Context) error {
 	}
 
 	// Update our L2 head block based on the new unsafe block we just generated.
+	s.derivation.SetUnsafeHead(s.l2Head)
 	s.l2Head = newUnsafeL2Head
 	s.emitter.SetL2UnsafeHead(s.l2Head)
 
-	s.log.Info("Sequenced new l2 block", "l2Head", s.l2Head, "l1Origin", s.l2Head.L1Origin, "txs", len(payload.Transactions), "time", s.l2Head.Time)
+	s.log.Warn("Sequenced new l2 block", "l2Head", s.l2Head, "l1Origin", s.l2Head.L1Origin, "txs", len(payload.Transactions), "time", s.l2Head.Time)
 
 	if s.network != nil {
 		if err := s.network.PublishL2Payload(ctx, payload); err != nil {

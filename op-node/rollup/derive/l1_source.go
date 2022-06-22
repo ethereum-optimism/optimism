@@ -67,6 +67,7 @@ func (l1s *L1Source) Step(ctx context.Context) error {
 		l1s.data = nil
 		return nil
 	}
+
 	// buffer data if we have a source
 	if l1s.datas != nil {
 		data, err := l1s.datas.Next(ctx)
@@ -74,7 +75,6 @@ func (l1s *L1Source) Step(ctx context.Context) error {
 			l1s.log.Warn("context to retrieve next L1 data failed", "err", err)
 			return nil
 		} else if err == io.EOF {
-			l1s.next.CloseOrigin()
 			l1s.datas = nil
 			return nil
 		} else if err != nil {
@@ -83,6 +83,12 @@ func (l1s *L1Source) Step(ctx context.Context) error {
 			l1s.data = data
 			return nil
 		}
+	}
+
+	// close previous data if we need to
+	if l1s.next.IsOriginOpen() {
+		l1s.next.CloseOrigin()
+		return nil
 	}
 
 	// TODO: we need to add confirmation depth in the source here, and return ethereum.NotFound when the data is not ready to be read.
@@ -112,5 +118,6 @@ func (l1s *L1Source) Step(ctx context.Context) error {
 
 func (l1s *L1Source) ResetStep(ctx context.Context, l1Fetcher L1Fetcher) error {
 	l1s.origin = l1s.next.CurrentOrigin()
+	l1s.log.Info("completed reset of derivation pipeline", "origin", l1s.origin)
 	return io.EOF
 }
