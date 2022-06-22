@@ -77,7 +77,16 @@ const privKey = process.env.PRIVATE_KEY || '0x' + '11'.repeat(32)
  * @type import("hardhat/config").HardhatUserConfig
  */
 module.exports = {
-  solidity: '0.8.12',
+  solidity: {
+    version: '0.8.12',
+    settings: {
+      outputSelection: {
+        '*': {
+          '*': ['metadata', 'storageLayout'],
+        },
+      },
+    },
+  },
   networks: {
     optimism: {
       chainId: 17,
