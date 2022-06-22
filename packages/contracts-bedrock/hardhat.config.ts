@@ -83,6 +83,9 @@ const config: HardhatUserConfig = {
     sequencerAddress: {
       type: 'address',
     },
+    ownerAddress: {
+      type: 'address',
+    },
   },
   external: {
     contracts: [
