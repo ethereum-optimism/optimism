@@ -135,23 +135,18 @@ func (l *logger) SetHandler(h log.Handler) {
 	l.l.SetHandler(h)
 }
 
-// tracks the largest seen decoration length, to make alignment between all test loggers consistent.
-var logDecorationLength = 12
-
 // flush writes all buffered messages and clears the buffer.
 func (l *logger) flush() {
 	l.t.Helper()
 	// 2 frame skip for flush() + public logger fn
 	decorationLen := estimateInfoLen(2)
-	if decorationLen > 30 { // limit to a maximum size, to avoid huge padding
-		decorationLen = 30
-	}
-	// logDecorationLength is only increasing, should be safe even with inaccurate concurrent use.
-	if decorationLen > logDecorationLength { // increase padding if we encounter larger decoration
-		logDecorationLength = decorationLen
+	padding := 0
+	targetWidth := 30
+	if decorationLen <= targetWidth {
+		padding = targetWidth - decorationLen
 	}
 	for _, r := range l.h.buf {
-		l.t.Logf("%*s%s", logDecorationLength-decorationLen, "", l.h.fmt.Format(r))
+		l.t.Logf("%*s%s", padding, "", l.h.fmt.Format(r))
 	}
 	l.h.buf = nil
 }
