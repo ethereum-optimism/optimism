@@ -87,7 +87,8 @@ func defaultSystemConfig(t *testing.T) SystemConfig {
 		},
 		L2OOCfg: L2OOContractConfig{
 			// L2 Start time is set based off of the L2 Genesis time
-			SubmissionFrequency:   big.NewInt(2),
+			SubmissionFrequency:   big.NewInt(4),
+			L2BlockTime:           big.NewInt(2),
 			HistoricalTotalBlocks: big.NewInt(0),
 		},
 		L2OutputHDPath:             l2OutputHDPath,
@@ -789,7 +790,7 @@ func TestWithdrawals(t *testing.T) {
 	require.Nil(t, err)
 
 	// Wait for finalization and then create the Finalized Withdrawal Transaction
-	ctx, cancel = context.WithTimeout(context.Background(), 10*time.Duration(cfg.L1BlockTime)*time.Second)
+	ctx, cancel = context.WithTimeout(context.Background(), 20*time.Duration(cfg.L1BlockTime)*time.Second)
 	defer cancel()
 	blockNumber, err := withdrawals.WaitForFinalizationPeriod(ctx, l1Client, sys.DepositContractAddr, receipt.BlockNumber)
 	require.Nil(t, err)
