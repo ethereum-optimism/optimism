@@ -7,11 +7,11 @@ const deployFn: DeployFunction = async (hre) => {
   const { deployer } = await hre.getNamedAccounts()
 
   if (
-    typeof hre.deployConfig.startingBlockTimestamp !== 'number' ||
-    isNaN(hre.deployConfig.startingBlockTimestamp)
+    typeof hre.deployConfig.startingTimestamp !== 'number' ||
+    isNaN(hre.deployConfig.startingTimestamp)
   ) {
     throw new Error(
-      'Cannot deploy L2OutputOracle without specifying a valid startingBlockTimestamp.'
+      'Cannot deploy L2OutputOracle without specifying a valid startingTimestamp.'
     )
   }
 
@@ -19,10 +19,11 @@ const deployFn: DeployFunction = async (hre) => {
     from: deployer,
     args: [
       hre.deployConfig.submissionInterval,
-      hre.deployConfig.l2BlockTime,
       hre.deployConfig.genesisOutput,
       hre.deployConfig.historicalBlocks,
-      hre.deployConfig.startingBlockTimestamp,
+      hre.deployConfig.startingBlockNumber,
+      hre.deployConfig.startingTimestamp,
+      hre.deployConfig.l2BlockTime,
       hre.deployConfig.sequencerAddress,
     ],
     log: true,

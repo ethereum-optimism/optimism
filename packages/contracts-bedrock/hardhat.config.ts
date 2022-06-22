@@ -71,7 +71,10 @@ const config: HardhatUserConfig = {
     historicalBlocks: {
       type: 'number',
     },
-    startingBlockTimestamp: {
+    startingBlockNumber: {
+      type: 'number',
+    },
+    startingTimestamp: {
       type: 'number',
     },
     sequencerAddress: {

@@ -47,6 +47,11 @@ export interface ICrossChainMessenger {
   l1ChainId: number
 
   /**
+   * Chain ID for the L2 network.
+   */
+  l2ChainId: number
+
+  /**
    * Contract objects attached to their respective providers and addresses.
    */
   contracts: OEContracts

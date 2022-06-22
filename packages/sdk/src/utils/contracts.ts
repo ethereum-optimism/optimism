@@ -13,7 +13,7 @@ import {
   BridgeAdapters,
   BridgeAdapterData,
   ICrossChainMessenger,
-  Chain,
+  L2ChainID,
 } from '../interfaces'
 import {
   StandardBridgeAdapter,
@@ -52,9 +52,9 @@ const NAME_REMAPPING = {
  * contract name.
  */
 export const CONTRACT_ADDRESSES: {
-  [l1ChainId: number]: OEContractsLike
+  [ChainID in L2ChainID]: OEContractsLike
 } = {
-  [Chain.MAINNET]: {
+  [L2ChainID.OPTIMISM]: {
     l1: {
       AddressManager: '0xdE1FCfB0851916CA5101820A69b13a4E276bd81F' as const,
       L1CrossDomainMessenger:
@@ -68,7 +68,7 @@ export const CONTRACT_ADDRESSES: {
     },
     l2: DEFAULT_L2_CONTRACT_ADDRESSES,
   },
-  [Chain.KOVAN]: {
+  [L2ChainID.OPTIMISM_KOVAN]: {
     l1: {
       AddressManager: '0x100Dd3b414Df5BbA2B542864fF94aF8024aFdf3a' as const,
       L1CrossDomainMessenger:
@@ -82,7 +82,7 @@ export const CONTRACT_ADDRESSES: {
     },
     l2: DEFAULT_L2_CONTRACT_ADDRESSES,
   },
-  [Chain.GOERLI]: {
+  [L2ChainID.OPTIMISM_GOERLI]: {
     l1: {
       AddressManager: '0x2F7E3cAC91b5148d336BbffB224B4dC79F09f01D' as const,
       L1CrossDomainMessenger:
@@ -96,7 +96,21 @@ export const CONTRACT_ADDRESSES: {
     },
     l2: DEFAULT_L2_CONTRACT_ADDRESSES,
   },
-  [Chain.HARDHAT_LOCAL]: {
+  [L2ChainID.OPTIMISM_HARDHAT_LOCAL]: {
+    l1: {
+      AddressManager: '0x5FbDB2315678afecb367f032d93F642f64180aa3' as const,
+      L1CrossDomainMessenger:
+        '0x8A791620dd6260079BF849Dc5567aDC3F2FdC318' as const,
+      L1StandardBridge: '0x610178dA211FEF7D417bC0e6FeD39F05609AD788' as const,
+      StateCommitmentChain:
+        '0xDc64a140Aa3E981100a9becA4E685f962f0cF6C9' as const,
+      CanonicalTransactionChain:
+        '0xCf7Ed3AccA5a467e9e704C703E8D87F634fB0Fc9' as const,
+      BondManager: '0x5FC8d32690cc91D4c39d9d3abcBD16989F875707' as const,
+    },
+    l2: DEFAULT_L2_CONTRACT_ADDRESSES,
+  },
+  [L2ChainID.OPTIMISM_HARDHAT_DEVNET]: {
     l1: {
       AddressManager: '0x5FbDB2315678afecb367f032d93F642f64180aa3' as const,
       L1CrossDomainMessenger:
@@ -116,21 +130,9 @@ export const CONTRACT_ADDRESSES: {
  * Mapping of L1 chain IDs to the list of custom bridge addresses for each chain.
  */
 export const BRIDGE_ADAPTER_DATA: {
-  [l1ChainId: number]: BridgeAdapterData
+  [ChainID in L2ChainID]?: BridgeAdapterData
 } = {
-  // TODO: Maybe we can pull these automatically from the token list?
-  // Alternatively, check against the token list in CI.
-  [Chain.MAINNET]: {
-    Standard: {
-      Adapter: StandardBridgeAdapter,
-      l1Bridge: CONTRACT_ADDRESSES[1].l1.L1StandardBridge,
-      l2Bridge: predeploys.L2StandardBridge,
-    },
-    ETH: {
-      Adapter: ETHBridgeAdapter,
-      l1Bridge: CONTRACT_ADDRESSES[1].l1.L1StandardBridge,
-      l2Bridge: predeploys.L2StandardBridge,
-    },
+  [L2ChainID.OPTIMISM]: {
     BitBTC: {
       Adapter: StandardBridgeAdapter,
       l1Bridge: '0xaBA2c5F108F7E820C049D5Af70B16ac266c8f128' as const,
@@ -142,17 +144,7 @@ export const BRIDGE_ADAPTER_DATA: {
       l2Bridge: '0x467194771dAe2967Aef3ECbEDD3Bf9a310C76C65' as const,
     },
   },
-  [Chain.KOVAN]: {
-    Standard: {
-      Adapter: StandardBridgeAdapter,
-      l1Bridge: CONTRACT_ADDRESSES[42].l1.L1StandardBridge,
-      l2Bridge: predeploys.L2StandardBridge,
-    },
-    ETH: {
-      Adapter: ETHBridgeAdapter,
-      l1Bridge: CONTRACT_ADDRESSES[42].l1.L1StandardBridge,
-      l2Bridge: predeploys.L2StandardBridge,
-    },
+  [L2ChainID.OPTIMISM_KOVAN]: {
     BitBTC: {
       Adapter: StandardBridgeAdapter,
       l1Bridge: '0x0b651A42F32069d62d5ECf4f2a7e5Bd3E9438746' as const,
@@ -169,56 +161,16 @@ export const BRIDGE_ADAPTER_DATA: {
       l2Bridge: '0x467194771dAe2967Aef3ECbEDD3Bf9a310C76C65' as const,
     },
   },
-  [Chain.GOERLI]: {
-    Standard: {
-      Adapter: StandardBridgeAdapter,
-      l1Bridge: CONTRACT_ADDRESSES[5].l1.L1StandardBridge,
-      l2Bridge: predeploys.L2StandardBridge,
-    },
-    ETH: {
-      Adapter: ETHBridgeAdapter,
-      l1Bridge: CONTRACT_ADDRESSES[5].l1.L1StandardBridge,
-      l2Bridge: predeploys.L2StandardBridge,
-    },
-  },
-  [Chain.HARDHAT_LOCAL]: {
-    Standard: {
-      Adapter: StandardBridgeAdapter,
-      l1Bridge: CONTRACT_ADDRESSES[31337].l1.L1StandardBridge,
-      l2Bridge: predeploys.L2StandardBridge,
-    },
-    ETH: {
-      Adapter: ETHBridgeAdapter,
-      l1Bridge: CONTRACT_ADDRESSES[31337].l1.L1StandardBridge,
-      l2Bridge: predeploys.L2StandardBridge,
-    },
-  },
 }
-
-// TODO: PR is big enough as-is, will add support for SNX in another PR
-// MAINNET
-// l1: {
-//   SNX: '0xCd9D4988C0AE61887B075bA77f08cbFAd2b65068',
-// },
-// l2: {
-//   SNX: '0x3f87Ff1de58128eF8FCb4c807eFD776E1aC72E51',
-// },
-// KOVAN
-// l1: {
-//   SNX: '0xD134Db47DDF5A6feB245452af17cCAf92ee53D3c',
-// },
-// l2: {
-//   SNX: '0x5C3f51CEd0C2F6157e2be67c029264D6C44bfe42',
-// },
 
 /**
  * Returns an ethers.Contract object for the given name, connected to the appropriate address for
- * the given L1 chain ID. Users can also provide a custom address to connect the contract to
+ * the given L2 chain ID. Users can also provide a custom address to connect the contract to
  * instead. If the chain ID is not known then the user MUST provide a custom address or this
  * function will throw an error.
  *
  * @param contractName Name of the contract to connect to.
- * @param l1ChainId Chain ID for the L1 network where the OE contracts are deployed.
+ * @param l2ChainId Chain ID for the L2 network.
  * @param opts Additional options for connecting to the contract.
  * @param opts.address Custom address to connect to the contract.
  * @param opts.signerOrProvider Signer or provider to connect to the contract.
@@ -226,16 +178,16 @@ export const BRIDGE_ADAPTER_DATA: {
  */
 export const getOEContract = (
   contractName: keyof OEL1Contracts | keyof OEL2Contracts,
-  l1ChainId: number,
+  l2ChainId: number,
   opts: {
     address?: AddressLike
     signerOrProvider?: ethers.Signer | ethers.providers.Provider
   } = {}
 ): Contract => {
-  const addresses = CONTRACT_ADDRESSES[l1ChainId]
+  const addresses = CONTRACT_ADDRESSES[l2ChainId]
   if (addresses === undefined && opts.address === undefined) {
     throw new Error(
-      `cannot get contract ${contractName} for unknown L1 chain ID ${l1ChainId}, you must provide an address`
+      `cannot get contract ${contractName} for unknown L2 chain ID ${l2ChainId}, you must provide an address`
     )
   }
 
@@ -249,12 +201,12 @@ export const getOEContract = (
 }
 
 /**
- * Automatically connects to all contract addresses, both L1 and L2, for the given L1 chain ID. The
+ * Automatically connects to all contract addresses, both L1 and L2, for the given L2 chain ID. The
  * user can provide custom contract address overrides for L1 or L2 contracts. If the given chain ID
  * is not known then the user MUST provide custom contract addresses for ALL L1 contracts or this
  * function will throw an error.
  *
- * @param l1ChainId Chain ID for the L1 network where the OE contracts are deployed.
+ * @param l2ChainId Chain ID for the L2 network.
  * @param opts Additional options for connecting to the contracts.
  * @param opts.l1SignerOrProvider: Signer or provider to connect to the L1 contracts.
  * @param opts.l2SignerOrProvider: Signer or provider to connect to the L2 contracts.
@@ -263,14 +215,14 @@ export const getOEContract = (
  * both L1 and L2.
  */
 export const getAllOEContracts = (
-  l1ChainId: number,
+  l2ChainId: number,
   opts: {
     l1SignerOrProvider?: ethers.Signer | ethers.providers.Provider
     l2SignerOrProvider?: ethers.Signer | ethers.providers.Provider
     overrides?: DeepPartial<OEContractsLike>
   } = {}
 ): OEContracts => {
-  const addresses = CONTRACT_ADDRESSES[l1ChainId] || {
+  const addresses = CONTRACT_ADDRESSES[l2ChainId] || {
     l1: {
       AddressManager: undefined,
       L1CrossDomainMessenger: undefined,
@@ -287,7 +239,7 @@ export const getAllOEContracts = (
   for (const [contractName, contractAddress] of Object.entries(addresses.l1)) {
     l1Contracts[contractName] = getOEContract(
       contractName as keyof OEL1Contracts,
-      l1ChainId,
+      l2ChainId,
       {
         address: opts.overrides?.l1?.[contractName] || contractAddress,
         signerOrProvider: opts.l1SignerOrProvider,
@@ -300,7 +252,7 @@ export const getAllOEContracts = (
   for (const [contractName, contractAddress] of Object.entries(addresses.l2)) {
     l2Contracts[contractName] = getOEContract(
       contractName as keyof OEL2Contracts,
-      l1ChainId,
+      l2ChainId,
       {
         address: opts.overrides?.l2?.[contractName] || contractAddress,
         signerOrProvider: opts.l2SignerOrProvider,
@@ -315,26 +267,42 @@ export const getAllOEContracts = (
 }
 
 /**
- * Gets a series of bridge adapters for the given L1 chain ID.
+ * Gets a series of bridge adapters for the given L2 chain ID.
  *
- * @param l1ChainId L1 chain ID for the L1 network where the custom bridges are deployed.
+ * @param l2ChainId Chain ID for the L2 network.
  * @param messenger Cross chain messenger to connect to the bridge adapters
  * @param opts Additional options for connecting to the custom bridges.
  * @param opts.overrides Custom bridge adapters.
  * @returns An object containing all bridge adapters
  */
 export const getBridgeAdapters = (
-  l1ChainId: number,
+  l2ChainId: number,
   messenger: ICrossChainMessenger,
   opts?: {
     overrides?: BridgeAdapterData
   }
 ): BridgeAdapters => {
-  const adapters: BridgeAdapters = {}
-  for (const [bridgeName, bridgeData] of Object.entries({
-    ...(BRIDGE_ADAPTER_DATA[l1ChainId] || {}),
+  const adapterData: BridgeAdapterData = {
+    ...(CONTRACT_ADDRESSES[l2ChainId]
+      ? {
+          Standard: {
+            Adapter: StandardBridgeAdapter,
+            l1Bridge: CONTRACT_ADDRESSES[l2ChainId].l1.L1StandardBridge,
+            l2Bridge: predeploys.L2StandardBridge,
+          },
+          ETH: {
+            Adapter: ETHBridgeAdapter,
+            l1Bridge: CONTRACT_ADDRESSES[l2ChainId].l1.L1StandardBridge,
+            l2Bridge: predeploys.L2StandardBridge,
+          },
+        }
+      : {}),
+    ...(BRIDGE_ADAPTER_DATA[l2ChainId] || {}),
     ...(opts?.overrides || {}),
-  })) {
+  }
+
+  const adapters: BridgeAdapters = {}
+  for (const [bridgeName, bridgeData] of Object.entries(adapterData)) {
     adapters[bridgeName] = new bridgeData.Adapter({
       messenger,
       l1Bridge: bridgeData.l1Bridge,

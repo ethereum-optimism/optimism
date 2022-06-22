@@ -181,8 +181,8 @@ contract L1StandardBridge is IL1StandardBridge, CrossDomainEnabled {
         bytes calldata _data
     ) internal {
         // When a deposit is initiated on L1, the L1 Bridge transfers the funds to itself for future
-        // withdrawals. safeTransferFrom also checks if the contract has code, so this will fail if
-        // _from is an EOA or address(0).
+        // withdrawals. The use of safeTransferFrom enables support of "broken tokens" which do not
+        // return a boolean value.
         // slither-disable-next-line reentrancy-events, reentrancy-benign
         IERC20(_l1Token).safeTransferFrom(_from, address(this), _amount);
 

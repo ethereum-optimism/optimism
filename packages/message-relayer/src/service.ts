@@ -89,6 +89,7 @@ export class MessageRelayerService extends BaseServiceV2<
       l1SignerOrProvider: this.state.wallet,
       l2SignerOrProvider: this.options.l2RpcProvider,
       l1ChainId: await getChainId(this.state.wallet.provider),
+      l2ChainId: await getChainId(this.options.l2RpcProvider),
     })
 
     this.state.highestCheckedL2Tx = this.options.fromL2TransactionIndex || 1

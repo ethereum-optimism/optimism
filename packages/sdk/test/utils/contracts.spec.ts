@@ -8,6 +8,7 @@ import {
   getAllOEContracts,
   CONTRACT_ADDRESSES,
   DEFAULT_L2_CONTRACT_ADDRESSES,
+  L2ChainID,
 } from '../../src'
 
 describe('contract connection utils', () => {
@@ -20,12 +21,15 @@ describe('contract connection utils', () => {
     describe('when given a known chain ID', () => {
       describe('when not given an address override', () => {
         it('should use the address for the given contract name and chain ID', () => {
-          const addresses = CONTRACT_ADDRESSES[1]
+          const addresses = CONTRACT_ADDRESSES[L2ChainID.OPTIMISM]
           for (const [contractName, contractAddress] of [
             ...Object.entries(addresses.l1),
             ...Object.entries(addresses.l2),
           ]) {
-            const contract = getOEContract(contractName as any, 1)
+            const contract = getOEContract(
+              contractName as any,
+              L2ChainID.OPTIMISM
+            )
             expect(contract.address).to.equal(contractAddress)
           }
         })
@@ -33,7 +37,7 @@ describe('contract connection utils', () => {
 
       describe('when given an address override', () => {
         it('should use the custom address', () => {
-          const addresses = CONTRACT_ADDRESSES[1]
+          const addresses = CONTRACT_ADDRESSES[L2ChainID.OPTIMISM]
           for (const contractName of [
             ...Object.keys(addresses.l1),
             ...Object.keys(addresses.l2),
@@ -68,13 +72,19 @@ describe('contract connection utils', () => {
 
     describe('when connected to a valid address', () => {
       it('should have the correct interface for the contract name', () => {
-        const contract = getOEContract('L1CrossDomainMessenger', 1)
+        const contract = getOEContract(
+          'L1CrossDomainMessenger',
+          L2ChainID.OPTIMISM
+        )
         expect(contract.sendMessage).to.not.be.undefined
       })
 
       describe('when not given a signer or provider', () => {
         it('should not have a signer or provider', () => {
-          const contract = getOEContract('L1CrossDomainMessenger', 1)
+          const contract = getOEContract(
+            'L1CrossDomainMessenger',
+            L2ChainID.OPTIMISM
+          )
           expect(contract.signer).to.be.null
           expect(contract.provider).to.be.null
         })
@@ -82,18 +92,26 @@ describe('contract connection utils', () => {
 
       describe('when given a signer', () => {
         it('should attach the given signer', () => {
-          const contract = getOEContract('L1CrossDomainMessenger', 1, {
-            signerOrProvider: signers[0],
-          })
+          const contract = getOEContract(
+            'L1CrossDomainMessenger',
+            L2ChainID.OPTIMISM,
+            {
+              signerOrProvider: signers[0],
+            }
+          )
           expect(contract.signer).to.deep.equal(signers[0])
         })
       })
 
       describe('when given a provider', () => {
         it('should attach the given provider', () => {
-          const contract = getOEContract('L1CrossDomainMessenger', 1, {
-            signerOrProvider: ethers.provider as any,
-          })
+          const contract = getOEContract(
+            'L1CrossDomainMessenger',
+            L2ChainID.OPTIMISM,
+            {
+              signerOrProvider: ethers.provider as any,
+            }
+          )
           expect(contract.signer).to.be.null
           expect(contract.provider).to.deep.equal(ethers.provider)
         })
@@ -105,8 +123,8 @@ describe('contract connection utils', () => {
     describe('when given a known chain ID', () => {
       describe('when not given any address overrides', () => {
         it('should return all contracts connected to the default addresses', () => {
-          const contracts = getAllOEContracts(1)
-          const addresses = CONTRACT_ADDRESSES[1]
+          const contracts = getAllOEContracts(L2ChainID.OPTIMISM)
+          const addresses = CONTRACT_ADDRESSES[L2ChainID.OPTIMISM]
           for (const [contractName, contractAddress] of Object.entries(
             addresses.l1
           )) {
@@ -132,8 +150,8 @@ describe('contract connection utils', () => {
               L2CrossDomainMessenger: '0x' + '22'.repeat(20),
             },
           }
-          const contracts = getAllOEContracts(1, { overrides })
-          const addresses = CONTRACT_ADDRESSES[1]
+          const contracts = getAllOEContracts(L2ChainID.OPTIMISM, { overrides })
+          const addresses = CONTRACT_ADDRESSES[L2ChainID.OPTIMISM]
           for (const [contractName, contractAddress] of Object.entries(
             addresses.l1
           )) {
@@ -163,7 +181,9 @@ describe('contract connection utils', () => {
         describe('when given address overrides for L2 contracts', () => {
           it('should return contracts connected to the overridden addresses where given', () => {
             const l1Overrides = {}
-            for (const contractName of Object.keys(CONTRACT_ADDRESSES[1].l1)) {
+            for (const contractName of Object.keys(
+              CONTRACT_ADDRESSES[L2ChainID.OPTIMISM].l1
+            )) {
               l1Overrides[contractName] = '0x' + '11'.repeat(20)
             }
 
@@ -191,7 +211,9 @@ describe('contract connection utils', () => {
         describe('when not given address overrides for L2 contracts', () => {
           it('should return contracts connected to the default L2 addresses and custom L1 addresses', () => {
             const l1Overrides = {}
-            for (const contractName of Object.keys(CONTRACT_ADDRESSES[1].l1)) {
+            for (const contractName of Object.keys(
+              CONTRACT_ADDRESSES[L2ChainID.OPTIMISM].l1
+            )) {
               l1Overrides[contractName] = '0x' + '11'.repeat(20)
             }
 
@@ -241,7 +263,7 @@ describe('contract connection utils', () => {
 
     describe('when not given a signer or provider', () => {
       it('should not attach a signer or provider to any contracts', () => {
-        const contracts = getAllOEContracts(1)
+        const contracts = getAllOEContracts(L2ChainID.OPTIMISM)
         for (const contract of Object.values(contracts.l1)) {
           expect(contract.signer).to.be.null
           expect(contract.provider).to.be.null
@@ -255,7 +277,7 @@ describe('contract connection utils', () => {
 
     describe('when given an L1 signer', () => {
       it('should attach the signer to the L1 contracts only', () => {
-        const contracts = getAllOEContracts(1, {
+        const contracts = getAllOEContracts(L2ChainID.OPTIMISM, {
           l1SignerOrProvider: signers[0],
         })
         for (const contract of Object.values(contracts.l1)) {
@@ -270,7 +292,7 @@ describe('contract connection utils', () => {
 
     describe('when given an L2 signer', () => {
       it('should attach the signer to the L2 contracts only', () => {
-        const contracts = getAllOEContracts(1, {
+        const contracts = getAllOEContracts(L2ChainID.OPTIMISM, {
           l2SignerOrProvider: signers[0],
         })
         for (const contract of Object.values(contracts.l1)) {
@@ -285,7 +307,7 @@ describe('contract connection utils', () => {
 
     describe('when given an L1 signer and an L2 signer', () => {
       it('should attach the signer to both sets of contracts', () => {
-        const contracts = getAllOEContracts(1, {
+        const contracts = getAllOEContracts(L2ChainID.OPTIMISM, {
           l1SignerOrProvider: signers[0],
           l2SignerOrProvider: signers[1],
         })
@@ -300,7 +322,7 @@ describe('contract connection utils', () => {
 
     describe('when given an L1 provider', () => {
       it('should attach the provider to the L1 contracts only', () => {
-        const contracts = getAllOEContracts(1, {
+        const contracts = getAllOEContracts(L2ChainID.OPTIMISM, {
           l1SignerOrProvider: ethers.provider as any,
         })
         for (const contract of Object.values(contracts.l1)) {
@@ -316,7 +338,7 @@ describe('contract connection utils', () => {
 
     describe('when given an L2 provider', () => {
       it('should attach the provider to the L2 contracts only', () => {
-        const contracts = getAllOEContracts(1, {
+        const contracts = getAllOEContracts(L2ChainID.OPTIMISM, {
           l2SignerOrProvider: ethers.provider as any,
         })
         for (const contract of Object.values(contracts.l1)) {
@@ -332,7 +354,7 @@ describe('contract connection utils', () => {
 
     describe('when given an L1 provider and an L2 provider', () => {
       it('should attach the provider to both sets of contracts', () => {
-        const contracts = getAllOEContracts(1, {
+        const contracts = getAllOEContracts(L2ChainID.OPTIMISM, {
           l1SignerOrProvider: ethers.provider as any,
           l2SignerOrProvider: ethers.provider as any,
         })

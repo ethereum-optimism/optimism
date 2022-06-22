@@ -1391,6 +1391,7 @@ func TestFakedSyncProgress64Fast(t *testing.T)  { testFakedSyncProgress(t, 64, F
 func TestFakedSyncProgress64Light(t *testing.T) { testFakedSyncProgress(t, 64, LightSync) }
 
 func testFakedSyncProgress(t *testing.T, protocol int, mode SyncMode) {
+	t.Skip("Flakey tests unused by Optimism")
 	t.Parallel()
 
 	tester := newTester()
