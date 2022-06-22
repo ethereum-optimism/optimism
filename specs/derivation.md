@@ -73,12 +73,16 @@ The types of data are illustrated in the diagram below.
 ```text
 frame = channel_id | frame_number | frame_data_length | frame_data | is_last
 
-channel_id        = bytes32  # identifies the channel to add frame_data to
+channel_id        = bytes32 | uvarint   # identifies the channel to add frame_data to, as well as the time (UNIX-epoch in seconds) the channel was created.
 frame_number      = uvarint  # identifies the index of frame_data in the channel
 frame_data_length = uvarint  # frame_data_length == len(frame_data)
 frame_data        = bytes    # data to add to the channel, after frame max(frame_number-1, 0)
 is_last           = bool     # 1 byte, channel is closed if 1, stays open if 0, invalid otherwise
 ```
+
+The channel identity uniqueness is limited both by the random `bytes32` in the ID, as well as the timestamp.
+The timestamp is limited by L1 timestamps, to force-close a channel and avoid revival of the same channel ID after the `CHANNEL_TIMEOUT`.
+This ensures at most a span of `CHANNEL_TIMEOUT` seconds of L1 data is required to reconstruct any channel-bank state in time.
 
 ### L1 transaction data format:
 
@@ -239,15 +243,15 @@ The channel bank tracks:
 - The collection of open channels, ordered in a FIFO queue. The first seen channel has priority.
 - `currentL1Origin`: the current L1 block, updated every time a new block is appended to the L1 chain, before any of the data of the block is processed in the bank.
 
-Channel IDs are random `bytes32` value. In the future we may enforce it to be a hash of the sender and a channel nonce or other piece of information,
-to separate control of channels between different submitters.
+Channel IDs are random `bytes32` value with timestamp.
+In this may become a hash of the sender and a channel nonce or other similar information to separate control of channels between different submitters.
 
-When `channel.first_seen + CHANNEL_TIMEOUT < currentL1Origin.timestamp` an open channel is removed, cannot be re-instantiated anymore, and cannot be read from anymore.
+When `channel.time + CHANNEL_TIMEOUT < currentL1Origin.timestamp` an open channel is removed, cannot be re-instantiated anymore, and cannot be read from anymore.
 When a frame is missing this limits the amount of time that later frames pile up, preventing potential out-of-memory DoS and enabling a new channel to be read.
 
 A channel in the bank tracks:
 
-- `time`: timestamp that the first frame was seen with, part of the identity of the channel.
+- its ID: random `bytes32` and timestamp that the first frame, part of the identity of the channel.
 - `progress`: the frame number of the current frame to read, which may not be buffered yet. Initially 0.
 - `ends_at`: the frame number of the frame that closed the channel. Initially set to a max uint64 integer value, mark there is no end.
 - The existing collection of frames tagged with their respective origin information. Each entry is keyed by frame number.
@@ -262,8 +266,9 @@ The channel bank processes L1 data as follows:
    The first-seen channel is pruned first, since this is the channel that fails to be read before the bank became this large.
 3. Read the frames in a loop:
 4. Parse the frame data
-5. If the frame references a known `channel`: ignore the frame if it hits the timeout condition: `channel.time + CHANNEL_TIMEOUT < currentL1Origin.timestamp`
-6. Process the frame in the corresponding channel in the bank. A new channel marked with `first_seen_timestamp = tx_data.timestamp` is created first if the channel does not yet exist.
+5. If the frame references a known `channel` (combined identity of `bytes32` and timestamp data): ignore the frame.
+6. If it hits the timeout condition: `channel.time + CHANNEL_TIMEOUT < currentL1Origin.timestamp`: ignore the frame.
+7. Process the frame in the corresponding channel in the bank. A new channel is created first if the channel does not yet exist.
 
 A channel processes a frame as follows:
 
