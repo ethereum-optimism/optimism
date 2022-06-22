@@ -3,7 +3,9 @@ package derive
 import (
 	"bytes"
 	"compress/zlib"
+	"context"
 	"fmt"
+	"github.com/ethereum/go-ethereum/log"
 	"io"
 
 	"github.com/ethereum/go-ethereum/rlp"
@@ -17,37 +19,55 @@ type zlibReader interface {
 	zlib.Resetter
 }
 
+type BatchQueueStage interface {
+	OriginStage
+	AddBatch(batch *BatchData) error
+}
+
 type ChannelInReader struct {
+	log log.Logger
+
 	ready    bool
 	r        *bytes.Reader
 	readZlib zlibReader
 	readRLP  *rlp.Stream
 
-	l1Origin       eth.L1BlockRef
-	originComplete bool
-	data           []byte
+	currentOrigin eth.L1BlockRef
+	originOpen    bool
+	data          []byte
+
+	next BatchQueueStage
 }
+
+var _ ChannelBankOutput = (*ChannelInReader)(nil)
 
 // NewChannelInReader creates a ChannelInReader, which should be Reset(origin) before use.
-func NewChannelInReader() *ChannelInReader {
-	return &ChannelInReader{}
+func NewChannelInReader(log log.Logger, next BatchQueueStage) *ChannelInReader {
+	return &ChannelInReader{log: log, next: next}
 }
 
-func (cr *ChannelInReader) AddOrigin(origin eth.L1BlockRef) error {
-	if cr.l1Origin.Hash != origin.ParentHash {
-		return fmt.Errorf("next origin %s does not build on top of current origin %s, but on %s", origin.ID(), cr.l1Origin.ID(), origin.ParentID())
+func (cr *ChannelInReader) OpenOrigin(origin eth.L1BlockRef) error {
+	if cr.currentOrigin.Hash != origin.ParentHash {
+		return fmt.Errorf("next origin %s does not build on top of current origin %s, but on %s", origin.ID(), cr.currentOrigin.ID(), origin.ParentID())
 	}
-	cr.l1Origin = origin
-	cr.originComplete = false
+	cr.currentOrigin = origin
+	cr.originOpen = true
 	return nil
 }
 
-func (cr *ChannelInReader) EndOrigin() {
-	cr.originComplete = true
+// CurrentOrigin returns the L1 block that encodes the data that is currently being read.
+// Batches should be filtered based on this source.
+// Note that the source might not be canonical anymore by the time the data is processed.
+func (cr *ChannelInReader) CurrentOrigin() eth.L1BlockRef {
+	return cr.currentOrigin
 }
 
-func (cr *ChannelInReader) OriginDone() bool {
-	return cr.originComplete
+func (cr *ChannelInReader) CloseOrigin() {
+	cr.originOpen = false
+}
+
+func (cr *ChannelInReader) IsOriginOpen() bool {
+	return cr.originOpen
 }
 
 func (cr *ChannelInReader) WriteChannel(data []byte) {
@@ -104,14 +124,30 @@ func (cr *ChannelInReader) NextChannel() {
 	cr.data = nil
 }
 
-func (cr *ChannelInReader) Reset(origin eth.L1BlockRef) {
-	cr.ready = false
-	cr.l1Origin = origin
+func (cr *ChannelInReader) Step(ctx context.Context) error {
+	// move forward the batch queue if the ch reader has new L1 data
+	if cr.next.CurrentOrigin() != cr.CurrentOrigin() {
+		return cr.next.OpenOrigin(cr.CurrentOrigin())
+	}
+	var batch BatchData
+	if err := cr.ReadBatch(&batch); err == io.EOF {
+		// mark the origin as ended if the ch reader marked it as ended
+		if !cr.IsOriginOpen() {
+			cr.next.CloseOrigin()
+		}
+		return io.EOF
+	} else if err != nil {
+		cr.log.Warn("failed to read batch from channel reader, skipping to next channel now", "err", err)
+		cr.NextChannel()
+		return nil
+	}
+	cr.log.Debug("reading channel", "batch_epoch", batch.Epoch, "batch_timestamp", batch.Timestamp, "txs", len(batch.Transactions))
+	return cr.next.AddBatch(&batch)
 }
 
-// CurrentL1Origin returns the L1 block that encodes the data that is currently being read.
-// Batches should be filtered based on this source.
-// Note that the source might not be canonical anymore by the time the data is processed.
-func (cr *ChannelInReader) CurrentL1Origin() eth.L1BlockRef {
-	return cr.l1Origin
+func (cr *ChannelInReader) ResetStep(ctx context.Context, l1Fetcher L1Fetcher) error {
+	cr.ready = false
+	cr.currentOrigin = cr.next.CurrentOrigin()
+	cr.originOpen = true
+	return io.EOF
 }

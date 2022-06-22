@@ -13,6 +13,16 @@ type MockEngine struct {
 	mock.Mock
 }
 
+func (m *MockEngine) L2BlockRefHead(ctx context.Context) (eth.L2BlockRef, error) {
+	out := m.Mock.MethodCalled("L2BlockRefHead")
+	return out[0].(eth.L2BlockRef), out[1].(error)
+}
+
+func (m *MockEngine) L2BlockRefByHash(ctx context.Context, l2Hash common.Hash) (eth.L2BlockRef, error) {
+	out := m.Mock.MethodCalled("L2BlockRefByHash", l2Hash)
+	return out[0].(eth.L2BlockRef), out[1].(error)
+}
+
 func (m *MockEngine) GetPayload(ctx context.Context, payloadId eth.PayloadID) (*eth.ExecutionPayload, error) {
 	out := m.Mock.MethodCalled("GetPayload", payloadId)
 	return out[0].(*eth.ExecutionPayload), out[1].(error)

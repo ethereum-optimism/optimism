@@ -12,7 +12,6 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
-	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	"github.com/ethereum/go-ethereum/log"
 )
 
@@ -78,9 +77,7 @@ func (s *state) Start(ctx context.Context) error {
 	}
 	s.l1Head = l1Head
 
-	if err := s.resetDerivation(ctx); err != nil {
-		return fmt.Errorf("failed to reset derivation pipeline to starting point")
-	}
+	s.derivation.Reset()
 
 	s.wg.Add(1)
 	go s.eventLoop()
@@ -131,38 +128,6 @@ func (s *state) handleNewL1Block(newL1Head eth.L1BlockRef) {
 	}
 	s.l1Head = newL1Head
 	s.emitter.SetL1Time(newL1Head.Time)
-}
-
-func (s *state) resetDerivation(ctx context.Context) error {
-	var unsafeL2Head, safeL2Head eth.L2BlockRef
-	// Check that we are past the genesis
-	if s.l1Head.Number > s.Config.Genesis.L1.Number {
-		// Upon resetting, make sure we are on the correct chain.
-		// The engine might be way behind/ahead of what we previously thought it was at.
-		var err error
-		unsafeL2Head, safeL2Head, err = sync.FindL2Heads(ctx, s.Config.SeqWindowSize, s.l1, s.l2, &s.Config.Genesis)
-		if err != nil {
-			s.log.Error("Could not get new unsafe L2 head when trying to handle a re-org", "err", err)
-			return err
-		}
-	} else {
-		// pre-genesis (i.e. our L1 view is behind, even though we know the L1 block we anchor the rollup at)
-		// we just reset the derivation pipeline to the known L2 starting point
-		unsafeL2Head = eth.L2BlockRef{
-			Hash:           s.Config.Genesis.L2.Hash,
-			Number:         s.Config.Genesis.L2.Number,
-			Time:           s.Config.Genesis.L2Time,
-			L1Origin:       s.Config.Genesis.L1,
-			SequenceNumber: 0,
-		}
-		safeL2Head = unsafeL2Head
-	}
-
-	if err := s.derivation.Reset(ctx, safeL2Head, unsafeL2Head); err != nil {
-		s.log.Error("Failed to reset derivation pipeline after reorg was detected", "err", err)
-		return err
-	}
-	return nil
 }
 
 // findL1Origin determines what the next L1 Origin should be.
@@ -284,8 +249,7 @@ func (s *state) eventLoop() {
 		}
 	}
 
-	// reqStep requests that a driver stpe be taken. Won't deadlock if the channel is full.
-	// TODO: Rename step request
+	// reqStep requests a derivation step to be taken. Won't deadlock if the channel is full.
 	reqStep := func() {
 		select {
 		case stepReqCh <- struct{}{}:
@@ -308,6 +272,11 @@ func (s *state) eventLoop() {
 
 		case <-l2BlockCreationReqCh:
 			s.snapshot("L2 Block Creation Request")
+			// only create blocks if we processed all L1 contents
+			if s.derivation.CurrentL1() != s.l1Head {
+				s.log.Info("not creating block, node is not synced", "current_l1", s.derivation.CurrentL1(), "head_l1", s.l1Head)
+				break
+			}
 			ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 			err := s.createNewL2Block(ctx)
 			cancel()
@@ -344,9 +313,7 @@ func (s *state) eventLoop() {
 			} else if err != nil {
 				s.log.Warn("derivation pipeline critically failed, resetting it", "err", err)
 				// If the pipeline corrupts, simply reset it
-				if err := s.resetDerivation(ctx); err != nil {
-					s.log.Error("failed to reset derivation pipeline after failing step", "err", err)
-				}
+				s.derivation.Reset()
 			} else {
 				finalized, safe, unsafe := s.derivation.Finalized(), s.derivation.SafeL2Head(), s.derivation.UnsafeL2Head()
 				// log sync progress when it changes

@@ -3,6 +3,7 @@ package derive
 import (
 	"context"
 	"fmt"
+	"io"
 
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
@@ -15,6 +16,17 @@ type L1TransactionFetcher interface {
 	InfoAndTxsByHash(ctx context.Context, hash common.Hash) (eth.L1Info, types.Transactions, error)
 }
 
+type DataSlice []eth.Data
+
+func (ds *DataSlice) Next(ctx context.Context) (eth.Data, error) {
+	if len(*ds) == 0 {
+		return nil, io.EOF
+	}
+	out := (*ds)[0]
+	*ds = (*ds)[1:]
+	return out, nil
+}
+
 type CalldataSource struct {
 	log     log.Logger
 	cfg     *rollup.Config
@@ -25,13 +37,13 @@ func NewCalldataSource(log log.Logger, cfg *rollup.Config, fetcher L1Transaction
 	return &CalldataSource{log: log, cfg: cfg, fetcher: fetcher}
 }
 
-func (cs *CalldataSource) Fetch(ctx context.Context, id eth.BlockID) (eth.L1BlockRef, []eth.Data, error) {
+func (cs *CalldataSource) OpenData(ctx context.Context, id eth.BlockID) (DataIter, error) {
 	l1Info, txs, err := cs.fetcher.InfoAndTxsByHash(ctx, id.Hash)
 	if err != nil {
-		return eth.L1BlockRef{}, nil, fmt.Errorf("failed to fetch transactions: %w", err)
+		return nil, fmt.Errorf("failed to fetch transactions: %w", err)
 	}
 	data := DataFromEVMTransactions(cs.cfg, txs, cs.log.New("origin", l1Info.ID()))
-	return l1Info.BlockRef(), data, nil
+	return (*DataSlice)(&data), nil
 }
 
 func DataFromEVMTransactions(config *rollup.Config, txs types.Transactions, log log.Logger) []eth.Data {

@@ -4,43 +4,69 @@ import (
 	"context"
 	"encoding/binary"
 	"fmt"
+	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"io"
 
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 )
 
+type ChannelBankOutput interface {
+	OriginStage
+	WriteChannel(data []byte)
+}
+
 // ChannelBank buffers channel frames, and emits full channel data
 type ChannelBank struct {
 	log log.Logger
+	cfg *rollup.Config
 
 	channels     map[ChannelID]*ChannelIn // channels by ID
 	channelQueue []ChannelID              // channels in FIFO order
 
 	// Current L1 origin that we have seen. Used to filter channels and continue reading.
-	currentL1Origin eth.L1BlockRef
+	currentOrigin eth.L1BlockRef
+	originOpen    bool
+
+	resetting bool
+
+	next ChannelBankOutput
 }
+
+var _ OriginStage = (*ChannelBank)(nil)
 
 // NewChannelBank creates a ChannelBank, which should be Reset(origin) before use.
-func NewChannelBank(log log.Logger) *ChannelBank {
+func NewChannelBank(log log.Logger, cfg *rollup.Config, next ChannelBankOutput) *ChannelBank {
 	return &ChannelBank{
 		log:          log,
+		cfg:          cfg,
 		channels:     make(map[ChannelID]*ChannelIn),
 		channelQueue: make([]ChannelID, 0, 10),
+		next:         next,
 	}
 }
 
-func (ib *ChannelBank) CurrentL1() eth.L1BlockRef {
-	return ib.currentL1Origin
+func (ib *ChannelBank) CurrentOrigin() eth.L1BlockRef {
+	return ib.currentOrigin
 }
 
-// NextL1 updates the channel bank to tag new data with the next L1 reference
-func (ib *ChannelBank) NextL1(ref eth.L1BlockRef) error {
-	if ref.ParentHash != ib.currentL1Origin.Hash {
-		return fmt.Errorf("reorg detected, cannot start consuming this L1 block without using a new channel bank: new.parent: %s, expected: %s", ref.ParentID(), ib.currentL1Origin.ParentID())
+// OpenOrigin updates the channel bank to tag new data with the next L1 reference
+func (ib *ChannelBank) OpenOrigin(ref eth.L1BlockRef) error {
+	if ref.ParentHash != ib.currentOrigin.Hash {
+		return fmt.Errorf("reorg detected, cannot start consuming this L1 block without using a new channel bank: new.parent: %s, expected: %s", ref.ParentID(), ib.currentOrigin.ParentID())
 	}
-	ib.currentL1Origin = ref
+	ib.currentOrigin = ref
+	ib.originOpen = true
 	return nil
+}
+
+func (ib *ChannelBank) CloseOrigin() {
+	ib.originOpen = false
+}
+
+func (ib *ChannelBank) IsOriginOpen() bool {
+	return ib.originOpen
 }
 
 func (ib *ChannelBank) prune() {
@@ -64,7 +90,8 @@ func (ib *ChannelBank) prune() {
 // Then NextL1(ref) should be called to move forward to the next L1 input
 func (ib *ChannelBank) IngestData(data []byte) error {
 	if len(data) < 1 {
-		return fmt.Errorf("data must be at least have a version byte")
+		ib.log.Error("data must be at least have a version byte, but got empty string")
+		return nil
 	}
 
 	if data[0] != DerivationVersion0 {
@@ -127,12 +154,12 @@ func (ib *ChannelBank) IngestData(data []byte) error {
 		offset += 1
 
 		// check if the channel is not timed out
-		if chID.Time+ChannelTimeout < ib.currentL1Origin.Time {
+		if chID.Time+ChannelTimeout < ib.currentOrigin.Time {
 			ib.log.Info("channel is timed out, ignore frame", "channel", chID, "id_time", chID.Time, "frame", frameNumber)
 			continue
 		}
 		// check if the channel is not included too soon (otherwise timeouts wouldn't be effective)
-		if chID.Time > ib.currentL1Origin.Time {
+		if chID.Time > ib.currentOrigin.Time {
 			ib.log.Info("channel claims to be from the future, ignore frame", "channel", chID, "id_time", chID.Time, "frame", frameNumber)
 			continue
 		}
@@ -161,7 +188,7 @@ func (ib *ChannelBank) Read() (chID ChannelID, data []byte) {
 	}
 	first := ib.channelQueue[0]
 	ch := ib.channels[first]
-	timedOut := first.Time+ChannelTimeout < ib.currentL1Origin.Time
+	timedOut := first.Time+ChannelTimeout < ib.currentOrigin.Time
 	if timedOut {
 		ib.log.Info("channel timed out", "channel", first, "frames", len(ch.inputs))
 	}
@@ -177,28 +204,62 @@ func (ib *ChannelBank) Read() (chID ChannelID, data []byte) {
 }
 
 func (ib *ChannelBank) Reset(origin eth.L1BlockRef) {
-	ib.currentL1Origin = origin
+	ib.currentOrigin = origin
 	ib.channels = make(map[ChannelID]*ChannelIn)
 	ib.channelQueue = ib.channelQueue[:0]
+	ib.originOpen = true
+}
+
+func (ib *ChannelBank) Step(ctx context.Context) error {
+	// If the bank is behind the channel reader, then we are replaying old data to prepare the bank.
+	// Read if we can, and drop if it gives anything
+	if ib.next.CurrentOrigin().Number > ib.CurrentOrigin().Number {
+		id, _ := ib.Read()
+		if id == (ChannelID{}) {
+			return io.EOF
+		}
+		return nil
+	}
+
+	// move forward the ch reader if the bank has new L1 data
+	if ib.next.CurrentOrigin() != ib.CurrentOrigin() {
+		return ib.next.OpenOrigin(ib.CurrentOrigin())
+	}
+	// otherwise, read the next channel data from the bank
+	id, data := ib.Read()
+	if id == (ChannelID{}) { // need new L1 data in the bank before we can read more channel data
+		ib.next.CloseOrigin()
+		return io.EOF
+	}
+	ib.log.Info("writing channel", "channel", id)
+	ib.next.WriteChannel(data)
+	return nil
+}
+
+// ResetStep walks back the L1 chain, starting at the origin of the next stage,
+// to find the origin that the channel bank should be reset to,
+// to get consistent reads starting at origin.
+// Any channel data before this origin will be timed out by the time the channel bank is synced up to the origin,
+// so it is not relevant to replay it into the bank.
+func (ib *ChannelBank) ResetStep(ctx context.Context, l1Fetcher L1Fetcher) error {
+	if !ib.resetting {
+		ib.currentOrigin = ib.next.CurrentOrigin()
+		ib.originOpen = false
+		ib.resetting = true
+	}
+	if ib.currentOrigin.Time+ChannelTimeout < ib.next.CurrentOrigin().Time || ib.currentOrigin.Number == 0 {
+		ib.resetting = false
+		return io.EOF
+	}
+	// go back in history if we are not distant enough from the next stage
+	parent, err := l1Fetcher.L1BlockRefByHash(ctx, ib.currentOrigin.ParentHash)
+	if err != nil {
+		ib.log.Error("failed to find channel bank block, failed to retrieve L1 reference", "err", err)
+	}
+	ib.currentOrigin = parent
+	return nil
 }
 
 type L1BlockRefByHashFetcher interface {
 	L1BlockRefByHash(context.Context, common.Hash) (eth.L1BlockRef, error)
-}
-
-// FindChannelBankStart takes a L1 origin, and walks back the L1 chain to find the origin that the channel bank should be reset to,
-// to get consistent reads starting at origin.
-// Any channel data before this origin will be timed out by the time the channel bank is synced up to the origin,
-// so it is not relevant to replay it into the bank.
-func FindChannelBankStart(ctx context.Context, origin eth.L1BlockRef, l1Chain L1BlockRefByHashFetcher) (eth.L1BlockRef, error) {
-	// traverse the header chain, to find the first block we need to replay
-	block := origin
-	for !(block.Time+ChannelTimeout < origin.Time || block.Number == 0) {
-		parent, err := l1Chain.L1BlockRefByHash(ctx, block.ParentHash)
-		if err != nil {
-			return eth.L1BlockRef{}, fmt.Errorf("failed to find channel bank block, failed to retrieve L1 reference: %w", err)
-		}
-		block = parent
-	}
-	return block, nil
 }
