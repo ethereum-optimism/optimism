@@ -19,11 +19,11 @@ const deployFn: DeployFunction = async (hre) => {
     from: deployer,
     args: [
       hre.deployConfig.submissionInterval,
-      hre.deployConfig.l2BlockTime,
       hre.deployConfig.genesisOutput,
       hre.deployConfig.historicalBlocks,
       hre.deployConfig.startingBlockNumber,
       hre.deployConfig.startingTimestamp,
+      hre.deployConfig.l2BlockTime,
       hre.deployConfig.sequencerAddress,
     ],
     log: true,
