@@ -3,7 +3,7 @@ import { HardhatUserConfig, task, subtask } from 'hardhat/config'
 import { TASK_COMPILE_SOLIDITY_GET_SOURCE_PATHS } from 'hardhat/builtin-tasks/task-names'
 
 // Hardhat plugins
-import '@nomiclabs/hardhat-waffle'
+import '@nomiclabs/hardhat-ethers'
 import '@typechain/hardhat'
 import 'solidity-coverage'
 import 'hardhat-deploy'
@@ -11,7 +11,10 @@ import '@foundry-rs/hardhat-forge'
 import '@eth-optimism/hardhat-deploy-config'
 
 // Hardhat tasks
+import './tasks/genesis-l1'
+import './tasks/genesis-l2'
 import './tasks/deposits'
+import './tasks/rollup-config'
 
 subtask(TASK_COMPILE_SOLIDITY_GET_SOURCE_PATHS).setAction(
   async (_, __, runSuper) => {
@@ -79,6 +82,19 @@ const config: HardhatUserConfig = {
     },
     sequencerAddress: {
       type: 'address',
+    },
+  },
+  external: {
+    contracts: [
+      {
+        artifacts: '../contracts/artifacts',
+      },
+      {
+        artifacts: '../contracts-governance/artifacts',
+      },
+    ],
+    deployments: {
+      goerli: ['../contracts/deployments/goerli'],
     },
   },
   solidity: {
