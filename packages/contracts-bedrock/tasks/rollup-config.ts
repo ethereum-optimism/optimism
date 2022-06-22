@@ -1,4 +1,5 @@
 import fs from 'fs'
+
 import { task } from 'hardhat/config'
 import { OpNodeConfig, getChainId } from '@eth-optimism/core-utils'
 import { ethers } from 'ethers'
