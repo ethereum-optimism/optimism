@@ -107,16 +107,6 @@ contract L2OutputOracle is Ownable {
     }
 
     /**
-     * @notice Transfers the sequencer role to a new account (`newSequencer`).
-     *         Can only be called by the current owner.
-     */
-    function changeSequencer(address newSequencer) public onlyOwner {
-        require(newSequencer != address(0), "OutputOracle: new sequencer is the zero address");
-        emit SequencerChanged(sequencer, newSequencer);
-        sequencer = newSequencer;
-    }
-
-    /**
      * @notice Initialize the L2OutputOracle contract.
      *
      * @param _submissionInterval    The desired interval in seconds at which
@@ -266,5 +256,16 @@ contract L2OutputOracle is Ownable {
 
         return
             STARTING_TIMESTAMP + ((_l2BlockNumber - STARTING_BLOCK_NUMBER) * SUBMISSION_INTERVAL);
+    }
+
+    /**
+     * @notice Transfers the sequencer role to a new account (`newSequencer`).
+     *         Can only be called by the current owner.
+     */
+    function changeSequencer(address _newSequencer) public onlyOwner {
+        require(_newSequencer != address(0), "OutputOracle: new sequencer is the zero address");
+        require(_newSequencer != owner(), "OutputOracle: sequencer cannot be same as the owner");
+        emit SequencerChanged(sequencer, _newSequencer);
+        sequencer = _newSequencer;
     }
 }
