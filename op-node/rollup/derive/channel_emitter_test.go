@@ -89,9 +89,13 @@ func TestOutput(t *testing.T) {
 		},
 		// the other fields don't matter in this test
 	}
-	og := NewChannelEmitter(context.Background(), testlog.Logger(t, log.LvlDebug), cfg, src)
+	og := NewChannelEmitter(testlog.Logger(t, log.LvlDebug), cfg, src)
+
+	l1Time := uint64(123)
+	og.SetL1Time(l1Time)
+
 	history := map[ChannelID]uint64{}
-	minSize := uint64(1000)
+	minSize := uint64(1000) // TODO min size param
 	maxSize := uint64(10_000)
 	maxBlocksPerChannel := uint64(20)
 
@@ -99,10 +103,10 @@ func TestOutput(t *testing.T) {
 	for i := 0; i < 3; i++ {
 		out, err := og.Output(context.Background(), history, minSize, maxSize, maxBlocksPerChannel)
 		require.NoError(t, err)
-		require.Less(t, minSize, len(out.Data), "expecting at least a the minimum size")
 		require.Less(t, 0, len(out.Channels), "expecting at least one new channel to be opened")
 		// update history by merging in the results
 		for chID, frameNr := range out.Channels {
+			require.Equal(t, chID.Time, l1Time)
 			history[chID] = frameNr
 		}
 	}
