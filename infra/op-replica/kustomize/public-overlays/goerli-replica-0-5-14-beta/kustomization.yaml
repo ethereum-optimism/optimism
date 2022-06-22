@@ -16,6 +16,7 @@ resources:
   - ../../bases/servicemonitors
   - ../../bases/replica-healthcheck-v1
   - ./volumes.yaml
+  - ./ingress.yaml
 
 images:
   - name: ethereumoptimism/data-transport-layer

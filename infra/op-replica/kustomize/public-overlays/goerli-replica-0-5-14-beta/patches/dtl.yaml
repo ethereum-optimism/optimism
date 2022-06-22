@@ -30,7 +30,10 @@ spec:
                   name: replica-secrets
                   key: L1_RPC_ENDPOINT
             - name: DATA_TRANSPORT_LAYER__L2_RPC_ENDPOINT
-              value: https://goerli.optimism.io
+              valueFrom:
+                secretKeyRef:
+                  name: replica-secrets
+                  key: L2_RPC_ENDPOINT
             - name: L1_NODE_WEB3_URL
               valueFrom:
                 secretKeyRef:

@@ -1,0 +1,50 @@
+---
+apiVersion: networking.gke.io/v1
+kind: ManagedCertificate
+metadata:
+  name: goerli-replica-0-5-14-beta
+spec:
+  domains:
+    - goerli-replica-0-5-14-beta.optimism.io
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: goerli-replica-0-5-14-beta
+  annotations:
+    kubernetes.io/ingress.global-static-ip-name: goerli-replica-0-5-14-beta
+    networking.gke.io/managed-certificates: goerli-replica-0-5-14-beta
+    kubernetes.io/ingress.class: "gce"
+spec:
+  defaultBackend:
+    service:
+      name: l2geth-replica
+      port:
+        name: rpc
+  rules:
+    - host: goerli-replica-0-5-14-beta.optimism.io
+---
+apiVersion: networking.gke.io/v1
+kind: ManagedCertificate
+metadata:
+  name: ws-goerli-replica-0-5-14-beta
+spec:
+  domains:
+    - ws-goerli-replica-0-5-14-beta.optimism.io
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: ws-goerli-replica-0-5-14-beta
+  annotations:
+    kubernetes.io/ingress.global-static-ip-name: ws-goerli-replica-0-5-14-beta
+    networking.gke.io/managed-certificates: ws-goerli-replica-0-5-14-beta
+    kubernetes.io/ingress.class: "gce"
+spec:
+  defaultBackend:
+    service:
+      name: l2geth-replica
+      port:
+        name: websocket
+  rules:
+    - host: ws-goerli-replica-0-5-14-beta.optimism.io
