@@ -412,7 +412,7 @@ jobs:
           working_directory: packages/contracts-bedrock
       - run:
           name: storage snapshot
-          command: yarn storage-snapshot && git diff --exit-code
+          command: yarn storage-snapshot && git diff --exit-code .storage-layout
           working_directory: packages/contracts-bedrock
       - run:
           name: check go bindings
