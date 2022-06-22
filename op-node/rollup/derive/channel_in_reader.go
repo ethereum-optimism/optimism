@@ -5,8 +5,9 @@ import (
 	"compress/zlib"
 	"context"
 	"fmt"
-	"github.com/ethereum/go-ethereum/log"
 	"io"
+
+	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum/go-ethereum/rlp"
 

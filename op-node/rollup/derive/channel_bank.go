@@ -4,8 +4,9 @@ import (
 	"context"
 	"encoding/binary"
 	"fmt"
-	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"io"
+
+	"github.com/ethereum-optimism/optimism/op-node/rollup"
 
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum/go-ethereum/common"

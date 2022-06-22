@@ -4,9 +4,10 @@ import (
 	"context"
 	"crypto/rand"
 	"fmt"
-	"github.com/ethereum/go-ethereum/common/hexutil"
 	"sort"
 	"sync"
+
+	"github.com/ethereum/go-ethereum/common/hexutil"
 
 	"github.com/ethereum/go-ethereum/common"
 
