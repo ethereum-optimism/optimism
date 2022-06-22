@@ -411,6 +411,10 @@ jobs:
             forge snapshot --check
           working_directory: packages/contracts-bedrock
       - run:
+          name: storage snapshot
+          command: yarn storage-snapshot && git diff --exit-code .storage-layout
+          working_directory: packages/contracts-bedrock
+      - run:
           name: check go bindings
           command: make && git diff --exit-code
           working_directory: op-bindings
