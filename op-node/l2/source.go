@@ -6,6 +6,8 @@ import (
 	"math/big"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-node/client"
+
 	"github.com/ethereum/go-ethereum"
 
 	"github.com/ethereum-optimism/optimism/op-node/eth"
@@ -13,22 +15,21 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rpc"
 )
 
 type Source struct {
-	rpc     *rpc.Client       // raw RPC client. Used for the consensus namespace
-	client  *ethclient.Client // go-ethereum's wrapper around the rpc client for the eth namespace
+	rpc     client.RPC    // raw RPC client. Used for the consensus namespace
+	client  client.Client // go-ethereum's wrapper around the rpc client for the eth namespace
 	genesis *rollup.Genesis
 	log     log.Logger
 }
 
-func NewSource(l2Node *rpc.Client, genesis *rollup.Genesis, log log.Logger) (*Source, error) {
+func NewSource(l2Node client.RPC, l2Client client.Client, genesis *rollup.Genesis, log log.Logger) (*Source, error) {
 	return &Source{
 		rpc:     l2Node,
-		client:  ethclient.NewClient(l2Node),
+		client:  l2Client,
 		genesis: genesis,
 		log:     log,
 	}, nil
@@ -218,16 +219,16 @@ func blockToBlockRef(block *types.Block, genesis *rollup.Genesis) (eth.L2BlockRe
 }
 
 type ReadOnlySource struct {
-	rpc     *rpc.Client       // raw RPC client. Used for methods that do not already have bindings
-	client  *ethclient.Client // go-ethereum's wrapper around the rpc client for the eth namespace
+	rpc     client.RPC    // raw RPC client. Used for methods that do not already have bindings
+	client  client.Client // go-ethereum's wrapper around the rpc client for the eth namespace
 	genesis *rollup.Genesis
 	log     log.Logger
 }
 
-func NewReadOnlySource(l2Node *rpc.Client, genesis *rollup.Genesis, log log.Logger) (*ReadOnlySource, error) {
+func NewReadOnlySource(l2Node client.RPC, l2Client client.Client, genesis *rollup.Genesis, log log.Logger) (*ReadOnlySource, error) {
 	return &ReadOnlySource{
 		rpc:     l2Node,
-		client:  ethclient.NewClient(l2Node),
+		client:  l2Client,
 		genesis: genesis,
 		log:     log,
 	}, nil

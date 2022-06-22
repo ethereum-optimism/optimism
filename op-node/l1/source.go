@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/ethereum-optimism/optimism/op-node/client"
 	"github.com/ethereum/go-ethereum"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
@@ -94,17 +95,10 @@ func DefaultConfig(config *rollup.Config, trustRPC bool) *SourceConfig {
 
 type batchCallContextFn func(ctx context.Context, b []rpc.BatchElem) error
 
-type RPCClient interface {
-	BatchCallContext(ctx context.Context, b []rpc.BatchElem) error
-	CallContext(ctx context.Context, result interface{}, method string, args ...interface{}) error
-	EthSubscribe(ctx context.Context, channel interface{}, args ...interface{}) (*rpc.ClientSubscription, error)
-	Close()
-}
-
 // Source to retrieve L1 data from with optimized batch requests, cached results,
 // and flag to not trust the RPC.
 type Source struct {
-	client RPCClient
+	client client.RPC
 
 	batchCall batchCallContextFn
 
@@ -123,7 +117,7 @@ type Source struct {
 	headersCache *lru.Cache
 }
 
-func NewSource(client RPCClient, log log.Logger, config *SourceConfig) (*Source, error) {
+func NewSource(client client.RPC, log log.Logger, config *SourceConfig) (*Source, error) {
 	if err := config.Check(); err != nil {
 		return nil, fmt.Errorf("bad config, cannot create L1 source: %w", err)
 	}

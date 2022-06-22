@@ -81,6 +81,23 @@ var (
 		Usage:  "Color the log output",
 		EnvVar: prefixEnvVar("LOG_COLOR"),
 	}
+	MetricsEnabledFlag = cli.BoolFlag{
+		Name:   "metrics.enabled",
+		Usage:  "Enable the metrics server",
+		EnvVar: prefixEnvVar("METRICS_ENABLED"),
+	}
+	MetricsAddrFlag = cli.StringFlag{
+		Name:   "metrics.addr",
+		Usage:  "Metrics listening address",
+		Value:  "0.0.0.0",
+		EnvVar: prefixEnvVar("METRICS_ADDR"),
+	}
+	MetricsPortFlag = cli.IntFlag{
+		Name:   "metrics.port",
+		Usage:  "Metrics listening port",
+		Value:  7300,
+		EnvVar: prefixEnvVar("METRICS_PORT"),
+	}
 
 	SnapshotLog = cli.StringFlag{
 		Name:   "snapshotlog.file",
@@ -104,6 +121,9 @@ var optionalFlags = append([]cli.Flag{
 	LogLevelFlag,
 	LogFormatFlag,
 	LogColorFlag,
+	MetricsEnabledFlag,
+	MetricsAddrFlag,
+	MetricsPortFlag,
 	SnapshotLog,
 }, p2pFlags...)
 

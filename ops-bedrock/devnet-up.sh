@@ -49,7 +49,7 @@ function wait_up {
     ((i=i+1))
     if [ "$i" -eq 200 ]; then
       echo " Timeout!" >&2
-      exit 0
+      exit 1
     fi
   done
   echo "Done!"

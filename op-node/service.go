@@ -58,6 +58,11 @@ func NewConfig(ctx *cli.Context, log log.Logger) (*node.Config, error) {
 			ListenAddr: ctx.GlobalString(flags.RPCListenAddr.Name),
 			ListenPort: ctx.GlobalInt(flags.RPCListenPort.Name),
 		},
+		Metrics: node.MetricsConfig{
+			Enabled:    ctx.GlobalBool(flags.MetricsEnabledFlag.Name),
+			ListenAddr: ctx.GlobalString(flags.MetricsAddrFlag.Name),
+			ListenPort: ctx.GlobalInt(flags.MetricsPortFlag.Name),
+		},
 		P2P:       p2pConfig,
 		P2PSigner: p2pSignerSetup,
 	}

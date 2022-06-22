@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"math/big"
 
+	"github.com/ethereum-optimism/optimism/op-node/metrics"
+
 	"github.com/ethereum-optimism/optimism/op-node/version"
 
 	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
@@ -40,17 +42,21 @@ type nodeAPI struct {
 	config *rollup.Config
 	client l2EthClient
 	log    log.Logger
+	m      *metrics.Metrics
 }
 
-func newNodeAPI(config *rollup.Config, l2Client l2EthClient, log log.Logger) *nodeAPI {
+func newNodeAPI(config *rollup.Config, l2Client l2EthClient, log log.Logger, m *metrics.Metrics) *nodeAPI {
 	return &nodeAPI{
 		config: config,
 		client: l2Client,
 		log:    log,
+		m:      m,
 	}
 }
 
 func (n *nodeAPI) OutputAtBlock(ctx context.Context, number rpc.BlockNumber) ([]eth.Bytes32, error) {
+	recordDur := n.m.RecordRPCServerRequest("optimism_outputAtBlock")
+	defer recordDur()
 	// TODO: rpc.BlockNumber doesn't support the "safe" tag. Need a new type
 
 	head, err := n.client.GetBlockHeader(ctx, toBlockNumArg(number))
@@ -83,6 +89,8 @@ func (n *nodeAPI) OutputAtBlock(ctx context.Context, number rpc.BlockNumber) ([]
 }
 
 func (n *nodeAPI) Version(ctx context.Context) (string, error) {
+	recordDur := n.m.RecordRPCServerRequest("optimism_version")
+	defer recordDur()
 	return version.Version + "-" + version.Meta, nil
 }
 

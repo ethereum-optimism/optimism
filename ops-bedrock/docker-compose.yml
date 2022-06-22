@@ -58,9 +58,13 @@ services:
       --p2p.listen.udp=9003
       --snapshotlog.file=/op_log/snapshot.log
       --p2p.priv.path=/config/p2p-node-key.txt
+      --metrics.enabled
+      --metrics.addr=0.0.0.0
+      --metrics.port=7300
     ports:
       - "7545:8545"
       - "9003:9003"
+      - "7300:7300"
     volumes:
       - ${PWD}/p2p-sequencer-key.txt:/config/p2p-sequencer-key.txt
       - ${PWD}/p2p-node-key.txt:/config/p2p-node-key.txt
