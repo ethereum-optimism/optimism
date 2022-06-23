@@ -1,5 +1,17 @@
 # @eth-optimism/sdk
 
+## 1.2.0
+
+### Minor Changes
+
+- 977493bc: Have SDK use L2 chain ID as the source of truth.
+
+### Patch Changes
+
+- Updated dependencies [700dcbb0]
+  - @eth-optimism/core-utils@0.9.0
+  - @eth-optimism/contracts@0.5.29
+
 ## 1.1.9
 
 ### Patch Changes

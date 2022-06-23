@@ -1,5 +1,11 @@
 # @eth-optimism/integration-tests
 
+## 0.5.16
+
+### Patch Changes
+
+- 977493bc: Update SDK version and usage to account for new constructor
+
 ## 0.5.15
 
 ### Patch Changes
