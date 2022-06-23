@@ -1,3 +1,5 @@
+require('dotenv').config()
+
 const isForkModeEnabled = !!process.env.FORK_URL
 const forkUrl = process.env.FORK_URL
 const forkStartingBlock =
