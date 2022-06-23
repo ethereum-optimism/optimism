@@ -46,13 +46,25 @@ const deployFn: DeployFunction = async (hre) => {
   const oracle = await hre.deployments.get('L2OutputOracle')
   const proxy = await hre.deployments.get('L2OutputOracleProxy')
   const Proxy = await hre.ethers.getContractAt('Proxy', proxy.address)
-  const tx = await Proxy.upgradeTo(oracle.address)
-  await tx.wait()
 
   const L2OutputOracle = await hre.ethers.getContractAt(
     'L2OutputOracle',
     proxy.address
   )
+
+  const tx = await Proxy.upgradeToAndCall(
+    oracle.address,
+    L2OutputOracle.interface.encodeFunctionData(
+      'initialize(bytes32,uint256,address,address)',
+      [
+        deployConfig.genesisOutput,
+        deployConfig.startingBlockNumber,
+        deployConfig.sequencerAddress,
+        deployConfig.ownerAddress,
+      ]
+    )
+  )
+  await tx.wait()
 
   const submissionInterval = await L2OutputOracle.SUBMISSION_INTERVAL()
   if (!submissionInterval.eq(BigNumber.from(deployConfig.submissionInterval))) {
