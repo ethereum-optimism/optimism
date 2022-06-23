@@ -38,11 +38,11 @@ func NewCalldataSource(log log.Logger, cfg *rollup.Config, fetcher L1Transaction
 }
 
 func (cs *CalldataSource) OpenData(ctx context.Context, id eth.BlockID) (DataIter, error) {
-	l1Info, txs, err := cs.fetcher.InfoAndTxsByHash(ctx, id.Hash)
+	_, txs, err := cs.fetcher.InfoAndTxsByHash(ctx, id.Hash)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch transactions: %w", err)
 	}
-	data := DataFromEVMTransactions(cs.cfg, txs, cs.log.New("origin", l1Info.ID()))
+	data := DataFromEVMTransactions(cs.cfg, txs, cs.log.New("origin", id))
 	return (*DataSlice)(&data), nil
 }
 

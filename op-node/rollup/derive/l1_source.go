@@ -15,11 +15,16 @@ type L1BlockRefByNumberFetcher interface {
 	L1BlockRefByNumber(context.Context, uint64) (eth.L1BlockRef, error)
 }
 
+// DataIter is a minimal iteration interface to fetch rollup input data from an arbitrary data-availability source
 type DataIter interface {
+	// Next can be repeatedly called for more data, until it returns an io.EOF error.
+	// It never returns io.EOF and data at the same time.
 	Next(ctx context.Context) (eth.Data, error)
 }
 
+// DataAvailabilitySource provides rollup input data
 type DataAvailabilitySource interface {
+	// OpenData does any initial data-fetching work and returns an iterator to fetch data with.
 	OpenData(ctx context.Context, id eth.BlockID) (DataIter, error)
 }
 
