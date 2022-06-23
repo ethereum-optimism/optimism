@@ -19,8 +19,7 @@ contract OptimismPortal_Test is L2OutputOracle_Initializer {
         bytes data
     );
 
-    // Dependencies
-    // L2OutputOracle oracle;
+    // Test target
     OptimismPortal op;
 
     function setUp() public override {
