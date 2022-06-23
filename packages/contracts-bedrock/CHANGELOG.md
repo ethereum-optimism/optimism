@@ -1,5 +1,22 @@
 # @eth-optimism/contracts-bedrock
 
+## 0.4.0
+
+### Minor Changes
+
+- a828da9f: Add separate sequencer role to Oracle
+
+### Patch Changes
+
+- a828da9f: Separate the owner and sequencer roles in the OutputOracle
+- 347fd37c: Fix bug in bedrock deploy scripts
+- 700dcbb0: Add genesis script
+- 931e517b: Fix order of args to L2OO constructor
+- 93e2f750: Fix for incorrect constructor args in deploy config
+- ddf515cb: Make the output oracle upgradeable.
+- Updated dependencies [700dcbb0]
+  - @eth-optimism/core-utils@0.9.0
+
 ## 0.3.0
 
 ### Minor Changes

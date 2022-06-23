@@ -1,5 +1,11 @@
 # @eth-optimism/core-utils
 
+## 0.9.0
+
+### Minor Changes
+
+- 700dcbb0: Update geth's Genesis type to work with modern geth
+
 ## 0.8.7
 
 ### Patch Changes

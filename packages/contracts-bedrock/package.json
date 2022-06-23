@@ -1,6 +1,6 @@
 {
   "name": "@eth-optimism/contracts-bedrock",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Contracts for Optimism Specs",
   "main": "dist/index",
   "types": "dist/index",
@@ -32,7 +32,7 @@
     "lint": "yarn lint:fix && yarn lint:check"
   },
   "dependencies": {
-    "@eth-optimism/core-utils": "^0.8.7",
+    "@eth-optimism/core-utils": "^0.9.0",
     "@openzeppelin/contracts": "^4.5.0",
     "@openzeppelin/contracts-upgradeable": "^4.5.2",
     "@rari-capital/solmate": "https://github.com/rari-capital/solmate.git#8f9b23f8838670afda0fd8983f2c41e8037ae6bc",
