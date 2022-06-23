@@ -47,3 +47,21 @@ func RandomBlockID(rng *rand.Rand) eth.BlockID {
 		Number: rng.Uint64() & ((1 << 50) - 1), // be json friendly
 	}
 }
+
+func RandomBlockRef(rng *rand.Rand) eth.L1BlockRef {
+	return eth.L1BlockRef{
+		Hash:       RandomHash(rng),
+		Number:     rng.Uint64(),
+		ParentHash: RandomHash(rng),
+		Time:       rng.Uint64(),
+	}
+}
+
+func NextRandomRef(rng *rand.Rand, ref eth.L1BlockRef) eth.L1BlockRef {
+	return eth.L1BlockRef{
+		Hash:       RandomHash(rng),
+		Number:     ref.Number + 1,
+		ParentHash: ref.Hash,
+		Time:       ref.Time + uint64(rng.Intn(100)),
+	}
+}
