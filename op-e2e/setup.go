@@ -402,7 +402,7 @@ func (cfg SystemConfig) start() (*System, error) {
 	// Deploy Deposit Contract
 	deployerPrivKey, err := sys.wallet.PrivateKey(accounts.Account{
 		URL: accounts.URL{
-			Path: sys.cfg.DeployerHDPath,
+			Path: cfg.DeployerHDPath,
 		},
 	})
 	if err != nil {
@@ -425,6 +425,7 @@ func (cfg SystemConfig) start() (*System, error) {
 		sys.cfg.L2OOCfg.L2StartingTimeStamp,
 		sys.cfg.L2OOCfg.L2BlockTime,
 		l2OutputSubmitterAddr,
+		crypto.PubkeyToAddress(deployerPrivKey.PublicKey),
 	)
 	sys.cfg.DepositCFG.L2Oracle = sys.L2OOContractAddr
 	if err != nil {

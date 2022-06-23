@@ -33,8 +33,8 @@ const getTargetOutput = async (
   withdrawalTimestamp: number
 ) => {
   const submissionInterval = (await oracle.SUBMISSION_INTERVAL()).toNumber()
-  const startingBlockTimestamp = (
-    await oracle.STARTING_BLOCK_TIMESTAMP()
+  const startingTimestamp = (
+    await oracle.STARTING_TIMESTAMP()
   ).toNumber()
   const nextTimestamp = (await oracle.nextTimestamp()).toNumber()
   let targetOutputTimestamp
@@ -45,10 +45,10 @@ const getTargetOutput = async (
     // Calculate the first timestamp greater than the burnBlock which will be appended.
     targetOutputTimestamp =
       Math.ceil(
-        (withdrawalTimestamp - startingBlockTimestamp) / submissionInterval
+        (withdrawalTimestamp - startingTimestamp) / submissionInterval
       ) *
         submissionInterval +
-      startingBlockTimestamp
+      startingTimestamp
   }
 
   return targetOutputTimestamp

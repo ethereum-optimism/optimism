@@ -1,7 +1,9 @@
 //SPDX-License-Identifier: MIT
 pragma solidity 0.8.10;
 
-import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
+import {
+    OwnableUpgradeable
+} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 
 /**
  * @title L2OutputOracle
@@ -10,7 +12,12 @@ import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
  *         This contract should be deployed behind an upgradable proxy
  */
 // slither-disable-next-line locked-ether
-contract L2OutputOracle is Ownable {
+contract L2OutputOracle is OwnableUpgradeable {
+    /**
+     * @notice Contract version number.
+     */
+    uint8 public constant L2_OUTPUT_ORACLE_VERSION = 1;
+
     /**
      * @notice OutputProposal represents a commitment to the L2 state.
      *         The timestamp is the L1 timestamp that the output root is posted.
@@ -49,6 +56,14 @@ contract L2OutputOracle is Ownable {
     );
 
     /**
+     * @notice Emitted when the sequencer address is changed.
+     *
+     * @param previousSequencer The previous sequencer address.
+     * @param newSequencer      The new sequencer address.
+     */
+    event SequencerChanged(address indexed previousSequencer, address indexed newSequencer);
+
+    /**
      * @notice The interval in L2 blocks at which checkpoints must be submitted.
      */
     uint256 public immutable SUBMISSION_INTERVAL;
@@ -74,6 +89,11 @@ contract L2OutputOracle is Ownable {
     uint256 public immutable L2_BLOCK_TIME;
 
     /**
+     * @notice The address of the sequencer;
+     */
+    address public sequencer;
+
+    /**
      * @notice The number of the most recent L2 block recorded in this contract.
      */
     uint256 public latestBlockNumber;
@@ -84,6 +104,14 @@ contract L2OutputOracle is Ownable {
      *        in the Optimism Portal) has passed.
      */
     mapping(uint256 => OutputProposal) internal l2Outputs;
+
+    /**
+     * @notice Reverts if called by any account other than the sequencer.
+     */
+    modifier onlySequencer() {
+        require(sequencer == msg.sender, "OutputOracle: caller is not the sequencer");
+        _;
+    }
 
     /**
      * @notice Initialize the L2OutputOracle contract.
@@ -97,6 +125,7 @@ contract L2OutputOracle is Ownable {
      * @param _startingTimestamp     The timestamp of the first L2 block.
      * @param _l2BlockTime           The timestamp of the first L2 block.
      * @param _sequencer             The address of the sequencer.
+     * @param _owner                 The address of the owner.
      */
     constructor(
         uint256 _submissionInterval,
@@ -105,7 +134,8 @@ contract L2OutputOracle is Ownable {
         uint256 _startingBlockNumber,
         uint256 _startingTimestamp,
         uint256 _l2BlockTime,
-        address _sequencer
+        address _sequencer,
+        address _owner
     ) {
         require(
             _l2BlockTime < block.timestamp,
@@ -117,10 +147,29 @@ contract L2OutputOracle is Ownable {
         STARTING_TIMESTAMP = _startingTimestamp;
         L2_BLOCK_TIME = _l2BlockTime;
 
+        initialize(_genesisL2Output, _startingBlockNumber, _sequencer, _owner);
+    }
+
+    /**
+     * @notice Initialize the L2OutputOracle contract.
+     *
+     * @param _genesisL2Output        The initial L2 output of the L2 chain.
+     * @param _startingBlockNumber The timestamp to start L2 block at.
+     * @param _sequencer              The address of the sequencer.
+     * @param _owner                 The address of the owner.
+     */
+    function initialize(
+        bytes32 _genesisL2Output,
+        uint256 _startingBlockNumber,
+        address _sequencer,
+        address _owner
+    ) public reinitializer(L2_OUTPUT_ORACLE_VERSION) {
         l2Outputs[_startingBlockNumber] = OutputProposal(_genesisL2Output, block.timestamp);
         latestBlockNumber = _startingBlockNumber;
+        __Ownable_init();
 
-        _transferOwnership(_sequencer);
+        changeSequencer(_sequencer);
+        _transferOwnership(_owner);
     }
 
     /**
@@ -139,7 +188,7 @@ contract L2OutputOracle is Ownable {
         uint256 _l2BlockNumber,
         bytes32 _l1Blockhash,
         uint256 _l1BlockNumber
-    ) external payable onlyOwner {
+    ) external payable onlySequencer {
         require(
             _l2BlockNumber == nextBlockNumber(),
             "OutputOracle: Block number must be equal to next expected block number."
@@ -172,8 +221,11 @@ contract L2OutputOracle is Ownable {
     }
 
     /**
-     * @notice Deletes the most recent output.
-     *
+     * @notice Deletes the most recent output. This is used to remove the most recent output in the
+     *         event that an erreneous output is submitted. It can only be called by the contract's
+     *         owner, not the sequencer. Longer term, this should be replaced with a more robust
+     *         mechanism which will allow deletion of proposals shown to be invalid by a fault
+     *         proof.
      * @param _proposal Represents the output proposal to delete
      */
     function deleteL2Output(OutputProposal memory _proposal) external onlyOwner {
@@ -229,5 +281,16 @@ contract L2OutputOracle is Ownable {
 
         return
             STARTING_TIMESTAMP + ((_l2BlockNumber - STARTING_BLOCK_NUMBER) * SUBMISSION_INTERVAL);
+    }
+
+    /**
+     * @notice Transfers the sequencer role to a new account (`newSequencer`).
+     *         Can only be called by the current owner.
+     */
+    function changeSequencer(address _newSequencer) public onlyOwner {
+        require(_newSequencer != address(0), "OutputOracle: new sequencer is the zero address");
+        require(_newSequencer != owner(), "OutputOracle: sequencer cannot be same as the owner");
+        emit SequencerChanged(sequencer, _newSequencer);
+        sequencer = _newSequencer;
     }
 }
