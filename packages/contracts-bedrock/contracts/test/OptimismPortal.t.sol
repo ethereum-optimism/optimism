@@ -269,7 +269,7 @@ contract OptimismPortal_Test is L2OutputOracle_Initializer {
         op.finalizeWithdrawalTransaction(0, alice, alice, 0, 0, hex"", 0, outputRootProof, hex"");
     }
 
-    function test_isOutputFinalized() external {
+    function test_simple_isOutputFinalized() external {
         vm.mockCall(
             address(op.L2_ORACLE()),
             abi.encodeWithSelector(
@@ -289,5 +289,33 @@ contract OptimismPortal_Test is L2OutputOracle_Initializer {
         // warp past the finalization period
         vm.warp(op.FINALIZATION_PERIOD_SECONDS() + 1);
         assertEq(op.isOutputFinalized(0), true);
+    }
+
+    function test_isOutputFinalized() external {
+        uint256 checkpoint = oracle.nextBlockNumber();
+        vm.roll(checkpoint);
+        vm.warp(oracle.computeL2Timestamp(checkpoint) + 1);
+        vm.prank(oracle.sequencer());
+        oracle.appendL2Output(keccak256(abi.encode(2)), checkpoint, 0, 0);
+
+        // warp to the final second of the finalization period
+        uint256 finalizationHorizon = block.timestamp + op.FINALIZATION_PERIOD_SECONDS();
+        vm.warp(finalizationHorizon);
+        // The checkpointed block should not be finalized until 1 second from now.
+        assertEq(op.isOutputFinalized(checkpoint), false);
+        // Nor should a block after it
+        assertEq(op.isOutputFinalized(checkpoint + 1), false);
+        // Nor a block before it, even though the finalization period has passed, there is
+        // not yet a checkpoint block on top of it for which that is true.
+        assertEq(op.isOutputFinalized(checkpoint - 1), false);
+
+        // warp past the finalization period
+        vm.warp(finalizationHorizon + 1);
+        // It should now be finalized.
+        assertEq(op.isOutputFinalized(checkpoint), true);
+        // So should the block before it.
+        assertEq(op.isOutputFinalized(checkpoint - 1), true);
+        // But not the block after it.
+        assertEq(op.isOutputFinalized(checkpoint + 1), false);
     }
 }
