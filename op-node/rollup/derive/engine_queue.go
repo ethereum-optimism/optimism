@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"math/big"
 	"time"
 
 	"github.com/ethereum/go-ethereum"
@@ -21,7 +20,7 @@ type Engine interface {
 	ForkchoiceUpdate(ctx context.Context, state *eth.ForkchoiceState, attr *eth.PayloadAttributes) (*eth.ForkchoiceUpdatedResult, error)
 	NewPayload(ctx context.Context, payload *eth.ExecutionPayload) (*eth.PayloadStatusV1, error)
 	PayloadByHash(context.Context, common.Hash) (*eth.ExecutionPayload, error)
-	PayloadByNumber(context.Context, *big.Int) (*eth.ExecutionPayload, error)
+	PayloadByNumber(context.Context, uint64) (*eth.ExecutionPayload, error)
 	L2BlockRefHead(ctx context.Context) (eth.L2BlockRef, error)
 	L2BlockRefByHash(ctx context.Context, l2Hash common.Hash) (eth.L2BlockRef, error)
 	UnsafeBlockIDs(ctx context.Context, safeHead eth.BlockID, max uint64) ([]eth.BlockID, error)
@@ -175,7 +174,7 @@ func (eq *EngineQueue) tryNextSafeAttributes(ctx context.Context) error {
 		ctx, cancel := context.WithTimeout(ctx, time.Second*10)
 		defer cancel()
 
-		payload, err := eq.engine.PayloadByNumber(ctx, new(big.Int).SetUint64(eq.safeHead.Number+1))
+		payload, err := eq.engine.PayloadByNumber(ctx, eq.safeHead.Number+1)
 		if err != nil {
 			eq.log.Error("failed to get existing unsafe payload to compare against derived attributes from L1", "err", err)
 			return nil

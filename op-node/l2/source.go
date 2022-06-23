@@ -68,9 +68,9 @@ func (s *Source) PayloadByHash(ctx context.Context, hash common.Hash) (*eth.Exec
 	return payload, nil
 }
 
-func (s *Source) PayloadByNumber(ctx context.Context, number *big.Int) (*eth.ExecutionPayload, error) {
+func (s *Source) PayloadByNumber(ctx context.Context, number uint64) (*eth.ExecutionPayload, error) {
 	// TODO: we really do not need to parse every single tx and block detail, keeping transactions encoded is faster.
-	block, err := s.client.BlockByNumber(ctx, number)
+	block, err := s.client.BlockByNumber(ctx, big.NewInt(int64(number)))
 	if err != nil {
 		return nil, fmt.Errorf("failed to retrieve L2 block by number: %v", err)
 	}

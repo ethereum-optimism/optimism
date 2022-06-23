@@ -57,11 +57,26 @@ func RandomBlockRef(rng *rand.Rand) eth.L1BlockRef {
 	}
 }
 
-func NextRandomRef(rng *rand.Rand, ref eth.L1BlockRef) eth.L1BlockRef {
+func NextRandomRef(rng *rand.Rand, parent eth.L1BlockRef) eth.L1BlockRef {
 	return eth.L1BlockRef{
 		Hash:       RandomHash(rng),
-		Number:     ref.Number + 1,
-		ParentHash: ref.Hash,
-		Time:       ref.Time + uint64(rng.Intn(100)),
+		Number:     parent.Number + 1,
+		ParentHash: parent.Hash,
+		Time:       parent.Time + uint64(rng.Intn(100)),
+	}
+}
+
+func NextRandomL2Ref(rng *rand.Rand, l2BlockTime uint64, parent eth.L2BlockRef, origin eth.BlockID) eth.L2BlockRef {
+	seq := parent.SequenceNumber + 1
+	if parent.L1Origin != origin {
+		seq = 0
+	}
+	return eth.L2BlockRef{
+		Hash:           RandomHash(rng),
+		Number:         parent.Number + 1,
+		ParentHash:     parent.Hash,
+		Time:           parent.Time + l2BlockTime,
+		L1Origin:       eth.BlockID{},
+		SequenceNumber: seq,
 	}
 }
