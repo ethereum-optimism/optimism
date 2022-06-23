@@ -17,6 +17,7 @@ import { AddressAliasHelper } from "../libraries/AddressAliasHelper.sol";
 import { OVM_ETH } from "../L2/OVM_ETH.sol";
 import { Lib_PredeployAddresses } from "../libraries/Lib_PredeployAddresses.sol";
 import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import { Proxy } from "../universal/Proxy.sol";
 
 contract CommonTest is Test {
     address alice = address(128);
@@ -46,6 +47,7 @@ contract CommonTest is Test {
 contract L2OutputOracle_Initializer is CommonTest {
     // Test target
     L2OutputOracle oracle;
+    L2OutputOracle oracleImpl;
 
     // Constructor arguments
     address sequencer = 0x000000000000000000000000000000000000AbBa;
@@ -69,7 +71,7 @@ contract L2OutputOracle_Initializer is CommonTest {
         vm.warp(initL1Time);
         vm.roll(startingBlockNumber);
         // Deploy the L2OutputOracle and transfer owernship to the sequencer
-        oracle = new L2OutputOracle(
+        oracleImpl = new L2OutputOracle(
             submissionInterval,
             genesisL2Output,
             historicalTotalBlocks,
@@ -79,6 +81,19 @@ contract L2OutputOracle_Initializer is CommonTest {
             sequencer,
             owner
         );
+        Proxy proxy = new Proxy(alice);
+        vm.prank(alice);
+        proxy.upgradeToAndCall(
+            address(oracleImpl),
+            abi.encodeWithSelector(
+                L2OutputOracle.initialize.selector,
+                genesisL2Output,
+                startingBlockNumber,
+                sequencer,
+                owner
+            )
+        );
+        oracle = L2OutputOracle(address(proxy));
     }
 }
 
