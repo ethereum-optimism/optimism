@@ -71,7 +71,7 @@ contract OptimismPortal is ResourceMetering, Initializable {
      *         of this variable is the default L2 sender address, then we are NOT inside of a call
      *         to finalizeWithdrawalTransaction.
      */
-    address public l2Sender = DEFAULT_L2_SENDER;
+    address public l2Sender;
 
     /**
      * @notice The L2 gas limit set when eth is deposited using the receive() function.
@@ -110,6 +110,7 @@ contract OptimismPortal is ResourceMetering, Initializable {
      * @notice Initializes the contract and parent contract(s).
      */
     function initialize() public reinitializer(OPTIMISM_PORTAL_VERSION) {
+        l2Sender = DEFAULT_L2_SENDER;
         __ResourceMetering_init();
     }
 
