@@ -404,12 +404,14 @@ jobs:
           name: test
           command: yarn test
           working_directory: packages/contracts-bedrock
-      - run:
-          name: gas snapshot
-          command: |
-            forge --version
-            forge snapshot --check
-          working_directory: packages/contracts-bedrock
+      # skip this until forge stack overflow is fixed
+      # https://github.com/foundry-rs/foundry/issues/2106
+      # - run:
+      #     name: gas snapshot
+      #     command: |
+      #       forge --version
+      #       forge snapshot --check
+      #     working_directory: packages/contracts-bedrock
       - run:
           name: storage snapshot
           command: yarn storage-snapshot && git diff --exit-code .storage-layout
