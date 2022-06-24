@@ -372,6 +372,10 @@ contract L2OutputOracleUpgradeable_Test is L2OutputOracle_Initializer {
     }
 
     function test_upgrading() external {
+        // Check an unused slot before upgrading.
+        bytes32 slot21Before = vm.load(address(oracle), bytes32(uint256(21)));
+        assertEq(bytes32(0), slot21Before);
+
         NextImpl nextImpl = new NextImpl();
         vm.startPrank(alice);
         proxy.upgradeToAndCall(
@@ -379,5 +383,10 @@ contract L2OutputOracleUpgradeable_Test is L2OutputOracle_Initializer {
             abi.encodeWithSelector(NextImpl.initialize.selector)
         );
         assertEq(proxy.implementation(), address(nextImpl));
+
+        // Verify that the NextImpl contract initialized its values according as expected
+        bytes32 slot21After = vm.load(address(oracle), bytes32(uint256(21)));
+        bytes32 slot21Expected = NextImpl(address(oracle)).slot21Init();
+        assertEq(slot21Expected, slot21After);
     }
 }
