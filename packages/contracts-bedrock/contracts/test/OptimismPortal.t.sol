@@ -1,7 +1,7 @@
 //SPDX-License-Identifier: MIT
 pragma solidity 0.8.10;
 
-import { Portal_Initializer, CommonTest } from "./CommonTest.t.sol";
+import { Portal_Initializer, CommonTest, NextImpl } from "./CommonTest.t.sol";
 
 import { AddressAliasHelper } from "../libraries/AddressAliasHelper.sol";
 import { L2OutputOracle } from "../L1/L2OutputOracle.sol";
@@ -320,13 +320,7 @@ contract OptimismPortalUpgradeable_Test is Portal_Initializer {
     function setUp() public override {
         super.setUp();
         initialBlockNum = uint64(block.number);
-        opImpl = new OptimismPortal(oracle, 7 days);
-        proxy = new Proxy(alice);
-        vm.prank(alice);
-        proxy.upgradeToAndCall(
-            address(opImpl),
-            abi.encodeWithSelector(OptimismPortal.initialize.selector)
-        );
+        proxy = Proxy(payable(address(op)));
     }
 
     function test_initValuesOnProxy() external {
@@ -346,5 +340,15 @@ contract OptimismPortalUpgradeable_Test is Portal_Initializer {
     function test_cannotInitImpl() external {
         vm.expectRevert("Initializable: contract is already initialized");
         address(opImpl).call(abi.encodeWithSelector(OptimismPortal.initialize.selector));
+    }
+
+    function test_upgrading() external {
+        NextImpl nextImpl = new NextImpl();
+        vm.startPrank(alice);
+        proxy.upgradeToAndCall(
+            address(nextImpl),
+            abi.encodeWithSelector(NextImpl.initialize.selector)
+        );
+        assertEq(proxy.implementation(), address(nextImpl));
     }
 }

@@ -1,10 +1,10 @@
 //SPDX-License-Identifier: MIT
 pragma solidity 0.8.10;
 
-import { L2OutputOracle_Initializer } from "./CommonTest.t.sol";
+import { L2OutputOracle_Initializer, NextImpl } from "./CommonTest.t.sol";
 import { L2OutputOracle } from "../L1/L2OutputOracle.sol";
 import { Proxy } from "../universal/Proxy.sol";
-import { Initializable } from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
+
 
 contract L2OutputOracleTest is L2OutputOracle_Initializer {
     bytes32 appendedOutput1 = keccak256(abi.encode(1));
@@ -336,11 +336,6 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
     }
 }
 
-// Used for testing another upgrade of the Oracle
-contract NextOracle is Initializable {
-    function initialize() public reinitializer(2) {}
-}
-
 contract L2OutputOracleUpgradeable_Test is L2OutputOracle_Initializer {
     Proxy internal proxy;
 
@@ -377,12 +372,12 @@ contract L2OutputOracleUpgradeable_Test is L2OutputOracle_Initializer {
     }
 
     function test_upgrading() external {
-        NextOracle nextOracle = new NextOracle();
+        NextImpl nextImpl = new NextImpl();
         vm.startPrank(alice);
         proxy.upgradeToAndCall(
-            address(nextOracle),
-            abi.encodeWithSelector(NextOracle.initialize.selector)
+            address(nextImpl),
+            abi.encodeWithSelector(NextImpl.initialize.selector)
         );
-        assertEq(proxy.implementation(), address(nextOracle));
+        assertEq(proxy.implementation(), address(nextImpl));
     }
 }

@@ -142,23 +142,8 @@ contract L1CrossDomainMessenger_Test is Messenger_Initializer {
         vm.expectCall(target, hex"1111");
 
         // set the value of op.l2Sender() to be the L2 Cross Domain Messenger.
-        uint256 senderSlotIndex = 50;
-        // The sender value in storage is left shifted 2 bytes as a result of being tightly packed
-        // with the two uint8 values in initializable.
-        uint256 senderOffset = 16;
-
-        // Retrieve the current value for the full slot, zero out the sender section, then
-        // write over that section with the address of the L2 Messenger.
-        bytes32 slotValue = vm.load(address(op), bytes32(senderSlotIndex));
-        bytes32 slotValueWithSender;
-        assembly {
-            slotValueWithSender := or(
-                and(0xffff, slotValue),
-                shl(16, sender)
-            )
-        }
-
-        vm.store(address(op), bytes32(senderSlotIndex), slotValueWithSender);
+        uint256 senderSlotIndex = 51;
+        vm.store(address(op), bytes32(senderSlotIndex), bytes32(abi.encode(sender)));
         vm.prank(address(op));
 
         vm.expectEmit(true, true, true, true);
@@ -206,23 +191,10 @@ contract L1CrossDomainMessenger_Test is Messenger_Initializer {
 
         address sender = Lib_PredeployAddresses.L2_CROSS_DOMAIN_MESSENGER;
 
-        uint256 senderSlotIndex = 50;
-        // The sender value in storage is left shifted 2 bytes as a result of being tightly packed
-        // with the two uint8 values in initializable.
-        uint256 senderOffset = 16;
-
-        // Retrieve the current value for the full slot, zero out the sender section, then
-        // write over that section with the address of the L2 Messenger.
+        uint256 senderSlotIndex = 51;
         bytes32 slotValue = vm.load(address(op), bytes32(senderSlotIndex));
-        bytes32 slotValueWithSender;
-        assembly {
-            slotValueWithSender := or(
-                and(0xffff, slotValue),
-                shl(16, sender)
-            )
-        }
 
-        vm.store(address(op), bytes32(senderSlotIndex), slotValueWithSender);
+        vm.store(address(op), bytes32(senderSlotIndex), bytes32(abi.encode(sender)));
         vm.prank(address(op));
         L1Messenger.relayMessage(0, address(0), address(0), 0, 0, hex"");
 

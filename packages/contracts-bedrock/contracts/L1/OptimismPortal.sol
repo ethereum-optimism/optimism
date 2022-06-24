@@ -15,7 +15,7 @@ import { Initializable } from "@openzeppelin/contracts/proxy/utils/Initializable
  *         and L2. Messages sent directly to the OptimismPortal have no form of replayability.
  *         Users are encouraged to use the L1CrossDomainMessenger for a higher-level interface.
  */
-contract OptimismPortal is ResourceMetering, Initializable {
+contract OptimismPortal is Initializable, ResourceMetering {
     /**
      * @notice Contract version number.
      */

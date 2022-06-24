@@ -18,6 +18,7 @@ import { OVM_ETH } from "../L2/OVM_ETH.sol";
 import { Lib_PredeployAddresses } from "../libraries/Lib_PredeployAddresses.sol";
 import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import { Proxy } from "../universal/Proxy.sol";
+import { Initializable } from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
 
 contract CommonTest is Test {
     address alice = address(128);
@@ -354,4 +355,9 @@ contract Bridge_Initializer is Messenger_Initializer {
             )
         );
     }
+}
+
+// Used for testing a future upgrade beyond the current implementations.
+contract NextImpl is Initializable {
+    function initialize() public reinitializer(2) {}
 }
