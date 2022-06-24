@@ -18,7 +18,7 @@
     "prebuild": "yarn ts-node scripts/verifyFoundryInstall.ts",
     "build": "hardhat compile && tsc && hardhat typechain",
     "build:ts": "tsc",
-    "test": "./scripts/forge-test-loop.sh",
+    "test": "forge test",
     "gas-snapshot": "forge snapshot",
     "storage-snapshot": "./scripts/storage-snapshot.sh",
     "slither": "slither .",
