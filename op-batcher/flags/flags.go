@@ -1,7 +1,6 @@
 package flags
 
 import (
-	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/urfave/cli"
 )
 
@@ -47,8 +46,7 @@ var (
 	ChannelTimeoutFlag = cli.Uint64Flag{
 		Name:     "channel-timeout",
 		Usage:    "The maximum amount of time to attempt completing an opened channel, as opposed to submitting L2 blocks into a new channel.",
-		Required: false,
-		Value:    derive.ChannelTimeout,
+		Required: true,
 		EnvVar:   prefixEnvVar("CHANNEL_TIMEOUT"),
 	}
 	PollIntervalFlag = cli.DurationFlag{
@@ -130,6 +128,7 @@ var requiredFlags = []cli.Flag{
 	MinL1TxSizeBytesFlag,
 	MaxL1TxSizeBytesFlag,
 	MaxBlocksPerChannelFlag,
+	ChannelTimeoutFlag,
 	PollIntervalFlag,
 	NumConfirmationsFlag,
 	SafeAbortNonceTooLowCountFlag,
@@ -141,7 +140,6 @@ var requiredFlags = []cli.Flag{
 }
 
 var optionalFlags = []cli.Flag{
-	ChannelTimeoutFlag,
 	LogLevelFlag,
 	LogTerminalFlag,
 }
