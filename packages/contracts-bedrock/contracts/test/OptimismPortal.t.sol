@@ -1,7 +1,7 @@
 //SPDX-License-Identifier: MIT
 pragma solidity 0.8.10;
 
-import { L2OutputOracle_Initializer, CommonTest } from "./CommonTest.t.sol";
+import { Portal_Initializer, CommonTest } from "./CommonTest.t.sol";
 
 import { AddressAliasHelper } from "../libraries/AddressAliasHelper.sol";
 import { L2OutputOracle } from "../L1/L2OutputOracle.sol";
@@ -9,7 +9,7 @@ import { OptimismPortal } from "../L1/OptimismPortal.sol";
 import { WithdrawalVerifier } from "../libraries/Lib_WithdrawalVerifier.sol";
 import { Proxy } from "../universal/Proxy.sol";
 
-contract OptimismPortal_Test is L2OutputOracle_Initializer {
+contract OptimismPortal_Test is Portal_Initializer {
     event TransactionDeposited(
         address indexed from,
         address indexed to,
@@ -19,14 +19,6 @@ contract OptimismPortal_Test is L2OutputOracle_Initializer {
         bool isCreation,
         bytes data
     );
-
-    // Test target
-    OptimismPortal op;
-
-    function setUp() public override {
-        L2OutputOracle_Initializer.setUp();
-        op = new OptimismPortal(oracle, 7 days);
-    }
 
     function test_OptimismPortalConstructor() external {
         assertEq(op.FINALIZATION_PERIOD_SECONDS(), 7 days);
@@ -321,14 +313,12 @@ contract OptimismPortal_Test is L2OutputOracle_Initializer {
     }
 }
 
-contract OptimismPortalUpgradeable_Test is CommonTest {
-    OptimismPortal opImpl;
+contract OptimismPortalUpgradeable_Test is Portal_Initializer {
     Proxy internal proxy;
-    L2OutputOracle oracle = L2OutputOracle(address(0));
     uint64 initialBlockNum;
 
-    function setUp() external {
-        _setUp();
+    function setUp() public override {
+        super.setUp();
         initialBlockNum = uint64(block.number);
         opImpl = new OptimismPortal(oracle, 7 days);
         proxy = new Proxy(alice);

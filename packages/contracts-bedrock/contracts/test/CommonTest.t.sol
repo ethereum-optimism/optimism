@@ -97,6 +97,26 @@ contract L2OutputOracle_Initializer is CommonTest {
     }
 }
 
+contract Portal_Initializer is L2OutputOracle_Initializer {
+    // Test target
+    OptimismPortal opImpl;
+    OptimismPortal op;
+
+    function setUp() public override virtual {
+        L2OutputOracle_Initializer.setUp();
+        opImpl = new OptimismPortal(oracle, 7 days);
+        Proxy proxy = new Proxy(alice);
+        vm.prank(alice);
+        proxy.upgradeToAndCall(
+            address(opImpl),
+            abi.encodeWithSelector(
+                OptimismPortal.initialize.selector
+            )
+        );
+        op = OptimismPortal(payable(address(proxy)));
+    }
+}
+
 contract Messenger_Initializer is L2OutputOracle_Initializer {
     OptimismPortal op;
     L1CrossDomainMessenger L1Messenger;
