@@ -127,7 +127,7 @@ func (og *ChannelEmitter) Output(ctx context.Context, history map[ChannelID]uint
 
 	// prune timed out channels, before adding new ones
 	for id, ch := range og.channels {
-		if id.Time+ChannelTimeout < og.l1Time {
+		if id.Time+og.cfg.ChannelTimeout < og.l1Time {
 			if ch.Closed() {
 				og.log.Debug("cleaning up closed timed-out channel", "channel", id)
 			} else {

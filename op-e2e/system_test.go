@@ -122,6 +122,7 @@ func defaultSystemConfig(t *testing.T) SystemConfig {
 			BlockTime:         1,
 			MaxSequencerDrift: 10,
 			SeqWindowSize:     2,
+			ChannelTimeout:    20,
 			L1ChainID:         big.NewInt(900),
 			L2ChainID:         big.NewInt(901),
 			// TODO pick defaults

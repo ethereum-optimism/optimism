@@ -17,9 +17,6 @@ const DerivationVersion0 = 0
 // channel ID (data + time), frame number, frame length, last frame bool
 const minimumFrameSize = (ChannelIDDataSize + 1) + 1 + 1 + 1
 
-// ChannelTimeout is the number of seconds until a channel is removed if it's not read
-const ChannelTimeout = 10 * 60
-
 // MaxChannelBankSize is the amount of memory space, in number of bytes,
 // till the bank is pruned by removing channels,
 // starting with the oldest channel.

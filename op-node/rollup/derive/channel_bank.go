@@ -6,9 +6,8 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/ethereum-optimism/optimism/op-node/rollup"
-
 	"github.com/ethereum-optimism/optimism/op-node/eth"
+	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 )
@@ -165,7 +164,7 @@ func (ib *ChannelBank) IngestData(data []byte) error {
 		offset += 1
 
 		// check if the channel is not timed out
-		if chID.Time+ChannelTimeout < ib.currentOrigin.Time {
+		if chID.Time+ib.cfg.ChannelTimeout < ib.currentOrigin.Time {
 			ib.log.Info("channel is timed out, ignore frame", "channel", chID, "id_time", chID.Time, "frame", frameNumber)
 			continue
 		}
@@ -198,7 +197,7 @@ func (ib *ChannelBank) Read() (data []byte, err error) {
 	}
 	first := ib.channelQueue[0]
 	ch := ib.channels[first]
-	timedOut := first.Time+ChannelTimeout < ib.currentOrigin.Time
+	timedOut := first.Time+ib.cfg.ChannelTimeout < ib.currentOrigin.Time
 	if timedOut {
 		ib.log.Info("channel timed out", "channel", first, "frames", len(ch.inputs))
 	}
@@ -228,13 +227,14 @@ func (ib *ChannelBank) Step(ctx context.Context) error {
 		return err
 	}
 
+	// close origin if next stage is open while this one is closed
+	if !ib.originOpen && ib.next.IsOriginOpen() {
+		ib.next.CloseOrigin()
+		return nil
+	}
+
 	// move forward the ch reader if the bank has new L1 data
 	if ib.next.CurrentOrigin() != ib.CurrentOrigin() {
-		if ib.next.IsOriginOpen() {
-			ib.next.CloseOrigin()
-			return nil
-		}
-
 		return ib.next.OpenOrigin(ib.CurrentOrigin())
 	}
 
@@ -261,7 +261,7 @@ func (ib *ChannelBank) ResetStep(ctx context.Context, l1Fetcher L1Fetcher) error
 		ib.resetting = true
 		return nil
 	}
-	if ib.currentOrigin.Time+ChannelTimeout < ib.next.CurrentOrigin().Time || ib.currentOrigin.Number == 0 {
+	if ib.currentOrigin.Time+ib.cfg.ChannelTimeout < ib.next.CurrentOrigin().Time || ib.currentOrigin.Number == 0 {
 		ib.log.Warn("found reset origin for channel bank", "origin", ib.currentOrigin)
 		ib.resetting = false
 		return io.EOF

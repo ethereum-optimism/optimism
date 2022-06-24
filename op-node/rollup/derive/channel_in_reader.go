@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"compress/zlib"
 	"context"
-	"fmt"
 	"io"
 
 	"github.com/ethereum/go-ethereum/log"
@@ -33,9 +32,7 @@ type ChannelInReader struct {
 	readZlib zlibReader
 	readRLP  *rlp.Stream
 
-	currentOrigin eth.L1BlockRef
-	originOpen    bool
-	data          []byte
+	data []byte
 
 	next BatchQueueStage
 }
@@ -48,37 +45,26 @@ func NewChannelInReader(log log.Logger, next BatchQueueStage) *ChannelInReader {
 }
 
 func (cr *ChannelInReader) OpenOrigin(origin eth.L1BlockRef) error {
-	if cr.originOpen {
-		panic("double open")
-	}
-	if cr.currentOrigin.Hash != origin.ParentHash {
-		return fmt.Errorf("next origin %s does not build on top of current origin %s, but on %s", origin.ID(), cr.currentOrigin.ID(), origin.ParentID())
-	}
-	cr.currentOrigin = origin
-	cr.originOpen = true
-	return nil
+	return cr.next.OpenOrigin(origin)
 }
 
 // CurrentOrigin returns the L1 block that encodes the data that is currently being read.
 // Batches should be filtered based on this source.
 // Note that the source might not be canonical anymore by the time the data is processed.
 func (cr *ChannelInReader) CurrentOrigin() eth.L1BlockRef {
-	return cr.currentOrigin
+	return cr.next.CurrentOrigin()
 }
 
 func (cr *ChannelInReader) CloseOrigin() {
-	if !cr.originOpen {
-		panic("double close")
-	}
-	cr.originOpen = false
+	cr.next.CloseOrigin()
 }
 
 func (cr *ChannelInReader) IsOriginOpen() bool {
-	return cr.originOpen
+	return cr.next.IsOriginOpen()
 }
 
 func (cr *ChannelInReader) WriteChannel(data []byte) {
-	if !cr.originOpen {
+	if !cr.IsOriginOpen() {
 		panic("write channel while closed")
 	}
 	cr.data = data
@@ -89,9 +75,6 @@ func (cr *ChannelInReader) WriteChannel(data []byte) {
 // - io.EOF, if the ChannelInReader source needs more data, to be provided with WriteChannel()/
 // - any other error (e.g. invalid compression or batch data):
 //   the caller should ChannelInReader.NextChannel() before continuing reading the next batch.
-//
-// It's up to the caller to check CurrentOrigin() before reading more information.
-// The CurrentOrigin() does not change until the first ReadBatch() after the old source has been completely exhausted.
 func (cr *ChannelInReader) ReadBatch(dest *BatchData) error {
 	// The channel reader may not be initialized yet,
 	// and initializing involves reading (zlib header data), so we do that now.
@@ -135,15 +118,6 @@ func (cr *ChannelInReader) NextChannel() {
 }
 
 func (cr *ChannelInReader) Step(ctx context.Context) error {
-	// move forward the batch queue if the ch reader has new L1 data
-	if cr.next.CurrentOrigin() != cr.CurrentOrigin() {
-		// mark the origin as ended if the ch reader marked it as ended
-		if cr.next.IsOriginOpen() {
-			cr.next.CloseOrigin()
-			return nil
-		}
-		return cr.next.OpenOrigin(cr.CurrentOrigin())
-	}
 	var batch BatchData
 	if err := cr.ReadBatch(&batch); err == io.EOF {
 		return io.EOF
@@ -158,8 +132,6 @@ func (cr *ChannelInReader) Step(ctx context.Context) error {
 
 func (cr *ChannelInReader) ResetStep(ctx context.Context, l1Fetcher L1Fetcher) error {
 	cr.ready = false
-	cr.currentOrigin = cr.next.CurrentOrigin()
-	cr.originOpen = true
 	cr.data = nil
 	return io.EOF
 }

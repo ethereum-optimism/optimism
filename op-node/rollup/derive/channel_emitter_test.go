@@ -87,6 +87,7 @@ func TestOutput(t *testing.T) {
 			L2:     eth.BlockID{Hash: common.Hash{0xff, 2}},
 			L2Time: 2,
 		},
+		ChannelTimeout: 20,
 		// the other fields don't matter in this test
 	}
 	og := NewChannelEmitter(testlog.Logger(t, log.LvlDebug), cfg, src)
