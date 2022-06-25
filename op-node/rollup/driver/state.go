@@ -262,11 +262,11 @@ func (s *state) eventLoop() {
 
 		case <-l2BlockCreationReqCh:
 			s.snapshot("L2 Block Creation Request")
-			// only create blocks if we processed all L1 contents
-			if s.derivation.CurrentL1() != s.l1Head {
-				s.log.Info("not creating block, node is not synced", "current_l1", s.derivation.CurrentL1(), "head_l1", s.l1Head)
-				break
-			}
+			// // only create blocks if we processed all L1 contents
+			// if s.derivation.CurrentL1() != s.l1Head {
+			// 	s.log.Warn("not creating block, node is not synced", "current_l1", s.derivation.CurrentL1(), "head_l1", s.l1Head)
+			// 	break
+			// }
 			ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 			err := s.createNewL2Block(ctx)
 			cancel()
@@ -274,14 +274,14 @@ func (s *state) eventLoop() {
 				s.log.Error("Error creating new L2 block", "err", err)
 			}
 
-			// We need to catch up to the next origin as quickly as possible. We can do this by
-			// requesting a new block ASAP instead of waiting for the next tick.
-			// TODO: If we want to consider confirmations, need to consider here too.
-			if s.l1Head.Number > s.l2Head.L1Origin.Number {
-				s.log.Trace("Asking for a second L2 block asap", "l2Head", s.l2Head)
-				// But not too quickly to minimize busy-waiting for new blocks
-				time.AfterFunc(time.Millisecond*10, reqL2BlockCreation)
-			}
+			// // We need to catch up to the next origin as quickly as possible. We can do this by
+			// // requesting a new block ASAP instead of waiting for the next tick.
+			// // TODO: If we want to consider confirmations, need to consider here too.
+			// if s.l1Head.Number > s.l2Head.L1Origin.Number {
+			// 	s.log.Trace("Asking for a second L2 block asap", "l2Head", s.l2Head)
+			// 	// But not too quickly to minimize busy-waiting for new blocks
+			// 	time.AfterFunc(time.Millisecond*10, reqL2BlockCreation)
+			// }
 
 		case payload := <-s.unsafeL2Payloads:
 			s.snapshot("New unsafe payload")

@@ -102,7 +102,7 @@ func InsertHeadBlock(ctx context.Context, log log.Logger, eng Engine, fc eth.For
 	if updateSafe {
 		fc.SafeBlockHash = payload.BlockHash
 	}
-	log.Debug("Inserted L2 head block", "number", uint64(payload.BlockNumber), "hash", payload.BlockHash, "update_safe", updateSafe)
+	log.Warn("Inserted L2 head block", "number", uint64(payload.BlockNumber), "hash", payload.BlockHash, "update_safe", updateSafe)
 	fcRes, err = eng.ForkchoiceUpdate(ctx, &fc, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to make the new L2 block canonical via forkchoice: %w", err), nil
