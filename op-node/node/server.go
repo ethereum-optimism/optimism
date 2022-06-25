@@ -29,8 +29,8 @@ type rpcServer struct {
 	l2.Source
 }
 
-func newRPCServer(ctx context.Context, rpcCfg *RPCConfig, rollupCfg *rollup.Config, l2Client l2EthClient, emitter ChannelEmitter, log log.Logger, appVersion string) (*rpcServer, error) {
-	api := newNodeAPI(rollupCfg, l2Client, emitter, log.New("rpc", "node"))
+func newRPCServer(ctx context.Context, rpcCfg *RPCConfig, rollupCfg *rollup.Config, l2Client l2EthClient, log log.Logger, appVersion string) (*rpcServer, error) {
+	api := newNodeAPI(rollupCfg, l2Client, log.New("rpc", "node"))
 	// TODO: extend RPC config with options for WS, IPC and HTTP RPC connections
 	endpoint := net.JoinHostPort(rpcCfg.ListenAddr, strconv.Itoa(rpcCfg.ListenPort))
 	r := &rpcServer{

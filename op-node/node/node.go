@@ -149,7 +149,7 @@ func (n *OpNode) initRPCServer(ctx context.Context, cfg *Config) error {
 	if err != nil {
 		return err
 	}
-	n.server, err = newRPCServer(ctx, &cfg.RPC, &cfg.Rollup, client, n.l2Engine.Emitter(), n.log, n.appVersion)
+	n.server, err = newRPCServer(ctx, &cfg.RPC, &cfg.Rollup, client, n.log, n.appVersion)
 	if err != nil {
 		return err
 	}

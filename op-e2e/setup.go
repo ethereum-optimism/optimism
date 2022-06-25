@@ -581,7 +581,7 @@ func (cfg SystemConfig) start() (*System, error) {
 	// Batch Submitter
 	sys.batchSubmitter, err = bss.NewBatchSubmitter(bss.Config{
 		L1EthRpc:                   sys.nodes["l1"].WSEndpoint(),
-		RollupRpc:                  rollupEndpoint,
+		RollupRpc:                  sys.nodes["sequencer"].WSEndpoint(),
 		MinL1TxSize:                1,
 		MaxL1TxSize:                120000,
 		MaxBlocksPerChannel:        20,
@@ -596,7 +596,7 @@ func (cfg SystemConfig) start() (*System, error) {
 		SequencerHDPath:            sys.cfg.BatchSubmitterHDPath,
 		SequencerHistoryDBFilename: sys.sequencerHistoryDBFileName,
 		SequencerBatchInboxAddress: sys.cfg.RollupConfig.BatchInboxAddress.String(),
-	}, "", sys.cfg.Loggers["batcher"])
+	}, sys.cfg.Loggers["batcher"])
 	if err != nil {
 		return nil, fmt.Errorf("failed to setup batch submitter: %w", err)
 	}

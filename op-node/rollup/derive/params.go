@@ -9,6 +9,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 )
 
+const ChannelTimeout = 600
+
 // count the tagging info as 200 in terms of buffer size.
 const frameOverhead = 200
 

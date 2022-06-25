@@ -41,12 +41,11 @@ type nodeAPI struct {
 	log     log.Logger
 }
 
-func newNodeAPI(config *rollup.Config, l2Client l2EthClient, emitter ChannelEmitter, log log.Logger) *nodeAPI {
+func newNodeAPI(config *rollup.Config, l2Client l2EthClient, log log.Logger) *nodeAPI {
 	return &nodeAPI{
-		config:  config,
-		client:  l2Client,
-		emitter: emitter,
-		log:     log,
+		config: config,
+		client: l2Client,
+		log:    log,
 	}
 }
 
