@@ -37,7 +37,7 @@ func newTestHarnessWithConfig(cfg txmgr.Config) *testHarness {
 	}
 }
 
-// newTestHarness initializes a testHarness with a defualt configuration that is
+// newTestHarness initializes a testHarness with a default configuration that is
 // suitable for most tests.
 func newTestHarness() *testHarness {
 	return newTestHarnessWithConfig(configWithNumConfs(1))

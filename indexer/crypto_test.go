@@ -12,7 +12,7 @@ import (
 )
 
 // TestParseL1Address asserts that ParseL1Address correctly parses
-// 40-characater hexidecimal strings with optional 0x prefix into valid 20-byte
+// 40-characater hexadecimal strings with optional 0x prefix into valid 20-byte
 // addresses for the L1 chain.
 func TestParseL1Address(t *testing.T) {
 	tests := []struct {
@@ -57,7 +57,7 @@ func TestParseL1Address(t *testing.T) {
 }
 
 // TestParseL2Address asserts that ParseL2Address correctly parses
-// 40-characater hexidecimal strings with optional 0x prefix into valid 20-byte
+// 40-characater hexadecimal strings with optional 0x prefix into valid 20-byte
 // addresses for the L2 chain.
 func TestParseL2Address(t *testing.T) {
 	tests := []struct {

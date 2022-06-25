@@ -10,7 +10,7 @@ import (
 
 type Base struct {
 	// subsystemName stores the name that will prefix all metrics. This can be
-	// used by drivers to futher extend the core metrics and ensure they use the
+	// used by drivers to further extend the core metrics and ensure they use the
 	// same prefix.
 	subsystemName string
 

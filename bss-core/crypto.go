@@ -21,8 +21,8 @@ var (
 		"or mnemonic+hdpath")
 )
 
-// ParseAddress parses an ETH addres from a hex string. This method will fail if
-// the address is not a valid hexidecimal address.
+// ParseAddress parses an ETH address from a hex string. This method will fail if
+// the address is not a valid hexadecimal address.
 func ParseAddress(address string) (common.Address, error) {
 	if common.IsHexAddress(address) {
 		return common.HexToAddress(address), nil
@@ -101,7 +101,7 @@ func DerivePrivateKey(mnemonic, hdPath string) (*ecdsa.PrivateKey, error) {
 	return crypto.ToECDSA(rawPrivKey)
 }
 
-// ParsePrivateKeyStr parses a hexidecimal encoded private key, the encoding may
+// ParsePrivateKeyStr parses a hexadecimal encoded private key, the encoding may
 // optionally have an "0x" prefix.
 func ParsePrivateKeyStr(privKeyStr string) (*ecdsa.PrivateKey, error) {
 	hex := strings.TrimPrefix(privKeyStr, "0x")
