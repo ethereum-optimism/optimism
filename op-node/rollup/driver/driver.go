@@ -63,7 +63,7 @@ func NewDriver(cfg *rollup.Config, l2 *l2.Source, l1 *l1.Source, network Network
 		l2:     l2,
 		log:    log,
 	}
-	derivationPipeline := derive.NewDerivationPipeline(log, cfg, l1, l2)
+	derivationPipeline := derive.NewDerivationPipeline(log, cfg, l1, l2, sequencer)
 	return &Driver{
 		s: NewState(log, snapshotLog, cfg, l1, l2, output, derivationPipeline, network, sequencer),
 	}

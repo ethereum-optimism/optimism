@@ -232,7 +232,7 @@ func (l *BatchSubmitter) loop() {
 					l.log.Error("issue getting adding L2 Block", "err", err)
 					continue
 				}
-				l.log.Warn("added L2 block to channel", "block_number", block.NumberU64(), "channel_id", l.ch.ID())
+				l.log.Warn("added L2 block to channel", "block_number", block.NumberU64(), "channel_id", l.ch.ID(), "tx_count", len(block.Transactions()), "time", block.Time())
 			}
 			l.l2HeadNumber = head.NumberU64()
 

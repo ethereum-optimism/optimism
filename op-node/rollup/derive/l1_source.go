@@ -82,9 +82,10 @@ func (l1s *L1Source) Step(ctx context.Context) error {
 	if l1s.datas == nil {
 		datas, err := l1s.dataSrc.OpenData(ctx, l1s.currentOrigin.ID())
 		if err != nil {
-			l1s.log.Debug("can't fetch L1 data", "origin", l1s.currentOrigin)
+			l1s.log.Error("can't fetch L1 data", "origin", l1s.currentOrigin)
 			return nil
 		}
+		l1s.log.Warn("opened L1 data source")
 		l1s.datas = datas
 		return nil
 	}

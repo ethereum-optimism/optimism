@@ -2,7 +2,6 @@ package driver
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	gosync "sync"
@@ -71,6 +70,7 @@ func (s *state) Start(ctx context.Context) error {
 		return err
 	}
 	s.l1Head = l1Head
+	s.l2Head, _ = s.l2.L2BlockRefByNumber(ctx, nil)
 
 	s.derivation.Reset()
 
@@ -290,11 +290,12 @@ func (s *state) eventLoop() {
 			reqStep()
 
 		case newL1Head := <-s.l1Heads:
+			s.log.Warn("new l1 Head")
 			s.snapshot("New L1 Head")
 			s.handleNewL1Block(newL1Head)
 			reqStep() // a new L1 head may mean we have the data to not get an EOF again.
 		case <-stepReqCh:
-			s.log.Trace("Derivation process step", "onto", s.derivation.CurrentL1())
+			s.log.Warn("Derivation process step", "onto", s.derivation.CurrentL1())
 			stepCtx, cancel := context.WithTimeout(ctx, time.Second*10) // TODO pick a timeout for executing a single step
 			err := s.derivation.Step(stepCtx)
 			cancel()
@@ -311,9 +312,11 @@ func (s *state) eventLoop() {
 					s.log.Info("sync progress", "finalized", finalized, "safe", safe, "unsafe", unsafe)
 				}
 				// update the heads
-				s.l2Finalized = finalized
-				s.l2SafeHead = safe
-				s.l2Head = unsafe
+				if !s.sequencer {
+					s.l2Finalized = finalized
+					s.l2SafeHead = safe
+					s.l2Head = unsafe
+				}
 				reqStep() // continue with the next step if we can
 			}
 		case <-s.done:
@@ -323,17 +326,17 @@ func (s *state) eventLoop() {
 }
 
 func (s *state) snapshot(event string) {
-	l1HeadJSON, _ := json.Marshal(s.l1Head)
-	l1CurrentJSON, _ := json.Marshal(s.l2Head)
-	l2HeadJSON, _ := json.Marshal(s.l2Head)
-	l2SafeHeadJSON, _ := json.Marshal(s.l2SafeHead)
-	l2FinalizedHeadJSON, _ := json.Marshal(s.l2Finalized)
+	// l1HeadJSON, _ := json.Marshal(s.l1Head)
+	// l1CurrentJSON, _ := json.Marshal(s.l2Head)
+	// l2HeadJSON, _ := json.Marshal(s.l2Head)
+	// l2SafeHeadJSON, _ := json.Marshal(s.l2SafeHead)
+	// l2FinalizedHeadJSON, _ := json.Marshal(s.l2Finalized)
 
-	s.snapshotLog.Info("Rollup State Snapshot",
-		"event", event,
-		"l1Head", string(l1HeadJSON),
-		"l1Current", string(l1CurrentJSON),
-		"l2Head", string(l2HeadJSON),
-		"l2SafeHead", string(l2SafeHeadJSON),
-		"l2FinalizedHead", string(l2FinalizedHeadJSON))
+	// s.snapshotLog.Info("Rollup State Snapshot",
+	// 	"event", event,
+	// 	"l1Head", string(l1HeadJSON),
+	// 	"l1Current", string(l1CurrentJSON),
+	// 	"l2Head", string(l2HeadJSON),
+	// 	"l2SafeHead", string(l2SafeHeadJSON),
+	// 	"l2FinalizedHead", string(l2FinalizedHeadJSON))
 }
