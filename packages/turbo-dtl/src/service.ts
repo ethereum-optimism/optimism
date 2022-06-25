@@ -3,6 +3,7 @@ import { ethers } from 'ethers'
 import {
   BaseServiceV2,
   ExpressRouter,
+  Gauge,
   validators,
 } from '@eth-optimism/common-ts'
 import { getContractInterface } from '@eth-optimism/contracts'
@@ -28,12 +29,16 @@ type DTLOptions = {
   addressManager: string
 }
 
-type DTLMetrics = {}
+type DTLMetrics = {
+  highestSyncedL1Block: Gauge
+  highestSyncedL2Block: Gauge
+  highestKnownL2Block: Gauge
+  unexpectedRetryableErrors: Gauge
+}
 
 type DTLState = {
   db: TransportDB
   highestKnownL1Block: number
-  AddressManager: ethers.Contract
   CanonicalTransactionChain: ethers.Contract
 }
 
@@ -46,8 +51,10 @@ export class DTLService extends BaseServiceV2<
     super({
       // eslint-disable-next-line @typescript-eslint/no-var-requires
       version: require('../package.json').version,
-      name: 'dtl',
+      name: 'data-transport-layer',
       options,
+      api: '/',
+      port: 7878,
       optionsSpec: {
         db: {
           validator: validators.str,
@@ -80,7 +87,25 @@ export class DTLService extends BaseServiceV2<
           desc: 'address of the AddressManager contract on L1',
         },
       },
-      metricsSpec: {},
+      metricsSpec: {
+        highestSyncedL1Block: {
+          type: Gauge,
+          desc: 'highest synced L1 block number',
+        },
+        highestSyncedL2Block: {
+          type: Gauge,
+          desc: 'highest synced L2 block number',
+        },
+        highestKnownL2Block: {
+          type: Gauge,
+          desc: 'highest known L2 block number',
+        },
+        unexpectedRetryableErrors: {
+          type: Gauge,
+          desc: 'count of errors within the retryable function',
+          labels: ['name'],
+        },
+      },
     })
   }
 
@@ -290,19 +315,26 @@ export class DTLService extends BaseServiceV2<
     await db.open()
     this.state.db = new TransportDB(new SimpleDB(db), this.options.l2ChainId)
 
-    // Connect to the AddressManager and CTC.
-    this.state.AddressManager = new ethers.Contract(
+    // Connect to the AddressManager, temporarily.
+    const AddressManager = new ethers.Contract(
       this.options.addressManager,
       getContractInterface('Lib_AddressManager'),
       this.options.l1RpcProvider
     )
+
+    // Use AddressManager to build CTC.
     this.state.CanonicalTransactionChain = new ethers.Contract(
-      await this.state.AddressManager.getAddress('CanonicalTransactionChain'),
+      await this.retryable(
+        AddressManager.getAddress.bind(
+          AddressManager,
+          'CanonicalTransactionChain'
+        )
+      ),
       getContractInterface('CanonicalTransactionChain'),
       this.options.l1RpcProvider
     )
 
-    // Initialize the highest synced L1 block number if necessary.
+    // Initialize highest synced L1 block if necessary.
     if (!(await this.state.db.getHighestSyncedL1Block())) {
       await this.state.db.putHighestSyncedL1Block(this.options.l1StartHeight)
     }
@@ -310,8 +342,9 @@ export class DTLService extends BaseServiceV2<
     // We cache the highest known L1 block to avoid making unnecessary requests. We're only going
     // to update this number if we actually sync all the way up to this block. This way we don't
     // need to query the latest block on every loop.
-    this.state.highestKnownL1Block =
-      await this.options.l1RpcProvider.getBlockNumber()
+    this.state.highestKnownL1Block = await this.retryable(
+      this.options.l1RpcProvider.getBlockNumber.bind(this.options.l1RpcProvider)
+    )
   }
 
   protected async main(): Promise<void> {
@@ -324,7 +357,11 @@ export class DTLService extends BaseServiceV2<
 
     if (highestSyncedL1Block === syncRangeEnd) {
       this.logger.info('synced to tip, checking for new L1 blocks')
-      const latestL1Block = await this.options.l1RpcProvider.getBlockNumber()
+      const latestL1Block = await this.retryable(
+        this.options.l1RpcProvider.getBlockNumber.bind(
+          this.options.l1RpcProvider
+        )
+      )
       if (latestL1Block > this.state.highestKnownL1Block) {
         this.logger.info('new L1 block found')
         this.state.highestKnownL1Block = latestL1Block
@@ -336,6 +373,17 @@ export class DTLService extends BaseServiceV2<
         return
       }
     }
+
+    // Update highest known L2 block. We do this *before* running the rest of the loop to avoid a
+    // situation where there are elements in the DB that have an index higher than the recorded
+    // highest known L2 block.
+    const highestKnownL2Block = await this.retryable(
+      this.state.CanonicalTransactionChain.getTotalElements.bind(
+        this.state.CanonicalTransactionChain
+      )
+    )
+    await this.state.db.putHighestKnownL2Block(highestKnownL2Block.toNumber())
+    this.metrics.highestKnownL2Block.set(highestKnownL2Block.toNumber())
 
     try {
       await this.syncEventsFromCTC(
@@ -367,8 +415,20 @@ export class DTLService extends BaseServiceV2<
       }
     }
 
+    // Now we record the highest synced L2 block. It's possible for the latest batch to be null
+    // very early in the chain history if no batches have been found yet. Don't want to update the
+    // highest synced L2 block if this is the case.
+    const latestBatch = await this.state.db.getBatch('latest')
+    if (latestBatch !== null) {
+      const highestSyncedL2Block =
+        latestBatch.prevTotalElements + latestBatch.size
+      await this.state.db.putHighestSyncedL2Block(highestSyncedL2Block)
+      this.metrics.highestSyncedL2Block.set(highestSyncedL2Block)
+    }
+
     // If we made it all the way here then we successfully synced to the end of the range.
     await this.state.db.putHighestSyncedL1Block(syncRangeEnd)
+    this.metrics.highestSyncedL1Block.set(syncRangeEnd)
   }
 
   public async syncEventsFromCTC(
@@ -377,43 +437,108 @@ export class DTLService extends BaseServiceV2<
     eventName: string,
     eventParsingFunction: EventParsingFunction
   ): Promise<void> {
-    const tick = Date.now()
     this.logger.info('started syncing events', {
       eventName,
       startBlock,
       endBlock,
     })
 
-    const events = await this.state.CanonicalTransactionChain.queryFilter(
-      this.state.CanonicalTransactionChain.filters[eventName](),
-      startBlock,
-      endBlock
+    const events = await this.retryable(
+      this.state.CanonicalTransactionChain.queryFilter.bind(
+        this.state.CanonicalTransactionChain,
+        this.state.CanonicalTransactionChain.filters[eventName](),
+        startBlock,
+        endBlock
+      )
     )
 
-    const entries = await eventParsingFunction(
-      events,
-      this.options.l1RpcProvider,
-      this.options.l2ChainId
-    )
+    this.logger.info('events to parse', {
+      count: events.length,
+    })
 
-    for (const entry of entries) {
-      try {
-        await this.state.db.db.put(entry.key, entry.index, entry)
-      } catch (err) {
-        if (err === ErrEntryInconsistency) {
-          this.logger.warn('found event inconsistency, rolling back')
-          const latest = await this.state.db.db.get(entry.key, 'latest')
-          const latestIndex = latest ? this.options.l1StartHeight : latest.index
-          await this.state.db.putHighestSyncedL1Block(latestIndex)
+    for (let i = 0; i < events.length; i++) {
+      const event = events[i]
+      const entries = await this.retryable(
+        eventParsingFunction.bind(
+          this,
+          event,
+          this.options.l1RpcProvider,
+          this.options.l2ChainId
+        )
+      )
+
+      for (const entry of entries) {
+        try {
+          await this.state.db.db.put(entry.key, entry.index, entry)
+        } catch (err) {
+          if (err === ErrEntryInconsistency) {
+            this.logger.warn('found event inconsistency, rolling back', {
+              eventIndex: i,
+              entry,
+            })
+
+            // Entry inconsistency happens when there's a missing entry between the latest entry in
+            // the database and the entry we're trying to insert. This can happen when events are
+            // not being properly returned by the remote L1 node, which is very rare but has
+            // happened multiple times in the past. When we detect this, we reset the highest
+            // synced L1 block to trigger a resync from the last good block.
+            const latest = await this.state.db.db.get(entry.key, 'latest')
+            const latestIndex = latest
+              ? this.options.l1StartHeight
+              : latest.index
+            await this.state.db.putHighestSyncedL1Block(latestIndex)
+          }
+          throw err
         }
-        throw err
       }
     }
 
     this.logger.info(`finished syncing events`, {
       count: events.length,
-      time: Date.now() - tick,
     })
+  }
+
+  public retryable<TRet, T extends () => Promise<TRet>>(
+    fn: T,
+    opts: {
+      name?: string
+      max?: number
+      backoff?: 'linear' | 'exponential'
+    } = {}
+  ): ReturnType<T> {
+    return new Promise<TRet>(async (resolve, reject) => {
+      const max = opts.max || 7
+      let retries = max
+      while (true) {
+        try {
+          const ret = await fn()
+          resolve(ret)
+          return
+        } catch (err) {
+          this.metrics.unexpectedRetryableErrors.inc({
+            name: opts.name || fn.name,
+          })
+
+          const sleepTimeMs =
+            opts.backoff === 'linear'
+              ? 1000 * (max - retries)
+              : 1000 * 2 ** (max - retries)
+          this.logger.info(`caught unexpected error in retryable`, {
+            retries,
+            sleepTimeMs,
+            error: err,
+          })
+
+          if (retries <= 0) {
+            reject(err)
+            return
+          } else {
+            await sleep(sleepTimeMs)
+            retries--
+          }
+        }
+      }
+    }) as ReturnType<T>
   }
 }
 
