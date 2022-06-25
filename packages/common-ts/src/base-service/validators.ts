@@ -55,6 +55,7 @@ export const validators = {
   url,
   json,
   wallet,
+  provider: ethersJsonRpcProvider,
   ethersJsonRpcProvider,
   ethersJsonRpcBatchProvider,
   ethersStaticJsonRpcProvider,

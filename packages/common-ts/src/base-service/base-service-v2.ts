@@ -23,6 +23,7 @@ export type StandardOptions = {
   loopIntervalMs?: number
   port?: number
   hostname?: string
+  api?: string
 }
 
 export type OptionsSpec<TOptions extends Options> = {
@@ -131,6 +132,11 @@ export abstract class BaseServiceV2<
   protected readonly hostname: string
 
   /**
+   * Path for the app's API.
+   */
+  protected readonly api: string
+
+  /**
    * @param params Options for the construction of the service.
    * @param params.name Name for the service. This name will determine the prefix used for logging,
    * metrics, and loading environment variables.
@@ -143,38 +149,43 @@ export abstract class BaseServiceV2<
    * @param params.loopIntervalMs Loop interval in milliseconds. Defaults to zero.
    * @param params.port Port for the app server. Defaults to 7300.
    * @param params.hostname Hostname for the app server. Defaults to 0.0.0.0.
+   * @param params.api Path for the app's API. Defaults to "/api".
    */
-  constructor(
-    private readonly params: {
-      name: string
-      version: string
-      optionsSpec: OptionsSpec<TOptions>
-      metricsSpec: MetricsSpec<TMetrics>
-      options?: Partial<TOptions>
-      loop?: boolean
-      loopIntervalMs?: number
-      port?: number
-      hostname?: string
-    }
-  ) {
+  constructor(params: {
+    name: string
+    version: string
+    optionsSpec: OptionsSpec<TOptions>
+    metricsSpec: MetricsSpec<TMetrics>
+    options?: Partial<TOptions>
+    loop?: boolean
+    loopIntervalMs?: number
+    port?: number
+    hostname?: string
+    api?: string
+  }) {
     this.loop = params.loop !== undefined ? params.loop : true
     this.state = {} as TServiceState
 
     const stdOptionsSpec: OptionsSpec<StandardOptions> = {
       loopIntervalMs: {
         validator: validators.num,
-        desc: 'Loop interval in milliseconds',
+        desc: 'loop interval in milliseconds',
         default: params.loopIntervalMs || 0,
       },
       port: {
         validator: validators.num,
-        desc: 'Port for the app server',
+        desc: 'port for the app server',
         default: params.port || 7300,
       },
       hostname: {
         validator: validators.str,
-        desc: 'Hostname for the app server',
+        desc: 'hostname for the app server',
         default: params.hostname || '0.0.0.0',
+      },
+      api: {
+        validator: validators.str,
+        desc: 'path for the server API',
+        default: params.api || '/api',
       },
     }
 
@@ -218,7 +229,7 @@ export abstract class BaseServiceV2<
      */
     const opSnakeCase = (str: string) => {
       const reg = /l_1|l_2/g
-      const repl = str.includes('l1') ? 'l1' : 'l2'
+      const repl = str.toLowerCase().includes('l1') ? 'l1' : 'l2'
       return snakeCase(str).replace(reg, repl)
     }
 
@@ -319,6 +330,7 @@ export abstract class BaseServiceV2<
     this.metricsRegistry = prometheus.register
     this.port = this.options.port
     this.hostname = this.options.hostname
+    this.api = this.options.api
 
     // Set up everything else.
     this.loopIntervalMs = this.options.loopIntervalMs
@@ -444,7 +456,7 @@ export abstract class BaseServiceV2<
         })
       )
 
-      app.use('/api', router)
+      app.use(this.api, router)
 
       // Wait for server to come up.
       await new Promise((resolve) => {
@@ -454,6 +466,7 @@ export abstract class BaseServiceV2<
       })
 
       this.logger.info(`app server started`, {
+        api: this.api,
         port: this.port,
         hostname: this.hostname,
       })
@@ -487,6 +500,7 @@ export abstract class BaseServiceV2<
           this.pollingTimeout = setTimeout(doLoop, this.loopIntervalMs)
         }
       }
+
       doLoop()
     } else {
       this.logger.info('running main function')
