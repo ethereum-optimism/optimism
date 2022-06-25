@@ -51,6 +51,7 @@ func (l1s *L1Source) OpenOrigin(ref eth.L1BlockRef) error {
 }
 
 func (l1s *L1Source) CloseOrigin() {
+	l1s.originOpen = false
 }
 
 func (l1s *L1Source) IsOriginOpen() bool {
