@@ -222,7 +222,7 @@ func (l *BatchSubmitter) loop() {
 			} else {
 				l.ch = ch
 			}
-			for i := l.l2HeadNumber + 1; i < head.NumberU64(); i++ {
+			for i := l.l2HeadNumber + 1; i <= head.NumberU64(); i++ {
 				block, err := l.cfg.L2Client.BlockByNumber(context.TODO(), new(big.Int).SetUint64(i))
 				if err != nil {
 					l.log.Error("issue getting L2 block", "err", err)
