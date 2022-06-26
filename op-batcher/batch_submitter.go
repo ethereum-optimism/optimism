@@ -90,12 +90,14 @@ func Main(version string) func(ctx *cli.Context) error {
 // BatchSubmitter encapsulates a service responsible for submitting L2 tx
 // batches to L1 for availability.
 type BatchSubmitter struct {
-	ctx   context.Context
 	txMgr txmgr.TxManager
 	cfg   sequencer.Config
 	wg    sync.WaitGroup
 	done  chan struct{}
 	log   log.Logger
+
+	ctx    context.Context
+	cancel context.CancelFunc
 
 	l2HeadNumber uint64
 
@@ -175,11 +177,17 @@ func NewBatchSubmitter(cfg Config, l log.Logger) (*BatchSubmitter, error) {
 		PollInterval:        cfg.PollInterval,
 	}
 
+	ctx, cancel := context.WithCancel(context.Background())
+
 	return &BatchSubmitter{
 		cfg:   batcherCfg,
 		txMgr: txmgr.NewSimpleTxManager("batcher", txManagerConfig, l1Client),
 		done:  make(chan struct{}),
 		log:   l,
+		// TODO: this context only exists because the even loop doesn't reach done
+		// if the tx manager is blocking forever due to e.g. insufficient balance.
+		ctx:    ctx,
+		cancel: cancel,
 	}, nil
 }
 
@@ -190,22 +198,25 @@ func (l *BatchSubmitter) Start() error {
 }
 
 func (l *BatchSubmitter) Stop() {
+	l.cancel()
 	close(l.done)
 	l.wg.Wait()
 }
 
 func (l *BatchSubmitter) loop() {
-	ctx := context.Background()
 	defer l.wg.Done()
 
 	ticker := time.NewTicker(l.cfg.PollInterval)
 	defer ticker.Stop()
+mainLoop:
 	for {
 		select {
 		case <-ticker.C:
 			// Do the simplest thing of one channel per block
 			// TODO: Do one channel per epoch
-			head, err := l.cfg.L2Client.BlockByNumber(context.TODO(), nil)
+			ctx, cancel := context.WithTimeout(l.ctx, time.Second*10)
+			head, err := l.cfg.L2Client.BlockByNumber(ctx, nil)
+			cancel()
 			if err != nil {
 				l.log.Error("issue getting L2 head", "err", err)
 				continue
@@ -223,17 +234,20 @@ func (l *BatchSubmitter) loop() {
 				l.ch = ch
 			}
 			for i := l.l2HeadNumber + 1; i <= head.NumberU64(); i++ {
-				block, err := l.cfg.L2Client.BlockByNumber(context.TODO(), new(big.Int).SetUint64(i))
+				ctx, cancel := context.WithTimeout(l.ctx, time.Second*10)
+				block, err := l.cfg.L2Client.BlockByNumber(ctx, new(big.Int).SetUint64(i))
+				cancel()
 				if err != nil {
 					l.log.Error("issue getting L2 block", "err", err)
-					continue
+					continue mainLoop
 				}
 				if err := l.ch.AddBlock(block); err != nil {
 					l.log.Error("issue getting adding L2 Block", "err", err)
-					continue
+					continue mainLoop
 				}
 				l.log.Warn("added L2 block to channel", "block_number", block.NumberU64(), "channel_id", l.ch.ID(), "tx_count", len(block.Transactions()), "time", block.Time())
 			}
+			// TODO: above there are ugly "continue mainLoop" because we shouldn't progress if we're missing blocks, since the submitter logic can't handle gaps yet.
 			l.l2HeadNumber = head.NumberU64()
 
 			if err := l.ch.Close(); err != nil {
@@ -255,13 +269,17 @@ func (l *BatchSubmitter) loop() {
 			walletAddr := crypto.PubkeyToAddress(l.cfg.PrivKey.PublicKey)
 
 			// Query for the submitter's current nonce.
+			ctx, cancel = context.WithTimeout(l.ctx, time.Second*10)
 			nonce, err := l.cfg.L1Client.NonceAt(ctx, walletAddr, nil)
+			cancel()
 			if err != nil {
 				l.log.Error("unable to get current nonce", "err", err)
 				continue
 			}
 
+			ctx, cancel = context.WithTimeout(l.ctx, time.Second*10)
 			tx, err := l.CraftTx(ctx, data.Bytes(), nonce)
+			cancel()
 			if err != nil {
 				l.log.Error("unable to craft tx", "err", err)
 				continue
@@ -275,7 +293,11 @@ func (l *BatchSubmitter) loop() {
 
 			// Wait until one of our submitted transactions confirms. If no
 			// receipt is received it's likely our gas price was too low.
+			// TODO: does the tx manager nicely replace the tx?
+			//  (submit a new one, that's within the channel timeout, but higher fee than previously submitted tx? Or use a cheap cancel tx?)
+			ctx, cancel = context.WithTimeout(l.ctx, time.Second*time.Duration(l.cfg.ChannelTimeout))
 			receipt, err := l.txMgr.Send(ctx, updateGasPrice, l.cfg.L1Client.SendTransaction)
+			cancel()
 			if err != nil {
 				l.log.Error("unable to publish tx", "err", err)
 				continue
@@ -284,7 +306,7 @@ func (l *BatchSubmitter) loop() {
 			// The transaction was successfully submitted.
 			l.log.Warn("tx successfully published", "tx_hash", receipt.TxHash)
 
-		case <-l.done:
+		case _, _ = <-l.done:
 			return
 		}
 	}

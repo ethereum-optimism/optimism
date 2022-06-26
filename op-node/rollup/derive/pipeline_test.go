@@ -16,10 +16,10 @@ var _ L1Fetcher = (*testutils.MockL1Source)(nil)
 
 type MockOriginStage struct {
 	mock.Mock
-	progress Origin
+	progress Progress
 }
 
-func (m *MockOriginStage) Progress() Origin {
+func (m *MockOriginStage) Progress() Progress {
 	return m.progress
 }
 
@@ -44,7 +44,7 @@ func RepeatResetStep(t *testing.T, step func(ctx context.Context, l1Fetcher L1Fe
 
 // RepeatStep is a test util that will repeat the Step function until an error.
 // If the step runs too many times, it will fail the test.
-func RepeatStep(t *testing.T, step func(ctx context.Context, outer Origin) error, outer Origin, max int) error {
+func RepeatStep(t *testing.T, step func(ctx context.Context, outer Progress) error, outer Progress, max int) error {
 	ctx := context.Background()
 	for i := 0; i < max; i++ {
 		err := step(ctx, outer)

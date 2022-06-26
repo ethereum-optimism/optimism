@@ -438,12 +438,14 @@ func TestMissingBatchE2E(t *testing.T) {
 	_, err = l2Verif.TransactionReceipt(ctx, tx.Hash())
 	require.Equal(t, ethereum.NotFound, err, "Found transaction in verifier when it should not have been included")
 
-	// Wait a short time for the L2 reorg to occur on the sequencer.
+	// Wait a short time for the L2 reorg to occur on the sequencer as well.
 	// The proper thing to do is to wait until the sequencer marks this block safe.
-	<-time.After(200 * time.Millisecond)
+	<-time.After(2 * time.Second)
 
 	// Assert that the reconciliation process did an L2 reorg on the sequencer to remove the invalid block
-	block, err := l2Seq.BlockByNumber(ctx, receipt.BlockNumber)
+	ctx2, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	block, err := l2Seq.BlockByNumber(ctx2, receipt.BlockNumber)
 	require.Nil(t, err, "Get block from sequencer")
 	require.NotEqual(t, block.Hash(), receipt.BlockHash, "L2 Sequencer did not reorg out transaction on it's safe chain")
 }

@@ -31,7 +31,7 @@ type L1Source struct {
 	dataSrc DataAvailabilitySource
 	next    L1SourceOutput
 
-	Origin
+	progress Progress
 
 	data  eth.Data
 	datas DataIter
@@ -47,21 +47,25 @@ func NewL1Source(log log.Logger, dataSrc DataAvailabilitySource, next L1SourceOu
 	}
 }
 
-func (l1s *L1Source) Step(ctx context.Context, outer Origin) error {
-	if changed, err := l1s.UpdateOrigin(outer); err != nil || changed {
+func (l1s *L1Source) Progress() Progress {
+	return l1s.progress
+}
+
+func (l1s *L1Source) Step(ctx context.Context, outer Progress) error {
+	if changed, err := l1s.progress.Update(outer); err != nil || changed {
 		return err
 	}
 
 	// specific to L1 source: if the L1 origin is closed, there is no more data to retrieve.
-	if l1s.Origin.Closed {
+	if l1s.progress.Closed {
 		return io.EOF
 	}
 
 	// create a source if we have none
 	if l1s.datas == nil {
-		datas, err := l1s.dataSrc.OpenData(ctx, l1s.Origin.Current.ID())
+		datas, err := l1s.dataSrc.OpenData(ctx, l1s.progress.Origin.ID())
 		if err != nil {
-			l1s.log.Error("can't fetch L1 data", "origin", l1s.Origin.Current)
+			l1s.log.Error("can't fetch L1 data", "origin", l1s.progress.Origin)
 			return nil
 		}
 		l1s.log.Warn("opened L1 data source")
@@ -78,7 +82,7 @@ func (l1s *L1Source) Step(ctx context.Context, outer Origin) error {
 			return nil
 		} else if err == io.EOF {
 			l1s.log.Warn("no more data")
-			l1s.Origin.Closed = true
+			l1s.progress.Closed = true
 			l1s.datas = nil
 			return io.EOF
 		} else if err != nil {
@@ -99,7 +103,7 @@ func (l1s *L1Source) Step(ctx context.Context, outer Origin) error {
 }
 
 func (l1s *L1Source) ResetStep(ctx context.Context, l1Fetcher L1Fetcher) error {
-	l1s.Origin = l1s.next.Progress()
+	l1s.progress = l1s.next.Progress()
 	l1s.datas = nil
 	l1s.data = nil
 	return io.EOF

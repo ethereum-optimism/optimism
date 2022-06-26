@@ -32,7 +32,7 @@ type ChannelInReader struct {
 
 	data []byte
 
-	Origin
+	progress Progress
 
 	next BatchQueueStage
 }
@@ -44,8 +44,12 @@ func NewChannelInReader(log log.Logger, next BatchQueueStage) *ChannelInReader {
 	return &ChannelInReader{log: log, next: next}
 }
 
+func (cr *ChannelInReader) Progress() Progress {
+	return cr.progress
+}
+
 func (cr *ChannelInReader) WriteChannel(data []byte) {
-	if cr.Origin.Closed {
+	if cr.progress.Closed {
 		panic("write channel while closed")
 	}
 	cr.data = data
@@ -98,8 +102,8 @@ func (cr *ChannelInReader) NextChannel() {
 	cr.data = nil
 }
 
-func (cr *ChannelInReader) Step(ctx context.Context, outer Origin) error {
-	if changed, err := cr.UpdateOrigin(outer); err != nil || changed {
+func (cr *ChannelInReader) Step(ctx context.Context, outer Progress) error {
+	if changed, err := cr.progress.Update(outer); err != nil || changed {
 		return err
 	}
 
@@ -118,6 +122,6 @@ func (cr *ChannelInReader) Step(ctx context.Context, outer Origin) error {
 func (cr *ChannelInReader) ResetStep(ctx context.Context, l1Fetcher L1Fetcher) error {
 	cr.ready = false
 	cr.data = nil
-	cr.Origin = cr.next.Progress()
+	cr.progress = cr.next.Progress()
 	return io.EOF
 }

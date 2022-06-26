@@ -17,7 +17,7 @@ type L1Fetcher interface {
 }
 
 type StageProgress interface {
-	Progress() Origin
+	Progress() Progress
 }
 
 type Stage interface {
@@ -30,7 +30,7 @@ type Stage interface {
 	// - returns EOF: the stage will be skipped
 	// - returns another error: the stage will make the pipeline error.
 	// - returns nil: the stage will be repeated next Step
-	Step(ctx context.Context, outer Origin) error
+	Step(ctx context.Context, outer Progress) error
 
 	// ResetStep prepares the state for usage in regular steps.
 	// Similar to Step(ctx) it returns:
@@ -61,6 +61,9 @@ type DerivationPipeline struct {
 	// >= len(stages) if no additional resetting is required
 	resetting int
 
+	// Index of the stage that is currently being processed.
+	active int
+
 	// stages in execution order. A stage Step that:
 	stages []Stage
 
@@ -87,6 +90,7 @@ func NewDerivationPipeline(log log.Logger, cfg *rollup.Config, l1Fetcher L1Fetch
 		cfg:       cfg,
 		l1Fetcher: l1Fetcher,
 		resetting: 0,
+		active:    0,
 		stages:    stages,
 		eng:       eng,
 	}
@@ -96,7 +100,7 @@ func (dp *DerivationPipeline) Reset() {
 	dp.resetting = 0
 }
 
-func (dp *DerivationPipeline) Progress() Origin {
+func (dp *DerivationPipeline) Progress() Progress {
 	return dp.stages[len(dp.stages)-1].Progress()
 }
 
@@ -136,21 +140,19 @@ func (dp *DerivationPipeline) Step(ctx context.Context) error {
 	// if any stages need to be reset, do that first.
 	if dp.resetting < len(dp.stages) {
 		if err := dp.stages[dp.resetting].ResetStep(ctx, dp.l1Fetcher); err == io.EOF {
-			dp.log.Warn("reset of stage completed", "stage", dp.resetting, "origin", dp.stages[dp.resetting].Progress().Current)
+			dp.log.Warn("reset of stage completed", "stage", dp.resetting, "origin", dp.stages[dp.resetting].Progress().Origin)
 			dp.resetting += 1
 			return nil
 		} else if err != nil {
 			return err
 		} else {
-			dp.log.Warn("reset of stage continues", "stage", dp.resetting, "origin", dp.stages[dp.resetting].Progress().Current)
+			dp.log.Warn("reset of stage continues", "stage", dp.resetting, "origin", dp.stages[dp.resetting].Progress().Origin)
 			return nil
 		}
 	}
 
-	// TODO: instead of iterating all stages again,
-	// we should track the index of the current stage, and increment/decrement as necessary.
 	for i, stage := range dp.stages {
-		var outer Origin
+		var outer Progress
 		if i+1 < len(dp.stages) {
 			outer = dp.stages[i+1].Progress()
 		}

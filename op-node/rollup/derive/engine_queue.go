@@ -42,7 +42,7 @@ type EngineQueue struct {
 
 	toFinalize eth.BlockID
 
-	Origin
+	progress Progress
 
 	safeAttributes []*eth.PayloadAttributes
 	unsafePayloads []*eth.ExecutionPayload
@@ -57,6 +57,10 @@ var _ BatchQueueOutput = (*EngineQueue)(nil)
 // NewEngineQueue creates a new EngineQueue, which should be Reset(origin) before use.
 func NewEngineQueue(log log.Logger, cfg *rollup.Config, engine Engine) *EngineQueue {
 	return &EngineQueue{log: log, cfg: cfg, engine: engine}
+}
+
+func (eq *EngineQueue) Progress() Progress {
+	return eq.progress
 }
 
 func (eq *EngineQueue) SetUnsafeHead(head eth.L2BlockRef) {
@@ -97,8 +101,8 @@ func (eq *EngineQueue) LastL2Time() uint64 {
 	return uint64(eq.safeAttributes[len(eq.safeAttributes)-1].Timestamp)
 }
 
-func (eq *EngineQueue) Step(ctx context.Context, outer Origin) error {
-	if changed, err := eq.UpdateOrigin(outer); err != nil || changed {
+func (eq *EngineQueue) Step(ctx context.Context, outer Progress) error {
+	if changed, err := eq.progress.Update(outer); err != nil || changed {
 		return err
 	}
 
@@ -109,10 +113,10 @@ func (eq *EngineQueue) Step(ctx context.Context, outer Origin) error {
 	//if eq.finalized.ID() != eq.toFinalize {
 	//	return eq.tryFinalize(ctx)
 	//}
-	if eq.Sequencer {
-		return io.EOF
-	}
 	if len(eq.safeAttributes) > 0 {
+		if eq.Sequencer {
+			eq.log.Info("sequencer is processing safe attributes")
+		}
 		return eq.tryNextSafeAttributes(ctx)
 	}
 	if len(eq.unsafePayloads) > 0 {
@@ -180,77 +184,77 @@ func (eq *EngineQueue) tryNextUnsafePayload(ctx context.Context) error {
 }
 
 func (eq *EngineQueue) tryNextSafeAttributes(ctx context.Context) error {
-	first := eq.safeAttributes[0]
 	if eq.safeHead.Number < eq.unsafeHead.Number {
-		ctx, cancel := context.WithTimeout(ctx, time.Second*10)
-		defer cancel()
-
-		payload, err := eq.engine.PayloadByNumber(ctx, eq.safeHead.Number+1)
-		if err != nil {
-			eq.log.Error("failed to get existing unsafe payload to compare against derived attributes from L1", "err", err)
-			return nil
-		}
-		if err := AttributesMatchBlock(first, eq.safeHead.Hash, payload); err != nil {
-			eq.log.Warn("existing unsafe block does not match derived attributes from L1", "err", err)
-			fc := eth.ForkchoiceState{
-				HeadBlockHash:      eq.safeHead.Hash, // undo the unsafe chain when the safe chain does not match.
-				SafeBlockHash:      eq.safeHead.Hash,
-				FinalizedBlockHash: eq.finalized.Hash,
-			}
-			status, err := eq.engine.ForkchoiceUpdate(ctx, &fc, nil)
-			if err != nil {
-				eq.log.Error("failed to update forkchoice to revert mismatching L2 block", "err", err)
-				return nil // we will find the mismatch again, and retry the forkchoice update
-			}
-			if status.PayloadStatus.Status != eth.ExecutionValid {
-				// deep reorg, if we can't revert the unsafe chain as an extension of known safe chain, then we have to reset the derivation pipeline
-				return fmt.Errorf("cannot revert unsafe chain to safe head: %w", eth.ForkchoiceUpdateErr(status.PayloadStatus))
-			}
-			eq.unsafeHead = eq.safeHead
-			return nil
-		}
-		ref, err := PayloadToBlockRef(payload, &eq.cfg.Genesis)
-		if err != nil {
-			eq.log.Error("failed to decode L2 block ref from payload", "err", err)
-			return nil
-		}
-		eq.safeHead = ref
-		// unsafe head stays the same, we did not reorg the chain.
-		eq.safeAttributes = eq.safeAttributes[1:]
-		return nil
+		return eq.consolidateNextSafeAttributes(ctx)
 	} else if eq.safeHead.Number == eq.unsafeHead.Number {
-		fc := eth.ForkchoiceState{
-			HeadBlockHash:      eq.unsafeHead.Hash,
-			SafeBlockHash:      eq.safeHead.Hash,
-			FinalizedBlockHash: eq.finalized.Hash,
-		}
-		payload, rpcErr, payloadErr := InsertHeadBlock(ctx, eq.log, eq.engine, fc, first, true)
-		if rpcErr != nil {
-			// RPC errors are recoverable, we can retry the buffered payload attributes later.
-			eq.log.Error("failed to insert new block", "err", rpcErr)
-			return nil
-		}
-		if payloadErr != nil {
-			// invalid payloads are dropped, we move on to the next attributes
-			eq.log.Warn("could not derive valid payload from L1 data", "err", payloadErr)
-			eq.safeAttributes = eq.safeAttributes[1:]
-			return nil
-		}
-		ref, err := PayloadToBlockRef(payload, &eq.cfg.Genesis)
-		if err != nil {
-			eq.log.Error("failed to decode L2 block ref from payload", "err", err)
-			return nil
-		}
-		eq.safeHead = ref
-		eq.unsafeHead = ref
-		eq.safeAttributes = eq.safeAttributes[1:]
-		return nil
+		return eq.forceNextSafeAttributes(ctx)
 	} else {
 		// For some reason the unsafe head is behind the safe head. Log it, and correct it.
 		eq.log.Error("invalid sync state, unsafe head is behind safe head", "unsafe", eq.unsafeHead, "safe", eq.safeHead)
 		eq.unsafeHead = eq.safeHead
 		return nil
 	}
+}
+
+// consolidateNextSafeAttributes tries to match the next safe attributes against the existing unsafe chain,
+// to avoid extra processing or unnecessary unwinding of the chain.
+// However, if the attributes do not match, they will be forced with forceNextSafeAttributes.
+func (eq *EngineQueue) consolidateNextSafeAttributes(ctx context.Context) error {
+	ctx, cancel := context.WithTimeout(ctx, time.Second*10)
+	defer cancel()
+
+	payload, err := eq.engine.PayloadByNumber(ctx, eq.safeHead.Number+1)
+	if err != nil {
+		eq.log.Error("failed to get existing unsafe payload to compare against derived attributes from L1", "err", err)
+		return nil
+	}
+	if err := AttributesMatchBlock(eq.safeAttributes[0], eq.safeHead.Hash, payload); err != nil {
+		eq.log.Warn("L2 reorg: existing unsafe block does not match derived attributes from L1", "err", err)
+		// geth cannot wind back a chain without reorging to a new, previously non-canonical, block
+		return eq.forceNextSafeAttributes(ctx)
+	}
+	ref, err := PayloadToBlockRef(payload, &eq.cfg.Genesis)
+	if err != nil {
+		eq.log.Error("failed to decode L2 block ref from payload", "err", err)
+		return nil
+	}
+	eq.safeHead = ref
+	// unsafe head stays the same, we did not reorg the chain.
+	eq.safeAttributes = eq.safeAttributes[1:]
+	return nil
+}
+
+// forceNextSafeAttributes inserts the provided attributes, reorging away any conflicting unsafe chain.
+func (eq *EngineQueue) forceNextSafeAttributes(ctx context.Context) error {
+	if len(eq.safeAttributes) == 0 {
+		return nil
+	}
+	fc := eth.ForkchoiceState{
+		HeadBlockHash:      eq.safeHead.Hash,
+		SafeBlockHash:      eq.safeHead.Hash,
+		FinalizedBlockHash: eq.finalized.Hash,
+	}
+	payload, rpcErr, payloadErr := InsertHeadBlock(ctx, eq.log, eq.engine, fc, eq.safeAttributes[0], true)
+	if rpcErr != nil {
+		// RPC errors are recoverable, we can retry the buffered payload attributes later.
+		eq.log.Error("failed to insert new block", "err", rpcErr)
+		return nil
+	}
+	if payloadErr != nil {
+		// invalid payloads are dropped, we move on to the next attributes
+		eq.log.Warn("could not derive valid payload from L1 data", "err", payloadErr)
+		eq.safeAttributes = eq.safeAttributes[1:]
+		return nil
+	}
+	ref, err := PayloadToBlockRef(payload, &eq.cfg.Genesis)
+	if err != nil {
+		eq.log.Error("failed to decode L2 block ref from payload", "err", err)
+		return nil
+	}
+	eq.safeHead = ref
+	eq.unsafeHead = ref
+	eq.safeAttributes = eq.safeAttributes[1:]
+	return nil
 }
 
 // ResetStep Walks the L2 chain backwards until it finds an L2 block whose L1 origin is canonical.
@@ -287,9 +291,9 @@ func (eq *EngineQueue) ResetStep(ctx context.Context, l1Fetcher L1Fetcher) error
 			if eq.unsafeHead == (eth.L2BlockRef{}) {
 				eq.unsafeHead = eq.safeHead
 			}
-			eq.Origin = Origin{
-				Current: canonicalRef,
-				Closed:  false,
+			eq.progress = Progress{
+				Origin: canonicalRef,
+				Closed: false,
 			}
 			return io.EOF
 		} else {

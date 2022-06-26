@@ -36,7 +36,7 @@ func TestL1Traversal_Step(t *testing.T) {
 	l1Fetcher.ExpectL1BlockRefByNumber(e.Number, e, nil)
 	l1Fetcher.ExpectL1BlockRefByNumber(f.Number, f, nil)
 
-	next := &MockOriginStage{progress: Origin{Current: a, Closed: false}}
+	next := &MockOriginStage{progress: Progress{Origin: a, Closed: false}}
 
 	tr := NewL1Traversal(testlog.Logger(t, log.LvlError), l1Fetcher, next)
 
@@ -44,12 +44,12 @@ func TestL1Traversal_Step(t *testing.T) {
 	defer next.AssertExpectations(t)
 
 	require.NoError(t, RepeatResetStep(t, tr.ResetStep, nil, 1))
-	require.Equal(t, a, tr.Progress().Current, "stage needs to adopt the origin of next stage on reset")
+	require.Equal(t, a, tr.Progress().Origin, "stage needs to adopt the origin of next stage on reset")
 	require.False(t, tr.Progress().Closed, "stage needs to be open after reset")
 
-	require.NoError(t, RepeatStep(t, tr.Step, Origin{}, 10))
-	require.Equal(t, c, tr.Progress().Current, "expected to be stuck on ethereum.NotFound on d")
-	require.NoError(t, RepeatStep(t, tr.Step, Origin{}, 1))
-	require.Equal(t, c, tr.Progress().Current, "expected to be stuck again, should get the EOF within 1 step")
-	require.ErrorIs(t, RepeatStep(t, tr.Step, Origin{}, 10), ReorgErr, "completed pipeline, until L1 input f that causes a reorg")
+	require.NoError(t, RepeatStep(t, tr.Step, Progress{}, 10))
+	require.Equal(t, c, tr.Progress().Origin, "expected to be stuck on ethereum.NotFound on d")
+	require.NoError(t, RepeatStep(t, tr.Step, Progress{}, 1))
+	require.Equal(t, c, tr.Progress().Origin, "expected to be stuck again, should get the EOF within 1 step")
+	require.ErrorIs(t, RepeatStep(t, tr.Step, Progress{}, 10), ReorgErr, "completed pipeline, until L1 input f that causes a reorg")
 }

@@ -27,7 +27,7 @@ type ChannelBank struct {
 
 	resetting bool
 
-	Origin
+	progress Progress
 
 	next ChannelBankOutput
 }
@@ -43,6 +43,10 @@ func NewChannelBank(log log.Logger, cfg *rollup.Config, next ChannelBankOutput) 
 		channelQueue: make([]ChannelID, 0, 10),
 		next:         next,
 	}
+}
+
+func (ib *ChannelBank) Progress() Progress {
+	return ib.progress
 }
 
 func (ib *ChannelBank) prune() {
@@ -65,10 +69,10 @@ func (ib *ChannelBank) prune() {
 // Read() should be called repeatedly first, until everything has been read, before adding new data.
 // Then NextL1(ref) should be called to move forward to the next L1 input
 func (ib *ChannelBank) IngestData(data []byte) error {
-	if ib.Origin.Closed {
+	if ib.progress.Closed {
 		panic("write data to bank while closed")
 	}
-	ib.log.Warn("ingest data", "origin", ib.Origin.Current, "data_len", len(data))
+	ib.log.Warn("ingest data", "origin", ib.progress.Origin, "data_len", len(data))
 	if len(data) < 1 {
 		ib.log.Error("data must be at least have a version byte, but got empty string")
 		return nil
@@ -134,12 +138,12 @@ func (ib *ChannelBank) IngestData(data []byte) error {
 		offset += 1
 
 		// check if the channel is not timed out
-		if chID.Time+ib.cfg.ChannelTimeout < ib.Origin.Current.Time {
+		if chID.Time+ib.cfg.ChannelTimeout < ib.progress.Origin.Time {
 			ib.log.Info("channel is timed out, ignore frame", "channel", chID, "id_time", chID.Time, "frame", frameNumber)
 			continue
 		}
 		// check if the channel is not included too soon (otherwise timeouts wouldn't be effective)
-		if chID.Time > ib.Origin.Current.Time {
+		if chID.Time > ib.progress.Origin.Time {
 			ib.log.Info("channel claims to be from the future, ignore frame", "channel", chID, "id_time", chID.Time, "frame", frameNumber)
 			continue
 		}
@@ -167,7 +171,7 @@ func (ib *ChannelBank) Read() (data []byte, err error) {
 	}
 	first := ib.channelQueue[0]
 	ch := ib.channels[first]
-	timedOut := first.Time+ib.cfg.ChannelTimeout < ib.Origin.Current.Time
+	timedOut := first.Time+ib.cfg.ChannelTimeout < ib.progress.Origin.Time
 	if timedOut {
 		ib.log.Warn("channel timed out", "channel", first, "frames", len(ch.inputs))
 	}
@@ -184,14 +188,14 @@ func (ib *ChannelBank) Read() (data []byte, err error) {
 	return data, nil
 }
 
-func (ib *ChannelBank) Step(ctx context.Context, outer Origin) error {
-	if changed, err := ib.UpdateOrigin(outer); err != nil || changed {
+func (ib *ChannelBank) Step(ctx context.Context, outer Progress) error {
+	if changed, err := ib.progress.Update(outer); err != nil || changed {
 		return err
 	}
 
 	// If the bank is behind the channel reader, then we are replaying old data to prepare the bank.
 	// Read if we can, and drop if it gives anything
-	if ib.next.Progress().Current.Number > ib.Origin.Current.Number {
+	if ib.next.Progress().Origin.Number > ib.progress.Origin.Number {
 		_, err := ib.Read()
 		return err
 	}
@@ -214,25 +218,25 @@ func (ib *ChannelBank) Step(ctx context.Context, outer Origin) error {
 // so it is not relevant to replay it into the bank.
 func (ib *ChannelBank) ResetStep(ctx context.Context, l1Fetcher L1Fetcher) error {
 	if !ib.resetting {
-		ib.Origin = ib.next.Progress()
+		ib.progress = ib.next.Progress()
 		ib.resetting = true
 		return nil
 	}
-	if ib.Origin.Current.Time+ib.cfg.ChannelTimeout < ib.next.Progress().Current.Time || ib.Origin.Current.Number == 0 {
-		ib.log.Warn("found reset origin for channel bank", "origin", ib.Origin.Current)
+	if ib.progress.Origin.Time+ib.cfg.ChannelTimeout < ib.next.Progress().Origin.Time || ib.progress.Origin.Number == 0 {
+		ib.log.Warn("found reset origin for channel bank", "origin", ib.progress.Origin)
 		ib.resetting = false
 		return io.EOF
 	}
 
-	ib.log.Debug("walking back to find reset origin for channel bank", "origin", ib.Origin.Current)
+	ib.log.Debug("walking back to find reset origin for channel bank", "origin", ib.progress.Origin)
 
 	// go back in history if we are not distant enough from the next stage
-	parent, err := l1Fetcher.L1BlockRefByHash(ctx, ib.Origin.Current.ParentHash)
+	parent, err := l1Fetcher.L1BlockRefByHash(ctx, ib.progress.Origin.ParentHash)
 	if err != nil {
 		ib.log.Error("failed to find channel bank block, failed to retrieve L1 reference", "err", err)
 		return nil
 	}
-	ib.Origin.Current = parent
+	ib.progress.Origin = parent
 	return nil
 }
 

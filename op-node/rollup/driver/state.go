@@ -262,11 +262,12 @@ func (s *state) eventLoop() {
 
 		case <-l2BlockCreationReqCh:
 			s.snapshot("L2 Block Creation Request")
-			// // only create blocks if we processed all L1 contents
-			// if s.derivation.CurrentL1() != s.l1Head {
-			// 	s.log.Warn("not creating block, node is not synced", "current_l1", s.derivation.CurrentL1(), "head_l1", s.l1Head)
-			// 	break
-			// }
+			// only create blocks if we processed all L1 contents
+			progress := s.derivation.Progress() // TODO: add conf depth
+			if progress.Origin != s.l1Head || !progress.Closed {
+				s.log.Warn("not creating block, node is not synced", "progress_origin", progress.Origin, "progress_closed", progress.Closed, "head_l1", s.l1Head)
+				break
+			}
 			ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 			err := s.createNewL2Block(ctx)
 			cancel()
@@ -295,7 +296,7 @@ func (s *state) eventLoop() {
 			s.handleNewL1Block(newL1Head)
 			reqStep() // a new L1 head may mean we have the data to not get an EOF again.
 		case <-stepReqCh:
-			s.log.Warn("Derivation process step", "onto_origin", s.derivation.Progress().Current, "onto_closed", s.derivation.Progress().Closed)
+			s.log.Warn("Derivation process step", "onto_origin", s.derivation.Progress().Origin, "onto_closed", s.derivation.Progress().Closed)
 			stepCtx, cancel := context.WithTimeout(ctx, time.Second*10) // TODO pick a timeout for executing a single step
 			err := s.derivation.Step(stepCtx)
 			cancel()
