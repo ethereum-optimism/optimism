@@ -25,9 +25,6 @@ type Config struct {
 	MinL1TxSize uint64
 	MaxL1TxSize uint64
 
-	// Limit the amounts of blocks per channel
-	MaxBlocksPerChannel uint64
-
 	// Where to send the batch txs to.
 	BatchInboxAddress common.Address
 

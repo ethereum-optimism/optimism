@@ -23,10 +23,6 @@ type Config struct {
 	// MaxL1TxSize is the maximum size of a batch tx submitted to L1.
 	MaxL1TxSize uint64
 
-	// MaxBlocksPerChannel limits the amount of L2 blocks that can be compressed together,
-	// lowering this will reduce the effect of missing L1 txs, at the cost of efficiency.
-	MaxBlocksPerChannel uint64
-
 	// ChannelTimeout is the maximum amount of time to attempt completing an opened channel,
 	// as opposed to submitting missing blocks in new channels
 	ChannelTimeout uint64
@@ -83,7 +79,6 @@ func NewConfig(ctx *cli.Context) Config {
 		L2EthRpc:                   ctx.GlobalString(flags.L2EthRpcFlag.Name),
 		MinL1TxSize:                ctx.GlobalUint64(flags.MinL1TxSizeBytesFlag.Name),
 		MaxL1TxSize:                ctx.GlobalUint64(flags.MaxL1TxSizeBytesFlag.Name),
-		MaxBlocksPerChannel:        ctx.GlobalUint64(flags.MaxBlocksPerChannelFlag.Name),
 		ChannelTimeout:             ctx.GlobalUint64(flags.ChannelTimeoutFlag.Name),
 		PollInterval:               ctx.GlobalDuration(flags.PollIntervalFlag.Name),
 		NumConfirmations:           ctx.GlobalUint64(flags.NumConfirmationsFlag.Name),

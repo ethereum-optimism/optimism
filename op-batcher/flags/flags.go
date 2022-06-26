@@ -23,7 +23,7 @@ var (
 		Name:     "l2-eth-rpc",
 		Usage:    "HTTP provider URL for L2 execution engine",
 		Required: true,
-		EnvVar:   "ROLLUP_RPC",
+		EnvVar:   "L2_ETH_RPC",
 	}
 	MinL1TxSizeBytesFlag = cli.Uint64Flag{
 		Name:     "min-l1-tx-size-bytes",
@@ -36,12 +36,6 @@ var (
 		Usage:    "The maximum size of a batch tx submitted to L1.",
 		Required: true,
 		EnvVar:   prefixEnvVar("MAX_L1_TX_SIZE_BYTES"),
-	}
-	MaxBlocksPerChannelFlag = cli.Uint64Flag{
-		Name:     "max-blocks-per-channel",
-		Usage:    "The maximum number of blocks per channel. Lowering this will reduce the effect of missing L1 txs, at the cost of efficiency.",
-		Required: true,
-		EnvVar:   prefixEnvVar("MAX_BLOCKS_PER_CHANNEL"),
 	}
 	ChannelTimeoutFlag = cli.Uint64Flag{
 		Name:     "channel-timeout",
@@ -127,7 +121,6 @@ var requiredFlags = []cli.Flag{
 	L2EthRpcFlag,
 	MinL1TxSizeBytesFlag,
 	MaxL1TxSizeBytesFlag,
-	MaxBlocksPerChannelFlag,
 	ChannelTimeoutFlag,
 	PollIntervalFlag,
 	NumConfirmationsFlag,

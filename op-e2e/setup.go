@@ -15,7 +15,6 @@ import (
 	rollupNode "github.com/ethereum-optimism/optimism/op-node/node"
 	"github.com/ethereum-optimism/optimism/op-node/p2p"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
-	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	l2os "github.com/ethereum-optimism/optimism/op-proposer"
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
@@ -584,8 +583,7 @@ func (cfg SystemConfig) start() (*System, error) {
 		L2EthRpc:                   sys.nodes["sequencer"].WSEndpoint(),
 		MinL1TxSize:                1,
 		MaxL1TxSize:                120000,
-		MaxBlocksPerChannel:        20,
-		ChannelTimeout:             derive.ChannelTimeout,
+		ChannelTimeout:             sys.cfg.RollupConfig.ChannelTimeout,
 		PollInterval:               50 * time.Millisecond,
 		NumConfirmations:           1,
 		ResubmissionTimeout:        5 * time.Second,

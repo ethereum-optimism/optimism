@@ -162,19 +162,18 @@ func NewBatchSubmitter(cfg Config, l log.Logger) (*BatchSubmitter, error) {
 	}
 
 	batcherCfg := sequencer.Config{
-		Log:                 l,
-		Name:                "Batch Submitter",
-		L1Client:            l1Client,
-		L2Client:            l2Client,
-		MinL1TxSize:         cfg.MinL1TxSize,
-		MaxL1TxSize:         cfg.MaxL1TxSize,
-		MaxBlocksPerChannel: cfg.MaxBlocksPerChannel,
-		BatchInboxAddress:   batchInboxAddress,
-		HistoryDB:           historyDB,
-		ChannelTimeout:      cfg.ChannelTimeout,
-		ChainID:             chainID,
-		PrivKey:             sequencerPrivKey,
-		PollInterval:        cfg.PollInterval,
+		Log:               l,
+		Name:              "Batch Submitter",
+		L1Client:          l1Client,
+		L2Client:          l2Client,
+		MinL1TxSize:       cfg.MinL1TxSize,
+		MaxL1TxSize:       cfg.MaxL1TxSize,
+		BatchInboxAddress: batchInboxAddress,
+		HistoryDB:         historyDB,
+		ChannelTimeout:    cfg.ChannelTimeout,
+		ChainID:           chainID,
+		PrivKey:           sequencerPrivKey,
+		PollInterval:      cfg.PollInterval,
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
