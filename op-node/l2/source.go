@@ -38,23 +38,6 @@ func (s *Source) Close() {
 	s.rpc.Close()
 }
 
-func (s *Source) UnsafeBlockIDs(ctx context.Context, safeHead eth.BlockID, max uint64) ([]eth.BlockID, error) {
-	// TODO: batching these calls would be a lot better
-	var out []eth.BlockID
-	// don't include the safe head
-	for i := uint64(1); i <= max; i++ {
-		header, err := s.client.HeaderByNumber(ctx, new(big.Int).SetUint64(safeHead.Number+i))
-		if err == ethereum.NotFound {
-			return out, nil
-		}
-		if err != nil {
-			return out, err
-		}
-		out = append(out, eth.BlockID{Hash: header.Hash(), Number: header.Number.Uint64()})
-	}
-	return out, nil
-}
-
 func (s *Source) PayloadByHash(ctx context.Context, hash common.Hash) (*eth.ExecutionPayload, error) {
 	// TODO: we really do not need to parse every single tx and block detail, keeping transactions encoded is faster.
 	block, err := s.client.BlockByHash(ctx, hash)

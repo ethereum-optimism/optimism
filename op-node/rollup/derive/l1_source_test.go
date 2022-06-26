@@ -46,39 +46,30 @@ var _ L1SourceOutput = (*MockIngestData)(nil)
 func TestL1Source_Step(t *testing.T) {
 	rng := rand.New(rand.NewSource(1234))
 
-	next := &MockIngestData{MockOriginStage{originOpen: false, currentOrigin: testutils.RandomBlockRef(rng)}}
+	next := &MockIngestData{MockOriginStage{progress: Progress{Origin: testutils.RandomBlockRef(rng), Closed: true}}}
 	dataSrc := &MockDataSource{}
 
 	a := testutils.RandomData(rng, 10)
 	b := testutils.RandomData(rng, 15)
 	iter := &DataSlice{a, b}
 
-	ref := testutils.RandomBlockRef(rng)
+	outer := Progress{Origin: testutils.NextRandomRef(rng, next.progress.Origin), Closed: false}
 
-	// origin of the next stage
-	dataSrc.ExpectOpenData(ref.ID(), iter, nil)
+	// mock some L1 data to open for the origin that is opened by the outer stage
+	dataSrc.ExpectOpenData(outer.Origin.ID(), iter, nil)
 
-	next.ExpectOpenOrigin(ref, nil)
 	next.ExpectIngestData(a, nil)
 	next.ExpectIngestData(b, nil)
-	next.ExpectCloseOrigin()
 
 	defer dataSrc.AssertExpectations(t)
 	defer next.AssertExpectations(t)
 
 	l1Src := NewL1Source(testlog.Logger(t, log.LvlError), dataSrc, next)
 
-	require.NoError(t, RepeatStep(t, l1Src.Step, 10))
-}
-
-func TestL1Source_ResetStep(t *testing.T) {
-	rng := rand.New(rand.NewSource(1234))
-	ref := testutils.RandomBlockRef(rng)
-
-	next := &MockIngestData{MockOriginStage{originOpen: true, currentOrigin: ref}}
-	dataSrc := &MockDataSource{}
-
-	l1Src := NewL1Source(testlog.Logger(t, log.LvlError), dataSrc, next)
+	// first we expect the stage to reset to the origin of the inner stage
 	require.NoError(t, RepeatResetStep(t, l1Src.ResetStep, nil, 1))
-	require.Equal(t, ref, l1Src.CurrentOrigin(), "stage needs to adopt the origin of next stage on reset")
+	require.Equal(t, next.Progress(), l1Src.Progress(), "stage needs to adopt the progress of next stage on reset")
+
+	// and then start processing the data of the next stage
+	require.NoError(t, RepeatStep(t, l1Src.Step, outer, 10))
 }

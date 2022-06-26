@@ -74,12 +74,3 @@ func (m *MockEngine) PayloadByNumber(ctx context.Context, n uint64) (*eth.Execut
 func (m *MockEngine) ExpectPayloadByNumber(hash common.Hash, payload *eth.ExecutionPayload, err error) {
 	m.Mock.On("PayloadByNumber", hash).Once().Return(payload, &err)
 }
-
-func (m *MockEngine) UnsafeBlockIDs(ctx context.Context, safeHead eth.BlockID, max uint64) ([]eth.BlockID, error) {
-	out := m.Mock.MethodCalled("UnsafeBlockIDs", safeHead, max)
-	return out[0].([]eth.BlockID), *out[1].(*error)
-}
-
-func (m *MockEngine) ExpectUnsafeBlockIDs(safeHead eth.BlockID, max uint64, ids []eth.BlockID, err error) {
-	m.Mock.On("UnsafeBlockIDs", safeHead, max).Once().Return(ids, &err)
-}

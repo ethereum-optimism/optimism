@@ -65,7 +65,7 @@ func (ct *channelBankTestCase) Run(t *testing.T) {
 		bt.origins[i].Time = x
 	}
 
-	bt.out = &MockChannelBankOutput{MockOriginStage{originOpen: true, currentOrigin: bt.origins[ct.nextStartsAt]}}
+	bt.out = &MockChannelBankOutput{MockOriginStage{progress: Progress{Origin: bt.origins[ct.nextStartsAt], Closed: false}}}
 	bt.cb = NewChannelBank(testlog.Logger(t, log.LvlError), cfg, bt.out)
 
 	ct.fn(bt)
@@ -133,53 +133,23 @@ func (bt *bankTestSetup) ingestFrames(frames ...testFrame) {
 	}
 	bt.ingestData(data)
 }
-func (bt *bankTestSetup) repeatStep(max int, err error) {
-	require.Equal(bt.t, err, RepeatStep(bt.t, bt.cb.Step, max))
+func (bt *bankTestSetup) repeatStep(max int, outer int, outerClosed bool, err error) {
+	require.Equal(bt.t, err, RepeatStep(bt.t, bt.cb.Step, Progress{Origin: bt.origins[outer], Closed: outerClosed}, max))
 }
 func (bt *bankTestSetup) repeatResetStep(max int, err error) {
 	require.Equal(bt.t, err, RepeatResetStep(bt.t, bt.cb.ResetStep, bt.l1, max))
 }
-func (bt *bankTestSetup) openOrigin(i int) {
-	require.NoError(bt.t, bt.cb.OpenOrigin(bt.origins[i]))
+func (bt *bankTestSetup) assertProgressOpen() {
+	require.False(bt.t, bt.cb.progress.Closed)
 }
-func (bt *bankTestSetup) closeOrigin() {
-	bt.cb.CloseOrigin()
+func (bt *bankTestSetup) assertProgressClosed() {
+	require.True(bt.t, bt.cb.progress.Closed)
 }
 func (bt *bankTestSetup) assertOrigin(i int) {
-	require.Equal(bt.t, bt.cb.CurrentOrigin(), bt.origins[i])
+	require.Equal(bt.t, bt.cb.progress.Origin, bt.origins[i])
 }
 func (bt *bankTestSetup) assertOriginTime(x uint64) {
-	require.Equal(bt.t, x, bt.cb.CurrentOrigin().Time)
-}
-func (bt *bankTestSetup) expectOpenOrigin(i int) {
-	bt.out.ExpectOpenOrigin(bt.origins[i], nil)
-}
-func (bt *bankTestSetup) expectCloseOrigin() {
-	bt.out.ExpectCloseOrigin()
-}
-func (bt *bankTestSetup) doOpen(i int, expectNextOpen bool, addSteps int) {
-	steps := 1
-	if expectNextOpen {
-		bt.expectOpenOrigin(i)
-		steps += 1
-	}
-	steps += addSteps
-	bt.openOrigin(i)
-	bt.repeatStep(steps, nil)
-	bt.assertExpectations()
-	bt.assertOrigin(i)
-	require.True(bt.t, bt.cb.IsOriginOpen())
-}
-func (bt *bankTestSetup) doClose(expectNextClose bool) {
-	steps := 1
-	if expectNextClose {
-		bt.expectCloseOrigin()
-		steps += 1
-	}
-	bt.closeOrigin()
-	bt.repeatStep(steps, nil)
-	bt.assertExpectations()
-	require.False(bt.t, bt.cb.IsOriginOpen())
+	require.Equal(bt.t, x, bt.cb.progress.Origin.Time)
 }
 func (bt *bankTestSetup) expectChannel(data string) {
 	bt.out.ExpectWriteChannel([]byte(data))
@@ -209,56 +179,64 @@ func TestL1ChannelBank(t *testing.T) {
 				bt.expectL1RefByHash(2)
 				bt.expectL1RefByHash(1)
 				bt.repeatResetStep(10, nil) // bank rewinds to origin pre-timeout
+				bt.assertExpectations()
 				bt.assertOrigin(1)
 				bt.assertOriginTime(102)
 
 				bt.logf("first step after reset should be EOF to start getting data")
-				bt.repeatStep(1, nil)
+				bt.repeatStep(1, 1, false, nil)
 
 				bt.logf("read from there onwards, but drop content since we did not reach start origin yet")
 				bt.ingestFrames("a:98:0:too old") // timed out, can continue
-				bt.repeatStep(3, nil)
+				bt.repeatStep(3, 1, false, nil)
 				bt.ingestFrames("b:99:0:just new enough!") // closed frame, can be read, but dropped
-				bt.repeatStep(3, nil)
-				bt.assertExpectations()
+				bt.repeatStep(3, 1, false, nil)
 
 				bt.logf("close origin 1")
-				bt.doClose(false)
+				bt.repeatStep(2, 1, true, nil)
 				bt.assertOrigin(1)
+				bt.assertProgressClosed()
 
 				bt.logf("open and close 2 without data")
-				bt.doOpen(2, false, 0)
-				bt.doClose(false)
+				bt.repeatStep(2, 2, false, nil)
 				bt.assertOrigin(2)
+				bt.assertProgressOpen()
+				bt.repeatStep(2, 2, true, nil)
+				bt.assertProgressClosed()
 
 				bt.logf("open 3, where we meet the next stage. Data isn't dropped anymore")
-				bt.doOpen(3, false, 0)
+				bt.repeatStep(2, 3, false, nil)
+				bt.assertOrigin(3)
+				bt.assertProgressOpen()
 				bt.assertOriginTime(107)
 
 				bt.ingestFrames("c:104:0:foobar")
-				bt.repeatStep(1, nil)
+				bt.repeatStep(1, 3, false, nil)
 				bt.ingestFrames("d:104:0:other!")
-				bt.repeatStep(1, nil)
+				bt.repeatStep(1, 3, false, nil)
 				bt.ingestFrames("e:105:0:time-out-later") // timed out when we get to 109
-				bt.repeatStep(1, nil)
+				bt.repeatStep(1, 3, false, nil)
 				bt.ingestFrames("c:104:1:close!")
 				bt.expectChannel("foobarclose")
 				bt.expectChannel("other")
-				bt.repeatStep(3, nil)
+				bt.repeatStep(3, 3, false, nil)
 				bt.assertExpectations()
 
 				bt.logf("close 3")
-				bt.doClose(true)
+				bt.repeatStep(2, 3, true, nil)
+				bt.assertProgressClosed()
 
 				bt.logf("open 4")
 				bt.expectChannel("time-out-later") // not closed, but processed after timeout
-				bt.doOpen(4, true, 1)
+				bt.repeatStep(3, 4, false, nil)
+				bt.assertExpectations()
+				bt.assertProgressOpen()
 				bt.assertOriginTime(109)
 
 				bt.logf("data from 4")
 				bt.ingestFrames("f:108:0:hello!")
 				bt.expectChannel("hello")
-				bt.repeatStep(2, nil)
+				bt.repeatStep(2, 4, false, nil)
 				bt.assertExpectations()
 			},
 		},
@@ -269,36 +247,36 @@ func TestL1ChannelBank(t *testing.T) {
 			channelTimeout: 3,
 			fn: func(bt *bankTestSetup) {
 				// don't do the whole setup process, just override where the stages are
-				bt.cb.currentOrigin = bt.origins[0]
-				bt.cb.originOpen = true
-				bt.out.currentOrigin = bt.origins[0]
-				bt.out.originOpen = true
+				bt.cb.progress = Progress{Origin: bt.origins[0], Closed: false}
+				bt.out.progress = Progress{Origin: bt.origins[0], Closed: false}
 
 				bt.assertOriginTime(101)
 
 				bt.ingestFrames("x:102:0:foobar") // future frame is ignored when included too early
-				bt.repeatStep(1, nil)
+				bt.repeatStep(2, 0, false, nil)
 
 				bt.ingestFrames("a:101:0:first")
-				bt.repeatStep(1, nil)
+				bt.repeatStep(1, 0, false, nil)
 				bt.ingestFrames("a:101:1:second")
-				bt.repeatStep(1, nil)
+				bt.repeatStep(1, 0, false, nil)
 				bt.ingestFrames("a:101:0:altfirst") // ignored as duplicate
-				bt.repeatStep(1, nil)
+				bt.repeatStep(1, 0, false, nil)
 				bt.ingestFrames("a:101:1:altsecond") // ignored as duplicate
-				bt.repeatStep(1, nil)
+				bt.repeatStep(1, 0, false, nil)
 				bt.ingestFrames("a:100:0:new") // different time, considered to be different channel
-				bt.repeatStep(1, nil)
+				bt.repeatStep(1, 0, false, nil)
 
-				bt.doClose(true)
+				// close origin 0
+				bt.repeatStep(2, 0, true, nil)
 
-				bt.doOpen(1, true, 0)
+				// open origin 1
+				bt.repeatStep(2, 1, false, nil)
 				bt.ingestFrames("a:100:1:hi!") // close the other one first, but blocked
-				bt.repeatStep(1, nil)
+				bt.repeatStep(1, 1, false, nil)
 				bt.ingestFrames("a:101:2:!") // empty closing frame
 				bt.expectChannel("firstsecond")
 				bt.expectChannel("newhi")
-				bt.repeatStep(3, nil)
+				bt.repeatStep(3, 1, false, nil)
 				bt.assertExpectations()
 			},
 		},
@@ -309,10 +287,8 @@ func TestL1ChannelBank(t *testing.T) {
 			channelTimeout: 3,
 			fn: func(bt *bankTestSetup) {
 				// don't do the whole setup process, just override where the stages are
-				bt.cb.currentOrigin = bt.origins[0]
-				bt.cb.originOpen = true
-				bt.out.currentOrigin = bt.origins[0]
-				bt.out.originOpen = true
+				bt.cb.progress = Progress{Origin: bt.origins[0], Closed: false}
+				bt.out.progress = Progress{Origin: bt.origins[0], Closed: false}
 
 				bt.assertOriginTime(101)
 
@@ -321,7 +297,7 @@ func TestL1ChannelBank(t *testing.T) {
 				badTx = append(badTx, testutils.RandomData(bt.rng, 30)...) // incomplete frame data
 				bt.ingestData(badTx)
 				bt.expectChannel("helloworld") // can still read the frames before the invalid data
-				bt.repeatStep(2, nil)
+				bt.repeatStep(2, 0, false, nil)
 				bt.assertExpectations()
 			},
 		},

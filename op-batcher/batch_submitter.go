@@ -137,7 +137,7 @@ func NewBatchSubmitter(cfg Config, l log.Logger) (*BatchSubmitter, error) {
 		return nil, err
 	}
 
-	l2Client, err := dialEthClientWithTimeout(ctx, cfg.RollupRpc)
+	l2Client, err := dialEthClientWithTimeout(ctx, cfg.L2EthRpc)
 	if err != nil {
 		return nil, err
 	}
@@ -227,7 +227,7 @@ mainLoop:
 				l.log.Trace("Old block")
 				continue
 			}
-			if ch, err := derive.NewChannelOut(); err != nil {
+			if ch, err := derive.NewChannelOut(uint64(time.Now().Unix())); err != nil {
 				l.log.Error("Error creating channel", "err", err)
 				continue
 			} else {
@@ -306,7 +306,7 @@ mainLoop:
 			// The transaction was successfully submitted.
 			l.log.Warn("tx successfully published", "tx_hash", receipt.TxHash)
 
-		case _, _ = <-l.done:
+		case <-l.done:
 			return
 		}
 	}

@@ -3,6 +3,7 @@ package derive
 import (
 	"errors"
 	"fmt"
+
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 )
 

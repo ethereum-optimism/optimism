@@ -23,7 +23,6 @@ type Engine interface {
 	PayloadByNumber(context.Context, uint64) (*eth.ExecutionPayload, error)
 	L2BlockRefHead(ctx context.Context) (eth.L2BlockRef, error)
 	L2BlockRefByHash(ctx context.Context, l2Hash common.Hash) (eth.L2BlockRef, error)
-	UnsafeBlockIDs(ctx context.Context, safeHead eth.BlockID, max uint64) ([]eth.BlockID, error)
 }
 
 // Max number of unsafe payloads that may be queued up for execution

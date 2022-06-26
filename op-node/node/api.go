@@ -11,7 +11,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/l2"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
-	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -30,15 +29,10 @@ type l2EthClient interface {
 	L2BlockRefByHash(ctx context.Context, l2Hash common.Hash) (eth.L2BlockRef, error)
 }
 
-type ChannelEmitter interface {
-	Output(ctx context.Context, history map[derive.ChannelID]uint64, minSize uint64, maxSize uint64, maxBlocksPerChannel uint64) (*derive.BatcherChannelData, error)
-}
-
 type nodeAPI struct {
-	config  *rollup.Config
-	client  l2EthClient
-	emitter ChannelEmitter
-	log     log.Logger
+	config *rollup.Config
+	client l2EthClient
+	log    log.Logger
 }
 
 func newNodeAPI(config *rollup.Config, l2Client l2EthClient, log log.Logger) *nodeAPI {
@@ -93,32 +87,4 @@ func toBlockNumArg(number rpc.BlockNumber) string {
 		return "pending"
 	}
 	return hexutil.EncodeUint64(uint64(number.Int64()))
-}
-
-type BatchBundleRequest struct {
-	// History is a dictionary of channels that were previously used, with the last frame number per channel.
-	// The rollup-node then finds which channels are useful to continue,
-	// and adds frame data to the output to complete the channel.
-	// Remaining space is used for remaining blocks which were not previously encoded in a channel.
-	// After a channel times out (w.r.t. the current L1 head the rollup-node sees) blocks that are still
-	// considered to be unsafe (i.e. never confirmed on L1) may again be encoded in new channels.
-	History map[derive.ChannelID]uint64
-
-	// Minimum size of the data to return
-	MinSize hexutil.Uint64
-	// Maximum size of the data to return
-	MaxSize hexutil.Uint64
-
-	// MaxBlocksPerChannel is the maximum number of L2 blocks that may be compressed together in a channel.
-	// The output may still have multiple channels and thus more blocks.
-	//
-	// If the batch-submitter has trouble to submit blocks across multiple txs (e.g. many txs drop)
-	// then this can be reduced, which should reduce the effect of incomplete channels.
-	//
-	// If this is set very large, then a many L2 blocks can be compressed together, but the L1 tx inclusion is more important
-	MaxBlocksPerChannel hexutil.Uint64
-}
-
-func (n *nodeAPI) GetBatchBundle(ctx context.Context, req *BatchBundleRequest) (*derive.BatcherChannelData, error) {
-	return n.emitter.Output(ctx, req.History, uint64(req.MinSize), uint64(req.MaxSize), uint64(req.MaxBlocksPerChannel))
 }

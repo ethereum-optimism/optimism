@@ -19,9 +19,9 @@ var (
 		Required: true,
 		EnvVar:   "L1_ETH_RPC",
 	}
-	RollupRpcFlag = cli.StringFlag{
-		Name:     "rollup-rpc",
-		Usage:    "HTTP provider URL for the rollup node",
+	L2EthRpcFlag = cli.StringFlag{
+		Name:     "l2-eth-rpc",
+		Usage:    "HTTP provider URL for L2 execution engine",
 		Required: true,
 		EnvVar:   "ROLLUP_RPC",
 	}
@@ -124,7 +124,7 @@ var (
 
 var requiredFlags = []cli.Flag{
 	L1EthRpcFlag,
-	RollupRpcFlag,
+	L2EthRpcFlag,
 	MinL1TxSizeBytesFlag,
 	MaxL1TxSizeBytesFlag,
 	MaxBlocksPerChannelFlag,

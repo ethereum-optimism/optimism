@@ -8,7 +8,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"time"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -37,10 +36,10 @@ func (co *ChannelOut) ID() string {
 	return co.id.String()
 }
 
-func NewChannelOut() (*ChannelOut, error) {
+func NewChannelOut(channelTime uint64) (*ChannelOut, error) {
 	c := &ChannelOut{
 		id: ChannelID{
-			Time: uint64(time.Now().Unix()),
+			Time: channelTime,
 		},
 		frame:  0,
 		offset: 0,
@@ -57,6 +56,22 @@ func NewChannelOut() (*ChannelOut, error) {
 	c.compress = compress
 
 	return c, nil
+}
+
+// TODO: reuse ChannelOut for performance
+func (co *ChannelOut) Reset(channelTime uint64) error {
+	co.frame = 0
+	co.offset = 0
+	co.buf.Reset()
+	co.scratch.Reset()
+	co.compress.Reset(&co.buf)
+	co.closed = false
+	co.id.Time = channelTime
+	_, err := rand.Read(co.id.Data[:])
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 func (co *ChannelOut) AddBlock(block *types.Block) error {
@@ -116,7 +131,9 @@ func (co *ChannelOut) OutputFrame(w *bytes.Buffer, maxSize uint64) error {
 	frameLen := uint64(co.scratch.Len())
 	co.offset += frameLen
 	w.Write(makeUVarint(frameLen))
-	w.ReadFrom(&co.scratch)
+	if _, err := w.ReadFrom(&co.scratch); err != nil {
+		return err
+	}
 	// Only mark as closed if the channel is closed & there is no more data available
 	if co.closed && err == io.EOF {
 		w.WriteByte(1)

@@ -14,8 +14,8 @@ type Config struct {
 	// L1EthRpc is the HTTP provider URL for L1.
 	L1EthRpc string
 
-	// RollupRpc is the HTTP provider URL for the rollup node.
-	RollupRpc string
+	// L2EthRpc is the HTTP provider URL for the rollup node.
+	L2EthRpc string
 
 	// MinL1TxSize is the minimum size of a batch tx submitted to L1.
 	MinL1TxSize uint64
@@ -80,7 +80,7 @@ func NewConfig(ctx *cli.Context) Config {
 	return Config{
 		/* Required Flags */
 		L1EthRpc:                   ctx.GlobalString(flags.L1EthRpcFlag.Name),
-		RollupRpc:                  ctx.GlobalString(flags.RollupRpcFlag.Name),
+		L2EthRpc:                   ctx.GlobalString(flags.L2EthRpcFlag.Name),
 		MinL1TxSize:                ctx.GlobalUint64(flags.MinL1TxSizeBytesFlag.Name),
 		MaxL1TxSize:                ctx.GlobalUint64(flags.MaxL1TxSizeBytesFlag.Name),
 		MaxBlocksPerChannel:        ctx.GlobalUint64(flags.MaxBlocksPerChannelFlag.Name),
