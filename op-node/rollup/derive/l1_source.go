@@ -2,7 +2,6 @@ package derive
 
 import (
 	"context"
-	"fmt"
 	"io"
 
 	"github.com/ethereum-optimism/optimism/op-node/eth"
@@ -23,7 +22,7 @@ type DataAvailabilitySource interface {
 }
 
 type L1SourceOutput interface {
-	OriginStage
+	StageProgress
 	IngestData(data []byte) error
 }
 
@@ -32,33 +31,13 @@ type L1Source struct {
 	dataSrc DataAvailabilitySource
 	next    L1SourceOutput
 
-	currentOrigin eth.L1BlockRef
-	originOpen    bool
-	data          eth.Data
-	datas         DataIter
+	Origin
+
+	data  eth.Data
+	datas DataIter
 }
 
-func (l1s *L1Source) OpenOrigin(ref eth.L1BlockRef) error {
-	if l1s.originOpen {
-		panic("double open")
-	}
-	if ref.ParentHash != l1s.currentOrigin.Hash {
-		return fmt.Errorf("reorg detected, cannot start consuming this L1 block without using a new channel bank: new.parent: %s, expected: %s", ref.ParentID(), l1s.currentOrigin.ParentID())
-	}
-	l1s.currentOrigin = ref
-	l1s.originOpen = true
-	return nil
-}
-
-func (l1s *L1Source) CloseOrigin() {
-	l1s.originOpen = false
-}
-
-func (l1s *L1Source) IsOriginOpen() bool {
-	return l1s.originOpen
-}
-
-var _ OriginStage = (*L1Source)(nil)
+var _ Stage = (*L1Source)(nil)
 
 func NewL1Source(log log.Logger, dataSrc DataAvailabilitySource, next L1SourceOutput) *L1Source {
 	return &L1Source{
@@ -68,21 +47,21 @@ func NewL1Source(log log.Logger, dataSrc DataAvailabilitySource, next L1SourceOu
 	}
 }
 
-func (l1s *L1Source) CurrentOrigin() eth.L1BlockRef {
-	return l1s.currentOrigin
-}
+func (l1s *L1Source) Step(ctx context.Context, outer Origin) error {
+	if changed, err := l1s.UpdateOrigin(outer); err != nil || changed {
+		return err
+	}
 
-func (l1s *L1Source) Step(ctx context.Context) error {
-	// open origin of next stage if we have not yet
-	if l1s.next.CurrentOrigin() != l1s.currentOrigin {
-		return l1s.next.OpenOrigin(l1s.currentOrigin)
+	// specific to L1 source: if the L1 origin is closed, there is no more data to retrieve.
+	if l1s.Origin.Closed {
+		return io.EOF
 	}
 
 	// create a source if we have none
 	if l1s.datas == nil {
-		datas, err := l1s.dataSrc.OpenData(ctx, l1s.currentOrigin.ID())
+		datas, err := l1s.dataSrc.OpenData(ctx, l1s.Origin.Current.ID())
 		if err != nil {
-			l1s.log.Error("can't fetch L1 data", "origin", l1s.currentOrigin)
+			l1s.log.Error("can't fetch L1 data", "origin", l1s.Origin.Current)
 			return nil
 		}
 		l1s.log.Warn("opened L1 data source")
@@ -92,19 +71,20 @@ func (l1s *L1Source) Step(ctx context.Context) error {
 
 	// buffer data if we have none
 	if l1s.data == nil {
+		l1s.log.Warn("fetching next piece of data")
 		data, err := l1s.datas.Next(ctx)
 		if err != nil && err == ctx.Err() {
 			l1s.log.Warn("context to retrieve next L1 data failed", "err", err)
 			return nil
 		} else if err == io.EOF {
-			// close previous data if we still need to
-			if l1s.next.IsOriginOpen() {
-				l1s.next.CloseOrigin()
-			}
+			l1s.log.Warn("no more data")
+			l1s.Origin.Closed = true
+			l1s.datas = nil
 			return io.EOF
 		} else if err != nil {
 			return err
 		} else {
+			l1s.log.Warn("read piece of data")
 			l1s.data = data
 			return nil
 		}
@@ -119,7 +99,7 @@ func (l1s *L1Source) Step(ctx context.Context) error {
 }
 
 func (l1s *L1Source) ResetStep(ctx context.Context, l1Fetcher L1Fetcher) error {
-	l1s.currentOrigin = l1s.next.CurrentOrigin()
+	l1s.Origin = l1s.next.Progress()
 	l1s.datas = nil
 	l1s.data = nil
 	return io.EOF

@@ -9,8 +9,6 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum/go-ethereum/rlp"
-
-	"github.com/ethereum-optimism/optimism/op-node/eth"
 )
 
 // zlib returns an io.ReadCloser but explicitly documents it is also a zlib.Resetter, and we want to use it as such.
@@ -20,7 +18,7 @@ type zlibReader interface {
 }
 
 type BatchQueueStage interface {
-	OriginStage
+	StageProgress
 	AddBatch(batch *BatchData) error
 }
 
@@ -34,6 +32,8 @@ type ChannelInReader struct {
 
 	data []byte
 
+	Origin
+
 	next BatchQueueStage
 }
 
@@ -44,27 +44,8 @@ func NewChannelInReader(log log.Logger, next BatchQueueStage) *ChannelInReader {
 	return &ChannelInReader{log: log, next: next}
 }
 
-func (cr *ChannelInReader) OpenOrigin(origin eth.L1BlockRef) error {
-	return cr.next.OpenOrigin(origin)
-}
-
-// CurrentOrigin returns the L1 block that encodes the data that is currently being read.
-// Batches should be filtered based on this source.
-// Note that the source might not be canonical anymore by the time the data is processed.
-func (cr *ChannelInReader) CurrentOrigin() eth.L1BlockRef {
-	return cr.next.CurrentOrigin()
-}
-
-func (cr *ChannelInReader) CloseOrigin() {
-	cr.next.CloseOrigin()
-}
-
-func (cr *ChannelInReader) IsOriginOpen() bool {
-	return cr.next.IsOriginOpen()
-}
-
 func (cr *ChannelInReader) WriteChannel(data []byte) {
-	if !cr.IsOriginOpen() {
+	if cr.Origin.Closed {
 		panic("write channel while closed")
 	}
 	cr.data = data
@@ -117,7 +98,11 @@ func (cr *ChannelInReader) NextChannel() {
 	cr.data = nil
 }
 
-func (cr *ChannelInReader) Step(ctx context.Context) error {
+func (cr *ChannelInReader) Step(ctx context.Context, outer Origin) error {
+	if changed, err := cr.UpdateOrigin(outer); err != nil || changed {
+		return err
+	}
+
 	var batch BatchData
 	if err := cr.ReadBatch(&batch); err == io.EOF {
 		return io.EOF
@@ -126,12 +111,13 @@ func (cr *ChannelInReader) Step(ctx context.Context) error {
 		cr.NextChannel()
 		return nil
 	}
-	cr.log.Debug("reading channel", "batch_epoch", batch.Epoch, "batch_timestamp", batch.Timestamp, "txs", len(batch.Transactions))
+	cr.log.Warn("reading channel", "batch_epoch", batch.Epoch, "batch_timestamp", batch.Timestamp, "txs", len(batch.Transactions))
 	return cr.next.AddBatch(&batch)
 }
 
 func (cr *ChannelInReader) ResetStep(ctx context.Context, l1Fetcher L1Fetcher) error {
 	cr.ready = false
 	cr.data = nil
+	cr.Origin = cr.next.Progress()
 	return io.EOF
 }

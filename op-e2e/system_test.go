@@ -114,7 +114,7 @@ func defaultSystemConfig(t *testing.T) SystemConfig {
 		},
 		Loggers: map[string]log.Logger{
 			"verifier":  testlog.Logger(t, log.LvlInfo).New("role", "verifier"),
-			"sequencer": testlog.Logger(t, log.LvlError).New("role", "sequencer"),
+			"sequencer": testlog.Logger(t, log.LvlWarn).New("role", "sequencer"),
 			"batcher":   testlog.Logger(t, log.LvlWarn).New("role", "batcher"),
 			"proposer":  testlog.Logger(t, log.LvlCrit).New("role", "proposer"),
 		},
@@ -224,6 +224,9 @@ func TestSystemE2E(t *testing.T) {
 	require.Nil(t, err, "Error starting up system")
 	defer sys.Close()
 
+	log := testlog.Logger(t, log.LvlInfo)
+	log.Info("genesis", "l2", sys.cfg.RollupConfig.Genesis.L2, "l1", sys.cfg.RollupConfig.Genesis.L1, "l2_time", sys.cfg.RollupConfig.Genesis.L2Time)
+
 	l1Client := sys.Clients["l1"]
 	l2Seq := sys.Clients["sequencer"]
 	l2Verif := sys.Clients["verifier"]
@@ -297,7 +300,7 @@ func TestSystemE2E(t *testing.T) {
 	_, err = waitForTransaction(tx.Hash(), l2Seq, 3*time.Duration(cfg.L1BlockTime)*time.Second)
 	require.Nil(t, err, "Waiting for L2 tx on sequencer")
 
-	receipt, err = waitForTransaction(tx.Hash(), l2Verif, 6*time.Duration(cfg.L1BlockTime)*time.Second)
+	receipt, err = waitForTransaction(tx.Hash(), l2Verif, 10*time.Duration(cfg.L1BlockTime)*time.Second)
 	require.Nil(t, err, "Waiting for L2 tx on verifier")
 	require.Equal(t, types.ReceiptStatusSuccessful, receipt.Status, "TX should have succeeded")
 
@@ -306,6 +309,8 @@ func TestSystemE2E(t *testing.T) {
 	require.Nil(t, err)
 	seqBlock, err := l2Seq.BlockByNumber(context.Background(), receipt.BlockNumber)
 	require.Nil(t, err)
+	require.Equal(t, verifBlock.NumberU64(), seqBlock.NumberU64(), "Verifier and sequencer blocks not the same after including a batch tx")
+	require.Equal(t, verifBlock.ParentHash(), seqBlock.ParentHash(), "Verifier and sequencer blocks parent hashes not the same after including a batch tx")
 	require.Equal(t, verifBlock.Hash(), seqBlock.Hash(), "Verifier and sequencer blocks not the same after including a batch tx")
 }
 

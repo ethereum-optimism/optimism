@@ -16,12 +16,21 @@ type L1Fetcher interface {
 	L1TransactionFetcher
 }
 
+type StageProgress interface {
+	Progress() Origin
+}
+
 type Stage interface {
-	// Step tries to progress the state. If the stage:
+	StageProgress
+
+	// Step tries to progress the state.
+	// The outer stage progress informs the step what to do.
+	//
+	// If the stage:
 	// - returns EOF: the stage will be skipped
 	// - returns another error: the stage will make the pipeline error.
 	// - returns nil: the stage will be repeated next Step
-	Step(ctx context.Context) error
+	Step(ctx context.Context, outer Origin) error
 
 	// ResetStep prepares the state for usage in regular steps.
 	// Similar to Step(ctx) it returns:
@@ -29,21 +38,6 @@ type Stage interface {
 	// - error if the reset should start all over again
 	// - nil if the reset should continue resetting this stage.
 	ResetStep(ctx context.Context, l1Fetcher L1Fetcher) error
-}
-
-type Origin interface {
-	// CurrentOrigin returns which L1 origin the stage has currently synced up to.
-	CurrentOrigin() eth.L1BlockRef
-}
-
-type OriginStage interface {
-	Origin
-	// OpenOrigin is called before any data included in the origin is written to the stage
-	OpenOrigin(origin eth.L1BlockRef) error
-	// CloseOrigin is called if no more data included in the current origin will be written to the stage
-	CloseOrigin()
-	// IsOriginOpen returns true when CloseOrigin has not yet been called for the current origin.
-	IsOriginOpen() bool
 }
 
 type EngineQueueStage interface {
@@ -66,9 +60,6 @@ type DerivationPipeline struct {
 	// Index of the stage that is currently being reset.
 	// >= len(stages) if no additional resetting is required
 	resetting int
-
-	// start references the closest-to-L1 stage, where we consume a new L1 origin soonest from
-	start Origin
 
 	// stages in execution order. A stage Step that:
 	stages []Stage
@@ -96,7 +87,6 @@ func NewDerivationPipeline(log log.Logger, cfg *rollup.Config, l1Fetcher L1Fetch
 		cfg:       cfg,
 		l1Fetcher: l1Fetcher,
 		resetting: 0,
-		start:     l1Traversal,
 		stages:    stages,
 		eng:       eng,
 	}
@@ -106,8 +96,8 @@ func (dp *DerivationPipeline) Reset() {
 	dp.resetting = 0
 }
 
-func (dp *DerivationPipeline) CurrentL1() eth.L1BlockRef {
-	return dp.start.CurrentOrigin()
+func (dp *DerivationPipeline) Progress() Origin {
+	return dp.stages[len(dp.stages)-1].Progress()
 }
 
 func (dp *DerivationPipeline) Finalize(l1Origin eth.BlockID) {
@@ -146,17 +136,25 @@ func (dp *DerivationPipeline) Step(ctx context.Context) error {
 	// if any stages need to be reset, do that first.
 	if dp.resetting < len(dp.stages) {
 		if err := dp.stages[dp.resetting].ResetStep(ctx, dp.l1Fetcher); err == io.EOF {
+			dp.log.Warn("reset of stage completed", "stage", dp.resetting, "origin", dp.stages[dp.resetting].Progress().Current)
 			dp.resetting += 1
 			return nil
 		} else if err != nil {
 			return err
 		} else {
+			dp.log.Warn("reset of stage continues", "stage", dp.resetting, "origin", dp.stages[dp.resetting].Progress().Current)
 			return nil
 		}
 	}
 
+	// TODO: instead of iterating all stages again,
+	// we should track the index of the current stage, and increment/decrement as necessary.
 	for i, stage := range dp.stages {
-		if err := stage.Step(ctx); err == io.EOF {
+		var outer Origin
+		if i+1 < len(dp.stages) {
+			outer = dp.stages[i+1].Progress()
+		}
+		if err := stage.Step(ctx, outer); err == io.EOF {
 			continue
 		} else if err != nil {
 			return err

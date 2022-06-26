@@ -241,7 +241,11 @@ func (l *BatchSubmitter) loop() {
 				continue
 			}
 			data := new(bytes.Buffer)
-			l.ch.OutputFrame(data, l.cfg.MaxL1TxSize)
+			data.WriteByte(derive.DerivationVersion0)
+			if err := l.ch.OutputFrame(data, l.cfg.MaxL1TxSize); err != nil {
+				l.log.Error("error outputting frame", "err", err)
+				continue
+			}
 
 			// Poll for new L1 Block and make a decision about what to do with the data
 
@@ -278,7 +282,7 @@ func (l *BatchSubmitter) loop() {
 			}
 
 			// The transaction was successfully submitted.
-			l.log.Info("tx successfully published", "tx_hash", receipt.TxHash)
+			l.log.Warn("tx successfully published", "tx_hash", receipt.TxHash)
 
 		case <-l.done:
 			return
@@ -308,6 +312,7 @@ func (l *BatchSubmitter) CraftTx(ctx context.Context, data []byte, nonce uint64)
 		GasFeeCap: gasFeeCap,
 		Data:      data,
 	}
+	l.log.Warn("creating tx", "to", rawTx.To, "from", crypto.PubkeyToAddress(l.cfg.PrivKey.PublicKey))
 
 	gas, err := core.IntrinsicGas(rawTx.Data, nil, false, true, true)
 	if err != nil {

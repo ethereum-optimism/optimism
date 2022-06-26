@@ -43,7 +43,7 @@ type DerivationPipeline interface {
 	Finalized() eth.L2BlockRef
 	SafeL2Head() eth.L2BlockRef
 	UnsafeL2Head() eth.L2BlockRef
-	CurrentL1() eth.L1BlockRef
+	Progress() derive.Origin
 }
 
 type outputInterface interface {

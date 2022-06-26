@@ -31,14 +31,13 @@ type BatchesWithOrigin struct {
 // BatchQueue contains a set of batches for every L1 block.
 // L1 blocks are contiguous and this does not support reorgs.
 type BatchQueue struct {
-	log          log.Logger
-	inputs       []BatchesWithOrigin
-	originOpen   bool // true if the last origin expects more batches
-	resetting    bool // true if we are resetting the batch queue
-	lastL1Origin eth.L1BlockRef
-	config       *rollup.Config
-	dl           L1ReceiptsFetcher
-	next         BatchQueueOutput
+	log       log.Logger
+	inputs    []BatchesWithOrigin
+	resetting bool // true if we are resetting the batch queue
+	config    *rollup.Config
+	dl        L1ReceiptsFetcher
+	next      BatchQueueOutput
+	Origin
 }
 
 // NewBatchQueue creates a BatchQueue, which should be Reset(origin) before use.
@@ -51,33 +50,11 @@ func NewBatchQueue(log log.Logger, cfg *rollup.Config, dl L1ReceiptsFetcher, nex
 	}
 }
 
-func (bq *BatchQueue) CurrentOrigin() eth.L1BlockRef {
-	last := bq.lastL1Origin
-	if len(bq.inputs) != 0 {
-		last = bq.inputs[len(bq.inputs)-1].Origin
-	}
-	return last
-}
-
-func (bq *BatchQueue) OpenOrigin(origin eth.L1BlockRef) error {
-	if bq.originOpen {
-		panic("double open")
-	}
-	bq.log.Warn("open origin", "origin", origin)
-	parent := bq.CurrentOrigin()
-	if parent.Hash != origin.ParentHash {
-		return fmt.Errorf("cannot process L1 reorg from %s to %s (parent %s)", parent, origin.ID(), origin.ParentID())
-	}
-	bq.inputs = append(bq.inputs, BatchesWithOrigin{Origin: origin, Batches: nil})
-	bq.originOpen = true
-	return nil
-}
-
 func (bq *BatchQueue) AddBatch(batch *BatchData) error {
-	if !bq.originOpen {
+	if bq.Origin.Closed {
 		panic("write batch while closed")
 	}
-	bq.log.Warn("add batch", "origin", bq.CurrentOrigin(), "tx_count", len(batch.Transactions), "timestamp", batch.Timestamp)
+	bq.log.Warn("add batch", "origin", bq.Origin.Current, "tx_count", len(batch.Transactions), "timestamp", batch.Timestamp)
 	if len(bq.inputs) == 0 {
 		return fmt.Errorf("cannot add batch with timestamp %d, no origin was prepared", batch.Timestamp)
 	}
@@ -85,21 +62,10 @@ func (bq *BatchQueue) AddBatch(batch *BatchData) error {
 	return nil
 }
 
-func (bq *BatchQueue) CloseOrigin() {
-	if !bq.originOpen {
-		panic("double close")
-	}
-	bq.log.Warn("close origin", "origin", bq.CurrentOrigin())
-	bq.originOpen = false
-}
-
-func (bq *BatchQueue) IsOriginOpen() bool {
-	return bq.originOpen
-}
-
 // derive any L2 chain inputs, if we have any new batches
 func (bq *BatchQueue) DeriveL2Inputs(ctx context.Context, lastL2Timestamp uint64) ([]*eth.PayloadAttributes, error) {
-	if bq.originOpen || len(bq.inputs) == 0 {
+	// Wait for full data of the last origin, before deciding to fill with empty batches
+	if !bq.Origin.Closed || len(bq.inputs) == 0 {
 		return nil, io.EOF
 	}
 	if uint64(len(bq.inputs)) < bq.config.SeqWindowSize {
@@ -144,8 +110,12 @@ func (bq *BatchQueue) DeriveL2Inputs(ctx context.Context, lastL2Timestamp uint64
 	var attributes []*eth.PayloadAttributes
 
 	for i, batch := range batches {
+		seqNr := uint64(i)
+		if l1Info.Hash() == bq.config.Genesis.L1.Hash { // the genesis block is not derived, but does count as part of the first epoch: it takes seq nr 0
+			seqNr += 1
+		}
 		var txns []eth.Data
-		l1InfoTx, err := L1InfoDepositBytes(uint64(i), l1Info)
+		l1InfoTx, err := L1InfoDepositBytes(seqNr, l1Info)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create l1InfoTx: %w", err)
 		}
@@ -171,7 +141,16 @@ func (bq *BatchQueue) DeriveL2Inputs(ctx context.Context, lastL2Timestamp uint64
 	return attributes, nil
 }
 
-func (bq *BatchQueue) Step(ctx context.Context) error {
+func (bq *BatchQueue) Step(ctx context.Context, outer Origin) error {
+	if changed, err := bq.UpdateOrigin(outer); err != nil {
+		return err
+	} else if changed {
+		if !bq.Origin.Closed { // init inputs if we moved to a new open origin
+			bq.inputs = append(bq.inputs, BatchesWithOrigin{Origin: bq.Origin.Current, Batches: nil})
+		}
+		return nil
+	}
+
 	attrs, err := bq.DeriveL2Inputs(ctx, bq.next.SafeL2Head().Time)
 	if err != nil {
 		return err
@@ -182,6 +161,7 @@ func (bq *BatchQueue) Step(ctx context.Context) error {
 			// (after a reset rolled us back a full sequence window)
 			continue
 		}
+		bq.log.Warn("derived new payload attributes", "time", attr.Timestamp, "txs", len(attr.Transactions))
 		bq.next.AddSafeAttributes(attr)
 	}
 	return nil
@@ -195,30 +175,32 @@ func (bq *BatchQueue) ResetStep(ctx context.Context, l1Fetcher L1Fetcher) error 
 		if err != nil {
 			return fmt.Errorf("failed to find L1 reference corresponding to L1 origin %s of L2 block %s: %v", l2SafeHead.L1Origin, l2SafeHead.ID(), err)
 		}
-		bq.log.Debug("set initial reset origin for batch queue", "origin", bq.lastL1Origin)
-		bq.lastL1Origin = l1SafeHead
+		bq.Origin = Origin{
+			Current: l1SafeHead,
+			Closed:  false,
+		}
 		bq.resetting = true
+		bq.log.Debug("set initial reset origin for batch queue", "origin", bq.Origin.Current)
 		return nil
 	}
 
 	// we are done resetting if we have sufficient distance from the next stage to produce coherent results once we reach the origin of that stage.
-	if bq.lastL1Origin.Number+bq.config.SeqWindowSize < bq.next.SafeL2Head().L1Origin.Number || bq.lastL1Origin.Number == 0 {
-		bq.log.Debug("found reset origin for batch queue", "origin", bq.lastL1Origin)
+	if bq.Origin.Current.Number+bq.config.SeqWindowSize < bq.next.SafeL2Head().L1Origin.Number || bq.Origin.Current.Number == 0 {
+		bq.log.Debug("found reset origin for batch queue", "origin", bq.Origin.Current)
 		bq.inputs = bq.inputs[:0]
-		bq.inputs = append(bq.inputs, BatchesWithOrigin{Origin: bq.lastL1Origin, Batches: nil})
-		bq.originOpen = true
+		bq.inputs = append(bq.inputs, BatchesWithOrigin{Origin: bq.Origin.Current, Batches: nil})
 		bq.resetting = false
 		return io.EOF
 	}
 
-	bq.log.Debug("walking back to find reset origin for batch queue", "origin", bq.lastL1Origin)
+	bq.log.Debug("walking back to find reset origin for batch queue", "origin", bq.Origin.Current)
 
 	// not far back enough yet, do one more step
-	parent, err := l1Fetcher.L1BlockRefByHash(ctx, bq.lastL1Origin.ParentHash)
+	parent, err := l1Fetcher.L1BlockRefByHash(ctx, bq.Origin.Current.ParentHash)
 	if err != nil {
 		bq.log.Error("failed to fetch parent block while resetting batch queue", "err", err)
 		return nil
 	}
-	bq.lastL1Origin = parent
+	bq.Origin.Current = parent
 	return nil
 }

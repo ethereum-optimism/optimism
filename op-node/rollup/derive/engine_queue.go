@@ -42,6 +42,8 @@ type EngineQueue struct {
 
 	toFinalize eth.BlockID
 
+	Origin
+
 	safeAttributes []*eth.PayloadAttributes
 	unsafePayloads []*eth.ExecutionPayload
 
@@ -95,7 +97,11 @@ func (eq *EngineQueue) LastL2Time() uint64 {
 	return uint64(eq.safeAttributes[len(eq.safeAttributes)-1].Timestamp)
 }
 
-func (eq *EngineQueue) Step(ctx context.Context) error {
+func (eq *EngineQueue) Step(ctx context.Context, outer Origin) error {
+	if changed, err := eq.UpdateOrigin(outer); err != nil || changed {
+		return err
+	}
+
 	// TODO: check if engine unsafehead/safehead/finalized data match, return error and reset pipeline if not.
 	// maybe better to do in the driver instead.
 
@@ -280,6 +286,10 @@ func (eq *EngineQueue) ResetStep(ctx context.Context, l1Fetcher L1Fetcher) error
 			// if the unsafe head was broken, then restore it to start from the safe head
 			if eq.unsafeHead == (eth.L2BlockRef{}) {
 				eq.unsafeHead = eq.safeHead
+			}
+			eq.Origin = Origin{
+				Current: canonicalRef,
+				Closed:  false,
 			}
 			return io.EOF
 		} else {

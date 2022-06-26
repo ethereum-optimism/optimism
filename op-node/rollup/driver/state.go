@@ -274,14 +274,14 @@ func (s *state) eventLoop() {
 				s.log.Error("Error creating new L2 block", "err", err)
 			}
 
-			// // We need to catch up to the next origin as quickly as possible. We can do this by
-			// // requesting a new block ASAP instead of waiting for the next tick.
-			// // TODO: If we want to consider confirmations, need to consider here too.
-			// if s.l1Head.Number > s.l2Head.L1Origin.Number {
-			// 	s.log.Trace("Asking for a second L2 block asap", "l2Head", s.l2Head)
-			// 	// But not too quickly to minimize busy-waiting for new blocks
-			// 	time.AfterFunc(time.Millisecond*10, reqL2BlockCreation)
-			// }
+			// We need to catch up to the next origin as quickly as possible. We can do this by
+			// requesting a new block ASAP instead of waiting for the next tick.
+			// TODO: If we want to consider confirmations, need to consider here too.
+			if s.l1Head.Number > s.l2Head.L1Origin.Number {
+				s.log.Trace("Asking for a second L2 block asap", "l2Head", s.l2Head)
+				// But not too quickly to minimize busy-waiting for new blocks
+				time.AfterFunc(time.Millisecond*10, reqL2BlockCreation)
+			}
 
 		case payload := <-s.unsafeL2Payloads:
 			s.snapshot("New unsafe payload")
@@ -295,7 +295,7 @@ func (s *state) eventLoop() {
 			s.handleNewL1Block(newL1Head)
 			reqStep() // a new L1 head may mean we have the data to not get an EOF again.
 		case <-stepReqCh:
-			s.log.Warn("Derivation process step", "onto", s.derivation.CurrentL1())
+			s.log.Warn("Derivation process step", "onto_origin", s.derivation.Progress().Current, "onto_closed", s.derivation.Progress().Closed)
 			stepCtx, cancel := context.WithTimeout(ctx, time.Second*10) // TODO pick a timeout for executing a single step
 			err := s.derivation.Step(stepCtx)
 			cancel()
@@ -327,7 +327,7 @@ func (s *state) eventLoop() {
 
 func (s *state) snapshot(event string) {
 	// l1HeadJSON, _ := json.Marshal(s.l1Head)
-	// l1CurrentJSON, _ := json.Marshal(s.l2Head)
+	// l1CurrentJSON, _ := json.Marshal(s.derivation.CurrentL1())
 	// l2HeadJSON, _ := json.Marshal(s.l2Head)
 	// l2SafeHeadJSON, _ := json.Marshal(s.l2SafeHead)
 	// l2FinalizedHeadJSON, _ := json.Marshal(s.l2Finalized)
