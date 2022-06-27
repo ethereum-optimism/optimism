@@ -1,9 +1,10 @@
 //SPDX-License-Identifier: MIT
 pragma solidity 0.8.10;
 
-import { L2OutputOracle_Initializer } from "./CommonTest.t.sol";
+import { L2OutputOracle_Initializer, NextImpl } from "./CommonTest.t.sol";
 import { L2OutputOracle } from "../L1/L2OutputOracle.sol";
 import { Proxy } from "../universal/Proxy.sol";
+
 
 contract L2OutputOracleTest is L2OutputOracle_Initializer {
     bytes32 appendedOutput1 = keccak256(abi.encode(1));
@@ -336,28 +337,11 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
 }
 
 contract L2OutputOracleUpgradeable_Test is L2OutputOracle_Initializer {
-    L2OutputOracle oracleImpl;
     Proxy internal proxy;
-    uint64 initialBlockNum;
 
-    function setUp() override public {
+    function setUp() public override {
         super.setUp();
-        initialBlockNum = uint64(block.number);
-
-        // Rename the deployed oracle instance for the purposes of this test.
-        oracleImpl = oracle;
-        proxy = new Proxy(alice);
-        vm.prank(alice);
-        proxy.upgradeToAndCall(
-            address(oracleImpl),
-            abi.encodeWithSelector(
-                L2OutputOracle.initialize.selector,
-                genesisL2Output,
-                startingBlockNumber,
-                sequencer,
-                owner
-            )
-        );
+        proxy = Proxy(payable(address(oracle)));
     }
 
     function test_initValuesOnProxy() external {
@@ -367,7 +351,9 @@ contract L2OutputOracleUpgradeable_Test is L2OutputOracle_Initializer {
         assertEq(startingTimestamp, oracleImpl.STARTING_TIMESTAMP());
         assertEq(l2BlockTime, oracleImpl.L2_BLOCK_TIME());
 
-        L2OutputOracle.OutputProposal memory initOutput = oracleImpl.getL2Output(startingBlockNumber);
+        L2OutputOracle.OutputProposal memory initOutput = oracleImpl.getL2Output(
+            startingBlockNumber
+        );
         assertEq(genesisL2Output, initOutput.outputRoot);
         assertEq(initL1Time, initOutput.timestamp);
 
@@ -383,5 +369,24 @@ contract L2OutputOracleUpgradeable_Test is L2OutputOracle_Initializer {
     function test_cannotInitImpl() external {
         vm.expectRevert("Initializable: contract is already initialized");
         address(oracleImpl).call(abi.encodeWithSelector(L2OutputOracle.initialize.selector));
+    }
+
+    function test_upgrading() external {
+        // Check an unused slot before upgrading.
+        bytes32 slot21Before = vm.load(address(oracle), bytes32(uint256(21)));
+        assertEq(bytes32(0), slot21Before);
+
+        NextImpl nextImpl = new NextImpl();
+        vm.startPrank(alice);
+        proxy.upgradeToAndCall(
+            address(nextImpl),
+            abi.encodeWithSelector(NextImpl.initialize.selector)
+        );
+        assertEq(proxy.implementation(), address(nextImpl));
+
+        // Verify that the NextImpl contract initialized its values according as expected
+        bytes32 slot21After = vm.load(address(oracle), bytes32(uint256(21)));
+        bytes32 slot21Expected = NextImpl(address(oracle)).slot21Init();
+        assertEq(slot21Expected, slot21After);
     }
 }
