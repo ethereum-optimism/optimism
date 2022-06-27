@@ -95,8 +95,8 @@ type Service struct {
 }
 
 type IndexerStatus struct {
-	Synced  float64           `json:"synced"`
-	Highest db.L1BlockLocator `json:"highest_block"`
+	Synced  float64         `json:"synced"`
+	Highest db.BlockLocator `json:"highest_block"`
 }
 
 func NewService(cfg ServiceConfig) (*Service, error) {
@@ -203,7 +203,7 @@ func (s *Service) Loop(ctx context.Context) {
 }
 
 func (s *Service) Update(newHeader *types.Header) error {
-	var lowest = db.L1BlockLocator{
+	var lowest = db.BlockLocator{
 		Number: s.cfg.StartBlockNumber,
 		Hash:   common.HexToHash(s.cfg.StartBlockHash),
 	}
