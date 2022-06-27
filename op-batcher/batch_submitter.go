@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"github.com/ethereum-optimism/optimism/op-node/eth"
+	"io"
 	"math/big"
 	"os"
 	"os/signal"
@@ -14,6 +14,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-batcher/db"
 	"github.com/ethereum-optimism/optimism/op-batcher/sequencer"
+	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-proposer/txmgr"
 	"github.com/ethereum/go-ethereum/accounts"
@@ -212,13 +213,13 @@ mainLoop:
 	for {
 		select {
 		case <-ticker.C:
-			// Do the simplest thing of one channel per block
-			// TODO: Do one channel per epoch
+			// Do the simplest thing of one channel per range of blocks since the iteration of this loop.
+			// The channel is closed at the end of this loop (to avoid lifecycle management of the channel).
 			ctx, cancel := context.WithTimeout(l.ctx, time.Second*10)
 			head, err := l.cfg.L2Client.BlockByNumber(ctx, nil)
 			cancel()
 			if err != nil {
-				l.log.Error("issue getting L2 head", "err", err)
+				l.log.Error("issue fetching L2 head", "err", err)
 				continue
 			}
 			l.log.Info("Got new L2 Block", "block", head.Number())
@@ -238,11 +239,11 @@ mainLoop:
 				block, err := l.cfg.L2Client.BlockByNumber(ctx, new(big.Int).SetUint64(i))
 				cancel()
 				if err != nil {
-					l.log.Error("issue getting L2 block", "err", err)
+					l.log.Error("issue fetching L2 block", "err", err)
 					continue mainLoop
 				}
 				if err := l.ch.AddBlock(block); err != nil {
-					l.log.Error("issue getting adding L2 Block", "err", err)
+					l.log.Error("issue adding L2 Block to the channel", "err", err, "channel_id", l.ch.ID())
 					continue mainLoop
 				}
 				l.log.Info("added L2 block to channel", "block", eth.BlockID{Hash: block.Hash(), Number: block.NumberU64()}, "channel_id", l.ch.ID(), "tx_count", len(block.Transactions()), "time", block.Time())
@@ -254,57 +255,64 @@ mainLoop:
 				l.log.Error("issue getting adding L2 Block", "err", err)
 				continue
 			}
-			data := new(bytes.Buffer)
-			data.WriteByte(derive.DerivationVersion0)
-			if err := l.ch.OutputFrame(data, l.cfg.MaxL1TxSize); err != nil {
-				l.log.Error("error outputting frame", "err", err)
-				continue
+			// Hand role do-while loop to fully pull all frames out of the channel
+			for {
+				// Collect the output frame
+				data := new(bytes.Buffer)
+				data.WriteByte(derive.DerivationVersion0)
+				done := false
+				if err := l.ch.OutputFrame(data, l.cfg.MaxL1TxSize); err == io.EOF {
+					done = true
+				} else if err != nil {
+					l.log.Error("error outputting frame", "err", err)
+					continue mainLoop
+				}
+
+				// Query for the submitter's current nonce.
+				walletAddr := crypto.PubkeyToAddress(l.cfg.PrivKey.PublicKey)
+				ctx, cancel = context.WithTimeout(l.ctx, time.Second*10)
+				nonce, err := l.cfg.L1Client.NonceAt(ctx, walletAddr, nil)
+				cancel()
+				if err != nil {
+					l.log.Error("unable to get current nonce", "err", err)
+					continue mainLoop
+				}
+
+				// Create the transaction
+				ctx, cancel = context.WithTimeout(l.ctx, time.Second*10)
+				tx, err := l.CraftTx(ctx, data.Bytes(), nonce)
+				cancel()
+				if err != nil {
+					l.log.Error("unable to craft tx", "err", err)
+					continue mainLoop
+				}
+
+				// Construct the a closure that will update the txn with the current gas prices.
+				updateGasPrice := func(ctx context.Context) (*types.Transaction, error) {
+					l.log.Debug("updating batch tx gas price")
+					return l.UpdateGasPrice(ctx, tx)
+				}
+
+				// Wait until one of our submitted transactions confirms. If no
+				// receipt is received it's likely our gas price was too low.
+				// TODO: does the tx manager nicely replace the tx?
+				//  (submit a new one, that's within the channel timeout, but higher fee than previously submitted tx? Or use a cheap cancel tx?)
+				ctx, cancel = context.WithTimeout(l.ctx, time.Second*time.Duration(l.cfg.ChannelTimeout))
+				receipt, err := l.txMgr.Send(ctx, updateGasPrice, l.cfg.L1Client.SendTransaction)
+				cancel()
+				if err != nil {
+					l.log.Error("unable to publish tx", "err", err)
+					continue mainLoop
+				}
+
+				// The transaction was successfully submitted.
+				l.log.Info("tx successfully published", "tx_hash", receipt.TxHash, "channel_id", l.ch.ID())
+
+				// If `ch.OutputFrame` returned io.EOF we don't need to submit any more frames for this channel.
+				if done {
+					break // local do-while loop
+				}
 			}
-
-			// Poll for new L1 Block and make a decision about what to do with the data
-
-			//
-			// Actually send the transaction
-			//
-			walletAddr := crypto.PubkeyToAddress(l.cfg.PrivKey.PublicKey)
-
-			// Query for the submitter's current nonce.
-			ctx, cancel = context.WithTimeout(l.ctx, time.Second*10)
-			nonce, err := l.cfg.L1Client.NonceAt(ctx, walletAddr, nil)
-			cancel()
-			if err != nil {
-				l.log.Error("unable to get current nonce", "err", err)
-				continue
-			}
-
-			ctx, cancel = context.WithTimeout(l.ctx, time.Second*10)
-			tx, err := l.CraftTx(ctx, data.Bytes(), nonce)
-			cancel()
-			if err != nil {
-				l.log.Error("unable to craft tx", "err", err)
-				continue
-			}
-
-			// Construct the a closure that will update the txn with the current gas prices.
-			updateGasPrice := func(ctx context.Context) (*types.Transaction, error) {
-				l.log.Debug("updating batch tx gas price")
-				return l.UpdateGasPrice(ctx, tx)
-			}
-
-			// Wait until one of our submitted transactions confirms. If no
-			// receipt is received it's likely our gas price was too low.
-			// TODO: does the tx manager nicely replace the tx?
-			//  (submit a new one, that's within the channel timeout, but higher fee than previously submitted tx? Or use a cheap cancel tx?)
-			ctx, cancel = context.WithTimeout(l.ctx, time.Second*time.Duration(l.cfg.ChannelTimeout))
-			receipt, err := l.txMgr.Send(ctx, updateGasPrice, l.cfg.L1Client.SendTransaction)
-			cancel()
-			if err != nil {
-				l.log.Error("unable to publish tx", "err", err)
-				continue
-			}
-
-			// The transaction was successfully submitted.
-			l.log.Info("tx successfully published", "tx_hash", receipt.TxHash)
 
 		case <-l.done:
 			return

@@ -105,6 +105,9 @@ func (co *ChannelOut) Close() error {
 
 // OutputFrame writes a frame to w with a given max size
 // Use `ReadyBytes`, `Flush`, and `Close` to modify the ready buffer.
+// Returns io.EOF when the channel is closed & there are no more frames
+// Returns nil if there is still more buffered data.
+// Returns and error if it ran into an error during processing.
 func (co *ChannelOut) OutputFrame(w *bytes.Buffer, maxSize uint64) error {
 	w.Write(co.id.Data[:])
 	w.Write(makeUVarint(co.id.Time))
@@ -134,14 +137,15 @@ func (co *ChannelOut) OutputFrame(w *bytes.Buffer, maxSize uint64) error {
 	if _, err := w.ReadFrom(&co.scratch); err != nil {
 		return err
 	}
+	co.frame += 1
 	// Only mark as closed if the channel is closed & there is no more data available
 	if co.closed && err == io.EOF {
 		w.WriteByte(1)
+		return io.EOF
 	} else {
 		w.WriteByte(0)
+		return nil
 	}
-	co.frame += 1
-	return nil
 }
 
 // blockToBatch writes the raw block bytes (after batch encoding) to the writer
