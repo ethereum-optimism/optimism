@@ -1,7 +1,6 @@
 package db
 
 import (
-	l2common "github.com/ethereum-optimism/optimism/l2geth/common"
 	"github.com/ethereum/go-ethereum/common"
 )
 
@@ -21,8 +20,8 @@ func (b IndexedL1Block) String() string {
 
 // IndexedL2Block contains the L2 block including the withdrawals in it.
 type IndexedL2Block struct {
-	Hash        l2common.Hash
-	ParentHash  l2common.Hash
+	Hash        common.Hash
+	ParentHash  common.Hash
 	Number      uint64
 	Timestamp   uint64
 	Withdrawals []Withdrawal
