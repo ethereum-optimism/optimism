@@ -23,6 +23,9 @@ type state struct {
 	// The derivation pipeline determines the new l2SafeHead.
 	derivation DerivationPipeline
 
+	// When the derivation pipeline is waiting for new data to do anything
+	idleDerivation bool
+
 	// Rollup config
 	Config    *rollup.Config
 	sequencer bool
@@ -48,6 +51,7 @@ func NewState(log log.Logger, snapshotLog log.Logger, config *rollup.Config, l1C
 	output outputInterface, derivationPipeline DerivationPipeline, network Network, sequencer bool) *state {
 	return &state{
 		derivation:       derivationPipeline,
+		idleDerivation:   true,
 		Config:           config,
 		done:             make(chan struct{}),
 		log:              log,
@@ -262,10 +266,8 @@ func (s *state) eventLoop() {
 
 		case <-l2BlockCreationReqCh:
 			s.snapshot("L2 Block Creation Request")
-			// only create blocks if we processed all L1 contents
-			progress := s.derivation.Progress() // TODO: add conf depth
-			if progress.Origin != s.l1Head || !progress.Closed {
-				s.log.Warn("not creating block, node is not synced", "progress_origin", progress.Origin, "progress_closed", progress.Closed, "head_l1", s.l1Head)
+			if !s.idleDerivation {
+				s.log.Warn("not creating block, node is deriving new l2 data", "head_l1", s.l1Head)
 				break
 			}
 			ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
@@ -296,21 +298,24 @@ func (s *state) eventLoop() {
 			s.handleNewL1Block(newL1Head)
 			reqStep() // a new L1 head may mean we have the data to not get an EOF again.
 		case <-stepReqCh:
+			s.idleDerivation = false
 			s.log.Debug("Derivation process step", "onto_origin", s.derivation.Progress().Origin, "onto_closed", s.derivation.Progress().Closed)
 			stepCtx, cancel := context.WithTimeout(ctx, time.Second*10) // TODO pick a timeout for executing a single step
 			err := s.derivation.Step(stepCtx)
 			cancel()
 			if err == io.EOF {
+				s.log.Debug("Derivation process went idle", "progress", s.derivation.Progress().Origin)
+				s.idleDerivation = true
 				continue
 			} else if err != nil {
-				s.log.Warn("derivation pipeline critically failed, resetting it", "err", err)
-				// If the pipeline corrupts, simply reset it
+				// If the pipeline corrupts, e.g. due to a reorg, simply reset it
+				s.log.Warn("Derivation pipeline is reset", "err", err)
 				s.derivation.Reset()
 			} else {
 				finalized, safe, unsafe := s.derivation.Finalized(), s.derivation.SafeL2Head(), s.derivation.UnsafeL2Head()
 				// log sync progress when it changes
 				if s.l2Finalized != finalized || s.l2SafeHead != safe || s.l2Head != unsafe {
-					s.log.Info("sync progress", "finalized", finalized, "safe", safe, "unsafe", unsafe)
+					s.log.Info("Sync progress", "finalized", finalized, "safe", safe, "unsafe", unsafe)
 				}
 				// update the heads
 				s.l2Finalized = finalized

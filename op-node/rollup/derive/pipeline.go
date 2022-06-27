@@ -44,6 +44,7 @@ type EngineQueueStage interface {
 	Finalized() eth.L2BlockRef
 	UnsafeL2Head() eth.L2BlockRef
 	SafeL2Head() eth.L2BlockRef
+	Progress() Progress
 	SetUnsafeHead(head eth.L2BlockRef)
 
 	Finalize(l1Origin eth.BlockID)
@@ -101,7 +102,7 @@ func (dp *DerivationPipeline) Reset() {
 }
 
 func (dp *DerivationPipeline) Progress() Progress {
-	return dp.stages[len(dp.stages)-1].Progress()
+	return dp.eng.Progress()
 }
 
 func (dp *DerivationPipeline) Finalize(l1Origin eth.BlockID) {
