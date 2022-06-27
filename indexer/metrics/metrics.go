@@ -6,7 +6,6 @@ import (
 	"strconv"
 	"time"
 
-	l2common "github.com/ethereum-optimism/optimism/l2geth/common"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
@@ -160,7 +159,7 @@ func (m *Metrics) RecordDeposit(addr common.Address) {
 	m.DepositsCount.WithLabelValues(sym).Inc()
 }
 
-func (m *Metrics) RecordWithdrawal(addr l2common.Address) {
+func (m *Metrics) RecordWithdrawal(addr common.Address) {
 	sym := m.tokenAddrs[addr.String()]
 	if sym == "" {
 		sym = "UNKNOWN"

@@ -3,17 +3,17 @@ package db
 import (
 	"math/big"
 
-	l2common "github.com/ethereum-optimism/optimism/l2geth/common"
+	"github.com/ethereum/go-ethereum/common"
 )
 
 // Withdrawal contains transaction data for withdrawals made via the L2 to L1 bridge.
 type Withdrawal struct {
 	GUID        string
-	TxHash      l2common.Hash
-	L1Token     l2common.Address
-	L2Token     l2common.Address
-	FromAddress l2common.Address
-	ToAddress   l2common.Address
+	TxHash      common.Hash
+	L1Token     common.Address
+	L2Token     common.Address
+	FromAddress common.Address
+	ToAddress   common.Address
 	Amount      *big.Int
 	Data        []byte
 	LogIndex    uint
