@@ -126,8 +126,8 @@ func TestValidBatch(t *testing.T) {
 	for _, testCase := range testCases {
 		t.Run(testCase.Name, func(t *testing.T) {
 			err := ValidBatch(&testCase.Batch, &conf, testCase.Epoch, testCase.MinL2Time, testCase.MaxL2Time)
-			if (err != nil) != testCase.Valid {
-				t.Fatalf("case %v was expected to return %v, but got %v (%v)", testCase, testCase.Valid, err != nil, err)
+			if (err == nil) != testCase.Valid {
+				t.Fatalf("case %v was expected to return %v, but got %v (%v)", testCase, testCase.Valid, err == nil, err)
 			}
 		})
 	}
