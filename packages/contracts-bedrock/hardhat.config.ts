@@ -46,6 +46,9 @@ const config: HardhatUserConfig = {
       accounts: [process.env.PRIVATE_KEY_DEPLOYER || ethers.constants.HashZero],
     },
   },
+  foundry: {
+    buildInfo: true,
+  },
   paths: {
     deploy: './deploy',
     deployments: './deployments',
