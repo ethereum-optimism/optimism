@@ -1,14 +1,15 @@
 //SPDX-License-Identifier: MIT
 pragma solidity 0.8.10;
 
-import { L2OutputOracle_Initializer } from "./CommonTest.t.sol";
+import { Portal_Initializer, CommonTest, NextImpl } from "./CommonTest.t.sol";
 
 import { AddressAliasHelper } from "../libraries/AddressAliasHelper.sol";
 import { L2OutputOracle } from "../L1/L2OutputOracle.sol";
 import { OptimismPortal } from "../L1/OptimismPortal.sol";
 import { WithdrawalVerifier } from "../libraries/Lib_WithdrawalVerifier.sol";
+import { Proxy } from "../universal/Proxy.sol";
 
-contract OptimismPortal_Test is L2OutputOracle_Initializer {
+contract OptimismPortal_Test is Portal_Initializer {
     event TransactionDeposited(
         address indexed from,
         address indexed to,
@@ -18,14 +19,6 @@ contract OptimismPortal_Test is L2OutputOracle_Initializer {
         bool isCreation,
         bytes data
     );
-
-    // Test target
-    OptimismPortal op;
-
-    function setUp() public override {
-        L2OutputOracle_Initializer.setUp();
-        op = new OptimismPortal(oracle, 7 days);
-    }
 
     function test_OptimismPortalConstructor() external {
         assertEq(op.FINALIZATION_PERIOD_SECONDS(), 7 days);
@@ -317,5 +310,54 @@ contract OptimismPortal_Test is L2OutputOracle_Initializer {
         assertEq(op.isOutputFinalized(checkpoint - 1), true);
         // But not the block after it.
         assertEq(op.isOutputFinalized(checkpoint + 1), false);
+    }
+}
+
+contract OptimismPortalUpgradeable_Test is Portal_Initializer {
+    Proxy internal proxy;
+    uint64 initialBlockNum;
+
+    function setUp() public override {
+        super.setUp();
+        initialBlockNum = uint64(block.number);
+        proxy = Proxy(payable(address(op)));
+    }
+
+    function test_initValuesOnProxy() external {
+        (uint128 prevBaseFee, uint64 prevBoughtGas, uint64 prevBlockNum) = OptimismPortal(
+            payable(address(proxy))
+        ).params();
+        assertEq(prevBaseFee, opImpl.INITIAL_BASE_FEE());
+        assertEq(prevBoughtGas, 0);
+        assertEq(prevBlockNum, initialBlockNum);
+    }
+
+    function test_cannotInitProxy() external {
+        vm.expectRevert("Initializable: contract is already initialized");
+        address(proxy).call(abi.encodeWithSelector(OptimismPortal.initialize.selector));
+    }
+
+    function test_cannotInitImpl() external {
+        vm.expectRevert("Initializable: contract is already initialized");
+        address(opImpl).call(abi.encodeWithSelector(OptimismPortal.initialize.selector));
+    }
+
+    function test_upgrading() external {
+        // Check an unused slot before upgrading.
+        bytes32 slot21Before = vm.load(address(op), bytes32(uint256(21)));
+        assertEq(bytes32(0), slot21Before);
+
+        NextImpl nextImpl = new NextImpl();
+        vm.startPrank(alice);
+        proxy.upgradeToAndCall(
+            address(nextImpl),
+            abi.encodeWithSelector(NextImpl.initialize.selector)
+        );
+        assertEq(proxy.implementation(), address(nextImpl));
+
+        // Verify that the NextImpl contract initialized its values according as expected
+        bytes32 slot21After = vm.load(address(op), bytes32(uint256(21)));
+        bytes32 slot21Expected = NextImpl(address(op)).slot21Init();
+        assertEq(slot21Expected, slot21After);
     }
 }

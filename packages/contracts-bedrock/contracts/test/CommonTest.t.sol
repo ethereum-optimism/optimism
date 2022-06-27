@@ -17,6 +17,8 @@ import { AddressAliasHelper } from "../libraries/AddressAliasHelper.sol";
 import { OVM_ETH } from "../L2/OVM_ETH.sol";
 import { Lib_PredeployAddresses } from "../libraries/Lib_PredeployAddresses.sol";
 import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import { Proxy } from "../universal/Proxy.sol";
+import { Initializable } from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
 
 contract CommonTest is Test {
     address alice = address(128);
@@ -46,6 +48,7 @@ contract CommonTest is Test {
 contract L2OutputOracle_Initializer is CommonTest {
     // Test target
     L2OutputOracle oracle;
+    L2OutputOracle oracleImpl;
 
     // Constructor arguments
     address sequencer = 0x000000000000000000000000000000000000AbBa;
@@ -69,7 +72,7 @@ contract L2OutputOracle_Initializer is CommonTest {
         vm.warp(initL1Time);
         vm.roll(startingBlockNumber);
         // Deploy the L2OutputOracle and transfer owernship to the sequencer
-        oracle = new L2OutputOracle(
+        oracleImpl = new L2OutputOracle(
             submissionInterval,
             genesisL2Output,
             historicalTotalBlocks,
@@ -79,6 +82,39 @@ contract L2OutputOracle_Initializer is CommonTest {
             sequencer,
             owner
         );
+        Proxy proxy = new Proxy(alice);
+        vm.prank(alice);
+        proxy.upgradeToAndCall(
+            address(oracleImpl),
+            abi.encodeWithSelector(
+                L2OutputOracle.initialize.selector,
+                genesisL2Output,
+                startingBlockNumber,
+                sequencer,
+                owner
+            )
+        );
+        oracle = L2OutputOracle(address(proxy));
+    }
+}
+
+contract Portal_Initializer is L2OutputOracle_Initializer {
+    // Test target
+    OptimismPortal opImpl;
+    OptimismPortal op;
+
+    function setUp() public override virtual {
+        L2OutputOracle_Initializer.setUp();
+        opImpl = new OptimismPortal(oracle, 7 days);
+        Proxy proxy = new Proxy(alice);
+        vm.prank(alice);
+        proxy.upgradeToAndCall(
+            address(opImpl),
+            abi.encodeWithSelector(
+                OptimismPortal.initialize.selector
+            )
+        );
+        op = OptimismPortal(payable(address(proxy)));
     }
 }
 
@@ -125,7 +161,7 @@ contract Messenger_Initializer is L2OutputOracle_Initializer {
         super.setUp();
 
         // Deploy the OptimismPortal
-        op = new OptimismPortal(oracle, 100);
+        op = new OptimismPortal(oracle, 7 days);
         vm.label(address(op), "OptimismPortal");
 
         L1Messenger = new L1CrossDomainMessenger();
@@ -318,5 +354,21 @@ contract Bridge_Initializer is Messenger_Initializer {
                 string(abi.encodePacked("L1-", NativeL2Token.symbol()))
             )
         );
+    }
+}
+
+// Used for testing a future upgrade beyond the current implementations.
+// We include some variables so that we can sanity check accessing storage values after an upgrade.
+contract NextImpl is Initializable {
+    // Initializable occupies the zero-th slot.
+    bytes32 slot1;
+    bytes32[19] __gap;
+    bytes32 slot21;
+    bytes32 public constant slot21Init = bytes32(hex"1337");
+
+    function initialize() public reinitializer(2) {
+        // Slot21 is unused by an of our upgradeable contracts.
+        // This is used to verify that we can access this value after an upgrade.
+        slot21 = slot21Init;
     }
 }
