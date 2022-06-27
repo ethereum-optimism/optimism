@@ -1,6 +1,8 @@
 package eth
 
-import "fmt"
+import (
+	"fmt"
+)
 
 func ForkchoiceUpdateErr(payloadStatus PayloadStatusV1) error {
 	switch payloadStatus.Status {
@@ -25,7 +27,7 @@ func NewPayloadErr(payload *ExecutionPayload, payloadStatus *PayloadStatusV1) er
 	case ExecutionSyncing:
 		return fmt.Errorf("failed to execute payload %s, node is syncing", payload.ID())
 	case ExecutionInvalid:
-		return fmt.Errorf("execution payload %s was INVALID! Latest valid hash is %s, ignoring bad block: %q", payload.ID(), payloadStatus.LatestValidHash, payloadStatus.ValidationError)
+		return fmt.Errorf("execution payload %s was INVALID! Latest valid hash is %s, ignoring bad block: %v", payload.ID(), payloadStatus.LatestValidHash, payloadStatus.ValidationError)
 	case ExecutionInvalidBlockHash:
 		return fmt.Errorf("execution payload %s has INVALID BLOCKHASH! %v", payload.BlockHash, payloadStatus.ValidationError)
 	case ExecutionInvalidTerminalBlock:
