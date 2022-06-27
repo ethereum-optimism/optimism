@@ -1,0 +1,655 @@
+{
+  "address": "0x78A25524D90E3D0596558fb43789bD800a5c3007",
+  "abi": [
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "_owner",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "nonpayable",
+      "type": "constructor"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "user",
+          "type": "address"
+        },
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "newOwner",
+          "type": "address"
+        }
+      ],
+      "name": "OwnerUpdated",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "from",
+          "type": "address"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "amount",
+          "type": "uint256"
+        }
+      ],
+      "name": "ReceivedETH",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "withdrawer",
+          "type": "address"
+        },
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "recipient",
+          "type": "address"
+        },
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "asset",
+          "type": "address"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "amount",
+          "type": "uint256"
+        }
+      ],
+      "name": "WithdrewERC20",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "withdrawer",
+          "type": "address"
+        },
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "recipient",
+          "type": "address"
+        },
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "asset",
+          "type": "address"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "id",
+          "type": "uint256"
+        }
+      ],
+      "name": "WithdrewERC721",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "withdrawer",
+          "type": "address"
+        },
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "recipient",
+          "type": "address"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "amount",
+          "type": "uint256"
+        }
+      ],
+      "name": "WithdrewETH",
+      "type": "event"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "_target",
+          "type": "address"
+        },
+        {
+          "internalType": "bytes",
+          "name": "_data",
+          "type": "bytes"
+        },
+        {
+          "internalType": "uint256",
+          "name": "_gas",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "_value",
+          "type": "uint256"
+        }
+      ],
+      "name": "CALL",
+      "outputs": [
+        {
+          "internalType": "bool",
+          "name": "",
+          "type": "bool"
+        },
+        {
+          "internalType": "bytes",
+          "name": "",
+          "type": "bytes"
+        }
+      ],
+      "stateMutability": "payable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "_target",
+          "type": "address"
+        },
+        {
+          "internalType": "bytes",
+          "name": "_data",
+          "type": "bytes"
+        },
+        {
+          "internalType": "uint256",
+          "name": "_gas",
+          "type": "uint256"
+        }
+      ],
+      "name": "DELEGATECALL",
+      "outputs": [
+        {
+          "internalType": "bool",
+          "name": "",
+          "type": "bool"
+        },
+        {
+          "internalType": "bytes",
+          "name": "",
+          "type": "bytes"
+        }
+      ],
+      "stateMutability": "payable",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "data",
+      "outputs": [
+        {
+          "internalType": "bytes",
+          "name": "",
+          "type": "bytes"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "owner",
+      "outputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "recipient",
+      "outputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "bytes",
+          "name": "_data",
+          "type": "bytes"
+        }
+      ],
+      "name": "setData",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "newOwner",
+          "type": "address"
+        }
+      ],
+      "name": "setOwner",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "_recipient",
+          "type": "address"
+        }
+      ],
+      "name": "setRecipient",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "_teleportr",
+          "type": "address"
+        }
+      ],
+      "name": "setTeleportr",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "teleportr",
+      "outputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "contract ERC20",
+          "name": "_asset",
+          "type": "address"
+        },
+        {
+          "internalType": "address",
+          "name": "_to",
+          "type": "address"
+        },
+        {
+          "internalType": "uint256",
+          "name": "_amount",
+          "type": "uint256"
+        }
+      ],
+      "name": "withdrawERC20",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "contract ERC20",
+          "name": "_asset",
+          "type": "address"
+        },
+        {
+          "internalType": "address",
+          "name": "_to",
+          "type": "address"
+        }
+      ],
+      "name": "withdrawERC20",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "contract ERC721",
+          "name": "_asset",
+          "type": "address"
+        },
+        {
+          "internalType": "address",
+          "name": "_to",
+          "type": "address"
+        },
+        {
+          "internalType": "uint256",
+          "name": "_id",
+          "type": "uint256"
+        }
+      ],
+      "name": "withdrawERC721",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address payable",
+          "name": "_to",
+          "type": "address"
+        },
+        {
+          "internalType": "uint256",
+          "name": "_amount",
+          "type": "uint256"
+        }
+      ],
+      "name": "withdrawETH",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address payable",
+          "name": "_to",
+          "type": "address"
+        }
+      ],
+      "name": "withdrawETH",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "withdrawFromTeleportr",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "stateMutability": "payable",
+      "type": "receive"
+    }
+  ],
+  "transactionHash": "0xe7914c509af8b99ef3421601b487ccdf2c7ef5955ffbd58bbb7d786452df3638",
+  "receipt": {
+    "to": "0x4e59b44847b379578588920cA78FbF26c0B4956C",
+    "from": "0xc37f6a6c4AB335E20d10F034B90386E2fb70bbF5",
+    "contractAddress": null,
+    "transactionIndex": 249,
+    "gasUsed": "1233027",
+    "logsBloom": "0x00000000000000000001000000000000000000000000000000000000000000000000100000000000000000000000080000000000000000000000000000000004000000000000000000000000000000000000000000000000000000000000000080000000020000000000000000000800000000000080000000000000000000000000000000000000000080000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000020000000000004000000020000000000000000000000000000000000000000000000",
+    "blockHash": "0xbdb85532b8a9423604350b1254f5b465838c92bffaecd1768cf94b95e58ffa80",
+    "transactionHash": "0xe7914c509af8b99ef3421601b487ccdf2c7ef5955ffbd58bbb7d786452df3638",
+    "logs": [
+      {
+        "transactionIndex": 249,
+        "blockNumber": 14981055,
+        "transactionHash": "0xe7914c509af8b99ef3421601b487ccdf2c7ef5955ffbd58bbb7d786452df3638",
+        "address": "0x78A25524D90E3D0596558fb43789bD800a5c3007",
+        "topics": [
+          "0x8292fce18fa69edf4db7b94ea2e58241df0ae57f97e0a6c9b29067028bf92d76",
+          "0x0000000000000000000000000000000000000000000000000000000000000000",
+          "0x0000000000000000000000009c6373de60c2d3297b18a8f964618ac46e011b58"
+        ],
+        "data": "0x",
+        "logIndex": 574,
+        "blockHash": "0xbdb85532b8a9423604350b1254f5b465838c92bffaecd1768cf94b95e58ffa80"
+      }
+    ],
+    "blockNumber": 14981055,
+    "cumulativeGasUsed": "26253070",
+    "status": 1,
+    "byzantium": true
+  },
+  "args": [
+    "0x9C6373dE60c2D3297b18A8f964618ac46E011B58"
+  ],
+  "numDeployments": 1,
+  "solcInputHash": "b09909e91a3ff9823ceba49a3a845230",
+  "metadata": "{\"compiler\":{\"version\":\"0.8.9+commit.e5eed63a\"},\"language\":\"Solidity\",\"output\":{\"abi\":[{\"inputs\":[{\"internalType\":\"address\",\"name\":\"_owner\",\"type\":\"address\"}],\"stateMutability\":\"nonpayable\",\"type\":\"constructor\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"address\",\"name\":\"user\",\"type\":\"address\"},{\"indexed\":true,\"internalType\":\"address\",\"name\":\"newOwner\",\"type\":\"address\"}],\"name\":\"OwnerUpdated\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"address\",\"name\":\"from\",\"type\":\"address\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"amount\",\"type\":\"uint256\"}],\"name\":\"ReceivedETH\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"address\",\"name\":\"withdrawer\",\"type\":\"address\"},{\"indexed\":true,\"internalType\":\"address\",\"name\":\"recipient\",\"type\":\"address\"},{\"indexed\":true,\"internalType\":\"address\",\"name\":\"asset\",\"type\":\"address\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"amount\",\"type\":\"uint256\"}],\"name\":\"WithdrewERC20\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"address\",\"name\":\"withdrawer\",\"type\":\"address\"},{\"indexed\":true,\"internalType\":\"address\",\"name\":\"recipient\",\"type\":\"address\"},{\"indexed\":true,\"internalType\":\"address\",\"name\":\"asset\",\"type\":\"address\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"id\",\"type\":\"uint256\"}],\"name\":\"WithdrewERC721\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"address\",\"name\":\"withdrawer\",\"type\":\"address\"},{\"indexed\":true,\"internalType\":\"address\",\"name\":\"recipient\",\"type\":\"address\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"amount\",\"type\":\"uint256\"}],\"name\":\"WithdrewETH\",\"type\":\"event\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"_target\",\"type\":\"address\"},{\"internalType\":\"bytes\",\"name\":\"_data\",\"type\":\"bytes\"},{\"internalType\":\"uint256\",\"name\":\"_gas\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"_value\",\"type\":\"uint256\"}],\"name\":\"CALL\",\"outputs\":[{\"internalType\":\"bool\",\"name\":\"\",\"type\":\"bool\"},{\"internalType\":\"bytes\",\"name\":\"\",\"type\":\"bytes\"}],\"stateMutability\":\"payable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"_target\",\"type\":\"address\"},{\"internalType\":\"bytes\",\"name\":\"_data\",\"type\":\"bytes\"},{\"internalType\":\"uint256\",\"name\":\"_gas\",\"type\":\"uint256\"}],\"name\":\"DELEGATECALL\",\"outputs\":[{\"internalType\":\"bool\",\"name\":\"\",\"type\":\"bool\"},{\"internalType\":\"bytes\",\"name\":\"\",\"type\":\"bytes\"}],\"stateMutability\":\"payable\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"data\",\"outputs\":[{\"internalType\":\"bytes\",\"name\":\"\",\"type\":\"bytes\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"owner\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"recipient\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"bytes\",\"name\":\"_data\",\"type\":\"bytes\"}],\"name\":\"setData\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"newOwner\",\"type\":\"address\"}],\"name\":\"setOwner\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"_recipient\",\"type\":\"address\"}],\"name\":\"setRecipient\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"_teleportr\",\"type\":\"address\"}],\"name\":\"setTeleportr\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"teleportr\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"contract ERC20\",\"name\":\"_asset\",\"type\":\"address\"},{\"internalType\":\"address\",\"name\":\"_to\",\"type\":\"address\"},{\"internalType\":\"uint256\",\"name\":\"_amount\",\"type\":\"uint256\"}],\"name\":\"withdrawERC20\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"contract ERC20\",\"name\":\"_asset\",\"type\":\"address\"},{\"internalType\":\"address\",\"name\":\"_to\",\"type\":\"address\"}],\"name\":\"withdrawERC20\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"contract ERC721\",\"name\":\"_asset\",\"type\":\"address\"},{\"internalType\":\"address\",\"name\":\"_to\",\"type\":\"address\"},{\"internalType\":\"uint256\",\"name\":\"_id\",\"type\":\"uint256\"}],\"name\":\"withdrawERC721\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address payable\",\"name\":\"_to\",\"type\":\"address\"},{\"internalType\":\"uint256\",\"name\":\"_amount\",\"type\":\"uint256\"}],\"name\":\"withdrawETH\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address payable\",\"name\":\"_to\",\"type\":\"address\"}],\"name\":\"withdrawETH\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"withdrawFromTeleportr\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"stateMutability\":\"payable\",\"type\":\"receive\"}],\"devdoc\":{\"kind\":\"dev\",\"methods\":{\"CALL(address,bytes,uint256,uint256)\":{\"params\":{\"_data\":\"Data to send with the call.\",\"_gas\":\"Amount of gas to send with the call.\",\"_target\":\"Address to call.\",\"_value\":\"ETH value to send with the call.\"},\"returns\":{\"_0\":\"Boolean success value.\",\"_1\":\"Bytes data returned by the call.\"}},\"DELEGATECALL(address,bytes,uint256)\":{\"params\":{\"_data\":\"Data to send with the call.\",\"_gas\":\"Amount of gas to send with the call.\",\"_target\":\"Address to call.\"},\"returns\":{\"_0\":\"Boolean success value.\",\"_1\":\"Bytes data returned by the call.\"}},\"constructor\":{\"params\":{\"_owner\":\"Initial owner of the contract.\"}},\"setData(bytes)\":{\"params\":{\"_data\":\"New data to be sent to the recipient address.\"}},\"setRecipient(address)\":{\"params\":{\"_recipient\":\"New recipient address.\"}},\"setTeleportr(address)\":{\"params\":{\"_teleportr\":\"New Teleportr contract address.\"}},\"withdrawERC20(address,address)\":{\"params\":{\"_asset\":\"ERC20 token to withdraw.\",\"_to\":\"Address to receive the ERC20 balance.\"}},\"withdrawERC20(address,address,uint256)\":{\"params\":{\"_amount\":\"Amount of ERC20 to withdraw.\",\"_asset\":\"ERC20 token to withdraw.\",\"_to\":\"Address to receive the ERC20 balance.\"}},\"withdrawERC721(address,address,uint256)\":{\"params\":{\"_asset\":\"ERC721 token to withdraw.\",\"_id\":\"Token ID of the ERC721 token to withdraw.\",\"_to\":\"Address to receive the ERC721 token.\"}},\"withdrawETH(address)\":{\"params\":{\"_to\":\"Address to receive the ETH balance.\"}},\"withdrawETH(address,uint256)\":{\"params\":{\"_amount\":\"Amount of ETH to withdraw.\",\"_to\":\"Address to receive the ETH balance.\"}}},\"title\":\"TeleportrWithdrawer\",\"version\":1},\"userdoc\":{\"events\":{\"ReceivedETH(address,uint256)\":{\"notice\":\"Emitted when ETH is received by this address.\"},\"WithdrewERC20(address,address,address,uint256)\":{\"notice\":\"Emitted when ERC20 tokens are withdrawn from this address.\"},\"WithdrewERC721(address,address,address,uint256)\":{\"notice\":\"Emitted when ERC721 tokens are withdrawn from this address.\"},\"WithdrewETH(address,address,uint256)\":{\"notice\":\"Emitted when ETH is withdrawn from this address.\"}},\"kind\":\"user\",\"methods\":{\"CALL(address,bytes,uint256,uint256)\":{\"notice\":\"Sends a CALL to a target address.\"},\"DELEGATECALL(address,bytes,uint256)\":{\"notice\":\"Sends a DELEGATECALL to a target address.\"},\"data()\":{\"notice\":\"Data to be sent to the recipient address.\"},\"recipient()\":{\"notice\":\"Address that will receive Teleportr withdrawals.\"},\"setData(bytes)\":{\"notice\":\"Allows the owner to update the data to be sent to the recipient address.\"},\"setRecipient(address)\":{\"notice\":\"Allows the owner to update the recipient address.\"},\"setTeleportr(address)\":{\"notice\":\"Allows the owner to update the Teleportr contract address.\"},\"teleportr()\":{\"notice\":\"Address of the Teleportr contract.\"},\"withdrawERC20(address,address)\":{\"notice\":\"Withdraws full ERC20 balance to the recipient.\"},\"withdrawERC20(address,address,uint256)\":{\"notice\":\"Withdraws partial ERC20 balance to the recipient.\"},\"withdrawERC721(address,address,uint256)\":{\"notice\":\"Withdraws ERC721 token to the recipient.\"},\"withdrawETH(address)\":{\"notice\":\"Withdraws full ETH balance to the recipient.\"},\"withdrawETH(address,uint256)\":{\"notice\":\"Withdraws partial ETH balance to the recipient.\"},\"withdrawFromTeleportr()\":{\"notice\":\"Withdraws the full balance of the Teleportr contract to the recipient address.         Anyone is allowed to trigger this function since the recipient address cannot be         controlled by the msg.sender.\"}},\"notice\":\"The TeleportrWithdrawer is a simple contract capable of withdrawing funds from the         TeleportrContract and sending them to some recipient address.\",\"version\":1}},\"settings\":{\"compilationTarget\":{\"contracts/universal/TeleportrWithdrawer.sol\":\"TeleportrWithdrawer\"},\"evmVersion\":\"london\",\"libraries\":{},\"metadata\":{\"bytecodeHash\":\"ipfs\",\"useLiteralContent\":true},\"optimizer\":{\"enabled\":true,\"runs\":10000},\"remappings\":[]},\"sources\":{\"@rari-capital/solmate/src/auth/Owned.sol\":{\"content\":\"// SPDX-License-Identifier: AGPL-3.0-only\\npragma solidity >=0.8.0;\\n\\n/// @notice Simple single owner authorization mixin.\\n/// @author Solmate (https://github.com/Rari-Capital/solmate/blob/main/src/auth/Owned.sol)\\nabstract contract Owned {\\n    /*//////////////////////////////////////////////////////////////\\n                                 EVENTS\\n    //////////////////////////////////////////////////////////////*/\\n\\n    event OwnerUpdated(address indexed user, address indexed newOwner);\\n\\n    /*//////////////////////////////////////////////////////////////\\n                            OWNERSHIP STORAGE\\n    //////////////////////////////////////////////////////////////*/\\n\\n    address public owner;\\n\\n    modifier onlyOwner() virtual {\\n        require(msg.sender == owner, \\\"UNAUTHORIZED\\\");\\n\\n        _;\\n    }\\n\\n    /*//////////////////////////////////////////////////////////////\\n                               CONSTRUCTOR\\n    //////////////////////////////////////////////////////////////*/\\n\\n    constructor(address _owner) {\\n        owner = _owner;\\n\\n        emit OwnerUpdated(address(0), _owner);\\n    }\\n\\n    /*//////////////////////////////////////////////////////////////\\n                             OWNERSHIP LOGIC\\n    //////////////////////////////////////////////////////////////*/\\n\\n    function setOwner(address newOwner) public virtual onlyOwner {\\n        owner = newOwner;\\n\\n        emit OwnerUpdated(msg.sender, newOwner);\\n    }\\n}\\n\",\"keccak256\":\"0x7e91c80b0dd1a14a19cb9e661b99924043adab6d9d893bbfcf3a6a3dc23a6743\",\"license\":\"AGPL-3.0-only\"},\"@rari-capital/solmate/src/tokens/ERC20.sol\":{\"content\":\"// SPDX-License-Identifier: AGPL-3.0-only\\npragma solidity >=0.8.0;\\n\\n/// @notice Modern and gas efficient ERC20 + EIP-2612 implementation.\\n/// @author Solmate (https://github.com/Rari-Capital/solmate/blob/main/src/tokens/ERC20.sol)\\n/// @author Modified from Uniswap (https://github.com/Uniswap/uniswap-v2-core/blob/master/contracts/UniswapV2ERC20.sol)\\n/// @dev Do not manually set balances without updating totalSupply, as the sum of all user balances must not exceed it.\\nabstract contract ERC20 {\\n    /*//////////////////////////////////////////////////////////////\\n                                 EVENTS\\n    //////////////////////////////////////////////////////////////*/\\n\\n    event Transfer(address indexed from, address indexed to, uint256 amount);\\n\\n    event Approval(address indexed owner, address indexed spender, uint256 amount);\\n\\n    /*//////////////////////////////////////////////////////////////\\n                            METADATA STORAGE\\n    //////////////////////////////////////////////////////////////*/\\n\\n    string public name;\\n\\n    string public symbol;\\n\\n    uint8 public immutable decimals;\\n\\n    /*//////////////////////////////////////////////////////////////\\n                              ERC20 STORAGE\\n    //////////////////////////////////////////////////////////////*/\\n\\n    uint256 public totalSupply;\\n\\n    mapping(address => uint256) public balanceOf;\\n\\n    mapping(address => mapping(address => uint256)) public allowance;\\n\\n    /*//////////////////////////////////////////////////////////////\\n                            EIP-2612 STORAGE\\n    //////////////////////////////////////////////////////////////*/\\n\\n    uint256 internal immutable INITIAL_CHAIN_ID;\\n\\n    bytes32 internal immutable INITIAL_DOMAIN_SEPARATOR;\\n\\n    mapping(address => uint256) public nonces;\\n\\n    /*//////////////////////////////////////////////////////////////\\n                               CONSTRUCTOR\\n    //////////////////////////////////////////////////////////////*/\\n\\n    constructor(\\n        string memory _name,\\n        string memory _symbol,\\n        uint8 _decimals\\n    ) {\\n        name = _name;\\n        symbol = _symbol;\\n        decimals = _decimals;\\n\\n        INITIAL_CHAIN_ID = block.chainid;\\n        INITIAL_DOMAIN_SEPARATOR = computeDomainSeparator();\\n    }\\n\\n    /*//////////////////////////////////////////////////////////////\\n                               ERC20 LOGIC\\n    //////////////////////////////////////////////////////////////*/\\n\\n    function approve(address spender, uint256 amount) public virtual returns (bool) {\\n        allowance[msg.sender][spender] = amount;\\n\\n        emit Approval(msg.sender, spender, amount);\\n\\n        return true;\\n    }\\n\\n    function transfer(address to, uint256 amount) public virtual returns (bool) {\\n        balanceOf[msg.sender] -= amount;\\n\\n        // Cannot overflow because the sum of all user\\n        // balances can't exceed the max uint256 value.\\n        unchecked {\\n            balanceOf[to] += amount;\\n        }\\n\\n        emit Transfer(msg.sender, to, amount);\\n\\n        return true;\\n    }\\n\\n    function transferFrom(\\n        address from,\\n        address to,\\n        uint256 amount\\n    ) public virtual returns (bool) {\\n        uint256 allowed = allowance[from][msg.sender]; // Saves gas for limited approvals.\\n\\n        if (allowed != type(uint256).max) allowance[from][msg.sender] = allowed - amount;\\n\\n        balanceOf[from] -= amount;\\n\\n        // Cannot overflow because the sum of all user\\n        // balances can't exceed the max uint256 value.\\n        unchecked {\\n            balanceOf[to] += amount;\\n        }\\n\\n        emit Transfer(from, to, amount);\\n\\n        return true;\\n    }\\n\\n    /*//////////////////////////////////////////////////////////////\\n                             EIP-2612 LOGIC\\n    //////////////////////////////////////////////////////////////*/\\n\\n    function permit(\\n        address owner,\\n        address spender,\\n        uint256 value,\\n        uint256 deadline,\\n        uint8 v,\\n        bytes32 r,\\n        bytes32 s\\n    ) public virtual {\\n        require(deadline >= block.timestamp, \\\"PERMIT_DEADLINE_EXPIRED\\\");\\n\\n        // Unchecked because the only math done is incrementing\\n        // the owner's nonce which cannot realistically overflow.\\n        unchecked {\\n            address recoveredAddress = ecrecover(\\n                keccak256(\\n                    abi.encodePacked(\\n                        \\\"\\\\x19\\\\x01\\\",\\n                        DOMAIN_SEPARATOR(),\\n                        keccak256(\\n                            abi.encode(\\n                                keccak256(\\n                                    \\\"Permit(address owner,address spender,uint256 value,uint256 nonce,uint256 deadline)\\\"\\n                                ),\\n                                owner,\\n                                spender,\\n                                value,\\n                                nonces[owner]++,\\n                                deadline\\n                            )\\n                        )\\n                    )\\n                ),\\n                v,\\n                r,\\n                s\\n            );\\n\\n            require(recoveredAddress != address(0) && recoveredAddress == owner, \\\"INVALID_SIGNER\\\");\\n\\n            allowance[recoveredAddress][spender] = value;\\n        }\\n\\n        emit Approval(owner, spender, value);\\n    }\\n\\n    function DOMAIN_SEPARATOR() public view virtual returns (bytes32) {\\n        return block.chainid == INITIAL_CHAIN_ID ? INITIAL_DOMAIN_SEPARATOR : computeDomainSeparator();\\n    }\\n\\n    function computeDomainSeparator() internal view virtual returns (bytes32) {\\n        return\\n            keccak256(\\n                abi.encode(\\n                    keccak256(\\\"EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)\\\"),\\n                    keccak256(bytes(name)),\\n                    keccak256(\\\"1\\\"),\\n                    block.chainid,\\n                    address(this)\\n                )\\n            );\\n    }\\n\\n    /*//////////////////////////////////////////////////////////////\\n                        INTERNAL MINT/BURN LOGIC\\n    //////////////////////////////////////////////////////////////*/\\n\\n    function _mint(address to, uint256 amount) internal virtual {\\n        totalSupply += amount;\\n\\n        // Cannot overflow because the sum of all user\\n        // balances can't exceed the max uint256 value.\\n        unchecked {\\n            balanceOf[to] += amount;\\n        }\\n\\n        emit Transfer(address(0), to, amount);\\n    }\\n\\n    function _burn(address from, uint256 amount) internal virtual {\\n        balanceOf[from] -= amount;\\n\\n        // Cannot underflow because a user's balance\\n        // will never be larger than the total supply.\\n        unchecked {\\n            totalSupply -= amount;\\n        }\\n\\n        emit Transfer(from, address(0), amount);\\n    }\\n}\\n\",\"keccak256\":\"0x0240f7703cff32a61ee3e9fbb339e09a944260432a9ef37debf3692b1a6c8049\",\"license\":\"AGPL-3.0-only\"},\"@rari-capital/solmate/src/tokens/ERC721.sol\":{\"content\":\"// SPDX-License-Identifier: AGPL-3.0-only\\npragma solidity >=0.8.0;\\n\\n/// @notice Modern, minimalist, and gas efficient ERC-721 implementation.\\n/// @author Solmate (https://github.com/Rari-Capital/solmate/blob/main/src/tokens/ERC721.sol)\\nabstract contract ERC721 {\\n    /*//////////////////////////////////////////////////////////////\\n                                 EVENTS\\n    //////////////////////////////////////////////////////////////*/\\n\\n    event Transfer(address indexed from, address indexed to, uint256 indexed id);\\n\\n    event Approval(address indexed owner, address indexed spender, uint256 indexed id);\\n\\n    event ApprovalForAll(address indexed owner, address indexed operator, bool approved);\\n\\n    /*//////////////////////////////////////////////////////////////\\n                         METADATA STORAGE/LOGIC\\n    //////////////////////////////////////////////////////////////*/\\n\\n    string public name;\\n\\n    string public symbol;\\n\\n    function tokenURI(uint256 id) public view virtual returns (string memory);\\n\\n    /*//////////////////////////////////////////////////////////////\\n                      ERC721 BALANCE/OWNER STORAGE\\n    //////////////////////////////////////////////////////////////*/\\n\\n    mapping(uint256 => address) internal _ownerOf;\\n\\n    mapping(address => uint256) internal _balanceOf;\\n\\n    function ownerOf(uint256 id) public view virtual returns (address owner) {\\n        require((owner = _ownerOf[id]) != address(0), \\\"NOT_MINTED\\\");\\n    }\\n\\n    function balanceOf(address owner) public view virtual returns (uint256) {\\n        require(owner != address(0), \\\"ZERO_ADDRESS\\\");\\n\\n        return _balanceOf[owner];\\n    }\\n\\n    /*//////////////////////////////////////////////////////////////\\n                         ERC721 APPROVAL STORAGE\\n    //////////////////////////////////////////////////////////////*/\\n\\n    mapping(uint256 => address) public getApproved;\\n\\n    mapping(address => mapping(address => bool)) public isApprovedForAll;\\n\\n    /*//////////////////////////////////////////////////////////////\\n                               CONSTRUCTOR\\n    //////////////////////////////////////////////////////////////*/\\n\\n    constructor(string memory _name, string memory _symbol) {\\n        name = _name;\\n        symbol = _symbol;\\n    }\\n\\n    /*//////////////////////////////////////////////////////////////\\n                              ERC721 LOGIC\\n    //////////////////////////////////////////////////////////////*/\\n\\n    function approve(address spender, uint256 id) public virtual {\\n        address owner = _ownerOf[id];\\n\\n        require(msg.sender == owner || isApprovedForAll[owner][msg.sender], \\\"NOT_AUTHORIZED\\\");\\n\\n        getApproved[id] = spender;\\n\\n        emit Approval(owner, spender, id);\\n    }\\n\\n    function setApprovalForAll(address operator, bool approved) public virtual {\\n        isApprovedForAll[msg.sender][operator] = approved;\\n\\n        emit ApprovalForAll(msg.sender, operator, approved);\\n    }\\n\\n    function transferFrom(\\n        address from,\\n        address to,\\n        uint256 id\\n    ) public virtual {\\n        require(from == _ownerOf[id], \\\"WRONG_FROM\\\");\\n\\n        require(to != address(0), \\\"INVALID_RECIPIENT\\\");\\n\\n        require(\\n            msg.sender == from || isApprovedForAll[from][msg.sender] || msg.sender == getApproved[id],\\n            \\\"NOT_AUTHORIZED\\\"\\n        );\\n\\n        // Underflow of the sender's balance is impossible because we check for\\n        // ownership above and the recipient's balance can't realistically overflow.\\n        unchecked {\\n            _balanceOf[from]--;\\n\\n            _balanceOf[to]++;\\n        }\\n\\n        _ownerOf[id] = to;\\n\\n        delete getApproved[id];\\n\\n        emit Transfer(from, to, id);\\n    }\\n\\n    function safeTransferFrom(\\n        address from,\\n        address to,\\n        uint256 id\\n    ) public virtual {\\n        transferFrom(from, to, id);\\n\\n        require(\\n            to.code.length == 0 ||\\n                ERC721TokenReceiver(to).onERC721Received(msg.sender, from, id, \\\"\\\") ==\\n                ERC721TokenReceiver.onERC721Received.selector,\\n            \\\"UNSAFE_RECIPIENT\\\"\\n        );\\n    }\\n\\n    function safeTransferFrom(\\n        address from,\\n        address to,\\n        uint256 id,\\n        bytes calldata data\\n    ) public virtual {\\n        transferFrom(from, to, id);\\n\\n        require(\\n            to.code.length == 0 ||\\n                ERC721TokenReceiver(to).onERC721Received(msg.sender, from, id, data) ==\\n                ERC721TokenReceiver.onERC721Received.selector,\\n            \\\"UNSAFE_RECIPIENT\\\"\\n        );\\n    }\\n\\n    /*//////////////////////////////////////////////////////////////\\n                              ERC165 LOGIC\\n    //////////////////////////////////////////////////////////////*/\\n\\n    function supportsInterface(bytes4 interfaceId) public view virtual returns (bool) {\\n        return\\n            interfaceId == 0x01ffc9a7 || // ERC165 Interface ID for ERC165\\n            interfaceId == 0x80ac58cd || // ERC165 Interface ID for ERC721\\n            interfaceId == 0x5b5e139f; // ERC165 Interface ID for ERC721Metadata\\n    }\\n\\n    /*//////////////////////////////////////////////////////////////\\n                        INTERNAL MINT/BURN LOGIC\\n    //////////////////////////////////////////////////////////////*/\\n\\n    function _mint(address to, uint256 id) internal virtual {\\n        require(to != address(0), \\\"INVALID_RECIPIENT\\\");\\n\\n        require(_ownerOf[id] == address(0), \\\"ALREADY_MINTED\\\");\\n\\n        // Counter overflow is incredibly unrealistic.\\n        unchecked {\\n            _balanceOf[to]++;\\n        }\\n\\n        _ownerOf[id] = to;\\n\\n        emit Transfer(address(0), to, id);\\n    }\\n\\n    function _burn(uint256 id) internal virtual {\\n        address owner = _ownerOf[id];\\n\\n        require(owner != address(0), \\\"NOT_MINTED\\\");\\n\\n        // Ownership check above ensures no underflow.\\n        unchecked {\\n            _balanceOf[owner]--;\\n        }\\n\\n        delete _ownerOf[id];\\n\\n        delete getApproved[id];\\n\\n        emit Transfer(owner, address(0), id);\\n    }\\n\\n    /*//////////////////////////////////////////////////////////////\\n                        INTERNAL SAFE MINT LOGIC\\n    //////////////////////////////////////////////////////////////*/\\n\\n    function _safeMint(address to, uint256 id) internal virtual {\\n        _mint(to, id);\\n\\n        require(\\n            to.code.length == 0 ||\\n                ERC721TokenReceiver(to).onERC721Received(msg.sender, address(0), id, \\\"\\\") ==\\n                ERC721TokenReceiver.onERC721Received.selector,\\n            \\\"UNSAFE_RECIPIENT\\\"\\n        );\\n    }\\n\\n    function _safeMint(\\n        address to,\\n        uint256 id,\\n        bytes memory data\\n    ) internal virtual {\\n        _mint(to, id);\\n\\n        require(\\n            to.code.length == 0 ||\\n                ERC721TokenReceiver(to).onERC721Received(msg.sender, address(0), id, data) ==\\n                ERC721TokenReceiver.onERC721Received.selector,\\n            \\\"UNSAFE_RECIPIENT\\\"\\n        );\\n    }\\n}\\n\\n/// @notice A generic interface for a contract which properly accepts ERC721 tokens.\\n/// @author Solmate (https://github.com/Rari-Capital/solmate/blob/main/src/tokens/ERC721.sol)\\nabstract contract ERC721TokenReceiver {\\n    function onERC721Received(\\n        address,\\n        address,\\n        uint256,\\n        bytes calldata\\n    ) external virtual returns (bytes4) {\\n        return ERC721TokenReceiver.onERC721Received.selector;\\n    }\\n}\\n\",\"keccak256\":\"0xb59c7c25eca386f39da4819a9f70f89b73b7583d5f5127a83ffe5339800b1183\",\"license\":\"AGPL-3.0-only\"},\"contracts/universal/AssetReceiver.sol\":{\"content\":\"// SPDX-License-Identifier: MIT\\npragma solidity ^0.8.9;\\n\\nimport { ERC20 } from \\\"@rari-capital/solmate/src/tokens/ERC20.sol\\\";\\nimport { ERC721 } from \\\"@rari-capital/solmate/src/tokens/ERC721.sol\\\";\\nimport { Transactor } from \\\"./Transactor.sol\\\";\\n\\n/**\\n * @title AssetReceiver\\n * @notice AssetReceiver is a minimal contract for receiving funds assets in the form of either\\n * ETH, ERC20 tokens, or ERC721 tokens. Only the contract owner may withdraw the assets.\\n */\\ncontract AssetReceiver is Transactor {\\n    /**\\n     * Emitted when ETH is received by this address.\\n     */\\n    event ReceivedETH(address indexed from, uint256 amount);\\n\\n    /**\\n     * Emitted when ETH is withdrawn from this address.\\n     */\\n    event WithdrewETH(address indexed withdrawer, address indexed recipient, uint256 amount);\\n\\n    /**\\n     * Emitted when ERC20 tokens are withdrawn from this address.\\n     */\\n    event WithdrewERC20(\\n        address indexed withdrawer,\\n        address indexed recipient,\\n        address indexed asset,\\n        uint256 amount\\n    );\\n\\n    /**\\n     * Emitted when ERC721 tokens are withdrawn from this address.\\n     */\\n    event WithdrewERC721(\\n        address indexed withdrawer,\\n        address indexed recipient,\\n        address indexed asset,\\n        uint256 id\\n    );\\n\\n    /**\\n     * @param _owner Initial contract owner.\\n     */\\n    constructor(address _owner) Transactor(_owner) {}\\n\\n    /**\\n     * Make sure we can receive ETH.\\n     */\\n    receive() external payable {\\n        emit ReceivedETH(msg.sender, msg.value);\\n    }\\n\\n    /**\\n     * Withdraws full ETH balance to the recipient.\\n     *\\n     * @param _to Address to receive the ETH balance.\\n     */\\n    function withdrawETH(address payable _to) external onlyOwner {\\n        withdrawETH(_to, address(this).balance);\\n    }\\n\\n    /**\\n     * Withdraws partial ETH balance to the recipient.\\n     *\\n     * @param _to Address to receive the ETH balance.\\n     * @param _amount Amount of ETH to withdraw.\\n     */\\n    function withdrawETH(address payable _to, uint256 _amount) public onlyOwner {\\n        // slither-disable-next-line reentrancy-unlimited-gas\\n        _to.transfer(_amount);\\n        emit WithdrewETH(msg.sender, _to, _amount);\\n    }\\n\\n    /**\\n     * Withdraws full ERC20 balance to the recipient.\\n     *\\n     * @param _asset ERC20 token to withdraw.\\n     * @param _to Address to receive the ERC20 balance.\\n     */\\n    function withdrawERC20(ERC20 _asset, address _to) external onlyOwner {\\n        withdrawERC20(_asset, _to, _asset.balanceOf(address(this)));\\n    }\\n\\n    /**\\n     * Withdraws partial ERC20 balance to the recipient.\\n     *\\n     * @param _asset ERC20 token to withdraw.\\n     * @param _to Address to receive the ERC20 balance.\\n     * @param _amount Amount of ERC20 to withdraw.\\n     */\\n    function withdrawERC20(\\n        ERC20 _asset,\\n        address _to,\\n        uint256 _amount\\n    ) public onlyOwner {\\n        // slither-disable-next-line unchecked-transfer\\n        _asset.transfer(_to, _amount);\\n        // slither-disable-next-line reentrancy-events\\n        emit WithdrewERC20(msg.sender, _to, address(_asset), _amount);\\n    }\\n\\n    /**\\n     * Withdraws ERC721 token to the recipient.\\n     *\\n     * @param _asset ERC721 token to withdraw.\\n     * @param _to Address to receive the ERC721 token.\\n     * @param _id Token ID of the ERC721 token to withdraw.\\n     */\\n    function withdrawERC721(\\n        ERC721 _asset,\\n        address _to,\\n        uint256 _id\\n    ) external onlyOwner {\\n        _asset.transferFrom(address(this), _to, _id);\\n        // slither-disable-next-line reentrancy-events\\n        emit WithdrewERC721(msg.sender, _to, address(_asset), _id);\\n    }\\n}\\n\",\"keccak256\":\"0x1f82aff6f4e5a4bebebbfb4a2e0e4378ef9bc5bee8b81f88b27fc0ce73546d5f\",\"license\":\"MIT\"},\"contracts/universal/TeleportrWithdrawer.sol\":{\"content\":\"// SPDX-License-Identifier: MIT\\npragma solidity ^0.8.9;\\n\\nimport { AssetReceiver } from \\\"./AssetReceiver.sol\\\";\\n\\n/**\\n * @notice Stub interface for Teleportr.\\n */\\ninterface Teleportr {\\n    function withdrawBalance() external;\\n}\\n\\n/**\\n * @title TeleportrWithdrawer\\n * @notice The TeleportrWithdrawer is a simple contract capable of withdrawing funds from the\\n *         TeleportrContract and sending them to some recipient address.\\n */\\ncontract TeleportrWithdrawer is AssetReceiver {\\n    /**\\n     * @notice Address of the Teleportr contract.\\n     */\\n    address public teleportr;\\n\\n    /**\\n     * @notice Address that will receive Teleportr withdrawals.\\n     */\\n    address public recipient;\\n\\n    /**\\n     * @notice Data to be sent to the recipient address.\\n     */\\n    bytes public data;\\n\\n    /**\\n     * @param _owner Initial owner of the contract.\\n     */\\n    constructor(address _owner) AssetReceiver(_owner) {}\\n\\n    /**\\n     * @notice Allows the owner to update the recipient address.\\n     *\\n     * @param _recipient New recipient address.\\n     */\\n    function setRecipient(address _recipient) external onlyOwner {\\n        recipient = _recipient;\\n    }\\n\\n    /**\\n     * @notice Allows the owner to update the Teleportr contract address.\\n     *\\n     * @param _teleportr New Teleportr contract address.\\n     */\\n    function setTeleportr(address _teleportr) external onlyOwner {\\n        teleportr = _teleportr;\\n    }\\n\\n    /**\\n     * @notice Allows the owner to update the data to be sent to the recipient address.\\n     *\\n     * @param _data New data to be sent to the recipient address.\\n     */\\n    function setData(bytes memory _data) external onlyOwner {\\n        data = _data;\\n    }\\n\\n    /**\\n     * @notice Withdraws the full balance of the Teleportr contract to the recipient address.\\n     *         Anyone is allowed to trigger this function since the recipient address cannot be\\n     *         controlled by the msg.sender.\\n     */\\n    function withdrawFromTeleportr() external {\\n        Teleportr(teleportr).withdrawBalance();\\n        (bool success, ) = recipient.call{ value: address(this).balance }(data);\\n        require(success, \\\"TeleportrWithdrawer: send failed\\\");\\n    }\\n}\\n\",\"keccak256\":\"0x26414ae14c7aee927c18075ee60757383e0202c2a2691f23b86c200c0ac24713\",\"license\":\"MIT\"},\"contracts/universal/Transactor.sol\":{\"content\":\"// SPDX-License-Identifier: MIT\\npragma solidity ^0.8.9;\\n\\nimport { Owned } from \\\"@rari-capital/solmate/src/auth/Owned.sol\\\";\\n\\n/**\\n * @title Transactor\\n * @notice Transactor is a minimal contract that can send transactions.\\n */\\ncontract Transactor is Owned {\\n    /**\\n     * @param _owner Initial contract owner.\\n     */\\n    constructor(address _owner) Owned(_owner) {}\\n\\n    /**\\n     * Sends a CALL to a target address.\\n     *\\n     * @param _target Address to call.\\n     * @param _data Data to send with the call.\\n     * @param _gas Amount of gas to send with the call.\\n     * @param _value ETH value to send with the call.\\n     * @return Boolean success value.\\n     * @return Bytes data returned by the call.\\n     */\\n    function CALL(\\n        address _target,\\n        bytes memory _data,\\n        uint256 _gas,\\n        uint256 _value\\n    ) external payable onlyOwner returns (bool, bytes memory) {\\n        return _target.call{ gas: _gas, value: _value }(_data);\\n    }\\n\\n    /**\\n     * Sends a DELEGATECALL to a target address.\\n     *\\n     * @param _target Address to call.\\n     * @param _data Data to send with the call.\\n     * @param _gas Amount of gas to send with the call.\\n     * @return Boolean success value.\\n     * @return Bytes data returned by the call.\\n     */\\n    function DELEGATECALL(\\n        address _target,\\n        bytes memory _data,\\n        uint256 _gas\\n    ) external payable onlyOwner returns (bool, bytes memory) {\\n        // slither-disable-next-line controlled-delegatecall\\n        return _target.delegatecall{ gas: _gas }(_data);\\n    }\\n}\\n\",\"keccak256\":\"0xfe0d9c05a423d36775047e3285f76b874f8b887444d412a0d680c302c3b06a50\",\"license\":\"MIT\"}},\"version\":1}",
+  "bytecode": "0x608060405234801561001057600080fd5b506040516115ac3803806115ac83398101604081905261002f91610086565b600080546001600160a01b0319166001600160a01b03831690811782556040518392839283929091907f8292fce18fa69edf4db7b94ea2e58241df0ae57f97e0a6c9b29067028bf92d76908290a3505050506100b6565b60006020828403121561009857600080fd5b81516001600160a01b03811681146100af57600080fd5b9392505050565b6114e7806100c56000396000f3fe6080604052600436106100f75760003560e01c8063617d55421161008a5780638da5cb5b116100595780638da5cb5b146102f65780639456fbcc146103235780639e73dbea14610343578063ab62f0e11461035657600080fd5b8063617d55421461026757806366d003ac14610287578063690d8320146102b457806373d4a13a146102d457600080fd5b80634025feb2116100c65780634025feb2146101e657806344004cc1146102065780634782f779146102265780635cef8b4a1461024657600080fd5b806306fa29b21461013857806313af40351461018f5780633afe48c2146101b15780633bbed4a0146101c657600080fd5b366101335760405134815233907f4103257eaac983ca79a70d28f90dfc4fa16b619bb0c17ee7cab0d4034c2796249060200160405180910390a2005b600080fd5b34801561014457600080fd5b506001546101659073ffffffffffffffffffffffffffffffffffffffff1681565b60405173ffffffffffffffffffffffffffffffffffffffff90911681526020015b60405180910390f35b34801561019b57600080fd5b506101af6101aa366004610ff1565b610376565b005b3480156101bd57600080fd5b506101af610452565b3480156101d257600080fd5b506101af6101e1366004610ff1565b61059a565b3480156101f257600080fd5b506101af610201366004611015565b610648565b34801561021257600080fd5b506101af610221366004611015565b6107c0565b34801561023257600080fd5b506101af610241366004611056565b610946565b61025961025436600461115c565b610a42565b60405161018692919061122f565b34801561027357600080fd5b506101af610282366004610ff1565b610b21565b34801561029357600080fd5b506002546101659073ffffffffffffffffffffffffffffffffffffffff1681565b3480156102c057600080fd5b506101af6102cf366004610ff1565b610bcf565b3480156102e057600080fd5b506102e9610c40565b6040516101869190611252565b34801561030257600080fd5b506000546101659073ffffffffffffffffffffffffffffffffffffffff1681565b34801561032f57600080fd5b506101af61033e366004611265565b610cce565b61025961035136600461129e565b610dde565b34801561036257600080fd5b506101af6103713660046112fe565b610ec1565b60005473ffffffffffffffffffffffffffffffffffffffff1633146103e25760405162461bcd60e51b815260206004820152600c60248201527f554e415554484f52495a4544000000000000000000000000000000000000000060448201526064015b60405180910390fd5b600080547fffffffffffffffffffffffff00000000000000000000000000000000000000001673ffffffffffffffffffffffffffffffffffffffff83169081178255604051909133917f8292fce18fa69edf4db7b94ea2e58241df0ae57f97e0a6c9b29067028bf92d769190a350565b600160009054906101000a900473ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff16635fd8c7106040518163ffffffff1660e01b8152600401600060405180830381600087803b1580156104bc57600080fd5b505af11580156104d0573d6000803e3d6000fd5b50506002546040516000935073ffffffffffffffffffffffffffffffffffffffff9091169150479061050490600390611387565b60006040518083038185875af1925050503d8060008114610541576040519150601f19603f3d011682016040523d82523d6000602084013e610546565b606091505b50509050806105975760405162461bcd60e51b815260206004820181905260248201527f54656c65706f727472576974686472617765723a2073656e64206661696c656460448201526064016103d9565b50565b60005473ffffffffffffffffffffffffffffffffffffffff1633146106015760405162461bcd60e51b815260206004820152600c60248201527f554e415554484f52495a4544000000000000000000000000000000000000000060448201526064016103d9565b600280547fffffffffffffffffffffffff00000000000000000000000000000000000000001673ffffffffffffffffffffffffffffffffffffffff92909216919091179055565b60005473ffffffffffffffffffffffffffffffffffffffff1633146106af5760405162461bcd60e51b815260206004820152600c60248201527f554e415554484f52495a4544000000000000000000000000000000000000000060448201526064016103d9565b6040517f23b872dd00000000000000000000000000000000000000000000000000000000815230600482015273ffffffffffffffffffffffffffffffffffffffff8381166024830152604482018390528416906323b872dd90606401600060405180830381600087803b15801561072557600080fd5b505af1158015610739573d6000803e3d6000fd5b505050508273ffffffffffffffffffffffffffffffffffffffff168273ffffffffffffffffffffffffffffffffffffffff163373ffffffffffffffffffffffffffffffffffffffff167f30b478a5e196e55886228aa87ba74a7dfeba655e0a4d7ba275eabfc22aabb7a8846040516107b391815260200190565b60405180910390a4505050565b60005473ffffffffffffffffffffffffffffffffffffffff1633146108275760405162461bcd60e51b815260206004820152600c60248201527f554e415554484f52495a4544000000000000000000000000000000000000000060448201526064016103d9565b6040517fa9059cbb00000000000000000000000000000000000000000000000000000000815273ffffffffffffffffffffffffffffffffffffffff83811660048301526024820183905284169063a9059cbb90604401602060405180830381600087803b15801561089757600080fd5b505af11580156108ab573d6000803e3d6000fd5b505050506040513d601f19601f820116820180604052508101906108cf919061145a565b508273ffffffffffffffffffffffffffffffffffffffff168273ffffffffffffffffffffffffffffffffffffffff163373ffffffffffffffffffffffffffffffffffffffff167f6b00f1c7883f053ba83e907fd1965b22fffe3c4111383e725f04638a566cdbfa846040516107b391815260200190565b60005473ffffffffffffffffffffffffffffffffffffffff1633146109ad5760405162461bcd60e51b815260206004820152600c60248201527f554e415554484f52495a4544000000000000000000000000000000000000000060448201526064016103d9565b60405173ffffffffffffffffffffffffffffffffffffffff83169082156108fc029083906000818181858888f193505050501580156109f0573d6000803e3d6000fd5b5060405181815273ffffffffffffffffffffffffffffffffffffffff83169033907f1f12aa8b6d492dd9b98e2b00b0b20830c2a7ded65afac13b60d169a034ae90bc9060200160405180910390a35050565b6000805460609073ffffffffffffffffffffffffffffffffffffffff163314610aad5760405162461bcd60e51b815260206004820152600c60248201527f554e415554484f52495a4544000000000000000000000000000000000000000060448201526064016103d9565b8473ffffffffffffffffffffffffffffffffffffffff168385604051610ad3919061147c565b6000604051808303818686f4925050503d8060008114610b0f576040519150601f19603f3d011682016040523d82523d6000602084013e610b14565b606091505b5091509150935093915050565b60005473ffffffffffffffffffffffffffffffffffffffff163314610b885760405162461bcd60e51b815260206004820152600c60248201527f554e415554484f52495a4544000000000000000000000000000000000000000060448201526064016103d9565b600180547fffffffffffffffffffffffff00000000000000000000000000000000000000001673ffffffffffffffffffffffffffffffffffffffff92909216919091179055565b60005473ffffffffffffffffffffffffffffffffffffffff163314610c365760405162461bcd60e51b815260206004820152600c60248201527f554e415554484f52495a4544000000000000000000000000000000000000000060448201526064016103d9565b6105978147610946565b60038054610c4d90611333565b80601f0160208091040260200160405190810160405280929190818152602001828054610c7990611333565b8015610cc65780601f10610c9b57610100808354040283529160200191610cc6565b820191906000526020600020905b815481529060010190602001808311610ca957829003601f168201915b505050505081565b60005473ffffffffffffffffffffffffffffffffffffffff163314610d355760405162461bcd60e51b815260206004820152600c60248201527f554e415554484f52495a4544000000000000000000000000000000000000000060448201526064016103d9565b6040517f70a08231000000000000000000000000000000000000000000000000000000008152306004820152610dda908390839073ffffffffffffffffffffffffffffffffffffffff8316906370a082319060240160206040518083038186803b158015610da257600080fd5b505afa158015610db6573d6000803e3d6000fd5b505050506040513d601f19601f820116820180604052508101906102219190611498565b5050565b6000805460609073ffffffffffffffffffffffffffffffffffffffff163314610e495760405162461bcd60e51b815260206004820152600c60248201527f554e415554484f52495a4544000000000000000000000000000000000000000060448201526064016103d9565b8573ffffffffffffffffffffffffffffffffffffffff16848487604051610e70919061147c565b600060405180830381858888f193505050503d8060008114610eae576040519150601f19603f3d011682016040523d82523d6000602084013e610eb3565b606091505b509150915094509492505050565b60005473ffffffffffffffffffffffffffffffffffffffff163314610f285760405162461bcd60e51b815260206004820152600c60248201527f554e415554484f52495a4544000000000000000000000000000000000000000060448201526064016103d9565b8051610dda906003906020840190828054610f4290611333565b90600052602060002090601f016020900481019282610f645760008555610faa565b82601f10610f7d57805160ff1916838001178555610faa565b82800160010185558215610faa579182015b82811115610faa578251825591602001919060010190610f8f565b50610fb6929150610fba565b5090565b5b80821115610fb65760008155600101610fbb565b73ffffffffffffffffffffffffffffffffffffffff8116811461059757600080fd5b60006020828403121561100357600080fd5b813561100e81610fcf565b9392505050565b60008060006060848603121561102a57600080fd5b833561103581610fcf565b9250602084013561104581610fcf565b929592945050506040919091013590565b6000806040838503121561106957600080fd5b823561107481610fcf565b946020939093013593505050565b7f4e487b7100000000000000000000000000000000000000000000000000000000600052604160045260246000fd5b600082601f8301126110c257600080fd5b813567ffffffffffffffff808211156110dd576110dd611082565b604051601f83017fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0908116603f0116810190828211818310171561112357611123611082565b8160405283815286602085880101111561113c57600080fd5b836020870160208301376000602085830101528094505050505092915050565b60008060006060848603121561117157600080fd5b833561117c81610fcf565b9250602084013567ffffffffffffffff81111561119857600080fd5b6111a4868287016110b1565b925050604084013590509250925092565b60005b838110156111d05781810151838201526020016111b8565b838111156111df576000848401525b50505050565b600081518084526111fd8160208601602086016111b5565b601f017fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0169290920160200192915050565b821515815260406020820152600061124a60408301846111e5565b949350505050565b60208152600061100e60208301846111e5565b6000806040838503121561127857600080fd5b823561128381610fcf565b9150602083013561129381610fcf565b809150509250929050565b600080600080608085870312156112b457600080fd5b84356112bf81610fcf565b9350602085013567ffffffffffffffff8111156112db57600080fd5b6112e7878288016110b1565b949794965050505060408301359260600135919050565b60006020828403121561131057600080fd5b813567ffffffffffffffff81111561132757600080fd5b61124a848285016110b1565b600181811c9082168061134757607f821691505b60208210811415611381577f4e487b7100000000000000000000000000000000000000000000000000000000600052602260045260246000fd5b50919050565b600080835481600182811c9150808316806113a357607f831692505b60208084108214156113dc577f4e487b710000000000000000000000000000000000000000000000000000000086526022600452602486fd5b8180156113f0576001811461141f5761144c565b7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff0086168952848901965061144c565b60008a81526020902060005b868110156114445781548b82015290850190830161142b565b505084890196505b509498975050505050505050565b60006020828403121561146c57600080fd5b8151801515811461100e57600080fd5b6000825161148e8184602087016111b5565b9190910192915050565b6000602082840312156114aa57600080fd5b505191905056fea26469706673582212203903a2f3f310c1942ac6f552df9012c64af2d384894531650c63a359397535f364736f6c63430008090033",
+  "deployedBytecode": "0x6080604052600436106100f75760003560e01c8063617d55421161008a5780638da5cb5b116100595780638da5cb5b146102f65780639456fbcc146103235780639e73dbea14610343578063ab62f0e11461035657600080fd5b8063617d55421461026757806366d003ac14610287578063690d8320146102b457806373d4a13a146102d457600080fd5b80634025feb2116100c65780634025feb2146101e657806344004cc1146102065780634782f779146102265780635cef8b4a1461024657600080fd5b806306fa29b21461013857806313af40351461018f5780633afe48c2146101b15780633bbed4a0146101c657600080fd5b366101335760405134815233907f4103257eaac983ca79a70d28f90dfc4fa16b619bb0c17ee7cab0d4034c2796249060200160405180910390a2005b600080fd5b34801561014457600080fd5b506001546101659073ffffffffffffffffffffffffffffffffffffffff1681565b60405173ffffffffffffffffffffffffffffffffffffffff90911681526020015b60405180910390f35b34801561019b57600080fd5b506101af6101aa366004610ff1565b610376565b005b3480156101bd57600080fd5b506101af610452565b3480156101d257600080fd5b506101af6101e1366004610ff1565b61059a565b3480156101f257600080fd5b506101af610201366004611015565b610648565b34801561021257600080fd5b506101af610221366004611015565b6107c0565b34801561023257600080fd5b506101af610241366004611056565b610946565b61025961025436600461115c565b610a42565b60405161018692919061122f565b34801561027357600080fd5b506101af610282366004610ff1565b610b21565b34801561029357600080fd5b506002546101659073ffffffffffffffffffffffffffffffffffffffff1681565b3480156102c057600080fd5b506101af6102cf366004610ff1565b610bcf565b3480156102e057600080fd5b506102e9610c40565b6040516101869190611252565b34801561030257600080fd5b506000546101659073ffffffffffffffffffffffffffffffffffffffff1681565b34801561032f57600080fd5b506101af61033e366004611265565b610cce565b61025961035136600461129e565b610dde565b34801561036257600080fd5b506101af6103713660046112fe565b610ec1565b60005473ffffffffffffffffffffffffffffffffffffffff1633146103e25760405162461bcd60e51b815260206004820152600c60248201527f554e415554484f52495a4544000000000000000000000000000000000000000060448201526064015b60405180910390fd5b600080547fffffffffffffffffffffffff00000000000000000000000000000000000000001673ffffffffffffffffffffffffffffffffffffffff83169081178255604051909133917f8292fce18fa69edf4db7b94ea2e58241df0ae57f97e0a6c9b29067028bf92d769190a350565b600160009054906101000a900473ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff16635fd8c7106040518163ffffffff1660e01b8152600401600060405180830381600087803b1580156104bc57600080fd5b505af11580156104d0573d6000803e3d6000fd5b50506002546040516000935073ffffffffffffffffffffffffffffffffffffffff9091169150479061050490600390611387565b60006040518083038185875af1925050503d8060008114610541576040519150601f19603f3d011682016040523d82523d6000602084013e610546565b606091505b50509050806105975760405162461bcd60e51b815260206004820181905260248201527f54656c65706f727472576974686472617765723a2073656e64206661696c656460448201526064016103d9565b50565b60005473ffffffffffffffffffffffffffffffffffffffff1633146106015760405162461bcd60e51b815260206004820152600c60248201527f554e415554484f52495a4544000000000000000000000000000000000000000060448201526064016103d9565b600280547fffffffffffffffffffffffff00000000000000000000000000000000000000001673ffffffffffffffffffffffffffffffffffffffff92909216919091179055565b60005473ffffffffffffffffffffffffffffffffffffffff1633146106af5760405162461bcd60e51b815260206004820152600c60248201527f554e415554484f52495a4544000000000000000000000000000000000000000060448201526064016103d9565b6040517f23b872dd00000000000000000000000000000000000000000000000000000000815230600482015273ffffffffffffffffffffffffffffffffffffffff8381166024830152604482018390528416906323b872dd90606401600060405180830381600087803b15801561072557600080fd5b505af1158015610739573d6000803e3d6000fd5b505050508273ffffffffffffffffffffffffffffffffffffffff168273ffffffffffffffffffffffffffffffffffffffff163373ffffffffffffffffffffffffffffffffffffffff167f30b478a5e196e55886228aa87ba74a7dfeba655e0a4d7ba275eabfc22aabb7a8846040516107b391815260200190565b60405180910390a4505050565b60005473ffffffffffffffffffffffffffffffffffffffff1633146108275760405162461bcd60e51b815260206004820152600c60248201527f554e415554484f52495a4544000000000000000000000000000000000000000060448201526064016103d9565b6040517fa9059cbb00000000000000000000000000000000000000000000000000000000815273ffffffffffffffffffffffffffffffffffffffff83811660048301526024820183905284169063a9059cbb90604401602060405180830381600087803b15801561089757600080fd5b505af11580156108ab573d6000803e3d6000fd5b505050506040513d601f19601f820116820180604052508101906108cf919061145a565b508273ffffffffffffffffffffffffffffffffffffffff168273ffffffffffffffffffffffffffffffffffffffff163373ffffffffffffffffffffffffffffffffffffffff167f6b00f1c7883f053ba83e907fd1965b22fffe3c4111383e725f04638a566cdbfa846040516107b391815260200190565b60005473ffffffffffffffffffffffffffffffffffffffff1633146109ad5760405162461bcd60e51b815260206004820152600c60248201527f554e415554484f52495a4544000000000000000000000000000000000000000060448201526064016103d9565b60405173ffffffffffffffffffffffffffffffffffffffff83169082156108fc029083906000818181858888f193505050501580156109f0573d6000803e3d6000fd5b5060405181815273ffffffffffffffffffffffffffffffffffffffff83169033907f1f12aa8b6d492dd9b98e2b00b0b20830c2a7ded65afac13b60d169a034ae90bc9060200160405180910390a35050565b6000805460609073ffffffffffffffffffffffffffffffffffffffff163314610aad5760405162461bcd60e51b815260206004820152600c60248201527f554e415554484f52495a4544000000000000000000000000000000000000000060448201526064016103d9565b8473ffffffffffffffffffffffffffffffffffffffff168385604051610ad3919061147c565b6000604051808303818686f4925050503d8060008114610b0f576040519150601f19603f3d011682016040523d82523d6000602084013e610b14565b606091505b5091509150935093915050565b60005473ffffffffffffffffffffffffffffffffffffffff163314610b885760405162461bcd60e51b815260206004820152600c60248201527f554e415554484f52495a4544000000000000000000000000000000000000000060448201526064016103d9565b600180547fffffffffffffffffffffffff00000000000000000000000000000000000000001673ffffffffffffffffffffffffffffffffffffffff92909216919091179055565b60005473ffffffffffffffffffffffffffffffffffffffff163314610c365760405162461bcd60e51b815260206004820152600c60248201527f554e415554484f52495a4544000000000000000000000000000000000000000060448201526064016103d9565b6105978147610946565b60038054610c4d90611333565b80601f0160208091040260200160405190810160405280929190818152602001828054610c7990611333565b8015610cc65780601f10610c9b57610100808354040283529160200191610cc6565b820191906000526020600020905b815481529060010190602001808311610ca957829003601f168201915b505050505081565b60005473ffffffffffffffffffffffffffffffffffffffff163314610d355760405162461bcd60e51b815260206004820152600c60248201527f554e415554484f52495a4544000000000000000000000000000000000000000060448201526064016103d9565b6040517f70a08231000000000000000000000000000000000000000000000000000000008152306004820152610dda908390839073ffffffffffffffffffffffffffffffffffffffff8316906370a082319060240160206040518083038186803b158015610da257600080fd5b505afa158015610db6573d6000803e3d6000fd5b505050506040513d601f19601f820116820180604052508101906102219190611498565b5050565b6000805460609073ffffffffffffffffffffffffffffffffffffffff163314610e495760405162461bcd60e51b815260206004820152600c60248201527f554e415554484f52495a4544000000000000000000000000000000000000000060448201526064016103d9565b8573ffffffffffffffffffffffffffffffffffffffff16848487604051610e70919061147c565b600060405180830381858888f193505050503d8060008114610eae576040519150601f19603f3d011682016040523d82523d6000602084013e610eb3565b606091505b509150915094509492505050565b60005473ffffffffffffffffffffffffffffffffffffffff163314610f285760405162461bcd60e51b815260206004820152600c60248201527f554e415554484f52495a4544000000000000000000000000000000000000000060448201526064016103d9565b8051610dda906003906020840190828054610f4290611333565b90600052602060002090601f016020900481019282610f645760008555610faa565b82601f10610f7d57805160ff1916838001178555610faa565b82800160010185558215610faa579182015b82811115610faa578251825591602001919060010190610f8f565b50610fb6929150610fba565b5090565b5b80821115610fb65760008155600101610fbb565b73ffffffffffffffffffffffffffffffffffffffff8116811461059757600080fd5b60006020828403121561100357600080fd5b813561100e81610fcf565b9392505050565b60008060006060848603121561102a57600080fd5b833561103581610fcf565b9250602084013561104581610fcf565b929592945050506040919091013590565b6000806040838503121561106957600080fd5b823561107481610fcf565b946020939093013593505050565b7f4e487b7100000000000000000000000000000000000000000000000000000000600052604160045260246000fd5b600082601f8301126110c257600080fd5b813567ffffffffffffffff808211156110dd576110dd611082565b604051601f83017fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0908116603f0116810190828211818310171561112357611123611082565b8160405283815286602085880101111561113c57600080fd5b836020870160208301376000602085830101528094505050505092915050565b60008060006060848603121561117157600080fd5b833561117c81610fcf565b9250602084013567ffffffffffffffff81111561119857600080fd5b6111a4868287016110b1565b925050604084013590509250925092565b60005b838110156111d05781810151838201526020016111b8565b838111156111df576000848401525b50505050565b600081518084526111fd8160208601602086016111b5565b601f017fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0169290920160200192915050565b821515815260406020820152600061124a60408301846111e5565b949350505050565b60208152600061100e60208301846111e5565b6000806040838503121561127857600080fd5b823561128381610fcf565b9150602083013561129381610fcf565b809150509250929050565b600080600080608085870312156112b457600080fd5b84356112bf81610fcf565b9350602085013567ffffffffffffffff8111156112db57600080fd5b6112e7878288016110b1565b949794965050505060408301359260600135919050565b60006020828403121561131057600080fd5b813567ffffffffffffffff81111561132757600080fd5b61124a848285016110b1565b600181811c9082168061134757607f821691505b60208210811415611381577f4e487b7100000000000000000000000000000000000000000000000000000000600052602260045260246000fd5b50919050565b600080835481600182811c9150808316806113a357607f831692505b60208084108214156113dc577f4e487b710000000000000000000000000000000000000000000000000000000086526022600452602486fd5b8180156113f0576001811461141f5761144c565b7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff0086168952848901965061144c565b60008a81526020902060005b868110156114445781548b82015290850190830161142b565b505084890196505b509498975050505050505050565b60006020828403121561146c57600080fd5b8151801515811461100e57600080fd5b6000825161148e8184602087016111b5565b9190910192915050565b6000602082840312156114aa57600080fd5b505191905056fea26469706673582212203903a2f3f310c1942ac6f552df9012c64af2d384894531650c63a359397535f364736f6c63430008090033",
+  "devdoc": {
+    "kind": "dev",
+    "methods": {
+      "CALL(address,bytes,uint256,uint256)": {
+        "params": {
+          "_data": "Data to send with the call.",
+          "_gas": "Amount of gas to send with the call.",
+          "_target": "Address to call.",
+          "_value": "ETH value to send with the call."
+        },
+        "returns": {
+          "_0": "Boolean success value.",
+          "_1": "Bytes data returned by the call."
+        }
+      },
+      "DELEGATECALL(address,bytes,uint256)": {
+        "params": {
+          "_data": "Data to send with the call.",
+          "_gas": "Amount of gas to send with the call.",
+          "_target": "Address to call."
+        },
+        "returns": {
+          "_0": "Boolean success value.",
+          "_1": "Bytes data returned by the call."
+        }
+      },
+      "constructor": {
+        "params": {
+          "_owner": "Initial owner of the contract."
+        }
+      },
+      "setData(bytes)": {
+        "params": {
+          "_data": "New data to be sent to the recipient address."
+        }
+      },
+      "setRecipient(address)": {
+        "params": {
+          "_recipient": "New recipient address."
+        }
+      },
+      "setTeleportr(address)": {
+        "params": {
+          "_teleportr": "New Teleportr contract address."
+        }
+      },
+      "withdrawERC20(address,address)": {
+        "params": {
+          "_asset": "ERC20 token to withdraw.",
+          "_to": "Address to receive the ERC20 balance."
+        }
+      },
+      "withdrawERC20(address,address,uint256)": {
+        "params": {
+          "_amount": "Amount of ERC20 to withdraw.",
+          "_asset": "ERC20 token to withdraw.",
+          "_to": "Address to receive the ERC20 balance."
+        }
+      },
+      "withdrawERC721(address,address,uint256)": {
+        "params": {
+          "_asset": "ERC721 token to withdraw.",
+          "_id": "Token ID of the ERC721 token to withdraw.",
+          "_to": "Address to receive the ERC721 token."
+        }
+      },
+      "withdrawETH(address)": {
+        "params": {
+          "_to": "Address to receive the ETH balance."
+        }
+      },
+      "withdrawETH(address,uint256)": {
+        "params": {
+          "_amount": "Amount of ETH to withdraw.",
+          "_to": "Address to receive the ETH balance."
+        }
+      }
+    },
+    "title": "TeleportrWithdrawer",
+    "version": 1
+  },
+  "userdoc": {
+    "events": {
+      "ReceivedETH(address,uint256)": {
+        "notice": "Emitted when ETH is received by this address."
+      },
+      "WithdrewERC20(address,address,address,uint256)": {
+        "notice": "Emitted when ERC20 tokens are withdrawn from this address."
+      },
+      "WithdrewERC721(address,address,address,uint256)": {
+        "notice": "Emitted when ERC721 tokens are withdrawn from this address."
+      },
+      "WithdrewETH(address,address,uint256)": {
+        "notice": "Emitted when ETH is withdrawn from this address."
+      }
+    },
+    "kind": "user",
+    "methods": {
+      "CALL(address,bytes,uint256,uint256)": {
+        "notice": "Sends a CALL to a target address."
+      },
+      "DELEGATECALL(address,bytes,uint256)": {
+        "notice": "Sends a DELEGATECALL to a target address."
+      },
+      "data()": {
+        "notice": "Data to be sent to the recipient address."
+      },
+      "recipient()": {
+        "notice": "Address that will receive Teleportr withdrawals."
+      },
+      "setData(bytes)": {
+        "notice": "Allows the owner to update the data to be sent to the recipient address."
+      },
+      "setRecipient(address)": {
+        "notice": "Allows the owner to update the recipient address."
+      },
+      "setTeleportr(address)": {
+        "notice": "Allows the owner to update the Teleportr contract address."
+      },
+      "teleportr()": {
+        "notice": "Address of the Teleportr contract."
+      },
+      "withdrawERC20(address,address)": {
+        "notice": "Withdraws full ERC20 balance to the recipient."
+      },
+      "withdrawERC20(address,address,uint256)": {
+        "notice": "Withdraws partial ERC20 balance to the recipient."
+      },
+      "withdrawERC721(address,address,uint256)": {
+        "notice": "Withdraws ERC721 token to the recipient."
+      },
+      "withdrawETH(address)": {
+        "notice": "Withdraws full ETH balance to the recipient."
+      },
+      "withdrawETH(address,uint256)": {
+        "notice": "Withdraws partial ETH balance to the recipient."
+      },
+      "withdrawFromTeleportr()": {
+        "notice": "Withdraws the full balance of the Teleportr contract to the recipient address.         Anyone is allowed to trigger this function since the recipient address cannot be         controlled by the msg.sender."
+      }
+    },
+    "notice": "The TeleportrWithdrawer is a simple contract capable of withdrawing funds from the         TeleportrContract and sending them to some recipient address.",
+    "version": 1
+  },
+  "storageLayout": {
+    "storage": [
+      {
+        "astId": 4371,
+        "contract": "contracts/universal/TeleportrWithdrawer.sol:TeleportrWithdrawer",
+        "label": "owner",
+        "offset": 0,
+        "slot": "0",
+        "type": "t_address"
+      },
+      {
+        "astId": 6314,
+        "contract": "contracts/universal/TeleportrWithdrawer.sol:TeleportrWithdrawer",
+        "label": "teleportr",
+        "offset": 0,
+        "slot": "1",
+        "type": "t_address"
+      },
+      {
+        "astId": 6317,
+        "contract": "contracts/universal/TeleportrWithdrawer.sol:TeleportrWithdrawer",
+        "label": "recipient",
+        "offset": 0,
+        "slot": "2",
+        "type": "t_address"
+      },
+      {
+        "astId": 6320,
+        "contract": "contracts/universal/TeleportrWithdrawer.sol:TeleportrWithdrawer",
+        "label": "data",
+        "offset": 0,
+        "slot": "3",
+        "type": "t_bytes_storage"
+      }
+    ],
+    "types": {
+      "t_address": {
+        "encoding": "inplace",
+        "label": "address",
+        "numberOfBytes": "20"
+      },
+      "t_bytes_storage": {
+        "encoding": "bytes",
+        "label": "bytes",
+        "numberOfBytes": "32"
+      }
+    }
+  }
+}
