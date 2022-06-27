@@ -58,7 +58,7 @@ func (bq *BatchQueue) AddBatch(batch *BatchData) error {
 	if bq.progress.Closed {
 		panic("write batch while closed")
 	}
-	bq.log.Warn("add batch", "origin", bq.progress.Origin, "tx_count", len(batch.Transactions), "timestamp", batch.Timestamp)
+	bq.log.Debug("queued batch", "origin", bq.progress.Origin, "tx_count", len(batch.Transactions), "timestamp", batch.Timestamp)
 	if len(bq.inputs) == 0 {
 		return fmt.Errorf("cannot add batch with timestamp %d, no origin was prepared", batch.Timestamp)
 	}
@@ -79,7 +79,6 @@ func (bq *BatchQueue) DeriveL2Inputs(ctx context.Context, lastL2Timestamp uint64
 	if uint64(len(bq.inputs)) > bq.config.SeqWindowSize {
 		return nil, fmt.Errorf("unexpectedly buffered more L1 inputs than sequencing window: %d", len(bq.inputs))
 	}
-	bq.log.Warn("deriving attributes")
 	l1Origin := bq.inputs[0].Origin
 	nextL1Block := bq.inputs[1].Origin
 
@@ -165,7 +164,7 @@ func (bq *BatchQueue) Step(ctx context.Context, outer Progress) error {
 			// (after a reset rolled us back a full sequence window)
 			continue
 		}
-		bq.log.Warn("derived new payload attributes", "time", attr.Timestamp, "txs", len(attr.Transactions))
+		bq.log.Info("derived new payload attributes", "time", attr.Timestamp, "txs", len(attr.Transactions))
 		bq.next.AddSafeAttributes(attr)
 	}
 	return nil

@@ -16,7 +16,7 @@ func FilterBatches(log log.Logger, config *rollup.Config, epoch rollup.Epoch, mi
 	for _, batch := range batches {
 		if err := ValidBatch(batch, config, epoch, minL2Time, maxL2Time); err != nil {
 			if err == DifferentEpoch {
-				log.Warn("ignoring batch of different epoch", "epoch", batch.Epoch, "expected_epoch", epoch, "timestamp", batch.Timestamp, "txs", len(batch.Transactions))
+				log.Trace("ignoring batch of different epoch", "epoch", batch.Epoch, "expected_epoch", epoch, "timestamp", batch.Timestamp, "txs", len(batch.Transactions))
 			} else {
 				log.Warn("filtered batch", "epoch", batch.Epoch, "timestamp", batch.Timestamp, "txs", len(batch.Transactions), "err", err)
 			}

@@ -72,7 +72,7 @@ func (ib *ChannelBank) IngestData(data []byte) error {
 	if ib.progress.Closed {
 		panic("write data to bank while closed")
 	}
-	ib.log.Warn("ingest data", "origin", ib.progress.Origin, "data_len", len(data))
+	ib.log.Debug("channel bank got new data", "origin", ib.progress.Origin, "data_len", len(data))
 	if len(data) < 1 {
 		ib.log.Error("data must be at least have a version byte, but got empty string")
 		return nil
@@ -155,7 +155,7 @@ func (ib *ChannelBank) IngestData(data []byte) error {
 			ib.channelQueue = append(ib.channelQueue, chID)
 		}
 
-		ib.log.Warn("ingesting frame", "channel", chID, "frame_number", frameNumber, "length", len(frameData))
+		ib.log.Debug("ingesting frame", "channel", chID, "frame_number", frameNumber, "length", len(frameData))
 		if err := currentCh.IngestData(frameNumber, isLast, frameData); err != nil {
 			ib.log.Debug("failed to ingest frame into channel", "channel", chID, "frame_number", frameNumber, "err", err)
 			continue
@@ -173,10 +173,10 @@ func (ib *ChannelBank) Read() (data []byte, err error) {
 	ch := ib.channels[first]
 	timedOut := first.Time+ib.cfg.ChannelTimeout < ib.progress.Origin.Time
 	if timedOut {
-		ib.log.Warn("channel timed out", "channel", first, "frames", len(ch.inputs))
+		ib.log.Debug("channel timed out", "channel", first, "frames", len(ch.inputs))
 	}
 	if ch.closed {
-		ib.log.Warn("channel closed", "channel", first)
+		ib.log.Debug("channel closed", "channel", first)
 	}
 	if !timedOut && !ch.closed { // check if channel is done (can then be read)
 		return nil, io.EOF
@@ -184,7 +184,6 @@ func (ib *ChannelBank) Read() (data []byte, err error) {
 	delete(ib.channels, first)
 	ib.channelQueue = ib.channelQueue[1:]
 	data = ch.Read()
-	ib.log.Warn("completed reading channel data", "channel", ch.id)
 	return data, nil
 }
 
@@ -223,7 +222,7 @@ func (ib *ChannelBank) ResetStep(ctx context.Context, l1Fetcher L1Fetcher) error
 		return nil
 	}
 	if ib.progress.Origin.Time+ib.cfg.ChannelTimeout < ib.next.Progress().Origin.Time || ib.progress.Origin.Number == 0 {
-		ib.log.Warn("found reset origin for channel bank", "origin", ib.progress.Origin)
+		ib.log.Debug("found reset origin for channel bank", "origin", ib.progress.Origin)
 		ib.resetting = false
 		return io.EOF
 	}

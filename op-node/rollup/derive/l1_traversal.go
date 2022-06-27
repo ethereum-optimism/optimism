@@ -45,7 +45,7 @@ func (l1s *L1Traversal) Step(ctx context.Context, outer Progress) error {
 	origin := l1s.progress.Origin
 	nextL1Origin, err := l1s.l1Blocks.L1BlockRefByNumber(ctx, origin.Number+1)
 	if errors.Is(err, ethereum.NotFound) {
-		l1s.log.Warn("can't find next L1 block info (yet)", "number", origin.Number+1, "origin", origin)
+		l1s.log.Debug("can't find next L1 block info (yet)", "number", origin.Number+1, "origin", origin)
 		return io.EOF
 	} else if err != nil {
 		l1s.log.Warn("failed to find L1 block info by number", "number", origin.Number+1, "origin", origin, "err", err)

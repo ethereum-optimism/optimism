@@ -49,7 +49,6 @@ func (cs *CalldataSource) OpenData(ctx context.Context, id eth.BlockID) (DataIte
 func DataFromEVMTransactions(config *rollup.Config, txs types.Transactions, log log.Logger) []eth.Data {
 	var out []eth.Data
 	l1Signer := config.L1Signer()
-	log.Warn("scanning L1 txs for data", "txs", len(txs))
 	for j, tx := range txs {
 		if to := tx.To(); to != nil && *to == config.BatchInboxAddress {
 			seqDataSubmitter, err := l1Signer.Sender(tx) // optimization: only derive sender if To is correct
@@ -63,12 +62,7 @@ func DataFromEVMTransactions(config *rollup.Config, txs types.Transactions, log 
 				continue // not an authorized batch submitter, ignore
 			}
 			out = append(out, tx.Data())
-		} else if to != nil {
-			log.Warn("unrecognized L1 tx", "to", *to)
-		} else {
-			log.Warn("contract creation L1 tx")
 		}
 	}
-	log.Warn("done scanning for data", "out", len(out))
 	return out
 }

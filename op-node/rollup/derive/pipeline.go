@@ -140,13 +140,12 @@ func (dp *DerivationPipeline) Step(ctx context.Context) error {
 	// if any stages need to be reset, do that first.
 	if dp.resetting < len(dp.stages) {
 		if err := dp.stages[dp.resetting].ResetStep(ctx, dp.l1Fetcher); err == io.EOF {
-			dp.log.Warn("reset of stage completed", "stage", dp.resetting, "origin", dp.stages[dp.resetting].Progress().Origin)
+			dp.log.Debug("reset of stage completed", "stage", dp.resetting, "origin", dp.stages[dp.resetting].Progress().Origin)
 			dp.resetting += 1
 			return nil
 		} else if err != nil {
 			return err
 		} else {
-			dp.log.Warn("reset of stage continues", "stage", dp.resetting, "origin", dp.stages[dp.resetting].Progress().Origin)
 			return nil
 		}
 	}
@@ -161,7 +160,6 @@ func (dp *DerivationPipeline) Step(ctx context.Context) error {
 		} else if err != nil {
 			return err
 		} else {
-			dp.log.Warn("return at stage", "stage", i)
 			return nil
 		}
 	}

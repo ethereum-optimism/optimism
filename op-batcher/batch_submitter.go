@@ -220,7 +220,7 @@ mainLoop:
 				l.log.Error("issue getting L2 head", "err", err)
 				continue
 			}
-			l.log.Warn("Got new L2 Block", "block", head.Number())
+			l.log.Info("Got new L2 Block", "block", head.Number())
 			if head.NumberU64() <= l.l2HeadNumber {
 				// Didn't advance
 				l.log.Trace("Old block")
@@ -244,7 +244,7 @@ mainLoop:
 					l.log.Error("issue getting adding L2 Block", "err", err)
 					continue mainLoop
 				}
-				l.log.Warn("added L2 block to channel", "block_number", block.NumberU64(), "channel_id", l.ch.ID(), "tx_count", len(block.Transactions()), "time", block.Time())
+				l.log.Info("added L2 block to channel", "block_number", block.NumberU64(), "channel_id", l.ch.ID(), "tx_count", len(block.Transactions()), "time", block.Time())
 			}
 			// TODO: above there are ugly "continue mainLoop" because we shouldn't progress if we're missing blocks, since the submitter logic can't handle gaps yet.
 			l.l2HeadNumber = head.NumberU64()
@@ -303,7 +303,7 @@ mainLoop:
 			}
 
 			// The transaction was successfully submitted.
-			l.log.Warn("tx successfully published", "tx_hash", receipt.TxHash)
+			l.log.Info("tx successfully published", "tx_hash", receipt.TxHash)
 
 		case <-l.done:
 			return
@@ -333,7 +333,7 @@ func (l *BatchSubmitter) CraftTx(ctx context.Context, data []byte, nonce uint64)
 		GasFeeCap: gasFeeCap,
 		Data:      data,
 	}
-	l.log.Warn("creating tx", "to", rawTx.To, "from", crypto.PubkeyToAddress(l.cfg.PrivKey.PublicKey))
+	l.log.Debug("creating tx", "to", rawTx.To, "from", crypto.PubkeyToAddress(l.cfg.PrivKey.PublicKey))
 
 	gas, err := core.IntrinsicGas(rawTx.Data, nil, false, true, true)
 	if err != nil {

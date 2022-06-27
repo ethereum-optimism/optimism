@@ -68,27 +68,24 @@ func (l1s *L1Source) Step(ctx context.Context, outer Progress) error {
 			l1s.log.Error("can't fetch L1 data", "origin", l1s.progress.Origin)
 			return nil
 		}
-		l1s.log.Warn("opened L1 data source")
 		l1s.datas = datas
 		return nil
 	}
 
 	// buffer data if we have none
 	if l1s.data == nil {
-		l1s.log.Warn("fetching next piece of data")
+		l1s.log.Debug("fetching next piece of data")
 		data, err := l1s.datas.Next(ctx)
 		if err != nil && err == ctx.Err() {
 			l1s.log.Warn("context to retrieve next L1 data failed", "err", err)
 			return nil
 		} else if err == io.EOF {
-			l1s.log.Warn("no more data")
 			l1s.progress.Closed = true
 			l1s.datas = nil
 			return io.EOF
 		} else if err != nil {
 			return err
 		} else {
-			l1s.log.Warn("read piece of data")
 			l1s.data = data
 			return nil
 		}

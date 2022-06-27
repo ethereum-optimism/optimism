@@ -115,7 +115,6 @@ func (cr *ChannelInReader) Step(ctx context.Context, outer Progress) error {
 		cr.NextChannel()
 		return nil
 	}
-	cr.log.Warn("reading channel", "batch_epoch", batch.Epoch, "batch_timestamp", batch.Timestamp, "txs", len(batch.Transactions))
 	return cr.next.AddBatch(&batch)
 }
 

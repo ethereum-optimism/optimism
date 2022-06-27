@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
@@ -71,11 +70,6 @@ func sanityCheckPayload(payload *eth.ExecutionPayload) error {
 // If updateSafe is true, the head block is considered to be the safe head as well as the head.
 // It returns the payload, an RPC error (if the payload might still be valid), and a payload error (if the payload was not valid)
 func InsertHeadBlock(ctx context.Context, log log.Logger, eng Engine, fc eth.ForkchoiceState, attrs *eth.PayloadAttributes, updateSafe bool) (out *eth.ExecutionPayload, rpcErr error, payloadErr error) {
-	logger := log.New("timestamp", uint64(attrs.Timestamp), "parent", fc.HeadBlockHash, "prevrandao", attrs.PrevRandao, "fee_recipient", attrs.SuggestedFeeRecipient)
-	for i, tx := range attrs.Transactions {
-		logger = logger.New(fmt.Sprintf("tx_%d", i), tx)
-	}
-	logger.Warn("producing block")
 	fcRes, err := eng.ForkchoiceUpdate(ctx, &fc, attrs)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create new block via forkchoice: %w", err), nil
@@ -107,7 +101,6 @@ func InsertHeadBlock(ctx context.Context, log log.Logger, eng Engine, fc eth.For
 	if updateSafe {
 		fc.SafeBlockHash = payload.BlockHash
 	}
-	log.Warn("Inserted L2 head block", "number", uint64(payload.BlockNumber), "hash", payload.BlockHash, "update_safe", updateSafe)
 	fcRes, err = eng.ForkchoiceUpdate(ctx, &fc, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to make the new L2 block canonical via forkchoice: %w", err), nil
@@ -115,11 +108,9 @@ func InsertHeadBlock(ctx context.Context, log log.Logger, eng Engine, fc eth.For
 	if fcRes.PayloadStatus.Status != eth.ExecutionValid {
 		return nil, eth.ForkchoiceUpdateErr(fcRes.PayloadStatus), nil
 	}
-	logger = log.New("hash", payload.BlockHash, "number", payload.BlockNumber,
-		"state_root", payload.StateRoot, "timestamp", uint64(payload.Timestamp), "parent", payload.ParentHash, "prevrandao", payload.PrevRandao, "fee_recipient", payload.FeeRecipient)
-	for i, tx := range payload.Transactions {
-		logger = logger.New(fmt.Sprintf("tx_%d", i), tx)
-	}
-	logger.Warn("produced block")
+	log.Info("inserted block", "hash", payload.BlockHash, "number", uint64(payload.BlockNumber),
+		"state_root", payload.StateRoot, "timestamp", uint64(payload.Timestamp), "parent", payload.ParentHash,
+		"prev_randao", payload.PrevRandao, "fee_recipient", payload.FeeRecipient,
+		"txs", len(payload.Transactions), "update_safe", updateSafe)
 	return payload, nil, nil
 }

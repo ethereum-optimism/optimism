@@ -136,7 +136,14 @@ func (eq *EngineQueue) tryNextUnsafePayload(ctx context.Context) error {
 	first := eq.unsafePayloads[0]
 
 	if uint64(first.BlockNumber) <= eq.safeHead.Number {
-		eq.log.Error("skipping unsafe payload, since it is older than safe head", "safe", eq.safeHead.ID(), "unsafe", first.ID())
+		eq.log.Info("skipping unsafe payload, since it is older than safe head", "safe", eq.safeHead.ID(), "unsafe", first.ID(), "payload", first.ID())
+		eq.unsafePayloads = eq.unsafePayloads[1:]
+		return nil
+	}
+
+	// TODO: once we support snap-sync we can remove this condition, and handle the "SYNCING" status of the execution engine.
+	if first.ParentHash != eq.unsafeHead.Hash {
+		eq.log.Info("skipping unsafe payload, since it does not build onto the existing unsafe chain", "safe", eq.safeHead.ID(), "unsafe", first.ID(), "payload", first.ID())
 		eq.unsafePayloads = eq.unsafePayloads[1:]
 		return nil
 	}

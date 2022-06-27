@@ -193,7 +193,7 @@ func (s *state) createNewL2Block(ctx context.Context) error {
 	s.derivation.SetUnsafeHead(s.l2Head)
 	s.l2Head = newUnsafeL2Head
 
-	s.log.Warn("Sequenced new l2 block", "l2Head", s.l2Head, "l1Origin", s.l2Head.L1Origin, "txs", len(payload.Transactions), "time", s.l2Head.Time)
+	s.log.Info("Sequenced new l2 block", "l2Head", s.l2Head, "l1Origin", s.l2Head.L1Origin, "txs", len(payload.Transactions), "time", s.l2Head.Time)
 
 	if s.network != nil {
 		if err := s.network.PublishL2Payload(ctx, payload); err != nil {
@@ -291,12 +291,12 @@ func (s *state) eventLoop() {
 			reqStep()
 
 		case newL1Head := <-s.l1Heads:
-			s.log.Warn("new l1 Head")
+			s.log.Info("new l1 Head")
 			s.snapshot("New L1 Head")
 			s.handleNewL1Block(newL1Head)
 			reqStep() // a new L1 head may mean we have the data to not get an EOF again.
 		case <-stepReqCh:
-			s.log.Warn("Derivation process step", "onto_origin", s.derivation.Progress().Origin, "onto_closed", s.derivation.Progress().Closed)
+			s.log.Debug("Derivation process step", "onto_origin", s.derivation.Progress().Origin, "onto_closed", s.derivation.Progress().Closed)
 			stepCtx, cancel := context.WithTimeout(ctx, time.Second*10) // TODO pick a timeout for executing a single step
 			err := s.derivation.Step(stepCtx)
 			cancel()
@@ -313,11 +313,9 @@ func (s *state) eventLoop() {
 					s.log.Info("sync progress", "finalized", finalized, "safe", safe, "unsafe", unsafe)
 				}
 				// update the heads
-				if !s.sequencer {
-					s.l2Finalized = finalized
-					s.l2SafeHead = safe
-					s.l2Head = unsafe
-				}
+				s.l2Finalized = finalized
+				s.l2SafeHead = safe
+				s.l2Head = unsafe
 				reqStep() // continue with the next step if we can
 			}
 		case <-s.done:
