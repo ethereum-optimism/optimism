@@ -26,7 +26,7 @@ type L1SourceOutput interface {
 	IngestData(data []byte) error
 }
 
-type L1Source struct {
+type L1Retrieval struct {
 	log     log.Logger
 	dataSrc DataAvailabilitySource
 	next    L1SourceOutput
@@ -37,71 +37,71 @@ type L1Source struct {
 	datas DataIter
 }
 
-var _ Stage = (*L1Source)(nil)
+var _ Stage = (*L1Retrieval)(nil)
 
-func NewL1Source(log log.Logger, dataSrc DataAvailabilitySource, next L1SourceOutput) *L1Source {
-	return &L1Source{
+func NewL1Retrieval(log log.Logger, dataSrc DataAvailabilitySource, next L1SourceOutput) *L1Retrieval {
+	return &L1Retrieval{
 		log:     log,
 		dataSrc: dataSrc,
 		next:    next,
 	}
 }
 
-func (l1s *L1Source) Progress() Progress {
-	return l1s.progress
+func (l1r *L1Retrieval) Progress() Progress {
+	return l1r.progress
 }
 
-func (l1s *L1Source) Step(ctx context.Context, outer Progress) error {
-	if changed, err := l1s.progress.Update(outer); err != nil || changed {
+func (l1r *L1Retrieval) Step(ctx context.Context, outer Progress) error {
+	if changed, err := l1r.progress.Update(outer); err != nil || changed {
 		return err
 	}
 
 	// specific to L1 source: if the L1 origin is closed, there is no more data to retrieve.
-	if l1s.progress.Closed {
+	if l1r.progress.Closed {
 		return io.EOF
 	}
 
 	// create a source if we have none
-	if l1s.datas == nil {
-		datas, err := l1s.dataSrc.OpenData(ctx, l1s.progress.Origin.ID())
+	if l1r.datas == nil {
+		datas, err := l1r.dataSrc.OpenData(ctx, l1r.progress.Origin.ID())
 		if err != nil {
-			l1s.log.Error("can't fetch L1 data", "origin", l1s.progress.Origin)
+			l1r.log.Error("can't fetch L1 data", "origin", l1r.progress.Origin)
 			return nil
 		}
-		l1s.datas = datas
+		l1r.datas = datas
 		return nil
 	}
 
 	// buffer data if we have none
-	if l1s.data == nil {
-		l1s.log.Debug("fetching next piece of data")
-		data, err := l1s.datas.Next(ctx)
+	if l1r.data == nil {
+		l1r.log.Debug("fetching next piece of data")
+		data, err := l1r.datas.Next(ctx)
 		if err != nil && err == ctx.Err() {
-			l1s.log.Warn("context to retrieve next L1 data failed", "err", err)
+			l1r.log.Warn("context to retrieve next L1 data failed", "err", err)
 			return nil
 		} else if err == io.EOF {
-			l1s.progress.Closed = true
-			l1s.datas = nil
+			l1r.progress.Closed = true
+			l1r.datas = nil
 			return io.EOF
 		} else if err != nil {
 			return err
 		} else {
-			l1s.data = data
+			l1r.data = data
 			return nil
 		}
 	}
 
 	// try to flush the data to next stage
-	if err := l1s.next.IngestData(l1s.data); err != nil {
+	if err := l1r.next.IngestData(l1r.data); err != nil {
 		return err
 	}
-	l1s.data = nil
+	l1r.data = nil
 	return nil
 }
 
-func (l1s *L1Source) ResetStep(ctx context.Context, l1Fetcher L1Fetcher) error {
-	l1s.progress = l1s.next.Progress()
-	l1s.datas = nil
-	l1s.data = nil
+func (l1r *L1Retrieval) ResetStep(ctx context.Context, l1Fetcher L1Fetcher) error {
+	l1r.progress = l1r.next.Progress()
+	l1r.datas = nil
+	l1r.data = nil
 	return io.EOF
 }

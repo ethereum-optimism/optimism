@@ -32,35 +32,35 @@ func NewL1Traversal(log log.Logger, l1Blocks L1BlockRefByNumberFetcher, next Sta
 	}
 }
 
-func (l1s *L1Traversal) Progress() Progress {
-	return l1s.progress
+func (l1t *L1Traversal) Progress() Progress {
+	return l1t.progress
 }
 
-func (l1s *L1Traversal) Step(ctx context.Context, outer Progress) error {
-	if !l1s.progress.Closed { // close origin and do another pipeline sweep, before we try to move to the next origin
-		l1s.progress.Closed = true
+func (l1t *L1Traversal) Step(ctx context.Context, outer Progress) error {
+	if !l1t.progress.Closed { // close origin and do another pipeline sweep, before we try to move to the next origin
+		l1t.progress.Closed = true
 		return nil
 	}
 
-	origin := l1s.progress.Origin
-	nextL1Origin, err := l1s.l1Blocks.L1BlockRefByNumber(ctx, origin.Number+1)
+	origin := l1t.progress.Origin
+	nextL1Origin, err := l1t.l1Blocks.L1BlockRefByNumber(ctx, origin.Number+1)
 	if errors.Is(err, ethereum.NotFound) {
-		l1s.log.Debug("can't find next L1 block info (yet)", "number", origin.Number+1, "origin", origin)
+		l1t.log.Debug("can't find next L1 block info (yet)", "number", origin.Number+1, "origin", origin)
 		return io.EOF
 	} else if err != nil {
-		l1s.log.Warn("failed to find L1 block info by number", "number", origin.Number+1, "origin", origin, "err", err)
+		l1t.log.Warn("failed to find L1 block info by number", "number", origin.Number+1, "origin", origin, "err", err)
 		return nil // nil, don't make the pipeline restart if the RPC fails
 	}
-	if l1s.progress.Origin.Hash != nextL1Origin.ParentHash {
-		return fmt.Errorf("detected L1 reorg from %s to %s: %w", l1s.progress.Origin, nextL1Origin, ReorgErr)
+	if l1t.progress.Origin.Hash != nextL1Origin.ParentHash {
+		return fmt.Errorf("detected L1 reorg from %s to %s: %w", l1t.progress.Origin, nextL1Origin, ReorgErr)
 	}
-	l1s.progress.Origin = nextL1Origin
-	l1s.progress.Closed = false
+	l1t.progress.Origin = nextL1Origin
+	l1t.progress.Closed = false
 	return nil
 }
 
-func (l1s *L1Traversal) ResetStep(ctx context.Context, l1Fetcher L1Fetcher) error {
-	l1s.progress = l1s.next.Progress()
-	l1s.log.Info("completed reset of derivation pipeline", "origin", l1s.progress.Origin)
+func (l1t *L1Traversal) ResetStep(ctx context.Context, l1Fetcher L1Fetcher) error {
+	l1t.progress = l1t.next.Progress()
+	l1t.log.Info("completed reset of derivation pipeline", "origin", l1t.progress.Origin)
 	return io.EOF
 }

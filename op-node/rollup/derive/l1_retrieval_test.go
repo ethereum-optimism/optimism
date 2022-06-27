@@ -43,7 +43,7 @@ func (im *MockIngestData) ExpectIngestData(data []byte, err error) {
 
 var _ L1SourceOutput = (*MockIngestData)(nil)
 
-func TestL1Source_Step(t *testing.T) {
+func TestL1Retrieval_Step(t *testing.T) {
 	rng := rand.New(rand.NewSource(1234))
 
 	next := &MockIngestData{MockOriginStage{progress: Progress{Origin: testutils.RandomBlockRef(rng), Closed: true}}}
@@ -64,12 +64,12 @@ func TestL1Source_Step(t *testing.T) {
 	defer dataSrc.AssertExpectations(t)
 	defer next.AssertExpectations(t)
 
-	l1Src := NewL1Source(testlog.Logger(t, log.LvlError), dataSrc, next)
+	l1r := NewL1Retrieval(testlog.Logger(t, log.LvlError), dataSrc, next)
 
 	// first we expect the stage to reset to the origin of the inner stage
-	require.NoError(t, RepeatResetStep(t, l1Src.ResetStep, nil, 1))
-	require.Equal(t, next.Progress(), l1Src.Progress(), "stage needs to adopt the progress of next stage on reset")
+	require.NoError(t, RepeatResetStep(t, l1r.ResetStep, nil, 1))
+	require.Equal(t, next.Progress(), l1r.Progress(), "stage needs to adopt the progress of next stage on reset")
 
 	// and then start processing the data of the next stage
-	require.NoError(t, RepeatStep(t, l1Src.Step, outer, 10))
+	require.NoError(t, RepeatStep(t, l1r.Step, outer, 10))
 }
