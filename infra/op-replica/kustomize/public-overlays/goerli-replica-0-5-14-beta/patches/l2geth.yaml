@@ -18,3 +18,10 @@ spec:
             requests:
               cpu: "2"
               memory: 8Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  annotations:
+    cloud.google.com/backend-config: '{"default": "l2geth-replica"}'
+  name: l2geth-replica
