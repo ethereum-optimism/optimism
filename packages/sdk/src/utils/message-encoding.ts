@@ -2,7 +2,7 @@ import { getContractInterface } from '@eth-optimism/contracts'
 import { BigNumber, ethers } from 'ethers'
 
 import { CoreCrossChainMessage } from '../interfaces'
-import { UniversalMessengerIface } from './contracts'
+import { BEDROCK_INTERFACES } from './contracts'
 
 /**
  * Returns the v0 message encoding.
@@ -24,7 +24,7 @@ export const encodeV0 = (message: CoreCrossChainMessage): string => {
  * @returns v1 message encoding.
  */
 export const encodeV1 = (message: CoreCrossChainMessage): string => {
-  return UniversalMessengerIface.encodeFunctionData('relayMessage', [
+  return BEDROCK_INTERFACES.UniversalMessenger.encodeFunctionData('relayMessage', [
     message.messageNonce,
     message.sender,
     message.target,

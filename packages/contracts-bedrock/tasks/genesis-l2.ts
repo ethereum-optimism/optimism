@@ -250,7 +250,7 @@ task('genesis-l2', 'create a genesis config')
       const slots = computeStorageSlots(storageLayout, variables[name])
 
       for (const slot of slots) {
-        alloc[allocAddr].storage[slot.key] = slot.val
+        alloc[addr].storage[slot.key] = slot.val
       }
     }
 
