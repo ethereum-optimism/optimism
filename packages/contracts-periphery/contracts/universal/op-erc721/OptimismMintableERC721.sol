@@ -16,12 +16,17 @@ contract OptimismMintableERC721 is ERC721, IOptimismMintableERC721 {
     /**
      * @inheritdoc IOptimismMintableERC721
      */
-    address public remoteToken;
+    uint256 public immutable remoteChainId;
 
     /**
      * @inheritdoc IOptimismMintableERC721
      */
-    address public bridge;
+    address public immutable remoteToken;
+
+    /**
+     * @inheritdoc IOptimismMintableERC721
+     */
+    address public immutable bridge;
 
     /**
      * @notice Base token URI for this token.
@@ -29,17 +34,20 @@ contract OptimismMintableERC721 is ERC721, IOptimismMintableERC721 {
     string public baseTokenURI;
 
     /**
-     * @param _bridge      Address of the bridge on this network.
-     * @param _remoteToken Address of the corresponding token on the other network.
-     * @param _name        ERC721 name.
-     * @param _symbol      ERC721 symbol.
+     * @param _bridge        Address of the bridge on this network.
+     * @param _remoteChainId Chain ID where the remote token is deployed.
+     * @param _remoteToken   Address of the corresponding token on the other network.
+     * @param _name          ERC721 name.
+     * @param _symbol        ERC721 symbol.
      */
     constructor(
         address _bridge,
+        uint256 _remoteChainId,
         address _remoteToken,
         string memory _name,
         string memory _symbol
     ) ERC721(_name, _symbol) {
+        remoteChainId = _remoteChainId;
         remoteToken = _remoteToken;
         bridge = _bridge;
 
@@ -48,9 +56,9 @@ contract OptimismMintableERC721 is ERC721, IOptimismMintableERC721 {
         baseTokenURI = string(
             abi.encodePacked(
                 "ethereum:",
-                Strings.toHexString(uint160(_remoteToken)),
+                Strings.toHexString(uint160(_remoteToken), 20),
                 "@",
-                Strings.toString(block.chainid),
+                Strings.toString(_remoteChainId),
                 "/tokenURI?uint256="
             )
         );
