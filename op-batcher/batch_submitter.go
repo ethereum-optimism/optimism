@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"math/big"
 	"os"
 	"os/signal"
@@ -244,7 +245,7 @@ mainLoop:
 					l.log.Error("issue getting adding L2 Block", "err", err)
 					continue mainLoop
 				}
-				l.log.Info("added L2 block to channel", "block_number", block.NumberU64(), "channel_id", l.ch.ID(), "tx_count", len(block.Transactions()), "time", block.Time())
+				l.log.Info("added L2 block to channel", "block", eth.BlockID{Hash: block.Hash(), Number: block.NumberU64()}, "channel_id", l.ch.ID(), "tx_count", len(block.Transactions()), "time", block.Time())
 			}
 			// TODO: above there are ugly "continue mainLoop" because we shouldn't progress if we're missing blocks, since the submitter logic can't handle gaps yet.
 			l.l2HeadNumber = head.NumberU64()

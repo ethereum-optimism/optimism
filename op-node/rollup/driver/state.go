@@ -26,9 +26,11 @@ type state struct {
 	// When the derivation pipeline is waiting for new data to do anything
 	idleDerivation bool
 
-	// Rollup config
-	Config    *rollup.Config
-	sequencer bool
+	// Rollup config: rollup chain configuration
+	Config *rollup.Config
+
+	// Driver config: verifier and sequencer settings
+	DriverConfig *Config
 
 	// Connections (in/out)
 	l1Heads          chan eth.L1BlockRef
@@ -47,12 +49,13 @@ type state struct {
 
 // NewState creates a new driver state. State changes take effect though
 // the given output, derivation pipeline and network interfaces.
-func NewState(log log.Logger, snapshotLog log.Logger, config *rollup.Config, l1Chain L1Chain, l2Chain L2Chain,
-	output outputInterface, derivationPipeline DerivationPipeline, network Network, sequencer bool) *state {
+func NewState(driverCfg *Config, log log.Logger, snapshotLog log.Logger, config *rollup.Config, l1Chain L1Chain, l2Chain L2Chain,
+	output outputInterface, derivationPipeline DerivationPipeline, network Network) *state {
 	return &state{
 		derivation:       derivationPipeline,
 		idleDerivation:   true,
 		Config:           config,
+		DriverConfig:     driverCfg,
 		done:             make(chan struct{}),
 		log:              log,
 		snapshotLog:      snapshotLog,
@@ -60,7 +63,6 @@ func NewState(log log.Logger, snapshotLog log.Logger, config *rollup.Config, l1C
 		l2:               l2Chain,
 		output:           output,
 		network:          network,
-		sequencer:        sequencer,
 		l1Heads:          make(chan eth.L1BlockRef, 10),
 		unsafeL2Payloads: make(chan *eth.ExecutionPayload, 10),
 	}
@@ -139,6 +141,17 @@ func (s *state) findL1Origin(ctx context.Context) (eth.L1BlockRef, error) {
 		return eth.L1BlockRef{}, err
 	}
 
+	if currentOrigin.Number+1+s.DriverConfig.SequencerConfDepth > s.l1Head.Number {
+		// TODO: we can decide to ignore confirmation depth if we would be forced
+		//  to make an empty block (only deposits) by staying on the current origin.
+		s.log.Info("sequencing with old origin to preserve conf depth",
+			"current", currentOrigin, "current_time", currentOrigin.Time,
+			"l1_head", s.l1Head, "l1_head_time", s.l1Head.Time,
+			"l2_head", s.l2Head, "l2_head_time", s.l2Head.Time,
+			"depth", s.DriverConfig.SequencerConfDepth)
+		return currentOrigin, nil
+	}
+
 	// Attempt to find the next L1 origin block, where the next origin is the immediate child of
 	// the current origin block.
 	nextOrigin, err := s.l1.L1BlockRefByNumber(ctx, currentOrigin.Number+1)
@@ -152,7 +165,6 @@ func (s *state) findL1Origin(ctx context.Context) (eth.L1BlockRef, error) {
 	// could decide to continue to build on top of the previous origin until the Sequencer runs out
 	// of slack. For simplicity, we implement our Sequencer to always start building on the latest
 	// L1 block when we can.
-	// TODO: Can add confirmation depth here if we want.
 	if s.l2Head.Time+s.Config.BlockTime >= nextOrigin.Time {
 		return nextOrigin, nil
 	}
@@ -220,7 +232,7 @@ func (s *state) eventLoop() {
 	// Start a ticker to produce L2 blocks at a constant rate. Ticker will only run if we're
 	// running in Sequencer mode.
 	var l2BlockCreationTickerCh <-chan time.Time
-	if s.sequencer {
+	if s.DriverConfig.SequencerEnabled {
 		l2BlockCreationTicker := time.NewTicker(time.Duration(s.Config.BlockTime) * time.Second)
 		defer l2BlockCreationTicker.Stop()
 		l2BlockCreationTickerCh = l2BlockCreationTicker.C
@@ -279,8 +291,8 @@ func (s *state) eventLoop() {
 
 			// We need to catch up to the next origin as quickly as possible. We can do this by
 			// requesting a new block ASAP instead of waiting for the next tick.
-			// TODO: If we want to consider confirmations, need to consider here too.
-			if s.l1Head.Number > s.l2Head.L1Origin.Number {
+			// We don't request a block if the confirmation depth is not met.
+			if s.l1Head.Number > s.l2Head.L1Origin.Number+s.DriverConfig.SequencerConfDepth {
 				s.log.Trace("Asking for a second L2 block asap", "l2Head", s.l2Head)
 				// But not too quickly to minimize busy-waiting for new blocks
 				time.AfterFunc(time.Millisecond*10, reqL2BlockCreation)

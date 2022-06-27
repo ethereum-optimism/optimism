@@ -47,8 +47,6 @@ type EngineQueue struct {
 	unsafePayloads []*eth.ExecutionPayload
 
 	engine Engine
-
-	Sequencer bool
 }
 
 var _ BatchQueueOutput = (*EngineQueue)(nil)
@@ -113,9 +111,6 @@ func (eq *EngineQueue) Step(ctx context.Context, outer Progress) error {
 	//	return eq.tryFinalize(ctx)
 	//}
 	if len(eq.safeAttributes) > 0 {
-		if eq.Sequencer {
-			eq.log.Info("sequencer is processing safe attributes")
-		}
 		return eq.tryNextSafeAttributes(ctx)
 	}
 	if len(eq.unsafePayloads) > 0 {

@@ -56,17 +56,19 @@ type Network interface {
 	PublishL2Payload(ctx context.Context, payload *eth.ExecutionPayload) error
 }
 
-func NewDriver(cfg *rollup.Config, l2 *l2.Source, l1 *l1.Source, network Network, log log.Logger, snapshotLog log.Logger, sequencer bool) *Driver {
+func NewDriver(driverCfg *Config, cfg *rollup.Config, l2 *l2.Source, l1 *l1.Source, network Network, log log.Logger, snapshotLog log.Logger) *Driver {
 	output := &outputImpl{
 		Config: cfg,
 		dl:     l1,
 		l2:     l2,
 		log:    log,
 	}
-	derivationPipeline := derive.NewDerivationPipeline(log, cfg, l1, l2, sequencer)
-	return &Driver{
-		s: NewState(log, snapshotLog, cfg, l1, l2, output, derivationPipeline, network, sequencer),
-	}
+
+	var state *state
+	verifConfDepth := NewConfDepth(driverCfg.VerifierConfDepth, func() eth.L1BlockRef { return state.l1Head }, l1)
+	derivationPipeline := derive.NewDerivationPipeline(log, cfg, verifConfDepth, l2)
+	state = NewState(driverCfg, log, snapshotLog, cfg, l1, l2, output, derivationPipeline, network)
+	return &Driver{s: state}
 }
 
 func (d *Driver) OnL1Head(ctx context.Context, head eth.L1BlockRef) error {

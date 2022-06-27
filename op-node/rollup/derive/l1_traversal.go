@@ -42,6 +42,10 @@ func (l1t *L1Traversal) Step(ctx context.Context, outer Progress) error {
 		return nil
 	}
 
+	// If we reorg to a shorter chain, then we'll only derive new L2 data once the L1 reorg
+	// becomes longer than the previous L1 chain.
+	// This is fine, assuming the new L1 chain is live, but we may want to reconsider this.
+
 	origin := l1t.progress.Origin
 	nextL1Origin, err := l1t.l1Blocks.L1BlockRefByNumber(ctx, origin.Number+1)
 	if errors.Is(err, ethereum.NotFound) {

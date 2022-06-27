@@ -138,7 +138,7 @@ func (n *OpNode) initL2(ctx context.Context, cfg *Config, snapshotLog log.Logger
 	}
 
 	snap := snapshotLog.New()
-	n.l2Engine = driver.NewDriver(&cfg.Rollup, client, n.l1Source, n, n.log, snap, cfg.Sequencer)
+	n.l2Engine = driver.NewDriver(&cfg.Driver, &cfg.Rollup, client, n.l1Source, n, n.log, snap)
 
 	return nil
 }

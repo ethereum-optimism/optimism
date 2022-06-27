@@ -164,7 +164,7 @@ func (bq *BatchQueue) Step(ctx context.Context, outer Progress) error {
 			// (after a reset rolled us back a full sequence window)
 			continue
 		}
-		bq.log.Info("derived new payload attributes", "time", attr.Timestamp, "txs", len(attr.Transactions))
+		bq.log.Info("derived new payload attributes", "time", uint64(attr.Timestamp), "txs", len(attr.Transactions))
 		bq.next.AddSafeAttributes(attr)
 	}
 	return nil
