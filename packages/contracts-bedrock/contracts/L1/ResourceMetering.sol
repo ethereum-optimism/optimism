@@ -58,9 +58,23 @@ contract ResourceMetering {
     ResourceParams public params;
 
     /**
-     * @notice Sets initial resource parameter values.
+     * @notice Reserve extra slots (to a total of 50) in the storage layout for future upgrades.
+     */
+    uint256[49] private __gap;
+
+    /**
+     * @notice Set the initial values. In order to enable this contract to be used in an upgradable
+     *         context, the constructor calls a separate init function.
      */
     constructor() {
+        __ResourceMetering_init();
+    }
+
+    /**
+     * @notice Sets initial resource parameter values. This function must either be called by the
+     *         initializer function of an upgradeable child contract.
+     */
+    function __ResourceMetering_init() internal {
         params = ResourceParams({
             prevBaseFee: INITIAL_BASE_FEE,
             prevBoughtGas: 0,

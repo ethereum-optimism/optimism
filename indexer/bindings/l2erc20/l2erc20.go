@@ -4,43 +4,55 @@
 package l2erc20
 
 import (
+	"errors"
 	"math/big"
 	"strings"
 
-	ethereum "github.com/ethereum-optimism/optimism/l2geth"
-	"github.com/ethereum-optimism/optimism/l2geth/accounts/abi"
-	"github.com/ethereum-optimism/optimism/l2geth/accounts/abi/bind"
-	"github.com/ethereum-optimism/optimism/l2geth/common"
-	"github.com/ethereum-optimism/optimism/l2geth/core/types"
-	"github.com/ethereum-optimism/optimism/l2geth/event"
+	ethereum "github.com/ethereum/go-ethereum"
+	"github.com/ethereum/go-ethereum/accounts/abi"
+	"github.com/ethereum/go-ethereum/accounts/abi/bind"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/event"
 )
 
 // Reference imports to suppress errors if they are not otherwise used.
 var (
+	_ = errors.New
 	_ = big.NewInt
 	_ = strings.NewReader
 	_ = ethereum.NotFound
-	_ = abi.U256
 	_ = bind.Bind
 	_ = common.Big1
 	_ = types.BloomLookup
 	_ = event.NewSubscription
 )
 
+// L2ERC20MetaData contains all meta data concerning the L2ERC20 contract.
+var L2ERC20MetaData = &bind.MetaData{
+	ABI: "[{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"_initialAmount\",\"type\":\"uint256\"},{\"internalType\":\"string\",\"name\":\"_tokenName\",\"type\":\"string\"},{\"internalType\":\"uint8\",\"name\":\"_decimalUnits\",\"type\":\"uint8\"},{\"internalType\":\"string\",\"name\":\"_tokenSymbol\",\"type\":\"string\"}],\"stateMutability\":\"nonpayable\",\"type\":\"constructor\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"address\",\"name\":\"_owner\",\"type\":\"address\"},{\"indexed\":true,\"internalType\":\"address\",\"name\":\"_spender\",\"type\":\"address\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"_value\",\"type\":\"uint256\"}],\"name\":\"Approval\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"address\",\"name\":\"_from\",\"type\":\"address\"},{\"indexed\":true,\"internalType\":\"address\",\"name\":\"_to\",\"type\":\"address\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"_value\",\"type\":\"uint256\"}],\"name\":\"Transfer\",\"type\":\"event\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"_owner\",\"type\":\"address\"},{\"internalType\":\"address\",\"name\":\"_spender\",\"type\":\"address\"}],\"name\":\"allowance\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"remaining\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"},{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"name\":\"allowed\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"_spender\",\"type\":\"address\"},{\"internalType\":\"uint256\",\"name\":\"_value\",\"type\":\"uint256\"}],\"name\":\"approve\",\"outputs\":[{\"internalType\":\"bool\",\"name\":\"success\",\"type\":\"bool\"}],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"_owner\",\"type\":\"address\"}],\"name\":\"balanceOf\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"balance\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"name\":\"balances\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"decimals\",\"outputs\":[{\"internalType\":\"uint8\",\"name\":\"\",\"type\":\"uint8\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"destroy\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"name\",\"outputs\":[{\"internalType\":\"string\",\"name\":\"\",\"type\":\"string\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"symbol\",\"outputs\":[{\"internalType\":\"string\",\"name\":\"\",\"type\":\"string\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"totalSupply\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"_to\",\"type\":\"address\"},{\"internalType\":\"uint256\",\"name\":\"_value\",\"type\":\"uint256\"}],\"name\":\"transfer\",\"outputs\":[{\"internalType\":\"bool\",\"name\":\"success\",\"type\":\"bool\"}],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"_from\",\"type\":\"address\"},{\"internalType\":\"address\",\"name\":\"_to\",\"type\":\"address\"},{\"internalType\":\"uint256\",\"name\":\"_value\",\"type\":\"uint256\"}],\"name\":\"transferFrom\",\"outputs\":[{\"internalType\":\"bool\",\"name\":\"success\",\"type\":\"bool\"}],\"stateMutability\":\"nonpayable\",\"type\":\"function\"}]",
+	Bin: "0x60806040523480156200001157600080fd5b5060405162000a0c38038062000a0c833981016040819052620000349162000203565b336000908152602081815260409091208590556005859055835162000060916002919086019062000090565b506003805460ff191660ff841617905580516200008590600490602084019062000090565b5050505050620002cf565b8280546200009e9062000292565b90600052602060002090601f016020900481019282620000c257600085556200010d565b82601f10620000dd57805160ff19168380011785556200010d565b828001600101855582156200010d579182015b828111156200010d578251825591602001919060010190620000f0565b506200011b9291506200011f565b5090565b5b808211156200011b576000815560010162000120565b634e487b7160e01b600052604160045260246000fd5b600082601f8301126200015e57600080fd5b81516001600160401b03808211156200017b576200017b62000136565b604051601f8301601f19908116603f01168101908282118183101715620001a657620001a662000136565b81604052838152602092508683858801011115620001c357600080fd5b600091505b83821015620001e75785820183015181830184015290820190620001c8565b83821115620001f95760008385830101525b9695505050505050565b600080600080608085870312156200021a57600080fd5b845160208601519094506001600160401b03808211156200023a57600080fd5b62000248888389016200014c565b94506040870151915060ff821682146200026157600080fd5b6060870151919350808211156200027757600080fd5b5062000286878288016200014c565b91505092959194509250565b600181811c90821680620002a757607f821691505b60208210811415620002c957634e487b7160e01b600052602260045260246000fd5b50919050565b61072d80620002df6000396000f3fe608060405234801561001057600080fd5b50600436106100b45760003560e01c80635c658165116100715780635c6581651461016357806370a082311461018e57806383197ef0146101b757806395d89b41146101bf578063a9059cbb146101c7578063dd62ed3e146101da57600080fd5b806306fdde03146100b9578063095ea7b3146100d757806318160ddd146100fa57806323b872dd1461011157806327e235e314610124578063313ce56714610144575b600080fd5b6100c1610213565b6040516100ce9190610574565b60405180910390f35b6100ea6100e53660046105e5565b6102a1565b60405190151581526020016100ce565b61010360055481565b6040519081526020016100ce565b6100ea61011f36600461060f565b61030d565b61010361013236600461064b565b60006020819052908152604090205481565b6003546101519060ff1681565b60405160ff90911681526020016100ce565b61010361017136600461066d565b600160209081526000928352604080842090915290825290205481565b61010361019c36600461064b565b6001600160a01b031660009081526020819052604090205490565b6101bd33ff5b005b6100c1610483565b6100ea6101d53660046105e5565b610490565b6101036101e836600461066d565b6001600160a01b03918216600090815260016020908152604080832093909416825291909152205490565b60028054610220906106a0565b80601f016020809104026020016040519081016040528092919081815260200182805461024c906106a0565b80156102995780601f1061026e57610100808354040283529160200191610299565b820191906000526020600020905b81548152906001019060200180831161027c57829003601f168201915b505050505081565b3360008181526001602090815260408083206001600160a01b038716808552925280832085905551919290917f8c5be1e5ebec7d5bd14f71427d1e84f3dd0314c0f7b2291e5b200ac8c7c3b925906102fc9086815260200190565b60405180910390a350600192915050565b6001600160a01b038316600081815260016020908152604080832033845282528083205493835290829052812054909190831180159061034d5750828110155b61038e5760405162461bcd60e51b815260206004820152600d60248201526c62616420616c6c6f77616e636560981b60448201526064015b60405180910390fd5b6001600160a01b038416600090815260208190526040812080548592906103b69084906106f1565b90915550506001600160a01b038516600090815260208190526040812080548592906103e3908490610709565b909155505060001981101561042b576001600160a01b038516600090815260016020908152604080832033845290915281208054859290610425908490610709565b90915550505b836001600160a01b0316856001600160a01b03167fddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef8560405161047091815260200190565b60405180910390a3506001949350505050565b60048054610220906106a0565b336000908152602081905260408120548211156104e65760405162461bcd60e51b8152602060048201526014602482015273696e73756666696369656e742062616c616e636560601b6044820152606401610385565b3360009081526020819052604081208054849290610505908490610709565b90915550506001600160a01b038316600090815260208190526040812080548492906105329084906106f1565b90915550506040518281526001600160a01b0384169033907fddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef906020016102fc565b600060208083528351808285015260005b818110156105a157858101830151858201604001528201610585565b818111156105b3576000604083870101525b50601f01601f1916929092016040019392505050565b80356001600160a01b03811681146105e057600080fd5b919050565b600080604083850312156105f857600080fd5b610601836105c9565b946020939093013593505050565b60008060006060848603121561062457600080fd5b61062d846105c9565b925061063b602085016105c9565b9150604084013590509250925092565b60006020828403121561065d57600080fd5b610666826105c9565b9392505050565b6000806040838503121561068057600080fd5b610689836105c9565b9150610697602084016105c9565b90509250929050565b600181811c908216806106b457607f821691505b602082108114156106d557634e487b7160e01b600052602260045260246000fd5b50919050565b634e487b7160e01b600052601160045260246000fd5b60008219821115610704576107046106db565b500190565b60008282101561071b5761071b6106db565b50039056fea164736f6c6343000809000a",
+}
+
 // L2ERC20ABI is the input ABI used to generate the binding from.
-const L2ERC20ABI = "[{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"_initialAmount\",\"type\":\"uint256\"},{\"internalType\":\"string\",\"name\":\"_tokenName\",\"type\":\"string\"},{\"internalType\":\"uint8\",\"name\":\"_decimalUnits\",\"type\":\"uint8\"},{\"internalType\":\"string\",\"name\":\"_tokenSymbol\",\"type\":\"string\"}],\"stateMutability\":\"nonpayable\",\"type\":\"constructor\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"address\",\"name\":\"_owner\",\"type\":\"address\"},{\"indexed\":true,\"internalType\":\"address\",\"name\":\"_spender\",\"type\":\"address\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"_value\",\"type\":\"uint256\"}],\"name\":\"Approval\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"address\",\"name\":\"_from\",\"type\":\"address\"},{\"indexed\":true,\"internalType\":\"address\",\"name\":\"_to\",\"type\":\"address\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"_value\",\"type\":\"uint256\"}],\"name\":\"Transfer\",\"type\":\"event\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"_owner\",\"type\":\"address\"},{\"internalType\":\"address\",\"name\":\"_spender\",\"type\":\"address\"}],\"name\":\"allowance\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"remaining\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"},{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"name\":\"allowed\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"_spender\",\"type\":\"address\"},{\"internalType\":\"uint256\",\"name\":\"_value\",\"type\":\"uint256\"}],\"name\":\"approve\",\"outputs\":[{\"internalType\":\"bool\",\"name\":\"success\",\"type\":\"bool\"}],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"_owner\",\"type\":\"address\"}],\"name\":\"balanceOf\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"balance\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"name\":\"balances\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"decimals\",\"outputs\":[{\"internalType\":\"uint8\",\"name\":\"\",\"type\":\"uint8\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"destroy\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"name\",\"outputs\":[{\"internalType\":\"string\",\"name\":\"\",\"type\":\"string\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"symbol\",\"outputs\":[{\"internalType\":\"string\",\"name\":\"\",\"type\":\"string\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"totalSupply\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"_to\",\"type\":\"address\"},{\"internalType\":\"uint256\",\"name\":\"_value\",\"type\":\"uint256\"}],\"name\":\"transfer\",\"outputs\":[{\"internalType\":\"bool\",\"name\":\"success\",\"type\":\"bool\"}],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"_from\",\"type\":\"address\"},{\"internalType\":\"address\",\"name\":\"_to\",\"type\":\"address\"},{\"internalType\":\"uint256\",\"name\":\"_value\",\"type\":\"uint256\"}],\"name\":\"transferFrom\",\"outputs\":[{\"internalType\":\"bool\",\"name\":\"success\",\"type\":\"bool\"}],\"stateMutability\":\"nonpayable\",\"type\":\"function\"}]"
+// Deprecated: Use L2ERC20MetaData.ABI instead.
+var L2ERC20ABI = L2ERC20MetaData.ABI
 
 // L2ERC20Bin is the compiled bytecode used for deploying new contracts.
-var L2ERC20Bin = "0x60806040523480156200001157600080fd5b5060405162000a0c38038062000a0c833981016040819052620000349162000203565b336000908152602081815260409091208590556005859055835162000060916002919086019062000090565b506003805460ff191660ff841617905580516200008590600490602084019062000090565b5050505050620002cf565b8280546200009e9062000292565b90600052602060002090601f016020900481019282620000c257600085556200010d565b82601f10620000dd57805160ff19168380011785556200010d565b828001600101855582156200010d579182015b828111156200010d578251825591602001919060010190620000f0565b506200011b9291506200011f565b5090565b5b808211156200011b576000815560010162000120565b634e487b7160e01b600052604160045260246000fd5b600082601f8301126200015e57600080fd5b81516001600160401b03808211156200017b576200017b62000136565b604051601f8301601f19908116603f01168101908282118183101715620001a657620001a662000136565b81604052838152602092508683858801011115620001c357600080fd5b600091505b83821015620001e75785820183015181830184015290820190620001c8565b83821115620001f95760008385830101525b9695505050505050565b600080600080608085870312156200021a57600080fd5b845160208601519094506001600160401b03808211156200023a57600080fd5b62000248888389016200014c565b94506040870151915060ff821682146200026157600080fd5b6060870151919350808211156200027757600080fd5b5062000286878288016200014c565b91505092959194509250565b600181811c90821680620002a757607f821691505b60208210811415620002c957634e487b7160e01b600052602260045260246000fd5b50919050565b61072d80620002df6000396000f3fe608060405234801561001057600080fd5b50600436106100b45760003560e01c80635c658165116100715780635c6581651461016357806370a082311461018e57806383197ef0146101b757806395d89b41146101bf578063a9059cbb146101c7578063dd62ed3e146101da57600080fd5b806306fdde03146100b9578063095ea7b3146100d757806318160ddd146100fa57806323b872dd1461011157806327e235e314610124578063313ce56714610144575b600080fd5b6100c1610213565b6040516100ce9190610574565b60405180910390f35b6100ea6100e53660046105e5565b6102a1565b60405190151581526020016100ce565b61010360055481565b6040519081526020016100ce565b6100ea61011f36600461060f565b61030d565b61010361013236600461064b565b60006020819052908152604090205481565b6003546101519060ff1681565b60405160ff90911681526020016100ce565b61010361017136600461066d565b600160209081526000928352604080842090915290825290205481565b61010361019c36600461064b565b6001600160a01b031660009081526020819052604090205490565b6101bd33ff5b005b6100c1610483565b6100ea6101d53660046105e5565b610490565b6101036101e836600461066d565b6001600160a01b03918216600090815260016020908152604080832093909416825291909152205490565b60028054610220906106a0565b80601f016020809104026020016040519081016040528092919081815260200182805461024c906106a0565b80156102995780601f1061026e57610100808354040283529160200191610299565b820191906000526020600020905b81548152906001019060200180831161027c57829003601f168201915b505050505081565b3360008181526001602090815260408083206001600160a01b038716808552925280832085905551919290917f8c5be1e5ebec7d5bd14f71427d1e84f3dd0314c0f7b2291e5b200ac8c7c3b925906102fc9086815260200190565b60405180910390a350600192915050565b6001600160a01b038316600081815260016020908152604080832033845282528083205493835290829052812054909190831180159061034d5750828110155b61038e5760405162461bcd60e51b815260206004820152600d60248201526c62616420616c6c6f77616e636560981b60448201526064015b60405180910390fd5b6001600160a01b038416600090815260208190526040812080548592906103b69084906106f1565b90915550506001600160a01b038516600090815260208190526040812080548592906103e3908490610709565b909155505060001981101561042b576001600160a01b038516600090815260016020908152604080832033845290915281208054859290610425908490610709565b90915550505b836001600160a01b0316856001600160a01b03167fddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef8560405161047091815260200190565b60405180910390a3506001949350505050565b60048054610220906106a0565b336000908152602081905260408120548211156104e65760405162461bcd60e51b8152602060048201526014602482015273696e73756666696369656e742062616c616e636560601b6044820152606401610385565b3360009081526020819052604081208054849290610505908490610709565b90915550506001600160a01b038316600090815260208190526040812080548492906105329084906106f1565b90915550506040518281526001600160a01b0384169033907fddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef906020016102fc565b600060208083528351808285015260005b818110156105a157858101830151858201604001528201610585565b818111156105b3576000604083870101525b50601f01601f1916929092016040019392505050565b80356001600160a01b03811681146105e057600080fd5b919050565b600080604083850312156105f857600080fd5b610601836105c9565b946020939093013593505050565b60008060006060848603121561062457600080fd5b61062d846105c9565b925061063b602085016105c9565b9150604084013590509250925092565b60006020828403121561065d57600080fd5b610666826105c9565b9392505050565b6000806040838503121561068057600080fd5b610689836105c9565b9150610697602084016105c9565b90509250929050565b600181811c908216806106b457607f821691505b602082108114156106d557634e487b7160e01b600052602260045260246000fd5b50919050565b634e487b7160e01b600052601160045260246000fd5b60008219821115610704576107046106db565b500190565b60008282101561071b5761071b6106db565b50039056fea164736f6c6343000809000a"
+// Deprecated: Use L2ERC20MetaData.Bin instead.
+var L2ERC20Bin = L2ERC20MetaData.Bin
 
 // DeployL2ERC20 deploys a new Ethereum contract, binding an instance of L2ERC20 to it.
 func DeployL2ERC20(auth *bind.TransactOpts, backend bind.ContractBackend, _initialAmount *big.Int, _tokenName string, _decimalUnits uint8, _tokenSymbol string) (common.Address, *types.Transaction, *L2ERC20, error) {
-	parsed, err := abi.JSON(strings.NewReader(L2ERC20ABI))
+	parsed, err := L2ERC20MetaData.GetAbi()
 	if err != nil {
 		return common.Address{}, nil, nil, err
 	}
+	if parsed == nil {
+		return common.Address{}, nil, nil, errors.New("GetABI returned nil")
+	}
 
-	address, tx, contract, err := bind.DeployContract(auth, parsed, common.FromHex(L2ERC20Bin), backend, _initialAmount, _tokenName, _decimalUnits, _tokenSymbol)
+	address, tx, contract, err := bind.DeployContract(auth, *parsed, common.FromHex(L2ERC20Bin), backend, _initialAmount, _tokenName, _decimalUnits, _tokenSymbol)
 	if err != nil {
 		return common.Address{}, nil, nil, err
 	}
@@ -155,7 +167,7 @@ func bindL2ERC20(address common.Address, caller bind.ContractCaller, transactor 
 // sets the output to result. The result type might be a single field for simple
 // returns, a slice of interfaces for anonymous returns and a struct for named
 // returns.
-func (_L2ERC20 *L2ERC20Raw) Call(opts *bind.CallOpts, result interface{}, method string, params ...interface{}) error {
+func (_L2ERC20 *L2ERC20Raw) Call(opts *bind.CallOpts, result *[]interface{}, method string, params ...interface{}) error {
 	return _L2ERC20.Contract.L2ERC20Caller.contract.Call(opts, result, method, params...)
 }
 
@@ -174,7 +186,7 @@ func (_L2ERC20 *L2ERC20Raw) Transact(opts *bind.TransactOpts, method string, par
 // sets the output to result. The result type might be a single field for simple
 // returns, a slice of interfaces for anonymous returns and a struct for named
 // returns.
-func (_L2ERC20 *L2ERC20CallerRaw) Call(opts *bind.CallOpts, result interface{}, method string, params ...interface{}) error {
+func (_L2ERC20 *L2ERC20CallerRaw) Call(opts *bind.CallOpts, result *[]interface{}, method string, params ...interface{}) error {
 	return _L2ERC20.Contract.contract.Call(opts, result, method, params...)
 }
 
@@ -191,208 +203,248 @@ func (_L2ERC20 *L2ERC20TransactorRaw) Transact(opts *bind.TransactOpts, method s
 
 // Allowance is a free data retrieval call binding the contract method 0xdd62ed3e.
 //
-// Solidity: function allowance(address _owner, address _spender) constant returns(uint256 remaining)
+// Solidity: function allowance(address _owner, address _spender) view returns(uint256 remaining)
 func (_L2ERC20 *L2ERC20Caller) Allowance(opts *bind.CallOpts, _owner common.Address, _spender common.Address) (*big.Int, error) {
-	var (
-		ret0 = new(*big.Int)
-	)
-	out := ret0
-	err := _L2ERC20.contract.Call(opts, out, "allowance", _owner, _spender)
-	return *ret0, err
+	var out []interface{}
+	err := _L2ERC20.contract.Call(opts, &out, "allowance", _owner, _spender)
+
+	if err != nil {
+		return *new(*big.Int), err
+	}
+
+	out0 := *abi.ConvertType(out[0], new(*big.Int)).(**big.Int)
+
+	return out0, err
+
 }
 
 // Allowance is a free data retrieval call binding the contract method 0xdd62ed3e.
 //
-// Solidity: function allowance(address _owner, address _spender) constant returns(uint256 remaining)
+// Solidity: function allowance(address _owner, address _spender) view returns(uint256 remaining)
 func (_L2ERC20 *L2ERC20Session) Allowance(_owner common.Address, _spender common.Address) (*big.Int, error) {
 	return _L2ERC20.Contract.Allowance(&_L2ERC20.CallOpts, _owner, _spender)
 }
 
 // Allowance is a free data retrieval call binding the contract method 0xdd62ed3e.
 //
-// Solidity: function allowance(address _owner, address _spender) constant returns(uint256 remaining)
+// Solidity: function allowance(address _owner, address _spender) view returns(uint256 remaining)
 func (_L2ERC20 *L2ERC20CallerSession) Allowance(_owner common.Address, _spender common.Address) (*big.Int, error) {
 	return _L2ERC20.Contract.Allowance(&_L2ERC20.CallOpts, _owner, _spender)
 }
 
 // Allowed is a free data retrieval call binding the contract method 0x5c658165.
 //
-// Solidity: function allowed(address , address ) constant returns(uint256)
+// Solidity: function allowed(address , address ) view returns(uint256)
 func (_L2ERC20 *L2ERC20Caller) Allowed(opts *bind.CallOpts, arg0 common.Address, arg1 common.Address) (*big.Int, error) {
-	var (
-		ret0 = new(*big.Int)
-	)
-	out := ret0
-	err := _L2ERC20.contract.Call(opts, out, "allowed", arg0, arg1)
-	return *ret0, err
+	var out []interface{}
+	err := _L2ERC20.contract.Call(opts, &out, "allowed", arg0, arg1)
+
+	if err != nil {
+		return *new(*big.Int), err
+	}
+
+	out0 := *abi.ConvertType(out[0], new(*big.Int)).(**big.Int)
+
+	return out0, err
+
 }
 
 // Allowed is a free data retrieval call binding the contract method 0x5c658165.
 //
-// Solidity: function allowed(address , address ) constant returns(uint256)
+// Solidity: function allowed(address , address ) view returns(uint256)
 func (_L2ERC20 *L2ERC20Session) Allowed(arg0 common.Address, arg1 common.Address) (*big.Int, error) {
 	return _L2ERC20.Contract.Allowed(&_L2ERC20.CallOpts, arg0, arg1)
 }
 
 // Allowed is a free data retrieval call binding the contract method 0x5c658165.
 //
-// Solidity: function allowed(address , address ) constant returns(uint256)
+// Solidity: function allowed(address , address ) view returns(uint256)
 func (_L2ERC20 *L2ERC20CallerSession) Allowed(arg0 common.Address, arg1 common.Address) (*big.Int, error) {
 	return _L2ERC20.Contract.Allowed(&_L2ERC20.CallOpts, arg0, arg1)
 }
 
 // BalanceOf is a free data retrieval call binding the contract method 0x70a08231.
 //
-// Solidity: function balanceOf(address _owner) constant returns(uint256 balance)
+// Solidity: function balanceOf(address _owner) view returns(uint256 balance)
 func (_L2ERC20 *L2ERC20Caller) BalanceOf(opts *bind.CallOpts, _owner common.Address) (*big.Int, error) {
-	var (
-		ret0 = new(*big.Int)
-	)
-	out := ret0
-	err := _L2ERC20.contract.Call(opts, out, "balanceOf", _owner)
-	return *ret0, err
+	var out []interface{}
+	err := _L2ERC20.contract.Call(opts, &out, "balanceOf", _owner)
+
+	if err != nil {
+		return *new(*big.Int), err
+	}
+
+	out0 := *abi.ConvertType(out[0], new(*big.Int)).(**big.Int)
+
+	return out0, err
+
 }
 
 // BalanceOf is a free data retrieval call binding the contract method 0x70a08231.
 //
-// Solidity: function balanceOf(address _owner) constant returns(uint256 balance)
+// Solidity: function balanceOf(address _owner) view returns(uint256 balance)
 func (_L2ERC20 *L2ERC20Session) BalanceOf(_owner common.Address) (*big.Int, error) {
 	return _L2ERC20.Contract.BalanceOf(&_L2ERC20.CallOpts, _owner)
 }
 
 // BalanceOf is a free data retrieval call binding the contract method 0x70a08231.
 //
-// Solidity: function balanceOf(address _owner) constant returns(uint256 balance)
+// Solidity: function balanceOf(address _owner) view returns(uint256 balance)
 func (_L2ERC20 *L2ERC20CallerSession) BalanceOf(_owner common.Address) (*big.Int, error) {
 	return _L2ERC20.Contract.BalanceOf(&_L2ERC20.CallOpts, _owner)
 }
 
 // Balances is a free data retrieval call binding the contract method 0x27e235e3.
 //
-// Solidity: function balances(address ) constant returns(uint256)
+// Solidity: function balances(address ) view returns(uint256)
 func (_L2ERC20 *L2ERC20Caller) Balances(opts *bind.CallOpts, arg0 common.Address) (*big.Int, error) {
-	var (
-		ret0 = new(*big.Int)
-	)
-	out := ret0
-	err := _L2ERC20.contract.Call(opts, out, "balances", arg0)
-	return *ret0, err
+	var out []interface{}
+	err := _L2ERC20.contract.Call(opts, &out, "balances", arg0)
+
+	if err != nil {
+		return *new(*big.Int), err
+	}
+
+	out0 := *abi.ConvertType(out[0], new(*big.Int)).(**big.Int)
+
+	return out0, err
+
 }
 
 // Balances is a free data retrieval call binding the contract method 0x27e235e3.
 //
-// Solidity: function balances(address ) constant returns(uint256)
+// Solidity: function balances(address ) view returns(uint256)
 func (_L2ERC20 *L2ERC20Session) Balances(arg0 common.Address) (*big.Int, error) {
 	return _L2ERC20.Contract.Balances(&_L2ERC20.CallOpts, arg0)
 }
 
 // Balances is a free data retrieval call binding the contract method 0x27e235e3.
 //
-// Solidity: function balances(address ) constant returns(uint256)
+// Solidity: function balances(address ) view returns(uint256)
 func (_L2ERC20 *L2ERC20CallerSession) Balances(arg0 common.Address) (*big.Int, error) {
 	return _L2ERC20.Contract.Balances(&_L2ERC20.CallOpts, arg0)
 }
 
 // Decimals is a free data retrieval call binding the contract method 0x313ce567.
 //
-// Solidity: function decimals() constant returns(uint8)
+// Solidity: function decimals() view returns(uint8)
 func (_L2ERC20 *L2ERC20Caller) Decimals(opts *bind.CallOpts) (uint8, error) {
-	var (
-		ret0 = new(uint8)
-	)
-	out := ret0
-	err := _L2ERC20.contract.Call(opts, out, "decimals")
-	return *ret0, err
+	var out []interface{}
+	err := _L2ERC20.contract.Call(opts, &out, "decimals")
+
+	if err != nil {
+		return *new(uint8), err
+	}
+
+	out0 := *abi.ConvertType(out[0], new(uint8)).(*uint8)
+
+	return out0, err
+
 }
 
 // Decimals is a free data retrieval call binding the contract method 0x313ce567.
 //
-// Solidity: function decimals() constant returns(uint8)
+// Solidity: function decimals() view returns(uint8)
 func (_L2ERC20 *L2ERC20Session) Decimals() (uint8, error) {
 	return _L2ERC20.Contract.Decimals(&_L2ERC20.CallOpts)
 }
 
 // Decimals is a free data retrieval call binding the contract method 0x313ce567.
 //
-// Solidity: function decimals() constant returns(uint8)
+// Solidity: function decimals() view returns(uint8)
 func (_L2ERC20 *L2ERC20CallerSession) Decimals() (uint8, error) {
 	return _L2ERC20.Contract.Decimals(&_L2ERC20.CallOpts)
 }
 
 // Name is a free data retrieval call binding the contract method 0x06fdde03.
 //
-// Solidity: function name() constant returns(string)
+// Solidity: function name() view returns(string)
 func (_L2ERC20 *L2ERC20Caller) Name(opts *bind.CallOpts) (string, error) {
-	var (
-		ret0 = new(string)
-	)
-	out := ret0
-	err := _L2ERC20.contract.Call(opts, out, "name")
-	return *ret0, err
+	var out []interface{}
+	err := _L2ERC20.contract.Call(opts, &out, "name")
+
+	if err != nil {
+		return *new(string), err
+	}
+
+	out0 := *abi.ConvertType(out[0], new(string)).(*string)
+
+	return out0, err
+
 }
 
 // Name is a free data retrieval call binding the contract method 0x06fdde03.
 //
-// Solidity: function name() constant returns(string)
+// Solidity: function name() view returns(string)
 func (_L2ERC20 *L2ERC20Session) Name() (string, error) {
 	return _L2ERC20.Contract.Name(&_L2ERC20.CallOpts)
 }
 
 // Name is a free data retrieval call binding the contract method 0x06fdde03.
 //
-// Solidity: function name() constant returns(string)
+// Solidity: function name() view returns(string)
 func (_L2ERC20 *L2ERC20CallerSession) Name() (string, error) {
 	return _L2ERC20.Contract.Name(&_L2ERC20.CallOpts)
 }
 
 // Symbol is a free data retrieval call binding the contract method 0x95d89b41.
 //
-// Solidity: function symbol() constant returns(string)
+// Solidity: function symbol() view returns(string)
 func (_L2ERC20 *L2ERC20Caller) Symbol(opts *bind.CallOpts) (string, error) {
-	var (
-		ret0 = new(string)
-	)
-	out := ret0
-	err := _L2ERC20.contract.Call(opts, out, "symbol")
-	return *ret0, err
+	var out []interface{}
+	err := _L2ERC20.contract.Call(opts, &out, "symbol")
+
+	if err != nil {
+		return *new(string), err
+	}
+
+	out0 := *abi.ConvertType(out[0], new(string)).(*string)
+
+	return out0, err
+
 }
 
 // Symbol is a free data retrieval call binding the contract method 0x95d89b41.
 //
-// Solidity: function symbol() constant returns(string)
+// Solidity: function symbol() view returns(string)
 func (_L2ERC20 *L2ERC20Session) Symbol() (string, error) {
 	return _L2ERC20.Contract.Symbol(&_L2ERC20.CallOpts)
 }
 
 // Symbol is a free data retrieval call binding the contract method 0x95d89b41.
 //
-// Solidity: function symbol() constant returns(string)
+// Solidity: function symbol() view returns(string)
 func (_L2ERC20 *L2ERC20CallerSession) Symbol() (string, error) {
 	return _L2ERC20.Contract.Symbol(&_L2ERC20.CallOpts)
 }
 
 // TotalSupply is a free data retrieval call binding the contract method 0x18160ddd.
 //
-// Solidity: function totalSupply() constant returns(uint256)
+// Solidity: function totalSupply() view returns(uint256)
 func (_L2ERC20 *L2ERC20Caller) TotalSupply(opts *bind.CallOpts) (*big.Int, error) {
-	var (
-		ret0 = new(*big.Int)
-	)
-	out := ret0
-	err := _L2ERC20.contract.Call(opts, out, "totalSupply")
-	return *ret0, err
+	var out []interface{}
+	err := _L2ERC20.contract.Call(opts, &out, "totalSupply")
+
+	if err != nil {
+		return *new(*big.Int), err
+	}
+
+	out0 := *abi.ConvertType(out[0], new(*big.Int)).(**big.Int)
+
+	return out0, err
+
 }
 
 // TotalSupply is a free data retrieval call binding the contract method 0x18160ddd.
 //
-// Solidity: function totalSupply() constant returns(uint256)
+// Solidity: function totalSupply() view returns(uint256)
 func (_L2ERC20 *L2ERC20Session) TotalSupply() (*big.Int, error) {
 	return _L2ERC20.Contract.TotalSupply(&_L2ERC20.CallOpts)
 }
 
 // TotalSupply is a free data retrieval call binding the contract method 0x18160ddd.
 //
-// Solidity: function totalSupply() constant returns(uint256)
+// Solidity: function totalSupply() view returns(uint256)
 func (_L2ERC20 *L2ERC20CallerSession) TotalSupply() (*big.Int, error) {
 	return _L2ERC20.Contract.TotalSupply(&_L2ERC20.CallOpts)
 }
@@ -631,6 +683,7 @@ func (_L2ERC20 *L2ERC20Filterer) ParseApproval(log types.Log) (*L2ERC20Approval,
 	if err := _L2ERC20.contract.UnpackLog(event, "Approval", log); err != nil {
 		return nil, err
 	}
+	event.Raw = log
 	return event, nil
 }
 
@@ -784,5 +837,6 @@ func (_L2ERC20 *L2ERC20Filterer) ParseTransfer(log types.Log) (*L2ERC20Transfer,
 	if err := _L2ERC20.contract.UnpackLog(event, "Transfer", log); err != nil {
 		return nil, err
 	}
+	event.Raw = log
 	return event, nil
 }

@@ -1,12 +1,11 @@
 package metrics
 
 import (
-	"fmt"
+	"net"
 	"net/http"
 	"strconv"
 	"time"
 
-	l2common "github.com/ethereum-optimism/optimism/l2geth/common"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
@@ -160,7 +159,7 @@ func (m *Metrics) RecordDeposit(addr common.Address) {
 	m.DepositsCount.WithLabelValues(sym).Inc()
 }
 
-func (m *Metrics) RecordWithdrawal(addr l2common.Address) {
+func (m *Metrics) RecordWithdrawal(addr common.Address) {
 	sym := m.tokenAddrs[addr.String()]
 	if sym == "" {
 		sym = "UNKNOWN"
@@ -218,7 +217,7 @@ func (m *Metrics) Serve(hostname string, port uint64) (*http.Server, error) {
 	mux := http.NewServeMux()
 	mux.Handle("/metrics", promhttp.Handler())
 	srv := new(http.Server)
-	srv.Addr = fmt.Sprintf("%s:%d", hostname, port)
+	srv.Addr = net.JoinHostPort(hostname, strconv.FormatUint(port, 10))
 	srv.Handler = mux
 	err := srv.ListenAndServe()
 	return srv, err
