@@ -98,7 +98,6 @@ func (bq *BatchQueue) DeriveL2Inputs(ctx context.Context, lastL2Timestamp uint64
 		return nil, fmt.Errorf("failed to derive some deposits: %v", errs)
 	}
 
-	epoch := rollup.Epoch(l1Origin.Number)
 	minL2Time := uint64(lastL2Timestamp) + bq.config.BlockTime
 	maxL2Time := l1Origin.Time + bq.config.MaxSequencerDrift
 	if minL2Time+bq.config.BlockTime > maxL2Time {
@@ -108,8 +107,8 @@ func (bq *BatchQueue) DeriveL2Inputs(ctx context.Context, lastL2Timestamp uint64
 	for _, b := range bq.inputs {
 		batches = append(batches, b.Batches...)
 	}
-	batches = FilterBatches(bq.log, bq.config, epoch, minL2Time, maxL2Time, batches)
-	batches = FillMissingBatches(batches, uint64(epoch), bq.config.BlockTime, minL2Time, nextL1Block.Time)
+	batches = FilterBatches(bq.log, bq.config, l1Origin.ID(), minL2Time, maxL2Time, batches)
+	batches = FillMissingBatches(batches, l1Origin.ID(), bq.config.BlockTime, minL2Time, nextL1Block.Time)
 	var attributes []*eth.PayloadAttributes
 
 	for i, batch := range batches {

@@ -164,7 +164,7 @@ func blockToBatch(block *types.Block, w io.Writer) error {
 	}
 
 	batch := &BatchData{BatchV1{
-		Epoch:        rollup.Epoch(l1Info.Number),
+		EpochNum:     rollup.Epoch(l1Info.Number),
 		Timestamp:    block.Time(),
 		Transactions: opaqueTxs,
 	},
