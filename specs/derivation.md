@@ -1,4 +1,4 @@
-# L2 block derivation specification
+# L2 Block Derivation Specification
 
 <!-- All glossary references in this file. -->
 [g-payload-attr]: glossary.md#payload-attributes
@@ -12,13 +12,19 @@
 [g-l1-attr-deposit]: glossary.md#l1-attributes-deposited-transaction
 [g-user-deposited]: glossary.md#user-deposited-transaction
 [g-deposits]: glossary.md#deposits
+[g-deposit-contract]: glossary.md#deposit-contract
 [g-l1-attr-predeploy]: glossary.md#l1-attributes-predeployed-contract
 [g-depositing-call]: glossary.md#depositing-call
 [g-depositing-transaction]: glossary.md#depositing-transaction
-[g-sequencing-window]: glossary.md#sequencing-window
 [g-sequencing]: glossary.md#sequencing
+[g-sequencing-epoch]: glossary.md#sequencing-epoch
+[g-sequencing-window]: glossary.md#sequencing-window
 [g-sequencer-batch]: glossary.md#sequencer-batch
+[g-l2-genesis]: glossary.md#l2-genesis-block
+[g-l2-chain-inception]: glossary.md#L2-chain-inception
 
+[g-batcher-transactions]: TODO
+TODO: revisit g-sequencing-window
 
 <!-- START doctoc generated TOC please keep comment here to allow auto update -->
 <!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
@@ -26,6 +32,25 @@
 TODO
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
+
+# Overview
+
+The L2 chain is derived from the L1 chain. In particular, each L1 blocks is mapped to an L2 [sequencing epoch][g-sequencing-epoch] comprising
+multiple L2 blocks. The epoch number matches the corresponding L1 block number.
+
+To derive the L2 blocks in an epoch `E`, we need the following inputs:
+
+- The L1 [sequencing window][g-sequencing-window] for epoch `E`: the L1 blocks in the range `[E, E + SWS)` where `SWS` is
+  the sequencing window size. In particular we need:
+    - The [batcher transactions][g-batcher-transactions] included in the sequencing window.
+    - The [deposits][g-deposits] made in L1 block `E` (in the form of events emitted by the [deposit contract][g-deposit-contract]).
+    - The L1 block attributes from L1 block `E` (to derive the [L1 attributes deposited transaction][g-l1-attr-deposit]).
+
+- The state of the L2 chain after the last L2 block of epoch `E - 1`, or — if epoch `E - 1` does not exist — the [genesis
+  state][g-l2-genesis] of the L2 chain.
+    - An epoch `E` does not exist if `L2CI <= E`, where `L2CI` is the [L2 chain inception][g-l2-chain-inception].
+
+> **TODO** specify sequencing window size
 
 # L2 block derivation
 

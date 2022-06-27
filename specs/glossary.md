@@ -18,9 +18,9 @@
   - [Fork Choice Rule](#fork-choice-rule)
   - [Priority Gas Auction](#priority-gas-auction)
 - [Sequencing](#sequencing)
-  - [Sequencing window](#sequencing-window)
-  - [Sequencing epoch](#sequencing-epoch)
-  - [Sequencer batch](#sequencer-batch)
+  - [Sequencer](#sequencer)
+  - [Sequencing Window](#sequencing-window)
+  - [Sequencing Epoch](#sequencing-epoch)
 - [Deposits](#deposits)
   - [Deposited Transaction](#deposited-transaction)
   - [L1 Attributes Deposited Transaction](#l1-attributes-deposited-transaction)
@@ -32,8 +32,18 @@
   - [Deposit Contract](#deposit-contract)
 - [Withdrawals](#withdrawals)
   - [Relayer](#relayer)
+  - [Finalization Period](#finalization-period)
+- [Batch Submission](#batch-submission)
+    - [Data Availability](#data-availability)
+    - [Data Availability Provider](#data-availability-provider)
+    - [Sequencer Batch](#sequencer-batch)
+    - [Channel](#channel)
+    - [Channel Frame](#channel-frame)
+    - [Batcher](#batcher)
+    - [Batcher Transaction](#batcher-transaction)
 - [Other L2 Chain Concepts](#other-l2-chain-concepts)
   - [Address Aliasing](#address-aliasing)
+  - [L2 Genesis Block](#l2-genesis)
   - [L2 Chain Inception](#l2-chain-inception)
   - [Rollup Node](#rollup-node)
   - [Rollup Driver](#rollup-driver)
@@ -42,6 +52,9 @@
   - [Payload Attributes](#payload-attributes)
   - [L1 Attributes Predeployed Contract](#l1-attributes-predeployed-contract)
   - [L2 Output Root](#l2-output-root)
+  - [L2 Output Oracle Contract](#l2-output-oracle-contract)
+  - [Validator](#validator)
+  - [Fault Proof](#fault-proof)
 - [Execution Engine Concepts](#execution-engine-concepts)
   - [Execution Engine](#execution-engine)
 
@@ -167,23 +180,31 @@ Transactions in the rollup can be included in two ways:
 Submitting transactions for inclusion in a batch saves costs by reducing overhead, and enables the sequencer to
 pre-confirm the transactions before the L1 confirms the data.
 
-## Sequencing window
+## Sequencer
+
+[sequencer]: glossary.md#sequencer
+
+A sequencer is either a [rollup node][rollup-node] ran in sequencer mode, or the operator of this rollup node.
+
+The sequencer is a priviledged actor, which receives L2 transactions from L2 users, creates L2 blocks using them, which
+it then submits to [data availability provider][avail-provider] (via a [batcher]). It also submits [output
+roots][l2-output] to L1.
+
+## Sequencing Window
 
 [sequencing-window]: glossary.md#sequencing-window
 
 A sequencing window is a range of L1 blocks, to parse inputs from during a derivation step.
 
-## Sequencing epoch
+## Sequencing Epoch
 
-A sequencing epoch is a number identifying the start of a [sequencing window](#sequencing-window),
-equal to the L1 block number of the first block in the window.
+[sequencing-epoch]: glossary.md#sequencing-epoch
 
-## Sequencer batch
+A sequencing epoch is sequential range of L2 blocks derived from a [sequencing
+window](#sequencing-window) of L1 blocks.
 
-[sequencer-batch]: glossary.md#sequencer-batch
-
-A sequencer batch is list of L2 transactions tagged with an [`epoch`](#sequencing-epoch) and L2 block `timestamp`.
-Each L2 block can have one batch of transactions, an input for the block derivation.
+Each epoch is identified by an epoch number, which is equal to the block number
+number of the first L1 block in the sequencing window.
 
 ------------------------------------------------------------------------------------------------------------------------
 
@@ -260,7 +281,7 @@ specification.
 A *depositing call* is an L1 call to the [deposit contract][deposit-contract], which will be derived to a
 [user-deposited transaction][user-deposited] by the [rollup driver].
 
-This call specifies all the data (destination, value, calldata, ...) for the deposited transaction. "submits*
+This call specifies all the data (destination, value, calldata, ...) for the deposited transaction.
 
 ## Depositing Transaction
 
@@ -299,6 +320,8 @@ cf. [Deposits Specification](deposits.md)
 
 # Withdrawals
 
+> **TODO** expand this whole section to be clearer
+
 [withdrawals]: glossary.md#withdrawals
 
 In general, a withdrawal is a transaction sent from L2 to L1 that may transfer data and/or value.
@@ -316,6 +339,100 @@ The term *withdrawal* is somewhat ambiguous as these "transactions" exist at mul
 
 An EOA on L1 which finalizes a withdrawal by submitting the data necessary to verify its inclusion on L2.
 
+## Finalization Period
+
+[finalization-period]: glossary.md#finalization-period
+
+The finalization period — sometimes also called *withdrawal delay* — is the minimum amount of time (in seconds) that
+must elapse before a [withdrawal][withrawals] can be finalized.
+
+The finalization period is necessary to afford sufficient time for validators to make a [fault proof][fault-proof].
+
+TODO link validator
+
+> **TODO** specify current value for finalization period
+
+------------------------------------------------------------------------------------------------------------------------
+
+# Batch Submission
+
+[batch-submission]: glossary.md#batch-submission
+
+## Data Availability
+
+ [data-availability]: glossary.md#data-availability
+
+Data availability is the guarantee that some data will be "available" (i.e. *retrievable*) during a reasonably long time
+window. In Optimism's case, the data in question are [sequencer batches][sequencer-batch] that [validators][validator]
+needs in order to verify the sequencer's work and validate the L2 chain.
+
+The [finalization period][finalization-period] should be taken as the lower bound on such the availability window, since
+that is when data availability is the most crucial, as it is needed to perform a [fault proof][fault-proof].
+
+"Availability" **does not** mean guaranteed long-term storage of the data.
+
+## Data Availability Provider
+
+[avail-provider]: glossary.md#data-availability-provider
+
+A data availability provider is a service that can be used to make data available. See the [Data
+Availability][data-availability] for more information on what this means.
+
+Ideally, a good data availability provider such provide strong *verifiable* guarantees of data availability
+
+Currently, the only supported data availability provider is Ethereum call data. [Ethereum data blobs][eip4844] will be
+supported when they get deployed on Ethereum.
+
+## Sequencer Batch
+
+[sequencer-batch]: glossary.md#sequencer-batch
+
+A sequencer batch is list of L2 transactions (that were submitted to a sequencer) tagged with an [epoch
+number](#sequencing-epoch) and an L2 block timestamp (which can trivially be converted to a block number, given our
+block time is constant).
+
+Sequencer batches are part of the [L2 derivation inputs][deriv-inputs]. Each batch represents the inputs needed to build
+**one** L2 block (given the existing L2 chain state) — excepted for the fist block of each epoch, which also needs
+information about deposits (cf. the section on [L2 derivation inputs][deriv-inputs]).
+
+## Channel
+
+[channel]: glossary.md#channel
+
+A channel is a sequence of [sequencer batches][sequencer-batch] (for sequential blocks) compressed together. The reason
+to group multiple batches together is simply to obtain a better compression rate.
+
+A channel can be split in [frames][channel-frame] in order to be transmitted via [batcher
+transactions][batcher-transaction]. The reason to split a channel into frames is that a channel might too large to
+include in a single batcher transaction.
+
+## Channel Frame
+
+[channel-frame]: glossary.md#channel-frame
+
+A channel frame is a chunk of data belonging to a [channel]. [Batcher transactions][batcher-transaction] carry one or
+multiple frames. The reason to split a channel into frames is that a channel might too large to include in a single
+batcher transaction.
+
+## Batcher
+
+[batcher]: glossary.md#batcher
+
+A batcher is a software component (independant program) that is responsible to make channels available on a data
+availability provider. The batcher communicates with the rollup node in order to retrieve the channels. The channels are
+then made available using [batcher transactions][batcher-transaction].
+
+> **TODO** In the future, we might want to make the batcher responsible for constructing the channels, letting it only
+> query the rollup node for L2 block inputs.
+
+## Batcher Transaction
+
+[batcher-transaction]: glossary.md#batcher-transaction
+
+A batcher transaction is a transaction submitted by a [batcher] to a data availability provider, in order to make
+channels available. These transactions carry one or more full frames, which may belong to different channels. A
+channel's frame may be split between multiple batcher transactions.
+
 ------------------------------------------------------------------------------------------------------------------------
 
 # Other L2 Chain Concepts
@@ -329,11 +446,37 @@ aliased with a modified representation of the address of a contract.
 
 - cf. [Deposit Specification](deposits.md#address-aliasing)
 
+## L2 Genesis Block
+
+[l2-genesis]: glossary.md#l2-genesis-block
+
+The L2 genesis block is the first block of the L2 chain in its current version.
+
+The state of the L2 genesis block comprises:
+
+- State inherited from the previous version of the L2 chain.
+  - This state was possibly modified by "state surgeries". For instance, the migration to Bedrock entailed changes on
+    how native ETH balances were stored in the storage trie.
+- [Predeployed contracts][predeploy]
+
+When updating the rollup protocol to a new version, we may perform a *squash fork*, a process that entails the creation
+of a new L2 genesis block. This new L2 genesis block will have block number `X + 1`, where `X` is the block number of
+the final L2 block before the update.
+
+A squash fork is not to be confused with a *re-genesis*, a similar process that we employed in the past, which also
+resets L2 block numbers, such that the new L2 genesis block has number 0. We will not employ re-genesis in the future.
+
+Squash forks are superior to re-geneses because they avoid duplicating L2 block numbers, which breaks a lot of external
+tools.
+
 ## L2 Chain Inception
 
-[L2 chain inception]: glossary.md#L2-chain-inception
+[l2-chain-inception]: glossary.md#L2-chain-inception
 
-The L1 block number for which the first block of the L2 chain was generated.
+The L1 block number at which the output roots for the [genesis block][l2-genesis] were proposed on the [output
+oracle][output-oracle] contract.
+
+In the current implementation, this is the L1 block number at which the output oracle contract was deployed or upgraded.
 
 ## Rollup Node
 
@@ -408,6 +551,39 @@ A 32 byte value which serves as a commitment to the current state of the L2 chai
 
 cf. [Proposing L2 output commitments](proposals.md#l2-output-root-proposals-specification)
 
+## L2 Output Oracle Contract
+
+[output-oracle]: glossary.md#l2-output-oracle-contract
+
+An L1 contract to which [L2 output roots][l2-output] are posted by the [sequencer].
+
+> **TODO** expand
+
+## Validator
+
+[validator]: glossary.md#validator
+
+A validator is an entity (individual or organization) that runs a [rollup node][rollup-node] in validator mode.
+
+Doing so grants a lot of benefits similar to running an Ethereum node, such as the ability to simulate L2 transactions
+locally, without rate limiting.
+
+It also lets the validator verify the work of the [sequencer], by re-deriving [output roots][l2-output] and comparing
+them against those submitted by the sequencer. In case of a mismatch, the validator can perform a [fault
+proof][fault-proof].
+
+## Fault Proof
+
+[fault-proof]: glossary.md#fault-proof
+
+An on-chain *interactive* proof, performed by [validators][validator], that demonstrates that a [sequencer] provided
+erroneous [output roots][l2-output].
+
+Fault proofs are not specified yet. For now, the best place to find information about fault proofs is the [Cannon
+repository][cannon].
+
+> **TODO** expand
+
 ------------------------------------------------------------------------------------------------------------------------
 
 # Execution Engine Concepts
@@ -442,3 +618,5 @@ In these specifications, "execution engine" always refer to the L2 execution eng
 [merge]: https://ethereum.org/en/eth2/merge/
 [mempool]: https://www.quicknode.com/guides/defi/how-to-access-ethereum-mempool
 [L1 consensus layer]: https://github.com/ethereum/consensus-specs/#readme
+[cannon]: https://github.com/ethereum-optimism/cannon
+[eip4844]: https://www.eip4844.com/
