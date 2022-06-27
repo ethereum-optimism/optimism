@@ -11,8 +11,6 @@ import (
 
 	"github.com/ethereum-optimism/optimism/indexer/services"
 
-	l2rpc "github.com/ethereum-optimism/optimism/l2geth/rpc"
-
 	"github.com/ethereum-optimism/optimism/indexer/metrics"
 	"github.com/ethereum-optimism/optimism/indexer/server"
 	"github.com/rs/cors"
@@ -20,7 +18,6 @@ import (
 	database "github.com/ethereum-optimism/optimism/indexer/db"
 	"github.com/ethereum-optimism/optimism/indexer/services/l1"
 	"github.com/ethereum-optimism/optimism/indexer/services/l2"
-	l2ethclient "github.com/ethereum-optimism/optimism/l2geth/ethclient"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rpc"
@@ -81,7 +78,7 @@ type Indexer struct {
 	ctx      context.Context
 	cfg      Config
 	l1Client *ethclient.Client
-	l2Client *l2ethclient.Client
+	l2Client *ethclient.Client
 
 	l1IndexingService *l1.Service
 	l2IndexingService *l2.Service
@@ -129,12 +126,12 @@ func NewIndexer(cfg Config, gitVersion string) (*Indexer, error) {
 
 	// Connect to L1 and L2 providers. Perform these last since they are the
 	// most expensive.
-	l1Client, rawl1Client, err := dialL1EthClientWithTimeout(ctx, cfg.L1EthRpc)
+	l1Client, rawl1Client, err := dialEthClientWithTimeout(ctx, cfg.L1EthRpc)
 	if err != nil {
 		return nil, err
 	}
 
-	l2Client, l2RPC, err := dialL2EthClientWithTimeout(ctx, cfg.L2EthRpc)
+	l2Client, l2RPC, err := dialEthClientWithTimeout(ctx, cfg.L2EthRpc)
 	if err != nil {
 		return nil, err
 	}
@@ -270,7 +267,7 @@ func (b *Indexer) Stop() {
 // dialL1EthClientWithTimeout attempts to dial the L1 provider using the
 // provided URL. If the dial doesn't complete within defaultDialTimeout seconds,
 // this method will return an error.
-func dialL1EthClientWithTimeout(ctx context.Context, url string) (
+func dialEthClientWithTimeout(ctx context.Context, url string) (
 	*ethclient.Client, *rpc.Client, error) {
 
 	ctxt, cancel := context.WithTimeout(ctx, defaultDialTimeout)
@@ -281,23 +278,6 @@ func dialL1EthClientWithTimeout(ctx context.Context, url string) (
 		return nil, nil, err
 	}
 	return ethclient.NewClient(c), c, nil
-}
-
-// dialL2EthClientWithTimeout attempts to dial the L2 provider using the
-// provided URL. If the dial doesn't complete within defaultDialTimeout seconds,
-// this method will return an error.
-func dialL2EthClientWithTimeout(ctx context.Context, url string) (
-	*l2ethclient.Client, *l2rpc.Client, error) {
-
-	ctxt, cancel := context.WithTimeout(ctx, defaultDialTimeout)
-	defer cancel()
-
-	rpc, err := l2rpc.DialContext(ctxt, url)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	return l2ethclient.NewClient(rpc), rpc, nil
 }
 
 // traceRateToFloat64 converts a time.Duration into a valid float64 for the
