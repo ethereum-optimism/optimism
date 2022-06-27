@@ -2,7 +2,7 @@ import { task } from 'hardhat/config'
 import { LedgerSigner } from '@ethersproject/hardware-wallets'
 import { PopulatedTransaction } from 'ethers'
 
-import { DripConfig, getDrippieConfig } from '../src'
+import { isSameConfig, getDrippieConfig } from '../src'
 
 task('install-drippie-config').setAction(async (args, hre) => {
   console.log(`connecting to ledger...`)
@@ -34,22 +34,6 @@ task('install-drippie-config').setAction(async (args, hre) => {
     console.log(`waiting for tx to be confirmed...`)
     await ret.wait()
     console.log(`tx confirmed`)
-  }
-
-  const isSameConfig = (a: DripConfig, b: DripConfig): boolean => {
-    return (
-      a.dripcheck.toLowerCase() === b.dripcheck.toLowerCase() &&
-      a.checkparams === b.checkparams &&
-      hre.ethers.BigNumber.from(a.interval).eq(b.interval) &&
-      a.actions.length === b.actions.length &&
-      a.actions.every((ax, i) => {
-        return (
-          ax.target === b.actions[i].target &&
-          ax.data === b.actions[i].data &&
-          hre.ethers.BigNumber.from(ax.value).eq(b.actions[i].value)
-        )
-      })
-    )
   }
 
   console.log(`installing Drippie config file...`)
