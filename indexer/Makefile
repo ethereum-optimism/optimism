@@ -26,7 +26,7 @@ test:
 lint:
 	golangci-lint run ./...
 
-bindings: bindings-l1bridge bindings-l2bridge bindings-l1erc20 bindings-l2erc20 bindings-scc bindings-address-manager
+bindings: bindings-l1bridge bindings-l2bridge bindings-l1erc20 bindings-l2erc20 bindings-scc
 
 bindings-l1bridge:
 	$(eval temp := $(shell mktemp))
@@ -108,20 +108,6 @@ bindings-scc:
 
 	rm $(temp)
 
-bindings-address-manager:
-	$(eval temp := $(shell mktemp))
-
-	cat $(ADDRESS_MANAGER_ABI_ARTIFACT) \
-		| jq -r .bytecode > $(temp)
-
-	cat $(ADDRESS_MANAGER_ABI_ARTIFACT) \
-		| jq .abi \
-		| abigen --pkg address_manager \
-		--abi - \
-		--out ./bindings/address_manager/address_manager.go \
-		--type AddressManager \
-		--bin $(temp)
-
 .PHONY: \
 	indexer \
 	bindings \
@@ -130,7 +116,6 @@ bindings-address-manager:
 	bindings-l1erc20 \
 	bindings-l2erc20 \
 	bindings-scc \
-	bindings-address-manager
 	clean \
 	test \
 	lint
