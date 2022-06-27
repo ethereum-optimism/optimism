@@ -54,7 +54,11 @@ abstract contract CrossDomainMessenger is
 
     uint16 public constant MESSAGE_VERSION = 1;
 
-    uint32 public constant MIN_GAS_DYNAMIC_OVERHEAD = 1;
+    uint32 public constant MIN_GAS_DYNAMIC_OVERHEAD_NUMERATOR = 1016;
+
+    uint32 public constant MIN_GAS_DYNAMIC_OVERHEAD_DENOMINATOR = 1000;
+
+    uint32 public constant MIN_GAS_CALLDATA_OVERHEAD = 16;
 
     uint32 public constant MIN_GAS_CONSTANT_OVERHEAD = 100_000;
 
@@ -145,11 +149,15 @@ abstract contract CrossDomainMessenger is
      * @param _message Message to compute base gas for.
      * @return Base gas required for message.
      */
-    function baseGas(bytes memory _message) public pure returns (uint32) {
+    function baseGas(bytes memory _message, uint32 _minGasLimit) public pure returns (uint32) {
         // TODO: Values here are meant to be good enough to get a devnet running. We need to do
         // some simple experimentation with the smallest and largest possible message sizes to find
         // the correct constant and dynamic overhead values.
-        return (uint32(_message.length) * MIN_GAS_DYNAMIC_OVERHEAD) + MIN_GAS_CONSTANT_OVERHEAD;
+        return
+            ((_minGasLimit * MIN_GAS_DYNAMIC_OVERHEAD_NUMERATOR) /
+                MIN_GAS_DYNAMIC_OVERHEAD_DENOMINATOR) +
+            (uint32(_message.length) * MIN_GAS_CALLDATA_OVERHEAD) +
+            MIN_GAS_CONSTANT_OVERHEAD;
     }
 
     /**
@@ -168,7 +176,7 @@ abstract contract CrossDomainMessenger is
         // the minimum gas limit specified by the user.
         _sendMessage(
             otherMessenger,
-            _minGasLimit + baseGas(_message),
+            baseGas(_message, _minGasLimit),
             msg.value,
             abi.encodeWithSelector(
                 this.relayMessage.selector,

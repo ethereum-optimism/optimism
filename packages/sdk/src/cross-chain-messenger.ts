@@ -56,7 +56,7 @@ import {
   encodeCrossChainMessage,
   DEPOSIT_CONFIRMATION_BLOCKS,
   CHAIN_BLOCK_TIMES,
-  UniversalMessengerIface,
+  BEDROCK_INTERFACES,
   hashWithdrawal,
 } from './utils'
 
@@ -203,7 +203,7 @@ export class CrossChainMessenger implements ICrossChainMessenger {
       })
       .filter((log) => {
         // Only look at SentMessage logs specifically
-        const parsed = UniversalMessengerIface.parseLog(log)
+        const parsed = BEDROCK_INTERFACES.UniversalMessenger.parseLog(log)
         return parsed.name === 'SentMessage'
       })
       .map((log) => {
@@ -213,7 +213,7 @@ export class CrossChainMessenger implements ICrossChainMessenger {
         if (receipt.logs.length > log.logIndex + 1) {
           const next = receipt.logs[log.logIndex + 1]
           if (next.address === messenger.address) {
-            const nextParsed = UniversalMessengerIface.parseLog(next)
+            const nextParsed = BEDROCK_INTERFACES.UniversalMessenger.parseLog(next)
             if (nextParsed.name === 'SentMessageExtraData') {
               value = nextParsed.args.value
             }
@@ -221,7 +221,7 @@ export class CrossChainMessenger implements ICrossChainMessenger {
         }
 
         // Convert each SentMessage log into a message object
-        const parsed = UniversalMessengerIface.parseLog(log)
+        const parsed = BEDROCK_INTERFACES.UniversalMessenger.parseLog(log)
         return {
           direction: opts.direction,
           target: parsed.args.target,

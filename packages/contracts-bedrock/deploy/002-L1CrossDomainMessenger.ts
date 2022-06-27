@@ -27,7 +27,7 @@ const deployFn: DeployFunction = async (hre) => {
   const proxy = await hre.deployments.get('L1CrossDomainMessengerProxy')
   const Proxy = await hre.ethers.getContractAt('Proxy', proxy.address)
   const messenger = await hre.deployments.get('L1CrossDomainMessenger')
-  const portal = await hre.deployments.get('OptimismPortal')
+  const portal = await hre.deployments.get('OptimismPortalProxy')
 
   const L1CrossDomainMessenger = await hre.ethers.getContractAt(
     'L1CrossDomainMessenger',

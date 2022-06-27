@@ -652,6 +652,34 @@
     minimatch "^3.1.2"
     strip-json-comments "^3.1.1"
 
+"@eth-optimism/contracts-bedrock@0.1.3":
+  version "0.1.3"
+  resolved "https://registry.yarnpkg.com/@eth-optimism/contracts-bedrock/-/contracts-bedrock-0.1.3.tgz#3bc33b33c3a3c98274ead4ffc2776dcef2c73fdc"
+  integrity sha512-T6c5nyrJVI20BWq1vjXb+8kQkNIvdWyQX153jil+zmuJhObj2FC0Eho1bFlzhjj+ce7ECmKNxk8UK9/GT/JdWA==
+  dependencies:
+    "@eth-optimism/core-utils" "^0.8.6"
+    "@openzeppelin/contracts" "^4.5.0"
+    "@openzeppelin/contracts-upgradeable" "^4.5.2"
+    "@rari-capital/solmate" "https://github.com/rari-capital/solmate.git#8f9b23f8838670afda0fd8983f2c41e8037ae6bc"
+    ds-test "https://github.com/dapphub/ds-test.git#9310e879db8ba3ea6d5c6489a579118fd264a3f5"
+    ethers "^5.6.8"
+    forge-std "https://github.com/foundry-rs/forge-std.git#564510058ab3db01577b772c275e081e678373f2"
+    hardhat "^2.9.6"
+    merkle-patricia-tree "^4.2.4"
+    rlp "^2.2.7"
+
+"@eth-optimism/core-utils@^0.8.6":
+  version "0.8.7"
+  resolved "https://registry.yarnpkg.com/@eth-optimism/core-utils/-/core-utils-0.8.7.tgz#0ac3a308e3b84885b47065a73858317b07bd528e"
+  integrity sha512-LY1MjD8Os249sfp8u0XOQS5UeGzoh16OoZUXRZOpdDTEc70HVwtfu5Kqk+a+MJ+pfWAtDiH1GLn+YaHbolxrkQ==
+  dependencies:
+    "@ethersproject/abstract-provider" "^5.6.1"
+    "@ethersproject/providers" "^5.6.8"
+    "@ethersproject/transactions" "^5.6.2"
+    bufio "^1.0.7"
+    chai "^4.3.4"
+    ethers "^5.6.8"
+
 "@ethereum-waffle/chai@^3.4.0":
   version "3.4.0"
   resolved "https://registry.yarnpkg.com/@ethereum-waffle/chai/-/chai-3.4.0.tgz#2477877410a96bf370edd64df905b04fb9aba9d5"
@@ -2850,6 +2878,11 @@
   version "6.3.0"
   resolved "https://registry.yarnpkg.com/@rari-capital/solmate/-/solmate-6.3.0.tgz#01050e276e71dc4cd4169cf8002b447eb07d90c3"
   integrity sha512-SWPbnfZUCe4ahHNqcb0qsPrzzAzMZMoA3x6SxZn04g0dLm0xupVeHonM3LK13uhPGIULF8HzXg8CgXE/fEnMlQ==
+
+"@rari-capital/solmate@git+https://github.com/rari-capital/solmate.git#8f9b23f8838670afda0fd8983f2c41e8037ae6bc":
+  version "7.0.0-alpha.3"
+  uid "8f9b23f8838670afda0fd8983f2c41e8037ae6bc"
+  resolved "git+https://github.com/rari-capital/solmate.git#8f9b23f8838670afda0fd8983f2c41e8037ae6bc"
 
 "@rari-capital/solmate@https://github.com/rari-capital/solmate.git#8f9b23f8838670afda0fd8983f2c41e8037ae6bc":
   version "7.0.0-alpha.3"
@@ -7103,6 +7136,11 @@ drbg.js@^1.0.1:
     create-hash "^1.1.2"
     create-hmac "^1.1.4"
 
+"ds-test@git+https://github.com/dapphub/ds-test.git#9310e879db8ba3ea6d5c6489a579118fd264a3f5":
+  version "0.0.0"
+  uid "9310e879db8ba3ea6d5c6489a579118fd264a3f5"
+  resolved "git+https://github.com/dapphub/ds-test.git#9310e879db8ba3ea6d5c6489a579118fd264a3f5"
+
 "ds-test@https://github.com/dapphub/ds-test.git#9310e879db8ba3ea6d5c6489a579118fd264a3f5":
   version "0.0.0"
   resolved "https://github.com/dapphub/ds-test.git#9310e879db8ba3ea6d5c6489a579118fd264a3f5"
@@ -8956,6 +8994,11 @@ forever-agent@~0.6.1:
   version "0.6.1"
   resolved "https://registry.yarnpkg.com/forever-agent/-/forever-agent-0.6.1.tgz#fbc71f0c41adeb37f96c577ad1ed42d8fdacca91"
   integrity sha1-+8cfDEGt6zf5bFd60e1C2P2sypE=
+
+"forge-std@git+https://github.com/foundry-rs/forge-std.git#564510058ab3db01577b772c275e081e678373f2":
+  version "0.0.0"
+  uid "564510058ab3db01577b772c275e081e678373f2"
+  resolved "git+https://github.com/foundry-rs/forge-std.git#564510058ab3db01577b772c275e081e678373f2"
 
 "forge-std@https://github.com/foundry-rs/forge-std.git#564510058ab3db01577b772c275e081e678373f2":
   version "0.0.0"
