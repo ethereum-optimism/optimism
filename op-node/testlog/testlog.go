@@ -18,6 +18,9 @@
 package testlog
 
 import (
+	"runtime"
+	"strconv"
+	"strings"
 	"sync"
 	"testing"
 
@@ -66,7 +69,7 @@ func Logger(t *testing.T, level log.Lvl) log.Logger {
 		t:  t,
 		l:  log.New(),
 		mu: new(sync.Mutex),
-		h:  &bufHandler{fmt: log.TerminalFormat(false)},
+		h:  &bufHandler{fmt: log.TerminalFormat(true)},
 	}
 	l.l.SetHandler(log.LvlFilterHandler(level, l.h))
 	return l
@@ -135,8 +138,42 @@ func (l *logger) SetHandler(h log.Handler) {
 // flush writes all buffered messages and clears the buffer.
 func (l *logger) flush() {
 	l.t.Helper()
+	// 2 frame skip for flush() + public logger fn
+	decorationLen := estimateInfoLen(2)
+	padding := 20
+	if decorationLen <= 25 {
+		padding = 25 - decorationLen
+	}
 	for _, r := range l.h.buf {
-		l.t.Logf("%s", l.h.fmt.Format(r))
+		l.t.Logf("%*s%s", padding, "", l.h.fmt.Format(r))
 	}
 	l.h.buf = nil
+}
+
+// The Go testing lib uses the runtime package to get info about the calling site, and then decorates the line.
+// We can't disable this decoration, but we can adjust the contents to align by padding after the info.
+// To pad the right amount, we estimate how long the info is.
+func estimateInfoLen(frameSkip int) int {
+	var pc [50]uintptr
+	// Skip two extra frames to account for this function
+	// and runtime.Callers itself.
+	n := runtime.Callers(frameSkip+2, pc[:])
+	if n == 0 {
+		return 8
+	}
+	frames := runtime.CallersFrames(pc[:n])
+	frame, _ := frames.Next()
+	file := frame.File
+	line := frame.Line
+	if file != "" {
+		// Truncate file name at last file name separator.
+		if index := strings.LastIndex(file, "/"); index >= 0 {
+			file = file[index+1:]
+		} else if index = strings.LastIndex(file, "\\"); index >= 0 {
+			file = file[index+1:]
+		}
+		return 4 + len(file) + 1 + len(strconv.FormatInt(int64(line), 10))
+	} else {
+		return 8
+	}
 }
