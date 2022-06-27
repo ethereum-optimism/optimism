@@ -142,6 +142,36 @@ contract OptimismPortal is ResourceMetering {
     }
 
     /**
+     * @notice Determine if an L2 Output is finalized.
+     *
+     * @param _l2BlockNumber The number of the L2 block.
+     */
+
+    function isOutputFinalized(uint256 _l2BlockNumber) external view returns (bool) {
+        L2OutputOracle.OutputProposal memory proposal = L2_ORACLE.getL2Output(_l2BlockNumber);
+
+        if (proposal.outputRoot == bytes32(uint256(0))) {
+            uint256 interval = L2_ORACLE.SUBMISSION_INTERVAL();
+            uint256 startingBlockNumber = L2_ORACLE.STARTING_BLOCK_NUMBER();
+
+            // Prevent underflow
+            if (startingBlockNumber > _l2BlockNumber) {
+                return false;
+            }
+
+            // Find the distance between the _l2BlockNumber, and the checkpoint block before it.
+            uint256 offset = (_l2BlockNumber - startingBlockNumber) % interval;
+            // Look up the checkpoint block after it.
+            proposal = L2_ORACLE.getL2Output(_l2BlockNumber + (interval - offset));
+            // False if that block is not yet appended.
+            if (proposal.outputRoot == bytes32(uint256(0))) {
+                return false;
+            }
+        }
+        return block.timestamp > proposal.timestamp + FINALIZATION_PERIOD_SECONDS;
+    }
+
+    /**
      * @notice Finalizes a withdrawal transaction.
      *
      * @param _nonce           Nonce for the provided message.
