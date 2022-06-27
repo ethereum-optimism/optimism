@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"math/big"
+	"net"
 	"net/http"
 	"os"
 	"strconv"
@@ -231,7 +232,7 @@ func (b *Indexer) Serve() error {
 	middleware := server.LoggingMiddleware(b.metrics, log.New("service", "server"))
 
 	port := strconv.FormatUint(b.cfg.RESTPort, 10)
-	addr := fmt.Sprintf("%s:%s", b.cfg.RESTHostname, port)
+	addr := net.JoinHostPort(b.cfg.RESTHostname, port)
 
 	log.Info("indexer REST server listening on", "addr", addr)
 	return http.ListenAndServe(addr, middleware(c.Handler(b.router)))

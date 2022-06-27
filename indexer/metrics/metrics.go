@@ -1,7 +1,7 @@
 package metrics
 
 import (
-	"fmt"
+	"net"
 	"net/http"
 	"strconv"
 	"time"
@@ -217,7 +217,7 @@ func (m *Metrics) Serve(hostname string, port uint64) (*http.Server, error) {
 	mux := http.NewServeMux()
 	mux.Handle("/metrics", promhttp.Handler())
 	srv := new(http.Server)
-	srv.Addr = fmt.Sprintf("%s:%d", hostname, port)
+	srv.Addr = net.JoinHostPort(hostname, strconv.FormatUint(port, 10))
 	srv.Handler = mux
 	err := srv.ListenAndServe()
 	return srv, err
