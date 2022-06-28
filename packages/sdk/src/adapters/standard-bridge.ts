@@ -13,6 +13,7 @@ import {
   BlockTag,
 } from '@ethersproject/abstract-provider'
 import { getContractInterface, predeploys } from '@eth-optimism/contracts'
+import { getContractInterface as getContractInterfaceBedrock } from '@eth-optimism/contracts-bedrock'
 import { hexStringEquals } from '@eth-optimism/core-utils'
 
 import {
@@ -49,12 +50,12 @@ export class StandardBridgeAdapter implements IBridgeAdapter {
     this.messenger = opts.messenger
     this.l1Bridge = new Contract(
       toAddress(opts.l1Bridge),
-      getContractInterface('L1StandardBridge'),
+      getContractInterfaceBedrock('L1StandardBridge'),
       this.messenger.l1Provider
     )
     this.l2Bridge = new Contract(
       toAddress(opts.l2Bridge),
-      getContractInterface('IL2ERC20Bridge'),
+      getContractInterfaceBedrock('L2StandardBridge'),
       this.messenger.l2Provider
     )
   }

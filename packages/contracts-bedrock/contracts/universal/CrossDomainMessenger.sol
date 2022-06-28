@@ -60,7 +60,7 @@ abstract contract CrossDomainMessenger is
 
     uint32 public constant MIN_GAS_CALLDATA_OVERHEAD = 16;
 
-    uint32 public constant MIN_GAS_CONSTANT_OVERHEAD = 100_000;
+    uint32 public constant MIN_GAS_CONSTANT_OVERHEAD = 200_000;
 
     /// @notice Minimum amount of gas required prior to relaying a message.
     uint256 internal constant RELAY_GAS_REQUIRED = 45_000;

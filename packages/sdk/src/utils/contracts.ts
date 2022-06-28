@@ -1,10 +1,6 @@
 import { getContractInterface, predeploys } from '@eth-optimism/contracts'
 import { ethers, Contract } from 'ethers'
-import * as CrossDomainMessengerArtifact from '@eth-optimism/contracts-bedrock/artifacts/contracts/universal/CrossDomainMessenger.sol/CrossDomainMessenger.json'
-import * as OptimismPortalArtifact from '@eth-optimism/contracts-bedrock/artifacts/contracts/L1/OptimismPortal.sol/OptimismPortal.json'
-import * as OutputOracleArtifact from '@eth-optimism/contracts-bedrock/artifacts/contracts/L1/L2OutputOracle.sol/L2OutputOracle.json'
-import * as L1CrossDomainMessengerArtifact from '@eth-optimism/contracts-bedrock/artifacts/contracts/L1/L1CrossDomainMessenger.sol/L1CrossDomainMessenger.json'
-import * as L1StandardBridgeArtifact from '@eth-optimism/contracts-bedrock/artifacts/contracts/L1/L1StandardBridge.sol/L1StandardBridge.json'
+import { getContractInterface as getContractInterfaceBedrock } from '@eth-optimism/contracts-bedrock'
 
 import { toAddress } from './coercion'
 import { DeepPartial } from './type-utils'
@@ -52,17 +48,6 @@ const NAME_REMAPPING = {
 }
 
 /**
- * Interface for Bedrock contracts.
- */
-export const BEDROCK_INTERFACES = {
-  UniversalMessenger: new ethers.utils.Interface(CrossDomainMessengerArtifact.abi),
-  OptimismPortal: new ethers.utils.Interface(OptimismPortalArtifact.abi),
-  OutputOracle: new ethers.utils.Interface(OutputOracleArtifact.abi),
-  L1CrossDomainMessenger: new ethers.utils.Interface(L1CrossDomainMessengerArtifact.abi),
-  L1StandardBridge: new ethers.utils.Interface(L1StandardBridgeArtifact.abi),
-}
-
-/**
  * Mapping of L1 chain IDs to the appropriate contract addresses for the OE deployments to the
  * given network. Simplifies the process of getting the correct contract addresses for a given
  * contract name.
@@ -82,7 +67,7 @@ export const CONTRACT_ADDRESSES: {
         '0x5E4e65926BA27467555EB562121fac00D24E9dD2' as const,
       BondManager: '0xcd626E1328b41fCF24737F137BcD4CE0c32bc8d1' as const,
       OptimismPortal: '0x0000000000000000000000000000000000000000' as const,
-      OutputOracle: '0x0000000000000000000000000000000000000000' as const,
+      L2OutputOracle: '0x0000000000000000000000000000000000000000' as const,
     },
     l2: DEFAULT_L2_CONTRACT_ADDRESSES,
   },
@@ -98,7 +83,7 @@ export const CONTRACT_ADDRESSES: {
         '0xf7B88A133202d41Fe5E2Ab22e6309a1A4D50AF74' as const,
       BondManager: '0xc5a603d273E28185c18Ba4d26A0024B2d2F42740' as const,
       OptimismPortal: '0x0000000000000000000000000000000000000000' as const,
-      OutputOracle: '0x0000000000000000000000000000000000000000' as const,
+      L2OutputOracle: '0x0000000000000000000000000000000000000000' as const,
     },
     l2: DEFAULT_L2_CONTRACT_ADDRESSES,
   },
@@ -114,7 +99,7 @@ export const CONTRACT_ADDRESSES: {
         '0x2ebA8c4EfDB39A8Cd8f9eD65c50ec079f7CEBD81' as const,
       BondManager: '0xE5AE60bD6F8DEe4D0c2BC9268e23B92F1cacC58F' as const,
       OptimismPortal: '0x0000000000000000000000000000000000000000' as const,
-      OutputOracle: '0x0000000000000000000000000000000000000000' as const,
+      L2OutputOracle: '0x0000000000000000000000000000000000000000' as const,
     },
     l2: DEFAULT_L2_CONTRACT_ADDRESSES,
   },
@@ -130,7 +115,7 @@ export const CONTRACT_ADDRESSES: {
         '0xCf7Ed3AccA5a467e9e704C703E8D87F634fB0Fc9' as const,
       BondManager: '0x5FC8d32690cc91D4c39d9d3abcBD16989F875707' as const,
       OptimismPortal: '0x0000000000000000000000000000000000000000' as const,
-      OutputOracle: '0x0000000000000000000000000000000000000000' as const,
+      L2OutputOracle: '0x0000000000000000000000000000000000000000' as const,
     },
     l2: DEFAULT_L2_CONTRACT_ADDRESSES,
   },
@@ -146,7 +131,7 @@ export const CONTRACT_ADDRESSES: {
         '0xCf7Ed3AccA5a467e9e704C703E8D87F634fB0Fc9' as const,
       BondManager: '0x5FC8d32690cc91D4c39d9d3abcBD16989F875707' as const,
       OptimismPortal: '0x0000000000000000000000000000000000000000' as const,
-      OutputOracle: '0x0000000000000000000000000000000000000000' as const,
+      L2OutputOracle: '0x0000000000000000000000000000000000000000' as const,
     },
     l2: DEFAULT_L2_CONTRACT_ADDRESSES,
   },
@@ -162,7 +147,7 @@ export const CONTRACT_ADDRESSES: {
         '0xCf7Ed3AccA5a467e9e704C703E8D87F634fB0Fc9' as const,
       BondManager: '0x5FC8d32690cc91D4c39d9d3abcBD16989F875707' as const,
       OptimismPortal: '0xCf7Ed3AccA5a467e9e704C703E8D87F634fB0Fc9' as const,
-      OutputOracle: '0x5FbDB2315678afecb367f032d93F642f64180aa3' as const,
+      L2OutputOracle: '0x5FbDB2315678afecb367f032d93F642f64180aa3' as const,
     },
     l2: DEFAULT_L2_CONTRACT_ADDRESSES,
   },
@@ -233,11 +218,21 @@ export const getOEContract = (
     )
   }
 
-  const address = opts.address || addresses.l1[contractName] || addresses.l2[contractName]
+  // Bedrock interfaces are backwards compatible. We can prefer Bedrock interfaces over legacy
+  // interfaces if they exist.
   const name = NAME_REMAPPING[contractName] || contractName
+  let iface: ethers.utils.Interface
+  try {
+    iface = getContractInterfaceBedrock(name)
+  } catch (err) {
+    iface = getContractInterface(name)
+  }
+
   return new Contract(
-    toAddress(address),
-    BEDROCK_INTERFACES[name] || getContractInterface(name),
+    toAddress(
+      opts.address || addresses.l1[contractName] || addresses.l2[contractName]
+    ),
+    iface,
     opts.signerOrProvider
   )
 }

@@ -82,7 +82,7 @@ task('genesis-l1', 'create a genesis config')
         berlinBlock: 0,
         londonBlock: 0,
         clique: {
-          period: 15,
+          period: 5,
           epoch: 30000,
         },
       },

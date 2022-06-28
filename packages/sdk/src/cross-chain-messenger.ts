@@ -14,7 +14,7 @@ import {
   toHexString,
   toRpcHexString,
 } from '@eth-optimism/core-utils'
-import { predeploys } from '@eth-optimism/contracts'
+import { predeploys, getContractInterface } from '@eth-optimism/contracts'
 import * as rlp from 'rlp'
 
 import {
@@ -42,6 +42,7 @@ import {
   IBridgeAdapter,
   BedrockCrossChainMessageProof,
   BedrockOutputData,
+  L2OutputOracleParameters,
 } from './interfaces'
 import {
   toSignerOrProvider,
@@ -56,7 +57,6 @@ import {
   encodeCrossChainMessage,
   DEPOSIT_CONFIRMATION_BLOCKS,
   CHAIN_BLOCK_TIMES,
-  BEDROCK_INTERFACES,
   hashWithdrawal,
 } from './utils'
 
@@ -70,6 +70,7 @@ export class CrossChainMessenger implements ICrossChainMessenger {
   public depositConfirmationBlocks: number
   public l1BlockTimeSeconds: number
   public bedrock: boolean
+  private _l2OutputOracleParameters: L2OutputOracleParameters
 
   /**
    * Creates a new CrossChainProvider instance.
@@ -155,6 +156,26 @@ export class CrossChainMessenger implements ICrossChainMessenger {
     }
   }
 
+  public async getL2OutputOracleParameters(): Promise<L2OutputOracleParameters> {
+    if (this._l2OutputOracleParameters) {
+      return this._l2OutputOracleParameters
+    }
+
+    this._l2OutputOracleParameters = {
+      submissionInterval: (
+        await this.contracts.l1.L2OutputOracle.SUBMISSION_INTERVAL()
+      ).toNumber(),
+      startingBlockNumber: (
+        await this.contracts.l1.L2OutputOracle.STARTING_BLOCK_NUMBER()
+      ).toNumber(),
+      l2BlockTime: (
+        await this.contracts.l1.L2OutputOracle.L2_BLOCK_TIME()
+      ).toNumber(),
+    }
+
+    return this._l2OutputOracleParameters
+  }
+
   public async getMessagesByTransaction(
     transaction: TransactionLike,
     opts: {
@@ -203,7 +224,7 @@ export class CrossChainMessenger implements ICrossChainMessenger {
       })
       .filter((log) => {
         // Only look at SentMessage logs specifically
-        const parsed = BEDROCK_INTERFACES.UniversalMessenger.parseLog(log)
+        const parsed = messenger.interface.parseLog(log)
         return parsed.name === 'SentMessage'
       })
       .map((log) => {
@@ -213,7 +234,7 @@ export class CrossChainMessenger implements ICrossChainMessenger {
         if (receipt.logs.length > log.logIndex + 1) {
           const next = receipt.logs[log.logIndex + 1]
           if (next.address === messenger.address) {
-            const nextParsed = BEDROCK_INTERFACES.UniversalMessenger.parseLog(next)
+            const nextParsed = messenger.interface.parseLog(next)
             if (nextParsed.name === 'SentMessageExtraData') {
               value = nextParsed.args.value
             }
@@ -221,7 +242,7 @@ export class CrossChainMessenger implements ICrossChainMessenger {
         }
 
         // Convert each SentMessage log into a message object
-        const parsed = BEDROCK_INTERFACES.UniversalMessenger.parseLog(log)
+        const parsed = messenger.interface.parseLog(log)
         return {
           direction: opts.direction,
           target: parsed.args.target,
@@ -687,14 +708,18 @@ export class CrossChainMessenger implements ICrossChainMessenger {
       throw new Error(`cannot get a state root for an L1 to L2 message`)
     }
 
-    const block = await this.l2Provider.getBlock(resolved.blockNumber)
+    const l2OutputOracleParameters = await this.getL2OutputOracleParameters()
 
     // TODO: Handle old messages from before Bedrock upgrade.
-    const events = await this.contracts.l1.OutputOracle.queryFilter(
-      this.contracts.l1.OutputOracle.filters.l2OutputAppended(
+    const events = await this.contracts.l1.L2OutputOracle.queryFilter(
+      this.contracts.l1.L2OutputOracle.filters.L2OutputAppended(
         undefined,
         undefined,
-        block.timestamp
+        Math.ceil(
+          (resolved.blockNumber -
+            l2OutputOracleParameters.startingBlockNumber) /
+            l2OutputOracleParameters.submissionInterval
+        ) * l2OutputOracleParameters.submissionInterval
       )
     )
 
@@ -709,8 +734,8 @@ export class CrossChainMessenger implements ICrossChainMessenger {
 
     return {
       outputRoot: events[0].args._l2Output,
-      l1Timestamp: events[0].args._l1Timestamp,
-      l2Timestamp: events[0].args._l2Timestamp,
+      l1Timestamp: events[0].args._l1Timestamp.toNumber(),
+      l2BlockNumber: events[0].args._l2BlockNumber.toNumber(),
     }
   }
 
@@ -952,7 +977,6 @@ export class CrossChainMessenger implements ICrossChainMessenger {
     ).send('eth_getBlockByNumber', [toRpcHexString(resolved.blockNumber)])
 
     return {
-      l2Timestamp: block.timestamp,
       outputRootProof: {
         // TODO: Get correct version here
         version: ethers.constants.HashZero,
@@ -1184,11 +1208,22 @@ export class CrossChainMessenger implements ICrossChainMessenger {
           resolved.target,
           resolved.value,
           resolved.minGasLimit,
-          resolved
+          resolved.message,
+          resolved.blockNumber,
+          proof.outputRootProof,
+          proof.withdrawalProof
         )
       } else {
+        // L1CrossDomainMessenger relayMessage is the only method that isn't fully backwards
+        // compatible, so we need to use the legacy interface. When we fully upgrade to Bedrock we
+        // should be able to remove this code.
         const proof = await this.getMessageProof(resolved)
-        return this.contracts.l1.L1CrossDomainMessenger.populateTransaction.relayMessage(
+        const legacyL1XDM = new ethers.Contract(
+          this.contracts.l1.L1CrossDomainMessenger.address,
+          getContractInterface('L1CrossDomainMessenger'),
+          this.l1SignerOrProvider
+        )
+        return legacyL1XDM.populateTransaction.relayMessage(
           resolved.target,
           resolved.sender,
           resolved.message,

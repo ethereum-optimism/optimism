@@ -178,7 +178,10 @@ export class ETHBridgeAdapter extends StandardBridgeAdapter {
           amount,
           0, // L1 gas not required.
           '0x', // No data.
-          opts?.overrides || {}
+          {
+            ...omit(opts?.overrides || {}, 'value'),
+            value: this.messenger.bedrock ? amount : 0,
+          }
         )
       } else {
         return this.l2Bridge.populateTransaction.withdrawTo(
@@ -187,7 +190,10 @@ export class ETHBridgeAdapter extends StandardBridgeAdapter {
           amount,
           0, // L1 gas not required.
           '0x', // No data.
-          opts?.overrides || {}
+          {
+            ...omit(opts?.overrides || {}, 'value'),
+            value: this.messenger.bedrock ? amount : 0,
+          }
         )
       }
     },
