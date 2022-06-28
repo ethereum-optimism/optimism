@@ -52,9 +52,9 @@ func (s *Source) PayloadByHash(ctx context.Context, hash common.Hash) (*eth.Exec
 	return payload, nil
 }
 
-func (s *Source) PayloadByNumber(ctx context.Context, number *big.Int) (*eth.ExecutionPayload, error) {
+func (s *Source) PayloadByNumber(ctx context.Context, number uint64) (*eth.ExecutionPayload, error) {
 	// TODO: we really do not need to parse every single tx and block detail, keeping transactions encoded is faster.
-	block, err := s.client.BlockByNumber(ctx, number)
+	block, err := s.client.BlockByNumber(ctx, big.NewInt(int64(number)))
 	if err != nil {
 		return nil, fmt.Errorf("failed to retrieve L2 block by number: %v", err)
 	}
@@ -80,6 +80,7 @@ func (s *Source) ForkchoiceUpdate(ctx context.Context, fc *eth.ForkchoiceState, 
 		if attributes != nil {
 			e.Debug("Received payload id", "payloadId", result.PayloadID)
 		}
+		return &result, nil
 	} else {
 		e = e.New("err", err)
 		if rpcErr, ok := err.(rpc.Error); ok {
@@ -88,24 +89,12 @@ func (s *Source) ForkchoiceUpdate(ctx context.Context, fc *eth.ForkchoiceState, 
 		} else {
 			e.Error("Failed to share forkchoice-updated signal")
 		}
-	}
-	switch result.PayloadStatus.Status {
-	case eth.ExecutionSyncing:
-		return nil, fmt.Errorf("updated forkchoice, but node is syncing: %v", err)
-	case eth.ExecutionAccepted, eth.ExecutionInvalidTerminalBlock, eth.ExecutionInvalidBlockHash:
-		// ACCEPTED, INVALID_TERMINAL_BLOCK, INVALID_BLOCK_HASH are only for execution
-		return nil, fmt.Errorf("unexpected %s status, could not update forkchoice: %v", result.PayloadStatus.Status, err)
-	case eth.ExecutionInvalid:
-		return nil, fmt.Errorf("cannot update forkchoice, block is invalid: %v", err)
-	case eth.ExecutionValid:
-		return &result, nil
-	default:
-		return nil, fmt.Errorf("unknown forkchoice status on %s: %q, ", fc.SafeBlockHash, string(result.PayloadStatus.Status))
+		return nil, err
 	}
 }
 
 // ExecutePayload executes a built block on the execution engine and returns an error if it was not successful.
-func (s *Source) NewPayload(ctx context.Context, payload *eth.ExecutionPayload) error {
+func (s *Source) NewPayload(ctx context.Context, payload *eth.ExecutionPayload) (*eth.PayloadStatusV1, error) {
 	e := s.log.New("block_hash", payload.BlockHash)
 	e.Debug("sending payload for execution")
 
@@ -116,25 +105,9 @@ func (s *Source) NewPayload(ctx context.Context, payload *eth.ExecutionPayload) 
 	e.Debug("Received payload execution result", "status", result.Status, "latestValidHash", result.LatestValidHash, "message", result.ValidationError)
 	if err != nil {
 		e.Error("Payload execution failed", "err", err)
-		return fmt.Errorf("failed to execute payload: %v", err)
+		return nil, fmt.Errorf("failed to execute payload: %v", err)
 	}
-
-	switch result.Status {
-	case eth.ExecutionValid:
-		return nil
-	case eth.ExecutionSyncing:
-		return fmt.Errorf("failed to execute payload %s, node is syncing", payload.ID())
-	case eth.ExecutionInvalid:
-		return fmt.Errorf("execution payload %s was INVALID! Latest valid hash is %s, ignoring bad block: %q", payload.ID(), result.LatestValidHash, result.ValidationError)
-	case eth.ExecutionInvalidBlockHash:
-		return fmt.Errorf("execution payload %s has INVALID BLOCKHASH! %v", payload.BlockHash, result.ValidationError)
-	case eth.ExecutionInvalidTerminalBlock:
-		return fmt.Errorf("engine is misconfigured. Received invalid-terminal-block error while engine API should be active at genesis. err: %v", result.ValidationError)
-	case eth.ExecutionAccepted:
-		return fmt.Errorf("execution payload cannot be validated yet, latest valid hash is %s", result.LatestValidHash)
-	default:
-		return fmt.Errorf("unknown execution status on %s: %q, ", payload.ID(), string(result.Status))
-	}
+	return &result, nil
 }
 
 // GetPayload gets the execution payload associated with the PayloadId
@@ -159,6 +132,16 @@ func (s *Source) GetPayload(ctx context.Context, payloadId eth.PayloadID) (*eth.
 	}
 	e.Debug("Received payload")
 	return &result, nil
+}
+
+// L2BlockRefHead returns the canonical block and parent ids.
+func (s *Source) L2BlockRefHead(ctx context.Context) (eth.L2BlockRef, error) {
+	block, err := s.client.BlockByNumber(ctx, nil)
+	if err != nil {
+		// w%: wrap the error, we still need to detect if a canonical block is not found, a.k.a. end of chain.
+		return eth.L2BlockRef{}, fmt.Errorf("failed to determine block-hash of head, could not get header: %w", err)
+	}
+	return blockToBlockRef(block, s.genesis)
 }
 
 // L2BlockRefByNumber returns the canonical block and parent ids.
