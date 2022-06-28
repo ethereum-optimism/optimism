@@ -47,7 +47,7 @@ function wait_up {
     sleep 0.25
 
     ((i=i+1))
-    if [ "$i" -eq 200 ]; then
+    if [ "$i" -eq 300 ]; then
       echo " Timeout!" >&2
       exit 1
     fi
