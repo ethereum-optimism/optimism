@@ -166,7 +166,7 @@ jobs:
       - run:
           name: Check if we should run
           command: |
-            CHANGED=$(check-changed "(packages/<<parameters.package_name>>|packages/<<parameters.dependencies>>")
+            CHANGED=$(check-changed "(packages/<<parameters.package_name>>|packages/<<parameters.dependencies>>)")
             if [[ "$CHANGED" = "FALSE" ]]; then
               circleci step halt
             fi
@@ -263,6 +263,13 @@ jobs:
       - image: ethereumoptimism/ci-builder:latest
     steps:
       - checkout
+      - run:
+          name: Check if we should run
+          command: |
+            CHANGED=$(check-changed "op-node")
+            if [[ "$CHANGED" = "FALSE" ]]; then
+              circleci step halt
+            fi
       - run:
           name: Fuzz
           command: make fuzz
@@ -477,49 +484,49 @@ workflows:
       - js-lint-test:
           name: contracts-governance-tests
           package_name: contracts-governance
-          dependencies: "core-utils|sdk"
+          dependencies: "(core-utils|sdk)"
           requires:
             - yarn-monorepo
       - js-lint-test:
           name: contracts-periphery-tests
           package_name: contracts-periphery
-          dependencies: "contracts|contracts-bedrock|core-utils|hardhat-deploy-config"
+          dependencies: "(contracts|contracts-bedrock|core-utils|hardhat-deploy-config)"
           requires:
             - yarn-monorepo
       - js-lint-test:
           name: dtl-tests
           package_name: data-transport-layer
-          dependencies: "common-ts|contracts|core-utils"
+          dependencies: "(common-ts|contracts|core-utils)"
           requires:
             - yarn-monorepo
       - js-lint-test:
           name: drippie-mon-tests
           package_name: drippie-mon
-          dependencies: "common-ts|contracts-periphery|core-utils|sdk"
+          dependencies: "(common-ts|contracts-periphery|core-utils|sdk)"
           requires:
             - yarn-monorepo
       - js-lint-test:
           name: fault-detector-tests
           package_name: fault-detector
-          dependencies: "common-ts|contracts|core-utils|sdk"
+          dependencies: "(common-ts|contracts|core-utils|sdk)"
           requires:
             - yarn-monorepo
       - js-lint-test:
           name: message-relayer-tests
           package_name: message-relayer
-          dependencies: "common-ts|core-utils|sdk"
+          dependencies: "(common-ts|core-utils|sdk)"
           requires:
             - yarn-monorepo
       - js-lint-test:
           name: replica-healthcheck-tests
           package_name: replica-healthcheck
-          dependencies: "common-ts|core-utils"
+          dependencies: "(common-ts|core-utils)"
           requires:
             - yarn-monorepo
       - js-lint-test:
           name: sdk-tests
           package_name: sdk
-          dependencies: "contracts|core-utils"
+          dependencies: "(contracts|core-utils)"
           requires:
             - yarn-monorepo
       - depcheck:

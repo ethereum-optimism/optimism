@@ -24,7 +24,7 @@ RUN apt-get update && \
   npm i -g depcheck && \
   pip install slither-analyzer && \
   go install gotest.tools/gotestsum@latest && \
-  curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v1.45.2 && \
+  curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v1.46.2 && \
   curl -fLSs https://raw.githubusercontent.com/CircleCI-Public/circleci-cli/master/install.sh | bash && \
   chmod +x /usr/local/bin/check-changed
 
