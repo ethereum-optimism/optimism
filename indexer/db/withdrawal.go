@@ -39,3 +39,12 @@ type WithdrawalJSON struct {
 	TxHash         string          `json:"transactionHash"`
 	Batch          *StateBatchJSON `json:"batch"`
 }
+
+// PortalWithdrawal represents a withdrawal that has gone
+// through the OptimismPortal
+type PortalWithdrawal struct {
+	WithdrawalHash common.Hash
+	Success        bool
+	TxHash         common.Hash
+	BlockHash      common.Hash
+}

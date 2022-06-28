@@ -65,6 +65,16 @@ CREATE INDEX IF NOT EXISTS state_batches_size ON state_batches(size);
 CREATE INDEX IF NOT EXISTS state_batches_prev_total ON state_batches(prev_total);
 `
 
+const createPortalWithdrawalsTable = `
+CREATE TABLE IF NOT EXISTS portal_withdrawals (
+    tx_hash VARCHAR PRIMARY KEY NOT NULL,
+	withdrawal_hash VARCHAR NOT NULL,
+	success BOOLEAN NOT NULL,
+	block_hash VARCHAR NOT NULL REFERENCES l1_blocks(hash)
+);
+CREATE INDEX IF NOT EXISTS portal_withdrawals_block_hash ON portal_withdrawals(block_hash);
+`
+
 const createWithdrawalsTable = `
 CREATE TABLE IF NOT EXISTS withdrawals (
 	guid VARCHAR PRIMARY KEY NOT NULL,
@@ -128,6 +138,7 @@ var schema = []string{
 	createL1TokensTable,
 	createL2TokensTable,
 	createStateBatchesTable,
+	createPortalWithdrawalsTable,
 	insertETHL1Token,
 	insertETHL2Token,
 	createDepositsTable,

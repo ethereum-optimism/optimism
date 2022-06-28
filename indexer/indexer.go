@@ -131,11 +131,13 @@ func NewIndexer(cfg Config, gitVersion string) (*Indexer, error) {
 	if err != nil {
 		return nil, err
 	}
+	log.Info("connected to L1 client")
 
 	l2Client, l2RPC, err := dialEthClientWithTimeout(ctx, cfg.L2EthRpc)
 	if err != nil {
 		return nil, err
 	}
+	log.Info("connected to L2 client")
 
 	m := metrics.NewMetrics(nil)
 
@@ -154,15 +156,36 @@ func NewIndexer(cfg Config, gitVersion string) (*Indexer, error) {
 	if cfg.DBPassword != "" {
 		dsn += fmt.Sprintf(" password=%s", cfg.DBPassword)
 	}
-	db, err := database.NewDatabase(dsn)
+
+	// Open the database with retries
+	retries, maxRetries := 1, 10
+	var db *database.Database
+	for {
+		db, err = database.NewDatabase(dsn)
+		if err == nil {
+			break
+		}
+		if err != nil && retries > maxRetries {
+			return nil, err
+		}
+		log.Error("cannot connect to database", "attempt", retries)
+		retries++
+		time.Sleep(time.Second * time.Duration(retries))
+	}
+
+	l1AddressManagerAddress, err := ParseAddress(cfg.L1AddressManagerAddress)
+	log.Info("AddressManager", "address", l1AddressManagerAddress)
 	if err != nil {
 		return nil, err
 	}
 
-	l1AddressManagerAddress, err := ParseL1Address(cfg.L1AddressManagerAddress)
+	optimismPortalAddress, err := ParseAddress(cfg.OptimismPortalAddress)
+	log.Info("OptimismPortal", "address", optimismPortalAddress)
+	/* TODO: config not passed through correctly
 	if err != nil {
 		return nil, err
 	}
+	*/
 
 	l1IndexingService, err := l1.NewService(l1.ServiceConfig{
 		Context:               ctx,
@@ -171,6 +194,7 @@ func NewIndexer(cfg Config, gitVersion string) (*Indexer, error) {
 		RawL1Client:           rawl1Client,
 		ChainID:               big.NewInt(cfg.ChainID),
 		AddressManagerAddress: l1AddressManagerAddress,
+		OptimismPortalAddress: optimismPortalAddress,
 		DB:                    db,
 		ConfDepth:             cfg.ConfDepth,
 		MaxHeaderBatchSize:    cfg.MaxHeaderBatchSize,

@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/indexer/metrics"
+	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/ethereum-optimism/optimism/indexer/bindings/scc"
@@ -72,6 +73,7 @@ type ServiceConfig struct {
 	RawL1Client           *rpc.Client
 	ChainID               *big.Int
 	AddressManagerAddress common.Address
+	OptimismPortalAddress common.Address
 	ConfDepth             uint64
 	MaxHeaderBatchSize    uint64
 	StartBlockNumber      uint64
@@ -84,10 +86,11 @@ type Service struct {
 	ctx    context.Context
 	cancel func()
 
-	bridges        map[string]bridge.Bridge
-	batchScanner   *scc.StateCommitmentChainFilterer
-	latestHeader   uint64
-	headerSelector *ConfirmedHeaderSelector
+	bridges                 map[string]bridge.Bridge
+	batchScanner            *scc.StateCommitmentChainFilterer
+	portalWithdrawalScanner *bindings.OptimismPortalFilterer
+	latestHeader            uint64
+	headerSelector          *ConfirmedHeaderSelector
 
 	metrics    *metrics.Metrics
 	tokenCache map[common.Address]*db.Token
@@ -134,6 +137,12 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 		return nil, err
 	}
 
+	portalWithdrawalScanner, err := bindings.NewOptimismPortalFilterer(cfg.OptimismPortalAddress, cfg.L1Client)
+	if err != nil {
+		cancel()
+		return nil, err
+	}
+
 	logger.Info("Scanning bridges for deposits", "bridges", bridges)
 
 	confirmedHeaderSelector, err := NewConfirmedHeaderSelector(HeaderSelectorConfig{
@@ -147,13 +156,14 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 	}
 
 	return &Service{
-		cfg:            cfg,
-		ctx:            ctx,
-		cancel:         cancel,
-		bridges:        bridges,
-		batchScanner:   batchScanner,
-		headerSelector: confirmedHeaderSelector,
-		metrics:        cfg.Metrics,
+		cfg:                     cfg,
+		ctx:                     ctx,
+		cancel:                  cancel,
+		bridges:                 bridges,
+		batchScanner:            batchScanner,
+		portalWithdrawalScanner: portalWithdrawalScanner,
+		headerSelector:          confirmedHeaderSelector,
+		metrics:                 cfg.Metrics,
 		tokenCache: map[common.Address]*db.Token{
 			ZeroAddress: db.ETHL1Token,
 		},
@@ -284,6 +294,14 @@ func (s *Service) Update(newHeader *types.Header) error {
 		}
 	}
 
+	// Query events from the OptimismPortal
+	finalizedWithdrawals, err := QueryPortalWithdrawalFinalized(s.portalWithdrawalScanner, startHeight, endHeight, s.ctx)
+	if err != nil {
+		logger.Error("Error querying portal withdrawals", "err", err)
+	}
+
+	// TODO(tynes): post bedrock, this will no longer be a thing. Can stop
+	// querying for these events after it is detected that bedrock started
 	stateBatches, err := QueryStateBatches(s.batchScanner, startHeight, endHeight, s.ctx)
 	if err != nil {
 		logger.Error("Error querying state batches", "err", err)
@@ -294,6 +312,7 @@ func (s *Service) Update(newHeader *types.Header) error {
 		number := header.Number.Uint64()
 		deposits := depositsByBlockHash[blockHash]
 		batches := stateBatches[blockHash]
+		portalWithdrawals := finalizedWithdrawals[blockHash]
 
 		if len(deposits) == 0 && len(batches) == 0 && i != len(headers)-1 {
 			continue
@@ -329,6 +348,17 @@ func (s *Service) Update(newHeader *types.Header) error {
 			return err
 		}
 		s.metrics.RecordStateBatches(len(batches))
+
+		err = s.cfg.DB.AddPortalWithdrawals(portalWithdrawals)
+		if err != nil {
+			logger.Error(
+				"Unable to import portal withdrawal finalized",
+				"block", number,
+				"hash", blockHash, "err", err,
+				"block", block,
+			)
+			return err
+		}
 
 		logger.Debug("Imported ",
 			"block", number, "hash", blockHash, "deposits", len(block.Deposits))

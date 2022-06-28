@@ -1,6 +1,7 @@
 go 1.18
 
 use (
-	./indexer
-	./l2geth
+    ./indexer
+    ./l2geth
+    ./op-bindings
 )

@@ -11,12 +11,19 @@ import (
 
 var zeroAddr common.Address
 
-var standardContracts = []string{
-	"Proxy__OVM_L1CrossDomainMessenger",
-	"Proxy__OVM_L1StandardBridge",
-	"StateCommitmentChain",
-	"CanonicalTransactionChain",
-	"BondManager",
+// managedContract represents a contract that is managed
+// by the AddressManager
+type managedContract struct {
+	name     string
+	required bool
+}
+
+var standardContracts = []managedContract{
+	{"Proxy__OVM_L1CrossDomainMessenger", false},
+	{"Proxy__OVM_L1StandardBridge", false},
+	{"StateCommitmentChain", false},
+	{"CanonicalTransactionChain", false},
+	{"BondManager", false},
 }
 
 type Addresses struct {
@@ -34,15 +41,15 @@ func NewAddresses(client bind.ContractBackend, addrMgrAddr common.Address) (*Add
 		return nil, err
 	}
 
-	for _, contractName := range standardContracts {
-		contractAddr, err := mgr.GetAddress(nil, contractName)
+	for _, contract := range standardContracts {
+		contractAddr, err := mgr.GetAddress(nil, contract.name)
 		if err != nil {
-			return nil, fmt.Errorf("error getting contract %s: %v", contractName, err)
+			return nil, fmt.Errorf("error getting contract %s: %v", contract.name, err)
 		}
-		if contractAddr == zeroAddr {
-			return nil, fmt.Errorf("contract %s is not deployed", contractName)
+		if contractAddr == zeroAddr && contract.required {
+			return nil, fmt.Errorf("contract %s is not deployed", contract.name)
 		}
-		ret.addrs[contractName] = contractAddr
+		ret.addrs[contract.name] = contractAddr
 	}
 
 	return ret, nil

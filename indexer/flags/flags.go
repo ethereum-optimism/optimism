@@ -52,6 +52,12 @@ var (
 		Required: true,
 		EnvVar:   prefixEnvVar("L1_ADDRESS_MANAGER_ADDRESS"),
 	}
+	OptimismPortalAddressFlag = cli.StringFlag{
+		Name:     "optimism-portal-address",
+		Usage:    "Address of the L1 OptimismPortal",
+		Required: true,
+		EnvVar:   prefixEnvVar("OPTIMISM_PORTAL_ADDRESS"),
+	}
 	L2GenesisBlockHashFlag = cli.StringFlag{
 		Name:     "l2-genesis-block-hash",
 		Usage:    "Genesis block hash of the L2 chain",
