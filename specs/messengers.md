@@ -4,12 +4,13 @@
 <!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
 **Table of Contents**
 
-- [Message Passing](#message-passing)
-- [Upgradability](#upgradability)
-- [Message Versioning](#message-versioning)
-  - [Message Version 0](#message-version-0)
-  - [Message Version 1](#message-version-1)
-- [Backwards Compatibility Notes](#backwards-compatibility-notes)
+- [Cross Domain Messengers](#cross-domain-messengers)
+  - [Message Passing](#message-passing)
+  - [Upgradability](#upgradability)
+  - [Message Versioning](#message-versioning)
+    - [Message Version 0](#message-version-0)
+    - [Message Version 1](#message-version-1)
+  - [Backwards Compatibility Notes](#backwards-compatibility-notes)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
@@ -19,7 +20,7 @@ the ability to replay cross domain messages and sit directly on top of the lower
 level system contracts responsible for cross domain messaging on L1 and L2.
 
 The `CrossDomainMessenger` is extended to create both an
-`L1CrossDomainMessenger` and well as a `L2CrossDomainMessneger`.
+`L1CrossDomainMessenger` and well as a `L2CrossDomainMessenger`.
 These contracts are then extended with their legacy APIs to provide backwards
 compatibility for applications that integrated before the Bedrock system
 upgrade.
