@@ -87,10 +87,15 @@ func makeUVarint(x uint64) []byte {
 	return tmp[:n]
 }
 
+// ReadyBytes returns the number of bytes that the channel out can immediately output into a frame.
+// Use `Flush` or `Close` to move data from the compression buffer into the ready buffer if more bytes
+// are needed. Add blocks may add to the ready buffer, but it is not guaranteed due to the compression stage.
 func (co *ChannelOut) ReadyBytes() int {
 	return co.buf.Len()
 }
 
+// Flush flushes the internal compression stage to the ready buffer. It enables pulling a larger & more
+// complete frame. It reduces the compression efficiency.
 func (co *ChannelOut) Flush() error {
 	return co.compress.Flush()
 }
