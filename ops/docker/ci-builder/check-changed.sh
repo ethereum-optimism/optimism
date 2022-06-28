@@ -14,9 +14,14 @@ echoerr() { echo "$@" 1>&2; }
 if [[ -n $CIRCLE_PULL_REQUEST ]]; then
 	PACKAGE=$1
 	# Craft the URL to the GitHub API. The access token is optional for the monorepo since it's an open-source repo.
-	GITHUB_API_URL=$(echo "https://api.github.com/repos/${CIRCLE_PULL_REQUEST}?access_token=$GITHUB_ACCESS_TOKEN" | sed "s/\/pull\//\/pulls\//")
+	GITHUB_API_URL="https://api.github.com/repos/ethereum-optimism/optimism/pulls/${CIRCLE_PULL_REQUEST/https:\/\/github.com\/ethereum-optimism\/optimism\/pull\//}"
+	echoerr "GitHub URL:"
+	echoerr "$GITHUB_API_URL"
 	# Grab the PR's base ref using the GitHub API.
-	REF=$(curl -s "$GITHUB_API_URL" | jq -r ".base.ref")
+	PR=$(curl -H "Authorization: token $GITHUB_ACCESS_TOKEN" -H "Accept: application/vnd.github.v3+json" --retry 3 --retry-delay 1 -s "$GITHUB_API_URL")
+	echoerr "PR data:"
+	echoerr "$PR"
+	REF=$(echo "$PR" | jq -r ".base.ref")
 
 	echoerr "Base Ref:     $REF"
 	echoerr "Base Ref SHA: $(git show-branch --sha1-name "$REF")"
