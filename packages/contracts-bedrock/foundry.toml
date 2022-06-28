@@ -14,3 +14,4 @@ remappings = [
 ]
 extra_output = ['devdoc', 'userdoc', 'metadata', 'storageLayout']
 bytecode_hash = 'none'
+build_info = true
