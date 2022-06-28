@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"strings"
 
-	l2common "github.com/ethereum-optimism/optimism/l2geth/common"
 	"github.com/ethereum/go-ethereum/common"
 
 	// NOTE: Only postgresql backend is supported at the moment.
@@ -401,7 +400,7 @@ func (d *Database) GetDepositsByAddress(address common.Address, page PaginationP
 
 // GetWithdrawalBatch returns the StateBatch corresponding to the given
 // withdrawal transaction hash.
-func (d *Database) GetWithdrawalBatch(hash l2common.Hash) (*StateBatchJSON, error) {
+func (d *Database) GetWithdrawalBatch(hash common.Hash) (*StateBatchJSON, error) {
 	const selectWithdrawalBatchStatement = `
 	SELECT
 		state_batches.index, state_batches.root, state_batches.size, state_batches.prev_total, state_batches.extra_data, state_batches.block_hash,
@@ -459,7 +458,7 @@ func (d *Database) GetWithdrawalBatch(hash l2common.Hash) (*StateBatchJSON, erro
 
 // GetWithdrawalsByAddress returns the list of Withdrawals indexed for the given
 // address paginated by the given params.
-func (d *Database) GetWithdrawalsByAddress(address l2common.Address, page PaginationParam) (*PaginatedWithdrawals, error) {
+func (d *Database) GetWithdrawalsByAddress(address common.Address, page PaginationParam) (*PaginatedWithdrawals, error) {
 	const selectWithdrawalsStatement = `
 	SELECT
 	    withdrawals.guid, withdrawals.from_address, withdrawals.to_address,
@@ -505,7 +504,7 @@ func (d *Database) GetWithdrawalsByAddress(address l2common.Address, page Pagina
 	}
 
 	for i := range withdrawals {
-		batch, _ := d.GetWithdrawalBatch(l2common.HexToHash(withdrawals[i].TxHash))
+		batch, _ := d.GetWithdrawalBatch(common.HexToHash(withdrawals[i].TxHash))
 		withdrawals[i].Batch = batch
 	}
 
@@ -540,12 +539,12 @@ func (d *Database) GetWithdrawalsByAddress(address l2common.Address, page Pagina
 }
 
 // GetHighestL1Block returns the highest known L1 block.
-func (d *Database) GetHighestL1Block() (*L1BlockLocator, error) {
+func (d *Database) GetHighestL1Block() (*BlockLocator, error) {
 	const selectHighestBlockStatement = `
 	SELECT number, hash FROM l1_blocks ORDER BY number DESC LIMIT 1
 	`
 
-	var highestBlock *L1BlockLocator
+	var highestBlock *BlockLocator
 	err := txn(d.db, func(tx *sql.Tx) error {
 		row := tx.QueryRow(selectHighestBlockStatement)
 		if row.Err() != nil {
@@ -563,7 +562,7 @@ func (d *Database) GetHighestL1Block() (*L1BlockLocator, error) {
 			return err
 		}
 
-		highestBlock = &L1BlockLocator{
+		highestBlock = &BlockLocator{
 			Number: number,
 			Hash:   common.HexToHash(hash),
 		}
@@ -578,12 +577,12 @@ func (d *Database) GetHighestL1Block() (*L1BlockLocator, error) {
 }
 
 // GetHighestL2Block returns the highest known L2 block.
-func (d *Database) GetHighestL2Block() (*L2BlockLocator, error) {
+func (d *Database) GetHighestL2Block() (*BlockLocator, error) {
 	const selectHighestBlockStatement = `
 	SELECT number, hash FROM l2_blocks ORDER BY number DESC LIMIT 1
 	`
 
-	var highestBlock *L2BlockLocator
+	var highestBlock *BlockLocator
 	err := txn(d.db, func(tx *sql.Tx) error {
 		row := tx.QueryRow(selectHighestBlockStatement)
 		if row.Err() != nil {
@@ -601,9 +600,9 @@ func (d *Database) GetHighestL2Block() (*L2BlockLocator, error) {
 			return err
 		}
 
-		highestBlock = &L2BlockLocator{
+		highestBlock = &BlockLocator{
 			Number: number,
-			Hash:   l2common.HexToHash(hash),
+			Hash:   common.HexToHash(hash),
 		}
 
 		return nil

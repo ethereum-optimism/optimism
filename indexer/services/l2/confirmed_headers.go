@@ -7,11 +7,10 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/indexer/services/util"
-	"github.com/ethereum-optimism/optimism/l2geth/rpc"
 
-	"github.com/ethereum-optimism/optimism/l2geth/core/types"
-	"github.com/ethereum-optimism/optimism/l2geth/log"
-	l2rpc "github.com/ethereum-optimism/optimism/l2geth/rpc"
+	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/rpc"
 )
 
 const (
@@ -29,7 +28,7 @@ type ConfirmedHeaderSelector struct {
 	cfg HeaderSelectorConfig
 }
 
-func HeadersByRange(ctx context.Context, client *l2rpc.Client, startHeight uint64, count int) ([]*types.Header, error) {
+func HeadersByRange(ctx context.Context, client *rpc.Client, startHeight uint64, count int) ([]*types.Header, error) {
 	height := startHeight
 	batchElems := make([]rpc.BatchElem, count)
 	for i := 0; i < count; i++ {
@@ -63,7 +62,7 @@ func (f *ConfirmedHeaderSelector) NewHead(
 	ctx context.Context,
 	lowest uint64,
 	header *types.Header,
-	client *l2rpc.Client,
+	client *rpc.Client,
 ) ([]*types.Header, error) {
 
 	number := header.Number.Uint64()

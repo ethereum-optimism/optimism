@@ -179,7 +179,7 @@ type AppendSequencerBatchParams struct {
 	// Contexts aggregates redundant L1 block numbers and L1 timestamps for
 	// the txns encoded in the Tx slice. Further, they specify consecutive
 	// tx windows in Txs and implicitly allow one to compute how many
-	// (ommitted) queued txs are in a given window.
+	// (omitted) queued txs are in a given window.
 	Contexts []BatchContext
 
 	// Txs contains all sequencer txs that will be recorded in the L1 CTC
@@ -192,7 +192,7 @@ type AppendSequencerBatchParams struct {
 //  - total_elements_to_append:       3 bytes
 //  - num_contexts:                   3 bytes
 //    - num_contexts * batch_context: num_contexts * 16 bytes
-//  - [num txs ommitted]
+//  - [num txs omitted]
 //    - tx_len:                       3 bytes
 //    - tx_bytes:                     tx_len bytes
 //
@@ -292,7 +292,7 @@ func (p *AppendSequencerBatchParams) Serialize(
 //  - total_elements_to_append:       3 bytes
 //  - num_contexts:                   3 bytes
 //    - num_contexts * batch_context: num_contexts * 16 bytes
-//  - [num txs ommitted]
+//  - [num txs omitted]
 //    - tx_len:                       3 bytes
 //    - tx_bytes:                     tx_len bytes
 func (p *AppendSequencerBatchParams) Read(r io.Reader) error {
@@ -349,7 +349,7 @@ func (p *AppendSequencerBatchParams) Read(r io.Reader) error {
 		r = bufio.NewReader(zr)
 	}
 
-	// Deserialize any transactions. Since the number of txs is ommitted
+	// Deserialize any transactions. Since the number of txs is omitted
 	// from the encoding, loop until the stream is consumed.
 	for {
 		var txLen uint64

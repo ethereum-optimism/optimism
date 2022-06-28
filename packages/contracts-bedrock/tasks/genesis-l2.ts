@@ -16,7 +16,7 @@ const adminSlot =
 
 const toCodeAddr = (addr: string) => {
   const address = ethers.utils.hexConcat([
-    '0xc0d3c0d3c03dc03dc03dc03dc03dc03dc03d',
+    '0xc0d3c0d3c0d3c0d3c0d3c0d3c0d3c0d3c0d3',
     '0x' + addr.slice(prefix.length),
   ])
   return ethers.utils.getAddress(address)

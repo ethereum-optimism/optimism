@@ -12,6 +12,7 @@ import (
 	bss "github.com/ethereum-optimism/optimism/op-batcher"
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
+	"github.com/ethereum-optimism/optimism/op-node/metrics"
 	rollupNode "github.com/ethereum-optimism/optimism/op-node/node"
 	"github.com/ethereum-optimism/optimism/op-node/p2p"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
@@ -507,7 +508,7 @@ func (cfg SystemConfig) start() (*System, error) {
 			}
 		}
 
-		node, err := rollupNode.New(context.Background(), &c, cfg.Loggers[name], cfg.Loggers[name], "")
+		node, err := rollupNode.New(context.Background(), &c, cfg.Loggers[name], cfg.Loggers[name], "", metrics.NewMetrics(""))
 		if err != nil {
 			didErrAfterStart = true
 			return nil, err

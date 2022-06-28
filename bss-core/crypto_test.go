@@ -45,7 +45,7 @@ var (
 )
 
 // TestParseAddress asserts that ParseAddress correctly parses 40-characater
-// hexidecimal strings with optional 0x prefix into valid 20-byte addresses.
+// hexadecimal strings with optional 0x prefix into valid 20-byte addresses.
 func TestParseAddress(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -157,7 +157,7 @@ func TestDerivePrivateKey(t *testing.T) {
 }
 
 // TestParsePrivateKeyStr asserts that ParsePrivateKey properly parses
-// 64-character hexidecimal strings with optional 0x prefix into valid ECDSA
+// 64-character hexadecimal strings with optional 0x prefix into valid ECDSA
 // private keys.
 func TestParsePrivateKeyStr(t *testing.T) {
 	tests := []struct {
@@ -210,9 +210,9 @@ func TestParsePrivateKeyStr(t *testing.T) {
 
 // TestGetConfiguredPrivateKey asserts that GetConfiguredPrivateKey either:
 //  1) Derives the correct private key assuming the BIP39 mnemonic and BIP32
-//     derivation path are both present and the private key string is ommitted.
+//     derivation path are both present and the private key string is omitted.
 //  2) Parses the correct private key assuming only the private key string is
-//     present, but the BIP39 mnemonic and BIP32 derivation path are ommitted.
+//     present, but the BIP39 mnemonic and BIP32 derivation path are omitted.
 func TestGetConfiguredPrivateKey(t *testing.T) {
 	tests := []struct {
 		name       string

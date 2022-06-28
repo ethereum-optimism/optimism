@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"math/big"
 
+	"github.com/ethereum-optimism/optimism/op-node/metrics"
+
 	"github.com/ethereum-optimism/optimism/op-node/version"
 
 	"testing"
@@ -86,7 +88,7 @@ func TestOutputAtBlock(t *testing.T) {
 	l2Client.mock.On("GetBlockHeader", "latest").Return(&header)
 	l2Client.mock.On("GetProof", predeploys.L2ToL1MessagePasserAddr, "latest").Return(&result)
 
-	server, err := newRPCServer(context.Background(), rpcCfg, rollupCfg, l2Client, log, "0.0")
+	server, err := newRPCServer(context.Background(), rpcCfg, rollupCfg, l2Client, log, "0.0", metrics.NewMetrics(""))
 	assert.NoError(t, err)
 	assert.NoError(t, server.Start())
 	defer server.Stop()
@@ -111,7 +113,7 @@ func TestVersion(t *testing.T) {
 	rollupCfg := &rollup.Config{
 		// ignore other rollup config info in this test
 	}
-	server, err := newRPCServer(context.Background(), rpcCfg, rollupCfg, l2Client, log, "0.0")
+	server, err := newRPCServer(context.Background(), rpcCfg, rollupCfg, l2Client, log, "0.0", metrics.NewMetrics(""))
 	assert.NoError(t, err)
 	assert.NoError(t, server.Start())
 	defer server.Stop()
