@@ -144,7 +144,7 @@ func (c Config) WithoutDB() string {
 	)
 }
 
-// sslMode retuns "enabled" if EnableSSL is true, otherwise returns "disabled".
+// sslMode returns "enabled" if EnableSSL is true, otherwise returns "disabled".
 func (c Config) sslMode() string {
 	if c.EnableSSL {
 		return "require"

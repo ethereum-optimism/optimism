@@ -90,7 +90,7 @@ func GenSequencerBatchParams(
 	)
 
 	// Iterate over the batch elements, grouping the elements according to
-	// the following critera:
+	// the following criteria:
 	//  - All txs in the same group must have the same timestamp.
 	//  - All sequencer txs in the same group must have the same block number.
 	//  - If sequencer txs exist in a group, they must come before all

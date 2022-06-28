@@ -407,7 +407,7 @@ func (d *Driver) processPendingTxs(ctx context.Context) error {
 		return errors.New("unable to find receipt for any pending tx")
 	}
 
-	// Useing the block number, load the header so that we can get accurate
+	// Using the block number, load the header so that we can get accurate
 	// timestamps for the disbursements.
 	header, err := d.cfg.L2Client.HeaderByNumber(ctx, receipt.BlockNumber)
 	if err != nil {

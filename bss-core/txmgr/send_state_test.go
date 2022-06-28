@@ -80,7 +80,7 @@ func TestSendStateMiningTxCancelsAbort(t *testing.T) {
 }
 
 // TestSendStateReorgingTxResetsAbort asserts that unmining a tx does not
-// consider ErrNonceTooLow's prior to being mined when determing whether to
+// consider ErrNonceTooLow's prior to being mined when determine whether to
 // abort.
 func TestSendStateReorgingTxResetsAbort(t *testing.T) {
 	sendState := newSendState()
