@@ -56,7 +56,7 @@ func (d *outputImpl) processBlock(ctx context.Context, l2Head eth.L2BlockRef, l2
 	d.log.Info("processing new block", "parent", payload.ParentID(), "l2Head", l2Head, "id", payload.ID())
 	if status, err := d.l2.NewPayload(ctx, payload); err != nil {
 		return fmt.Errorf("failed to insert new payload: %w", err)
-	} else if err := eth.ForkchoiceUpdateErr(*status); err != nil {
+	} else if err := eth.NewPayloadErr(payload, status); err != nil {
 		return fmt.Errorf("failed to insert new payload: %w", err)
 	}
 	// now try to persist a reorg to the new payload
@@ -392,7 +392,7 @@ func (d *outputImpl) insertHeadBlock(ctx context.Context, fc eth.ForkchoiceState
 
 	if status, err := d.l2.NewPayload(ctx, payload); err != nil {
 		return nil, fmt.Errorf("failed to insert execution payload: %w", err)
-	} else if err := eth.ForkchoiceUpdateErr(*status); err != nil {
+	} else if err := eth.NewPayloadErr(payload, status); err != nil {
 		return nil, fmt.Errorf("failed to insert execution payload: %w", err)
 	}
 
