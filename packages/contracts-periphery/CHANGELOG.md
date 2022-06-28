@@ -1,5 +1,11 @@
 # @eth-optimism/contracts-periphery
 
+## 0.1.5
+
+### Patch Changes
+
+- 3799bb6f: Deploy Drippie to mainnet
+
 ## 0.1.4
 
 ### Patch Changes
