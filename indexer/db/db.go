@@ -322,6 +322,34 @@ func (d *Database) AddStateBatch(batches []StateBatch) error {
 	})
 }
 
+// AddPortalWithdrawals indexes the withdrawals that are finalized through
+// the OptimismPortal.
+func (d *Database) AddPortalWithdrawals(withdrawals []PortalWithdrawal) error {
+	const insertStateBatchStatement = `
+	INSERT INTO portal_withdrawals
+		(tx_hash, withdrawal_hash, success, block_hash)
+	VALUES
+		($1, $2, $3, $4)
+	`
+
+	return txn(d.db, func(tx *sql.Tx) error {
+		for _, wd := range withdrawals {
+			_, err := tx.Exec(
+				insertStateBatchStatement,
+				wd.TxHash,
+				wd.WithdrawalHash,
+				wd.Success,
+				wd.BlockHash,
+			)
+			if err != nil {
+				return err
+			}
+		}
+
+		return nil
+	})
+}
+
 // GetDepositsByAddress returns the list of Deposits indexed for the given
 // address paginated by the given params.
 func (d *Database) GetDepositsByAddress(address common.Address, page PaginationParam) (*PaginatedDeposits, error) {
@@ -660,9 +688,9 @@ func (d *Database) GetIndexedL1BlockByHash(hash common.Hash) (*IndexedL1Block, e
 }
 
 const getAirdropQuery = `
-SELECT 
+SELECT
 	address, voter_amount, multisig_signer_amount, gitcoin_amount,
-	active_bridged_amount, op_user_amount, op_repeat_user_amount, 
+	active_bridged_amount, op_user_amount, op_repeat_user_amount,
     bonus_amount, total_amount
 FROM airdrops
 WHERE address = $1

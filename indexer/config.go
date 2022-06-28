@@ -39,6 +39,9 @@ type Config struct {
 	// L1AddressManagerAddress is the address of the address manager for L1.
 	L1AddressManagerAddress string
 
+	// OptimismPortalAddress is the address of the OptimismPortal on L1.
+	OptimismPortalAddress string
+
 	// L2GenesisBlockHash is the l2 genesis block hash.
 	L2GenesisBlockHash string
 
@@ -127,6 +130,7 @@ func NewConfig(ctx *cli.Context) (Config, error) {
 		L1EthRpc:                ctx.GlobalString(flags.L1EthRPCFlag.Name),
 		L2EthRpc:                ctx.GlobalString(flags.L2EthRPCFlag.Name),
 		L1AddressManagerAddress: ctx.GlobalString(flags.L1AddressManagerAddressFlag.Name),
+		OptimismPortalAddress:   ctx.GlobalString(flags.OptimismPortalAddressFlag.Name),
 		L2GenesisBlockHash:      ctx.GlobalString(flags.L2GenesisBlockHashFlag.Name),
 		DBHost:                  ctx.GlobalString(flags.DBHostFlag.Name),
 		DBPort:                  ctx.GlobalUint64(flags.DBPortFlag.Name),

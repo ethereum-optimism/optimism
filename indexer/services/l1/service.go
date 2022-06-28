@@ -5,17 +5,15 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
-	"net/http"
-	"strconv"
 	"sync"
 	"sync/atomic"
 	"time"
 
 	"github.com/ethereum-optimism/optimism/indexer/metrics"
+	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/ethereum-optimism/optimism/indexer/bindings/scc"
-	"github.com/ethereum-optimism/optimism/indexer/server"
 	"github.com/ethereum-optimism/optimism/indexer/services/l1/bridge"
 
 	_ "github.com/lib/pq"
@@ -26,7 +24,6 @@ import (
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rpc"
-	"github.com/gorilla/mux"
 )
 
 var logger = log.New("service", "l1")
@@ -72,6 +69,7 @@ type ServiceConfig struct {
 	RawL1Client           *rpc.Client
 	ChainID               *big.Int
 	AddressManagerAddress common.Address
+	OptimismPortalAddress common.Address
 	ConfDepth             uint64
 	MaxHeaderBatchSize    uint64
 	StartBlockNumber      uint64
@@ -84,10 +82,11 @@ type Service struct {
 	ctx    context.Context
 	cancel func()
 
-	bridges        map[string]bridge.Bridge
-	batchScanner   *scc.StateCommitmentChainFilterer
-	latestHeader   uint64
-	headerSelector *ConfirmedHeaderSelector
+	bridges                 map[string]bridge.Bridge
+	batchScanner            *scc.StateCommitmentChainFilterer
+	portalWithdrawalScanner *bindings.OptimismPortalFilterer
+	latestHeader            uint64
+	headerSelector          *ConfirmedHeaderSelector
 
 	metrics    *metrics.Metrics
 	tokenCache map[common.Address]*db.Token
@@ -134,6 +133,12 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 		return nil, err
 	}
 
+	portalWithdrawalScanner, err := bindings.NewOptimismPortalFilterer(cfg.OptimismPortalAddress, cfg.L1Client)
+	if err != nil {
+		cancel()
+		return nil, err
+	}
+
 	logger.Info("Scanning bridges for deposits", "bridges", bridges)
 
 	confirmedHeaderSelector, err := NewConfirmedHeaderSelector(HeaderSelectorConfig{
@@ -147,13 +152,14 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 	}
 
 	return &Service{
-		cfg:            cfg,
-		ctx:            ctx,
-		cancel:         cancel,
-		bridges:        bridges,
-		batchScanner:   batchScanner,
-		headerSelector: confirmedHeaderSelector,
-		metrics:        cfg.Metrics,
+		cfg:                     cfg,
+		ctx:                     ctx,
+		cancel:                  cancel,
+		bridges:                 bridges,
+		batchScanner:            batchScanner,
+		portalWithdrawalScanner: portalWithdrawalScanner,
+		headerSelector:          confirmedHeaderSelector,
+		metrics:                 cfg.Metrics,
 		tokenCache: map[common.Address]*db.Token{
 			ZeroAddress: db.ETHL1Token,
 		},
@@ -284,6 +290,14 @@ func (s *Service) Update(newHeader *types.Header) error {
 		}
 	}
 
+	// Query events from the OptimismPortal
+	finalizedWithdrawals, err := QueryPortalWithdrawalFinalized(s.portalWithdrawalScanner, startHeight, endHeight, s.ctx)
+	if err != nil {
+		logger.Error("Error querying portal withdrawals", "err", err)
+	}
+
+	// TODO(tynes): post bedrock, this will no longer be a thing. Can stop
+	// querying for these events after it is detected that bedrock started
 	stateBatches, err := QueryStateBatches(s.batchScanner, startHeight, endHeight, s.ctx)
 	if err != nil {
 		logger.Error("Error querying state batches", "err", err)
@@ -294,6 +308,7 @@ func (s *Service) Update(newHeader *types.Header) error {
 		number := header.Number.Uint64()
 		deposits := depositsByBlockHash[blockHash]
 		batches := stateBatches[blockHash]
+		portalWithdrawals := finalizedWithdrawals[blockHash]
 
 		if len(deposits) == 0 && len(batches) == 0 && i != len(headers)-1 {
 			continue
@@ -330,6 +345,18 @@ func (s *Service) Update(newHeader *types.Header) error {
 		}
 		s.metrics.RecordStateBatches(len(batches))
 
+		// Index the events from with OptimismPortal
+		err = s.cfg.DB.AddPortalWithdrawals(portalWithdrawals)
+		if err != nil {
+			logger.Error(
+				"Unable to import portal withdrawal finalized",
+				"block", number,
+				"hash", blockHash, "err", err,
+				"block", block,
+			)
+			return err
+		}
+
 		logger.Debug("Imported ",
 			"block", number, "hash", blockHash, "deposits", len(block.Deposits))
 		for _, deposit := range block.Deposits {
@@ -352,60 +379,6 @@ func (s *Service) Update(newHeader *types.Header) error {
 		return errNoNewBlocks
 	}
 	return nil
-}
-
-func (s *Service) GetIndexerStatus(w http.ResponseWriter, r *http.Request) {
-	highestBlock, err := s.cfg.DB.GetHighestL1Block()
-	if err != nil {
-		server.RespondWithError(w, http.StatusInternalServerError, err.Error())
-		return
-	}
-
-	var synced float64
-	if s.latestHeader != 0 {
-		synced = float64(highestBlock.Number) / float64(s.latestHeader)
-	}
-
-	status := &IndexerStatus{
-		Synced:  synced,
-		Highest: *highestBlock,
-	}
-
-	server.RespondWithJSON(w, http.StatusOK, status)
-}
-
-func (s *Service) GetDeposits(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-
-	limitStr := r.URL.Query().Get("limit")
-	limit, err := strconv.ParseUint(limitStr, 10, 64)
-	if err != nil && limitStr != "" {
-		server.RespondWithError(w, http.StatusInternalServerError, err.Error())
-		return
-	}
-	if limit == 0 {
-		limit = 10
-	}
-
-	offsetStr := r.URL.Query().Get("offset")
-	offset, err := strconv.ParseUint(offsetStr, 10, 64)
-	if err != nil && offsetStr != "" {
-		server.RespondWithError(w, http.StatusInternalServerError, err.Error())
-		return
-	}
-
-	page := db.PaginationParam{
-		Limit:  uint64(limit),
-		Offset: uint64(offset),
-	}
-
-	deposits, err := s.cfg.DB.GetDepositsByAddress(common.HexToAddress(vars["address"]), page)
-	if err != nil {
-		server.RespondWithError(w, http.StatusInternalServerError, err.Error())
-		return
-	}
-
-	server.RespondWithJSON(w, http.StatusOK, deposits)
 }
 
 func (s *Service) subscribeNewHeads(ctx context.Context, heads chan *types.Header) {

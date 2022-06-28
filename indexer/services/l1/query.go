@@ -11,6 +11,8 @@ import (
 	"github.com/ethereum-optimism/optimism/indexer/services/l1/bridge"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
+
+	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 )
 
 func QueryERC20(address common.Address, client *ethclient.Client) (*db.Token, error) {
@@ -67,4 +69,30 @@ func QueryStateBatches(filterer *scc.StateCommitmentChainFilterer, startHeight, 
 		return nil, err
 	}
 	return batches, nil
+}
+
+func QueryPortalWithdrawalFinalized(filterer *bindings.OptimismPortalFilterer, startHeight, endHeight uint64, ctx context.Context) (map[common.Hash][]db.PortalWithdrawal, error) {
+	withdrawals := make(map[common.Hash][]db.PortalWithdrawal)
+
+	iter, err := bridge.FilterWithdrawalFinalizedWithRetry(ctx, filterer, &bind.FilterOpts{
+		Start: startHeight,
+		End:   &endHeight,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	for iter.Next() {
+		withdrawals[iter.Event.Raw.BlockHash] = append(
+			withdrawals[iter.Event.Raw.BlockHash], db.PortalWithdrawal{
+				WithdrawalHash: iter.Event.WithdrawalHash,
+				Success:        iter.Event.Success,
+				TxHash:         iter.Event.Raw.TxHash,
+				BlockHash:      iter.Event.Raw.BlockHash,
+			})
+	}
+	if err := iter.Error(); err != nil {
+		return nil, err
+	}
+	return withdrawals, nil
 }

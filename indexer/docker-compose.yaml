@@ -1,0 +1,38 @@
+version: '3.4'
+
+services:
+  db:
+    image: postgres:14.4-alpine
+    environment:
+      POSTGRES_USER: optimism
+      POSTGRES_PASSWORD: optimism
+    ports:
+      - 5432:5432
+
+  indexer:
+    depends_on:
+      - db
+    build:
+      context: ..
+      dockerfile: indexer/Dockerfile
+    environment:
+      INDEXER_BUILD_ENV: devnet
+      INDEXER_ETH_NETWORK_NAME: devnet
+      INDEXER_CHAIN_ID: 900
+      INDEXER_L1_ETH_RPC: http://l1:8545
+      INDEXER_L2_ETH_RPC: http://l2:8545
+      INDEXER_DB_HOST: db
+      INDEXER_DB_PORT: 5432
+      INDEXER_L1_ADDRESS_MANAGER_ADDRESS: ${INDEXER_L1_ADDRESS_MANAGER_ADDRESS}
+      INDEXER_L2_GENESIS_BLOCK_HASH: ${INDEXER_L2_GENESIS_BLOCK_HASH}
+      INDEXER_OPTIMISM_PORTAL_ADDRESS: ${INDEXER_OPTIMISM_PORTAL_ADDRESS}
+      INDEXER_DB_USER: optimism
+      INDEXER_DB_PASSWORD: optimism
+      INDEXER_DB_NAME: optimism
+    ports:
+      - 8080:8080
+
+networks:
+  default:
+    name: ops-bedrock_default
+    external: true
