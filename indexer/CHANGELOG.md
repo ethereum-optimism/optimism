@@ -1,5 +1,13 @@
 # @eth-optimism/indexer
 
+## 0.1.2
+
+### Patch Changes
+
+- b3921408: Fix a couple semgrep issues
+- c6f6d68b: Deduplicate some l2geth and geth utils
+- 0b30ae05: Use op-bindings package for address manager
+
 ## 0.1.1
 
 ### Patch Changes
