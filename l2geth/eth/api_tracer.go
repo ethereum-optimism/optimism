@@ -65,7 +65,7 @@ type TraceConfig struct {
 
 // StdTraceConfig holds extra parameters to standard-json trace functions.
 type StdTraceConfig struct {
-	*vm.LogConfig
+	vm.LogConfig
 	Reexec *uint64
 	TxHash common.Hash
 }
@@ -550,9 +550,7 @@ func (api *PrivateDebugAPI) standardTraceBlockToFile(ctx context.Context, block 
 		txHash    common.Hash
 	)
 	if config != nil {
-		if config.LogConfig != nil {
-			logConfig = *config.LogConfig
-		}
+		logConfig = config.LogConfig
 		txHash = config.TxHash
 	}
 	logConfig.Debug = true
