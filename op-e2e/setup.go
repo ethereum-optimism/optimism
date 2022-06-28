@@ -3,9 +3,7 @@ package op_e2e
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
 	"math/big"
-	"os"
 	"strings"
 	"time"
 
@@ -107,17 +105,16 @@ type System struct {
 	wallet *hdwallet.Wallet
 
 	// Connections to running nodes
-	nodes                      map[string]*node.Node
-	backends                   map[string]*eth.Ethereum
-	Clients                    map[string]*ethclient.Client
-	RolupGenesis               rollup.Genesis
-	rollupNodes                map[string]*rollupNode.OpNode
-	l2OutputSubmitter          *l2os.L2OutputSubmitter
-	sequencerHistoryDBFileName string
-	batchSubmitter             *bss.BatchSubmitter
-	L2OOContractAddr           common.Address
-	DepositContractAddr        common.Address
-	Mocknet                    mocknet.Mocknet
+	nodes               map[string]*node.Node
+	backends            map[string]*eth.Ethereum
+	Clients             map[string]*ethclient.Client
+	RolupGenesis        rollup.Genesis
+	rollupNodes         map[string]*rollupNode.OpNode
+	l2OutputSubmitter   *l2os.L2OutputSubmitter
+	batchSubmitter      *bss.BatchSubmitter
+	L2OOContractAddr    common.Address
+	DepositContractAddr common.Address
+	Mocknet             mocknet.Mocknet
 }
 
 func precompileAlloc() core.GenesisAlloc {
@@ -152,9 +149,6 @@ func (sys *System) Close() {
 	}
 	if sys.batchSubmitter != nil {
 		sys.batchSubmitter.Stop()
-	}
-	if sys.sequencerHistoryDBFileName != "" {
-		_ = os.Remove(sys.sequencerHistoryDBFileName)
 	}
 
 	for _, node := range sys.rollupNodes {
@@ -570,15 +564,6 @@ func (cfg SystemConfig) start() (*System, error) {
 		return nil, fmt.Errorf("unable to start l2 output submitter: %w", err)
 	}
 
-	sequencerHistoryDBFile, err := ioutil.TempFile("", "bss.*.json")
-	if err != nil {
-		return nil, fmt.Errorf("unable to create sequencer history db file: %w", err)
-	}
-	sys.sequencerHistoryDBFileName = sequencerHistoryDBFile.Name()
-	if err = sequencerHistoryDBFile.Close(); err != nil {
-		return nil, fmt.Errorf("unable to close sequencer history db file: %w", err)
-	}
-
 	// Batch Submitter
 	sys.batchSubmitter, err = bss.NewBatchSubmitter(bss.Config{
 		L1EthRpc:                   sys.nodes["l1"].WSEndpoint(),
@@ -594,7 +579,6 @@ func (cfg SystemConfig) start() (*System, error) {
 		LogTerminal:                true,   // ignored
 		Mnemonic:                   sys.cfg.Mnemonic,
 		SequencerHDPath:            sys.cfg.BatchSubmitterHDPath,
-		SequencerHistoryDBFilename: sys.sequencerHistoryDBFileName,
 		SequencerBatchInboxAddress: sys.cfg.RollupConfig.BatchInboxAddress.String(),
 	}, sys.cfg.Loggers["batcher"])
 	if err != nil {
