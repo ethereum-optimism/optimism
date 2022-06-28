@@ -264,13 +264,6 @@ task('genesis-l2', 'create a genesis config')
         code: artifact.deployedBytecode,
         storage: {},
       }
-
-      const storageLayout = await getStorageLayout(hre, name)
-      const slots = computeStorageSlots(storageLayout, variables[name])
-
-      for (const slot of slots) {
-        alloc[addr].storage[slot.key] = slot.val
-      }
     }
 
     const genesis: OptimismGenesis = {

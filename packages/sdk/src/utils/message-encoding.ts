@@ -1,8 +1,8 @@
 import { getContractInterface } from '@eth-optimism/contracts'
+import { getContractInterface as getContractInterfaceBedrock } from '@eth-optimism/contracts-bedrock'
 import { BigNumber, ethers } from 'ethers'
 
 import { CoreCrossChainMessage } from '../interfaces'
-import { BEDROCK_INTERFACES } from './contracts'
 
 /**
  * Returns the v0 message encoding.
@@ -24,14 +24,17 @@ export const encodeV0 = (message: CoreCrossChainMessage): string => {
  * @returns v1 message encoding.
  */
 export const encodeV1 = (message: CoreCrossChainMessage): string => {
-  return BEDROCK_INTERFACES.UniversalMessenger.encodeFunctionData('relayMessage', [
-    message.messageNonce,
-    message.sender,
-    message.target,
-    message.value,
-    message.minGasLimit,
-    message.message,
-  ])
+  return getContractInterfaceBedrock('CrossDomainMessenger').encodeFunctionData(
+    'relayMessage',
+    [
+      message.messageNonce,
+      message.sender,
+      message.target,
+      message.value,
+      message.minGasLimit,
+      message.message,
+    ]
+  )
 }
 
 /**

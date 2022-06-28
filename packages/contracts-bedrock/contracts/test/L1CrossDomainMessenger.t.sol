@@ -76,7 +76,7 @@ contract L1CrossDomainMessenger_Test is Messenger_Initializer {
                 OptimismPortal.depositTransaction.selector,
                 Lib_PredeployAddresses.L2_CROSS_DOMAIN_MESSENGER,
                 0,
-                100 + L1Messenger.baseGas(hex"ff"),
+                L1Messenger.baseGas(hex"ff", 100),
                 false,
                 CrossDomainHashing.getVersionedEncoding(
                     L1Messenger.messageNonce(),
@@ -96,7 +96,7 @@ contract L1CrossDomainMessenger_Test is Messenger_Initializer {
             Lib_PredeployAddresses.L2_CROSS_DOMAIN_MESSENGER,
             0,
             0,
-            100 + L1Messenger.baseGas(hex"ff"),
+            L1Messenger.baseGas(hex"ff", 100),
             false,
             CrossDomainHashing.getVersionedEncoding(
                 L1Messenger.messageNonce(),

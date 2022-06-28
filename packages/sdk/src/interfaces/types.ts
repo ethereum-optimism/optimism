@@ -43,7 +43,7 @@ export interface OEL1Contracts {
   CanonicalTransactionChain: Contract
   BondManager: Contract
   OptimismPortal: Contract
-  OutputOracle: Contract
+  L2OutputOracle: Contract
 }
 
 /**
@@ -244,7 +244,7 @@ export interface StateRootBatchHeader {
 export interface BedrockOutputData {
   outputRoot: string
   l1Timestamp: number
-  l2Timestamp: number
+  l2BlockNumber: number
 }
 
 /**
@@ -283,7 +283,6 @@ export interface CrossChainMessageProof {
  * Bedrock proof data required to finalize an L2 to L1 message.
  */
 export interface BedrockCrossChainMessageProof {
-  l2Timestamp: number
   outputRootProof: {
     version: string
     stateRoot: string
@@ -339,3 +338,12 @@ export type AddressLike = string | Contract
  * Stuff that can be coerced into a number.
  */
 export type NumberLike = string | number | BigNumber
+
+/**
+ * Parameters that govern the L2OutputOracle.
+ */
+export type L2OutputOracleParameters = {
+  submissionInterval: number
+  startingBlockNumber: number
+  l2BlockTime: number
+}
