@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
@@ -11,20 +12,20 @@ import (
 
 var DifferentEpoch = errors.New("batch is of different epoch")
 
-func FilterBatches(log log.Logger, config *rollup.Config, epoch rollup.Epoch, minL2Time uint64, maxL2Time uint64, batches []*BatchData) (out []*BatchData) {
+func FilterBatches(log log.Logger, config *rollup.Config, epoch eth.BlockID, minL2Time uint64, maxL2Time uint64, batches []*BatchData) (out []*BatchData) {
 	uniqueTime := make(map[uint64]struct{})
 	for _, batch := range batches {
 		if err := ValidBatch(batch, config, epoch, minL2Time, maxL2Time); err != nil {
 			if err == DifferentEpoch {
-				log.Trace("ignoring batch of different epoch", "epoch", batch.Epoch, "expected_epoch", epoch, "timestamp", batch.Timestamp, "txs", len(batch.Transactions))
+				log.Trace("ignoring batch of different epoch", "epoch", batch.EpochNum, "expected_epoch", epoch, "timestamp", batch.Timestamp, "txs", len(batch.Transactions))
 			} else {
-				log.Warn("filtered batch", "epoch", batch.Epoch, "timestamp", batch.Timestamp, "txs", len(batch.Transactions), "err", err)
+				log.Warn("filtered batch", "epoch", batch.EpochNum, "timestamp", batch.Timestamp, "txs", len(batch.Transactions), "err", err)
 			}
 			continue
 		}
 		// Check if we have already seen a batch for this L2 block
 		if _, ok := uniqueTime[batch.Timestamp]; ok {
-			log.Warn("duplicate batch", "epoch", batch.Epoch, "timestamp", batch.Timestamp, "txs", len(batch.Transactions))
+			log.Warn("duplicate batch", "epoch", batch.EpochNum, "timestamp", batch.Timestamp, "txs", len(batch.Transactions))
 			// block already exists, batch is duplicate (first batch persists, others are ignored)
 			continue
 		}
@@ -34,8 +35,8 @@ func FilterBatches(log log.Logger, config *rollup.Config, epoch rollup.Epoch, mi
 	return
 }
 
-func ValidBatch(batch *BatchData, config *rollup.Config, epoch rollup.Epoch, minL2Time uint64, maxL2Time uint64) error {
-	if batch.Epoch != epoch {
+func ValidBatch(batch *BatchData, config *rollup.Config, epoch eth.BlockID, minL2Time uint64, maxL2Time uint64) error {
+	if batch.EpochNum != rollup.Epoch(epoch.Number) || batch.EpochHash != epoch.Hash {
 		// Batch was tagged for past or future epoch,
 		// i.e. it was included too late or depends on the given L1 block to be processed first.
 		return DifferentEpoch
@@ -62,7 +63,7 @@ func ValidBatch(batch *BatchData, config *rollup.Config, epoch rollup.Epoch, min
 }
 
 // FillMissingBatches turns a collection of batches to the input batches for a series of blocks
-func FillMissingBatches(batches []*BatchData, epoch, blockTime, minL2Time, nextL1Time uint64) []*BatchData {
+func FillMissingBatches(batches []*BatchData, epoch eth.BlockID, blockTime, minL2Time, nextL1Time uint64) []*BatchData {
 	m := make(map[uint64]*BatchData)
 	// The number of L2 blocks per sequencing window is variable, we do not immediately fill to maxL2Time:
 	// - ensure at least 1 block
@@ -86,7 +87,8 @@ func FillMissingBatches(batches []*BatchData, epoch, blockTime, minL2Time, nextL
 		} else {
 			out = append(out, &BatchData{
 				BatchV1{
-					Epoch:     rollup.Epoch(epoch),
+					EpochNum:  rollup.Epoch(epoch.Number),
+					EpochHash: epoch.Hash,
 					Timestamp: t,
 				},
 			})

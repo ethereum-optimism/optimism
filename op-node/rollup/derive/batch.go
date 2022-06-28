@@ -8,6 +8,7 @@ import (
 	"sync"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/rlp"
 )
@@ -32,7 +33,8 @@ const (
 )
 
 type BatchV1 struct {
-	Epoch     rollup.Epoch // aka l1 num
+	EpochNum  rollup.Epoch // aka l1 num
+	EpochHash common.Hash  // block hash
 	Timestamp uint64
 	// no feeRecipient address input, all fees go to a L2 contract
 	Transactions []hexutil.Bytes
