@@ -15,9 +15,9 @@
 
   "max_sequencer_drift": 10,
 
-  "seq_window_size": 2,
+  "seq_window_size": 4,
 
-  "channel_timeout": 10,
+  "channel_timeout": 40,
 
   "l1_chain_id": 900,
 
