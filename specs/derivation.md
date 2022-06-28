@@ -1,4 +1,4 @@
-# L2 Block Derivation Specification
+# L2 Chain Derivation Specification
 
 <!-- All glossary references in this file. -->
 [g-payload-attr]: glossary.md#payload-attributes
@@ -17,14 +17,20 @@
 [g-depositing-call]: glossary.md#depositing-call
 [g-depositing-transaction]: glossary.md#depositing-transaction
 [g-sequencing]: glossary.md#sequencing
+[g-sequencer]: glossary.md#sequencer
 [g-sequencing-epoch]: glossary.md#sequencing-epoch
 [g-sequencing-window]: glossary.md#sequencing-window
 [g-sequencer-batch]: glossary.md#sequencer-batch
 [g-l2-genesis]: glossary.md#l2-genesis-block
 [g-l2-chain-inception]: glossary.md#L2-chain-inception
-
-[g-batcher-transactions]: TODO
-TODO: revisit g-sequencing-window
+[g-batcher-transaction]: glossary.md#batcher-transaction
+[g-avail-provider]: glossary.md#data-availability-provider
+[g-batcher]: glossary.md#batcher
+[g-l2-output]: glossary.md#l2-output
+[g-fault-proof]: glosary.md#fault-proof
+[g-channel]: glossary.md#channel
+[g-channel-frame]: glossary.md#channel-frame
+[g-rollup-node]: glossary.md#rollup-node
 
 <!-- START doctoc generated TOC please keep comment here to allow auto update -->
 <!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
@@ -33,24 +39,234 @@ TODO
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
+TODO: address multiplicity of sequencers / batchers
+
 # Overview
 
-The L2 chain is derived from the L1 chain. In particular, each L1 blocks is mapped to an L2 [sequencing epoch][g-sequencing-epoch] comprising
-multiple L2 blocks. The epoch number matches the corresponding L1 block number.
+L2 chain derivation is one of the main responsability of the [rollup node][g-rollup-node], both in validator mode, and
+in sequencer mode (where derivation acts as a sanity check on sequencing, and enables detecting L1 chain
+[re-organizations][g-reorg]).
+
+The L2 chain is derived from the L1 chain. In particular, each L1 blocks is mapped to an L2 [sequencing
+epoch][g-sequencing-epoch] comprising multiple L2 blocks. The epoch number matches the corresponding L1 block number.
 
 To derive the L2 blocks in an epoch `E`, we need the following inputs:
 
 - The L1 [sequencing window][g-sequencing-window] for epoch `E`: the L1 blocks in the range `[E, E + SWS)` where `SWS` is
   the sequencing window size. In particular we need:
-    - The [batcher transactions][g-batcher-transactions] included in the sequencing window.
-    - The [deposits][g-deposits] made in L1 block `E` (in the form of events emitted by the [deposit contract][g-deposit-contract]).
+    - The [batcher transactions][g-batcher-transactions] included in the sequencing window. These allow us to
+      reconstruct [sequencer batches][g-sequencer-batch] containing the transactions to include in L2 blocks (each batch
+      maps to a single L2 block).
+    - The [deposits][g-deposits] made in L1 block `E` (in the form of events emitted by the [deposit
+      contract][g-deposit-contract]).
     - The L1 block attributes from L1 block `E` (to derive the [L1 attributes deposited transaction][g-l1-attr-deposit]).
-
-- The state of the L2 chain after the last L2 block of epoch `E - 1`, or — if epoch `E - 1` does not exist — the [genesis
-  state][g-l2-genesis] of the L2 chain.
+- The state of the L2 chain after the last L2 block of epoch `E - 1`, or — if epoch `E - 1` does not exist — the
+  [genesis state][g-l2-genesis] of the L2 chain.
     - An epoch `E` does not exist if `L2CI <= E`, where `L2CI` is the [L2 chain inception][g-l2-chain-inception].
 
 > **TODO** specify sequencing window size
+
+Each epoch may contain a variable number of L2 blocks, at the discretion of [the sequencer][g-sequencer], but subject to
+the following constraints for each block:
+
+- `min_l2_timestamp <= block.timestamp < max_l2_timestamp`, where
+    - all these values are denominated in seconds
+    - `min_l2_timestamp = prev_l2_timestamp + l2_block_time`
+        - `prev_l2_timestamp` is the timestamp of the previous L2 block
+        - `l2_block_time` is a configurable parameter of the time between L2 blocks (on Optimism, 2s)
+    - `max_l2_timestamp = max(l1_timestamp + max_sequencer_drift, min_l2_timestamp + l2_block_time)`
+        - `l1_timestamp` is the timestamp of the L1 block associated with the L2 block's epoch
+        - `max_sequencer_drift` is the most a sequencer is allowed to get ahead of L1
+
+> **TODO** specify max sequencer drift
+
+Put together, these constraints mean that there must be an L2 block every `l2_block_time` seconds, and that the
+timestamp for the first L2 block of an epoch must never fall behind the timestamp of the L1 block matching the epoch.
+
+Post-merge, Ethereum has a fixed block time of 12s (though some slots can be skipped). It is thus expected that, most of
+the time, each epoch on Optimism will contain `12/2 = 6` L2 blocks. The sequencer can however lengthen or shorten epochs
+(subject to above constraints). The rationale is to maintain liveness in case of either a skipped slot on L1, or a
+temporary loss of connection to L1 — which requires longer epochs. Shorter epochs are then required to avoid L2
+timestamps drifting further and further ahead of L1.
+
+## Eager Block Derivation
+
+In practice, it is often not necesary to wait for a full sequencing window of L1 blocks in order to start deriving the
+L2 blocks in an epoch. Indeed, as long as we are able to reconstruct sequential batches, we can start deriving the
+corresponding L2 blocks. We call this *eager block derivation*.
+
+However, in the very worst case, we can only reconstruct the batch for the first L2 block in the epoch by reading the
+last L1 block of the sequencing window. This means we also can't derive any further L2 block in the epoch until then, as
+they need the state that results from applying the epoch's first L2 block.
+
+------------------------------------------------------------------------------------------------------------------------
+
+# Batch Submission
+
+## Sequencing & Batch Submission Overview
+
+The [sequencer][g-sequencer] accepts L2 transactions from users. It is responsible for building blocks out of these. For
+each such block, it also creates a corresponding [sequencer batch][g-sequencer-batch]. It is also responsible for
+submitting each batch to a [data availability provider][g-avail-provider] (e.g. Ethereum calldata), which it does via
+its [batcher][g-batcher] component.
+
+The difference between an L2 block and a batch is subtle but important: the block includes an L2 state root, whereas the
+batch only commits to transactions at a given L2 timestamp (equivalently: L2 block number).
+
+This means that even if the sequencer applies a state transition incorrectly, the transactions in the batch will stil be
+considered part of the canonical L2 chain. Batches are still subject to validity checks (i.e. they have to be encoded
+correctly), and so are individual transactions within the batch (e.g. signatures have to be valid). Invalid batches and
+invalid individual transactions within an otherwise valid batch are discarded by correct nodes.
+
+If the sequencer applies a state transition incorrectly, he will post an incorrect [output root][g-l2-output], which
+will be challenged by a [fault proof][g-fault-proof], then replaced by a correct output root **for the existing sequencer
+batches.**
+
+For its part, the batcher requests
+
+## Batch Submission Wire Format
+
+Batch submission is closely tied to L2 chain derivation because the derivation process must decode the batches that have
+been encoded for the purpose of batch submission.
+
+The [batcher][g-batcher] submits [batcher transactions][g-batcher-transaction] to a [data availability
+provider][g-avail-provider]. These transactions contain one or multiple [channel frames][g-channel-frame], which are
+chunks of data belonging to a [channel][g-channel].
+
+A [channel][g-channel] is a sequence of [sequencer batches][g-sequencer-batch] (for sequential blocks) compressed
+together. The reason to group multiple batches together is simply to obtain a better compression rate, hence reducing
+data availability costs.
+
+Channels might be too large to fit in a single [batcher transaction][g-batcher-transaction], hence we need to split it
+into chunks known as [channel frames][g-channel-frame]. A single batcher transaction can also carry multiple frames
+(belonging to the same or to different channels).
+
+This design gives use the maximum flexibility in how we aggregate batches into channels, and split channels over batcher
+transactions. It notably allows us to maximize data utilisation in a batcher transaction: for instance it allows us to
+pack the final (small) frame of a window with large frames from the next window. It also allows the [batcher][g-batcher]
+to employ multiple signers (private keys) to submit one or multiple channels in parallel (1).
+
+(1) This helps alleviate issues where, because of transaction nonces, multiple transactions made by the same signer are
+stuck waiting on the inclusion of a previous transaction.
+
+### Batcher Transaction Format
+
+```text
+transaction_data = version_byte ++ rollup_payload
+
+# version_byte == 0:
+rollup_payload = frame ...   #  one or more frames, concatenated
+
+# version_byte != 0: invalid, reserved for future use
+```
+
+(where `++` denotes concatenation)
+
+The `rollup_payload` may be right-padded with 0s, which will be ignored. It's allowed for them to be
+interpreted as frames for channel 0, which must always be ignored.
+
+> **TODO** specify batcher authentication (i.e. where do we store / make available the public keys of authorize batcher signers)
+
+### Frame Format
+
+A [channel frame][g-channel-frame] is encoded as:
+
+```text
+frame = channel_id ++ frame_number ++ frame_data_length ++ frame_data ++ is_last
+
+channel_id        = random ++ timestamp
+random            = bytes32
+timestamp         = uvarint
+frame_number      = uvarint
+frame_data_length = uvarint
+frame_data        = bytes
+is_last           = bool
+```
+
+where:
+
+- `uvarint` is a variable-length encoding of a 64-bit unsigned integer into between 1 and 9 bytes, [as specified in
+  SQLite 4][sqlite-uvarint].
+- `channel_id` uniquely identifies a channel as the concatenation of a random value and a timestamp
+    - `random` is a random value such that two channels with different batches should have a different random value
+    - `timestamp` is the time at which the channel was created (UNIX time in seconds)
+    - The ID includes both the hash and the timestamp, in order to prevent a malicious sequencer from reusing the random
+      value after the channel has timed out (refer to the [batcher specification][batcher-spec] to learn more about
+      channel timeouts). This will also allow us substitute `random` by a hash commitment to the batches, should we want
+      to do so in the future.
+- `frame_number` identifies the index of the frame within the channel (in bytes)
+- `frame_data_length` is the length of `frame_data` in bytes
+- `frame_data` is a sequence of bytes belonging to the channel, at index `max(frame_number-1, 0)`
+- `is_last` is a single byte with a value of 1 if the frame is the last in the channel, 0 if there are frames in the
+  channel. Any other value makes the frame invalid (it must be ignored by the rollup node).
+
+> **TODO** why is frame_number not 0 based?
+
+[sqlite-uvarint]: https://www.sqlite.org/src4/doc/trunk/www/varint.wiki
+[batcher-spec]: batching.md
+
+### Channel Format
+
+A channel is encoded as `channel_encoding`, defined as:
+
+```text
+rlp_batches = []
+for batch in batches:
+    rlp_batches.append(rlp_encode(batch))
+channel_encoding = compress(rlp_batches)
+```
+
+where:
+
+- `batches` is the input, a sequence of batches byte-encoded as per the next section ("Batch Encoding")
+- `rlp_encode` is a function that encodes a batch according to the [RLP format] (where `batch` is treated as a string of
+  bytes) — concretely this adds a (variable-length) length prefix to the batch
+- `rlp_batches` is the concatenation of the RLP-encoded batches
+- `compress` is a function performing compression, using the ZLIB algorithm with no dictionary
+- `channel_encoding` is the compressed version of `rlp_batches`
+
+> **TODO** we probably need to specify the compression better (e.g. which ZLIB version, which flags)
+
+[RLP format]: https://ethereum.org/en/developers/docs/data-structures-and-encoding/rlp/
+
+When decompressing a channel, we limit the amount of decompressed data to `MAX_RLP_BYTES_PER_CHANNEL`, in order to avoid
+"zip-bomb" types of attack (where a small compressed input decompresses to a humongous amount of data).
+
+> **TODO** specify `MAX_RLP_BYTES_PER_CHANNEL`
+
+> **TODO** what happens when we reach `MAX_RLP_BYTES_PER_CHANNEL`? do we throw the channel away, or do we still attempt
+> to use the decompressed bytes?
+
+While the above pseudocode implies that all batches are known in advance, it is possible to perform streaming
+compression and decompression of RLP-encoded batches. This means it is possible to start including channel frames in a
+[batcher transaction][g-batcher-transaction] before we know how many batches (and how many frames) the channel will
+contain.b
+
+### Batch Format
+
+Recall that a batch contains a list of transactions to be included in a specific L2 block.
+
+A batch is encoded as `batch_version ++ content`, where `content` depends on the version:
+
+| `batch_version` | `content`                                         |
+| --------------- | ------------------------------------------------- |
+| 0               | `rlp_encode([epoch, timestamp, transaction_list)` |
+
+where:
+
+- `rlp_encode` is a function that encodes a batch according to the [RLP format], and `[x, y, z]` denotes a list
+  containing items `x`, `y` and `z`
+- `epoch` is the [sequencing epoch][g-sequencing-epoch] of the L2 block
+- `timestamp` is the timestamp of the L2 block
+- `transaction_list` is an RLP-encoded list of [EIP-2718] encoded transactions.
+
+[EIP-2718]: https://eips.ethereum.org/EIPS/eip-2718
+
+Unknown versions make the batch invalid (it must be ignored by the rollup node), as do malformed contents.
+
+------------------------------------------------------------------------------------------------------------------------
+# BELOW: TO PROCESS
+------------------------------------------------------------------------------------------------------------------------
 
 # L2 block derivation
 

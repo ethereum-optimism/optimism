@@ -194,17 +194,27 @@ roots][l2-output] to L1.
 
 [sequencing-window]: glossary.md#sequencing-window
 
-A sequencing window is a range of L1 blocks, to parse inputs from during a derivation step.
+A sequencing window is a range of L1 blocks from which a [sequencing epoch][sequencing-epoch] can be derived.
+
+A sequencing window whose first L1 block has number `N` contains [batcher transactions][batcher-transactions] for epoch
+`N`. The window contains blocks `[N, N + SWS)` where `SWS` is the sequencer window size.
+
+> **TODO** specify sequencer window size
+
+Additionally, the first block in the window defines the [depositing transactions][depositing-tx] which determine the
+[deposits] to be included in the first L2 block of the epoch.
 
 ## Sequencing Epoch
 
 [sequencing-epoch]: glossary.md#sequencing-epoch
 
-A sequencing epoch is sequential range of L2 blocks derived from a [sequencing
-window](#sequencing-window) of L1 blocks.
+A sequencing epoch is sequential range of L2 blocks derived from a [sequencing window](#sequencing-window) of L1 blocks.
 
-Each epoch is identified by an epoch number, which is equal to the block number
-number of the first L1 block in the sequencing window.
+Each epoch is identified by an epoch number, which is equal to the block number number of the first L1 block in the
+sequencing window.
+
+Epochs can have variable size, subject to some constraints. See the [L2 chain derivation specification][derivation-spec]
+for more details.
 
 ------------------------------------------------------------------------------------------------------------------------
 
@@ -308,7 +318,7 @@ and correct handling of a [deposited transaction][deposited].
 [deposit-contract]: glossary.md#deposit-contract
 
 The *deposit contract* is qn [L1] contract to which [EOAs][EOA] and contracts may send [deposits]. The deposits are
-emitted as log records (in Solidity, these are called *events*) for consumption by [rollup nodes][rollup node].
+emitted as log records (in Solidity, these are called *events*) for consumption by [rollup nodes][rollup-node].
 
 Advanced note: the deposits are not stored in calldata because they can be sent by contracts, in which case the calldata
 is part of the *internal* execution between contracts, and this intermediate calldata is not captured in one of the
@@ -400,7 +410,8 @@ information about deposits (cf. the section on [L2 derivation inputs][deriv-inpu
 [channel]: glossary.md#channel
 
 A channel is a sequence of [sequencer batches][sequencer-batch] (for sequential blocks) compressed together. The reason
-to group multiple batches together is simply to obtain a better compression rate.
+to group multiple batches together is simply to obtain a better compression rate, hence reducing data availability
+costs.
 
 A channel can be split in [frames][channel-frame] in order to be transmitted via [batcher
 transactions][batcher-transaction]. The reason to split a channel into frames is that a channel might too large to
@@ -480,19 +491,36 @@ In the current implementation, this is the L1 block number at which the output o
 
 ## Rollup Node
 
-[rollup node]: glossary.md#rollup-node
+[rollup-node]: glossary.md#rollup-node
 
 The rollup node is responsible for [deriving the L2 chain][derivation] from the L1 chain (L1 [blocks][block] and their
-associated [receipts][receipt]). This is done by its [rollup driver] component.
+associated [receipts][receipt]).
 
-- cf. [Rollup Node Specification](rollup-node.md)
+The rollup node can run either in *validator* or *sequencer* mode.
+
+In sequencer mode, the rollup node receives L2 transactions from users, which it uses to create L2 blocks. These are
+then submitted to a [data availability provider][avail-provider] via [batch submission][batch-submission]. The L2 chain
+derivation then acts as a sanity check and a way to detect L1 chain [re-orgs][reorg].
+
+In validator mode, the rollup node performs derivation as indicated above, but is also able to "run ahead" of the L1
+chain by getting blocks directly from the sequencer, in which case derivation serves to validate the sequencer's
+behaviour.
+
+A rollup node running in validator mode is sometimes called *a replica*.
+
+> **TODO** expand this to include output root submission
+
+See the [rollup node specification][rollup-node-spec] for more information.
 
 ## Rollup Driver
 
 [rollup driver]: glossary.md#rollup-driver
 
-The rollup driver is the [rollup node] component responsible for [deriving the L2 chain][derivation] from the L1 chain
+The rollup driver is the [rollup node][rollup-node] component responsible for [deriving the L2 chain][derivation] from the L1 chain
 (L1 [blocks][block] and their associated [receipts][receipt]).
+
+> **TODO** delete this entry, alongside its reference — can be replaced by "derivation process" or "derivation logic"
+> where needed
 
 ## L2 Chain Derivation
 
@@ -500,14 +528,13 @@ The rollup driver is the [rollup node] component responsible for [deriving the L
 
 A process that reads [L2 derivation inputs][deriv-inputs] from L1 in order to derive the L2 chain.
 
-cf. [L2 Chain Derivation (in Rollup Node
-Specification)](rollup-node.md#l2-chain-derivation)
+See the [L2 chain derivation specification][derivation-spec] for more details.
 
 ## L2 Derivation Inputs
 
 [deriv-inputs]: glossary.md#l2-chain-derivation-inputs
 
-This term refers to data that is found in L1 blocks and is read by the [rollup node] to construct [payload attributes].
+This term refers to data that is found in L1 blocks and is read by the [rollup node][rollup-node] to construct [payload attributes].
 
 L2 derivation inputs include:
 
@@ -600,12 +627,17 @@ Both L1 (post-[merge]) and L2 have an execution engine.
 On L1, the executed blocks can come from L1 block synchronization; or from a block freshly minted by the execution
 engine (using transactions from the L1 [mempool]), at the request of the L1 consensus layer.
 
-On L2, the executed blocks are freshly minted by the execution engine at the request of the [rollup node], using
+On L2, the executed blocks are freshly minted by the execution engine at the request of the [rollup node][rollup-node], using
 transactions [derived from L1 blocks][derivation].
 
 In these specifications, "execution engine" always refer to the L2 execution engine, unless otherwise specified.
 
 - cf. [Execution Engine Specification](exec-engine.md)
+
+
+<!-- Internal Links -->
+[derivation-spec]: derivation.md
+[rollup-node-spec]: rollup-node.md
 
 <!-- External Links -->
 [mpt-details]: https://github.com/norswap/nanoeth/blob/d4c0c89cc774d4225d16970aa44c74114c1cfa63/src/com/norswap/nanoeth/trees/patricia/README.md
