@@ -37,7 +37,7 @@ const deployFn: DeployFunction = async (hre) => {
       deployConfig.startingTimestamp,
       deployConfig.l2BlockTime,
       deployConfig.sequencerAddress,
-      deployConfig.ownerAddress,
+      deployConfig.outputOracleOwner,
     ],
     log: true,
     waitConfirmations: deployConfig.deploymentWaitConfirmations,
@@ -60,7 +60,7 @@ const deployFn: DeployFunction = async (hre) => {
         deployConfig.genesisOutput,
         deployConfig.startingBlockNumber,
         deployConfig.sequencerAddress,
-        deployConfig.ownerAddress,
+        deployConfig.outputOracleOwner,
       ]
     )
   )

@@ -13,6 +13,7 @@ import '@eth-optimism/hardhat-deploy-config'
 import './tasks/genesis-l1'
 import './tasks/genesis-l2'
 import './tasks/deposits'
+import './tasks/rekey'
 import './tasks/rollup-config'
 
 subtask(TASK_COMPILE_SOLIDITY_GET_SOURCE_PATHS).setAction(
@@ -85,7 +86,7 @@ const config: HardhatUserConfig = {
     sequencerAddress: {
       type: 'address',
     },
-    ownerAddress: {
+    outputOracleOwner: {
       type: 'address',
     },
   },
