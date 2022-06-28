@@ -13,6 +13,7 @@ export interface OpNodeConfig {
   block_time: number
   max_sequencer_drift: number
   seq_window_size: number
+  channel_timeout: number
   l1_chain_id: number
   l2_chain_id: number
   p2p_sequencer_address: string
