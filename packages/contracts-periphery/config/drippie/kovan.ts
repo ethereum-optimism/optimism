@@ -2,9 +2,15 @@ import { ethers } from 'ethers'
 
 import { DrippieConfig } from '../../src'
 
+const SECOND = 1
+const MINUTE = 60 * SECOND
+const HOUR = 60 * MINUTE
+const DAY = 24 * HOUR
+const WEEK = 7 * DAY
+
 const config: DrippieConfig = {
   TeleportrWithdrawal: {
-    interval: 60 * 10,
+    interval: 10 * MINUTE,
     dripcheck: 'CheckBalanceHigh',
     checkparams: {
       target: '0x4821975ca220601c153d02353300d6ad34adc362',
@@ -21,7 +27,7 @@ const config: DrippieConfig = {
     ],
   },
   GelatoBalance: {
-    interval: 60 * 60 * 24,
+    interval: 1 * DAY,
     dripcheck: 'CheckGelatoLow',
     checkparams: {
       treasury: '0x340759c8346A1E6Ed92035FB8B6ec57cE1D82c2c',
@@ -43,6 +49,20 @@ const config: DrippieConfig = {
             ethers.utils.parseEther('1'),
           ],
         },
+      },
+    ],
+  },
+  TonyOptimismKovanFaucet: {
+    interval: 1 * WEEK,
+    dripcheck: 'CheckBalanceLow',
+    checkparams: {
+      target: '0xa8019d6F7bC3008a0a708A422f223Ccb21b61eAD',
+      threshold: ethers.utils.parseEther('20'),
+    },
+    actions: [
+      {
+        target: '0xa8019d6F7bC3008a0a708A422f223Ccb21b61eAD',
+        value: ethers.utils.parseEther('100'),
       },
     ],
   },
