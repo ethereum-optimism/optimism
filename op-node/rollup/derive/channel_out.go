@@ -32,8 +32,8 @@ type ChannelOut struct {
 	closed bool
 }
 
-func (co *ChannelOut) ID() string {
-	return co.id.String()
+func (co *ChannelOut) ID() ChannelID {
+	return co.id
 }
 
 func NewChannelOut(channelTime uint64) (*ChannelOut, error) {

@@ -5,8 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
-
-	"github.com/ethereum-optimism/optimism/op-node/eth"
 )
 
 // count the tagging info as 200 in terms of buffer size.
@@ -68,8 +66,7 @@ func (id *ChannelID) UnmarshalText(text []byte) error {
 	return nil
 }
 
-type TaggedData struct {
-	L1Origin  eth.L1BlockRef
-	ChannelID ChannelID
-	Data      []byte
+// TerminalString implements log.TerminalStringer, formatting a string for console output during logging.
+func (id ChannelID) TerminalString() string {
+	return fmt.Sprintf("%x..%x-%d", id.Data[:3], id.Data[29:], id.Time)
 }
