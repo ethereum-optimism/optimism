@@ -5,7 +5,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"math/big"
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-node/eth"
@@ -55,7 +54,7 @@ func lastDeposit(txns []eth.Data) (int, error) {
 
 func (d *outputImpl) processBlock(ctx context.Context, l2Head eth.L2BlockRef, l2SafeHead eth.BlockID, l2Finalized eth.BlockID, payload *eth.ExecutionPayload) error {
 	d.log.Info("processing new block", "parent", payload.ParentID(), "l2Head", l2Head, "id", payload.ID())
-	if err := d.l2.NewPayload(ctx, payload); err != nil {
+	if _, err := d.l2.NewPayload(ctx, payload); err != nil {
 		return fmt.Errorf("failed to insert new payload: %v", err)
 	}
 	// now try to persist a reorg to the new payload
@@ -80,7 +79,7 @@ func (d *outputImpl) createNewBlock(ctx context.Context, l2Head eth.L2BlockRef, 
 	fetchCtx, cancel := context.WithTimeout(ctx, time.Second*20)
 	defer cancel()
 
-	var l1Info derive.L1Info
+	var l1Info eth.L1Info
 	var receipts types.Receipts
 	var err error
 
@@ -309,7 +308,7 @@ func attributesMatchBlock(attrs *eth.PayloadAttributes, parentHash common.Hash, 
 // verifySafeBlock reconciles the supplied payload attributes against the actual L2 block.
 // If they do not match, it inserts the new block and sets the head and safe head to the new block in the FC.
 func (d *outputImpl) verifySafeBlock(ctx context.Context, fc eth.ForkchoiceState, attrs *eth.PayloadAttributes, parent eth.BlockID) (*eth.ExecutionPayload, bool, error) {
-	payload, err := d.l2.PayloadByNumber(ctx, new(big.Int).SetUint64(parent.Number+1))
+	payload, err := d.l2.PayloadByNumber(ctx, parent.Number+1)
 	if err != nil {
 		return nil, false, fmt.Errorf("failed to get L2 block: %w", err)
 	}
@@ -389,7 +388,7 @@ func (d *outputImpl) insertHeadBlock(ctx context.Context, fc eth.ForkchoiceState
 		d.log.Error("Dropped deposits when executing L2 block")
 	}
 
-	err = d.l2.NewPayload(ctx, payload)
+	_, err = d.l2.NewPayload(ctx, payload)
 	if err != nil {
 		return nil, fmt.Errorf("failed to insert execution payload: %w", err)
 	}
