@@ -87,13 +87,13 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
         // ... for the first block after the starting block
         assertEq(
             oracle.computeL2Timestamp(startingBlockNumber + 1),
-            startingTimestamp + submissionInterval
+            startingTimestamp + l2BlockTime
         );
 
         // ... for some other block number
         assertEq(
             oracle.computeL2Timestamp(startingBlockNumber + 96024),
-            startingTimestamp + submissionInterval * 96024
+            startingTimestamp + l2BlockTime * 96024
         );
     }
 
