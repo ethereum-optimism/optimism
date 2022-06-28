@@ -348,7 +348,7 @@ contract OptimismPortalUpgradeable_Test is Portal_Initializer {
         assertEq(bytes32(0), slot21Before);
 
         NextImpl nextImpl = new NextImpl();
-        vm.startPrank(alice);
+        vm.startPrank(multisig);
         proxy.upgradeToAndCall(
             address(nextImpl),
             abi.encodeWithSelector(NextImpl.initialize.selector)

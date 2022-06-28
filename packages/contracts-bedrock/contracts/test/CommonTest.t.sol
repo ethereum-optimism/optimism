@@ -19,10 +19,14 @@ import { Lib_PredeployAddresses } from "../libraries/Lib_PredeployAddresses.sol"
 import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import { Proxy } from "../universal/Proxy.sol";
 import { Initializable } from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
+import { Lib_ResolvedDelegateProxy } from "../legacy/Lib_ResolvedDelegateProxy.sol";
+import { Lib_AddressManager } from "../legacy/Lib_AddressManager.sol";
+import { L1ChugSplashProxy } from "../legacy/L1ChugSplashProxy.sol";
 
 contract CommonTest is Test {
     address alice = address(128);
     address bob = address(256);
+    address multisig = address(512);
 
     address immutable ZERO_ADDRESS = address(0);
     address immutable NON_ZERO_ADDRESS = address(1);
@@ -36,9 +40,11 @@ contract CommonTest is Test {
         // Give alice and bob some ETH
         vm.deal(alice, 1 << 16);
         vm.deal(bob, 1 << 16);
+        vm.deal(multisig, 1 << 16);
 
         vm.label(alice, "alice");
         vm.label(bob, "bob");
+        vm.label(multisig, "bob");
 
         // Make sure we have a non-zero base fee
         vm.fee(1000000000);
@@ -82,8 +88,8 @@ contract L2OutputOracle_Initializer is CommonTest {
             sequencer,
             owner
         );
-        Proxy proxy = new Proxy(alice);
-        vm.prank(alice);
+        Proxy proxy = new Proxy(multisig);
+        vm.prank(multisig);
         proxy.upgradeToAndCall(
             address(oracleImpl),
             abi.encodeWithSelector(
@@ -103,16 +109,14 @@ contract Portal_Initializer is L2OutputOracle_Initializer {
     OptimismPortal opImpl;
     OptimismPortal op;
 
-    function setUp() public override virtual {
+    function setUp() public virtual override {
         L2OutputOracle_Initializer.setUp();
         opImpl = new OptimismPortal(oracle, 7 days);
-        Proxy proxy = new Proxy(alice);
-        vm.prank(alice);
+        Proxy proxy = new Proxy(multisig);
+        vm.prank(multisig);
         proxy.upgradeToAndCall(
             address(opImpl),
-            abi.encodeWithSelector(
-                OptimismPortal.initialize.selector
-            )
+            abi.encodeWithSelector(OptimismPortal.initialize.selector)
         );
         op = OptimismPortal(payable(address(proxy)));
     }
@@ -120,6 +124,7 @@ contract Portal_Initializer is L2OutputOracle_Initializer {
 
 contract Messenger_Initializer is L2OutputOracle_Initializer {
     OptimismPortal op;
+    Lib_AddressManager addressManager;
     L1CrossDomainMessenger L1Messenger;
     L2CrossDomainMessenger L2Messenger =
         L2CrossDomainMessenger(Lib_PredeployAddresses.L2_CROSS_DOMAIN_MESSENGER);
@@ -164,7 +169,22 @@ contract Messenger_Initializer is L2OutputOracle_Initializer {
         op = new OptimismPortal(oracle, 7 days);
         vm.label(address(op), "OptimismPortal");
 
-        L1Messenger = new L1CrossDomainMessenger(op);
+        // Deploy the address manager
+        vm.prank(multisig);
+        addressManager = new Lib_AddressManager();
+
+        // Setup implementation
+        L1CrossDomainMessenger L1MessengerImpl = new L1CrossDomainMessenger(op);
+
+        // Setup the address manager and proxy
+        vm.prank(multisig);
+        addressManager.setAddress("OVM_L1CrossDomainMessenger", address(L1MessengerImpl));
+        Lib_ResolvedDelegateProxy proxy = new Lib_ResolvedDelegateProxy(
+            address(addressManager),
+            "OVM_L1CrossDomainMessenger"
+        );
+        L1Messenger = L1CrossDomainMessenger(address(proxy));
+        L1Messenger.initialize(op);
 
         vm.etch(
             Lib_PredeployAddresses.L2_CROSS_DOMAIN_MESSENGER,

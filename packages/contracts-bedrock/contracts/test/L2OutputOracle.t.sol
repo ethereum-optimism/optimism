@@ -376,7 +376,7 @@ contract L2OutputOracleUpgradeable_Test is L2OutputOracle_Initializer {
         assertEq(bytes32(0), slot21Before);
 
         NextImpl nextImpl = new NextImpl();
-        vm.startPrank(alice);
+        vm.startPrank(multisig);
         proxy.upgradeToAndCall(
             address(nextImpl),
             abi.encodeWithSelector(NextImpl.initialize.selector)
