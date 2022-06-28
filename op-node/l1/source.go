@@ -11,7 +11,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 
 	"github.com/ethereum-optimism/optimism/op-node/eth"
-	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -184,24 +183,24 @@ func (s *Source) blockCall(ctx context.Context, method string, id interface{}) (
 	return info, txs, nil
 }
 
-func (s *Source) InfoByHash(ctx context.Context, hash common.Hash) (derive.L1Info, error) {
+func (s *Source) InfoByHash(ctx context.Context, hash common.Hash) (eth.L1Info, error) {
 	if header, ok := s.headersCache.Get(hash); ok {
 		return header.(*HeaderInfo), nil
 	}
 	return s.headerCall(ctx, "eth_getBlockByHash", hash)
 }
 
-func (s *Source) InfoByNumber(ctx context.Context, number uint64) (derive.L1Info, error) {
+func (s *Source) InfoByNumber(ctx context.Context, number uint64) (eth.L1Info, error) {
 	// can't hit the cache when querying by number due to reorgs.
 	return s.headerCall(ctx, "eth_getBlockByNumber", hexutil.EncodeUint64(number))
 }
 
-func (s *Source) InfoHead(ctx context.Context) (derive.L1Info, error) {
+func (s *Source) InfoHead(ctx context.Context) (eth.L1Info, error) {
 	// can't hit the cache when querying the head due to reorgs / changes.
 	return s.headerCall(ctx, "eth_getBlockByNumber", "latest")
 }
 
-func (s *Source) InfoAndTxsByHash(ctx context.Context, hash common.Hash) (derive.L1Info, types.Transactions, error) {
+func (s *Source) InfoAndTxsByHash(ctx context.Context, hash common.Hash) (eth.L1Info, types.Transactions, error) {
 	if header, ok := s.headersCache.Get(hash); ok {
 		if txs, ok := s.transactionsCache.Get(hash); ok {
 			return header.(*HeaderInfo), txs.(types.Transactions), nil
@@ -210,17 +209,17 @@ func (s *Source) InfoAndTxsByHash(ctx context.Context, hash common.Hash) (derive
 	return s.blockCall(ctx, "eth_getBlockByHash", hash)
 }
 
-func (s *Source) InfoAndTxsByNumber(ctx context.Context, number uint64) (derive.L1Info, types.Transactions, error) {
+func (s *Source) InfoAndTxsByNumber(ctx context.Context, number uint64) (eth.L1Info, types.Transactions, error) {
 	// can't hit the cache when querying by number due to reorgs.
 	return s.blockCall(ctx, "eth_getBlockByNumber", hexutil.EncodeUint64(number))
 }
 
-func (s *Source) InfoAndTxsHead(ctx context.Context) (derive.L1Info, types.Transactions, error) {
+func (s *Source) InfoAndTxsHead(ctx context.Context) (eth.L1Info, types.Transactions, error) {
 	// can't hit the cache when querying the head due to reorgs / changes.
 	return s.blockCall(ctx, "eth_getBlockByNumber", "latest")
 }
 
-func (s *Source) Fetch(ctx context.Context, blockHash common.Hash) (derive.L1Info, types.Transactions, types.Receipts, error) {
+func (s *Source) Fetch(ctx context.Context, blockHash common.Hash) (eth.L1Info, types.Transactions, types.Receipts, error) {
 	if blockHash == (common.Hash{}) {
 		return nil, nil, nil, ethereum.NotFound
 	}
