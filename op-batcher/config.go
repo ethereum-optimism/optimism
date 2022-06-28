@@ -53,10 +53,6 @@ type Config struct {
 	// batched submission of sequencer transactions.
 	SequencerHDPath string
 
-	// SequencerHistoryDBFilename is the filename of the database used to track
-	// the latest L2 sequencer batches that were published.
-	SequencerHistoryDBFilename string
-
 	// SequencerBatchInboxAddress is the address in which to send batch
 	// transactions.
 	SequencerBatchInboxAddress string
@@ -86,7 +82,6 @@ func NewConfig(ctx *cli.Context) Config {
 		ResubmissionTimeout:        ctx.GlobalDuration(flags.ResubmissionTimeoutFlag.Name),
 		Mnemonic:                   ctx.GlobalString(flags.MnemonicFlag.Name),
 		SequencerHDPath:            ctx.GlobalString(flags.SequencerHDPathFlag.Name),
-		SequencerHistoryDBFilename: ctx.GlobalString(flags.SequencerHistoryDBFilenameFlag.Name),
 		SequencerBatchInboxAddress: ctx.GlobalString(flags.SequencerBatchInboxAddressFlag.Name),
 		/* Optional Flags */
 		LogLevel:    ctx.GlobalString(flags.LogLevelFlag.Name),

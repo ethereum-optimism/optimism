@@ -86,13 +86,6 @@ var (
 		Required: true,
 		EnvVar:   prefixEnvVar("SEQUENCER_HD_PATH"),
 	}
-	SequencerHistoryDBFilenameFlag = cli.StringFlag{
-		Name: "sequencer-history-db-filename",
-		Usage: "File name used to identify the latest L2 batches submitted " +
-			"by the sequencer",
-		Required: true,
-		EnvVar:   prefixEnvVar("SEQUENCER_HISTORY_DB_FILENAME"),
-	}
 	SequencerBatchInboxAddressFlag = cli.StringFlag{
 		Name:     "sequencer-batch-inbox-address",
 		Usage:    "L1 Address to receive batch transactions",
@@ -128,7 +121,6 @@ var requiredFlags = []cli.Flag{
 	ResubmissionTimeoutFlag,
 	MnemonicFlag,
 	SequencerHDPathFlag,
-	SequencerHistoryDBFilenameFlag,
 	SequencerBatchInboxAddressFlag,
 }
 

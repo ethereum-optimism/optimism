@@ -5,7 +5,6 @@ import (
 	"math/big"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/op-batcher/db"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
@@ -27,9 +26,6 @@ type Config struct {
 
 	// Where to send the batch txs to.
 	BatchInboxAddress common.Address
-
-	// Persists progress of submitting block data, to avoid redoing any work
-	HistoryDB db.HistoryDatabase
 
 	// The batcher can decide to set it shorter than the actual timeout,
 	//  since submitting continued channel data to L1 is not instantaneous.

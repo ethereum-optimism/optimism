@@ -12,7 +12,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/op-batcher/db"
 	"github.com/ethereum-optimism/optimism/op-batcher/sequencer"
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
@@ -144,11 +143,6 @@ func NewBatchSubmitter(cfg Config, l log.Logger) (*BatchSubmitter, error) {
 		return nil, err
 	}
 
-	historyDB, err := db.OpenJSONFileDatabase(cfg.SequencerHistoryDBFilename)
-	if err != nil {
-		return nil, err
-	}
-
 	chainID, err := l1Client.ChainID(ctx)
 	if err != nil {
 		return nil, err
@@ -171,7 +165,6 @@ func NewBatchSubmitter(cfg Config, l log.Logger) (*BatchSubmitter, error) {
 		MinL1TxSize:       cfg.MinL1TxSize,
 		MaxL1TxSize:       cfg.MaxL1TxSize,
 		BatchInboxAddress: batchInboxAddress,
-		HistoryDB:         historyDB,
 		ChannelTimeout:    cfg.ChannelTimeout,
 		ChainID:           chainID,
 		PrivKey:           sequencerPrivKey,
