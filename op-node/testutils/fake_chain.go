@@ -141,6 +141,14 @@ func (m *FakeChainSource) L1HeadBlockRef(ctx context.Context) (eth.L1BlockRef, e
 	return m.l1s[m.l1reorg][m.l1head], nil
 }
 
+func (m *FakeChainSource) L2BlockRefHead(ctx context.Context) (eth.L2BlockRef, error) {
+	m.log.Trace("L2BlockRefHead", "l2Head", m.l2head, "reorg", m.l2reorg)
+	if len(m.l2s[m.l2reorg]) == 0 {
+		panic("bad test, no l2 chain")
+	}
+	return m.l2s[m.l2reorg][m.l2head], nil
+}
+
 func (m *FakeChainSource) L2BlockRefByNumber(ctx context.Context, l2Num *big.Int) (eth.L2BlockRef, error) {
 	m.log.Trace("L2BlockRefByNumber", "l2Num", l2Num, "l2Head", m.l2head, "reorg", m.l2reorg)
 	if len(m.l2s[m.l2reorg]) == 0 {
