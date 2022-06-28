@@ -60,6 +60,9 @@ func (cfg *Config) Check() error {
 	if cfg.BlockTime == 0 {
 		return fmt.Errorf("block time cannot be 0, got %d", cfg.BlockTime)
 	}
+	if cfg.ChannelTimeout == 0 {
+		return fmt.Errorf("channel timeout must be set, this should cover at least a L1 block time")
+	}
 	if cfg.SeqWindowSize < 2 {
 		return fmt.Errorf("sequencing window size must at least be 2, got %d", cfg.SeqWindowSize)
 	}
