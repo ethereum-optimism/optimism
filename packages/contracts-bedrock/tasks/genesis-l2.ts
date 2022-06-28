@@ -1,7 +1,9 @@
 import fs from 'fs'
+import path from 'path'
 import assert from 'assert'
 
 import { OptimismGenesis, State } from '@eth-optimism/core-utils'
+import '@eth-optimism/hardhat-deploy-config'
 import { ethers } from 'ethers'
 import { task } from 'hardhat/config'
 import { HardhatRuntimeEnvironment } from 'hardhat/types'
@@ -26,15 +28,20 @@ const assertEvenLength = (str: string) => {
   assert(str.length % 2 === 0, str)
 }
 
-// TODO: this can be replaced with the smock version after
-// a new release of foundry-rs/hardhat
+// TODO: fix this to be compatible with smock's version
 const getStorageLayout = async (
   hre: HardhatRuntimeEnvironment,
   name: string
 ) => {
   const buildInfo = await hre.artifacts.getBuildInfo(name)
-  const key = Object.keys(buildInfo.output.contracts)[0]
-  return (buildInfo.output.contracts[key][name] as any).storageLayout
+  const keys = Object.keys(buildInfo.output.contracts)
+  for (const key of keys) {
+    if (name === path.basename(key, '.sol')) {
+      const contract = buildInfo.output.contracts[key]
+      return (contract[name] as any).storageLayout
+    }
+  }
+  throw new Error(`Cannot locate storageLayout for ${name}`)
 }
 
 task('genesis-l2', 'create a genesis config')
