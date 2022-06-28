@@ -5,7 +5,7 @@ const { env } = process
 const startingTimestamp =
   typeof env.L2OO_STARTING_BLOCK_TIMESTAMP === 'string'
     ? ethers.BigNumber.from(env.L2OO_STARTING_BLOCK_TIMESTAMP).toNumber()
-    : Date.now() / 1000
+    : Math.floor(Date.now() / 1000)
 
 const config = {
   submissionInterval: 6,
