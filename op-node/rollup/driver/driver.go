@@ -23,17 +23,17 @@ type BatchSubmitter interface {
 }
 
 type Downloader interface {
-	InfoByHash(ctx context.Context, hash common.Hash) (derive.L1Info, error)
-	Fetch(ctx context.Context, blockHash common.Hash) (derive.L1Info, types.Transactions, types.Receipts, error)
+	InfoByHash(ctx context.Context, hash common.Hash) (eth.L1Info, error)
+	Fetch(ctx context.Context, blockHash common.Hash) (eth.L1Info, types.Transactions, types.Receipts, error)
 	FetchAllTransactions(ctx context.Context, window []eth.BlockID) ([]types.Transactions, error)
 }
 
 type Engine interface {
 	GetPayload(ctx context.Context, payloadId eth.PayloadID) (*eth.ExecutionPayload, error)
 	ForkchoiceUpdate(ctx context.Context, state *eth.ForkchoiceState, attr *eth.PayloadAttributes) (*eth.ForkchoiceUpdatedResult, error)
-	NewPayload(ctx context.Context, payload *eth.ExecutionPayload) error
+	NewPayload(ctx context.Context, payload *eth.ExecutionPayload) (*eth.PayloadStatusV1, error)
 	PayloadByHash(context.Context, common.Hash) (*eth.ExecutionPayload, error)
-	PayloadByNumber(context.Context, *big.Int) (*eth.ExecutionPayload, error)
+	PayloadByNumber(context.Context, uint64) (*eth.ExecutionPayload, error)
 }
 
 type L1Chain interface {
