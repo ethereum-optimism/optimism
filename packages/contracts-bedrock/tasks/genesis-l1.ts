@@ -11,8 +11,7 @@ task('genesis-l1', 'create a genesis config')
     'genesis.json'
   )
   .setAction(async (args, hre) => {
-    // TODO: type needs to be updated to work with modern geth
-    const alloc: State | any = {}
+    const alloc: State = {}
 
     // Give each predeploy a single wei
     for (let i = 0; i <= 0xff; i++) {
