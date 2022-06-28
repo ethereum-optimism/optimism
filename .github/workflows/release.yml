@@ -17,6 +17,7 @@ jobs:
       drippie-mon: ${{ steps.packages.outputs.drippie-mon }}
       data-transport-layer: ${{ steps.packages.outputs.data-transport-layer }}
       contracts: ${{ steps.packages.outputs.contracts }}
+      contracts-bedrock: ${{ steps.packages.outputs.contracts-bedrock }}
       gas-oracle: ${{ steps.packages.outputs.gas-oracle }}
       replica-healthcheck: ${{ steps.packages.outputs.replica-healthcheck }}
       proxyd: ${{ steps.packages.outputs.proxyd }}
@@ -453,6 +454,33 @@ jobs:
           target: deployer
           push: true
           tags: ethereumoptimism/deployer:${{ needs.release.outputs.contracts }},ethereumoptimism/deployer:latest
+
+  contracts-bedrock:
+    name: Publish deployer-bedrock Version ${{ needs.release.outputs.contracts-bedrock }}
+    needs: release
+    if: needs.release.outputs.contracts != ''
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v1
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v1
+        with:
+          username: ${{ secrets.DOCKERHUB_ACCESS_TOKEN_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_ACCESS_TOKEN_SECRET }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v2
+        with:
+          context: .
+          file: ./ops/docker/Dockerfile.packages
+          target: deployer-bedrock
+          push: true
+          tags: ethereumoptimism/deployer-bedrock:${{ needs.release.outputs.contracts-bedrock }},ethereumoptimism/deployer-bedrock:latest
 
   integration_tests:
     name: Publish Integration tests ${{ needs.release.outputs.integration-tests }}

@@ -45,6 +45,9 @@ WORKDIR /opt/optimism/packages/contracts
 COPY ./ops/scripts/deployer.sh .
 CMD ["yarn", "run", "deploy"]
 
+FROM base as deployer-bedrock
+WORKDIR /opt/optimism/packages/contracts-bedrock
+CMD ["yarn", "run", "deploy"]
 
 FROM base as data-transport-layer
 WORKDIR /opt/optimism/packages/data-transport-layer

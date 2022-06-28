@@ -11,7 +11,7 @@ import (
 // SendState tracks information about the publication state of a given txn. In
 // this context, a txn may correspond to multiple different txn hashes due to
 // varying gas prices, though we treat them all as the same logical txn. This
-// struct is primarly used to determine whether or not the txmgr should abort a
+// struct is primarily used to determine whether or not the txmgr should abort a
 // given txn and retry with a higher nonce.
 type SendState struct {
 	minedTxs         map[common.Hash]struct{}
