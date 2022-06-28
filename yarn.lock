@@ -2879,11 +2879,6 @@
   resolved "https://registry.yarnpkg.com/@rari-capital/solmate/-/solmate-6.3.0.tgz#01050e276e71dc4cd4169cf8002b447eb07d90c3"
   integrity sha512-SWPbnfZUCe4ahHNqcb0qsPrzzAzMZMoA3x6SxZn04g0dLm0xupVeHonM3LK13uhPGIULF8HzXg8CgXE/fEnMlQ==
 
-"@rari-capital/solmate@git+https://github.com/rari-capital/solmate.git#8f9b23f8838670afda0fd8983f2c41e8037ae6bc":
-  version "7.0.0-alpha.3"
-  uid "8f9b23f8838670afda0fd8983f2c41e8037ae6bc"
-  resolved "git+https://github.com/rari-capital/solmate.git#8f9b23f8838670afda0fd8983f2c41e8037ae6bc"
-
 "@rari-capital/solmate@https://github.com/rari-capital/solmate.git#8f9b23f8838670afda0fd8983f2c41e8037ae6bc":
   version "7.0.0-alpha.3"
   resolved "https://github.com/rari-capital/solmate.git#8f9b23f8838670afda0fd8983f2c41e8037ae6bc"
@@ -7136,11 +7131,6 @@ drbg.js@^1.0.1:
     create-hash "^1.1.2"
     create-hmac "^1.1.4"
 
-"ds-test@git+https://github.com/dapphub/ds-test.git#9310e879db8ba3ea6d5c6489a579118fd264a3f5":
-  version "0.0.0"
-  uid "9310e879db8ba3ea6d5c6489a579118fd264a3f5"
-  resolved "git+https://github.com/dapphub/ds-test.git#9310e879db8ba3ea6d5c6489a579118fd264a3f5"
-
 "ds-test@https://github.com/dapphub/ds-test.git#9310e879db8ba3ea6d5c6489a579118fd264a3f5":
   version "0.0.0"
   resolved "https://github.com/dapphub/ds-test.git#9310e879db8ba3ea6d5c6489a579118fd264a3f5"
@@ -8994,11 +8984,6 @@ forever-agent@~0.6.1:
   version "0.6.1"
   resolved "https://registry.yarnpkg.com/forever-agent/-/forever-agent-0.6.1.tgz#fbc71f0c41adeb37f96c577ad1ed42d8fdacca91"
   integrity sha1-+8cfDEGt6zf5bFd60e1C2P2sypE=
-
-"forge-std@git+https://github.com/foundry-rs/forge-std.git#564510058ab3db01577b772c275e081e678373f2":
-  version "0.0.0"
-  uid "564510058ab3db01577b772c275e081e678373f2"
-  resolved "git+https://github.com/foundry-rs/forge-std.git#564510058ab3db01577b772c275e081e678373f2"
 
 "forge-std@https://github.com/foundry-rs/forge-std.git#564510058ab3db01577b772c275e081e678373f2":
   version "0.0.0"

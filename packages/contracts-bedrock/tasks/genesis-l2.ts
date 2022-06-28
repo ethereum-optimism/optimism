@@ -168,6 +168,25 @@ task('genesis-l2', 'create a genesis config')
       }
 
       if (predeployAddrs.has(ethers.utils.getAddress(addr))) {
+        const predeploy = Object.entries(predeploys).find(([name, address]) => {
+          return ethers.utils.getAddress(address) === addr
+        })
+
+        // Really shouldn't happen, since predeployAddrs is a set generated from predeploys.
+        if (predeploy === undefined) {
+          throw new Error('could not find address')
+        }
+
+        const name = predeploy[0]
+        if (variables[name]) {
+          const storageLayout = await getStorageLayout(hre, name)
+          const slots = computeStorageSlots(storageLayout, variables[name])
+
+          for (const slot of slots) {
+            alloc[addr].storage[slot.key] = slot.val
+          }
+        }
+
         alloc[addr].storage[implementationSlot] = toCodeAddr(addr)
       }
     }
