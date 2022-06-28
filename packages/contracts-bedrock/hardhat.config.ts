@@ -5,7 +5,6 @@ import { TASK_COMPILE_SOLIDITY_GET_SOURCE_PATHS } from 'hardhat/builtin-tasks/ta
 // Hardhat plugins
 import '@nomiclabs/hardhat-ethers'
 import '@typechain/hardhat'
-import 'solidity-coverage'
 import 'hardhat-deploy'
 import '@foundry-rs/hardhat-forge'
 import '@eth-optimism/hardhat-deploy-config'
