@@ -276,7 +276,7 @@ An [extended-validator] checks the incoming messages as follows, in order of ope
 
 - `[REJECT]` if the compression is not valid
 - `[REJECT]` if the block encoding is not valid
-- `[REJECT]` if the `payload.timestamp` is older than 20 seconds in the past
+- `[REJECT]` if the `payload.timestamp` is older than 60 seconds in the past
   (graceful boundary for worst-case propagation and clock skew)
 - `[REJECT]` if the `payload.timestamp` is more than 5 seconds into the future
 - `[REJECT]` if the `block_hash` in the `payload` is not valid
