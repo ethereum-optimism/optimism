@@ -16,7 +16,7 @@
   "scripts": {
     "build:forge": "forge build",
     "prebuild": "yarn ts-node scripts/verifyFoundryInstall.ts",
-    "build": "hardhat compile && tsc && hardhat typechain && yarn autogen:artifacts",
+    "build": "hardhat compile && yarn autogen:artifacts && tsc && hardhat typechain",
     "build:ts": "tsc",
     "autogen:artifacts": "ts-node scripts/generate-artifacts.ts",
     "deploy": "hardhat deploy",

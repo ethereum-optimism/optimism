@@ -974,7 +974,10 @@ export class CrossChainMessenger implements ICrossChainMessenger {
 
     const block = await (
       this.l2Provider as ethers.providers.JsonRpcProvider
-    ).send('eth_getBlockByNumber', [toRpcHexString(resolved.blockNumber)])
+    ).send('eth_getBlockByNumber', [
+      toRpcHexString(resolved.blockNumber),
+      'false',
+    ])
 
     return {
       outputRootProof: {
