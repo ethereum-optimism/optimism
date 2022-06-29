@@ -322,8 +322,6 @@ func (s *state) eventLoop() {
 			} else if err != nil {
 				// If the pipeline corrupts, e.g. due to a reorg, simply reset it
 				s.log.Warn("Derivation pipeline is reset", "err", err)
-				s.derivation.Reset()
-				s.idleDerivation = true
 				continue
 			} else {
 				finalized, safe, unsafe := s.derivation.Finalized(), s.derivation.SafeL2Head(), s.derivation.UnsafeL2Head()
