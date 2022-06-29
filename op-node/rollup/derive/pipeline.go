@@ -2,6 +2,7 @@ package derive
 
 import (
 	"context"
+	"fmt"
 	"io"
 
 	"github.com/ethereum-optimism/optimism/op-node/eth"
@@ -141,7 +142,7 @@ func (dp *DerivationPipeline) Step(ctx context.Context) error {
 			dp.resetting += 1
 			return nil
 		} else if err != nil {
-			return err
+			return fmt.Errorf("stage %d failed resetting: %w", dp.resetting, err)
 		} else {
 			return nil
 		}
@@ -155,7 +156,7 @@ func (dp *DerivationPipeline) Step(ctx context.Context) error {
 		if err := stage.Step(ctx, outer); err == io.EOF {
 			continue
 		} else if err != nil {
-			return err
+			return fmt.Errorf("stage %d failed: %w", i, err)
 		} else {
 			return nil
 		}
