@@ -1,12 +1,12 @@
 //SPDX-License-Identifier: MIT
 pragma solidity 0.8.10;
 
+import { Initializable } from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
+import { ExcessivelySafeCall } from "excessively-safe-call/src/ExcessivelySafeCall.sol";
 import { L2OutputOracle } from "./L2OutputOracle.sol";
 import { WithdrawalVerifier } from "../libraries/Lib_WithdrawalVerifier.sol";
 import { AddressAliasHelper } from "../libraries/AddressAliasHelper.sol";
-import { ExcessivelySafeCall } from "../libraries/ExcessivelySafeCall.sol";
 import { ResourceMetering } from "./ResourceMetering.sol";
-import { Initializable } from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
 
 /**
  * @custom:proxied

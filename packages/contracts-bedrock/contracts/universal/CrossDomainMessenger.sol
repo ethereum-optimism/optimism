@@ -17,7 +17,7 @@ import {
 import {
     ReentrancyGuardUpgradeable
 } from "@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.sol";
-import { ExcessivelySafeCall } from "../libraries/ExcessivelySafeCall.sol";
+import { ExcessivelySafeCall } from "excessively-safe-call/src/ExcessivelySafeCall.sol";
 
 // solhint-enable max-line-length
 

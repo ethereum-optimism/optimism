@@ -8445,6 +8445,10 @@ evp_bytestokey@^1.0.0, evp_bytestokey@^1.0.3:
     md5.js "^1.3.4"
     safe-buffer "^5.1.1"
 
+"excessively-safe-call@https://github.com/nomad-xyz/ExcessivelySafeCall.git#4fcdfd3593d21381f696c790fa6180b8ef559c1e":
+  version "0.0.1-rc.1"
+  resolved "https://github.com/nomad-xyz/ExcessivelySafeCall.git#4fcdfd3593d21381f696c790fa6180b8ef559c1e"
+
 execa@^0.7.0:
   version "0.7.0"
   resolved "https://registry.yarnpkg.com/execa/-/execa-0.7.0.tgz#944becd34cc41ee32a63a9faf27ad5a65fc59777"
