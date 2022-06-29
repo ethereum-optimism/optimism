@@ -1032,22 +1032,25 @@ func TestFees(t *testing.T) {
 
 	ctx, cancel = context.WithTimeout(context.Background(), 1*time.Second)
 	defer cancel()
-	coinbaseStartBalance, err := l2Seq.BalanceAt(ctx, header.Coinbase, header.Number.Sub(header.Number, big.NewInt(1)))
+	coinbaseStartBalance, err := l2Seq.BalanceAt(ctx, header.Coinbase, safeAddBig(header.Number, big.NewInt(-1)))
 	require.Nil(t, err)
 
 	ctx, cancel = context.WithTimeout(context.Background(), 1*time.Second)
 	defer cancel()
-	coinbaseEndBalance, err := l2Seq.BalanceAt(ctx, header.Coinbase, nil)
+	coinbaseEndBalance, err := l2Seq.BalanceAt(ctx, header.Coinbase, header.Number)
 	require.Nil(t, err)
 
 	ctx, cancel = context.WithTimeout(context.Background(), 1*time.Second)
 	defer cancel()
-	endBalance, err := l2Seq.BalanceAt(ctx, fromAddr, nil)
+	endBalance, err := l2Seq.BalanceAt(ctx, fromAddr, header.Number)
 	require.Nil(t, err)
 
 	ctx, cancel = context.WithTimeout(context.Background(), 1*time.Second)
 	defer cancel()
-	baseFeeRecipientEndBalance, err := l2Seq.BalanceAt(ctx, cfg.BaseFeeRecipient, nil)
+	baseFeeRecipientEndBalance, err := l2Seq.BalanceAt(ctx, cfg.BaseFeeRecipient, header.Number)
+	require.Nil(t, err)
+
+	l1Header, err := sys.Clients["l1"].HeaderByNumber(ctx, nil)
 	require.Nil(t, err)
 
 	ctx, cancel = context.WithTimeout(context.Background(), 1*time.Second)
@@ -1073,7 +1076,7 @@ func TestFees(t *testing.T) {
 	require.Nil(t, err)
 	l1GasUsed := calcL1GasUsed(bytes, overhead)
 	divisor := new(big.Int).Exp(big.NewInt(10), decimals, nil)
-	l1Fee := new(big.Int).Mul(l1GasUsed, header.BaseFee)
+	l1Fee := new(big.Int).Mul(l1GasUsed, l1Header.BaseFee)
 	l1Fee = l1Fee.Mul(l1Fee, scalar)
 	l1Fee = l1Fee.Div(l1Fee, divisor)
 	require.Equal(t, l1Fee, l1FeeRecipientDiff, "l1 fee mismatch")
@@ -1089,4 +1092,8 @@ func TestFees(t *testing.T) {
 	balanceDiff := new(big.Int).Sub(startBalance, endBalance)
 	balanceDiff.Sub(balanceDiff, transferAmount)
 	require.Equal(t, balanceDiff, totalFee, "balances should add up")
+}
+
+func safeAddBig(a *big.Int, b *big.Int) *big.Int {
+	return new(big.Int).Add(a, b)
 }
