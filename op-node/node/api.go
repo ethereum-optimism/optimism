@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"math/big"
 
+	"github.com/ethereum-optimism/optimism/op-node/rollup/driver"
+
 	"github.com/ethereum-optimism/optimism/op-node/metrics"
 
 	"github.com/ethereum-optimism/optimism/op-node/version"
@@ -31,17 +33,23 @@ type l2EthClient interface {
 	L2BlockRefByHash(ctx context.Context, l2Hash common.Hash) (eth.L2BlockRef, error)
 }
 
+type driverClient interface {
+	SyncStatus(ctx context.Context) (*driver.SyncStatus, error)
+}
+
 type nodeAPI struct {
 	config *rollup.Config
 	client l2EthClient
+	dr     driverClient
 	log    log.Logger
 	m      *metrics.Metrics
 }
 
-func newNodeAPI(config *rollup.Config, l2Client l2EthClient, log log.Logger, m *metrics.Metrics) *nodeAPI {
+func newNodeAPI(config *rollup.Config, l2Client l2EthClient, dr driverClient, log log.Logger, m *metrics.Metrics) *nodeAPI {
 	return &nodeAPI{
 		config: config,
 		client: l2Client,
+		dr:     dr,
 		log:    log,
 		m:      m,
 	}
@@ -79,6 +87,10 @@ func (n *nodeAPI) OutputAtBlock(ctx context.Context, number rpc.BlockNumber) ([]
 	l2OutputRoot := l2.ComputeL2OutputRoot(l2OutputRootVersion, head.Hash(), head.Root, proof.StorageHash)
 
 	return []eth.Bytes32{l2OutputRootVersion, l2OutputRoot}, nil
+}
+
+func (n *nodeAPI) SyncStatus(ctx context.Context) (*driver.SyncStatus, error) {
+	return n.dr.SyncStatus(ctx)
 }
 
 func (n *nodeAPI) Version(ctx context.Context) (string, error) {
