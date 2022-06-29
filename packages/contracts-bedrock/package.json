@@ -22,7 +22,7 @@
     "test": "forge test",
     "gas-snapshot": "forge snapshot",
     "storage-snapshot": "./scripts/storage-snapshot.sh",
-    "slither": "slither .",
+    "slither": "./scripts/slither.sh",
     "clean": "rm -rf ./dist ./artifacts ./forge-artifacts ./cache ./tsconfig.tsbuildinfo",
     "lint:ts:check": "eslint . --max-warnings=0",
     "lint:contracts:check": "yarn solhint -f table 'contracts/**/*.sol'",
