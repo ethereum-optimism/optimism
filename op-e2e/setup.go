@@ -487,6 +487,11 @@ func (cfg SystemConfig) start() (*System, error) {
 			}
 		}
 	}
+
+	// Don't log state snapshots in test output
+	snapLog := log.New()
+	snapLog.SetHandler(log.DiscardHandler())
+
 	// Rollup nodes
 	for name, nodeConfig := range cfg.Nodes {
 		c := *nodeConfig // copy
@@ -501,7 +506,7 @@ func (cfg SystemConfig) start() (*System, error) {
 			}
 		}
 
-		node, err := rollupNode.New(context.Background(), &c, cfg.Loggers[name], cfg.Loggers[name], "", metrics.NewMetrics(""))
+		node, err := rollupNode.New(context.Background(), &c, cfg.Loggers[name], snapLog, "", metrics.NewMetrics(""))
 		if err != nil {
 			didErrAfterStart = true
 			return nil, err

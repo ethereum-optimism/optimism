@@ -7,6 +7,8 @@ import (
 	"io"
 	"sync"
 
+	"github.com/ethereum-optimism/optimism/op-node/eth"
+
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -43,6 +45,10 @@ type BatchV1 struct {
 type BatchData struct {
 	BatchV1
 	// batches may contain additional data with new upgrades
+}
+
+func (b *BatchV1) Epoch() eth.BlockID {
+	return eth.BlockID{Hash: b.EpochHash, Number: uint64(b.EpochNum)}
 }
 
 // EncodeRLP implements rlp.Encoder

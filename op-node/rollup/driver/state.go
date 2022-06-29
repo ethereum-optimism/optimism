@@ -2,6 +2,7 @@ package driver
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	gosync "sync"
@@ -341,18 +342,22 @@ func (s *state) eventLoop() {
 	}
 }
 
-func (s *state) snapshot(event string) {
-	// l1HeadJSON, _ := json.Marshal(s.l1Head)
-	// l1CurrentJSON, _ := json.Marshal(s.derivation.CurrentL1())
-	// l2HeadJSON, _ := json.Marshal(s.l2Head)
-	// l2SafeHeadJSON, _ := json.Marshal(s.l2SafeHead)
-	// l2FinalizedHeadJSON, _ := json.Marshal(s.l2Finalized)
+// deferJSONString helps avoid a JSON-encoding performance hit if the snapshot logger does not run
+type deferJSONString struct {
+	x any
+}
 
-	// s.snapshotLog.Info("Rollup State Snapshot",
-	// 	"event", event,
-	// 	"l1Head", string(l1HeadJSON),
-	// 	"l1Current", string(l1CurrentJSON),
-	// 	"l2Head", string(l2HeadJSON),
-	// 	"l2SafeHead", string(l2SafeHeadJSON),
-	// 	"l2FinalizedHead", string(l2FinalizedHeadJSON))
+func (v deferJSONString) String() string {
+	out, _ := json.Marshal(v.x)
+	return string(out)
+}
+
+func (s *state) snapshot(event string) {
+	s.snapshotLog.Info("Rollup State Snapshot",
+		"event", event,
+		"l1Head", deferJSONString{s.l1Head},
+		"l1Current", deferJSONString{s.derivation.Progress().Origin},
+		"l2Head", deferJSONString{s.l2Head},
+		"l2SafeHead", deferJSONString{s.l2SafeHead},
+		"l2FinalizedHead", deferJSONString{s.l2Finalized})
 }
