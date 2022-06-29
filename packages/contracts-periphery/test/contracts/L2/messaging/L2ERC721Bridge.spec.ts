@@ -60,6 +60,7 @@ describe('L2ERC721Bridge', () => {
       await ethers.getContractFactory('OptimismMintableERC721')
     ).deploy(
       L2ERC721Bridge.address,
+      100,
       DUMMY_L1ERC721_ADDRESS,
       'L2Token',
       'L2T',
@@ -225,6 +226,7 @@ describe('L2ERC721Bridge', () => {
         await smock.mock('OptimismMintableERC721')
       ).deploy(
         L2ERC721Bridge.address,
+        100,
         DUMMY_L1ERC721_ADDRESS,
         'L2Token',
         'L2T',

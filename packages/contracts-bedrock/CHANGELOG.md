@@ -1,5 +1,16 @@
 # @eth-optimism/contracts-bedrock
 
+## 0.4.1
+
+### Patch Changes
+
+- 5c3b4bfa: Enable hardhat style buildinfo
+- ef29d8a5: Make the Portal upgradeable
+- 5bb6f2c7: Add `OptimismPortal.isOutputFinalized`
+- 79f31007: correct l33t sp34k in toCodeAddrr
+- 5a12c635: Add deployer docker image
+- 8460865f: Optimize buildinfo support, only build through hardhat interface
+
 ## 0.4.0
 
 ### Minor Changes

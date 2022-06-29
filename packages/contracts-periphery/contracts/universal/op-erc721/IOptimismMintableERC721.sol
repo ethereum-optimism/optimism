@@ -26,6 +26,11 @@ interface IOptimismMintableERC721 is IERC721 {
     event Burn(address indexed account, uint256 tokenId);
 
     /**
+     * @notice Chain ID of the chain where the remote token is deployed.
+     */
+    function remoteChainId() external returns (uint256);
+
+    /**
      * @notice Address of the token on the remote domain.
      */
     function remoteToken() external returns (address);
