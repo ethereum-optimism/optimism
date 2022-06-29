@@ -26,7 +26,8 @@
       "**/@typechain/*",
       "@eth-optimism/contracts-bedrock/ds-test",
       "@eth-optimism/contracts-bedrock/forge-std",
-      "@eth-optimism/contracts-bedrock/@rari-capital/solmate"
+      "@eth-optimism/contracts-bedrock/@rari-capital/solmate",
+      "@eth-optimism/contracts-bedrock/excessively-safe-call"
     ]
   },
   "private": true,
