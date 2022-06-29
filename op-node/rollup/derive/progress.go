@@ -18,6 +18,9 @@ type Progress struct {
 }
 
 func (pr *Progress) Update(outer Progress) (changed bool, err error) {
+	if outer.Origin.Number < pr.Origin.Number {
+		return false, nil
+	}
 	if pr.Closed {
 		if outer.Closed {
 			if pr.Origin != outer.Origin {
