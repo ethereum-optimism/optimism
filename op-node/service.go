@@ -161,8 +161,8 @@ func NewSnapshotLogger(ctx *cli.Context) (log.Logger, error) {
 		if err != nil {
 			return nil, err
 		}
+		handler = log.SyncHandler(handler)
 	}
-	handler = log.SyncHandler(handler)
 	logger := log.New()
 	logger.SetHandler(handler)
 	return logger, nil
