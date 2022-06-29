@@ -56,7 +56,6 @@ func (e *SnapshotState) UnmarshalJSON(data []byte) error {
 		L2Head          json.RawMessage `json:"l2Head"`
 		L2SafeHead      json.RawMessage `json:"l2SafeHead"`
 		L2FinalizedHead json.RawMessage `json:"l2FinalizedHead"`
-		L1WindowBuf     json.RawMessage `json:"l1WindowBuf"`
 	}{}
 	if err := json.Unmarshal(data, &t); err != nil {
 		return err
