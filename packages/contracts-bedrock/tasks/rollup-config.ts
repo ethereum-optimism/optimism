@@ -18,7 +18,6 @@ task('rollup-config', 'create a genesis config')
     const l1 = new ethers.providers.StaticJsonRpcProvider(args.l1RpcUrl)
     const l2 = new ethers.providers.StaticJsonRpcProvider(args.l2RpcUrl)
 
-    const l1Genesis = await l1.getBlock('earliest')
     const l2Genesis = await l2.getBlock('earliest')
 
     const portal = await hre.deployments.get('OptimismPortalProxy')
@@ -26,8 +25,8 @@ task('rollup-config', 'create a genesis config')
     const config: OpNodeConfig = {
       genesis: {
         l1: {
-          hash: l1Genesis.hash,
-          number: 0,
+          hash: portal.receipt.blockHash,
+          number: portal.receipt.blockNumber,
         },
         l2: {
           hash: l2Genesis.hash,

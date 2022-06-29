@@ -37,7 +37,7 @@ const config = {
   deploymentWaitConfirmations: 1,
 
   maxSequencerDrift: 10,
-  sequencerWindowSize: 2,
+  sequencerWindowSize: 7200,
 
   ownerAddress: '0x3CE0f9784a5973d82560Ff227254FBC27707985f',
 }
