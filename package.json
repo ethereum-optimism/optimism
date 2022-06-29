@@ -17,6 +17,7 @@
       "ops/docker/hardhat",
       "ops/docker/go-builder",
       "ops/docker/js-builder",
+      "ops/docker/ci-builder",
       "proxyd",
       "teleportr"
     ],
