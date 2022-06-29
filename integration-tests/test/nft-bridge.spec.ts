@@ -1,6 +1,7 @@
 /* Imports: External */
 import { Contract, ContractFactory, utils, Wallet } from 'ethers'
 import { ethers } from 'hardhat'
+import { getChainId } from '@eth-optimism/core-utils'
 import { predeploys } from '@eth-optimism/contracts'
 import Artifact__TestERC721 from '@eth-optimism/contracts-periphery/artifacts/contracts/testing/helpers/TestERC721.sol/TestERC721.json'
 import Artifact__L1ERC721Bridge from '@eth-optimism/contracts-periphery/artifacts/contracts/L1/messaging/L1ERC721Bridge.sol/L1ERC721Bridge.json'
@@ -99,7 +100,8 @@ describe('ERC721 Bridge', () => {
 
     OptimismMintableERC721Factory =
       await Factory__OptimismMintableERC721Factory.deploy(
-        L2ERC721Bridge.address
+        L2ERC721Bridge.address,
+        await getChainId(env.l1Wallet.provider)
       )
     await OptimismMintableERC721Factory.deployed()
 
@@ -268,7 +270,10 @@ describe('ERC721 Bridge', () => {
       // - Returns the address of the legitimate L1 token from its l1Token() getter.
       // - Allows the L2 bridge to call its burn() function.
       const FakeOptimismMintableERC721 = await (
-        await ethers.getContractFactory('FakeOptimismMintableERC721', bobWalletL2)
+        await ethers.getContractFactory(
+          'FakeOptimismMintableERC721',
+          bobWalletL2
+        )
       ).deploy(L1ERC721.address, L2ERC721Bridge.address)
       await FakeOptimismMintableERC721.deployed()
 
