@@ -17,15 +17,17 @@ func FilterBatches(log log.Logger, config *rollup.Config, epoch eth.BlockID, min
 	for _, batch := range batches {
 		if err := ValidBatch(batch, config, epoch, minL2Time, maxL2Time); err != nil {
 			if err == DifferentEpoch {
-				log.Trace("ignoring batch of different epoch", "epoch", batch.EpochNum, "expected_epoch", epoch, "timestamp", batch.Timestamp, "txs", len(batch.Transactions))
+				log.Trace("ignoring batch of different epoch", "expected_epoch", epoch,
+					"epoch", batch.Epoch(), "timestamp", batch.Timestamp, "txs", len(batch.Transactions))
 			} else {
-				log.Warn("filtered batch", "epoch", batch.EpochNum, "timestamp", batch.Timestamp, "txs", len(batch.Transactions), "err", err)
+				log.Warn("filtered batch", "expected_epoch", epoch, "min", minL2Time, "max", maxL2Time,
+					"epoch", batch.Epoch(), "timestamp", batch.Timestamp, "txs", len(batch.Transactions), "err", err)
 			}
 			continue
 		}
 		// Check if we have already seen a batch for this L2 block
 		if _, ok := uniqueTime[batch.Timestamp]; ok {
-			log.Warn("duplicate batch", "epoch", batch.EpochNum, "timestamp", batch.Timestamp, "txs", len(batch.Transactions))
+			log.Warn("duplicate batch", "epoch", batch.Epoch(), "timestamp", batch.Timestamp, "txs", len(batch.Transactions))
 			// block already exists, batch is duplicate (first batch persists, others are ignored)
 			continue
 		}
@@ -36,10 +38,14 @@ func FilterBatches(log log.Logger, config *rollup.Config, epoch eth.BlockID, min
 }
 
 func ValidBatch(batch *BatchData, config *rollup.Config, epoch eth.BlockID, minL2Time uint64, maxL2Time uint64) error {
-	if batch.EpochNum != rollup.Epoch(epoch.Number) || batch.EpochHash != epoch.Hash {
+	if batch.EpochNum != rollup.Epoch(epoch.Number) {
 		// Batch was tagged for past or future epoch,
 		// i.e. it was included too late or depends on the given L1 block to be processed first.
+		// This is a very common error, batches may just be buffered for a later epoch.
 		return DifferentEpoch
+	}
+	if batch.EpochHash != epoch.Hash {
+		return fmt.Errorf("batch was meant for alternative L1 chain")
 	}
 	if (batch.Timestamp-config.Genesis.L2Time)%config.BlockTime != 0 {
 		return fmt.Errorf("bad timestamp %d, not a multiple of the block time", batch.Timestamp)
