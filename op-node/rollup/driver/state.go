@@ -13,6 +13,14 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 )
 
+type SyncStatus struct {
+	CurrentL1   eth.L1BlockRef `json:"current_l1"`
+	HeadL1      eth.L1BlockRef `json:"head_l1"`
+	UnsafeL2    eth.L2BlockRef `json:"unsafe_l2"`
+	SafeL2      eth.L2BlockRef `json:"safe_l2"`
+	FinalizedL2 eth.L2BlockRef `json:"finalized_l2"`
+}
+
 type state struct {
 	// Chain State
 	l1Head      eth.L1BlockRef // Latest recorded head of the L1 Chain, independent of derivation work
@@ -26,6 +34,9 @@ type state struct {
 
 	// When the derivation pipeline is waiting for new data to do anything
 	idleDerivation bool
+
+	// Requests for sync status. Synchronized with event loop to avoid reading an inconsistent sync status.
+	syncStatusReq chan chan SyncStatus
 
 	// Rollup config: rollup chain configuration
 	Config *rollup.Config
@@ -55,6 +66,7 @@ func NewState(driverCfg *Config, log log.Logger, snapshotLog log.Logger, config 
 	return &state{
 		derivation:       derivationPipeline,
 		idleDerivation:   false,
+		syncStatusReq:    make(chan chan SyncStatus, 10),
 		Config:           config,
 		DriverConfig:     driverCfg,
 		done:             make(chan struct{}),
@@ -336,8 +348,31 @@ func (s *state) eventLoop() {
 				s.l2Head = unsafe
 				reqStep() // continue with the next step if we can
 			}
+		case respCh := <-s.syncStatusReq:
+			respCh <- SyncStatus{
+				CurrentL1:   s.derivation.Progress().Origin,
+				HeadL1:      s.l1Head,
+				UnsafeL2:    s.l2Head,
+				SafeL2:      s.l2SafeHead,
+				FinalizedL2: s.l2Finalized,
+			}
 		case <-s.done:
 			return
+		}
+	}
+}
+
+func (s *state) SyncStatus(ctx context.Context) (*SyncStatus, error) {
+	respCh := make(chan SyncStatus)
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	case s.syncStatusReq <- respCh:
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case resp := <-respCh:
+			return &resp, nil
 		}
 	}
 }
