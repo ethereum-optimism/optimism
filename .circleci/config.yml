@@ -108,6 +108,10 @@ jobs:
       - image: ethereumoptimism/ci-builder:latest
     resource_class: medium
     steps:
+      - restore_cache:
+          keys:
+            - v2-cache-yarn-build-{{ .Revision }}
+      - checkout
       - run:
           name: Check if we should run
           command: |
@@ -115,10 +119,6 @@ jobs:
             if [[ "$CHANGED" = "FALSE" ]]; then
               circleci step halt
             fi
-      - restore_cache:
-          keys:
-            - v2-cache-yarn-build-{{ .Revision }}
-      - checkout
       - run:
           name: lint
           command: yarn lint:check
