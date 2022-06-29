@@ -53,7 +53,7 @@ func NewState(driverCfg *Config, log log.Logger, snapshotLog log.Logger, config 
 	output outputInterface, derivationPipeline DerivationPipeline, network Network) *state {
 	return &state{
 		derivation:       derivationPipeline,
-		idleDerivation:   true,
+		idleDerivation:   false,
 		Config:           config,
 		DriverConfig:     driverCfg,
 		done:             make(chan struct{}),
