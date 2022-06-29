@@ -19,7 +19,7 @@ contract OptimismPortal is Initializable, ResourceMetering {
     /**
      * @notice Contract version number.
      */
-    uint8 public constant OPTIMISM_PORTAL_VERSION = 1;
+    uint8 public constant VERSION = 1;
 
     /**
      * @notice Emitted when a transaction is deposited from L1 to L2. The parameters of this event
@@ -94,22 +94,22 @@ contract OptimismPortal is Initializable, ResourceMetering {
     uint256[48] private __gap;
 
     /**
-     * @notice The constructor sets immutable values in the implementation.
-     *         This means that these values can only changed by an upgrade. But the efficiency gains
-     *         are worthwhile.
-     *         Also ensures that the implementation is initialized upon deployment.
+     * @param _l2Oracle                  Address of the L2OutputOracle contract.
+     * @param _finalizationPeriodSeconds Output finalization time in seconds.
      */
     constructor(L2OutputOracle _l2Oracle, uint256 _finalizationPeriodSeconds) {
-        // Set these immutable values into the bytcode of the implementation.
+        // Immutables
         L2_ORACLE = _l2Oracle;
         FINALIZATION_PERIOD_SECONDS = _finalizationPeriodSeconds;
+
+        // Mutables
         initialize();
     }
 
     /**
-     * @notice Initializes the contract and parent contract(s).
+     * @notice Intializes mutable variables.
      */
-    function initialize() public reinitializer(OPTIMISM_PORTAL_VERSION) {
+    function initialize() public reinitializer(VERSION) {
         l2Sender = DEFAULT_L2_SENDER;
         __ResourceMetering_init();
     }
