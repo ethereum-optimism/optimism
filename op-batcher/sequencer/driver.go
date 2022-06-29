@@ -5,6 +5,8 @@ import (
 	"math/big"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-proposer/rollupclient"
+
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
@@ -19,6 +21,8 @@ type Config struct {
 
 	// API to hit for batch data
 	L2Client *ethclient.Client
+
+	RollupNode *rollupclient.RollupClient
 
 	// Limit the size of txs
 	MinL1TxSize uint64

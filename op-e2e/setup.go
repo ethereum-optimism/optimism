@@ -573,6 +573,7 @@ func (cfg SystemConfig) start() (*System, error) {
 	sys.batchSubmitter, err = bss.NewBatchSubmitter(bss.Config{
 		L1EthRpc:                   sys.nodes["l1"].WSEndpoint(),
 		L2EthRpc:                   sys.nodes["sequencer"].WSEndpoint(),
+		RollupRpc:                  rollupEndpoint,
 		MinL1TxSize:                1,
 		MaxL1TxSize:                120000,
 		ChannelTimeout:             sys.cfg.RollupConfig.ChannelTimeout,

@@ -106,6 +106,7 @@ services:
     environment:
       L1_ETH_RPC: http://l1:8545
       L2_ETH_RPC: http://l2:8545
+      ROLLUP_RPC: http://op-node:8545
       BATCH_SUBMITTER_MIN_L1_TX_SIZE_BYTES: 1
       BATCH_SUBMITTER_MAX_L1_TX_SIZE_BYTES: 120000
       BATCH_SUBMITTER_CHANNEL_TIMEOUT: 40
