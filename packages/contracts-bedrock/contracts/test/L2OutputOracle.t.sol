@@ -13,11 +13,6 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
         super.setUp();
     }
 
-    // Advance the evm's time to meet the L2OutputOracle's requirements for appendL2Output
-    function warpToAppendTime(uint256 _nextBlockNumber) public {
-        vm.warp(oracle.computeL2Timestamp(_nextBlockNumber) + 1);
-    }
-
     function test_constructor() external {
         assertEq(oracle.owner(), owner);
         assertEq(oracle.SUBMISSION_INTERVAL(), submissionInterval);

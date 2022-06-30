@@ -22,6 +22,7 @@ import { Initializable } from "@openzeppelin/contracts/proxy/utils/Initializable
 import { Lib_ResolvedDelegateProxy } from "../legacy/Lib_ResolvedDelegateProxy.sol";
 import { Lib_AddressManager } from "../legacy/Lib_AddressManager.sol";
 import { L1ChugSplashProxy } from "../legacy/L1ChugSplashProxy.sol";
+import { iL1ChugSplashDeployer } from "../legacy/L1ChugSplashProxy.sol";
 
 contract CommonTest is Test {
     address alice = address(128);
@@ -68,6 +69,11 @@ contract L2OutputOracle_Initializer is CommonTest {
 
     // Test data
     uint256 initL1Time;
+
+    // Advance the evm's time to meet the L2OutputOracle's requirements for appendL2Output
+    function warpToAppendTime(uint256 _nextBlockNumber) public {
+        vm.warp(oracle.computeL2Timestamp(_nextBlockNumber) + 1);
+    }
 
     function setUp() public virtual {
         _setUp();
@@ -330,8 +336,24 @@ contract Bridge_Initializer is Messenger_Initializer {
 
         // Deploy the L1 bridge and initialize it with the address of the
         // L1CrossDomainMessenger
-        L1Bridge = new L1StandardBridge(payable(address(L1Messenger)));
-        vm.label(address(L1Bridge), "L1StandardBridge");
+        L1ChugSplashProxy proxy = new L1ChugSplashProxy(multisig);
+        vm.mockCall(
+            multisig,
+            abi.encodeWithSelector(iL1ChugSplashDeployer.isUpgrading.selector),
+            abi.encode(true)
+        );
+        vm.startPrank(multisig);
+        proxy.setCode(type(L1StandardBridge).runtimeCode);
+        vm.clearMockedCalls();
+        address L1Bridge_Impl = proxy.getImplementation();
+        vm.stopPrank();
+
+
+        L1Bridge = L1StandardBridge(payable(address(proxy)));
+        L1Bridge.initialize(payable(address(L1Messenger)));
+
+        vm.label(address(proxy), "L1StandardBridge_Proxy");
+        vm.label(address(L1Bridge_Impl), "L1StandardBridge_Impl");
 
         // Deploy the L2StandardBridge, move it to the correct predeploy
         // address and then initialize it
