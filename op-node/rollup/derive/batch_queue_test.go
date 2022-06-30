@@ -10,52 +10,45 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/testlog"
 	"github.com/ethereum-optimism/optimism/op-node/testutils"
+	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
 )
 
-// fakeBatcheQueueOutput fakes the next stage (receive only) for the batch queue
-// It tracks the Open/Close state (received from the batch queue) as wells as
-// saving every batch (in order) that is sent to it.
-// Upon receiving a batch, the SafeL2Head is immediately advanced (only relevant characteristics).
-type fakeBatcheQueueOutput struct {
-	originOpen bool
-	origin     eth.L1BlockRef
+// fakeBatchQueueOutput fakes the next stage (receive only) for the batch queue
+// It tracks the progress state of the next stage.
+// Upon receiving a batch, relevant characteristic of safeL2Head are immediately advanced.
+type fakeBatchQueueOutput struct {
+	progress   Progress
 	batches    []*BatchData
 	safeL2Head eth.L2BlockRef
 }
 
-func (f *fakeBatcheQueueOutput) OpenOrigin(origin eth.L1BlockRef) {
-	f.originOpen = true
-	f.origin = origin
-}
+var _ BatchQueueOutput = (*fakeBatchQueueOutput)(nil)
 
-func (f *fakeBatcheQueueOutput) CloseOrigin() {
-	f.originOpen = false
-	f.origin = eth.L1BlockRef{}
-}
-
-func (f *fakeBatcheQueueOutput) AddBatch(batch *BatchData) {
+func (f *fakeBatchQueueOutput) AddBatch(batch *BatchData) {
 	f.batches = append(f.batches, batch)
 	// Advance SafeL2Head
-	f.safeL2Head.Number = batch.BlockNumber
 	f.safeL2Head.Time = batch.Timestamp
-	f.safeL2Head.L1Origin.Number = uint64(batch.Epoch)
-
+	f.safeL2Head.L1Origin.Number = uint64(batch.EpochNum)
 }
 
-func (f *fakeBatcheQueueOutput) SafeL2Head() eth.L2BlockRef {
+func (f *fakeBatchQueueOutput) SafeL2Head() eth.L2BlockRef {
 	return f.safeL2Head
 }
 
-func b(number, timestamp, epoch uint64) *BatchData {
+func (f *fakeBatchQueueOutput) Progress() Progress {
+	return f.progress
+}
+
+func b(timestamp uint64, epoch eth.L1BlockRef) *BatchData {
 	rng := rand.New(rand.NewSource(1234))
-	data := testutils.RandomData(rng, int(number))
+	data := testutils.RandomData(rng, int(timestamp))
 	return &BatchData{BatchV1{
-		BlockNumber:  number,
 		Timestamp:    timestamp,
-		Epoch:        rollup.Epoch(epoch),
+		EpochNum:     rollup.Epoch(epoch.Number),
+		EpochHash:    epoch.Hash,
 		Transactions: []hexutil.Bytes{data},
 	}}
 }
@@ -76,9 +69,20 @@ func L1Chain(l1Times []uint64) []eth.L1BlockRef {
 	return out
 }
 
-func TestBatcheQueueEager(t *testing.T) {
+type fakeL1Fetcher struct {
+	l1 []eth.L1BlockRef
+}
+
+func (f *fakeL1Fetcher) L1BlockRefByNumber(_ context.Context, n uint64) (eth.L1BlockRef, error) {
+	if n >= uint64(len(f.l1)) {
+		return eth.L1BlockRef{}, ethereum.NotFound
+	}
+	return f.l1[int(n)], nil
+}
+
+func TestBatchQueueEager(t *testing.T) {
 	log := testlog.Logger(t, log.LvlTrace)
-	next := &fakeBatcheQueueOutput{
+	next := &fakeBatchQueueOutput{
 		safeL2Head: eth.L2BlockRef{
 			Number:   0,
 			Time:     10,
@@ -93,21 +97,31 @@ func TestBatcheQueueEager(t *testing.T) {
 		MaxSequencerDrift: 600,
 		SeqWindowSize:     30,
 	}
-	bq := NewBatchQueue(log, cfg, next)
 
 	l1 := L1Chain([]uint64{10, 20, 30})
 
-	// Open
-	bq.OpenOrigin(l1[0])
+	fetcher := fakeL1Fetcher{l1: l1}
+	bq := NewBatchQueue(log, cfg, &fetcher, next)
+
+	prevProgress := Progress{
+		Origin: l1[0],
+		Closed: false,
+	}
+
+	// Setup progress
+	bq.progress.Closed = true
+	err := bq.Step(context.Background(), prevProgress)
+	require.Nil(t, err)
+
 	// Add batches
-	batches := []*BatchData{b(1, 12, 0), b(2, 14, 0)}
+	batches := []*BatchData{b(12, l1[0]), b(14, l1[0])}
 	for _, batch := range batches {
 		err := bq.AddBatch(batch)
 		require.Nil(t, err)
 	}
 	// Step
 	for {
-		if err := bq.Step(context.Background()); err == io.EOF {
+		if err := bq.Step(context.Background(), prevProgress); err == io.EOF {
 			break
 		} else {
 			require.Nil(t, err)
@@ -117,9 +131,9 @@ func TestBatcheQueueEager(t *testing.T) {
 	require.Equal(t, batches, next.batches)
 }
 
-func TestBatcheQueueFull(t *testing.T) {
+func TestBatchQueueFull(t *testing.T) {
 	log := testlog.Logger(t, log.LvlTrace)
-	next := &fakeBatcheQueueOutput{
+	next := &fakeBatchQueueOutput{
 		safeL2Head: eth.L2BlockRef{
 			Number:   0,
 			Time:     10,
@@ -134,35 +148,75 @@ func TestBatcheQueueFull(t *testing.T) {
 		MaxSequencerDrift: 600,
 		SeqWindowSize:     2,
 	}
-	bq := NewBatchQueue(log, cfg, next)
 
 	l1 := L1Chain([]uint64{10, 15, 20})
 
-	// Open
-	bq.OpenOrigin(l1[0])
+	fetcher := fakeL1Fetcher{l1: l1}
+	bq := NewBatchQueue(log, cfg, &fetcher, next)
+
+	// Start with open previous & closed self.
+	// Then this stage is opened at the first step.
+	bq.progress.Closed = true
+	prevProgress := Progress{
+		Origin: l1[0],
+		Closed: false,
+	}
+
+	// Do the bq open
+	err := bq.Step(context.Background(), prevProgress)
+	require.Equal(t, err, nil)
+	require.Equal(t, bq.progress.Closed, false)
+
 	// Add batches
-	batches := []*BatchData{b(2, 14, 0), b(3, 16, 1), b(4, 18, 1)}
+	batches := []*BatchData{b(14, l1[0]), b(16, l1[0]), b(18, l1[1])}
 	for _, batch := range batches {
 		err := bq.AddBatch(batch)
 		require.Nil(t, err)
 	}
 	// Missing first batch
-	err := bq.Step(context.Background())
+	err = bq.Step(context.Background(), prevProgress)
 	require.Equal(t, err, io.EOF)
-	bq.CloseOrigin()
-	bq.OpenOrigin(l1[1])
-	// Still missing first batch
-	err = bq.Step(context.Background())
-	require.Equal(t, err, io.EOF)
-	bq.CloseOrigin()
-	// Open up origin that completes the seq window
-	bq.OpenOrigin(l1[2])
-	firstBatch := b(1, 12, 0)
+
+	// Close previous to close bq
+	prevProgress.Closed = true
+	err = bq.Step(context.Background(), prevProgress)
+	require.Equal(t, err, nil)
+	require.Equal(t, bq.progress.Closed, true)
+
+	// Open previous to open bq with the new inclusion block
+	prevProgress.Closed = false
+	prevProgress.Origin = l1[1]
+	err = bq.Step(context.Background(), prevProgress)
+	require.Equal(t, err, nil)
+	require.Equal(t, bq.progress.Closed, false)
+
+	// Close previous to close bq (for epoch 2)
+	prevProgress.Closed = true
+	err = bq.Step(context.Background(), prevProgress)
+	require.Equal(t, err, nil)
+	require.Equal(t, bq.progress.Closed, true)
+
+	// Open previous to open bq with the new inclusion block (epoch 2)
+	prevProgress.Closed = false
+	prevProgress.Origin = l1[2]
+	err = bq.Step(context.Background(), prevProgress)
+	require.Equal(t, err, nil)
+	require.Equal(t, bq.progress.Closed, false)
+
+	// Finally add batch
+	firstBatch := b(12, l1[0])
 	err = bq.AddBatch(firstBatch)
-	require.Nil(t, err)
-	// Step
+	require.Equal(t, err, nil)
+
+	// Close the origin
+	prevProgress.Closed = true
+	err = bq.Step(context.Background(), prevProgress)
+	require.Equal(t, err, nil)
+	require.Equal(t, bq.progress.Closed, true)
+
+	// Step, but should have full epoch now
 	for {
-		if err := bq.Step(context.Background()); err == io.EOF {
+		if err := bq.Step(context.Background(), prevProgress); err == io.EOF {
 			break
 		} else {
 			require.Nil(t, err)
@@ -175,9 +229,9 @@ func TestBatcheQueueFull(t *testing.T) {
 	require.Equal(t, final, next.batches)
 }
 
-func TestBatcheQueueMissing(t *testing.T) {
+func TestBatchQueueMissing(t *testing.T) {
 	log := testlog.Logger(t, log.LvlTrace)
-	next := &fakeBatcheQueueOutput{
+	next := &fakeBatchQueueOutput{
 		safeL2Head: eth.L2BlockRef{
 			Number:   0,
 			Time:     10,
@@ -192,32 +246,78 @@ func TestBatcheQueueMissing(t *testing.T) {
 		MaxSequencerDrift: 600,
 		SeqWindowSize:     2,
 	}
-	bq := NewBatchQueue(log, cfg, next)
 
-	l1 := L1Chain([]uint64{10, 16, 20})
+	l1 := L1Chain([]uint64{10, 15, 20})
 
-	// Open
-	bq.OpenOrigin(l1[0])
+	fetcher := fakeL1Fetcher{l1: l1}
+	bq := NewBatchQueue(log, cfg, &fetcher, next)
 
+	// Start with open previous & closed self.
+	// Then this stage is opened at the first step.
+	bq.progress.Closed = true
+	prevProgress := Progress{
+		Origin: l1[0],
+		Closed: false,
+	}
+
+	// Do the bq open
+	err := bq.Step(context.Background(), prevProgress)
+	require.Equal(t, err, nil)
+	require.Equal(t, bq.progress.Closed, false)
+
+	// Add batches
+	// NB: The batch at 18 is skipped to skip over the ability to
+	// do eager batch processing for that batch. This test checks
+	// that batch timestamp 12 & 14 is created & 16 is used.
+	batches := []*BatchData{b(16, l1[0]), b(20, l1[1])}
+	for _, batch := range batches {
+		err := bq.AddBatch(batch)
+		require.Nil(t, err)
+	}
 	// Missing first batch
-	err := bq.Step(context.Background())
+	err = bq.Step(context.Background(), prevProgress)
 	require.Equal(t, err, io.EOF)
-	bq.CloseOrigin()
-	bq.OpenOrigin(l1[1])
-	// No Seq window yet
-	err = bq.Step(context.Background())
-	require.Equal(t, err, io.EOF)
-	bq.CloseOrigin()
-	// Open up origin that completes the seq window
-	bq.OpenOrigin(l1[2])
-	// Step
+
+	// Close previous to close bq
+	prevProgress.Closed = true
+	err = bq.Step(context.Background(), prevProgress)
+	require.Equal(t, err, nil)
+	require.Equal(t, bq.progress.Closed, true)
+
+	// Open previous to open bq with the new inclusion block
+	prevProgress.Closed = false
+	prevProgress.Origin = l1[1]
+	err = bq.Step(context.Background(), prevProgress)
+	require.Equal(t, err, nil)
+	require.Equal(t, bq.progress.Closed, false)
+
+	// Close previous to close bq (for epoch 2)
+	prevProgress.Closed = true
+	err = bq.Step(context.Background(), prevProgress)
+	require.Equal(t, err, nil)
+	require.Equal(t, bq.progress.Closed, true)
+
+	// Open previous to open bq with the new inclusion block (epoch 2)
+	prevProgress.Closed = false
+	prevProgress.Origin = l1[2]
+	err = bq.Step(context.Background(), prevProgress)
+	require.Equal(t, err, nil)
+	require.Equal(t, bq.progress.Closed, false)
+
+	// Close the origin
+	prevProgress.Closed = true
+	err = bq.Step(context.Background(), prevProgress)
+	require.Equal(t, err, nil)
+	require.Equal(t, bq.progress.Closed, true)
+
+	// Step, but should have full epoch now + fill missing
 	for {
-		if err := bq.Step(context.Background()); err == io.EOF {
+		if err := bq.Step(context.Background(), prevProgress); err == io.EOF {
 			break
 		} else {
 			require.Nil(t, err)
 		}
 	}
-	// Verify Output
-	require.Equal(t, 2, len(next.batches))
+	// TODO: Maybe check actuall batch validity better
+	require.Equal(t, 3, len(next.batches))
 }
