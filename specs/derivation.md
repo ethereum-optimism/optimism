@@ -126,6 +126,8 @@ For its part, the batcher requests
 
 ## Batch Submission Wire Format
 
+[wire-format]: #batch-submission-wire-format
+
 Batch submission is closely tied to L2 chain derivation because the derivation process must decode the batches that have
 been encoded for the purpose of batch submission.
 
@@ -240,7 +242,7 @@ When decompressing a channel, we limit the amount of decompressed data to `MAX_R
 While the above pseudocode implies that all batches are known in advance, it is possible to perform streaming
 compression and decompression of RLP-encoded batches. This means it is possible to start including channel frames in a
 [batcher transaction][g-batcher-transaction] before we know how many batches (and how many frames) the channel will
-contain.b
+contain.bBatch Submission Wire Format
 
 ### Batch Format
 
@@ -263,6 +265,90 @@ where:
 [EIP-2718]: https://eips.ethereum.org/EIPS/eip-2718
 
 Unknown versions make the batch invalid (it must be ignored by the rollup node), as do malformed contents.
+
+------------------------------------------------------------------------------------------------------------------------
+
+# Architecture
+
+The above describes the general process of L2 chain derivation, and specifies how batches are encoded within [batcher
+transactions][g-batcher-transactions].
+
+However, there remains many details to specify. These are mostly tied to the rollup node architecture for derivation.
+Therefore we present this architecture as a way to specify these details.
+
+A validator that only reads from L1 (and so doesn't interact with the sequencer directly) does not need to be
+implemented in the way presented below. It does however need to derive the same blocks (i.e. it needs to be semantically
+equivalent). We do believe the architecture presented below has many advantages.
+
+## Chain Derivation Stages
+
+Our architecture decomposes the derivation process into a pipeline made up of the following stages:
+
+1. L1 Traversal
+2. L1 Retrieval
+3. Channel Buffering
+4. Batch Decoding
+5. Payload Attributes Derivation
+6. Engine Queue
+
+The data flows flows from the start (outer) of the pipeline towards the end (inner). Each stage is able to push data to
+the next step.
+
+However, data is *processed* is reverse order. Meaning that if there is any data to be processed in the last stage, it
+will be processed first. Processing proceeds in "steps" that can be taken at each stage. We try to take as many steps as
+possible in the last (most inner) stage before taking steps any step in its outer stage, etc.
+
+This ensures that we use the data we already have before pulling more data and minimizes the latency of data traversing
+the derivation pipeline.
+
+Let's briefly describe each stage of the pipeline.
+
+In the **L1 Traversal** stage, we simply read the header of the next L1 block. In normal operations, these will be new
+L1 blocks as they get created, though we can also read old blocks while syncing, or in case of an L1 [re-org][g-reorg].
+
+In the **L1 Retrieval** stage, we read the block we get from the outer stage (L1 traversal), and extract data for it. In
+particular we extract a byte string that corresponds to the concatenation of the data in all the [batcher
+transaction][g-batcher-transaction] belonging to the block. This byte stream encodes a stream of [channel
+frames][g-channel-frame] (see the [Batch Submission Wire Format][wire-format] section for more info).
+
+This frames are parsed, then grouped them per [channel][g-channel] into a structure we call the *channel bank*.
+
+The **Channel Buffering** stage maintains a queue of channels, in order they were first seen on chain. Each step looks
+at the first channel in the queue, and if it is *closed* or *timed out*, then we push a byte string to the next stage,
+encoding all the sequential frames at the start of the channel (i.e. all frames in the channel in order, until the first
+missing frame).
+
+- A channel is considered *closed* when its last frame (marked with `is_last == 1`) has been received. Note that this
+  does not imply that all frames have been received!
+- A channel is considered to be *timed out* if its timestamp (the `timestamp`part of its `channel_id` included in every
+  one of its frames).
+
+> **TODO** The channel queue is a bit weird as implemented (blocks all other channels until the first channel is closed
+> / timed out. Also unclear why we need to wait for channel closure. Maybe something to revisit?
+
+In the **Batch Decoding** stage, we simply decode [batches][g-sequencer-batch] from the frames we received from the last
+stage.
+
+In the **Payload Attributes Derivation** stage, we convert the decoded batches into instances of the
+[`PayloadAttributes`][g-payload-attr] structure. Such a structure encodes the transactions that need to figure into a
+block, as well as other block inputs (timestamp, fee recipient, etc). Payload attributes derivation is detailed in the
+section TODO TODO TODO below.
+
+TODO: fill missing batches
+
+In the **Engine Queue** stage, the previous derived `PayloadAttributes` structures are sent to the [execution
+engine][g-exec-engine] to be executed and converted into a proper L2 block.
+
+> **NOTE**
+>
+> The currently implementation uses slightly different names for each stage, respectively:
+>
+> 1. L1 Traversal → `L1Traversal`
+> 2. L1 Retrieval → `L1Retrieval`
+> 3. Channel Buffering → `ChannelBank`
+> 4. Batch Decoding → `ChannelInReader`
+> 5. Payload Attributes Derivation → `BatchQueue`
+> 6. Engine Queue → `EngineQueue`
 
 ------------------------------------------------------------------------------------------------------------------------
 # BELOW: TO PROCESS
@@ -341,7 +427,8 @@ rollup_payload = frame ...   #  one or more frames, concatenated
 
 ## Derivation Pipeline
 
-Derivation is abstracted as a pipeline of stages, that indicate if they either:
+Derivation is abstracted as a pipeline of stages, that indicate if they
+is concerned. either:
 - Can be resumed
 - Need data from the lower stage before continuing
 - Error if they cannot be resumed (the pipeline should be completely reset)

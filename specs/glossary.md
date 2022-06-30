@@ -534,7 +534,8 @@ See the [L2 chain derivation specification][derivation-spec] for more details.
 
 [deriv-inputs]: glossary.md#l2-chain-derivation-inputs
 
-This term refers to data that is found in L1 blocks and is read by the [rollup node][rollup-node] to construct [payload attributes].
+This term refers to data that is found in L1 blocks and is read by the [rollup node][rollup-node] to construct [payload
+attributes][payload-attr].
 
 L2 derivation inputs include:
 
@@ -547,7 +548,7 @@ L2 derivation inputs include:
 
 ## Payload Attributes
 
-[payload attributes]: glossary.md#payload-attributes
+[payload-attr]: glossary.md#payload-attributes
 
 This term refers to an object that can be derived from [L2 chain derivation inputs][deriv-inputs] found on L1, which are
 then passed to the [execution engine][execution-engine] to construct L2 blocks.
