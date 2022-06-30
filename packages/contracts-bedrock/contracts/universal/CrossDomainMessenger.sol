@@ -66,12 +66,6 @@ abstract contract CrossDomainMessenger is
      * Variables *
      *************/
 
-    // blockedMessages in old L1CrossDomainMessenger
-    bytes32 internal REMOVED_VARIABLE_SPACER_1;
-
-    // relayedMessages in old L1CrossDomainMessenger
-    bytes32 internal REMOVED_VARIABLE_SPACER_2;
-
     /// @notice Mapping of message hash to boolean success value.
     mapping(bytes32 => bool) public successfulMessages;
 
