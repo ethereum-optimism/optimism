@@ -17,9 +17,11 @@ const deployFn: DeployFunction = async (hre) => {
     waitConfirmations: deployConfig.deploymentWaitConfirmations,
   })
 
+  const messenger = await hre.deployments.get('L1CrossDomainMessengerProxy')
+
   await deploy('L1StandardBridge', {
     from: deployer,
-    args: [],
+    args: [messenger.address],
     log: true,
     waitConfirmations: deployConfig.deploymentWaitConfirmations,
   })
@@ -27,7 +29,6 @@ const deployFn: DeployFunction = async (hre) => {
   const proxy = await hre.deployments.get('L1StandardBridgeProxy')
   const Proxy = await hre.ethers.getContractAt('Proxy', proxy.address)
   const bridge = await hre.deployments.get('L1StandardBridge')
-  const messenger = await hre.deployments.get('L1CrossDomainMessengerProxy')
 
   const L1StandardBridge = await hre.ethers.getContractAt(
     'L1StandardBridge',

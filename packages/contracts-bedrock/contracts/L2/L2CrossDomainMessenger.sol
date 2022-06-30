@@ -20,7 +20,7 @@ contract L2CrossDomainMessenger is CrossDomainMessenger {
      *
      * @param _l1CrossDomainMessenger Address of the L1CrossDomainMessenger contract.
      */
-    function initialize(address _l1CrossDomainMessenger) external {
+    function initialize(address _l1CrossDomainMessenger) external initializer {
         address[] memory blockedSystemAddresses = new address[](2);
         blockedSystemAddresses[0] = address(this);
         blockedSystemAddresses[1] = Lib_PredeployAddresses.L2_TO_L1_MESSAGE_PASSER;
