@@ -20,5 +20,7 @@ ignores: [
   "eslint-config-prettier",
   "eslint-plugin-prettier",
   "chai",
-  "babel-eslint"
+  "babel-eslint",
+  "ds-test",
+  "forge-std"
 ]
