@@ -15,7 +15,8 @@
     "lint:fix": "yarn lint:check --fix",
     "lint": "yarn lint:fix && yarn lint:check",
     "pre-commit": "lint-staged",
-    "test": "ts-mocha test/*.spec.ts"
+    "test": "ts-mocha test/*.spec.ts",
+    "test:coverage": "echo 'no coverage'"
   },
   "keywords": [
     "optimism",
