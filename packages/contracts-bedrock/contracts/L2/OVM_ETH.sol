@@ -8,10 +8,14 @@ import { Lib_PredeployAddresses } from "../libraries/Lib_PredeployAddresses.sol"
 import { OptimismMintableERC20 } from "../universal/OptimismMintableERC20.sol";
 
 /**
+ * @custom:legacy
  * @custom:proxied
  * @custom:predeploy 0xDeadDeAddeAddEAddeadDEaDDEAdDeaDDeAD0000
  * @title OVM_ETH
- * @notice Legacy contract which used to hold ETH balances on L2.
+ * @notice OVM_ETH is a legacy contract that held ETH balances before the Bedrock upgrade. All
+ *         ETH balances held within this contract were migrated to the state trie as part of the
+ *         Bedrock upgrade. Functions within this contract that mutate state were already disabled
+ *         as part of the EVM equivalence upgrade.
  */
 contract OVM_ETH is OptimismMintableERC20 {
     /**

@@ -39,18 +39,10 @@ contract L2ToL1MessagePasser {
      */
     event WithdrawerBalanceBurnt(uint256 indexed amount);
 
-    /*************
-     * Constants *
-     *************/
-
     /**
      * @notice The L1 gas limit set when eth is withdrawn using the receive() function.
      */
     uint256 internal constant RECEIVE_DEFAULT_GAS_LIMIT = 100_000;
-
-    /*************
-     * Variables *
-     *************/
 
     /**
      * @notice Includes the message hashes for all withdrawals
