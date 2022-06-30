@@ -76,12 +76,12 @@ func (bq *BatchQueue) Step(ctx context.Context, outer Progress) error {
 	}
 
 	for _, batch := range batches {
-		if uint64(batch.Batch.Timestamp) <= bq.next.SafeL2Head().Time {
+		if uint64(batch.Timestamp) <= bq.next.SafeL2Head().Time {
 			// drop attributes if we are still progressing towards the next stage
 			// (after a reset rolled us back a full sequence window)
 			continue
 		}
-		bq.next.AddBatch(batch.Batch)
+		bq.next.AddBatch(batch)
 	}
 	return nil
 }
@@ -157,7 +157,7 @@ func validExtension(cfg *rollup.Config, batch *BatchWithL1InclusionBlock, prevTi
 
 // deriveBatches pulls a single batch eagerly or a collection of batches if it is the end of
 // the sequencing window.
-func (bq *BatchQueue) deriveBatches(l2SafeHead eth.L2BlockRef) []*BatchWithL1InclusionBlock {
+func (bq *BatchQueue) deriveBatches(l2SafeHead eth.L2BlockRef) []*BatchData {
 	if len(bq.l1Blocks) == 0 {
 		return nil
 	}
@@ -175,7 +175,7 @@ func (bq *BatchQueue) deriveBatches(l2SafeHead eth.L2BlockRef) []*BatchWithL1Inc
 		}
 		sort.Slice(bns, func(i, j int) bool { return bns[i] < bns[j] })
 
-		var batches []*BatchWithL1InclusionBlock
+		var batches []*BatchData
 		for _, n := range bns {
 			for _, batch := range bq.batchesByTimestamp[n] {
 				// Filter out batches that were submitted too late.
@@ -184,7 +184,7 @@ func (bq *BatchQueue) deriveBatches(l2SafeHead eth.L2BlockRef) []*BatchWithL1Inc
 				}
 				// Pre filter batches in the correct epoch
 				if batch.Batch.EpochNum == rollup.Epoch(epoch.Number) {
-					batches = append(batches, batch)
+					batches = append(batches, batch.Batch)
 				}
 			}
 		}
@@ -198,13 +198,11 @@ func (bq *BatchQueue) deriveBatches(l2SafeHead eth.L2BlockRef) []*BatchWithL1Inc
 			maxL2Time = minL2Time + bq.config.BlockTime
 		}
 
-		// TODO: figure this out. Could potentially drop inclusion information at this point
-		inclusionBlock := eth.L1BlockRef{} // end of epoch
 		bq.log.Trace("found batches", "len", len(batches))
 		// Filter + Fill batches
 		batches = FilterBatches(bq.log, bq.config, epoch.ID(), minL2Time, maxL2Time, batches)
 		bq.log.Trace("filtered batches", "len", len(batches), "l1Origin", bq.l1Blocks[0], "nextL1Block", bq.l1Blocks[1])
-		batches = FillMissingBatches(batches, inclusionBlock, epoch.ID(), bq.config.BlockTime, minL2Time, nextL1BlockTime)
+		batches = FillMissingBatches(batches, epoch.ID(), bq.config.BlockTime, minL2Time, nextL1BlockTime)
 		bq.log.Trace("added missing batches", "len", len(batches), "l1OriginTime", l1OriginTime, "nextL1BlockTime", nextL1BlockTime)
 		// Advance an epoch after filling all batches.
 		bq.l1Blocks = bq.l1Blocks[1:]
@@ -213,11 +211,11 @@ func (bq *BatchQueue) deriveBatches(l2SafeHead eth.L2BlockRef) []*BatchWithL1Inc
 
 	} else {
 		bq.log.Trace("Trying to eagerly find batch")
-		var ret []*BatchWithL1InclusionBlock
+		var ret []*BatchData
 		next := bq.tryPopNextBatch(l2SafeHead)
 		if next != nil {
 			bq.log.Info("found eager batch", "batch", next.Batch)
-			ret = append(ret, next)
+			ret = append(ret, next.Batch)
 		}
 		return ret
 	}
