@@ -45,7 +45,7 @@
     "lint:ts:check": "yarn lerna run lint:ts:check",
     "lint:check": "yarn lerna run lint:check",
     "lint:fix": "yarn lerna run lint:fix --parallel",
-    "postinstall": "patch-package",
+    "postinstall": "patch-package && yarn deduplicate",
     "ready": "yarn lint && yarn test",
     "prepare": "husky install",
     "release": "yarn build && yarn changeset publish",
