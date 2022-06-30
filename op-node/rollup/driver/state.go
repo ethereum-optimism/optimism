@@ -13,11 +13,26 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 )
 
+// SyncStatus is a snapshot of the driver
 type SyncStatus struct {
-	CurrentL1   eth.L1BlockRef `json:"current_l1"`
-	HeadL1      eth.L1BlockRef `json:"head_l1"`
-	UnsafeL2    eth.L2BlockRef `json:"unsafe_l2"`
-	SafeL2      eth.L2BlockRef `json:"safe_l2"`
+	// CurrentL1 is the block that the derivation process is currently at,
+	// this may not be fully derived into L2 data yet.
+	// If the node is synced, this matches the HeadL1, minus the verifier confirmation distance.
+	CurrentL1 eth.L1BlockRef `json:"current_l1"`
+	// HeadL1 is the perceived head of the L1 chain, no confirmation distance.
+	// The head is not guaranteed to build on the other L1 sync status fields,
+	// as the node may be in progress of resetting to adapt to a L1 reorg.
+	HeadL1 eth.L1BlockRef `json:"head_l1"`
+	// UnsafeL2 is the absolute tip of the L2 chain,
+	// pointing to block data that has not been submitted to L1 yet.
+	// The sequencer is building this, and verifiers may also be ahead of the
+	// SafeL2 block if they sync blocks via p2p or other offchain sources.
+	UnsafeL2 eth.L2BlockRef `json:"unsafe_l2"`
+	// SafeL2 points to the L2 block that was derived from the L1 chain.
+	// This point may still reorg if the L1 chain reorgs.
+	SafeL2 eth.L2BlockRef `json:"safe_l2"`
+	// FinalizedL2 points to the L2 block that was derived fully from
+	// finalized L1 information, thus irreversible.
 	FinalizedL2 eth.L2BlockRef `json:"finalized_l2"`
 }
 

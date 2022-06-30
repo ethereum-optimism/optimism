@@ -2,10 +2,10 @@ package rollupclient
 
 import (
 	"context"
-	"github.com/ethereum-optimism/optimism/op-node/rollup/driver"
 	"math/big"
 
 	"github.com/ethereum-optimism/optimism/op-node/eth"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/driver"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/rpc"
 )
