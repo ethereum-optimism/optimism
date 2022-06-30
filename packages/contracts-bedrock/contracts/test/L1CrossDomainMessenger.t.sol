@@ -126,7 +126,7 @@ contract L1CrossDomainMessenger_Test is Messenger_Initializer {
     }
 
     function test_L1MessengerXDomainSenderReverts() external {
-        vm.expectRevert("xDomainMessageSender is not set");
+        vm.expectRevert("CrossDomainMessenger: no message is currently being executed");
         L1Messenger.xDomainMessageSender();
     }
 
@@ -176,17 +176,17 @@ contract L1CrossDomainMessenger_Test is Messenger_Initializer {
 
         // set the value of op.l2Sender() to be the L2 Cross Domain Messenger.
         vm.prank(address(op));
-        vm.expectRevert("Message cannot be replayed.");
+        vm.expectRevert("CrossDomainMessenger: message has not been received before and cannot be replayed");
         L1Messenger.relayMessage(0, sender, target, 0, 0, message);
 
         vm.store(address(op), 0, bytes32(abi.encode(sender)));
-        vm.expectRevert("Message cannot be replayed.");
+        vm.expectRevert("CrossDomainMessenger: message has not been received before and cannot be replayed");
         L1Messenger.relayMessage(0, sender, target, 0, 0, message);
     }
 
     // relayMessage: the xDomainMessageSender is reset to the original value
     function test_L1MessengerxDomainMessageSenderResets() external {
-        vm.expectRevert("xDomainMessageSender is not set");
+        vm.expectRevert("CrossDomainMessenger: no message is currently being executed");
         L1Messenger.xDomainMessageSender();
 
         address sender = Lib_PredeployAddresses.L2_CROSS_DOMAIN_MESSENGER;
@@ -198,7 +198,7 @@ contract L1CrossDomainMessenger_Test is Messenger_Initializer {
         vm.prank(address(op));
         L1Messenger.relayMessage(0, address(0), address(0), 0, 0, hex"");
 
-        vm.expectRevert("xDomainMessageSender is not set");
+        vm.expectRevert("CrossDomainMessenger: no message is currently being executed");
         L1Messenger.xDomainMessageSender();
     }
 

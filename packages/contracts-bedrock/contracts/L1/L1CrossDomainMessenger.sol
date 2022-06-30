@@ -21,26 +21,26 @@ contract L1CrossDomainMessenger is CrossDomainMessenger {
     /**
      * @notice Address of the OptimismPortal.
      */
-    OptimismPortal public portal;
+    OptimismPortal public immutable portal;
 
     /**
-     * @param _portal Address of the OptimismPortal to send and receive messages through.
+     * @param _portal Address of the OptimismPortal contract on this network.
      */
-    constructor(OptimismPortal _portal) public {
-        // Mutables
-        initialize(_portal);
+    constructor(OptimismPortal _portal) {
+        portal = _portal;
+        initialize();
     }
 
     /**
-     * @notice Intializes mutable variables.
-     *
-     * @param _portal Address of the OptimismPortal to send and receive messages through.
+     * @notice Initializer.
      */
-    function initialize(OptimismPortal _portal) public reinitializer(VERSION) {
-        portal = _portal;
+    function initialize() public initializer {
         address[] memory blockedSystemAddresses = new address[](1);
         blockedSystemAddresses[0] = address(this);
-        _initialize(Lib_PredeployAddresses.L2_CROSS_DOMAIN_MESSENGER, blockedSystemAddresses);
+        __CrossDomainMessenger_init(
+            Lib_PredeployAddresses.L2_CROSS_DOMAIN_MESSENGER,
+            blockedSystemAddresses
+        );
     }
 
     /**
@@ -48,7 +48,7 @@ contract L1CrossDomainMessenger is CrossDomainMessenger {
      *
      * @return True if the message was sent from the messenger, false otherwise.
      */
-    function _isSystemMessageSender() internal view override returns (bool) {
+    function _isFromOtherMessenger() internal view override returns (bool) {
         return msg.sender == address(portal) && portal.l2Sender() == otherMessenger;
     }
 

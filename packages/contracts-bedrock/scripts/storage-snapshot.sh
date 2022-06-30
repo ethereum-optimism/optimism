@@ -28,7 +28,7 @@ contracts=(
   Proxy
   L1ChugSplashProxy
   OptimismMintableERC20
-  OptimismMintableTokenFactory
+  OptimismMintableERC20Factory
 )
 
 dir=$(dirname "$0")

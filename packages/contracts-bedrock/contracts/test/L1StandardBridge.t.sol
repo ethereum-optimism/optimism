@@ -362,7 +362,7 @@ contract L1StandardBridge_Test is Bridge_Initializer {
             abi.encode(address(L1Bridge.otherBridge()))
         );
         vm.prank(address(28));
-        vm.expectRevert("Could not authenticate bridge message.");
+        vm.expectRevert("StandardBridge: could not authenticate bridge message");
         L1Bridge.finalizeERC20Withdrawal(
             address(L1Token),
             address(L2Token),
@@ -380,7 +380,7 @@ contract L1StandardBridge_Test is Bridge_Initializer {
             abi.encode(address(address(0)))
         );
         vm.prank(address(L1Bridge.messenger()));
-        vm.expectRevert("Could not authenticate bridge message.");
+        vm.expectRevert("StandardBridge: could not authenticate bridge message");
         L1Bridge.finalizeERC20Withdrawal(
             address(L1Token),
             address(L2Token),

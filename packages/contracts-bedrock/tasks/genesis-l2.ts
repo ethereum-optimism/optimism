@@ -102,7 +102,7 @@ task('genesis-l2', 'create a genesis config')
       SequencerFeeVault: {
         l1FeeWallet: ethers.constants.AddressZero,
       },
-      OptimismMintableTokenFactory: {
+      OptimismMintableERC20Factory: {
         bridge: ethers.constants.AddressZero,
       },
       L1Block: {

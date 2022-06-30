@@ -4,9 +4,9 @@ pragma solidity 0.8.10;
 import { Bridge_Initializer } from "./CommonTest.t.sol";
 import { LibRLP } from "./Lib_RLP.t.sol";
 
-contract OptimismMintableTokenFactory_Test is Bridge_Initializer {
+contract OptimismMintableERC20Factory_Test is Bridge_Initializer {
     event StandardL2TokenCreated(address indexed _remoteToken, address indexed _localToken);
-    event OptimismMintableTokenCreated(
+    event OptimismMintableERC20Created(
         address indexed _localToken,
         address indexed _remoteToken,
         address _deployer
@@ -14,11 +14,6 @@ contract OptimismMintableTokenFactory_Test is Bridge_Initializer {
 
     function setUp() public override {
         super.setUp();
-    }
-
-    function test_initializeShouldRevert() external {
-        vm.expectRevert("Already initialized.");
-        L2TokenFactory.initialize(address(L1Bridge));
     }
 
     function test_bridge() external {
@@ -36,7 +31,7 @@ contract OptimismMintableTokenFactory_Test is Bridge_Initializer {
         );
 
         vm.expectEmit(true, true, true, true);
-        emit OptimismMintableTokenCreated(
+        emit OptimismMintableERC20Created(
             remote,
             local,
             alice
@@ -61,7 +56,7 @@ contract OptimismMintableTokenFactory_Test is Bridge_Initializer {
         );
 
         vm.expectEmit(true, true, true, true);
-        emit OptimismMintableTokenCreated(
+        emit OptimismMintableERC20Created(
             remote,
             local,
             alice
@@ -73,7 +68,7 @@ contract OptimismMintableTokenFactory_Test is Bridge_Initializer {
 
     function test_createStandardL2TokenShouldRevertIfRemoteIsZero() external {
         address remote = address(0);
-        vm.expectRevert("Must provide L1 token address");
+        vm.expectRevert("OptimismMintableERC20Factory: L1 token address cannot be address(0)");
         L2TokenFactory.createStandardL2Token(remote, "Beep", "BOOP");
     }
 }

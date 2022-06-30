@@ -83,8 +83,11 @@ contract L2StandardBridge is StandardBridge {
      *
      * @param _otherBridge Address of the L1StandardBridge.
      */
-    function initialize(address payable _otherBridge) public {
-        _initialize(payable(Lib_PredeployAddresses.L2_CROSS_DOMAIN_MESSENGER), _otherBridge);
+    function initialize(address payable _otherBridge) public initializer {
+        __StandardBridge_init(
+            payable(Lib_PredeployAddresses.L2_CROSS_DOMAIN_MESSENGER),
+            _otherBridge
+        );
     }
 
     /**

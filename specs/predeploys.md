@@ -13,7 +13,7 @@
   - [L2CrossDomainMessenger](#l2crossdomainmessenger)
   - [L2StandardBridge](#l2standardbridge)
   - [SequencerFeeVault](#sequencerfeevault)
-  - [OptimismMintableTokenFactory](#optimismmintabletokenfactory)
+  - [OptimismMintableERC20Factory](#OptimismMintableERC20factory)
   - [L1BlockNumber](#l1blocknumber)
   - [OVM\_GasPriceOracle](#ovm_gaspriceoracle)
   - [Reserved System Address 1](#reserved-system-address-1)
@@ -47,7 +47,7 @@ or `Bedrock`. Deprecated contracts should not be used.
 | L2CrossDomainMessenger       | 0x4200000000000000000000000000000000000007 | Legacy     | No         |
 | L2StandardBridge             | 0x4200000000000000000000000000000000000010 | Legacy     | No         |
 | SequencerFeeVault            | 0x4200000000000000000000000000000000000011 | Legacy     | No         |
-| OptimismMintableTokenFactory | 0x4200000000000000000000000000000000000012 | Legacy     | No         |
+| OptimismMintableERC20Factory | 0x4200000000000000000000000000000000000012 | Legacy     | No         |
 | L1BlockNumber                | 0x4200000000000000000000000000000000000013 | Legacy     | Yes        |
 | OVM\_GasPriceOracle          | 0x420000000000000000000000000000000000000F | Legacy     | No         |
 | Reserved System Address 1    | 0x4200000000000000000000000000000000000014 | Legacy     | No         |
@@ -230,9 +230,9 @@ interface SequencerFeeVault {
 }
 ```
 
-## OptimismMintableTokenFactory
+## OptimismMintableERC20Factory
 
-The `OptimismMintableTokenFactory` can be used to create an ERC20 token contract
+The `OptimismMintableERC20Factory` can be used to create an ERC20 token contract
 on a remote domain that maps to an ERC20 token contract on the local domain
 where tokens can be deposited to the remote domain. It deploys an
 `OptimismMintableERC20` which has the interface that works with the

@@ -140,19 +140,17 @@ contract L2OutputOracle is OwnableUpgradeable {
             "Output Oracle: Initial L2 block time must be less than current time"
         );
 
-        // Immutables
         SUBMISSION_INTERVAL = _submissionInterval;
         HISTORICAL_TOTAL_BLOCKS = _historicalTotalBlocks;
         STARTING_BLOCK_NUMBER = _startingBlockNumber;
         STARTING_TIMESTAMP = _startingTimestamp;
         L2_BLOCK_TIME = _l2BlockTime;
 
-        // Mutables
         initialize(_genesisL2Output, _startingBlockNumber, _sequencer, _owner);
     }
 
     /**
-     * @notice Intializes mutable variables.
+     * @notice Intializer.
      *
      * @param _genesisL2Output     The initial L2 output of the L2 chain.
      * @param _startingBlockNumber The timestamp to start L2 block at.
@@ -164,7 +162,7 @@ contract L2OutputOracle is OwnableUpgradeable {
         uint256 _startingBlockNumber,
         address _sequencer,
         address _owner
-    ) public reinitializer(VERSION) {
+    ) public initializer {
         l2Outputs[_startingBlockNumber] = OutputProposal(_genesisL2Output, block.timestamp);
         latestBlockNumber = _startingBlockNumber;
         __Ownable_init();

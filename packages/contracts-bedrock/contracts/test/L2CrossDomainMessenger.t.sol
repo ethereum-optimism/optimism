@@ -21,6 +21,7 @@ contract L2CrossDomainMessenger_Test is Messenger_Initializer {
     }
 
     function test_L2MessengerPause() external {
+        vm.prank(alice);
         L2Messenger.pause();
         assert(L2Messenger.paused());
     }
@@ -90,7 +91,7 @@ contract L2CrossDomainMessenger_Test is Messenger_Initializer {
     }
 
     function test_L2MessengerXDomainSenderReverts() external {
-        vm.expectRevert("xDomainMessageSender is not set");
+        vm.expectRevert("CrossDomainMessenger: no message is currently being executed");
         L2Messenger.xDomainMessageSender();
     }
 
@@ -139,20 +140,20 @@ contract L2CrossDomainMessenger_Test is Messenger_Initializer {
         bytes memory message = hex"1111";
 
         vm.prank(caller);
-        vm.expectRevert("Message cannot be replayed.");
+        vm.expectRevert("CrossDomainMessenger: message has not been received before and cannot be replayed");
         L1Messenger.relayMessage(0, sender, target, 0, 0, message);
     }
 
     // relayMessage: the xDomainMessageSender is reset to the original value
     function test_L2MessengerxDomainMessageSenderResets() external {
-        vm.expectRevert("xDomainMessageSender is not set");
+        vm.expectRevert("CrossDomainMessenger: no message is currently being executed");
         L2Messenger.xDomainMessageSender();
 
         address caller = AddressAliasHelper.applyL1ToL2Alias(address(L1Messenger));
         vm.prank(caller);
         L2Messenger.relayMessage(0, address(0), address(0), 0, 0, hex"");
 
-        vm.expectRevert("xDomainMessageSender is not set");
+        vm.expectRevert("CrossDomainMessenger: no message is currently being executed");
         L2Messenger.xDomainMessageSender();
     }
 
