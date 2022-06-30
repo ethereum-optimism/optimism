@@ -38,6 +38,7 @@ task('rollup-config', 'create a genesis config')
       block_time: deployConfig.l2BlockTime,
       max_sequencer_drift: deployConfig.maxSequencerDrift,
       seq_window_size: deployConfig.sequencerWindowSize,
+      channel_timeout: deployConfig.channelTimeout,
 
       l1_chain_id: await getChainId(l1),
       l2_chain_id: await getChainId(l2),

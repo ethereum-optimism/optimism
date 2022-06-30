@@ -3,9 +3,7 @@ package op_e2e
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
 	"math/big"
-	"os"
 	"strings"
 	"time"
 
@@ -17,7 +15,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/p2p"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	l2os "github.com/ethereum-optimism/optimism/op-proposer"
-
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
@@ -108,17 +105,16 @@ type System struct {
 	wallet *hdwallet.Wallet
 
 	// Connections to running nodes
-	nodes                      map[string]*node.Node
-	backends                   map[string]*eth.Ethereum
-	Clients                    map[string]*ethclient.Client
-	RolupGenesis               rollup.Genesis
-	rollupNodes                map[string]*rollupNode.OpNode
-	l2OutputSubmitter          *l2os.L2OutputSubmitter
-	sequencerHistoryDBFileName string
-	batchSubmitter             *bss.BatchSubmitter
-	L2OOContractAddr           common.Address
-	DepositContractAddr        common.Address
-	Mocknet                    mocknet.Mocknet
+	nodes               map[string]*node.Node
+	backends            map[string]*eth.Ethereum
+	Clients             map[string]*ethclient.Client
+	RolupGenesis        rollup.Genesis
+	rollupNodes         map[string]*rollupNode.OpNode
+	l2OutputSubmitter   *l2os.L2OutputSubmitter
+	batchSubmitter      *bss.BatchSubmitter
+	L2OOContractAddr    common.Address
+	DepositContractAddr common.Address
+	Mocknet             mocknet.Mocknet
 }
 
 func precompileAlloc() core.GenesisAlloc {
@@ -153,9 +149,6 @@ func (sys *System) Close() {
 	}
 	if sys.batchSubmitter != nil {
 		sys.batchSubmitter.Stop()
-	}
-	if sys.sequencerHistoryDBFileName != "" {
-		_ = os.Remove(sys.sequencerHistoryDBFileName)
 	}
 
 	for _, node := range sys.rollupNodes {
@@ -494,6 +487,11 @@ func (cfg SystemConfig) start() (*System, error) {
 			}
 		}
 	}
+
+	// Don't log state snapshots in test output
+	snapLog := log.New()
+	snapLog.SetHandler(log.DiscardHandler())
+
 	// Rollup nodes
 	for name, nodeConfig := range cfg.Nodes {
 		c := *nodeConfig // copy
@@ -503,12 +501,12 @@ func (cfg SystemConfig) start() (*System, error) {
 		if p, ok := p2pNodes[name]; ok {
 			c.P2P = p
 
-			if c.Sequencer {
+			if c.Driver.SequencerEnabled {
 				c.P2PSigner = &p2p.PreparedSigner{Signer: p2p.NewLocalSigner(p2pSignerPrivKey)}
 			}
 		}
 
-		node, err := rollupNode.New(context.Background(), &c, cfg.Loggers[name], cfg.Loggers[name], "", metrics.NewMetrics(""))
+		node, err := rollupNode.New(context.Background(), &c, cfg.Loggers[name], snapLog, "", metrics.NewMetrics(""))
 		if err != nil {
 			didErrAfterStart = true
 			return nil, err
@@ -562,7 +560,7 @@ func (cfg SystemConfig) start() (*System, error) {
 		LogTerminal:               true,
 		Mnemonic:                  sys.cfg.Mnemonic,
 		L2OutputHDPath:            sys.cfg.L2OutputHDPath,
-	}, "", cfg.ProposerLogger)
+	}, "", sys.cfg.Loggers["proposer"])
 	if err != nil {
 		return nil, fmt.Errorf("unable to setup l2 output submitter: %w", err)
 	}
@@ -571,34 +569,23 @@ func (cfg SystemConfig) start() (*System, error) {
 		return nil, fmt.Errorf("unable to start l2 output submitter: %w", err)
 	}
 
-	sequencerHistoryDBFile, err := ioutil.TempFile("", "bss.*.json")
-	if err != nil {
-		return nil, fmt.Errorf("unable to create sequencer history db file: %w", err)
-	}
-	sys.sequencerHistoryDBFileName = sequencerHistoryDBFile.Name()
-	if err = sequencerHistoryDBFile.Close(); err != nil {
-		return nil, fmt.Errorf("unable to close sequencer history db file: %w", err)
-	}
-
 	// Batch Submitter
 	sys.batchSubmitter, err = bss.NewBatchSubmitter(bss.Config{
 		L1EthRpc:                   sys.nodes["l1"].WSEndpoint(),
 		L2EthRpc:                   sys.nodes["sequencer"].WSEndpoint(),
-		RollupRpc:                  rollupEndpoint,
 		MinL1TxSize:                1,
 		MaxL1TxSize:                120000,
+		ChannelTimeout:             sys.cfg.RollupConfig.ChannelTimeout,
 		PollInterval:               50 * time.Millisecond,
 		NumConfirmations:           1,
 		ResubmissionTimeout:        5 * time.Second,
 		SafeAbortNonceTooLowCount:  3,
-		LogLevel:                   "info",
-		LogTerminal:                true,
+		LogLevel:                   "info", // ignored if started in-process this way
+		LogTerminal:                true,   // ignored
 		Mnemonic:                   sys.cfg.Mnemonic,
 		SequencerHDPath:            sys.cfg.BatchSubmitterHDPath,
-		SequencerHistoryDBFilename: sys.sequencerHistoryDBFileName,
-		SequencerGenesisHash:       sys.RolupGenesis.L2.Hash.String(),
 		SequencerBatchInboxAddress: sys.cfg.RollupConfig.BatchInboxAddress.String(),
-	}, "", cfg.BatcherLogger)
+	}, sys.cfg.Loggers["batcher"])
 	if err != nil {
 		return nil, fmt.Errorf("failed to setup batch submitter: %w", err)
 	}

@@ -20,6 +20,22 @@ async function fetchLogs() {
     return await response.json();
 }
 
+function tooltipFormat(v) {
+  var out = ""
+  out += `<div>`
+  out += `<em>hash</em>: <code>${v["hash"]}</code><br/>`
+  out += `<em>num</em>: <code>${v["number"]}</code><br/>`
+  out += `<em>parent</em>: <code>${v["parentHash"]}</code><br/>`
+  out += `<em>time</em>: <code>${v["timestamp"]}</code><br/>`
+  if(v.hasOwnProperty("l1origin")) {
+    out += `<em>L1 hash</em>: <code>${v["l1origin"]["hash"]}</code><br/>`
+    out += `<em>L1 num</em>: <code>${v["l1origin"]["number"]}</code><br/>`
+    out += `<em>seq</em>: <code>${v["sequenceNumber"]}</code><br/>`
+  }
+  out += `</div>`
+  return out
+}
+
 async function pageTable() {
     const logs = await fetchLogs();
     if (logs.length === 0) {
@@ -37,7 +53,7 @@ async function pageTable() {
     $("#logs").append(paginationEl)
     paginationEl.pagination({
         dataSource: logs,
-        pageSize: 20,
+        pageSize: 40,
         showGoInput: true,
         showGoButton: true,
         callback: (data, pagination) => {
@@ -51,10 +67,10 @@ async function pageTable() {
                         <tr>
                             <th scope="col">Timestamp</th>
                             <th scope="col">L1Head</th>
+                            <th scope="col">L1Current</th>
                             <th scope="col">L2Head</th>
                             <th scope="col">L2SafeHead</th>
                             <th scope="col">L2FinalizedHead</th>
-                            <th scope="col">L1WindowBuf</th>
                         </tr>
                     </thead>
                         `;
@@ -67,31 +83,29 @@ async function pageTable() {
                         // this column has reached its end
                         break
                     }
-
-                    let windowBufEl = `<ul style="list-style-type:none">`
-                    e.l1WindowBuf.forEach((x) => {
-                        windowBufEl += `<li title=${JSON.stringify(x)} data-toggle="tooltip" style="background-color:${colorCode(x.hash)};">${prettyHex(x.hash)}</li>`
-                    })
-                    windowBufEl += "</ul>"
+                    // outer stringify in title attribute escapes the content and adds the quotes for the html to be valid
+                    // inner stringify in
 
                     // TODO: click to copy full hash
                     html += `<tr>
                         <td title="${e.event}" data-toggle="tooltip">
                             ${e.t}
                         </td>
-                        <td title=${JSON.stringify(e.l1Head)} data-toggle="tooltip" style="background-color:${colorCode(e.l1Head.hash)};">
+                        <td title="${tooltipFormat(e.l1Head)}" data-bs-html="true" data-toggle="tooltip" style="background-color:${colorCode(e.l1Head.hash)};">
                             ${prettyHex(e.l1Head.hash)}
                         </td>
-                        <td title=${JSON.stringify(e.l2Head)} data-toggle="tooltip" style="background-color:${colorCode(e.l2Head.hash)};">
+                        <td title="${tooltipFormat(e.l1Current)}" data-bs-html="true" data-toggle="tooltip" style="background-color:${colorCode(e.l1Current.hash)};">
+                            ${prettyHex(e.l1Current.hash)}
+                        </td>
+                        <td title="${tooltipFormat(e.l2Head)}" data-bs-html="true" data-toggle="tooltip" style="background-color:${colorCode(e.l2Head.hash)};">
                             ${prettyHex(e.l2Head.hash)}
                         </td>
-                        <td title=${JSON.stringify(e.l2SafeHead)} data-toggle="tooltip" style="background-color:${colorCode(e.l2SafeHead.hash)};">
+                        <td title="${tooltipFormat(e.l2SafeHead)}" data-bs-html="true" data-toggle="tooltip" style="background-color:${colorCode(e.l2SafeHead.hash)};">
                             ${prettyHex(e.l2SafeHead.hash)}
                         </td>
-                        <td title=${JSON.stringify(e.l2FinalizedHead)} data-toggle="tooltip" style="background-color:${colorCode(e.l2FinalizedHead.hash)};">
+                        <td title="${tooltipFormat(e.l2FinalizedHead)}" data-bs-html="true" data-toggle="tooltip" style="background-color:${colorCode(e.l2FinalizedHead.hash)};">
                             ${prettyHex(e.l2FinalizedHead.hash)}
                         </td>
-                        <td>${windowBufEl}</td>
                     </tr>`;
                 }
                 html += "</tbody>";
