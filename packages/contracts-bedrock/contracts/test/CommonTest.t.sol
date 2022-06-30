@@ -45,7 +45,7 @@ contract CommonTest is Test {
 
         vm.label(alice, "alice");
         vm.label(bob, "bob");
-        vm.label(multisig, "bob");
+        vm.label(multisig, "multisig");
 
         // Make sure we have a non-zero base fee
         vm.fee(1000000000);
@@ -204,13 +204,13 @@ contract Messenger_Initializer is L2OutputOracle_Initializer {
             Lib_PredeployAddresses.L2_TO_L1_MESSAGE_PASSER,
             address(new L2ToL1MessagePasser()).code
         );
-
+        vm.label(address(addressManager), "AddressManager");
+        vm.label(address(L1MessengerImpl), "L1CrossDomainMessenger_Impl");
+        vm.label(address(L1Messenger), "L1CrossDomainMessenger_Proxy");
         vm.label(Lib_PredeployAddresses.OVM_ETH, "OVM_ETH");
-
+        vm.label(Lib_PredeployAddresses.OVM_ETH, "OVM_ETH");
         vm.label(Lib_PredeployAddresses.L2_TO_L1_MESSAGE_PASSER, "L2ToL1MessagePasser");
-
         vm.label(Lib_PredeployAddresses.L2_CROSS_DOMAIN_MESSENGER, "L2CrossDomainMessenger");
-
         vm.label(
             AddressAliasHelper.applyL1ToL2Alias(address(L1Messenger)),
             "L1CrossDomainMessenger_aliased"
@@ -347,7 +347,6 @@ contract Bridge_Initializer is Messenger_Initializer {
         vm.clearMockedCalls();
         address L1Bridge_Impl = proxy.getImplementation();
         vm.stopPrank();
-
 
         L1Bridge = L1StandardBridge(payable(address(proxy)));
         L1Bridge.initialize(payable(address(L1Messenger)));
