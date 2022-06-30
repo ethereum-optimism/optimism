@@ -164,8 +164,7 @@ contract Messenger_Initializer is L2OutputOracle_Initializer {
         op = new OptimismPortal(oracle, 7 days);
         vm.label(address(op), "OptimismPortal");
 
-        L1Messenger = new L1CrossDomainMessenger();
-        L1Messenger.initialize(op);
+        L1Messenger = new L1CrossDomainMessenger(op);
 
         vm.etch(
             Lib_PredeployAddresses.L2_CROSS_DOMAIN_MESSENGER,
@@ -311,8 +310,7 @@ contract Bridge_Initializer is Messenger_Initializer {
 
         // Deploy the L1 bridge and initialize it with the address of the
         // L1CrossDomainMessenger
-        L1Bridge = new L1StandardBridge();
-        L1Bridge.initialize(payable(address(L1Messenger)));
+        L1Bridge = new L1StandardBridge(payable(address(L1Messenger)));
         vm.label(address(L1Bridge), "L1StandardBridge");
 
         // Deploy the L2StandardBridge, move it to the correct predeploy

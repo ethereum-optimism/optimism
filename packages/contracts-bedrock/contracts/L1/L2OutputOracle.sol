@@ -6,6 +6,7 @@ import {
 } from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 
 /**
+ * @custom:proxied
  * @title L2OutputOracle
  * @notice The L2 state is committed to in this contract
  *         The payable keyword is used on appendL2Output to save gas on the msg.value check.
@@ -16,7 +17,7 @@ contract L2OutputOracle is OwnableUpgradeable {
     /**
      * @notice Contract version number.
      */
-    uint8 public constant L2_OUTPUT_ORACLE_VERSION = 1;
+    uint8 public constant VERSION = 1;
 
     /**
      * @notice OutputProposal represents a commitment to the L2 state.
@@ -29,6 +30,7 @@ contract L2OutputOracle is OwnableUpgradeable {
         uint256 timestamp;
     }
 
+    // TODO: Events should NOT be underscore prefixed.
     /**
      * @notice Emitted when an output is appended.
      *
@@ -101,7 +103,7 @@ contract L2OutputOracle is OwnableUpgradeable {
     /**
      * @notice A mapping from L2 block numbers to the respective output root. Note that these
      *         outputs should not be considered finalized until the finalization period (as defined
-     *        in the Optimism Portal) has passed.
+     *         in the Optimism Portal) has passed.
      */
     mapping(uint256 => OutputProposal) internal l2Outputs;
 
@@ -114,13 +116,9 @@ contract L2OutputOracle is OwnableUpgradeable {
     }
 
     /**
-     * @notice Initialize the L2OutputOracle contract.
-     *
-     * @param _submissionInterval    The desired interval in seconds at which
-     *                               checkpoints must be submitted.
+     * @param _submissionInterval    Interval in blocks at which checkpoints must be submitted.
      * @param _genesisL2Output       The initial L2 output of the L2 chain.
-     * @param _historicalTotalBlocks The number of blocks that preceding the
-     *                               initialization of the L2 chain.
+     * @param _historicalTotalBlocks Number of blocks preceding this L2 chain.
      * @param _startingBlockNumber   The number of the first L2 block.
      * @param _startingTimestamp     The timestamp of the first L2 block.
      * @param _l2BlockTime           The timestamp of the first L2 block.
@@ -141,33 +139,35 @@ contract L2OutputOracle is OwnableUpgradeable {
             _l2BlockTime < block.timestamp,
             "Output Oracle: Initial L2 block time must be less than current time"
         );
+
+        // Immutables
         SUBMISSION_INTERVAL = _submissionInterval;
         HISTORICAL_TOTAL_BLOCKS = _historicalTotalBlocks;
         STARTING_BLOCK_NUMBER = _startingBlockNumber;
         STARTING_TIMESTAMP = _startingTimestamp;
         L2_BLOCK_TIME = _l2BlockTime;
 
+        // Mutables
         initialize(_genesisL2Output, _startingBlockNumber, _sequencer, _owner);
     }
 
     /**
-     * @notice Initialize the L2OutputOracle contract.
+     * @notice Intializes mutable variables.
      *
-     * @param _genesisL2Output        The initial L2 output of the L2 chain.
+     * @param _genesisL2Output     The initial L2 output of the L2 chain.
      * @param _startingBlockNumber The timestamp to start L2 block at.
-     * @param _sequencer              The address of the sequencer.
-     * @param _owner                 The address of the owner.
+     * @param _sequencer           The address of the sequencer.
+     * @param _owner               The address of the owner.
      */
     function initialize(
         bytes32 _genesisL2Output,
         uint256 _startingBlockNumber,
         address _sequencer,
         address _owner
-    ) public reinitializer(L2_OUTPUT_ORACLE_VERSION) {
+    ) public reinitializer(VERSION) {
         l2Outputs[_startingBlockNumber] = OutputProposal(_genesisL2Output, block.timestamp);
         latestBlockNumber = _startingBlockNumber;
         __Ownable_init();
-
         changeSequencer(_sequencer);
         _transferOwnership(_owner);
     }
@@ -175,8 +175,7 @@ contract L2OutputOracle is OwnableUpgradeable {
     /**
      * @notice Accepts an L2 outputRoot and the timestamp of the corresponding L2 block. The
      *         timestamp must be equal to the current value returned by `nextTimestamp()` in order
-     *         to be accepted.
-     *         This function may only be called by the Sequencer.
+     *         to be accepted. This function may only be called by the Sequencer.
      *
      * @param _l2Output      The L2 output of the checkpoint block.
      * @param _l2BlockNumber The L2 block number that resulted in _l2Output.
@@ -226,6 +225,7 @@ contract L2OutputOracle is OwnableUpgradeable {
      *         owner, not the sequencer. Longer term, this should be replaced with a more robust
      *         mechanism which will allow deletion of proposals shown to be invalid by a fault
      *         proof.
+     *
      * @param _proposal Represents the output proposal to delete
      */
     function deleteL2Output(OutputProposal memory _proposal) external onlyOwner {
