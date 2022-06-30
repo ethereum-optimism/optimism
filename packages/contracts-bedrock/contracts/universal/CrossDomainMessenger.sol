@@ -78,7 +78,9 @@ abstract contract CrossDomainMessenger is
     /// @notice Current x-domain message sender.
     address internal xDomainMsgSender;
 
-    /// @notice Nonce for the next message to be sent.
+    /// @notice Nonce for the next message to be sent. The nonce includes
+    ///         versioning in the first byte for backwards compatibility.
+    ///         A getter for the message nonce is provided with `messageNonce`.
     uint256 internal msgNonce;
 
     /// @notice Address of the CrossDomainMessenger on the other chain.
