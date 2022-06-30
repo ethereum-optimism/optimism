@@ -25,6 +25,12 @@ var (
 		Required: true,
 		EnvVar:   "L2_ETH_RPC",
 	}
+	RollupRpcFlag = cli.StringFlag{
+		Name:     "rollup-rpc",
+		Usage:    "HTTP provider URL for Rollup node",
+		Required: true,
+		EnvVar:   "ROLLUP_RPC",
+	}
 	MinL1TxSizeBytesFlag = cli.Uint64Flag{
 		Name:     "min-l1-tx-size-bytes",
 		Usage:    "The minimum size of a batch tx submitted to L1.",
@@ -112,6 +118,7 @@ var (
 var requiredFlags = []cli.Flag{
 	L1EthRpcFlag,
 	L2EthRpcFlag,
+	RollupRpcFlag,
 	MinL1TxSizeBytesFlag,
 	MaxL1TxSizeBytesFlag,
 	ChannelTimeoutFlag,
