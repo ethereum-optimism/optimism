@@ -44,7 +44,7 @@ const config = {
 
   deploymentWaitConfirmations: 1,
 
-  maxSequencerDrift: 10,
+  maxSequencerDrift: 1000,
   sequencerWindowSize: 4,
   channelTimeout: 40,
 
