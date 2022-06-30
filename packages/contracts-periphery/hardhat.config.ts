@@ -1,4 +1,5 @@
-import { HardhatUserConfig } from 'hardhat/types'
+import { HardhatUserConfig, subtask } from 'hardhat/config'
+import { TASK_COMPILE_SOLIDITY_GET_SOURCE_PATHS } from 'hardhat/builtin-tasks/task-names'
 import { getenv } from '@eth-optimism/core-utils'
 import * as dotenv from 'dotenv'
 
@@ -18,6 +19,14 @@ import './tasks'
 
 // Load environment variables from .env
 dotenv.config()
+
+subtask(TASK_COMPILE_SOLIDITY_GET_SOURCE_PATHS).setAction(
+  async (_, __, runSuper) => {
+    const paths = await runSuper()
+
+    return paths.filter((p: string) => !p.endsWith('.t.sol'))
+  }
+)
 
 const config: HardhatUserConfig = {
   networks: {
