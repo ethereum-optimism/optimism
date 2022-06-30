@@ -271,7 +271,8 @@ mainLoop:
 				data := new(bytes.Buffer)
 				data.WriteByte(derive.DerivationVersion0)
 				done := false
-				if err := l.ch.OutputFrame(data, l.cfg.MaxL1TxSize); err == io.EOF {
+				// subtract one, to account for the version byte
+				if err := l.ch.OutputFrame(data, l.cfg.MaxL1TxSize-1); err == io.EOF {
 					done = true
 				} else if err != nil {
 					l.log.Error("error outputting frame", "err", err)
