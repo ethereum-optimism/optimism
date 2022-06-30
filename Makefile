@@ -71,6 +71,10 @@ devnet-clean:
 	docker volume ls --filter name=ops-bedrock --format='{{.Name}}' | xargs -r docker volume rm
 .PHONY: devnet-clean
 
+devnet-logs:
+	@(cd ./ops-bedrock && docker-compose logs -f)
+	.PHONY: devnet-logs
+
 test-unit:
 	make -C ./op-node test
 	make -C ./op-proposer test

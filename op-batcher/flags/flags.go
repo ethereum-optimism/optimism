@@ -21,15 +21,9 @@ var (
 	}
 	L2EthRpcFlag = cli.StringFlag{
 		Name:     "l2-eth-rpc",
-		Usage:    "HTTP provider URL for L2",
+		Usage:    "HTTP provider URL for L2 execution engine",
 		Required: true,
 		EnvVar:   "L2_ETH_RPC",
-	}
-	RollupRpcFlag = cli.StringFlag{
-		Name:     "rollup-rpc",
-		Usage:    "HTTP provider URL for the rollup node",
-		Required: true,
-		EnvVar:   "ROLLUP_RPC",
 	}
 	MinL1TxSizeBytesFlag = cli.Uint64Flag{
 		Name:     "min-l1-tx-size-bytes",
@@ -42,6 +36,12 @@ var (
 		Usage:    "The maximum size of a batch tx submitted to L1.",
 		Required: true,
 		EnvVar:   prefixEnvVar("MAX_L1_TX_SIZE_BYTES"),
+	}
+	ChannelTimeoutFlag = cli.Uint64Flag{
+		Name:     "channel-timeout",
+		Usage:    "The maximum amount of time to attempt completing an opened channel, as opposed to submitting L2 blocks into a new channel.",
+		Required: true,
+		EnvVar:   prefixEnvVar("CHANNEL_TIMEOUT"),
 	}
 	PollIntervalFlag = cli.DurationFlag{
 		Name: "poll-interval",
@@ -86,19 +86,6 @@ var (
 		Required: true,
 		EnvVar:   prefixEnvVar("SEQUENCER_HD_PATH"),
 	}
-	SequencerHistoryDBFilenameFlag = cli.StringFlag{
-		Name: "sequencer-history-db-filename",
-		Usage: "File name used to identify the latest L2 batches submitted " +
-			"by the sequencer",
-		Required: true,
-		EnvVar:   prefixEnvVar("SEQUENCER_HISTORY_DB_FILENAME"),
-	}
-	SequencerGenesisHashFlag = cli.StringFlag{
-		Name:     "sequencer-genesis-hash",
-		Usage:    "Genesis hash of the L2 chain",
-		Required: true,
-		EnvVar:   prefixEnvVar("SEQUENCER_GENESIS_HASH"),
-	}
 	SequencerBatchInboxAddressFlag = cli.StringFlag{
 		Name:     "sequencer-batch-inbox-address",
 		Usage:    "L1 Address to receive batch transactions",
@@ -125,17 +112,15 @@ var (
 var requiredFlags = []cli.Flag{
 	L1EthRpcFlag,
 	L2EthRpcFlag,
-	RollupRpcFlag,
 	MinL1TxSizeBytesFlag,
 	MaxL1TxSizeBytesFlag,
+	ChannelTimeoutFlag,
 	PollIntervalFlag,
 	NumConfirmationsFlag,
 	SafeAbortNonceTooLowCountFlag,
 	ResubmissionTimeoutFlag,
 	MnemonicFlag,
 	SequencerHDPathFlag,
-	SequencerHistoryDBFilenameFlag,
-	SequencerGenesisHashFlag,
 	SequencerBatchInboxAddressFlag,
 }
 

@@ -70,15 +70,15 @@ func (s *Source) PayloadByNumber(ctx context.Context, number uint64) (*eth.Execu
 // May return an error in ForkChoiceResult, but the error is marshalled into the error return
 func (s *Source) ForkchoiceUpdate(ctx context.Context, fc *eth.ForkchoiceState, attributes *eth.PayloadAttributes) (*eth.ForkchoiceUpdatedResult, error) {
 	e := s.log.New("state", fc, "attr", attributes)
-	e.Debug("Sharing forkchoice-updated signal")
+	e.Trace("Sharing forkchoice-updated signal")
 	fcCtx, cancel := context.WithTimeout(ctx, time.Second*5)
 	defer cancel()
 	var result eth.ForkchoiceUpdatedResult
 	err := s.rpc.CallContext(fcCtx, &result, "engine_forkchoiceUpdatedV1", fc, attributes)
 	if err == nil {
-		e.Debug("Shared forkchoice-updated signal")
+		e.Trace("Shared forkchoice-updated signal")
 		if attributes != nil {
-			e.Debug("Received payload id", "payloadId", result.PayloadID)
+			e.Trace("Received payload id", "payloadId", result.PayloadID)
 		}
 		return &result, nil
 	} else {
@@ -96,13 +96,13 @@ func (s *Source) ForkchoiceUpdate(ctx context.Context, fc *eth.ForkchoiceState, 
 // ExecutePayload executes a built block on the execution engine and returns an error if it was not successful.
 func (s *Source) NewPayload(ctx context.Context, payload *eth.ExecutionPayload) (*eth.PayloadStatusV1, error) {
 	e := s.log.New("block_hash", payload.BlockHash)
-	e.Debug("sending payload for execution")
+	e.Trace("sending payload for execution")
 
 	execCtx, cancel := context.WithTimeout(ctx, time.Second*5)
 	defer cancel()
 	var result eth.PayloadStatusV1
 	err := s.rpc.CallContext(execCtx, &result, "engine_newPayloadV1", payload)
-	e.Debug("Received payload execution result", "status", result.Status, "latestValidHash", result.LatestValidHash, "message", result.ValidationError)
+	e.Trace("Received payload execution result", "status", result.Status, "latestValidHash", result.LatestValidHash, "message", result.ValidationError)
 	if err != nil {
 		e.Error("Payload execution failed", "err", err)
 		return nil, fmt.Errorf("failed to execute payload: %v", err)
@@ -113,7 +113,7 @@ func (s *Source) NewPayload(ctx context.Context, payload *eth.ExecutionPayload) 
 // GetPayload gets the execution payload associated with the PayloadId
 func (s *Source) GetPayload(ctx context.Context, payloadId eth.PayloadID) (*eth.ExecutionPayload, error) {
 	e := s.log.New("payload_id", payloadId)
-	e.Debug("getting payload")
+	e.Trace("getting payload")
 	var result eth.ExecutionPayload
 	err := s.rpc.CallContext(ctx, &result, "engine_getPayloadV1", payloadId)
 	if err != nil {
@@ -130,7 +130,7 @@ func (s *Source) GetPayload(ctx context.Context, payloadId eth.PayloadID) (*eth.
 		}
 		return nil, err
 	}
-	e.Debug("Received payload")
+	e.Trace("Received payload")
 	return &result, nil
 }
 
