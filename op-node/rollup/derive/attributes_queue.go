@@ -101,9 +101,6 @@ func (aq *AttributesQueue) DeriveL2Inputs(ctx context.Context, l2SafeHead eth.L2
 	// Fill in deposits if we are the first block of the epoch
 	var deposits []hexutil.Bytes
 	if seqNumber == 0 {
-		fetchCtx, cancel = context.WithTimeout(ctx, 20*time.Second)
-		defer cancel()
-
 		var errs []error
 		deposits, errs = DeriveDeposits(receipts, aq.config.DepositContractAddress)
 		for _, err := range errs {
