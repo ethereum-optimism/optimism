@@ -11,6 +11,7 @@ import { ERC165Checker } from "@openzeppelin/contracts/utils/introspection/ERC16
 import { Address } from "@openzeppelin/contracts/utils/Address.sol";
 import { L1ERC721Bridge } from "../../L1/messaging/L1ERC721Bridge.sol";
 import { IOptimismMintableERC721 } from "../../universal/op-erc721/IOptimismMintableERC721.sol";
+import { Semver } from "../../universal/Semver.sol";
 
 /**
  * @title L2ERC721Bridge
@@ -19,12 +20,7 @@ import { IOptimismMintableERC721 } from "../../universal/op-erc721/IOptimismMint
  *         acts as a minter for new tokens when it hears about deposits into the L1 ERC721 bridge.
  *         This contract also acts as a burner for tokens being withdrawn.
  */
-contract L2ERC721Bridge is CrossDomainEnabled, OwnableUpgradeable {
-    /**
-     * @notice Contract version number.
-     */
-    uint256 public constant VERSION = 2;
-
+contract L2ERC721Bridge is Semver, CrossDomainEnabled, OwnableUpgradeable {
     /**
      * @notice Emitted when an ERC721 bridge to the other network is initiated.
      *
@@ -91,7 +87,10 @@ contract L2ERC721Bridge is CrossDomainEnabled, OwnableUpgradeable {
      * @param _messenger   Address of the CrossDomainMessenger on this network.
      * @param _otherBridge Address of the ERC721 bridge on the other network.
      */
-    constructor(address _messenger, address _otherBridge) CrossDomainEnabled(address(0)) {
+    constructor(address _messenger, address _otherBridge)
+        Semver(0, 0, 1)
+        CrossDomainEnabled(address(0))
+    {
         initialize(_messenger, _otherBridge);
     }
 
