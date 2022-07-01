@@ -18,6 +18,7 @@ services:
     environment:
       INDEXER_BUILD_ENV: devnet
       INDEXER_ETH_NETWORK_NAME: devnet
+      INDEXER_REST_HOSTNAME: 0.0.0.0
       INDEXER_CHAIN_ID: 900
       INDEXER_L1_ETH_RPC: http://l1:8545
       INDEXER_L2_ETH_RPC: http://l2:8545
@@ -29,6 +30,8 @@ services:
       INDEXER_DB_USER: optimism
       INDEXER_DB_PASSWORD: optimism
       INDEXER_DB_NAME: optimism
+      INDEXER_LOG_TERMINAL: true
+      INDEXER_CONF_DEPTH: 3
     ports:
       - 8080:8080
 

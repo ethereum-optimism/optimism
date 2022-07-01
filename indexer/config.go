@@ -42,9 +42,6 @@ type Config struct {
 	// OptimismPortalAddress is the address of the OptimismPortal on L1.
 	OptimismPortalAddress string
 
-	// L2GenesisBlockHash is the l2 genesis block hash.
-	L2GenesisBlockHash string
-
 	// PollInterval is the delay between querying L2 for more transaction
 	// and creating a new batch.
 	PollInterval time.Duration
@@ -88,9 +85,6 @@ type Config struct {
 	// StartBlockNumber is the block number to start indexing from.
 	StartBlockNumber uint64
 
-	// StartBlockHash is the block hash to start indexing from.
-	StartBlockHash string
-
 	// ConfDepth is the number of confirmations after which headers are
 	// considered confirmed.
 	ConfDepth uint64
@@ -131,7 +125,6 @@ func NewConfig(ctx *cli.Context) (Config, error) {
 		L2EthRpc:                ctx.GlobalString(flags.L2EthRPCFlag.Name),
 		L1AddressManagerAddress: ctx.GlobalString(flags.L1AddressManagerAddressFlag.Name),
 		OptimismPortalAddress:   ctx.GlobalString(flags.OptimismPortalAddressFlag.Name),
-		L2GenesisBlockHash:      ctx.GlobalString(flags.L2GenesisBlockHashFlag.Name),
 		DBHost:                  ctx.GlobalString(flags.DBHostFlag.Name),
 		DBPort:                  ctx.GlobalUint64(flags.DBPortFlag.Name),
 		DBUser:                  ctx.GlobalString(flags.DBUserFlag.Name),
@@ -145,7 +138,6 @@ func NewConfig(ctx *cli.Context) (Config, error) {
 		SentryDsn:           ctx.GlobalString(flags.SentryDsnFlag.Name),
 		SentryTraceRate:     ctx.GlobalDuration(flags.SentryTraceRateFlag.Name),
 		StartBlockNumber:    ctx.GlobalUint64(flags.StartBlockNumberFlag.Name),
-		StartBlockHash:      ctx.GlobalString(flags.StartBlockHashFlag.Name),
 		ConfDepth:           ctx.GlobalUint64(flags.ConfDepthFlag.Name),
 		MaxHeaderBatchSize:  ctx.GlobalUint64(flags.MaxHeaderBatchSizeFlag.Name),
 		MetricsServerEnable: ctx.GlobalBool(flags.MetricsServerEnableFlag.Name),

@@ -73,7 +73,6 @@ type ServiceConfig struct {
 	ConfDepth             uint64
 	MaxHeaderBatchSize    uint64
 	StartBlockNumber      uint64
-	StartBlockHash        string
 	DB                    *db.Database
 }
 
@@ -87,6 +86,8 @@ type Service struct {
 	portalWithdrawalScanner *bindings.OptimismPortalFilterer
 	latestHeader            uint64
 	headerSelector          *ConfirmedHeaderSelector
+
+	startingBlockHash common.Hash
 
 	metrics    *metrics.Metrics
 	tokenCache map[common.Address]*db.Token
@@ -145,7 +146,12 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 		ConfDepth:    cfg.ConfDepth,
 		MaxBatchSize: cfg.MaxHeaderBatchSize,
 	})
+	if err != nil {
+		cancel()
+		return nil, err
+	}
 
+	block, err := cfg.L1Client.BlockByNumber(ctx, new(big.Int).SetUint64(cfg.StartBlockNumber))
 	if err != nil {
 		cancel()
 		return nil, err
@@ -160,6 +166,7 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 		portalWithdrawalScanner: portalWithdrawalScanner,
 		headerSelector:          confirmedHeaderSelector,
 		metrics:                 cfg.Metrics,
+		startingBlockHash:       block.Hash(),
 		tokenCache: map[common.Address]*db.Token{
 			ZeroAddress: db.ETHL1Token,
 		},
@@ -211,7 +218,7 @@ func (s *Service) Loop(ctx context.Context) {
 func (s *Service) Update(newHeader *types.Header) error {
 	var lowest = db.BlockLocator{
 		Number: s.cfg.StartBlockNumber,
-		Hash:   common.HexToHash(s.cfg.StartBlockHash),
+		Hash:   s.startingBlockHash,
 	}
 	highestConfirmed, err := s.cfg.DB.GetHighestL1Block()
 	if err != nil {
@@ -230,14 +237,14 @@ func (s *Service) Update(newHeader *types.Header) error {
 	}
 
 	if lowest.Number+1 != headers[0].Number.Uint64() {
-		logger.Error("Block number does not immediately follow ",
+		logger.Error("Block number does not immediately follow",
 			"block", headers[0].Number.Uint64(), "hash", headers[0].Hash,
 			"lowest_block", lowest.Number, "hash", lowest.Hash)
 		return nil
 	}
 
 	if lowest.Hash != headers[0].ParentHash {
-		logger.Error("Parent hash does not connect to ",
+		logger.Error("Parent hash does not connect",
 			"block", headers[0].Number.Uint64(), "hash", headers[0].Hash,
 			"lowest_block", lowest.Number, "hash", lowest.Hash)
 		return nil

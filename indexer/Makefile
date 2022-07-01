@@ -116,8 +116,11 @@ docker-up:
         export INDEXER_L2_GENESIS_BLOCK_HASH=$$(cast block earliest hash);\
 		export INDEXER_L1_ADDRESS_MANAGER_ADDRESS=$$(cat ../packages/contracts-bedrock/deployments/devnetL1/Lib_AddressManager.json | jq -r .address);\
 		export INDEXER_OPTIMISM_PORTAL_ADDRESS=$$(cat ../packages/contracts-bedrock/deployments/devnetL1/OptimismPortalProxy.json | jq -r .address);\
-		docker-compose up;\
+		docker-compose up -d;\
 	"
+
+docker-down:
+	docker-compose down -v indexer db
 
 .PHONY: \
 	indexer \

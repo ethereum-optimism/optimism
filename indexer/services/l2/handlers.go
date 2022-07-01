@@ -12,7 +12,7 @@ import (
 
 func (s *Service) GetIndexerStatus(w http.ResponseWriter, r *http.Request) {
 	highestBlock, err := s.cfg.DB.GetHighestL2Block()
-	if err != nil {
+	if err != nil || highestBlock == nil {
 		server.RespondWithError(w, http.StatusInternalServerError, err.Error())
 		return
 	}

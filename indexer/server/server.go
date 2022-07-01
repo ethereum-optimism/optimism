@@ -61,7 +61,7 @@ func LoggingMiddleware(metrics *metrics.Metrics, logger log.Logger) func(http.Ha
 					logger.Error(
 						"server panicked",
 						"err", err,
-						"trace", debug.Stack(),
+						"trace", string(debug.Stack()),
 					)
 				}
 			}()
