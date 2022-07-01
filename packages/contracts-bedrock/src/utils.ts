@@ -49,7 +49,7 @@ interface DepositTxOpts {
   sequenceNumber?: BigNumberish
 }
 
-interface DepostTxExtraOpts {
+interface DepositTxExtraOpts {
   domain?: SourceHashDomain
   l1BlockHash?: string
   logIndex?: BigNumberish
@@ -57,7 +57,8 @@ interface DepostTxExtraOpts {
 }
 
 export class DepositTx {
-  public type = '0x7E'
+  public type = 0x7e
+  public version = 0x00
   private _sourceHash?: string
   public from: string
   public to: string | null
@@ -135,13 +136,21 @@ export class DepositTx {
       this.data || '0x',
     ]
 
-    return ethers.utils.hexConcat([this.type, ethers.utils.RLP.encode(fields)])
+    return ethers.utils.hexConcat([
+      BigNumber.from(this.type).toHexString(),
+      BigNumber.from(this.version).toHexString(),
+      ethers.utils.RLP.encode(fields),
+    ])
   }
 
-  decode(raw: BytesLike, extra: DepostTxExtraOpts = {}) {
+  decode(raw: BytesLike, extra: DepositTxExtraOpts = {}) {
     const payload = ethers.utils.arrayify(raw)
-    const transaction = ethers.utils.RLP.decode(payload.slice(1))
+    if (payload[0] !== this.type) {
+      throw new Error(`Invalid type ${payload[0]}`)
+    }
+    this.version = payload[1]
 
+    const transaction = ethers.utils.RLP.decode(payload.slice(2))
     this._sourceHash = transaction[0]
     this.from = handleAddress(transaction[1])
     this.to = handleAddress(transaction[2])
@@ -165,7 +174,7 @@ export class DepositTx {
     return this
   }
 
-  static decode(raw: BytesLike, extra?: DepostTxExtraOpts): DepositTx {
+  static decode(raw: BytesLike, extra?: DepositTxExtraOpts): DepositTx {
     return new this().decode(raw, extra)
   }
 

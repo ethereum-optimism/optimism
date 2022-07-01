@@ -1,4 +1,4 @@
-CrossDomainHashing_Test:test_l2TransactionHash() (gas: 103799)
+CrossDomainHashing_Test:test_l2TransactionHash() (gas: 104131)
 DeployerWhitelist_Test:test_owner() (gas: 7647)
 DeployerWhitelist_Test:test_storageSlots() (gas: 33483)
 GasPriceOracle_Test:test_baseFee() (gas: 8395)
