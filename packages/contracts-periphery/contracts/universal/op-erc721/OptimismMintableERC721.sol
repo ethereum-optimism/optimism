@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.9;
 
+import {
+    ERC721Enumerable
+} from "@openzeppelin/contracts/token/ERC721/extensions/ERC721Enumerable.sol";
 import { ERC721 } from "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import { IERC165 } from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 import { Strings } from "@openzeppelin/contracts/utils/Strings.sol";
@@ -12,7 +15,7 @@ import { IOptimismMintableERC721 } from "./IOptimismMintableERC721.sol";
  *         typically an Optimism representation of an Ethereum-based token. Standard reference
  *         implementation that can be extended or modified according to your needs.
  */
-contract OptimismMintableERC721 is ERC721, IOptimismMintableERC721 {
+contract OptimismMintableERC721 is ERC721Enumerable, IOptimismMintableERC721 {
     /**
      * @inheritdoc IOptimismMintableERC721
      */
@@ -100,7 +103,7 @@ contract OptimismMintableERC721 is ERC721, IOptimismMintableERC721 {
     function supportsInterface(bytes4 _interfaceId)
         public
         view
-        override(ERC721, IERC165)
+        override(ERC721Enumerable, IERC165)
         returns (bool)
     {
         bytes4 iface1 = type(IERC165).interfaceId;

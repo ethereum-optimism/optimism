@@ -1,8 +1,9 @@
 /* Imports */
 import { ethers } from 'hardhat'
 import { Signer, ContractFactory, Contract, constants } from 'ethers'
-import { smock, FakeContract, MockContract } from '@defi-wonderland/smock'
+import { smock, FakeContract } from '@defi-wonderland/smock'
 import ICrossDomainMessenger from '@eth-optimism/contracts/artifacts/contracts/libraries/bridge/ICrossDomainMessenger.sol/ICrossDomainMessenger.json'
+import { toRpcHexString } from '@eth-optimism/core-utils'
 
 import { expect } from '../../../setup'
 import {
@@ -20,7 +21,6 @@ const DUMMY_L1ERC721_ADDRESS: string =
   '0x2234223412342234223422342234223422342234'
 const ERR_INVALID_WITHDRAWAL: string =
   'Withdrawal is not being initiated by NFT owner'
-const ALICE_INITIAL_BALANCE: number = 10
 const TOKEN_ID: number = 10
 
 describe('L2ERC721Bridge', () => {
@@ -219,32 +219,35 @@ describe('L2ERC721Bridge', () => {
   })
 
   describe('withdrawals', () => {
-    let Mock__L2Token: MockContract<Contract>
-
+    let L2Token: Contract
     beforeEach(async () => {
-      Mock__L2Token = await (
-        await smock.mock('OptimismMintableERC721')
+      L2Token = await (
+        await ethers.getContractFactory('OptimismMintableERC721')
       ).deploy(
         L2ERC721Bridge.address,
         100,
         DUMMY_L1ERC721_ADDRESS,
         'L2Token',
-        'L2T',
-        { gasLimit: 4_000_000 } // Necessary to avoid an out-of-gas error
+        'L2T'
       )
 
-      await Mock__L2Token.setVariable('_owners', {
-        [TOKEN_ID]: aliceAddress,
-      })
-      await Mock__L2Token.setVariable('_balances', {
-        [aliceAddress]: ALICE_INITIAL_BALANCE,
-      })
+      await ethers.provider.send('hardhat_impersonateAccount', [
+        L2ERC721Bridge.address,
+      ])
+
+      await ethers.provider.send('hardhat_setBalance', [
+        L2ERC721Bridge.address,
+        toRpcHexString(ethers.utils.parseEther('1')),
+      ])
+
+      const signer = await ethers.getSigner(L2ERC721Bridge.address)
+      await L2Token.connect(signer).mint(aliceAddress, TOKEN_ID)
     })
 
     it('bridgeERC721() reverts when called by non-owner of nft', async () => {
       await expect(
         L2ERC721Bridge.connect(bob).bridgeERC721(
-          Mock__L2Token.address,
+          L2Token.address,
           DUMMY_L1ERC721_ADDRESS,
           TOKEN_ID,
           0,
@@ -256,7 +259,7 @@ describe('L2ERC721Bridge', () => {
     it('bridgeERC721() reverts if called by a contract', async () => {
       await expect(
         L2ERC721Bridge.connect(l2MessengerImpersonator).bridgeERC721(
-          Mock__L2Token.address,
+          L2Token.address,
           DUMMY_L1ERC721_ADDRESS,
           TOKEN_ID,
           0,
@@ -267,12 +270,12 @@ describe('L2ERC721Bridge', () => {
 
     it('bridgeERC721() burns and sends the correct withdrawal message', async () => {
       // Make sure that alice begins as the NFT owner
-      expect(await Mock__L2Token.ownerOf(TOKEN_ID)).to.equal(aliceAddress)
+      expect(await L2Token.ownerOf(TOKEN_ID)).to.equal(aliceAddress)
 
       // Initiates a successful withdrawal.
       const expectedResult = expect(
         L2ERC721Bridge.connect(alice).bridgeERC721(
-          Mock__L2Token.address,
+          L2Token.address,
           DUMMY_L1ERC721_ADDRESS,
           TOKEN_ID,
           0,
@@ -284,7 +287,7 @@ describe('L2ERC721Bridge', () => {
       await expectedResult.to
         .emit(L2ERC721Bridge, 'ERC721BridgeInitiated')
         .withArgs(
-          Mock__L2Token.address,
+          L2Token.address,
           DUMMY_L1ERC721_ADDRESS,
           aliceAddress,
           aliceAddress,
@@ -295,15 +298,15 @@ describe('L2ERC721Bridge', () => {
       // A withdrawal also causes a Transfer event to be emitted the L2 ERC721, signifying that the L2 token
       // has been burnt.
       await expectedResult.to
-        .emit(Mock__L2Token, 'Transfer')
+        .emit(L2Token, 'Transfer')
         .withArgs(aliceAddress, constants.AddressZero, TOKEN_ID)
 
       // Assert Alice's balance went down
-      const aliceBalance = await Mock__L2Token.balanceOf(aliceAddress)
-      expect(aliceBalance).to.equal(ALICE_INITIAL_BALANCE - 1)
+      const aliceBalance = await L2Token.balanceOf(aliceAddress)
+      expect(aliceBalance).to.equal(0)
 
       // Assert that the token isn't owned by anyone
-      await expect(Mock__L2Token.ownerOf(TOKEN_ID)).to.be.revertedWith(
+      await expect(L2Token.ownerOf(TOKEN_ID)).to.be.revertedWith(
         'ERC721: owner query for nonexistent token'
       )
 
@@ -319,7 +322,7 @@ describe('L2ERC721Bridge', () => {
           'finalizeBridgeERC721',
           [
             DUMMY_L1ERC721_ADDRESS,
-            Mock__L2Token.address,
+            L2Token.address,
             aliceAddress,
             aliceAddress,
             TOKEN_ID,
@@ -334,7 +337,7 @@ describe('L2ERC721Bridge', () => {
     it('bridgeERC721To() reverts when called by non-owner of nft', async () => {
       await expect(
         L2ERC721Bridge.connect(bob).bridgeERC721To(
-          Mock__L2Token.address,
+          L2Token.address,
           DUMMY_L1ERC721_ADDRESS,
           bobsAddress,
           TOKEN_ID,
@@ -346,12 +349,12 @@ describe('L2ERC721Bridge', () => {
 
     it('bridgeERC721To() burns and sends the correct withdrawal message', async () => {
       // Make sure that alice begins as the NFT owner
-      expect(await Mock__L2Token.ownerOf(TOKEN_ID)).to.equal(aliceAddress)
+      expect(await L2Token.ownerOf(TOKEN_ID)).to.equal(aliceAddress)
 
       // Initiates a successful withdrawal.
       const expectedResult = expect(
         L2ERC721Bridge.connect(alice).bridgeERC721To(
-          Mock__L2Token.address,
+          L2Token.address,
           DUMMY_L1ERC721_ADDRESS,
           bobsAddress,
           TOKEN_ID,
@@ -364,7 +367,7 @@ describe('L2ERC721Bridge', () => {
       await expectedResult.to
         .emit(L2ERC721Bridge, 'ERC721BridgeInitiated')
         .withArgs(
-          Mock__L2Token.address,
+          L2Token.address,
           DUMMY_L1ERC721_ADDRESS,
           aliceAddress,
           bobsAddress,
@@ -375,15 +378,15 @@ describe('L2ERC721Bridge', () => {
       // A withdrawal also causes a Transfer event to be emitted the L2 ERC721, signifying that the L2 token
       // has been burnt.
       await expectedResult.to
-        .emit(Mock__L2Token, 'Transfer')
+        .emit(L2Token, 'Transfer')
         .withArgs(aliceAddress, constants.AddressZero, TOKEN_ID)
 
       // Assert Alice's balance went down
-      const aliceBalance = await Mock__L2Token.balanceOf(aliceAddress)
-      expect(aliceBalance).to.equal(ALICE_INITIAL_BALANCE - 1)
+      const aliceBalance = await L2Token.balanceOf(aliceAddress)
+      expect(aliceBalance).to.equal(0)
 
       // Assert that the token isn't owned by anyone
-      await expect(Mock__L2Token.ownerOf(TOKEN_ID)).to.be.revertedWith(
+      await expect(L2Token.ownerOf(TOKEN_ID)).to.be.revertedWith(
         'ERC721: owner query for nonexistent token'
       )
 
@@ -399,7 +402,7 @@ describe('L2ERC721Bridge', () => {
           'finalizeBridgeERC721',
           [
             DUMMY_L1ERC721_ADDRESS,
-            Mock__L2Token.address,
+            L2Token.address,
             aliceAddress,
             bobsAddress,
             TOKEN_ID,
