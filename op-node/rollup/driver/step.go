@@ -37,9 +37,19 @@ func (d *outputImpl) createNewBlock(ctx context.Context, l2Head eth.L2BlockRef, 
 	// case we need to fetch all transaction receipts from the L1 origin block so we can scan for
 	// user deposits.
 	if l2Head.L1Origin.Number != l1Origin.Number {
+		if l2Head.L1Origin.Hash != l1Origin.ParentHash {
+			d.log.Error("SEQUENCING BUG: cannot create new block on top of l2Head with new origin", "head", l2Head,
+				"head_origin", l2Head.L1Origin, "head_seq_nr", l2Head.SequenceNumber, "new_origin", l1Origin, "new_origin_parent", l1Origin.ParentID())
+			return l2Head, nil, fmt.Errorf("cannot create new block with L1 origin %s (parent %s) on top of L1 origin %s", l1Origin, l1Origin.ParentID(), l2Head.L1Origin)
+		}
 		l1Info, _, receipts, err = d.dl.Fetch(fetchCtx, l1Origin.Hash)
 		seqNumber = 0 // reset sequence number at the start of the epoch
 	} else {
+		if l2Head.L1Origin.Hash != l1Origin.Hash {
+			d.log.Error("SEQUENCING BUG: cannot create new block on top of l2Head with different origin at same height",
+				"head", l2Head, "head_origin", l2Head.L1Origin, "head_seq_nr", l2Head.SequenceNumber, "new_origin", l1Origin, "new_origin_parent", l1Origin.ParentID())
+			return l2Head, nil, fmt.Errorf("cannot create new block with L1 origin %s (parent %s) on top of L1 origin %s", l1Origin, l1Origin.ParentID(), l2Head.L1Origin)
+		}
 		l1Info, err = d.dl.InfoByHash(fetchCtx, l1Origin.Hash)
 	}
 	if err != nil {
