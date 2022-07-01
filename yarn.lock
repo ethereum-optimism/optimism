@@ -2846,14 +2846,13 @@
   dependencies:
     squirrelly "^8.0.8"
 
-"@rari-capital/solmate@^6.3.0":
-  version "6.3.0"
-  resolved "https://registry.yarnpkg.com/@rari-capital/solmate/-/solmate-6.3.0.tgz#01050e276e71dc4cd4169cf8002b447eb07d90c3"
-  integrity sha512-SWPbnfZUCe4ahHNqcb0qsPrzzAzMZMoA3x6SxZn04g0dLm0xupVeHonM3LK13uhPGIULF8HzXg8CgXE/fEnMlQ==
-
 "@rari-capital/solmate@https://github.com/rari-capital/solmate.git#8f9b23f8838670afda0fd8983f2c41e8037ae6bc":
   version "7.0.0-alpha.3"
   resolved "https://github.com/rari-capital/solmate.git#8f9b23f8838670afda0fd8983f2c41e8037ae6bc"
+
+"@rari-capital/solmate@https://github.com/rari-capital/solmate.git#eaaccf88ac5290299884437e1aee098a96583d54":
+  version "6.4.0"
+  resolved "https://github.com/rari-capital/solmate.git#eaaccf88ac5290299884437e1aee098a96583d54"
 
 "@resolver-engine/core@^0.3.3":
   version "0.3.3"

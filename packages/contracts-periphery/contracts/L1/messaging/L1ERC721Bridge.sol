@@ -10,6 +10,7 @@ import {
 import { IERC721 } from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import { Address } from "@openzeppelin/contracts/utils/Address.sol";
 import { L2ERC721Bridge } from "../../L2/messaging/L2ERC721Bridge.sol";
+import { Semver } from "../../universal/Semver.sol";
 
 /**
  * @title L1ERC721Bridge
@@ -17,12 +18,7 @@ import { L2ERC721Bridge } from "../../L2/messaging/L2ERC721Bridge.sol";
  *         make it possible to transfer ERC721 tokens between Optimism and Ethereum. This contract
  *         acts as an escrow for ERC721 tokens deposted into L2.
  */
-contract L1ERC721Bridge is CrossDomainEnabled, OwnableUpgradeable {
-    /**
-     * @notice Contract version number.
-     */
-    uint8 public constant VERSION = 1;
-
+contract L1ERC721Bridge is Semver, CrossDomainEnabled, OwnableUpgradeable {
     /**
      * @notice Emitted when an ERC721 bridge to the other network is initiated.
      *
@@ -77,7 +73,10 @@ contract L1ERC721Bridge is CrossDomainEnabled, OwnableUpgradeable {
      * @param _messenger   Address of the CrossDomainMessenger on this network.
      * @param _otherBridge Address of the ERC721 bridge on the other network.
      */
-    constructor(address _messenger, address _otherBridge) CrossDomainEnabled(address(0)) {
+    constructor(address _messenger, address _otherBridge)
+        Semver(0, 0, 1)
+        CrossDomainEnabled(address(0))
+    {
         initialize(_messenger, _otherBridge);
     }
 
@@ -85,7 +84,7 @@ contract L1ERC721Bridge is CrossDomainEnabled, OwnableUpgradeable {
      * @param _messenger   Address of the CrossDomainMessenger on this network.
      * @param _otherBridge Address of the ERC721 bridge on the other network.
      */
-    function initialize(address _messenger, address _otherBridge) public reinitializer(VERSION) {
+    function initialize(address _messenger, address _otherBridge) public initializer {
         messenger = _messenger;
         otherBridge = _otherBridge;
 

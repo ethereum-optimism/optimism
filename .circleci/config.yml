@@ -396,7 +396,7 @@ jobs:
       - run:
           name: Check if we should run
           command: |
-            CHANGED=$(bash ./ops/docker/ci-builder/check-changed.sh "(l2geth|common-ts|contracts|core-utils|message-relayer|data-transport-layer|replica-healthcheck|sdk|batch-submitter|gas-oracle|bss-core|integration-tests)")
+            CHANGED=$(bash ./ops/docker/ci-builder/check-changed.sh "(l2geth|common-ts|contracts|core-utils|message-relayer|data-transport-layer|replica-healthcheck|sdk|batch-submitter|gas-oracle|bss-core|integration-tests)/")
             if [[ "$CHANGED" = "FALSE" ]]; then
               circleci step halt
             fi

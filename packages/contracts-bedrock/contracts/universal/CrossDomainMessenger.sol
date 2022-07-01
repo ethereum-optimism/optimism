@@ -254,11 +254,11 @@ abstract contract CrossDomainMessenger is
     ) internal virtual;
 
     /**
-     * Initializes the contract.
+     * @notice Initializes the contract. The parent contract MUST handle
+     *         preventing this from being called twice.
      */
     function _initialize(address _otherMessenger, address[] memory _blockedSystemAddresses)
         internal
-        initializer
     {
         xDomainMsgSender = Lib_DefaultValues.DEFAULT_XDOMAIN_SENDER;
         otherMessenger = _otherMessenger;
