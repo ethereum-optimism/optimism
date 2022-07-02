@@ -8,17 +8,17 @@ import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
  * @title Lib_AddressManager
  */
 contract Lib_AddressManager is Ownable {
-    /**********
-     * Events *
-     **********/
-
-    event AddressSet(string indexed _name, address _newAddress, address _oldAddress);
-
     /*************
      * Variables *
      *************/
 
     mapping(bytes32 => address) private addresses;
+
+    /**********
+     * Events *
+     **********/
+
+    event AddressSet(string indexed _name, address _newAddress, address _oldAddress);
 
     /********************
      * Public Functions *

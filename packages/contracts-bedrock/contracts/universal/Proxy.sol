@@ -9,6 +9,20 @@ pragma solidity ^0.8.9;
  */
 contract Proxy {
     /**
+     * @notice The storage slot that holds the address of the implementation.
+     *         bytes32(uint256(keccak256('eip1967.proxy.implementation')) - 1)
+     */
+    bytes32 internal constant IMPLEMENTATION_KEY =
+        0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc;
+
+    /**
+     * @notice The storage slot that holds the address of the owner.
+     *         bytes32(uint256(keccak256('eip1967.proxy.admin')) - 1)
+     */
+    bytes32 internal constant OWNER_KEY =
+        0xb53127684a568b3173ae13b9f8a6016e243e63b6e8ee1178d6a717850b5d6103;
+
+    /**
      * @notice An event that is emitted each time the implementation is changed.
      *         This event is part of the EIP 1967 spec.
      *
@@ -26,18 +40,20 @@ contract Proxy {
     event AdminChanged(address previousAdmin, address newAdmin);
 
     /**
-     * @notice The storage slot that holds the address of the implementation.
-     *         bytes32(uint256(keccak256('eip1967.proxy.implementation')) - 1)
+     * @notice A modifier that reverts if not called by the owner
+     *         or by `address(0)` to allow `eth_call` to interact
+     *         with the proxy without needing to use low level storage
+     *         inspection. It is assumed that nobody controls the private
+     *         key for `address(0)`.
      */
-    bytes32 internal constant IMPLEMENTATION_KEY =
-        0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc;
-
-    /**
-     * @notice The storage slot that holds the address of the owner.
-     *         bytes32(uint256(keccak256('eip1967.proxy.admin')) - 1)
-     */
-    bytes32 internal constant OWNER_KEY =
-        0xb53127684a568b3173ae13b9f8a6016e243e63b6e8ee1178d6a717850b5d6103;
+    modifier proxyCallIfNotAdmin() {
+        if (msg.sender == _getAdmin() || msg.sender == address(0)) {
+            _;
+        } else {
+            // This WILL halt the call frame on completion.
+            _doProxyCall();
+        }
+    }
 
     /**
      * @notice set the initial owner during contract deployment. The
@@ -58,22 +74,6 @@ contract Proxy {
     }
 
     /**
-     * @notice A modifier that reverts if not called by the owner
-     *         or by `address(0)` to allow `eth_call` to interact
-     *         with the proxy without needing to use low level storage
-     *         inspection. It is assumed that nobody controls the private
-     *         key for `address(0)`.
-     */
-    modifier proxyCallIfNotAdmin() {
-        if (msg.sender == _getAdmin() || msg.sender == address(0)) {
-            _;
-        } else {
-            // This WILL halt the call frame on completion.
-            _doProxyCall();
-        }
-    }
-
-    /**
      * @notice Set the implementation contract address. The code at this
      *         address will execute when this contract is called.
      *
@@ -81,27 +81,6 @@ contract Proxy {
      */
     function upgradeTo(address _implementation) external proxyCallIfNotAdmin {
         _setImplementation(_implementation);
-    }
-
-    /**
-     * @notice Set the implementation and call a function in a single
-     *         transaction. This is useful to ensure atomic `initialize()`
-     *         based upgrades.
-     *
-     * @param _implementation The address of the implementation contract
-     * @param _data           The calldata to delegatecall the new
-     *                        implementation with
-     */
-    function upgradeToAndCall(address _implementation, bytes calldata _data)
-        external
-        payable
-        proxyCallIfNotAdmin
-        returns (bytes memory)
-    {
-        _setImplementation(_implementation);
-        (bool success, bytes memory returndata) = _implementation.delegatecall(_data);
-        require(success);
-        return returndata;
     }
 
     /**
@@ -132,6 +111,27 @@ contract Proxy {
     }
 
     /**
+     * @notice Set the implementation and call a function in a single
+     *         transaction. This is useful to ensure atomic `initialize()`
+     *         based upgrades.
+     *
+     * @param _implementation The address of the implementation contract
+     * @param _data           The calldata to delegatecall the new
+     *                        implementation with
+     */
+    function upgradeToAndCall(address _implementation, bytes calldata _data)
+        external
+        payable
+        proxyCallIfNotAdmin
+        returns (bytes memory)
+    {
+        _setImplementation(_implementation);
+        (bool success, bytes memory returndata) = _implementation.delegatecall(_data);
+        require(success);
+        return returndata;
+    }
+
+    /**
      * @notice Sets the implementation address.
      *
      * @param _implementation New implementation address.
@@ -141,19 +141,6 @@ contract Proxy {
             sstore(IMPLEMENTATION_KEY, _implementation)
         }
         emit Upgraded(_implementation);
-    }
-
-    /**
-     * @notice Queries the implementation address.
-     *
-     * @return implementation address.
-     */
-    function _getImplementation() internal view returns (address) {
-        address implementation;
-        assembly {
-            implementation := sload(IMPLEMENTATION_KEY)
-        }
-        return implementation;
     }
 
     /**
@@ -167,19 +154,6 @@ contract Proxy {
             sstore(OWNER_KEY, _admin)
         }
         emit AdminChanged(previous, _admin);
-    }
-
-    /**
-     * @notice Queries the owner of the proxy contract.
-     *
-     * @return owner address.
-     */
-    function _getAdmin() internal view returns (address) {
-        address owner;
-        assembly {
-            owner := sload(OWNER_KEY)
-        }
-        return owner;
     }
 
     /**
@@ -210,5 +184,31 @@ contract Proxy {
             // Otherwise we'll just return and pass the data up.
             return(0x0, returndatasize())
         }
+    }
+
+    /**
+     * @notice Queries the implementation address.
+     *
+     * @return implementation address.
+     */
+    function _getImplementation() internal view returns (address) {
+        address implementation;
+        assembly {
+            implementation := sload(IMPLEMENTATION_KEY)
+        }
+        return implementation;
+    }
+
+    /**
+     * @notice Queries the owner of the proxy contract.
+     *
+     * @return owner address.
+     */
+    function _getAdmin() internal view returns (address) {
+        address owner;
+        assembly {
+            owner := sload(OWNER_KEY)
+        }
+        return owner;
     }
 }

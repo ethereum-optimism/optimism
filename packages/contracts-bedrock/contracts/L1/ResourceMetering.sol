@@ -63,26 +63,6 @@ contract ResourceMetering {
     uint256[49] private __gap;
 
     /**
-     * @notice Set the initial values. In order to enable this contract to be used in an upgradable
-     *         context, the constructor calls a separate init function.
-     */
-    constructor() {
-        __ResourceMetering_init();
-    }
-
-    /**
-     * @notice Sets initial resource parameter values. This function must either be called by the
-     *         initializer function of an upgradeable child contract.
-     */
-    function __ResourceMetering_init() internal {
-        params = ResourceParams({
-            prevBaseFee: INITIAL_BASE_FEE,
-            prevBoughtGas: 0,
-            prevBlockNum: uint64(block.number)
-        });
-    }
-
-    /**
      * @notice Meters access to a function based an amount of a requested resource.
      *
      * @param _amount Amount of the resource requested.
@@ -169,5 +149,25 @@ contract ResourceMetering {
         if (gasCost > usedGas) {
             Burn.gas(gasCost - usedGas);
         }
+    }
+
+    /**
+     * @notice Set the initial values. In order to enable this contract to be used in an upgradable
+     *         context, the constructor calls a separate init function.
+     */
+    constructor() {
+        __ResourceMetering_init();
+    }
+
+    /**
+     * @notice Sets initial resource parameter values. This function must either be called by the
+     *         initializer function of an upgradeable child contract.
+     */
+    function __ResourceMetering_init() internal {
+        params = ResourceParams({
+            prevBaseFee: INITIAL_BASE_FEE,
+            prevBoughtGas: 0,
+            prevBlockNum: uint64(block.number)
+        });
     }
 }

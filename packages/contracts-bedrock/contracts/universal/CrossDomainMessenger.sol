@@ -30,22 +30,6 @@ abstract contract CrossDomainMessenger is
     PausableUpgradeable,
     ReentrancyGuardUpgradeable
 {
-    /**********
-     * Events *
-     **********/
-
-    event SentMessage(
-        address indexed target,
-        address sender,
-        bytes message,
-        uint256 messageNonce,
-        uint256 gasLimit
-    );
-
-    event RelayedMessage(bytes32 indexed msgHash);
-
-    event FailedRelayedMessage(bytes32 indexed msgHash);
-
     /*************
      * Constants *
      *************/
@@ -90,6 +74,22 @@ abstract contract CrossDomainMessenger is
     /// @notice Blocked system addresses that cannot be called (for security reasons).
     mapping(address => bool) public blockedSystemAddresses;
 
+    /**********
+     * Events *
+     **********/
+
+    event SentMessage(
+        address indexed target,
+        address sender,
+        bytes message,
+        uint256 messageNonce,
+        uint256 gasLimit
+    );
+
+    event RelayedMessage(bytes32 indexed msgHash);
+
+    event FailedRelayedMessage(bytes32 indexed msgHash);
+
     /********************
      * Public Functions *
      ********************/
@@ -106,48 +106,6 @@ abstract contract CrossDomainMessenger is
      */
     function unpause() external onlyOwner {
         _unpause();
-    }
-
-    /**
-     * Retrieves the address of the x-domain message sender. Will throw an error
-     * if the sender is not currently set (equal to the default sender).
-     * This function is meant to be called on the remote side of a cross domain
-     * message so that the account that initiated the call can be known.
-     *
-     * @return Address of the x-domain message sender.
-     */
-    function xDomainMessageSender() external view returns (address) {
-        require(
-            xDomainMsgSender != Lib_DefaultValues.DEFAULT_XDOMAIN_SENDER,
-            "xDomainMessageSender is not set"
-        );
-
-        return xDomainMsgSender;
-    }
-
-    /**
-     * Retrieves the next message nonce. Adds the hash version to the nonce.
-     *
-     * @return Next message nonce with added hash version.
-     */
-    function messageNonce() public view returns (uint256) {
-        return CrossDomainHashing.addVersionToNonce(msgNonce, MESSAGE_VERSION);
-    }
-
-    /**
-     * Base amount of gas required to make sure that the message will be received without
-     * running out of gas. Amount of gas provided to the L2 call will be the gas requested by
-     * the user PLUS this gas value so that if the message is not successful, it can always be
-     * replayed on the other end.
-     *
-     * @param _message Message to compute base gas for.
-     * @return Base gas required for message.
-     */
-    function baseGas(bytes memory _message) public pure returns (uint32) {
-        // TODO: Values here are meant to be good enough to get a devnet running. We need to do
-        // some simple experimentation with the smallest and largest possible message sizes to find
-        // the correct constant and dynamic overhead values.
-        return (uint32(_message.length) * MIN_GAS_DYNAMIC_OVERHEAD) + MIN_GAS_CONSTANT_OVERHEAD;
     }
 
     /**
@@ -246,11 +204,51 @@ abstract contract CrossDomainMessenger is
         }
     }
 
+    /**
+     * Retrieves the address of the x-domain message sender. Will throw an error
+     * if the sender is not currently set (equal to the default sender).
+     * This function is meant to be called on the remote side of a cross domain
+     * message so that the account that initiated the call can be known.
+     *
+     * @return Address of the x-domain message sender.
+     */
+    function xDomainMessageSender() external view returns (address) {
+        require(
+            xDomainMsgSender != Lib_DefaultValues.DEFAULT_XDOMAIN_SENDER,
+            "xDomainMessageSender is not set"
+        );
+
+        return xDomainMsgSender;
+    }
+
+    /**
+     * Retrieves the next message nonce. Adds the hash version to the nonce.
+     *
+     * @return Next message nonce with added hash version.
+     */
+    function messageNonce() public view returns (uint256) {
+        return CrossDomainHashing.addVersionToNonce(msgNonce, MESSAGE_VERSION);
+    }
+
+    /**
+     * Base amount of gas required to make sure that the message will be received without
+     * running out of gas. Amount of gas provided to the L2 call will be the gas requested by
+     * the user PLUS this gas value so that if the message is not successful, it can always be
+     * replayed on the other end.
+     *
+     * @param _message Message to compute base gas for.
+     * @return Base gas required for message.
+     */
+    function baseGas(bytes memory _message) public pure returns (uint32) {
+        // TODO: Values here are meant to be good enough to get a devnet running. We need to do
+        // some simple experimentation with the smallest and largest possible message sizes to find
+        // the correct constant and dynamic overhead values.
+        return (uint32(_message.length) * MIN_GAS_DYNAMIC_OVERHEAD) + MIN_GAS_CONSTANT_OVERHEAD;
+    }
+
     /**********************
      * Internal Functions *
      **********************/
-
-    function _isSystemMessageSender() internal view virtual returns (bool);
 
     function _sendMessage(
         address _to,
@@ -280,4 +278,6 @@ abstract contract CrossDomainMessenger is
         __Pausable_init_unchained();
         __ReentrancyGuard_init_unchained();
     }
+
+    function _isSystemMessageSender() internal view virtual returns (bool);
 }

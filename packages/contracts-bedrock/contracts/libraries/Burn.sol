@@ -2,17 +2,6 @@
 pragma solidity 0.8.10;
 
 /**
- * @title Burner
- * @notice Burner self-destructs on creation and sends all ETH to itself, removing all ETH given to
- * the contract from the circulating supply.
- */
-contract Burner {
-    constructor() payable {
-        selfdestruct(payable(address(this)));
-    }
-}
-
-/**
  * @title Burn
  * @notice Utilities for burning stuff.
  */
@@ -37,5 +26,16 @@ library Burn {
         while (initialGas - gasleft() < _amount) {
             ++i;
         }
+    }
+}
+
+/**
+ * @title Burner
+ * @notice Burner self-destructs on creation and sends all ETH to itself, removing all ETH given to
+ * the contract from the circulating supply.
+ */
+contract Burner {
+    constructor() payable {
+        selfdestruct(payable(address(this)));
     }
 }

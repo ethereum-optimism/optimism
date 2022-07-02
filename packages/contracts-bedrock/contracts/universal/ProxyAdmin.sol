@@ -120,6 +120,62 @@ contract ProxyAdmin is Owned {
 
     /**
      * @custom:legacy
+     * @notice Set the upgrading status for the Chugsplash proxy type.
+     *
+     * @param _upgrading Whether or not the system is upgrading.
+     */
+    function setUpgrading(bool _upgrading) external onlyOwner {
+        upgrading = _upgrading;
+    }
+
+    /**
+     * @dev Changes the admin of `proxy` to `newAdmin`. This contract must be the current admin
+     *      of `proxy`.
+     *
+     * @param proxy    The proxy that will have its admin updated.
+     * @param newAdmin The address of the admin to update to.
+     */
+    function changeProxyAdmin(Proxy proxy, address newAdmin) external onlyOwner {
+        ProxyType proxyType = proxyType[address(proxy)];
+
+        if (proxyType == ProxyType.ERC1967) {
+            proxy.changeAdmin(newAdmin);
+        } else if (proxyType == ProxyType.Chugsplash) {
+            L1ChugSplashProxy(payable(proxy)).setOwner(newAdmin);
+        } else if (proxyType == ProxyType.ResolvedDelegate) {
+            addressManager.transferOwnership(newAdmin);
+        } else {
+            revert("ProxyAdmin: unknown proxy type");
+        }
+    }
+
+    /**
+     * @dev Upgrades `proxy` to `implementation` and calls a function on the new implementation.
+     *      This contract must be the admin of `proxy`.
+     *
+     * @param proxy           The proxy to call.
+     * @param implementation  The implementation to upgrade the proxy to.
+     * @param data            The calldata to pass to the implementation.
+     */
+    function upgradeAndCall(
+        Proxy proxy,
+        address implementation,
+        bytes memory data
+    ) external payable onlyOwner {
+        ProxyType proxyType = proxyType[address(proxy)];
+
+        if (proxyType == ProxyType.ERC1967) {
+            proxy.upgradeToAndCall{ value: msg.value }(implementation, data);
+        } else {
+            // reverts if proxy type is unknown
+            upgrade(proxy, implementation);
+            (bool success, ) = address(proxy).call{ value: msg.value }(data);
+            require(success);
+        }
+    }
+
+    /**
+     * @custom:legacy
      * @notice Legacy function used by the old Chugsplash proxy to determine if an upgrade is
      *         happening.
      *
@@ -127,16 +183,6 @@ contract ProxyAdmin is Owned {
      */
     function isUpgrading() external view returns (bool) {
         return upgrading;
-    }
-
-    /**
-     * @custom:legacy
-     * @notice Set the upgrading status for the Chugsplash proxy type.
-     *
-     * @param _upgrading Whether or not the system is upgrading.
-     */
-    function setUpgrading(bool _upgrading) external onlyOwner {
-        upgrading = _upgrading;
     }
 
     /**
@@ -182,27 +228,6 @@ contract ProxyAdmin is Owned {
     }
 
     /**
-     * @dev Changes the admin of `proxy` to `newAdmin`. This contract must be the current admin
-     *      of `proxy`.
-     *
-     * @param proxy    The proxy that will have its admin updated.
-     * @param newAdmin The address of the admin to update to.
-     */
-    function changeProxyAdmin(Proxy proxy, address newAdmin) external onlyOwner {
-        ProxyType proxyType = proxyType[address(proxy)];
-
-        if (proxyType == ProxyType.ERC1967) {
-            proxy.changeAdmin(newAdmin);
-        } else if (proxyType == ProxyType.Chugsplash) {
-            L1ChugSplashProxy(payable(proxy)).setOwner(newAdmin);
-        } else if (proxyType == ProxyType.ResolvedDelegate) {
-            addressManager.transferOwnership(newAdmin);
-        } else {
-            revert("ProxyAdmin: unknown proxy type");
-        }
-    }
-
-    /**
      * @dev Upgrades `proxy` to `implementation`. This contract must be the admin of `proxy`.
      *
      * @param proxy          The address of the proxy.
@@ -223,31 +248,6 @@ contract ProxyAdmin is Owned {
             addressManager.setAddress(name, implementation);
         } else {
             revert("ProxyAdmin: unknown proxy type");
-        }
-    }
-
-    /**
-     * @dev Upgrades `proxy` to `implementation` and calls a function on the new implementation.
-     *      This contract must be the admin of `proxy`.
-     *
-     * @param proxy           The proxy to call.
-     * @param implementation  The implementation to upgrade the proxy to.
-     * @param data            The calldata to pass to the implementation.
-     */
-    function upgradeAndCall(
-        Proxy proxy,
-        address implementation,
-        bytes memory data
-    ) external payable onlyOwner {
-        ProxyType proxyType = proxyType[address(proxy)];
-
-        if (proxyType == ProxyType.ERC1967) {
-            proxy.upgradeToAndCall{ value: msg.value }(implementation, data);
-        } else {
-            // reverts if proxy type is unknown
-            upgrade(proxy, implementation);
-            (bool success, ) = address(proxy).call{ value: msg.value }(data);
-            require(success);
         }
     }
 }
