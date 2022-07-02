@@ -1,14 +1,14 @@
 //SPDX-License-Identifier: MIT
 pragma solidity 0.8.10;
 
-import { Lib_CrossDomainUtils } from "./Lib_CrossDomainUtils.sol";
-import { Lib_RLPWriter } from "./rlp/Lib_RLPWriter.sol";
+import { CrossDomainUtils } from "./CrossDomainUtils.sol";
+import { RLPWriter } from "./rlp/RLPWriter.sol";
 
 /**
  * @title CrossDomainHashing
  * This library is responsible for holding cross domain utility
  * functions.
- * TODO(tynes): merge with Lib_CrossDomainUtils
+ * TODO(tynes): merge with CrossDomainUtils
  * TODO(tynes): fill out more devdocs
  */
 library CrossDomainHashing {
@@ -89,22 +89,22 @@ library CrossDomainHashing {
 
         bytes[] memory raw = new bytes[](7);
 
-        raw[0] = Lib_RLPWriter.writeBytes(bytes32ToBytes(source));
-        raw[1] = Lib_RLPWriter.writeAddress(_from);
+        raw[0] = RLPWriter.writeBytes(bytes32ToBytes(source));
+        raw[1] = RLPWriter.writeAddress(_from);
 
         if (_isCreate == true) {
             require(_to == address(0));
-            raw[2] = Lib_RLPWriter.writeBytes("");
+            raw[2] = RLPWriter.writeBytes("");
         } else {
-            raw[2] = Lib_RLPWriter.writeAddress(_to);
+            raw[2] = RLPWriter.writeAddress(_to);
         }
 
-        raw[3] = Lib_RLPWriter.writeUint(_mint);
-        raw[4] = Lib_RLPWriter.writeUint(_value);
-        raw[5] = Lib_RLPWriter.writeUint(_gas);
-        raw[6] = Lib_RLPWriter.writeBytes(_data);
+        raw[3] = RLPWriter.writeUint(_mint);
+        raw[4] = RLPWriter.writeUint(_value);
+        raw[5] = RLPWriter.writeUint(_gas);
+        raw[6] = RLPWriter.writeBytes(_data);
 
-        bytes memory encoded = Lib_RLPWriter.writeList(raw);
+        bytes memory encoded = RLPWriter.writeList(raw);
         return abi.encodePacked(uint8(0x7e), uint8(0x0), encoded);
     }
 
@@ -193,7 +193,7 @@ library CrossDomainHashing {
         bytes memory _data,
         uint256 _nonce
     ) internal pure returns (bytes memory) {
-        return Lib_CrossDomainUtils.encodeXDomainCalldata(_target, _sender, _data, _nonce);
+        return CrossDomainUtils.encodeXDomainCalldata(_target, _sender, _data, _nonce);
     }
 
     /**

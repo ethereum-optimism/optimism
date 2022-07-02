@@ -2,9 +2,9 @@
 pragma solidity ^0.8.9;
 
 /**
- * @title Lib_DefaultValues
+ * @title DefaultValues
  */
-library Lib_DefaultValues {
+library DefaultValues {
     // The default x-domain message sender being set to a non-zero value makes
     // deployment a bit more expensive, but in exchange the refund on every call to
     // `relayMessage` by the L1 and L2 messengers will be higher.

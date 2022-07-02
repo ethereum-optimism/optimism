@@ -2,7 +2,7 @@
 pragma solidity ^0.8.9;
 
 import { Initializable } from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
-import { Lib_PredeployAddresses } from "../libraries/Lib_PredeployAddresses.sol";
+import { PredeployAddresses } from "../libraries/PredeployAddresses.sol";
 import { StandardBridge } from "../universal/StandardBridge.sol";
 
 /**
@@ -104,7 +104,7 @@ contract L1StandardBridge is StandardBridge, Initializable {
      * @param _messenger Address of the L1CrossDomainMessenger.
      */
     function initialize(address payable _messenger) public reinitializer(VERSION) {
-        _initialize(_messenger, payable(Lib_PredeployAddresses.L2_STANDARD_BRIDGE));
+        _initialize(_messenger, payable(PredeployAddresses.L2_STANDARD_BRIDGE));
     }
 
     /**

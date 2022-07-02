@@ -2,10 +2,10 @@
 pragma solidity ^0.8.9;
 
 /**
- * @title Lib_RLPWriter
+ * @title RLPWriter
  * @author Bakaoh (with modifications)
  */
-library Lib_RLPWriter {
+library RLPWriter {
     /**********************
      * Internal Functions *
      **********************/

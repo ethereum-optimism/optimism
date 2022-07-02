@@ -2,9 +2,9 @@
 pragma solidity ^0.8.9;
 
 /**
- * @title Lib_BytesUtils
+ * @title BytesUtils
  */
-library Lib_BytesUtils {
+library BytesUtils {
     /**********************
      * Internal Functions *
      **********************/

@@ -14,13 +14,13 @@ import { L2ToL1MessagePasser } from "../L2/L2ToL1MessagePasser.sol";
 import { L1CrossDomainMessenger } from "../L1/L1CrossDomainMessenger.sol";
 import { L2CrossDomainMessenger } from "../L2/L2CrossDomainMessenger.sol";
 import { AddressAliasHelper } from "../vendor/AddressAliasHelper.sol";
-import { OVM_ETH } from "../L2/OVM_ETH.sol";
-import { Lib_PredeployAddresses } from "../libraries/Lib_PredeployAddresses.sol";
+import { LegacyERC20ETH } from "../legacy/LegacyERC20ETH.sol";
+import { PredeployAddresses } from "../libraries/PredeployAddresses.sol";
 import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import { Proxy } from "../universal/Proxy.sol";
 import { Initializable } from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
-import { Lib_ResolvedDelegateProxy } from "../legacy/Lib_ResolvedDelegateProxy.sol";
-import { Lib_AddressManager } from "../legacy/Lib_AddressManager.sol";
+import { ResolvedDelegateProxy } from "../legacy/ResolvedDelegateProxy.sol";
+import { AddressManager } from "../legacy/AddressManager.sol";
 import { L1ChugSplashProxy } from "../legacy/L1ChugSplashProxy.sol";
 import { iL1ChugSplashDeployer } from "../legacy/L1ChugSplashProxy.sol";
 
@@ -130,12 +130,12 @@ contract Portal_Initializer is L2OutputOracle_Initializer {
 
 contract Messenger_Initializer is L2OutputOracle_Initializer {
     OptimismPortal op;
-    Lib_AddressManager addressManager;
+    AddressManager addressManager;
     L1CrossDomainMessenger L1Messenger;
     L2CrossDomainMessenger L2Messenger =
-        L2CrossDomainMessenger(Lib_PredeployAddresses.L2_CROSS_DOMAIN_MESSENGER);
+        L2CrossDomainMessenger(PredeployAddresses.L2_CROSS_DOMAIN_MESSENGER);
     L2ToL1MessagePasser messagePasser =
-        L2ToL1MessagePasser(payable(Lib_PredeployAddresses.L2_TO_L1_MESSAGE_PASSER));
+        L2ToL1MessagePasser(payable(PredeployAddresses.L2_TO_L1_MESSAGE_PASSER));
 
     event SentMessage(
         address indexed target,
@@ -177,7 +177,7 @@ contract Messenger_Initializer is L2OutputOracle_Initializer {
 
         // Deploy the address manager
         vm.prank(multisig);
-        addressManager = new Lib_AddressManager();
+        addressManager = new AddressManager();
 
         // Setup implementation
         L1CrossDomainMessenger L1MessengerImpl = new L1CrossDomainMessenger(op);
@@ -185,7 +185,7 @@ contract Messenger_Initializer is L2OutputOracle_Initializer {
         // Setup the address manager and proxy
         vm.prank(multisig);
         addressManager.setAddress("OVM_L1CrossDomainMessenger", address(L1MessengerImpl));
-        Lib_ResolvedDelegateProxy proxy = new Lib_ResolvedDelegateProxy(
+        ResolvedDelegateProxy proxy = new ResolvedDelegateProxy(
             address(addressManager),
             "OVM_L1CrossDomainMessenger"
         );
@@ -193,7 +193,7 @@ contract Messenger_Initializer is L2OutputOracle_Initializer {
         L1Messenger.initialize(op);
 
         vm.etch(
-            Lib_PredeployAddresses.L2_CROSS_DOMAIN_MESSENGER,
+            PredeployAddresses.L2_CROSS_DOMAIN_MESSENGER,
             address(new L2CrossDomainMessenger()).code
         );
 
@@ -201,16 +201,18 @@ contract Messenger_Initializer is L2OutputOracle_Initializer {
 
         // Set the L2ToL1MessagePasser at the correct address
         vm.etch(
-            Lib_PredeployAddresses.L2_TO_L1_MESSAGE_PASSER,
+            PredeployAddresses.L2_TO_L1_MESSAGE_PASSER,
             address(new L2ToL1MessagePasser()).code
         );
+
+        // Label addresses
         vm.label(address(addressManager), "AddressManager");
         vm.label(address(L1MessengerImpl), "L1CrossDomainMessenger_Impl");
         vm.label(address(L1Messenger), "L1CrossDomainMessenger_Proxy");
-        vm.label(Lib_PredeployAddresses.OVM_ETH, "OVM_ETH");
-        vm.label(Lib_PredeployAddresses.OVM_ETH, "OVM_ETH");
-        vm.label(Lib_PredeployAddresses.L2_TO_L1_MESSAGE_PASSER, "L2ToL1MessagePasser");
-        vm.label(Lib_PredeployAddresses.L2_CROSS_DOMAIN_MESSENGER, "L2CrossDomainMessenger");
+        vm.label(PredeployAddresses.LEGACY_ERC20_ETH, "LegacyERC20ETH");
+        vm.label(PredeployAddresses.L2_TO_L1_MESSAGE_PASSER, "L2ToL1MessagePasser");
+        vm.label(PredeployAddresses.L2_CROSS_DOMAIN_MESSENGER, "L2CrossDomainMessenger");
+
         vm.label(
             AddressAliasHelper.applyL1ToL2Alias(address(L1Messenger)),
             "L1CrossDomainMessenger_aliased"
@@ -331,8 +333,8 @@ contract Bridge_Initializer is Messenger_Initializer {
     function setUp() public virtual override {
         super.setUp();
 
-        vm.label(Lib_PredeployAddresses.L2_STANDARD_BRIDGE, "L2StandardBridge");
-        vm.label(Lib_PredeployAddresses.L2_STANDARD_TOKEN_FACTORY, "L2StandardTokenFactory");
+        vm.label(PredeployAddresses.L2_STANDARD_BRIDGE, "L2StandardBridge");
+        vm.label(PredeployAddresses.L2_STANDARD_TOKEN_FACTORY, "L2StandardTokenFactory");
 
         // Deploy the L1 bridge and initialize it with the address of the
         // L1CrossDomainMessenger
@@ -357,19 +359,19 @@ contract Bridge_Initializer is Messenger_Initializer {
         // Deploy the L2StandardBridge, move it to the correct predeploy
         // address and then initialize it
         L2StandardBridge l2B = new L2StandardBridge();
-        vm.etch(Lib_PredeployAddresses.L2_STANDARD_BRIDGE, address(l2B).code);
-        L2Bridge = L2StandardBridge(payable(Lib_PredeployAddresses.L2_STANDARD_BRIDGE));
+        vm.etch(PredeployAddresses.L2_STANDARD_BRIDGE, address(l2B).code);
+        L2Bridge = L2StandardBridge(payable(PredeployAddresses.L2_STANDARD_BRIDGE));
         L2Bridge.initialize(payable(address(L1Bridge)));
 
         // Set up the L2 mintable token factory
         OptimismMintableTokenFactory factory = new OptimismMintableTokenFactory();
-        vm.etch(Lib_PredeployAddresses.L2_STANDARD_TOKEN_FACTORY, address(factory).code);
+        vm.etch(PredeployAddresses.L2_STANDARD_TOKEN_FACTORY, address(factory).code);
         L2TokenFactory = OptimismMintableTokenFactory(
-            Lib_PredeployAddresses.L2_STANDARD_TOKEN_FACTORY
+            PredeployAddresses.L2_STANDARD_TOKEN_FACTORY
         );
-        L2TokenFactory.initialize(Lib_PredeployAddresses.L2_STANDARD_BRIDGE);
+        L2TokenFactory.initialize(PredeployAddresses.L2_STANDARD_BRIDGE);
 
-        vm.etch(Lib_PredeployAddresses.OVM_ETH, address(new OVM_ETH()).code);
+        vm.etch(PredeployAddresses.LEGACY_ERC20_ETH, address(new LegacyERC20ETH()).code);
 
         L1Token = new ERC20("Native L1 Token", "L1T");
 

@@ -3,7 +3,7 @@ pragma solidity 0.8.10;
 
 import { CommonTest } from "./CommonTest.t.sol";
 import { L2ToL1MessagePasser } from "../L2/L2ToL1MessagePasser.sol";
-import { WithdrawalVerifier } from "../libraries/Lib_WithdrawalVerifier.sol";
+import { WithdrawalVerifier } from "../libraries/WithdrawalVerifier.sol";
 
 contract L2ToL1MessagePasserTest is CommonTest {
     L2ToL1MessagePasser messagePasser;

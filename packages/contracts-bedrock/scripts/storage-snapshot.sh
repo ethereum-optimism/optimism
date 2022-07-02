@@ -21,7 +21,7 @@ contracts=(
   L2CrossDomainMessenger
   L2StandardBridge
   L2ToL1MessagePasser
-  OVM_ETH
+  LegacyERC20ETH
   SequencerFeeVault
   WETH9
   ProxyAdmin

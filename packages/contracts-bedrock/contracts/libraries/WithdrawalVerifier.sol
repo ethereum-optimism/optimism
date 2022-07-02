@@ -2,8 +2,8 @@
 pragma solidity 0.8.10;
 
 /* Library Imports */
-import { Lib_SecureMerkleTrie } from "./trie/Lib_SecureMerkleTrie.sol";
-import { Lib_CrossDomainUtils } from "./Lib_CrossDomainUtils.sol";
+import { SecureMerkleTrie } from "./trie/SecureMerkleTrie.sol";
+import { CrossDomainUtils } from "./CrossDomainUtils.sol";
 
 /**
  * @title WithdrawalVerifier
@@ -80,7 +80,7 @@ library WithdrawalVerifier {
         );
 
         return
-            Lib_SecureMerkleTrie.verifyInclusionProof(
+            SecureMerkleTrie.verifyInclusionProof(
                 abi.encode(storageKey),
                 hex"01",
                 _withdrawalProof,

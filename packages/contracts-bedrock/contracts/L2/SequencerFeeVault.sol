@@ -2,7 +2,7 @@
 pragma solidity ^0.8.9;
 
 /* Library Imports */
-import { Lib_PredeployAddresses } from "../libraries/Lib_PredeployAddresses.sol";
+import { PredeployAddresses } from "../libraries/PredeployAddresses.sol";
 
 /* Contract Imports */
 import { L2StandardBridge } from "./L2StandardBridge.sol";
@@ -42,8 +42,8 @@ contract SequencerFeeVault {
 
         uint256 balance = address(this).balance;
 
-        L2StandardBridge(payable(Lib_PredeployAddresses.L2_STANDARD_BRIDGE)).withdrawTo{
+        L2StandardBridge(payable(PredeployAddresses.L2_STANDARD_BRIDGE)).withdrawTo{
             value: balance
-        }(Lib_PredeployAddresses.OVM_ETH, l1FeeWallet, balance, 0, bytes(""));
+        }(PredeployAddresses.LEGACY_ERC20_ETH, l1FeeWallet, balance, 0, bytes(""));
     }
 }
