@@ -5,7 +5,7 @@ import { Initializable } from "@openzeppelin/contracts/proxy/utils/Initializable
 import { ExcessivelySafeCall } from "excessively-safe-call/src/ExcessivelySafeCall.sol";
 import { L2OutputOracle } from "./L2OutputOracle.sol";
 import { WithdrawalVerifier } from "../libraries/Lib_WithdrawalVerifier.sol";
-import { AddressAliasHelper } from "../libraries/AddressAliasHelper.sol";
+import { AddressAliasHelper } from "../vendor/AddressAliasHelper.sol";
 import { ResourceMetering } from "./ResourceMetering.sol";
 
 /**
