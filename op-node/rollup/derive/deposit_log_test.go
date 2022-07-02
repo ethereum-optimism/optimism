@@ -5,6 +5,8 @@ import (
 	"math/rand"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/ethereum-optimism/optimism/op-node/testutils"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/stretchr/testify/assert"
@@ -101,12 +103,12 @@ func TestDeriveUserDeposits(t *testing.T) {
 					TransactionIndex: uint(txIndex),
 				})
 			}
-			got, errs := UserDeposits(receipts, MockDepositContractAddr)
-			assert.Equal(t, len(errs), 0)
-			assert.Equal(t, len(got), len(expectedDeposits))
+			got, err := UserDeposits(receipts, MockDepositContractAddr)
+			require.NoError(t, err)
+			require.Equal(t, len(got), len(expectedDeposits))
 			for d, depTx := range got {
 				expected := expectedDeposits[d]
-				assert.Equal(t, expected, depTx)
+				require.Equal(t, expected, depTx)
 			}
 		})
 	}

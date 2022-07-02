@@ -13,6 +13,15 @@ type MockL1Source struct {
 	mock.Mock
 }
 
+func (m *MockL1Source) InfoByHash(ctx context.Context, hash common.Hash) (eth.L1Info, error) {
+	out := m.Mock.MethodCalled("InfoByHash", hash)
+	return *out[0].(*eth.L1Info), *out[1].(*error)
+}
+
+func (m *MockL1Source) ExpectInfoByHash(u uint64, info eth.L1Info, err error) {
+	m.Mock.On("InfoByHash", u).Once().Return(&info, &err)
+}
+
 func (m *MockL1Source) L1BlockRefByNumber(ctx context.Context, u uint64) (eth.L1BlockRef, error) {
 	out := m.Mock.MethodCalled("L1BlockRefByNumber", u)
 	return out[0].(eth.L1BlockRef), *out[1].(*error)
