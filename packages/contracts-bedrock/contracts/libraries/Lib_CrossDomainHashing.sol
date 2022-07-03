@@ -105,7 +105,7 @@ library CrossDomainHashing {
         raw[6] = Lib_RLPWriter.writeBytes(_data);
 
         bytes memory encoded = Lib_RLPWriter.writeList(raw);
-        return abi.encodePacked(uint8(0x7e), encoded);
+        return abi.encodePacked(uint8(0x7e), uint8(0x0), encoded);
     }
 
     /**

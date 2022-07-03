@@ -5,17 +5,13 @@ import {
     OwnableUpgradeable
 } from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import { OptimismMintableERC721 } from "./OptimismMintableERC721.sol";
+import { Semver } from "../Semver.sol";
 
 /**
  * @title OptimismMintableERC721Factory
  * @notice Factory contract for creating OptimismMintableERC721 contracts.
  */
-contract OptimismMintableERC721Factory is OwnableUpgradeable {
-    /**
-     * @notice Contract version number.
-     */
-    uint8 public constant VERSION = 2;
-
+contract OptimismMintableERC721Factory is Semver, OwnableUpgradeable {
     /**
      * @notice Emitted whenever a new OptimismMintableERC721 contract is created.
      *
@@ -42,7 +38,7 @@ contract OptimismMintableERC721Factory is OwnableUpgradeable {
     /**
      * @param _bridge Address of the ERC721 bridge on this network.
      */
-    constructor(address _bridge, uint256 _remoteChainId) {
+    constructor(address _bridge, uint256 _remoteChainId) Semver(0, 0, 1) {
         initialize(_bridge, _remoteChainId);
     }
 
@@ -51,7 +47,7 @@ contract OptimismMintableERC721Factory is OwnableUpgradeable {
      *
      * @param _bridge Address of the ERC721 bridge on this network.
      */
-    function initialize(address _bridge, uint256 _remoteChainId) public reinitializer(VERSION) {
+    function initialize(address _bridge, uint256 _remoteChainId) public initializer {
         bridge = _bridge;
         remoteChainId = _remoteChainId;
 
