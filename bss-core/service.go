@@ -136,9 +136,12 @@ func (s *Service) eventLoop() {
 		}
 	}
 
+	ticker := time.NewTicker(s.cfg.PollInterval)
+	defer ticker.Stop()
+
 	for {
 		select {
-		case <-time.After(s.cfg.PollInterval):
+		case <-ticker.C:
 			// Record the submitter's current ETH balance. This is done first in
 			// case any of the remaining steps fail, we can at least have an
 			// accurate view of the submitter's balance.
