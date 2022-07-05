@@ -37,13 +37,15 @@
   "scripts": {
     "clean": "yarn lerna run clean --parallel",
     "build": "yarn lerna run build",
+    "deduplicate": "yarn yarn-deduplicate",
+    "deduplicate:ci": "yarn yarn-deduplicate --fail",
     "test": "yarn lerna run test --parallel",
     "test:coverage": "yarn lerna run test:coverage --parallel",
     "lint": "yarn lerna run lint",
     "lint:ts:check": "yarn lerna run lint:ts:check",
     "lint:check": "yarn lerna run lint:check",
     "lint:fix": "yarn lerna run lint:fix --parallel",
-    "postinstall": "patch-package",
+    "postinstall": "patch-package && yarn deduplicate",
     "ready": "yarn lint && yarn test",
     "prepare": "husky install",
     "release": "yarn build && yarn changeset publish",
@@ -90,6 +92,7 @@
     "@codechecks/client": "^0.1.11",
     "@ethersproject/abstract-provider": "^5.6.1",
     "@openzeppelin/contracts": "^4.3.2",
-    "@openzeppelin/contracts-upgradeable": "^4.3.2"
+    "@openzeppelin/contracts-upgradeable": "^4.3.2",
+    "yarn-deduplicate": "^5.0.0"
   }
 }
