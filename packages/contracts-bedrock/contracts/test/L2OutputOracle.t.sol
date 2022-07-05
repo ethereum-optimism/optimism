@@ -233,9 +233,7 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
 
     // Test: appendL2Output fails when given valid input, but the block hash and number do not
     // match.
-    // This tests is disabled (w/ skip_ prefix) because all blocks in Foundry currently have a
-    // blockhash of zero.
-    function skip_testCannot_AppendWithUnmatchedBlockhash() external {
+    function testCannot_AppendWithUnmatchedBlockhash() external {
         // Move ahead to block 100 so that we can reference historical blocks
         vm.roll(100);
 
@@ -248,6 +246,7 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
         vm.prank(sequencer);
 
         // This will fail when foundry no longer returns zerod block hashes
+        vm.expectRevert("OutputOracle: Blockhash does not match the hash at the expected height.");
         oracle.appendL2Output(nonZeroHash, nextBlockNumber, l1BlockHash, l1BlockNumber - 1);
     }
 

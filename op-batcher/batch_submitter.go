@@ -119,11 +119,17 @@ func NewBatchSubmitter(cfg Config, l log.Logger) (*BatchSubmitter, error) {
 		return nil, err
 	}
 
-	sequencerPrivKey, err := wallet.PrivateKey(accounts.Account{
+	acc := accounts.Account{
 		URL: accounts.URL{
 			Path: cfg.SequencerHDPath,
 		},
-	})
+	}
+	addr, err := wallet.Address(acc)
+	if err != nil {
+		return nil, err
+	}
+
+	sequencerPrivKey, err := wallet.PrivateKey(acc)
 	if err != nil {
 		return nil, err
 	}
@@ -154,6 +160,13 @@ func NewBatchSubmitter(cfg Config, l log.Logger) (*BatchSubmitter, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	sequencerBalance, err := l1Client.BalanceAt(ctx, addr, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	log.Info("starting batch submitter", "submitter_addr", addr, "submitter_bal", sequencerBalance)
 
 	txManagerConfig := txmgr.Config{
 		Log:                       l,
