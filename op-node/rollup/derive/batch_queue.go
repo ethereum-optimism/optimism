@@ -73,7 +73,7 @@ func (bq *BatchQueue) Step(ctx context.Context, outer Progress) error {
 		return io.EOF
 	} else if err != nil {
 		bq.log.Error("Error deriving batches", "err", err)
-		// Supress transient errors for when reporting back to the pipeline
+		// Suppress transient errors for when reporting back to the pipeline
 		return nil
 	}
 
