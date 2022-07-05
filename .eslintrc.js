@@ -20,6 +20,7 @@ module.exports = {
     'eslint-plugin-prefer-arrow',
     'eslint-plugin-react',
     '@typescript-eslint',
+    'todo-plz',
   ],
   overrides: [
     {
@@ -181,6 +182,11 @@ module.exports = {
     'space-before-blocks': 'error',
     'space-before-function-paren': 'off',
     'space-in-parens': ['off', 'never'],
+    // require a linear ticket on every TODO
+    'todo-plz/ticket-ref': [
+      'error',
+      { commentPattern: 'https://linear.app/optimism/issue/.*' },
+    ],
     'unicorn/prefer-ternary': 'off',
     'use-isnan': 'error',
     'valid-typeof': 'off',
