@@ -11,12 +11,15 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 )
 
+// L1ReceiptsFetcher fetches L1 header info and receipts for the payload attributes derivation (the info tx and deposits)
 type L1ReceiptsFetcher interface {
 	InfoByHash(ctx context.Context, hash common.Hash) (eth.L1Info, error)
 	Fetch(ctx context.Context, blockHash common.Hash) (eth.L1Info, types.Transactions, types.Receipts, error)
 }
 
-// PreparePayloadAttributes prepares a PayloadAttributes object that is ready to build a L2 block with deposits only, on top of the given l2Parent, with the given epoch as L1 origin.
+// PreparePayloadAttributes prepares a PayloadAttributes template that is ready to build a L2 block with deposits only, on top of the given l2Parent, with the given epoch as L1 origin.
+// The template defaults to NoTxPool=true, and no sequencer transactions: the caller has to modify the template to add transactions,
+// by setting NoTxPool=false as sequencer, or by appending batch transactions as verifier.
 // The severity of the error is returned; a crit=false error means there was a temporary issue, like a failed RPC or time-out.
 // A crit=true error means the input arguments are inconsistent or invalid.
 func PreparePayloadAttributes(ctx context.Context, cfg *rollup.Config, dl L1ReceiptsFetcher, l2Parent eth.L2BlockRef, epoch eth.BlockID) (attrs *eth.PayloadAttributes, crit bool, err error) {
