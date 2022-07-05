@@ -184,7 +184,7 @@ module.exports = {
     'space-in-parens': ['off', 'never'],
     // require a linear ticket on every TODO
     'todo-plz/ticket-ref': [
-      'error',
+      'warn',
       { commentPattern: 'https://linear.app/optimism/issue/.*' },
     ],
     'unicorn/prefer-ternary': 'off',
