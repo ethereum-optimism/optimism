@@ -105,6 +105,7 @@ func (bq *BatchQueue) ResetStep(ctx context.Context, l1Fetcher L1Fetcher) error 
 	bq.log.Info("found reset origin for batch queue", "origin", l1BlockStart)
 	bq.l1Blocks = append(bq.l1Blocks, l1BlockStart)
 	bq.progress.Origin = l1BlockStart
+	bq.progress.Closed = false
 	return io.EOF
 }
 

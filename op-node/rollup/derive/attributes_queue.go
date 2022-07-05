@@ -43,9 +43,6 @@ func NewAttributesQueue(log log.Logger, cfg *rollup.Config, l1Fetcher L1Receipts
 }
 
 func (aq *AttributesQueue) AddBatch(batch *BatchData) {
-	if aq.progress.Closed {
-		panic("adding batch while attributes queue is closed")
-	}
 	aq.log.Info("Received next batch", "batch_epoch", batch.EpochNum, "batch_timestamp", batch.Timestamp, "tx_count", len(batch.Transactions))
 	aq.batches = append(aq.batches, batch)
 }
