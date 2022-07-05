@@ -67,10 +67,14 @@ func (bq *BatchQueue) Step(ctx context.Context, outer Progress) error {
 		}
 		return nil
 	}
-	batches := bq.deriveBatches(bq.next.SafeL2Head())
-	if len(batches) == 0 {
+	batches, err := bq.deriveBatches(ctx, bq.next.SafeL2Head())
+	if err == io.EOF {
 		bq.log.Trace("Out of batches")
 		return io.EOF
+	} else if err != nil {
+		bq.log.Error("Error deriving batches", "err", err)
+		// Supress transient errors for when reporting back to the pipeline
+		return nil
 	}
 
 	for _, batch := range batches {
@@ -156,9 +160,9 @@ func validExtension(cfg *rollup.Config, batch *BatchWithL1InclusionBlock, prevTi
 
 // deriveBatches pulls a single batch eagerly or a collection of batches if it is the end of
 // the sequencing window.
-func (bq *BatchQueue) deriveBatches(l2SafeHead eth.L2BlockRef) []*BatchData {
+func (bq *BatchQueue) deriveBatches(ctx context.Context, l2SafeHead eth.L2BlockRef) ([]*BatchData, error) {
 	if len(bq.l1Blocks) == 0 {
-		return nil
+		return nil, io.EOF
 	}
 	epoch := bq.l1Blocks[0]
 
@@ -206,31 +210,33 @@ func (bq *BatchQueue) deriveBatches(l2SafeHead eth.L2BlockRef) []*BatchData {
 		// Advance an epoch after filling all batches.
 		bq.l1Blocks = bq.l1Blocks[1:]
 
-		return batches
+		return batches, nil
 
 	} else {
 		bq.log.Trace("Trying to eagerly find batch")
 		var ret []*BatchData
-		next := bq.tryPopNextBatch(l2SafeHead)
+		next, err := bq.tryPopNextBatch(ctx, l2SafeHead)
 		if next != nil {
 			bq.log.Info("found eager batch", "batch", next.Batch)
 			ret = append(ret, next.Batch)
 		}
-		return ret
+		return ret, err
 	}
 
 }
 
 // tryPopNextBatch tries to get the next batch from the batch queue using an eager approach.
-func (bq *BatchQueue) tryPopNextBatch(l2SafeHead eth.L2BlockRef) *BatchWithL1InclusionBlock {
+// It returns nil upon success, io.EOF if it does not have enough data, and a non-nil error
+// upon a temporary processing error.
+func (bq *BatchQueue) tryPopNextBatch(ctx context.Context, l2SafeHead eth.L2BlockRef) (*BatchWithL1InclusionBlock, error) {
 	// We require at least 1 L1 blocks to look at.
 	if len(bq.l1Blocks) == 0 {
-		return nil
+		return nil, io.EOF
 	}
 	batches, ok := bq.batchesByTimestamp[l2SafeHead.Time+bq.config.BlockTime]
 	// No more batches found.
 	if !ok {
-		return nil
+		return nil, io.EOF
 	}
 
 	// Find the first batch saved for this timestamp.
@@ -247,7 +253,7 @@ func (bq *BatchQueue) tryPopNextBatch(l2SafeHead eth.L2BlockRef) *BatchWithL1Inc
 			// algorithm.
 			if len(bq.l1Blocks) < 2 {
 				bq.log.Warn("eager batch wants to advance epoch, but could not")
-				return nil
+				return nil, io.EOF
 			}
 			l1OriginTime = bq.l1Blocks[1].Time
 		}
@@ -260,10 +266,10 @@ func (bq *BatchQueue) tryPopNextBatch(l2SafeHead eth.L2BlockRef) *BatchWithL1Inc
 		}
 
 		// Note: Don't check epoch change here, check it in `validExtension`
-		epoch, err := bq.dl.L1BlockRefByNumber(context.TODO(), uint64(batch.Batch.EpochNum))
+		epoch, err := bq.dl.L1BlockRefByNumber(ctx, uint64(batch.Batch.EpochNum))
 		if err != nil {
 			bq.log.Warn("error fetching origin", "err", err)
-			return nil
+			return nil, err
 		}
 		if err := ValidBatch(batch.Batch, bq.config, epoch.ID(), minL2Time, maxL2Time); err != nil {
 			bq.log.Warn("Invalid batch", "err", err)
@@ -282,11 +288,11 @@ func (bq *BatchQueue) tryPopNextBatch(l2SafeHead eth.L2BlockRef) *BatchWithL1Inc
 			bq.log.Info("Batch was valid extension")
 
 			// We have found the fist valid batch.
-			return batch
+			return batch, nil
 		} else {
 			bq.log.Info("batch was not valid extension")
 		}
 	}
 
-	return nil
+	return nil, io.EOF
 }
