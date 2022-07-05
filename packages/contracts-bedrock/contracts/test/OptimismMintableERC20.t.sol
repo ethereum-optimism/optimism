@@ -2,7 +2,6 @@
 pragma solidity 0.8.10;
 
 import { Bridge_Initializer } from "./CommonTest.t.sol";
-import { LibRLP } from "./Lib_RLP.t.sol";
 import "../universal/SupportedInterfaces.sol";
 import { IERC165 } from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 
