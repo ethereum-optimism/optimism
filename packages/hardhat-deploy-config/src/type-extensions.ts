@@ -24,7 +24,8 @@ declare module 'hardhat/types/config' {
 declare module 'hardhat/types/runtime' {
   interface HardhatRuntimeEnvironment {
     deployConfig: {
-      // TODO: Is there any good way to type this?
+      // TODO https://linear.app/optimism/issue/ENG-2289/type-hardhatruntimeenvironment-better
+      // Is there any good way to type this?
       [key: string]: any
     }
   }
