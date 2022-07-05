@@ -43,8 +43,8 @@ func (f *fakeBatchQueueOutput) Progress() Progress {
 }
 
 func b(timestamp uint64, epoch eth.L1BlockRef) *BatchData {
-	rng := rand.New(rand.NewSource(1234))
-	data := testutils.RandomData(rng, int(timestamp))
+	rng := rand.New(rand.NewSource(int64(timestamp)))
+	data := testutils.RandomData(rng, 20)
 	return &BatchData{BatchV1{
 		Timestamp:    timestamp,
 		EpochNum:     rollup.Epoch(epoch.Number),
