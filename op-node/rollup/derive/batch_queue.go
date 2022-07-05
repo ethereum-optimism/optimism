@@ -152,6 +152,8 @@ func validExtension(cfg *rollup.Config, batch *BatchWithL1InclusionBlock, prevTi
 	}
 	// TODO: Also check EpochHash (hard b/c maybe extension)
 
+	// Note: `Batch.EpochNum` is an external input, but it is constrained to be a reasonable size by the
+	// above equality checks.
 	if uint64(batch.Batch.EpochNum)+cfg.SeqWindowSize < batch.L1InclusionBlock.Number {
 		return false
 	}
