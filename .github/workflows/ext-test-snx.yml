@@ -72,11 +72,11 @@ jobs:
         if: failure()
         uses: jwalton/gh-docker-logs@v1
         with:
-          dest: '~/logs'
+          dest: './logs'
 
       - name: Tar logs
         if: failure()
-        run: tar cvzf ./logs.tgz ~/logs
+        run: tar cvzf ./logs.tgz ./logs
 
       - name: Upload logs to GitHub
         if: failure()
