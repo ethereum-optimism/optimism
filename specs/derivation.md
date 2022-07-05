@@ -1,6 +1,7 @@
 # L2 Chain Derivation Specification
 
 <!-- All glossary references in this file. -->
+[g-derivation]: glossary.md#L2-chain-derivation
 [g-payload-attr]: glossary.md#payload-attributes
 [g-block]: glossary.md#block
 [g-exec-engine]: glossary.md#execution-engine
@@ -31,6 +32,9 @@
 [g-channel]: glossary.md#channel
 [g-channel-frame]: glossary.md#channel-frame
 [g-rollup-node]: glossary.md#rollup-node
+[g-channel-timeout]: glossary.md#channel-timeout
+[g-block-time]: glossary.md#block-time
+[g-time-slot]: glossary.md#time-slot
 
 <!-- START doctoc generated TOC please keep comment here to allow auto update -->
 <!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
@@ -39,13 +43,14 @@ TODO
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
-TODO: address multiplicity of sequencers / batchers
-
 # Overview
 
-L2 chain derivation is one of the main responsability of the [rollup node][g-rollup-node], both in validator mode, and
-in sequencer mode (where derivation acts as a sanity check on sequencing, and enables detecting L1 chain
-[re-organizations][g-reorg]).
+> Note: the following assumes a single sequencer and batcher. In the future, the design might be adapted to accomodate
+> multiple such entities.
+
+[L2 chain derivation][g-derivation] — deriving L2 [blocks][g-block] from L1 data — is one of the main responsability of
+the [rollup node][g-rollup-node], both in validator mode, and in sequencer mode (where derivation acts as a sanity check
+on sequencing, and enables detecting L1 chain [re-organizations][g-reorg]).
 
 The L2 chain is derived from the L1 chain. In particular, each L1 blocks is mapped to an L2 [sequencing
 epoch][g-sequencing-epoch] comprising multiple L2 blocks. The epoch number matches the corresponding L1 block number.
@@ -53,7 +58,7 @@ epoch][g-sequencing-epoch] comprising multiple L2 blocks. The epoch number match
 To derive the L2 blocks in an epoch `E`, we need the following inputs:
 
 - The L1 [sequencing window][g-sequencing-window] for epoch `E`: the L1 blocks in the range `[E, E + SWS)` where `SWS` is
-  the sequencing window size. In particular we need:
+  the sequencing window size (note that this means that epochs are overlapping). In particular we need:
     - The [batcher transactions][g-batcher-transactions] included in the sequencing window. These allow us to
       reconstruct [sequencer batches][g-sequencer-batch] containing the transactions to include in L2 blocks (each batch
       maps to a single L2 block).
@@ -61,10 +66,15 @@ To derive the L2 blocks in an epoch `E`, we need the following inputs:
       contract][g-deposit-contract]).
     - The L1 block attributes from L1 block `E` (to derive the [L1 attributes deposited transaction][g-l1-attr-deposit]).
 - The state of the L2 chain after the last L2 block of epoch `E - 1`, or — if epoch `E - 1` does not exist — the
-  [genesis state][g-l2-genesis] of the L2 chain.
+  [genesis state][g-l2-genesis] (cf. TODO) of the L2 chain.
     - An epoch `E` does not exist if `L2CI <= E`, where `L2CI` is the [L2 chain inception][g-l2-chain-inception].
 
 > **TODO** specify sequencing window size
+> **TODO** specify genesis block / state (in its own document? include/link predeploy.md)
+
+To derive the whole L2 chain from scratch, we simply start with the [L2 genesis state][g-l2-genesis], and the [L2 chain
+inception][g-l2-chain-inception] as first epoch, then process all sequencing windows in order. Refer to the
+[Architecture section][architecture] for more information on how we implement this in practice.
 
 Each epoch may contain a variable number of L2 blocks, at the discretion of [the sequencer][g-sequencer], but subject to
 the following constraints for each block:
@@ -83,11 +93,11 @@ the following constraints for each block:
 Put together, these constraints mean that there must be an L2 block every `l2_block_time` seconds, and that the
 timestamp for the first L2 block of an epoch must never fall behind the timestamp of the L1 block matching the epoch.
 
-Post-merge, Ethereum has a fixed block time of 12s (though some slots can be skipped). It is thus expected that, most of
-the time, each epoch on Optimism will contain `12/2 = 6` L2 blocks. The sequencer can however lengthen or shorten epochs
-(subject to above constraints). The rationale is to maintain liveness in case of either a skipped slot on L1, or a
-temporary loss of connection to L1 — which requires longer epochs. Shorter epochs are then required to avoid L2
-timestamps drifting further and further ahead of L1.
+Post-merge, Ethereum has a fixed [block time][g-block-time] of 12s (though some slots can be skipped). It is thus
+expected that, most of the time, each epoch on Optimism will contain `12/2 = 6` L2 blocks. The sequencer can however
+lengthen or shorten epochs (subject to above constraints). The rationale is to maintain liveness in case of either a
+skipped slot on L1, or a temporary loss of connection to L1 — which requires longer epochs. Shorter epochs are then
+required to avoid L2 timestamps drifting further and further ahead of L1.
 
 ## Eager Block Derivation
 
@@ -122,7 +132,17 @@ If the sequencer applies a state transition incorrectly, he will post an incorre
 will be challenged by a [fault proof][g-fault-proof], then replaced by a correct output root **for the existing sequencer
 batches.**
 
-For its part, the batcher requests
+Refer to the [Batch Submission specification][batcher-spec] for more information.
+
+[batcher-spec]: batching.md
+
+> **TODO** rewrite the batch submission specification
+>
+> Here are some things that should be included there:
+>
+> - There may be different concurrent data submissions to L1
+> - There may be different actors that submit the data, the system cannot rely on a single EOA nonce value.
+> - The batcher requests batches from the rollup-node then builds channels and frames.
 
 ## Batch Submission Wire Format
 
@@ -151,6 +171,25 @@ to employ multiple signers (private keys) to submit one or multiple channels in 
 (1) This helps alleviate issues where, because of transaction nonces, multiple transactions made by the same signer are
 stuck waiting on the inclusion of a previous transaction.
 
+Also note that we use a streaming encryption scheme, and we do not need to know how many blocks a channel will end up
+containing when we start a channel, or even as we send the first frames in the channel.
+
+All of this is illustrated in the following diagram.
+
+> **TODO** improve diagram
+> - I'm a fan of the 4 lines "Transactions" to "L2 Blocks"
+>     - albeit it would good to show that channels & frames can occur out of order
+>     - but maybe that makes the diagram too hard to read and we can just include a comment afterwards saying that in
+>       general, reordering is possible (maybe show a second diagram showcasing a simple reordering?
+> - I think L1 blocks should be a new line above "Transactions" — also show deposits (w/ a number) for each block
+> - We shouldn't use the L1 attributes tx as a separate line, it makes it look like a additional layer of "data
+>   derivation", which it is not. Instead I would tag each L2 block with its epoch number.
+> - Include numbered deposits under L2 blocks
+> - Let's use a sequencing window of size 2 to keep the diagram small
+> - Include a textual explanation of the diagram below it
+
+![](./assets/batch-deriv-chain.svg)
+
 ### Batcher Transaction Format
 
 ```text
@@ -167,7 +206,8 @@ rollup_payload = frame ...   #  one or more frames, concatenated
 The `rollup_payload` may be right-padded with 0s, which will be ignored. It's allowed for them to be
 interpreted as frames for channel 0, which must always be ignored.
 
-> **TODO** specify batcher authentication (i.e. where do we store / make available the public keys of authorize batcher signers)
+> **TODO** specify batcher authentication (i.e. where do we store / make available the public keys of authorize batcher
+> signers)
 
 ### Frame Format
 
@@ -193,9 +233,9 @@ where:
     - `random` is a random value such that two channels with different batches should have a different random value
     - `timestamp` is the time at which the channel was created (UNIX time in seconds)
     - The ID includes both the hash and the timestamp, in order to prevent a malicious sequencer from reusing the random
-      value after the channel has timed out (refer to the [batcher specification][batcher-spec] to learn more about
-      channel timeouts). This will also allow us substitute `random` by a hash commitment to the batches, should we want
-      to do so in the future.
+      value after the channel has [timed out][g-channel-timeout] (refer to the [batcher specification][batcher-spec] to
+      learn more about channel timeouts). This will also allow us substitute `random` by a hash commitment to the
+      batches, should we want to do so in the future.
 - `frame_number` identifies the index of the frame within the channel (in bytes)
 - `frame_data_length` is the length of `frame_data` in bytes
 - `frame_data` is a sequence of bytes belonging to the channel, at index `max(frame_number-1, 0)`
@@ -203,6 +243,9 @@ where:
   channel. Any other value makes the frame invalid (it must be ignored by the rollup node).
 
 > **TODO** why is frame_number not 0 based?
+
+> **TODO** channel timestamps must be validated to not be in the future - is that currently done? + specify
+> Also: is this even safe? i.e. could L1 block producers manipulate the timestamp?
 
 [sqlite-uvarint]: https://www.sqlite.org/src4/doc/trunk/www/varint.wiki
 [batcher-spec]: batching.md
@@ -270,6 +313,8 @@ Unknown versions make the batch invalid (it must be ignored by the rollup node),
 
 # Architecture
 
+[architecture]: #architecture
+
 The above describes the general process of L2 chain derivation, and specifies how batches are encoded within [batcher
 transactions][g-batcher-transactions].
 
@@ -280,7 +325,9 @@ A validator that only reads from L1 (and so doesn't interact with the sequencer 
 implemented in the way presented below. It does however need to derive the same blocks (i.e. it needs to be semantically
 equivalent). We do believe the architecture presented below has many advantages.
 
-## Chain Derivation Stages
+## L2 Chain Derivation Pipeline
+
+[pipeline]: #l2-chain-derivation-pipeline
 
 Our architecture decomposes the derivation process into a pipeline made up of the following stages:
 
@@ -300,6 +347,12 @@ possible in the last (most inner) stage before taking steps any step in its oute
 
 This ensures that we use the data we already have before pulling more data and minimizes the latency of data traversing
 the derivation pipeline.
+
+Each stage can maintain its own inner state as necessary. In particular, each stage maintains a L1 block reference
+(number + hash) to the latest L1 block such that all data originating from previous blocks has been processed, and the
+data from that block is or has been processed.
+
+### Pipeline Stages
 
 Let's briefly describe each stage of the pipeline.
 
@@ -322,9 +375,17 @@ missing frame).
   does not imply that all frames have been received!
 - A channel is considered to be *timed out* if its timestamp (the `timestamp`part of its `channel_id` included in every
   one of its frames).
+1. L1 Traversal
+2. L1 Retrieval
+3. Channel Buffering
+4. Batch Decoding
+5. Payload Attributes Derivation
+6. Engine Queue
 
 > **TODO** The channel queue is a bit weird as implemented (blocks all other channels until the first channel is closed
 > / timed out. Also unclear why we need to wait for channel closure. Maybe something to revisit?
+>
+> cf. slack discussion with Proto
 
 In the **Batch Decoding** stage, we simply decode [batches][g-sequencer-batch] from the frames we received from the last
 stage.
@@ -332,9 +393,9 @@ stage.
 In the **Payload Attributes Derivation** stage, we convert the decoded batches into instances of the
 [`PayloadAttributes`][g-payload-attr] structure. Such a structure encodes the transactions that need to figure into a
 block, as well as other block inputs (timestamp, fee recipient, etc). Payload attributes derivation is detailed in the
-section TODO TODO TODO below.
+section [Deriving Payload Attributes section][deriving-payload-attr] below.
 
-TODO: fill missing batches
+If batches are missing for a given [time slot][g-time-slot], this stage generates empty batches to fill gaps.
 
 In the **Engine Queue** stage, the previous derived `PayloadAttributes` structures are sent to the [execution
 engine][g-exec-engine] to be executed and converted into a proper L2 block.
@@ -350,186 +411,238 @@ engine][g-exec-engine] to be executed and converted into a proper L2 block.
 > 5. Payload Attributes Derivation → `BatchQueue`
 > 6. Engine Queue → `EngineQueue`
 
+### Resetting the Pipeline
+
+It is possible to reset the pipeline, for instance if we detect an L1 [re-org][g-reorg]. Just like steps, pipeline
+stages are reset in reverse order and cause each stage to rollback its internal state to be congruent with later stages.
+
+In the case of a re-org, this means updating the state to match the new L1 head.
+
+------------------------------------------------------------------------------------------------------------------------
+
+# Deriving Payload Attributes
+
+[deriving-payload-attr]: #deriving-payload-attributes
+
+> **TODO** revise this section
+
+Let
+
+- `refL2` be the (hash of) the current L2 chain head
+- `refL1` be the (hash of) the L1 block from which `refL2` was derived
+- `finalizedRef` be the (hash of) the L2 block that can be fully derived from finalized L1 input data.
+- `payloadAttributes` be some previously derived [payload attributes] for the L1 block with number `l1Number(refL1) + 1`
+
+TODO s/l1Number/L1Origin/ (+ define the term in glossary)
+TODO payload attributes link
+TODO definition of payloadAttributes is bad (should be "for L2 block", "derived from L1 block" ... no teven)
+
+Then we can apply the following pseudocode logic to update the state of both the rollup driver and execution engine:
+
+```javascript
+// request a new execution payload
+forkChoiceState = {
+    headBlockHash: refL2,
+    safeBlockHash: refL2,
+    finalizedBlockHash: finalizedRef,
+}
+[status, payloadID, rpcErr] = engine_forkchoiceUpdatedV1(forkChoiceState, payloadAttributes)
+if (rpcErr != null) soft_error()
+if (status != "VALID") payload_error()
+
+// retrieve and execute the execution payload
+[executionPayload, rpcErr] = engine_getPayloadV1(payloadID)
+if (rpcErr != null) soft_error()
+
+[status, rpcErr] = engine_newPayloadV1(executionPayload)
+if (rpcErr != null) soft_error()
+if (status != "VALID") payload_error()
+
+refL2 = l2Hash(executionPayload)
+
+// update head to new refL2
+forkChoiceState = {
+    headBlockHash: refL2,
+    safeBlockHash: refL2,
+    finalizedBlockHash: finalizedRef,
+}
+[status, payloadID, rpcErr] = engine_forkchoiceUpdatedV1(forkChoiceState, null)
+if (rpcErr != null) soft_error()
+if (status != "SUCCESS") payload_error()
+```
+
+Error handling:
+- A `payload_error()` means the inputs were wrong, and should thus be dropped from the queue, and not reattempted.
+- A `soft_error()` means that the interaction failed by chance, and should be reattempted.
+- If the function completes without error, the attributes were applied successfully,
+  and can be dropped from the queue while the tracked "safe head" is updated.
+
+TODO: `finalizedRef` is not being changed yet, but can be set to point to a L2 block fully derived from data up to a
+finalized L1 block.
+
+The following JSON-RPC methods are part of the [execution engine API][exec-engine]:
+
+[exec-engine]: exec-engine.md
+
+- [`engine_forkchoiceUpdatedV1`] — updates the forkchoice (i.e. the chain head) to `headBlockHash` if different, and
+  instructs the engine to start building an execution payload given payload attributes the second argument isn't `null`
+- [`engine_getPayloadV1`] — retrieves a previously requested execution payload
+- [`engine_newPayloadV1`] — executes an execution payload to create a block
+
+[`engine_forkchoiceUpdatedV1`]: exec-engine.md#engine_forkchoiceUpdatedV1
+[`engine_getPayloadV1`]: exec-engine.md#engine_newPayloadV1
+[`engine_newPayloadV1`]: exec-engine.md#engine_newPayloadV1
+
+The execution payload is an object of type [`ExecutionPayloadV1`].
+
+[`ExecutionPayloadV1`]: https://github.com/ethereum/execution-apis/blob/main/src/engine/specification.md#executionpayloadv1
+
+Within the `forkChoiceState` object, the properties have the following meaning:
+
+- `headBlockHash`: block hash of the last block of the L2 chain, according to the rollup driver.
+- `safeBlockHash`: same as `headBlockHash`.
+- `finalizedBlockHash`: the hash of the L2 block that can be fully derived from finalized L1 data, making it impossible
+  to derive anything else.
+
+------------------------------------------------------------------------------------------------------------------------
+
+# Handling L1 Re-Orgs
+
+The [L2 chain derivation pipeline][pipeline] as described above assumes linear progression of the L1 chain.
+
+If the L1 chain [re-orgs][g-reorg], the rollup node must re-derive sections of the L2 chain such that it derives the
+same L2 chain that a rollup node would derive if it only followed the new L1 chain.
+
+A re-org can be recovered without re-deriving the full L2 chain, by resetting each pipeline stage from end (Engine
+Queue) to start (L1 Traversal).
+
+The general idea is to backpropagate the new L1 head through the stages, and reset the state in each stage so that the
+stage will next process data originating from that block onwards.
+
+## Resetting the Engine Queue
+
+The engine queue maintains references to two L2 blocks:
+
+- The safe L2 block (or *safe head*): everything up to and including this block can be fully derived from the
+  canonical L1 chain.
+- The unsafe L2 block (or *unsafe head*): blocks between the safe and unsafe heads are blocks that have not been
+  derived from L1. These blocks either come from sequencing (in sequencer mode) or from "unsafe sync" to the sequencer
+  (in validator mode).
+
+When resetting the L1 head, we need to rollback the safe head such that the L1 origin of the new safe head is a
+canonical L1 block (i.e. an the new L1 head, or one of its ancestors). We achieved this by walking back the L2 chain
+(starting from the current safe head) until we find such an L2 block. While doing this, we must take care not to walk
+past the [L2 genesis][g-l2-genesis] or L1 genesis.
+
+The unsafe head does not necessarily need to be reset, as long as its L1 origin is *plausible*. The L1 origin of the
+unsafe head is considered plausible as long as it is in the canonical L1 chain or is ahead (higher number) than the head
+of the L1 chain. When we determine that this is no longer the case, we reset the unsafe head to be equal to the safe
+head.
+
+> **TODO** Don't we always need to discard the unsafe head when there is a L1 re-org, because the unsafe head's origin
+> builds on L1 blocks that have been re-orged away?
+>
+> I'm guessing maybe we received some unsafe blocks that build upon the re-orged L2, which we accept without relating
+> them back to the safe head?
+
+## Resetting Payload Attribute Derivation
+
+In payload attribute derivation, we need to ensure that the L1 head is reset to the safe L2 head's L1 origin. In the
+worst case, this would be as far back as `SWS` ([sequencing window][g-sequencing-window] size) blocks before the engine
+queue's L1 head.
+
+In the worst case, a whole sequencing window of L1 blocks was required to derive the L2 safe head (meaning that
+`safeL2Head.l1Origin == engineQueue.l1Head - SWS`). This means that to derive the next L2 block, we have to read data
+derived from L1 block `engineQueue.l1Head - SWS` and onwards, hence the need to reset the L1 head back to that value for
+this stage.
+
+However, in general, it is only necessary to reset as far back as `safeL2Head.l1Origin`, since it marks the start of the
+sequencing window for the safe L2 head's epoch. As such, the next L2 block never depends on data derived from L1 blocks
+before `safeL2Head.l1Origin`.
+
+> **TODO** in the implementation, we always rollback by SWS, which is unecessary
+> Quote from original spec: "We must find the first L2 block whose complete sequencing window is unchanged in the reorg."
+
+> **TODO** sanity check this section, it was incorrect in previous spec, and confused me multiple times
+
+## Resetting Batch Decoding
+
+The batch decoding stage is simply reset by resetting its L1 head to the payload attribute derivation stage's L1 head.
+(The same reasoning as the payload derivation stage applies.)
+
+## Resetting Channel Buffering
+
+> !! Note: in this section, the term *next (L2) block* will refer to the block that will become the next L2 safe head.
+
+> **TODO** The above can be changed in the case where we always reset the unsafe head to the safe head upon L1 re-org.
+> (See TODO above in "Resetting the Engine Queue")
+
+Because we group [sequencer batches][g-sequencer-batch] into [channels][g-channel], it means that decoding a batch that
+has data posted (in a [channel frame][g-channel-frame]) within the sequencing window of its epoch might require [channel
+frames][g-channel-frame] posted before the start of the [sequencing window][g-sequencing-window]. Note that this is only
+possible if we start sending channel frames before knowing all the batches that will go into the channel.
+
+In the worst case, decoding the batch for the next L2 block would require reading the last frame from a channel, posted
+in a [batcher transaction][g-batcher-transaction] in `safeL2Head.l1Origin + 1` (second L1 block of the next L2 block's
+epoch sequencing window, assuming it is in the same epoch as `safeL2Head`).
+
+> Note: In reality, there are no checks or constraints preventing the batch from landing in `safeL2Head.l1Origin`.
+> However this would be strange, because the next L2 block is built after the current L2 safe block, which requires
+> reading the deposits L1 attributes and deposits from `safeL2Head.l1Origin`. Still, a wonky or misbehaving sequencer
+> could post a batch for the L2 block `safeL2Head + 1` on L1 block `safeL2Head.1Origin`.
+
+Keeping things worst case, `safeL2Head.l1Origin` would also be the last allowable block for the frame to land. The
+allowed time range for frames within a channel to land on L1 is `[channel_id.timestamp, channel_id.timestamp +
+CHANNEL_TIMEOUT]`. The allowed L1 block range for these frames are any L1 block whose timestamp falls inside this time
+range.
+
+Therefore, to be safe, we can reset the L1 head of Channel Buffering to the oldest L1 block whose timestamp is higher
+than `safeL2Head.l1Origin.timestamp - CHANNEL_TIMEOUT`.
+
+> **Note**: The above is what the implementation currently does.
+
+In reality it's only strictly necessary to reset the oldest L1 block whose timestamp is higher than the oldest
+`channel_id.timestamp` found in the batcher transaction that is not older than `safeL2Head.l1Origin.timestamp -
+CHANNEL_TIMEOUT`.
+
+This situation is the main purpose of the [channel timeout][g-channel-timeout]: without the timeout, we might have to
+look arbitrarily far back on L1 to be able to decompress batches, which is not acceptable for performance reasons.
+
+The other puprose of the channel timeout is to avoid having the rollup node keep old unclosed channel data around
+forever.
+
+> **TODO** specify `CHANNEL_TIMEOUT` — and explain its relationship with `SWS` if any?
+
+Once the L1 head is reset, we then need to discard any frames read from blocks more recent than this updated L1 head.
+
+## Resetting L1 Retrieval & L1 Traversal
+
+These are simply reset by resetting their L1 head to `channelBuffering.l1Head`, and dropping any buffered data.
+
+## Reorgs Post-Merge
+
+Note that post-[merge], the depth of re-orgs will be bounded by the [L1 finality delay][l1-finality] (every 2 epochs, or
+approximately 12 minutes, unless an attacker controls more than 1/3 of the total stake).
+
+[merge]: https://ethereum.org/en/upgrades/merge/
+[l1-finality]: https://ethereum.org/en/developers/docs/consensus-mechanisms/pos/#finality
+
+> **TODO** This was in the spec:
+>
+> In practice, we'll pick an already-finalized L1 block as L2
+> inception point to preclude the possibility of a re-org past genesis, at the cost of a few empty blocks at the start of
+> the L2 chain.
+>
+> This makes sense, but is in conflict with how the [L2 chain inception][g-l2-chain-inception] is currently determined,
+> which is via the L2 output oracle deployment & upgrades.
+
 ------------------------------------------------------------------------------------------------------------------------
 # BELOW: TO PROCESS
 ------------------------------------------------------------------------------------------------------------------------
 
-# L2 block derivation
-
-[Block derivation][g-derivation] is the process of building a chain of L2 [blocks][g-block] from a chain of L1 data.
-
-The L1 data can be thought of as a stream, and L2 rollup nodes are the ***readers***, transforming their state with the inputs.
-
-The L2 batcher nodes are the ***writers*** to the stream: they take L2 changes and submit the necessary data to L1.
-Others can then reproduce the same L2 changes.
-
-Consuming the stream presents an inductive process:
-given that we know the last L2 block derived from the previous [sequencing window][g-sequencing-window], as well as the
-next [sequencing window][g-sequencing-window], then we can derive [payload attributes] of the next L2 blocks.
-
-To derive the whole L2 chain from scratch, we simply start with the L2 genesis block as the last L2 block, and the
-block at height `L2_CHAIN_INCEPTION + 1` as the start of the next sequencing window.
-Then we iteratively apply the derivation process, using the [derivation pipeline](#derivation-pipeline) process outlined below.
-
-> **TODO** specify genesis block
-
-## Rollup Stream format
-
-The stream is ***multiplexed*** and ***buffered***, to handle serve the required properties:
-
-- There may be different concurrent data submissions to L1
-- There may be different actors that submit the data, the system cannot rely on a single EOA nonce value.
-- The fraud proof processes submitted data, which has to be bounded
-- The submissions confirmed on L1 may be confirmed out of order
-- The L1 may [reorganize][g-reorg], requiring the submissions to reset to a previous point
-- The L2 grows, and does so in smaller intervals than L1
-- The L2 may have bursts that cannot be fully confirmed in a single piece of submitted data
-
-The multiplexed and buffered stream consists of:
-
-- L1 data transactions: any form of L1 data from which frames can be read, tagged with the L1 blockhash, number and timestamp.
-- Channels: independent of each other, a bounded stream submitted by a single actor, encoding a range of L2 bock derivation inputs.
-- Frames: numbered slices of channel data, which can be confirmed on L1 out of order and mixed with other channels.
-
-The types of data are illustrated in the diagram below.
-
-![](./assets/batch-deriv-chain.svg)
-
-### Frame format:
-
-```text
-frame = channel_id | frame_number | frame_data_length | frame_data | is_last
-
-channel_id        = bytes32 | uvarint   # identifies the channel to add frame_data to, as well as the time (UNIX-epoch in seconds) the channel was created.
-frame_number      = uvarint  # identifies the index of frame_data in the channel
-frame_data_length = uvarint  # frame_data_length == len(frame_data)
-frame_data        = bytes    # data to add to the channel, after frame max(frame_number-1, 0)
-is_last           = bool     # 1 byte, channel is closed if 1, stays open if 0, invalid otherwise
-```
-
-The channel identity uniqueness is limited both by the random `bytes32` in the ID, as well as the timestamp.
-The timestamp is limited by L1 timestamps, to force-close a channel and avoid revival of the same channel ID after the `CHANNEL_TIMEOUT`.
-This ensures at most a span of `CHANNEL_TIMEOUT` seconds of L1 data is required to reconstruct any channel-bank state in time.
-
-### L1 transaction data format:
-
-```text
-transaction_data = version_byte | rollup_payload
-
-# version_byte == 0:
-rollup_payload = frame ...   #  one or more frames, concatenated
-
-# 0 padding may be used to right-pad the rollup_payload.
-# This padding will be interpreted as channel 0, to be ignored.
-
-# version_byte != 0: invalid, reserved for future use.
-```
-
-## Derivation Pipeline
-
-Derivation is abstracted as a pipeline of stages, that indicate if they
-is concerned. either:
-- Can be resumed
-- Need data from the lower stage before continuing
-- Error if they cannot be resumed (the pipeline should be completely reset)
-
-On a pipeline "step", stages are attempted in order from the last (Engine Queue) to the first (L1 Data Source):
-if a stage returns `EOF` (End-Of-File, exhausted data) then the next stage is attempted,
-until no `EOF` is returned by the stage anymore.
-
-This pipeline abstraction enables the node to iterate on the derivation process, and retry any steps that are recoverable.
-E.g. a connection problem to an execution-engine will not require a long range of L1 data to be re-read.
-
-The pipeline consists of:
-1. The L1 Data source: traverses the L1 chain one block at a time and fetches the corresponding data-inputs
-2. The Channel Bank: parses data-inputs, buffering raw channel frames
-3. The Channel Input Reader: reads channels one at a time, decompressing and decoding the data into batches
-4. The Batch Queue: buffers and orders batches for at most a full sequencing window, and dequeues as soon as possible
-5. The PayloadAttributes Queue: reads a batch and outputs payload attributes
-6. The Engine Queue: buffers payload attributes, as well as full execution payloads that were received out-of-band,
-   to consolidate or process with the external Engine.
-
-Note that each of the stages in the pipeline (up to the Batch Queue) track the L1 origin that was last involved to
-derive the data read from the previous stage.
-The Batch Queue then uses the inclusion information to enforce timely adoption of a new L1 origin,
-and thus liveness of user deposits without relying on the sequencer.
-
-### Recovering from L1 reorgs
-
-![](./assets/batch-deriv-pipeline.svg)
-
-The Derivation Pipeline assumes linear progression of the L1 chain.
-It is also applicable for batch processing, meaning that any given point in time, the canonical L2 chain is given by
-processing the whole L1 chain since the [L2 chain inception][g-inception].
-
-If the L1 Chain re-orgs, the rollup node must re-derive sections of the L2 chain such that it derives the same L2 chain
-that a rollup node would derive if it only followed the new L1 chain.
-
-A [reorg][g-reorg] can be recovered without re-deriving the full L2 chain, by resetting the pipeline as follows:
-1. Reset the Engine Queue
-2. Reset the Batch Queue, starting at the common L1 origin found during the Engine Queue reset.
-3. Reset the stages down until the Channel Bank, wiping the contents and copying the safe origin of the Batch Queue.
-4. Reset the Channel Bank
-5. Reset the L1 source by wiping any buffered data, and copying the safe origin of the Channel Bank.
-
-When walking back on the L2 chain, care should be taken to not walk past the rollup or L1 genesis.
-
-After the resets are performed (possibly in smaller iterative chain traversal steps),
-the regular pipeline derivation can dry-run to heal the buffer contents
-(i.e. drop any outputs of a stage that lags behind the next stage closer to L2).
-
-#### Resetting the Engine Queue
-
-The engine queue has two starting points:
-- The `safe` block: everything up to and including this block can be fully derived from the canonical L1 chain.
-- The `unsafe` block: local data that serves the sequencer and happy-path sync,
-  considered to be "unsafe" while not confirmed on L1 yet.
-
-Starting at the previous `safe` head the execution knows of (i.e. fully derivable from L1 chain),
-traverse back the L2 chain until a block with a canonical L1 origin is found.
-This L2 block will be the `safe` head.
-
-The `unsafe` block starts as the last known tip of the L2 chain,
-but is reset back to equal the `safe` block if at any point the `unsafe` block height is known but non-canonical.
-An `unsafe` head with an origin beyond the `safe` origin is considered "plausible":
-retaining the existing data is preferable, but it may be reorganized at a later point if consolidation with the `safe` chain fails.
-
-
-#### Resetting the Batch Queue
-
-The Batch Queue is reset back by an additional `SEQUENCING_WINDOW` number of L1 blocks,
-to ensure that if the sequencing window for a L2 block has changed since it was derived,
-that L2 block is re-derived.
-
-The first L1 block of the sequencing window contains the L1 attributes for that L2 block.
-The end of the sequencing window is the canonical L1 block whose number is `SEQUENCING_WINDOW` larger than the start.
-The end of the window must be selected by number otherwise the sequencer would not be able to create batches.
-The problem with selecting the end of the window by number is that when an L1 reorg occurs,
-the blocks (and thus batches) in the window could change.
-We must find the first L2 block whose complete sequencing window is unchanged in the reorg.
-
-[merge]: https://ethereum.org/en/eth2/merge/
-
-#### Resetting the Channel Bank
-
-In the case of the Channel Bank the origin has to be reset further back,
-by a full `CHANNEL_TIMEOUT` behind the desired L1 origin to continue the pipeline from.
-The pipeline will drop the outputs from the Channel Bank stage until it has caught up to the next origins.
-
-This ensures the reset is performed in the same pipeline of small recoverable specs, without additional complexity.
-
-The rollback by a full `CHANNEL_TIMEOUT` is required to avoid previous channel frames from missing in the Channel Bank,
-when it continues from the new safe L1 origin that was selected after the reorg.
-
-#### Reorgs Post-Merge
-
-Note that post-[merge], the depth of re-orgs will be bounded by the [L1 finality delay][l1-finality]
-(every 2 epochs in the happy case, approximately 12 minutes).
-
-(\*) Post-merge, this is only possible for 12 minutes. In practice, we'll pick an already-finalized L1 block as L2
-inception point to preclude the possibility of a re-org past genesis, at the cost of a few empty blocks at the start of
-the L2 chain.
-
+- ?? The Batch Queue then uses the inclusion information to enforce timely adoption of a new L1 origin,
+  and thus liveness of user deposits without relying on the sequencer.
+    --> in general, explain how deposits are included
 
 ### L1 Data Source
 
@@ -695,7 +808,7 @@ A sequencing window is derived into a variable number of L2 blocks, defined by a
     `batch.timestamp` refers to the L2 block timestamp encoded in the batch.
   - `next_l1_timestamp` is the timestamp of the next L1 block.
 
-The L2 chain is extended to `new_head_l2_timestamp` with blocks at a fixed block time (`l2_block_time`).
+The L2 chain is extended to `new_head_l2_timestamp` with blocks at a fixed [block time][g-block-time] (`l2_block_time`).
 This means that every `l2_block_time` that has no batch is interpreted as one with no sequenced transactions.
 
 
@@ -789,77 +902,3 @@ The "unsafe" block in question is retrieved from the engine, and the following a
 - block `timestamp`
 - block `randao`
 - block `transactions_list` (first length, then equality of each of the encoded transactions)
-
-#### Processing payload attributes
-
-Let
-
-- `refL2` be the (hash of) the current L2 chain head
-- `refL1` be the (hash of) the L1 block from which `refL2` was derived
-- `finalizedRef` be the (hash of) the L2 block that can be fully derived from finalized L1 input data.
-- `payloadAttributes` be some previously derived [payload attributes] for the L1 block with number `l1Number(refL1) + 1`
-
-Then we can apply the following pseudocode logic to update the state of both the rollup driver and execution engine:
-
-```javascript
-// request a new execution payload
-forkChoiceState = {
-    headBlockHash: refL2,
-    safeBlockHash: refL2,
-    finalizedBlockHash: finalizedRef,
-}
-[status, payloadID, rpcErr] = engine_forkchoiceUpdatedV1(forkChoiceState, payloadAttributes)
-if (rpcErr != null) soft_error()
-if (status != "VALID") payload_error()
-
-// retrieve and execute the execution payload
-[executionPayload, rpcErr] = engine_executePayloadV1(payloadID)
-if (rpcErr != null) soft_error()
-
-[status, rpcErr] = engine_executePayloadV1(executionPayload)
-if (rpcErr != null) soft_error()
-if (status != "VALID") payload_error()
-
-refL2 = l2Hash(executionPayload)
-
-// update head to new refL2
-forkChoiceState = {
-    headBlockHash: refL2,
-    safeBlockHash: refL2,
-    finalizedBlockHash: finalizedRef,
-}
-[status, payloadID, rpcErr] = engine_forkchoiceUpdatedV1(refL2, null)
-if (rpcErr != null) soft_error()
-if (status != "SUCCESS") payload_error()
-```
-
-Error handling:
-- A `payload_error()` means the inputs were wrong, and should thus be dropped from the queue, and not reattempted.
-- A `soft_error()` means that the interaction failed by chance, and should be reattempted.
-- If the function completes without error, the attributes were applied successfully,
-  and can be dropped from the queue while the tracked "safe head" is updated.
-
-TODO: `finalizedRef` is not being changed yet, but can be set to point to a L2 block fully derived from data up to a finalized L1 block.
-
-The following JSON-RPC methods are part of the [execution engine API][exec-engine]:
-
-[exec-engine]: exec-engine.md
-
-- [`engine_forkchoiceUpdatedV1`] — updates the forkchoice (i.e. the chain head) to `headBlockHash` if different, and
-  instructs the engine to start building an execution payload given payload attributes the second argument isn't `null`
-- [`engine_getPayloadV1`] — retrieves a previously requested execution payload
-- [`engine_executePayloadV1`] — executes an execution payload to create a block
-
-[`engine_forkchoiceUpdatedV1`]: exec-engine.md#engine_forkchoiceUpdatedV1
-[`engine_getPayloadV1`]: exec-engine.md#engine_executePayloadV1
-[`engine_executePayloadV1`]: exec-engine.md#engine_executePayloadV1
-
-The execution payload is an object of type [`ExecutionPayloadV1`].
-
-[`ExecutionPayloadV1`]: https://github.com/ethereum/execution-apis/blob/main/src/engine/specification.md#executionpayloadv1
-
-Within the `forkChoiceState` object, the properties have the following meaning:
-
-- `headBlockHash`: block hash of the last block of the L2 chain, according to the rollup driver.
-- `safeBlockHash`: same as `headBlockHash`.
-- `finalizedBlockHash`: the hash of the L2 block that can be fully derived from finalized L1 data, making it impossible to derive anything else.

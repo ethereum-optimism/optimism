@@ -41,6 +41,7 @@
     - [Channel Frame](#channel-frame)
     - [Batcher](#batcher)
     - [Batcher Transaction](#batcher-transaction)
+    - [Channel Timeout](#channel-timeout)
 - [Other L2 Chain Concepts](#other-l2-chain-concepts)
   - [Address Aliasing](#address-aliasing)
   - [L2 Genesis Block](#l2-genesis)
@@ -55,6 +56,7 @@
   - [L2 Output Oracle Contract](#l2-output-oracle-contract)
   - [Validator](#validator)
   - [Fault Proof](#fault-proof)
+  - [Time Slot](#time-slot)
 - [Execution Engine Concepts](#execution-engine-concepts)
   - [Execution Engine](#execution-engine)
 
@@ -356,9 +358,8 @@ An EOA on L1 which finalizes a withdrawal by submitting the data necessary to ve
 The finalization period — sometimes also called *withdrawal delay* — is the minimum amount of time (in seconds) that
 must elapse before a [withdrawal][withrawals] can be finalized.
 
-The finalization period is necessary to afford sufficient time for validators to make a [fault proof][fault-proof].
-
-TODO link validator
+The finalization period is necessary to afford sufficient time for [validators][validator] to make a [fault
+proof][fault-proof].
 
 > **TODO** specify current value for finalization period
 
@@ -417,6 +418,14 @@ A channel can be split in [frames][channel-frame] in order to be transmitted via
 transactions][batcher-transaction]. The reason to split a channel into frames is that a channel might too large to
 include in a single batcher transaction.
 
+A channel is uniquely identified by its timestamp (UNIX time at which the channel was created) and a random value. See
+the [Frame Format][frame-format] section of the L2 Chain Derivation specifictaion for more information.
+
+[frame-format]: derivation.md#frame-format
+
+On the side of the [rollup node][rollup-node] (which is the consumer of channels), a channel is considered to be
+*opened* if its final frame (explicitly marked as such) has not been read, or closed otherwise.
+
 ## Channel Frame
 
 [channel-frame]: glossary.md#channel-frame
@@ -444,6 +453,29 @@ A batcher transaction is a transaction submitted by a [batcher] to a data availa
 channels available. These transactions carry one or more full frames, which may belong to different channels. A
 channel's frame may be split between multiple batcher transactions.
 
+## Channel Timeout
+
+[channel-timeout]: glossary.md#channel-timeout
+
+The channel timeout is a duration (in seconds) during which [channel frames][channel-frame may land on L1 within
+[batcher transactions][batcher-transaction].
+
+The acceptable time range for the frames of a [channel][channel] is `[channel_id.timestamp, channel_id.timestamp +
+CHANNEL_TIMEOUT]`. The acceptable L1 block range for these frames are any L1 block whose timestamp falls inside this
+time range. (Note that `channel_id.timetamp` must be lower than the L1 block timestamp of any L1 block in which frames
+of the channel are seen, or else these frames are ignored.)
+
+The purpose of channel timeouts is dual:
+- Avoid keeping old unclosed channel data around forever (an unclosed channel is a channel whose final frame was not
+  sent).
+- Bound the number of L1 blocks we have to look back in order to decode [sequencer batches][sequencer-batch] from
+  channels. This is particularly relevant during L1 re-orgs, see the [Resetting Channel Buffering][reset-channel-buffer]
+  section of the L2 Chain Derivation specifiction for more information.
+
+[reset-channel-buffer]: derivation.md#resetting-channel-buffering
+
+> **TODO** specify `CHANNEL_TIMEOUT`
+
 ------------------------------------------------------------------------------------------------------------------------
 
 # Other L2 Chain Concepts
@@ -469,6 +501,9 @@ The state of the L2 genesis block comprises:
   - This state was possibly modified by "state surgeries". For instance, the migration to Bedrock entailed changes on
     how native ETH balances were stored in the storage trie.
 - [Predeployed contracts][predeploy]
+
+The timestap of the L2 genesis block must be a multiple of the [block time][block-time] (i.e. a even number, since the
+block time is 2 seconds).
 
 When updating the rollup protocol to a new version, we may perform a *squash fork*, a process that entails the creation
 of a new L2 genesis block. This new L2 genesis block will have block number `X + 1`, where `X` is the block number of
@@ -611,6 +646,28 @@ Fault proofs are not specified yet. For now, the best place to find information 
 repository][cannon].
 
 > **TODO** expand
+
+## Time Slot
+
+[time-slot]: glossary.md#time-slot
+
+On L2, there is a block every 2 second (this duration is known as the [block time][block-time]).
+
+We say that there is a "time slot" every multiple of 2s after the timestamp of the [L2 genesis block][l2-genesis].
+
+On L1, post-[merge], the time slots are every 12s. However, an L1 block may not be produced for every time slot, in case
+of even benign consensus issues.
+
+## Block Time
+
+[block-time]: glossary.md#block-time
+
+The L2 block time is 2 second, meaning there is an L2 block at every 2s [time slot][time-slot].
+
+Post-[merge], it could be said the that L1 block time is 12s as that is the L1 [time slot][time-slot]. However, in
+reality the block time is variable as some time slots might be skipped.
+
+Pre-merge, the L1 block time is variable, though it is on average 13s.
 
 ------------------------------------------------------------------------------------------------------------------------
 
