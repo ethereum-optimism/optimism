@@ -3,7 +3,10 @@ pragma solidity >=0.8.0;
 
 import { Bytes32AddressLib } from "@rari-capital/solmate/src/utils/Bytes32AddressLib.sol";
 
-// prettier-ignore
+/**
+ * @title LibRLP
+ * @notice Via https://github.com/Rari-Capital/solmate/issues/207.
+ */
 library LibRLP {
     using Bytes32AddressLib for bytes32;
 
