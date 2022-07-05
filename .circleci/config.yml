@@ -458,6 +458,16 @@ jobs:
           name: "Semgrep scan"
           command: semgrep ci
 
+  go-mod-tidy:
+    docker:
+      - image: ethereumoptimism/ci-builder:latest
+    steps:
+      - checkout
+      - run:
+          name: "Go mod tidy"
+          command: make mod-tidy && git diff --exit-code
+
+
 workflows:
   main:
     jobs:
@@ -565,6 +575,7 @@ workflows:
       - geth-tests
       - integration-tests
       - semgrep-scan
+      - go-mod-tidy
 
   nightly:
     triggers:
