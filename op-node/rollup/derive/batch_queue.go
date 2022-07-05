@@ -143,18 +143,23 @@ func (bq *BatchQueue) AddBatch(batch *BatchData) error {
 }
 
 // validExtension determines if a batch follows the previous attributes
-func validExtension(cfg *rollup.Config, batch *BatchWithL1InclusionBlock, prevTime, prevEpoch uint64) bool {
-	if batch.Batch.Timestamp != prevTime+cfg.BlockTime {
+func (bq *BatchQueue) validExtension(batch *BatchWithL1InclusionBlock, prevTime, prevEpoch uint64) bool {
+	if batch.Batch.Timestamp != prevTime+bq.config.BlockTime {
+		bq.log.Debug("Batch does not extend the block time properly", "time", batch.Batch.Timestamp, "prev_time", prevTime)
+
 		return false
 	}
 	if batch.Batch.EpochNum != rollup.Epoch(prevEpoch) && batch.Batch.EpochNum != rollup.Epoch(prevEpoch+1) {
+		bq.log.Debug("Batch does not extend the epoch properly", "epoch", batch.Batch.EpochNum, "prev_epoch", prevEpoch)
+
 		return false
 	}
 	// TODO: Also check EpochHash (hard b/c maybe extension)
 
 	// Note: `Batch.EpochNum` is an external input, but it is constrained to be a reasonable size by the
 	// above equality checks.
-	if uint64(batch.Batch.EpochNum)+cfg.SeqWindowSize < batch.L1InclusionBlock.Number {
+	if uint64(batch.Batch.EpochNum)+bq.config.SeqWindowSize < batch.L1InclusionBlock.Number {
+		bq.log.Debug("Batch submitted outside sequence window", "epoch", batch.Batch.EpochNum, "inclusion_block", batch.L1InclusionBlock.Number)
 		return false
 	}
 	return true
@@ -279,7 +284,7 @@ func (bq *BatchQueue) tryPopNextBatch(ctx context.Context, l2SafeHead eth.L2Bloc
 		}
 
 		// We have a valid batch, no make sure that it builds off the previous L2 block
-		if validExtension(bq.config, batch, l2SafeHead.Time, l2SafeHead.L1Origin.Number) {
+		if bq.validExtension(batch, l2SafeHead.Time, l2SafeHead.L1Origin.Number) {
 			// Advance the epoch if needed
 			if l2SafeHead.L1Origin.Number != uint64(batch.Batch.EpochNum) {
 				bq.l1Blocks = bq.l1Blocks[1:]
