@@ -140,10 +140,9 @@ func (l *logger) flush() {
 	l.t.Helper()
 	// 2 frame skip for flush() + public logger fn
 	decorationLen := estimateInfoLen(2)
-	padding := 0
-	targetWidth := 30
-	if decorationLen <= targetWidth {
-		padding = targetWidth - decorationLen
+	padding := 20
+	if decorationLen <= 25 {
+		padding = 25 - decorationLen
 	}
 	for _, r := range l.h.buf {
 		l.t.Logf("%*s%s", padding, "", l.h.fmt.Format(r))
