@@ -59,8 +59,6 @@ func (bq *BatchQueue) Progress() Progress {
 }
 
 func (bq *BatchQueue) Step(ctx context.Context, outer Progress) error {
-	// TODO: should only update outer when returning EOF
-	// Otherwise don't need the progress information?
 	if changed, err := bq.progress.Update(outer); err != nil {
 		return err
 	} else if changed {
