@@ -44,11 +44,11 @@ const config = {
 
   deploymentWaitConfirmations: 1,
 
-  maxSequencerDrift: 10,
+  maxSequencerDrift: 1000,
   sequencerWindowSize: 4,
   channelTimeout: 40,
 
-  ownerAddress: '0x70997970C51812dc3A010C7d01b50e0d17dc79C8',
+  outputOracleOwner: '0x70997970C51812dc3A010C7d01b50e0d17dc79C8',
 }
 
 export default config

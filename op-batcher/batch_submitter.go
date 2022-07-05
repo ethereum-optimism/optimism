@@ -15,6 +15,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-batcher/sequencer"
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
+	"github.com/ethereum-optimism/optimism/op-proposer/rollupclient"
 	"github.com/ethereum-optimism/optimism/op-proposer/txmgr"
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/common"
@@ -23,6 +24,7 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/rpc"
 	hdwallet "github.com/miguelmota/go-ethereum-hdwallet"
 	"github.com/urfave/cli"
 )
@@ -100,7 +102,7 @@ type BatchSubmitter struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 
-	l2HeadNumber uint64
+	lastSubmittedBlock eth.BlockID
 
 	ch *derive.ChannelOut
 }
@@ -117,11 +119,17 @@ func NewBatchSubmitter(cfg Config, l log.Logger) (*BatchSubmitter, error) {
 		return nil, err
 	}
 
-	sequencerPrivKey, err := wallet.PrivateKey(accounts.Account{
+	acc := accounts.Account{
 		URL: accounts.URL{
 			Path: cfg.SequencerHDPath,
 		},
-	})
+	}
+	addr, err := wallet.Address(acc)
+	if err != nil {
+		return nil, err
+	}
+
+	sequencerPrivKey, err := wallet.PrivateKey(acc)
 	if err != nil {
 		return nil, err
 	}
@@ -143,10 +151,22 @@ func NewBatchSubmitter(cfg Config, l log.Logger) (*BatchSubmitter, error) {
 		return nil, err
 	}
 
+	rollupClient, err := dialRollupClientWithTimeout(ctx, cfg.RollupRpc)
+	if err != nil {
+		return nil, err
+	}
+
 	chainID, err := l1Client.ChainID(ctx)
 	if err != nil {
 		return nil, err
 	}
+
+	sequencerBalance, err := l1Client.BalanceAt(ctx, addr, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	log.Info("starting batch submitter", "submitter_addr", addr, "submitter_bal", sequencerBalance)
 
 	txManagerConfig := txmgr.Config{
 		Log:                       l,
@@ -162,6 +182,7 @@ func NewBatchSubmitter(cfg Config, l log.Logger) (*BatchSubmitter, error) {
 		Name:              "Batch Submitter",
 		L1Client:          l1Client,
 		L2Client:          l2Client,
+		RollupNode:        rollupClient,
 		MinL1TxSize:       cfg.MinL1TxSize,
 		MaxL1TxSize:       cfg.MaxL1TxSize,
 		BatchInboxAddress: batchInboxAddress,
@@ -209,17 +230,21 @@ mainLoop:
 			// Do the simplest thing of one channel per range of blocks since the iteration of this loop.
 			// The channel is closed at the end of this loop (to avoid lifecycle management of the channel).
 			ctx, cancel := context.WithTimeout(l.ctx, time.Second*10)
-			head, err := l.cfg.L2Client.BlockByNumber(ctx, nil)
+			syncStatus, err := l.cfg.RollupNode.SyncStatus(ctx)
 			cancel()
 			if err != nil {
 				l.log.Error("issue fetching L2 head", "err", err)
 				continue
 			}
-			l.log.Info("Got new L2 Block", "block", head.Number())
-			if head.NumberU64() <= l.l2HeadNumber {
-				// Didn't advance
-				l.log.Trace("Old block")
+			l.log.Info("Got new L2 sync status", "safe_head", syncStatus.SafeL2, "unsafe_head", syncStatus.UnsafeL2, "last_submitted", l.lastSubmittedBlock)
+			if syncStatus.SafeL2.Number >= syncStatus.UnsafeL2.Number {
+				l.log.Trace("No unsubmitted blocks from sequencer")
 				continue
+			}
+			// the lastSubmittedBlock may be zeroed, or just lag behind. If it's lagging behind, catch it up.
+			if l.lastSubmittedBlock.Number < syncStatus.SafeL2.Number {
+				l.log.Warn("last submitted block lagged behind L2 safe head: batch submission will continue from the safe head now", "last", l.lastSubmittedBlock, "safe", syncStatus.SafeL2)
+				l.lastSubmittedBlock = syncStatus.SafeL2.ID()
 			}
 			if ch, err := derive.NewChannelOut(uint64(time.Now().Unix())); err != nil {
 				l.log.Error("Error creating channel", "err", err)
@@ -227,7 +252,8 @@ mainLoop:
 			} else {
 				l.ch = ch
 			}
-			for i := l.l2HeadNumber + 1; i <= head.NumberU64(); i++ {
+			prevID := l.lastSubmittedBlock
+			for i := l.lastSubmittedBlock.Number + 1; i <= syncStatus.UnsafeL2.Number; i++ {
 				ctx, cancel := context.WithTimeout(l.ctx, time.Second*10)
 				block, err := l.cfg.L2Client.BlockByNumber(ctx, new(big.Int).SetUint64(i))
 				cancel()
@@ -235,15 +261,18 @@ mainLoop:
 					l.log.Error("issue fetching L2 block", "err", err)
 					continue mainLoop
 				}
+				if block.ParentHash() != prevID.Hash {
+					l.log.Error("detected a reorg in L2 chain vs previous submitted information, resetting to safe head now", "safe_head", syncStatus.SafeL2)
+					l.lastSubmittedBlock = syncStatus.SafeL2.ID()
+					continue mainLoop
+				}
 				if err := l.ch.AddBlock(block); err != nil {
 					l.log.Error("issue adding L2 Block to the channel", "err", err, "channel_id", l.ch.ID())
 					continue mainLoop
 				}
-				l.log.Info("added L2 block to channel", "block", eth.BlockID{Hash: block.Hash(), Number: block.NumberU64()}, "channel_id", l.ch.ID(), "tx_count", len(block.Transactions()), "time", block.Time())
+				prevID = eth.BlockID{Hash: block.Hash(), Number: block.NumberU64()}
+				l.log.Info("added L2 block to channel", "block", prevID, "channel_id", l.ch.ID(), "tx_count", len(block.Transactions()), "time", block.Time())
 			}
-			// TODO: above there are ugly "continue mainLoop" because we shouldn't progress if we're missing blocks, since the submitter logic can't handle gaps yet.
-			l.l2HeadNumber = head.NumberU64()
-
 			if err := l.ch.Close(); err != nil {
 				l.log.Error("issue getting adding L2 Block", "err", err)
 				continue
@@ -254,7 +283,8 @@ mainLoop:
 				data := new(bytes.Buffer)
 				data.WriteByte(derive.DerivationVersion0)
 				done := false
-				if err := l.ch.OutputFrame(data, l.cfg.MaxL1TxSize); err == io.EOF {
+				// subtract one, to account for the version byte
+				if err := l.ch.OutputFrame(data, l.cfg.MaxL1TxSize-1); err == io.EOF {
 					done = true
 				} else if err != nil {
 					l.log.Error("error outputting frame", "err", err)
@@ -306,6 +336,13 @@ mainLoop:
 					break // local do-while loop
 				}
 			}
+			// TODO: if we exit to the mainLoop early on an error,
+			// it would be nice if we can determine which blocks are still readable from the partially submitted data.
+			// We can open a channel-in-reader, parse the data up to which we managed to submit it,
+			// and then take the block hash (if we remember which blocks we put in the channel)
+			//
+			// Now we just continue batch submission from the end of the channel.
+			l.lastSubmittedBlock = prevID
 
 		case <-l.done:
 			return
@@ -392,6 +429,21 @@ func dialEthClientWithTimeout(ctx context.Context, url string) (
 	defer cancel()
 
 	return ethclient.DialContext(ctxt, url)
+}
+
+// dialRollupClientWithTimeout attempts to dial the RPC provider using the provided
+// URL. If the dial doesn't complete within defaultDialTimeout seconds, this
+// method will return an error.
+func dialRollupClientWithTimeout(ctx context.Context, url string) (*rollupclient.RollupClient, error) {
+	ctxt, cancel := context.WithTimeout(ctx, defaultDialTimeout)
+	defer cancel()
+
+	client, err := rpc.DialContext(ctxt, url)
+	if err != nil {
+		return nil, err
+	}
+
+	return rollupclient.NewRollupClient(client), nil
 }
 
 // parseAddress parses an ETH address from a hex string. This method will fail if

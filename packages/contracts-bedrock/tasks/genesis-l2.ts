@@ -284,7 +284,7 @@ task('genesis-l2', 'create a genesis config')
       extraData: deployConfig.genesisBlockExtradata,
       optimism: {
         enabled: true,
-        baseFeeRecipient: deployConfig.optimsismBaseFeeRecipient,
+        baseFeeRecipient: deployConfig.optimismBaseFeeRecipient,
         l1FeeRecipient: deployConfig.optimismL1FeeRecipient,
       },
       alloc,

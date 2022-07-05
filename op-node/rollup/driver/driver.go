@@ -79,6 +79,10 @@ func (d *Driver) OnUnsafeL2Payload(ctx context.Context, payload *eth.ExecutionPa
 	return d.s.OnUnsafeL2Payload(ctx, payload)
 }
 
+func (d *Driver) SyncStatus(ctx context.Context) (*SyncStatus, error) {
+	return d.s.SyncStatus(ctx)
+}
+
 func (d *Driver) Start(ctx context.Context) error {
 	return d.s.Start(ctx)
 }
