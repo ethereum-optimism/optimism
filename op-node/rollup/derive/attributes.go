@@ -30,7 +30,7 @@ func PreparePayloadAttributes(ctx context.Context, cfg *rollup.Config, dl L1Rece
 	if l2Parent.L1Origin.Number != epoch.Number {
 		info, _, receipts, err := dl.Fetch(ctx, epoch.Hash)
 		if err != nil {
-			return nil, false, fmt.Errorf("failed to fetch L1 block info and receipts: %v", err)
+			return nil, false, fmt.Errorf("failed to fetch L1 block info and receipts: %w", err)
 		}
 		if l2Parent.L1Origin.Hash != info.ParentHash() {
 			return nil, true, fmt.Errorf("cannot create new block with L1 origin %s (parent %s) on top of L1 origin %s", epoch, info.ParentHash(), l2Parent.L1Origin)
@@ -48,7 +48,7 @@ func PreparePayloadAttributes(ctx context.Context, cfg *rollup.Config, dl L1Rece
 		}
 		info, err := dl.InfoByHash(ctx, epoch.Hash)
 		if err != nil {
-			return nil, false, fmt.Errorf("failed to fetch L1 block info: %v", err)
+			return nil, false, fmt.Errorf("failed to fetch L1 block info: %w", err)
 		}
 		l1Info = info
 		depositTxs = nil
