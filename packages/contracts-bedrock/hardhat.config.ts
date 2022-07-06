@@ -47,9 +47,6 @@ const config: HardhatUserConfig = {
   },
   foundry: {
     buildInfo: true,
-    // call runSuper in the hardhat task so that
-    // other things execute
-    runSuper: true,
   },
   paths: {
     deploy: './deploy',
