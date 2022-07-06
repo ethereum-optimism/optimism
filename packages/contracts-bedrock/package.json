@@ -53,8 +53,8 @@
     "@foundry-rs/hardhat-forge": "^0.1.10",
     "@nomiclabs/hardhat-ethers": "^2.0.0",
     "@nomiclabs/hardhat-waffle": "^2.0.0",
-    "@typechain/ethers-v5": "^7.0.1",
-    "@typechain/hardhat": "^2.3.0",
+    "@typechain/ethers-v5": "^10.1.0",
+    "@typechain/hardhat": "^6.1.2",
     "@typescript-eslint/eslint-plugin": "^5.26.0",
     "@typescript-eslint/parser": "^4.29.1",
     "chai": "^4.2.0",
@@ -66,7 +66,7 @@
     "solhint": "^3.3.6",
     "solhint-plugin-prettier": "^0.0.5",
     "ts-node": "^10.1.0",
-    "typechain": "^5.1.2",
+    "typechain": "^8.1.0",
     "typescript": "^4.6.2"
   }
 }
