@@ -6,7 +6,7 @@ import { Messenger_Initializer } from "./CommonTest.t.sol";
 import { L2OutputOracle_Initializer } from "./L2OutputOracle.t.sol";
 
 /* Libraries */
-import { AddressAliasHelper } from "../libraries/AddressAliasHelper.sol";
+import { AddressAliasHelper } from "../vendor/AddressAliasHelper.sol";
 import { Lib_DefaultValues } from "../libraries/Lib_DefaultValues.sol";
 import { Lib_PredeployAddresses } from "../libraries/Lib_PredeployAddresses.sol";
 import { Lib_CrossDomainUtils } from "../libraries/Lib_CrossDomainUtils.sol";

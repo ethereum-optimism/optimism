@@ -4,7 +4,7 @@ pragma solidity 0.8.10;
 import { Messenger_Initializer } from "./CommonTest.t.sol";
 
 import { Lib_CrossDomainUtils } from "../libraries/Lib_CrossDomainUtils.sol";
-import { AddressAliasHelper } from "../libraries/AddressAliasHelper.sol";
+import { AddressAliasHelper } from "../vendor/AddressAliasHelper.sol";
 import { L2ToL1MessagePasser } from "../L2/L2ToL1MessagePasser.sol";
 import { L2OutputOracle } from "../L1/L2OutputOracle.sol";
 import { L2CrossDomainMessenger } from "../L2/L2CrossDomainMessenger.sol";

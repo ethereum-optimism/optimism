@@ -2,4 +2,4 @@
 node_modules
 lib
 contracts/test/*.t.sol
-contracts/L2/WETH9.sol
+contracts/vendor/*.sol
