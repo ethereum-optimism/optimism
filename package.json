@@ -38,7 +38,6 @@
     "clean": "yarn lerna run clean --parallel",
     "build": "yarn lerna run build",
     "deduplicate": "yarn yarn-deduplicate",
-    "deduplicate:ci": "yarn yarn-deduplicate --fail",
     "test": "yarn lerna run test --parallel",
     "test:coverage": "yarn lerna run test:coverage --parallel",
     "lint": "yarn lerna run lint",
