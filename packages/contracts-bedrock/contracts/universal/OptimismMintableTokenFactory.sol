@@ -6,50 +6,77 @@ import { OptimismMintableERC20 } from "../universal/OptimismMintableERC20.sol";
 import { Lib_PredeployAddresses } from "../libraries/Lib_PredeployAddresses.sol";
 
 /**
+ * @custom:proxied
+ * @custom:predeployed 0x4200000000000000000000000000000000000012
  * @title OptimismMintableTokenFactory
- * @dev Factory contract for creating standard remote token representations of
- * local ERC20s. This can be used to bridge native L1 ERC20s to L2 or native L2
- * ERC20s to L1. The tokens created through this factory are meant to operate
- * with the StandardBridge contract for deposits/withdrawals.
- * This contract is a predeploy on L2 at 0x4200000000000000000000000000000000000012
- * TODO: deploy to a deterministic address on L1 networks?
- * TODO: should this be extended for L1/L2 with hardcoded values in
- * the base contract's initialize?
+ * @notice OptimismMintableTokenFactory is a factory contract that generates OptimismMintableERC20
+ *         contracts on the network it's deployed to. Simplifies the deployment process for users
+ *         who may be less familiar with deploying smart contracts. Designed to be backwards
+ *         compatible with the older StandardL2ERC20Factory contract.
  */
 contract OptimismMintableTokenFactory {
-    event StandardL2TokenCreated(address indexed _remoteToken, address indexed _localToken);
+    /**
+     * @custom:legacy
+     * @notice Emitted whenever a new OptimismMintableERC20 is created. Legacy version of the newer
+     *         OptimismMintableERC20Created event. We recommend relying on that event instead.
+     *
+     * @param remoteToken Address of the token on the remote chain.
+     * @param localToken  Address of the created token on the local chain.
+     */
+    event StandardL2TokenCreated(address indexed remoteToken, address indexed localToken);
+
+    /**
+     * @notice Emitted whenever a new OptimismMintableERC20 is created.
+     *
+     * @param localToken  Address of the created token on the local chain.
+     * @param remoteToken Address of the corresponding token on the remote chain.
+     * @param deployer    Address of the account that deployed the token.
+     */
     event OptimismMintableTokenCreated(
-        address indexed _localToken,
-        address indexed _remoteToken,
-        address _deployer
+        address indexed localToken,
+        address indexed remoteToken,
+        address deployer
     );
 
+    /**
+     * @notice Address of the StandardBridge on this chain.
+     */
     address public bridge;
 
     /**
-     * @dev Initialize the factory
-     * On L2 _bridge should be Lib_PredeployAddresses.L2_STANDARD_BRIDGE,
-     * On L1 _bridge should be the L1StandardBridge
+     * @notice Initializer.
+     *
+     * @param _bridge Address of the StandardBridge on this chain.
      */
     function initialize(address _bridge) public {
-        require(bridge == address(0), "Already initialized.");
+        require(bridge == address(0), "OptimismMintableTokenFactory: already initialized");
         bridge = _bridge;
     }
 
     /**
-     * @dev Creates an instance of the standard ERC20 token on L2.
-     * @param _remoteToken Address of the corresponding L1 token.
-     * @param _name ERC20 name.
-     * @param _symbol ERC20 symbol.
-     * @return Address of the new token.
+     * @notice Creates an instance of the OptimismMintableERC20 contract. Legacy version of the
+     *         newer createOptimismMintableERC20 function, which has a more intuitive name.
+     *
+     * @param _remoteToken Address of the token on the remote chain.
+     * @param _name        ERC20 name.
+     * @param _symbol      ERC20 symbol.
+     *
+     * @return Address of the newly created token.
      */
     function createStandardL2Token(
         address _remoteToken,
         string memory _name,
         string memory _symbol
     ) external returns (address) {
-        require(_remoteToken != address(0), "Must provide L1 token address");
-        require(bridge != address(0), "Must initialize first");
+        require(
+            _remoteToken != address(0),
+            "OptimismMintableTokenFactory: must provide remote token address"
+        );
+
+        require(
+            bridge != address(0),
+            "OptimismMintableTokenFactory: must initialize contract first"
+        );
 
         OptimismMintableERC20 localToken = new OptimismMintableERC20(
             bridge,
@@ -58,7 +85,7 @@ contract OptimismMintableTokenFactory {
             _symbol
         );
 
-        // Legacy Purposes
+        // Emit the old event too for legacy support.
         emit StandardL2TokenCreated(_remoteToken, address(localToken));
         emit OptimismMintableTokenCreated(_remoteToken, address(localToken), msg.sender);
 

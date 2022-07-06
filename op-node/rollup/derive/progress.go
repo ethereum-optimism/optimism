@@ -23,7 +23,7 @@ func (pr *Progress) Update(outer Progress) (changed bool, err error) {
 	}
 	if pr.Closed {
 		if outer.Closed {
-			if pr.Origin != outer.Origin {
+			if pr.Origin.ID() != outer.Origin.ID() {
 				return true, fmt.Errorf("outer stage changed origin from %s to %s without opening it", pr.Origin, outer.Origin)
 			}
 			return false, nil
@@ -36,7 +36,7 @@ func (pr *Progress) Update(outer Progress) (changed bool, err error) {
 			return true, nil
 		}
 	} else {
-		if pr.Origin != outer.Origin {
+		if pr.Origin.ID() != outer.Origin.ID() {
 			return true, fmt.Errorf("outer stage changed origin from %s to %s before closing it", pr.Origin, outer.Origin)
 		}
 		if outer.Closed {

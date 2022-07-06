@@ -3,7 +3,7 @@ pragma solidity 0.8.10;
 
 import { Portal_Initializer, CommonTest, NextImpl } from "./CommonTest.t.sol";
 
-import { AddressAliasHelper } from "../libraries/AddressAliasHelper.sol";
+import { AddressAliasHelper } from "../vendor/AddressAliasHelper.sol";
 import { L2OutputOracle } from "../L1/L2OutputOracle.sol";
 import { OptimismPortal } from "../L1/OptimismPortal.sol";
 import { WithdrawalVerifier } from "../libraries/Lib_WithdrawalVerifier.sol";
@@ -348,7 +348,7 @@ contract OptimismPortalUpgradeable_Test is Portal_Initializer {
         assertEq(bytes32(0), slot21Before);
 
         NextImpl nextImpl = new NextImpl();
-        vm.startPrank(alice);
+        vm.startPrank(multisig);
         proxy.upgradeToAndCall(
             address(nextImpl),
             abi.encodeWithSelector(NextImpl.initialize.selector)

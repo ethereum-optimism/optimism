@@ -49,7 +49,7 @@ type EngineQueue struct {
 	engine Engine
 }
 
-var _ BatchQueueOutput = (*EngineQueue)(nil)
+var _ AttributesQueueOutput = (*EngineQueue)(nil)
 
 // NewEngineQueue creates a new EngineQueue, which should be Reset(origin) before use.
 func NewEngineQueue(log log.Logger, cfg *rollup.Config, engine Engine) *EngineQueue {
@@ -72,6 +72,7 @@ func (eq *EngineQueue) AddUnsafePayload(payload *eth.ExecutionPayload) {
 }
 
 func (eq *EngineQueue) AddSafeAttributes(attributes *eth.PayloadAttributes) {
+	eq.log.Trace("received next safe attributes")
 	eq.safeAttributes = append(eq.safeAttributes, attributes)
 }
 

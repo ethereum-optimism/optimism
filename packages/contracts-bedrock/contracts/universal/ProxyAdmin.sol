@@ -1,20 +1,26 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.9;
 
-import { Proxy } from "./Proxy.sol";
 import { Owned } from "@rari-capital/solmate/src/auth/Owned.sol";
+import { Proxy } from "./Proxy.sol";
 import { Lib_AddressManager } from "../legacy/Lib_AddressManager.sol";
 import { L1ChugSplashProxy } from "../legacy/L1ChugSplashProxy.sol";
 
-// Define static interfaces of these proxies so that we can easily
-// use staticcall on the getters we need.
-interface IStatic_ERC1967Proxy {
+/**
+ * @title IStaticERC1967Proxy
+ * @notice IStaticERC1967Proxy is a static version of the ERC1967 proxy interface.
+ */
+interface IStaticERC1967Proxy {
     function implementation() external view returns (address);
 
     function admin() external view returns (address);
 }
 
-interface IStatic_L1ChugSplashProxy {
+/**
+ * @title IStaticL1ChugSplashProxy
+ * @notice IStaticL1ChugSplashProxy is a static version of the ChugSplash proxy interface.
+ */
+interface IStaticL1ChugSplashProxy {
     function getImplementation() external view returns (address);
 
     function getOwner() external view returns (address);
@@ -22,20 +28,17 @@ interface IStatic_L1ChugSplashProxy {
 
 /**
  * @title ProxyAdmin
- * @dev This is an auxiliary contract meant to be assigned as the admin of an ERC1967 Proxy,
- *      based on the OpenZeppelin implementation. It has backwards compatibility logic to work with
- *      the various types of proxies that have been deployed by Optimism.
+ * @notice This is an auxiliary contract meant to be assigned as the admin of an ERC1967 Proxy,
+ *         based on the OpenZeppelin implementation. It has backwards compatibility logic to work
+ *         with the various types of proxies that have been deployed by Optimism in the past.
  */
 contract ProxyAdmin is Owned {
     /**
      * @notice The proxy types that the ProxyAdmin can manage.
      *
-     * @custom:value ERC1967          Represents an ERC1967 compliant transparent proxy
-     *                                interface, this is the default.
-     * @custom:value Chugsplash       Represents the Chugsplash proxy interface,
-     *                                this is legacy.
-     * @custom:value ResolvedDelegate Represents the ResolvedDelegate proxy
-     *                                interface, this is legacy.
+     * @custom:value ERC1967          Represents an ERC1967 compliant transparent proxy interface.
+     * @custom:value Chugsplash       Represents the Chugsplash proxy interface (legacy).
+     * @custom:value ResolvedDelegate Represents the ResolvedDelegate proxy (legacy).
      */
     enum ProxyType {
         ERC1967,
@@ -45,7 +48,7 @@ contract ProxyAdmin is Owned {
 
     /**
      * @custom:legacy
-     * @notice         A mapping of proxy types, used for backwards compatibility.
+     * @notice A mapping of proxy types, used for backwards compatibility.
      */
     mapping(address => ProxyType) public proxyType;
 
@@ -53,14 +56,14 @@ contract ProxyAdmin is Owned {
      * @custom:legacy
      * @notice A reverse mapping of addresses to names held in the AddressManager. This must be
      *         manually kept up to date with changes in the AddressManager for this contract
-     *         to be able to work as an admin for the Lib_ResolvedDelegateProxy type.
+     *         to be able to work as an admin for the ResolvedDelegateProxy type.
      */
     mapping(address => string) public implementationName;
 
     /**
      * @custom:legacy
      * @notice The address of the address manager, this is required to manage the
-     *         Lib_ResolvedDelegateProxy type.
+     *         ResolvedDelegateProxy type.
      */
     Lib_AddressManager public addressManager;
 
@@ -71,36 +74,37 @@ contract ProxyAdmin is Owned {
     bool internal upgrading = false;
 
     /**
-     * @notice Set the owner of the ProxyAdmin via constructor argument.
+     * @param _owner Address of the initial owner of this contract.
      */
-    constructor(address owner) Owned(owner) {}
+    constructor(address _owner) Owned(_owner) {}
 
     /**
-     * @notice
+     * @notice Sets the proxy type for a given address. Only required for non-standard (legacy)
+     *         proxy types.
      *
-     * @param _address   The address of the proxy.
-     * @param _type The type of the proxy.
+     * @param _address Address of the proxy.
+     * @param _type    Type of the proxy.
      */
     function setProxyType(address _address, ProxyType _type) external onlyOwner {
         proxyType[_address] = _type;
     }
 
     /**
-     * @notice Set the proxy type in the mapping. This needs to be kept up to date by the owner of
-     *         the contract.
+     * @notice Sets the implementation name for a given address. Only required for
+     *         ResolvedDelegateProxy type proxies that have an implementation name.
      *
-     * @param _address The address to be named.
-     * @param _name    The name of the address.
+     * @param _address Address of the ResolvedDelegateProxy.
+     * @param _name    Name of the implementation for the proxy.
      */
     function setImplementationName(address _address, string memory _name) external onlyOwner {
         implementationName[_address] = _name;
     }
 
     /**
-     * @notice Set the address of the address manager. This is required to manage the legacy
-     *         `Lib_ResolvedDelegateProxy`.
+     * @notice Set the address of the AddressManager. This is required to manage legacy
+     *         ResolvedDelegateProxy type proxy contracts.
      *
-     * @param _address The address of the address manager.
+     * @param _address Address of the AddressManager.
      */
     function setAddressManager(Lib_AddressManager _address) external onlyOwner {
         addressManager = _address;
@@ -108,11 +112,12 @@ contract ProxyAdmin is Owned {
 
     /**
      * @custom:legacy
-     * @notice Set an address in the address manager. This is required because only the owner of
-     *         the AddressManager can set the addresses in it.
+     * @notice Set an address in the address manager. Since only the owner of the AddressManager
+     *         can directly modify addresses and the ProxyAdmin will own the AddressManager, this
+     *         gives the owner of the ProxyAdmin the ability to modify addresses directly.
      *
-     * @param _name    The name of the address to set in the address manager.
-     * @param _address The address to set in the address manager.
+     * @param _name    Name to set within the AddressManager.
+     * @param _address Address to attach to the given name.
      */
     function setAddress(string memory _name, address _address) external onlyOwner {
         addressManager.setAddress(_name, _address);
@@ -120,10 +125,11 @@ contract ProxyAdmin is Owned {
 
     /**
      * @custom:legacy
-     * @notice Legacy function used by the old Chugsplash proxy to determine if an upgrade is
-     *         happening.
+     * @notice Legacy function used to tell ChugSplashProxy contracts if an upgrade is happening.
      *
-     * @return Whether or not there is an upgrade going on
+     * @return Whether or not there is an upgrade going on. May not actually tell you whether an
+     *         upgrade is going on, since we don't currently plan to use this variable for anything
+     *         other than a legacy indicator to fix a UX bug in the ChugSplash proxy.
      */
     function isUpgrading() external view returns (bool) {
         return upgrading;
@@ -140,40 +146,40 @@ contract ProxyAdmin is Owned {
     }
 
     /**
-     * @dev Returns the current implementation of `proxy`.
-     *      This contract must be the admin of `proxy`.
+     * @notice Returns the implementation of the given proxy address.
      *
-     * @param proxy The Proxy to return the implementation of.
-     * @return The address of the implementation.
+     * @param _proxy Address of the proxy to get the implementation of.
+     *
+     * @return Address of the implementation of the proxy.
      */
-    function getProxyImplementation(Proxy proxy) external view returns (address) {
-        ProxyType proxyType = proxyType[address(proxy)];
+    function getProxyImplementation(Proxy _proxy) external view returns (address) {
+        ProxyType proxyType = proxyType[address(_proxy)];
 
         if (proxyType == ProxyType.ERC1967) {
-            return IStatic_ERC1967Proxy(address(proxy)).implementation();
+            return IStaticERC1967Proxy(address(_proxy)).implementation();
         } else if (proxyType == ProxyType.Chugsplash) {
-            return IStatic_L1ChugSplashProxy(address(proxy)).getImplementation();
+            return IStaticL1ChugSplashProxy(address(_proxy)).getImplementation();
         } else if (proxyType == ProxyType.ResolvedDelegate) {
-            return addressManager.getAddress(implementationName[address(proxy)]);
+            return addressManager.getAddress(implementationName[address(_proxy)]);
         } else {
             revert("ProxyAdmin: unknown proxy type");
         }
     }
 
     /**
-     * @dev Returns the current admin of `proxy`.
-     *      This contract must be the admin of `proxy`.
+     * @notice Returns the admin of the given proxy address.
      *
-     * @param proxy The Proxy to return the admin of.
-     * @return The address of the admin.
+     * @param _proxy Address of the proxy to get the admin of.
+     *
+     * @return Address of the admin of the proxy.
      */
-    function getProxyAdmin(Proxy proxy) external view returns (address) {
-        ProxyType proxyType = proxyType[address(proxy)];
+    function getProxyAdmin(Proxy _proxy) external view returns (address) {
+        ProxyType proxyType = proxyType[address(_proxy)];
 
         if (proxyType == ProxyType.ERC1967) {
-            return IStatic_ERC1967Proxy(address(proxy)).admin();
+            return IStaticERC1967Proxy(address(_proxy)).admin();
         } else if (proxyType == ProxyType.Chugsplash) {
-            return IStatic_L1ChugSplashProxy(address(proxy)).getOwner();
+            return IStaticL1ChugSplashProxy(address(_proxy)).getOwner();
         } else if (proxyType == ProxyType.ResolvedDelegate) {
             return addressManager.owner();
         } else {
@@ -182,71 +188,70 @@ contract ProxyAdmin is Owned {
     }
 
     /**
-     * @dev Changes the admin of `proxy` to `newAdmin`. This contract must be the current admin
-     *      of `proxy`.
+     * @notice Updates the admin of the given proxy address.
      *
-     * @param proxy    The proxy that will have its admin updated.
-     * @param newAdmin The address of the admin to update to.
+     * @param _proxy    Address of the proxy to update.
+     * @param _newAdmin Address of the new proxy admin.
      */
-    function changeProxyAdmin(Proxy proxy, address newAdmin) external onlyOwner {
-        ProxyType proxyType = proxyType[address(proxy)];
+    function changeProxyAdmin(Proxy _proxy, address _newAdmin) external onlyOwner {
+        ProxyType proxyType = proxyType[address(_proxy)];
 
         if (proxyType == ProxyType.ERC1967) {
-            proxy.changeAdmin(newAdmin);
+            _proxy.changeAdmin(_newAdmin);
         } else if (proxyType == ProxyType.Chugsplash) {
-            L1ChugSplashProxy(payable(proxy)).setOwner(newAdmin);
+            L1ChugSplashProxy(payable(_proxy)).setOwner(_newAdmin);
         } else if (proxyType == ProxyType.ResolvedDelegate) {
-            addressManager.transferOwnership(newAdmin);
+            addressManager.transferOwnership(_newAdmin);
         } else {
             revert("ProxyAdmin: unknown proxy type");
         }
     }
 
     /**
-     * @dev Upgrades `proxy` to `implementation`. This contract must be the admin of `proxy`.
+     * @notice Changes a proxy's implementation contract.
      *
-     * @param proxy          The address of the proxy.
-     * @param implementation The address of the implementation.
+     * @param _proxy          Address of the proxy to upgrade.
+     * @param _implementation Address of the new implementation address.
      */
-    function upgrade(Proxy proxy, address implementation) public onlyOwner {
-        ProxyType proxyType = proxyType[address(proxy)];
+    function upgrade(Proxy _proxy, address _implementation) public onlyOwner {
+        ProxyType proxyType = proxyType[address(_proxy)];
 
         if (proxyType == ProxyType.ERC1967) {
-            proxy.upgradeTo(implementation);
+            _proxy.upgradeTo(_implementation);
         } else if (proxyType == ProxyType.Chugsplash) {
-            L1ChugSplashProxy(payable(proxy)).setStorage(
+            L1ChugSplashProxy(payable(_proxy)).setStorage(
                 0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc,
-                bytes32(uint256(uint160(implementation)))
+                bytes32(uint256(uint160(_implementation)))
             );
         } else if (proxyType == ProxyType.ResolvedDelegate) {
-            string memory name = implementationName[address(proxy)];
-            addressManager.setAddress(name, implementation);
+            string memory name = implementationName[address(_proxy)];
+            addressManager.setAddress(name, _implementation);
         } else {
             revert("ProxyAdmin: unknown proxy type");
         }
     }
 
     /**
-     * @dev Upgrades `proxy` to `implementation` and calls a function on the new implementation.
-     *      This contract must be the admin of `proxy`.
+     * @notice Changes a proxy's implementation contract and delegatecalls the new implementation
+     *         with some given data. Useful for atomic upgrade-and-initialize calls.
      *
-     * @param proxy           The proxy to call.
-     * @param implementation  The implementation to upgrade the proxy to.
-     * @param data            The calldata to pass to the implementation.
+     * @param _proxy          Address of the proxy to upgrade.
+     * @param _implementation Address of the new implementation address.
+     * @param _data           Data to trigger the new implementation with.
      */
     function upgradeAndCall(
-        Proxy proxy,
-        address implementation,
-        bytes memory data
+        Proxy _proxy,
+        address _implementation,
+        bytes memory _data
     ) external payable onlyOwner {
-        ProxyType proxyType = proxyType[address(proxy)];
+        ProxyType proxyType = proxyType[address(_proxy)];
 
         if (proxyType == ProxyType.ERC1967) {
-            proxy.upgradeToAndCall{ value: msg.value }(implementation, data);
+            _proxy.upgradeToAndCall{ value: msg.value }(_implementation, _data);
         } else {
             // reverts if proxy type is unknown
-            upgrade(proxy, implementation);
-            (bool success, ) = address(proxy).call{ value: msg.value }(data);
+            upgrade(_proxy, _implementation);
+            (bool success, ) = address(_proxy).call{ value: msg.value }(_data);
             require(success);
         }
     }

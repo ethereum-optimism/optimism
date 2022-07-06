@@ -2,7 +2,6 @@
 pragma solidity 0.8.10;
 
 import { Bridge_Initializer } from "./CommonTest.t.sol";
-import { LibRLP } from "./Lib_RLP.t.sol";
 import "../universal/SupportedInterfaces.sol";
 import { IERC165 } from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 
@@ -42,7 +41,7 @@ contract OptimismMintableERC20_Test is Bridge_Initializer {
 
     function test_mintRevertsFromNotBridge() external {
         // NOT the bridge
-        vm.expectRevert("Only L2 Bridge can mint and burn");
+        vm.expectRevert("OptimismMintableERC20: only bridge can mint and burn");
         vm.prank(address(alice));
         L2Token.mint(alice, 100);
     }
@@ -62,7 +61,7 @@ contract OptimismMintableERC20_Test is Bridge_Initializer {
 
     function test_burnRevertsFromNotBridge() external {
         // NOT the bridge
-        vm.expectRevert("Only L2 Bridge can mint and burn");
+        vm.expectRevert("OptimismMintableERC20: only bridge can mint and burn");
         vm.prank(address(alice));
         L2Token.burn(alice, 100);
     }
