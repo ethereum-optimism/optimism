@@ -201,10 +201,11 @@ func (bq *BatchQueue) deriveBatches(ctx context.Context, l2SafeHead eth.L2BlockR
 
 		// 2b. Determine the valid time window
 		l1OriginTime := bq.l1Blocks[0].Time
-		nextL1BlockTime := bq.l1Blocks[1].Time // Safe b/c the epoch is the L1 Block nubmer of the first block in L1Blocks
+		nextL1BlockTime := bq.l1Blocks[1].Time // Safe b/c the epoch is the L1 Block number of the first block in L1Blocks
 		minL2Time := l2SafeHead.Time + bq.config.BlockTime
 		maxL2Time := l1OriginTime + bq.config.MaxSequencerDrift
-		if minL2Time+bq.config.BlockTime > maxL2Time {
+		newEpoch := l2SafeHead.L1Origin != epoch.ID() // Only guarantee a L2 block if we have not already produced one for this epoch.
+		if newEpoch && minL2Time+bq.config.BlockTime > maxL2Time {
 			maxL2Time = minL2Time + bq.config.BlockTime
 		}
 
@@ -268,7 +269,8 @@ func (bq *BatchQueue) tryPopNextBatch(ctx context.Context, l2SafeHead eth.L2Bloc
 		// Timestamp bounds
 		minL2Time := l2SafeHead.Time + bq.config.BlockTime
 		maxL2Time := l1OriginTime + bq.config.MaxSequencerDrift
-		if minL2Time+bq.config.BlockTime > maxL2Time {
+		newEpoch := l2SafeHead.L1Origin != batch.Epoch() // Only guarantee a L2 block if we have not already produced one for this epoch.
+		if newEpoch && minL2Time+bq.config.BlockTime > maxL2Time {
 			maxL2Time = minL2Time + bq.config.BlockTime
 		}
 
