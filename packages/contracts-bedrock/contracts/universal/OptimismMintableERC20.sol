@@ -13,9 +13,6 @@ import "./SupportedInterfaces.sol";
  * other domain.
  */
 contract OptimismMintableERC20 is ERC20 {
-    event Mint(address indexed _account, uint256 _amount);
-    event Burn(address indexed _account, uint256 _amount);
-
     /**
      * @notice The address of the token in the remote domain
      */
@@ -26,6 +23,17 @@ contract OptimismMintableERC20 is ERC20 {
      * minting. It is in the same domain.
      */
     address public bridge;
+
+    event Mint(address indexed _account, uint256 _amount);
+    event Burn(address indexed _account, uint256 _amount);
+
+    /**
+     * @notice A modifier that only allows the bridge to call
+     */
+    modifier onlyBridge() {
+        require(msg.sender == bridge, "Only L2 Bridge can mint and burn");
+        _;
+    }
 
     /**
      * @param _bridge Address of the L2 standard bridge.
@@ -41,42 +49,6 @@ contract OptimismMintableERC20 is ERC20 {
     ) ERC20(_name, _symbol) {
         remoteToken = _remoteToken;
         bridge = _bridge;
-    }
-
-    /**
-     * @notice Returns the corresponding L1 token address.
-     * This is a legacy function and wraps the remoteToken value.
-     */
-    function l1Token() public view returns (address) {
-        return remoteToken;
-    }
-
-    /**
-     * @notice The address of the bridge contract
-     * responsible for minting tokens. This is a legacy
-     * getter function
-     */
-    function l2Bridge() public view returns (address) {
-        return bridge;
-    }
-
-    /**
-     * @notice A modifier that only allows the bridge to call
-     */
-    modifier onlyBridge() {
-        require(msg.sender == bridge, "Only L2 Bridge can mint and burn");
-        _;
-    }
-
-    /**
-     * @notice ERC165
-     */
-    // slither-disable-next-line external-function
-    function supportsInterface(bytes4 _interfaceId) public pure returns (bool) {
-        bytes4 iface1 = type(IERC165).interfaceId;
-        bytes4 iface2 = type(IL1Token).interfaceId;
-        bytes4 iface3 = type(IRemoteToken).interfaceId;
-        return _interfaceId == iface1 || _interfaceId == iface2 || _interfaceId == iface3;
     }
 
     /**
@@ -97,5 +69,33 @@ contract OptimismMintableERC20 is ERC20 {
         _burn(_from, _amount);
 
         emit Burn(_from, _amount);
+    }
+
+    /**
+     * @notice Returns the corresponding L1 token address.
+     * This is a legacy function and wraps the remoteToken value.
+     */
+    function l1Token() public view returns (address) {
+        return remoteToken;
+    }
+
+    /**
+     * @notice The address of the bridge contract
+     * responsible for minting tokens. This is a legacy
+     * getter function
+     */
+    function l2Bridge() public view returns (address) {
+        return bridge;
+    }
+
+    /**
+     * @notice ERC165
+     */
+    // slither-disable-next-line external-function
+    function supportsInterface(bytes4 _interfaceId) public pure returns (bool) {
+        bytes4 iface1 = type(IERC165).interfaceId;
+        bytes4 iface2 = type(IL1Token).interfaceId;
+        bytes4 iface3 = type(IRemoteToken).interfaceId;
+        return _interfaceId == iface1 || _interfaceId == iface2 || _interfaceId == iface3;
     }
 }

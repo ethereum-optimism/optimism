@@ -36,17 +36,6 @@ contract L1ChugSplashProxy {
     bytes32 internal constant OWNER_KEY =
         0xb53127684a568b3173ae13b9f8a6016e243e63b6e8ee1178d6a717850b5d6103;
 
-    /***************
-     * Constructor *
-     ***************/
-
-    /**
-     * @param _owner Address of the initial contract owner.
-     */
-    constructor(address _owner) {
-        _setOwner(_owner);
-    }
-
     /**********************
      * Function Modifiers *
      **********************/
@@ -101,6 +90,17 @@ contract L1ChugSplashProxy {
             // This WILL halt the call frame on completion.
             _doProxyCall();
         }
+    }
+
+    /***************
+     * Constructor *
+     ***************/
+
+    /**
+     * @param _owner Address of the initial contract owner.
+     */
+    constructor(address _owner) {
+        _setOwner(_owner);
     }
 
     /*********************
@@ -212,18 +212,6 @@ contract L1ChugSplashProxy {
     }
 
     /**
-     * Queries the implementation address.
-     * @return Implementation address.
-     */
-    function _getImplementation() internal view returns (address) {
-        address implementation;
-        assembly {
-            implementation := sload(IMPLEMENTATION_KEY)
-        }
-        return implementation;
-    }
-
-    /**
      * Changes the owner of the proxy contract.
      * @param _owner New owner of the proxy contract.
      */
@@ -231,31 +219,6 @@ contract L1ChugSplashProxy {
         assembly {
             sstore(OWNER_KEY, _owner)
         }
-    }
-
-    /**
-     * Queries the owner of the proxy contract.
-     * @return Owner address.
-     */
-    function _getOwner() internal view returns (address) {
-        address owner;
-        assembly {
-            owner := sload(OWNER_KEY)
-        }
-        return owner;
-    }
-
-    /**
-     * Gets the code hash for a given account.
-     * @param _account Address of the account to get a code hash for.
-     * @return Code hash for the account.
-     */
-    function _getAccountCodeHash(address _account) internal view returns (bytes32) {
-        bytes32 codeHash;
-        assembly {
-            codeHash := extcodehash(_account)
-        }
-        return codeHash;
     }
 
     /**
@@ -286,5 +249,42 @@ contract L1ChugSplashProxy {
             // Otherwise we'll just return and pass the data up.
             return(0x0, returndatasize())
         }
+    }
+
+    /**
+     * Queries the implementation address.
+     * @return Implementation address.
+     */
+    function _getImplementation() internal view returns (address) {
+        address implementation;
+        assembly {
+            implementation := sload(IMPLEMENTATION_KEY)
+        }
+        return implementation;
+    }
+
+    /**
+     * Queries the owner of the proxy contract.
+     * @return Owner address.
+     */
+    function _getOwner() internal view returns (address) {
+        address owner;
+        assembly {
+            owner := sload(OWNER_KEY)
+        }
+        return owner;
+    }
+
+    /**
+     * Gets the code hash for a given account.
+     * @param _account Address of the account to get a code hash for.
+     * @return Code hash for the account.
+     */
+    function _getAccountCodeHash(address _account) internal view returns (bytes32) {
+        bytes32 codeHash;
+        assembly {
+            codeHash := extcodehash(_account)
+        }
+        return codeHash;
     }
 }

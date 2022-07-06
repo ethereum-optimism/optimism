@@ -17,24 +17,14 @@ import { Lib_PredeployAddresses } from "../libraries/Lib_PredeployAddresses.sol"
  * the base contract's initialize?
  */
 contract OptimismMintableTokenFactory {
+    address public bridge;
+
     event StandardL2TokenCreated(address indexed _remoteToken, address indexed _localToken);
     event OptimismMintableTokenCreated(
         address indexed _localToken,
         address indexed _remoteToken,
         address _deployer
     );
-
-    address public bridge;
-
-    /**
-     * @dev Initialize the factory
-     * On L2 _bridge should be Lib_PredeployAddresses.L2_STANDARD_BRIDGE,
-     * On L1 _bridge should be the L1StandardBridge
-     */
-    function initialize(address _bridge) public {
-        require(bridge == address(0), "Already initialized.");
-        bridge = _bridge;
-    }
 
     /**
      * @dev Creates an instance of the standard ERC20 token on L2.
@@ -63,5 +53,15 @@ contract OptimismMintableTokenFactory {
         emit OptimismMintableTokenCreated(_remoteToken, address(localToken), msg.sender);
 
         return address(localToken);
+    }
+
+    /**
+     * @dev Initialize the factory
+     * On L2 _bridge should be Lib_PredeployAddresses.L2_STANDARD_BRIDGE,
+     * On L1 _bridge should be the L1StandardBridge
+     */
+    function initialize(address _bridge) public {
+        require(bridge == address(0), "Already initialized.");
+        bridge = _bridge;
     }
 }

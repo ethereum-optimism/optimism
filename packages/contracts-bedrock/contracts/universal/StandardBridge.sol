@@ -23,6 +23,31 @@ import { OptimismMintableERC20 } from "./OptimismMintableERC20.sol";
 abstract contract StandardBridge {
     using SafeERC20 for IERC20;
 
+    /*************
+     * Constants *
+     *************/
+
+    /**
+     * @notice The L2 gas limit set when eth is depoisited using the receive() function.
+     */
+    uint32 internal constant RECEIVE_DEFAULT_GAS_LIMIT = 200_000;
+
+    /*************
+     * Variables *
+     *************/
+
+    /**
+     * @notice The messenger contract on the same domain
+     */
+    CrossDomainMessenger public messenger;
+
+    /**
+     * @notice The corresponding bridge on the other domain
+     */
+    StandardBridge public otherBridge;
+
+    mapping(address => mapping(address => uint256)) public deposits;
+
     /**********
      * Events *
      **********/
@@ -67,31 +92,6 @@ abstract contract StandardBridge {
         uint256 _amount,
         bytes _extraData
     );
-
-    /*************
-     * Constants *
-     *************/
-
-    /**
-     * @notice The L2 gas limit set when eth is depoisited using the receive() function.
-     */
-    uint32 internal constant RECEIVE_DEFAULT_GAS_LIMIT = 200_000;
-
-    /*************
-     * Variables *
-     *************/
-
-    /**
-     * @notice The messenger contract on the same domain
-     */
-    CrossDomainMessenger public messenger;
-
-    /**
-     * @notice The corresponding bridge on the other domain
-     */
-    StandardBridge public otherBridge;
-
-    mapping(address => mapping(address => uint256)) public deposits;
 
     /*************
      * Modifiers *

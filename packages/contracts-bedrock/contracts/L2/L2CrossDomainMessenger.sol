@@ -39,15 +39,6 @@ contract L2CrossDomainMessenger is CrossDomainMessenger {
     }
 
     /**
-     * @notice Checks that the message sender is the L1CrossDomainMessenger on L1.
-     *
-     * @return True if the message sender is the L1CrossDomainMessenger on L1.
-     */
-    function _isSystemMessageSender() internal view override returns (bool) {
-        return AddressAliasHelper.undoL1ToL2Alias(msg.sender) == otherMessenger;
-    }
-
-    /**
      * @notice Sends a message from L2 to L1.
      *
      * @param _to       Address to send the message to.
@@ -63,5 +54,14 @@ contract L2CrossDomainMessenger is CrossDomainMessenger {
     ) internal override {
         L2ToL1MessagePasser(payable(Lib_PredeployAddresses.L2_TO_L1_MESSAGE_PASSER))
             .initiateWithdrawal{ value: _value }(_to, _gasLimit, _data);
+    }
+
+    /**
+     * @notice Checks that the message sender is the L1CrossDomainMessenger on L1.
+     *
+     * @return True if the message sender is the L1CrossDomainMessenger on L1.
+     */
+    function _isSystemMessageSender() internal view override returns (bool) {
+        return AddressAliasHelper.undoL1ToL2Alias(msg.sender) == otherMessenger;
     }
 }

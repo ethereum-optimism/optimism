@@ -6,12 +6,6 @@ pragma solidity ^0.8.9;
  * @dev Adapted from "RLPReader" by Hamdi Allam (hamdi.allam97@gmail.com).
  */
 library Lib_RLPReader {
-    /*************
-     * Constants *
-     *************/
-
-    uint256 internal constant MAX_LIST_LENGTH = 32;
-
     /*********
      * Enums *
      *********/
@@ -29,6 +23,12 @@ library Lib_RLPReader {
         uint256 length;
         uint256 ptr;
     }
+
+    /*************
+     * Constants *
+     *************/
+
+    uint256 internal constant MAX_LIST_LENGTH = 32;
 
     /**********************
      * Internal Functions *

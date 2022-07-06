@@ -79,15 +79,6 @@ contract L2StandardBridge is StandardBridge {
     );
 
     /**
-     * @notice Initializes the L2StandardBridge.
-     *
-     * @param _otherBridge Address of the L1StandardBridge.
-     */
-    function initialize(address payable _otherBridge) public {
-        _initialize(payable(Lib_PredeployAddresses.L2_CROSS_DOMAIN_MESSENGER), _otherBridge);
-    }
-
-    /**
      * @custom:legacy
      * @notice Initiates a withdrawal from L2 to L1.
      *
@@ -154,6 +145,15 @@ contract L2StandardBridge is StandardBridge {
             finalizeBridgeERC20(_l2Token, _l1Token, _from, _to, _amount, _extraData);
         }
         emit DepositFinalized(_l1Token, _l2Token, _from, _to, _amount, _extraData);
+    }
+
+    /**
+     * @notice Initializes the L2StandardBridge.
+     *
+     * @param _otherBridge Address of the L1StandardBridge.
+     */
+    function initialize(address payable _otherBridge) public {
+        _initialize(payable(Lib_PredeployAddresses.L2_CROSS_DOMAIN_MESSENGER), _otherBridge);
     }
 
     /**

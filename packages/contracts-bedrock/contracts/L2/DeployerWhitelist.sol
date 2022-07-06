@@ -14,6 +14,17 @@ pragma solidity ^0.8.9;
  */
 contract DeployerWhitelist {
     /**
+     * @notice Address of the owner of this contract. Note that when this address is set to
+     *         address(0), the whitelist is disabled.
+     */
+    address public owner;
+
+    /**
+     * @notice Mapping of deployer addresses to boolean whitelist status.
+     */
+    mapping(address => bool) public whitelist;
+
+    /**
      * @notice Emitted when the owner of this contract changes.
      *
      * @param oldOwner Address of the previous owner.
@@ -35,17 +46,6 @@ contract DeployerWhitelist {
      * @param oldOwner Address of the final owner of the whitelist.
      */
     event WhitelistDisabled(address oldOwner);
-
-    /**
-     * @notice Address of the owner of this contract. Note that when this address is set to
-     *         address(0), the whitelist is disabled.
-     */
-    address public owner;
-
-    /**
-     * @notice Mapping of deployer addresses to boolean whitelist status.
-     */
-    mapping(address => bool) public whitelist;
 
     /**
      * @notice Blocks functions to anyone except the contract owner.
