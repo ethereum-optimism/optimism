@@ -18,6 +18,7 @@
       "ops/docker/go-builder",
       "ops/docker/js-builder",
       "ops/docker/ci-builder",
+      "ops/docker/foundry",
       "proxyd",
       "teleportr"
     ],
