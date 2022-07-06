@@ -14,33 +14,28 @@ import { CrossDomainMessenger } from "../universal/CrossDomainMessenger.sol";
  */
 contract L1CrossDomainMessenger is CrossDomainMessenger {
     /**
-     * @notice Contract version number.
-     */
-    uint8 public constant VERSION = 1;
-
-    /**
      * @notice Address of the OptimismPortal.
      */
-    OptimismPortal public portal;
+    OptimismPortal public immutable portal;
 
     /**
-     * @param _portal Address of the OptimismPortal to send and receive messages through.
+     * @param _portal Address of the OptimismPortal contract on this network.
      */
     constructor(OptimismPortal _portal) public {
-        // Mutables
-        initialize(_portal);
+        portal = _portal;
+        initialize();
     }
 
     /**
-     * @notice Intializes mutable variables.
-     *
-     * @param _portal Address of the OptimismPortal to send and receive messages through.
+     * @notice Initializer.
      */
-    function initialize(OptimismPortal _portal) public reinitializer(VERSION) {
-        portal = _portal;
+    function initialize() public initializer {
         address[] memory blockedSystemAddresses = new address[](1);
         blockedSystemAddresses[0] = address(this);
-        _initialize(PredeployAddresses.L2_CROSS_DOMAIN_MESSENGER, blockedSystemAddresses);
+        __CrossDomainMessenger_init(
+            PredeployAddresses.L2_CROSS_DOMAIN_MESSENGER,
+            blockedSystemAddresses
+        );
     }
 
     /**

@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.9;
 
-import { Initializable } from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
 import { PredeployAddresses } from "../libraries/PredeployAddresses.sol";
 import { StandardBridge } from "../universal/StandardBridge.sol";
 
@@ -12,12 +11,7 @@ import { StandardBridge } from "../universal/StandardBridge.sol";
  *         L2. ERC20 tokens deposited into L2 are escrowed within this contract until withdrawal.
  *         ETH is transferred to and escrowed within the OptimismPortal contract.
  */
-contract L1StandardBridge is StandardBridge, Initializable {
-    /**
-     * @notice Contract version number.
-     */
-    uint8 public constant VERSION = 1;
-
+contract L1StandardBridge is StandardBridge {
     /**
      * @custom:legacy
      * @notice Emitted whenever a deposit of ETH from L1 into L2 is initiated.
@@ -94,17 +88,16 @@ contract L1StandardBridge is StandardBridge, Initializable {
      * @param _messenger Address of the L1CrossDomainMessenger.
      */
     constructor(address payable _messenger) public {
-        // Mutables
         initialize(_messenger);
     }
 
     /**
-     * @notice Intializes mutable variables.
+     * @notice Initializer.
      *
      * @param _messenger Address of the L1CrossDomainMessenger.
      */
-    function initialize(address payable _messenger) public reinitializer(VERSION) {
-        _initialize(_messenger, payable(PredeployAddresses.L2_STANDARD_BRIDGE));
+    function initialize(address payable _messenger) public initializer {
+        __StandardBridge_init(_messenger, payable(PredeployAddresses.L2_STANDARD_BRIDGE));
     }
 
     /**

@@ -312,18 +312,16 @@ abstract contract CrossDomainMessenger is
      *                                detailed information about what this block list can and
      *                                cannot be used for.
      */
-    function _initialize(address _otherMessenger, address[] memory _blockedSystemAddresses)
-        internal
-    {
+    function __CrossDomainMessenger_init(
+        address _otherMessenger,
+        address[] memory _blockedSystemAddresses
+    ) internal onlyInitializing {
         xDomainMsgSender = DEFAULT_XDOMAIN_SENDER;
         otherMessenger = _otherMessenger;
-
         for (uint256 i = 0; i < _blockedSystemAddresses.length; i++) {
             blockedSystemAddresses[_blockedSystemAddresses[i]] = true;
         }
 
-        // TODO: ensure we know what these are doing and why they are here
-        // Initialize upgradable OZ contracts
         __Context_init_unchained();
         __Ownable_init_unchained();
         __Pausable_init_unchained();

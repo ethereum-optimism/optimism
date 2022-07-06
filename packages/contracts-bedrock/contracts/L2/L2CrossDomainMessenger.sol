@@ -16,16 +16,22 @@ import { L2ToL1MessagePasser } from "./L2ToL1MessagePasser.sol";
  */
 contract L2CrossDomainMessenger is CrossDomainMessenger {
     /**
-     * @notice Initializes the L2CrossDomainMessenger.
+     * @param _l1CrossDomainMessenger Address of the L1CrossDomainMessenger contract.
+     */
+    constructor(address _l1CrossDomainMessenger) {
+        initialize(_l1CrossDomainMessenger);
+    }
+
+    /**
+     * @notice Initializer.
      *
      * @param _l1CrossDomainMessenger Address of the L1CrossDomainMessenger contract.
      */
-    function initialize(address _l1CrossDomainMessenger) external initializer {
+    function initialize(address _l1CrossDomainMessenger) public initializer {
         address[] memory blockedSystemAddresses = new address[](2);
         blockedSystemAddresses[0] = address(this);
         blockedSystemAddresses[1] = PredeployAddresses.L2_TO_L1_MESSAGE_PASSER;
-
-        _initialize(_l1CrossDomainMessenger, blockedSystemAddresses);
+        __CrossDomainMessenger_init(_l1CrossDomainMessenger, blockedSystemAddresses);
     }
 
     /**
