@@ -17,7 +17,7 @@ contract OptimismMintableTokenFactory_Test is Bridge_Initializer {
     }
 
     function test_initializeShouldRevert() external {
-        vm.expectRevert("Already initialized.");
+        vm.expectRevert("OptimismMintableTokenFactory: already initialized");
         L2TokenFactory.initialize(address(L1Bridge));
     }
 
@@ -73,7 +73,7 @@ contract OptimismMintableTokenFactory_Test is Bridge_Initializer {
 
     function test_createStandardL2TokenShouldRevertIfRemoteIsZero() external {
         address remote = address(0);
-        vm.expectRevert("Must provide L1 token address");
+        vm.expectRevert("OptimismMintableTokenFactory: must provide remote token address");
         L2TokenFactory.createStandardL2Token(remote, "Beep", "BOOP");
     }
 }
