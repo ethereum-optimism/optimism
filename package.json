@@ -18,6 +18,7 @@
       "ops/docker/go-builder",
       "ops/docker/js-builder",
       "ops/docker/ci-builder",
+      "ops/docker/foundry",
       "proxyd",
       "teleportr"
     ],
@@ -28,6 +29,8 @@
       "@eth-optimism/contracts-bedrock/forge-std",
       "@eth-optimism/contracts-bedrock/@rari-capital/solmate",
       "@eth-optimism/contracts-bedrock/excessively-safe-call",
+      "@eth-optimism/contracts-bedrock/@openzeppelin/contracts",
+      "@eth-optimism/contracts-bedrock/@openzeppelin/contracts-upgradeable",
       "@eth-optimism/contracts-periphery/ds-test",
       "@eth-optimism/contracts-periphery/forge-std",
       "@eth-optimism/contracts-periphery/@rari-capital/solmate"

@@ -4,7 +4,6 @@ import { TASK_COMPILE_SOLIDITY_GET_SOURCE_PATHS } from 'hardhat/builtin-tasks/ta
 
 // Hardhat plugins
 import '@nomiclabs/hardhat-ethers'
-import '@typechain/hardhat'
 import 'hardhat-deploy'
 import '@foundry-rs/hardhat-forge'
 import '@eth-optimism/hardhat-deploy-config'
@@ -48,15 +47,14 @@ const config: HardhatUserConfig = {
   },
   foundry: {
     buildInfo: true,
+    // call runSuper in the hardhat task so that
+    // other things execute
+    runSuper: true,
   },
   paths: {
     deploy: './deploy',
     deployments: './deployments',
     deployConfig: './deploy-config',
-  },
-  typechain: {
-    outDir: 'dist/types',
-    target: 'ethers-v5',
   },
   namedAccounts: {
     deployer: {

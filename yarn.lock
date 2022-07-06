@@ -1614,10 +1614,10 @@
     command-exists "^1.2.9"
     ts-interface-checker "^0.1.9"
 
-"@foundry-rs/hardhat-forge@^0.1.10":
-  version "0.1.10"
-  resolved "https://registry.yarnpkg.com/@foundry-rs/hardhat-forge/-/hardhat-forge-0.1.10.tgz#031a85c1c8e51bbf72390d950721611d83f089df"
-  integrity sha512-L5E+zXF/AazR2yO0ZoHtj74uyetO/mXxjSx5hOtjEpUX6czRbGP+tPbbTGjKnoMUzUP5uF1N0TjfCe7T9UpBbA==
+"@foundry-rs/hardhat-forge@^0.1.11":
+  version "0.1.11"
+  resolved "https://registry.yarnpkg.com/@foundry-rs/hardhat-forge/-/hardhat-forge-0.1.11.tgz#64f604ea6d69d1fec3bbccf1b86e6766453f31ec"
+  integrity sha512-2/52ucRcr2N21UB6qj8zbhceb6Gtac6J6uKvsvUBG1DTafWRtOQotQFo0rPq1BIi7mbUmczUlU6pwEIXZDhp6w==
   dependencies:
     "@foundry-rs/easy-foundryup" "^0.1.3"
     "@nomiclabs/hardhat-ethers" "^2.0.0"
@@ -3189,14 +3189,6 @@
   integrity sha512-C6Be6l+vTpao19PvMH2CB/lhL1TRLkhdPkvQCF/zqkY1e+0iqY2Bb9Jd3PTt6I8QvMm89ZDerrCJC9927ZHmlg==
   dependencies:
     fs-extra "^9.1.0"
-
-"@typechain/hardhat@^6.1.2":
-  version "6.1.2"
-  resolved "https://registry.yarnpkg.com/@typechain/hardhat/-/hardhat-6.1.2.tgz#d3beccc6937d93f9b437616b741f839a8b953693"
-  integrity sha512-k4Ea3pVITKB2DH8p1a5U38cyy7KZPD04Spo4q5b4wO+n2mT+uAz5dxckPtbczn/Kk5wiFq+ZkuOtw5ZKFhL/+w==
-  dependencies:
-    fs-extra "^9.1.0"
-    lodash "^4.17.15"
 
 "@types/abstract-leveldown@*":
   version "5.0.2"
