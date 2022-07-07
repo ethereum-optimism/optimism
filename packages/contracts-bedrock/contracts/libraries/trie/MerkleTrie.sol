@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.9;
 
-/* Library Imports */
-import { BytesUtils } from "../BytesUtils.sol";
+import { BytesLib } from "solidity-bytes-utils/contracts/BytesLib.sol";
 import { RLPReader } from "../rlp/RLPReader.sol";
 import { RLPWriter } from "../rlp/RLPWriter.sol";
+import { Nibbles } from "../Nibbles.sol";
 
 /**
  * @title MerkleTrie
@@ -73,7 +73,7 @@ library MerkleTrie {
     ) internal pure returns (bool _verified) {
         (bool exists, bytes memory value) = get(_key, _proof, _root);
 
-        return (exists && BytesUtils.equal(_value, value));
+        return (exists && BytesLib.equal(_value, value));
     }
 
     /**
@@ -132,7 +132,7 @@ library MerkleTrie {
         )
     {
         uint256 pathLength = 0;
-        bytes memory key = BytesUtils.toNibbles(_key);
+        bytes memory key = Nibbles.toNibbles(_key);
 
         bytes32 currentNodeID = _root;
         uint256 currentKeyIndex = 0;
@@ -160,7 +160,7 @@ library MerkleTrie {
             } else {
                 // Nodes smaller than 31 bytes aren't hashed.
                 require(
-                    BytesUtils.toBytes32(currentNode.encoded) == currentNodeID,
+                    bytes32(currentNode.encoded) == currentNodeID,
                     "Invalid internal node hash"
                 );
             }
@@ -183,8 +183,12 @@ library MerkleTrie {
                 bytes memory path = _getNodePath(currentNode);
                 uint8 prefix = uint8(path[0]);
                 uint8 offset = 2 - (prefix % 2);
-                bytes memory pathRemainder = BytesUtils.slice(path, offset);
-                bytes memory keyRemainder = BytesUtils.slice(key, currentKeyIndex);
+                bytes memory pathRemainder = BytesLib.slice(path, offset, path.length - offset);
+                bytes memory keyRemainder = BytesLib.slice(
+                    key,
+                    currentKeyIndex,
+                    key.length - currentKeyIndex
+                );
                 uint256 sharedNibbleLength = _getSharedNibbleLength(pathRemainder, keyRemainder);
 
                 if (prefix == PREFIX_LEAF_EVEN || prefix == PREFIX_LEAF_ODD) {
@@ -224,7 +228,11 @@ library MerkleTrie {
 
         // If our node ID is NULL, then we're at a dead end.
         bool isFinalNode = currentNodeID == bytes32(RLP_NULL);
-        return (pathLength, BytesUtils.slice(key, currentKeyIndex), isFinalNode);
+        return (
+            pathLength,
+            BytesLib.slice(key, currentKeyIndex, key.length - currentKeyIndex),
+            isFinalNode
+        );
     }
 
     /**
@@ -262,7 +270,7 @@ library MerkleTrie {
             nodeID = RLPReader.readBytes(_node);
         }
 
-        return BytesUtils.toBytes32(nodeID);
+        return bytes32(nodeID);
     }
 
     /**
@@ -271,7 +279,7 @@ library MerkleTrie {
      * @return _path Node path, converted to an array of nibbles.
      */
     function _getNodePath(TrieNode memory _node) private pure returns (bytes memory _path) {
-        return BytesUtils.toNibbles(RLPReader.readBytes(_node.decoded[0]));
+        return Nibbles.toNibbles(RLPReader.readBytes(_node.decoded[0]));
     }
 
     /**

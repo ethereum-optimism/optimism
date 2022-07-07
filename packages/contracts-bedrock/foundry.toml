@@ -9,6 +9,7 @@ remappings = [
   '@openzeppelin/contracts/=node_modules/@openzeppelin/contracts/',
   'excessively-safe-call/=node_modules/excessively-safe-call/',
   '@rari-capital/solmate/=node_modules/@rari-capital/solmate',
+  'solidity-bytes-utils=node_modules/solidity-bytes-utils',
   'forge-std/=node_modules/forge-std/src',
   'ds-test/=node_modules/ds-test/src'
 ]

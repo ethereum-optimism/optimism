@@ -46,7 +46,8 @@
     "forge-std": "https://github.com/foundry-rs/forge-std.git#62caef29b0f87a2c6aaaf634b2ca4c09b6867c92",
     "hardhat": "^2.9.6",
     "merkle-patricia-tree": "^4.2.4",
-    "rlp": "^2.2.7"
+    "rlp": "^2.2.7",
+    "solidity-bytes-utils": "0.8.0"
   },
   "devDependencies": {
     "@eth-optimism/hardhat-deploy-config": "^0.2.0",
