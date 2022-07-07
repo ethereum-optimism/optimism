@@ -5,11 +5,11 @@ import { Bridge_Initializer } from "./CommonTest.t.sol";
 import { LibRLP } from "./RLP.t.sol";
 
 contract OptimismMintableTokenFactory_Test is Bridge_Initializer {
-    event StandardL2TokenCreated(address indexed _remoteToken, address indexed _localToken);
+    event StandardL2TokenCreated(address indexed remoteToken, address indexed localToken);
     event OptimismMintableTokenCreated(
-        address indexed _localToken,
-        address indexed _remoteToken,
-        address _deployer
+        address indexed localToken,
+        address indexed remoteToken,
+        address deployer
     );
 
     function setUp() public override {

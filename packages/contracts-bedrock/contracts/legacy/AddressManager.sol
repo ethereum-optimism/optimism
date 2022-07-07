@@ -12,7 +12,7 @@ contract AddressManager is Ownable {
      * Events *
      **********/
 
-    event AddressSet(string indexed _name, address _newAddress, address _oldAddress);
+    event AddressSet(string indexed name, address newAddress, address oldAddress);
 
     /*************
      * Variables *

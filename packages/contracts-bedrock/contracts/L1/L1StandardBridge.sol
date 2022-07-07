@@ -22,72 +22,72 @@ contract L1StandardBridge is StandardBridge, Initializable {
      * @custom:legacy
      * @notice Emitted whenever a deposit of ETH from L1 into L2 is initiated.
      *
-     * @param _from      Address of the depositor.
-     * @param _to        Address of the recipient on L2.
-     * @param _amount    Amount of ETH deposited.
-     * @param _extraData Extra data attached to the deposit.
+     * @param from      Address of the depositor.
+     * @param to        Address of the recipient on L2.
+     * @param amount    Amount of ETH deposited.
+     * @param extraData Extra data attached to the deposit.
      */
     event ETHDepositInitiated(
-        address indexed _from,
-        address indexed _to,
-        uint256 _amount,
-        bytes _extraData
+        address indexed from,
+        address indexed to,
+        uint256 amount,
+        bytes extraData
     );
 
     /**
      * @custom:legacy
      * @notice Emitted whenever a withdrawal of ETH from L2 to L1 is finalized.
      *
-     * @param _from      Address of the withdrawer.
-     * @param _to        Address of the recipient on L1.
-     * @param _amount    Amount of ETH withdrawn.
-     * @param _extraData Extra data attached to the withdrawal.
+     * @param from      Address of the withdrawer.
+     * @param to        Address of the recipient on L1.
+     * @param amount    Amount of ETH withdrawn.
+     * @param extraData Extra data attached to the withdrawal.
      */
     event ETHWithdrawalFinalized(
-        address indexed _from,
-        address indexed _to,
-        uint256 _amount,
-        bytes _extraData
+        address indexed from,
+        address indexed to,
+        uint256 amount,
+        bytes extraData
     );
 
     /**
      * @custom:legacy
      * @notice Emitted whenever an ERC20 deposit is initiated.
      *
-     * @param _l1Token   Address of the token on L1.
-     * @param _l2Token   Address of the corresponding token on L2.
-     * @param _from      Address of the depositor.
-     * @param _to        Address of the recipient on L2.
-     * @param _amount    Amount of the ERC20 deposited.
-     * @param _extraData Extra data attached to the deposit.
+     * @param l1Token   Address of the token on L1.
+     * @param l2Token   Address of the corresponding token on L2.
+     * @param from      Address of the depositor.
+     * @param to        Address of the recipient on L2.
+     * @param amount    Amount of the ERC20 deposited.
+     * @param extraData Extra data attached to the deposit.
      */
     event ERC20DepositInitiated(
-        address indexed _l1Token,
-        address indexed _l2Token,
-        address indexed _from,
-        address _to,
-        uint256 _amount,
-        bytes _extraData
+        address indexed l1Token,
+        address indexed l2Token,
+        address indexed from,
+        address to,
+        uint256 amount,
+        bytes extraData
     );
 
     /**
      * @custom:legacy
      * @notice Emitted whenever an ERC20 withdrawal is finalized.
      *
-     * @param _l1Token   Address of the token on L1.
-     * @param _l2Token   Address of the corresponding token on L2.
-     * @param _from      Address of the withdrawer.
-     * @param _to        Address of the recipient on L1.
-     * @param _amount    Amount of the ERC20 withdrawn.
-     * @param _extraData Extra data attached to the withdrawal.
+     * @param l1Token   Address of the token on L1.
+     * @param l2Token   Address of the corresponding token on L2.
+     * @param from      Address of the withdrawer.
+     * @param to        Address of the recipient on L1.
+     * @param amount    Amount of the ERC20 withdrawn.
+     * @param extraData Extra data attached to the withdrawal.
      */
     event ERC20WithdrawalFinalized(
-        address indexed _l1Token,
-        address indexed _l2Token,
-        address indexed _from,
-        address _to,
-        uint256 _amount,
-        bytes _extraData
+        address indexed l1Token,
+        address indexed l2Token,
+        address indexed from,
+        address to,
+        uint256 amount,
+        bytes extraData
     );
 
     /**

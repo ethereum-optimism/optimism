@@ -22,60 +22,60 @@ contract L2StandardBridge is StandardBridge {
      * @custom:legacy
      * @notice Emitted whenever a withdrawal from L2 to L1 is initiated.
      *
-     * @param _l1Token   Address of the token on L1.
-     * @param _l2Token   Address of the corresponding token on L2.
-     * @param _from      Address of the withdrawer.
-     * @param _to        Address of the recipient on L1.
-     * @param _amount    Amount of the ERC20 withdrawn.
-     * @param _extraData Extra data attached to the withdrawal.
+     * @param l1Token   Address of the token on L1.
+     * @param l2Token   Address of the corresponding token on L2.
+     * @param from      Address of the withdrawer.
+     * @param to        Address of the recipient on L1.
+     * @param amount    Amount of the ERC20 withdrawn.
+     * @param extraData Extra data attached to the withdrawal.
      */
     event WithdrawalInitiated(
-        address indexed _l1Token,
-        address indexed _l2Token,
-        address indexed _from,
-        address _to,
-        uint256 _amount,
-        bytes _extraData
+        address indexed l1Token,
+        address indexed l2Token,
+        address indexed from,
+        address to,
+        uint256 amount,
+        bytes extraData
     );
 
     /**
      * @custom:legacy
      * @notice Emitted whenever an ERC20 deposit is finalized.
      *
-     * @param _l1Token   Address of the token on L1.
-     * @param _l2Token   Address of the corresponding token on L2.
-     * @param _from      Address of the depositor.
-     * @param _to        Address of the recipient on L2.
-     * @param _amount    Amount of the ERC20 deposited.
-     * @param _extraData Extra data attached to the deposit.
+     * @param l1Token   Address of the token on L1.
+     * @param l2Token   Address of the corresponding token on L2.
+     * @param from      Address of the depositor.
+     * @param to        Address of the recipient on L2.
+     * @param amount    Amount of the ERC20 deposited.
+     * @param extraData Extra data attached to the deposit.
      */
     event DepositFinalized(
-        address indexed _l1Token,
-        address indexed _l2Token,
-        address indexed _from,
-        address _to,
-        uint256 _amount,
-        bytes _extraData
+        address indexed l1Token,
+        address indexed l2Token,
+        address indexed from,
+        address to,
+        uint256 amount,
+        bytes extraData
     );
 
     /**
      * @custom:legacy
      * @notice Emitted whenever a deposit fails.
      *
-     * @param _l1Token   Address of the token on L1.
-     * @param _l2Token   Address of the corresponding token on L2.
-     * @param _from      Address of the depositor.
-     * @param _to        Address of the recipient on L2.
-     * @param _amount    Amount of the ERC20 deposited.
-     * @param _extraData Extra data attached to the deposit.
+     * @param l1Token   Address of the token on L1.
+     * @param l2Token   Address of the corresponding token on L2.
+     * @param from      Address of the depositor.
+     * @param to        Address of the recipient on L2.
+     * @param amount    Amount of the ERC20 deposited.
+     * @param extraData Extra data attached to the deposit.
      */
     event DepositFailed(
-        address indexed _l1Token,
-        address indexed _l2Token,
-        address indexed _from,
-        address _to,
-        uint256 _amount,
-        bytes _extraData
+        address indexed l1Token,
+        address indexed l2Token,
+        address indexed from,
+        address to,
+        uint256 amount,
+        bytes extraData
     );
 
     /**

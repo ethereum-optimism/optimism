@@ -231,103 +231,103 @@ contract Bridge_Initializer is Messenger_Initializer {
     OptimismMintableERC20 RemoteL1Token;
 
     event ETHDepositInitiated(
-        address indexed _from,
-        address indexed _to,
-        uint256 _amount,
-        bytes _data
+        address indexed from,
+        address indexed to,
+        uint256 amount,
+        bytes data
     );
 
     event ETHWithdrawalFinalized(
-        address indexed _from,
-        address indexed _to,
-        uint256 _amount,
-        bytes _data
+        address indexed from,
+        address indexed to,
+        uint256 amount,
+        bytes data
     );
 
     event ERC20DepositInitiated(
-        address indexed _l1Token,
-        address indexed _l2Token,
-        address indexed _from,
-        address _to,
-        uint256 _amount,
-        bytes _data
+        address indexed l1Token,
+        address indexed l2Token,
+        address indexed from,
+        address to,
+        uint256 amount,
+        bytes data
     );
 
     event ERC20WithdrawalFinalized(
-        address indexed _l1Token,
-        address indexed _l2Token,
-        address indexed _from,
-        address _to,
-        uint256 _amount,
-        bytes _data
+        address indexed l1Token,
+        address indexed l2Token,
+        address indexed from,
+        address to,
+        uint256 amount,
+        bytes data
     );
 
     event WithdrawalInitiated(
-        address indexed _l1Token,
-        address indexed _l2Token,
-        address indexed _from,
-        address _to,
-        uint256 _amount,
-        bytes _data
+        address indexed l1Token,
+        address indexed l2Token,
+        address indexed from,
+        address to,
+        uint256 amount,
+        bytes data
     );
 
     event DepositFinalized(
-        address indexed _l1Token,
-        address indexed _l2Token,
-        address indexed _from,
-        address _to,
-        uint256 _amount,
-        bytes _data
+        address indexed l1Token,
+        address indexed l2Token,
+        address indexed from,
+        address to,
+        uint256 amount,
+        bytes data
     );
 
     event DepositFailed(
-        address indexed _l1Token,
-        address indexed _l2Token,
-        address indexed _from,
-        address _to,
-        uint256 _amount,
-        bytes _data
+        address indexed l1Token,
+        address indexed l2Token,
+        address indexed from,
+        address to,
+        uint256 amount,
+        bytes data
     );
 
     event ETHBridgeInitiated(
-        address indexed _from,
-        address indexed _to,
-        uint256 _amount,
-        bytes _data
+        address indexed from,
+        address indexed to,
+        uint256 amount,
+        bytes data
     );
 
     event ETHBridgeFinalized(
-        address indexed _from,
-        address indexed _to,
-        uint256 _amount,
-        bytes _data
+        address indexed from,
+        address indexed to,
+        uint256 amount,
+        bytes data
     );
 
     event ERC20BridgeInitiated(
-        address indexed _localToken,
-        address indexed _remoteToken,
-        address indexed _from,
-        address _to,
-        uint256 _amount,
-        bytes _data
+        address indexed localToken,
+        address indexed remoteToken,
+        address indexed from,
+        address to,
+        uint256 amount,
+        bytes data
     );
 
     event ERC20BridgeFinalized(
-        address indexed _localToken,
-        address indexed _remoteToken,
-        address indexed _from,
-        address _to,
-        uint256 _amount,
-        bytes _data
+        address indexed localToken,
+        address indexed remoteToken,
+        address indexed from,
+        address to,
+        uint256 amount,
+        bytes data
     );
 
     event ERC20BridgeFailed(
-        address indexed _localToken,
-        address indexed _remoteToken,
-        address indexed _from,
-        address _to,
-        uint256 _amount,
-        bytes _data
+        address indexed localToken,
+        address indexed remoteToken,
+        address indexed from,
+        address to,
+        uint256 amount,
+        bytes data
     );
 
     function setUp() public virtual override {

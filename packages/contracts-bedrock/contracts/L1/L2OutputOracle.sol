@@ -30,31 +30,30 @@ contract L2OutputOracle is OwnableUpgradeable {
         uint256 timestamp;
     }
 
-    // TODO: Events should NOT be underscore prefixed.
     /**
      * @notice Emitted when an output is appended.
      *
-     * @param _l2Output      The output root.
-     * @param _l1Timestamp   The L1 timestamp when appended.
-     * @param _l2BlockNumber The L2 block number of the output root.
+     * @param l2Output      The output root.
+     * @param l1Timestamp   The L1 timestamp when appended.
+     * @param l2BlockNumber The L2 block number of the output root.
      */
     event L2OutputAppended(
-        bytes32 indexed _l2Output,
-        uint256 indexed _l1Timestamp,
-        uint256 indexed _l2BlockNumber
+        bytes32 indexed l2Output,
+        uint256 indexed l1Timestamp,
+        uint256 indexed l2BlockNumber
     );
 
     /**
      * @notice Emitted when an output is deleted.
      *
-     * @param _l2Output      The output root.
-     * @param _l1Timestamp   The L1 timestamp when appended.
-     * @param _l2BlockNumber The L2 block number of the output root.
+     * @param l2Output      The output root.
+     * @param l1Timestamp   The L1 timestamp when appended.
+     * @param l2BlockNumber The L2 block number of the output root.
      */
     event L2OutputDeleted(
-        bytes32 indexed _l2Output,
-        uint256 indexed _l1Timestamp,
-        uint256 indexed _l2BlockNumber
+        bytes32 indexed l2Output,
+        uint256 indexed l1Timestamp,
+        uint256 indexed l2BlockNumber
     );
 
     /**
