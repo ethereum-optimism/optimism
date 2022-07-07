@@ -57,6 +57,12 @@ contract Proxy {
         _doProxyCall();
     }
 
+    // slither-disable-next-line locked-ether
+    receive() external payable {
+        // Proxy call by default.
+        _doProxyCall();
+    }
+
     /**
      * @notice A modifier that reverts if not called by the owner or by address(0) to allow
      *         eth_call to interact with this proxy without needing to use low-level storage
@@ -146,11 +152,11 @@ contract Proxy {
      * @return Implementation address.
      */
     function _getImplementation() internal view returns (address) {
-        address implementation;
+        address impl;
         assembly {
-            implementation := sload(IMPLEMENTATION_KEY)
+            impl := sload(IMPLEMENTATION_KEY)
         }
-        return implementation;
+        return impl;
     }
 
     /**
@@ -183,15 +189,15 @@ contract Proxy {
      * @notice Performs the proxy call via a delegatecall.
      */
     function _doProxyCall() internal {
-        address implementation = _getImplementation();
-        require(implementation != address(0), "Proxy: implementation not initialized");
+        address impl = _getImplementation();
+        require(impl != address(0), "Proxy: implementation not initialized");
 
         assembly {
             // Copy calldata into memory at 0x0....calldatasize.
             calldatacopy(0x0, 0x0, calldatasize())
 
             // Perform the delegatecall, make sure to pass all available gas.
-            let success := delegatecall(gas(), implementation, 0x0, calldatasize(), 0x0, 0x0)
+            let success := delegatecall(gas(), impl, 0x0, calldatasize(), 0x0, 0x0)
 
             // Copy returndata into memory at 0x0....returndatasize. Note that this *will*
             // overwrite the calldata that we just copied into memory but that doesn't really
