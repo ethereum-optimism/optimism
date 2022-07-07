@@ -112,7 +112,7 @@ task('genesis-l2', 'create a genesis config')
         hash: deployConfig.l1BlockInitialHash,
         sequenceNumber: deployConfig.l1BlockInitialSequenceNumber,
       },
-      OVM_ETH: {
+      LegacyERC20ETH: {
         bridge: predeploys.L2StandardBridge,
         remoteToken: ethers.constants.AddressZero,
         _name: 'Ether',
@@ -150,9 +150,9 @@ task('genesis-l2', 'create a genesis config')
         ethers.utils.hexConcat([prefix, num])
       )
 
-      // There is no proxy at OVM_ETH or the GovernanceToken
+      // There is no proxy at LegacyERC20ETH or the GovernanceToken
       if (
-        addr === ethers.utils.getAddress(predeploys.OVM_ETH) ||
+        addr === ethers.utils.getAddress(predeploys.LegacyERC20ETH) ||
         addr === ethers.utils.getAddress(predeploys.GovernanceToken)
       ) {
         continue
@@ -236,7 +236,7 @@ task('genesis-l2', 'create a genesis config')
       const artifact = await hre.artifacts.readArtifact(name)
       assertEvenLength(artifact.deployedBytecode)
 
-      const allocAddr = name === 'OVM_ETH' ? addr : toCodeAddr(addr)
+      const allocAddr = name === 'LegacyERC20ETH' ? addr : toCodeAddr(addr)
       assertEvenLength(allocAddr)
 
       alloc[allocAddr] = {

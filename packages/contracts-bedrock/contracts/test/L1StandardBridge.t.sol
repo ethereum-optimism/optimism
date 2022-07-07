@@ -5,7 +5,7 @@ import { Bridge_Initializer } from "./CommonTest.t.sol";
 import { StandardBridge } from "../universal/StandardBridge.sol";
 import { L2StandardBridge } from "../L2/L2StandardBridge.sol";
 import { CrossDomainMessenger } from "../universal/CrossDomainMessenger.sol";
-import { Lib_PredeployAddresses } from "../libraries/Lib_PredeployAddresses.sol";
+import { PredeployAddresses } from "../libraries/PredeployAddresses.sol";
 import { AddressAliasHelper } from "../vendor/AddressAliasHelper.sol";
 import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import { stdStorage, StdStorage } from "forge-std/Test.sol";
@@ -25,12 +25,12 @@ contract L1StandardBridge_Test is Bridge_Initializer {
 
         assertEq(
             address(L1Bridge.otherBridge()),
-            Lib_PredeployAddresses.L2_STANDARD_BRIDGE
+            PredeployAddresses.L2_STANDARD_BRIDGE
         );
 
         assertEq(
             address(L2Bridge),
-            Lib_PredeployAddresses.L2_STANDARD_BRIDGE
+            PredeployAddresses.L2_STANDARD_BRIDGE
         );
     }
 

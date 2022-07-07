@@ -6,17 +6,17 @@ import { Proxy } from "../universal/Proxy.sol";
 import { ProxyAdmin } from "../universal/ProxyAdmin.sol";
 import { SimpleStorage } from "./Proxy.t.sol";
 import { L1ChugSplashProxy } from "../legacy/L1ChugSplashProxy.sol";
-import { Lib_ResolvedDelegateProxy } from "../legacy/Lib_ResolvedDelegateProxy.sol";
-import { Lib_AddressManager } from "../legacy/Lib_AddressManager.sol";
+import { ResolvedDelegateProxy } from "../legacy/ResolvedDelegateProxy.sol";
+import { AddressManager } from "../legacy/AddressManager.sol";
 
 contract ProxyAdmin_Test is Test {
     address alice = address(64);
 
     Proxy proxy;
     L1ChugSplashProxy chugsplash;
-    Lib_ResolvedDelegateProxy resolved;
+    ResolvedDelegateProxy resolved;
 
-    Lib_AddressManager addressManager;
+    AddressManager addressManager;
 
     ProxyAdmin admin;
 
@@ -31,22 +31,22 @@ contract ProxyAdmin_Test is Test {
         // Deploy the legacy L1ChugSplashProxy with the admin as the owner
         chugsplash = new L1ChugSplashProxy(address(admin));
 
-        // Deploy the legacy Lib_AddressManager
-        addressManager = new Lib_AddressManager();
+        // Deploy the legacy AddressManager
+        addressManager = new AddressManager();
         // The proxy admin must be the new owner of the address manager
         addressManager.transferOwnership(address(admin));
-        // Deploy a legacy Lib_ResolvedDelegateProxy with the name `a`.
-        // Whatever `a` is set to in Lib_AddressManager will be the address
+        // Deploy a legacy ResolvedDelegateProxy with the name `a`.
+        // Whatever `a` is set to in AddressManager will be the address
         // that is used for the implementation.
-        resolved = new Lib_ResolvedDelegateProxy(address(addressManager), "a");
+        resolved = new ResolvedDelegateProxy(address(addressManager), "a");
 
         // Impersonate alice for setting up the admin.
         vm.startPrank(alice);
         // Set the address of the address manager in the admin so that it
         // can resolve the implementation address of legacy
-        // Lib_ResolvedDelegateProxy based proxies.
+        // ResolvedDelegateProxy based proxies.
         admin.setAddressManager(addressManager);
-        // Set the reverse lookup of the Lib_ResolvedDelegateProxy
+        // Set the reverse lookup of the ResolvedDelegateProxy
         // proxy
         admin.setImplementationName(address(resolved), "a");
 
@@ -70,7 +70,7 @@ contract ProxyAdmin_Test is Test {
 
     function test_onlyOwnerSetAddressManager() external {
         vm.expectRevert("UNAUTHORIZED");
-        admin.setAddressManager(Lib_AddressManager((address(0))));
+        admin.setAddressManager(AddressManager((address(0))));
     }
 
     function test_onlyOwnerSetImplementationName() external {

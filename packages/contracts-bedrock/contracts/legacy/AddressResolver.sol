@@ -2,27 +2,27 @@
 pragma solidity ^0.8.9;
 
 /* Library Imports */
-import { Lib_AddressManager } from "./Lib_AddressManager.sol";
+import { AddressManager } from "./AddressManager.sol";
 
 /**
- * @title Lib_AddressResolver
+ * @title AddressResolver
  */
-abstract contract Lib_AddressResolver {
+abstract contract AddressResolver {
     /*************
      * Variables *
      *************/
 
-    Lib_AddressManager public libAddressManager;
+    AddressManager public libAddressManager;
 
     /***************
      * Constructor *
      ***************/
 
     /**
-     * @param _libAddressManager Address of the Lib_AddressManager.
+     * @param _libAddressManager Address of the AddressManager.
      */
     constructor(address _libAddressManager) {
-        libAddressManager = Lib_AddressManager(_libAddressManager);
+        libAddressManager = AddressManager(_libAddressManager);
     }
 
     /********************

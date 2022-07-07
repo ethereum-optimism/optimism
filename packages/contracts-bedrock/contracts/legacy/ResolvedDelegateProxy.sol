@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.9;
 
-import { Lib_AddressManager } from "./Lib_AddressManager.sol";
+import { AddressManager } from "./AddressManager.sol";
 
 /**
- * @title Lib_ResolvedDelegateProxy
+ * @title ResolvedDelegateProxy
  */
-contract Lib_ResolvedDelegateProxy {
+contract ResolvedDelegateProxy {
     /*************
      * Variables *
      *************/
@@ -20,18 +20,18 @@ contract Lib_ResolvedDelegateProxy {
     //      in the near future. Due to the very limited way that we are using it, this flaw is
     //      not an issue in our system.
     mapping(address => string) private implementationName;
-    mapping(address => Lib_AddressManager) private addressManager;
+    mapping(address => AddressManager) private addressManager;
 
     /***************
      * Constructor *
      ***************/
 
     /**
-     * @param _libAddressManager Address of the Lib_AddressManager.
+     * @param _libAddressManager Address of the AddressManager.
      * @param _implementationName implementationName of the contract to proxy to.
      */
     constructor(address _libAddressManager, string memory _implementationName) {
-        addressManager[address(this)] = Lib_AddressManager(_libAddressManager);
+        addressManager[address(this)] = AddressManager(_libAddressManager);
         implementationName[address(this)] = _implementationName;
     }
 

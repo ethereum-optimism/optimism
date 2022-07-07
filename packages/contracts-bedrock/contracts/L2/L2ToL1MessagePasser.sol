@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.9;
 
-import { WithdrawalVerifier } from "../libraries/Lib_WithdrawalVerifier.sol";
+import { WithdrawalVerifier } from "../libraries/WithdrawalVerifier.sol";
 import { Burn } from "../libraries/Burn.sol";
 
 /**

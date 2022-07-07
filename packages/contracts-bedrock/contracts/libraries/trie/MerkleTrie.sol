@@ -2,14 +2,14 @@
 pragma solidity ^0.8.9;
 
 /* Library Imports */
-import { Lib_BytesUtils } from "../Lib_BytesUtils.sol";
-import { Lib_RLPReader } from "../rlp/Lib_RLPReader.sol";
-import { Lib_RLPWriter } from "../rlp/Lib_RLPWriter.sol";
+import { BytesUtils } from "../BytesUtils.sol";
+import { RLPReader } from "../rlp/RLPReader.sol";
+import { RLPWriter } from "../rlp/RLPWriter.sol";
 
 /**
- * @title Lib_MerkleTrie
+ * @title MerkleTrie
  */
-library Lib_MerkleTrie {
+library MerkleTrie {
     /*******************
      * Data Structures *
      *******************/
@@ -22,7 +22,7 @@ library Lib_MerkleTrie {
 
     struct TrieNode {
         bytes encoded;
-        Lib_RLPReader.RLPItem[] decoded;
+        RLPReader.RLPItem[] decoded;
     }
 
     /**********************
@@ -73,7 +73,7 @@ library Lib_MerkleTrie {
     ) internal pure returns (bool _verified) {
         (bool exists, bytes memory value) = get(_key, _proof, _root);
 
-        return (exists && Lib_BytesUtils.equal(_value, value));
+        return (exists && BytesUtils.equal(_value, value));
     }
 
     /**
@@ -132,7 +132,7 @@ library Lib_MerkleTrie {
         )
     {
         uint256 pathLength = 0;
-        bytes memory key = Lib_BytesUtils.toNibbles(_key);
+        bytes memory key = BytesUtils.toNibbles(_key);
 
         bytes32 currentNodeID = _root;
         uint256 currentKeyIndex = 0;
@@ -160,7 +160,7 @@ library Lib_MerkleTrie {
             } else {
                 // Nodes smaller than 31 bytes aren't hashed.
                 require(
-                    Lib_BytesUtils.toBytes32(currentNode.encoded) == currentNodeID,
+                    BytesUtils.toBytes32(currentNode.encoded) == currentNodeID,
                     "Invalid internal node hash"
                 );
             }
@@ -174,7 +174,7 @@ library Lib_MerkleTrie {
                     // We're not at the end of the key yet.
                     // Figure out what the next node ID should be and continue.
                     uint8 branchKey = uint8(key[currentKeyIndex]);
-                    Lib_RLPReader.RLPItem memory nextNode = currentNode.decoded[branchKey];
+                    RLPReader.RLPItem memory nextNode = currentNode.decoded[branchKey];
                     currentNodeID = _getNodeID(nextNode);
                     currentKeyIncrement = 1;
                     continue;
@@ -183,8 +183,8 @@ library Lib_MerkleTrie {
                 bytes memory path = _getNodePath(currentNode);
                 uint8 prefix = uint8(path[0]);
                 uint8 offset = 2 - (prefix % 2);
-                bytes memory pathRemainder = Lib_BytesUtils.slice(path, offset);
-                bytes memory keyRemainder = Lib_BytesUtils.slice(key, currentKeyIndex);
+                bytes memory pathRemainder = BytesUtils.slice(path, offset);
+                bytes memory keyRemainder = BytesUtils.slice(key, currentKeyIndex);
                 uint256 sharedNibbleLength = _getSharedNibbleLength(pathRemainder, keyRemainder);
 
                 if (prefix == PREFIX_LEAF_EVEN || prefix == PREFIX_LEAF_ODD) {
@@ -224,7 +224,7 @@ library Lib_MerkleTrie {
 
         // If our node ID is NULL, then we're at a dead end.
         bool isFinalNode = currentNodeID == bytes32(RLP_NULL);
-        return (pathLength, Lib_BytesUtils.slice(key, currentKeyIndex), isFinalNode);
+        return (pathLength, BytesUtils.slice(key, currentKeyIndex), isFinalNode);
     }
 
     /**
@@ -233,12 +233,12 @@ library Lib_MerkleTrie {
      * @return _parsed Proof parsed into easily accessible structs.
      */
     function _parseProof(bytes memory _proof) private pure returns (TrieNode[] memory _parsed) {
-        Lib_RLPReader.RLPItem[] memory nodes = Lib_RLPReader.readList(_proof);
+        RLPReader.RLPItem[] memory nodes = RLPReader.readList(_proof);
         TrieNode[] memory proof = new TrieNode[](nodes.length);
 
         for (uint256 i = 0; i < nodes.length; i++) {
-            bytes memory encoded = Lib_RLPReader.readBytes(nodes[i]);
-            proof[i] = TrieNode({ encoded: encoded, decoded: Lib_RLPReader.readList(encoded) });
+            bytes memory encoded = RLPReader.readBytes(nodes[i]);
+            proof[i] = TrieNode({ encoded: encoded, decoded: RLPReader.readList(encoded) });
         }
 
         return proof;
@@ -251,18 +251,18 @@ library Lib_MerkleTrie {
      * @param _node Node to pull an ID for.
      * @return _nodeID ID for the node, depending on the size of its contents.
      */
-    function _getNodeID(Lib_RLPReader.RLPItem memory _node) private pure returns (bytes32 _nodeID) {
+    function _getNodeID(RLPReader.RLPItem memory _node) private pure returns (bytes32 _nodeID) {
         bytes memory nodeID;
 
         if (_node.length < 32) {
             // Nodes smaller than 32 bytes are RLP encoded.
-            nodeID = Lib_RLPReader.readRawBytes(_node);
+            nodeID = RLPReader.readRawBytes(_node);
         } else {
             // Nodes 32 bytes or larger are hashed.
-            nodeID = Lib_RLPReader.readBytes(_node);
+            nodeID = RLPReader.readBytes(_node);
         }
 
-        return Lib_BytesUtils.toBytes32(nodeID);
+        return BytesUtils.toBytes32(nodeID);
     }
 
     /**
@@ -271,7 +271,7 @@ library Lib_MerkleTrie {
      * @return _path Node path, converted to an array of nibbles.
      */
     function _getNodePath(TrieNode memory _node) private pure returns (bytes memory _path) {
-        return Lib_BytesUtils.toNibbles(Lib_RLPReader.readBytes(_node.decoded[0]));
+        return BytesUtils.toNibbles(RLPReader.readBytes(_node.decoded[0]));
     }
 
     /**
@@ -280,7 +280,7 @@ library Lib_MerkleTrie {
      * @return _value Node value, as hex bytes.
      */
     function _getNodeValue(TrieNode memory _node) private pure returns (bytes memory _value) {
-        return Lib_RLPReader.readBytes(_node.decoded[_node.decoded.length - 1]);
+        return RLPReader.readBytes(_node.decoded[_node.decoded.length - 1]);
     }
 
     /**

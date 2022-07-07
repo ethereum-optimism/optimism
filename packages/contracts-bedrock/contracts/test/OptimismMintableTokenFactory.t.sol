@@ -2,7 +2,7 @@
 pragma solidity 0.8.10;
 
 import { Bridge_Initializer } from "./CommonTest.t.sol";
-import { LibRLP } from "./Lib_RLP.t.sol";
+import { LibRLP } from "./RLP.t.sol";
 
 contract OptimismMintableTokenFactory_Test is Bridge_Initializer {
     event StandardL2TokenCreated(address indexed _remoteToken, address indexed _localToken);

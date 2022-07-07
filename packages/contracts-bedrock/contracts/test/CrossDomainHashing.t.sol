@@ -2,7 +2,7 @@
 pragma solidity 0.8.10;
 
 import { CommonTest } from "./CommonTest.t.sol";
-import { CrossDomainHashing } from "../libraries/Lib_CrossDomainHashing.sol";
+import { CrossDomainHashing } from "../libraries/CrossDomainHashing.sol";
 
 contract CrossDomainHashing_Test is CommonTest {
     function test_nonceVersioning(uint240 _nonce, uint16 _version) external {

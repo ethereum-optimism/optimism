@@ -3,14 +3,14 @@ pragma solidity 0.8.10;
 
 import { Messenger_Initializer } from "./CommonTest.t.sol";
 
-import { Lib_CrossDomainUtils } from "../libraries/Lib_CrossDomainUtils.sol";
+import { CrossDomainUtils } from "../libraries/CrossDomainUtils.sol";
 import { AddressAliasHelper } from "../vendor/AddressAliasHelper.sol";
 import { L2ToL1MessagePasser } from "../L2/L2ToL1MessagePasser.sol";
 import { L2OutputOracle } from "../L1/L2OutputOracle.sol";
 import { L2CrossDomainMessenger } from "../L2/L2CrossDomainMessenger.sol";
 import { L1CrossDomainMessenger } from "../L1/L1CrossDomainMessenger.sol";
-import { CrossDomainHashing } from "../libraries/Lib_CrossDomainHashing.sol";
-import { Lib_DefaultValues } from "../libraries/Lib_DefaultValues.sol";
+import { CrossDomainHashing } from "../libraries/CrossDomainHashing.sol";
+import { DefaultValues } from "../libraries/DefaultValues.sol";
 
 contract L2CrossDomainMessenger_Test is Messenger_Initializer {
     // Receiver address for testing

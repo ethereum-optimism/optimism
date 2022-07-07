@@ -2,7 +2,7 @@
 pragma solidity ^0.8.10;
 
 import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
-import { Lib_PredeployAddresses } from "../libraries/Lib_PredeployAddresses.sol";
+import { PredeployAddresses } from "../libraries/PredeployAddresses.sol";
 import { L1Block } from "../L2/L1Block.sol";
 
 /**
@@ -89,7 +89,7 @@ contract GasPriceOracle is Ownable {
      * @return Latest known L1 base fee.
      */
     function l1BaseFee() public view returns (uint256) {
-        return L1Block(Lib_PredeployAddresses.L1_BLOCK_ATTRIBUTES).basefee();
+        return L1Block(PredeployAddresses.L1_BLOCK_ATTRIBUTES).basefee();
     }
 
     /**
