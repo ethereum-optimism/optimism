@@ -279,8 +279,7 @@ contract L2OutputOracle is OwnableUpgradeable {
             "OutputOracle: Block number must be greater than or equal to the starting block number."
         );
 
-        return
-            STARTING_TIMESTAMP + ((_l2BlockNumber - STARTING_BLOCK_NUMBER) * SUBMISSION_INTERVAL);
+        return STARTING_TIMESTAMP + ((_l2BlockNumber - STARTING_BLOCK_NUMBER) * L2_BLOCK_TIME);
     }
 
     /**
