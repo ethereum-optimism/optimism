@@ -400,6 +400,18 @@ jobs:
               circleci step halt
             fi
       - run:
+          name: foundryup
+          command: |
+            curl -L https://foundry.paradigm.xyz | bash
+            source $HOME/.bashrc
+            foundryup
+            echo 'export PATH=$HOME/.foundry/bin:$PATH' >> $BASH_ENV
+      - run:
+          name: Install and build
+          command: |
+            yarn install
+            yarn build
+      - run:
           name: Bring up the stack
           command: |
             make devnet-up
@@ -578,9 +590,7 @@ workflows:
       - bedrock-go-tests
       - fuzz-op-node
       - bedrock-markdown
-      - devnet:
-          requires:
-            - yarn-monorepo
+      - devnet
       - go-lint-test-build:
           name: batch-submitter-tests
           binary_name: batch-submitter
