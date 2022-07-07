@@ -17,7 +17,7 @@ contract OptimismMintableTokenFactory_Test is Bridge_Initializer {
     }
 
     function test_initializeShouldRevert() external {
-        vm.expectRevert("OptimismMintableTokenFactory: already initialized");
+        vm.expectRevert("OptimismMintableERC20Factory: already initialized");
         L2TokenFactory.initialize(address(L1Bridge));
     }
 
@@ -36,7 +36,7 @@ contract OptimismMintableTokenFactory_Test is Bridge_Initializer {
         );
 
         vm.expectEmit(true, true, true, true);
-        emit OptimismMintableTokenCreated(
+        emit OptimismMintableERC20Created(
             remote,
             local,
             alice
@@ -61,7 +61,7 @@ contract OptimismMintableTokenFactory_Test is Bridge_Initializer {
         );
 
         vm.expectEmit(true, true, true, true);
-        emit OptimismMintableTokenCreated(
+        emit OptimismMintableERC20Created(
             remote,
             local,
             alice
@@ -73,7 +73,7 @@ contract OptimismMintableTokenFactory_Test is Bridge_Initializer {
 
     function test_createStandardL2TokenShouldRevertIfRemoteIsZero() external {
         address remote = address(0);
-        vm.expectRevert("OptimismMintableTokenFactory: must provide remote token address");
+        vm.expectRevert("OptimismMintableERC20Factory: must provide remote token address");
         L2TokenFactory.createStandardL2Token(remote, "Beep", "BOOP");
     }
 }
