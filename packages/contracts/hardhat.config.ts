@@ -4,6 +4,7 @@ import * as dotenv from 'dotenv'
 import { ethers } from 'ethers'
 
 // Hardhat plugins
+import '@eth-optimism/hardhat-deploy-config'
 import '@nomiclabs/hardhat-ethers'
 import '@nomiclabs/hardhat-waffle'
 import '@nomiclabs/hardhat-etherscan'
@@ -12,7 +13,6 @@ import '@typechain/hardhat'
 import 'hardhat-deploy'
 import 'hardhat-gas-reporter'
 import 'hardhat-output-validator'
-import '@eth-optimism/hardhat-deploy-config'
 
 // Hardhat tasks
 import './tasks'
