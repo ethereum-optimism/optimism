@@ -31,7 +31,7 @@ library Burn {
      *
      * @param _amount Amount of gas to burn.
      */
-    function gas(uint256 _amount) internal {
+    function gas(uint256 _amount) internal view {
         uint256 i = 0;
         uint256 initialGas = gasleft();
         while (initialGas - gasleft() < _amount) {
