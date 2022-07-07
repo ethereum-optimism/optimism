@@ -70,7 +70,7 @@ contract GasPriceOracle is Ownable {
      *
      * @return Current L2 gas price (base fee).
      */
-    function gasPrice() public returns (uint256) {
+    function gasPrice() public view returns (uint256) {
         return block.basefee;
     }
 
@@ -79,7 +79,7 @@ contract GasPriceOracle is Ownable {
      *
      * @return Current L2 base fee.
      */
-    function baseFee() public returns (uint256) {
+    function baseFee() public view returns (uint256) {
         return block.basefee;
     }
 

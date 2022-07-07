@@ -34,7 +34,7 @@ contract L2CrossDomainMessenger is CrossDomainMessenger {
      *
      * @return Address of the L1CrossDomainMessenger contract.
      */
-    function l1CrossDomainMessenger() public returns (address) {
+    function l1CrossDomainMessenger() public view returns (address) {
         return otherMessenger;
     }
 
