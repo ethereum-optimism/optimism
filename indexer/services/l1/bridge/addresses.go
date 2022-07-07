@@ -29,7 +29,7 @@ func NewAddresses(client bind.ContractBackend, addrMgrAddr common.Address) (*Add
 	}
 	ret.addrs["AddressManager"] = addrMgrAddr
 
-	mgr, err := bindings.NewLibAddressManager(addrMgrAddr, client)
+	mgr, err := bindings.NewAddressManager(addrMgrAddr, client)
 	if err != nil {
 		return nil, err
 	}
