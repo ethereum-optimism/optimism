@@ -186,7 +186,7 @@ contract Messenger_Initializer is L2OutputOracle_Initializer {
         vm.prank(multisig);
         addressManager.setAddress("OVM_L1CrossDomainMessenger", address(L1MessengerImpl));
         ResolvedDelegateProxy proxy = new ResolvedDelegateProxy(
-            address(addressManager),
+            addressManager,
             "OVM_L1CrossDomainMessenger"
         );
         L1Messenger = L1CrossDomainMessenger(address(proxy));
