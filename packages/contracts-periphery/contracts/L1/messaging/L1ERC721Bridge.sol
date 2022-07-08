@@ -10,7 +10,7 @@ import {
 import { IERC721 } from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import { Address } from "@openzeppelin/contracts/utils/Address.sol";
 import { L2ERC721Bridge } from "../../L2/messaging/L2ERC721Bridge.sol";
-import { Semver } from "../../universal/Semver.sol";
+import { Semver } from "@eth-optimism/contracts-bedrock/contracts/universal/Semver.sol";
 
 /**
  * @title L1ERC721Bridge

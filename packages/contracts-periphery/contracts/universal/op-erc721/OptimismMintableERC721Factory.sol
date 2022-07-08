@@ -5,7 +5,7 @@ import {
     OwnableUpgradeable
 } from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import { OptimismMintableERC721 } from "./OptimismMintableERC721.sol";
-import { Semver } from "../Semver.sol";
+import { Semver } from "@eth-optimism/contracts-bedrock/contracts/universal/Semver.sol";
 
 /**
  * @title OptimismMintableERC721Factory
