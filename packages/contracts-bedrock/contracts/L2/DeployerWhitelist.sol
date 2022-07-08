@@ -49,6 +49,9 @@ contract DeployerWhitelist is Semver {
      */
     mapping(address => bool) public whitelist;
 
+    /**
+     * @custom:semver 0.0.1
+     */
     constructor() Semver(0, 0, 1) {}
 
     /**

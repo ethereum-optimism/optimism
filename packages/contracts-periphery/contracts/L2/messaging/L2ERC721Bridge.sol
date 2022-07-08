@@ -84,6 +84,8 @@ contract L2ERC721Bridge is Semver, CrossDomainEnabled, OwnableUpgradeable {
     address public otherBridge;
 
     /**
+     * @custom:semver 0.0.1
+     *
      * @param _messenger   Address of the CrossDomainMessenger on this network.
      * @param _otherBridge Address of the ERC721 bridge on the other network.
      */

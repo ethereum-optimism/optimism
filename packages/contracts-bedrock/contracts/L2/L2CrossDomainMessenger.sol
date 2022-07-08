@@ -17,6 +17,8 @@ import { L2ToL1MessagePasser } from "./L2ToL1MessagePasser.sol";
  */
 contract L2CrossDomainMessenger is CrossDomainMessenger, Semver {
     /**
+     * @custom:semver 0.0.1
+     *
      * @param _l1CrossDomainMessenger Address of the L1CrossDomainMessenger contract.
      */
     constructor(address _l1CrossDomainMessenger) Semver(0, 0, 1) {

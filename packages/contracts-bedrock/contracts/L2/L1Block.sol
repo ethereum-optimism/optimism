@@ -43,6 +43,9 @@ contract L1Block is Semver {
      */
     uint64 public sequenceNumber;
 
+    /**
+     * @custom:semver 0.0.1
+     */
     constructor() Semver(0, 0, 1) {}
 
     /**

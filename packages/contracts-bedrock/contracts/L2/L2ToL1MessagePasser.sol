@@ -55,6 +55,9 @@ contract L2ToL1MessagePasser is Semver {
      */
     uint256 public nonce;
 
+    /**
+     * @custom:semver 0.0.1
+     */
     constructor() Semver(0, 0, 1) {}
 
     /**

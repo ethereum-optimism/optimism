@@ -16,7 +16,9 @@ import { Semver } from "../universal/Semver.sol";
  *         contract instead.
  */
 contract L1BlockNumber is Semver {
-
+    /**
+     * @custom:semver 0.0.1
+     */
     constructor() Semver(0, 0, 1) {}
 
     /**

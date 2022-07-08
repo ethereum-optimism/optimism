@@ -23,6 +23,9 @@ contract SequencerFeeVault is Semver {
      */
     address public l1FeeWallet;
 
+    /**
+     * @custom:semver 0.0.1
+     */
     constructor() Semver(0, 0, 1) {}
 
     /**

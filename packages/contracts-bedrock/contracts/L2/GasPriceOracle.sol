@@ -45,6 +45,8 @@ contract GasPriceOracle is Ownable, Semver {
     uint256 public decimals;
 
     /**
+     * @custom:semver 0.0.1
+     *
      * @param _owner Address that will initially own this contract.
      */
     constructor(address _owner) Ownable() Semver(0, 0, 1) {

@@ -80,6 +80,8 @@ contract L2StandardBridge is StandardBridge, Semver {
     );
 
     /**
+     * @custom:semver 0.0.1
+     *
      * @param _otherBridge Address of the L1StandardBridge.
      */
     constructor(address payable _otherBridge) Semver(0, 0, 1) {
