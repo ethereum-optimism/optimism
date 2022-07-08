@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.9;
 
+import { Semver } from "@eth-optimism/contracts-periphery/universal/Semver.sol";
 import { AddressAliasHelper } from "../vendor/AddressAliasHelper.sol";
 import { PredeployAddresses } from "../libraries/PredeployAddresses.sol";
 import { CrossDomainMessenger } from "../universal/CrossDomainMessenger.sol";
@@ -14,11 +15,11 @@ import { L2ToL1MessagePasser } from "./L2ToL1MessagePasser.sol";
  *         L2 on the L2 side. Users are generally encouraged to use this contract instead of lower
  *         level message passing contracts.
  */
-contract L2CrossDomainMessenger is CrossDomainMessenger {
+contract L2CrossDomainMessenger is CrossDomainMessenger, Semver {
     /**
      * @param _l1CrossDomainMessenger Address of the L1CrossDomainMessenger contract.
      */
-    constructor(address _l1CrossDomainMessenger) {
+    constructor(address _l1CrossDomainMessenger) Semver(0, 0, 1) {
         initialize(_l1CrossDomainMessenger);
     }
 

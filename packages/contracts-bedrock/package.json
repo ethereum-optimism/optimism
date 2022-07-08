@@ -50,6 +50,7 @@
   },
   "devDependencies": {
     "@eth-optimism/hardhat-deploy-config": "^0.2.0",
+    "@eth-optimism/contracts-periphery": "^0.1.5",
     "@defi-wonderland/smock": "^2.0.2",
     "@foundry-rs/hardhat-forge": "^0.1.12",
     "@nomiclabs/hardhat-ethers": "^2.0.0",

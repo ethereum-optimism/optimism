@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.9;
 
+import { Semver } from "@eth-optimism/contracts-periphery/universal/Semver.sol";
 import { PredeployAddresses } from "../libraries/PredeployAddresses.sol";
 import { StandardBridge } from "../universal/StandardBridge.sol";
 import { OptimismMintableERC20 } from "../universal/OptimismMintableERC20.sol";
@@ -17,7 +18,7 @@ import { OptimismMintableERC20 } from "../universal/OptimismMintableERC20.sol";
  *         tokens with blocklists.
  *         TODO: ensure that this has 1:1 backwards compatibility
  */
-contract L2StandardBridge is StandardBridge {
+contract L2StandardBridge is StandardBridge, Semver {
     /**
      * @custom:legacy
      * @notice Emitted whenever a withdrawal from L2 to L1 is initiated.
@@ -81,7 +82,7 @@ contract L2StandardBridge is StandardBridge {
     /**
      * @param _otherBridge Address of the L1StandardBridge.
      */
-    constructor(address payable _otherBridge) {
+    constructor(address payable _otherBridge) Semver(0, 0, 1) {
         initialize(_otherBridge);
     }
 

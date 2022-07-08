@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.9;
 
+import { Semver } from "@eth-optimism/contracts-periphery/universal/Semver.sol";
 import { WithdrawalVerifier } from "../libraries/WithdrawalVerifier.sol";
 import { Burn } from "../libraries/Burn.sol";
 
@@ -12,7 +13,7 @@ import { Burn } from "../libraries/Burn.sol";
  *         L2 to L1 can be stored. The storage root of this contract is pulled up to the top level
  *         of the L2 output to reduce the cost of proving the existence of sent messages.
  */
-contract L2ToL1MessagePasser {
+contract L2ToL1MessagePasser is Semver {
     /**
      * @notice Emitted any time a withdrawal is initiated.
      *
@@ -53,6 +54,8 @@ contract L2ToL1MessagePasser {
      * @notice A unique value hashed with each withdrawal.
      */
     uint256 public nonce;
+
+    constructor() Semver(0, 0, 1) {}
 
     /**
      * @notice Allows users to withdraw ETH by sending directly to this contract.
