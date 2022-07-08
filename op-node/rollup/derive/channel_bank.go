@@ -221,7 +221,7 @@ func (ib *ChannelBank) ResetStep(ctx context.Context, l1Fetcher L1Fetcher) error
 		ib.resetting = true
 		return nil
 	}
-	if ib.progress.Origin.Time+ib.cfg.ChannelTimeout < ib.next.Progress().Origin.Time || ib.progress.Origin.Number == 0 {
+	if ib.progress.Origin.Time+ib.cfg.ChannelTimeout < ib.next.Progress().Origin.Time || ib.progress.Origin.Number <= ib.cfg.Genesis.L1.Number {
 		ib.log.Debug("found reset origin for channel bank", "origin", ib.progress.Origin)
 		ib.resetting = false
 		return io.EOF
