@@ -85,6 +85,7 @@
     "istanbul": "^0.4.5",
     "lint-staged": "11.0.0",
     "mocha": "^10.0.0",
+    "mkdirp": "^1.0.4",
     "node-fetch": "^2.6.7",
     "prettier": "^2.3.1",
     "prettier-plugin-solidity": "^1.0.0-beta.18",
