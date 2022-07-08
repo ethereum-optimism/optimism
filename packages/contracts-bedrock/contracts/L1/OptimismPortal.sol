@@ -33,7 +33,7 @@ contract OptimismPortal is Initializable, ResourceMetering {
      * @param isCreation Whether the message is a contract creation.
      * @param data       Data to attach to the message and call the recipient with.
      */
-    event TransactionDeposited(
+    event TransactionDepositedV0(
         address indexed from,
         address indexed to,
         uint256 mint,
@@ -125,7 +125,7 @@ contract OptimismPortal is Initializable, ResourceMetering {
     }
 
     /**
-     * @notice Accepts deposits of ETH and data, and emits a TransactionDeposited event for use in
+     * @notice Accepts deposits of ETH and data, and emits a TransactionDepositedV0 event for use in
      *         deriving deposit transactions. Note that if a deposit is made by a contract, its
      *         address will be aliased when retrieved using `tx.origin` or `msg.sender`. Consider
      *         using the CrossDomainMessenger contracts for a simpler developer experience.
@@ -159,9 +159,9 @@ contract OptimismPortal is Initializable, ResourceMetering {
             from = AddressAliasHelper.applyL1ToL2Alias(msg.sender);
         }
 
-        // Emit a TransactionDeposited event so that the rollup node can derive a deposit
+        // Emit a TransactionDepositedV0 event so that the rollup node can derive a deposit
         // transaction for this deposit.
-        emit TransactionDeposited(from, _to, msg.value, _value, _gasLimit, _isCreation, _data);
+        emit TransactionDepositedV0(from, _to, msg.value, _value, _gasLimit, _isCreation, _data);
     }
 
     /**
