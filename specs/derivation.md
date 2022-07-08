@@ -35,6 +35,12 @@
 [g-channel-timeout]: glossary.md#channel-timeout
 [g-block-time]: glossary.md#block-time
 [g-time-slot]: glossary.md#time-slot
+[g-consolidation]: glossary.md#unsafe-block-consolidation
+[g-safe-l2-head]: glossary.md#safe-l2-head
+[g-unsafe-l2-head]: glossary.md#unsafe-l2-head
+[g-unsafe-l2-block]: glossary.md#unsafe-l2-block
+[g-unsafe-sync]: glossary.md#unsafe-sync
+[g-l1-origin]: glossary.md#l1-origin
 
 <!-- START doctoc generated TOC please keep comment here to allow auto update -->
 <!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
@@ -253,7 +259,10 @@ where:
 ### Channel Format
 
 A channel is encoded as `channel_encoding`, defined as:
-
+> **TODO** The channel queue is a bit weird as implemented (blocks all other channels until the first channel is closed
+> / timed out. Also unclear why we need to wait for channel closure. Maybe something to revisit?
+>
+> cf. slack discussion with Proto
 ```text
 rlp_batches = []
 for batch in batches:
@@ -288,6 +297,8 @@ compression and decompression of RLP-encoded batches. This means it is possible 
 contain.bBatch Submission Wire Format
 
 ### Batch Format
+
+[batch-format]: #batch-format
 
 Recall that a batch contains a list of transactions to be included in a specific L2 block.
 
@@ -333,10 +344,12 @@ Our architecture decomposes the derivation process into a pipeline made up of th
 
 1. L1 Traversal
 2. L1 Retrieval
-3. Channel Buffering
-4. Batch Decoding
-5. Payload Attributes Derivation
+3. Channel Bank
+4. Batch Decoding (called `ChannelInReader` in the code)
+5. Payload Attributes Derivation (called `BatchQueue` in the code)
 6. Engine Queue
+
+> **TODO** can we change code names for these two things? maybe as part of a refactor
 
 The data flows flows from the start (outer) of the pipeline towards the end (inner). Each stage is able to push data to
 the next step.
@@ -352,71 +365,102 @@ Each stage can maintain its own inner state as necessary. In particular, each st
 (number + hash) to the latest L1 block such that all data originating from previous blocks has been processed, and the
 data from that block is or has been processed.
 
-### Pipeline Stages
-
 Let's briefly describe each stage of the pipeline.
 
-In the **L1 Traversal** stage, we simply read the header of the next L1 block. In normal operations, these will be new
+### L1 Traversal
+
+In the *L1 Traversal* stage, we simply read the header of the next L1 block. In normal operations, these will be new
 L1 blocks as they get created, though we can also read old blocks while syncing, or in case of an L1 [re-org][g-reorg].
 
-In the **L1 Retrieval** stage, we read the block we get from the outer stage (L1 traversal), and extract data for it. In
+### L1 Retrieval
+
+In the *L1 Retrieval* stage, we read the block we get from the outer stage (L1 traversal), and extract data for it. In
 particular we extract a byte string that corresponds to the concatenation of the data in all the [batcher
 transaction][g-batcher-transaction] belonging to the block. This byte stream encodes a stream of [channel
 frames][g-channel-frame] (see the [Batch Submission Wire Format][wire-format] section for more info).
 
 This frames are parsed, then grouped them per [channel][g-channel] into a structure we call the *channel bank*.
 
-The **Channel Buffering** stage maintains a queue of channels, in order they were first seen on chain. Each step looks
-at the first channel in the queue, and if it is *closed* or *timed out*, then we push a byte string to the next stage,
-encoding all the sequential frames at the start of the channel (i.e. all frames in the channel in order, until the first
-missing frame).
+Some frames are ignored:
 
-- A channel is considered *closed* when its last frame (marked with `is_last == 1`) has been received. Note that this
-  does not imply that all frames have been received!
-- A channel is considered to be *timed out* if its timestamp (the `timestamp`part of its `channel_id` included in every
-  one of its frames).
-1. L1 Traversal
-2. L1 Retrieval
-3. Channel Buffering
-4. Batch Decoding
-5. Payload Attributes Derivation
-6. Engine Queue
+- Frames where `frame.frame_number <= progress`, where `progress` is the number of the latest frame that was read.
+    - i.e. in case of duplicate frame, the first frame read from L1 is considered canonical.
+- Frames past the end of the channel (i.e. past the first frame marked with `frame.is_last == 1`) are ignored.
+    - These frames could still be written into the channel bank if we haven't seen the last frame yet. But they will
+      never be read out from the channel bank.
 
-> **TODO** The channel queue is a bit weird as implemented (blocks all other channels until the first channel is closed
-> / timed out. Also unclear why we need to wait for channel closure. Maybe something to revisit?
->
-> cf. slack discussion with Proto
+### Channel Bank
 
-In the **Batch Decoding** stage, we simply decode [batches][g-sequencer-batch] from the frames we received from the last
+The *Channel Bank* stage is responsible from reading from the channel bank that was written to by the L1 retrieval
+stage, and decompressing batches from these frames.
+
+In principle, we should be able to read any channel that has any number of sequential frames at the "front" of the
+channel (i.e. right after any frames that have been read from the bank already) and decompress batchers from them. (Note
+that if we did this, we'd need to keep partially decompressed batches around.)
+
+However, our current implementation doesn't support streaming decompression, so currently we have to wait until either:
+
+- We have received all frames in the channel (i.e. we received the last frame in the channel (`is_last == 1`) and every
+  frame before it)
+- The channel has timed out (in which we case we read all contiguous sequential frames from the start of the channel).
+    - A channel is considered to be *timed out* if `currentL1Block > channeld_id.timestamp + CHANNEL_TIMEOUT`.
+        - where `currentL1Block` is the L1 block maintained by this stage, which is the latest L1 block whose frames
+          have been added to the channel bank.
+
+> **TODO** There is currently `MAX_CHANNEL_BANK_SIZE`, a notion about the maximum amount of channels we can keep track
+> of.
+> - Is this a semantic detail (i.e. if the batcher opens too many frames, valid channels can be dropped?)
+> - If so, I feel **very strongly** about changing this. This ties us very much to the current implementation.
+> - And it doesn't feel necessary given the channel timeout - if DOS is an issue we can reduce the channel timeout.
+
+### Batch Decoding
+
+In the *Batch Decoding* stage, we simply decode [batches][g-sequencer-batch] from the frames we received from the last
 stage.
 
-In the **Payload Attributes Derivation** stage, we convert the decoded batches into instances of the
+### Payload Attributes Derivation
+
+In the *Payload Attributes Derivation* stage, we convert the decoded batches into instances of the
 [`PayloadAttributes`][g-payload-attr] structure. Such a structure encodes the transactions that need to figure into a
 block, as well as other block inputs (timestamp, fee recipient, etc). Payload attributes derivation is detailed in the
 section [Deriving Payload Attributes section][deriving-payload-attr] below.
 
 If batches are missing for a given [time slot][g-time-slot], this stage generates empty batches to fill gaps.
 
-In the **Engine Queue** stage, the previous derived `PayloadAttributes` structures are sent to the [execution
-engine][g-exec-engine] to be executed and converted into a proper L2 block.
+### Engine Queue
 
-> **NOTE**
->
-> The currently implementation uses slightly different names for each stage, respectively:
->
-> 1. L1 Traversal → `L1Traversal`
-> 2. L1 Retrieval → `L1Retrieval`
-> 3. Channel Buffering → `ChannelBank`
-> 4. Batch Decoding → `ChannelInReader`
-> 5. Payload Attributes Derivation → `BatchQueue`
-> 6. Engine Queue → `EngineQueue`
+In the *Engine Queue* stage, the previously derived `PayloadAttributes` structures are buffered and sent to the
+[execution engine][g-exec-engine] to be executed and converted into a proper L2 block.
+
+The engine queue maintains references to two L2 blocks:
+
+- The [safe L2 head][g-safe-l2-head]: everything up to and including this block can be fully derived from the
+  canonical L1 chain.
+- The [unsafe L2 head][g-unsafe-l2-head]: blocks between the safe and unsafe heads are [unsafe
+  blocks][g-unsafe-l2-block] that have not been derived from L1. These blocks either come from sequencing (in sequencer
+  mode) or from [unsafe sync][g-unsafe-sync] to the sequencer (in validator mode).
+
+If the unsafe head is ahead of the safe head, then [consolidation][g-consolidation] is attempted.
+
+During consolidation, we consider the oldest unsafe L2 block, i.e. the unsafe L2 block directly after the safe head. If
+the payload attributes match this oldest unsafe L2 block, then that block can be considered "safe" and becomes the new
+safe head.
+
+In particular, the following fields of the payload attributes are checked for equality with the block:
+
+- `parent_hash`
+- `timestamp`
+- `randao`
+- `transactions_list` (first length, then equality of each of the encoded transactions)
+
+TODO link payload attributes spec / definition
+
+If consolidation fails, the unsafe L2 head is reset to the safe L2 head.
 
 ### Resetting the Pipeline
 
-It is possible to reset the pipeline, for instance if we detect an L1 [re-org][g-reorg]. Just like steps, pipeline
-stages are reset in reverse order and cause each stage to rollback its internal state to be congruent with later stages.
-
-In the case of a re-org, this means updating the state to match the new L1 head.
+It is possible to reset the pipeline, for instance if we detect an L1 [re-org][g-reorg]. For more details on this, see
+the [Handling L1 Re-Orgs][handling-reorgs] section.
 
 ------------------------------------------------------------------------------------------------------------------------
 
@@ -424,18 +468,140 @@ In the case of a re-org, this means updating the state to match the new L1 head.
 
 [deriving-payload-attr]: #deriving-payload-attributes
 
-> **TODO** revise this section
+For every L2 block we wish to create, we need to build [payload attributes][g-payload-attr], represented by an [expanded
+version][expanded-payload] of the [`PayloadAttributesV1`][eth-payload] object, which includes the additional `transactions` and
+`noTxPool` fields.
+
+[expanded-payload]: exec-engine.md#extended-payloadattributesv1
+[eth-payload]: https://github.com/ethereum/execution-apis/blob/main/src/engine/specification.md#payloadattributesv1
+
+## Deriving the Transaction List
+
+For each such block, we start from a [sequencer batch][g-sequencer-batch] matching the target L2 block number. This
+could potentially be an empty auto-generated batch, if the L1 chain did not include a batch for the target L2 block
+number. [Remember][batch-format] the batch includes a [sequencing epoch][g-sequencing-epoch] number, an L2 timestamp,
+and a transaction list.
+
+TODO reference epoch constraints
+
+This block is part of a [sequencing epoch][g-sequencing-epoch], whose number matches that of an L1 block (its *[L1
+origin][g-l1-origin]*). This L1 block is used to derive L1 attributes and (for the first L2 block in the epoch) user deposits.
+
+Therefore, a [`PayloadAttributesV1`] object must include the following transactions:
+
+- one or more [deposited transactions][g-deposited], of two kinds:
+  - a single *[L1 attributes deposited transaction][g-l1-attr-deposit]*, derived from the L1 origin.
+  - for the first L2 block in the epoch, zero or more *[user-deposited transactions][g-user-deposited]*, derived from
+    the [receipts][g-receipts] of the L1 origin.
+- zero or more *[sequenced transactions][g-sequencing]*: regular transactions signed by L2 users, included in the
+  sequencer batch.
+
+Transactions **must** appear in this order in the payload attributes.
+
+The L1 attributes are read from the L1 block header, while deposits are read from the L1 block's [receipts][g-receipts].
+Refer to the [**deposit contract specification**][deposit-contract-spec] for details on how deposits are encoded as log
+entries. The deposited and sequenced transactions are combined when the payload attributes are constructed.
+
+[deposit-contract-spec]: deposits.md#deposit-contract
+
+### Encoding Deposited Transactions
+
+The [L1 attributes deposited transaction][g-l1-attr-deposit] is a call that submits the L1 block attributes (listed
+above) to the [L1 attributes predeployed contract][g-l1-attr-predeploy].
+
+To encode the L1 attributes deposited transaction, refer to the following sections of the deposits spec:
+
+- [The Deposited Transaction Type](deposits.md#the-deposited-transaction-type)
+- [L1 Attributes Deposited Transaction](deposits.md#l1-attributes-deposited-transaction)
+
+A [user-deposited-transactions][g-deposited] is an L2 transaction derived from a [user deposit][g-deposits] submitted on
+L1 to the [deposit contract][g-deposit-contract]. Refer to the [deposit contract specification][deposit-contract-spec]
+for more details.
+
+The user-deposited transaction is derived from the log entry emitted by the [depositing call][g-depositing-call], which
+is stored in the [depositing transaction][g-depositing-transaction]'s log receipt.
+
+To encode user-deposited transactions, refer to the following sections of the deposits spec:
+
+- [The Deposited Transaction Type](deposits.md#the-deposited-transaction-type)
+- [User-Deposited Transactions](deposits.md#user-deposited-transactions)
+
+## Building Individual Payload Attributes
+
+[payload attributes]: #building-individual-payload-attributes
+
+After deriving the transaction list, the rollup node constructs a [`PayloadAttributesV1`][expanded-payload] as follows:
+
+- `timestamp` is set to the batch's timestamp.
+- `random` is set to the *random* `prev_randao` L1 block attribute.
+- `suggestedFeeRecipient` is set to an address determined by the system.
+- `transactions` is the array of the derived transactions: deposited transactions and sequenced transactions, all
+  encoded with [EIP-2718].
+- `noTxPool` is set to `true`, to use the exact above `transactions` list when constructing the block.
+
+[expanded-payload]: exec-engine.md#extended-payloadattributesv1
+[`PayloadAttributesV1`]: https://github.com/ethereum/execution-apis/blob/main/src/engine/specification.md#payloadattributesv1
+
+> **TODO** specify Optimism mainnet fee recipient
+
+## Sequencing Window Constraints
+
+TODO: This ha been copy pasted, and really doesn't fit with the rest, needs to integrate
+
+The Batch Queue buffers a full [sequencing window][g-sequencing-window] of data tagged with L1 origins,
+and then derives payloads attributes as:
+
+- Of the *first* block in the window only:
+  - L1 block attributes:
+    - block number
+    - timestamp
+    - basefee
+    - *random* (the output of the [`RANDOM` opcode][random])
+  - L1 log entries emitted for [user deposits][g-deposits], augmented with a [sourceHash](./deposits.md#).
+- Of each batch in the window:
+    - Batches not matching filter criteria are ignored:
+      - `batch.epoch == sequencing_window.epoch`, i.e. for this sequencing window
+      - `(batch.timestamp - genesis_l2_timestamp) % block_time == 0`, i.e. timestamp is aligned
+      - `min_l2_timestamp <= batch.timestamp < max_l2_timestamp`, i.e. timestamp is within range
+        - `min_l2_timestamp = prev_l2_timestamp + l2_block_time`
+          - `prev_l2_timestamp` is the timestamp of the previous L2 block: the last block of the previous epoch,
+            or the L2 genesis block timestamp if there is no previous epoch.
+          - `l2_block_time` is a configurable parameter of the time between L2 blocks
+        - `max_l2_timestamp = max(l1_timestamp + max_sequencer_drift, min_l2_timestamp + l2_block_time)`
+          - `l1_timestamp` is the timestamp of the L1 block associated with the L2 block's epoch
+          - `max_sequencer_drift` is the most a sequencer is allowed to get ahead of L1
+      - The batch is the first batch with `batch.timestamp` in this sequencing window,
+        i.e. one batch per L2 block number.
+      - The batch only contains sequenced transactions, i.e. it must NOT contain any Deposit-type transactions.
+
+Note that after the above filtering `min_l2_timestamp >= l1_timestamp` always holds,
+i.e. a L2 block timestamp is always equal or ahead of the timestamp of the corresponding L1 origin block.
+
+[random]: https://eips.ethereum.org/EIPS/eip-4399
+
+A sequencing window is derived into a variable number of L2 blocks, defined by a range of timestamps:
+
+- Starting at `min_l2_timestamp`, as defined in the batch filtering.
+- Up to and including
+  `new_head_l2_timestamp = max(highest_valid_batch_timestamp, next_l1_timestamp - l2_block_time, min_l2_timestamp)`
+  - `highest_valid_batch_timestamp = max(batch.timestamp for batch in filtered_batches)`,
+    or `0` if no there are no `filtered_batches`.
+    `batch.timestamp` refers to the L2 block timestamp encoded in the batch.
+  - `next_l1_timestamp` is the timestamp of the next L1 block.
+
+The L2 chain is extended to `new_head_l2_timestamp` with blocks at a fixed [block time][g-block-time] (`l2_block_time`).
+This means that every `l2_block_time` that has no batch is interpreted as one with no sequenced transactions.
+
+## Communication with the Execution Engine
+
+TODO: This ha been copy pasted, and really doesn't fit with the rest, need to integrate
 
 Let
 
 - `refL2` be the (hash of) the current L2 chain head
 - `refL1` be the (hash of) the L1 block from which `refL2` was derived
 - `finalizedRef` be the (hash of) the L2 block that can be fully derived from finalized L1 input data.
-- `payloadAttributes` be some previously derived [payload attributes] for the L1 block with number `l1Number(refL1) + 1`
-
-TODO s/l1Number/L1Origin/ (+ define the term in glossary)
-TODO payload attributes link
-TODO definition of payloadAttributes is bad (should be "for L2 block", "derived from L1 block" ... no teven)
+- `payloadAttributes` be some previously derived [payload attributes][g-payload-attr] for the L2 block with number `l2Number(refL2) + 1`
 
 Then we can apply the following pseudocode logic to update the state of both the rollup driver and execution engine:
 
@@ -497,7 +663,11 @@ The execution payload is an object of type [`ExecutionPayloadV1`].
 
 [`ExecutionPayloadV1`]: https://github.com/ethereum/execution-apis/blob/main/src/engine/specification.md#executionpayloadv1
 
-Within the `forkChoiceState` object, the properties have the following meaning:
+Within the `forkChoiceState` object, the properties have the follo
+Just like steps, pipeline
+stages are reset in reverse order and cause each stage to rollback its internal state to be congruent with later stages.
+
+In the case of a re-org, this means updating the state to match the new L1 head.wing meaning:
 
 - `headBlockHash`: block hash of the last block of the L2 chain, according to the rollup driver.
 - `safeBlockHash`: same as `headBlockHash`.
@@ -507,6 +677,8 @@ Within the `forkChoiceState` object, the properties have the following meaning:
 ------------------------------------------------------------------------------------------------------------------------
 
 # Handling L1 Re-Orgs
+
+[handling-reorgs]: #handling-l1-re-orgs
 
 The [L2 chain derivation pipeline][pipeline] as described above assumes linear progression of the L1 chain.
 
@@ -605,13 +777,20 @@ In reality it's only strictly necessary to reset the oldest L1 block whose times
 `channel_id.timestamp` found in the batcher transaction that is not older than `safeL2Head.l1Origin.timestamp -
 CHANNEL_TIMEOUT`.
 
+We define `CHANNEL_TIMEOUT = 600`, i.e. 10 hours.
+
+> **TODO** does `CHANNEL_TIMEOUT` have a relationship with `SWS`?
+>
+> I think yes, it has to be shorter than `SWS` but ONLY if we can't do streaming decryption (the case currently).
+> Otherwise it could be shorter or longer.
+
+— and explain its relationship with `SWS` if any?
+
 This situation is the main purpose of the [channel timeout][g-channel-timeout]: without the timeout, we might have to
 look arbitrarily far back on L1 to be able to decompress batches, which is not acceptable for performance reasons.
 
 The other puprose of the channel timeout is to avoid having the rollup node keep old unclosed channel data around
 forever.
-
-> **TODO** specify `CHANNEL_TIMEOUT` — and explain its relationship with `SWS` if any?
 
 Once the L1 head is reset, we then need to discard any frames read from blocks more recent than this updated L1 head.
 
@@ -636,269 +815,6 @@ approximately 12 minutes, unless an attacker controls more than 1/3 of the total
 > This makes sense, but is in conflict with how the [L2 chain inception][g-l2-chain-inception] is currently determined,
 > which is via the L2 output oracle deployment & upgrades.
 
-------------------------------------------------------------------------------------------------------------------------
-# BELOW: TO PROCESS
-------------------------------------------------------------------------------------------------------------------------
+# TODO
 
-- ?? The Batch Queue then uses the inclusion information to enforce timely adoption of a new L1 origin,
-  and thus liveness of user deposits without relying on the sequencer.
-    --> in general, explain how deposits are included
-
-### L1 Data Source
-
-The first stage starts at a L1 origin, and moves the next L1 origin on a read.
-If there is no next L1 origin yet, the stage returns an `EOF` like an intermediate stage would, to indicate all input was exhausted,
-and the next pipeline step may need to be triggered only after a hint of new inputs (e.g. the L1 head changed).
-
-After retrieving the next L1 origin, the data for the origin is retrieved from a [Data Availability Source](#data-availability-source).
-
-#### Data Availability Source
-
-A data availability source fetches a list of bytestrings corresponding to a certain L1 block hash/number combination.
-
-By default, ethereum calldata is supported as data-availability source.
-
-Transactions of the queried block are traversed, and filtered by receiver and sender:
-- The transaction receiver MUST be the sequencer inbox address
-- The transaction must be signed by a recognized batch submitter account
-
-
-### ChannelBank
-
-#### Constants
-
-```text
-CHANNEL_TIMEOUT = 600   # time in seconds until a channel is pruned from the channel bank
-MAX_CHANNEL_BANK_SIZE = 100_000_000  # max size of the combined channels in the channel bank
-FRAME_OVERHEAD = 200    # space each frame in a channel takes, even without frame contents
-```
-
-The channel bank processes L1 transactions and buffers the encoded frames to be read.
-
-Only future frames are buffered. If there is a full frame ready to read, it MUST be read first before a new L1 transaction can be processed.
-
-The channel bank does not handle reorgs, see the recovering-from-L1-reorgs section for information how these are handled.
-
-The channel bank tracks:
-
-- The collection of open channels, ordered in a FIFO queue. The first seen channel has priority.
-- `currentL1Origin`: the current L1 block, updated every time a new block is appended to the L1 chain, before any of the data of the block is processed in the bank.
-
-Channel IDs are random `bytes32` value with timestamp.
-In this may become a hash of the sender and a channel nonce or other similar information to separate control of channels between different submitters.
-
-When `channel.time + CHANNEL_TIMEOUT < currentL1Origin.timestamp` an open channel is removed, cannot be re-instantiated anymore, and cannot be read from anymore.
-When a frame is missing this limits the amount of time that later frames pile up, preventing potential out-of-memory DoS and enabling a new channel to be read.
-
-A channel in the bank tracks:
-
-- its ID: random `bytes32` and timestamp that the first frame, part of the identity of the channel.
-- `progress`: the frame number of the current frame to read, which may not be buffered yet. Initially 0.
-- `ends_at`: the frame number of the frame that closed the channel. Initially set to a max uint64 integer value, mark there is no end.
-- The existing collection of frames tagged with their respective origin information. Each entry is keyed by frame number.
-- `size`: the amount of data the open channel has buffered.
-- Its channel ID and index in the priority queue.
-
-The channel bank processes L1 data as follows:
-
-1. Read the version number of the L1 data, check if it is 0, the data is invalid if not.
-2. Determine the `total_size` of the bank by summing the `size` of all channels in the bank.
-   For as long as `total_size > MAX_CHANNEL_BANK_SIZE`    prune the first-seen channel (i.e. lowest `time`) and reduce `total_size` by that channel `size` .
-   The first-seen channel is pruned first, since this is the channel that fails to be read before the bank became this large.
-3. Read the frames in a loop:
-4. Parse the frame data
-5. If the frame references a known `channel` (combined identity of `bytes32` and timestamp data): ignore the frame.
-6. If it hits the timeout condition: `channel.time + CHANNEL_TIMEOUT < currentL1Origin.timestamp`: ignore the frame.
-7. Process the frame in the corresponding channel in the bank. A new channel is created first if the channel does not yet exist.
-
-A channel processes a frame as follows:
-
-1. The frame is ignored if `progress > frame_number`: a frame with equal or lower ID was previously read, no duplicates are allowed, the first included frame is canonical.
-2. The frame is ignored if `endsAt < frame_number`: a frame cannot be added after closing the channel
-3. The frame is ignored if a frame with equal `frame_number` exists.
-4. The channel stores the frame, keyed by `frame_number` and tagged with `currentL1Origin`
-5. `endsAt` is set to `frame_number` if `is_last`, i.e. a closing frame does not close a channel before it can be read from, but does mark when it gets closed.
-6. The channel `size` increases by `len(frame_data) + FRAME_OVERHEAD` to keep track of the amount of data that is buffered.
-
-All channels that can be read MUST be read before processing new L1 transaction data.
-
-A read from the channel bank is processed as:
-
-1. Check if the first-seen channel is timed out, or closed.
-2. If yes, then the channel can be removed, and the data is returned
-3. If not, the channel is incomplete and the bank is unchanged. An EOF should indicate that the bank needs the next L1 data.
-
-A read from a channel in the bank is processed as:
-1. Read starting from frame number `0`, and continue until the next frame cannot be found.
-
-### Channel Input Reader
-
-The Channel Input Reader tracks which L1 block was involved in the last read from the stream, enabling the derivation to filter read contents by inclusion time.
-
-The reader can be reused for the next channel after a reader error, but it should reset before doing so.
-Errors to recover this way may be expected, e.g. if a channel times out or if the submitted data cannot be decompressed or decoded.
-
-The reader decompresses the input with ZLIB, without dict.
-The reader then decodes the input as an RLP stream of `BatchData` entries.
-The RLP stream as a whole is limited to reading `MAX_RLP_BYTES_PER_CHANNEL"` to avoid reading too far,
-e.g. due to a "zip-bomb" (when the decompression stream emits unexpected amounts of data).
-
-Decode `BatchData` entries, each entry is prefixed with a version byte.
-Unknown versions are invalid just like malformatted `BatchData`, and the pipeline should move to the next frame.
-
-#### Batch encoding
-
-A batch is versioned by prefixing with a version byte: `BatchData = batch_version ++ content`
-and encoded as a byte-string (including version prefix byte) in the bundle RLP list.
-
-`<batch_version>`: `<name> = <content>`
-- `0`: `BatchV1 = RLP([epoch, timestamp, transaction_list])`
-
-Batch contents:
-
-- `epoch` is the sequencing window epoch, i.e. the first L1 block number
-- `timestamp` is the L2 timestamp of the block
-- `transaction_list` is an RLP encoded list of [EIP-2718] encoded transactions.
-
-[EIP-2718]: https://eips.ethereum.org/EIPS/eip-2718
-
-
-### Batch Queue
-
-TODO(josh): this changes to more eager batch-derivation, requiring less buffering of batches in the happy case.
-
-The Batch Queue buffers a full [sequencing window][g-sequencing-window] of data tagged with L1 origins,
-and then derives payloads attributes as:
-
-- Of the *first* block in the window only:
-  - L1 block attributes:
-    - block number
-    - timestamp
-    - basefee
-    - *random* (the output of the [`RANDOM` opcode][random])
-  - L1 log entries emitted for [user deposits][g-deposits], augmented with a [sourceHash](./deposits.md#).
-- Of each batch in the window:
-    - Batches not matching filter criteria are ignored:
-      - `batch.epoch == sequencing_window.epoch`, i.e. for this sequencing window
-      - `(batch.timestamp - genesis_l2_timestamp) % block_time == 0`, i.e. timestamp is aligned
-      - `min_l2_timestamp <= batch.timestamp < max_l2_timestamp`, i.e. timestamp is within range
-        - `min_l2_timestamp = prev_l2_timestamp + l2_block_time`
-          - `prev_l2_timestamp` is the timestamp of the previous L2 block: the last block of the previous epoch,
-            or the L2 genesis block timestamp if there is no previous epoch.
-          - `l2_block_time` is a configurable parameter of the time between L2 blocks
-        - `max_l2_timestamp = max(l1_timestamp + max_sequencer_drift, min_l2_timestamp + l2_block_time)`
-          - `l1_timestamp` is the timestamp of the L1 block associated with the L2 block's epoch
-          - `max_sequencer_drift` is the most a sequencer is allowed to get ahead of L1
-      - The batch is the first batch with `batch.timestamp` in this sequencing window,
-        i.e. one batch per L2 block number.
-      - The batch only contains sequenced transactions, i.e. it must NOT contain any Deposit-type transactions.
-
-Note that after the above filtering `min_l2_timestamp >= l1_timestamp` always holds,
-i.e. a L2 block timestamp is always equal or ahead of the timestamp of the corresponding L1 origin block.
-
-[random]: https://eips.ethereum.org/EIPS/eip-4399
-
-A sequencing window is derived into a variable number of L2 blocks, defined by a range of timestamps:
-
-- Starting at `min_l2_timestamp`, as defined in the batch filtering.
-- Up to and including (including only if aligned with L2 block time)
-  `new_head_l2_timestamp = max(highest_valid_batch_timestamp, next_l1_timestamp - 1, min_l2_timestamp)`
-  - `highest_valid_batch_timestamp = max(batch.timestamp for batch in filtered_batches)`,
-    or `0` if no there are no `filtered_batches`.
-    `batch.timestamp` refers to the L2 block timestamp encoded in the batch.
-  - `next_l1_timestamp` is the timestamp of the next L1 block.
-
-The L2 chain is extended to `new_head_l2_timestamp` with blocks at a fixed [block time][g-block-time] (`l2_block_time`).
-This means that every `l2_block_time` that has no batch is interpreted as one with no sequenced transactions.
-
-
-### Payload Attributes Deriver
-
-Payload Attributes are derived by combining transactions derived from the referenced L1 origin, with transactions from the batch:
-
-- *[deposited transactions][g-deposited]*: two kinds:
-  - derived from the L1 chain: a single *[L1 attributes deposited transaction][g-l1-attr-deposit]* (always first).
-  - derived from [receipts][g-receipts]: zero or more *[user-deposited transactions][g-user-deposited]*.
-- *[sequenced transactions][g-sequencing]*: derived from [sequencer batches][g-sequencer-batch],
-  zero or more regular transactions, signed by L2 users.
-
-
-#### Reading L1 inputs
-
-The L1 attributes are read from the L1 block header, while deposits are read from the block's [receipts][g-receipts].
-Refer to the [**deposit contract specification**][deposit-contract-spec] for details on how deposits are encoded as log
-entries. The deposited and sequenced transactions are combined when the Payload Attributes are constructed.
-
-[deposit-contract-spec]: deposits.md#deposit-contract
-
-##### Encoding the L1 Attributes Deposited Transaction
-
-The [L1 attributes deposited transaction][g-l1-attr-deposit] is a call that submits the L1 block attributes (listed
-above) to the [L1 attributes predeployed contract][g-l1-attr-predeploy].
-
-To encode the L1 attributes deposited transaction, refer to the following sections of the deposits spec:
-
-- [The Deposited Transaction Type](deposits.md#the-deposited-transaction-type)
-- [L1 Attributes Deposited Transaction](deposits.md#l1-attributes-deposited-transaction)
-
-##### Encoding User-Deposited Transactions
-
-A [user-deposited-transactions][g-deposited] is an L2 transaction derived from a [user deposit][g-deposits] submitted on
-L1 to the [deposit contract][g-deposit-contract]. Refer to the [deposit contract specification][deposit-contract-spec]
-for more details.
-
-The user-deposited transaction is derived from the log entry emitted by the [depositing call][g-depositing-call], which
-is stored in the [depositing transaction][g-depositing-transaction]'s log receipt.
-
-To encode user-deposited transactions, refer to the following sections of the deposits spec:
-
-- [The Deposited Transaction Type](deposits.md#the-deposited-transaction-type)
-- [User-Deposited Transactions](deposits.md#user-deposited-transactions)
-
-#### Deriving all Payload Attributes of a sequencing window
-
-Each of the derived `PayloadAttributes` starts with a L1 Attributes transaction.
-Like other derived deposits, this does not have to be batch-submitted, and exposes the required L1 information for the
-process of finding the sync starting point of the L2 chain, without requiring L2 state access.
-
-The [User-deposited] transactions are all put in the first of the derived `PayloadAttributes`,
-inserted after the L1 Attributes transaction, before any [sequenced][g-sequencing] transactions.
-
-#### Building individual Payload Attributes
-
-[payload attributes]: #building-individual-payload-attributes
-
-From the timestamped transaction lists derived from the sequencing window, the rollup node constructs [payload
-attributes][g-payload-attr] as an [expanded version][expanded-payload] of the [`PayloadAttributesV1`] object, which
-includes the additional `transactions` and `noTxPool` fields.
-
-Each of the timestamped transaction lists translates to a `PayloadAttributesV1` as follows:
-
-- `timestamp` is set to the timestamp of the transaction list.
-- `random` is set to the *random* `execution_payload.prev_randao` L1 block attribute
-- `suggestedFeeRecipient` is set to an address determined by the system
-- `transactions` is the array of the derived transactions: deposited transactions and sequenced transactions.
-  All encoded with [EIP-2718].
-- `noTxPool` is set to `true`, to use the exact above `transactions` list when constructing the block.
-
-[expanded-payload]: exec-engine.md#extended-payloadattributesv1
-[`PayloadAttributesV1`]: https://github.com/ethereum/execution-apis/blob/main/src/engine/specification.md#payloadattributesv1
-
-
-### Engine Queue
-
-The Engine Queue buffers payload-attributes derived in the previous stage,
-and attempts to consolidate or process them to a linked [Execution Engine][g-exec-engine].
-
-If the "unsafe head" (speculative tip of L2 chain) is ahead of the "safe head" (derived tip of L2 chain),
-then consolidation is attempted: if the payload attributes match, the previously "unsafe" block can be regarded as "safe".
-
-However, if consolidation fails, the engine "unsafe" head is set back to the "safe" head.
-
-#### Consolidating payload attributes
-
-The "unsafe" block in question is retrieved from the engine, and the following attributes are checked to be exactly equal:
-- block `parent_hash`
-- block `timestamp`
-- block `randao`
-- block `transactions_list` (first length, then equality of each of the encoded transactions)
+- explain how deposits are included

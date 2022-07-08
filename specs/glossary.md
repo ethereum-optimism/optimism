@@ -21,6 +21,7 @@
   - [Sequencer](#sequencer)
   - [Sequencing Window](#sequencing-window)
   - [Sequencing Epoch](#sequencing-epoch)
+  - [L1 Origin](#l1-origin)
 - [Deposits](#deposits)
   - [Deposited Transaction](#deposited-transaction)
   - [L1 Attributes Deposited Transaction](#l1-attributes-deposited-transaction)
@@ -34,29 +35,34 @@
   - [Relayer](#relayer)
   - [Finalization Period](#finalization-period)
 - [Batch Submission](#batch-submission)
-    - [Data Availability](#data-availability)
-    - [Data Availability Provider](#data-availability-provider)
-    - [Sequencer Batch](#sequencer-batch)
-    - [Channel](#channel)
-    - [Channel Frame](#channel-frame)
-    - [Batcher](#batcher)
-    - [Batcher Transaction](#batcher-transaction)
-    - [Channel Timeout](#channel-timeout)
-- [Other L2 Chain Concepts](#other-l2-chain-concepts)
-  - [Address Aliasing](#address-aliasing)
-  - [L2 Genesis Block](#l2-genesis)
-  - [L2 Chain Inception](#l2-chain-inception)
-  - [Rollup Node](#rollup-node)
-  - [Rollup Driver](#rollup-driver)
-  - [L2 Chain Derivation](#l2-chain-derivation)
+  - [Data Availability](#data-availability)
+  - [Data Availability Provider](#data-availability-provider)
+  - [Sequencer Batch](#sequencer-batch)
+  - [Channel](#channel)
+  - [Channel Frame](#channel-frame)
+  - [Batcher](#batcher)
+  - [Batcher Transaction](#batcher-transaction)
+  - [Channel Timeout](#channel-timeout)
+- [L2 Chain Derivation](#l2-chain-derivation)
   - [L2 Derivation Inputs](#l2-derivation-inputs)
   - [Payload Attributes](#payload-attributes)
+  - [L2 Genesis Block](#l2-genesis)
+  - [L2 Chain Inception](#l2-chain-inception)
+  - [Safe L2 Head](#safe-l2-head)
+  - [Unsafe L2 Block](#unsafe-l2-block)
+  - [Unsafe L2 Head](#unsafe-l2-head)
+  - [Unsafe Block Consolidation](#unsafe-block-consolidation)
+- [Other L2 Chain Concepts](#other-l2-chain-concepts)
+  - [Address Aliasing](#address-aliasing)
+  - [Rollup Node](#rollup-node)
+  - [Rollup Driver](#rollup-driver)
   - [L1 Attributes Predeployed Contract](#l1-attributes-predeployed-contract)
   - [L2 Output Root](#l2-output-root)
   - [L2 Output Oracle Contract](#l2-output-oracle-contract)
   - [Validator](#validator)
   - [Fault Proof](#fault-proof)
   - [Time Slot](#time-slot)
+  - [Unsafe Sync](#unsafe-sync)
 - [Execution Engine Concepts](#execution-engine-concepts)
   - [Execution Engine](#execution-engine)
 
@@ -217,6 +223,12 @@ sequencing window.
 
 Epochs can have variable size, subject to some constraints. See the [L2 chain derivation specification][derivation-spec]
 for more details.
+
+## L1 Origin
+
+[l1-origin]: glossary.md#l1-origin
+
+The L1 origin of an L2 block is the L1 block corresponding to its [sequencing epoch][sequencing-epoch].
 
 ------------------------------------------------------------------------------------------------------------------------
 
@@ -453,6 +465,11 @@ A batcher transaction is a transaction submitted by a [batcher] to a data availa
 channels available. These transactions carry one or more full frames, which may belong to different channels. A
 channel's frame may be split between multiple batcher transactions.
 
+When submitted to Ethereum calldata, the batcher transaction's receiver must be the sequencer inbox address. The
+transaction must also be signed by a recognized batch submitter account.
+
+> **TODO** specify where these recognized batch submitter accounts are stored
+
 ## Channel Timeout
 
 [channel-timeout]: glossary.md#channel-timeout
@@ -478,16 +495,46 @@ The purpose of channel timeouts is dual:
 
 ------------------------------------------------------------------------------------------------------------------------
 
-# Other L2 Chain Concepts
+# L2 Chain Derivation
 
-## Address Aliasing
+[derivation]: glossary.md#L2-chain-derivation
 
-[address-aliasing]: glossary.md#address-aliasing
+L2 chain derivation is a process that reads [L2 derivation inputs][deriv-inputs] from L1 in order to derive the L2
+chain.
 
-When a contract submits a [deposit][deposits] from L1 to L2, it's address (as returned by `ORIGIN` and `CALLER`) will be
-aliased with a modified representation of the address of a contract.
+See the [L2 chain derivation specification][derivation-spec] for more details.
 
-- cf. [Deposit Specification](deposits.md#address-aliasing)
+## L2 Derivation Inputs
+
+[deriv-inputs]: glossary.md#l2-chain-derivation-inputs
+
+This term refers to data that is found in L1 blocks and is read by the [rollup node][rollup-node] to construct [payload
+attributes][payload-attr].
+
+L2 derivation inputs include:
+
+- L1 block attributes
+  - block number
+  - timestamp
+  - basefee
+- [deposits] (as log data)
+- [sequencer batches][sequencer-batch] (as transaction data)
+
+## Payload Attributes
+
+[payload-attr]: glossary.md#payload-attributes
+
+This term refers to an object that can be derived from [L2 chain derivation inputs][deriv-inputs] found on L1, which are
+then passed to the [execution engine][execution-engine] to construct L2 blocks.
+
+The payload attributes object essentially essentially encodes a [a block without output properties][block].
+
+Payload attributes are originally specified in the [Ethereum Engine API specification][engine-api], which we expand in
+the [Execution Engine Specification](exec-engine.md).
+
+See also the [Building The Payload Attributes][building-payload-attr] section of the rollup node specification.
+
+[building-payload-attr]: rollup-node.md#building-the-payload-attributes
 
 ## L2 Genesis Block
 
@@ -524,6 +571,56 @@ oracle][output-oracle] contract.
 
 In the current implementation, this is the L1 block number at which the output oracle contract was deployed or upgraded.
 
+## Safe L2 Head
+
+[safe-l2-head]: glossary.md#safe-l2-head
+
+The safe L2 head is most recent L2 block that was can be derived entirely from L1 by a [rollup node][rollup-node]. This
+can vary between different nodes, based on their view of the L1 chain.
+
+## Unsafe L2 Block
+
+[unsafe-l2-block]: glossary.md#unsafe-l2-block
+
+An unsafe L2 block is an L2 block that a [rollup node][rollup-node] knows about, but which was not derived from the L1
+chian. In sequencer mode, this will be a block sequenced by the sequencer itself. In validator mode, this will be a
+block acquired from the sequencer via unsafe sync.
+
+TODO link unsafe sync
+
+## Unsafe L2 Head
+
+[unsafe-l2-head]: glossary.md#unsafe-l2-head
+
+The unsafe L2 head is the most recent [unsafe L2 block][unsafe-l2-block] that a [rollup node][rollup-node] knows about.
+
+## Unsafe Block Consolidation
+
+[consolidation]: glossary.md#unsafe-block-consolidation
+
+Unsafe block consolidation is the process through which the [rollup node][rollup-node] attempts to move the [safe L2
+head] a block forward, so that the oldest [unsafe L2 block][unsafe-l2-block] becomes the new safe L2 head.
+
+In order to perform consolidation, the node verifies that the [payload attributes][payload-attr] derived from the L1
+chain match the oldest unsafe L2 block exactly.
+
+See the [Engine Queue section][engine-queue] of the L2 chain derivatiaon spec for more information.
+
+[engine-queue]: derivation.md#engine-queue
+
+------------------------------------------------------------------------------------------------------------------------
+
+# Other L2 Chain Concepts
+
+## Address Aliasing
+
+[address-aliasing]: glossary.md#address-aliasing
+
+When a contract submits a [deposit][deposits] from L1 to L2, it's address (as returned by `ORIGIN` and `CALLER`) will be
+aliased with a modified representation of the address of a contract.
+
+- cf. [Deposit Specification](deposits.md#address-aliasing)
+
 ## Rollup Node
 
 [rollup-node]: glossary.md#rollup-node
@@ -556,46 +653,6 @@ The rollup driver is the [rollup node][rollup-node] component responsible for [d
 
 > **TODO** delete this entry, alongside its reference — can be replaced by "derivation process" or "derivation logic"
 > where needed
-
-## L2 Chain Derivation
-
-[derivation]: glossary.md#L2-chain-derivation
-
-A process that reads [L2 derivation inputs][deriv-inputs] from L1 in order to derive the L2 chain.
-
-See the [L2 chain derivation specification][derivation-spec] for more details.
-
-## L2 Derivation Inputs
-
-[deriv-inputs]: glossary.md#l2-chain-derivation-inputs
-
-This term refers to data that is found in L1 blocks and is read by the [rollup node][rollup-node] to construct [payload
-attributes][payload-attr].
-
-L2 derivation inputs include:
-
-- L1 block attributes
-  - block number
-  - timestamp
-  - basefee
-- [deposits] (as log data)
-- [sequencer batches][sequencer-batch] (as transaction data)
-
-## Payload Attributes
-
-[payload-attr]: glossary.md#payload-attributes
-
-This term refers to an object that can be derived from [L2 chain derivation inputs][deriv-inputs] found on L1, which are
-then passed to the [execution engine][execution-engine] to construct L2 blocks.
-
-The payload attributes object essentially essentially encodes a [a block without output properties][block].
-
-Payload attributes are originally specified in the [Ethereum Engine API specification][engine-api], which we expand in
-the [Execution Engine Specification](exec-engine.md).
-
-See also the [Building The Payload Attributes][building-payload-attr] section of the rollup node specification.
-
-[building-payload-attr]: rollup-node.md#building-the-payload-attributes
 
 ## L1 Attributes Predeployed Contract
 
@@ -668,6 +725,15 @@ Post-[merge], it could be said the that L1 block time is 12s as that is the L1 [
 reality the block time is variable as some time slots might be skipped.
 
 Pre-merge, the L1 block time is variable, though it is on average 13s.
+
+## Unsafe Sync
+
+[unsafe-sync]: glossary.md#unsafe-sync
+
+Unsafe sync is the process through which a [validator][validator] learns about [unsafe L2 blocks][unsafe-l2-block] from
+the [sequencer][sequencer].
+
+These unsafe blocks will later need to be confirmed by the L1 chain (via [unsafe block consolidation][consolidation]).
 
 ------------------------------------------------------------------------------------------------------------------------
 
