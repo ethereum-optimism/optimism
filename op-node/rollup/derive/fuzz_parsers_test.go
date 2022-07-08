@@ -195,7 +195,7 @@ func FuzzUnmarshallLogEvent(f *testing.F) {
 		}
 
 		// Test that our custom parsing matches the ABI parsing
-		depositEvent, err := portalContract.ParseTransactionDeposited(*(logs[0]))
+		depositEvent, err := portalContract.ParseTransactionDepositedV0(*(logs[0]))
 		if err != nil {
 			t.Fatalf("Could not parse log that was emitted by the deposit contract: %v", err)
 		}
@@ -207,7 +207,7 @@ func FuzzUnmarshallLogEvent(f *testing.F) {
 			t.Fatalf("Could not unmarshal log that was emitted by the deposit contract: %v", err)
 		}
 
-		reconstructed := &bindings.OptimismPortalTransactionDeposited{
+		reconstructed := &bindings.OptimismPortalTransactionDepositedV0{
 			From:       dep.From,
 			Value:      dep.Value,
 			GasLimit:   dep.Gas,
@@ -228,7 +228,7 @@ func FuzzUnmarshallLogEvent(f *testing.F) {
 			t.Fatalf("The deposit tx did not match. tx: %v. actual: %v", reconstructed, depositEvent)
 		}
 
-		inputArgs := &bindings.OptimismPortalTransactionDeposited{
+		inputArgs := &bindings.OptimismPortalTransactionDepositedV0{
 			From:       from,
 			To:         to,
 			Mint:       mint,

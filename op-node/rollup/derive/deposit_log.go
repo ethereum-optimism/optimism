@@ -12,14 +12,14 @@ import (
 )
 
 var (
-	DepositEventABI     = "TransactionDeposited(address,address,uint256,uint256,uint64,bool,bytes)"
+	DepositEventABI     = "TransactionDepositedV0(address,address,uint256,uint256,uint64,bool,bytes)"
 	DepositEventABIHash = crypto.Keccak256Hash([]byte(DepositEventABI))
 )
 
 // UnmarshalDepositLogEvent decodes an EVM log entry emitted by the deposit contract into typed deposit data.
 //
 // parse log data for:
-//     event TransactionDeposited(
+//     event TransactionDepositedV0(
 //    	 address indexed from,
 //    	 address indexed to,
 //       uint256 mint,
@@ -109,7 +109,7 @@ func UnmarshalDepositLogEvent(ev *types.Log) (*types.DepositTx, error) {
 	return &dep, nil
 }
 
-// MarshalDepositLogEvent returns an EVM log entry that encodes a TransactionDeposited event from the deposit contract.
+// MarshalDepositLogEvent returns an EVM log entry that encodes a TransactionDepositedV0 event from the deposit contract.
 // This is the reverse of the deposit transaction derivation.
 func MarshalDepositLogEvent(depositContractAddr common.Address, deposit *types.DepositTx) *types.Log {
 	toBytes := common.Hash{}
