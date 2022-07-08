@@ -10,15 +10,6 @@ import { Hashing } from "../libraries/Hashing.sol";
 import { Proxy } from "../universal/Proxy.sol";
 
 contract OptimismPortal_Test is Portal_Initializer {
-    event TransactionDeposited(
-        address indexed from,
-        address indexed to,
-        uint256 mint,
-        uint256 value,
-        uint64 gasLimit,
-        bool isCreation,
-        bytes data
-    );
 
     function test_OptimismPortalConstructor() external {
         assertEq(op.FINALIZATION_PERIOD_SECONDS(), 7 days);
