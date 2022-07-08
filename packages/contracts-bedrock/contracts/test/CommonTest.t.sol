@@ -334,7 +334,7 @@ contract Bridge_Initializer is Messenger_Initializer {
         super.setUp();
 
         vm.label(PredeployAddresses.L2_STANDARD_BRIDGE, "L2StandardBridge");
-        vm.label(PredeployAddresses.L2_STANDARD_TOKEN_FACTORY, "L2StandardTokenFactory");
+        vm.label(PredeployAddresses.OPTIMISM_MINTABLE_ERC20_FACTORY, "OptimismMintableERC20Factory");
 
         // Deploy the L1 bridge and initialize it with the address of the
         // L1CrossDomainMessenger
@@ -367,9 +367,9 @@ contract Bridge_Initializer is Messenger_Initializer {
         OptimismMintableERC20Factory factory = new OptimismMintableERC20Factory(
             PredeployAddresses.L2_STANDARD_BRIDGE
         );
-        vm.etch(PredeployAddresses.L2_STANDARD_TOKEN_FACTORY, address(factory).code);
+        vm.etch(PredeployAddresses.OPTIMISM_MINTABLE_ERC20_FACTORY, address(factory).code);
         L2TokenFactory = OptimismMintableERC20Factory(
-            PredeployAddresses.L2_STANDARD_TOKEN_FACTORY
+            PredeployAddresses.OPTIMISM_MINTABLE_ERC20_FACTORY
         );
 
         vm.etch(PredeployAddresses.LEGACY_ERC20_ETH, address(new LegacyERC20ETH()).code);
