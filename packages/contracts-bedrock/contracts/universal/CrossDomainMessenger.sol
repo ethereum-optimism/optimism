@@ -319,9 +319,11 @@ abstract contract CrossDomainMessenger is
         xDomainMsgSender = DEFAULT_XDOMAIN_SENDER;
         otherMessenger = _otherMessenger;
         uint256 length = _blockedSystemAddresses.length;
-        for (uint256 i = 0; i < length;) {
+        for (uint256 i = 0; i < length; ) {
             blockedSystemAddresses[_blockedSystemAddresses[i]] = true;
-            unchecked { ++i; }
+            unchecked {
+                ++i;
+            }
         }
 
         __Context_init_unchained();
