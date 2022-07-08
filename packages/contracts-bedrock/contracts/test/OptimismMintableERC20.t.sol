@@ -6,8 +6,8 @@ import "../universal/SupportedInterfaces.sol";
 import { IERC165 } from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 
 contract OptimismMintableERC20_Test is Bridge_Initializer {
-    event Mint(address indexed _account, uint256 _amount);
-    event Burn(address indexed _account, uint256 _amount);
+    event Mint(address indexed account, uint256 amount);
+    event Burn(address indexed account, uint256 amount);
 
     function setUp() public override {
         super.setUp();
