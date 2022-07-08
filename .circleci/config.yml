@@ -384,6 +384,51 @@ jobs:
           command: make test
           working_directory: l2geth
 
+  devnet:
+    machine:
+      image: ubuntu-2004:202201-01
+      docker_layer_caching: true
+    environment:
+      DOCKER_BUILDKIT: 1
+    steps:
+      - checkout
+      - run:
+          name: Check if we should run
+          command: |
+            CHANGED=$(bash ./ops/docker/ci-builder/check-changed.sh "(contracts-bedrock|op-bindings|op-batcher|op-node|op-proposer|ops-bedrock)/")
+            if [[ "$CHANGED" = "FALSE" ]]; then
+              circleci step halt
+            fi
+      - run:
+          name: foundryup
+          command: |
+            curl -L https://foundry.paradigm.xyz | bash
+            source $HOME/.bashrc
+            foundryup
+            echo 'export PATH=$HOME/.foundry/bin:$PATH' >> $BASH_ENV
+      - run:
+          name: Install and build
+          command: |
+            yarn install
+            yarn build
+      - run:
+          name: Bring up the stack
+          command: |
+            make devnet-up
+      - run:
+          name: Do a deposit
+          no_output_timeout: 5m
+          command: |
+            npx hardhat compile
+            npx hardhat deposit \
+                --to 0xB79f76EF2c5F0286176833E7B2eEe103b1CC3244  \
+                --amount-eth 1 \
+                --private-key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80 \
+                --network devnetL1
+          working_directory: packages/contracts-bedrock/contracts-bedrock
+      - run:
+          command: echo "Deposit complete."
+
   integration-tests:
     machine:
       image: ubuntu-2004:202201-01
@@ -545,6 +590,7 @@ workflows:
       - bedrock-go-tests
       - fuzz-op-node
       - bedrock-markdown
+      - devnet
       - go-lint-test-build:
           name: batch-submitter-tests
           binary_name: batch-submitter
