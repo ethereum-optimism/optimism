@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
+	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/rawdb"
@@ -14,6 +15,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/vm/runtime"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/google/go-cmp/cmp"
+	"github.com/stretchr/testify/require"
 )
 
 var (
@@ -124,6 +126,47 @@ func FuzzL1InfoAgainstContract(f *testing.F) {
 	})
 }
 
+// Standard ABI types copied from golang ABI tests
+var (
+	Uint256Type, _ = abi.NewType("uint256", "", nil)
+	Uint64Type, _  = abi.NewType("uint64", "", nil)
+	BytesType, _   = abi.NewType("bytes", "", nil)
+	BoolType, _    = abi.NewType("bool", "", nil)
+	AddressType, _ = abi.NewType("address", "", nil)
+)
+
+// EncodeDepositOpaqueDataV0 performs ABI encoding to create the opaque data field of the deposit event.
+func EncodeDepositOpaqueDataV0(t *testing.T, mint *big.Int, value *big.Int, gasLimit uint64, isCreation bool, data []byte) []byte {
+	// in OptimismPortal.sol:
+	// bytes memory opaqueData = abi.encodePacked(msg.value, _value, _gasLimit, _isCreation, _data);
+	// Geth does not support abi.encodePacked, so we emulate it here by slicing of the padding from the individual elements
+	// See https://github.com/ethereum/go-ethereum/issues/22257
+	// And https://docs.soliditylang.org/en/v0.8.13/abi-spec.html#non-standard-packed-mode
+
+	var out []byte
+
+	v, err := abi.Arguments{{Name: "msg.value", Type: Uint256Type}}.Pack(mint)
+	require.NoError(t, err)
+	out = append(out, v...)
+
+	v, err = abi.Arguments{{Name: "_value", Type: Uint256Type}}.Pack(value)
+	require.NoError(t, err)
+	out = append(out, v...)
+
+	v, err = abi.Arguments{{Name: "_gasLimit", Type: Uint64Type}}.Pack(gasLimit)
+	require.NoError(t, err)
+	out = append(out, v[32-8:]...) // 8 bytes only with abi.encodePacked
+
+	v, err = abi.Arguments{{Name: "_isCreation", Type: BoolType}}.Pack(isCreation)
+	require.NoError(t, err)
+	out = append(out, v[32-1:]...) // 1 byte only with abi.encodePacked
+
+	// no slice header, just the raw data with abi.encodePacked
+	out = append(out, data...)
+
+	return out
+}
+
 // FuzzUnmarshallLogEvent runs a deposit event through the EVM and checks that output of the abigen parsing matches
 // what was inputted and what we parsed during the UnmarshalDepositLogEvent function (which turns it into a deposit tx)
 // The purpose is to check that we can never create a transaction that emits a log that we cannot parse as well
@@ -206,36 +249,33 @@ func FuzzUnmarshallLogEvent(f *testing.F) {
 		if err != nil {
 			t.Fatalf("Could not unmarshal log that was emitted by the deposit contract: %v", err)
 		}
+		depMint := common.Big0
+		if dep.Mint != nil {
+			depMint = dep.Mint
+		}
+		opaqueData := EncodeDepositOpaqueDataV0(t, depMint, dep.Value, dep.Gas, dep.To == nil, dep.Data)
 
 		reconstructed := &bindings.OptimismPortalTransactionDeposited{
 			From:       dep.From,
-			Value:      dep.Value,
-			GasLimit:   dep.Gas,
-			IsCreation: dep.To == nil,
-			Data:       dep.Data,
+			Version:    common.Big0,
+			OpaqueData: opaqueData,
 			Raw:        types.Log{},
 		}
 		if dep.To != nil {
 			reconstructed.To = *dep.To
-		}
-		if dep.Mint != nil {
-			reconstructed.Mint = dep.Mint
-		} else {
-			reconstructed.Mint = common.Big0
 		}
 
 		if !cmp.Equal(depositEvent, reconstructed, cmp.Comparer(BigEqual)) {
 			t.Fatalf("The deposit tx did not match. tx: %v. actual: %v", reconstructed, depositEvent)
 		}
 
+		opaqueData = EncodeDepositOpaqueDataV0(t, mint, value, l2GasLimit, isCreation, data)
+
 		inputArgs := &bindings.OptimismPortalTransactionDeposited{
 			From:       from,
 			To:         to,
-			Mint:       mint,
-			Value:      value,
-			GasLimit:   l2GasLimit,
-			IsCreation: isCreation,
-			Data:       data,
+			Version:    common.Big0,
+			OpaqueData: opaqueData,
 			Raw:        types.Log{},
 		}
 		if !cmp.Equal(depositEvent, inputArgs, cmp.Comparer(BigEqual)) {

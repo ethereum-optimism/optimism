@@ -37,6 +37,30 @@ contract CommonTest is Test {
     bytes32 nonZeroHash = keccak256(abi.encode("NON_ZERO"));
     bytes NON_ZERO_DATA = hex"0000111122223333444455556666777788889999aaaabbbbccccddddeeeeffff0000";
 
+    event TransactionDeposited(
+        address indexed from,
+        address indexed to,
+        uint256 indexed version,
+        bytes opaqueData
+    );
+
+    function emitTransactionDeposited(
+        address _from,
+        address _to,
+        uint256 _mint,
+        uint256 _value,
+        uint64 _gasLimit,
+        bool _isCreation,
+        bytes memory _data
+    ) internal {
+        emit TransactionDeposited(
+            _from,
+            _to,
+            0,
+            abi.encodePacked(_mint, _value, _gasLimit, _isCreation, _data)
+        );
+    }
+
     function _setUp() public {
         // Give alice and bob some ETH
         vm.deal(alice, 1 << 16);
