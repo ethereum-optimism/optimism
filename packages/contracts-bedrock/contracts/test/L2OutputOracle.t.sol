@@ -250,9 +250,9 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
      *****************************/
 
     event L2OutputDeleted(
-        bytes32 indexed _l2Output,
-        uint256 indexed _l1Timestamp,
-        uint256 indexed _l2BlockNumber
+        bytes32 indexed l2Output,
+        uint256 indexed l1Timestamp,
+        uint256 indexed l2BlockNumber
     );
 
     function test_deleteL2Output() external {

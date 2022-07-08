@@ -38,7 +38,7 @@ contract ProxyAdmin_Test is Test {
         // Deploy a legacy ResolvedDelegateProxy with the name `a`.
         // Whatever `a` is set to in AddressManager will be the address
         // that is used for the implementation.
-        resolved = new ResolvedDelegateProxy(address(addressManager), "a");
+        resolved = new ResolvedDelegateProxy(addressManager, "a");
 
         // Impersonate alice for setting up the admin.
         vm.startPrank(alice);

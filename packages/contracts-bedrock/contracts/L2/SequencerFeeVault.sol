@@ -1,10 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.9;
 
-/* Library Imports */
 import { PredeployAddresses } from "../libraries/PredeployAddresses.sol";
-
-/* Contract Imports */
 import { L2StandardBridge } from "./L2StandardBridge.sol";
 
 /**
