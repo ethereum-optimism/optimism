@@ -81,6 +81,7 @@
     "lint-staged": "11.0.0",
     "markdownlint": "^0.24.0",
     "markdownlint-cli2": "^0.3.2",
+    "mkdirp": "^1.0.4",
     "mocha": "^8.4.0",
     "nyc": "^15.1.0",
     "patch-package": "^6.4.7",

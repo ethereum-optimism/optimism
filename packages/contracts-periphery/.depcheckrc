@@ -16,6 +16,7 @@ ignores: [
   "eslint-plugin-jsdoc",
   "eslint-plugin-prefer-arrow",
   "eslint-plugin-react",
+  "mkdirp",
   "@typescript-eslint/eslint-plugin",
   "eslint-config-prettier",
   "eslint-plugin-prettier",
