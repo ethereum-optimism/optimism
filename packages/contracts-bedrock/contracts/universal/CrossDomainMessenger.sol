@@ -11,7 +11,6 @@ import {
     ReentrancyGuardUpgradeable
 } from "@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.sol";
 import { ExcessivelySafeCall } from "excessively-safe-call/src/ExcessivelySafeCall.sol";
-import { DefaultValues } from "../libraries/DefaultValues.sol";
 import { CrossDomainHashing } from "../libraries/CrossDomainHashing.sol";
 
 /**
@@ -84,6 +83,13 @@ abstract contract CrossDomainMessenger is
     uint256 internal constant RELAY_GAS_BUFFER = RELAY_GAS_REQUIRED - 5000;
 
     /**
+     * @notice Initial value for the xDomainMsgSender variable. We set this to a non-zero value
+     *         because performing an SSTORE on a non-zero value is significantly cheaper than on a
+     *         zero value.
+     */
+    address internal constant DEFAULT_XDOMAIN_SENDER = 0x000000000000000000000000000000000000dEaD;
+
+    /**
      * @notice Mapping of message hashes to boolean receipt values. Note that a message will only
      *         be present in this mapping if it failed to be relayed on this chain at least once.
      *         If a message is successfully relayed on the first attempt, then it will only be
@@ -152,10 +158,7 @@ abstract contract CrossDomainMessenger is
      * @return Address of the sender of the currently executing message on the other chain.
      */
     function xDomainMessageSender() external view returns (address) {
-        require(
-            xDomainMsgSender != DefaultValues.DEFAULT_XDOMAIN_SENDER,
-            "xDomainMessageSender is not set"
-        );
+        require(xDomainMsgSender != DEFAULT_XDOMAIN_SENDER, "xDomainMessageSender is not set");
 
         return xDomainMsgSender;
     }
@@ -287,7 +290,7 @@ abstract contract CrossDomainMessenger is
             0,
             _message
         );
-        xDomainMsgSender = DefaultValues.DEFAULT_XDOMAIN_SENDER;
+        xDomainMsgSender = DEFAULT_XDOMAIN_SENDER;
 
         if (success == true) {
             successfulMessages[versionedHash] = true;
@@ -312,7 +315,7 @@ abstract contract CrossDomainMessenger is
     function _initialize(address _otherMessenger, address[] memory _blockedSystemAddresses)
         internal
     {
-        xDomainMsgSender = DefaultValues.DEFAULT_XDOMAIN_SENDER;
+        xDomainMsgSender = DEFAULT_XDOMAIN_SENDER;
         otherMessenger = _otherMessenger;
 
         for (uint256 i = 0; i < _blockedSystemAddresses.length; i++) {

@@ -7,7 +7,6 @@ import { L2OutputOracle_Initializer } from "./L2OutputOracle.t.sol";
 
 /* Libraries */
 import { AddressAliasHelper } from "../vendor/AddressAliasHelper.sol";
-import { DefaultValues } from "../libraries/DefaultValues.sol";
 import { PredeployAddresses } from "../libraries/PredeployAddresses.sol";
 import { CrossDomainUtils } from "../libraries/CrossDomainUtils.sol";
 import { WithdrawalVerifier } from "../libraries/WithdrawalVerifier.sol";
