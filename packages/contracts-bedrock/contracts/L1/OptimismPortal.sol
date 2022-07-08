@@ -17,11 +17,6 @@ import { ResourceMetering } from "./ResourceMetering.sol";
  */
 contract OptimismPortal is Initializable, ResourceMetering {
     /**
-     * @notice Contract version number.
-     */
-    uint8 public constant VERSION = 1;
-
-    /**
      * @notice Emitted when a transaction is deposited from L1 to L2. The parameters of this event
      *         are read by the rollup node and used to derive deposit transactions on L2.
      *
@@ -98,18 +93,16 @@ contract OptimismPortal is Initializable, ResourceMetering {
      * @param _finalizationPeriodSeconds Output finalization time in seconds.
      */
     constructor(L2OutputOracle _l2Oracle, uint256 _finalizationPeriodSeconds) {
-        // Immutables
         L2_ORACLE = _l2Oracle;
         FINALIZATION_PERIOD_SECONDS = _finalizationPeriodSeconds;
 
-        // Mutables
         initialize();
     }
 
     /**
      * @notice Intializes mutable variables.
      */
-    function initialize() public reinitializer(VERSION) {
+    function initialize() public initializer {
         l2Sender = DEFAULT_L2_SENDER;
         __ResourceMetering_init();
     }
