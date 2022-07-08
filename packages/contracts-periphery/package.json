@@ -64,7 +64,7 @@
     "@ethersproject/hardware-wallets": "^5.6.1",
     "@nomiclabs/hardhat-ethers": "^2.0.2",
     "@nomiclabs/hardhat-etherscan": "^3.0.3",
-    "@nomiclabs/hardhat-waffle": "^2.0.1",
+    "@nomiclabs/hardhat-waffle": "^2.0.3",
     "@rari-capital/solmate": "https://github.com/rari-capital/solmate.git#eaaccf88ac5290299884437e1aee098a96583d54",
     "@openzeppelin/contracts": "4.6.0",
     "@openzeppelin/contracts-upgradeable": "4.6.0",
@@ -76,7 +76,7 @@
     "copyfiles": "^2.3.0",
     "dotenv": "^10.0.0",
     "ds-test": "https://github.com/dapphub/ds-test.git#9310e879db8ba3ea6d5c6489a579118fd264a3f5",
-    "ethereum-waffle": "^3.3.0",
+    "ethereum-waffle": "^3.4.4",
     "ethers": "^5.6.8",
     "forge-std": "https://github.com/foundry-rs/forge-std.git#62caef29b0f87a2c6aaaf634b2ca4c09b6867c92",
     "hardhat": "^2.9.6",
@@ -92,6 +92,6 @@
     "solhint": "^3.3.6",
     "solhint-plugin-prettier": "^0.0.5",
     "solidity-coverage": "^0.7.17",
-    "ts-node": "^10.0.0"
+    "ts-node": "^10.8.2"
   }
 }
