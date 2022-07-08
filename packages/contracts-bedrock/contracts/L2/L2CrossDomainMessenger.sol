@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.9;
 
-import { Semver } from "@eth-optimism/contracts-periphery/universal/Semver.sol";
 import { AddressAliasHelper } from "../vendor/AddressAliasHelper.sol";
 import { PredeployAddresses } from "../libraries/PredeployAddresses.sol";
 import { CrossDomainMessenger } from "../universal/CrossDomainMessenger.sol";
+import { Semver } from "../universal/Semver.sol";
 import { L2ToL1MessagePasser } from "./L2ToL1MessagePasser.sol";
 
 /**

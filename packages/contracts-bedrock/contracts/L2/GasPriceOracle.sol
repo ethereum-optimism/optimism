@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.10;
 
-import { Semver } from "@eth-optimism/contracts-periphery/universal/Semver.sol";
+import { Semver } from "../universal/Semver.sol";
 import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 import { PredeployAddresses } from "../libraries/PredeployAddresses.sol";
 import { L1Block } from "../L2/L1Block.sol";

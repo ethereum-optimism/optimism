@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.9;
 
-import { Semver } from "@eth-optimism/contracts-periphery/universal/Semver.sol";
-import { WithdrawalVerifier } from "../libraries/WithdrawalVerifier.sol";
 import { Burn } from "../libraries/Burn.sol";
+import { Semver } from "../universal/Semver.sol";
+import { WithdrawalVerifier } from "../libraries/WithdrawalVerifier.sol";
 
 /**
  * @custom:proxied

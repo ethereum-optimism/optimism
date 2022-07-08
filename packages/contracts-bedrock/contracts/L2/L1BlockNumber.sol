@@ -3,6 +3,7 @@ pragma solidity 0.8.10;
 
 import { L1Block } from "./L1Block.sol";
 import { PredeployAddresses } from "../libraries/PredeployAddresses.sol";
+import { Semver } from "../universal/Semver.sol";
 
 /**
  * @custom:legacy
@@ -14,7 +15,10 @@ import { PredeployAddresses } from "../libraries/PredeployAddresses.sol";
  *         If you want to access the L1 block number going forward, you should use the L1Block
  *         contract instead.
  */
-contract L1BlockNumber {
+contract L1BlockNumber is Semver {
+
+    constructor() Semver(0, 0, 1) {}
+
     /**
      * @notice Returns the L1 block number.
      */
