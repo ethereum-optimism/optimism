@@ -7,7 +7,7 @@ import { L2OutputOracle } from "../L1/L2OutputOracle.sol";
 import { L2ToL1MessagePasser } from "../L2/L2ToL1MessagePasser.sol";
 import { L1StandardBridge } from "../L1/L1StandardBridge.sol";
 import { L2StandardBridge } from "../L2/L2StandardBridge.sol";
-import { OptimismMintableTokenFactory } from "../universal/OptimismMintableTokenFactory.sol";
+import { OptimismMintableERC20Factory } from "../universal/OptimismMintableERC20Factory.sol";
 import { OptimismMintableERC20 } from "../universal/OptimismMintableERC20.sol";
 import { OptimismPortal } from "../L1/OptimismPortal.sol";
 import { L2ToL1MessagePasser } from "../L2/L2ToL1MessagePasser.sol";
@@ -223,8 +223,8 @@ contract Messenger_Initializer is L2OutputOracle_Initializer {
 contract Bridge_Initializer is Messenger_Initializer {
     L1StandardBridge L1Bridge;
     L2StandardBridge L2Bridge;
-    OptimismMintableTokenFactory L2TokenFactory;
-    OptimismMintableTokenFactory L1TokenFactory;
+    OptimismMintableERC20Factory L2TokenFactory;
+    OptimismMintableERC20Factory L1TokenFactory;
     ERC20 L1Token;
     OptimismMintableERC20 L2Token;
     ERC20 NativeL2Token;
@@ -364,9 +364,9 @@ contract Bridge_Initializer is Messenger_Initializer {
         L2Bridge.initialize(payable(address(L1Bridge)));
 
         // Set up the L2 mintable token factory
-        OptimismMintableTokenFactory factory = new OptimismMintableTokenFactory();
+        OptimismMintableERC20Factory factory = new OptimismMintableERC20Factory();
         vm.etch(PredeployAddresses.L2_STANDARD_TOKEN_FACTORY, address(factory).code);
-        L2TokenFactory = OptimismMintableTokenFactory(
+        L2TokenFactory = OptimismMintableERC20Factory(
             PredeployAddresses.L2_STANDARD_TOKEN_FACTORY
         );
         L2TokenFactory.initialize(PredeployAddresses.L2_STANDARD_BRIDGE);
@@ -385,7 +385,7 @@ contract Bridge_Initializer is Messenger_Initializer {
         );
 
         NativeL2Token = new ERC20("Native L2 Token", "L2T");
-        L1TokenFactory = new OptimismMintableTokenFactory();
+        L1TokenFactory = new OptimismMintableERC20Factory();
         L1TokenFactory.initialize(address(L1Bridge));
 
         RemoteL1Token = OptimismMintableERC20(

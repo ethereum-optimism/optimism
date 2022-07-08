@@ -45,7 +45,7 @@ interface StandardBridge {
 The `bridgeERC20` function is used to send a token from one domain to another
 domain. An `OptimismMintableERC20` token contract must exist on the remote
 domain to be able to deposit tokens to that domain. One of these tokens can be
-deployed using the `OptimismMintableTokenFactory` contract.
+deployed using the `OptimismMintableERC20Factory` contract.
 
 ## Upgradability
 

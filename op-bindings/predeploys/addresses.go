@@ -10,7 +10,7 @@ const (
 	L2CrossDomainMessenger       = "0x4200000000000000000000000000000000000007"
 	L2StandardBridge             = "0x4200000000000000000000000000000000000010"
 	SequencerFeeVault            = "0x4200000000000000000000000000000000000011"
-	OptimismMintableTokenFactory = "0x4200000000000000000000000000000000000012"
+	OptimismMintableERC20Factory = "0x4200000000000000000000000000000000000012"
 	L1BlockNumber                = "0x4200000000000000000000000000000000000013"
 	OVM_GasPriceOracle           = "0x420000000000000000000000000000000000000F"
 	L1Block                      = "0x4200000000000000000000000000000000000015"
@@ -25,7 +25,7 @@ var (
 	L2CrossDomainMessengerAddr       = common.HexToAddress(L2CrossDomainMessenger)
 	L2StandardBridgeAddr             = common.HexToAddress(L2StandardBridge)
 	SequencerFeeVaultAddr            = common.HexToAddress(SequencerFeeVault)
-	OptimismMintableTokenFactoryAddr = common.HexToAddress(OptimismMintableTokenFactory)
+	OptimismMintableERC20FactoryAddr = common.HexToAddress(OptimismMintableERC20Factory)
 	L1BlockNumberAddr                = common.HexToAddress(L1BlockNumber)
 	OVM_GasPriceOracleAddr           = common.HexToAddress(OVM_GasPriceOracle)
 	L1BlockAddr                      = common.HexToAddress(L1Block)
