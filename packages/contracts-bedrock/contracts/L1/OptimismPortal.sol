@@ -7,6 +7,7 @@ import { L2OutputOracle } from "./L2OutputOracle.sol";
 import { WithdrawalVerifier } from "../libraries/WithdrawalVerifier.sol";
 import { AddressAliasHelper } from "../vendor/AddressAliasHelper.sol";
 import { ResourceMetering } from "./ResourceMetering.sol";
+import { Semver } from "../universal/Semver.sol";
 
 /**
  * @custom:proxied
@@ -15,7 +16,7 @@ import { ResourceMetering } from "./ResourceMetering.sol";
  *         and L2. Messages sent directly to the OptimismPortal have no form of replayability.
  *         Users are encouraged to use the L1CrossDomainMessenger for a higher-level interface.
  */
-contract OptimismPortal is Initializable, ResourceMetering {
+contract OptimismPortal is Initializable, ResourceMetering, Semver {
     /**
      * @notice Emitted when a transaction is deposited from L1 to L2. The parameters of this event
      *         are read by the rollup node and used to derive deposit transactions on L2.
@@ -89,10 +90,12 @@ contract OptimismPortal is Initializable, ResourceMetering {
     uint256[48] private __gap;
 
     /**
+     * @custom:semver 0.0.1
+     *
      * @param _l2Oracle                  Address of the L2OutputOracle contract.
      * @param _finalizationPeriodSeconds Output finalization time in seconds.
      */
-    constructor(L2OutputOracle _l2Oracle, uint256 _finalizationPeriodSeconds) {
+    constructor(L2OutputOracle _l2Oracle, uint256 _finalizationPeriodSeconds) Semver(0, 0, 1) {
         L2_ORACLE = _l2Oracle;
         FINALIZATION_PERIOD_SECONDS = _finalizationPeriodSeconds;
 
