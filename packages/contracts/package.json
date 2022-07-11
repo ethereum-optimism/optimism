@@ -7,7 +7,7 @@
   "files": [
     "dist/**/*.js",
     "dist/**/*.d.ts",
-    "dist/types/*.ts",
+    "dist/types",
     "artifacts/contracts/**/*.json",
     "deployments/**/*.json",
     "chugsplash",
