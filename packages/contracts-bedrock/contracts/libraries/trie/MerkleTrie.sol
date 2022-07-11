@@ -14,12 +14,6 @@ library MerkleTrie {
      * Data Structures *
      *******************/
 
-    enum NodeType {
-        BranchNode,
-        ExtensionNode,
-        LeafNode
-    }
-
     struct TrieNode {
         bytes encoded;
         RLPReader.RLPItem[] decoded;
