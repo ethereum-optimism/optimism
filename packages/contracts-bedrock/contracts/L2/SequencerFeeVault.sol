@@ -1,11 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.9;
 
-/* Library Imports */
-import { PredeployAddresses } from "../libraries/PredeployAddresses.sol";
-
-/* Contract Imports */
+import { Semver } from "../universal/Semver.sol";
 import { L2StandardBridge } from "./L2StandardBridge.sol";
+import { PredeployAddresses } from "../libraries/PredeployAddresses.sol";
 
 /**
  * @custom:proxied
@@ -14,7 +12,7 @@ import { L2StandardBridge } from "./L2StandardBridge.sol";
  * @notice The SequencerFeeVault is the contract that holds any fees paid to the Sequencer during
  *         transaction processing and block production.
  */
-contract SequencerFeeVault {
+contract SequencerFeeVault is Semver {
     /**
      * @notice Minimum balance before a withdrawal can be triggered.
      */
@@ -24,6 +22,11 @@ contract SequencerFeeVault {
      * @notice Wallet that will receive the fees on L1.
      */
     address public l1FeeWallet;
+
+    /**
+     * @custom:semver 0.0.1
+     */
+    constructor() Semver(0, 0, 1) {}
 
     /**
      * @notice Allow the contract to receive ETH.

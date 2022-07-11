@@ -5,6 +5,7 @@ import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { ERC165Checker } from "@openzeppelin/contracts/utils/introspection/ERC165Checker.sol";
 import { Address } from "@openzeppelin/contracts/utils/Address.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import { Initializable } from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import { IRemoteToken, IL1Token } from "./SupportedInterfaces.sol";
 import { CrossDomainMessenger } from "./CrossDomainMessenger.sol";
 import { OptimismMintableERC20 } from "./OptimismMintableERC20.sol";
@@ -13,7 +14,7 @@ import { OptimismMintableERC20 } from "./OptimismMintableERC20.sol";
  * @title StandardBridge
  * @notice StandardBridge is a base contract for the L1 and L2 standard ERC20 bridges.
  */
-abstract contract StandardBridge {
+abstract contract StandardBridge is Initializable {
     using SafeERC20 for IERC20;
 
     /**
@@ -367,9 +368,10 @@ abstract contract StandardBridge {
      * @param _messenger   Address of CrossDomainMessenger on this network.
      * @param _otherBridge Address of the other StandardBridge contract.
      */
-    function _initialize(address payable _messenger, address payable _otherBridge) internal {
-        require(address(messenger) == address(0), "Contract has already been initialized.");
-
+    function __StandardBridge_init(address payable _messenger, address payable _otherBridge)
+        internal
+        onlyInitializing
+    {
         messenger = CrossDomainMessenger(_messenger);
         otherBridge = StandardBridge(_otherBridge);
     }

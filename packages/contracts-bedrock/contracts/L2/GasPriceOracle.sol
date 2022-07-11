@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.10;
 
+import { Semver } from "../universal/Semver.sol";
 import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 import { PredeployAddresses } from "../libraries/PredeployAddresses.sol";
 import { L1Block } from "../L2/L1Block.sol";
@@ -15,7 +16,7 @@ import { L1Block } from "../L2/L1Block.sol";
  *         contract exposes an API that is useful for knowing how large the L1 portion of their
  *         transaction fee will be.
  */
-contract GasPriceOracle is Ownable {
+contract GasPriceOracle is Ownable, Semver {
     /**
      * @custom:legacy
      * @notice Spacer for backwards compatibility.
@@ -44,9 +45,11 @@ contract GasPriceOracle is Ownable {
     uint256 public decimals;
 
     /**
+     * @custom:semver 0.0.1
+     *
      * @param _owner Address that will initially own this contract.
      */
-    constructor(address _owner) Ownable() {
+    constructor(address _owner) Ownable() Semver(0, 0, 1) {
         transferOwnership(_owner);
     }
 

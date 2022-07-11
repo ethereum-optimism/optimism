@@ -3,10 +3,10 @@ import { HardhatUserConfig, task, subtask } from 'hardhat/config'
 import { TASK_COMPILE_SOLIDITY_GET_SOURCE_PATHS } from 'hardhat/builtin-tasks/task-names'
 
 // Hardhat plugins
+import '@eth-optimism/hardhat-deploy-config'
+import '@foundry-rs/hardhat-forge'
 import '@nomiclabs/hardhat-ethers'
 import 'hardhat-deploy'
-import '@foundry-rs/hardhat-forge'
-import '@eth-optimism/hardhat-deploy-config'
 
 // Hardhat tasks
 import './tasks/genesis-l1'

@@ -99,6 +99,10 @@ func (bq *BatchQueue) ResetStep(ctx context.Context, l1Fetcher L1Fetcher) error 
 	} else {
 		startNumber -= bq.config.SeqWindowSize
 	}
+	// clip to genesis
+	if startNumber < bq.config.Genesis.L1.Number {
+		startNumber = bq.config.Genesis.L1.Number
+	}
 	l1BlockStart, err := l1Fetcher.L1BlockRefByNumber(ctx, startNumber)
 	if err != nil {
 		return err

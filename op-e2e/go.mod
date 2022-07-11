@@ -167,4 +167,4 @@ replace (
 	github.com/ethereum-optimism/optimism/op-proposer v0.0.0 => ../op-proposer
 )
 
-replace github.com/ethereum/go-ethereum v1.10.17 => github.com/ethereum-optimism/reference-optimistic-geth v0.0.0-20220616183505-9a67f31e4592
+replace github.com/ethereum/go-ethereum v1.10.17 => github.com/ethereum-optimism/reference-optimistic-geth v0.0.0-20220711171946-f579014dc46d

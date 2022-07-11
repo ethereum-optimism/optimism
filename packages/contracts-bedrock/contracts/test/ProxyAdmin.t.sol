@@ -38,7 +38,7 @@ contract ProxyAdmin_Test is Test {
         // Deploy a legacy ResolvedDelegateProxy with the name `a`.
         // Whatever `a` is set to in AddressManager will be the address
         // that is used for the implementation.
-        resolved = new ResolvedDelegateProxy(address(addressManager), "a");
+        resolved = new ResolvedDelegateProxy(addressManager, "a");
 
         // Impersonate alice for setting up the admin.
         vm.startPrank(alice);
@@ -52,8 +52,8 @@ contract ProxyAdmin_Test is Test {
 
         // Set the proxy types
         admin.setProxyType(address(proxy), ProxyAdmin.ProxyType.ERC1967);
-        admin.setProxyType(address(chugsplash), ProxyAdmin.ProxyType.Chugsplash);
-        admin.setProxyType(address(resolved), ProxyAdmin.ProxyType.ResolvedDelegate);
+        admin.setProxyType(address(chugsplash), ProxyAdmin.ProxyType.CHUGSPLASH);
+        admin.setProxyType(address(resolved), ProxyAdmin.ProxyType.RESOLVED);
         vm.stopPrank();
 
         implementation = new SimpleStorage();
@@ -80,7 +80,7 @@ contract ProxyAdmin_Test is Test {
 
     function test_onlyOwnerSetProxyType() external {
         vm.expectRevert("UNAUTHORIZED");
-        admin.setProxyType(address(0), ProxyAdmin.ProxyType.Chugsplash);
+        admin.setProxyType(address(0), ProxyAdmin.ProxyType.CHUGSPLASH);
     }
 
     function test_owner() external {
@@ -94,11 +94,11 @@ contract ProxyAdmin_Test is Test {
         );
         assertEq(
             uint256(admin.proxyType(address(chugsplash))),
-            uint256(ProxyAdmin.ProxyType.Chugsplash)
+            uint256(ProxyAdmin.ProxyType.CHUGSPLASH)
         );
         assertEq(
             uint256(admin.proxyType(address(resolved))),
-            uint256(ProxyAdmin.ProxyType.ResolvedDelegate)
+            uint256(ProxyAdmin.ProxyType.RESOLVED)
         );
     }
 
@@ -171,10 +171,10 @@ contract ProxyAdmin_Test is Test {
         if (proxyType == ProxyAdmin.ProxyType.ERC1967) {
             vm.expectRevert("Proxy: implementation not initialized");
             admin.getProxyAdmin(_proxy);
-        } else if (proxyType == ProxyAdmin.ProxyType.Chugsplash) {
+        } else if (proxyType == ProxyAdmin.ProxyType.CHUGSPLASH) {
             vm.expectRevert("L1ChugSplashProxy: implementation is not set yet");
             admin.getProxyAdmin(_proxy);
-        } else if (proxyType == ProxyAdmin.ProxyType.ResolvedDelegate) {
+        } else if (proxyType == ProxyAdmin.ProxyType.RESOLVED) {
             // Just an empty block to show that all cases are covered
         } else {
             vm.expectRevert("ProxyAdmin: unknown proxy type");
@@ -185,12 +185,12 @@ contract ProxyAdmin_Test is Test {
         vm.prank(address(128));
         if (proxyType == ProxyAdmin.ProxyType.ERC1967) {
             assertEq(Proxy(payable(_proxy)).admin(), address(128));
-        } else if (proxyType == ProxyAdmin.ProxyType.Chugsplash) {
+        } else if (proxyType == ProxyAdmin.ProxyType.CHUGSPLASH) {
             assertEq(
                 L1ChugSplashProxy(payable(_proxy)).getOwner(),
                 address(128)
             );
-        } else if (proxyType == ProxyAdmin.ProxyType.ResolvedDelegate) {
+        } else if (proxyType == ProxyAdmin.ProxyType.RESOLVED) {
             assertEq(
                 addressManager.owner(),
                 address(128)

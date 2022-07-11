@@ -1,10 +1,7 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.9;
+pragma solidity 0.8.10;
 
-/* Library Imports */
 import { PredeployAddresses } from "../libraries/PredeployAddresses.sol";
-
-/* Contract Imports */
 import { OptimismMintableERC20 } from "../universal/OptimismMintableERC20.sol";
 
 /**

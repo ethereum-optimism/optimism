@@ -4,47 +4,48 @@ pragma solidity ^0.8.9;
 import { AddressManager } from "./AddressManager.sol";
 
 /**
+ * @custom:legacy
  * @title ResolvedDelegateProxy
+ * @notice ResolvedDelegateProxy is a legacy proxy contract that makes use of the AddressManager to
+ *         resolve the implementation address. We're maintaining this contract for backwards
+ *         compatibility so we can manage all legacy proxies where necessary.
  */
 contract ResolvedDelegateProxy {
-    /*************
-     * Variables *
-     *************/
-
-    // Using mappings to store fields to avoid overwriting storage slots in the
-    // implementation contract. For example, instead of storing these fields at
-    // storage slot `0` & `1`, they are stored at `keccak256(key + slot)`.
-    // See: https://solidity.readthedocs.io/en/v0.7.0/internals/layout_in_storage.html
-    // NOTE: Do not use this code in your own contract system.
-    //      There is a known flaw in this contract, and we will remove it from the repository
-    //      in the near future. Due to the very limited way that we are using it, this flaw is
-    //      not an issue in our system.
+    /**
+     * @notice Mapping used to store the implementation name that corresponds to this contract. A
+     *         mapping was originally used as a way to bypass the same issue normally solved by
+     *         storing the implementation address in a specific storage slot that does not conflict
+     *         with any other storage slot. Generally NOT a safe solution but works as long as the
+     *         implementation does not also keep a mapping in the first storage slot.
+     */
     mapping(address => string) private implementationName;
-    mapping(address => AddressManager) private addressManager;
-
-    /***************
-     * Constructor *
-     ***************/
 
     /**
-     * @param _libAddressManager Address of the AddressManager.
+     * @notice Mapping used to store the address of the AddressManager contract where the
+     *         implementation address will be resolved from. Same concept here as with the above
+     *         mapping. Also generally unsafe but fine if the implementation doesn't keep a mapping
+     *         in the second storage slot.
+     */
+    mapping(address => AddressManager) private addressManager;
+
+    /**
+     * @param _addressManager  Address of the AddressManager.
      * @param _implementationName implementationName of the contract to proxy to.
      */
-    constructor(address _libAddressManager, string memory _implementationName) {
-        addressManager[address(this)] = AddressManager(_libAddressManager);
+    constructor(AddressManager _addressManager, string memory _implementationName) {
+        addressManager[address(this)] = _addressManager;
         implementationName[address(this)] = _implementationName;
     }
 
-    /*********************
-     * Fallback Function *
-     *********************/
-
+    /**
+     * @notice Fallback, performs a delegatecall to the resolved implementation address.
+     */
     fallback() external payable {
         address target = addressManager[address(this)].getAddress(
             (implementationName[address(this)])
         );
 
-        require(target != address(0), "Target address must be initialized.");
+        require(target != address(0), "ResolvedDelegateProxy: target address must be initialized");
 
         // slither-disable-next-line controlled-delegatecall
         (bool success, bytes memory returndata) = target.delegatecall(msg.data);

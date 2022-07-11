@@ -7,7 +7,7 @@ import { L2OutputOracle } from "../L1/L2OutputOracle.sol";
 import { L2ToL1MessagePasser } from "../L2/L2ToL1MessagePasser.sol";
 import { L1StandardBridge } from "../L1/L1StandardBridge.sol";
 import { L2StandardBridge } from "../L2/L2StandardBridge.sol";
-import { OptimismMintableTokenFactory } from "../universal/OptimismMintableTokenFactory.sol";
+import { OptimismMintableERC20Factory } from "../universal/OptimismMintableERC20Factory.sol";
 import { OptimismMintableERC20 } from "../universal/OptimismMintableERC20.sol";
 import { OptimismPortal } from "../L1/OptimismPortal.sol";
 import { L2ToL1MessagePasser } from "../L2/L2ToL1MessagePasser.sol";
@@ -186,15 +186,15 @@ contract Messenger_Initializer is L2OutputOracle_Initializer {
         vm.prank(multisig);
         addressManager.setAddress("OVM_L1CrossDomainMessenger", address(L1MessengerImpl));
         ResolvedDelegateProxy proxy = new ResolvedDelegateProxy(
-            address(addressManager),
+            addressManager,
             "OVM_L1CrossDomainMessenger"
         );
         L1Messenger = L1CrossDomainMessenger(address(proxy));
-        L1Messenger.initialize(op);
+        L1Messenger.initialize();
 
         vm.etch(
             PredeployAddresses.L2_CROSS_DOMAIN_MESSENGER,
-            address(new L2CrossDomainMessenger()).code
+            address(new L2CrossDomainMessenger(address(L1Messenger))).code
         );
 
         L2Messenger.initialize(address(L1Messenger));
@@ -223,118 +223,118 @@ contract Messenger_Initializer is L2OutputOracle_Initializer {
 contract Bridge_Initializer is Messenger_Initializer {
     L1StandardBridge L1Bridge;
     L2StandardBridge L2Bridge;
-    OptimismMintableTokenFactory L2TokenFactory;
-    OptimismMintableTokenFactory L1TokenFactory;
+    OptimismMintableERC20Factory L2TokenFactory;
+    OptimismMintableERC20Factory L1TokenFactory;
     ERC20 L1Token;
     OptimismMintableERC20 L2Token;
     ERC20 NativeL2Token;
     OptimismMintableERC20 RemoteL1Token;
 
     event ETHDepositInitiated(
-        address indexed _from,
-        address indexed _to,
-        uint256 _amount,
-        bytes _data
+        address indexed from,
+        address indexed to,
+        uint256 amount,
+        bytes data
     );
 
     event ETHWithdrawalFinalized(
-        address indexed _from,
-        address indexed _to,
-        uint256 _amount,
-        bytes _data
+        address indexed from,
+        address indexed to,
+        uint256 amount,
+        bytes data
     );
 
     event ERC20DepositInitiated(
-        address indexed _l1Token,
-        address indexed _l2Token,
-        address indexed _from,
-        address _to,
-        uint256 _amount,
-        bytes _data
+        address indexed l1Token,
+        address indexed l2Token,
+        address indexed from,
+        address to,
+        uint256 amount,
+        bytes data
     );
 
     event ERC20WithdrawalFinalized(
-        address indexed _l1Token,
-        address indexed _l2Token,
-        address indexed _from,
-        address _to,
-        uint256 _amount,
-        bytes _data
+        address indexed l1Token,
+        address indexed l2Token,
+        address indexed from,
+        address to,
+        uint256 amount,
+        bytes data
     );
 
     event WithdrawalInitiated(
-        address indexed _l1Token,
-        address indexed _l2Token,
-        address indexed _from,
-        address _to,
-        uint256 _amount,
-        bytes _data
+        address indexed l1Token,
+        address indexed l2Token,
+        address indexed from,
+        address to,
+        uint256 amount,
+        bytes data
     );
 
     event DepositFinalized(
-        address indexed _l1Token,
-        address indexed _l2Token,
-        address indexed _from,
-        address _to,
-        uint256 _amount,
-        bytes _data
+        address indexed l1Token,
+        address indexed l2Token,
+        address indexed from,
+        address to,
+        uint256 amount,
+        bytes data
     );
 
     event DepositFailed(
-        address indexed _l1Token,
-        address indexed _l2Token,
-        address indexed _from,
-        address _to,
-        uint256 _amount,
-        bytes _data
+        address indexed l1Token,
+        address indexed l2Token,
+        address indexed from,
+        address to,
+        uint256 amount,
+        bytes data
     );
 
     event ETHBridgeInitiated(
-        address indexed _from,
-        address indexed _to,
-        uint256 _amount,
-        bytes _data
+        address indexed from,
+        address indexed to,
+        uint256 amount,
+        bytes data
     );
 
     event ETHBridgeFinalized(
-        address indexed _from,
-        address indexed _to,
-        uint256 _amount,
-        bytes _data
+        address indexed from,
+        address indexed to,
+        uint256 amount,
+        bytes data
     );
 
     event ERC20BridgeInitiated(
-        address indexed _localToken,
-        address indexed _remoteToken,
-        address indexed _from,
-        address _to,
-        uint256 _amount,
-        bytes _data
+        address indexed localToken,
+        address indexed remoteToken,
+        address indexed from,
+        address to,
+        uint256 amount,
+        bytes data
     );
 
     event ERC20BridgeFinalized(
-        address indexed _localToken,
-        address indexed _remoteToken,
-        address indexed _from,
-        address _to,
-        uint256 _amount,
-        bytes _data
+        address indexed localToken,
+        address indexed remoteToken,
+        address indexed from,
+        address to,
+        uint256 amount,
+        bytes data
     );
 
     event ERC20BridgeFailed(
-        address indexed _localToken,
-        address indexed _remoteToken,
-        address indexed _from,
-        address _to,
-        uint256 _amount,
-        bytes _data
+        address indexed localToken,
+        address indexed remoteToken,
+        address indexed from,
+        address to,
+        uint256 amount,
+        bytes data
     );
 
     function setUp() public virtual override {
         super.setUp();
 
         vm.label(PredeployAddresses.L2_STANDARD_BRIDGE, "L2StandardBridge");
-        vm.label(PredeployAddresses.L2_STANDARD_TOKEN_FACTORY, "L2StandardTokenFactory");
+        vm.label(PredeployAddresses.OPTIMISM_MINTABLE_ERC20_FACTORY, "OptimismMintableERC20Factory");
 
         // Deploy the L1 bridge and initialize it with the address of the
         // L1CrossDomainMessenger
@@ -345,7 +345,7 @@ contract Bridge_Initializer is Messenger_Initializer {
             abi.encode(true)
         );
         vm.startPrank(multisig);
-        proxy.setCode(type(L1StandardBridge).runtimeCode);
+        proxy.setCode(address(new L1StandardBridge(payable(address(L1Messenger)))).code);
         vm.clearMockedCalls();
         address L1Bridge_Impl = proxy.getImplementation();
         vm.stopPrank();
@@ -358,18 +358,19 @@ contract Bridge_Initializer is Messenger_Initializer {
 
         // Deploy the L2StandardBridge, move it to the correct predeploy
         // address and then initialize it
-        L2StandardBridge l2B = new L2StandardBridge();
+        L2StandardBridge l2B = new L2StandardBridge(payable(PredeployAddresses.L2_STANDARD_BRIDGE));
         vm.etch(PredeployAddresses.L2_STANDARD_BRIDGE, address(l2B).code);
         L2Bridge = L2StandardBridge(payable(PredeployAddresses.L2_STANDARD_BRIDGE));
         L2Bridge.initialize(payable(address(L1Bridge)));
 
         // Set up the L2 mintable token factory
-        OptimismMintableTokenFactory factory = new OptimismMintableTokenFactory();
-        vm.etch(PredeployAddresses.L2_STANDARD_TOKEN_FACTORY, address(factory).code);
-        L2TokenFactory = OptimismMintableTokenFactory(
-            PredeployAddresses.L2_STANDARD_TOKEN_FACTORY
+        OptimismMintableERC20Factory factory = new OptimismMintableERC20Factory(
+            PredeployAddresses.L2_STANDARD_BRIDGE
         );
-        L2TokenFactory.initialize(PredeployAddresses.L2_STANDARD_BRIDGE);
+        vm.etch(PredeployAddresses.OPTIMISM_MINTABLE_ERC20_FACTORY, address(factory).code);
+        L2TokenFactory = OptimismMintableERC20Factory(
+            PredeployAddresses.OPTIMISM_MINTABLE_ERC20_FACTORY
+        );
 
         vm.etch(PredeployAddresses.LEGACY_ERC20_ETH, address(new LegacyERC20ETH()).code);
 
@@ -385,8 +386,7 @@ contract Bridge_Initializer is Messenger_Initializer {
         );
 
         NativeL2Token = new ERC20("Native L2 Token", "L2T");
-        L1TokenFactory = new OptimismMintableTokenFactory();
-        L1TokenFactory.initialize(address(L1Bridge));
+        L1TokenFactory = new OptimismMintableERC20Factory(address(L1Bridge));
 
         RemoteL1Token = OptimismMintableERC20(
             L1TokenFactory.createStandardL2Token(

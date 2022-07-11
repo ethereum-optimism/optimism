@@ -37,9 +37,7 @@ const deployFn: DeployFunction = async (hre) => {
 
   const upgradeTx = await Proxy.upgradeToAndCall(
     messenger.address,
-    L1CrossDomainMessenger.interface.encodeFunctionData('initialize(address)', [
-      portal.address,
-    ])
+    L1CrossDomainMessenger.interface.encodeFunctionData('initialize')
   )
   await upgradeTx.wait()
 
