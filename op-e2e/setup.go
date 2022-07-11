@@ -284,7 +284,6 @@ func (cfg SystemConfig) start() (*System, error) {
 			MergeForkBlock:          common.Big0,
 			TerminalTotalDifficulty: common.Big0,
 			Optimism: &params.OptimismConfig{
-				Enabled:          true,
 				BaseFeeRecipient: cfg.BaseFeeRecipient,
 				L1FeeRecipient:   cfg.L1FeeRecipient,
 			},
