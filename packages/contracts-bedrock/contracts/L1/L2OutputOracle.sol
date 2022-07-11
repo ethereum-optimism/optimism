@@ -4,6 +4,7 @@ pragma solidity 0.8.10;
 import {
     OwnableUpgradeable
 } from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import { Semver } from "../universal/Semver.sol";
 
 /**
  * @custom:proxied
@@ -13,7 +14,7 @@ import {
  *         This contract should be deployed behind an upgradable proxy
  */
 // slither-disable-next-line locked-ether
-contract L2OutputOracle is OwnableUpgradeable {
+contract L2OutputOracle is OwnableUpgradeable, Semver {
     /**
      * @notice OutputProposal represents a commitment to the L2 state.
      *         The timestamp is the L1 timestamp that the output root is posted.
@@ -110,6 +111,8 @@ contract L2OutputOracle is OwnableUpgradeable {
     }
 
     /**
+     * @custom:semver 0.0.1
+     *
      * @param _submissionInterval    Interval in blocks at which checkpoints must be submitted.
      * @param _genesisL2Output       The initial L2 output of the L2 chain.
      * @param _historicalTotalBlocks Number of blocks preceding this L2 chain.
@@ -128,7 +131,7 @@ contract L2OutputOracle is OwnableUpgradeable {
         uint256 _l2BlockTime,
         address _sequencer,
         address _owner
-    ) {
+    ) Semver(0, 0, 1) {
         require(
             _l2BlockTime < block.timestamp,
             "Output Oracle: Initial L2 block time must be less than current time"
