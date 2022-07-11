@@ -240,6 +240,7 @@ func FuzzUnmarshallLogEvent(f *testing.F) {
 
 		reconstructed := &bindings.OptimismPortalTransactionDeposited{
 			From:       dep.From,
+			Version:    common.Big0,
 			OpaqueData: opaqueData,
 			Raw:        types.Log{},
 		}
@@ -258,6 +259,7 @@ func FuzzUnmarshallLogEvent(f *testing.F) {
 		inputArgs := &bindings.OptimismPortalTransactionDeposited{
 			From:       from,
 			To:         to,
+			Version:    common.Big0,
 			OpaqueData: opaqueData,
 			Raw:        types.Log{},
 		}

@@ -12,7 +12,7 @@ import (
 )
 
 var (
-	DepositEventABI     = "TransactionDeposited(address,address,uint256,uint256,uint64,bool,bytes)"
+	DepositEventABI     = "TransactionDeposited(address,address,uint256,bytes)"
 	DepositEventABIHash = crypto.Keccak256Hash([]byte(DepositEventABI))
 )
 
@@ -20,22 +20,23 @@ var (
 //
 // parse log data for:
 //     event TransactionDeposited(
-//    	 address indexed from,
-//    	 address indexed to,
-//       uint256 mint,
-//    	 uint256 value,
-//    	 uint64 gasLimit,
-//    	 bool isCreation,
-//    	 data data
+//         address indexed from,
+//         address indexed to,
+//         uint256 indexed version,
+//         bytes opaqueData
 //     );
 //
 // Additionally, the event log-index and
 func UnmarshalDepositLogEvent(ev *types.Log) (*types.DepositTx, error) {
-	if len(ev.Topics) != 3 {
-		return nil, fmt.Errorf("expected 3 event topics (event identity, indexed from, indexed to)")
+	if len(ev.Topics) != 4 {
+		return nil, fmt.Errorf("expected 4 event topics (event identity, indexed from, indexed to, indexed version), got %d", len(ev.Topics))
 	}
 	if ev.Topics[0] != DepositEventABIHash {
 		return nil, fmt.Errorf("invalid deposit event selector: %s, expected %s", ev.Topics[0], DepositEventABIHash)
+	}
+	if ev.Topics[3] != [32]byte{} {
+		return nil, fmt.Errorf("invalid deposit version (only version 0 is supported), got %s", ev.Topics[3].String())
+
 	}
 	if len(ev.Data) < 6*32 {
 		return nil, fmt.Errorf("deposit event data too small (%d bytes): %x", len(ev.Data), ev.Data)
@@ -53,6 +54,10 @@ func UnmarshalDepositLogEvent(ev *types.Log) (*types.DepositTx, error) {
 	dep.From = common.BytesToAddress(ev.Topics[1][12:])
 	// indexed 1
 	to := common.BytesToAddress(ev.Topics[2][12:])
+
+	// HACK: slice off the offset/length field of the singular bytes field.
+	// This enables the rest of the ABI decoding logic to work.
+	ev.Data = ev.Data[64:]
 
 	// unindexed data
 	offset := uint64(0)
