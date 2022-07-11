@@ -36,14 +36,14 @@ contract ProxyAdmin is Owned {
     /**
      * @notice The proxy types that the ProxyAdmin can manage.
      *
-     * @custom:value ERC1967          Represents an ERC1967 compliant transparent proxy interface.
-     * @custom:value Chugsplash       Represents the Chugsplash proxy interface (legacy).
-     * @custom:value ResolvedDelegate Represents the ResolvedDelegate proxy (legacy).
+     * @custom:value ERC1967    Represents an ERC1967 compliant transparent proxy interface.
+     * @custom:value CHUGSPLASH Represents the Chugsplash proxy interface (legacy).
+     * @custom:value RESOLVED   Represents the ResolvedDelegate proxy (legacy).
      */
     enum ProxyType {
         ERC1967,
-        Chugsplash,
-        ResolvedDelegate
+        CHUGSPLASH,
+        RESOLVED
     }
 
     /**
@@ -156,9 +156,9 @@ contract ProxyAdmin is Owned {
         ProxyType ptype = proxyType[_proxy];
         if (ptype == ProxyType.ERC1967) {
             return IStaticERC1967Proxy(_proxy).implementation();
-        } else if (ptype == ProxyType.Chugsplash) {
+        } else if (ptype == ProxyType.CHUGSPLASH) {
             return IStaticL1ChugSplashProxy(_proxy).getImplementation();
-        } else if (ptype == ProxyType.ResolvedDelegate) {
+        } else if (ptype == ProxyType.RESOLVED) {
             return addressManager.getAddress(implementationName[_proxy]);
         } else {
             revert("ProxyAdmin: unknown proxy type");
@@ -176,9 +176,9 @@ contract ProxyAdmin is Owned {
         ProxyType ptype = proxyType[_proxy];
         if (ptype == ProxyType.ERC1967) {
             return IStaticERC1967Proxy(_proxy).admin();
-        } else if (ptype == ProxyType.Chugsplash) {
+        } else if (ptype == ProxyType.CHUGSPLASH) {
             return IStaticL1ChugSplashProxy(_proxy).getOwner();
-        } else if (ptype == ProxyType.ResolvedDelegate) {
+        } else if (ptype == ProxyType.RESOLVED) {
             return addressManager.owner();
         } else {
             revert("ProxyAdmin: unknown proxy type");
@@ -195,9 +195,9 @@ contract ProxyAdmin is Owned {
         ProxyType ptype = proxyType[_proxy];
         if (ptype == ProxyType.ERC1967) {
             Proxy(_proxy).changeAdmin(_newAdmin);
-        } else if (ptype == ProxyType.Chugsplash) {
+        } else if (ptype == ProxyType.CHUGSPLASH) {
             L1ChugSplashProxy(_proxy).setOwner(_newAdmin);
-        } else if (ptype == ProxyType.ResolvedDelegate) {
+        } else if (ptype == ProxyType.RESOLVED) {
             addressManager.transferOwnership(_newAdmin);
         } else {
             revert("ProxyAdmin: unknown proxy type");
@@ -214,12 +214,12 @@ contract ProxyAdmin is Owned {
         ProxyType ptype = proxyType[_proxy];
         if (ptype == ProxyType.ERC1967) {
             Proxy(_proxy).upgradeTo(_implementation);
-        } else if (ptype == ProxyType.Chugsplash) {
+        } else if (ptype == ProxyType.CHUGSPLASH) {
             L1ChugSplashProxy(_proxy).setStorage(
                 0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc,
                 bytes32(uint256(uint160(_implementation)))
             );
-        } else if (ptype == ProxyType.ResolvedDelegate) {
+        } else if (ptype == ProxyType.RESOLVED) {
             string memory name = implementationName[_proxy];
             addressManager.setAddress(name, _implementation);
         } else {

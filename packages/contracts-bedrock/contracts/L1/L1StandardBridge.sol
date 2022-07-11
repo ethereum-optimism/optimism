@@ -3,6 +3,7 @@ pragma solidity ^0.8.9;
 
 import { PredeployAddresses } from "../libraries/PredeployAddresses.sol";
 import { StandardBridge } from "../universal/StandardBridge.sol";
+import { Semver } from "../universal/Semver.sol";
 
 /**
  * @custom:proxied
@@ -11,7 +12,7 @@ import { StandardBridge } from "../universal/StandardBridge.sol";
  *         L2. ERC20 tokens deposited into L2 are escrowed within this contract until withdrawal.
  *         ETH is transferred to and escrowed within the OptimismPortal contract.
  */
-contract L1StandardBridge is StandardBridge {
+contract L1StandardBridge is StandardBridge, Semver {
     /**
      * @custom:legacy
      * @notice Emitted whenever a deposit of ETH from L1 into L2 is initiated.
@@ -87,7 +88,7 @@ contract L1StandardBridge is StandardBridge {
     /**
      * @param _messenger Address of the L1CrossDomainMessenger.
      */
-    constructor(address payable _messenger) public {
+    constructor(address payable _messenger) Semver(0, 0, 1) {
         initialize(_messenger);
     }
 
