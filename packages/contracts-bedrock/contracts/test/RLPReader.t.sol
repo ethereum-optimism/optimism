@@ -274,61 +274,61 @@ contract RLPReader_Test is CommonTest {
 
     function test_readList_invalidShortList() external {
         vm.expectRevert("Invalid RLP short list.");
-        RLPReader.RLPItem[] memory list = RLPReader.readList(hex"efdebd");
+        RLPReader.readList(hex"efdebd");
     }
 
     function test_readList_longStringLength() external {
         vm.expectRevert("Invalid RLP short list.");
-        RLPReader.RLPItem[] memory list = RLPReader.readList(hex"efb83600");
+        RLPReader.readList(hex"efb83600");
     }
 
     function test_readList_notLongEnough() external {
         vm.expectRevert("Invalid RLP short list.");
-        RLPReader.RLPItem[] memory list = RLPReader.readList(hex"efdebdaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
+        RLPReader.readList(hex"efdebdaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
     }
 
     function test_readList_int32Overflow() external {
         vm.expectRevert("Invalid RLP long string.");
-        RLPReader.RLPItem[] memory list = RLPReader.readList(hex"bf0f000000000000021111");
+        RLPReader.readList(hex"bf0f000000000000021111");
     }
 
     function test_readList_int32Overflow2() external {
         vm.expectRevert("Invalid RLP long list.");
-        RLPReader.RLPItem[] memory list = RLPReader.readList(hex"ff0f000000000000021111");
+        RLPReader.readList(hex"ff0f000000000000021111");
     }
 
     function test_readList_incorrectLengthInArray() external {
         vm.expectRevert("Invalid RLP list value.");
-        RLPReader.RLPItem[] memory list = RLPReader.readList(hex"b9002100dc2b275d0f74e8a53e6f4ec61b27f24278820be3f82ea2110e582081b0565df0");
+        RLPReader.readList(hex"b9002100dc2b275d0f74e8a53e6f4ec61b27f24278820be3f82ea2110e582081b0565df0");
     }
 
     function test_readList_leadingZerosInLongLengthArray1() external {
         vm.expectRevert("Invalid RLP list value.");
-        RLPReader.RLPItem[] memory list = RLPReader.readList(hex"b90040000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f");
+        RLPReader.readList(hex"b90040000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f");
     }
 
     function test_readList_leadingZerosInLongLengthArray2() external {
         vm.expectRevert("Invalid RLP list value.");
-        RLPReader.RLPItem[] memory list = RLPReader.readList(hex"b800");
+        RLPReader.readList(hex"b800");
     }
 
     function test_readList_leadingZerosInLongLengthList1() external {
         vm.expectRevert("Provided RLP list exceeds max list length.");
-        RLPReader.RLPItem[] memory list = RLPReader.readList(hex"fb00000040000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f");
+        RLPReader.readList(hex"fb00000040000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f");
     }
 
     function test_readList_nonOptimalLongLengthArray1() external {
         vm.expectRevert("Invalid RLP list value.");
-        RLPReader.RLPItem[] memory list = RLPReader.readList(hex"b81000112233445566778899aabbccddeeff");
+        RLPReader.readList(hex"b81000112233445566778899aabbccddeeff");
     }
 
     function test_readList_nonOptimalLongLengthArray2() external {
         vm.expectRevert("Invalid RLP list value.");
-        RLPReader.RLPItem[] memory list = RLPReader.readList(hex"b801ff");
+        RLPReader.readList(hex"b801ff");
     }
 
     function test_readList_invalidValue() external {
         vm.expectRevert("Invalid RLP short string.");
-        RLPReader.RLPItem[] memory list = RLPReader.readList(hex"91");
+        RLPReader.readList(hex"91");
     }
 }
