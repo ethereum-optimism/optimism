@@ -333,9 +333,7 @@ abstract contract CrossDomainMessenger is
      *         contracts because the logic for this depends on the network where the messenger is
      *         being deployed.
      */
-    function _isSystemMessageSender() internal view virtual returns (bool) {
-        revert("CrossDomainMessenger: child contract must implement");
-    }
+    function _isSystemMessageSender() internal view virtual returns (bool);
 
     /**
      * @notice Sends a low-level message to the other messenger. Needs to be implemented by child
@@ -347,7 +345,5 @@ abstract contract CrossDomainMessenger is
         uint64 _gasLimit,
         uint256 _value,
         bytes memory _data
-    ) internal virtual {
-        revert("CrossDomainMessenger: child contract must implement");
-    }
+    ) internal virtual;
 }
