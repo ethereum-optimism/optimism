@@ -266,7 +266,12 @@ contract L2OutputOracle is OwnableUpgradeable, Semver {
      * @param _l2BlockNumber The L2 block number of the target block.
      */
     function getL2Output(uint256 _l2BlockNumber) external view returns (OutputProposal memory) {
-        return l2Outputs[_l2BlockNumber];
+        OutputProposal memory output = l2Outputs[_l2BlockNumber];
+        require(
+            output.outputRoot != bytes32(0),
+            "OutputOracle: No output found for that block number."
+        );
+        return output;
     }
 
     /**

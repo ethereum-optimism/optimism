@@ -54,6 +54,7 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
         assertEq(proposal.outputRoot, proposedOutput1);
         assertEq(proposal.timestamp, block.timestamp);
 
+        vm.expectRevert("OutputOracle: No output found for that block number.");
         L2OutputOracle.OutputProposal memory proposal2 = oracle.getL2Output(0);
         assertEq(proposal2.outputRoot, bytes32(0));
         assertEq(proposal2.timestamp, 0);

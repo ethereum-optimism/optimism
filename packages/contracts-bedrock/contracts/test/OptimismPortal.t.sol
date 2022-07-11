@@ -220,7 +220,7 @@ contract OptimismPortal_Test is Portal_Initializer {
     // TODO: test this deeply
     // function test_verifyWithdrawal() external {}
 
-    function test_cannotVerifyRecentWithdrawal() external {
+    function test_cannotFinalizeRecentWithdrawal() external {
         Hashing.OutputRootProof memory outputRootProof = Hashing
             .OutputRootProof({
                 version: bytes32(0),
@@ -228,12 +228,24 @@ contract OptimismPortal_Test is Portal_Initializer {
                 withdrawerStorageRoot: bytes32(0),
                 latestBlockhash: bytes32(0)
             });
+        // Setup the Oracle to return an output with a recent timestamp
+        uint256 recentTimestamp = block.timestamp - 1000;
+        vm.mockCall(
+            address(op.L2_ORACLE()),
+            abi.encodeWithSelector(L2OutputOracle.getL2Output.selector),
+            abi.encode(L2OutputOracle.OutputProposal(bytes32(uint256(1)), recentTimestamp))
+        );
 
         vm.expectRevert("OptimismPortal: proposal is not yet finalized");
         op.finalizeWithdrawalTransaction(0, alice, alice, 0, 0, hex"", 0, outputRootProof, hex"");
     }
 
     function test_invalidWithdrawalProof() external {
+        vm.mockCall(
+            address(op.L2_ORACLE()),
+            abi.encodeWithSelector(L2OutputOracle.getL2Output.selector),
+            abi.encode(L2OutputOracle.OutputProposal(bytes32(uint256(1)), block.timestamp))
+        );
         Hashing.OutputRootProof memory outputRootProof = Hashing
             .OutputRootProof({
                 version: bytes32(0),
@@ -243,14 +255,12 @@ contract OptimismPortal_Test is Portal_Initializer {
             });
 
         vm.warp(
-            oracle.getL2Output(
-                oracle.latestBlockNumber()
-            ).timestamp
-            + op.FINALIZATION_PERIOD_SECONDS()
+            oracle.getL2Output(oracle.latestBlockNumber()).timestamp +
+                op.FINALIZATION_PERIOD_SECONDS() + 1
         );
 
         vm.expectRevert("OptimismPortal: invalid output root proof");
-        op.finalizeWithdrawalTransaction(0, alice, alice, 0, 0, hex"", 0, outputRootProof, hex"");
+        op.finalizeWithdrawalTransaction(0, alice, alice, 0, 0, hex"", startingBlockNumber, outputRootProof, hex"");
     }
 
     function test_simple_isOutputFinalized() external {
@@ -262,17 +272,17 @@ contract OptimismPortal_Test is Portal_Initializer {
             abi.encode(
                 L2OutputOracle.OutputProposal(
                     bytes32(uint256(1)),
-                    0
+                    startingBlockNumber
                 )
             )
         );
 
         // warp to the finalization period
-        vm.warp(op.FINALIZATION_PERIOD_SECONDS());
-        assertEq(op.isOutputFinalized(0), false);
+        vm.warp(startingBlockNumber + op.FINALIZATION_PERIOD_SECONDS());
+        assertEq(op.isOutputFinalized(startingBlockNumber), false);
         // warp past the finalization period
-        vm.warp(op.FINALIZATION_PERIOD_SECONDS() + 1);
-        assertEq(op.isOutputFinalized(0), true);
+        vm.warp(startingBlockNumber + op.FINALIZATION_PERIOD_SECONDS() + 1);
+        assertEq(op.isOutputFinalized(startingBlockNumber), true);
     }
 
     function test_isOutputFinalized() external {
