@@ -345,7 +345,7 @@ contract Bridge_Initializer is Messenger_Initializer {
             abi.encode(true)
         );
         vm.startPrank(multisig);
-        proxy.setCode(type(L1StandardBridge).runtimeCode);
+        proxy.setCode(address(new L1StandardBridge(payable(address(L1Messenger)))).code);
         vm.clearMockedCalls();
         address L1Bridge_Impl = proxy.getImplementation();
         vm.stopPrank();
