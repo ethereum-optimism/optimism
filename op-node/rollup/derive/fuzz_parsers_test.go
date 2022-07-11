@@ -5,6 +5,7 @@ import (
 	"math/big"
 	"testing"
 
+	"github.com/ethereum-optimism/optimism/l2geth/accounts/abi"
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
@@ -124,6 +125,28 @@ func FuzzL1InfoAgainstContract(f *testing.F) {
 	})
 }
 
+// Standard ABI types copied from golang ABI tests
+var (
+	Uint256Type, _ = abi.NewType("uint256", "", nil)
+	Uint64Type, _  = abi.NewType("uint64", "", nil)
+	BytesType, _   = abi.NewType("bytes", "", nil)
+	BoolType, _    = abi.NewType("bool", "", nil)
+	AddressType, _ = abi.NewType("address", "", nil)
+)
+
+// EncodeDepositOpaqueDataV1 performs ABI encoding to create the opaque data field of the deposit event.
+func EncodeDepositOpaqueDataV1(mint *big.Int, value *big.Int, gasLimit uint64, isCreation bool, data []byte) ([]byte, error) {
+	//  bytes memory opaqueData = abi.encode(msg.value, _value, _gasLimit, _isCreation, _data);
+	args := abi.Arguments{
+		{Name: "msg.value", Type: Uint256Type},
+		{Name: "_value", Type: Uint256Type},
+		{Name: "_gasLimit", Type: Uint64Type},
+		{Name: "_isCreation", Type: BoolType},
+		{Name: "_data", Type: BytesType},
+	}
+	return args.Pack(mint, value, gasLimit, isCreation, data)
+}
+
 // FuzzUnmarshallLogEvent runs a deposit event through the EVM and checks that output of the abigen parsing matches
 // what was inputted and what we parsed during the UnmarshalDepositLogEvent function (which turns it into a deposit tx)
 // The purpose is to check that we can never create a transaction that emits a log that we cannot parse as well
@@ -206,36 +229,36 @@ func FuzzUnmarshallLogEvent(f *testing.F) {
 		if err != nil {
 			t.Fatalf("Could not unmarshal log that was emitted by the deposit contract: %v", err)
 		}
+		depMint := common.Big0
+		if dep.Mint != nil {
+			depMint = dep.Mint
+		}
+		opaqueData, err := EncodeDepositOpaqueDataV1(depMint, dep.Value, dep.Gas, dep.To == nil, dep.Data)
+		if err != nil {
+			t.Fatalf("Could not create opaque data: %v", err)
+		}
 
 		reconstructed := &bindings.OptimismPortalTransactionDeposited{
 			From:       dep.From,
-			Value:      dep.Value,
-			GasLimit:   dep.Gas,
-			IsCreation: dep.To == nil,
-			Data:       dep.Data,
+			OpaqueData: opaqueData,
 			Raw:        types.Log{},
 		}
 		if dep.To != nil {
 			reconstructed.To = *dep.To
 		}
-		if dep.Mint != nil {
-			reconstructed.Mint = dep.Mint
-		} else {
-			reconstructed.Mint = common.Big0
-		}
 
 		if !cmp.Equal(depositEvent, reconstructed, cmp.Comparer(BigEqual)) {
 			t.Fatalf("The deposit tx did not match. tx: %v. actual: %v", reconstructed, depositEvent)
+		}
+		opaqueData, err = EncodeDepositOpaqueDataV1(mint, value, l2GasLimit, isCreation, data)
+		if err != nil {
+			t.Fatalf("Could not create opaque data: %v", err)
 		}
 
 		inputArgs := &bindings.OptimismPortalTransactionDeposited{
 			From:       from,
 			To:         to,
-			Mint:       mint,
-			Value:      value,
-			GasLimit:   l2GasLimit,
-			IsCreation: isCreation,
-			Data:       data,
+			OpaqueData: opaqueData,
 			Raw:        types.Log{},
 		}
 		if !cmp.Equal(depositEvent, inputArgs, cmp.Comparer(BigEqual)) {
