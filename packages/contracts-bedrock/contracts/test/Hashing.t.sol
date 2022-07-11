@@ -2,15 +2,10 @@
 pragma solidity 0.8.10;
 
 import { CommonTest } from "./CommonTest.t.sol";
-import { CrossDomainHashing } from "../libraries/CrossDomainHashing.sol";
+import { Hashing } from "../libraries/Hashing.sol";
+import { Encoding } from "../libraries/Encoding.sol";
 
-contract CrossDomainHashing_Test is CommonTest {
-    function test_nonceVersioning(uint240 _nonce, uint16 _version) external {
-        uint256 nonce = CrossDomainHashing.addVersionToNonce(uint256(_nonce), _version);
-        uint16 version = CrossDomainHashing.getVersionFromNonce(nonce);
-        assertEq(version, _version);
-    }
-
+contract Hashing_Test is CommonTest {
     // TODO(tynes): turn this into differential fuzzing
     // it is very easy to do so with the typescript
     function test_l2TransactionHash() external {
@@ -24,7 +19,7 @@ contract CrossDomainHashing_Test is CommonTest {
         uint256 gas = 0x2dc6c0;
         bytes memory data = hex"";
 
-        bytes32 sourceHash = CrossDomainHashing.sourceHash(
+        bytes32 sourceHash = Hashing.sourceHash(
             l1BlockHash,
             logIndex
         );
@@ -34,7 +29,7 @@ contract CrossDomainHashing_Test is CommonTest {
             0xf923fb07134d7d287cb52c770cc619e17e82606c21a875c92f4c63b65280a5cc
         );
 
-        bytes memory raw = CrossDomainHashing.L2Transaction(
+        bytes memory raw = Encoding.L2Transaction(
             l1BlockHash,
             logIndex,
             from,
@@ -51,7 +46,7 @@ contract CrossDomainHashing_Test is CommonTest {
             hex"7e00f862a0f923fb07134d7d287cb52c770cc619e17e82606c21a875c92f4c63b65280a5cc94f39fd6e51aad88f6f4ce6ab8827279cfffb9226694b79f76ef2c5f0286176833e7b2eee103b1cc3244880e043da617250000880de0b6b3a7640000832dc6c080"
         );
 
-        bytes32 digest = CrossDomainHashing.L2TransactionHash(
+        bytes32 digest = Hashing.L2TransactionHash(
            l1BlockHash,
            logIndex,
            from,
