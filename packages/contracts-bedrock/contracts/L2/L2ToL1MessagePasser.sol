@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.9;
 
+import { Hashing } from "../libraries/Hashing.sol";
 import { Burn } from "../libraries/Burn.sol";
 import { Semver } from "../universal/Semver.sol";
-import { WithdrawalVerifier } from "../libraries/WithdrawalVerifier.sol";
 
 /**
  * @custom:proxied
@@ -79,7 +79,7 @@ contract L2ToL1MessagePasser is Semver {
         uint256 _gasLimit,
         bytes memory _data
     ) public payable {
-        bytes32 withdrawalHash = WithdrawalVerifier.withdrawalHash(
+        bytes32 withdrawalHash = Hashing.withdrawalHash(
             nonce,
             msg.sender,
             _target,

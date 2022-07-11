@@ -11,7 +11,8 @@ import {
     ReentrancyGuardUpgradeable
 } from "@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.sol";
 import { ExcessivelySafeCall } from "excessively-safe-call/src/ExcessivelySafeCall.sol";
-import { CrossDomainHashing } from "../libraries/CrossDomainHashing.sol";
+import { Hashing } from "../libraries/Hashing.sol";
+import { Encoding } from "../libraries/Encoding.sol";
 
 /**
  * @title CrossDomainMessenger
@@ -171,7 +172,7 @@ abstract contract CrossDomainMessenger is
      * @return Nonce of the next message to be sent, with added message version.
      */
     function messageNonce() public view returns (uint256) {
-        return CrossDomainHashing.addVersionToNonce(msgNonce, MESSAGE_VERSION);
+        return Encoding.addVersionToNonce(msgNonce, MESSAGE_VERSION);
     }
 
     /**
@@ -249,7 +250,7 @@ abstract contract CrossDomainMessenger is
         uint256 _minGasLimit,
         bytes calldata _message
     ) external payable nonReentrant whenNotPaused {
-        bytes32 versionedHash = CrossDomainHashing.getVersionedHash(
+        bytes32 versionedHash = Hashing.getVersionedHash(
             _nonce,
             _sender,
             _target,
