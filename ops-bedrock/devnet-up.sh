@@ -129,7 +129,7 @@ fi
 
 L2OO_ADDRESS=$(jq -r .address < $CONTRACTS_BEDROCK/deployments/$NETWORK/L2OutputOracleProxy.json)
 SEQUENCER_GENESIS_HASH="$(jq -r '.l2.hash' < .devnet/rollup.json)"
-SEQUENCER_BATCH_INBOX_ADDRESS="$(cat ./ops-bedrock/rollup.json | jq -r '.batch_inbox_address')"
+SEQUENCER_BATCH_INBOX_ADDRESS="$(cat ./.devnet/rollup.json | jq -r '.batch_inbox_address')"
 
 # Bring up everything else.
 (

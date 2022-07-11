@@ -1,12 +1,13 @@
-//SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: MIT
 pragma solidity 0.8.10;
 
 import { Initializable } from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
 import { ExcessivelySafeCall } from "excessively-safe-call/src/ExcessivelySafeCall.sol";
 import { L2OutputOracle } from "./L2OutputOracle.sol";
-import { WithdrawalVerifier } from "../libraries/Lib_WithdrawalVerifier.sol";
-import { AddressAliasHelper } from "../libraries/AddressAliasHelper.sol";
+import { WithdrawalVerifier } from "../libraries/WithdrawalVerifier.sol";
+import { AddressAliasHelper } from "../vendor/AddressAliasHelper.sol";
 import { ResourceMetering } from "./ResourceMetering.sol";
+import { Semver } from "../universal/Semver.sol";
 
 /**
  * @custom:proxied
@@ -15,12 +16,7 @@ import { ResourceMetering } from "./ResourceMetering.sol";
  *         and L2. Messages sent directly to the OptimismPortal have no form of replayability.
  *         Users are encouraged to use the L1CrossDomainMessenger for a higher-level interface.
  */
-contract OptimismPortal is Initializable, ResourceMetering {
-    /**
-     * @notice Contract version number.
-     */
-    uint8 public constant VERSION = 1;
-
+contract OptimismPortal is Initializable, ResourceMetering, Semver {
     /**
      * @notice Emitted when a transaction is deposited from L1 to L2. The parameters of this event
      *         are read by the rollup node and used to derive deposit transactions on L2.
@@ -94,22 +90,22 @@ contract OptimismPortal is Initializable, ResourceMetering {
     uint256[48] private __gap;
 
     /**
+     * @custom:semver 0.0.1
+     *
      * @param _l2Oracle                  Address of the L2OutputOracle contract.
      * @param _finalizationPeriodSeconds Output finalization time in seconds.
      */
-    constructor(L2OutputOracle _l2Oracle, uint256 _finalizationPeriodSeconds) {
-        // Immutables
+    constructor(L2OutputOracle _l2Oracle, uint256 _finalizationPeriodSeconds) Semver(0, 0, 1) {
         L2_ORACLE = _l2Oracle;
         FINALIZATION_PERIOD_SECONDS = _finalizationPeriodSeconds;
 
-        // Mutables
         initialize();
     }
 
     /**
      * @notice Intializes mutable variables.
      */
-    function initialize() public reinitializer(VERSION) {
+    function initialize() public initializer {
         l2Sender = DEFAULT_L2_SENDER;
         __ResourceMetering_init();
     }

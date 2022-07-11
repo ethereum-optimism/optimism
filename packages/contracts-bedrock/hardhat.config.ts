@@ -3,11 +3,10 @@ import { HardhatUserConfig, task, subtask } from 'hardhat/config'
 import { TASK_COMPILE_SOLIDITY_GET_SOURCE_PATHS } from 'hardhat/builtin-tasks/task-names'
 
 // Hardhat plugins
-import '@nomiclabs/hardhat-ethers'
-import '@typechain/hardhat'
-import 'hardhat-deploy'
-import '@foundry-rs/hardhat-forge'
 import '@eth-optimism/hardhat-deploy-config'
+import '@foundry-rs/hardhat-forge'
+import '@nomiclabs/hardhat-ethers'
+import 'hardhat-deploy'
 
 // Hardhat tasks
 import './tasks/genesis-l1'
@@ -53,10 +52,6 @@ const config: HardhatUserConfig = {
     deploy: './deploy',
     deployments: './deployments',
     deployConfig: './deploy-config',
-  },
-  typechain: {
-    outDir: 'dist/types',
-    target: 'ethers-v5',
   },
   namedAccounts: {
     deployer: {

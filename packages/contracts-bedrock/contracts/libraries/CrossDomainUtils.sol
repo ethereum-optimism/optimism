@@ -2,9 +2,9 @@
 pragma solidity ^0.8.9;
 
 /**
- * @title Lib_CrossDomainUtils
+ * @title CrossDomainUtils
  */
-library Lib_CrossDomainUtils {
+library CrossDomainUtils {
     /**
      * Generates the correct cross domain calldata for a message.
      * @param _target Target contract address.

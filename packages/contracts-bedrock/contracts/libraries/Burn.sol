@@ -4,7 +4,8 @@ pragma solidity 0.8.10;
 /**
  * @title Burner
  * @notice Burner self-destructs on creation and sends all ETH to itself, removing all ETH given to
- * the contract from the circulating supply.
+ *         the contract from the circulating supply. Self-destructing is the only way to remove ETH
+ *         from the circulating supply.
  */
 contract Burner {
     constructor() payable {
@@ -31,7 +32,7 @@ library Burn {
      *
      * @param _amount Amount of gas to burn.
      */
-    function gas(uint256 _amount) internal {
+    function gas(uint256 _amount) internal view {
         uint256 i = 0;
         uint256 initialGas = gasleft();
         while (initialGas - gasleft() < _amount) {

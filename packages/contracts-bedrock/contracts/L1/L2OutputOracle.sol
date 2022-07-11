@@ -1,9 +1,10 @@
-//SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: MIT
 pragma solidity 0.8.10;
 
 import {
     OwnableUpgradeable
 } from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import { Semver } from "../universal/Semver.sol";
 
 /**
  * @custom:proxied
@@ -13,12 +14,7 @@ import {
  *         This contract should be deployed behind an upgradable proxy
  */
 // slither-disable-next-line locked-ether
-contract L2OutputOracle is OwnableUpgradeable {
-    /**
-     * @notice Contract version number.
-     */
-    uint8 public constant VERSION = 1;
-
+contract L2OutputOracle is OwnableUpgradeable, Semver {
     /**
      * @notice OutputProposal represents a commitment to the L2 state.
      *         The timestamp is the L1 timestamp that the output root is posted.
@@ -30,31 +26,30 @@ contract L2OutputOracle is OwnableUpgradeable {
         uint256 timestamp;
     }
 
-    // TODO: Events should NOT be underscore prefixed.
     /**
      * @notice Emitted when an output is appended.
      *
-     * @param _l2Output      The output root.
-     * @param _l1Timestamp   The L1 timestamp when appended.
-     * @param _l2BlockNumber The L2 block number of the output root.
+     * @param l2Output      The output root.
+     * @param l1Timestamp   The L1 timestamp when appended.
+     * @param l2BlockNumber The L2 block number of the output root.
      */
     event L2OutputAppended(
-        bytes32 indexed _l2Output,
-        uint256 indexed _l1Timestamp,
-        uint256 indexed _l2BlockNumber
+        bytes32 indexed l2Output,
+        uint256 indexed l1Timestamp,
+        uint256 indexed l2BlockNumber
     );
 
     /**
      * @notice Emitted when an output is deleted.
      *
-     * @param _l2Output      The output root.
-     * @param _l1Timestamp   The L1 timestamp when appended.
-     * @param _l2BlockNumber The L2 block number of the output root.
+     * @param l2Output      The output root.
+     * @param l1Timestamp   The L1 timestamp when appended.
+     * @param l2BlockNumber The L2 block number of the output root.
      */
     event L2OutputDeleted(
-        bytes32 indexed _l2Output,
-        uint256 indexed _l1Timestamp,
-        uint256 indexed _l2BlockNumber
+        bytes32 indexed l2Output,
+        uint256 indexed l1Timestamp,
+        uint256 indexed l2BlockNumber
     );
 
     /**
@@ -116,6 +111,8 @@ contract L2OutputOracle is OwnableUpgradeable {
     }
 
     /**
+     * @custom:semver 0.0.1
+     *
      * @param _submissionInterval    Interval in blocks at which checkpoints must be submitted.
      * @param _genesisL2Output       The initial L2 output of the L2 chain.
      * @param _historicalTotalBlocks Number of blocks preceding this L2 chain.
@@ -134,25 +131,23 @@ contract L2OutputOracle is OwnableUpgradeable {
         uint256 _l2BlockTime,
         address _sequencer,
         address _owner
-    ) {
+    ) Semver(0, 0, 1) {
         require(
             _l2BlockTime < block.timestamp,
             "Output Oracle: Initial L2 block time must be less than current time"
         );
 
-        // Immutables
         SUBMISSION_INTERVAL = _submissionInterval;
         HISTORICAL_TOTAL_BLOCKS = _historicalTotalBlocks;
         STARTING_BLOCK_NUMBER = _startingBlockNumber;
         STARTING_TIMESTAMP = _startingTimestamp;
         L2_BLOCK_TIME = _l2BlockTime;
 
-        // Mutables
         initialize(_genesisL2Output, _startingBlockNumber, _sequencer, _owner);
     }
 
     /**
-     * @notice Intializes mutable variables.
+     * @notice Initializer.
      *
      * @param _genesisL2Output     The initial L2 output of the L2 chain.
      * @param _startingBlockNumber The timestamp to start L2 block at.
@@ -164,7 +159,7 @@ contract L2OutputOracle is OwnableUpgradeable {
         uint256 _startingBlockNumber,
         address _sequencer,
         address _owner
-    ) public reinitializer(VERSION) {
+    ) public initializer {
         l2Outputs[_startingBlockNumber] = OutputProposal(_genesisL2Output, block.timestamp);
         latestBlockNumber = _startingBlockNumber;
         __Ownable_init();
@@ -279,8 +274,7 @@ contract L2OutputOracle is OwnableUpgradeable {
             "OutputOracle: Block number must be greater than or equal to the starting block number."
         );
 
-        return
-            STARTING_TIMESTAMP + ((_l2BlockNumber - STARTING_BLOCK_NUMBER) * SUBMISSION_INTERVAL);
+        return STARTING_TIMESTAMP + ((_l2BlockNumber - STARTING_BLOCK_NUMBER) * L2_BLOCK_TIME);
     }
 
     /**

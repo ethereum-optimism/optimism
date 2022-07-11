@@ -1,28 +1,25 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.9;
+pragma solidity 0.8.10;
 
-/* Library Imports */
-import { Lib_PredeployAddresses } from "../libraries/Lib_PredeployAddresses.sol";
-
-/* Contract Imports */
+import { PredeployAddresses } from "../libraries/PredeployAddresses.sol";
 import { OptimismMintableERC20 } from "../universal/OptimismMintableERC20.sol";
 
 /**
  * @custom:legacy
  * @custom:proxied
  * @custom:predeploy 0xDeadDeAddeAddEAddeadDEaDDEAdDeaDDeAD0000
- * @title OVM_ETH
- * @notice OVM_ETH is a legacy contract that held ETH balances before the Bedrock upgrade. All
- *         ETH balances held within this contract were migrated to the state trie as part of the
- *         Bedrock upgrade. Functions within this contract that mutate state were already disabled
- *         as part of the EVM equivalence upgrade.
+ * @title LegacyERC20ETH
+ * @notice LegacyERC20ETH is a legacy contract that held ETH balances before the Bedrock upgrade.
+ *         All ETH balances held within this contract were migrated to the state trie as part of
+ *         the Bedrock upgrade. Functions within this contract that mutate state were already
+ *         disabled as part of the EVM equivalence upgrade.
  */
-contract OVM_ETH is OptimismMintableERC20 {
+contract LegacyERC20ETH is OptimismMintableERC20 {
     /**
      * @notice Initializes the contract as an Optimism Mintable ERC20.
      */
     constructor()
-        OptimismMintableERC20(Lib_PredeployAddresses.L2_STANDARD_BRIDGE, address(0), "Ether", "ETH")
+        OptimismMintableERC20(PredeployAddresses.L2_STANDARD_BRIDGE, address(0), "Ether", "ETH")
     {}
 
     /**
@@ -32,7 +29,7 @@ contract OVM_ETH is OptimismMintableERC20 {
      * @param _amount Amount of ETH to mint.
      */
     function mint(address _to, uint256 _amount) public virtual override {
-        revert("OVM_ETH: mint is disabled");
+        revert("LegacyERC20ETH: mint is disabled");
     }
 
     /**
@@ -42,7 +39,7 @@ contract OVM_ETH is OptimismMintableERC20 {
      * @param _amount Amount of ETH to burn.
      */
     function burn(address _from, uint256 _amount) public virtual override {
-        revert("OVM_ETH: burn is disabled");
+        revert("LegacyERC20ETH: burn is disabled");
     }
 
     /**
@@ -52,7 +49,7 @@ contract OVM_ETH is OptimismMintableERC20 {
      * @param _amount    Amount of ETH to send.
      */
     function transfer(address _recipient, uint256 _amount) public virtual override returns (bool) {
-        revert("OVM_ETH: transfer is disabled");
+        revert("LegacyERC20ETH: transfer is disabled");
     }
 
     /**
@@ -62,7 +59,7 @@ contract OVM_ETH is OptimismMintableERC20 {
      * @param _amount  Amount of ETH to approve.
      */
     function approve(address _spender, uint256 _amount) public virtual override returns (bool) {
-        revert("OVM_ETH: approve is disabled");
+        revert("LegacyERC20ETH: approve is disabled");
     }
 
     /**
@@ -77,7 +74,7 @@ contract OVM_ETH is OptimismMintableERC20 {
         address _recipient,
         uint256 _amount
     ) public virtual override returns (bool) {
-        revert("OVM_ETH: transferFrom is disabled");
+        revert("LegacyERC20ETH: transferFrom is disabled");
     }
 
     /**
@@ -92,7 +89,7 @@ contract OVM_ETH is OptimismMintableERC20 {
         override
         returns (bool)
     {
-        revert("OVM_ETH: increaseAllowance is disabled");
+        revert("LegacyERC20ETH: increaseAllowance is disabled");
     }
 
     /**
@@ -107,6 +104,6 @@ contract OVM_ETH is OptimismMintableERC20 {
         override
         returns (bool)
     {
-        revert("OVM_ETH: decreaseAllowance is disabled");
+        revert("LegacyERC20ETH: decreaseAllowance is disabled");
     }
 }
