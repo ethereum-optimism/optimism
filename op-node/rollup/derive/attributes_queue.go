@@ -43,7 +43,7 @@ func NewAttributesQueue(log log.Logger, cfg *rollup.Config, l1Fetcher L1Receipts
 }
 
 func (aq *AttributesQueue) AddBatch(batch *BatchData) {
-	aq.log.Trace("Received next batch", "batch_epoch", batch.EpochNum, "batch_timestamp", batch.Timestamp, "tx_count", len(batch.Transactions))
+	aq.log.Debug("Received next batch", "batch_epoch", batch.EpochNum, "batch_timestamp", batch.Timestamp, "tx_count", len(batch.Transactions))
 	aq.batches = append(aq.batches, batch)
 }
 
