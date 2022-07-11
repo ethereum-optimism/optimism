@@ -154,7 +154,7 @@ type FinalizedWithdrawalParameters struct {
 	GasLimit        *big.Int
 	BlockNumber     *big.Int
 	Data            []byte
-	OutputRootProof bindings.WithdrawalVerifierOutputRootProof
+	OutputRootProof bindings.HashingOutputRootProof
 	WithdrawalProof []byte // RLP Encoded list of trie nodes to prove L2 storage
 }
 
@@ -210,7 +210,7 @@ func FinalizeWithdrawalParameters(ctx context.Context, l2client ProofClient, txH
 		GasLimit:    ev.GasLimit,
 		BlockNumber: new(big.Int).Set(header.Number),
 		Data:        ev.Data,
-		OutputRootProof: bindings.WithdrawalVerifierOutputRootProof{
+		OutputRootProof: bindings.HashingOutputRootProof{
 			Version:               [32]byte{}, // Empty for version 1
 			StateRoot:             header.Root,
 			WithdrawerStorageRoot: p.StorageHash,

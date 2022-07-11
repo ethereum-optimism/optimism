@@ -11,7 +11,8 @@ import {
     ReentrancyGuardUpgradeable
 } from "@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.sol";
 import { ExcessivelySafeCall } from "excessively-safe-call/src/ExcessivelySafeCall.sol";
-import { CrossDomainHashing } from "../libraries/CrossDomainHashing.sol";
+import { Hashing } from "../libraries/Hashing.sol";
+import { Encoding } from "../libraries/Encoding.sol";
 
 /**
  * @title CrossDomainMessenger
@@ -171,7 +172,7 @@ abstract contract CrossDomainMessenger is
      * @return Nonce of the next message to be sent, with added message version.
      */
     function messageNonce() public view returns (uint256) {
-        return CrossDomainHashing.addVersionToNonce(msgNonce, MESSAGE_VERSION);
+        return Encoding.addVersionToNonce(msgNonce, MESSAGE_VERSION);
     }
 
     /**
@@ -249,7 +250,7 @@ abstract contract CrossDomainMessenger is
         uint256 _minGasLimit,
         bytes calldata _message
     ) external payable nonReentrant whenNotPaused {
-        bytes32 versionedHash = CrossDomainHashing.getVersionedHash(
+        bytes32 versionedHash = Hashing.getVersionedHash(
             _nonce,
             _sender,
             _target,
@@ -312,18 +313,16 @@ abstract contract CrossDomainMessenger is
      *                                detailed information about what this block list can and
      *                                cannot be used for.
      */
-    function _initialize(address _otherMessenger, address[] memory _blockedSystemAddresses)
-        internal
-    {
+    function __CrossDomainMessenger_init(
+        address _otherMessenger,
+        address[] memory _blockedSystemAddresses
+    ) internal onlyInitializing {
         xDomainMsgSender = DEFAULT_XDOMAIN_SENDER;
         otherMessenger = _otherMessenger;
-
         for (uint256 i = 0; i < _blockedSystemAddresses.length; i++) {
             blockedSystemAddresses[_blockedSystemAddresses[i]] = true;
         }
 
-        // TODO: ensure we know what these are doing and why they are here
-        // Initialize upgradable OZ contracts
         __Context_init_unchained();
         __Ownable_init_unchained();
         __Pausable_init_unchained();
@@ -335,9 +334,7 @@ abstract contract CrossDomainMessenger is
      *         contracts because the logic for this depends on the network where the messenger is
      *         being deployed.
      */
-    function _isSystemMessageSender() internal view virtual returns (bool) {
-        revert("CrossDomainMessenger: child contract must implement");
-    }
+    function _isSystemMessageSender() internal view virtual returns (bool);
 
     /**
      * @notice Sends a low-level message to the other messenger. Needs to be implemented by child
@@ -349,7 +346,5 @@ abstract contract CrossDomainMessenger is
         uint64 _gasLimit,
         uint256 _value,
         bytes memory _data
-    ) internal virtual {
-        revert("CrossDomainMessenger: child contract must implement");
-    }
+    ) internal virtual;
 }

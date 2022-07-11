@@ -3,6 +3,7 @@ pragma solidity ^0.8.9;
 
 import { PredeployAddresses } from "../libraries/PredeployAddresses.sol";
 import { StandardBridge } from "../universal/StandardBridge.sol";
+import { Semver } from "../universal/Semver.sol";
 import { OptimismMintableERC20 } from "../universal/OptimismMintableERC20.sol";
 
 /**
@@ -17,7 +18,7 @@ import { OptimismMintableERC20 } from "../universal/OptimismMintableERC20.sol";
  *         tokens with blocklists.
  *         TODO: ensure that this has 1:1 backwards compatibility
  */
-contract L2StandardBridge is StandardBridge {
+contract L2StandardBridge is StandardBridge, Semver {
     /**
      * @custom:legacy
      * @notice Emitted whenever a withdrawal from L2 to L1 is initiated.
@@ -79,12 +80,21 @@ contract L2StandardBridge is StandardBridge {
     );
 
     /**
-     * @notice Initializes the L2StandardBridge.
+     * @custom:semver 0.0.1
      *
      * @param _otherBridge Address of the L1StandardBridge.
      */
-    function initialize(address payable _otherBridge) public {
-        _initialize(payable(PredeployAddresses.L2_CROSS_DOMAIN_MESSENGER), _otherBridge);
+    constructor(address payable _otherBridge) Semver(0, 0, 1) {
+        initialize(_otherBridge);
+    }
+
+    /**
+     * @notice Initializer.
+     *
+     * @param _otherBridge Address of the L1StandardBridge.
+     */
+    function initialize(address payable _otherBridge) public initializer {
+        __StandardBridge_init(payable(PredeployAddresses.L2_CROSS_DOMAIN_MESSENGER), _otherBridge);
     }
 
     /**
