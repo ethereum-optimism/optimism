@@ -41,6 +41,11 @@ const config: HardhatUserConfig = {
       url: 'https://kovan.optimism.io',
       accounts: [privKey],
     },
+    'optimism-goerli': {
+      chainId: 420,
+      url: 'https://goerli.optimism.io',
+      accounts: [privKey],
+    },
     'optimism-nightly': {
       chainId: 421,
       url: 'https://goerli-nightly-us-central1-a-sequencer.optimism.io',
