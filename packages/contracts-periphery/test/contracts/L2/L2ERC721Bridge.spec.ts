@@ -5,11 +5,8 @@ import { smock, FakeContract } from '@defi-wonderland/smock'
 import ICrossDomainMessenger from '@eth-optimism/contracts/artifacts/contracts/libraries/bridge/ICrossDomainMessenger.sol/ICrossDomainMessenger.json'
 import { toRpcHexString } from '@eth-optimism/core-utils'
 
-import { expect } from '../../../setup'
-import {
-  NON_NULL_BYTES32,
-  NON_ZERO_ADDRESS,
-} from '../../../../../contracts/test/helpers'
+import { NON_NULL_BYTES32, NON_ZERO_ADDRESS } from '../../helpers'
+import { expect } from '../../setup'
 
 const ERR_ALREADY_INITIALIZED = 'Initializable: contract is already initialized'
 const ERR_INVALID_MESSENGER = 'OVM_XCHAIN: messenger contract unauthenticated'
