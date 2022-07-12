@@ -288,7 +288,7 @@ contract OptimismPortal_Test is Portal_Initializer {
         uint256 checkpoint = oracle.nextBlockNumber();
         vm.roll(checkpoint);
         vm.warp(oracle.computeL2Timestamp(checkpoint) + 1);
-        vm.prank(oracle.sequencer());
+        vm.prank(oracle.proposer());
         oracle.proposeL2Output(keccak256(abi.encode(2)), checkpoint, 0, 0);
 
         // warp to the final second of the finalization period

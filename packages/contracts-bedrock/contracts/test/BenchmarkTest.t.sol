@@ -130,7 +130,7 @@ contract GasBenchMark_L2OutputOracle is L2OutputOracle_Initializer {
         super.setUp();
         nextBlockNumber = oracle.nextBlockNumber();
         warpToProposeTime(nextBlockNumber);
-        vm.startPrank(sequencer);
+        vm.startPrank(proposer);
     }
 
     function test_proposeL2Output_benchmark() external {

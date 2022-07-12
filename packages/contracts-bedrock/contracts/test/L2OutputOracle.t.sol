@@ -20,7 +20,7 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
         assertEq(oracle.latestBlockNumber(), startingBlockNumber);
         assertEq(oracle.STARTING_BLOCK_NUMBER(), startingBlockNumber);
         assertEq(oracle.STARTING_TIMESTAMP(), startingTimestamp);
-        assertEq(oracle.sequencer(), sequencer);
+        assertEq(oracle.proposer(), proposer);
         assertEq(oracle.owner(), owner);
 
         L2OutputOracle.OutputProposal memory proposal = oracle.getL2Output(startingBlockNumber);
@@ -38,7 +38,7 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
 
         // Roll to after the block number we'll propose
         warpToProposeTime(proposedNumber);
-        vm.prank(sequencer);
+        vm.prank(proposer);
         oracle.proposeL2Output(proposedOutput1, proposedNumber, 0, 0);
         assertEq(oracle.latestBlockNumber(), proposedNumber);
     }
@@ -47,7 +47,7 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
     function test_getL2Output() external {
         uint256 nextBlockNumber = oracle.nextBlockNumber();
         warpToProposeTime(nextBlockNumber);
-        vm.prank(sequencer);
+        vm.prank(proposer);
         oracle.proposeL2Output(proposedOutput1, nextBlockNumber, 0, 0);
 
         L2OutputOracle.OutputProposal memory proposal = oracle.getL2Output(nextBlockNumber);
@@ -96,26 +96,26 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
      * Ownership tests *
      *******************/
 
-    event SequencerChanged(address indexed previousSequencer, address indexed newSequencer);
+    event ProposerChanged(address indexed previousProposer, address indexed newProposer);
 
-    function test_changeSequencer() public {
-        address newSequencer = address(20);
+    function test_changeProposer() public {
+        address newProposer = address(20);
         vm.expectRevert("Ownable: caller is not the owner");
-        oracle.changeSequencer(newSequencer);
+        oracle.changeProposer(newProposer);
 
         vm.startPrank(owner);
-        vm.expectRevert("OutputOracle: new sequencer is the zero address");
-        oracle.changeSequencer(address(0));
+        vm.expectRevert("OutputOracle: new proposer is the zero address");
+        oracle.changeProposer(address(0));
 
-        vm.expectRevert("OutputOracle: sequencer cannot be same as the owner");
-        oracle.changeSequencer(owner);
+        vm.expectRevert("OutputOracle: proposer cannot be same as the owner");
+        oracle.changeProposer(owner);
 
-        // Double check sequencer has not changed.
-        assertEq(sequencer, oracle.sequencer());
+        // Double check proposer has not changed.
+        assertEq(proposer, oracle.proposer());
 
         vm.expectEmit(true, true, true, true);
-        emit SequencerChanged(sequencer, newSequencer);
-        oracle.changeSequencer(newSequencer);
+        emit ProposerChanged(proposer, newProposer);
+        oracle.changeProposer(newProposer);
         vm.stopPrank();
     }
 
@@ -151,7 +151,7 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
         assertEq(nextBlockNumber, proposedNumber + submissionInterval);
 
         vm.roll(nextBlockNumber + 1);
-        vm.prank(sequencer);
+        vm.prank(proposer);
         oracle.proposeL2Output(proposedOutput2, nextBlockNumber, 0, 0);
     }
 
@@ -164,7 +164,7 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
 
         uint256 nextBlockNumber = oracle.nextBlockNumber();
         warpToProposeTime(nextBlockNumber);
-        vm.prank(sequencer);
+        vm.prank(proposer);
         oracle.proposeL2Output(nonZeroHash, nextBlockNumber, prevL1BlockHash, prevL1BlockNumber);
     }
 
@@ -172,13 +172,13 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
      * Propose Tests - Sad Path *
      ***************************/
 
-    // Test: proposeL2Output fails if called by a party that is not the sequencer.
-    function testCannot_proposeL2OutputIfNotSequencer() external {
+    // Test: proposeL2Output fails if called by a party that is not the proposer.
+    function testCannot_proposeL2OutputIfNotProposer() external {
         uint256 nextBlockNumber = oracle.nextBlockNumber();
         warpToProposeTime(nextBlockNumber);
 
         vm.prank(address(128));
-        vm.expectRevert("OutputOracle: caller is not the sequencer");
+        vm.expectRevert("OutputOracle: caller is not the proposer");
         oracle.proposeL2Output(nonZeroHash, nextBlockNumber, 0, 0);
     }
 
@@ -187,7 +187,7 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
         bytes32 outputToPropose = bytes32(0);
         uint256 nextBlockNumber = oracle.nextBlockNumber();
         warpToProposeTime(nextBlockNumber);
-        vm.prank(sequencer);
+        vm.prank(proposer);
         vm.expectRevert("OutputOracle: Cannot submit empty L2 output.");
         oracle.proposeL2Output(outputToPropose, nextBlockNumber, 0, 0);
     }
@@ -196,7 +196,7 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
     function testCannot_proposeUnexpectedBlockNumber() external {
         uint256 nextBlockNumber = oracle.nextBlockNumber();
         warpToProposeTime(nextBlockNumber);
-        vm.prank(sequencer);
+        vm.prank(proposer);
         vm.expectRevert("OutputOracle: Block number must be equal to next expected block number.");
         oracle.proposeL2Output(nonZeroHash, nextBlockNumber - 1, 0, 0);
     }
@@ -206,7 +206,7 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
         uint256 nextBlockNumber = oracle.nextBlockNumber();
         uint256 nextTimestamp = oracle.computeL2Timestamp(nextBlockNumber);
         vm.warp(nextTimestamp);
-        vm.prank(sequencer);
+        vm.prank(proposer);
         vm.expectRevert("OutputOracle: Cannot propose L2 output in future.");
         oracle.proposeL2Output(nonZeroHash, nextBlockNumber, 0, 0);
     }
@@ -216,7 +216,7 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
     function testCannot_proposeOnWrongFork() external {
         uint256 nextBlockNumber = oracle.nextBlockNumber();
         warpToProposeTime(nextBlockNumber);
-        vm.prank(sequencer);
+        vm.prank(proposer);
         vm.expectRevert("OutputOracle: Blockhash does not match the hash at the expected height.");
         oracle.proposeL2Output(
             nonZeroHash,
@@ -238,7 +238,7 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
 
         uint256 nextBlockNumber = oracle.nextBlockNumber();
         warpToProposeTime(nextBlockNumber);
-        vm.prank(sequencer);
+        vm.prank(proposer);
 
         // This will fail when foundry no longer returns zerod block hashes
         vm.expectRevert("OutputOracle: Blockhash does not match the hash at the expected height.");
@@ -351,7 +351,7 @@ contract L2OutputOracleUpgradeable_Test is L2OutputOracle_Initializer {
         assertEq(genesisL2Output, initOutput.outputRoot);
         assertEq(initL1Time, initOutput.timestamp);
 
-        assertEq(sequencer, oracleImpl.sequencer());
+        assertEq(proposer, oracleImpl.proposer());
         assertEq(owner, oracleImpl.owner());
     }
 
@@ -360,7 +360,7 @@ contract L2OutputOracleUpgradeable_Test is L2OutputOracle_Initializer {
         L2OutputOracle(payable(proxy)).initialize(
             genesisL2Output,
             startingBlockNumber,
-            sequencer,
+            proposer,
             owner
         );
     }
@@ -370,7 +370,7 @@ contract L2OutputOracleUpgradeable_Test is L2OutputOracle_Initializer {
         L2OutputOracle(oracleImpl).initialize(
             genesisL2Output,
             startingBlockNumber,
-            sequencer,
+            proposer,
             owner
         );
     }

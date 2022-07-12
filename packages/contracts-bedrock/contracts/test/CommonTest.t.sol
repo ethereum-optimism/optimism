@@ -58,7 +58,7 @@ contract L2OutputOracle_Initializer is CommonTest {
     L2OutputOracle oracleImpl;
 
     // Constructor arguments
-    address sequencer = 0x000000000000000000000000000000000000AbBa;
+    address proposer = 0x000000000000000000000000000000000000AbBa;
     address owner = 0x000000000000000000000000000000000000ACDC;
     uint256 submissionInterval = 1800;
     uint256 l2BlockTime = 2;
@@ -83,7 +83,7 @@ contract L2OutputOracle_Initializer is CommonTest {
         initL1Time = startingTimestamp + 1;
         vm.warp(initL1Time);
         vm.roll(startingBlockNumber);
-        // Deploy the L2OutputOracle and transfer owernship to the sequencer
+        // Deploy the L2OutputOracle and transfer owernship to the proposer
         oracleImpl = new L2OutputOracle(
             submissionInterval,
             genesisL2Output,
@@ -91,7 +91,7 @@ contract L2OutputOracle_Initializer is CommonTest {
             startingBlockNumber,
             startingTimestamp,
             l2BlockTime,
-            sequencer,
+            proposer,
             owner
         );
         Proxy proxy = new Proxy(multisig);
@@ -102,7 +102,7 @@ contract L2OutputOracle_Initializer is CommonTest {
                 L2OutputOracle.initialize.selector,
                 genesisL2Output,
                 startingBlockNumber,
-                sequencer,
+                proposer,
                 owner
             )
         );
