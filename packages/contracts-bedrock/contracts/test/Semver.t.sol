@@ -20,36 +20,16 @@ contract Semver_Test is CommonTest {
      * @notice Deploy a Semver contract
      */
     function setUp() external {
-        semver = new Semver(7, 8, 9);
+        semver = new Semver(7, 8, 0);
     }
 
     /**
-     * @notice Test the getter of the major version
+     * @notice Test the version getter
      */
-    function test_major() external {
+    function test_version() external {
         assertEq(
-            semver.MAJOR_VERSION(),
-            7
-        );
-    }
-
-    /**
-     * @notice Test the getter of the minor version
-     */
-    function test_minor() external {
-        assertEq(
-            semver.MINOR_VERSION(),
-            8
-        );
-    }
-
-    /**
-     * @notice Test the getter of the patch version
-     */
-    function test_patch() external {
-        assertEq(
-            semver.PATCH_VERSION(),
-            9
+            semver.version(),
+            "7.8.0"
         );
     }
 
@@ -64,18 +44,8 @@ contract Semver_Test is CommonTest {
         proxy.upgradeTo(address(semver));
 
         assertEq(
-            Semver(address(proxy)).MAJOR_VERSION(),
-            7
-        );
-
-        assertEq(
-            Semver(address(proxy)).MINOR_VERSION(),
-            8
-        );
-
-        assertEq(
-            Semver(address(proxy)).PATCH_VERSION(),
-            9
+            Semver(address(proxy)).version(),
+            "7.8.0"
         );
     }
 }
