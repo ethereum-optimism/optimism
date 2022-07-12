@@ -29,12 +29,12 @@ contract L2OutputOracle is OwnableUpgradeable, Semver {
     /**
      * @notice Emitted when an output is proposed.
      *
-     * @param l2Output      The output root.
+     * @param outputRoot    The output root.
      * @param l1Timestamp   The L1 timestamp when proposed.
      * @param l2BlockNumber The L2 block number of the output root.
      */
     event OutputProposed(
-        bytes32 indexed l2Output,
+        bytes32 indexed outputRoot,
         uint256 indexed l1Timestamp,
         uint256 indexed l2BlockNumber
     );
@@ -42,12 +42,12 @@ contract L2OutputOracle is OwnableUpgradeable, Semver {
     /**
      * @notice Emitted when an output is deleted.
      *
-     * @param l2Output      The output root.
+     * @param outputRoot    The output root.
      * @param l1Timestamp   The L1 timestamp when proposed.
      * @param l2BlockNumber The L2 block number of the output root.
      */
     event OutputDeleted(
-        bytes32 indexed l2Output,
+        bytes32 indexed outputRoot,
         uint256 indexed l1Timestamp,
         uint256 indexed l2BlockNumber
     );
@@ -177,13 +177,13 @@ contract L2OutputOracle is OwnableUpgradeable, Semver {
      *         timestamp must be equal to the current value returned by `nextTimestamp()` in order
      *         to be accepted. This function may only be called by the Sequencer.
      *
-     * @param _l2Output      The L2 output of the checkpoint block.
-     * @param _l2BlockNumber The L2 block number that resulted in _l2Output.
+     * @param _outputRoot    The L2 output of the checkpoint block.
+     * @param _l2BlockNumber The L2 block number that resulted in _outputRoot.
      * @param _l1Blockhash   A block hash which must be included in the current chain.
      * @param _l1BlockNumber The block number with the specified block hash.
      */
     function proposeL2Output(
-        bytes32 _l2Output,
+        bytes32 _outputRoot,
         uint256 _l2BlockNumber,
         bytes32 _l1Blockhash,
         uint256 _l1BlockNumber
@@ -196,7 +196,7 @@ contract L2OutputOracle is OwnableUpgradeable, Semver {
             computeL2Timestamp(_l2BlockNumber) < block.timestamp,
             "OutputOracle: Cannot propose L2 output in future."
         );
-        require(_l2Output != bytes32(0), "OutputOracle: Cannot submit empty L2 output.");
+        require(_outputRoot != bytes32(0), "OutputOracle: Cannot submit empty L2 output.");
 
         if (_l1Blockhash != bytes32(0)) {
             // This check allows the sequencer to propose an output based on a given L1 block,
@@ -213,10 +213,10 @@ contract L2OutputOracle is OwnableUpgradeable, Semver {
             );
         }
 
-        l2Outputs[_l2BlockNumber] = OutputProposal(_l2Output, block.timestamp);
+        l2Outputs[_l2BlockNumber] = OutputProposal(_outputRoot, block.timestamp);
         latestBlockNumber = _l2BlockNumber;
 
-        emit OutputProposed(_l2Output, block.timestamp, _l2BlockNumber);
+        emit OutputProposed(_outputRoot, block.timestamp, _l2BlockNumber);
     }
 
     /**
@@ -240,11 +240,7 @@ contract L2OutputOracle is OwnableUpgradeable, Semver {
             "OutputOracle: The timestamp to delete does not match the latest output proposal."
         );
 
-        emit OutputDeleted(
-            outputToDelete.outputRoot,
-            outputToDelete.timestamp,
-            latestBlockNumber
-        );
+        emit OutputDeleted(outputToDelete.outputRoot, outputToDelete.timestamp, latestBlockNumber);
 
         delete l2Outputs[latestBlockNumber];
         latestBlockNumber = latestBlockNumber - SUBMISSION_INTERVAL;
