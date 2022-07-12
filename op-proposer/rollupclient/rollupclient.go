@@ -5,6 +5,7 @@ import (
 	"math/big"
 
 	"github.com/ethereum-optimism/optimism/op-node/eth"
+	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/driver"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/rpc"
@@ -27,6 +28,12 @@ func (r *RollupClient) OutputAtBlock(ctx context.Context, blockNum *big.Int) ([]
 func (r *RollupClient) SyncStatus(ctx context.Context) (*driver.SyncStatus, error) {
 	var output *driver.SyncStatus
 	err := r.rpc.CallContext(ctx, &output, "optimism_syncStatus")
+	return output, err
+}
+
+func (r *RollupClient) RollupConfig(ctx context.Context) (*rollup.Config, error) {
+	var output *rollup.Config
+	err := r.rpc.CallContext(ctx, &output, "optimism_rollupConfig")
 	return output, err
 }
 

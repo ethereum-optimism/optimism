@@ -37,6 +37,10 @@ type RPCConfig struct {
 	ListenPort int
 }
 
+func (cfg *RPCConfig) HttpEndpoint() string {
+	return fmt.Sprintf("http://%s:%d", cfg.ListenAddr, cfg.ListenPort)
+}
+
 type MetricsConfig struct {
 	Enabled    bool
 	ListenAddr string
