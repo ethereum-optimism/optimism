@@ -232,8 +232,8 @@ jobs:
       - name: Publish ci-builder
         uses: docker/build-push-action@v2
         with:
-          context: .
-          file: ./ops/docker/ci-builder/Dockerfile
+          context: ./ops/docker/ci-builder
+          file: Dockerfile
           push: true
           tags: ethereumoptimism/ci-builder:${{ needs.release.outputs.ci-builder }},ethereumoptimism/ci-builder:latest
 
