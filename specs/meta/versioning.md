@@ -3,26 +3,28 @@
 ## Go modules
 
 Go modules that are currently versioned:
-```
-	./op-batcher
-	./op-bindings
-	./op-node
-	./op-proposer
-	./op-e2e
+
+```text
+./op-batcher
+./op-bindings
+./op-node
+./op-proposer
+./op-e2e
 ```
 
 Go modules which are not yet versioned:
-```
-	./batch-submitter  (changesets)
-	./bss-core
-	./gas-oracle       (changesets)
-	./indexer          (changesets)
-	./l2geth           (changesets)
-	./l2geth-exporter  (changesets)
-	./op-exporter      (changesets)
-	./proxyd           (changesets)
-	./teleportr        (changesets)
-	./state-surgery
+
+```text
+./batch-submitter  (changesets)
+./bss-core
+./gas-oracle       (changesets)
+./indexer          (changesets)
+./l2geth           (changesets)
+./l2geth-exporter  (changesets)
+./op-exporter      (changesets)
+./proxyd           (changesets)
+./teleportr        (changesets)
+./state-surgery
 ```
 
 ### versioning process

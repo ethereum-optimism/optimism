@@ -1,6 +1,6 @@
 {
   "name": "@eth-optimism/contracts-bedrock",
-  "version": "0.4.1",
+  "version": "0.5.0",
   "description": "Contracts for Optimism Specs",
   "main": "dist/index",
   "types": "dist/index",
@@ -34,7 +34,7 @@
     "typechain": "typechain --target ethers-v5 --out-dir dist/types --glob 'artifacts/!(build-info)/**/+([a-zA-Z0-9_]).json'"
   },
   "dependencies": {
-    "@eth-optimism/core-utils": "^0.9.0",
+    "@eth-optimism/core-utils": "^0.9.1",
     "@openzeppelin/contracts": "^4.5.0",
     "@openzeppelin/contracts-upgradeable": "^4.5.2",
     "@rari-capital/solmate": "https://github.com/rari-capital/solmate.git#8f9b23f8838670afda0fd8983f2c41e8037ae6bc",
@@ -49,7 +49,7 @@
     "rlp": "^2.2.7"
   },
   "devDependencies": {
-    "@eth-optimism/hardhat-deploy-config": "^0.2.0",
+    "@eth-optimism/hardhat-deploy-config": "^0.2.1",
     "@defi-wonderland/smock": "^2.0.2",
     "@foundry-rs/hardhat-forge": "^0.1.12",
     "@nomiclabs/hardhat-ethers": "^2.0.0",

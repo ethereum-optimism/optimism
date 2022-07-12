@@ -1,5 +1,11 @@
 # @eth-optimism/indexer
 
+## 0.1.3
+
+### Patch Changes
+
+- f30a5d39: Fix contract bindings
+
 ## 0.1.2
 
 ### Patch Changes
