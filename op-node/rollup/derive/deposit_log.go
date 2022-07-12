@@ -125,6 +125,7 @@ func MarshalDepositLogEvent(depositContractAddr common.Address, deposit *types.D
 		DepositEventABIHash,
 		deposit.From.Hash(),
 		toBytes,
+		common.BigToHash(new(big.Int).SetUint64(0)),
 	}
 
 	data := make([]byte, 6*32)
