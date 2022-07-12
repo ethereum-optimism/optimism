@@ -1,5 +1,16 @@
 # data transport layer
 
+## 0.5.39
+
+### Patch Changes
+
+- 6e3449ba: Upgrade import path for new typechain
+- Updated dependencies [6e3449ba]
+- Updated dependencies [f9fee446]
+  - @eth-optimism/contracts@0.5.30
+  - @eth-optimism/core-utils@0.9.1
+  - @eth-optimism/common-ts@0.6.1
+
 ## 0.5.38
 
 ### Patch Changes
