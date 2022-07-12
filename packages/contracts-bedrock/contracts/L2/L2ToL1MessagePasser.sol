@@ -79,7 +79,7 @@ contract L2ToL1MessagePasser is Semver {
         uint256 _gasLimit,
         bytes memory _data
     ) public payable {
-        bytes32 withdrawalHash = Hashing.withdrawalHash(
+        bytes32 withdrawalHash = Hashing.hashWithdrawal(
             nonce,
             msg.sender,
             _target,

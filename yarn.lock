@@ -3183,6 +3183,14 @@
     fs-extra "^9.1.0"
     lodash "^4.17.15"
 
+"@typechain/hardhat@^6.1.2":
+  version "6.1.2"
+  resolved "https://registry.yarnpkg.com/@typechain/hardhat/-/hardhat-6.1.2.tgz#d3beccc6937d93f9b437616b741f839a8b953693"
+  integrity sha512-k4Ea3pVITKB2DH8p1a5U38cyy7KZPD04Spo4q5b4wO+n2mT+uAz5dxckPtbczn/Kk5wiFq+ZkuOtw5ZKFhL/+w==
+  dependencies:
+    fs-extra "^9.1.0"
+    lodash "^4.17.15"
+
 "@types/abstract-leveldown@*":
   version "5.0.2"
   resolved "https://registry.yarnpkg.com/@types/abstract-leveldown/-/abstract-leveldown-5.0.2.tgz#ee81917fe38f770e29eec8139b6f16ee4a8b0a5f"
