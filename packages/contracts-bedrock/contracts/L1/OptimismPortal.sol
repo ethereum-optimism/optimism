@@ -183,7 +183,7 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
             uint256 offset = (_l2BlockNumber - startingBlockNumber) % interval;
             // Look up the checkpoint block after it.
             proposal = L2_ORACLE.getL2Output(_l2BlockNumber + (interval - offset));
-            // False if that block is not yet appended.
+            // False if that block is not yet proposed.
             if (proposal.outputRoot == bytes32(uint256(0))) {
                 return false;
             }

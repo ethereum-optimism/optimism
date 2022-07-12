@@ -43,7 +43,7 @@ described [below](#l2-output-commitment-construction).
 
 If there is no newly finalized output, the service continues querying until it receives one. It then submits this
 output, and the appropriate timestamp, to the [L2 Output Root](#l2-output-root-smart-contract) contract's
-`appendL2Output()` function. The timestamp MUST be the next multiple of the `SUBMISSION_INTERVAL` value.
+`proposeL2Output()` function. The timestamp MUST be the next multiple of the `SUBMISSION_INTERVAL` value.
 
 The proposer may also delete the most recent output root by calling the `deleteL2Output()` function.
 The function can be called repeatedly if it is necessary to roll back the state further.
@@ -108,7 +108,7 @@ The L2 Output Oracle contract implements the following interface:
  * @param _l1Blockhash   A block hash which must be included in the current chain.
  * @param _l1BlockNumber The block number with the specified block hash.
 */
-  function appendL2Output(
+  function proposeL2Output(
       bytes32 _l2Output,
       uint256 _l2BlockNumber,
       bytes32 _l1Blockhash,

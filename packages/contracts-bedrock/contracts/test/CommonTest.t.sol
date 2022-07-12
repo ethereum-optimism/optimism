@@ -70,8 +70,8 @@ contract L2OutputOracle_Initializer is CommonTest {
     // Test data
     uint256 initL1Time;
 
-    // Advance the evm's time to meet the L2OutputOracle's requirements for appendL2Output
-    function warpToAppendTime(uint256 _nextBlockNumber) public {
+    // Advance the evm's time to meet the L2OutputOracle's requirements for proposeL2Output
+    function warpToProposeTime(uint256 _nextBlockNumber) public {
         vm.warp(oracle.computeL2Timestamp(_nextBlockNumber) + 1);
     }
 

@@ -10,7 +10,7 @@ import { Semver } from "../universal/Semver.sol";
  * @custom:proxied
  * @title L2OutputOracle
  * @notice The L2 state is committed to in this contract
- *         The payable keyword is used on appendL2Output to save gas on the msg.value check.
+ *         The payable keyword is used on proposeL2Output to save gas on the msg.value check.
  *         This contract should be deployed behind an upgradable proxy
  */
 // slither-disable-next-line locked-ether
@@ -27,13 +27,13 @@ contract L2OutputOracle is OwnableUpgradeable, Semver {
     }
 
     /**
-     * @notice Emitted when an output is appended.
+     * @notice Emitted when an output is proposed.
      *
      * @param l2Output      The output root.
-     * @param l1Timestamp   The L1 timestamp when appended.
+     * @param l1Timestamp   The L1 timestamp when proposed.
      * @param l2BlockNumber The L2 block number of the output root.
      */
-    event L2OutputAppended(
+    event OutputProposed(
         bytes32 indexed l2Output,
         uint256 indexed l1Timestamp,
         uint256 indexed l2BlockNumber
@@ -43,10 +43,10 @@ contract L2OutputOracle is OwnableUpgradeable, Semver {
      * @notice Emitted when an output is deleted.
      *
      * @param l2Output      The output root.
-     * @param l1Timestamp   The L1 timestamp when appended.
+     * @param l1Timestamp   The L1 timestamp when proposed.
      * @param l2BlockNumber The L2 block number of the output root.
      */
-    event L2OutputDeleted(
+    event OutputDeleted(
         bytes32 indexed l2Output,
         uint256 indexed l1Timestamp,
         uint256 indexed l2BlockNumber
@@ -173,7 +173,7 @@ contract L2OutputOracle is OwnableUpgradeable, Semver {
     }
 
     /**
-     * @notice Accepts an L2 outputRoot and the timestamp of the corresponding L2 block. The
+     * @notice Accepts an outputRoot and the timestamp of the corresponding L2 block. The
      *         timestamp must be equal to the current value returned by `nextTimestamp()` in order
      *         to be accepted. This function may only be called by the Sequencer.
      *
@@ -182,7 +182,7 @@ contract L2OutputOracle is OwnableUpgradeable, Semver {
      * @param _l1Blockhash   A block hash which must be included in the current chain.
      * @param _l1BlockNumber The block number with the specified block hash.
      */
-    function appendL2Output(
+    function proposeL2Output(
         bytes32 _l2Output,
         uint256 _l2BlockNumber,
         bytes32 _l1Blockhash,
@@ -194,12 +194,12 @@ contract L2OutputOracle is OwnableUpgradeable, Semver {
         );
         require(
             computeL2Timestamp(_l2BlockNumber) < block.timestamp,
-            "OutputOracle: Cannot append L2 output in future."
+            "OutputOracle: Cannot propose L2 output in future."
         );
         require(_l2Output != bytes32(0), "OutputOracle: Cannot submit empty L2 output.");
 
         if (_l1Blockhash != bytes32(0)) {
-            // This check allows the sequencer to append an output based on a given L1 block,
+            // This check allows the sequencer to propose an output based on a given L1 block,
             // without fear that it will be reorged out.
             // It will also revert if the blockheight provided is more than 256 blocks behind the
             // chain tip (as the hash will return as zero). This does open the door to a griefing
@@ -216,7 +216,7 @@ contract L2OutputOracle is OwnableUpgradeable, Semver {
         l2Outputs[_l2BlockNumber] = OutputProposal(_l2Output, block.timestamp);
         latestBlockNumber = _l2BlockNumber;
 
-        emit L2OutputAppended(_l2Output, block.timestamp, _l2BlockNumber);
+        emit OutputProposed(_l2Output, block.timestamp, _l2BlockNumber);
     }
 
     /**
@@ -240,7 +240,7 @@ contract L2OutputOracle is OwnableUpgradeable, Semver {
             "OutputOracle: The timestamp to delete does not match the latest output proposal."
         );
 
-        emit L2OutputDeleted(
+        emit OutputDeleted(
             outputToDelete.outputRoot,
             outputToDelete.timestamp,
             latestBlockNumber
