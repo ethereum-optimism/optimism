@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.9;
 
-import { AssetReceiver } from "./AssetReceiver.sol";
+import { AssetReceiver } from "../universal/AssetReceiver.sol";
 
 /**
  * @notice Stub interface for Teleportr.

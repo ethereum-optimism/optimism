@@ -56,8 +56,9 @@ contract L1CrossDomainMessenger_Test is Messenger_Initializer {
 
     // the version is encoded in the nonce
     function test_L1MessengerMessageVersion() external {
+        (,uint16 version) = Encoding.decodeVersionedNonce(L1Messenger.messageNonce());
         assertEq(
-            Encoding.getVersionFromNonce(L1Messenger.messageNonce()),
+            version,
             L1Messenger.MESSAGE_VERSION()
         );
     }
@@ -75,7 +76,7 @@ contract L1CrossDomainMessenger_Test is Messenger_Initializer {
                 0,
                 100 + L1Messenger.baseGas(hex"ff"),
                 false,
-                Encoding.getVersionedEncoding(
+                Encoding.encodeCrossDomainMessage(
                     L1Messenger.messageNonce(),
                     alice,
                     recipient,
@@ -95,7 +96,7 @@ contract L1CrossDomainMessenger_Test is Messenger_Initializer {
             0,
             100 + L1Messenger.baseGas(hex"ff"),
             false,
-            Encoding.getVersionedEncoding(
+            Encoding.encodeCrossDomainMessage(
                 L1Messenger.messageNonce(),
                 alice,
                 recipient,
@@ -145,7 +146,7 @@ contract L1CrossDomainMessenger_Test is Messenger_Initializer {
 
         vm.expectEmit(true, true, true, true);
 
-        bytes32 hash = Hashing.getVersionedHash(0, sender, target, 0, 0, hex"1111");
+        bytes32 hash = Hashing.hashCrossDomainMessage(0, sender, target, 0, 0, hex"1111");
 
         emit RelayedMessage(hash);
 
