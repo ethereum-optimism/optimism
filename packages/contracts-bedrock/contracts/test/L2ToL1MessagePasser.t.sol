@@ -3,7 +3,7 @@ pragma solidity 0.8.10;
 
 import { CommonTest } from "./CommonTest.t.sol";
 import { L2ToL1MessagePasser } from "../L2/L2ToL1MessagePasser.sol";
-import { WithdrawalVerifier } from "../libraries/WithdrawalVerifier.sol";
+import { Hashing } from "../libraries/Hashing.sol";
 
 contract L2ToL1MessagePasserTest is CommonTest {
     L2ToL1MessagePasser messagePasser;
@@ -64,7 +64,7 @@ contract L2ToL1MessagePasserTest is CommonTest {
             data
         );
 
-        bytes32 withdrawalHash = WithdrawalVerifier.withdrawalHash(
+        bytes32 withdrawalHash = Hashing.hashWithdrawal(
             nonce,
             alice,
             target,

@@ -8,14 +8,12 @@ import { L2OutputOracle_Initializer } from "./L2OutputOracle.t.sol";
 /* Libraries */
 import { AddressAliasHelper } from "../vendor/AddressAliasHelper.sol";
 import { PredeployAddresses } from "../libraries/PredeployAddresses.sol";
-import { CrossDomainUtils } from "../libraries/CrossDomainUtils.sol";
-import { WithdrawalVerifier } from "../libraries/WithdrawalVerifier.sol";
+import { Hashing } from "../libraries/Hashing.sol";
+import { Encoding } from "../libraries/Encoding.sol";
 
 /* Target contract dependencies */
 import { L2OutputOracle } from "../L1/L2OutputOracle.sol";
 import { OptimismPortal } from "../L1/OptimismPortal.sol";
-
-import { CrossDomainHashing } from "../libraries/CrossDomainHashing.sol";
 
 /* Target contract */
 import { L1CrossDomainMessenger } from "../L1/L1CrossDomainMessenger.sol";
@@ -58,8 +56,9 @@ contract L1CrossDomainMessenger_Test is Messenger_Initializer {
 
     // the version is encoded in the nonce
     function test_L1MessengerMessageVersion() external {
+        (,uint16 version) = Encoding.decodeVersionedNonce(L1Messenger.messageNonce());
         assertEq(
-            CrossDomainHashing.getVersionFromNonce(L1Messenger.messageNonce()),
+            version,
             L1Messenger.MESSAGE_VERSION()
         );
     }
@@ -77,7 +76,7 @@ contract L1CrossDomainMessenger_Test is Messenger_Initializer {
                 0,
                 100 + L1Messenger.baseGas(hex"ff"),
                 false,
-                CrossDomainHashing.getVersionedEncoding(
+                Encoding.encodeCrossDomainMessage(
                     L1Messenger.messageNonce(),
                     alice,
                     recipient,
@@ -97,7 +96,7 @@ contract L1CrossDomainMessenger_Test is Messenger_Initializer {
             0,
             100 + L1Messenger.baseGas(hex"ff"),
             false,
-            CrossDomainHashing.getVersionedEncoding(
+            Encoding.encodeCrossDomainMessage(
                 L1Messenger.messageNonce(),
                 alice,
                 recipient,
@@ -147,7 +146,7 @@ contract L1CrossDomainMessenger_Test is Messenger_Initializer {
 
         vm.expectEmit(true, true, true, true);
 
-        bytes32 hash = CrossDomainHashing.getVersionedHash(0, sender, target, 0, 0, hex"1111");
+        bytes32 hash = Hashing.hashCrossDomainMessage(0, sender, target, 0, 0, hex"1111");
 
         emit RelayedMessage(hash);
 

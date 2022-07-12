@@ -9,8 +9,8 @@ import {
 } from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import { IERC721 } from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import { Address } from "@openzeppelin/contracts/utils/Address.sol";
-import { L2ERC721Bridge } from "../../L2/messaging/L2ERC721Bridge.sol";
-import { Semver } from "../../universal/Semver.sol";
+import { L2ERC721Bridge } from "../L2/L2ERC721Bridge.sol";
+import { Semver } from "@eth-optimism/contracts-bedrock/contracts/universal/Semver.sol";
 
 /**
  * @title L1ERC721Bridge
@@ -70,6 +70,8 @@ contract L1ERC721Bridge is Semver, CrossDomainEnabled, OwnableUpgradeable {
     mapping(address => mapping(address => mapping(uint256 => bool))) public deposits;
 
     /**
+     * @custom:semver 0.0.1
+     *
      * @param _messenger   Address of the CrossDomainMessenger on this network.
      * @param _otherBridge Address of the ERC721 bridge on the other network.
      */

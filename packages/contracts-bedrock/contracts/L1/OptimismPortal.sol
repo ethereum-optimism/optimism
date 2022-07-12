@@ -4,9 +4,11 @@ pragma solidity 0.8.10;
 import { Initializable } from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
 import { ExcessivelySafeCall } from "excessively-safe-call/src/ExcessivelySafeCall.sol";
 import { L2OutputOracle } from "./L2OutputOracle.sol";
-import { WithdrawalVerifier } from "../libraries/WithdrawalVerifier.sol";
+import { Hashing } from "../libraries/Hashing.sol";
+import { SecureMerkleTrie } from "../libraries/trie/SecureMerkleTrie.sol";
 import { AddressAliasHelper } from "../vendor/AddressAliasHelper.sol";
 import { ResourceMetering } from "./ResourceMetering.sol";
+import { Semver } from "../universal/Semver.sol";
 
 /**
  * @custom:proxied
@@ -15,7 +17,7 @@ import { ResourceMetering } from "./ResourceMetering.sol";
  *         and L2. Messages sent directly to the OptimismPortal have no form of replayability.
  *         Users are encouraged to use the L1CrossDomainMessenger for a higher-level interface.
  */
-contract OptimismPortal is Initializable, ResourceMetering {
+contract OptimismPortal is Initializable, ResourceMetering, Semver {
     /**
      * @notice Emitted when a transaction is deposited from L1 to L2. The parameters of this event
      *         are read by the rollup node and used to derive deposit transactions on L2.
@@ -89,10 +91,12 @@ contract OptimismPortal is Initializable, ResourceMetering {
     uint256[48] private __gap;
 
     /**
+     * @custom:semver 0.0.1
+     *
      * @param _l2Oracle                  Address of the L2OutputOracle contract.
      * @param _finalizationPeriodSeconds Output finalization time in seconds.
      */
-    constructor(L2OutputOracle _l2Oracle, uint256 _finalizationPeriodSeconds) {
+    constructor(L2OutputOracle _l2Oracle, uint256 _finalizationPeriodSeconds) Semver(0, 0, 1) {
         L2_ORACLE = _l2Oracle;
         FINALIZATION_PERIOD_SECONDS = _finalizationPeriodSeconds;
 
@@ -208,7 +212,7 @@ contract OptimismPortal is Initializable, ResourceMetering {
         uint256 _gasLimit,
         bytes calldata _data,
         uint256 _l2BlockNumber,
-        WithdrawalVerifier.OutputRootProof calldata _outputRootProof,
+        Hashing.OutputRootProof calldata _outputRootProof,
         bytes calldata _withdrawalProof
     ) external payable {
         // Prevent nested withdrawals within withdrawals.
@@ -238,13 +242,13 @@ contract OptimismPortal is Initializable, ResourceMetering {
 
         // Verify that the output root can be generated with the elements in the proof.
         require(
-            proposal.outputRoot == WithdrawalVerifier._deriveOutputRoot(_outputRootProof),
+            proposal.outputRoot == Hashing.hashOutputRootProof(_outputRootProof),
             "OptimismPortal: invalid output root proof"
         );
 
         // All withdrawals have a unique hash, we'll use this as the identifier for the withdrawal
         // and to prevent replay attacks.
-        bytes32 withdrawalHash = WithdrawalVerifier.withdrawalHash(
+        bytes32 withdrawalHash = Hashing.hashWithdrawal(
             _nonce,
             _sender,
             _target,
@@ -257,7 +261,7 @@ contract OptimismPortal is Initializable, ResourceMetering {
         // this is true, then we know that this withdrawal was actually triggered on L2 can can
         // therefore be relayed on L1.
         require(
-            WithdrawalVerifier._verifyWithdrawalInclusion(
+            _verifyWithdrawalInclusion(
                 withdrawalHash,
                 _outputRootProof.withdrawerStorageRoot,
                 _withdrawalProof
@@ -302,5 +306,34 @@ contract OptimismPortal is Initializable, ResourceMetering {
         // All withdrawals are immediately finalized. Replayability can
         // be achieved through contracts built on top of this contract
         emit WithdrawalFinalized(withdrawalHash, success);
+    }
+
+    /**
+     * @notice Verifies a Merkle Trie inclusion proof that a given withdrawal hash is present in
+     *         the storage of the L2ToL1MessagePasser contract.
+     *
+     * @param _withdrawalHash Hash of the withdrawal to verify.
+     * @param _storageRoot    Root of the storage of the L2ToL1MessagePasser contract.
+     * @param _proof          Inclusion proof of the withdrawal hash in the storage root.
+     */
+    function _verifyWithdrawalInclusion(
+        bytes32 _withdrawalHash,
+        bytes32 _storageRoot,
+        bytes memory _proof
+    ) internal pure returns (bool) {
+        bytes32 storageKey = keccak256(
+            abi.encode(
+                _withdrawalHash,
+                uint256(0) // The withdrawals mapping is at the first slot in the layout.
+            )
+        );
+
+        return
+            SecureMerkleTrie.verifyInclusionProof(
+                abi.encode(storageKey),
+                hex"01",
+                _proof,
+                _storageRoot
+            );
     }
 }
