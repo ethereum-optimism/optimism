@@ -8,7 +8,6 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/holiman/uint256"
 )
 
 var (
@@ -72,18 +71,18 @@ func UnmarshalDepositLogEvent(ev *types.Log) (*types.DepositTx, error) {
 	dep.Value = new(big.Int).SetBytes(ev.Data[offset : offset+32])
 	offset += 32
 
-	gas := new(big.Int).SetBytes(ev.Data[offset : offset+32])
+	gas := new(big.Int).SetBytes(ev.Data[offset : offset+8])
 	if !gas.IsUint64() {
-		return nil, fmt.Errorf("bad gas value: %x", ev.Data[offset:offset+32])
+		return nil, fmt.Errorf("bad gas value: %x", ev.Data[offset:offset+8])
 	}
-	offset += 32
 	dep.Gas = gas.Uint64()
+	offset += 8
 	// isCreation: If the boolean byte is 1 then dep.To will stay nil,
 	// and it will create a contract using L2 account nonce to determine the created address.
-	if ev.Data[offset+31] == 0 {
+	if ev.Data[offset+1] == 0 {
 		dep.To = &to
 	}
-	offset += 32
+	offset += 1
 	// dynamic fields are encoded in three parts. The fixed size portion is the offset of the start of the
 	// data. The first 32 bytes of a `bytes` object is the length of the bytes. Then are the actual bytes
 	// padded out to 32 byte increments.

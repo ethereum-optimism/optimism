@@ -57,7 +57,7 @@ contract CommonTest is Test {
             _from,
             _to,
             0,
-            abi.encode(_mint, _value, _gasLimit, _isCreation, _data)
+            abi.encodePacked(_mint, _value, _gasLimit, _isCreation, _data)
         );
     }
 
