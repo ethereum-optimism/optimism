@@ -1,6 +1,6 @@
 FROM ethereum/client-go:alltools-v1.10.17 as geth
 
-FROM ghcr.io/foundry-rs/foundry:latest as foundry
+FROM ethereumoptimism/foundry:latest as foundry
 
 FROM python:3.8.12-slim-buster
 

@@ -38,12 +38,12 @@ var (
 type SnapshotState struct {
 	Timestamp       string         `json:"t"`
 	EngineAddr      string         `json:"engine_addr"`
-	Event           string         `json:"event"`
-	L1Head          eth.L1BlockRef `json:"l1Head"`
-	L2Head          eth.L2BlockRef `json:"l2Head"`
-	L2SafeHead      eth.L2BlockRef `json:"l2SafeHead"`
-	L2FinalizedHead eth.BlockID    `json:"l2FinalizedHead"`
-	L1WindowBuf     []eth.BlockID  `json:"l1WindowBuf"`
+	Event           string         `json:"event"`           // event name
+	L1Head          eth.L1BlockRef `json:"l1Head"`          // what we see as head on L1
+	L1Current       eth.L1BlockRef `json:"l1Current"`       // l1 block that the derivation is currently using
+	L2Head          eth.L2BlockRef `json:"l2Head"`          // l2 block that was last optimistically accepted (unsafe head)
+	L2SafeHead      eth.L2BlockRef `json:"l2SafeHead"`      // l2 block that was last derived
+	L2FinalizedHead eth.BlockID    `json:"l2FinalizedHead"` // l2 block that is irreversible
 }
 
 func (e *SnapshotState) UnmarshalJSON(data []byte) error {
@@ -52,10 +52,10 @@ func (e *SnapshotState) UnmarshalJSON(data []byte) error {
 		EngineAddr      string          `json:"engine_addr"`
 		Event           string          `json:"event"`
 		L1Head          json.RawMessage `json:"l1Head"`
+		L1Current       json.RawMessage `json:"l1Current"`
 		L2Head          json.RawMessage `json:"l2Head"`
 		L2SafeHead      json.RawMessage `json:"l2SafeHead"`
 		L2FinalizedHead json.RawMessage `json:"l2FinalizedHead"`
-		L1WindowBuf     json.RawMessage `json:"l1WindowBuf"`
 	}{}
 	if err := json.Unmarshal(data, &t); err != nil {
 		return err
@@ -72,6 +72,9 @@ func (e *SnapshotState) UnmarshalJSON(data []byte) error {
 	if err := json.Unmarshal(unquote(t.L1Head), &e.L1Head); err != nil {
 		return err
 	}
+	if err := json.Unmarshal(unquote(t.L1Current), &e.L1Current); err != nil {
+		return err
+	}
 	if err := json.Unmarshal(unquote(t.L2Head), &e.L2Head); err != nil {
 		return err
 	}
@@ -80,12 +83,6 @@ func (e *SnapshotState) UnmarshalJSON(data []byte) error {
 	}
 	if err := json.Unmarshal(unquote(t.L2FinalizedHead), &e.L2FinalizedHead); err != nil {
 		return err
-	}
-	if err := json.Unmarshal(unquote(t.L1WindowBuf), &e.L1WindowBuf); err != nil {
-		return err
-	}
-	if e.L1WindowBuf == nil {
-		e.L1WindowBuf = make([]eth.BlockID, 0)
 	}
 	return nil
 }

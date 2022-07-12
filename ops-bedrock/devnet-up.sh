@@ -47,7 +47,7 @@ function wait_up {
     sleep 0.25
 
     ((i=i+1))
-    if [ "$i" -eq 200 ]; then
+    if [ "$i" -eq 300 ]; then
       echo " Timeout!" >&2
       exit 1
     fi
@@ -79,7 +79,7 @@ fi
 (
   cd ops-bedrock
   echo "Bringing up L1..."
-  DOCKER_BUILDKIT=1 docker-compose build
+  DOCKER_BUILDKIT=1 docker-compose build --progress plain
   docker-compose up -d l1
   wait_up $L1_URL
 )
@@ -129,7 +129,7 @@ fi
 
 L2OO_ADDRESS=$(jq -r .address < $CONTRACTS_BEDROCK/deployments/$NETWORK/L2OutputOracleProxy.json)
 SEQUENCER_GENESIS_HASH="$(jq -r '.l2.hash' < .devnet/rollup.json)"
-SEQUENCER_BATCH_INBOX_ADDRESS="$(cat ./ops-bedrock/rollup.json | jq -r '.batch_inbox_address')"
+SEQUENCER_BATCH_INBOX_ADDRESS="$(cat ./.devnet/rollup.json | jq -r '.batch_inbox_address')"
 
 # Bring up everything else.
 (

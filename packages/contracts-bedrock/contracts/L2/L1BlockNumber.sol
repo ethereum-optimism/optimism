@@ -1,8 +1,9 @@
-//SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: MIT
 pragma solidity 0.8.10;
 
 import { L1Block } from "./L1Block.sol";
-import { Lib_PredeployAddresses } from "../libraries/Lib_PredeployAddresses.sol";
+import { PredeployAddresses } from "../libraries/PredeployAddresses.sol";
+import { Semver } from "../universal/Semver.sol";
 
 /**
  * @custom:legacy
@@ -14,7 +15,12 @@ import { Lib_PredeployAddresses } from "../libraries/Lib_PredeployAddresses.sol"
  *         If you want to access the L1 block number going forward, you should use the L1Block
  *         contract instead.
  */
-contract L1BlockNumber {
+contract L1BlockNumber is Semver {
+    /**
+     * @custom:semver 0.0.1
+     */
+    constructor() Semver(0, 0, 1) {}
+
     /**
      * @notice Returns the L1 block number.
      */
@@ -43,6 +49,6 @@ contract L1BlockNumber {
      * @return Latest L1 block number.
      */
     function getL1BlockNumber() public view returns (uint256) {
-        return L1Block(Lib_PredeployAddresses.L1_BLOCK_ATTRIBUTES).number();
+        return L1Block(PredeployAddresses.L1_BLOCK_ATTRIBUTES).number();
     }
 }

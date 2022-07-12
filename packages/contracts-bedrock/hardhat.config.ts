@@ -3,17 +3,16 @@ import { HardhatUserConfig, task, subtask } from 'hardhat/config'
 import { TASK_COMPILE_SOLIDITY_GET_SOURCE_PATHS } from 'hardhat/builtin-tasks/task-names'
 
 // Hardhat plugins
-import '@nomiclabs/hardhat-ethers'
-import '@typechain/hardhat'
-import 'solidity-coverage'
-import 'hardhat-deploy'
-import '@foundry-rs/hardhat-forge'
 import '@eth-optimism/hardhat-deploy-config'
+import '@foundry-rs/hardhat-forge'
+import '@nomiclabs/hardhat-ethers'
+import 'hardhat-deploy'
 
 // Hardhat tasks
 import './tasks/genesis-l1'
 import './tasks/genesis-l2'
 import './tasks/deposits'
+import './tasks/rekey'
 import './tasks/rollup-config'
 
 subtask(TASK_COMPILE_SOLIDITY_GET_SOURCE_PATHS).setAction(
@@ -54,10 +53,6 @@ const config: HardhatUserConfig = {
     deployments: './deployments',
     deployConfig: './deploy-config',
   },
-  typechain: {
-    outDir: 'dist/types',
-    target: 'ethers-v5',
-  },
   namedAccounts: {
     deployer: {
       default: 0,
@@ -86,7 +81,7 @@ const config: HardhatUserConfig = {
     sequencerAddress: {
       type: 'address',
     },
-    ownerAddress: {
+    outputOracleOwner: {
       type: 'address',
     },
   },

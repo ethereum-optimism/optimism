@@ -8,7 +8,7 @@ import {
   BatchType,
   SequencerBatch,
 } from '@eth-optimism/core-utils'
-import { SequencerBatchAppendedEvent } from '@eth-optimism/contracts/dist/types/CanonicalTransactionChain'
+import { SequencerBatchAppendedEvent } from '@eth-optimism/contracts/dist/types/contracts/L1/rollup/CanonicalTransactionChain'
 
 /* Imports: Internal */
 import { MissingElementError } from './errors'

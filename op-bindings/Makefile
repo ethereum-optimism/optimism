@@ -33,7 +33,7 @@ gas-price-oracle-bindings:
 	./gen_bindings.sh GasPriceOracle bindings
 
 address-manager-bindings:
-	./gen_bindings.sh Lib_AddressManager bindings
+	./gen_bindings.sh AddressManager bindings
 
 mkdir:
 	mkdir -p bin bindings

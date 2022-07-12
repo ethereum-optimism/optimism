@@ -14,10 +14,10 @@ type Config struct {
 	// L1EthRpc is the HTTP provider URL for L1.
 	L1EthRpc string
 
-	// L2EthRpc is the HTTP provider URL for L2.
+	// L2EthRpc is the HTTP provider URL for the L2 execution engine.
 	L2EthRpc string
 
-	// RollupRpc is the HTTP provider URL for the rollup node.
+	// RollupRpc is the HTTP provider URL for the L2 rollup node.
 	RollupRpc string
 
 	// MinL1TxSize is the minimum size of a batch tx submitted to L1.
@@ -25,6 +25,10 @@ type Config struct {
 
 	// MaxL1TxSize is the maximum size of a batch tx submitted to L1.
 	MaxL1TxSize uint64
+
+	// ChannelTimeout is the maximum amount of time to attempt completing an opened channel,
+	// as opposed to submitting missing blocks in new channels
+	ChannelTimeout uint64
 
 	// PollInterval is the delay between querying L2 for more transaction
 	// and creating a new batch.
@@ -52,13 +56,6 @@ type Config struct {
 	// batched submission of sequencer transactions.
 	SequencerHDPath string
 
-	// SequencerHistoryDBFilename is the filename of the database used to track
-	// the latest L2 sequencer batches that were published.
-	SequencerHistoryDBFilename string
-
-	// SequencerGenesisHash is the genesis hash of the L2 chain.
-	SequencerGenesisHash string
-
 	// SequencerBatchInboxAddress is the address in which to send batch
 	// transactions.
 	SequencerBatchInboxAddress string
@@ -82,14 +79,13 @@ func NewConfig(ctx *cli.Context) Config {
 		RollupRpc:                  ctx.GlobalString(flags.RollupRpcFlag.Name),
 		MinL1TxSize:                ctx.GlobalUint64(flags.MinL1TxSizeBytesFlag.Name),
 		MaxL1TxSize:                ctx.GlobalUint64(flags.MaxL1TxSizeBytesFlag.Name),
+		ChannelTimeout:             ctx.GlobalUint64(flags.ChannelTimeoutFlag.Name),
 		PollInterval:               ctx.GlobalDuration(flags.PollIntervalFlag.Name),
 		NumConfirmations:           ctx.GlobalUint64(flags.NumConfirmationsFlag.Name),
 		SafeAbortNonceTooLowCount:  ctx.GlobalUint64(flags.SafeAbortNonceTooLowCountFlag.Name),
 		ResubmissionTimeout:        ctx.GlobalDuration(flags.ResubmissionTimeoutFlag.Name),
 		Mnemonic:                   ctx.GlobalString(flags.MnemonicFlag.Name),
 		SequencerHDPath:            ctx.GlobalString(flags.SequencerHDPathFlag.Name),
-		SequencerHistoryDBFilename: ctx.GlobalString(flags.SequencerHistoryDBFilenameFlag.Name),
-		SequencerGenesisHash:       ctx.GlobalString(flags.SequencerGenesisHashFlag.Name),
 		SequencerBatchInboxAddress: ctx.GlobalString(flags.SequencerBatchInboxAddressFlag.Name),
 		/* Optional Flags */
 		LogLevel:    ctx.GlobalString(flags.LogLevelFlag.Name),

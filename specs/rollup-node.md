@@ -44,6 +44,7 @@ currently only concerned with the specification of the rollup driver.
 <!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
 **Table of Contents**
 
+- [Rollup Node Specification](#rollup-node-specification)
 - [L2 Chain Derivation](#l2-chain-derivation)
   - [From L1 Sequencing Window to L2 Payload Attributes](#from-l1-sequencing-window-to-l2-payload-attributes)
     - [Reading L1 inputs](#reading-l1-inputs)
@@ -181,8 +182,8 @@ To encode user-deposited transactions, refer to the following sections of the de
 A sequencing window is derived into a variable number of L2 blocks, defined by a range of timestamps:
 
 - Starting at `min_l2_timestamp`, as defined in the batch filtering.
-- Up to and including
-  `new_head_l2_timestamp = max(highest_valid_batch_timestamp, next_l1_timestamp - l2_block_time, min_l2_timestamp)`
+- Up to and including (including only if aligned with L2 block time)
+  `new_head_l2_timestamp = max(highest_valid_batch_timestamp, next_l1_timestamp - 1, min_l2_timestamp)`
   - `highest_valid_batch_timestamp = max(batch.timestamp for batch in filtered_batches)`,
     or `0` if no there are no `filtered_batches`.
     `batch.timestamp` refers to the L2 block timestamp encoded in the batch.
@@ -329,7 +330,7 @@ after the L1 block that generated it. This is a duration of approximately 7 days
 as the "fault proof window", as after this time the block can no longer be challenged by a fault proof.
 
 L1 Ethereum reaches [finality][l1-finality] approximately every [12.8 minutes][consensus-time-params]. L2 blocks
-generated from finalized L1 blocksare "safer" than most recent L2 blocks because they will never disappear from the
+generated from finalized L1 blocks are "safer" than most recent L2 blocks because they will never disappear from the
 chain's history because of a re-org. However, they can still be challenged by a fault proof until the end of the fault
 proof window.
 

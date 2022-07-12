@@ -26,6 +26,14 @@ export interface DrippieConfig {
   [name: string]: DripConfig
 }
 
+export enum Time {
+  SECOND = 1,
+  MINUTE = 60 * Time.SECOND,
+  HOUR = 60 * Time.MINUTE,
+  DAY = 24 * Time.HOUR,
+  WEEK = 7 * Time.DAY,
+}
+
 export const getDrippieConfig = async (
   hre: HardhatRuntimeEnvironment
 ): Promise<Required<DrippieConfig>> => {

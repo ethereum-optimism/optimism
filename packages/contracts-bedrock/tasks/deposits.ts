@@ -1,8 +1,14 @@
-import { task, types } from 'hardhat/config'
-import { Contract, providers, utils, Wallet, Event } from 'ethers'
-import dotenv from 'dotenv'
+/*
+ * Copyright (c) 2022, OP Labs PBC (MIT License)
+ * https://github.com/ethereum-optimism/optimism
+ */
 
-import { DepositTx } from '../src'
+import { task, types } from 'hardhat/config'
+import { providers, utils, Wallet, Event } from 'ethers'
+import dotenv from 'dotenv'
+import 'hardhat-deploy'
+import '@nomiclabs/hardhat-ethers'
+import { DepositTx } from '@eth-optimism/core-utils'
 
 dotenv.config()
 
@@ -31,22 +37,14 @@ task('deposit', 'Deposits funds onto L2.')
     process.env.PRIVATE_KEY,
     types.string
   )
-  .addOptionalParam(
-    'depositContractAddr',
-    'Address of deposit contract.',
-    'deaddeaddeaddeaddeaddeaddeaddeaddead0001',
-    types.string
-  )
   .setAction(async (args, hre) => {
-    const {
-      l1ProviderUrl,
-      l2ProviderUrl,
-      to,
-      amountEth,
-      depositContractAddr,
-      privateKey,
-    } = args
-    const depositFeedArtifact = await hre.deployments.get('OptimismPortal')
+    const { l1ProviderUrl, l2ProviderUrl, to, amountEth, privateKey } = args
+    const proxy = await hre.deployments.get('OptimismPortalProxy')
+
+    const OptimismPortal = await hre.ethers.getContractAt(
+      'OptimismPortal',
+      proxy.address
+    )
 
     const l1Provider = new providers.JsonRpcProvider(l1ProviderUrl)
     const l2Provider = new providers.JsonRpcProvider(l2ProviderUrl)
@@ -65,16 +63,11 @@ task('deposit', 'Deposits funds onto L2.')
       throw new Error(`${from} has no balance`)
     }
 
-    const depositFeed = new Contract(
-      depositContractAddr,
-      depositFeedArtifact.abi
-    ).connect(l1Wallet)
-
     const amountWei = utils.parseEther(amountEth)
     const value = amountWei.add(utils.parseEther('0.01'))
     console.log(`Depositing ${amountEth} ETH to ${to}`)
     // Below adds 0.01 ETH to account for gas.
-    const tx = await depositFeed.depositTransaction(
+    const tx = await OptimismPortal.depositTransaction(
       to,
       amountWei,
       '3000000',
@@ -84,6 +77,9 @@ task('deposit', 'Deposits funds onto L2.')
     )
     console.log(`Got TX hash ${tx.hash}. Waiting...`)
     const receipt = await tx.wait()
+    console.log(
+      `Included in block ${receipt.blockHash} with index ${receipt.logIndex}`
+    )
 
     // find the transaction deposited event and derive
     // the deposit transaction from it
@@ -91,6 +87,7 @@ task('deposit', 'Deposits funds onto L2.')
       (e: Event) => e.event === 'TransactionDeposited'
     )
     const l2tx = DepositTx.fromL1Event(event)
+    console.log(`Deposit has log index ${event.logIndex}`)
     const hash = l2tx.hash()
     console.log(`Waiting for L2 TX hash ${hash}`)
 

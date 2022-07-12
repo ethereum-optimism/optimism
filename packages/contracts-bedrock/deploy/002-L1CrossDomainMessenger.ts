@@ -17,9 +17,11 @@ const deployFn: DeployFunction = async (hre) => {
     waitConfirmations: deployConfig.deploymentWaitConfirmations,
   })
 
+  const portal = await hre.deployments.get('OptimismPortalProxy')
+
   await deploy('L1CrossDomainMessenger', {
     from: deployer,
-    args: [],
+    args: [portal.address],
     log: true,
     waitConfirmations: deployConfig.deploymentWaitConfirmations,
   })
@@ -27,7 +29,6 @@ const deployFn: DeployFunction = async (hre) => {
   const proxy = await hre.deployments.get('L1CrossDomainMessengerProxy')
   const Proxy = await hre.ethers.getContractAt('Proxy', proxy.address)
   const messenger = await hre.deployments.get('L1CrossDomainMessenger')
-  const portal = await hre.deployments.get('OptimismPortal')
 
   const L1CrossDomainMessenger = await hre.ethers.getContractAt(
     'L1CrossDomainMessenger',
@@ -36,9 +37,7 @@ const deployFn: DeployFunction = async (hre) => {
 
   const upgradeTx = await Proxy.upgradeToAndCall(
     messenger.address,
-    L1CrossDomainMessenger.interface.encodeFunctionData('initialize(address)', [
-      portal.address,
-    ])
+    L1CrossDomainMessenger.interface.encodeFunctionData('initialize')
   )
   await upgradeTx.wait()
 

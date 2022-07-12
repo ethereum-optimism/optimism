@@ -7,10 +7,12 @@ optimizer_runs = 999999
 remappings = [
   '@openzeppelin/contracts-upgradeable/=node_modules/@openzeppelin/contracts-upgradeable/',
   '@openzeppelin/contracts/=node_modules/@openzeppelin/contracts/',
-  'excessively-safe-call/=node_modules/excessively-safe-call/src/',
+  '@eth-optimism/contracts-periphery/=node_modules/@eth-optimism/contracts-periphery/contracts',
+  'excessively-safe-call/=node_modules/excessively-safe-call/',
   '@rari-capital/solmate/=node_modules/@rari-capital/solmate',
   'forge-std/=node_modules/forge-std/src',
   'ds-test/=node_modules/ds-test/src'
 ]
 extra_output = ['devdoc', 'userdoc', 'metadata', 'storageLayout']
 bytecode_hash = 'none'
+build_info = true

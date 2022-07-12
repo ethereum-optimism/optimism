@@ -2,6 +2,8 @@ ignores: [
   "@eth-optimism/contracts-bedrock",
   "@openzeppelin/contracts",
   "@openzeppelin/contracts-upgradeable",
+  "@ethersproject/providers",
+  "@ethersproject/abi",
   "@rari-capital/solmate",
   "@types/node",
   "hardhat-deploy",
@@ -16,9 +18,12 @@ ignores: [
   "eslint-plugin-jsdoc",
   "eslint-plugin-prefer-arrow",
   "eslint-plugin-react",
+  "mkdirp",
   "@typescript-eslint/eslint-plugin",
   "eslint-config-prettier",
   "eslint-plugin-prettier",
   "chai",
-  "babel-eslint"
+  "babel-eslint",
+  "ds-test",
+  "forge-std"
 ]

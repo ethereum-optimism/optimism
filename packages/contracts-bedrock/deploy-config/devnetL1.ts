@@ -5,7 +5,7 @@ const { env } = process
 const startingTimestamp =
   typeof env.L2OO_STARTING_BLOCK_TIMESTAMP === 'string'
     ? ethers.BigNumber.from(env.L2OO_STARTING_BLOCK_TIMESTAMP).toNumber()
-    : Date.now() / 1000
+    : Math.floor(Date.now() / 1000)
 
 const config = {
   submissionInterval: 6,
@@ -39,15 +39,20 @@ const config = {
 
   genesisBlockChainid: 901,
   fundDevAccounts: true,
-  optimsismBaseFeeRecipient: '0xBcd4042DE499D14e55001CcbB24a551F3b954096',
+  optimismBaseFeeRecipient: '0xBcd4042DE499D14e55001CcbB24a551F3b954096',
   optimismL1FeeRecipient: '0x71bE63f3384f5fb98995898A86B02Fb2426c5788',
+
+  p2pSequencerAddress: '0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc',
 
   deploymentWaitConfirmations: 1,
 
-  maxSequencerDrift: 10,
-  sequencerWindowSize: 2,
+  maxSequencerDrift: 100,
+  sequencerWindowSize: 4,
+  channelTimeout: 40,
 
-  ownerAddress: '0x70997970C51812dc3A010C7d01b50e0d17dc79C8',
+  outputOracleOwner: '0x70997970C51812dc3A010C7d01b50e0d17dc79C8',
+  optimismL2FeeRecipient: '0xd9c09e21b57c98e58a80552c170989b426766aa7',
+  batchSenderAddress: '0xDe3829A23DF1479438622a08a116E8Eb3f620BB5',
 }
 
 export default config

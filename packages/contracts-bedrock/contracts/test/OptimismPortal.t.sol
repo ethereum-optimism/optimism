@@ -3,10 +3,10 @@ pragma solidity 0.8.10;
 
 import { Portal_Initializer, CommonTest, NextImpl } from "./CommonTest.t.sol";
 
-import { AddressAliasHelper } from "../libraries/AddressAliasHelper.sol";
+import { AddressAliasHelper } from "../vendor/AddressAliasHelper.sol";
 import { L2OutputOracle } from "../L1/L2OutputOracle.sol";
 import { OptimismPortal } from "../L1/OptimismPortal.sol";
-import { WithdrawalVerifier } from "../libraries/Lib_WithdrawalVerifier.sol";
+import { Hashing } from "../libraries/Hashing.sol";
 import { Proxy } from "../universal/Proxy.sol";
 
 contract OptimismPortal_Test is Portal_Initializer {
@@ -230,7 +230,7 @@ contract OptimismPortal_Test is Portal_Initializer {
     // function test_verifyWithdrawal() external {}
 
     function test_cannotVerifyRecentWithdrawal() external {
-        WithdrawalVerifier.OutputRootProof memory outputRootProof = WithdrawalVerifier
+        Hashing.OutputRootProof memory outputRootProof = Hashing
             .OutputRootProof({
                 version: bytes32(0),
                 stateRoot: bytes32(0),
@@ -243,7 +243,7 @@ contract OptimismPortal_Test is Portal_Initializer {
     }
 
     function test_invalidWithdrawalProof() external {
-        WithdrawalVerifier.OutputRootProof memory outputRootProof = WithdrawalVerifier
+        Hashing.OutputRootProof memory outputRootProof = Hashing
             .OutputRootProof({
                 version: bytes32(0),
                 stateRoot: bytes32(0),
@@ -348,7 +348,7 @@ contract OptimismPortalUpgradeable_Test is Portal_Initializer {
         assertEq(bytes32(0), slot21Before);
 
         NextImpl nextImpl = new NextImpl();
-        vm.startPrank(alice);
+        vm.startPrank(multisig);
         proxy.upgradeToAndCall(
             address(nextImpl),
             abi.encodeWithSelector(NextImpl.initialize.selector)

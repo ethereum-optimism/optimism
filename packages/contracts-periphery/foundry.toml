@@ -1,0 +1,21 @@
+[default]
+# The source directory
+src = 'contracts/universal'
+# The test directory
+test = 'contracts/foundry-tests'
+# We need to build seperate artifacts for forge and hh, because they each expect a different
+# structure for the artifacts directory.
+# The artifact directory
+out = 'forge-artifacts'
+# Enables or disables the optimizer
+optimizer = true
+# The number of optimizer runs
+optimizer_runs = 200
+# A list of remappings
+remappings = [
+	'@rari-capital/solmate/=node_modules/@rari-capital/solmate',
+	'forge-std/=node_modules/forge-std/src',
+	'ds-test/=node_modules/ds-test/src'
+]
+# The metadata hash can be removed from the bytecode by setting "none"
+bytecode_hash = "none"

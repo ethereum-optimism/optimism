@@ -42,13 +42,15 @@ services:
       - l2
     build:
       context: ../
-      dockerfile: ./ops-bedrock/Dockerfile.node
+      dockerfile: ./op-node/Dockerfile
     command: >
       op-node
       --l1=ws://l1:8546
       --l2=ws://l2:8546
       --l2.jwt-secret=/config/test-jwt-secret.txt
-      --sequencing.enabled
+      --sequencer.enabled
+      --sequencer.l1-confs=0
+      --verifier.l1-confs=0
       --p2p.sequencer.key=/config/p2p-sequencer-key.txt
       --rollup.config=/rollup.json
       --rpc.addr=0.0.0.0
@@ -79,7 +81,7 @@ services:
       - op-node
     build:
       context: ../
-      dockerfile: ./ops-bedrock/Dockerfile.proposer
+      dockerfile: ./op-proposer/Dockerfile
     environment:
       L1_ETH_RPC: http://l1:8545
       L2_ETH_RPC: http://l2:8545
@@ -100,13 +102,14 @@ services:
       - op-node
     build:
       context: ../
-      dockerfile: ./ops-bedrock/Dockerfile.batcher
+      dockerfile: ./op-batcher/Dockerfile
     environment:
       L1_ETH_RPC: http://l1:8545
       L2_ETH_RPC: http://l2:8545
       ROLLUP_RPC: http://op-node:8545
       BATCH_SUBMITTER_MIN_L1_TX_SIZE_BYTES: 1
       BATCH_SUBMITTER_MAX_L1_TX_SIZE_BYTES: 120000
+      BATCH_SUBMITTER_CHANNEL_TIMEOUT: 40
       BATCH_SUBMITTER_POLL_INTERVAL: 1s
       BATCH_SUBMITTER_NUM_CONFIRMATIONS: 1
       BATCH_SUBMITTER_SAFE_ABORT_NONCE_TOO_LOW_COUNT: 3
