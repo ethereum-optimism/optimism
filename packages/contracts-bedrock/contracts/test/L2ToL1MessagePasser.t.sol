@@ -64,7 +64,7 @@ contract L2ToL1MessagePasserTest is CommonTest {
             data
         );
 
-        bytes32 withdrawalHash = Hashing.withdrawalHash(
+        bytes32 withdrawalHash = Hashing.hashWithdrawal(
             nonce,
             alice,
             target,
