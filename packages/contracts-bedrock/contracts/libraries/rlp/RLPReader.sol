@@ -2,41 +2,42 @@
 pragma solidity ^0.8.9;
 
 /**
+ * @custom:attribution https://github.com/hamdiallam/Solidity-RLP
  * @title RLPReader
- * @dev Adapted from "RLPReader" by Hamdi Allam (hamdi.allam97@gmail.com).
+ * @notice RLPReader is a library for parsing RLP-encoded byte arrays into Solidity types. Adapted
+ *         from Solidity-RLP (https://github.com/hamdiallam/Solidity-RLP) by Hamdi Allam with
+ *         various tweaks to improve readability.
  */
 library RLPReader {
-    /*************
-     * Constants *
-     *************/
-
+    /**
+     * @notice Max list length that this library will accept.
+     */
     uint256 internal constant MAX_LIST_LENGTH = 32;
 
-    /*********
-     * Enums *
-     *********/
-
+    /**
+     * @notice RLP item types.
+     *
+     * @custom:value DATA_ITEM Represents an RLP data item (NOT a list).
+     * @custom:value LIST_ITEM Represents an RLP list item.
+     */
     enum RLPItemType {
         DATA_ITEM,
         LIST_ITEM
     }
 
-    /***********
-     * Structs *
-     ***********/
-
+    /**
+     * @notice Struct representing an RLP item.
+     */
     struct RLPItem {
         uint256 length;
         uint256 ptr;
     }
 
-    /**********************
-     * Internal Functions *
-     **********************/
-
     /**
-     * Converts bytes to a reference to memory position and length.
+     * @notice Converts bytes to a reference to memory position and length.
+     *
      * @param _in Input bytes to convert.
+     *
      * @return Output memory reference.
      */
     function toRLPItem(bytes memory _in) internal pure returns (RLPItem memory) {
@@ -49,8 +50,10 @@ library RLPReader {
     }
 
     /**
-     * Reads an RLP list value into a list of RLP items.
+     * @notice Reads an RLP list value into a list of RLP items.
+     *
      * @param _in RLP list value.
+     *
      * @return Decoded RLP list items.
      */
     function readList(RLPItem memory _in) internal pure returns (RLPItem[] memory) {
@@ -88,8 +91,10 @@ library RLPReader {
     }
 
     /**
-     * Reads an RLP list value into a list of RLP items.
+     * @notice Reads an RLP list value into a list of RLP items.
+     *
      * @param _in RLP list value.
+     *
      * @return Decoded RLP list items.
      */
     function readList(bytes memory _in) internal pure returns (RLPItem[] memory) {
@@ -97,8 +102,10 @@ library RLPReader {
     }
 
     /**
-     * Reads an RLP bytes value into bytes.
+     * @notice Reads an RLP bytes value into bytes.
+     *
      * @param _in RLP bytes value.
+     *
      * @return Decoded bytes.
      */
     function readBytes(RLPItem memory _in) internal pure returns (bytes memory) {
@@ -110,8 +117,10 @@ library RLPReader {
     }
 
     /**
-     * Reads an RLP bytes value into bytes.
+     * @notice Reads an RLP bytes value into bytes.
+     *
      * @param _in RLP bytes value.
+     *
      * @return Decoded bytes.
      */
     function readBytes(bytes memory _in) internal pure returns (bytes memory) {
@@ -119,8 +128,10 @@ library RLPReader {
     }
 
     /**
-     * Reads an RLP string value into a string.
+     * @notice Reads an RLP string value into a string.
+     *
      * @param _in RLP string value.
+     *
      * @return Decoded string.
      */
     function readString(RLPItem memory _in) internal pure returns (string memory) {
@@ -128,8 +139,10 @@ library RLPReader {
     }
 
     /**
-     * Reads an RLP string value into a string.
+     * @notice Reads an RLP string value into a string.
+     *
      * @param _in RLP string value.
+     *
      * @return Decoded string.
      */
     function readString(bytes memory _in) internal pure returns (string memory) {
@@ -137,8 +150,10 @@ library RLPReader {
     }
 
     /**
-     * Reads an RLP bytes32 value into a bytes32.
+     * @notice Reads an RLP bytes32 value into a bytes32.
+     *
      * @param _in RLP bytes32 value.
+     *
      * @return Decoded bytes32.
      */
     function readBytes32(RLPItem memory _in) internal pure returns (bytes32) {
@@ -163,8 +178,10 @@ library RLPReader {
     }
 
     /**
-     * Reads an RLP bytes32 value into a bytes32.
+     * @notice Reads an RLP bytes32 value into a bytes32.
+     *
      * @param _in RLP bytes32 value.
+     *
      * @return Decoded bytes32.
      */
     function readBytes32(bytes memory _in) internal pure returns (bytes32) {
@@ -172,8 +189,10 @@ library RLPReader {
     }
 
     /**
-     * Reads an RLP uint256 value into a uint256.
+     * @notice Reads an RLP uint256 value into a uint256.
+     *
      * @param _in RLP uint256 value.
+     *
      * @return Decoded uint256.
      */
     function readUint256(RLPItem memory _in) internal pure returns (uint256) {
@@ -181,8 +200,10 @@ library RLPReader {
     }
 
     /**
-     * Reads an RLP uint256 value into a uint256.
+     * @notice Reads an RLP uint256 value into a uint256.
+     *
      * @param _in RLP uint256 value.
+     *
      * @return Decoded uint256.
      */
     function readUint256(bytes memory _in) internal pure returns (uint256) {
@@ -190,8 +211,10 @@ library RLPReader {
     }
 
     /**
-     * Reads an RLP bool value into a bool.
+     * @notice Reads an RLP bool value into a bool.
+     *
      * @param _in RLP bool value.
+     *
      * @return Decoded bool.
      */
     function readBool(RLPItem memory _in) internal pure returns (bool) {
@@ -209,8 +232,10 @@ library RLPReader {
     }
 
     /**
-     * Reads an RLP bool value into a bool.
+     * @notice Reads an RLP bool value into a bool.
+     *
      * @param _in RLP bool value.
+     *
      * @return Decoded bool.
      */
     function readBool(bytes memory _in) internal pure returns (bool) {
@@ -218,8 +243,10 @@ library RLPReader {
     }
 
     /**
-     * Reads an RLP address value into a address.
+     * @notice Reads an RLP address value into a address.
+     *
      * @param _in RLP address value.
+     *
      * @return Decoded address.
      */
     function readAddress(RLPItem memory _in) internal pure returns (address) {
@@ -233,8 +260,10 @@ library RLPReader {
     }
 
     /**
-     * Reads an RLP address value into a address.
+     * @notice Reads an RLP address value into a address.
+     *
      * @param _in RLP address value.
+     *
      * @return Decoded address.
      */
     function readAddress(bytes memory _in) internal pure returns (address) {
@@ -242,8 +271,10 @@ library RLPReader {
     }
 
     /**
-     * Reads the raw bytes of an RLP item.
+     * @notice Reads the raw bytes of an RLP item.
+     *
      * @param _in RLP item to read.
+     *
      * @return Raw RLP bytes.
      */
     function readRawBytes(RLPItem memory _in) internal pure returns (bytes memory) {
@@ -255,8 +286,10 @@ library RLPReader {
      *********************/
 
     /**
-     * Decodes the length of an RLP item.
+     * @notice Decodes the length of an RLP item.
+     *
      * @param _in RLP item to decode.
+     *
      * @return Offset of the encoded data.
      * @return Length of the encoded data.
      * @return RLP item type (LIST_ITEM or DATA_ITEM).
@@ -333,10 +366,12 @@ library RLPReader {
     }
 
     /**
-     * Copies the bytes from a memory location.
-     * @param _src Pointer to the location to read from.
+     * @notice Copies the bytes from a memory location.
+     *
+     * @param _src    Pointer to the location to read from.
      * @param _offset Offset to start reading from.
      * @param _length Number of bytes to read.
+     *
      * @return Copied bytes.
      */
     function _copy(
@@ -378,8 +413,10 @@ library RLPReader {
     }
 
     /**
-     * Copies an RLP item into bytes.
+     * @notice Copies an RLP item into bytes.
+     *
      * @param _in RLP item to copy.
+     *
      * @return Copied bytes.
      */
     function _copy(RLPItem memory _in) private pure returns (bytes memory) {

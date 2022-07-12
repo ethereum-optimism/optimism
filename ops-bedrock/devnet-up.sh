@@ -79,7 +79,7 @@ fi
 (
   cd ops-bedrock
   echo "Bringing up L1..."
-  DOCKER_BUILDKIT=1 docker-compose build
+  DOCKER_BUILDKIT=1 docker-compose build --progress plain
   docker-compose up -d l1
   wait_up $L1_URL
 )
