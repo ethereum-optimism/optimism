@@ -111,7 +111,7 @@ abstract contract CrossDomainMessenger is
      *         messageNonce getter which will insert the message version into the nonce to give you
      *         the actual nonce to be used for the message.
      */
-    uint256 internal msgNonce;
+    uint240 internal msgNonce;
 
     /**
      * @notice Address of the paired CrossDomainMessenger contract on the other chain.
@@ -172,7 +172,7 @@ abstract contract CrossDomainMessenger is
      * @return Nonce of the next message to be sent, with added message version.
      */
     function messageNonce() public view returns (uint256) {
-        return Encoding.addVersionToNonce(msgNonce, MESSAGE_VERSION);
+        return Encoding.encodeVersionedNonce(msgNonce, MESSAGE_VERSION);
     }
 
     /**
@@ -250,7 +250,7 @@ abstract contract CrossDomainMessenger is
         uint256 _minGasLimit,
         bytes calldata _message
     ) external payable nonReentrant whenNotPaused {
-        bytes32 versionedHash = Hashing.getVersionedHash(
+        bytes32 versionedHash = Hashing.hashCrossDomainMessage(
             _nonce,
             _sender,
             _target,
