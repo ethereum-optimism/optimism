@@ -4,7 +4,11 @@
 
 Go modules that are currently versioned:
 ```
-*bedrock modules versioning work in progress
+	./op-batcher
+	./op-bindings
+	./op-node
+	./op-proposer
+	./op-e2e
 ```
 
 Go modules which are not yet versioned:
@@ -15,12 +19,7 @@ Go modules which are not yet versioned:
 	./indexer          (changesets)
 	./l2geth           (changesets)
 	./l2geth-exporter  (changesets)
-	./op-batcher
-	./op-bindings
-	./op-e2e
 	./op-exporter      (changesets)
-	./op-node
-	./op-proposer
 	./proxyd           (changesets)
 	./teleportr        (changesets)
 	./state-surgery
