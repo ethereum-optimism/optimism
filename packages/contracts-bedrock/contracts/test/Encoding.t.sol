@@ -6,9 +6,11 @@ import { Encoding } from "../libraries/Encoding.sol";
 
 contract Encoding_Test is CommonTest {
     function test_nonceVersioning(uint240 _nonce, uint16 _version) external {
-        uint256 nonce = Encoding.encodeVersionedNonce(_nonce, _version);
-        (, uint16 version) = Encoding.decodeVersionedNonce(nonce);
+        (uint240 nonce, uint16 version) = Encoding.decodeVersionedNonce(
+            Encoding.encodeVersionedNonce(_nonce, _version)
+        );
         assertEq(version, _version);
+        assertEq(nonce, _nonce);
     }
 
     function test_encodeDepositTransaction() external {
