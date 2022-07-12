@@ -127,7 +127,9 @@ jobs:
           working_directory: packages/contracts-bedrock
       - run:
           name: slither
-          command: yarn slither || exit 0
+          command: |
+            slither --version
+            yarn slither || exit 0
           working_directory: packages/contracts-bedrock
       - run:
           name: test

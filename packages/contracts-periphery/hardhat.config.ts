@@ -10,6 +10,7 @@ import '@nomiclabs/hardhat-ethers'
 import '@nomiclabs/hardhat-waffle'
 import '@nomiclabs/hardhat-etherscan'
 import '@eth-optimism/hardhat-deploy-config'
+import '@typechain/hardhat'
 import 'solidity-coverage'
 import 'hardhat-gas-reporter'
 import 'hardhat-deploy'
@@ -91,6 +92,10 @@ const config: HardhatUserConfig = {
   deployConfigSpec: configSpec,
   mocha: {
     timeout: 50000,
+  },
+  typechain: {
+    outDir: 'dist/types',
+    target: 'ethers-v5',
   },
   solidity: {
     compilers: [

@@ -2,15 +2,12 @@ FROM golang:1.18.0-alpine3.15 as builder
 
 RUN apk add --no-cache make gcc musl-dev linux-headers git jq bash
 
-COPY ./op-node/go.mod /app/op-node/go.mod
-COPY ./op-node/go.sum /app/op-node/go.sum
-
+# build op-node with local monorepo go modules
+COPY ./op-node/docker.go.work /app/go.work
 COPY ./op-bindings /app/op-bindings
+COPY ./op-node /app/op-node
 
 WORKDIR /app/op-node
-RUN go mod download -x
-
-COPY ./op-node /app/op-node
 
 RUN make op-node
 
