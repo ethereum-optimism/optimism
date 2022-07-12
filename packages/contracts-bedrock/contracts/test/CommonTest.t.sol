@@ -56,7 +56,7 @@ contract CommonTest is Test {
         emit TransactionDeposited(
             _from,
             _to,
-            1,
+            0,
             abi.encode(_mint, _value, _gasLimit, _isCreation, _data)
         );
     }

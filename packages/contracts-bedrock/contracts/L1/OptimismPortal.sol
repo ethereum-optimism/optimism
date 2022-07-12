@@ -21,7 +21,7 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
     /**
      * @notice Version of the deposit event.
      */
-    uint256 internal constant DEPOSIT_VERSION = 1;
+    uint256 internal constant DEPOSIT_VERSION = 0;
 
     /**
      * @notice Emitted when a transaction is deposited from L1 to L2. The parameters of this event
