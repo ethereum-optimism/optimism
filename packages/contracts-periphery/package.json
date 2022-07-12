@@ -7,13 +7,10 @@
   "files": [
     "dist/**/*.js",
     "dist/**/*.d.ts",
-    "dist/types/*.ts",
+    "dist/types",
     "artifacts/contracts/**/*.json",
     "deployments/**/*.json",
-    "L1",
-    "L2",
-    "libraries",
-    "standards"
+    "contracts"
   ],
   "scripts": {
     "build": "yarn build:hh",
@@ -71,6 +68,8 @@
     "@types/chai": "^4.2.18",
     "@types/mocha": "^8.2.2",
     "@types/node": "^17.0.21",
+    "@typechain/ethers-v5": "^10.1.0",
+    "@typechain/hardhat": "^6.1.2",
     "babel-eslint": "^10.1.0",
     "chai": "^4.3.4",
     "copyfiles": "^2.3.0",
@@ -92,6 +91,7 @@
     "solhint": "^3.3.6",
     "solhint-plugin-prettier": "^0.0.5",
     "solidity-coverage": "^0.7.17",
-    "ts-node": "^10.8.2"
+    "ts-node": "^10.8.2",
+    "typechain": "^8.1.0"
   }
 }
