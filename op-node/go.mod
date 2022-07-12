@@ -3,7 +3,7 @@ module github.com/ethereum-optimism/optimism/op-node
 go 1.18
 
 require (
-	github.com/ethereum-optimism/optimism/op-bindings v0.0.0
+	github.com/ethereum-optimism/optimism/op-bindings v0.3.0
 	github.com/ethereum/go-ethereum v1.10.17
 	github.com/golang/snappy v0.0.4
 	github.com/google/go-cmp v0.5.8
@@ -172,8 +172,6 @@ require (
 	gopkg.in/urfave/cli.v1 v1.20.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
-
-replace github.com/ethereum-optimism/optimism/op-bindings v0.0.0 => ../op-bindings
 
 replace github.com/ethereum/go-ethereum v1.10.17 => github.com/ethereum-optimism/reference-optimistic-geth v0.0.0-20220711171946-f579014dc46d
 

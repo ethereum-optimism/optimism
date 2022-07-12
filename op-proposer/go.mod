@@ -3,8 +3,8 @@ module github.com/ethereum-optimism/optimism/op-proposer
 go 1.18
 
 require (
-	github.com/ethereum-optimism/optimism/op-bindings v0.0.0
-	github.com/ethereum-optimism/optimism/op-node v0.0.0
+	github.com/ethereum-optimism/optimism/op-bindings v0.3.0
+	github.com/ethereum-optimism/optimism/op-node v0.3.0
 	github.com/ethereum/go-ethereum v1.10.17
 	github.com/miguelmota/go-ethereum-hdwallet v0.1.1
 	github.com/stretchr/testify v1.8.0
@@ -59,9 +59,5 @@ require (
 	gopkg.in/natefinch/npipe.v2 v2.0.0-20160621034901-c1b8fa8bdcce // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
-
-replace github.com/ethereum-optimism/optimism/op-node v0.0.0 => ../op-node
-
-replace github.com/ethereum-optimism/optimism/op-bindings v0.0.0 => ../op-bindings
 
 replace github.com/ethereum/go-ethereum v1.10.17 => github.com/ethereum-optimism/reference-optimistic-geth v0.0.0-20220711171946-f579014dc46d
