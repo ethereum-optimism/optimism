@@ -99,12 +99,11 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
     constructor(L2OutputOracle _l2Oracle, uint256 _finalizationPeriodSeconds) Semver(0, 0, 1) {
         L2_ORACLE = _l2Oracle;
         FINALIZATION_PERIOD_SECONDS = _finalizationPeriodSeconds;
-
         initialize();
     }
 
     /**
-     * @notice Intializes mutable variables.
+     * @notice Initializer;
      */
     function initialize() public initializer {
         l2Sender = DEFAULT_L2_SENDER;
@@ -242,13 +241,13 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
 
         // Verify that the output root can be generated with the elements in the proof.
         require(
-            proposal.outputRoot == Hashing._deriveOutputRoot(_outputRootProof),
+            proposal.outputRoot == Hashing.hashOutputRootProof(_outputRootProof),
             "OptimismPortal: invalid output root proof"
         );
 
         // All withdrawals have a unique hash, we'll use this as the identifier for the withdrawal
         // and to prevent replay attacks.
-        bytes32 withdrawalHash = Hashing.withdrawalHash(
+        bytes32 withdrawalHash = Hashing.hashWithdrawal(
             _nonce,
             _sender,
             _target,

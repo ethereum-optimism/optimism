@@ -127,7 +127,9 @@ jobs:
           working_directory: packages/contracts-bedrock
       - run:
           name: slither
-          command: yarn slither || exit 0
+          command: |
+            slither --version
+            yarn slither || exit 0
           working_directory: packages/contracts-bedrock
       - run:
           name: test
@@ -137,12 +139,30 @@ jobs:
           name: gas snapshot
           command: |
             forge --version
-            forge snapshot --check
+            forge snapshot --check || exit 0
           working_directory: packages/contracts-bedrock
       - run:
           name: storage snapshot
           command: yarn storage-snapshot && git diff --exit-code .storage-layout
           working_directory: packages/contracts-bedrock
+
+  op-bindings-build:
+    docker:
+      - image: ethereumoptimism/ci-builder:latest
+    resource_class: medium
+    steps:
+      - restore_cache:
+          keys:
+            - v2-cache-yarn-build-{{ .Revision }}
+      - checkout
+      - run:
+          name: Check if we should run
+          command: |
+            shopt -s inherit_errexit
+            CHANGED=$(check-changed "(contracts-bedrock|op-bindings)")
+            if [[ "$CHANGED" = "FALSE" ]]; then
+              circleci step halt
+            fi
       - run:
           name: check go bindings
           command: make && git diff --exit-code
@@ -399,6 +419,9 @@ jobs:
     environment:
       DOCKER_BUILDKIT: 1
     steps:
+      - run:
+          name: temporary pause
+          command: circleci step halt
       - checkout
       - run:
           name: Check if we should run
@@ -543,6 +566,9 @@ workflows:
           requires:
             - yarn-monorepo
       - contracts-bedrock-tests:
+          requires:
+            - yarn-monorepo
+      - op-bindings-build:
           requires:
             - yarn-monorepo
       - js-lint-test:

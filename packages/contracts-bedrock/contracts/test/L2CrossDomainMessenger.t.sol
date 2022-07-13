@@ -31,8 +31,9 @@ contract L2CrossDomainMessenger_Test is Messenger_Initializer {
     }
 
     function test_L2MessengerMessageVersion() external {
+        (, uint16 version) = Encoding.decodeVersionedNonce(L2Messenger.messageNonce());
         assertEq(
-            Encoding.getVersionFromNonce(L2Messenger.messageNonce()),
+            version,
             L2Messenger.MESSAGE_VERSION()
         );
     }
@@ -44,7 +45,7 @@ contract L2CrossDomainMessenger_Test is Messenger_Initializer {
                 L2ToL1MessagePasser.initiateWithdrawal.selector,
                 address(L1Messenger),
                 100 + L2Messenger.baseGas(hex"ff"),
-                Encoding.getVersionedEncoding(
+                Encoding.encodeCrossDomainMessage(
                     L2Messenger.messageNonce(),
                     alice,
                     recipient,
@@ -63,7 +64,7 @@ contract L2CrossDomainMessenger_Test is Messenger_Initializer {
             address(L1Messenger),
             0,
             100 + L2Messenger.baseGas(hex"ff"),
-            Encoding.getVersionedEncoding(
+            Encoding.encodeCrossDomainMessage(
                 L2Messenger.messageNonce(),
                 alice,
                 recipient,
@@ -104,7 +105,7 @@ contract L2CrossDomainMessenger_Test is Messenger_Initializer {
 
         vm.expectEmit(true, true, true, true);
 
-        bytes32 hash = Hashing.getVersionedHash(
+        bytes32 hash = Hashing.hashCrossDomainMessage(
             0,
             sender,
             target,

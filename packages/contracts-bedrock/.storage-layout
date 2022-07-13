@@ -31,7 +31,7 @@
 |------------------------+--------------------------+------+--------+-------+----------------------------------------------------------------|
 | xDomainMsgSender       | address                  | 202  | 0      | 20    | contracts/L1/L1CrossDomainMessenger.sol:L1CrossDomainMessenger |
 |------------------------+--------------------------+------+--------+-------+----------------------------------------------------------------|
-| msgNonce               | uint256                  | 203  | 0      | 32    | contracts/L1/L1CrossDomainMessenger.sol:L1CrossDomainMessenger |
+| msgNonce               | uint240                  | 203  | 0      | 30    | contracts/L1/L1CrossDomainMessenger.sol:L1CrossDomainMessenger |
 |------------------------+--------------------------+------+--------+-------+----------------------------------------------------------------|
 | otherMessenger         | address                  | 204  | 0      | 20    | contracts/L1/L1CrossDomainMessenger.sol:L1CrossDomainMessenger |
 |------------------------+--------------------------+------+--------+-------+----------------------------------------------------------------|
@@ -192,7 +192,7 @@
 |------------------------+--------------------------+------+--------+-------+----------------------------------------------------------------|
 | xDomainMsgSender       | address                  | 202  | 0      | 20    | contracts/L2/L2CrossDomainMessenger.sol:L2CrossDomainMessenger |
 |------------------------+--------------------------+------+--------+-------+----------------------------------------------------------------|
-| msgNonce               | uint256                  | 203  | 0      | 32    | contracts/L2/L2CrossDomainMessenger.sol:L2CrossDomainMessenger |
+| msgNonce               | uint240                  | 203  | 0      | 30    | contracts/L2/L2CrossDomainMessenger.sol:L2CrossDomainMessenger |
 |------------------------+--------------------------+------+--------+-------+----------------------------------------------------------------|
 | otherMessenger         | address                  | 204  | 0      | 20    | contracts/L2/L2CrossDomainMessenger.sol:L2CrossDomainMessenger |
 |------------------------+--------------------------+------+--------+-------+----------------------------------------------------------------|

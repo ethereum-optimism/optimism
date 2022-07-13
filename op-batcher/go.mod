@@ -3,8 +3,8 @@ module github.com/ethereum-optimism/optimism/op-batcher
 go 1.18
 
 require (
-	github.com/ethereum-optimism/optimism/op-node v0.0.0
-	github.com/ethereum-optimism/optimism/op-proposer v0.0.0
+	github.com/ethereum-optimism/optimism/op-node v0.3.0
+	github.com/ethereum-optimism/optimism/op-proposer v0.3.0
 	github.com/ethereum/go-ethereum v1.10.17
 	github.com/miguelmota/go-ethereum-hdwallet v0.1.1
 	github.com/urfave/cli v1.22.5
@@ -21,7 +21,7 @@ require (
 	github.com/cpuguy83/go-md2man/v2 v2.0.2 // indirect
 	github.com/deckarep/golang-set v1.8.0 // indirect
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.0.1 // indirect
-	github.com/ethereum-optimism/optimism/op-bindings v0.0.0 // indirect
+	github.com/ethereum-optimism/optimism/op-bindings v0.3.0 // indirect
 	github.com/go-ole/go-ole v1.2.6 // indirect
 	github.com/go-stack/stack v1.8.1 // indirect
 	github.com/golang-jwt/jwt/v4 v4.3.0 // indirect
@@ -52,12 +52,6 @@ require (
 	golang.org/x/sys v0.0.0-20220701225701-179beb0bd1a1 // indirect
 	google.golang.org/protobuf v1.28.0 // indirect
 	gopkg.in/natefinch/npipe.v2 v2.0.0-20160621034901-c1b8fa8bdcce // indirect
-)
-
-replace (
-	github.com/ethereum-optimism/optimism/op-bindings v0.0.0 => ../op-bindings
-	github.com/ethereum-optimism/optimism/op-node v0.0.0 => ../op-node
-	github.com/ethereum-optimism/optimism/op-proposer v0.0.0 => ../op-proposer
 )
 
 replace github.com/ethereum/go-ethereum v1.10.17 => github.com/ethereum-optimism/reference-optimistic-geth v0.0.0-20220711171946-f579014dc46d
