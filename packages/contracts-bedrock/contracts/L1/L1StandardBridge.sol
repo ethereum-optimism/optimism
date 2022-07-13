@@ -86,6 +86,8 @@ contract L1StandardBridge is StandardBridge, Semver {
     );
 
     /**
+     * @custom:semver 0.0.1
+     *
      * @param _messenger Address of the L1CrossDomainMessenger.
      */
     constructor(address payable _messenger) Semver(0, 0, 1) {
