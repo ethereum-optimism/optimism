@@ -48,8 +48,9 @@ contract SequencerFeeVault_Test is Bridge_Initializer {
         );
 
         vm.prank(alice);
-        address(vault).call{ value: 100 }(hex"");
+        (bool success,) = address(vault).call{ value: 100 }(hex"");
 
+        assertEq(success, true);
         assertEq(
             address(vault).balance,
             100
