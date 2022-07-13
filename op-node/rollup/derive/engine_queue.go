@@ -276,44 +276,76 @@ func (eq *EngineQueue) ResetStep(ctx context.Context, l1Fetcher L1Fetcher) error
 		// We can't trust the origin data of the unsafe chain.
 		// We should query the engine for its current safe-head.
 		eq.safeHead = head
+
+		// Prepare progress Closed state now. We will update the origin during resetting until it is ready.
+		eq.progress.Closed = false
 		return nil
 	}
 
-	// check if the block origin is canonical
-	if canonicalRef, err := l1Fetcher.L1BlockRefByNumber(ctx, eq.safeHead.L1Origin.Number); errors.Is(err, ethereum.NotFound) {
-		// if our view of the l1 chain is lagging behind, we may get this error
-		eq.log.Warn("engine safe head is ahead of L1 view", "block", eq.safeHead, "origin", eq.safeHead.L1Origin)
-	} else if err != nil {
+	if err := eq.resetProgress(ctx, l1Fetcher); err != nil {
 		eq.log.Warn("failed to get L1 block ref to check if origin of l2 block is canonical", "err", err, "num", eq.safeHead.L1Origin.Number)
-	} else {
-		// if we find the safe head, then we found the canon chain
-		if canonicalRef.Hash == eq.safeHead.L1Origin.Hash {
-			eq.resetting = false
-			// if the unsafe head was broken, then restore it to start from the safe head
-			if eq.unsafeHead == (eth.L2BlockRef{}) {
-				eq.unsafeHead = eq.safeHead
-			}
-			eq.progress = Progress{
-				Origin: canonicalRef,
-				Closed: false,
-			}
-			if eq.safeHead.Time < canonicalRef.Time {
-				return fmt.Errorf("cannot reset block derivation to start at L2 block %s with time %d older than its L1 origin %s with time %d, time invariant is broken",
-					eq.safeHead, eq.safeHead.Time, canonicalRef, canonicalRef.Time)
-			}
-			return io.EOF
-		} else {
-			// if the safe head is not canonical, then the unsafe head will not be either
-			eq.unsafeHead = eth.L2BlockRef{}
-		}
+		return nil // silence RPC errors
 	}
 
+	// if we find the safe head, then we found the canon chain
+	if eq.progress.Origin.ID() == eq.safeHead.L1Origin {
+		// if the unsafe head was broken, then restore it to start from the safe head
+		if eq.unsafeHead == (eth.L2BlockRef{}) {
+			eq.unsafeHead = eq.safeHead
+		}
+		if eq.safeHead.Time < eq.progress.Origin.Time {
+			return fmt.Errorf("cannot reset block derivation to start at L2 block %s with time %d older than its L1 origin %s with time %d, time invariant is broken",
+				eq.safeHead, eq.safeHead.Time, eq.progress.Origin, eq.progress.Origin.Time)
+		}
+		// if we are at genesis, or a full sequence window away from the common L1 origin, we are complete
+		if eq.safeHead.L1Origin == eq.cfg.Genesis.L1 || (eq.safeHead.L1Origin.Number+eq.cfg.SeqWindowSize == eq.unsafeHead.L1Origin.Number && eq.safeHead.SequenceNumber == 0) {
+			eq.resetting = false
+			eq.log.Info("found reset origin for engine queue", "origin", eq.progress)
+			return io.EOF
+		}
+	} else {
+		// if the safe head is not canonical, then the unsafe head will not be either
+		eq.unsafeHead = eth.L2BlockRef{}
+	}
+
+	return eq.resetSafeHeadToParent(ctx)
+}
+
+// resetProgress resets the progress L1 block origin to match the safehead origin block height.
+// If an error is returned the reset failed, but may be re-attempted later.
+func (eq *EngineQueue) resetProgress(ctx context.Context, l1Fetcher L1Fetcher) error {
+	// only allow sequence number 0. If we have too many L2 blocks for the same valid L1 origin, we want to reset back to the first.
+	if eq.safeHead.SequenceNumber != 0 {
+		return nil
+	}
+	// if the progress already matches, skip reset. There may be multiple L2 blocks we traverse with the same L1 origin.
+	if eq.progress.Origin.ID() == eq.safeHead.L1Origin {
+		return nil
+	}
+
+	canonicalRef, err := l1Fetcher.L1BlockRefByNumber(ctx, eq.safeHead.L1Origin.Number)
+	// check if the block origin is canonical
+	if errors.Is(err, ethereum.NotFound) {
+		// if our view of the l1 chain is lagging behind, we may get this error. We traverse the L2 chain further in that case.
+		eq.log.Warn("engine safe head is ahead of L1 view", "block", eq.safeHead, "origin", eq.safeHead.L1Origin)
+		eq.progress.Origin = eth.L1BlockRef{} // just make the origin different from the safeHead origin, and keep walking back.
+		return nil
+	} else if err != nil {
+		return err
+	} else {
+		eq.progress.Origin = canonicalRef
+		return nil
+	}
+}
+
+// resetSafeHeadToParent resets the L2 safe head to its parent block.
+// If an error is returned the reset failed in a critical way. If nil is returned the reset may be re-attempted later.
+func (eq *EngineQueue) resetSafeHeadToParent(ctx context.Context) error {
 	// Don't walk past genesis. If we were at the L2 genesis, but could not find its L1 origin,
 	// the L2 chain is building on the wrong L1 branch.
 	if eq.safeHead.Hash == eq.cfg.Genesis.L2.Hash || eq.safeHead.Number == eq.cfg.Genesis.L2.Number {
 		return fmt.Errorf("the L2 engine is coupled to unrecognized L1 chain: %v", eq.cfg.Genesis)
 	}
-
 	// Pull L2 parent for next iteration
 	block, err := eq.engine.L2BlockRefByHash(ctx, eq.safeHead.ParentHash)
 	if err != nil {

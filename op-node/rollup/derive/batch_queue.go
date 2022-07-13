@@ -89,29 +89,12 @@ func (bq *BatchQueue) Step(ctx context.Context, outer Progress) error {
 }
 
 func (bq *BatchQueue) ResetStep(ctx context.Context, l1Fetcher L1Fetcher) error {
-	// Reset such that the highestL1InclusionBlock is the same as the l2SafeHeadOrigin - the sequence window size
+	bq.progress = bq.next.Progress()
+
 	bq.batchesByTimestamp = make(map[uint64][]*BatchWithL1InclusionBlock)
 	bq.l1Blocks = bq.l1Blocks[:0]
+	bq.l1Blocks = append(bq.l1Blocks, bq.progress.Origin)
 
-	startNumber := bq.next.Progress().Origin.Number
-	if startNumber < bq.config.SeqWindowSize {
-		startNumber = 0
-	} else {
-		startNumber -= bq.config.SeqWindowSize
-	}
-	// clip to genesis
-	if startNumber < bq.config.Genesis.L1.Number {
-		startNumber = bq.config.Genesis.L1.Number
-	}
-	l1BlockStart, err := l1Fetcher.L1BlockRefByNumber(ctx, startNumber)
-	if err != nil {
-		return err
-	}
-
-	bq.log.Info("found reset origin for batch queue", "origin", l1BlockStart)
-	bq.l1Blocks = append(bq.l1Blocks, l1BlockStart)
-	bq.progress.Origin = l1BlockStart
-	bq.progress.Closed = false
 	return io.EOF
 }
 
