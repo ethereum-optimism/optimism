@@ -309,6 +309,7 @@ abstract contract CrossDomainMessenger is
      *                                detailed information about what this block list can and
      *                                cannot be used for.
      */
+    // solhint-disable-next-line func-name-mixedcase
     function __CrossDomainMessenger_init(
         address _otherMessenger,
         address[] memory _blockedSystemAddresses

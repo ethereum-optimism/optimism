@@ -2,9 +2,9 @@
 pragma solidity ^0.8.9;
 
 /**
- * @title iL1ChugSplashDeployer
+ * @title IL1ChugSplashDeployer
  */
-interface iL1ChugSplashDeployer {
+interface IL1ChugSplashDeployer {
     function isUpgrading() external view returns (bool);
 }
 
@@ -58,7 +58,7 @@ contract L1ChugSplashProxy {
         // L1ChugSplashDeployer contract and Solidity will throw errors if we do a normal call and
         // it turns out that it isn't the right type of contract.
         (bool success, bytes memory returndata) = owner.staticcall(
-            abi.encodeWithSelector(iL1ChugSplashDeployer.isUpgrading.selector)
+            abi.encodeWithSelector(IL1ChugSplashDeployer.isUpgrading.selector)
         );
 
         // If the call was unsuccessful then we assume that there's no "isUpgrading" method and we

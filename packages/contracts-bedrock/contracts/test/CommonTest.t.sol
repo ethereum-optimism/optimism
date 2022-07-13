@@ -22,7 +22,7 @@ import { Initializable } from "@openzeppelin/contracts/proxy/utils/Initializable
 import { ResolvedDelegateProxy } from "../legacy/ResolvedDelegateProxy.sol";
 import { AddressManager } from "../legacy/AddressManager.sol";
 import { L1ChugSplashProxy } from "../legacy/L1ChugSplashProxy.sol";
-import { iL1ChugSplashDeployer } from "../legacy/L1ChugSplashProxy.sol";
+import { IL1ChugSplashDeployer } from "../legacy/L1ChugSplashProxy.sol";
 
 contract CommonTest is Test {
     address alice = address(128);
@@ -341,7 +341,7 @@ contract Bridge_Initializer is Messenger_Initializer {
         L1ChugSplashProxy proxy = new L1ChugSplashProxy(multisig);
         vm.mockCall(
             multisig,
-            abi.encodeWithSelector(iL1ChugSplashDeployer.isUpgrading.selector),
+            abi.encodeWithSelector(IL1ChugSplashDeployer.isUpgrading.selector),
             abi.encode(true)
         );
         vm.startPrank(multisig);
