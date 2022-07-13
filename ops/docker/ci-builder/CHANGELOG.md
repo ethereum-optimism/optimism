@@ -1,5 +1,11 @@
 # @eth-optimism/ci-builder
 
+## 0.1.2
+
+### Patch Changes
+
+- 184f13b6: Retrigger release of ci-builder
+
 ## 0.1.1
 
 ### Patch Changes
