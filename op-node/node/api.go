@@ -87,7 +87,15 @@ func (n *nodeAPI) OutputAtBlock(ctx context.Context, number rpc.BlockNumber) ([]
 }
 
 func (n *nodeAPI) SyncStatus(ctx context.Context) (*driver.SyncStatus, error) {
+	recordDur := n.m.RecordRPCServerRequest("optimism_syncStatus")
+	defer recordDur()
 	return n.dr.SyncStatus(ctx)
+}
+
+func (n *nodeAPI) RollupConfig(_ context.Context) (*rollup.Config, error) {
+	recordDur := n.m.RecordRPCServerRequest("optimism_rollupConfig")
+	defer recordDur()
+	return n.config, nil
 }
 
 func (n *nodeAPI) Version(ctx context.Context) (string, error) {
