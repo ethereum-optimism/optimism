@@ -58,9 +58,11 @@ func UnmarshalDepositLogEvent(ev *types.Log) (*types.DepositTx, error) {
 	// This enables the rest of the ABI decoding logic to work.
 	ev.Data = ev.Data[64:]
 
+	// The remainder of the data is tighly packed deposit data.
 	// unindexed data
 	offset := uint64(0)
 
+	// uint256 mint
 	dep.Mint = new(big.Int).SetBytes(ev.Data[offset : offset+32])
 	// 0 mint is represented as nil to skip minting code
 	if dep.Mint.Cmp(new(big.Int)) == 0 {
@@ -68,48 +70,32 @@ func UnmarshalDepositLogEvent(ev *types.Log) (*types.DepositTx, error) {
 	}
 	offset += 32
 
+	// uint256 value
 	dep.Value = new(big.Int).SetBytes(ev.Data[offset : offset+32])
 	offset += 32
 
+	// uint64 gas
 	gas := new(big.Int).SetBytes(ev.Data[offset : offset+8])
 	if !gas.IsUint64() {
 		return nil, fmt.Errorf("bad gas value: %x", ev.Data[offset:offset+8])
 	}
 	dep.Gas = gas.Uint64()
 	offset += 8
+
+	// uint8 isCreation
 	// isCreation: If the boolean byte is 1 then dep.To will stay nil,
 	// and it will create a contract using L2 account nonce to determine the created address.
 	if ev.Data[offset+1] == 0 {
 		dep.To = &to
 	}
 	offset += 1
-	// dynamic fields are encoded in three parts. The fixed size portion is the offset of the start of the
-	// data. The first 32 bytes of a `bytes` object is the length of the bytes. Then are the actual bytes
-	// padded out to 32 byte increments.
-	var dataOffset uint256.Int
-	dataOffset.SetBytes(ev.Data[offset : offset+32])
-	offset += 32
-	if !dataOffset.Eq(uint256.NewInt(offset)) {
-		return nil, fmt.Errorf("incorrect data offset: %v", dataOffset[0])
-	}
 
-	var dataLen uint256.Int
-	dataLen.SetBytes(ev.Data[offset : offset+32])
-	offset += 32
-
-	if !dataLen.IsUint64() {
-		return nil, fmt.Errorf("data too large: %s", dataLen.String())
-	}
+	// The remainder of the opaqueData is the transaction data (without length prefix).
 	// The data may be padded to a multiple of 32 bytes
-	maxExpectedLen := uint64(len(ev.Data)) - offset
-	dataLenU64 := dataLen.Uint64()
-	if dataLenU64 > maxExpectedLen {
-		return nil, fmt.Errorf("data length too long: %d, expected max %d", dataLenU64, maxExpectedLen)
-	}
+	txDataLen := uint64(len(ev.Data)) - offset
 
 	// remaining bytes fill the data
-	dep.Data = ev.Data[offset : offset+dataLenU64]
-
+	dep.Data = ev.Data[offset : offset+txDataLen]
 	return &dep, nil
 }
 
@@ -129,23 +115,36 @@ func MarshalDepositLogEvent(depositContractAddr common.Address, deposit *types.D
 
 	data := make([]byte, 6*32)
 	offset := 0
+
+	// First 32 bytes are the offset, and the value will always be 0x20.
+	new (big.Int).SetUint64(32).FillBytes(data[offset:32])
+	offset += 32
+
+	// Next 32 bytes are the length
+	new (big.Int).SetUint64(uint64(len(deposit.Data))).FillBytes(data[offset : offset+32])
+	offset += 32
+
+	// uint256 mint
 	if deposit.Mint != nil {
 		deposit.Mint.FillBytes(data[offset : offset+32])
 	}
 	offset += 32
 
+	// uint256 value
 	deposit.Value.FillBytes(data[offset : offset+32])
 	offset += 32
 
-	binary.BigEndian.PutUint64(data[offset+24:offset+32], deposit.Gas)
-	offset += 32
+	// uint64 gas
+	binary.BigEndian.PutUint64(data[offset:offset+8], deposit.Gas)
+	offset += 8
+
+	// uint8 isCreation
 	if deposit.To == nil { // isCreation
-		data[offset+31] = 1
+		data[offset+1] = 1
 	}
-	offset += 32
-	binary.BigEndian.PutUint64(data[offset+24:offset+32], 5*32)
-	offset += 32
-	binary.BigEndian.PutUint64(data[offset+24:offset+32], uint64(len(deposit.Data)))
+	offset += 1
+
+	// Remaining bytes fill the event data
 	data = append(data, deposit.Data...)
 	if len(data)%32 != 0 { // pad to multiple of 32
 		data = append(data, make([]byte, 32-(len(data)%32))...)
