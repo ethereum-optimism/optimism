@@ -52,6 +52,7 @@ var OptimismPortalBin = OptimismPortalMetaData.Bin
 
 // DeployOptimismPortal deploys a new Ethereum contract, binding an instance of OptimismPortal to it.
 func DeployOptimismPortal(auth *bind.TransactOpts, backend bind.ContractBackend, _l2Oracle common.Address, _finalizationPeriodSeconds *big.Int) (common.Address, *types.Transaction, *OptimismPortal, error) {
+	panic("todo!")
 	parsed, err := OptimismPortalMetaData.GetAbi()
 	if err != nil {
 		return common.Address{}, nil, nil, err
