@@ -1,0 +1,6 @@
+go 1.18
+
+use (
+	./op-bindings
+	./op-node
+)

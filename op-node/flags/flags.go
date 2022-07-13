@@ -58,12 +58,25 @@ var (
 		Value:       "",
 		Destination: new(string),
 	}
-	SequencingEnabledFlag = cli.BoolFlag{
-		Name:   "sequencing.enabled",
-		Usage:  "enable sequencing",
-		EnvVar: prefixEnvVar("SEQUENCING_ENABLED"),
+	VerifierL1Confs = cli.Uint64Flag{
+		Name:     "verifier.l1-confs",
+		Usage:    "Number of L1 blocks to keep distance from the L1 head before deriving L2 data from. Reorgs are supported, but may be slow to perform.",
+		EnvVar:   prefixEnvVar("VERIFIER_L1_CONFS"),
+		Required: false,
+		Value:    0,
 	}
-
+	SequencerEnabledFlag = cli.BoolFlag{
+		Name:   "sequencer.enabled",
+		Usage:  "Enable sequencing of new L2 blocks. A separate batch submitter has to be deployed to publish the data for verifiers.",
+		EnvVar: prefixEnvVar("SEQUENCER_ENABLED"),
+	}
+	SequencerL1Confs = cli.Uint64Flag{
+		Name:     "sequencer.l1-confs",
+		Usage:    "Number of L1 blocks to keep distance from the L1 head as a sequencer for picking an L1 origin.",
+		EnvVar:   prefixEnvVar("SEQUENCER_L1_CONFS"),
+		Required: false,
+		Value:    4,
+	}
 	LogLevelFlag = cli.StringFlag{
 		Name:   "log.level",
 		Usage:  "The lowest log level that will be output",
@@ -80,6 +93,23 @@ var (
 		Name:   "log.color",
 		Usage:  "Color the log output",
 		EnvVar: prefixEnvVar("LOG_COLOR"),
+	}
+	MetricsEnabledFlag = cli.BoolFlag{
+		Name:   "metrics.enabled",
+		Usage:  "Enable the metrics server",
+		EnvVar: prefixEnvVar("METRICS_ENABLED"),
+	}
+	MetricsAddrFlag = cli.StringFlag{
+		Name:   "metrics.addr",
+		Usage:  "Metrics listening address",
+		Value:  "0.0.0.0",
+		EnvVar: prefixEnvVar("METRICS_ADDR"),
+	}
+	MetricsPortFlag = cli.IntFlag{
+		Name:   "metrics.port",
+		Usage:  "Metrics listening port",
+		Value:  7300,
+		EnvVar: prefixEnvVar("METRICS_PORT"),
 	}
 
 	SnapshotLog = cli.StringFlag{
@@ -100,10 +130,15 @@ var requiredFlags = []cli.Flag{
 var optionalFlags = append([]cli.Flag{
 	L1TrustRPC,
 	L2EngineJWTSecret,
-	SequencingEnabledFlag,
+	VerifierL1Confs,
+	SequencerEnabledFlag,
+	SequencerL1Confs,
 	LogLevelFlag,
 	LogFormatFlag,
 	LogColorFlag,
+	MetricsEnabledFlag,
+	MetricsAddrFlag,
+	MetricsPortFlag,
 	SnapshotLog,
 }, p2pFlags...)
 

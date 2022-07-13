@@ -1,5 +1,31 @@
 # @eth-optimism/fault-detector
 
+## 0.2.4
+
+### Patch Changes
+
+- 89d01f2e: Update dev deps
+- Updated dependencies [6e3449ba]
+- Updated dependencies [f9fee446]
+  - @eth-optimism/contracts@0.5.30
+  - @eth-optimism/core-utils@0.9.1
+  - @eth-optimism/sdk@1.2.1
+  - @eth-optimism/common-ts@0.6.1
+
+## 0.2.3
+
+### Patch Changes
+
+- 977493bc: Update SDK version and usage to account for new constructor
+- 2296cf81: Fix bug where FD would try to sync beyond local tip
+- Updated dependencies [977493bc]
+- Updated dependencies [700dcbb0]
+- Updated dependencies [3d1cb720]
+  - @eth-optimism/sdk@1.2.0
+  - @eth-optimism/core-utils@0.9.0
+  - @eth-optimism/common-ts@0.6.0
+  - @eth-optimism/contracts@0.5.29
+
 ## 0.2.2
 
 ### Patch Changes

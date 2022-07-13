@@ -6,6 +6,8 @@ import (
 	"os/signal"
 	"syscall"
 
+	"github.com/ethereum-optimism/optimism/op-node/metrics"
+
 	opnode "github.com/ethereum-optimism/optimism/op-node"
 
 	"github.com/ethereum-optimism/optimism/op-node/version"
@@ -69,6 +71,7 @@ func RollupNodeMain(ctx *cli.Context) error {
 		return err
 	}
 	log := logCfg.NewLogger()
+	m := metrics.NewMetrics("default")
 
 	cfg, err := opnode.NewConfig(ctx, log)
 	if err != nil {
@@ -81,7 +84,7 @@ func RollupNodeMain(ctx *cli.Context) error {
 		return err
 	}
 
-	n, err := node.New(context.Background(), cfg, log, snapshotLog, VersionWithMeta)
+	n, err := node.New(context.Background(), cfg, log, snapshotLog, VersionWithMeta, m)
 	if err != nil {
 		log.Error("Unable to create the rollup node", "error", err)
 		return err
@@ -94,6 +97,8 @@ func RollupNodeMain(ctx *cli.Context) error {
 	}
 	defer n.Close()
 
+	m.RecordInfo(VersionWithMeta)
+	m.RecordUp()
 	log.Info("Rollup node started")
 
 	interruptChannel := make(chan os.Signal, 1)

@@ -3,8 +3,17 @@ pragma solidity 0.8.10;
 
 import { CommonTest } from "./CommonTest.t.sol";
 import { ResourceMetering } from "../L1/ResourceMetering.sol";
+import { Proxy } from "../universal/Proxy.sol";
 
 contract MeterUser is ResourceMetering {
+    constructor() {
+        initialize();
+    }
+
+    function initialize() public initializer {
+        __ResourceMetering_init();
+    }
+
     function use(uint64 _amount) public metered(_amount) {}
 }
 

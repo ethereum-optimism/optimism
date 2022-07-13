@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-node/metrics"
+
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
@@ -143,7 +145,7 @@ func TestP2PFull(t *testing.T) {
 			conns <- conn
 		}})
 
-	backend := NewP2PAPIBackend(nodeA, logA)
+	backend := NewP2PAPIBackend(nodeA, logA, metrics.NewMetrics(""))
 	srv := rpc.NewServer()
 	require.NoError(t, srv.RegisterName("opp2p", backend))
 	client := rpc.DialInProc(srv)

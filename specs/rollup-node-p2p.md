@@ -29,34 +29,35 @@ and are adopted by several other blockchains, most notably the [L1 consensus lay
 <!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
 **Table of Contents**
 
-- [P2P configuration](#p2p-configuration)
-  - [Identification](#identification)
-  - [Discv5](#discv5)
-    - [Structure](#structure)
-  - [LibP2P](#libp2p)
-    - [Transport](#transport)
-    - [Dialing](#dialing)
-    - [NAT](#nat)
-    - [Peer management](#peer-management)
-    - [Transport security](#transport-security)
-    - [Protocol negotiation](#protocol-negotiation)
-    - [Identify](#identify)
-    - [Ping](#ping)
-    - [Multiplexing](#multiplexing)
-    - [GossipSub](#gossipsub)
-      - [Content-based message identification](#content-based-message-identification)
-      - [Message compression and limits](#message-compression-and-limits)
-      - [Message ID computation](#message-id-computation)
-    - [Heartbeat and parameters](#heartbeat-and-parameters)
-    - [Topic configuration](#topic-configuration)
-    - [Topic validation](#topic-validation)
-- [Gossip Topics](#gossip-topics)
-  - [`blocks`](#blocks)
-    - [Block encoding](#block-encoding)
-    - [Block signatures](#block-signatures)
-    - [Block validation](#block-validation)
-      - [Block processing](#block-processing)
-      - [Block topic scoring parameters](#block-topic-scoring-parameters)
+- [Rollup-node P2P interface](#rollup-node-p2p-interface)
+  - [P2P configuration](#p2p-configuration)
+    - [Identification](#identification)
+    - [Discv5](#discv5)
+      - [Structure](#structure)
+    - [LibP2P](#libp2p)
+      - [Transport](#transport)
+      - [Dialing](#dialing)
+      - [NAT](#nat)
+      - [Peer management](#peer-management)
+      - [Transport security](#transport-security)
+      - [Protocol negotiation](#protocol-negotiation)
+      - [Identify](#identify)
+      - [Ping](#ping)
+      - [Multiplexing](#multiplexing)
+      - [GossipSub](#gossipsub)
+        - [Content-based message identification](#content-based-message-identification)
+        - [Message compression and limits](#message-compression-and-limits)
+        - [Message ID computation](#message-id-computation)
+      - [Heartbeat and parameters](#heartbeat-and-parameters)
+      - [Topic configuration](#topic-configuration)
+      - [Topic validation](#topic-validation)
+  - [Gossip Topics](#gossip-topics)
+    - [`blocks`](#blocks)
+      - [Block encoding](#block-encoding)
+      - [Block signatures](#block-signatures)
+      - [Block validation](#block-validation)
+        - [Block processing](#block-processing)
+        - [Block topic scoring parameters](#block-topic-scoring-parameters)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
@@ -276,7 +277,7 @@ An [extended-validator] checks the incoming messages as follows, in order of ope
 
 - `[REJECT]` if the compression is not valid
 - `[REJECT]` if the block encoding is not valid
-- `[REJECT]` if the `payload.timestamp` is older than 20 seconds in the past
+- `[REJECT]` if the `payload.timestamp` is older than 60 seconds in the past
   (graceful boundary for worst-case propagation and clock skew)
 - `[REJECT]` if the `payload.timestamp` is more than 5 seconds into the future
 - `[REJECT]` if the `block_hash` in the `payload` is not valid

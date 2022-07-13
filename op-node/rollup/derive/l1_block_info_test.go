@@ -5,13 +5,14 @@ import (
 	"math/rand"
 	"testing"
 
+	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/testutils"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-var _ L1Info = (*testutils.MockL1Info)(nil)
+var _ eth.L1Info = (*testutils.MockL1Info)(nil)
 
 type infoTest struct {
 	name   string

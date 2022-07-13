@@ -2,7 +2,7 @@ import { ethers } from 'ethers'
 import { toHexString } from '@eth-optimism/core-utils'
 
 import { TrieTestGenerator } from './trie-test-generator'
-import { bedrockPredeploys } from './constants'
+import { predeploys } from './constants'
 
 interface WithdrawalArgs {
   nonce: number
@@ -63,7 +63,7 @@ export const generateMockWithdrawalProof = async (
   const generator = await TrieTestGenerator.fromAccounts({
     accounts: [
       {
-        address: bedrockPredeploys.WITHDRAWER,
+        address: predeploys.L2ToL1MessagePasser,
         nonce: 0,
         balance: 0,
         codeHash: ethers.utils.keccak256('0x1234'),

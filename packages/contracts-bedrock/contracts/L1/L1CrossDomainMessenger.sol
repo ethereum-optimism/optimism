@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.9;
 
-import { Lib_PredeployAddresses } from "../libraries/Lib_PredeployAddresses.sol";
+import { PredeployAddresses } from "../libraries/PredeployAddresses.sol";
 import { OptimismPortal } from "./OptimismPortal.sol";
 import { CrossDomainMessenger } from "../universal/CrossDomainMessenger.sol";
+import { Semver } from "../universal/Semver.sol";
 
 /**
  * @custom:proxied
@@ -12,24 +13,32 @@ import { CrossDomainMessenger } from "../universal/CrossDomainMessenger.sol";
  *         for sending and receiving data on the L1 side. Users are encouraged to use this
  *         interface instead of interacting with lower-level contracts directly.
  */
-contract L1CrossDomainMessenger is CrossDomainMessenger {
+contract L1CrossDomainMessenger is CrossDomainMessenger, Semver {
     /**
      * @notice Address of the OptimismPortal.
      */
-    OptimismPortal public portal;
+    OptimismPortal public immutable portal;
 
     /**
-     * @notice Initializes the L1CrossDomainMessenger.
+     * @custom:semver 0.0.1
      *
-     * @param _portal Address of the OptimismPortal to send and receive messages through.
+     * @param _portal Address of the OptimismPortal contract on this network.
      */
-    function initialize(OptimismPortal _portal) external {
+    constructor(OptimismPortal _portal) Semver(0, 0, 1) {
         portal = _portal;
+        initialize();
+    }
 
+    /**
+     * @notice Initializer.
+     */
+    function initialize() public initializer {
         address[] memory blockedSystemAddresses = new address[](1);
         blockedSystemAddresses[0] = address(this);
-
-        _initialize(Lib_PredeployAddresses.L2_CROSS_DOMAIN_MESSENGER, blockedSystemAddresses);
+        __CrossDomainMessenger_init(
+            PredeployAddresses.L2_CROSS_DOMAIN_MESSENGER,
+            blockedSystemAddresses
+        );
     }
 
     /**

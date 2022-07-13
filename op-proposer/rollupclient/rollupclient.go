@@ -5,7 +5,7 @@ import (
 	"math/big"
 
 	"github.com/ethereum-optimism/optimism/op-node/eth"
-	"github.com/ethereum-optimism/optimism/op-node/node"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/driver"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/rpc"
 )
@@ -18,18 +18,20 @@ func NewRollupClient(rpc *rpc.Client) *RollupClient {
 	return &RollupClient{rpc}
 }
 
-func (r *RollupClient) GetBatchBundle(
-	ctx context.Context,
-	req *node.BatchBundleRequest,
-) (*node.BatchBundleResponse, error) {
-
-	var batchResponse = new(node.BatchBundleResponse)
-	err := r.rpc.CallContext(ctx, &batchResponse, "optimism_getBatchBundle", req)
-	return batchResponse, err
-}
-
 func (r *RollupClient) OutputAtBlock(ctx context.Context, blockNum *big.Int) ([]eth.Bytes32, error) {
 	var output []eth.Bytes32
 	err := r.rpc.CallContext(ctx, &output, "optimism_outputAtBlock", hexutil.EncodeBig(blockNum))
+	return output, err
+}
+
+func (r *RollupClient) SyncStatus(ctx context.Context) (*driver.SyncStatus, error) {
+	var output *driver.SyncStatus
+	err := r.rpc.CallContext(ctx, &output, "optimism_syncStatus")
+	return output, err
+}
+
+func (r *RollupClient) Version(ctx context.Context) (string, error) {
+	var output string
+	err := r.rpc.CallContext(ctx, &output, "optimism_version")
 	return output, err
 }

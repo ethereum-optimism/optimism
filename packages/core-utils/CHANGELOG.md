@@ -1,5 +1,17 @@
 # @eth-optimism/core-utils
 
+## 0.9.1
+
+### Patch Changes
+
+- f9fee446: Move the `DepositTx` type to `core-utils`. This way it can be more easily used across projects
+
+## 0.9.0
+
+### Minor Changes
+
+- 700dcbb0: Update geth's Genesis type to work with modern geth
+
 ## 0.8.7
 
 ### Patch Changes

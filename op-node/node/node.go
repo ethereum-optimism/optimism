@@ -7,28 +7,30 @@ import (
 
 	"github.com/libp2p/go-libp2p-core/peer"
 
-	"github.com/ethereum-optimism/optimism/op-node/p2p"
+	"github.com/hashicorp/go-multierror"
 
-	multierror "github.com/hashicorp/go-multierror"
-
+	"github.com/ethereum-optimism/optimism/op-node/client"
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/l1"
 	"github.com/ethereum-optimism/optimism/op-node/l2"
+	"github.com/ethereum-optimism/optimism/op-node/metrics"
+	"github.com/ethereum-optimism/optimism/op-node/p2p"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/driver"
 
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/log"
-	"github.com/ethereum/go-ethereum/rpc"
 )
 
 type OpNode struct {
 	log        log.Logger
 	appVersion string
+	metrics    *metrics.Metrics
 	l1HeadsSub ethereum.Subscription // Subscription to get L1 heads (automatically re-subscribes on error)
 	l1Source   *l1.Source            // Source to fetch data from (also implements the Downloader interface)
 	l2Engine   *driver.Driver        // L2 Engine to Sync
-	l2Node     *rpc.Client           // L2 Execution Engine RPC connections to close at shutdown
+	l2Node     client.RPC            // L2 Execution Engine RPC connections to close at shutdown
+	l2Client   client.Client         // L2 client wrapper around eth namespace
 	server     *rpcServer            // RPC server hosting the rollup-node API
 	p2pNode    *p2p.NodeP2P          // P2P node functionality
 	p2pSigner  p2p.Signer            // p2p gogssip application messages will be signed with this signer
@@ -43,7 +45,7 @@ type OpNode struct {
 // The OpNode handles incoming gossip
 var _ p2p.GossipIn = (*OpNode)(nil)
 
-func New(ctx context.Context, cfg *Config, log log.Logger, snapshotLog log.Logger, appVersion string) (*OpNode, error) {
+func New(ctx context.Context, cfg *Config, log log.Logger, snapshotLog log.Logger, appVersion string, m *metrics.Metrics) (*OpNode, error) {
 	if err := cfg.Check(); err != nil {
 		return nil, err
 	}
@@ -51,6 +53,7 @@ func New(ctx context.Context, cfg *Config, log log.Logger, snapshotLog log.Logge
 	n := &OpNode{
 		log:        log,
 		appVersion: appVersion,
+		metrics:    m,
 	}
 	// not a context leak, gossipsub is closed with a context.
 	n.resourcesCtx, n.resourcesClose = context.WithCancel(context.Background())
@@ -86,6 +89,9 @@ func (n *OpNode) init(ctx context.Context, cfg *Config, snapshotLog log.Logger) 
 	if err := n.initRPCServer(ctx, cfg); err != nil {
 		return err
 	}
+	if err := n.initMetricsServer(ctx, cfg); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -104,7 +110,7 @@ func (n *OpNode) initL1(ctx context.Context, cfg *Config) error {
 		return fmt.Errorf("failed to get L1 RPC client: %w", err)
 	}
 
-	n.l1Source, err = l1.NewSource(l1Node, n.log, l1.DefaultConfig(&cfg.Rollup, trustRPC))
+	n.l1Source, err = l1.NewSource(client.NewInstrumentedRPC(l1Node, n.metrics), n.log, l1.DefaultConfig(&cfg.Rollup, trustRPC))
 	if err != nil {
 		return fmt.Errorf("failed to create L1 source: %v", err)
 	}
@@ -131,35 +137,49 @@ func (n *OpNode) initL2(ctx context.Context, cfg *Config, snapshotLog log.Logger
 	if err != nil {
 		return fmt.Errorf("failed to setup L2 execution-engine RPC client: %w", err)
 	}
-	n.l2Node = rpcClient
-	client, err := l2.NewSource(rpcClient, &cfg.Rollup.Genesis, n.log)
+	n.l2Node = client.NewInstrumentedRPC(rpcClient, n.metrics)
+	n.l2Client = client.NewInstrumentedClient(rpcClient, n.metrics)
+	source, err := l2.NewSource(n.l2Node, n.l2Client, &cfg.Rollup.Genesis, n.log)
 	if err != nil {
 		return err
 	}
 
-	snap := snapshotLog.New()
-	n.l2Engine = driver.NewDriver(cfg.Rollup, client, n.l1Source, n, n.log, snap, cfg.Sequencer)
+	n.l2Engine = driver.NewDriver(&cfg.Driver, &cfg.Rollup, source, n.l1Source, n, n.log, snapshotLog)
 
 	return nil
 }
 
 func (n *OpNode) initRPCServer(ctx context.Context, cfg *Config) error {
 	// TODO: attach the p2p node ID to the snapshot logger
-	client, err := l2.NewReadOnlySource(n.l2Node, &cfg.Rollup.Genesis, n.log)
+	client, err := l2.NewReadOnlySource(n.l2Node, n.l2Client, &cfg.Rollup.Genesis, n.log)
 	if err != nil {
 		return err
 	}
-	n.server, err = newRPCServer(ctx, &cfg.RPC, &cfg.Rollup, client, n.log, n.appVersion)
+	n.server, err = newRPCServer(ctx, &cfg.RPC, &cfg.Rollup, client, n.l2Engine, n.log, n.appVersion, n.metrics)
 	if err != nil {
 		return err
 	}
 	if n.p2pNode != nil {
-		n.server.EnableP2P(p2p.NewP2PAPIBackend(n.p2pNode, n.log))
+		n.server.EnableP2P(p2p.NewP2PAPIBackend(n.p2pNode, n.log, n.metrics))
 	}
 	n.log.Info("Starting JSON-RPC server")
 	if err := n.server.Start(); err != nil {
 		return fmt.Errorf("unable to start RPC server: %w", err)
 	}
+	return nil
+}
+
+func (n *OpNode) initMetricsServer(ctx context.Context, cfg *Config) error {
+	if !cfg.Metrics.Enabled {
+		n.log.Info("metrics disabled")
+		return nil
+	}
+	n.log.Info("starting metrics server", "addr", cfg.Metrics.ListenAddr, "port", cfg.Metrics.ListenPort)
+	go func() {
+		if err := n.metrics.Serve(ctx, cfg.Metrics.ListenAddr, cfg.Metrics.ListenPort); err != nil {
+			log.Crit("error starting metrics server", "err", err)
+		}
+	}()
 	return nil
 }
 

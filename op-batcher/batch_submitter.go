@@ -1,20 +1,27 @@
 package op_batcher
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"io"
+	"math/big"
 	"os"
 	"os/signal"
+	"sync"
 	"syscall"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/op-batcher/db"
 	"github.com/ethereum-optimism/optimism/op-batcher/sequencer"
-	proposer "github.com/ethereum-optimism/optimism/op-proposer"
+	"github.com/ethereum-optimism/optimism/op-node/eth"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-proposer/rollupclient"
 	"github.com/ethereum-optimism/optimism/op-proposer/txmgr"
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core"
+	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rpc"
@@ -54,7 +61,7 @@ func Main(version string) func(ctx *cli.Context) error {
 
 		l.Info("Initializing Batch Submitter")
 
-		batchSubmitter, err := NewBatchSubmitter(cfg, version, l)
+		batchSubmitter, err := NewBatchSubmitter(cfg, l)
 		if err != nil {
 			l.Error("Unable to create Batch Submitter", "error", err)
 			return err
@@ -86,18 +93,23 @@ func Main(version string) func(ctx *cli.Context) error {
 // BatchSubmitter encapsulates a service responsible for submitting L2 tx
 // batches to L1 for availability.
 type BatchSubmitter struct {
-	ctx              context.Context
-	sequencerService *proposer.Service
+	txMgr txmgr.TxManager
+	cfg   sequencer.Config
+	wg    sync.WaitGroup
+	done  chan struct{}
+	log   log.Logger
+
+	ctx    context.Context
+	cancel context.CancelFunc
+
+	lastSubmittedBlock eth.BlockID
+
+	ch *derive.ChannelOut
 }
 
 // NewBatchSubmitter initializes the BatchSubmitter, gathering any resources
 // that will be needed during operation.
-func NewBatchSubmitter(
-	cfg Config,
-	gitVersion string,
-	l log.Logger,
-) (*BatchSubmitter, error) {
-
+func NewBatchSubmitter(cfg Config, l log.Logger) (*BatchSubmitter, error) {
 	ctx := context.Background()
 
 	// Parse wallet private key that will be used to submit L2 txs to the batch
@@ -107,11 +119,17 @@ func NewBatchSubmitter(
 		return nil, err
 	}
 
-	sequencerPrivKey, err := wallet.PrivateKey(accounts.Account{
+	acc := accounts.Account{
 		URL: accounts.URL{
 			Path: cfg.SequencerHDPath,
 		},
-	})
+	}
+	addr, err := wallet.Address(acc)
+	if err != nil {
+		return nil, err
+	}
+
+	sequencerPrivKey, err := wallet.PrivateKey(acc)
 	if err != nil {
 		return nil, err
 	}
@@ -120,8 +138,6 @@ func NewBatchSubmitter(
 	if err != nil {
 		return nil, err
 	}
-
-	genesisHash := common.HexToHash(cfg.SequencerGenesisHash)
 
 	// Connect to L1 and L2 providers. Perform these last since they are the
 	// most expensive.
@@ -140,17 +156,17 @@ func NewBatchSubmitter(
 		return nil, err
 	}
 
-	historyDB, err := db.OpenJSONFileDatabase(
-		cfg.SequencerHistoryDBFilename, 600, genesisHash,
-	)
-	if err != nil {
-		return nil, err
-	}
-
 	chainID, err := l1Client.ChainID(ctx)
 	if err != nil {
 		return nil, err
 	}
+
+	sequencerBalance, err := l1Client.BalanceAt(ctx, addr, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	log.Info("starting batch submitter", "submitter_addr", addr, "submitter_bal", sequencerBalance)
 
 	txManagerConfig := txmgr.Config{
 		Log:                       l,
@@ -161,44 +177,246 @@ func NewBatchSubmitter(
 		SafeAbortNonceTooLowCount: cfg.SafeAbortNonceTooLowCount,
 	}
 
-	sequencerDriver, err := sequencer.NewDriver(sequencer.Config{
+	batcherCfg := sequencer.Config{
 		Log:               l,
 		Name:              "Batch Submitter",
 		L1Client:          l1Client,
 		L2Client:          l2Client,
-		RollupClient:      rollupClient,
+		RollupNode:        rollupClient,
 		MinL1TxSize:       cfg.MinL1TxSize,
 		MaxL1TxSize:       cfg.MaxL1TxSize,
 		BatchInboxAddress: batchInboxAddress,
-		HistoryDB:         historyDB,
+		ChannelTimeout:    cfg.ChannelTimeout,
 		ChainID:           chainID,
 		PrivKey:           sequencerPrivKey,
-	})
-	if err != nil {
-		return nil, err
+		PollInterval:      cfg.PollInterval,
 	}
 
-	sequencerService := proposer.NewService(proposer.ServiceConfig{
-		Log:             l,
-		Context:         ctx,
-		Driver:          sequencerDriver,
-		PollInterval:    cfg.PollInterval,
-		L1Client:        l1Client,
-		TxManagerConfig: txManagerConfig,
-	})
+	ctx, cancel := context.WithCancel(context.Background())
 
 	return &BatchSubmitter{
-		ctx:              ctx,
-		sequencerService: sequencerService,
+		cfg:   batcherCfg,
+		txMgr: txmgr.NewSimpleTxManager("batcher", txManagerConfig, l1Client),
+		done:  make(chan struct{}),
+		log:   l,
+		// TODO: this context only exists because the even loop doesn't reach done
+		// if the tx manager is blocking forever due to e.g. insufficient balance.
+		ctx:    ctx,
+		cancel: cancel,
 	}, nil
 }
 
 func (l *BatchSubmitter) Start() error {
-	return l.sequencerService.Start()
+	l.wg.Add(1)
+	go l.loop()
+	return nil
 }
 
 func (l *BatchSubmitter) Stop() {
-	_ = l.sequencerService.Stop()
+	l.cancel()
+	close(l.done)
+	l.wg.Wait()
+}
+
+func (l *BatchSubmitter) loop() {
+	defer l.wg.Done()
+
+	ticker := time.NewTicker(l.cfg.PollInterval)
+	defer ticker.Stop()
+mainLoop:
+	for {
+		select {
+		case <-ticker.C:
+			// Do the simplest thing of one channel per range of blocks since the iteration of this loop.
+			// The channel is closed at the end of this loop (to avoid lifecycle management of the channel).
+			ctx, cancel := context.WithTimeout(l.ctx, time.Second*10)
+			syncStatus, err := l.cfg.RollupNode.SyncStatus(ctx)
+			cancel()
+			if err != nil {
+				l.log.Error("issue fetching L2 head", "err", err)
+				continue
+			}
+			l.log.Info("Got new L2 sync status", "safe_head", syncStatus.SafeL2, "unsafe_head", syncStatus.UnsafeL2, "last_submitted", l.lastSubmittedBlock)
+			if syncStatus.SafeL2.Number >= syncStatus.UnsafeL2.Number {
+				l.log.Trace("No unsubmitted blocks from sequencer")
+				continue
+			}
+			// the lastSubmittedBlock may be zeroed, or just lag behind. If it's lagging behind, catch it up.
+			if l.lastSubmittedBlock.Number < syncStatus.SafeL2.Number {
+				l.log.Warn("last submitted block lagged behind L2 safe head: batch submission will continue from the safe head now", "last", l.lastSubmittedBlock, "safe", syncStatus.SafeL2)
+				l.lastSubmittedBlock = syncStatus.SafeL2.ID()
+			}
+			if ch, err := derive.NewChannelOut(uint64(time.Now().Unix())); err != nil {
+				l.log.Error("Error creating channel", "err", err)
+				continue
+			} else {
+				l.ch = ch
+			}
+			prevID := l.lastSubmittedBlock
+			for i := l.lastSubmittedBlock.Number + 1; i <= syncStatus.UnsafeL2.Number; i++ {
+				ctx, cancel := context.WithTimeout(l.ctx, time.Second*10)
+				block, err := l.cfg.L2Client.BlockByNumber(ctx, new(big.Int).SetUint64(i))
+				cancel()
+				if err != nil {
+					l.log.Error("issue fetching L2 block", "err", err)
+					continue mainLoop
+				}
+				if block.ParentHash() != prevID.Hash {
+					l.log.Error("detected a reorg in L2 chain vs previous submitted information, resetting to safe head now", "safe_head", syncStatus.SafeL2)
+					l.lastSubmittedBlock = syncStatus.SafeL2.ID()
+					continue mainLoop
+				}
+				if err := l.ch.AddBlock(block); err != nil {
+					l.log.Error("issue adding L2 Block to the channel", "err", err, "channel_id", l.ch.ID())
+					continue mainLoop
+				}
+				prevID = eth.BlockID{Hash: block.Hash(), Number: block.NumberU64()}
+				l.log.Info("added L2 block to channel", "block", prevID, "channel_id", l.ch.ID(), "tx_count", len(block.Transactions()), "time", block.Time())
+			}
+			if err := l.ch.Close(); err != nil {
+				l.log.Error("issue getting adding L2 Block", "err", err)
+				continue
+			}
+			// Hand role do-while loop to fully pull all frames out of the channel
+			for {
+				// Collect the output frame
+				data := new(bytes.Buffer)
+				data.WriteByte(derive.DerivationVersion0)
+				done := false
+				// subtract one, to account for the version byte
+				if err := l.ch.OutputFrame(data, l.cfg.MaxL1TxSize-1); err == io.EOF {
+					done = true
+				} else if err != nil {
+					l.log.Error("error outputting frame", "err", err)
+					continue mainLoop
+				}
+
+				// Query for the submitter's current nonce.
+				walletAddr := crypto.PubkeyToAddress(l.cfg.PrivKey.PublicKey)
+				ctx, cancel = context.WithTimeout(l.ctx, time.Second*10)
+				nonce, err := l.cfg.L1Client.NonceAt(ctx, walletAddr, nil)
+				cancel()
+				if err != nil {
+					l.log.Error("unable to get current nonce", "err", err)
+					continue mainLoop
+				}
+
+				// Create the transaction
+				ctx, cancel = context.WithTimeout(l.ctx, time.Second*10)
+				tx, err := l.CraftTx(ctx, data.Bytes(), nonce)
+				cancel()
+				if err != nil {
+					l.log.Error("unable to craft tx", "err", err)
+					continue mainLoop
+				}
+
+				// Construct the a closure that will update the txn with the current gas prices.
+				updateGasPrice := func(ctx context.Context) (*types.Transaction, error) {
+					l.log.Debug("updating batch tx gas price")
+					return l.UpdateGasPrice(ctx, tx)
+				}
+
+				// Wait until one of our submitted transactions confirms. If no
+				// receipt is received it's likely our gas price was too low.
+				// TODO: does the tx manager nicely replace the tx?
+				//  (submit a new one, that's within the channel timeout, but higher fee than previously submitted tx? Or use a cheap cancel tx?)
+				ctx, cancel = context.WithTimeout(l.ctx, time.Second*time.Duration(l.cfg.ChannelTimeout))
+				receipt, err := l.txMgr.Send(ctx, updateGasPrice, l.cfg.L1Client.SendTransaction)
+				cancel()
+				if err != nil {
+					l.log.Error("unable to publish tx", "err", err)
+					continue mainLoop
+				}
+
+				// The transaction was successfully submitted.
+				l.log.Info("tx successfully published", "tx_hash", receipt.TxHash, "channel_id", l.ch.ID())
+
+				// If `ch.OutputFrame` returned io.EOF we don't need to submit any more frames for this channel.
+				if done {
+					break // local do-while loop
+				}
+			}
+			// TODO: if we exit to the mainLoop early on an error,
+			// it would be nice if we can determine which blocks are still readable from the partially submitted data.
+			// We can open a channel-in-reader, parse the data up to which we managed to submit it,
+			// and then take the block hash (if we remember which blocks we put in the channel)
+			//
+			// Now we just continue batch submission from the end of the channel.
+			l.lastSubmittedBlock = prevID
+
+		case <-l.done:
+			return
+		}
+	}
+}
+
+// NOTE: This method SHOULD NOT publish the resulting transaction.
+func (l *BatchSubmitter) CraftTx(ctx context.Context, data []byte, nonce uint64) (*types.Transaction, error) {
+	gasTipCap, err := l.cfg.L1Client.SuggestGasTipCap(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	head, err := l.cfg.L1Client.HeaderByNumber(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	gasFeeCap := txmgr.CalcGasFeeCap(head.BaseFee, gasTipCap)
+
+	rawTx := &types.DynamicFeeTx{
+		ChainID:   l.cfg.ChainID,
+		Nonce:     nonce,
+		To:        &l.cfg.BatchInboxAddress,
+		GasTipCap: gasTipCap,
+		GasFeeCap: gasFeeCap,
+		Data:      data,
+	}
+	l.log.Debug("creating tx", "to", rawTx.To, "from", crypto.PubkeyToAddress(l.cfg.PrivKey.PublicKey))
+
+	gas, err := core.IntrinsicGas(rawTx.Data, nil, false, true, true)
+	if err != nil {
+		return nil, err
+	}
+	rawTx.Gas = gas
+
+	return types.SignNewTx(l.cfg.PrivKey, types.LatestSignerForChainID(l.cfg.ChainID), rawTx)
+}
+
+// UpdateGasPrice signs an otherwise identical txn to the one provided but with
+// updated gas prices sampled from the existing network conditions.
+//
+// NOTE: Thie method SHOULD NOT publish the resulting transaction.
+func (l *BatchSubmitter) UpdateGasPrice(ctx context.Context, tx *types.Transaction) (*types.Transaction, error) {
+	gasTipCap, err := l.cfg.L1Client.SuggestGasTipCap(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	head, err := l.cfg.L1Client.HeaderByNumber(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	gasFeeCap := txmgr.CalcGasFeeCap(head.BaseFee, gasTipCap)
+
+	rawTx := &types.DynamicFeeTx{
+		ChainID:   l.cfg.ChainID,
+		Nonce:     tx.Nonce(),
+		To:        tx.To(),
+		GasTipCap: gasTipCap,
+		GasFeeCap: gasFeeCap,
+		Gas:       tx.Gas(),
+		Data:      tx.Data(),
+	}
+
+	return types.SignNewTx(l.cfg.PrivKey, types.LatestSignerForChainID(l.cfg.ChainID), rawTx)
+}
+
+// SendTransaction injects a signed transaction into the pending pool for
+// execution.
+func (l *BatchSubmitter) SendTransaction(ctx context.Context, tx *types.Transaction) error {
+	return l.cfg.L1Client.SendTransaction(ctx, tx)
 }
 
 // dialEthClientWithTimeout attempts to dial the L1 provider using the provided

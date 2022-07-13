@@ -1,13 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.9;
 
-// solhint-disable max-line-length
-
-/* Library Imports */
-import { Lib_DefaultValues } from "../libraries/Lib_DefaultValues.sol";
-import { CrossDomainHashing } from "../libraries/Lib_CrossDomainHashing.sol";
-
-/* External Imports */
 import {
     OwnableUpgradeable
 } from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
@@ -17,23 +10,32 @@ import {
 import {
     ReentrancyGuardUpgradeable
 } from "@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.sol";
-import { ExcessivelySafeCall } from "../libraries/ExcessivelySafeCall.sol";
-
-// solhint-enable max-line-length
+import { ExcessivelySafeCall } from "excessively-safe-call/src/ExcessivelySafeCall.sol";
+import { Hashing } from "../libraries/Hashing.sol";
+import { Encoding } from "../libraries/Encoding.sol";
 
 /**
  * @title CrossDomainMessenger
- * @dev The CrossDomainMessenger contract delivers messages between two layers.
+ * @notice CrossDomainMessenger is a base contract that provides the core logic for the L1 and L2
+ *         cross-chain messenger contracts. It's designed to be a universal interface that only
+ *         needs to be extended slightly to provide low-level message passing functionality on each
+ *         chain it's deployed on. Currently only designed for message passing between two paired
+ *         chains and does not support one-to-many interactions.
  */
 abstract contract CrossDomainMessenger is
     OwnableUpgradeable,
     PausableUpgradeable,
     ReentrancyGuardUpgradeable
 {
-    /**********
-     * Events *
-     **********/
-
+    /**
+     * @notice Emitted whenever a message is sent to the other chain.
+     *
+     * @param target       Address of the recipient of the message.
+     * @param sender       Address of the sender of the message.
+     * @param message      Message to trigger the recipient address with.
+     * @param messageNonce Unique nonce attached to the message.
+     * @param gasLimit     Minimum gas limit that the message can be executed with.
+     */
     event SentMessage(
         address indexed target,
         address sender,
@@ -42,118 +44,157 @@ abstract contract CrossDomainMessenger is
         uint256 gasLimit
     );
 
+    /**
+     * @notice Emitted whenever a message is successfully relayed on this chain.
+     *
+     * @param msgHash Hash of the message that was relayed.
+     */
     event RelayedMessage(bytes32 indexed msgHash);
 
+    /**
+     * @notice Emitted whenever a message fails to be relayed on this chain.
+     *
+     * @param msgHash Hash of the message that failed to be relayed.
+     */
     event FailedRelayedMessage(bytes32 indexed msgHash);
 
-    /*************
-     * Constants *
-     *************/
-
+    /**
+     * @notice Current message version identifier.
+     */
     uint16 public constant MESSAGE_VERSION = 1;
 
+    /**
+     * @notice Dynamic overhead applied to the base gas for a message.
+     */
     uint32 public constant MIN_GAS_DYNAMIC_OVERHEAD = 1;
 
+    /**
+     * @notice Constant overhead added to the base gas for a message.
+     */
     uint32 public constant MIN_GAS_CONSTANT_OVERHEAD = 100_000;
 
-    /// @notice Minimum amount of gas required prior to relaying a message.
+    /**
+     * @notice Minimum amount of gas required to relay a message.
+     */
     uint256 internal constant RELAY_GAS_REQUIRED = 45_000;
 
-    /// @notice Amount of gas held in reserve for accounting after relaying a message.
+    /**
+     * @notice Amount of gas held in reserve to guarantee that relay execution completes.
+     */
     uint256 internal constant RELAY_GAS_BUFFER = RELAY_GAS_REQUIRED - 5000;
 
-    /*************
-     * Variables *
-     *************/
-
-    // blockedMessages in old L1CrossDomainMessenger
-    bytes32 internal REMOVED_VARIABLE_SPACER_1;
-
-    // relayedMessages in old L1CrossDomainMessenger
-    bytes32 internal REMOVED_VARIABLE_SPACER_2;
-
-    /// @notice Mapping of message hash to boolean success value.
-    mapping(bytes32 => bool) public successfulMessages;
-
-    /// @notice Current x-domain message sender.
-    address internal xDomainMsgSender;
-
-    /// @notice Nonce for the next message to be sent.
-    uint256 internal msgNonce;
-
-    /// @notice Address of the CrossDomainMessenger on the other chain.
-    address public otherMessenger;
-
-    /// @notice Mapping of message hash to boolean receipt value.
-    mapping(bytes32 => bool) public receivedMessages;
-
-    /// @notice Blocked system addresses that cannot be called (for security reasons).
-    mapping(address => bool) public blockedSystemAddresses;
-
-    /********************
-     * Public Functions *
-     ********************/
+    /**
+     * @notice Initial value for the xDomainMsgSender variable. We set this to a non-zero value
+     *         because performing an SSTORE on a non-zero value is significantly cheaper than on a
+     *         zero value.
+     */
+    address internal constant DEFAULT_XDOMAIN_SENDER = 0x000000000000000000000000000000000000dEaD;
 
     /**
-     * Pause relaying.
+     * @notice Mapping of message hashes to boolean receipt values. Note that a message will only
+     *         be present in this mapping if it failed to be relayed on this chain at least once.
+     *         If a message is successfully relayed on the first attempt, then it will only be
+     *         present within the successfulMessages mapping.
+     */
+    mapping(bytes32 => bool) public successfulMessages;
+
+    /**
+     * @notice Address of the sender of the currently executing message on the other chain. If the
+     *         value of this variable is the default value (0x00000000...dead) then no message is
+     *         currently being executed. Use the xDomainMessageSender getter which will throw an
+     *         error if this is the case.
+     */
+    address internal xDomainMsgSender;
+
+    /**
+     * @notice Nonce for the next message to be sent, without the message version applied. Use the
+     *         messageNonce getter which will insert the message version into the nonce to give you
+     *         the actual nonce to be used for the message.
+     */
+    uint240 internal msgNonce;
+
+    /**
+     * @notice Address of the paired CrossDomainMessenger contract on the other chain.
+     */
+    address public otherMessenger;
+
+    /**
+     * @notice Mapping of message hashes to boolean receipt values. Note that a message will only
+     *         be present in this mapping if it failed to be relayed on this chain at least once.
+     *         If a message is successfully relayed on the first attempt, then it will only be
+     *         present within the successfulMessages mapping.
+     */
+    mapping(bytes32 => bool) public receivedMessages;
+
+    /**
+     * @notice Mapping of blocked system addresses. Note that this is NOT a mapping of blocked user
+     *         addresses and cannot be used to prevent users from sending or receiving messages.
+     *         This is ONLY used to prevent the execution of messages to specific system addresses
+     *         that could cause security issues, e.g., having the CrossDomainMessenger send
+     *         messages to itself.
+     */
+    mapping(address => bool) public blockedSystemAddresses;
+
+    /**
+     * @notice Allows the owner of this contract to temporarily pause message relaying. Backup
+     *         security mechanism just in case. Owner should be the same as the upgrade wallet to
+     *         maintain the security model of the system as a whole.
      */
     function pause() external onlyOwner {
         _pause();
     }
 
     /**
-     * Unpause relaying.
+     * @notice Allows the owner of this contract to resume message relaying once paused.
      */
     function unpause() external onlyOwner {
         _unpause();
     }
 
     /**
-     * Retrieves the address of the x-domain message sender. Will throw an error
-     * if the sender is not currently set (equal to the default sender).
-     * This function is meant to be called on the remote side of a cross domain
-     * message so that the account that initiated the call can be known.
+     * @notice Retrieves the address of the contract or wallet that initiated the currently
+     *         executing message on the other chain. Will throw an error if there is no message
+     *         currently being executed. Allows the recipient of a call to see who triggered it.
      *
-     * @return Address of the x-domain message sender.
+     * @return Address of the sender of the currently executing message on the other chain.
      */
     function xDomainMessageSender() external view returns (address) {
-        require(
-            xDomainMsgSender != Lib_DefaultValues.DEFAULT_XDOMAIN_SENDER,
-            "xDomainMessageSender is not set"
-        );
+        require(xDomainMsgSender != DEFAULT_XDOMAIN_SENDER, "xDomainMessageSender is not set");
 
         return xDomainMsgSender;
     }
 
     /**
-     * Retrieves the next message nonce. Adds the hash version to the nonce.
+     * @notice Retrieves the next message nonce. Message version will be added to the upper two
+     *         bytes of the message nonce. Message version allows us to treat messages as having
+     *         different structures.
      *
-     * @return Next message nonce with added hash version.
+     * @return Nonce of the next message to be sent, with added message version.
      */
     function messageNonce() public view returns (uint256) {
-        return CrossDomainHashing.addVersionToNonce(msgNonce, MESSAGE_VERSION);
+        return Encoding.encodeVersionedNonce(msgNonce, MESSAGE_VERSION);
     }
 
     /**
-     * Base amount of gas required to make sure that the message will be received without
-     * running out of gas. Amount of gas provided to the L2 call will be the gas requested by
-     * the user PLUS this gas value so that if the message is not successful, it can always be
-     * replayed on the other end.
+     * @notice Computes the amount of gas required to guarantee that a given message will be
+     *         received on the other chain without running out of gas. Guaranteeing that a message
+     *         will not run out of gas is important because this ensures that a message can always
+     *         be replayed on the other chain if it fails to execute completely.
      *
-     * @param _message Message to compute base gas for.
-     * @return Base gas required for message.
+     * @param _message Message to compute the amount of required gas for.
+     *
+     * @return Amount of gas required to guarantee message receipt.
      */
     function baseGas(bytes memory _message) public pure returns (uint32) {
-        // TODO: Values here are meant to be good enough to get a devnet running. We need to do
-        // some simple experimentation with the smallest and largest possible message sizes to find
-        // the correct constant and dynamic overhead values.
         return (uint32(_message.length) * MIN_GAS_DYNAMIC_OVERHEAD) + MIN_GAS_CONSTANT_OVERHEAD;
     }
 
     /**
-     * @param _target Target contract address.
-     * @param _message Message to send to the target.
-     * @param _minGasLimit Gas limit for the provided message.
+     * @notice Sends a message to some target address on the other chain.
+     *
+     * @param _target      Target contract or wallet address.
+     * @param _message     Message to trigger the target address with.
+     * @param _minGasLimit Minimum gas limit that the message can be executed with.
      */
     function sendMessage(
         address _target,
@@ -186,6 +227,18 @@ abstract contract CrossDomainMessenger is
         }
     }
 
+    /**
+     * @notice Relays a message that was sent by the other CrossDomainMessenger contract. Can only
+     *         be executed via cross-chain call from the other messenger OR if the message was
+     *         already received once and is currently being replayed.
+     *
+     * @param _nonce       Nonce of the message being relayed.
+     * @param _sender      Address of the user who sent the message.
+     * @param _target      Address that the message is targeted at.
+     * @param _value       ETH value to send with the message.
+     * @param _minGasLimit Minimum amount of gas that the message can be executed with.
+     * @param _message     Message to send to the target.
+     */
     function relayMessage(
         uint256 _nonce,
         address _sender,
@@ -194,7 +247,7 @@ abstract contract CrossDomainMessenger is
         uint256 _minGasLimit,
         bytes calldata _message
     ) external payable nonReentrant whenNotPaused {
-        bytes32 versionedHash = CrossDomainHashing.getVersionedHash(
+        bytes32 versionedHash = Hashing.hashCrossDomainMessage(
             _nonce,
             _sender,
             _target,
@@ -207,13 +260,13 @@ abstract contract CrossDomainMessenger is
             // Should never happen.
             require(msg.value == _value, "Mismatched message value.");
         } else {
-            // TODO(tynes): could require that msg.value == 0 here
-            // to prevent eth from getting stuck
+            require(
+                msg.value == 0,
+                "CrossDomainMessenger: Value must be zero unless message is from a system address."
+            );
             require(receivedMessages[versionedHash], "Message cannot be replayed.");
         }
 
-        // TODO: Should blocking happen on sending or receiving side?
-        // TODO: Should this just return with an event instead of reverting?
         require(
             blockedSystemAddresses[_target] == false,
             "Cannot send message to blocked system address."
@@ -221,7 +274,6 @@ abstract contract CrossDomainMessenger is
 
         require(successfulMessages[versionedHash] == false, "Message has already been relayed.");
 
-        // TODO: Make sure this will always give us enough gas.
         require(
             gasleft() >= _minGasLimit + RELAY_GAS_REQUIRED,
             "Insufficient gas to relay message."
@@ -235,7 +287,7 @@ abstract contract CrossDomainMessenger is
             0,
             _message
         );
-        xDomainMsgSender = Lib_DefaultValues.DEFAULT_XDOMAIN_SENDER;
+        xDomainMsgSender = DEFAULT_XDOMAIN_SENDER;
 
         if (success == true) {
             successfulMessages[versionedHash] = true;
@@ -246,38 +298,50 @@ abstract contract CrossDomainMessenger is
         }
     }
 
-    /**********************
-     * Internal Functions *
-     **********************/
+    /**
+     * @notice Intializer.
+     *
+     * @param _otherMessenger         Address of the CrossDomainMessenger on the paired chain.
+     * @param _blockedSystemAddresses List of system addresses that need to be blocked to prevent
+     *                                certain security issues. Exact list depends on the network
+     *                                where this contract is deployed. See note attached to the
+     *                                blockedSystemAddresses variable in this contract for more
+     *                                detailed information about what this block list can and
+     *                                cannot be used for.
+     */
+    // solhint-disable-next-line func-name-mixedcase
+    function __CrossDomainMessenger_init(
+        address _otherMessenger,
+        address[] memory _blockedSystemAddresses
+    ) internal onlyInitializing {
+        xDomainMsgSender = DEFAULT_XDOMAIN_SENDER;
+        otherMessenger = _otherMessenger;
+        for (uint256 i = 0; i < _blockedSystemAddresses.length; i++) {
+            blockedSystemAddresses[_blockedSystemAddresses[i]] = true;
+        }
 
+        __Context_init_unchained();
+        __Ownable_init_unchained();
+        __Pausable_init_unchained();
+        __ReentrancyGuard_init_unchained();
+    }
+
+    /**
+     * @notice Checks whether the message is coming from the other messenger. Implemented by child
+     *         contracts because the logic for this depends on the network where the messenger is
+     *         being deployed.
+     */
     function _isSystemMessageSender() internal view virtual returns (bool);
 
+    /**
+     * @notice Sends a low-level message to the other messenger. Needs to be implemented by child
+     *         contracts because the logic for this depends on the network where the messenger is
+     *         being deployed.
+     */
     function _sendMessage(
         address _to,
         uint64 _gasLimit,
         uint256 _value,
         bytes memory _data
     ) internal virtual;
-
-    /**
-     * Initializes the contract.
-     */
-    function _initialize(address _otherMessenger, address[] memory _blockedSystemAddresses)
-        internal
-        initializer
-    {
-        xDomainMsgSender = Lib_DefaultValues.DEFAULT_XDOMAIN_SENDER;
-        otherMessenger = _otherMessenger;
-
-        for (uint256 i = 0; i < _blockedSystemAddresses.length; i++) {
-            blockedSystemAddresses[_blockedSystemAddresses[i]] = true;
-        }
-
-        // TODO: ensure we know what these are doing and why they are here
-        // Initialize upgradable OZ contracts
-        __Context_init_unchained();
-        __Ownable_init_unchained();
-        __Pausable_init_unchained();
-        __ReentrancyGuard_init_unchained();
-    }
 }

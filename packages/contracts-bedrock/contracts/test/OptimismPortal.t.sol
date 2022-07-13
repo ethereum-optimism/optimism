@@ -1,14 +1,15 @@
 //SPDX-License-Identifier: MIT
 pragma solidity 0.8.10;
 
-import { L2OutputOracle_Initializer } from "./CommonTest.t.sol";
+import { Portal_Initializer, CommonTest, NextImpl } from "./CommonTest.t.sol";
 
-import { AddressAliasHelper } from "../libraries/AddressAliasHelper.sol";
+import { AddressAliasHelper } from "../vendor/AddressAliasHelper.sol";
 import { L2OutputOracle } from "../L1/L2OutputOracle.sol";
 import { OptimismPortal } from "../L1/OptimismPortal.sol";
-import { WithdrawalVerifier } from "../libraries/Lib_WithdrawalVerifier.sol";
+import { Hashing } from "../libraries/Hashing.sol";
+import { Proxy } from "../universal/Proxy.sol";
 
-contract OptimismPortal_Test is L2OutputOracle_Initializer {
+contract OptimismPortal_Test is Portal_Initializer {
     event TransactionDeposited(
         address indexed from,
         address indexed to,
@@ -18,15 +19,6 @@ contract OptimismPortal_Test is L2OutputOracle_Initializer {
         bool isCreation,
         bytes data
     );
-
-    // Dependencies
-    // L2OutputOracle oracle;
-    OptimismPortal op;
-
-    function setUp() public override {
-        L2OutputOracle_Initializer.setUp();
-        op = new OptimismPortal(oracle, 7 days);
-    }
 
     function test_OptimismPortalConstructor() external {
         assertEq(op.FINALIZATION_PERIOD_SECONDS(), 7 days);
@@ -238,7 +230,7 @@ contract OptimismPortal_Test is L2OutputOracle_Initializer {
     // function test_verifyWithdrawal() external {}
 
     function test_cannotVerifyRecentWithdrawal() external {
-        WithdrawalVerifier.OutputRootProof memory outputRootProof = WithdrawalVerifier
+        Hashing.OutputRootProof memory outputRootProof = Hashing
             .OutputRootProof({
                 version: bytes32(0),
                 stateRoot: bytes32(0),
@@ -251,7 +243,7 @@ contract OptimismPortal_Test is L2OutputOracle_Initializer {
     }
 
     function test_invalidWithdrawalProof() external {
-        WithdrawalVerifier.OutputRootProof memory outputRootProof = WithdrawalVerifier
+        Hashing.OutputRootProof memory outputRootProof = Hashing
             .OutputRootProof({
                 version: bytes32(0),
                 stateRoot: bytes32(0),
@@ -268,5 +260,104 @@ contract OptimismPortal_Test is L2OutputOracle_Initializer {
 
         vm.expectRevert("OptimismPortal: invalid output root proof");
         op.finalizeWithdrawalTransaction(0, alice, alice, 0, 0, hex"", 0, outputRootProof, hex"");
+    }
+
+    function test_simple_isOutputFinalized() external {
+        vm.mockCall(
+            address(op.L2_ORACLE()),
+            abi.encodeWithSelector(
+                L2OutputOracle.getL2Output.selector
+            ),
+            abi.encode(
+                L2OutputOracle.OutputProposal(
+                    bytes32(uint256(1)),
+                    0
+                )
+            )
+        );
+
+        // warp to the finalization period
+        vm.warp(op.FINALIZATION_PERIOD_SECONDS());
+        assertEq(op.isOutputFinalized(0), false);
+        // warp past the finalization period
+        vm.warp(op.FINALIZATION_PERIOD_SECONDS() + 1);
+        assertEq(op.isOutputFinalized(0), true);
+    }
+
+    function test_isOutputFinalized() external {
+        uint256 checkpoint = oracle.nextBlockNumber();
+        vm.roll(checkpoint);
+        vm.warp(oracle.computeL2Timestamp(checkpoint) + 1);
+        vm.prank(oracle.sequencer());
+        oracle.appendL2Output(keccak256(abi.encode(2)), checkpoint, 0, 0);
+
+        // warp to the final second of the finalization period
+        uint256 finalizationHorizon = block.timestamp + op.FINALIZATION_PERIOD_SECONDS();
+        vm.warp(finalizationHorizon);
+        // The checkpointed block should not be finalized until 1 second from now.
+        assertEq(op.isOutputFinalized(checkpoint), false);
+        // Nor should a block after it
+        assertEq(op.isOutputFinalized(checkpoint + 1), false);
+        // Nor a block before it, even though the finalization period has passed, there is
+        // not yet a checkpoint block on top of it for which that is true.
+        assertEq(op.isOutputFinalized(checkpoint - 1), false);
+
+        // warp past the finalization period
+        vm.warp(finalizationHorizon + 1);
+        // It should now be finalized.
+        assertEq(op.isOutputFinalized(checkpoint), true);
+        // So should the block before it.
+        assertEq(op.isOutputFinalized(checkpoint - 1), true);
+        // But not the block after it.
+        assertEq(op.isOutputFinalized(checkpoint + 1), false);
+    }
+}
+
+contract OptimismPortalUpgradeable_Test is Portal_Initializer {
+    Proxy internal proxy;
+    uint64 initialBlockNum;
+
+    function setUp() public override {
+        super.setUp();
+        initialBlockNum = uint64(block.number);
+        proxy = Proxy(payable(address(op)));
+    }
+
+    function test_initValuesOnProxy() external {
+        (uint128 prevBaseFee, uint64 prevBoughtGas, uint64 prevBlockNum) = OptimismPortal(
+            payable(address(proxy))
+        ).params();
+        assertEq(prevBaseFee, opImpl.INITIAL_BASE_FEE());
+        assertEq(prevBoughtGas, 0);
+        assertEq(prevBlockNum, initialBlockNum);
+    }
+
+    function test_cannotInitProxy() external {
+        vm.expectRevert("Initializable: contract is already initialized");
+        address(proxy).call(abi.encodeWithSelector(OptimismPortal.initialize.selector));
+    }
+
+    function test_cannotInitImpl() external {
+        vm.expectRevert("Initializable: contract is already initialized");
+        address(opImpl).call(abi.encodeWithSelector(OptimismPortal.initialize.selector));
+    }
+
+    function test_upgrading() external {
+        // Check an unused slot before upgrading.
+        bytes32 slot21Before = vm.load(address(op), bytes32(uint256(21)));
+        assertEq(bytes32(0), slot21Before);
+
+        NextImpl nextImpl = new NextImpl();
+        vm.startPrank(multisig);
+        proxy.upgradeToAndCall(
+            address(nextImpl),
+            abi.encodeWithSelector(NextImpl.initialize.selector)
+        );
+        assertEq(proxy.implementation(), address(nextImpl));
+
+        // Verify that the NextImpl contract initialized its values according as expected
+        bytes32 slot21After = vm.load(address(op), bytes32(uint256(21)));
+        bytes32 slot21Expected = NextImpl(address(op)).slot21Init();
+        assertEq(slot21Expected, slot21After);
     }
 }

@@ -3,7 +3,8 @@ package bridge
 import (
 	"fmt"
 
-	"github.com/ethereum-optimism/optimism/indexer/bindings/address_manager"
+	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
+
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 )
@@ -28,7 +29,7 @@ func NewAddresses(client bind.ContractBackend, addrMgrAddr common.Address) (*Add
 	}
 	ret.addrs["AddressManager"] = addrMgrAddr
 
-	mgr, err := address_manager.NewAddressManager(addrMgrAddr, client)
+	mgr, err := bindings.NewAddressManager(addrMgrAddr, client)
 	if err != nil {
 		return nil, err
 	}

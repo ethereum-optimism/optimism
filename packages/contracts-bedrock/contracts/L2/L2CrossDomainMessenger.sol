@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.9;
 
-import { AddressAliasHelper } from "../libraries/AddressAliasHelper.sol";
-import { Lib_PredeployAddresses } from "../libraries/Lib_PredeployAddresses.sol";
+import { AddressAliasHelper } from "../vendor/AddressAliasHelper.sol";
+import { PredeployAddresses } from "../libraries/PredeployAddresses.sol";
 import { CrossDomainMessenger } from "../universal/CrossDomainMessenger.sol";
+import { Semver } from "../universal/Semver.sol";
 import { L2ToL1MessagePasser } from "./L2ToL1MessagePasser.sol";
 
 /**
@@ -14,18 +15,26 @@ import { L2ToL1MessagePasser } from "./L2ToL1MessagePasser.sol";
  *         L2 on the L2 side. Users are generally encouraged to use this contract instead of lower
  *         level message passing contracts.
  */
-contract L2CrossDomainMessenger is CrossDomainMessenger {
+contract L2CrossDomainMessenger is CrossDomainMessenger, Semver {
     /**
-     * @notice Initializes the L2CrossDomainMessenger.
+     * @custom:semver 0.0.1
      *
      * @param _l1CrossDomainMessenger Address of the L1CrossDomainMessenger contract.
      */
-    function initialize(address _l1CrossDomainMessenger) external {
+    constructor(address _l1CrossDomainMessenger) Semver(0, 0, 1) {
+        initialize(_l1CrossDomainMessenger);
+    }
+
+    /**
+     * @notice Initializer.
+     *
+     * @param _l1CrossDomainMessenger Address of the L1CrossDomainMessenger contract.
+     */
+    function initialize(address _l1CrossDomainMessenger) public initializer {
         address[] memory blockedSystemAddresses = new address[](2);
         blockedSystemAddresses[0] = address(this);
-        blockedSystemAddresses[1] = Lib_PredeployAddresses.L2_TO_L1_MESSAGE_PASSER;
-
-        _initialize(_l1CrossDomainMessenger, blockedSystemAddresses);
+        blockedSystemAddresses[1] = PredeployAddresses.L2_TO_L1_MESSAGE_PASSER;
+        __CrossDomainMessenger_init(_l1CrossDomainMessenger, blockedSystemAddresses);
     }
 
     /**
@@ -34,7 +43,7 @@ contract L2CrossDomainMessenger is CrossDomainMessenger {
      *
      * @return Address of the L1CrossDomainMessenger contract.
      */
-    function l1CrossDomainMessenger() public returns (address) {
+    function l1CrossDomainMessenger() public view returns (address) {
         return otherMessenger;
     }
 
@@ -61,7 +70,8 @@ contract L2CrossDomainMessenger is CrossDomainMessenger {
         uint256 _value,
         bytes memory _data
     ) internal override {
-        L2ToL1MessagePasser(payable(Lib_PredeployAddresses.L2_TO_L1_MESSAGE_PASSER))
-            .initiateWithdrawal{ value: _value }(_to, _gasLimit, _data);
+        L2ToL1MessagePasser(payable(PredeployAddresses.L2_TO_L1_MESSAGE_PASSER)).initiateWithdrawal{
+            value: _value
+        }(_to, _gasLimit, _data);
     }
 }

@@ -184,7 +184,7 @@ contract Proxy_Test is Test {
         // Set the new SimpleStorage as the implementation
         // and call. This reverts because the calldata doesn't
         // match a function on the implementation.
-        vm.expectRevert();
+        vm.expectRevert("Proxy: delegatecall to new implementation contract failed");
         vm.prank(alice);
         proxy.upgradeToAndCall(
             address(simpleStorage),

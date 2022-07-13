@@ -1,5 +1,23 @@
 # @eth-optimism/common-ts
 
+## 0.6.1
+
+### Patch Changes
+
+- Updated dependencies [f9fee446]
+  - @eth-optimism/core-utils@0.9.1
+
+## 0.6.0
+
+### Minor Changes
+
+- 3d1cb720: Add version to healthz for convenience
+
+### Patch Changes
+
+- Updated dependencies [700dcbb0]
+  - @eth-optimism/core-utils@0.9.0
+
 ## 0.5.0
 
 ### Minor Changes

@@ -10,17 +10,18 @@ import (
 	"sync"
 	"time"
 
-	l2rpc "github.com/ethereum-optimism/optimism/l2geth/rpc"
-
 	"github.com/ethereum-optimism/optimism/indexer/metrics"
 	"github.com/ethereum-optimism/optimism/indexer/server"
 	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/ethereum-optimism/optimism/indexer/db"
 	"github.com/ethereum-optimism/optimism/indexer/services/l2/bridge"
-	"github.com/ethereum-optimism/optimism/l2geth/common"
-	"github.com/ethereum-optimism/optimism/l2geth/core/types"
-	l2ethclient "github.com/ethereum-optimism/optimism/l2geth/ethclient"
+
+	"github.com/ethereum/go-ethereum/rpc"
+
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/gorilla/mux"
 )
@@ -44,7 +45,7 @@ var clientRetryInterval = 5 * time.Second
 // HeaderByNumberWithRetry retries the given func until it succeeds, waiting
 // for clientRetryInterval duration after every call.
 func HeaderByNumberWithRetry(ctx context.Context,
-	client *l2ethclient.Client) (*types.Header, error) {
+	client *ethclient.Client) (*types.Header, error) {
 	for {
 		res, err := client.HeaderByNumber(ctx, nil)
 		switch err {
@@ -60,8 +61,8 @@ func HeaderByNumberWithRetry(ctx context.Context,
 type ServiceConfig struct {
 	Context            context.Context
 	Metrics            *metrics.Metrics
-	L2RPC              *l2rpc.Client
-	L2Client           *l2ethclient.Client
+	L2RPC              *rpc.Client
+	L2Client           *ethclient.Client
 	ChainID            *big.Int
 	ConfDepth          uint64
 	MaxHeaderBatchSize uint64
@@ -85,8 +86,8 @@ type Service struct {
 }
 
 type IndexerStatus struct {
-	Synced  float64           `json:"synced"`
-	Highest db.L2BlockLocator `json:"highest_block"`
+	Synced  float64         `json:"synced"`
+	Highest db.BlockLocator `json:"highest_block"`
 }
 
 func NewService(cfg ServiceConfig) (*Service, error) {
@@ -181,7 +182,7 @@ func (s *Service) Loop(ctx context.Context) {
 }
 
 func (s *Service) Update(newHeader *types.Header) error {
-	var lowest = db.L2BlockLocator{
+	var lowest = db.BlockLocator{
 		Number: s.cfg.StartBlockNumber,
 		Hash:   common.HexToHash(s.cfg.StartBlockHash),
 	}
