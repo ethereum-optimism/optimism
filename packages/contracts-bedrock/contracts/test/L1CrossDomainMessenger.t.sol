@@ -198,7 +198,6 @@ contract L1CrossDomainMessenger_Test is Messenger_Initializer {
         address sender = PredeployAddresses.L2_CROSS_DOMAIN_MESSENGER;
 
         uint256 senderSlotIndex = 51;
-        bytes32 slotValue = vm.load(address(op), bytes32(senderSlotIndex));
 
         vm.store(address(op), bytes32(senderSlotIndex), bytes32(abi.encode(sender)));
         vm.prank(address(op));

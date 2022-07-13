@@ -40,7 +40,8 @@ contract L2StandardBridge_Test is Bridge_Initializer {
         // TODO: events from each contract
 
         vm.prank(alice, alice);
-        address(L2Bridge).call{ value: 100 }(hex"");
+        (bool success,) = address(L2Bridge).call{ value: 100 }(hex"");
+        assertEq(success, true);
         assertEq(address(messagePasser).balance, 100);
     }
 
