@@ -13,11 +13,6 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
         super.setUp();
     }
 
-    // Advance the evm's time to meet the L2OutputOracle's requirements for appendL2Output
-    function warpToAppendTime(uint256 _nextBlockNumber) public {
-        vm.warp(oracle.computeL2Timestamp(_nextBlockNumber) + 1);
-    }
-
     function test_constructor() external {
         assertEq(oracle.owner(), owner);
         assertEq(oracle.SUBMISSION_INTERVAL(), submissionInterval);
@@ -87,13 +82,13 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
         // ... for the first block after the starting block
         assertEq(
             oracle.computeL2Timestamp(startingBlockNumber + 1),
-            startingTimestamp + submissionInterval
+            startingTimestamp + l2BlockTime
         );
 
         // ... for some other block number
         assertEq(
             oracle.computeL2Timestamp(startingBlockNumber + 96024),
-            startingTimestamp + submissionInterval * 96024
+            startingTimestamp + l2BlockTime * 96024
         );
     }
 
@@ -255,9 +250,9 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
      *****************************/
 
     event L2OutputDeleted(
-        bytes32 indexed _l2Output,
-        uint256 indexed _l1Timestamp,
-        uint256 indexed _l2BlockNumber
+        bytes32 indexed l2Output,
+        uint256 indexed l1Timestamp,
+        uint256 indexed l2BlockNumber
     );
 
     function test_deleteL2Output() external {
@@ -376,7 +371,7 @@ contract L2OutputOracleUpgradeable_Test is L2OutputOracle_Initializer {
         assertEq(bytes32(0), slot21Before);
 
         NextImpl nextImpl = new NextImpl();
-        vm.startPrank(alice);
+        vm.startPrank(multisig);
         proxy.upgradeToAndCall(
             address(nextImpl),
             abi.encodeWithSelector(NextImpl.initialize.selector)

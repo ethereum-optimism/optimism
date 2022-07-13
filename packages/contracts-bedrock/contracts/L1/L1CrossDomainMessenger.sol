@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.9;
 
-import { Lib_PredeployAddresses } from "../libraries/Lib_PredeployAddresses.sol";
+import { PredeployAddresses } from "../libraries/PredeployAddresses.sol";
 import { OptimismPortal } from "./OptimismPortal.sol";
 import { CrossDomainMessenger } from "../universal/CrossDomainMessenger.sol";
+import { Semver } from "../universal/Semver.sol";
 
 /**
  * @custom:proxied
@@ -12,35 +13,32 @@ import { CrossDomainMessenger } from "../universal/CrossDomainMessenger.sol";
  *         for sending and receiving data on the L1 side. Users are encouraged to use this
  *         interface instead of interacting with lower-level contracts directly.
  */
-contract L1CrossDomainMessenger is CrossDomainMessenger {
-    /**
-     * @notice Contract version number.
-     */
-    uint8 public constant VERSION = 1;
-
+contract L1CrossDomainMessenger is CrossDomainMessenger, Semver {
     /**
      * @notice Address of the OptimismPortal.
      */
-    OptimismPortal public portal;
+    OptimismPortal public immutable portal;
 
     /**
-     * @param _portal Address of the OptimismPortal to send and receive messages through.
+     * @custom:semver 0.0.1
+     *
+     * @param _portal Address of the OptimismPortal contract on this network.
      */
-    constructor(OptimismPortal _portal) public {
-        // Mutables
-        initialize(_portal);
+    constructor(OptimismPortal _portal) Semver(0, 0, 1) {
+        portal = _portal;
+        initialize();
     }
 
     /**
-     * @notice Intializes mutable variables.
-     *
-     * @param _portal Address of the OptimismPortal to send and receive messages through.
+     * @notice Initializer.
      */
-    function initialize(OptimismPortal _portal) public reinitializer(VERSION) {
-        portal = _portal;
+    function initialize() public initializer {
         address[] memory blockedSystemAddresses = new address[](1);
         blockedSystemAddresses[0] = address(this);
-        _initialize(Lib_PredeployAddresses.L2_CROSS_DOMAIN_MESSENGER, blockedSystemAddresses);
+        __CrossDomainMessenger_init(
+            PredeployAddresses.L2_CROSS_DOMAIN_MESSENGER,
+            blockedSystemAddresses
+        );
     }
 
     /**

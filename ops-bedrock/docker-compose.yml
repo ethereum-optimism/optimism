@@ -42,7 +42,7 @@ services:
       - l2
     build:
       context: ../
-      dockerfile: ./ops-bedrock/Dockerfile.node
+      dockerfile: ./op-node/Dockerfile
     command: >
       op-node
       --l1=ws://l1:8546
@@ -81,7 +81,7 @@ services:
       - op-node
     build:
       context: ../
-      dockerfile: ./ops-bedrock/Dockerfile.proposer
+      dockerfile: ./op-proposer/Dockerfile
     environment:
       L1_ETH_RPC: http://l1:8545
       L2_ETH_RPC: http://l2:8545
@@ -102,7 +102,7 @@ services:
       - op-node
     build:
       context: ../
-      dockerfile: ./ops-bedrock/Dockerfile.batcher
+      dockerfile: ./op-batcher/Dockerfile
     environment:
       L1_ETH_RPC: http://l1:8545
       L2_ETH_RPC: http://l2:8545

@@ -3,6 +3,7 @@ import path from 'path'
 import assert from 'assert'
 
 import { OptimismGenesis, State } from '@eth-optimism/core-utils'
+import 'hardhat-deploy'
 import '@eth-optimism/hardhat-deploy-config'
 import { ethers } from 'ethers'
 import { task } from 'hardhat/config'
@@ -38,7 +39,8 @@ const getStorageLayout = async (
   for (const key of keys) {
     if (name === path.basename(key, '.sol')) {
       const contract = buildInfo.output.contracts[key]
-      return (contract[name] as any).storageLayout
+      const storageLayout = (contract[name] as any).storageLayout
+      return storageLayout || { storage: [], types: {} }
     }
   }
   throw new Error(`Cannot locate storageLayout for ${name}`)
@@ -50,6 +52,7 @@ task('genesis-l2', 'create a genesis config')
     'The file to write the output JSON to',
     'genesis.json'
   )
+  .addOptionalParam('l1RpcUrl', 'The L1 RPC URL', 'http://127.0.0.1:8545')
   .setAction(async (args, hre) => {
     const {
       computeStorageSlots,
@@ -57,6 +60,8 @@ task('genesis-l2', 'create a genesis config')
     } = require('@defi-wonderland/smock/dist/src/utils')
 
     const { deployConfig } = hre
+
+    const l1 = new ethers.providers.StaticJsonRpcProvider(args.l1RpcUrl)
 
     // Use the addresses of the proxies here instead of the implementations
     // Be backwards compatible
@@ -102,9 +107,6 @@ task('genesis-l2', 'create a genesis config')
       SequencerFeeVault: {
         l1FeeWallet: ethers.constants.AddressZero,
       },
-      OptimismMintableTokenFactory: {
-        bridge: ethers.constants.AddressZero,
-      },
       L1Block: {
         number: deployConfig.l1BlockInitialNumber,
         timestamp: deployConfig.l1BlockInitialTimestamp,
@@ -112,7 +114,7 @@ task('genesis-l2', 'create a genesis config')
         hash: deployConfig.l1BlockInitialHash,
         sequenceNumber: deployConfig.l1BlockInitialSequenceNumber,
       },
-      OVM_ETH: {
+      LegacyERC20ETH: {
         bridge: predeploys.L2StandardBridge,
         remoteToken: ethers.constants.AddressZero,
         _name: 'Ether',
@@ -150,9 +152,9 @@ task('genesis-l2', 'create a genesis config')
         ethers.utils.hexConcat([prefix, num])
       )
 
-      // There is no proxy at OVM_ETH or the GovernanceToken
+      // There is no proxy at LegacyERC20ETH or the GovernanceToken
       if (
-        addr === ethers.utils.getAddress(predeploys.OVM_ETH) ||
+        addr === ethers.utils.getAddress(predeploys.LegacyERC20ETH) ||
         addr === ethers.utils.getAddress(predeploys.GovernanceToken)
       ) {
         continue
@@ -236,7 +238,7 @@ task('genesis-l2', 'create a genesis config')
       const artifact = await hre.artifacts.readArtifact(name)
       assertEvenLength(artifact.deployedBytecode)
 
-      const allocAddr = name === 'OVM_ETH' ? addr : toCodeAddr(addr)
+      const allocAddr = name === 'LegacyERC20ETH' ? addr : toCodeAddr(addr)
       assertEvenLength(allocAddr)
 
       alloc[allocAddr] = {
@@ -247,12 +249,18 @@ task('genesis-l2', 'create a genesis config')
       }
 
       const storageLayout = await getStorageLayout(hre, name)
+      if (storageLayout === undefined) {
+        throw new Error(`cannot find storage layout for ${name}`)
+      }
       const slots = computeStorageSlots(storageLayout, variables[name])
 
       for (const slot of slots) {
         alloc[allocAddr].storage[slot.key] = slot.val
       }
     }
+
+    const portal = await hre.deployments.get('OptimismPortalProxy')
+    const l1StartingBlock = await l1.getBlock(portal.receipt.blockHash)
 
     const genesis: OptimismGenesis = {
       config: {
@@ -277,9 +285,7 @@ task('genesis-l2', 'create a genesis config')
       },
       nonce: '0x1234',
       difficulty: '0x1',
-      timestamp: ethers.BigNumber.from(
-        deployConfig.startingTimestamp
-      ).toHexString(),
+      timestamp: ethers.BigNumber.from(l1StartingBlock.timestamp).toHexString(),
       gasLimit: deployConfig.genesisBlockGasLimit,
       extraData: deployConfig.genesisBlockExtradata,
       optimism: {

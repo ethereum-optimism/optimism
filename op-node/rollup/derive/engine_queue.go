@@ -49,7 +49,7 @@ type EngineQueue struct {
 	engine Engine
 }
 
-var _ BatchQueueOutput = (*EngineQueue)(nil)
+var _ AttributesQueueOutput = (*EngineQueue)(nil)
 
 // NewEngineQueue creates a new EngineQueue, which should be Reset(origin) before use.
 func NewEngineQueue(log log.Logger, cfg *rollup.Config, engine Engine) *EngineQueue {
@@ -72,6 +72,7 @@ func (eq *EngineQueue) AddUnsafePayload(payload *eth.ExecutionPayload) {
 }
 
 func (eq *EngineQueue) AddSafeAttributes(attributes *eth.PayloadAttributes) {
+	eq.log.Trace("received next safe attributes")
 	eq.safeAttributes = append(eq.safeAttributes, attributes)
 }
 
@@ -295,6 +296,10 @@ func (eq *EngineQueue) ResetStep(ctx context.Context, l1Fetcher L1Fetcher) error
 			eq.progress = Progress{
 				Origin: canonicalRef,
 				Closed: false,
+			}
+			if eq.safeHead.Time < canonicalRef.Time {
+				return fmt.Errorf("cannot reset block derivation to start at L2 block %s with time %d older than its L1 origin %s with time %d, time invariant is broken",
+					eq.safeHead, eq.safeHead.Time, canonicalRef, canonicalRef.Time)
 			}
 			return io.EOF
 		} else {

@@ -6,8 +6,8 @@ import "../universal/SupportedInterfaces.sol";
 import { IERC165 } from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 
 contract OptimismMintableERC20_Test is Bridge_Initializer {
-    event Mint(address indexed _account, uint256 _amount);
-    event Burn(address indexed _account, uint256 _amount);
+    event Mint(address indexed account, uint256 amount);
+    event Burn(address indexed account, uint256 amount);
 
     function setUp() public override {
         super.setUp();
@@ -41,7 +41,7 @@ contract OptimismMintableERC20_Test is Bridge_Initializer {
 
     function test_mintRevertsFromNotBridge() external {
         // NOT the bridge
-        vm.expectRevert("Only L2 Bridge can mint and burn");
+        vm.expectRevert("OptimismMintableERC20: only bridge can mint and burn");
         vm.prank(address(alice));
         L2Token.mint(alice, 100);
     }
@@ -61,7 +61,7 @@ contract OptimismMintableERC20_Test is Bridge_Initializer {
 
     function test_burnRevertsFromNotBridge() external {
         // NOT the bridge
-        vm.expectRevert("Only L2 Bridge can mint and burn");
+        vm.expectRevert("OptimismMintableERC20: only bridge can mint and burn");
         vm.prank(address(alice));
         L2Token.burn(alice, 100);
     }
