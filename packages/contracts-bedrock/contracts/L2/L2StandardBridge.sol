@@ -16,7 +16,6 @@ import { OptimismMintableERC20 } from "../universal/OptimismMintableERC20.sol";
  *         Examples of some token types that may not be properly supported by this contract include,
  *         but are not limited to: tokens with transfer fees, rebasing tokens, and
  *         tokens with blocklists.
- *         TODO: ensure that this has 1:1 backwards compatibility
  */
 contract L2StandardBridge is StandardBridge, Semver {
     /**

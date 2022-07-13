@@ -111,7 +111,7 @@ abstract contract CrossDomainMessenger is
      *         messageNonce getter which will insert the message version into the nonce to give you
      *         the actual nonce to be used for the message.
      */
-    uint256 internal msgNonce;
+    uint240 internal msgNonce;
 
     /**
      * @notice Address of the paired CrossDomainMessenger contract on the other chain.
@@ -172,7 +172,7 @@ abstract contract CrossDomainMessenger is
      * @return Nonce of the next message to be sent, with added message version.
      */
     function messageNonce() public view returns (uint256) {
-        return Encoding.addVersionToNonce(msgNonce, MESSAGE_VERSION);
+        return Encoding.encodeVersionedNonce(msgNonce, MESSAGE_VERSION);
     }
 
     /**
@@ -186,9 +186,6 @@ abstract contract CrossDomainMessenger is
      * @return Amount of gas required to guarantee message receipt.
      */
     function baseGas(bytes memory _message) public pure returns (uint32) {
-        // TODO: Values here are meant to be good enough to get a devnet running. We need to do
-        // some simple experimentation with the smallest and largest possible message sizes to find
-        // the correct constant and dynamic overhead values.
         return (uint32(_message.length) * MIN_GAS_DYNAMIC_OVERHEAD) + MIN_GAS_CONSTANT_OVERHEAD;
     }
 
@@ -250,7 +247,7 @@ abstract contract CrossDomainMessenger is
         uint256 _minGasLimit,
         bytes calldata _message
     ) external payable nonReentrant whenNotPaused {
-        bytes32 versionedHash = Hashing.getVersionedHash(
+        bytes32 versionedHash = Hashing.hashCrossDomainMessage(
             _nonce,
             _sender,
             _target,
@@ -263,13 +260,13 @@ abstract contract CrossDomainMessenger is
             // Should never happen.
             require(msg.value == _value, "Mismatched message value.");
         } else {
-            // TODO(tynes): could require that msg.value == 0 here
-            // to prevent eth from getting stuck
+            require(
+                msg.value == 0,
+                "CrossDomainMessenger: Value must be zero unless message is from a system address."
+            );
             require(receivedMessages[versionedHash], "Message cannot be replayed.");
         }
 
-        // TODO: Should blocking happen on sending or receiving side?
-        // TODO: Should this just return with an event instead of reverting?
         require(
             blockedSystemAddresses[_target] == false,
             "Cannot send message to blocked system address."
@@ -277,7 +274,6 @@ abstract contract CrossDomainMessenger is
 
         require(successfulMessages[versionedHash] == false, "Message has already been relayed.");
 
-        // TODO: Make sure this will always give us enough gas.
         require(
             gasleft() >= _minGasLimit + RELAY_GAS_REQUIRED,
             "Insufficient gas to relay message."
@@ -313,6 +309,7 @@ abstract contract CrossDomainMessenger is
      *                                detailed information about what this block list can and
      *                                cannot be used for.
      */
+    // solhint-disable-next-line func-name-mixedcase
     function __CrossDomainMessenger_init(
         address _otherMessenger,
         address[] memory _blockedSystemAddresses

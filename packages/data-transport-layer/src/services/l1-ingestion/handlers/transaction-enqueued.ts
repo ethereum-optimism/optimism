@@ -1,6 +1,6 @@
 /* Imports: External */
 import { BigNumber } from 'ethers'
-import { TransactionEnqueuedEvent } from '@eth-optimism/contracts/dist/types/CanonicalTransactionChain'
+import { TransactionEnqueuedEvent } from '@eth-optimism/contracts/dist/types/contracts/L1/rollup/CanonicalTransactionChain'
 
 /* Imports: Internal */
 import { MissingElementError } from './errors'

@@ -60,7 +60,7 @@ mkdir -p ./.devnet
 if [ ! -f ./.devnet/rollup.json ]; then
     GENESIS_TIMESTAMP=$(date +%s | xargs printf "0x%x")
 else
-    GENESIS_TIMESTAMP=$(jq '.genesis.l2_time' < .devnet/rollup.json)
+    GENESIS_TIMESTAMP=$(jq '.timestamp' < .devnet/genesis-l1.json)
 fi
 
 # Regenerate the L1 genesis file if necessary. The existence of the genesis
@@ -79,7 +79,7 @@ fi
 (
   cd ops-bedrock
   echo "Bringing up L1..."
-  DOCKER_BUILDKIT=1 docker-compose build
+  DOCKER_BUILDKIT=1 docker-compose build --progress plain
   docker-compose up -d l1
   wait_up $L1_URL
 )

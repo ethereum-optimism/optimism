@@ -2,4 +2,4 @@
 '@eth-optimism/contracts-bedrock': patch
 ---
 
-Bump typechain to 8.1.0
+Clears most contract linting warnings
