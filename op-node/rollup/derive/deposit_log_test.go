@@ -13,7 +13,7 @@ import (
 )
 
 func TestUnmarshalLogEvent(t *testing.T) {
-	t.Skip("not working because deposit_log_create not working properly")
+	// t.Skip("not working because deposit_log_create not working properly")
 	for i := int64(0); i < 100; i++ {
 		t.Run(fmt.Sprintf("random_deposit_%d", i), func(t *testing.T) {
 			rng := rand.New(rand.NewSource(1234 + i))
@@ -91,7 +91,7 @@ type DeriveUserDepositsTestCase struct {
 }
 
 func TestDeriveUserDeposits(t *testing.T) {
-	t.Skip("not working because deposit_log_create not working properly")
+	// t.Skip("not working because deposit_log_create not working properly")
 	testCases := []DeriveUserDepositsTestCase{
 		{"no deposits", []receiptData{}},
 		{"other log", []receiptData{{true, []bool{false}}}},
