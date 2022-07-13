@@ -260,6 +260,10 @@ abstract contract CrossDomainMessenger is
             // Should never happen.
             require(msg.value == _value, "Mismatched message value.");
         } else {
+            require(
+                msg.value == 0,
+                "CrossDomainMessenger: Value must be zero unless message is from a system address."
+            );
             require(receivedMessages[versionedHash], "Message cannot be replayed.");
         }
 

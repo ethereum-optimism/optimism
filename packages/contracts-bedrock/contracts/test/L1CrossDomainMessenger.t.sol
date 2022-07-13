@@ -56,11 +56,8 @@ contract L1CrossDomainMessenger_Test is Messenger_Initializer {
 
     // the version is encoded in the nonce
     function test_L1MessengerMessageVersion() external {
-        (,uint16 version) = Encoding.decodeVersionedNonce(L1Messenger.messageNonce());
-        assertEq(
-            version,
-            L1Messenger.MESSAGE_VERSION()
-        );
+        (, uint16 version) = Encoding.decodeVersionedNonce(L1Messenger.messageNonce());
+        assertEq(version, L1Messenger.MESSAGE_VERSION());
     }
 
     // sendMessage: should be able to send a single message
@@ -172,7 +169,6 @@ contract L1CrossDomainMessenger_Test is Messenger_Initializer {
         address sender = PredeployAddresses.L2_CROSS_DOMAIN_MESSENGER;
         bytes memory message = hex"1111";
 
-        // set the value of op.l2Sender() to be the L2 Cross Domain Messenger.
         vm.prank(address(op));
         vm.expectRevert("Message cannot be replayed.");
         L1Messenger.relayMessage(0, sender, target, 0, 0, message);
@@ -180,6 +176,18 @@ contract L1CrossDomainMessenger_Test is Messenger_Initializer {
         vm.store(address(op), 0, bytes32(abi.encode(sender)));
         vm.expectRevert("Message cannot be replayed.");
         L1Messenger.relayMessage(0, sender, target, 0, 0, message);
+    }
+
+    // relayMessage: should revert if eth is sent from a contract other than the standard bridge
+    function test_L1MessengerReplayMessageWithValue() external {
+        address target = address(0xabcd);
+        address sender = PredeployAddresses.L2_CROSS_DOMAIN_MESSENGER;
+        bytes memory message = hex"1111";
+
+        vm.expectRevert(
+            "CrossDomainMessenger: Value must be zero unless message is from a system address."
+        );
+        L1Messenger.relayMessage{ value: 100 }(0, sender, target, 0, 0, message);
     }
 
     // relayMessage: the xDomainMessageSender is reset to the original value
