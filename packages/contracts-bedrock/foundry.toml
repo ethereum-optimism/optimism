@@ -20,4 +20,4 @@ ffi = true
 fuzz_runs = 16
 
 [ci]
-fuzz_runs = 256
+fuzz_runs = 512
