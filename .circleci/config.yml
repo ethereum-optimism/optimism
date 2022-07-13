@@ -419,6 +419,9 @@ jobs:
     environment:
       DOCKER_BUILDKIT: 1
     steps:
+      - run:
+          name: temporary pause
+          command: circleci step halt
       - checkout
       - run:
           name: Check if we should run
