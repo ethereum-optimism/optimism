@@ -233,7 +233,7 @@ jobs:
         uses: docker/build-push-action@v2
         with:
           context: ./ops/docker/ci-builder
-          file: Dockerfile
+          file: ./ops/docker/ci-builder/Dockerfile
           push: true
           tags: ethereumoptimism/ci-builder:${{ needs.release.outputs.ci-builder }},ethereumoptimism/ci-builder:latest
 
