@@ -186,9 +186,6 @@ abstract contract CrossDomainMessenger is
      * @return Amount of gas required to guarantee message receipt.
      */
     function baseGas(bytes memory _message) public pure returns (uint32) {
-        // TODO: Values here are meant to be good enough to get a devnet running. We need to do
-        // some simple experimentation with the smallest and largest possible message sizes to find
-        // the correct constant and dynamic overhead values.
         return (uint32(_message.length) * MIN_GAS_DYNAMIC_OVERHEAD) + MIN_GAS_CONSTANT_OVERHEAD;
     }
 
@@ -273,7 +270,6 @@ abstract contract CrossDomainMessenger is
 
         require(successfulMessages[versionedHash] == false, "Message has already been relayed.");
 
-        // TODO: Make sure this will always give us enough gas.
         require(
             gasleft() >= _minGasLimit + RELAY_GAS_REQUIRED,
             "Insufficient gas to relay message."
