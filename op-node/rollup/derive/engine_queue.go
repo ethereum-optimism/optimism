@@ -2,6 +2,7 @@ package derive
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"time"
 
@@ -272,6 +273,10 @@ func (eq *EngineQueue) ResetStep(ctx context.Context, l1Fetcher L1Fetcher) error
 	if err != nil {
 		eq.log.Error("failed to fetch the new L1 progress", "err", err, "origin", safe.L1Origin)
 		return nil
+	}
+	if safe.Time < l1Origin.Time {
+		return fmt.Errorf("cannot reset block derivation to start at L2 block %s with time %d older than its L1 origin %s with time %d, time invariant is broken",
+			safe, safe.Time, l1Origin, l1Origin.Time)
 	}
 	eq.unsafeHead = unsafe
 	eq.safeHead = safe
