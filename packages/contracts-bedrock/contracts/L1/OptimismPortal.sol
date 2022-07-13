@@ -143,7 +143,6 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
     ) public payable metered(_gasLimit) {
         // Just to be safe, make sure that people specify address(0) as the target when doing
         // contract creations.
-        // TODO: Do we really need this? Prevents some user error, but adds gas.
         if (_isCreation) {
             require(
                 _to == address(0),
