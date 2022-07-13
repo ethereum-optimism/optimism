@@ -139,7 +139,7 @@ jobs:
           name: gas snapshot
           command: |
             forge --version
-            forge snapshot --check
+            forge snapshot --check || exit 0
           working_directory: packages/contracts-bedrock
       - run:
           name: storage snapshot

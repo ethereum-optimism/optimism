@@ -64,14 +64,24 @@ abstract contract CrossDomainMessenger is
     uint16 public constant MESSAGE_VERSION = 1;
 
     /**
-     * @notice Dynamic overhead applied to the base gas for a message.
-     */
-    uint32 public constant MIN_GAS_DYNAMIC_OVERHEAD = 1;
-
-    /**
      * @notice Constant overhead added to the base gas for a message.
      */
-    uint32 public constant MIN_GAS_CONSTANT_OVERHEAD = 100_000;
+    uint32 public constant MIN_GAS_CONSTANT_OVERHEAD = 200_000;
+
+    /**
+     * @notice Numerator for dynamic overhead added to the base gas for a message.
+     */
+    uint32 public constant MIN_GAS_DYNAMIC_OVERHEAD_NUMERATOR = 1016;
+
+    /**
+     * @notice Denominator for dynamic overhead added to the base gas for a message.
+     */
+    uint32 public constant MIN_GAS_DYNAMIC_OVERHEAD_DENOMINATOR = 1000;
+
+    /**
+     * @notice Extra gas added to base gas for each byte of calldata in a message.
+     */
+    uint32 public constant MIN_GAS_CALLDATA_OVERHEAD = 16;
 
     /**
      * @notice Minimum amount of gas required to relay a message.
@@ -181,15 +191,20 @@ abstract contract CrossDomainMessenger is
      *         will not run out of gas is important because this ensures that a message can always
      *         be replayed on the other chain if it fails to execute completely.
      *
-     * @param _message Message to compute the amount of required gas for.
+     * @param _message     Message to compute the amount of required gas for.
+     * @param _minGasLimit Minimum desired gas limit when message goes to target.
      *
      * @return Amount of gas required to guarantee message receipt.
      */
-    function baseGas(bytes memory _message) public pure returns (uint32) {
-        // TODO: Values here are meant to be good enough to get a devnet running. We need to do
-        // some simple experimentation with the smallest and largest possible message sizes to find
-        // the correct constant and dynamic overhead values.
-        return (uint32(_message.length) * MIN_GAS_DYNAMIC_OVERHEAD) + MIN_GAS_CONSTANT_OVERHEAD;
+    function baseGas(bytes memory _message, uint32 _minGasLimit) public pure returns (uint32) {
+        return
+            // Dynamic overhead
+            ((_minGasLimit * MIN_GAS_DYNAMIC_OVERHEAD_NUMERATOR) /
+                MIN_GAS_DYNAMIC_OVERHEAD_DENOMINATOR) +
+            // Calldata overhead
+            (uint32(_message.length) * MIN_GAS_CALLDATA_OVERHEAD) +
+            // Constant overhead
+            MIN_GAS_CONSTANT_OVERHEAD;
     }
 
     /**
@@ -210,7 +225,7 @@ abstract contract CrossDomainMessenger is
         // the minimum gas limit specified by the user.
         _sendMessage(
             otherMessenger,
-            _minGasLimit + baseGas(_message),
+            baseGas(_message, _minGasLimit),
             msg.value,
             abi.encodeWithSelector(
                 this.relayMessage.selector,
@@ -259,17 +274,17 @@ abstract contract CrossDomainMessenger is
             _message
         );
 
-        if (_isSystemMessageSender()) {
+        if (_isOtherMessenger()) {
             // Should never happen.
             require(msg.value == _value, "Mismatched message value.");
         } else {
-            // TODO(tynes): could require that msg.value == 0 here
-            // to prevent eth from getting stuck
+            require(
+                msg.value == 0,
+                "CrossDomainMessenger: Value must be zero unless message is from a system address."
+            );
             require(receivedMessages[versionedHash], "Message cannot be replayed.");
         }
 
-        // TODO: Should blocking happen on sending or receiving side?
-        // TODO: Should this just return with an event instead of reverting?
         require(
             blockedSystemAddresses[_target] == false,
             "Cannot send message to blocked system address."
@@ -277,7 +292,6 @@ abstract contract CrossDomainMessenger is
 
         require(successfulMessages[versionedHash] == false, "Message has already been relayed.");
 
-        // TODO: Make sure this will always give us enough gas.
         require(
             gasleft() >= _minGasLimit + RELAY_GAS_REQUIRED,
             "Insufficient gas to relay message."
@@ -313,6 +327,7 @@ abstract contract CrossDomainMessenger is
      *                                detailed information about what this block list can and
      *                                cannot be used for.
      */
+    // solhint-disable-next-line func-name-mixedcase
     function __CrossDomainMessenger_init(
         address _otherMessenger,
         address[] memory _blockedSystemAddresses
@@ -334,7 +349,7 @@ abstract contract CrossDomainMessenger is
      *         contracts because the logic for this depends on the network where the messenger is
      *         being deployed.
      */
-    function _isSystemMessageSender() internal view virtual returns (bool);
+    function _isOtherMessenger() internal view virtual returns (bool);
 
     /**
      * @notice Sends a low-level message to the other messenger. Needs to be implemented by child

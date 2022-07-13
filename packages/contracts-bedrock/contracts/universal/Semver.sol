@@ -9,16 +9,19 @@ contract Semver {
     /**
      * @notice Contract version number (major).
      */
+    // solhint-disable-next-line var-name-mixedcase
     uint256 public immutable MAJOR_VERSION;
 
     /**
      * @notice Contract version number (minor).
      */
+    // solhint-disable-next-line var-name-mixedcase
     uint256 public immutable MINOR_VERSION;
 
     /**
      * @notice Contract version number (patch).
      */
+    // solhint-disable-next-line var-name-mixedcase
     uint256 public immutable PATCH_VERSION;
 
     /**

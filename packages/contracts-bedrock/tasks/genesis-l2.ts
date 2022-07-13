@@ -52,6 +52,7 @@ task('genesis-l2', 'create a genesis config')
     'The file to write the output JSON to',
     'genesis.json'
   )
+  .addOptionalParam('l1RpcUrl', 'The L1 RPC URL', 'http://127.0.0.1:8545')
   .setAction(async (args, hre) => {
     const {
       computeStorageSlots,
@@ -59,6 +60,8 @@ task('genesis-l2', 'create a genesis config')
     } = require('@defi-wonderland/smock/dist/src/utils')
 
     const { deployConfig } = hre
+
+    const l1 = new ethers.providers.StaticJsonRpcProvider(args.l1RpcUrl)
 
     // Use the addresses of the proxies here instead of the implementations
     // Be backwards compatible
@@ -256,6 +259,9 @@ task('genesis-l2', 'create a genesis config')
       }
     }
 
+    const portal = await hre.deployments.get('OptimismPortalProxy')
+    const l1StartingBlock = await l1.getBlock(portal.receipt.blockHash)
+
     const genesis: OptimismGenesis = {
       config: {
         chainId: deployConfig.genesisBlockChainid,
@@ -279,9 +285,7 @@ task('genesis-l2', 'create a genesis config')
       },
       nonce: '0x1234',
       difficulty: '0x1',
-      timestamp: ethers.BigNumber.from(
-        deployConfig.startingTimestamp
-      ).toHexString(),
+      timestamp: ethers.BigNumber.from(l1StartingBlock.timestamp).toHexString(),
       gasLimit: deployConfig.genesisBlockGasLimit,
       extraData: deployConfig.genesisBlockExtradata,
       optimism: {

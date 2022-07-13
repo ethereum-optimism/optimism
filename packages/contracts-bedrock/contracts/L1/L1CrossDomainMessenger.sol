@@ -46,7 +46,7 @@ contract L1CrossDomainMessenger is CrossDomainMessenger, Semver {
      *
      * @return True if the message was sent from the messenger, false otherwise.
      */
-    function _isSystemMessageSender() internal view override returns (bool) {
+    function _isOtherMessenger() internal view override returns (bool) {
         return msg.sender == address(portal) && portal.l2Sender() == otherMessenger;
     }
 

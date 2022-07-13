@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.10;
 
+import { Initializable } from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
 import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 import { SignedMath } from "@openzeppelin/contracts/utils/math/SignedMath.sol";
 import { FixedPointMathLib } from "@rari-capital/solmate/src/utils/FixedPointMathLib.sol";
@@ -11,7 +12,7 @@ import { Burn } from "../libraries/Burn.sol";
  * @notice ResourceMetering implements an EIP-1559 style resource metering system where pricing
  *         updates automatically based on current demand.
  */
-contract ResourceMetering {
+abstract contract ResourceMetering is Initializable {
     /**
      * @notice Represents the various parameters that control the way in which resources are
      *         metered. Corresponds to the EIP-1559 resource metering system.
@@ -63,18 +64,11 @@ contract ResourceMetering {
     uint256[49] private __gap;
 
     /**
-     * @notice Set the initial values. In order to enable this contract to be used in an upgradable
-     *         context, the constructor calls a separate init function.
-     */
-    constructor() {
-        __ResourceMetering_init();
-    }
-
-    /**
      * @notice Sets initial resource parameter values. This function must either be called by the
      *         initializer function of an upgradeable child contract.
      */
-    function __ResourceMetering_init() internal {
+    // solhint-disable-next-line func-name-mixedcase
+    function __ResourceMetering_init() internal onlyInitializing {
         params = ResourceParams({
             prevBaseFee: INITIAL_BASE_FEE,
             prevBoughtGas: 0,

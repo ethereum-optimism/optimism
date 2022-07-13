@@ -165,7 +165,7 @@ func TestL2OutputSubmitter(t *testing.T) {
 
 	l1Client := sys.Clients["l1"]
 
-	rollupRPCClient, err := rpc.DialContext(context.Background(), fmt.Sprintf("http://%s:%d", cfg.Nodes["sequencer"].RPC.ListenAddr, cfg.Nodes["sequencer"].RPC.ListenPort))
+	rollupRPCClient, err := rpc.DialContext(context.Background(), cfg.Nodes["sequencer"].RPC.HttpEndpoint())
 	require.Nil(t, err)
 	rollupClient := rollupclient.NewRollupClient(rollupRPCClient)
 
@@ -326,6 +326,18 @@ func TestSystemE2E(t *testing.T) {
 	require.Equal(t, verifBlock.NumberU64(), seqBlock.NumberU64(), "Verifier and sequencer blocks not the same after including a batch tx")
 	require.Equal(t, verifBlock.ParentHash(), seqBlock.ParentHash(), "Verifier and sequencer blocks parent hashes not the same after including a batch tx")
 	require.Equal(t, verifBlock.Hash(), seqBlock.Hash(), "Verifier and sequencer blocks not the same after including a batch tx")
+
+	rollupRPCClient, err := rpc.DialContext(context.Background(), cfg.Nodes["sequencer"].RPC.HttpEndpoint())
+	require.Nil(t, err)
+	rollupClient := rollupclient.NewRollupClient(rollupRPCClient)
+	// basic check that sync status works
+	seqStatus, err := rollupClient.SyncStatus(context.Background())
+	require.Nil(t, err)
+	require.LessOrEqual(t, seqBlock.NumberU64(), seqStatus.UnsafeL2.Number)
+	// basic check that version endpoint works
+	seqVersion, err := rollupClient.Version(context.Background())
+	require.Nil(t, err)
+	require.NotEqual(t, "", seqVersion)
 }
 
 // TestConfirmationDepth runs the rollup with both sequencer and verifier not immediately processing the tip of the chain.
