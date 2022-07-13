@@ -2,7 +2,7 @@
 pragma solidity 0.8.10;
 
 /* Testing utilities */
-import { Messenger_Initializer } from "./CommonTest.t.sol";
+import { Messenger_Initializer, Reverter } from "./CommonTest.t.sol";
 import { L2OutputOracle_Initializer } from "./L2OutputOracle.t.sol";
 
 /* Libraries */
@@ -214,5 +214,56 @@ contract L1CrossDomainMessenger_Test is Messenger_Initializer {
 
         vm.expectRevert("Pausable: paused");
         L1Messenger.relayMessage(0, address(0), address(0), 0, 0, hex"");
+    }
+
+    // relayMessage: should send a successful call to the target contract after the first message
+    // fails and ETH gets stuck, but the second message succeeds
+    function test_L1MessengerRelayMessageFirstStuckSecondSucceeds() external {
+        address target = address(0xabcd);
+        address sender = PredeployAddresses.L2_CROSS_DOMAIN_MESSENGER;
+        uint256 value = 100;
+
+        vm.expectCall(target, hex"1111");
+
+        bytes32 hash = Hashing.hashCrossDomainMessage(0, sender, target, value, 0, hex"1111");
+
+        uint256 senderSlotIndex = 51;
+        vm.store(address(op), bytes32(senderSlotIndex), bytes32(abi.encode(sender)));
+        vm.etch(target, address(new Reverter()).code);
+        vm.deal(address(op), value);
+        vm.prank(address(op));
+        L1Messenger.relayMessage{value: value}(
+            0, // nonce
+            sender,
+            target,
+            value,
+            0,
+            hex"1111"
+        );
+
+        assertEq(address(L1Messenger).balance, value);
+        assertEq(address(target).balance, 0);
+        assertEq(L1Messenger.successfulMessages(hash), false);
+        assertEq(L1Messenger.receivedMessages(hash), true);
+
+        vm.expectEmit(true, true, true, true);
+
+        emit RelayedMessage(hash);
+
+        vm.etch(target, address(0).code);
+        vm.prank(address(sender));
+        L1Messenger.relayMessage(
+            0, // nonce
+            sender,
+            target,
+            value,
+            0,
+            hex"1111"
+        );
+
+        assertEq(address(L1Messenger).balance, 0);
+        assertEq(address(target).balance, value);
+        assertEq(L1Messenger.successfulMessages(hash), true);
+        assertEq(L1Messenger.receivedMessages(hash), true);
     }
 }

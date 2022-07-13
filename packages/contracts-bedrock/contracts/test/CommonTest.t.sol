@@ -413,3 +413,9 @@ contract NextImpl is Initializable {
         slot21 = slot21Init;
     }
 }
+
+contract Reverter {
+    fallback() external {
+        revert();
+    }
+}
