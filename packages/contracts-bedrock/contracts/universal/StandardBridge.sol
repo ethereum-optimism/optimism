@@ -130,7 +130,10 @@ abstract contract StandardBridge is Initializable {
      *         just trying to prevent users accidentally depositing with smart contract wallets.
      */
     modifier onlyEOA() {
-        require(!Address.isContract(msg.sender), "Account not EOA");
+        require(
+            !Address.isContract(msg.sender),
+            "StandardBridge: function can only be called from an EOA"
+        );
         _;
     }
 
@@ -141,7 +144,7 @@ abstract contract StandardBridge is Initializable {
         require(
             msg.sender == address(messenger) &&
                 messenger.xDomainMessageSender() == address(otherBridge),
-            "Could not authenticate bridge message."
+            "StandardBridge: function can only be called from the other bridge"
         );
         _;
     }
@@ -150,7 +153,7 @@ abstract contract StandardBridge is Initializable {
      * @notice Ensures that the caller is this contract.
      */
     modifier onlySelf() {
-        require(msg.sender == address(this), "Function can only be called by self.");
+        require(msg.sender == address(this), "StandardBridge: function can only be called by self");
         _;
     }
 
@@ -277,12 +280,12 @@ abstract contract StandardBridge is Initializable {
         uint256 _amount,
         bytes calldata _extraData
     ) public payable onlyOtherBridge {
-        require(msg.value == _amount, "Amount sent does not match amount required.");
-        require(_to != address(this), "Cannot send to self.");
+        require(msg.value == _amount, "StandardBridge: amount sent does not match amount required");
+        require(_to != address(this), "StandardBridge: cannot send to self");
 
         emit ETHBridgeFinalized(_from, _to, _amount, _extraData);
         (bool success, ) = _to.call{ value: _amount }(new bytes(0));
-        require(success, "ETH transfer failed.");
+        require(success, "StandardBridge: ETH transfer failed");
     }
 
     /**
@@ -348,12 +351,12 @@ abstract contract StandardBridge is Initializable {
     ) public onlySelf {
         // Make sure external function calls can't be used to trigger calls to
         // completeOutboundTransfer. We only make external (write) calls to _localToken.
-        require(_localToken != address(this), "Local token cannot be self");
+        require(_localToken != address(this), "StandardBridge: local token cannot be self");
 
         if (_isOptimismMintableERC20(_localToken)) {
             require(
                 _isCorrectTokenPair(_localToken, _remoteToken),
-                "Wrong remote token for Optimism Mintable ERC20 local token"
+                "StandardBridge: wrong remote token for Optimism Mintable ERC20 local token"
             );
 
             OptimismMintableERC20(_localToken).mint(_to, _amount);
@@ -434,12 +437,12 @@ abstract contract StandardBridge is Initializable {
     ) internal {
         // Make sure external function calls can't be used to trigger calls to
         // completeOutboundTransfer. We only make external (write) calls to _localToken.
-        require(_localToken != address(this), "Local token cannot be self");
+        require(_localToken != address(this), "StandardBridge: local token cannot be self");
 
         if (_isOptimismMintableERC20(_localToken)) {
             require(
                 _isCorrectTokenPair(_localToken, _remoteToken),
-                "Wrong remote token for Optimism Mintable ERC20 local token"
+                "StandardBridge: wrong remote token for Optimism Mintable ERC20 local token"
             );
 
             OptimismMintableERC20(_localToken).burn(_from, _amount);

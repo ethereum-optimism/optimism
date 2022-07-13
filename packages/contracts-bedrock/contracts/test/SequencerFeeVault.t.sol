@@ -61,7 +61,7 @@ contract SequencerFeeVault_Test is Bridge_Initializer {
         assert(address(vault).balance < vault.MIN_WITHDRAWAL_AMOUNT());
 
         vm.expectRevert(
-            "OVM_SequencerFeeVault: withdrawal amount must be greater than minimum withdrawal amount"
+            "SequencerFeeVault: withdrawal amount must be greater than minimum withdrawal amount"
         );
         vault.withdraw();
     }

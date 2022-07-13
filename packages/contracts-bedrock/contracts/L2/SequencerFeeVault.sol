@@ -39,14 +39,11 @@ contract SequencerFeeVault is Semver {
     function withdraw() external {
         require(
             address(this).balance >= MIN_WITHDRAWAL_AMOUNT,
-            // solhint-disable-next-line max-line-length
-            "OVM_SequencerFeeVault: withdrawal amount must be greater than minimum withdrawal amount"
+            "SequencerFeeVault: withdrawal amount must be greater than minimum withdrawal amount"
         );
 
-        uint256 balance = address(this).balance;
-
         L2StandardBridge(payable(PredeployAddresses.L2_STANDARD_BRIDGE)).withdrawTo{
-            value: balance
-        }(PredeployAddresses.LEGACY_ERC20_ETH, l1FeeWallet, balance, 0, bytes(""));
+            value: address(this).balance
+        }(PredeployAddresses.LEGACY_ERC20_ETH, l1FeeWallet, address(this).balance, 0, bytes(""));
     }
 }

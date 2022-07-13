@@ -50,7 +50,7 @@ contract L2StandardBridge_Test is Bridge_Initializer {
     function test_cannotWithdrawEthWithoutSendingIt() external {
         assertEq(address(messagePasser).balance, 0);
 
-        vm.expectRevert("ETH withdrawals must include sufficient ETH value.");
+        vm.expectRevert("L2StandardBridge: ETH withdrawals must include sufficient ETH value");
         vm.prank(alice, alice);
         L2Bridge.withdraw(
             address(PredeployAddresses.LEGACY_ERC20_ETH),
@@ -86,7 +86,7 @@ contract L2StandardBridge_Test is Bridge_Initializer {
         // This contract has 100 L2Token
         deal(address(L2Token), address(this), 100, true);
 
-        vm.expectRevert("Account not EOA");
+        vm.expectRevert("StandardBridge: function can only be called from an EOA");
         L2Bridge.withdraw(
             address(L2Token),
             100,
