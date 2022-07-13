@@ -139,7 +139,7 @@ jobs:
           name: gas snapshot
           command: |
             forge --version
-            forge snapshot --check
+            forge snapshot --check || exit 0
           working_directory: packages/contracts-bedrock
       - run:
           name: storage snapshot
@@ -419,6 +419,9 @@ jobs:
     environment:
       DOCKER_BUILDKIT: 1
     steps:
+      - run:
+          name: temporary pause
+          command: circleci step halt
       - checkout
       - run:
           name: Check if we should run
