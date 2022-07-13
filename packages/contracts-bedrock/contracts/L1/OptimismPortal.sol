@@ -56,11 +56,13 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
     /**
      * @notice Minimum time (in seconds) that must elapse before a withdrawal can be finalized.
      */
+    // solhint-disable-next-line var-name-mixedcase
     uint256 public immutable FINALIZATION_PERIOD_SECONDS;
 
     /**
      * @notice Address of the L2OutputOracle.
      */
+    // solhint-disable-next-line var-name-mixedcase
     L2OutputOracle public immutable L2_ORACLE;
 
     /**
