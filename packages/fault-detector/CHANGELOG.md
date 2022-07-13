@@ -1,5 +1,11 @@
 # @eth-optimism/fault-detector
 
+## 0.2.5
+
+### Patch Changes
+
+- 98206b7e: Properly handle connection failures for L2 node
+
 ## 0.2.4
 
 ### Patch Changes
