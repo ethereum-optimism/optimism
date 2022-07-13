@@ -334,12 +334,12 @@ contract OptimismPortalUpgradeable_Test is Portal_Initializer {
 
     function test_cannotInitProxy() external {
         vm.expectRevert("Initializable: contract is already initialized");
-        address(proxy).call(abi.encodeWithSelector(OptimismPortal.initialize.selector));
+        OptimismPortal(payable(proxy)).initialize();
     }
 
     function test_cannotInitImpl() external {
         vm.expectRevert("Initializable: contract is already initialized");
-        address(opImpl).call(abi.encodeWithSelector(OptimismPortal.initialize.selector));
+        OptimismPortal(opImpl).initialize();
     }
 
     function test_upgrading() external {
