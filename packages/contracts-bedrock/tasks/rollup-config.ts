@@ -21,6 +21,7 @@ task('rollup-config', 'create a genesis config')
     const l2Genesis = await l2.getBlock('earliest')
 
     const portal = await hre.deployments.get('OptimismPortalProxy')
+    const l1StartingBlock = await l1.getBlock(portal.receipt.blockHash)
 
     const config: OpNodeConfig = {
       genesis: {
@@ -32,7 +33,7 @@ task('rollup-config', 'create a genesis config')
           hash: l2Genesis.hash,
           number: 0,
         },
-        l2_time: deployConfig.startingTimestamp,
+        l2_time: l1StartingBlock.timestamp,
       },
       block_time: deployConfig.l2BlockTime,
       max_sequencer_drift: deployConfig.maxSequencerDrift,

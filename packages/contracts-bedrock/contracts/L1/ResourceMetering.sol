@@ -67,6 +67,7 @@ abstract contract ResourceMetering is Initializable {
      * @notice Sets initial resource parameter values. This function must either be called by the
      *         initializer function of an upgradeable child contract.
      */
+    // solhint-disable-next-line func-name-mixedcase
     function __ResourceMetering_init() internal onlyInitializing {
         params = ResourceParams({
             prevBaseFee: INITIAL_BASE_FEE,
