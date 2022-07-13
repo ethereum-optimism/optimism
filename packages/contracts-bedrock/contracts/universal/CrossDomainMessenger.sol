@@ -263,13 +263,9 @@ abstract contract CrossDomainMessenger is
             // Should never happen.
             require(msg.value == _value, "Mismatched message value.");
         } else {
-            // TODO(tynes): could require that msg.value == 0 here
-            // to prevent eth from getting stuck
             require(receivedMessages[versionedHash], "Message cannot be replayed.");
         }
 
-        // TODO: Should blocking happen on sending or receiving side?
-        // TODO: Should this just return with an event instead of reverting?
         require(
             blockedSystemAddresses[_target] == false,
             "Cannot send message to blocked system address."
