@@ -9,7 +9,13 @@
 echoerr() { echo "$@" 1>&2; }
 
 # Check if this is a CircleCI PR.
-if [[ -n $CIRCLE_PULL_REQUEST ]]; then
+if [[ -z ${CIRCLE_PULL_REQUEST+x} ]]; then
+	# CIRCLE_PULL_REQUEST is unbound here
+	# Non-PR builds always require a rebuild.
+	echoerr "Not a PR build, requiring a total rebuild."
+	echo "TRUE"
+else
+	# CIRCLE_PULL_REQUEST is bound here
 	PACKAGE=$1
 	# Craft the URL to the GitHub API. The access token is optional for the monorepo since it's an open-source repo.
 	GITHUB_API_URL="https://api.github.com/repos/ethereum-optimism/optimism/pulls/${CIRCLE_PULL_REQUEST/https:\/\/github.com\/ethereum-optimism\/optimism\/pull\//}"
@@ -30,8 +36,4 @@ if [[ -n $CIRCLE_PULL_REQUEST ]]; then
  	# Compare HEAD to the PR's base ref, stripping out the change percentages that come with git diff --dirstat.
  	# Pass in the diff pattern to grep, and echo TRUE if there's a match. False otherwise.
  	(echo "$DIFF" | sed 's/^[ 0-9.]\+% //g' | grep -q -E "$PACKAGE" && echo "TRUE") || echo "FALSE"
-else
-	# Non-PR builds always require a rebuild.
-	echoerr "Not a PR build, requiring a total rebuild."
-	echo "TRUE"
 fi

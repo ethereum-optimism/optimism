@@ -59,7 +59,8 @@ contract L1StandardBridge_Test is Bridge_Initializer {
         );
 
         vm.prank(alice, alice);
-        address(L1Bridge).call{ value: 100 }(hex"");
+        (bool success,) = address(L1Bridge).call{ value: 100 }(hex"");
+        assertEq(success, true);
         assertEq(address(op).balance, 100);
     }
 

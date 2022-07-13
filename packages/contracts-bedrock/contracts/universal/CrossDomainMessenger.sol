@@ -64,14 +64,24 @@ abstract contract CrossDomainMessenger is
     uint16 public constant MESSAGE_VERSION = 1;
 
     /**
-     * @notice Dynamic overhead applied to the base gas for a message.
-     */
-    uint32 public constant MIN_GAS_DYNAMIC_OVERHEAD = 1;
-
-    /**
      * @notice Constant overhead added to the base gas for a message.
      */
-    uint32 public constant MIN_GAS_CONSTANT_OVERHEAD = 100_000;
+    uint32 public constant MIN_GAS_CONSTANT_OVERHEAD = 200_000;
+
+    /**
+     * @notice Numerator for dynamic overhead added to the base gas for a message.
+     */
+    uint32 public constant MIN_GAS_DYNAMIC_OVERHEAD_NUMERATOR = 1016;
+
+    /**
+     * @notice Denominator for dynamic overhead added to the base gas for a message.
+     */
+    uint32 public constant MIN_GAS_DYNAMIC_OVERHEAD_DENOMINATOR = 1000;
+
+    /**
+     * @notice Extra gas added to base gas for each byte of calldata in a message.
+     */
+    uint32 public constant MIN_GAS_CALLDATA_OVERHEAD = 16;
 
     /**
      * @notice Minimum amount of gas required to relay a message.
@@ -181,12 +191,20 @@ abstract contract CrossDomainMessenger is
      *         will not run out of gas is important because this ensures that a message can always
      *         be replayed on the other chain if it fails to execute completely.
      *
-     * @param _message Message to compute the amount of required gas for.
+     * @param _message     Message to compute the amount of required gas for.
+     * @param _minGasLimit Minimum desired gas limit when message goes to target.
      *
      * @return Amount of gas required to guarantee message receipt.
      */
-    function baseGas(bytes memory _message) public pure returns (uint32) {
-        return (uint32(_message.length) * MIN_GAS_DYNAMIC_OVERHEAD) + MIN_GAS_CONSTANT_OVERHEAD;
+    function baseGas(bytes memory _message, uint32 _minGasLimit) public pure returns (uint32) {
+        return
+            // Dynamic overhead
+            ((_minGasLimit * MIN_GAS_DYNAMIC_OVERHEAD_NUMERATOR) /
+                MIN_GAS_DYNAMIC_OVERHEAD_DENOMINATOR) +
+            // Calldata overhead
+            (uint32(_message.length) * MIN_GAS_CALLDATA_OVERHEAD) +
+            // Constant overhead
+            MIN_GAS_CONSTANT_OVERHEAD;
     }
 
     /**
@@ -207,7 +225,7 @@ abstract contract CrossDomainMessenger is
         // the minimum gas limit specified by the user.
         _sendMessage(
             otherMessenger,
-            _minGasLimit + baseGas(_message),
+            baseGas(_message, _minGasLimit),
             msg.value,
             abi.encodeWithSelector(
                 this.relayMessage.selector,
