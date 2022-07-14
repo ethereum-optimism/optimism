@@ -56,11 +56,13 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
     /**
      * @notice Minimum time (in seconds) that must elapse before a withdrawal can be finalized.
      */
+    // solhint-disable-next-line var-name-mixedcase
     uint256 public immutable FINALIZATION_PERIOD_SECONDS;
 
     /**
      * @notice Address of the L2OutputOracle.
      */
+    // solhint-disable-next-line var-name-mixedcase
     L2OutputOracle public immutable L2_ORACLE;
 
     /**
@@ -141,7 +143,6 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
     ) public payable metered(_gasLimit) {
         // Just to be safe, make sure that people specify address(0) as the target when doing
         // contract creations.
-        // TODO: Do we really need this? Prevents some user error, but adds gas.
         if (_isCreation) {
             require(
                 _to == address(0),
@@ -182,7 +183,7 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
             uint256 offset = (_l2BlockNumber - startingBlockNumber) % interval;
             // Look up the checkpoint block after it.
             proposal = L2_ORACLE.getL2Output(_l2BlockNumber + (interval - offset));
-            // False if that block is not yet appended.
+            // False if that block is not yet proposed.
             if (proposal.outputRoot == bytes32(uint256(0))) {
                 return false;
             }

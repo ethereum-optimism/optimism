@@ -168,7 +168,7 @@ library MerkleTrie {
             } else {
                 // Nodes smaller than 31 bytes aren't hashed.
                 require(
-                    BytesUtils.toBytes32(currentNode.encoded) == currentNodeID,
+                    bytes32(currentNode.encoded) == currentNodeID,
                     "Invalid internal node hash"
                 );
             }
@@ -273,7 +273,7 @@ library MerkleTrie {
             nodeID = RLPReader.readBytes(_node);
         }
 
-        return BytesUtils.toBytes32(nodeID);
+        return bytes32(nodeID);
     }
 
     /**

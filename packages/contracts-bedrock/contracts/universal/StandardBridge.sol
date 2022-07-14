@@ -368,6 +368,7 @@ abstract contract StandardBridge is Initializable {
      * @param _messenger   Address of CrossDomainMessenger on this network.
      * @param _otherBridge Address of the other StandardBridge contract.
      */
+    // solhint-disable-next-line func-name-mixedcase
     function __StandardBridge_init(address payable _messenger, address payable _otherBridge)
         internal
         onlyInitializing
@@ -442,7 +443,6 @@ abstract contract StandardBridge is Initializable {
 
             OptimismMintableERC20(_localToken).burn(_from, _amount);
         } else {
-            // TODO: Do we need to confirm that the transfer was successful?
             IERC20(_localToken).safeTransferFrom(_from, address(this), _amount);
             deposits[_localToken][_remoteToken] = deposits[_localToken][_remoteToken] + _amount;
         }

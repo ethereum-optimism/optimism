@@ -22,7 +22,7 @@ import { Initializable } from "@openzeppelin/contracts/proxy/utils/Initializable
 import { ResolvedDelegateProxy } from "../legacy/ResolvedDelegateProxy.sol";
 import { AddressManager } from "../legacy/AddressManager.sol";
 import { L1ChugSplashProxy } from "../legacy/L1ChugSplashProxy.sol";
-import { iL1ChugSplashDeployer } from "../legacy/L1ChugSplashProxy.sol";
+import { IL1ChugSplashDeployer } from "../legacy/L1ChugSplashProxy.sol";
 
 contract CommonTest is Test {
     address alice = address(128);
@@ -58,7 +58,7 @@ contract L2OutputOracle_Initializer is CommonTest {
     L2OutputOracle oracleImpl;
 
     // Constructor arguments
-    address sequencer = 0x000000000000000000000000000000000000AbBa;
+    address proposer = 0x000000000000000000000000000000000000AbBa;
     address owner = 0x000000000000000000000000000000000000ACDC;
     uint256 submissionInterval = 1800;
     uint256 l2BlockTime = 2;
@@ -70,8 +70,8 @@ contract L2OutputOracle_Initializer is CommonTest {
     // Test data
     uint256 initL1Time;
 
-    // Advance the evm's time to meet the L2OutputOracle's requirements for appendL2Output
-    function warpToAppendTime(uint256 _nextBlockNumber) public {
+    // Advance the evm's time to meet the L2OutputOracle's requirements for proposeL2Output
+    function warpToProposeTime(uint256 _nextBlockNumber) public {
         vm.warp(oracle.computeL2Timestamp(_nextBlockNumber) + 1);
     }
 
@@ -83,7 +83,7 @@ contract L2OutputOracle_Initializer is CommonTest {
         initL1Time = startingTimestamp + 1;
         vm.warp(initL1Time);
         vm.roll(startingBlockNumber);
-        // Deploy the L2OutputOracle and transfer owernship to the sequencer
+        // Deploy the L2OutputOracle and transfer owernship to the proposer
         oracleImpl = new L2OutputOracle(
             submissionInterval,
             genesisL2Output,
@@ -91,7 +91,7 @@ contract L2OutputOracle_Initializer is CommonTest {
             startingBlockNumber,
             startingTimestamp,
             l2BlockTime,
-            sequencer,
+            proposer,
             owner
         );
         Proxy proxy = new Proxy(multisig);
@@ -102,7 +102,7 @@ contract L2OutputOracle_Initializer is CommonTest {
                 L2OutputOracle.initialize.selector,
                 genesisL2Output,
                 startingBlockNumber,
-                sequencer,
+                proposer,
                 owner
             )
         );
@@ -341,7 +341,7 @@ contract Bridge_Initializer is Messenger_Initializer {
         L1ChugSplashProxy proxy = new L1ChugSplashProxy(multisig);
         vm.mockCall(
             multisig,
-            abi.encodeWithSelector(iL1ChugSplashDeployer.isUpgrading.selector),
+            abi.encodeWithSelector(IL1ChugSplashDeployer.isUpgrading.selector),
             abi.encode(true)
         );
         vm.startPrank(multisig);

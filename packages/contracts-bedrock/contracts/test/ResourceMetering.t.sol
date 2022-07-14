@@ -92,12 +92,12 @@ contract ResourceMetering_Test is CommonTest {
         uint64 elasticity = uint64(uint256(meter.ELASTICITY_MULTIPLIER()));
         meter.use(target * elasticity);
 
-        (uint128 prevBaseFee, uint64 prevBoughtGas, uint64 prevBlockNum) = meter.params();
+        (, uint64 prevBoughtGas, ) = meter.params();
         assertEq(prevBoughtGas, target * elasticity);
 
         vm.roll(initialBlockNum + 1);
         meter.use(0);
-        (uint128 postBaseFee, uint64 postBoughtGas, uint64 postBlockNum) = meter.params();
+        (uint128 postBaseFee,,) = meter.params();
         // Base fee increases by 1/8 the difference
         assertEq(postBaseFee, 1375000000);
     }
