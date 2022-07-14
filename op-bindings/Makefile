@@ -38,5 +38,9 @@ address-manager-bindings:
 mkdir:
 	mkdir -p bin bindings
 
+contracts:
+	cd ../packages/contracts-bedrock
+	forge build
+
 clean:
 	rm -rf bin bindings
