@@ -2,7 +2,7 @@
 pragma solidity 0.8.10;
 
 /* Testing utilities */
-import { Messenger_Initializer, Reverter } from "./CommonTest.t.sol";
+import { Messenger_Initializer, Reverter, CallerCaller } from "./CommonTest.t.sol";
 import { L2OutputOracle_Initializer } from "./L2OutputOracle.t.sol";
 
 /* Libraries */
@@ -264,6 +264,45 @@ contract L1CrossDomainMessenger_Test is Messenger_Initializer {
         assertEq(address(L1Messenger).balance, 0);
         assertEq(address(target).balance, value);
         assertEq(L1Messenger.successfulMessages(hash), true);
+        assertEq(L1Messenger.receivedMessages(hash), true);
+    }
+
+    // relayMessage: should revert if recipient is trying to reenter
+    function test_L1MessengerRelayMessageRevertsOnReentrancy() external {
+        address target = address(0xabcd);
+        address sender = PredeployAddresses.L2_CROSS_DOMAIN_MESSENGER;
+        bytes memory message = abi.encodeWithSelector(
+            L1Messenger.relayMessage.selector,
+            0,
+            sender,
+            target,
+            0,
+            0,
+            hex"1111"
+        );
+
+        bytes32 hash = Hashing.hashCrossDomainMessage(0, sender, target, 0, 0, message);
+
+        uint256 senderSlotIndex = 51;
+        vm.store(address(op), bytes32(senderSlotIndex), bytes32(abi.encode(sender)));
+        vm.etch(target, address(new CallerCaller()).code);
+
+        vm.expectEmit(true, true, true, true, target);
+
+        emit WhatHappened(false, abi.encodeWithSignature("Error(string)", "ReentrancyGuard: reentrant call"));
+
+        vm.prank(address(op));
+        vm.expectCall(target, message);
+        L1Messenger.relayMessage(
+            0, // nonce
+            sender,
+            target,
+            0, // value
+            0,
+            message
+        );
+
+        assertEq(L1Messenger.successfulMessages(hash), false);
         assertEq(L1Messenger.receivedMessages(hash), true);
     }
 }
