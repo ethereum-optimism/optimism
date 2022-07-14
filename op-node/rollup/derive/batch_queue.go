@@ -91,11 +91,12 @@ func (bq *BatchQueue) Step(ctx context.Context, outer Progress) error {
 func (bq *BatchQueue) ResetStep(ctx context.Context, l1Fetcher L1Fetcher) error {
 	// Copy over the Origin the from the next stage
 	// It is set in the engine queue (two stages away) such that the L2 Safe Head origin is the progress
+	bq.progress = bq.next.Progress()
 	bq.batchesByTimestamp = make(map[uint64][]*BatchWithL1InclusionBlock)
+	// Include the new origin as an origin to build off of.
 	bq.l1Blocks = bq.l1Blocks[:0]
+	bq.l1Blocks = append(bq.l1Blocks, bq.progress.Origin)
 
-	bq.progress.Origin = bq.next.Progress().Origin
-	bq.progress.Closed = false
 	return io.EOF
 }
 
