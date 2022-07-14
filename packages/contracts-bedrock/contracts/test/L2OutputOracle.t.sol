@@ -54,10 +54,18 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
         assertEq(proposal.outputRoot, proposedOutput1);
         assertEq(proposal.timestamp, block.timestamp);
 
-        vm.expectRevert("OutputOracle: No output found for that block number.");
-        L2OutputOracle.OutputProposal memory proposal2 = oracle.getL2Output(0);
-        assertEq(proposal2.outputRoot, bytes32(0));
-        assertEq(proposal2.timestamp, 0);
+        // Handles a block number that is between checkpoints:
+        proposal = oracle.getL2Output(nextBlockNumber - 1);
+        assertEq(proposal.outputRoot, proposedOutput1);
+        assertEq(proposal.timestamp, block.timestamp);
+
+        // The block number is too low:
+        vm.expectRevert("L2OutputOracle: block number cannot be less than the starting block number.");
+        proposal = oracle.getL2Output(0);
+
+        // The block number is larger than the latest proposed output:
+        vm.expectRevert("L2OutputOracle: No output found for that block number.");
+        proposal = oracle.getL2Output(nextBlockNumber + 1);
     }
 
     // Test: nextBlockNumber() should return the correct value

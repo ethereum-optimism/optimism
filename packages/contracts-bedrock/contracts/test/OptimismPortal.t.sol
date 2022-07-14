@@ -260,10 +260,10 @@ contract OptimismPortal_Test is Portal_Initializer {
         );
 
         vm.expectRevert("OptimismPortal: invalid output root proof");
-        op.finalizeWithdrawalTransaction(0, alice, alice, 0, 0, hex"", startingBlockNumber, outputRootProof, hex"");
+        op.finalizeWithdrawalTransaction(0, alice, alice, 0, 0, hex"", 0, outputRootProof, hex"");
     }
 
-    function test_simple_isOutputFinalized() external {
+    function test_simple_isBlockFinalized() external {
         vm.mockCall(
             address(op.L2_ORACLE()),
             abi.encodeWithSelector(
@@ -279,13 +279,13 @@ contract OptimismPortal_Test is Portal_Initializer {
 
         // warp to the finalization period
         vm.warp(startingBlockNumber + op.FINALIZATION_PERIOD_SECONDS());
-        assertEq(op.isOutputFinalized(startingBlockNumber), false);
+        assertEq(op.isBlockFinalized(startingBlockNumber), false);
         // warp past the finalization period
         vm.warp(startingBlockNumber + op.FINALIZATION_PERIOD_SECONDS() + 1);
-        assertEq(op.isOutputFinalized(startingBlockNumber), true);
+        assertEq(op.isBlockFinalized(startingBlockNumber), true);
     }
 
-    function test_isOutputFinalized() external {
+    function test_isBlockFinalized() external {
         uint256 checkpoint = oracle.nextBlockNumber();
         vm.roll(checkpoint);
         vm.warp(oracle.computeL2Timestamp(checkpoint) + 1);
@@ -296,21 +296,23 @@ contract OptimismPortal_Test is Portal_Initializer {
         uint256 finalizationHorizon = block.timestamp + op.FINALIZATION_PERIOD_SECONDS();
         vm.warp(finalizationHorizon);
         // The checkpointed block should not be finalized until 1 second from now.
-        assertEq(op.isOutputFinalized(checkpoint), false);
+        assertEq(op.isBlockFinalized(checkpoint), false);
         // Nor should a block after it
-        assertEq(op.isOutputFinalized(checkpoint + 1), false);
+        vm.expectRevert("L2OutputOracle: No output found for that block number.");
+        assertEq(op.isBlockFinalized(checkpoint + 1), false);
         // Nor a block before it, even though the finalization period has passed, there is
         // not yet a checkpoint block on top of it for which that is true.
-        assertEq(op.isOutputFinalized(checkpoint - 1), false);
+        assertEq(op.isBlockFinalized(checkpoint - 1), false);
 
         // warp past the finalization period
         vm.warp(finalizationHorizon + 1);
         // It should now be finalized.
-        assertEq(op.isOutputFinalized(checkpoint), true);
+        assertEq(op.isBlockFinalized(checkpoint), true);
         // So should the block before it.
-        assertEq(op.isOutputFinalized(checkpoint - 1), true);
+        assertEq(op.isBlockFinalized(checkpoint - 1), true);
         // But not the block after it.
-        assertEq(op.isOutputFinalized(checkpoint + 1), false);
+        vm.expectRevert("L2OutputOracle: No output found for that block number.");
+        assertEq(op.isBlockFinalized(checkpoint + 1), false);
     }
 }
 
