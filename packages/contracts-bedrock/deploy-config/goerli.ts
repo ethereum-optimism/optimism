@@ -1,7 +1,7 @@
 import { ethers } from 'ethers'
 
-const sequencerAddress = '0x0631f9bccb86548dc4a574c730a46d6ca283a338'
-const startingTimestamp = 1656654016
+const sequencerAddress = '0x884ff7da19e669c0f3ffa9a73d480f55fca3209c'
+const startingTimestamp = 1657827243
 
 const config = {
   submissionInterval: 6,
@@ -41,12 +41,12 @@ const config = {
   sequencerWindowSize: 120,
   channelTimeout: 120,
 
-  proxyAdmin: '0x05e22b779967b86fb9572e8292090be2d5c1cab7',
-  optimismBaseFeeRecipient: '0xec4f588262821a7c1f722e5bc40dc5332335c47f',
-  optimismL1FeeRecipient: '0x8fd8d6b9e556cf4791ff9c99a56420ac2fdd2b59',
-  optimismL2FeeRecipient: '0x7890eee9efd42496c63f3ec71bf61bf96af088d0',
-  outputOracleOwner: '0x0f01ce071078396040a4a0de613aa024aba2d18f',
-  batchSenderAddress: '0x32b317fc8d35e015cd9942bc9c7cecaf7f651838',
+  proxyAdmin: '0xf1d43756128f3a0cceb6d830f5b15639b662794d',
+  optimismBaseFeeRecipient: '0x8ab8e0f1c9ac841219a55f956c8ed7e20051b55c',
+  optimismL1FeeRecipient: '0x5b88072b02a194b75c0f7cc2514056f093e76a7b',
+  optimismL2FeeRecipient: '0xf03ac5d0435f54019b83e427c1f6e4dafdd20c39',
+  outputOracleOwner: '0xeed5a2c7cc3c5a4573944427530d15e37afd5460',
+  batchSenderAddress: '0x8d73fa85fdc849fca19820152b21e5a6f4008ab6',
 }
 
 export default config
