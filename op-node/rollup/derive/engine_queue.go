@@ -297,7 +297,7 @@ func (eq *EngineQueue) ResetStep(ctx context.Context, l1Fetcher L1Fetcher) error
 				Origin: canonicalRef,
 				Closed: false,
 			}
-			if eq.safeHead.Time < canonicalRef.Time {
+			if eq.safeHead.Time > canonicalRef.Time {
 				return fmt.Errorf("cannot reset block derivation to start at L2 block %s with time %d older than its L1 origin %s with time %d, time invariant is broken",
 					eq.safeHead, eq.safeHead.Time, canonicalRef, canonicalRef.Time)
 			}
