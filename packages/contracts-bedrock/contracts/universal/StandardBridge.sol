@@ -312,8 +312,9 @@ abstract contract StandardBridge is Initializable {
         } catch {
             // Something went wrong during the bridging process, return to sender.
             // Can happen if a bridge UI specifies the wrong L2 token.
-            // We reverse both the local and remote token addresses, as well as the to and from
-            // addresses. This will preserve the accuracy of accounting based on emitted events.
+            // We reverse the to and from addresses to make sure the tokens are returned to the
+            // sender on the other chain and preserve the accuracy of accounting based on emitted
+            // events.
             _initiateBridgeERC20Unchecked(
                 _localToken,
                 _remoteToken,
