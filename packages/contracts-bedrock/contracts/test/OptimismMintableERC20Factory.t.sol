@@ -22,7 +22,7 @@ contract OptimismMintableTokenFactory_Test is Bridge_Initializer {
 
     function test_createStandardL2Token() external {
         address remote = address(4);
-        address local = LibRLP.computeAddress(address(L2TokenFactory), 1);
+        address local = LibRLP.computeAddress(address(L2TokenFactory), 2);
 
         vm.expectEmit(true, true, true, true);
         emit StandardL2TokenCreated(
@@ -47,7 +47,7 @@ contract OptimismMintableTokenFactory_Test is Bridge_Initializer {
         vm.prank(alice);
         L2TokenFactory.createStandardL2Token(remote, "Beep", "BOOP");
 
-        address local = LibRLP.computeAddress(address(L2TokenFactory), 2);
+        address local = LibRLP.computeAddress(address(L2TokenFactory), 3);
 
         vm.expectEmit(true, true, true, true);
         emit StandardL2TokenCreated(

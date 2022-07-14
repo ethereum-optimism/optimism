@@ -228,8 +228,10 @@ contract Bridge_Initializer is Messenger_Initializer {
     OptimismMintableERC20Factory L2TokenFactory;
     OptimismMintableERC20Factory L1TokenFactory;
     ERC20 L1Token;
+    ERC20 BadL1Token;
     OptimismMintableERC20 L2Token;
     ERC20 NativeL2Token;
+    ERC20 BadL2Token;
     OptimismMintableERC20 RemoteL1Token;
 
     event ETHDepositInitiated(
@@ -387,12 +389,28 @@ contract Bridge_Initializer is Messenger_Initializer {
             )
         );
 
+        BadL2Token = OptimismMintableERC20(
+            L2TokenFactory.createStandardL2Token(
+                address(1),
+                string(abi.encodePacked("L2-", L1Token.name())),
+                string(abi.encodePacked("L2-", L1Token.symbol()))
+            )
+        );
+
         NativeL2Token = new ERC20("Native L2 Token", "L2T");
         L1TokenFactory = new OptimismMintableERC20Factory(address(L1Bridge));
 
         RemoteL1Token = OptimismMintableERC20(
             L1TokenFactory.createStandardL2Token(
                 address(NativeL2Token),
+                string(abi.encodePacked("L1-", NativeL2Token.name())),
+                string(abi.encodePacked("L1-", NativeL2Token.symbol()))
+            )
+        );
+
+        BadL1Token = OptimismMintableERC20(
+            L1TokenFactory.createStandardL2Token(
+                address(1),
                 string(abi.encodePacked("L1-", NativeL2Token.name())),
                 string(abi.encodePacked("L1-", NativeL2Token.symbol()))
             )
