@@ -3,7 +3,7 @@ pragma solidity ^0.8.10;
 
 import { Semver } from "../universal/Semver.sol";
 import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
-import { PredeployAddresses } from "../libraries/PredeployAddresses.sol";
+import { Predeploys } from "../libraries/Predeploys.sol";
 import { L1Block } from "../L2/L1Block.sol";
 
 /**
@@ -92,7 +92,7 @@ contract GasPriceOracle is Ownable, Semver {
      * @return Latest known L1 base fee.
      */
     function l1BaseFee() public view returns (uint256) {
-        return L1Block(PredeployAddresses.L1_BLOCK_ATTRIBUTES).basefee();
+        return L1Block(Predeploys.L1_BLOCK_ATTRIBUTES).basefee();
     }
 
     /**

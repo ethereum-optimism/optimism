@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.9;
 
-import { BytesUtils } from "../BytesUtils.sol";
+import { Bytes } from "../Bytes.sol";
 import { RLPReader } from "../rlp/RLPReader.sol";
 import { RLPWriter } from "../rlp/RLPWriter.sol";
 
@@ -80,7 +80,7 @@ library MerkleTrie {
         bytes32 _root
     ) internal pure returns (bool) {
         (bool exists, bytes memory value) = get(_key, _proof, _root);
-        return (exists && BytesUtils.equal(_value, value));
+        return (exists && Bytes.equal(_value, value));
     }
 
     /**
@@ -140,7 +140,7 @@ library MerkleTrie {
         )
     {
         uint256 pathLength = 0;
-        bytes memory key = BytesUtils.toNibbles(_key);
+        bytes memory key = Bytes.toNibbles(_key);
 
         bytes32 currentNodeID = _root;
         uint256 currentKeyIndex = 0;
@@ -194,8 +194,8 @@ library MerkleTrie {
                 bytes memory path = _getNodePath(currentNode);
                 uint8 prefix = uint8(path[0]);
                 uint8 offset = 2 - (prefix % 2);
-                bytes memory pathRemainder = BytesUtils.slice(path, offset);
-                bytes memory keyRemainder = BytesUtils.slice(key, currentKeyIndex);
+                bytes memory pathRemainder = Bytes.slice(path, offset);
+                bytes memory keyRemainder = Bytes.slice(key, currentKeyIndex);
                 uint256 sharedNibbleLength = _getSharedNibbleLength(pathRemainder, keyRemainder);
 
                 if (prefix == PREFIX_LEAF_EVEN || prefix == PREFIX_LEAF_ODD) {
@@ -235,7 +235,7 @@ library MerkleTrie {
 
         // If our node ID is NULL, then we're at a dead end.
         bool isFinalNode = currentNodeID == bytes32(RLP_NULL);
-        return (pathLength, BytesUtils.slice(key, currentKeyIndex), isFinalNode);
+        return (pathLength, Bytes.slice(key, currentKeyIndex), isFinalNode);
     }
 
     /**
@@ -287,7 +287,7 @@ library MerkleTrie {
      * @return Node path, converted to an array of nibbles.
      */
     function _getNodePath(TrieNode memory _node) private pure returns (bytes memory) {
-        return BytesUtils.toNibbles(RLPReader.readBytes(_node.decoded[0]));
+        return Bytes.toNibbles(RLPReader.readBytes(_node.decoded[0]));
     }
 
     /**

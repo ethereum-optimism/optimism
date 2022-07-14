@@ -3,7 +3,7 @@ pragma solidity ^0.8.9;
 
 import { Semver } from "../universal/Semver.sol";
 import { L2StandardBridge } from "./L2StandardBridge.sol";
-import { PredeployAddresses } from "../libraries/PredeployAddresses.sol";
+import { Predeploys } from "../libraries/Predeploys.sol";
 
 /**
  * @custom:proxied
@@ -42,8 +42,8 @@ contract SequencerFeeVault is Semver {
             "SequencerFeeVault: withdrawal amount must be greater than minimum withdrawal amount"
         );
 
-        L2StandardBridge(payable(PredeployAddresses.L2_STANDARD_BRIDGE)).withdrawTo{
+        L2StandardBridge(payable(Predeploys.L2_STANDARD_BRIDGE)).withdrawTo{
             value: address(this).balance
-        }(PredeployAddresses.LEGACY_ERC20_ETH, l1FeeWallet, address(this).balance, 0, bytes(""));
+        }(Predeploys.LEGACY_ERC20_ETH, l1FeeWallet, address(this).balance, 0, bytes(""));
     }
 }
