@@ -23,42 +23,42 @@ library MerkleTrie {
     /**
      * @notice Determines the number of elements per branch node.
      */
-    uint256 constant TREE_RADIX = 16;
+    uint256 internal constant TREE_RADIX = 16;
 
     /**
      * @notice Branch nodes have TREE_RADIX elements and one value element.
      */
-    uint256 constant BRANCH_NODE_LENGTH = TREE_RADIX + 1;
+    uint256 internal constant BRANCH_NODE_LENGTH = TREE_RADIX + 1;
 
     /**
      * @notice Leaf nodes and extension nodes have two elements, a `path` and a `value`.
      */
-    uint256 constant LEAF_OR_EXTENSION_NODE_LENGTH = 2;
+    uint256 internal constant LEAF_OR_EXTENSION_NODE_LENGTH = 2;
 
     /**
      * @notice Prefix for even-nibbled extension node paths.
      */
-    uint8 constant PREFIX_EXTENSION_EVEN = 0;
+    uint8 internal constant PREFIX_EXTENSION_EVEN = 0;
 
     /**
      * @notice Prefix for odd-nibbled extension node paths.
      */
-    uint8 constant PREFIX_EXTENSION_ODD = 1;
+    uint8 internal constant PREFIX_EXTENSION_ODD = 1;
 
     /**
      * @notice Prefix for even-nibbled leaf node paths.
      */
-    uint8 constant PREFIX_LEAF_EVEN = 2;
+    uint8 internal constant PREFIX_LEAF_EVEN = 2;
 
     /**
      * @notice Prefix for odd-nibbled leaf node paths.
      */
-    uint8 constant PREFIX_LEAF_ODD = 3;
+    uint8 internal constant PREFIX_LEAF_ODD = 3;
 
     /**
      * @notice RLP representation of `NULL`.
      */
-    bytes1 constant RLP_NULL = bytes1(0x80);
+    bytes1 internal constant RLP_NULL = bytes1(0x80);
 
     /**
      * @notice Verifies a proof that a given key/value pair is present in the trie.
@@ -125,6 +125,7 @@ library MerkleTrie {
      * @return Portion of the key remaining after the walk.
      * @return Whether or not we've hit a dead end.
      */
+    // solhint-disable-next-line code-complexity
     function _walkNodePath(
         TrieNode[] memory _proof,
         bytes memory _key,
