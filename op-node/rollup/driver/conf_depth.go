@@ -30,7 +30,7 @@ func (c *confDepth) L1BlockRefByNumber(ctx context.Context, num uint64) (eth.L1B
 	// TODO: performance optimization: buffer the l1Head, invalidate any reorged previous buffer content,
 	// and instantly return the origin by number from the buffer if we can.
 
-	if c.depth == 0 || num+c.depth <= c.l1Head().Number {
+	if num == 0 || c.depth == 0 || num+c.depth <= c.l1Head().Number {
 		return c.L1Fetcher.L1BlockRefByNumber(ctx, num)
 	}
 	return eth.L1BlockRef{}, ethereum.NotFound
