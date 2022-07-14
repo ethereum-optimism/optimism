@@ -1,7 +1,7 @@
 //SPDX-License-Identifier: MIT
 pragma solidity 0.8.10;
 
-import { Messenger_Initializer, Reverter } from "./CommonTest.t.sol";
+import { Messenger_Initializer, Reverter, CallerCaller } from "./CommonTest.t.sol";
 
 import { AddressAliasHelper } from "../vendor/AddressAliasHelper.sol";
 import { L2ToL1MessagePasser } from "../L2/L2ToL1MessagePasser.sol";
@@ -210,6 +210,44 @@ contract L2CrossDomainMessenger_Test is Messenger_Initializer {
         assertEq(address(L2Messenger).balance, 0);
         assertEq(address(target).balance, value);
         assertEq(L2Messenger.successfulMessages(hash), true);
+        assertEq(L2Messenger.receivedMessages(hash), true);
+    }
+
+    // relayMessage: should revert if recipient is trying to reenter
+    function test_L1MessengerRelayMessageRevertsOnReentrancy() external {
+        address target = address(0xabcd);
+        address sender = address(L1Messenger);
+        address caller = AddressAliasHelper.applyL1ToL2Alias(address(L1Messenger));
+        bytes memory message = abi.encodeWithSelector(
+            L2Messenger.relayMessage.selector,
+            0,
+            sender,
+            target,
+            0,
+            0,
+            hex"1111"
+        );
+
+        bytes32 hash = Hashing.hashCrossDomainMessage(0, sender, target, 0, 0, message);
+
+        vm.etch(target, address(new CallerCaller()).code);
+
+        vm.expectEmit(true, true, true, true, target);
+
+        emit WhatHappened(false, abi.encodeWithSignature("Error(string)", "ReentrancyGuard: reentrant call"));
+
+        vm.prank(caller);
+        vm.expectCall(target, message);
+        L2Messenger.relayMessage(
+            0, // nonce
+            sender,
+            target,
+            0, // value
+            0,
+            message
+        );
+
+        assertEq(L2Messenger.successfulMessages(hash), false);
         assertEq(L2Messenger.receivedMessages(hash), true);
     }
 }

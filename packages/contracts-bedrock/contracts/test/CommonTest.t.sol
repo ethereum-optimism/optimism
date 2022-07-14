@@ -168,6 +168,8 @@ contract Messenger_Initializer is L2OutputOracle_Initializer {
 
     event WithdrawalFinalized(bytes32 indexed, bool success);
 
+    event WhatHappened(bool success, bytes returndata);
+
     function setUp() public virtual override {
         super.setUp();
 
@@ -417,5 +419,23 @@ contract NextImpl is Initializable {
 contract Reverter {
     fallback() external {
         revert();
+    }
+}
+
+// Useful for testing reentrancy guards
+contract CallerCaller {
+    event WhatHappened(
+        bool success,
+        bytes returndata
+    );
+
+    fallback() external {
+        (bool success, bytes memory returndata) = msg.sender.call(msg.data);
+        emit WhatHappened(success, returndata);
+        assembly {
+            switch success
+            case 0 { revert(add(returndata, 0x20), mload(returndata)) }
+            default { return(add(returndata, 0x20), mload(returndata)) }
+        }
     }
 }
