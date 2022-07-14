@@ -391,4 +391,48 @@ contract L1StandardBridge_Test is Bridge_Initializer {
             hex""
         );
     }
+
+    function test_finalizeBridgeERC20FailSendBack() external {
+        deal(address(BadL1Token), address(L1Bridge), 100, true);
+
+        uint256 slot = stdstore
+            .target(address(L1Bridge))
+            .sig("deposits(address,address)")
+            .with_key(address(BadL1Token))
+            .with_key(address(L2Token))
+            .find();
+
+        // Give the L1 bridge some ERC20 tokens
+        vm.store(address(L1Bridge), bytes32(slot), bytes32(uint256(100)));
+        assertEq(L1Bridge.deposits(address(BadL1Token), address(L2Token)), 100);
+
+        vm.expectEmit(true, true, true, true);
+
+        emit ERC20BridgeInitiated(
+            address(BadL1Token),
+            address(L2Token),
+            bob,
+            alice,
+            100,
+            hex""
+        );
+
+        vm.mockCall(
+            address(L1Bridge.messenger()),
+            abi.encodeWithSelector(CrossDomainMessenger.xDomainMessageSender.selector),
+            abi.encode(address(L1Bridge.otherBridge()))
+        );
+        vm.prank(address(L1Bridge.messenger()));
+        L1Bridge.finalizeBridgeERC20(
+            address(BadL1Token),
+            address(L2Token),
+            alice,
+            bob,
+            100,
+            hex""
+        );
+
+        assertEq(BadL1Token.balanceOf(address(L1Bridge)), 100);
+        assertEq(BadL1Token.balanceOf(address(alice)), 0);
+    }
 }
