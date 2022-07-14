@@ -7,6 +7,7 @@ optimizer_runs = 999999
 remappings = [
   '@openzeppelin/contracts-upgradeable/=node_modules/@openzeppelin/contracts-upgradeable/',
   '@openzeppelin/contracts/=node_modules/@openzeppelin/contracts/',
+  '@eth-optimism/contracts-periphery/=node_modules/@eth-optimism/contracts-periphery/contracts',
   'excessively-safe-call/=node_modules/excessively-safe-call/',
   '@rari-capital/solmate/=node_modules/@rari-capital/solmate',
   'forge-std/=node_modules/forge-std/src',

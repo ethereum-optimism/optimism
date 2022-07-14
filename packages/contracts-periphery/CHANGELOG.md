@@ -1,5 +1,20 @@
 # @eth-optimism/contracts-periphery
 
+## 0.2.0
+
+### Minor Changes
+
+- 8a335b7b: Fixes a bug in the OptimismMintableERC721. Requires an interface change, so this is a minor and not patch.
+
+### Patch Changes
+
+- 95fc3fbf: Add typechain with ethers v5 support
+- 019657db: Add TeleportrDeposit and TeleportrDisburser to contracts-periphery
+- 6ff5c0a3: Cleaned up natspec for Drippie and its dependencies
+- 119f0e97: Moves TeleportrWithdrawer to L1 contracts folder
+- 9c8b1f00: Bump forge-std to 62caef29b0f87a2c6aaaf634b2ca4c09b6867c92
+- 89d01f2e: Update dev deps
+
 ## 0.1.5
 
 ### Patch Changes

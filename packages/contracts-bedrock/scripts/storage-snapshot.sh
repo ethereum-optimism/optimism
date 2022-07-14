@@ -21,14 +21,14 @@ contracts=(
   L2CrossDomainMessenger
   L2StandardBridge
   L2ToL1MessagePasser
-  OVM_ETH
+  LegacyERC20ETH
   SequencerFeeVault
   WETH9
   ProxyAdmin
   Proxy
   L1ChugSplashProxy
   OptimismMintableERC20
-  OptimismMintableTokenFactory
+  OptimismMintableERC20Factory
 )
 
 dir=$(dirname "$0")

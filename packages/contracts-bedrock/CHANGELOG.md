@@ -1,5 +1,56 @@
 # @eth-optimism/contracts-bedrock
 
+## 0.5.1
+
+### Patch Changes
+
+- e4693481: Clean up BytesUtils
+- b7b77d6c: Updates CrossDomainMessenger.baseGas to more accurately reflect gas costs
+- 9d435aec: Cleans up natspec in MerkleTrie and SecureMerkleTrie contracts
+- 87f745b5: Cleans up various compiler warnings
+- 8a3074ab: Minor cleanups to initialization and semver for L1 contracts
+- e1501bc0: Clears most contract linting warnings
+
+## 0.5.0
+
+### Minor Changes
+
+- 42a4cc30: Remove Lib* and OVM* prefixes from all contracts
+
+### Patch Changes
+
+- 0cb3929e: Move encoding and hashing into Encoding and Hashing libraries
+- 28bd76ae: Cleans up hashing and encoding library natspec and function names
+- 4279647f: Port RLPWriter tests
+- ce6cb121: Use external version of ExcessivelySafeCall
+- 8986f165: Fix solc warnings in ProxyAdmin
+- 69ee689f: Remove unnecessary DefaultValues library
+- 2e89f634: Fixes a bug that caused L2 timestamps to be computed incorrectly
+- 49d33b08: Standardizes comments, errors, and events for contracts in the /universal package
+- 821907e2: Bump typechain to 8.1.0
+- 91b31168: Clean up comments and errors for legacy contracts
+- 3c5726d4: Cleaned up enums, should be CapitalCase enums and UPPER_CASE values
+- eb11a5bb: Add comments to RLP libraries
+- 092b0901: Update to new L2 tx hash style for deposits
+- 4ea33e13: Standardizes initialization logic for L1 contracts
+- 297af083: Move contracts written by external parties into a vendor folder
+- 71800503: Reduce the number of compiler warnings
+- 611d93a1: Remove storage slot buffer in xdomain messengers
+- 75089d0a: Cleans up initialization logic everywhere
+- b9a90f32: Rename OptimismMintableTokenFactory to OptimismMintableERC20Factory
+- 50e20ea1: Fix initialization logic
+- 6f74ca9f: Clean up the PredeployAddresses library
+- c031ec95: Tests for RLPReader
+- 9c8b1f00: Bump forge-std to 62caef29b0f87a2c6aaaf634b2ca4c09b6867c92
+- 89d01f2e: Add semver to L2 contracts
+- 7d9820b6: Resolve compiler warnings in Proxy.sol
+- f9fee446: Move the `DepositTx` type to `core-utils`. This way it can be more easily used across projects
+- 5050e0fb: Remove "not implemented" errors in virtual functions
+- 78d7c2ec: Update typechain pipeline
+- 89d01f2e: Update dev deps
+- Updated dependencies [f9fee446]
+  - @eth-optimism/core-utils@0.9.1
+
 ## 0.4.1
 
 ### Patch Changes

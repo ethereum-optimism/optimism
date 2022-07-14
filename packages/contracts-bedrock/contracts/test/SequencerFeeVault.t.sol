@@ -5,23 +5,23 @@ import { Bridge_Initializer } from "./CommonTest.t.sol";
 
 import { SequencerFeeVault } from "../L2/SequencerFeeVault.sol";
 import { L2StandardBridge } from "../L2/L2StandardBridge.sol";
-import { Lib_PredeployAddresses } from "../libraries/Lib_PredeployAddresses.sol";
+import { PredeployAddresses } from "../libraries/PredeployAddresses.sol";
 
 contract SequencerFeeVault_Test is Bridge_Initializer {
     SequencerFeeVault vault =
-        SequencerFeeVault(payable(Lib_PredeployAddresses.SEQUENCER_FEE_WALLET));
+        SequencerFeeVault(payable(PredeployAddresses.SEQUENCER_FEE_WALLET));
     address constant recipient = address(256);
 
     function setUp() public override {
         super.setUp();
 
         vm.etch(
-            Lib_PredeployAddresses.SEQUENCER_FEE_WALLET,
+            PredeployAddresses.SEQUENCER_FEE_WALLET,
             address(new SequencerFeeVault()).code
         );
 
         vm.store(
-            Lib_PredeployAddresses.SEQUENCER_FEE_WALLET,
+            PredeployAddresses.SEQUENCER_FEE_WALLET,
             bytes32(uint256(0)),
             bytes32(uint256(uint160(recipient)))
         );
@@ -48,8 +48,9 @@ contract SequencerFeeVault_Test is Bridge_Initializer {
         );
 
         vm.prank(alice);
-        address(vault).call{ value: 100 }(hex"");
+        (bool success,) = address(vault).call{ value: 100 }(hex"");
 
+        assertEq(success, true);
         assertEq(
             address(vault).balance,
             100
@@ -69,10 +70,10 @@ contract SequencerFeeVault_Test is Bridge_Initializer {
         vm.deal(address(vault), vault.MIN_WITHDRAWAL_AMOUNT() + 1);
 
         vm.expectCall(
-            Lib_PredeployAddresses.L2_STANDARD_BRIDGE,
+            PredeployAddresses.L2_STANDARD_BRIDGE,
             abi.encodeWithSelector(
                 L2StandardBridge.withdrawTo.selector,
-                Lib_PredeployAddresses.OVM_ETH,
+                PredeployAddresses.LEGACY_ERC20_ETH,
                 vault.l1FeeWallet(),
                 address(vault).balance,
                 0,

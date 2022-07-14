@@ -1,5 +1,20 @@
 # @eth-optimism/sdk
 
+## 1.3.0
+
+### Minor Changes
+
+- 032f7214: Update Goerli SDK addresses for new Goerli testnet
+
+## 1.2.1
+
+### Patch Changes
+
+- Updated dependencies [6e3449ba]
+- Updated dependencies [f9fee446]
+  - @eth-optimism/contracts@0.5.30
+  - @eth-optimism/core-utils@0.9.1
+
 ## 1.2.0
 
 ### Minor Changes

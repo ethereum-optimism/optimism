@@ -80,7 +80,7 @@ func FillMissingBatches(batches []*BatchData, epoch eth.BlockID, blockTime, minL
 		newHeadL2Timestamp = nextL1Time - 1
 	}
 	for _, b := range batches {
-		m[b.BatchV1.Timestamp] = b
+		m[b.Timestamp] = b
 		if b.Timestamp > newHeadL2Timestamp {
 			newHeadL2Timestamp = b.Timestamp
 		}
@@ -91,14 +91,16 @@ func FillMissingBatches(batches []*BatchData, epoch eth.BlockID, blockTime, minL
 		if ok {
 			out = append(out, b)
 		} else {
-			out = append(out, &BatchData{
-				BatchV1{
-					EpochNum:  rollup.Epoch(epoch.Number),
-					EpochHash: epoch.Hash,
-					Timestamp: t,
-				},
-			})
+			out = append(out,
+				&BatchData{
+					BatchV1{
+						EpochNum:  rollup.Epoch(epoch.Number),
+						EpochHash: epoch.Hash,
+						Timestamp: t,
+					},
+				})
 		}
+
 	}
 	return out
 }

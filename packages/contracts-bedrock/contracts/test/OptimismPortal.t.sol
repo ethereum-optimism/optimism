@@ -3,10 +3,10 @@ pragma solidity 0.8.10;
 
 import { Portal_Initializer, CommonTest, NextImpl } from "./CommonTest.t.sol";
 
-import { AddressAliasHelper } from "../libraries/AddressAliasHelper.sol";
+import { AddressAliasHelper } from "../vendor/AddressAliasHelper.sol";
 import { L2OutputOracle } from "../L1/L2OutputOracle.sol";
 import { OptimismPortal } from "../L1/OptimismPortal.sol";
-import { WithdrawalVerifier } from "../libraries/Lib_WithdrawalVerifier.sol";
+import { Hashing } from "../libraries/Hashing.sol";
 import { Proxy } from "../universal/Proxy.sol";
 
 contract OptimismPortal_Test is Portal_Initializer {
@@ -230,7 +230,7 @@ contract OptimismPortal_Test is Portal_Initializer {
     // function test_verifyWithdrawal() external {}
 
     function test_cannotVerifyRecentWithdrawal() external {
-        WithdrawalVerifier.OutputRootProof memory outputRootProof = WithdrawalVerifier
+        Hashing.OutputRootProof memory outputRootProof = Hashing
             .OutputRootProof({
                 version: bytes32(0),
                 stateRoot: bytes32(0),
@@ -243,7 +243,7 @@ contract OptimismPortal_Test is Portal_Initializer {
     }
 
     function test_invalidWithdrawalProof() external {
-        WithdrawalVerifier.OutputRootProof memory outputRootProof = WithdrawalVerifier
+        Hashing.OutputRootProof memory outputRootProof = Hashing
             .OutputRootProof({
                 version: bytes32(0),
                 stateRoot: bytes32(0),
@@ -288,8 +288,8 @@ contract OptimismPortal_Test is Portal_Initializer {
         uint256 checkpoint = oracle.nextBlockNumber();
         vm.roll(checkpoint);
         vm.warp(oracle.computeL2Timestamp(checkpoint) + 1);
-        vm.prank(oracle.sequencer());
-        oracle.appendL2Output(keccak256(abi.encode(2)), checkpoint, 0, 0);
+        vm.prank(oracle.proposer());
+        oracle.proposeL2Output(keccak256(abi.encode(2)), checkpoint, 0, 0);
 
         // warp to the final second of the finalization period
         uint256 finalizationHorizon = block.timestamp + op.FINALIZATION_PERIOD_SECONDS();
@@ -334,12 +334,12 @@ contract OptimismPortalUpgradeable_Test is Portal_Initializer {
 
     function test_cannotInitProxy() external {
         vm.expectRevert("Initializable: contract is already initialized");
-        address(proxy).call(abi.encodeWithSelector(OptimismPortal.initialize.selector));
+        OptimismPortal(payable(proxy)).initialize();
     }
 
     function test_cannotInitImpl() external {
         vm.expectRevert("Initializable: contract is already initialized");
-        address(opImpl).call(abi.encodeWithSelector(OptimismPortal.initialize.selector));
+        OptimismPortal(opImpl).initialize();
     }
 
     function test_upgrading() external {
@@ -348,7 +348,7 @@ contract OptimismPortalUpgradeable_Test is Portal_Initializer {
         assertEq(bytes32(0), slot21Before);
 
         NextImpl nextImpl = new NextImpl();
-        vm.startPrank(alice);
+        vm.startPrank(multisig);
         proxy.upgradeToAndCall(
             address(nextImpl),
             abi.encodeWithSelector(NextImpl.initialize.selector)

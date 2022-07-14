@@ -4,7 +4,7 @@ pragma solidity 0.8.10;
 import { Bridge_Initializer } from "./CommonTest.t.sol";
 import { stdStorage, StdStorage } from "forge-std/Test.sol";
 import { CrossDomainMessenger } from "../universal/CrossDomainMessenger.sol";
-import { Lib_PredeployAddresses } from "../libraries/Lib_PredeployAddresses.sol";
+import { PredeployAddresses } from "../libraries/PredeployAddresses.sol";
 import { console } from "forge-std/console.sol";
 
 contract L2StandardBridge_Test is Bridge_Initializer {
@@ -40,7 +40,8 @@ contract L2StandardBridge_Test is Bridge_Initializer {
         // TODO: events from each contract
 
         vm.prank(alice, alice);
-        address(L2Bridge).call{ value: 100 }(hex"");
+        (bool success,) = address(L2Bridge).call{ value: 100 }(hex"");
+        assertEq(success, true);
         assertEq(address(messagePasser).balance, 100);
     }
 
@@ -52,7 +53,7 @@ contract L2StandardBridge_Test is Bridge_Initializer {
         vm.expectRevert("ETH withdrawals must include sufficient ETH value.");
         vm.prank(alice, alice);
         L2Bridge.withdraw(
-            address(Lib_PredeployAddresses.OVM_ETH),
+            address(PredeployAddresses.LEGACY_ERC20_ETH),
             100,
             1000,
             hex""

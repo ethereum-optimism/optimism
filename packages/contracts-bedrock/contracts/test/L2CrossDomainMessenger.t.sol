@@ -1,16 +1,15 @@
 //SPDX-License-Identifier: MIT
 pragma solidity 0.8.10;
 
-import { Messenger_Initializer } from "./CommonTest.t.sol";
+import { Messenger_Initializer, Reverter } from "./CommonTest.t.sol";
 
-import { Lib_CrossDomainUtils } from "../libraries/Lib_CrossDomainUtils.sol";
-import { AddressAliasHelper } from "../libraries/AddressAliasHelper.sol";
+import { AddressAliasHelper } from "../vendor/AddressAliasHelper.sol";
 import { L2ToL1MessagePasser } from "../L2/L2ToL1MessagePasser.sol";
 import { L2OutputOracle } from "../L1/L2OutputOracle.sol";
 import { L2CrossDomainMessenger } from "../L2/L2CrossDomainMessenger.sol";
 import { L1CrossDomainMessenger } from "../L1/L1CrossDomainMessenger.sol";
-import { CrossDomainHashing } from "../libraries/Lib_CrossDomainHashing.sol";
-import { Lib_DefaultValues } from "../libraries/Lib_DefaultValues.sol";
+import { Hashing } from "../libraries/Hashing.sol";
+import { Encoding } from "../libraries/Encoding.sol";
 
 contract L2CrossDomainMessenger_Test is Messenger_Initializer {
     // Receiver address for testing
@@ -32,8 +31,9 @@ contract L2CrossDomainMessenger_Test is Messenger_Initializer {
     }
 
     function test_L2MessengerMessageVersion() external {
+        (, uint16 version) = Encoding.decodeVersionedNonce(L2Messenger.messageNonce());
         assertEq(
-            CrossDomainHashing.getVersionFromNonce(L2Messenger.messageNonce()),
+            version,
             L2Messenger.MESSAGE_VERSION()
         );
     }
@@ -44,8 +44,8 @@ contract L2CrossDomainMessenger_Test is Messenger_Initializer {
             abi.encodeWithSelector(
                 L2ToL1MessagePasser.initiateWithdrawal.selector,
                 address(L1Messenger),
-                100 + L2Messenger.baseGas(hex"ff"),
-                CrossDomainHashing.getVersionedEncoding(
+                L2Messenger.baseGas(hex"ff", 100),
+                Encoding.encodeCrossDomainMessage(
                     L2Messenger.messageNonce(),
                     alice,
                     recipient,
@@ -63,8 +63,8 @@ contract L2CrossDomainMessenger_Test is Messenger_Initializer {
             address(L2Messenger),
             address(L1Messenger),
             0,
-            100 + L2Messenger.baseGas(hex"ff"),
-            CrossDomainHashing.getVersionedEncoding(
+            L2Messenger.baseGas(hex"ff", 100),
+            Encoding.encodeCrossDomainMessage(
                 L2Messenger.messageNonce(),
                 alice,
                 recipient,
@@ -105,7 +105,7 @@ contract L2CrossDomainMessenger_Test is Messenger_Initializer {
 
         vm.expectEmit(true, true, true, true);
 
-        bytes32 hash = CrossDomainHashing.getVersionedHash(
+        bytes32 hash = Hashing.hashCrossDomainMessage(
             0,
             sender,
             target,
@@ -163,5 +163,53 @@ contract L2CrossDomainMessenger_Test is Messenger_Initializer {
 
         vm.expectRevert("Pausable: paused");
         L2Messenger.relayMessage(0, address(0), address(0), 0, 0, hex"");
+    }
+
+    // relayMessage: should send a successful call to the target contract after the first message
+    // fails and ETH gets stuck, but the second message succeeds
+    function test_L2MessengerRelayMessageFirstStuckSecondSucceeds() external {
+        address target = address(0xabcd);
+        address sender = address(L1Messenger);
+        address caller = AddressAliasHelper.applyL1ToL2Alias(address(L1Messenger));
+        uint256 value = 100;
+
+        bytes32 hash = Hashing.hashCrossDomainMessage(0, sender, target, value, 0, hex"1111");
+
+        vm.etch(target, address(new Reverter()).code);
+        vm.deal(address(caller), value);
+        vm.prank(caller);
+        L2Messenger.relayMessage{value: value}(
+            0, // nonce
+            sender,
+            target,
+            value,
+            0,
+            hex"1111"
+        );
+
+        assertEq(address(L2Messenger).balance, value);
+        assertEq(address(target).balance, 0);
+        assertEq(L2Messenger.successfulMessages(hash), false);
+        assertEq(L2Messenger.receivedMessages(hash), true);
+
+        vm.expectEmit(true, true, true, true);
+
+        emit RelayedMessage(hash);
+
+        vm.etch(target, address(0).code);
+        vm.prank(address(sender));
+        L2Messenger.relayMessage(
+            0, // nonce
+            sender,
+            target,
+            value,
+            0,
+            hex"1111"
+        );
+
+        assertEq(address(L2Messenger).balance, 0);
+        assertEq(address(target).balance, value);
+        assertEq(L2Messenger.successfulMessages(hash), true);
+        assertEq(L2Messenger.receivedMessages(hash), true);
     }
 }

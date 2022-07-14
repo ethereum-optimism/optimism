@@ -18,7 +18,7 @@ contract SimpleStorage {
 }
 
 contract Clasher {
-    function upgradeTo(address _implementation) external view {
+    function upgradeTo(address) external pure {
         revert("upgradeTo");
     }
 }
@@ -150,8 +150,8 @@ contract Proxy_Test is Test {
     function test_upgradeToAndCall() external {
         {
             // There should be nothing in the current proxy storage
-            uint256 result = SimpleStorage(address(proxy)).get(1);
-            assertEq(result, 0);
+            uint256 expect = SimpleStorage(address(proxy)).get(1);
+            assertEq(expect, 0);
         }
 
         // Deploy a new SimpleStorage
@@ -184,7 +184,7 @@ contract Proxy_Test is Test {
         // Set the new SimpleStorage as the implementation
         // and call. This reverts because the calldata doesn't
         // match a function on the implementation.
-        vm.expectRevert();
+        vm.expectRevert("Proxy: delegatecall to new implementation contract failed");
         vm.prank(alice);
         proxy.upgradeToAndCall(
             address(simpleStorage),

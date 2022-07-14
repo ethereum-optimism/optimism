@@ -6,6 +6,7 @@
   - 'packages/batch-submitter/**/*'
   - 'packages/contracts/**/*'
   - 'packages/contracts-periphery/**/*'
+  - 'packages/contracts-bedrock/**/*'
   - 'packages/data-transport-layer/**/*'
   - 'packages/drippie-mon/**/*'
   - 'packages/message-relayer/**/*'
@@ -29,6 +30,9 @@ M-contracts:
 
 M-contracts-periphery:
   - any: ['packages/contracts-periphery/**/*']
+
+M-contracts-bedrock:
+  - any: ['packages/contracts-bedrock/**/*']
 
 M-core-utils:
   - any: ['packages/core-utils/**/*']

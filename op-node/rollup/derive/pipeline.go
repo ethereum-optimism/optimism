@@ -75,13 +75,14 @@ type DerivationPipeline struct {
 // NewDerivationPipeline creates a derivation pipeline, which should be reset before use.
 func NewDerivationPipeline(log log.Logger, cfg *rollup.Config, l1Fetcher L1Fetcher, engine Engine) *DerivationPipeline {
 	eng := NewEngineQueue(log, cfg, engine)
-	batchQueue := NewBatchQueue(log, cfg, l1Fetcher, eng)
+	attributesQueue := NewAttributesQueue(log, cfg, l1Fetcher, eng)
+	batchQueue := NewBatchQueue(log, cfg, l1Fetcher, attributesQueue)
 	chInReader := NewChannelInReader(log, batchQueue)
 	bank := NewChannelBank(log, cfg, chInReader)
 	dataSrc := NewCalldataSource(log, cfg, l1Fetcher)
 	l1Src := NewL1Retrieval(log, dataSrc, bank)
 	l1Traversal := NewL1Traversal(log, l1Fetcher, l1Src)
-	stages := []Stage{eng, batchQueue, chInReader, bank, l1Src, l1Traversal}
+	stages := []Stage{eng, attributesQueue, batchQueue, chInReader, bank, l1Src, l1Traversal}
 
 	return &DerivationPipeline{
 		log:       log,
