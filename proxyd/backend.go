@@ -392,6 +392,7 @@ func (b *Backend) doForward(ctx context.Context, rpcReqs []*RPCReq, isBatch bool
 
 	// Alchemy returns a 400 on bad JSONs, so handle that case
 	if httpRes.StatusCode != 200 && httpRes.StatusCode != 400 {
+		httpRes.Body.Close()
 		return nil, fmt.Errorf("response code %d", httpRes.StatusCode)
 	}
 
