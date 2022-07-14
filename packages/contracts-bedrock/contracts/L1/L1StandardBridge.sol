@@ -264,7 +264,7 @@ contract L1StandardBridge is StandardBridge, Semver {
         address _from,
         address _to,
         uint32 _minGasLimit,
-        bytes memory _extraData
+        bytes calldata _extraData
     ) internal {
         emit ETHDepositInitiated(_from, _to, msg.value, _extraData);
         _initiateBridgeETH(_from, _to, msg.value, _minGasLimit, _extraData);
