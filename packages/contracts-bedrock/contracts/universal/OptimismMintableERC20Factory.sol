@@ -88,11 +88,6 @@ contract OptimismMintableERC20Factory {
             "OptimismMintableERC20Factory: must provide remote token address"
         );
 
-        require(
-            bridge != address(0),
-            "OptimismMintableERC20Factory: must initialize contract first"
-        );
-
         OptimismMintableERC20 localToken = new OptimismMintableERC20(
             bridge,
             _remoteToken,

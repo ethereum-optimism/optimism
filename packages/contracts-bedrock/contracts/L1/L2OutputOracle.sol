@@ -111,7 +111,7 @@ contract L2OutputOracle is OwnableUpgradeable, Semver {
      * @notice Reverts if called by any account other than the proposer.
      */
     modifier onlyProposer() {
-        require(proposer == msg.sender, "OutputOracle: caller is not the proposer");
+        require(proposer == msg.sender, "L2OutputOracle: function can only be called by proposer");
         _;
     }
 
@@ -139,7 +139,7 @@ contract L2OutputOracle is OwnableUpgradeable, Semver {
     ) Semver(0, 0, 1) {
         require(
             _l2BlockTime < block.timestamp,
-            "Output Oracle: Initial L2 block time must be less than current time"
+            "L2OutputOracle: initial L2 block time must be less than current time"
         );
 
         SUBMISSION_INTERVAL = _submissionInterval;
@@ -190,13 +190,18 @@ contract L2OutputOracle is OwnableUpgradeable, Semver {
     ) external payable onlyProposer {
         require(
             _l2BlockNumber == nextBlockNumber(),
-            "OutputOracle: Block number must be equal to next expected block number."
+            "L2OutputOracle: block number must be equal to next expected block number"
         );
+
         require(
             computeL2Timestamp(_l2BlockNumber) < block.timestamp,
-            "OutputOracle: Cannot propose L2 output in future."
+            "L2OutputOracle: cannot propose L2 output in the future"
         );
-        require(_outputRoot != bytes32(0), "OutputOracle: Cannot submit empty L2 output.");
+
+        require(
+            _outputRoot != bytes32(0),
+            "L2OutputOracle: L2 output proposal cannot be the zero hash"
+        );
 
         if (_l1Blockhash != bytes32(0)) {
             // This check allows the proposer to propose an output based on a given L1 block,
@@ -209,7 +214,7 @@ contract L2OutputOracle is OwnableUpgradeable, Semver {
             // finalized.
             require(
                 blockhash(_l1BlockNumber) == _l1Blockhash,
-                "OutputOracle: Blockhash does not match the hash at the expected height."
+                "L2OutputOracle: blockhash does not match the hash at the expected height"
             );
         }
 
@@ -233,11 +238,12 @@ contract L2OutputOracle is OwnableUpgradeable, Semver {
 
         require(
             _proposal.outputRoot == outputToDelete.outputRoot,
-            "OutputOracle: The output root to delete does not match the latest output proposal."
+            "L2OutputOracle: output root to delete does not match the latest output proposal"
         );
+
         require(
             _proposal.timestamp == outputToDelete.timestamp,
-            "OutputOracle: The timestamp to delete does not match the latest output proposal."
+            "L2OutputOracle: timestamp to delete does not match the latest output proposal"
         );
 
         emit OutputDeleted(outputToDelete.outputRoot, outputToDelete.timestamp, latestBlockNumber);
@@ -272,7 +278,7 @@ contract L2OutputOracle is OwnableUpgradeable, Semver {
     function computeL2Timestamp(uint256 _l2BlockNumber) public view returns (uint256) {
         require(
             _l2BlockNumber >= STARTING_BLOCK_NUMBER,
-            "OutputOracle: Block number must be greater than or equal to the starting block number."
+            "L2OutputOracle: block number must be greater than or equal to starting block number"
         );
 
         return STARTING_TIMESTAMP + ((_l2BlockNumber - STARTING_BLOCK_NUMBER) * L2_BLOCK_TIME);
@@ -283,8 +289,16 @@ contract L2OutputOracle is OwnableUpgradeable, Semver {
      *         Can only be called by the current owner.
      */
     function changeProposer(address _newProposer) public onlyOwner {
-        require(_newProposer != address(0), "OutputOracle: new proposer is the zero address");
-        require(_newProposer != owner(), "OutputOracle: proposer cannot be same as the owner");
+        require(
+            _newProposer != address(0),
+            "L2OutputOracle: new proposer cannot be the zero address"
+        );
+
+        require(
+            _newProposer != owner(),
+            "L2OutputOracle: proposer cannot be the same as the owner"
+        );
+
         emit ProposerChanged(proposer, _newProposer);
         proposer = _newProposer;
     }

@@ -121,7 +121,7 @@ contract L1CrossDomainMessenger_Test is Messenger_Initializer {
     }
 
     function test_L1MessengerXDomainSenderReverts() external {
-        vm.expectRevert("xDomainMessageSender is not set");
+        vm.expectRevert("CrossDomainMessenger: xDomainMessageSender is not set");
         L1Messenger.xDomainMessageSender();
     }
 
@@ -170,11 +170,11 @@ contract L1CrossDomainMessenger_Test is Messenger_Initializer {
         bytes memory message = hex"1111";
 
         vm.prank(address(op));
-        vm.expectRevert("Message cannot be replayed.");
+        vm.expectRevert("CrossDomainMessenger: message cannot be replayed");
         L1Messenger.relayMessage(0, sender, target, 0, 0, message);
 
         vm.store(address(op), 0, bytes32(abi.encode(sender)));
-        vm.expectRevert("Message cannot be replayed.");
+        vm.expectRevert("CrossDomainMessenger: message cannot be replayed");
         L1Messenger.relayMessage(0, sender, target, 0, 0, message);
     }
 
@@ -185,14 +185,14 @@ contract L1CrossDomainMessenger_Test is Messenger_Initializer {
         bytes memory message = hex"1111";
 
         vm.expectRevert(
-            "CrossDomainMessenger: Value must be zero unless message is from a system address."
+            "CrossDomainMessenger: value must be zero unless message is from a system address"
         );
         L1Messenger.relayMessage{ value: 100 }(0, sender, target, 0, 0, message);
     }
 
     // relayMessage: the xDomainMessageSender is reset to the original value
     function test_L1MessengerxDomainMessageSenderResets() external {
-        vm.expectRevert("xDomainMessageSender is not set");
+        vm.expectRevert("CrossDomainMessenger: xDomainMessageSender is not set");
         L1Messenger.xDomainMessageSender();
 
         address sender = PredeployAddresses.L2_CROSS_DOMAIN_MESSENGER;
@@ -203,7 +203,7 @@ contract L1CrossDomainMessenger_Test is Messenger_Initializer {
         vm.prank(address(op));
         L1Messenger.relayMessage(0, address(0), address(0), 0, 0, hex"");
 
-        vm.expectRevert("xDomainMessageSender is not set");
+        vm.expectRevert("CrossDomainMessenger: xDomainMessageSender is not set");
         L1Messenger.xDomainMessageSender();
     }
 

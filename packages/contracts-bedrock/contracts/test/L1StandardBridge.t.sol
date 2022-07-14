@@ -100,7 +100,7 @@ contract L1StandardBridge_Test is Bridge_Initializer {
         // turn alice into a contract
         vm.etch(alice, address(L1Token).code);
 
-        vm.expectRevert("Account not EOA");
+        vm.expectRevert("StandardBridge: function can only be called from an EOA");
         vm.prank(alice);
         L1Bridge.depositETH{ value: 1 }(300, hex"");
     }
@@ -207,7 +207,7 @@ contract L1StandardBridge_Test is Bridge_Initializer {
         // turn alice into a contract
         vm.etch(alice, hex"ffff");
 
-        vm.expectRevert("Account not EOA");
+        vm.expectRevert("StandardBridge: function can only be called from an EOA");
         vm.prank(alice, alice);
         L1Bridge.depositERC20(
             address(0),
@@ -363,7 +363,7 @@ contract L1StandardBridge_Test is Bridge_Initializer {
             abi.encode(address(L1Bridge.otherBridge()))
         );
         vm.prank(address(28));
-        vm.expectRevert("Could not authenticate bridge message.");
+        vm.expectRevert("StandardBridge: function can only be called from the other bridge");
         L1Bridge.finalizeERC20Withdrawal(
             address(L1Token),
             address(L2Token),
@@ -381,7 +381,7 @@ contract L1StandardBridge_Test is Bridge_Initializer {
             abi.encode(address(address(0)))
         );
         vm.prank(address(L1Bridge.messenger()));
-        vm.expectRevert("Could not authenticate bridge message.");
+        vm.expectRevert("StandardBridge: function can only be called from the other bridge");
         L1Bridge.finalizeERC20Withdrawal(
             address(L1Token),
             address(L2Token),

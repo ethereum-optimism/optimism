@@ -146,7 +146,7 @@ contract L1ChugSplashProxy {
         // should be doing this check anyway though.
         require(
             _getAccountCodeHash(newImplementation) == keccak256(_code),
-            "L1ChugSplashProxy: code was not correctly deployed."
+            "L1ChugSplashProxy: code was not correctly deployed"
         );
 
         _setImplementation(newImplementation);

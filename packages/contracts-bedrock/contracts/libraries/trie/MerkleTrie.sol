@@ -107,7 +107,7 @@ library MerkleTrie {
 
         bool exists = keyRemainder.length == 0;
 
-        require(exists || isFinalNode, "Provided proof is invalid.");
+        require(exists || isFinalNode, "MerkleTrie: provided proof is invalid");
 
         bytes memory value = exists ? _getNodeValue(proof[pathLength - 1]) : bytes("");
 
@@ -158,18 +158,21 @@ library MerkleTrie {
 
             if (currentKeyIndex == 0) {
                 // First proof element is always the root node.
-                require(keccak256(currentNode.encoded) == currentNodeID, "Invalid root hash");
+                require(
+                    keccak256(currentNode.encoded) == currentNodeID,
+                    "MerkleTrie: invalid root hash"
+                );
             } else if (currentNode.encoded.length >= 32) {
                 // Nodes 32 bytes or larger are hashed inside branch nodes.
                 require(
                     keccak256(currentNode.encoded) == currentNodeID,
-                    "Invalid large internal hash"
+                    "MerkleTrie: invalid large internal hash"
                 );
             } else {
                 // Nodes smaller than 31 bytes aren't hashed.
                 require(
                     bytes32(currentNode.encoded) == currentNodeID,
-                    "Invalid internal node hash"
+                    "MerkleTrie: invalid internal node hash"
                 );
             }
 
@@ -223,10 +226,10 @@ library MerkleTrie {
                         continue;
                     }
                 } else {
-                    revert("Received a node with an unknown prefix");
+                    revert("MerkleTrie: received a node with an unknown prefix");
                 }
             } else {
-                revert("Received an unparseable node.");
+                revert("MerkleTrie: received an unparseable node");
             }
         }
 
