@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.10;
 
-import { L1Block } from "./L1Block.sol";
+import { L1Block } from "../L2/L1Block.sol";
 import { Predeploys } from "../libraries/Predeploys.sol";
 import { Semver } from "../universal/Semver.sol";
 
