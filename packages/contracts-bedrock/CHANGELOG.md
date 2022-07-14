@@ -1,5 +1,16 @@
 # @eth-optimism/contracts-bedrock
 
+## 0.5.1
+
+### Patch Changes
+
+- e4693481: Clean up BytesUtils
+- b7b77d6c: Updates CrossDomainMessenger.baseGas to more accurately reflect gas costs
+- 9d435aec: Cleans up natspec in MerkleTrie and SecureMerkleTrie contracts
+- 87f745b5: Cleans up various compiler warnings
+- 8a3074ab: Minor cleanups to initialization and semver for L1 contracts
+- e1501bc0: Clears most contract linting warnings
+
 ## 0.5.0
 
 ### Minor Changes

@@ -43,7 +43,7 @@ described [below](#l2-output-commitment-construction).
 
 If there is no newly finalized output, the service continues querying until it receives one. It then submits this
 output, and the appropriate timestamp, to the [L2 Output Root](#l2-output-root-smart-contract) contract's
-`appendL2Output()` function. The timestamp MUST be the next multiple of the `SUBMISSION_INTERVAL` value.
+`proposeL2Output()` function. The timestamp MUST be the next multiple of the `SUBMISSION_INTERVAL` value.
 
 The proposer may also delete the most recent output root by calling the `deleteL2Output()` function.
 The function can be called repeatedly if it is necessary to roll back the state further.
@@ -102,13 +102,13 @@ The L2 Output Oracle contract implements the following interface:
  * @notice Accepts an L2 outputRoot and the timestamp of the corresponding L2 block. The
  * timestamp must be equal to the current value returned by `nextTimestamp()` in order to be
  * accepted.
- * This function may only be called by the Sequencer.
+ * This function may only be called by the Proposer.
  * @param _l2Output      The L2 output of the checkpoint block.
  * @param _l2BlockNumber The L2 block number that resulted in _l2Output.
  * @param _l1Blockhash   A block hash which must be included in the current chain.
  * @param _l1BlockNumber The block number with the specified block hash.
 */
-  function appendL2Output(
+  function proposeL2Output(
       bytes32 _l2Output,
       uint256 _l2BlockNumber,
       bytes32 _l1Blockhash,
@@ -133,7 +133,7 @@ function nextBlockNumber() public view returns (uint256) {
 ### L1 Reorgs
 
 If the L1 has a reorg after an output has been generated and submitted, the L2 state and correct output may change
-leading to a faulty proposal. This is mitigated against by allowing the sequencer to submit an
+leading to a faulty proposal. This is mitigated against by allowing the proposer to submit an
 L1 block number and hash to the Output Oracle when appending a new output; in the event of a reorg, the block hash
 will not match that of the block with that number and the call will revert.
 

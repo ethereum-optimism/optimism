@@ -52,7 +52,7 @@ contract L2CrossDomainMessenger is CrossDomainMessenger, Semver {
      *
      * @return True if the message sender is the L1CrossDomainMessenger on L1.
      */
-    function _isSystemMessageSender() internal view override returns (bool) {
+    function _isOtherMessenger() internal view override returns (bool) {
         return AddressAliasHelper.undoL1ToL2Alias(msg.sender) == otherMessenger;
     }
 

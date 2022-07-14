@@ -10,7 +10,7 @@ import { Semver } from "../universal/Semver.sol";
  * @custom:proxied
  * @title L2OutputOracle
  * @notice The L2 state is committed to in this contract
- *         The payable keyword is used on appendL2Output to save gas on the msg.value check.
+ *         The payable keyword is used on proposeL2Output to save gas on the msg.value check.
  *         This contract should be deployed behind an upgradable proxy
  */
 // slither-disable-next-line locked-ether
@@ -27,14 +27,14 @@ contract L2OutputOracle is OwnableUpgradeable, Semver {
     }
 
     /**
-     * @notice Emitted when an output is appended.
+     * @notice Emitted when an output is proposed.
      *
-     * @param l2Output      The output root.
-     * @param l1Timestamp   The L1 timestamp when appended.
+     * @param outputRoot    The output root.
+     * @param l1Timestamp   The L1 timestamp when proposed.
      * @param l2BlockNumber The L2 block number of the output root.
      */
-    event L2OutputAppended(
-        bytes32 indexed l2Output,
+    event OutputProposed(
+        bytes32 indexed outputRoot,
         uint256 indexed l1Timestamp,
         uint256 indexed l2BlockNumber
     );
@@ -42,23 +42,23 @@ contract L2OutputOracle is OwnableUpgradeable, Semver {
     /**
      * @notice Emitted when an output is deleted.
      *
-     * @param l2Output      The output root.
-     * @param l1Timestamp   The L1 timestamp when appended.
+     * @param outputRoot    The output root.
+     * @param l1Timestamp   The L1 timestamp when proposed.
      * @param l2BlockNumber The L2 block number of the output root.
      */
-    event L2OutputDeleted(
-        bytes32 indexed l2Output,
+    event OutputDeleted(
+        bytes32 indexed outputRoot,
         uint256 indexed l1Timestamp,
         uint256 indexed l2BlockNumber
     );
 
     /**
-     * @notice Emitted when the sequencer address is changed.
+     * @notice Emitted when the proposer address is changed.
      *
-     * @param previousSequencer The previous sequencer address.
-     * @param newSequencer      The new sequencer address.
+     * @param previousProposer The previous proposer address.
+     * @param newProposer      The new proposer address.
      */
-    event SequencerChanged(address indexed previousSequencer, address indexed newSequencer);
+    event ProposerChanged(address indexed previousProposer, address indexed newProposer);
 
     /**
      * @notice The interval in L2 blocks at which checkpoints must be submitted.
@@ -91,9 +91,9 @@ contract L2OutputOracle is OwnableUpgradeable, Semver {
     uint256 public immutable L2_BLOCK_TIME;
 
     /**
-     * @notice The address of the sequencer;
+     * @notice The address of the proposer;
      */
-    address public sequencer;
+    address public proposer;
 
     /**
      * @notice The number of the most recent L2 block recorded in this contract.
@@ -108,10 +108,10 @@ contract L2OutputOracle is OwnableUpgradeable, Semver {
     mapping(uint256 => OutputProposal) internal l2Outputs;
 
     /**
-     * @notice Reverts if called by any account other than the sequencer.
+     * @notice Reverts if called by any account other than the proposer.
      */
-    modifier onlySequencer() {
-        require(sequencer == msg.sender, "OutputOracle: caller is not the sequencer");
+    modifier onlyProposer() {
+        require(proposer == msg.sender, "OutputOracle: caller is not the proposer");
         _;
     }
 
@@ -124,7 +124,7 @@ contract L2OutputOracle is OwnableUpgradeable, Semver {
      * @param _startingBlockNumber   The number of the first L2 block.
      * @param _startingTimestamp     The timestamp of the first L2 block.
      * @param _l2BlockTime           The timestamp of the first L2 block.
-     * @param _sequencer             The address of the sequencer.
+     * @param _proposer              The address of the proposer.
      * @param _owner                 The address of the owner.
      */
     constructor(
@@ -134,7 +134,7 @@ contract L2OutputOracle is OwnableUpgradeable, Semver {
         uint256 _startingBlockNumber,
         uint256 _startingTimestamp,
         uint256 _l2BlockTime,
-        address _sequencer,
+        address _proposer,
         address _owner
     ) Semver(0, 0, 1) {
         require(
@@ -148,7 +148,7 @@ contract L2OutputOracle is OwnableUpgradeable, Semver {
         STARTING_TIMESTAMP = _startingTimestamp;
         L2_BLOCK_TIME = _l2BlockTime;
 
-        initialize(_genesisL2Output, _startingBlockNumber, _sequencer, _owner);
+        initialize(_genesisL2Output, _startingBlockNumber, _proposer, _owner);
     }
 
     /**
@@ -156,55 +156,55 @@ contract L2OutputOracle is OwnableUpgradeable, Semver {
      *
      * @param _genesisL2Output     The initial L2 output of the L2 chain.
      * @param _startingBlockNumber The timestamp to start L2 block at.
-     * @param _sequencer           The address of the sequencer.
+     * @param _proposer            The address of the proposer.
      * @param _owner               The address of the owner.
      */
     function initialize(
         bytes32 _genesisL2Output,
         uint256 _startingBlockNumber,
-        address _sequencer,
+        address _proposer,
         address _owner
     ) public initializer {
         l2Outputs[_startingBlockNumber] = OutputProposal(_genesisL2Output, block.timestamp);
         latestBlockNumber = _startingBlockNumber;
         __Ownable_init();
-        changeSequencer(_sequencer);
+        changeProposer(_proposer);
         _transferOwnership(_owner);
     }
 
     /**
-     * @notice Accepts an L2 outputRoot and the timestamp of the corresponding L2 block. The
+     * @notice Accepts an outputRoot and the timestamp of the corresponding L2 block. The
      *         timestamp must be equal to the current value returned by `nextTimestamp()` in order
-     *         to be accepted. This function may only be called by the Sequencer.
+     *         to be accepted. This function may only be called by the Proposer.
      *
-     * @param _l2Output      The L2 output of the checkpoint block.
-     * @param _l2BlockNumber The L2 block number that resulted in _l2Output.
+     * @param _outputRoot    The L2 output of the checkpoint block.
+     * @param _l2BlockNumber The L2 block number that resulted in _outputRoot.
      * @param _l1Blockhash   A block hash which must be included in the current chain.
      * @param _l1BlockNumber The block number with the specified block hash.
      */
-    function appendL2Output(
-        bytes32 _l2Output,
+    function proposeL2Output(
+        bytes32 _outputRoot,
         uint256 _l2BlockNumber,
         bytes32 _l1Blockhash,
         uint256 _l1BlockNumber
-    ) external payable onlySequencer {
+    ) external payable onlyProposer {
         require(
             _l2BlockNumber == nextBlockNumber(),
             "OutputOracle: Block number must be equal to next expected block number."
         );
         require(
             computeL2Timestamp(_l2BlockNumber) < block.timestamp,
-            "OutputOracle: Cannot append L2 output in future."
+            "OutputOracle: Cannot propose L2 output in future."
         );
-        require(_l2Output != bytes32(0), "OutputOracle: Cannot submit empty L2 output.");
+        require(_outputRoot != bytes32(0), "OutputOracle: Cannot submit empty L2 output.");
 
         if (_l1Blockhash != bytes32(0)) {
-            // This check allows the sequencer to append an output based on a given L1 block,
+            // This check allows the proposer to propose an output based on a given L1 block,
             // without fear that it will be reorged out.
             // It will also revert if the blockheight provided is more than 256 blocks behind the
             // chain tip (as the hash will return as zero). This does open the door to a griefing
-            // attack in which the sequencer's submission is censored until the block is no longer
-            // retrievable, if the sequencer is experiencing this attack it can simply leave out the
+            // attack in which the proposer's submission is censored until the block is no longer
+            // retrievable, if the proposer is experiencing this attack it can simply leave out the
             // blockhash value, and delay submission until it is confident that the L1 block is
             // finalized.
             require(
@@ -213,16 +213,16 @@ contract L2OutputOracle is OwnableUpgradeable, Semver {
             );
         }
 
-        l2Outputs[_l2BlockNumber] = OutputProposal(_l2Output, block.timestamp);
+        l2Outputs[_l2BlockNumber] = OutputProposal(_outputRoot, block.timestamp);
         latestBlockNumber = _l2BlockNumber;
 
-        emit L2OutputAppended(_l2Output, block.timestamp, _l2BlockNumber);
+        emit OutputProposed(_outputRoot, block.timestamp, _l2BlockNumber);
     }
 
     /**
      * @notice Deletes the most recent output. This is used to remove the most recent output in the
      *         event that an erreneous output is submitted. It can only be called by the contract's
-     *         owner, not the sequencer. Longer term, this should be replaced with a more robust
+     *         owner, not the proposer. Longer term, this should be replaced with a more robust
      *         mechanism which will allow deletion of proposals shown to be invalid by a fault
      *         proof.
      *
@@ -240,11 +240,7 @@ contract L2OutputOracle is OwnableUpgradeable, Semver {
             "OutputOracle: The timestamp to delete does not match the latest output proposal."
         );
 
-        emit L2OutputDeleted(
-            outputToDelete.outputRoot,
-            outputToDelete.timestamp,
-            latestBlockNumber
-        );
+        emit OutputDeleted(outputToDelete.outputRoot, outputToDelete.timestamp, latestBlockNumber);
 
         delete l2Outputs[latestBlockNumber];
         latestBlockNumber = latestBlockNumber - SUBMISSION_INTERVAL;
@@ -283,13 +279,13 @@ contract L2OutputOracle is OwnableUpgradeable, Semver {
     }
 
     /**
-     * @notice Transfers the sequencer role to a new account (`newSequencer`).
+     * @notice Transfers the proposer role to a new account (`newProposer`).
      *         Can only be called by the current owner.
      */
-    function changeSequencer(address _newSequencer) public onlyOwner {
-        require(_newSequencer != address(0), "OutputOracle: new sequencer is the zero address");
-        require(_newSequencer != owner(), "OutputOracle: sequencer cannot be same as the owner");
-        emit SequencerChanged(sequencer, _newSequencer);
-        sequencer = _newSequencer;
+    function changeProposer(address _newProposer) public onlyOwner {
+        require(_newProposer != address(0), "OutputOracle: new proposer is the zero address");
+        require(_newProposer != owner(), "OutputOracle: proposer cannot be same as the owner");
+        emit ProposerChanged(proposer, _newProposer);
+        proposer = _newProposer;
     }
 }
