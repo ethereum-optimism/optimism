@@ -435,7 +435,8 @@ func (cfg SystemConfig) start() (*System, error) {
 		return nil, err
 	}
 
-	_, err = waitForTransaction(tx.Hash(), l1Client, time.Duration(cfg.L1BlockTime)*time.Second*2)
+	// Wait up to 6 blocks to deploy the Optimism portal
+	_, err = waitForTransaction(tx.Hash(), l1Client, 6*time.Second*time.Duration(cfg.L1BlockTime))
 	if err != nil {
 		return nil, fmt.Errorf("waiting for OptimismPortal: %w", err)
 	}
