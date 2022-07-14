@@ -233,7 +233,7 @@ mainLoop:
 			syncStatus, err := l.cfg.RollupNode.SyncStatus(ctx)
 			cancel()
 			if err != nil {
-				l.log.Error("issue fetching L2 head", "err", err)
+				l.log.Warn("issue fetching L2 head", "err", err)
 				continue
 			}
 			l.log.Info("Got new L2 sync status", "safe_head", syncStatus.SafeL2, "unsafe_head", syncStatus.UnsafeL2, "last_submitted", l.lastSubmittedBlock)
@@ -241,7 +241,12 @@ mainLoop:
 				l.log.Trace("No unsubmitted blocks from sequencer")
 				continue
 			}
-			// the lastSubmittedBlock may be zeroed, or just lag behind. If it's lagging behind, catch it up.
+			// If we just started, start at safe-head
+			if l.lastSubmittedBlock == (eth.BlockID{}) {
+				l.log.Info("Starting batch-submitter work at safe-head", "safe", syncStatus.SafeL2)
+				l.lastSubmittedBlock = syncStatus.SafeL2.ID()
+			}
+			// If it's lagging behind, catch it up.
 			if l.lastSubmittedBlock.Number < syncStatus.SafeL2.Number {
 				l.log.Warn("last submitted block lagged behind L2 safe head: batch submission will continue from the safe head now", "last", l.lastSubmittedBlock, "safe", syncStatus.SafeL2)
 				l.lastSubmittedBlock = syncStatus.SafeL2.ID()
@@ -324,7 +329,7 @@ mainLoop:
 				receipt, err := l.txMgr.Send(ctx, updateGasPrice, l.cfg.L1Client.SendTransaction)
 				cancel()
 				if err != nil {
-					l.log.Error("unable to publish tx", "err", err)
+					l.log.Warn("unable to publish tx", "err", err)
 					continue mainLoop
 				}
 
