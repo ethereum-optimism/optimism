@@ -86,7 +86,7 @@ contract L1CrossDomainMessenger_Test is Messenger_Initializer {
 
         // TransactionDeposited event
         vm.expectEmit(true, true, true, true);
-        emit TransactionDeposited(
+        emitTransactionDeposited(
             AddressAliasHelper.applyL1ToL2Alias(address(L1Messenger)),
             Predeploys.L2_CROSS_DOMAIN_MESSENGER,
             0,

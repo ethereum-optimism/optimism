@@ -10,15 +10,6 @@ import { Hashing } from "../libraries/Hashing.sol";
 import { Proxy } from "../universal/Proxy.sol";
 
 contract OptimismPortal_Test is Portal_Initializer {
-    event TransactionDeposited(
-        address indexed from,
-        address indexed to,
-        uint256 mint,
-        uint256 value,
-        uint64 gasLimit,
-        bool isCreation,
-        bytes data
-    );
 
     function test_OptimismPortalConstructor() external {
         assertEq(op.FINALIZATION_PERIOD_SECONDS(), 7 days);
@@ -28,7 +19,7 @@ contract OptimismPortal_Test is Portal_Initializer {
 
     function test_OptimismPortalReceiveEth() external {
         vm.expectEmit(true, true, false, true);
-        emit TransactionDeposited(alice, alice, 100, 100, 100_000, false, hex"");
+        emitTransactionDeposited(alice, alice, 100, 100, 100_000, false, hex"");
 
         // give alice money and send as an eoa
         vm.deal(alice, 2**64);
@@ -53,7 +44,7 @@ contract OptimismPortal_Test is Portal_Initializer {
         // EOA emulation
         vm.prank(address(this), address(this));
         vm.expectEmit(true, true, false, true);
-        emit TransactionDeposited(
+        emitTransactionDeposited(
             address(this),
             NON_ZERO_ADDRESS,
             ZERO_VALUE,
@@ -75,7 +66,7 @@ contract OptimismPortal_Test is Portal_Initializer {
     // Test: depositTransaction should emit the correct log when a contract deposits a tx with 0 value
     function test_depositTransaction_NoValueContract() external {
         vm.expectEmit(true, true, false, true);
-        emit TransactionDeposited(
+        emitTransactionDeposited(
             AddressAliasHelper.applyL1ToL2Alias(address(this)),
             NON_ZERO_ADDRESS,
             ZERO_VALUE,
@@ -100,7 +91,7 @@ contract OptimismPortal_Test is Portal_Initializer {
         vm.prank(address(this), address(this));
 
         vm.expectEmit(true, true, false, true);
-        emit TransactionDeposited(
+        emitTransactionDeposited(
             address(this),
             ZERO_ADDRESS,
             ZERO_VALUE,
@@ -116,7 +107,7 @@ contract OptimismPortal_Test is Portal_Initializer {
     // Test: depositTransaction should emit the correct log when a contract deposits a contract creation with 0 value
     function test_depositTransaction_createWithZeroValueForContract() external {
         vm.expectEmit(true, true, false, true);
-        emit TransactionDeposited(
+        emitTransactionDeposited(
             AddressAliasHelper.applyL1ToL2Alias(address(this)),
             ZERO_ADDRESS,
             ZERO_VALUE,
@@ -135,7 +126,7 @@ contract OptimismPortal_Test is Portal_Initializer {
         vm.prank(address(this), address(this));
 
         vm.expectEmit(true, true, false, true);
-        emit TransactionDeposited(
+        emitTransactionDeposited(
             address(this),
             NON_ZERO_ADDRESS,
             NON_ZERO_VALUE,
@@ -158,7 +149,7 @@ contract OptimismPortal_Test is Portal_Initializer {
     // Test: depositTransaction should increase its eth balance when a contract deposits a transaction with ETH
     function test_depositTransaction_withEthValueFromContract() external {
         vm.expectEmit(true, true, false, true);
-        emit TransactionDeposited(
+        emitTransactionDeposited(
             AddressAliasHelper.applyL1ToL2Alias(address(this)),
             NON_ZERO_ADDRESS,
             NON_ZERO_VALUE,
@@ -183,7 +174,7 @@ contract OptimismPortal_Test is Portal_Initializer {
         vm.prank(address(this), address(this));
 
         vm.expectEmit(true, true, false, true);
-        emit TransactionDeposited(
+        emitTransactionDeposited(
             address(this),
             ZERO_ADDRESS,
             NON_ZERO_VALUE,
@@ -206,7 +197,7 @@ contract OptimismPortal_Test is Portal_Initializer {
     // Test: depositTransaction should increase its eth balance when a contract deposits a contract creation with ETH
     function test_depositTransaction_withEthValueAndContractContractCreation() external {
         vm.expectEmit(true, true, false, true);
-        emit TransactionDeposited(
+        emitTransactionDeposited(
             AddressAliasHelper.applyL1ToL2Alias(address(this)),
             ZERO_ADDRESS,
             NON_ZERO_VALUE,
