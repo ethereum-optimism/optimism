@@ -50,11 +50,7 @@ func deriveAccount(w accounts.Wallet, path string) accounts.Account {
 
 type L2OOContractConfig struct {
 	SubmissionFrequency   *big.Int
-	L2StartingBlock       *big.Int
-	GenesisL2Output       [32]byte
 	HistoricalTotalBlocks *big.Int
-	L2StartingTimeStamp   *big.Int
-	L2BlockTime           *big.Int
 }
 
 type DepositContractConfig struct {
@@ -388,9 +384,6 @@ func (cfg SystemConfig) start() (*System, error) {
 	sys.cfg.RollupConfig.Genesis = sys.RolupGenesis
 	sys.cfg.RollupConfig.BatchSenderAddress = batchSubmitterAddr
 	sys.cfg.RollupConfig.P2PSequencerAddress = p2pSignerAddr
-	sys.cfg.L2OOCfg.L2StartingBlock = new(big.Int).SetUint64(l2GenesisID.Number)
-	sys.cfg.L2OOCfg.L2StartingTimeStamp = new(big.Int).SetUint64(l2Genesis.Timestamp)
-	sys.cfg.L2OOCfg.L2BlockTime = new(big.Int).SetUint64(2)
 
 	// Deploy Deposit Contract
 	deployerPrivKey, err := sys.wallet.PrivateKey(accounts.Account{
@@ -407,16 +400,21 @@ func (cfg SystemConfig) start() (*System, error) {
 		return nil, err
 	}
 
+	// empty genesis L2 output.
+	// Technically this may need to be computed with l2.ComputeL2OutputRoot(...),
+	// but there are no fraud proofs active in the test.
+	genesisL2Output := [32]byte{}
+
 	// Deploy contracts
 	sys.L2OOContractAddr, _, _, err = bindings.DeployL2OutputOracle(
 		opts,
 		l1Client,
 		sys.cfg.L2OOCfg.SubmissionFrequency,
-		sys.cfg.L2OOCfg.GenesisL2Output,
+		genesisL2Output,
 		sys.cfg.L2OOCfg.HistoricalTotalBlocks,
-		sys.cfg.L2OOCfg.L2StartingBlock,
-		sys.cfg.L2OOCfg.L2StartingTimeStamp,
-		sys.cfg.L2OOCfg.L2BlockTime,
+		new(big.Int).SetUint64(l2GenesisID.Number),
+		new(big.Int).SetUint64(l2Genesis.Timestamp),
+		new(big.Int).SetUint64(sys.cfg.RollupConfig.BlockTime),
 		l2OutputSubmitterAddr,
 		crypto.PubkeyToAddress(deployerPrivKey.PublicKey),
 	)
