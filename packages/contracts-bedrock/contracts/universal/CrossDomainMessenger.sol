@@ -199,7 +199,7 @@ abstract contract CrossDomainMessenger is
      *
      * @return Amount of gas required to guarantee message receipt.
      */
-    function baseGas(bytes memory _message, uint32 _minGasLimit) public pure returns (uint32) {
+    function baseGas(bytes calldata _message, uint32 _minGasLimit) public pure returns (uint32) {
         return
             // Dynamic overhead
             ((_minGasLimit * MIN_GAS_DYNAMIC_OVERHEAD_NUMERATOR) /
