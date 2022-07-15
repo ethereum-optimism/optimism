@@ -1,7 +1,7 @@
 import { ethers } from 'ethers'
 
 const sequencerAddress = '0x884ff7da19e669c0f3ffa9a73d480f55fca3209c'
-const startingTimestamp = 1657827243
+const startingTimestamp = 1657827385
 
 const config = {
   submissionInterval: 6,
