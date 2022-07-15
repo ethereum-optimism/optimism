@@ -177,7 +177,10 @@ func FindL2Heads(ctx context.Context, start eth.L2BlockRef, seqWindowSize uint64
 		}
 
 		// Found an L2 block whose L1 origin is the start of the sequencing window.
-		if depth == seqWindowSize {
+		// Note: We also ensure that we are on the block number with the 0 seq number.
+		// This is a little hacky, but kinda works. The issue is about where the
+		// batch queue should start building.
+		if depth == seqWindowSize && n.SequenceNumber == 0 {
 			return highestPlausibleCanonicalOrigin, n, nil
 		}
 
