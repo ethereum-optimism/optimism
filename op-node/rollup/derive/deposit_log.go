@@ -49,17 +49,24 @@ func UnmarshalDepositLogEvent(ev *types.Log) (*types.DepositTx, error) {
 	// indexed 2
 	version := ev.Topics[3]
 	// unindexed data
+	// Solidity serializes the event's Data field as follows:
+	// abi.encode(abi.encodPacked(uint256 mint, uint256 value, uint64 gasLimit, uint8 isCreation, bytes data))
+	// Thus the first 32 bytes of the Data will give us the offset of the opaqueData,
+	// which should always be 0x20.
 	var opaqueContentOffset uint256.Int
 	opaqueContentOffset.SetBytes(ev.Data[0:32])
 	if !opaqueContentOffset.IsUint64() || opaqueContentOffset.Uint64() != 32 {
-		return nil, fmt.Errorf("invalid opaqueData slice header offset: %s", &opaqueContentOffset)
+		return nil, fmt.Errorf("invalid opaqueData slice header offset: %d", opaqueContentOffset.Uint64())
 	}
+	// The next 32 bytes indicate the length of the opaqueData content.
 	var opaqueContentLength uint256.Int
 	opaqueContentLength.SetBytes(ev.Data[32:64])
-	// make sure the length is an uint64, it's not larger than the remaining data, and the log is using minimal padding (i.e. can't add 32 bytes without exceeding data)
+	// Make sure the length is an uint64, it's not larger than the remaining data, and the log is using minimal padding (i.e. can't add 32 bytes without exceeding data)
 	if !opaqueContentLength.IsUint64() || opaqueContentLength.Uint64() > uint64(len(ev.Data)-64) || opaqueContentLength.Uint64()+32 <= uint64(len(ev.Data)-64) {
-		return nil, fmt.Errorf("invalid opaqueData slice header length: %s", &opaqueContentLength)
+		return nil, fmt.Errorf("invalid opaqueData slice header length: %d", opaqueContentLength.Uint64())
 	}
+	// The remaining data is the opaqueData which is tightly packed
+	// and then padded to 32 bytes by the EVM.
 	opaqueData := ev.Data[64 : 64+opaqueContentLength.Uint64()]
 
 	var dep types.DepositTx
