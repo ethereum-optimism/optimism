@@ -4,7 +4,7 @@ import { BaseService, Metrics } from '@eth-optimism/common-ts'
 import { TypedEvent } from '@eth-optimism/contracts/dist/types/common'
 import { BaseProvider, StaticJsonRpcProvider } from '@ethersproject/providers'
 import { LevelUp } from 'levelup'
-import { constants } from 'ethers'
+import { constants, Event } from 'ethers'
 import { Gauge, Counter } from 'prom-client'
 
 /* Imports: Internal */
@@ -350,17 +350,25 @@ export class L1IngestionService extends BaseService<L1IngestionServiceOptions> {
       )
     }
 
-    // We need to figure out how to make this work without Infura. Mark and I think that infura is
-    // doing some indexing of events beyond Geth's native capabilities, meaning some event logic
-    // will only work on Infura and not on a local geth instance. Not great.
-    const addressSetEvents =
-      await this.state.contracts.Lib_AddressManager.queryFilter(
-        this.state.contracts.Lib_AddressManager.filters.AddressSet(
-          contractName
-        ),
-        fromL1Block,
-        toL1Block
+    const addressSetEventsPromises: Array<Promise<Event[]>> = []
+    for (let height = fromL1Block; height < toL1Block; ) {
+      let targetHeight = height + 1000
+      if (targetHeight > toL1Block) {
+        targetHeight = toL1Block
+      }
+      addressSetEventsPromises.push(
+        this.state.contracts.Lib_AddressManager.queryFilter(
+          this.state.contracts.Lib_AddressManager.filters.AddressSet(
+            contractName
+          ),
+          height,
+          targetHeight
+        )
       )
+      height = targetHeight + 1
+    }
+
+    const addressSetEventsList = await Promise.all(addressSetEventsPromises)
 
     // We're going to parse things out in ranges because the address of a given contract may have
     // changed in the range provided by the user.
@@ -372,17 +380,18 @@ export class L1IngestionService extends BaseService<L1IngestionServiceOptions> {
 
     // Add a range for each address change.
     let l1BlockRangeStart = fromL1Block
-    for (const addressSetEvent of addressSetEvents) {
-      eventRanges.push({
-        address: await this._getContractAddressAtBlock(
-          contractName,
-          addressSetEvent.blockNumber
-        ),
-        fromBlock: l1BlockRangeStart,
-        toBlock: addressSetEvent.blockNumber,
-      })
-
-      l1BlockRangeStart = addressSetEvent.blockNumber
+    for (const addressSetEvents of addressSetEventsList) {
+      for (const addressSetEvent of addressSetEvents) {
+        eventRanges.push({
+          address: await this._getContractAddressAtBlock(
+            contractName,
+            addressSetEvent.blockNumber
+          ),
+          fromBlock: l1BlockRangeStart,
+          toBlock: addressSetEvent.blockNumber,
+        })
+        l1BlockRangeStart = addressSetEvent.blockNumber
+      }
     }
 
     // Add one more range to get us to the end of the user-provided block range.
