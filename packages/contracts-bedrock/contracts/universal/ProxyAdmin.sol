@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.9;
+pragma solidity ^0.8.15;
 
 import { Owned } from "@rari-capital/solmate/src/auth/Owned.sol";
 import { Proxy } from "./Proxy.sol";

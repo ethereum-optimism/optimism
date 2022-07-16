@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.9;
+pragma solidity ^0.8.15;
 
 import { CommonTest } from "./CommonTest.t.sol";
 import { LegacyERC20ETH } from "../legacy/LegacyERC20ETH.sol";
