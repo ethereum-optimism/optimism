@@ -52,6 +52,7 @@
   - [Unsafe L2 Block](#unsafe-l2-block)
   - [Unsafe L2 Head](#unsafe-l2-head)
   - [Unsafe Block Consolidation](#unsafe-block-consolidation)
+  - [Finalized L2 Head](#finalized-l2-head)
 - [Other L2 Chain Concepts](#other-l2-chain-concepts)
   - [Address Aliasing](#address-aliasing)
   - [Rollup Node](#rollup-node)
@@ -160,10 +161,8 @@ Different transaction types can contain different payloads, and be handled diffe
 The fork choice rule is the rule used to determined which block is to be considered as the head of a blockchain. On L1,
 this is determined by the proof of stake rules.
 
-L2 also has a fork choice rule, although the rules vary depending on whether we want the sequencer-confirmed head, the
-on-chain-confirmed head, or the on-chain-finalized head.
-
-> TODO: define and link to those concepts
+L2 also has a fork choice rule, although the rules vary depending on whether we want the [safe L2 head][safe-l2-head],
+the [unsafe L2 head][unsafe-l2-head] or the [finalized L2 head][finalized-l2-head].
 
 ## Priority Gas Auction
 
@@ -326,6 +325,10 @@ call][depositing-call]. The *depositor* is **NOT** the originator of the deposit
 
 The *deposited transaction type* is an [EIP-2718] [transaction type][transaction-type], which specifies the input fields
 and correct handling of a [deposited transaction][deposited].
+
+See the [corresponding section][spec-deposit-tx-type] of the deposits spec for more information.
+
+[spec-deposit-tx-type]: deposits.md#the-deposited-transaction-type
 
 ## Deposit Contract
 
@@ -584,15 +587,13 @@ can vary between different nodes, based on their view of the L1 chain.
 
 An unsafe L2 block is an L2 block that a [rollup node][rollup-node] knows about, but which was not derived from the L1
 chian. In sequencer mode, this will be a block sequenced by the sequencer itself. In validator mode, this will be a
-block acquired from the sequencer via unsafe sync.
-
-TODO link unsafe sync
+block acquired from the sequencer via [unsafe sync][unsafe-sync].
 
 ## Unsafe L2 Head
 
 [unsafe-l2-head]: glossary.md#unsafe-l2-head
 
-The unsafe L2 head is the most recent [unsafe L2 block][unsafe-l2-block] that a [rollup node][rollup-node] knows about.
+The unsafe L2 head is the highest [unsafe L2 block][unsafe-l2-block] that a [rollup node][rollup-node] knows about.
 
 ## Unsafe Block Consolidation
 
@@ -607,6 +608,15 @@ chain match the oldest unsafe L2 block exactly.
 See the [Engine Queue section][engine-queue] of the L2 chain derivatiaon spec for more information.
 
 [engine-queue]: derivation.md#engine-queue
+
+## Finalized L2 Head
+
+[finalized-l2-head]: glossary.md#finalized-l2-head
+
+The finalized L2 head is the highest L2 block that can be derived from *[finalized][finality]* L1 blocks — i.e. L1
+blocks older than two L1 epochs (64 L1 [time slots][time-slot]).
+
+[finality]: https://hackmd.io/@prysmaticlabs/finality *finalized* L1 data.
 
 ------------------------------------------------------------------------------------------------------------------------
 

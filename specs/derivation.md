@@ -41,6 +41,8 @@
 [g-unsafe-l2-block]: glossary.md#unsafe-l2-block
 [g-unsafe-sync]: glossary.md#unsafe-sync
 [g-l1-origin]: glossary.md#l1-origin
+[g-deposit-tx-type]: glossary.md#deposited-transaction-type
+[g-finalized-l2-head]: glossary.md#finalized-l2-head
 
 <!-- START doctoc generated TOC please keep comment here to allow auto update -->
 <!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
@@ -51,8 +53,8 @@ TODO
 
 # Overview
 
-> Note: the following assumes a single sequencer and batcher. In the future, the design might be adapted to accomodate
-> multiple such entities.
+> **Note**: the following assumes a single sequencer and batcher. In the future, the design might be adapted to
+> accomodate multiple such entities.
 
 [L2 chain derivation][g-derivation] — deriving L2 [blocks][g-block] from L1 data — is one of the main responsability of
 the [rollup node][g-rollup-node], both in validator mode, and in sequencer mode (where derivation acts as a sanity check
@@ -329,6 +331,9 @@ where:
 
 Unknown versions make the batch invalid (it must be ignored by the rollup node), as do malformed contents.
 
+The `epoch_number` and the `timestamp` must also respect the constraints listed in the [Batch
+Buffering][batch-buffering] section, otherwise the batch is considered invalid.
+
 ------------------------------------------------------------------------------------------------------------------------
 
 # Architecture
@@ -437,9 +442,11 @@ In the *Batch Decoding* stage, we decompress the frames we received in the last 
 
 ### Batch Buffering
 
-During the *Batch Buffering* stage, we reorder batches by their timestamps. If batches are missing for a given [time
-slot][g-time-slot], this stage also generates empty batches to fill gaps.
+[batch-buffering]: #batch-buffering
 
+During the *Batch Buffering* stage, we reorder batches by their timestamps. If batches are missing for some [time
+slots][g-time-slot] and a valid batch with a higher timestamp exists, this stage also generates empty batches to fill
+the gaps.
 
 Batches are pushed to the next stage whenever there is one or more sequential batches directly following the timestamp
 of the current [safe L2 head][g-safe-l2-head] (the last block that can be derived from the canonical L1 chain).
@@ -447,6 +454,26 @@ of the current [safe L2 head][g-safe-l2-head] (the last block that can be derive
 Note that the presence of any gaps in the batches derived from L1 means that this stage will need to buffer for a whole
 [sequencing window][g-sequencing-window] before it can generate empty batches (because the missing batch(es) could have
 data in the last L1 block of the window in the worst case).
+
+We also ignore invalid batches, which do not satisfy one of the following constraints:
+
+- The timestamp is aligned to the [block time][g-block-time]: `(batch.timestamp - genesis_l2_timestamp) % block_time == 0`
+- The timestamp is within the allowed range: `min_l2_timestamp <= batch.timestamp < max_l2_timestamp`, where
+  - all these values are denominated in seconds
+  - `min_l2_timestamp = prev_l2_timestamp + l2_block_time`
+    - `prev_l2_timestamp` is the timestamp of the previous L2 block: the last block of the previous epoch,
+      or the L2 genesis block timestamp if there is no previous epoch.
+    - `l2_block_time` is a configurable parameter of the time between L2 blocks (on Optimism, 2s)
+  - `max_l2_timestamp = max(l1_timestamp + max_sequencer_drift, min_l2_timestamp + l2_block_time)`
+    - `l1_timestamp` is the timestamp of the L1 block associated with the L2 block's epoch
+    - `max_sequencer_drift` is the maximum amount of time an L2 block's timestamp is allowed to get ahead of the
+       timestamp of its [L1 origin][g-l1-origin]
+  - Note that we always have `min_l2_timestamp >= l1_timestamp`, i.e. a L2 block timestamp is always equal or ahead of
+    the timestamp of its [L1 origin][g-l1-origin].
+- The batch is the first batch with `batch.timestamp` in this sequencing window, i.e. one batch per L2 block number.
+- The batch only contains sequenced transactions, i.e. it must NOT contain any [deposited-type transactions][g-deposit-tx-type].
+
+> **TODO** specify `max_sequencer_drift`
 
 ### Payload Attributes Derivation
 
@@ -487,6 +514,9 @@ If consolidation fails, the unsafe L2 head is reset to the safe L2 head.
 If the safe and unsafe L2 heads are identical (whether because of failed consolidation or not), we send the block to the
 execution engine to be converted into a proper L2 block, which becomes both the new L2 safe and unsafe heads.
 
+Interaction with the execution engine via the execution engine API is detailed in the [Communication with the Execution
+Engine][exec-engine-comm] section.
+
 ### Resetting the Pipeline
 
 It is possible to reset the pipeline, for instance if we detect an L1 [re-org][g-reorg]. For more details on this, see
@@ -512,12 +542,10 @@ could potentially be an empty auto-generated batch, if the L1 chain did not incl
 number. [Remember][batch-format] the batch includes a [sequencing epoch][g-sequencing-epoch] number, an L2 timestamp,
 and a transaction list.
 
-TODO reference epoch constraints
-
 This block is part of a [sequencing epoch][g-sequencing-epoch], whose number matches that of an L1 block (its *[L1
 origin][g-l1-origin]*). This L1 block is used to derive L1 attributes and (for the first L2 block in the epoch) user deposits.
 
-Therefore, a [`PayloadAttributesV1`] object must include the following transactions:
+Therefore, a [`PayloadAttributesV1`][expanded-payload] object must include the following transactions:
 
 - one or more [deposited transactions][g-deposited], of two kinds:
   - a single *[L1 attributes deposited transaction][g-l1-attr-deposit]*, derived from the L1 origin.
@@ -530,31 +558,9 @@ Transactions **must** appear in this order in the payload attributes.
 
 The L1 attributes are read from the L1 block header, while deposits are read from the L1 block's [receipts][g-receipts].
 Refer to the [**deposit contract specification**][deposit-contract-spec] for details on how deposits are encoded as log
-entries. The deposited and sequenced transactions are combined when the payload attributes are constructed.
+entries.
 
 [deposit-contract-spec]: deposits.md#deposit-contract
-
-### Encoding Deposited Transactions
-
-The [L1 attributes deposited transaction][g-l1-attr-deposit] is a call that submits the L1 block attributes (listed
-above) to the [L1 attributes predeployed contract][g-l1-attr-predeploy].
-
-To encode the L1 attributes deposited transaction, refer to the following sections of the deposits spec:
-
-- [The Deposited Transaction Type](deposits.md#the-deposited-transaction-type)
-- [L1 Attributes Deposited Transaction](deposits.md#l1-attributes-deposited-transaction)
-
-A [user-deposited-transactions][g-deposited] is an L2 transaction derived from a [user deposit][g-deposits] submitted on
-L1 to the [deposit contract][g-deposit-contract]. Refer to the [deposit contract specification][deposit-contract-spec]
-for more details.
-
-The user-deposited transaction is derived from the log entry emitted by the [depositing call][g-depositing-call], which
-is stored in the [depositing transaction][g-depositing-transaction]'s log receipt.
-
-To encode user-deposited transactions, refer to the following sections of the deposits spec:
-
-- [The Deposited Transaction Type](deposits.md#the-deposited-transaction-type)
-- [User-Deposited Transactions](deposits.md#user-deposited-transactions)
 
 ## Building Individual Payload Attributes
 
@@ -570,68 +576,41 @@ After deriving the transaction list, the rollup node constructs a [`PayloadAttri
 - `noTxPool` is set to `true`, to use the exact above `transactions` list when constructing the block.
 
 [expanded-payload]: exec-engine.md#extended-payloadattributesv1
-[`PayloadAttributesV1`]: https://github.com/ethereum/execution-apis/blob/main/src/engine/specification.md#payloadattributesv1
 
 > **TODO** specify Optimism mainnet fee recipient
 
-## Sequencing Window Constraints
+------------------------------------------------------------------------------------------------------------------------
 
-TODO: This ha been copy pasted, and really doesn't fit with the rest, needs to integrate
+# WARNING: BELOW THIS LINE, THE SPEC HAS NOT BEEN REVIEWED AND MAY CONTAIN MISTAKES
 
-The Batch Queue buffers a full [sequencing window][g-sequencing-window] of data tagged with L1 origins,
-and then derives payloads attributes as:
+We still expect that the explanations here should be pretty useful.
 
-- Of the *first* block in the window only:
-  - L1 block attributes:
-    - block number
-    - timestamp
-    - basefee
-    - *random* (the output of the [`RANDOM` opcode][random])
-  - L1 log entries emitted for [user deposits][g-deposits], augmented with a [sourceHash](./deposits.md#).
-- Of each batch in the window:
-    - Batches not matching filter criteria are ignored:
-      - `batch.epoch == sequencing_window.epoch`, i.e. for this sequencing window
-      - `(batch.timestamp - genesis_l2_timestamp) % block_time == 0`, i.e. timestamp is aligned
-      - `min_l2_timestamp <= batch.timestamp < max_l2_timestamp`, i.e. timestamp is within range
-        - `min_l2_timestamp = prev_l2_timestamp + l2_block_time`
-          - `prev_l2_timestamp` is the timestamp of the previous L2 block: the last block of the previous epoch,
-            or the L2 genesis block timestamp if there is no previous epoch.
-          - `l2_block_time` is a configurable parameter of the time between L2 blocks
-        - `max_l2_timestamp = max(l1_timestamp + max_sequencer_drift, min_l2_timestamp + l2_block_time)`
-          - `l1_timestamp` is the timestamp of the L1 block associated with the L2 block's epoch
-          - `max_sequencer_drift` is the most a sequencer is allowed to get ahead of L1
-      - The batch is the first batch with `batch.timestamp` in this sequencing window,
-        i.e. one batch per L2 block number.
-      - The batch only contains sequenced transactions, i.e. it must NOT contain any Deposit-type transactions.
+------------------------------------------------------------------------------------------------------------------------
 
-Note that after the above filtering `min_l2_timestamp >= l1_timestamp` always holds,
-i.e. a L2 block timestamp is always equal or ahead of the timestamp of the corresponding L1 origin block.
+# Communication with the Execution Engine
 
-[random]: https://eips.ethereum.org/EIPS/eip-4399
+[exec-engine-comm]: #communication-with-the-execution-engine
 
-A sequencing window is derived into a variable number of L2 blocks, defined by a range of timestamps:
+The [engine queue] is responsible for interacting with the execution engine, sending it
+[`PayloadAttributesV1`][expanded-payload] objects and receiving L2 block references as a result. This happens whenever
+the [safe L2 head][g-safe-l2-head] and the [unsafe L2 head][g-unsafe-l2-head] are identical, either because [unsafe
+block consolidation][g-consolidation] failed or because no [unsafe L2 blocks][g-unsafe-l2-block] were known in the first
+place. This section explains how this happens.
 
-- Starting at `min_l2_timestamp`, as defined in the batch filtering.
-- Up to and including  (including only if aligned with L2 block time)
-  `new_head_l2_timestamp = max(highest_valid_batch_timestamp, next_l1_timestamp - 1, min_l2_timestamp)`
-  - `highest_valid_batch_timestamp = max(batch.timestamp for batch in filtered_batches)`,
-    or `0` if no there are no `filtered_batches`.
-    `batch.timestamp` refers to the L2 block timestamp encoded in the batch.
-  - `next_l1_timestamp` is the timestamp of the next L1 block.
+> **Note**: This only describes interaction with the execution engine in the context of L2 chain derivation from L1. The
+> sequencer also interacts with the engine when it needs to create new L2 blocks using L2 transactions submitted by
+> users.
 
-The L2 chain is extended to `new_head_l2_timestamp` with blocks at a fixed [block time][g-block-time] (`l2_block_time`).
-This means that every `l2_block_time` that has no batch is interpreted as one with no sequenced transactions.
+Let:
 
-## Communication with the Execution Engine
+- `refL2` be the (hash of) the current [safe L2 head][g-unsafe-l2-head]
+- `finalizedRef` be the (hash of) the [finalized L2 head][g-finalized-l2-head]: the highest L2 block that can be fully
+  derived from *[finalized][finality]* L1 blocks — i.e. L1 blocks older than two L1 epochs (64 L1 [time
+  slots][g-time-slot]).
+- `payloadAttributes` be some previously derived [payload attributes][g-payload-attr] for the L2 block with number
+  `l2Number(refL2) + 1`
 
-TODO: This ha been copy pasted, and really doesn't fit with the rest, need to integrate
-
-Let
-
-- `refL2` be the (hash of) the current L2 chain head
-- `refL1` be the (hash of) the L1 block from which `refL2` was derived
-- `finalizedRef` be the (hash of) the L2 block that can be fully derived from finalized L1 input data.
-- `payloadAttributes` be some previously derived [payload attributes][g-payload-attr] for the L2 block with number `l2Number(refL2) + 1`
+[finality]: https://hackmd.io/@prysmaticlabs/finality
 
 Then we can apply the following pseudocode logic to update the state of both the rollup driver and execution engine:
 
@@ -667,14 +646,24 @@ if (rpcErr != null) soft_error()
 if (status != "SUCCESS") payload_error()
 ```
 
+As should apparent from the assignations, within the `forkChoiceState` object, the properties have the following
+meaning:
+
+- `headBlockHash`: block hash of the last block of the L2 chain, according to the sequencer.
+- `safeBlockHash`: same as `headBlockHash`.
+- `finalizedBlockHash`: the hash of the L2 block that can be fully derived from finalized L1 data, making it impossible
+  to derive anything else.
+
 Error handling:
-- A `payload_error()` means the inputs were wrong, and should thus be dropped from the queue, and not reattempted.
+
+- A `payload_error()` means the inputs were wrong, and the payload attributes should thus be dropped from the queue, and
+  not reattempted.
 - A `soft_error()` means that the interaction failed by chance, and should be reattempted.
 - If the function completes without error, the attributes were applied successfully,
   and can be dropped from the queue while the tracked "safe head" is updated.
 
-TODO: `finalizedRef` is not being changed yet, but can be set to point to a L2 block fully derived from data up to a
-finalized L1 block.
+> **TODO** `finalizedRef` is not being changed yet, but can be set to point to a L2 block fully derived from data up to
+> a finalized L1 block.
 
 The following JSON-RPC methods are part of the [execution engine API][exec-engine]:
 
@@ -689,26 +678,9 @@ The following JSON-RPC methods are part of the [execution engine API][exec-engin
 [`engine_getPayloadV1`]: exec-engine.md#engine_newPayloadV1
 [`engine_newPayloadV1`]: exec-engine.md#engine_newPayloadV1
 
-The execution payload is an object of type [`ExecutionPayloadV1`].
+The execution payload is an object of type [`ExecutionPayloadV1`][eth-payload].
 
-[`ExecutionPayloadV1`]: https://github.com/ethereum/execution-apis/blob/main/src/engine/specification.md#executionpayloadv1
-
-Within the `forkChoiceState` object, the properties have the follo
-Just like steps, pipeline
-stages are reset in reverse order and cause each stage to rollback its internal state to be congruent with later stages.
-
-In the case of a re-org, this means updating the state to match the new L1 head.wing meaning:
-
-- `headBlockHash`: block hash of the last block of the L2 chain, according to the rollup driver.
-- `safeBlockHash`: same as `headBlockHash`.
-- `finalizedBlockHash`: the hash of the L2 block that can be fully derived from finalized L1 data, making it impossible
-  to derive anything else.
-
-------------------------------------------------------------------------------------------------------------------------
-
-# WARNING: BELOW THIS LINE, THE SPEC HAS NOT BEEN REVIEWED AND MAY CONTAIN MISTAKES
-
-We still expect that the explanations here should be pretty useful.
+[eth-payload]: https://github.com/ethereum/execution-apis/blob/main/src/engine/specification.md#executionpayloadv1
 
 ------------------------------------------------------------------------------------------------------------------------
 
@@ -780,7 +752,7 @@ The batch decoding stage is simply reset by resetting its L1 head to the payload
 
 ## Resetting Channel Buffering
 
-> !! Note: in this section, the term *next (L2) block* will refer to the block that will become the next L2 safe head.
+> **Note**: in this section, the term *next (L2) block* will refer to the block that will become the next L2 safe head.
 
 > **TODO** The above can be changed in the case where we always reset the unsafe head to the safe head upon L1 re-org.
 > (See TODO above in "Resetting the Engine Queue")
@@ -794,7 +766,7 @@ In the worst case, decoding the batch for the next L2 block would require readin
 in a [batcher transaction][g-batcher-transaction] in `safeL2Head.l1Origin + 1` (second L1 block of the next L2 block's
 epoch sequencing window, assuming it is in the same epoch as `safeL2Head`).
 
-> Note: In reality, there are no checks or constraints preventing the batch from landing in `safeL2Head.l1Origin`.
+> **Note**: In reality, there are no checks or constraints preventing the batch from landing in `safeL2Head.l1Origin`.
 > However this would be strange, because the next L2 block is built after the current L2 safe block, which requires
 > reading the deposits L1 attributes and deposits from `safeL2Head.l1Origin`. Still, a wonky or misbehaving sequencer
 > could post a batch for the L2 block `safeL2Head + 1` on L1 block `safeL2Head.1Origin`.
@@ -850,7 +822,3 @@ approximately 12 minutes, unless an attacker controls more than 1/3 of the total
 >
 > This makes sense, but is in conflict with how the [L2 chain inception][g-l2-chain-inception] is currently determined,
 > which is via the L2 output oracle deployment & upgrades.
-
-# TODO
-
-- explain how deposits are included
