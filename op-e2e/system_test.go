@@ -89,9 +89,7 @@ func defaultSystemConfig(t *testing.T) SystemConfig {
 			FinalizationPeriod: big.NewInt(60 * 60 * 24),
 		},
 		L2OOCfg: L2OOContractConfig{
-			// L2 Start time is set based off of the L2 Genesis time
 			SubmissionFrequency:   big.NewInt(4),
-			L2BlockTime:           big.NewInt(2),
 			HistoricalTotalBlocks: big.NewInt(0),
 		},
 		L2OutputHDPath:             l2OutputHDPath,
