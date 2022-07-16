@@ -145,6 +145,10 @@ jobs:
           name: storage snapshot
           command: yarn storage-snapshot && git diff --exit-code .storage-layout
           working_directory: packages/contracts-bedrock
+      - run:
+          name: size snapshot
+          command: ./scripts/size-snapshot.sh && git diff --exit-code .size-snapshot
+          working_directory: packages/contracts-bedrock
 
   op-bindings-build:
     docker:
