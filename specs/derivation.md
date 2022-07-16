@@ -58,8 +58,9 @@ TODO
 the [rollup node][g-rollup-node], both in validator mode, and in sequencer mode (where derivation acts as a sanity check
 on sequencing, and enables detecting L1 chain [re-organizations][g-reorg]).
 
-The L2 chain is derived from the L1 chain. In particular, each L1 blocks is mapped to an L2 [sequencing
-epoch][g-sequencing-epoch] comprising multiple L2 blocks. The epoch number matches the corresponding L1 block number.
+The L2 chain is derived from the L1 chain. In particular, each L1 block is mapped to an L2 [sequencing
+epoch][g-sequencing-epoch] comprising multiple L2 blocks. The epoch number is defined to be equal to the corresponding
+L1 block number.
 
 To derive the L2 blocks in an epoch `E`, we need the following inputs:
 
@@ -73,7 +74,7 @@ To derive the L2 blocks in an epoch `E`, we need the following inputs:
     - The L1 block attributes from L1 block `E` (to derive the [L1 attributes deposited transaction][g-l1-attr-deposit]).
 - The state of the L2 chain after the last L2 block of epoch `E - 1`, or — if epoch `E - 1` does not exist — the
   [genesis state][g-l2-genesis] (cf. TODO) of the L2 chain.
-    - An epoch `E` does not exist if `L2CI <= E`, where `L2CI` is the [L2 chain inception][g-l2-chain-inception].
+    - An epoch `E` does not exist if `E <= L2CI`, where `L2CI` is the [L2 chain inception][g-l2-chain-inception].
 
 > **TODO** specify sequencing window size
 > **TODO** specify genesis block / state (in its own document? include/link predeploy.md)
@@ -82,8 +83,8 @@ To derive the whole L2 chain from scratch, we simply start with the [L2 genesis 
 inception][g-l2-chain-inception] as first epoch, then process all sequencing windows in order. Refer to the
 [Architecture section][architecture] for more information on how we implement this in practice.
 
-Each epoch may contain a variable number of L2 blocks, at the discretion of [the sequencer][g-sequencer], but subject to
-the following constraints for each block:
+Each epoch may contain a variable number of L2 blocks (one every `l2_block_time`, 2s on Optimism), at the discretion of
+[the sequencer][g-sequencer], but subject to the following constraints for each block:
 
 - `min_l2_timestamp <= block.timestamp < max_l2_timestamp`, where
     - all these values are denominated in seconds
@@ -112,8 +113,11 @@ L2 blocks in an epoch. Indeed, as long as we are able to reconstruct sequential 
 corresponding L2 blocks. We call this *eager block derivation*.
 
 However, in the very worst case, we can only reconstruct the batch for the first L2 block in the epoch by reading the
-last L1 block of the sequencing window. This means we also can't derive any further L2 block in the epoch until then, as
-they need the state that results from applying the epoch's first L2 block.
+last L1 block of the sequencing window. This happens when some data for that batch is included in the last L1 block of
+the window. In that case, not only can we not derive the first L2 block in the poch, we also can't derive any further L2
+block in the epoch until then, as they need the state that results from applying the epoch's first L2 block. (Note that
+this only applies to *block* derivation. We can still derive further batches, we just won't be able to create blocks
+from them.)
 
 ------------------------------------------------------------------------------------------------------------------------
 
@@ -127,16 +131,20 @@ submitting each batch to a [data availability provider][g-avail-provider] (e.g. 
 its [batcher][g-batcher] component.
 
 The difference between an L2 block and a batch is subtle but important: the block includes an L2 state root, whereas the
-batch only commits to transactions at a given L2 timestamp (equivalently: L2 block number).
+batch only commits to transactions at a given L2 timestamp (equivalently: L2 block number). A block also includes a
+reference to the previous block (\*).
+
+(\*) This matters in some edge case where a L1 reorg would occur and a batch would be reposted to the L1 chain but not
+the preceding batch, whereas the predecessor of an L2 block cannot possibly change.
 
 This means that even if the sequencer applies a state transition incorrectly, the transactions in the batch will stil be
 considered part of the canonical L2 chain. Batches are still subject to validity checks (i.e. they have to be encoded
 correctly), and so are individual transactions within the batch (e.g. signatures have to be valid). Invalid batches and
 invalid individual transactions within an otherwise valid batch are discarded by correct nodes.
 
-If the sequencer applies a state transition incorrectly, he will post an incorrect [output root][g-l2-output], which
-will be challenged by a [fault proof][g-fault-proof], then replaced by a correct output root **for the existing sequencer
-batches.**
+If the sequencer applies a state transition incorrectly and posts an [output root][g-l2-output], then this output root
+will be incorrect. The incorrect output root which will be challenged by a [fault proof][g-fault-proof], then replaced
+by a correct output root **for the existing sequencer batches.**
 
 Refer to the [Batch Submission specification][batcher-spec] for more information.
 
@@ -148,7 +156,9 @@ Refer to the [Batch Submission specification][batcher-spec] for more information
 >
 > - There may be different concurrent data submissions to L1
 > - There may be different actors that submit the data, the system cannot rely on a single EOA nonce value.
-> - The batcher requests batches from the rollup-node then builds channels and frames.
+> - The batcher requests safe L2 safe head from the rollup node, then queries the execution engine for the block data.
+>   - In the future we might be able to get the safe hea dinformation from the execution engine directly. Not possible
+>     right now but there is an upstream geth PR open.
 
 ## Batch Submission Wire Format
 
@@ -177,7 +187,7 @@ to employ multiple signers (private keys) to submit one or multiple channels in 
 (1) This helps alleviate issues where, because of transaction nonces, multiple transactions made by the same signer are
 stuck waiting on the inclusion of a previous transaction.
 
-Also note that we use a streaming encryption scheme, and we do not need to know how many blocks a channel will end up
+Also note that we use a streaming compression scheme, and we do not need to know how many blocks a channel will end up
 containing when we start a channel, or even as we send the first frames in the channel.
 
 All of this is illustrated in the following diagram.
@@ -198,16 +208,13 @@ All of this is illustrated in the following diagram.
 
 ### Batcher Transaction Format
 
-```text
-transaction_data = version_byte ++ rollup_payload
+Batcher transactions are encoded as `version_byte ++ rollup_payload` (where `++` denotes concatenation).
 
-# version_byte == 0:
-rollup_payload = frame ...   #  one or more frames, concatenated
+| `version_byte` | `rollup_payload`                               |
+|----------------|------------------------------------------------|
+| 0              | `frame ...` (one or more frames, concatenated) |
 
-# version_byte != 0: invalid, reserved for future use
-```
-
-(where `++` denotes concatenation)
+Unknown versions make the batcher transaction invalid (it must be ignored by the rollup node).
 
 The `rollup_payload` may be right-padded with 0s, which will be ignored. It's allowed for them to be
 interpreted as frames for channel 0, which must always be ignored.
@@ -231,6 +238,8 @@ frame_data        = bytes
 is_last           = bool
 ```
 
+> **TODO** replace `uvarint` by fixed size integers
+
 where:
 
 - `uvarint` is a variable-length encoding of a 64-bit unsigned integer into between 1 and 9 bytes, [as specified in
@@ -238,20 +247,25 @@ where:
 - `channel_id` uniquely identifies a channel as the concatenation of a random value and a timestamp
     - `random` is a random value such that two channels with different batches should have a different random value
     - `timestamp` is the time at which the channel was created (UNIX time in seconds)
-    - The ID includes both the hash and the timestamp, in order to prevent a malicious sequencer from reusing the random
-      value after the channel has [timed out][g-channel-timeout] (refer to the [batcher specification][batcher-spec] to
-      learn more about channel timeouts). This will also allow us substitute `random` by a hash commitment to the
-      batches, should we want to do so in the future.
-- `frame_number` identifies the index of the frame within the channel (in bytes)
+    - The ID includes both the random value and the timestamp, in order to prevent a malicious sequencer from reusing
+      the random value after the channel has [timed out][g-channel-timeout] (refer to the [batcher
+      specification][batcher-spec] to learn more about channel timeouts). This will also allow us substitute `random` by
+      a hash commitment to the batches, should we want to do so in the future.
+    - Channels whose timestamp are higher than that of the L1 block they first appear in must be ignored. Note that L1
+      nodes have a soft constraint to ignore blocks whose timestamps that are ahead of the wallclock time by a certain
+      margin. (A soft constraint is not a consensus rule — nodes will accept such blocks in the canonical chain but will
+      not attempt to build directly on them.)
+- `frame_number` identifies the index of the frame within the channel
 - `frame_data_length` is the length of `frame_data` in bytes
-- `frame_data` is a sequence of bytes belonging to the channel, at index `max(frame_number-1, 0)`
+- `frame_data` is a sequence of bytes belonging to the channel, logically after the bytes from the previous frames
 - `is_last` is a single byte with a value of 1 if the frame is the last in the channel, 0 if there are frames in the
   channel. Any other value makes the frame invalid (it must be ignored by the rollup node).
 
-> **TODO** why is frame_number not 0 based?
-
-> **TODO** channel timestamps must be validated to not be in the future - is that currently done? + specify
-> Also: is this even safe? i.e. could L1 block producers manipulate the timestamp?
+> **TODO**
+> - Is that requirement to drop channels correct?
+> - Is it implemented as such?
+> - Do we drop the channel or just the first frame? End result is the same but this changes the channel bank size, which
+>   can influence things down the line!!
 
 [sqlite-uvarint]: https://www.sqlite.org/src4/doc/trunk/www/varint.wiki
 [batcher-spec]: batching.md
@@ -259,42 +273,35 @@ where:
 ### Channel Format
 
 A channel is encoded as `channel_encoding`, defined as:
-> **TODO** The channel queue is a bit weird as implemented (blocks all other channels until the first channel is closed
-> / timed out. Also unclear why we need to wait for channel closure. Maybe something to revisit?
->
-> cf. slack discussion with Proto
+
 ```text
 rlp_batches = []
 for batch in batches:
-    rlp_batches.append(rlp_encode(batch))
+    rlp_batches.append(batch)
 channel_encoding = compress(rlp_batches)
 ```
 
 where:
 
 - `batches` is the input, a sequence of batches byte-encoded as per the next section ("Batch Encoding")
-- `rlp_encode` is a function that encodes a batch according to the [RLP format] (where `batch` is treated as a string of
-  bytes) — concretely this adds a (variable-length) length prefix to the batch
 - `rlp_batches` is the concatenation of the RLP-encoded batches
-- `compress` is a function performing compression, using the ZLIB algorithm with no dictionary
+- `compress` is a function performing compression, using the ZLIB algorithm (as specified in [RFC-1950][rfc1950]) with
+  no dictionary
 - `channel_encoding` is the compressed version of `rlp_batches`
 
-> **TODO** we probably need to specify the compression better (e.g. which ZLIB version, which flags)
-
-[RLP format]: https://ethereum.org/en/developers/docs/data-structures-and-encoding/rlp/
+[rfc1950]: https://www.rfc-editor.org/rfc/rfc1950.html
 
 When decompressing a channel, we limit the amount of decompressed data to `MAX_RLP_BYTES_PER_CHANNEL`, in order to avoid
-"zip-bomb" types of attack (where a small compressed input decompresses to a humongous amount of data).
+"zip-bomb" types of attack (where a small compressed input decompresses to a humongous amount of data). If the
+decompressed data exceeds the limit, things proceeds as thought the channel contained only the first
+`MAX_RLP_BYTES_PER_CHANNEL` decompressed bytes.
 
 > **TODO** specify `MAX_RLP_BYTES_PER_CHANNEL`
-
-> **TODO** what happens when we reach `MAX_RLP_BYTES_PER_CHANNEL`? do we throw the channel away, or do we still attempt
-> to use the decompressed bytes?
 
 While the above pseudocode implies that all batches are known in advance, it is possible to perform streaming
 compression and decompression of RLP-encoded batches. This means it is possible to start including channel frames in a
 [batcher transaction][g-batcher-transaction] before we know how many batches (and how many frames) the channel will
-contain.bBatch Submission Wire Format
+contain.
 
 ### Batch Format
 
@@ -304,18 +311,20 @@ Recall that a batch contains a list of transactions to be included in a specific
 
 A batch is encoded as `batch_version ++ content`, where `content` depends on the version:
 
-| `batch_version` | `content`                                         |
-| --------------- | ------------------------------------------------- |
-| 0               | `rlp_encode([epoch, timestamp, transaction_list)` |
+| `batch_version` | `content`                                                             |
+| --------------- | --------------------------------------------------------------------- |
+| 0               | `rlp_encode([epoch_number, epoch_hash, timestamp, transaction_list])` |
 
 where:
 
 - `rlp_encode` is a function that encodes a batch according to the [RLP format], and `[x, y, z]` denotes a list
   containing items `x`, `y` and `z`
-- `epoch` is the [sequencing epoch][g-sequencing-epoch] of the L2 block
+- `epoch_number` and `epoch_hash` are the number and hash of the L1 block corresponding to the [sequencing
+  epoch][g-sequencing-epoch] of the L2 block
 - `timestamp` is the timestamp of the L2 block
 - `transaction_list` is an RLP-encoded list of [EIP-2718] encoded transactions.
 
+[RLP format]: https://ethereum.org/en/developers/docs/data-structures-and-encoding/rlp/
 [EIP-2718]: https://eips.ethereum.org/EIPS/eip-2718
 
 Unknown versions make the batch invalid (it must be ignored by the rollup node), as do malformed contents.
@@ -327,7 +336,7 @@ Unknown versions make the batch invalid (it must be ignored by the rollup node),
 [architecture]: #architecture
 
 The above describes the general process of L2 chain derivation, and specifies how batches are encoded within [batcher
-transactions][g-batcher-transactions].
+transactions][g-batcher-transaction].
 
 However, there remains many details to specify. These are mostly tied to the rollup node architecture for derivation.
 Therefore we present this architecture as a way to specify these details.
@@ -346,24 +355,25 @@ Our architecture decomposes the derivation process into a pipeline made up of th
 2. L1 Retrieval
 3. Channel Bank
 4. Batch Decoding (called `ChannelInReader` in the code)
-5. Payload Attributes Derivation (called `BatchQueue` in the code)
-6. Engine Queue
+5. Batch Buffering (Called `BatchQueue` in the code)
+6. Payload Attributes Derivation (called `AttributesQueue` in the code)
+7. Engine Queue
 
-> **TODO** can we change code names for these two things? maybe as part of a refactor
+> **TODO** can we change code names for these three things? maybe as part of a refactor
 
 The data flows flows from the start (outer) of the pipeline towards the end (inner). Each stage is able to push data to
-the next step.
+the next stage.
 
-However, data is *processed* is reverse order. Meaning that if there is any data to be processed in the last stage, it
+However, data is *processed* in reverse order. Meaning that if there is any data to be processed in the last stage, it
 will be processed first. Processing proceeds in "steps" that can be taken at each stage. We try to take as many steps as
-possible in the last (most inner) stage before taking steps any step in its outer stage, etc.
+possible in the last (most inner) stage before taking any steps in its outer stage, etc.
 
 This ensures that we use the data we already have before pulling more data and minimizes the latency of data traversing
 the derivation pipeline.
 
-Each stage can maintain its own inner state as necessary. In particular, each stage maintains a L1 block reference
+Each stage can maintain its own inner state as necessary. **In particular, each stage maintains a L1 block reference
 (number + hash) to the latest L1 block such that all data originating from previous blocks has been processed, and the
-data from that block is or has been processed.
+data from that block is or has been processed.**
 
 Let's briefly describe each stage of the pipeline.
 
@@ -379,14 +389,16 @@ particular we extract a byte string that corresponds to the concatenation of the
 transaction][g-batcher-transaction] belonging to the block. This byte stream encodes a stream of [channel
 frames][g-channel-frame] (see the [Batch Submission Wire Format][wire-format] section for more info).
 
-This frames are parsed, then grouped them per [channel][g-channel] into a structure we call the *channel bank*.
+This frames are parsed, then grouped per [channel][g-channel] into a structure we call the *channel bank*.
 
 Some frames are ignored:
 
-- Frames where `frame.frame_number <= progress`, where `progress` is the number of the latest frame that was read.
+- Frames where `frame.frame_number <= highest_frame_number`, where `highest_frame_number` is the highest frame number
+  that was previously encountered for this channel.
     - i.e. in case of duplicate frame, the first frame read from L1 is considered canonical.
-- Frames past the end of the channel (i.e. past the first frame marked with `frame.is_last == 1`) are ignored.
-    - These frames could still be written into the channel bank if we haven't seen the last frame yet. But they will
+- Frames with a higher number than that of the final frame of the channel (i.e. the first frame marked with
+  `frame.is_last == 1`) are ignored.
+    - These frames could still be written into the channel bank if we haven't seen the final frame yet. But they will
       never be read out from the channel bank.
 
 ### Channel Bank
@@ -395,16 +407,16 @@ The *Channel Bank* stage is responsible from reading from the channel bank that 
 stage, and decompressing batches from these frames.
 
 In principle, we should be able to read any channel that has any number of sequential frames at the "front" of the
-channel (i.e. right after any frames that have been read from the bank already) and decompress batchers from them. (Note
+channel (i.e. right after any frames that have been read from the bank already) and decompress batches from them. (Note
 that if we did this, we'd need to keep partially decompressed batches around.)
 
 However, our current implementation doesn't support streaming decompression, so currently we have to wait until either:
 
 - We have received all frames in the channel (i.e. we received the last frame in the channel (`is_last == 1`) and every
-  frame before it)
+  frame with a lower number).
 - The channel has timed out (in which we case we read all contiguous sequential frames from the start of the channel).
-    - A channel is considered to be *timed out* if `currentL1Block > channeld_id.timestamp + CHANNEL_TIMEOUT`.
-        - where `currentL1Block` is the L1 block maintained by this stage, which is the latest L1 block whose frames
+    - A channel is considered to be *timed out* if `currentL1Block.timestamp > channeld_id.timestamp + CHANNEL_TIMEOUT`.
+        - where `currentL1Block` is the L1 block maintained by this stage, which is the most recent L1 block whose frames
           have been added to the channel bank.
 
 > **TODO** There is currently `MAX_CHANNEL_BANK_SIZE`, a notion about the maximum amount of channels we can keep track
@@ -413,19 +425,35 @@ However, our current implementation doesn't support streaming decompression, so 
 > - If so, I feel **very strongly** about changing this. This ties us very much to the current implementation.
 > - And it doesn't feel necessary given the channel timeout - if DOS is an issue we can reduce the channel timeout.
 
+> **TODO** The channel queue is a bit weird as implemented (blocks all other channels until the first channel is closed
+> / timed out. Also unclear why we need to wait for channel closure. Maybe something to revisit?
+>
+> cf. slack discussion with Proto
+
 ### Batch Decoding
 
-In the *Batch Decoding* stage, we simply decode [batches][g-sequencer-batch] from the frames we received from the last
-stage.
+In the *Batch Decoding* stage, we decompress the frames we received in the last stage, then parse
+[batches][g-sequencer-batch] from the decompressed byte stream.
+
+### Batch Buffering
+
+During the *Batch Buffering* stage, we reorder batches by their timestamps. If batches are missing for a given [time
+slot][g-time-slot], this stage also generates empty batches to fill gaps.
+
+
+Batches are pushed to the next stage whenever there is one or more sequential batches directly following the timestamp
+of the current [safe L2 head][g-safe-l2-head] (the last block that can be derived from the canonical L1 chain).
+
+Note that the presence of any gaps in the batches derived from L1 means that this stage will need to buffer for a whole
+[sequencing window][g-sequencing-window] before it can generate empty batches (because the missing batch(es) could have
+data in the last L1 block of the window in the worst case).
 
 ### Payload Attributes Derivation
 
-In the *Payload Attributes Derivation* stage, we convert the decoded batches into instances of the
-[`PayloadAttributes`][g-payload-attr] structure. Such a structure encodes the transactions that need to figure into a
-block, as well as other block inputs (timestamp, fee recipient, etc). Payload attributes derivation is detailed in the
+In the *Payload Attributes Derivation* stage, we convert the batches we get from the previous stage into instances of
+the [`PayloadAttributes`][g-payload-attr] structure. Such a structure encodes the transactions that need to figure into
+a block, as well as other block inputs (timestamp, fee recipient, etc). Payload attributes derivation is detailed in the
 section [Deriving Payload Attributes section][deriving-payload-attr] below.
-
-If batches are missing for a given [time slot][g-time-slot], this stage generates empty batches to fill gaps.
 
 ### Engine Queue
 
@@ -451,11 +479,13 @@ In particular, the following fields of the payload attributes are checked for eq
 - `parent_hash`
 - `timestamp`
 - `randao`
+- `fee_recipient`
 - `transactions_list` (first length, then equality of each of the encoded transactions)
 
-TODO link payload attributes spec / definition
-
 If consolidation fails, the unsafe L2 head is reset to the safe L2 head.
+
+If the safe and unsafe L2 heads are identical (whether because of failed consolidation or not), we send the block to the
+execution engine to be converted into a proper L2 block, which becomes both the new L2 safe and unsafe heads.
 
 ### Resetting the Pipeline
 
@@ -673,6 +703,12 @@ In the case of a re-org, this means updating the state to match the new L1 head.
 - `safeBlockHash`: same as `headBlockHash`.
 - `finalizedBlockHash`: the hash of the L2 block that can be fully derived from finalized L1 data, making it impossible
   to derive anything else.
+
+------------------------------------------------------------------------------------------------------------------------
+
+# WARNING: BELOW THIS LINE, THE SPEC HAS NOT BEEN REVIEWED AND MAY CONTAIN MISTAKES
+
+We still expect that the explanations here should be pretty useful.
 
 ------------------------------------------------------------------------------------------------------------------------
 
