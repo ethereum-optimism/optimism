@@ -612,8 +612,8 @@ i.e. a L2 block timestamp is always equal or ahead of the timestamp of the corre
 A sequencing window is derived into a variable number of L2 blocks, defined by a range of timestamps:
 
 - Starting at `min_l2_timestamp`, as defined in the batch filtering.
-- Up to and including
-  `new_head_l2_timestamp = max(highest_valid_batch_timestamp, next_l1_timestamp - l2_block_time, min_l2_timestamp)`
+- Up to and including  (including only if aligned with L2 block time)
+  `new_head_l2_timestamp = max(highest_valid_batch_timestamp, next_l1_timestamp - 1, min_l2_timestamp)`
   - `highest_valid_batch_timestamp = max(batch.timestamp for batch in filtered_batches)`,
     or `0` if no there are no `filtered_batches`.
     `batch.timestamp` refers to the L2 block timestamp encoded in the batch.
