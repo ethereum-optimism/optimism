@@ -3,8 +3,8 @@ module github.com/ethereum-optimism/optimism/op-bindings
 go 1.18
 
 require (
-	github.com/ethereum/go-ethereum v1.10.17
-	github.com/stretchr/testify v1.7.0
+	github.com/ethereum/go-ethereum v1.10.20
+	github.com/stretchr/testify v1.7.2
 )
 
 require (
@@ -31,14 +31,14 @@ require (
 	github.com/rivo/uniseg v0.2.0 // indirect
 	github.com/rjeczalik/notify v0.9.2 // indirect
 	github.com/shirou/gopsutil v3.21.11+incompatible // indirect
-	github.com/syndtr/goleveldb v1.0.1-0.20210819022825-2ae1ddf74ef7 // indirect
+	github.com/syndtr/goleveldb v1.0.1-0.20220614013038-64ee5596c38a // indirect
 	github.com/tklauser/go-sysconf v0.3.10 // indirect
 	github.com/tklauser/numcpus v0.4.0 // indirect
 	github.com/yusufpapurcu/wmi v1.2.2 // indirect
 	golang.org/x/crypto v0.0.0-20220307211146-efcb8507fb70 // indirect
-	golang.org/x/sys v0.0.0-20220310020820-b874c991c1a5 // indirect
+	golang.org/x/sys v0.0.0-20220520151302-bc2c85ada10a // indirect
 	gopkg.in/natefinch/npipe.v2 v2.0.0-20160621034901-c1b8fa8bdcce // indirect
-	gopkg.in/yaml.v3 v3.0.0-20210107192922-496545a6307b // indirect
+	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 
-replace github.com/ethereum/go-ethereum v1.10.17 => github.com/ethereum-optimism/reference-optimistic-geth v0.0.0-20220711171946-f579014dc46d
+replace github.com/ethereum/go-ethereum v1.10.20 => github.com/ethereum-optimism/reference-optimistic-geth v0.0.0-20220715235548-70b02481016d
