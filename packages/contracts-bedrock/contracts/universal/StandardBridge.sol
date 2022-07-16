@@ -18,6 +18,26 @@ abstract contract StandardBridge is Initializable {
     using SafeERC20 for IERC20;
 
     /**
+     * @notice The L2 gas limit set when eth is depoisited using the receive() function.
+     */
+    uint32 internal constant RECEIVE_DEFAULT_GAS_LIMIT = 200_000;
+
+    /**
+     * @notice Messenger contract on this domain.
+     */
+    CrossDomainMessenger public messenger;
+
+    /**
+     * @notice Corresponding bridge on the other domain.
+     */
+    StandardBridge public otherBridge;
+
+    /**
+     * @notice Mapping that stores deposits for a given pair of local and remote tokens.
+     */
+    mapping(address => mapping(address => uint256)) public deposits;
+
+    /**
      * @notice Emitted when an ETH bridge is initiated to the other chain.
      *
      * @param from      Address of the sender.
@@ -103,26 +123,6 @@ abstract contract StandardBridge is Initializable {
         uint256 amount,
         bytes extraData
     );
-
-    /**
-     * @notice The L2 gas limit set when eth is depoisited using the receive() function.
-     */
-    uint32 internal constant RECEIVE_DEFAULT_GAS_LIMIT = 200_000;
-
-    /**
-     * @notice Messenger contract on this domain.
-     */
-    CrossDomainMessenger public messenger;
-
-    /**
-     * @notice Corresponding bridge on the other domain.
-     */
-    StandardBridge public otherBridge;
-
-    /**
-     * @notice Mapping that stores deposits for a given pair of local and remote tokens.
-     */
-    mapping(address => mapping(address => uint256)) public deposits;
 
     /**
      * @notice Only allow EOAs to call the functions. Note that this is not safe against contracts

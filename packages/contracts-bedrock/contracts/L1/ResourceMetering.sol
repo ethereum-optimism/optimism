@@ -64,19 +64,6 @@ abstract contract ResourceMetering is Initializable {
     uint256[49] private __gap;
 
     /**
-     * @notice Sets initial resource parameter values. This function must either be called by the
-     *         initializer function of an upgradeable child contract.
-     */
-    // solhint-disable-next-line func-name-mixedcase
-    function __ResourceMetering_init() internal onlyInitializing {
-        params = ResourceParams({
-            prevBaseFee: INITIAL_BASE_FEE,
-            prevBoughtGas: 0,
-            prevBlockNum: uint64(block.number)
-        });
-    }
-
-    /**
      * @notice Meters access to a function based an amount of a requested resource.
      *
      * @param _amount Amount of the resource requested.
@@ -163,5 +150,18 @@ abstract contract ResourceMetering is Initializable {
         if (gasCost > usedGas) {
             Burn.gas(gasCost - usedGas);
         }
+    }
+
+    /**
+     * @notice Sets initial resource parameter values. This function must either be called by the
+     *         initializer function of an upgradeable child contract.
+     */
+    // solhint-disable-next-line func-name-mixedcase
+    function __ResourceMetering_init() internal onlyInitializing {
+        params = ResourceParams({
+            prevBaseFee: INITIAL_BASE_FEE,
+            prevBoughtGas: 0,
+            prevBlockNum: uint64(block.number)
+        });
     }
 }

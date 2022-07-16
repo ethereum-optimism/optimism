@@ -15,6 +15,11 @@ import { OptimismMintableERC20 } from "../universal/OptimismMintableERC20.sol";
  */
 contract OptimismMintableERC20Factory {
     /**
+     * @notice Address of the StandardBridge on this chain.
+     */
+    address public immutable bridge;
+
+    /**
      * @custom:legacy
      * @notice Emitted whenever a new OptimismMintableERC20 is created. Legacy version of the newer
      *         OptimismMintableERC20Created event. We recommend relying on that event instead.
@@ -36,11 +41,6 @@ contract OptimismMintableERC20Factory {
         address indexed remoteToken,
         address deployer
     );
-
-    /**
-     * @notice Address of the StandardBridge on this chain.
-     */
-    address public immutable bridge;
 
     /**
      * @param _bridge Address of the StandardBridge on this chain.

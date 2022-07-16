@@ -10,11 +10,6 @@ pragma solidity ^0.8.0;
  */
 library RLPReader {
     /**
-     * @notice Max list length that this library will accept.
-     */
-    uint256 internal constant MAX_LIST_LENGTH = 32;
-
-    /**
      * @notice RLP item types.
      *
      * @custom:value DATA_ITEM Represents an RLP data item (NOT a list).
@@ -32,6 +27,11 @@ library RLPReader {
         uint256 length;
         uint256 ptr;
     }
+
+    /**
+     * @notice Max list length that this library will accept.
+     */
+    uint256 internal constant MAX_LIST_LENGTH = 32;
 
     /**
      * @notice Converts bytes to a reference to memory position and length.
