@@ -135,7 +135,6 @@ export class DepositTx {
 
     return hexConcat([
       BigNumber.from(this.type).toHexString(),
-      BigNumber.from(this.version).toHexString(),
       utils.RLP.encode(fields),
     ])
   }

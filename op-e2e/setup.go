@@ -277,7 +277,7 @@ func (cfg SystemConfig) start() (*System, error) {
 			IstanbulBlock:           common.Big0,
 			BerlinBlock:             common.Big0,
 			LondonBlock:             common.Big0,
-			MergeForkBlock:          common.Big0,
+			MergeNetsplitBlock:      common.Big0,
 			TerminalTotalDifficulty: common.Big0,
 			Optimism: &params.OptimismConfig{
 				BaseFeeRecipient: cfg.BaseFeeRecipient,
