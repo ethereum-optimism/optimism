@@ -32,6 +32,7 @@ currently only concerned with the specification of the rollup driver.
 
 The task of the [driver][g-rollup-driver] in the [rollup node][g-rollup-node]
 is to manage the [derivation][g-derivation] process:
+
 - Keep track of L1 head block
 - Keep track of the L2 chain sync progress
 - Iterate over the derivation steps as new inputs become available
@@ -77,4 +78,3 @@ The input and return types here are as defined by the [engine API specs][engine-
 ## L2 Batch creation RPC method
 
 See [Batch derivation](./batching.md) for an RPC specification for batch data submission.
-

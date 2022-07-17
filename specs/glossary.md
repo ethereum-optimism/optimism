@@ -486,6 +486,7 @@ time range. (Note that `channel_id.timetamp` must be lower than the L1 block tim
 of the channel are seen, or else these frames are ignored.)
 
 The purpose of channel timeouts is dual:
+
 - Avoid keeping old unclosed channel data around forever (an unclosed channel is a channel whose final frame was not
   sent).
 - Bound the number of L1 blocks we have to look back in order to decode [sequencer batches][sequencer-batch] from
@@ -616,7 +617,7 @@ See the [Engine Queue section][engine-queue] of the L2 chain derivatiaon spec fo
 The finalized L2 head is the highest L2 block that can be derived from *[finalized][finality]* L1 blocks — i.e. L1
 blocks older than two L1 epochs (64 L1 [time slots][time-slot]).
 
-[finality]: https://hackmd.io/@prysmaticlabs/finality *finalized* L1 data.
+[finality]: <https://hackmd.io/@prysmaticlabs/finality> *finalized* L1 data.
 
 ------------------------------------------------------------------------------------------------------------------------
 
@@ -658,8 +659,8 @@ See the [rollup node specification][rollup-node-spec] for more information.
 
 [rollup driver]: glossary.md#rollup-driver
 
-The rollup driver is the [rollup node][rollup-node] component responsible for [deriving the L2 chain][derivation] from the L1 chain
-(L1 [blocks][block] and their associated [receipts][receipt]).
+The rollup driver is the [rollup node][rollup-node] component responsible for [deriving the L2 chain][derivation]
+from the L1 chain (L1 [blocks][block] and their associated [receipts][receipt]).
 
 > **TODO** delete this entry, alongside its reference — can be replaced by "derivation process" or "derivation logic"
 > where needed
@@ -761,13 +762,12 @@ Both L1 (post-[merge]) and L2 have an execution engine.
 On L1, the executed blocks can come from L1 block synchronization; or from a block freshly minted by the execution
 engine (using transactions from the L1 [mempool]), at the request of the L1 consensus layer.
 
-On L2, the executed blocks are freshly minted by the execution engine at the request of the [rollup node][rollup-node], using
-transactions [derived from L1 blocks][derivation].
+On L2, the executed blocks are freshly minted by the execution engine at the request of the [rollup node][rollup-node],
+using transactions [derived from L1 blocks][derivation].
 
 In these specifications, "execution engine" always refer to the L2 execution engine, unless otherwise specified.
 
 - cf. [Execution Engine Specification](exec-engine.md)
-
 
 <!-- Internal Links -->
 [derivation-spec]: derivation.md

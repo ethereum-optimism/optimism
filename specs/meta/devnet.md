@@ -1,3 +1,5 @@
+# Bedrock Local Devnet Setup
+
 <!-- START doctoc generated TOC please keep comment here to allow auto update -->
 <!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
 **Table of Contents**
@@ -5,8 +7,6 @@
 - [Bedrock Local Devnet Setup](#bedrock-local-devnet-setup)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
-
-# Bedrock Local Devnet Setup
 
 You can spin up a local devnet via `docker-compose`.
 For convenience, we have defined `make` targets to start and stop the devnet with a single command.

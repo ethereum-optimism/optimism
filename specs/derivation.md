@@ -97,17 +97,17 @@ L1 block number.
 
 To derive the L2 blocks in an epoch `E`, we need the following inputs:
 
-- The L1 [sequencing window][g-sequencing-window] for epoch `E`: the L1 blocks in the range `[E, E + SWS)` where `SWS` is
-  the sequencing window size (note that this means that epochs are overlapping). In particular we need:
-    - The [batcher transactions][g-batcher-transactions] included in the sequencing window. These allow us to
+- The L1 [sequencing window][g-sequencing-window] for epoch `E`: the L1 blocks in the range `[E, E + SWS)` where `SWS`
+  is the sequencing window size (note that this means that epochs are overlapping). In particular we need:
+  - The [batcher transactions][g-batcher-transactions] included in the sequencing window. These allow us to
       reconstruct [sequencer batches][g-sequencer-batch] containing the transactions to include in L2 blocks (each batch
       maps to a single L2 block).
-    - The [deposits][g-deposits] made in L1 block `E` (in the form of events emitted by the [deposit
+  - The [deposits][g-deposits] made in L1 block `E` (in the form of events emitted by the [deposit
       contract][g-deposit-contract]).
-    - The L1 block attributes from L1 block `E` (to derive the [L1 attributes deposited transaction][g-l1-attr-deposit]).
+  - The L1 block attributes from L1 block `E` (to derive the [L1 attributes deposited transaction][g-l1-attr-deposit]).
 - The state of the L2 chain after the last L2 block of epoch `E - 1`, or — if epoch `E - 1` does not exist — the
   [genesis state][g-l2-genesis] (cf. TODO) of the L2 chain.
-    - An epoch `E` does not exist if `E <= L2CI`, where `L2CI` is the [L2 chain inception][g-l2-chain-inception].
+  - An epoch `E` does not exist if `E <= L2CI`, where `L2CI` is the [L2 chain inception][g-l2-chain-inception].
 
 > **TODO** specify sequencing window size
 > **TODO** specify genesis block / state (in its own document? include/link predeploy.md)
@@ -120,13 +120,13 @@ Each epoch may contain a variable number of L2 blocks (one every `l2_block_time`
 [the sequencer][g-sequencer], but subject to the following constraints for each block:
 
 - `min_l2_timestamp <= block.timestamp < max_l2_timestamp`, where
-    - all these values are denominated in seconds
-    - `min_l2_timestamp = prev_l2_timestamp + l2_block_time`
-        - `prev_l2_timestamp` is the timestamp of the previous L2 block
-        - `l2_block_time` is a configurable parameter of the time between L2 blocks (on Optimism, 2s)
-    - `max_l2_timestamp = max(l1_timestamp + max_sequencer_drift, min_l2_timestamp + l2_block_time)`
-        - `l1_timestamp` is the timestamp of the L1 block associated with the L2 block's epoch
-        - `max_sequencer_drift` is the most a sequencer is allowed to get ahead of L1
+  - all these values are denominated in seconds
+  - `min_l2_timestamp = prev_l2_timestamp + l2_block_time`
+    - `prev_l2_timestamp` is the timestamp of the previous L2 block
+    - `l2_block_time` is a configurable parameter of the time between L2 blocks (on Optimism, 2s)
+  - `max_l2_timestamp = max(l1_timestamp + max_sequencer_drift, min_l2_timestamp + l2_block_time)`
+    - `l1_timestamp` is the timestamp of the L1 block associated with the L2 block's epoch
+    - `max_sequencer_drift` is the most a sequencer is allowed to get ahead of L1
 
 > **TODO** specify max sequencer drift
 
@@ -226,9 +226,10 @@ containing when we start a channel, or even as we send the first frames in the c
 All of this is illustrated in the following diagram.
 
 > **TODO** improve diagram
+>
 > - I'm a fan of the 4 lines "Transactions" to "L2 Blocks"
->     - albeit it would good to show that channels & frames can occur out of order
->     - but maybe that makes the diagram too hard to read and we can just include a comment afterwards saying that in
+>   - albeit it would good to show that channels & frames can occur out of order
+>   - but maybe that makes the diagram too hard to read and we can just include a comment afterwards saying that in
 >       general, reordering is possible (maybe show a second diagram showcasing a simple reordering?
 > - I think L1 blocks should be a new line above "Transactions" — also show deposits (w/ a number) for each block
 > - We shouldn't use the L1 attributes tx as a separate line, it makes it look like a additional layer of "data
@@ -237,7 +238,7 @@ All of this is illustrated in the following diagram.
 > - Let's use a sequencing window of size 2 to keep the diagram small
 > - Include a textual explanation of the diagram below it
 
-![](./assets/batch-deriv-chain.svg)
+![batch derivation chain diagram](./assets/batch-deriv-chain.svg)
 
 ### Batcher Transaction Format
 
@@ -278,13 +279,13 @@ where:
 - `uvarint` is a variable-length encoding of a 64-bit unsigned integer into between 1 and 9 bytes, [as specified in
   SQLite 4][sqlite-uvarint].
 - `channel_id` uniquely identifies a channel as the concatenation of a random value and a timestamp
-    - `random` is a random value such that two channels with different batches should have a different random value
-    - `timestamp` is the time at which the channel was created (UNIX time in seconds)
-    - The ID includes both the random value and the timestamp, in order to prevent a malicious sequencer from reusing
+  - `random` is a random value such that two channels with different batches should have a different random value
+  - `timestamp` is the time at which the channel was created (UNIX time in seconds)
+  - The ID includes both the random value and the timestamp, in order to prevent a malicious sequencer from reusing
       the random value after the channel has [timed out][g-channel-timeout] (refer to the [batcher
       specification][batcher-spec] to learn more about channel timeouts). This will also allow us substitute `random` by
       a hash commitment to the batches, should we want to do so in the future.
-    - Channels whose timestamp are higher than that of the L1 block they first appear in must be ignored. Note that L1
+  - Channels whose timestamp are higher than that of the L1 block they first appear in must be ignored. Note that L1
       nodes have a soft constraint to ignore blocks whose timestamps that are ahead of the wallclock time by a certain
       margin. (A soft constraint is not a consensus rule — nodes will accept such blocks in the canonical chain but will
       not attempt to build directly on them.)
@@ -295,6 +296,7 @@ where:
   channel. Any other value makes the frame invalid (it must be ignored by the rollup node).
 
 > **TODO**
+>
 > - Is that requirement to drop channels correct?
 > - Is it implemented as such?
 > - Do we drop the channel or just the first frame? End result is the same but this changes the channel bank size, which
@@ -431,10 +433,10 @@ Some frames are ignored:
 
 - Frames where `frame.frame_number <= highest_frame_number`, where `highest_frame_number` is the highest frame number
   that was previously encountered for this channel.
-    - i.e. in case of duplicate frame, the first frame read from L1 is considered canonical.
+  - i.e. in case of duplicate frame, the first frame read from L1 is considered canonical.
 - Frames with a higher number than that of the final frame of the channel (i.e. the first frame marked with
   `frame.is_last == 1`) are ignored.
-    - These frames could still be written into the channel bank if we haven't seen the final frame yet. But they will
+  - These frames could still be written into the channel bank if we haven't seen the final frame yet. But they will
       never be read out from the channel bank.
 
 ### Channel Bank
@@ -451,12 +453,13 @@ However, our current implementation doesn't support streaming decompression, so 
 - We have received all frames in the channel (i.e. we received the last frame in the channel (`is_last == 1`) and every
   frame with a lower number).
 - The channel has timed out (in which we case we read all contiguous sequential frames from the start of the channel).
-    - A channel is considered to be *timed out* if `currentL1Block.timestamp > channeld_id.timestamp + CHANNEL_TIMEOUT`.
-        - where `currentL1Block` is the L1 block maintained by this stage, which is the most recent L1 block whose frames
+  - A channel is considered to be *timed out* if `currentL1Block.timestamp > channeld_id.timestamp + CHANNEL_TIMEOUT`.
+    - where `currentL1Block` is the L1 block maintained by this stage, which is the most recent L1 block whose frames
           have been added to the channel bank.
 
 > **TODO** There is currently `MAX_CHANNEL_BANK_SIZE`, a notion about the maximum amount of channels we can keep track
 > of.
+>
 > - Is this a semantic detail (i.e. if the batcher opens too many frames, valid channels can be dropped?)
 > - If so, I feel **very strongly** about changing this. This ties us very much to the current implementation.
 > - And it doesn't feel necessary given the channel timeout - if DOS is an issue we can reduce the channel timeout.
@@ -488,7 +491,8 @@ data in the last L1 block of the window in the worst case).
 
 We also ignore invalid batches, which do not satisfy one of the following constraints:
 
-- The timestamp is aligned to the [block time][g-block-time]: `(batch.timestamp - genesis_l2_timestamp) % block_time == 0`
+- The timestamp is aligned to the [block time][g-block-time]:
+  `(batch.timestamp - genesis_l2_timestamp) % block_time == 0`
 - The timestamp is within the allowed range: `min_l2_timestamp <= batch.timestamp < max_l2_timestamp`, where
   - all these values are denominated in seconds
   - `min_l2_timestamp = prev_l2_timestamp + l2_block_time`
@@ -502,7 +506,8 @@ We also ignore invalid batches, which do not satisfy one of the following constr
   - Note that we always have `min_l2_timestamp >= l1_timestamp`, i.e. a L2 block timestamp is always equal or ahead of
     the timestamp of its [L1 origin][g-l1-origin].
 - The batch is the first batch with `batch.timestamp` in this sequencing window, i.e. one batch per L2 block number.
-- The batch only contains sequenced transactions, i.e. it must NOT contain any [deposited-type transactions][g-deposit-tx-type].
+- The batch only contains sequenced transactions, i.e. it must NOT contain any [deposited-type transactions][
+  g-deposit-tx-type].
 
 > **TODO** specify `max_sequencer_drift`
 
@@ -559,9 +564,9 @@ the [Handling L1 Re-Orgs][handling-reorgs] section.
 
 [deriving-payload-attr]: #deriving-payload-attributes
 
-For every L2 block we wish to create, we need to build [payload attributes][g-payload-attr], represented by an [expanded
-version][expanded-payload] of the [`PayloadAttributesV1`][eth-payload] object, which includes the additional `transactions` and
-`noTxPool` fields.
+For every L2 block we wish to create, we need to build [payload attributes][g-payload-attr],
+represented by an [expanded version][expanded-payload] of the [`PayloadAttributesV1`][eth-payload] object,
+which includes the additional `transactions` and `noTxPool` fields.
 
 [expanded-payload]: exec-engine.md#extended-payloadattributesv1
 [eth-payload]: https://github.com/ethereum/execution-apis/blob/main/src/engine/specification.md#payloadattributesv1
@@ -573,8 +578,9 @@ could potentially be an empty auto-generated batch, if the L1 chain did not incl
 number. [Remember][batch-format] the batch includes a [sequencing epoch][g-sequencing-epoch] number, an L2 timestamp,
 and a transaction list.
 
-This block is part of a [sequencing epoch][g-sequencing-epoch], whose number matches that of an L1 block (its *[L1
-origin][g-l1-origin]*). This L1 block is used to derive L1 attributes and (for the first L2 block in the epoch) user deposits.
+This block is part of a [sequencing epoch][g-sequencing-epoch],
+whose number matches that of an L1 block (its *[L1 origin][g-l1-origin]*).
+This L1 block is used to derive L1 attributes and (for the first L2 block in the epoch) user deposits.
 
 Therefore, a [`PayloadAttributesV1`][expanded-payload] object must include the following transactions:
 
@@ -772,7 +778,7 @@ sequencing window for the safe L2 head's epoch. As such, the next L2 block never
 before `safeL2Head.l1Origin`.
 
 > **TODO** in the implementation, we always rollback by SWS, which is unecessary
-> Quote from original spec: "We must find the first L2 block whose complete sequencing window is unchanged in the reorg."
+> Quote from original spec:"We must find the first L2 block whose complete sequencing window is unchanged in the reorg."
 
 > **TODO** sanity check this section, it was incorrect in previous spec, and confused me multiple times
 
@@ -848,8 +854,8 @@ approximately 12 minutes, unless an attacker controls more than 1/3 of the total
 > **TODO** This was in the spec:
 >
 > In practice, we'll pick an already-finalized L1 block as L2
-> inception point to preclude the possibility of a re-org past genesis, at the cost of a few empty blocks at the start of
-> the L2 chain.
+> inception point to preclude the possibility of a re-org past genesis, at the cost of a few empty blocks at the start
+> of the L2 chain.
 >
 > This makes sense, but is in conflict with how the [L2 chain inception][g-l2-chain-inception] is currently determined,
 > which is via the L2 output oracle deployment & upgrades.
