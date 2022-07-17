@@ -11,6 +11,7 @@ import (
 )
 
 type L1Fetcher interface {
+	L1HeadBlockRef(ctx context.Context) (eth.L1BlockRef, error)
 	L1BlockRefByNumberFetcher
 	L1BlockRefByHashFetcher
 	L1ReceiptsFetcher
