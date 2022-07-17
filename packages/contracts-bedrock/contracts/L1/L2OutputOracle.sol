@@ -260,13 +260,35 @@ contract L2OutputOracle is OwnableUpgradeable, Semver {
     }
 
     /**
-     * @notice Returns the L2 output proposal given a target L2 block number.
-     *         Returns a null output proposal if none is found.
+     * @notice Returns the L2 output proposal associated with a target L2 block number. If the
+     *         L2 block number provided is between checkpoints, this function will rerutn the next
+     *         proposal for the next checkpoint.
+     *         Reverts if the output proposal is either not found, or predates
+     *         the STARTING_BLOCK_NUMBER.
      *
      * @param _l2BlockNumber The L2 block number of the target block.
      */
     function getL2Output(uint256 _l2BlockNumber) external view returns (OutputProposal memory) {
-        return l2Outputs[_l2BlockNumber];
+        require(
+            _l2BlockNumber >= STARTING_BLOCK_NUMBER,
+            "L2OutputOracle: block number cannot be less than the starting block number."
+        );
+
+        // Find the distance between _l2BlockNumber, and the checkpoint block before it.
+        uint256 offset = (_l2BlockNumber - STARTING_BLOCK_NUMBER) % SUBMISSION_INTERVAL;
+
+        // If the offset is zero, then the _l2BlockNumber should be checkpointed.
+        // Otherwise, we'll look up the next block that will be checkpointed.
+        uint256 lookupBlockNumber = offset == 0
+            ? _l2BlockNumber
+            : _l2BlockNumber + (SUBMISSION_INTERVAL - offset);
+
+        OutputProposal memory output = l2Outputs[lookupBlockNumber];
+        require(
+            output.outputRoot != bytes32(0),
+            "L2OutputOracle: No output found for that block number."
+        );
+        return output;
     }
 
     /**

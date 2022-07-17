@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.9;
 
-import { PredeployAddresses } from "../libraries/PredeployAddresses.sol";
+import { Predeploys } from "../libraries/Predeploys.sol";
 import { StandardBridge } from "../universal/StandardBridge.sol";
 import { Semver } from "../universal/Semver.sol";
 
@@ -100,7 +100,7 @@ contract L1StandardBridge is StandardBridge, Semver {
      * @param _messenger Address of the L1CrossDomainMessenger.
      */
     function initialize(address payable _messenger) public initializer {
-        __StandardBridge_init(_messenger, payable(PredeployAddresses.L2_STANDARD_BRIDGE));
+        __StandardBridge_init(_messenger, payable(Predeploys.L2_STANDARD_BRIDGE));
     }
 
     /**

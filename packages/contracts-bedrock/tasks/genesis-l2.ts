@@ -276,7 +276,7 @@ task('genesis-l2', 'create a genesis config')
         muirGlacierBlock: 0,
         berlinBlock: 0,
         londonBlock: 0,
-        mergeForkBlock: 0,
+        mergeNetsplitBlock: 0,
         terminalTotalDifficulty: 0,
         clique: {
           period: 0,

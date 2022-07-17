@@ -36,7 +36,7 @@ export interface ChainConfig {
   londonBlock?: number
   arrowGlacierBlock?: number
   grayGlacierBlock?: number
-  mergeForkBlock?: number
+  mergeNetsplitBlock?: number
   terminalTotalDifficulty?: number
   clique?: {
     period: number

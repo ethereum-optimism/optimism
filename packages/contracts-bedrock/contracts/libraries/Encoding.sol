@@ -45,7 +45,7 @@ library Encoding {
         raw[4] = RLPWriter.writeUint(_value);
         raw[5] = RLPWriter.writeUint(uint256(_gasLimit));
         raw[6] = RLPWriter.writeBytes(_data);
-        return abi.encodePacked(uint8(0x7e), uint8(0x0), RLPWriter.writeList(raw));
+        return abi.encodePacked(uint8(0x7e), RLPWriter.writeList(raw));
     }
 
     /**

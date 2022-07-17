@@ -61,7 +61,7 @@ func (s *rpcServer) EnableP2P(backend *p2p.APIBackend) {
 
 func (s *rpcServer) Start() error {
 	srv := rpc.NewServer()
-	if err := node.RegisterApis(s.apis, nil, srv, true); err != nil {
+	if err := node.RegisterApis(s.apis, nil, srv); err != nil {
 		return err
 	}
 

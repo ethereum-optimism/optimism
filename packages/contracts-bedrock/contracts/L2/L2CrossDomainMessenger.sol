@@ -2,7 +2,7 @@
 pragma solidity ^0.8.9;
 
 import { AddressAliasHelper } from "../vendor/AddressAliasHelper.sol";
-import { PredeployAddresses } from "../libraries/PredeployAddresses.sol";
+import { Predeploys } from "../libraries/Predeploys.sol";
 import { CrossDomainMessenger } from "../universal/CrossDomainMessenger.sol";
 import { Semver } from "../universal/Semver.sol";
 import { L2ToL1MessagePasser } from "./L2ToL1MessagePasser.sol";
@@ -33,7 +33,7 @@ contract L2CrossDomainMessenger is CrossDomainMessenger, Semver {
     function initialize(address _l1CrossDomainMessenger) public initializer {
         address[] memory blockedSystemAddresses = new address[](2);
         blockedSystemAddresses[0] = address(this);
-        blockedSystemAddresses[1] = PredeployAddresses.L2_TO_L1_MESSAGE_PASSER;
+        blockedSystemAddresses[1] = Predeploys.L2_TO_L1_MESSAGE_PASSER;
         __CrossDomainMessenger_init(_l1CrossDomainMessenger, blockedSystemAddresses);
     }
 
@@ -70,7 +70,7 @@ contract L2CrossDomainMessenger is CrossDomainMessenger, Semver {
         uint256 _value,
         bytes memory _data
     ) internal override {
-        L2ToL1MessagePasser(payable(PredeployAddresses.L2_TO_L1_MESSAGE_PASSER)).initiateWithdrawal{
+        L2ToL1MessagePasser(payable(Predeploys.L2_TO_L1_MESSAGE_PASSER)).initiateWithdrawal{
             value: _value
         }(_to, _gasLimit, _data);
     }

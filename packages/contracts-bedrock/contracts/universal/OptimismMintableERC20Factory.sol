@@ -3,7 +3,6 @@ pragma solidity ^0.8.9;
 
 /* Contract Imports */
 import { OptimismMintableERC20 } from "../universal/OptimismMintableERC20.sol";
-import { PredeployAddresses } from "../libraries/PredeployAddresses.sol";
 
 /**
  * @custom:proxied
