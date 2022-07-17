@@ -22,22 +22,21 @@ with the authorization and validation conditions on L2.
 <!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
 **Table of Contents**
 
-- [Deposits](#deposits)
-  - [The Deposited Transaction Type](#the-deposited-transaction-type)
-    - [Source hash computation](#source-hash-computation)
-    - [Kinds of Deposited Transactions](#kinds-of-deposited-transactions)
-    - [Validation and Authorization of Deposited Transactions](#validation-and-authorization-of-deposited-transactions)
-    - [Execution](#execution)
-      - [Nonce Handling](#nonce-handling)
-  - [L1 Attributes Deposited Transaction](#l1-attributes-deposited-transaction)
-  - [Special Accounts on L2](#special-accounts-on-l2)
-    - [L1 Attributes Depositor Account](#l1-attributes-depositor-account)
-    - [L1 Attributes Predeployed Contract](#l1-attributes-predeployed-contract)
-      - [L1 Attributes Predeployed Contract: Reference Implementation](#l1-attributes-predeployed-contract-reference-implementation)
-  - [User-Deposited Transactions](#user-deposited-transactions)
-    - [Deposit Contract](#deposit-contract)
-      - [Address Aliasing](#address-aliasing)
-      - [Deposit Feed Contract: Reference Implementation](#deposit-feed-contract-reference-implementation)
+- [The Deposited Transaction Type](#the-deposited-transaction-type)
+  - [Source hash computation](#source-hash-computation)
+  - [Kinds of Deposited Transactions](#kinds-of-deposited-transactions)
+  - [Validation and Authorization of Deposited Transactions](#validation-and-authorization-of-deposited-transactions)
+  - [Execution](#execution)
+    - [Nonce Handling](#nonce-handling)
+- [L1 Attributes Deposited Transaction](#l1-attributes-deposited-transaction)
+- [Special Accounts on L2](#special-accounts-on-l2)
+  - [L1 Attributes Depositor Account](#l1-attributes-depositor-account)
+  - [L1 Attributes Predeployed Contract](#l1-attributes-predeployed-contract)
+    - [L1 Attributes Predeployed Contract: Reference Implementation](#l1-attributes-predeployed-contract-reference-implementation)
+- [User-Deposited Transactions](#user-deposited-transactions)
+  - [Deposit Contract](#deposit-contract)
+    - [Address Aliasing](#address-aliasing)
+    - [Deposit Feed Contract: Reference Implementation](#deposit-feed-contract-reference-implementation)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 

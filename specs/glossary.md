@@ -4,7 +4,6 @@
 <!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
 **Table of Contents**
 
-- [Glossary](#glossary)
 - [General Terms](#general-terms)
   - [Layer 1 (L1)](#layer-1-l1)
   - [Layer 2 (L2)](#layer-2-l2)
@@ -18,9 +17,10 @@
   - [Fork Choice Rule](#fork-choice-rule)
   - [Priority Gas Auction](#priority-gas-auction)
 - [Sequencing](#sequencing)
-  - [Sequencing window](#sequencing-window)
-  - [Sequencing epoch](#sequencing-epoch)
-  - [Sequencer batch](#sequencer-batch)
+  - [Sequencer](#sequencer)
+  - [Sequencing Window](#sequencing-window)
+  - [Sequencing Epoch](#sequencing-epoch)
+  - [L1 Origin](#l1-origin)
 - [Deposits](#deposits)
   - [Deposited Transaction](#deposited-transaction)
   - [L1 Attributes Deposited Transaction](#l1-attributes-deposited-transaction)
@@ -32,16 +32,38 @@
   - [Deposit Contract](#deposit-contract)
 - [Withdrawals](#withdrawals)
   - [Relayer](#relayer)
-- [Other L2 Chain Concepts](#other-l2-chain-concepts)
-  - [Address Aliasing](#address-aliasing)
-  - [L2 Chain Inception](#l2-chain-inception)
-  - [Rollup Node](#rollup-node)
-  - [Rollup Driver](#rollup-driver)
-  - [L2 Chain Derivation](#l2-chain-derivation)
+  - [Finalization Period](#finalization-period)
+- [Batch Submission](#batch-submission)
+  - [Data Availability](#data-availability)
+  - [Data Availability Provider](#data-availability-provider)
+  - [Sequencer Batch](#sequencer-batch)
+  - [Channel](#channel)
+  - [Channel Frame](#channel-frame)
+  - [Batcher](#batcher)
+  - [Batcher Transaction](#batcher-transaction)
+  - [Channel Timeout](#channel-timeout)
+- [L2 Chain Derivation](#l2-chain-derivation)
   - [L2 Derivation Inputs](#l2-derivation-inputs)
   - [Payload Attributes](#payload-attributes)
+  - [L2 Genesis Block](#l2-genesis-block)
+  - [L2 Chain Inception](#l2-chain-inception)
+  - [Safe L2 Head](#safe-l2-head)
+  - [Unsafe L2 Block](#unsafe-l2-block)
+  - [Unsafe L2 Head](#unsafe-l2-head)
+  - [Unsafe Block Consolidation](#unsafe-block-consolidation)
+  - [Finalized L2 Head](#finalized-l2-head)
+- [Other L2 Chain Concepts](#other-l2-chain-concepts)
+  - [Address Aliasing](#address-aliasing)
+  - [Rollup Node](#rollup-node)
+  - [Rollup Driver](#rollup-driver)
   - [L1 Attributes Predeployed Contract](#l1-attributes-predeployed-contract)
   - [L2 Output Root](#l2-output-root)
+  - [L2 Output Oracle Contract](#l2-output-oracle-contract)
+  - [Validator](#validator)
+  - [Fault Proof](#fault-proof)
+  - [Time Slot](#time-slot)
+  - [Block Time](#block-time)
+  - [Unsafe Sync](#unsafe-sync)
 - [Execution Engine Concepts](#execution-engine-concepts)
   - [Execution Engine](#execution-engine)
 
@@ -139,10 +161,8 @@ Different transaction types can contain different payloads, and be handled diffe
 The fork choice rule is the rule used to determined which block is to be considered as the head of a blockchain. On L1,
 this is determined by the proof of stake rules.
 
-L2 also has a fork choice rule, although the rules vary depending on whether we want the sequencer-confirmed head, the
-on-chain-confirmed head, or the on-chain-finalized head.
-
-> TODO: define and link to those concepts
+L2 also has a fork choice rule, although the rules vary depending on whether we want the [safe L2 head][safe-l2-head],
+the [unsafe L2 head][unsafe-l2-head] or the [finalized L2 head][finalized-l2-head].
 
 ## Priority Gas Auction
 
@@ -167,23 +187,47 @@ Transactions in the rollup can be included in two ways:
 Submitting transactions for inclusion in a batch saves costs by reducing overhead, and enables the sequencer to
 pre-confirm the transactions before the L1 confirms the data.
 
-## Sequencing window
+## Sequencer
+
+[sequencer]: glossary.md#sequencer
+
+A sequencer is either a [rollup node][rollup-node] ran in sequencer mode, or the operator of this rollup node.
+
+The sequencer is a priviledged actor, which receives L2 transactions from L2 users, creates L2 blocks using them, which
+it then submits to [data availability provider][avail-provider] (via a [batcher]). It also submits [output
+roots][l2-output] to L1.
+
+## Sequencing Window
 
 [sequencing-window]: glossary.md#sequencing-window
 
-A sequencing window is a range of L1 blocks, to parse inputs from during a derivation step.
+A sequencing window is a range of L1 blocks from which a [sequencing epoch][sequencing-epoch] can be derived.
 
-## Sequencing epoch
+A sequencing window whose first L1 block has number `N` contains [batcher transactions][batcher-transactions] for epoch
+`N`. The window contains blocks `[N, N + SWS)` where `SWS` is the sequencer window size.
 
-A sequencing epoch is a number identifying the start of a [sequencing window](#sequencing-window),
-equal to the L1 block number of the first block in the window.
+> **TODO** specify sequencer window size
 
-## Sequencer batch
+Additionally, the first block in the window defines the [depositing transactions][depositing-tx] which determine the
+[deposits] to be included in the first L2 block of the epoch.
 
-[sequencer-batch]: glossary.md#sequencer-batch
+## Sequencing Epoch
 
-A sequencer batch is list of L2 transactions tagged with an [`epoch`](#sequencing-epoch) and L2 block `timestamp`.
-Each L2 block can have one batch of transactions, an input for the block derivation.
+[sequencing-epoch]: glossary.md#sequencing-epoch
+
+A sequencing epoch is sequential range of L2 blocks derived from a [sequencing window](#sequencing-window) of L1 blocks.
+
+Each epoch is identified by an epoch number, which is equal to the block number number of the first L1 block in the
+sequencing window.
+
+Epochs can have variable size, subject to some constraints. See the [L2 chain derivation specification][derivation-spec]
+for more details.
+
+## L1 Origin
+
+[l1-origin]: glossary.md#l1-origin
+
+The L1 origin of an L2 block is the L1 block corresponding to its [sequencing epoch][sequencing-epoch].
 
 ------------------------------------------------------------------------------------------------------------------------
 
@@ -260,7 +304,7 @@ specification.
 A *depositing call* is an L1 call to the [deposit contract][deposit-contract], which will be derived to a
 [user-deposited transaction][user-deposited] by the [rollup driver].
 
-This call specifies all the data (destination, value, calldata, ...) for the deposited transaction. "submits*
+This call specifies all the data (destination, value, calldata, ...) for the deposited transaction.
 
 ## Depositing Transaction
 
@@ -282,12 +326,16 @@ call][depositing-call]. The *depositor* is **NOT** the originator of the deposit
 The *deposited transaction type* is an [EIP-2718] [transaction type][transaction-type], which specifies the input fields
 and correct handling of a [deposited transaction][deposited].
 
+See the [corresponding section][spec-deposit-tx-type] of the deposits spec for more information.
+
+[spec-deposit-tx-type]: deposits.md#the-deposited-transaction-type
+
 ## Deposit Contract
 
 [deposit-contract]: glossary.md#deposit-contract
 
 The *deposit contract* is qn [L1] contract to which [EOAs][EOA] and contracts may send [deposits]. The deposits are
-emitted as log records (in Solidity, these are called *events*) for consumption by [rollup nodes][rollup node].
+emitted as log records (in Solidity, these are called *events*) for consumption by [rollup nodes][rollup-node].
 
 Advanced note: the deposits are not stored in calldata because they can be sent by contracts, in which case the calldata
 is part of the *internal* execution between contracts, and this intermediate calldata is not captured in one of the
@@ -298,6 +346,8 @@ cf. [Deposits Specification](deposits.md)
 ------------------------------------------------------------------------------------------------------------------------
 
 # Withdrawals
+
+> **TODO** expand this whole section to be clearer
 
 [withdrawals]: glossary.md#withdrawals
 
@@ -316,6 +366,259 @@ The term *withdrawal* is somewhat ambiguous as these "transactions" exist at mul
 
 An EOA on L1 which finalizes a withdrawal by submitting the data necessary to verify its inclusion on L2.
 
+## Finalization Period
+
+[finalization-period]: glossary.md#finalization-period
+
+The finalization period — sometimes also called *withdrawal delay* — is the minimum amount of time (in seconds) that
+must elapse before a [withdrawal][withrawals] can be finalized.
+
+The finalization period is necessary to afford sufficient time for [validators][validator] to make a [fault
+proof][fault-proof].
+
+> **TODO** specify current value for finalization period
+
+------------------------------------------------------------------------------------------------------------------------
+
+# Batch Submission
+
+[batch-submission]: glossary.md#batch-submission
+
+## Data Availability
+
+ [data-availability]: glossary.md#data-availability
+
+Data availability is the guarantee that some data will be "available" (i.e. *retrievable*) during a reasonably long time
+window. In Optimism's case, the data in question are [sequencer batches][sequencer-batch] that [validators][validator]
+needs in order to verify the sequencer's work and validate the L2 chain.
+
+The [finalization period][finalization-period] should be taken as the lower bound on such the availability window, since
+that is when data availability is the most crucial, as it is needed to perform a [fault proof][fault-proof].
+
+"Availability" **does not** mean guaranteed long-term storage of the data.
+
+## Data Availability Provider
+
+[avail-provider]: glossary.md#data-availability-provider
+
+A data availability provider is a service that can be used to make data available. See the [Data
+Availability][data-availability] for more information on what this means.
+
+Ideally, a good data availability provider such provide strong *verifiable* guarantees of data availability
+
+Currently, the only supported data availability provider is Ethereum call data. [Ethereum data blobs][eip4844] will be
+supported when they get deployed on Ethereum.
+
+## Sequencer Batch
+
+[sequencer-batch]: glossary.md#sequencer-batch
+
+A sequencer batch is list of L2 transactions (that were submitted to a sequencer) tagged with an [epoch
+number](#sequencing-epoch) and an L2 block timestamp (which can trivially be converted to a block number, given our
+block time is constant).
+
+Sequencer batches are part of the [L2 derivation inputs][deriv-inputs]. Each batch represents the inputs needed to build
+**one** L2 block (given the existing L2 chain state) — excepted for the fist block of each epoch, which also needs
+information about deposits (cf. the section on [L2 derivation inputs][deriv-inputs]).
+
+## Channel
+
+[channel]: glossary.md#channel
+
+A channel is a sequence of [sequencer batches][sequencer-batch] (for sequential blocks) compressed together. The reason
+to group multiple batches together is simply to obtain a better compression rate, hence reducing data availability
+costs.
+
+A channel can be split in [frames][channel-frame] in order to be transmitted via [batcher
+transactions][batcher-transaction]. The reason to split a channel into frames is that a channel might too large to
+include in a single batcher transaction.
+
+A channel is uniquely identified by its timestamp (UNIX time at which the channel was created) and a random value. See
+the [Frame Format][frame-format] section of the L2 Chain Derivation specifictaion for more information.
+
+[frame-format]: derivation.md#frame-format
+
+On the side of the [rollup node][rollup-node] (which is the consumer of channels), a channel is considered to be
+*opened* if its final frame (explicitly marked as such) has not been read, or closed otherwise.
+
+## Channel Frame
+
+[channel-frame]: glossary.md#channel-frame
+
+A channel frame is a chunk of data belonging to a [channel]. [Batcher transactions][batcher-transaction] carry one or
+multiple frames. The reason to split a channel into frames is that a channel might too large to include in a single
+batcher transaction.
+
+## Batcher
+
+[batcher]: glossary.md#batcher
+
+A batcher is a software component (independant program) that is responsible to make channels available on a data
+availability provider. The batcher communicates with the rollup node in order to retrieve the channels. The channels are
+then made available using [batcher transactions][batcher-transaction].
+
+> **TODO** In the future, we might want to make the batcher responsible for constructing the channels, letting it only
+> query the rollup node for L2 block inputs.
+
+## Batcher Transaction
+
+[batcher-transaction]: glossary.md#batcher-transaction
+
+A batcher transaction is a transaction submitted by a [batcher] to a data availability provider, in order to make
+channels available. These transactions carry one or more full frames, which may belong to different channels. A
+channel's frame may be split between multiple batcher transactions.
+
+When submitted to Ethereum calldata, the batcher transaction's receiver must be the sequencer inbox address. The
+transaction must also be signed by a recognized batch submitter account.
+
+> **TODO** specify where these recognized batch submitter accounts are stored
+
+## Channel Timeout
+
+[channel-timeout]: glossary.md#channel-timeout
+
+The channel timeout is a duration (in seconds) during which [channel frames][channel-frame may land on L1 within
+[batcher transactions][batcher-transaction].
+
+The acceptable time range for the frames of a [channel][channel] is `[channel_id.timestamp, channel_id.timestamp +
+CHANNEL_TIMEOUT]`. The acceptable L1 block range for these frames are any L1 block whose timestamp falls inside this
+time range. (Note that `channel_id.timetamp` must be lower than the L1 block timestamp of any L1 block in which frames
+of the channel are seen, or else these frames are ignored.)
+
+The purpose of channel timeouts is dual:
+
+- Avoid keeping old unclosed channel data around forever (an unclosed channel is a channel whose final frame was not
+  sent).
+- Bound the number of L1 blocks we have to look back in order to decode [sequencer batches][sequencer-batch] from
+  channels. This is particularly relevant during L1 re-orgs, see the [Resetting Channel Buffering][reset-channel-buffer]
+  section of the L2 Chain Derivation specifiction for more information.
+
+[reset-channel-buffer]: derivation.md#resetting-channel-buffering
+
+> **TODO** specify `CHANNEL_TIMEOUT`
+
+------------------------------------------------------------------------------------------------------------------------
+
+# L2 Chain Derivation
+
+[derivation]: glossary.md#L2-chain-derivation
+
+L2 chain derivation is a process that reads [L2 derivation inputs][deriv-inputs] from L1 in order to derive the L2
+chain.
+
+See the [L2 chain derivation specification][derivation-spec] for more details.
+
+## L2 Derivation Inputs
+
+[deriv-inputs]: glossary.md#l2-chain-derivation-inputs
+
+This term refers to data that is found in L1 blocks and is read by the [rollup node][rollup-node] to construct [payload
+attributes][payload-attr].
+
+L2 derivation inputs include:
+
+- L1 block attributes
+  - block number
+  - timestamp
+  - basefee
+- [deposits] (as log data)
+- [sequencer batches][sequencer-batch] (as transaction data)
+
+## Payload Attributes
+
+[payload-attr]: glossary.md#payload-attributes
+
+This term refers to an object that can be derived from [L2 chain derivation inputs][deriv-inputs] found on L1, which are
+then passed to the [execution engine][execution-engine] to construct L2 blocks.
+
+The payload attributes object essentially essentially encodes a [a block without output properties][block].
+
+Payload attributes are originally specified in the [Ethereum Engine API specification][engine-api], which we expand in
+the [Execution Engine Specification](exec-engine.md).
+
+See also the [Building The Payload Attributes][building-payload-attr] section of the rollup node specification.
+
+[building-payload-attr]: rollup-node.md#building-the-payload-attributes
+
+## L2 Genesis Block
+
+[l2-genesis]: glossary.md#l2-genesis-block
+
+The L2 genesis block is the first block of the L2 chain in its current version.
+
+The state of the L2 genesis block comprises:
+
+- State inherited from the previous version of the L2 chain.
+  - This state was possibly modified by "state surgeries". For instance, the migration to Bedrock entailed changes on
+    how native ETH balances were stored in the storage trie.
+- [Predeployed contracts][predeploy]
+
+The timestap of the L2 genesis block must be a multiple of the [block time][block-time] (i.e. a even number, since the
+block time is 2 seconds).
+
+When updating the rollup protocol to a new version, we may perform a *squash fork*, a process that entails the creation
+of a new L2 genesis block. This new L2 genesis block will have block number `X + 1`, where `X` is the block number of
+the final L2 block before the update.
+
+A squash fork is not to be confused with a *re-genesis*, a similar process that we employed in the past, which also
+resets L2 block numbers, such that the new L2 genesis block has number 0. We will not employ re-genesis in the future.
+
+Squash forks are superior to re-geneses because they avoid duplicating L2 block numbers, which breaks a lot of external
+tools.
+
+## L2 Chain Inception
+
+[l2-chain-inception]: glossary.md#L2-chain-inception
+
+The L1 block number at which the output roots for the [genesis block][l2-genesis] were proposed on the [output
+oracle][output-oracle] contract.
+
+In the current implementation, this is the L1 block number at which the output oracle contract was deployed or upgraded.
+
+## Safe L2 Head
+
+[safe-l2-head]: glossary.md#safe-l2-head
+
+The safe L2 head is most recent L2 block that was can be derived entirely from L1 by a [rollup node][rollup-node]. This
+can vary between different nodes, based on their view of the L1 chain.
+
+## Unsafe L2 Block
+
+[unsafe-l2-block]: glossary.md#unsafe-l2-block
+
+An unsafe L2 block is an L2 block that a [rollup node][rollup-node] knows about, but which was not derived from the L1
+chian. In sequencer mode, this will be a block sequenced by the sequencer itself. In validator mode, this will be a
+block acquired from the sequencer via [unsafe sync][unsafe-sync].
+
+## Unsafe L2 Head
+
+[unsafe-l2-head]: glossary.md#unsafe-l2-head
+
+The unsafe L2 head is the highest [unsafe L2 block][unsafe-l2-block] that a [rollup node][rollup-node] knows about.
+
+## Unsafe Block Consolidation
+
+[consolidation]: glossary.md#unsafe-block-consolidation
+
+Unsafe block consolidation is the process through which the [rollup node][rollup-node] attempts to move the [safe L2
+head] a block forward, so that the oldest [unsafe L2 block][unsafe-l2-block] becomes the new safe L2 head.
+
+In order to perform consolidation, the node verifies that the [payload attributes][payload-attr] derived from the L1
+chain match the oldest unsafe L2 block exactly.
+
+See the [Engine Queue section][engine-queue] of the L2 chain derivatiaon spec for more information.
+
+[engine-queue]: derivation.md#engine-queue
+
+## Finalized L2 Head
+
+[finalized-l2-head]: glossary.md#finalized-l2-head
+
+The finalized L2 head is the highest L2 block that can be derived from *[finalized][finality]* L1 blocks — i.e. L1
+blocks older than two L1 epochs (64 L1 [time slots][time-slot]).
+
+[finality]: <https://hackmd.io/@prysmaticlabs/finality> *finalized* L1 data.
+
 ------------------------------------------------------------------------------------------------------------------------
 
 # Other L2 Chain Concepts
@@ -329,67 +632,38 @@ aliased with a modified representation of the address of a contract.
 
 - cf. [Deposit Specification](deposits.md#address-aliasing)
 
-## L2 Chain Inception
-
-[L2 chain inception]: glossary.md#L2-chain-inception
-
-The L1 block number for which the first block of the L2 chain was generated.
-
 ## Rollup Node
 
-[rollup node]: glossary.md#rollup-node
+[rollup-node]: glossary.md#rollup-node
 
 The rollup node is responsible for [deriving the L2 chain][derivation] from the L1 chain (L1 [blocks][block] and their
-associated [receipts][receipt]). This is done by its [rollup driver] component.
+associated [receipts][receipt]).
 
-- cf. [Rollup Node Specification](rollup-node.md)
+The rollup node can run either in *validator* or *sequencer* mode.
+
+In sequencer mode, the rollup node receives L2 transactions from users, which it uses to create L2 blocks. These are
+then submitted to a [data availability provider][avail-provider] via [batch submission][batch-submission]. The L2 chain
+derivation then acts as a sanity check and a way to detect L1 chain [re-orgs][reorg].
+
+In validator mode, the rollup node performs derivation as indicated above, but is also able to "run ahead" of the L1
+chain by getting blocks directly from the sequencer, in which case derivation serves to validate the sequencer's
+behaviour.
+
+A rollup node running in validator mode is sometimes called *a replica*.
+
+> **TODO** expand this to include output root submission
+
+See the [rollup node specification][rollup-node-spec] for more information.
 
 ## Rollup Driver
 
 [rollup driver]: glossary.md#rollup-driver
 
-The rollup driver is the [rollup node] component responsible for [deriving the L2 chain][derivation] from the L1 chain
-(L1 [blocks][block] and their associated [receipts][receipt]).
+The rollup driver is the [rollup node][rollup-node] component responsible for [deriving the L2 chain][derivation]
+from the L1 chain (L1 [blocks][block] and their associated [receipts][receipt]).
 
-## L2 Chain Derivation
-
-[derivation]: glossary.md#L2-chain-derivation
-
-A process that reads [L2 derivation inputs][deriv-inputs] from L1 in order to derive the L2 chain.
-
-cf. [L2 Chain Derivation (in Rollup Node
-Specification)](rollup-node.md#l2-chain-derivation)
-
-## L2 Derivation Inputs
-
-[deriv-inputs]: glossary.md#l2-chain-derivation-inputs
-
-This term refers to data that is found in L1 blocks and is read by the [rollup node] to construct [payload attributes].
-
-L2 derivation inputs include:
-
-- L1 block attributes
-  - block number
-  - timestamp
-  - basefee
-- [deposits] (as log data)
-- [sequencer batches][sequencer-batch] (as transaction data)
-
-## Payload Attributes
-
-[payload attributes]: glossary.md#payload-attributes
-
-This term refers to an object that can be derived from [L2 chain derivation inputs][deriv-inputs] found on L1, which are
-then passed to the [execution engine][execution-engine] to construct L2 blocks.
-
-The payload attributes object essentially essentially encodes a [a block without output properties][block].
-
-Payload attributes are originally specified in the [Ethereum Engine API specification][engine-api], which we expand in
-the [Execution Engine Specification](exec-engine.md).
-
-See also the [Building The Payload Attributes][building-payload-attr] section of the rollup node specification.
-
-[building-payload-attr]: rollup-node.md#building-the-payload-attributes
+> **TODO** delete this entry, alongside its reference — can be replaced by "derivation process" or "derivation logic"
+> where needed
 
 ## L1 Attributes Predeployed Contract
 
@@ -408,6 +682,70 @@ A 32 byte value which serves as a commitment to the current state of the L2 chai
 
 cf. [Proposing L2 output commitments](proposals.md#l2-output-root-proposals-specification)
 
+## L2 Output Oracle Contract
+
+[output-oracle]: glossary.md#l2-output-oracle-contract
+
+An L1 contract to which [L2 output roots][l2-output] are posted by the [sequencer].
+
+> **TODO** expand
+
+## Validator
+
+[validator]: glossary.md#validator
+
+A validator is an entity (individual or organization) that runs a [rollup node][rollup-node] in validator mode.
+
+Doing so grants a lot of benefits similar to running an Ethereum node, such as the ability to simulate L2 transactions
+locally, without rate limiting.
+
+It also lets the validator verify the work of the [sequencer], by re-deriving [output roots][l2-output] and comparing
+them against those submitted by the sequencer. In case of a mismatch, the validator can perform a [fault
+proof][fault-proof].
+
+## Fault Proof
+
+[fault-proof]: glossary.md#fault-proof
+
+An on-chain *interactive* proof, performed by [validators][validator], that demonstrates that a [sequencer] provided
+erroneous [output roots][l2-output].
+
+Fault proofs are not specified yet. For now, the best place to find information about fault proofs is the [Cannon
+repository][cannon].
+
+> **TODO** expand
+
+## Time Slot
+
+[time-slot]: glossary.md#time-slot
+
+On L2, there is a block every 2 second (this duration is known as the [block time][block-time]).
+
+We say that there is a "time slot" every multiple of 2s after the timestamp of the [L2 genesis block][l2-genesis].
+
+On L1, post-[merge], the time slots are every 12s. However, an L1 block may not be produced for every time slot, in case
+of even benign consensus issues.
+
+## Block Time
+
+[block-time]: glossary.md#block-time
+
+The L2 block time is 2 second, meaning there is an L2 block at every 2s [time slot][time-slot].
+
+Post-[merge], it could be said the that L1 block time is 12s as that is the L1 [time slot][time-slot]. However, in
+reality the block time is variable as some time slots might be skipped.
+
+Pre-merge, the L1 block time is variable, though it is on average 13s.
+
+## Unsafe Sync
+
+[unsafe-sync]: glossary.md#unsafe-sync
+
+Unsafe sync is the process through which a [validator][validator] learns about [unsafe L2 blocks][unsafe-l2-block] from
+the [sequencer][sequencer].
+
+These unsafe blocks will later need to be confirmed by the L1 chain (via [unsafe block consolidation][consolidation]).
+
 ------------------------------------------------------------------------------------------------------------------------
 
 # Execution Engine Concepts
@@ -424,12 +762,16 @@ Both L1 (post-[merge]) and L2 have an execution engine.
 On L1, the executed blocks can come from L1 block synchronization; or from a block freshly minted by the execution
 engine (using transactions from the L1 [mempool]), at the request of the L1 consensus layer.
 
-On L2, the executed blocks are freshly minted by the execution engine at the request of the [rollup node], using
-transactions [derived from L1 blocks][derivation].
+On L2, the executed blocks are freshly minted by the execution engine at the request of the [rollup node][rollup-node],
+using transactions [derived from L1 blocks][derivation].
 
 In these specifications, "execution engine" always refer to the L2 execution engine, unless otherwise specified.
 
 - cf. [Execution Engine Specification](exec-engine.md)
+
+<!-- Internal Links -->
+[derivation-spec]: derivation.md
+[rollup-node-spec]: rollup-node.md
 
 <!-- External Links -->
 [mpt-details]: https://github.com/norswap/nanoeth/blob/d4c0c89cc774d4225d16970aa44c74114c1cfa63/src/com/norswap/nanoeth/trees/patricia/README.md
@@ -442,3 +784,5 @@ In these specifications, "execution engine" always refer to the L2 execution eng
 [merge]: https://ethereum.org/en/eth2/merge/
 [mempool]: https://www.quicknode.com/guides/defi/how-to-access-ethereum-mempool
 [L1 consensus layer]: https://github.com/ethereum/consensus-specs/#readme
+[cannon]: https://github.com/ethereum-optimism/cannon
+[eip4844]: https://www.eip4844.com/

@@ -4,18 +4,17 @@
 <!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
 **Table of Contents**
 
-- [L2 Execution Engine](#l2-execution-engine)
-  - [Deposited transaction processing](#deposited-transaction-processing)
-    - [Deposited transaction boundaries](#deposited-transaction-boundaries)
-  - [Engine API](#engine-api)
-    - [`engine_forkchoiceUpdatedV1`](#engine_forkchoiceupdatedv1)
-      - [Extended PayloadAttributesV1](#extended-payloadattributesv1)
-    - [`engine_newPayloadV1`](#engine_newpayloadv1)
-    - [`engine_getPayloadV1`](#engine_getpayloadv1)
-  - [Networking](#networking)
-  - [Sync](#sync)
-    - [Happy-path sync](#happy-path-sync)
-    - [Worst-case sync](#worst-case-sync)
+- [Deposited transaction processing](#deposited-transaction-processing)
+  - [Deposited transaction boundaries](#deposited-transaction-boundaries)
+- [Engine API](#engine-api)
+  - [`engine_forkchoiceUpdatedV1`](#engine_forkchoiceupdatedv1)
+    - [Extended PayloadAttributesV1](#extended-payloadattributesv1)
+  - [`engine_newPayloadV1`](#engine_newpayloadv1)
+  - [`engine_getPayloadV1`](#engine_getpayloadv1)
+- [Networking](#networking)
+- [Sync](#sync)
+  - [Happy-path sync](#happy-path-sync)
+  - [Worst-case sync](#worst-case-sync)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
