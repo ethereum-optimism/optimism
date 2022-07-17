@@ -5,7 +5,7 @@ import { Bridge_Initializer } from "./CommonTest.t.sol";
 import { StandardBridge } from "../universal/StandardBridge.sol";
 import { L2StandardBridge } from "../L2/L2StandardBridge.sol";
 import { CrossDomainMessenger } from "../universal/CrossDomainMessenger.sol";
-import { PredeployAddresses } from "../libraries/PredeployAddresses.sol";
+import { Predeploys } from "../libraries/Predeploys.sol";
 import { AddressAliasHelper } from "../vendor/AddressAliasHelper.sol";
 import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import { stdStorage, StdStorage } from "forge-std/Test.sol";
@@ -25,12 +25,12 @@ contract L1StandardBridge_Test is Bridge_Initializer {
 
         assertEq(
             address(L1Bridge.otherBridge()),
-            PredeployAddresses.L2_STANDARD_BRIDGE
+            Predeploys.L2_STANDARD_BRIDGE
         );
 
         assertEq(
             address(L2Bridge),
-            PredeployAddresses.L2_STANDARD_BRIDGE
+            Predeploys.L2_STANDARD_BRIDGE
         );
     }
 
@@ -100,7 +100,7 @@ contract L1StandardBridge_Test is Bridge_Initializer {
         // turn alice into a contract
         vm.etch(alice, address(L1Token).code);
 
-        vm.expectRevert("Account not EOA");
+        vm.expectRevert("StandardBridge: function can only be called from an EOA");
         vm.prank(alice);
         L1Bridge.depositETH{ value: 1 }(300, hex"");
     }
@@ -207,7 +207,7 @@ contract L1StandardBridge_Test is Bridge_Initializer {
         // turn alice into a contract
         vm.etch(alice, hex"ffff");
 
-        vm.expectRevert("Account not EOA");
+        vm.expectRevert("StandardBridge: function can only be called from an EOA");
         vm.prank(alice, alice);
         L1Bridge.depositERC20(
             address(0),
@@ -363,7 +363,7 @@ contract L1StandardBridge_Test is Bridge_Initializer {
             abi.encode(address(L1Bridge.otherBridge()))
         );
         vm.prank(address(28));
-        vm.expectRevert("Could not authenticate bridge message.");
+        vm.expectRevert("StandardBridge: function can only be called from the other bridge");
         L1Bridge.finalizeERC20Withdrawal(
             address(L1Token),
             address(L2Token),
@@ -381,7 +381,7 @@ contract L1StandardBridge_Test is Bridge_Initializer {
             abi.encode(address(address(0)))
         );
         vm.prank(address(L1Bridge.messenger()));
-        vm.expectRevert("Could not authenticate bridge message.");
+        vm.expectRevert("StandardBridge: function can only be called from the other bridge");
         L1Bridge.finalizeERC20Withdrawal(
             address(L1Token),
             address(L2Token),
@@ -390,5 +390,49 @@ contract L1StandardBridge_Test is Bridge_Initializer {
             100,
             hex""
         );
+    }
+
+    function test_finalizeBridgeERC20FailSendBack() external {
+        deal(address(BadL1Token), address(L1Bridge), 100, true);
+
+        uint256 slot = stdstore
+            .target(address(L1Bridge))
+            .sig("deposits(address,address)")
+            .with_key(address(BadL1Token))
+            .with_key(address(L2Token))
+            .find();
+
+        // Give the L1 bridge some ERC20 tokens
+        vm.store(address(L1Bridge), bytes32(slot), bytes32(uint256(100)));
+        assertEq(L1Bridge.deposits(address(BadL1Token), address(L2Token)), 100);
+
+        vm.expectEmit(true, true, true, true);
+
+        emit ERC20BridgeInitiated(
+            address(BadL1Token),
+            address(L2Token),
+            bob,
+            alice,
+            100,
+            hex""
+        );
+
+        vm.mockCall(
+            address(L1Bridge.messenger()),
+            abi.encodeWithSelector(CrossDomainMessenger.xDomainMessageSender.selector),
+            abi.encode(address(L1Bridge.otherBridge()))
+        );
+        vm.prank(address(L1Bridge.messenger()));
+        L1Bridge.finalizeBridgeERC20(
+            address(BadL1Token),
+            address(L2Token),
+            alice,
+            bob,
+            100,
+            hex""
+        );
+
+        assertEq(BadL1Token.balanceOf(address(L1Bridge)), 100);
+        assertEq(BadL1Token.balanceOf(address(alice)), 0);
     }
 }

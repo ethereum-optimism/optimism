@@ -19,25 +19,24 @@ import { Semver } from "../universal/Semver.sol";
  */
 contract OptimismPortal is Initializable, ResourceMetering, Semver {
     /**
+     * @notice Version of the deposit event.
+     */
+    uint256 internal constant DEPOSIT_VERSION = 0;
+
+    /**
      * @notice Emitted when a transaction is deposited from L1 to L2. The parameters of this event
      *         are read by the rollup node and used to derive deposit transactions on L2.
      *
      * @param from       Address that triggered the deposit transaction.
      * @param to         Address that the deposit transaction is directed to.
-     * @param mint       Amount of ETH to mint to the sender on L2.
-     * @param value      Amount of ETH to send to the recipient.
-     * @param gasLimit   Minimum gas limit that the message can be executed with.
-     * @param isCreation Whether the message is a contract creation.
-     * @param data       Data to attach to the message and call the recipient with.
+     * @param version    Version of this deposit transaction event.
+     * @param opaqueData ABI encoded deposit data to be parsed off-chain.
      */
     event TransactionDeposited(
         address indexed from,
         address indexed to,
-        uint256 mint,
-        uint256 value,
-        uint64 gasLimit,
-        bool isCreation,
-        bytes data
+        uint256 indexed version,
+        bytes opaqueData
     );
 
     /**
@@ -156,39 +155,42 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
             from = AddressAliasHelper.applyL1ToL2Alias(msg.sender);
         }
 
+        bytes memory opaqueData = abi.encodePacked(
+            msg.value,
+            _value,
+            _gasLimit,
+            _isCreation,
+            _data
+        );
+
         // Emit a TransactionDeposited event so that the rollup node can derive a deposit
         // transaction for this deposit.
-        emit TransactionDeposited(from, _to, msg.value, _value, _gasLimit, _isCreation, _data);
+        emit TransactionDeposited(from, _to, DEPOSIT_VERSION, opaqueData);
+    }
+
+    /**
+     * @notice Determine if a given block number is finalized. Reverts if the call to
+     *         L2_ORACLE.getL2Output reverts. Returns a boolean otherwise.
+     *
+     * @param _l2BlockNumber The number of the L2 block.
+     */
+    function isBlockFinalized(uint256 _l2BlockNumber) external view returns (bool) {
+        L2OutputOracle.OutputProposal memory proposal = L2_ORACLE.getL2Output(_l2BlockNumber);
+
+        return _isOutputFinalized(proposal);
     }
 
     /**
      * @notice Determine if an L2 Output is finalized.
      *
-     * @param _l2BlockNumber The number of the L2 block.
+     * @param _proposal The output proposal to check.
      */
-
-    function isOutputFinalized(uint256 _l2BlockNumber) external view returns (bool) {
-        L2OutputOracle.OutputProposal memory proposal = L2_ORACLE.getL2Output(_l2BlockNumber);
-
-        if (proposal.outputRoot == bytes32(uint256(0))) {
-            uint256 interval = L2_ORACLE.SUBMISSION_INTERVAL();
-            uint256 startingBlockNumber = L2_ORACLE.STARTING_BLOCK_NUMBER();
-
-            // Prevent underflow
-            if (startingBlockNumber > _l2BlockNumber) {
-                return false;
-            }
-
-            // Find the distance between the _l2BlockNumber, and the checkpoint block before it.
-            uint256 offset = (_l2BlockNumber - startingBlockNumber) % interval;
-            // Look up the checkpoint block after it.
-            proposal = L2_ORACLE.getL2Output(_l2BlockNumber + (interval - offset));
-            // False if that block is not yet proposed.
-            if (proposal.outputRoot == bytes32(uint256(0))) {
-                return false;
-            }
-        }
-        return block.timestamp > proposal.timestamp + FINALIZATION_PERIOD_SECONDS;
+    function _isOutputFinalized(L2OutputOracle.OutputProposal memory _proposal)
+        internal
+        view
+        returns (bool)
+    {
+        return block.timestamp > _proposal.timestamp + FINALIZATION_PERIOD_SECONDS;
     }
 
     /**
@@ -228,17 +230,15 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
             "OptimismPortal: you cannot send messages to the portal contract"
         );
 
-        // Get the output root.
+        // Get the output root. This will fail if there is no
+        // output root for the given block number.
         L2OutputOracle.OutputProposal memory proposal = L2_ORACLE.getL2Output(_l2BlockNumber);
 
         // Ensure that enough time has passed since the proposal was submitted before allowing a
         // withdrawal. Under the assumption that the fault proof mechanism is operating correctly,
         // we can infer that any withdrawal that has passed the finalization period must be valid
         // and can therefore be operated on.
-        require(
-            block.timestamp > proposal.timestamp + FINALIZATION_PERIOD_SECONDS,
-            "OptimismPortal: proposal is not yet finalized"
-        );
+        require(_isOutputFinalized(proposal), "OptimismPortal: proposal is not yet finalized");
 
         // Verify that the output root can be generated with the elements in the proof.
         require(

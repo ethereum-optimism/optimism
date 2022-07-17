@@ -54,9 +54,18 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
         assertEq(proposal.outputRoot, proposedOutput1);
         assertEq(proposal.timestamp, block.timestamp);
 
-        L2OutputOracle.OutputProposal memory proposal2 = oracle.getL2Output(0);
-        assertEq(proposal2.outputRoot, bytes32(0));
-        assertEq(proposal2.timestamp, 0);
+        // Handles a block number that is between checkpoints:
+        proposal = oracle.getL2Output(nextBlockNumber - 1);
+        assertEq(proposal.outputRoot, proposedOutput1);
+        assertEq(proposal.timestamp, block.timestamp);
+
+        // The block number is too low:
+        vm.expectRevert("L2OutputOracle: block number cannot be less than the starting block number.");
+        proposal = oracle.getL2Output(0);
+
+        // The block number is larger than the latest proposed output:
+        vm.expectRevert("L2OutputOracle: No output found for that block number.");
+        proposal = oracle.getL2Output(nextBlockNumber + 1);
     }
 
     // Test: nextBlockNumber() should return the correct value
@@ -71,7 +80,7 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
     function test_computeL2Timestamp() external {
         // reverts if timestamp is too low
         vm.expectRevert(
-            "OutputOracle: Block number must be greater than or equal to the starting block number."
+            "L2OutputOracle: block number must be greater than or equal to starting block number"
         );
         oracle.computeL2Timestamp(startingBlockNumber - 1);
 
@@ -104,10 +113,10 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
         oracle.changeProposer(newProposer);
 
         vm.startPrank(owner);
-        vm.expectRevert("OutputOracle: new proposer is the zero address");
+        vm.expectRevert("L2OutputOracle: new proposer cannot be the zero address");
         oracle.changeProposer(address(0));
 
-        vm.expectRevert("OutputOracle: proposer cannot be same as the owner");
+        vm.expectRevert("L2OutputOracle: proposer cannot be the same as the owner");
         oracle.changeProposer(owner);
 
         // Double check proposer has not changed.
@@ -178,7 +187,7 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
         warpToProposeTime(nextBlockNumber);
 
         vm.prank(address(128));
-        vm.expectRevert("OutputOracle: caller is not the proposer");
+        vm.expectRevert("L2OutputOracle: function can only be called by proposer");
         oracle.proposeL2Output(nonZeroHash, nextBlockNumber, 0, 0);
     }
 
@@ -188,7 +197,7 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
         uint256 nextBlockNumber = oracle.nextBlockNumber();
         warpToProposeTime(nextBlockNumber);
         vm.prank(proposer);
-        vm.expectRevert("OutputOracle: Cannot submit empty L2 output.");
+        vm.expectRevert("L2OutputOracle: L2 output proposal cannot be the zero hash");
         oracle.proposeL2Output(outputToPropose, nextBlockNumber, 0, 0);
     }
 
@@ -197,7 +206,7 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
         uint256 nextBlockNumber = oracle.nextBlockNumber();
         warpToProposeTime(nextBlockNumber);
         vm.prank(proposer);
-        vm.expectRevert("OutputOracle: Block number must be equal to next expected block number.");
+        vm.expectRevert("L2OutputOracle: block number must be equal to next expected block number");
         oracle.proposeL2Output(nonZeroHash, nextBlockNumber - 1, 0, 0);
     }
 
@@ -207,7 +216,7 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
         uint256 nextTimestamp = oracle.computeL2Timestamp(nextBlockNumber);
         vm.warp(nextTimestamp);
         vm.prank(proposer);
-        vm.expectRevert("OutputOracle: Cannot propose L2 output in future.");
+        vm.expectRevert("L2OutputOracle: cannot propose L2 output in the future");
         oracle.proposeL2Output(nonZeroHash, nextBlockNumber, 0, 0);
     }
 
@@ -217,7 +226,7 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
         uint256 nextBlockNumber = oracle.nextBlockNumber();
         warpToProposeTime(nextBlockNumber);
         vm.prank(proposer);
-        vm.expectRevert("OutputOracle: Blockhash does not match the hash at the expected height.");
+        vm.expectRevert("L2OutputOracle: blockhash does not match the hash at the expected height");
         oracle.proposeL2Output(
             nonZeroHash,
             nextBlockNumber,
@@ -241,7 +250,7 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
         vm.prank(proposer);
 
         // This will fail when foundry no longer returns zerod block hashes
-        vm.expectRevert("OutputOracle: Blockhash does not match the hash at the expected height.");
+        vm.expectRevert("L2OutputOracle: blockhash does not match the hash at the expected height");
         oracle.proposeL2Output(nonZeroHash, nextBlockNumber, l1BlockHash, l1BlockNumber - 1);
     }
 
@@ -307,7 +316,7 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
 
         vm.prank(owner);
         vm.expectRevert(
-            "OutputOracle: The output root to delete does not match the latest output proposal."
+            "L2OutputOracle: output root to delete does not match the latest output proposal"
         );
         oracle.deleteL2Output(proposalToDelete);
     }
@@ -324,7 +333,7 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
         proposalToDelete.timestamp -= 1;
         vm.prank(owner);
         vm.expectRevert(
-            "OutputOracle: The timestamp to delete does not match the latest output proposal."
+            "L2OutputOracle: timestamp to delete does not match the latest output proposal"
         );
         oracle.deleteL2Output(proposalToDelete);
     }

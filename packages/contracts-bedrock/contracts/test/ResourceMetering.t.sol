@@ -105,7 +105,7 @@ contract ResourceMetering_Test is CommonTest {
     function test_useMoreThanMaxReverts() external {
         uint64 target = uint64(uint256(meter.TARGET_RESOURCE_LIMIT()));
         uint64 elasticity = uint64(uint256(meter.ELASTICITY_MULTIPLIER()));
-        vm.expectRevert("OptimismPortal: cannot buy more gas than available gas limit");
+        vm.expectRevert("ResourceMetering: cannot buy more gas than available gas limit");
         meter.use(target * elasticity + 1);
     }
 }

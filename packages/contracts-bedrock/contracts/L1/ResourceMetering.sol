@@ -143,7 +143,7 @@ abstract contract ResourceMetering is Initializable {
         params.prevBoughtGas += _amount;
         require(
             int256(uint256(params.prevBoughtGas)) <= MAX_RESOURCE_LIMIT,
-            "OptimismPortal: cannot buy more gas than available gas limit"
+            "ResourceMetering: cannot buy more gas than available gas limit"
         );
 
         // Determine the amount of ETH to be paid.

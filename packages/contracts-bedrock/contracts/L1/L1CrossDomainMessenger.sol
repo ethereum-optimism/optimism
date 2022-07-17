@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.9;
 
-import { PredeployAddresses } from "../libraries/PredeployAddresses.sol";
+import { Predeploys } from "../libraries/Predeploys.sol";
 import { OptimismPortal } from "./OptimismPortal.sol";
 import { CrossDomainMessenger } from "../universal/CrossDomainMessenger.sol";
 import { Semver } from "../universal/Semver.sol";
@@ -35,10 +35,7 @@ contract L1CrossDomainMessenger is CrossDomainMessenger, Semver {
     function initialize() public initializer {
         address[] memory blockedSystemAddresses = new address[](1);
         blockedSystemAddresses[0] = address(this);
-        __CrossDomainMessenger_init(
-            PredeployAddresses.L2_CROSS_DOMAIN_MESSENGER,
-            blockedSystemAddresses
-        );
+        __CrossDomainMessenger_init(Predeploys.L2_CROSS_DOMAIN_MESSENGER, blockedSystemAddresses);
     }
 
     /**

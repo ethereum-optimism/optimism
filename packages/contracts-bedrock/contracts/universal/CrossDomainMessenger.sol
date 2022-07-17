@@ -169,7 +169,10 @@ abstract contract CrossDomainMessenger is
      * @return Address of the sender of the currently executing message on the other chain.
      */
     function xDomainMessageSender() external view returns (address) {
-        require(xDomainMsgSender != DEFAULT_XDOMAIN_SENDER, "xDomainMessageSender is not set");
+        require(
+            xDomainMsgSender != DEFAULT_XDOMAIN_SENDER,
+            "CrossDomainMessenger: xDomainMessageSender is not set"
+        );
 
         return xDomainMsgSender;
     }
@@ -196,7 +199,7 @@ abstract contract CrossDomainMessenger is
      *
      * @return Amount of gas required to guarantee message receipt.
      */
-    function baseGas(bytes memory _message, uint32 _minGasLimit) public pure returns (uint32) {
+    function baseGas(bytes calldata _message, uint32 _minGasLimit) public pure returns (uint32) {
         return
             // Dynamic overhead
             ((_minGasLimit * MIN_GAS_DYNAMIC_OVERHEAD_NUMERATOR) /
@@ -276,25 +279,32 @@ abstract contract CrossDomainMessenger is
 
         if (_isOtherMessenger()) {
             // Should never happen.
-            require(msg.value == _value, "Mismatched message value.");
+            require(msg.value == _value, "CrossDomainMessenger: mismatched message value");
         } else {
             require(
                 msg.value == 0,
-                "CrossDomainMessenger: Value must be zero unless message is from a system address."
+                "CrossDomainMessenger: value must be zero unless message is from a system address"
             );
-            require(receivedMessages[versionedHash], "Message cannot be replayed.");
+
+            require(
+                receivedMessages[versionedHash],
+                "CrossDomainMessenger: message cannot be replayed"
+            );
         }
 
         require(
             blockedSystemAddresses[_target] == false,
-            "Cannot send message to blocked system address."
+            "CrossDomainMessenger: cannot send message to blocked system address"
         );
 
-        require(successfulMessages[versionedHash] == false, "Message has already been relayed.");
+        require(
+            successfulMessages[versionedHash] == false,
+            "CrossDomainMessenger: message has already been relayed"
+        );
 
         require(
             gasleft() >= _minGasLimit + RELAY_GAS_REQUIRED,
-            "Insufficient gas to relay message."
+            "CrossDomainMessenger: insufficient gas to relay message"
         );
 
         xDomainMsgSender = _sender;

@@ -3,7 +3,6 @@ pragma solidity ^0.8.9;
 
 /* Contract Imports */
 import { OptimismMintableERC20 } from "../universal/OptimismMintableERC20.sol";
-import { PredeployAddresses } from "../libraries/PredeployAddresses.sol";
 
 /**
  * @custom:proxied
@@ -86,11 +85,6 @@ contract OptimismMintableERC20Factory {
         require(
             _remoteToken != address(0),
             "OptimismMintableERC20Factory: must provide remote token address"
-        );
-
-        require(
-            bridge != address(0),
-            "OptimismMintableERC20Factory: must initialize contract first"
         );
 
         OptimismMintableERC20 localToken = new OptimismMintableERC20(
