@@ -4,7 +4,6 @@
 <!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
 **Table of Contents**
 
-- [Glossary](#glossary)
 - [General Terms](#general-terms)
   - [Layer 1 (L1)](#layer-1-l1)
   - [Layer 2 (L2)](#layer-2-l2)
@@ -46,7 +45,7 @@
 - [L2 Chain Derivation](#l2-chain-derivation)
   - [L2 Derivation Inputs](#l2-derivation-inputs)
   - [Payload Attributes](#payload-attributes)
-  - [L2 Genesis Block](#l2-genesis)
+  - [L2 Genesis Block](#l2-genesis-block)
   - [L2 Chain Inception](#l2-chain-inception)
   - [Safe L2 Head](#safe-l2-head)
   - [Unsafe L2 Block](#unsafe-l2-block)
@@ -63,6 +62,7 @@
   - [Validator](#validator)
   - [Fault Proof](#fault-proof)
   - [Time Slot](#time-slot)
+  - [Block Time](#block-time)
   - [Unsafe Sync](#unsafe-sync)
 - [Execution Engine Concepts](#execution-engine-concepts)
   - [Execution Engine](#execution-engine)

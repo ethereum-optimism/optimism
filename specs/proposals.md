@@ -9,14 +9,13 @@
 <!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
 **Table of Contents**
 
-- [L2 Output Root Proposals Specification](#l2-output-root-proposals-specification)
-  - [Proposing L2 Output Commitments](#proposing-l2-output-commitments)
-  - [L2 Output Commitment Construction](#l2-output-commitment-construction)
-  - [L2 Output Oracle Smart Contract](#l2-output-oracle-smart-contract)
-  - [Security Considerations](#security-considerations)
-    - [L1 Reorgs](#l1-reorgs)
-  - [Summary of Definitions](#summary-of-definitions)
-    - [Constants](#constants)
+- [Proposing L2 Output Commitments](#proposing-l2-output-commitments)
+- [L2 Output Commitment Construction](#l2-output-commitment-construction)
+- [L2 Output Oracle Smart Contract](#l2-output-oracle-smart-contract)
+- [Security Considerations](#security-considerations)
+  - [L1 Reorgs](#l1-reorgs)
+- [Summary of Definitions](#summary-of-definitions)
+  - [Constants](#constants)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 

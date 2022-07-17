@@ -47,7 +47,38 @@
 <!-- START doctoc generated TOC please keep comment here to allow auto update -->
 <!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
 **Table of Contents**
-TODO
+
+- [Overview](#overview)
+  - [Eager Block Derivation](#eager-block-derivation)
+- [Batch Submission](#batch-submission)
+  - [Sequencing & Batch Submission Overview](#sequencing--batch-submission-overview)
+  - [Batch Submission Wire Format](#batch-submission-wire-format)
+    - [Batcher Transaction Format](#batcher-transaction-format)
+    - [Frame Format](#frame-format)
+    - [Channel Format](#channel-format)
+    - [Batch Format](#batch-format)
+- [Architecture](#architecture)
+  - [L2 Chain Derivation Pipeline](#l2-chain-derivation-pipeline)
+    - [L1 Traversal](#l1-traversal)
+    - [L1 Retrieval](#l1-retrieval)
+    - [Channel Bank](#channel-bank)
+    - [Batch Decoding](#batch-decoding)
+    - [Batch Buffering](#batch-buffering)
+    - [Payload Attributes Derivation](#payload-attributes-derivation)
+    - [Engine Queue](#engine-queue)
+    - [Resetting the Pipeline](#resetting-the-pipeline)
+- [Deriving Payload Attributes](#deriving-payload-attributes)
+  - [Deriving the Transaction List](#deriving-the-transaction-list)
+  - [Building Individual Payload Attributes](#building-individual-payload-attributes)
+- [WARNING: BELOW THIS LINE, THE SPEC HAS NOT BEEN REVIEWED AND MAY CONTAIN MISTAKES](#warning-below-this-line-the-spec-has-not-been-reviewed-and-may-contain-mistakes)
+- [Communication with the Execution Engine](#communication-with-the-execution-engine)
+- [Handling L1 Re-Orgs](#handling-l1-re-orgs)
+  - [Resetting the Engine Queue](#resetting-the-engine-queue)
+  - [Resetting Payload Attribute Derivation](#resetting-payload-attribute-derivation)
+  - [Resetting Batch Decoding](#resetting-batch-decoding)
+  - [Resetting Channel Buffering](#resetting-channel-buffering)
+  - [Resetting L1 Retrieval & L1 Traversal](#resetting-l1-retrieval--l1-traversal)
+  - [Reorgs Post-Merge](#reorgs-post-merge)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
