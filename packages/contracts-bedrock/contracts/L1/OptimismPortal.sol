@@ -169,33 +169,28 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
     }
 
     /**
-     * @notice Determine if an L2 Output is finalized.
+     * @notice Determine if a given block number is finalized. Reverts if the call to
+     *         L2_ORACLE.getL2Output reverts. Returns a boolean otherwise.
      *
      * @param _l2BlockNumber The number of the L2 block.
      */
-
-    function isOutputFinalized(uint256 _l2BlockNumber) external view returns (bool) {
+    function isBlockFinalized(uint256 _l2BlockNumber) external view returns (bool) {
         L2OutputOracle.OutputProposal memory proposal = L2_ORACLE.getL2Output(_l2BlockNumber);
 
-        if (proposal.outputRoot == bytes32(uint256(0))) {
-            uint256 interval = L2_ORACLE.SUBMISSION_INTERVAL();
-            uint256 startingBlockNumber = L2_ORACLE.STARTING_BLOCK_NUMBER();
+        return _isOutputFinalized(proposal);
+    }
 
-            // Prevent underflow
-            if (startingBlockNumber > _l2BlockNumber) {
-                return false;
-            }
-
-            // Find the distance between the _l2BlockNumber, and the checkpoint block before it.
-            uint256 offset = (_l2BlockNumber - startingBlockNumber) % interval;
-            // Look up the checkpoint block after it.
-            proposal = L2_ORACLE.getL2Output(_l2BlockNumber + (interval - offset));
-            // False if that block is not yet proposed.
-            if (proposal.outputRoot == bytes32(uint256(0))) {
-                return false;
-            }
-        }
-        return block.timestamp > proposal.timestamp + FINALIZATION_PERIOD_SECONDS;
+    /**
+     * @notice Determine if an L2 Output is finalized.
+     *
+     * @param _proposal The output proposal to check.
+     */
+    function _isOutputFinalized(L2OutputOracle.OutputProposal memory _proposal)
+        internal
+        view
+        returns (bool)
+    {
+        return block.timestamp > _proposal.timestamp + FINALIZATION_PERIOD_SECONDS;
     }
 
     /**
@@ -235,17 +230,15 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
             "OptimismPortal: you cannot send messages to the portal contract"
         );
 
-        // Get the output root.
+        // Get the output root. This will fail if there is no
+        // output root for the given block number.
         L2OutputOracle.OutputProposal memory proposal = L2_ORACLE.getL2Output(_l2BlockNumber);
 
         // Ensure that enough time has passed since the proposal was submitted before allowing a
         // withdrawal. Under the assumption that the fault proof mechanism is operating correctly,
         // we can infer that any withdrawal that has passed the finalization period must be valid
         // and can therefore be operated on.
-        require(
-            block.timestamp > proposal.timestamp + FINALIZATION_PERIOD_SECONDS,
-            "OptimismPortal: proposal is not yet finalized"
-        );
+        require(_isOutputFinalized(proposal), "OptimismPortal: proposal is not yet finalized");
 
         // Verify that the output root can be generated with the elements in the proof.
         require(
