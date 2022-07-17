@@ -333,9 +333,9 @@ Reserved for future use.
 
 ## L1Block
 
-[l1-block-predeploy]: glossary.md#l1-block-predeployed-contract
+[l1-block-predeploy]: glossary.md#l1-attributes-predeployed-contract
 
-The [L1Block](l1-block-predeploy) was introduced in Bedrock and is responsible for
+The [L1Block][l1-block-predeploy] was introduced in Bedrock and is responsible for
 maintaining L1 context in L2. This allows for L1 state to be accessed in L2.
 
 ```solidity
@@ -370,10 +370,11 @@ interface L1Block {
      * @dev sets the latest L1 block attributes
      */
     function setL1BlockValues(
-        uint256 _number,
-        uint256 _timestamp,
+        uint64 _number,
+        uint64 _timestamp,
         uint256 _basefee,
-        bytes32 _hash
+        bytes32 _hash,
+        uint64 _sequenceNumber
     ) external;
 }
 ```
