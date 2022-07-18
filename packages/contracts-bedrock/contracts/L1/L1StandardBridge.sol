@@ -4,6 +4,7 @@ pragma solidity 0.8.15;
 import { Predeploys } from "../libraries/Predeploys.sol";
 import { StandardBridge } from "../universal/StandardBridge.sol";
 import { Semver } from "../universal/Semver.sol";
+import "../libraries/TypedAddresses.sol";
 
 /**
  * @custom:proxied
@@ -13,6 +14,8 @@ import { Semver } from "../universal/Semver.sol";
  *         ETH is transferred to and escrowed within the OptimismPortal contract.
  */
 contract L1StandardBridge is StandardBridge, Semver {
+    using TypedAddresses for address;
+
     /**
      * @custom:legacy
      * @notice Emitted whenever a deposit of ETH from L1 into L2 is initiated.
@@ -267,7 +270,7 @@ contract L1StandardBridge is StandardBridge, Semver {
         bytes calldata _extraData
     ) internal {
         emit ETHDepositInitiated(_from, _to, msg.value, _extraData);
-        _initiateBridgeETH(_from, _to, msg.value, _minGasLimit, _extraData);
+        _initiateBridgeETH(_from.toLocal(), _to.toRemote(), msg.value, _minGasLimit, _extraData);
     }
 
     /**
@@ -291,6 +294,14 @@ contract L1StandardBridge is StandardBridge, Semver {
         bytes calldata _extraData
     ) internal {
         emit ERC20DepositInitiated(_l1Token, _l2Token, _from, _to, _amount, _extraData);
-        _initiateBridgeERC20(_l1Token, _l2Token, _from, _to, _amount, _minGasLimit, _extraData);
+        _initiateBridgeERC20(
+            _l1Token.toLocal(),
+            _l2Token.toRemote(),
+            _from.toLocal(),
+            _to.toRemote(),
+            _amount,
+            _minGasLimit,
+            _extraData
+        );
     }
 }

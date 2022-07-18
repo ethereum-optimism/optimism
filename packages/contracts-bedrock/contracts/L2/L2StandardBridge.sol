@@ -5,6 +5,7 @@ import { Predeploys } from "../libraries/Predeploys.sol";
 import { StandardBridge } from "../universal/StandardBridge.sol";
 import { Semver } from "../universal/Semver.sol";
 import { OptimismMintableERC20 } from "../universal/OptimismMintableERC20.sol";
+import "../libraries/TypedAddresses.sol";
 
 /**
  * @custom:proxied
@@ -18,6 +19,8 @@ import { OptimismMintableERC20 } from "../universal/OptimismMintableERC20.sol";
  *         tokens with blocklists.
  */
 contract L2StandardBridge is StandardBridge, Semver {
+    using TypedAddresses for address;
+
     /**
      * @custom:legacy
      * @notice Emitted whenever a withdrawal from L2 to L1 is initiated.
@@ -191,9 +194,17 @@ contract L2StandardBridge is StandardBridge, Semver {
                 "L2StandardBridge: ETH withdrawals must include sufficient ETH value"
             );
 
-            _initiateBridgeETH(_from, _to, _amount, _minGasLimit, _extraData);
+            _initiateBridgeETH(_from.toLocal(), _to.toRemote(), _amount, _minGasLimit, _extraData);
         } else {
-            _initiateBridgeERC20(_l2Token, l1Token, _from, _to, _amount, _minGasLimit, _extraData);
+            _initiateBridgeERC20(
+                _l2Token.toLocal(),
+                l1Token.toRemote(),
+                _from.toLocal(),
+                _to.toRemote(),
+                _amount,
+                _minGasLimit,
+                _extraData
+            );
         }
         emit WithdrawalInitiated(l1Token, _l2Token, _from, _to, _amount, _extraData);
     }

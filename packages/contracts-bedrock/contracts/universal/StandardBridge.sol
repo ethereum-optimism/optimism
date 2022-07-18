@@ -9,6 +9,7 @@ import { Initializable } from "@openzeppelin/contracts-upgradeable/proxy/utils/I
 import { IRemoteToken, IL1Token } from "./SupportedInterfaces.sol";
 import { CrossDomainMessenger } from "./CrossDomainMessenger.sol";
 import { OptimismMintableERC20 } from "./OptimismMintableERC20.sol";
+import "../libraries/TypedAddresses.sol";
 
 /**
  * @title StandardBridge
@@ -16,6 +17,9 @@ import { OptimismMintableERC20 } from "./OptimismMintableERC20.sol";
  */
 abstract contract StandardBridge is Initializable {
     using SafeERC20 for IERC20;
+    using TypedAddresses for address;
+    using TypedAddresses for LocalAccount;
+    using TypedAddresses for RemoteAccount;
 
     /**
      * @notice Emitted when an ETH bridge is initiated to the other chain.
@@ -26,8 +30,8 @@ abstract contract StandardBridge is Initializable {
      * @param extraData Extra data sent with the transaction.
      */
     event ETHBridgeInitiated(
-        address indexed from,
-        address indexed to,
+        LocalAccount indexed from,
+        RemoteAccount indexed to,
         uint256 amount,
         bytes extraData
     );
@@ -41,8 +45,8 @@ abstract contract StandardBridge is Initializable {
      * @param extraData Extra data sent with the transaction.
      */
     event ETHBridgeFinalized(
-        address indexed from,
-        address indexed to,
+        RemoteAccount indexed from,
+        LocalAccount indexed to,
         uint256 amount,
         bytes extraData
     );
@@ -58,10 +62,10 @@ abstract contract StandardBridge is Initializable {
      * @param extraData   Extra data sent with the transaction.
      */
     event ERC20BridgeInitiated(
-        address indexed localToken,
-        address indexed remoteToken,
-        address indexed from,
-        address to,
+        LocalAccount indexed localToken,
+        RemoteAccount indexed remoteToken,
+        LocalAccount indexed from,
+        RemoteAccount to,
         uint256 amount,
         bytes extraData
     );
@@ -77,10 +81,10 @@ abstract contract StandardBridge is Initializable {
      * @param extraData   Extra data sent with the transaction.
      */
     event ERC20BridgeFinalized(
-        address indexed localToken,
-        address indexed remoteToken,
-        address indexed from,
-        address to,
+        LocalAccount indexed localToken,
+        RemoteAccount indexed remoteToken,
+        LocalAccount indexed from,
+        RemoteAccount to,
         uint256 amount,
         bytes extraData
     );
@@ -96,10 +100,10 @@ abstract contract StandardBridge is Initializable {
      * @param extraData   Extra data sent with the transaction.
      */
     event ERC20BridgeFailed(
-        address indexed localToken,
-        address indexed remoteToken,
-        address indexed from,
-        address to,
+        LocalAccount indexed localToken,
+        RemoteAccount indexed remoteToken,
+        RemoteAccount indexed from,
+        LocalAccount to,
         uint256 amount,
         bytes extraData
     );
@@ -161,7 +165,13 @@ abstract contract StandardBridge is Initializable {
      * @notice Allows EOAs to deposit ETH by sending directly to the bridge.
      */
     receive() external payable onlyEOA {
-        _initiateBridgeETH(msg.sender, msg.sender, msg.value, RECEIVE_DEFAULT_GAS_LIMIT, bytes(""));
+        _initiateBridgeETH(
+            msg.sender.toLocal(),
+            msg.sender.toRemote(),
+            msg.value,
+            RECEIVE_DEFAULT_GAS_LIMIT,
+            bytes("")
+        );
     }
 
     /**
@@ -173,7 +183,13 @@ abstract contract StandardBridge is Initializable {
      *                     to identify the transaction.
      */
     function bridgeETH(uint32 _minGasLimit, bytes calldata _extraData) public payable onlyEOA {
-        _initiateBridgeETH(msg.sender, msg.sender, msg.value, _minGasLimit, _extraData);
+        _initiateBridgeETH(
+            msg.sender.toLocal(),
+            msg.sender.toRemote(),
+            msg.value,
+            _minGasLimit,
+            _extraData
+        );
     }
 
     /**
@@ -194,7 +210,13 @@ abstract contract StandardBridge is Initializable {
         uint32 _minGasLimit,
         bytes calldata _extraData
     ) public payable {
-        _initiateBridgeETH(msg.sender, _to, msg.value, _minGasLimit, _extraData);
+        _initiateBridgeETH(
+            msg.sender.toLocal(),
+            _to.toRemote(),
+            msg.value,
+            _minGasLimit,
+            _extraData
+        );
     }
 
     /**
@@ -219,10 +241,10 @@ abstract contract StandardBridge is Initializable {
         bytes calldata _extraData
     ) public virtual onlyEOA {
         _initiateBridgeERC20(
-            _localToken,
-            _remoteToken,
-            msg.sender,
-            msg.sender,
+            _localToken.toLocal(),
+            _remoteToken.toRemote(),
+            msg.sender.toLocal(),
+            msg.sender.toRemote(),
             _amount,
             _minGasLimit,
             _extraData
@@ -253,10 +275,10 @@ abstract contract StandardBridge is Initializable {
         bytes calldata _extraData
     ) public virtual {
         _initiateBridgeERC20(
-            _localToken,
-            _remoteToken,
-            msg.sender,
-            _to,
+            _localToken.toLocal(),
+            _remoteToken.toRemote(),
+            msg.sender.toLocal(),
+            _to.toRemote(),
             _amount,
             _minGasLimit,
             _extraData
@@ -283,7 +305,7 @@ abstract contract StandardBridge is Initializable {
         require(msg.value == _amount, "StandardBridge: amount sent does not match amount required");
         require(_to != address(this), "StandardBridge: cannot send to self");
 
-        emit ETHBridgeFinalized(_from, _to, _amount, _extraData);
+        emit ETHBridgeFinalized(_from.toRemote(), _to.toLocal(), _amount, _extraData);
         (bool success, ) = _to.call{ value: _amount }(new bytes(0));
         require(success, "StandardBridge: ETH transfer failed");
     }
@@ -311,7 +333,14 @@ abstract contract StandardBridge is Initializable {
         bytes calldata _extraData
     ) public onlyOtherBridge {
         try this.completeOutboundTransfer(_localToken, _remoteToken, _to, _amount) {
-            emit ERC20BridgeFinalized(_localToken, _remoteToken, _from, _to, _amount, _extraData);
+            emit ERC20BridgeFinalized(
+                _localToken.toLocal(),
+                _remoteToken.toRemote(),
+                _from.toLocal(),
+                _to.toRemote(),
+                _amount,
+                _extraData
+            );
         } catch {
             // Something went wrong during the bridging process, return to sender.
             // Can happen if a bridge UI specifies the wrong L2 token.
@@ -319,15 +348,22 @@ abstract contract StandardBridge is Initializable {
             // sender on the other chain and preserve the accuracy of accounting based on emitted
             // events.
             _initiateBridgeERC20Unchecked(
-                _localToken,
-                _remoteToken,
-                _to,
-                _from,
+                _localToken.toLocal(),
+                _remoteToken.toRemote(),
+                _to.toLocal(),
+                _from.toRemote(),
                 _amount,
                 0, // _minGasLimit, 0 is fine here
                 _extraData
             );
-            emit ERC20BridgeFailed(_localToken, _remoteToken, _from, _to, _amount, _extraData);
+            emit ERC20BridgeFailed(
+                _localToken.toLocal(),
+                _remoteToken.toRemote(),
+                _from.toRemote(),
+                _to.toLocal(),
+                _amount,
+                _extraData
+            );
         }
     }
 
@@ -393,8 +429,8 @@ abstract contract StandardBridge is Initializable {
      *                     to identify the transaction.
      */
     function _initiateBridgeETH(
-        address _from,
-        address _to,
+        LocalAccount _from,
+        RemoteAccount _to,
         uint256 _amount,
         uint32 _minGasLimit,
         bytes memory _extraData
@@ -427,28 +463,32 @@ abstract contract StandardBridge is Initializable {
      *                     to identify the transaction.
      */
     function _initiateBridgeERC20(
-        address _localToken,
-        address _remoteToken,
-        address _from,
-        address _to,
+        LocalAccount _localToken,
+        RemoteAccount _remoteToken,
+        LocalAccount _from,
+        RemoteAccount _to,
         uint256 _amount,
         uint32 _minGasLimit,
         bytes calldata _extraData
     ) internal {
+        // Do this casting once for these checks.
+        address localToken = _localToken.toAddress();
+        address remoteToken = _remoteToken.toAddress();
+        address from = _from.toAddress();
         // Make sure external function calls can't be used to trigger calls to
         // completeOutboundTransfer. We only make external (write) calls to _localToken.
-        require(_localToken != address(this), "StandardBridge: local token cannot be self");
+        require(localToken != address(this), "StandardBridge: local token cannot be self");
 
-        if (_isOptimismMintableERC20(_localToken)) {
+        if (_isOptimismMintableERC20(localToken)) {
             require(
-                _isCorrectTokenPair(_localToken, _remoteToken),
+                _isCorrectTokenPair(localToken, remoteToken),
                 "StandardBridge: wrong remote token for Optimism Mintable ERC20 local token"
             );
 
-            OptimismMintableERC20(_localToken).burn(_from, _amount);
+            OptimismMintableERC20(localToken).burn(from, _amount);
         } else {
-            IERC20(_localToken).safeTransferFrom(_from, address(this), _amount);
-            deposits[_localToken][_remoteToken] = deposits[_localToken][_remoteToken] + _amount;
+            IERC20(localToken).safeTransferFrom(from, address(this), _amount);
+            deposits[localToken][remoteToken] = deposits[localToken][remoteToken] + _amount;
         }
 
         _initiateBridgeERC20Unchecked(
@@ -476,10 +516,10 @@ abstract contract StandardBridge is Initializable {
      *                     to identify the transaction.
      */
     function _initiateBridgeERC20Unchecked(
-        address _localToken,
-        address _remoteToken,
-        address _from,
-        address _to,
+        LocalAccount _localToken,
+        RemoteAccount _remoteToken,
+        LocalAccount _from,
+        RemoteAccount _to,
         uint256 _amount,
         uint32 _minGasLimit,
         bytes calldata _extraData
@@ -491,10 +531,10 @@ abstract contract StandardBridge is Initializable {
                 // Because this call will be executed on the remote chain, we reverse the order of
                 // the remote and local token addresses relative to their order in the
                 // finalizeBridgeERC20 function.
-                _remoteToken,
-                _localToken,
-                _from,
-                _to,
+                _remoteToken.toAddress(),
+                _localToken.toAddress(),
+                _from.toAddress(),
+                _to.toAddress(),
                 _amount,
                 _extraData
             ),
