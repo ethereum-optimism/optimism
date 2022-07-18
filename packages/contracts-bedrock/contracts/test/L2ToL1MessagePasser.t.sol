@@ -1,5 +1,5 @@
-//SPDX-License-Identifier: MIT
-pragma solidity ^0.8.15;
+// SPDX-License-Identifier: MIT
+pragma solidity 0.8.15;
 
 import { CommonTest } from "./CommonTest.t.sol";
 import { L2ToL1MessagePasser } from "../L2/L2ToL1MessagePasser.sol";
