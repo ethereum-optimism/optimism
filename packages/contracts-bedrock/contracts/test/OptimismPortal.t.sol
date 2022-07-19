@@ -319,6 +319,9 @@ contract OptimismPortal_Test is Portal_Initializer {
         uint8 _gasLimit,
         bytes memory _data
     ) external {
+        // Cannot call the optimism portal
+        vm.assume(_target != address(op));
+
         uint256 _nonce = messagePasser.nonce();
 
         (
