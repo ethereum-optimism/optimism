@@ -4,6 +4,7 @@ pragma solidity 0.8.15;
 import { Initializable } from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
 import { ExcessivelySafeCall } from "excessively-safe-call/src/ExcessivelySafeCall.sol";
 import { L2OutputOracle } from "./L2OutputOracle.sol";
+import { Types } from "../libraries/Types.sol";
 import { Hashing } from "../libraries/Hashing.sol";
 import { SecureMerkleTrie } from "../libraries/trie/SecureMerkleTrie.sol";
 import { AddressAliasHelper } from "../vendor/AddressAliasHelper.sol";
@@ -175,8 +176,7 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
      * @param _l2BlockNumber The number of the L2 block.
      */
     function isBlockFinalized(uint256 _l2BlockNumber) external view returns (bool) {
-        L2OutputOracle.OutputProposal memory proposal = L2_ORACLE.getL2Output(_l2BlockNumber);
-
+        Types.OutputProposal memory proposal = L2_ORACLE.getL2Output(_l2BlockNumber);
         return _isOutputFinalized(proposal);
     }
 
@@ -185,7 +185,7 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
      *
      * @param _proposal The output proposal to check.
      */
-    function _isOutputFinalized(L2OutputOracle.OutputProposal memory _proposal)
+    function _isOutputFinalized(Types.OutputProposal memory _proposal)
         internal
         view
         returns (bool)
@@ -196,25 +196,15 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
     /**
      * @notice Finalizes a withdrawal transaction.
      *
-     * @param _nonce           Nonce for the provided message.
-     * @param _sender          Message sender address on L2.
-     * @param _target          Target address on L1.
-     * @param _value           ETH to send to the target.
-     * @param _gasLimit        Minumum gas to be forwarded to the target.
-     * @param _data            Data to send to the target.
+     * @param _tx              Withdrawal transaction to finalize.
      * @param _l2BlockNumber   L2 block number of the outputRoot.
      * @param _outputRootProof Inclusion proof of the withdrawer contracts storage root.
      * @param _withdrawalProof Inclusion proof for the given withdrawal in the withdrawer contract.
      */
     function finalizeWithdrawalTransaction(
-        uint256 _nonce,
-        address _sender,
-        address _target,
-        uint256 _value,
-        uint256 _gasLimit,
-        bytes calldata _data,
+        Types.WithdrawalTransaction memory _tx,
         uint256 _l2BlockNumber,
-        Hashing.OutputRootProof calldata _outputRootProof,
+        Types.OutputRootProof calldata _outputRootProof,
         bytes calldata _withdrawalProof
     ) external payable {
         // Prevent nested withdrawals within withdrawals.
@@ -226,13 +216,13 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
         // Prevent users from creating a deposit transaction where this address is the message
         // sender on L2.
         require(
-            _target != address(this),
+            _tx.target != address(this),
             "OptimismPortal: you cannot send messages to the portal contract"
         );
 
         // Get the output root. This will fail if there is no
         // output root for the given block number.
-        L2OutputOracle.OutputProposal memory proposal = L2_ORACLE.getL2Output(_l2BlockNumber);
+        Types.OutputProposal memory proposal = L2_ORACLE.getL2Output(_l2BlockNumber);
 
         // Ensure that enough time has passed since the proposal was submitted before allowing a
         // withdrawal. Under the assumption that the fault proof mechanism is operating correctly,
@@ -248,14 +238,7 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
 
         // All withdrawals have a unique hash, we'll use this as the identifier for the withdrawal
         // and to prevent replay attacks.
-        bytes32 withdrawalHash = Hashing.hashWithdrawal(
-            _nonce,
-            _sender,
-            _target,
-            _value,
-            _gasLimit,
-            _data
-        );
+        bytes32 withdrawalHash = Hashing.hashWithdrawal(_tx);
 
         // Verify that the hash of this withdrawal was stored in the withdrawal contract on L2. If
         // this is true, then we know that this withdrawal was actually triggered on L2 can can
@@ -282,22 +265,22 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
         // target contract is at least the gas limit specified by the user. We can do this by
         // enforcing that, at this point in time, we still have gaslimit + buffer gas available.
         require(
-            gasleft() >= _gasLimit + FINALIZE_GAS_BUFFER,
+            gasleft() >= _tx.gasLimit + FINALIZE_GAS_BUFFER,
             "OptimismPortal: insufficient gas to finalize withdrawal"
         );
 
         // Set the l2Sender so contracts know who triggered this withdrawal on L2.
-        l2Sender = _sender;
+        l2Sender = _tx.sender;
 
         // Trigger the call to the target contract. We use excessivelySafeCall because we don't
         // care about the returndata and we don't want target contracts to be able to force this
         // call to run out of gas.
         (bool success, ) = ExcessivelySafeCall.excessivelySafeCall(
-            _target,
-            _gasLimit,
-            _value,
+            _tx.target,
+            _tx.gasLimit,
+            _tx.value,
             0,
-            _data
+            _tx.data
         );
 
         // Reset the l2Sender back to the default value.

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
+import { Types } from "./Types.sol";
 import { Encoding } from "./Encoding.sol";
 
 /**
@@ -9,57 +10,20 @@ import { Encoding } from "./Encoding.sol";
  */
 library Hashing {
     /**
-     * @notice Struct representing the elements that are hashed together to generate an output root
-     *         which itself represents a snapshot of the L2 state.
-     */
-    struct OutputRootProof {
-        bytes32 version;
-        bytes32 stateRoot;
-        bytes32 withdrawerStorageRoot;
-        bytes32 latestBlockhash;
-    }
-
-    /**
      * @notice Computes the hash of the RLP encoded L2 transaction that would be generated when a
      *         given deposit is sent to the L2 system. Useful for searching for a deposit in the L2
      *         system.
      *
-     * @param _from        Address of the sender of the deposit.
-     * @param _to          Address of the receiver of the deposit.
-     * @param _value       ETH value to send to the receiver.
-     * @param _mint        ETH value to mint on L2.
-     * @param _gasLimit    Gas limit to use for the transaction.
-     * @param _isCreation  Whether or not the transaction is a contract creation.
-     * @param _data        Data to send with the transaction.
-     * @param _l1BlockHash Hash of the L1 block where the deposit was included.
-     * @param _logIndex    Index of the deposit event in the L1 block.
+     * @param _tx User deposit transaction to hash.
      *
      * @return Hash of the RLP encoded L2 deposit transaction.
      */
-    function hashDepositTransaction(
-        address _from,
-        address _to,
-        uint256 _value,
-        uint256 _mint,
-        uint64 _gasLimit,
-        bool _isCreation,
-        bytes memory _data,
-        bytes32 _l1BlockHash,
-        uint256 _logIndex
-    ) internal pure returns (bytes32) {
-        bytes memory raw = Encoding.encodeDepositTransaction(
-            _from,
-            _to,
-            _value,
-            _mint,
-            _gasLimit,
-            _isCreation,
-            _data,
-            _l1BlockHash,
-            _logIndex
-        );
-
-        return keccak256(raw);
+    function hashDepositTransaction(Types.UserDepositTransaction memory _tx)
+        internal
+        pure
+        returns (bytes32)
+    {
+        return keccak256(Encoding.encodeDepositTransaction(_tx));
     }
 
     /**
@@ -166,22 +130,20 @@ library Hashing {
 
     /**
      * @notice Derives the withdrawal hash according to the encoding in the L2 Withdrawer contract
-     * @param _nonce Nonce for the provided message.
-     * @param _sender Message sender address on L2.
-     * @param _target Target address on L1.
-     * @param _value ETH to send to the target.
-     * @param _gasLimit Gas to be forwarded to the target.
-     * @param _data Data to send to the target.
+     *
+     * @param _tx Withdrawal transaction to hash.
+     *
+     * @return Hashed withdrawal transaction.
      */
-    function hashWithdrawal(
-        uint256 _nonce,
-        address _sender,
-        address _target,
-        uint256 _value,
-        uint256 _gasLimit,
-        bytes memory _data
-    ) internal pure returns (bytes32) {
-        return keccak256(abi.encode(_nonce, _sender, _target, _value, _gasLimit, _data));
+    function hashWithdrawal(Types.WithdrawalTransaction memory _tx)
+        internal
+        pure
+        returns (bytes32)
+    {
+        return
+            keccak256(
+                abi.encode(_tx.nonce, _tx.sender, _tx.target, _tx.value, _tx.gasLimit, _tx.data)
+            );
     }
 
     /**
@@ -192,7 +154,7 @@ library Hashing {
      *
      * @return Hashed output root proof.
      */
-    function hashOutputRootProof(OutputRootProof memory _outputRootProof)
+    function hashOutputRootProof(Types.OutputRootProof memory _outputRootProof)
         internal
         pure
         returns (bytes32)

@@ -2,6 +2,7 @@
 pragma solidity 0.8.15;
 
 import { CommonTest } from "./CommonTest.t.sol";
+import { Types } from "../libraries/Types.sol";
 import { Hashing } from "../libraries/Hashing.sol";
 import { Encoding } from "../libraries/Encoding.sol";
 
@@ -64,12 +65,14 @@ contract Hashing_Test is CommonTest {
         bytes memory _data
     ) external {
         bytes32 hash = Hashing.hashWithdrawal(
-            _nonce,
-            _sender,
-            _target,
-            _value,
-            _gasLimit,
-            _data
+            Types.WithdrawalTransaction(
+                _nonce,
+                _sender,
+                _target,
+                _value,
+                _gasLimit,
+                _data
+            )
         );
 
         bytes32 _hash = ffi.hashWithdrawal(
@@ -90,7 +93,7 @@ contract Hashing_Test is CommonTest {
         bytes32 _withdrawerStorageRoot,
         bytes32 _latestBlockhash
     ) external {
-        Hashing.OutputRootProof memory proof = Hashing.OutputRootProof({
+        Types.OutputRootProof memory proof = Types.OutputRootProof({
             version: _version,
             stateRoot: _stateRoot,
             withdrawerStorageRoot: _withdrawerStorageRoot,
@@ -121,15 +124,17 @@ contract Hashing_Test is CommonTest {
         uint256 _logIndex
     ) external {
         bytes32 hash = Hashing.hashDepositTransaction(
-            _from,
-            _to,
-            _value,
-            _mint,
-            _gas,
-            false, // isCreate
-            _data,
-            bytes32(uint256(0)),
-            _logIndex
+            Types.UserDepositTransaction(
+                _from,
+                _to,
+                _value,
+                _mint,
+                _gas,
+                false, // isCreate
+                _data,
+                bytes32(uint256(0)),
+                _logIndex
+            )
         );
 
         bytes32 _hash = ffi.hashDepositTransaction(
