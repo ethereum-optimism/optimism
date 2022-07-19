@@ -1,5 +1,5 @@
-//SPDX-License-Identifier: MIT
-pragma solidity 0.8.10;
+// SPDX-License-Identifier: MIT
+pragma solidity 0.8.15;
 
 import { Test } from "forge-std/Test.sol";
 import { L1Block } from "../L2/L1Block.sol";

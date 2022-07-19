@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.10;
+pragma solidity 0.8.15;
 
 import { Portal_Initializer, CommonTest, NextImpl } from "./CommonTest.t.sol";
 import { AddressAliasHelper } from "../vendor/AddressAliasHelper.sol";
