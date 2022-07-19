@@ -29,8 +29,6 @@ contract OptimismPortal_Test is Portal_Initializer {
         assertEq(address(op).balance, 100);
     }
 
-    // function test_OptimismPortalDepositTransaction() external {}
-
     // Test: depositTransaction fails when contract creation has a non-zero destination address
     function test_OptimismPortalContractCreationReverts() external {
         // contract creation must have a target of address(0)
@@ -329,7 +327,7 @@ contract OptimismPortal_Test is Portal_Initializer {
             bytes32 outputRoot,
             bytes32 withdrawalHash,
             bytes memory withdrawalProof
-        ) = ffi.finalizeWithdrawalTransaction(
+        ) = ffi.getFinalizeWithdrawalTransactionInputs(
             _nonce,
             _sender,
             _target,

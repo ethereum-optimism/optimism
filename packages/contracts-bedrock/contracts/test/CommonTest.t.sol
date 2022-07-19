@@ -452,7 +452,7 @@ contract Bridge_Initializer is Messenger_Initializer {
 }
 
 contract FFIInterface is Test {
-    function finalizeWithdrawalTransaction(
+    function getFinalizeWithdrawalTransactionInputs(
         uint256 _nonce,
         address _sender,
         address _target,
@@ -463,7 +463,7 @@ contract FFIInterface is Test {
         string[] memory cmds = new string[](9);
         cmds[0] = "node";
         cmds[1] = "dist/scripts/differential-testing.js";
-        cmds[2] = "finalizeWithdrawalTransaction";
+        cmds[2] = "getFinalizeWithdrawalTransactionInputs";
         cmds[3] = vm.toString(_nonce);
         cmds[4] = vm.toString(_sender);
         cmds[5] = vm.toString(_target);
