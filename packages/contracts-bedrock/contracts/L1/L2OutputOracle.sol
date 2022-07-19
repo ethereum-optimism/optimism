@@ -258,7 +258,11 @@ contract L2OutputOracle is OwnableUpgradeable, Semver {
      *
      * @param _l2BlockNumber The L2 block number of the target block.
      */
-    function getL2Output(uint256 _l2BlockNumber) external view returns (Types.OutputProposal memory) {
+    function getL2Output(uint256 _l2BlockNumber)
+        external
+        view
+        returns (Types.OutputProposal memory)
+    {
         require(
             _l2BlockNumber >= STARTING_BLOCK_NUMBER,
             "L2OutputOracle: block number cannot be less than the starting block number."
