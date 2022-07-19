@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
+import { Types } from "./Types.sol";
 import { Hashing } from "./Hashing.sol";
 import { RLPWriter } from "./rlp/RLPWriter.sol";
 
@@ -13,38 +14,24 @@ library Encoding {
      * @notice RLP encodes the L2 transaction that would be generated when a given deposit is sent
      *         to the L2 system. Useful for searching for a deposit in the L2 system.
      *
-     * @param _from        Address of the sender of the deposit.
-     * @param _to          Address of the receiver of the deposit.
-     * @param _value       ETH value to send to the receiver.
-     * @param _mint        ETH value to mint on L2.
-     * @param _gasLimit    Gas limit to use for the transaction.
-     * @param _isCreation  Whether or not the transaction is a contract creation.
-     * @param _data        Data to send with the transaction.
-     * @param _l1BlockHash Hash of the L1 block where the deposit was included.
-     * @param _logIndex    Index of the deposit event in the L1 block.
+     * @param _tx User deposit transaction to encode.
      *
      * @return RLP encoded L2 deposit transaction.
      */
-    function encodeDepositTransaction(
-        address _from,
-        address _to,
-        uint256 _value,
-        uint256 _mint,
-        uint64 _gasLimit,
-        bool _isCreation,
-        bytes memory _data,
-        bytes32 _l1BlockHash,
-        uint256 _logIndex
-    ) internal pure returns (bytes memory) {
-        bytes32 source = Hashing.hashDepositSource(_l1BlockHash, _logIndex);
+    function encodeDepositTransaction(Types.UserDepositTransaction memory _tx)
+        internal
+        pure
+        returns (bytes memory)
+    {
+        bytes32 source = Hashing.hashDepositSource(_tx.l1BlockHash, _tx.logIndex);
         bytes[] memory raw = new bytes[](7);
         raw[0] = RLPWriter.writeBytes(abi.encodePacked(source));
-        raw[1] = RLPWriter.writeAddress(_from);
-        raw[2] = _isCreation ? RLPWriter.writeBytes("") : RLPWriter.writeAddress(_to);
-        raw[3] = RLPWriter.writeUint(_mint);
-        raw[4] = RLPWriter.writeUint(_value);
-        raw[5] = RLPWriter.writeUint(uint256(_gasLimit));
-        raw[6] = RLPWriter.writeBytes(_data);
+        raw[1] = RLPWriter.writeAddress(_tx.from);
+        raw[2] = _tx.isCreation ? RLPWriter.writeBytes("") : RLPWriter.writeAddress(_tx.to);
+        raw[3] = RLPWriter.writeUint(_tx.mint);
+        raw[4] = RLPWriter.writeUint(_tx.value);
+        raw[5] = RLPWriter.writeUint(uint256(_tx.gasLimit));
+        raw[6] = RLPWriter.writeBytes(_tx.data);
         return abi.encodePacked(uint8(0x7e), RLPWriter.writeList(raw));
     }
 

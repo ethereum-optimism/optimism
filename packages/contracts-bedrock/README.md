@@ -5,7 +5,7 @@
 The repo currently uses solidity tests (run with Forge). The project uses the default hardhat directory structure, and all build/test steps should be run using the yarn scripts to ensure
 the correct options are set.
 
-Install node modules with yarn (v1), and Node.js (14+).
+Install node modules with yarn (v1), and Node.js (16+).
 
 ```shell
 yarn
@@ -26,6 +26,8 @@ Then the full test suite can be executed via `yarn`:
 ```shell
 yarn test
 ```
+
+The differential tests require typescript to be compiled to javascript.
 
 ## Deployment
 
