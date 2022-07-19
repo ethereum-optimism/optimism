@@ -170,6 +170,28 @@ task('genesis-l2', 'create a genesis config')
       }
 
       if (predeployAddrs.has(ethers.utils.getAddress(addr))) {
+        const predeploy = Object.entries(predeploys).find(([, address]) => {
+          return ethers.utils.getAddress(address) === addr
+        })
+
+        // Really shouldn't happen, since predeployAddrs is a set generated from predeploys.
+        if (predeploy === undefined) {
+          throw new Error('could not find address')
+        }
+
+        const name = predeploy[0]
+        if (variables[name]) {
+          const storageLayout = await getStorageLayout(hre, name)
+          if (storageLayout === undefined) {
+            throw new Error(`cannot find storage layout for ${name}`)
+          }
+          const slots = computeStorageSlots(storageLayout, variables[name])
+
+          for (const slot of slots) {
+            alloc[addr].storage[slot.key] = slot.val
+          }
+        }
+
         alloc[addr].storage[implementationSlot] = toCodeAddr(addr)
       }
     }
@@ -246,16 +268,6 @@ task('genesis-l2', 'create a genesis config')
         balance: '0x00',
         code: artifact.deployedBytecode,
         storage: {},
-      }
-
-      const storageLayout = await getStorageLayout(hre, name)
-      if (storageLayout === undefined) {
-        throw new Error(`cannot find storage layout for ${name}`)
-      }
-      const slots = computeStorageSlots(storageLayout, variables[name])
-
-      for (const slot of slots) {
-        alloc[allocAddr].storage[slot.key] = slot.val
       }
     }
 
