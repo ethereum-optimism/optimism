@@ -1,8 +1,7 @@
-//SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: MIT
 pragma solidity 0.8.10;
 
 import { Portal_Initializer, CommonTest, NextImpl } from "./CommonTest.t.sol";
-
 import { AddressAliasHelper } from "../vendor/AddressAliasHelper.sol";
 import { L2OutputOracle } from "../L1/L2OutputOracle.sol";
 import { OptimismPortal } from "../L1/OptimismPortal.sol";
@@ -29,8 +28,6 @@ contract OptimismPortal_Test is Portal_Initializer {
         assert(s);
         assertEq(address(op).balance, 100);
     }
-
-    // function test_OptimismPortalDepositTransaction() external {}
 
     // Test: depositTransaction fails when contract creation has a non-zero destination address
     function test_OptimismPortalContractCreationReverts() external {
@@ -313,6 +310,84 @@ contract OptimismPortal_Test is Portal_Initializer {
         // But not the block after it.
         vm.expectRevert("L2OutputOracle: No output found for that block number.");
         assertEq(op.isBlockFinalized(checkpoint + 1), false);
+    }
+
+    function test_finalizeWithdrawalTransaction_differential(
+        address _sender,
+        address _target,
+        uint64 _value,
+        uint8 _gasLimit,
+        bytes memory _data
+    ) external {
+        // Cannot call the optimism portal
+        vm.assume(_target != address(op));
+
+        uint256 _nonce = messagePasser.nonce();
+
+        (
+            bytes32 stateRoot,
+            bytes32 storageRoot,
+            bytes32 outputRoot,
+            bytes32 withdrawalHash,
+            bytes memory withdrawalProof
+        ) = ffi.getFinalizeWithdrawalTransactionInputs(
+            _nonce,
+            _sender,
+            _target,
+            _value,
+            uint256(_gasLimit),
+            _data
+        );
+
+        Hashing.OutputRootProof memory proof = Hashing.OutputRootProof({
+            version: bytes32(uint256(0)),
+            stateRoot: stateRoot,
+            withdrawerStorageRoot: storageRoot,
+            latestBlockhash: bytes32(uint256(0))
+        });
+
+        // Ensure the values returned from ffi are correct
+        assertEq(outputRoot, Hashing.hashOutputRootProof(proof));
+        assertEq(withdrawalHash, Hashing.hashWithdrawal(
+            _nonce,
+            _sender,
+            _target,
+            _value,
+            uint64(_gasLimit),
+            _data
+        ));
+
+        // Mock the call to the oracle
+        vm.mockCall(
+            address(oracle),
+            abi.encodeWithSelector(oracle.getL2Output.selector),
+            abi.encode(outputRoot, 0)
+        );
+
+        // Start the withdrawal, it must be initiated by the _sender and the
+        // correct value must be passed along
+        vm.deal(_sender, _value);
+        vm.prank(_sender);
+        messagePasser.initiateWithdrawal{ value: _value }(
+            _target,
+            uint256(_gasLimit),
+            _data
+        );
+        // Ensure that the sentMessages is correct
+        assertEq(messagePasser.sentMessages(withdrawalHash), true);
+
+        vm.warp(op.FINALIZATION_PERIOD_SECONDS() + 1);
+        op.finalizeWithdrawalTransaction{ value: _value }(
+            messagePasser.nonce() - 1,
+            _sender,
+            _target,
+            _value,
+            uint64(_gasLimit),
+            _data,
+            100, // l2BlockNumber
+            proof,
+            withdrawalProof
+        );
     }
 }
 

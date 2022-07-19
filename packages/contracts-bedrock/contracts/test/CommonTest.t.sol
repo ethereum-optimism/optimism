@@ -1,4 +1,4 @@
-//SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: MIT
 pragma solidity 0.8.10;
 
 /* Testing utilities */
@@ -10,7 +10,6 @@ import { L2StandardBridge } from "../L2/L2StandardBridge.sol";
 import { OptimismMintableERC20Factory } from "../universal/OptimismMintableERC20Factory.sol";
 import { OptimismMintableERC20 } from "../universal/OptimismMintableERC20.sol";
 import { OptimismPortal } from "../L1/OptimismPortal.sol";
-import { L2ToL1MessagePasser } from "../L2/L2ToL1MessagePasser.sol";
 import { L1CrossDomainMessenger } from "../L1/L1CrossDomainMessenger.sol";
 import { L2CrossDomainMessenger } from "../L2/L2CrossDomainMessenger.sol";
 import { AddressAliasHelper } from "../vendor/AddressAliasHelper.sol";
@@ -23,6 +22,7 @@ import { ResolvedDelegateProxy } from "../legacy/ResolvedDelegateProxy.sol";
 import { AddressManager } from "../legacy/AddressManager.sol";
 import { L1ChugSplashProxy } from "../legacy/L1ChugSplashProxy.sol";
 import { IL1ChugSplashDeployer } from "../legacy/L1ChugSplashProxy.sol";
+import { Strings } from "@openzeppelin/contracts/utils/Strings.sol";
 
 contract CommonTest is Test {
     address alice = address(128);
@@ -44,6 +44,24 @@ contract CommonTest is Test {
         bytes opaqueData
     );
 
+    FFIInterface ffi;
+
+    function _setUp() public {
+        // Give alice and bob some ETH
+        vm.deal(alice, 1 << 16);
+        vm.deal(bob, 1 << 16);
+        vm.deal(multisig, 1 << 16);
+
+        vm.label(alice, "alice");
+        vm.label(bob, "bob");
+        vm.label(multisig, "multisig");
+
+        // Make sure we have a non-zero base fee
+        vm.fee(1000000000);
+
+        ffi = new FFIInterface();
+    }
+
     function emitTransactionDeposited(
         address _from,
         address _to,
@@ -61,25 +79,15 @@ contract CommonTest is Test {
         );
     }
 
-    function _setUp() public {
-        // Give alice and bob some ETH
-        vm.deal(alice, 1 << 16);
-        vm.deal(bob, 1 << 16);
-        vm.deal(multisig, 1 << 16);
-
-        vm.label(alice, "alice");
-        vm.label(bob, "bob");
-        vm.label(multisig, "multisig");
-
-        // Make sure we have a non-zero base fee
-        vm.fee(1000000000);
-    }
 }
 
 contract L2OutputOracle_Initializer is CommonTest {
     // Test target
     L2OutputOracle oracle;
     L2OutputOracle oracleImpl;
+
+    L2ToL1MessagePasser messagePasser =
+        L2ToL1MessagePasser(payable(Predeploys.L2_TO_L1_MESSAGE_PASSER));
 
     // Constructor arguments
     address proposer = 0x000000000000000000000000000000000000AbBa;
@@ -131,6 +139,15 @@ contract L2OutputOracle_Initializer is CommonTest {
             )
         );
         oracle = L2OutputOracle(address(proxy));
+        vm.label(address(oracle), "L2OutputOracle");
+
+        // Set the L2ToL1MessagePasser at the correct address
+        vm.etch(
+            Predeploys.L2_TO_L1_MESSAGE_PASSER,
+            address(new L2ToL1MessagePasser()).code
+        );
+
+        vm.label(Predeploys.L2_TO_L1_MESSAGE_PASSER, "L2ToL1MessagePasser");
     }
 }
 
@@ -141,6 +158,7 @@ contract Portal_Initializer is L2OutputOracle_Initializer {
 
     function setUp() public virtual override {
         L2OutputOracle_Initializer.setUp();
+
         opImpl = new OptimismPortal(oracle, 7 days);
         Proxy proxy = new Proxy(multisig);
         vm.prank(multisig);
@@ -158,8 +176,6 @@ contract Messenger_Initializer is L2OutputOracle_Initializer {
     L1CrossDomainMessenger L1Messenger;
     L2CrossDomainMessenger L2Messenger =
         L2CrossDomainMessenger(Predeploys.L2_CROSS_DOMAIN_MESSENGER);
-    L2ToL1MessagePasser messagePasser =
-        L2ToL1MessagePasser(payable(Predeploys.L2_TO_L1_MESSAGE_PASSER));
 
     event SentMessage(
         address indexed target,
@@ -225,18 +241,11 @@ contract Messenger_Initializer is L2OutputOracle_Initializer {
 
         L2Messenger.initialize(address(L1Messenger));
 
-        // Set the L2ToL1MessagePasser at the correct address
-        vm.etch(
-            Predeploys.L2_TO_L1_MESSAGE_PASSER,
-            address(new L2ToL1MessagePasser()).code
-        );
-
         // Label addresses
         vm.label(address(addressManager), "AddressManager");
         vm.label(address(L1MessengerImpl), "L1CrossDomainMessenger_Impl");
         vm.label(address(L1Messenger), "L1CrossDomainMessenger_Proxy");
         vm.label(Predeploys.LEGACY_ERC20_ETH, "LegacyERC20ETH");
-        vm.label(Predeploys.L2_TO_L1_MESSAGE_PASSER, "L2ToL1MessagePasser");
         vm.label(Predeploys.L2_CROSS_DOMAIN_MESSENGER, "L2CrossDomainMessenger");
 
         vm.label(
@@ -439,6 +448,164 @@ contract Bridge_Initializer is Messenger_Initializer {
                 string(abi.encodePacked("L1-", NativeL2Token.symbol()))
             )
         );
+    }
+}
+
+contract FFIInterface is Test {
+    function getFinalizeWithdrawalTransactionInputs(
+        uint256 _nonce,
+        address _sender,
+        address _target,
+        uint64 _value,
+        uint256 _gasLimit,
+        bytes memory _data
+    ) external returns (bytes32, bytes32, bytes32, bytes32, bytes memory) {
+        string[] memory cmds = new string[](9);
+        cmds[0] = "node";
+        cmds[1] = "dist/scripts/differential-testing.js";
+        cmds[2] = "getFinalizeWithdrawalTransactionInputs";
+        cmds[3] = vm.toString(_nonce);
+        cmds[4] = vm.toString(_sender);
+        cmds[5] = vm.toString(_target);
+        cmds[6] = vm.toString(_value);
+        cmds[7] = vm.toString(_gasLimit);
+        cmds[8] = vm.toString(_data);
+
+        bytes memory result = vm.ffi(cmds);
+        (
+            bytes32 stateRoot,
+            bytes32 storageRoot,
+            bytes32 outputRoot,
+            bytes32 withdrawalHash,
+            bytes memory withdrawalProof
+        ) = abi.decode(result, (bytes32, bytes32, bytes32, bytes32, bytes));
+
+        return (stateRoot, storageRoot, outputRoot, withdrawalHash, withdrawalProof);
+    }
+
+    function hashCrossDomainMessage(
+        uint256 _nonce,
+        address _sender,
+        address _target,
+        uint256 _value,
+        uint256 _gasLimit,
+        bytes memory _data
+    ) external returns (bytes32) {
+        string[] memory cmds = new string[](9);
+        cmds[0] = "node";
+        cmds[1] = "dist/scripts/differential-testing.js";
+        cmds[2] = "hashCrossDomainMessage";
+        cmds[3] = vm.toString(_nonce);
+        cmds[4] = vm.toString(_sender);
+        cmds[5] = vm.toString(_target);
+        cmds[6] = vm.toString(_value);
+        cmds[7] = vm.toString(_gasLimit);
+        cmds[8] = vm.toString(_data);
+
+        bytes memory result = vm.ffi(cmds);
+        return abi.decode(result, (bytes32));
+    }
+
+    function hashWithdrawal(
+        uint256 _nonce,
+        address _sender,
+        address _target,
+        uint256 _value,
+        uint256 _gasLimit,
+        bytes memory _data
+    ) external returns (bytes32) {
+        string[] memory cmds = new string[](9);
+        cmds[0] = "node";
+        cmds[1] = "dist/scripts/differential-testing.js";
+        cmds[2] = "hashWithdrawal";
+        cmds[3] = vm.toString(_nonce);
+        cmds[4] = vm.toString(_sender);
+        cmds[5] = vm.toString(_target);
+        cmds[6] = vm.toString(_value);
+        cmds[7] = vm.toString(_gasLimit);
+        cmds[8] = vm.toString(_data);
+
+        bytes memory result = vm.ffi(cmds);
+        return abi.decode(result, (bytes32));
+    }
+
+    function hashOutputRootProof(
+        bytes32 _version,
+        bytes32 _stateRoot,
+        bytes32 _withdrawerStorageRoot,
+        bytes32 _latestBlockhash
+    ) external returns (bytes32) {
+        string[] memory cmds = new string[](7);
+        cmds[0] = "node";
+        cmds[1] = "dist/scripts/differential-testing.js";
+        cmds[2] = "hashOutputRootProof";
+        cmds[3] = Strings.toHexString(uint256(_version));
+        cmds[4] = Strings.toHexString(uint256(_stateRoot));
+        cmds[5] = Strings.toHexString(uint256(_withdrawerStorageRoot));
+        cmds[6] = Strings.toHexString(uint256(_latestBlockhash));
+
+        bytes memory result = vm.ffi(cmds);
+        return abi.decode(result, (bytes32));
+    }
+
+    function hashDepositTransaction(
+        address _from,
+        address _to,
+        uint256 _mint,
+        uint256 _value,
+        uint64 _gas,
+        bytes memory _data,
+        uint256 _logIndex
+    ) external returns (bytes32) {
+        string[] memory cmds = new string[](11);
+        cmds[0] = "node";
+        cmds[1] = "dist/scripts/differential-testing.js";
+        cmds[2] = "hashDepositTransaction";
+        cmds[3] = "0x0000000000000000000000000000000000000000000000000000000000000000";
+        cmds[4] = vm.toString(_logIndex);
+        cmds[5] = vm.toString(_from);
+        cmds[6] = vm.toString(_to);
+        cmds[7] = vm.toString(_mint);
+        cmds[8] = vm.toString(_value);
+        cmds[9] = vm.toString(_gas);
+        cmds[10] = vm.toString(_data);
+        bytes memory result = vm.ffi(cmds);
+
+        return abi.decode(result, (bytes32));
+    }
+
+    function encodeCrossDomainMessage(
+        uint256 _nonce,
+        address _sender,
+        address _target,
+        uint256 _value,
+        uint256 _gasLimit,
+        bytes memory _data
+    ) external returns (bytes memory) {
+        string[] memory cmds = new string[](9);
+        cmds[0] = "node";
+        cmds[1] = "dist/scripts/differential-testing.js";
+        cmds[2] = "encodeCrossDomainMessage";
+        cmds[3] = vm.toString(_nonce);
+        cmds[4] = vm.toString(_sender);
+        cmds[5] = vm.toString(_target);
+        cmds[6] = vm.toString(_value);
+        cmds[7] = vm.toString(_gasLimit);
+        cmds[8] = vm.toString(_data);
+
+        bytes memory result = vm.ffi(cmds);
+        return abi.decode(result, (bytes));
+    }
+
+    function decodeVersionedNonce(uint256 nonce) external returns (uint256, uint256) {
+        string[] memory cmds = new string[](4);
+        cmds[0] = "node";
+        cmds[1] = "dist/scripts/differential-testing.js";
+        cmds[2] = "decodeVersionedNonce";
+        cmds[3] = vm.toString(nonce);
+
+        bytes memory result = vm.ffi(cmds);
+        return abi.decode(result, (uint256, uint256));
     }
 }
 
