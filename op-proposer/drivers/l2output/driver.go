@@ -109,7 +109,12 @@ func (d *Driver) GetBlockRange(
 		d.l.Error(name+" unable to get next block number", "err", err)
 		return nil, nil, err
 	}
-	latestHeader, err := d.cfg.L2Client.HeaderByNumber(ctx, nil)
+	status, err := d.cfg.RollupClient.SyncStatus(ctx)
+	if err != nil {
+		d.l.Error(name+" unable to get sync status", "err", err)
+		return nil, nil, err
+	}
+	latestHeader, err := d.cfg.L2Client.HeaderByNumber(ctx, new(big.Int).SetUint64(status.SafeL2.Number))
 	if err != nil {
 		d.l.Error(name+" unable to retrieve latest header", "err", err)
 		return nil, nil, err
