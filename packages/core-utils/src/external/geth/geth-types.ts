@@ -38,7 +38,6 @@ export interface ChainConfig {
   grayGlacierBlock?: number
   mergeNetsplitBlock?: number
   terminalTotalDifficulty?: number
-  // TODO: Make this an alternation (one xor other) of clique of optimism config
   clique?: {
     period: number
     epoch: number
