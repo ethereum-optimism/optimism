@@ -290,9 +290,9 @@ task('genesis-l2', 'create a genesis config')
         londonBlock: 0,
         mergeNetsplitBlock: 0,
         terminalTotalDifficulty: 0,
-        clique: {
-          period: 0,
-          epoch: 30000,
+        optimism: {
+          baseFeeRecipient: deployConfig.optimismBaseFeeRecipient,
+          l1FeeRecipient: deployConfig.optimismL1FeeRecipient,
         },
       },
       nonce: '0x1234',
@@ -300,11 +300,6 @@ task('genesis-l2', 'create a genesis config')
       timestamp: ethers.BigNumber.from(l1StartingBlock.timestamp).toHexString(),
       gasLimit: deployConfig.genesisBlockGasLimit,
       extraData: deployConfig.genesisBlockExtradata,
-      optimism: {
-        enabled: true,
-        baseFeeRecipient: deployConfig.optimismBaseFeeRecipient,
-        l1FeeRecipient: deployConfig.optimismL1FeeRecipient,
-      },
       alloc,
     }
 
