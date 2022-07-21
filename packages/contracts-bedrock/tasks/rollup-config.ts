@@ -3,6 +3,8 @@ import fs from 'fs'
 import { task } from 'hardhat/config'
 import { OpNodeConfig, getChainId } from '@eth-optimism/core-utils'
 import { ethers } from 'ethers'
+import 'hardhat-deploy'
+import '@eth-optimism/hardhat-deploy-config'
 
 task('rollup-config', 'create a genesis config')
   .addOptionalParam(
