@@ -43,7 +43,6 @@ export interface ChainConfig {
     period: number
     epoch: number
   }
-  optimism?: OptimismChainConfig
   ethash?: {}
 }
 
@@ -68,8 +67,16 @@ export interface Genesis {
 /**
  * Represents the chain config for an Optimism chain
  */
-export interface OptimismChainConfig {
-  baseFeeRecipient: string
-  l1FeeRecipient: string
+export interface OptimismChainConfig extends ChainConfig {
+  optimism: {
+    baseFeeRecipient: string
+    l1FeeRecipient: string
+  }
 }
 
+/**
+ * Represents the Genesis file format for an Optimism chain
+ */
+export interface OptimismGenesis extends Genesis {
+  config: OptimismChainConfig
+}

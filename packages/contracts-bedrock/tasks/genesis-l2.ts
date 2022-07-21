@@ -288,7 +288,6 @@ task('genesis-l2', 'create a genesis config')
       timestamp: ethers.BigNumber.from(l1StartingBlock.timestamp).toHexString(),
       gasLimit: deployConfig.genesisBlockGasLimit,
       extraData: deployConfig.genesisBlockExtradata,
-
       alloc,
     }
 
