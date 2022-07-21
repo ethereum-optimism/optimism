@@ -1,5 +1,5 @@
-// SPDX-License-Identifier: Unlicense
-pragma solidity >=0.8.0;
+// SPDX-License-Identifier: MIT
+pragma solidity 0.8.15;
 
 import { RLPWriter } from "../libraries/rlp/RLPWriter.sol";
 import { CommonTest } from "./CommonTest.t.sol";

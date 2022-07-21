@@ -1,5 +1,5 @@
-//SPDX-License-Identifier: MIT
-pragma solidity 0.8.10;
+// SPDX-License-Identifier: MIT
+pragma solidity 0.8.15;
 
 /* Testing utilities */
 import { Messenger_Initializer, Reverter, CallerCaller } from "./CommonTest.t.sol";

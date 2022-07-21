@@ -1,8 +1,9 @@
-//SPDX-License-Identifier: MIT
-pragma solidity 0.8.10;
+// SPDX-License-Identifier: MIT
+pragma solidity 0.8.15;
 
 import { CommonTest } from "./CommonTest.t.sol";
 import { L2ToL1MessagePasser } from "../L2/L2ToL1MessagePasser.sol";
+import { Types } from "../libraries/Types.sol";
 import { Hashing } from "../libraries/Hashing.sol";
 
 contract L2ToL1MessagePasserTest is CommonTest {
@@ -65,12 +66,14 @@ contract L2ToL1MessagePasserTest is CommonTest {
         );
 
         bytes32 withdrawalHash = Hashing.hashWithdrawal(
-            nonce,
-            alice,
-            target,
-            value,
-            gasLimit,
-            data
+            Types.WithdrawalTransaction(
+                nonce,
+                alice,
+                target,
+                value,
+                gasLimit,
+                data
+            )
         );
 
         messagePasser.initiateWithdrawal{ value: value }(

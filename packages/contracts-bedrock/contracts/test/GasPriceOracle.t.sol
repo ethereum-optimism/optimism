@@ -1,5 +1,5 @@
-//SPDX-License-Identifier: MIT
-pragma solidity 0.8.10;
+// SPDX-License-Identifier: MIT
+pragma solidity 0.8.15;
 
 import { CommonTest } from "./CommonTest.t.sol";
 import { GasPriceOracle } from "../L2/GasPriceOracle.sol";

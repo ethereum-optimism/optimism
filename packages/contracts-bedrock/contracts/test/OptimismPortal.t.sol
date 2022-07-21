@@ -1,11 +1,11 @@
-//SPDX-License-Identifier: MIT
-pragma solidity 0.8.10;
+// SPDX-License-Identifier: MIT
+pragma solidity 0.8.15;
 
 import { Portal_Initializer, CommonTest, NextImpl } from "./CommonTest.t.sol";
-
 import { AddressAliasHelper } from "../vendor/AddressAliasHelper.sol";
 import { L2OutputOracle } from "../L1/L2OutputOracle.sol";
 import { OptimismPortal } from "../L1/OptimismPortal.sol";
+import { Types } from "../libraries/Types.sol";
 import { Hashing } from "../libraries/Hashing.sol";
 import { Proxy } from "../universal/Proxy.sol";
 
@@ -29,8 +29,6 @@ contract OptimismPortal_Test is Portal_Initializer {
         assert(s);
         assertEq(address(op).balance, 100);
     }
-
-    // function test_OptimismPortalDepositTransaction() external {}
 
     // Test: depositTransaction fails when contract creation has a non-zero destination address
     function test_OptimismPortalContractCreationReverts() external {
@@ -217,11 +215,8 @@ contract OptimismPortal_Test is Portal_Initializer {
         assertEq(address(op).balance, NON_ZERO_VALUE);
     }
 
-    // TODO: test this deeply
-    // function test_verifyWithdrawal() external {}
-
-    function test_cannotFinalizeRecentWithdrawal() external {
-        Hashing.OutputRootProof memory outputRootProof = Hashing
+    function test_cannotVerifyRecentWithdrawal() external {
+        Types.OutputRootProof memory outputRootProof = Types
             .OutputRootProof({
                 version: bytes32(0),
                 stateRoot: bytes32(0),
@@ -233,20 +228,21 @@ contract OptimismPortal_Test is Portal_Initializer {
         vm.mockCall(
             address(op.L2_ORACLE()),
             abi.encodeWithSelector(L2OutputOracle.getL2Output.selector),
-            abi.encode(L2OutputOracle.OutputProposal(bytes32(uint256(1)), recentTimestamp))
+            abi.encode(Types.OutputProposal(bytes32(uint256(1)), recentTimestamp))
         );
 
         vm.expectRevert("OptimismPortal: proposal is not yet finalized");
-        op.finalizeWithdrawalTransaction(0, alice, alice, 0, 0, hex"", 0, outputRootProof, hex"");
+        op.finalizeWithdrawalTransaction(Types.WithdrawalTransaction(0, alice, alice, 0, 0, hex""), 0, outputRootProof, hex"");
     }
 
     function test_invalidWithdrawalProof() external {
         vm.mockCall(
             address(op.L2_ORACLE()),
             abi.encodeWithSelector(L2OutputOracle.getL2Output.selector),
-            abi.encode(L2OutputOracle.OutputProposal(bytes32(uint256(1)), block.timestamp))
+            abi.encode(Types.OutputProposal(bytes32(uint256(1)), block.timestamp))
         );
-        Hashing.OutputRootProof memory outputRootProof = Hashing
+
+        Types.OutputRootProof memory outputRootProof = Types
             .OutputRootProof({
                 version: bytes32(0),
                 stateRoot: bytes32(0),
@@ -260,7 +256,7 @@ contract OptimismPortal_Test is Portal_Initializer {
         );
 
         vm.expectRevert("OptimismPortal: invalid output root proof");
-        op.finalizeWithdrawalTransaction(0, alice, alice, 0, 0, hex"", 0, outputRootProof, hex"");
+        op.finalizeWithdrawalTransaction(Types.WithdrawalTransaction(0, alice, alice, 0, 0, hex""), 0, outputRootProof, hex"");
     }
 
     function test_simple_isBlockFinalized() external {
@@ -270,7 +266,7 @@ contract OptimismPortal_Test is Portal_Initializer {
                 L2OutputOracle.getL2Output.selector
             ),
             abi.encode(
-                L2OutputOracle.OutputProposal(
+                Types.OutputProposal(
                     bytes32(uint256(1)),
                     startingBlockNumber
                 )
@@ -313,6 +309,91 @@ contract OptimismPortal_Test is Portal_Initializer {
         // But not the block after it.
         vm.expectRevert("L2OutputOracle: No output found for that block number.");
         assertEq(op.isBlockFinalized(checkpoint + 1), false);
+    }
+
+    function test_finalizeWithdrawalTransaction_differential(
+        address _sender,
+        address _target,
+        uint64 _value,
+        uint8 _gasLimit,
+        bytes memory _data
+    ) external {
+        // Cannot call the optimism portal
+        vm.assume(_target != address(op));
+        uint256 _nonce = messagePasser.nonce();
+
+        (
+            bytes32 stateRoot,
+            bytes32 storageRoot,
+            bytes32 outputRoot,
+            bytes32 withdrawalHash,
+            bytes memory withdrawalProof
+        ) = ffi.getFinalizeWithdrawalTransactionInputs(
+            _nonce,
+            _sender,
+            _target,
+            _value,
+            uint256(_gasLimit),
+            _data
+        );
+
+        // Ensure the values returned from ffi are correct
+        assertEq(outputRoot, Hashing.hashOutputRootProof(Types.OutputRootProof({
+            version: bytes32(uint256(0)),
+            stateRoot: stateRoot,
+            withdrawerStorageRoot: storageRoot,
+            latestBlockhash: bytes32(uint256(0))
+         })));
+
+        assertEq(withdrawalHash, Hashing.hashWithdrawal(
+            Types.WithdrawalTransaction(
+                _nonce,
+                _sender,
+                _target,
+                _value,
+                uint64(_gasLimit),
+                _data
+            )
+        ));
+
+        // Mock the call to the oracle
+        vm.mockCall(
+            address(oracle),
+            abi.encodeWithSelector(oracle.getL2Output.selector),
+            abi.encode(outputRoot, 0)
+        );
+
+        // Start the withdrawal, it must be initiated by the _sender and the
+        // correct value must be passed along
+        vm.deal(_sender, _value);
+        vm.prank(_sender);
+        messagePasser.initiateWithdrawal{ value: _value }(
+            _target,
+            uint256(_gasLimit),
+            _data
+        );
+        // Ensure that the sentMessages is correct
+        assertEq(messagePasser.sentMessages(withdrawalHash), true);
+
+        vm.warp(op.FINALIZATION_PERIOD_SECONDS() + 1);
+        op.finalizeWithdrawalTransaction{ value: _value }(
+            Types.WithdrawalTransaction(
+                messagePasser.nonce() - 1,
+                _sender,
+                _target,
+                _value,
+                uint64(_gasLimit),
+                _data
+            ),
+            100, // l2BlockNumber
+            Types.OutputRootProof({
+                version: bytes32(uint256(0)),
+                stateRoot: stateRoot,
+                withdrawerStorageRoot: storageRoot,
+                latestBlockhash: bytes32(uint256(0))
+            }),
+            withdrawalProof
+        );
     }
 }
 

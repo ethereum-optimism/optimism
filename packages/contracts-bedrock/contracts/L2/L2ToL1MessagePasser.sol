@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.9;
+pragma solidity 0.8.15;
 
+import { Types } from "../libraries/Types.sol";
 import { Hashing } from "../libraries/Hashing.sol";
 import { Burn } from "../libraries/Burn.sol";
 import { Semver } from "../universal/Semver.sol";
@@ -80,12 +81,14 @@ contract L2ToL1MessagePasser is Semver {
         bytes memory _data
     ) public payable {
         bytes32 withdrawalHash = Hashing.hashWithdrawal(
-            nonce,
-            msg.sender,
-            _target,
-            msg.value,
-            _gasLimit,
-            _data
+            Types.WithdrawalTransaction({
+                nonce: nonce,
+                sender: msg.sender,
+                target: _target,
+                value: msg.value,
+                gasLimit: _gasLimit,
+                data: _data
+            })
         );
 
         sentMessages[withdrawalHash] = true;

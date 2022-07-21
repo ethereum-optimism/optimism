@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.10;
+pragma solidity 0.8.15;
 
 import {
     OwnableUpgradeable
 } from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import { Semver } from "../universal/Semver.sol";
+import { Types } from "../libraries/Types.sol";
 
 /**
  * @custom:proxied
@@ -15,17 +16,6 @@ import { Semver } from "../universal/Semver.sol";
  */
 // slither-disable-next-line locked-ether
 contract L2OutputOracle is OwnableUpgradeable, Semver {
-    /**
-     * @notice OutputProposal represents a commitment to the L2 state.
-     *         The timestamp is the L1 timestamp that the output root is posted.
-     *         This timestamp is used to verify that the finalization period
-     *         has passed since the output root was submitted.
-     */
-    struct OutputProposal {
-        bytes32 outputRoot;
-        uint256 timestamp;
-    }
-
     /**
      * @notice Emitted when an output is proposed.
      *
@@ -105,7 +95,7 @@ contract L2OutputOracle is OwnableUpgradeable, Semver {
      *         outputs should not be considered finalized until the finalization period (as defined
      *         in the Optimism Portal) has passed.
      */
-    mapping(uint256 => OutputProposal) internal l2Outputs;
+    mapping(uint256 => Types.OutputProposal) internal l2Outputs;
 
     /**
      * @notice Reverts if called by any account other than the proposer.
@@ -165,7 +155,7 @@ contract L2OutputOracle is OwnableUpgradeable, Semver {
         address _proposer,
         address _owner
     ) public initializer {
-        l2Outputs[_startingBlockNumber] = OutputProposal(_genesisL2Output, block.timestamp);
+        l2Outputs[_startingBlockNumber] = Types.OutputProposal(_genesisL2Output, block.timestamp);
         latestBlockNumber = _startingBlockNumber;
         __Ownable_init();
         changeProposer(_proposer);
@@ -218,7 +208,7 @@ contract L2OutputOracle is OwnableUpgradeable, Semver {
             );
         }
 
-        l2Outputs[_l2BlockNumber] = OutputProposal(_outputRoot, block.timestamp);
+        l2Outputs[_l2BlockNumber] = Types.OutputProposal(_outputRoot, block.timestamp);
         latestBlockNumber = _l2BlockNumber;
 
         emit OutputProposed(_outputRoot, block.timestamp, _l2BlockNumber);
@@ -233,8 +223,8 @@ contract L2OutputOracle is OwnableUpgradeable, Semver {
      *
      * @param _proposal Represents the output proposal to delete
      */
-    function deleteL2Output(OutputProposal memory _proposal) external onlyOwner {
-        OutputProposal memory outputToDelete = l2Outputs[latestBlockNumber];
+    function deleteL2Output(Types.OutputProposal memory _proposal) external onlyOwner {
+        Types.OutputProposal memory outputToDelete = l2Outputs[latestBlockNumber];
 
         require(
             _proposal.outputRoot == outputToDelete.outputRoot,
@@ -268,7 +258,11 @@ contract L2OutputOracle is OwnableUpgradeable, Semver {
      *
      * @param _l2BlockNumber The L2 block number of the target block.
      */
-    function getL2Output(uint256 _l2BlockNumber) external view returns (OutputProposal memory) {
+    function getL2Output(uint256 _l2BlockNumber)
+        external
+        view
+        returns (Types.OutputProposal memory)
+    {
         require(
             _l2BlockNumber >= STARTING_BLOCK_NUMBER,
             "L2OutputOracle: block number cannot be less than the starting block number."
@@ -283,7 +277,7 @@ contract L2OutputOracle is OwnableUpgradeable, Semver {
             ? _l2BlockNumber
             : _l2BlockNumber + (SUBMISSION_INTERVAL - offset);
 
-        OutputProposal memory output = l2Outputs[lookupBlockNumber];
+        Types.OutputProposal memory output = l2Outputs[lookupBlockNumber];
         require(
             output.outputRoot != bytes32(0),
             "L2OutputOracle: No output found for that block number."
