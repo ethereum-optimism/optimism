@@ -2,7 +2,7 @@ import fs from 'fs'
 import path from 'path'
 import assert from 'assert'
 
-import { Genesis, State } from '@eth-optimism/core-utils'
+import { OptimismGenesis, State } from '@eth-optimism/core-utils'
 import 'hardhat-deploy'
 import '@eth-optimism/hardhat-deploy-config'
 import { ethers } from 'ethers'
@@ -262,7 +262,7 @@ task('genesis-l2', 'create a genesis config')
     const portal = await hre.deployments.get('OptimismPortalProxy')
     const l1StartingBlock = await l1.getBlock(portal.receipt.blockHash)
 
-    const genesis: Genesis = {
+    const genesis: OptimismGenesis = {
       config: {
         chainId: deployConfig.genesisBlockChainid,
         homesteadBlock: 0,
