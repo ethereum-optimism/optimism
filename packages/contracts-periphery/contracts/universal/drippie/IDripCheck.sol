@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.9;
+pragma solidity ^0.8.0;
 
 interface IDripCheck {
     // DripCheck contracts that want to take parameters as inputs MUST expose a struct called
