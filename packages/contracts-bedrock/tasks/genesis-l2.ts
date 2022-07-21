@@ -141,7 +141,6 @@ task('genesis-l2', 'create a genesis config')
       predeployAddrs.add(ethers.utils.getAddress(addr))
     }
 
-    // TODO: geth likes strings for nonce and balance now
     const alloc: State = {}
 
     // Set a proxy at each predeploy address
