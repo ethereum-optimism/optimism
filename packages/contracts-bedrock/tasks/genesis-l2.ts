@@ -2,7 +2,7 @@ import fs from 'fs'
 import path from 'path'
 import assert from 'assert'
 
-import { OptimismGenesis, State } from '@eth-optimism/core-utils'
+import { Genesis, State } from '@eth-optimism/core-utils'
 import 'hardhat-deploy'
 import '@eth-optimism/hardhat-deploy-config'
 import { ethers } from 'ethers'
@@ -262,7 +262,7 @@ task('genesis-l2', 'create a genesis config')
     const portal = await hre.deployments.get('OptimismPortalProxy')
     const l1StartingBlock = await l1.getBlock(portal.receipt.blockHash)
 
-    const genesis: OptimismGenesis = {
+    const genesis: Genesis = {
       config: {
         chainId: deployConfig.genesisBlockChainid,
         homesteadBlock: 0,
@@ -278,9 +278,9 @@ task('genesis-l2', 'create a genesis config')
         londonBlock: 0,
         mergeNetsplitBlock: 0,
         terminalTotalDifficulty: 0,
-        clique: {
-          period: 0,
-          epoch: 30000,
+        optimism: {
+          baseFeeRecipient: deployConfig.optimismBaseFeeRecipient,
+          l1FeeRecipient: deployConfig.optimismL1FeeRecipient,
         },
       },
       nonce: '0x1234',
@@ -288,11 +288,7 @@ task('genesis-l2', 'create a genesis config')
       timestamp: ethers.BigNumber.from(l1StartingBlock.timestamp).toHexString(),
       gasLimit: deployConfig.genesisBlockGasLimit,
       extraData: deployConfig.genesisBlockExtradata,
-      optimism: {
-        enabled: true,
-        baseFeeRecipient: deployConfig.optimismBaseFeeRecipient,
-        l1FeeRecipient: deployConfig.optimismL1FeeRecipient,
-      },
+
       alloc,
     }
 

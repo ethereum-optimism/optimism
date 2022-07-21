@@ -38,10 +38,12 @@ export interface ChainConfig {
   grayGlacierBlock?: number
   mergeNetsplitBlock?: number
   terminalTotalDifficulty?: number
+  // TODO: Make this an alternation (one xor other) of clique of optimism config
   clique?: {
     period: number
     epoch: number
   }
+  optimism?: OptimismChainConfig
   ethash?: {}
 }
 
@@ -67,14 +69,7 @@ export interface Genesis {
  * Represents the chain config for an Optimism chain
  */
 export interface OptimismChainConfig {
-  enabled: boolean
   baseFeeRecipient: string
   l1FeeRecipient: string
 }
 
-/**
- * Represents the Genesis file format for an Optimism chain
- */
-export interface OptimismGenesis extends Genesis {
-  optimism: OptimismChainConfig
-}
