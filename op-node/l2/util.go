@@ -54,7 +54,12 @@ func (res *AccountResult) Verify(stateRoot common.Hash) error {
 	// create a db with all trie nodes
 	db := memorydb.New()
 	for i, encodedNode := range res.AccountProof {
-		nodeKey := crypto.Keccak256(encodedNode)
+		var nodeKey []byte
+		if len(encodedNode) < 32 {
+			nodeKey = crypto.Keccak256(encodedNode)
+		} else {
+			nodeKey = encodedNode // small enough node values are not hashed in the MPT
+		}
 		if err := db.Put(nodeKey, encodedNode); err != nil {
 			return fmt.Errorf("failed to load proof value %d into mem db: %v", i, err)
 		}
