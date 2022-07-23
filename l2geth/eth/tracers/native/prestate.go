@@ -74,7 +74,7 @@ func (t *prestateTracer) CaptureStart(env *vm.EVM, from common.Address, to commo
 	// The sender balance is after reducing: value and gasLimit.
 	// We need to re-add them to get the pre-tx balance.
 	fromBal := hexutil.MustDecodeBig(t.prestate[from].Balance)
-	gasPrice := env.TxContext.GasPrice
+	gasPrice := env.Context.GasPrice
 	consumedGas := new(big.Int).Mul(gasPrice, new(big.Int).SetUint64(t.gasLimit))
 	fromBal.Add(fromBal, new(big.Int).Add(value, consumedGas))
 	t.prestate[from].Balance = hexutil.EncodeBig(fromBal)
@@ -96,13 +96,13 @@ func (t *prestateTracer) CaptureState(pc uint64, op vm.OpCode, gas, cost uint64,
 	stackLen := len(stackData)
 	switch {
 	case stackLen >= 1 && (op == vm.SLOAD || op == vm.SSTORE):
-		slot := common.Hash(stackData[stackLen-1].Bytes32())
+		slot := common.BigToHash(stackData[stackLen-1])
 		t.lookupStorage(scope.Contract.Address(), slot)
 	case stackLen >= 1 && (op == vm.EXTCODECOPY || op == vm.EXTCODEHASH || op == vm.EXTCODESIZE || op == vm.BALANCE || op == vm.SELFDESTRUCT):
-		addr := common.Address(stackData[stackLen-1].Bytes20())
+		addr := common.BigToAddress(stackData[stackLen-1])
 		t.lookupAccount(addr)
 	case stackLen >= 5 && (op == vm.DELEGATECALL || op == vm.CALL || op == vm.STATICCALL || op == vm.CALLCODE):
-		addr := common.Address(stackData[stackLen-2].Bytes20())
+		addr := common.BigToAddress(stackData[stackLen-2])
 		t.lookupAccount(addr)
 	case op == vm.CREATE:
 		addr := scope.Contract.Address()
@@ -114,7 +114,7 @@ func (t *prestateTracer) CaptureState(pc uint64, op vm.OpCode, gas, cost uint64,
 		init := scope.Memory.GetCopy(int64(offset.Uint64()), int64(size.Uint64()))
 		inithash := crypto.Keccak256(init)
 		salt := stackData[stackLen-4]
-		t.lookupAccount(crypto.CreateAddress2(scope.Contract.Address(), salt.Bytes32(), inithash))
+		t.lookupAccount(crypto.CreateAddress2(scope.Contract.Address(), common.BigToHash(salt), inithash))
 	}
 }
 
