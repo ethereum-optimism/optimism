@@ -62,13 +62,15 @@ func (eq *EngineQueue) SetUnsafeHead(head eth.L2BlockRef) {
 
 func (eq *EngineQueue) AddUnsafePayload(payload *eth.ExecutionPayload) {
 	if len(eq.unsafePayloads) > maxUnsafePayloads {
+		eq.log.Debug("Refusing to add unsafe payload", "hash", payload.BlockHash, "number", uint64(payload.BlockNumber))
 		return // don't DoS ourselves by buffering too many unsafe payloads
 	}
+	eq.log.Trace("Adding unsafe payload", "hash", payload.BlockHash, "number", uint64(payload.BlockNumber), "timestamp", uint64(payload.Timestamp))
 	eq.unsafePayloads = append(eq.unsafePayloads, payload)
 }
 
 func (eq *EngineQueue) AddSafeAttributes(attributes *eth.PayloadAttributes) {
-	eq.log.Trace("received next safe attributes")
+	eq.log.Trace("Adding next safe attributes", "timestamp", attributes.Timestamp)
 	eq.safeAttributes = append(eq.safeAttributes, attributes)
 }
 
@@ -178,6 +180,8 @@ func (eq *EngineQueue) tryNextUnsafePayload(ctx context.Context) error {
 	}
 	eq.unsafeHead = ref
 	eq.unsafePayloads = eq.unsafePayloads[1:]
+	eq.log.Trace("Executed unsafe payload", "hash", ref.Hash, "number", ref.Number, "timestamp", ref.Time, "l1Origin", ref.L1Origin)
+
 	return nil
 }
 
@@ -219,6 +223,8 @@ func (eq *EngineQueue) consolidateNextSafeAttributes(ctx context.Context) error 
 	eq.safeHead = ref
 	// unsafe head stays the same, we did not reorg the chain.
 	eq.safeAttributes = eq.safeAttributes[1:]
+	eq.log.Trace("Reconciled safe payload", "hash", ref.Hash, "number", ref.Number, "timestamp", ref.Time, "l1Origin", ref.L1Origin)
+
 	return nil
 }
 
@@ -252,6 +258,8 @@ func (eq *EngineQueue) forceNextSafeAttributes(ctx context.Context) error {
 	eq.safeHead = ref
 	eq.unsafeHead = ref
 	eq.safeAttributes = eq.safeAttributes[1:]
+	eq.log.Trace("Inserted safe block", "hash", ref.Hash, "number", ref.Number, "timestamp", ref.Time, "l1Origin", ref.L1Origin)
+
 	return nil
 }
 
