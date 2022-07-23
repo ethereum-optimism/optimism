@@ -28,4 +28,5 @@ var (
 	ErrContractAddressCollision = errors.New("contract address collision")
 	ErrNoCompatibleInterpreter  = errors.New("no compatible interpreter")
 	ErrGasUintOverflow          = errors.New("gas uint64 overflow")
+	ErrExecutionReverted        = errors.New("execution reverted")
 )

@@ -29,10 +29,10 @@ import (
 
 // Config are the configuration options for the Interpreter
 type Config struct {
-	Debug                   bool   // Enables debugging
-	Tracer                  Tracer // Opcode logger
-	NoRecursion             bool   // Disables call, callcode, delegate call and create
-	EnablePreimageRecording bool   // Enables recording of SHA3/keccak preimages
+	Debug                   bool      // Enables debugging
+	Tracer                  EVMLogger // Opcode logger
+	NoRecursion             bool      // Disables call, callcode, delegate call and create
+	EnablePreimageRecording bool      // Enables recording of SHA3/keccak preimages
 
 	JumpTable [256]operation // EVM instruction table, automatically populated if unset
 
@@ -40,6 +40,14 @@ type Config struct {
 	EVMInterpreter   string // External EVM interpreter options
 
 	ExtraEips []int // Additional EIPS that are to be enabled
+}
+
+// ScopeContext contains the things that are per-call, such as stack and memory,
+// but not transients like pc and gas
+type ScopeContext struct {
+	Memory   *Memory
+	Stack    *Stack
+	Contract *Contract
 }
 
 // Interpreter is used to run Ethereum based contracts and will utilise the
@@ -166,9 +174,14 @@ func (in *EVMInterpreter) Run(contract *Contract, input []byte, readOnly bool) (
 	}
 
 	var (
-		op    OpCode        // current opcode
-		mem   = NewMemory() // bound memory
-		stack = newstack()  // local stack
+		op          OpCode        // current opcode
+		mem         = NewMemory() // bound memory
+		stack       = newstack()  // local stack
+		callContext = &ScopeContext{
+			Memory:   mem,
+			Stack:    stack,
+			Contract: contract,
+		}
 		// For optimisation reason we're using uint64 as the program counter.
 		// It's theoretically possible to go above 2^64. The YP defines the PC
 		// to be uint256. Practically much less so feasible.
@@ -189,9 +202,9 @@ func (in *EVMInterpreter) Run(contract *Contract, input []byte, readOnly bool) (
 		defer func() {
 			if err != nil {
 				if !logged {
-					in.cfg.Tracer.CaptureState(in.evm, pcCopy, op, gasCopy, cost, mem, stack, contract, in.evm.depth, err)
+					in.cfg.Tracer.CaptureState(pcCopy, op, gasCopy, cost, callContext, in.returnData, in.evm.depth, err)
 				} else {
-					in.cfg.Tracer.CaptureFault(in.evm, pcCopy, op, gasCopy, cost, mem, stack, contract, in.evm.depth, err)
+					in.cfg.Tracer.CaptureFault(pcCopy, op, gasCopy, cost, callContext, in.evm.depth, err)
 				}
 			}
 		}()
@@ -268,7 +281,7 @@ func (in *EVMInterpreter) Run(contract *Contract, input []byte, readOnly bool) (
 		}
 
 		if in.cfg.Debug {
-			in.cfg.Tracer.CaptureState(in.evm, pc, op, gasCopy, cost, mem, stack, contract, in.evm.depth, err)
+			in.cfg.Tracer.CaptureState(pc, op, gasCopy, cost, callContext, in.returnData, in.evm.depth, err)
 			logged = true
 		}
 
