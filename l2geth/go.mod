@@ -1,6 +1,6 @@
 module github.com/ethereum-optimism/optimism/l2geth
 
-go 1.15
+go 1.17
 
 require (
 	github.com/Azure/azure-storage-blob-go v0.7.0
