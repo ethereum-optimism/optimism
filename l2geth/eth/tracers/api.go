@@ -37,6 +37,7 @@ import (
 	"github.com/ethereum-optimism/optimism/l2geth/core/vm"
 	"github.com/ethereum-optimism/optimism/l2geth/eth/tracers/logger"
 	"github.com/ethereum-optimism/optimism/l2geth/ethdb"
+	"github.com/ethereum-optimism/optimism/l2geth/internal/ethapi"
 	"github.com/ethereum-optimism/optimism/l2geth/log"
 	"github.com/ethereum-optimism/optimism/l2geth/params"
 	"github.com/ethereum-optimism/optimism/l2geth/rlp"
@@ -174,11 +175,11 @@ type TraceConfig struct {
 // field to override the state for tracing.
 type TraceCallConfig struct {
 	*logger.Config
-	Tracer  *string
-	Timeout *string
-	Reexec  *uint64
-	// StateOverrides *ethapi.StateOverride
-	// BlockOverrides *ethapi.BlockOverrides
+	Tracer         *string
+	Timeout        *string
+	Reexec         *uint64
+	StateOverrides *ethapi.StateOverride
+	BlockOverrides *ethapi.BlockOverrides
 }
 
 // StdTraceConfig holds extra parameters to standard-json trace functions.
