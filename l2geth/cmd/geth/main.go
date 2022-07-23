@@ -42,6 +42,11 @@ import (
 	"github.com/ethereum-optimism/optimism/l2geth/log"
 	"github.com/ethereum-optimism/optimism/l2geth/metrics"
 	"github.com/ethereum-optimism/optimism/l2geth/node"
+
+	// Force-load the tracer engines to trigger registration
+	_ "github.com/ethereum-optimism/optimism/l2geth/eth/tracers/js"
+	_ "github.com/ethereum-optimism/optimism/l2geth/eth/tracers/native"
+
 	cli "gopkg.in/urfave/cli.v1"
 )
 
