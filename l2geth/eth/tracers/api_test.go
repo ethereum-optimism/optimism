@@ -41,7 +41,6 @@ import (
 	"github.com/ethereum-optimism/optimism/l2geth/crypto"
 	"github.com/ethereum-optimism/optimism/l2geth/eth/tracers/logger"
 	"github.com/ethereum-optimism/optimism/l2geth/ethdb"
-	"github.com/ethereum-optimism/optimism/l2geth/internal/ethapi"
 	"github.com/ethereum-optimism/optimism/l2geth/params"
 	"github.com/ethereum-optimism/optimism/l2geth/rpc"
 )
@@ -79,10 +78,9 @@ func newTestBackend(t *testing.T, n int, gspec *core.Genesis, generator func(i i
 		TrieCleanLimit:    256,
 		TrieDirtyLimit:    256,
 		TrieTimeLimit:     5 * time.Minute,
-		SnapshotLimit:     0,
 		TrieDirtyDisabled: true, // Archive mode
 	}
-	chain, err := core.NewBlockChain(backend.chaindb, cacheConfig, backend.chainConfig, backend.engine, vm.Config{}, nil, nil)
+	chain, err := core.NewBlockChain(backend.chaindb, cacheConfig, backend.chainConfig, backend.engine, vm.Config{}, nil)
 	if err != nil {
 		t.Fatalf("failed to create tester chain: %v", err)
 	}
@@ -147,165 +145,164 @@ func (b *testBackend) StateAtBlock(ctx context.Context, block *types.Block, reex
 	return statedb, nil
 }
 
-func (b *testBackend) StateAtTransaction(ctx context.Context, block *types.Block, txIndex int, reexec uint64) (core.Message, vm.BlockContext, *state.StateDB, error) {
+func (b *testBackend) StateAtTransaction(ctx context.Context, block *types.Block, txIndex int, reexec uint64) (core.Message, vm.Context, *state.StateDB, error) {
 	parent := b.chain.GetBlock(block.ParentHash(), block.NumberU64()-1)
 	if parent == nil {
-		return nil, vm.BlockContext{}, nil, errBlockNotFound
+		return nil, vm.Context{}, nil, errBlockNotFound
 	}
 	statedb, err := b.chain.StateAt(parent.Root())
 	if err != nil {
-		return nil, vm.BlockContext{}, nil, errStateNotFound
+		return nil, vm.Context{}, nil, errStateNotFound
 	}
 	if txIndex == 0 && len(block.Transactions()) == 0 {
-		return nil, vm.BlockContext{}, statedb, nil
+		return nil, vm.Context{}, statedb, nil
 	}
 	// Recompute transactions up to the target index.
 	signer := types.MakeSigner(b.chainConfig, block.Number())
 	for idx, tx := range block.Transactions() {
-		msg, _ := tx.AsMessage(signer, block.BaseFee())
-		txContext := core.NewEVMTxContext(msg)
-		context := core.NewEVMBlockContext(block.Header(), b.chain, nil)
+		msg, _ := tx.AsMessage(signer)
+		context := core.NewEVMContext(msg, block.Header(), b.chain, nil)
 		if idx == txIndex {
 			return msg, context, statedb, nil
 		}
-		vmenv := vm.NewEVM(context, txContext, statedb, b.chainConfig, vm.Config{})
-		if _, err := core.ApplyMessage(vmenv, msg, new(core.GasPool).AddGas(tx.Gas())); err != nil {
-			return nil, vm.BlockContext{}, nil, fmt.Errorf("transaction %#x failed: %v", tx.Hash(), err)
+		vmenv := vm.NewEVM(context, statedb, b.chainConfig, vm.Config{})
+		if _, _, _, err := core.ApplyMessage(vmenv, msg, new(core.GasPool).AddGas(tx.Gas())); err != nil {
+			return nil, vm.Context{}, nil, fmt.Errorf("transaction %#x failed: %v", tx.Hash(), err)
 		}
 		statedb.Finalise(vmenv.ChainConfig().IsEIP158(block.Number()))
 	}
-	return nil, vm.BlockContext{}, nil, fmt.Errorf("transaction index %d out of range for block %#x", txIndex, block.Hash())
+	return nil, vm.Context{}, nil, fmt.Errorf("transaction index %d out of range for block %#x", txIndex, block.Hash())
 }
 
-func TestTraceCall(t *testing.T) {
-	t.Parallel()
-
-	// Initialize test accounts
-	accounts := newAccounts(3)
-	genesis := &core.Genesis{Alloc: core.GenesisAlloc{
-		accounts[0].addr: {Balance: big.NewInt(params.Ether)},
-		accounts[1].addr: {Balance: big.NewInt(params.Ether)},
-		accounts[2].addr: {Balance: big.NewInt(params.Ether)},
-	}}
-	genBlocks := 10
-	signer := types.HomesteadSigner{}
-	api := NewAPI(newTestBackend(t, genBlocks, genesis, func(i int, b *core.BlockGen) {
-		// Transfer from account[0] to account[1]
-		//    value: 1000 wei
-		//    fee:   0 wei
-		tx, _ := types.SignTx(types.NewTransaction(uint64(i), accounts[1].addr, big.NewInt(1000), params.TxGas, b.BaseFee(), nil), signer, accounts[0].key)
-		b.AddTx(tx)
-	}))
-	var testSuite = []struct {
-		blockNumber rpc.BlockNumber
-		call        ethapi.TransactionArgs
-		config      *TraceCallConfig
-		expectErr   error
-		expect      string
-	}{
-		// Standard JSON trace upon the genesis, plain transfer.
-		{
-			blockNumber: rpc.BlockNumber(0),
-			call: ethapi.TransactionArgs{
-				From:  &accounts[0].addr,
-				To:    &accounts[1].addr,
-				Value: (*hexutil.Big)(big.NewInt(1000)),
-			},
-			config:    nil,
-			expectErr: nil,
-			expect:    `{"gas":21000,"failed":false,"returnValue":"","structLogs":[]}`,
-		},
-		// Standard JSON trace upon the head, plain transfer.
-		{
-			blockNumber: rpc.BlockNumber(genBlocks),
-			call: ethapi.TransactionArgs{
-				From:  &accounts[0].addr,
-				To:    &accounts[1].addr,
-				Value: (*hexutil.Big)(big.NewInt(1000)),
-			},
-			config:    nil,
-			expectErr: nil,
-			expect:    `{"gas":21000,"failed":false,"returnValue":"","structLogs":[]}`,
-		},
-		// Standard JSON trace upon the non-existent block, error expects
-		{
-			blockNumber: rpc.BlockNumber(genBlocks + 1),
-			call: ethapi.TransactionArgs{
-				From:  &accounts[0].addr,
-				To:    &accounts[1].addr,
-				Value: (*hexutil.Big)(big.NewInt(1000)),
-			},
-			config:    nil,
-			expectErr: fmt.Errorf("block #%d not found", genBlocks+1),
-			//expect:    nil,
-		},
-		// Standard JSON trace upon the latest block
-		{
-			blockNumber: rpc.LatestBlockNumber,
-			call: ethapi.TransactionArgs{
-				From:  &accounts[0].addr,
-				To:    &accounts[1].addr,
-				Value: (*hexutil.Big)(big.NewInt(1000)),
-			},
-			config:    nil,
-			expectErr: nil,
-			expect:    `{"gas":21000,"failed":false,"returnValue":"","structLogs":[]}`,
-		},
-		// Tracing on 'pending' should fail:
-		{
-			blockNumber: rpc.PendingBlockNumber,
-			call: ethapi.TransactionArgs{
-				From:  &accounts[0].addr,
-				To:    &accounts[1].addr,
-				Value: (*hexutil.Big)(big.NewInt(1000)),
-			},
-			config:    nil,
-			expectErr: errors.New("tracing on top of pending is not supported"),
-		},
-		{
-			blockNumber: rpc.LatestBlockNumber,
-			call: ethapi.TransactionArgs{
-				From:  &accounts[0].addr,
-				Input: &hexutil.Bytes{0x43}, // blocknumber
-			},
-			config: &TraceCallConfig{
-				BlockOverrides: &ethapi.BlockOverrides{Number: (*hexutil.Big)(big.NewInt(0x1337))},
-			},
-			expectErr: nil,
-			expect: ` {"gas":53018,"failed":false,"returnValue":"","structLogs":[
-		{"pc":0,"op":"NUMBER","gas":24946984,"gasCost":2,"depth":1,"stack":[]},
-		{"pc":1,"op":"STOP","gas":24946982,"gasCost":0,"depth":1,"stack":["0x1337"]}]}`,
-		},
-	}
-	for i, testspec := range testSuite {
-		result, err := api.TraceCall(context.Background(), testspec.call, rpc.BlockNumberOrHash{BlockNumber: &testspec.blockNumber}, testspec.config)
-		if testspec.expectErr != nil {
-			if err == nil {
-				t.Errorf("test %d: expect error %v, got nothing", i, testspec.expectErr)
-				continue
-			}
-			if !reflect.DeepEqual(err, testspec.expectErr) {
-				t.Errorf("test %d: error mismatch, want %v, git %v", i, testspec.expectErr, err)
-			}
-		} else {
-			if err != nil {
-				t.Errorf("test %d: expect no error, got %v", i, err)
-				continue
-			}
-			var have *logger.ExecutionResult
-			if err := json.Unmarshal(result.(json.RawMessage), &have); err != nil {
-				t.Errorf("test %d: failed to unmarshal result %v", i, err)
-			}
-			var want *logger.ExecutionResult
-			if err := json.Unmarshal([]byte(testspec.expect), &want); err != nil {
-				t.Errorf("test %d: failed to unmarshal result %v", i, err)
-			}
-			if !reflect.DeepEqual(have, want) {
-				t.Errorf("test %d: result mismatch, want %v, got %v", i, testspec.expect, string(result.(json.RawMessage)))
-			}
-		}
-	}
-}
+// func TestTraceCall(t *testing.T) {
+// 	t.Parallel()
+//
+// 	// Initialize test accounts
+// 	accounts := newAccounts(3)
+// 	genesis := &core.Genesis{Alloc: core.GenesisAlloc{
+// 		accounts[0].addr: {Balance: big.NewInt(params.Ether)},
+// 		accounts[1].addr: {Balance: big.NewInt(params.Ether)},
+// 		accounts[2].addr: {Balance: big.NewInt(params.Ether)},
+// 	}}
+// 	genBlocks := 10
+// 	signer := types.HomesteadSigner{}
+// 	api := NewAPI(newTestBackend(t, genBlocks, genesis, func(i int, b *core.BlockGen) {
+// 		// Transfer from account[0] to account[1]
+// 		//    value: 1000 wei
+// 		//    fee:   0 wei
+// 		tx, _ := types.SignTx(types.NewTransaction(uint64(i), accounts[1].addr, big.NewInt(1000), params.TxGas, nil, nil), signer, accounts[0].key)
+// 		b.AddTx(tx)
+// 	}))
+// 	var testSuite = []struct {
+// 		blockNumber rpc.BlockNumber
+// 		call        ethapi.CallArgs
+// 		config      *TraceCallConfig
+// 		expectErr   error
+// 		expect      string
+// 	}{
+// 		// Standard JSON trace upon the genesis, plain transfer.
+// 		{
+// 			blockNumber: rpc.BlockNumber(0),
+// 			call: ethapi.CallArgs{
+// 				From:  &accounts[0].addr,
+// 				To:    &accounts[1].addr,
+// 				Value: (*hexutil.Big)(big.NewInt(1000)),
+// 			},
+// 			config:    nil,
+// 			expectErr: nil,
+// 			expect:    `{"gas":21000,"failed":false,"returnValue":"","structLogs":[]}`,
+// 		},
+// 		// Standard JSON trace upon the head, plain transfer.
+// 		{
+// 			blockNumber: rpc.BlockNumber(genBlocks),
+// 			call: ethapi.CallArgs{
+// 				From:  &accounts[0].addr,
+// 				To:    &accounts[1].addr,
+// 				Value: (*hexutil.Big)(big.NewInt(1000)),
+// 			},
+// 			config:    nil,
+// 			expectErr: nil,
+// 			expect:    `{"gas":21000,"failed":false,"returnValue":"","structLogs":[]}`,
+// 		},
+// 		// Standard JSON trace upon the non-existent block, error expects
+// 		{
+// 			blockNumber: rpc.BlockNumber(genBlocks + 1),
+// 			call: ethapi.CallArgs{
+// 				From:  &accounts[0].addr,
+// 				To:    &accounts[1].addr,
+// 				Value: (*hexutil.Big)(big.NewInt(1000)),
+// 			},
+// 			config:    nil,
+// 			expectErr: fmt.Errorf("block #%d not found", genBlocks+1),
+// 			//expect:    nil,
+// 		},
+// 		// Standard JSON trace upon the latest block
+// 		{
+// 			blockNumber: rpc.LatestBlockNumber,
+// 			call: ethapi.CallArgs{
+// 				From:  &accounts[0].addr,
+// 				To:    &accounts[1].addr,
+// 				Value: (*hexutil.Big)(big.NewInt(1000)),
+// 			},
+// 			config:    nil,
+// 			expectErr: nil,
+// 			expect:    `{"gas":21000,"failed":false,"returnValue":"","structLogs":[]}`,
+// 		},
+// 		// Tracing on 'pending' should fail:
+// 		{
+// 			blockNumber: rpc.PendingBlockNumber,
+// 			call: ethapi.CallArgs{
+// 				From:  &accounts[0].addr,
+// 				To:    &accounts[1].addr,
+// 				Value: (*hexutil.Big)(big.NewInt(1000)),
+// 			},
+// 			config:    nil,
+// 			expectErr: errors.New("tracing on top of pending is not supported"),
+// 		},
+// 		{
+// 			blockNumber: rpc.LatestBlockNumber,
+// 			call: ethapi.CallArgs{
+// 				From: &accounts[0].addr,
+// 				Data: &hexutil.Bytes{0x43}, // blocknumber
+// 			},
+// 			config: &TraceCallConfig{
+// 				BlockOverrides: &ethapi.BlockOverrides{Number: (*hexutil.Big)(big.NewInt(0x1337))},
+// 			},
+// 			expectErr: nil,
+// 			expect: ` {"gas":53018,"failed":false,"returnValue":"","structLogs":[
+// 		{"pc":0,"op":"NUMBER","gas":24946984,"gasCost":2,"depth":1,"stack":[]},
+// 		{"pc":1,"op":"STOP","gas":24946982,"gasCost":0,"depth":1,"stack":["0x1337"]}]}`,
+// 		},
+// 	}
+// 	for i, testspec := range testSuite {
+// 		result, err := api.TraceCall(context.Background(), testspec.call, rpc.BlockNumberOrHash{BlockNumber: &testspec.blockNumber}, testspec.config)
+// 		if testspec.expectErr != nil {
+// 			if err == nil {
+// 				t.Errorf("test %d: expect error %v, got nothing", i, testspec.expectErr)
+// 				continue
+// 			}
+// 			if !reflect.DeepEqual(err, testspec.expectErr) {
+// 				t.Errorf("test %d: error mismatch, want %v, git %v", i, testspec.expectErr, err)
+// 			}
+// 		} else {
+// 			if err != nil {
+// 				t.Errorf("test %d: expect no error, got %v", i, err)
+// 				continue
+// 			}
+// 			var have *logger.ExecutionResult
+// 			if err := json.Unmarshal(result.(json.RawMessage), &have); err != nil {
+// 				t.Errorf("test %d: failed to unmarshal result %v", i, err)
+// 			}
+// 			var want *logger.ExecutionResult
+// 			if err := json.Unmarshal([]byte(testspec.expect), &want); err != nil {
+// 				t.Errorf("test %d: failed to unmarshal result %v", i, err)
+// 			}
+// 			if !reflect.DeepEqual(have, want) {
+// 				t.Errorf("test %d: result mismatch, want %v, got %v", i, testspec.expect, string(result.(json.RawMessage)))
+// 			}
+// 		}
+// 	}
+// }
 
 func TestTraceTransaction(t *testing.T) {
 	t.Parallel()
@@ -322,7 +319,7 @@ func TestTraceTransaction(t *testing.T) {
 		// Transfer from account[0] to account[1]
 		//    value: 1000 wei
 		//    fee:   0 wei
-		tx, _ := types.SignTx(types.NewTransaction(uint64(i), accounts[1].addr, big.NewInt(1000), params.TxGas, b.BaseFee(), nil), signer, accounts[0].key)
+		tx, _ := types.SignTx(types.NewTransaction(uint64(i), accounts[1].addr, big.NewInt(1000), params.TxGas, nil, nil), signer, accounts[0].key)
 		b.AddTx(tx)
 		target = tx.Hash()
 	}))
@@ -360,7 +357,7 @@ func TestTraceBlock(t *testing.T) {
 		// Transfer from account[0] to account[1]
 		//    value: 1000 wei
 		//    fee:   0 wei
-		tx, _ := types.SignTx(types.NewTransaction(uint64(i), accounts[1].addr, big.NewInt(1000), params.TxGas, b.BaseFee(), nil), signer, accounts[0].key)
+		tx, _ := types.SignTx(types.NewTransaction(uint64(i), accounts[1].addr, big.NewInt(1000), params.TxGas, nil, nil), signer, accounts[0].key)
 		b.AddTx(tx)
 	}))
 
@@ -420,160 +417,160 @@ func TestTraceBlock(t *testing.T) {
 	}
 }
 
-func TestTracingWithOverrides(t *testing.T) {
-	t.Parallel()
-	// Initialize test accounts
-	accounts := newAccounts(3)
-	genesis := &core.Genesis{Alloc: core.GenesisAlloc{
-		accounts[0].addr: {Balance: big.NewInt(params.Ether)},
-		accounts[1].addr: {Balance: big.NewInt(params.Ether)},
-		accounts[2].addr: {Balance: big.NewInt(params.Ether)},
-	}}
-	genBlocks := 10
-	signer := types.HomesteadSigner{}
-	api := NewAPI(newTestBackend(t, genBlocks, genesis, func(i int, b *core.BlockGen) {
-		// Transfer from account[0] to account[1]
-		//    value: 1000 wei
-		//    fee:   0 wei
-		tx, _ := types.SignTx(types.NewTransaction(uint64(i), accounts[1].addr, big.NewInt(1000), params.TxGas, b.BaseFee(), nil), signer, accounts[0].key)
-		b.AddTx(tx)
-	}))
-	randomAccounts := newAccounts(3)
-	type res struct {
-		Gas         int
-		Failed      bool
-		ReturnValue string
-	}
-	var testSuite = []struct {
-		blockNumber rpc.BlockNumber
-		call        ethapi.TransactionArgs
-		config      *TraceCallConfig
-		expectErr   error
-		want        string
-	}{
-		// Call which can only succeed if state is state overridden
-		{
-			blockNumber: rpc.LatestBlockNumber,
-			call: ethapi.TransactionArgs{
-				From:  &randomAccounts[0].addr,
-				To:    &randomAccounts[1].addr,
-				Value: (*hexutil.Big)(big.NewInt(1000)),
-			},
-			config: &TraceCallConfig{
-				StateOverrides: &ethapi.StateOverride{
-					randomAccounts[0].addr: ethapi.OverrideAccount{Balance: newRPCBalance(new(big.Int).Mul(big.NewInt(1), big.NewInt(params.Ether)))},
-				},
-			},
-			want: `{"gas":21000,"failed":false,"returnValue":""}`,
-		},
-		// Invalid call without state overriding
-		{
-			blockNumber: rpc.LatestBlockNumber,
-			call: ethapi.TransactionArgs{
-				From:  &randomAccounts[0].addr,
-				To:    &randomAccounts[1].addr,
-				Value: (*hexutil.Big)(big.NewInt(1000)),
-			},
-			config:    &TraceCallConfig{},
-			expectErr: core.ErrInsufficientFunds,
-		},
-		// Successful simple contract call
-		//
-		// // SPDX-License-Identifier: GPL-3.0
-		//
-		//  pragma solidity >=0.7.0 <0.8.0;
-		//
-		//  /**
-		//   * @title Storage
-		//   * @dev Store & retrieve value in a variable
-		//   */
-		//  contract Storage {
-		//      uint256 public number;
-		//      constructor() {
-		//          number = block.number;
-		//      }
-		//  }
-		{
-			blockNumber: rpc.LatestBlockNumber,
-			call: ethapi.TransactionArgs{
-				From: &randomAccounts[0].addr,
-				To:   &randomAccounts[2].addr,
-				Data: newRPCBytes(common.Hex2Bytes("8381f58a")), // call number()
-			},
-			config: &TraceCallConfig{
-				//Tracer: &tracer,
-				StateOverrides: &ethapi.StateOverride{
-					randomAccounts[2].addr: ethapi.OverrideAccount{
-						Code:      newRPCBytes(common.Hex2Bytes("6080604052348015600f57600080fd5b506004361060285760003560e01c80638381f58a14602d575b600080fd5b60336049565b6040518082815260200191505060405180910390f35b6000548156fea2646970667358221220eab35ffa6ab2adfe380772a48b8ba78e82a1b820a18fcb6f59aa4efb20a5f60064736f6c63430007040033")),
-						StateDiff: newStates([]common.Hash{{}}, []common.Hash{common.BigToHash(big.NewInt(123))}),
-					},
-				},
-			},
-			want: `{"gas":23347,"failed":false,"returnValue":"000000000000000000000000000000000000000000000000000000000000007b"}`,
-		},
-		{ // Override blocknumber
-			blockNumber: rpc.LatestBlockNumber,
-			call: ethapi.TransactionArgs{
-				From: &accounts[0].addr,
-				// BLOCKNUMBER PUSH1 MSTORE
-				Input: newRPCBytes(common.Hex2Bytes("4360005260206000f3")),
-				//&hexutil.Bytes{0x43}, // blocknumber
-			},
-			config: &TraceCallConfig{
-				BlockOverrides: &ethapi.BlockOverrides{Number: (*hexutil.Big)(big.NewInt(0x1337))},
-			},
-			want: `{"gas":59537,"failed":false,"returnValue":"0000000000000000000000000000000000000000000000000000000000001337"}`,
-		},
-		{ // Override blocknumber, and query a blockhash
-			blockNumber: rpc.LatestBlockNumber,
-			call: ethapi.TransactionArgs{
-				From: &accounts[0].addr,
-				Input: &hexutil.Bytes{
-					0x60, 0x00, 0x40, // BLOCKHASH(0)
-					0x60, 0x00, 0x52, // STORE memory offset 0
-					0x61, 0x13, 0x36, 0x40, // BLOCKHASH(0x1336)
-					0x60, 0x20, 0x52, // STORE memory offset 32
-					0x61, 0x13, 0x37, 0x40, // BLOCKHASH(0x1337)
-					0x60, 0x40, 0x52, // STORE memory offset 64
-					0x60, 0x60, 0x60, 0x00, 0xf3, // RETURN (0-96)
-
-				}, // blocknumber
-			},
-			config: &TraceCallConfig{
-				BlockOverrides: &ethapi.BlockOverrides{Number: (*hexutil.Big)(big.NewInt(0x1337))},
-			},
-			want: `{"gas":72666,"failed":false,"returnValue":"000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"}`,
-		},
-	}
-	for i, tc := range testSuite {
-		result, err := api.TraceCall(context.Background(), tc.call, rpc.BlockNumberOrHash{BlockNumber: &tc.blockNumber}, tc.config)
-		if tc.expectErr != nil {
-			if err == nil {
-				t.Errorf("test %d: want error %v, have nothing", i, tc.expectErr)
-				continue
-			}
-			if !errors.Is(err, tc.expectErr) {
-				t.Errorf("test %d: error mismatch, want %v, have %v", i, tc.expectErr, err)
-			}
-			continue
-		}
-		if err != nil {
-			t.Errorf("test %d: want no error, have %v", i, err)
-			continue
-		}
-		// Turn result into res-struct
-		var (
-			have res
-			want res
-		)
-		resBytes, _ := json.Marshal(result)
-		json.Unmarshal(resBytes, &have)
-		json.Unmarshal([]byte(tc.want), &want)
-		if !reflect.DeepEqual(have, want) {
-			t.Errorf("test %d, result mismatch, have\n%v\n, want\n%v\n", i, string(resBytes), want)
-		}
-	}
-}
+// func TestTracingWithOverrides(t *testing.T) {
+// 	t.Parallel()
+// 	// Initialize test accounts
+// 	accounts := newAccounts(3)
+// 	genesis := &core.Genesis{Alloc: core.GenesisAlloc{
+// 		accounts[0].addr: {Balance: big.NewInt(params.Ether)},
+// 		accounts[1].addr: {Balance: big.NewInt(params.Ether)},
+// 		accounts[2].addr: {Balance: big.NewInt(params.Ether)},
+// 	}}
+// 	genBlocks := 10
+// 	signer := types.HomesteadSigner{}
+// 	api := NewAPI(newTestBackend(t, genBlocks, genesis, func(i int, b *core.BlockGen) {
+// 		// Transfer from account[0] to account[1]
+// 		//    value: 1000 wei
+// 		//    fee:   0 wei
+// 		tx, _ := types.SignTx(types.NewTransaction(uint64(i), accounts[1].addr, big.NewInt(1000), params.TxGas, nil, nil), signer, accounts[0].key)
+// 		b.AddTx(tx)
+// 	}))
+// 	randomAccounts := newAccounts(3)
+// 	type res struct {
+// 		Gas         int
+// 		Failed      bool
+// 		ReturnValue string
+// 	}
+// 	var testSuite = []struct {
+// 		blockNumber rpc.BlockNumber
+// 		call        ethapi.CallArgs
+// 		config      *TraceCallConfig
+// 		expectErr   error
+// 		want        string
+// 	}{
+// 		// Call which can only succeed if state is state overridden
+// 		{
+// 			blockNumber: rpc.LatestBlockNumber,
+// 			call: ethapi.CallArgs{
+// 				From:  &randomAccounts[0].addr,
+// 				To:    &randomAccounts[1].addr,
+// 				Value: (*hexutil.Big)(big.NewInt(1000)),
+// 			},
+// 			config: &TraceCallConfig{
+// 				StateOverrides: &ethapi.StateOverride{
+// 					randomAccounts[0].addr: ethapi.OverrideAccount{Balance: newRPCBalance(new(big.Int).Mul(big.NewInt(1), big.NewInt(params.Ether)))},
+// 				},
+// 			},
+// 			want: `{"gas":21000,"failed":false,"returnValue":""}`,
+// 		},
+// 		// Invalid call without state overriding
+// 		{
+// 			blockNumber: rpc.LatestBlockNumber,
+// 			call: ethapi.CallArgs{
+// 				From:  &randomAccounts[0].addr,
+// 				To:    &randomAccounts[1].addr,
+// 				Value: (*hexutil.Big)(big.NewInt(1000)),
+// 			},
+// 			config:    &TraceCallConfig{},
+// 			expectErr: core.ErrInsufficientFunds,
+// 		},
+// 		// Successful simple contract call
+// 		//
+// 		// // SPDX-License-Identifier: GPL-3.0
+// 		//
+// 		//  pragma solidity >=0.7.0 <0.8.0;
+// 		//
+// 		//  /**
+// 		//   * @title Storage
+// 		//   * @dev Store & retrieve value in a variable
+// 		//   */
+// 		//  contract Storage {
+// 		//      uint256 public number;
+// 		//      constructor() {
+// 		//          number = block.number;
+// 		//      }
+// 		//  }
+// 		{
+// 			blockNumber: rpc.LatestBlockNumber,
+// 			call: ethapi.CallArgs{
+// 				From: &randomAccounts[0].addr,
+// 				To:   &randomAccounts[2].addr,
+// 				Data: newRPCBytes(common.Hex2Bytes("8381f58a")), // call number()
+// 			},
+// 			config: &TraceCallConfig{
+// 				//Tracer: &tracer,
+// 				StateOverrides: &ethapi.StateOverride{
+// 					randomAccounts[2].addr: ethapi.OverrideAccount{
+// 						Code:      newRPCBytes(common.Hex2Bytes("6080604052348015600f57600080fd5b506004361060285760003560e01c80638381f58a14602d575b600080fd5b60336049565b6040518082815260200191505060405180910390f35b6000548156fea2646970667358221220eab35ffa6ab2adfe380772a48b8ba78e82a1b820a18fcb6f59aa4efb20a5f60064736f6c63430007040033")),
+// 						StateDiff: newStates([]common.Hash{{}}, []common.Hash{common.BigToHash(big.NewInt(123))}),
+// 					},
+// 				},
+// 			},
+// 			want: `{"gas":23347,"failed":false,"returnValue":"000000000000000000000000000000000000000000000000000000000000007b"}`,
+// 		},
+// 		{ // Override blocknumber
+// 			blockNumber: rpc.LatestBlockNumber,
+// 			call: ethapi.CallArgs{
+// 				From: &accounts[0].addr,
+// 				// BLOCKNUMBER PUSH1 MSTORE
+// 				Data: newRPCBytes(common.Hex2Bytes("4360005260206000f3")),
+// 				//&hexutil.Bytes{0x43}, // blocknumber
+// 			},
+// 			config: &TraceCallConfig{
+// 				BlockOverrides: &ethapi.BlockOverrides{Number: (*hexutil.Big)(big.NewInt(0x1337))},
+// 			},
+// 			want: `{"gas":59537,"failed":false,"returnValue":"0000000000000000000000000000000000000000000000000000000000001337"}`,
+// 		},
+// 		{ // Override blocknumber, and query a blockhash
+// 			blockNumber: rpc.LatestBlockNumber,
+// 			call: ethapi.CallArgs{
+// 				From: &accounts[0].addr,
+// 				Data: &hexutil.Bytes{
+// 					0x60, 0x00, 0x40, // BLOCKHASH(0)
+// 					0x60, 0x00, 0x52, // STORE memory offset 0
+// 					0x61, 0x13, 0x36, 0x40, // BLOCKHASH(0x1336)
+// 					0x60, 0x20, 0x52, // STORE memory offset 32
+// 					0x61, 0x13, 0x37, 0x40, // BLOCKHASH(0x1337)
+// 					0x60, 0x40, 0x52, // STORE memory offset 64
+// 					0x60, 0x60, 0x60, 0x00, 0xf3, // RETURN (0-96)
+//
+// 				}, // blocknumber
+// 			},
+// 			config: &TraceCallConfig{
+// 				BlockOverrides: &ethapi.BlockOverrides{Number: (*hexutil.Big)(big.NewInt(0x1337))},
+// 			},
+// 			want: `{"gas":72666,"failed":false,"returnValue":"000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"}`,
+// 		},
+// 	}
+// 	for i, tc := range testSuite {
+// 		result, err := api.TraceCall(context.Background(), tc.call, rpc.BlockNumberOrHash{BlockNumber: &tc.blockNumber}, tc.config)
+// 		if tc.expectErr != nil {
+// 			if err == nil {
+// 				t.Errorf("test %d: want error %v, have nothing", i, tc.expectErr)
+// 				continue
+// 			}
+// 			if !errors.Is(err, tc.expectErr) {
+// 				t.Errorf("test %d: error mismatch, want %v, have %v", i, tc.expectErr, err)
+// 			}
+// 			continue
+// 		}
+// 		if err != nil {
+// 			t.Errorf("test %d: want no error, have %v", i, err)
+// 			continue
+// 		}
+// 		// Turn result into res-struct
+// 		var (
+// 			have res
+// 			want res
+// 		)
+// 		resBytes, _ := json.Marshal(result)
+// 		json.Unmarshal(resBytes, &have)
+// 		json.Unmarshal([]byte(tc.want), &want)
+// 		if !reflect.DeepEqual(have, want) {
+// 			t.Errorf("test %d, result mismatch, have\n%v\n, want\n%v\n", i, string(resBytes), want)
+// 		}
+// 	}
+// }
 
 type Account struct {
 	key  *ecdsa.PrivateKey

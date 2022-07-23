@@ -36,22 +36,12 @@ func BenchmarkTransactionTrace(b *testing.B) {
 	from := crypto.PubkeyToAddress(key.PublicKey)
 	gas := uint64(1000000) // 1M gas
 	to := common.HexToAddress("0x00000000000000000000000000000000deadbeef")
-	signer := types.LatestSignerForChainID(big.NewInt(1337))
-	tx, err := types.SignNewTx(key, signer,
-		&types.LegacyTx{
-			Nonce:    1,
-			GasPrice: big.NewInt(500),
-			Gas:      gas,
-			To:       &to,
-		})
+	signer := types.HomesteadSigner{}
+	tx, err := types.SignTx(types.NewTransaction(1, to, nil, gas, big.NewInt(500), nil), signer, key)
 	if err != nil {
 		b.Fatal(err)
 	}
-	txContext := vm.TxContext{
-		Origin:   from,
-		GasPrice: tx.GasPrice(),
-	}
-	context := vm.BlockContext{
+	context := vm.Context{
 		CanTransfer: core.CanTransfer,
 		Transfer:    core.Transfer,
 		Coinbase:    common.Address{},
@@ -59,7 +49,8 @@ func BenchmarkTransactionTrace(b *testing.B) {
 		Time:        new(big.Int).SetUint64(uint64(5)),
 		Difficulty:  big.NewInt(0xffffffff),
 		GasLimit:    gas,
-		BaseFee:     big.NewInt(8),
+		Origin:      from,
+		GasPrice:    tx.GasPrice(),
 	}
 	alloc := core.GenesisAlloc{}
 	// The code pushes 'deadbeef' into memory, then the other params, and calls CREATE2, then returns
@@ -79,7 +70,7 @@ func BenchmarkTransactionTrace(b *testing.B) {
 		Code:    []byte{},
 		Balance: big.NewInt(500000000000000),
 	}
-	_, statedb := tests.MakePreState(rawdb.NewMemoryDatabase(), alloc, false)
+	statedb := tests.MakePreState(rawdb.NewMemoryDatabase(), alloc)
 	// Create the tracer, the EVM environment and run it
 	tracer := logger.NewStructLogger(&logger.Config{
 		Debug: false,
@@ -87,8 +78,8 @@ func BenchmarkTransactionTrace(b *testing.B) {
 		//EnableMemory: false,
 		//EnableReturnData: false,
 	})
-	evm := vm.NewEVM(context, txContext, statedb, params.AllEthashProtocolChanges, vm.Config{Debug: true, Tracer: tracer})
-	msg, err := tx.AsMessage(signer, nil)
+	evm := vm.NewEVM(context, statedb, params.AllEthashProtocolChanges, vm.Config{Debug: true, Tracer: tracer})
+	msg, err := tx.AsMessage(signer)
 	if err != nil {
 		b.Fatalf("failed to prepare transaction for tracing: %v", err)
 	}
@@ -98,7 +89,7 @@ func BenchmarkTransactionTrace(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		snap := statedb.Snapshot()
 		st := core.NewStateTransition(evm, msg, new(core.GasPool).AddGas(tx.Gas()))
-		_, err = st.TransitionDb()
+		_, _, _, err = st.TransitionDb()
 		if err != nil {
 			b.Fatal(err)
 		}

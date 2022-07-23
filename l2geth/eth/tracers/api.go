@@ -747,6 +747,74 @@ func (api *API) TraceTransaction(ctx context.Context, hash common.Hash, config *
 	return api.traceTx(ctx, msg, txctx, vmctx, statedb, config)
 }
 
+// // TraceCall lets you trace a given eth_call. It collects the structured logs
+// // created during the execution of EVM if the given transaction was added on
+// // top of the provided block and returns them as a JSON object.
+// func (api *API) TraceCall(ctx context.Context, args ethapi.CallArgs, blockNrOrHash rpc.BlockNumberOrHash, config *TraceCallConfig) (interface{}, error) {
+// 	// Try to retrieve the specified block
+// 	var (
+// 		err   error
+// 		block *types.Block
+// 	)
+// 	if hash, ok := blockNrOrHash.Hash(); ok {
+// 		block, err = api.blockByHash(ctx, hash)
+// 	} else if number, ok := blockNrOrHash.Number(); ok {
+// 		if number == rpc.PendingBlockNumber {
+// 			// We don't have access to the miner here. For tracing 'future' transactions,
+// 			// it can be done with block- and state-overrides instead, which offers
+// 			// more flexibility and stability than trying to trace on 'pending', since
+// 			// the contents of 'pending' is unstable and probably not a true representation
+// 			// of what the next actual block is likely to contain.
+// 			return nil, errors.New("tracing on top of pending is not supported")
+// 		}
+// 		block, err = api.blockByNumber(ctx, number)
+// 	} else {
+// 		return nil, errors.New("invalid arguments; neither block nor hash specified")
+// 	}
+// 	if err != nil {
+// 		return nil, err
+// 	}
+// 	// try to recompute the state
+// 	reexec := defaultTraceReexec
+// 	if config != nil && config.Reexec != nil {
+// 		reexec = *config.Reexec
+// 	}
+// 	statedb, err := api.backend.StateAtBlock(ctx, block, reexec, nil, true, false)
+// 	if err != nil {
+// 		return nil, err
+// 	}
+//
+// 	// Create new call message
+// 	value := new(big.Int)
+// 	if args.Value != nil {
+// 		value = args.Value.ToInt()
+// 	}
+// 	data := args.Data
+// 	msg := types.NewMessage(args.From, args.To, 0, value, args.Gas, args.GasPrice, data, false, block.Number(), block.Time(), types.QueueOriginSequencer)
+// 	if err != nil {
+// 		return nil, err
+// 	}
+// 	vmctx := core.NewEVMContext(msg, block.Header(), api.chainContext(ctx), nil)
+// 	// Apply the customization rules if required.
+// 	if config != nil {
+// 		if err := config.StateOverrides.Apply(statedb); err != nil {
+// 			return nil, err
+// 		}
+// 		config.BlockOverrides.Apply(&vmctx)
+// 	}
+//
+// 	var traceConfig *TraceConfig
+// 	if config != nil {
+// 		traceConfig = &TraceConfig{
+// 			Config:  config.Config,
+// 			Tracer:  config.Tracer,
+// 			Timeout: config.Timeout,
+// 			Reexec:  config.Reexec,
+// 		}
+// 	}
+// 	return api.traceTx(ctx, msg, new(Context), vmctx, statedb, traceConfig)
+// }
+//
 // traceTx configures a new tracer according to the provided configuration, and
 // executes the given message in the provided environment. The return value will
 // be tracer dependent.
