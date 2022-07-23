@@ -104,7 +104,7 @@ func (bq *BatchQueue) AddBatch(batch *BatchData) error {
 	if bq.progress.Closed {
 		panic("write batch while closed")
 	}
-	bq.log.Info("queued batch", "origin", bq.progress.Origin, "tx_count", len(batch.Transactions), "timestamp", batch.Timestamp)
+	bq.log.Trace("queued batch", "origin", bq.progress.Origin, "tx_count", len(batch.Transactions), "timestamp", batch.Timestamp)
 	if len(bq.l1Blocks) == 0 {
 		return fmt.Errorf("cannot add batch with timestamp %d, no origin was prepared", batch.Timestamp)
 	}
