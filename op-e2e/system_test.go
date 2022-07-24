@@ -899,12 +899,14 @@ func TestWithdrawals(t *testing.T) {
 	opts.Value = nil
 	tx, err = portal.FinalizeWithdrawalTransaction(
 		opts,
-		params.Nonce,
-		params.Sender,
-		params.Target,
-		params.Value,
-		params.GasLimit,
-		params.Data,
+		bindings.TypesWithdrawalTransaction{
+			Nonce:    params.Nonce,
+			Sender:   params.Sender,
+			Target:   params.Target,
+			Value:    params.Value,
+			GasLimit: params.GasLimit,
+			Data:     params.Data,
+		},
 		params.BlockNumber,
 		params.OutputRootProof,
 		params.WithdrawalProof,

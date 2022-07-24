@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.9;
+pragma solidity 0.8.15;
 
 contract SimpleStorage {
     mapping(bytes32 => bytes32) public db;

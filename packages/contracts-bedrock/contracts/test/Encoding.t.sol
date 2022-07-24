@@ -2,6 +2,7 @@
 pragma solidity 0.8.15;
 
 import { CommonTest } from "./CommonTest.t.sol";
+import { Types } from "../libraries/Types.sol";
 import { Encoding } from "../libraries/Encoding.sol";
 
 contract Encoding_Test is CommonTest {
