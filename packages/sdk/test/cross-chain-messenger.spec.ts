@@ -80,6 +80,32 @@ describe('CrossChainMessenger', () => {
       })
     })
 
+    describe('when given a bad L1 chain ID', () => {
+      it('should throw an error', () => {
+        expect(() => {
+          new CrossChainMessenger({
+            l1SignerOrProvider: ethers.provider,
+            l2SignerOrProvider: ethers.provider,
+            l1ChainId: undefined as any,
+            l2ChainId: L2ChainID.OPTIMISM,
+          })
+        }).to.throw('L1 chain ID is missing or invalid')
+      })
+    })
+
+    describe('when given a bad L2 chain ID', () => {
+      it('should throw an error', () => {
+        expect(() => {
+          new CrossChainMessenger({
+            l1SignerOrProvider: ethers.provider,
+            l2SignerOrProvider: ethers.provider,
+            l1ChainId: L1ChainID.MAINNET,
+            l2ChainId: undefined as any,
+          })
+        }).to.throw('L2 chain ID is missing or invalid')
+      })
+    })
+
     describe('when no custom contract addresses are provided', () => {
       describe('when given a known chain ID', () => {
         it('should use the contract addresses for the known chain ID', () => {
