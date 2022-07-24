@@ -39,15 +39,6 @@ contract L1CrossDomainMessenger is CrossDomainMessenger, Semver {
     }
 
     /**
-     * @notice Checks whether the message being sent from the other messenger.
-     *
-     * @return True if the message was sent from the messenger, false otherwise.
-     */
-    function _isOtherMessenger() internal view override returns (bool) {
-        return msg.sender == address(portal) && portal.l2Sender() == otherMessenger;
-    }
-
-    /**
      * @notice Sends a message via the OptimismPortal contract.
      *
      * @param _to       Address of the recipient on L2.
@@ -62,5 +53,14 @@ contract L1CrossDomainMessenger is CrossDomainMessenger, Semver {
         bytes memory _data
     ) internal override {
         portal.depositTransaction{ value: _value }(_to, _value, _gasLimit, false, _data);
+    }
+
+    /**
+     * @notice Checks whether the message being sent from the other messenger.
+     *
+     * @return True if the message was sent from the messenger, false otherwise.
+     */
+    function _isOtherMessenger() internal view override returns (bool) {
+        return msg.sender == address(portal) && portal.l2Sender() == otherMessenger;
     }
 }

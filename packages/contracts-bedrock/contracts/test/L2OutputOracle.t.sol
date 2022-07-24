@@ -4,7 +4,7 @@ pragma solidity 0.8.15;
 import { L2OutputOracle_Initializer, NextImpl } from "./CommonTest.t.sol";
 import { L2OutputOracle } from "../L1/L2OutputOracle.sol";
 import { Proxy } from "../universal/Proxy.sol";
-
+import { Types } from "../libraries/Types.sol";
 
 contract L2OutputOracleTest is L2OutputOracle_Initializer {
     bytes32 proposedOutput1 = keccak256(abi.encode(1));
@@ -23,7 +23,7 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
         assertEq(oracle.proposer(), proposer);
         assertEq(oracle.owner(), owner);
 
-        L2OutputOracle.OutputProposal memory proposal = oracle.getL2Output(startingBlockNumber);
+        Types.OutputProposal memory proposal = oracle.getL2Output(startingBlockNumber);
         assertEq(proposal.outputRoot, genesisL2Output);
         assertEq(proposal.timestamp, initL1Time);
     }
@@ -50,7 +50,7 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
         vm.prank(proposer);
         oracle.proposeL2Output(proposedOutput1, nextBlockNumber, 0, 0);
 
-        L2OutputOracle.OutputProposal memory proposal = oracle.getL2Output(nextBlockNumber);
+        Types.OutputProposal memory proposal = oracle.getL2Output(nextBlockNumber);
         assertEq(proposal.outputRoot, proposedOutput1);
         assertEq(proposal.timestamp, block.timestamp);
 
@@ -61,11 +61,11 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
 
         // The block number is too low:
         vm.expectRevert("L2OutputOracle: block number cannot be less than the starting block number.");
-        proposal = oracle.getL2Output(0);
+        oracle.getL2Output(0);
 
         // The block number is larger than the latest proposed output:
         vm.expectRevert("L2OutputOracle: No output found for that block number.");
-        proposal = oracle.getL2Output(nextBlockNumber + 1);
+        oracle.getL2Output(nextBlockNumber + 1);
     }
 
     // Test: nextBlockNumber() should return the correct value
@@ -268,10 +268,10 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
         test_proposingAnotherOutput();
 
         uint256 latestBlockNumber = oracle.latestBlockNumber();
-        L2OutputOracle.OutputProposal memory proposalToDelete = oracle.getL2Output(
+        Types.OutputProposal memory proposalToDelete = oracle.getL2Output(
             latestBlockNumber
         );
-        L2OutputOracle.OutputProposal memory newLatestOutput = oracle.getL2Output(
+        Types.OutputProposal memory newLatestOutput = oracle.getL2Output(
             latestBlockNumber - submissionInterval
         );
 
@@ -288,7 +288,7 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
         uint256 latestBlockNumberAfter = oracle.latestBlockNumber();
         assertEq(latestBlockNumber - submissionInterval, latestBlockNumberAfter);
 
-        L2OutputOracle.OutputProposal memory proposal = oracle.getL2Output(latestBlockNumberAfter);
+        Types.OutputProposal memory proposal = oracle.getL2Output(latestBlockNumberAfter);
         // validate that the new latest output is as expected.
         assertEq(newLatestOutput.outputRoot, proposal.outputRoot);
         assertEq(newLatestOutput.timestamp, proposal.timestamp);
@@ -300,7 +300,7 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
 
     function testCannot_deleteL2Output_ifNotOwner() external {
         uint256 latestBlockNumber = oracle.latestBlockNumber();
-        L2OutputOracle.OutputProposal memory proposal = oracle.getL2Output(latestBlockNumber);
+        Types.OutputProposal memory proposal = oracle.getL2Output(latestBlockNumber);
 
         vm.expectRevert("Ownable: caller is not the owner");
         oracle.deleteL2Output(proposal);
@@ -310,7 +310,7 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
         test_proposingAnotherOutput();
 
         uint256 previousBlockNumber = oracle.latestBlockNumber() - submissionInterval;
-        L2OutputOracle.OutputProposal memory proposalToDelete = oracle.getL2Output(
+        Types.OutputProposal memory proposalToDelete = oracle.getL2Output(
             previousBlockNumber
         );
 
@@ -325,7 +325,7 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
         test_proposingAnotherOutput();
 
         uint256 latestBlockNumber = oracle.latestBlockNumber();
-        L2OutputOracle.OutputProposal memory proposalToDelete = oracle.getL2Output(
+        Types.OutputProposal memory proposalToDelete = oracle.getL2Output(
             latestBlockNumber
         );
 
@@ -354,7 +354,7 @@ contract L2OutputOracleUpgradeable_Test is L2OutputOracle_Initializer {
         assertEq(startingTimestamp, oracleImpl.STARTING_TIMESTAMP());
         assertEq(l2BlockTime, oracleImpl.L2_BLOCK_TIME());
 
-        L2OutputOracle.OutputProposal memory initOutput = oracleImpl.getL2Output(
+        Types.OutputProposal memory initOutput = oracleImpl.getL2Output(
             startingBlockNumber
         );
         assertEq(genesisL2Output, initOutput.outputRoot);
