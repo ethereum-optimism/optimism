@@ -132,6 +132,15 @@ abstract contract CrossDomainMessenger is
     );
 
     /**
+     * @notice Additional event data to emit, required as of Bedrock. Cannot be merged with the
+     *         SentMessage event without breaking the ABI of this contract, this is good enough.
+     *
+     * @param sender Address of the sender of the message.
+     * @param value  ETH value sent along with the message to the recipient.
+     */
+    event SentMessageExtension1(address indexed sender, uint256 value);
+
+    /**
      * @notice Emitted whenever a message is successfully relayed on this chain.
      *
      * @param msgHash Hash of the message that was relayed.
@@ -193,6 +202,7 @@ abstract contract CrossDomainMessenger is
         );
 
         emit SentMessage(_target, msg.sender, _message, messageNonce(), _minGasLimit);
+        emit SentMessageExtension1(msg.sender, msg.value);
 
         unchecked {
             ++msgNonce;

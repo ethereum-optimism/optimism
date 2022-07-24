@@ -107,6 +107,10 @@ contract L1CrossDomainMessenger_Test is Messenger_Initializer {
         vm.expectEmit(true, true, true, true);
         emit SentMessage(recipient, alice, hex"ff", L1Messenger.messageNonce(), 100);
 
+        // SentMessageExtension1 event
+        vm.expectEmit(true, true, true, true);
+        emit SentMessageExtension1(alice, 0);
+
         vm.prank(alice);
         L1Messenger.sendMessage(recipient, hex"ff", uint32(100));
     }
