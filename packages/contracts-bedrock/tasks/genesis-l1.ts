@@ -3,6 +3,7 @@ import fs from 'fs'
 import { ethers } from 'ethers'
 import { task } from 'hardhat/config'
 import { Genesis, State } from '@eth-optimism/core-utils'
+import '@eth-optimism/hardhat-deploy-config'
 
 task('genesis-l1', 'create a genesis config')
   .addOptionalParam(
