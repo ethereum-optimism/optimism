@@ -1636,10 +1636,10 @@
     command-exists "^1.2.9"
     ts-interface-checker "^0.1.9"
 
-"@foundry-rs/hardhat-forge@^0.1.12":
-  version "0.1.12"
-  resolved "https://registry.yarnpkg.com/@foundry-rs/hardhat-forge/-/hardhat-forge-0.1.12.tgz#0557909762b86033e4699b9dc8e4cb58ddfc3fff"
-  integrity sha512-y05JYP+uvBaWKZZPuMkzc7cWS0gPTb4JzwrBA++9cIe1Aae+atz340cREBsCV9joEUpcK0UMRMURBns3A5nhhQ==
+"@foundry-rs/hardhat-forge@^0.1.14":
+  version "0.1.14"
+  resolved "https://registry.yarnpkg.com/@foundry-rs/hardhat-forge/-/hardhat-forge-0.1.14.tgz#0291db05b7205fc8c65c164394c50f23f10d7ee1"
+  integrity sha512-XZeD7fRPJIEVNl1oPUfb/NftQfY+i23e/uOUICAaKpuJF283ge+vTisEPPUyoOw4zVNLTNFZyVKuuC3npIQmFw==
   dependencies:
     "@foundry-rs/easy-foundryup" "^0.1.3"
     "@nomiclabs/hardhat-ethers" "^2.0.0"
