@@ -1,10 +1,10 @@
-//SPDX-License-Identifier: MIT
-pragma solidity 0.8.10;
+// SPDX-License-Identifier: MIT
+pragma solidity 0.8.15;
 
 import { Bridge_Initializer } from "./CommonTest.t.sol";
 import { stdStorage, StdStorage } from "forge-std/Test.sol";
 import { CrossDomainMessenger } from "../universal/CrossDomainMessenger.sol";
-import { PredeployAddresses } from "../libraries/PredeployAddresses.sol";
+import { Predeploys } from "../libraries/Predeploys.sol";
 import { console } from "forge-std/console.sol";
 
 contract L2StandardBridge_Test is Bridge_Initializer {
@@ -50,10 +50,10 @@ contract L2StandardBridge_Test is Bridge_Initializer {
     function test_cannotWithdrawEthWithoutSendingIt() external {
         assertEq(address(messagePasser).balance, 0);
 
-        vm.expectRevert("ETH withdrawals must include sufficient ETH value.");
+        vm.expectRevert("L2StandardBridge: ETH withdrawals must include sufficient ETH value");
         vm.prank(alice, alice);
         L2Bridge.withdraw(
-            address(PredeployAddresses.LEGACY_ERC20_ETH),
+            address(Predeploys.LEGACY_ERC20_ETH),
             100,
             1000,
             hex""
@@ -86,7 +86,7 @@ contract L2StandardBridge_Test is Bridge_Initializer {
         // This contract has 100 L2Token
         deal(address(L2Token), address(this), 100, true);
 
-        vm.expectRevert("Account not EOA");
+        vm.expectRevert("StandardBridge: function can only be called from an EOA");
         L2Bridge.withdraw(
             address(L2Token),
             100,
@@ -197,5 +197,48 @@ contract L2StandardBridge_Test is Bridge_Initializer {
         vm.prank(address(L2Messenger));
         L2Bridge.finalizeDeposit(address(L1Token), address(L2Bridge), alice, bob, 100, hex"");
     }
-}
 
+    function test_finalizeBridgeERC20FailSendBack() external {
+        deal(address(BadL2Token), address(L2Bridge), 100, true);
+
+        uint256 slot = stdstore
+            .target(address(L2Bridge))
+            .sig("deposits(address,address)")
+            .with_key(address(BadL2Token))
+            .with_key(address(L1Token))
+            .find();
+
+        // Give the L2 bridge some ERC20 tokens
+        vm.store(address(L2Bridge), bytes32(slot), bytes32(uint256(100)));
+        assertEq(L2Bridge.deposits(address(BadL2Token), address(L1Token)), 100);
+
+        vm.expectEmit(true, true, true, true);
+
+        emit ERC20BridgeInitiated(
+            address(BadL2Token),
+            address(L1Token),
+            bob,
+            alice,
+            100,
+            hex""
+        );
+
+        vm.mockCall(
+            address(L2Bridge.messenger()),
+            abi.encodeWithSelector(CrossDomainMessenger.xDomainMessageSender.selector),
+            abi.encode(address(L2Bridge.otherBridge()))
+        );
+        vm.prank(address(L2Bridge.messenger()));
+        L2Bridge.finalizeBridgeERC20(
+            address(BadL2Token),
+            address(L1Token),
+            alice,
+            bob,
+            100,
+            hex""
+        );
+
+        assertEq(BadL2Token.balanceOf(address(L2Bridge)), 100);
+        assertEq(BadL2Token.balanceOf(address(alice)), 0);
+    }
+}

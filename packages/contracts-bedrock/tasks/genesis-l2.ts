@@ -141,7 +141,6 @@ task('genesis-l2', 'create a genesis config')
       predeployAddrs.add(ethers.utils.getAddress(addr))
     }
 
-    // TODO: geth likes strings for nonce and balance now
     const alloc: State = {}
 
     // Set a proxy at each predeploy address
@@ -170,6 +169,28 @@ task('genesis-l2', 'create a genesis config')
       }
 
       if (predeployAddrs.has(ethers.utils.getAddress(addr))) {
+        const predeploy = Object.entries(predeploys).find(([, address]) => {
+          return ethers.utils.getAddress(address) === addr
+        })
+
+        // Really shouldn't happen, since predeployAddrs is a set generated from predeploys.
+        if (predeploy === undefined) {
+          throw new Error('could not find address')
+        }
+
+        const name = predeploy[0]
+        if (variables[name]) {
+          const storageLayout = await getStorageLayout(hre, name)
+          if (storageLayout === undefined) {
+            throw new Error(`cannot find storage layout for ${name}`)
+          }
+          const slots = computeStorageSlots(storageLayout, variables[name])
+
+          for (const slot of slots) {
+            alloc[addr].storage[slot.key] = slot.val
+          }
+        }
+
         alloc[addr].storage[implementationSlot] = toCodeAddr(addr)
       }
     }
@@ -247,16 +268,6 @@ task('genesis-l2', 'create a genesis config')
         code: artifact.deployedBytecode,
         storage: {},
       }
-
-      const storageLayout = await getStorageLayout(hre, name)
-      if (storageLayout === undefined) {
-        throw new Error(`cannot find storage layout for ${name}`)
-      }
-      const slots = computeStorageSlots(storageLayout, variables[name])
-
-      for (const slot of slots) {
-        alloc[allocAddr].storage[slot.key] = slot.val
-      }
     }
 
     const portal = await hre.deployments.get('OptimismPortalProxy')
@@ -276,11 +287,11 @@ task('genesis-l2', 'create a genesis config')
         muirGlacierBlock: 0,
         berlinBlock: 0,
         londonBlock: 0,
-        mergeForkBlock: 0,
+        mergeNetsplitBlock: 0,
         terminalTotalDifficulty: 0,
-        clique: {
-          period: 0,
-          epoch: 30000,
+        optimism: {
+          baseFeeRecipient: deployConfig.optimismBaseFeeRecipient,
+          l1FeeRecipient: deployConfig.optimismL1FeeRecipient,
         },
       },
       nonce: '0x1234',
@@ -288,11 +299,6 @@ task('genesis-l2', 'create a genesis config')
       timestamp: ethers.BigNumber.from(l1StartingBlock.timestamp).toHexString(),
       gasLimit: deployConfig.genesisBlockGasLimit,
       extraData: deployConfig.genesisBlockExtradata,
-      optimism: {
-        enabled: true,
-        baseFeeRecipient: deployConfig.optimismBaseFeeRecipient,
-        l1FeeRecipient: deployConfig.optimismL1FeeRecipient,
-      },
       alloc,
     }
 

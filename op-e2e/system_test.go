@@ -89,9 +89,7 @@ func defaultSystemConfig(t *testing.T) SystemConfig {
 			FinalizationPeriod: big.NewInt(60 * 60 * 24),
 		},
 		L2OOCfg: L2OOContractConfig{
-			// L2 Start time is set based off of the L2 Genesis time
 			SubmissionFrequency:   big.NewInt(4),
-			L2BlockTime:           big.NewInt(2),
 			HistoricalTotalBlocks: big.NewInt(0),
 		},
 		L2OutputHDPath:             l2OutputHDPath,
@@ -135,7 +133,7 @@ func defaultSystemConfig(t *testing.T) SystemConfig {
 		RollupConfig: rollup.Config{
 			BlockTime:         1,
 			MaxSequencerDrift: 10,
-			SeqWindowSize:     2,
+			SeqWindowSize:     30,
 			ChannelTimeout:    20,
 			L1ChainID:         big.NewInt(900),
 			L2ChainID:         big.NewInt(901),
@@ -464,7 +462,14 @@ func TestMissingBatchE2E(t *testing.T) {
 	if !verboseGethNodes {
 		log.Root().SetHandler(log.DiscardHandler())
 	}
+	// Note this test zeroes the balance of the batch-submitter to make the batches unable to go into L1.
+	// The test logs may look scary, but this is expected:
+	// 'batcher unable to publish transaction    role=batcher   err="insufficient funds for gas * price + value"'
+
 	cfg := defaultSystemConfig(t)
+	// small sequence window size so the test does not take as long
+	cfg.RollupConfig.SeqWindowSize = 4
+
 	// Specifically set batch submitter balance to stop batches from being included
 	cfg.Premine[bssHDPath] = 0
 
@@ -502,7 +507,7 @@ func TestMissingBatchE2E(t *testing.T) {
 	require.Nil(t, err, "Waiting for L2 tx on sequencer")
 
 	// Wait until the block it was first included in shows up in the safe chain on the verifier
-	_, err = waitForBlock(receipt.BlockNumber, l2Verif, 4*time.Second)
+	_, err = waitForBlock(receipt.BlockNumber, l2Verif, time.Duration(cfg.RollupConfig.SeqWindowSize*cfg.L1BlockTime)*time.Second)
 	require.Nil(t, err, "Waiting for block on verifier")
 
 	// Assert that the transaction is not found on the verifier
@@ -894,12 +899,14 @@ func TestWithdrawals(t *testing.T) {
 	opts.Value = nil
 	tx, err = portal.FinalizeWithdrawalTransaction(
 		opts,
-		params.Nonce,
-		params.Sender,
-		params.Target,
-		params.Value,
-		params.GasLimit,
-		params.Data,
+		bindings.TypesWithdrawalTransaction{
+			Nonce:    params.Nonce,
+			Sender:   params.Sender,
+			Target:   params.Target,
+			Value:    params.Value,
+			GasLimit: params.GasLimit,
+			Data:     params.Data,
+		},
 		params.BlockNumber,
 		params.OutputRootProof,
 		params.WithdrawalProof,

@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.10;
+pragma solidity 0.8.15;
 
-import { L1Block } from "./L1Block.sol";
-import { PredeployAddresses } from "../libraries/PredeployAddresses.sol";
+import { L1Block } from "../L2/L1Block.sol";
+import { Predeploys } from "../libraries/Predeploys.sol";
 import { Semver } from "../universal/Semver.sol";
 
 /**
@@ -50,6 +50,6 @@ contract L1BlockNumber is Semver {
      * @return Latest L1 block number.
      */
     function getL1BlockNumber() public view returns (uint256) {
-        return L1Block(PredeployAddresses.L1_BLOCK_ATTRIBUTES).number();
+        return L1Block(Predeploys.L1_BLOCK_ATTRIBUTES).number();
     }
 }

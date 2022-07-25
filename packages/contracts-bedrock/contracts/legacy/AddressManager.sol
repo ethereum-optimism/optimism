@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.9;
+pragma solidity 0.8.15;
 
 import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 
@@ -13,6 +13,11 @@ import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
  */
 contract AddressManager is Ownable {
     /**
+     * @notice Mapping of the hashes of string names to addresses.
+     */
+    mapping(bytes32 => address) private addresses;
+
+    /**
      * @notice Emitted when an address is modified in the registry.
      *
      * @param name       String name being set in the registry.
@@ -20,11 +25,6 @@ contract AddressManager is Ownable {
      * @param oldAddress Address that was previously set for the given name.
      */
     event AddressSet(string indexed name, address newAddress, address oldAddress);
-
-    /**
-     * @notice Mapping of the hashes of string names to addresses.
-     */
-    mapping(bytes32 => address) private addresses;
 
     /**
      * @notice Changes the address associated with a particular name.

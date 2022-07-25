@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.9;
+pragma solidity ^0.8.0;
 
 /**
- * @title PredeployAddresses
+ * @title Predeploys
  * @notice Contains constant addresses for contracts that are pre-deployed to the L2 system.
  */
-library PredeployAddresses {
+library Predeploys {
     /**
      * @notice Address of the L2ToL1MessagePasser predeploy.
      */

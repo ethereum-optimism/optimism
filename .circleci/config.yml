@@ -107,7 +107,7 @@ jobs:
   contracts-bedrock-tests:
     docker:
       - image: ethereumoptimism/ci-builder:latest
-    resource_class: medium
+    resource_class: large
     steps:
       - restore_cache:
           keys:
@@ -135,11 +135,15 @@ jobs:
           name: test
           command: yarn test
           working_directory: packages/contracts-bedrock
+          environment:
+            FOUNDRY_PROFILE: ci
       - run:
           name: gas snapshot
           command: |
             forge --version
             forge snapshot --check || exit 0
+          environment:
+            FOUNDRY_PROFILE: ci
           working_directory: packages/contracts-bedrock
       - run:
           name: storage snapshot

@@ -1,9 +1,8 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.9;
+pragma solidity 0.8.15;
 
 /* Contract Imports */
 import { OptimismMintableERC20 } from "../universal/OptimismMintableERC20.sol";
-import { PredeployAddresses } from "../libraries/PredeployAddresses.sol";
 
 /**
  * @custom:proxied
@@ -15,6 +14,11 @@ import { PredeployAddresses } from "../libraries/PredeployAddresses.sol";
  *         compatible with the older StandardL2ERC20Factory contract.
  */
 contract OptimismMintableERC20Factory {
+    /**
+     * @notice Address of the StandardBridge on this chain.
+     */
+    address public immutable bridge;
+
     /**
      * @custom:legacy
      * @notice Emitted whenever a new OptimismMintableERC20 is created. Legacy version of the newer
@@ -37,11 +41,6 @@ contract OptimismMintableERC20Factory {
         address indexed remoteToken,
         address deployer
     );
-
-    /**
-     * @notice Address of the StandardBridge on this chain.
-     */
-    address public immutable bridge;
 
     /**
      * @param _bridge Address of the StandardBridge on this chain.
@@ -86,11 +85,6 @@ contract OptimismMintableERC20Factory {
         require(
             _remoteToken != address(0),
             "OptimismMintableERC20Factory: must provide remote token address"
-        );
-
-        require(
-            bridge != address(0),
-            "OptimismMintableERC20Factory: must initialize contract first"
         );
 
         OptimismMintableERC20 localToken = new OptimismMintableERC20(

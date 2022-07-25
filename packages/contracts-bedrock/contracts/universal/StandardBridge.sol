@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.9;
+pragma solidity 0.8.15;
 
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { ERC165Checker } from "@openzeppelin/contracts/utils/introspection/ERC165Checker.sol";
@@ -16,6 +16,26 @@ import { OptimismMintableERC20 } from "./OptimismMintableERC20.sol";
  */
 abstract contract StandardBridge is Initializable {
     using SafeERC20 for IERC20;
+
+    /**
+     * @notice The L2 gas limit set when eth is depoisited using the receive() function.
+     */
+    uint32 internal constant RECEIVE_DEFAULT_GAS_LIMIT = 200_000;
+
+    /**
+     * @notice Messenger contract on this domain.
+     */
+    CrossDomainMessenger public messenger;
+
+    /**
+     * @notice Corresponding bridge on the other domain.
+     */
+    StandardBridge public otherBridge;
+
+    /**
+     * @notice Mapping that stores deposits for a given pair of local and remote tokens.
+     */
+    mapping(address => mapping(address => uint256)) public deposits;
 
     /**
      * @notice Emitted when an ETH bridge is initiated to the other chain.
@@ -105,32 +125,15 @@ abstract contract StandardBridge is Initializable {
     );
 
     /**
-     * @notice The L2 gas limit set when eth is depoisited using the receive() function.
-     */
-    uint32 internal constant RECEIVE_DEFAULT_GAS_LIMIT = 200_000;
-
-    /**
-     * @notice Messenger contract on this domain.
-     */
-    CrossDomainMessenger public messenger;
-
-    /**
-     * @notice Corresponding bridge on the other domain.
-     */
-    StandardBridge public otherBridge;
-
-    /**
-     * @notice Mapping that stores deposits for a given pair of local and remote tokens.
-     */
-    mapping(address => mapping(address => uint256)) public deposits;
-
-    /**
      * @notice Only allow EOAs to call the functions. Note that this is not safe against contracts
      *         calling code within their constructors, but also doesn't really matter since we're
      *         just trying to prevent users accidentally depositing with smart contract wallets.
      */
     modifier onlyEOA() {
-        require(!Address.isContract(msg.sender), "Account not EOA");
+        require(
+            !Address.isContract(msg.sender),
+            "StandardBridge: function can only be called from an EOA"
+        );
         _;
     }
 
@@ -141,7 +144,7 @@ abstract contract StandardBridge is Initializable {
         require(
             msg.sender == address(messenger) &&
                 messenger.xDomainMessageSender() == address(otherBridge),
-            "Could not authenticate bridge message."
+            "StandardBridge: function can only be called from the other bridge"
         );
         _;
     }
@@ -150,7 +153,7 @@ abstract contract StandardBridge is Initializable {
      * @notice Ensures that the caller is this contract.
      */
     modifier onlySelf() {
-        require(msg.sender == address(this), "Function can only be called by self.");
+        require(msg.sender == address(this), "StandardBridge: function can only be called by self");
         _;
     }
 
@@ -277,12 +280,12 @@ abstract contract StandardBridge is Initializable {
         uint256 _amount,
         bytes calldata _extraData
     ) public payable onlyOtherBridge {
-        require(msg.value == _amount, "Amount sent does not match amount required.");
-        require(_to != address(this), "Cannot send to self.");
+        require(msg.value == _amount, "StandardBridge: amount sent does not match amount required");
+        require(_to != address(this), "StandardBridge: cannot send to self");
 
         emit ETHBridgeFinalized(_from, _to, _amount, _extraData);
         (bool success, ) = _to.call{ value: _amount }(new bytes(0));
-        require(success, "ETH transfer failed.");
+        require(success, "StandardBridge: ETH transfer failed");
     }
 
     /**
@@ -312,8 +315,9 @@ abstract contract StandardBridge is Initializable {
         } catch {
             // Something went wrong during the bridging process, return to sender.
             // Can happen if a bridge UI specifies the wrong L2 token.
-            // We reverse both the local and remote token addresses, as well as the to and from
-            // addresses. This will preserve the accuracy of accounting based on emitted events.
+            // We reverse the to and from addresses to make sure the tokens are returned to the
+            // sender on the other chain and preserve the accuracy of accounting based on emitted
+            // events.
             _initiateBridgeERC20Unchecked(
                 _localToken,
                 _remoteToken,
@@ -347,12 +351,12 @@ abstract contract StandardBridge is Initializable {
     ) public onlySelf {
         // Make sure external function calls can't be used to trigger calls to
         // completeOutboundTransfer. We only make external (write) calls to _localToken.
-        require(_localToken != address(this), "Local token cannot be self");
+        require(_localToken != address(this), "StandardBridge: local token cannot be self");
 
         if (_isOptimismMintableERC20(_localToken)) {
             require(
                 _isCorrectTokenPair(_localToken, _remoteToken),
-                "Wrong remote token for Optimism Mintable ERC20 local token"
+                "StandardBridge: wrong remote token for Optimism Mintable ERC20 local token"
             );
 
             OptimismMintableERC20(_localToken).mint(_to, _amount);
@@ -433,12 +437,12 @@ abstract contract StandardBridge is Initializable {
     ) internal {
         // Make sure external function calls can't be used to trigger calls to
         // completeOutboundTransfer. We only make external (write) calls to _localToken.
-        require(_localToken != address(this), "Local token cannot be self");
+        require(_localToken != address(this), "StandardBridge: local token cannot be self");
 
         if (_isOptimismMintableERC20(_localToken)) {
             require(
                 _isCorrectTokenPair(_localToken, _remoteToken),
-                "Wrong remote token for Optimism Mintable ERC20 local token"
+                "StandardBridge: wrong remote token for Optimism Mintable ERC20 local token"
             );
 
             OptimismMintableERC20(_localToken).burn(_from, _amount);

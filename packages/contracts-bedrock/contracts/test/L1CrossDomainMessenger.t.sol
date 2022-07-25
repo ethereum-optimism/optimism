@@ -1,13 +1,13 @@
-//SPDX-License-Identifier: MIT
-pragma solidity 0.8.10;
+// SPDX-License-Identifier: MIT
+pragma solidity 0.8.15;
 
 /* Testing utilities */
-import { Messenger_Initializer } from "./CommonTest.t.sol";
+import { Messenger_Initializer, Reverter, CallerCaller } from "./CommonTest.t.sol";
 import { L2OutputOracle_Initializer } from "./L2OutputOracle.t.sol";
 
 /* Libraries */
 import { AddressAliasHelper } from "../vendor/AddressAliasHelper.sol";
-import { PredeployAddresses } from "../libraries/PredeployAddresses.sol";
+import { Predeploys } from "../libraries/Predeploys.sol";
 import { Hashing } from "../libraries/Hashing.sol";
 import { Encoding } from "../libraries/Encoding.sol";
 
@@ -69,7 +69,7 @@ contract L1CrossDomainMessenger_Test is Messenger_Initializer {
             address(op),
             abi.encodeWithSelector(
                 OptimismPortal.depositTransaction.selector,
-                PredeployAddresses.L2_CROSS_DOMAIN_MESSENGER,
+                Predeploys.L2_CROSS_DOMAIN_MESSENGER,
                 0,
                 L1Messenger.baseGas(hex"ff", 100),
                 false,
@@ -86,9 +86,9 @@ contract L1CrossDomainMessenger_Test is Messenger_Initializer {
 
         // TransactionDeposited event
         vm.expectEmit(true, true, true, true);
-        emit TransactionDeposited(
+        emitTransactionDeposited(
             AddressAliasHelper.applyL1ToL2Alias(address(L1Messenger)),
-            PredeployAddresses.L2_CROSS_DOMAIN_MESSENGER,
+            Predeploys.L2_CROSS_DOMAIN_MESSENGER,
             0,
             0,
             L1Messenger.baseGas(hex"ff", 100),
@@ -107,6 +107,10 @@ contract L1CrossDomainMessenger_Test is Messenger_Initializer {
         vm.expectEmit(true, true, true, true);
         emit SentMessage(recipient, alice, hex"ff", L1Messenger.messageNonce(), 100);
 
+        // SentMessageExtension1 event
+        vm.expectEmit(true, true, true, true);
+        emit SentMessageExtension1(alice, 0);
+
         vm.prank(alice);
         L1Messenger.sendMessage(recipient, hex"ff", uint32(100));
     }
@@ -121,7 +125,7 @@ contract L1CrossDomainMessenger_Test is Messenger_Initializer {
     }
 
     function test_L1MessengerXDomainSenderReverts() external {
-        vm.expectRevert("xDomainMessageSender is not set");
+        vm.expectRevert("CrossDomainMessenger: xDomainMessageSender is not set");
         L1Messenger.xDomainMessageSender();
     }
 
@@ -132,7 +136,7 @@ contract L1CrossDomainMessenger_Test is Messenger_Initializer {
     // relayMessage: should send a successful call to the target contract
     function test_L1MessengerRelayMessageSucceeds() external {
         address target = address(0xabcd);
-        address sender = PredeployAddresses.L2_CROSS_DOMAIN_MESSENGER;
+        address sender = Predeploys.L2_CROSS_DOMAIN_MESSENGER;
 
         vm.expectCall(target, hex"1111");
 
@@ -166,36 +170,36 @@ contract L1CrossDomainMessenger_Test is Messenger_Initializer {
     function test_L1MessengerRelayMessageToSystemContract() external {
         // set the target to be the OptimismPortal
         address target = address(op);
-        address sender = PredeployAddresses.L2_CROSS_DOMAIN_MESSENGER;
+        address sender = Predeploys.L2_CROSS_DOMAIN_MESSENGER;
         bytes memory message = hex"1111";
 
         vm.prank(address(op));
-        vm.expectRevert("Message cannot be replayed.");
+        vm.expectRevert("CrossDomainMessenger: message cannot be replayed");
         L1Messenger.relayMessage(0, sender, target, 0, 0, message);
 
         vm.store(address(op), 0, bytes32(abi.encode(sender)));
-        vm.expectRevert("Message cannot be replayed.");
+        vm.expectRevert("CrossDomainMessenger: message cannot be replayed");
         L1Messenger.relayMessage(0, sender, target, 0, 0, message);
     }
 
     // relayMessage: should revert if eth is sent from a contract other than the standard bridge
     function test_L1MessengerReplayMessageWithValue() external {
         address target = address(0xabcd);
-        address sender = PredeployAddresses.L2_CROSS_DOMAIN_MESSENGER;
+        address sender = Predeploys.L2_CROSS_DOMAIN_MESSENGER;
         bytes memory message = hex"1111";
 
         vm.expectRevert(
-            "CrossDomainMessenger: Value must be zero unless message is from a system address."
+            "CrossDomainMessenger: value must be zero unless message is from a system address"
         );
         L1Messenger.relayMessage{ value: 100 }(0, sender, target, 0, 0, message);
     }
 
     // relayMessage: the xDomainMessageSender is reset to the original value
     function test_L1MessengerxDomainMessageSenderResets() external {
-        vm.expectRevert("xDomainMessageSender is not set");
+        vm.expectRevert("CrossDomainMessenger: xDomainMessageSender is not set");
         L1Messenger.xDomainMessageSender();
 
-        address sender = PredeployAddresses.L2_CROSS_DOMAIN_MESSENGER;
+        address sender = Predeploys.L2_CROSS_DOMAIN_MESSENGER;
 
         uint256 senderSlotIndex = 51;
 
@@ -203,7 +207,7 @@ contract L1CrossDomainMessenger_Test is Messenger_Initializer {
         vm.prank(address(op));
         L1Messenger.relayMessage(0, address(0), address(0), 0, 0, hex"");
 
-        vm.expectRevert("xDomainMessageSender is not set");
+        vm.expectRevert("CrossDomainMessenger: xDomainMessageSender is not set");
         L1Messenger.xDomainMessageSender();
     }
 
@@ -214,5 +218,95 @@ contract L1CrossDomainMessenger_Test is Messenger_Initializer {
 
         vm.expectRevert("Pausable: paused");
         L1Messenger.relayMessage(0, address(0), address(0), 0, 0, hex"");
+    }
+
+    // relayMessage: should send a successful call to the target contract after the first message
+    // fails and ETH gets stuck, but the second message succeeds
+    function test_L1MessengerRelayMessageFirstStuckSecondSucceeds() external {
+        address target = address(0xabcd);
+        address sender = Predeploys.L2_CROSS_DOMAIN_MESSENGER;
+        uint256 value = 100;
+
+        vm.expectCall(target, hex"1111");
+
+        bytes32 hash = Hashing.hashCrossDomainMessage(0, sender, target, value, 0, hex"1111");
+
+        uint256 senderSlotIndex = 51;
+        vm.store(address(op), bytes32(senderSlotIndex), bytes32(abi.encode(sender)));
+        vm.etch(target, address(new Reverter()).code);
+        vm.deal(address(op), value);
+        vm.prank(address(op));
+        L1Messenger.relayMessage{value: value}(
+            0, // nonce
+            sender,
+            target,
+            value,
+            0,
+            hex"1111"
+        );
+
+        assertEq(address(L1Messenger).balance, value);
+        assertEq(address(target).balance, 0);
+        assertEq(L1Messenger.successfulMessages(hash), false);
+        assertEq(L1Messenger.receivedMessages(hash), true);
+
+        vm.expectEmit(true, true, true, true);
+
+        emit RelayedMessage(hash);
+
+        vm.etch(target, address(0).code);
+        vm.prank(address(sender));
+        L1Messenger.relayMessage(
+            0, // nonce
+            sender,
+            target,
+            value,
+            0,
+            hex"1111"
+        );
+
+        assertEq(address(L1Messenger).balance, 0);
+        assertEq(address(target).balance, value);
+        assertEq(L1Messenger.successfulMessages(hash), true);
+        assertEq(L1Messenger.receivedMessages(hash), true);
+    }
+
+    // relayMessage: should revert if recipient is trying to reenter
+    function test_L1MessengerRelayMessageRevertsOnReentrancy() external {
+        address target = address(0xabcd);
+        address sender = Predeploys.L2_CROSS_DOMAIN_MESSENGER;
+        bytes memory message = abi.encodeWithSelector(
+            L1Messenger.relayMessage.selector,
+            0,
+            sender,
+            target,
+            0,
+            0,
+            hex"1111"
+        );
+
+        bytes32 hash = Hashing.hashCrossDomainMessage(0, sender, target, 0, 0, message);
+
+        uint256 senderSlotIndex = 51;
+        vm.store(address(op), bytes32(senderSlotIndex), bytes32(abi.encode(sender)));
+        vm.etch(target, address(new CallerCaller()).code);
+
+        vm.expectEmit(true, true, true, true, target);
+
+        emit WhatHappened(false, abi.encodeWithSignature("Error(string)", "ReentrancyGuard: reentrant call"));
+
+        vm.prank(address(op));
+        vm.expectCall(target, message);
+        L1Messenger.relayMessage(
+            0, // nonce
+            sender,
+            target,
+            0, // value
+            0,
+            message
+        );
+
+        assertEq(L1Messenger.successfulMessages(hash), false);
+        assertEq(L1Messenger.receivedMessages(hash), true);
     }
 }

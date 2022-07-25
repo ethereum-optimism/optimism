@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.9;
+pragma solidity ^0.8.0;
 
-import { BytesUtils } from "../BytesUtils.sol";
+import { Bytes } from "../Bytes.sol";
 import { RLPReader } from "../rlp/RLPReader.sol";
 import { RLPWriter } from "../rlp/RLPWriter.sol";
 
@@ -23,42 +23,42 @@ library MerkleTrie {
     /**
      * @notice Determines the number of elements per branch node.
      */
-    uint256 constant TREE_RADIX = 16;
+    uint256 internal constant TREE_RADIX = 16;
 
     /**
      * @notice Branch nodes have TREE_RADIX elements and one value element.
      */
-    uint256 constant BRANCH_NODE_LENGTH = TREE_RADIX + 1;
+    uint256 internal constant BRANCH_NODE_LENGTH = TREE_RADIX + 1;
 
     /**
      * @notice Leaf nodes and extension nodes have two elements, a `path` and a `value`.
      */
-    uint256 constant LEAF_OR_EXTENSION_NODE_LENGTH = 2;
+    uint256 internal constant LEAF_OR_EXTENSION_NODE_LENGTH = 2;
 
     /**
      * @notice Prefix for even-nibbled extension node paths.
      */
-    uint8 constant PREFIX_EXTENSION_EVEN = 0;
+    uint8 internal constant PREFIX_EXTENSION_EVEN = 0;
 
     /**
      * @notice Prefix for odd-nibbled extension node paths.
      */
-    uint8 constant PREFIX_EXTENSION_ODD = 1;
+    uint8 internal constant PREFIX_EXTENSION_ODD = 1;
 
     /**
      * @notice Prefix for even-nibbled leaf node paths.
      */
-    uint8 constant PREFIX_LEAF_EVEN = 2;
+    uint8 internal constant PREFIX_LEAF_EVEN = 2;
 
     /**
      * @notice Prefix for odd-nibbled leaf node paths.
      */
-    uint8 constant PREFIX_LEAF_ODD = 3;
+    uint8 internal constant PREFIX_LEAF_ODD = 3;
 
     /**
      * @notice RLP representation of `NULL`.
      */
-    bytes1 constant RLP_NULL = bytes1(0x80);
+    bytes1 internal constant RLP_NULL = bytes1(0x80);
 
     /**
      * @notice Verifies a proof that a given key/value pair is present in the trie.
@@ -80,7 +80,7 @@ library MerkleTrie {
         bytes32 _root
     ) internal pure returns (bool) {
         (bool exists, bytes memory value) = get(_key, _proof, _root);
-        return (exists && BytesUtils.equal(_value, value));
+        return (exists && Bytes.equal(_value, value));
     }
 
     /**
@@ -107,7 +107,7 @@ library MerkleTrie {
 
         bool exists = keyRemainder.length == 0;
 
-        require(exists || isFinalNode, "Provided proof is invalid.");
+        require(exists || isFinalNode, "MerkleTrie: provided proof is invalid");
 
         bytes memory value = exists ? _getNodeValue(proof[pathLength - 1]) : bytes("");
 
@@ -125,6 +125,7 @@ library MerkleTrie {
      * @return Portion of the key remaining after the walk.
      * @return Whether or not we've hit a dead end.
      */
+    // solhint-disable-next-line code-complexity
     function _walkNodePath(
         TrieNode[] memory _proof,
         bytes memory _key,
@@ -139,7 +140,7 @@ library MerkleTrie {
         )
     {
         uint256 pathLength = 0;
-        bytes memory key = BytesUtils.toNibbles(_key);
+        bytes memory key = Bytes.toNibbles(_key);
 
         bytes32 currentNodeID = _root;
         uint256 currentKeyIndex = 0;
@@ -157,18 +158,21 @@ library MerkleTrie {
 
             if (currentKeyIndex == 0) {
                 // First proof element is always the root node.
-                require(keccak256(currentNode.encoded) == currentNodeID, "Invalid root hash");
+                require(
+                    keccak256(currentNode.encoded) == currentNodeID,
+                    "MerkleTrie: invalid root hash"
+                );
             } else if (currentNode.encoded.length >= 32) {
                 // Nodes 32 bytes or larger are hashed inside branch nodes.
                 require(
                     keccak256(currentNode.encoded) == currentNodeID,
-                    "Invalid large internal hash"
+                    "MerkleTrie: invalid large internal hash"
                 );
             } else {
                 // Nodes smaller than 31 bytes aren't hashed.
                 require(
                     bytes32(currentNode.encoded) == currentNodeID,
-                    "Invalid internal node hash"
+                    "MerkleTrie: invalid internal node hash"
                 );
             }
 
@@ -190,8 +194,8 @@ library MerkleTrie {
                 bytes memory path = _getNodePath(currentNode);
                 uint8 prefix = uint8(path[0]);
                 uint8 offset = 2 - (prefix % 2);
-                bytes memory pathRemainder = BytesUtils.slice(path, offset);
-                bytes memory keyRemainder = BytesUtils.slice(key, currentKeyIndex);
+                bytes memory pathRemainder = Bytes.slice(path, offset);
+                bytes memory keyRemainder = Bytes.slice(key, currentKeyIndex);
                 uint256 sharedNibbleLength = _getSharedNibbleLength(pathRemainder, keyRemainder);
 
                 if (prefix == PREFIX_LEAF_EVEN || prefix == PREFIX_LEAF_ODD) {
@@ -222,16 +226,16 @@ library MerkleTrie {
                         continue;
                     }
                 } else {
-                    revert("Received a node with an unknown prefix");
+                    revert("MerkleTrie: received a node with an unknown prefix");
                 }
             } else {
-                revert("Received an unparseable node.");
+                revert("MerkleTrie: received an unparseable node");
             }
         }
 
         // If our node ID is NULL, then we're at a dead end.
         bool isFinalNode = currentNodeID == bytes32(RLP_NULL);
-        return (pathLength, BytesUtils.slice(key, currentKeyIndex), isFinalNode);
+        return (pathLength, Bytes.slice(key, currentKeyIndex), isFinalNode);
     }
 
     /**
@@ -283,7 +287,7 @@ library MerkleTrie {
      * @return Node path, converted to an array of nibbles.
      */
     function _getNodePath(TrieNode memory _node) private pure returns (bytes memory) {
-        return BytesUtils.toNibbles(RLPReader.readBytes(_node.decoded[0]));
+        return Bytes.toNibbles(RLPReader.readBytes(_node.decoded[0]));
     }
 
     /**

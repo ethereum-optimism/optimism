@@ -2,15 +2,13 @@ package derive
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"io"
 	"time"
 
-	"github.com/ethereum/go-ethereum"
-
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 )
@@ -36,8 +34,6 @@ type EngineQueue struct {
 	finalized  eth.L2BlockRef
 	safeHead   eth.L2BlockRef
 	unsafeHead eth.L2BlockRef
-
-	resetting bool
 
 	toFinalize eth.BlockID
 
@@ -66,13 +62,15 @@ func (eq *EngineQueue) SetUnsafeHead(head eth.L2BlockRef) {
 
 func (eq *EngineQueue) AddUnsafePayload(payload *eth.ExecutionPayload) {
 	if len(eq.unsafePayloads) > maxUnsafePayloads {
+		eq.log.Debug("Refusing to add unsafe payload", "hash", payload.BlockHash, "number", uint64(payload.BlockNumber))
 		return // don't DoS ourselves by buffering too many unsafe payloads
 	}
+	eq.log.Trace("Adding unsafe payload", "hash", payload.BlockHash, "number", uint64(payload.BlockNumber), "timestamp", uint64(payload.Timestamp))
 	eq.unsafePayloads = append(eq.unsafePayloads, payload)
 }
 
 func (eq *EngineQueue) AddSafeAttributes(attributes *eth.PayloadAttributes) {
-	eq.log.Trace("received next safe attributes")
+	eq.log.Trace("Adding next safe attributes", "timestamp", attributes.Timestamp)
 	eq.safeAttributes = append(eq.safeAttributes, attributes)
 }
 
@@ -182,6 +180,8 @@ func (eq *EngineQueue) tryNextUnsafePayload(ctx context.Context) error {
 	}
 	eq.unsafeHead = ref
 	eq.unsafePayloads = eq.unsafePayloads[1:]
+	eq.log.Trace("Executed unsafe payload", "hash", ref.Hash, "number", ref.Number, "timestamp", ref.Time, "l1Origin", ref.L1Origin)
+
 	return nil
 }
 
@@ -223,6 +223,8 @@ func (eq *EngineQueue) consolidateNextSafeAttributes(ctx context.Context) error 
 	eq.safeHead = ref
 	// unsafe head stays the same, we did not reorg the chain.
 	eq.safeAttributes = eq.safeAttributes[1:]
+	eq.log.Trace("Reconciled safe payload", "hash", ref.Hash, "number", ref.Number, "timestamp", ref.Time, "l1Origin", ref.L1Origin)
+
 	return nil
 }
 
@@ -256,70 +258,40 @@ func (eq *EngineQueue) forceNextSafeAttributes(ctx context.Context) error {
 	eq.safeHead = ref
 	eq.unsafeHead = ref
 	eq.safeAttributes = eq.safeAttributes[1:]
+	eq.log.Trace("Inserted safe block", "hash", ref.Hash, "number", ref.Number, "timestamp", ref.Time, "l1Origin", ref.L1Origin)
+
 	return nil
 }
 
 // ResetStep Walks the L2 chain backwards until it finds an L2 block whose L1 origin is canonical.
 // The unsafe head is set to the head of the L2 chain, unless the existing safe head is not canonical.
 func (eq *EngineQueue) ResetStep(ctx context.Context, l1Fetcher L1Fetcher) error {
-	if !eq.resetting {
-		eq.resetting = true
 
-		head, err := eq.engine.L2BlockRefHead(ctx)
-		if err != nil {
-			eq.log.Error("failed to get L2 engine head to start finding reset point from", "err", err)
-			return nil
-		}
-		eq.unsafeHead = head
-
-		// TODO: this should be different for safe head.
-		// We can't trust the origin data of the unsafe chain.
-		// We should query the engine for its current safe-head.
-		eq.safeHead = head
-		return nil
-	}
-
-	// check if the block origin is canonical
-	if canonicalRef, err := l1Fetcher.L1BlockRefByNumber(ctx, eq.safeHead.L1Origin.Number); errors.Is(err, ethereum.NotFound) {
-		// if our view of the l1 chain is lagging behind, we may get this error
-		eq.log.Warn("engine safe head is ahead of L1 view", "block", eq.safeHead, "origin", eq.safeHead.L1Origin)
-	} else if err != nil {
-		eq.log.Warn("failed to get L1 block ref to check if origin of l2 block is canonical", "err", err, "num", eq.safeHead.L1Origin.Number)
-	} else {
-		// if we find the safe head, then we found the canon chain
-		if canonicalRef.Hash == eq.safeHead.L1Origin.Hash {
-			eq.resetting = false
-			// if the unsafe head was broken, then restore it to start from the safe head
-			if eq.unsafeHead == (eth.L2BlockRef{}) {
-				eq.unsafeHead = eq.safeHead
-			}
-			eq.progress = Progress{
-				Origin: canonicalRef,
-				Closed: false,
-			}
-			if eq.safeHead.Time < canonicalRef.Time {
-				return fmt.Errorf("cannot reset block derivation to start at L2 block %s with time %d older than its L1 origin %s with time %d, time invariant is broken",
-					eq.safeHead, eq.safeHead.Time, canonicalRef, canonicalRef.Time)
-			}
-			return io.EOF
-		} else {
-			// if the safe head is not canonical, then the unsafe head will not be either
-			eq.unsafeHead = eth.L2BlockRef{}
-		}
-	}
-
-	// Don't walk past genesis. If we were at the L2 genesis, but could not find its L1 origin,
-	// the L2 chain is building on the wrong L1 branch.
-	if eq.safeHead.Hash == eq.cfg.Genesis.L2.Hash || eq.safeHead.Number == eq.cfg.Genesis.L2.Number {
-		return fmt.Errorf("the L2 engine is coupled to unrecognized L1 chain: %v", eq.cfg.Genesis)
-	}
-
-	// Pull L2 parent for next iteration
-	block, err := eq.engine.L2BlockRefByHash(ctx, eq.safeHead.ParentHash)
+	l2Head, err := eq.engine.L2BlockRefHead(ctx)
 	if err != nil {
-		eq.log.Error("failed to fetch L2 block by hash during reset", "parent", eq.safeHead.ParentHash, "err", err)
+		eq.log.Error("failed to find the L2 Head block", "err", err)
 		return nil
 	}
-	eq.safeHead = block
-	return nil
+	unsafe, safe, err := sync.FindL2Heads(ctx, l2Head, eq.cfg.SeqWindowSize, l1Fetcher, eq.engine, &eq.cfg.Genesis)
+	if err != nil {
+		eq.log.Error("failed to find the L2 Heads to start from", "err", err)
+		return nil
+	}
+	l1Origin, err := l1Fetcher.L1BlockRefByHash(ctx, safe.L1Origin.Hash)
+	if err != nil {
+		eq.log.Error("failed to fetch the new L1 progress", "err", err, "origin", safe.L1Origin)
+		return nil
+	}
+	if safe.Time < l1Origin.Time {
+		return fmt.Errorf("cannot reset block derivation to start at L2 block %s with time %d older than its L1 origin %s with time %d, time invariant is broken",
+			safe, safe.Time, l1Origin, l1Origin.Time)
+	}
+	eq.unsafeHead = unsafe
+	eq.safeHead = safe
+	eq.progress = Progress{
+		Origin: l1Origin,
+		Closed: false,
+	}
+	return io.EOF
+
 }

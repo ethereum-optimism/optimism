@@ -4,19 +4,18 @@
 <!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
 **Table of Contents**
 
-- [Optimism Overview](#optimism-overview)
-  - [Architecture Design Goals](#architecture-design-goals)
-  - [Components](#components)
-    - [L1 Components](#l1-components)
-    - [L2 Components](#l2-components)
-    - [Transaction/Block Propagation](#transactionblock-propagation)
-  - [Key Interactions In Depth](#key-interactions-in-depth)
-    - [Deposits](#deposits)
-    - [Block Derivation](#block-derivation)
-      - [Overview](#overview)
-      - [Epochs and the Sequencing Window](#epochs-and-the-sequencing-window)
-      - [Block Derivation Loop](#block-derivation-loop)
-    - [Engine API](#engine-api)
+- [Architecture Design Goals](#architecture-design-goals)
+- [Components](#components)
+  - [L1 Components](#l1-components)
+  - [L2 Components](#l2-components)
+  - [Transaction/Block Propagation](#transactionblock-propagation)
+- [Key Interactions In Depth](#key-interactions-in-depth)
+  - [Deposits](#deposits)
+  - [Block Derivation](#block-derivation)
+    - [Overview](#overview)
+    - [Epochs and the Sequencing Window](#epochs-and-the-sequencing-window)
+    - [Block Derivation Loop](#block-derivation-loop)
+  - [Engine API](#engine-api)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 

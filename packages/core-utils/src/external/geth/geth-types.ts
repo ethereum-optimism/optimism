@@ -36,7 +36,7 @@ export interface ChainConfig {
   londonBlock?: number
   arrowGlacierBlock?: number
   grayGlacierBlock?: number
-  mergeForkBlock?: number
+  mergeNetsplitBlock?: number
   terminalTotalDifficulty?: number
   clique?: {
     period: number
@@ -66,15 +66,16 @@ export interface Genesis {
 /**
  * Represents the chain config for an Optimism chain
  */
-export interface OptimismChainConfig {
-  enabled: boolean
-  baseFeeRecipient: string
-  l1FeeRecipient: string
+export interface OptimismChainConfig extends ChainConfig {
+  optimism: {
+    baseFeeRecipient: string
+    l1FeeRecipient: string
+  }
 }
 
 /**
  * Represents the Genesis file format for an Optimism chain
  */
 export interface OptimismGenesis extends Genesis {
-  optimism: OptimismChainConfig
+  config: OptimismChainConfig
 }

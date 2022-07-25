@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.10;
+pragma solidity 0.8.15;
 
 import { Initializable } from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
 import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
@@ -62,19 +62,6 @@ abstract contract ResourceMetering is Initializable {
      * @notice Reserve extra slots (to a total of 50) in the storage layout for future upgrades.
      */
     uint256[49] private __gap;
-
-    /**
-     * @notice Sets initial resource parameter values. This function must either be called by the
-     *         initializer function of an upgradeable child contract.
-     */
-    // solhint-disable-next-line func-name-mixedcase
-    function __ResourceMetering_init() internal onlyInitializing {
-        params = ResourceParams({
-            prevBaseFee: INITIAL_BASE_FEE,
-            prevBoughtGas: 0,
-            prevBlockNum: uint64(block.number)
-        });
-    }
 
     /**
      * @notice Meters access to a function based an amount of a requested resource.
@@ -143,7 +130,7 @@ abstract contract ResourceMetering is Initializable {
         params.prevBoughtGas += _amount;
         require(
             int256(uint256(params.prevBoughtGas)) <= MAX_RESOURCE_LIMIT,
-            "OptimismPortal: cannot buy more gas than available gas limit"
+            "ResourceMetering: cannot buy more gas than available gas limit"
         );
 
         // Determine the amount of ETH to be paid.
@@ -163,5 +150,18 @@ abstract contract ResourceMetering is Initializable {
         if (gasCost > usedGas) {
             Burn.gas(gasCost - usedGas);
         }
+    }
+
+    /**
+     * @notice Sets initial resource parameter values. This function must either be called by the
+     *         initializer function of an upgradeable child contract.
+     */
+    // solhint-disable-next-line func-name-mixedcase
+    function __ResourceMetering_init() internal onlyInitializing {
+        params = ResourceParams({
+            prevBaseFee: INITIAL_BASE_FEE,
+            prevBoughtGas: 0,
+            prevBlockNum: uint64(block.number)
+        });
     }
 }

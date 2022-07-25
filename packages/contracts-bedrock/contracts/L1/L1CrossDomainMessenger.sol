@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.9;
+pragma solidity 0.8.15;
 
-import { PredeployAddresses } from "../libraries/PredeployAddresses.sol";
+import { Predeploys } from "../libraries/Predeploys.sol";
 import { OptimismPortal } from "./OptimismPortal.sol";
 import { CrossDomainMessenger } from "../universal/CrossDomainMessenger.sol";
 import { Semver } from "../universal/Semver.sol";
@@ -35,19 +35,7 @@ contract L1CrossDomainMessenger is CrossDomainMessenger, Semver {
     function initialize() public initializer {
         address[] memory blockedSystemAddresses = new address[](1);
         blockedSystemAddresses[0] = address(this);
-        __CrossDomainMessenger_init(
-            PredeployAddresses.L2_CROSS_DOMAIN_MESSENGER,
-            blockedSystemAddresses
-        );
-    }
-
-    /**
-     * @notice Checks whether the message being sent from the other messenger.
-     *
-     * @return True if the message was sent from the messenger, false otherwise.
-     */
-    function _isOtherMessenger() internal view override returns (bool) {
-        return msg.sender == address(portal) && portal.l2Sender() == otherMessenger;
+        __CrossDomainMessenger_init(Predeploys.L2_CROSS_DOMAIN_MESSENGER, blockedSystemAddresses);
     }
 
     /**
@@ -65,5 +53,14 @@ contract L1CrossDomainMessenger is CrossDomainMessenger, Semver {
         bytes memory _data
     ) internal override {
         portal.depositTransaction{ value: _value }(_to, _value, _gasLimit, false, _data);
+    }
+
+    /**
+     * @notice Checks whether the message being sent from the other messenger.
+     *
+     * @return True if the message was sent from the messenger, false otherwise.
+     */
+    function _isOtherMessenger() internal view override returns (bool) {
+        return msg.sender == address(portal) && portal.l2Sender() == otherMessenger;
     }
 }

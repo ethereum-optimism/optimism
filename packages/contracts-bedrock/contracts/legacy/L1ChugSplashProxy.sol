@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.9;
+pragma solidity 0.8.15;
 
 /**
  * @title IL1ChugSplashDeployer
@@ -39,13 +39,6 @@ contract L1ChugSplashProxy {
      */
     bytes32 internal constant OWNER_KEY =
         0xb53127684a568b3173ae13b9f8a6016e243e63b6e8ee1178d6a717850b5d6103;
-
-    /**
-     * @param _owner Address of the initial contract owner.
-     */
-    constructor(address _owner) {
-        _setOwner(_owner);
-    }
 
     /**
      * @notice Blocks a function from being called when the parent signals that the system should
@@ -100,14 +93,21 @@ contract L1ChugSplashProxy {
         }
     }
 
+    /**
+     * @param _owner Address of the initial contract owner.
+     */
+    constructor(address _owner) {
+        _setOwner(_owner);
+    }
+
     // slither-disable-next-line locked-ether
-    fallback() external payable {
+    receive() external payable {
         // Proxy call by default.
         _doProxyCall();
     }
 
     // slither-disable-next-line locked-ether
-    receive() external payable {
+    fallback() external payable {
         // Proxy call by default.
         _doProxyCall();
     }
@@ -146,7 +146,7 @@ contract L1ChugSplashProxy {
         // should be doing this check anyway though.
         require(
             _getAccountCodeHash(newImplementation) == keccak256(_code),
-            "L1ChugSplashProxy: code was not correctly deployed."
+            "L1ChugSplashProxy: code was not correctly deployed"
         );
 
         _setImplementation(newImplementation);
@@ -206,19 +206,6 @@ contract L1ChugSplashProxy {
     }
 
     /**
-     * @notice Queries the implementation address.
-     *
-     * @return Implementation address.
-     */
-    function _getImplementation() internal view returns (address) {
-        address implementation;
-        assembly {
-            implementation := sload(IMPLEMENTATION_KEY)
-        }
-        return implementation;
-    }
-
-    /**
      * @notice Changes the owner of the proxy contract.
      *
      * @param _owner New owner of the proxy contract.
@@ -227,34 +214,6 @@ contract L1ChugSplashProxy {
         assembly {
             sstore(OWNER_KEY, _owner)
         }
-    }
-
-    /**
-     * @notice Queries the owner of the proxy contract.
-     *
-     * @return Owner address.
-     */
-    function _getOwner() internal view returns (address) {
-        address owner;
-        assembly {
-            owner := sload(OWNER_KEY)
-        }
-        return owner;
-    }
-
-    /**
-     * @notice Gets the code hash for a given account.
-     *
-     * @param _account Address of the account to get a code hash for.
-     *
-     * @return Code hash for the account.
-     */
-    function _getAccountCodeHash(address _account) internal view returns (bytes32) {
-        bytes32 codeHash;
-        assembly {
-            codeHash := extcodehash(_account)
-        }
-        return codeHash;
     }
 
     /**
@@ -285,5 +244,46 @@ contract L1ChugSplashProxy {
             // Otherwise we'll just return and pass the data up.
             return(0x0, returndatasize())
         }
+    }
+
+    /**
+     * @notice Queries the implementation address.
+     *
+     * @return Implementation address.
+     */
+    function _getImplementation() internal view returns (address) {
+        address implementation;
+        assembly {
+            implementation := sload(IMPLEMENTATION_KEY)
+        }
+        return implementation;
+    }
+
+    /**
+     * @notice Queries the owner of the proxy contract.
+     *
+     * @return Owner address.
+     */
+    function _getOwner() internal view returns (address) {
+        address owner;
+        assembly {
+            owner := sload(OWNER_KEY)
+        }
+        return owner;
+    }
+
+    /**
+     * @notice Gets the code hash for a given account.
+     *
+     * @param _account Address of the account to get a code hash for.
+     *
+     * @return Code hash for the account.
+     */
+    function _getAccountCodeHash(address _account) internal view returns (bytes32) {
+        bytes32 codeHash;
+        assembly {
+            codeHash := extcodehash(_account)
+        }
+        return codeHash;
     }
 }

@@ -1,5 +1,5 @@
-//SPDX-License-Identifier: MIT
-pragma solidity 0.8.10;
+// SPDX-License-Identifier: MIT
+pragma solidity 0.8.15;
 
 /* Testing utilities */
 import { Test } from "forge-std/Test.sol";
@@ -129,11 +129,11 @@ contract GasBenchMark_L2OutputOracle is L2OutputOracle_Initializer {
     function setUp() public override {
         super.setUp();
         nextBlockNumber = oracle.nextBlockNumber();
-        warpToAppendTime(nextBlockNumber);
-        vm.startPrank(sequencer);
+        warpToProposeTime(nextBlockNumber);
+        vm.startPrank(proposer);
     }
 
-    function test_appendL2Output_benchmark() external {
-        oracle.appendL2Output(nonZeroHash, nextBlockNumber, 0, 0);
+    function test_proposeL2Output_benchmark() external {
+        oracle.proposeL2Output(nonZeroHash, nextBlockNumber, 0, 0);
     }
 }

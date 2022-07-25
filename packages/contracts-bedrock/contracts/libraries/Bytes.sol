@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.9;
+pragma solidity ^0.8.0;
 
 /**
- * @title BytesUtils
- * @notice BytesUtils is a library for manipulating byte arrays.
+ * @title Bytes
+ * @notice Bytes is a library for manipulating byte arrays.
  */
-library BytesUtils {
+library Bytes {
     /**
      * @custom:attribution https://github.com/GNSPS/solidity-bytes-utils
      * @notice Slices a byte array with a given starting index and length. Returns a new byte array

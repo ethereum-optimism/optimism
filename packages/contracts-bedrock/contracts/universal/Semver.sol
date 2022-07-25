@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.9;
+pragma solidity ^0.8.15;
+
+import { Strings } from "@openzeppelin/contracts/utils/Strings.sol";
 
 /**
  * @title Semver
@@ -10,19 +12,19 @@ contract Semver {
      * @notice Contract version number (major).
      */
     // solhint-disable-next-line var-name-mixedcase
-    uint256 public immutable MAJOR_VERSION;
+    uint256 private immutable MAJOR_VERSION;
 
     /**
      * @notice Contract version number (minor).
      */
     // solhint-disable-next-line var-name-mixedcase
-    uint256 public immutable MINOR_VERSION;
+    uint256 private immutable MINOR_VERSION;
 
     /**
      * @notice Contract version number (patch).
      */
     // solhint-disable-next-line var-name-mixedcase
-    uint256 public immutable PATCH_VERSION;
+    uint256 private immutable PATCH_VERSION;
 
     /**
      * @param _major Version number (major).
@@ -37,5 +39,23 @@ contract Semver {
         MAJOR_VERSION = _major;
         MINOR_VERSION = _minor;
         PATCH_VERSION = _patch;
+    }
+
+    /**
+     * @notice Returns the full semver contract version.
+     *
+     * @return Semver contract version as a string.
+     */
+    function version() public view returns (string memory) {
+        return
+            string(
+                abi.encodePacked(
+                    Strings.toString(MAJOR_VERSION),
+                    ".",
+                    Strings.toString(MINOR_VERSION),
+                    ".",
+                    Strings.toString(PATCH_VERSION)
+                )
+            );
     }
 }

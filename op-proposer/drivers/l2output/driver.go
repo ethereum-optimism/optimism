@@ -109,7 +109,12 @@ func (d *Driver) GetBlockRange(
 		d.l.Error(name+" unable to get next block number", "err", err)
 		return nil, nil, err
 	}
-	latestHeader, err := d.cfg.L2Client.HeaderByNumber(ctx, nil)
+	status, err := d.cfg.RollupClient.SyncStatus(ctx)
+	if err != nil {
+		d.l.Error(name+" unable to get sync status", "err", err)
+		return nil, nil, err
+	}
+	latestHeader, err := d.cfg.L2Client.HeaderByNumber(ctx, new(big.Int).SetUint64(status.SafeL2.Number))
 	if err != nil {
 		d.l.Error(name+" unable to retrieve latest header", "err", err)
 		return nil, nil, err
@@ -185,7 +190,7 @@ func (d *Driver) CraftTx(
 	opts.Nonce = nonce
 	opts.NoSend = true
 
-	return d.l2ooContract.AppendL2Output(opts, l2OutputRoot, nextCheckpointBlock, l1Header.Hash(), l1Header.Number)
+	return d.l2ooContract.ProposeL2Output(opts, l2OutputRoot, nextCheckpointBlock, l1Header.Hash(), l1Header.Number)
 }
 
 // UpdateGasPrice signs an otherwise identical txn to the one provided but with

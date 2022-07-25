@@ -30,8 +30,8 @@ var (
 
 // L2ToL1MessagePasserMetaData contains all meta data concerning the L2ToL1MessagePasser contract.
 var L2ToL1MessagePasserMetaData = &bind.MetaData{
-	ABI: "[{\"inputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"constructor\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"uint256\",\"name\":\"nonce\",\"type\":\"uint256\"},{\"indexed\":true,\"internalType\":\"address\",\"name\":\"sender\",\"type\":\"address\"},{\"indexed\":true,\"internalType\":\"address\",\"name\":\"target\",\"type\":\"address\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"value\",\"type\":\"uint256\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"gasLimit\",\"type\":\"uint256\"},{\"indexed\":false,\"internalType\":\"bytes\",\"name\":\"data\",\"type\":\"bytes\"}],\"name\":\"WithdrawalInitiated\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"uint256\",\"name\":\"amount\",\"type\":\"uint256\"}],\"name\":\"WithdrawerBalanceBurnt\",\"type\":\"event\"},{\"inputs\":[],\"name\":\"MAJOR_VERSION\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"MINOR_VERSION\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"PATCH_VERSION\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"burn\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"_target\",\"type\":\"address\"},{\"internalType\":\"uint256\",\"name\":\"_gasLimit\",\"type\":\"uint256\"},{\"internalType\":\"bytes\",\"name\":\"_data\",\"type\":\"bytes\"}],\"name\":\"initiateWithdrawal\",\"outputs\":[],\"stateMutability\":\"payable\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"nonce\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"bytes32\",\"name\":\"\",\"type\":\"bytes32\"}],\"name\":\"sentMessages\",\"outputs\":[{\"internalType\":\"bool\",\"name\":\"\",\"type\":\"bool\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"stateMutability\":\"payable\",\"type\":\"receive\"}]",
-	Bin: "0x60e060405234801561001057600080fd5b506000608081905260a052600160c05260805160a05160c05161057d61004e600039600060c401526000610174015260006101a8015261057d6000f3fe6080604052600436106100745760003560e01c8063affed0e01161004e578063affed0e014610139578063c2b3e5ac1461014f578063c8b9153114610162578063f786becd1461019657600080fd5b806344df8e701461009d5780636bf2606a146100b257806382e3702d146100f957600080fd5b366100985761009633620186a0604051806020016040528060008152506101ca565b005b600080fd5b3480156100a957600080fd5b50610096610280565b3480156100be57600080fd5b506100e67f000000000000000000000000000000000000000000000000000000000000000081565b6040519081526020015b60405180910390f35b34801561010557600080fd5b50610129610114366004610332565b60006020819052908152604090205460ff1681565b60405190151581526020016100f0565b34801561014557600080fd5b506100e660015481565b61009661015d36600461037a565b6101ca565b34801561016e57600080fd5b506100e67f000000000000000000000000000000000000000000000000000000000000000081565b3480156101a257600080fd5b506100e67f000000000000000000000000000000000000000000000000000000000000000081565b60006101dc60015433863487876102b8565b6000818152602081905260409081902080547fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff0016600190811790915554905191925073ffffffffffffffffffffffffffffffffffffffff8616913391907f87bf7b546c8de873abb0db5b579ec131f8d0cf5b14f39933551cf9ced23a61369061026a903490899089906104e9565b60405180910390a4505060018054810190555050565b4761028a816102f7565b60405181907f7967de617a5ac1cc7eba2d6f37570a0135afa950d8bb77cdd35f0d0b4e85a16f90600090a250565b60008686868686866040516020016102d596959493929190610511565b6040516020818303038152906040528051906020012090509695505050505050565b8060405161030490610326565b6040518091039082f0905080158015610321573d6000803e3d6000fd5b505050565b60088061056983390190565b60006020828403121561034457600080fd5b5035919050565b7f4e487b7100000000000000000000000000000000000000000000000000000000600052604160045260246000fd5b60008060006060848603121561038f57600080fd5b833573ffffffffffffffffffffffffffffffffffffffff811681146103b357600080fd5b925060208401359150604084013567ffffffffffffffff808211156103d757600080fd5b818601915086601f8301126103eb57600080fd5b8135818111156103fd576103fd61034b565b604051601f82017fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0908116603f011681019083821181831017156104435761044361034b565b8160405282815289602084870101111561045c57600080fd5b8260208601602083013760006020848301015280955050505050509250925092565b6000815180845260005b818110156104a457602081850181015186830182015201610488565b818111156104b6576000602083870101525b50601f017fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0169290920160200192915050565b838152826020820152606060408201526000610508606083018461047e565b95945050505050565b868152600073ffffffffffffffffffffffffffffffffffffffff808816602084015280871660408401525084606083015283608083015260c060a083015261055c60c083018461047e565b9897505050505050505056fe608060405230fffea164736f6c634300080a000a",
+	ABI: "[{\"inputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"constructor\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"uint256\",\"name\":\"nonce\",\"type\":\"uint256\"},{\"indexed\":true,\"internalType\":\"address\",\"name\":\"sender\",\"type\":\"address\"},{\"indexed\":true,\"internalType\":\"address\",\"name\":\"target\",\"type\":\"address\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"value\",\"type\":\"uint256\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"gasLimit\",\"type\":\"uint256\"},{\"indexed\":false,\"internalType\":\"bytes\",\"name\":\"data\",\"type\":\"bytes\"}],\"name\":\"WithdrawalInitiated\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"uint256\",\"name\":\"amount\",\"type\":\"uint256\"}],\"name\":\"WithdrawerBalanceBurnt\",\"type\":\"event\"},{\"inputs\":[],\"name\":\"burn\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"_target\",\"type\":\"address\"},{\"internalType\":\"uint256\",\"name\":\"_gasLimit\",\"type\":\"uint256\"},{\"internalType\":\"bytes\",\"name\":\"_data\",\"type\":\"bytes\"}],\"name\":\"initiateWithdrawal\",\"outputs\":[],\"stateMutability\":\"payable\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"nonce\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"bytes32\",\"name\":\"\",\"type\":\"bytes32\"}],\"name\":\"sentMessages\",\"outputs\":[{\"internalType\":\"bool\",\"name\":\"\",\"type\":\"bool\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"version\",\"outputs\":[{\"internalType\":\"string\",\"name\":\"\",\"type\":\"string\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"stateMutability\":\"payable\",\"type\":\"receive\"}]",
+	Bin: "0x60e060405234801561001057600080fd5b506000608081905260a052600160c05260805160a05160c0516108e861004f60003960006102d3015260006102aa0152600061028101526108e86000f3fe60806040526004361061005e5760003560e01c806382e3702d1161004357806382e3702d146100c7578063affed0e014610107578063c2b3e5ac1461012b57600080fd5b806344df8e701461008757806354fd4d501461009c57600080fd5b366100825761008033620186a060405180602001604052806000815250610139565b005b600080fd5b34801561009357600080fd5b50610080610242565b3480156100a857600080fd5b506100b161027a565b6040516100be919061055c565b60405180910390f35b3480156100d357600080fd5b506100f76100e2366004610576565b60006020819052908152604090205460ff1681565b60405190151581526020016100be565b34801561011357600080fd5b5061011d60015481565b6040519081526020016100be565b6100806101393660046105be565b600061019e6040518060c0016040528060015481526020013373ffffffffffffffffffffffffffffffffffffffff1681526020018673ffffffffffffffffffffffffffffffffffffffff1681526020013481526020018581526020018481525061031d565b6000818152602081905260409081902080547fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff0016600190811790915554905191925073ffffffffffffffffffffffffffffffffffffffff8616913391907f87bf7b546c8de873abb0db5b579ec131f8d0cf5b14f39933551cf9ced23a61369061022c903490899089906106c2565b60405180910390a4505060018054810190555050565b4761024c8161036a565b60405181907f7967de617a5ac1cc7eba2d6f37570a0135afa950d8bb77cdd35f0d0b4e85a16f90600090a250565b60606102a57f0000000000000000000000000000000000000000000000000000000000000000610399565b6102ce7f0000000000000000000000000000000000000000000000000000000000000000610399565b6102f77f0000000000000000000000000000000000000000000000000000000000000000610399565b604051602001610309939291906106ea565b604051602081830303815290604052905090565b80516020808301516040808501516060860151608087015160a0880151935160009761034d979096959101610760565b604051602081830303815290604052805190602001209050919050565b80604051610377906104d6565b6040518091039082f0905080158015610394573d6000803e3d6000fd5b505050565b6060816000036103dc57505060408051808201909152600181527f3000000000000000000000000000000000000000000000000000000000000000602082015290565b8160005b811561040657806103f0816107e6565b91506103ff9050600a8361084d565b91506103e0565b60008167ffffffffffffffff8111156104215761042161058f565b6040519080825280601f01601f19166020018201604052801561044b576020820181803683370190505b5090505b84156104ce57610460600183610861565b915061046d600a86610878565b61047890603061088c565b60f81b81838151811061048d5761048d6108a4565b60200101907effffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff1916908160001a9053506104c7600a8661084d565b945061044f565b949350505050565b6008806108d483390190565b60005b838110156104fd5781810151838201526020016104e5565b8381111561050c576000848401525b50505050565b6000815180845261052a8160208601602086016104e2565b601f017fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0169290920160200192915050565b60208152600061056f6020830184610512565b9392505050565b60006020828403121561058857600080fd5b5035919050565b7f4e487b7100000000000000000000000000000000000000000000000000000000600052604160045260246000fd5b6000806000606084860312156105d357600080fd5b833573ffffffffffffffffffffffffffffffffffffffff811681146105f757600080fd5b925060208401359150604084013567ffffffffffffffff8082111561061b57600080fd5b818601915086601f83011261062f57600080fd5b8135818111156106415761064161058f565b604051601f82017fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0908116603f011681019083821181831017156106875761068761058f565b816040528281528960208487010111156106a057600080fd5b8260208601602083013760006020848301015280955050505050509250925092565b8381528260208201526060604082015260006106e16060830184610512565b95945050505050565b600084516106fc8184602089016104e2565b80830190507f2e000000000000000000000000000000000000000000000000000000000000008082528551610738816001850160208a016104e2565b600192019182015283516107538160028401602088016104e2565b0160020195945050505050565b868152600073ffffffffffffffffffffffffffffffffffffffff808816602084015280871660408401525084606083015283608083015260c060a08301526107ab60c0830184610512565b98975050505050505050565b7f4e487b7100000000000000000000000000000000000000000000000000000000600052601160045260246000fd5b60007fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff8203610817576108176107b7565b5060010190565b7f4e487b7100000000000000000000000000000000000000000000000000000000600052601260045260246000fd5b60008261085c5761085c61081e565b500490565b600082821015610873576108736107b7565b500390565b6000826108875761088761081e565b500690565b6000821982111561089f5761089f6107b7565b500190565b7f4e487b7100000000000000000000000000000000000000000000000000000000600052603260045260246000fdfe608060405230fffea164736f6c634300080f000a",
 }
 
 // L2ToL1MessagePasserABI is the input ABI used to generate the binding from.
@@ -201,99 +201,6 @@ func (_L2ToL1MessagePasser *L2ToL1MessagePasserTransactorRaw) Transact(opts *bin
 	return _L2ToL1MessagePasser.Contract.contract.Transact(opts, method, params...)
 }
 
-// MAJORVERSION is a free data retrieval call binding the contract method 0xf786becd.
-//
-// Solidity: function MAJOR_VERSION() view returns(uint256)
-func (_L2ToL1MessagePasser *L2ToL1MessagePasserCaller) MAJORVERSION(opts *bind.CallOpts) (*big.Int, error) {
-	var out []interface{}
-	err := _L2ToL1MessagePasser.contract.Call(opts, &out, "MAJOR_VERSION")
-
-	if err != nil {
-		return *new(*big.Int), err
-	}
-
-	out0 := *abi.ConvertType(out[0], new(*big.Int)).(**big.Int)
-
-	return out0, err
-
-}
-
-// MAJORVERSION is a free data retrieval call binding the contract method 0xf786becd.
-//
-// Solidity: function MAJOR_VERSION() view returns(uint256)
-func (_L2ToL1MessagePasser *L2ToL1MessagePasserSession) MAJORVERSION() (*big.Int, error) {
-	return _L2ToL1MessagePasser.Contract.MAJORVERSION(&_L2ToL1MessagePasser.CallOpts)
-}
-
-// MAJORVERSION is a free data retrieval call binding the contract method 0xf786becd.
-//
-// Solidity: function MAJOR_VERSION() view returns(uint256)
-func (_L2ToL1MessagePasser *L2ToL1MessagePasserCallerSession) MAJORVERSION() (*big.Int, error) {
-	return _L2ToL1MessagePasser.Contract.MAJORVERSION(&_L2ToL1MessagePasser.CallOpts)
-}
-
-// MINORVERSION is a free data retrieval call binding the contract method 0xc8b91531.
-//
-// Solidity: function MINOR_VERSION() view returns(uint256)
-func (_L2ToL1MessagePasser *L2ToL1MessagePasserCaller) MINORVERSION(opts *bind.CallOpts) (*big.Int, error) {
-	var out []interface{}
-	err := _L2ToL1MessagePasser.contract.Call(opts, &out, "MINOR_VERSION")
-
-	if err != nil {
-		return *new(*big.Int), err
-	}
-
-	out0 := *abi.ConvertType(out[0], new(*big.Int)).(**big.Int)
-
-	return out0, err
-
-}
-
-// MINORVERSION is a free data retrieval call binding the contract method 0xc8b91531.
-//
-// Solidity: function MINOR_VERSION() view returns(uint256)
-func (_L2ToL1MessagePasser *L2ToL1MessagePasserSession) MINORVERSION() (*big.Int, error) {
-	return _L2ToL1MessagePasser.Contract.MINORVERSION(&_L2ToL1MessagePasser.CallOpts)
-}
-
-// MINORVERSION is a free data retrieval call binding the contract method 0xc8b91531.
-//
-// Solidity: function MINOR_VERSION() view returns(uint256)
-func (_L2ToL1MessagePasser *L2ToL1MessagePasserCallerSession) MINORVERSION() (*big.Int, error) {
-	return _L2ToL1MessagePasser.Contract.MINORVERSION(&_L2ToL1MessagePasser.CallOpts)
-}
-
-// PATCHVERSION is a free data retrieval call binding the contract method 0x6bf2606a.
-//
-// Solidity: function PATCH_VERSION() view returns(uint256)
-func (_L2ToL1MessagePasser *L2ToL1MessagePasserCaller) PATCHVERSION(opts *bind.CallOpts) (*big.Int, error) {
-	var out []interface{}
-	err := _L2ToL1MessagePasser.contract.Call(opts, &out, "PATCH_VERSION")
-
-	if err != nil {
-		return *new(*big.Int), err
-	}
-
-	out0 := *abi.ConvertType(out[0], new(*big.Int)).(**big.Int)
-
-	return out0, err
-
-}
-
-// PATCHVERSION is a free data retrieval call binding the contract method 0x6bf2606a.
-//
-// Solidity: function PATCH_VERSION() view returns(uint256)
-func (_L2ToL1MessagePasser *L2ToL1MessagePasserSession) PATCHVERSION() (*big.Int, error) {
-	return _L2ToL1MessagePasser.Contract.PATCHVERSION(&_L2ToL1MessagePasser.CallOpts)
-}
-
-// PATCHVERSION is a free data retrieval call binding the contract method 0x6bf2606a.
-//
-// Solidity: function PATCH_VERSION() view returns(uint256)
-func (_L2ToL1MessagePasser *L2ToL1MessagePasserCallerSession) PATCHVERSION() (*big.Int, error) {
-	return _L2ToL1MessagePasser.Contract.PATCHVERSION(&_L2ToL1MessagePasser.CallOpts)
-}
-
 // Nonce is a free data retrieval call binding the contract method 0xaffed0e0.
 //
 // Solidity: function nonce() view returns(uint256)
@@ -354,6 +261,37 @@ func (_L2ToL1MessagePasser *L2ToL1MessagePasserSession) SentMessages(arg0 [32]by
 // Solidity: function sentMessages(bytes32 ) view returns(bool)
 func (_L2ToL1MessagePasser *L2ToL1MessagePasserCallerSession) SentMessages(arg0 [32]byte) (bool, error) {
 	return _L2ToL1MessagePasser.Contract.SentMessages(&_L2ToL1MessagePasser.CallOpts, arg0)
+}
+
+// Version is a free data retrieval call binding the contract method 0x54fd4d50.
+//
+// Solidity: function version() view returns(string)
+func (_L2ToL1MessagePasser *L2ToL1MessagePasserCaller) Version(opts *bind.CallOpts) (string, error) {
+	var out []interface{}
+	err := _L2ToL1MessagePasser.contract.Call(opts, &out, "version")
+
+	if err != nil {
+		return *new(string), err
+	}
+
+	out0 := *abi.ConvertType(out[0], new(string)).(*string)
+
+	return out0, err
+
+}
+
+// Version is a free data retrieval call binding the contract method 0x54fd4d50.
+//
+// Solidity: function version() view returns(string)
+func (_L2ToL1MessagePasser *L2ToL1MessagePasserSession) Version() (string, error) {
+	return _L2ToL1MessagePasser.Contract.Version(&_L2ToL1MessagePasser.CallOpts)
+}
+
+// Version is a free data retrieval call binding the contract method 0x54fd4d50.
+//
+// Solidity: function version() view returns(string)
+func (_L2ToL1MessagePasser *L2ToL1MessagePasserCallerSession) Version() (string, error) {
+	return _L2ToL1MessagePasser.Contract.Version(&_L2ToL1MessagePasser.CallOpts)
 }
 
 // Burn is a paid mutator transaction binding the contract method 0x44df8e70.

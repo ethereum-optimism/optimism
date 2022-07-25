@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.10;
+pragma solidity 0.8.15;
 
 import { Initializable } from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
 import { ExcessivelySafeCall } from "excessively-safe-call/src/ExcessivelySafeCall.sol";
 import { L2OutputOracle } from "./L2OutputOracle.sol";
+import { Types } from "../libraries/Types.sol";
 import { Hashing } from "../libraries/Hashing.sol";
 import { SecureMerkleTrie } from "../libraries/trie/SecureMerkleTrie.sol";
 import { AddressAliasHelper } from "../vendor/AddressAliasHelper.sol";
@@ -19,34 +20,9 @@ import { Semver } from "../universal/Semver.sol";
  */
 contract OptimismPortal is Initializable, ResourceMetering, Semver {
     /**
-     * @notice Emitted when a transaction is deposited from L1 to L2. The parameters of this event
-     *         are read by the rollup node and used to derive deposit transactions on L2.
-     *
-     * @param from       Address that triggered the deposit transaction.
-     * @param to         Address that the deposit transaction is directed to.
-     * @param mint       Amount of ETH to mint to the sender on L2.
-     * @param value      Amount of ETH to send to the recipient.
-     * @param gasLimit   Minimum gas limit that the message can be executed with.
-     * @param isCreation Whether the message is a contract creation.
-     * @param data       Data to attach to the message and call the recipient with.
+     * @notice Version of the deposit event.
      */
-    event TransactionDeposited(
-        address indexed from,
-        address indexed to,
-        uint256 mint,
-        uint256 value,
-        uint64 gasLimit,
-        bool isCreation,
-        bytes data
-    );
-
-    /**
-     * @notice Emitted when a withdrawal transaction is finalized.
-     *
-     * @param withdrawalHash Hash of the withdrawal transaction.
-     * @param success        Whether the withdrawal transaction was successful.
-     */
-    event WithdrawalFinalized(bytes32 indexed withdrawalHash, bool success);
+    uint256 internal constant DEPOSIT_VERSION = 0;
 
     /**
      * @notice Value used to reset the l2Sender, this is more efficient than setting it to zero.
@@ -93,6 +69,30 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
     uint256[48] private __gap;
 
     /**
+     * @notice Emitted when a transaction is deposited from L1 to L2. The parameters of this event
+     *         are read by the rollup node and used to derive deposit transactions on L2.
+     *
+     * @param from       Address that triggered the deposit transaction.
+     * @param to         Address that the deposit transaction is directed to.
+     * @param version    Version of this deposit transaction event.
+     * @param opaqueData ABI encoded deposit data to be parsed off-chain.
+     */
+    event TransactionDeposited(
+        address indexed from,
+        address indexed to,
+        uint256 indexed version,
+        bytes opaqueData
+    );
+
+    /**
+     * @notice Emitted when a withdrawal transaction is finalized.
+     *
+     * @param withdrawalHash Hash of the withdrawal transaction.
+     * @param success        Whether the withdrawal transaction was successful.
+     */
+    event WithdrawalFinalized(bytes32 indexed withdrawalHash, bool success);
+
+    /**
      * @custom:semver 0.0.1
      *
      * @param _l2Oracle                  Address of the L2OutputOracle contract.
@@ -105,14 +105,6 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
     }
 
     /**
-     * @notice Initializer;
-     */
-    function initialize() public initializer {
-        l2Sender = DEFAULT_L2_SENDER;
-        __ResourceMetering_init();
-    }
-
-    /**
      * @notice Accepts value so that users can send ETH directly to this contract and have the
      *         funds be deposited to their address on L2. This is intended as a convenience
      *         function for EOAs. Contracts should call the depositTransaction() function directly
@@ -120,6 +112,123 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
      */
     receive() external payable {
         depositTransaction(msg.sender, msg.value, RECEIVE_DEFAULT_GAS_LIMIT, false, bytes(""));
+    }
+
+    /**
+     * @notice Finalizes a withdrawal transaction.
+     *
+     * @param _tx              Withdrawal transaction to finalize.
+     * @param _l2BlockNumber   L2 block number of the outputRoot.
+     * @param _outputRootProof Inclusion proof of the withdrawer contracts storage root.
+     * @param _withdrawalProof Inclusion proof for the given withdrawal in the withdrawer contract.
+     */
+    function finalizeWithdrawalTransaction(
+        Types.WithdrawalTransaction memory _tx,
+        uint256 _l2BlockNumber,
+        Types.OutputRootProof calldata _outputRootProof,
+        bytes calldata _withdrawalProof
+    ) external payable {
+        // Prevent nested withdrawals within withdrawals.
+        require(
+            l2Sender == DEFAULT_L2_SENDER,
+            "OptimismPortal: can only trigger one withdrawal per transaction"
+        );
+
+        // Prevent users from creating a deposit transaction where this address is the message
+        // sender on L2.
+        require(
+            _tx.target != address(this),
+            "OptimismPortal: you cannot send messages to the portal contract"
+        );
+
+        // Get the output root. This will fail if there is no
+        // output root for the given block number.
+        Types.OutputProposal memory proposal = L2_ORACLE.getL2Output(_l2BlockNumber);
+
+        // Ensure that enough time has passed since the proposal was submitted before allowing a
+        // withdrawal. Under the assumption that the fault proof mechanism is operating correctly,
+        // we can infer that any withdrawal that has passed the finalization period must be valid
+        // and can therefore be operated on.
+        require(_isOutputFinalized(proposal), "OptimismPortal: proposal is not yet finalized");
+
+        // Verify that the output root can be generated with the elements in the proof.
+        require(
+            proposal.outputRoot == Hashing.hashOutputRootProof(_outputRootProof),
+            "OptimismPortal: invalid output root proof"
+        );
+
+        // All withdrawals have a unique hash, we'll use this as the identifier for the withdrawal
+        // and to prevent replay attacks.
+        bytes32 withdrawalHash = Hashing.hashWithdrawal(_tx);
+
+        // Verify that the hash of this withdrawal was stored in the withdrawal contract on L2. If
+        // this is true, then we know that this withdrawal was actually triggered on L2 can can
+        // therefore be relayed on L1.
+        require(
+            _verifyWithdrawalInclusion(
+                withdrawalHash,
+                _outputRootProof.withdrawerStorageRoot,
+                _withdrawalProof
+            ),
+            "OptimismPortal: invalid withdrawal inclusion proof"
+        );
+
+        // Check that this withdrawal has not already been finalized, this is replay protection.
+        require(
+            finalizedWithdrawals[withdrawalHash] == false,
+            "OptimismPortal: withdrawal has already been finalized"
+        );
+
+        // Mark the withdrawal as finalized so it can't be replayed.
+        finalizedWithdrawals[withdrawalHash] = true;
+
+        // We want to maintain the property that the amount of gas supplied to the call to the
+        // target contract is at least the gas limit specified by the user. We can do this by
+        // enforcing that, at this point in time, we still have gaslimit + buffer gas available.
+        require(
+            gasleft() >= _tx.gasLimit + FINALIZE_GAS_BUFFER,
+            "OptimismPortal: insufficient gas to finalize withdrawal"
+        );
+
+        // Set the l2Sender so contracts know who triggered this withdrawal on L2.
+        l2Sender = _tx.sender;
+
+        // Trigger the call to the target contract. We use excessivelySafeCall because we don't
+        // care about the returndata and we don't want target contracts to be able to force this
+        // call to run out of gas.
+        (bool success, ) = ExcessivelySafeCall.excessivelySafeCall(
+            _tx.target,
+            _tx.gasLimit,
+            _tx.value,
+            0,
+            _tx.data
+        );
+
+        // Reset the l2Sender back to the default value.
+        l2Sender = DEFAULT_L2_SENDER;
+
+        // All withdrawals are immediately finalized. Replayability can
+        // be achieved through contracts built on top of this contract
+        emit WithdrawalFinalized(withdrawalHash, success);
+    }
+
+    /**
+     * @notice Determine if a given block number is finalized. Reverts if the call to
+     *         L2_ORACLE.getL2Output reverts. Returns a boolean otherwise.
+     *
+     * @param _l2BlockNumber The number of the L2 block.
+     */
+    function isBlockFinalized(uint256 _l2BlockNumber) external view returns (bool) {
+        Types.OutputProposal memory proposal = L2_ORACLE.getL2Output(_l2BlockNumber);
+        return _isOutputFinalized(proposal);
+    }
+
+    /**
+     * @notice Initializer;
+     */
+    function initialize() public initializer {
+        l2Sender = DEFAULT_L2_SENDER;
+        __ResourceMetering_init();
     }
 
     /**
@@ -156,156 +265,30 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
             from = AddressAliasHelper.applyL1ToL2Alias(msg.sender);
         }
 
+        bytes memory opaqueData = abi.encodePacked(
+            msg.value,
+            _value,
+            _gasLimit,
+            _isCreation,
+            _data
+        );
+
         // Emit a TransactionDeposited event so that the rollup node can derive a deposit
         // transaction for this deposit.
-        emit TransactionDeposited(from, _to, msg.value, _value, _gasLimit, _isCreation, _data);
+        emit TransactionDeposited(from, _to, DEPOSIT_VERSION, opaqueData);
     }
 
     /**
      * @notice Determine if an L2 Output is finalized.
      *
-     * @param _l2BlockNumber The number of the L2 block.
+     * @param _proposal The output proposal to check.
      */
-
-    function isOutputFinalized(uint256 _l2BlockNumber) external view returns (bool) {
-        L2OutputOracle.OutputProposal memory proposal = L2_ORACLE.getL2Output(_l2BlockNumber);
-
-        if (proposal.outputRoot == bytes32(uint256(0))) {
-            uint256 interval = L2_ORACLE.SUBMISSION_INTERVAL();
-            uint256 startingBlockNumber = L2_ORACLE.STARTING_BLOCK_NUMBER();
-
-            // Prevent underflow
-            if (startingBlockNumber > _l2BlockNumber) {
-                return false;
-            }
-
-            // Find the distance between the _l2BlockNumber, and the checkpoint block before it.
-            uint256 offset = (_l2BlockNumber - startingBlockNumber) % interval;
-            // Look up the checkpoint block after it.
-            proposal = L2_ORACLE.getL2Output(_l2BlockNumber + (interval - offset));
-            // False if that block is not yet appended.
-            if (proposal.outputRoot == bytes32(uint256(0))) {
-                return false;
-            }
-        }
-        return block.timestamp > proposal.timestamp + FINALIZATION_PERIOD_SECONDS;
-    }
-
-    /**
-     * @notice Finalizes a withdrawal transaction.
-     *
-     * @param _nonce           Nonce for the provided message.
-     * @param _sender          Message sender address on L2.
-     * @param _target          Target address on L1.
-     * @param _value           ETH to send to the target.
-     * @param _gasLimit        Minumum gas to be forwarded to the target.
-     * @param _data            Data to send to the target.
-     * @param _l2BlockNumber   L2 block number of the outputRoot.
-     * @param _outputRootProof Inclusion proof of the withdrawer contracts storage root.
-     * @param _withdrawalProof Inclusion proof for the given withdrawal in the withdrawer contract.
-     */
-    function finalizeWithdrawalTransaction(
-        uint256 _nonce,
-        address _sender,
-        address _target,
-        uint256 _value,
-        uint256 _gasLimit,
-        bytes calldata _data,
-        uint256 _l2BlockNumber,
-        Hashing.OutputRootProof calldata _outputRootProof,
-        bytes calldata _withdrawalProof
-    ) external payable {
-        // Prevent nested withdrawals within withdrawals.
-        require(
-            l2Sender == DEFAULT_L2_SENDER,
-            "OptimismPortal: can only trigger one withdrawal per transaction"
-        );
-
-        // Prevent users from creating a deposit transaction where this address is the message
-        // sender on L2.
-        require(
-            _target != address(this),
-            "OptimismPortal: you cannot send messages to the portal contract"
-        );
-
-        // Get the output root.
-        L2OutputOracle.OutputProposal memory proposal = L2_ORACLE.getL2Output(_l2BlockNumber);
-
-        // Ensure that enough time has passed since the proposal was submitted before allowing a
-        // withdrawal. Under the assumption that the fault proof mechanism is operating correctly,
-        // we can infer that any withdrawal that has passed the finalization period must be valid
-        // and can therefore be operated on.
-        require(
-            block.timestamp > proposal.timestamp + FINALIZATION_PERIOD_SECONDS,
-            "OptimismPortal: proposal is not yet finalized"
-        );
-
-        // Verify that the output root can be generated with the elements in the proof.
-        require(
-            proposal.outputRoot == Hashing.hashOutputRootProof(_outputRootProof),
-            "OptimismPortal: invalid output root proof"
-        );
-
-        // All withdrawals have a unique hash, we'll use this as the identifier for the withdrawal
-        // and to prevent replay attacks.
-        bytes32 withdrawalHash = Hashing.hashWithdrawal(
-            _nonce,
-            _sender,
-            _target,
-            _value,
-            _gasLimit,
-            _data
-        );
-
-        // Verify that the hash of this withdrawal was stored in the withdrawal contract on L2. If
-        // this is true, then we know that this withdrawal was actually triggered on L2 can can
-        // therefore be relayed on L1.
-        require(
-            _verifyWithdrawalInclusion(
-                withdrawalHash,
-                _outputRootProof.withdrawerStorageRoot,
-                _withdrawalProof
-            ),
-            "OptimismPortal: invalid withdrawal inclusion proof"
-        );
-
-        // Check that this withdrawal has not already been finalized, this is replay protection.
-        require(
-            finalizedWithdrawals[withdrawalHash] == false,
-            "OptimismPortal: withdrawal has already been finalized"
-        );
-
-        // Mark the withdrawal as finalized so it can't be replayed.
-        finalizedWithdrawals[withdrawalHash] = true;
-
-        // We want to maintain the property that the amount of gas supplied to the call to the
-        // target contract is at least the gas limit specified by the user. We can do this by
-        // enforcing that, at this point in time, we still have gaslimit + buffer gas available.
-        require(
-            gasleft() >= _gasLimit + FINALIZE_GAS_BUFFER,
-            "OptimismPortal: insufficient gas to finalize withdrawal"
-        );
-
-        // Set the l2Sender so contracts know who triggered this withdrawal on L2.
-        l2Sender = _sender;
-
-        // Trigger the call to the target contract. We use excessivelySafeCall because we don't
-        // care about the returndata and we don't want target contracts to be able to force this
-        // call to run out of gas.
-        (bool success, ) = ExcessivelySafeCall.excessivelySafeCall(
-            _target,
-            _gasLimit,
-            _value,
-            0,
-            _data
-        );
-
-        // Reset the l2Sender back to the default value.
-        l2Sender = DEFAULT_L2_SENDER;
-
-        // All withdrawals are immediately finalized. Replayability can
-        // be achieved through contracts built on top of this contract
-        emit WithdrawalFinalized(withdrawalHash, success);
+    function _isOutputFinalized(Types.OutputProposal memory _proposal)
+        internal
+        view
+        returns (bool)
+    {
+        return block.timestamp > _proposal.timestamp + FINALIZATION_PERIOD_SECONDS;
     }
 
     /**

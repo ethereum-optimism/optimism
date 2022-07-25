@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.9;
+pragma solidity 0.8.15;
 
 import { CommonTest } from "./CommonTest.t.sol";
 import { LegacyERC20ETH } from "../legacy/LegacyERC20ETH.sol";
-import { PredeployAddresses } from "../libraries/PredeployAddresses.sol";
+import { Predeploys } from "../libraries/Predeploys.sol";
 
 contract LegacyERC20ETH_Test is CommonTest {
     LegacyERC20ETH eth;
@@ -19,7 +19,7 @@ contract LegacyERC20ETH_Test is CommonTest {
     }
 
     function test_crossDomain() external {
-        assertEq(eth.l2Bridge(), PredeployAddresses.L2_STANDARD_BRIDGE);
+        assertEq(eth.l2Bridge(), Predeploys.L2_STANDARD_BRIDGE);
         assertEq(eth.l1Token(), address(0));
     }
 

@@ -1,17 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.10;
-
-/**
- * @title Burner
- * @notice Burner self-destructs on creation and sends all ETH to itself, removing all ETH given to
- *         the contract from the circulating supply. Self-destructing is the only way to remove ETH
- *         from the circulating supply.
- */
-contract Burner {
-    constructor() payable {
-        selfdestruct(payable(address(this)));
-    }
-}
+pragma solidity 0.8.15;
 
 /**
  * @title Burn
@@ -38,5 +26,17 @@ library Burn {
         while (initialGas - gasleft() < _amount) {
             ++i;
         }
+    }
+}
+
+/**
+ * @title Burner
+ * @notice Burner self-destructs on creation and sends all ETH to itself, removing all ETH given to
+ *         the contract from the circulating supply. Self-destructing is the only way to remove ETH
+ *         from the circulating supply.
+ */
+contract Burner {
+    constructor() payable {
+        selfdestruct(payable(address(this)));
     }
 }

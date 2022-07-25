@@ -89,7 +89,7 @@ export const CONTRACT_ADDRESSES: {
         '0x5086d1eEF304eb5284A0f6720f79403b4e9bE294' as const,
       L1StandardBridge: '0x636Af16bf2f682dD3109e60102b8E1A089FedAa8' as const,
       StateCommitmentChain:
-        '0x72281826E90dD8A65Ab686fF254eb45Be426DD22' as const,
+        '0x9c945aC97Baf48cB784AbBB61399beB71aF7A378' as const,
       CanonicalTransactionChain:
         '0x607F755149cFEB3a14E1Dc3A4E2450Cde7dfb04D' as const,
       BondManager: '0xfC2ab6987C578218f99E85d61Dcf4814A26637Bd' as const,
