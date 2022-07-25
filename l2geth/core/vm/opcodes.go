@@ -218,6 +218,7 @@ const (
 	STATICCALL = 0xfa
 
 	REVERT       = 0xfd
+	INVALID      = 0xfe
 	SELFDESTRUCT = 0xff
 )
 
@@ -386,6 +387,7 @@ var opCodeToString = map[OpCode]string{
 	CREATE2:      "CREATE2",
 	STATICCALL:   "STATICCALL",
 	REVERT:       "REVERT",
+	INVALID:      "INVALID",
 	SELFDESTRUCT: "SELFDESTRUCT",
 
 	PUSH: "PUSH",
@@ -543,6 +545,7 @@ var stringToOp = map[string]OpCode{
 	"RETURN":         RETURN,
 	"CALLCODE":       CALLCODE,
 	"REVERT":         REVERT,
+	"INVALID":        INVALID,
 	"SELFDESTRUCT":   SELFDESTRUCT,
 
 	// OVM opcodes
