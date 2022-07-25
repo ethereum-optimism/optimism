@@ -1,5 +1,28 @@
 # @eth-optimism/contracts-bedrock
 
+## 0.5.2
+
+### Patch Changes
+
+- 1a22e822: Standardizes revert strings globally
+- 5e113137: Fixes a bug in the L2 Bedrock genesis script
+- 177a9ea8: Cleans linting errors in MerkleTrie.sol
+- 7d68f82f: Adds a new event SentMessageExtension1 to the CrossDomainMessenger contract. Includes additional data that's being attached to messages sent after the Bedrock upgrade.
+- 90630336: Properly generates and exports ABI and artifact files that can be imported by client libraries
+- 8bd7abde: Moves various legacy contracts into the legacy folder
+- 7e6eb9b2: The output oracle's getL2Output function now reverts when no output is returned
+- f243dacf: Bump to use solidity 0.8.15
+- 8d26459b: Remove subversion byte from deposit tx
+- fa9823f3: Naming improvements for functions and variables in the L2OutputOracle
+- 0bf3b9b4: Update forge-std
+- e764cbb7: Shortens library names
+- 3a0271f8: Introduces Types.sol
+- 5de373ea: Semver contract updated to include a getter for the full version string
+- Updated dependencies [0bf3b9b4]
+- Updated dependencies [8d26459b]
+- Updated dependencies [4477fe9f]
+  - @eth-optimism/core-utils@0.9.2
+
 ## 0.5.1
 
 ### Patch Changes

@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.5.31
+
+### Patch Changes
+
+- 1de4f48e: Deploy goerli SCC to fix sccFaultProofWindowSeconds
+- Updated dependencies [0bf3b9b4]
+- Updated dependencies [8d26459b]
+- Updated dependencies [4477fe9f]
+  - @eth-optimism/core-utils@0.9.2
+
 ## 0.5.30
 
 ### Patch Changes
