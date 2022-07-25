@@ -85,8 +85,18 @@ export class CrossChainMessenger implements ICrossChainMessenger {
   }) {
     this.l1SignerOrProvider = toSignerOrProvider(opts.l1SignerOrProvider)
     this.l2SignerOrProvider = toSignerOrProvider(opts.l2SignerOrProvider)
-    this.l1ChainId = toNumber(opts.l1ChainId)
-    this.l2ChainId = toNumber(opts.l2ChainId)
+
+    try {
+      this.l1ChainId = toNumber(opts.l1ChainId)
+    } catch (err) {
+      throw new Error(`L1 chain ID is missing or invalid: ${opts.l1ChainId}`)
+    }
+
+    try {
+      this.l2ChainId = toNumber(opts.l2ChainId)
+    } catch (err) {
+      throw new Error(`L2 chain ID is missing or invalid: ${opts.l2ChainId}`)
+    }
 
     this.depositConfirmationBlocks =
       opts?.depositConfirmationBlocks !== undefined
