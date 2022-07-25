@@ -99,16 +99,19 @@ task('deposit', 'Deposits funds onto L2.')
       if (expected) {
         console.log('Deposit success')
         console.log(JSON.stringify(expected, null, 2))
+        console.log('Receipt:')
+        const l2Receipt = await l2Provider.getTransactionReceipt(hash)
+        console.log(JSON.stringify(l2Receipt, null, 2))
         break
-      }
-      const postL2Balance = await l2Provider.getBalance(to)
-      if (postL2Balance.gt(preL2Balance)) {
-        console.log(
-          `Unexpected balance increase without detecting deposit transaction`
-        )
       }
 
       if (i % 100 === 0) {
+        const postL2Balance = await l2Provider.getBalance(to)
+        if (postL2Balance.gt(preL2Balance)) {
+          console.log(
+            `Unexpected balance increase without detecting deposit transaction`
+          )
+        }
         const block = await l2Provider.getBlock('latest')
         console.log(`latest block ${block.number}:${block.hash}`)
       }
