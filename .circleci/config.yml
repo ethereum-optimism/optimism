@@ -15,7 +15,7 @@ jobs:
           name: Check if we should run
           command: |
             shopt -s inherit_errexit
-            CHANGED=$(check-changed "packages/")
+            CHANGED=$(check-changed "(op-bindings|packages/)")
             if [[ "$CHANGED" = "FALSE" ]]; then
               circleci step halt
             fi
