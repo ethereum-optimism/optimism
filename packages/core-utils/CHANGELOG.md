@@ -1,5 +1,13 @@
 # @eth-optimism/core-utils
 
+## 0.9.2
+
+### Patch Changes
+
+- 0bf3b9b4: Add encoding and hashing functions for bedrock
+- 8d26459b: Remove subversion byte from deposit tx
+- 4477fe9f: Update deposit transaction serialization
+
 ## 0.9.1
 
 ### Patch Changes

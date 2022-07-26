@@ -16,6 +16,17 @@ import { Semver } from "../universal/Semver.sol";
  */
 contract DeployerWhitelist is Semver {
     /**
+     * @notice Address of the owner of this contract. Note that when this address is set to
+     *         address(0), the whitelist is disabled.
+     */
+    address public owner;
+
+    /**
+     * @notice Mapping of deployer addresses to boolean whitelist status.
+     */
+    mapping(address => bool) public whitelist;
+
+    /**
      * @notice Emitted when the owner of this contract changes.
      *
      * @param oldOwner Address of the previous owner.
@@ -39,22 +50,6 @@ contract DeployerWhitelist is Semver {
     event WhitelistDisabled(address oldOwner);
 
     /**
-     * @notice Address of the owner of this contract. Note that when this address is set to
-     *         address(0), the whitelist is disabled.
-     */
-    address public owner;
-
-    /**
-     * @notice Mapping of deployer addresses to boolean whitelist status.
-     */
-    mapping(address => bool) public whitelist;
-
-    /**
-     * @custom:semver 0.0.1
-     */
-    constructor() Semver(0, 0, 1) {}
-
-    /**
      * @notice Blocks functions to anyone except the contract owner.
      */
     modifier onlyOwner() {
@@ -64,6 +59,11 @@ contract DeployerWhitelist is Semver {
         );
         _;
     }
+
+    /**
+     * @custom:semver 0.0.1
+     */
+    constructor() Semver(0, 0, 1) {}
 
     /**
      * @notice Adds or removes an address from the deployment whitelist.

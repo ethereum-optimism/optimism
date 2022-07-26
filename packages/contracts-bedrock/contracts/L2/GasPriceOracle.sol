@@ -45,15 +45,6 @@ contract GasPriceOracle is Ownable, Semver {
     uint256 public decimals;
 
     /**
-     * @custom:semver 0.0.1
-     *
-     * @param _owner Address that will initially own this contract.
-     */
-    constructor(address _owner) Ownable() Semver(0, 0, 1) {
-        transferOwnership(_owner);
-    }
-
-    /**
      * @notice Emitted when the overhead value is updated.
      */
     event OverheadUpdated(uint256 overhead);
@@ -69,30 +60,12 @@ contract GasPriceOracle is Ownable, Semver {
     event DecimalsUpdated(uint256 decimals);
 
     /**
-     * @notice Retrieves the current gas price (base fee).
+     * @custom:semver 0.0.1
      *
-     * @return Current L2 gas price (base fee).
+     * @param _owner Address that will initially own this contract.
      */
-    function gasPrice() public view returns (uint256) {
-        return block.basefee;
-    }
-
-    /**
-     * @notice Retrieves the current base fee.
-     *
-     * @return Current L2 base fee.
-     */
-    function baseFee() public view returns (uint256) {
-        return block.basefee;
-    }
-
-    /**
-     * @notice Retrieves the latest known L1 base fee.
-     *
-     * @return Latest known L1 base fee.
-     */
-    function l1BaseFee() public view returns (uint256) {
-        return L1Block(Predeploys.L1_BLOCK_ATTRIBUTES).basefee();
+    constructor(address _owner) Ownable() Semver(0, 0, 1) {
+        transferOwnership(_owner);
     }
 
     /**
@@ -140,6 +113,33 @@ contract GasPriceOracle is Ownable, Semver {
         uint256 unscaled = l1Fee * scalar;
         uint256 scaled = unscaled / divisor;
         return scaled;
+    }
+
+    /**
+     * @notice Retrieves the current gas price (base fee).
+     *
+     * @return Current L2 gas price (base fee).
+     */
+    function gasPrice() public view returns (uint256) {
+        return block.basefee;
+    }
+
+    /**
+     * @notice Retrieves the current base fee.
+     *
+     * @return Current L2 base fee.
+     */
+    function baseFee() public view returns (uint256) {
+        return block.basefee;
+    }
+
+    /**
+     * @notice Retrieves the latest known L1 base fee.
+     *
+     * @return Latest known L1 base fee.
+     */
+    function l1BaseFee() public view returns (uint256) {
+        return L1Block(Predeploys.L1_BLOCK_ATTRIBUTES).basefee();
     }
 
     /**

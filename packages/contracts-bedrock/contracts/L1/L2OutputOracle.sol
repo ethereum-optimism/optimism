@@ -17,40 +17,6 @@ import { Types } from "../libraries/Types.sol";
 // slither-disable-next-line locked-ether
 contract L2OutputOracle is OwnableUpgradeable, Semver {
     /**
-     * @notice Emitted when an output is proposed.
-     *
-     * @param outputRoot    The output root.
-     * @param l1Timestamp   The L1 timestamp when proposed.
-     * @param l2BlockNumber The L2 block number of the output root.
-     */
-    event OutputProposed(
-        bytes32 indexed outputRoot,
-        uint256 indexed l1Timestamp,
-        uint256 indexed l2BlockNumber
-    );
-
-    /**
-     * @notice Emitted when an output is deleted.
-     *
-     * @param outputRoot    The output root.
-     * @param l1Timestamp   The L1 timestamp when proposed.
-     * @param l2BlockNumber The L2 block number of the output root.
-     */
-    event OutputDeleted(
-        bytes32 indexed outputRoot,
-        uint256 indexed l1Timestamp,
-        uint256 indexed l2BlockNumber
-    );
-
-    /**
-     * @notice Emitted when the proposer address is changed.
-     *
-     * @param previousProposer The previous proposer address.
-     * @param newProposer      The new proposer address.
-     */
-    event ProposerChanged(address indexed previousProposer, address indexed newProposer);
-
-    /**
      * @notice The interval in L2 blocks at which checkpoints must be submitted.
      */
     // solhint-disable-next-line var-name-mixedcase
@@ -98,6 +64,40 @@ contract L2OutputOracle is OwnableUpgradeable, Semver {
     mapping(uint256 => Types.OutputProposal) internal l2Outputs;
 
     /**
+     * @notice Emitted when an output is proposed.
+     *
+     * @param outputRoot    The output root.
+     * @param l1Timestamp   The L1 timestamp when proposed.
+     * @param l2BlockNumber The L2 block number of the output root.
+     */
+    event OutputProposed(
+        bytes32 indexed outputRoot,
+        uint256 indexed l1Timestamp,
+        uint256 indexed l2BlockNumber
+    );
+
+    /**
+     * @notice Emitted when an output is deleted.
+     *
+     * @param outputRoot    The output root.
+     * @param l1Timestamp   The L1 timestamp when proposed.
+     * @param l2BlockNumber The L2 block number of the output root.
+     */
+    event OutputDeleted(
+        bytes32 indexed outputRoot,
+        uint256 indexed l1Timestamp,
+        uint256 indexed l2BlockNumber
+    );
+
+    /**
+     * @notice Emitted when the proposer address is changed.
+     *
+     * @param previousProposer The previous proposer address.
+     * @param newProposer      The new proposer address.
+     */
+    event ProposerChanged(address indexed previousProposer, address indexed newProposer);
+
+    /**
      * @notice Reverts if called by any account other than the proposer.
      */
     modifier onlyProposer() {
@@ -142,24 +142,31 @@ contract L2OutputOracle is OwnableUpgradeable, Semver {
     }
 
     /**
-     * @notice Initializer.
+     * @notice Deletes the most recent output. This is used to remove the most recent output in the
+     *         event that an erreneous output is submitted. It can only be called by the contract's
+     *         owner, not the proposer. Longer term, this should be replaced with a more robust
+     *         mechanism which will allow deletion of proposals shown to be invalid by a fault
+     *         proof.
      *
-     * @param _genesisL2Output     The initial L2 output of the L2 chain.
-     * @param _startingBlockNumber The timestamp to start L2 block at.
-     * @param _proposer            The address of the proposer.
-     * @param _owner               The address of the owner.
+     * @param _proposal Represents the output proposal to delete
      */
-    function initialize(
-        bytes32 _genesisL2Output,
-        uint256 _startingBlockNumber,
-        address _proposer,
-        address _owner
-    ) public initializer {
-        l2Outputs[_startingBlockNumber] = Types.OutputProposal(_genesisL2Output, block.timestamp);
-        latestBlockNumber = _startingBlockNumber;
-        __Ownable_init();
-        changeProposer(_proposer);
-        _transferOwnership(_owner);
+    function deleteL2Output(Types.OutputProposal memory _proposal) external onlyOwner {
+        Types.OutputProposal memory outputToDelete = l2Outputs[latestBlockNumber];
+
+        require(
+            _proposal.outputRoot == outputToDelete.outputRoot,
+            "L2OutputOracle: output root to delete does not match the latest output proposal"
+        );
+
+        require(
+            _proposal.timestamp == outputToDelete.timestamp,
+            "L2OutputOracle: timestamp to delete does not match the latest output proposal"
+        );
+
+        emit OutputDeleted(outputToDelete.outputRoot, outputToDelete.timestamp, latestBlockNumber);
+
+        delete l2Outputs[latestBlockNumber];
+        latestBlockNumber = latestBlockNumber - SUBMISSION_INTERVAL;
     }
 
     /**
@@ -215,41 +222,6 @@ contract L2OutputOracle is OwnableUpgradeable, Semver {
     }
 
     /**
-     * @notice Deletes the most recent output. This is used to remove the most recent output in the
-     *         event that an erreneous output is submitted. It can only be called by the contract's
-     *         owner, not the proposer. Longer term, this should be replaced with a more robust
-     *         mechanism which will allow deletion of proposals shown to be invalid by a fault
-     *         proof.
-     *
-     * @param _proposal Represents the output proposal to delete
-     */
-    function deleteL2Output(Types.OutputProposal memory _proposal) external onlyOwner {
-        Types.OutputProposal memory outputToDelete = l2Outputs[latestBlockNumber];
-
-        require(
-            _proposal.outputRoot == outputToDelete.outputRoot,
-            "L2OutputOracle: output root to delete does not match the latest output proposal"
-        );
-
-        require(
-            _proposal.timestamp == outputToDelete.timestamp,
-            "L2OutputOracle: timestamp to delete does not match the latest output proposal"
-        );
-
-        emit OutputDeleted(outputToDelete.outputRoot, outputToDelete.timestamp, latestBlockNumber);
-
-        delete l2Outputs[latestBlockNumber];
-        latestBlockNumber = latestBlockNumber - SUBMISSION_INTERVAL;
-    }
-
-    /**
-     * @notice Computes the block number of the next L2 block that needs to be checkpointed.
-     */
-    function nextBlockNumber() public view returns (uint256) {
-        return latestBlockNumber + SUBMISSION_INTERVAL;
-    }
-
-    /**
      * @notice Returns the L2 output proposal associated with a target L2 block number. If the
      *         L2 block number provided is between checkpoints, this function will rerutn the next
      *         proposal for the next checkpoint.
@@ -286,18 +258,24 @@ contract L2OutputOracle is OwnableUpgradeable, Semver {
     }
 
     /**
-     * @notice Returns the L2 timestamp corresponding to a given L2 block number.
-     *         Returns a null output proposal if none is found.
+     * @notice Initializer.
      *
-     * @param _l2BlockNumber The L2 block number of the target block.
+     * @param _genesisL2Output     The initial L2 output of the L2 chain.
+     * @param _startingBlockNumber The timestamp to start L2 block at.
+     * @param _proposer            The address of the proposer.
+     * @param _owner               The address of the owner.
      */
-    function computeL2Timestamp(uint256 _l2BlockNumber) public view returns (uint256) {
-        require(
-            _l2BlockNumber >= STARTING_BLOCK_NUMBER,
-            "L2OutputOracle: block number must be greater than or equal to starting block number"
-        );
-
-        return STARTING_TIMESTAMP + ((_l2BlockNumber - STARTING_BLOCK_NUMBER) * L2_BLOCK_TIME);
+    function initialize(
+        bytes32 _genesisL2Output,
+        uint256 _startingBlockNumber,
+        address _proposer,
+        address _owner
+    ) public initializer {
+        l2Outputs[_startingBlockNumber] = Types.OutputProposal(_genesisL2Output, block.timestamp);
+        latestBlockNumber = _startingBlockNumber;
+        __Ownable_init();
+        changeProposer(_proposer);
+        _transferOwnership(_owner);
     }
 
     /**
@@ -317,5 +295,27 @@ contract L2OutputOracle is OwnableUpgradeable, Semver {
 
         emit ProposerChanged(proposer, _newProposer);
         proposer = _newProposer;
+    }
+
+    /**
+     * @notice Computes the block number of the next L2 block that needs to be checkpointed.
+     */
+    function nextBlockNumber() public view returns (uint256) {
+        return latestBlockNumber + SUBMISSION_INTERVAL;
+    }
+
+    /**
+     * @notice Returns the L2 timestamp corresponding to a given L2 block number.
+     *         Returns a null output proposal if none is found.
+     *
+     * @param _l2BlockNumber The L2 block number of the target block.
+     */
+    function computeL2Timestamp(uint256 _l2BlockNumber) public view returns (uint256) {
+        require(
+            _l2BlockNumber >= STARTING_BLOCK_NUMBER,
+            "L2OutputOracle: block number must be greater than or equal to starting block number"
+        );
+
+        return STARTING_TIMESTAMP + ((_l2BlockNumber - STARTING_BLOCK_NUMBER) * L2_BLOCK_TIME);
     }
 }

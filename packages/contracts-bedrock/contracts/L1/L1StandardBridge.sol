@@ -95,22 +95,26 @@ contract L1StandardBridge is StandardBridge, Semver {
     }
 
     /**
-     * @notice Initializer.
-     *
-     * @param _messenger Address of the L1CrossDomainMessenger.
-     */
-    function initialize(address payable _messenger) public initializer {
-        __StandardBridge_init(_messenger, payable(Predeploys.L2_STANDARD_BRIDGE));
-    }
-
-    /**
      * @custom:legacy
-     * @notice Retrieves the access of the corresponding L2 bridge contract.
+     * @notice Finalizes a withdrawal of ERC20 tokens from L2.
      *
-     * @return Address of the corresponding L2 bridge contract.
+     * @param _l1Token   Address of the token on L1.
+     * @param _l2Token   Address of the corresponding token on L2.
+     * @param _from      Address of the withdrawer on L2.
+     * @param _to        Address of the recipient on L1.
+     * @param _amount    Amount of ETH to withdraw.
+     * @param _extraData Optional data forwarded from L2.
      */
-    function l2TokenBridge() external view returns (address) {
-        return address(otherBridge);
+    function finalizeERC20Withdrawal(
+        address _l1Token,
+        address _l2Token,
+        address _from,
+        address _to,
+        uint256 _amount,
+        bytes calldata _extraData
+    ) external onlyOtherBridge {
+        emit ERC20WithdrawalFinalized(_l1Token, _l2Token, _from, _to, _amount, _extraData);
+        finalizeBridgeERC20(_l1Token, _l2Token, _from, _to, _amount, _extraData);
     }
 
     /**
@@ -231,25 +235,21 @@ contract L1StandardBridge is StandardBridge, Semver {
 
     /**
      * @custom:legacy
-     * @notice Finalizes a withdrawal of ERC20 tokens from L2.
+     * @notice Retrieves the access of the corresponding L2 bridge contract.
      *
-     * @param _l1Token   Address of the token on L1.
-     * @param _l2Token   Address of the corresponding token on L2.
-     * @param _from      Address of the withdrawer on L2.
-     * @param _to        Address of the recipient on L1.
-     * @param _amount    Amount of ETH to withdraw.
-     * @param _extraData Optional data forwarded from L2.
+     * @return Address of the corresponding L2 bridge contract.
      */
-    function finalizeERC20Withdrawal(
-        address _l1Token,
-        address _l2Token,
-        address _from,
-        address _to,
-        uint256 _amount,
-        bytes calldata _extraData
-    ) external onlyOtherBridge {
-        emit ERC20WithdrawalFinalized(_l1Token, _l2Token, _from, _to, _amount, _extraData);
-        finalizeBridgeERC20(_l1Token, _l2Token, _from, _to, _amount, _extraData);
+    function l2TokenBridge() external view returns (address) {
+        return address(otherBridge);
+    }
+
+    /**
+     * @notice Initializer.
+     *
+     * @param _messenger Address of the L1CrossDomainMessenger.
+     */
+    function initialize(address payable _messenger) public initializer {
+        __StandardBridge_init(_messenger, payable(Predeploys.L2_STANDARD_BRIDGE));
     }
 
     /**

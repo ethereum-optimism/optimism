@@ -25,30 +25,6 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
     uint256 internal constant DEPOSIT_VERSION = 0;
 
     /**
-     * @notice Emitted when a transaction is deposited from L1 to L2. The parameters of this event
-     *         are read by the rollup node and used to derive deposit transactions on L2.
-     *
-     * @param from       Address that triggered the deposit transaction.
-     * @param to         Address that the deposit transaction is directed to.
-     * @param version    Version of this deposit transaction event.
-     * @param opaqueData ABI encoded deposit data to be parsed off-chain.
-     */
-    event TransactionDeposited(
-        address indexed from,
-        address indexed to,
-        uint256 indexed version,
-        bytes opaqueData
-    );
-
-    /**
-     * @notice Emitted when a withdrawal transaction is finalized.
-     *
-     * @param withdrawalHash Hash of the withdrawal transaction.
-     * @param success        Whether the withdrawal transaction was successful.
-     */
-    event WithdrawalFinalized(bytes32 indexed withdrawalHash, bool success);
-
-    /**
      * @notice Value used to reset the l2Sender, this is more efficient than setting it to zero.
      */
     address internal constant DEFAULT_L2_SENDER = 0x000000000000000000000000000000000000dEaD;
@@ -93,6 +69,30 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
     uint256[48] private __gap;
 
     /**
+     * @notice Emitted when a transaction is deposited from L1 to L2. The parameters of this event
+     *         are read by the rollup node and used to derive deposit transactions on L2.
+     *
+     * @param from       Address that triggered the deposit transaction.
+     * @param to         Address that the deposit transaction is directed to.
+     * @param version    Version of this deposit transaction event.
+     * @param opaqueData ABI encoded deposit data to be parsed off-chain.
+     */
+    event TransactionDeposited(
+        address indexed from,
+        address indexed to,
+        uint256 indexed version,
+        bytes opaqueData
+    );
+
+    /**
+     * @notice Emitted when a withdrawal transaction is finalized.
+     *
+     * @param withdrawalHash Hash of the withdrawal transaction.
+     * @param success        Whether the withdrawal transaction was successful.
+     */
+    event WithdrawalFinalized(bytes32 indexed withdrawalHash, bool success);
+
+    /**
      * @custom:semver 0.0.1
      *
      * @param _l2Oracle                  Address of the L2OutputOracle contract.
@@ -105,14 +105,6 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
     }
 
     /**
-     * @notice Initializer;
-     */
-    function initialize() public initializer {
-        l2Sender = DEFAULT_L2_SENDER;
-        __ResourceMetering_init();
-    }
-
-    /**
      * @notice Accepts value so that users can send ETH directly to this contract and have the
      *         funds be deposited to their address on L2. This is intended as a convenience
      *         function for EOAs. Contracts should call the depositTransaction() function directly
@@ -120,77 +112,6 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
      */
     receive() external payable {
         depositTransaction(msg.sender, msg.value, RECEIVE_DEFAULT_GAS_LIMIT, false, bytes(""));
-    }
-
-    /**
-     * @notice Accepts deposits of ETH and data, and emits a TransactionDeposited event for use in
-     *         deriving deposit transactions. Note that if a deposit is made by a contract, its
-     *         address will be aliased when retrieved using `tx.origin` or `msg.sender`. Consider
-     *         using the CrossDomainMessenger contracts for a simpler developer experience.
-     *
-     * @param _to         Target address on L2.
-     * @param _value      ETH value to send to the recipient.
-     * @param _gasLimit   Minimum L2 gas limit (can be greater than or equal to this value).
-     * @param _isCreation Whether or not the transaction is a contract creation.
-     * @param _data       Data to trigger the recipient with.
-     */
-    function depositTransaction(
-        address _to,
-        uint256 _value,
-        uint64 _gasLimit,
-        bool _isCreation,
-        bytes memory _data
-    ) public payable metered(_gasLimit) {
-        // Just to be safe, make sure that people specify address(0) as the target when doing
-        // contract creations.
-        if (_isCreation) {
-            require(
-                _to == address(0),
-                "OptimismPortal: must send to address(0) when creating a contract"
-            );
-        }
-
-        // Transform the from-address to its alias if the caller is a contract.
-        address from = msg.sender;
-        if (msg.sender != tx.origin) {
-            from = AddressAliasHelper.applyL1ToL2Alias(msg.sender);
-        }
-
-        bytes memory opaqueData = abi.encodePacked(
-            msg.value,
-            _value,
-            _gasLimit,
-            _isCreation,
-            _data
-        );
-
-        // Emit a TransactionDeposited event so that the rollup node can derive a deposit
-        // transaction for this deposit.
-        emit TransactionDeposited(from, _to, DEPOSIT_VERSION, opaqueData);
-    }
-
-    /**
-     * @notice Determine if a given block number is finalized. Reverts if the call to
-     *         L2_ORACLE.getL2Output reverts. Returns a boolean otherwise.
-     *
-     * @param _l2BlockNumber The number of the L2 block.
-     */
-    function isBlockFinalized(uint256 _l2BlockNumber) external view returns (bool) {
-        Types.OutputProposal memory proposal = L2_ORACLE.getL2Output(_l2BlockNumber);
-        return _isOutputFinalized(proposal);
-    }
-
-    /**
-     * @notice Determine if an L2 Output is finalized.
-     *
-     * @param _proposal The output proposal to check.
-     */
-    function _isOutputFinalized(Types.OutputProposal memory _proposal)
-        internal
-        view
-        returns (bool)
-    {
-        return block.timestamp > _proposal.timestamp + FINALIZATION_PERIOD_SECONDS;
     }
 
     /**
@@ -289,6 +210,85 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
         // All withdrawals are immediately finalized. Replayability can
         // be achieved through contracts built on top of this contract
         emit WithdrawalFinalized(withdrawalHash, success);
+    }
+
+    /**
+     * @notice Determine if a given block number is finalized. Reverts if the call to
+     *         L2_ORACLE.getL2Output reverts. Returns a boolean otherwise.
+     *
+     * @param _l2BlockNumber The number of the L2 block.
+     */
+    function isBlockFinalized(uint256 _l2BlockNumber) external view returns (bool) {
+        Types.OutputProposal memory proposal = L2_ORACLE.getL2Output(_l2BlockNumber);
+        return _isOutputFinalized(proposal);
+    }
+
+    /**
+     * @notice Initializer;
+     */
+    function initialize() public initializer {
+        l2Sender = DEFAULT_L2_SENDER;
+        __ResourceMetering_init();
+    }
+
+    /**
+     * @notice Accepts deposits of ETH and data, and emits a TransactionDeposited event for use in
+     *         deriving deposit transactions. Note that if a deposit is made by a contract, its
+     *         address will be aliased when retrieved using `tx.origin` or `msg.sender`. Consider
+     *         using the CrossDomainMessenger contracts for a simpler developer experience.
+     *
+     * @param _to         Target address on L2.
+     * @param _value      ETH value to send to the recipient.
+     * @param _gasLimit   Minimum L2 gas limit (can be greater than or equal to this value).
+     * @param _isCreation Whether or not the transaction is a contract creation.
+     * @param _data       Data to trigger the recipient with.
+     */
+    function depositTransaction(
+        address _to,
+        uint256 _value,
+        uint64 _gasLimit,
+        bool _isCreation,
+        bytes memory _data
+    ) public payable metered(_gasLimit) {
+        // Just to be safe, make sure that people specify address(0) as the target when doing
+        // contract creations.
+        if (_isCreation) {
+            require(
+                _to == address(0),
+                "OptimismPortal: must send to address(0) when creating a contract"
+            );
+        }
+
+        // Transform the from-address to its alias if the caller is a contract.
+        address from = msg.sender;
+        if (msg.sender != tx.origin) {
+            from = AddressAliasHelper.applyL1ToL2Alias(msg.sender);
+        }
+
+        bytes memory opaqueData = abi.encodePacked(
+            msg.value,
+            _value,
+            _gasLimit,
+            _isCreation,
+            _data
+        );
+
+        // Emit a TransactionDeposited event so that the rollup node can derive a deposit
+        // transaction for this deposit.
+        emit TransactionDeposited(from, _to, DEPOSIT_VERSION, opaqueData);
+    }
+
+    /**
+     * @notice Determine if an L2 Output is finalized.
+     *
+     * @param _proposal The output proposal to check.
+     */
+    function _isOutputFinalized(Types.OutputProposal memory _proposal)
+        internal
+        view
+        returns (bool)
+    {
+        return block.timestamp > _proposal.timestamp + FINALIZATION_PERIOD_SECONDS;
     }
 
     /**
