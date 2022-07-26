@@ -331,6 +331,22 @@ event FailedRelayedMessage(bytes32 indexed msgHash)
 |---|---|---|
 | msgHash `indexed` | bytes32 | undefined |
 
+### Initialized
+
+```solidity
+event Initialized(uint8 version)
+```
+
+
+
+
+
+#### Parameters
+
+| Name | Type | Description |
+|---|---|---|
+| version  | uint8 | undefined |
+
 ### MessageAllowed
 
 ```solidity
