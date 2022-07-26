@@ -156,10 +156,13 @@ func (dp *DerivationPipeline) Step(ctx context.Context) error {
 			outer = dp.stages[i+1].Progress()
 		}
 		if err := stage.Step(ctx, outer); err == io.EOF {
+			dp.log.Trace("EOF in pipeline", "stage", i, "origin", stage.Progress().Origin, "progress_closed", stage.Progress().Closed, "err", err)
 			continue
 		} else if err != nil {
+			dp.log.Trace("Staged failed", "stage", i, "origin", stage.Progress().Origin, "progress_closed", stage.Progress().Closed, "err", err)
 			return fmt.Errorf("stage %d failed: %w", i, err)
 		} else {
+			dp.log.Trace("nil return in pipeline", "stage", i, "origin", stage.Progress().Origin, "progress_closed", stage.Progress().Closed, "err", err)
 			return nil
 		}
 	}
