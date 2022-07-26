@@ -1156,10 +1156,6 @@ func newFrontierInstructionSet() JumpTable {
 			halts:      true,
 			valid:      true,
 		},
-		INVALID: {
-			execute:  opUndefined,
-			maxStack: maxStack(0, 0),
-		},
 		SELFDESTRUCT: {
 			execute:    opSuicide,
 			dynamicGas: gasSelfdestruct,
