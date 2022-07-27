@@ -222,6 +222,8 @@ func Start(config *Config) (func(), error) {
 		secondsToDuration(config.Server.TimeoutSeconds),
 		config.Server.MaxUpstreamBatchSize,
 		rpcCache,
+		config.Server.EnableRequestLog,
+		config.Server.MaxRequestBodyLogLen,
 	)
 
 	if config.Metrics.Enabled {
