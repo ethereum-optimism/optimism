@@ -96,7 +96,10 @@ contract OptimismMintableERC20Factory {
 
         // Emit the old event too for legacy support.
         emit StandardL2TokenCreated(_remoteToken, address(localToken));
-        emit OptimismMintableERC20Created(_remoteToken, address(localToken), msg.sender);
+
+        // Emit the updated event. The arguments here differ from the legacy event, but
+        // are consistent with the ordering used in StandardBridge events.
+        emit OptimismMintableERC20Created(address(localToken), _remoteToken, msg.sender);
 
         return address(localToken);
     }
