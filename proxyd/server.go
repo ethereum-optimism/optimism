@@ -28,7 +28,7 @@ const (
 	MaxBatchRPCCalls            = 100
 	cacheStatusHdr              = "X-Proxyd-Cache-Status"
 	defaultServerTimeout        = time.Second * 10
-	maxLogLength                = 2000
+	maxRequestBodyLogLen        = 2000
 	defaultMaxUpstreamBatchSize = 10
 )
 
@@ -40,6 +40,8 @@ type Server struct {
 	wsMethodWhitelist    *StringSet
 	rpcMethodMappings    map[string]string
 	maxBodySize          int64
+	enableRequestLog     bool
+	maxRequestBodyLogLen int
 	authenticatedPaths   map[string]string
 	timeout              time.Duration
 	maxUpstreamBatchSize int
@@ -60,6 +62,8 @@ func NewServer(
 	timeout time.Duration,
 	maxUpstreamBatchSize int,
 	cache RPCCache,
+	enableRequestLog bool,
+	maxRequestBodyLogLen int,
 ) *Server {
 	if cache == nil {
 		cache = &NoopRPCCache{}
@@ -87,6 +91,8 @@ func NewServer(
 		timeout:              timeout,
 		maxUpstreamBatchSize: maxUpstreamBatchSize,
 		cache:                cache,
+		enableRequestLog:     enableRequestLog,
+		maxRequestBodyLogLen: maxRequestBodyLogLen,
 		upgrader: &websocket.Upgrader{
 			HandshakeTimeout: 5 * time.Second,
 		},
@@ -169,11 +175,13 @@ func (s *Server) HandleRPC(w http.ResponseWriter, r *http.Request) {
 	}
 	RecordRequestPayloadSize(ctx, len(body))
 
-	log.Info("Raw RPC request",
-		"body", truncate(string(body)),
-		"req_id", GetReqID(ctx),
-		"auth", GetAuthCtx(ctx),
-	)
+	if s.enableRequestLog {
+		log.Info("Raw RPC request",
+			"body", truncate(string(body), s.maxRequestBodyLogLen),
+			"req_id", GetReqID(ctx),
+			"auth", GetAuthCtx(ctx),
+		)
+	}
 
 	if IsBatch(body) {
 		reqs, err := ParseBatchRPCReq(body)
@@ -527,9 +535,13 @@ func (n *NoopRPCCache) PutRPC(context.Context, *RPCReq, *RPCRes) error {
 	return nil
 }
 
-func truncate(str string) string {
-	if len(str) > maxLogLength {
-		return str[:maxLogLength] + "..."
+func truncate(str string, maxLen int) string {
+	if maxLen == 0 {
+		maxLen = maxRequestBodyLogLen
+	}
+
+	if len(str) > maxLen {
+		return str[:maxLen] + "..."
 	} else {
 		return str
 	}
