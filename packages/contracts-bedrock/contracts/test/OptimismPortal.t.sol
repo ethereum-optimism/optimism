@@ -526,8 +526,8 @@ contract OptimismPortal_FinalizeWithdrawal_Test is Portal_Initializer {
     function test_finalizeWithdrawalTransaction_differential(
         address _sender,
         address _target,
-        uint64 _value,
-        uint8 _gasLimit,
+        uint256 _value,
+        uint64 _gasLimit,
         bytes memory _data
     ) external {
         // Cannot call the optimism portal
