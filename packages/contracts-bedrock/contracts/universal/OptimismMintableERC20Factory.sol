@@ -3,6 +3,7 @@ pragma solidity 0.8.15;
 
 /* Contract Imports */
 import { OptimismMintableERC20 } from "../universal/OptimismMintableERC20.sol";
+import { Semver } from "./Semver.sol";
 
 /**
  * @custom:proxied
@@ -11,9 +12,10 @@ import { OptimismMintableERC20 } from "../universal/OptimismMintableERC20.sol";
  * @notice OptimismMintableERC20Factory is a factory contract that generates OptimismMintableERC20
  *         contracts on the network it's deployed to. Simplifies the deployment process for users
  *         who may be less familiar with deploying smart contracts. Designed to be backwards
- *         compatible with the older StandardL2ERC20Factory contract.
+ *         compatible with the older StandardL2ERC20Factory contract. This predeploy is also
+ *         deployed to layer one without any contract changes.
  */
-contract OptimismMintableERC20Factory {
+contract OptimismMintableERC20Factory is Semver {
     /**
      * @notice Address of the StandardBridge on this chain.
      */
@@ -45,7 +47,7 @@ contract OptimismMintableERC20Factory {
     /**
      * @param _bridge Address of the StandardBridge on this chain.
      */
-    constructor(address _bridge) {
+    constructor(address _bridge) Semver(0, 0, 1) {
         bridge = _bridge;
     }
 
