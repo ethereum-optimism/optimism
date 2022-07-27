@@ -68,10 +68,10 @@ services:
       - "9003:9003"
       - "7300:7300"
     volumes:
-      - ${PWD}/p2p-sequencer-key.txt:/config/p2p-sequencer-key.txt
-      - ${PWD}/p2p-node-key.txt:/config/p2p-node-key.txt
-      - ${PWD}/test-jwt-secret.txt:/config/test-jwt-secret.txt
-      - ${PWD}/../.devnet/rollup.json:/rollup.json
+      - "${PWD}/p2p-sequencer-key.txt:/config/p2p-sequencer-key.txt"
+      - "${PWD}/p2p-node-key.txt:/config/p2p-node-key.txt"
+      - "${PWD}/test-jwt-secret.txt:/config/test-jwt-secret.txt"
+      - "${PWD}/../.devnet/rollup.json:/rollup.json"
       - op_log:/op_log
 
   op-proposer:
