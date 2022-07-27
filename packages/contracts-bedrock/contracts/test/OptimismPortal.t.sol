@@ -532,6 +532,7 @@ contract OptimismPortal_FinalizeWithdrawal_Test is Portal_Initializer {
     ) external {
         // Cannot call the optimism portal
         vm.assume(_target != address(op));
+        vm.assume(_gasLimit < 50_000_000);
         uint256 _nonce = messagePasser.nonce();
         Types.WithdrawalTransaction memory _tx = Types.WithdrawalTransaction({
             nonce: _nonce,
