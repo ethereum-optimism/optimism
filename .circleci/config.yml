@@ -692,20 +692,6 @@ workflows:
           context:
             - optimism
       - docker-publish:
-          name: go-builder-release
-          docker_file: ops/docker/go-builder/Dockerfile
-          docker_tags: ethereumoptimism/go-builder:nightly
-          docker_context: .
-          context:
-            - optimism
-      - docker-publish:
-          name: js-builder-release
-          docker_file: ops/docker/js-builder/Dockerfile
-          docker_tags: ethereumoptimism/js-builder:nightly
-          docker_context: .
-          context:
-            - optimism
-      - docker-publish:
           name: proxyd-release
           docker_file: proxyd/Dockerfile
           docker_tags: ethereumoptimism/proxyd:nightly
