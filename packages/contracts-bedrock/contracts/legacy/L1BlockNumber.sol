@@ -24,6 +24,7 @@ contract L1BlockNumber is Semver {
     /**
      * @notice Returns the L1 block number.
      */
+    // slither-disable-next-line locked-ether
     receive() external payable {
         uint256 l1BlockNumber = getL1BlockNumber();
         assembly {
@@ -35,7 +36,8 @@ contract L1BlockNumber is Semver {
     /**
      * @notice Returns the L1 block number.
      */
-    // solhint-disable-next-line no-complex-fallback
+    // solhint-disable no-complex-fallback
+    // slither-disable-next-line locked-ether
     fallback() external payable {
         uint256 l1BlockNumber = getL1BlockNumber();
         assembly {
