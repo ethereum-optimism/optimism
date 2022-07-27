@@ -265,14 +265,22 @@ frame = channel_id ++ frame_number ++ frame_data_length ++ frame_data ++ is_last
 
 channel_id        = random ++ timestamp
 random            = bytes32
-timestamp         = uvarint
-frame_number      = uvarint
-frame_data_length = uvarint
+timestamp         = uint64
+frame_number      = uint16
+frame_data_length = uint32
 frame_data        = bytes
 is_last           = bool
 ```
 
 > **TODO** replace `uvarint` by fixed size integers
+
+timestamp: 64 bits
+frame_number: 16 bits?
+frame_data_length: 32 bits?
+
+Fixed overhead: 32 + 8 + 2 + 4 + 1 = 47 bytes. Can get down to 16 + 6 = 22 bytes (128 bit UID, 16 bit #, 32 bit len)
+
+Why fixed length: don't have circular dependency b/c have target data length
 
 where:
 
