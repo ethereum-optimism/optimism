@@ -110,6 +110,7 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
      *         function for EOAs. Contracts should call the depositTransaction() function directly
      *         otherwise any deposited funds will be lost due to address aliasing.
      */
+    // slither-disable-next-line locked-ether
     receive() external payable {
         depositTransaction(msg.sender, msg.value, RECEIVE_DEFAULT_GAS_LIMIT, false, bytes(""));
     }
@@ -126,7 +127,7 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
         Types.WithdrawalTransaction memory _tx,
         uint256 _l2BlockNumber,
         Types.OutputRootProof calldata _outputRootProof,
-        bytes calldata _withdrawalProof
+        bytes calldata _withdrawalProof // slither-disable-next-line locked-ether
     ) external payable {
         // Prevent nested withdrawals within withdrawals.
         require(
