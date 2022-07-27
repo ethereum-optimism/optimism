@@ -1,0 +1,22 @@
+steps:
+  - name: 'gcr.io/kaniko-project/executor:latest'
+    args:
+      - --destination=us-central1-docker.pkg.dev/$PROJECT_ID/images/op-node:$_TAG
+      - --dockerfile=op-node/Dockerfile
+      - --cache=true
+      - --cache-ttl=48h
+    waitFor: ['-']
+  - name: 'gcr.io/kaniko-project/executor:latest'
+    args:
+      - --destination=us-central1-docker.pkg.dev/$PROJECT_ID/images/op-batcher:$_TAG
+      - --dockerfile=./op-batcher/Dockerfile
+      - --cache=true
+      - --cache-ttl=48h
+    waitFor: ['-']
+  - name: 'gcr.io/kaniko-project/executor:latest'
+    args:
+      - --destination=us-central1-docker.pkg.dev/$PROJECT_ID/images/op-proposer:$_TAG
+      - --dockerfile=./op-proposer/Dockerfile
+      - --cache=true
+      - --cache-ttl=48h
+    waitFor: ['-']
