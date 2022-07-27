@@ -19,7 +19,7 @@ services:
       - "8545:8545"
     volumes:
       - "l1_data:/db"
-      - ${PWD}/../.devnet/genesis-l1.json:/genesis.json
+      - "${PWD}/../.devnet/genesis-l1.json:/genesis.json"
 
   l2:
     build:
@@ -29,8 +29,8 @@ services:
       - "9545:8545"
     volumes:
       - "l2_data:/db"
-      - ${PWD}/../.devnet/genesis-l2.json:/genesis.json
-      - ${PWD}/test-jwt-secret.txt:/config/test-jwt-secret.txt
+      - "${PWD}/../.devnet/genesis-l2.json:/genesis.json"
+      - "${PWD}/test-jwt-secret.txt:/config/test-jwt-secret.txt"
     entrypoint:  # pass the L2 specific flags by overriding the entry-point and adding extra arguments
       - "/bin/sh"
       - "/entrypoint.sh"
