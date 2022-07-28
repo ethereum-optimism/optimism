@@ -58,6 +58,7 @@ const getStorageLayout = async (
   throw new Error(`Cannot locate storageLayout for ${name}`)
 }
 
+// Find the contract and source from the build info
 const findContractAndSource = (name: string, buildInfo: BuildInfo) => {
   const sources = buildInfo.output.sources
   const contracts = buildInfo.output.contracts
@@ -107,18 +108,21 @@ const replaceImmutables = async (
     outputContract.evm.deployedBytecode.immutableReferences
 
   const names = {}
+  // Recursively fine all of the immutables by traversing the solc output ast
   const findNames = (ast: any) => {
-    // console.log(ast)
+    // Add the name of the variable if it is an immutable
     const isImmutable = ast.mutability === 'immutable'
     const isASTNode = typeof ast.name === 'string' && typeof ast.id === 'number'
     if (isASTNode && isImmutable) {
       names[ast.name] = ast.id
     }
+    // Iterate over each node
     if (Array.isArray(ast.nodes)) {
       for (const node of ast.nodes) {
         findNames(node)
       }
     }
+    // Handle contracts that are inherited from
     if (Array.isArray(ast.baseContracts)) {
       for (const baseContract of ast.baseContracts) {
         if (baseContract.baseName) {
@@ -137,6 +141,7 @@ const replaceImmutables = async (
   let deployedBytecode = artifact.deployedBytecode
   const presize = deployedBytecode.length
 
+  // For each of the immutables, put the value into the bytecode
   for (const [key, value] of Object.entries(immutables)) {
     const astId = names[key]
     if (!astId) {
@@ -157,6 +162,7 @@ const replaceImmutables = async (
     }
   }
 
+  // Ensure that the bytecode is the same size
   if (presize !== deployedBytecode.length) {
     throw new Error(
       `Size mismatch! Before ${presize}, after ${deployedBytecode.length}`
@@ -369,6 +375,8 @@ task('genesis-l2', 'create a genesis config')
       }
     }
 
+    // Note: this currently only supports up to 32 byte values.
+    // Things less than 32 bytes will be left padded with 0 bytes
     const immutables = {
       OptimismMintableERC20Factory: {
         bridge: predeploys.L2StandardBridge,
