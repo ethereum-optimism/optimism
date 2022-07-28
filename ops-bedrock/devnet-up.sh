@@ -120,7 +120,7 @@ if [ ! -f ./.devnet/rollup.json ]; then
     (
       echo "Building rollup config..."
       cd $CONTRACTS_BEDROCK
-      L2OO_STARTING_BLOCK_TIMESTAMP=$GENESIS_TIMESTAMP npx hardhat rollup-config --network $NETWORK
+      L2OO_STARTING_BLOCK_TIMESTAMP=$GENESIS_TIMESTAMP npx hardhat --network $NETWORK rollup-config
       mv rollup.json ../../.devnet/rollup.json
     )
 else

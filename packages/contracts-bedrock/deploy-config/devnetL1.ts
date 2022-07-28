@@ -52,7 +52,7 @@ const config = {
 
   outputOracleOwner: '0x70997970C51812dc3A010C7d01b50e0d17dc79C8',
   optimismL2FeeRecipient: '0xd9c09e21b57c98e58a80552c170989b426766aa7',
-  batchSenderAddress: '0xDe3829A23DF1479438622a08a116E8Eb3f620BB5',
+  batchSenderAddress: '0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC',
 }
 
 export default config
