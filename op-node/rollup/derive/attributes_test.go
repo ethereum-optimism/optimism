@@ -36,9 +36,9 @@ func TestPreparePayloadAttributes(t *testing.T) {
 		l1Info.InfoNum = l2Parent.L1Origin.Number + 1
 		epoch := l1Info.ID()
 		l1Fetcher.ExpectFetch(epoch.Hash, l1Info, nil, nil, nil)
-		_, crit, err := PreparePayloadAttributes(context.Background(), cfg, l1Fetcher, l2Parent, l2Time, epoch)
+		_, err := PreparePayloadAttributes(context.Background(), cfg, l1Fetcher, l2Parent, l2Time, epoch)
 		require.NotNil(t, err, "inconsistent L1 origin error expected")
-		require.True(t, crit, "inconsistent L1 origin transition must be handled like a critical error with reorg")
+		require.ErrorIs(t, err, ErrCritical, "inconsistent L1 origin transition must be handled like a critical error with reorg")
 	})
 	t.Run("inconsistent equal height origin", func(t *testing.T) {
 		rng := rand.New(rand.NewSource(1234))
@@ -49,9 +49,9 @@ func TestPreparePayloadAttributes(t *testing.T) {
 		l1Info := testutils.RandomL1Info(rng)
 		l1Info.InfoNum = l2Parent.L1Origin.Number
 		epoch := l1Info.ID()
-		_, crit, err := PreparePayloadAttributes(context.Background(), cfg, l1Fetcher, l2Parent, l2Time, epoch)
+		_, err := PreparePayloadAttributes(context.Background(), cfg, l1Fetcher, l2Parent, l2Time, epoch)
 		require.NotNil(t, err, "inconsistent L1 origin error expected")
-		require.True(t, crit, "inconsistent L1 origin transition must be handled like a critical error with reorg")
+		require.ErrorIs(t, err, ErrCritical, "inconsistent L1 origin transition must be handled like a critical error with reorg")
 	})
 	t.Run("rpc fail Fetch", func(t *testing.T) {
 		rng := rand.New(rand.NewSource(1234))
@@ -63,9 +63,9 @@ func TestPreparePayloadAttributes(t *testing.T) {
 		epoch.Number += 1
 		mockRPCErr := errors.New("mock rpc error")
 		l1Fetcher.ExpectFetch(epoch.Hash, nil, nil, nil, mockRPCErr)
-		_, crit, err := PreparePayloadAttributes(context.Background(), cfg, l1Fetcher, l2Parent, l2Time, epoch)
+		_, err := PreparePayloadAttributes(context.Background(), cfg, l1Fetcher, l2Parent, l2Time, epoch)
 		require.ErrorIs(t, err, mockRPCErr, "mock rpc error expected")
-		require.False(t, crit, "rpc errors should not be critical, it is not necessary to reorg")
+		require.NotErrorIs(t, err, ErrCritical, "rpc errors should not be critical, it is not necessary to reorg")
 	})
 	t.Run("rpc fail InfoByHash", func(t *testing.T) {
 		rng := rand.New(rand.NewSource(1234))
@@ -76,9 +76,9 @@ func TestPreparePayloadAttributes(t *testing.T) {
 		epoch := l2Parent.L1Origin
 		mockRPCErr := errors.New("mock rpc error")
 		l1Fetcher.ExpectInfoByHash(epoch.Hash, nil, mockRPCErr)
-		_, crit, err := PreparePayloadAttributes(context.Background(), cfg, l1Fetcher, l2Parent, l2Time, epoch)
+		_, err := PreparePayloadAttributes(context.Background(), cfg, l1Fetcher, l2Parent, l2Time, epoch)
 		require.ErrorIs(t, err, mockRPCErr, "mock rpc error expected")
-		require.False(t, crit, "rpc errors should not be critical, it is not necessary to reorg")
+		require.NotErrorIs(t, err, ErrCritical, "rpc errors should not be critical, it is not necessary to reorg")
 	})
 	t.Run("next origin without deposits", func(t *testing.T) {
 		rng := rand.New(rand.NewSource(1234))
@@ -93,9 +93,9 @@ func TestPreparePayloadAttributes(t *testing.T) {
 		l1InfoTx, err := L1InfoDepositBytes(0, l1Info)
 		require.NoError(t, err)
 		l1Fetcher.ExpectFetch(epoch.Hash, l1Info, nil, nil, nil)
-		attrs, crit, err := PreparePayloadAttributes(context.Background(), cfg, l1Fetcher, l2Parent, l2Time, epoch)
+		attrs, err := PreparePayloadAttributes(context.Background(), cfg, l1Fetcher, l2Parent, l2Time, epoch)
 		require.NoError(t, err)
-		require.False(t, crit)
+		require.NotErrorIs(t, err, ErrCritical)
 		require.NotNil(t, attrs)
 		require.Equal(t, l2Parent.Time+cfg.BlockTime, uint64(attrs.Timestamp))
 		require.Equal(t, eth.Bytes32(l1Info.InfoMixDigest), attrs.PrevRandao)
@@ -132,9 +132,9 @@ func TestPreparePayloadAttributes(t *testing.T) {
 		// txs are ignored, API is a bit bloated to previous approach. Only l1Info and receipts matter.
 		l1Txs := make(types.Transactions, len(receipts))
 		l1Fetcher.ExpectFetch(epoch.Hash, l1Info, l1Txs, receipts, nil)
-		attrs, crit, err := PreparePayloadAttributes(context.Background(), cfg, l1Fetcher, l2Parent, l2Time, epoch)
+		attrs, err := PreparePayloadAttributes(context.Background(), cfg, l1Fetcher, l2Parent, l2Time, epoch)
 		require.NoError(t, err)
-		require.False(t, crit)
+		require.NotErrorIs(t, err, ErrCritical)
 		require.NotNil(t, attrs)
 		require.Equal(t, l2Parent.Time+cfg.BlockTime, uint64(attrs.Timestamp))
 		require.Equal(t, eth.Bytes32(l1Info.InfoMixDigest), attrs.PrevRandao)
@@ -158,9 +158,9 @@ func TestPreparePayloadAttributes(t *testing.T) {
 		require.NoError(t, err)
 
 		l1Fetcher.ExpectInfoByHash(epoch.Hash, l1Info, nil)
-		attrs, crit, err := PreparePayloadAttributes(context.Background(), cfg, l1Fetcher, l2Parent, l2Time, epoch)
+		attrs, err := PreparePayloadAttributes(context.Background(), cfg, l1Fetcher, l2Parent, l2Time, epoch)
 		require.NoError(t, err)
-		require.False(t, crit)
+		require.NotErrorIs(t, err, ErrCritical)
 		require.NotNil(t, attrs)
 		require.Equal(t, l2Parent.Time+cfg.BlockTime, uint64(attrs.Timestamp))
 		require.Equal(t, eth.Bytes32(l1Info.InfoMixDigest), attrs.PrevRandao)
