@@ -270,8 +270,7 @@ task('genesis-l2', 'create a genesis config')
       }
     }
 
-    const portal = await hre.deployments.get('OptimismPortalProxy')
-    const l1StartingBlock = await l1.getBlock(portal.receipt.blockHash)
+    const l1StartingBlock = await l1.getBlock(deployConfig.l1StartingBlockTag)
 
     const genesis: OptimismGenesis = {
       config: {

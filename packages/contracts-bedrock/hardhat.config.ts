@@ -72,17 +72,14 @@ const config: HardhatUserConfig = {
     historicalBlocks: {
       type: 'number',
     },
-    startingBlockNumber: {
-      type: 'number',
-    },
-    startingTimestamp: {
-      type: 'number',
-    },
     sequencerAddress: {
       type: 'address',
     },
     outputOracleOwner: {
       type: 'address',
+    },
+    l1StartingBlockTag: {
+      type: 'string',
     },
   },
   external: {

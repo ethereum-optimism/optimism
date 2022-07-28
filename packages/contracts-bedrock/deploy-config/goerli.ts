@@ -1,7 +1,8 @@
 import { ethers } from 'ethers'
 
+
 const sequencerAddress = '0x6c23a0dcdfc44b7a57bed148de598895e398d984'
-const startingTimestamp = 1658777882
+const l1StartingBlockTag = ''
 
 const config = {
   submissionInterval: 6,
@@ -9,7 +10,7 @@ const config = {
   historicalBlocks: 0,
   startingBlockNumber: 0,
   l2BlockTime: 2,
-  startingTimestamp,
+  l1StartingBlockTag,
   sequencerAddress,
 
   l2CrossDomainMessengerOwner: ethers.constants.AddressZero,

@@ -10,14 +10,8 @@ const deployFn: DeployFunction = async (hre) => {
   const { deployer } = await hre.getNamedAccounts()
   const { deployConfig } = hre
 
-  if (
-    typeof deployConfig.startingTimestamp !== 'number' ||
-    isNaN(deployConfig.startingTimestamp)
-  ) {
-    throw new Error(
-      'Cannot deploy L2OutputOracle without specifying a valid startingTimestamp.'
-    )
-  }
+  const l1 = hre.ethers.getDefaultProvider()
+  const l1StartingBlock = await l1.getBlock(deployConfig.l1StartingBlockTag)
 
   await deploy('L2OutputOracleProxy', {
     contract: 'Proxy',
@@ -34,7 +28,7 @@ const deployFn: DeployFunction = async (hre) => {
       deployConfig.genesisOutput,
       deployConfig.historicalBlocks,
       deployConfig.startingBlockNumber,
-      deployConfig.startingTimestamp,
+      l1StartingBlock.timestamp,
       deployConfig.l2BlockTime,
       deployConfig.sequencerAddress,
       deployConfig.outputOracleOwner,
@@ -84,7 +78,7 @@ const deployFn: DeployFunction = async (hre) => {
   }
 
   const startingTimestamp = await L2OutputOracle.STARTING_TIMESTAMP()
-  if (!startingTimestamp.eq(BigNumber.from(deployConfig.startingTimestamp))) {
+  if (!startingTimestamp.eq(BigNumber.from(l1StartingBlock.timestamp))) {
     throw new Error('starting timestamp misconfigured')
   }
   const l2BlockTime = await L2OutputOracle.L2_BLOCK_TIME()
