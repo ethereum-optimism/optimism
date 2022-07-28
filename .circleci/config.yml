@@ -457,9 +457,12 @@ jobs:
                 --amount-eth 1 \
                 --private-key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80 \
                 --network devnetL1
-          working_directory: packages/contracts-bedrock/contracts-bedrock
+          working_directory: packages/contracts-bedrock
       - run:
-          command: echo "Deposit complete."
+          name: Check the status
+          command: |
+            npx hardhat check-op-node
+          working_directory: packages/contracts-bedrock
 
   integration-tests:
     machine:
