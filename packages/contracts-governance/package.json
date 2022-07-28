@@ -35,7 +35,7 @@
     "@nomiclabs/hardhat-etherscan": "^3.0.1",
     "@nomiclabs/hardhat-waffle": "^2.0.2",
     "@nomiclabs/hardhat-web3": "^2.0.0",
-    "@openzeppelin/contracts": "4.5.0",
+    "@openzeppelin/contracts": "4.7.1",
     "commander": "^9.3.0",
     "csv-parse": "^5.0.4",
     "eth-sig-util": "^3.0.1",

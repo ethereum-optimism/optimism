@@ -73,7 +73,7 @@
     "@nomiclabs/hardhat-ethers": "^2.0.2",
     "@nomiclabs/hardhat-etherscan": "^3.0.3",
     "@nomiclabs/hardhat-waffle": "^2.0.1",
-    "@openzeppelin/contracts": "4.3.2",
+    "@openzeppelin/contracts": "4.7.1",
     "@openzeppelin/contracts-upgradeable": "4.7.1",
     "@primitivefi/hardhat-dodoc": "^0.1.3",
     "@typechain/ethers-v5": "^10.1.0",
