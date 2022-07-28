@@ -172,7 +172,6 @@ func (eq *EngineQueue) tryNextUnsafePayload(ctx context.Context) error {
 			fmt.Sprintf("cannot prepare unsafe chain for new payload: new - %v; parent: %v; err: %v",
 				first.ID(), first.ParentID(), eth.ForkchoiceUpdateErr(fcRes.PayloadStatus)),
 			ErrTemporary)
-		return nil
 	}
 	status, err := eq.engine.NewPayload(ctx, first)
 	if err != nil {
@@ -222,7 +221,6 @@ func (eq *EngineQueue) consolidateNextSafeAttributes(ctx context.Context) error 
 			ErrUnsafePayloadFailed,
 			fmt.Sprintf("failed to get existing unsafe payload to compare against derived attributes from L1: %v", err),
 			ErrTemporary)
-		return nil
 	}
 	if err := AttributesMatchBlock(eq.safeAttributes[0], eq.safeHead.Hash, payload); err != nil {
 		eq.log.Warn("L2 reorg: existing unsafe block does not match derived attributes from L1", "err", err)
@@ -293,7 +291,6 @@ func (eq *EngineQueue) ResetStep(ctx context.Context, l1Fetcher L1Fetcher) error
 			ErrL2BlockRefHeadFailed,
 			fmt.Sprintf("failed to find the L2 Head block: %v", err),
 			ErrTemporary)
-		return nil
 	}
 	unsafe, safe, err := sync.FindL2Heads(ctx, l2Head, eq.cfg.SeqWindowSize, l1Fetcher, eq.engine, &eq.cfg.Genesis)
 	if err != nil {
