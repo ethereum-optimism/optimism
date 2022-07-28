@@ -20,3 +20,13 @@ steps:
       - --cache=true
       - --cache-ttl=48h
     waitFor: ['-']
+  - name: 'gcr.io/kaniko-project/executor:latest'
+    args:
+      - --destination=us-central1-docker.pkg.dev/$PROJECT_ID/images/deployer-bedrock:$_TAG
+      - --dockerfile=./ops/docker/Dockerfile.packages
+      - --target=deployer-bedrock
+      - --cache=true
+      - --cache-ttl=48h
+    waitFor: ['-']
+options:
+  machineType: N1_HIGHCPU_32
