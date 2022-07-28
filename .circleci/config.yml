@@ -434,9 +434,10 @@ jobs:
       - run:
           name: foundryup
           command: |
-            curl --proto '=https' --tlsv1.2 https://sh.rustup.rs -sSf | sh
+            curl --proto '=https' --tlsv1.2 https://sh.rustup.rs -sSf | sh -s -- -y
             curl -L https://foundry.paradigm.xyz | bash
             source $HOME/.bashrc
+            export CARGO_NET_GIT_FETCH_WITH_CLI=true
             foundryup -C 64fe4ac
             echo 'export PATH=$HOME/.foundry/bin:$PATH' >> $BASH_ENV
       - run:
