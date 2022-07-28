@@ -33,25 +33,42 @@ func PreparePayloadAttributes(ctx context.Context, cfg *rollup.Config, dl L1Rece
 	if l2Parent.L1Origin.Number != epoch.Number {
 		info, _, receipts, err := dl.Fetch(ctx, epoch.Hash)
 		if err != nil {
-			return nil, makeError(ErrFetchFailed, "failed to fetch L1 block info and receipts", ErrTemporary)
+			return nil, makeError(
+				ErrFetchFailed,
+				"failed to fetch L1 block info and receipts",
+				ErrTemporary)
 		}
 		if l2Parent.L1Origin.Hash != info.ParentHash() {
-			return nil, makeError(ErrL1OriginMismatch, fmt.Sprintf("cannot create new block with L1 origin %s (parent %s) on top of L1 origin %s", epoch, info.ParentHash(), l2Parent.L1Origin), ErrCritical)
+			return nil, makeError(
+				ErrL1OriginMismatch,
+				fmt.Sprintf("cannot create new block with L1 origin %s (parent %s) on top of L1 origin %s",
+					epoch, info.ParentHash(), l2Parent.L1Origin),
+				ErrCritical)
 		}
 		deposits, err := DeriveDeposits(receipts, cfg.DepositContractAddress)
 		if err != nil {
-			return nil, makeError(ErrDeriveFailed, fmt.Sprintf("failed to derive some deposits: %v", err), ErrCritical)
+			return nil, makeError(
+				ErrDeriveFailed,
+				fmt.Sprintf("failed to derive some deposits: %v", err),
+				ErrCritical)
 		}
 		l1Info = info
 		depositTxs = deposits
 		seqNumber = 0
 	} else {
 		if l2Parent.L1Origin.Hash != epoch.Hash {
-			return nil, makeError(ErrEpochHashMismatch, fmt.Sprintf("cannot create new block with L1 origin %s in conflict with L1 origin %s", epoch, l2Parent.L1Origin), ErrCritical)
+			return nil, makeError(
+				ErrEpochHashMismatch,
+				fmt.Sprintf("cannot create new block with L1 origin %s in conflict with L1 origin %s",
+					epoch, l2Parent.L1Origin),
+				ErrCritical)
 		}
 		info, err := dl.InfoByHash(ctx, epoch.Hash)
 		if err != nil {
-			return nil, makeError(ErrInfoByHashFailed, fmt.Sprintf("failed to fetch L1 block info: %v", err), ErrTemporary)
+			return nil, makeError(
+				ErrInfoByHashFailed,
+				fmt.Sprintf("failed to fetch L1 block info: %v", err),
+				ErrTemporary)
 		}
 		l1Info = info
 		depositTxs = nil
@@ -60,7 +77,10 @@ func PreparePayloadAttributes(ctx context.Context, cfg *rollup.Config, dl L1Rece
 
 	l1InfoTx, err := L1InfoDepositBytes(seqNumber, l1Info)
 	if err != nil {
-		return nil, makeError(ErrL1InfoTxFailed, fmt.Sprintf("failed to create l1InfoTx: %v", err), ErrCritical)
+		return nil, makeError(
+			ErrL1InfoTxFailed,
+			fmt.Sprintf("failed to create l1InfoTx: %v", err),
+			ErrCritical)
 	}
 
 	txs := make([]hexutil.Bytes, 0, 1+len(depositTxs))
