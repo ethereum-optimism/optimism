@@ -275,7 +275,7 @@ contract OptimismPortal_FinalizeWithdrawal_Test is Portal_Initializer {
     event WithdrawalFinalized(bytes32 indexed, bool success);
 
     // Use a constructor to set the storage vars above, so as to minimize the number of ffi calls.
-    constructor() public {
+    constructor() {
         super.setUp();
         _defaultTx = Types.WithdrawalTransaction({
             nonce: 0,
@@ -425,8 +425,8 @@ contract OptimismPortal_FinalizeWithdrawal_Test is Portal_Initializer {
         (
             bytes32 stateRoot,
             bytes32 storageRoot,
-            bytes32 outputRoot,
-            bytes32 withdrawalHash,
+            ,
+            ,
             bytes memory withdrawalProof
         ) = ffi.getFinalizeWithdrawalTransactionInputs(insufficientGasTx);
         Types.OutputRootProof memory outputRootProof = Types.OutputRootProof({
