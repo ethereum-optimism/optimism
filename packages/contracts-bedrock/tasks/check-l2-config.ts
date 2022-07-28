@@ -22,6 +22,7 @@ task('check-l2-config', 'Validate L2 config')
     )
 
     const bridge = await OptimismMintableERC20Factory.bridge()
+    console.log(`OptimismMintableERC20Factory.bridge() -> ${bridge}`)
     if (bridge !== predeploys.L2StandardBridge) {
       throw new Error(
         `L2StandardBridge not set correctly. Got ${bridge}, expected ${predeploys.L2StandardBridge}`
