@@ -30,6 +30,18 @@ const (
 	ErrEpochHashMismatch
 	ErrInfoByHashFailed
 	ErrL1InfoTxFailed
+	ErrOpenDataFailed
+	ErrIngestDataEmpty
+	ErrL1BlockRefFailed
+	ErrForkChoiceUpdateFailed
+	ErrPayloadPrepare
+	ErrInsertPayloadFailed
+	ErrPayloadProcess
+	ErrUnsafePayloadFailed
+	ErrPayloadBlockRefFailed
+	ErrInsertBlockFailed
+	ErrL2BlockRefHeadFailed
+	ErrFindL2HeadsFailed
 )
 
 // Map of ErrorCode values back to their constant names for pretty printing.
@@ -40,6 +52,18 @@ var errorCodeStrings = map[ErrorCode]string{
 	ErrEpochHashMismatch: "ErrEpochHashMismatch",
 	ErrInfoByHashFailed: "ErrInfoByHashFailed",
 	ErrL1InfoTxFailed: "ErrL1InfoTxFailed",
+	ErrOpenDataFailed: "ErrOpenDataFailed",
+	ErrIngestDataEmpty: "ErrIngestDataEmpty",
+	ErrL1BlockRefFailed: "ErrL1BlockRefFailed",
+	ErrForkChoiceUpdateFailed: "ErrForkChoiceUpdateFailed",
+	ErrPayloadPrepare: "ErrPayloadPrepare",
+	ErrInsertPayloadFailed: "ErrInsertPayloadFailed",
+	ErrPayloadProcess: "ErrPayloadProcess",
+	ErrUnsafePayloadFailed: "ErrUnsafePayloadFailed",
+	ErrPayloadBlockRefFailed: "ErrPayloadBlockRefFailed",
+	ErrInsertBlockFailed: "ErrInsertBlockFailed",
+	ErrL2BlockRefHeadFailed: "ErrL2BlockRefHeadFailed",
+	ErrFindL2HeadsFailed: "ErrFindL2HeadsFailed",
 }
 
 // String returns the ErrorCode as a human-readable name.
@@ -63,6 +87,11 @@ func (e Error) Error() string {
 		return e.Err.Error() + ": " + e.Description
 	}
 	return e.Description
+}
+
+// Unwrap returns the underlying error
+func (e Error) Unwrap() error {
+	return e.Err
 }
 
 // makeError creates an Error given a set of arguments.  The error code must
