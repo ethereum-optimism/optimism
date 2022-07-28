@@ -8,7 +8,7 @@
   "files": [
     "dist/**/*.js",
     "dist/**/*.d.ts",
-    "dist/types/*.ts",
+    "dist/types/**/*.ts",
     "artifacts/contracts/**/*.json",
     "deployments/**/*.json",
     "contracts/**/*.sol"
