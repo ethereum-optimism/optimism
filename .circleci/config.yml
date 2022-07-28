@@ -451,7 +451,6 @@ jobs:
           name: Do a deposit
           no_output_timeout: 5m
           command: |
-            npx hardhat compile
             npx hardhat deposit \
                 --to 0xB79f76EF2c5F0286176833E7B2eEe103b1CC3244  \
                 --amount-eth 1 \
@@ -460,8 +459,11 @@ jobs:
           working_directory: packages/contracts-bedrock
       - run:
           name: Check the status
-          command: |
-            npx hardhat check-op-node
+          command: npx hardhat check-op-node
+          working_directory: packages/contracts-bedrock
+      - run:
+          name: Check L2 Config
+          command: npx hardhat check-l2-config
           working_directory: packages/contracts-bedrock
 
   integration-tests:
