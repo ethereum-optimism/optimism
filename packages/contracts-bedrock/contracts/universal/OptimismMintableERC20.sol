@@ -94,8 +94,10 @@ contract OptimismMintableERC20 is ERC20 {
      */
     function supportsInterface(bytes4 _interfaceId) external pure returns (bool) {
         bytes4 iface1 = type(IERC165).interfaceId;
-        bytes4 iface2 = type(IL1Token).interfaceId;
-        bytes4 iface3 = type(IRemoteToken).interfaceId;
+        // Interface corresponding to the legacy L2StandardERC20.
+        bytes4 iface2 = type(IHasL1Token).interfaceId;
+        // Interface corresponding to the updated OptimismMintableERC20 (this contract).
+        bytes4 iface3 = type(IHasRemoteToken).interfaceId;
         return _interfaceId == iface1 || _interfaceId == iface2 || _interfaceId == iface3;
     }
 

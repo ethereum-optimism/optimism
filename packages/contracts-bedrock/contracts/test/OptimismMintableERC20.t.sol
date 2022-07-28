@@ -2,7 +2,7 @@
 pragma solidity 0.8.15;
 
 import { Bridge_Initializer } from "./CommonTest.t.sol";
-import "../universal/SupportedInterfaces.sol";
+import { IHasL1Token, IHasRemoteToken } from "../universal/SupportedInterfaces.sol";
 import { IERC165 } from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 
 contract OptimismMintableERC20_Test is Bridge_Initializer {
@@ -74,11 +74,11 @@ contract OptimismMintableERC20_Test is Bridge_Initializer {
         assert(L2Token.supportsInterface(iface1));
 
         bytes4 iface2 = L2Token.l1Token.selector ^ L2Token.mint.selector ^ L2Token.burn.selector;
-        assertEq(iface2, type(IL1Token).interfaceId);
+        assertEq(iface2, type(IHasL1Token).interfaceId);
         assert(L2Token.supportsInterface(iface2));
 
         bytes4 iface3 = L2Token.remoteToken.selector ^ L2Token.mint.selector ^ L2Token.burn.selector;
-        assertEq(iface3, type(IRemoteToken).interfaceId);
+        assertEq(iface3, type(IHasRemoteToken).interfaceId);
         assert(L2Token.supportsInterface(iface3));
     }
 }

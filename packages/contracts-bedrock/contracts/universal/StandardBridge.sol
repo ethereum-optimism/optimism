@@ -6,7 +6,7 @@ import { ERC165Checker } from "@openzeppelin/contracts/utils/introspection/ERC16
 import { Address } from "@openzeppelin/contracts/utils/Address.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { Initializable } from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
-import { IRemoteToken, IL1Token } from "./SupportedInterfaces.sol";
+import { IHasRemoteToken, IHasL1Token } from "./SupportedInterfaces.sol";
 import { CrossDomainMessenger } from "./CrossDomainMessenger.sol";
 import { OptimismMintableERC20 } from "./OptimismMintableERC20.sol";
 
@@ -513,7 +513,7 @@ abstract contract StandardBridge is Initializable {
      * @return True if the token is an OptimismMintableERC20.
      */
     function _isOptimismMintableERC20(address _token) internal view returns (bool) {
-        return ERC165Checker.supportsInterface(_token, type(IL1Token).interfaceId);
+        return ERC165Checker.supportsInterface(_token, type(IHasL1Token).interfaceId);
     }
 
     /**
