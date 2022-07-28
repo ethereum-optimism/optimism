@@ -5,11 +5,18 @@ import assert from 'assert'
 import { OptimismGenesis, State } from '@eth-optimism/core-utils'
 import 'hardhat-deploy'
 import '@eth-optimism/hardhat-deploy-config'
-import { ethers } from 'ethers'
+import { ethers, utils, BigNumber } from 'ethers'
 import { task } from 'hardhat/config'
 import { HardhatRuntimeEnvironment } from 'hardhat/types'
+import {
+  CompilerOutputSource,
+  CompilerOutputContract,
+  BuildInfo,
+} from 'hardhat/types/artifacts'
 
 import { predeploys } from '../src'
+
+const { hexZeroPad, hexConcat, hexDataSlice, getAddress } = utils
 
 const prefix = '0x420000000000000000000000000000000000'
 const implementationSlot =
@@ -18,11 +25,16 @@ const adminSlot =
   '0xb53127684a568b3173ae13b9f8a6016e243e63b6e8ee1178d6a717850b5d6103'
 
 const toCodeAddr = (addr: string) => {
-  const address = ethers.utils.hexConcat([
+  const address = hexConcat([
     '0xc0d3c0d3c0d3c0d3c0d3c0d3c0d3c0d3c0d3',
     '0x' + addr.slice(prefix.length),
   ])
-  return ethers.utils.getAddress(address)
+  return getAddress(address)
+}
+
+const toBytes32 = (num: number): string => {
+  const big = BigNumber.from(num)
+  return hexZeroPad(big.toHexString(), 32)
 }
 
 const assertEvenLength = (str: string) => {
@@ -44,6 +56,114 @@ const getStorageLayout = async (
     }
   }
   throw new Error(`Cannot locate storageLayout for ${name}`)
+}
+
+const findContractAndSource = (name: string, buildInfo: BuildInfo) => {
+  const sources = buildInfo.output.sources
+  const contracts = buildInfo.output.contracts
+
+  const compilerOutputContracts: CompilerOutputContract[] = []
+  for (const [contractName, contract] of Object.entries(contracts)) {
+    if (path.basename(contractName, '.sol') === name) {
+      compilerOutputContracts.push(contract[name])
+    }
+  }
+  if (compilerOutputContracts.length !== 1) {
+    console.log(`Unexpected number of contracts for ${name}`)
+  }
+  const outputContract = compilerOutputContracts[0]
+
+  const compilerOutputSources: CompilerOutputSource[] = []
+  for (const [contractName, source] of Object.entries(sources)) {
+    if (path.basename(contractName, '.sol') === name) {
+      compilerOutputSources.push(source as CompilerOutputSource)
+    }
+  }
+
+  if (compilerOutputSources.length !== 1) {
+    console.log(`Unexpected number of sources for ${name}`)
+  }
+  const outputSource = compilerOutputSources[0]
+
+  return { outputContract, outputSource }
+}
+
+const replaceImmutables = async (
+  hre: HardhatRuntimeEnvironment,
+  name: string,
+  immutables: object
+): Promise<string> => {
+  const artifact = await hre.artifacts.readArtifact(name)
+  const buildInfo = await hre.artifacts.getBuildInfo(name)
+
+  const { outputContract, outputSource } = findContractAndSource(
+    name,
+    buildInfo
+  )
+
+  // Get the immutable references. They look like this:
+  // { ast-id: [ {start, length} ] }
+  const immutableReferences =
+    outputContract.evm.deployedBytecode.immutableReferences
+
+  const names = {}
+  const findNames = (ast: any) => {
+    // console.log(ast)
+    const isImmutable = ast.mutability === 'immutable'
+    const isASTNode = typeof ast.name === 'string' && typeof ast.id === 'number'
+    if (isASTNode && isImmutable) {
+      names[ast.name] = ast.id
+    }
+    if (Array.isArray(ast.nodes)) {
+      for (const node of ast.nodes) {
+        findNames(node)
+      }
+    }
+    if (Array.isArray(ast.baseContracts)) {
+      for (const baseContract of ast.baseContracts) {
+        if (baseContract.baseName) {
+          const base = findContractAndSource(
+            baseContract.baseName.name,
+            buildInfo
+          )
+          findNames(base.outputSource.ast)
+        }
+      }
+    }
+  }
+
+  findNames(outputSource.ast)
+
+  let deployedBytecode = artifact.deployedBytecode
+  const presize = deployedBytecode.length
+
+  for (const [key, value] of Object.entries(immutables)) {
+    const astId = names[key]
+    if (!astId) {
+      throw new Error(`Unknown immutable ${key} in contract ${name}`)
+    }
+    const offsets = immutableReferences[astId]
+    if (!offsets) {
+      throw new Error(`Unknown AST id ${astId} in contract ${name}`)
+    }
+
+    // Insert the value at each one
+    for (const offset of offsets) {
+      deployedBytecode = ethers.utils.hexConcat([
+        hexDataSlice(deployedBytecode, 0, offset.start),
+        hexZeroPad(value, 32),
+        hexDataSlice(deployedBytecode, offset.start + offset.length),
+      ])
+    }
+  }
+
+  if (presize !== deployedBytecode.length) {
+    throw new Error(
+      `Size mismatch! Before ${presize}, after ${deployedBytecode.length}`
+    )
+  }
+
+  return deployedBytecode
 }
 
 task('genesis-l2', 'create a genesis config')
@@ -138,7 +258,7 @@ task('genesis-l2', 'create a genesis config')
 
     const predeployAddrs = new Set()
     for (const addr of Object.values(predeploys)) {
-      predeployAddrs.add(ethers.utils.getAddress(addr))
+      predeployAddrs.add(getAddress(addr))
     }
 
     const alloc: State = {}
@@ -146,15 +266,13 @@ task('genesis-l2', 'create a genesis config')
     // Set a proxy at each predeploy address
     const proxy = await hre.artifacts.readArtifact('Proxy')
     for (let i = 0; i <= 2048; i++) {
-      const num = ethers.utils.hexZeroPad('0x' + i.toString(16), 2)
-      const addr = ethers.utils.getAddress(
-        ethers.utils.hexConcat([prefix, num])
-      )
+      const num = hexZeroPad('0x' + i.toString(16), 2)
+      const addr = getAddress(ethers.utils.hexConcat([prefix, num]))
 
       // There is no proxy at LegacyERC20ETH or the GovernanceToken
       if (
-        addr === ethers.utils.getAddress(predeploys.LegacyERC20ETH) ||
-        addr === ethers.utils.getAddress(predeploys.GovernanceToken)
+        addr === getAddress(predeploys.LegacyERC20ETH) ||
+        addr === getAddress(predeploys.GovernanceToken)
       ) {
         continue
       }
@@ -168,9 +286,9 @@ task('genesis-l2', 'create a genesis config')
         },
       }
 
-      if (predeployAddrs.has(ethers.utils.getAddress(addr))) {
+      if (predeployAddrs.has(getAddress(addr))) {
         const predeploy = Object.entries(predeploys).find(([, address]) => {
-          return ethers.utils.getAddress(address) === addr
+          return getAddress(address) === addr
         })
 
         // Really shouldn't happen, since predeployAddrs is a set generated from predeploys.
@@ -211,7 +329,7 @@ task('genesis-l2', 'create a genesis config')
       buf.writeUInt16BE(i, 0)
       const addr = ethers.utils.hexConcat([
         '0x000000000000000000000000000000000000',
-        ethers.utils.hexZeroPad(buf, 2),
+        hexZeroPad(buf, 2),
       ])
       alloc[addr] = {
         balance: '0x1',
@@ -251,6 +369,42 @@ task('genesis-l2', 'create a genesis config')
       }
     }
 
+    const immutables = {
+      OptimismMintableERC20Factory: {
+        bridge: predeploys.L2StandardBridge,
+      },
+      GasPriceOracle: {
+        MAJOR_VERSION: toBytes32(0),
+        MINOR_VERSION: toBytes32(0),
+        PATCH_VERSION: toBytes32(1),
+      },
+      L1Block: {
+        MAJOR_VERSION: toBytes32(0),
+        MINOR_VERSION: toBytes32(0),
+        PATCH_VERSION: toBytes32(1),
+      },
+      L2CrossDomainMessenger: {
+        MAJOR_VERSION: toBytes32(0),
+        MINOR_VERSION: toBytes32(0),
+        PATCH_VERSION: toBytes32(1),
+      },
+      L2StandardBridge: {
+        MAJOR_VERSION: toBytes32(0),
+        MINOR_VERSION: toBytes32(0),
+        PATCH_VERSION: toBytes32(1),
+      },
+      L2ToL1MessagePasser: {
+        MAJOR_VERSION: toBytes32(0),
+        MINOR_VERSION: toBytes32(0),
+        PATCH_VERSION: toBytes32(1),
+      },
+      SequencerFeeVault: {
+        MAJOR_VERSION: toBytes32(0),
+        MINOR_VERSION: toBytes32(0),
+        PATCH_VERSION: toBytes32(1),
+      },
+    }
+
     // Set the predeploys in the state
     for (const [name, addr] of Object.entries(predeploys)) {
       if (name === 'GovernanceToken') {
@@ -262,16 +416,27 @@ task('genesis-l2', 'create a genesis config')
       const allocAddr = name === 'LegacyERC20ETH' ? addr : toCodeAddr(addr)
       assertEvenLength(allocAddr)
 
+      const immutableConfig = immutables[name]
+      const deployedBytecode = immutableConfig
+        ? await replaceImmutables(hre, name, immutableConfig)
+        : artifact.deployedBytecode
+
       alloc[allocAddr] = {
         nonce: '0x00',
         balance: '0x00',
-        code: artifact.deployedBytecode,
+        code: deployedBytecode,
         storage: {},
       }
     }
 
     const portal = await hre.deployments.get('OptimismPortalProxy')
     const l1StartingBlock = await l1.getBlock(portal.receipt.blockHash)
+
+    if (l1StartingBlock === null) {
+      console.log(`Unable to fetch L1 starting timestamp`)
+    }
+
+    const startingTimestamp = l1StartingBlock?.timestamp || 0
 
     const genesis: OptimismGenesis = {
       config: {
@@ -296,7 +461,7 @@ task('genesis-l2', 'create a genesis config')
       },
       nonce: '0x1234',
       difficulty: '0x1',
-      timestamp: ethers.BigNumber.from(l1StartingBlock.timestamp).toHexString(),
+      timestamp: ethers.BigNumber.from(startingTimestamp).toHexString(),
       gasLimit: deployConfig.genesisBlockGasLimit,
       extraData: deployConfig.genesisBlockExtradata,
       alloc,
