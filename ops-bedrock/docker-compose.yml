@@ -103,6 +103,8 @@ services:
     build:
       context: ../
       dockerfile: ./op-batcher/Dockerfile
+    ports:
+      - "6061:6060"
     environment:
       L1_ETH_RPC: http://l1:8545
       L2_ETH_RPC: http://l2:8545
@@ -120,6 +122,7 @@ services:
       BATCH_SUBMITTER_SEQUENCER_GENESIS_HASH: "${SEQUENCER_GENESIS_HASH}"
       BATCH_SUBMITTER_SEQUENCER_BATCH_INBOX_ADDRESS: "${SEQUENCER_BATCH_INBOX_ADDRESS}"
       BATCH_SUBMITTER_LOG_TERMINAL: "true"
+      BATCH_SUBMITTER_PPROF_ENABLED: "true"
 
   stateviz:
     build:
