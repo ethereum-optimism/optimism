@@ -43,7 +43,7 @@ contract L2CrossDomainMessenger is CrossDomainMessenger, Semver {
      *
      * @return Address of the L1CrossDomainMessenger contract.
      */
-    function l1CrossDomainMessenger() public view returns (address) {
+    function l1CrossDomainMessenger() external view returns (address) {
         return otherMessenger;
     }
 
