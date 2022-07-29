@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"sort"
+	"time"
 
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
@@ -144,6 +145,18 @@ func (bq *BatchQueue) validExtension(batch *BatchWithL1InclusionBlock, prevTime,
 		return false
 	}
 	// TODO: Also check EpochHash (hard b/c maybe extension)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	l1BlockRef, err := bq.dl.L1BlockRefByNumber(ctx, batch.Batch.Epoch().Number)
+	cancel()
+	if err != nil {
+		// TODO: if err is temporary, skip validation
+		return false
+	}
+
+	if l1BlockRef.Hash != batch.Batch.EpochHash {
+		return false
+	}
 
 	// Note: `Batch.EpochNum` is an external input, but it is constrained to be a reasonable size by the
 	// above equality checks.
