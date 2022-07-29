@@ -111,6 +111,23 @@ var (
 		Value:  7300,
 		EnvVar: prefixEnvVar("METRICS_PORT"),
 	}
+	PprofEnabledFlag = cli.BoolFlag{
+		Name:   "pprof.enabled",
+		Usage:  "Enable the pprof server",
+		EnvVar: prefixEnvVar("PPROF_ENABLED"),
+	}
+	PprofAddrFlag = cli.StringFlag{
+		Name:   "pprof.addr",
+		Usage:  "pprof listening address",
+		Value:  "0.0.0.0",
+		EnvVar: prefixEnvVar("PPROF_ADDR"),
+	}
+	PprofPortFlag = cli.IntFlag{
+		Name:   "pprof.port",
+		Usage:  "pprof listening port",
+		Value:  6060,
+		EnvVar: prefixEnvVar("PPROF_PORT"),
+	}
 
 	SnapshotLog = cli.StringFlag{
 		Name:   "snapshotlog.file",
@@ -139,6 +156,9 @@ var optionalFlags = append([]cli.Flag{
 	MetricsEnabledFlag,
 	MetricsAddrFlag,
 	MetricsPortFlag,
+	PprofEnabledFlag,
+	PprofAddrFlag,
+	PprofPortFlag,
 	SnapshotLog,
 }, p2pFlags...)
 
