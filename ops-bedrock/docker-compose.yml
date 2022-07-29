@@ -82,6 +82,8 @@ services:
     build:
       context: ../
       dockerfile: ./op-proposer/Dockerfile
+    ports:
+      - "6062:6060"
     environment:
       L1_ETH_RPC: http://l1:8545
       L2_ETH_RPC: http://l2:8545
@@ -94,6 +96,7 @@ services:
       OUTPUT_SUBMITTER_L2_OUTPUT_HD_PATH: "m/44'/60'/0'/0/1"
       OUTPUT_SUBMITTER_LOG_TERMINAL: "true"
       L2OO_ADDRESS: "${L2OO_ADDRESS}"
+      OUTPUT_SUBMITTER_PPROF_ENABLED: "true"
 
   op-batcher:
     depends_on:
