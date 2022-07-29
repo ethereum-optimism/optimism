@@ -113,7 +113,7 @@ const replaceImmutables = async (
     outputContract.evm.deployedBytecode.immutableReferences
 
   const names = {}
-  // Recursively fine all of the immutables by traversing the solc output ast
+  // Recursively find all of the immutables by traversing the solc output ast
   const findNames = (ast: any) => {
     // Add the name of the variable if it is an immutable
     const isImmutable = ast.mutability === 'immutable'
@@ -159,6 +159,12 @@ const replaceImmutables = async (
 
     // Insert the value at each one
     for (const offset of offsets) {
+      if (offset.length !== 32) {
+        throw new Error(
+          `Immutable slicing must be updated to handle arbitrary size immutables`
+        )
+      }
+
       deployedBytecode = ethers.utils.hexConcat([
         hexDataSlice(deployedBytecode, 0, offset.start),
         hexZeroPad(value, 32),
@@ -434,6 +440,10 @@ task('genesis-l2', 'create a genesis config')
         ? await replaceImmutables(hre, name, immutableConfig)
         : artifact.deployedBytecode
 
+      assertEvenLength(deployedBytecode)
+
+      // TODO(tynes): initialize contracts that should be initialized
+      // in the implementations here
       alloc[allocAddr] = {
         nonce: '0x00',
         balance: '0x00',
