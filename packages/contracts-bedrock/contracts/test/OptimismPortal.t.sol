@@ -275,7 +275,7 @@ contract OptimismPortal_FinalizeWithdrawal_Test is Portal_Initializer {
     event WithdrawalFinalized(bytes32 indexed, bool success);
 
     // Use a constructor to set the storage vars above, so as to minimize the number of ffi calls.
-    constructor() public {
+    constructor() {
         super.setUp();
         _defaultTx = Types.WithdrawalTransaction({
             nonce: 0,
@@ -425,8 +425,8 @@ contract OptimismPortal_FinalizeWithdrawal_Test is Portal_Initializer {
         (
             bytes32 stateRoot,
             bytes32 storageRoot,
-            bytes32 outputRoot,
-            bytes32 withdrawalHash,
+            ,
+            ,
             bytes memory withdrawalProof
         ) = ffi.getFinalizeWithdrawalTransactionInputs(insufficientGasTx);
         Types.OutputRootProof memory outputRootProof = Types.OutputRootProof({
@@ -526,12 +526,15 @@ contract OptimismPortal_FinalizeWithdrawal_Test is Portal_Initializer {
     function test_finalizeWithdrawalTransaction_differential(
         address _sender,
         address _target,
-        uint64 _value,
-        uint8 _gasLimit,
+        uint256 _value,
+        uint256 _gasLimit,
         bytes memory _data
     ) external {
         // Cannot call the optimism portal
         vm.assume(_target != address(op));
+        // Total ETH supply is currently about 120M ETH.
+        vm.assume(_value < 200_000_000 ether);
+        vm.assume(_gasLimit < 50_000_000);
         uint256 _nonce = messagePasser.nonce();
         Types.WithdrawalTransaction memory _tx = Types.WithdrawalTransaction({
             nonce: _nonce,
