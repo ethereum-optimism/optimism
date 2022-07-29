@@ -23,10 +23,12 @@ task('rollup-config', 'create a genesis config')
     const l2Genesis = await l2.getBlock('earliest')
 
     const portal = await hre.deployments.get('OptimismPortalProxy')
-    if (deployConfig.l1StartingBlockTag === undefined) {
-      throw new Error('must provide L1 Starting Block Tag')
-    }
     const l1StartingBlock = await l1.getBlock(deployConfig.l1StartingBlockTag)
+    if (l1StartingBlock === null) {
+      throw new Error(
+        `Cannot fetch block tag ${deployConfig.l1StartingBlockTag}`
+      )
+    }
 
     const config: OpNodeConfig = {
       genesis: {

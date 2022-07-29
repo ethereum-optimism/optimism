@@ -11,10 +11,10 @@ const deployFn: DeployFunction = async (hre) => {
   const { deployConfig } = hre
 
   const l1 = hre.ethers.getDefaultProvider()
-  if (deployConfig.l1StartingBlockTag === undefined) {
-    throw new Error('must provide L1 Starting Block Tag')
-  }
   const l1StartingBlock = await l1.getBlock(deployConfig.l1StartingBlockTag)
+  if (l1StartingBlock === null) {
+    throw new Error(`Cannot fetch block tag ${deployConfig.l1StartingBlockTag}`)
+  }
 
   await deploy('L2OutputOracleProxy', {
     contract: 'Proxy',
