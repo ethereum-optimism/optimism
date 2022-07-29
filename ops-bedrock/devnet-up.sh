@@ -58,9 +58,9 @@ function wait_up {
 mkdir -p ./.devnet
 
 if [ ! -f ./.devnet/rollup.json ]; then
-    GENESIS_TIMESTAMP=$(date +%s | xargs printf "0x%x")
+    L1_GENESIS_TIMESTAMP=$(date +%s | xargs printf "0x%x")
 else
-    GENESIS_TIMESTAMP=$(jq '.timestamp' < .devnet/genesis-l1.json)
+    L1_GENESIS_TIMESTAMP=$(jq '.timestamp' < .devnet/genesis-l1.json)
 fi
 
 # Regenerate the L1 genesis file if necessary. The existence of the genesis
@@ -69,7 +69,7 @@ if [ ! -f ./.devnet/genesis-l1.json ]; then
   echo "Regenerating L1 genesis."
   (
     cd $CONTRACTS_BEDROCK
-    L2OO_STARTING_BLOCK_TIMESTAMP=$GENESIS_TIMESTAMP npx hardhat genesis-l1 \
+    L1_GENESIS_TIMESTAMP=$L1_GENESIS_TIMESTAMP npx hardhat genesis-l1 \
         --outfile genesis-l1.json
     mv genesis-l1.json ../../.devnet/genesis-l1.json
   )
@@ -89,7 +89,7 @@ if [ ! -d $CONTRACTS_BEDROCK/deployments/$NETWORK ]; then
   (
     echo "Deploying contracts."
     cd $CONTRACTS_BEDROCK
-    L2OO_STARTING_BLOCK_TIMESTAMP=$GENESIS_TIMESTAMP yarn hardhat --network $NETWORK deploy
+    L1_GENESIS_TIMESTAMP=$L1_GENESIS_TIMESTAMP yarn hardhat --network $NETWORK deploy
   )
 else
   echo "Contracts already deployed, skipping."
@@ -99,7 +99,7 @@ if [ ! -f ./.devnet/genesis-l2.json ]; then
     (
       echo "Creating L2 genesis file."
       cd $CONTRACTS_BEDROCK
-      L2OO_STARTING_BLOCK_TIMESTAMP=$GENESIS_TIMESTAMP npx hardhat --network $NETWORK genesis-l2
+      L1_GENESIS_TIMESTAMP=$L1_GENESIS_TIMESTAMP npx hardhat --network $NETWORK genesis-l2
       mv genesis.json ../../.devnet/genesis-l2.json
       echo "Created L2 genesis."
     )
@@ -120,7 +120,7 @@ if [ ! -f ./.devnet/rollup.json ]; then
     (
       echo "Building rollup config..."
       cd $CONTRACTS_BEDROCK
-      L2OO_STARTING_BLOCK_TIMESTAMP=$GENESIS_TIMESTAMP npx hardhat rollup-config --network $NETWORK
+      L1_GENESIS_TIMESTAMP=$L1_GENESIS_TIMESTAMP npx hardhat --network $NETWORK rollup-config
       mv rollup.json ../../.devnet/rollup.json
     )
 else
