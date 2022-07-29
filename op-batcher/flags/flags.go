@@ -113,6 +113,23 @@ var (
 			"in JSON format.",
 		EnvVar: prefixEnvVar("LOG_TERMINAL"),
 	}
+	PprofEnabledFlag = cli.BoolFlag{
+		Name:   "pprof.enabled",
+		Usage:  "Enable the pprof server",
+		EnvVar: prefixEnvVar("PPROF_ENABLED"),
+	}
+	PprofAddrFlag = cli.StringFlag{
+		Name:   "pprof.addr",
+		Usage:  "pprof listening address",
+		Value:  "0.0.0.0",
+		EnvVar: prefixEnvVar("PPROF_ADDR"),
+	}
+	PprofPortFlag = cli.IntFlag{
+		Name:   "pprof.port",
+		Usage:  "pprof listening port",
+		Value:  6060,
+		EnvVar: prefixEnvVar("PPROF_PORT"),
+	}
 )
 
 var requiredFlags = []cli.Flag{
@@ -134,6 +151,9 @@ var requiredFlags = []cli.Flag{
 var optionalFlags = []cli.Flag{
 	LogLevelFlag,
 	LogTerminalFlag,
+	PprofEnabledFlag,
+	PprofAddrFlag,
+	PprofPortFlag,
 }
 
 // Flags contains the list of configuration options available to the binary.

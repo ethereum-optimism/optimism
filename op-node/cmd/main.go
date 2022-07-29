@@ -2,9 +2,12 @@ package main
 
 import (
 	"context"
+	"net"
+	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/ethereum-optimism/optimism/op-node/metrics"
 
@@ -100,6 +103,27 @@ func RollupNodeMain(ctx *cli.Context) error {
 	m.RecordInfo(VersionWithMeta)
 	m.RecordUp()
 	log.Info("Rollup node started")
+
+	if cfg.Pprof.Enabled {
+		var srv http.Server
+		srv.Addr = net.JoinHostPort(cfg.Pprof.ListenAddr, cfg.Pprof.ListenPort)
+		// Start pprof server + register it's shutdown
+		go func() {
+			log.Info("pprof server started", "addr", srv.Addr)
+			if err := srv.ListenAndServe(); err != http.ErrServerClosed {
+				log.Error("error in pprof server", "err", err)
+			} else {
+				log.Info("pprof server shutting down")
+			}
+
+		}()
+		defer func() {
+			shutCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer cancel()
+			err := srv.Shutdown(shutCtx)
+			log.Info("pprof server shut down", "err", err)
+		}()
+	}
 
 	interruptChannel := make(chan os.Signal, 1)
 	signal.Notify(interruptChannel, []os.Signal{
