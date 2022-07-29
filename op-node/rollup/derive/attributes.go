@@ -36,7 +36,7 @@ func PreparePayloadAttributes(ctx context.Context, cfg *rollup.Config, dl L1Rece
 			return nil, makeError(
 				ErrFetchFailed,
 				"failed to fetch L1 block info and receipts",
-				err)
+				ErrTemporary)
 		}
 		if l2Parent.L1Origin.Hash != info.ParentHash() {
 			return nil, makeError(
@@ -50,7 +50,7 @@ func PreparePayloadAttributes(ctx context.Context, cfg *rollup.Config, dl L1Rece
 			return nil, makeError(
 				ErrDeriveFailed,
 				"failed to derive some deposits",
-				err)
+				ErrTemporary)
 		}
 		l1Info = info
 		depositTxs = deposits
@@ -68,7 +68,7 @@ func PreparePayloadAttributes(ctx context.Context, cfg *rollup.Config, dl L1Rece
 			return nil, makeError(
 				ErrInfoByHashFailed,
 				"failed to fetch L1 block info",
-				err,
+				ErrTemporary,
 			)
 		}
 		l1Info = info
@@ -81,7 +81,7 @@ func PreparePayloadAttributes(ctx context.Context, cfg *rollup.Config, dl L1Rece
 		return nil, makeError(
 			ErrL1InfoTxFailed,
 			"failed to create l1InfoTx",
-			err,
+			ErrTemporary,
 		)
 	}
 
