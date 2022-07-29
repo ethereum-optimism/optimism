@@ -2,7 +2,9 @@ package driver
 
 import (
 	"context"
+	"errors"
 
+	"github.com/ethereum-optimism/optimism/op-node/backoff"
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum/go-ethereum"
@@ -31,7 +33,20 @@ func (c *confDepth) L1BlockRefByNumber(ctx context.Context, num uint64) (eth.L1B
 	// and instantly return the origin by number from the buffer if we can.
 
 	if num == 0 || c.depth == 0 || num+c.depth <= c.l1Head().Number {
-		return c.L1Fetcher.L1BlockRefByNumber(ctx, num)
+		nextOrigin, err := c.L1Fetcher.L1BlockRefByNumber(ctx, num)
+		if err != nil {
+			if !errors.Is(err, derive.ErrTemporary) {
+				return eth.L1BlockRef{}, err
+			} else {
+				bOff := backoff.Exponential()
+				err = backoff.Do(10, bOff, func() error {
+					var err error
+					nextOrigin, err = c.L1Fetcher.L1BlockRefByNumber(ctx, num)
+					return err
+				})
+			}
+		}
+		return nextOrigin, err
 	}
 	return eth.L1BlockRef{}, ethereum.NotFound
 }
