@@ -167,6 +167,7 @@ contract ProxyAdmin is Owned {
     ) external payable onlyOwner {
         ProxyType ptype = proxyType[_proxy];
         if (ptype == ProxyType.ERC1967) {
+            // slither-disable-next-line unused-return
             Proxy(_proxy).upgradeToAndCall{ value: msg.value }(_implementation, _data);
         } else {
             // reverts if proxy type is unknown
