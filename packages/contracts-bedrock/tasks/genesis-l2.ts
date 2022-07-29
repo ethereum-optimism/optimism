@@ -462,8 +462,12 @@ task('genesis-l2', 'create a genesis config')
       }
     }
 
-    const portal = await hre.deployments.get('OptimismPortalProxy')
-    const l1StartingBlock = await l1.getBlock(portal.receipt.blockHash)
+    const l1StartingBlock = await l1.getBlock(deployConfig.l1StartingBlockTag)
+    if (l1StartingBlock === null) {
+      throw new Error(
+        `Cannot fetch block tag ${deployConfig.l1StartingBlockTag}`
+      )
+    }
 
     if (l1StartingBlock === null) {
       console.log(`Unable to fetch L1 starting timestamp`)
