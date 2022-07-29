@@ -165,6 +165,16 @@ const replaceImmutables = async (
         )
       }
 
+      // Ensure that the value being sliced out is 0
+      const val = hexDataSlice(
+        deployedBytecode,
+        offset.start,
+        offset.start + offset.length
+      )
+      if (!BigNumber.from(val).eq(0)) {
+        throw new Error(`Unexpected value in immutable bytecode ${val}`)
+      }
+
       deployedBytecode = ethers.utils.hexConcat([
         hexDataSlice(deployedBytecode, 0, offset.start),
         hexZeroPad(value, 32),
