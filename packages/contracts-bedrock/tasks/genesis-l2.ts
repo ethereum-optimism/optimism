@@ -271,7 +271,7 @@ task('genesis-l2', 'create a genesis config')
     }
 
     if (deployConfig.l1StartingBlockTag === undefined) {
-          throw new Error("must provide L1 Starting Block Tag")
+      throw new Error('must provide L1 Starting Block Tag')
     }
     const l1StartingBlock = await l1.getBlock(deployConfig.l1StartingBlockTag)
 

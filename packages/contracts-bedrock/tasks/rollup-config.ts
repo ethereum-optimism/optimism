@@ -24,7 +24,7 @@ task('rollup-config', 'create a genesis config')
 
     const portal = await hre.deployments.get('OptimismPortalProxy')
     if (deployConfig.l1StartingBlockTag === undefined) {
-      throw new Error("must provide L1 Starting Block Tag")
+      throw new Error('must provide L1 Starting Block Tag')
     }
     const l1StartingBlock = await l1.getBlock(deployConfig.l1StartingBlockTag)
 
