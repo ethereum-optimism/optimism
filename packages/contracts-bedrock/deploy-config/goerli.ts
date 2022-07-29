@@ -1,7 +1,7 @@
 import { ethers } from 'ethers'
 
 const sequencerAddress = '0x6c23a0dcdfc44b7a57bed148de598895e398d984'
-const l1StartingBlockTag = ''
+const l1StartingBlockTag = '0xafce66a0a2446856112e4069b275ad32b1f4a607888f9c4c59eddf9be81f8670'
 
 const config = {
   submissionInterval: 6,
