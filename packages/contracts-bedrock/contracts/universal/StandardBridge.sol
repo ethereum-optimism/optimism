@@ -195,7 +195,7 @@ abstract contract StandardBridge {
      *                     not be triggered with this data, but it will be emitted and can be used
      *                     to identify the transaction.
      */
-    function bridgeETH(uint32 _minGasLimit, bytes calldata _extraData) public payable onlyEOA {
+    function bridgeETH(uint32 _minGasLimit, bytes calldata _extraData) external payable onlyEOA {
         _initiateBridgeETH(msg.sender, msg.sender, msg.value, _minGasLimit, _extraData);
     }
 
@@ -216,7 +216,7 @@ abstract contract StandardBridge {
         address _to,
         uint32 _minGasLimit,
         bytes calldata _extraData
-    ) public payable {
+    ) external payable {
         _initiateBridgeETH(msg.sender, _to, msg.value, _minGasLimit, _extraData);
     }
 
@@ -240,7 +240,7 @@ abstract contract StandardBridge {
         uint256 _amount,
         uint32 _minGasLimit,
         bytes calldata _extraData
-    ) public virtual onlyEOA {
+    ) external virtual onlyEOA {
         _initiateBridgeERC20(
             _localToken,
             _remoteToken,
@@ -274,7 +274,7 @@ abstract contract StandardBridge {
         uint256 _amount,
         uint32 _minGasLimit,
         bytes calldata _extraData
-    ) public virtual {
+    ) external virtual {
         _initiateBridgeERC20(
             _localToken,
             _remoteToken,
@@ -371,7 +371,7 @@ abstract contract StandardBridge {
         address _remoteToken,
         address _to,
         uint256 _amount
-    ) public onlySelf {
+    ) external onlySelf {
         // Make sure external function calls can't be used to trigger calls to
         // completeOutboundTransfer. We only make external (write) calls to _localToken.
         require(_localToken != address(this), "StandardBridge: local token cannot be self");

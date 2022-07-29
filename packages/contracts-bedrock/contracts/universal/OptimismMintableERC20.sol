@@ -103,7 +103,7 @@ contract OptimismMintableERC20 is ERC20 {
      * @custom:legacy
      * @notice Legacy getter for the remote token. Use remoteToken going forward.
      */
-    function l1Token() public view returns (address) {
+    function l1Token() external view returns (address) {
         return remoteToken;
     }
 
@@ -111,7 +111,7 @@ contract OptimismMintableERC20 is ERC20 {
      * @custom:legacy
      * @notice Legacy getter for the bridge. Use bridge going forward.
      */
-    function l2Bridge() public view returns (address) {
+    function l2Bridge() external view returns (address) {
         return bridge;
     }
 }
