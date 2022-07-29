@@ -15,7 +15,7 @@
   ],
   "scripts": {
     "build:forge": "forge build",
-    "build:differential": "tsc scripts/differential-testing.ts --outDir dist --moduleResolution node",
+    "build:differential": "tsc scripts/differential-testing.ts --outDir dist --moduleResolution node --esModuleInterop",
     "prebuild": "yarn ts-node scripts/verifyFoundryInstall.ts",
     "build": "hardhat compile && yarn autogen:artifacts && yarn build:ts && yarn typechain",
     "build:ts": "tsc -p tsconfig.json",
