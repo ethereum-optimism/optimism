@@ -69,6 +69,9 @@ const findContractAndSource = (name: string, buildInfo: BuildInfo) => {
       compilerOutputContracts.push(contract[name])
     }
   }
+  if (compilerOutputContracts.length === 0) {
+    throw new Error(`Cannot find compiler output contract for ${name}`)
+  }
   if (compilerOutputContracts.length !== 1) {
     console.log(`Unexpected number of contracts for ${name}`)
   }
@@ -80,7 +83,9 @@ const findContractAndSource = (name: string, buildInfo: BuildInfo) => {
       compilerOutputSources.push(source as CompilerOutputSource)
     }
   }
-
+  if (compilerOutputSources.length === 0) {
+    throw new Error(`Cannot find compiler output source for ${name}`)
+  }
   if (compilerOutputSources.length !== 1) {
     console.log(`Unexpected number of sources for ${name}`)
   }
