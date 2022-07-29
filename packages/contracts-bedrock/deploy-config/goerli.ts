@@ -1,6 +1,5 @@
 import { ethers } from 'ethers'
 
-
 const sequencerAddress = '0x6c23a0dcdfc44b7a57bed148de598895e398d984'
 const l1StartingBlockTag = ''
 
