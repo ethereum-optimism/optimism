@@ -3,6 +3,9 @@ package op_proposer
 import (
 	"context"
 	"fmt"
+	"net"
+	"net/http"
+	_ "net/http/pprof"
 	"os"
 	"os/signal"
 	"syscall"
@@ -67,6 +70,27 @@ func Main(version string) func(ctx *cli.Context) error {
 		defer l2OutputSubmitter.Stop()
 
 		l.Info("L2 Output Submitter started")
+
+		if cfg.PprofEnabled {
+			var srv http.Server
+			srv.Addr = net.JoinHostPort(cfg.PprofAddr, cfg.PprofPort)
+			// Start pprof server + register it's shutdown
+			go func() {
+				l.Info("pprof server started", "addr", srv.Addr)
+				if err := srv.ListenAndServe(); err != http.ErrServerClosed {
+					l.Error("error in pprof server", "err", err)
+				} else {
+					l.Info("pprof server shutting down")
+				}
+
+			}()
+			defer func() {
+				shutCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+				defer cancel()
+				err := srv.Shutdown(shutCtx)
+				l.Info("pprof server shut down", "err", err)
+			}()
+		}
 
 		interruptChannel := make(chan os.Signal, 1)
 		signal.Notify(interruptChannel, []os.Signal{
