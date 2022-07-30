@@ -17,7 +17,7 @@ const deployFn: DeployFunction = async (hre) => {
     waitConfirmations: deployConfig.deploymentWaitConfirmations,
   })
 
-  const oracle = await get('L2OutputOracle')
+  const oracle = await get('L2OutputOracleProxy')
 
   await deploy('OptimismPortal', {
     from: deployer,
