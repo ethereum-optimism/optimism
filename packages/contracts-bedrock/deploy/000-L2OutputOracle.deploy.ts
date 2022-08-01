@@ -10,7 +10,7 @@ const deployFn: DeployFunction = async (hre) => {
   const { deployer } = await hre.getNamedAccounts()
   const { deployConfig } = hre
 
-  const l1 = hre.ethers.getDefaultProvider()
+  const l1 = hre.ethers.provider
   const l1StartingBlock = await l1.getBlock(deployConfig.l1StartingBlockTag)
   if (l1StartingBlock === null) {
     throw new Error(`Cannot fetch block tag ${deployConfig.l1StartingBlockTag}`)
