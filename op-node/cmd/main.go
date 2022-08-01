@@ -56,6 +56,7 @@ func main() {
 
 	app := cli.NewApp()
 	app.Version = VersionWithMeta
+	app.Flags = flags.GlobalFlags
 	app.Name = "opnode"
 	app.Usage = "Optimism Rollup Node"
 	app.Description = "The deposit only rollup node drives the L2 execution engine based on L1 deposits."

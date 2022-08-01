@@ -150,9 +150,6 @@ var optionalFlags = append([]cli.Flag{
 	VerifierL1Confs,
 	SequencerEnabledFlag,
 	SequencerL1Confs,
-	LogLevelFlag,
-	LogFormatFlag,
-	LogColorFlag,
 	MetricsEnabledFlag,
 	MetricsAddrFlag,
 	MetricsPortFlag,
@@ -162,5 +159,12 @@ var optionalFlags = append([]cli.Flag{
 	SnapshotLog,
 }, p2pFlags...)
 
-// Flags contains the list of configuration options available to the binary.
+// GlobalFlags contains the list of configuration options available to every command.
+var GlobalFlags = []cli.Flag{
+	LogLevelFlag,
+	LogFormatFlag,
+	LogColorFlag,
+}
+
+// Flags contains the list of configuration options available to the start command.
 var Flags = append(requiredFlags, optionalFlags...)
