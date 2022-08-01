@@ -181,8 +181,7 @@ func CheckRequired(ctx *cli.Context) error {
 	if rpcListenAddr == "" {
 		return fmt.Errorf("flag %s is required", RPCListenAddr.Name)
 	}
-	rpcListenPort := ctx.GlobalInt(RPCListenPort.Name)
-	if rpcListenPort == 0 {
+	if !ctx.GlobalIsSet(RPCListenPort.Name) {
 		return fmt.Errorf("flag %s is required", RPCListenPort.Name)
 	}
 	return nil
