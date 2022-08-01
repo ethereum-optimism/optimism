@@ -97,7 +97,9 @@ var Subcommands = cli.Commands{
 		Usage: "Generates a private key",
 		Action: func(ctx *cli.Context) error {
 			buf := make([]byte, 32)
-			_, _ = rand.Read(buf)
+			if _, err := rand.Read(buf); err != nil {
+						return fmt.Errorf("failed to get entropy: %w", err)
+			}
 			fmt.Println(hex.EncodeToString(buf))
 			return nil
 		},
