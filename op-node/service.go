@@ -24,6 +24,10 @@ import (
 
 // NewConfig creates a Config from the provided flags or environment variables.
 func NewConfig(ctx *cli.Context, log log.Logger) (*node.Config, error) {
+	if err := flags.CheckRequired(ctx); err != nil {
+		return nil, err
+	}
+
 	rollupConfig, err := NewRollupConfig(ctx)
 	if err != nil {
 		return nil, err
