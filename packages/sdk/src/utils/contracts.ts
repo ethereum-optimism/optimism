@@ -145,6 +145,11 @@ export const BRIDGE_ADAPTER_DATA: {
     },
   },
   [L2ChainID.OPTIMISM_KOVAN]: {
+    wstETH: {
+      Adapter: StandardBridgeAdapter,
+      l1Bridge: '0xa88751C0a08623E11ff38c6B70F2BbEe7865C17c' as const,
+      l2Bridge: '0xF9C842dE4381a70eB265d10CF8D43DceFF5bA935' as const,
+    },
     BitBTC: {
       Adapter: StandardBridgeAdapter,
       l1Bridge: '0x0b651A42F32069d62d5ECf4f2a7e5Bd3E9438746' as const,
