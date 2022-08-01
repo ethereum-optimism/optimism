@@ -82,15 +82,18 @@ var (
 		Name: "mnemonic",
 		Usage: "The mnemonic used to derive the wallets for either the " +
 			"sequencer or the l2output",
-		Required: true,
-		EnvVar:   prefixEnvVar("MNEMONIC"),
+		EnvVar: prefixEnvVar("MNEMONIC"),
 	}
 	SequencerHDPathFlag = cli.StringFlag{
 		Name: "sequencer-hd-path",
 		Usage: "The HD path used to derive the sequencer wallet from the " +
 			"mnemonic. The mnemonic flag must also be set.",
-		Required: true,
-		EnvVar:   prefixEnvVar("SEQUENCER_HD_PATH"),
+		EnvVar: prefixEnvVar("SEQUENCER_HD_PATH"),
+	}
+	PrivateKeyFlag = cli.StringFlag{
+		Name:   "private-key",
+		Usage:  "The private key to use with the l2output wallet. Must not be used with mnemonic.",
+		EnvVar: prefixEnvVar("PRIVATE_KEY"),
 	}
 	SequencerBatchInboxAddressFlag = cli.StringFlag{
 		Name:     "sequencer-batch-inbox-address",
@@ -143,12 +146,13 @@ var requiredFlags = []cli.Flag{
 	NumConfirmationsFlag,
 	SafeAbortNonceTooLowCountFlag,
 	ResubmissionTimeoutFlag,
-	MnemonicFlag,
-	SequencerHDPathFlag,
 	SequencerBatchInboxAddressFlag,
 }
 
 var optionalFlags = []cli.Flag{
+	MnemonicFlag,
+	SequencerHDPathFlag,
+	PrivateKeyFlag,
 	LogLevelFlag,
 	LogTerminalFlag,
 	PprofEnabledFlag,
