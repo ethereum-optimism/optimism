@@ -70,7 +70,7 @@ func TestAttributesQueue_Step(t *testing.T) {
 	batch := &BatchData{BatchV1{
 		EpochNum:     rollup.Epoch(l1Info.InfoNum),
 		EpochHash:    l1Info.InfoHash,
-		Timestamp:    12345,
+		Timestamp:    safeHead.Time + cfg.BlockTime,
 		Transactions: []eth.Data{eth.Data("foobar"), eth.Data("example")},
 	}}
 

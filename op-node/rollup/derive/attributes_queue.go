@@ -55,7 +55,7 @@ func (aq *AttributesQueue) Step(ctx context.Context, outer Progress) error {
 
 	fetchCtx, cancel := context.WithTimeout(ctx, 20*time.Second)
 	defer cancel()
-	attrs, crit, err := PreparePayloadAttributes(fetchCtx, aq.config, aq.dl, aq.next.SafeL2Head(), batch.Epoch())
+	attrs, crit, err := PreparePayloadAttributes(fetchCtx, aq.config, aq.dl, aq.next.SafeL2Head(), batch.Timestamp, batch.Epoch())
 	if err != nil {
 		if crit {
 			return fmt.Errorf("failed to prepare payload attributes for batch: %v", err)
