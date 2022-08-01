@@ -3,6 +3,8 @@ package op_batcher
 import (
 	"bytes"
 	"context"
+	"crypto/ecdsa"
+	"errors"
 	"fmt"
 	"io"
 	"math/big"
@@ -11,6 +13,7 @@ import (
 	_ "net/http/pprof"
 	"os"
 	"os/signal"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -135,26 +138,43 @@ type BatchSubmitter struct {
 func NewBatchSubmitter(cfg Config, l log.Logger) (*BatchSubmitter, error) {
 	ctx := context.Background()
 
-	// Parse wallet private key that will be used to submit L2 txs to the batch
-	// inbox address.
-	wallet, err := hdwallet.NewFromMnemonic(cfg.Mnemonic)
-	if err != nil {
-		return nil, err
+	var err error
+	var sequencerPrivKey *ecdsa.PrivateKey
+	var addr common.Address
+
+	if cfg.PrivateKey != "" && cfg.Mnemonic != "" {
+		return nil, errors.New("cannot specify both a private key and a mnemonic")
 	}
 
-	acc := accounts.Account{
-		URL: accounts.URL{
-			Path: cfg.SequencerHDPath,
-		},
-	}
-	addr, err := wallet.Address(acc)
-	if err != nil {
-		return nil, err
-	}
+	if cfg.PrivateKey == "" {
+		// Parse wallet private key that will be used to submit L2 txs to the batch
+		// inbox address.
+		wallet, err := hdwallet.NewFromMnemonic(cfg.Mnemonic)
+		if err != nil {
+			return nil, err
+		}
 
-	sequencerPrivKey, err := wallet.PrivateKey(acc)
-	if err != nil {
-		return nil, err
+		acc := accounts.Account{
+			URL: accounts.URL{
+				Path: cfg.SequencerHDPath,
+			},
+		}
+		addr, err = wallet.Address(acc)
+		if err != nil {
+			return nil, err
+		}
+
+		sequencerPrivKey, err = wallet.PrivateKey(acc)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		sequencerPrivKey, err = crypto.HexToECDSA(strings.TrimPrefix(cfg.PrivateKey, "0x"))
+		if err != nil {
+			return nil, err
+		}
+
+		addr = crypto.PubkeyToAddress(sequencerPrivKey.PublicKey)
 	}
 
 	batchInboxAddress, err := parseAddress(cfg.SequencerBatchInboxAddress)
