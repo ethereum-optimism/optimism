@@ -70,15 +70,18 @@ var (
 		Name: "mnemonic",
 		Usage: "The mnemonic used to derive the wallets for either the " +
 			"sequencer or the l2output",
-		Required: true,
-		EnvVar:   prefixEnvVar("MNEMONIC"),
+		EnvVar: prefixEnvVar("MNEMONIC"),
 	}
 	L2OutputHDPathFlag = cli.StringFlag{
 		Name: "l2-output-hd-path",
 		Usage: "The HD path used to derive the l2output wallet from the " +
 			"mnemonic. The mnemonic flag must also be set.",
-		Required: true,
-		EnvVar:   prefixEnvVar("L2_OUTPUT_HD_PATH"),
+		EnvVar: prefixEnvVar("L2_OUTPUT_HD_PATH"),
+	}
+	PrivateKey = cli.StringFlag{
+		Name:   "private-key",
+		Usage:  "The private key to use with the l2output wallet. Must notbe used with mnemonic.",
+		EnvVar: prefixEnvVar("PRIVATE_KEY"),
 	}
 
 	/* Optional Flags */

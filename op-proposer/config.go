@@ -49,6 +49,9 @@ type Config struct {
 	// the l2output transactions.
 	L2OutputHDPath string
 
+	// PrivateKey is the private key used for l2output transactions.
+	PrivateKey string
+
 	/* Optional Params */
 
 	// LogLevel is the lowest log level that will be output.
@@ -78,6 +81,7 @@ func NewConfig(ctx *cli.Context) Config {
 		ResubmissionTimeout:       ctx.GlobalDuration(flags.ResubmissionTimeoutFlag.Name),
 		Mnemonic:                  ctx.GlobalString(flags.MnemonicFlag.Name),
 		L2OutputHDPath:            ctx.GlobalString(flags.L2OutputHDPathFlag.Name),
+		PrivateKey:                ctx.GlobalString(flags.PrivateKey.Name),
 		/* Optional Flags */
 		LogLevel:     ctx.GlobalString(flags.LogLevelFlag.Name),
 		LogTerminal:  ctx.GlobalBool(flags.LogTerminalFlag.Name),
