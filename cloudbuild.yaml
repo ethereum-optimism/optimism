@@ -2,7 +2,7 @@ steps:
   - name: 'gcr.io/kaniko-project/executor:latest'
     args:
       - --destination=us-central1-docker.pkg.dev/$PROJECT_ID/images/op-node:$_TAG
-      - --destination=us-central1-docker.pkg.dev/$PROJECT_ID/images/op-proposer:$COMMIT_SHA
+      - --destination=us-central1-docker.pkg.dev/$PROJECT_ID/images/op-node:$COMMIT_SHA
       - --dockerfile=op-node/Dockerfile
       - --cache=true
       - --cache-ttl=48h
@@ -10,7 +10,7 @@ steps:
   - name: 'gcr.io/kaniko-project/executor:latest'
     args:
       - --destination=us-central1-docker.pkg.dev/$PROJECT_ID/images/op-batcher:$_TAG
-      - --destination=us-central1-docker.pkg.dev/$PROJECT_ID/images/op-proposer:$COMMIT_SHA
+      - --destination=us-central1-docker.pkg.dev/$PROJECT_ID/images/op-batcher:$COMMIT_SHA
       - --dockerfile=./op-batcher/Dockerfile
       - --cache=true
       - --cache-ttl=48h
