@@ -83,6 +83,12 @@ var (
 		Usage:  "The private key to use with the l2output wallet. Must notbe used with mnemonic.",
 		EnvVar: prefixEnvVar("PRIVATE_KEY"),
 	}
+	PrivateKey = cli.StringFlag{
+		Name:     "private-key",
+		Usage:    "The private key to use with the l2output wallet. Must notbe used with mnemonic.",
+		Required: true,
+		EnvVar:   prefixEnvVar("PRIVATE_KEY"),
+	}
 
 	/* Optional Flags */
 
