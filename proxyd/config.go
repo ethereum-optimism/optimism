@@ -18,6 +18,9 @@ type ServerConfig struct {
 	TimeoutSeconds int `toml:"timeout_seconds"`
 
 	MaxUpstreamBatchSize int `toml:"max_upstream_batch_size"`
+
+	EnableRequestLog     bool `toml:"enable_request_log"`
+	MaxRequestBodyLogLen int  `toml:"max_request_body_log_len"`
 }
 
 type CacheConfig struct {

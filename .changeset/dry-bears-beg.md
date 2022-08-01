@@ -2,4 +2,4 @@
 '@eth-optimism/contracts-bedrock': patch
 ---
 
-Bump to use solidity 0.8.15
+Use the same initializable across codebase

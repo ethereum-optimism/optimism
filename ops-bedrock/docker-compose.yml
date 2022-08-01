@@ -63,10 +63,12 @@ services:
       --metrics.enabled
       --metrics.addr=0.0.0.0
       --metrics.port=7300
+      --pprof.enabled
     ports:
       - "7545:8545"
       - "9003:9003"
       - "7300:7300"
+      - "6060:6060"
     volumes:
       - ${PWD}/p2p-sequencer-key.txt:/config/p2p-sequencer-key.txt
       - ${PWD}/p2p-node-key.txt:/config/p2p-node-key.txt
@@ -82,6 +84,8 @@ services:
     build:
       context: ../
       dockerfile: ./op-proposer/Dockerfile
+    ports:
+      - "6062:6060"
     environment:
       L1_ETH_RPC: http://l1:8545
       L2_ETH_RPC: http://l2:8545
@@ -94,6 +98,7 @@ services:
       OUTPUT_SUBMITTER_L2_OUTPUT_HD_PATH: "m/44'/60'/0'/0/1"
       OUTPUT_SUBMITTER_LOG_TERMINAL: "true"
       L2OO_ADDRESS: "${L2OO_ADDRESS}"
+      OUTPUT_SUBMITTER_PPROF_ENABLED: "true"
 
   op-batcher:
     depends_on:
@@ -103,6 +108,8 @@ services:
     build:
       context: ../
       dockerfile: ./op-batcher/Dockerfile
+    ports:
+      - "6061:6060"
     environment:
       L1_ETH_RPC: http://l1:8545
       L2_ETH_RPC: http://l2:8545
@@ -120,6 +127,7 @@ services:
       BATCH_SUBMITTER_SEQUENCER_GENESIS_HASH: "${SEQUENCER_GENESIS_HASH}"
       BATCH_SUBMITTER_SEQUENCER_BATCH_INBOX_ADDRESS: "${SEQUENCER_BATCH_INBOX_ADDRESS}"
       BATCH_SUBMITTER_LOG_TERMINAL: "true"
+      BATCH_SUBMITTER_PPROF_ENABLED: "true"
 
   stateviz:
     build:

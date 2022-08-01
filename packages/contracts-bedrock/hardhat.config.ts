@@ -14,6 +14,8 @@ import './tasks/genesis-l2'
 import './tasks/deposits'
 import './tasks/rekey'
 import './tasks/rollup-config'
+import './tasks/check-op-node'
+import './tasks/check-l2-config'
 
 subtask(TASK_COMPILE_SOLIDITY_GET_SOURCE_PATHS).setAction(
   async (_, __, runSuper) => {
@@ -41,6 +43,11 @@ const config: HardhatUserConfig = {
     },
     goerli: {
       chainId: 5,
+      url: process.env.L1_RPC || '',
+      accounts: [process.env.PRIVATE_KEY_DEPLOYER || ethers.constants.HashZero],
+    },
+    deployer: {
+      chainId: Number(process.env.CHAIN_ID),
       url: process.env.L1_RPC || '',
       accounts: [process.env.PRIVATE_KEY_DEPLOYER || ethers.constants.HashZero],
     },
@@ -72,17 +79,14 @@ const config: HardhatUserConfig = {
     historicalBlocks: {
       type: 'number',
     },
-    startingBlockNumber: {
-      type: 'number',
-    },
-    startingTimestamp: {
-      type: 'number',
-    },
     sequencerAddress: {
       type: 'address',
     },
     outputOracleOwner: {
       type: 'address',
+    },
+    l1StartingBlockTag: {
+      type: 'string',
     },
   },
   external: {

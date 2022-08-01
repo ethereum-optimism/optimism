@@ -18,22 +18,22 @@ gas-price-oracle-deployed: gas-price-oracle-bindings
 	./gen_deployed_bytecode.sh GasPriceOracle bindings
 
 l1block-bindings:
-	./gen_bindings.sh L1Block bindings
+	./gen_bindings.sh contracts/L2/L1Block.sol:L1Block bindings
 
 l2-to-l1-message-passer-bindings:
-	./gen_bindings.sh L2ToL1MessagePasser bindings
+	./gen_bindings.sh contracts/L2/L2ToL1MessagePasser.sol:L2ToL1MessagePasser bindings
 
 optimism-portal-bindings:
-	./gen_bindings.sh OptimismPortal bindings
+	./gen_bindings.sh contracts/L1/OptimismPortal.sol:OptimismPortal bindings
 
 l2-output-oracle-bindings:
-	./gen_bindings.sh L2OutputOracle bindings
+	./gen_bindings.sh contracts/L1/L2OutputOracle.sol:L2OutputOracle bindings
 
 gas-price-oracle-bindings:
-	./gen_bindings.sh GasPriceOracle bindings
+	./gen_bindings.sh contracts/L2/GasPriceOracle.sol:GasPriceOracle bindings
 
 address-manager-bindings:
-	./gen_bindings.sh AddressManager bindings
+	./gen_bindings.sh contracts/legacy/AddressManager.sol:AddressManager bindings
 
 mkdir:
 	mkdir -p bin bindings

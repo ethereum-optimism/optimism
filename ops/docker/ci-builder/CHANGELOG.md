@@ -1,5 +1,11 @@
 # @eth-optimism/ci-builder
 
+## 0.2.1
+
+### Patch Changes
+
+- 9bb6a152: Trigger release to update foundry version
+
 ## 0.2.0
 
 ### Minor Changes

@@ -1,4 +1,4 @@
-[default]
+[profile.default]
 src = 'contracts'
 out = 'forge-artifacts'
 optimizer = true
@@ -19,5 +19,5 @@ build_info = true
 ffi = true
 fuzz_runs = 16
 
-[ci]
+[profile.ci]
 fuzz_runs = 512

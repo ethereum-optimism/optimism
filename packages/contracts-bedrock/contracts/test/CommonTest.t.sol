@@ -15,9 +15,10 @@ import { L2CrossDomainMessenger } from "../L2/L2CrossDomainMessenger.sol";
 import { AddressAliasHelper } from "../vendor/AddressAliasHelper.sol";
 import { LegacyERC20ETH } from "../legacy/LegacyERC20ETH.sol";
 import { Predeploys } from "../libraries/Predeploys.sol";
+import { Types } from "../libraries/Types.sol";
 import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import { Proxy } from "../universal/Proxy.sol";
-import { Initializable } from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
+import { Initializable } from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import { ResolvedDelegateProxy } from "../legacy/ResolvedDelegateProxy.sol";
 import { AddressManager } from "../legacy/AddressManager.sol";
 import { L1ChugSplashProxy } from "../legacy/L1ChugSplashProxy.sol";
@@ -78,7 +79,6 @@ contract CommonTest is Test {
             abi.encodePacked(_mint, _value, _gasLimit, _isCreation, _data)
         );
     }
-
 }
 
 contract L2OutputOracle_Initializer is CommonTest {
@@ -457,24 +457,26 @@ contract Bridge_Initializer is Messenger_Initializer {
 }
 
 contract FFIInterface is Test {
-    function getFinalizeWithdrawalTransactionInputs(
-        uint256 _nonce,
-        address _sender,
-        address _target,
-        uint64 _value,
-        uint256 _gasLimit,
-        bytes memory _data
-    ) external returns (bytes32, bytes32, bytes32, bytes32, bytes memory) {
+    function getFinalizeWithdrawalTransactionInputs(Types.WithdrawalTransaction memory _tx)
+        external
+        returns (
+            bytes32,
+            bytes32,
+            bytes32,
+            bytes32,
+            bytes memory
+        )
+    {
         string[] memory cmds = new string[](9);
         cmds[0] = "node";
         cmds[1] = "dist/scripts/differential-testing.js";
         cmds[2] = "getFinalizeWithdrawalTransactionInputs";
-        cmds[3] = vm.toString(_nonce);
-        cmds[4] = vm.toString(_sender);
-        cmds[5] = vm.toString(_target);
-        cmds[6] = vm.toString(_value);
-        cmds[7] = vm.toString(_gasLimit);
-        cmds[8] = vm.toString(_data);
+        cmds[3] = vm.toString(_tx.nonce);
+        cmds[4] = vm.toString(_tx.sender);
+        cmds[5] = vm.toString(_tx.target);
+        cmds[6] = vm.toString(_tx.value);
+        cmds[7] = vm.toString(_tx.gasLimit);
+        cmds[8] = vm.toString(_tx.data);
 
         bytes memory result = vm.ffi(cmds);
         (

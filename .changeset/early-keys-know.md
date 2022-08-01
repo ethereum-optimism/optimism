@@ -2,4 +2,4 @@
 '@eth-optimism/contracts-bedrock': patch
 ---
 
-Cleans linting errors in MerkleTrie.sol
+Update @foundry-rs/hardhat-forge@0.1.16

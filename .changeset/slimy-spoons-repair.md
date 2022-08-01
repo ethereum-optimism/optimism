@@ -2,4 +2,4 @@
 '@eth-optimism/contracts-bedrock': patch
 ---
 
-Shortens library names
+bedrock-goerli-96f44f79 deployment

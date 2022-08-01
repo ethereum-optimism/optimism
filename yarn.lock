@@ -1636,10 +1636,10 @@
     command-exists "^1.2.9"
     ts-interface-checker "^0.1.9"
 
-"@foundry-rs/hardhat-forge@^0.1.12":
-  version "0.1.12"
-  resolved "https://registry.yarnpkg.com/@foundry-rs/hardhat-forge/-/hardhat-forge-0.1.12.tgz#0557909762b86033e4699b9dc8e4cb58ddfc3fff"
-  integrity sha512-y05JYP+uvBaWKZZPuMkzc7cWS0gPTb4JzwrBA++9cIe1Aae+atz340cREBsCV9joEUpcK0UMRMURBns3A5nhhQ==
+"@foundry-rs/hardhat-forge@^0.1.16":
+  version "0.1.16"
+  resolved "https://registry.yarnpkg.com/@foundry-rs/hardhat-forge/-/hardhat-forge-0.1.16.tgz#73a637b51ac50e95fbcfe4a522efc782f9a078a4"
+  integrity sha512-C0Xz7fnGAg7hOJG7hC90iUjJTQxl+xq20Rbxee3cIIY+w59NzjmCaW4ikNeKidHJVPWiYXq6BNBTFBrSfL/d4Q==
   dependencies:
     "@foundry-rs/easy-foundryup" "^0.1.3"
     "@nomiclabs/hardhat-ethers" "^2.0.0"
@@ -2816,7 +2816,7 @@
   dependencies:
     "@octokit/openapi-types" "^9.5.0"
 
-"@openzeppelin/contracts-upgradeable@4.7.1", "@openzeppelin/contracts-upgradeable@^4.3.2", "@openzeppelin/contracts-upgradeable@^4.5.2":
+"@openzeppelin/contracts-upgradeable@4.7.1", "@openzeppelin/contracts-upgradeable@^4.3.2":
   version "4.7.1"
   resolved "https://registry.yarnpkg.com/@openzeppelin/contracts-upgradeable/-/contracts-upgradeable-4.7.1.tgz#f63fc384255d6ac139e0a2561aa207fd7c14183c"
   integrity sha512-5EFiZld3DYFd8aTL8eeMnhnaWh1/oXLXFNuFMrgF3b1DNPshF3LCyO7VR6lc+gac2URJ0BlVcZoCfkk/3MoEfg==
@@ -2836,7 +2836,7 @@
   resolved "https://registry.yarnpkg.com/@openzeppelin/contracts/-/contracts-4.5.0.tgz#3fd75d57de172b3743cdfc1206883f56430409cc"
   integrity sha512-fdkzKPYMjrRiPK6K4y64e6GzULR7R7RwxSigHS8DDp7aWDeoReqsQI+cxHV1UuhAqX69L1lAaWDxenfP+xiqzA==
 
-"@openzeppelin/contracts@4.6.0", "@openzeppelin/contracts@^4.5.0":
+"@openzeppelin/contracts@4.6.0":
   version "4.6.0"
   resolved "https://registry.yarnpkg.com/@openzeppelin/contracts/-/contracts-4.6.0.tgz#c91cf64bc27f573836dba4122758b4743418c1b3"
   integrity sha512-8vi4d50NNya/bQqCmaVzvHNmwHvS0OBKb7HNtuNwEE3scXWrP31fKQoGxNMT+KbzmrNZzatE3QK5p2gFONI/hg==
@@ -8529,9 +8529,9 @@ evp_bytestokey@^1.0.0, evp_bytestokey@^1.0.3:
     md5.js "^1.3.4"
     safe-buffer "^5.1.1"
 
-"excessively-safe-call@https://github.com/nomad-xyz/ExcessivelySafeCall.git#4fcdfd3593d21381f696c790fa6180b8ef559c1e":
+"excessively-safe-call@https://github.com/nomad-xyz/ExcessivelySafeCall.git#81cd99ce3e69117d665d7601c330ea03b97acce0":
   version "0.0.1-rc.1"
-  resolved "https://github.com/nomad-xyz/ExcessivelySafeCall.git#4fcdfd3593d21381f696c790fa6180b8ef559c1e"
+  resolved "https://github.com/nomad-xyz/ExcessivelySafeCall.git#81cd99ce3e69117d665d7601c330ea03b97acce0"
 
 execa@^0.7.0:
   version "0.7.0"

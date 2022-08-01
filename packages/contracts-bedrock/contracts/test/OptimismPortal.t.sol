@@ -10,7 +10,6 @@ import { Hashing } from "../libraries/Hashing.sol";
 import { Proxy } from "../universal/Proxy.sol";
 
 contract OptimismPortal_Test is Portal_Initializer {
-
     function test_OptimismPortalConstructor() external {
         assertEq(op.FINALIZATION_PERIOD_SECONDS(), 7 days);
         assertEq(address(op.L2_ORACLE()), address(oracle));
@@ -215,62 +214,11 @@ contract OptimismPortal_Test is Portal_Initializer {
         assertEq(address(op).balance, NON_ZERO_VALUE);
     }
 
-    function test_cannotVerifyRecentWithdrawal() external {
-        Types.OutputRootProof memory outputRootProof = Types
-            .OutputRootProof({
-                version: bytes32(0),
-                stateRoot: bytes32(0),
-                withdrawerStorageRoot: bytes32(0),
-                latestBlockhash: bytes32(0)
-            });
-        // Setup the Oracle to return an output with a recent timestamp
-        uint256 recentTimestamp = block.timestamp - 1000;
-        vm.mockCall(
-            address(op.L2_ORACLE()),
-            abi.encodeWithSelector(L2OutputOracle.getL2Output.selector),
-            abi.encode(Types.OutputProposal(bytes32(uint256(1)), recentTimestamp))
-        );
-
-        vm.expectRevert("OptimismPortal: proposal is not yet finalized");
-        op.finalizeWithdrawalTransaction(Types.WithdrawalTransaction(0, alice, alice, 0, 0, hex""), 0, outputRootProof, hex"");
-    }
-
-    function test_invalidWithdrawalProof() external {
-        vm.mockCall(
-            address(op.L2_ORACLE()),
-            abi.encodeWithSelector(L2OutputOracle.getL2Output.selector),
-            abi.encode(Types.OutputProposal(bytes32(uint256(1)), block.timestamp))
-        );
-
-        Types.OutputRootProof memory outputRootProof = Types
-            .OutputRootProof({
-                version: bytes32(0),
-                stateRoot: bytes32(0),
-                withdrawerStorageRoot: bytes32(0),
-                latestBlockhash: bytes32(0)
-            });
-
-        vm.warp(
-            oracle.getL2Output(oracle.latestBlockNumber()).timestamp +
-                op.FINALIZATION_PERIOD_SECONDS() + 1
-        );
-
-        vm.expectRevert("OptimismPortal: invalid output root proof");
-        op.finalizeWithdrawalTransaction(Types.WithdrawalTransaction(0, alice, alice, 0, 0, hex""), 0, outputRootProof, hex"");
-    }
-
     function test_simple_isBlockFinalized() external {
         vm.mockCall(
             address(op.L2_ORACLE()),
-            abi.encodeWithSelector(
-                L2OutputOracle.getL2Output.selector
-            ),
-            abi.encode(
-                Types.OutputProposal(
-                    bytes32(uint256(1)),
-                    startingBlockNumber
-                )
-            )
+            abi.encodeWithSelector(L2OutputOracle.getL2Output.selector),
+            abi.encode(Types.OutputProposal(bytes32(uint256(1)), startingBlockNumber))
         );
 
         // warp to the finalization period
@@ -310,51 +258,310 @@ contract OptimismPortal_Test is Portal_Initializer {
         vm.expectRevert("L2OutputOracle: No output found for that block number.");
         assertEq(op.isBlockFinalized(checkpoint + 1), false);
     }
+}
 
-    function test_finalizeWithdrawalTransaction_differential(
-        address _sender,
-        address _target,
-        uint64 _value,
-        uint8 _gasLimit,
-        bytes memory _data
-    ) external {
-        // Cannot call the optimism portal
-        vm.assume(_target != address(op));
-        uint256 _nonce = messagePasser.nonce();
+contract OptimismPortal_FinalizeWithdrawal_Test is Portal_Initializer {
+    // Reusable default values for a test withdrawal
+    Types.WithdrawalTransaction _defaultTx;
 
+    uint256 _proposedBlockNumber;
+    bytes32 _stateRoot;
+    bytes32 _storageRoot;
+    bytes32 _outputRoot;
+    bytes32 _withdrawalHash;
+    bytes _withdrawalProof;
+    Types.OutputRootProof internal _outputRootProof;
+
+    event WithdrawalFinalized(bytes32 indexed, bool success);
+
+    // Use a constructor to set the storage vars above, so as to minimize the number of ffi calls.
+    constructor() {
+        super.setUp();
+        _defaultTx = Types.WithdrawalTransaction({
+            nonce: 0,
+            sender: alice,
+            target: bob,
+            value: 100,
+            gasLimit: 100_000,
+            data: hex""
+        });
+        // Get withdrawal proof data we can use for testing.
+        (_stateRoot, _storageRoot, _outputRoot, _withdrawalHash, _withdrawalProof) = ffi
+            .getFinalizeWithdrawalTransactionInputs(_defaultTx);
+
+        // Setup a dummy output root proof for reuse.
+        _outputRootProof = Types.OutputRootProof({
+            version: bytes32(uint256(0)),
+            stateRoot: _stateRoot,
+            withdrawerStorageRoot: _storageRoot,
+            latestBlockhash: bytes32(uint256(0))
+        });
+        _proposedBlockNumber = oracle.nextBlockNumber();
+    }
+
+    // Get the system into a nice ready-to-use state.
+    function setUp() public override {
+        // Configure the oracle to return the output root we've prepared.
+        vm.warp(oracle.computeL2Timestamp(_proposedBlockNumber) + 1);
+        vm.prank(oracle.proposer());
+        oracle.proposeL2Output(_outputRoot, _proposedBlockNumber, 0, 0);
+
+        // Warp beyond the finalization period for the block we've proposed.
+        vm.warp(
+            oracle.getL2Output(_proposedBlockNumber).timestamp +
+                op.FINALIZATION_PERIOD_SECONDS() +
+                1
+        );
+        // Fund the portal so that we can withdraw ETH.
+        vm.deal(address(op), 0xFFFFFFFF);
+    }
+
+    // Test: finalizeWithdrawalTransaction succeeds and emits the WithdrawalFinalized event.
+    function test_finalizeWithdrawalTransaction_succeeds() external {
+        uint256 bobBalanceBefore = address(bob).balance;
+        vm.expectEmit(true, true, true, true);
+        emit WithdrawalFinalized(_withdrawalHash, true);
+        op.finalizeWithdrawalTransaction(
+            _defaultTx,
+            _proposedBlockNumber,
+            _outputRootProof,
+            _withdrawalProof
+        );
+        assert(address(bob).balance == bobBalanceBefore + 100);
+    }
+
+    // Test: finalizeWithdrawalTransaction fails because the target reverts,
+    // and emits the WithdrawalFinalized event with success=false.
+    function test_finalizeWithdrawalTransaction_targetFails() external {
+        uint256 bobBalanceBefore = address(bob).balance;
+        vm.etch(bob, hex"fe"); // Contract with just the invalid opcode.
+
+        vm.expectEmit(true, true, true, true);
+        emit WithdrawalFinalized(_withdrawalHash, false);
+        op.finalizeWithdrawalTransaction(
+            _defaultTx,
+            _proposedBlockNumber,
+            _outputRootProof,
+            _withdrawalProof
+        );
+        assert(address(bob).balance == bobBalanceBefore);
+    }
+
+    // Test: finalizeWithdrawalTransaction cannot finalize a withdrawal with itself (the OptimismPortal) as the target.
+    function test_finalizeWithdrawalTransaction_revertsOnSelfCall() external {
+        _defaultTx.target = address(op);
+        vm.expectRevert("OptimismPortal: you cannot send messages to the portal contract");
+        op.finalizeWithdrawalTransaction(
+            _defaultTx,
+            _proposedBlockNumber,
+            _outputRootProof,
+            _withdrawalProof
+        );
+    }
+
+    // Test: finalizeWithdrawalTransaction reverts if the outputRootProof does not match the output root
+    function test_finalizeWithdrawalTransaction_revertsOnInvalidOutputRootProof() external {
+        // Modify the version to invalidate the withdrawal proof.
+        _outputRootProof.version = bytes32(uint256(1));
+        vm.expectRevert("OptimismPortal: invalid output root proof");
+        op.finalizeWithdrawalTransaction(
+            _defaultTx,
+            _proposedBlockNumber,
+            _outputRootProof,
+            _withdrawalProof
+        );
+    }
+
+    // Test: finalizeWithdrawalTransaction reverts if the finalization period has not yet passed.
+    function test_finalizeWithdrawalTransaction_revertsOnRecentWithdrawal() external {
+        // Setup the Oracle to return an output with a recent timestamp
+        uint256 recentTimestamp = block.timestamp - 1000;
+        vm.mockCall(
+            address(op.L2_ORACLE()),
+            abi.encodeWithSelector(L2OutputOracle.getL2Output.selector),
+            abi.encode(bytes32(uint256(1)), recentTimestamp)
+        );
+
+        vm.expectRevert("OptimismPortal: proposal is not yet finalized");
+        op.finalizeWithdrawalTransaction(
+            _defaultTx,
+            _proposedBlockNumber,
+            _outputRootProof,
+            _withdrawalProof
+        );
+    }
+
+    // Test: finalizeWithdrawalTransaction reverts if the withdrawal has already been finalized.
+    function test_finalizeWithdrawalTransaction_revertsOnReplay() external {
+        vm.expectEmit(true, true, true, true);
+        emit WithdrawalFinalized(_withdrawalHash, true);
+        op.finalizeWithdrawalTransaction(
+            _defaultTx,
+            _proposedBlockNumber,
+            _outputRootProof,
+            _withdrawalProof
+        );
+        vm.expectRevert("OptimismPortal: withdrawal has already been finalized");
+        op.finalizeWithdrawalTransaction(
+            _defaultTx,
+            _proposedBlockNumber,
+            _outputRootProof,
+            _withdrawalProof
+        );
+    }
+
+    // Test: finalizeWithdrawalTransaction reverts if insufficient gas is supplied.
+    function test_finalizeWithdrawalTransaction_revertsOnInsufficientGas() external {
+        // This number was identified through trial and error.
+        uint256 gasLimit = 150_000;
+        Types.WithdrawalTransaction memory insufficientGasTx = Types.WithdrawalTransaction({
+            nonce: 0,
+            sender: alice,
+            target: bob,
+            value: 100,
+            gasLimit: gasLimit,
+            data: hex""
+        });
+        (
+            bytes32 stateRoot,
+            bytes32 storageRoot,
+            ,
+            ,
+            bytes memory withdrawalProof
+        ) = ffi.getFinalizeWithdrawalTransactionInputs(insufficientGasTx);
+        Types.OutputRootProof memory outputRootProof = Types.OutputRootProof({
+            version: bytes32(0),
+            stateRoot: stateRoot,
+            withdrawerStorageRoot: storageRoot,
+            latestBlockhash: bytes32(0)
+        });
+        vm.mockCall(
+            address(op.L2_ORACLE()),
+            abi.encodeWithSelector(L2OutputOracle.getL2Output.selector),
+            abi.encode(Hashing.hashOutputRootProof(outputRootProof), _proposedBlockNumber)
+        );
+        vm.expectRevert("OptimismPortal: insufficient gas to finalize withdrawal");
+        op.finalizeWithdrawalTransaction{ gas: gasLimit }(
+            insufficientGasTx,
+            _proposedBlockNumber,
+            outputRootProof,
+            withdrawalProof
+        );
+    }
+
+    // Test: finalizeWithdrawalTransaction reverts if the proof is invalid due to non-existence of
+    // the withdrawal.
+    function test_finalizeWithdrawalTransaction_revertsOninvalidWithdrawalProof() external {
+        // modify the default test values to invalidate the proof.
+        _defaultTx.data = hex"abcd";
+        vm.expectRevert("OptimismPortal: invalid withdrawal inclusion proof");
+        op.finalizeWithdrawalTransaction(
+            _defaultTx,
+            _proposedBlockNumber,
+            _outputRootProof,
+            _withdrawalProof
+        );
+    }
+
+    // Utility function used in the subsequent test. This is necessary to assert that the
+    // reentrant call will revert.
+    function callPortalAndExpectRevert() external payable {
+        vm.expectRevert("OptimismPortal: can only trigger one withdrawal per transaction");
+        // Arguments here don't matter, as the require check is the first thing that happens.
+        op.finalizeWithdrawalTransaction(_defaultTx, 0, _outputRootProof, hex"");
+        // Assert that the withdrawal was not finalized.
+        assertFalse(op.finalizedWithdrawals(Hashing.hashWithdrawal(_defaultTx)));
+    }
+
+    // Test: finalizeWithdrawalTransaction reverts if a sub-call attempts to finalize another
+    // withdrawal.
+    function test_finalizeWithdrawalTransaction_revertsOnReentrancy() external {
+        uint256 bobBalanceBefore = address(bob).balance;
+        // Copy and modify the default test values to attempt a reentrant call by first calling to
+        // this contract's callPortalAndExpectRevert() function above.
+        Types.WithdrawalTransaction memory _testTx = _defaultTx;
+        _testTx.target = address(this);
+        _testTx.data = abi.encodeWithSelector(this.callPortalAndExpectRevert.selector);
+
+        // Get modified proof inputs.
         (
             bytes32 stateRoot,
             bytes32 storageRoot,
             bytes32 outputRoot,
             bytes32 withdrawalHash,
             bytes memory withdrawalProof
-        ) = ffi.getFinalizeWithdrawalTransactionInputs(
-            _nonce,
-            _sender,
-            _target,
-            _value,
-            uint256(_gasLimit),
-            _data
+        ) = ffi.getFinalizeWithdrawalTransactionInputs(_testTx);
+        Types.OutputRootProof memory outputRootProof = Types.OutputRootProof({
+            version: bytes32(0),
+            stateRoot: stateRoot,
+            withdrawerStorageRoot: storageRoot,
+            latestBlockhash: bytes32(0)
+        });
+
+        // Setup the Oracle to return the outputRoot we want as well as a finalized timestamp.
+        uint256 finalizedTimestamp = block.timestamp - op.FINALIZATION_PERIOD_SECONDS() - 1;
+        vm.mockCall(
+            address(op.L2_ORACLE()),
+            abi.encodeWithSelector(L2OutputOracle.getL2Output.selector),
+            abi.encode(Types.OutputProposal(outputRoot, finalizedTimestamp))
         );
 
-        // Ensure the values returned from ffi are correct
-        assertEq(outputRoot, Hashing.hashOutputRootProof(Types.OutputRootProof({
+        // Assert that this contract is called with the expected data (i.e. the function signature of
+        // callPortalAndExpectRevert).
+        vm.expectCall(address(this), _testTx.data);
+        vm.expectEmit(true, true, true, true);
+        // Assert that the withdrawal should be finalized, and that the sub-call passes (because the
+        // assertions in callPortalAndExpectRevert pass).
+        emit WithdrawalFinalized(withdrawalHash, true);
+        op.finalizeWithdrawalTransaction(
+            _testTx,
+            _proposedBlockNumber,
+            outputRootProof,
+            withdrawalProof
+        );
+        // Ensure that bob's balance was not changed by the reentrant call.
+        assert(address(bob).balance == bobBalanceBefore);
+    }
+
+    function test_finalizeWithdrawalTransaction_differential(
+        address _sender,
+        address _target,
+        uint256 _value,
+        uint256 _gasLimit,
+        bytes memory _data
+    ) external {
+        // Cannot call the optimism portal
+        vm.assume(_target != address(op));
+        // Total ETH supply is currently about 120M ETH.
+        vm.assume(_value < 200_000_000 ether);
+        vm.assume(_gasLimit < 50_000_000);
+        uint256 _nonce = messagePasser.nonce();
+        Types.WithdrawalTransaction memory _tx = Types.WithdrawalTransaction({
+            nonce: _nonce,
+            sender: _sender,
+            target: _target,
+            value: _value,
+            gasLimit: _gasLimit,
+            data: _data
+        });
+        (
+            bytes32 stateRoot,
+            bytes32 storageRoot,
+            bytes32 outputRoot,
+            bytes32 withdrawalHash,
+            bytes memory withdrawalProof
+        ) = ffi.getFinalizeWithdrawalTransactionInputs(_tx);
+
+        Types.OutputRootProof memory proof = Types.OutputRootProof({
             version: bytes32(uint256(0)),
             stateRoot: stateRoot,
             withdrawerStorageRoot: storageRoot,
             latestBlockhash: bytes32(uint256(0))
-         })));
+        });
 
-        assertEq(withdrawalHash, Hashing.hashWithdrawal(
-            Types.WithdrawalTransaction(
-                _nonce,
-                _sender,
-                _target,
-                _value,
-                uint64(_gasLimit),
-                _data
-            )
-        ));
+        // Ensure the values returned from ffi are correct
+        assertEq(outputRoot, Hashing.hashOutputRootProof(proof));
+        assertEq(withdrawalHash, Hashing.hashWithdrawal(_tx));
 
         // Mock the call to the oracle
         vm.mockCall(
@@ -365,33 +572,17 @@ contract OptimismPortal_Test is Portal_Initializer {
 
         // Start the withdrawal, it must be initiated by the _sender and the
         // correct value must be passed along
-        vm.deal(_sender, _value);
-        vm.prank(_sender);
-        messagePasser.initiateWithdrawal{ value: _value }(
-            _target,
-            uint256(_gasLimit),
-            _data
-        );
+        vm.deal(_tx.sender, _tx.value);
+        vm.prank(_tx.sender);
+        messagePasser.initiateWithdrawal{ value: _tx.value }(_tx.target, _tx.gasLimit, _tx.data);
         // Ensure that the sentMessages is correct
         assertEq(messagePasser.sentMessages(withdrawalHash), true);
 
         vm.warp(op.FINALIZATION_PERIOD_SECONDS() + 1);
-        op.finalizeWithdrawalTransaction{ value: _value }(
-            Types.WithdrawalTransaction(
-                messagePasser.nonce() - 1,
-                _sender,
-                _target,
-                _value,
-                uint64(_gasLimit),
-                _data
-            ),
+        op.finalizeWithdrawalTransaction{ value: _tx.value }(
+            _tx,
             100, // l2BlockNumber
-            Types.OutputRootProof({
-                version: bytes32(uint256(0)),
-                stateRoot: stateRoot,
-                withdrawerStorageRoot: storageRoot,
-                latestBlockhash: bytes32(uint256(0))
-            }),
+            proof,
             withdrawalProof
         );
     }
