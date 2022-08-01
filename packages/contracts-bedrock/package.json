@@ -42,7 +42,7 @@
     "@rari-capital/solmate": "https://github.com/rari-capital/solmate.git#8f9b23f8838670afda0fd8983f2c41e8037ae6bc",
     "ds-test": "https://github.com/dapphub/ds-test.git#9310e879db8ba3ea6d5c6489a579118fd264a3f5",
     "ethers": "^5.6.8",
-    "excessively-safe-call": "https://github.com/nomad-xyz/ExcessivelySafeCall.git#4fcdfd3593d21381f696c790fa6180b8ef559c1e",
+    "excessively-safe-call": "https://github.com/nomad-xyz/ExcessivelySafeCall.git#81cd99ce3e69117d665d7601c330ea03b97acce0",
     "forge-std": "https://github.com/foundry-rs/forge-std.git#f18682b2874fc57d7c80a511fed0b35ec4201ffa",
     "hardhat": "^2.9.6"
   },
