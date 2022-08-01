@@ -9,6 +9,8 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-node/cmd/p2p"
+
 	"github.com/ethereum-optimism/optimism/op-node/metrics"
 
 	opnode "github.com/ethereum-optimism/optimism/op-node"
@@ -53,13 +55,22 @@ func main() {
 	)
 
 	app := cli.NewApp()
-	app.Flags = flags.Flags
 	app.Version = VersionWithMeta
 	app.Name = "opnode"
 	app.Usage = "Optimism Rollup Node"
 	app.Description = "The deposit only rollup node drives the L2 execution engine based on L1 deposits."
+	app.Commands = []cli.Command{
+		{
+			Name:        "p2p",
+			Subcommands: p2p.Subcommands,
+		},
+		{
+			Name:   "start",
+			Action: RollupNodeMain,
+			Flags:  flags.Flags,
+		},
+	}
 
-	app.Action = RollupNodeMain
 	err := app.Run(os.Args)
 	if err != nil {
 		log.Crit("Application failed", "message", err)
