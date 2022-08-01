@@ -62,7 +62,7 @@ func readHexData(r io.Reader) ([]byte, error) {
 	rawStr = strings.TrimPrefix(rawStr, "0x")
 	b, err := hex.DecodeString(rawStr)
 	if err != nil {
-		return nil, errors.New("p2p key is not formatted in hex chars")
+		return nil, fmt.Errorf("p2p key is not formatted in hex chars: %w", err)
 	}
 	return b, nil
 }
