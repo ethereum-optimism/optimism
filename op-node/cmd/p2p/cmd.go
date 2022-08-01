@@ -3,7 +3,6 @@ package p2p
 import (
 	"crypto/rand"
 	"encoding/hex"
-	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -98,7 +97,7 @@ var Subcommands = cli.Commands{
 		Action: func(ctx *cli.Context) error {
 			buf := make([]byte, 32)
 			if _, err := rand.Read(buf); err != nil {
-						return fmt.Errorf("failed to get entropy: %w", err)
+				return fmt.Errorf("failed to get entropy: %w", err)
 			}
 			fmt.Println(hex.EncodeToString(buf))
 			return nil
