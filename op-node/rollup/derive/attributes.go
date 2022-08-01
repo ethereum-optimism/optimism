@@ -22,7 +22,7 @@ type L1ReceiptsFetcher interface {
 // by setting NoTxPool=false as sequencer, or by appending batch transactions as verifier.
 // The severity of the error is returned; a crit=false error means there was a temporary issue, like a failed RPC or time-out.
 // A crit=true error means the input arguments are inconsistent or invalid.
-func PreparePayloadAttributes(ctx context.Context, cfg *rollup.Config, dl L1ReceiptsFetcher, l2Parent eth.L2BlockRef, epoch eth.BlockID) (attrs *eth.PayloadAttributes, crit bool, err error) {
+func PreparePayloadAttributes(ctx context.Context, cfg *rollup.Config, dl L1ReceiptsFetcher, l2Parent eth.L2BlockRef, timestamp uint64, epoch eth.BlockID) (attrs *eth.PayloadAttributes, crit bool, err error) {
 	var l1Info eth.L1Info
 	var depositTxs []hexutil.Bytes
 	var seqNumber uint64
@@ -68,7 +68,7 @@ func PreparePayloadAttributes(ctx context.Context, cfg *rollup.Config, dl L1Rece
 	txs = append(txs, depositTxs...)
 
 	return &eth.PayloadAttributes{
-		Timestamp:             hexutil.Uint64(l2Parent.Time + cfg.BlockTime),
+		Timestamp:             hexutil.Uint64(timestamp),
 		PrevRandao:            eth.Bytes32(l1Info.MixDigest()),
 		SuggestedFeeRecipient: cfg.FeeRecipientAddress,
 		Transactions:          txs,
