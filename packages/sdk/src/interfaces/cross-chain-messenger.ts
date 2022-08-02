@@ -6,8 +6,13 @@ import {
   TransactionResponse,
 } from '@ethersproject/abstract-provider'
 import { Signer } from '@ethersproject/abstract-signer'
+import {
+  BedrockCrossChainMessageProof,
+  BedrockOutputData,
+} from '@eth-optimism/core-utils'
 
 import {
+  CoreCrossChainMessage,
   MessageLike,
   MessageRequestLike,
   TransactionLike,
@@ -90,6 +95,11 @@ export interface ICrossChainMessenger {
    * Estimated average L1 block time in seconds.
    */
   l1BlockTimeSeconds: number
+
+  /**
+   * Whether or not Bedrock compatibility is enabled.
+   */
+  bedrock: boolean
 
   /**
    * Retrieves all cross chain messages sent within a given transaction.
@@ -292,6 +302,16 @@ export interface ICrossChainMessenger {
   getChallengePeriodSeconds(): Promise<number>
 
   /**
+   * Returns the Bedrock output root that corresponds to the given message.
+   *
+   * @param message Message to get the Bedrock output root for.
+   * @returns Bedrock output root.
+   */
+  getMessageBedrockOutput(
+    message: MessageLike
+  ): Promise<BedrockOutputData | null>
+
+  /**
    * Returns the state root that corresponds to a given message. This is the state root for the
    * block in which the transaction was included, as published to the StateCommitmentChain. If the
    * state root for the given message has not been published yet, this function returns null.
@@ -341,6 +361,18 @@ export interface ICrossChainMessenger {
    * @returns Proof that can be used to finalize the message.
    */
   getMessageProof(message: MessageLike): Promise<CrossChainMessageProof>
+
+  /**
+   * Generates the bedrock proof required to finalize an L2 to L1 message.
+   *
+   * @param message Message to generate a proof for.
+   * @returns Proof that can be used to finalize the message.
+   */
+  getBedrockMessageProof(
+    message: MessageLike
+  ): Promise<
+    [BedrockCrossChainMessageProof, BedrockOutputData, CoreCrossChainMessage]
+  >
 
   /**
    * Sends a given cross chain message. Where the message is sent depends on the direction attached
