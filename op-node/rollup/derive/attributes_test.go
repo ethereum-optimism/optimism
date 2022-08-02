@@ -64,7 +64,6 @@ func TestPreparePayloadAttributes(t *testing.T) {
 		mockRPCErr := errors.New("mock rpc error")
 		l1Fetcher.ExpectFetch(epoch.Hash, nil, nil, nil, mockRPCErr)
 		_, err := PreparePayloadAttributes(context.Background(), cfg, l1Fetcher, l2Parent, l2Time, epoch)
-		require.ErrorIs(t, err, mockRPCErr, "mock rpc error expected")
 		require.NotErrorIs(t, err, ErrCritical, "rpc errors should not be critical, it is not necessary to reorg")
 	})
 	t.Run("rpc fail InfoByHash", func(t *testing.T) {
@@ -77,7 +76,6 @@ func TestPreparePayloadAttributes(t *testing.T) {
 		mockRPCErr := errors.New("mock rpc error")
 		l1Fetcher.ExpectInfoByHash(epoch.Hash, nil, mockRPCErr)
 		_, err := PreparePayloadAttributes(context.Background(), cfg, l1Fetcher, l2Parent, l2Time, epoch)
-		require.ErrorIs(t, err, mockRPCErr, "mock rpc error expected")
 		require.NotErrorIs(t, err, ErrCritical, "rpc errors should not be critical, it is not necessary to reorg")
 	})
 	t.Run("next origin without deposits", func(t *testing.T) {
