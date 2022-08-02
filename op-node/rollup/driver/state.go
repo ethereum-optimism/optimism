@@ -3,17 +3,14 @@ package driver
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	gosync "sync"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/op-node/backoff"
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/metrics"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
-	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum/go-ethereum/log"
 )
 
@@ -106,18 +103,6 @@ func NewState(driverCfg *Config, log log.Logger, snapshotLog log.Logger, config 
 // The loop will have been started iff err is not nil.
 func (s *state) Start(ctx context.Context) error {
 	l1Head, err := s.l1.L1HeadBlockRef(ctx)
-	if err != nil {
-		if !errors.Is(err, derive.ErrTemporary) {
-			return err
-		} else {
-			bOff := backoff.Exponential()
-			err = backoff.Do(10, bOff, func() error {
-				var err error
-				l1Head, err = s.l1.L1HeadBlockRef(ctx)
-				return err
-			})
-		}
-	}
 	if err != nil {
 		return err
 	}

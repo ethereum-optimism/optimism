@@ -70,18 +70,6 @@ func (d *outputImpl) createNewBlock(ctx context.Context, l2Head eth.L2BlockRef, 
 	// Generate an L2 block ref from the payload.
 
 	ref, err := derive.PayloadToBlockRef(payload, &d.Config.Genesis)
-	if err != nil {
-		if !errors.Is(err, derive.ErrTemporary) {
-			return l2Head, nil, err
-		} else {
-			bOff := backoff.Exponential()
-			err = backoff.Do(10, bOff, func() error {
-				var err error
-				ref, err = derive.PayloadToBlockRef(payload, &d.Config.Genesis)
-				return err
-			})
-		}
-	}
 
 	return ref, payload, err
 }
