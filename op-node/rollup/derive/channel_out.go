@@ -6,7 +6,6 @@ import (
 	"crypto/rand"
 	"encoding/binary"
 	"errors"
-	"fmt"
 	"io"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
@@ -114,41 +113,38 @@ func (co *ChannelOut) Close() error {
 // Returns nil if there is still more buffered data.
 // Returns and error if it ran into an error during processing.
 func (co *ChannelOut) OutputFrame(w *bytes.Buffer, maxSize uint64) error {
-	w.Write(co.id.Data[:])
-	w.Write(makeUVarint(co.id.Time))
-	w.Write(makeUVarint(co.frame))
+	f := Frame{
+		ID:          co.id,
+		FrameNumber: co.frame,
+	}
 
+	// Copy data from the local buffer into the frame data buffer
+	// Don't go past the maxSize even with the max possible uvarints
 	// +1 for single byte of frame content, +1 for lastFrame bool
-	if uint64(w.Len())+2 > maxSize {
-		return fmt.Errorf("no more space: %d > %d", w.Len(), maxSize)
+	// +24 for maximum uvarints
+	// +32 for the data ID
+	maxDataSize := maxSize - 32 - 24 - 1 - 1
+	if maxDataSize >= uint64(co.buf.Len()) {
+		maxDataSize = uint64(co.buf.Len())
+		// If we are closed & will not spill past the current frame, end it.
+		if co.closed {
+			f.IsLast = true
+		}
 	}
+	f.Data = make([]byte, maxDataSize)
 
-	remaining := maxSize - uint64(w.Len())
-	maxFrameLen := remaining - 1 // -1 for the bool at the end
-	// estimate how many bytes we lose with encoding the length of the frame
-	// by encoding the max length (larger uvarints take more space)
-	maxFrameLen -= uint64(len(makeUVarint(maxFrameLen)))
-
-	// Pull the data into a temporary buffer b/c we use uvarints to record the length
-	// Could theoretically use the min of co.buf.Len() & maxFrameLen
-	co.scratch.Reset()
-	_, err := io.CopyN(&co.scratch, &co.buf, int64(maxFrameLen))
-	if err != nil && err != io.EOF {
+	if _, err := io.ReadFull(&co.buf, f.Data); err != nil {
 		return err
 	}
-	frameLen := uint64(co.scratch.Len())
-	co.offset += frameLen
-	w.Write(makeUVarint(frameLen))
-	if _, err := w.ReadFrom(&co.scratch); err != nil {
+
+	if _, err := f.MarshalBinary(w); err != nil {
 		return err
 	}
+
 	co.frame += 1
-	// Only mark as closed if the channel is closed & there is no more data available
-	if co.closed && err == io.EOF {
-		w.WriteByte(1)
+	if f.IsLast {
 		return io.EOF
 	} else {
-		w.WriteByte(0)
 		return nil
 	}
 }
