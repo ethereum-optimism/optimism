@@ -8,7 +8,7 @@ const l1GenesisTimestamp =
     : Math.floor(Date.now() / 1000)
 
 const config = {
-  submissionInterval: 6,
+  submissionInterval: 20,
   genesisOutput: ethers.constants.HashZero,
   historicalBlocks: 0,
   l1StartingBlockTag: 'earliest',
