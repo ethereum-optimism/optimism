@@ -251,6 +251,7 @@ feed contract][deposit-feed-contract] on L1.
 7. `data` is unchanged from the emitted value. Depending on the value of `isCreation` it is handled
    as either calldata or contract initialization code.
 8. `isSystemTransaction` is set by the rollup node for certain transactions that have unmetered execution.
+  It is `false` for user deposited transactions
 
 ### Deposit Contract
 
