@@ -27,13 +27,20 @@ const (
 )
 
 type Metrics struct {
-	Info                            *prometheus.GaugeVec
-	Up                              prometheus.Gauge
+	Info *prometheus.GaugeVec
+	Up   prometheus.Gauge
+
 	RPCServerRequestsTotal          *prometheus.CounterVec
 	RPCServerRequestDurationSeconds *prometheus.HistogramVec
 	RPCClientRequestsTotal          *prometheus.CounterVec
 	RPCClientRequestDurationSeconds *prometheus.HistogramVec
 	RPCClientResponsesTotal         *prometheus.CounterVec
+
+	DerivationIdle        prometheus.Gauge
+	PipelineResetsTotal   prometheus.Counter
+	UnsafePayloadsTotal   prometheus.Counter
+	DerivationErrorsTotal prometheus.Counter
+	Heads                 *prometheus.GaugeVec
 
 	registry *prometheus.Registry
 }
@@ -60,6 +67,7 @@ func NewMetrics(procName string) *Metrics {
 			Name:      "up",
 			Help:      "1 if the op node has finished starting up",
 		}),
+
 		RPCServerRequestsTotal: promauto.With(registry).NewCounterVec(prometheus.CounterOpts{
 			Namespace: ns,
 			Subsystem: RPCServerSubsystem,
@@ -103,6 +111,35 @@ func NewMetrics(procName string) *Metrics {
 			"method",
 			"error",
 		}),
+
+		DerivationIdle: promauto.With(registry).NewGauge(prometheus.GaugeOpts{
+			Namespace: ns,
+			Name:      "derivation_idle",
+			Help:      "1 if the derivation pipeline is idle",
+		}),
+		PipelineResetsTotal: promauto.With(registry).NewCounter(prometheus.CounterOpts{
+			Namespace: ns,
+			Name:      "pipeline_resets_total",
+			Help:      "Count of derivation pipeline resets",
+		}),
+		UnsafePayloadsTotal: promauto.With(registry).NewCounter(prometheus.CounterOpts{
+			Namespace: ns,
+			Name:      "unsafe_payloads_total",
+			Help:      "Count of unsafe payloads received via p2p",
+		}),
+		DerivationErrorsTotal: promauto.With(registry).NewCounter(prometheus.CounterOpts{
+			Namespace: ns,
+			Name:      "derivation_errors_total",
+			Help:      "Count of total derivation errors",
+		}),
+		Heads: promauto.With(registry).NewGaugeVec(prometheus.GaugeOpts{
+			Namespace: ns,
+			Name:      "heads",
+			Help:      "Gauge representing the different L1/L2 heads",
+		}, []string{
+			"type",
+		}),
+
 		registry: registry,
 	}
 }
@@ -164,6 +201,18 @@ func (m *Metrics) RecordRPCClientResponse(method string, err error) {
 		errStr = "<unknown>"
 	}
 	m.RPCClientResponsesTotal.WithLabelValues(method, errStr).Inc()
+}
+
+func (m *Metrics) SetDerivationIdle(status bool) {
+	var val float64
+	if status {
+		val = 1
+	}
+	m.DerivationIdle.Set(val)
+}
+
+func (m *Metrics) SetHead(kind string, num uint64) {
+	m.Heads.WithLabelValues(kind).Set(float64(num))
 }
 
 // Serve starts the metrics server on the given hostname and port.
