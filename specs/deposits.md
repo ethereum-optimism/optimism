@@ -148,6 +148,9 @@ the gas pool on L2. Gas usage exactly matches other transaction types (including
 If a deposit runs out of gas or has some other failure, the mint will succeed and the nonce of the
 account will be increased, but no other state transition will occur.
 
+If `isSystemTransaction` in the deposit is set to `true`, the gas used by the deposit is unmetered.
+It must not be subtracted from the gas pool and the `usedGas` field of the receipt must be set to 0.
+
 #### Nonce Handling
 
 Despite the lack of signature validation, we still increment the nonce of the `from` account when a
@@ -173,8 +176,9 @@ This transaction MUST have the following values:
    contract][predeploy]).
 3. `mint` is `0`
 4. `value` is `0`
-5. `gasLimit` is set to 75,000.
-6. `data` is an [ABI] encoded call to the [L1 attributes predeployed contract][predeploy]'s
+5. `gasLimit` is set to 150,000,000.
+6. `isSystemTransaction` is set to `true`.
+7. `data` is an [ABI] encoded call to the [L1 attributes predeployed contract][predeploy]'s
    `setL1BlockValues()` function with correct values associated with the corresponding L1 block (cf.
    [reference implementation][l1-attr-ref-implem]).
 
@@ -246,6 +250,7 @@ feed contract][deposit-feed-contract] on L1.
 6. `isCreation` is set to `true` if the transaction is a contract creation, `false` otherwise.
 7. `data` is unchanged from the emitted value. Depending on the value of `isCreation` it is handled
    as either calldata or contract initialization code.
+8. `isSystemTransaction` is set by the rollup node for certain transactions that have unmetered execution.
 
 ### Deposit Contract
 
