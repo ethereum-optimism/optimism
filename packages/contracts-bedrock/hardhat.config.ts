@@ -9,14 +9,7 @@ import '@nomiclabs/hardhat-ethers'
 import 'hardhat-deploy'
 
 // Hardhat tasks
-import './tasks/genesis-l1'
-import './tasks/genesis-l2'
-import './tasks/deposits'
-import './tasks/rekey'
-import './tasks/rollup-config'
-import './tasks/check-op-node'
-import './tasks/check-l2-config'
-import './tasks/watch'
+import './tasks'
 
 subtask(TASK_COMPILE_SOLIDITY_GET_SOURCE_PATHS).setAction(
   async (_, __, runSuper) => {
