@@ -5,7 +5,8 @@
   "main": "dist/index",
   "types": "dist/index",
   "files": [
-    "dist/*"
+    "dist/*",
+    "src/*"
   ],
   "scripts": {
     "all": "yarn clean && yarn build && yarn test && yarn lint:fix && yarn lint",
