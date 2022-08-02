@@ -1,12 +1,11 @@
 /* Imports: External */
-import { ethers } from 'ethers'
+import { ethers, BigNumber } from 'ethers'
 import {
   fromHexString,
   toHexString,
   toRpcHexString,
 } from '@eth-optimism/core-utils'
 import { MerkleTree } from 'merkletreejs'
-import * as rlp from 'rlp'
 
 /**
  * Generates a Merkle proof (using the particular scheme we use within Lib_MerkleTree).
@@ -60,8 +59,10 @@ export const makeStateTrieProof = async (
   address: string,
   slot: string
 ): Promise<{
-  accountProof: string
-  storageProof: string
+  accountProof: string[]
+  storageProof: string[]
+  storageValue: BigNumber
+  storageRoot: string
 }> => {
   const proof = await provider.send('eth_getProof', [
     address,
@@ -70,7 +71,9 @@ export const makeStateTrieProof = async (
   ])
 
   return {
-    accountProof: toHexString(rlp.encode(proof.accountProof)),
-    storageProof: toHexString(rlp.encode(proof.storageProof[0].proof)),
+    accountProof: proof.accountProof,
+    storageProof: proof.storageProof[0].proof,
+    storageValue: BigNumber.from(proof.storageProof[0].value),
+    storageRoot: proof.storageHash,
   }
 }
