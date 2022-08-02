@@ -7,6 +7,7 @@ import (
 	"net"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/ethereum/go-ethereum"
 	"github.com/prometheus/client_golang/prometheus/collectors"
@@ -38,6 +39,7 @@ type Metrics struct {
 
 	DerivationIdle        prometheus.Gauge
 	PipelineResetsTotal   prometheus.Counter
+	LastPipelineResetUnix prometheus.Gauge
 	UnsafePayloadsTotal   prometheus.Counter
 	DerivationErrorsTotal prometheus.Counter
 	Heads                 *prometheus.GaugeVec
@@ -121,6 +123,11 @@ func NewMetrics(procName string) *Metrics {
 			Namespace: ns,
 			Name:      "pipeline_resets_total",
 			Help:      "Count of derivation pipeline resets",
+		}),
+		LastPipelineResetUnix: promauto.With(registry).NewGauge(prometheus.GaugeOpts{
+			Namespace: ns,
+			Name:      "last_pipeline_reset_unix",
+			Help:      "Timestamp of last pipeline reset",
 		}),
 		UnsafePayloadsTotal: promauto.With(registry).NewCounter(prometheus.CounterOpts{
 			Namespace: ns,
@@ -213,6 +220,12 @@ func (m *Metrics) SetDerivationIdle(status bool) {
 
 func (m *Metrics) SetHead(kind string, num uint64) {
 	m.Heads.WithLabelValues(kind).Set(float64(num))
+}
+
+func (m *Metrics) RecordPipelineReset() {
+	m.PipelineResetsTotal.Inc()
+	m.DerivationErrorsTotal.Inc()
+	m.LastPipelineResetUnix.Set(float64(time.Now().Unix()))
 }
 
 // Serve starts the metrics server on the given hostname and port.

@@ -108,6 +108,8 @@ func (s *state) Start(ctx context.Context) error {
 	}
 	s.l1Head = l1Head
 	s.l2Head, _ = s.l2.L2BlockRefByNumber(ctx, nil)
+	s.metrics.SetHead("l1", s.l1Head.Number)
+	s.metrics.SetHead("l2_unsafe", s.l2Head.Number)
 
 	s.derivation.Reset()
 
@@ -154,6 +156,7 @@ func (s *state) handleNewL1Block(newL1Head eth.L1BlockRef) {
 		// This could either be a long L1 extension, or a reorg. Both can be handled the same way.
 		s.log.Warn("L1 Head signal indicates an L1 re-org", "old_l1_head", s.l1Head, "new_l1_head_parent", newL1Head.ParentHash, "new_l1_head", newL1Head)
 	}
+	s.metrics.SetHead("l1", newL1Head.Number)
 	s.l1Head = newL1Head
 }
 
@@ -341,7 +344,6 @@ func (s *state) eventLoop() {
 			s.log.Info("new l1 Head")
 			s.snapshot("New L1 Head")
 			s.handleNewL1Block(newL1Head)
-			s.metrics.SetHead("l1", newL1Head.Number)
 			reqStep() // a new L1 head may mean we have the data to not get an EOF again.
 		case <-stepReqCh:
 			s.metrics.SetDerivationIdle(false)
@@ -359,21 +361,20 @@ func (s *state) eventLoop() {
 				// If the pipeline corrupts, e.g. due to a reorg, simply reset it
 				s.log.Warn("Derivation pipeline is reset", "err", err)
 				s.derivation.Reset()
-				s.metrics.PipelineResetsTotal.Inc()
-				s.metrics.DerivationErrorsTotal.Inc()
+				s.metrics.RecordPipelineReset()
 			} else {
 				finalized, safe, unsafe := s.derivation.Finalized(), s.derivation.SafeL2Head(), s.derivation.UnsafeL2Head()
 				// log sync progress when it changes
 				if s.l2Finalized != finalized || s.l2SafeHead != safe || s.l2Head != unsafe {
 					s.log.Info("Sync progress", "finalized", finalized, "safe", safe, "unsafe", unsafe)
+					s.metrics.SetHead("l2_finalized", finalized.Number)
+					s.metrics.SetHead("l2_safe", safe.Number)
+					s.metrics.SetHead("l2_unsafe", unsafe.Number)
 				}
 				// update the heads
 				s.l2Finalized = finalized
 				s.l2SafeHead = safe
 				s.l2Head = unsafe
-				s.metrics.SetHead("l2_finalized", finalized.Number)
-				s.metrics.SetHead("l2_safe", safe.Number)
-				s.metrics.SetHead("l2_unsafe", unsafe.Number)
 				reqStep() // continue with the next step if we can
 			}
 		case respCh := <-s.syncStatusReq:
