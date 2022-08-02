@@ -1,4 +1,5 @@
 import { getContractInterface, predeploys } from '@eth-optimism/contracts'
+import { getContractInterface as getContractInterfaceBedrock } from '@eth-optimism/contracts-bedrock'
 import { ethers, Contract } from 'ethers'
 
 import { toAddress } from './coercion'
@@ -23,9 +24,11 @@ import {
 
 /**
  * Full list of default L2 contract addresses.
+ * TODO(tynes): migrate to predeploys from contracts-bedrock
  */
 export const DEFAULT_L2_CONTRACT_ADDRESSES: OEL2ContractsLike = {
   L2CrossDomainMessenger: predeploys.L2CrossDomainMessenger,
+  L2ToL1MessagePasser: predeploys.OVM_L2ToL1MessagePasser,
   L2StandardBridge: predeploys.L2StandardBridge,
   OVM_L1BlockNumber: predeploys.OVM_L1BlockNumber,
   OVM_L2ToL1MessagePasser: predeploys.OVM_L2ToL1MessagePasser,
@@ -65,6 +68,8 @@ export const CONTRACT_ADDRESSES: {
       CanonicalTransactionChain:
         '0x5E4e65926BA27467555EB562121fac00D24E9dD2' as const,
       BondManager: '0xcd626E1328b41fCF24737F137BcD4CE0c32bc8d1' as const,
+      OptimismPortal: '0x0000000000000000000000000000000000000000' as const,
+      L2OutputOracle: '0x0000000000000000000000000000000000000000' as const,
     },
     l2: DEFAULT_L2_CONTRACT_ADDRESSES,
   },
@@ -79,6 +84,8 @@ export const CONTRACT_ADDRESSES: {
       CanonicalTransactionChain:
         '0xf7B88A133202d41Fe5E2Ab22e6309a1A4D50AF74' as const,
       BondManager: '0xc5a603d273E28185c18Ba4d26A0024B2d2F42740' as const,
+      OptimismPortal: '0x0000000000000000000000000000000000000000' as const,
+      L2OutputOracle: '0x0000000000000000000000000000000000000000' as const,
     },
     l2: DEFAULT_L2_CONTRACT_ADDRESSES,
   },
@@ -93,6 +100,8 @@ export const CONTRACT_ADDRESSES: {
       CanonicalTransactionChain:
         '0x607F755149cFEB3a14E1Dc3A4E2450Cde7dfb04D' as const,
       BondManager: '0xfC2ab6987C578218f99E85d61Dcf4814A26637Bd' as const,
+      OptimismPortal: '0x0000000000000000000000000000000000000000' as const,
+      L2OutputOracle: '0x0000000000000000000000000000000000000000' as const,
     },
     l2: DEFAULT_L2_CONTRACT_ADDRESSES,
   },
@@ -107,6 +116,8 @@ export const CONTRACT_ADDRESSES: {
       CanonicalTransactionChain:
         '0xCf7Ed3AccA5a467e9e704C703E8D87F634fB0Fc9' as const,
       BondManager: '0x5FC8d32690cc91D4c39d9d3abcBD16989F875707' as const,
+      OptimismPortal: '0x0000000000000000000000000000000000000000' as const,
+      L2OutputOracle: '0x0000000000000000000000000000000000000000' as const,
     },
     l2: DEFAULT_L2_CONTRACT_ADDRESSES,
   },
@@ -121,6 +132,24 @@ export const CONTRACT_ADDRESSES: {
       CanonicalTransactionChain:
         '0xCf7Ed3AccA5a467e9e704C703E8D87F634fB0Fc9' as const,
       BondManager: '0x5FC8d32690cc91D4c39d9d3abcBD16989F875707' as const,
+      OptimismPortal: '0x0000000000000000000000000000000000000000' as const,
+      L2OutputOracle: '0x0000000000000000000000000000000000000000' as const,
+    },
+    l2: DEFAULT_L2_CONTRACT_ADDRESSES,
+  },
+  [L2ChainID.OPTIMISM_BEDROCK_LOCAL_DEVNET]: {
+    l1: {
+      AddressManager: '0x5FbDB2315678afecb367f032d93F642f64180aa3' as const,
+      L1CrossDomainMessenger:
+        '0x0165878A594ca255338adfa4d48449f69242Eb8F' as const,
+      L1StandardBridge: '0x8A791620dd6260079BF849Dc5567aDC3F2FdC318' as const,
+      StateCommitmentChain:
+        '0xDc64a140Aa3E981100a9becA4E685f962f0cF6C9' as const,
+      CanonicalTransactionChain:
+        '0xCf7Ed3AccA5a467e9e704C703E8D87F634fB0Fc9' as const,
+      BondManager: '0x5FC8d32690cc91D4c39d9d3abcBD16989F875707' as const,
+      OptimismPortal: '0xCf7Ed3AccA5a467e9e704C703E8D87F634fB0Fc9' as const,
+      L2OutputOracle: '0x5FbDB2315678afecb367f032d93F642f64180aa3' as const,
     },
     l2: DEFAULT_L2_CONTRACT_ADDRESSES,
   },
@@ -145,6 +174,11 @@ export const BRIDGE_ADAPTER_DATA: {
     },
   },
   [L2ChainID.OPTIMISM_KOVAN]: {
+    wstETH: {
+      Adapter: StandardBridgeAdapter,
+      l1Bridge: '0xa88751C0a08623E11ff38c6B70F2BbEe7865C17c' as const,
+      l2Bridge: '0xF9C842dE4381a70eB265d10CF8D43DceFF5bA935' as const,
+    },
     BitBTC: {
       Adapter: StandardBridgeAdapter,
       l1Bridge: '0x0b651A42F32069d62d5ECf4f2a7e5Bd3E9438746' as const,
@@ -191,11 +225,21 @@ export const getOEContract = (
     )
   }
 
+  // Bedrock interfaces are backwards compatible. We can prefer Bedrock interfaces over legacy
+  // interfaces if they exist.
+  const name = NAME_REMAPPING[contractName] || contractName
+  let iface: ethers.utils.Interface
+  try {
+    iface = getContractInterfaceBedrock(name)
+  } catch (err) {
+    iface = getContractInterface(name)
+  }
+
   return new Contract(
     toAddress(
       opts.address || addresses.l1[contractName] || addresses.l2[contractName]
     ),
-    getContractInterface(NAME_REMAPPING[contractName] || contractName),
+    iface,
     opts.signerOrProvider
   )
 }
@@ -230,6 +274,8 @@ export const getAllOEContracts = (
       StateCommitmentChain: undefined,
       CanonicalTransactionChain: undefined,
       BondManager: undefined,
+      OptimismPortal: undefined,
+      L2OutputOracle: undefined,
     },
     l2: DEFAULT_L2_CONTRACT_ADDRESSES,
   }

@@ -1,6 +1,7 @@
 package withdrawals
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -172,8 +173,15 @@ func FinalizeWithdrawalParameters(ctx context.Context, l2client ProofClient, txH
 	if err != nil {
 		return FinalizedWithdrawalParameters{}, err
 	}
+	ev1, err := ParseWithdrawalInitiatedExtension1(receipt)
+	if err != nil {
+		return FinalizedWithdrawalParameters{}, err
+	}
 	// Generate then verify the withdrawal proof
 	withdrawalHash, err := WithdrawalHash(ev)
+	if !bytes.Equal(withdrawalHash[:], ev1.Hash[:]) {
+		return FinalizedWithdrawalParameters{}, errors.New("Computed withdrawal hash incorrectly")
+	}
 	if err != nil {
 		return FinalizedWithdrawalParameters{}, err
 	}
@@ -255,14 +263,52 @@ func ParseWithdrawalInitiated(receipt *types.Receipt) (*bindings.L2ToL1MessagePa
 	if err != nil {
 		return nil, err
 	}
-	if len(receipt.Logs) != 1 {
-		return nil, errors.New("invalid length of logs")
-	}
-	ev, err := contract.ParseWithdrawalInitiated(*receipt.Logs[0])
+	abi, err := bindings.L2ToL1MessagePasserMetaData.GetAbi()
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse log: %w", err)
+		return nil, err
 	}
-	return ev, nil
+
+	for _, log := range receipt.Logs {
+		event, err := abi.EventByID(log.Topics[0])
+		if err != nil {
+			return nil, err
+		}
+		if event.Name == "WithdrawalInitiated" {
+			ev, err := contract.ParseWithdrawalInitiated(*log)
+			if err != nil {
+				return nil, fmt.Errorf("failed to parse log: %w", err)
+			}
+			return ev, nil
+		}
+	}
+	return nil, errors.New("Unable to find WithdrawalInitiated event")
+}
+
+// ParseWithdrawalInitiatedExtension1 parses
+func ParseWithdrawalInitiatedExtension1(receipt *types.Receipt) (*bindings.L2ToL1MessagePasserWithdrawalInitiatedExtension1, error) {
+	contract, err := bindings.NewL2ToL1MessagePasser(common.Address{}, nil)
+	if err != nil {
+		return nil, err
+	}
+	abi, err := bindings.L2ToL1MessagePasserMetaData.GetAbi()
+	if err != nil {
+		return nil, err
+	}
+
+	for _, log := range receipt.Logs {
+		event, err := abi.EventByID(log.Topics[0])
+		if err != nil {
+			return nil, err
+		}
+		if event.Name == "WithdrawalInitiatedExtension1" {
+			ev, err := contract.ParseWithdrawalInitiatedExtension1(*log)
+			if err != nil {
+				return nil, fmt.Errorf("failed to parse log: %w", err)
+			}
+			return ev, nil
+		}
+	}
+	return nil, errors.New("Unable to find WithdrawalInitiatedExtension1 event")
 }
 
 // StorageSlotOfWithdrawalHash determines the storage slot of the Withdrawer contract to look at

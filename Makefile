@@ -93,3 +93,7 @@ semgrep:
 	$(eval DEV_REF := $(shell git rev-parse develop))
 	SEMGREP_REPO_NAME=ethereum-optimism/optimism semgrep ci --baseline-commit=$(DEV_REF)
 .PHONY: semgrep
+
+clean-node-modules:
+	rm -rf node_modules
+	rm -rf packages/**/node_modules

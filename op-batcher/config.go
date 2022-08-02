@@ -56,6 +56,9 @@ type Config struct {
 	// batched submission of sequencer transactions.
 	SequencerHDPath string
 
+	// PrivateKey is the private key used to submit sequencer transactions.
+	PrivateKey string
+
 	// SequencerBatchInboxAddress is the address in which to send batch
 	// transactions.
 	SequencerBatchInboxAddress string
@@ -68,6 +71,11 @@ type Config struct {
 	// LogTerminal if true, will log to stdout in terminal format. Otherwise the
 	// output will be in JSON format.
 	LogTerminal bool
+
+	// Flags for the pprof server
+	PprofEnabled bool
+	PprofAddr    string
+	PprofPort    string
 }
 
 // NewConfig parses the Config from the provided flags or environment variables.
@@ -86,9 +94,13 @@ func NewConfig(ctx *cli.Context) Config {
 		ResubmissionTimeout:        ctx.GlobalDuration(flags.ResubmissionTimeoutFlag.Name),
 		Mnemonic:                   ctx.GlobalString(flags.MnemonicFlag.Name),
 		SequencerHDPath:            ctx.GlobalString(flags.SequencerHDPathFlag.Name),
+		PrivateKey:                 ctx.GlobalString(flags.PrivateKeyFlag.Name),
 		SequencerBatchInboxAddress: ctx.GlobalString(flags.SequencerBatchInboxAddressFlag.Name),
 		/* Optional Flags */
-		LogLevel:    ctx.GlobalString(flags.LogLevelFlag.Name),
-		LogTerminal: ctx.GlobalBool(flags.LogTerminalFlag.Name),
+		LogLevel:     ctx.GlobalString(flags.LogLevelFlag.Name),
+		LogTerminal:  ctx.GlobalBool(flags.LogTerminalFlag.Name),
+		PprofEnabled: ctx.GlobalBool(flags.PprofEnabledFlag.Name),
+		PprofAddr:    ctx.GlobalString(flags.PprofAddrFlag.Name),
+		PprofPort:    ctx.GlobalString(flags.PprofPortFlag.Name),
 	}
 }
