@@ -6,7 +6,8 @@
   "main": "dist/index",
   "types": "dist/index",
   "files": [
-    "dist/*"
+    "dist/*",
+    "src/*"
   ],
   "scripts": {
     "start": "ts-node ./src/service.ts",
