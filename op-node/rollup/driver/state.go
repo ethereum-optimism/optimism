@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-node/eth"
+	"github.com/ethereum-optimism/optimism/op-node/metrics"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum/go-ethereum/log"
 )
@@ -67,6 +68,7 @@ type state struct {
 	output           outputInterface
 	network          Network // may be nil, network for is optional
 
+	metrics     *metrics.Metrics
 	log         log.Logger
 	snapshotLog log.Logger
 	done        chan struct{}
@@ -77,7 +79,7 @@ type state struct {
 // NewState creates a new driver state. State changes take effect though
 // the given output, derivation pipeline and network interfaces.
 func NewState(driverCfg *Config, log log.Logger, snapshotLog log.Logger, config *rollup.Config, l1Chain L1Chain, l2Chain L2Chain,
-	output outputInterface, derivationPipeline DerivationPipeline, network Network) *state {
+	output outputInterface, derivationPipeline DerivationPipeline, network Network, metrics *metrics.Metrics) *state {
 	return &state{
 		derivation:       derivationPipeline,
 		idleDerivation:   false,
@@ -91,6 +93,7 @@ func NewState(driverCfg *Config, log log.Logger, snapshotLog log.Logger, config 
 		l2:               l2Chain,
 		output:           output,
 		network:          network,
+		metrics:          metrics,
 		l1Heads:          make(chan eth.L1BlockRef, 10),
 		unsafeL2Payloads: make(chan *eth.ExecutionPayload, 10),
 	}
@@ -105,6 +108,8 @@ func (s *state) Start(ctx context.Context) error {
 	}
 	s.l1Head = l1Head
 	s.l2Head, _ = s.l2.L2BlockRefByNumber(ctx, nil)
+	s.metrics.SetHead("l1", s.l1Head.Number)
+	s.metrics.SetHead("l2_unsafe", s.l2Head.Number)
 
 	s.derivation.Reset()
 
@@ -151,6 +156,7 @@ func (s *state) handleNewL1Block(newL1Head eth.L1BlockRef) {
 		// This could either be a long L1 extension, or a reorg. Both can be handled the same way.
 		s.log.Warn("L1 Head signal indicates an L1 re-org", "old_l1_head", s.l1Head, "new_l1_head_parent", newL1Head.ParentHash, "new_l1_head", newL1Head)
 	}
+	s.metrics.SetHead("l1", newL1Head.Number)
 	s.l1Head = newL1Head
 }
 
@@ -315,6 +321,7 @@ func (s *state) eventLoop() {
 			cancel()
 			if err != nil {
 				s.log.Error("Error creating new L2 block", "err", err)
+				s.metrics.DerivationErrorsTotal.Inc()
 			}
 
 			// We need to catch up to the next origin as quickly as possible. We can do this by
@@ -330,6 +337,7 @@ func (s *state) eventLoop() {
 			s.snapshot("New unsafe payload")
 			s.log.Info("Optimistically queueing unsafe L2 execution payload", "id", payload.ID())
 			s.derivation.AddUnsafePayload(payload)
+			s.metrics.UnsafePayloadsTotal.Inc()
 			reqStep()
 
 		case newL1Head := <-s.l1Heads:
@@ -338,6 +346,7 @@ func (s *state) eventLoop() {
 			s.handleNewL1Block(newL1Head)
 			reqStep() // a new L1 head may mean we have the data to not get an EOF again.
 		case <-stepReqCh:
+			s.metrics.SetDerivationIdle(false)
 			s.idleDerivation = false
 			s.log.Debug("Derivation process step", "onto_origin", s.derivation.Progress().Origin, "onto_closed", s.derivation.Progress().Closed)
 			stepCtx, cancel := context.WithTimeout(ctx, time.Second*10) // TODO pick a timeout for executing a single step
@@ -346,16 +355,21 @@ func (s *state) eventLoop() {
 			if err == io.EOF {
 				s.log.Debug("Derivation process went idle", "progress", s.derivation.Progress().Origin)
 				s.idleDerivation = true
+				s.metrics.SetDerivationIdle(true)
 				continue
 			} else if err != nil {
 				// If the pipeline corrupts, e.g. due to a reorg, simply reset it
 				s.log.Warn("Derivation pipeline is reset", "err", err)
 				s.derivation.Reset()
+				s.metrics.RecordPipelineReset()
 			} else {
 				finalized, safe, unsafe := s.derivation.Finalized(), s.derivation.SafeL2Head(), s.derivation.UnsafeL2Head()
 				// log sync progress when it changes
 				if s.l2Finalized != finalized || s.l2SafeHead != safe || s.l2Head != unsafe {
 					s.log.Info("Sync progress", "finalized", finalized, "safe", safe, "unsafe", unsafe)
+					s.metrics.SetHead("l2_finalized", finalized.Number)
+					s.metrics.SetHead("l2_safe", safe.Number)
+					s.metrics.SetHead("l2_unsafe", unsafe.Number)
 				}
 				// update the heads
 				s.l2Finalized = finalized
