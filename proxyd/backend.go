@@ -25,9 +25,8 @@ import (
 )
 
 const (
-	JSONRPCVersion          = "2.0"
-	JSONRPCErrorInternal    = -32000
-	JSONRPCErrorRateLimited = JSONRPCErrorInternal - 16
+	JSONRPCVersion       = "2.0"
+	JSONRPCErrorInternal = -32000
 )
 
 var (
@@ -74,6 +73,11 @@ var (
 		Code:          JSONRPCErrorInternal - 15,
 		Message:       "gateway timeout",
 		HTTPErrorCode: 504,
+	}
+	ErrOverRateLimit = &RPCErr{
+		Code:          JSONRPCErrorInternal - 16,
+		Message:       "rate limited",
+		HTTPErrorCode: 429,
 	}
 
 	ErrBackendUnexpectedJSONRPC = errors.New("backend returned an unexpected JSON-RPC response")

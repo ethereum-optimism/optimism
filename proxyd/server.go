@@ -5,9 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/sethvargo/go-limiter"
-	"github.com/sethvargo/go-limiter/memorystore"
-	"github.com/sethvargo/go-limiter/noopstore"
 	"io"
 	"io/ioutil"
 	"math"
@@ -16,6 +13,10 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/sethvargo/go-limiter"
+	"github.com/sethvargo/go-limiter/memorystore"
+	"github.com/sethvargo/go-limiter/noopstore"
 
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/gorilla/mux"
@@ -211,11 +212,9 @@ func (s *Server) HandleRPC(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	if !ok {
-		writeRPCError(ctx, w, nil, &RPCErr{
-			Code:          JSONRPCErrorRateLimited,
-			Message:       s.limConfig.ErrorMessage,
-			HTTPErrorCode: 429,
-		})
+		rpcErr := ErrOverRateLimit.Clone()
+		rpcErr.Message = s.limConfig.ErrorMessage
+		writeRPCError(ctx, w, nil, rpcErr)
 		return
 	}
 
@@ -456,7 +455,7 @@ func (s *Server) populateContext(w http.ResponseWriter, r *http.Request) context
 			xff = ipPort[0]
 		}
 	}
-	ctx := context.WithValue(r.Context(), ContextKeyXForwardedFor, xff)
+	ctx := context.WithValue(r.Context(), ContextKeyXForwardedFor, xff) // nolint:staticcheck
 
 	if s.authenticatedPaths == nil {
 		// handle the edge case where auth is disabled
