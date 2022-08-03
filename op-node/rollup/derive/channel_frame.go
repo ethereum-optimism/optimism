@@ -73,8 +73,7 @@ type ByteReader interface {
 // If `r` fails a read, it returns the error from the reader
 // The reader will be left in a partially read state.
 func (f *Frame) UnmarshalBinary(r ByteReader) error {
-	_, err := io.ReadFull(r, f.ID.Data[:])
-	if err != nil {
+	if _, err := io.ReadFull(r, f.ID.Data[:]); err != nil {
 		return fmt.Errorf("error reading ID: %w", err)
 	}
 	if err := binary.Read(r, binary.BigEndian, &f.ID.Time); err != nil {
@@ -107,10 +106,11 @@ func (f *Frame) UnmarshalBinary(r ByteReader) error {
 		return fmt.Errorf("error reading final byte: %w", err)
 	} else if isLastByte == 0 {
 		f.IsLast = false
+		return err
 	} else if isLastByte == 1 {
 		f.IsLast = true
+		return err
 	} else {
 		return errors.New("invalid byte as is_last")
 	}
-	return err
 }
