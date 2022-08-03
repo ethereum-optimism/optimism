@@ -44,6 +44,8 @@ type Metrics struct {
 	DerivationErrorsTotal prometheus.Counter
 	Heads                 *prometheus.GaugeVec
 
+	TransactionsSequencedTotal prometheus.Counter
+
 	registry *prometheus.Registry
 }
 
@@ -145,6 +147,12 @@ func NewMetrics(procName string) *Metrics {
 			Help:      "Gauge representing the different L1/L2 heads",
 		}, []string{
 			"type",
+		}),
+
+		TransactionsSequencedTotal: promauto.With(registry).NewGauge(prometheus.GaugeOpts{
+			Namespace: ns,
+			Name:      "transactions_sequenced_total",
+			Help:      "Count of total transactions sequenced",
 		}),
 
 		registry: registry,
