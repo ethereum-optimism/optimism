@@ -531,7 +531,7 @@ L2 derivation inputs include:
 This term refers to an object that can be derived from [L2 chain derivation inputs][deriv-inputs] found on L1, which are
 then passed to the [execution engine][execution-engine] to construct L2 blocks.
 
-The payload attributes object essentially essentially encodes a [a block without output properties][block].
+The payload attributes object essentially encodes [a block without output properties][block].
 
 Payload attributes are originally specified in the [Ethereum Engine API specification][engine-api], which we expand in
 the [Execution Engine Specification](exec-engine.md).
