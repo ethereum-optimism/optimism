@@ -85,7 +85,7 @@ and fault proofs.
 
 **Spec links:**
 
-- [Execution Engine](specs/exec-engine.md)
+- [Execution Engine](./exec-engine.md)
 
 Since the EE uses Geth under the hood, Optimism uses Geth's built-in peer-to-peer network and transaction pool to
 propagate transactions. The same network can also be used to propagate submitted blocks and support snap-sync.
