@@ -22,7 +22,11 @@ export interface Bencher {
   bench: (name: string, cb: () => Promise<any>) => Promise<any>
 }
 
-export type RunCB<C> = (b: Bencher, ctx: C) => Promise<void>
+export type RunCB<C> = (
+  b: Bencher,
+  ctx: C,
+  logger: WorkerLogger
+) => Promise<void>
 
 export interface RunOpts {
   runs: number | null
@@ -138,7 +142,7 @@ export class Runner {
       }
 
       try {
-        await this.actor.run(this.stepper, ctx)
+        await this.actor.run(this.stepper, ctx, this.logger)
       } catch (e) {
         console.error('Error in actor run:')
         console.error(`Benchmark name: ${actor.name}`)
@@ -147,6 +151,7 @@ export class Runner {
         console.error('Stack trace:')
         console.error(e)
         failedActorRunsTotal.inc(metricLabels)
+        await sleep(1000)
         continue
       }
 
@@ -154,7 +159,10 @@ export class Runner {
 
       i++
 
-      if (opts.runs && (i % 10 === 0 || i === opts.runs)) {
+      if (
+        (opts.runs && (i % 10 === 0 || i === opts.runs)) ||
+        now - lastDurPrint > 10000
+      ) {
         this.logger.log(`Completed run ${i} of ${opts.runs}.`)
       }
 
@@ -185,7 +193,8 @@ export class Actor {
   private _tearDownRun: <C>(ctx: C) => Promise<void> = asyncNoop as any
 
   // eslint-disable-next-line @typescript-eslint/no-empty-function
-  private _run: <C>(b: Bencher, ctx: C) => Promise<void> = asyncNoop
+  private _run: <C>(b: Bencher, ctx: C, logger: WorkerLogger) => Promise<void> =
+    asyncNoop
 
   private logger: ActorLogger
 

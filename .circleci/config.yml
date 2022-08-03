@@ -586,6 +586,12 @@ workflows:
           requires:
             - yarn-monorepo
       - js-lint-test:
+          name: actor-tests-tests
+          package_name: actor-tests
+          dependencies: "(core-utils|sdk)"
+          requires:
+            - yarn-monorepo
+      - js-lint-test:
           name: contracts-governance-tests
           package_name: contracts-governance
           dependencies: "(core-utils|sdk)"

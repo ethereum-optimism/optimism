@@ -5,7 +5,7 @@ import { Command } from 'commander'
 import { defaultRuntime } from './convenience'
 import { RunOpts } from './actor'
 import { serveMetrics } from './metrics'
-import pkg from '../../package.json'
+import pkg from '../package.json'
 
 const program = new Command()
 program.version(pkg.version)
