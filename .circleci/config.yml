@@ -278,13 +278,18 @@ jobs:
     steps:
       - checkout
       - run:
+          name: yarn dev deps  # todo: what's the best way to pull in the dependencies for linting? yarn install above is using production env without dev dependencies
+          command: yarn install --production=false
+      - run:
+          name: specs toc
+          command: yarn lint:specs:toc && git diff --exit-code
+      - run:
           name: markdown lint
-          command: |
-            docker run -v `pwd`:/workdir davidanson/markdownlint-cli2:0.4.0 "op-node/README.md" "./specs/**/*.md" "#**/node_modules"
+          command: yarn lint:specs:check
       - run:
           name: link lint
           command: |
-            docker run --init -it -v `pwd`:/input lycheeverse/lychee --verbose --no-progress --exclude-loopback --exclude twitter.com --exclude-mail /input/README.md "/input/specs/**/*.md" "/input/meta/**/*.md" "/input/op-node/**/*.md" || exit 0
+            docker run --init -it -v `pwd`:/input lycheeverse/lychee --verbose --no-progress --exclude-loopback --exclude twitter.com --exclude-mail /input/README.md "/input/specs/**/*.md"
 
   fuzz-op-node:
     docker:
