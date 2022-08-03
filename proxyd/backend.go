@@ -349,7 +349,7 @@ func (b *Backend) setOffline() {
 }
 
 func (b *Backend) doForward(ctx context.Context, rpcReqs []*RPCReq, isBatch bool) ([]*RPCRes, error) {
-	isSingleElementBatch := len(rpcReqs) == 0
+	isSingleElementBatch := len(rpcReqs) == 1
 
 	// Single element batches are unwrapped before being sent
 	// since Alchemy handles single requests better than batches.
@@ -413,12 +413,12 @@ func (b *Backend) doForward(ctx context.Context, rpcReqs []*RPCReq, isBatch bool
 
 	var res []*RPCRes
 	if isSingleElementBatch {
-		var singleRes *RPCRes
+		var singleRes RPCRes
 		if err := json.Unmarshal(resB, &singleRes); err != nil {
 			return nil, ErrBackendBadResponse
 		}
 		res = []*RPCRes{
-			singleRes,
+			&singleRes,
 		}
 	} else {
 		if err := json.Unmarshal(resB, &res); err != nil {
