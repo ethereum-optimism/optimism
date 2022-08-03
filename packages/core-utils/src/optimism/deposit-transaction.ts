@@ -10,12 +10,26 @@ import {
 
 const { hexDataSlice, stripZeros, hexConcat, keccak256, zeroPad } = utils
 
+const formatBoolean = (value: boolean): Uint8Array => {
+  return value ? new Uint8Array([1]) : new Uint8Array([0])
+}
+
 const formatNumber = (value: BigNumberish, name: string): Uint8Array => {
   const result = stripZeros(BigNumber.from(value).toHexString())
   if (result.length > 32) {
     throw new Error(`invalid length for ${name}`)
   }
   return result
+}
+
+const handleBoolean = (value: string): boolean => {
+  if (value === '0x00') {
+    return false
+  }
+  if (value === '0x01') {
+    return true
+  }
+  throw new Error(`invalid boolean RLP hex value ${value}`)
 }
 
 const handleNumber = (value: string): BigNumber => {
@@ -45,6 +59,7 @@ interface DepositTxOpts {
   mint: BigNumberish
   value: BigNumberish
   gas: BigNumberish
+  isSystemTransaction: boolean
   data: string
   domain?: SourceHashDomain
   l1BlockHash?: string
@@ -68,6 +83,7 @@ export class DepositTx {
   public mint: BigNumberish
   public value: BigNumberish
   public gas: BigNumberish
+  public isSystemTransaction: boolean
   public data: BigNumberish
 
   public domain?: SourceHashDomain
@@ -82,6 +98,7 @@ export class DepositTx {
     this.mint = opts.mint!
     this.value = opts.value!
     this.gas = opts.gas!
+    this.isSystemTransaction = opts.isSystemTransaction!
     this.data = opts.data!
     this.domain = opts.domain
     this.l1BlockHash = opts.l1BlockHash
@@ -130,6 +147,7 @@ export class DepositTx {
       formatNumber(this.mint || 0, 'mint'),
       formatNumber(this.value || 0, 'value'),
       formatNumber(this.gas || 0, 'gas'),
+      formatBoolean(this.isSystemTransaction),
       this.data || '0x',
     ]
 
@@ -153,7 +171,8 @@ export class DepositTx {
     this.mint = handleNumber(transaction[3])
     this.value = handleNumber(transaction[4])
     this.gas = handleNumber(transaction[5])
-    this.data = transaction[6]
+    this.isSystemTransaction = handleBoolean(transaction[6])
+    this.data = transaction[7]
 
     if ('l1BlockHash' in extra) {
       this.l1BlockHash = extra.l1BlockHash
@@ -229,6 +248,7 @@ export class DepositTx {
     offset += 1
     this.to = isCreation === true ? null : event.args.to
     const length = opaqueData.length - offset
+    this.isSystemTransaction = false
     this.data = hexDataSlice(opaqueData, offset, offset + length)
     this.domain = SourceHashDomain.UserDeposit
     this.l1BlockHash = event.blockHash
