@@ -18,7 +18,7 @@ use (
 	./state-surgery
 )
 
-replace github.com/ethereum/go-ethereum v1.10.20 => github.com/ethereum-optimism/reference-optimistic-geth v0.0.0-20220802194006-a5dfa86f9b98
+replace github.com/ethereum/go-ethereum v1.10.21 => github.com/ethereum-optimism/reference-optimistic-geth v0.0.0-20220803173305-1c9d4cc76a6e
 
 // For local debugging:
-//replace github.com/ethereum/go-ethereum v1.10.20 => ../go-ethereum
+//replace github.com/ethereum/go-ethereum v1.10.21 => ../go-ethereum

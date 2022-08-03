@@ -5,7 +5,7 @@ go 1.18
 require (
 	github.com/ethereum-optimism/optimism/op-bindings v0.3.0
 	github.com/ethereum-optimism/optimism/op-node v0.3.0
-	github.com/ethereum/go-ethereum v1.10.20
+	github.com/ethereum/go-ethereum v1.10.21
 	github.com/miguelmota/go-ethereum-hdwallet v0.1.1
 	github.com/stretchr/testify v1.8.0
 	github.com/urfave/cli v1.22.5
@@ -60,4 +60,4 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 
-replace github.com/ethereum/go-ethereum v1.10.20 => github.com/ethereum-optimism/reference-optimistic-geth v0.0.0-20220802194006-a5dfa86f9b98
+replace github.com/ethereum/go-ethereum v1.10.21 => github.com/ethereum-optimism/reference-optimistic-geth v0.0.0-20220803173305-1c9d4cc76a6e
