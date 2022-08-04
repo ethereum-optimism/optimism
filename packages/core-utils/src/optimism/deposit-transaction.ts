@@ -11,7 +11,7 @@ import {
 const { hexDataSlice, stripZeros, hexConcat, keccak256, zeroPad } = utils
 
 const formatBoolean = (value: boolean): Uint8Array => {
-  return value ? new Uint8Array([1]) : new Uint8Array([0])
+  return value ? new Uint8Array([1]) : new Uint8Array([])
 }
 
 const formatNumber = (value: BigNumberish, name: string): Uint8Array => {
@@ -23,7 +23,7 @@ const formatNumber = (value: BigNumberish, name: string): Uint8Array => {
 }
 
 const handleBoolean = (value: string): boolean => {
-  if (value === '0x00') {
+  if (value === '0x') {
     return false
   }
   if (value === '0x01') {
@@ -163,8 +163,7 @@ export class DepositTx {
       throw new Error(`Invalid type ${payload[0]}`)
     }
     this.version = payload[1]
-
-    const transaction = utils.RLP.decode(payload.slice(2))
+    const transaction = utils.RLP.decode(payload.slice(1))
     this._sourceHash = transaction[0]
     this.from = handleAddress(transaction[1])
     this.to = handleAddress(transaction[2])
