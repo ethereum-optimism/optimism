@@ -282,7 +282,7 @@ jobs:
           command: yarn install --production=false
       - run:
           name: specs toc
-          command: yarn lint:specs:toc && git diff --exit-code
+          command: yarn lint:specs:toc && git diff --exit-code ./specs
       - run:
           name: markdown lint
           command: yarn lint:specs:check
@@ -583,6 +583,12 @@ workflows:
           requires:
             - yarn-monorepo
       - op-bindings-build:
+          requires:
+            - yarn-monorepo
+      - js-lint-test:
+          name: actor-tests-tests
+          package_name: actor-tests
+          dependencies: "(core-utils|sdk)"
           requires:
             - yarn-monorepo
       - js-lint-test:
