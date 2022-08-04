@@ -74,6 +74,11 @@ var (
 		Message:       "gateway timeout",
 		HTTPErrorCode: 504,
 	}
+	ErrOverRateLimit = &RPCErr{
+		Code:          JSONRPCErrorInternal - 16,
+		Message:       "rate limited",
+		HTTPErrorCode: 429,
+	}
 
 	ErrBackendUnexpectedJSONRPC = errors.New("backend returned an unexpected JSON-RPC response")
 )
@@ -92,7 +97,7 @@ type Backend struct {
 	wsURL                string
 	authUsername         string
 	authPassword         string
-	rateLimiter          RateLimiter
+	rateLimiter          BackendRateLimiter
 	client               *LimitedHTTPClient
 	dialer               *websocket.Dialer
 	maxRetries           int
@@ -174,7 +179,7 @@ func NewBackend(
 	name string,
 	rpcURL string,
 	wsURL string,
-	rateLimiter RateLimiter,
+	rateLimiter BackendRateLimiter,
 	rpcSemaphore *semaphore.Weighted,
 	opts ...BackendOpt,
 ) *Backend {
@@ -372,10 +377,7 @@ func (b *Backend) doForward(ctx context.Context, rpcReqs []*RPCReq, isBatch bool
 
 	xForwardedFor := GetXForwardedFor(ctx)
 	if b.stripTrailingXFF {
-		ipList := strings.Split(xForwardedFor, ", ")
-		if len(ipList) > 0 {
-			xForwardedFor = ipList[0]
-		}
+		xForwardedFor = stripXFF(xForwardedFor)
 	} else if b.proxydIP != "" {
 		xForwardedFor = fmt.Sprintf("%s, %s", xForwardedFor, b.proxydIP)
 	}
@@ -854,4 +856,9 @@ func RecordBatchRPCForward(ctx context.Context, backendName string, reqs []*RPCR
 	for _, req := range reqs {
 		RecordRPCForward(ctx, backendName, req.Method, source)
 	}
+}
+
+func stripXFF(xff string) string {
+	ipList := strings.Split(xff, ", ")
+	return strings.TrimSpace(ipList[0])
 }
