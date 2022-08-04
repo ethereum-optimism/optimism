@@ -282,7 +282,7 @@ jobs:
           command: yarn install --production=false
       - run:
           name: specs toc
-          command: yarn lint:specs:toc && git diff --exit-code
+          command: yarn lint:specs:toc && git diff --exit-code ./specs
       - run:
           name: markdown lint
           command: yarn lint:specs:check
