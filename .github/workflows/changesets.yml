@@ -8,8 +8,8 @@ jobs:
     runs-on: ubuntu-latest
     on:
       push:
-        branches:
-          - '*'
+        branches-ignore:
+          - 'develop'
     steps:
       - name: Checkout
         uses: actions/checkout@v2
