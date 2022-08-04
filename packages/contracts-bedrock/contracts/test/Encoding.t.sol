@@ -65,4 +65,34 @@ contract Encoding_Test is CommonTest {
 
         assertEq(encoding, _encoding);
     }
+
+    function test_encodeDepositTransaction_differential(
+        address _from,
+        address _to,
+        uint256 _mint,
+        uint256 _value,
+        uint64 _gas,
+        bytes memory _data,
+        uint256 _logIndex
+    ) external {
+        Types.UserDepositTransaction memory t = Types.UserDepositTransaction(
+            _from,
+            _to,
+            false, // isCreate
+            _value,
+            _mint,
+            _gas,
+            _data,
+            bytes32(uint256(0)),
+            _logIndex
+        );
+
+        bytes memory txn = Encoding.encodeDepositTransaction(t);
+        bytes memory _txn = ffi.encodeDepositTransaction(t);
+
+        assertEq(
+            txn,
+            _txn
+        );
+    }
 }

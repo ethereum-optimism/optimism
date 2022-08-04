@@ -95,11 +95,41 @@ const command = args[0]
         gas,
         isSystemTransaction,
         data,
+        isSystemTransaction: false,
         domain: SourceHashDomain.UserDeposit,
       })
 
       const digest = tx.hash()
+
       const output = utils.defaultAbiCoder.encode(['bytes32'], [digest])
+      process.stdout.write(output)
+      break
+    }
+    case 'encodeDepositTransaction': {
+      const from = args[1]
+      const to = args[2]
+      const value = BigNumber.from(args[3])
+      const mint = BigNumber.from(args[4])
+      const gasLimit = BigNumber.from(args[5])
+      const isCreate = Boolean(args[6])
+      const data = args[7]
+      const l1BlockHash = args[8]
+      const logIndex = BigNumber.from(args[9])
+
+      const tx = new DepositTx({
+        from,
+        to: isCreate ? constants.AddressZero : to,
+        value,
+        mint,
+        gas: gasLimit,
+        data,
+        l1BlockHash,
+        logIndex,
+        domain: SourceHashDomain.UserDeposit,
+      })
+
+      const raw = tx.encode()
+      const output = utils.defaultAbiCoder.encode(['bytes'], [raw])
       process.stdout.write(output)
       break
     }

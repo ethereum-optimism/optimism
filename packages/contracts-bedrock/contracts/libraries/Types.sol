@@ -38,7 +38,6 @@ library Types {
         uint256 value;
         uint256 mint;
         uint64 gasLimit;
-        bool isSystemTransaction;
         bytes data;
         bytes32 l1BlockHash;
         uint256 logIndex;
