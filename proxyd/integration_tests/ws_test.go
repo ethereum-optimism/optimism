@@ -44,11 +44,14 @@ func TestConcurrentWSPanic(t *testing.T) {
 
 	<-readyCh
 
+	var wg sync.WaitGroup
+	wg.Add(2)
 	// spam messages
 	go func() {
 		for {
 			select {
 			case <-quitC:
+				wg.Done()
 				return
 			default:
 				_ = backendToProxyConn.WriteMessage(websocket.TextMessage, []byte("garbage"))
@@ -61,6 +64,7 @@ func TestConcurrentWSPanic(t *testing.T) {
 		for {
 			select {
 			case <-quitC:
+				wg.Done()
 				return
 			default:
 				_ = client.WriteMessage(websocket.TextMessage, []byte("{\"id\": 1, \"method\": \"eth_foo\", \"params\": [\"newHeads\"]}"))
@@ -72,6 +76,7 @@ func TestConcurrentWSPanic(t *testing.T) {
 	// concurrent write to websocket connection
 	time.Sleep(time.Second)
 	close(quitC)
+	wg.Wait()
 }
 
 type backendHandler struct {
