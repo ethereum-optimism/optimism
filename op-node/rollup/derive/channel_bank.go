@@ -136,7 +136,7 @@ func (ib *ChannelBank) IngestData(data []byte) error {
 		}
 
 		ib.log.Debug("ingesting frame", "channel", f.ID, "frame_number", f.FrameNumber, "length", len(f.Data))
-		if err := currentCh.IngestData(f.FrameNumber, f.IsLast, f.Data); err != nil {
+		if err := currentCh.IngestData(uint64(f.FrameNumber), f.IsLast, f.Data); err != nil {
 			ib.log.Debug("failed to ingest frame into channel", "channel", f.ID, "frame_number", f.FrameNumber, "err", err)
 			if done {
 				return nil

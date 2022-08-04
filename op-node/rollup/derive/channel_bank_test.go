@@ -1,6 +1,8 @@
 package derive
 
 import (
+	"bytes"
+	"fmt"
 	"math/rand"
 	"strconv"
 	"strings"
@@ -106,32 +108,28 @@ func (tf testFrame) Content() []byte {
 	return []byte(strings.TrimSuffix(parts[3], "!"))
 }
 
-func (tf testFrame) Encode() []byte {
-	chID := tf.ChannelID()
-	var out []byte
-	out = append(out, chID.Data[:]...)
-	out = append(out, makeUVarint(chID.Time)...)
-	out = append(out, makeUVarint(tf.FrameNumber())...)
-	content := tf.Content()
-	out = append(out, makeUVarint(uint64(len(content)))...)
-	out = append(out, content...)
-	if tf.IsLast() {
-		out = append(out, 1)
-	} else {
-		out = append(out, 0)
+func (tf testFrame) ToFrame() Frame {
+	return Frame{
+		ID:          tf.ChannelID(),
+		FrameNumber: uint16(tf.FrameNumber()),
+		Data:        tf.Content(),
+		IsLast:      tf.IsLast(),
 	}
-	return out
 }
 
 func (bt *bankTestSetup) ingestData(data []byte) {
 	require.NoError(bt.t, bt.cb.IngestData(data))
 }
 func (bt *bankTestSetup) ingestFrames(frames ...testFrame) {
-	data := []byte{DerivationVersion0}
+	data := new(bytes.Buffer)
+	data.WriteByte(DerivationVersion0)
 	for _, fr := range frames {
-		data = append(data, fr.Encode()...)
+		f := fr.ToFrame()
+		if err := (&f).MarshalBinary(data); err != nil {
+			panic(fmt.Errorf("error in making frame during test: %w", err))
+		}
 	}
-	bt.ingestData(data)
+	bt.ingestData(data.Bytes())
 }
 func (bt *bankTestSetup) repeatStep(max int, outer int, outerClosed bool, err error) {
 	require.Equal(bt.t, err, RepeatStep(bt.t, bt.cb.Step, Progress{Origin: bt.origins[outer], Closed: outerClosed}, max))
@@ -292,10 +290,14 @@ func TestL1ChannelBank(t *testing.T) {
 
 				bt.assertOriginTime(101)
 
-				badTx := []byte{DerivationVersion0}
-				badTx = append(badTx, testFrame("a:101:0:helloworld!").Encode()...)
-				badTx = append(badTx, testutils.RandomData(bt.rng, 30)...) // incomplete frame data
-				bt.ingestData(badTx)
+				badTx := new(bytes.Buffer)
+				badTx.WriteByte(DerivationVersion0)
+				goodFrame := testFrame("a:101:0:helloworld!").ToFrame()
+				if err := goodFrame.MarshalBinary(badTx); err != nil {
+					panic(fmt.Errorf("error in marshalling frame: %w", err))
+				}
+				badTx.Write(testutils.RandomData(bt.rng, 30)) // incomplete frame data
+				bt.ingestData(badTx.Bytes())
 				bt.expectChannel("helloworld") // can still read the frames before the invalid data
 				bt.repeatStep(2, 0, false, nil)
 				bt.assertExpectations()
