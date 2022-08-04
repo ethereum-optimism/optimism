@@ -65,6 +65,14 @@ func (r *RPCErr) Error() string {
 	return r.Message
 }
 
+func (r *RPCErr) Clone() *RPCErr {
+	return &RPCErr{
+		Code:          r.Code,
+		Message:       r.Message,
+		HTTPErrorCode: r.HTTPErrorCode,
+	}
+}
+
 func IsValidID(id json.RawMessage) bool {
 	// handle the case where the ID is a string
 	if strings.HasPrefix(string(id), "\"") && strings.HasSuffix(string(id), "\"") {
