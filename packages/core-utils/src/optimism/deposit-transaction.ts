@@ -98,7 +98,7 @@ export class DepositTx {
     this.mint = opts.mint!
     this.value = opts.value!
     this.gas = opts.gas!
-    this.isSystemTransaction = opts.isSystemTransaction!
+    this.isSystemTransaction = opts.isSystemTransaction || false
     this.data = opts.data!
     this.domain = opts.domain
     this.l1BlockHash = opts.l1BlockHash
