@@ -28,7 +28,7 @@
 [g-avail-provider]: glossary.md#data-availability-provider
 [g-batcher]: glossary.md#batcher
 [g-l2-output]: glossary.md#l2-output
-[g-fault-proof]: glosary.md#fault-proof
+[g-fault-proof]: glossary.md#fault-proof
 [g-channel]: glossary.md#channel
 [g-channel-frame]: glossary.md#channel-frame
 [g-rollup-node]: glossary.md#rollup-node
@@ -181,7 +181,7 @@ by a correct output root **for the existing sequencer batches.**
 
 Refer to the [Batch Submission specification][batcher-spec] for more information.
 
-[batcher-spec]: batching.md
+[batcher-spec]: batcher.md
 
 > **TODO** rewrite the batch submission specification
 >
@@ -303,7 +303,7 @@ where:
 >   can influence things down the line!!
 
 [sqlite-uvarint]: https://www.sqlite.org/src4/doc/trunk/www/varint.wiki
-[batcher-spec]: batching.md
+[batcher-spec]: batcher.md
 
 ### Channel Format
 

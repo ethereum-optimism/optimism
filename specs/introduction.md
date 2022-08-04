@@ -138,7 +138,7 @@ Links to components mentioned in this diagram:
 - [Execution Engine](./exec-engine.md)
 - Sequencer Batch Submitter (WIP)
 - [L2 Output Oracle](./proposals.md#l2-output-oracle-smart-contract)
-- [L2 Output Submitter](./proposals#proposing-l2-output-commitments)
+- [L2 Output Submitter](./proposals.md#proposing-l2-output-commitments)
 - Fault Proof VM (WIP)
 
 ### Withdrawing
