@@ -120,7 +120,6 @@ contract Hashing_Test is CommonTest {
         uint256 _mint,
         uint256 _value,
         uint64 _gas,
-        bool _isSystemTransaction,
         bytes memory _data,
         uint256 _logIndex
     ) external {
@@ -132,7 +131,6 @@ contract Hashing_Test is CommonTest {
                 _value,
                 _mint,
                 _gas,
-                _isSystemTransaction,
                 _data,
                 bytes32(uint256(0)),
                 _logIndex
@@ -145,7 +143,6 @@ contract Hashing_Test is CommonTest {
             _mint,
             _value,
             _gas,
-            _isSystemTransaction,
             _data,
             _logIndex
         );

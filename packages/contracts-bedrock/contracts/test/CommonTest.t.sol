@@ -561,11 +561,10 @@ contract FFIInterface is Test {
         uint256 _mint,
         uint256 _value,
         uint64 _gas,
-        bool _isSystemTransaction,
         bytes memory _data,
         uint256 _logIndex
     ) external returns (bytes32) {
-        string[] memory cmds = new string[](12);
+        string[] memory cmds = new string[](11);
         cmds[0] = "node";
         cmds[1] = "dist/scripts/differential-testing.js";
         cmds[2] = "hashDepositTransaction";
@@ -576,11 +575,31 @@ contract FFIInterface is Test {
         cmds[7] = vm.toString(_mint);
         cmds[8] = vm.toString(_value);
         cmds[9] = vm.toString(_gas);
-        cmds[10] = _isSystemTransaction ? "1" : "0";
-        cmds[11] = vm.toString(_data);
-        bytes memory result = vm.ffi(cmds);
+        cmds[10] = vm.toString(_data);
 
+        bytes memory result = vm.ffi(cmds);
         return abi.decode(result, (bytes32));
+    }
+
+    function encodeDepositTransaction(
+        Types.UserDepositTransaction calldata txn
+    ) external returns (bytes memory) {
+        string[] memory cmds = new string[](12);
+        cmds[0] = "node";
+        cmds[1] = "dist/scripts/differential-testing.js";
+        cmds[2] = "encodeDepositTransaction";
+        cmds[3] = vm.toString(txn.from);
+        cmds[4] = vm.toString(txn.to);
+        cmds[5] = vm.toString(txn.value);
+        cmds[6] = vm.toString(txn.mint);
+        cmds[7] = vm.toString(txn.gasLimit);
+        cmds[8] = vm.toString(txn.isCreation);
+        cmds[9] = vm.toString(txn.data);
+        cmds[10] = vm.toString(txn.l1BlockHash);
+        cmds[11] = vm.toString(txn.logIndex);
+
+        bytes memory result = vm.ffi(cmds);
+        return abi.decode(result, (bytes));
     }
 
     function encodeCrossDomainMessage(
