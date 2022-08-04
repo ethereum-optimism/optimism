@@ -1,5 +1,11 @@
 # @eth-optimism/proxyd
 
+## 3.9.1
+
+### Patch Changes
+
+- dc4f6a06: Add logging/metrics
+
 ## 3.9.0
 
 ### Minor Changes
