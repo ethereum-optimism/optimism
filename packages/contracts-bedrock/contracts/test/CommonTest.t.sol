@@ -576,9 +576,30 @@ contract FFIInterface is Test {
         cmds[8] = vm.toString(_value);
         cmds[9] = vm.toString(_gas);
         cmds[10] = vm.toString(_data);
-        bytes memory result = vm.ffi(cmds);
 
+        bytes memory result = vm.ffi(cmds);
         return abi.decode(result, (bytes32));
+    }
+
+    function encodeDepositTransaction(
+        Types.UserDepositTransaction calldata txn
+    ) external returns (bytes memory) {
+        string[] memory cmds = new string[](12);
+        cmds[0] = "node";
+        cmds[1] = "dist/scripts/differential-testing.js";
+        cmds[2] = "encodeDepositTransaction";
+        cmds[3] = vm.toString(txn.from);
+        cmds[4] = vm.toString(txn.to);
+        cmds[5] = vm.toString(txn.value);
+        cmds[6] = vm.toString(txn.mint);
+        cmds[7] = vm.toString(txn.gasLimit);
+        cmds[8] = vm.toString(txn.isCreation);
+        cmds[9] = vm.toString(txn.data);
+        cmds[10] = vm.toString(txn.l1BlockHash);
+        cmds[11] = vm.toString(txn.logIndex);
+
+        bytes memory result = vm.ffi(cmds);
+        return abi.decode(result, (bytes));
     }
 
     function encodeCrossDomainMessage(
