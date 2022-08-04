@@ -102,17 +102,17 @@ func L1InfoDeposit(seqNumber uint64, block eth.L1Info) (*types.DepositTx, error)
 		L1BlockHash: block.Hash(),
 		SeqNumber:   seqNumber,
 	}
-	// Uses ~30k normal case
-	// Uses ~70k on first transaction
-	// Round up to 75k to ensure that we always have enough gas.
+	// Set a very large gas limit with `IsSystemTransaction` to ensure
+	// that the L1 Attributes Transaction does not run out of gas.
 	return &types.DepositTx{
-		SourceHash: source.SourceHash(),
-		From:       L1InfoDepositerAddress,
-		To:         &L1BlockAddress,
-		Mint:       nil,
-		Value:      big.NewInt(0),
-		Gas:        150_000, // TODO: temporary work around. Block 1 seems to require more gas than specced.
-		Data:       data,
+		SourceHash:          source.SourceHash(),
+		From:                L1InfoDepositerAddress,
+		To:                  &L1BlockAddress,
+		Mint:                nil,
+		Value:               big.NewInt(0),
+		Gas:                 150_000_000,
+		IsSystemTransaction: true,
+		Data:                data,
 	}, nil
 }
 
