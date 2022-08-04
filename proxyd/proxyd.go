@@ -43,11 +43,11 @@ func Start(config *Config) (func(), error) {
 		redisURL = rURL
 	}
 
-	var lim RateLimiter
+	var lim BackendRateLimiter
 	var err error
 	if redisURL == "" {
 		log.Warn("redis is not configured, using local rate limiter")
-		lim = NewLocalRateLimiter()
+		lim = NewLocalBackendRateLimiter()
 	} else {
 		lim, err = NewRedisRateLimiter(redisURL)
 		if err != nil {
@@ -212,7 +212,7 @@ func Start(config *Config) (func(), error) {
 		rpcCache = newRPCCache(newCacheWithCompression(cache), blockNumFn, gasPriceFn, config.Cache.NumBlockConfirmations)
 	}
 
-	srv := NewServer(
+	srv, err := NewServer(
 		backendGroups,
 		wsBackendGroup,
 		NewStringSetFromStrings(config.WSMethodWhitelist),
@@ -222,9 +222,13 @@ func Start(config *Config) (func(), error) {
 		secondsToDuration(config.Server.TimeoutSeconds),
 		config.Server.MaxUpstreamBatchSize,
 		rpcCache,
+		config.RateLimit,
 		config.Server.EnableRequestLog,
 		config.Server.MaxRequestBodyLogLen,
 	)
+	if err != nil {
+		return nil, fmt.Errorf("error creating server: %w", err)
+	}
 
 	if config.Metrics.Enabled {
 		addr := fmt.Sprintf("%s:%d", config.Metrics.Host, config.Metrics.Port)

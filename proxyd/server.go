@@ -14,6 +14,10 @@ import (
 	"sync"
 	"time"
 
+	"github.com/sethvargo/go-limiter"
+	"github.com/sethvargo/go-limiter/memorystore"
+	"github.com/sethvargo/go-limiter/noopstore"
+
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/gorilla/mux"
 	"github.com/gorilla/websocket"
@@ -46,6 +50,10 @@ type Server struct {
 	timeout              time.Duration
 	maxUpstreamBatchSize int
 	upgrader             *websocket.Upgrader
+	lim                  limiter.Store
+	limConfig            RateLimitConfig
+	limExemptOrigins     map[string]bool
+	limExemptUserAgents  map[string]bool
 	rpcServer            *http.Server
 	wsServer             *http.Server
 	cache                RPCCache
@@ -62,9 +70,10 @@ func NewServer(
 	timeout time.Duration,
 	maxUpstreamBatchSize int,
 	cache RPCCache,
+	rateLimitConfig RateLimitConfig,
 	enableRequestLog bool,
 	maxRequestBodyLogLen int,
-) *Server {
+) (*Server, error) {
 	if cache == nil {
 		cache = &NoopRPCCache{}
 	}
@@ -79,6 +88,29 @@ func NewServer(
 
 	if maxUpstreamBatchSize == 0 {
 		maxUpstreamBatchSize = defaultMaxUpstreamBatchSize
+	}
+
+	var lim limiter.Store
+	limExemptOrigins := make(map[string]bool)
+	limExemptUserAgents := make(map[string]bool)
+	if rateLimitConfig.RatePerSecond > 0 {
+		var err error
+		lim, err = memorystore.New(&memorystore.Config{
+			Tokens:   uint64(rateLimitConfig.RatePerSecond),
+			Interval: time.Second,
+		})
+		if err != nil {
+			return nil, err
+		}
+
+		for _, origin := range rateLimitConfig.ExemptOrigins {
+			limExemptOrigins[strings.ToLower(origin)] = true
+		}
+		for _, agent := range rateLimitConfig.ExemptUserAgents {
+			limExemptUserAgents[strings.ToLower(agent)] = true
+		}
+	} else {
+		lim, _ = noopstore.New()
 	}
 
 	return &Server{
@@ -96,7 +128,11 @@ func NewServer(
 		upgrader: &websocket.Upgrader{
 			HandshakeTimeout: 5 * time.Second,
 		},
-	}
+		lim:                 lim,
+		limConfig:           rateLimitConfig,
+		limExemptOrigins:    limExemptOrigins,
+		limExemptUserAgents: limExemptUserAgents,
+	}, nil
 }
 
 func (s *Server) RPCListenAndServe(host string, port int) error {
@@ -159,6 +195,28 @@ func (s *Server) HandleRPC(w http.ResponseWriter, r *http.Request) {
 	var cancel context.CancelFunc
 	ctx, cancel = context.WithTimeout(ctx, s.timeout)
 	defer cancel()
+
+	exemptOrigin := s.limExemptOrigins[strings.ToLower(r.Header.Get("Origin"))]
+	exemptUserAgent := s.limExemptUserAgents[strings.ToLower(r.Header.Get("User-Agent"))]
+	var ok bool
+	if exemptOrigin || exemptUserAgent {
+		ok = true
+	} else {
+		// Use XFF in context since it will automatically be replaced by the remote IP
+		xff := stripXFF(GetXForwardedFor(ctx))
+		if xff == "" {
+			log.Warn("rejecting request without XFF or remote IP")
+			ok = false
+		} else {
+			_, _, _, ok, _ = s.lim.Take(ctx, xff)
+		}
+	}
+	if !ok {
+		rpcErr := ErrOverRateLimit.Clone()
+		rpcErr.Message = s.limConfig.ErrorMessage
+		writeRPCError(ctx, w, nil, rpcErr)
+		return
+	}
 
 	log.Info(
 		"received RPC request",
@@ -390,6 +448,14 @@ func (s *Server) HandleWS(w http.ResponseWriter, r *http.Request) {
 func (s *Server) populateContext(w http.ResponseWriter, r *http.Request) context.Context {
 	vars := mux.Vars(r)
 	authorization := vars["authorization"]
+	xff := r.Header.Get("X-Forwarded-For")
+	if xff == "" {
+		ipPort := strings.Split(r.RemoteAddr, ":")
+		if len(ipPort) == 2 {
+			xff = ipPort[0]
+		}
+	}
+	ctx := context.WithValue(r.Context(), ContextKeyXForwardedFor, xff) // nolint:staticcheck
 
 	if s.authenticatedPaths == nil {
 		// handle the edge case where auth is disabled
@@ -400,30 +466,17 @@ func (s *Server) populateContext(w http.ResponseWriter, r *http.Request) context
 			w.WriteHeader(404)
 			return nil
 		}
-		return context.WithValue(
-			r.Context(),
-			ContextKeyReqID, // nolint:staticcheck
-			randStr(10),
-		)
-	}
-
-	if authorization == "" || s.authenticatedPaths[authorization] == "" {
-		log.Info("blocked unauthorized request", "authorization", authorization)
-		httpResponseCodesTotal.WithLabelValues("401").Inc()
-		w.WriteHeader(401)
-		return nil
-	}
-
-	xff := r.Header.Get("X-Forwarded-For")
-	if xff == "" {
-		ipPort := strings.Split(r.RemoteAddr, ":")
-		if len(ipPort) == 2 {
-			xff = ipPort[0]
+	} else {
+		if authorization == "" || s.authenticatedPaths[authorization] == "" {
+			log.Info("blocked unauthorized request", "authorization", authorization)
+			httpResponseCodesTotal.WithLabelValues("401").Inc()
+			w.WriteHeader(401)
+			return nil
 		}
+
+		ctx = context.WithValue(r.Context(), ContextKeyAuth, s.authenticatedPaths[authorization]) // nolint:staticcheck
 	}
 
-	ctx := context.WithValue(r.Context(), ContextKeyAuth, s.authenticatedPaths[authorization]) // nolint:staticcheck
-	ctx = context.WithValue(ctx, ContextKeyXForwardedFor, xff)                                 // nolint:staticcheck
 	return context.WithValue(
 		ctx,
 		ContextKeyReqID, // nolint:staticcheck
