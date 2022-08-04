@@ -1,5 +1,13 @@
 # @eth-optimism/core-utils
 
+## 0.9.3
+
+### Patch Changes
+
+- 0df744f6: Implement basic OpNodeProvider
+- 8ae39154: Update deposit transaction type
+- dac4a9f0: Updates the SDK to be compatible with Bedrock (via the "bedrock: true" constructor param). Updates the build pipeline for contracts-bedrock to export a properly formatted dist folder that matches our other packages.
+
 ## 0.9.2
 
 ### Patch Changes

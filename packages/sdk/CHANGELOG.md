@@ -1,5 +1,34 @@
 # @eth-optimism/sdk
 
+## 1.4.0
+
+### Minor Changes
+
+- f05ab6b6: Add wstETH to sdk
+- dac4a9f0: Updates the SDK to be compatible with Bedrock (via the "bedrock: true" constructor param). Updates the build pipeline for contracts-bedrock to export a properly formatted dist folder that matches our other packages.
+
+### Patch Changes
+
+- Updated dependencies [056cb982]
+- Updated dependencies [a32e68ac]
+- Updated dependencies [c648d55c]
+- Updated dependencies [d544f804]
+- Updated dependencies [ccbfe545]
+- Updated dependencies [c97ad241]
+- Updated dependencies [0df744f6]
+- Updated dependencies [45541553]
+- Updated dependencies [3dd296e8]
+- Updated dependencies [fe94b864]
+- Updated dependencies [28649d64]
+- Updated dependencies [898c7ac5]
+- Updated dependencies [51a1595b]
+- Updated dependencies [8ae39154]
+- Updated dependencies [af96563a]
+- Updated dependencies [dac4a9f0]
+  - @eth-optimism/contracts-bedrock@0.5.3
+  - @eth-optimism/core-utils@0.9.3
+  - @eth-optimism/contracts@0.5.32
+
 ## 1.3.1
 
 ### Patch Changes
