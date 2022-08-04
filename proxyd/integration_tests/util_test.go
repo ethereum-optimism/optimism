@@ -20,11 +20,21 @@ import (
 )
 
 type ProxydHTTPClient struct {
-	url string
+	url     string
+	headers http.Header
 }
 
 func NewProxydClient(url string) *ProxydHTTPClient {
-	return &ProxydHTTPClient{url: url}
+	return NewProxydClientWithHeaders(url, make(http.Header))
+}
+
+func NewProxydClientWithHeaders(url string, headers http.Header) *ProxydHTTPClient {
+	clonedHeaders := headers.Clone()
+	clonedHeaders.Set("Content-Type", "application/json")
+	return &ProxydHTTPClient{
+		url:     url,
+		headers: clonedHeaders,
+	}
 }
 
 func (p *ProxydHTTPClient) SendRPC(method string, params []interface{}) ([]byte, int, error) {
@@ -45,7 +55,13 @@ func (p *ProxydHTTPClient) SendBatchRPC(reqs ...*proxyd.RPCReq) ([]byte, int, er
 }
 
 func (p *ProxydHTTPClient) SendRequest(body []byte) ([]byte, int, error) {
-	res, err := http.Post(p.url, "application/json", bytes.NewReader(body))
+	req, err := http.NewRequest("POST", p.url, bytes.NewReader(body))
+	if err != nil {
+		panic(err)
+	}
+	req.Header = p.headers
+
+	res, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return nil, -1, err
 	}

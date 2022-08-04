@@ -39,6 +39,13 @@ type MetricsConfig struct {
 	Port    int    `toml:"port"`
 }
 
+type RateLimitConfig struct {
+	RatePerSecond    int      `toml:"rate_per_second"`
+	ExemptOrigins    []string `toml:"exempt_origins"`
+	ExemptUserAgents []string `toml:"exempt_user_agents"`
+	ErrorMessage     string   `toml:"error_message"`
+}
+
 type BackendOptions struct {
 	ResponseTimeoutSeconds int   `toml:"response_timeout_seconds"`
 	MaxResponseSizeBytes   int64 `toml:"max_response_size_bytes"`
@@ -75,6 +82,7 @@ type Config struct {
 	Cache             CacheConfig         `toml:"cache"`
 	Redis             RedisConfig         `toml:"redis"`
 	Metrics           MetricsConfig       `toml:"metrics"`
+	RateLimit         RateLimitConfig     `toml:"rate_limit"`
 	BackendOptions    BackendOptions      `toml:"backend"`
 	Backends          BackendsConfig      `toml:"backends"`
 	Authentication    map[string]string   `toml:"authentication"`
