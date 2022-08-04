@@ -349,7 +349,17 @@ func (b *Backend) setOffline() {
 }
 
 func (b *Backend) doForward(ctx context.Context, rpcReqs []*RPCReq, isBatch bool) ([]*RPCRes, error) {
-	body := mustMarshalJSON(rpcReqs)
+	isSingleElementBatch := len(rpcReqs) == 1
+
+	// Single element batches are unwrapped before being sent
+	// since Alchemy handles single requests better than batches.
+
+	var body []byte
+	if isSingleElementBatch {
+		body = mustMarshalJSON(rpcReqs[0])
+	} else {
+		body = mustMarshalJSON(rpcReqs)
+	}
 
 	httpReq, err := http.NewRequestWithContext(ctx, "POST", b.rpcURL, bytes.NewReader(body))
 	if err != nil {
@@ -402,12 +412,22 @@ func (b *Backend) doForward(ctx context.Context, rpcReqs []*RPCReq, isBatch bool
 	}
 
 	var res []*RPCRes
-	if err := json.Unmarshal(resB, &res); err != nil {
-		// Infura may return a single JSON-RPC response if, for example, the batch contains a request for an unsupported method
-		if responseIsNotBatched(resB) {
-			return nil, ErrBackendUnexpectedJSONRPC
+	if isSingleElementBatch {
+		var singleRes RPCRes
+		if err := json.Unmarshal(resB, &singleRes); err != nil {
+			return nil, ErrBackendBadResponse
 		}
-		return nil, ErrBackendBadResponse
+		res = []*RPCRes{
+			&singleRes,
+		}
+	} else {
+		if err := json.Unmarshal(resB, &res); err != nil {
+			// Infura may return a single JSON-RPC response if, for example, the batch contains a request for an unsupported method
+			if responseIsNotBatched(resB) {
+				return nil, ErrBackendUnexpectedJSONRPC
+			}
+			return nil, ErrBackendBadResponse
+		}
 	}
 
 	if len(rpcReqs) != len(res) {
