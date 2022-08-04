@@ -108,14 +108,14 @@ const command = args[0]
       const value = BigNumber.from(args[3])
       const mint = BigNumber.from(args[4])
       const gasLimit = BigNumber.from(args[5])
-      const isCreate = Boolean(args[6])
+      const isCreate = args[6] === 'true' ? true : false
       const data = args[7]
       const l1BlockHash = args[8]
       const logIndex = BigNumber.from(args[9])
 
       const tx = new DepositTx({
         from,
-        to: isCreate ? constants.AddressZero : to,
+        to: isCreate ? null : to,
         value,
         mint,
         gas: gasLimit,

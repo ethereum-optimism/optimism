@@ -72,13 +72,14 @@ contract Encoding_Test is CommonTest {
         uint256 _mint,
         uint256 _value,
         uint64 _gas,
+        bool isCreate,
         bytes memory _data,
         uint256 _logIndex
     ) external {
         Types.UserDepositTransaction memory t = Types.UserDepositTransaction(
             _from,
             _to,
-            false, // isCreate
+            isCreate,
             _value,
             _mint,
             _gas,
