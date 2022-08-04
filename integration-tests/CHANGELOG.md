@@ -1,5 +1,11 @@
 # @eth-optimism/integration-tests
 
+## 0.5.17
+
+### Patch Changes
+
+- d97df13a: Modularize the itests away from depending on api of messenger
+
 ## 0.5.16
 
 ### Patch Changes
