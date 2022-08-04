@@ -2,11 +2,19 @@ package op_proposer
 
 import (
 	"context"
+	"crypto/ecdsa"
+	"errors"
 	"fmt"
+	"net"
+	"net/http"
+	_ "net/http/pprof"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
+
+	"github.com/ethereum/go-ethereum/crypto"
 
 	"github.com/ethereum-optimism/optimism/op-proposer/drivers/l2output"
 	"github.com/ethereum-optimism/optimism/op-proposer/rollupclient"
@@ -68,6 +76,27 @@ func Main(version string) func(ctx *cli.Context) error {
 
 		l.Info("L2 Output Submitter started")
 
+		if cfg.PprofEnabled {
+			var srv http.Server
+			srv.Addr = net.JoinHostPort(cfg.PprofAddr, cfg.PprofPort)
+			// Start pprof server + register it's shutdown
+			go func() {
+				l.Info("pprof server started", "addr", srv.Addr)
+				if err := srv.ListenAndServe(); err != http.ErrServerClosed {
+					l.Error("error in pprof server", "err", err)
+				} else {
+					l.Info("pprof server shutting down")
+				}
+
+			}()
+			defer func() {
+				shutCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+				defer cancel()
+				err := srv.Shutdown(shutCtx)
+				l.Info("pprof server shut down", "err", err)
+			}()
+		}
+
 		interruptChannel := make(chan os.Signal, 1)
 		signal.Notify(interruptChannel, []os.Signal{
 			os.Interrupt,
@@ -97,20 +126,33 @@ func NewL2OutputSubmitter(
 ) (*L2OutputSubmitter, error) {
 
 	ctx := context.Background()
+	var l2OutputPrivKey *ecdsa.PrivateKey
+	var err error
 
-	// Parse l2output wallet private key and L2OO contract address.
-	wallet, err := hdwallet.NewFromMnemonic(cfg.Mnemonic)
-	if err != nil {
-		return nil, err
+	if cfg.PrivateKey != "" && cfg.Mnemonic != "" {
+		return nil, errors.New("cannot specify both a private key and a mnemonic")
 	}
 
-	l2OutputPrivKey, err := wallet.PrivateKey(accounts.Account{
-		URL: accounts.URL{
-			Path: cfg.L2OutputHDPath,
-		},
-	})
-	if err != nil {
-		return nil, err
+	if cfg.PrivateKey == "" {
+		// Parse l2output wallet private key and L2OO contract address.
+		wallet, err := hdwallet.NewFromMnemonic(cfg.Mnemonic)
+		if err != nil {
+			return nil, err
+		}
+
+		l2OutputPrivKey, err = wallet.PrivateKey(accounts.Account{
+			URL: accounts.URL{
+				Path: cfg.L2OutputHDPath,
+			},
+		})
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		l2OutputPrivKey, err = crypto.HexToECDSA(strings.TrimPrefix(cfg.PrivateKey, "0x"))
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	l2ooAddress, err := parseAddress(cfg.L2OOAddress)

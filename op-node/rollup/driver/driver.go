@@ -4,6 +4,8 @@ import (
 	"context"
 	"math/big"
 
+	"github.com/ethereum-optimism/optimism/op-node/metrics"
+
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/l1"
 	"github.com/ethereum-optimism/optimism/op-node/l2"
@@ -56,7 +58,7 @@ type Network interface {
 	PublishL2Payload(ctx context.Context, payload *eth.ExecutionPayload) error
 }
 
-func NewDriver(driverCfg *Config, cfg *rollup.Config, l2 *l2.Source, l1 *l1.Source, network Network, log log.Logger, snapshotLog log.Logger) *Driver {
+func NewDriver(driverCfg *Config, cfg *rollup.Config, l2 *l2.Source, l1 *l1.Source, network Network, log log.Logger, snapshotLog log.Logger, metrics *metrics.Metrics) *Driver {
 	output := &outputImpl{
 		Config: cfg,
 		dl:     l1,
@@ -67,7 +69,7 @@ func NewDriver(driverCfg *Config, cfg *rollup.Config, l2 *l2.Source, l1 *l1.Sour
 	var state *state
 	verifConfDepth := NewConfDepth(driverCfg.VerifierConfDepth, func() eth.L1BlockRef { return state.l1Head }, l1)
 	derivationPipeline := derive.NewDerivationPipeline(log, cfg, verifConfDepth, l2)
-	state = NewState(driverCfg, log, snapshotLog, cfg, l1, l2, output, derivationPipeline, network)
+	state = NewState(driverCfg, log, snapshotLog, cfg, l1, l2, output, derivationPipeline, network, metrics)
 	return &Driver{s: state}
 }
 

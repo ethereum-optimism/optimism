@@ -17,6 +17,7 @@ export enum L1ChainID {
   GOERLI = 5,
   KOVAN = 42,
   HARDHAT_LOCAL = 31337,
+  BEDROCK_LOCAL_DEVNET = 900,
 }
 
 /**
@@ -28,6 +29,7 @@ export enum L2ChainID {
   OPTIMISM_KOVAN = 69,
   OPTIMISM_HARDHAT_LOCAL = 31337,
   OPTIMISM_HARDHAT_DEVNET = 17,
+  OPTIMISM_BEDROCK_LOCAL_DEVNET = 901,
 }
 
 /**
@@ -40,6 +42,9 @@ export interface OEL1Contracts {
   StateCommitmentChain: Contract
   CanonicalTransactionChain: Contract
   BondManager: Contract
+  // Bedrock
+  OptimismPortal: Contract
+  L2OutputOracle: Contract
 }
 
 /**
@@ -48,6 +53,7 @@ export interface OEL1Contracts {
 export interface OEL2Contracts {
   L2CrossDomainMessenger: Contract
   L2StandardBridge: Contract
+  L2ToL1MessagePasser: Contract
   OVM_L1BlockNumber: Contract
   OVM_L2ToL1MessagePasser: Contract
   OVM_DeployerWhitelist: Contract
@@ -174,7 +180,9 @@ export interface CoreCrossChainMessage {
   sender: string
   target: string
   message: string
-  messageNonce: number
+  messageNonce: BigNumber
+  value: BigNumber
+  minGasLimit: BigNumber
 }
 
 /**
@@ -183,7 +191,6 @@ export interface CoreCrossChainMessage {
  */
 export interface CrossChainMessage extends CoreCrossChainMessage {
   direction: MessageDirection
-  gasLimit: number
   logIndex: number
   blockNumber: number
   transactionHash: string

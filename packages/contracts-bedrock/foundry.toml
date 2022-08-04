@@ -1,4 +1,4 @@
-[default]
+[profile.default]
 src = 'contracts'
 out = 'forge-artifacts'
 optimizer = true
@@ -16,8 +16,9 @@ remappings = [
 extra_output = ['devdoc', 'userdoc', 'metadata', 'storageLayout']
 bytecode_hash = 'none'
 build_info = true
+build_info_path = 'artifacts/build-info'
 ffi = true
 fuzz_runs = 16
 
-[ci]
+[profile.ci]
 fuzz_runs = 512

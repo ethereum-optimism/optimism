@@ -58,7 +58,7 @@ root
 ├── <a href="./teleportr">teleportr</a>: Bridge for teleporting ETH between L1 and L2 at low cost
 
 ~~ BEDROCK upgrade - Not production-ready yet, part of next major upgrade ~~
-├── <a href="./contracts-bedrock">contracts-bedrock</a>: Bedrock smart contracts. To be merged with ./packages/contracts.
+├── <a href="./packages/contracts-bedrock">packages/contracts-bedrock</a>: Bedrock smart contracts. To be merged with ./packages/contracts.
 ├── <a href="./op-bindings">op-bindings</a>: Go bindings for Bedrock smart contracts.
 ├── <a href="./op-batcher">op-batcher</a>: L2-Batch Submitter, submits bundles of batches to L1
 ├── <a href="./op-e2e">op-e2e</a>: End-to-End testing of all bedrock components in Go

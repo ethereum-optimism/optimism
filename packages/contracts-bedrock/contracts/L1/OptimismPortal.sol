@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { Initializable } from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
+import { Initializable } from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import { ExcessivelySafeCall } from "excessively-safe-call/src/ExcessivelySafeCall.sol";
 import { L2OutputOracle } from "./L2OutputOracle.sol";
 import { Types } from "../libraries/Types.sol";
@@ -136,6 +136,8 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
 
         // Prevent users from creating a deposit transaction where this address is the message
         // sender on L2.
+        // In the context of the proxy delegate calling to this implementation,
+        // address(this) will return the address of the proxy.
         require(
             _tx.target != address(this),
             "OptimismPortal: you cannot send messages to the portal contract"

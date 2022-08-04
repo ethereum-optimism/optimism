@@ -41,7 +41,7 @@ end
 return false
 `
 
-type RateLimiter interface {
+type BackendRateLimiter interface {
 	IsBackendOnline(name string) (bool, error)
 	SetBackendOffline(name string, duration time.Duration) error
 	IncBackendRPS(name string) (int, error)
@@ -50,14 +50,14 @@ type RateLimiter interface {
 	FlushBackendWSConns(names []string) error
 }
 
-type RedisRateLimiter struct {
+type RedisBackendRateLimiter struct {
 	rdb       *redis.Client
 	randID    string
 	touchKeys map[string]time.Duration
 	tkMtx     sync.Mutex
 }
 
-func NewRedisRateLimiter(url string) (RateLimiter, error) {
+func NewRedisRateLimiter(url string) (BackendRateLimiter, error) {
 	opts, err := redis.ParseURL(url)
 	if err != nil {
 		return nil, err
@@ -66,7 +66,7 @@ func NewRedisRateLimiter(url string) (RateLimiter, error) {
 	if err := rdb.Ping(context.Background()).Err(); err != nil {
 		return nil, wrapErr(err, "error connecting to redis")
 	}
-	out := &RedisRateLimiter{
+	out := &RedisBackendRateLimiter{
 		rdb:       rdb,
 		randID:    randStr(20),
 		touchKeys: make(map[string]time.Duration),
@@ -75,7 +75,7 @@ func NewRedisRateLimiter(url string) (RateLimiter, error) {
 	return out, nil
 }
 
-func (r *RedisRateLimiter) IsBackendOnline(name string) (bool, error) {
+func (r *RedisBackendRateLimiter) IsBackendOnline(name string) (bool, error) {
 	exists, err := r.rdb.Exists(context.Background(), fmt.Sprintf("backend:%s:offline", name)).Result()
 	if err != nil {
 		RecordRedisError("IsBackendOnline")
@@ -85,7 +85,7 @@ func (r *RedisRateLimiter) IsBackendOnline(name string) (bool, error) {
 	return exists == 0, nil
 }
 
-func (r *RedisRateLimiter) SetBackendOffline(name string, duration time.Duration) error {
+func (r *RedisBackendRateLimiter) SetBackendOffline(name string, duration time.Duration) error {
 	if duration == 0 {
 		return nil
 	}
@@ -102,7 +102,7 @@ func (r *RedisRateLimiter) SetBackendOffline(name string, duration time.Duration
 	return nil
 }
 
-func (r *RedisRateLimiter) IncBackendRPS(name string) (int, error) {
+func (r *RedisBackendRateLimiter) IncBackendRPS(name string) (int, error) {
 	cmd := r.rdb.Eval(
 		context.Background(),
 		MaxRPSScript,
@@ -116,7 +116,7 @@ func (r *RedisRateLimiter) IncBackendRPS(name string) (int, error) {
 	return rps, nil
 }
 
-func (r *RedisRateLimiter) IncBackendWSConns(name string, max int) (bool, error) {
+func (r *RedisBackendRateLimiter) IncBackendWSConns(name string, max int) (bool, error) {
 	connsKey := fmt.Sprintf("proxy:%s:wsconns:%s", r.randID, name)
 	r.tkMtx.Lock()
 	r.touchKeys[connsKey] = 5 * time.Minute
@@ -142,7 +142,7 @@ func (r *RedisRateLimiter) IncBackendWSConns(name string, max int) (bool, error)
 	return incremented, nil
 }
 
-func (r *RedisRateLimiter) DecBackendWSConns(name string) error {
+func (r *RedisBackendRateLimiter) DecBackendWSConns(name string) error {
 	connsKey := fmt.Sprintf("proxy:%s:wsconns:%s", r.randID, name)
 	err := r.rdb.Decr(context.Background(), connsKey).Err()
 	if err != nil {
@@ -152,7 +152,7 @@ func (r *RedisRateLimiter) DecBackendWSConns(name string) error {
 	return nil
 }
 
-func (r *RedisRateLimiter) FlushBackendWSConns(names []string) error {
+func (r *RedisBackendRateLimiter) FlushBackendWSConns(names []string) error {
 	ctx := context.Background()
 	for _, name := range names {
 		connsKey := fmt.Sprintf("proxy:%s:wsconns:%s", r.randID, name)
@@ -172,7 +172,7 @@ func (r *RedisRateLimiter) FlushBackendWSConns(names []string) error {
 	return nil
 }
 
-func (r *RedisRateLimiter) touch() {
+func (r *RedisBackendRateLimiter) touch() {
 	for {
 		r.tkMtx.Lock()
 		for key, dur := range r.touchKeys {
@@ -186,15 +186,15 @@ func (r *RedisRateLimiter) touch() {
 	}
 }
 
-type LocalRateLimiter struct {
+type LocalBackendRateLimiter struct {
 	deadBackends   map[string]time.Time
 	backendRPS     map[string]int
 	backendWSConns map[string]int
 	mtx            sync.RWMutex
 }
 
-func NewLocalRateLimiter() *LocalRateLimiter {
-	out := &LocalRateLimiter{
+func NewLocalBackendRateLimiter() *LocalBackendRateLimiter {
+	out := &LocalBackendRateLimiter{
 		deadBackends:   make(map[string]time.Time),
 		backendRPS:     make(map[string]int),
 		backendWSConns: make(map[string]int),
@@ -203,27 +203,27 @@ func NewLocalRateLimiter() *LocalRateLimiter {
 	return out
 }
 
-func (l *LocalRateLimiter) IsBackendOnline(name string) (bool, error) {
+func (l *LocalBackendRateLimiter) IsBackendOnline(name string) (bool, error) {
 	l.mtx.RLock()
 	defer l.mtx.RUnlock()
 	return l.deadBackends[name].Before(time.Now()), nil
 }
 
-func (l *LocalRateLimiter) SetBackendOffline(name string, duration time.Duration) error {
+func (l *LocalBackendRateLimiter) SetBackendOffline(name string, duration time.Duration) error {
 	l.mtx.Lock()
 	defer l.mtx.Unlock()
 	l.deadBackends[name] = time.Now().Add(duration)
 	return nil
 }
 
-func (l *LocalRateLimiter) IncBackendRPS(name string) (int, error) {
+func (l *LocalBackendRateLimiter) IncBackendRPS(name string) (int, error) {
 	l.mtx.Lock()
 	defer l.mtx.Unlock()
 	l.backendRPS[name] += 1
 	return l.backendRPS[name], nil
 }
 
-func (l *LocalRateLimiter) IncBackendWSConns(name string, max int) (bool, error) {
+func (l *LocalBackendRateLimiter) IncBackendWSConns(name string, max int) (bool, error) {
 	l.mtx.Lock()
 	defer l.mtx.Unlock()
 	if l.backendWSConns[name] == max {
@@ -233,7 +233,7 @@ func (l *LocalRateLimiter) IncBackendWSConns(name string, max int) (bool, error)
 	return true, nil
 }
 
-func (l *LocalRateLimiter) DecBackendWSConns(name string) error {
+func (l *LocalBackendRateLimiter) DecBackendWSConns(name string) error {
 	l.mtx.Lock()
 	defer l.mtx.Unlock()
 	if l.backendWSConns[name] == 0 {
@@ -243,11 +243,11 @@ func (l *LocalRateLimiter) DecBackendWSConns(name string) error {
 	return nil
 }
 
-func (l *LocalRateLimiter) FlushBackendWSConns(names []string) error {
+func (l *LocalBackendRateLimiter) FlushBackendWSConns(names []string) error {
 	return nil
 }
 
-func (l *LocalRateLimiter) clear() {
+func (l *LocalBackendRateLimiter) clear() {
 	for {
 		time.Sleep(time.Second)
 		l.mtx.Lock()
@@ -262,4 +262,7 @@ func randStr(l int) string {
 		panic(err)
 	}
 	return hex.EncodeToString(b)
+}
+
+type ServerRateLimiter struct {
 }
