@@ -454,9 +454,8 @@ jobs:
             make devnet-up
       - run:
           name: Do a deposit
-          no_output_timeout: 5m
           command: |
-            npx hardhat deposit \
+            timeout 5m npx hardhat deposit \
                 --to 0xB79f76EF2c5F0286176833E7B2eEe103b1CC3244  \
                 --amount-eth 1 \
                 --private-key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80 \
@@ -464,7 +463,7 @@ jobs:
           working_directory: packages/contracts-bedrock
       - run:
           name: Deposit ERC20 through the bridge
-          command: npx hardhat deposit --network devnetL1
+          command: timeout 5m npx hardhat deposit --network devnetL1
           working_directory: packages/sdk
       - run:
           name: Check the status
