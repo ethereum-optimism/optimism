@@ -79,6 +79,7 @@ func (bq *BatchQueue) Step(ctx context.Context, outer Progress) error {
 
 	for _, batch := range batches {
 		if uint64(batch.Timestamp) <= bq.next.SafeL2Head().Time {
+			bq.log.Debug("Dropping batch", "SafeL2Head", bq.next.SafeL2Head(), "SafeL2Head_Time", bq.next.SafeL2Head().Time, "batch_timestamp", batch.Timestamp)
 			// drop attributes if we are still progressing towards the next stage
 			// (after a reset rolled us back a full sequence window)
 			continue
@@ -201,7 +202,7 @@ func (bq *BatchQueue) deriveBatches(ctx context.Context, l2SafeHead eth.L2BlockR
 		bq.log.Trace("found batches", "len", len(batches))
 		// Filter + Fill batches
 		batches = FilterBatches(bq.log, bq.config, epoch.ID(), minL2Time, maxL2Time, batches)
-		bq.log.Trace("filtered batches", "len", len(batches), "l1Origin", bq.l1Blocks[0], "nextL1Block", bq.l1Blocks[1])
+		bq.log.Trace("filtered batches", "len", len(batches), "l1Origin", bq.l1Blocks[0], "nextL1Block", bq.l1Blocks[1], "minL2Time", minL2Time, "maxL2Time", maxL2Time)
 		batches = FillMissingBatches(batches, epoch.ID(), bq.config.BlockTime, minL2Time, nextL1BlockTime)
 		bq.log.Trace("added missing batches", "len", len(batches), "l1OriginTime", l1OriginTime, "nextL1BlockTime", nextL1BlockTime)
 		// Advance an epoch after filling all batches.
