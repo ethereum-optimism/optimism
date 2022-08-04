@@ -48,10 +48,8 @@
     "@uniswap/v3-core": "1.0.0",
     "@uniswap/v3-periphery": "^1.0.1",
     "@uniswap/v3-sdk": "^3.6.2",
-    "async-mutex": "^0.3.2",
     "chai": "^4.3.4",
     "chai-as-promised": "^7.1.1",
-    "commander": "^8.3.0",
     "dotenv": "^10.0.0",
     "envalid": "^7.1.0",
     "eslint": "^7.27.0",
@@ -69,7 +67,6 @@
     "lint-staged": "11.0.0",
     "mocha": "^8.4.0",
     "node-fetch": "^2.6.7",
-    "prom-client": "^14.0.1",
     "rimraf": "^3.0.2",
     "typescript": "^4.3.5",
     "uniswap-v3-deploy-plugin": "^0.1.0"
