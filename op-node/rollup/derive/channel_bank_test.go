@@ -125,7 +125,7 @@ func (bt *bankTestSetup) ingestFrames(frames ...testFrame) {
 	data.WriteByte(DerivationVersion0)
 	for _, fr := range frames {
 		f := fr.ToFrame()
-		if err := (&f).MarshalBinary(data); err != nil {
+		if err := f.MarshalBinary(data); err != nil {
 			panic(fmt.Errorf("error in making frame during test: %w", err))
 		}
 	}
