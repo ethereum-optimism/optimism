@@ -1,7 +1,6 @@
 package integration_tests
 
 import (
-	"fmt"
 	"net/http"
 	"os"
 	"testing"
@@ -68,7 +67,6 @@ func TestFrontendMaxRPSLimit(t *testing.T) {
 		h.Set("Origin", "exempt_origin")
 		client := NewProxydClientWithHeaders("http://127.0.0.1:8545", h)
 		_, codes := spamReqs(t, client, 429)
-		fmt.Println(codes)
 		require.Equal(t, 3, codes[200])
 	})
 
