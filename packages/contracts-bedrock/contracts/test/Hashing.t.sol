@@ -127,10 +127,11 @@ contract Hashing_Test is CommonTest {
             Types.UserDepositTransaction(
                 _from,
                 _to,
+                false, // isCreate
                 _value,
                 _mint,
                 _gas,
-                false, // isCreate
+                false, // isSystemTransaction
                 _data,
                 bytes32(uint256(0)),
                 _logIndex
