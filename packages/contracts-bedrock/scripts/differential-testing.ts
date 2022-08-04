@@ -82,8 +82,7 @@ const command = args[0]
       const mint = BigNumber.from(args[5])
       const value = BigNumber.from(args[6])
       const gas = BigNumber.from(args[7])
-      const isSystemTransaction = args[8] !== '0'
-      const data = args[9]
+      const data = args[8]
 
       const tx = new DepositTx({
         l1BlockHash,
@@ -93,14 +92,12 @@ const command = args[0]
         mint,
         value,
         gas,
-        isSystemTransaction,
         data,
         isSystemTransaction: false,
         domain: SourceHashDomain.UserDeposit,
       })
 
       const digest = tx.hash()
-
       const output = utils.defaultAbiCoder.encode(['bytes32'], [digest])
       process.stdout.write(output)
       break
