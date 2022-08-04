@@ -265,19 +265,21 @@ frame = channel_id ++ frame_number ++ frame_data_length ++ frame_data ++ is_last
 
 channel_id        = random ++ timestamp
 random            = bytes32
-timestamp         = uvarint
-frame_number      = uvarint
-frame_data_length = uvarint
+timestamp         = uint64
+frame_number      = uint16
+frame_data_length = uint32
 frame_data        = bytes
 is_last           = bool
+
+Where `uint64`, `uint32` and `uint16` are all big-endian unsigned integers.
 ```
 
-> **TODO** replace `uvarint` by fixed size integers
+All data in a frame is fixed-size, except the `frame_data`. The fixed overhead is `32 + 8 + 2 + 4 + 1 = 47 bytes`.
+Fixed-size frame metadata avoids a circular dependency with the target total data length,
+to simplify packing of frames with varying content length.
 
 where:
 
-- `uvarint` is a variable-length encoding of a 64-bit unsigned integer into between 1 and 9 bytes, [as specified in
-  SQLite 4][sqlite-uvarint].
 - `channel_id` uniquely identifies a channel as the concatenation of a random value and a timestamp
   - `random` is a random value such that two channels with different batches should have a different random value
   - `timestamp` is the time at which the channel was created (UNIX time in seconds)
@@ -290,7 +292,7 @@ where:
       margin. (A soft constraint is not a consensus rule — nodes will accept such blocks in the canonical chain but will
       not attempt to build directly on them.)
 - `frame_number` identifies the index of the frame within the channel
-- `frame_data_length` is the length of `frame_data` in bytes
+- `frame_data_length` is the length of `frame_data` in bytes. It is capped to 1,000,000 bytes.
 - `frame_data` is a sequence of bytes belonging to the channel, logically after the bytes from the previous frames
 - `is_last` is a single byte with a value of 1 if the frame is the last in the channel, 0 if there are frames in the
   channel. Any other value makes the frame invalid (it must be ignored by the rollup node).
@@ -302,8 +304,7 @@ where:
 > - Do we drop the channel or just the first frame? End result is the same but this changes the channel bank size, which
 >   can influence things down the line!!
 
-[sqlite-uvarint]: https://www.sqlite.org/src4/doc/trunk/www/varint.wiki
-[batcher-spec]: batcher.md
+[batcher-spec]: batching.md
 
 ### Channel Format
 
