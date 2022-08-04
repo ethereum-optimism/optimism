@@ -12,70 +12,56 @@ import (
 // but we leave space to grow larger anyway (gas limit allows for more data).
 const MaxFrameLen = 1_000_000
 
-var ErrNotEnoughFrameBytes = errors.New("not enough available bytes for the frame")
-
 // Data Format
 //
 // frame = channel_id ++ frame_number ++ frame_data_length ++ frame_data ++ is_last
 //
 // channel_id        = random ++ timestamp
 // random            = bytes32
-// timestamp         = uvarint
-// frame_number      = uvarint
-// frame_data_length = uvarint
+// timestamp         = uint64
+// frame_number      = uint16
+// frame_data_length = uint32
 // frame_data        = bytes
 // is_last           = bool
 
 type Frame struct {
 	ID          ChannelID
-	FrameNumber uint64
+	FrameNumber uint16
 	Data        []byte
 	IsLast      bool
 }
 
 // MarshalBinary writes the frame to `w`.
-// It returns the number of bytes written as well as any
-// error encountered while writing.
-func (f *Frame) MarshalBinary(w io.Writer) (int, error) {
-	n, err := w.Write(f.ID.Data[:])
+// It returns any errors encountered while writing, but
+// generally expects the writer very rarely fail.
+func (f *Frame) MarshalBinary(w io.Writer) error {
+	_, err := w.Write(f.ID.Data[:])
 	if err != nil {
-		return n, err
+		return err
 	}
-	l, err := w.Write(makeUVarint(f.ID.Time))
-	n += l
-	if err != nil {
-		return n, err
+	if err := binary.Write(w, binary.BigEndian, f.ID.Time); err != nil {
+		return err
 	}
-	l, err = w.Write(makeUVarint(f.FrameNumber))
-	n += l
-	if err != nil {
-		return n, err
+	if err := binary.Write(w, binary.BigEndian, f.FrameNumber); err != nil {
+		return err
 	}
-
-	l, err = w.Write(makeUVarint(uint64(len(f.Data))))
-	n += l
-	if err != nil {
-		return n, err
+	if err := binary.Write(w, binary.BigEndian, uint32(len(f.Data))); err != nil {
+		return err
 	}
-	l, err = w.Write(f.Data)
-	n += l
+	_, err = w.Write(f.Data)
 	if err != nil {
-		return n, err
+		return err
 	}
 	if f.IsLast {
-		l, err = w.Write([]byte{1})
-		n += l
-		if err != nil {
-			return n, err
+		if _, err = w.Write([]byte{1}); err != nil {
+			return err
 		}
 	} else {
-		l, err = w.Write([]byte{0})
-		n += l
-		if err != nil {
-			return n, err
+		if _, err = w.Write([]byte{0}); err != nil {
+			return err
 		}
 	}
-	return n, nil
+	return nil
 }
 
 type ByteReader interface {
@@ -87,25 +73,23 @@ type ByteReader interface {
 // If `r` fails a read, it returns the error from the reader
 // The reader will be left in a partially read state.
 func (f *Frame) UnmarshalBinary(r ByteReader) error {
-	_, err := io.ReadFull(r, f.ID.Data[:])
-	if err != nil {
+	if _, err := io.ReadFull(r, f.ID.Data[:]); err != nil {
 		return fmt.Errorf("error reading ID: %w", err)
 	}
-	f.ID.Time, err = binary.ReadUvarint(r)
-	if err != nil {
-		return fmt.Errorf("error reading ID.Time: %w", err)
+	if err := binary.Read(r, binary.BigEndian, &f.ID.Time); err != nil {
+		return fmt.Errorf("error reading ID time: %w", err)
 	}
 	// stop reading and ignore remaining data if we encounter a zeroed ID
 	if f.ID == (ChannelID{}) {
 		return io.EOF
 	}
-	f.FrameNumber, err = binary.ReadUvarint(r)
-	if err != nil {
+
+	if err := binary.Read(r, binary.BigEndian, &f.FrameNumber); err != nil {
 		return fmt.Errorf("error reading frame number: %w", err)
 	}
 
-	frameLength, err := binary.ReadUvarint(r)
-	if err != nil {
+	var frameLength uint32
+	if err := binary.Read(r, binary.BigEndian, &frameLength); err != nil {
 		return fmt.Errorf("error reading frame length: %w", err)
 	}
 
@@ -118,16 +102,15 @@ func (f *Frame) UnmarshalBinary(r ByteReader) error {
 		return fmt.Errorf("error reading frame data: %w", err)
 	}
 
-	isLastByte, err := r.ReadByte()
-	if err != nil && err != io.EOF {
+	if isLastByte, err := r.ReadByte(); err != nil && err != io.EOF {
 		return fmt.Errorf("error reading final byte: %w", err)
-	}
-	if isLastByte == 0 {
+	} else if isLastByte == 0 {
 		f.IsLast = false
+		return err
 	} else if isLastByte == 1 {
 		f.IsLast = true
+		return err
 	} else {
 		return errors.New("invalid byte as is_last")
 	}
-	return err
 }
