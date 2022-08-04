@@ -1,5 +1,29 @@
 # @eth-optimism/contracts-bedrock
 
+## 0.5.3
+
+### Patch Changes
+
+- 056cb982: Fix slither script
+- a32e68ac: Update genesis-l2 task to set immutables in the bytecode
+- c648d55c: Fix build for smaller package
+- d544f804: Use the same initializable across codebase
+- ccbfe545: Update @foundry-rs/hardhat-forge@0.1.16
+- c97ad241: Fix build on latest foundry
+- 45541553: Emit an extra event when withdrawals are initiated to make chainops easier
+- 3dd296e8: Fix portal deployment to have L2OutputOracle proxy address
+- fe94b864: Add watch task
+- 28649d64: Add harhdat forge contract verification support
+- 898c7ac5: Update hardhat-forge dep, remove dead deps
+- 51a1595b: bedrock-goerli-96f44f79 deployment
+- 8ae39154: Update deposit transaction type
+- af96563a: Fix typechain exports
+- dac4a9f0: Updates the SDK to be compatible with Bedrock (via the "bedrock: true" constructor param). Updates the build pipeline for contracts-bedrock to export a properly formatted dist folder that matches our other packages.
+- Updated dependencies [0df744f6]
+- Updated dependencies [8ae39154]
+- Updated dependencies [dac4a9f0]
+  - @eth-optimism/core-utils@0.9.3
+
 ## 0.5.2
 
 ### Patch Changes
