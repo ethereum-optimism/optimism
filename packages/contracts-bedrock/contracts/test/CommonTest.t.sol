@@ -561,10 +561,11 @@ contract FFIInterface is Test {
         uint256 _mint,
         uint256 _value,
         uint64 _gas,
+        bool _isSystemTransaction,
         bytes memory _data,
         uint256 _logIndex
     ) external returns (bytes32) {
-        string[] memory cmds = new string[](11);
+        string[] memory cmds = new string[](12);
         cmds[0] = "node";
         cmds[1] = "dist/scripts/differential-testing.js";
         cmds[2] = "hashDepositTransaction";
@@ -575,7 +576,8 @@ contract FFIInterface is Test {
         cmds[7] = vm.toString(_mint);
         cmds[8] = vm.toString(_value);
         cmds[9] = vm.toString(_gas);
-        cmds[10] = vm.toString(_data);
+        cmds[10] = _isSystemTransaction ? "1" : "0";
+        cmds[11] = vm.toString(_data);
         bytes memory result = vm.ffi(cmds);
 
         return abi.decode(result, (bytes32));
