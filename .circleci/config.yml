@@ -439,10 +439,10 @@ jobs:
       - run:
           name: foundryup
           command: |
-            sudo apt-get update && sudo apt-get install -y git
+            curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -- -y
             curl -L https://foundry.paradigm.xyz | bash
             source $HOME/.bashrc
-            foundryup
+            foundryup --pr 2634
             echo 'export PATH=$HOME/.foundry/bin:$PATH' >> $BASH_ENV
       - run:
           name: Install and build
