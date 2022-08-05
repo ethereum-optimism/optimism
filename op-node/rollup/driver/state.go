@@ -3,14 +3,17 @@ package driver
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	gosync "sync"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-node/backoff"
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/metrics"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum/go-ethereum/log"
 )
 
@@ -304,6 +307,9 @@ func (s *state) eventLoop() {
 	// L1 chain that we need to handle.
 	reqStep()
 
+	// retry temporary errors with exponential backoff
+	bOff := backoff.Exponential()
+
 	for {
 		select {
 		case <-l2BlockCreationTickerCh:
@@ -358,11 +364,18 @@ func (s *state) eventLoop() {
 				s.idleDerivation = true
 				s.metrics.SetDerivationIdle(true)
 				continue
-			} else if err != nil {
+			} else if err != nil && errors.Is(err, derive.ErrReset) {
 				// If the pipeline corrupts, e.g. due to a reorg, simply reset it
 				s.log.Warn("Derivation pipeline is reset", "err", err)
 				s.derivation.Reset()
 				s.metrics.RecordPipelineReset()
+			} else if err != nil && errors.Is(err, derive.ErrTemporary) {
+				// If there's a temporary error, retry with backoff
+				backoff.Do(10, bOff, func() error {
+					reqStep()
+					return nil
+				})
+				continue
 			} else {
 				finalized, safe, unsafe := s.derivation.Finalized(), s.derivation.SafeL2Head(), s.derivation.UnsafeL2Head()
 				// log sync progress when it changes

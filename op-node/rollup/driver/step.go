@@ -2,11 +2,9 @@ package driver
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/op-node/backoff"
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
@@ -28,18 +26,6 @@ func (d *outputImpl) createNewBlock(ctx context.Context, l2Head eth.L2BlockRef, 
 	defer cancel()
 
 	attrs, err := derive.PreparePayloadAttributes(fetchCtx, d.Config, d.dl, l2Head, l2Head.Time+d.Config.BlockTime, l1Origin.ID())
-	if err != nil {
-		if !errors.Is(err, derive.ErrTemporary) {
-			return l2Head, nil, err
-		} else {
-			bOff := backoff.Exponential()
-			err = backoff.Do(10, bOff, func() error {
-				var err error
-				attrs, err = derive.PreparePayloadAttributes(fetchCtx, d.Config, d.dl, l2Head, l2Head.Time+d.Config.BlockTime, l1Origin.ID())
-				return err
-			})
-		}
-	}
 	if err != nil {
 		return l2Head, nil, err
 	}
