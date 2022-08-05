@@ -445,7 +445,6 @@ jobs:
             cd packages/contracts-bedrock
             uname -a
             ldd `which forge`
-            forge build
       - run:
           name: Install and build
           command: |
