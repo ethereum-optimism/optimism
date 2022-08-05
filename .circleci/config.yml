@@ -449,6 +449,7 @@ jobs:
           name: Install and build
           command: |
             yarn install
+            cd packages/contracts-bedrock && forge build
             yarn build
       - run:
           name: Bring up the stack
