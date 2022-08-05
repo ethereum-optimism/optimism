@@ -439,7 +439,7 @@ jobs:
       - run:
           name: install forge
           command: |
-            curl -o /tmp/forge -L https://storage.googleapis.com/op-forge-binaries/forge-64fe4ac-x86_64-ubuntu
+            curl -o /tmp/forge -L https://storage.googleapis.com/op-forge-binaries/forge-pr-2634-x86_64-ubuntu
             sudo mv /tmp/forge /usr/local/bin/forge
             sudo chmod +x /usr/local/bin/forge
       - run:
