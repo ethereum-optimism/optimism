@@ -2,9 +2,11 @@ package derive
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"sort"
+	"time"
 
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
@@ -144,7 +146,23 @@ func (bq *BatchQueue) validExtension(batch *BatchWithL1InclusionBlock, prevTime,
 
 		return false
 	}
-	// TODO: Also check EpochHash (hard b/c maybe extension)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	l1BlockRef, err := bq.dl.L1BlockRefByNumber(ctx, batch.Batch.Epoch().Number)
+	cancel()
+	if err != nil {
+		bq.log.Warn("err fetching l1 block", "err", err)
+		if errors.Is(err, ErrTemporary) {
+			// Skipping validation in case of temporary RPC error
+			bq.log.Warn("temporary err - skipping epoch hash validation", "err", err)
+			return true
+		} else {
+			return false
+		}
+	}
+
+	if l1BlockRef.Hash != batch.Batch.EpochHash {
+		return false
+	}
 
 	// Note: `Batch.EpochNum` is an external input, but it is constrained to be a reasonable size by the
 	// above equality checks.
