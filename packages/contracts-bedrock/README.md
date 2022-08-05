@@ -11,7 +11,7 @@ Install node modules with yarn (v1), and Node.js (16+).
 yarn
 ```
 
-See installation instructions for forge [here](https://github.com/gakonst/foundry).
+See installation instructions for forge [here](https://github.com/foundry-rs/foundry).
 
 ## Build
 
