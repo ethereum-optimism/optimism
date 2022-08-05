@@ -440,6 +440,7 @@ jobs:
           name: foundryup
           command: |
             curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+            export CARGO_NET_GIT_FETCH_WITH_CLI=true
             curl -L https://foundry.paradigm.xyz | bash
             source $HOME/.bashrc
             foundryup --pr 2634
