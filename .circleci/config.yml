@@ -439,7 +439,7 @@ jobs:
       - run:
           name: foundryup
           command: |
-            curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -- -y
+            curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
             curl -L https://foundry.paradigm.xyz | bash
             source $HOME/.bashrc
             foundryup --pr 2634
