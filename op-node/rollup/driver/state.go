@@ -293,8 +293,15 @@ func (s *state) eventLoop() {
 		}
 	}
 
-	// reqStep requests a derivation step to be taken. Won't deadlock if the channel is full.
-	reqStep := func() {
+	// channel, nil by default (not firing), but used to schedule re-attempts with delay
+	var delayedStepReq <-chan time.Time
+
+	// keep track of consecutive failed attempts, to adjust the backoff time accordingly
+	bOffStrategy := backoff.Exponential()
+	stepAttempts := 0
+
+	// step requests a derivation step to be taken. Won't deadlock if the channel is full.
+	step := func() {
 		select {
 		case stepReqCh <- struct{}{}:
 		// Don't deadlock if the channel is already full
@@ -302,15 +309,26 @@ func (s *state) eventLoop() {
 		}
 	}
 
+	// reqStep requests a derivation step nicely, with a delay if this is a reattempt, or not at all if we already scheduled a reattempt.
+	reqStep := func() {
+		if stepAttempts > 0 {
+			// if this is not the first attempt, we re-schedule with a backoff, *without blocking other events*
+			if delayedStepReq == nil {
+				delay := bOffStrategy.Duration(stepAttempts)
+				s.log.Debug("scheduling re-attempt with delay", "attempts", stepAttempts, "delay", delay)
+				delayedStepReq = time.After(delay)
+			} else {
+				s.log.Debug("ignoring step request, already scheduled re-attempt after previous failure", "attempts", stepAttempts)
+			}
+		} else {
+			step()
+		}
+	}
+
 	// We call reqStep right away to finish syncing to the tip of the chain if we're behind.
 	// reqStep will also be triggered when the L1 head moves forward or if there was a reorg on the
 	// L1 chain that we need to handle.
 	reqStep()
-
-	// keep track of consecutive temporary errors
-	bOff := backoff.Exponential()
-	// TODO: maybe just accumulate an array and process on threshold
-	errs := make(chan error, 10)
 
 	for {
 		select {
@@ -331,6 +349,7 @@ func (s *state) eventLoop() {
 			if err != nil {
 				s.log.Error("Error creating new L2 block", "err", err)
 				s.metrics.DerivationErrorsTotal.Inc()
+				break // if we fail, we wait for the next block creation trigger.
 			}
 
 			// We need to catch up to the next origin as quickly as possible. We can do this by
@@ -354,16 +373,21 @@ func (s *state) eventLoop() {
 			s.snapshot("New L1 Head")
 			s.handleNewL1Block(newL1Head)
 			reqStep() // a new L1 head may mean we have the data to not get an EOF again.
+		case <-delayedStepReq:
+			delayedStepReq = nil
+			step()
 		case <-stepReqCh:
 			s.metrics.SetDerivationIdle(false)
 			s.idleDerivation = false
-			s.log.Debug("Derivation process step", "onto_origin", s.derivation.Progress().Origin, "onto_closed", s.derivation.Progress().Closed)
+			s.log.Debug("Derivation process step", "onto_origin", s.derivation.Progress().Origin, "onto_closed", s.derivation.Progress().Closed, "attempts", stepAttempts)
 			stepCtx, cancel := context.WithTimeout(ctx, time.Second*10) // TODO pick a timeout for executing a single step
 			err := s.derivation.Step(stepCtx)
 			cancel()
+			stepAttempts += 1 // count as attempt by default. We reset to 0 if we are making healthy progress.
 			if err == io.EOF {
 				s.log.Debug("Derivation process went idle", "progress", s.derivation.Progress().Origin)
 				s.idleDerivation = true
+				stepAttempts = 0
 				s.metrics.SetDerivationIdle(true)
 				continue
 			} else if err != nil && errors.Is(err, derive.ErrReset) {
@@ -373,17 +397,18 @@ func (s *state) eventLoop() {
 				s.metrics.RecordPipelineReset()
 				continue
 			} else if err != nil && errors.Is(err, derive.ErrTemporary) {
-				s.log.Warn("Derivation process temporary error", "err", err)
+				s.log.Warn("Derivation process temporary error", "attempts", stepAttempts, "err", err)
 				reqStep()
-				errs <- err
 				continue
 			} else if err != nil && errors.Is(err, derive.ErrCritical) {
-				s.log.Warn("Derivation process critical error", "err", err)
+				s.log.Error("Derivation process critical error", "err", err)
 				return
 			} else if err != nil {
-				s.log.Warn("Derivation process error", "err", err)
+				s.log.Error("Derivation process error", "attempts", stepAttempts, "err", err)
+				reqStep()
 				continue
 			} else {
+				stepAttempts = 0
 				finalized, safe, unsafe := s.derivation.Finalized(), s.derivation.SafeL2Head(), s.derivation.UnsafeL2Head()
 				// log sync progress when it changes
 				if s.l2Finalized != finalized || s.l2SafeHead != safe || s.l2Head != unsafe {
@@ -398,18 +423,6 @@ func (s *state) eventLoop() {
 				s.l2Head = unsafe
 				reqStep() // continue with the next step if we can
 			}
-		case err := <-errs:
-			// handle temporary errs by backing off from derivation steps
-			// exponentially depending on number of errs
-			bErr := backoff.Do(10, bOff, func() error {
-				stepReqCh = nil
-				return err
-			})
-			if bErr != nil {
-				// Log and continue for now
-				s.log.Warn("Error backing off with retry", "err", err)
-			}
-			stepReqCh = make(chan struct{}, 1)
 		case respCh := <-s.syncStatusReq:
 			respCh <- SyncStatus{
 				CurrentL1:   s.derivation.Progress().Origin,
