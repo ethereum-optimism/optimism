@@ -6,6 +6,10 @@ on:
 jobs:
   changesets-integrity-checker:
     runs-on: ubuntu-latest
+    on:
+      push:
+        branches-ignore:
+          - 'develop'
     steps:
       - name: Checkout
         uses: actions/checkout@v2
