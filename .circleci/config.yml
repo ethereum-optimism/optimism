@@ -439,6 +439,7 @@ jobs:
       - run:
           name: foundryup
           command: |
+            apt update && apt install git
             curl -L https://foundry.paradigm.xyz | bash
             source $HOME/.bashrc
             foundryup
