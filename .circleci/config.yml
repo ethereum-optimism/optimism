@@ -423,7 +423,7 @@ jobs:
 
   devnet:
     machine:
-      image: ubuntu-2004:202201-01
+      image: ubuntu-2004:2022.04.1
       docker_layer_caching: true
     environment:
       DOCKER_BUILDKIT: 1
@@ -442,6 +442,8 @@ jobs:
             curl -o /tmp/forge -L https://storage.googleapis.com/op-forge-binaries/forge-pr-2634-x86_64-ubuntu
             sudo mv /tmp/forge /usr/local/bin/forge
             sudo chmod +x /usr/local/bin/forge
+            cd packages/contracts-bedrock
+            forge build
       - run:
           name: Install and build
           command: |
