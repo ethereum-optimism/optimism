@@ -307,8 +307,10 @@ func (s *state) eventLoop() {
 	// L1 chain that we need to handle.
 	reqStep()
 
-	// retry temporary errors with exponential backoff
+	// keep track of consecutive temporary errors
 	bOff := backoff.Exponential()
+	// TODO: maybe just accumulate an array and process on threshold
+	errs := make(chan error, 10)
 
 	for {
 		select {
@@ -369,16 +371,17 @@ func (s *state) eventLoop() {
 				s.log.Warn("Derivation pipeline is reset", "err", err)
 				s.derivation.Reset()
 				s.metrics.RecordPipelineReset()
+				continue
 			} else if err != nil && errors.Is(err, derive.ErrTemporary) {
 				s.log.Warn("Derivation process temporary error", "err", err)
-				// If there's a temporary error, retry with backoff
-				err := backoff.Do(10, bOff, func() error {
-					reqStep()
-					return nil
-				})
-				if err != nil {
-					s.log.Warn("Derivation retry with backoff failed permanently", "err", err)
-				}
+				reqStep()
+				errs <- err
+				continue
+			} else if err != nil && errors.Is(err, derive.ErrCritical) {
+				s.log.Warn("Derivation process critical error", "err", err)
+				return
+			} else if err != nil {
+				s.log.Warn("Derivation process error", "err", err)
 				continue
 			} else {
 				finalized, safe, unsafe := s.derivation.Finalized(), s.derivation.SafeL2Head(), s.derivation.UnsafeL2Head()
@@ -395,6 +398,18 @@ func (s *state) eventLoop() {
 				s.l2Head = unsafe
 				reqStep() // continue with the next step if we can
 			}
+		case err := <-errs:
+			// handle temporary errs by backing off from derivation steps
+			// exponentially depending on number of errs
+			bErr := backoff.Do(10, bOff, func() error {
+				stepReqCh = nil
+				return err
+			})
+			if bErr != nil {
+				// Log and continue for now
+				s.log.Warn("Error backing off with retry", "err", err)
+			}
+			stepReqCh = make(chan struct{}, 1)
 		case respCh := <-s.syncStatusReq:
 			respCh <- SyncStatus{
 				CurrentL1:   s.derivation.Progress().Origin,
