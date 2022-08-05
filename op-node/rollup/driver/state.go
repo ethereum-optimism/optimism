@@ -370,11 +370,15 @@ func (s *state) eventLoop() {
 				s.derivation.Reset()
 				s.metrics.RecordPipelineReset()
 			} else if err != nil && errors.Is(err, derive.ErrTemporary) {
+				s.log.Warn("Derivation process temporary error", "err", err)
 				// If there's a temporary error, retry with backoff
-				backoff.Do(10, bOff, func() error {
+				err := backoff.Do(10, bOff, func() error {
 					reqStep()
 					return nil
 				})
+				if err != nil {
+					s.log.Warn("Derivation retry with backoff failed permanently", "err", err)
+				}
 				continue
 			} else {
 				finalized, safe, unsafe := s.derivation.Finalized(), s.derivation.SafeL2Head(), s.derivation.UnsafeL2Head()
