@@ -38,7 +38,7 @@ func TestPreparePayloadAttributes(t *testing.T) {
 		l1Fetcher.ExpectFetch(epoch.Hash, l1Info, nil, nil, nil)
 		_, err := PreparePayloadAttributes(context.Background(), cfg, l1Fetcher, l2Parent, l2Time, epoch)
 		require.NotNil(t, err, "inconsistent L1 origin error expected")
-		require.ErrorIs(t, err, ErrCritical, "inconsistent L1 origin transition must be handled like a critical error with reorg")
+		require.ErrorIs(t, err, ErrReset, "inconsistent L1 origin transition must be handled like a critical error with reorg")
 	})
 	t.Run("inconsistent equal height origin", func(t *testing.T) {
 		rng := rand.New(rand.NewSource(1234))
@@ -51,7 +51,7 @@ func TestPreparePayloadAttributes(t *testing.T) {
 		epoch := l1Info.ID()
 		_, err := PreparePayloadAttributes(context.Background(), cfg, l1Fetcher, l2Parent, l2Time, epoch)
 		require.NotNil(t, err, "inconsistent L1 origin error expected")
-		require.ErrorIs(t, err, ErrCritical, "inconsistent L1 origin transition must be handled like a critical error with reorg")
+		require.ErrorIs(t, err, ErrReset, "inconsistent L1 origin transition must be handled like a critical error with reorg")
 	})
 	t.Run("rpc fail Fetch", func(t *testing.T) {
 		rng := rand.New(rand.NewSource(1234))
@@ -64,6 +64,7 @@ func TestPreparePayloadAttributes(t *testing.T) {
 		mockRPCErr := errors.New("mock rpc error")
 		l1Fetcher.ExpectFetch(epoch.Hash, nil, nil, nil, mockRPCErr)
 		_, err := PreparePayloadAttributes(context.Background(), cfg, l1Fetcher, l2Parent, l2Time, epoch)
+		require.ErrorIs(t, err, mockRPCErr, "mock rpc error expected")
 		require.ErrorIs(t, err, ErrTemporary, "rpc errors should not be critical, it is not necessary to reorg")
 	})
 	t.Run("rpc fail InfoByHash", func(t *testing.T) {
@@ -76,6 +77,7 @@ func TestPreparePayloadAttributes(t *testing.T) {
 		mockRPCErr := errors.New("mock rpc error")
 		l1Fetcher.ExpectInfoByHash(epoch.Hash, nil, mockRPCErr)
 		_, err := PreparePayloadAttributes(context.Background(), cfg, l1Fetcher, l2Parent, l2Time, epoch)
+		require.ErrorIs(t, err, mockRPCErr, "mock rpc error expected")
 		require.ErrorIs(t, err, ErrTemporary, "rpc errors should not be critical, it is not necessary to reorg")
 	})
 	t.Run("next origin without deposits", func(t *testing.T) {

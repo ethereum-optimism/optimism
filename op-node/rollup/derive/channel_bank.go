@@ -74,7 +74,10 @@ func (ib *ChannelBank) IngestData(data []byte) error {
 	}
 	ib.log.Debug("channel bank got new data", "origin", ib.progress.Origin, "data_len", len(data))
 	if len(data) < 1 {
-		return makeError(ErrIngestDataEmpty, "data must be at least have a version byte, but got empty string", ErrTemporary)
+		return NewTemporaryError(
+			nil,
+			"data must be at least have a version byte, but got empty string",
+		)
 	}
 
 	if data[0] != DerivationVersion0 {
@@ -218,7 +221,10 @@ func (ib *ChannelBank) ResetStep(ctx context.Context, l1Fetcher L1Fetcher) error
 	// go back in history if we are not distant enough from the next stage
 	parent, err := l1Fetcher.L1BlockRefByHash(ctx, ib.progress.Origin.ParentHash)
 	if err != nil {
-		return makeError(ErrL1BlockRefFailed, fmt.Sprintf("failed to find channel bank block, failed to retrieve L1 reference: %v", err), ErrTemporary)
+		return NewTemporaryError(
+			err,
+			fmt.Sprintf("failed to find channel bank block, failed to retrieve L1 reference: %v", err),
+		)
 	}
 	ib.progress.Origin = parent
 	return nil

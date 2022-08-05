@@ -66,7 +66,10 @@ func (l1r *L1Retrieval) Step(ctx context.Context, outer Progress) error {
 	if l1r.datas == nil {
 		datas, err := l1r.dataSrc.OpenData(ctx, l1r.progress.Origin.ID())
 		if err != nil {
-			return makeError(ErrOpenDataFailed, fmt.Sprintf("can't fetch L1 data: %v, %v", l1r.progress.Origin, err), ErrTemporary)
+			return NewTemporaryError(
+				err,
+				fmt.Sprintf("can't fetch L1 data: %v, %v", l1r.progress.Origin, err),
+			)
 		}
 		l1r.datas = datas
 		return nil

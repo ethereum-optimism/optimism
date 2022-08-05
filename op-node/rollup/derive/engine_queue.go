@@ -163,33 +163,33 @@ func (eq *EngineQueue) tryNextUnsafePayload(ctx context.Context) error {
 	}
 	fcRes, err := eq.engine.ForkchoiceUpdate(ctx, &fc, nil)
 	if err != nil {
-		return makeError(
-			ErrForkChoiceUpdateFailed,
+		return NewTemporaryError(
+			err,
 			fmt.Sprintf("failed to update forkchoice to prepare for new unsafe payload: %v", err),
-			ErrTemporary)
+		)
 	}
 	if fcRes.PayloadStatus.Status != eth.ExecutionValid {
 		eq.unsafePayloads = eq.unsafePayloads[1:]
-		return makeError(
-			ErrPayloadPrepare,
+		return NewTemporaryError(
+			nil,
 			fmt.Sprintf("cannot prepare unsafe chain for new payload: new - %v; parent: %v; err: %v",
 				first.ID(), first.ParentID(), eth.ForkchoiceUpdateErr(fcRes.PayloadStatus)),
-			ErrTemporary)
+		)
 	}
 	status, err := eq.engine.NewPayload(ctx, first)
 	if err != nil {
-		return makeError(
-			ErrInsertPayloadFailed,
+		return NewTemporaryError(
+			err,
 			fmt.Sprintf("failed to update insert payload: %v", err),
-			ErrTemporary)
+		)
 	}
 	if status.Status != eth.ExecutionValid {
 		eq.unsafePayloads = eq.unsafePayloads[1:]
-		return makeError(
-			ErrPayloadProcess,
+		return NewTemporaryError(
+			nil,
 			fmt.Sprintf("cannot process unsafe payload: new - %v; parent: %v; err: %v",
 				first.ID(), first.ParentID(), eth.ForkchoiceUpdateErr(fcRes.PayloadStatus)),
-			ErrTemporary)
+		)
 	}
 	eq.unsafeHead = ref
 	eq.unsafePayloads = eq.unsafePayloads[1:]
@@ -220,10 +220,10 @@ func (eq *EngineQueue) consolidateNextSafeAttributes(ctx context.Context) error 
 
 	payload, err := eq.engine.PayloadByNumber(ctx, eq.safeHead.Number+1)
 	if err != nil {
-		return makeError(
-			ErrUnsafePayloadFailed,
+		return NewTemporaryError(
+			err,
 			fmt.Sprintf("failed to get existing unsafe payload to compare against derived attributes from L1: %v", err),
-			ErrTemporary)
+		)
 	}
 	if err := AttributesMatchBlock(eq.safeAttributes[0], eq.safeHead.Hash, payload); err != nil {
 		eq.log.Warn("L2 reorg: existing unsafe block does not match derived attributes from L1", "err", err)
@@ -232,10 +232,10 @@ func (eq *EngineQueue) consolidateNextSafeAttributes(ctx context.Context) error 
 	}
 	ref, err := PayloadToBlockRef(payload, &eq.cfg.Genesis)
 	if err != nil {
-		return makeError(
-			ErrPayloadBlockRefFailed,
+		return NewTemporaryError(
+			err,
 			fmt.Sprintf("failed to decode L2 block ref from payload: %v", err),
-			ErrTemporary)
+		)
 	}
 	eq.safeHead = ref
 	// unsafe head stays the same, we did not reorg the chain.
@@ -259,10 +259,10 @@ func (eq *EngineQueue) forceNextSafeAttributes(ctx context.Context) error {
 	payload, rpcErr, payloadErr := InsertHeadBlock(ctx, eq.log, eq.engine, fc, attrs, true)
 	if rpcErr != nil {
 		// RPC errors are recoverable, we can retry the buffered payload attributes later.
-		return makeError(
-			ErrInsertBlockFailed,
+		return NewTemporaryError(
+			rpcErr,
 			fmt.Sprintf("failed to insert new block: %v", rpcErr),
-			ErrTemporary)
+		)
 	}
 	if payloadErr != nil {
 		eq.log.Warn("could not process payload derived from L1 data", "err", payloadErr)
@@ -283,10 +283,10 @@ func (eq *EngineQueue) forceNextSafeAttributes(ctx context.Context) error {
 	}
 	ref, err := PayloadToBlockRef(payload, &eq.cfg.Genesis)
 	if err != nil {
-		return makeError(
-			ErrPayloadBlockRefFailed,
+		return NewTemporaryError(
+			err,
 			fmt.Sprintf("failed to decode L2 block ref from payload: %v", err),
-			ErrTemporary)
+		)
 	}
 	eq.safeHead = ref
 	eq.unsafeHead = ref
@@ -302,24 +302,24 @@ func (eq *EngineQueue) ResetStep(ctx context.Context, l1Fetcher L1Fetcher) error
 
 	l2Head, err := eq.engine.L2BlockRefHead(ctx)
 	if err != nil {
-		return makeError(
-			ErrL2BlockRefHeadFailed,
+		return NewTemporaryError(
+			err,
 			fmt.Sprintf("failed to find the L2 Head block: %v", err),
-			ErrTemporary)
+		)
 	}
 	unsafe, safe, err := sync.FindL2Heads(ctx, l2Head, eq.cfg.SeqWindowSize, l1Fetcher, eq.engine, &eq.cfg.Genesis)
 	if err != nil {
-		return makeError(
-			ErrFindL2HeadsFailed,
+		return NewTemporaryError(
+			err,
 			fmt.Sprintf("failed to find the L2 Heads to start from: %v", err),
-			ErrTemporary)
+		)
 	}
 	l1Origin, err := l1Fetcher.L1BlockRefByHash(ctx, safe.L1Origin.Hash)
 	if err != nil {
-		return makeError(
-			ErrL1BlockRefFailed,
+		return NewTemporaryError(
+			err,
 			fmt.Sprintf("failed to fetch the new L1 progress: origin: %v; err: %v", safe.L1Origin, err),
-			ErrTemporary)
+		)
 	}
 	if safe.Time < l1Origin.Time {
 		return fmt.Errorf("cannot reset block derivation to start at L2 block %s with time %d older than its L1 origin %s with time %d, time invariant is broken",
