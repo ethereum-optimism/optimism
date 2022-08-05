@@ -78,8 +78,8 @@ func NewResetError(err error, desc string) error {
 	)
 }
 
-// NewCrititalError returns a critical error.
-func NewCrititalError(err error, desc string) error {
+// NewCriticalError returns a critical error.
+func NewCriticalError(err error, desc string) error {
 	return NewError(
 		err,
 		desc,
@@ -91,4 +91,4 @@ func NewCrititalError(err error, desc string) error {
 // errors.Is(err, ErrTemporary) for example.
 var ErrTemporary = NewTemporaryError(nil, "temporary error")
 var ErrReset = NewResetError(nil, "pipeline reset error")
-var ErrCritical = NewCrititalError(nil, "critical error")
+var ErrCritical = NewCriticalError(nil, "critical error")
