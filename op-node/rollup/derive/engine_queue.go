@@ -6,6 +6,9 @@ import (
 	"io"
 	"time"
 
+	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/core/types"
+
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
@@ -238,17 +241,29 @@ func (eq *EngineQueue) forceNextSafeAttributes(ctx context.Context) error {
 		SafeBlockHash:      eq.safeHead.Hash,
 		FinalizedBlockHash: eq.finalized.Hash,
 	}
-	payload, rpcErr, payloadErr := InsertHeadBlock(ctx, eq.log, eq.engine, fc, eq.safeAttributes[0], true)
+	attrs := eq.safeAttributes[0]
+	payload, rpcErr, payloadErr := InsertHeadBlock(ctx, eq.log, eq.engine, fc, attrs, true)
 	if rpcErr != nil {
 		// RPC errors are recoverable, we can retry the buffered payload attributes later.
 		eq.log.Error("failed to insert new block", "err", rpcErr)
 		return nil
 	}
 	if payloadErr != nil {
-		// invalid payloads are dropped, we move on to the next attributes
-		eq.log.Warn("could not derive valid payload from L1 data", "err", payloadErr)
-		eq.safeAttributes = eq.safeAttributes[1:]
-		return nil
+		eq.log.Warn("could not process payload derived from L1 data", "err", payloadErr)
+		// filter everything but the deposits
+		var deposits []hexutil.Bytes
+		for _, tx := range attrs.Transactions {
+			if len(tx) > 0 && tx[0] == types.DepositTxType {
+				deposits = append(deposits, tx)
+			}
+		}
+		if len(attrs.Transactions) > len(deposits) {
+			eq.log.Warn("dropping sequencer transactions from payload for re-attempt, batcher may have included invalid transactions",
+				"txs", len(attrs.Transactions), "deposits", len(deposits), "parent", eq.safeHead)
+			eq.safeAttributes[0].Transactions = deposits
+			return nil
+		}
+		return fmt.Errorf("critical: failed to process block with only deposit transactions: %v", payloadErr)
 	}
 	ref, err := PayloadToBlockRef(payload, &eq.cfg.Genesis)
 	if err != nil {
