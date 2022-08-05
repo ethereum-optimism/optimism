@@ -47,7 +47,7 @@ func PreparePayloadAttributes(ctx context.Context, cfg *rollup.Config, dl L1Rece
 		}
 		deposits, err := DeriveDeposits(receipts, cfg.DepositContractAddress)
 		if err != nil {
-			return nil, NewTemporaryError(
+			return nil, NewResetError(
 				err,
 				"failed to derive some deposits",
 			)
@@ -77,7 +77,7 @@ func PreparePayloadAttributes(ctx context.Context, cfg *rollup.Config, dl L1Rece
 
 	l1InfoTx, err := L1InfoDepositBytes(seqNumber, l1Info)
 	if err != nil {
-		return nil, NewTemporaryError(
+		return nil, NewResetError(
 			err,
 			"failed to create l1InfoTx",
 		)
