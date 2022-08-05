@@ -106,7 +106,6 @@ func (s *state) Start(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-
 	s.l1Head = l1Head
 	s.l2Head, _ = s.l2.L2BlockRefByNumber(ctx, nil)
 	s.metrics.SetHead("l1", s.l1Head.Number)

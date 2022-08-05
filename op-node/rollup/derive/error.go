@@ -13,7 +13,7 @@ const (
 	// LevelTemporary is a temporary error for example due to an RPC or
 	// connection issue, and can be safely ignored and retried by the caller
 	LevelTemporary Level = iota
-	// LevelReset is a pipeline reset error.
+	// LevelReset is a pipeline reset error. It must be treated like a reorg.
 	LevelReset
 	// LevelCritical is a critical error.
 	LevelCritical
@@ -26,7 +26,7 @@ type Error struct {
 	level Level
 }
 
-// Error satisfiees the error interface.
+// Error satisfies the error interface.
 func (e Error) Error() string {
 	if e.err != nil {
 		return fmt.Errorf("%w: %s", e.err, e.desc).Error()
