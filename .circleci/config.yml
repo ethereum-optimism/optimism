@@ -432,17 +432,16 @@ jobs:
       - run:
           name: Check if we should run
           command: |
-            CHANGED=$(bash ./ops/docker/ci-builder/check-changed.sh "(contracts-bedrock|op-bindings|op-batcher|op-node|op-proposer|ops-bedrock)/")
+            CHANGED=$(bash ./ops/docker/ci-builder/check-changed.sh "(contracts-bedrock|op-bindings|op-batcher|op-node|op-proposer|ops-bedrock|.circleci)/")
             if [[ "$CHANGED" = "FALSE" ]]; then
               circleci step halt
             fi
       - run:
-          name: foundryup
+          name: install forge
           command: |
-            curl -L https://foundry.paradigm.xyz | bash
-            source $HOME/.bashrc
-            foundryup
-            echo 'export PATH=$HOME/.foundry/bin:$PATH' >> $BASH_ENV
+            curl -o /tmp/forge -L https://storage.googleapis.com/op-forge-binaries/forge-64fe4ac-x86_64-ubuntu
+            sudo mv /tmp/forge /usr/local/bin/forge
+            sudo chmod +x /usr/local/bin/forge
       - run:
           name: Install and build
           command: |
