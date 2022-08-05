@@ -2,19 +2,20 @@ import { ethers } from 'ethers'
 
 const { env } = process
 
-const startingTimestamp =
-  typeof env.L2OO_STARTING_BLOCK_TIMESTAMP === 'string'
-    ? ethers.BigNumber.from(env.L2OO_STARTING_BLOCK_TIMESTAMP).toNumber()
+const l1GenesisTimestamp =
+  typeof env.L1_GENESIS_TIMESTAMP === 'string'
+    ? ethers.BigNumber.from(env.L1_GENESIS_TIMESTAMP).toNumber()
     : Math.floor(Date.now() / 1000)
 
 const config = {
-  submissionInterval: 6,
+  submissionInterval: 20,
   genesisOutput: ethers.constants.HashZero,
   historicalBlocks: 0,
+  l1StartingBlockTag: 'earliest',
   startingBlockNumber: 0,
   l2BlockTime: 2,
 
-  startingTimestamp,
+  l1GenesisTimestamp,
   sequencerAddress: '0x70997970C51812dc3A010C7d01b50e0d17dc79C8',
 
   l2CrossDomainMessengerOwner: ethers.constants.AddressZero,
@@ -52,7 +53,7 @@ const config = {
 
   outputOracleOwner: '0x70997970C51812dc3A010C7d01b50e0d17dc79C8',
   optimismL2FeeRecipient: '0xd9c09e21b57c98e58a80552c170989b426766aa7',
-  batchSenderAddress: '0xDe3829A23DF1479438622a08a116E8Eb3f620BB5',
+  batchSenderAddress: '0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC',
 }
 
 export default config

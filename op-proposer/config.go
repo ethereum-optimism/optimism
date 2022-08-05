@@ -49,6 +49,9 @@ type Config struct {
 	// the l2output transactions.
 	L2OutputHDPath string
 
+	// PrivateKey is the private key used for l2output transactions.
+	PrivateKey string
+
 	/* Optional Params */
 
 	// LogLevel is the lowest log level that will be output.
@@ -57,6 +60,11 @@ type Config struct {
 	// LogTerminal if true, will log to stdout in terminal format. Otherwise the
 	// output will be in JSON format.
 	LogTerminal bool
+
+	// Flags for the pprof server
+	PprofEnabled bool
+	PprofAddr    string
+	PprofPort    string
 }
 
 // NewConfig parses the Config from the provided flags or environment variables.
@@ -73,8 +81,12 @@ func NewConfig(ctx *cli.Context) Config {
 		ResubmissionTimeout:       ctx.GlobalDuration(flags.ResubmissionTimeoutFlag.Name),
 		Mnemonic:                  ctx.GlobalString(flags.MnemonicFlag.Name),
 		L2OutputHDPath:            ctx.GlobalString(flags.L2OutputHDPathFlag.Name),
+		PrivateKey:                ctx.GlobalString(flags.PrivateKeyFlag.Name),
 		/* Optional Flags */
-		LogLevel:    ctx.GlobalString(flags.LogLevelFlag.Name),
-		LogTerminal: ctx.GlobalBool(flags.LogTerminalFlag.Name),
+		LogLevel:     ctx.GlobalString(flags.LogLevelFlag.Name),
+		LogTerminal:  ctx.GlobalBool(flags.LogTerminalFlag.Name),
+		PprofEnabled: ctx.GlobalBool(flags.PprofEnabledFlag.Name),
+		PprofAddr:    ctx.GlobalString(flags.PprofAddrFlag.Name),
+		PprofPort:    ctx.GlobalString(flags.PprofPortFlag.Name),
 	}
 }

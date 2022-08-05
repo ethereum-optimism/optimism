@@ -2,9 +2,14 @@ package main
 
 import (
 	"context"
+	"net"
+	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
+
+	"github.com/ethereum-optimism/optimism/op-node/cmd/p2p"
 
 	"github.com/ethereum-optimism/optimism/op-node/metrics"
 
@@ -50,13 +55,19 @@ func main() {
 	)
 
 	app := cli.NewApp()
-	app.Flags = flags.Flags
 	app.Version = VersionWithMeta
-	app.Name = "opnode"
+	app.Flags = flags.Flags
+	app.Name = "op-node"
 	app.Usage = "Optimism Rollup Node"
-	app.Description = "The deposit only rollup node drives the L2 execution engine based on L1 deposits."
-
+	app.Description = "The Optimism Rollup Node derives L2 block inputs from L1 data and drives an external L2 Execution Engine to build a L2 chain."
 	app.Action = RollupNodeMain
+	app.Commands = []cli.Command{
+		{
+			Name:        "p2p",
+			Subcommands: p2p.Subcommands,
+		},
+	}
+
 	err := app.Run(os.Args)
 	if err != nil {
 		log.Crit("Application failed", "message", err)
@@ -100,6 +111,27 @@ func RollupNodeMain(ctx *cli.Context) error {
 	m.RecordInfo(VersionWithMeta)
 	m.RecordUp()
 	log.Info("Rollup node started")
+
+	if cfg.Pprof.Enabled {
+		var srv http.Server
+		srv.Addr = net.JoinHostPort(cfg.Pprof.ListenAddr, cfg.Pprof.ListenPort)
+		// Start pprof server + register it's shutdown
+		go func() {
+			log.Info("pprof server started", "addr", srv.Addr)
+			if err := srv.ListenAndServe(); err != http.ErrServerClosed {
+				log.Error("error in pprof server", "err", err)
+			} else {
+				log.Info("pprof server shutting down")
+			}
+
+		}()
+		defer func() {
+			shutCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer cancel()
+			err := srv.Shutdown(shutCtx)
+			log.Info("pprof server shut down", "err", err)
+		}()
+	}
 
 	interruptChannel := make(chan os.Signal, 1)
 	signal.Notify(interruptChannel, []os.Signal{

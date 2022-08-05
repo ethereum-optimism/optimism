@@ -87,6 +87,8 @@ interface L2ToL1MessagePasser {
         bytes data
     );
 
+    event WithdrawalInitiatedExtension1(bytes32 indexed hash);
+
     event WithdrawerBalanceBurnt(uint256 indexed amount);
 
     function burn() external;
@@ -99,6 +101,14 @@ interface L2ToL1MessagePasser {
 }
 
 ```
+
+The `WithdrawalInitiated` event includes all of the data that is hashed and
+stored in the `sentMessages` mapping. The `WithdrawalInitiatedExtension1` emits
+the hash that was computed and used as part of the storage proof used to
+finalize the withdrawal on L1.
+
+The events are separate as to preserve backwards compatibility. The hashing
+scheme could be upgraded in the future through a contract upgrade.
 
 ### Addresses are not Aliased on Withdrawals
 

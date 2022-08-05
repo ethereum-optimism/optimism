@@ -1,5 +1,22 @@
 # @eth-optimism/proxyd
 
+## 3.9.1
+
+### Patch Changes
+
+- dc4f6a06: Add logging/metrics
+
+## 3.9.0
+
+### Minor Changes
+
+- b6f4bfcf: Add frontend rate limiting
+
+### Patch Changes
+
+- 406a4fce: Unwrap single RPC batches
+- 915f3b28: Parameterize full RPC request logging
+
 ## 3.8.9
 
 ### Patch Changes

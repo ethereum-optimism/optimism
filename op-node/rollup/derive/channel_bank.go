@@ -1,8 +1,8 @@
 package derive
 
 import (
+	"bytes"
 	"context"
-	"encoding/binary"
 	"fmt"
 	"io"
 
@@ -81,84 +81,71 @@ func (ib *ChannelBank) IngestData(data []byte) error {
 	if data[0] != DerivationVersion0 {
 		return fmt.Errorf("unrecognized derivation version: %d", data)
 	}
+	buf := bytes.NewBuffer(data[1:])
 
 	ib.prune()
 
-	offset := 1
-	if len(data[offset:]) < minimumFrameSize {
+	if buf.Len() < minimumFrameSize {
 		return fmt.Errorf("data must be at least have one frame")
 	}
 
 	// Iterate over all frames. They may have different channel IDs to indicate that they stream consumer should reset.
 	for {
-		if len(data) < offset+ChannelIDDataSize+1 {
+		// Don't try to unmarshal from an empty buffer.
+		// The if done checks should catch most/all of this case though.
+		if buf.Len() < ChannelIDDataSize+1 {
 			return nil
 		}
-		var chID ChannelID
-		copy(chID.Data[:], data[offset:])
-		offset += ChannelIDDataSize
-		chIDTime, n := binary.Uvarint(data[offset:])
-		if n <= 0 {
-			return fmt.Errorf("failed to read frame number")
+		done := false
+		var f Frame
+		if err := (&f).UnmarshalBinary(buf); err == io.EOF {
+			done = true
+		} else if err != nil {
+			return fmt.Errorf("failed to unmarshal a frame: %w", err)
+
 		}
-		offset += n
-		chID.Time = chIDTime
 
 		// stop reading and ignore remaining data if we encounter a zeroed ID
-		if chID == (ChannelID{}) {
+		if f.ID == (ChannelID{}) {
+			ib.log.Info("empty channel ID")
 			return nil
 		}
 
-		frameNumber, n := binary.Uvarint(data[offset:])
-		if n <= 0 {
-			return fmt.Errorf("failed to read frame number")
-		}
-		offset += n
-
-		frameLength, n := binary.Uvarint(data[offset:])
-		if n <= 0 {
-			return fmt.Errorf("failed to read frame length")
-		}
-		offset += n
-
-		if remaining := uint64(len(data) - offset); remaining < frameLength {
-			return fmt.Errorf("not enough data left for frame: %d < %d", remaining, frameLength)
-		}
-		frameData := data[offset : uint64(offset)+frameLength]
-		offset += int(frameLength)
-
-		if offset >= len(data) {
-			return fmt.Errorf("failed to read frame end byte, no data left, offset past length %d", len(data))
-		}
-		isLastNum := data[offset]
-		if isLastNum > 1 {
-			return fmt.Errorf("invalid isLast bool value: %d", data[offset])
-		}
-		isLast := isLastNum == 1
-		offset += 1
-
 		// check if the channel is not timed out
-		if chID.Time+ib.cfg.ChannelTimeout < ib.progress.Origin.Time {
-			ib.log.Info("channel is timed out, ignore frame", "channel", chID, "id_time", chID.Time, "frame", frameNumber)
+		if f.ID.Time+ib.cfg.ChannelTimeout < ib.progress.Origin.Time {
+			ib.log.Info("channel is timed out, ignore frame", "channel", f.ID, "id_time", f.ID.Time, "frame", f.FrameNumber)
+			if done {
+				return nil
+			}
 			continue
 		}
 		// check if the channel is not included too soon (otherwise timeouts wouldn't be effective)
-		if chID.Time > ib.progress.Origin.Time {
-			ib.log.Info("channel claims to be from the future, ignore frame", "channel", chID, "id_time", chID.Time, "frame", frameNumber)
+		if f.ID.Time > ib.progress.Origin.Time {
+			ib.log.Info("channel claims to be from the future, ignore frame", "channel", f.ID, "id_time", f.ID.Time, "frame", f.FrameNumber)
+			if done {
+				return nil
+			}
 			continue
 		}
 
-		currentCh, ok := ib.channels[chID]
+		currentCh, ok := ib.channels[f.ID]
 		if !ok { // create new channel if it doesn't exist yet
-			currentCh = &ChannelIn{id: chID}
-			ib.channels[chID] = currentCh
-			ib.channelQueue = append(ib.channelQueue, chID)
+			currentCh = &ChannelIn{id: f.ID}
+			ib.channels[f.ID] = currentCh
+			ib.channelQueue = append(ib.channelQueue, f.ID)
 		}
 
-		ib.log.Debug("ingesting frame", "channel", chID, "frame_number", frameNumber, "length", len(frameData))
-		if err := currentCh.IngestData(frameNumber, isLast, frameData); err != nil {
-			ib.log.Debug("failed to ingest frame into channel", "channel", chID, "frame_number", frameNumber, "err", err)
+		ib.log.Debug("ingesting frame", "channel", f.ID, "frame_number", f.FrameNumber, "length", len(f.Data))
+		if err := currentCh.IngestData(uint64(f.FrameNumber), f.IsLast, f.Data); err != nil {
+			ib.log.Debug("failed to ingest frame into channel", "channel", f.ID, "frame_number", f.FrameNumber, "err", err)
+			if done {
+				return nil
+			}
 			continue
+		}
+
+		if done {
+			return nil
 		}
 	}
 }

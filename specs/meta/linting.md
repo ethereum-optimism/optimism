@@ -24,10 +24,13 @@ Justification for linting rules in [.markdownlint.json](/.markdownlint.json):
 - *no-emphasis-as-heading*: enable emphasized paragraphs
 
 ```shell
-yarn             # Install dependencies
-yarn lint        # Run linter
-yarn lint:links  # Check links
-yarn lint:toc    # Update TOC docs
+yarn                   # Install dependencies
+yarn lint:specs:check  # Run linter
+yarn lint:specs:fix    # Fix lint issues
+yarn lint:specs:toc    # Update TOC docs
+
+# Check links
+docker run --init -it -v `pwd`:/input lycheeverse/lychee --verbose --no-progress --exclude-loopback --exclude twitter.com --exclude-mail /input/README.md "/input/specs/**/*.md"
 ```
 
 To check links, you'll need to install [lychee]. The [version ran in CI][lychee-ci] is 0.8.1, but
