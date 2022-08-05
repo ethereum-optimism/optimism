@@ -443,6 +443,8 @@ jobs:
             sudo mv /tmp/forge /usr/local/bin/forge
             sudo chmod +x /usr/local/bin/forge
             cd packages/contracts-bedrock
+            uname -a
+            ldd `which forge`
             forge build
       - run:
           name: Install and build
