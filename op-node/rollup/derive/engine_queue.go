@@ -279,7 +279,7 @@ func (eq *EngineQueue) forceNextSafeAttributes(ctx context.Context) error {
 			eq.safeAttributes[0].Transactions = deposits
 			return nil
 		}
-		return fmt.Errorf("critical: failed to process block with only deposit transactions: %v", payloadErr)
+		return NewCriticalError(payloadErr, "failed to process block with only deposit transactions")
 	}
 	ref, err := PayloadToBlockRef(payload, &eq.cfg.Genesis)
 	if err != nil {
