@@ -24,12 +24,12 @@ func (pr *Progress) Update(outer Progress) (changed bool, err error) {
 	if pr.Closed {
 		if outer.Closed {
 			if pr.Origin.ID() != outer.Origin.ID() {
-				return true, fmt.Errorf("outer stage changed origin from %s to %s without opening it", pr.Origin, outer.Origin)
+				return true, NewResetError(ReorgErr, fmt.Sprintf("outer stage changed origin from %s to %s without opening it", pr.Origin, outer.Origin))
 			}
 			return false, nil
 		} else {
 			if pr.Origin.Hash != outer.Origin.ParentHash {
-				return true, fmt.Errorf("detected internal pipeline reorg of L1 origin data from %s to %s: %w", pr.Origin, outer.Origin, ReorgErr)
+				return true, NewResetError(ReorgErr, fmt.Sprintf("detected internal pipeline reorg of L1 origin data from %s to %s", pr.Origin, outer.Origin))
 			}
 			pr.Origin = outer.Origin
 			pr.Closed = false
@@ -37,7 +37,7 @@ func (pr *Progress) Update(outer Progress) (changed bool, err error) {
 		}
 	} else {
 		if pr.Origin.ID() != outer.Origin.ID() {
-			return true, fmt.Errorf("outer stage changed origin from %s to %s before closing it", pr.Origin, outer.Origin)
+			return true, NewResetError(ReorgErr, fmt.Sprintf("outer stage changed origin from %s to %s before closing it", pr.Origin, outer.Origin))
 		}
 		if outer.Closed {
 			pr.Closed = true
