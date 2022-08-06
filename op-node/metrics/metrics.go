@@ -42,6 +42,8 @@ type Metrics struct {
 	LastPipelineResetUnix prometheus.Gauge
 	UnsafePayloadsTotal   prometheus.Counter
 	DerivationErrorsTotal prometheus.Counter
+	SequencingErrorsTotal prometheus.Counter
+	PublishingErrorsTotal prometheus.Counter
 	Heads                 *prometheus.GaugeVec
 
 	TransactionsSequencedTotal prometheus.Counter
@@ -141,6 +143,16 @@ func NewMetrics(procName string) *Metrics {
 			Name:      "derivation_errors_total",
 			Help:      "Count of total derivation errors",
 		}),
+		SequencingErrorsTotal: promauto.With(registry).NewCounter(prometheus.CounterOpts{
+			Namespace: ns,
+			Name:      "sequencing_errors_total",
+			Help:      "Count of total sequencing errors",
+		}),
+		PublishingErrorsTotal: promauto.With(registry).NewCounter(prometheus.CounterOpts{
+			Namespace: ns,
+			Name:      "publishing_errors_total",
+			Help:      "Count of total p2p publishing errors",
+		}),
 		Heads: promauto.With(registry).NewGaugeVec(prometheus.GaugeOpts{
 			Namespace: ns,
 			Name:      "heads",
@@ -232,7 +244,6 @@ func (m *Metrics) SetHead(kind string, num uint64) {
 
 func (m *Metrics) RecordPipelineReset() {
 	m.PipelineResetsTotal.Inc()
-	m.DerivationErrorsTotal.Inc()
 	m.LastPipelineResetUnix.Set(float64(time.Now().Unix()))
 }
 

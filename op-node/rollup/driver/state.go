@@ -252,7 +252,8 @@ func (s *state) createNewL2Block(ctx context.Context) error {
 	if s.network != nil {
 		if err := s.network.PublishL2Payload(ctx, payload); err != nil {
 			s.log.Warn("failed to publish newly created block", "id", payload.ID(), "err", err)
-			return err
+			s.metrics.PublishingErrorsTotal.Inc()
+			// publishing of unsafe data via p2p is optional. Errors are not severe enough to change/halt sequencing but should be logged and metered.
 		}
 	}
 
@@ -348,7 +349,7 @@ func (s *state) eventLoop() {
 			cancel()
 			if err != nil {
 				s.log.Error("Error creating new L2 block", "err", err)
-				s.metrics.DerivationErrorsTotal.Inc()
+				s.metrics.SequencingErrorsTotal.Inc()
 				break // if we fail, we wait for the next block creation trigger.
 			}
 
