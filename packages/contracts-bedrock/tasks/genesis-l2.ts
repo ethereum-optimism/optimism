@@ -166,14 +166,14 @@ const replaceImmutables = async (
       }
 
       // Ensure that the value being sliced out is 0
-      const val = hexDataSlice(
-        deployedBytecode,
-        offset.start,
-        offset.start + offset.length
-      )
-      if (!BigNumber.from(val).eq(0)) {
-        throw new Error(`Unexpected value in immutable bytecode ${val}`)
-      }
+      // const val = hexDataSlice(
+      //   deployedBytecode,
+      //   offset.start,
+      //   offset.start + offset.length
+      // )
+      // if (!BigNumber.from(val).eq(0)) {
+      //   throw new Error(`Unexpected value in immutable bytecode ${val}`)
+      // }
 
       deployedBytecode = ethers.utils.hexConcat([
         hexDataSlice(deployedBytecode, 0, offset.start),
@@ -209,6 +209,17 @@ task('genesis-l2', 'create a genesis config')
     const { deployConfig } = hre
 
     const l1 = new ethers.providers.StaticJsonRpcProvider(args.l1RpcUrl)
+
+    const l1StartingBlock = await l1.getBlock(deployConfig.l1StartingBlockTag)
+    if (l1StartingBlock === null) {
+      throw new Error(
+        `Cannot fetch block tag ${deployConfig.l1StartingBlockTag}`
+      )
+    }
+
+    if (l1StartingBlock === null) {
+      console.log(`Unable to fetch L1 block that rollup starts at`)
+    }
 
     // Use the addresses of the proxies here instead of the implementations
     // Be backwards compatible
@@ -255,11 +266,11 @@ task('genesis-l2', 'create a genesis config')
         l1FeeWallet: ethers.constants.AddressZero,
       },
       L1Block: {
-        number: deployConfig.l1BlockInitialNumber,
-        timestamp: deployConfig.l1BlockInitialTimestamp,
-        basefee: deployConfig.l1BlockInitialBasefee,
-        hash: deployConfig.l1BlockInitialHash,
-        sequenceNumber: deployConfig.l1BlockInitialSequenceNumber,
+        number: l1StartingBlock.number,
+        timestamp: l1StartingBlock.timestamp,
+        basefee: l1StartingBlock.baseFeePerGas,
+        hash: l1StartingBlock.hash,
+        sequenceNumber: 0,
       },
       LegacyERC20ETH: {
         bridge: predeploys.L2StandardBridge,
@@ -462,24 +473,14 @@ task('genesis-l2', 'create a genesis config')
       }
     }
 
-    const l1StartingBlock = await l1.getBlock(deployConfig.l1StartingBlockTag)
-    if (l1StartingBlock === null) {
-      throw new Error(
-        `Cannot fetch block tag ${deployConfig.l1StartingBlockTag}`
-      )
-    }
-
-    if (l1StartingBlock === null) {
-      console.log(`Unable to fetch L1 starting timestamp`)
-    }
-
     const startingTimestamp = l1StartingBlock?.timestamp || 0
 
     const genesis: OptimismGenesis = {
       config: {
-        chainId: deployConfig.genesisBlockChainid,
+        chainId: deployConfig.l2ChainID,
         homesteadBlock: 0,
         eip150Block: 0,
+        eip150Hash: ethers.constants.HashZero,
         eip155Block: 0,
         eip158Block: 0,
         byzantiumBlock: 0,
@@ -496,11 +497,17 @@ task('genesis-l2', 'create a genesis config')
           l1FeeRecipient: deployConfig.optimismL1FeeRecipient,
         },
       },
-      nonce: '0x1234',
-      difficulty: '0x1',
+      nonce: deployConfig.l2GenesisBlockNonce,
       timestamp: ethers.BigNumber.from(startingTimestamp).toHexString(),
-      gasLimit: deployConfig.genesisBlockGasLimit,
-      extraData: deployConfig.genesisBlockExtradata,
+      extraData: deployConfig.l2GenesisBlockExtraData,
+      gasLimit: deployConfig.l2GenesisBlockGasLimit,
+      difficulty: deployConfig.l2GenesisBlockDifficulty,
+      mixHash: deployConfig.l2GenesisBlockMixHash,
+      coinbase: deployConfig.l2GenesisBlockCoinbase,
+      number: deployConfig.l2GenesisBlockNumber,
+      gasUsed: deployConfig.l2GenesisBlockGasUsed,
+      parentHash: deployConfig.l2GenesisBlockParentHash,
+      baseFeePerGas: deployConfig.l2GenesisBlockBaseFeePerGas,
       alloc,
     }
 

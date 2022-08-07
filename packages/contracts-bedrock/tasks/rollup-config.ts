@@ -20,7 +20,17 @@ task('rollup-config', 'create a genesis config')
     const l1 = new ethers.providers.StaticJsonRpcProvider(args.l1RpcUrl)
     const l2 = new ethers.providers.StaticJsonRpcProvider(args.l2RpcUrl)
 
-    const l2Genesis = await l2.getBlock('earliest')
+    // sanity check our RPC connections
+    const l1ChainID = await getChainId(l1)
+    if (l1ChainID !== deployConfig.l1ChainID) {
+      throw new Error(`connected to L1 RPC ${args.l1RpcUrl} yielded chain ID ${l1ChainID} but expected ${deployConfig.l1ChainID}`)
+    }
+    const l2ChainID = await getChainId(l2)
+    if (l2ChainID !== deployConfig.l2ChainID) {
+      throw new Error(`connected to L2 RPC ${args.l2RpcUrl} yielded chain ID ${l2ChainID} but expected ${deployConfig.l2ChainID}`)
+    }
+
+    const l2GenesisBlock = await l2.getBlock('earliest')
 
     const portal = await hre.deployments.get('OptimismPortalProxy')
     const l1StartingBlock = await l1.getBlock(deployConfig.l1StartingBlockTag)
@@ -37,8 +47,8 @@ task('rollup-config', 'create a genesis config')
           number: l1StartingBlock.number,
         },
         l2: {
-          hash: l2Genesis.hash,
-          number: 0,
+          hash: l2GenesisBlock.hash,
+          number: l2GenesisBlock.number,
         },
         l2_time: l1StartingBlock.timestamp,
       },
@@ -47,12 +57,12 @@ task('rollup-config', 'create a genesis config')
       seq_window_size: deployConfig.sequencerWindowSize,
       channel_timeout: deployConfig.channelTimeout,
 
-      l1_chain_id: await getChainId(l1),
-      l2_chain_id: await getChainId(l2),
+      l1_chain_id: deployConfig.l1ChainID,
+      l2_chain_id: deployConfig.l2ChainID,
 
       p2p_sequencer_address: deployConfig.p2pSequencerAddress,
       fee_recipient_address: deployConfig.optimismL2FeeRecipient,
-      batch_inbox_address: '0xff00000000000000000000000000000000000002',
+      batch_inbox_address: deployConfig.batchInboxAddress,
       batch_sender_address: deployConfig.batchSenderAddress,
       deposit_contract_address: portal.address,
     }

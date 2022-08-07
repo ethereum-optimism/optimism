@@ -113,7 +113,7 @@ contract L2OutputOracle is OwnableUpgradeable, Semver {
      * @param _historicalTotalBlocks Number of blocks preceding this L2 chain.
      * @param _startingBlockNumber   The number of the first L2 block.
      * @param _startingTimestamp     The timestamp of the first L2 block.
-     * @param _l2BlockTime           The timestamp of the first L2 block.
+     * @param _l2BlockTime           The time per L2 block, in seconds.
      * @param _proposer              The address of the proposer.
      * @param _owner                 The address of the owner.
      */

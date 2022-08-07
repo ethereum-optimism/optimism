@@ -69,7 +69,7 @@ if [ ! -f ./.devnet/genesis-l1.json ]; then
   echo "Regenerating L1 genesis."
   (
     cd $CONTRACTS_BEDROCK
-    L1_GENESIS_TIMESTAMP=$L1_GENESIS_TIMESTAMP npx hardhat genesis-l1 \
+    L1_GENESIS_TIMESTAMP=$L1_GENESIS_TIMESTAMP npx hardhat --network $NETWORK genesis-l1 \
         --outfile genesis-l1.json
     mv genesis-l1.json ../../.devnet/genesis-l1.json
   )
