@@ -70,16 +70,15 @@ func (c *SourceConfig) Check() error {
 }
 
 func DefaultConfig(config *rollup.Config, trustRPC bool) *SourceConfig {
+	// Cache 3/2 worth of sequencing window of receipts and txs, up to 400 per block.
+	span := int(config.SeqWindowSize) * 3 / 2
+	if span > 1000 { // sanity cap. If a large sequencing window is configured, do not make the cache too large
+		span = 1000
+	}
 	return &SourceConfig{
-		// We only consume receipts once per block,
-		// we just need basic redundancy if we share the cache between multiple drivers
-		ReceiptsCacheSize: 20,
-
-		// Optimal if at least a few times the size of a sequencing window.
-		// When smaller than a window, requests would be repeated every window shift.
-		// Additional cache-size for handling reorgs, and thus more unique blocks, also helps.
-		TransactionsCacheSize: int(config.SeqWindowSize * 4),
-		HeadersCacheSize:      int(config.SeqWindowSize * 4),
+		ReceiptsCacheSize:     span * 400,
+		TransactionsCacheSize: span * 400,
+		HeadersCacheSize:      span,
 
 		// TODO: tune batch params
 		MaxParallelBatching: 8,
