@@ -8,7 +8,13 @@ import {
   Log,
 } from '@ethersproject/abstract-provider'
 import { Signer } from '@ethersproject/abstract-signer'
-import { ethers, BigNumber, Overrides, CallOverrides } from 'ethers'
+import {
+  ethers,
+  BigNumber,
+  Overrides,
+  CallOverrides,
+  PayableOverrides,
+} from 'ethers'
 import {
   sleep,
   remove0x,
@@ -1143,7 +1149,7 @@ export class CrossChainMessenger implements ICrossChainMessenger {
     message: MessageLike,
     opts?: {
       signer?: Signer
-      overrides?: Overrides
+      overrides?: PayableOverrides
     }
   ): Promise<TransactionResponse> {
     return (opts?.signer || this.l1Signer).sendTransaction(
@@ -1315,7 +1321,7 @@ export class CrossChainMessenger implements ICrossChainMessenger {
     finalizeMessage: async (
       message: MessageLike,
       opts?: {
-        overrides?: Overrides
+        overrides?: PayableOverrides
       }
     ): Promise<TransactionRequest> => {
       const resolved = await this.toCrossChainMessage(message)
@@ -1327,6 +1333,15 @@ export class CrossChainMessenger implements ICrossChainMessenger {
         const [proof, output, withdrawalTx] = await this.getBedrockMessageProof(
           message
         )
+        if (!opts) {
+          opts = {}
+        }
+        if (!opts.overrides) {
+          opts.overrides = {}
+        }
+        if (!opts.overrides.value) {
+          opts.overrides.value = withdrawalTx.value
+        }
 
         return this.contracts.l1.OptimismPortal.populateTransaction.finalizeWithdrawalTransaction(
           [
@@ -1344,7 +1359,8 @@ export class CrossChainMessenger implements ICrossChainMessenger {
             proof.outputRootProof.withdrawerStorageRoot,
             proof.outputRootProof.latestBlockhash,
           ],
-          proof.withdrawalProof
+          proof.withdrawalProof,
+          opts.overrides
         )
       } else {
         // L1CrossDomainMessenger relayMessage is the only method that isn't fully backwards
@@ -1372,9 +1388,25 @@ export class CrossChainMessenger implements ICrossChainMessenger {
       opts?: {
         recipient?: AddressLike
         l2GasLimit?: NumberLike
-        overrides?: Overrides
+        overrides?: PayableOverrides
       }
     ): Promise<TransactionRequest> => {
+      if (this.bedrock) {
+        const value = BigNumber.from(opts?.overrides?.value ?? 0)
+        if (!value.eq(0) && !value.eq(amount)) {
+          throw new Error(`amount and value mismatch`)
+        }
+        if (!opts) {
+          opts = {}
+        }
+        if (!opts.overrides) {
+          opts.overrides = {}
+        }
+        if (!opts.overrides.value) {
+          opts.overrides.value = value
+        }
+      }
+
       return this.bridges.ETH.populateTransaction.deposit(
         ethers.constants.AddressZero,
         predeploys.OVM_ETH,
@@ -1387,9 +1419,24 @@ export class CrossChainMessenger implements ICrossChainMessenger {
       amount: NumberLike,
       opts?: {
         recipient?: AddressLike
-        overrides?: Overrides
+        overrides?: PayableOverrides
       }
     ): Promise<TransactionRequest> => {
+      const value = BigNumber.from(opts?.overrides?.value ?? 0)
+      if (this.bedrock) {
+        if (!value.eq(0) && !value.eq(amount)) {
+          throw new Error(`amount and value mismatch`)
+        }
+        if (!opts) {
+          opts = {}
+        }
+        if (!opts.overrides) {
+          opts.overrides = {}
+        }
+        if (!opts.overrides.value) {
+          opts.overrides.value = value
+        }
+      }
       return this.bridges.ETH.populateTransaction.withdraw(
         ethers.constants.AddressZero,
         predeploys.OVM_ETH,
