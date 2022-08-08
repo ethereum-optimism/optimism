@@ -14,7 +14,7 @@ type LRUCache struct {
 	inner *lru.Cache
 }
 
-func (c *LRUCache) Get(key interface{}) (value interface{}, ok bool) {
+func (c *LRUCache) Get(key any) (value any, ok bool) {
 	value, ok = c.inner.Get(key)
 	if c.m != nil {
 		c.m.CacheGet(c.label, ok)
@@ -22,7 +22,7 @@ func (c *LRUCache) Get(key interface{}) (value interface{}, ok bool) {
 	return value, ok
 }
 
-func (c *LRUCache) Add(key, value interface{}) (evicted bool) {
+func (c *LRUCache) Add(key, value any) (evicted bool) {
 	evicted = c.inner.Add(key, value)
 	if c.m != nil {
 		c.m.CacheAdd(c.label, c.inner.Len(), evicted)
