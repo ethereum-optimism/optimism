@@ -1,5 +1,11 @@
 # @eth-optimism/sdk
 
+## 1.5.0
+
+### Minor Changes
+
+- dcd715a6: Update wsteth bridge address
+
 ## 1.4.0
 
 ### Minor Changes
