@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/ethereum-optimism/optimism/op-node/sources/caching"
 
 	"github.com/ethereum-optimism/optimism/op-node/client"
 	"github.com/ethereum/go-ethereum"
@@ -16,7 +17,6 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rpc"
-	lru "github.com/hashicorp/golang-lru"
 )
 
 type SourceConfig struct {
@@ -105,26 +105,22 @@ type Source struct {
 
 	// cache receipts in bundles per block hash
 	// common.Hash -> types.Receipts
-	receiptsCache *lru.Cache
+	receiptsCache *caching.LRUCache
 
 	// cache transactions in bundles per block hash
 	// common.Hash -> types.Transactions
-	transactionsCache *lru.Cache
+	transactionsCache *caching.LRUCache
 
 	// cache block headers of blocks by hash
 	// common.Hash -> *HeaderInfo
-	headersCache *lru.Cache
+	headersCache *caching.LRUCache
 }
 
-func NewSource(client client.RPC, log log.Logger, config *SourceConfig) (*Source, error) {
+// NewSource wraps a RPC with bindings to fetch L1 data, while logging errors, tracking metrics (optional), and caching.
+func NewSource(client client.RPC, log log.Logger, metrics caching.Metrics, config *SourceConfig) (*Source, error) {
 	if err := config.Check(); err != nil {
 		return nil, fmt.Errorf("bad config, cannot create L1 source: %w", err)
 	}
-	// no errors if the size is positive, as already validated by Check() above.
-	receiptsCache, _ := lru.New(config.ReceiptsCacheSize)
-	transactionsCache, _ := lru.New(config.TransactionsCacheSize)
-	headersCache, _ := lru.New(config.HeadersCacheSize)
-
 	client = LimitRPC(client, config.MaxConcurrentRequests)
 
 	// Batch calls will be split up to handle max-batch size,
@@ -135,9 +131,9 @@ func NewSource(client client.RPC, log log.Logger, config *SourceConfig) (*Source
 		client:            client,
 		batchCall:         getBatch,
 		trustRPC:          config.TrustRPC,
-		receiptsCache:     receiptsCache,
-		transactionsCache: transactionsCache,
-		headersCache:      headersCache,
+		receiptsCache:     caching.NewLRUCache(metrics, "receipts", config.ReceiptsCacheSize),
+		transactionsCache: caching.NewLRUCache(metrics, "txs", config.TransactionsCacheSize),
+		headersCache:      caching.NewLRUCache(metrics, "headers", config.HeadersCacheSize),
 	}, nil
 }
 
