@@ -56,7 +56,7 @@ func (l1t *L1Traversal) Step(ctx context.Context, outer Progress) error {
 		return nil // nil, don't make the pipeline restart if the RPC fails
 	}
 	if l1t.progress.Origin.Hash != nextL1Origin.ParentHash {
-		return fmt.Errorf("detected L1 reorg from %s to %s: %w", l1t.progress.Origin, nextL1Origin, ReorgErr)
+		return NewResetError(ReorgErr, fmt.Sprintf("detected L1 reorg from %s to %s", l1t.progress.Origin, nextL1Origin))
 	}
 	l1t.progress.Origin = nextL1Origin
 	l1t.progress.Closed = false

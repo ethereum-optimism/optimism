@@ -22,7 +22,7 @@ type L1ReceiptsFetcher interface {
 // by setting NoTxPool=false as sequencer, or by appending batch transactions as verifier.
 // The severity of the error is returned; a crit=false error means there was a temporary issue, like a failed RPC or time-out.
 // A crit=true error means the input arguments are inconsistent or invalid.
-func PreparePayloadAttributes(ctx context.Context, cfg *rollup.Config, dl L1ReceiptsFetcher, l2Parent eth.L2BlockRef, timestamp uint64, epoch eth.BlockID) (attrs *eth.PayloadAttributes, crit bool, err error) {
+func PreparePayloadAttributes(ctx context.Context, cfg *rollup.Config, dl L1ReceiptsFetcher, l2Parent eth.L2BlockRef, timestamp uint64, epoch eth.BlockID) (attrs *eth.PayloadAttributes, err error) {
 	var l1Info eth.L1Info
 	var depositTxs []hexutil.Bytes
 	var seqNumber uint64
@@ -33,25 +33,42 @@ func PreparePayloadAttributes(ctx context.Context, cfg *rollup.Config, dl L1Rece
 	if l2Parent.L1Origin.Number != epoch.Number {
 		info, _, receipts, err := dl.Fetch(ctx, epoch.Hash)
 		if err != nil {
-			return nil, false, fmt.Errorf("failed to fetch L1 block info and receipts: %w", err)
+			return nil, NewTemporaryError(
+				err,
+				"failed to fetch L1 block info and receipts",
+			)
 		}
 		if l2Parent.L1Origin.Hash != info.ParentHash() {
-			return nil, true, fmt.Errorf("cannot create new block with L1 origin %s (parent %s) on top of L1 origin %s", epoch, info.ParentHash(), l2Parent.L1Origin)
+			return nil, NewResetError(
+				nil,
+				fmt.Sprintf("cannot create new block with L1 origin %s (parent %s) on top of L1 origin %s",
+					epoch, info.ParentHash(), l2Parent.L1Origin),
+			)
 		}
 		deposits, err := DeriveDeposits(receipts, cfg.DepositContractAddress)
 		if err != nil {
-			return nil, true, fmt.Errorf("failed to derive some deposits: %w", err)
+			return nil, NewResetError(
+				err,
+				"failed to derive some deposits",
+			)
 		}
 		l1Info = info
 		depositTxs = deposits
 		seqNumber = 0
 	} else {
 		if l2Parent.L1Origin.Hash != epoch.Hash {
-			return nil, true, fmt.Errorf("cannot create new block with L1 origin %s in conflict with L1 origin %s", epoch, l2Parent.L1Origin)
+			return nil, NewResetError(
+				nil,
+				fmt.Sprintf("cannot create new block with L1 origin %s in conflict with L1 origin %s",
+					epoch, l2Parent.L1Origin),
+			)
 		}
 		info, err := dl.InfoByHash(ctx, epoch.Hash)
 		if err != nil {
-			return nil, false, fmt.Errorf("failed to fetch L1 block info: %w", err)
+			return nil, NewTemporaryError(
+				err,
+				"failed to fetch L1 block info",
+			)
 		}
 		l1Info = info
 		depositTxs = nil
@@ -60,7 +77,10 @@ func PreparePayloadAttributes(ctx context.Context, cfg *rollup.Config, dl L1Rece
 
 	l1InfoTx, err := L1InfoDepositBytes(seqNumber, l1Info)
 	if err != nil {
-		return nil, true, fmt.Errorf("failed to create l1InfoTx: %w", err)
+		return nil, NewResetError(
+			err,
+			"failed to create l1InfoTx",
+		)
 	}
 
 	txs := make([]hexutil.Bytes, 0, 1+len(depositTxs))
@@ -73,5 +93,5 @@ func PreparePayloadAttributes(ctx context.Context, cfg *rollup.Config, dl L1Rece
 		SuggestedFeeRecipient: cfg.FeeRecipientAddress,
 		Transactions:          txs,
 		NoTxPool:              true,
-	}, false, nil
+	}, nil
 }
