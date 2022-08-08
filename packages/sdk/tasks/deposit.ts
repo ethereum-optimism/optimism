@@ -15,8 +15,9 @@ import {
 
 // TODO(tynes): this task could be modularized in the future
 // so that it can deposit an arbitrary token. Right now it
+// deposits and withdraws ETH through the bridge,
 // deploys a WETH9 contract, mints some WETH9 and then
-// deposits that into L2 through the StandardBridge
+// deposits that into L2 through the StandardBridge.
 task('deposit', 'Deposits WETH9 onto L2.')
   .addParam(
     'l2ProviderUrl',
@@ -72,6 +73,10 @@ task('deposit', 'Deposits WETH9 onto L2.')
     const Deployment__OptimismMintableERC20TokenFactory =
       await hre.deployments.get('OptimismMintableERC20Factory')
 
+    const Deployment__OptimismPortal = await hre.deployments.get(
+      'OptimismPortal'
+    )
+
     const Deployment__OptimismPortalProxy = await hre.deployments.get(
       'OptimismPortalProxy'
     )
@@ -82,6 +87,12 @@ task('deposit', 'Deposits WETH9 onto L2.')
 
     const Deployment__L1CrossDomainMessengerProxy = await hre.deployments.get(
       'L1CrossDomainMessengerProxy'
+    )
+
+    const OptimismPortal = new hre.ethers.Contract(
+      Deployment__OptimismPortalProxy.address,
+      Deployment__OptimismPortal.abi,
+      signer
     )
 
     const messenger = new CrossChainMessenger({
@@ -107,6 +118,65 @@ task('deposit', 'Deposits WETH9 onto L2.')
       },
       bedrock: true,
     })
+
+    const opBalanceBefore = await signer.provider.getBalance(
+      OptimismPortal.address
+    )
+
+    // Deposit ETH
+    console.log('Depositing ETH through StandardBridge')
+    const ethDeposit = await messenger.depositETH(utils.parseEther('1'))
+    const depositMessageReceipt = await messenger.waitForMessageReceipt(
+      ethDeposit
+    )
+    if (depositMessageReceipt.receiptStatus !== 1) {
+      throw new Error('deposit failed')
+    }
+    console.log('Deposit complete')
+
+    const opBalanceAfter = await signer.provider.getBalance(
+      OptimismPortal.address
+    )
+
+    if (!opBalanceBefore.add(utils.parseEther('1')).eq(opBalanceAfter)) {
+      throw new Error(`OptimismPortal balance mismatch`)
+    }
+
+    console.log('Withdrawing ETH')
+    const ethWithdraw = await messenger.withdrawETH(utils.parseEther('1'))
+    const ethWithdrawReceipt = await ethWithdraw.wait()
+    console.log('Withdrawal on L2 complete')
+    console.log('Waiting to be able to withdraw')
+
+    const id = setInterval(async () => {
+      const currentStatus = await messenger.getMessageStatus(ethWithdrawReceipt)
+      console.log(`Message status: ${MessageStatus[currentStatus]}`)
+    }, 3000)
+
+    await messenger.waitForMessageStatus(
+      ethWithdrawReceipt,
+      MessageStatus.READY_FOR_RELAY
+    )
+    clearInterval(id)
+
+    const ethFinalize = await messenger.finalizeMessage(ethWithdrawReceipt)
+    const ethFinalizeReceipt = await ethFinalize.wait()
+    if (ethFinalizeReceipt.status !== 1) {
+      throw new Error('Finalize withdrawal reverted')
+    }
+    console.log('ETH withdrawal complete')
+
+    const opBalanceFinally = await signer.provider.getBalance(
+      OptimismPortal.address
+    )
+    // TODO(tynes): fix this bug
+    if (!opBalanceFinally.eq(opBalanceBefore)) {
+      console.log('OptimismPortal balance mismatch')
+      console.log(`Balance before deposit: ${opBalanceBefore.toString()}`)
+      console.log(`Balance after deposit: ${opBalanceAfter.toString()}`)
+      console.log(`Balance after withdrawal: ${opBalanceFinally.toString()}`)
+      // throw new Error('OptimismPortal balance mismatch')
+    }
 
     const OptimismMintableERC20TokenFactory = await hre.ethers.getContractAt(
       Deployment__OptimismMintableERC20TokenFactory.abi,

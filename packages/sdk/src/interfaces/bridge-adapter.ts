@@ -1,4 +1,11 @@
-import { Contract, Overrides, Signer, BigNumber, CallOverrides } from 'ethers'
+import {
+  Contract,
+  Overrides,
+  Signer,
+  BigNumber,
+  CallOverrides,
+  PayableOverrides,
+} from 'ethers'
 import {
   TransactionRequest,
   TransactionResponse,
@@ -204,7 +211,7 @@ export interface IBridgeAdapter {
       opts?: {
         recipient?: AddressLike
         l2GasLimit?: NumberLike
-        overrides?: Overrides
+        overrides?: PayableOverrides
       }
     ): Promise<TransactionRequest>
 
@@ -225,7 +232,7 @@ export interface IBridgeAdapter {
       amount: NumberLike,
       opts?: {
         recipient?: AddressLike
-        overrides?: Overrides
+        overrides?: PayableOverrides
       }
     ): Promise<TransactionRequest>
   }
