@@ -1,5 +1,11 @@
 # @eth-optimism/ci-builder
 
+## 0.2.2
+
+### Patch Changes
+
+- c666fedc: Upgrade to Debian 11
+
 ## 0.2.1
 
 ### Patch Changes
