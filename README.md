@@ -18,7 +18,7 @@
   </p>
 </p>
 
-## About Arbitrium Monorepo
+## About Optimism Monorepo
 <img src="https://raw.githubusercontent.com/ethereum-optimism/brand-kit/ad481978ceac19f5c1db91ca4586bf2ab238f46b/assets/svg/Profile-Logo.svg" alt="Logo" width="80" height="80">
 
 <p align="center">
@@ -26,6 +26,10 @@
   <a href="https://github.com/ethereum-optimism/optimism/actions/workflows/integration.yml?query=branch%3Amaster"><img src="https://github.com/ethereum-optimism/optimism/workflows/integration/badge.svg" /></a>
   <a href="https://github.com/ethereum-optimism/optimism/actions/workflows/geth.yml?query=branch%3Amaster"><img src="https://github.com/ethereum-optimism/optimism/workflows/geth%20unit%20tests/badge.svg" /></a>
 </p>
+
+Ethereum, scaled.
+Optimism is a low-cost and lightning-fast Ethereum L2 blockchain.
+For more details [Click here](https://www.optimism.io/)
 
 
 
