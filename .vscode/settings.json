@@ -1,21 +1,48 @@
 {
   "[typescript]": {
     "editor.defaultFormatter": "dbaeumer.vscode-eslint",
-    "editor.formatOnSave": true,
+    "editor.formatOnSave": true
   },
   "eslint.workingDirectories": [
-    {"directory": "packages/core-utils", "changeProcessCWD": true },
-    {"directory": "packages/common-ts", "changeProcessCWD": true },
-    {"directory": "packages/contracts", "changeProcessCWD": true },
-    {"directory": "packages/contracts-periphery", "changeProcessCWD": true },
-    {"directory": "packages/data-transport-layer", "changeProcessCWD": true },
-    {"directory": "packages/drippie-mon", "changeProcessCWD": true },
-    {"directory": "packages/batch-submitter", "changeProcessCWD": true },
-    {"directory": "packages/message-relayer", "changeProcessCWD": true },
-    {"directory": "packages/fault-detector", "changeProcessCWD": true },
+    {
+      "directory": "packages/core-utils",
+      "changeProcessCWD": true
+    },
+    {
+      "directory": "packages/common-ts",
+      "changeProcessCWD": true
+    },
+    {
+      "directory": "packages/contracts",
+      "changeProcessCWD": true
+    },
+    {
+      "directory": "packages/contracts-periphery",
+      "changeProcessCWD": true
+    },
+    {
+      "directory": "packages/data-transport-layer",
+      "changeProcessCWD": true
+    },
+    {
+      "directory": "packages/drippie-mon",
+      "changeProcessCWD": true
+    },
+    {
+      "directory": "packages/batch-submitter",
+      "changeProcessCWD": true
+    },
+    {
+      "directory": "packages/message-relayer",
+      "changeProcessCWD": true
+    },
+    {
+      "directory": "packages/fault-detector",
+      "changeProcessCWD": true
+    }
   ],
   "eslint.nodePath": "./node_modules/eslint/bin/",
   "eslint.format.enable": true,
   "editorconfig.generateAuto": false,
-  "files.trimTrailingWhitespace": true,
+  "files.trimTrailingWhitespace": true
 }
