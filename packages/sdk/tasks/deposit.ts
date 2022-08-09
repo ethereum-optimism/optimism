@@ -11,6 +11,7 @@ import {
   CrossChainMessenger,
   StandardBridgeAdapter,
   MessageStatus,
+  toAddress,
 } from '../src'
 
 // TODO(tynes): this task could be modularized in the future
@@ -42,6 +43,17 @@ task('deposit', 'Deposits WETH9 onto L2.')
     const signer = signers[0]
     const address = await signer.getAddress()
     console.log(`Using signer ${address}`)
+
+    // burn some ETH just to make the signer balance more
+    const excessBalance = await (
+      await signer.getBalance()
+    ).sub(utils.parseEther('100000'))
+    if (!excessBalance.isNegative()) {
+      await signer.sendTransaction({
+        to: toAddress(utils.hexZeroPad('0x111111111', 20)),
+        value: excessBalance,
+      })
+    }
 
     // Ensure that the signer has a balance before trying to
     // do anything
@@ -166,18 +178,28 @@ task('deposit', 'Deposits WETH9 onto L2.')
       bedrock: true,
     })
 
+    const depositAmount = utils.parseEther('100')
+    const withdrawAmount = utils.parseEther('11')
+    // const l1Recipient = address
+    const l1Recipient = toAddress(utils.hexZeroPad('0xabcdabcd', 20))
+
+    /* GET AND LOG BALANCES BEFORE */
     const senderBalanceBefore = await signer.getBalance()
+    const opBalanceBefore = await signer.provider.getBalance(
+      OptimismPortal.address
+    )
+    const recipientBalanceBefore = await signer.provider.getBalance(l1Recipient)
     console.log(
       `Sender balance before: ${utils.formatEther(senderBalanceBefore)}`
     )
-
-    const opBalanceBefore = await signer.provider.getBalance(
-      OptimismPortal.address
+    console.log(`Portal balance before: ${utils.formatEther(opBalanceBefore)}`)
+    console.log(
+      `Recipient balance before: ${utils.formatEther(recipientBalanceBefore)}`
     )
 
     // Deposit ETH
     console.log('Depositing ETH through StandardBridge')
-    const ethDeposit = await messenger.depositETH(utils.parseEther('2'))
+    const ethDeposit = await messenger.depositETH(depositAmount)
     const depositMessageReceipt = await messenger.waitForMessageReceipt(
       ethDeposit
     )
@@ -186,16 +208,28 @@ task('deposit', 'Deposits WETH9 onto L2.')
     }
     console.log('Deposit complete')
 
+    /* GET AND LOG BALANCES AFTER DEPOSIT */
+    const senderBalanceAfter = await signer.getBalance()
     const opBalanceAfter = await signer.provider.getBalance(
       OptimismPortal.address
     )
+    const recipientBalanceAfter = await signer.provider.getBalance(l1Recipient)
+    console.log(
+      `Sender balance after: ${utils.formatEther(senderBalanceAfter)}`
+    )
+    console.log(`Portal balance after: ${utils.formatEther(opBalanceAfter)}`)
+    console.log(
+      `Recipient balance after: ${utils.formatEther(recipientBalanceAfter)}`
+    )
 
-    if (!opBalanceBefore.add(utils.parseEther('2')).eq(opBalanceAfter)) {
+    if (!opBalanceBefore.add(depositAmount).eq(opBalanceAfter)) {
       throw new Error(`OptimismPortal balance mismatch`)
     }
 
     console.log('Withdrawing ETH')
-    const ethWithdraw = await messenger.withdrawETH(utils.parseEther('1'))
+    const ethWithdraw = await messenger.withdrawETH(withdrawAmount, {
+      recipient: l1Recipient,
+    })
     const ethWithdrawReceipt = await ethWithdraw.wait()
 
     {
@@ -252,11 +286,6 @@ task('deposit', 'Deposits WETH9 onto L2.')
       throw new Error('Finalize withdrawal reverted')
     }
 
-    const senderBalanceAfter = await signer.getBalance()
-    console.log(
-      `Sender balance after: ${utils.formatEther(senderBalanceAfter)}`
-    )
-
     console.log(
       `ETH withdrawal complete: ${ethFinalizeReceipt.transactionHash}`
     )
@@ -272,14 +301,14 @@ task('deposit', 'Deposits WETH9 onto L2.')
             if (parsed.name !== 'ETHBridgeFinalized') {
               throw new Error('Wrong event name from L1StandardBridge')
             }
-            if (!parsed.args.amount.eq(utils.parseEther('1'))) {
+            if (!parsed.args.amount.eq(withdrawAmount)) {
               throw new Error('Wrong amount in event')
             }
             if (parsed.args.from !== address) {
-              throw new Error('Wrong to in event')
-            }
-            if (parsed.args.to !== address) {
               throw new Error('Wrong from in event')
+            }
+            if (parsed.args.to !== l1Recipient) {
+              throw new Error('Wrong to in event')
             }
             break
           }
@@ -308,119 +337,68 @@ task('deposit', 'Deposits WETH9 onto L2.')
       }
     }
 
+    /* GET AND LOG BALANCES FINALLY */
+    const senderBalanceFinally = await signer.getBalance()
     const opBalanceFinally = await signer.provider.getBalance(
       OptimismPortal.address
     )
+    const recipientBalanceFinally = await signer.provider.getBalance(
+      l1Recipient
+    )
+    console.log(
+      `Sender balance Finally: ${utils.formatEther(senderBalanceFinally)}`
+    )
+    console.log(
+      `Portal balance Finally: ${utils.formatEther(opBalanceFinally)}`
+    )
+    console.log(
+      `Recipient balance Finally: ${utils.formatEther(recipientBalanceFinally)}`
+    )
     // TODO(tynes): fix this bug
-    if (!opBalanceFinally.sub(utils.parseEther('1')).eq(opBalanceBefore)) {
+    if (!opBalanceFinally.sub(withdrawAmount).eq(opBalanceBefore)) {
       console.log('OptimismPortal balance mismatch')
-      console.log(`Balance before deposit: ${opBalanceBefore.toString()}`)
-      console.log(`Balance after deposit: ${opBalanceAfter.toString()}`)
-      console.log(`Balance after withdrawal: ${opBalanceFinally.toString()}`)
-      // throw new Error('OptimismPortal balance mismatch')
-    }
-
-    const OptimismMintableERC20TokenFactory = await hre.ethers.getContractAt(
-      Deployment__OptimismMintableERC20TokenFactory.abi,
-      predeploys.OptimismMintableERC20Factory,
-      l2Signer
-    )
-
-    console.log('Deploying WETH9 to L1')
-    const WETH9 = await Factory__WETH9.deploy()
-    await WETH9.deployTransaction.wait()
-    console.log(`Deployed to ${WETH9.address}`)
-
-    console.log('Creating L2 WETH9')
-    const deployTx =
-      await OptimismMintableERC20TokenFactory.createOptimismMintableERC20(
-        WETH9.address,
-        'L2 Wrapped Ether',
-        'L2-WETH9'
+      console.log(
+        `Portal balance before deposit: ${utils.formatEther(opBalanceBefore)}`
       )
-    const receipt = await deployTx.wait()
-    const event = receipt.events.find(
-      (e: Event) => e.event === 'OptimismMintableERC20Created'
-    )
-    if (!event) {
-      throw new Error('Unable to find OptimismMintableERC20Created event')
-    }
-    // TODO(tynes): may need to be updated based on
-    // https://github.com/ethereum-optimism/optimism/pull/3104
-    const l2WethAddress = event.args.remoteToken
-    console.log(`Deployed to ${l2WethAddress}`)
+      console.log(
+        `Portal balance after deposit: ${utils.formatEther(opBalanceAfter)}`
+      )
+      console.log(
+        `Portal balance after withdrawal: ${utils.formatEther(
+          opBalanceFinally
+        )}`
+      )
 
-    console.log('Wrapping ETH')
-    const deposit = await signer.sendTransaction({
-      value: utils.parseEther('1'),
-      to: WETH9.address,
-    })
-    await deposit.wait()
-    console.log('ETH wrapped')
+      console.log(
+        `Sender balance before deposit: ${utils.formatEther(
+          senderBalanceBefore
+        )}`
+      )
+      console.log(
+        `Sender balance after deposit: ${utils.formatEther(senderBalanceAfter)}`
+      )
+      console.log(
+        `Sender balance after withdrawal: ${utils.formatEther(
+          senderBalanceFinally
+        )}`
+      )
 
-    console.log(`Approving WETH9 for deposit`)
-    const approvalTx = await messenger.approveERC20(
-      WETH9.address,
-      l2WethAddress,
-      hre.ethers.constants.MaxUint256
-    )
-    await approvalTx.wait()
-    console.log('WETH9 approved')
-
-    console.log('Depositing WETH9 to L2')
-    const depositTx = await messenger.depositERC20(
-      WETH9.address,
-      l2WethAddress,
-      utils.parseEther('1')
-    )
-    await depositTx.wait()
-    console.log('ERC20 deposited')
-
-    const messageReceipt = await messenger.waitForMessageReceipt(depositTx)
-    if (messageReceipt.receiptStatus !== 1) {
-      throw new Error('deposit failed')
-    }
-
-    const L2WETH9 = new hre.ethers.Contract(
-      l2WethAddress,
-      getContractInterface('OptimismMintableERC20'),
-      l2Signer
-    )
-
-    const l2Balance = await L2WETH9.balanceOf(await signer.getAddress())
-    if (l2Balance.lt(utils.parseEther('1'))) {
-      throw new Error('bad deposit')
-    }
-    console.log('Deposit success')
-
-    console.log('Starting withdrawal')
-    const preBalance = await WETH9.balanceOf(signer.address)
-    const tx = await messenger.withdrawERC20(
-      WETH9.address,
-      l2WethAddress,
-      utils.parseEther('1')
-    )
-    await tx.wait()
-
-    setInterval(async () => {
-      const currentStatus = await messenger.getMessageStatus(tx)
-      console.log(`Message status: ${MessageStatus[currentStatus]}`)
-    }, 3000)
-
-    const now = Math.floor(Date.now() / 1000)
-
-    console.log('Waiting for message to be able to be relayed')
-    await messenger.waitForMessageStatus(tx, MessageStatus.READY_FOR_RELAY)
-
-    const finalize = await messenger.finalizeMessage(tx)
-    await finalize.wait()
-    console.log(`Took ${Math.floor(Date.now() / 1000) - now} seconds`)
-
-    const postBalance = await WETH9.balanceOf(signer.address)
-
-    const expectedBalance = preBalance.add(utils.parseEther('1'))
-    if (!expectedBalance.eq(postBalance)) {
-      throw new Error('Balance mismatch')
+      console.log(
+        `Recipient balance before deposit: ${utils.formatEther(
+          recipientBalanceBefore
+        )}`
+      )
+      console.log(
+        `Recipient balance after deposit: ${utils.formatEther(
+          recipientBalanceAfter
+        )}`
+      )
+      console.log(
+        `Recipient balance after withdrawal: ${utils.formatEther(
+          recipientBalanceFinally
+        )}`
+      )
+      // throw new Error('OptimismPortal balance mismatch')
     }
     console.log('Withdrawal success')
   })
