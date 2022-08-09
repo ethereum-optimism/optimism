@@ -92,6 +92,15 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
      */
     event WithdrawalFinalized(bytes32 indexed withdrawalHash, bool success);
 
+    event WithdrawalFinalizedRaw(
+        uint256 nonce,
+        address sender,
+        address target,
+        uint256 value,
+        uint256 gasLimit,
+        bytes data
+    );
+
     /**
      * @custom:semver 0.0.1
      *
@@ -195,9 +204,16 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
         // Set the l2Sender so contracts know who triggered this withdrawal on L2.
         l2Sender = _tx.sender;
 
+        // Trigger the call to the target contract. We use SafeCall because we don't
+        // care about the returndata. This prevents a returndata bomb that can
+        // cause this contract to allocate the returndata and cause this to run out of gas.
+        (bool success, ) = _tx.target.call{gas: _tx.gasLimit, value: _tx.value}(_tx.data);
+
         // Trigger the call to the target contract. We use excessivelySafeCall because we don't
         // care about the returndata and we don't want target contracts to be able to force this
         // call to run out of gas.
+
+        /*
         (bool success, ) = ExcessivelySafeCall.excessivelySafeCall(
             _tx.target,
             _tx.gasLimit,
@@ -205,6 +221,7 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
             0,
             _tx.data
         );
+        */
 
         // Reset the l2Sender back to the default value.
         l2Sender = DEFAULT_L2_SENDER;
@@ -212,6 +229,15 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
         // All withdrawals are immediately finalized. Replayability can
         // be achieved through contracts built on top of this contract
         emit WithdrawalFinalized(withdrawalHash, success);
+
+        emit WithdrawalFinalizedRaw(
+            _tx.nonce,
+            _tx.sender,
+            _tx.target,
+            _tx.value,
+            _tx.gasLimit,
+            _tx.data
+        );
     }
 
     /**

@@ -70,6 +70,18 @@ task('deposit', 'Deposits WETH9 onto L2.')
       signer
     )
 
+    const Artifact__L2ToL1MessagePasser = await hre.deployments.getArtifact(
+      'L2ToL1MessagePasser'
+    )
+
+    const Artifact__L2CrossDomainMessenger = await hre.deployments.getArtifact(
+      'L2CrossDomainMessenger'
+    )
+
+    const Artifact__L2StandardBridge = await hre.deployments.getArtifact(
+      'L2StandardBridge'
+    )
+
     const Deployment__OptimismMintableERC20TokenFactory =
       await hre.deployments.get('OptimismMintableERC20Factory')
 
@@ -85,14 +97,49 @@ task('deposit', 'Deposits WETH9 onto L2.')
       'L1StandardBridgeProxy'
     )
 
+    const Deployment__L1CrossDomainMessenger = await hre.deployments.get(
+      'L1CrossDomainMessenger'
+    )
+
     const Deployment__L1CrossDomainMessengerProxy = await hre.deployments.get(
       'L1CrossDomainMessengerProxy'
+    )
+
+    const Deployment__L1StandardBridge = await hre.deployments.get(
+      'L1StandardBridge'
     )
 
     const OptimismPortal = new hre.ethers.Contract(
       Deployment__OptimismPortalProxy.address,
       Deployment__OptimismPortal.abi,
       signer
+    )
+
+    const L1CrossDomainMessenger = new hre.ethers.Contract(
+      Deployment__L1CrossDomainMessengerProxy.address,
+      Deployment__L1CrossDomainMessenger.abi,
+      signer
+    )
+
+    const L1StandardBridge = new hre.ethers.Contract(
+      Deployment__L1StandardBridgeProxy.address,
+      Deployment__L1StandardBridge.abi,
+      signer
+    )
+
+    const L2ToL1MessagePasser = new hre.ethers.Contract(
+      predeploys.L2ToL1MessagePasser,
+      Artifact__L2ToL1MessagePasser.abi
+    )
+
+    const L2CrossDomainMessenger = new hre.ethers.Contract(
+      predeploys.L2CrossDomainMessenger,
+      Artifact__L2CrossDomainMessenger.abi
+    )
+
+    const L2StandardBridge = new hre.ethers.Contract(
+      predeploys.L2StandardBridge,
+      Artifact__L2StandardBridge.abi
     )
 
     const messenger = new CrossChainMessenger({
@@ -119,13 +166,18 @@ task('deposit', 'Deposits WETH9 onto L2.')
       bedrock: true,
     })
 
+    const senderBalanceBefore = await signer.getBalance()
+    console.log(
+      `Sender balance before: ${utils.formatEther(senderBalanceBefore)}`
+    )
+
     const opBalanceBefore = await signer.provider.getBalance(
       OptimismPortal.address
     )
 
     // Deposit ETH
     console.log('Depositing ETH through StandardBridge')
-    const ethDeposit = await messenger.depositETH(utils.parseEther('1'))
+    const ethDeposit = await messenger.depositETH(utils.parseEther('2'))
     const depositMessageReceipt = await messenger.waitForMessageReceipt(
       ethDeposit
     )
@@ -138,14 +190,49 @@ task('deposit', 'Deposits WETH9 onto L2.')
       OptimismPortal.address
     )
 
-    if (!opBalanceBefore.add(utils.parseEther('1')).eq(opBalanceAfter)) {
+    if (!opBalanceBefore.add(utils.parseEther('2')).eq(opBalanceAfter)) {
       throw new Error(`OptimismPortal balance mismatch`)
     }
 
     console.log('Withdrawing ETH')
     const ethWithdraw = await messenger.withdrawETH(utils.parseEther('1'))
     const ethWithdrawReceipt = await ethWithdraw.wait()
-    console.log('Withdrawal on L2 complete')
+
+    {
+      // check the logs
+      for (const log of ethWithdrawReceipt.logs) {
+        try {
+          switch (log.address) {
+            case L2ToL1MessagePasser.address: {
+              const parsed = L2ToL1MessagePasser.interface.parseLog(log)
+              console.log(parsed.name)
+              console.log(parsed.args)
+              break
+            }
+            case L2StandardBridge.address: {
+              const parsed = L2StandardBridge.interface.parseLog(log)
+              console.log(parsed.name)
+              console.log(parsed.args)
+              break
+            }
+            case L2CrossDomainMessenger.address: {
+              const parsed = L2CrossDomainMessenger.interface.parseLog(log)
+              console.log(parsed.name)
+              console.log(parsed.args)
+              break
+            }
+          }
+        } catch (e) {
+          console.log('error parsing log')
+          console.log(log)
+          console.log()
+        }
+      }
+    }
+
+    console.log(
+      `Withdrawal on L2 complete: ${ethWithdrawReceipt.transactionHash}`
+    )
     console.log('Waiting to be able to withdraw')
 
     const id = setInterval(async () => {
@@ -164,13 +251,68 @@ task('deposit', 'Deposits WETH9 onto L2.')
     if (ethFinalizeReceipt.status !== 1) {
       throw new Error('Finalize withdrawal reverted')
     }
-    console.log('ETH withdrawal complete')
+
+    const senderBalanceAfter = await signer.getBalance()
+    console.log(
+      `Sender balance after: ${utils.formatEther(senderBalanceAfter)}`
+    )
+
+    console.log(
+      `ETH withdrawal complete: ${ethFinalizeReceipt.transactionHash}`
+    )
+    {
+      // Check that the logs are correct
+      const logs = ethFinalizeReceipt.logs
+      for (const log of logs) {
+        switch (log.address) {
+          case L1StandardBridge.address: {
+            const parsed = L1StandardBridge.interface.parseLog(log)
+            console.log(parsed.name)
+            console.log(parsed.args)
+            if (parsed.name !== 'ETHBridgeFinalized') {
+              throw new Error('Wrong event name from L1StandardBridge')
+            }
+            if (!parsed.args.amount.eq(utils.parseEther('1'))) {
+              throw new Error('Wrong amount in event')
+            }
+            if (parsed.args.from !== address) {
+              throw new Error('Wrong to in event')
+            }
+            if (parsed.args.to !== address) {
+              throw new Error('Wrong from in event')
+            }
+            break
+          }
+          case L1CrossDomainMessenger.address: {
+            const parsed = L1CrossDomainMessenger.interface.parseLog(log)
+            console.log(parsed.name)
+            console.log(parsed.args)
+            if (parsed.name !== 'RelayedMessage') {
+              throw new Error('Wrong event from L1CrossDomainMessenger')
+            }
+            break
+          }
+          case OptimismPortal.address: {
+            const parsed = OptimismPortal.interface.parseLog(log)
+            console.log(parsed.name)
+            console.log(parsed.args)
+            // TODO: remove extra event from contract
+            if (parsed.name === 'WithdrawalFinalized') {
+              if (parsed.args.success !== true) {
+                throw new Error('Unsuccessful withdrawal call')
+              }
+            }
+            break
+          }
+        }
+      }
+    }
 
     const opBalanceFinally = await signer.provider.getBalance(
       OptimismPortal.address
     )
     // TODO(tynes): fix this bug
-    if (!opBalanceFinally.eq(opBalanceBefore)) {
+    if (!opBalanceFinally.sub(utils.parseEther('1')).eq(opBalanceBefore)) {
       console.log('OptimismPortal balance mismatch')
       console.log(`Balance before deposit: ${opBalanceBefore.toString()}`)
       console.log(`Balance after deposit: ${opBalanceAfter.toString()}`)
