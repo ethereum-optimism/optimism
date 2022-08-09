@@ -463,7 +463,11 @@ jobs:
           working_directory: packages/contracts-bedrock
       - run:
           name: Deposit ERC20 through the bridge
-          command: timeout 5m npx hardhat deposit --network devnetL1
+          command: timeout 5m npx hardhat deposit-erc20 --network devnetL1
+          working_directory: packages/sdk
+      - run:
+          name: Deposit ETH through the bridge
+          command: timeout 5m npx hardhat deposit-eth --network devnetL1
           working_directory: packages/sdk
       - run:
           name: Check the status
