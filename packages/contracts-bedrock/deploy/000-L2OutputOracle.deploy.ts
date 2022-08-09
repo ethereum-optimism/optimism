@@ -15,7 +15,9 @@ const deployFn: DeployFunction = async (hre) => {
     const l1 = hre.ethers.provider
     const l1StartingBlock = await l1.getBlock(deployConfig.l1StartingBlockTag)
     if (l1StartingBlock === null) {
-      throw new Error(`Cannot fetch block tag ${deployConfig.l1StartingBlockTag}`)
+      throw new Error(
+        `Cannot fetch block tag ${deployConfig.l1StartingBlockTag}`
+      )
     }
     deployL2StartingTimestamp = l1StartingBlock.timestamp
   }
@@ -27,7 +29,6 @@ const deployFn: DeployFunction = async (hre) => {
     log: true,
     waitConfirmations: deployConfig.deploymentWaitConfirmations,
   })
-
 
   await deploy('L2OutputOracle', {
     from: deployer,
@@ -69,18 +70,28 @@ const deployFn: DeployFunction = async (hre) => {
   await tx.wait()
 
   const submissionInterval = await L2OutputOracle.SUBMISSION_INTERVAL()
-  if (!submissionInterval.eq(BigNumber.from(deployConfig.l2OutputOracleSubmissionInterval))) {
+  if (
+    !submissionInterval.eq(
+      BigNumber.from(deployConfig.l2OutputOracleSubmissionInterval)
+    )
+  ) {
     throw new Error('submission internal misconfigured')
   }
 
   const historicalBlocks = await L2OutputOracle.HISTORICAL_TOTAL_BLOCKS()
-  if (!historicalBlocks.eq(BigNumber.from(deployConfig.l2OutputOracleHistoricalTotalBlocks))) {
+  if (
+    !historicalBlocks.eq(
+      BigNumber.from(deployConfig.l2OutputOracleHistoricalTotalBlocks)
+    )
+  ) {
     throw new Error('historal total blocks misconfigured')
   }
 
   const startingBlockNumber = await L2OutputOracle.STARTING_BLOCK_NUMBER()
   if (
-    !startingBlockNumber.eq(BigNumber.from(deployConfig.l2OutputOracleStartingBlockNumber))
+    !startingBlockNumber.eq(
+      BigNumber.from(deployConfig.l2OutputOracleStartingBlockNumber)
+    )
   ) {
     throw new Error('starting block number misconfigured')
   }

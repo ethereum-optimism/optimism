@@ -23,11 +23,15 @@ task('rollup-config', 'create a genesis config')
     // sanity check our RPC connections
     const l1ChainID = await getChainId(l1)
     if (l1ChainID !== deployConfig.l1ChainID) {
-      throw new Error(`connected to L1 RPC ${args.l1RpcUrl} yielded chain ID ${l1ChainID} but expected ${deployConfig.l1ChainID}`)
+      throw new Error(
+        `connected to L1 RPC ${args.l1RpcUrl} yielded chain ID ${l1ChainID} but expected ${deployConfig.l1ChainID}`
+      )
     }
     const l2ChainID = await getChainId(l2)
     if (l2ChainID !== deployConfig.l2ChainID) {
-      throw new Error(`connected to L2 RPC ${args.l2RpcUrl} yielded chain ID ${l2ChainID} but expected ${deployConfig.l2ChainID}`)
+      throw new Error(
+        `connected to L2 RPC ${args.l2RpcUrl} yielded chain ID ${l2ChainID} but expected ${deployConfig.l2ChainID}`
+      )
     }
 
     const l2GenesisBlock = await l2.getBlock('earliest')
