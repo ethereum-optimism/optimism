@@ -18,6 +18,32 @@
   </p>
 </p>
 
+<!-- TABLE OF CONTENTS -->
+<details open="open">
+  <summary>Table of Contents</summary>
+  <ol>
+    <li>
+      <a href="#about-optimism-monorepo">About Optimism Monorepo</a>
+    </li>
+    <li><a href="#contributing">Contributing</a></li>
+    <li><a href="#directory-structure">Directory Structure</a></li>
+    <li>
+      <a href="#branching-model-and-releases">Branching Model and Releases</a>
+      <ul>
+        <li><a href="#active-branches">Active Branches</a></li>
+        <li><a href="#overview">Overview</a></li>
+        <li><a href="#the-master-branch">The master branch</a></li>
+        <li><a href="#the-develop-branch">The develop branch</a></li>
+        <li><a href="#Release-new-versions">Release new versions</a></li>
+        <li><a href="#Release-candidate-branches">Release candidate branches</a></li>
+        <li><a href="#Releasing-new-versions">Releasing new versions</a></li>
+      </ul>
+    </li>
+    <li><a href="#License">License</a></li>
+    <li><a href="#contact">Contact</a></li>
+  </ol>
+</details>
+
 ## About Optimism Monorepo
 <img src="https://raw.githubusercontent.com/ethereum-optimism/brand-kit/ad481978ceac19f5c1db91ca4586bf2ab238f46b/assets/svg/Profile-Logo.svg" alt="Logo" width="80" height="80">
 
@@ -28,14 +54,8 @@
 </p>
 
 Ethereum, scaled.
-Optimism is a low-cost and lightning-fast Ethereum L2 blockchain.
+Optimism is a low-cost and lightning-fast Ethereum L2 blockchain. <br>
 For more details [Click here](https://www.optimism.io/)
-
-
-
-
-
-
 
 ## Contributing
 
