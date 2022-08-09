@@ -5,6 +5,7 @@ import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { ERC165Checker } from "@openzeppelin/contracts/utils/introspection/ERC165Checker.sol";
 import { Address } from "@openzeppelin/contracts/utils/Address.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import { SafeCall } from "../libraries/SafeCall.sol";
 import { Initializable } from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import { IRemoteToken, IL1Token } from "./SupportedInterfaces.sol";
 import { CrossDomainMessenger } from "./CrossDomainMessenger.sol";
@@ -284,7 +285,7 @@ abstract contract StandardBridge is Initializable {
         require(_to != address(this), "StandardBridge: cannot send to self");
 
         emit ETHBridgeFinalized(_from, _to, _amount, _extraData);
-        (bool success, ) = _to.call{ value: _amount }(new bytes(0));
+        bool success = SafeCall.call(_to, gasleft(), _amount, hex"");
         require(success, "StandardBridge: ETH transfer failed");
     }
 
