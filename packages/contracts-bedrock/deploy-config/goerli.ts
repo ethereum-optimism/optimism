@@ -1,5 +1,3 @@
-import { ethers } from 'ethers'
-
 const l1StartingBlockTag =
   '0xafce66a0a2446856112e4069b275ad32b1f4a607888f9c4c59eddf9be81f8670'
 

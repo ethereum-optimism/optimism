@@ -206,10 +206,7 @@ const config: HardhatUserConfig = {
       type: 'string', // uint64
       default: '0x0',
     },
-    l1GenesisBlockTimestamp: {
-      type: 'number',
-      default: 'changeme', // required for L1 genesis generation, optional for deploy config
-    },
+    // l1GenesisBlockTimestamp: not part of deploy config, configured with parameter to genesis task instead.
     // l1GenesisBlockExtraData: not configurable, used for clique singer data. See cliqueSignerAddress instead.
     cliqueSignerAddress: {
       type: 'address',

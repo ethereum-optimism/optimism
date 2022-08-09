@@ -1,12 +1,3 @@
-import { ethers } from 'ethers'
-
-const { env } = process
-
-const l1GenesisBlockTimestamp =
-  typeof env.L1_GENESIS_TIMESTAMP === 'string'
-    ? ethers.BigNumber.from(env.L1_GENESIS_TIMESTAMP).toNumber()
-    : Math.floor(Date.now() / 1000)
-
 const config = {
   // general
   l1StartingBlockTag: 'earliest',
@@ -29,11 +20,10 @@ const config = {
   l2OutputOracleProposer: '0x70997970C51812dc3A010C7d01b50e0d17dc79C8',
   l2OutputOracleOwner: '0x70997970C51812dc3A010C7d01b50e0d17dc79C8',
 
-  // l1
-  l1GenesisBlockTimestamp,
+  // l1: all defaults
 
   // l2
-  proxyAdmin: ethers.constants.AddressZero,
+  proxyAdmin: 0x0000000000000000000000000000000000000000,
   fundDevAccounts: true,
 
   // deploying

@@ -1,7 +1,7 @@
 import fs from 'fs'
 
 import { ethers } from 'ethers'
-import { task } from 'hardhat/config'
+import {task, types} from 'hardhat/config'
 import { Genesis, State } from '@eth-optimism/core-utils'
 import '@eth-optimism/hardhat-deploy-config'
 
@@ -11,9 +11,20 @@ task('genesis-l1', 'create a genesis config')
     'The file to write the output JSON to',
     'genesis.json'
   )
+  .addOptionalParam(
+    'l1GenesisBlockTimestamp',
+    'Timestamp to embed in L1 genesis block, current time will be used if the timestamp is zero',
+    0,
+    types.int
+  )
   .setAction(async (args, hre) => {
     const { deployConfig } = hre
     const alloc: State = {}
+
+    const l1GenesisBlockTimestamp =
+      args.l1GenesisBlockTimestamp === 0
+        ? Math.floor(Date.now() / 1000)
+        : args.l1GenesisBlockTimestamp
 
     // Give each predeploy a single wei
     for (let i = 0; i <= 0xff; i++) {
@@ -82,7 +93,7 @@ task('genesis-l1', 'create a genesis config')
         },
       },
       nonce: deployConfig.l1GenesisBlockNonce,
-      timestamp: ethers.BigNumber.from(deployConfig.l1GenesisBlockTimestamp).toHexString(),
+      timestamp: ethers.BigNumber.from(l1GenesisBlockTimestamp).toHexString(),
       extraData: ethers.utils.hexConcat([
         ethers.constants.HashZero,
         deployConfig.cliqueSignerAddress,

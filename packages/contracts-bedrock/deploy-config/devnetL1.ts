@@ -1,12 +1,3 @@
-import { ethers } from 'ethers'
-
-const { env } = process
-
-const l1GenesisBlockTimestamp =
-  typeof env.L1_GENESIS_TIMESTAMP === 'string'
-    ? ethers.BigNumber.from(env.L1_GENESIS_TIMESTAMP).toNumber()
-    : Math.floor(Date.now() / 1000)
-
 const config = {
   // general
   l1StartingBlockTag: 'earliest',
@@ -32,7 +23,6 @@ const config = {
   // l1
   l1BlockTime: 15,
   cliqueSignerAddress: '0xca062b0fd91172d89bcd4bb084ac4e21972cc467',
-  l1GenesisBlockTimestamp,
 
   // l2
   optimismBaseFeeRecipient: '0xBcd4042DE499D14e55001CcbB24a551F3b954096',
