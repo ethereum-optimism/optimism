@@ -6,17 +6,15 @@ import (
 	"fmt"
 
 	"github.com/ethereum-optimism/optimism/op-node/client"
-	"github.com/ethereum/go-ethereum"
-
-	"github.com/ethereum-optimism/optimism/op-node/rollup"
-
 	"github.com/ethereum-optimism/optimism/op-node/eth"
+	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-node/sources/caching"
+	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rpc"
-	lru "github.com/hashicorp/golang-lru"
 )
 
 type SourceConfig struct {
@@ -70,16 +68,15 @@ func (c *SourceConfig) Check() error {
 }
 
 func DefaultConfig(config *rollup.Config, trustRPC bool) *SourceConfig {
+	// Cache 3/2 worth of sequencing window of receipts and txs, up to 400 per block.
+	span := int(config.SeqWindowSize) * 3 / 2
+	if span > 1000 { // sanity cap. If a large sequencing window is configured, do not make the cache too large
+		span = 1000
+	}
 	return &SourceConfig{
-		// We only consume receipts once per block,
-		// we just need basic redundancy if we share the cache between multiple drivers
-		ReceiptsCacheSize: 20,
-
-		// Optimal if at least a few times the size of a sequencing window.
-		// When smaller than a window, requests would be repeated every window shift.
-		// Additional cache-size for handling reorgs, and thus more unique blocks, also helps.
-		TransactionsCacheSize: int(config.SeqWindowSize * 4),
-		HeadersCacheSize:      int(config.SeqWindowSize * 4),
+		ReceiptsCacheSize:     span * 400,
+		TransactionsCacheSize: span * 400,
+		HeadersCacheSize:      span,
 
 		// TODO: tune batch params
 		MaxParallelBatching: 8,
@@ -105,26 +102,22 @@ type Source struct {
 
 	// cache receipts in bundles per block hash
 	// common.Hash -> types.Receipts
-	receiptsCache *lru.Cache
+	receiptsCache *caching.LRUCache
 
 	// cache transactions in bundles per block hash
 	// common.Hash -> types.Transactions
-	transactionsCache *lru.Cache
+	transactionsCache *caching.LRUCache
 
 	// cache block headers of blocks by hash
 	// common.Hash -> *HeaderInfo
-	headersCache *lru.Cache
+	headersCache *caching.LRUCache
 }
 
-func NewSource(client client.RPC, log log.Logger, config *SourceConfig) (*Source, error) {
+// NewSource wraps a RPC with bindings to fetch L1 data, while logging errors, tracking metrics (optional), and caching.
+func NewSource(client client.RPC, log log.Logger, metrics caching.Metrics, config *SourceConfig) (*Source, error) {
 	if err := config.Check(); err != nil {
 		return nil, fmt.Errorf("bad config, cannot create L1 source: %w", err)
 	}
-	// no errors if the size is positive, as already validated by Check() above.
-	receiptsCache, _ := lru.New(config.ReceiptsCacheSize)
-	transactionsCache, _ := lru.New(config.TransactionsCacheSize)
-	headersCache, _ := lru.New(config.HeadersCacheSize)
-
 	client = LimitRPC(client, config.MaxConcurrentRequests)
 
 	// Batch calls will be split up to handle max-batch size,
@@ -135,9 +128,9 @@ func NewSource(client client.RPC, log log.Logger, config *SourceConfig) (*Source
 		client:            client,
 		batchCall:         getBatch,
 		trustRPC:          config.TrustRPC,
-		receiptsCache:     receiptsCache,
-		transactionsCache: transactionsCache,
-		headersCache:      headersCache,
+		receiptsCache:     caching.NewLRUCache(metrics, "receipts", config.ReceiptsCacheSize),
+		transactionsCache: caching.NewLRUCache(metrics, "txs", config.TransactionsCacheSize),
+		headersCache:      caching.NewLRUCache(metrics, "headers", config.HeadersCacheSize),
 	}, nil
 }
 

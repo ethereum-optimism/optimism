@@ -37,6 +37,9 @@ type Metrics struct {
 	RPCClientRequestDurationSeconds *prometheus.HistogramVec
 	RPCClientResponsesTotal         *prometheus.CounterVec
 
+	L1SourceCache *CacheMetrics
+	// TODO: L2SourceCache *CacheMetrics
+
 	DerivationIdle        prometheus.Gauge
 	PipelineResetsTotal   prometheus.Counter
 	LastPipelineResetUnix prometheus.Gauge
@@ -117,6 +120,8 @@ func NewMetrics(procName string) *Metrics {
 			"method",
 			"error",
 		}),
+
+		L1SourceCache: NewCacheMetrics(registry, ns, "l1_source_cache", "L1 Source cache"),
 
 		DerivationIdle: promauto.With(registry).NewGauge(prometheus.GaugeOpts{
 			Namespace: ns,
