@@ -75,6 +75,9 @@ func InsertHeadBlock(ctx context.Context, log log.Logger, eng Engine, fc eth.For
 	if err != nil {
 		return nil, fmt.Errorf("failed to create new block via forkchoice: %w", err), nil
 	}
+	if fcRes.PayloadStatus.Status == eth.ExecutionInvalid || fcRes.PayloadStatus.Status == eth.ExecutionInvalidBlockHash {
+		return nil, nil, eth.ForkchoiceUpdateErr(fcRes.PayloadStatus)
+	}
 	if fcRes.PayloadStatus.Status != eth.ExecutionValid {
 		return nil, eth.ForkchoiceUpdateErr(fcRes.PayloadStatus), nil
 	}
@@ -93,6 +96,9 @@ func InsertHeadBlock(ctx context.Context, log log.Logger, eng Engine, fc eth.For
 	status, err := eng.NewPayload(ctx, payload)
 	if err != nil {
 		return nil, fmt.Errorf("failed to insert execution payload: %w", err), nil
+	}
+	if status.Status == eth.ExecutionInvalid || status.Status == eth.ExecutionInvalidBlockHash {
+		return nil, nil, eth.NewPayloadErr(payload, status)
 	}
 	if status.Status != eth.ExecutionValid {
 		return nil, eth.NewPayloadErr(payload, status), nil

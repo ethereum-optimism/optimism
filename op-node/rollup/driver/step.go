@@ -25,7 +25,7 @@ func (d *outputImpl) createNewBlock(ctx context.Context, l2Head eth.L2BlockRef, 
 	fetchCtx, cancel := context.WithTimeout(ctx, time.Second*20)
 	defer cancel()
 
-	attrs, _, err := derive.PreparePayloadAttributes(fetchCtx, d.Config, d.dl, l2Head, l1Origin.ID())
+	attrs, err := derive.PreparePayloadAttributes(fetchCtx, d.Config, d.dl, l2Head, l2Head.Time+d.Config.BlockTime, l1Origin.ID())
 	if err != nil {
 		return l2Head, nil, err
 	}

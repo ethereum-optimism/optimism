@@ -7,6 +7,7 @@ import (
 	"net"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/ethereum/go-ethereum"
 	"github.com/prometheus/client_golang/prometheus/collectors"
@@ -27,13 +28,28 @@ const (
 )
 
 type Metrics struct {
-	Info                            *prometheus.GaugeVec
-	Up                              prometheus.Gauge
+	Info *prometheus.GaugeVec
+	Up   prometheus.Gauge
+
 	RPCServerRequestsTotal          *prometheus.CounterVec
 	RPCServerRequestDurationSeconds *prometheus.HistogramVec
 	RPCClientRequestsTotal          *prometheus.CounterVec
 	RPCClientRequestDurationSeconds *prometheus.HistogramVec
 	RPCClientResponsesTotal         *prometheus.CounterVec
+
+	L1SourceCache *CacheMetrics
+	// TODO: L2SourceCache *CacheMetrics
+
+	DerivationIdle        prometheus.Gauge
+	PipelineResetsTotal   prometheus.Counter
+	LastPipelineResetUnix prometheus.Gauge
+	UnsafePayloadsTotal   prometheus.Counter
+	DerivationErrorsTotal prometheus.Counter
+	SequencingErrorsTotal prometheus.Counter
+	PublishingErrorsTotal prometheus.Counter
+	Heads                 *prometheus.GaugeVec
+
+	TransactionsSequencedTotal prometheus.Counter
 
 	registry *prometheus.Registry
 }
@@ -60,6 +76,7 @@ func NewMetrics(procName string) *Metrics {
 			Name:      "up",
 			Help:      "1 if the op node has finished starting up",
 		}),
+
 		RPCServerRequestsTotal: promauto.With(registry).NewCounterVec(prometheus.CounterOpts{
 			Namespace: ns,
 			Subsystem: RPCServerSubsystem,
@@ -103,6 +120,58 @@ func NewMetrics(procName string) *Metrics {
 			"method",
 			"error",
 		}),
+
+		L1SourceCache: NewCacheMetrics(registry, ns, "l1_source_cache", "L1 Source cache"),
+
+		DerivationIdle: promauto.With(registry).NewGauge(prometheus.GaugeOpts{
+			Namespace: ns,
+			Name:      "derivation_idle",
+			Help:      "1 if the derivation pipeline is idle",
+		}),
+		PipelineResetsTotal: promauto.With(registry).NewCounter(prometheus.CounterOpts{
+			Namespace: ns,
+			Name:      "pipeline_resets_total",
+			Help:      "Count of derivation pipeline resets",
+		}),
+		LastPipelineResetUnix: promauto.With(registry).NewGauge(prometheus.GaugeOpts{
+			Namespace: ns,
+			Name:      "last_pipeline_reset_unix",
+			Help:      "Timestamp of last pipeline reset",
+		}),
+		UnsafePayloadsTotal: promauto.With(registry).NewCounter(prometheus.CounterOpts{
+			Namespace: ns,
+			Name:      "unsafe_payloads_total",
+			Help:      "Count of unsafe payloads received via p2p",
+		}),
+		DerivationErrorsTotal: promauto.With(registry).NewCounter(prometheus.CounterOpts{
+			Namespace: ns,
+			Name:      "derivation_errors_total",
+			Help:      "Count of total derivation errors",
+		}),
+		SequencingErrorsTotal: promauto.With(registry).NewCounter(prometheus.CounterOpts{
+			Namespace: ns,
+			Name:      "sequencing_errors_total",
+			Help:      "Count of total sequencing errors",
+		}),
+		PublishingErrorsTotal: promauto.With(registry).NewCounter(prometheus.CounterOpts{
+			Namespace: ns,
+			Name:      "publishing_errors_total",
+			Help:      "Count of total p2p publishing errors",
+		}),
+		Heads: promauto.With(registry).NewGaugeVec(prometheus.GaugeOpts{
+			Namespace: ns,
+			Name:      "heads",
+			Help:      "Gauge representing the different L1/L2 heads",
+		}, []string{
+			"type",
+		}),
+
+		TransactionsSequencedTotal: promauto.With(registry).NewGauge(prometheus.GaugeOpts{
+			Namespace: ns,
+			Name:      "transactions_sequenced_total",
+			Help:      "Count of total transactions sequenced",
+		}),
+
 		registry: registry,
 	}
 }
@@ -164,6 +233,23 @@ func (m *Metrics) RecordRPCClientResponse(method string, err error) {
 		errStr = "<unknown>"
 	}
 	m.RPCClientResponsesTotal.WithLabelValues(method, errStr).Inc()
+}
+
+func (m *Metrics) SetDerivationIdle(status bool) {
+	var val float64
+	if status {
+		val = 1
+	}
+	m.DerivationIdle.Set(val)
+}
+
+func (m *Metrics) SetHead(kind string, num uint64) {
+	m.Heads.WithLabelValues(kind).Set(float64(num))
+}
+
+func (m *Metrics) RecordPipelineReset() {
+	m.PipelineResetsTotal.Inc()
+	m.LastPipelineResetUnix.Set(float64(time.Now().Unix()))
 }
 
 // Serve starts the metrics server on the given hostname and port.

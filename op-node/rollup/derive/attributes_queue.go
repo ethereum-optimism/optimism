@@ -2,7 +2,6 @@ package derive
 
 import (
 	"context"
-	"fmt"
 	"io"
 	"time"
 
@@ -55,14 +54,9 @@ func (aq *AttributesQueue) Step(ctx context.Context, outer Progress) error {
 
 	fetchCtx, cancel := context.WithTimeout(ctx, 20*time.Second)
 	defer cancel()
-	attrs, crit, err := PreparePayloadAttributes(fetchCtx, aq.config, aq.dl, aq.next.SafeL2Head(), batch.Epoch())
+	attrs, err := PreparePayloadAttributes(fetchCtx, aq.config, aq.dl, aq.next.SafeL2Head(), batch.Timestamp, batch.Epoch())
 	if err != nil {
-		if crit {
-			return fmt.Errorf("failed to prepare payload attributes for batch: %v", err)
-		} else {
-			aq.log.Error("temporarily failing to prepare payload attributes for batch", "err", err)
-			return nil
-		}
+		return err
 	}
 
 	// we are verifying, not sequencing, we've got all transactions and do not pull from the tx-pool

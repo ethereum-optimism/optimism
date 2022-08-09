@@ -35,8 +35,12 @@ func SingleResponseHandler(code int, response string) http.HandlerFunc {
 }
 
 func BatchedResponseHandler(code int, responses ...string) http.HandlerFunc {
-	// all proxyd upstream requests are batched
 	return func(w http.ResponseWriter, r *http.Request) {
+		if len(responses) == 1 {
+			SingleResponseHandler(code, responses[0])(w, r)
+			return
+		}
+
 		var body string
 		body += "["
 		for i, response := range responses {

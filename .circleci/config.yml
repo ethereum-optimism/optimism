@@ -141,7 +141,7 @@ jobs:
           name: gas snapshot
           command: |
             forge --version
-            forge snapshot --check || exit 0
+            forge snapshot --check
           environment:
             FOUNDRY_PROFILE: ci
           working_directory: packages/contracts-bedrock
@@ -278,13 +278,18 @@ jobs:
     steps:
       - checkout
       - run:
+          name: yarn dev deps  # todo: what's the best way to pull in the dependencies for linting? yarn install above is using production env without dev dependencies
+          command: yarn install --production=false
+      - run:
+          name: specs toc
+          command: yarn lint:specs:toc && git diff --exit-code ./specs
+      - run:
           name: markdown lint
-          command: |
-            docker run -v `pwd`:/workdir davidanson/markdownlint-cli2:0.4.0 "op-node/README.md" "./specs/**/*.md" "#**/node_modules"
+          command: yarn lint:specs:check
       - run:
           name: link lint
           command: |
-            docker run --init -it -v `pwd`:/input lycheeverse/lychee --verbose --no-progress --exclude-loopback --exclude twitter.com --exclude-mail /input/README.md "/input/specs/**/*.md" "/input/meta/**/*.md" "/input/op-node/**/*.md" || exit 0
+            docker run --init -it -v `pwd`:/input lycheeverse/lychee --verbose --no-progress --exclude-loopback --exclude twitter.com --exclude-mail /input/README.md "/input/specs/**/*.md"
 
   fuzz-op-node:
     docker:
@@ -449,17 +454,29 @@ jobs:
             make devnet-up
       - run:
           name: Do a deposit
-          no_output_timeout: 5m
           command: |
-            npx hardhat compile
-            npx hardhat deposit \
+            timeout 5m npx hardhat deposit \
                 --to 0xB79f76EF2c5F0286176833E7B2eEe103b1CC3244  \
                 --amount-eth 1 \
                 --private-key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80 \
                 --network devnetL1
-          working_directory: packages/contracts-bedrock/contracts-bedrock
+          working_directory: packages/contracts-bedrock
       - run:
-          command: echo "Deposit complete."
+          name: Deposit ERC20 through the bridge
+          command: timeout 5m npx hardhat deposit-erc20 --network devnetL1
+          working_directory: packages/sdk
+      - run:
+          name: Deposit ETH through the bridge
+          command: timeout 5m npx hardhat deposit-eth --network devnetL1
+          working_directory: packages/sdk
+      - run:
+          name: Check the status
+          command: npx hardhat check-op-node
+          working_directory: packages/contracts-bedrock
+      - run:
+          name: Check L2 Config
+          command: npx hardhat check-l2-config
+          working_directory: packages/contracts-bedrock
 
   integration-tests:
     machine:
@@ -570,6 +587,12 @@ workflows:
           requires:
             - yarn-monorepo
       - op-bindings-build:
+          requires:
+            - yarn-monorepo
+      - js-lint-test:
+          name: actor-tests-tests
+          package_name: actor-tests
+          dependencies: "(core-utils|sdk)"
           requires:
             - yarn-monorepo
       - js-lint-test:
@@ -689,20 +712,6 @@ workflows:
           docker_file: ops/docker/hardhat/Dockerfile
           docker_tags: ethereumoptimism/hardhat-node:nightly
           docker_context: ops/docker/hardhat
-          context:
-            - optimism
-      - docker-publish:
-          name: go-builder-release
-          docker_file: ops/docker/go-builder/Dockerfile
-          docker_tags: ethereumoptimism/go-builder:nightly
-          docker_context: .
-          context:
-            - optimism
-      - docker-publish:
-          name: js-builder-release
-          docker_file: ops/docker/js-builder/Dockerfile
-          docker_tags: ethereumoptimism/js-builder:nightly
-          docker_context: .
           context:
             - optimism
       - docker-publish:

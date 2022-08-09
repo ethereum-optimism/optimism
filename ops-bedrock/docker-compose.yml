@@ -19,7 +19,7 @@ services:
       - "8545:8545"
     volumes:
       - "l1_data:/db"
-      - ${PWD}/../.devnet/genesis-l1.json:/genesis.json
+      - "${PWD}/../.devnet/genesis-l1.json:/genesis.json"
 
   l2:
     build:
@@ -29,8 +29,8 @@ services:
       - "9545:8545"
     volumes:
       - "l2_data:/db"
-      - ${PWD}/../.devnet/genesis-l2.json:/genesis.json
-      - ${PWD}/test-jwt-secret.txt:/config/test-jwt-secret.txt
+      - "${PWD}/../.devnet/genesis-l2.json:/genesis.json"
+      - "${PWD}/test-jwt-secret.txt:/config/test-jwt-secret.txt"
     entrypoint:  # pass the L2 specific flags by overriding the entry-point and adding extra arguments
       - "/bin/sh"
       - "/entrypoint.sh"
@@ -63,15 +63,17 @@ services:
       --metrics.enabled
       --metrics.addr=0.0.0.0
       --metrics.port=7300
+      --pprof.enabled
     ports:
       - "7545:8545"
       - "9003:9003"
       - "7300:7300"
+      - "6060:6060"
     volumes:
-      - ${PWD}/p2p-sequencer-key.txt:/config/p2p-sequencer-key.txt
-      - ${PWD}/p2p-node-key.txt:/config/p2p-node-key.txt
-      - ${PWD}/test-jwt-secret.txt:/config/test-jwt-secret.txt
-      - ${PWD}/../.devnet/rollup.json:/rollup.json
+      - "${PWD}/p2p-sequencer-key.txt:/config/p2p-sequencer-key.txt"
+      - "${PWD}/p2p-node-key.txt:/config/p2p-node-key.txt"
+      - "${PWD}/test-jwt-secret.txt:/config/test-jwt-secret.txt"
+      - "${PWD}/../.devnet/rollup.json:/rollup.json"
       - op_log:/op_log
 
   op-proposer:
@@ -82,11 +84,13 @@ services:
     build:
       context: ../
       dockerfile: ./op-proposer/Dockerfile
+    ports:
+      - "6062:6060"
     environment:
       L1_ETH_RPC: http://l1:8545
       L2_ETH_RPC: http://l2:8545
       ROLLUP_RPC: http://op-node:8545
-      OUTPUT_SUBMITTER_POLL_INTERVAL: 10s
+      OUTPUT_SUBMITTER_POLL_INTERVAL: 1s
       OUTPUT_SUBMITTER_NUM_CONFIRMATIONS: 1
       OUTPUT_SUBMITTER_SAFE_ABORT_NONCE_TOO_LOW_COUNT: 3
       OUTPUT_SUBMITTER_RESUBMISSION_TIMEOUT: 30s
@@ -94,6 +98,7 @@ services:
       OUTPUT_SUBMITTER_L2_OUTPUT_HD_PATH: "m/44'/60'/0'/0/1"
       OUTPUT_SUBMITTER_LOG_TERMINAL: "true"
       L2OO_ADDRESS: "${L2OO_ADDRESS}"
+      OUTPUT_SUBMITTER_PPROF_ENABLED: "true"
 
   op-batcher:
     depends_on:
@@ -103,6 +108,8 @@ services:
     build:
       context: ../
       dockerfile: ./op-batcher/Dockerfile
+    ports:
+      - "6061:6060"
     environment:
       L1_ETH_RPC: http://l1:8545
       L2_ETH_RPC: http://l2:8545
@@ -116,10 +123,10 @@ services:
       BATCH_SUBMITTER_RESUBMISSION_TIMEOUT: 30s
       BATCH_SUBMITTER_MNEMONIC: test test test test test test test test test test test junk
       BATCH_SUBMITTER_SEQUENCER_HD_PATH: "m/44'/60'/0'/0/2"
-      BATCH_SUBMITTER_SEQUENCER_HISTORY_DB_FILENAME: "history_db.json"
       BATCH_SUBMITTER_SEQUENCER_GENESIS_HASH: "${SEQUENCER_GENESIS_HASH}"
       BATCH_SUBMITTER_SEQUENCER_BATCH_INBOX_ADDRESS: "${SEQUENCER_BATCH_INBOX_ADDRESS}"
       BATCH_SUBMITTER_LOG_TERMINAL: "true"
+      BATCH_SUBMITTER_PPROF_ENABLED: "true"
 
   stateviz:
     build:

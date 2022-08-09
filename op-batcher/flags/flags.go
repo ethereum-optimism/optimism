@@ -82,15 +82,18 @@ var (
 		Name: "mnemonic",
 		Usage: "The mnemonic used to derive the wallets for either the " +
 			"sequencer or the l2output",
-		Required: true,
-		EnvVar:   prefixEnvVar("MNEMONIC"),
+		EnvVar: prefixEnvVar("MNEMONIC"),
 	}
 	SequencerHDPathFlag = cli.StringFlag{
 		Name: "sequencer-hd-path",
 		Usage: "The HD path used to derive the sequencer wallet from the " +
 			"mnemonic. The mnemonic flag must also be set.",
-		Required: true,
-		EnvVar:   prefixEnvVar("SEQUENCER_HD_PATH"),
+		EnvVar: prefixEnvVar("SEQUENCER_HD_PATH"),
+	}
+	PrivateKeyFlag = cli.StringFlag{
+		Name:   "private-key",
+		Usage:  "The private key to use with the l2output wallet. Must not be used with mnemonic.",
+		EnvVar: prefixEnvVar("PRIVATE_KEY"),
 	}
 	SequencerBatchInboxAddressFlag = cli.StringFlag{
 		Name:     "sequencer-batch-inbox-address",
@@ -113,6 +116,23 @@ var (
 			"in JSON format.",
 		EnvVar: prefixEnvVar("LOG_TERMINAL"),
 	}
+	PprofEnabledFlag = cli.BoolFlag{
+		Name:   "pprof.enabled",
+		Usage:  "Enable the pprof server",
+		EnvVar: prefixEnvVar("PPROF_ENABLED"),
+	}
+	PprofAddrFlag = cli.StringFlag{
+		Name:   "pprof.addr",
+		Usage:  "pprof listening address",
+		Value:  "0.0.0.0",
+		EnvVar: prefixEnvVar("PPROF_ADDR"),
+	}
+	PprofPortFlag = cli.IntFlag{
+		Name:   "pprof.port",
+		Usage:  "pprof listening port",
+		Value:  6060,
+		EnvVar: prefixEnvVar("PPROF_PORT"),
+	}
 )
 
 var requiredFlags = []cli.Flag{
@@ -126,14 +146,18 @@ var requiredFlags = []cli.Flag{
 	NumConfirmationsFlag,
 	SafeAbortNonceTooLowCountFlag,
 	ResubmissionTimeoutFlag,
-	MnemonicFlag,
-	SequencerHDPathFlag,
 	SequencerBatchInboxAddressFlag,
 }
 
 var optionalFlags = []cli.Flag{
+	MnemonicFlag,
+	SequencerHDPathFlag,
+	PrivateKeyFlag,
 	LogLevelFlag,
 	LogTerminalFlag,
+	PprofEnabledFlag,
+	PprofAddrFlag,
+	PprofPortFlag,
 }
 
 // Flags contains the list of configuration options available to the binary.

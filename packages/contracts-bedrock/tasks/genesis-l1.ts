@@ -61,7 +61,7 @@ task('genesis-l1', 'create a genesis config')
       }
     }
 
-    const timestamp = hre.deployConfig.startingTimestamp
+    const timestamp = hre.deployConfig.l1GenesisTimestamp
     if (timestamp === undefined) {
       throw new Error('Must configure starting block timestamp')
     }
