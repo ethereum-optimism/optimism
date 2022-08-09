@@ -1,8 +1,8 @@
 const config = {
   // general
   l1StartingBlockTag: 'earliest',
-  l1ChainID: 901,
-  l2ChainID: 902,
+  l1ChainID: 900,
+  l2ChainID: 901,
   l2BlockTime: 2,
 
   // rollup
