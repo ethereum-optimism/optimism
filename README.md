@@ -33,34 +33,6 @@
 
 
 
-
-
-
-
-
-<div align="center">
-  <a href="https://community.optimism.io"><img alt="Optimism" src="https://raw.githubusercontent.com/ethereum-optimism/brand-kit/ad481978ceac19f5c1db91ca4586bf2ab238f46b/assets/svg/Profile-Logo.svg" width=280></a>
-  <br />
-  <h1> The Optimism Monorepo</h1>
-</div>
-<p align="center">
-  <a href="https://github.com/ethereum-optimism/optimism/actions/workflows/ts-packages.yml?query=branch%3Amaster"><img src="https://github.com/ethereum-optimism/optimism/workflows/typescript%20/%20contracts/badge.svg" /></a>
-  <a href="https://github.com/ethereum-optimism/optimism/actions/workflows/integration.yml?query=branch%3Amaster"><img src="https://github.com/ethereum-optimism/optimism/workflows/integration/badge.svg" /></a>
-  <a href="https://github.com/ethereum-optimism/optimism/actions/workflows/geth.yml?query=branch%3Amaster"><img src="https://github.com/ethereum-optimism/optimism/workflows/geth%20unit%20tests/badge.svg" /></a>
-</p>
-
-## TL;DR
-
-This is where [Optimism](https://optimism.io) gets built.
-
-## Documentation
-
-Extensive documentation is available [here](http://community.optimism.io/).
-
-## Community
-
-Come hang on our very active [discord](https://discord.optimism.io) 🔴✨
-
 ## Contributing
 
 Read through [CONTRIBUTING.md](./CONTRIBUTING.md) for a general overview of our contribution process.
