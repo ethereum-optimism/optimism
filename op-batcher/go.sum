@@ -154,8 +154,8 @@ github.com/ethereum-optimism/optimism/op-node v0.3.0 h1:jep/cbIbP7fjBSAR48yk5NJV
 github.com/ethereum-optimism/optimism/op-node v0.3.0/go.mod h1:iF9AhYjr8jNeoCDNP/Vs/ywQ2USZU5L66AxZbSAUi0E=
 github.com/ethereum-optimism/optimism/op-proposer v0.3.0 h1:K1ipZt3TLD0BJi7tKOmx8tCLXj9i4f4baBIhbPmUxk4=
 github.com/ethereum-optimism/optimism/op-proposer v0.3.0/go.mod h1:GcQ9VCWz2zEVexecq5IYo/2eadK/y7IBOEfx4YV1QJk=
-github.com/ethereum-optimism/reference-optimistic-geth v0.0.0-20220803173305-1c9d4cc76a6e h1:hz+iywXjnqz6xA3lTLvtNL9OZyX76pS5SER4kZBmQLs=
-github.com/ethereum-optimism/reference-optimistic-geth v0.0.0-20220803173305-1c9d4cc76a6e/go.mod h1:EYFyF19u3ezGLD4RqOkLq+ZCXzYbLoNDdZlMt7kyKFg=
+github.com/ethereum-optimism/reference-optimistic-geth v0.0.0-20220810221227-a68e5aa189e1 h1:cLAkNAHg/ByqMvyMdcHaOLuJJeQY+YxHUYOPg6zDvjg=
+github.com/ethereum-optimism/reference-optimistic-geth v0.0.0-20220810221227-a68e5aa189e1/go.mod h1:EYFyF19u3ezGLD4RqOkLq+ZCXzYbLoNDdZlMt7kyKFg=
 github.com/ethereum/go-ethereum v1.10.4/go.mod h1:nEE0TP5MtxGzOMd7egIrbPJMQBnhVU3ELNxhBglIzhg=
 github.com/fatih/color v1.7.0/go.mod h1:Zm6kSWBoL9eyXnKyktHP6abPY2pDugNf5KwzbycvMj4=
 github.com/fjl/memsize v0.0.0-20190710130421-bcb5799ab5e5/go.mod h1:VvhXpOYNQvB+uIk2RvXzuaQtkQJzzIx6lSBe1xv7hi0=
