@@ -7,7 +7,7 @@ require (
 	github.com/ethereum-optimism/optimism/op-bindings v0.3.0
 	github.com/ethereum-optimism/optimism/op-node v0.3.0
 	github.com/ethereum-optimism/optimism/op-proposer v0.3.0
-	github.com/ethereum-optimism/optimism/op-service v0.0.0-20220810224320-1b60e859deb5
+	github.com/ethereum-optimism/optimism/op-service v0.4.0
 	github.com/ethereum/go-ethereum v1.10.21
 	github.com/libp2p/go-libp2p v0.18.1
 	github.com/libp2p/go-libp2p-core v0.15.0
