@@ -57,20 +57,13 @@ function wait_up {
 
 mkdir -p ./.devnet
 
-if [ ! -f ./.devnet/rollup.json ]; then
-    L1_GENESIS_TIMESTAMP=$(date +%s | xargs printf "0x%x")
-else
-    L1_GENESIS_TIMESTAMP=$(jq '.timestamp' < .devnet/genesis-l1.json)
-fi
-
 # Regenerate the L1 genesis file if necessary. The existence of the genesis
 # file is used to determine if we need to recreate the devnet's state folder.
 if [ ! -f ./.devnet/genesis-l1.json ]; then
   echo "Regenerating L1 genesis."
   (
     cd $CONTRACTS_BEDROCK
-    L1_GENESIS_TIMESTAMP=$L1_GENESIS_TIMESTAMP npx hardhat genesis-l1 \
-        --outfile genesis-l1.json
+    npx hardhat --network $NETWORK genesis-l1 --outfile genesis-l1.json
     mv genesis-l1.json ../../.devnet/genesis-l1.json
   )
 fi
@@ -89,7 +82,7 @@ if [ ! -d $CONTRACTS_BEDROCK/deployments/$NETWORK ]; then
   (
     echo "Deploying contracts."
     cd $CONTRACTS_BEDROCK
-    L1_GENESIS_TIMESTAMP=$L1_GENESIS_TIMESTAMP yarn hardhat --network $NETWORK deploy
+    yarn hardhat --network $NETWORK deploy
   )
 else
   echo "Contracts already deployed, skipping."
@@ -99,7 +92,7 @@ if [ ! -f ./.devnet/genesis-l2.json ]; then
     (
       echo "Creating L2 genesis file."
       cd $CONTRACTS_BEDROCK
-      L1_GENESIS_TIMESTAMP=$L1_GENESIS_TIMESTAMP npx hardhat --network $NETWORK genesis-l2
+      npx hardhat --network $NETWORK genesis-l2
       mv genesis.json ../../.devnet/genesis-l2.json
       echo "Created L2 genesis."
     )
@@ -120,7 +113,7 @@ if [ ! -f ./.devnet/rollup.json ]; then
     (
       echo "Building rollup config..."
       cd $CONTRACTS_BEDROCK
-      L1_GENESIS_TIMESTAMP=$L1_GENESIS_TIMESTAMP npx hardhat --network $NETWORK rollup-config
+      npx hardhat --network $NETWORK rollup-config
       mv rollup.json ../../.devnet/rollup.json
     )
 else
