@@ -1,7 +1,7 @@
 import fs from 'fs'
 
 import { ethers } from 'ethers'
-import { task } from 'hardhat/config'
+import { task, types } from 'hardhat/config'
 import { Genesis, State } from '@eth-optimism/core-utils'
 import '@eth-optimism/hardhat-deploy-config'
 
@@ -11,9 +11,20 @@ task('genesis-l1', 'create a genesis config')
     'The file to write the output JSON to',
     'genesis.json'
   )
+  .addOptionalParam(
+    'l1GenesisBlockTimestamp',
+    'Timestamp to embed in L1 genesis block, current time will be used if the timestamp is zero',
+    0,
+    types.int
+  )
   .setAction(async (args, hre) => {
     const { deployConfig } = hre
     const alloc: State = {}
+
+    const l1GenesisBlockTimestamp =
+      args.l1GenesisBlockTimestamp === 0
+        ? Math.floor(Date.now() / 1000)
+        : args.l1GenesisBlockTimestamp
 
     // Give each predeploy a single wei
     for (let i = 0; i <= 0xff; i++) {
@@ -61,18 +72,12 @@ task('genesis-l1', 'create a genesis config')
       }
     }
 
-    const timestamp = hre.deployConfig.l1GenesisTimestamp
-    if (timestamp === undefined) {
-      throw new Error('Must configure starting block timestamp')
-    }
-
     const genesis: Genesis = {
       config: {
-        chainId: 900,
+        chainId: deployConfig.l1ChainID,
         homesteadBlock: 0,
         eip150Block: 0,
-        eip150Hash:
-          '0x0000000000000000000000000000000000000000000000000000000000000000',
+        eip150Hash: ethers.constants.HashZero,
         eip155Block: 0,
         eip158Block: 0,
         byzantiumBlock: 0,
@@ -83,20 +88,26 @@ task('genesis-l1', 'create a genesis config')
         berlinBlock: 0,
         londonBlock: 0,
         clique: {
-          period: 15,
+          period: deployConfig.l1BlockTime,
           epoch: 30000,
         },
       },
-      nonce: '0x0',
-      timestamp: ethers.BigNumber.from(timestamp).toHexString(),
-      extraData:
-        '0x0000000000000000000000000000000000000000000000000000000000000000ca062b0fd91172d89bcd4bb084ac4e21972cc4670000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000',
-      gasLimit: ethers.BigNumber.from(15_000_000).toHexString(),
-      difficulty: '0x1',
-      mixHash:
-        '0x0000000000000000000000000000000000000000000000000000000000000000',
-      coinbase: '0x0000000000000000000000000000000000000000',
+      nonce: deployConfig.l1GenesisBlockNonce,
+      timestamp: ethers.BigNumber.from(l1GenesisBlockTimestamp).toHexString(),
+      extraData: ethers.utils.hexConcat([
+        ethers.constants.HashZero,
+        deployConfig.cliqueSignerAddress,
+        ethers.utils.hexZeroPad('0x', 65),
+      ]),
+      gasLimit: deployConfig.l1GenesisBlockGasLimit,
+      difficulty: deployConfig.l1GenesisBlockDifficulty,
+      mixHash: deployConfig.l1GenesisBlockMixHash,
+      coinbase: deployConfig.l1GenesisBlockCoinbase,
       alloc,
+      number: deployConfig.l1GenesisBlockNumber,
+      gasUsed: deployConfig.l1GenesisBlockGasUsed,
+      parentHash: deployConfig.l1GenesisBlockParentHash,
+      baseFeePerGas: deployConfig.l1GenesisBlockBaseFeePerGas,
     }
 
     fs.writeFileSync(args.outfile, JSON.stringify(genesis, null, 2))

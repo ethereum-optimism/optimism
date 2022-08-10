@@ -60,6 +60,7 @@ export interface Genesis {
   gasUsed?: string
   parentHash?: string
   extraData: string
+  baseFeePerGas?: string
   alloc: State
 }
 

@@ -8,7 +8,7 @@ import (
 
 // Flags
 
-const envVarPrefix = "ROLLUP_NODE_"
+const envVarPrefix = "OP_NODE_"
 
 func prefixEnvVar(name string) string {
 	return envVarPrefix + name
