@@ -1,13 +1,17 @@
 package flags
 
 import (
+	oplog "github.com/ethereum-optimism/optimism/op-service/log"
+	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
+	oppprof "github.com/ethereum-optimism/optimism/op-service/pprof"
+	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
 	"github.com/urfave/cli"
 )
 
-const envVarPrefix = "OP_PROPOSER_"
+const envVarPrefix = "OP_PROPOSER"
 
 func prefixEnvVar(name string) string {
-	return envVarPrefix + name
+	return envVarPrefix + "_" + name
 }
 
 var (
@@ -83,38 +87,6 @@ var (
 		Usage:  "The private key to use with the l2output wallet. Must not be used with mnemonic.",
 		EnvVar: prefixEnvVar("PRIVATE_KEY"),
 	}
-
-	/* Optional Flags */
-
-	LogLevelFlag = cli.StringFlag{
-		Name:   "log.level",
-		Usage:  "The lowest log level that will be output",
-		Value:  "info",
-		EnvVar: prefixEnvVar("LOG_LEVEL"),
-	}
-	LogTerminalFlag = cli.BoolFlag{
-		Name: "log.terminal",
-		Usage: "If true, outputs logs in terminal format, otherwise prints " +
-			"in JSON format.",
-		EnvVar: prefixEnvVar("LOG_TERMINAL"),
-	}
-	PprofEnabledFlag = cli.BoolFlag{
-		Name:   "pprof.enabled",
-		Usage:  "Enable the pprof server",
-		EnvVar: prefixEnvVar("PPROF_ENABLED"),
-	}
-	PprofAddrFlag = cli.StringFlag{
-		Name:   "pprof.addr",
-		Usage:  "pprof listening address",
-		Value:  "0.0.0.0",
-		EnvVar: prefixEnvVar("PPROF_ADDR"),
-	}
-	PprofPortFlag = cli.IntFlag{
-		Name:   "pprof.port",
-		Usage:  "pprof listening port",
-		Value:  6060,
-		EnvVar: prefixEnvVar("PPROF_PORT"),
-	}
 )
 
 var requiredFlags = []cli.Flag{
@@ -132,12 +104,17 @@ var optionalFlags = []cli.Flag{
 	MnemonicFlag,
 	L2OutputHDPathFlag,
 	PrivateKeyFlag,
-	LogLevelFlag,
-	LogTerminalFlag,
-	PprofEnabledFlag,
-	PprofAddrFlag,
-	PprofPortFlag,
+}
+
+func init() {
+	requiredFlags = append(requiredFlags, oprpc.CLIFlags(envVarPrefix)...)
+
+	optionalFlags = append(optionalFlags, oplog.CLIFlags(envVarPrefix)...)
+	optionalFlags = append(optionalFlags, opmetrics.CLIFlags(envVarPrefix)...)
+	optionalFlags = append(optionalFlags, oppprof.CLIFlags(envVarPrefix)...)
+
+	Flags = append(requiredFlags, optionalFlags...)
 }
 
 // Flags contains the list of configuration options available to the binary.
-var Flags = append(requiredFlags, optionalFlags...)
+var Flags []cli.Flag

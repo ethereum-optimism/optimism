@@ -15,6 +15,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/p2p"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	l2os "github.com/ethereum-optimism/optimism/op-proposer"
+	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
@@ -554,10 +555,12 @@ func (cfg SystemConfig) start() (*System, error) {
 		NumConfirmations:          1,
 		ResubmissionTimeout:       3 * time.Second,
 		SafeAbortNonceTooLowCount: 3,
-		LogLevel:                  "info",
-		LogTerminal:               true,
-		Mnemonic:                  sys.cfg.Mnemonic,
-		L2OutputHDPath:            sys.cfg.L2OutputHDPath,
+		LogConfig: oplog.CLIConfig{
+			Level:  "info",
+			Format: "text",
+		},
+		Mnemonic:       sys.cfg.Mnemonic,
+		L2OutputHDPath: sys.cfg.L2OutputHDPath,
 	}, "", sys.cfg.Loggers["proposer"])
 	if err != nil {
 		return nil, fmt.Errorf("unable to setup l2 output submitter: %w", err)
@@ -569,18 +572,20 @@ func (cfg SystemConfig) start() (*System, error) {
 
 	// Batch Submitter
 	sys.batchSubmitter, err = bss.NewBatchSubmitter(bss.Config{
-		L1EthRpc:                   sys.nodes["l1"].WSEndpoint(),
-		L2EthRpc:                   sys.nodes["sequencer"].WSEndpoint(),
-		RollupRpc:                  rollupEndpoint,
-		MinL1TxSize:                1,
-		MaxL1TxSize:                120000,
-		ChannelTimeout:             sys.cfg.RollupConfig.ChannelTimeout,
-		PollInterval:               50 * time.Millisecond,
-		NumConfirmations:           1,
-		ResubmissionTimeout:        5 * time.Second,
-		SafeAbortNonceTooLowCount:  3,
-		LogLevel:                   "info", // ignored if started in-process this way
-		LogTerminal:                true,   // ignored
+		L1EthRpc:                  sys.nodes["l1"].WSEndpoint(),
+		L2EthRpc:                  sys.nodes["sequencer"].WSEndpoint(),
+		RollupRpc:                 rollupEndpoint,
+		MinL1TxSize:               1,
+		MaxL1TxSize:               120000,
+		ChannelTimeout:            sys.cfg.RollupConfig.ChannelTimeout,
+		PollInterval:              50 * time.Millisecond,
+		NumConfirmations:          1,
+		ResubmissionTimeout:       5 * time.Second,
+		SafeAbortNonceTooLowCount: 3,
+		LogConfig: oplog.CLIConfig{
+			Level:  "info",
+			Format: "text",
+		},
 		Mnemonic:                   sys.cfg.Mnemonic,
 		SequencerHDPath:            sys.cfg.BatchSubmitterHDPath,
 		SequencerBatchInboxAddress: sys.cfg.RollupConfig.BatchInboxAddress.String(),
