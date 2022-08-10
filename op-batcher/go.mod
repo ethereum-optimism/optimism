@@ -23,7 +23,7 @@ require (
 	github.com/deckarep/golang-set v1.8.0 // indirect
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.0.1 // indirect
 	github.com/edsrzf/mmap-go v1.1.0 // indirect
-	github.com/ethereum-optimism/optimism/op-bindings v0.3.0 // indirect
+	github.com/ethereum-optimism/optimism/op-bindings v0.4.0 // indirect
 	github.com/fjl/memsize v0.0.1 // indirect
 	github.com/go-ole/go-ole v1.2.6 // indirect
 	github.com/go-stack/stack v1.8.1 // indirect
