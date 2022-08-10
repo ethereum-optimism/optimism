@@ -110,7 +110,7 @@ func (n *OpNode) initL1(ctx context.Context, cfg *Config) error {
 		return fmt.Errorf("failed to get L1 RPC client: %w", err)
 	}
 
-	n.l1Source, err = l1.NewSource(client.NewInstrumentedRPC(l1Node, n.metrics), n.log, l1.DefaultConfig(&cfg.Rollup, trustRPC))
+	n.l1Source, err = l1.NewSource(client.NewInstrumentedRPC(l1Node, n.metrics), n.log, n.metrics.L1SourceCache, l1.DefaultConfig(&cfg.Rollup, trustRPC))
 	if err != nil {
 		return fmt.Errorf("failed to create L1 source: %v", err)
 	}

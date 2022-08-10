@@ -101,7 +101,7 @@ func TestSource_InfoByHash(t *testing.T) {
 	m.On("CallContext", ctx, new(*rpcHeader), "eth_getBlockByHash", []interface{}{h, false}).Run(func(args mock.Arguments) {
 		*args[1].(**rpcHeader) = rhdr
 	}).Return([]error{nil})
-	s, err := NewSource(m, log, DefaultConfig(&rollup.Config{SeqWindowSize: 10}, true))
+	s, err := NewSource(m, log, nil, DefaultConfig(&rollup.Config{SeqWindowSize: 10}, true))
 	assert.NoError(t, err)
 	info, err := s.InfoByHash(ctx, h)
 	assert.NoError(t, err)
@@ -128,7 +128,7 @@ func TestSource_InfoByNumber(t *testing.T) {
 	m.On("CallContext", ctx, new(*rpcHeader), "eth_getBlockByNumber", []interface{}{hexutil.EncodeUint64(n), false}).Run(func(args mock.Arguments) {
 		*args[1].(**rpcHeader) = rhdr
 	}).Return([]error{nil})
-	s, err := NewSource(m, log, DefaultConfig(&rollup.Config{SeqWindowSize: 10}, true))
+	s, err := NewSource(m, log, nil, DefaultConfig(&rollup.Config{SeqWindowSize: 10}, true))
 	assert.NoError(t, err)
 	info, err := s.InfoByNumber(ctx, n)
 	assert.NoError(t, err)
@@ -180,7 +180,7 @@ func TestSource_FetchAllTransactions(t *testing.T) {
 		}
 	}).Return([]error{nil})
 
-	s, err := NewSource(m, log, DefaultConfig(&rollup.Config{SeqWindowSize: 10}, true))
+	s, err := NewSource(m, log, nil, DefaultConfig(&rollup.Config{SeqWindowSize: 10}, true))
 	assert.NoError(t, err)
 	s.batchCall = m.batchCall // override the optimized batch call
 
