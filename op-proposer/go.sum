@@ -154,6 +154,8 @@ github.com/ethereum-optimism/optimism/op-bindings v0.3.0 h1:d2Mwb8FzR2zuhW0sS5xF
 github.com/ethereum-optimism/optimism/op-bindings v0.3.0/go.mod h1:CrvUVIISKcyJ7o27ub/HY4Kq9wEJQxrGmWthTqxPSGo=
 github.com/ethereum-optimism/optimism/op-node v0.3.0 h1:jep/cbIbP7fjBSAR48yk5NJVEoGYvoNlYI00KpBI6Mw=
 github.com/ethereum-optimism/optimism/op-node v0.3.0/go.mod h1:iF9AhYjr8jNeoCDNP/Vs/ywQ2USZU5L66AxZbSAUi0E=
+github.com/ethereum-optimism/optimism/op-service v0.0.0-20220810224320-1b60e859deb5 h1:CsegCJl3myTzSG8NnmzwWlEtDFZ4xz+MptS0vb1DwR0=
+github.com/ethereum-optimism/optimism/op-service v0.0.0-20220810224320-1b60e859deb5/go.mod h1:PMl9VqIC3FPH/THwZFmwEyb3ytyAqGmMTzEw4R4J3FI=
 github.com/ethereum-optimism/reference-optimistic-geth v0.0.0-20220810221227-a68e5aa189e1 h1:cLAkNAHg/ByqMvyMdcHaOLuJJeQY+YxHUYOPg6zDvjg=
 github.com/ethereum-optimism/reference-optimistic-geth v0.0.0-20220810221227-a68e5aa189e1/go.mod h1:EYFyF19u3ezGLD4RqOkLq+ZCXzYbLoNDdZlMt7kyKFg=
 github.com/ethereum/go-ethereum v1.10.4/go.mod h1:nEE0TP5MtxGzOMd7egIrbPJMQBnhVU3ELNxhBglIzhg=
