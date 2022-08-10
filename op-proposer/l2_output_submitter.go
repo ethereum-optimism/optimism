@@ -5,8 +5,6 @@ import (
 	"crypto/ecdsa"
 	"errors"
 	"fmt"
-	"net"
-	"net/http"
 	_ "net/http/pprof"
 	"os"
 	"os/signal"
@@ -15,6 +13,11 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/crypto"
+
+	oplog "github.com/ethereum-optimism/optimism/op-service/log"
+	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
+	oppprof "github.com/ethereum-optimism/optimism/op-service/pprof"
+	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
 
 	"github.com/ethereum-optimism/optimism/op-proposer/drivers/l2output"
 	"github.com/ethereum-optimism/optimism/op-proposer/rollupclient"
@@ -39,25 +42,13 @@ const (
 // of a closure allows the parameters bound to the top-level main package, e.g.
 // GitVersion, to be captured and used once the function is executed.
 func Main(version string) func(ctx *cli.Context) error {
-	return func(ctx *cli.Context) error {
-		cfg := NewConfig(ctx)
-
-		// Set up our logging to stdout.
-		var logHandler log.Handler
-		if cfg.LogTerminal {
-			logHandler = log.StreamHandler(os.Stdout, log.TerminalFormat(true))
-		} else {
-			logHandler = log.StreamHandler(os.Stdout, log.JSONFormat())
+	return func(cliCtx *cli.Context) error {
+		cfg := NewConfig(cliCtx)
+		if err := cfg.Check(); err != nil {
+			return fmt.Errorf("invalid CLI flags: %w", err)
 		}
 
-		logLevel, err := log.LvlFromString(cfg.LogLevel)
-		if err != nil {
-			return err
-		}
-
-		l := log.New()
-		l.SetHandler(log.LvlFilterHandler(logLevel, logHandler))
-
+		l := oplog.NewLogger(cfg.LogConfig)
 		l.Info("Initializing L2 Output Submitter")
 
 		l2OutputSubmitter, err := NewL2OutputSubmitter(cfg, version, l)
@@ -74,27 +65,39 @@ func Main(version string) func(ctx *cli.Context) error {
 		}
 		defer l2OutputSubmitter.Stop()
 
+		ctx, cancel := context.WithCancel(context.Background())
+
 		l.Info("L2 Output Submitter started")
-
-		if cfg.PprofEnabled {
-			var srv http.Server
-			srv.Addr = net.JoinHostPort(cfg.PprofAddr, cfg.PprofPort)
-			// Start pprof server + register it's shutdown
+		pprofConfig := cfg.PprofConfig
+		if pprofConfig.Enabled {
+			l.Info("starting pprof", "addr", pprofConfig.ListenAddr, "port", pprofConfig.ListenPort)
 			go func() {
-				l.Info("pprof server started", "addr", srv.Addr)
-				if err := srv.ListenAndServe(); err != http.ErrServerClosed {
-					l.Error("error in pprof server", "err", err)
-				} else {
-					l.Info("pprof server shutting down")
+				if err := oppprof.ListenAndServe(ctx, pprofConfig.ListenAddr, pprofConfig.ListenPort); err != nil {
+					l.Error("error starting pprof", "err", err)
 				}
+			}()
+		}
 
+		registry := opmetrics.NewRegistry()
+		metricsCfg := cfg.MetricsConfig
+		if metricsCfg.Enabled {
+			l.Info("starting metrics server", "addr", metricsCfg.ListenAddr, "port", metricsCfg.ListenPort)
+			go func() {
+				if err := opmetrics.ListenAndServe(ctx, registry, metricsCfg.ListenAddr, metricsCfg.ListenPort); err != nil {
+					l.Error("error starting metrics server", err)
+				}
 			}()
-			defer func() {
-				shutCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-				defer cancel()
-				err := srv.Shutdown(shutCtx)
-				l.Info("pprof server shut down", "err", err)
-			}()
+		}
+
+		rpcCfg := cfg.RPCConfig
+		server := oprpc.NewServer(
+			rpcCfg.ListenAddr,
+			rpcCfg.ListenPort,
+			version,
+		)
+		if err := server.Start(); err != nil {
+			cancel()
+			return fmt.Errorf("error starting RPC server: %w", err)
 		}
 
 		interruptChannel := make(chan os.Signal, 1)
@@ -105,6 +108,7 @@ func Main(version string) func(ctx *cli.Context) error {
 			syscall.SIGQUIT,
 		}...)
 		<-interruptChannel
+		cancel()
 
 		return nil
 	}

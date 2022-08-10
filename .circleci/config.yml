@@ -245,6 +245,11 @@ jobs:
             golangci-lint run -E goimports,sqlclosecheck,bodyclose,asciicheck,misspell ./...
           working_directory: op-e2e
       - run:
+          name: lint op-service
+          command: |
+            golangci-lint run -E goimports,sqlclosecheck,bodyclose,asciicheck,misspell ./...
+          working_directory: op-service
+      - run:
           name: prep results dir
           command: mkdir -p /test-results
       - run:
@@ -267,6 +272,11 @@ jobs:
           command: |
             gotestsum --junitfile /test-results/op-e2e.xml -- -coverpkg=github.com/ethereum-optimism/optimism/... -coverprofile=coverage.out -covermode=atomic ./...
           working_directory: op-e2e
+      - run:
+          name: test op-service
+          command: |
+            gotestsum --junitfile /test-results/op-service.xml -- -coverpkg=github.com/ethereum-optimism/optimism/... -coverprofile=coverage.out -covermode=atomic ./...
+          working_directory: op-service
       - store_test_results:
           path: /test-results
       - run:
