@@ -3,7 +3,7 @@ module github.com/ethereum-optimism/optimism/op-proposer
 go 1.18
 
 require (
-	github.com/ethereum-optimism/optimism/op-bindings v0.3.0
+	github.com/ethereum-optimism/optimism/op-bindings v0.4.0
 	github.com/ethereum-optimism/optimism/op-node v0.3.0
 	github.com/ethereum-optimism/optimism/op-service v0.4.0
 	github.com/ethereum/go-ethereum v1.10.21
