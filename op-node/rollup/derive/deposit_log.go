@@ -20,12 +20,13 @@ var (
 // UnmarshalDepositLogEvent decodes an EVM log entry emitted by the deposit contract into typed deposit data.
 //
 // parse log data for:
-//     event TransactionDeposited(
-//         address indexed from,
-//         address indexed to,
-//         uint256 indexed version,
-//         bytes opaqueData
-//     );
+//
+//	event TransactionDeposited(
+//	    address indexed from,
+//	    address indexed to,
+//	    uint256 indexed version,
+//	    bytes opaqueData
+//	);
 //
 // Additionally, the event log-index and
 func UnmarshalDepositLogEvent(ev *types.Log) (*types.DepositTx, error) {

@@ -57,9 +57,9 @@ func (cr *ChannelInReader) WriteChannel(data []byte) {
 }
 
 // ReadBatch returns a decoded rollup batch, or an error:
-// - io.EOF, if the ChannelInReader source needs more data, to be provided with WriteChannel()/
-// - any other error (e.g. invalid compression or batch data):
-//   the caller should ChannelInReader.NextChannel() before continuing reading the next batch.
+//   - io.EOF, if the ChannelInReader source needs more data, to be provided with WriteChannel()/
+//   - any other error (e.g. invalid compression or batch data):
+//     the caller should ChannelInReader.NextChannel() before continuing reading the next batch.
 func (cr *ChannelInReader) ReadBatch(dest *BatchData) error {
 	// The channel reader may not be initialized yet,
 	// and initializing involves reading (zlib header data), so we do that now.
