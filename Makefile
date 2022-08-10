@@ -40,6 +40,7 @@ op-proposer:
 .PHONY: op-proposer
 
 mod-tidy:
+	cd ./op-service && go mod tidy && cd .. && \
 	cd ./op-node && go mod tidy && cd .. && \
 	cd ./op-proposer && go mod tidy && cd ..  && \
 	cd ./op-batcher && go mod tidy && cd ..  && \
