@@ -1,0 +1,183 @@
+package rpc
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"net"
+	"net/http"
+	"strconv"
+	"time"
+
+	oplog "github.com/ethereum-optimism/optimism/op-service/log"
+	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
+
+	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/node"
+	"github.com/ethereum/go-ethereum/rpc"
+)
+
+var wildcardHosts = []string{"*"}
+
+type Server struct {
+	endpoint       string
+	apis           []rpc.API
+	appVersion     string
+	healthzHandler http.Handler
+	corsHosts      []string
+	vHosts         []string
+	jwtSecret      []byte
+	rpcPath        string
+	healthzPath    string
+	httpRecorder   opmetrics.HTTPRecorder
+	httpServer     *http.Server
+	log            log.Logger
+}
+
+type ServerOption func(b *Server)
+
+func WithAPIs(apis []rpc.API) ServerOption {
+	return func(b *Server) {
+		b.apis = apis
+	}
+}
+
+func WithHealthzHandler(hdlr http.Handler) ServerOption {
+	return func(b *Server) {
+		b.healthzHandler = hdlr
+	}
+}
+
+func WithCORSHosts(hosts []string) ServerOption {
+	return func(b *Server) {
+		b.corsHosts = hosts
+	}
+}
+
+func WithVHosts(hosts []string) ServerOption {
+	return func(b *Server) {
+		b.vHosts = hosts
+	}
+}
+
+func WithJWTSecret(secret []byte) ServerOption {
+	return func(b *Server) {
+		b.jwtSecret = secret
+	}
+}
+
+func WithRPCPath(path string) ServerOption {
+	return func(b *Server) {
+		b.rpcPath = path
+	}
+}
+
+func WithHealthzPath(path string) ServerOption {
+	return func(b *Server) {
+		b.healthzPath = path
+	}
+}
+
+func WithHTTPRecorder(recorder opmetrics.HTTPRecorder) ServerOption {
+	return func(b *Server) {
+		b.httpRecorder = recorder
+	}
+}
+
+func WithLogger(lgr log.Logger) ServerOption {
+	return func(b *Server) {
+		b.log = lgr
+	}
+}
+
+func NewServer(host string, port int, appVersion string, opts ...ServerOption) *Server {
+	endpoint := net.JoinHostPort(host, strconv.Itoa(port))
+	bs := &Server{
+		endpoint:       endpoint,
+		appVersion:     appVersion,
+		healthzHandler: defaultHealthzHandler(appVersion),
+		corsHosts:      wildcardHosts,
+		vHosts:         wildcardHosts,
+		rpcPath:        "/",
+		healthzPath:    "/healthz",
+		httpRecorder:   opmetrics.NoopHTTPRecorder,
+		httpServer: &http.Server{
+			Addr: endpoint,
+		},
+		log: log.Root(),
+	}
+	for _, opt := range opts {
+		opt(bs)
+	}
+	bs.AddAPI(rpc.API{
+		Namespace: "health",
+		Service: &healthzAPI{
+			appVersion: appVersion,
+		},
+	})
+	return bs
+}
+
+func (b *Server) Endpoint() string {
+	return b.endpoint
+}
+
+func (b *Server) AddAPI(api rpc.API) {
+	b.apis = append(b.apis, api)
+}
+
+func (b *Server) Start() error {
+	srv := rpc.NewServer()
+	if err := node.RegisterApis(b.apis, nil, srv); err != nil {
+		return fmt.Errorf("error registering APIs: %w", err)
+	}
+
+	nodeHdlr := node.NewHTTPHandlerStack(srv, b.corsHosts, b.vHosts, b.jwtSecret)
+	mux := http.NewServeMux()
+	mux.Handle(b.rpcPath, nodeHdlr)
+	mux.Handle(b.healthzPath, b.healthzHandler)
+	metricsMW := oplog.NewLoggingMiddleware(b.log, opmetrics.NewHTTPRecordingMiddleware(b.httpRecorder, mux))
+	b.httpServer.Handler = metricsMW
+	errCh := make(chan error, 1)
+	go func() {
+		if err := b.httpServer.ListenAndServe(); err != nil {
+			errCh <- err
+		}
+	}()
+
+	// verify that the server comes up
+	tick := time.NewTimer(10 * time.Millisecond)
+	select {
+	case err := <-errCh:
+		return fmt.Errorf("http server failed: %w", err)
+	case <-tick.C:
+		return nil
+	}
+}
+
+func (b *Server) Stop() error {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	_ = b.httpServer.Shutdown(ctx)
+	return nil
+}
+
+type HealthzResponse struct {
+	Version string `json:"version"`
+}
+
+func defaultHealthzHandler(appVersion string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		enc := json.NewEncoder(w)
+		_ = enc.Encode(&HealthzResponse{Version: appVersion})
+	}
+}
+
+type healthzAPI struct {
+	appVersion string
+}
+
+func (h *healthzAPI) Status() string {
+	return h.appVersion
+}
