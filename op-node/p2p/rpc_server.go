@@ -2,7 +2,6 @@ package p2p
 
 import (
 	"context"
-	"crypto/ecdsa"
 	"errors"
 	"fmt"
 	"net"
@@ -10,6 +9,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-node/metrics"
 
+	decredSecp "github.com/decred/dcrd/dcrec/secp256k1/v4"
 	gcrypto "github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/p2p/discover"
@@ -100,7 +100,7 @@ func dumpPeer(id peer.ID, nw network.Network, pstore peerstore.Peerstore, connMg
 			if !ok {
 				return nil, fmt.Errorf("unexpected pubkey type: %T", pub)
 			}
-			info.NodeID = enode.PubkeyToIDV4((*ecdsa.PublicKey)(typedPub))
+			info.NodeID = enode.PubkeyToIDV4((*decredSecp.PublicKey)(typedPub).ToECDSA())
 		}
 	}
 	if dat, err := pstore.Get(id, "ProtocolVersion"); err != nil {

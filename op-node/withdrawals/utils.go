@@ -237,9 +237,9 @@ var (
 
 // WithdrawalHash computes the hash of the withdrawal that was stored in the L2 withdrawal contract state.
 // TODO:
-// 	- I don't like having to use the ABI Generated struct
-// 	- There should be a better way to run the ABI encoding
-//	- These needs to be fuzzed against the solidity
+//   - I don't like having to use the ABI Generated struct
+//   - There should be a better way to run the ABI encoding
+//   - These needs to be fuzzed against the solidity
 func WithdrawalHash(ev *bindings.L2ToL1MessagePasserWithdrawalInitiated) (common.Hash, error) {
 	//  abi.encode(nonce, msg.sender, _target, msg.value, _gasLimit, _data)
 	args := abi.Arguments{

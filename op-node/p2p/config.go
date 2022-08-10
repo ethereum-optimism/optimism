@@ -1,26 +1,20 @@
 package p2p
 
 import (
-	"crypto/ecdsa"
 	"crypto/rand"
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net"
 	"os"
 	"strings"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-node/flags"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
-
-	"github.com/libp2p/go-libp2p-core/peer"
-
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/p2p/discover"
-	"github.com/libp2p/go-libp2p-core/host"
-
-	"github.com/ethereum-optimism/optimism/op-node/flags"
 	"github.com/ethereum/go-ethereum/p2p/enode"
 	ds "github.com/ipfs/go-datastore"
 	"github.com/ipfs/go-datastore/sync"
@@ -28,14 +22,16 @@ import (
 	core "github.com/libp2p/go-libp2p-core"
 	"github.com/libp2p/go-libp2p-core/connmgr"
 	"github.com/libp2p/go-libp2p-core/crypto"
+	"github.com/libp2p/go-libp2p-core/host"
 	"github.com/libp2p/go-libp2p-core/metrics"
-	mplex "github.com/libp2p/go-libp2p-mplex"
-	noise "github.com/libp2p/go-libp2p-noise"
-	tls "github.com/libp2p/go-libp2p-tls"
-	yamux "github.com/libp2p/go-libp2p-yamux"
+	"github.com/libp2p/go-libp2p-core/peer"
 	lconf "github.com/libp2p/go-libp2p/config"
+	"github.com/libp2p/go-libp2p/p2p/muxer/mplex"
+	"github.com/libp2p/go-libp2p/p2p/muxer/yamux"
 	"github.com/libp2p/go-libp2p/p2p/net/conngater"
 	cmgr "github.com/libp2p/go-libp2p/p2p/net/connmgr"
+	"github.com/libp2p/go-libp2p/p2p/security/noise"
+	tls "github.com/libp2p/go-libp2p/p2p/security/tls"
 	"github.com/multiformats/go-multiaddr"
 	"github.com/urfave/cli"
 )
@@ -53,7 +49,7 @@ type SetupP2P interface {
 // Config sets up a p2p host and discv5 service from configuration.
 // This implements SetupP2P.
 type Config struct {
-	Priv *ecdsa.PrivateKey
+	Priv *crypto.Secp256k1PrivateKey
 
 	DisableP2P  bool
 	NoDiscovery bool
@@ -380,7 +376,7 @@ func (conf *Config) loadLibp2pOpts(ctx *cli.Context) error {
 	return nil
 }
 
-func loadNetworkPrivKey(ctx *cli.Context) (*ecdsa.PrivateKey, error) {
+func loadNetworkPrivKey(ctx *cli.Context) (*crypto.Secp256k1PrivateKey, error) {
 	raw := ctx.GlobalString(flags.P2PPrivRaw.Name)
 	if raw != "" {
 		return parsePriv(raw)
@@ -404,10 +400,10 @@ func loadNetworkPrivKey(ctx *cli.Context) (*ecdsa.PrivateKey, error) {
 		if _, err := f.WriteString(hex.EncodeToString(b)); err != nil {
 			return nil, fmt.Errorf("failed to write new p2p priv key: %v", err)
 		}
-		return (*ecdsa.PrivateKey)((p).(*crypto.Secp256k1PrivateKey)), nil
+		return (p).(*crypto.Secp256k1PrivateKey), nil
 	} else {
 		defer f.Close()
-		data, err := ioutil.ReadAll(f)
+		data, err := io.ReadAll(f)
 		if err != nil {
 			return nil, fmt.Errorf("failed to read priv key file: %v", err)
 		}
@@ -415,7 +411,7 @@ func loadNetworkPrivKey(ctx *cli.Context) (*ecdsa.PrivateKey, error) {
 	}
 }
 
-func parsePriv(data string) (*ecdsa.PrivateKey, error) {
+func parsePriv(data string) (*crypto.Secp256k1PrivateKey, error) {
 	if len(data) > 2 && data[:2] == "0x" {
 		data = data[2:]
 	}
@@ -428,7 +424,7 @@ func parsePriv(data string) (*ecdsa.PrivateKey, error) {
 		// avoid logging the priv key in the error, but hint at likely input length problem
 		return nil, fmt.Errorf("failed to parse priv key from %d bytes", len(b))
 	}
-	return (*ecdsa.PrivateKey)((p).(*crypto.Secp256k1PrivateKey)), nil
+	return (p).(*crypto.Secp256k1PrivateKey), nil
 }
 
 func (conf *Config) Check() error {
