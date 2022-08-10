@@ -4,7 +4,7 @@ import (
 	"github.com/urfave/cli"
 )
 
-const envVarPrefix = "OUTPUT_SUBMITTER_"
+const envVarPrefix = "OP_PROPOSER_"
 
 func prefixEnvVar(name string) string {
 	return envVarPrefix + name
@@ -17,25 +17,25 @@ var (
 		Name:     "l1-eth-rpc",
 		Usage:    "HTTP provider URL for L1",
 		Required: true,
-		EnvVar:   "L1_ETH_RPC",
+		EnvVar:   prefixEnvVar("L1_ETH_RPC"),
 	}
 	L2EthRpcFlag = cli.StringFlag{
 		Name:     "l2-eth-rpc",
 		Usage:    "HTTP provider URL for L2",
 		Required: true,
-		EnvVar:   "L2_ETH_RPC",
+		EnvVar:   prefixEnvVar("L2_ETH_RPC"),
 	}
 	RollupRpcFlag = cli.StringFlag{
 		Name:     "rollup-rpc",
 		Usage:    "HTTP provider URL for the rollup node",
 		Required: true,
-		EnvVar:   "ROLLUP_RPC",
+		EnvVar:   prefixEnvVar("ROLLUP_RPC"),
 	}
 	L2OOAddressFlag = cli.StringFlag{
 		Name:     "l2oo-address",
 		Usage:    "Address of the L2OutputOracle contract",
 		Required: true,
-		EnvVar:   "L2OO_ADDRESS",
+		EnvVar:   prefixEnvVar("L2OO_ADDRESS"),
 	}
 	PollIntervalFlag = cli.DurationFlag{
 		Name: "poll-interval",
@@ -87,13 +87,13 @@ var (
 	/* Optional Flags */
 
 	LogLevelFlag = cli.StringFlag{
-		Name:   "log-level",
+		Name:   "log.level",
 		Usage:  "The lowest log level that will be output",
 		Value:  "info",
 		EnvVar: prefixEnvVar("LOG_LEVEL"),
 	}
 	LogTerminalFlag = cli.BoolFlag{
-		Name: "log-terminal",
+		Name: "log.terminal",
 		Usage: "If true, outputs logs in terminal format, otherwise prints " +
 			"in JSON format.",
 		EnvVar: prefixEnvVar("LOG_TERMINAL"),
