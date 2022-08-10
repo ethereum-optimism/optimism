@@ -4,7 +4,7 @@ go 1.18
 
 require (
 	github.com/ethereum-optimism/optimism/op-node v0.4.0
-	github.com/ethereum-optimism/optimism/op-proposer v0.3.0
+	github.com/ethereum-optimism/optimism/op-proposer v0.4.0
 	github.com/ethereum-optimism/optimism/op-service v0.4.0
 	github.com/ethereum/go-ethereum v1.10.21
 	github.com/miguelmota/go-ethereum-hdwallet v0.1.1
@@ -22,7 +22,6 @@ require (
 	github.com/cpuguy83/go-md2man/v2 v2.0.2 // indirect
 	github.com/deckarep/golang-set v1.8.0 // indirect
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.0.1 // indirect
-	github.com/edsrzf/mmap-go v1.1.0 // indirect
 	github.com/ethereum-optimism/optimism/op-bindings v0.4.0 // indirect
 	github.com/fjl/memsize v0.0.1 // indirect
 	github.com/go-ole/go-ole v1.2.6 // indirect
@@ -67,7 +66,6 @@ require (
 	golang.org/x/sync v0.0.0-20220722155255-886fb9371eb4 // indirect
 	golang.org/x/sys v0.0.0-20220808155132-1c4a2a72c664 // indirect
 	golang.org/x/term v0.0.0-20220722155259-a9ba230a4035 // indirect
-	golang.org/x/time v0.0.0-20220722155302-e5dcc9cfc0b9 // indirect
 	google.golang.org/protobuf v1.28.1 // indirect
 	gopkg.in/natefinch/npipe.v2 v2.0.0-20160621034901-c1b8fa8bdcce // indirect
 )
