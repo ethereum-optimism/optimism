@@ -9,13 +9,12 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/libp2p/go-libp2p-core/connmgr"
 
-	"github.com/libp2p/go-libp2p-core/crypto"
 	"github.com/libp2p/go-libp2p-core/host"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/libp2p/go-libp2p-peerstore/pstoreds"
 	lconf "github.com/libp2p/go-libp2p/config"
 	basichost "github.com/libp2p/go-libp2p/p2p/host/basic"
-	tcp "github.com/libp2p/go-tcp-transport"
+	"github.com/libp2p/go-libp2p/p2p/transport/tcp"
 	ma "github.com/multiformats/go-multiaddr"
 	madns "github.com/multiformats/go-multiaddr-dns"
 )
@@ -46,9 +45,7 @@ func (conf *Config) Host(log log.Logger) (host.Host, error) {
 	if conf.DisableP2P {
 		return nil, nil
 	}
-	// we cast the ecdsa key type to the libp2p wrapper, to then use the libp2p pubkey and ID interfaces.
-	var priv crypto.PrivKey = (*crypto.Secp256k1PrivateKey)(conf.Priv)
-	pub := priv.GetPublic()
+	pub := conf.Priv.GetPublic()
 	pid, err := peer.IDFromPublicKey(pub)
 	if err != nil {
 		return nil, fmt.Errorf("failed to derive pubkey from network priv key: %v", err)
@@ -59,7 +56,7 @@ func (conf *Config) Host(log log.Logger) (host.Host, error) {
 		return nil, fmt.Errorf("failed to open peerstore: %v", err)
 	}
 
-	if err := ps.AddPrivKey(pid, priv); err != nil {
+	if err := ps.AddPrivKey(pid, conf.Priv); err != nil {
 		return nil, fmt.Errorf("failed to set up peerstore with priv key: %v", err)
 	}
 	if err := ps.AddPubKey(pid, pub); err != nil {
@@ -97,7 +94,7 @@ func (conf *Config) Host(log log.Logger) (host.Host, error) {
 		// Explicitly set the user-agent, so we can differentiate from other Go libp2p users.
 		UserAgent: conf.UserAgent,
 
-		PeerKey:            priv,
+		PeerKey:            conf.Priv,
 		Transports:         []lconf.TptC{tcpTransport},
 		Muxers:             conf.HostMux,
 		SecurityTransports: conf.HostSecurity,
@@ -132,9 +129,6 @@ func (conf *Config) Host(log log.Logger) (host.Host, error) {
 			ThrottlePeerLimit:   5,
 			ThrottleInterval:    time.Second * 60,
 		},
-		// no static-relays, a "sentry" type infra with static peers and redundancy seems better
-		StaticRelayOpt: nil,
-
 		// TODO: hole punching is new, need to review differences with NAT manager options
 		EnableHolePunching:  false,
 		HolePunchingOptions: nil,

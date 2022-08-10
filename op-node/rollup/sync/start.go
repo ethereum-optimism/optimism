@@ -11,10 +11,10 @@
 // associated with the epoch that the L2 block belongs to) and to its parent L2 block. The L2 chain
 // node must satisfy the following validity rules:
 //
-//     1. l2block.number == l2block.l2parent.block.number + 1
-//     2. l2block.l1Origin.number >= l2block.l2parent.l1Origin.number
-//     3. l2block.l1Origin is in the canonical chain on L1
-//     4. l1_rollup_genesis is an ancestor of l2block.l1Origin
+//  1. l2block.number == l2block.l2parent.block.number + 1
+//  2. l2block.l1Origin.number >= l2block.l2parent.l1Origin.number
+//  3. l2block.l1Origin is in the canonical chain on L1
+//  4. l1_rollup_genesis is an ancestor of l2block.l1Origin
 //
 // During normal operation, both the L1 and L2 canonical chains can change, due to a re-organisation
 // or due to an extension (new L1 or L2 block).
@@ -22,14 +22,15 @@
 // When one of these changes occurs, the rollup node needs to determine what the new L2 head blocks
 // should be. We track two L2 head blocks:
 //
-//     - The *unsafe L2 block*: This is the highest L2 block whose L1 origin is a plausible (1)
-//       extension of the canonical L1 chain (as known to the op-node).
-//     - The *safe L2 block*: This is the highest L2 block whose epoch's sequencing window is
-//       complete within the canonical L1 chain (as known to the op-node).
+//   - The *unsafe L2 block*: This is the highest L2 block whose L1 origin is a plausible (1)
+//     extension of the canonical L1 chain (as known to the op-node).
+//   - The *safe L2 block*: This is the highest L2 block whose epoch's sequencing window is
+//     complete within the canonical L1 chain (as known to the op-node).
 //
 // (1) Plausible meaning that the blockhash of the L2 block's L1 origin (as reported in the L1
-//     Attributes deposit within the L2 block) is not canonical at another height in the L1 chain,
-//     and the same holds for all its ancestors.
+//
+//	Attributes deposit within the L2 block) is not canonical at another height in the L1 chain,
+//	and the same holds for all its ancestors.
 //
 // In particular, in the case of L1 extension, the L2 unsafe head will generally remain the same,
 // but in the case of an L1 re-org, we need to search for the new safe and unsafe L2 block.
@@ -61,9 +62,9 @@ var TooDeepReorgErr = errors.New("reorg is too deep")
 const MaxReorgDepth = 500
 
 // isCanonical returns the following values:
-// - `aheadOrCanonical: true if the supplied block is ahead of the known head of the L1 chain,
-//    or canonical in the L1 chain.
-// - `canonical`: true if the block is canonical in the L1 chain.
+//   - `aheadOrCanonical: true if the supplied block is ahead of the known head of the L1 chain,
+//     or canonical in the L1 chain.
+//   - `canonical`: true if the block is canonical in the L1 chain.
 func isAheadOrCanonical(ctx context.Context, l1 L1Chain, block eth.BlockID) (aheadOrCanonical bool, canonical bool, err error) {
 	if l1Head, err := l1.L1HeadBlockRef(ctx); err != nil {
 		return false, false, err
@@ -80,14 +81,15 @@ func isAheadOrCanonical(ctx context.Context, l1 L1Chain, block eth.BlockID) (ahe
 // FindL2Heads walks back from `start` (the previous unsafe L2 block) and finds the unsafe and safe
 // L2 blocks.
 //
-//     - The *unsafe L2 block*: This is the highest L2 block whose L1 origin is a plausible (1)
-//       extension of the canonical L1 chain (as known to the op-node).
-//     - The *safe L2 block*: This is the highest L2 block whose epoch's sequencing window is
-//       complete within the canonical L1 chain (as known to the op-node).
+//   - The *unsafe L2 block*: This is the highest L2 block whose L1 origin is a plausible (1)
+//     extension of the canonical L1 chain (as known to the op-node).
+//   - The *safe L2 block*: This is the highest L2 block whose epoch's sequencing window is
+//     complete within the canonical L1 chain (as known to the op-node).
 //
 // (1) Plausible meaning that the blockhash of the L2 block's L1 origin (as reported in the L1
-//     Attributes deposit within the L2 block) is not canonical at another height in the L1 chain,
-//     and the same holds for all its ancestors.
+//
+//	Attributes deposit within the L2 block) is not canonical at another height in the L1 chain,
+//	and the same holds for all its ancestors.
 func FindL2Heads(ctx context.Context, start eth.L2BlockRef, seqWindowSize uint64,
 	l1 L1Chain, l2 L2Chain, genesis *rollup.Genesis) (unsafe eth.L2BlockRef, safe eth.L2BlockRef, err error) {
 
