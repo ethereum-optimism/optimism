@@ -124,6 +124,9 @@ func Build(deployments []Deployment) (DeploymentResults, error) {
 			return nil, fmt.Errorf("no address for %s", deployment.Name)
 		}
 		code, err := backend.CodeAt(context.Background(), addr, nil)
+		if len(code) == 0 {
+			return nil, fmt.Errorf("no code found for %s", deployment.Name)
+		}
 		if err != nil {
 			return nil, fmt.Errorf("cannot fetch code for %s", deployment.Name)
 		}
