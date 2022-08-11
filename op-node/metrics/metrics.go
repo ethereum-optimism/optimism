@@ -48,6 +48,7 @@ type Metrics struct {
 	SequencingErrorsTotal prometheus.Counter
 	PublishingErrorsTotal prometheus.Counter
 	Heads                 *prometheus.GaugeVec
+	L1ReorgDepth          prometheus.Histogram
 
 	TransactionsSequencedTotal prometheus.Counter
 
@@ -165,6 +166,12 @@ func NewMetrics(procName string) *Metrics {
 		}, []string{
 			"type",
 		}),
+		L1ReorgDepth: promauto.With(registry).NewHistogram(prometheus.HistogramOpts{
+			Namespace: ns,
+			Name:      "l1_reorg_depth",
+			Buckets:   []float64{0.5, 1.5, 2.5, 3.5, 4.5, 5.5, 6.5, 7.5, 8.5, 9.5, 10.5, 20.5, 50.5, 100.5},
+			Help:      "Histogram of L1 Reorg Depths",
+		}),
 
 		TransactionsSequencedTotal: promauto.With(registry).NewGauge(prometheus.GaugeOpts{
 			Namespace: ns,
@@ -250,6 +257,10 @@ func (m *Metrics) SetHead(kind string, num uint64) {
 func (m *Metrics) RecordPipelineReset() {
 	m.PipelineResetsTotal.Inc()
 	m.LastPipelineResetUnix.Set(float64(time.Now().Unix()))
+}
+
+func (m *Metrics) RecordL1ReorgDepth(d uint64) {
+	m.L1ReorgDepth.Observe(float64(d))
 }
 
 // Serve starts the metrics server on the given hostname and port.
