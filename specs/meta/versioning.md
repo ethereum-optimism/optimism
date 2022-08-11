@@ -15,8 +15,9 @@
 Go modules that are currently versioned:
 
 ```text
-./op-batcher
+./op-service
 ./op-bindings
+./op-batcher
 ./op-node
 ./op-proposer
 ./op-e2e
