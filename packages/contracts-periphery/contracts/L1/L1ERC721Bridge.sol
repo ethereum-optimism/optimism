@@ -3,14 +3,12 @@ pragma solidity 0.8.15;
 
 import {
     CrossDomainEnabled
-} from "@eth-optimism/contracts/contracts/libraries/bridge/CrossDomainEnabled.sol";
-import {
-    OwnableUpgradeable
-} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+} from "@eth-optimism/contracts/libraries/bridge/CrossDomainEnabled.sol";
 import { IERC721 } from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import { Address } from "@openzeppelin/contracts/utils/Address.sol";
 import { L2ERC721Bridge } from "../L2/L2ERC721Bridge.sol";
 import { Semver } from "@eth-optimism/contracts-bedrock/contracts/universal/Semver.sol";
+import { Initializable } from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
 
 /**
  * @title L1ERC721Bridge
@@ -18,7 +16,7 @@ import { Semver } from "@eth-optimism/contracts-bedrock/contracts/universal/Semv
  *         make it possible to transfer ERC721 tokens between Optimism and Ethereum. This contract
  *         acts as an escrow for ERC721 tokens deposted into L2.
  */
-contract L1ERC721Bridge is Semver, CrossDomainEnabled, OwnableUpgradeable {
+contract L1ERC721Bridge is Semver, CrossDomainEnabled, Initializable {
     /**
      * @notice Emitted when an ERC721 bridge to the other network is initiated.
      *
@@ -60,7 +58,7 @@ contract L1ERC721Bridge is Semver, CrossDomainEnabled, OwnableUpgradeable {
     /**
      * @notice Address of the bridge on the other network.
      */
-    address public otherBridge;
+    address public immutable otherBridge;
 
     // Maps L1 token to L2 token to token ID to a boolean indicating if the token is deposited
     /**
@@ -79,19 +77,15 @@ contract L1ERC721Bridge is Semver, CrossDomainEnabled, OwnableUpgradeable {
         Semver(0, 0, 1)
         CrossDomainEnabled(address(0))
     {
-        initialize(_messenger, _otherBridge);
+        otherBridge = _otherBridge;
+        initialize(_messenger);
     }
 
     /**
-     * @param _messenger   Address of the CrossDomainMessenger on this network.
-     * @param _otherBridge Address of the ERC721 bridge on the other network.
+     * @param _messenger Address of the CrossDomainMessenger on this network.
      */
-    function initialize(address _messenger, address _otherBridge) public initializer {
+    function initialize(address _messenger) public initializer {
         messenger = _messenger;
-        otherBridge = _otherBridge;
-
-        // Initialize upgradable OZ contracts
-        __Ownable_init();
     }
 
     /**

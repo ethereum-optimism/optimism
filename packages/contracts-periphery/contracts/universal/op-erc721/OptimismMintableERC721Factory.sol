@@ -1,9 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import {
-    OwnableUpgradeable
-} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import { Initializable } from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
 import { OptimismMintableERC721 } from "./OptimismMintableERC721.sol";
 import { Semver } from "@eth-optimism/contracts-bedrock/contracts/universal/Semver.sol";
 
@@ -11,7 +9,7 @@ import { Semver } from "@eth-optimism/contracts-bedrock/contracts/universal/Semv
  * @title OptimismMintableERC721Factory
  * @notice Factory contract for creating OptimismMintableERC721 contracts.
  */
-contract OptimismMintableERC721Factory is Semver, OwnableUpgradeable {
+contract OptimismMintableERC721Factory is Semver, Initializable {
     /**
      * @notice Emitted whenever a new OptimismMintableERC721 contract is created.
      *
@@ -52,9 +50,6 @@ contract OptimismMintableERC721Factory is Semver, OwnableUpgradeable {
     function initialize(address _bridge, uint256 _remoteChainId) public initializer {
         bridge = _bridge;
         remoteChainId = _remoteChainId;
-
-        // Initialize upgradable OZ contracts
-        __Ownable_init();
     }
 
     /**

@@ -68,10 +68,7 @@ describe('L2ERC721Bridge', () => {
   describe('initialize', () => {
     it('Should only be callable once', async () => {
       await expect(
-        L2ERC721Bridge.initialize(
-          Fake__L2CrossDomainMessenger.address,
-          DUMMY_L1BRIDGE_ADDRESS
-        )
+        L2ERC721Bridge.initialize(Fake__L2CrossDomainMessenger.address)
       ).to.be.revertedWith(ERR_ALREADY_INITIALIZED)
     })
   })
