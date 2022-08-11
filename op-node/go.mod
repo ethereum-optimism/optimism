@@ -5,7 +5,7 @@ go 1.18
 require (
 	github.com/btcsuite/btcd/btcec/v2 v2.2.0
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.0.1
-	github.com/ethereum-optimism/optimism/op-bindings v0.3.0
+	github.com/ethereum-optimism/optimism/op-bindings v0.4.0
 	github.com/ethereum/go-ethereum v1.10.21
 	github.com/golang/snappy v0.0.4
 	github.com/google/go-cmp v0.5.8
@@ -158,4 +158,4 @@ require (
 	lukechampine.com/blake3 v1.1.7 // indirect
 )
 
-replace github.com/ethereum/go-ethereum v1.10.21 => github.com/ethereum-optimism/reference-optimistic-geth v0.0.0-20220803173305-1c9d4cc76a6e
+replace github.com/ethereum/go-ethereum v1.10.21 => github.com/ethereum-optimism/reference-optimistic-geth v0.0.0-20220810221227-a68e5aa189e1
