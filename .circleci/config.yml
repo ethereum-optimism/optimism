@@ -413,6 +413,24 @@ jobs:
                 command: make <<parameters.binary_name>>
                 working_directory: <<parameters.working_directory>>
 
+  state-surgery-tests:
+    docker:
+      - image: ethereumoptimism/ci-builder:latest
+    steps:
+      - checkout
+      - run:
+          name: Check if we should run
+          command: |
+            CHANGED=$(bash ./ops/docker/ci-builder/check-changed.sh "state-surgery")
+            if [[ "$CHANGED" = "FALSE" ]]; then
+              circleci step halt
+            fi
+      - run:
+          name: Test
+          command: |
+            gotestsum --junitfile /test-results/state-surgery.xml -- -coverpkg=github.com/ethereum-optimism/optimism/... -coverprofile=coverage.out -covermode=atomic ./...
+          working_directory: state-surgery
+
   geth-tests:
     docker:
       - image: ethereumoptimism/ci-builder:latest
@@ -692,6 +710,7 @@ workflows:
       - integration-tests
       - semgrep-scan
       - go-mod-tidy
+      - state-surgery-tests
 
   nightly:
     triggers:
