@@ -95,7 +95,9 @@ contract L1ERC721Bridge is Semver, CrossDomainEnabled, OwnableUpgradeable {
     }
 
     /**
-     * @notice Initiates a bridge of an NFT to the caller's account on L2.
+     * @notice Initiates a bridge of an NFT to the caller's account on L2. Note that the current
+     *         owner of the token on this chain must approve this contract to operate the NFT before
+     *         it can be bridged.
      *
      * @param _localToken  Address of the ERC721 on this domain.
      * @param _remoteToken Address of the ERC721 on the remote domain.
@@ -128,7 +130,9 @@ contract L1ERC721Bridge is Semver, CrossDomainEnabled, OwnableUpgradeable {
     }
 
     /**
-     * @notice Initiates a bridge of an NFT to some recipient's account on L2.
+     * @notice Initiates a bridge of an NFT to some recipient's account on L2. Note that the current
+     *         owner of the token on this chain must approve this contract to operate the NFT before
+     *         it can be bridged.
      *
      * @param _localToken  Address of the ERC721 on this domain.
      * @param _remoteToken Address of the ERC721 on the remote domain.
