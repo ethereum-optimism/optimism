@@ -155,6 +155,9 @@ func (s *state) handleNewL1Block(newL1Head eth.L1BlockRef) {
 		// dealing with a linear extension (new block is the immediate child of the old one).
 		s.log.Debug("L1 head moved forward", "l1Head", newL1Head)
 	} else {
+		if s.l1Head.Number >= newL1Head.Number {
+			s.metrics.RecordL1ReorgDepth(s.l1Head.Number - newL1Head.Number)
+		}
 		// New L1 block is not the same as the current head or a single step linear extension.
 		// This could either be a long L1 extension, or a reorg. Both can be handled the same way.
 		s.log.Warn("L1 Head signal indicates an L1 re-org", "old_l1_head", s.l1Head, "new_l1_head_parent", newL1Head.ParentHash, "new_l1_head", newL1Head)
