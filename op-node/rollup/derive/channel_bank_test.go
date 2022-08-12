@@ -118,8 +118,9 @@ func (tf testFrame) ToFrame() Frame {
 }
 
 func (bt *bankTestSetup) ingestData(data []byte) {
-	require.NoError(bt.t, bt.cb.IngestData(data))
+	bt.cb.IngestData(data)
 }
+
 func (bt *bankTestSetup) ingestFrames(frames ...testFrame) {
 	data := new(bytes.Buffer)
 	data.WriteByte(DerivationVersion0)
