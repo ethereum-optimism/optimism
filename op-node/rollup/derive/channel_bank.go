@@ -12,6 +12,17 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 )
 
+// ChannelBank is a stateful stage that does the following:
+// 1. Unmarshalls frames from L1 transaction data
+// 2. Applies those frames to a channel
+// 3. Attempts to read from the channel when it is ready
+// 4. Prunes channels (not frames) when the channel bank is too large.
+//
+// Note: we prune before we ingest data.
+// As we switch between ingesting data & reading, the prune step occurs at an odd point
+// Specifically, the channel bank is not allowed to become too large between successive calls
+// to `IngestData`. This means that we can do an ingest and then do a read while becoming too large.
+
 type ChannelBankOutput interface {
 	StageProgress
 	WriteChannel(data []byte)

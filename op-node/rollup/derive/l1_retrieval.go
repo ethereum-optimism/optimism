@@ -9,6 +9,9 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 )
 
+// This is a generic wrapper around fetching all transactions in a block & then
+// it feeds one L1 transaction at a time to the next stage
+
 // DataIter is a minimal iteration interface to fetch rollup input data from an arbitrary data-availability source
 type DataIter interface {
 	// Next can be repeatedly called for more data, until it returns an io.EOF error.
