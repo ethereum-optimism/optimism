@@ -12,6 +12,21 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 )
 
+// The batch queue is responsible for ordering unordered batches & generating empty batches
+// when the sequence window has passed. This is a very stateful stage.
+//
+// It receives batches that are tagged with the L1 Inclusion block of the batch. It only considers
+// batches that are inside the sequencing window of a specific L1 Origin.
+// It tries to eagerly pull batches based on the current L2 safe head.
+// Otherwise it filters/creates an entire epoch's worth of batches at once.
+//
+// This stage tracks a range of L1 blocks with the assumption that all batches with an L1 inclusion
+// block inside that range have been added to the stage by the time that it attempts to advance a
+// full epoch.
+//
+// It is internally responsible for making sure that batches with L1 inclusions block outside it's
+// working range are not considered or pruned.
+
 type BatchQueueOutput interface {
 	StageProgress
 	AddBatch(batch *BatchData)

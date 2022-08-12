@@ -10,6 +10,17 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 )
 
+// The attributes queue sits in between the batch queue and the engine queue
+// It transforms batches into payload attributes. The outputted payload
+// attributes cannot be buffered because each batch->attributes transformation
+// pulls in data about the current L2 safe head.
+//
+// It also buffers batches that have been output because multiple batches can
+// be created at once.
+//
+// This stage can be reset by clearing it's batch buffer.
+// This stage does not need to retain any references to L1 blocks.
+
 type AttributesQueueOutput interface {
 	AddSafeAttributes(attributes *eth.PayloadAttributes)
 	SafeL2Head() eth.L2BlockRef
