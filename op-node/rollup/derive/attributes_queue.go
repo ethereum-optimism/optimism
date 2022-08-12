@@ -11,7 +11,7 @@ import (
 )
 
 // The attributes queue sits in between the batch queue and the engine queue
-// It is a transforms batches into payload attributes.The outputted payload
+// It transforms batches into payload attributes. The outputted payload
 // attributes cannot be buffered because each batch->attributes transformation
 // pulls in data about the current L2 safe head.
 //
