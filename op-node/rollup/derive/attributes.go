@@ -33,42 +33,28 @@ func PreparePayloadAttributes(ctx context.Context, cfg *rollup.Config, dl L1Rece
 	if l2Parent.L1Origin.Number != epoch.Number {
 		info, _, receipts, err := dl.Fetch(ctx, epoch.Hash)
 		if err != nil {
-			return nil, NewTemporaryError(
-				err,
-				"failed to fetch L1 block info and receipts",
-			)
+			return nil, NewTemporaryError(fmt.Errorf("failed to fetch L1 block info and receipts: %w", err))
 		}
 		if l2Parent.L1Origin.Hash != info.ParentHash() {
 			return nil, NewResetError(
-				nil,
-				fmt.Sprintf("cannot create new block with L1 origin %s (parent %s) on top of L1 origin %s",
-					epoch, info.ParentHash(), l2Parent.L1Origin),
-			)
+				fmt.Errorf("cannot create new block with L1 origin %s (parent %s) on top of L1 origin %s",
+					epoch, info.ParentHash(), l2Parent.L1Origin))
 		}
 		deposits, err := DeriveDeposits(receipts, cfg.DepositContractAddress)
 		if err != nil {
-			return nil, NewResetError(
-				err,
-				"failed to derive some deposits",
-			)
+			// deposits may never be ignored. Failing to process them is a critical error.
+			return nil, NewCriticalError(fmt.Errorf("failed to derive some deposits: %w", err))
 		}
 		l1Info = info
 		depositTxs = deposits
 		seqNumber = 0
 	} else {
 		if l2Parent.L1Origin.Hash != epoch.Hash {
-			return nil, NewResetError(
-				nil,
-				fmt.Sprintf("cannot create new block with L1 origin %s in conflict with L1 origin %s",
-					epoch, l2Parent.L1Origin),
-			)
+			return nil, NewResetError(fmt.Errorf("cannot create new block with L1 origin %s in conflict with L1 origin %s", epoch, l2Parent.L1Origin))
 		}
 		info, err := dl.InfoByHash(ctx, epoch.Hash)
 		if err != nil {
-			return nil, NewTemporaryError(
-				err,
-				"failed to fetch L1 block info",
-			)
+			return nil, NewTemporaryError(fmt.Errorf("failed to fetch L1 block info: %w", err))
 		}
 		l1Info = info
 		depositTxs = nil
@@ -77,10 +63,7 @@ func PreparePayloadAttributes(ctx context.Context, cfg *rollup.Config, dl L1Rece
 
 	l1InfoTx, err := L1InfoDepositBytes(seqNumber, l1Info)
 	if err != nil {
-		return nil, NewResetError(
-			err,
-			"failed to create l1InfoTx",
-		)
+		return nil, NewCriticalError(fmt.Errorf("failed to create l1InfoTx: %w", err))
 	}
 
 	txs := make([]hexutil.Bytes, 0, 1+len(depositTxs))

@@ -19,7 +19,7 @@ type zlibReader interface {
 
 type BatchQueueStage interface {
 	StageProgress
-	AddBatch(batch *BatchData) error
+	AddBatch(batch *BatchData)
 }
 
 type ChannelInReader struct {
@@ -115,7 +115,8 @@ func (cr *ChannelInReader) Step(ctx context.Context, outer Progress) error {
 		cr.NextChannel()
 		return nil
 	}
-	return cr.next.AddBatch(&batch)
+	cr.next.AddBatch(&batch)
+	return nil
 }
 
 func (cr *ChannelInReader) ResetStep(ctx context.Context, l1Fetcher L1Fetcher) error {

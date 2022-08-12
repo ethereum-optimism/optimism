@@ -52,11 +52,10 @@ func (l1t *L1Traversal) Step(ctx context.Context, outer Progress) error {
 		l1t.log.Debug("can't find next L1 block info (yet)", "number", origin.Number+1, "origin", origin)
 		return io.EOF
 	} else if err != nil {
-		l1t.log.Warn("failed to find L1 block info by number", "number", origin.Number+1, "origin", origin, "err", err)
-		return nil // nil, don't make the pipeline restart if the RPC fails
+		return NewTemporaryError(fmt.Errorf("failed to find L1 block info by number, at origin %s next %d: %w", origin, origin.Number+1, err))
 	}
 	if l1t.progress.Origin.Hash != nextL1Origin.ParentHash {
-		return NewResetError(ReorgErr, fmt.Sprintf("detected L1 reorg from %s to %s", l1t.progress.Origin, nextL1Origin))
+		return NewResetError(fmt.Errorf("detected L1 reorg from %s to %s with conflicting parent %s", l1t.progress.Origin, nextL1Origin, nextL1Origin.ParentID()))
 	}
 	l1t.progress.Origin = nextL1Origin
 	l1t.progress.Closed = false
