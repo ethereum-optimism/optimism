@@ -4,6 +4,7 @@ import { ethers } from 'ethers'
 import '@nomiclabs/hardhat-ethers'
 import '@nomiclabs/hardhat-waffle'
 import 'hardhat-deploy'
+import '@eth-optimism/hardhat'
 
 import './tasks'
 
