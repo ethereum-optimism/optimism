@@ -1,0 +1,92 @@
+{
+  "address": "0xF9c8a4Cb4021f57F9f6d69799cA9BefF64524862",
+  "abi": [
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "components": [
+            {
+              "internalType": "address",
+              "name": "treasury",
+              "type": "address"
+            },
+            {
+              "internalType": "uint256",
+              "name": "threshold",
+              "type": "uint256"
+            },
+            {
+              "internalType": "address",
+              "name": "recipient",
+              "type": "address"
+            }
+          ],
+          "indexed": false,
+          "internalType": "struct CheckGelatoLow.Params",
+          "name": "params",
+          "type": "tuple"
+        }
+      ],
+      "name": "_EventToExposeStructInABI__Params",
+      "type": "event"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "bytes",
+          "name": "_params",
+          "type": "bytes"
+        }
+      ],
+      "name": "check",
+      "outputs": [
+        {
+          "internalType": "bool",
+          "name": "",
+          "type": "bool"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    }
+  ],
+  "transactionHash": "0xa2c3892e5b792fdb814d5d148fd3b1ff19b06878fe245fb93ad179f403d05b01",
+  "receipt": {
+    "to": "0x4e59b44847b379578588920cA78FbF26c0B4956C",
+    "from": "0x9C6373dE60c2D3297b18A8f964618ac46E011B58",
+    "contractAddress": null,
+    "transactionIndex": 0,
+    "gasUsed": "222032",
+    "logsBloom": "0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+    "blockHash": "0xefeb7750cbbb732133ef4060beacd5f4b07c1f1b7a2c41270b1f43a98dd95c77",
+    "transactionHash": "0xa2c3892e5b792fdb814d5d148fd3b1ff19b06878fe245fb93ad179f403d05b01",
+    "logs": [],
+    "blockNumber": 380292,
+    "cumulativeGasUsed": "222032",
+    "status": 1,
+    "byzantium": true
+  },
+  "args": [],
+  "numDeployments": 1,
+  "solcInputHash": "cb12280dddcf446d7c90129cbaba29bb",
+  "metadata": "{\"compiler\":{\"version\":\"0.8.15+commit.e14f2714\"},\"language\":\"Solidity\",\"output\":{\"abi\":[{\"anonymous\":false,\"inputs\":[{\"components\":[{\"internalType\":\"address\",\"name\":\"treasury\",\"type\":\"address\"},{\"internalType\":\"uint256\",\"name\":\"threshold\",\"type\":\"uint256\"},{\"internalType\":\"address\",\"name\":\"recipient\",\"type\":\"address\"}],\"indexed\":false,\"internalType\":\"struct CheckGelatoLow.Params\",\"name\":\"params\",\"type\":\"tuple\"}],\"name\":\"_EventToExposeStructInABI__Params\",\"type\":\"event\"},{\"inputs\":[{\"internalType\":\"bytes\",\"name\":\"_params\",\"type\":\"bytes\"}],\"name\":\"check\",\"outputs\":[{\"internalType\":\"bool\",\"name\":\"\",\"type\":\"bool\"}],\"stateMutability\":\"view\",\"type\":\"function\"}],\"devdoc\":{\"kind\":\"dev\",\"methods\":{},\"title\":\"CheckGelatoLow\",\"version\":1},\"userdoc\":{\"kind\":\"user\",\"methods\":{},\"notice\":\"DripCheck for checking if an account's Gelato ETH balance is below some threshold.\",\"version\":1}},\"settings\":{\"compilationTarget\":{\"contracts/universal/drippie/dripchecks/CheckGelatoLow.sol\":\"CheckGelatoLow\"},\"evmVersion\":\"london\",\"libraries\":{},\"metadata\":{\"bytecodeHash\":\"ipfs\",\"useLiteralContent\":true},\"optimizer\":{\"enabled\":true,\"runs\":10000},\"remappings\":[]},\"sources\":{\"contracts/universal/drippie/IDripCheck.sol\":{\"content\":\"// SPDX-License-Identifier: MIT\\npragma solidity ^0.8.0;\\n\\ninterface IDripCheck {\\n    // DripCheck contracts that want to take parameters as inputs MUST expose a struct called\\n    // Params and an event _EventForExposingParamsStructInABI(Params params). This makes it\\n    // possible to easily encode parameters on the client side. Solidity does not support generics\\n    // so it's not possible to do this with explicit typing.\\n\\n    function check(bytes memory _params) external view returns (bool);\\n}\\n\",\"keccak256\":\"0xbf1b9be6bbcbbbd2268023a169382c9a62a58a343420e4bc4494a9f463f86042\",\"license\":\"MIT\"},\"contracts/universal/drippie/dripchecks/CheckGelatoLow.sol\":{\"content\":\"// SPDX-License-Identifier: MIT\\npragma solidity 0.8.15;\\n\\nimport { IDripCheck } from \\\"../IDripCheck.sol\\\";\\n\\ninterface IGelatoTreasury {\\n    function userTokenBalance(address _user, address _token) external view returns (uint256);\\n}\\n\\n/**\\n * @title CheckGelatoLow\\n * @notice DripCheck for checking if an account's Gelato ETH balance is below some threshold.\\n */\\ncontract CheckGelatoLow is IDripCheck {\\n    event _EventToExposeStructInABI__Params(Params params);\\n    struct Params {\\n        address treasury;\\n        uint256 threshold;\\n        address recipient;\\n    }\\n\\n    function check(bytes memory _params) external view returns (bool) {\\n        Params memory params = abi.decode(_params, (Params));\\n\\n        // Check GelatoTreasury ETH balance is below threshold.\\n        return\\n            IGelatoTreasury(params.treasury).userTokenBalance(\\n                params.recipient,\\n                // Gelato represents ETH as 0xeeeee....eeeee\\n                0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE\\n            ) < params.threshold;\\n    }\\n}\\n\",\"keccak256\":\"0x527fc26a3f52e97f22d88859cac0511fc57c8a0f46b0dd9549aa98b248086a9f\",\"license\":\"MIT\"}},\"version\":1}",
+  "bytecode": "0x608060405234801561001057600080fd5b5061030c806100206000396000f3fe608060405234801561001057600080fd5b506004361061002b5760003560e01c8063c64b3bb514610030575b600080fd5b61004361003e366004610160565b610057565b604051901515815260200160405180910390f35b6000808280602001905181019061006e9190610258565b6020810151815160408084015190517fb47064c800000000000000000000000000000000000000000000000000000000815273ffffffffffffffffffffffffffffffffffffffff918216600482015273eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee6024820152939450919291169063b47064c890604401602060405180830381865afa158015610105573d6000803e3d6000fd5b505050506040513d601f19601f8201168201806040525081019061012991906102bd565b109392505050565b7f4e487b7100000000000000000000000000000000000000000000000000000000600052604160045260246000fd5b60006020828403121561017257600080fd5b813567ffffffffffffffff8082111561018a57600080fd5b818401915084601f83011261019e57600080fd5b8135818111156101b0576101b0610131565b604051601f82017fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0908116603f011681019083821181831017156101f6576101f6610131565b8160405282815287602084870101111561020f57600080fd5b826020860160208301376000928101602001929092525095945050505050565b805173ffffffffffffffffffffffffffffffffffffffff8116811461025357600080fd5b919050565b60006060828403121561026a57600080fd5b6040516060810181811067ffffffffffffffff8211171561028d5761028d610131565b6040526102998361022f565b8152602083015160208201526102b16040840161022f565b60408201529392505050565b6000602082840312156102cf57600080fd5b505191905056fea2646970667358221220ad6ea11246f072b25bce3394368ffae4870bfffefe4fe262371ac084c9baaca264736f6c634300080f0033",
+  "deployedBytecode": "0x608060405234801561001057600080fd5b506004361061002b5760003560e01c8063c64b3bb514610030575b600080fd5b61004361003e366004610160565b610057565b604051901515815260200160405180910390f35b6000808280602001905181019061006e9190610258565b6020810151815160408084015190517fb47064c800000000000000000000000000000000000000000000000000000000815273ffffffffffffffffffffffffffffffffffffffff918216600482015273eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee6024820152939450919291169063b47064c890604401602060405180830381865afa158015610105573d6000803e3d6000fd5b505050506040513d601f19601f8201168201806040525081019061012991906102bd565b109392505050565b7f4e487b7100000000000000000000000000000000000000000000000000000000600052604160045260246000fd5b60006020828403121561017257600080fd5b813567ffffffffffffffff8082111561018a57600080fd5b818401915084601f83011261019e57600080fd5b8135818111156101b0576101b0610131565b604051601f82017fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0908116603f011681019083821181831017156101f6576101f6610131565b8160405282815287602084870101111561020f57600080fd5b826020860160208301376000928101602001929092525095945050505050565b805173ffffffffffffffffffffffffffffffffffffffff8116811461025357600080fd5b919050565b60006060828403121561026a57600080fd5b6040516060810181811067ffffffffffffffff8211171561028d5761028d610131565b6040526102998361022f565b8152602083015160208201526102b16040840161022f565b60408201529392505050565b6000602082840312156102cf57600080fd5b505191905056fea2646970667358221220ad6ea11246f072b25bce3394368ffae4870bfffefe4fe262371ac084c9baaca264736f6c634300080f0033",
+  "devdoc": {
+    "kind": "dev",
+    "methods": {},
+    "title": "CheckGelatoLow",
+    "version": 1
+  },
+  "userdoc": {
+    "kind": "user",
+    "methods": {},
+    "notice": "DripCheck for checking if an account's Gelato ETH balance is below some threshold.",
+    "version": 1
+  },
+  "storageLayout": {
+    "storage": [],
+    "types": null
+  }
+}
