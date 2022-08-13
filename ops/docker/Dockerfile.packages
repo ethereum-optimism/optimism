@@ -49,6 +49,7 @@ COPY packages/fault-detector/package.json ./packages/fault-detector/package.json
 COPY packages/replica-healthcheck/package.json ./packages/replica-healthcheck/package.json
 COPY packages/drippie-mon/package.json ./packages/drippie-mon/package.json
 COPY integration-tests/package.json ./integration-tests/package.json
+COPY packages/op-hardhat-chainops/package.json ./op-hardhat-chainops/package.json
 
 RUN yarn install --frozen-lockfile && yarn cache clean
 
