@@ -4,13 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"testing"
+	"time"
 
-	"github.com/ethereum-optimism/optimism/op-node/testlog"
+	"github.com/stretchr/testify/require"
 
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rpc"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 )
 
@@ -20,8 +20,13 @@ type elemCall struct {
 }
 
 type batchCall struct {
-	elems []elemCall
-	err   error
+	elems  []elemCall
+	rpcErr error
+	err    string
+	// Artificial delay to add before returning the call
+	duration     time.Duration
+	makeCtx      func() context.Context
+	maxBatchSize uint
 }
 
 type batchTestCase struct {
@@ -29,11 +34,6 @@ type batchTestCase struct {
 	items int
 
 	batchCalls []batchCall
-	err        error
-
-	maxRetry    int
-	maxPerBatch int
-	maxParallel int
 
 	mock.Mock
 }
@@ -44,7 +44,7 @@ func (tc *batchTestCase) Inputs() []rpc.BatchElem {
 		out[i] = rpc.BatchElem{
 			Method: "testing_foobar",
 			Args:   []interface{}{i},
-			Result: nil,
+			Result: new(string),
 			Error:  nil,
 		}
 	}
@@ -52,35 +52,65 @@ func (tc *batchTestCase) Inputs() []rpc.BatchElem {
 }
 
 func (tc *batchTestCase) GetBatch(ctx context.Context, b []rpc.BatchElem) error {
+	if ctx.Err() != nil {
+		return ctx.Err()
+	}
 	return tc.Mock.MethodCalled("get", b).Get(0).([]error)[0]
 }
+
+var mockErr = errors.New("mockErr")
 
 func (tc *batchTestCase) Run(t *testing.T) {
 	requests := tc.Inputs()
 
-	// mock all the results of the batch calls
-	for bci, b := range tc.batchCalls {
-		batchCall := b
-		var batch []rpc.BatchElem
-		for _, elem := range batchCall.elems {
-			batch = append(batch, requests[elem.id])
-		}
-		tc.On("get", batch).Run(func(args mock.Arguments) {
+	makeMock := func(bci int, bc batchCall) func(args mock.Arguments) {
+		return func(args mock.Arguments) {
 			batch := args[0].([]rpc.BatchElem)
-			for i := range batch {
-				if batchCall.elems[i].err {
-					batch[i].Error = fmt.Errorf("mock err batch-call %d, elem call %d", bci, i)
-					batch[i].Result = nil
+			for i, elem := range batch {
+				id := elem.Args[0].(int)
+				expectedID := bc.elems[i].id
+				require.Equal(t, expectedID, id, "batch element should match expected batch element")
+				if bc.elems[i].err {
+					batch[i].Error = mockErr
+					*batch[i].Result.(*string) = ""
 				} else {
 					batch[i].Error = nil
-					batch[i].Result = fmt.Sprintf("mock result batch-call %d, elem call %d", bci, i)
+					*batch[i].Result.(*string) = fmt.Sprintf("mock result id %d", id)
 				}
 			}
-		}).Return([]error{batchCall.err}) // wrap to preserve nil as type of error
+			time.Sleep(bc.duration)
+		}
 	}
+	// mock all the results of the batch calls
+	for bci, bc := range tc.batchCalls {
+		var batch []rpc.BatchElem
+		for _, elem := range bc.elems {
+			batch = append(batch, requests[elem.id])
+		}
+		if len(bc.elems) > 0 {
+			tc.On("get", batch).Once().Run(makeMock(bci, bc)).Return([]error{bc.rpcErr}) // wrap to preserve nil as type of error
+		}
+	}
+	iter := NewIterativeBatchCall(requests, tc.GetBatch)
+	for i, bc := range tc.batchCalls {
+		ctx := context.Background()
+		if bc.makeCtx != nil {
+			ctx = bc.makeCtx()
+		}
 
-	err := fetchBatched(context.Background(), testlog.Logger(t, log.LvlError), requests, tc.GetBatch, tc.maxRetry, tc.maxPerBatch, tc.maxParallel)
-	assert.Equal(t, err, tc.err)
+		err := iter.Fetch(ctx, bc.maxBatchSize)
+		if err == io.EOF {
+			require.Equal(t, i, len(tc.batchCalls)-1, "EOF only on last call")
+		} else {
+			require.False(t, iter.Complete())
+			if bc.err == "" {
+				require.NoError(t, err)
+			} else {
+				require.ErrorContains(t, err, bc.err)
+			}
+		}
+	}
+	require.True(t, iter.Complete(), "batch iter should be complete after the expected calls")
 
 	tc.AssertExpectations(t)
 }
@@ -88,13 +118,9 @@ func (tc *batchTestCase) Run(t *testing.T) {
 func TestFetchBatched(t *testing.T) {
 	testCases := []*batchTestCase{
 		{
-			name:        "empty",
-			items:       0,
-			batchCalls:  []batchCall{},
-			err:         nil,
-			maxRetry:    3,
-			maxPerBatch: 10,
-			maxParallel: 10,
+			name:       "empty",
+			items:      0,
+			batchCalls: []batchCall{},
 		},
 		{
 			name:  "simple",
@@ -107,13 +133,10 @@ func TestFetchBatched(t *testing.T) {
 						{id: 2, err: false},
 						{id: 3, err: false},
 					},
-					err: nil,
+					err:          "",
+					maxBatchSize: 4,
 				},
 			},
-			err:         nil,
-			maxRetry:    3,
-			maxPerBatch: 10,
-			maxParallel: 10,
 		},
 		{
 			name:  "split",
@@ -125,173 +148,111 @@ func TestFetchBatched(t *testing.T) {
 						{id: 1, err: false},
 						{id: 2, err: false},
 					},
-					err: nil,
+					err:          "",
+					maxBatchSize: 3,
 				},
 				{
 					elems: []elemCall{
 						{id: 3, err: false},
 						{id: 4, err: false},
 					},
-					err: nil,
+					err:          "",
+					maxBatchSize: 3,
 				},
 			},
-			err:         nil,
-			maxRetry:    2,
-			maxPerBatch: 3,
-			maxParallel: 10,
-		},
-		{
-			name:  "batch split and parallel constrain",
-			items: 3,
-			batchCalls: []batchCall{
-				{
-					elems: []elemCall{
-						{id: 0, err: false},
-					},
-					err: nil,
-				},
-				{
-					elems: []elemCall{
-						{id: 1, err: false},
-					},
-					err: nil,
-				},
-				{
-					elems: []elemCall{
-						{id: 2, err: false},
-					},
-					err: nil,
-				},
-			},
-			err:         nil,
-			maxRetry:    2,
-			maxPerBatch: 1,
-			maxParallel: 2,
 		},
 		{
 			name:  "efficient retry",
-			items: 5,
+			items: 7,
 			batchCalls: []batchCall{
 				{
 					elems: []elemCall{
 						{id: 0, err: false},
 						{id: 1, err: true},
 					},
-					err: nil,
+					err:          "1 error occurred:",
+					maxBatchSize: 2,
 				},
 				{
 					elems: []elemCall{
 						{id: 2, err: false},
 						{id: 3, err: false},
 					},
-					err: nil,
+					err:          "",
+					maxBatchSize: 2,
+				},
+				{
+					elems: []elemCall{ // in-process before retry even happens
+						{id: 4, err: false},
+						{id: 5, err: false},
+					},
+					err:          "",
+					maxBatchSize: 2,
 				},
 				{
 					elems: []elemCall{
-						{id: 4, err: false},
-						{id: 1, err: false},
+						{id: 6, err: false},
+						{id: 1, err: false}, // includes the element to retry
 					},
-					err: nil,
+					err:          "",
+					maxBatchSize: 2,
 				},
 			},
-			err:         nil,
-			maxRetry:    2,
-			maxPerBatch: 2,
-			maxParallel: 2,
 		},
 		{
 			name:  "repeated sequential retries",
-			items: 3,
+			items: 2,
 			batchCalls: []batchCall{
+				{
+					elems: []elemCall{
+						{id: 0, err: true},
+						{id: 1, err: true},
+					},
+					err:          "2 errors occurred:",
+					maxBatchSize: 2,
+				},
 				{
 					elems: []elemCall{
 						{id: 0, err: false},
 						{id: 1, err: true},
 					},
-					err: nil,
-				},
-				{
-					elems: []elemCall{
-						{id: 2, err: false},
-						{id: 1, err: true},
-					},
-					err: nil,
+					err:          "1 error occurred:",
+					maxBatchSize: 2,
 				},
 				{
 					elems: []elemCall{
 						{id: 1, err: false},
 					},
-					err: nil,
+					err:          "",
+					maxBatchSize: 2,
 				},
 			},
-			err:         nil,
-			maxRetry:    2,
-			maxPerBatch: 2,
-			maxParallel: 1,
 		},
 		{
-			name:  "too many retries",
-			items: 3,
+			name:  "context timeout",
+			items: 1,
 			batchCalls: []batchCall{
+				{
+					elems:        nil,
+					err:          context.Canceled.Error(),
+					maxBatchSize: 3,
+					makeCtx: func() context.Context {
+						ctx, cancel := context.WithCancel(context.Background())
+						cancel()
+						return ctx
+					},
+				},
 				{
 					elems: []elemCall{
 						{id: 0, err: false},
-						{id: 1, err: true},
 					},
-					err: nil,
-				},
-				{
-					elems: []elemCall{
-						{id: 2, err: false},
-						{id: 1, err: true},
-					},
-					err: nil,
-				},
-				{
-					elems: []elemCall{
-						{id: 1, err: true},
-					},
-					err: nil,
+					err:          "",
+					maxBatchSize: 2,
 				},
 			},
-			err:         TooManyRetries,
-			maxRetry:    2,
-			maxPerBatch: 2,
-			maxParallel: 1,
 		},
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, tc.Run)
 	}
-}
-
-type parentErrBatchTestCase struct {
-	mock.Mock
-}
-
-func (c *parentErrBatchTestCase) GetBatch(ctx context.Context, b []rpc.BatchElem) error {
-	return c.Mock.MethodCalled("get", b).Get(0).([]error)[0]
-}
-
-func (c *parentErrBatchTestCase) Run(t *testing.T) {
-	var requests []rpc.BatchElem
-	for i := 0; i < 2; i++ {
-		requests = append(requests, rpc.BatchElem{
-			Method: "testing",
-			Args:   []interface{}{i},
-		})
-	}
-
-	// shouldn't retry if it's an error on the actual request
-	expErr := errors.New("fail")
-	c.On("get", requests).Run(func(args mock.Arguments) {
-	}).Return([]error{expErr})
-	err := fetchBatched(context.Background(), testlog.Logger(t, log.LvlError), requests, c.GetBatch, 2, 2, 1)
-	assert.ErrorIs(t, err, expErr)
-	c.AssertExpectations(t)
-}
-
-func TestFetchBatchedContextTimeout(t *testing.T) {
-	var c parentErrBatchTestCase
-	c.Run(t)
 }
