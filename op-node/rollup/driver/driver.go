@@ -22,7 +22,7 @@ type Driver struct {
 
 type Downloader interface {
 	InfoByHash(ctx context.Context, hash common.Hash) (eth.L1Info, error)
-	Fetch(ctx context.Context, blockHash common.Hash) (eth.L1Info, types.Transactions, types.Receipts, error)
+	Fetch(ctx context.Context, blockHash common.Hash) (eth.L1Info, types.Transactions, eth.ReceiptsFetcher, error)
 }
 
 type L1Chain interface {

@@ -9,11 +9,9 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/client"
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
-	"github.com/ethereum-optimism/optimism/op-node/testlog"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -88,7 +86,6 @@ func randTxs(offset uint64, count uint64) types.Transactions {
 }
 
 func TestSource_InfoByHash(t *testing.T) {
-	log := testlog.Logger(t, log.LvlError)
 	m := new(mockRPC)
 	hdr := randHeader()
 	rhdr := &rpcHeader{
@@ -101,7 +98,7 @@ func TestSource_InfoByHash(t *testing.T) {
 	m.On("CallContext", ctx, new(*rpcHeader), "eth_getBlockByHash", []interface{}{h, false}).Run(func(args mock.Arguments) {
 		*args[1].(**rpcHeader) = rhdr
 	}).Return([]error{nil})
-	s, err := NewSource(m, log, nil, DefaultConfig(&rollup.Config{SeqWindowSize: 10}, true))
+	s, err := NewSource(m, nil, DefaultConfig(&rollup.Config{SeqWindowSize: 10}, true))
 	assert.NoError(t, err)
 	info, err := s.InfoByHash(ctx, h)
 	assert.NoError(t, err)
@@ -115,7 +112,6 @@ func TestSource_InfoByHash(t *testing.T) {
 }
 
 func TestSource_InfoByNumber(t *testing.T) {
-	log := testlog.Logger(t, log.LvlError)
 	m := new(mockRPC)
 	hdr := randHeader()
 	rhdr := &rpcHeader{
@@ -128,7 +124,7 @@ func TestSource_InfoByNumber(t *testing.T) {
 	m.On("CallContext", ctx, new(*rpcHeader), "eth_getBlockByNumber", []interface{}{hexutil.EncodeUint64(n), false}).Run(func(args mock.Arguments) {
 		*args[1].(**rpcHeader) = rhdr
 	}).Return([]error{nil})
-	s, err := NewSource(m, log, nil, DefaultConfig(&rollup.Config{SeqWindowSize: 10}, true))
+	s, err := NewSource(m, nil, DefaultConfig(&rollup.Config{SeqWindowSize: 10}, true))
 	assert.NoError(t, err)
 	info, err := s.InfoByNumber(ctx, n)
 	assert.NoError(t, err)
@@ -137,7 +133,6 @@ func TestSource_InfoByNumber(t *testing.T) {
 }
 
 func TestSource_FetchAllTransactions(t *testing.T) {
-	log := testlog.Logger(t, log.LvlError)
 	m := new(mockRPC)
 
 	ctx := context.Background()
@@ -180,7 +175,7 @@ func TestSource_FetchAllTransactions(t *testing.T) {
 		}
 	}).Return([]error{nil})
 
-	s, err := NewSource(m, log, nil, DefaultConfig(&rollup.Config{SeqWindowSize: 10}, true))
+	s, err := NewSource(m, nil, DefaultConfig(&rollup.Config{SeqWindowSize: 10}, true))
 	assert.NoError(t, err)
 	s.batchCall = m.batchCall // override the optimized batch call
 
