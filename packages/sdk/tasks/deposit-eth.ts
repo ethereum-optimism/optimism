@@ -1,8 +1,42 @@
 import { task, types } from 'hardhat/config'
+import { HardhatRuntimeEnvironment } from 'hardhat/types'
 import '@nomiclabs/hardhat-ethers'
 import 'hardhat-deploy'
 import { predeploys } from '@eth-optimism/contracts-bedrock'
-import { providers, utils } from 'ethers'
+import { utils } from 'ethers'
+import '@eth-optimism/op-hardhat-chainops'
+
+const printBalances = async (hre: HardhatRuntimeEnvironment) => {
+  const l1Height = await hre.optimism.l1Signer.provider.getBlockNumber()
+  const l2Height = await hre.optimism.l2Signer.provider.getBlockNumber()
+
+  console.log()
+  console.log('Fetching balances')
+  console.log(`L1 height: ${l1Height}`)
+  console.log(`L2 height: ${l2Height}`)
+
+  const l1Balance = await hre.optimism.l1Signer.getBalance()
+  const l2Balance = await hre.optimism.l2Signer.getBalance()
+  console.log(`L1 balance: ${utils.formatEther(l1Balance)} ETH`)
+  console.log(`L2 balance: ${utils.formatEther(l2Balance)} ETH`)
+
+  const table = {}
+  const contracts = [
+    'OptimismPortal',
+    'L1CrossDomainMessenger',
+    'L1StandardBridge',
+    'L2ToL1MessagePasser',
+    'L2CrossDomainMessenger',
+    'L2StandardBridge',
+  ]
+  for (const name of contracts) {
+    const contract = hre.optimism.contracts[name]
+    const balance = await contract.provider.getBalance(contract.address)
+    table[name] = `${utils.formatEther(balance)} ETH`
+  }
+  console.table(table)
+  console.log()
+}
 
 import {
   CrossChainMessenger,
@@ -42,8 +76,15 @@ task('deposit-eth', 'Deposits WETH9 onto L2.')
     if (signers.length === 0) {
       throw new Error('No configured signers')
     }
+
+    await hre.optimism.init({
+      l1Signer: signers[0],
+      l2Url: args.l2ProviderUrl,
+    })
+
+    const signer = hre.optimism.l1Signer
+
     // Use the first configured signer for simplicity
-    const signer = signers[0]
     const address = await signer.getAddress()
     console.log(`Using signer ${address}`)
 
@@ -54,12 +95,6 @@ task('deposit-eth', 'Deposits WETH9 onto L2.')
       throw new Error('Signer has no balance')
     }
 
-    const l2Provider = new providers.StaticJsonRpcProvider(args.l2ProviderUrl)
-
-    const Deployment__L2OutputOracleProxy = await hre.deployments.get(
-      'L2OutputOracleProxy'
-    )
-
     // send to self if not specified
     const to = args.to ? args.to : address
     const amount = args.amount
@@ -69,79 +104,11 @@ task('deposit-eth', 'Deposits WETH9 onto L2.')
       ? utils.parseEther(args.withdrawAmount)
       : utils.parseEther(amount.div(2).toString())
 
-    const l2Signer = new hre.ethers.Wallet(
-      hre.network.config.accounts[0],
-      l2Provider
-    )
-
-    const Artifact__L2ToL1MessagePasser = await hre.deployments.getArtifact(
-      'L2ToL1MessagePasser'
-    )
-
-    const Artifact__L2CrossDomainMessenger = await hre.deployments.getArtifact(
-      'L2CrossDomainMessenger'
-    )
-
-    const Artifact__L2StandardBridge = await hre.deployments.getArtifact(
-      'L2StandardBridge'
-    )
-
-    const Deployment__OptimismPortal = await hre.deployments.get(
-      'OptimismPortal'
-    )
-
-    const Deployment__OptimismPortalProxy = await hre.deployments.get(
-      'OptimismPortalProxy'
-    )
-
-    const Deployment__L1StandardBridgeProxy = await hre.deployments.get(
-      'L1StandardBridgeProxy'
-    )
-
-    const Deployment__L1CrossDomainMessenger = await hre.deployments.get(
-      'L1CrossDomainMessenger'
-    )
-
-    const Deployment__L1CrossDomainMessengerProxy = await hre.deployments.get(
-      'L1CrossDomainMessengerProxy'
-    )
-
-    const Deployment__L1StandardBridge = await hre.deployments.get(
-      'L1StandardBridge'
-    )
-
-    const OptimismPortal = new hre.ethers.Contract(
-      Deployment__OptimismPortalProxy.address,
-      Deployment__OptimismPortal.abi,
-      signer
-    )
-
-    const L1CrossDomainMessenger = new hre.ethers.Contract(
-      Deployment__L1CrossDomainMessengerProxy.address,
-      Deployment__L1CrossDomainMessenger.abi,
-      signer
-    )
-
-    const L1StandardBridge = new hre.ethers.Contract(
-      Deployment__L1StandardBridgeProxy.address,
-      Deployment__L1StandardBridge.abi,
-      signer
-    )
-
-    const L2ToL1MessagePasser = new hre.ethers.Contract(
-      predeploys.L2ToL1MessagePasser,
-      Artifact__L2ToL1MessagePasser.abi
-    )
-
-    const L2CrossDomainMessenger = new hre.ethers.Contract(
-      predeploys.L2CrossDomainMessenger,
-      Artifact__L2CrossDomainMessenger.abi
-    )
-
-    const L2StandardBridge = new hre.ethers.Contract(
-      predeploys.L2StandardBridge,
-      Artifact__L2StandardBridge.abi
-    )
+    const l2Signer = hre.optimism.l2Signer
+    const OptimismPortal = hre.optimism.contracts.OptimismPortal
+    const L1CrossDomainMessenger = hre.optimism.contracts.L1CrossDomainMessenger
+    const L1StandardBridge = hre.optimism.contracts.L1StandardBridge
+    const L2OutputOracle = hre.optimism.contracts.L2OutputOracle
 
     const messenger = new CrossChainMessenger({
       l1SignerOrProvider: signer,
@@ -151,22 +118,22 @@ task('deposit-eth', 'Deposits WETH9 onto L2.')
       bridges: {
         Standard: {
           Adapter: StandardBridgeAdapter,
-          l1Bridge: Deployment__L1StandardBridgeProxy.address,
+          l1Bridge: L1StandardBridge.address,
           l2Bridge: predeploys.L2StandardBridge,
         },
       },
       contracts: {
         l1: {
-          L1StandardBridge: Deployment__L1StandardBridgeProxy.address,
-          L1CrossDomainMessenger:
-            Deployment__L1CrossDomainMessengerProxy.address,
-          L2OutputOracle: Deployment__L2OutputOracleProxy.address,
-          OptimismPortal: Deployment__OptimismPortalProxy.address,
+          L1StandardBridge: L1StandardBridge.address,
+          L1CrossDomainMessenger: L1CrossDomainMessenger.address,
+          L2OutputOracle: L2OutputOracle.address,
+          OptimismPortal: OptimismPortal.address,
         },
       },
       bedrock: true,
     })
 
+    await printBalances(hre)
     const opBalanceBefore = await signer.provider.getBalance(
       OptimismPortal.address
     )
@@ -183,6 +150,7 @@ task('deposit-eth', 'Deposits WETH9 onto L2.')
     console.log(
       `Deposit complete - ${depositMessageReceipt.transactionReceipt.transactionHash}`
     )
+    await printBalances(hre)
 
     const opBalanceAfter = await signer.provider.getBalance(
       OptimismPortal.address
@@ -201,41 +169,22 @@ task('deposit-eth', 'Deposits WETH9 onto L2.')
     const ethWithdrawReceipt = await ethWithdraw.wait()
     console.log(`ETH withdrawn on L2 - ${ethWithdrawReceipt.transactionHash}`)
 
-    {
-      // check the logs
-      for (const log of ethWithdrawReceipt.logs) {
-        switch (log.address) {
-          case L2ToL1MessagePasser.address: {
-            const parsed = L2ToL1MessagePasser.interface.parseLog(log)
-            console.log(parsed.name)
-            console.log(parsed.args)
-            console.log()
-            break
-          }
-          case L2StandardBridge.address: {
-            const parsed = L2StandardBridge.interface.parseLog(log)
-            console.log(parsed.name)
-            console.log(parsed.args)
-            console.log()
-            break
-          }
-          case L2CrossDomainMessenger.address: {
-            const parsed = L2CrossDomainMessenger.interface.parseLog(log)
-            console.log(parsed.name)
-            console.log(parsed.args)
-            console.log()
-            break
-          }
-          default: {
-            console.log(`Unknown log from ${log.address} - ${log.topics[0]}`)
-          }
-        }
+    for (const log of ethWithdrawReceipt.logs) {
+      try {
+        const parsed = hre.optimism.parseLog(log)
+        console.log(`Log from ${parsed.name} at ${log.address}`)
+        console.log(parsed.log.args)
+        console.log()
+      } catch (e) {
+        console.log(
+          `Unknown log emitted from ${log.address} - ${log.topics[0]}`
+        )
       }
     }
-
     console.log(
       `Withdrawal on L2 complete: ${ethWithdrawReceipt.transactionHash}`
     )
+    await printBalances(hre)
 
     console.log('Waiting to be able to withdraw')
     setInterval(async () => {
@@ -254,61 +203,22 @@ task('deposit-eth', 'Deposits WETH9 onto L2.')
       throw new Error('Finalize withdrawal reverted')
     }
 
+    for (const log of ethFinalizeReceipt.logs) {
+      try {
+        const parsed = hre.optimism.parseLog(log)
+        console.log(`Log from ${parsed.name} at ${log.address}`)
+        console.log(parsed.log.args)
+        console.log()
+      } catch (e) {
+        console.log(
+          `Unknown log emitted from ${log.address} - ${log.topics[0]}`
+        )
+      }
+    }
     console.log(
       `ETH withdrawal complete: ${ethFinalizeReceipt.transactionHash}`
     )
-    {
-      // Check that the logs are correct
-      for (const log of ethFinalizeReceipt.logs) {
-        switch (log.address) {
-          case L1StandardBridge.address: {
-            const parsed = L1StandardBridge.interface.parseLog(log)
-            console.log(parsed.name)
-            console.log(parsed.args)
-            console.log()
-            if (parsed.name !== 'ETHBridgeFinalized') {
-              throw new Error('Wrong event name from L1StandardBridge')
-            }
-            if (!parsed.args.amount.eq(withdrawAmount)) {
-              throw new Error('Wrong amount in event')
-            }
-            if (parsed.args.from !== address) {
-              throw new Error('Wrong to in event')
-            }
-            if (parsed.args.to !== address) {
-              throw new Error('Wrong from in event')
-            }
-            break
-          }
-          case L1CrossDomainMessenger.address: {
-            const parsed = L1CrossDomainMessenger.interface.parseLog(log)
-            console.log(parsed.name)
-            console.log(parsed.args)
-            console.log()
-            if (parsed.name !== 'RelayedMessage') {
-              throw new Error('Wrong event from L1CrossDomainMessenger')
-            }
-            break
-          }
-          case OptimismPortal.address: {
-            const parsed = OptimismPortal.interface.parseLog(log)
-            console.log(parsed.name)
-            console.log(parsed.args)
-            console.log()
-            // TODO: remove this if check
-            if (parsed.name === 'WithdrawalFinalized') {
-              if (parsed.args.success !== true) {
-                throw new Error('Unsuccessful withdrawal call')
-              }
-            }
-            break
-          }
-          default: {
-            console.log(`Unknown log from ${log.address} - ${log.topics[0]}`)
-          }
-        }
-      }
-    }
+    await printBalances(hre)
 
     const opBalanceFinally = await signer.provider.getBalance(
       OptimismPortal.address
