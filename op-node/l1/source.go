@@ -13,14 +13,11 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rpc"
 )
 
 type SourceConfig struct {
-	// batching parameters
-	MaxParallelBatching int
-	MaxBatchRetry       int
+	// Maximum number of requests to make per batch
 	MaxRequestsPerBatch int
 
 	// limit concurrent requests, applies to the source as a whole
@@ -55,12 +52,6 @@ func (c *SourceConfig) Check() error {
 	if c.MaxConcurrentRequests < 1 {
 		return fmt.Errorf("expected at least 1 concurrent request, but max is %d", c.MaxConcurrentRequests)
 	}
-	if c.MaxParallelBatching < 1 {
-		return fmt.Errorf("expected at least 1 batch request to run at a time, but max is %d", c.MaxParallelBatching)
-	}
-	if c.MaxBatchRetry < 0 || c.MaxBatchRetry > 20 {
-		return fmt.Errorf("number of max batch retries is not reasonable: %d", c.MaxBatchRetry)
-	}
 	if c.MaxRequestsPerBatch < 1 {
 		return fmt.Errorf("expected at least 1 request per batch, but max is: %d", c.MaxRequestsPerBatch)
 	}
@@ -68,19 +59,18 @@ func (c *SourceConfig) Check() error {
 }
 
 func DefaultConfig(config *rollup.Config, trustRPC bool) *SourceConfig {
-	// Cache 3/2 worth of sequencing window of receipts and txs, up to 400 per block.
+	// Cache 3/2 worth of sequencing window of receipts and txs
 	span := int(config.SeqWindowSize) * 3 / 2
 	if span > 1000 { // sanity cap. If a large sequencing window is configured, do not make the cache too large
 		span = 1000
 	}
 	return &SourceConfig{
-		ReceiptsCacheSize:     span * 400,
-		TransactionsCacheSize: span * 400,
+		// receipts and transactions are cached per block
+		ReceiptsCacheSize:     span,
+		TransactionsCacheSize: span,
 		HeadersCacheSize:      span,
 
-		// TODO: tune batch params
-		MaxParallelBatching: 8,
-		MaxBatchRetry:       3,
+		// TODO: tune batch param
 		MaxRequestsPerBatch: 20,
 
 		MaxConcurrentRequests: 10,
@@ -96,7 +86,8 @@ type batchCallContextFn func(ctx context.Context, b []rpc.BatchElem) error
 type Source struct {
 	client client.RPC
 
-	batchCall batchCallContextFn
+	batchCall    batchCallContextFn
+	maxBatchSize int
 
 	trustRPC bool
 
@@ -114,19 +105,16 @@ type Source struct {
 }
 
 // NewSource wraps a RPC with bindings to fetch L1 data, while logging errors, tracking metrics (optional), and caching.
-func NewSource(client client.RPC, log log.Logger, metrics caching.Metrics, config *SourceConfig) (*Source, error) {
+func NewSource(client client.RPC, metrics caching.Metrics, config *SourceConfig) (*Source, error) {
 	if err := config.Check(); err != nil {
 		return nil, fmt.Errorf("bad config, cannot create L1 source: %w", err)
 	}
 	client = LimitRPC(client, config.MaxConcurrentRequests)
 
-	// Batch calls will be split up to handle max-batch size,
-	// and parallelized since the RPC server does not parallelize batch contents otherwise.
-	getBatch := parallelBatchCall(log, client.BatchCallContext,
-		config.MaxBatchRetry, config.MaxRequestsPerBatch, config.MaxParallelBatching)
 	return &Source{
 		client:            client,
-		batchCall:         getBatch,
+		batchCall:         client.BatchCallContext,
+		maxBatchSize:      config.MaxRequestsPerBatch,
 		trustRPC:          config.TrustRPC,
 		receiptsCache:     caching.NewLRUCache(metrics, "receipts", config.ReceiptsCacheSize),
 		transactionsCache: caching.NewLRUCache(metrics, "txs", config.TransactionsCacheSize),
@@ -212,7 +200,7 @@ func (s *Source) InfoAndTxsHead(ctx context.Context) (eth.L1Info, types.Transact
 	return s.blockCall(ctx, "eth_getBlockByNumber", "latest")
 }
 
-func (s *Source) Fetch(ctx context.Context, blockHash common.Hash) (eth.L1Info, types.Transactions, types.Receipts, error) {
+func (s *Source) Fetch(ctx context.Context, blockHash common.Hash) (eth.L1Info, types.Transactions, eth.ReceiptsFetcher, error) {
 	if blockHash == (common.Hash{}) {
 		return nil, nil, nil, ethereum.NotFound
 	}
@@ -220,13 +208,16 @@ func (s *Source) Fetch(ctx context.Context, blockHash common.Hash) (eth.L1Info, 
 	if err != nil {
 		return nil, nil, nil, err
 	}
-
-	receipts, err := fetchReceipts(ctx, info.ID(), info.receiptHash, txs, s.batchCall)
-	if err != nil {
-		return nil, nil, nil, err
+	if v, ok := s.receiptsCache.Get(info.hash); ok {
+		return info, txs, v.(eth.ReceiptsFetcher), nil
+	} else {
+		r, err := NewReceiptsFetcher(info.ID(), info.receiptHash, txs, s.batchCall, s.maxBatchSize)
+		if err != nil {
+			return nil, nil, nil, err
+		}
+		s.receiptsCache.Add(info.hash, r)
+		return info, txs, r, nil
 	}
-	s.receiptsCache.Add(info.hash, receipts)
-	return info, txs, receipts, nil
 }
 
 // FetchAllTransactions fetches transaction lists of a window of blocks, and caches each block and the transactions

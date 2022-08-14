@@ -2,7 +2,9 @@ package eth
 
 import (
 	"bytes"
+	"context"
 	"fmt"
+	"io"
 	"math/big"
 	"reflect"
 
@@ -252,3 +254,28 @@ type ForkchoiceUpdatedResult struct {
 	// the payload id if requested
 	PayloadID *PayloadID `json:"payloadId"`
 }
+
+// ReceiptsFetcher fetches receipts of a block,
+// and enables the caller to parallelize fetching and backoff on fetching errors as needed.
+type ReceiptsFetcher interface {
+	Fetch(ctx context.Context) error
+	Complete() bool
+	Result() (types.Receipts, error)
+}
+
+// FetchedReceipts is a simple util to implement the ReceiptsFetcher with readily available receipts.
+type FetchedReceipts types.Receipts
+
+func (f FetchedReceipts) Fetch(ctx context.Context) error {
+	return io.EOF
+}
+
+func (f FetchedReceipts) Complete() bool {
+	return true
+}
+
+func (f FetchedReceipts) Result() (types.Receipts, error) {
+	return types.Receipts(f), nil
+}
+
+var _ ReceiptsFetcher = (FetchedReceipts)(nil)
