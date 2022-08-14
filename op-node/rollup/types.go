@@ -30,7 +30,7 @@ type Config struct {
 	// Note: When L1 has many 1 second consecutive blocks, and L2 grows at fixed 2 seconds,
 	// the L2 time may still grow beyond this difference.
 	MaxSequencerDrift uint64 `json:"max_sequencer_drift"`
-	// Number of epochs (L1 blocks) per sequencing window
+	// Number of epochs (L1 blocks) per sequencing window, including the epoch L1 origin block itself
 	SeqWindowSize uint64 `json:"seq_window_size"`
 	// Number of seconds (w.r.t. L1 time) that a frame can be valid when included in L1
 	ChannelTimeout uint64 `json:"channel_timeout"`

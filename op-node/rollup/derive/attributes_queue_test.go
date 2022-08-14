@@ -68,6 +68,7 @@ func TestAttributesQueue_Step(t *testing.T) {
 	out.ExpectSafeL2Head(safeHead)
 
 	batch := &BatchData{BatchV1{
+		ParentHash:   safeHead.Hash,
 		EpochNum:     rollup.Epoch(l1Info.InfoNum),
 		EpochHash:    l1Info.InfoHash,
 		Timestamp:    safeHead.Time + cfg.BlockTime,

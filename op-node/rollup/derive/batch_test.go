@@ -3,6 +3,8 @@ package derive
 import (
 	"testing"
 
+	"github.com/ethereum/go-ethereum/common"
+
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/stretchr/testify/assert"
 )
@@ -11,6 +13,7 @@ func TestBatchRoundTrip(t *testing.T) {
 	batches := []*BatchData{
 		{
 			BatchV1: BatchV1{
+				ParentHash:   common.Hash{},
 				EpochNum:     0,
 				Timestamp:    0,
 				Transactions: []hexutil.Bytes{},
@@ -18,6 +21,7 @@ func TestBatchRoundTrip(t *testing.T) {
 		},
 		{
 			BatchV1: BatchV1{
+				ParentHash:   common.Hash{31: 0x42},
 				EpochNum:     1,
 				Timestamp:    1647026951,
 				Transactions: []hexutil.Bytes{[]byte{0, 0, 0}, []byte{0x76, 0xfd, 0x7c}},
