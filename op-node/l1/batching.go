@@ -86,7 +86,7 @@ func (ibc *IterativeBatchCall) Fetch(ctx context.Context, maxBatchSize uint) err
 			continue
 		} else {
 			atomic.AddUint32(&ibc.completed, 1)
-			if ibc.completed >= uint32(len(ibc.requests)) {
+			if atomic.LoadUint32(&ibc.completed) >= uint32(len(ibc.requests)) {
 				close(ibc.scheduled)
 				return io.EOF
 			}
@@ -96,7 +96,7 @@ func (ibc *IterativeBatchCall) Fetch(ctx context.Context, maxBatchSize uint) err
 }
 
 func (ibc *IterativeBatchCall) Complete() bool {
-	return ibc.completed >= uint32(len(ibc.requests))
+	return atomic.LoadUint32(&ibc.completed) >= uint32(len(ibc.requests))
 }
 
 func (ibc *IterativeBatchCall) Result() []rpc.BatchElem {
