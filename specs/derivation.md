@@ -347,14 +347,15 @@ Recall that a batch contains a list of transactions to be included in a specific
 
 A batch is encoded as `batch_version ++ content`, where `content` depends on the version:
 
-| `batch_version` | `content`                                                             |
-| --------------- | --------------------------------------------------------------------- |
-| 0               | `rlp_encode([epoch_number, epoch_hash, timestamp, transaction_list])` |
+| `batch_version` | `content`                                                                          |
+| --------------- |------------------------------------------------------------------------------------|
+| 0               | `rlp_encode([parent_hash, epoch_number, epoch_hash, timestamp, transaction_list])` |
 
 where:
 
 - `rlp_encode` is a function that encodes a batch according to the [RLP format], and `[x, y, z]` denotes a list
   containing items `x`, `y` and `z`
+- `parent_hash` is the block hash of the previous L2 block
 - `epoch_number` and `epoch_hash` are the number and hash of the L1 block corresponding to the [sequencing
   epoch][g-sequencing-epoch] of the L2 block
 - `timestamp` is the timestamp of the L2 block
@@ -490,27 +491,63 @@ Note that the presence of any gaps in the batches derived from L1 means that thi
 [sequencing window][g-sequencing-window] before it can generate empty batches (because the missing batch(es) could have
 data in the last L1 block of the window in the worst case).
 
-We also ignore invalid batches, which do not satisfy one of the following constraints:
+A batch can have 4 different forms of validity:
 
-- The timestamp is aligned to the [block time][g-block-time]:
-  `(batch.timestamp - genesis_l2_timestamp) % block_time == 0`
-- The timestamp is within the allowed range: `min_l2_timestamp <= batch.timestamp < max_l2_timestamp`, where
-  - all these values are denominated in seconds
-  - `min_l2_timestamp = prev_l2_timestamp + l2_block_time`
-    - `prev_l2_timestamp` is the timestamp of the previous L2 block: the last block of the previous epoch,
-      or the L2 genesis block timestamp if there is no previous epoch.
-    - `l2_block_time` is a configurable parameter of the time between L2 blocks (on Optimism, 2s)
-  - `max_l2_timestamp = max(l1_timestamp + max_sequencer_drift, min_l2_timestamp + l2_block_time)`
-    - `l1_timestamp` is the timestamp of the L1 block associated with the L2 block's epoch
-    - `max_sequencer_drift` is the maximum amount of time an L2 block's timestamp is allowed to get ahead of the
-       timestamp of its [L1 origin][g-l1-origin]
-  - Note that we always have `min_l2_timestamp >= l1_timestamp`, i.e. a L2 block timestamp is always equal or ahead of
-    the timestamp of its [L1 origin][g-l1-origin].
-- The batch is the first batch with `batch.timestamp` in this sequencing window, i.e. one batch per L2 block number.
-- The batch only contains sequenced transactions, i.e. it must NOT contain any [deposited-type transactions][
-  g-deposit-tx-type].
+- `drop`: the batch is invalid, and will always be in the future, unless we reorg. It can be removed from the buffer.
+- `accept`: the batch is valid and should be processed.
+- `undecided`: we are lacking L1 information until we can proceed batch filtering.
+- `future`: the batch may be valid, but cannot be processed yet and should be checked again later.
 
-> **TODO** specify `max_sequencer_drift`
+The batches are processed in order of the inclusion on L1: if multiple batches can be `accept`-ed the first is applied.
+
+The batches validity is derived as follows:
+
+Definitions:
+
+- `batch` as defined in the [Batch format section][batch-format].
+- `epoch = safe_l2_head.l1_origin` a [L1 origin][g-l1-origin] coupled to the batch, with properties:
+  `number` (L1 block number), `hash` (L1 block hash), and `timestamp` (L1 block timestamp).
+- `inclusion_block_number` is the L1 block number when `batch` was first *fully* derived.
+- `next_timestamp = safe_l2_head.timestamp + block_time` is the expected L2 timestamp the next batch should have,
+  see [block time information][g-block-time].
+- `next_epoch` may not be known yet, but would be the L1 block after `epoch` if available.
+- `batch_origin` is either `epoch` or `next_epoch`, depending on validation.
+
+Rules:
+
+- `batch.timestamp > next_timestamp` -> `future`: i.e. the batch must be ready to process.
+- `batch.timestamp < next_timestamp` -> `drop`: i.e. the batch must not be too old.
+- `batch.parent_hash != safe_l2_head.hash` -> `drop`: i.e. the parent hash must be equal to the L2 safe head block hash.
+- `batch.epoch_num + sequence_window_size < inclusion_block_number` -> `drop`: i.e. the batch must be included timely.
+- `batch.epoch_num < epoch.number` -> `drop`: i.e. the batch origin is not older than that of the L2 safe head.
+- `batch.epoch_num == epoch.number`: define `batch_origin` as `epoch`.
+- `batch.epoch_num == epoch.number+1`:
+  - If `next_epoch` is not known -> `undecided`:
+    i.e. a batch that changes the L1 origin cannot be processed until we have the L1 origin data.
+  - If known, then define `batch_origin` as `next_epoch`
+- `batch.epoch_num > epoch.number+1` -> `drop`: i.e. the L1 origin cannot change by more than one L1 block per L2 block.
+- `batch.epoch_hash != batch_origin.hash` -> `drop`: i.e. a batch must reference a canonical L1 origin,
+  to prevent batches from being replayed onto unexpected L1 chains.
+- `batch.timestamp > batch_origin.time + max_sequencer_drift` -> `drop`: i.e. a batch that does not adopt the next L1
+  within time will be dropped, in favor of an empty batch that can advance the L1 origin.
+- `batch.transactions`: `drop` if the `batch.transactions` list contains a transaction
+  that is invalid or derived by other means exclusively:
+  - any transaction that is empty (zero length byte string)
+  - any [deposited transactions][g-deposit-tx-type] (identified by the transaction type prefix byte)
+
+If no batch can be `accept`-ed, and the stage has completed buffering of all batches that can fully be read from the L1
+block at height `epoch.number + sequence_window_size`, and the `next_epoch` is available,
+then an empty batch can be derived with the following properties:
+
+- `parent_hash = safe_l2_head.hash`
+- `timestamp = next_timestamp`
+- `transactions` is empty, i.e. no sequencer transactions. Deposited transactions may be added in the next stage.
+- If `next_timestamp < next_epoch.time`: the current L1 origin is repeated, to preserve the L2 time invariant.
+  - `epoch_num = epoch.number`
+  - `epoch_hash = epoch.hash`
+- Otherwise,
+  - `epoch_num = next_epoch.number`
+  - `epoch_hash = next_epoch.hash`
 
 ### Payload Attributes Derivation
 
