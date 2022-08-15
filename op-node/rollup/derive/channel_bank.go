@@ -1,7 +1,6 @@
 package derive
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -83,61 +82,27 @@ func (ib *ChannelBank) IngestData(data []byte) {
 		panic("write data to bank while closed")
 	}
 	ib.log.Debug("channel bank got new data", "origin", ib.progress.Origin, "data_len", len(data))
-	if len(data) < 1 {
-		ib.log.Warn("data must be at least have a version byte, but got empty string")
-		return
-	}
 
-	if data[0] != DerivationVersion0 {
-		ib.log.Warn("unrecognized derivation version", "version", data)
-		return
-	}
-	buf := bytes.NewBuffer(data[1:])
-
+	// TODO: Why is the prune here?
 	ib.prune()
 
-	if buf.Len() < minimumFrameSize {
-		ib.log.Warn("data must be at least have one frame", "length", buf.Len())
+	// TODO: Technically breaking change that we require all frames to be parseable in a tx.data
+	frames, err := ParseFrames(data)
+	if err != nil {
+		ib.log.Warn("malformed frame: %w", err)
 		return
 	}
 
-	// Iterate over all frames. They may have different channel IDs to indicate that they stream consumer should reset.
-	for {
-		// Don't try to unmarshal from an empty buffer.
-		// The if done checks should catch most/all of this case though.
-		if buf.Len() < ChannelIDDataSize+1 {
-			return
-		}
-		done := false
-		var f Frame
-		if err := (&f).UnmarshalBinary(buf); err == io.EOF {
-			done = true
-		} else if err != nil {
-			ib.log.Warn("malformed frame: %w", err)
-			return
-		}
-
-		// stop reading and ignore remaining data if we encounter a zeroed ID,
-		// this happens when there is zero padding at the end.
-		if f.ID == (ChannelID{}) {
-			ib.log.Trace("empty channel ID")
-			return
-		}
-
+	// Process each frame
+	for _, f := range frames {
 		// check if the channel is not timed out
 		if f.ID.Time+ib.cfg.ChannelTimeout < ib.progress.Origin.Time {
 			ib.log.Warn("channel is timed out, ignore frame", "channel", f.ID, "id_time", f.ID.Time, "frame", f.FrameNumber)
-			if done {
-				return
-			}
 			continue
 		}
 		// check if the channel is not included too soon (otherwise timeouts wouldn't be effective)
 		if f.ID.Time > ib.progress.Origin.Time {
 			ib.log.Warn("channel claims to be from the future, ignore frame", "channel", f.ID, "id_time", f.ID.Time, "frame", f.FrameNumber)
-			if done {
-				return
-			}
 			continue
 		}
 
@@ -151,16 +116,10 @@ func (ib *ChannelBank) IngestData(data []byte) {
 		ib.log.Trace("ingesting frame", "channel", f.ID, "frame_number", f.FrameNumber, "length", len(f.Data))
 		if err := currentCh.IngestData(uint64(f.FrameNumber), f.IsLast, f.Data); err != nil {
 			ib.log.Warn("failed to ingest frame into channel", "channel", f.ID, "frame_number", f.FrameNumber, "err", err)
-			if done {
-				return
-			}
 			continue
 		}
-
-		if done {
-			return
-		}
 	}
+
 }
 
 // Read the raw data of the first channel, if it's timed-out or closed.
