@@ -262,7 +262,7 @@ describe('L2ERC721Bridge', () => {
           0,
           NON_NULL_BYTES32
         )
-      ).to.be.revertedWith('L2ERC721Bridge: account is not externally owned')
+      ).to.be.revertedWith('ERC721Bridge: account is not externally owned')
     })
 
     it('bridgeERC721() burns and sends the correct withdrawal message', async () => {
