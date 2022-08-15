@@ -4,7 +4,7 @@
     "resolveJsonModule": true
   },
   "include": [
-    "./lib",
+    "./lib/**/*.ts",
     "./bedrock/**/*.(ts|json)",
     "./package.json"
   ]
