@@ -1,10 +1,18 @@
 package derive
 
 import (
+	"bytes"
+	"compress/zlib"
+	"errors"
 	"fmt"
+	"io"
 
 	"github.com/ethereum-optimism/optimism/op-node/eth"
+	"github.com/ethereum/go-ethereum/rlp"
 )
+
+// TODO: Full state machine for channel
+// Open, Closed, Ready (todo - when to construct RLP reader), Batches Read
 
 // A Channel is a set of batches that are split into at least one, but possibly multiple frames.
 // Frames are allowed to be ingested out of order.
@@ -33,6 +41,9 @@ type Channel struct {
 	inputs map[uint64][]byte
 
 	highestL1InclusionBlock eth.L1BlockRef
+
+	// Output stream. Constructed at `ReadBatch` if not nil
+	readRLP *rlp.Stream
 }
 
 func NewChannel(id ChannelID) *Channel {
@@ -66,10 +77,15 @@ func (ch *Channel) AddFrame(frame Frame, l1InclusionBlock eth.L1BlockRef) error 
 	}
 	ch.inputs[uint64(frame.FrameNumber)] = frame.Data
 	ch.size += uint64(len(frame.Data)) + frameOverhead
+
+	// todo use `IsReady` + state to create final output reader
+
 	return nil
 }
 
 // Size returns the current size of the channel including frame overhead.
+// Reading from the channel does not reduce the size as reading is done
+// on uncompressed data while this size is over compressed data.
 func (ch *Channel) Size() uint64 {
 	return ch.size
 }
@@ -106,4 +122,32 @@ func (ch *Channel) Read() (out []byte) {
 		out = append(out, data...)
 	}
 	return out
+}
+
+// ReadBatch returns a decoded rollup batch, or an error:
+//   - io.EOF when the channel is empty
+//   - any other error (e.g. invalid compression or batch data)
+// The L1 Inclusion block is the highest L1 inclusion block inside the channel.
+func (ch *Channel) ReadBatch() (BatchWithL1InclusionBlock, error) {
+	if ch.readRLP == nil {
+		var readers []io.Reader
+		for i := uint64(0); i <= uint64(ch.endFrameNumber); i++ {
+			data, ok := ch.inputs[i]
+			if !ok {
+				return BatchWithL1InclusionBlock{}, errors.New("dev error")
+			}
+			readers = append(readers, bytes.NewBuffer(data))
+		}
+		zr, err := zlib.NewReader(io.MultiReader(readers...))
+		if err != nil {
+			return BatchWithL1InclusionBlock{}, err
+		}
+		ch.readRLP = rlp.NewStream(zr, 10_000_000)
+	}
+
+	ret := BatchWithL1InclusionBlock{
+		L1InclusionBlock: ch.highestL1InclusionBlock,
+	}
+	err := ch.readRLP.Decode(&ret.Batch)
+	return ret, err
 }
