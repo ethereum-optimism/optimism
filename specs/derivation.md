@@ -103,6 +103,8 @@ To derive the L2 blocks in an epoch `E`, we need the following inputs:
   - The [batcher transactions][g-batcher-transaction] included in the sequencing window. These allow us to
       reconstruct [sequencer batches][g-sequencer-batch] containing the transactions to include in L2 blocks (each batch
       maps to a single L2 block).
+      - Note that it is impossible to have a batcher transaction containing a batch relative to epoch `E` on L1 block
+        `E`, as the batch must contain the hash of L1 block `E`.
   - The [deposits][g-deposits] made in L1 block `E` (in the form of events emitted by the [deposit
       contract][g-deposit-contract]).
   - The L1 block attributes from L1 block `E` (to derive the [L1 attributes deposited transaction][g-l1-attr-deposit]).
@@ -281,8 +283,9 @@ As for the comment on "security types", it explains the classification of blocks
 
 - [Unsafe L2 blocks][g-unsafe-l2-block]:
 - [Safe L2 blocks][g-safe-l2-block]:
-- Finalized L2 blocks: currently the same as the safe L2 block, but could be changed in the future to refer to block that
-  have been derived from [finalized][TODO] L1 data, or alternatively, from L1 blacks that are older than the [challenge period].
+- Finalized L2 blocks: currently the same as the safe L2 block, but could be changed in the future to refer to block
+  that have been derived from [finalized][g-finalized-l2-head] L1 data, or alternatively, from L1 blacks that are older
+  than the [challenge period].
 
 These security levels map to the `headBlockHash`, `safeBlockHash` and `finalizedBlockHash` values transmitted when
 interacting with the [execution-engine API][exec-engine]. Refer to the the [Communication with the Execution
@@ -334,23 +337,20 @@ where:
 - `channel_id` uniquely identifies a channel as the concatenation of a random value and a timestamp
   - `random` is a random value such that two channels with different batches should have a different random value
   - `timestamp` is the time at which the channel was created (UNIX time in seconds)
-  - The ID includes both the random value and the timestamp, in order to prevent a malicious sequencer from reusing
-      the random value after the channel has [timed out][g-channel-timeout] (refer to the [batcher
-      specification][batcher-spec] to learn more about channel timeouts). This will also allow us substitute `random` by
-      a hash commitment to the batches, should we want to do so in the future.
-  - Channels whose timestamp are higher than that of the L1 block they first appear in must be ignored. Note that L1
-      nodes cannot easily manipulate the L1 block timestamp: L1 nodes have a soft constraint to ignore blocks whose
-      timestamps that are ahead of the wallclock time by a certain margin. (A soft constraint is not a consensus rule —
-      nodes will accept such blocks in the canonical chain but will not attempt to build directly on them.) This issue
-      goes away with Proof of Stake, where timestamps are determined by [L1 time slots][g-time-slot].
+  - The ID includes both the random value and the timestamp, in order to prevent a malicious sequencer from reusing the
+    random value after the channel has [timed out][g-channel-timeout] (refer to the [batcher
+    specification][batcher-spec] to learn more about channel timeouts). This will also allow us substitute `random` by a
+    hash commitment to the batches, should we want to do so in the future.
+  - Frames with a channel ID whose timestamp are higher than that of the L1 block on which the frame appears must be
+    ignored. Note that L1 nodes cannot easily manipulate the L1 block timestamp: L1 nodes have a soft constraint to
+    ignore blocks whose timestamps that are ahead of the wallclock time by a certain margin. (A soft constraint is not a
+    consensus rule — nodes will accept such blocks in the canonical chain but will not attempt to build directly on
+    them.) This issue goes away with Proof of Stake, where timestamps are determined by [L1 time slots][g-time-slot].
 - `frame_number` identifies the index of the frame within the channel
 - `frame_data_length` is the length of `frame_data` in bytes. It is capped to 1,000,000 bytes.
 - `frame_data` is a sequence of bytes belonging to the channel, logically after the bytes from the previous frames
 - `is_last` is a single byte with a value of 1 if the frame is the last in the channel, 0 if there are frames in the
   channel. Any other value makes the frame invalid (it must be ignored by the rollup node).
-
-> **TODO** Do we drop the channel or just the first frame? End result is the same but this changes the channel bank size, which
-> can influence things down the line! (Can be checked in code.)
 
 [batcher-spec]: batching.md
 
@@ -474,7 +474,7 @@ particular we extract a byte string that corresponds to the concatenation of the
 transaction][g-batcher-transaction] belonging to the block. This byte stream encodes a stream of [channel
 frames][g-channel-frame] (see the [Batch Submission Wire Format][wire-format] section for more info).
 
-This frames are parsed, then grouped per [channel][g-channel] into a structure we call the *channel bank*.
+These frames are parsed, then grouped per [channel][g-channel] into a structure we call the *channel bank*.
 
 Some frames are ignored:
 
@@ -485,10 +485,10 @@ Some frames are ignored:
   `frame.is_last == 1`) are ignored.
   - These frames could still be written into the channel bank if we haven't seen the final frame yet. But they will
       never be read out from the channel bank.
+- Frames with a channel ID whose timestamp are higher than that of the L1 block on which the frame appears.
 
-In the current implementation, channels are also recorded in FIFO order in a structure called the *channel queue*. A
-channel is added to the channel queue the first time a frame belonging to the channel is seen. This structure is used in
-the next stage.
+Channels are also recorded in FIFO order in a structure called the *channel queue*. A channel is added to the channel
+queue the first time a frame belonging to the channel is seen. This structure is used in the next stage.
 
 ### Channel Bank
 
@@ -573,7 +573,8 @@ We also ignore invalid batches, which do not satisfy one of the following constr
 - The batch only contains sequenced transactions, i.e. it must NOT contain any [deposited-type transactions][
   g-deposit-tx-type].
 
-> **TODO** specify `max_sequencer_drift` (see TODO above)
+> **TODO** specify `max_sequencer_drift` (see TODO above) (current thinking: on the order of 10 minutes, we've been
+> using 2-4 minutes in testnets)
 
 ### Payload Attributes Derivation
 
@@ -612,7 +613,7 @@ In particular, the following fields of the payload attributes are checked for eq
 If consolidation fails, the unsafe L2 head is reset to the safe L2 head.
 
 If the safe and unsafe L2 heads are identical (whether because of failed consolidation or not), we send the block to the
-execution engine to be converted into a proper L2 block, which will become the new L2 unsafe head.
+execution engine to be converted into a proper L2 block, which will become both the new L2 safe and unsafe head.
 
 Interaction with the execution engine via the execution engine API is detailed in the [Communication with the Execution
 Engine][exec-engine-comm] section.
@@ -678,14 +679,6 @@ After deriving the transaction list, the rollup node constructs a [`PayloadAttri
 
 [expanded-payload]: exec-engine.md#extended-payloadattributesv1
 
-------------------------------------------------------------------------------------------------------------------------
-
-# WARNING: BELOW THIS LINE, THE SPEC HAS NOT BEEN REVIEWED AND MAY CONTAIN MISTAKES
-
-We still expect that the explanations here should be pretty useful.
-
-------------------------------------------------------------------------------------------------------------------------
-
 # Communication with the Execution Engine
 
 [exec-engine-comm]: #communication-with-the-execution-engine
@@ -702,12 +695,16 @@ place. This section explains how this happens.
 
 Let:
 
-- `refL2` be the (hash of) the current [safe L2 head][g-unsafe-l2-head]
-- `finalizedRef` be the (hash of) the [finalized L2 head][g-finalized-l2-head]: the highest L2 block that can be fully
-  derived from *[finalized][finality]* L1 blocks — i.e. L1 blocks older than two L1 epochs (64 L1 [time
-  slots][g-time-slot]).
+- `safeL2Head` be a variable in the state of the execution engine, tracking the (hash of) the current [safe L2
+  head][g-safe-l2-head]
+- `unsafeL2Head` be a variable in the state of the execution engine, tracking the (hash of) the current [unsafe L2
+  head][g-unsafe-l2-head]
+- `finalizedL2Head` be a variable in the state of the execution engine, tracking the (hash of) the current [finalized L2
+  head][g-finalized-l2-head]
+    - This is not yet implemented, and currently always holds the zero hash — this does not prevent the pseudocode below
+      from working.
 - `payloadAttributes` be some previously derived [payload attributes][g-payload-attr] for the L2 block with number
-  `l2Number(refL2) + 1`
+  `l2Number(safeL2Head) + 1`
 
 [finality]: https://hackmd.io/@prysmaticlabs/finality
 
@@ -716,9 +713,9 @@ Then we can apply the following pseudocode logic to update the state of both the
 ```javascript
 // request a new execution payload
 forkChoiceState = {
-    headBlockHash: refL2,
-    safeBlockHash: refL2,
-    finalizedBlockHash: finalizedRef,
+    headBlockHash: safeL2Head,
+    safeBlockHash: safeL2Head,
+    finalizedBlockHash: finalizedL2Head,
 }
 [status, payloadID, rpcErr] = engine_forkchoiceUpdatedV1(forkChoiceState, payloadAttributes)
 if (rpcErr != null) soft_error()
@@ -732,17 +729,20 @@ if (rpcErr != null) soft_error()
 if (rpcErr != null) soft_error()
 if (status != "VALID") payload_error()
 
-refL2 = l2Hash(executionPayload)
+newL2Head = executionPayload.blockHash
 
 // update head to new refL2
 forkChoiceState = {
-    headBlockHash: refL2,
-    safeBlockHash: refL2,
-    finalizedBlockHash: finalizedRef,
+    headBlockHash: newL2Head,
+    safeBlockHash: newL2Head,
+    finalizedBlockHash: finalizedL2Head,
 }
 [status, payloadID, rpcErr] = engine_forkchoiceUpdatedV1(forkChoiceState, null)
 if (rpcErr != null) soft_error()
 if (status != "SUCCESS") payload_error()
+
+safeL2Head = newL2Head
+unsafeL2Head = newL2Head
 ```
 
 As should apparent from the assignations, within the `forkChoiceState` object, the properties have the following
@@ -750,26 +750,25 @@ meaning:
 
 - `headBlockHash`: block hash of the last block of the L2 chain, according to the sequencer.
 - `safeBlockHash`: same as `headBlockHash`.
-- `finalizedBlockHash`: the hash of the L2 block that can be fully derived from finalized L1 data, making it impossible
-  to derive anything else.
+- `finalizedBlockHash`: the [finalized L2 head][g-finalized-l2-head].
+
+> **TODO** `finalizedL2Head` is not being changed yet, but can be set to point to a L2 block fully derived from data up
+> to a finalized L1 block.
 
 Error handling:
 
 - A `payload_error()` means the inputs were wrong, and the payload attributes should thus be dropped from the queue, and
   not reattempted.
 - A `soft_error()` means that the interaction failed by chance, and should be reattempted.
-- If the function completes without error, the attributes were applied successfully,
-  and can be dropped from the queue while the tracked "safe head" is updated.
-
-> **TODO** `finalizedRef` is not being changed yet, but can be set to point to a L2 block fully derived from data up to
-> a finalized L1 block.
+- If the function completes without error, the attributes were applied successfully, and can be dropped from the queue.
+  Both the unsafe and safe L2 head tracked by the engine queue can be updated.
 
 The following JSON-RPC methods are part of the [execution engine API][exec-engine]:
 
 [exec-engine]: exec-engine.md
 
 - [`engine_forkchoiceUpdatedV1`] — updates the forkchoice (i.e. the chain head) to `headBlockHash` if different, and
-  instructs the engine to start building an execution payload given payload attributes the second argument isn't `null`
+  instructs the engine to start building an execution payload if the payload attributes isn't `null`
 - [`engine_getPayloadV1`] — retrieves a previously requested execution payload
 - [`engine_newPayloadV1`] — executes an execution payload to create a block
 
@@ -780,6 +779,12 @@ The following JSON-RPC methods are part of the [execution engine API][exec-engin
 The execution payload is an object of type [`ExecutionPayloadV1`][eth-payload].
 
 [eth-payload]: https://github.com/ethereum/execution-apis/blob/main/src/engine/specification.md#executionpayloadv1
+
+------------------------------------------------------------------------------------------------------------------------
+
+# WARNING: BELOW THIS LINE, THE SPEC HAS NOT BEEN REVIEWED AND MAY CONTAIN MISTAKES
+
+We still expect that the explanations here should be pretty useful.
 
 ------------------------------------------------------------------------------------------------------------------------
 
