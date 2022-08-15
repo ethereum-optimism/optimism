@@ -11,6 +11,11 @@ import (
 	"github.com/ethereum/go-ethereum/rlp"
 )
 
+// Channel In Reader reads a batch from the channel
+// This does decompression and limits the max RLP size
+// This is a pure function from the channel, but each channel (or channel fragment)
+// must be tagged with an L1 inclusion block to be passed to the the batch queue.
+
 // zlib returns an io.ReadCloser but explicitly documents it is also a zlib.Resetter, and we want to use it as such.
 type zlibReader interface {
 	io.ReadCloser
@@ -19,7 +24,7 @@ type zlibReader interface {
 
 type BatchQueueStage interface {
 	StageProgress
-	AddBatch(batch *BatchData) error
+	AddBatch(batch *BatchData)
 }
 
 type ChannelInReader struct {
@@ -115,7 +120,8 @@ func (cr *ChannelInReader) Step(ctx context.Context, outer Progress) error {
 		cr.NextChannel()
 		return nil
 	}
-	return cr.next.AddBatch(&batch)
+	cr.next.AddBatch(&batch)
+	return nil
 }
 
 func (cr *ChannelInReader) ResetStep(ctx context.Context, l1Fetcher L1Fetcher) error {

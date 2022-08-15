@@ -12,6 +12,17 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 )
 
+// ChannelBank is a stateful stage that does the following:
+// 1. Unmarshalls frames from L1 transaction data
+// 2. Applies those frames to a channel
+// 3. Attempts to read from the channel when it is ready
+// 4. Prunes channels (not frames) when the channel bank is too large.
+//
+// Note: we prune before we ingest data.
+// As we switch between ingesting data & reading, the prune step occurs at an odd point
+// Specifically, the channel bank is not allowed to become too large between successive calls
+// to `IngestData`. This means that we can do an ingest and then do a read while becoming too large.
+
 type ChannelBankOutput interface {
 	StageProgress
 	WriteChannel(data []byte)
@@ -66,29 +77,28 @@ func (ib *ChannelBank) prune() {
 }
 
 // IngestData adds new L1 data to the channel bank.
-// Read() should be called repeatedly first, until everything has been read, before adding new data.
-// Then NextL1(ref) should be called to move forward to the next L1 input
-func (ib *ChannelBank) IngestData(data []byte) error {
+// Read() should be called repeatedly first, until everything has been read, before adding new data.\
+func (ib *ChannelBank) IngestData(data []byte) {
 	if ib.progress.Closed {
 		panic("write data to bank while closed")
 	}
 	ib.log.Debug("channel bank got new data", "origin", ib.progress.Origin, "data_len", len(data))
 	if len(data) < 1 {
-		return NewTemporaryError(
-			nil,
-			"data must be at least have a version byte, but got empty string",
-		)
+		ib.log.Warn("data must be at least have a version byte, but got empty string")
+		return
 	}
 
 	if data[0] != DerivationVersion0 {
-		return fmt.Errorf("unrecognized derivation version: %d", data)
+		ib.log.Warn("unrecognized derivation version", "version", data)
+		return
 	}
 	buf := bytes.NewBuffer(data[1:])
 
 	ib.prune()
 
 	if buf.Len() < minimumFrameSize {
-		return fmt.Errorf("data must be at least have one frame")
+		ib.log.Warn("data must be at least have one frame", "length", buf.Len())
+		return
 	}
 
 	// Iterate over all frames. They may have different channel IDs to indicate that they stream consumer should reset.
@@ -96,36 +106,37 @@ func (ib *ChannelBank) IngestData(data []byte) error {
 		// Don't try to unmarshal from an empty buffer.
 		// The if done checks should catch most/all of this case though.
 		if buf.Len() < ChannelIDDataSize+1 {
-			return nil
+			return
 		}
 		done := false
 		var f Frame
 		if err := (&f).UnmarshalBinary(buf); err == io.EOF {
 			done = true
 		} else if err != nil {
-			return fmt.Errorf("failed to unmarshal a frame: %w", err)
-
+			ib.log.Warn("malformed frame: %w", err)
+			return
 		}
 
-		// stop reading and ignore remaining data if we encounter a zeroed ID
+		// stop reading and ignore remaining data if we encounter a zeroed ID,
+		// this happens when there is zero padding at the end.
 		if f.ID == (ChannelID{}) {
-			ib.log.Info("empty channel ID")
-			return nil
+			ib.log.Trace("empty channel ID")
+			return
 		}
 
 		// check if the channel is not timed out
 		if f.ID.Time+ib.cfg.ChannelTimeout < ib.progress.Origin.Time {
-			ib.log.Info("channel is timed out, ignore frame", "channel", f.ID, "id_time", f.ID.Time, "frame", f.FrameNumber)
+			ib.log.Warn("channel is timed out, ignore frame", "channel", f.ID, "id_time", f.ID.Time, "frame", f.FrameNumber)
 			if done {
-				return nil
+				return
 			}
 			continue
 		}
 		// check if the channel is not included too soon (otherwise timeouts wouldn't be effective)
 		if f.ID.Time > ib.progress.Origin.Time {
-			ib.log.Info("channel claims to be from the future, ignore frame", "channel", f.ID, "id_time", f.ID.Time, "frame", f.FrameNumber)
+			ib.log.Warn("channel claims to be from the future, ignore frame", "channel", f.ID, "id_time", f.ID.Time, "frame", f.FrameNumber)
 			if done {
-				return nil
+				return
 			}
 			continue
 		}
@@ -137,17 +148,17 @@ func (ib *ChannelBank) IngestData(data []byte) error {
 			ib.channelQueue = append(ib.channelQueue, f.ID)
 		}
 
-		ib.log.Debug("ingesting frame", "channel", f.ID, "frame_number", f.FrameNumber, "length", len(f.Data))
+		ib.log.Trace("ingesting frame", "channel", f.ID, "frame_number", f.FrameNumber, "length", len(f.Data))
 		if err := currentCh.IngestData(uint64(f.FrameNumber), f.IsLast, f.Data); err != nil {
-			ib.log.Debug("failed to ingest frame into channel", "channel", f.ID, "frame_number", f.FrameNumber, "err", err)
+			ib.log.Warn("failed to ingest frame into channel", "channel", f.ID, "frame_number", f.FrameNumber, "err", err)
 			if done {
-				return nil
+				return
 			}
 			continue
 		}
 
 		if done {
-			return nil
+			return
 		}
 	}
 }
@@ -221,10 +232,7 @@ func (ib *ChannelBank) ResetStep(ctx context.Context, l1Fetcher L1Fetcher) error
 	// go back in history if we are not distant enough from the next stage
 	parent, err := l1Fetcher.L1BlockRefByHash(ctx, ib.progress.Origin.ParentHash)
 	if err != nil {
-		return NewTemporaryError(
-			err,
-			fmt.Sprintf("failed to find channel bank block, failed to retrieve L1 reference: %v", err),
-		)
+		return NewTemporaryError(fmt.Errorf("failed to find channel bank block, failed to retrieve L1 reference: %w", err))
 	}
 	ib.progress.Origin = parent
 	return nil

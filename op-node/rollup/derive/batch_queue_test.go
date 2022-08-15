@@ -116,8 +116,7 @@ func TestBatchQueueEager(t *testing.T) {
 	// Add batches
 	batches := []*BatchData{b(12, l1[0]), b(14, l1[0])}
 	for _, batch := range batches {
-		err := bq.AddBatch(batch)
-		require.Nil(t, err)
+		bq.AddBatch(batch)
 	}
 	// Step
 	for {
@@ -170,8 +169,7 @@ func TestBatchQueueFull(t *testing.T) {
 	// Add batches
 	batches := []*BatchData{b(14, l1[0]), b(16, l1[0]), b(18, l1[1])}
 	for _, batch := range batches {
-		err := bq.AddBatch(batch)
-		require.Nil(t, err)
+		bq.AddBatch(batch)
 	}
 	// Missing first batch
 	err = bq.Step(context.Background(), prevProgress)
@@ -205,8 +203,7 @@ func TestBatchQueueFull(t *testing.T) {
 
 	// Finally add batch
 	firstBatch := b(12, l1[0])
-	err = bq.AddBatch(firstBatch)
-	require.Equal(t, err, nil)
+	bq.AddBatch(firstBatch)
 
 	// Close the origin
 	prevProgress.Closed = true
@@ -271,8 +268,7 @@ func TestBatchQueueMissing(t *testing.T) {
 	// that batch timestamp 12 & 14 is created & 16 is used.
 	batches := []*BatchData{b(16, l1[0]), b(20, l1[1])}
 	for _, batch := range batches {
-		err := bq.AddBatch(batch)
-		require.Nil(t, err)
+		bq.AddBatch(batch)
 	}
 	// Missing first batch
 	err = bq.Step(context.Background(), prevProgress)
