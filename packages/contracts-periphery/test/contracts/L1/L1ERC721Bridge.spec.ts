@@ -222,7 +222,7 @@ describe('L1ERC721Bridge', () => {
           FINALIZATION_GAS,
           NON_NULL_BYTES32
         )
-      ).to.be.revertedWith('L1ERC721Bridge: account is not externally owned')
+      ).to.be.revertedWith('ERC721Bridge: account is not externally owned')
     })
 
     describe('Handling ERC721.transferFrom() failures that revert', () => {
