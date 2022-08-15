@@ -81,6 +81,7 @@ func (f *Frame) UnmarshalBinary(r ByteReader) error {
 		return fmt.Errorf("error reading ID time: %w", err)
 	}
 	// stop reading and ignore remaining data if we encounter a zeroed ID
+	// TODO: this is probably incorrect
 	if f.ID == (ChannelID{}) {
 		return io.EOF
 	}
@@ -138,6 +139,9 @@ func ParseFrames(data []byte) ([]Frame, error) {
 			return nil, err
 		}
 		frames = append(frames, f)
+	}
+	if buf.Len() != 0 {
+		return nil, errors.New("did not fully consume data")
 	}
 	if len(frames) == 0 {
 		return nil, errors.New("was not able to find any frames")
