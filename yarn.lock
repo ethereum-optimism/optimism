@@ -652,27 +652,6 @@
     minimatch "^3.1.2"
     strip-json-comments "^3.1.1"
 
-"@eth-optimism/contracts-bedrock@0.5.2":
-  version "0.5.2"
-  resolved "https://registry.yarnpkg.com/@eth-optimism/contracts-bedrock/-/contracts-bedrock-0.5.2.tgz#9e7c364afe0791e54f311d3a2135623448881936"
-  integrity sha512-5QFEmudbU9Q6rOxZibPRTqW6q/gKQ7H6toC9v645pYJ4Aw2mB+FIQDbeJ4hDLwV/GRjaHXOuU9uGEqLMk+y8Cw==
-  dependencies:
-    "@eth-optimism/core-utils" "^0.9.2"
-    "@ethereumjs/trie" "^5.0.0-beta.1"
-    "@ethereumjs/util" "^8.0.0-beta.1"
-    "@openzeppelin/contracts" "^4.5.0"
-    "@openzeppelin/contracts-upgradeable" "^4.5.2"
-    "@rari-capital/solmate" "https://github.com/rari-capital/solmate.git#8f9b23f8838670afda0fd8983f2c41e8037ae6bc"
-    bip39 "^3.0.4"
-    ds-test "https://github.com/dapphub/ds-test.git#9310e879db8ba3ea6d5c6489a579118fd264a3f5"
-    ethereumjs-wallet "^1.0.2"
-    ethers "^5.6.8"
-    excessively-safe-call "https://github.com/nomad-xyz/ExcessivelySafeCall.git#4fcdfd3593d21381f696c790fa6180b8ef559c1e"
-    forge-std "https://github.com/foundry-rs/forge-std.git#f18682b2874fc57d7c80a511fed0b35ec4201ffa"
-    hardhat "^2.9.6"
-    merkle-patricia-tree "^4.2.4"
-    rlp "^2.2.7"
-
 "@ethereum-waffle/chai@^3.4.0":
   version "3.4.0"
   resolved "https://registry.yarnpkg.com/@ethereum-waffle/chai/-/chai-3.4.0.tgz#2477877410a96bf370edd64df905b04fb9aba9d5"
@@ -2864,11 +2843,6 @@
   resolved "https://registry.yarnpkg.com/@openzeppelin/contracts-upgradeable/-/contracts-upgradeable-4.7.1.tgz#f63fc384255d6ac139e0a2561aa207fd7c14183c"
   integrity sha512-5EFiZld3DYFd8aTL8eeMnhnaWh1/oXLXFNuFMrgF3b1DNPshF3LCyO7VR6lc+gac2URJ0BlVcZoCfkk/3MoEfg==
 
-"@openzeppelin/contracts-upgradeable@^4.5.2":
-  version "4.7.2"
-  resolved "https://registry.yarnpkg.com/@openzeppelin/contracts-upgradeable/-/contracts-upgradeable-4.7.2.tgz#414096e21f048200cbb7ad4fe4c6de2e822513bf"
-  integrity sha512-3dgc6qVmFch/uOmlmKnw5/v3JxwXcZD4T10/9CI1OUbX8AqjoZrBGKfxN1z3QxnIXRU/X31/BItJezJSDDTe7Q==
-
 "@openzeppelin/contracts@3.4.1-solc-0.7-2":
   version "3.4.1-solc-0.7-2"
   resolved "https://registry.yarnpkg.com/@openzeppelin/contracts/-/contracts-3.4.1-solc-0.7-2.tgz#371c67ebffe50f551c3146a9eec5fe6ffe862e92"
@@ -2898,11 +2872,6 @@
   version "4.4.0"
   resolved "https://registry.yarnpkg.com/@openzeppelin/contracts/-/contracts-4.4.0.tgz#4a1df71f736c31230bbbd634dfb006a756b51e6b"
   integrity sha512-dlKiZmDvJnGRLHojrDoFZJmsQVeltVeoiRN7RK+cf2FmkhASDEblE0RiaYdxPNsUZa6mRG8393b9bfyp+V5IAw==
-
-"@openzeppelin/contracts@^4.5.0":
-  version "4.7.2"
-  resolved "https://registry.yarnpkg.com/@openzeppelin/contracts/-/contracts-4.7.2.tgz#7587416fe2d35abf574193515b8971bfe9f64bc7"
-  integrity sha512-4n/JL9izql8303mPqPdubuna/DWEMbmOzWYUWyCPhjhiEr2w3nQrjE7vZz1fBF+wzzP6dZbIcsgqACk53c9FGA==
 
 "@primitivefi/hardhat-dodoc@^0.1.3":
   version "0.1.3"
@@ -8628,10 +8597,6 @@ evp_bytestokey@^1.0.0, evp_bytestokey@^1.0.3:
   dependencies:
     md5.js "^1.3.4"
     safe-buffer "^5.1.1"
-
-"excessively-safe-call@https://github.com/nomad-xyz/ExcessivelySafeCall.git#4fcdfd3593d21381f696c790fa6180b8ef559c1e":
-  version "0.0.1-rc.1"
-  resolved "https://github.com/nomad-xyz/ExcessivelySafeCall.git#4fcdfd3593d21381f696c790fa6180b8ef559c1e"
 
 "excessively-safe-call@https://github.com/nomad-xyz/ExcessivelySafeCall.git#81cd99ce3e69117d665d7601c330ea03b97acce0":
   version "0.0.1-rc.1"
