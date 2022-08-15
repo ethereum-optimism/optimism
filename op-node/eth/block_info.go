@@ -6,9 +6,10 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 )
 
-type L1Info interface {
+type BlockInfo interface {
 	Hash() common.Hash
 	ParentHash() common.Hash
+	Coinbase() common.Address
 	Root() common.Hash // state-root
 	NumberU64() uint64
 	Time() uint64
@@ -16,6 +17,14 @@ type L1Info interface {
 	MixDigest() common.Hash
 	BaseFee() *big.Int
 	ID() BlockID
-	BlockRef() L1BlockRef
 	ReceiptHash() common.Hash
+}
+
+func InfoToL1BlockRef(info BlockInfo) L1BlockRef {
+	return L1BlockRef{
+		Hash:       info.Hash(),
+		Number:     info.NumberU64(),
+		ParentHash: info.ParentHash(),
+		Time:       info.Time(),
+	}
 }

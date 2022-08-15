@@ -48,7 +48,7 @@ import (
 )
 
 type L1Chain interface {
-	L1HeadBlockRef(ctx context.Context) (eth.L1BlockRef, error)
+	L1BlockRefByLabel(ctx context.Context, label eth.BlockLabel) (eth.L1BlockRef, error)
 	L1BlockRefByNumber(ctx context.Context, number uint64) (eth.L1BlockRef, error)
 }
 
@@ -66,7 +66,7 @@ const MaxReorgDepth = 500
 //     or canonical in the L1 chain.
 //   - `canonical`: true if the block is canonical in the L1 chain.
 func isAheadOrCanonical(ctx context.Context, l1 L1Chain, block eth.BlockID) (aheadOrCanonical bool, canonical bool, err error) {
-	if l1Head, err := l1.L1HeadBlockRef(ctx); err != nil {
+	if l1Head, err := l1.L1BlockRefByLabel(ctx, eth.Unsafe); err != nil {
 		return false, false, err
 	} else if block.Number > l1Head.Number {
 		return true, false, nil

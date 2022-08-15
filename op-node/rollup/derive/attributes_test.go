@@ -32,7 +32,7 @@ func TestPreparePayloadAttributes(t *testing.T) {
 		defer l1Fetcher.AssertExpectations(t)
 		l2Parent := testutils.RandomL2BlockRef(rng)
 		l2Time := l2Parent.Time + cfg.BlockTime
-		l1Info := testutils.RandomL1Info(rng)
+		l1Info := testutils.RandomBlockInfo(rng)
 		l1Info.InfoNum = l2Parent.L1Origin.Number + 1
 		epoch := l1Info.ID()
 		l1Fetcher.ExpectFetch(epoch.Hash, l1Info, nil, nil, nil)
@@ -46,7 +46,7 @@ func TestPreparePayloadAttributes(t *testing.T) {
 		defer l1Fetcher.AssertExpectations(t)
 		l2Parent := testutils.RandomL2BlockRef(rng)
 		l2Time := l2Parent.Time + cfg.BlockTime
-		l1Info := testutils.RandomL1Info(rng)
+		l1Info := testutils.RandomBlockInfo(rng)
 		l1Info.InfoNum = l2Parent.L1Origin.Number
 		epoch := l1Info.ID()
 		_, err := PreparePayloadAttributes(context.Background(), cfg, l1Fetcher, l2Parent, l2Time, epoch)
@@ -86,7 +86,7 @@ func TestPreparePayloadAttributes(t *testing.T) {
 		defer l1Fetcher.AssertExpectations(t)
 		l2Parent := testutils.RandomL2BlockRef(rng)
 		l2Time := l2Parent.Time + cfg.BlockTime
-		l1Info := testutils.RandomL1Info(rng)
+		l1Info := testutils.RandomBlockInfo(rng)
 		l1Info.InfoParentHash = l2Parent.L1Origin.Hash
 		l1Info.InfoNum = l2Parent.L1Origin.Number + 1
 		epoch := l1Info.ID()
@@ -109,7 +109,7 @@ func TestPreparePayloadAttributes(t *testing.T) {
 		defer l1Fetcher.AssertExpectations(t)
 		l2Parent := testutils.RandomL2BlockRef(rng)
 		l2Time := l2Parent.Time + cfg.BlockTime
-		l1Info := testutils.RandomL1Info(rng)
+		l1Info := testutils.RandomBlockInfo(rng)
 		l1Info.InfoParentHash = l2Parent.L1Origin.Hash
 		l1Info.InfoNum = l2Parent.L1Origin.Number + 1
 
@@ -147,7 +147,7 @@ func TestPreparePayloadAttributes(t *testing.T) {
 		defer l1Fetcher.AssertExpectations(t)
 		l2Parent := testutils.RandomL2BlockRef(rng)
 		l2Time := l2Parent.Time + cfg.BlockTime
-		l1Info := testutils.RandomL1Info(rng)
+		l1Info := testutils.RandomBlockInfo(rng)
 		l1Info.InfoHash = l2Parent.L1Origin.Hash
 		l1Info.InfoNum = l2Parent.L1Origin.Number
 
