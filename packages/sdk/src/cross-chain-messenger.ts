@@ -1097,7 +1097,6 @@ export class CrossChainMessenger implements ICrossChainMessenger {
           latestBlockhash: block.hash,
         },
         withdrawalProof: ethers.utils.RLP.encode(stateTrieProof.storageProof),
-        // withdrawalProof: toHexString(rlp.encode(stateTrieProof.storageProof)),
       },
       output,
       // TODO(tynes): use better type, typechain?
@@ -1333,15 +1332,6 @@ export class CrossChainMessenger implements ICrossChainMessenger {
         const [proof, output, withdrawalTx] = await this.getBedrockMessageProof(
           message
         )
-        if (!opts) {
-          opts = {}
-        }
-        if (!opts.overrides) {
-          opts.overrides = {}
-        }
-        if (!opts.overrides.value) {
-          opts.overrides.value = withdrawalTx.value
-        }
 
         return this.contracts.l1.OptimismPortal.populateTransaction.finalizeWithdrawalTransaction(
           [
@@ -1360,7 +1350,7 @@ export class CrossChainMessenger implements ICrossChainMessenger {
             proof.outputRootProof.latestBlockhash,
           ],
           proof.withdrawalProof,
-          opts.overrides
+          opts?.overrides || {}
         )
       } else {
         // L1CrossDomainMessenger relayMessage is the only method that isn't fully backwards
