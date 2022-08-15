@@ -1,6 +1,7 @@
 package derive
 
 import (
+	"bytes"
 	"encoding/binary"
 	"errors"
 	"fmt"
@@ -113,4 +114,33 @@ func (f *Frame) UnmarshalBinary(r ByteReader) error {
 	} else {
 		return errors.New("invalid byte as is_last")
 	}
+}
+
+// Frames on stored in L1 transactions with the following format:
+// data = DerivationVersion0 ++ Frame(s)
+// Where there is one or more frames concatenated together.
+
+// ParseFrames parse the on chain serialization of frame(s) in
+// an L1 transaction. Currently only version 1 of the serialization
+// format is supported.
+func ParseFrames(data []byte) ([]Frame, error) {
+	if len(data) == 0 {
+		return nil, errors.New("data array must not be empty")
+	}
+	if data[0] != DerivationVersion0 {
+		return nil, errors.New("invalid derivation format byte")
+	}
+	buf := bytes.NewBuffer(data[1:])
+	var frames []Frame
+	for buf.Len() > 0 {
+		var f Frame
+		if err := (&f).UnmarshalBinary(buf); err != io.EOF && err != nil {
+			return nil, err
+		}
+		frames = append(frames, f)
+	}
+	if len(frames) == 0 {
+		return nil, errors.New("was not able to find any frames")
+	}
+	return frames, nil
 }
