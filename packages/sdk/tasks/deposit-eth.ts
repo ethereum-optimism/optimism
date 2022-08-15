@@ -67,7 +67,7 @@ task('deposit-eth', 'Deposits WETH9 onto L2.')
       : utils.parseEther('1')
     const withdrawAmount = args.withdrawAmount
       ? utils.parseEther(args.withdrawAmount)
-      : utils.parseEther(amount.div(2).toString())
+      : amount.div(2)
 
     const l2Signer = new hre.ethers.Wallet(
       hre.network.config.accounts[0],
@@ -313,14 +313,9 @@ task('deposit-eth', 'Deposits WETH9 onto L2.')
     const opBalanceFinally = await signer.provider.getBalance(
       OptimismPortal.address
     )
-    // TODO(tynes): fix this bug
-    if (!opBalanceFinally.sub(withdrawAmount).eq(opBalanceAfter)) {
-      console.log('OptimismPortal balance mismatch')
-      console.log(`Balance before deposit: ${opBalanceBefore.toString()}`)
-      console.log(`Balance after deposit: ${opBalanceAfter.toString()}`)
-      console.log(`Balance after withdrawal: ${opBalanceFinally.toString()}`)
-      return
-      // throw new Error('OptimismPortal balance mismatch')
+
+    if (!opBalanceFinally.add(withdrawAmount).eq(opBalanceAfter)) {
+      throw new Error('OptimismPortal balance mismatch')
     }
     console.log('Withdraw success')
   })

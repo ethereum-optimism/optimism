@@ -232,7 +232,7 @@ export interface IBridgeAdapter {
       amount: NumberLike,
       opts?: {
         recipient?: AddressLike
-        overrides?: PayableOverrides
+        overrides?: Overrides
       }
     ): Promise<TransactionRequest>
   }
