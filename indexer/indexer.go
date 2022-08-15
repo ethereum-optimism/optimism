@@ -159,7 +159,7 @@ func NewIndexer(cfg Config, gitVersion string) (*Indexer, error) {
 		return nil, err
 	}
 
-	l1AddressManagerAddress, err := ParseL1Address(cfg.L1AddressManagerAddress)
+	l1AddressManagerAddress, err := ParseAddress(cfg.L1AddressManagerAddress)
 	if err != nil {
 		return nil, err
 	}
