@@ -48,7 +48,7 @@ func TestAttributesQueue_Step(t *testing.T) {
 		DepositContractAddress: common.Address{0xbb},
 	}
 	rng := rand.New(rand.NewSource(1234))
-	l1Info := testutils.RandomL1Info(rng)
+	l1Info := testutils.RandomBlockInfo(rng)
 
 	l1Fetcher := &testutils.MockL1Source{}
 	defer l1Fetcher.AssertExpectations(t)

@@ -109,12 +109,12 @@ func NewState(driverCfg *Config, log log.Logger, snapshotLog log.Logger, config 
 // Start starts up the state loop. The context is only for initialization.
 // The loop will have been started iff err is not nil.
 func (s *state) Start(ctx context.Context) error {
-	l1Head, err := s.l1.L1HeadBlockRef(ctx)
+	l1Head, err := s.l1.L1BlockRefByLabel(ctx, eth.Unsafe)
 	if err != nil {
 		return err
 	}
 	s.l1Head = l1Head
-	s.l2Head, _ = s.l2.L2BlockRefByNumber(ctx, nil)
+	s.l2Head, _ = s.l2.L2BlockRefByLabel(ctx, eth.Unsafe)
 	s.metrics.RecordL1Ref("l1_head", s.l1Head)
 	s.metrics.RecordL2Ref("l2_unsafe", s.l2Head)
 
