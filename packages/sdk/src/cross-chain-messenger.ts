@@ -250,8 +250,9 @@ export class CrossChainMessenger implements ICrossChainMessenger {
         // event which was introduced in the Bedrock upgrade.
         let value = ethers.BigNumber.from(0)
         const next = receipt.logs.find((l) => {
-          return l.logIndex === log.logIndex + 1
-            && l.address === messenger.address
+          return (
+            l.logIndex === log.logIndex + 1 && l.address === messenger.address
+          )
         })
         if (next) {
           const nextParsed = messenger.interface.parseLog(next)
