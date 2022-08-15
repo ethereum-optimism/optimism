@@ -5,7 +5,6 @@ import {
   TransactionReceipt,
   TransactionResponse,
   TransactionRequest,
-  Log,
 } from '@ethersproject/abstract-provider'
 import { Signer } from '@ethersproject/abstract-signer'
 import {
@@ -250,13 +249,14 @@ export class CrossChainMessenger implements ICrossChainMessenger {
         // Try to pull out the value field, but only if the very next log is a SentMessageExtraData
         // event which was introduced in the Bedrock upgrade.
         let value = ethers.BigNumber.from(0)
-        if (receipt.logs.length > log.logIndex + 1) {
-          const next = receipt.logs[log.logIndex + 1]
-          if (next.address === messenger.address) {
-            const nextParsed = messenger.interface.parseLog(next)
-            if (nextParsed.name === 'SentMessageExtension1') {
-              value = nextParsed.args.value
-            }
+        const next = receipt.logs.find((l) => {
+          return l.logIndex === log.logIndex + 1
+            && l.address === messenger.address
+        })
+        if (next) {
+          const nextParsed = messenger.interface.parseLog(next)
+          if (nextParsed.name === 'SentMessageExtension1') {
+            value = nextParsed.args.value
           }
         }
 
@@ -1381,22 +1381,6 @@ export class CrossChainMessenger implements ICrossChainMessenger {
         overrides?: PayableOverrides
       }
     ): Promise<TransactionRequest> => {
-      if (this.bedrock) {
-        const value = BigNumber.from(opts?.overrides?.value ?? 0)
-        if (!value.eq(0) && !value.eq(amount)) {
-          throw new Error(`amount and value mismatch`)
-        }
-        if (!opts) {
-          opts = {}
-        }
-        if (!opts.overrides) {
-          opts.overrides = {}
-        }
-        if (!opts.overrides.value) {
-          opts.overrides.value = value
-        }
-      }
-
       return this.bridges.ETH.populateTransaction.deposit(
         ethers.constants.AddressZero,
         predeploys.OVM_ETH,
@@ -1409,24 +1393,9 @@ export class CrossChainMessenger implements ICrossChainMessenger {
       amount: NumberLike,
       opts?: {
         recipient?: AddressLike
-        overrides?: PayableOverrides
+        overrides?: Overrides
       }
     ): Promise<TransactionRequest> => {
-      const value = BigNumber.from(opts?.overrides?.value ?? 0)
-      if (this.bedrock) {
-        if (!value.eq(0) && !value.eq(amount)) {
-          throw new Error(`amount and value mismatch`)
-        }
-        if (!opts) {
-          opts = {}
-        }
-        if (!opts.overrides) {
-          opts.overrides = {}
-        }
-        if (!opts.overrides.value) {
-          opts.overrides.value = value
-        }
-      }
       return this.bridges.ETH.populateTransaction.withdraw(
         ethers.constants.AddressZero,
         predeploys.OVM_ETH,
