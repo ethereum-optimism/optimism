@@ -1,34 +1,28 @@
-import { Wallet, utils } from 'ethers'
+import { Wallet } from 'ethers'
 import { expect } from 'chai'
 
 import { actor, setupActor, run, setupRun } from '../lib/convenience'
-import { devWalletsL2 } from './utils'
+import { devWalletsL2, l2Provider } from './utils'
+import { Faucet } from '../lib/faucet'
 
 interface Context {
   wallet: Wallet
 }
 
 actor('Sender', () => {
-  let sourceWallet: Wallet
-
   let destWallet: Wallet
 
   setupActor(async () => {
     const devWallets = devWalletsL2()
-    sourceWallet = devWallets[0]
-    destWallet = devWallets[1]
+    destWallet = devWallets[0]
   })
 
   setupRun(async () => {
-    const newWallet = Wallet.createRandom().connect(sourceWallet.provider)
-    const tx = await sourceWallet.sendTransaction({
-      to: newWallet.address,
-      value: utils.parseEther('0.1'),
-    })
-    await tx.wait()
-
+    const faucet = new Faucet(process.env.FAUCET_URL, l2Provider)
+    const wallet = Wallet.createRandom().connect(l2Provider)
+    await faucet.drip(wallet.address)
     return {
-      wallet: newWallet,
+      wallet,
     }
   })
 
