@@ -2,6 +2,7 @@ package state
 
 import (
 	"bytes"
+	"fmt"
 	"math/big"
 	"sync"
 
@@ -16,6 +17,9 @@ var _ vm.StateDB = (*MemoryStateDB)(nil)
 
 var emptyCodeHash = crypto.Keccak256(nil)
 
+// MemoryStateDB implements geth's StateDB interface
+// but operates on a core.Genesis so that a genesis.json
+// can easily be created.
 type MemoryStateDB struct {
 	rw      sync.RWMutex
 	genesis *core.Genesis
@@ -32,11 +36,13 @@ func NewMemoryStateDB(genesis *core.Genesis) *MemoryStateDB {
 	}
 }
 
-//
+// Genesis is a getter for the underlying core.Genesis
 func (db *MemoryStateDB) Genesis() *core.Genesis {
 	return db.genesis
 }
 
+// GetAccount is a getter for a core.GenesisAccount found in
+// the core.Genesis
 func (db *MemoryStateDB) GetAccount(addr common.Address) *core.GenesisAccount {
 	db.rw.RLock()
 	defer db.rw.RUnlock()
@@ -48,7 +54,7 @@ func (db *MemoryStateDB) GetAccount(addr common.Address) *core.GenesisAccount {
 	return &account
 }
 
-// StateDB interface
+// StateDB interface implemented below
 
 func (db *MemoryStateDB) CreateAccount(addr common.Address) {
 	db.rw.Lock()
@@ -68,7 +74,7 @@ func (db *MemoryStateDB) SubBalance(addr common.Address, amount *big.Int) {
 
 	account, ok := db.genesis.Alloc[addr]
 	if !ok {
-		return
+		panic(fmt.Sprintf("%s not in state", addr))
 	}
 	if account.Balance.Sign() == 0 {
 		return
@@ -83,7 +89,7 @@ func (db *MemoryStateDB) AddBalance(addr common.Address, amount *big.Int) {
 
 	account, ok := db.genesis.Alloc[addr]
 	if !ok {
-		return
+		panic(fmt.Sprintf("%s not in state", addr))
 	}
 	account.Balance = new(big.Int).Add(account.Balance, amount)
 	db.genesis.Alloc[addr] = account
