@@ -519,8 +519,7 @@ As currently implemented, each step in this stage performs the following actions
   - The size of channel bank is the sum of the sizes (in btes) of all the frames contained within it.
   - In this case, channels are dropped from the front of the *channel queue* (see previous stage), and the frames
     belonging from these channels are dropped from the channel bank.
-  - As many channels are dropped as is necessary so that the channel bank size falls back below
-      `MAX_CHANNEL_BANK_SIZE`.
+  - As many channels are dropped as is necessary so that the channel bank size falls back below `MAX_CHANNEL_BANK_SIZE`.
 - Take the first channel and the *channel queue*, determine if it is ready, and process it if so.
   - A channel is ready if all its frames have been received or it timed out (see list above for details).
   - If the channel is ready, determine its *contiguous frame sequence*, which is a contiguous sequence of frames,
