@@ -221,8 +221,9 @@ contract L2ERC721Bridge is Semver, CrossDomainEnabled, OwnableUpgradeable {
                 L1ERC721Bridge.finalizeBridgeERC721.selector,
                 _remoteToken,
                 _localToken,
-                _to, // switched the _to and _from here to bounce back the deposit to the sender
-                _from,
+                address(this), // Set the new `_from` address to be this contract since the L2
+                // recipient never received the NFT.
+                _from, // Send the NFT back to the original owner on L1.
                 _tokenId,
                 _extraData
             );

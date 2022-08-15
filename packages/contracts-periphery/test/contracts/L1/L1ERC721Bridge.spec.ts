@@ -382,6 +382,43 @@ describe('L1ERC721Bridge', () => {
           )
         ).to.equal(false)
       })
+
+      it('should credit nft to the withdrawer if bridging failed to finalize on l2', async () => {
+        // if the `_from` address is the L2 Bridge, then the withdrawal emits an ERC721BridgeFailed
+        // event with the correct arguments.
+        await expect(
+          L1ERC721Bridge.finalizeBridgeERC721(
+            L1ERC721.address,
+            DUMMY_L2_ERC721_ADDRESS,
+            DUMMY_L2_BRIDGE_ADDRESS, // `_from` is the L2 Bridge
+            NON_ZERO_ADDRESS,
+            tokenId,
+            NON_NULL_BYTES32,
+            { from: Fake__L1CrossDomainMessenger.address }
+          )
+        )
+          .to.emit(L1ERC721Bridge, 'ERC721BridgeFailed')
+          .withArgs(
+            L1ERC721.address,
+            DUMMY_L2_ERC721_ADDRESS,
+            DUMMY_L2_BRIDGE_ADDRESS,
+            NON_ZERO_ADDRESS,
+            tokenId,
+            NON_NULL_BYTES32
+          )
+
+        // NFT is transferred to new owner
+        expect(await L1ERC721.ownerOf(tokenId)).to.equal(NON_ZERO_ADDRESS)
+
+        // deposits state variable is updated
+        expect(
+          await L1ERC721Bridge.deposits(
+            L1ERC721.address,
+            DUMMY_L2_ERC721_ADDRESS,
+            tokenId
+          )
+        ).to.equal(false)
+      })
     })
   })
 })

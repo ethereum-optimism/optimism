@@ -58,6 +58,25 @@ contract L1ERC721Bridge is Semver, CrossDomainEnabled, OwnableUpgradeable {
     );
 
     /**
+     * @notice Emitted when an ERC721 bridge from the other network fails.
+     *
+     * @param localToken  Address of the token on this domain.
+     * @param remoteToken Address of the token on the remote domain.
+     * @param from        Address that initiated bridging action.
+     * @param to          Address to receive the token.
+     * @param tokenId     ID of the specific token deposited.
+     * @param extraData   Extra data for use on the client-side.
+     */
+    event ERC721BridgeFailed(
+        address indexed localToken,
+        address indexed remoteToken,
+        address indexed from,
+        address to,
+        uint256 tokenId,
+        bytes extraData
+    );
+
+    /**
      * @notice Address of the bridge on the other network.
      */
     address public otherBridge;
@@ -168,7 +187,9 @@ contract L1ERC721Bridge is Semver, CrossDomainEnabled, OwnableUpgradeable {
      *
      * @param _localToken  Address of the ERC721 token on this domain.
      * @param _remoteToken Address of the ERC721 token on the other domain.
-     * @param _from        Address that triggered the bridge on the other domain.
+     * @param _from        Address that triggered the bridge on the other domain. This is the
+     *                     address of the L2ERC721Bridge if the NFT transfer failed to finalize
+     *                     on L2.
      * @param _to          Address to receive the token on this domain.
      * @param _tokenId     ID of the token being deposited.
      * @param _extraData   Optional data to forward to L2. Data supplied here will not be used to
@@ -195,8 +216,15 @@ contract L1ERC721Bridge is Semver, CrossDomainEnabled, OwnableUpgradeable {
         // slither-disable-next-line reentrancy-events
         IERC721(_localToken).transferFrom(address(this), _to, _tokenId);
 
-        // slither-disable-next-line reentrancy-events
-        emit ERC721BridgeFinalized(_localToken, _remoteToken, _from, _to, _tokenId, _extraData);
+        // If `_from` is the L2 Bridge, then the NFT failed to be transferred to the recipient on
+        // L2. The address of the intended L2 recipient can be recovered by querying the
+        // `ERC721BridgeFailed` event emitted from the L2 Bridge.
+        if (_from == otherBridge) {
+            emit ERC721BridgeFailed(_localToken, _remoteToken, _from, _to, _tokenId, _extraData);
+        } else {
+            // slither-disable-next-line reentrancy-events
+            emit ERC721BridgeFinalized(_localToken, _remoteToken, _from, _to, _tokenId, _extraData);
+        }
     }
 
     /**

@@ -157,7 +157,7 @@ describe('L2ERC721Bridge', () => {
           [
             DUMMY_L1ERC721_ADDRESS,
             NonCompliantERC721.address,
-            bobsAddress,
+            L2ERC721Bridge.address, // The new `_from` address is the L2 Bridge since the recipient never received the L2 NFT.
             aliceAddress,
             TOKEN_ID,
             NON_NULL_BYTES32,
