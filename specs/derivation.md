@@ -229,9 +229,7 @@ containing when we start a channel, or even as we send the first frames in the c
 
 All of this is illustrated in the following diagram. Explanations below.
 
-|---|
-| ![batch derivation chain diagram](./assets/batch-deriv-chain.svg) |
-|---|
+![batch derivation chain diagram](./assets/batch-deriv-chain.svg)
 
 The first line represents L1 blocks with their numbers. The boxes under the L1 blocks represent [batcher
 transactions][g-batcher-transaction] included within the block. The squiggles under the L1 blocks represent
@@ -517,7 +515,7 @@ As currently implemented, each step in this stage performs the following actions
   - This occurs if the size of the channel bank exceeds `MAX_CHANNEL_BANK_SIZE` (currently set to 100,000,000 bytes).
   - The size of channel bank is the sum of the sizes (in btes) of all the frames contained within it.
   - In this case, channels are dropped from the front of the *channel queue* (see previous stage), and the frames
-      belonging from these channels are dropped from the channel bank.
+    belonging from these channels are dropped from the channel bank.
   - As many channels are dropped as is necessary so that the channel bank size falls back below
       `MAX_CHANNEL_BANK_SIZE`.
 - Take the first channel and the *channel queue*, determine if it is ready, and process it if so.
@@ -711,39 +709,66 @@ Let:
 Then we can apply the following pseudocode logic to update the state of both the rollup driver and execution engine:
 
 ```javascript
-// request a new execution payload
-forkChoiceState = {
-    headBlockHash: safeL2Head,
-    safeBlockHash: safeL2Head,
-    finalizedBlockHash: finalizedL2Head,
+
+
+fun makeL2Block(payloadAttributes) {
+
+    // request a new execution payload
+    forkChoiceState = {
+        headBlockHash: safeL2Head,
+        safeBlockHash: safeL2Head,
+        finalizedBlockHash: finalizedL2Head,
+    }
+
+    [status, payloadID, rpcErr] = engine_forkchoiceUpdatedV1(forkChoiceState, payloadAttributes)
+    if (rpcErr != null) return softError()
+    if (status != "VALID") return payloadError()
+
+    // retrieve and execute the execution payload
+    [executionPayload, rpcErr] = engine_getPayloadV1(payloadID)
+    if (rpcErr != null) return softError()
+
+    [status, rpcErr] = engine_newPayloadV1(executionPayload)
+    if (rpcErr != null) return softError()
+    if (status != "VALID") return payloadError()
+
+
+    newL2Head = executionPayload.blockHash
+
+    // update head to new refL2
+    forkChoiceState = {
+        headBlockHash: newL2Head,
+        safeBlockHash: newL2Head,
+        finalizedBlockHash: finalizedL2Head,
+    }
+    [status, payloadID, rpcErr] = engine_forkchoiceUpdatedV1(forkChoiceState, null)
+    if (rpcErr != null) return softError()
+    if (status != "SUCCESS") return payloadError()
+
+    return newL2Head
 }
-[status, payloadID, rpcErr] = engine_forkchoiceUpdatedV1(forkChoiceState, payloadAttributes)
-if (rpcErr != null) soft_error()
-if (status != "VALID") payload_error()
 
-// retrieve and execute the execution payload
-[executionPayload, rpcErr] = engine_getPayloadV1(payloadID)
-if (rpcErr != null) soft_error()
+result = softError()
 
-[status, rpcErr] = engine_newPayloadV1(executionPayload)
-if (rpcErr != null) soft_error()
-if (status != "VALID") payload_error()
-
-newL2Head = executionPayload.blockHash
-
-// update head to new refL2
-forkChoiceState = {
-    headBlockHash: newL2Head,
-    safeBlockHash: newL2Head,
-    finalizedBlockHash: finalizedL2Head,
+while (isSoftError(result)) {
+    result = makeL2Block(payloadAttributes)
+    if (isPayloadError(result)) {
+        payloadAttributes = onlyDeposits(payloadAttributes)
+        result = makeL2Block(payloadAttributes)
+    }
+    if (isPayloadError(result)) {
+        panic("this should never happen")
+    }
 }
-[status, payloadID, rpcErr] = engine_forkchoiceUpdatedV1(forkChoiceState, null)
-if (rpcErr != null) soft_error()
-if (status != "SUCCESS") payload_error()
 
-safeL2Head = newL2Head
-unsafeL2Head = newL2Head
+if (!isError(result)) {
+    safeL2Head = result
+    unsafeL2Head = result
+}
 ```
+
+> **TODO** `finalizedL2Head` is not being changed yet, but can be set to point to a L2 block fully derived from data up
+> to a finalized L1 block.
 
 As should apparent from the assignations, within the `forkChoiceState` object, the properties have the following
 meaning:
@@ -752,16 +777,18 @@ meaning:
 - `safeBlockHash`: same as `headBlockHash`.
 - `finalizedBlockHash`: the [finalized L2 head][g-finalized-l2-head].
 
-> **TODO** `finalizedL2Head` is not being changed yet, but can be set to point to a L2 block fully derived from data up
-> to a finalized L1 block.
-
 Error handling:
 
-- A `payload_error()` means the inputs were wrong, and the payload attributes should thus be dropped from the queue, and
-  not reattempted.
-- A `soft_error()` means that the interaction failed by chance, and should be reattempted.
-- If the function completes without error, the attributes were applied successfully, and can be dropped from the queue.
-  Both the unsafe and safe L2 head tracked by the engine queue can be updated.
+- A value returned by `payloadError()` means the inputs were wrong.
+    - This could mean the sequencer included invalid transactions in the batch. **In this case, all transactions from the
+      batch should be dropped**. We assume this is the case, and modify the payload via `onlyDeposits` to only include
+      [deposited transactions][g-deposited], and retry.
+    - In the case of deposits, the [execution engine][g-exec-engine] will skip invalid transactions, so bad deposited
+      transactions should never cause a payload error.
+- A value returned by `softError()` means that the interaction failed by chance, and should be reattempted (this is the
+  purpose of the `while` loop in the pseudo-code).
+
+> **TODO** define "invalid transactions" properly, check the interpretation for the execution engine
 
 The following JSON-RPC methods are part of the [execution engine API][exec-engine]:
 
