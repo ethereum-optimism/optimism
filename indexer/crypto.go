@@ -6,7 +6,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 )
 
-// ParseAddress parses a L1 ETH address from a hex string. This method will
+// ParseAddress parses a ETH address from a hex string. This method will
 // fail if the address is not a valid hexadecimal address.
 func ParseAddress(address string) (common.Address, error) {
 	if common.IsHexAddress(address) {
