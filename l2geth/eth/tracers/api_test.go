@@ -121,8 +121,8 @@ func (b *testBackend) GetTransaction(ctx context.Context, txHash common.Hash) (*
 	return tx, hash, blockNumber, index, nil
 }
 
-func (b *testBackend) RPCGasCap() uint64 {
-	return 25000000
+func (b *testBackend) RPCGasCap() *big.Int {
+	return big.NewInt(25000000)
 }
 
 func (b *testBackend) ChainConfig() *params.ChainConfig {
