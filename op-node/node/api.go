@@ -32,6 +32,7 @@ type l2EthClient interface {
 
 type driverClient interface {
 	SyncStatus(ctx context.Context) (*driver.SyncStatus, error)
+	ResetDerivationPipeline(context.Context) error
 }
 
 type nodeAPI struct {
@@ -50,6 +51,12 @@ func newNodeAPI(config *rollup.Config, l2Client l2EthClient, dr driverClient, lo
 		log:    log,
 		m:      m,
 	}
+}
+
+func (n *nodeAPI) ResetDerivationPipeline(ctx context.Context) error {
+	recordDur := n.m.RecordRPCServerRequest("optimism_resetDerivationPipeline")
+	defer recordDur()
+	return n.dr.ResetDerivationPipeline(ctx)
 }
 
 func (n *nodeAPI) OutputAtBlock(ctx context.Context, number rpc.BlockNumber) ([]eth.Bytes32, error) {
