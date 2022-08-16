@@ -184,7 +184,9 @@ func (ib *ChannelBank) Read() (data []byte, err error) {
 	}
 	delete(ib.channels, first)
 	ib.channelQueue = ib.channelQueue[1:]
-	data = ch.Read()
+	r := ch.Reader()
+	// Suprress error here. io.ReadAll does return nil instead of io.EOF though.
+	data, _ = io.ReadAll(r)
 	return data, nil
 }
 

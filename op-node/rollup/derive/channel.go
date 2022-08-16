@@ -3,7 +3,6 @@ package derive
 import (
 	"bytes"
 	"compress/zlib"
-	"errors"
 	"fmt"
 	"io"
 
@@ -71,6 +70,7 @@ func (ch *Channel) AddFrame(frame Frame, l1InclusionBlock eth.L1BlockRef) error 
 	// Guaranteed to succeed. Now update internal state
 	if frame.IsLast {
 		ch.endFrameNumber = frame.FrameNumber
+		ch.closed = true
 	}
 	if ch.highestL1InclusionBlock.Number < l1InclusionBlock.Number {
 		ch.highestL1InclusionBlock = l1InclusionBlock
@@ -97,7 +97,7 @@ func (ch *Channel) IsReady() bool {
 		return false
 	}
 	// Must have the possibility of contiguous frames
-	if len(ch.inputs) != int(ch.endFrameNumber) {
+	if len(ch.inputs) != int(ch.endFrameNumber)+1 {
 		return false
 	}
 	// Check for contiguous frames
@@ -110,44 +110,36 @@ func (ch *Channel) IsReady() bool {
 	return true
 }
 
-// Read full channel content (it may be incomplete if the channel is not Closed)
-// This should only be called after `IsReady` returns true.
-func (ch *Channel) Read() (out []byte) {
+// Reader returns an io.Reader over the channel data.
+// This panics if it is called while `IsReady` is not true.
+// This function is able to be called multiple times.
+func (ch *Channel) Reader() io.Reader {
+	var readers []io.Reader
 	for i := uint64(0); i <= uint64(ch.endFrameNumber); i++ {
 		data, ok := ch.inputs[i]
 		if !ok {
-			// TODO: dev error here
-			return
+			panic("dev error in channel.Reader. Must be called after the channel is ready.")
 		}
-		out = append(out, data...)
+		readers = append(readers, bytes.NewBuffer(data))
 	}
-	return out
+	return io.MultiReader(readers...)
 }
 
-// ReadBatch returns a decoded rollup batch, or an error:
-//   - io.EOF when the channel is empty
-//   - any other error (e.g. invalid compression or batch data)
-// The L1 Inclusion block is the highest L1 inclusion block inside the channel.
-func (ch *Channel) ReadBatch() (BatchWithL1InclusionBlock, error) {
-	if ch.readRLP == nil {
-		var readers []io.Reader
-		for i := uint64(0); i <= uint64(ch.endFrameNumber); i++ {
-			data, ok := ch.inputs[i]
-			if !ok {
-				return BatchWithL1InclusionBlock{}, errors.New("dev error")
-			}
-			readers = append(readers, bytes.NewBuffer(data))
-		}
-		zr, err := zlib.NewReader(io.MultiReader(readers...))
-		if err != nil {
-			return BatchWithL1InclusionBlock{}, err
-		}
-		ch.readRLP = rlp.NewStream(zr, 10_000_000)
+// BatchReader provides a function that iteratively consumes batches from the reader.
+// The L1Inclusion block is also provided at creation time.
+func BatchReader(r io.Reader, l1InclusionBlock eth.L1BlockRef) (func() (BatchWithL1InclusionBlock, error), error) {
+	// Setup decompressor stage + RLP reader
+	zr, err := zlib.NewReader(r)
+	if err != nil {
+		return nil, err
 	}
-
-	ret := BatchWithL1InclusionBlock{
-		L1InclusionBlock: ch.highestL1InclusionBlock,
-	}
-	err := ch.readRLP.Decode(&ret.Batch)
-	return ret, err
+	rlpReader := rlp.NewStream(zr, 10_000_000)
+	// Read each batch iteratively
+	return func() (BatchWithL1InclusionBlock, error) {
+		ret := BatchWithL1InclusionBlock{
+			L1InclusionBlock: l1InclusionBlock,
+		}
+		err := rlpReader.Decode(&ret.Batch)
+		return ret, err
+	}, nil
 }
