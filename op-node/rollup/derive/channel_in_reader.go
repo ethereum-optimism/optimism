@@ -1,6 +1,7 @@
 package derive
 
 import (
+	"bytes"
 	"compress/zlib"
 	"context"
 	"io"
@@ -46,11 +47,11 @@ func (cr *ChannelInReader) Progress() Progress {
 }
 
 // TODO: Take full channel for better logging
-func (cr *ChannelInReader) WriteChannel(r io.Reader) {
+func (cr *ChannelInReader) WriteChannel(data []byte) {
 	if cr.progress.Closed {
 		panic("write channel while closed")
 	}
-	if f, err := BatchReader(r, cr.progress.Origin); err == nil {
+	if f, err := BatchReader(bytes.NewBuffer(data), cr.progress.Origin); err == nil {
 		cr.nextBatchFn = f
 	} else {
 		cr.log.Error("Error creating batch reader from channel data", "err", err)

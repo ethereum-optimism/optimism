@@ -25,7 +25,7 @@ import (
 
 type ChannelBankOutput interface {
 	StageProgress
-	WriteChannel(r io.Reader)
+	WriteChannel(data []byte)
 }
 
 // ChannelBank buffers channel frames, and emits full channel data
@@ -164,9 +164,9 @@ func (ib *ChannelBank) IngestData(data []byte) {
 	}
 }
 
-// Read the raw reader of the first channel, if it's timed-out or closed.
+// Read the raw data of the first channel, if it's timed-out or closed.
 // Read returns io.EOF if there is nothing new to read.
-func (ib *ChannelBank) Read() (r io.Reader, err error) {
+func (ib *ChannelBank) Read() (data []byte, err error) {
 	if len(ib.channelQueue) == 0 {
 		return nil, io.EOF
 	}
@@ -184,8 +184,10 @@ func (ib *ChannelBank) Read() (r io.Reader, err error) {
 	}
 	delete(ib.channels, first)
 	ib.channelQueue = ib.channelQueue[1:]
-	return ch.Reader(), nil
-
+	r := ch.Reader()
+	// Suprress error here. io.ReadAll does return nil instead of io.EOF though.
+	data, _ = io.ReadAll(r)
+	return data, nil
 }
 
 func (ib *ChannelBank) Step(ctx context.Context, outer Progress) error {
