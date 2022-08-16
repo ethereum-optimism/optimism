@@ -32,8 +32,8 @@ type ChannelBank struct {
 	log log.Logger
 	cfg *rollup.Config
 
-	channels     map[ChannelID]*ChannelIn // channels by ID
-	channelQueue []ChannelID              // channels in FIFO order
+	channels     map[ChannelID]*Channel // channels by ID
+	channelQueue []ChannelID            // channels in FIFO order
 
 	resetting bool
 
@@ -49,7 +49,7 @@ func NewChannelBank(log log.Logger, cfg *rollup.Config, next ChannelBankOutput) 
 	return &ChannelBank{
 		log:          log,
 		cfg:          cfg,
-		channels:     make(map[ChannelID]*ChannelIn),
+		channels:     make(map[ChannelID]*Channel),
 		channelQueue: make([]ChannelID, 0, 10),
 		next:         next,
 	}
@@ -107,14 +107,15 @@ func (ib *ChannelBank) IngestData(data []byte) {
 		}
 
 		currentCh, ok := ib.channels[f.ID]
-		if !ok { // create new channel if it doesn't exist yet
-			currentCh = &ChannelIn{id: f.ID}
+		if !ok {
+			// create new channel if it doesn't exist yet
+			currentCh = NewChannel(f.ID)
 			ib.channels[f.ID] = currentCh
 			ib.channelQueue = append(ib.channelQueue, f.ID)
 		}
 
 		ib.log.Trace("ingesting frame", "channel", f.ID, "frame_number", f.FrameNumber, "length", len(f.Data))
-		if err := currentCh.IngestData(uint64(f.FrameNumber), f.IsLast, f.Data); err != nil {
+		if err := currentCh.AddFrame(f, ib.progress.Origin); err != nil {
 			ib.log.Warn("failed to ingest frame into channel", "channel", f.ID, "frame_number", f.FrameNumber, "err", err)
 			continue
 		}
@@ -134,15 +135,17 @@ func (ib *ChannelBank) Read() (data []byte, err error) {
 	if timedOut {
 		ib.log.Debug("channel timed out", "channel", first, "frames", len(ch.inputs))
 	}
-	if ch.closed {
-		ib.log.Debug("channel closed", "channel", first)
+	if ch.IsReady() {
+		ib.log.Debug("channel ready", "channel", first)
 	}
-	if !timedOut && !ch.closed { // check if channel is done (can then be read)
+	if !timedOut && !ch.IsReady() { // check if channel is readya (can then be read)
 		return nil, io.EOF
 	}
 	delete(ib.channels, first)
 	ib.channelQueue = ib.channelQueue[1:]
-	data = ch.Read()
+	r := ch.Reader()
+	// Suprress error here. io.ReadAll does return nil instead of io.EOF though.
+	data, _ = io.ReadAll(r)
 	return data, nil
 }
 

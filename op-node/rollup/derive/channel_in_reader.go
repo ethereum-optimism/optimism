@@ -7,8 +7,6 @@ import (
 	"io"
 
 	"github.com/ethereum/go-ethereum/log"
-
-	"github.com/ethereum/go-ethereum/rlp"
 )
 
 // Channel In Reader reads a batch from the channel
@@ -30,12 +28,7 @@ type BatchQueueStage interface {
 type ChannelInReader struct {
 	log log.Logger
 
-	ready    bool
-	r        *bytes.Reader
-	readZlib zlibReader
-	readRLP  *rlp.Stream
-
-	data []byte
+	nextBatchFn func() (BatchWithL1InclusionBlock, error)
 
 	progress Progress
 
@@ -53,58 +46,22 @@ func (cr *ChannelInReader) Progress() Progress {
 	return cr.progress
 }
 
+// TODO: Take full channel for better logging
 func (cr *ChannelInReader) WriteChannel(data []byte) {
 	if cr.progress.Closed {
 		panic("write channel while closed")
 	}
-	cr.data = data
-	cr.ready = false
-}
-
-// ReadBatch returns a decoded rollup batch, or an error:
-//   - io.EOF, if the ChannelInReader source needs more data, to be provided with WriteChannel()/
-//   - any other error (e.g. invalid compression or batch data):
-//     the caller should ChannelInReader.NextChannel() before continuing reading the next batch.
-func (cr *ChannelInReader) ReadBatch(dest *BatchData) error {
-	// The channel reader may not be initialized yet,
-	// and initializing involves reading (zlib header data), so we do that now.
-	if !cr.ready {
-		if cr.data == nil {
-			return io.EOF
-		}
-		if cr.r == nil {
-			cr.r = bytes.NewReader(cr.data)
-		} else {
-			cr.r.Reset(cr.data)
-		}
-		if cr.readZlib == nil {
-			// creating a new zlib reader involves resetting it, which reads data, which may error
-			zr, err := zlib.NewReader(cr.r)
-			if err != nil {
-				return err
-			}
-			cr.readZlib = zr.(zlibReader)
-		} else {
-			err := cr.readZlib.Reset(cr.r, nil)
-			if err != nil {
-				return err
-			}
-		}
-		if cr.readRLP == nil {
-			cr.readRLP = rlp.NewStream(cr.readZlib, 10_000_000)
-		} else {
-			cr.readRLP.Reset(cr.readZlib, 10_000_000)
-		}
-		cr.ready = true
+	if f, err := BatchReader(bytes.NewBuffer(data), cr.progress.Origin); err == nil {
+		cr.nextBatchFn = f
+	} else {
+		cr.log.Error("Error creating batch reader from channel data", "err", err)
 	}
-	return cr.readRLP.Decode(dest)
 }
 
 // NextChannel forces the next read to continue with the next channel,
 // resetting any decoding/decompression state to a fresh start.
 func (cr *ChannelInReader) NextChannel() {
-	cr.ready = false
-	cr.data = nil
+	cr.nextBatchFn = nil
 }
 
 func (cr *ChannelInReader) Step(ctx context.Context, outer Progress) error {
@@ -112,21 +69,23 @@ func (cr *ChannelInReader) Step(ctx context.Context, outer Progress) error {
 		return err
 	}
 
-	var batch BatchData
-	if err := cr.ReadBatch(&batch); err == io.EOF {
+	// TODO: can batch be non nil while err == io.EOF
+	// This depends on the behavior of rlp.Stream
+	batch, err := cr.nextBatchFn()
+
+	if err == io.EOF {
 		return io.EOF
 	} else if err != nil {
 		cr.log.Warn("failed to read batch from channel reader, skipping to next channel now", "err", err)
 		cr.NextChannel()
 		return nil
 	}
-	cr.next.AddBatch(&batch)
+	cr.next.AddBatch(batch.Batch)
 	return nil
 }
 
 func (cr *ChannelInReader) ResetStep(ctx context.Context, l1Fetcher L1Fetcher) error {
-	cr.ready = false
-	cr.data = nil
+	cr.nextBatchFn = nil
 	cr.progress = cr.next.Progress()
 	return io.EOF
 }
