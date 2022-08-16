@@ -7,6 +7,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-node/testutils"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/stretchr/testify/require"
 )
 
 func TestMarshalBinary(t *testing.T) {
@@ -24,7 +25,8 @@ func TestMarshalBinary(t *testing.T) {
 		SequenceNumber: 0,
 	}
 
-	l1.MarshalBinary()
+	_, err := l1.MarshalBinary()
+	require.NoError(t, err)
 }
 
 func TestMarshalDepositLogEvent(t *testing.T) {
