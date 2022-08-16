@@ -11,7 +11,7 @@ import (
 )
 
 // TODO: Full state machine for channel
-// Open, Closed, Ready (todo - when to construct RLP reader), Batches Read
+// Open, Closed, Ready (todo - when to construct RLP reader)
 
 // A Channel is a set of batches that are split into at least one, but possibly multiple frames.
 // Frames are allowed to be ingested out of order.
@@ -40,9 +40,6 @@ type Channel struct {
 	inputs map[uint64][]byte
 
 	highestL1InclusionBlock eth.L1BlockRef
-
-	// Output stream. Constructed at `ReadBatch` if not nil
-	readRLP *rlp.Stream
 }
 
 func NewChannel(id ChannelID) *Channel {
