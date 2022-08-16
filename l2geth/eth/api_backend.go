@@ -25,6 +25,7 @@ import (
 	"github.com/ethereum-optimism/optimism/l2geth/accounts"
 	"github.com/ethereum-optimism/optimism/l2geth/common"
 	"github.com/ethereum-optimism/optimism/l2geth/common/math"
+	"github.com/ethereum-optimism/optimism/l2geth/consensus"
 	"github.com/ethereum-optimism/optimism/l2geth/core"
 	"github.com/ethereum-optimism/optimism/l2geth/core/bloombits"
 	"github.com/ethereum-optimism/optimism/l2geth/core/rawdb"
@@ -63,6 +64,18 @@ func (b *EthAPIBackend) IsSyncing() bool {
 
 func (b *EthAPIBackend) GasLimit() uint64 {
 	return b.gasLimit
+}
+
+func (b *EthAPIBackend) Engine() consensus.Engine {
+	return b.eth.Engine()
+}
+
+func (b *EthAPIBackend) StateAtBlock(ctx context.Context, block *types.Block, reexec uint64, base *state.StateDB, checkLive, preferDisk bool) (*state.StateDB, error) {
+	return b.eth.StateAtBlock(block, reexec, base, checkLive, preferDisk)
+}
+
+func (b *EthAPIBackend) StateAtTransaction(ctx context.Context, block *types.Block, txIndex int, reexec uint64) (core.Message, vm.Context, *state.StateDB, error) {
+	return b.eth.stateAtTransaction(block, txIndex, reexec)
 }
 
 func (b *EthAPIBackend) GetEthContext() (uint64, uint64) {
