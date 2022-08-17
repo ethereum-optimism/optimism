@@ -35,6 +35,24 @@ type driverClient interface {
 	ResetDerivationPipeline(context.Context) error
 }
 
+type adminAPI struct {
+	dr driverClient
+	m  *metrics.Metrics
+}
+
+func newAdminAPI(dr driverClient, m *metrics.Metrics) *adminAPI {
+	return &adminAPI{
+		dr: dr,
+		m:  m,
+	}
+}
+
+func (n *adminAPI) ResetDerivationPipeline(ctx context.Context) error {
+	recordDur := n.m.RecordRPCServerRequest("admin_resetDerivationPipeline")
+	defer recordDur()
+	return n.dr.ResetDerivationPipeline(ctx)
+}
+
 type nodeAPI struct {
 	config *rollup.Config
 	client l2EthClient
@@ -51,12 +69,6 @@ func newNodeAPI(config *rollup.Config, l2Client l2EthClient, dr driverClient, lo
 		log:    log,
 		m:      m,
 	}
-}
-
-func (n *nodeAPI) ResetDerivationPipeline(ctx context.Context) error {
-	recordDur := n.m.RecordRPCServerRequest("optimism_resetDerivationPipeline")
-	defer recordDur()
-	return n.dr.ResetDerivationPipeline(ctx)
 }
 
 func (n *nodeAPI) OutputAtBlock(ctx context.Context, number rpc.BlockNumber) ([]eth.Bytes32, error) {
