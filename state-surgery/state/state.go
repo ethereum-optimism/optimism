@@ -66,15 +66,15 @@ func ComputeStorageSlots(layout *solc.StorageLayout, values StorageValues) ([]*E
 		encodedStorage = append(encodedStorage, storage...)
 	}
 
-	// Combine any overlapping storage slots for when values
-	// are tightly packed. Do this by checking to see if any
-	// of the produced storage slots have a matching key, if
-	// so use a binary or to add the storage values together
 	results := MergeStorage(encodedStorage)
 
 	return results, nil
 }
 
+// MergeStorage will combine any overlapping storage slots for
+// when values are tightly packed. Do this by checking to see if any
+// of the produced storage slots have a matching key, if so use a
+// binary or to add the storage values together
 func MergeStorage(storage []*EncodedStorage) []*EncodedStorage {
 	encoded := make(map[common.Hash]common.Hash)
 	for _, storage := range storage {
