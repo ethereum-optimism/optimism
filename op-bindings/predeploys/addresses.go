@@ -31,20 +31,20 @@ var (
 	L1BlockAddr                      = common.HexToAddress(L1Block)
 	GovernanceTokenAddr              = common.HexToAddress(GovernanceToken)
 
-	predeploys = make(map[string]*common.Address)
+	Predeploys = make(map[string]*common.Address)
 )
 
 func init() {
-	predeploys["L2ToL1MessagePasser"] = &L2ToL1MessagePasserAddr
-	predeploys["DeployerWhitelist"] = &DeployerWhitelistAddr
-	predeploys["LegacyERC20ETH"] = &LegacyERC20ETHAddr
-	predeploys["WETH9"] = &WETH9Addr
-	predeploys["L2CrossDomainMessenger"] = &L2CrossDomainMessengerAddr
-	predeploys["L2StandardBridge"] = &L2StandardBridgeAddr
-	predeploys["SequencerFeeVault"] = &SequencerFeeVaultAddr
-	predeploys["OptimismMintableERC20Factory"] = &OptimismMintableERC20FactoryAddr
-	predeploys["L1BlockNumber"] = &L1BlockNumberAddr
-	predeploys["GasPriceOracle"] = &GasPriceOracleAddr
-	predeploys["L1Block"] = &L1BlockAddr
-	predeploys["GovernanceToken"] = &GovernanceTokenAddr
+	Predeploys["L2ToL1MessagePasser"] = &L2ToL1MessagePasserAddr
+	Predeploys["DeployerWhitelist"] = &DeployerWhitelistAddr
+	Predeploys["LegacyERC20ETH"] = &LegacyERC20ETHAddr
+	Predeploys["WETH9"] = &WETH9Addr
+	Predeploys["L2CrossDomainMessenger"] = &L2CrossDomainMessengerAddr
+	Predeploys["L2StandardBridge"] = &L2StandardBridgeAddr
+	Predeploys["SequencerFeeVault"] = &SequencerFeeVaultAddr
+	Predeploys["OptimismMintableERC20Factory"] = &OptimismMintableERC20FactoryAddr
+	Predeploys["L1BlockNumber"] = &L1BlockNumberAddr
+	Predeploys["GasPriceOracle"] = &GasPriceOracleAddr
+	Predeploys["L1Block"] = &L1BlockAddr
+	Predeploys["GovernanceToken"] = &GovernanceTokenAddr
 }
