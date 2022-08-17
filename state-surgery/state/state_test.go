@@ -263,3 +263,143 @@ func TestMergeStorage(t *testing.T) {
 		require.Equal(t, got, test.expect)
 	}
 }
+
+func TestEncodeUintValue(t *testing.T) {
+	cases := []struct {
+		number any
+		offset uint
+		expect common.Hash
+	}{
+		{
+			number: 0,
+			offset: 0,
+			expect: common.Hash{},
+		},
+		{
+			number: big.NewInt(1),
+			offset: 0,
+			expect: common.Hash{31: 0x01},
+		},
+		{
+			number: uint64(2),
+			offset: 0,
+			expect: common.Hash{31: 0x02},
+		},
+		{
+			number: uint8(3),
+			offset: 0,
+			expect: common.Hash{31: 0x03},
+		},
+		{
+			number: uint16(4),
+			offset: 0,
+			expect: common.Hash{31: 0x04},
+		},
+		{
+			number: uint32(5),
+			offset: 0,
+			expect: common.Hash{31: 0x05},
+		},
+		{
+			number: int(6),
+			offset: 0,
+			expect: common.Hash{31: 0x06},
+		},
+		{
+			number: 1,
+			offset: 1,
+			expect: common.Hash{30: 0x01},
+		},
+		{
+			number: 1,
+			offset: 10,
+			expect: common.Hash{21: 0x01},
+		},
+	}
+
+	for _, test := range cases {
+		got, err := state.EncodeUintValue(test.number, test.offset)
+		require.Nil(t, err)
+		require.Equal(t, got, test.expect)
+	}
+}
+
+func TestEncodeBoolValue(t *testing.T) {
+	cases := []struct {
+		boolean any
+		offset  uint
+		expect  common.Hash
+	}{
+		{
+			boolean: true,
+			offset:  0,
+			expect:  common.Hash{31: 0x01},
+		},
+		{
+			boolean: false,
+			offset:  0,
+			expect:  common.Hash{},
+		},
+		{
+			boolean: true,
+			offset:  1,
+			expect:  common.Hash{30: 0x01},
+		},
+		{
+			boolean: false,
+			offset:  1,
+			expect:  common.Hash{},
+		},
+		{
+			boolean: "true",
+			offset:  0,
+			expect:  common.Hash{31: 0x01},
+		},
+		{
+			boolean: "false",
+			offset:  0,
+			expect:  common.Hash{},
+		},
+	}
+
+	for _, test := range cases {
+		got, err := state.EncodeBoolValue(test.boolean, test.offset)
+		require.Nil(t, err)
+		require.Equal(t, got, test.expect)
+	}
+}
+
+func TestEncodeAddressValue(t *testing.T) {
+	cases := []struct {
+		addr   any
+		offset uint
+		expect common.Hash
+	}{
+		{
+			addr:   common.Address{},
+			offset: 0,
+			expect: common.Hash{},
+		},
+		{
+			addr:   common.Address{0x01},
+			offset: 0,
+			expect: common.Hash{12: 0x01},
+		},
+		{
+			addr:   "0x829BD824B016326A401d083B33D092293333A830",
+			offset: 0,
+			expect: common.HexToHash("0x829BD824B016326A401d083B33D092293333A830"),
+		},
+		{
+			addr:   common.Address{19: 0x01},
+			offset: 1,
+			expect: common.Hash{30: 0x01},
+		},
+	}
+
+	for _, test := range cases {
+		got, err := state.EncodeAddressValue(test.addr, test.offset)
+		require.Nil(t, err)
+		require.Equal(t, got, test.expect)
+	}
+}
