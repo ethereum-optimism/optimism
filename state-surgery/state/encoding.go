@@ -1,7 +1,6 @@
 package state
 
 import (
-	"bytes"
 	"errors"
 	"fmt"
 	"math/big"
@@ -76,6 +75,9 @@ func EncodeStorageKeyValue(value any, entry solc.StorageLayoutEntry, storageType
 		}
 
 		keyEncoder, err := getElementEncoder(storageType.Key)
+		if err != nil {
+			return nil, err
+		}
 		valueEncoder, err := getElementEncoder(storageType.Value)
 		if err != nil {
 			return nil, err
@@ -89,14 +91,12 @@ func EncodeStorageKeyValue(value any, entry solc.StorageLayoutEntry, storageType
 			}
 
 			encodedSlot := encodeSlotKey(entry)
-			buf := new(bytes.Buffer)
-			if _, err := buf.Write(encodedKey.Bytes()); err != nil {
-				return nil, err
-			}
-			if _, err := buf.Write(encodedSlot.Bytes()); err != nil {
-				return nil, err
-			}
-			hash := crypto.Keccak256(buf.Bytes())
+
+			preimage := [64]byte{}
+			copy(preimage[0:32], encodedKey.Bytes())
+			copy(preimage[32:64], encodedSlot.Bytes())
+
+			hash := crypto.Keccak256(preimage[:])
 			key := common.BytesToHash(hash)
 			val, err := valueEncoder(rawVal, 0)
 			if err != nil {
