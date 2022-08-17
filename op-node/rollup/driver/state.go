@@ -57,6 +57,10 @@ type state struct {
 	// Requests for sync status. Synchronized with event loop to avoid reading an inconsistent sync status.
 	syncStatusReq chan chan SyncStatus
 
+	// Upon receiving a channel in this channel, the derivation pipeline is forced to be reset.
+	// It tells the caller that the reset occurred by closing the passed in channel.
+	forceReset chan chan struct{}
+
 	// Rollup config: rollup chain configuration
 	Config *rollup.Config
 
@@ -435,8 +439,31 @@ func (s *state) eventLoop() {
 				SafeL2:      s.l2SafeHead,
 				FinalizedL2: s.l2Finalized,
 			}
+		case respCh := <-s.forceReset:
+			s.log.Warn("Derivation pipeline is manually reset")
+			s.derivation.Reset()
+			s.metrics.RecordPipelineReset()
+			close(respCh)
 		case <-s.done:
 			return
+		}
+	}
+}
+
+// ResetDerivationPipeline forces a reset of the derivation pipeline.
+// It waits for the reset to occur. It simply unblocks the caller rather
+// than fully cancelling the reset request upon a context cancellation.
+func (s *state) ResetDerivationPipeline(ctx context.Context) error {
+	respCh := make(chan struct{})
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case s.forceReset <- respCh:
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-respCh:
+			return nil
 		}
 	}
 }
