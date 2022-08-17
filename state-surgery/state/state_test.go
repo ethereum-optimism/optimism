@@ -174,3 +174,92 @@ func testContractStateValuesAreEmpty(t *testing.T, contract *testdata.Testdata) 
 	require.Nil(t, err)
 	require.Equal(t, offset5.Uint64(), uint64(0))
 }
+
+func TestMergeStorage(t *testing.T) {
+	cases := []struct {
+		input  []*state.EncodedStorage
+		expect []*state.EncodedStorage
+	}{
+		{
+			// One input should be the same result
+			input: []*state.EncodedStorage{
+				{
+					Key:   common.Hash{},
+					Value: common.Hash{},
+				},
+			},
+			expect: []*state.EncodedStorage{
+				{
+					Key:   common.Hash{},
+					Value: common.Hash{},
+				},
+			},
+		},
+		{
+			// Two duplicate inputs should be merged
+			input: []*state.EncodedStorage{
+				{
+					Key:   common.Hash{1},
+					Value: common.Hash{},
+				},
+				{
+					Key:   common.Hash{1},
+					Value: common.Hash{},
+				},
+			},
+			expect: []*state.EncodedStorage{
+				{
+					Key:   common.Hash{1},
+					Value: common.Hash{},
+				},
+			},
+		},
+		{
+			// Two different inputs should be the same result
+			input: []*state.EncodedStorage{
+				{
+					Key:   common.Hash{1},
+					Value: common.Hash{},
+				},
+				{
+					Key:   common.Hash{2},
+					Value: common.Hash{},
+				},
+			},
+			expect: []*state.EncodedStorage{
+				{
+					Key:   common.Hash{1},
+					Value: common.Hash{},
+				},
+				{
+					Key:   common.Hash{2},
+					Value: common.Hash{},
+				},
+			},
+		},
+		{
+			// Two matching keys should be merged bitwise
+			input: []*state.EncodedStorage{
+				{
+					Key:   common.Hash{},
+					Value: common.Hash{0x00, 0x01},
+				},
+				{
+					Key:   common.Hash{},
+					Value: common.Hash{0x02, 0x00},
+				},
+			},
+			expect: []*state.EncodedStorage{
+				{
+					Key:   common.Hash{},
+					Value: common.Hash{0x02, 0x01},
+				},
+			},
+		},
+	}
+
+	for _, test := range cases {
+		got := state.MergeStorage(test.input)
+		require.Equal(t, got, test.expect)
+	}
+}
