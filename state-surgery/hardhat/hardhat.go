@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+
+	"github.com/ethereum-optimism/optimism/state-surgery/solc"
 )
 
 // `Hardhat` encapsulates all of the functionality required to interact
@@ -75,11 +77,11 @@ func (h *Hardhat) initDeployments() error {
 			if strings.Contains(path, "solcInputs") {
 				return nil
 			}
-
-			name := filepath.Join(deploymentPath, h.network, path)
-			if !strings.HasSuffix(name, ".json") {
+			if !strings.HasSuffix(path, ".json") {
 				return nil
 			}
+
+			name := filepath.Join(deploymentPath, h.network, path)
 			file, err := os.ReadFile(name)
 			if err != nil {
 				return err
@@ -246,4 +248,24 @@ func (h *Hardhat) GetBuildInfo(name string) (*BuildInfo, error) {
 	}
 
 	return buildInfos[0], nil
+}
+
+// TODO(tynes): handle fully qualified names properly
+func (h *Hardhat) GetStorageLayout(name string) (*solc.StorageLayout, error) {
+	fqn := ParseFullyQualifiedName(name)
+
+	buildInfo, err := h.GetBuildInfo(name)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, source := range buildInfo.Output.Contracts {
+		for name, contract := range source {
+			if name == fqn.ContractName {
+				return &contract.StorageLayout, nil
+			}
+		}
+	}
+
+	return nil, fmt.Errorf("contract not found for %s", fqn.ContractName)
 }
