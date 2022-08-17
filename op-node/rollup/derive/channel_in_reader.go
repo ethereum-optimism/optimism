@@ -62,6 +62,10 @@ func (cr *ChannelInReader) Step(ctx context.Context, outer Progress) error {
 		return err
 	}
 
+	if cr.nextBatchFn == nil {
+		return io.EOF
+	}
+
 	// TODO: can batch be non nil while err == io.EOF
 	// This depends on the behavior of rlp.Stream
 	batch, err := cr.nextBatchFn()
