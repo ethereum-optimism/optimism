@@ -4,10 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
-	"reflect"
-	"strings"
 
-	"github.com/ethereum-optimism/optimism/l2geth/common/hexutil"
 	"github.com/ethereum-optimism/optimism/state-surgery/solc"
 	"github.com/ethereum/go-ethereum/common"
 )
@@ -25,143 +22,25 @@ type EncodedStorage struct {
 }
 
 // EncodedStorage will encode a storage layout
-func EncodeStorage(entry solc.StorageLayoutEntry, value any, storageType solc.StorageLayoutType) (*EncodedStorage, error) {
-	// TODO: handle nested storage
-	slot := new(big.Int).SetUint64(uint64(entry.Slot))
-	key := common.BigToHash(slot)
-
-	if entry.Offset != 0 {
-		return nil, fmt.Errorf("%s has a non zero offset", entry.Label)
-	}
+func EncodeStorage(entry solc.StorageLayoutEntry, value any, storageType solc.StorageLayoutType) ([]*EncodedStorage, error) {
 	if storageType.NumberOfBytes > 32 {
 		return nil, fmt.Errorf("%s is larger than 32 bytes", entry.Label)
 	}
 
-	if storageType.Encoding == "inplace" {
-		if storageType.Label == "address" || strings.HasPrefix(storageType.Label, "contract") {
-			address, ok := value.(common.Address)
-			if !ok {
-				str, ok := value.(string)
-				if !ok {
-					return nil, fmt.Errorf("invalid address for %s", entry.Label)
-				}
-				address = common.HexToAddress(str)
-			}
-
-			value := address.Hash()
-			return &EncodedStorage{
-				Key:   key,
-				Value: value,
-			}, nil
-		}
-
-		if storageType.Label == "bool" {
-			name := reflect.TypeOf(value).Name()
-			val := common.Hash{}
-			switch name {
-			case "bool":
-				boolean, ok := value.(bool)
-				if !ok {
-					return nil, fmt.Errorf("cannot parse value for %s", entry.Label)
-				}
-				if boolean {
-					val = common.BigToHash(common.Big1)
-				}
-			case "string":
-				boolean, ok := value.(string)
-				if !ok {
-					return nil, fmt.Errorf("cannot parse value for %s", entry.Label)
-				}
-				if boolean == "true" {
-					val = common.BigToHash(common.Big1)
-				}
-			}
-
-			return &EncodedStorage{
-				Key:   key,
-				Value: val,
-			}, nil
-		}
-
-		if strings.HasPrefix(storageType.Label, "bytes") {
-			panic("bytes unimplemented")
-		}
-
-		if strings.HasPrefix(storageType.Label, "uint") {
-			name := reflect.TypeOf(value).Name()
-			var number *big.Int
-			switch name {
-			case "uint":
-				val, ok := value.(uint)
-				if !ok {
-					return nil, fmt.Errorf("cannot parse value for %s", entry.Label)
-				}
-				number = new(big.Int).SetUint64(uint64(val))
-			case "int":
-				val, ok := value.(int)
-				if !ok {
-					return nil, fmt.Errorf("cannot parse value for %s", entry.Label)
-				}
-				number = new(big.Int).SetUint64(uint64(val))
-			case "uint64":
-				val, ok := value.(uint64)
-				if !ok {
-					return nil, fmt.Errorf("cannot parse value for %s", entry.Label)
-				}
-				number = new(big.Int).SetUint64(val)
-			case "string":
-				val, ok := value.(string)
-				if !ok {
-					return nil, fmt.Errorf("cannot parse value for %s", entry.Label)
-				}
-				var err error
-				number, err = hexutil.DecodeBig(val)
-				if err != nil {
-					if errors.Is(err, hexutil.ErrMissingPrefix) {
-						number, ok = new(big.Int).SetString(val, 10)
-						if !ok {
-							return nil, fmt.Errorf("cannot parse value for %s", entry.Label)
-						}
-					} else if errors.Is(err, hexutil.ErrLeadingZero) {
-						number, ok = new(big.Int).SetString(val[2:], 16)
-						if !ok {
-							return nil, fmt.Errorf("cannot parse value for %s", entry.Label)
-						}
-					}
-				}
-
-			case "":
-				val, ok := value.(*big.Int)
-				if !ok {
-					return nil, fmt.Errorf("cannot parse value for %s", entry.Label)
-				}
-				number = val
-			}
-
-			if number == nil {
-				return nil, fmt.Errorf("cannot parse value for %s", entry.Label)
-			}
-
-			return &EncodedStorage{
-				Key:   key,
-				Value: common.BigToHash(number),
-			}, nil
-		}
-
-		if strings.HasPrefix(storageType.Label, "int") {
-			panic("setting int storage slots is unimplemented")
-		}
-		// end handling inplace storage
-	} else if storageType.Encoding == "bytes" {
-		panic("setting bytes storage slots is unimplemented")
-	} else if storageType.Encoding == "mapping" {
-		panic("setting mapping storage slots is unimplemented")
-	} else if storageType.Encoding == "dynamic_array" {
-		panic("setting dynamic_array storage slots is unimplemented")
+	tuples, err := EncodeStorageKeyValue(value, entry, storageType)
+	if err != nil {
+		return nil, err
 	}
 
-	return nil, nil
+	encoded := make([]*EncodedStorage, 0)
+	for _, val := range tuples {
+		encoded = append(encoded, &EncodedStorage{val[0], val[1]})
+	}
+	return encoded, nil
 }
+
+var errInvalidType = errors.New("invalid type")
+var errUnimplemented = errors.New("type unimplemented")
 
 // ComputeStorageSlots will compute the storage slots for a given contract.
 func ComputeStorageSlots(layout *solc.StorageLayout, values StorageValues) ([]*EncodedStorage, error) {
@@ -186,11 +65,30 @@ func ComputeStorageSlots(layout *solc.StorageLayout, values StorageValues) ([]*E
 
 		storage, err := EncodeStorage(target, value, storageType)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("cannot encode storage: %w", err)
 		}
 
-		encodedStorage = append(encodedStorage, storage)
+		encodedStorage = append(encodedStorage, storage...)
 	}
 
-	return encodedStorage, nil
+	// Combine any overlapping storage slots for when values
+	// are tightly packed. Do this by checking to see if any
+	// of the produced storage slots have a matching key, if
+	// so use a binary or to add the storage values together
+	encoded := make(map[common.Hash]common.Hash)
+	for _, storage := range encodedStorage {
+		if prev, ok := encoded[storage.Key]; ok {
+			combined := new(big.Int).Or(prev.Big(), storage.Value.Big())
+			encoded[storage.Key] = common.BigToHash(combined)
+		} else {
+			encoded[storage.Key] = storage.Value
+		}
+	}
+
+	results := make([]*EncodedStorage, 0)
+	for key, val := range encoded {
+		results = append(results, &EncodedStorage{key, val})
+	}
+
+	return results, nil
 }

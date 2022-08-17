@@ -2,16 +2,33 @@ package state_test
 
 import (
 	"encoding/json"
+	"math/big"
 	"os"
 	"testing"
 
+	"github.com/ethereum/go-ethereum/accounts/abi/bind"
+	"github.com/ethereum/go-ethereum/accounts/abi/bind/backends"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core"
+	"github.com/ethereum/go-ethereum/crypto"
+
 	"github.com/ethereum-optimism/optimism/state-surgery/solc"
 	"github.com/ethereum-optimism/optimism/state-surgery/state"
+	"github.com/ethereum-optimism/optimism/state-surgery/state/testdata"
+
 	"github.com/stretchr/testify/require"
 )
 
-var layout solc.StorageLayout
+var (
+	// layout is the storage layout used in tests
+	layout solc.StorageLayout
+	// testKey is the same test key that geth uses
+	testKey, _ = crypto.HexToECDSA("b71c71a67e1177ad4e901695e1b4b9ee17ae16c6668d313eac2f96dbcda3f291")
+	// chainID is the chain id used for simulated backends
+	chainID = big.NewInt(1337)
+)
 
+// Read the test data from disk asap
 func init() {
 	data, err := os.ReadFile("./testdata/layout.json")
 	if err != nil {
@@ -23,13 +40,137 @@ func init() {
 	}
 }
 
-func TestComputeStorageSlots(t *testing.T) {
+func TestSetAndGetStorageSlots(t *testing.T) {
 	values := state.StorageValues{}
-	values["time"] = 12
-	values["addr"] = "0xEA674fdDe714fd979de3EdF0F56AA9716B898ec8"
-	values["boolean"] = true
+	values["_uint256"] = new(big.Int).SetUint64(0xafff_ffff_ffff_ffff)
+	values["_address"] = common.HexToAddress("0xEA674fdDe714fd979de3EdF0F56AA9716B898ec8")
+	values["_bool"] = true
+	values["offset0"] = uint8(0xaa)
+	values["offset1"] = uint8(0xbb)
+	values["offset2"] = uint16(0x0c0c)
+	values["offset3"] = uint32(0xf33d35)
+	values["offset4"] = uint64(0xd34dd34d00)
+	values["offset5"] = new(big.Int).SetUint64(0x43ad0043ad0043ad)
+
+	addresses := make(map[any]any)
+	addresses[big.NewInt(1)] = common.Address{19: 0xff}
+
+	values["addresses"] = addresses
 
 	slots, err := state.ComputeStorageSlots(&layout, values)
 	require.Nil(t, err)
-	require.NotNil(t, slots)
+
+	backend := backends.NewSimulatedBackend(
+		core.GenesisAlloc{
+			crypto.PubkeyToAddress(testKey.PublicKey): {Balance: big.NewInt(10000000000000000)},
+		},
+		15000000,
+	)
+	opts, err := bind.NewKeyedTransactorWithChainID(testKey, chainID)
+	require.Nil(t, err)
+
+	_, _, contract, err := testdata.DeployTestdata(opts, backend)
+	require.Nil(t, err)
+	backend.Commit()
+
+	// Call each of the methods to make sure that they are set to their 0 values
+	testContractStateValuesAreEmpty(t, contract)
+
+	// Send transactions through the set storage API on the contract
+	for _, slot := range slots {
+		_, err := contract.SetStorage(opts, slot.Key, slot.Value)
+		require.Nil(t, err)
+	}
+	backend.Commit()
+
+	testContractStateValuesAreSet(t, contract, values)
+
+	// Call the get storage API on the contract to double check
+	// that the storage slots have been set correctly
+	for _, slot := range slots {
+		value, err := contract.GetStorage(&bind.CallOpts{}, slot.Key)
+		require.Nil(t, err)
+		require.Equal(t, value[:], slot.Value.Bytes())
+	}
+}
+
+// Ensure that all the storage variables are set after setting storage
+// through the contract
+func testContractStateValuesAreSet(t *testing.T, contract *testdata.Testdata, values state.StorageValues) {
+OUTER:
+	for key, value := range values {
+		var res any
+		var err error
+		switch key {
+		case "_uint256":
+			res, err = contract.Uint256(&bind.CallOpts{})
+		case "_address":
+			res, err = contract.Address(&bind.CallOpts{})
+		case "_bool":
+			res, err = contract.Bool(&bind.CallOpts{})
+		case "offset0":
+			res, err = contract.Offset0(&bind.CallOpts{})
+		case "offset1":
+			res, err = contract.Offset1(&bind.CallOpts{})
+		case "offset2":
+			res, err = contract.Offset2(&bind.CallOpts{})
+		case "offset3":
+			res, err = contract.Offset3(&bind.CallOpts{})
+		case "offset4":
+			res, err = contract.Offset4(&bind.CallOpts{})
+		case "offset5":
+			res, err = contract.Offset5(&bind.CallOpts{})
+		case "addresses":
+			addrs, ok := value.(map[any]any)
+			require.Equal(t, ok, true)
+			for mapKey, mapVal := range addrs {
+				res, err = contract.Addresses(&bind.CallOpts{}, mapKey.(*big.Int))
+				require.Nil(t, err)
+				require.Equal(t, mapVal, res)
+				continue OUTER
+			}
+		default:
+			require.Fail(t, "Unknown variable label", key)
+		}
+		require.Nil(t, err)
+		require.Equal(t, res, value)
+	}
+}
+
+func testContractStateValuesAreEmpty(t *testing.T, contract *testdata.Testdata) {
+	addr, err := contract.Address(&bind.CallOpts{})
+	require.Nil(t, err)
+	require.Equal(t, addr, common.Address{})
+
+	boolean, err := contract.Bool(&bind.CallOpts{})
+	require.Nil(t, err)
+	require.Equal(t, boolean, false)
+
+	uint256, err := contract.Uint256(&bind.CallOpts{})
+	require.Nil(t, err)
+	require.Equal(t, uint256.Uint64(), uint64(0))
+
+	offset0, err := contract.Offset0(&bind.CallOpts{})
+	require.Nil(t, err)
+	require.Equal(t, offset0, uint8(0))
+
+	offset1, err := contract.Offset1(&bind.CallOpts{})
+	require.Nil(t, err)
+	require.Equal(t, offset1, uint8(0))
+
+	offset2, err := contract.Offset2(&bind.CallOpts{})
+	require.Nil(t, err)
+	require.Equal(t, offset2, uint16(0))
+
+	offset3, err := contract.Offset3(&bind.CallOpts{})
+	require.Nil(t, err)
+	require.Equal(t, offset3, uint32(0))
+
+	offset4, err := contract.Offset4(&bind.CallOpts{})
+	require.Nil(t, err)
+	require.Equal(t, offset4, uint64(0))
+
+	offset5, err := contract.Offset5(&bind.CallOpts{})
+	require.Nil(t, err)
+	require.Equal(t, offset5.Uint64(), uint64(0))
 }

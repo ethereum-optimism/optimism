@@ -3,7 +3,7 @@
     {
       "astId": 3,
       "contract": "contracts/HelloWorld.sol:HelloWorld",
-      "label": "addr",
+      "label": "_address",
       "offset": 0,
       "slot": "0",
       "type": "t_address"
@@ -19,7 +19,7 @@
     {
       "astId": 9,
       "contract": "contracts/HelloWorld.sol:HelloWorld",
-      "label": "boolean",
+      "label": "_bool",
       "offset": 0,
       "slot": "2",
       "type": "t_bool"
@@ -27,7 +27,7 @@
     {
       "astId": 11,
       "contract": "contracts/HelloWorld.sol:HelloWorld",
-      "label": "time",
+      "label": "_uint256",
       "offset": 0,
       "slot": "3",
       "type": "t_uint256"
@@ -35,10 +35,50 @@
     {
       "astId": 13,
       "contract": "contracts/HelloWorld.sol:HelloWorld",
-      "label": "small",
+      "label": "offset0",
       "offset": 0,
       "slot": "4",
       "type": "t_uint8"
+    },
+    {
+      "astId": 15,
+      "contract": "contracts/HelloWorld.sol:HelloWorld",
+      "label": "offset1",
+      "offset": 1,
+      "slot": "4",
+      "type": "t_uint8"
+    },
+    {
+      "astId": 17,
+      "contract": "contracts/HelloWorld.sol:HelloWorld",
+      "label": "offset2",
+      "offset": 2,
+      "slot": "4",
+      "type": "t_uint16"
+    },
+    {
+      "astId": 19,
+      "contract": "contracts/HelloWorld.sol:HelloWorld",
+      "label": "offset3",
+      "offset": 4,
+      "slot": "4",
+      "type": "t_uint32"
+    },
+    {
+      "astId": 21,
+      "contract": "contracts/HelloWorld.sol:HelloWorld",
+      "label": "offset4",
+      "offset": 8,
+      "slot": "4",
+      "type": "t_uint64"
+    },
+    {
+      "astId": 23,
+      "contract": "contracts/HelloWorld.sol:HelloWorld",
+      "label": "offset5",
+      "offset": 16,
+      "slot": "4",
+      "type": "t_uint128"
     }
   ],
   "types": {
@@ -59,10 +99,30 @@
       "numberOfBytes": "32",
       "value": "t_address"
     },
+    "t_uint128": {
+      "encoding": "inplace",
+      "label": "uint128",
+      "numberOfBytes": "16"
+    },
+    "t_uint16": {
+      "encoding": "inplace",
+      "label": "uint16",
+      "numberOfBytes": "2"
+    },
     "t_uint256": {
       "encoding": "inplace",
       "label": "uint256",
       "numberOfBytes": "32"
+    },
+    "t_uint32": {
+      "encoding": "inplace",
+      "label": "uint32",
+      "numberOfBytes": "4"
+    },
+    "t_uint64": {
+      "encoding": "inplace",
+      "label": "uint64",
+      "numberOfBytes": "8"
     },
     "t_uint8": {
       "encoding": "inplace",
