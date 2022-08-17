@@ -162,6 +162,9 @@ func (n *OpNode) initRPCServer(ctx context.Context, cfg *Config) error {
 	if n.p2pNode != nil {
 		n.server.EnableP2P(p2p.NewP2PAPIBackend(n.p2pNode, n.log, n.metrics))
 	}
+	if cfg.RPC.EnableAdmin {
+		n.server.EnableAdminAPI(newAdminAPI(n.l2Engine, n.metrics))
+	}
 	n.log.Info("Starting JSON-RPC server")
 	if err := n.server.Start(); err != nil {
 		return fmt.Errorf("unable to start RPC server: %w", err)
