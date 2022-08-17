@@ -10,7 +10,6 @@ func FuzzFrameUnmarshalBinary(f *testing.F) {
 		buf := bytes.NewBuffer(data)
 		var f Frame
 		_ = (&f).UnmarshalBinary(buf)
-
 	})
 }
 

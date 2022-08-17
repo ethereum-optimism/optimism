@@ -119,7 +119,6 @@ func (ib *ChannelBank) IngestData(data []byte) {
 			continue
 		}
 	}
-
 }
 
 // Read the raw data of the first channel, if it's timed-out or closed.
