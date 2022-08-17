@@ -615,6 +615,11 @@ then an empty batch can be derived with the following properties:
   - `epoch_num = next_epoch.number`
   - `epoch_hash = next_epoch.hash`
 
+> **TODO** Drop batches whose epoch is not congruent with the epoch of safe L2 head that will build upon. This is tricky
+> because (a) epochs are not encoded explicitly in payload attributes (only nested within the L1 attributes transaction)
+> and (b) we don't know the L2 safe head for every batch in the buffer at this stage. This is being discussed in another
+> open PR>
+
 ### Payload Attributes Derivation
 
 In the *Payload Attributes Derivation* stage, we convert the batches we get from the previous stage into instances of
@@ -633,7 +638,8 @@ The engine queue maintains references to two L2 blocks:
   canonical L1 chain.
 - The [unsafe L2 head][g-unsafe-l2-head]: blocks between the safe and unsafe heads are [unsafe
   blocks][g-unsafe-l2-block] that have not been derived from L1. These blocks either come from sequencing (in sequencer
-  mode) or from [unsafe sync][g-unsafe-sync] to the sequencer (in validator mode).
+  mode) or from [unsafe sync][g-unsafe-sync] to the sequencer (in validator
+  mode).
 
 If the unsafe head is ahead of the safe head, then [consolidation][g-consolidation] is attempted.
 
