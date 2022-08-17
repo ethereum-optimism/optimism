@@ -27,14 +27,9 @@ func EncodeStorage(entry solc.StorageLayoutEntry, value any, storageType solc.St
 		return nil, fmt.Errorf("%s is larger than 32 bytes", entry.Label)
 	}
 
-	tuples, err := EncodeStorageKeyValue(value, entry, storageType)
+	encoded, err := EncodeStorageKeyValue(value, entry, storageType)
 	if err != nil {
 		return nil, err
-	}
-
-	encoded := make([]*EncodedStorage, 0)
-	for _, val := range tuples {
-		encoded = append(encoded, &EncodedStorage{val[0], val[1]})
 	}
 	return encoded, nil
 }
@@ -75,8 +70,14 @@ func ComputeStorageSlots(layout *solc.StorageLayout, values StorageValues) ([]*E
 	// are tightly packed. Do this by checking to see if any
 	// of the produced storage slots have a matching key, if
 	// so use a binary or to add the storage values together
+	results := MergeStorage(encodedStorage)
+
+	return results, nil
+}
+
+func MergeStorage(storage []*EncodedStorage) []*EncodedStorage {
 	encoded := make(map[common.Hash]common.Hash)
-	for _, storage := range encodedStorage {
+	for _, storage := range storage {
 		if prev, ok := encoded[storage.Key]; ok {
 			combined := new(big.Int).Or(prev.Big(), storage.Value.Big())
 			encoded[storage.Key] = common.BigToHash(combined)
@@ -89,6 +90,5 @@ func ComputeStorageSlots(layout *solc.StorageLayout, values StorageValues) ([]*E
 	for key, val := range encoded {
 		results = append(results, &EncodedStorage{key, val})
 	}
-
-	return results, nil
+	return results
 }

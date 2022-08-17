@@ -20,9 +20,9 @@ import (
 // in multiple outputs. Unknown or unimplemented types will return an error.
 // Note that encoding uints is *not* overflow safe, so be sure to check
 // the ABI before setting very large values
-func EncodeStorageKeyValue(value any, entry solc.StorageLayoutEntry, storageType solc.StorageLayoutType) ([][2]common.Hash, error) {
+func EncodeStorageKeyValue(value any, entry solc.StorageLayoutEntry, storageType solc.StorageLayoutType) ([]*EncodedStorage, error) {
 	label := storageType.Label
-	encoded := make([][2]common.Hash, 0)
+	encoded := make([]*EncodedStorage, 0)
 
 	switch storageType.Encoding {
 	case "inplace":
@@ -33,13 +33,13 @@ func EncodeStorageKeyValue(value any, entry solc.StorageLayoutEntry, storageType
 			if err != nil {
 				return nil, err
 			}
-			encoded = append(encoded, [2]common.Hash{key, val})
+			encoded = append(encoded, &EncodedStorage{key, val})
 		case "address":
 			val, err := EncodeAddressValue(value, entry.Offset)
 			if err != nil {
 				return nil, err
 			}
-			encoded = append(encoded, [2]common.Hash{key, val})
+			encoded = append(encoded, &EncodedStorage{key, val})
 		case "bytes":
 			return nil, fmt.Errorf("%w: %s", errUnimplemented, label)
 		default:
@@ -49,13 +49,13 @@ func EncodeStorageKeyValue(value any, entry solc.StorageLayoutEntry, storageType
 				if err != nil {
 					return nil, err
 				}
-				encoded = append(encoded, [2]common.Hash{key, val})
+				encoded = append(encoded, &EncodedStorage{key, val})
 			case strings.HasPrefix(label, "uint"):
 				val, err := EncodeUintValue(value, entry.Offset)
 				if err != nil {
 					return nil, err
 				}
-				encoded = append(encoded, [2]common.Hash{key, val})
+				encoded = append(encoded, &EncodedStorage{key, val})
 			default:
 				// structs are not supported
 				return nil, fmt.Errorf("%w: %s", errUnimplemented, label)
@@ -102,7 +102,7 @@ func EncodeStorageKeyValue(value any, entry solc.StorageLayoutEntry, storageType
 			if err != nil {
 				return nil, err
 			}
-			encoded = append(encoded, [2]common.Hash{key, val})
+			encoded = append(encoded, &EncodedStorage{key, val})
 		}
 	default:
 		return nil, fmt.Errorf("unknown encoding: %s", storageType.Encoding)
