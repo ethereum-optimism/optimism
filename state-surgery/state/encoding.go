@@ -23,9 +23,10 @@ func EncodeStorageKeyValue(value any, entry solc.StorageLayoutEntry, storageType
 	label := storageType.Label
 	encoded := make([]*EncodedStorage, 0)
 
+	key := encodeSlotKey(entry)
+
 	switch storageType.Encoding {
 	case "inplace":
-		key := encodeSlotKey(entry)
 		switch label {
 		case "bool":
 			val, err := EncodeBoolValue(value, entry.Offset)
@@ -68,7 +69,16 @@ func EncodeStorageKeyValue(value any, entry solc.StorageLayoutEntry, storageType
 		}
 	case "dynamic_array":
 	case "bytes":
-		return nil, fmt.Errorf("%w: %s", errUnimplemented, label)
+		switch label {
+		case "string":
+			val, err := EncodeStringValue(value, entry.Offset)
+			if err != nil {
+				return nil, err
+			}
+			encoded = append(encoded, &EncodedStorage{key, val})
+		default:
+			return nil, fmt.Errorf("%w: %s", errUnimplemented, label)
+		}
 	case "mapping":
 		if strings.HasPrefix(storageType.Value, "mapping") {
 			return nil, fmt.Errorf("%w: %s", errUnimplemented, "nested mappings")
@@ -174,6 +184,45 @@ func encodeBytes32Value(value any) (common.Hash, error) {
 			return common.Hash{}, errInvalidType
 		}
 		return hash, nil
+	default:
+		return common.Hash{}, errInvalidType
+	}
+}
+
+// EncodeStringValue will encode a string to a type suitable
+// for storage in state. The offset must be 0.
+func EncodeStringValue(value any, offset uint) (common.Hash, error) {
+	if offset != 0 {
+		return common.Hash{}, errors.New("offset must be 0")
+	}
+	return encodeStringValue(value)
+}
+
+// encodeStringValue implements the string encoding. Values larger
+// than 31 bytes are not supported because they will be stored
+// in multiple storage slots.
+func encodeStringValue(value any) (common.Hash, error) {
+	name := reflect.TypeOf(value).Name()
+
+	switch name {
+	case "string":
+		str, ok := value.(string)
+		if !ok {
+			return common.Hash{}, errInvalidType
+		}
+
+		data := []byte(str)
+		// Values that are 32 bytes or longer are not supported
+		if len(data) >= 32 {
+			return common.Hash{}, errors.New("string value too long")
+		}
+		// The data is right padded with 2 * the length
+		// of the data in the final byte
+		padded := common.RightPadBytes(data, 32)
+		padded[len(padded)-1] = byte(len(data) * 2)
+
+		return common.BytesToHash(padded), nil
+
 	default:
 		return common.Hash{}, errInvalidType
 	}
