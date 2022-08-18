@@ -91,6 +91,7 @@ func NewState(driverCfg *Config, log log.Logger, snapshotLog log.Logger, config 
 		derivation:       derivationPipeline,
 		idleDerivation:   false,
 		syncStatusReq:    make(chan chan SyncStatus, 10),
+		forceReset:       make(chan chan struct{}, 10),
 		Config:           config,
 		DriverConfig:     driverCfg,
 		done:             make(chan struct{}),
