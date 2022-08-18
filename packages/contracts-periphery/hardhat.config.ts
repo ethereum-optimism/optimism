@@ -49,6 +49,15 @@ const config: HardhatUserConfig = {
         },
       },
     },
+    'optimism-goerli': {
+      chainId: 420,
+      url: 'https://goerli.optimism.io',
+      verify: {
+        etherscan: {
+          apiKey: getenv('OPTIMISTIC_ETHERSCAN_API_KEY'),
+        },
+      },
+    },
     ethereum: {
       chainId: 1,
       url: `https://mainnet.infura.io/v3/${getenv('INFURA_PROJECT_ID')}`,
