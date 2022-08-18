@@ -1,0 +1,62 @@
+{
+  "address": "0x47443D0C184e022F19BD1578F5bca6B8a9F58E32",
+  "abi": [
+    {
+      "inputs": [
+        {
+          "internalType": "bytes",
+          "name": "",
+          "type": "bytes"
+        }
+      ],
+      "name": "check",
+      "outputs": [
+        {
+          "internalType": "bool",
+          "name": "",
+          "type": "bool"
+        }
+      ],
+      "stateMutability": "pure",
+      "type": "function"
+    }
+  ],
+  "transactionHash": "0x24cd6437a28b245c14e11cdb849a1c7fa5a4f4e7f7ccb9ddb72c837479167cce",
+  "receipt": {
+    "to": "0x4e59b44847b379578588920cA78FbF26c0B4956C",
+    "from": "0xc37f6a6c4AB335E20d10F034B90386E2fb70bbF5",
+    "contractAddress": null,
+    "transactionIndex": 0,
+    "gasUsed": "139230",
+    "logsBloom": "0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+    "blockHash": "0xe7bb26ce3802e753a1fde9a8180fd7c56625e649b03571535ef847f74b86e103",
+    "transactionHash": "0x24cd6437a28b245c14e11cdb849a1c7fa5a4f4e7f7ccb9ddb72c837479167cce",
+    "logs": [],
+    "blockNumber": 379170,
+    "cumulativeGasUsed": "139230",
+    "status": 1,
+    "byzantium": true
+  },
+  "args": [],
+  "numDeployments": 1,
+  "solcInputHash": "cb12280dddcf446d7c90129cbaba29bb",
+  "metadata": "{\"compiler\":{\"version\":\"0.8.15+commit.e14f2714\"},\"language\":\"Solidity\",\"output\":{\"abi\":[{\"inputs\":[{\"internalType\":\"bytes\",\"name\":\"\",\"type\":\"bytes\"}],\"name\":\"check\",\"outputs\":[{\"internalType\":\"bool\",\"name\":\"\",\"type\":\"bool\"}],\"stateMutability\":\"pure\",\"type\":\"function\"}],\"devdoc\":{\"kind\":\"dev\",\"methods\":{},\"title\":\"CheckTrue\",\"version\":1},\"userdoc\":{\"kind\":\"user\",\"methods\":{},\"notice\":\"DripCheck that always returns true.\",\"version\":1}},\"settings\":{\"compilationTarget\":{\"contracts/universal/drippie/dripchecks/CheckTrue.sol\":\"CheckTrue\"},\"evmVersion\":\"london\",\"libraries\":{},\"metadata\":{\"bytecodeHash\":\"ipfs\",\"useLiteralContent\":true},\"optimizer\":{\"enabled\":true,\"runs\":10000},\"remappings\":[]},\"sources\":{\"contracts/universal/drippie/IDripCheck.sol\":{\"content\":\"// SPDX-License-Identifier: MIT\\npragma solidity ^0.8.0;\\n\\ninterface IDripCheck {\\n    // DripCheck contracts that want to take parameters as inputs MUST expose a struct called\\n    // Params and an event _EventForExposingParamsStructInABI(Params params). This makes it\\n    // possible to easily encode parameters on the client side. Solidity does not support generics\\n    // so it's not possible to do this with explicit typing.\\n\\n    function check(bytes memory _params) external view returns (bool);\\n}\\n\",\"keccak256\":\"0xbf1b9be6bbcbbbd2268023a169382c9a62a58a343420e4bc4494a9f463f86042\",\"license\":\"MIT\"},\"contracts/universal/drippie/dripchecks/CheckTrue.sol\":{\"content\":\"// SPDX-License-Identifier: MIT\\npragma solidity 0.8.15;\\n\\nimport { IDripCheck } from \\\"../IDripCheck.sol\\\";\\n\\n/**\\n * @title CheckTrue\\n * @notice DripCheck that always returns true.\\n */\\ncontract CheckTrue is IDripCheck {\\n    function check(bytes memory) external pure returns (bool) {\\n        return true;\\n    }\\n}\\n\",\"keccak256\":\"0x0f3110b218bd0a2fda2dcd6d366d40682a7624e001204b2bda3fcaa043396027\",\"license\":\"MIT\"}},\"version\":1}",
+  "bytecode": "0x608060405234801561001057600080fd5b5061018c806100206000396000f3fe608060405234801561001057600080fd5b506004361061002b5760003560e01c8063c64b3bb514610030575b600080fd5b61004461003e366004610087565b50600190565b604051901515815260200160405180910390f35b7f4e487b7100000000000000000000000000000000000000000000000000000000600052604160045260246000fd5b60006020828403121561009957600080fd5b813567ffffffffffffffff808211156100b157600080fd5b818401915084601f8301126100c557600080fd5b8135818111156100d7576100d7610058565b604051601f82017fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0908116603f0116810190838211818310171561011d5761011d610058565b8160405282815287602084870101111561013657600080fd5b82602086016020830137600092810160200192909252509594505050505056fea2646970667358221220e75519244b9d5ac4ed30ca10eb8a4940711a06bf13b8a7953e0a550561861e0164736f6c634300080f0033",
+  "deployedBytecode": "0x608060405234801561001057600080fd5b506004361061002b5760003560e01c8063c64b3bb514610030575b600080fd5b61004461003e366004610087565b50600190565b604051901515815260200160405180910390f35b7f4e487b7100000000000000000000000000000000000000000000000000000000600052604160045260246000fd5b60006020828403121561009957600080fd5b813567ffffffffffffffff808211156100b157600080fd5b818401915084601f8301126100c557600080fd5b8135818111156100d7576100d7610058565b604051601f82017fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0908116603f0116810190838211818310171561011d5761011d610058565b8160405282815287602084870101111561013657600080fd5b82602086016020830137600092810160200192909252509594505050505056fea2646970667358221220e75519244b9d5ac4ed30ca10eb8a4940711a06bf13b8a7953e0a550561861e0164736f6c634300080f0033",
+  "devdoc": {
+    "kind": "dev",
+    "methods": {},
+    "title": "CheckTrue",
+    "version": 1
+  },
+  "userdoc": {
+    "kind": "user",
+    "methods": {},
+    "notice": "DripCheck that always returns true.",
+    "version": 1
+  },
+  "storageLayout": {
+    "storage": [],
+    "types": null
+  }
+}
