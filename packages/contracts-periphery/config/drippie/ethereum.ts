@@ -3,7 +3,7 @@ import { ethers } from 'ethers'
 import { DrippieConfig } from '../../src'
 
 const config: DrippieConfig = {
-  TeleportrWithdrawal: {
+  TeleportrWithdrawalV2: {
     interval: 60 * 60 * 24,
     dripcheck: 'CheckBalanceHigh',
     checkparams: {
