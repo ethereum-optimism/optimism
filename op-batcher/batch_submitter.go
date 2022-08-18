@@ -299,7 +299,7 @@ mainLoop:
 				l.log.Warn("last submitted block lagged behind L2 safe head: batch submission will continue from the safe head now", "last", l.lastSubmittedBlock, "safe", syncStatus.SafeL2)
 				l.lastSubmittedBlock = syncStatus.SafeL2.ID()
 			}
-			if ch, err := derive.NewChannelOut(uint64(time.Now().Unix())); err != nil {
+			if ch, err := derive.NewChannelOut(syncStatus.HeadL1.Time); err != nil {
 				l.log.Error("Error creating channel", "err", err)
 				continue
 			} else {
