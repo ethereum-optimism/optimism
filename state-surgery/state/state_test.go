@@ -395,6 +395,11 @@ func TestEncodeAddressValue(t *testing.T) {
 			offset: 1,
 			expect: common.Hash{30: 0x01},
 		},
+		{
+			addr:   &common.Address{},
+			offset: 0,
+			expect: common.Hash{},
+		},
 	}
 
 	for _, test := range cases {

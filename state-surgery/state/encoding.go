@@ -30,13 +30,13 @@ func EncodeStorageKeyValue(value any, entry solc.StorageLayoutEntry, storageType
 		case "bool":
 			val, err := EncodeBoolValue(value, entry.Offset)
 			if err != nil {
-				return nil, err
+				return nil, fmt.Errorf("%s bool invalid: %w", entry.Label, err)
 			}
 			encoded = append(encoded, &EncodedStorage{key, val})
 		case "address":
 			val, err := EncodeAddressValue(value, entry.Offset)
 			if err != nil {
-				return nil, err
+				return nil, fmt.Errorf("%s address invalid: %w", entry.Label, err)
 			}
 			encoded = append(encoded, &EncodedStorage{key, val})
 		case "bytes":
@@ -46,7 +46,7 @@ func EncodeStorageKeyValue(value any, entry solc.StorageLayoutEntry, storageType
 			case strings.HasPrefix(label, "contract"):
 				val, err := EncodeAddressValue(value, entry.Offset)
 				if err != nil {
-					return nil, err
+					return nil, fmt.Errorf("%s address invalid: %w", entry.Label, err)
 				}
 				encoded = append(encoded, &EncodedStorage{key, val})
 			case strings.HasPrefix(label, "uint"):
@@ -190,14 +190,27 @@ func EncodeAddressValue(value any, offset uint) (common.Hash, error) {
 // encodeAddressValue will encode an address value into
 // a type suitable for solidity storage.
 func encodeAddressValue(value any) (common.Hash, error) {
-	name := reflect.TypeOf(value).Name()
+	typ := reflect.TypeOf(value)
+	if typ.Kind() == reflect.Ptr {
+		typ = typ.Elem()
+	}
+
+	name := typ.Name()
 	switch name {
 	case "Address":
-		address, ok := value.(common.Address)
-		if !ok {
-			return common.Hash{}, errInvalidType
+		if reflect.TypeOf(value).Kind() == reflect.Ptr {
+			address, ok := value.(*common.Address)
+			if !ok {
+				return common.Hash{}, errInvalidType
+			}
+			return address.Hash(), nil
+		} else {
+			address, ok := value.(common.Address)
+			if !ok {
+				return common.Hash{}, errInvalidType
+			}
+			return address.Hash(), nil
 		}
-		return address.Hash(), nil
 	case "string":
 		address, ok := value.(string)
 		if !ok {
