@@ -53,6 +53,7 @@ func TestSetAndGetStorageSlots(t *testing.T) {
 	values["offset4"] = uint64(0xd34dd34d00)
 	values["offset5"] = new(big.Int).SetUint64(0x43ad0043ad0043ad)
 	values["_bytes32"] = common.Hash{0xff}
+	values["_string"] = "foobar"
 
 	addresses := make(map[any]any)
 	addresses[big.NewInt(1)] = common.Address{19: 0xff}
@@ -129,6 +130,8 @@ OUTER:
 			require.Nil(t, err)
 			require.Equal(t, common.BytesToHash(result[:]), value)
 			continue OUTER
+		case "_string":
+			res, err = contract.String(&bind.CallOpts{})
 		case "addresses":
 			addrs, ok := value.(map[any]any)
 			require.Equal(t, ok, true)
@@ -434,6 +437,33 @@ func TestEncodeBytes32Value(t *testing.T) {
 
 	for _, test := range cases {
 		got, err := state.EncodeBytes32Value(test.bytes32, 0)
+		require.Nil(t, err)
+		require.Equal(t, got, test.expect)
+	}
+}
+
+func TestEncodeStringValue(t *testing.T) {
+	cases := []struct {
+		str    any
+		expect common.Hash
+	}{
+		{
+			str:    "foo",
+			expect: common.Hash{0x66, 0x6f, 0x6f, 31: 6},
+		},
+		// Taken from mainnet WETH at 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2
+		{
+			str:    "Wrapped Ether",
+			expect: common.HexToHash("0x577261707065642045746865720000000000000000000000000000000000001a"),
+		},
+		{
+			str:    "WETH",
+			expect: common.HexToHash("0x5745544800000000000000000000000000000000000000000000000000000008"),
+		},
+	}
+
+	for _, test := range cases {
+		got, err := state.EncodeStringValue(test.str, 0)
 		require.Nil(t, err)
 		require.Equal(t, got, test.expect)
 	}
