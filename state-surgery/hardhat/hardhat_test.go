@@ -132,6 +132,8 @@ func TestHardhatGetBuildInfo(t *testing.T) {
 }
 
 func TestHardhatGetDeployments(t *testing.T) {
+	t.Parallel()
+
 	hh, err := hardhat.New(
 		"goerli",
 		[]string{"testdata/artifacts"},
@@ -142,4 +144,19 @@ func TestHardhatGetDeployments(t *testing.T) {
 	deployment, err := hh.GetDeployment("OptimismPortal")
 	require.Nil(t, err)
 	require.NotNil(t, deployment)
+}
+
+func TestHardhatGetStorageLayout(t *testing.T) {
+	t.Parallel()
+
+	hh, err := hardhat.New(
+		"goerli",
+		[]string{"testdata/artifacts"},
+		[]string{"testdata/deployments"},
+	)
+	require.Nil(t, err)
+
+	storageLayout, err := hh.GetStorageLayout("HelloWorld")
+	require.Nil(t, err)
+	require.NotNil(t, storageLayout)
 }

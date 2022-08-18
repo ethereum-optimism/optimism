@@ -32,6 +32,25 @@ type l2EthClient interface {
 
 type driverClient interface {
 	SyncStatus(ctx context.Context) (*driver.SyncStatus, error)
+	ResetDerivationPipeline(context.Context) error
+}
+
+type adminAPI struct {
+	dr driverClient
+	m  *metrics.Metrics
+}
+
+func newAdminAPI(dr driverClient, m *metrics.Metrics) *adminAPI {
+	return &adminAPI{
+		dr: dr,
+		m:  m,
+	}
+}
+
+func (n *adminAPI) ResetDerivationPipeline(ctx context.Context) error {
+	recordDur := n.m.RecordRPCServerRequest("admin_resetDerivationPipeline")
+	defer recordDur()
+	return n.dr.ResetDerivationPipeline(ctx)
 }
 
 type nodeAPI struct {
