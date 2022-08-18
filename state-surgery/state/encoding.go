@@ -41,6 +41,12 @@ func EncodeStorageKeyValue(value any, entry solc.StorageLayoutEntry, storageType
 			encoded = append(encoded, &EncodedStorage{key, val})
 		case "bytes":
 			return nil, fmt.Errorf("%w: %s", errUnimplemented, label)
+		case "bytes32":
+			val, err := EncodeBytes32Value(value, entry.Offset)
+			if err != nil {
+				return nil, err
+			}
+			encoded = append(encoded, &EncodedStorage{key, val})
 		default:
 			switch true {
 			case strings.HasPrefix(label, "contract"):
@@ -135,6 +141,42 @@ func getElementEncoder(kind string) (ElementEncoder, error) {
 		}
 	}
 	return nil, fmt.Errorf("unsupported type: %s", kind)
+}
+
+// EncodeBytes32Value will encode a bytes32 value. The offset
+// is included so that it can implement the ElementEncoder
+// interface, but the offset must always be 0.
+func EncodeBytes32Value(value any, offset uint) (common.Hash, error) {
+	if offset != 0 {
+		return common.Hash{}, errors.New("offset must be 0")
+	}
+	return encodeBytes32Value(value)
+}
+
+// encodeBytes32Value implements the encoding of a bytes32
+// value into a common.Hash that is suitable for storage.
+func encodeBytes32Value(value any) (common.Hash, error) {
+	name := reflect.TypeOf(value).Name()
+	switch name {
+	case "string":
+		str, ok := value.(string)
+		if !ok {
+			return common.Hash{}, errInvalidType
+		}
+		val, err := hexutil.Decode(str)
+		if err != nil {
+			return common.Hash{}, err
+		}
+		return common.BytesToHash(val), nil
+	case "Hash":
+		hash, ok := value.(common.Hash)
+		if !ok {
+			return common.Hash{}, errInvalidType
+		}
+		return hash, nil
+	default:
+		return common.Hash{}, errInvalidType
+	}
 }
 
 // EncodeBoolValue will encode a boolean value given a storage

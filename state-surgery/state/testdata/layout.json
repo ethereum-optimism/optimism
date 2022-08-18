@@ -79,6 +79,22 @@
       "offset": 16,
       "slot": "4",
       "type": "t_uint128"
+    },
+    {
+      "astId": 25,
+      "contract": "contracts/HelloWorld.sol:HelloWorld",
+      "label": "_bytes32",
+      "offset": 0,
+      "slot": "5",
+      "type": "t_bytes32"
+    },
+    {
+      "astId": 27,
+      "contract": "contracts/HelloWorld.sol:HelloWorld",
+      "label": "_string",
+      "offset": 0,
+      "slot": "6",
+      "type": "t_string_storage"
     }
   ],
   "types": {
@@ -92,12 +108,22 @@
       "label": "bool",
       "numberOfBytes": "1"
     },
+    "t_bytes32": {
+      "encoding": "inplace",
+      "label": "bytes32",
+      "numberOfBytes": "32"
+    },
     "t_mapping(t_uint256,t_address)": {
       "encoding": "mapping",
       "key": "t_uint256",
       "label": "mapping(uint256 => address)",
       "numberOfBytes": "32",
       "value": "t_address"
+    },
+    "t_string_storage": {
+      "encoding": "bytes",
+      "label": "string",
+      "numberOfBytes": "32"
     },
     "t_uint128": {
       "encoding": "inplace",
