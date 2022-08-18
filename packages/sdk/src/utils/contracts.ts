@@ -4,6 +4,7 @@ import { ethers, Contract } from 'ethers'
 
 import { toAddress } from './coercion'
 import { DeepPartial } from './type-utils'
+import { CrossChainMessenger } from '../cross-chain-messenger'
 import {
   OEContracts,
   OEL1Contracts,
@@ -13,7 +14,6 @@ import {
   AddressLike,
   BridgeAdapters,
   BridgeAdapterData,
-  ICrossChainMessenger,
   L2ChainID,
 } from '../interfaces'
 import {
@@ -323,7 +323,7 @@ export const getAllOEContracts = (
  */
 export const getBridgeAdapters = (
   l2ChainId: number,
-  messenger: ICrossChainMessenger,
+  messenger: CrossChainMessenger,
   opts?: {
     overrides?: BridgeAdapterData
   }
