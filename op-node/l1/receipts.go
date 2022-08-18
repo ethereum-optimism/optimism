@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync"
 
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 
@@ -17,6 +18,7 @@ import (
 // ReceiptsFetcher fetches the receipts of the transactions using RPC batching in iterative calls,
 // and then verifies if the receipts are complete and correct, and then returns results.
 type ReceiptsFetcher struct {
+	mu            sync.RWMutex
 	iterBatchCall *IterativeBatchCall
 	receipts      []*types.Receipt
 	receiptHash   common.Hash
@@ -30,51 +32,69 @@ type ReceiptsFetcher struct {
 // Any individual items that fail to be fetched will automatically be rescheduled for later fetching.
 // An io.EOF error will be returned once the fetching is done.
 func (rf *ReceiptsFetcher) Fetch(ctx context.Context) error {
+	rf.mu.RLock()
+	defer rf.mu.RUnlock()
 	return rf.iterBatchCall.Fetch(ctx, rf.batchSize)
 }
 
 func (rf *ReceiptsFetcher) Complete() bool {
+	rf.mu.RLock()
+	defer rf.mu.RUnlock()
 	return rf.iterBatchCall.Complete()
+}
+
+func (rf *ReceiptsFetcher) Reset() {
+	rf.mu.Lock()
+	defer rf.mu.Unlock()
+	rf.iterBatchCall = NewIterativeBatchCall(rf.iterBatchCall.requests, rf.iterBatchCall.getBatch)
 }
 
 func (rf *ReceiptsFetcher) Result() (types.Receipts, error) {
 	if !rf.iterBatchCall.Complete() {
-		return nil, errors.New("no result available yet, fetching is not complete")
+		return nil, errors.New("no result available yet, receipt fetching is not complete")
 	}
+	if err := rf.check(); err != nil {
+		rf.Reset() // if we got invalid results then restart the call, we may get valid results after a reorg.
+		return nil, fmt.Errorf("results are invalid, receipt fetching failed: %w", err)
+	}
+	return rf.receipts, nil
+}
+
+func (rf *ReceiptsFetcher) check() error {
 	// We don't trust the RPC to provide consistent cached receipt info that we use for critical rollup derivation work.
 	// Let's check everything quickly.
 	logIndex := uint(0)
 	for i, r := range rf.receipts {
 		if r == nil { // on reorgs or other cases the receipts may disappear before they can be retrieved.
-			return nil, fmt.Errorf("receipt of tx %d returns nil on retrieval", i)
+			return fmt.Errorf("receipt of tx %d returns nil on retrieval", i)
 		}
 		if r.TransactionIndex != uint(i) {
-			return nil, fmt.Errorf("receipt %d has unexpected tx index %d", i, r.TransactionIndex)
+			return fmt.Errorf("receipt %d has unexpected tx index %d", i, r.TransactionIndex)
 		}
 		if r.BlockNumber.Uint64() != rf.block.Number {
-			return nil, fmt.Errorf("receipt %d has unexpected block number %d, expected %d", i, r.BlockNumber, rf.block.Number)
+			return fmt.Errorf("receipt %d has unexpected block number %d, expected %d", i, r.BlockNumber, rf.block.Number)
 		}
 		if r.BlockHash != rf.block.Hash {
-			return nil, fmt.Errorf("receipt %d has unexpected block hash %s, expected %s", i, r.BlockHash, rf.block.Hash)
+			return fmt.Errorf("receipt %d has unexpected block hash %s, expected %s", i, r.BlockHash, rf.block.Hash)
 		}
 		for j, log := range r.Logs {
 			if log.Index != logIndex {
-				return nil, fmt.Errorf("log %d (%d of tx %d) has unexpected log index %d", logIndex, j, i, log.Index)
+				return fmt.Errorf("log %d (%d of tx %d) has unexpected log index %d", logIndex, j, i, log.Index)
 			}
 			if log.TxIndex != uint(i) {
-				return nil, fmt.Errorf("log %d has unexpected tx index %d", log.Index, log.TxIndex)
+				return fmt.Errorf("log %d has unexpected tx index %d", log.Index, log.TxIndex)
 			}
 			if log.BlockHash != rf.block.Hash {
-				return nil, fmt.Errorf("log %d of block %s has unexpected block hash %s", log.Index, rf.block.Hash, log.BlockHash)
+				return fmt.Errorf("log %d of block %s has unexpected block hash %s", log.Index, rf.block.Hash, log.BlockHash)
 			}
 			if log.BlockNumber != rf.block.Number {
-				return nil, fmt.Errorf("log %d of block %d has unexpected block number %d", log.Index, rf.block.Number, log.BlockNumber)
+				return fmt.Errorf("log %d of block %d has unexpected block number %d", log.Index, rf.block.Number, log.BlockNumber)
 			}
 			if h := rf.txs[i].Hash(); log.TxHash != h {
-				return nil, fmt.Errorf("log %d of tx %s has unexpected tx hash %s", log.Index, h, log.TxHash)
+				return fmt.Errorf("log %d of tx %s has unexpected tx hash %s", log.Index, h, log.TxHash)
 			}
 			if log.Removed {
-				return nil, fmt.Errorf("canonical log (%d) must never be removed due to reorg", log.Index)
+				return fmt.Errorf("canonical log (%d) must never be removed due to reorg", log.Index)
 			}
 			logIndex++
 		}
@@ -85,9 +105,9 @@ func (rf *ReceiptsFetcher) Result() (types.Receipts, error) {
 	hasher := trie.NewStackTrie(nil)
 	computed := types.DeriveSha(types.Receipts(rf.receipts), hasher)
 	if rf.receiptHash != computed {
-		return nil, fmt.Errorf("failed to fetch list of receipts: expected receipt root %s but computed %s from retrieved receipts", rf.receiptHash, computed)
+		return fmt.Errorf("failed to fetch list of receipts: expected receipt root %s but computed %s from retrieved receipts", rf.receiptHash, computed)
 	}
-	return rf.receipts, nil
+	return nil
 }
 
 // NewReceiptsFetcher creates a receipt fetcher that can iteratively fetch the receipts matching the given t
