@@ -177,6 +177,10 @@ func (c *mockDriverClient) SyncStatus(ctx context.Context) (*driver.SyncStatus, 
 	return c.Mock.MethodCalled("SyncStatus").Get(0).(*driver.SyncStatus), nil
 }
 
+func (c *mockDriverClient) ResetDerivationPipeline(ctx context.Context) error {
+	return c.Mock.MethodCalled("ResetDerivationPipeline").Get(0).(error)
+}
+
 type mockL2Client struct {
 	mock mock.Mock
 }

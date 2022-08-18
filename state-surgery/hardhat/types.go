@@ -3,6 +3,7 @@ package hardhat
 import (
 	"encoding/json"
 
+	"github.com/ethereum-optimism/optimism/state-surgery/solc"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -11,18 +12,18 @@ import (
 // Deployment represents a hardhat-deploy artifact file
 type Deployment struct {
 	Name             string
-	Abi              abi.ABI         `json:"abi"`
-	Address          common.Address  `json:"address"`
-	Args             []any           `json:"args"`
-	Bytecode         hexutil.Bytes   `json:"bytecode"`
-	DeployedBytecode hexutil.Bytes   `json:"deployedBytecode"`
-	Devdoc           json.RawMessage `json:"devdoc"`
-	Metadata         string          `json:"metadata"`
-	Receipt          Receipt         `json:"receipt"`
-	SolcInputHash    string          `json:"solcInputHash"`
-	StorageLayout    StorageLayout   `json:"storageLayout"`
-	TransactionHash  common.Hash     `json:"transactionHash"`
-	Userdoc          json.RawMessage `json:"userdoc"`
+	Abi              abi.ABI            `json:"abi"`
+	Address          common.Address     `json:"address"`
+	Args             []any              `json:"args"`
+	Bytecode         hexutil.Bytes      `json:"bytecode"`
+	DeployedBytecode hexutil.Bytes      `json:"deployedBytecode"`
+	Devdoc           json.RawMessage    `json:"devdoc"`
+	Metadata         string             `json:"metadata"`
+	Receipt          Receipt            `json:"receipt"`
+	SolcInputHash    string             `json:"solcInputHash"`
+	StorageLayout    solc.StorageLayout `json:"storageLayout"`
+	TransactionHash  common.Hash        `json:"transactionHash"`
+	Userdoc          json.RawMessage    `json:"userdoc"`
 }
 
 // Receipt represents the receipt held in a hardhat-deploy
@@ -53,31 +54,6 @@ type Log struct {
 	Data             hexutil.Bytes  `json:"data"`
 	LogIndex         uint           `json:"logIndex"`
 	Blockhash        common.Hash    `json:"blockHash"`
-}
-
-// StorageLayout represents the storage layout of a contract
-type StorageLayout struct {
-	Storage []StorageLayoutEntry         `json:"storage"`
-	Types   map[string]StorageLayoutType `json:"types"`
-}
-
-// StorageLayoutEntry represents a single entry in the StorageLayout
-type StorageLayoutEntry struct {
-	AstId    uint   `json:"astId"`
-	Contract string `json:"contract"`
-	Label    string `json:"label"`
-	Offset   uint   `json:"offset"`
-	Slot     uint   `json:"slot,string"`
-	Type     string `json"type"`
-}
-
-// StorageLayoutType represents the type of storage layout
-type StorageLayoutType struct {
-	Encoding      string `json:"encoding"`
-	Label         string `json:"label"`
-	NumberOfBytes string `json:"numberOfBytes"`
-	Key           string `json:"key,omitempty"`
-	Value         string `json:"value,omitempty"`
 }
 
 // Artifact represents a hardhat compilation artifact
@@ -114,10 +90,10 @@ type DebugFile struct {
 // BuildInfo represents a hardhat build info artifact that is created
 // after compilation
 type BuildInfo struct {
-	Format          string          `json:"_format"`
-	Id              string          `json:"id"`
-	SolcVersion     string          `json:"solcVersion"`
-	SolcLongVersion string          `json:"solcLongVersion"`
-	Input           json.RawMessage `json:"input"`
-	Output          json.RawMessage `json:"output"`
+	Format          string              `json:"_format"`
+	Id              string              `json:"id"`
+	SolcVersion     string              `json:"solcVersion"`
+	SolcLongVersion string              `json:"solcLongVersion"`
+	Input           solc.CompilerInput  `json:"input"`
+	Output          solc.CompilerOutput `json:"output"`
 }
