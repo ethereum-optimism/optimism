@@ -1,9 +1,13 @@
-import { predeploys } from '@eth-optimism/contracts'
+import {
+  predeploys,
+  getDeployedContractDefinition,
+} from '@eth-optimism/contracts'
 
 import {
   L1ChainID,
   L2ChainID,
   OEContractsLike,
+  OEL1ContractsLike,
   OEL2ContractsLike,
   BridgeAdapterData,
 } from '../interfaces'
@@ -48,6 +52,31 @@ export const DEFAULT_L2_CONTRACT_ADDRESSES: OEL2ContractsLike = {
 }
 
 /**
+ * Loads the L1 contracts for a given network by the network name.
+ *
+ * @param network The name of the network to load the contracts for.
+ * @returns The L1 contracts for the given network.
+ */
+const getL1ContractsByNetworkName = (network: string): OEL1ContractsLike => {
+  const getDeployedAddress = (name: string) => {
+    return getDeployedContractDefinition(name, network).address
+  }
+
+  return {
+    AddressManager: getDeployedAddress('Lib_AddressManager'),
+    L1CrossDomainMessenger: getDeployedAddress(
+      'Proxy__OVM_L1CrossDomainMessenger'
+    ),
+    L1StandardBridge: getDeployedAddress('Proxy__OVM_L1StandardBridge'),
+    StateCommitmentChain: getDeployedAddress('StateCommitmentChain'),
+    CanonicalTransactionChain: getDeployedAddress('CanonicalTransactionChain'),
+    BondManager: getDeployedAddress('BondManager'),
+    OptimismPortal: '0x0000000000000000000000000000000000000000' as const,
+    L2OutputOracle: '0x0000000000000000000000000000000000000000' as const,
+  }
+}
+
+/**
  * Mapping of L1 chain IDs to the appropriate contract addresses for the OE deployments to the
  * given network. Simplifies the process of getting the correct contract addresses for a given
  * contract name.
@@ -56,51 +85,15 @@ export const CONTRACT_ADDRESSES: {
   [ChainID in L2ChainID]: OEContractsLike
 } = {
   [L2ChainID.OPTIMISM]: {
-    l1: {
-      AddressManager: '0xdE1FCfB0851916CA5101820A69b13a4E276bd81F' as const,
-      L1CrossDomainMessenger:
-        '0x25ace71c97B33Cc4729CF772ae268934F7ab5fA1' as const,
-      L1StandardBridge: '0x99C9fc46f92E8a1c0deC1b1747d010903E884bE1' as const,
-      StateCommitmentChain:
-        '0xBe5dAb4A2e9cd0F27300dB4aB94BeE3A233AEB19' as const,
-      CanonicalTransactionChain:
-        '0x5E4e65926BA27467555EB562121fac00D24E9dD2' as const,
-      BondManager: '0xcd626E1328b41fCF24737F137BcD4CE0c32bc8d1' as const,
-      OptimismPortal: '0x0000000000000000000000000000000000000000' as const,
-      L2OutputOracle: '0x0000000000000000000000000000000000000000' as const,
-    },
+    l1: getL1ContractsByNetworkName('mainnet'),
     l2: DEFAULT_L2_CONTRACT_ADDRESSES,
   },
   [L2ChainID.OPTIMISM_KOVAN]: {
-    l1: {
-      AddressManager: '0x100Dd3b414Df5BbA2B542864fF94aF8024aFdf3a' as const,
-      L1CrossDomainMessenger:
-        '0x4361d0F75A0186C05f971c566dC6bEa5957483fD' as const,
-      L1StandardBridge: '0x22F24361D548e5FaAfb36d1437839f080363982B' as const,
-      StateCommitmentChain:
-        '0xD7754711773489F31A0602635f3F167826ce53C5' as const,
-      CanonicalTransactionChain:
-        '0xf7B88A133202d41Fe5E2Ab22e6309a1A4D50AF74' as const,
-      BondManager: '0xc5a603d273E28185c18Ba4d26A0024B2d2F42740' as const,
-      OptimismPortal: '0x0000000000000000000000000000000000000000' as const,
-      L2OutputOracle: '0x0000000000000000000000000000000000000000' as const,
-    },
+    l1: getL1ContractsByNetworkName('kovan'),
     l2: DEFAULT_L2_CONTRACT_ADDRESSES,
   },
   [L2ChainID.OPTIMISM_GOERLI]: {
-    l1: {
-      AddressManager: '0xfA5b622409E1782597952a4A78c1D34CF32fF5e2' as const,
-      L1CrossDomainMessenger:
-        '0x5086d1eEF304eb5284A0f6720f79403b4e9bE294' as const,
-      L1StandardBridge: '0x636Af16bf2f682dD3109e60102b8E1A089FedAa8' as const,
-      StateCommitmentChain:
-        '0x9c945aC97Baf48cB784AbBB61399beB71aF7A378' as const,
-      CanonicalTransactionChain:
-        '0x607F755149cFEB3a14E1Dc3A4E2450Cde7dfb04D' as const,
-      BondManager: '0xfC2ab6987C578218f99E85d61Dcf4814A26637Bd' as const,
-      OptimismPortal: '0x0000000000000000000000000000000000000000' as const,
-      L2OutputOracle: '0x0000000000000000000000000000000000000000' as const,
-    },
+    l1: getL1ContractsByNetworkName('goerli'),
     l2: DEFAULT_L2_CONTRACT_ADDRESSES,
   },
   [L2ChainID.OPTIMISM_HARDHAT_LOCAL]: {
