@@ -28,7 +28,7 @@ func TestAddBalance(t *testing.T) {
 
 		account := db.GetAccount(addr)
 		require.NotNil(t, account)
-		require.Equal(t, account.Balance, value)
+		require.True(t, BigEqual(account.Balance, value))
 	}
 }
 
@@ -59,5 +59,13 @@ func TestCode(t *testing.T) {
 
 		codeHash := db.GetCodeHash(addr)
 		require.Equal(t, codeHash, common.BytesToHash(crypto.Keccak256(code)))
+	}
+}
+
+func BigEqual(a, b *big.Int) bool {
+	if a == nil || b == nil {
+		return a == b
+	} else {
+		return a.Cmp(b) == 0
 	}
 }
