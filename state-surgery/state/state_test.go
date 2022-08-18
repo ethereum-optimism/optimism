@@ -2,6 +2,7 @@ package state_test
 
 import (
 	"encoding/json"
+	"fmt"
 	"math/big"
 	"os"
 	"testing"
@@ -51,6 +52,7 @@ func TestSetAndGetStorageSlots(t *testing.T) {
 	values["offset3"] = uint32(0xf33d35)
 	values["offset4"] = uint64(0xd34dd34d00)
 	values["offset5"] = new(big.Int).SetUint64(0x43ad0043ad0043ad)
+	values["_bytes32"] = common.Hash{0xff}
 
 	addresses := make(map[any]any)
 	addresses[big.NewInt(1)] = common.Address{19: 0xff}
@@ -120,6 +122,13 @@ OUTER:
 			res, err = contract.Offset4(&bind.CallOpts{})
 		case "offset5":
 			res, err = contract.Offset5(&bind.CallOpts{})
+		case "_bytes32":
+			res, err = contract.Bytes32(&bind.CallOpts{})
+			result, ok := res.([32]uint8)
+			require.Equal(t, ok, true)
+			require.Nil(t, err)
+			require.Equal(t, common.BytesToHash(result[:]), value)
+			continue OUTER
 		case "addresses":
 			addrs, ok := value.(map[any]any)
 			require.Equal(t, ok, true)
@@ -130,7 +139,7 @@ OUTER:
 				continue OUTER
 			}
 		default:
-			require.Fail(t, "Unknown variable label", key)
+			require.Fail(t, fmt.Sprintf("Unknown variable label: %s", key))
 		}
 		require.Nil(t, err)
 		require.Equal(t, res, value)
@@ -173,6 +182,10 @@ func testContractStateValuesAreEmpty(t *testing.T, contract *testdata.Testdata) 
 	offset5, err := contract.Offset5(&bind.CallOpts{})
 	require.Nil(t, err)
 	require.Equal(t, offset5.Uint64(), uint64(0))
+
+	bytes32, err := contract.Bytes32(&bind.CallOpts{})
+	require.Nil(t, err)
+	require.Equal(t, common.BytesToHash(bytes32[:]), common.Hash{})
 }
 
 func TestMergeStorage(t *testing.T) {
@@ -399,6 +412,28 @@ func TestEncodeAddressValue(t *testing.T) {
 
 	for _, test := range cases {
 		got, err := state.EncodeAddressValue(test.addr, test.offset)
+		require.Nil(t, err)
+		require.Equal(t, got, test.expect)
+	}
+}
+
+func TestEncodeBytes32Value(t *testing.T) {
+	cases := []struct {
+		bytes32 any
+		expect  common.Hash
+	}{
+		{
+			bytes32: common.Hash{0xff},
+			expect:  common.Hash{0xff},
+		},
+		{
+			bytes32: "0x11ffffff00000000000000000000000000000000000000000000000000000000",
+			expect:  common.HexToHash("0x11ffffff00000000000000000000000000000000000000000000000000000000"),
+		},
+	}
+
+	for _, test := range cases {
+		got, err := state.EncodeBytes32Value(test.bytes32, 0)
 		require.Nil(t, err)
 		require.Equal(t, got, test.expect)
 	}

@@ -30,8 +30,8 @@ var (
 
 // TestdataMetaData contains all meta data concerning the Testdata contract.
 var TestdataMetaData = &bind.MetaData{
-	ABI: "[{\"inputs\":[],\"name\":\"_address\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"_bool\",\"outputs\":[{\"internalType\":\"bool\",\"name\":\"\",\"type\":\"bool\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"_uint256\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"name\":\"addresses\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"bytes32\",\"name\":\"key\",\"type\":\"bytes32\"}],\"name\":\"getStorage\",\"outputs\":[{\"internalType\":\"bytes32\",\"name\":\"\",\"type\":\"bytes32\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"offset0\",\"outputs\":[{\"internalType\":\"uint8\",\"name\":\"\",\"type\":\"uint8\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"offset1\",\"outputs\":[{\"internalType\":\"uint8\",\"name\":\"\",\"type\":\"uint8\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"offset2\",\"outputs\":[{\"internalType\":\"uint16\",\"name\":\"\",\"type\":\"uint16\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"offset3\",\"outputs\":[{\"internalType\":\"uint32\",\"name\":\"\",\"type\":\"uint32\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"offset4\",\"outputs\":[{\"internalType\":\"uint64\",\"name\":\"\",\"type\":\"uint64\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"offset5\",\"outputs\":[{\"internalType\":\"uint128\",\"name\":\"\",\"type\":\"uint128\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"bytes32\",\"name\":\"key\",\"type\":\"bytes32\"},{\"internalType\":\"bytes32\",\"name\":\"value\",\"type\":\"bytes32\"}],\"name\":\"setStorage\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"}]",
-	Bin: "0x608060405234801561001057600080fd5b506102a4806100206000396000f3fe608060405234801561001057600080fd5b50600436106100b45760003560e01c8063502a6c5e11610071578063502a6c5e1461019a5780635e006859146101cc5780639b0b0fda146101d55780639e6ba9c2146101e9578063a753307d14610206578063edf26d9b1461023357600080fd5b8063099ea180146100b957806309f395f1146100dd57806318bad217146100ef57806332da25e11461011a578063350e81cc146101535780634ba664e71461017a575b600080fd5b6004546100c69060ff1681565b60405160ff90911681526020015b60405180910390f35b6004546100c690610100900460ff1681565b600054610102906001600160a01b031681565b6040516001600160a01b0390911681526020016100d4565b60045461013a9068010000000000000000900467ffffffffffffffff1681565b60405167ffffffffffffffff90911681526020016100d4565b6004546101679062010000900461ffff1681565b60405161ffff90911681526020016100d4565b61018c61018836600461025c565b5490565b6040519081526020016100d4565b6004546101b490600160801b90046001600160801b031681565b6040516001600160801b0390911681526020016100d4565b61018c60035481565b6101e76101e3366004610275565b9055565b005b6002546101f69060ff1681565b60405190151581526020016100d4565b60045461021e90640100000000900463ffffffff1681565b60405163ffffffff90911681526020016100d4565b61010261024136600461025c565b6001602052600090815260409020546001600160a01b031681565b60006020828403121561026e57600080fd5b5035919050565b6000806040838503121561028857600080fd5b5050803592602090910135915056fea164736f6c634300080f000a",
+	ABI: "[{\"inputs\":[],\"name\":\"_address\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"_bool\",\"outputs\":[{\"internalType\":\"bool\",\"name\":\"\",\"type\":\"bool\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"_bytes32\",\"outputs\":[{\"internalType\":\"bytes32\",\"name\":\"\",\"type\":\"bytes32\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"_string\",\"outputs\":[{\"internalType\":\"string\",\"name\":\"\",\"type\":\"string\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"_uint256\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"name\":\"addresses\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"bytes32\",\"name\":\"key\",\"type\":\"bytes32\"}],\"name\":\"getStorage\",\"outputs\":[{\"internalType\":\"bytes32\",\"name\":\"\",\"type\":\"bytes32\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"offset0\",\"outputs\":[{\"internalType\":\"uint8\",\"name\":\"\",\"type\":\"uint8\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"offset1\",\"outputs\":[{\"internalType\":\"uint8\",\"name\":\"\",\"type\":\"uint8\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"offset2\",\"outputs\":[{\"internalType\":\"uint16\",\"name\":\"\",\"type\":\"uint16\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"offset3\",\"outputs\":[{\"internalType\":\"uint32\",\"name\":\"\",\"type\":\"uint32\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"offset4\",\"outputs\":[{\"internalType\":\"uint64\",\"name\":\"\",\"type\":\"uint64\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"offset5\",\"outputs\":[{\"internalType\":\"uint128\",\"name\":\"\",\"type\":\"uint128\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"bytes32\",\"name\":\"key\",\"type\":\"bytes32\"},{\"internalType\":\"bytes32\",\"name\":\"value\",\"type\":\"bytes32\"}],\"name\":\"setStorage\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"}]",
+	Bin: "0x608060405234801561001057600080fd5b50610415806100206000396000f3fe608060405234801561001057600080fd5b50600436106100ea5760003560e01c80635e0068591161008c5780639b267f09116100665780639b267f09146102285780639e6ba9c21461023d578063a753307d1461025a578063edf26d9b1461028757600080fd5b80635e0068591461020257806393f2b3981461020b5780639b0b0fda1461021457600080fd5b806332da25e1116100c857806332da25e114610150578063350e81cc146101895780634ba664e7146101b0578063502a6c5e146101d057600080fd5b8063099ea180146100ef57806309f395f11461011357806318bad21714610125575b600080fd5b6004546100fc9060ff1681565b60405160ff90911681526020015b60405180910390f35b6004546100fc90610100900460ff1681565b600054610138906001600160a01b031681565b6040516001600160a01b03909116815260200161010a565b6004546101709068010000000000000000900467ffffffffffffffff1681565b60405167ffffffffffffffff909116815260200161010a565b60045461019d9062010000900461ffff1681565b60405161ffff909116815260200161010a565b6101c26101be36600461033e565b5490565b60405190815260200161010a565b6004546101ea90600160801b90046001600160801b031681565b6040516001600160801b03909116815260200161010a565b6101c260035481565b6101c260055481565b610226610222366004610357565b9055565b005b6102306102b0565b60405161010a9190610379565b60025461024a9060ff1681565b604051901515815260200161010a565b60045461027290640100000000900463ffffffff1681565b60405163ffffffff909116815260200161010a565b61013861029536600461033e565b6001602052600090815260409020546001600160a01b031681565b600680546102bd906103ce565b80601f01602080910402602001604051908101604052809291908181526020018280546102e9906103ce565b80156103365780601f1061030b57610100808354040283529160200191610336565b820191906000526020600020905b81548152906001019060200180831161031957829003601f168201915b505050505081565b60006020828403121561035057600080fd5b5035919050565b6000806040838503121561036a57600080fd5b50508035926020909101359150565b600060208083528351808285015260005b818110156103a65785810183015185820160400152820161038a565b818111156103b8576000604083870101525b50601f01601f1916929092016040019392505050565b600181811c908216806103e257607f821691505b60208210810361040257634e487b7160e01b600052602260045260246000fd5b5091905056fea164736f6c634300080f000a",
 }
 
 // TestdataABI is the input ABI used to generate the binding from.
@@ -261,6 +261,68 @@ func (_Testdata *TestdataSession) Bool() (bool, error) {
 // Solidity: function _bool() view returns(bool)
 func (_Testdata *TestdataCallerSession) Bool() (bool, error) {
 	return _Testdata.Contract.Bool(&_Testdata.CallOpts)
+}
+
+// Bytes32 is a free data retrieval call binding the contract method 0x93f2b398.
+//
+// Solidity: function _bytes32() view returns(bytes32)
+func (_Testdata *TestdataCaller) Bytes32(opts *bind.CallOpts) ([32]byte, error) {
+	var out []interface{}
+	err := _Testdata.contract.Call(opts, &out, "_bytes32")
+
+	if err != nil {
+		return *new([32]byte), err
+	}
+
+	out0 := *abi.ConvertType(out[0], new([32]byte)).(*[32]byte)
+
+	return out0, err
+
+}
+
+// Bytes32 is a free data retrieval call binding the contract method 0x93f2b398.
+//
+// Solidity: function _bytes32() view returns(bytes32)
+func (_Testdata *TestdataSession) Bytes32() ([32]byte, error) {
+	return _Testdata.Contract.Bytes32(&_Testdata.CallOpts)
+}
+
+// Bytes32 is a free data retrieval call binding the contract method 0x93f2b398.
+//
+// Solidity: function _bytes32() view returns(bytes32)
+func (_Testdata *TestdataCallerSession) Bytes32() ([32]byte, error) {
+	return _Testdata.Contract.Bytes32(&_Testdata.CallOpts)
+}
+
+// String is a free data retrieval call binding the contract method 0x9b267f09.
+//
+// Solidity: function _string() view returns(string)
+func (_Testdata *TestdataCaller) String(opts *bind.CallOpts) (string, error) {
+	var out []interface{}
+	err := _Testdata.contract.Call(opts, &out, "_string")
+
+	if err != nil {
+		return *new(string), err
+	}
+
+	out0 := *abi.ConvertType(out[0], new(string)).(*string)
+
+	return out0, err
+
+}
+
+// String is a free data retrieval call binding the contract method 0x9b267f09.
+//
+// Solidity: function _string() view returns(string)
+func (_Testdata *TestdataSession) String() (string, error) {
+	return _Testdata.Contract.String(&_Testdata.CallOpts)
+}
+
+// String is a free data retrieval call binding the contract method 0x9b267f09.
+//
+// Solidity: function _string() view returns(string)
+func (_Testdata *TestdataCallerSession) String() (string, error) {
+	return _Testdata.Contract.String(&_Testdata.CallOpts)
 }
 
 // Uint256 is a free data retrieval call binding the contract method 0x5e006859.
