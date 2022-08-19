@@ -420,6 +420,9 @@ jobs:
     docker:
       - image: ethereumoptimism/ci-builder:latest
     steps:
+      - restore_cache:
+          keys:
+            - v2-cache-yarn-build-{{ .Revision }}
       - checkout
       - run:
           name: Check if we should run
@@ -709,11 +712,14 @@ workflows:
           binary_name: bss-core
           working_directory: bss-core
           build: false
+      - state-surgery-tests:
+          name: state-surgery-tests
+          requires:
+            - yarn-monorepo
       - geth-tests
       - integration-tests
       - semgrep-scan
       - go-mod-tidy
-      - state-surgery-tests
       - docker-publish:
           name: op-node-publish-dev
           docker_file: op-node/Dockerfile
