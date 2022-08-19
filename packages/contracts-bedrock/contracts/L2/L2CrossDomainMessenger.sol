@@ -32,7 +32,7 @@ contract L2CrossDomainMessenger is CrossDomainMessenger, Semver {
      */
     function initialize(address _l1CrossDomainMessenger) public initializer {
         address[] memory blockedSystemAddresses = new address[](2);
-        blockedSystemAddresses[0] = address(this);
+        blockedSystemAddresses[0] = Predeploys.L2_CROSS_DOMAIN_MESSENGER;
         blockedSystemAddresses[1] = Predeploys.L2_TO_L1_MESSAGE_PASSER;
         __CrossDomainMessenger_init(_l1CrossDomainMessenger, blockedSystemAddresses);
     }
