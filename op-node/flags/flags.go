@@ -157,6 +157,7 @@ var optionalFlags = append([]cli.Flag{
 	LogLevelFlag,
 	LogFormatFlag,
 	LogColorFlag,
+	RPCEnableAdmin,
 	MetricsEnabledFlag,
 	MetricsAddrFlag,
 	MetricsPortFlag,
