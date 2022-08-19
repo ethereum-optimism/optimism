@@ -14,7 +14,6 @@ import (
 	"github.com/ethereum-optimism/optimism/indexer/metrics"
 	"github.com/prometheus/client_golang/prometheus"
 
-	"github.com/ethereum-optimism/optimism/indexer/bindings/scc"
 	"github.com/ethereum-optimism/optimism/indexer/server"
 	"github.com/ethereum-optimism/optimism/indexer/services/l1/bridge"
 
@@ -66,17 +65,16 @@ type Driver interface {
 }
 
 type ServiceConfig struct {
-	Context               context.Context
-	Metrics               *metrics.Metrics
-	L1Client              *ethclient.Client
-	RawL1Client           *rpc.Client
-	ChainID               *big.Int
-	AddressManagerAddress common.Address
-	ConfDepth             uint64
-	MaxHeaderBatchSize    uint64
-	StartBlockNumber      uint64
-	StartBlockHash        string
-	DB                    *db.Database
+	Context            context.Context
+	Metrics            *metrics.Metrics
+	L1Client           *ethclient.Client
+	RawL1Client        *rpc.Client
+	ChainID            *big.Int
+	ConfDepth          uint64
+	MaxHeaderBatchSize uint64
+	StartBlockNumber   uint64
+	StartBlockHash     string
+	DB                 *db.Database
 }
 
 type Service struct {
@@ -85,7 +83,6 @@ type Service struct {
 	cancel func()
 
 	bridges        map[string]bridge.Bridge
-	batchScanner   *scc.StateCommitmentChainFilterer
 	latestHeader   uint64
 	headerSelector *ConfirmedHeaderSelector
 
@@ -116,24 +113,7 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 		return nil, fmt.Errorf("chain ID configured with %d but got %d", cfg.ChainID, chainID)
 	}
 
-	addrs, err := bridge.NewAddresses(cfg.L1Client, cfg.AddressManagerAddress)
-	if err != nil {
-		cancel()
-		return nil, err
-	}
-
-	bridges, err := bridge.BridgesByChainID(cfg.ChainID, cfg.L1Client, addrs, ctx)
-	if err != nil {
-		cancel()
-		return nil, err
-	}
-
-	batchScanner, err := bridge.StateCommitmentChainScanner(cfg.L1Client, addrs)
-	if err != nil {
-		cancel()
-		return nil, err
-	}
-
+	var bridges map[string]bridge.Bridge
 	logger.Info("Scanning bridges for deposits", "bridges", bridges)
 
 	confirmedHeaderSelector, err := NewConfirmedHeaderSelector(HeaderSelectorConfig{
@@ -151,7 +131,6 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 		ctx:            ctx,
 		cancel:         cancel,
 		bridges:        bridges,
-		batchScanner:   batchScanner,
 		headerSelector: confirmedHeaderSelector,
 		metrics:        cfg.Metrics,
 		tokenCache: map[common.Address]*db.Token{
@@ -281,66 +260,6 @@ func (s *Service) Update(newHeader *types.Header) error {
 		receives++
 		if receives == len(s.bridges) {
 			break
-		}
-	}
-
-	stateBatches, err := QueryStateBatches(s.batchScanner, startHeight, endHeight, s.ctx)
-	if err != nil {
-		logger.Error("Error querying state batches", "err", err)
-	}
-
-	for i, header := range headers {
-		blockHash := header.Hash
-		number := header.Number.Uint64()
-		deposits := depositsByBlockHash[blockHash]
-		batches := stateBatches[blockHash]
-
-		if len(deposits) == 0 && len(batches) == 0 && i != len(headers)-1 {
-			continue
-		}
-
-		block := &db.IndexedL1Block{
-			Hash:       blockHash,
-			ParentHash: header.ParentHash,
-			Number:     number,
-			Timestamp:  header.Time,
-			Deposits:   deposits,
-		}
-
-		err := s.cfg.DB.AddIndexedL1Block(block)
-		if err != nil {
-			logger.Error(
-				"Unable to import ",
-				"block", number,
-				"hash", blockHash, "err", err,
-				"block", block,
-			)
-			return err
-		}
-
-		err = s.cfg.DB.AddStateBatch(batches)
-		if err != nil {
-			logger.Error(
-				"Unable to import state append batch",
-				"block", number,
-				"hash", blockHash, "err", err,
-				"block", block,
-			)
-			return err
-		}
-		s.metrics.RecordStateBatches(len(batches))
-
-		logger.Debug("Imported ",
-			"block", number, "hash", blockHash, "deposits", len(block.Deposits))
-		for _, deposit := range block.Deposits {
-			token := s.tokenCache[deposit.L1Token]
-			logger.Info(
-				"indexed deposit",
-				"tx_hash", deposit.TxHash,
-				"symbol", token.Symbol,
-				"amount", deposit.Amount,
-			)
-			s.metrics.RecordDeposit(deposit.L1Token)
 		}
 	}
 
