@@ -72,7 +72,7 @@ func (h *Hardhat) init() error {
 func (h *Hardhat) initDeployments() error {
 	for _, deploymentPath := range h.DeploymentPaths {
 		fileSystem := os.DirFS(filepath.Join(deploymentPath, h.network))
-		fs.WalkDir(fileSystem, ".", func(path string, d fs.DirEntry, err error) error {
+		err := fs.WalkDir(fileSystem, ".", func(path string, d fs.DirEntry, err error) error {
 			if err != nil {
 				return err
 			}
@@ -100,6 +100,9 @@ func (h *Hardhat) initDeployments() error {
 			h.deployments = append(h.deployments, &deployment)
 			return nil
 		})
+		if err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -109,7 +112,7 @@ func (h *Hardhat) initDeployments() error {
 func (h *Hardhat) initArtifacts() error {
 	for _, artifactPath := range h.ArtifactPaths {
 		fileSystem := os.DirFS(artifactPath)
-		fs.WalkDir(fileSystem, ".", func(path string, d fs.DirEntry, err error) error {
+		err := fs.WalkDir(fileSystem, ".", func(path string, d fs.DirEntry, err error) error {
 			if err != nil {
 				return err
 			}
@@ -136,6 +139,9 @@ func (h *Hardhat) initArtifacts() error {
 			h.artifacts = append(h.artifacts, &artifact)
 			return nil
 		})
+		if err != nil {
+			return err
+		}
 	}
 	return nil
 }
