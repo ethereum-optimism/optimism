@@ -12,9 +12,6 @@ const frameOverhead = 200
 
 const DerivationVersion0 = 0
 
-// channel ID (data + time), frame number, frame length, last frame bool
-const minimumFrameSize = (ChannelIDDataSize + 1) + 1 + 1 + 1
-
 // MaxChannelBankSize is the amount of memory space, in number of bytes,
 // till the bank is pruned by removing channels,
 // starting with the oldest channel.
