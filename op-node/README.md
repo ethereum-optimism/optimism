@@ -24,7 +24,7 @@ To start syncing the rollup:
 Connect to at least one L1 RPC and L2 execution engine:
 
 - L1: use any L1 node / RPC (websocket connection path may differ)
-- L2: run the Optimism fork of geth: <https://github.com/ethereum-optimism/reference-optimistic-geth>
+- L2: run the Optimism fork of geth: <https://github.com/ethereum-optimism/op-geth>
 
 Initialize the L2 chain with a `genesis.json` chain spec like L1, with the Merge fork activated from genesis.
 
