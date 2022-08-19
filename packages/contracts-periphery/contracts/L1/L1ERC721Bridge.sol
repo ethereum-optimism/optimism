@@ -15,7 +15,7 @@ import { Semver } from "@eth-optimism/contracts-bedrock/contracts/universal/Semv
 /**
  * @title L1ERC721Bridge
  * @notice The L1 ERC721 bridge is a contract which works together with the L2 ERC721 bridge to
- *         make it possible to transfer ERC721 tokens between Optimism and Ethereum. This contract
+ *         make it possible to transfer ERC721 tokens from Ethereum to Optimism. This contract
  *         acts as an escrow for ERC721 tokens deposted into L2.
  */
 contract L1ERC721Bridge is Semver, CrossDomainEnabled, OwnableUpgradeable {
@@ -58,11 +58,29 @@ contract L1ERC721Bridge is Semver, CrossDomainEnabled, OwnableUpgradeable {
     );
 
     /**
+     * @notice Emitted when an ERC721 bridge from the other network fails.
+     *
+     * @param localToken  Address of the token on this domain.
+     * @param remoteToken Address of the token on the remote domain.
+     * @param from        Address that initiated bridging action.
+     * @param to          Address to receive the token.
+     * @param tokenId     ID of the specific token deposited.
+     * @param extraData   Extra data for use on the client-side.
+     */
+    event ERC721BridgeFailed(
+        address indexed localToken,
+        address indexed remoteToken,
+        address indexed from,
+        address to,
+        uint256 tokenId,
+        bytes extraData
+    );
+
+    /**
      * @notice Address of the bridge on the other network.
      */
     address public otherBridge;
 
-    // Maps L1 token to L2 token to token ID to a boolean indicating if the token is deposited
     /**
      * @notice Mapping of L1 token to L2 token to ID to boolean, indicating if the given L1 token
      *         by ID was deposited for a given L2 token.
@@ -183,20 +201,43 @@ contract L1ERC721Bridge is Semver, CrossDomainEnabled, OwnableUpgradeable {
         uint256 _tokenId,
         bytes calldata _extraData
     ) external onlyFromCrossDomainAccount(otherBridge) {
-        // Checks that the L1/L2 token pair has a token ID that is escrowed in the L1 Bridge
-        require(
-            deposits[_localToken][_remoteToken][_tokenId] == true,
-            "Token ID is not escrowed in the L1 Bridge"
-        );
+        // Checks that the L1/L2 NFT pair has a token ID that is escrowed in the L1 Bridge. Without
+        // this check, an attacker could steal a legitimate L1 NFT by supplying an arbitrary L2 NFT
+        // that maps to the L1 NFT.
+        if (deposits[_localToken][_remoteToken][_tokenId] == true) {
+            // Mark that the token ID for this L1/L2 token pair is no longer escrowed in the L1
+            // Bridge.
+            deposits[_localToken][_remoteToken][_tokenId] = false;
 
-        deposits[_localToken][_remoteToken][_tokenId] = false;
+            // When a withdrawal is finalized on L1, the L1 Bridge transfers the NFT to the
+            // withdrawer.
+            // slither-disable-next-line reentrancy-events
+            IERC721(_localToken).transferFrom(address(this), _to, _tokenId);
 
-        // When a withdrawal is finalized on L1, the L1 Bridge transfers the NFT to the withdrawer
-        // slither-disable-next-line reentrancy-events
-        IERC721(_localToken).transferFrom(address(this), _to, _tokenId);
+            // slither-disable-next-line reentrancy-events
+            emit ERC721BridgeFinalized(_localToken, _remoteToken, _from, _to, _tokenId, _extraData);
+        } else {
+            // If the token ID for this L1/L2 NFT pair is not escrowed in the L1 Bridge, we initiate
+            // a cross-domain message to send the NFT back to its original owner on L2. This can
+            // happen if an L2 native NFT is bridged to L1, or if a user mistakenly entered an
+            // incorrect L1 ERC721 address.
+            bytes memory message = abi.encodeWithSelector(
+                L2ERC721Bridge.finalizeBridgeERC721.selector,
+                _remoteToken,
+                _localToken,
+                _to, // switched the _to and _from here to bounce back the deposit to the sender
+                _from,
+                _tokenId,
+                _extraData
+            );
 
-        // slither-disable-next-line reentrancy-events
-        emit ERC721BridgeFinalized(_localToken, _remoteToken, _from, _to, _tokenId, _extraData);
+            // Send the message to the L2 bridge.
+            // slither-disable-next-line reentrancy-events
+            sendCrossDomainMessage(otherBridge, 600_000, message);
+
+            // slither-disable-next-line reentrancy-events
+            emit ERC721BridgeFailed(_localToken, _remoteToken, _from, _to, _tokenId, _extraData);
+        }
     }
 
     /**

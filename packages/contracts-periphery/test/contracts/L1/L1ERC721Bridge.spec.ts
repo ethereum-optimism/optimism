@@ -23,7 +23,7 @@ const DUMMY_L2_BRIDGE_ADDRESS = ethers.utils.getAddress(
   '0x' + 'acdc'.repeat(10)
 )
 
-const FINALIZATION_GAS = 1_200_000
+const FINALIZATION_GAS = 600_000
 
 describe('L1ERC721Bridge', () => {
   // init signers
@@ -331,20 +331,54 @@ describe('L1ERC721Bridge', () => {
         )
       })
 
-      it('should revert if the l1/l2 token pair has a token ID that has not been escrowed in the l1 bridge', async () => {
+      it('should refund an L2 NFT that fails to be finalized on l1', async () => {
+        const RANDOM_L1_ERC721_ADDRESS = ethers.utils.getAddress(
+          '0x' + 'cdbc'.repeat(10)
+        )
+        // alice sends bob an nft that has an incorrect l1 erc721 address
         await expect(
           L1ERC721Bridge.finalizeBridgeERC721(
-            L1ERC721.address,
-            DUMMY_L2_BRIDGE_ADDRESS, // incorrect l2 token address
-            constants.AddressZero,
-            constants.AddressZero,
+            RANDOM_L1_ERC721_ADDRESS, // incorrect address for the l1 erc721
+            DUMMY_L2_ERC721_ADDRESS,
+            aliceAddress,
+            bobsAddress,
             tokenId,
             NON_NULL_BYTES32,
             {
               from: Fake__L1CrossDomainMessenger.address,
             }
           )
-        ).to.be.revertedWith('Token ID is not escrowed in the L1 Bridge')
+        )
+          .to.emit(L1ERC721Bridge, 'ERC721BridgeFailed')
+          .withArgs(
+            RANDOM_L1_ERC721_ADDRESS,
+            DUMMY_L2_ERC721_ADDRESS,
+            aliceAddress,
+            bobsAddress,
+            tokenId,
+            NON_NULL_BYTES32
+          )
+
+        // Get the second call from `Fake__L1CrossDomainMessenger` because the first call is `finalizeBridgeERC721`.
+        const depositCallToMessenger =
+          Fake__L1CrossDomainMessenger.sendMessage.getCall(1)
+
+        // Check the correct cross-chain call was sent:
+        // Message should be sent to the L2 bridge
+        expect(depositCallToMessenger.args[0]).to.equal(DUMMY_L2_BRIDGE_ADDRESS)
+        // Message data should be a call telling the L2DepositedERC721 to finalize the deposit
+        expect(depositCallToMessenger.args[1]).to.equal(
+          IL2ERC721Bridge.encodeFunctionData('finalizeBridgeERC721', [
+            DUMMY_L2_ERC721_ADDRESS,
+            RANDOM_L1_ERC721_ADDRESS,
+            bobsAddress, // switched the 'from' and 'to' addresses here
+            aliceAddress,
+            tokenId,
+            NON_NULL_BYTES32,
+          ])
+        )
+        // Gas limit is 0
+        expect(depositCallToMessenger.args[2]).to.equal(FINALIZATION_GAS)
       })
 
       it('should credit funds to the withdrawer and not use too much gas', async () => {
