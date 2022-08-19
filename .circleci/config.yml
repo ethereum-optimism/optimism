@@ -75,12 +75,11 @@ jobs:
         description: Docker repo
         type: string
         default: ""
-    docker:
-      - image: circleci/buildpack-deps:stretch
+    machine:
+      image: ubuntu-2204:2022.07.1
+      resource_class: xlarge
     steps:
       - checkout
-      - setup_remote_docker:
-          version: 20.10.12
       - when:
           condition: <<parameters.target>>
           steps:
@@ -755,6 +754,8 @@ workflows:
           target: deployer-bedrock
           docker_context: .
           repo: us-central1-docker.pkg.dev
+          context:
+            - gcr
           requires:
             - contracts-bedrock-tests
 
