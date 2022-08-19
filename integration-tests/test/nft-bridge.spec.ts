@@ -17,6 +17,9 @@ import { withdrawalTest } from './shared/utils'
 const TOKEN_ID: number = 1
 const FINALIZATION_GAS: number = 1_200_000
 const NON_NULL_BYTES: string = '0x1111'
+const RANDOM_ADDRESS = ethers.utils.getAddress(
+  '0x' + 'acdc'.repeat(10)
+)
 
 describe('ERC721 Bridge', () => {
   let env: OptimismEnv
@@ -300,6 +303,51 @@ describe('ERC721 Bridge', () => {
       await env.relayXDomainMessages(withdrawalTx)
 
       // The legitimate NFT on L1 is still held in the bridge.
+      expect(await L1ERC721.ownerOf(TOKEN_ID)).to.equal(L1ERC721Bridge.address)
+    }
+  )
+
+  withdrawalTest(
+    'should refund an L2 NFT that fails to be finalized on l1',
+    async () => {
+      // First, bridge the L1 NFT.
+      await env.messenger.waitForMessageReceipt(
+        await L1ERC721Bridge.bridgeERC721(
+          L1ERC721.address,
+          OptimismMintableERC721.address,
+          TOKEN_ID,
+          FINALIZATION_GAS,
+          NON_NULL_BYTES
+        )
+      )
+
+      // Check that Bob owns the NFT on L2
+      expect(await OptimismMintableERC721.ownerOf(TOKEN_ID)).to.equal(bobAddress)
+
+      // Bridge the NFT back to L2, using a random address as the recipient. This should initiate a
+      // refund on L1, allowing the original sender to re-claim the NFT on L2.
+      const tx = await L2ERC721Bridge.bridgeERC721To(
+        OptimismMintableERC721.address,
+        L1ERC721.address,
+        RANDOM_ADDRESS,
+        TOKEN_ID,
+        0,
+        NON_NULL_BYTES
+      )
+      await tx.wait()
+
+      // Check that the NFT is locked in the bridge on both chains (pre-refund).
+      expect(await L1ERC721.ownerOf(TOKEN_ID)).to.equal(L1ERC721Bridge.address)
+      expect(await OptimismMintableERC721.ownerOf(TOKEN_ID)).to.equal(L2ERC721Bridge.address)
+
+      // Finalize the txn on L1. This should initiate the refund and send the NFT back to the original sender on L2.
+      await env.relayXDomainMessages(tx)
+      await env.messenger.waitForMessageReceipt(tx)
+
+      // Check that the L2 NFT has been refunded to the original sender.
+      expect(await OptimismMintableERC721.ownerOf(TOKEN_ID)).to.equal(bobAddress)
+
+      // Check that the L1 NFT remains locked in the L1 bridge.
       expect(await L1ERC721.ownerOf(TOKEN_ID)).to.equal(L1ERC721Bridge.address)
     }
   )
