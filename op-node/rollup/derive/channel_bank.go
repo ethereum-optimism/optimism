@@ -39,19 +39,22 @@ type ChannelBank struct {
 
 	progress Progress
 
-	next ChannelBankOutput
+	next     ChannelBankOutput
+	prev     *L1Retrieval
+	prevDone bool
 }
 
 var _ Stage = (*ChannelBank)(nil)
 
 // NewChannelBank creates a ChannelBank, which should be Reset(origin) before use.
-func NewChannelBank(log log.Logger, cfg *rollup.Config, next ChannelBankOutput) *ChannelBank {
+func NewChannelBank(log log.Logger, cfg *rollup.Config, next ChannelBankOutput, prev *L1Retrieval) *ChannelBank {
 	return &ChannelBank{
 		log:          log,
 		cfg:          cfg,
 		channels:     make(map[ChannelID]*Channel),
 		channelQueue: make([]ChannelID, 0, 10),
 		next:         next,
+		prev:         prev,
 	}
 }
 
@@ -147,9 +150,40 @@ func (ib *ChannelBank) Read() (data []byte, err error) {
 	return data, nil
 }
 
-func (ib *ChannelBank) Step(ctx context.Context, outer Progress) error {
+// Stepping and open / closed is done in the following way:
+//
+// L1 Traversal closes itself & returns nil if it is open
+// then it advances and opens itself if it could advance/
+//
+// L1 Retrieval first checks L1 Traversal Progress
+// Then it aks L1 Travesal for data if it is done, or it
+// returns the next piece of data
+//
+// Channel Bank step first asks L1 Retrieval for it's open/closed
+// status. Then if it is not done, it asks for for data from the L1
+// Retrieval.
+//
+// The issues is that ib.Closed == true while ib.prevDone == false
+//
+
+func (ib *ChannelBank) Step(ctx context.Context, _ Progress) error {
+	outer := ib.prev.Progress()
 	if changed, err := ib.progress.Update(outer); err != nil || changed {
+		if changed && !outer.Closed {
+			ib.prevDone = false
+		}
 		return err
+	}
+
+	// Try to ingest data from the previous stage
+	if !ib.prevDone {
+		if data, err := ib.prev.NextData(ctx); err != nil {
+			ib.IngestData(data)
+		} else if err == io.EOF {
+			ib.prevDone = true
+		} else {
+			return err
+		}
 	}
 
 	// If the bank is behind the channel reader, then we are replaying old data to prepare the bank.
@@ -195,6 +229,7 @@ func (ib *ChannelBank) ResetStep(ctx context.Context, l1Fetcher L1Fetcher) error
 		return NewTemporaryError(fmt.Errorf("failed to find channel bank block, failed to retrieve L1 reference: %w", err))
 	}
 	ib.progress.Origin = parent
+	ib.prevDone = false
 	return nil
 }
 

@@ -94,20 +94,22 @@ type DerivationPipeline struct {
 // NewDerivationPipeline creates a derivation pipeline, which should be reset before use.
 func NewDerivationPipeline(log log.Logger, cfg *rollup.Config, l1Fetcher L1Fetcher, engine Engine, metrics Metrics) *DerivationPipeline {
 
+	// dataSrc is not a stage, but a helper for l1 src
+	dataSrc := NewCalldataSource(log, cfg, l1Fetcher)
+
 	// Pull stages
 	l1Traversal := NewL1Traversal(log, l1Fetcher)
+	l1Src := NewL1Retrieval(log, dataSrc, l1Traversal)
 
 	// Push stages (that act like pull stages b/c we push from the innermost stages prior to the outermost stages)
 	eng := NewEngineQueue(log, cfg, engine, metrics)
 	attributesQueue := NewAttributesQueue(log, cfg, l1Fetcher, eng)
 	batchQueue := NewBatchQueue(log, cfg, attributesQueue)
 	chInReader := NewChannelInReader(log, batchQueue)
-	bank := NewChannelBank(log, cfg, chInReader)
-	dataSrc := NewCalldataSource(log, cfg, l1Fetcher)
-	l1Src := NewL1Retrieval(log, dataSrc, bank, l1Traversal)
+	bank := NewChannelBank(log, cfg, chInReader, l1Src)
 
-	stages := []Stage{eng, attributesQueue, batchQueue, chInReader, bank, l1Src}
-	pullStages := []PullStage{l1Traversal}
+	stages := []Stage{eng, attributesQueue, batchQueue, chInReader, bank}
+	pullStages := []PullStage{l1Src, l1Traversal}
 
 	return &DerivationPipeline{
 		log:        log,
@@ -191,7 +193,7 @@ func (dp *DerivationPipeline) Step(ctx context.Context) error {
 		}
 		// Do the reset
 		if err := dp.pullStages[dp.pullResetIdx].Reset(ctx, inner); err == io.EOF {
-			// dp.log.Debug("reset of stage completed", "stage", dp.pullResetIdx, "origin", dp.pullStages[dp.pullResetIdx].Progress().Origin)
+			dp.log.Debug("reset of stage completed", "stage", dp.pullResetIdx, "origin", dp.pullStages[dp.pullResetIdx].Progress().Origin)
 			dp.pullResetIdx += 1
 			return nil
 		} else if err != nil {
