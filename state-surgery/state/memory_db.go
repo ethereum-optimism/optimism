@@ -60,12 +60,15 @@ func (db *MemoryStateDB) CreateAccount(addr common.Address) {
 	db.rw.Lock()
 	defer db.rw.Unlock()
 
-	db.genesis.Alloc[addr] = core.GenesisAccount{
-		Code:    []byte{},
-		Storage: make(map[common.Hash]common.Hash),
-		Balance: big.NewInt(0),
-		Nonce:   0,
+	if _, ok := db.genesis.Alloc[addr]; !ok {
+		db.genesis.Alloc[addr] = core.GenesisAccount{
+			Code:    []byte{},
+			Storage: make(map[common.Hash]common.Hash),
+			Balance: big.NewInt(0),
+			Nonce:   0,
+		}
 	}
+
 }
 
 func (db *MemoryStateDB) SubBalance(addr common.Address, amount *big.Int) {
@@ -216,7 +219,7 @@ func (db *MemoryStateDB) SetState(addr common.Address, key, value common.Hash) {
 
 	account, ok := db.genesis.Alloc[addr]
 	if !ok {
-		return
+		panic(fmt.Sprintf("%s not in state", addr))
 	}
 	account.Storage[key] = value
 	db.genesis.Alloc[addr] = account
