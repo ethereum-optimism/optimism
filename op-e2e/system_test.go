@@ -435,7 +435,7 @@ func TestMintOnRevertedDeposit(t *testing.T) {
 	reconstructedDep, err := derive.UnmarshalDepositLogEvent(receipt.Logs[0])
 	require.NoError(t, err, "Could not reconstruct L2 Deposit")
 	tx = types.NewTx(reconstructedDep)
-	receipt, err = waitForTransaction(tx.Hash(), l2Verif, 3*time.Duration(cfg.L1BlockTime)*time.Second)
+	receipt, err = waitForTransaction(tx.Hash(), l2Verif, 6*time.Duration(cfg.L1BlockTime)*time.Second)
 	require.NoError(t, err)
 	require.Equal(t, receipt.Status, types.ReceiptStatusFailed)
 
@@ -510,7 +510,7 @@ func TestMissingBatchE2E(t *testing.T) {
 	require.Nil(t, err, "Waiting for L2 tx on sequencer")
 
 	// Wait until the block it was first included in shows up in the safe chain on the verifier
-	_, err = waitForBlock(receipt.BlockNumber, l2Verif, time.Duration(cfg.RollupConfig.SeqWindowSize*cfg.L1BlockTime)*time.Second)
+	_, err = waitForBlock(receipt.BlockNumber, l2Verif, time.Duration(cfg.RollupConfig.SeqWindowSize*cfg.L1BlockTime*2)*time.Second)
 	require.Nil(t, err, "Waiting for block on verifier")
 
 	// Assert that the transaction is not found on the verifier
@@ -822,7 +822,7 @@ func TestWithdrawals(t *testing.T) {
 	reconstructedDep, err := derive.UnmarshalDepositLogEvent(receipt.Logs[0])
 	require.NoError(t, err, "Could not reconstruct L2 Deposit")
 	tx = types.NewTx(reconstructedDep)
-	receipt, err = waitForTransaction(tx.Hash(), l2Verif, 3*time.Duration(cfg.L1BlockTime)*time.Second)
+	receipt, err = waitForTransaction(tx.Hash(), l2Verif, 6*time.Duration(cfg.L1BlockTime)*time.Second)
 	require.NoError(t, err)
 	require.Equal(t, receipt.Status, types.ReceiptStatusSuccessful)
 
@@ -1043,7 +1043,7 @@ func TestFees(t *testing.T) {
 	_, err = waitForTransaction(tx.Hash(), l2Seq, 3*time.Duration(cfg.L1BlockTime)*time.Second)
 	require.Nil(t, err, "Waiting for L2 tx on sequencer")
 
-	receipt, err = waitForTransaction(tx.Hash(), l2Verif, 3*time.Duration(cfg.L1BlockTime)*time.Second)
+	receipt, err = waitForTransaction(tx.Hash(), l2Verif, 6*time.Duration(cfg.L1BlockTime)*time.Second)
 	require.Nil(t, err, "Waiting for L2 tx on verifier")
 	require.Equal(t, types.ReceiptStatusSuccessful, receipt.Status, "TX should have succeeded")
 

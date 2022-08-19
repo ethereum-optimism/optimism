@@ -11,6 +11,8 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 )
 
+// L1 Traversal fetches the next L1 block and exposes it through the progress API
+
 type L1BlockRefByNumberFetcher interface {
 	L1BlockRefByNumber(context.Context, uint64) (eth.L1BlockRef, error)
 }
@@ -18,17 +20,15 @@ type L1BlockRefByNumberFetcher interface {
 type L1Traversal struct {
 	log      log.Logger
 	l1Blocks L1BlockRefByNumberFetcher
-	next     StageProgress
 	progress Progress
 }
 
-var _ Stage = (*L1Traversal)(nil)
+var _ PullStage = (*L1Traversal)(nil)
 
-func NewL1Traversal(log log.Logger, l1Blocks L1BlockRefByNumberFetcher, next StageProgress) *L1Traversal {
+func NewL1Traversal(log log.Logger, l1Blocks L1BlockRefByNumberFetcher) *L1Traversal {
 	return &L1Traversal{
 		log:      log,
 		l1Blocks: l1Blocks,
-		next:     next,
 	}
 }
 
@@ -36,8 +36,9 @@ func (l1t *L1Traversal) Progress() Progress {
 	return l1t.progress
 }
 
-func (l1t *L1Traversal) Step(ctx context.Context, outer Progress) error {
-	if !l1t.progress.Closed { // close origin and do another pipeline sweep, before we try to move to the next origin
+func (l1t *L1Traversal) NextL1Block(ctx context.Context) error {
+	// close origin and do another pipeline sweep, before we try to move to the next origin
+	if !l1t.progress.Closed {
 		l1t.progress.Closed = true
 		return nil
 	}
@@ -62,8 +63,9 @@ func (l1t *L1Traversal) Step(ctx context.Context, outer Progress) error {
 	return nil
 }
 
-func (l1t *L1Traversal) ResetStep(ctx context.Context, l1Fetcher L1Fetcher) error {
-	l1t.progress = l1t.next.Progress()
+func (l1t *L1Traversal) Reset(ctx context.Context, inner Progress) error {
+	l1t.progress.Origin = inner.Origin
+	l1t.progress.Closed = true
 	l1t.log.Info("completed reset of derivation pipeline", "origin", l1t.progress.Origin)
 	return io.EOF
 }
