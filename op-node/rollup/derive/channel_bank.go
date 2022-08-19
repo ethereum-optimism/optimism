@@ -88,7 +88,7 @@ func (ib *ChannelBank) IngestData(data []byte) {
 
 	frames, err := ParseFrames(data)
 	if err != nil {
-		ib.log.Warn("malformed frame: %w", err)
+		ib.log.Warn("malformed frame", "err", err)
 		return
 	}
 
