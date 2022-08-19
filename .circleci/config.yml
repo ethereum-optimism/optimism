@@ -71,12 +71,15 @@ jobs:
         description: Docker build target
         type: string
         default: ""
-    docker:
-      - image: circleci/buildpack-deps:stretch
+      repo:
+        description: Docker repo
+        type: string
+        default: ""
+    machine:
+      image: ubuntu-2204:2022.07.1
+      resource_class: xlarge
     steps:
       - checkout
-      - setup_remote_docker:
-          version: 20.10.12
       - when:
           condition: <<parameters.target>>
           steps:
@@ -101,7 +104,7 @@ jobs:
       - run:
           name: Publish
           command: |
-            echo "$DOCKER_PASS" | docker login -u "$DOCKER_USERNAME" --password-stdin
+            echo "$DOCKER_PASS" | docker login -u "$DOCKER_USERNAME" --password-stdin "<<parameters.repo>>"
             docker push <<parameters.docker_tags>>
 
   contracts-bedrock-tests:
@@ -711,6 +714,50 @@ workflows:
       - semgrep-scan
       - go-mod-tidy
       - state-surgery-tests
+      - docker-publish:
+          name: op-node-publish-dev
+          docker_file: op-node/Dockerfile
+          docker_tags: us-central1-docker.pkg.dev/bedrock-goerli-development/images/op-node:<<pipeline.git.revision>>
+          docker_context: .
+          repo: us-central1-docker.pkg.dev
+          context:
+            - gcr
+          requires:
+            - bedrock-go-tests
+            - op-bindings-build
+      - docker-publish:
+          name: op-batcher-publish-dev
+          docker_file: op-batcher/Dockerfile
+          docker_tags: us-central1-docker.pkg.dev/bedrock-goerli-development/images/op-batcher:<<pipeline.git.revision>>
+          docker_context: .
+          repo: us-central1-docker.pkg.dev
+          context:
+            - gcr
+          requires:
+            - bedrock-go-tests
+            - op-bindings-build
+      - docker-publish:
+          name: op-proposer-publish-dev
+          docker_file: op-proposer/Dockerfile
+          docker_tags: us-central1-docker.pkg.dev/bedrock-goerli-development/images/op-proposer:<<pipeline.git.revision>>
+          docker_context: .
+          repo: us-central1-docker.pkg.dev
+          context:
+            - gcr
+          requires:
+            - bedrock-go-tests
+            - op-bindings-build
+      - docker-publish:
+          name: deployer-bedrock-publish-dev
+          docker_file: ops/docker/Dockerfile.packages
+          docker_tags: us-central1-docker.pkg.dev/bedrock-goerli-development/images/deployer-bedrock:<<pipeline.git.revision>>
+          target: deployer-bedrock
+          docker_context: .
+          repo: us-central1-docker.pkg.dev
+          context:
+            - gcr
+          requires:
+            - contracts-bedrock-tests
 
   nightly:
     triggers:
