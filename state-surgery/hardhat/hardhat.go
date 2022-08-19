@@ -96,7 +96,7 @@ func (h *Hardhat) initDeployments() error {
 				return err
 			}
 
-			deployment.Name = filepath.Base(strings.TrimRight(name, ".json"))
+			deployment.Name = filepath.Base(name[:len(name)-5])
 			h.deployments = append(h.deployments, &deployment)
 			return nil
 		})
