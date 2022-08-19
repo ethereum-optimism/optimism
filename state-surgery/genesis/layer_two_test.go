@@ -3,7 +3,6 @@ package genesis_test
 import (
 	"encoding/json"
 	"flag"
-	"fmt"
 	"io/ioutil"
 	"math/big"
 	"testing"
@@ -58,9 +57,6 @@ func TestBuildOptimismGenesis(t *testing.T) {
 		addr := *address
 
 		account, ok := gen.Alloc[addr]
-		if !ok {
-			fmt.Println("not ok", name)
-		}
 		require.Equal(t, ok, true)
 		require.Greater(t, len(account.Code), 0)
 
