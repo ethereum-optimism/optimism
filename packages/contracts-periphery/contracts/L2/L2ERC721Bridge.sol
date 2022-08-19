@@ -11,9 +11,13 @@ import { Initializable } from "@openzeppelin/contracts/proxy/utils/Initializable
 /**
  * @title L2ERC721Bridge
  * @notice The L2 ERC721 bridge is a contract which works together with the L1 ERC721 bridge to
- *         make it possible to transfer ERC721 tokens between Optimism and Ethereum. This contract
+ *         make it possible to transfer ERC721 tokens from Ethereum to Optimism. This contract
  *         acts as a minter for new tokens when it hears about deposits into the L1 ERC721 bridge.
  *         This contract also acts as a burner for tokens being withdrawn.
+ *         **WARNING**: Do not bridge an ERC721 that was originally deployed on Optimism. This
+ *         bridge ONLY supports ERC721s originally deployed on Ethereum. Users will need to
+ *         wait for the one-week challenge period to elapse before their Optimism-native NFT
+ *         can be refunded on L2.
  */
 contract L2ERC721Bridge is ERC721Bridge, Semver {
     /**

@@ -101,6 +101,10 @@ abstract contract ERC721Bridge is Initializable {
      *         the NFT before it can be bridged. Also note that this function can only be called by
      *         EOAs. Smart contract wallets should use the `bridgeERC721To` function after ensuring
      *         that the recipient address on the remote chain exists.
+     *         **WARNING**: Do not bridge an ERC721 that was originally deployed on Optimism. This
+     *         bridge only supports ERC721s originally deployed on Ethereum. Users will need to
+     *         wait for the one-week challenge period to elapse before their Optimism-native NFT
+     *         can be refunded on L2.
      *
      * @param _localToken  Address of the ERC721 on this domain.
      * @param _remoteToken Address of the ERC721 on the remote domain.
@@ -140,6 +144,10 @@ abstract contract ERC721Bridge is Initializable {
      * @notice Initiates a bridge of an NFT to some recipient's account on L2. Note that the current
      *         owner of the token on this chain must approve this contract to operate the NFT before
      *         it can be bridged.
+     *         **WARNING**: Do not bridge an ERC721 that was originally deployed on Optimism. This
+     *         bridge only supports ERC721s originally deployed on Ethereum. Users will need to
+     *         wait for the one-week challenge period to elapse before their Optimism-native NFT
+     *         can be refunded on L2.
      *
      * @param _localToken  Address of the ERC721 on this domain.
      * @param _remoteToken Address of the ERC721 on the remote domain.
