@@ -170,7 +170,7 @@ func SetImplementations(hh *hardhat.Hardhat, db vm.StateDB, storage StorageConfi
 }
 
 // AddressToCodeNamespace takes a predeploy address and computes
-// the address that
+// the implmentation address that the implementation should be deployed at
 func AddressToCodeNamespace(addr common.Address) (common.Address, error) {
 	bytesAddr := addr.Bytes()
 	if !bytes.Equal(bytesAddr[0:2], []byte{0x42, 0x00}) {
@@ -212,6 +212,7 @@ func MigrateDepositHashes(hh *hardhat.Hardhat, db vm.StateDB) error {
 	return nil
 }
 
+// getBlockFromTag will resolve a Block given an rpc block tag
 func getBlockFromTag(chain ethereum.ChainReader, tag rpc.BlockNumberOrHash) (*types.Block, error) {
 	if hash, ok := tag.Hash(); ok {
 		block, err := chain.BlockByHash(context.Background(), hash)

@@ -12,6 +12,7 @@ import (
 	"github.com/ethereum/go-ethereum/params"
 )
 
+// NewL2Genesis will create a new L2 genesis
 func NewL2Genesis(config *DeployConfig, chain ethereum.ChainReader) (*core.Genesis, error) {
 	if config.L2ChainID == nil {
 		return nil, errors.New("must define L2 ChainID")
@@ -95,6 +96,7 @@ func NewL2Genesis(config *DeployConfig, chain ethereum.ChainReader) (*core.Genes
 	}, nil
 }
 
+// NewL1Genesis will create a new L1 genesis config
 func NewL1Genesis(config *DeployConfig) (*core.Genesis, error) {
 	if config.L1ChainID == nil {
 		return nil, errors.New("must define L1 ChainID")
