@@ -86,7 +86,6 @@ func (ib *ChannelBank) IngestData(data []byte) {
 	// TODO: Why is the prune here?
 	ib.prune()
 
-	// TODO: Technically breaking change that we require all frames to be parseable in a tx.data
 	frames, err := ParseFrames(data)
 	if err != nil {
 		ib.log.Warn("malformed frame: %w", err)

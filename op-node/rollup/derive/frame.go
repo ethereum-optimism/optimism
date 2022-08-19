@@ -80,11 +80,6 @@ func (f *Frame) UnmarshalBinary(r ByteReader) error {
 	if err := binary.Read(r, binary.BigEndian, &f.ID.Time); err != nil {
 		return fmt.Errorf("error reading ID time: %w", err)
 	}
-	// stop reading and ignore remaining data if we encounter a zeroed ID
-	// TODO: this is probably incorrect
-	if f.ID == (ChannelID{}) {
-		return io.EOF
-	}
 
 	if err := binary.Read(r, binary.BigEndian, &f.FrameNumber); err != nil {
 		return fmt.Errorf("error reading frame number: %w", err)
@@ -122,14 +117,16 @@ func (f *Frame) UnmarshalBinary(r ByteReader) error {
 // Where there is one or more frames concatenated together.
 
 // ParseFrames parse the on chain serialization of frame(s) in
-// an L1 transaction. Currently only version 1 of the serialization
+// an L1 transaction. Currently only version 0 of the serialization
 // format is supported.
+// All frames must be parsed without error and there must not be
+// any left over data and there must be at least one frame.
 func ParseFrames(data []byte) ([]Frame, error) {
 	if len(data) == 0 {
 		return nil, errors.New("data array must not be empty")
 	}
 	if data[0] != DerivationVersion0 {
-		return nil, errors.New("invalid derivation format byte")
+		return nil, fmt.Errorf("invalid derivation format byte: got %d", data[0])
 	}
 	buf := bytes.NewBuffer(data[1:])
 	var frames []Frame
@@ -141,7 +138,7 @@ func ParseFrames(data []byte) ([]Frame, error) {
 		frames = append(frames, f)
 	}
 	if buf.Len() != 0 {
-		return nil, errors.New("did not fully consume data")
+		return nil, fmt.Errorf("did not fully consume data: have %d frames and %d bytes left", len(frames), buf.Len())
 	}
 	if len(frames) == 0 {
 		return nil, errors.New("was not able to find any frames")
