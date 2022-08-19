@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math/big"
 	"reflect"
+	"regexp"
 	"strings"
 
 	"github.com/ethereum-optimism/optimism/state-surgery/solc"
@@ -24,7 +25,6 @@ func EncodeStorageKeyValue(value any, entry solc.StorageLayoutEntry, storageType
 	encoded := make([]*EncodedStorage, 0)
 
 	key := encodeSlotKey(entry)
-
 	switch storageType.Encoding {
 	case "inplace":
 		switch label {
@@ -90,11 +90,11 @@ func EncodeStorageKeyValue(value any, entry solc.StorageLayoutEntry, storageType
 
 		}
 
-		keyEncoder, err := getElementEncoder(storageType.Key)
+		keyEncoder, err := getElementEncoder(storageType, "key")
 		if err != nil {
 			return nil, err
 		}
-		valueEncoder, err := getElementEncoder(storageType.Value)
+		valueEncoder, err := getElementEncoder(storageType, "value")
 		if err != nil {
 			return nil, err
 		}
@@ -114,6 +114,7 @@ func EncodeStorageKeyValue(value any, entry solc.StorageLayoutEntry, storageType
 
 			hash := crypto.Keccak256(preimage[:])
 			key := common.BytesToHash(hash)
+
 			val, err := valueEncoder(rawVal, 0)
 			if err != nil {
 				return nil, err
@@ -138,19 +139,53 @@ func encodeSlotKey(entry solc.StorageLayoutEntry) common.Hash {
 type ElementEncoder func(value any, offset uint) (common.Hash, error)
 
 // getElementEncoder will return the correct ElementEncoder
-// given a solidity type.
-func getElementEncoder(kind string) (ElementEncoder, error) {
-	switch kind {
+// given a solidity type. The kind refers to the key or the value
+// when getting an encoder for a mapping. This is only useful
+// if the key itself is not populated for some reason.
+func getElementEncoder(storageType solc.StorageLayoutType, kind string) (ElementEncoder, error) {
+	var target string
+	if kind == "key" {
+		target = storageType.Key
+	} else if kind == "value" {
+		target = storageType.Value
+	} else {
+		return nil, fmt.Errorf("unknown storage %s", kind)
+	}
+
+	switch target {
 	case "t_address":
 		return EncodeAddressValue, nil
 	case "t_bool":
 		return EncodeBoolValue, nil
 	default:
-		if strings.HasPrefix(kind, "t_uint") {
+		if strings.HasPrefix(target, "t_uint") {
 			return EncodeUintValue, nil
 		}
 	}
-	return nil, fmt.Errorf("unsupported type: %s", kind)
+
+	// Special case fallback if the target is empty, pull it
+	// from the label. This requires knowledge of whether we want
+	// the key or the value in the label.
+	if target == "" {
+		r := regexp.MustCompile(`mapping\((?P<key>[[:alnum:]]*) => (?P<value>[[:alnum:]]*)\)`)
+		result := r.FindStringSubmatch(storageType.Label)
+
+		for i, key := range r.SubexpNames() {
+			if kind == key {
+				res := "t_" + result[i]
+				layout := solc.StorageLayoutType{}
+				if kind == "key" {
+					layout.Key = res
+				} else if kind == "value" {
+					layout.Value = res
+				} else {
+					return nil, fmt.Errorf("unknown storage %s", kind)
+				}
+				return getElementEncoder(layout, kind)
+			}
+		}
+	}
+	return nil, fmt.Errorf("unsupported type: %s", target)
 }
 
 // EncodeBytes32Value will encode a bytes32 value. The offset
