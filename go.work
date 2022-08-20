@@ -15,7 +15,7 @@ use (
 	./op-proposer
 	./op-service
 	./proxyd
-	./state-surgery
+	./op-chain-ops
 	./teleportr
 )
 

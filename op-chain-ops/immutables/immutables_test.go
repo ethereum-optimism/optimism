@@ -3,7 +3,7 @@ package immutables_test
 import (
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/state-surgery/immutables"
+	"github.com/ethereum-optimism/optimism/op-chain-ops/immutables"
 	"github.com/stretchr/testify/require"
 )
 
