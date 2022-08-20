@@ -4,7 +4,7 @@ import (
 	"os"
 	"strings"
 
-	surgery "github.com/ethereum-optimism/optimism/state-surgery"
+	ops "github.com/ethereum-optimism/optimism/op-chain-ops"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/mattn/go-isatty"
 	"github.com/urfave/cli/v2"
@@ -98,7 +98,7 @@ func main() {
 func dumpAddressesAction(cliCtx *cli.Context) error {
 	dataDir := cliCtx.String("data-dir")
 	outFile := cliCtx.String("out-file")
-	return surgery.DumpAddresses(dataDir, outFile)
+	return ops.DumpAddresses(dataDir, outFile)
 }
 
 func migrateAction(cliCtx *cli.Context) error {
@@ -111,10 +111,10 @@ func migrateAction(cliCtx *cli.Context) error {
 	levelDBCacheSize := cliCtx.Int("leveldb-cache-size-mb")
 	levelDBHandles := cliCtx.Int("leveldb-file-handles")
 
-	genesis, err := surgery.ReadGenesisFromFile(genesisPath)
+	genesis, err := ops.ReadGenesisFromFile(genesisPath)
 	if err != nil {
 		return err
 	}
 
-	return surgery.Migrate(dataDir, outDir, genesis, addressLists, allowanceLists, chainID, levelDBCacheSize, levelDBHandles)
+	return ops.Migrate(dataDir, outDir, genesis, addressLists, allowanceLists, chainID, levelDBCacheSize, levelDBHandles)
 }

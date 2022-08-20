@@ -11,8 +11,8 @@ import (
 	"github.com/ethereum/go-ethereum/rpc"
 
 	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
-	"github.com/ethereum-optimism/optimism/state-surgery/hardhat"
-	"github.com/ethereum-optimism/optimism/state-surgery/state"
+	"github.com/ethereum-optimism/optimism/op-chain-ops/hardhat"
+	"github.com/ethereum-optimism/optimism/op-chain-ops/state"
 )
 
 // DeployConfig represents the deployment configuration for Optimism
