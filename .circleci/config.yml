@@ -1,5 +1,8 @@
 version: 2.1
 
+orbs:
+  go: circleci/go@1.5.0
+
 jobs:
   yarn-monorepo:
     docker:
@@ -596,6 +599,40 @@ jobs:
           name: "Go mod tidy"
           command: make mod-tidy && git diff --exit-code
 
+  hive-test:
+    parameters:
+      version:
+        type: string
+        default: develop
+      sim:
+        type: string
+    machine:
+      image: ubuntu-2004:202201-02
+      docker_layer_caching: true
+      resource_class: xlarge
+    steps:
+      - run:
+          command: git clone https://github.com/ethereum-optimism/hive.git .
+      - go/load-cache
+      - go/mod-download
+      - go/save-cache
+      - run: {command: "go build ."}
+      - run:
+          command: |
+            ./hive \
+            -sim=<<parameters.sim>> \
+            -sim.loglevel=5 \
+            -docker.pull=true \
+            -client=go-ethereum,op-geth_optimism-history,op-proposer_<<parameters.version>>,op-batcher_<<parameters.version>>,op-node_<<parameters.version>>,op-contracts_<<parameters.version>> |& tee /tmp/hive.log
+      - run:
+          command: |
+            tar -cvf /tmp/workspace.tgz -C /home/circleci/project /home/circleci/project/workspace
+          name: "Archive workspace"
+      - store_artifacts:
+          path: /tmp/workspace.tgz
+          destination: hive-workspace.tgz
+      - run:
+          command: "! grep 'pass.*=false' /tmp/hive.log"
 
 workflows:
   main:
@@ -764,6 +801,25 @@ workflows:
             - gcr
           requires:
             - contracts-bedrock-tests
+      - hive-test:
+          name: hive-test-rpc
+          version: <<pipeline.git.revision>>
+          sim: optimism/rpc
+          requires:
+            - op-node-publish-dev
+            - op-batcher-publish-dev
+            - op-proposer-publish-dev
+            - deployer-bedrock-publish-dev
+      - hive-test:
+          name: hive-test-p2p
+          version: <<pipeline.git.revision>>
+          sim: optimism/p2p
+          requires:
+            - op-node-publish-dev
+            - op-batcher-publish-dev
+            - op-proposer-publish-dev
+            - deployer-bedrock-publish-dev
+
 
   nightly:
     triggers:
