@@ -24,7 +24,7 @@ type EncodedStorage struct {
 // EncodedStorage will encode a storage layout
 func EncodeStorage(entry solc.StorageLayoutEntry, value any, storageType solc.StorageLayoutType) ([]*EncodedStorage, error) {
 	if storageType.NumberOfBytes > 32 {
-		return nil, fmt.Errorf("%s is larger than 32 bytes", entry.Label)
+		return nil, fmt.Errorf("%s is larger than 32 bytes", storageType.Encoding)
 	}
 
 	encoded, err := EncodeStorageKeyValue(value, entry, storageType)
@@ -60,7 +60,7 @@ func ComputeStorageSlots(layout *solc.StorageLayout, values StorageValues) ([]*E
 
 		storage, err := EncodeStorage(target, value, storageType)
 		if err != nil {
-			return nil, fmt.Errorf("cannot encode storage: %w", err)
+			return nil, fmt.Errorf("cannot encode storage for %s: %w", target.Label, err)
 		}
 
 		encodedStorage = append(encodedStorage, storage...)

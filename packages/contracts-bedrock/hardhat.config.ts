@@ -314,7 +314,7 @@ const config: HardhatUserConfig = {
     },
     gasPriceOracleScalar: {
       type: 'number',
-      default: 1000_000,
+      default: 1_000_000,
     },
     gasPriceOracleDecimals: {
       type: 'number',
