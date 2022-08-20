@@ -217,10 +217,7 @@ contract DrippieV2 is AssetReceiver, VM {
         );
 
         bytes[] memory stateC = drips[_name].stateC;
-        _execute(
-            state.config.checks,
-            stateC
-        );
+        _execute(state.config.checks, stateC);
         drips[_name].stateC = stateC;
 
         if (msg.sender == address(this)) {
@@ -257,10 +254,7 @@ contract DrippieV2 is AssetReceiver, VM {
         state.last = block.timestamp;
 
         bytes[] memory stateA = drips[_name].stateA;
-        _execute(
-            state.config.actions,
-            stateA
-        );
+        _execute(state.config.actions, stateA);
         drips[_name].stateA = stateA;
 
         state.count++;

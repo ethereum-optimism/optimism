@@ -4,7 +4,6 @@ pragma solidity ^0.8.11;
 
 import "./CommandBuilder.sol";
 
-
 abstract contract VM {
     using CommandBuilder for bytes[];
 
@@ -16,22 +15,20 @@ abstract contract VM {
     uint256 constant FLAG_EXTENDED_COMMAND = 0x80;
     uint256 constant FLAG_TUPLE_RETURN = 0x40;
 
-    uint256 constant SHORT_COMMAND_FILL = 0x000000000000FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF;
+    uint256 constant SHORT_COMMAND_FILL =
+        0x000000000000FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF;
 
     address immutable self;
 
-    error ExecutionFailed(
-        uint256 command_index,
-        address target,
-        string message
-    );
+    error ExecutionFailed(uint256 command_index, address target, string message);
 
     constructor() {
         self = address(this);
     }
 
     function _execute(bytes32[] memory commands, bytes[] memory state)
-      internal returns (bytes[] memory)
+        internal
+        returns (bytes[] memory)
     {
         bytes32 command;
         uint256 flags;
@@ -41,7 +38,7 @@ abstract contract VM {
         bytes memory outdata;
 
         uint256 commandsLength = commands.length;
-        for (uint256 i; i < commandsLength; i=_uncheckedIncrement(i)) {
+        for (uint256 i; i < commandsLength; i = _uncheckedIncrement(i)) {
             command = commands[i];
             flags = uint256(uint8(bytes1(command << 32)));
 
@@ -84,9 +81,7 @@ abstract contract VM {
                 assembly {
                     calleth := mload(add(v, 0x20))
                 }
-                (success, outdata) = address(uint160(uint256(command))).call{ // target
-                    value: calleth
-                }(
+                (success, outdata) = address(uint160(uint256(command))).call{ value: calleth }( // target
                     // inputs
                     state.buildInputs(
                         //selector
@@ -120,9 +115,10 @@ abstract contract VM {
         return state;
     }
 
-    function _uncheckedIncrement(uint256 i) private pure returns(uint256) {
-        unchecked {++i;}
+    function _uncheckedIncrement(uint256 i) private pure returns (uint256) {
+        unchecked {
+            ++i;
+        }
         return i;
     }
 }
-

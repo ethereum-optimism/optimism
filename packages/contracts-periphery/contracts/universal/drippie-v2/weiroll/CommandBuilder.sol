@@ -3,7 +3,6 @@
 pragma solidity ^0.8.11;
 
 library CommandBuilder {
-
     uint256 constant IDX_VARIABLE_LENGTH = 0x80;
     uint256 constant IDX_VALUE_MASK = 0x7f;
     uint256 constant IDX_END_OF_ARGS = 0xff;
@@ -21,7 +20,7 @@ library CommandBuilder {
         uint256 idx;
 
         // Determine the length of the encoded data
-        for (uint256 i; i < 32;) {
+        for (uint256 i; i < 32; ) {
             idx = uint8(indices[i]);
             if (idx == IDX_END_OF_ARGS) break;
 
@@ -47,8 +46,12 @@ library CommandBuilder {
                 );
                 count += 32;
             }
-            unchecked{free += 32;}
-            unchecked{++i;}
+            unchecked {
+                free += 32;
+            }
+            unchecked {
+                ++i;
+            }
         }
 
         // Encode it
@@ -57,7 +60,7 @@ library CommandBuilder {
             mstore(add(ret, 32), selector)
         }
         count = 0;
-        for (uint256 i; i < 32;) {
+        for (uint256 i; i < 32; ) {
             idx = uint8(indices[i]);
             if (idx == IDX_END_OF_ARGS) break;
 
@@ -75,13 +78,7 @@ library CommandBuilder {
                     assembly {
                         mstore(add(add(ret, 36), count), free)
                     }
-                    memcpy(
-                        state[idx & IDX_VALUE_MASK],
-                        0,
-                        ret,
-                        free + 4,
-                        arglen
-                    );
+                    memcpy(state[idx & IDX_VALUE_MASK], 0, ret, free + 4, arglen);
                     free += arglen;
                 }
             } else {
@@ -91,8 +88,12 @@ library CommandBuilder {
                     mstore(add(add(ret, 36), count), mload(add(statevar, 32)))
                 }
             }
-            unchecked{count += 32;}
-            unchecked{++i;}
+            unchecked {
+                count += 32;
+            }
+            unchecked {
+                ++i;
+            }
         }
     }
 
@@ -113,27 +114,18 @@ library CommandBuilder {
                 assembly {
                     argptr := mload(add(output, 32))
                 }
-                require(
-                    argptr == 32,
-                    "Only one return value permitted (variable)"
-                );
+                require(argptr == 32, "Only one return value permitted (variable)");
 
                 assembly {
                     // Overwrite the first word of the return data with the length - 32
                     mstore(add(output, 32), sub(mload(output), 32))
                     // Insert a pointer to the return data, starting at the second word, into state
-                    mstore(
-                        add(add(state, 32), mul(and(idx, IDX_VALUE_MASK), 32)),
-                        add(output, 32)
-                    )
+                    mstore(add(add(state, 32), mul(and(idx, IDX_VALUE_MASK), 32)), add(output, 32))
                 }
             }
         } else {
             // Single word
-            require(
-                output.length == 32,
-                "Only one return value permitted (static)"
-            );
+            require(output.length == 32, "Only one return value permitted (static)");
 
             state[idx & IDX_VALUE_MASK] = output;
         }
