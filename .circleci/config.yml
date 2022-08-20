@@ -18,7 +18,7 @@ jobs:
           name: Check if we should run
           command: |
             shopt -s inherit_errexit
-            CHANGED=$(check-changed "(op-bindings|packages/)")
+            CHANGED=$(check-changed "(op-bindings|op-chain-ops|packages/)")
             if [[ "$CHANGED" = "FALSE" ]]; then
               circleci step halt
             fi
@@ -419,7 +419,7 @@ jobs:
                 command: make <<parameters.binary_name>>
                 working_directory: <<parameters.working_directory>>
 
-  state-surgery-tests:
+  op-chain-ops-tests:
     docker:
       - image: ethereumoptimism/ci-builder:latest
     steps:
@@ -430,15 +430,15 @@ jobs:
       - run:
           name: Check if we should run
           command: |
-            CHANGED=$(bash ./ops/docker/ci-builder/check-changed.sh "state-surgery")
+            CHANGED=$(bash ./ops/docker/ci-builder/check-changed.sh "op-chain-ops")
             if [[ "$CHANGED" = "FALSE" ]]; then
               circleci step halt
             fi
       - run:
           name: Test
           command: |
-            gotestsum --junitfile /test-results/state-surgery.xml -- -coverpkg=github.com/ethereum-optimism/optimism/... -coverprofile=coverage.out -covermode=atomic ./...
-          working_directory: state-surgery
+            gotestsum --junitfile /test-results/op-chain-ops.xml -- -coverpkg=github.com/ethereum-optimism/optimism/... -coverprofile=coverage.out -covermode=atomic ./...
+          working_directory: op-chain-ops
 
   geth-tests:
     docker:
@@ -749,8 +749,8 @@ workflows:
           binary_name: bss-core
           working_directory: bss-core
           build: false
-      - state-surgery-tests:
-          name: state-surgery-tests
+      - op-chain-ops-tests:
+          name: op-chain-ops-tests
           requires:
             - yarn-monorepo
       - geth-tests

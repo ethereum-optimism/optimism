@@ -1,8 +1,8 @@
 package genesis
 
 import (
-	"github.com/ethereum-optimism/optimism/state-surgery/hardhat"
-	"github.com/ethereum-optimism/optimism/state-surgery/state"
+	"github.com/ethereum-optimism/optimism/op-chain-ops/hardhat"
+	"github.com/ethereum-optimism/optimism/op-chain-ops/state"
 
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/core"

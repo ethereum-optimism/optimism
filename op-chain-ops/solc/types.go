@@ -3,7 +3,7 @@ package solc
 import (
 	"encoding/json"
 
-	"github.com/ethereum-optimism/optimism/l2geth/accounts/abi"
+	"github.com/ethereum/go-ethereum/accounts/abi"
 )
 
 type CompilerInput struct {

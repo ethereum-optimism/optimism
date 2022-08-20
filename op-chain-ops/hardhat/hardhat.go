@@ -9,7 +9,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/ethereum-optimism/optimism/state-surgery/solc"
+	"github.com/ethereum-optimism/optimism/op-chain-ops/solc"
 )
 
 // `Hardhat` encapsulates all of the functionality required to interact
