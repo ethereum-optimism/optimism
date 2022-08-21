@@ -239,6 +239,7 @@ export class L2IngestionService extends BaseService<L2IngestionServiceOptions> {
     startBlockNumber: number,
     endBlockNumber: number
   ): Promise<void> {
+    // TODO - update here
     if (startBlockNumber > endBlockNumber) {
       this.logger.warn(
         'Cannot query with start block number larger than end block number',
