@@ -211,7 +211,7 @@ contract Drippie is AssetReceiver {
      *
      * @param _name Drip to check.
      *
-     * @return True if the drip is executable, false otherwise.
+     * @return True if the drip is executable, reverts otherwise.
      */
     function executable(string calldata _name) public view returns (bool) {
         DripState storage state = drips[_name];
@@ -255,11 +255,9 @@ contract Drippie is AssetReceiver {
     function drip(string calldata _name) external {
         DripState storage state = drips[_name];
 
-        // Make sure the drip can be executed.
-        require(
-            executable(_name) == true,
-            "Drippie: drip cannot be executed at this time, try again later"
-        );
+        // Make sure the drip can be executed. Since executable reverts if the drip is not ready to
+        // be executed, we don't need to do an assertion that the returned value is true.
+        executable(_name);
 
         // Update the last execution time for this drip before the call. Note that it's entirely
         // possible for a drip to be executed multiple times per block or even multiple times
