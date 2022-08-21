@@ -45,6 +45,7 @@ contract Drippie is AssetReceiver {
      * @notice Represents the configuration for a given drip.
      */
     struct DripConfig {
+        bool reentrant;
         uint256 interval;
         IDripCheck dripcheck;
         bytes checkparams;
@@ -132,9 +133,25 @@ contract Drippie is AssetReceiver {
             "Drippie: drip with that name already exists"
         );
 
+        // Validate the drip interval, only allowing an interval of zero if the drip has explicitly
+        // been marked as reentrant. Prevents client-side bugs making a drip infinitely executable
+        // within the same block (of course, restricted by gas limits).
+        if (_config.reentrant) {
+            require(
+                _config.interval == 0,
+                "Drippie: if allowing reentrant drip, must set interval to zero"
+            );
+        } else {
+            require(
+                _config.interval > 0,
+                "Drippie: interval must be greater than zero if drip is not reentrant"
+            );
+        }
+
         // We initialize this way because Solidity won't let us copy arrays into storage yet.
         DripState storage state = drips[_name];
         state.status = DripStatus.PAUSED;
+        state.config.reentrant = _config.reentrant;
         state.config.interval = _config.interval;
         state.config.dripcheck = _config.dripcheck;
         state.config.checkparams = _config.checkparams;
