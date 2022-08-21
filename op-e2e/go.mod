@@ -3,11 +3,11 @@ module github.com/ethereum-optimism/optimism/op-e2e
 go 1.18
 
 require (
-	github.com/ethereum-optimism/optimism/op-batcher v0.4.0
-	github.com/ethereum-optimism/optimism/op-bindings v0.4.0
-	github.com/ethereum-optimism/optimism/op-node v0.4.0
-	github.com/ethereum-optimism/optimism/op-proposer v0.4.0
-	github.com/ethereum-optimism/optimism/op-service v0.4.0
+	github.com/ethereum-optimism/optimism/op-batcher v0.5.0
+	github.com/ethereum-optimism/optimism/op-bindings v0.5.0
+	github.com/ethereum-optimism/optimism/op-node v0.5.0
+	github.com/ethereum-optimism/optimism/op-proposer v0.5.0
+	github.com/ethereum-optimism/optimism/op-service v0.5.0
 	github.com/ethereum/go-ethereum v1.10.21
 	github.com/libp2p/go-libp2p v0.21.0
 	github.com/libp2p/go-libp2p-core v0.19.1
