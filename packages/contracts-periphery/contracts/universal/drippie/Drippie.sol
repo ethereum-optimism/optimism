@@ -21,14 +21,14 @@ contract Drippie is AssetReceiver {
      * @notice Enum representing different status options for a given drip.
      *
      * @custom:value NONE     Drip does not exist.
-     * @custom:value ACTIVE   Drip is active and can be executed.
      * @custom:value PAUSED   Drip is paused and cannot be executed until reactivated.
+     * @custom:value ACTIVE   Drip is active and can be executed.
      * @custom:value ARCHIVED Drip is archived and can no longer be executed or reactivated.
      */
     enum DripStatus {
         NONE,
-        ACTIVE,
         PAUSED,
+        ACTIVE,
         ARCHIVED
     }
 
