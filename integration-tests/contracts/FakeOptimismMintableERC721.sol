@@ -15,8 +15,8 @@ contract FakeOptimismMintableERC721 is ERC721 {
         bridge = _bridge;
     }
 
-    function mint(address to, uint256 tokenId) public {
-        _mint(to, tokenId);
+    function safeMint(address to, uint256 tokenId) public {
+        _safeMint(to, tokenId);
     }
 
     // Burn will be called by the L2 Bridge to burn the NFT we are bridging to L1

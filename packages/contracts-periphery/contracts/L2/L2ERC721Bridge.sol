@@ -287,8 +287,7 @@ contract L2ERC721Bridge is ERC721Bridge, Semver, OwnableUpgradeable {
 
         // When a deposit is finalized, we give the NFT with the same tokenId to the account
         // on L2.
-        // slither-disable-next-line reentrancy-events
-        IOptimismMintableERC721(_localToken).mint(_to, _tokenId);
+        IOptimismMintableERC721(_localToken).safeMint(_to, _tokenId);
     }
 
     /**

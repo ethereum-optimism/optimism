@@ -85,8 +85,8 @@ contract OptimismMintableERC721 is ERC721Enumerable, IOptimismMintableERC721 {
     /**
      * @inheritdoc IOptimismMintableERC721
      */
-    function mint(address _to, uint256 _tokenId) external virtual onlyBridge {
-        _mint(_to, _tokenId);
+    function safeMint(address _to, uint256 _tokenId) external virtual onlyBridge {
+        _safeMint(_to, _tokenId);
 
         emit Mint(_to, _tokenId);
     }

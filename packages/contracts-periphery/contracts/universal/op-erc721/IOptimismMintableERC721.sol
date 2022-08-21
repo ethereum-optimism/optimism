@@ -43,12 +43,13 @@ interface IOptimismMintableERC721 is IERC721Enumerable {
     function bridge() external returns (address);
 
     /**
-     * @notice Mints some token ID for a user.
+     * @notice Mints some token ID for a user, checking first that contract recipients
+     *         are aware of the ERC721 protocol to prevent tokens from being forever locked.
      *
      * @param _to      Address of the user to mint the token for.
      * @param _tokenId Token ID to mint.
      */
-    function mint(address _to, uint256 _tokenId) external;
+    function safeMint(address _to, uint256 _tokenId) external;
 
     /**
      * @notice Burns a token ID from a user.

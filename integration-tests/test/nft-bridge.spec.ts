@@ -281,7 +281,10 @@ describe('ERC721 Bridge', () => {
       await FakeOptimismMintableERC721.deployed()
 
       // Use the fake contract to mint Alice an NFT with the same token ID
-      const tx = await FakeOptimismMintableERC721.mint(aliceAddress, TOKEN_ID)
+      const tx = await FakeOptimismMintableERC721.safeMint(
+        aliceAddress,
+        TOKEN_ID
+      )
       await tx.wait()
 
       // Check that Alice owns the NFT from the fake ERC721 contract
@@ -324,7 +327,7 @@ describe('ERC721 Bridge', () => {
       await L2NativeNFT.deployed()
 
       // Alice mints an NFT from the L2 native ERC721 contract
-      const tx = await L2NativeNFT.mint(aliceAddress, TOKEN_ID)
+      const tx = await L2NativeNFT.safeMint(aliceAddress, TOKEN_ID)
       await tx.wait()
 
       // Check that Alice owns the L2 NFT
