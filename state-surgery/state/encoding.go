@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math/big"
 	"reflect"
+	"regexp"
 	"strings"
 
 	"github.com/ethereum-optimism/optimism/state-surgery/solc"
@@ -24,20 +25,19 @@ func EncodeStorageKeyValue(value any, entry solc.StorageLayoutEntry, storageType
 	encoded := make([]*EncodedStorage, 0)
 
 	key := encodeSlotKey(entry)
-
 	switch storageType.Encoding {
 	case "inplace":
 		switch label {
 		case "bool":
 			val, err := EncodeBoolValue(value, entry.Offset)
 			if err != nil {
-				return nil, err
+				return nil, fmt.Errorf("cannot encode %s: %w", storageType.Encoding, err)
 			}
 			encoded = append(encoded, &EncodedStorage{key, val})
 		case "address":
 			val, err := EncodeAddressValue(value, entry.Offset)
 			if err != nil {
-				return nil, err
+				return nil, fmt.Errorf("cannot encode %s: %w", storageType.Encoding, err)
 			}
 			encoded = append(encoded, &EncodedStorage{key, val})
 		case "bytes":
@@ -45,7 +45,7 @@ func EncodeStorageKeyValue(value any, entry solc.StorageLayoutEntry, storageType
 		case "bytes32":
 			val, err := EncodeBytes32Value(value, entry.Offset)
 			if err != nil {
-				return nil, err
+				return nil, fmt.Errorf("cannot encode %s: %w", storageType.Encoding, err)
 			}
 			encoded = append(encoded, &EncodedStorage{key, val})
 		default:
@@ -53,18 +53,18 @@ func EncodeStorageKeyValue(value any, entry solc.StorageLayoutEntry, storageType
 			case strings.HasPrefix(label, "contract"):
 				val, err := EncodeAddressValue(value, entry.Offset)
 				if err != nil {
-					return nil, err
+					return nil, fmt.Errorf("cannot encode %s: %w", storageType.Encoding, err)
 				}
 				encoded = append(encoded, &EncodedStorage{key, val})
 			case strings.HasPrefix(label, "uint"):
 				val, err := EncodeUintValue(value, entry.Offset)
 				if err != nil {
-					return nil, err
+					return nil, fmt.Errorf("cannot encode %s: %w", storageType.Encoding, err)
 				}
 				encoded = append(encoded, &EncodedStorage{key, val})
 			default:
 				// structs are not supported
-				return nil, fmt.Errorf("%w: %s", errUnimplemented, label)
+				return nil, fmt.Errorf("cannot encode %s: %w", storageType.Encoding, errUnimplemented)
 			}
 		}
 	case "dynamic_array":
@@ -73,7 +73,7 @@ func EncodeStorageKeyValue(value any, entry solc.StorageLayoutEntry, storageType
 		case "string":
 			val, err := EncodeStringValue(value, entry.Offset)
 			if err != nil {
-				return nil, err
+				return nil, fmt.Errorf("cannot encode %s: %w", storageType.Encoding, errUnimplemented)
 			}
 			encoded = append(encoded, &EncodedStorage{key, val})
 		default:
@@ -86,15 +86,14 @@ func EncodeStorageKeyValue(value any, entry solc.StorageLayoutEntry, storageType
 
 		values, ok := value.(map[any]any)
 		if !ok {
-			return nil, fmt.Errorf("cannot parse mapping")
-
+			return nil, fmt.Errorf("mapping must be map[any]any")
 		}
 
-		keyEncoder, err := getElementEncoder(storageType.Key)
+		keyEncoder, err := getElementEncoder(storageType, "key")
 		if err != nil {
 			return nil, err
 		}
-		valueEncoder, err := getElementEncoder(storageType.Value)
+		valueEncoder, err := getElementEncoder(storageType, "value")
 		if err != nil {
 			return nil, err
 		}
@@ -114,6 +113,7 @@ func EncodeStorageKeyValue(value any, entry solc.StorageLayoutEntry, storageType
 
 			hash := crypto.Keccak256(preimage[:])
 			key := common.BytesToHash(hash)
+
 			val, err := valueEncoder(rawVal, 0)
 			if err != nil {
 				return nil, err
@@ -121,7 +121,7 @@ func EncodeStorageKeyValue(value any, entry solc.StorageLayoutEntry, storageType
 			encoded = append(encoded, &EncodedStorage{key, val})
 		}
 	default:
-		return nil, fmt.Errorf("unknown encoding: %s", storageType.Encoding)
+		return nil, fmt.Errorf("unknown encoding %s: %w", storageType.Encoding, errUnimplemented)
 	}
 	return encoded, nil
 }
@@ -138,19 +138,53 @@ func encodeSlotKey(entry solc.StorageLayoutEntry) common.Hash {
 type ElementEncoder func(value any, offset uint) (common.Hash, error)
 
 // getElementEncoder will return the correct ElementEncoder
-// given a solidity type.
-func getElementEncoder(kind string) (ElementEncoder, error) {
-	switch kind {
+// given a solidity type. The kind refers to the key or the value
+// when getting an encoder for a mapping. This is only useful
+// if the key itself is not populated for some reason.
+func getElementEncoder(storageType solc.StorageLayoutType, kind string) (ElementEncoder, error) {
+	var target string
+	if kind == "key" {
+		target = storageType.Key
+	} else if kind == "value" {
+		target = storageType.Value
+	} else {
+		return nil, fmt.Errorf("unknown storage %s", kind)
+	}
+
+	switch target {
 	case "t_address":
 		return EncodeAddressValue, nil
 	case "t_bool":
 		return EncodeBoolValue, nil
 	default:
-		if strings.HasPrefix(kind, "t_uint") {
+		if strings.HasPrefix(target, "t_uint") {
 			return EncodeUintValue, nil
 		}
 	}
-	return nil, fmt.Errorf("unsupported type: %s", kind)
+
+	// Special case fallback if the target is empty, pull it
+	// from the label. This requires knowledge of whether we want
+	// the key or the value in the label.
+	if target == "" {
+		r := regexp.MustCompile(`mapping\((?P<key>[[:alnum:]]*) => (?P<value>[[:alnum:]]*)\)`)
+		result := r.FindStringSubmatch(storageType.Label)
+
+		for i, key := range r.SubexpNames() {
+			if kind == key {
+				res := "t_" + result[i]
+				layout := solc.StorageLayoutType{}
+				if kind == "key" {
+					layout.Key = res
+				} else if kind == "value" {
+					layout.Value = res
+				} else {
+					return nil, fmt.Errorf("unknown storage %s", kind)
+				}
+				return getElementEncoder(layout, kind)
+			}
+		}
+	}
+	return nil, fmt.Errorf("unsupported type: %s", target)
 }
 
 // EncodeBytes32Value will encode a bytes32 value. The offset
@@ -233,7 +267,7 @@ func encodeStringValue(value any) (common.Hash, error) {
 func EncodeBoolValue(value any, offset uint) (common.Hash, error) {
 	val, err := encodeBoolValue(value)
 	if err != nil {
-		return common.Hash{}, err
+		return common.Hash{}, fmt.Errorf("invalid bool: %w", err)
 	}
 	return handleOffset(val, offset), nil
 }
@@ -273,7 +307,7 @@ func encodeBoolValue(value any) (common.Hash, error) {
 func EncodeAddressValue(value any, offset uint) (common.Hash, error) {
 	val, err := encodeAddressValue(value)
 	if err != nil {
-		return common.Hash{}, err
+		return common.Hash{}, fmt.Errorf("invalid address: %w", err)
 	}
 	return handleOffset(val, offset), nil
 }
@@ -281,14 +315,27 @@ func EncodeAddressValue(value any, offset uint) (common.Hash, error) {
 // encodeAddressValue will encode an address value into
 // a type suitable for solidity storage.
 func encodeAddressValue(value any) (common.Hash, error) {
-	name := reflect.TypeOf(value).Name()
+	typ := reflect.TypeOf(value)
+	if typ.Kind() == reflect.Ptr {
+		typ = typ.Elem()
+	}
+
+	name := typ.Name()
 	switch name {
 	case "Address":
-		address, ok := value.(common.Address)
-		if !ok {
-			return common.Hash{}, errInvalidType
+		if reflect.TypeOf(value).Kind() == reflect.Ptr {
+			address, ok := value.(*common.Address)
+			if !ok {
+				return common.Hash{}, errInvalidType
+			}
+			return address.Hash(), nil
+		} else {
+			address, ok := value.(common.Address)
+			if !ok {
+				return common.Hash{}, errInvalidType
+			}
+			return address.Hash(), nil
 		}
-		return address.Hash(), nil
 	case "string":
 		address, ok := value.(string)
 		if !ok {
@@ -304,7 +351,7 @@ func encodeAddressValue(value any) (common.Hash, error) {
 func EncodeUintValue(value any, offset uint) (common.Hash, error) {
 	val, err := encodeUintValue(value)
 	if err != nil {
-		return common.Hash{}, err
+		return common.Hash{}, fmt.Errorf("invalid uint: %w", err)
 	}
 	return handleOffset(val, offset), nil
 }
@@ -382,6 +429,16 @@ func encodeUintValue(value any) (common.Hash, error) {
 			}
 		}
 		return common.BigToHash(number), nil
+	case "bool":
+		val, ok := value.(bool)
+		if !ok {
+			return common.Hash{}, errInvalidType
+		}
+		if val {
+			return common.Hash{31: 0x01}, nil
+		} else {
+			return common.Hash{}, nil
+		}
 	case "Int":
 		val, ok := value.(*big.Int)
 		if !ok {

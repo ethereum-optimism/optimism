@@ -53,6 +53,11 @@ func New(network string, artifacts, deployments []string) (*Hardhat, error) {
 
 // init is called in the constructor and will cache required files to disk.
 func (h *Hardhat) init() error {
+	h.amu.Lock()
+	defer h.amu.Unlock()
+	h.dmu.Lock()
+	defer h.dmu.Unlock()
+
 	if err := h.initArtifacts(); err != nil {
 		return err
 	}
@@ -91,7 +96,7 @@ func (h *Hardhat) initDeployments() error {
 				return err
 			}
 
-			deployment.Name = filepath.Base(strings.TrimRight(name, ".json"))
+			deployment.Name = filepath.Base(name[:len(name)-5])
 			h.deployments = append(h.deployments, &deployment)
 			return nil
 		})
@@ -130,6 +135,7 @@ func (h *Hardhat) initArtifacts() error {
 			if err := json.Unmarshal(file, &artifact); err != nil {
 				return err
 			}
+
 			h.artifacts = append(h.artifacts, &artifact)
 			return nil
 		})

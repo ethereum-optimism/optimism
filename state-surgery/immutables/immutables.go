@@ -38,7 +38,7 @@ type DeploymentResults map[string]hexutil.Bytes
 // pass in a config struct to this function that comes from
 // a JSON file/cli flags and then populate the Deployment
 // Args.
-func OptimismBuild() (DeploymentResults, error) {
+func BuildOptimism() (DeploymentResults, error) {
 	deployments := []Deployment{
 		{
 			Name: "GasPriceOracle",
