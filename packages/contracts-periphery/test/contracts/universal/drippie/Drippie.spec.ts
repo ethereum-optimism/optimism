@@ -129,7 +129,7 @@ describe('Drippie', () => {
         await Drippie.create(DEFAULT_DRIP_NAME, DEFAULT_DRIP_CONFIG)
 
         await expect(Drippie.status(DEFAULT_DRIP_NAME, 2)).to.be.revertedWith(
-          'Drippie: cannot set drip status to same status as before'
+          'Drippie: cannot set drip status to the same status as its current status'
         )
       })
 
@@ -147,7 +147,7 @@ describe('Drippie', () => {
         await Drippie.status(DEFAULT_DRIP_NAME, 1) // ACTIVE
 
         await expect(Drippie.status(DEFAULT_DRIP_NAME, 3)).to.be.revertedWith(
-          'Drippie: drip must be paused to be archived'
+          'Drippie: drip must first be paused before being archived'
         )
       })
 

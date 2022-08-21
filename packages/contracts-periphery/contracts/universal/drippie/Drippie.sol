@@ -265,6 +265,11 @@ contract Drippie is AssetReceiver {
         // block (since this will then prevent re-entrancy).
         state.last = block.timestamp;
 
+        // Update the number of times this drip has been executed. Although this increases the cost
+        // of using Drippie, it slightly simplifies the client-side by not having to worry about
+        // counting drips via events. Useful for monitoring the rate of drip execution.
+        state.count++;
+
         // Execute each action in the drip. We allow drips to have multiple actions because there
         // are scenarios in which a contract must do multiple things atomically. For example, the
         // contract may need to withdraw ETH from one account and then deposit that ETH into
@@ -297,7 +302,6 @@ contract Drippie is AssetReceiver {
             );
         }
 
-        state.count++;
         emit DripExecuted(_name, _name, msg.sender, block.timestamp);
     }
 }
