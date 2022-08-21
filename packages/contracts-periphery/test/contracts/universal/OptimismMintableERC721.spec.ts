@@ -53,7 +53,7 @@ describe('OptimismMintableERC721', () => {
     )
 
     // mint an nft to alice
-    await OptimismMintableERC721.connect(l2BridgeImpersonator).mint(
+    await OptimismMintableERC721.connect(l2BridgeImpersonator).safeMint(
       aliceAddress,
       TOKEN_ID,
       {
@@ -126,7 +126,7 @@ describe('OptimismMintableERC721', () => {
   describe('mint and burn', () => {
     it('should not allow anyone but the L2 bridge to mint and burn', async () => {
       await expect(
-        OptimismMintableERC721.connect(alice).mint(aliceAddress, 100)
+        OptimismMintableERC721.connect(alice).safeMint(aliceAddress, 100)
       ).to.be.revertedWith(
         'OptimismMintableERC721: only bridge can call this function'
       )
@@ -145,7 +145,7 @@ describe('OptimismMintableERC721', () => {
         .true
 
       // OptimismMintableERC721
-      expect(await OptimismMintableERC721.supportsInterface(0x051e4975)).to.be
+      expect(await OptimismMintableERC721.supportsInterface(0xe49bc7f8)).to.be
         .true
 
       // ERC721
