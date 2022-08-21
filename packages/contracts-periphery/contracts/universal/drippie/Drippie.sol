@@ -165,27 +165,30 @@ contract Drippie is AssetReceiver {
             "Drippie: drip status can never be set back to NONE after creation"
         );
 
+        // Load the drip status once to avoid unnecessary SLOADs.
+        DripStatus curr = drips[_name].status;
+
         // Make sure the drip in question actually exists. Not strictly necessary but there doesn't
         // seem to be any clear reason why you would want to do this, and it may save some gas in
         // the case of a front-end bug.
         require(
-            drips[_name].status != DripStatus.NONE,
-            "Drippie: drip with that name does not exist"
+            curr != DripStatus.NONE,
+            "Drippie: drip with that name does not exist and cannot be updated"
         );
 
         // Once a drip has been archived, it cannot be un-archived. This is, after all, the entire
         // point of archiving a drip.
         require(
-            drips[_name].status != DripStatus.ARCHIVED,
-            "Drippie: drip with that name has been archived"
+            curr != DripStatus.ARCHIVED,
+            "Drippie: drip with that name has been archived and cannot be updated"
         );
 
         // Although not strictly necessary, we make sure that the status here is actually changing.
         // This may save the client some gas if there's a front-end bug and the user accidentally
         // tries to "change" the status to the same value as before.
         require(
-            drips[_name].status != _status,
-            "Drippie: cannot set drip status to same status as before"
+            curr != _status,
+            "Drippie: cannot set drip status to the same status as its current status"
         );
 
         // If the user is trying to archive this drip, make sure the drip has been paused. We do
@@ -193,14 +196,14 @@ contract Drippie is AssetReceiver {
         // abundantly clear.
         if (_status == DripStatus.ARCHIVED) {
             require(
-                drips[_name].status == DripStatus.PAUSED,
-                "Drippie: drip must be paused to be archived"
+                curr == DripStatus.PAUSED,
+                "Drippie: drip must first be paused before being archived"
             );
         }
 
         // If we made it here then we can safely update the status.
         drips[_name].status = _status;
-        emit DripStatusUpdated(_name, _name, drips[_name].status);
+        emit DripStatusUpdated(_name, _name, _status);
     }
 
     /**
