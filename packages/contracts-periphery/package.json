@@ -93,5 +93,8 @@
     "solidity-coverage": "^0.7.17",
     "ts-node": "^10.8.2",
     "typechain": "^8.1.0"
+  },
+  "dependencies": {
+    "@weiroll/weiroll.js": "^0.3.0"
   }
 }

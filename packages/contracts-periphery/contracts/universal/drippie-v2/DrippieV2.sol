@@ -36,9 +36,12 @@ contract DrippieV2 is AssetReceiver, VM {
      * @notice Represents the configuration for a given drip.
      */
     struct DripConfig {
-        uint256 interval;
+        bytes32[] init;
         bytes32[] checks;
         bytes32[] actions;
+        bytes[] stateI;
+        bytes[] stateC;
+        bytes[] stateA;
     }
 
     /**
@@ -49,8 +52,6 @@ contract DrippieV2 is AssetReceiver, VM {
         DripConfig config;
         uint256 last;
         uint256 count;
-        bytes[] stateC;
-        bytes[] stateA;
     }
 
     /**
@@ -127,9 +128,14 @@ contract DrippieV2 is AssetReceiver, VM {
         // We initialize this way because Solidity won't let us copy arrays into storage yet.
         DripState storage state = drips[_name];
         state.status = DripStatus.PAUSED;
-        state.config.interval = _config.interval;
         state.config.checks = _config.checks;
         state.config.actions = _config.actions;
+        state.config.stateC = _config.stateC;
+        state.config.stateA = _config.stateA;
+
+        // Execute weiroll.
+        bytes[] memory stateI = _config.stateI;
+        _execute(_config.init, stateI);
 
         // Tell the world!
         emit DripCreated(_name, _name, _config);
@@ -206,20 +212,11 @@ contract DrippieV2 is AssetReceiver, VM {
             "Drippie: selected drip does not exist or is not currently active"
         );
 
-        // Don't drip if the drip interval has not yet elapsed since the last time we dripped. This
-        // is a safety measure that prevents a malicious recipient from, e.g., spending all of
-        // their funds and repeatedly requesting new drips. Limits the potential impact of a
-        // compromised recipient to just a single drip interval, after which the drip can be paused
-        // by the owner address.
-        require(
-            state.last + state.config.interval <= block.timestamp,
-            "Drippie: drip interval has not elapsed since last drip"
-        );
-
-        bytes[] memory stateC = drips[_name].stateC;
+        // Execute weiroll.
+        bytes[] memory stateC = drips[_name].config.stateC;
         _execute(state.config.checks, stateC);
-        drips[_name].stateC = stateC;
 
+        // Prevent state from being updated unless it's because this contract is updating it.
         if (msg.sender == address(this)) {
             return true;
         } else {
@@ -246,17 +243,11 @@ contract DrippieV2 is AssetReceiver, VM {
             "Drippie: drip cannot be executed at this time, try again later"
         );
 
-        // Update the last execution time for this drip before the call. Note that it's entirely
-        // possible for a drip to be executed multiple times per block or even multiple times
-        // within the same transaction (via re-entrancy) if the drip interval is set to zero. Users
-        // should set a drip interval of 1 if they'd like the drip to be executed only once per
-        // block (since this will then prevent re-entrancy).
-        state.last = block.timestamp;
-
-        bytes[] memory stateA = drips[_name].stateA;
+        // Execute weiroll.
+        bytes[] memory stateA = drips[_name].config.stateA;
         _execute(state.config.actions, stateA);
-        drips[_name].stateA = stateA;
 
+        // Update count and emit event.
         state.count++;
         emit DripExecuted(_name, _name, msg.sender, block.timestamp);
     }

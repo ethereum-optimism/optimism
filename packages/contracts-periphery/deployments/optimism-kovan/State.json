@@ -1,0 +1,136 @@
+{
+  "address": "0x2b74a9Fa15c5C41112c966aB4d9A3Ce2Ff43D988",
+  "abi": [
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        },
+        {
+          "internalType": "bytes32",
+          "name": "",
+          "type": "bytes32"
+        }
+      ],
+      "name": "db",
+      "outputs": [
+        {
+          "internalType": "bytes32",
+          "name": "",
+          "type": "bytes32"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "bytes32",
+          "name": "_key",
+          "type": "bytes32"
+        }
+      ],
+      "name": "get",
+      "outputs": [
+        {
+          "internalType": "bytes32",
+          "name": "",
+          "type": "bytes32"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "bytes32",
+          "name": "_key",
+          "type": "bytes32"
+        },
+        {
+          "internalType": "bytes32",
+          "name": "_val",
+          "type": "bytes32"
+        }
+      ],
+      "name": "set",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    }
+  ],
+  "transactionHash": "0x7397d29f1228b6cb25181174e4cb85e81c3dbeed4dc91a3403d18bf309ec79c7",
+  "receipt": {
+    "to": "0x4e59b44847b379578588920cA78FbF26c0B4956C",
+    "from": "0x956a5152D0f498dBA0c5966577bb44262F8F7078",
+    "contractAddress": null,
+    "transactionIndex": 0,
+    "gasUsed": "139530",
+    "logsBloom": "0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+    "blockHash": "0x350d27aec17693dcab30c9230f9080611be14d2b76393d32f97d05b20991af26",
+    "transactionHash": "0x7397d29f1228b6cb25181174e4cb85e81c3dbeed4dc91a3403d18bf309ec79c7",
+    "logs": [],
+    "blockNumber": 6080880,
+    "cumulativeGasUsed": "139530",
+    "status": 1,
+    "byzantium": true
+  },
+  "args": [],
+  "numDeployments": 1,
+  "solcInputHash": "8b1e987199c4b0d6420283c21f22fdcb",
+  "metadata": "{\"compiler\":{\"version\":\"0.8.15+commit.e14f2714\"},\"language\":\"Solidity\",\"output\":{\"abi\":[{\"inputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"},{\"internalType\":\"bytes32\",\"name\":\"\",\"type\":\"bytes32\"}],\"name\":\"db\",\"outputs\":[{\"internalType\":\"bytes32\",\"name\":\"\",\"type\":\"bytes32\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"bytes32\",\"name\":\"_key\",\"type\":\"bytes32\"}],\"name\":\"get\",\"outputs\":[{\"internalType\":\"bytes32\",\"name\":\"\",\"type\":\"bytes32\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"bytes32\",\"name\":\"_key\",\"type\":\"bytes32\"},{\"internalType\":\"bytes32\",\"name\":\"_val\",\"type\":\"bytes32\"}],\"name\":\"set\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"}],\"devdoc\":{\"kind\":\"dev\",\"methods\":{},\"version\":1},\"userdoc\":{\"kind\":\"user\",\"methods\":{},\"version\":1}},\"settings\":{\"compilationTarget\":{\"contracts/universal/drippie-v2/helpers/State.sol\":\"State\"},\"evmVersion\":\"london\",\"libraries\":{},\"metadata\":{\"bytecodeHash\":\"ipfs\",\"useLiteralContent\":true},\"optimizer\":{\"enabled\":true,\"runs\":10000},\"remappings\":[]},\"sources\":{\"contracts/universal/drippie-v2/helpers/State.sol\":{\"content\":\"// SPDX-License-Identifier: MIT\\npragma solidity 0.8.15;\\n\\ncontract State {\\n    mapping (address => mapping (bytes32 => bytes32)) public db;\\n\\n    function set(bytes32 _key, bytes32 _val) external {\\n        db[msg.sender][_key] = _val;\\n    }\\n\\n    function get(bytes32 _key) external view returns (bytes32) {\\n        return db[msg.sender][_key];\\n    }\\n}\\n\",\"keccak256\":\"0x204963c08486decffec75fa79c724d5a5cc7537208424eb6f2f0faf6579291e2\",\"license\":\"MIT\"}},\"version\":1}",
+  "bytecode": "0x608060405234801561001057600080fd5b5061018c806100206000396000f3fe608060405234801561001057600080fd5b50600436106100415760003560e01c80637192ecc8146100465780638eaa6ac014610080578063f71f7a25146100a9575b600080fd5b61006e6100543660046100d6565b600060208181529281526040808220909352908152205481565b60405190815260200160405180910390f35b61006e61008e36600461011b565b33600090815260208181526040808320938352929052205490565b6100d46100b7366004610134565b336000908152602081815260408083209483529390529190912055565b005b600080604083850312156100e957600080fd5b823573ffffffffffffffffffffffffffffffffffffffff8116811461010d57600080fd5b946020939093013593505050565b60006020828403121561012d57600080fd5b5035919050565b6000806040838503121561014757600080fd5b5050803592602090910135915056fea2646970667358221220348d296f091331ad61b50d8ac8262c3dff0c0329db0b22ac24ce7476b9de518f64736f6c634300080f0033",
+  "deployedBytecode": "0x608060405234801561001057600080fd5b50600436106100415760003560e01c80637192ecc8146100465780638eaa6ac014610080578063f71f7a25146100a9575b600080fd5b61006e6100543660046100d6565b600060208181529281526040808220909352908152205481565b60405190815260200160405180910390f35b61006e61008e36600461011b565b33600090815260208181526040808320938352929052205490565b6100d46100b7366004610134565b336000908152602081815260408083209483529390529190912055565b005b600080604083850312156100e957600080fd5b823573ffffffffffffffffffffffffffffffffffffffff8116811461010d57600080fd5b946020939093013593505050565b60006020828403121561012d57600080fd5b5035919050565b6000806040838503121561014757600080fd5b5050803592602090910135915056fea2646970667358221220348d296f091331ad61b50d8ac8262c3dff0c0329db0b22ac24ce7476b9de518f64736f6c634300080f0033",
+  "devdoc": {
+    "kind": "dev",
+    "methods": {},
+    "version": 1
+  },
+  "userdoc": {
+    "kind": "user",
+    "methods": {},
+    "version": 1
+  },
+  "storageLayout": {
+    "storage": [
+      {
+        "astId": 7,
+        "contract": "contracts/universal/drippie-v2/helpers/State.sol:State",
+        "label": "db",
+        "offset": 0,
+        "slot": "0",
+        "type": "t_mapping(t_address,t_mapping(t_bytes32,t_bytes32))"
+      }
+    ],
+    "types": {
+      "t_address": {
+        "encoding": "inplace",
+        "label": "address",
+        "numberOfBytes": "20"
+      },
+      "t_bytes32": {
+        "encoding": "inplace",
+        "label": "bytes32",
+        "numberOfBytes": "32"
+      },
+      "t_mapping(t_address,t_mapping(t_bytes32,t_bytes32))": {
+        "encoding": "mapping",
+        "key": "t_address",
+        "label": "mapping(address => mapping(bytes32 => bytes32))",
+        "numberOfBytes": "32",
+        "value": "t_mapping(t_bytes32,t_bytes32)"
+      },
+      "t_mapping(t_bytes32,t_bytes32)": {
+        "encoding": "mapping",
+        "key": "t_bytes32",
+        "label": "mapping(bytes32 => bytes32)",
+        "numberOfBytes": "32",
+        "value": "t_bytes32"
+      }
+    }
+  }
+}

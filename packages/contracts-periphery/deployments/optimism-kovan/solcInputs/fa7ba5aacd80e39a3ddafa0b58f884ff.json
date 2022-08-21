@@ -1,0 +1,35 @@
+{
+  "language": "Solidity",
+  "sources": {
+    "contracts/universal/drippie-v2/helpers/Transfer.sol": {
+      "content": "// SPDX-License-Identifier: MIT\npragma solidity 0.8.15;\n\ncontract Transfer {\n    function to(address payable _who, uint256 _amt, uint256 _gas) external returns (bool) {\n        (bool success, ) = _who.call{gas: _gas, value: _amt}(\"\");\n        return success;\n    }\n}\n"
+    }
+  },
+  "settings": {
+    "optimizer": {
+      "enabled": true,
+      "runs": 10000
+    },
+    "outputSelection": {
+      "*": {
+        "*": [
+          "abi",
+          "evm.bytecode",
+          "evm.deployedBytecode",
+          "evm.methodIdentifiers",
+          "metadata",
+          "devdoc",
+          "userdoc",
+          "storageLayout",
+          "evm.gasEstimates"
+        ],
+        "": [
+          "ast"
+        ]
+      }
+    },
+    "metadata": {
+      "useLiteralContent": true
+    }
+  }
+}

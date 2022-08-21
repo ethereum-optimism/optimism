@@ -1,0 +1,104 @@
+{
+  "address": "0x55376fd280748BaDAD6849191F680B8d53b363B4",
+  "abi": [
+    {
+      "inputs": [
+        {
+          "internalType": "contract IGelatoTreasury",
+          "name": "_treasury",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "nonpayable",
+      "type": "constructor"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "_who",
+          "type": "address"
+        }
+      ],
+      "name": "balance",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "_who",
+          "type": "address"
+        },
+        {
+          "internalType": "uint256",
+          "name": "_amt",
+          "type": "uint256"
+        }
+      ],
+      "name": "deposit",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "treasury",
+      "outputs": [
+        {
+          "internalType": "contract IGelatoTreasury",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    }
+  ],
+  "transactionHash": "0x07446e6f68eda99fb2142afe7da4888d6909b8a5f24827281cf7c18c5dbc4a9a",
+  "receipt": {
+    "to": "0x4e59b44847b379578588920cA78FbF26c0B4956C",
+    "from": "0x956a5152D0f498dBA0c5966577bb44262F8F7078",
+    "contractAddress": null,
+    "transactionIndex": 0,
+    "gasUsed": "230243",
+    "logsBloom": "0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+    "blockHash": "0xe06a7ded5138f816b3cb6a699cc098f3c7adac98d04e650c08ec2c61e66c2e2c",
+    "transactionHash": "0x07446e6f68eda99fb2142afe7da4888d6909b8a5f24827281cf7c18c5dbc4a9a",
+    "logs": [],
+    "blockNumber": 6080869,
+    "cumulativeGasUsed": "230243",
+    "status": 1,
+    "byzantium": true
+  },
+  "args": [
+    "0x527a819db1eb0e34426297b03bae11F2f8B3A19E"
+  ],
+  "numDeployments": 1,
+  "solcInputHash": "70876343864be62c159b381258fb92e8",
+  "metadata": "{\"compiler\":{\"version\":\"0.8.15+commit.e14f2714\"},\"language\":\"Solidity\",\"output\":{\"abi\":[{\"inputs\":[{\"internalType\":\"contract IGelatoTreasury\",\"name\":\"_treasury\",\"type\":\"address\"}],\"stateMutability\":\"nonpayable\",\"type\":\"constructor\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"_who\",\"type\":\"address\"}],\"name\":\"balance\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"_who\",\"type\":\"address\"},{\"internalType\":\"uint256\",\"name\":\"_amt\",\"type\":\"uint256\"}],\"name\":\"deposit\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"treasury\",\"outputs\":[{\"internalType\":\"contract IGelatoTreasury\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"}],\"devdoc\":{\"kind\":\"dev\",\"methods\":{},\"version\":1},\"userdoc\":{\"kind\":\"user\",\"methods\":{},\"version\":1}},\"settings\":{\"compilationTarget\":{\"contracts/universal/drippie-v2/helpers/Gelato.sol\":\"Gelato\"},\"evmVersion\":\"london\",\"libraries\":{},\"metadata\":{\"bytecodeHash\":\"ipfs\",\"useLiteralContent\":true},\"optimizer\":{\"enabled\":true,\"runs\":10000},\"remappings\":[]},\"sources\":{\"contracts/universal/drippie-v2/helpers/Gelato.sol\":{\"content\":\"// SPDX-License-Identifier: MIT\\npragma solidity 0.8.15;\\n\\ninterface IGelatoTreasury {\\n    function userTokenBalance(address _user, address _token) external view returns (uint256);\\n    function depositFunds(address _receiver, address _token, uint256 _amount) external;\\n}\\n\\ncontract Gelato {\\n    IGelatoTreasury public immutable treasury;\\n\\n    constructor(IGelatoTreasury _treasury) {\\n        treasury = _treasury;\\n    }\\n\\n    function balance(address _who) external view returns (uint256) {\\n        return treasury.userTokenBalance(\\n            _who,\\n            // Gelato represents ETH as 0xeeeee....eeeee\\n            0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE\\n        );\\n    }\\n\\n    function deposit(address _who, uint256 _amt) external {\\n        treasury.depositFunds(\\n            _who,\\n            // Gelato represents ETH as 0xeeeee....eeeee\\n            0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE,\\n            _amt\\n        );\\n    }\\n}\\n\",\"keccak256\":\"0x8917e34777db79637635c936bb6cc9ca2f8724a77c303c2a8fc6410b3123c02a\",\"license\":\"MIT\"}},\"version\":1}",
+  "bytecode": "0x60a060405234801561001057600080fd5b506040516103c43803806103c483398101604081905261002f91610040565b6001600160a01b0316608052610070565b60006020828403121561005257600080fd5b81516001600160a01b038116811461006957600080fd5b9392505050565b60805161032c6100986000396000818160600152818161013301526101f5015261032c6000f3fe608060405234801561001057600080fd5b50600436106100415760003560e01c806347e7ef241461004657806361d027b31461005b578063e3d670d7146100ac575b600080fd5b610059610054366004610291565b6100cd565b005b6100827f000000000000000000000000000000000000000000000000000000000000000081565b60405173ffffffffffffffffffffffffffffffffffffffff90911681526020015b60405180910390f35b6100bf6100ba3660046102bb565b610193565b6040519081526020016100a3565b6040517fc1461d5700000000000000000000000000000000000000000000000000000000815273ffffffffffffffffffffffffffffffffffffffff838116600483015273eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee6024830152604482018390527f0000000000000000000000000000000000000000000000000000000000000000169063c1461d5790606401600060405180830381600087803b15801561017757600080fd5b505af115801561018b573d6000803e3d6000fd5b505050505050565b6040517fb47064c800000000000000000000000000000000000000000000000000000000815273ffffffffffffffffffffffffffffffffffffffff828116600483015273eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee60248301526000917f00000000000000000000000000000000000000000000000000000000000000009091169063b47064c890604401602060405180830381865afa15801561023e573d6000803e3d6000fd5b505050506040513d601f19601f8201168201806040525081019061026291906102dd565b92915050565b803573ffffffffffffffffffffffffffffffffffffffff8116811461028c57600080fd5b919050565b600080604083850312156102a457600080fd5b6102ad83610268565b946020939093013593505050565b6000602082840312156102cd57600080fd5b6102d682610268565b9392505050565b6000602082840312156102ef57600080fd5b505191905056fea26469706673582212207ecf5762ad98240d045881f7aa4c023577827c4446ecb8d3cbed7f1b723c128264736f6c634300080f0033",
+  "deployedBytecode": "0x608060405234801561001057600080fd5b50600436106100415760003560e01c806347e7ef241461004657806361d027b31461005b578063e3d670d7146100ac575b600080fd5b610059610054366004610291565b6100cd565b005b6100827f000000000000000000000000000000000000000000000000000000000000000081565b60405173ffffffffffffffffffffffffffffffffffffffff90911681526020015b60405180910390f35b6100bf6100ba3660046102bb565b610193565b6040519081526020016100a3565b6040517fc1461d5700000000000000000000000000000000000000000000000000000000815273ffffffffffffffffffffffffffffffffffffffff838116600483015273eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee6024830152604482018390527f0000000000000000000000000000000000000000000000000000000000000000169063c1461d5790606401600060405180830381600087803b15801561017757600080fd5b505af115801561018b573d6000803e3d6000fd5b505050505050565b6040517fb47064c800000000000000000000000000000000000000000000000000000000815273ffffffffffffffffffffffffffffffffffffffff828116600483015273eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee60248301526000917f00000000000000000000000000000000000000000000000000000000000000009091169063b47064c890604401602060405180830381865afa15801561023e573d6000803e3d6000fd5b505050506040513d601f19601f8201168201806040525081019061026291906102dd565b92915050565b803573ffffffffffffffffffffffffffffffffffffffff8116811461028c57600080fd5b919050565b600080604083850312156102a457600080fd5b6102ad83610268565b946020939093013593505050565b6000602082840312156102cd57600080fd5b6102d682610268565b9392505050565b6000602082840312156102ef57600080fd5b505191905056fea26469706673582212207ecf5762ad98240d045881f7aa4c023577827c4446ecb8d3cbed7f1b723c128264736f6c634300080f0033",
+  "devdoc": {
+    "kind": "dev",
+    "methods": {},
+    "version": 1
+  },
+  "userdoc": {
+    "kind": "user",
+    "methods": {},
+    "version": 1
+  },
+  "storageLayout": {
+    "storage": [],
+    "types": null
+  }
+}

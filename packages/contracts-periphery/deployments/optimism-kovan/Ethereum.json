@@ -1,0 +1,126 @@
+{
+  "address": "0xcC2AEb294F86ca2F1cdF9865c5a040c1E0c6754a",
+  "abi": [
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "_who",
+          "type": "address"
+        }
+      ],
+      "name": "balance",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "timestamp",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address payable",
+          "name": "_who",
+          "type": "address"
+        },
+        {
+          "internalType": "uint256",
+          "name": "_amt",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "_gas",
+          "type": "uint256"
+        }
+      ],
+      "name": "transfer",
+      "outputs": [
+        {
+          "internalType": "bool",
+          "name": "",
+          "type": "bool"
+        }
+      ],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address payable",
+          "name": "_who",
+          "type": "address"
+        },
+        {
+          "internalType": "uint256",
+          "name": "_amt",
+          "type": "uint256"
+        }
+      ],
+      "name": "transfer",
+      "outputs": [
+        {
+          "internalType": "bool",
+          "name": "",
+          "type": "bool"
+        }
+      ],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    }
+  ],
+  "transactionHash": "0xf062cb7529228359dc57a361da389d66bb5e43da040a29415a672ffd9645daa1",
+  "receipt": {
+    "to": "0x4e59b44847b379578588920cA78FbF26c0B4956C",
+    "from": "0x956a5152D0f498dBA0c5966577bb44262F8F7078",
+    "contractAddress": null,
+    "transactionIndex": 0,
+    "gasUsed": "181062",
+    "logsBloom": "0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+    "blockHash": "0x982846c54a45588ffcab783b98030720acead991310baf3789cea470c351fb04",
+    "transactionHash": "0xf062cb7529228359dc57a361da389d66bb5e43da040a29415a672ffd9645daa1",
+    "logs": [],
+    "blockNumber": 6080850,
+    "cumulativeGasUsed": "181062",
+    "status": 1,
+    "byzantium": true
+  },
+  "args": [],
+  "numDeployments": 1,
+  "solcInputHash": "9f0153ca9769d9ac26e46644d347377a",
+  "metadata": "{\"compiler\":{\"version\":\"0.8.15+commit.e14f2714\"},\"language\":\"Solidity\",\"output\":{\"abi\":[{\"inputs\":[{\"internalType\":\"address\",\"name\":\"_who\",\"type\":\"address\"}],\"name\":\"balance\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"timestamp\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address payable\",\"name\":\"_who\",\"type\":\"address\"},{\"internalType\":\"uint256\",\"name\":\"_amt\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"_gas\",\"type\":\"uint256\"}],\"name\":\"transfer\",\"outputs\":[{\"internalType\":\"bool\",\"name\":\"\",\"type\":\"bool\"}],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address payable\",\"name\":\"_who\",\"type\":\"address\"},{\"internalType\":\"uint256\",\"name\":\"_amt\",\"type\":\"uint256\"}],\"name\":\"transfer\",\"outputs\":[{\"internalType\":\"bool\",\"name\":\"\",\"type\":\"bool\"}],\"stateMutability\":\"nonpayable\",\"type\":\"function\"}],\"devdoc\":{\"kind\":\"dev\",\"methods\":{},\"version\":1},\"userdoc\":{\"kind\":\"user\",\"methods\":{},\"version\":1}},\"settings\":{\"compilationTarget\":{\"contracts/universal/drippie-v2/helpers/Ethereum.sol\":\"Ethereum\"},\"evmVersion\":\"london\",\"libraries\":{},\"metadata\":{\"bytecodeHash\":\"ipfs\",\"useLiteralContent\":true},\"optimizer\":{\"enabled\":true,\"runs\":10000},\"remappings\":[]},\"sources\":{\"contracts/universal/drippie-v2/helpers/Ethereum.sol\":{\"content\":\"// SPDX-License-Identifier: MIT\\npragma solidity 0.8.15;\\n\\ncontract Ethereum {\\n    function balance(address _who) external view returns (uint256) {\\n        return address(_who).balance;\\n    }\\n\\n    function timestamp() external view returns (uint256) {\\n        return block.timestamp;\\n    }\\n\\n    function transfer(address payable _who, uint256 _amt) external returns (bool) {\\n        return _who.send(_amt);\\n    }\\n\\n    function transfer(address payable _who, uint256 _amt, uint256 _gas) external returns (bool) {\\n        (bool success, ) = _who.call{gas: _gas, value: _amt}(\\\"\\\");\\n        return success;\\n    }\\n}\\n\",\"keccak256\":\"0xb43462bd1024027bb3d3ffc5738b0247d49da2687ac93a54472ee9ae8bb86199\",\"license\":\"MIT\"}},\"version\":1}",
+  "bytecode": "0x608060405234801561001057600080fd5b5061024c806100206000396000f3fe608060405234801561001057600080fd5b506004361061004c5760003560e01c8063095bcdb614610051578063a9059cbb14610079578063b80777ea1461008c578063e3d670d71461009c575b600080fd5b61006461005f366004610191565b6100c4565b60405190151581526020015b60405180910390f35b6100646100873660046101c6565b610132565b425b604051908152602001610070565b61008e6100aa3660046101f2565b73ffffffffffffffffffffffffffffffffffffffff163190565b6000808473ffffffffffffffffffffffffffffffffffffffff168385604051600060405180830381858888f193505050503d8060008114610121576040519150601f19603f3d011682016040523d82523d6000602084013e610126565b606091505b50909695505050505050565b60405160009073ffffffffffffffffffffffffffffffffffffffff84169083156108fc0290849084818181858888f1979650505050505050565b73ffffffffffffffffffffffffffffffffffffffff8116811461018e57600080fd5b50565b6000806000606084860312156101a657600080fd5b83356101b18161016c565b95602085013595506040909401359392505050565b600080604083850312156101d957600080fd5b82356101e48161016c565b946020939093013593505050565b60006020828403121561020457600080fd5b813561020f8161016c565b939250505056fea2646970667358221220dc32b6ef5ce204dd4a5e00373618f6a45c2ca05af24e99c40750bf0d1ed337c564736f6c634300080f0033",
+  "deployedBytecode": "0x608060405234801561001057600080fd5b506004361061004c5760003560e01c8063095bcdb614610051578063a9059cbb14610079578063b80777ea1461008c578063e3d670d71461009c575b600080fd5b61006461005f366004610191565b6100c4565b60405190151581526020015b60405180910390f35b6100646100873660046101c6565b610132565b425b604051908152602001610070565b61008e6100aa3660046101f2565b73ffffffffffffffffffffffffffffffffffffffff163190565b6000808473ffffffffffffffffffffffffffffffffffffffff168385604051600060405180830381858888f193505050503d8060008114610121576040519150601f19603f3d011682016040523d82523d6000602084013e610126565b606091505b50909695505050505050565b60405160009073ffffffffffffffffffffffffffffffffffffffff84169083156108fc0290849084818181858888f1979650505050505050565b73ffffffffffffffffffffffffffffffffffffffff8116811461018e57600080fd5b50565b6000806000606084860312156101a657600080fd5b83356101b18161016c565b95602085013595506040909401359392505050565b600080604083850312156101d957600080fd5b82356101e48161016c565b946020939093013593505050565b60006020828403121561020457600080fd5b813561020f8161016c565b939250505056fea2646970667358221220dc32b6ef5ce204dd4a5e00373618f6a45c2ca05af24e99c40750bf0d1ed337c564736f6c634300080f0033",
+  "devdoc": {
+    "kind": "dev",
+    "methods": {},
+    "version": 1
+  },
+  "userdoc": {
+    "kind": "user",
+    "methods": {},
+    "version": 1
+  },
+  "storageLayout": {
+    "storage": [],
+    "types": null
+  }
+}

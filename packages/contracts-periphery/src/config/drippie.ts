@@ -69,7 +69,7 @@ export const parseDrippieConfig = async (
   const parsed = { ...config }
 
   const etherscan = new Etherscan(
-    hre.network.config.verify.etherscan.apiKey,
+    (hre.network.config as any).verify.etherscan.apiKey,
     hre.network.config.chainId
   )
 
@@ -100,7 +100,7 @@ export const parseDrippieConfig = async (
       }
     }
 
-    const dripcheck = await hre.deployments.get(dripConfig.dripcheck)
+    const dripcheck = await (hre as any).deployments.get(dripConfig.dripcheck)
     dripConfig.dripcheck = dripcheck.address
 
     if (dripConfig.checkparams === undefined) {

@@ -1,0 +1,35 @@
+{
+  "language": "Solidity",
+  "sources": {
+    "contracts/universal/drippie-v2/helpers/Comparison.sol": {
+      "content": "// SPDX-License-Identifier: MIT\npragma solidity 0.8.15;\n\ncontract Comparison {\n    function lt(uint256 _a, uint256 _b) external view returns (bool) {\n        return _a < _b;\n    }\n\n    function gt(uint256 _a, uint256 _b) external view returns (bool) {\n        return _a > _b;\n    }\n\n    function eq(uint256 _a, uint256 _b) external view returns (bool) {\n        return _a == _b;\n    }\n\n    function ne(uint256 _a, uint256 _b) external view returns (bool) {\n        return _a != _b;\n    }\n\n    function lte(uint256 _a, uint256 _b) external view returns (bool) {\n        return _a <= _b;\n    }\n\n    function gte(uint256 _a, uint256 _b) external view returns (bool) {\n        return _a >= _b;\n    }\n}\n"
+    }
+  },
+  "settings": {
+    "optimizer": {
+      "enabled": true,
+      "runs": 10000
+    },
+    "outputSelection": {
+      "*": {
+        "*": [
+          "abi",
+          "evm.bytecode",
+          "evm.deployedBytecode",
+          "evm.methodIdentifiers",
+          "metadata",
+          "devdoc",
+          "userdoc",
+          "storageLayout",
+          "evm.gasEstimates"
+        ],
+        "": [
+          "ast"
+        ]
+      }
+    },
+    "metadata": {
+      "useLiteralContent": true
+    }
+  }
+}

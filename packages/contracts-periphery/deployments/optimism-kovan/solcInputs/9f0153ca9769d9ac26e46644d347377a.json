@@ -1,0 +1,35 @@
+{
+  "language": "Solidity",
+  "sources": {
+    "contracts/universal/drippie-v2/helpers/Ethereum.sol": {
+      "content": "// SPDX-License-Identifier: MIT\npragma solidity 0.8.15;\n\ncontract Ethereum {\n    function balance(address _who) external view returns (uint256) {\n        return address(_who).balance;\n    }\n\n    function timestamp() external view returns (uint256) {\n        return block.timestamp;\n    }\n\n    function transfer(address payable _who, uint256 _amt) external returns (bool) {\n        return _who.send(_amt);\n    }\n\n    function transfer(address payable _who, uint256 _amt, uint256 _gas) external returns (bool) {\n        (bool success, ) = _who.call{gas: _gas, value: _amt}(\"\");\n        return success;\n    }\n}\n"
+    }
+  },
+  "settings": {
+    "optimizer": {
+      "enabled": true,
+      "runs": 10000
+    },
+    "outputSelection": {
+      "*": {
+        "*": [
+          "abi",
+          "evm.bytecode",
+          "evm.deployedBytecode",
+          "evm.methodIdentifiers",
+          "metadata",
+          "devdoc",
+          "userdoc",
+          "storageLayout",
+          "evm.gasEstimates"
+        ],
+        "": [
+          "ast"
+        ]
+      }
+    },
+    "metadata": {
+      "useLiteralContent": true
+    }
+  }
+}

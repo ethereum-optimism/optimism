@@ -1,0 +1,67 @@
+{
+  "address": "0x16355a16687d638d4B3136E4f490528442b0F0D3",
+  "abi": [
+    {
+      "inputs": [
+        {
+          "internalType": "bool",
+          "name": "_val",
+          "type": "bool"
+        }
+      ],
+      "name": "f",
+      "outputs": [],
+      "stateMutability": "pure",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "bool",
+          "name": "_val",
+          "type": "bool"
+        }
+      ],
+      "name": "t",
+      "outputs": [],
+      "stateMutability": "pure",
+      "type": "function"
+    }
+  ],
+  "transactionHash": "0xcbb070c812fd20d53edee1ebed3a39068dd63fcb9d49685366152ecd48943c2c",
+  "receipt": {
+    "to": "0x4e59b44847b379578588920cA78FbF26c0B4956C",
+    "from": "0x956a5152D0f498dBA0c5966577bb44262F8F7078",
+    "contractAddress": null,
+    "transactionIndex": 0,
+    "gasUsed": "97718",
+    "logsBloom": "0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+    "blockHash": "0x9dff51ab9f8567da8be1c78db375d6cf0358a96ee3674eecea67d4746384dc41",
+    "transactionHash": "0xcbb070c812fd20d53edee1ebed3a39068dd63fcb9d49685366152ecd48943c2c",
+    "logs": [],
+    "blockNumber": 6080844,
+    "cumulativeGasUsed": "97718",
+    "status": 1,
+    "byzantium": true
+  },
+  "args": [],
+  "numDeployments": 2,
+  "solcInputHash": "c813f03d7bb8e66fc0fe9befa3061c5a",
+  "metadata": "{\"compiler\":{\"version\":\"0.8.15+commit.e14f2714\"},\"language\":\"Solidity\",\"output\":{\"abi\":[{\"inputs\":[{\"internalType\":\"bool\",\"name\":\"_val\",\"type\":\"bool\"}],\"name\":\"f\",\"outputs\":[],\"stateMutability\":\"pure\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"bool\",\"name\":\"_val\",\"type\":\"bool\"}],\"name\":\"t\",\"outputs\":[],\"stateMutability\":\"pure\",\"type\":\"function\"}],\"devdoc\":{\"kind\":\"dev\",\"methods\":{},\"version\":1},\"userdoc\":{\"kind\":\"user\",\"methods\":{},\"version\":1}},\"settings\":{\"compilationTarget\":{\"contracts/universal/drippie-v2/helpers/Assert.sol\":\"Assert\"},\"evmVersion\":\"london\",\"libraries\":{},\"metadata\":{\"bytecodeHash\":\"ipfs\",\"useLiteralContent\":true},\"optimizer\":{\"enabled\":true,\"runs\":10000},\"remappings\":[]},\"sources\":{\"contracts/universal/drippie-v2/helpers/Assert.sol\":{\"content\":\"// SPDX-License-Identifier: MIT\\npragma solidity 0.8.15;\\n\\ncontract Assert {\\n    function t(bool _val) external pure {\\n        require(_val);\\n    }\\n\\n    function f(bool _val) external pure {\\n        require(!_val);\\n    }\\n}\\n\",\"keccak256\":\"0x1509897cb7680e1b7b208a9889ae080d50fb7171ed2724cde3cf9e5fab62332d\",\"license\":\"MIT\"}},\"version\":1}",
+  "bytecode": "0x608060405234801561001057600080fd5b5060ca8061001f6000396000f3fe6080604052348015600f57600080fd5b506004361060325760003560e01c806340c5489d14603757806398c3a6c1146048575b600080fd5b60466042366004606d565b6057565b005b60466053366004606d565b6063565b80606057600080fd5b50565b8015606057600080fd5b600060208284031215607e57600080fd5b81358015158114608d57600080fd5b939250505056fea26469706673582212201e2bb3e9ffd0a1032250daac671be4db70ec43efddd23b50ff359ffd150a645664736f6c634300080f0033",
+  "deployedBytecode": "0x6080604052348015600f57600080fd5b506004361060325760003560e01c806340c5489d14603757806398c3a6c1146048575b600080fd5b60466042366004606d565b6057565b005b60466053366004606d565b6063565b80606057600080fd5b50565b8015606057600080fd5b600060208284031215607e57600080fd5b81358015158114608d57600080fd5b939250505056fea26469706673582212201e2bb3e9ffd0a1032250daac671be4db70ec43efddd23b50ff359ffd150a645664736f6c634300080f0033",
+  "devdoc": {
+    "kind": "dev",
+    "methods": {},
+    "version": 1
+  },
+  "userdoc": {
+    "kind": "user",
+    "methods": {},
+    "version": 1
+  },
+  "storageLayout": {
+    "storage": [],
+    "types": null
+  }
+}

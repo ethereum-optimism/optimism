@@ -1,0 +1,35 @@
+{
+  "language": "Solidity",
+  "sources": {
+    "contracts/universal/drippie-v2/helpers/Gelato.sol": {
+      "content": "// SPDX-License-Identifier: MIT\npragma solidity 0.8.15;\n\ninterface IGelatoTreasury {\n    function userTokenBalance(address _user, address _token) external view returns (uint256);\n    function depositFunds(address _receiver, address _token, uint256 _amount) external;\n}\n\ncontract Gelato {\n    IGelatoTreasury public immutable treasury;\n\n    constructor(IGelatoTreasury _treasury) {\n        treasury = _treasury;\n    }\n\n    function balance(address _who) external view returns (uint256) {\n        return treasury.userTokenBalance(\n            _who,\n            // Gelato represents ETH as 0xeeeee....eeeee\n            0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE\n        );\n    }\n\n    function deposit(address _who, uint256 _amt) external {\n        treasury.depositFunds(\n            _who,\n            // Gelato represents ETH as 0xeeeee....eeeee\n            0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE,\n            _amt\n        );\n    }\n}\n"
+    }
+  },
+  "settings": {
+    "optimizer": {
+      "enabled": true,
+      "runs": 10000
+    },
+    "outputSelection": {
+      "*": {
+        "*": [
+          "abi",
+          "evm.bytecode",
+          "evm.deployedBytecode",
+          "evm.methodIdentifiers",
+          "metadata",
+          "devdoc",
+          "userdoc",
+          "storageLayout",
+          "evm.gasEstimates"
+        ],
+        "": [
+          "ast"
+        ]
+      }
+    },
+    "metadata": {
+      "useLiteralContent": true
+    }
+  }
+}
