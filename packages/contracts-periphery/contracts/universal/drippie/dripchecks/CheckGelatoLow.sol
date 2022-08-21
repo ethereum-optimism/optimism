@@ -18,8 +18,16 @@ contract CheckGelatoLow is IDripCheck {
         address recipient;
     }
 
+    /**
+     * @notice External event used to help client-side tooling encode parameters.
+     *
+     * @param params Parameters to encode.
+     */
     event _EventToExposeStructInABI__Params(Params params);
 
+    /**
+     * @inheritdoc IDripCheck
+     */
     function check(bytes memory _params) external view returns (bool) {
         Params memory params = abi.decode(_params, (Params));
 
