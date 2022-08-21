@@ -265,7 +265,9 @@ contract Drippie is AssetReceiver {
      *         signal that the drip should be executable according to the drip parameters, drip
      *         check, and drip interval. Note that drip parameters are read entirely from the state
      *         and are not supplied as user input, so there should not be any way for a
-     *         non-authorized user to influence the behavior of the drip.
+     *         non-authorized user to influence the behavior of the drip. Note that the drip check
+     *         is executed only **once** at the beginning of the call to the drip function and will
+     *         not be executed again between the drip actions within this call.
      *
      * @param _name Name of the drip to trigger.
      */
