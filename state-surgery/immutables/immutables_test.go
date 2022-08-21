@@ -8,7 +8,7 @@ import (
 )
 
 func TestBuildOptimism(t *testing.T) {
-	results, err := immutables.OptimismBuild()
+	results, err := immutables.BuildOptimism()
 	require.Nil(t, err)
 	require.NotNil(t, results)
 

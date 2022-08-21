@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+
+	"github.com/ethereum-optimism/optimism/state-surgery/solc"
 )
 
 // `Hardhat` encapsulates all of the functionality required to interact
@@ -51,6 +53,11 @@ func New(network string, artifacts, deployments []string) (*Hardhat, error) {
 
 // init is called in the constructor and will cache required files to disk.
 func (h *Hardhat) init() error {
+	h.amu.Lock()
+	defer h.amu.Unlock()
+	h.dmu.Lock()
+	defer h.dmu.Unlock()
+
 	if err := h.initArtifacts(); err != nil {
 		return err
 	}
@@ -65,7 +72,7 @@ func (h *Hardhat) init() error {
 func (h *Hardhat) initDeployments() error {
 	for _, deploymentPath := range h.DeploymentPaths {
 		fileSystem := os.DirFS(filepath.Join(deploymentPath, h.network))
-		fs.WalkDir(fileSystem, ".", func(path string, d fs.DirEntry, err error) error {
+		err := fs.WalkDir(fileSystem, ".", func(path string, d fs.DirEntry, err error) error {
 			if err != nil {
 				return err
 			}
@@ -75,11 +82,11 @@ func (h *Hardhat) initDeployments() error {
 			if strings.Contains(path, "solcInputs") {
 				return nil
 			}
-
-			name := filepath.Join(deploymentPath, h.network, path)
-			if !strings.HasSuffix(name, ".json") {
+			if !strings.HasSuffix(path, ".json") {
 				return nil
 			}
+
+			name := filepath.Join(deploymentPath, h.network, path)
 			file, err := os.ReadFile(name)
 			if err != nil {
 				return err
@@ -89,10 +96,13 @@ func (h *Hardhat) initDeployments() error {
 				return err
 			}
 
-			deployment.Name = filepath.Base(strings.TrimRight(name, ".json"))
+			deployment.Name = filepath.Base(name[:len(name)-5])
 			h.deployments = append(h.deployments, &deployment)
 			return nil
 		})
+		if err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -102,7 +112,7 @@ func (h *Hardhat) initDeployments() error {
 func (h *Hardhat) initArtifacts() error {
 	for _, artifactPath := range h.ArtifactPaths {
 		fileSystem := os.DirFS(artifactPath)
-		fs.WalkDir(fileSystem, ".", func(path string, d fs.DirEntry, err error) error {
+		err := fs.WalkDir(fileSystem, ".", func(path string, d fs.DirEntry, err error) error {
 			if err != nil {
 				return err
 			}
@@ -125,9 +135,13 @@ func (h *Hardhat) initArtifacts() error {
 			if err := json.Unmarshal(file, &artifact); err != nil {
 				return err
 			}
+
 			h.artifacts = append(h.artifacts, &artifact)
 			return nil
 		})
+		if err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -246,4 +260,24 @@ func (h *Hardhat) GetBuildInfo(name string) (*BuildInfo, error) {
 	}
 
 	return buildInfos[0], nil
+}
+
+// TODO(tynes): handle fully qualified names properly
+func (h *Hardhat) GetStorageLayout(name string) (*solc.StorageLayout, error) {
+	fqn := ParseFullyQualifiedName(name)
+
+	buildInfo, err := h.GetBuildInfo(name)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, source := range buildInfo.Output.Contracts {
+		for name, contract := range source {
+			if name == fqn.ContractName {
+				return &contract.StorageLayout, nil
+			}
+		}
+	}
+
+	return nil, fmt.Errorf("contract not found for %s", fqn.ContractName)
 }
