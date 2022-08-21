@@ -123,7 +123,7 @@ contract Drippie is AssetReceiver {
      * @param _name   Name of the drip.
      * @param _config Configuration for the drip.
      */
-    function create(string memory _name, DripConfig memory _config) external onlyOwner {
+    function create(string calldata _name, DripConfig calldata _config) external onlyOwner {
         // Make sure this drip doesn't already exist. We *must* guarantee that no other function
         // will ever set the status of a drip back to NONE after it's been created. This is why
         // archival is a separate status.
@@ -157,7 +157,7 @@ contract Drippie is AssetReceiver {
      * @param _name   Name of the drip to update.
      * @param _status New drip status.
      */
-    function status(string memory _name, DripStatus _status) external onlyOwner {
+    function status(string calldata _name, DripStatus _status) external onlyOwner {
         // Make sure we can never set drip status back to NONE. A simple security measure to
         // prevent accidental overwrites if this code is ever updated down the line.
         require(
@@ -210,7 +210,7 @@ contract Drippie is AssetReceiver {
      *
      * @return True if the drip is executable, false otherwise.
      */
-    function executable(string memory _name) public view returns (bool) {
+    function executable(string calldata _name) public view returns (bool) {
         DripState storage state = drips[_name];
 
         // Only allow active drips to be executed, an obvious security measure.
@@ -249,7 +249,7 @@ contract Drippie is AssetReceiver {
      *
      * @param _name Name of the drip to trigger.
      */
-    function drip(string memory _name) external {
+    function drip(string calldata _name) external {
         DripState storage state = drips[_name];
 
         // Make sure the drip can be executed.
