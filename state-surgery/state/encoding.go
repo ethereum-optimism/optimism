@@ -31,13 +31,13 @@ func EncodeStorageKeyValue(value any, entry solc.StorageLayoutEntry, storageType
 		case "bool":
 			val, err := EncodeBoolValue(value, entry.Offset)
 			if err != nil {
-				return nil, fmt.Errorf("%s bool invalid: %w", entry.Label, err)
+				return nil, fmt.Errorf("cannot encode %s: %w", storageType.Encoding, err)
 			}
 			encoded = append(encoded, &EncodedStorage{key, val})
 		case "address":
 			val, err := EncodeAddressValue(value, entry.Offset)
 			if err != nil {
-				return nil, fmt.Errorf("%s address invalid: %w", entry.Label, err)
+				return nil, fmt.Errorf("cannot encode %s: %w", storageType.Encoding, err)
 			}
 			encoded = append(encoded, &EncodedStorage{key, val})
 		case "bytes":
@@ -45,7 +45,7 @@ func EncodeStorageKeyValue(value any, entry solc.StorageLayoutEntry, storageType
 		case "bytes32":
 			val, err := EncodeBytes32Value(value, entry.Offset)
 			if err != nil {
-				return nil, err
+				return nil, fmt.Errorf("cannot encode %s: %w", storageType.Encoding, err)
 			}
 			encoded = append(encoded, &EncodedStorage{key, val})
 		default:
@@ -53,18 +53,18 @@ func EncodeStorageKeyValue(value any, entry solc.StorageLayoutEntry, storageType
 			case strings.HasPrefix(label, "contract"):
 				val, err := EncodeAddressValue(value, entry.Offset)
 				if err != nil {
-					return nil, fmt.Errorf("%s address invalid: %w", entry.Label, err)
+					return nil, fmt.Errorf("cannot encode %s: %w", storageType.Encoding, err)
 				}
 				encoded = append(encoded, &EncodedStorage{key, val})
 			case strings.HasPrefix(label, "uint"):
 				val, err := EncodeUintValue(value, entry.Offset)
 				if err != nil {
-					return nil, err
+					return nil, fmt.Errorf("cannot encode %s: %w", storageType.Encoding, err)
 				}
 				encoded = append(encoded, &EncodedStorage{key, val})
 			default:
 				// structs are not supported
-				return nil, fmt.Errorf("%w: %s", errUnimplemented, label)
+				return nil, fmt.Errorf("cannot encode %s: %w", storageType.Encoding, errUnimplemented)
 			}
 		}
 	case "dynamic_array":
@@ -73,7 +73,7 @@ func EncodeStorageKeyValue(value any, entry solc.StorageLayoutEntry, storageType
 		case "string":
 			val, err := EncodeStringValue(value, entry.Offset)
 			if err != nil {
-				return nil, err
+				return nil, fmt.Errorf("cannot encode %s: %w", storageType.Encoding, errUnimplemented)
 			}
 			encoded = append(encoded, &EncodedStorage{key, val})
 		default:
@@ -86,8 +86,7 @@ func EncodeStorageKeyValue(value any, entry solc.StorageLayoutEntry, storageType
 
 		values, ok := value.(map[any]any)
 		if !ok {
-			return nil, fmt.Errorf("cannot parse mapping")
-
+			return nil, fmt.Errorf("mapping must be map[any]any")
 		}
 
 		keyEncoder, err := getElementEncoder(storageType, "key")
@@ -122,7 +121,7 @@ func EncodeStorageKeyValue(value any, entry solc.StorageLayoutEntry, storageType
 			encoded = append(encoded, &EncodedStorage{key, val})
 		}
 	default:
-		return nil, fmt.Errorf("unknown encoding: %s", storageType.Encoding)
+		return nil, fmt.Errorf("unknown encoding %s: %w", storageType.Encoding, errUnimplemented)
 	}
 	return encoded, nil
 }
@@ -268,7 +267,7 @@ func encodeStringValue(value any) (common.Hash, error) {
 func EncodeBoolValue(value any, offset uint) (common.Hash, error) {
 	val, err := encodeBoolValue(value)
 	if err != nil {
-		return common.Hash{}, err
+		return common.Hash{}, fmt.Errorf("invalid bool: %w", err)
 	}
 	return handleOffset(val, offset), nil
 }
@@ -308,7 +307,7 @@ func encodeBoolValue(value any) (common.Hash, error) {
 func EncodeAddressValue(value any, offset uint) (common.Hash, error) {
 	val, err := encodeAddressValue(value)
 	if err != nil {
-		return common.Hash{}, err
+		return common.Hash{}, fmt.Errorf("invalid address: %w", err)
 	}
 	return handleOffset(val, offset), nil
 }
@@ -352,7 +351,7 @@ func encodeAddressValue(value any) (common.Hash, error) {
 func EncodeUintValue(value any, offset uint) (common.Hash, error) {
 	val, err := encodeUintValue(value)
 	if err != nil {
-		return common.Hash{}, err
+		return common.Hash{}, fmt.Errorf("invalid uint: %w", err)
 	}
 	return handleOffset(val, offset), nil
 }
@@ -430,6 +429,16 @@ func encodeUintValue(value any) (common.Hash, error) {
 			}
 		}
 		return common.BigToHash(number), nil
+	case "bool":
+		val, ok := value.(bool)
+		if !ok {
+			return common.Hash{}, errInvalidType
+		}
+		if val {
+			return common.Hash{31: 0x01}, nil
+		} else {
+			return common.Hash{}, nil
+		}
 	case "Int":
 		val, ok := value.(*big.Int)
 		if !ok {
