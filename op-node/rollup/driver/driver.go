@@ -4,8 +4,6 @@ import (
 	"context"
 	"math/big"
 
-	"github.com/ethereum-optimism/optimism/op-node/metrics"
-
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/l1"
 	"github.com/ethereum-optimism/optimism/op-node/l2"
@@ -18,6 +16,23 @@ import (
 
 type Driver struct {
 	s *state
+}
+
+type Metrics interface {
+	RecordPipelineReset()
+	RecordSequencingError()
+	RecordPublishingError()
+	RecordDerivationError()
+
+	RecordReceivedUnsafePayload(payload *eth.ExecutionPayload)
+
+	RecordL1Ref(name string, ref eth.L1BlockRef)
+	RecordL2Ref(name string, ref eth.L2BlockRef)
+
+	SetDerivationIdle(idle bool)
+
+	RecordL1ReorgDepth(d uint64)
+	CountSequencedTxs(count int)
 }
 
 type Downloader interface {
@@ -58,7 +73,7 @@ type Network interface {
 	PublishL2Payload(ctx context.Context, payload *eth.ExecutionPayload) error
 }
 
-func NewDriver(driverCfg *Config, cfg *rollup.Config, l2 *l2.Source, l1 *l1.Source, network Network, log log.Logger, snapshotLog log.Logger, metrics *metrics.Metrics) *Driver {
+func NewDriver(driverCfg *Config, cfg *rollup.Config, l2 *l2.Source, l1 *l1.Source, network Network, log log.Logger, snapshotLog log.Logger, metrics Metrics) *Driver {
 	output := &outputImpl{
 		Config: cfg,
 		dl:     l1,
