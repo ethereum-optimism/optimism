@@ -8,7 +8,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/ethereum-optimism/optimism/state-surgery/solc"
+	"github.com/ethereum-optimism/optimism/op-chain-ops/solc"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
