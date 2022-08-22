@@ -50,6 +50,15 @@ contract OptimismMintableERC721Factory is Semver, OwnableUpgradeable {
      * @param _bridge Address of the ERC721 bridge on this network.
      */
     function initialize(address _bridge, uint256 _remoteChainId) public initializer {
+        require(
+            _bridge != address(0),
+            "OptimismMintableERC721Factory: bridge cannot be address(0)"
+        );
+        require(
+            _remoteChainId != 0,
+            "OptimismMintableERC721Factory: remote chain id cannot be zero"
+        );
+
         bridge = _bridge;
         remoteChainId = _remoteChainId;
 

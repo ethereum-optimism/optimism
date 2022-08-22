@@ -59,6 +59,7 @@ describe('L1ERC721Bridge', () => {
   let L1ERC721: MockContract<Contract>
   let L1ERC721Bridge: Contract
   let Fake__L1CrossDomainMessenger: FakeContract
+  let Factory__L1ERC721Bridge: ContractFactory
   beforeEach(async () => {
     // Get a new mock L1 messenger
     Fake__L1CrossDomainMessenger = await smock.fake<Contract>(
@@ -67,9 +68,11 @@ describe('L1ERC721Bridge', () => {
     )
 
     // Deploy the contract under test
-    L1ERC721Bridge = await (
-      await ethers.getContractFactory('L1ERC721Bridge')
-    ).deploy(Fake__L1CrossDomainMessenger.address, DUMMY_L2_BRIDGE_ADDRESS)
+    Factory__L1ERC721Bridge = await ethers.getContractFactory('L1ERC721Bridge')
+    L1ERC721Bridge = await Factory__L1ERC721Bridge.deploy(
+      Fake__L1CrossDomainMessenger.address,
+      DUMMY_L2_BRIDGE_ADDRESS
+    )
 
     L1ERC721 = await Factory__L1ERC721.deploy('L1ERC721', 'ERC')
 
@@ -81,9 +84,48 @@ describe('L1ERC721Bridge', () => {
     })
   })
 
+  describe('initialize', async () => {
+    it('reverts if messenger is address(0)', async () => {
+      await expect(
+        Factory__L1ERC721Bridge.deploy(
+          constants.AddressZero,
+          DUMMY_L2_BRIDGE_ADDRESS
+        )
+      ).to.be.revertedWith('ERC721Bridge: messenger cannot be address(0)')
+    })
+
+    it('reverts if otherBridge is address(0)', async () => {
+      await expect(
+        Factory__L1ERC721Bridge.deploy(
+          Fake__L1CrossDomainMessenger.address,
+          constants.AddressZero
+        )
+      ).to.be.revertedWith('ERC721Bridge: other bridge cannot be address(0)')
+    })
+
+    it('initializes correctly', async () => {
+      expect(await L1ERC721Bridge.messenger()).equals(
+        Fake__L1CrossDomainMessenger.address
+      )
+      expect(await L1ERC721Bridge.otherBridge()).equals(DUMMY_L2_BRIDGE_ADDRESS)
+    })
+  })
+
   describe('ERC721 deposits', () => {
     beforeEach(async () => {
       await L1ERC721.connect(alice).approve(L1ERC721Bridge.address, tokenId)
+    })
+
+    it('bridgeERC721() reverts if remote token is address(0)', async () => {
+      await expect(
+        L1ERC721Bridge.connect(alice).bridgeERC721(
+          L1ERC721.address,
+          constants.AddressZero,
+          tokenId,
+          FINALIZATION_GAS,
+          NON_NULL_BYTES32
+        )
+      ).to.be.revertedWith('ERC721Bridge: remote token cannot be address(0)')
     })
 
     it('bridgeERC721() escrows the deposit and sends the correct deposit message', async () => {
@@ -145,6 +187,19 @@ describe('L1ERC721Bridge', () => {
           tokenId
         )
       ).to.equal(true)
+    })
+
+    it('bridgeERC721To() reverts if NFT receiver is address(0)', async () => {
+      await expect(
+        L1ERC721Bridge.connect(alice).bridgeERC721To(
+          L1ERC721.address,
+          DUMMY_L2_ERC721_ADDRESS,
+          constants.AddressZero,
+          tokenId,
+          FINALIZATION_GAS,
+          NON_NULL_BYTES32
+        )
+      ).to.be.revertedWith('ERC721Bridge: nft recipient cannot be address(0)')
     })
 
     it('bridgeERC721To() escrows the deposited NFT and sends the correct deposit message', async () => {
