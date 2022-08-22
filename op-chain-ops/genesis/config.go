@@ -36,7 +36,6 @@ type DeployConfig struct {
 	CliqueSignerAddress              common.Address        `json:"cliqueSignerAddress"`
 	OptimismBaseFeeRecipient         common.Address        `json:"optimismBaseFeeRecipient"`
 	OptimismL1FeeRecipient           common.Address        `json:"optimismL1FeeRecipient"`
-	FundDevAccounts                  bool                  `json:"fundDevAccounts"`
 	GasPriceOracleOwner              common.Address        `json:"gasPriceOracleOwner"`
 	GasPriceOracleOverhead           uint                  `json:"gasPriceOracleOverhead"`
 	GasPriceOracleScalar             uint                  `json:"gasPriceOracleScalar"`

@@ -15,8 +15,7 @@ func BuildL1DeveloperGenesis(hh *hardhat.Hardhat, config *DeployConfig) (*core.G
 
 	db := state.NewMemoryStateDB(genesis)
 
-	if config.FundDevAccounts {
-		FundDevAccounts(db)
-	}
+	FundDevAccounts(db)
+
 	return db.Genesis(), nil
 }
