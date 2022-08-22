@@ -42,6 +42,11 @@ var (
 		Usage:  "RPC listening port",
 		EnvVar: prefixEnvVar("RPC_PORT"),
 	}
+	RPCEnableAdmin = cli.BoolFlag{
+		Name:   "rpc.enable-admin",
+		Usage:  "Enable the admin API (experimental)",
+		EnvVar: prefixEnvVar("RPC_ENABLE_ADMIN"),
+	}
 
 	/* Optional Flags */
 	L1TrustRPC = cli.BoolFlag{
@@ -152,6 +157,7 @@ var optionalFlags = append([]cli.Flag{
 	LogLevelFlag,
 	LogFormatFlag,
 	LogColorFlag,
+	RPCEnableAdmin,
 	MetricsEnabledFlag,
 	MetricsAddrFlag,
 	MetricsPortFlag,
