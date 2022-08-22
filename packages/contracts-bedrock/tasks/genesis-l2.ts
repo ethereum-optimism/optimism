@@ -286,13 +286,15 @@ task('genesis-l2', 'create a genesis config')
       GovernanceToken: {
         name: 'Optimism',
         symbol: 'OP',
-        _owner: deployConfig.proxyAdmin,
+        // TODO: this should be the mint manager
+        // in practice. Just use a hardhat account
+        // because this is only used for devnets
+        _owner: '0x829BD824B016326A401d083B33D092293333A830',
       },
     }
 
     assertEvenLength(implementationSlot)
     assertEvenLength(adminSlot)
-    assertEvenLength(deployConfig.proxyAdmin)
 
     const predeployAddrs = new Set()
     for (const addr of Object.values(predeploys)) {
@@ -300,6 +302,10 @@ task('genesis-l2', 'create a genesis config')
     }
 
     const alloc: State = {}
+
+    // Use the address of the deployed ProxyAdmin as the admin for
+    // each Proxy
+    const Deployment__ProxyAdmin = await hre.deployments.get('ProxyAdmin')
 
     // Set a proxy at each predeploy address
     const proxy = await hre.artifacts.readArtifact('Proxy')
@@ -320,7 +326,7 @@ task('genesis-l2', 'create a genesis config')
         balance: '0x0',
         code: proxy.deployedBytecode,
         storage: {
-          [adminSlot]: deployConfig.proxyAdmin,
+          [adminSlot]: Deployment__ProxyAdmin.address,
         },
       }
 
