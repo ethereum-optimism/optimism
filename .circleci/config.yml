@@ -820,7 +820,7 @@ workflows:
             - op-proposer-publish-dev
             - deployer-bedrock-publish-dev
       - hive-test:
-          name: hive-test-p2p
+          name: hive-test-l1ops
           version: <<pipeline.git.revision>>
           sim: optimism/l1ops
           requires:
