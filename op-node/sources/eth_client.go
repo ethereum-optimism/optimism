@@ -58,7 +58,7 @@ func (c *EthClientConfig) Check() error {
 	return nil
 }
 
-// EthClient retrieves ethereum data from with optimized batch requests, cached results, and flag to not trust the RPC.
+// EthClient retrieves ethereum data with optimized batch requests, cached results, and flag to not trust the RPC.
 type EthClient struct {
 	client client.RPC
 
