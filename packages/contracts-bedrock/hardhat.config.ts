@@ -320,10 +320,6 @@ const config: HardhatUserConfig = {
       type: 'number',
       default: 6,
     },
-    proxyAdmin: {
-      type: 'address',
-      // no default, important to get right.
-    },
     fundDevAccounts: {
       type: 'boolean',
       default: false,
