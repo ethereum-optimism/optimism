@@ -371,7 +371,7 @@ describe('L1ERC721Bridge', () => {
           IL2ERC721Bridge.encodeFunctionData('finalizeBridgeERC721', [
             DUMMY_L2_ERC721_ADDRESS,
             RANDOM_L1_ERC721_ADDRESS,
-            bobsAddress, // switched the 'from' and 'to' addresses here
+            L1ERC721Bridge.address, // the 'from' address is the l1 bridge to indicate that the l1 recipient never controlled the nft.
             aliceAddress,
             tokenId,
             NON_NULL_BYTES32,
@@ -381,7 +381,7 @@ describe('L1ERC721Bridge', () => {
         expect(depositCallToMessenger.args[2]).to.equal(FINALIZATION_GAS)
       })
 
-      it('should credit funds to the withdrawer and not use too much gas', async () => {
+      it('should credit funds to the withdrawer to finalize withdrawal', async () => {
         // finalizing the withdrawal emits an ERC721BridgeFinalized event with the correct arguments.
         await expect(
           L1ERC721Bridge.finalizeBridgeERC721(
@@ -399,6 +399,41 @@ describe('L1ERC721Bridge', () => {
             L1ERC721.address,
             DUMMY_L2_ERC721_ADDRESS,
             NON_ZERO_ADDRESS,
+            NON_ZERO_ADDRESS,
+            tokenId,
+            NON_NULL_BYTES32
+          )
+
+        // NFT is transferred to new owner
+        expect(await L1ERC721.ownerOf(tokenId)).to.equal(NON_ZERO_ADDRESS)
+
+        // deposits state variable is updated
+        expect(
+          await L1ERC721Bridge.deposits(
+            L1ERC721.address,
+            DUMMY_L2_ERC721_ADDRESS,
+            tokenId
+          )
+        ).to.equal(false)
+      })
+
+      it('should credit funds to the withdrawer to finalize refund', async () => {
+        // finalizing a refund emits an ERC721Refunded event with the correct arguments.
+        await expect(
+          L1ERC721Bridge.finalizeBridgeERC721(
+            L1ERC721.address,
+            DUMMY_L2_ERC721_ADDRESS,
+            DUMMY_L2_BRIDGE_ADDRESS, // _from is the l2 bridge for refunds
+            NON_ZERO_ADDRESS,
+            tokenId,
+            NON_NULL_BYTES32,
+            { from: Fake__L1CrossDomainMessenger.address }
+          )
+        )
+          .to.emit(L1ERC721Bridge, 'ERC721Refunded')
+          .withArgs(
+            L1ERC721.address,
+            DUMMY_L2_ERC721_ADDRESS,
             NON_ZERO_ADDRESS,
             tokenId,
             NON_NULL_BYTES32
