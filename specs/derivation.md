@@ -84,7 +84,7 @@
 
 # Overview
 
-> **Note**: the following assumes a single sequencer and batcher. In the future, the design might be adapted to
+> **Note** the following assumes a single sequencer and batcher. In the future, the design will be adapted to
 > accomodate multiple such entities.
 
 [L2 chain derivation][g-derivation] — deriving L2 [blocks][g-block] from L1 data — is one of the main responsability of
@@ -99,17 +99,18 @@ To derive the L2 blocks in an epoch `E`, we need the following inputs:
 
 - The L1 [sequencing window][g-sequencing-window] for epoch `E`: the L1 blocks in the range `[E, E + SWS)` where `SWS`
   is the sequencing window size (note that this means that epochs are overlapping). In particular we need:
-  - The [batcher transactions][g-batcher-transactions] included in the sequencing window. These allow us to
+  - The [batcher transactions][g-batcher-transaction] included in the sequencing window. These allow us to
       reconstruct [sequencer batches][g-sequencer-batch] containing the transactions to include in L2 blocks (each batch
       maps to a single L2 block).
   - The [deposits][g-deposits] made in L1 block `E` (in the form of events emitted by the [deposit
       contract][g-deposit-contract]).
   - The L1 block attributes from L1 block `E` (to derive the [L1 attributes deposited transaction][g-l1-attr-deposit]).
 - The state of the L2 chain after the last L2 block of epoch `E - 1`, or — if epoch `E - 1` does not exist — the
-  [genesis state][g-l2-genesis] (cf. TODO) of the L2 chain.
+  [L2 genesis state][g-l2-genesis].
   - An epoch `E` does not exist if `E <= L2CI`, where `L2CI` is the [L2 chain inception][g-l2-chain-inception].
 
 > **TODO** specify sequencing window size
+
 > **TODO** specify genesis block / state (in its own document? include/link predeploy.md)
 
 To derive the whole L2 chain from scratch, we simply start with the [L2 genesis state][g-l2-genesis], and the [L2 chain
@@ -122,7 +123,7 @@ Each epoch may contain a variable number of L2 blocks (one every `l2_block_time`
 - `min_l2_timestamp <= block.timestamp < max_l2_timestamp`, where
   - all these values are denominated in seconds
   - `min_l2_timestamp = prev_l2_timestamp + l2_block_time`
-    - `prev_l2_timestamp` is the timestamp of the previous L2 block
+    - `prev_l2_timestamp` is the timestamp of the last L2 block of the previous epoch
     - `l2_block_time` is a configurable parameter of the time between L2 blocks (on Optimism, 2s)
   - `max_l2_timestamp = max(l1_timestamp + max_sequencer_drift, min_l2_timestamp + l2_block_time)`
     - `l1_timestamp` is the timestamp of the L1 block associated with the L2 block's epoch
@@ -223,22 +224,59 @@ stuck waiting on the inclusion of a previous transaction.
 Also note that we use a streaming compression scheme, and we do not need to know how many blocks a channel will end up
 containing when we start a channel, or even as we send the first frames in the channel.
 
-All of this is illustrated in the following diagram.
-
-> **TODO** improve diagram
->
-> - I'm a fan of the 4 lines "Transactions" to "L2 Blocks"
->   - albeit it would good to show that channels & frames can occur out of order
->   - but maybe that makes the diagram too hard to read and we can just include a comment afterwards saying that in
->       general, reordering is possible (maybe show a second diagram showcasing a simple reordering?
-> - I think L1 blocks should be a new line above "Transactions" — also show deposits (w/ a number) for each block
-> - We shouldn't use the L1 attributes tx as a separate line, it makes it look like a additional layer of "data
->   derivation", which it is not. Instead I would tag each L2 block with its epoch number.
-> - Include numbered deposits under L2 blocks
-> - Let's use a sequencing window of size 2 to keep the diagram small
-> - Include a textual explanation of the diagram below it
+All of this is illustrated in the following diagram. Explanations below.
 
 ![batch derivation chain diagram](./assets/batch-deriv-chain.svg)
+
+The first line represents L1 blocks with their numbers. The boxes under the L1 blocks represent [batcher
+transactions][g-batcher-transaction] included within the block. The squiggles under the L1 blocks represent
+[deposits][g-deposits] (more specifically, events emitted by the [deposit contract][g-deposit-contract]).
+
+Each colored chunk within the boxes represents a [channel frame][g-channel-frame]. So `A` and `B` are
+[channels][g-channel] whereas `A0`, `A1`, `B0`, `B1`, `B2` are frames. Notice that:
+
+- multiple channels are interleaved
+- frames do not need to be transmitted in order
+- a single batcher transaction can carry frames from multiple channels
+
+In the next line, the rounded boxes represent individual [sequencer batches][g-sequencer-batch] that were extracted from
+the channels. The four blue/purple/pink were derived from channel `A` while the other were derived from channel `B`.
+These batches are here represented in the order the were decoded from batches (in this case `B` is decoded first).
+
+> **Note** The caption here says "Channel B was seen first and will be decoded into batches first", but this is not a
+> requirement. For instance, it would be equally acceptable for an implementation to peek into the channels and decode
+> the one that contains the oldest batches first.
+
+The rest of the diagram is conceptually distinct from the first part and illustrates L2 chain derivation after the
+channels have been reordered.
+
+The first line shows batcher transactions. Note that in this case, there exists an ordering of the batches that makes
+all frames within the channels appear contiguously. This is not true in true in general. For instance, in the second
+transaction, the position of `A1` and `B0` could have been inverted for exactly the same result — no changes needed in
+the rest of the diagram.
+
+The second line shows the reconstructed channels in proper order. The third line shows the batches extracted from the
+channel. Because the channels are ordered and the batches within a channel are sequential, this means the batches are
+ordered too. The fourth line shows the [L2 block][g-block] derived from each batch. Note that we have a 1-1 batch to
+block mapping here but, as we'll see later, empty blocks that do not map to batches can be inserted in cases where there
+are "gaps" in the batches posted on L1.
+
+The fifth line shows the [L1 attributes deposited transaction][g-l1-attr-deposit] which, within each L2 block, records
+information about the L1 block that matches the L2 block's epoch. The first number denotes the epoch/L1x number, while
+the second number (the "sequence number") denotes the position within the epoch.
+
+Finally, the sixth line shows [user-deposited transactions][g-user-deposited] derived from the [deposit
+contract][g-deposit-contract] event mentionned earlier.
+
+Note the `101-0` L1 attributes transaction on the bottom right of the diagram. Its presence there is only possible if
+frame `B2` indicates that it is the last frame within the channel and (2) no empty blocks must be inserted.
+
+The diagram does not specify the sequencing window size in use, but from it we can infer that it must be at least 4
+blocks, because the last frame of channel `A` appears in block 102, but belong to epoch 99.
+
+As for the comment on "security types", this is explained later in this document.
+
+> **TODO** forward reference here
 
 ### Batcher Transaction Format
 
@@ -635,7 +673,7 @@ the [safe L2 head][g-safe-l2-head] and the [unsafe L2 head][g-unsafe-l2-head] ar
 block consolidation][g-consolidation] failed or because no [unsafe L2 blocks][g-unsafe-l2-block] were known in the first
 place. This section explains how this happens.
 
-> **Note**: This only describes interaction with the execution engine in the context of L2 chain derivation from L1. The
+> **Note** This only describes interaction with the execution engine in the context of L2 chain derivation from L1. The
 > sequencer also interacts with the engine when it needs to create new L2 blocks using L2 transactions submitted by
 > users.
 
@@ -790,7 +828,7 @@ The batch decoding stage is simply reset by resetting its L1 head to the payload
 
 ## Resetting Channel Buffering
 
-> **Note**: in this section, the term *next (L2) block* will refer to the block that will become the next L2 safe head.
+> **Note** in this section, the term *next (L2) block* will refer to the block that will become the next L2 safe head.
 
 > **TODO** The above can be changed in the case where we always reset the unsafe head to the safe head upon L1 re-org.
 > (See TODO above in "Resetting the Engine Queue")
@@ -804,7 +842,7 @@ In the worst case, decoding the batch for the next L2 block would require readin
 in a [batcher transaction][g-batcher-transaction] in `safeL2Head.l1Origin + 1` (second L1 block of the next L2 block's
 epoch sequencing window, assuming it is in the same epoch as `safeL2Head`).
 
-> **Note**: In reality, there are no checks or constraints preventing the batch from landing in `safeL2Head.l1Origin`.
+> **Note** In reality, there are no checks or constraints preventing the batch from landing in `safeL2Head.l1Origin`.
 > However this would be strange, because the next L2 block is built after the current L2 safe block, which requires
 > reading the deposits L1 attributes and deposits from `safeL2Head.l1Origin`. Still, a wonky or misbehaving sequencer
 > could post a batch for the L2 block `safeL2Head + 1` on L1 block `safeL2Head.1Origin`.
@@ -817,7 +855,7 @@ range.
 Therefore, to be safe, we can reset the L1 head of Channel Buffering to the oldest L1 block whose timestamp is higher
 than `safeL2Head.l1Origin.timestamp - CHANNEL_TIMEOUT`.
 
-> **Note**: The above is what the implementation currently does.
+> **Note** The above is what the implementation currently does.
 
 In reality it's only strictly necessary to reset the oldest L1 block whose timestamp is higher than the oldest
 `channel_id.timestamp` found in the batcher transaction that is not older than `safeL2Head.l1Origin.timestamp -
