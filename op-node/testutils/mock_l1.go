@@ -45,13 +45,13 @@ func (m *MockL1Source) ExpectL1BlockRefByHash(hash common.Hash, ref eth.L1BlockR
 	m.Mock.On("L1BlockRefByHash", hash).Once().Return(ref, &err)
 }
 
-func (m *MockL1Source) Fetch(ctx context.Context, blockHash common.Hash) (eth.L1Info, types.Transactions, types.Receipts, error) {
+func (m *MockL1Source) Fetch(ctx context.Context, blockHash common.Hash) (eth.L1Info, types.Transactions, eth.ReceiptsFetcher, error) {
 	out := m.Mock.MethodCalled("Fetch", blockHash)
-	return *out[0].(*eth.L1Info), out[1].(types.Transactions), out[2].(types.Receipts), *out[3].(*error)
+	return *out[0].(*eth.L1Info), out[1].(types.Transactions), out[2].(eth.ReceiptsFetcher), *out[3].(*error)
 }
 
 func (m *MockL1Source) ExpectFetch(hash common.Hash, info eth.L1Info, transactions types.Transactions, receipts types.Receipts, err error) {
-	m.Mock.On("Fetch", hash).Once().Return(&info, transactions, receipts, &err)
+	m.Mock.On("Fetch", hash).Once().Return(&info, transactions, eth.FetchedReceipts(receipts), &err)
 }
 
 func (m *MockL1Source) InfoAndTxsByHash(ctx context.Context, hash common.Hash) (eth.L1Info, types.Transactions, error) {
