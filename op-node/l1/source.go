@@ -201,23 +201,20 @@ func (s *Source) InfoAndTxsHead(ctx context.Context) (eth.L1Info, types.Transact
 }
 
 func (s *Source) Fetch(ctx context.Context, blockHash common.Hash) (eth.L1Info, types.Transactions, eth.ReceiptsFetcher, error) {
-	if blockHash == (common.Hash{}) {
-		return nil, nil, nil, ethereum.NotFound
-	}
-	info, txs, err := s.blockCall(ctx, "eth_getBlockByHash", blockHash)
+	info, txs, err := s.InfoAndTxsByHash(ctx, blockHash)
 	if err != nil {
 		return nil, nil, nil, err
 	}
-	if v, ok := s.receiptsCache.Get(info.hash); ok {
+	if v, ok := s.receiptsCache.Get(blockHash); ok {
 		return info, txs, v.(eth.ReceiptsFetcher), nil
-	} else {
-		r, err := NewReceiptsFetcher(info.ID(), info.receiptHash, txs, s.batchCall, s.maxBatchSize)
-		if err != nil {
-			return nil, nil, nil, err
-		}
-		s.receiptsCache.Add(info.hash, r)
-		return info, txs, r, nil
 	}
+	txHashes := make([]common.Hash, len(txs))
+	for i := 0; i < len(txs); i++ {
+		txHashes[i] = txs[i].Hash()
+	}
+	r := NewReceiptsFetcher(info.ID(), info.ReceiptHash(), txHashes, s.batchCall, s.maxBatchSize)
+	s.receiptsCache.Add(blockHash, r)
+	return info, txs, r, nil
 }
 
 // FetchAllTransactions fetches transaction lists of a window of blocks, and caches each block and the transactions

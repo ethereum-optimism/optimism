@@ -258,13 +258,24 @@ type ForkchoiceUpdatedResult struct {
 // ReceiptsFetcher fetches receipts of a block,
 // and enables the caller to parallelize fetching and backoff on fetching errors as needed.
 type ReceiptsFetcher interface {
+	// Reset clears the previously fetched results for a fresh re-attempt.
+	Reset()
+	// Fetch retrieves receipts in batches, until it returns io.EOF to indicate completion.
 	Fetch(ctx context.Context) error
+	// Complete indicates when all data has been fetched.
 	Complete() bool
+	// Result returns the receipts, or an error if the Fetch-ing is not Complete,
+	// or an error if the results are invalid.
+	// If an error is returned, the fetcher is Reset automatically.
 	Result() (types.Receipts, error)
 }
 
 // FetchedReceipts is a simple util to implement the ReceiptsFetcher with readily available receipts.
 type FetchedReceipts types.Receipts
+
+func (f FetchedReceipts) Reset() {
+	// nothing to reset
+}
 
 func (f FetchedReceipts) Fetch(ctx context.Context) error {
 	return io.EOF
