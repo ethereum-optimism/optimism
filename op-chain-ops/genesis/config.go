@@ -36,7 +36,6 @@ type DeployConfig struct {
 	CliqueSignerAddress              common.Address        `json:"cliqueSignerAddress"`
 	OptimismBaseFeeRecipient         common.Address        `json:"optimismBaseFeeRecipient"`
 	OptimismL1FeeRecipient           common.Address        `json:"optimismL1FeeRecipient"`
-	ProxyAdmin                       common.Address        `json:"proxyAdmin"`
 	FundDevAccounts                  bool                  `json:"fundDevAccounts"`
 	GasPriceOracleOwner              common.Address        `json:"gasPriceOracleOwner"`
 	GasPriceOracleOverhead           uint                  `json:"gasPriceOracleOverhead"`
@@ -157,7 +156,8 @@ func NewStorageConfig(hh *hardhat.Hardhat, config *DeployConfig, chain ethereum.
 	storage["GovernanceToken"] = state.StorageValues{
 		"_name":   "Optimism",
 		"_symbol": "OP",
-		"_owner":  config.ProxyAdmin,
+		// TODO: this should be set to the MintManager
+		"_owner": common.Address{},
 	}
 
 	return storage, nil
