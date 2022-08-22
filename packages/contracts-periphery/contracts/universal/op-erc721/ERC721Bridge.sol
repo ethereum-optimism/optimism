@@ -75,6 +75,24 @@ abstract contract ERC721Bridge is Initializable {
     );
 
     /**
+     * @notice Emitted when an NFT is refunded to the owner after an ERC721 bridge from the other
+     *         chain fails.
+     *
+     * @param localToken  Address of the token on this domain.
+     * @param remoteToken Address of the token on the remote domain.
+     * @param to          Address to receive the refunded token.
+     * @param tokenId     ID of the specific token being refunded.
+     * @param extraData   Extra data for use on the client-side.
+     */
+    event ERC721Refunded(
+        address indexed localToken,
+        address indexed remoteToken,
+        address indexed to,
+        uint256 tokenId,
+        bytes extraData
+    );
+
+    /**
      * @notice Address of the bridge on the other network.
      */
     address public otherBridge;
