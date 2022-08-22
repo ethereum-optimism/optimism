@@ -71,8 +71,8 @@
 - [Deriving Payload Attributes](#deriving-payload-attributes)
   - [Deriving the Transaction List](#deriving-the-transaction-list)
   - [Building Individual Payload Attributes](#building-individual-payload-attributes)
-- [WARNING: BELOW THIS LINE, THE SPEC HAS NOT BEEN REVIEWED AND MAY CONTAIN MISTAKES](#warning-below-this-line-the-spec-has-not-been-reviewed-and-may-contain-mistakes)
 - [Communication with the Execution Engine](#communication-with-the-execution-engine)
+- [WARNING: BELOW THIS LINE, THE SPEC HAS NOT BEEN REVIEWED AND MAY CONTAIN MISTAKES](#warning-below-this-line-the-spec-has-not-been-reviewed-and-may-contain-mistakes)
 - [Handling L1 Re-Orgs](#handling-l1-re-orgs)
   - [Resetting the Engine Queue](#resetting-the-engine-queue)
   - [Resetting Payload Attribute Derivation](#resetting-payload-attribute-derivation)
@@ -103,7 +103,7 @@ To derive the L2 blocks in an epoch `E`, we need the following inputs:
   - The [batcher transactions][g-batcher-transaction] included in the sequencing window. These allow us to
       reconstruct [sequencer batches][g-sequencer-batch] containing the transactions to include in L2 blocks (each batch
       maps to a single L2 block).
-      - Note that it is impossible to have a batcher transaction containing a batch relative to epoch `E` on L1 block
+    - Note that it is impossible to have a batcher transaction containing a batch relative to epoch `E` on L1 block
         `E`, as the batch must contain the hash of L1 block `E`.
   - The [deposits][g-deposits] made in L1 block `E` (in the form of events emitted by the [deposit
       contract][g-deposit-contract]).
@@ -131,7 +131,8 @@ Each epoch may contain a variable number of L2 blocks (one every `l2_block_time`
     - `l1_timestamp` is the timestamp of the L1 block associated with the L2 block's epoch
     - `max_sequencer_drift` is the most a sequencer is allowed to get ahead of L1
 
-> **TODO** specify max sequencer drift (current thinking: on the order of 10 minutes, we've been using 2-4 minutes in testnets)
+> **TODO** specify max sequencer drift (current thinking: on the order of 10
+> minutes, we've been using 2-4 minutes in testnets)
 
 Put together, these constraints mean that there must be an L2 block every `l2_block_time` seconds, and that the
 timestamp for the first L2 block of an epoch must never fall behind the timestamp of the L1 block matching the epoch.
@@ -699,7 +700,7 @@ Let:
   head][g-unsafe-l2-head]
 - `finalizedL2Head` be a variable in the state of the execution engine, tracking the (hash of) the current [finalized L2
   head][g-finalized-l2-head]
-    - This is not yet implemented, and currently always holds the zero hash — this does not prevent the pseudocode below
+  - This is not yet implemented, and currently always holds the zero hash — this does not prevent the pseudocode below
       from working.
 - `payloadAttributes` be some previously derived [payload attributes][g-payload-attr] for the L2 block with number
   `l2Number(safeL2Head) + 1`
@@ -780,10 +781,10 @@ meaning:
 Error handling:
 
 - A value returned by `payloadError()` means the inputs were wrong.
-    - This could mean the sequencer included invalid transactions in the batch. **In this case, all transactions from the
+  - This could mean the sequencer included invalid transactions in the batch. **In this case, all transactions from the
       batch should be dropped**. We assume this is the case, and modify the payload via `onlyDeposits` to only include
       [deposited transactions][g-deposited], and retry.
-    - In the case of deposits, the [execution engine][g-exec-engine] will skip invalid transactions, so bad deposited
+  - In the case of deposits, the [execution engine][g-exec-engine] will skip invalid transactions, so bad deposited
       transactions should never cause a payload error.
 - A value returned by `softError()` means that the interaction failed by chance, and should be reattempted (this is the
   purpose of the `while` loop in the pseudo-code).
