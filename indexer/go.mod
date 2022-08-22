@@ -3,12 +3,10 @@ module github.com/ethereum-optimism/optimism/indexer
 go 1.17
 
 replace (
-	github.com/ethereum-optimism/optimism/l2geth v0.0.0 => ../l2geth
 	github.com/ethereum-optimism/optimism/op-bindings v0.0.0 => ../op-bindings
 )
 
 require (
-	github.com/ethereum-optimism/optimism/l2geth v0.0.0
 	github.com/ethereum-optimism/optimism/op-bindings v0.0.0
 	github.com/ethereum/go-ethereum v1.10.21
 	github.com/getsentry/sentry-go v0.12.0

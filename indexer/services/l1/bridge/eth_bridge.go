@@ -39,7 +39,7 @@ func (e *EthBridge) GetDepositsByBlockRange(start, end uint64) (DepositsMap, err
 				FromAddress: iter.Event.From,
 				ToAddress:   iter.Event.To,
 				Amount:      iter.Event.Amount,
-				Data:        iter.Event.Data,
+				Data:        iter.Event.ExtraData,
 				LogIndex:    iter.Event.Raw.Index,
 			})
 	}

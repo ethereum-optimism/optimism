@@ -1,7 +1,7 @@
 package l1
 
 import (
-	"github.com/ethereum-optimism/optimism/indexer/bindings/l1erc20"
+	"github.com/ethereum-optimism/optimism/indexer/bindings/erc20"
 	"github.com/ethereum/go-ethereum/ethclient"
 
 	"github.com/ethereum-optimism/optimism/indexer/db"
@@ -10,7 +10,7 @@ import (
 )
 
 func QueryERC20(address common.Address, client *ethclient.Client) (*db.Token, error) {
-	contract, err := l1erc20.NewL1ERC20(address, client)
+	contract, err := erc20.NewERC20(address, client)
 	if err != nil {
 		return nil, err
 	}
