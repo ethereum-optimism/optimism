@@ -50,6 +50,13 @@ contract OptimismMintableERC721 is ERC721Enumerable, IOptimismMintableERC721 {
         string memory _name,
         string memory _symbol
     ) ERC721(_name, _symbol) {
+        require(_bridge != address(0), "OptimismMintableERC721: bridge cannot be address(0)");
+        require(_remoteChainId != 0, "OptimismMintableERC721: remote chain id cannot be zero");
+        require(
+            _remoteToken != address(0),
+            "OptimismMintableERC721: remote token cannot be address(0)"
+        );
+
         remoteChainId = _remoteChainId;
         remoteToken = _remoteToken;
         bridge = _bridge;
