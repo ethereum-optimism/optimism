@@ -109,6 +109,9 @@ const deployFn: DeployFunction = async (hre) => {
   ]
   await Promise.all(implTxs)
 
+  // Reset the nonce for the next set of transactions
+  nonce = await l1.getTransactionCount(deployer)
+
   const upgradeTxs = []
   for (const [proxy, upgrader] of Object.entries(upgradeABIs)) {
     const upgraderOut = await upgrader(deployConfig, hre)
