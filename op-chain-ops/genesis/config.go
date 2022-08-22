@@ -11,8 +11,8 @@ import (
 	"github.com/ethereum/go-ethereum/rpc"
 
 	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
-	"github.com/ethereum-optimism/optimism/state-surgery/hardhat"
-	"github.com/ethereum-optimism/optimism/state-surgery/state"
+	"github.com/ethereum-optimism/optimism/op-chain-ops/hardhat"
+	"github.com/ethereum-optimism/optimism/op-chain-ops/state"
 )
 
 // DeployConfig represents the deployment configuration for Optimism
@@ -36,7 +36,6 @@ type DeployConfig struct {
 	CliqueSignerAddress              common.Address        `json:"cliqueSignerAddress"`
 	OptimismBaseFeeRecipient         common.Address        `json:"optimismBaseFeeRecipient"`
 	OptimismL1FeeRecipient           common.Address        `json:"optimismL1FeeRecipient"`
-	ProxyAdmin                       common.Address        `json:"proxyAdmin"`
 	FundDevAccounts                  bool                  `json:"fundDevAccounts"`
 	GasPriceOracleOwner              common.Address        `json:"gasPriceOracleOwner"`
 	GasPriceOracleOverhead           uint                  `json:"gasPriceOracleOverhead"`
@@ -157,7 +156,8 @@ func NewStorageConfig(hh *hardhat.Hardhat, config *DeployConfig, chain ethereum.
 	storage["GovernanceToken"] = state.StorageValues{
 		"_name":   "Optimism",
 		"_symbol": "OP",
-		"_owner":  config.ProxyAdmin,
+		// TODO: this should be set to the MintManager
+		"_owner": common.Address{},
 	}
 
 	return storage, nil

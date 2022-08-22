@@ -7,9 +7,9 @@ import (
 	"math/big"
 
 	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
-	"github.com/ethereum-optimism/optimism/state-surgery/hardhat"
-	"github.com/ethereum-optimism/optimism/state-surgery/immutables"
-	"github.com/ethereum-optimism/optimism/state-surgery/state"
+	"github.com/ethereum-optimism/optimism/op-chain-ops/hardhat"
+	"github.com/ethereum-optimism/optimism/op-chain-ops/immutables"
+	"github.com/ethereum-optimism/optimism/op-chain-ops/state"
 
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"

@@ -12,8 +12,8 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 
 	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
-	"github.com/ethereum-optimism/optimism/state-surgery/genesis"
-	"github.com/ethereum-optimism/optimism/state-surgery/hardhat"
+	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
+	"github.com/ethereum-optimism/optimism/op-chain-ops/hardhat"
 	"github.com/stretchr/testify/require"
 )
 
