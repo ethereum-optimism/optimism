@@ -6,7 +6,6 @@ import (
 	"math/big"
 
 	"github.com/ethereum-optimism/optimism/indexer/bindings/l1bridge"
-	"github.com/ethereum-optimism/optimism/indexer/bindings/scc"
 	"github.com/ethereum-optimism/optimism/indexer/db"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
@@ -26,6 +25,8 @@ type implConfig struct {
 	addr common.Address
 }
 
+var addrs map[string]common.Address
+
 var customBridgeCfgs = map[uint64][]*implConfig{
 	// Mainnet
 	1: {
@@ -40,10 +41,10 @@ var customBridgeCfgs = map[uint64][]*implConfig{
 	},
 }
 
-func BridgesByChainID(chainID *big.Int, client bind.ContractBackend, addrs *Addresses, ctx context.Context) (map[string]Bridge, error) {
+func BridgesByChainID(chainID *big.Int, client bind.ContractBackend, ctx context.Context) (map[string]Bridge, error) {
 	allCfgs := []*implConfig{
-		{"Standard", "StandardBridge", addrs.L1StandardBridge()},
-		{"ETH", "ETHBridge", addrs.L1StandardBridge()},
+		{"Standard", "StandardBridge", addrs["L1StandardBridge"]},
+		{"ETH", "ETHBridge", addrs["L1StandardBridge"]},
 	}
 	allCfgs = append(allCfgs, customBridgeCfgs[chainID.Uint64()]...)
 
@@ -83,12 +84,4 @@ func BridgesByChainID(chainID *big.Int, client bind.ContractBackend, addrs *Addr
 		}
 	}
 	return bridges, nil
-}
-
-func StateCommitmentChainScanner(client bind.ContractFilterer, addrs *Addresses) (*scc.StateCommitmentChainFilterer, error) {
-	filter, err := scc.NewStateCommitmentChainFilterer(addrs.StateCommitmentChain(), client)
-	if err != nil {
-		return nil, err
-	}
-	return filter, nil
 }
