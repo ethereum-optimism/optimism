@@ -17,7 +17,6 @@
   "l2OutputOracleProposer": "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
   "l2OutputOracleOwner": "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
 
-  "proxyAdmin": "0x0000000000000000000000000000000000000000",
   "fundDevAccounts": true,
 
   "deploymentWaitConfirmations": 1
