@@ -19,7 +19,6 @@
 
   "optimismBaseFeeRecipient": "0xf116a24056b647e3211d095c667e951536cdebaa",
   "optimismL1FeeRecipient": "0xc731837b696ca3d9720d23336925368ceaa58f83",
-  "fundDevAccounts": true,
 
   "deploymentWaitConfirmations": 1
 }

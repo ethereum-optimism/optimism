@@ -320,10 +320,6 @@ const config: HardhatUserConfig = {
       type: 'number',
       default: 6,
     },
-    fundDevAccounts: {
-      type: 'boolean',
-      default: false,
-    },
     deploymentWaitConfirmations: {
       type: 'number',
       default: 1,

@@ -46,11 +46,13 @@ func TestBuildOptimismGenesis(t *testing.T) {
 		15000000,
 	)
 
-	gen, err := genesis.BuildOptimismGenesis(hh, config, backend)
+	gen, err := genesis.BuildOptimismDeveloperGenesis(hh, config, backend)
 	require.Nil(t, err)
 	require.NotNil(t, gen)
 
 	proxyAdmin, err := hh.GetDeployment("ProxyAdmin")
+	require.Nil(t, err)
+	proxy, err := hh.GetArtifact("Proxy")
 	require.Nil(t, err)
 
 	for name, address := range predeploys.Predeploys {
@@ -67,6 +69,7 @@ func TestBuildOptimismGenesis(t *testing.T) {
 		adminSlot, ok := account.Storage[genesis.AdminSlot]
 		require.Equal(t, ok, true)
 		require.Equal(t, adminSlot, proxyAdmin.Address.Hash())
+		require.Equal(t, account.Code, []byte(proxy.DeployedBytecode))
 	}
 
 	if writeFile {
