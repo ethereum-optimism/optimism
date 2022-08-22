@@ -8,19 +8,23 @@ import (
 	"github.com/ethereum/go-ethereum/core"
 )
 
-// BuildOptimismGenesis
-func BuildOptimismGenesis(hh *hardhat.Hardhat, config *DeployConfig, chain ethereum.ChainReader) (*core.Genesis, error) {
-	genesis, err := NewL2Genesis(config, chain)
+// BuildOptimismDeveloperGenesis will build the developer Optimism Genesis
+// Block. Suitable for devnets.
+func BuildOptimismDeveloperGenesis(hh *hardhat.Hardhat, config *DeployConfig, chain ethereum.ChainReader) (*core.Genesis, error) {
+	genspec, err := NewL2Genesis(config, chain)
 	if err != nil {
 		return nil, err
 	}
 
-	db := state.NewMemoryStateDB(genesis)
+	db := state.NewMemoryStateDB(genspec)
 
-	if config.FundDevAccounts {
-		FundDevAccounts(db)
-	}
+	FundDevAccounts(db)
 
+	return BuildOptimismGenesis(db, hh, config, chain)
+}
+
+// BuildOptimismGenesis will build the L2 Optimism Genesis Block
+func BuildOptimismGenesis(db *state.MemoryStateDB, hh *hardhat.Hardhat, config *DeployConfig, chain ethereum.ChainReader) (*core.Genesis, error) {
 	// TODO(tynes): need a function for clearing old, unused storage slots.
 	// Each deployed contract on L2 needs to have its existing storage
 	// inspected and then cleared if they are no longer used.
