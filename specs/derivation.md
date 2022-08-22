@@ -5,7 +5,7 @@
 [g-payload-attr]: glossary.md#payload-attributes
 [g-block]: glossary.md#block
 [g-exec-engine]: glossary.md#execution-engine
-[g-reorg]: glossary.md#re-organization
+[g-reorg]: glossary.md#chain-re-organization
 [g-receipts]: glossary.md#receipt
 [g-inception]: glossary.md#L2-chain-inception
 [g-deposit-contract]: glossary.md#deposit-contract
@@ -23,7 +23,6 @@
 [g-sequencing-window]: glossary.md#sequencing-window
 [g-sequencer-batch]: glossary.md#sequencer-batch
 [g-l2-genesis]: glossary.md#l2-genesis-block
-[g-l2-chain-inception]: glossary.md#L2-chain-inception
 [g-batcher-transaction]: glossary.md#batcher-transaction
 [g-avail-provider]: glossary.md#data-availability-provider
 [g-batcher]: glossary.md#batcher
@@ -44,6 +43,7 @@
 [g-l1-origin]: glossary.md#l1-origin
 [g-deposit-tx-type]: glossary.md#deposited-transaction-type
 [g-finalized-l2-head]: glossary.md#finalized-l2-head
+[g-validator]: glossary.md#chain-re-organization
 
 <!-- START doctoc generated TOC please keep comment here to allow auto update -->
 <!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
@@ -72,11 +72,10 @@
   - [Deriving the Transaction List](#deriving-the-transaction-list)
   - [Building Individual Payload Attributes](#building-individual-payload-attributes)
 - [Communication with the Execution Engine](#communication-with-the-execution-engine)
-- [WARNING: BELOW THIS LINE, THE SPEC HAS NOT BEEN REVIEWED AND MAY CONTAIN MISTAKES](#warning-below-this-line-the-spec-has-not-been-reviewed-and-may-contain-mistakes)
-- [Handling L1 Re-Orgs](#handling-l1-re-orgs)
+- [Handling Re-Orgs](#handling-re-orgs)
   - [Resetting the Engine Queue](#resetting-the-engine-queue)
   - [Resetting Payload Attribute Derivation](#resetting-payload-attribute-derivation)
-  - [Resetting Batch Decoding](#resetting-batch-decoding)
+  - [Resetting Batch Buffering & Batch Decoding](#resetting-batch-buffering--batch-decoding)
   - [Resetting Channel Buffering](#resetting-channel-buffering)
   - [Resetting L1 Retrieval & L1 Traversal](#resetting-l1-retrieval--l1-traversal)
   - [Reorgs Post-Merge](#reorgs-post-merge)
@@ -110,31 +109,31 @@ To derive the L2 blocks in an epoch `E`, we need the following inputs:
   - The L1 block attributes from L1 block `E` (to derive the [L1 attributes deposited transaction][g-l1-attr-deposit]).
 - The state of the L2 chain after the last L2 block of epoch `E - 1`, or — if epoch `E - 1` does not exist — the
   [L2 genesis state][g-l2-genesis].
-  - An epoch `E` does not exist if `E <= L2CI`, where `L2CI` is the [L2 chain inception][g-l2-chain-inception].
+  - An epoch `E` does not exist if `E <= L2CI`, where `L2CI` is the [L2 chain inception][g-inception].
 
 > **TODO** specify sequencing window size (current thinking: on the order of a few hours, to give maximal flexibility to
 > the batch submitter)
 
 To derive the whole L2 chain from scratch, we simply start with the [L2 genesis state][g-l2-genesis], and the [L2 chain
-inception][g-l2-chain-inception] as first epoch, then process all sequencing windows in order. Refer to the
+inception][g-inception] as first epoch, then process all sequencing windows in order. Refer to the
 [Architecture section][architecture] for more information on how we implement this in practice.
 
-Each epoch may contain a variable number of L2 blocks (one every `l2_block_time`, 2s on Optimism), at the discretion of
+Each epoch may contain a variable number of L2 blocks (one every `L2_BLOCK_TIME`, 2s on Optimism), at the discretion of
 [the sequencer][g-sequencer], but subject to the following constraints for each block:
 
 - `min_l2_timestamp <= block.timestamp < max_l2_timestamp`, where
   - all these values are denominated in seconds
-  - `min_l2_timestamp = prev_l2_timestamp + l2_block_time`
+  - `min_l2_timestamp = prev_l2_timestamp + L2_BLOCK_TIME`
     - `prev_l2_timestamp` is the timestamp of the last L2 block of the previous epoch
-    - `l2_block_time` is a configurable parameter of the time between L2 blocks (on Optimism, 2s)
-  - `max_l2_timestamp = max(l1_timestamp + max_sequencer_drift, min_l2_timestamp + l2_block_time)`
+    - `L2_BLOCK_TIME` is a configurable parameter of the time between L2 blocks (on Optimism, 2s)
+  - `max_l2_timestamp = max(l1_timestamp + MAX_SEQUENCER_DRIFT, min_l2_timestamp + L2_BLOCK_TIME)`
     - `l1_timestamp` is the timestamp of the L1 block associated with the L2 block's epoch
-    - `max_sequencer_drift` is the most a sequencer is allowed to get ahead of L1
+    - `MAX_SEQUENCER_DRIFT` is the most a sequencer is allowed to get ahead of L1
 
 > **TODO** specify max sequencer drift (current thinking: on the order of 10 minutes, we've been using 2-4 minutes in
 > testnets)
 
-Put together, these constraints mean that there must be an L2 block every `l2_block_time` seconds, and that the
+Put together, these constraints mean that there must be an L2 block every `L2_BLOCK_TIME` seconds, and that the
 timestamp for the first L2 block of an epoch must never fall behind the timestamp of the L1 block matching the epoch.
 
 Post-merge, Ethereum has a fixed [block time][g-block-time] of 12s (though some slots can be skipped). It is thus
@@ -280,8 +279,8 @@ blocks, because the last frame of channel `A` appears in block 102, but belong t
 
 As for the comment on "security types", it explains the classification of blocks as used on L1 and L2.
 
-- [Unsafe L2 blocks][g-unsafe-l2-block]:
-- [Safe L2 blocks][g-safe-l2-block]:
+- [Unsafe L2 blocks][g-unsafe-l2-block]
+- [Safe L2 blocks][g-safe-l2-block]
 - Finalized L2 blocks: currently the same as the safe L2 block, but could be changed in the future to refer to blocks
   that have been derived from [finalized][g-finalized-l2-head] L1 data, or alternatively, from L1 blocks that are older
   than the [challenge period][TODO].
@@ -538,7 +537,7 @@ As currently implemented, each step in this stage performs the following actions
 In the *Batch Decoding* stage, we decompress the channel we received in the last stage, then parse
 [batches][g-sequencer-batch] from the decompressed byte stream.
 
-### Batch Buffering
+### Batch Buffering (v2)
 
 [batch-buffering]: #batch-buffering
 
@@ -615,10 +614,49 @@ then an empty batch can be derived with the following properties:
   - `epoch_num = next_epoch.number`
   - `epoch_hash = next_epoch.hash`
 
+### Batch Buffering (v1)
+
+During the *Batch Buffering* stage, we reorder batches by their timestamps. If batches are missing for some [time
+slots][g-time-slot] and a valid batch with a higher timestamp exists, this stage also generates empty batches to fill
+the gaps.
+
+Batches are pushed to the next stage whenever there is one or more sequential batch(es) directly following the timestamp
+of the current [safe L2 head][g-safe-l2-head] (the last block that can be derived from the canonical L1 chain).
+
+Note that the presence of any gaps in the batches derived from L1 means that this stage will need to buffer for a whole
+[sequencing window][g-sequencing-window] before it can generate empty batches (because the missing batch(es) could have
+data in the last L1 block of the window in the worst case).
+
+We also ignore invalid batches, which do not satisfy one of the following constraints:
+
+- The timestamp is aligned to the [block time][g-block-time]:
+  `(batch.timestamp - genesis_l2_timestamp) % block_time == 0`
+- The timestamp is within the allowed range: `min_l2_timestamp <= batch.timestamp < max_l2_timestamp`, where
+  - all these values are denominated in seconds
+  - `min_l2_timestamp = prev_l2_timestamp + L2_BLOCK_TIME`
+    - `prev_l2_timestamp` is the timestamp of the previous L2 block: the last block of the previous epoch,
+      or the L2 genesis block timestamp if there is no previous epoch.
+    - `L2_BLOCK_TIME` is a configurable parameter of the time between L2 blocks (on Optimism, 2s)
+  - `max_l2_timestamp = max(l1_timestamp + max_sequencer_drift, min_l2_timestamp + L2_BLOCK_TIME)`
+    - `l1_timestamp` is the timestamp of the L1 block associated with the L2 block's epoch
+    - `max_sequencer_drift` is the maximum amount of time an L2 block's timestamp is allowed to get ahead of the
+       timestamp of its [L1 origin][g-l1-origin]
+  - Note that we always have `min_l2_timestamp >= l1_timestamp`, i.e. a L2 block timestamp is always equal or ahead of
+    the timestamp of its [L1 origin][g-l1-origin].
+- The batch is the first batch with `batch.timestamp` in this sequencing window, i.e. one batch per L2 block number.
+- We do not learn of the batch after the end of its [sequencing window][g-sequencing-window].
+  - To determine this, the batch buffering stage must keep a reference to the furthest L1 block whose [batcher
+      transactions][g-batcher-transaction] are being or have been processed.
+- The batch only contains sequenced transactions, i.e. it must NOT contain any [deposited-type transactions][
+  g-deposit-tx-type].
+
+> **TODO** specify `max_sequencer_drift` (see TODO above) (current thinking: on the order of 10 minutes, we've been
+> using 2-4 minutes in testnets)
+
 > **TODO** Drop batches whose epoch is not congruent with the epoch of safe L2 head that will build upon. This is tricky
 > because (a) epochs are not encoded explicitly in payload attributes (only nested within the L1 attributes transaction)
 > and (b) we don't know the L2 safe head for every batch in the buffer at this stage. This is being discussed in another
-> open PR>
+> open PR.
 
 ### Payload Attributes Derivation
 
@@ -666,7 +704,7 @@ Engine][exec-engine-comm] section.
 ### Resetting the Pipeline
 
 It is possible to reset the pipeline, for instance if we detect an L1 [re-org][g-reorg]. For more details on this, see
-the [Handling L1 Re-Orgs][handling-reorgs] section.
+the [Handling Re-Orgs][handling-reorgs] section.
 
 ------------------------------------------------------------------------------------------------------------------------
 
@@ -756,7 +794,7 @@ Let:
 Then we can apply the following pseudocode logic to update the state of both the rollup driver and execution engine:
 
 ```javascript
-fun makeL2Block(payloadAttributes) {
+function makeL2Block(payloadAttributes) {
 
     // request a new execution payload
     forkChoiceState = {
@@ -852,17 +890,9 @@ The execution payload is an object of type [`ExecutionPayloadV1`][eth-payload].
 
 [eth-payload]: https://github.com/ethereum/execution-apis/blob/main/src/engine/specification.md#executionpayloadv1
 
-------------------------------------------------------------------------------------------------------------------------
+# Handling Re-Orgs
 
-# WARNING: BELOW THIS LINE, THE SPEC HAS NOT BEEN REVIEWED AND MAY CONTAIN MISTAKES
-
-We still expect that the explanations here should be pretty useful.
-
-------------------------------------------------------------------------------------------------------------------------
-
-# Handling L1 Re-Orgs
-
-[handling-reorgs]: #handling-l1-re-orgs
+[handling-reorgs]: #handling-re-orgs
 
 The [L2 chain derivation pipeline][pipeline] as described above assumes linear progression of the L1 chain.
 
@@ -875,106 +905,118 @@ Queue) to start (L1 Traversal).
 The general idea is to backpropagate the new L1 head through the stages, and reset the state in each stage so that the
 stage will next process data originating from that block onwards.
 
+Currently, it's not possible to experience an L2 re-org independently of an L1 re-org. If the sequencer re-orgs L2
+(either because of an L1 re-org or because of erroneous behaviour), but a validator does not see an L1 re-org (yet),
+then the rollup node will ignore these re-orged L2 blocks, as they are not compatible with the current unsafe L2 head.
+
+> **NOTE** This is not ideal, because if the sequencer detects an L1 re-org and emits re-orged L2 blocks before a
+> validator is able to detect the re-org, then the re-orged L2 blocks will be discarded. This will make impossible to
+> perform [unsafe sync][g-unsafe-sync] until [unsafe block consolidaton][g-unsafe-block-consolidation] happens. And
+> potentially after that too, as we can only progress in lockstep with the sequencer. Discussions about this are open.
+
 ## Resetting the Engine Queue
 
 The engine queue maintains references to two L2 blocks:
 
-- The safe L2 block (or *safe head*): everything up to and including this block can be fully derived from the
-  canonical L1 chain.
-- The unsafe L2 block (or *unsafe head*): blocks between the safe and unsafe heads are blocks that have not been
-  derived from L1. These blocks either come from sequencing (in sequencer mode) or from "unsafe sync" to the sequencer
-  (in validator mode).
+- The [safe L2 head][g-safe-l2-head]: everything up to and including this block can be fully derived from the canonical
+  L1 chain.
+- The [unsafe L2 head][g-unsafe-l2-head]: blocks between the safe and unsafe heads are blocks that have not been derived
+  from L1. These blocks either come from sequencing (in sequencer mode) or from "unsafe sync" to the sequencer (in
+  validator mode).
 
-When resetting the L1 head, we need to rollback the safe head such that the L1 origin of the new safe head is a
-canonical L1 block (i.e. an the new L1 head, or one of its ancestors). We achieved this by walking back the L2 chain
-(starting from the current safe head) until we find such an L2 block. While doing this, we must take care not to walk
-past the [L2 genesis][g-l2-genesis] or L1 genesis.
+When resetting the engine queue because of an L1 re-org, we need to find new valid values for these two heads.
 
-The unsafe head does not necessarily need to be reset, as long as its L1 origin is *plausible*. The L1 origin of the
-unsafe head is considered plausible as long as it is in the canonical L1 chain or is ahead (higher number) than the head
-of the L1 chain. When we determine that this is no longer the case, we reset the unsafe head to be equal to the safe
+- The new safe L2 head is the highest L2 block such that its [L1 origin][g-l1-origin] is a canonical L1 block (either
+  the new L1 head or one of its ancestors).
+- The new unsafe L2 head is the highest L2 block that is *plausible*, i.e. builds on top of the new safe L2 head.
+
+> **TODO** The above description does not match the implementation: we always reset to the highest *epoch* matching a
+> canonical L1 block, and set the its first L2 block as new L2 safe head. Would love to explore if this can be changed
+> to adopt the simpler definition.
+
+To do this, we will need to walk the L2 chain backwards, starting at the old safe L2 head, until we find the new safe L2
 head.
 
-> **TODO** Don't we always need to discard the unsafe head when there is a L1 re-org, because the unsafe head's origin
-> builds on L1 blocks that have been re-orged away?
+In doing so we need to take care not to re-org past the [L2 genesis][g-l2-genesis].
+
+> **TODO** This was in the spec:
 >
-> I'm guessing maybe we received some unsafe blocks that build upon the re-orged L2, which we accept without relating
-> them back to the safe head?
+> In practice, we'll pick an already-finalized L1 block as L2 inception point to preclude the possibility of a re-org
+> past genesis, at the cost of a few empty blocks at the start of the L2 chain.
+>
+> This makes sense, but is in conflict with how the [L2 chain inception][g-inception] is currently determined,
+> which is via the L2 output oracle deployment & upgrades.
+
+If the safe L2 head is unchanged, then nothing changes and both safe and unsafe L2 heads remain unchanged. If on the
+other hand the L2 head changes, then the unsafe L2 head needs to be reset to the new safe L2 head.
+
+(For verifiers, it is also possible to try to update the unsafe L2 head to some [unsafe L2 block][g-unsafe-l2-block] we
+received via [unsafe sync][g-unsafe-sync] beforehand and could plausibly be a descendant of the new safe L2 head. This
+isn't implemented at the moment.)
 
 ## Resetting Payload Attribute Derivation
 
-In payload attribute derivation, we need to ensure that the L1 head is reset to the safe L2 head's L1 origin. In the
-worst case, this would be as far back as `SWS` ([sequencing window][g-sequencing-window] size) blocks before the engine
-queue's L1 head.
+In payload attribute derivation, we need to ensure that the L1 head (maintained by the stage's inner state) is reset to
+the safe L2 head's L1 origin, since it marks the start of the sequencing window for the safe L2 head's epoch. As such,
+the next L2 block never depends on data derived from L1 blocks before `safeL2Head.l1Origin`.
 
-In the worst case, a whole sequencing window of L1 blocks was required to derive the L2 safe head (meaning that
-`safeL2Head.l1Origin == engineQueue.l1Head - SWS`). This means that to derive the next L2 block, we have to read data
-derived from L1 block `engineQueue.l1Head - SWS` and onwards, hence the need to reset the L1 head back to that value for
-this stage.
+Any payload that have been derived but not processed by the engine queue yet are discarded.
 
-However, in general, it is only necessary to reset as far back as `safeL2Head.l1Origin`, since it marks the start of the
-sequencing window for the safe L2 head's epoch. As such, the next L2 block never depends on data derived from L1 blocks
-before `safeL2Head.l1Origin`.
+## Resetting Batch Buffering & Batch Decoding
 
-> **TODO** in the implementation, we always rollback by SWS, which is unecessary
-> Quote from original spec:"We must find the first L2 block whose complete sequencing window is unchanged in the reorg."
+The batch decoding and buffering stages are simply reset by resetting its L1 head to the payload attribute derivation
+stage's L1 head. (The same reasoning as the payload derivation stage applies.)
 
-> **TODO** sanity check this section, it was incorrect in previous spec, and confused me multiple times
+## Resetting Channel Bank
 
-## Resetting Batch Decoding
+[reset-channel-bank]: #resetting-channel-bank
 
-The batch decoding stage is simply reset by resetting its L1 head to the payload attribute derivation stage's L1 head.
-(The same reasoning as the payload derivation stage applies.)
+> **Note** in this section, the term *next (L2) block* will refer to the block that will become the next L2 safe head,
+> *after* the new L2 safe head that results from the reset.
 
-## Resetting Channel Buffering
+The whole question when resetting channel buffering is how far back we need to reset the L1 head so that we're able to
+read all the channel frames needed to decode batches that will follow the new [safe L2 head][g-safe-l2-head].
 
-> **Note** in this section, the term *next (L2) block* will refer to the block that will become the next L2 safe head.
+Because we group [sequencer batches][g-sequencer-batch] into [channels][g-channel], it means that decoding a batch might
+require reading [channel frames][g-channel-frame] posted before the start of the sequencing window of its epoch. That's
+a because a whole channel worth of batch gets compressed together (\*). This occurs if we start sending channel frames
+before knowing all batches that will go into the channel.
 
-> **TODO** The above can be changed in the case where we always reset the unsafe head to the safe head upon L1 re-org.
-> (See TODO above in "Resetting the Engine Queue")
+(\*) Note that decoding a batch should not require to read channel frames after the end of the sequencing window,
+otherwise these batches will be ignored by the batch buffering stage constraints. Further discussion at the end of this
+section.
 
-Because we group [sequencer batches][g-sequencer-batch] into [channels][g-channel], it means that decoding a batch that
-has data posted (in a [channel frame][g-channel-frame]) within the sequencing window of its epoch might require [channel
-frames][g-channel-frame] posted before the start of the [sequencing window][g-sequencing-window]. Note that this is only
-possible if we start sending channel frames before knowing all the batches that will go into the channel.
-
-In the worst case, decoding the batch for the next L2 block would require reading the last frame from a channel, posted
+In the worst case, decoding the batch for the next L2 block would require reading a channel frame posted
 in a [batcher transaction][g-batcher-transaction] in `safeL2Head.l1Origin + 1` (second L1 block of the next L2 block's
-epoch sequencing window, assuming it is in the same epoch as `safeL2Head`).
+epoch sequencing window, assuming it is in the same epoch as `safeL2Head`); and `safeL2Head.l1Origin + 1` would be the
+last allowable block for the frame to land.
 
-> **Note** In reality, there are no checks or constraints preventing the batch from landing in `safeL2Head.l1Origin`.
-> However this would be strange, because the next L2 block is built after the current L2 safe block, which requires
-> reading the deposits L1 attributes and deposits from `safeL2Head.l1Origin`. Still, a wonky or misbehaving sequencer
-> could post a batch for the L2 block `safeL2Head + 1` on L1 block `safeL2Head.1Origin`.
-
-Keeping things worst case, `safeL2Head.l1Origin` would also be the last allowable block for the frame to land. The
-allowed time range for frames within a channel to land on L1 is `[channel_id.timestamp, channel_id.timestamp +
+The allowed time range for frames within a channel to land on L1 is `[channel_id.timestamp, channel_id.timestamp +
 CHANNEL_TIMEOUT]`. The allowed L1 block range for these frames are any L1 block whose timestamp falls inside this time
 range.
 
-Therefore, to be safe, we can reset the L1 head of Channel Buffering to the oldest L1 block whose timestamp is higher
-than `safeL2Head.l1Origin.timestamp - CHANNEL_TIMEOUT`.
+Therefore, to be safe, we can reset the L1 head of Channel Buffering to the oldest L1 block whose timestamp is lower or
+equal to `safeL2Head.l1Origin.timestamp - CHANNEL_TIMEOUT`.
 
-> **Note** The above is what the implementation currently does.
+> **TODO** specify CHANNEL_TIMEOUT (currently 120s on Goerli testnet)
 
-In reality it's only strictly necessary to reset the oldest L1 block whose timestamp is higher than the oldest
-`channel_id.timestamp` found in the batcher transaction that is not older than `safeL2Head.l1Origin.timestamp -
-CHANNEL_TIMEOUT`.
-
-We define `CHANNEL_TIMEOUT = 600`, i.e. 10 hours.
-
-> **TODO** does `CHANNEL_TIMEOUT` have a relationship with `SWS`?
->
-> I think yes, it has to be shorter than `SWS` but ONLY if we can't do streaming decryption (the case currently).
-> Otherwise it could be shorter or longer.
-
-— and explain its relationship with `SWS` if any?
-
-This situation is the main purpose of the [channel timeout][g-channel-timeout]: without the timeout, we might have to
-look arbitrarily far back on L1 to be able to decompress batches, which is not acceptable for performance reasons.
+This is whole purpose of the [channel timeout][g-channel-timeout]: without the timeout, we might have to look
+arbitrarily far back on L1 to be able to decompress batches, which is not acceptable for performance reasons.
 
 The other puprose of the channel timeout is to avoid having the rollup node keep old unclosed channel data around
 forever.
+
+Note that if we do not perform streaming decryption of chanels, then `CHANNEL_TIMEOUT` must be shorter than `SWS` (when
+expressed in seconds). In particular, channels must always be closed before the end of the [sequencing
+window][g-sequencing-window] of the epoch of their first batch. Otherwise, it will not be possible to decrypt the
+batches before the end of the sequencing window.
+
+Also note that a shorter `CHANNEL_TIMEOUT` is not sufficient to guarantee that the batch will be considered, e.g. if the
+batch is posted at the start of a channel, whose first frame lands in the last L1 block of the batch's epoch's
+sequencing window. In general, channel buffering rules apply (during the channel bank stage), after which sequencing
+window constrains are applied (during the batch buffering stage).
+
+> **TODO** is this the best place for this discussion?
 
 Once the L1 head is reset, we then need to discard any frames read from blocks more recent than this updated L1 head.
 
@@ -990,11 +1032,19 @@ approximately 12 minutes, unless an attacker controls more than 1/3 of the total
 [merge]: https://ethereum.org/en/upgrades/merge/
 [l1-finality]: https://ethereum.org/en/developers/docs/consensus-mechanisms/pos/#finality
 
-> **TODO** This was in the spec:
->
-> In practice, we'll pick an already-finalized L1 block as L2
-> inception point to preclude the possibility of a re-org past genesis, at the cost of a few empty blocks at the start
-> of the L2 chain.
->
-> This makes sense, but is in conflict with how the [L2 chain inception][g-l2-chain-inception] is currently determined,
-> which is via the L2 output oracle deployment & upgrades.
+# Constants
+
+|-----------------------|-------|------------------------------------------------------------------------------------|
+| Constant              | Value | Explanation                                                                        |
+|-----------------------|-------|------------------------------------------------------------------------------------|
+| `L2_BLOCK_TIME`       | 2     | The L2 [block time][g-block-time], in seconds. There is always one L2 block for    |
+|                       |       | every multiple of this number past [L2 chain inception][g-inception].              |
+|-----------------------|-------|------------------------------------------------------------------------------------|
+| `SWS`                 | ???   | [Sequencing window][g-sequencing-window] size, in number of L1 blocks.             |
+|-----------------------|-------|------------------------------------------------------------------------------------|
+| `MAX_SEQUENCER_DRIFT` | 600?  | Maximum sequencer drift, in seconds. This is the amount of time an L2 block        |
+|                       |       | timestamp is allowed to be ahead of the timestamp of its [L1 origin][g-l1-origin]. |
+|-----------------------|-------|------------------------------------------------------------------------------------|
+| `CHANNEL_TIMEOUT`     | 120?  | Channel timeout, in seconds, see the [Resetting Channel Bank][reset-channel-bank]  |
+|                       |       | section for more information.                                                      |
+|-----------------------|-------|------------------------------------------------------------------------------------|
