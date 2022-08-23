@@ -3,6 +3,7 @@ package testutils
 import (
 	"context"
 	"errors"
+	"fmt"
 	"math/big"
 
 	"github.com/ethereum/go-ethereum"
@@ -132,7 +133,10 @@ func (m *FakeChainSource) L1BlockRefByHash(ctx context.Context, l1Hash common.Ha
 	return eth.L1BlockRef{}, ethereum.NotFound
 }
 
-func (m *FakeChainSource) L1HeadBlockRef(ctx context.Context) (eth.L1BlockRef, error) {
+func (m *FakeChainSource) L1BlockRefByLabel(ctx context.Context, label eth.BlockLabel) (eth.L1BlockRef, error) {
+	if label != eth.Unsafe {
+		return eth.L1BlockRef{}, fmt.Errorf("testutil FakeChainSource does not support L1BlockRefByLabel(%s)", label)
+	}
 	m.log.Trace("L1HeadBlockRef", "l1Head", m.l1head, "reorg", m.l1reorg)
 	l := len(m.l1s[m.l1reorg])
 	if l == 0 {

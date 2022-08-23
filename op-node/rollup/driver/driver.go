@@ -5,8 +5,6 @@ import (
 	"math/big"
 
 	"github.com/ethereum-optimism/optimism/op-node/eth"
-	"github.com/ethereum-optimism/optimism/op-node/l1"
-	"github.com/ethereum-optimism/optimism/op-node/l2"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum/go-ethereum/common"
@@ -36,13 +34,13 @@ type Metrics interface {
 }
 
 type Downloader interface {
-	InfoByHash(ctx context.Context, hash common.Hash) (eth.L1Info, error)
-	Fetch(ctx context.Context, blockHash common.Hash) (eth.L1Info, types.Transactions, eth.ReceiptsFetcher, error)
+	InfoByHash(ctx context.Context, hash common.Hash) (eth.BlockInfo, error)
+	Fetch(ctx context.Context, blockHash common.Hash) (eth.BlockInfo, types.Transactions, eth.ReceiptsFetcher, error)
 }
 
 type L1Chain interface {
 	derive.L1Fetcher
-	L1HeadBlockRef(context.Context) (eth.L1BlockRef, error)
+	L1BlockRefByLabel(context.Context, eth.BlockLabel) (eth.L1BlockRef, error)
 }
 
 type L2Chain interface {
@@ -73,7 +71,7 @@ type Network interface {
 	PublishL2Payload(ctx context.Context, payload *eth.ExecutionPayload) error
 }
 
-func NewDriver(driverCfg *Config, cfg *rollup.Config, l2 *l2.Source, l1 *l1.Source, network Network, log log.Logger, snapshotLog log.Logger, metrics Metrics) *Driver {
+func NewDriver(driverCfg *Config, cfg *rollup.Config, l2 L2Chain, l1 L1Chain, network Network, log log.Logger, snapshotLog log.Logger, metrics Metrics) *Driver {
 	output := &outputImpl{
 		Config: cfg,
 		dl:     l1,

@@ -7,7 +7,6 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
 	"github.com/ethereum-optimism/optimism/op-node/eth"
-	"github.com/ethereum-optimism/optimism/op-node/l2"
 	"github.com/ethereum-optimism/optimism/op-node/metrics"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/driver"
@@ -23,7 +22,7 @@ import (
 type l2EthClient interface {
 	GetBlockHeader(ctx context.Context, blockTag string) (*types.Header, error)
 	// GetProof returns a proof of the account, it may return a nil result without error if the address was not found.
-	GetProof(ctx context.Context, address common.Address, blockTag string) (*l2.AccountResult, error)
+	GetProof(ctx context.Context, address common.Address, blockTag string) (*eth.AccountResult, error)
 
 	BlockByNumber(ctx context.Context, number *big.Int) (*types.Block, error)
 	L2BlockRefByNumber(ctx context.Context, l2Num *big.Int) (eth.L2BlockRef, error)
@@ -100,7 +99,7 @@ func (n *nodeAPI) OutputAtBlock(ctx context.Context, number rpc.BlockNumber) ([]
 	}
 
 	var l2OutputRootVersion eth.Bytes32 // it's zero for now
-	l2OutputRoot := l2.ComputeL2OutputRoot(l2OutputRootVersion, head.Hash(), head.Root, proof.StorageHash)
+	l2OutputRoot := rollup.ComputeL2OutputRoot(l2OutputRootVersion, head.Hash(), head.Root, proof.StorageHash)
 
 	return []eth.Bytes32{l2OutputRootVersion, l2OutputRoot}, nil
 }

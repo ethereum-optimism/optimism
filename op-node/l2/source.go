@@ -250,8 +250,8 @@ func (s *ReadOnlySource) GetBlockHeader(ctx context.Context, blockTag string) (*
 	return head, err
 }
 
-func (s *ReadOnlySource) GetProof(ctx context.Context, address common.Address, blockTag string) (*AccountResult, error) {
-	var getProofResponse *AccountResult
+func (s *ReadOnlySource) GetProof(ctx context.Context, address common.Address, blockTag string) (*eth.AccountResult, error) {
+	var getProofResponse *eth.AccountResult
 	err := s.rpc.CallContext(ctx, &getProofResponse, "eth_getProof", address, []common.Hash{}, blockTag)
 	if err == nil && getProofResponse == nil {
 		err = ethereum.NotFound

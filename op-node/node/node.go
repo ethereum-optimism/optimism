@@ -11,11 +11,11 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-node/client"
 	"github.com/ethereum-optimism/optimism/op-node/eth"
-	"github.com/ethereum-optimism/optimism/op-node/l1"
 	"github.com/ethereum-optimism/optimism/op-node/l2"
 	"github.com/ethereum-optimism/optimism/op-node/metrics"
 	"github.com/ethereum-optimism/optimism/op-node/p2p"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/driver"
+	"github.com/ethereum-optimism/optimism/op-node/sources"
 
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/event"
@@ -27,7 +27,7 @@ type OpNode struct {
 	appVersion string
 	metrics    *metrics.Metrics
 	l1HeadsSub ethereum.Subscription // Subscription to get L1 heads (automatically re-subscribes on error)
-	l1Source   *l1.Source            // Source to fetch data from (also implements the Downloader interface)
+	l1Source   *sources.L1Client     // L1 Client to fetch data from
 	l2Engine   *driver.Driver        // L2 Engine to Sync
 	l2Node     client.RPC            // L2 Execution Engine RPC connections to close at shutdown
 	l2Client   client.Client         // L2 client wrapper around eth namespace
@@ -110,7 +110,9 @@ func (n *OpNode) initL1(ctx context.Context, cfg *Config) error {
 		return fmt.Errorf("failed to get L1 RPC client: %w", err)
 	}
 
-	n.l1Source, err = l1.NewSource(client.NewInstrumentedRPC(l1Node, n.metrics), n.metrics.L1SourceCache, l1.DefaultConfig(&cfg.Rollup, trustRPC))
+	n.l1Source, err = sources.NewL1Client(
+		client.NewInstrumentedRPC(l1Node, n.metrics), n.log, n.metrics.L1SourceCache,
+		sources.L1ClientDefaultConfig(&cfg.Rollup, trustRPC))
 	if err != nil {
 		return fmt.Errorf("failed to create L1 source: %v", err)
 	}

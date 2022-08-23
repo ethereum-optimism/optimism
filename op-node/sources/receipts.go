@@ -1,4 +1,4 @@
-package l1
+package sources
 
 import (
 	"fmt"
@@ -82,7 +82,7 @@ func makeReceiptRequest(txHash common.Hash) (*types.Receipt, rpc.BatchElem) {
 }
 
 // NewReceiptsFetcher creates a receipt fetcher that can iteratively fetch the receipts matching the given txs.
-func NewReceiptsFetcher(block eth.BlockID, receiptHash common.Hash, txHashes []common.Hash, getBatch batchCallContextFn, batchSize int) eth.ReceiptsFetcher {
+func NewReceiptsFetcher(block eth.BlockID, receiptHash common.Hash, txHashes []common.Hash, getBatch BatchCallContextFn, batchSize int) eth.ReceiptsFetcher {
 	return NewIterativeBatchCall[common.Hash, *types.Receipt, types.Receipts](
 		txHashes,
 		makeReceiptRequest,
