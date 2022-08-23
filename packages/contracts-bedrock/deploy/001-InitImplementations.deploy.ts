@@ -19,7 +19,6 @@ const upgradeABIs = {
   L1CrossDomainMessengerProxy: async () => ['initialize', []],
   L1StandardBridgeProxy: async (deployConfig, hre) => {
     const messenger = await hre.deployments.get('L1CrossDomainMessengerProxy')
-    console.log(messenger.address)
     return ['initialize(address)', [messenger.address]]
   },
 }
