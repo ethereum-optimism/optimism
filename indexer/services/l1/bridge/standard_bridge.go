@@ -3,8 +3,8 @@ package bridge
 import (
 	"context"
 
-	"github.com/ethereum-optimism/optimism/indexer/bindings/l1bridge"
 	"github.com/ethereum-optimism/optimism/indexer/db"
+	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 )
@@ -14,7 +14,7 @@ type StandardBridge struct {
 	ctx      context.Context
 	address  common.Address
 	client   bind.ContractFilterer
-	filterer *l1bridge.L1StandardBridgeFilterer
+	filterer *bindings.L1StandardBridgeFilterer
 }
 
 func (s *StandardBridge) Address() common.Address {
