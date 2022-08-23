@@ -6,6 +6,7 @@ import (
 	"math/big"
 
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
+	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
 
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind/backends"
@@ -57,6 +58,9 @@ func BuildOptimism() (DeploymentResults, error) {
 		},
 		{
 			Name: "SequencerFeeVault",
+		},
+		{
+			Name: "OptimismMintableERC20Factory",
 		},
 	}
 	return Build(deployments)
@@ -115,6 +119,8 @@ func Build(deployments []Deployment) (DeploymentResults, error) {
 		case "SequencerFeeVault":
 			// No arguments to SequencerFeeVault
 			addr, _, _, err = bindings.DeploySequencerFeeVault(opts, backend)
+		case "OptimismMintableERC20Factory":
+			addr, _, _, err = bindings.DeployOptimismMintableERC20Factory(opts, backend, predeploys.L2StandardBridgeAddr)
 		default:
 			return nil, fmt.Errorf("unknown contract: %s", deployment.Name)
 		}
