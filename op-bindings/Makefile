@@ -5,6 +5,7 @@ pkg := bindings
 all: mkdir bindings deployed
 
 bindings: l1block-bindings \
+  l1-standard-bridge-bindings \
 	l2-to-l1-message-passer-bindings \
 	optimism-portal-bindings \
 	l2-output-oracle-bindings \
@@ -25,6 +26,9 @@ deployed: l1-block-deployed \
 
 l1-block-deployed: l1block-bindings
 	./gen_deployed_bytecode.sh L1Block $(pkg)
+
+l1-standard-bridge-bindings:
+	./gen_bindings.sh contracts/L1/L1StandardBridge.sol:L1StandardBridge $(pkg)
 
 optimism-portal-deployed: optimism-portal-bindings
 	./gen_deployed_bytecode.sh OptimismPortal $(pkg)
