@@ -19,6 +19,7 @@ func BuildOptimismDeveloperGenesis(hh *hardhat.Hardhat, config *DeployConfig, ch
 	db := state.NewMemoryStateDB(genspec)
 
 	FundDevAccounts(db)
+	SetPrecompileBalances(db)
 
 	return BuildOptimismGenesis(db, hh, config, chain)
 }

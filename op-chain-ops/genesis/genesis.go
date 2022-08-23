@@ -82,17 +82,7 @@ func NewL2Genesis(config *DeployConfig, chain ethereum.ChainReader) (*core.Genes
 		GasUsed:    config.L2GenesisBlockGasUsed,
 		ParentHash: config.L2GenesisBlockParentHash,
 		BaseFee:    baseFee,
-		Alloc: map[common.Address]core.GenesisAccount{
-			common.BytesToAddress([]byte{1}): {Balance: big.NewInt(1)}, // ECRecover
-			common.BytesToAddress([]byte{2}): {Balance: big.NewInt(1)}, // SHA256
-			common.BytesToAddress([]byte{3}): {Balance: big.NewInt(1)}, // RIPEMD
-			common.BytesToAddress([]byte{4}): {Balance: big.NewInt(1)}, // Identity
-			common.BytesToAddress([]byte{5}): {Balance: big.NewInt(1)}, // ModExp
-			common.BytesToAddress([]byte{6}): {Balance: big.NewInt(1)}, // ECAdd
-			common.BytesToAddress([]byte{7}): {Balance: big.NewInt(1)}, // ECScalarMul
-			common.BytesToAddress([]byte{8}): {Balance: big.NewInt(1)}, // ECPairing
-			common.BytesToAddress([]byte{9}): {Balance: big.NewInt(1)}, // BLAKE2b
-		},
+		Alloc:      map[common.Address]core.GenesisAccount{},
 	}, nil
 }
 
@@ -141,16 +131,6 @@ func NewL1Genesis(config *DeployConfig) (*core.Genesis, error) {
 		GasUsed:    config.L1GenesisBlockGasUsed,
 		ParentHash: config.L1GenesisBlockParentHash,
 		BaseFee:    baseFee,
-		Alloc: map[common.Address]core.GenesisAccount{
-			common.BytesToAddress([]byte{1}): {Balance: big.NewInt(1)}, // ECRecover
-			common.BytesToAddress([]byte{2}): {Balance: big.NewInt(1)}, // SHA256
-			common.BytesToAddress([]byte{3}): {Balance: big.NewInt(1)}, // RIPEMD
-			common.BytesToAddress([]byte{4}): {Balance: big.NewInt(1)}, // Identity
-			common.BytesToAddress([]byte{5}): {Balance: big.NewInt(1)}, // ModExp
-			common.BytesToAddress([]byte{6}): {Balance: big.NewInt(1)}, // ECAdd
-			common.BytesToAddress([]byte{7}): {Balance: big.NewInt(1)}, // ECScalarMul
-			common.BytesToAddress([]byte{8}): {Balance: big.NewInt(1)}, // ECPairing
-			common.BytesToAddress([]byte{9}): {Balance: big.NewInt(1)}, // BLAKE2b
-		},
+		Alloc:      map[common.Address]core.GenesisAccount{},
 	}, nil
 }
