@@ -47,14 +47,16 @@ func setProxies(db vm.StateDB, proxyAdminAddr common.Address, namespace *big.Int
 		bigAddr := new(big.Int).Or(namespace, new(big.Int).SetUint64(i))
 		addr := common.BigToAddress(bigAddr)
 
-		// There is no proxy at the governance token address
-		if addr == predeploys.GovernanceTokenAddr {
+		// There is no proxy at the governance token address or
+		// the proxy admin address. LegacyERC20ETH lives in the
+		// 0xDead namespace so it can be ignored here
+		if addr == predeploys.GovernanceTokenAddr || addr == predeploys.ProxyAdminAddr {
 			continue
 		}
 
 		db.CreateAccount(addr)
 		db.SetCode(addr, depBytecode)
-		db.SetState(addr, AdminSlot, proxyAdminAddr.Hash())
+		db.SetState(addr, AdminSlot, predeploys.ProxyAdminAddr.Hash())
 	}
 	return nil
 }
@@ -76,6 +78,8 @@ func SetImplementations(db vm.StateDB, storage state.StorageConfig, immutable im
 			addr = predeploys.GovernanceTokenAddr
 		case predeploys.LegacyERC20ETHAddr:
 			addr = predeploys.LegacyERC20ETHAddr
+		case predeploys.ProxyAdminAddr:
+			addr = predeploys.ProxyAdminAddr
 		default:
 			addr, err = AddressToCodeNamespace(*address)
 			if err != nil {
