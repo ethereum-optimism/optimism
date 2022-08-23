@@ -30,9 +30,11 @@ func L1ClientDefaultConfig(config *rollup.Config, trustRPC bool) *L1ClientConfig
 			ReceiptsCacheSize:     span,
 			TransactionsCacheSize: span,
 			HeadersCacheSize:      span,
+			PayloadsCacheSize:     span,
 			MaxRequestsPerBatch:   20, // TODO: tune batch param
 			MaxConcurrentRequests: 10,
 			TrustRPC:              trustRPC,
+			MustBePostMerge:       false,
 		},
 		L1BlockRefsCacheSize: span,
 	}
