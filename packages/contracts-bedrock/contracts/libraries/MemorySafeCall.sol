@@ -2,10 +2,10 @@
 pragma solidity 0.8.15;
 
 /**
- * @title SafeCall
+ * @title MemorySafeCall
  * @notice Perform low level safe calls
  */
-library SafeCall {
+library MemorySafeCall {
     /**
      * @notice Perform a low level call without copying any returndata
      *

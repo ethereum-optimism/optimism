@@ -2,9 +2,9 @@
 pragma solidity 0.8.15;
 
 import { CommonTest } from "./CommonTest.t.sol";
-import { SafeCall } from "../libraries/SafeCall.sol";
+import { MemorySafeCall } from "../libraries/MemorySafeCall.sol";
 
-contract SafeCall_Test is CommonTest {
+contract MemorySafeCall_Test is CommonTest {
     function test_safeCall(
         address from,
         address to,
@@ -41,7 +41,7 @@ contract SafeCall_Test is CommonTest {
         );
 
         vm.prank(from);
-        bool success = SafeCall.call(
+        bool success = MemorySafeCall.call(
             to,
             gas,
             value,
