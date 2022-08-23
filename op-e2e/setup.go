@@ -288,7 +288,7 @@ func (cfg SystemConfig) start() (*System, error) {
 		Alloc:      l2Alloc,
 		Difficulty: common.Big1,
 		GasLimit:   5000000,
-		Nonce:      4660,
+		Nonce:      0,
 		// must be equal (or higher, while within bounds) as the L1 anchor point of the rollup
 		Timestamp: genesisTimestamp,
 		BaseFee:   big.NewInt(7),

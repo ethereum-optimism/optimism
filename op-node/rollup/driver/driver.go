@@ -2,7 +2,6 @@ package driver
 
 import (
 	"context"
-	"math/big"
 
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
@@ -45,8 +44,7 @@ type L1Chain interface {
 
 type L2Chain interface {
 	derive.Engine
-	L2BlockRefHead(ctx context.Context) (eth.L2BlockRef, error)
-	L2BlockRefByNumber(ctx context.Context, l2Num *big.Int) (eth.L2BlockRef, error)
+	L2BlockRefByLabel(ctx context.Context, label eth.BlockLabel) (eth.L2BlockRef, error)
 	L2BlockRefByHash(ctx context.Context, l2Hash common.Hash) (eth.L2BlockRef, error)
 }
 
