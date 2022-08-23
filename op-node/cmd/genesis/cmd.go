@@ -19,7 +19,7 @@ import (
 var Subcommands = cli.Commands{
 	{
 		Name:  "devnet-l2",
-		Usage: "Initialized a new devnet genesis file",
+		Usage: "Initialized a new L2 devnet genesis file",
 		Flags: []cli.Flag{
 			cli.StringFlag{
 				Name:  "artifacts",
@@ -80,6 +80,54 @@ var Subcommands = cli.Commands{
 			}
 
 			gen, err := genesis.BuildOptimismDeveloperGenesis(hh, config, client)
+			if err != nil {
+				return err
+			}
+
+			file, err := json.MarshalIndent(gen, "", " ")
+			if err != nil {
+				return err
+			}
+
+			outfile := ctx.String("outfile")
+			if outfile == "" {
+				fmt.Println(string(file))
+			} else {
+				if err := os.WriteFile(outfile, file, 0644); err != nil {
+					return err
+				}
+			}
+			return nil
+		},
+	},
+	{
+		Name:  "devnet-l1",
+		Usage: "Initialized a new L1 devnet genesis file",
+		Flags: []cli.Flag{
+			cli.StringFlag{
+				Name:  "network",
+				Usage: "Name of hardhat deploy network",
+			},
+			cli.StringFlag{
+				Name:  "deploy-config",
+				Usage: "Path to hardhat deploy config directory",
+			},
+			cli.StringFlag{
+				Name:  "outfile",
+				Usage: "Path to file to write output to",
+			},
+		},
+		Action: func(ctx *cli.Context) error {
+			network := ctx.String("network")
+			deployConfigDirectory := ctx.String("deploy-config")
+			deployConfig := filepath.Join(deployConfigDirectory, network+".json")
+
+			config, err := genesis.NewDeployConfig(deployConfig)
+			if err != nil {
+				return err
+			}
+
+			gen, err := genesis.BuildL1DeveloperGenesis(config)
 			if err != nil {
 				return err
 			}

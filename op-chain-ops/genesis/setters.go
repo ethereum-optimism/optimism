@@ -147,3 +147,14 @@ func MigrateDepositHashes(hh *hardhat.Hardhat, db vm.StateDB) error {
 	})
 	return nil
 }
+
+// SetPrecompileBalances will set a single wei at each precompile address.
+// This is an optimization to make calling them cheaper. This should only
+// be used for devnets.
+func SetPrecompileBalances(db vm.StateDB) {
+	for i := 0; i < 256; i++ {
+		addr := common.BytesToAddress([]byte{byte(i)})
+		db.CreateAccount(addr)
+		db.AddBalance(addr, common.Big1)
+	}
+}
