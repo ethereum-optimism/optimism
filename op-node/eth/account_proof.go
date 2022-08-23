@@ -1,35 +1,17 @@
-package l2
+package eth
 
 import (
 	"bytes"
-	"errors"
 	"fmt"
 	"math/big"
 
-	"github.com/ethereum-optimism/optimism/op-node/eth"
-
-	"github.com/ethereum-optimism/optimism/op-node/rollup"
-	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
-	"github.com/ethereum/go-ethereum/core/types"
-
-	"github.com/ethereum/go-ethereum/ethdb/memorydb"
-
-	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/ethereum/go-ethereum/rlp"
-
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/ethdb/memorydb"
+	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/ethereum/go-ethereum/trie"
 )
-
-func ComputeL2OutputRoot(l2OutputRootVersion eth.Bytes32, blockHash common.Hash, blockRoot common.Hash, storageRoot common.Hash) eth.Bytes32 {
-	var buf bytes.Buffer
-	buf.Write(l2OutputRootVersion[:])
-	buf.Write(blockRoot.Bytes())
-	buf.Write(storageRoot[:])
-	buf.Write(blockHash.Bytes())
-	return eth.Bytes32(crypto.Keccak256Hash(buf.Bytes()))
-}
 
 type AccountResult struct {
 	AccountProof []hexutil.Bytes `json:"accountProof"`
@@ -81,41 +63,4 @@ func (res *AccountResult) Verify(stateRoot common.Hash) error {
 			"  proof:   %x", accountClaimedValue, accountProofValue)
 	}
 	return err
-}
-
-// BlockToBatch converts a L2 block to batch-data.
-// Invalid L2 blocks may return an error.
-func BlockToBatch(config *rollup.Config, block *types.Block) (*derive.BatchData, error) {
-	txs := block.Transactions()
-	if len(txs) == 0 {
-		return nil, errors.New("expected at least 1 transaction but found none")
-	}
-	if typ := txs[0].Type(); typ != types.DepositTxType {
-		return nil, fmt.Errorf("expected first tx to be a deposit of L1 info, but got type: %d", typ)
-	}
-
-	// encode non-deposit transactions
-	var opaqueTxs []hexutil.Bytes
-	for i, tx := range block.Transactions() {
-		if tx.Type() == types.DepositTxType {
-			continue
-		}
-		otx, err := tx.MarshalBinary()
-		if err != nil {
-			return nil, fmt.Errorf("failed to encode tx %d in block: %v", i, err)
-		}
-		opaqueTxs = append(opaqueTxs, otx)
-	}
-
-	// figure out which L1 epoch this L2 block was derived from
-	l1Info, err := derive.L1InfoDepositTxData(txs[0].Data())
-	if err != nil {
-		return nil, fmt.Errorf("invalid L1 info deposit tx in block: %v", err)
-	}
-	return &derive.BatchData{BatchV1: derive.BatchV1{
-		EpochNum:     rollup.Epoch(l1Info.Number), // the L1 block number equals the L2 epoch.
-		EpochHash:    l1Info.BlockHash,
-		Timestamp:    block.Time(),
-		Transactions: opaqueTxs,
-	}}, nil
 }
