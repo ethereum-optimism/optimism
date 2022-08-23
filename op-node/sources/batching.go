@@ -1,4 +1,4 @@
-package l1
+package sources
 
 import (
 	"context"
@@ -23,7 +23,7 @@ type IterativeBatchCall[K any, V any, O any] struct {
 
 	makeRequest func(K) (V, rpc.BatchElem)
 	makeResults func([]K, []V) (O, error)
-	getBatch    batchCallContextFn
+	getBatch    BatchCallContextFn
 
 	requestsValues []V
 	scheduled      chan rpc.BatchElem
@@ -37,7 +37,7 @@ func NewIterativeBatchCall[K any, V any, O any](
 	requestsKeys []K,
 	makeRequest func(K) (V, rpc.BatchElem),
 	makeResults func([]K, []V) (O, error),
-	getBatch batchCallContextFn,
+	getBatch BatchCallContextFn,
 	batchSize int) *IterativeBatchCall[K, V, O] {
 
 	if len(requestsKeys) < batchSize {

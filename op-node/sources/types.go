@@ -1,6 +1,7 @@
-package l1
+package sources
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"math/big"
@@ -8,10 +9,13 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/ethereum/go-ethereum/trie"
 )
 
-// Note: we do this ugly typing because we want the best, and the standard bindings are not sufficient:
+type BatchCallContextFn func(ctx context.Context, b []rpc.BatchElem) error
+
+// Note: these types are used, instead of the geth types, to enable:
 // - batched calls of many block requests (standard bindings do extra uncle-header fetches, cannot be batched nicely)
 // - ignore uncle data (does not even exist anymore post-Merge)
 // - use cached block hash, if we trust the RPC.
@@ -22,9 +26,12 @@ import (
 //
 // This way we minimize RPC calls, enable batching, and can choose to verify what the RPC gives us.
 
+// HeaderInfo contains all the header-info required to implement the eth.BlockInfo interface,
+// used in the rollup state-transition, with pre-computed block hash.
 type HeaderInfo struct {
 	hash        common.Hash
 	parentHash  common.Hash
+	coinbase    common.Address
 	root        common.Hash
 	number      uint64
 	time        uint64
@@ -34,7 +41,7 @@ type HeaderInfo struct {
 	receiptHash common.Hash
 }
 
-var _ eth.L1Info = (*HeaderInfo)(nil)
+var _ eth.BlockInfo = (*HeaderInfo)(nil)
 
 func (info *HeaderInfo) Hash() common.Hash {
 	return info.hash
@@ -42,6 +49,10 @@ func (info *HeaderInfo) Hash() common.Hash {
 
 func (info *HeaderInfo) ParentHash() common.Hash {
 	return info.parentHash
+}
+
+func (info *HeaderInfo) Coinbase() common.Address {
+	return info.coinbase
 }
 
 func (info *HeaderInfo) Root() common.Hash {
@@ -66,15 +77,6 @@ func (info *HeaderInfo) BaseFee() *big.Int {
 
 func (info *HeaderInfo) ID() eth.BlockID {
 	return eth.BlockID{Hash: info.hash, Number: info.number}
-}
-
-func (info *HeaderInfo) BlockRef() eth.L1BlockRef {
-	return eth.L1BlockRef{
-		Hash:       info.hash,
-		Number:     info.number,
-		ParentHash: info.parentHash,
-		Time:       info.time,
-	}
 }
 
 func (info *HeaderInfo) ReceiptHash() common.Hash {
