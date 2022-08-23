@@ -14,7 +14,7 @@
 - [SequencerFeeVault](#sequencerfeevault)
 - [OptimismMintableERC20Factory](#optimismmintableerc20factory)
 - [L1BlockNumber](#l1blocknumber)
-- [OVM\_GasPriceOracle](#ovm%5C_gaspriceoracle)
+- [GasPriceOracle](#gaspriceoracle)
 - [L1Block](#l1block)
 - [ProxyAdmin](#proxyadmin)
 
@@ -75,9 +75,9 @@ interface iLegacyOVM_L2ToL1MessagePasser {
 }
 ```
 
-## OVM\_DeployerWhitelist
+## DeployerWhitelist
 
-The `OVM_DeployerWhitelist` is a predeploy used to provide additional
+The `DeployerWhitelist` is a predeploy used to provide additional
 safety during the initial phases of Optimism. It is owned by the
 Optimism team, and defines accounts which are allowed to deploy contracts to the
 network.
@@ -92,7 +92,7 @@ In the Bedrock system, this contract will no longer be used as part of the
 This contract is deprecated and its usage should be avoided.
 
 ```solidity
-interface iOVM_DeployerWhitelist {
+interface iDeployerWhitelist {
     event OwnerChanged(address,address);
     event WhitelistStatusChanged(address,bool);
     event WhitelistDisabled(address);
@@ -251,9 +251,9 @@ interface iOVM_L1BlockNumber {
 }
 ```
 
-## OVM\_GasPriceOracle
+## GasPriceOracle
 
-The `OVM_GasPriceOracle` is pushed the L1 basefee and the L2 gas price by
+The `GasPriceOracle` is pushed the L1 basefee and the L2 gas price by
 an offchain actor. The offchain actor observes the L1 blockheaders to get the
 L1 basefee as well as the gas usage on L2 to compute what the L2 gas price
 should be based on a congestion control algorithm.
@@ -263,7 +263,7 @@ Bedrock, but it is still used to hold the `overhead`, `scalar`, and `decimals`
 values which are used to compute the L1 portion of the transaction fee.
 
 ```solidity
-interface OVM_GasPriceOracle {
+interface GasPriceOracle {
     /**
      * @dev Returns the current gas price on L2
      */
