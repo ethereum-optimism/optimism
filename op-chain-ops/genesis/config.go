@@ -158,6 +158,5 @@ func NewStorageConfig(hh *hardhat.Hardhat, config *DeployConfig, chain ethereum.
 		// TODO: this should be set to the MintManager
 		"_owner": common.Address{},
 	}
-
 	return storage, nil
 }

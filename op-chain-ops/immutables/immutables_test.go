@@ -12,18 +12,19 @@ func TestBuildOptimism(t *testing.T) {
 	require.Nil(t, err)
 	require.NotNil(t, results)
 
+	contracts := map[string]bool{
+		"GasPriceOracle":               true,
+		"L1Block":                      true,
+		"L2CrossDomainMessenger":       true,
+		"L2StandardBridge":             true,
+		"L2ToL1MessagePasser":          true,
+		"SequencerFeeVault":            true,
+		"OptimismMintableERC20Factory": true,
+	}
+
 	// Only the exact contracts that we care about are being
 	// modified
-	require.Equal(t, len(results), 6)
-
-	contracts := map[string]bool{
-		"GasPriceOracle":         true,
-		"L1Block":                true,
-		"L2CrossDomainMessenger": true,
-		"L2StandardBridge":       true,
-		"L2ToL1MessagePasser":    true,
-		"SequencerFeeVault":      true,
-	}
+	require.Equal(t, len(results), len(contracts))
 
 	for name, bytecode := range results {
 		// There is bytecode there

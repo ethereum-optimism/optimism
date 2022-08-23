@@ -460,7 +460,7 @@ jobs:
 
   devnet:
     machine:
-      image: ubuntu-2204:2022.07.1
+      image: ubuntu-2004:2022.07.1
       docker_layer_caching: true
     environment:
       DOCKER_BUILDKIT: 1
@@ -473,6 +473,14 @@ jobs:
             if [[ "$CHANGED" = "FALSE" ]]; then
               circleci step halt
             fi
+      - run:
+          name: Install latest golang
+          command: |
+            wget https://go.dev/dl/go1.19.linux-amd64.tar.gz
+            sudo rm -rf /usr/local/go
+            sudo tar -C /usr/local -xzf go1.19.linux-amd64.tar.gz
+            export PATH=$PATH:/usr/local/go/bin
+            go version
       - run:
           name: foundryup
           command: |
@@ -489,6 +497,10 @@ jobs:
           name: Bring up the stack
           command: |
             make devnet-up
+      - run:
+          name: Check L2 Config
+          command: npx hardhat check-l2-config --network devnetL1
+          working_directory: packages/contracts-bedrock
       - run:
           name: Do a deposit
           command: |
@@ -509,10 +521,6 @@ jobs:
       - run:
           name: Check the status
           command: npx hardhat check-op-node
-          working_directory: packages/contracts-bedrock
-      - run:
-          name: Check L2 Config
-          command: npx hardhat check-l2-config
           working_directory: packages/contracts-bedrock
 
   integration-tests:
