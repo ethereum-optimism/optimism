@@ -31,12 +31,19 @@ type EthClientConfig struct {
 	TransactionsCacheSize int
 	// Number of block headers to cache
 	HeadersCacheSize int
+	// Number of payloads to cache
+	PayloadsCacheSize int
 
 	// If the RPC is untrusted, then we should not use cached information from responses,
 	// and instead verify against the block-hash.
 	// Of real L1 blocks no deposits can be missed/faked, no batches can be missed/faked,
 	// only the wrong L1 blocks can be retrieved.
 	TrustRPC bool
+
+	// If the RPC must ensure that the results fit the ExecutionPayload(Header) format.
+	// If this is not checked, disabled header fields like the nonce or difficulty
+	// may be used to get a different block-hash.
+	MustBePostMerge bool
 }
 
 func (c *EthClientConfig) Check() error {
@@ -48,6 +55,9 @@ func (c *EthClientConfig) Check() error {
 	}
 	if c.HeadersCacheSize < 0 {
 		return fmt.Errorf("invalid headers cache size: %d", c.HeadersCacheSize)
+	}
+	if c.PayloadsCacheSize < 0 {
+		return fmt.Errorf("invalid payloads cache size: %d", c.PayloadsCacheSize)
 	}
 	if c.MaxConcurrentRequests < 1 {
 		return fmt.Errorf("expected at least 1 concurrent request, but max is %d", c.MaxConcurrentRequests)
@@ -66,6 +76,8 @@ type EthClient struct {
 
 	trustRPC bool
 
+	mustBePostMerge bool
+
 	log log.Logger
 
 	// cache receipts in bundles per block hash
@@ -79,6 +91,10 @@ type EthClient struct {
 	// cache block headers of blocks by hash
 	// common.Hash -> *HeaderInfo
 	headersCache *caching.LRUCache
+
+	// cache payloads by hash
+	// common.Hash -> *eth.ExecutionPayload
+	payloadsCache *caching.LRUCache
 }
 
 // NewEthClient wraps a RPC with bindings to fetch ethereum data,
@@ -96,6 +112,7 @@ func NewEthClient(client client.RPC, log log.Logger, metrics caching.Metrics, co
 		receiptsCache:     caching.NewLRUCache(metrics, "receipts", config.ReceiptsCacheSize),
 		transactionsCache: caching.NewLRUCache(metrics, "txs", config.TransactionsCacheSize),
 		headersCache:      caching.NewLRUCache(metrics, "headers", config.HeadersCacheSize),
+		payloadsCache:     caching.NewLRUCache(metrics, "payloads", config.PayloadsCacheSize),
 	}, nil
 }
 
@@ -115,7 +132,7 @@ func (s *EthClient) headerCall(ctx context.Context, method string, id interface{
 	if header == nil {
 		return nil, ethereum.NotFound
 	}
-	info, err := header.Info(s.trustRPC)
+	info, err := header.Info(s.trustRPC, s.mustBePostMerge)
 	if err != nil {
 		return nil, err
 	}
@@ -132,13 +149,30 @@ func (s *EthClient) blockCall(ctx context.Context, method string, id interface{}
 	if block == nil {
 		return nil, nil, ethereum.NotFound
 	}
-	info, txs, err := block.Info(s.trustRPC)
+	info, txs, err := block.Info(s.trustRPC, s.mustBePostMerge)
 	if err != nil {
 		return nil, nil, err
 	}
 	s.headersCache.Add(info.Hash(), info)
 	s.transactionsCache.Add(info.Hash(), txs)
 	return info, txs, nil
+}
+
+func (s *EthClient) payloadCall(ctx context.Context, method string, id interface{}) (*eth.ExecutionPayload, error) {
+	var block *rpcBlock
+	err := s.client.CallContext(ctx, &block, method, id, true)
+	if err != nil {
+		return nil, err
+	}
+	if block == nil {
+		return nil, ethereum.NotFound
+	}
+	payload, err := block.ExecutionPayload(s.trustRPC)
+	if err != nil {
+		return nil, err
+	}
+	s.payloadsCache.Add(payload.BlockHash, payload)
+	return payload, nil
 }
 
 func (s *EthClient) InfoByHash(ctx context.Context, hash common.Hash) (eth.BlockInfo, error) {
@@ -180,6 +214,21 @@ func (s *EthClient) InfoAndTxsByNumber(ctx context.Context, number uint64) (eth.
 func (s *EthClient) InfoAndTxsByLabel(ctx context.Context, label eth.BlockLabel) (eth.BlockInfo, types.Transactions, error) {
 	// can't hit the cache when querying the head due to reorgs / changes.
 	return s.blockCall(ctx, "eth_getBlockByNumber", string(label))
+}
+
+func (s *EthClient) PayloadByHash(ctx context.Context, hash common.Hash) (*eth.ExecutionPayload, error) {
+	if payload, ok := s.payloadsCache.Get(hash); ok {
+		return payload.(*eth.ExecutionPayload), nil
+	}
+	return s.payloadCall(ctx, "eth_getBlockByHash", hash)
+}
+
+func (s *EthClient) PayloadByNumber(ctx context.Context, number uint64) (*eth.ExecutionPayload, error) {
+	return s.payloadCall(ctx, "eth_getBlockByNumber", hexutil.EncodeUint64(number))
+}
+
+func (s *EthClient) PayloadByLabel(ctx context.Context, label eth.BlockLabel) (*eth.ExecutionPayload, error) {
+	return s.payloadCall(ctx, "eth_getBlockByNumber", string(label))
 }
 
 func (s *EthClient) Fetch(ctx context.Context, blockHash common.Hash) (eth.BlockInfo, types.Transactions, eth.ReceiptsFetcher, error) {
@@ -224,7 +273,7 @@ func (s *EthClient) BlockIDRange(ctx context.Context, begin eth.BlockID, max uin
 			if result == nil {
 				break // no more headers from here
 			}
-			info, err := result.Info(s.trustRPC)
+			info, err := result.Info(s.trustRPC, s.mustBePostMerge)
 			if err != nil {
 				return nil, fmt.Errorf("bad header data for block %s: %w", headerRequests[i].Args[0], err)
 			}
