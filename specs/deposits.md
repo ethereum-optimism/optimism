@@ -3,7 +3,7 @@
 <!-- All glossary references in this file. -->
 [g-transaction-type]: glossary.md#transaction-type
 [g-derivation]:  glossary.md#L2-chain-derivation
-[g-deposited]: glossary.md#deposited
+[g-deposited]: glossary.md#deposited-transaction
 [g-deposits]: glossary.md#deposits
 [g-l1-attr-deposit]: glossary.md#l1-attributes-deposited-transaction
 [g-user-deposited]: glossary.md#user-deposited-transaction
