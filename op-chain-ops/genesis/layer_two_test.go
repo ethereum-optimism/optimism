@@ -71,13 +71,13 @@ func TestBuildL2DeveloperGenesis(t *testing.T) {
 		require.Equal(t, ok, true)
 		require.Greater(t, len(account.Code), 0)
 
-		if name == "GovernanceToken" || name == "LegacyERC20ETH" {
+		if name == "GovernanceToken" || name == "LegacyERC20ETH" || name == "ProxyAdmin" {
 			continue
 		}
 
 		adminSlot, ok := account.Storage[genesis.AdminSlot]
 		require.Equal(t, ok, true)
-		require.Equal(t, adminSlot, proxyAdmin.Address.Hash())
+		require.Equal(t, adminSlot, predeploys.ProxyAdminAddr.Hash())
 		require.Equal(t, account.Code, depB)
 	}
 	require.Equal(t, 2341, len(gen.Alloc))

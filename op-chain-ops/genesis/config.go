@@ -187,5 +187,9 @@ func NewL2StorageConfig(config *DeployConfig, block *types.Block, proxyL1Standar
 		// TODO: this should be set to the MintManager
 		"_owner": common.Address{},
 	}
+	storage["ProxyAdmin"] = state.StorageValues{
+		// TODO: this needs to be configurable
+		"owner": common.Address{},
+	}
 	return storage, nil
 }
