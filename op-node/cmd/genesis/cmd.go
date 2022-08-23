@@ -3,7 +3,6 @@ package genesis
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -59,14 +58,9 @@ var Subcommands = cli.Commands{
 
 			artifact := ctx.String("artifacts")
 			artifacts := strings.Split(artifact, ",")
-
 			deployment := ctx.String("deployments")
 			deployments := strings.Split(deployment, ",")
-
 			network := ctx.String("network")
-
-			rpcUrl := ctx.String("rpc-url")
-
 			hh, err := hardhat.New(network, artifacts, deployments)
 			if err != nil {
 				return err
@@ -74,12 +68,12 @@ var Subcommands = cli.Commands{
 
 			deployConfigDirectory := ctx.String("deploy-config")
 			deployConfig := filepath.Join(deployConfigDirectory, network+".json")
-
 			config, err := genesis.NewDeployConfig(deployConfig)
 			if err != nil {
 				return err
 			}
 
+			rpcUrl := ctx.String("rpc-url")
 			client, err := ethclient.Dial(rpcUrl)
 			if err != nil {
 				return err
@@ -90,13 +84,18 @@ var Subcommands = cli.Commands{
 				return err
 			}
 
-			file, _ := json.MarshalIndent(gen, "", " ")
+			file, err := json.MarshalIndent(gen, "", " ")
+			if err != nil {
+				return err
+			}
 
 			outfile := ctx.String("outfile")
 			if outfile == "" {
 				fmt.Println(string(file))
 			} else {
-				_ = ioutil.WriteFile(outfile, file, 0644)
+				if err := os.WriteFile(outfile, file, 0644); err != nil {
+					return err
+				}
 			}
 			return nil
 		},
