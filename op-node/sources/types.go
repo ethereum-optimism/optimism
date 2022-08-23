@@ -232,7 +232,7 @@ func (block *rpcBlock) ExecutionPayload(trustCache bool) (*eth.ExecutionPayload,
 	baseFee.SetFromBig((*big.Int)(block.BaseFee))
 
 	// Unfortunately eth_getBlockByNumber either returns full transactions, or only tx-hashes.
-	// There is no option for encodes transactions.
+	// There is no option for encoded transactions.
 	opaqueTxs := make([]hexutil.Bytes, len(block.Transactions))
 	for i, tx := range block.Transactions {
 		data, err := tx.MarshalBinary()

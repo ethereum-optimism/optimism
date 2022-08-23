@@ -143,7 +143,7 @@ func (n *OpNode) initL2(ctx context.Context, cfg *Config, snapshotLog log.Logger
 		sources.EngineClientDefaultConfig(&cfg.Rollup),
 	)
 	if err != nil {
-		return fmt.Errorf("failed to create Engine client: %v", err)
+		return fmt.Errorf("failed to create Engine client: %w", err)
 	}
 
 	n.l2Driver = driver.NewDriver(&cfg.Driver, &cfg.Rollup, n.l2Source, n.l1Source, n, n.log, snapshotLog, n.metrics)

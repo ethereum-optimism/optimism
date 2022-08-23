@@ -42,7 +42,9 @@ func NewEngineClient(client client.RPC, log log.Logger, metrics caching.Metrics,
 
 // ForkchoiceUpdate updates the forkchoice on the execution client. If attributes is not nil, the engine client will also begin building a block
 // based on attributes after the new head block and return the payload ID.
-// May return an error in ForkChoiceResult, but the error is marshalled into the error return
+//
+// The RPC may return an error in ForkchoiceUpdatedResult.PayloadStatusV1.ValidationError or other non-success PayloadStatusV1,
+// and this type of error is kept separate from the returned `error` used for RPC errors, like timeouts.
 func (s *EngineClient) ForkchoiceUpdate(ctx context.Context, fc *eth.ForkchoiceState, attributes *eth.PayloadAttributes) (*eth.ForkchoiceUpdatedResult, error) {
 	e := s.log.New("state", fc, "attr", attributes)
 	e.Trace("Sharing forkchoice-updated signal")
@@ -52,7 +54,7 @@ func (s *EngineClient) ForkchoiceUpdate(ctx context.Context, fc *eth.ForkchoiceS
 	err := s.client.CallContext(fcCtx, &result, "engine_forkchoiceUpdatedV1", fc, attributes)
 	if err == nil {
 		e.Trace("Shared forkchoice-updated signal")
-		if attributes != nil {
+		if attributes != nil { // block building is optional, we only get a payload ID if we are building a block
 			e.Trace("Received payload id", "payloadId", result.PayloadID)
 		}
 		return &result, nil
@@ -68,7 +70,9 @@ func (s *EngineClient) ForkchoiceUpdate(ctx context.Context, fc *eth.ForkchoiceS
 	}
 }
 
-// ExecutePayload executes a built block on the execution engine and returns an error if it was not successful.
+// NewPayload executes a full block on the execution engine.
+// This returns a PayloadStatusV1 which encodes any validation/processing error,
+// and this type of error is kept separate from the returned `error` used for RPC errors, like timeouts.
 func (s *EngineClient) NewPayload(ctx context.Context, payload *eth.ExecutionPayload) (*eth.PayloadStatusV1, error) {
 	e := s.log.New("block_hash", payload.BlockHash)
 	e.Trace("sending payload for execution")
@@ -80,7 +84,7 @@ func (s *EngineClient) NewPayload(ctx context.Context, payload *eth.ExecutionPay
 	e.Trace("Received payload execution result", "status", result.Status, "latestValidHash", result.LatestValidHash, "message", result.ValidationError)
 	if err != nil {
 		e.Error("Payload execution failed", "err", err)
-		return nil, fmt.Errorf("failed to execute payload: %v", err)
+		return nil, fmt.Errorf("failed to execute payload: %w", err)
 	}
 	return &result, nil
 }
@@ -98,7 +102,7 @@ func (s *EngineClient) GetPayload(ctx context.Context, payloadId eth.PayloadID) 
 			if code != eth.UnavailablePayload {
 				e.Warn("unexpected error code in get-payload response", "code", code)
 			} else {
-				e.Warn("unavailable payload in get-payload request")
+				e.Warn("unavailable payload in get-payload request", "code", code)
 			}
 		} else {
 			e.Error("failed to get payload")
