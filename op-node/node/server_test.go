@@ -6,6 +6,8 @@ import (
 	"math/big"
 	"math/rand"
 
+	"github.com/ethereum/go-ethereum/common"
+
 	"github.com/ethereum-optimism/optimism/op-node/rollup/driver"
 	"github.com/ethereum-optimism/optimism/op-node/testutils"
 
@@ -23,8 +25,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/stretchr/testify/mock"
 
-	"github.com/ethereum-optimism/optimism/op-node/l2"
-	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/assert"
@@ -76,7 +76,7 @@ func TestOutputAtBlock(t *testing.T) {
 		"nonce": "0x1",
 		"storageHash": "0xc1917a80cb25ccc50d0d1921525a44fb619b4601194ca726ae32312f08a799f8"
 	}`
-	var result l2.AccountResult
+	var result eth.AccountResult
 	err = json.Unmarshal([]byte(resultTestData), &result)
 	assert.NoError(t, err)
 
@@ -201,6 +201,6 @@ func (c *mockL2Client) GetBlockHeader(ctx context.Context, blockTag string) (*ty
 	return c.mock.MethodCalled("GetBlockHeader", blockTag).Get(0).(*types.Header), nil
 }
 
-func (c *mockL2Client) GetProof(ctx context.Context, address common.Address, blockTag string) (*l2.AccountResult, error) {
-	return c.mock.MethodCalled("GetProof", address, blockTag).Get(0).(*l2.AccountResult), nil
+func (c *mockL2Client) GetProof(ctx context.Context, address common.Address, blockTag string) (*eth.AccountResult, error) {
+	return c.mock.MethodCalled("GetProof", address, blockTag).Get(0).(*eth.AccountResult), nil
 }

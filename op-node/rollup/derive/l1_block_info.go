@@ -85,7 +85,7 @@ func L1InfoDepositTxData(data []byte) (L1BlockInfo, error) {
 
 // L1InfoDeposit creates a L1 Info deposit transaction based on the L1 block,
 // and the L2 block-height difference with the start of the epoch.
-func L1InfoDeposit(seqNumber uint64, block eth.L1Info) (*types.DepositTx, error) {
+func L1InfoDeposit(seqNumber uint64, block eth.BlockInfo) (*types.DepositTx, error) {
 	infoDat := L1BlockInfo{
 		Number:         block.NumberU64(),
 		Time:           block.Time(),
@@ -117,7 +117,7 @@ func L1InfoDeposit(seqNumber uint64, block eth.L1Info) (*types.DepositTx, error)
 }
 
 // L1InfoDepositBytes returns a serialized L1-info attributes transaction.
-func L1InfoDepositBytes(seqNumber uint64, l1Info eth.L1Info) ([]byte, error) {
+func L1InfoDepositBytes(seqNumber uint64, l1Info eth.BlockInfo) ([]byte, error) {
 	dep, err := L1InfoDeposit(seqNumber, l1Info)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create L1 info tx: %v", err)

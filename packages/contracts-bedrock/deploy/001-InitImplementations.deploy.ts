@@ -19,7 +19,6 @@ const upgradeABIs = {
   L1CrossDomainMessengerProxy: async () => ['initialize', []],
   L1StandardBridgeProxy: async (deployConfig, hre) => {
     const messenger = await hre.deployments.get('L1CrossDomainMessengerProxy')
-    console.log(messenger.address)
     return ['initialize(address)', [messenger.address]]
   },
 }
@@ -108,6 +107,9 @@ const deployFn: DeployFunction = async (hre) => {
     }),
   ]
   await Promise.all(implTxs)
+
+  // Reset the nonce for the next set of transactions
+  nonce = await l1.getTransactionCount(deployer)
 
   const upgradeTxs = []
   for (const [proxy, upgrader] of Object.entries(upgradeABIs)) {
