@@ -290,7 +290,7 @@ jobs:
 
   bedrock-markdown:
     machine:
-      image: ubuntu-2004:202111-02
+      image: ubuntu-2204:2022.07.1
     steps:
       - checkout
       - run:
@@ -460,7 +460,7 @@ jobs:
 
   devnet:
     machine:
-      image: ubuntu-2004:202201-01
+      image: ubuntu-2204:2022.07.1
       docker_layer_caching: true
     environment:
       DOCKER_BUILDKIT: 1
@@ -517,7 +517,7 @@ jobs:
 
   integration-tests:
     machine:
-      image: ubuntu-2004:202201-01
+      image: ubuntu-2204:2022.07.1
       docker_layer_caching: true
     environment:
       DOCKER_BUILDKIT: 1
@@ -607,7 +607,7 @@ jobs:
       sim:
         type: string
     machine:
-      image: ubuntu-2004:202201-02
+      image: ubuntu-2204:2022.07.1
       docker_layer_caching: true
       resource_class: xlarge
     steps:
