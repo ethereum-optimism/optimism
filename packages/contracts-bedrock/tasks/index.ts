@@ -1,4 +1,3 @@
-import './genesis-l1'
 import './deposits'
 import './rekey'
 import './rollup-config'
