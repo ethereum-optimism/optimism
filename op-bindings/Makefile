@@ -12,7 +12,11 @@ bindings: l1block-bindings \
 	address-manager-bindings \
 	l2-cross-domain-messenger-bindings \
 	l2-standard-bridge-bindings \
-	sequencer-fee-vault-bindings
+	sequencer-fee-vault-bindings \
+	optimism-mintable-erc20-factory-bindings \
+	optimism-mintable-erc20-bindings \
+	erc20-bindings \
+	weth9-bindings
 
 deployed: l1-block-deployed \
 	optimism-portal-deployed \
@@ -57,6 +61,18 @@ l2-standard-bridge-bindings:
 
 sequencer-fee-vault-bindings:
 	./gen_bindings.sh contracts/L2/SequencerFeeVault.sol:SequencerFeeVault $(pkg)
+
+optimism-mintable-erc20-factory-bindings:
+	./gen_bindings.sh contracts/universal/OptimismMintableERC20Factory.sol:OptimismMintableERC20Factory $(pkg)
+
+optimism-mintable-erc20-bindings:
+	./gen_bindings.sh contracts/universal/OptimismMintableERC20.sol:OptimismMintableERC20 $(pkg)
+
+erc20-bindings:
+	./gen_bindings.sh ERC20 $(pkg)
+
+weth9-bindings:
+	./gen_bindings.sh contracts/vendor/WETH9.sol:WETH9 $(pkg)
 
 mkdir:
 	mkdir -p bin $(pkg)

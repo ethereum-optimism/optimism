@@ -299,7 +299,7 @@ func TestL1ChannelBank(t *testing.T) {
 				}
 				badTx.Write(testutils.RandomData(bt.rng, 30)) // incomplete frame data
 				bt.ingestData(badTx.Bytes())
-				bt.expectChannel("helloworld") // can still read the frames before the invalid data
+				// Expect the bad frame to render the entire chunk invalid.
 				bt.repeatStep(2, 0, false, nil)
 				bt.assertExpectations()
 			},
