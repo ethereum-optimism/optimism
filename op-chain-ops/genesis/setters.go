@@ -152,9 +152,9 @@ func MigrateDepositHashes(hh *hardhat.Hardhat, db vm.StateDB) error {
 // This is an optimization to make calling them cheaper. This should only
 // be used for devnets.
 func SetPrecompileBalances(db vm.StateDB) {
-	for i := 0; i <= 9; i++ {
+	for i := 0; i <= 256; i++ {
 		addr := common.BytesToAddress([]byte{byte(i)})
 		db.CreateAccount(addr)
-		db.AddBalance(addr, big.NewInt(1))
+		db.AddBalance(addr, common.Big1)
 	}
 }

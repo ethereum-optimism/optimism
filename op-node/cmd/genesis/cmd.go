@@ -102,7 +102,7 @@ var Subcommands = cli.Commands{
 	},
 	{
 		Name:  "devnet-l1",
-		Usage: "Initialized a new L2 devnet genesis file",
+		Usage: "Initialized a new L1 devnet genesis file",
 		Flags: []cli.Flag{
 			cli.StringFlag{
 				Name:  "network",
