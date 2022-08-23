@@ -43,7 +43,9 @@ func TestParseL1InfoDepositTxData(t *testing.T) {
 		}},
 		{"all zero", func(rng *rand.Rand) *testutils.MockBlockInfo {
 			return &testutils.MockBlockInfo{InfoBaseFee: new(big.Int)}
-		}, randomSeqNr},
+		}, func(rng *rand.Rand) uint64 {
+			return 0
+		}},
 	}
 	for i, testCase := range cases {
 		t.Run(testCase.name, func(t *testing.T) {

@@ -38,8 +38,9 @@ func L1ClientDefaultConfig(config *rollup.Config, trustRPC bool) *L1ClientConfig
 	}
 }
 
-// L1Client to retrieve L1 data from with optimized batch requests, cached results,
-// and flag to not trust the RPC.
+// L1Client provides typed bindings to retrieve L1 data from an RPC source,
+// with optimized batch requests, cached results, and flag to not trust the RPC
+// (i.e. to verify all returned contents against corresponding block hashes).
 type L1Client struct {
 	*EthClient
 
