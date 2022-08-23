@@ -22,6 +22,7 @@
     "autogen:artifacts": "ts-node scripts/generate-artifacts.ts",
     "deploy": "hardhat deploy",
     "test": "yarn build:differential && forge test",
+    "coverage": "yarn build:differential && forge coverage",
     "gas-snapshot": "forge snapshot",
     "storage-snapshot": "./scripts/storage-snapshot.sh",
     "slither": "./scripts/slither.sh",
