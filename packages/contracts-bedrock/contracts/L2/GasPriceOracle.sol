@@ -42,7 +42,7 @@ contract GasPriceOracle is Ownable, Semver {
     /**
      * @notice Number of decimals used in the scalar.
      */
-    uint256 public decimals;
+    uint256 public decimals = 6;
 
     /**
      * @notice Emitted when the overhead value is updated.
@@ -53,11 +53,6 @@ contract GasPriceOracle is Ownable, Semver {
      * @notice Emitted when the scalar value is updated.
      */
     event ScalarUpdated(uint256 scalar);
-
-    /**
-     * @notice Emitted when the decimals value is updated.
-     */
-    event DecimalsUpdated(uint256 decimals);
 
     /**
      * @custom:semver 0.0.1
@@ -86,16 +81,6 @@ contract GasPriceOracle is Ownable, Semver {
     function setScalar(uint256 _scalar) external onlyOwner {
         scalar = _scalar;
         emit ScalarUpdated(_scalar);
-    }
-
-    /**
-     * @notice Allows the owner to modify the decimals.
-     *
-     * @param _decimals New decimals value.
-     */
-    function setDecimals(uint256 _decimals) external onlyOwner {
-        decimals = _decimals;
-        emit DecimalsUpdated(_decimals);
     }
 
     /**

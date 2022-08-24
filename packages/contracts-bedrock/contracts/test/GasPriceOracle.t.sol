@@ -10,7 +10,6 @@ contract GasPriceOracle_Test is CommonTest {
 
     event OverheadUpdated(uint256);
     event ScalarUpdated(uint256);
-    event DecimalsUpdated(uint256);
 
     GasPriceOracle gasOracle;
     L1Block l1Block;
@@ -72,9 +71,8 @@ contract GasPriceOracle_Test is CommonTest {
 
         // decimals is at slot 5
         vm.prank(gasOracle.owner());
-        gasOracle.setDecimals(222);
         assertEq(
-            222,
+            gasOracle.decimals(),
             uint256(vm.load(address(gasOracle), bytes32(uint256(5))))
         );
     }
@@ -148,19 +146,5 @@ contract GasPriceOracle_Test is CommonTest {
     function test_onlyOwnerSetScalar() external {
         vm.expectRevert("Ownable: caller is not the owner");
         gasOracle.setScalar(0);
-    }
-
-    function test_setDecimals() external {
-        vm.expectEmit(true, true, true, true);
-        emit DecimalsUpdated(18);
-
-        vm.prank(gasOracle.owner());
-        gasOracle.setDecimals(18);
-        assertEq(gasOracle.decimals(), 18);
-    }
-
-    function test_onlyOwnerSetDecimals() external {
-        vm.expectRevert("Ownable: caller is not the owner");
-        gasOracle.setDecimals(0);
     }
 }

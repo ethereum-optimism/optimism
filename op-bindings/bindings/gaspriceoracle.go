@@ -30,8 +30,8 @@ var (
 
 // GasPriceOracleMetaData contains all meta data concerning the GasPriceOracle contract.
 var GasPriceOracleMetaData = &bind.MetaData{
-	ABI: "[{\"inputs\":[{\"internalType\":\"address\",\"name\":\"_owner\",\"type\":\"address\"}],\"stateMutability\":\"nonpayable\",\"type\":\"constructor\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"decimals\",\"type\":\"uint256\"}],\"name\":\"DecimalsUpdated\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"overhead\",\"type\":\"uint256\"}],\"name\":\"OverheadUpdated\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"address\",\"name\":\"previousOwner\",\"type\":\"address\"},{\"indexed\":true,\"internalType\":\"address\",\"name\":\"newOwner\",\"type\":\"address\"}],\"name\":\"OwnershipTransferred\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"scalar\",\"type\":\"uint256\"}],\"name\":\"ScalarUpdated\",\"type\":\"event\"},{\"inputs\":[],\"name\":\"baseFee\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"decimals\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"gasPrice\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"bytes\",\"name\":\"_data\",\"type\":\"bytes\"}],\"name\":\"getL1Fee\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"bytes\",\"name\":\"_data\",\"type\":\"bytes\"}],\"name\":\"getL1GasUsed\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"l1BaseFee\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"overhead\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"owner\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"renounceOwnership\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"scalar\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"_decimals\",\"type\":\"uint256\"}],\"name\":\"setDecimals\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"_overhead\",\"type\":\"uint256\"}],\"name\":\"setOverhead\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"_scalar\",\"type\":\"uint256\"}],\"name\":\"setScalar\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"newOwner\",\"type\":\"address\"}],\"name\":\"transferOwnership\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"version\",\"outputs\":[{\"internalType\":\"string\",\"name\":\"\",\"type\":\"string\"}],\"stateMutability\":\"view\",\"type\":\"function\"}]",
-	Bin: "0x60e060405234801561001057600080fd5b5060405161109338038061109383398101604081905261002f91610178565b600080600161003d33610058565b60809290925260a05260c052610052816100a8565b506101a8565b600080546001600160a01b038381166001600160a01b0319831681178455604051919092169283917f8be0079c531659141344cd1fd0a4f28419497f9722a3daafe3b4186f6b6457e09190a35050565b6000546001600160a01b031633146101075760405162461bcd60e51b815260206004820181905260248201527f4f776e61626c653a2063616c6c6572206973206e6f7420746865206f776e657260448201526064015b60405180910390fd5b6001600160a01b03811661016c5760405162461bcd60e51b815260206004820152602660248201527f4f776e61626c653a206e6577206f776e657220697320746865207a65726f206160448201526564647265737360d01b60648201526084016100fe565b61017581610058565b50565b60006020828403121561018a57600080fd5b81516001600160a01b03811681146101a157600080fd5b9392505050565b60805160a05160c051610ebc6101d760003960006103f4015260006103cb015260006103a20152610ebc6000f3fe608060405234801561001057600080fd5b50600436106100f55760003560e01c80637046559711610097578063de26c4a111610066578063de26c4a1146101c0578063f2fde38b146101d3578063f45e65d8146101e6578063fe173b971461016457600080fd5b8063704655971461016a578063715018a61461017d5780638c8885c8146101855780638da5cb5b1461019857600080fd5b806349948e0e116100d357806349948e0e14610134578063519b4bd31461014757806354fd4d501461014f5780636ef25c3a1461016457600080fd5b80630c18c162146100fa578063313ce567146101165780633577afc51461011f575b600080fd5b61010360035481565b6040519081526020015b60405180910390f35b61010360055481565b61013261012d3660046109c4565b6101ef565b005b610103610142366004610a0c565b6102b1565b610103610311565b61015761039b565b60405161010d9190610b0b565b48610103565b6101326101783660046109c4565b61043e565b6101326104f4565b6101326101933660046109c4565b610581565b60005460405173ffffffffffffffffffffffffffffffffffffffff909116815260200161010d565b6101036101ce366004610a0c565b610637565b6101326101e1366004610b5c565b6106e2565b61010360045481565b60005473ffffffffffffffffffffffffffffffffffffffff163314610275576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820181905260248201527f4f776e61626c653a2063616c6c6572206973206e6f7420746865206f776e657260448201526064015b60405180910390fd5b60038190556040518181527f32740b35c0ea213650f60d44366b4fb211c9033b50714e4a1d34e65d5beb9bb4906020015b60405180910390a150565b6000806102bd83610637565b905060006102c9610311565b6102d39083610bc8565b90506000600554600a6102e69190610d27565b90506000600454836102f89190610bc8565b905060006103068383610d62565b979650505050505050565b600073420000000000000000000000000000000000001573ffffffffffffffffffffffffffffffffffffffff16635cf249696040518163ffffffff1660e01b8152600401602060405180830381865afa158015610372573d6000803e3d6000fd5b505050506040513d601f19601f820116820180604052508101906103969190610d76565b905090565b60606103c67f0000000000000000000000000000000000000000000000000000000000000000610812565b6103ef7f0000000000000000000000000000000000000000000000000000000000000000610812565b6104187f0000000000000000000000000000000000000000000000000000000000000000610812565b60405160200161042a93929190610d8f565b604051602081830303815290604052905090565b60005473ffffffffffffffffffffffffffffffffffffffff1633146104bf576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820181905260248201527f4f776e61626c653a2063616c6c6572206973206e6f7420746865206f776e6572604482015260640161026c565b60048190556040518181527f3336cd9708eaf2769a0f0dc0679f30e80f15dcd88d1921b5a16858e8b85c591a906020016102a6565b60005473ffffffffffffffffffffffffffffffffffffffff163314610575576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820181905260248201527f4f776e61626c653a2063616c6c6572206973206e6f7420746865206f776e6572604482015260640161026c565b61057f600061094f565b565b60005473ffffffffffffffffffffffffffffffffffffffff163314610602576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820181905260248201527f4f776e61626c653a2063616c6c6572206973206e6f7420746865206f776e6572604482015260640161026c565b60058190556040518181527fd68112a8707e326d08be3656b528c1bcc5bbbfc47f4177e2179b14d8640838c1906020016102a6565b80516000908190815b818110156106ba5784818151811061065a5761065a610e05565b01602001517fff000000000000000000000000000000000000000000000000000000000000001660000361069a57610693600484610e34565b92506106a8565b6106a5601084610e34565b92505b806106b281610e4c565b915050610640565b506000600354836106cb9190610e34565b90506106d981610440610e34565b95945050505050565b60005473ffffffffffffffffffffffffffffffffffffffff163314610763576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820181905260248201527f4f776e61626c653a2063616c6c6572206973206e6f7420746865206f776e6572604482015260640161026c565b73ffffffffffffffffffffffffffffffffffffffff8116610806576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152602660248201527f4f776e61626c653a206e6577206f776e657220697320746865207a65726f206160448201527f6464726573730000000000000000000000000000000000000000000000000000606482015260840161026c565b61080f8161094f565b50565b60608160000361085557505060408051808201909152600181527f3000000000000000000000000000000000000000000000000000000000000000602082015290565b8160005b811561087f578061086981610e4c565b91506108789050600a83610d62565b9150610859565b60008167ffffffffffffffff81111561089a5761089a6109dd565b6040519080825280601f01601f1916602001820160405280156108c4576020820181803683370190505b5090505b8415610947576108d9600183610e84565b91506108e6600a86610e9b565b6108f1906030610e34565b60f81b81838151811061090657610906610e05565b60200101907effffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff1916908160001a905350610940600a86610d62565b94506108c8565b949350505050565b6000805473ffffffffffffffffffffffffffffffffffffffff8381167fffffffffffffffffffffffff0000000000000000000000000000000000000000831681178455604051919092169283917f8be0079c531659141344cd1fd0a4f28419497f9722a3daafe3b4186f6b6457e09190a35050565b6000602082840312156109d657600080fd5b5035919050565b7f4e487b7100000000000000000000000000000000000000000000000000000000600052604160045260246000fd5b600060208284031215610a1e57600080fd5b813567ffffffffffffffff80821115610a3657600080fd5b818401915084601f830112610a4a57600080fd5b813581811115610a5c57610a5c6109dd565b604051601f82017fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0908116603f01168101908382118183101715610aa257610aa26109dd565b81604052828152876020848701011115610abb57600080fd5b826020860160208301376000928101602001929092525095945050505050565b60005b83811015610af6578181015183820152602001610ade565b83811115610b05576000848401525b50505050565b6020815260008251806020840152610b2a816040850160208701610adb565b601f017fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0169190910160400192915050565b600060208284031215610b6e57600080fd5b813573ffffffffffffffffffffffffffffffffffffffff81168114610b9257600080fd5b9392505050565b7f4e487b7100000000000000000000000000000000000000000000000000000000600052601160045260246000fd5b6000817fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff0483118215151615610c0057610c00610b99565b500290565b600181815b80851115610c5e57817fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff04821115610c4457610c44610b99565b80851615610c5157918102915b93841c9390800290610c0a565b509250929050565b600082610c7557506001610d21565b81610c8257506000610d21565b8160018114610c985760028114610ca257610cbe565b6001915050610d21565b60ff841115610cb357610cb3610b99565b50506001821b610d21565b5060208310610133831016604e8410600b8410161715610ce1575081810a610d21565b610ceb8383610c05565b807fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff04821115610d1d57610d1d610b99565b0290505b92915050565b6000610b928383610c66565b7f4e487b7100000000000000000000000000000000000000000000000000000000600052601260045260246000fd5b600082610d7157610d71610d33565b500490565b600060208284031215610d8857600080fd5b5051919050565b60008451610da1818460208901610adb565b80830190507f2e000000000000000000000000000000000000000000000000000000000000008082528551610ddd816001850160208a01610adb565b60019201918201528351610df8816002840160208801610adb565b0160020195945050505050565b7f4e487b7100000000000000000000000000000000000000000000000000000000600052603260045260246000fd5b60008219821115610e4757610e47610b99565b500190565b60007fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff8203610e7d57610e7d610b99565b5060010190565b600082821015610e9657610e96610b99565b500390565b600082610eaa57610eaa610d33565b50069056fea164736f6c634300080f000a",
+	ABI: "[{\"inputs\":[{\"internalType\":\"address\",\"name\":\"_owner\",\"type\":\"address\"}],\"stateMutability\":\"nonpayable\",\"type\":\"constructor\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"overhead\",\"type\":\"uint256\"}],\"name\":\"OverheadUpdated\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"address\",\"name\":\"previousOwner\",\"type\":\"address\"},{\"indexed\":true,\"internalType\":\"address\",\"name\":\"newOwner\",\"type\":\"address\"}],\"name\":\"OwnershipTransferred\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"scalar\",\"type\":\"uint256\"}],\"name\":\"ScalarUpdated\",\"type\":\"event\"},{\"inputs\":[],\"name\":\"baseFee\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"decimals\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"gasPrice\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"bytes\",\"name\":\"_data\",\"type\":\"bytes\"}],\"name\":\"getL1Fee\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"bytes\",\"name\":\"_data\",\"type\":\"bytes\"}],\"name\":\"getL1GasUsed\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"l1BaseFee\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"overhead\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"owner\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"renounceOwnership\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"scalar\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"_overhead\",\"type\":\"uint256\"}],\"name\":\"setOverhead\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"_scalar\",\"type\":\"uint256\"}],\"name\":\"setScalar\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"newOwner\",\"type\":\"address\"}],\"name\":\"transferOwnership\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"version\",\"outputs\":[{\"internalType\":\"string\",\"name\":\"\",\"type\":\"string\"}],\"stateMutability\":\"view\",\"type\":\"function\"}]",
+	Bin: "0x60e0604052600660055534801561001557600080fd5b50604051610fc4380380610fc48339810160408190526100349161017d565b60008060016100423361005d565b60809290925260a05260c052610057816100ad565b506101ad565b600080546001600160a01b038381166001600160a01b0319831681178455604051919092169283917f8be0079c531659141344cd1fd0a4f28419497f9722a3daafe3b4186f6b6457e09190a35050565b6000546001600160a01b0316331461010c5760405162461bcd60e51b815260206004820181905260248201527f4f776e61626c653a2063616c6c6572206973206e6f7420746865206f776e657260448201526064015b60405180910390fd5b6001600160a01b0381166101715760405162461bcd60e51b815260206004820152602660248201527f4f776e61626c653a206e6577206f776e657220697320746865207a65726f206160448201526564647265737360d01b6064820152608401610103565b61017a8161005d565b50565b60006020828403121561018f57600080fd5b81516001600160a01b03811681146101a657600080fd5b9392505050565b60805160a05160c051610de86101dc60003960006103d6015260006103ad015260006103840152610de86000f3fe608060405234801561001057600080fd5b50600436106100ea5760003560e01c8063704655971161008c578063de26c4a111610066578063de26c4a1146101a2578063f2fde38b146101b5578063f45e65d8146101c8578063fe173b971461015957600080fd5b8063704655971461015f578063715018a6146101725780638da5cb5b1461017a57600080fd5b806349948e0e116100c857806349948e0e14610129578063519b4bd31461013c57806354fd4d50146101445780636ef25c3a1461015957600080fd5b80630c18c162146100ef578063313ce5671461010b5780633577afc514610114575b600080fd5b6100f860035481565b6040519081526020015b60405180910390f35b6100f860055481565b6101276101223660046108f0565b6101d1565b005b6100f8610137366004610938565b610293565b6100f86102f3565b61014c61037d565b6040516101029190610a37565b486100f8565b61012761016d3660046108f0565b610420565b6101276104d6565b60005460405173ffffffffffffffffffffffffffffffffffffffff9091168152602001610102565b6100f86101b0366004610938565b610563565b6101276101c3366004610a88565b61060e565b6100f860045481565b60005473ffffffffffffffffffffffffffffffffffffffff163314610257576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820181905260248201527f4f776e61626c653a2063616c6c6572206973206e6f7420746865206f776e657260448201526064015b60405180910390fd5b60038190556040518181527f32740b35c0ea213650f60d44366b4fb211c9033b50714e4a1d34e65d5beb9bb4906020015b60405180910390a150565b60008061029f83610563565b905060006102ab6102f3565b6102b59083610af4565b90506000600554600a6102c89190610c53565b90506000600454836102da9190610af4565b905060006102e88383610c8e565b979650505050505050565b600073420000000000000000000000000000000000001573ffffffffffffffffffffffffffffffffffffffff16635cf249696040518163ffffffff1660e01b8152600401602060405180830381865afa158015610354573d6000803e3d6000fd5b505050506040513d601f19601f820116820180604052508101906103789190610ca2565b905090565b60606103a87f000000000000000000000000000000000000000000000000000000000000000061073e565b6103d17f000000000000000000000000000000000000000000000000000000000000000061073e565b6103fa7f000000000000000000000000000000000000000000000000000000000000000061073e565b60405160200161040c93929190610cbb565b604051602081830303815290604052905090565b60005473ffffffffffffffffffffffffffffffffffffffff1633146104a1576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820181905260248201527f4f776e61626c653a2063616c6c6572206973206e6f7420746865206f776e6572604482015260640161024e565b60048190556040518181527f3336cd9708eaf2769a0f0dc0679f30e80f15dcd88d1921b5a16858e8b85c591a90602001610288565b60005473ffffffffffffffffffffffffffffffffffffffff163314610557576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820181905260248201527f4f776e61626c653a2063616c6c6572206973206e6f7420746865206f776e6572604482015260640161024e565b610561600061087b565b565b80516000908190815b818110156105e65784818151811061058657610586610d31565b01602001517fff00000000000000000000000000000000000000000000000000000000000000166000036105c6576105bf600484610d60565b92506105d4565b6105d1601084610d60565b92505b806105de81610d78565b91505061056c565b506000600354836105f79190610d60565b905061060581610440610d60565b95945050505050565b60005473ffffffffffffffffffffffffffffffffffffffff16331461068f576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820181905260248201527f4f776e61626c653a2063616c6c6572206973206e6f7420746865206f776e6572604482015260640161024e565b73ffffffffffffffffffffffffffffffffffffffff8116610732576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152602660248201527f4f776e61626c653a206e6577206f776e657220697320746865207a65726f206160448201527f6464726573730000000000000000000000000000000000000000000000000000606482015260840161024e565b61073b8161087b565b50565b60608160000361078157505060408051808201909152600181527f3000000000000000000000000000000000000000000000000000000000000000602082015290565b8160005b81156107ab578061079581610d78565b91506107a49050600a83610c8e565b9150610785565b60008167ffffffffffffffff8111156107c6576107c6610909565b6040519080825280601f01601f1916602001820160405280156107f0576020820181803683370190505b5090505b841561087357610805600183610db0565b9150610812600a86610dc7565b61081d906030610d60565b60f81b81838151811061083257610832610d31565b60200101907effffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff1916908160001a90535061086c600a86610c8e565b94506107f4565b949350505050565b6000805473ffffffffffffffffffffffffffffffffffffffff8381167fffffffffffffffffffffffff0000000000000000000000000000000000000000831681178455604051919092169283917f8be0079c531659141344cd1fd0a4f28419497f9722a3daafe3b4186f6b6457e09190a35050565b60006020828403121561090257600080fd5b5035919050565b7f4e487b7100000000000000000000000000000000000000000000000000000000600052604160045260246000fd5b60006020828403121561094a57600080fd5b813567ffffffffffffffff8082111561096257600080fd5b818401915084601f83011261097657600080fd5b81358181111561098857610988610909565b604051601f82017fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0908116603f011681019083821181831017156109ce576109ce610909565b816040528281528760208487010111156109e757600080fd5b826020860160208301376000928101602001929092525095945050505050565b60005b83811015610a22578181015183820152602001610a0a565b83811115610a31576000848401525b50505050565b6020815260008251806020840152610a56816040850160208701610a07565b601f017fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0169190910160400192915050565b600060208284031215610a9a57600080fd5b813573ffffffffffffffffffffffffffffffffffffffff81168114610abe57600080fd5b9392505050565b7f4e487b7100000000000000000000000000000000000000000000000000000000600052601160045260246000fd5b6000817fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff0483118215151615610b2c57610b2c610ac5565b500290565b600181815b80851115610b8a57817fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff04821115610b7057610b70610ac5565b80851615610b7d57918102915b93841c9390800290610b36565b509250929050565b600082610ba157506001610c4d565b81610bae57506000610c4d565b8160018114610bc45760028114610bce57610bea565b6001915050610c4d565b60ff841115610bdf57610bdf610ac5565b50506001821b610c4d565b5060208310610133831016604e8410600b8410161715610c0d575081810a610c4d565b610c178383610b31565b807fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff04821115610c4957610c49610ac5565b0290505b92915050565b6000610abe8383610b92565b7f4e487b7100000000000000000000000000000000000000000000000000000000600052601260045260246000fd5b600082610c9d57610c9d610c5f565b500490565b600060208284031215610cb457600080fd5b5051919050565b60008451610ccd818460208901610a07565b80830190507f2e000000000000000000000000000000000000000000000000000000000000008082528551610d09816001850160208a01610a07565b60019201918201528351610d24816002840160208801610a07565b0160020195945050505050565b7f4e487b7100000000000000000000000000000000000000000000000000000000600052603260045260246000fd5b60008219821115610d7357610d73610ac5565b500190565b60007fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff8203610da957610da9610ac5565b5060010190565b600082821015610dc257610dc2610ac5565b500390565b600082610dd657610dd6610c5f565b50069056fea164736f6c634300080f000a",
 }
 
 // GasPriceOracleABI is the input ABI used to generate the binding from.
@@ -532,27 +532,6 @@ func (_GasPriceOracle *GasPriceOracleTransactorSession) RenounceOwnership() (*ty
 	return _GasPriceOracle.Contract.RenounceOwnership(&_GasPriceOracle.TransactOpts)
 }
 
-// SetDecimals is a paid mutator transaction binding the contract method 0x8c8885c8.
-//
-// Solidity: function setDecimals(uint256 _decimals) returns()
-func (_GasPriceOracle *GasPriceOracleTransactor) SetDecimals(opts *bind.TransactOpts, _decimals *big.Int) (*types.Transaction, error) {
-	return _GasPriceOracle.contract.Transact(opts, "setDecimals", _decimals)
-}
-
-// SetDecimals is a paid mutator transaction binding the contract method 0x8c8885c8.
-//
-// Solidity: function setDecimals(uint256 _decimals) returns()
-func (_GasPriceOracle *GasPriceOracleSession) SetDecimals(_decimals *big.Int) (*types.Transaction, error) {
-	return _GasPriceOracle.Contract.SetDecimals(&_GasPriceOracle.TransactOpts, _decimals)
-}
-
-// SetDecimals is a paid mutator transaction binding the contract method 0x8c8885c8.
-//
-// Solidity: function setDecimals(uint256 _decimals) returns()
-func (_GasPriceOracle *GasPriceOracleTransactorSession) SetDecimals(_decimals *big.Int) (*types.Transaction, error) {
-	return _GasPriceOracle.Contract.SetDecimals(&_GasPriceOracle.TransactOpts, _decimals)
-}
-
 // SetOverhead is a paid mutator transaction binding the contract method 0x3577afc5.
 //
 // Solidity: function setOverhead(uint256 _overhead) returns()
@@ -614,140 +593,6 @@ func (_GasPriceOracle *GasPriceOracleSession) TransferOwnership(newOwner common.
 // Solidity: function transferOwnership(address newOwner) returns()
 func (_GasPriceOracle *GasPriceOracleTransactorSession) TransferOwnership(newOwner common.Address) (*types.Transaction, error) {
 	return _GasPriceOracle.Contract.TransferOwnership(&_GasPriceOracle.TransactOpts, newOwner)
-}
-
-// GasPriceOracleDecimalsUpdatedIterator is returned from FilterDecimalsUpdated and is used to iterate over the raw logs and unpacked data for DecimalsUpdated events raised by the GasPriceOracle contract.
-type GasPriceOracleDecimalsUpdatedIterator struct {
-	Event *GasPriceOracleDecimalsUpdated // Event containing the contract specifics and raw log
-
-	contract *bind.BoundContract // Generic contract to use for unpacking event data
-	event    string              // Event name to use for unpacking event data
-
-	logs chan types.Log        // Log channel receiving the found contract events
-	sub  ethereum.Subscription // Subscription for errors, completion and termination
-	done bool                  // Whether the subscription completed delivering logs
-	fail error                 // Occurred error to stop iteration
-}
-
-// Next advances the iterator to the subsequent event, returning whether there
-// are any more events found. In case of a retrieval or parsing error, false is
-// returned and Error() can be queried for the exact failure.
-func (it *GasPriceOracleDecimalsUpdatedIterator) Next() bool {
-	// If the iterator failed, stop iterating
-	if it.fail != nil {
-		return false
-	}
-	// If the iterator completed, deliver directly whatever's available
-	if it.done {
-		select {
-		case log := <-it.logs:
-			it.Event = new(GasPriceOracleDecimalsUpdated)
-			if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
-				it.fail = err
-				return false
-			}
-			it.Event.Raw = log
-			return true
-
-		default:
-			return false
-		}
-	}
-	// Iterator still in progress, wait for either a data or an error event
-	select {
-	case log := <-it.logs:
-		it.Event = new(GasPriceOracleDecimalsUpdated)
-		if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
-			it.fail = err
-			return false
-		}
-		it.Event.Raw = log
-		return true
-
-	case err := <-it.sub.Err():
-		it.done = true
-		it.fail = err
-		return it.Next()
-	}
-}
-
-// Error returns any retrieval or parsing error occurred during filtering.
-func (it *GasPriceOracleDecimalsUpdatedIterator) Error() error {
-	return it.fail
-}
-
-// Close terminates the iteration process, releasing any pending underlying
-// resources.
-func (it *GasPriceOracleDecimalsUpdatedIterator) Close() error {
-	it.sub.Unsubscribe()
-	return nil
-}
-
-// GasPriceOracleDecimalsUpdated represents a DecimalsUpdated event raised by the GasPriceOracle contract.
-type GasPriceOracleDecimalsUpdated struct {
-	Decimals *big.Int
-	Raw      types.Log // Blockchain specific contextual infos
-}
-
-// FilterDecimalsUpdated is a free log retrieval operation binding the contract event 0xd68112a8707e326d08be3656b528c1bcc5bbbfc47f4177e2179b14d8640838c1.
-//
-// Solidity: event DecimalsUpdated(uint256 decimals)
-func (_GasPriceOracle *GasPriceOracleFilterer) FilterDecimalsUpdated(opts *bind.FilterOpts) (*GasPriceOracleDecimalsUpdatedIterator, error) {
-
-	logs, sub, err := _GasPriceOracle.contract.FilterLogs(opts, "DecimalsUpdated")
-	if err != nil {
-		return nil, err
-	}
-	return &GasPriceOracleDecimalsUpdatedIterator{contract: _GasPriceOracle.contract, event: "DecimalsUpdated", logs: logs, sub: sub}, nil
-}
-
-// WatchDecimalsUpdated is a free log subscription operation binding the contract event 0xd68112a8707e326d08be3656b528c1bcc5bbbfc47f4177e2179b14d8640838c1.
-//
-// Solidity: event DecimalsUpdated(uint256 decimals)
-func (_GasPriceOracle *GasPriceOracleFilterer) WatchDecimalsUpdated(opts *bind.WatchOpts, sink chan<- *GasPriceOracleDecimalsUpdated) (event.Subscription, error) {
-
-	logs, sub, err := _GasPriceOracle.contract.WatchLogs(opts, "DecimalsUpdated")
-	if err != nil {
-		return nil, err
-	}
-	return event.NewSubscription(func(quit <-chan struct{}) error {
-		defer sub.Unsubscribe()
-		for {
-			select {
-			case log := <-logs:
-				// New log arrived, parse the event and forward to the user
-				event := new(GasPriceOracleDecimalsUpdated)
-				if err := _GasPriceOracle.contract.UnpackLog(event, "DecimalsUpdated", log); err != nil {
-					return err
-				}
-				event.Raw = log
-
-				select {
-				case sink <- event:
-				case err := <-sub.Err():
-					return err
-				case <-quit:
-					return nil
-				}
-			case err := <-sub.Err():
-				return err
-			case <-quit:
-				return nil
-			}
-		}
-	}), nil
-}
-
-// ParseDecimalsUpdated is a log parse operation binding the contract event 0xd68112a8707e326d08be3656b528c1bcc5bbbfc47f4177e2179b14d8640838c1.
-//
-// Solidity: event DecimalsUpdated(uint256 decimals)
-func (_GasPriceOracle *GasPriceOracleFilterer) ParseDecimalsUpdated(log types.Log) (*GasPriceOracleDecimalsUpdated, error) {
-	event := new(GasPriceOracleDecimalsUpdated)
-	if err := _GasPriceOracle.contract.UnpackLog(event, "DecimalsUpdated", log); err != nil {
-		return nil, err
-	}
-	event.Raw = log
-	return event, nil
 }
 
 // GasPriceOracleOverheadUpdatedIterator is returned from FilterOverheadUpdated and is used to iterate over the raw logs and unpacked data for OverheadUpdated events raised by the GasPriceOracle contract.
