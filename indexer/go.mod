@@ -2,14 +2,9 @@ module github.com/ethereum-optimism/optimism/indexer
 
 go 1.17
 
-replace (
-	github.com/ethereum-optimism/optimism/l2geth v0.0.0 => ../l2geth
-	github.com/ethereum-optimism/optimism/op-bindings v0.0.0 => ../op-bindings
-)
+replace github.com/ethereum-optimism/optimism/op-bindings v0.0.0 => ../op-bindings
 
 require (
-	github.com/ethereum-optimism/optimism/l2geth v0.0.0
-	github.com/ethereum-optimism/optimism/op-bindings v0.0.0
 	github.com/ethereum/go-ethereum v1.10.21
 	github.com/getsentry/sentry-go v0.12.0
 	github.com/google/uuid v1.3.0
@@ -22,6 +17,7 @@ require (
 )
 
 require (
+	github.com/VictoriaMetrics/fastcache v1.9.0 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/btcsuite/btcd/btcec/v2 v2.2.0 // indirect
 	github.com/cespare/xxhash/v2 v2.1.2 // indirect
@@ -34,15 +30,18 @@ require (
 	github.com/golang/protobuf v1.5.2 // indirect
 	github.com/gorilla/websocket v1.5.0 // indirect
 	github.com/hashicorp/go-bexpr v0.1.11 // indirect
+	github.com/mattn/go-runewidth v0.0.13 // indirect
 	github.com/matttproud/golang_protobuf_extensions v1.0.1 // indirect
 	github.com/mitchellh/mapstructure v1.4.3 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/prometheus/client_model v0.2.0 // indirect
 	github.com/prometheus/common v0.30.0 // indirect
 	github.com/prometheus/procfs v0.7.3 // indirect
+	github.com/prometheus/tsdb v0.10.0 // indirect
 	github.com/rjeczalik/notify v0.9.2 // indirect
 	github.com/russross/blackfriday/v2 v2.1.0 // indirect
 	github.com/shirou/gopsutil v3.21.11+incompatible // indirect
+	github.com/syndtr/goleveldb v1.0.1-0.20220614013038-64ee5596c38a // indirect
 	github.com/tklauser/go-sysconf v0.3.10 // indirect
 	github.com/tklauser/numcpus v0.4.0 // indirect
 	github.com/yusufpapurcu/wmi v1.2.2 // indirect

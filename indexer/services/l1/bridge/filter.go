@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/indexer/bindings/l1bridge"
+	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 )
 
@@ -14,7 +14,7 @@ var clientRetryInterval = 5 * time.Second
 
 // FilterETHDepositInitiatedWithRetry retries the given func until it succeeds,
 // waiting for clientRetryInterval duration after every call.
-func FilterETHDepositInitiatedWithRetry(ctx context.Context, filterer *l1bridge.L1StandardBridgeFilterer, opts *bind.FilterOpts) (*l1bridge.L1StandardBridgeETHDepositInitiatedIterator, error) {
+func FilterETHDepositInitiatedWithRetry(ctx context.Context, filterer *bindings.L1StandardBridgeFilterer, opts *bind.FilterOpts) (*bindings.L1StandardBridgeETHDepositInitiatedIterator, error) {
 	for {
 		ctxt, cancel := context.WithTimeout(ctx, DefaultConnectionTimeout)
 		opts.Context = ctxt
@@ -30,7 +30,7 @@ func FilterETHDepositInitiatedWithRetry(ctx context.Context, filterer *l1bridge.
 
 // FilterERC20DepositInitiatedWithRetry retries the given func until it succeeds,
 // waiting for clientRetryInterval duration after every call.
-func FilterERC20DepositInitiatedWithRetry(ctx context.Context, filterer *l1bridge.L1StandardBridgeFilterer, opts *bind.FilterOpts) (*l1bridge.L1StandardBridgeERC20DepositInitiatedIterator, error) {
+func FilterERC20DepositInitiatedWithRetry(ctx context.Context, filterer *bindings.L1StandardBridgeFilterer, opts *bind.FilterOpts) (*bindings.L1StandardBridgeERC20DepositInitiatedIterator, error) {
 	for {
 		ctxt, cancel := context.WithTimeout(ctx, DefaultConnectionTimeout)
 		opts.Context = ctxt
