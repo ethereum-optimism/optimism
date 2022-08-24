@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
 
 	"github.com/urfave/cli"
@@ -66,9 +65,8 @@ var Subcommands = cli.Commands{
 				return err
 			}
 
-			deployConfigDirectory := ctx.String("deploy-config")
-			deployConfig := filepath.Join(deployConfigDirectory, network+".json")
-			config, err := genesis.NewDeployConfig(deployConfig)
+			deployConfig := ctx.String("deploy-config")
+			config, err := genesis.NewDeployConfigWithNetwork(network, deployConfig)
 			if err != nil {
 				return err
 			}
@@ -119,10 +117,9 @@ var Subcommands = cli.Commands{
 		},
 		Action: func(ctx *cli.Context) error {
 			network := ctx.String("network")
-			deployConfigDirectory := ctx.String("deploy-config")
-			deployConfig := filepath.Join(deployConfigDirectory, network+".json")
+			deployConfig := ctx.String("deploy-config")
 
-			config, err := genesis.NewDeployConfig(deployConfig)
+			config, err := genesis.NewDeployConfigWithNetwork(network, deployConfig)
 			if err != nil {
 				return err
 			}
