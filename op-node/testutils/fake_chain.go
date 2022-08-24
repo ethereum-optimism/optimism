@@ -145,7 +145,10 @@ func (m *FakeChainSource) L1BlockRefByLabel(ctx context.Context, label eth.Block
 	return m.l1s[m.l1reorg][m.l1head], nil
 }
 
-func (m *FakeChainSource) L2BlockRefHead(ctx context.Context) (eth.L2BlockRef, error) {
+func (m *FakeChainSource) L2BlockRefByLabel(ctx context.Context, label eth.BlockLabel) (eth.L2BlockRef, error) {
+	if label != eth.Unsafe {
+		return eth.L2BlockRef{}, fmt.Errorf("testutil FakeChainSource does not support L2BlockRefByLabel(%s)", label)
+	}
 	m.log.Trace("L2BlockRefHead", "l2Head", m.l2head, "reorg", m.l2reorg)
 	if len(m.l2s[m.l2reorg]) == 0 {
 		panic("bad test, no l2 chain")

@@ -114,7 +114,7 @@ func (s *state) Start(ctx context.Context) error {
 		return err
 	}
 	s.l1Head = l1Head
-	s.l2Head, _ = s.l2.L2BlockRefByNumber(ctx, nil)
+	s.l2Head, _ = s.l2.L2BlockRefByLabel(ctx, eth.Unsafe)
 	s.metrics.RecordL1Ref("l1_head", s.l1Head)
 	s.metrics.RecordL2Ref("l2_unsafe", s.l2Head)
 

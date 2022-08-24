@@ -77,6 +77,33 @@ func (m *MockEthClient) ExpectInfoAndTxsByLabel(label eth.BlockLabel, info eth.B
 	m.Mock.On("InfoAndTxsByLabel", label).Once().Return(info, transactions, &err)
 }
 
+func (m *MockEthClient) PayloadByHash(ctx context.Context, hash common.Hash) (*eth.ExecutionPayload, error) {
+	out := m.Mock.MethodCalled("PayloadByHash", hash)
+	return out[0].(*eth.ExecutionPayload), *out[1].(*error)
+}
+
+func (m *MockEthClient) ExpectPayloadByHash(hash common.Hash, payload *eth.ExecutionPayload, err error) {
+	m.Mock.On("PayloadByHash", hash).Once().Return(payload, &err)
+}
+
+func (m *MockEthClient) PayloadByNumber(ctx context.Context, n uint64) (*eth.ExecutionPayload, error) {
+	out := m.Mock.MethodCalled("PayloadByNumber", n)
+	return out[0].(*eth.ExecutionPayload), *out[1].(*error)
+}
+
+func (m *MockEthClient) ExpectPayloadByNumber(hash common.Hash, payload *eth.ExecutionPayload, err error) {
+	m.Mock.On("PayloadByNumber", hash).Once().Return(payload, &err)
+}
+
+func (m *MockEthClient) PayloadByLabel(ctx context.Context, label eth.BlockLabel) (*eth.ExecutionPayload, error) {
+	out := m.Mock.MethodCalled("PayloadByLabel", label)
+	return out[0].(*eth.ExecutionPayload), *out[1].(*error)
+}
+
+func (m *MockEthClient) ExpectPayloadByLabel(label eth.BlockLabel, payload *eth.ExecutionPayload, err error) {
+	m.Mock.On("PayloadByLabel", label).Once().Return(payload, &err)
+}
+
 func (m *MockEthClient) Fetch(ctx context.Context, blockHash common.Hash) (eth.BlockInfo, types.Transactions, eth.ReceiptsFetcher, error) {
 	out := m.Mock.MethodCalled("Fetch", blockHash)
 	return *out[0].(*eth.BlockInfo), out[1].(types.Transactions), out[2].(eth.ReceiptsFetcher), *out[3].(*error)
