@@ -1,11 +1,18 @@
 package genesis_test
 
 import (
+	"archive/tar"
+	"compress/gzip"
 	"encoding/json"
 	"flag"
+	"fmt"
+	"io"
 	"io/ioutil"
 	"math/big"
+	"os"
+	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/ethereum/go-ethereum/accounts/abi/bind/backends"
 	"github.com/ethereum/go-ethereum/core"
@@ -26,17 +33,21 @@ func init() {
 var testKey, _ = crypto.HexToECDSA("b71c71a67e1177ad4e901695e1b4b9ee17ae16c6668d313eac2f96dbcda3f291")
 
 func TestBuildOptimismGenesis(t *testing.T) {
+	tmpdir := filepath.Join(os.TempDir(), fmt.Sprintf("l2-test-%d", time.Now().Unix()))
+	fmt.Println(tmpdir)
+	require.NoError(t, untar("testdata/artifacts.tar.gz", tmpdir))
+
 	hh, err := hardhat.New(
 		"goerli",
 		[]string{
-			"../../packages/contracts-bedrock/artifacts",
-			"../../packages/contracts-governance/artifacts",
+			filepath.Join(tmpdir, "contracts-bedrock"),
+			filepath.Join(tmpdir, "contracts-governance"),
 		},
 		[]string{"../../packages/contracts-bedrock/deployments"},
 	)
 	require.Nil(t, err)
 
-	config, err := genesis.NewDeployConfig("../../packages/contracts-bedrock/deploy-config/devnetL1.json")
+	config, err := genesis.NewDeployConfig("./testdata/test-deploy-config-devnet-l1.json")
 	require.Nil(t, err)
 
 	backend := backends.NewSimulatedBackend(
@@ -76,4 +87,46 @@ func TestBuildOptimismGenesis(t *testing.T) {
 		file, _ := json.MarshalIndent(gen, "", " ")
 		_ = ioutil.WriteFile("genesis.json", file, 0644)
 	}
+}
+
+func untar(tarball, target string) error {
+	f, err := os.Open(tarball)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	r, err := gzip.NewReader(f)
+	if err != nil {
+		return err
+	}
+	tarReader := tar.NewReader(r)
+
+	for {
+		header, err := tarReader.Next()
+		if err == io.EOF {
+			break
+		} else if err != nil {
+			return err
+		}
+
+		path := filepath.Join(target, header.Name)
+		info := header.FileInfo()
+		if info.IsDir() {
+			if err = os.MkdirAll(path, info.Mode()); err != nil {
+				return err
+			}
+			continue
+		}
+
+		file, err := os.OpenFile(path, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, info.Mode())
+		if err != nil {
+			return err
+		}
+		defer file.Close()
+		_, err = io.Copy(file, tarReader)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }

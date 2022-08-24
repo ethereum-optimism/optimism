@@ -113,14 +113,26 @@ func Build(deployments []Deployment) (DeploymentResults, error) {
 			// The OtherBridge value is not immutable, no need to set
 			otherBridge := common.Address{}
 			addr, _, _, err = bindings.DeployL2StandardBridge(opts, backend, otherBridge)
+			if err != nil {
+				return nil, err
+			}
 		case "L2ToL1MessagePasser":
 			// No arguments required for L2ToL1MessagePasser
 			addr, _, _, err = bindings.DeployL2ToL1MessagePasser(opts, backend)
+			if err != nil {
+				return nil, err
+			}
 		case "SequencerFeeVault":
 			// No arguments to SequencerFeeVault
 			addr, _, _, err = bindings.DeploySequencerFeeVault(opts, backend)
+			if err != nil {
+				return nil, err
+			}
 		case "OptimismMintableERC20Factory":
 			addr, _, _, err = bindings.DeployOptimismMintableERC20Factory(opts, backend, predeploys.L2StandardBridgeAddr)
+			if err != nil {
+				return nil, err
+			}
 		default:
 			return nil, fmt.Errorf("unknown contract: %s", deployment.Name)
 		}

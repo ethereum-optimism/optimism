@@ -221,7 +221,7 @@ jobs:
           name: Check if we should run
           command: |
             shopt -s inherit_errexit
-            CHANGED=$(check-changed "op-(batcher|bindings|e2e|node|proposer)")
+            CHANGED=$(check-changed "op-(batcher|bindings|e2e|node|proposer|chain-ops)")
             if [[ "$CHANGED" = "FALSE" ]]; then
               circleci step halt
             fi
@@ -256,6 +256,11 @@ jobs:
             golangci-lint run -E goimports,sqlclosecheck,bodyclose,asciicheck,misspell ./...
           working_directory: op-service
       - run:
+          name: lint op-chain-ops
+          command: |
+            golangci-lint run -E goimports,sqlclosecheck,bodyclose,asciicheck,misspell ./...
+          working_directory: op-chain-ops
+      - run:
           name: prep results dir
           command: mkdir -p /test-results
       - run:
@@ -283,6 +288,11 @@ jobs:
           command: |
             gotestsum --junitfile /test-results/op-service.xml -- -coverpkg=github.com/ethereum-optimism/optimism/... -coverprofile=coverage.out -covermode=atomic ./...
           working_directory: op-service
+      - run:
+          name: test op-chain-ops
+          command: |
+            gotestsum --junitfile /test-results/op-chain-ops.xml -- -coverpkg=github.com/ethereum-optimism/optimism/... -coverprofile=coverage.out -covermode=atomic ./...
+          working_directory: op-chain-ops
       - store_test_results:
           path: /test-results
       - run:

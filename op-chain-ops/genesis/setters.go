@@ -138,14 +138,13 @@ func MigrateDepositHashes(hh *hardhat.Hardhat, db vm.StateDB) error {
 		ignore[encoded] = true
 	}
 
-	db.ForEachStorage(predeploys.L2ToL1MessagePasserAddr, func(key, value common.Hash) bool {
+	return db.ForEachStorage(predeploys.L2ToL1MessagePasserAddr, func(key, value common.Hash) bool {
 		if _, ok := ignore[key]; ok {
 			return true
 		}
 		// TODO(tynes): Do the value migration here
 		return true
 	})
-	return nil
 }
 
 // SetPrecompileBalances will set a single wei at each precompile address.

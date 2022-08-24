@@ -71,7 +71,7 @@ func AddressToCodeNamespace(addr common.Address) (common.Address, error) {
 }
 
 // getBlockFromTag will resolve a Block given an rpc block tag
-func getBlockFromTag(chain ethereum.ChainReader, tag rpc.BlockNumberOrHash) (*types.Block, error) {
+func getBlockFromTag(chain ethereum.ChainReader, tag *rpc.BlockNumberOrHash) (*types.Block, error) {
 	if hash, ok := tag.Hash(); ok {
 		block, err := chain.BlockByHash(context.Background(), hash)
 		if err != nil {
@@ -88,4 +88,15 @@ func getBlockFromTag(chain ethereum.ChainReader, tag rpc.BlockNumberOrHash) (*ty
 	} else {
 		return nil, fmt.Errorf("invalid block tag: %v", tag)
 	}
+}
+
+// uint642Big creates a new *big.Int from a uint64.
+func uint642Big(in uint64) *big.Int {
+	return new(big.Int).SetUint64(in)
+}
+
+func newHexBig(in uint64) *hexutil.Big {
+	b := new(big.Int).SetUint64(in)
+	hb := hexutil.Big(*b)
+	return &hb
 }
