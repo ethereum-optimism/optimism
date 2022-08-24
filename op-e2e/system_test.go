@@ -994,7 +994,6 @@ func TestFees(t *testing.T) {
 	require.Nil(t, err, "reading gpo scalar")
 
 	require.Equal(t, overhead.Uint64(), uint64(2100), "wrong gpo overhead")
-	require.Equal(t, decimals.Uint64(), uint64(6), "wrong gpo decimals")
 	require.Equal(t, scalar.Uint64(), uint64(1_000_000), "wrong gpo scalar")
 
 	// BaseFee Recipient
