@@ -200,6 +200,7 @@ contract Messenger_Initializer is L2OutputOracle_Initializer {
     );
 
     event RelayedMessage(bytes32 indexed msgHash);
+    event FailedRelayedMessage(bytes32 indexed msgHash);
 
     event TransactionDeposited(
         address indexed from,
