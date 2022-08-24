@@ -10,7 +10,7 @@ import {
 import {
     ReentrancyGuardUpgradeable
 } from "@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.sol";
-import { ExcessivelySafeCall } from "excessively-safe-call/src/ExcessivelySafeCall.sol";
+import { SafeCall } from "../libraries/SafeCall.sol";
 import { Hashing } from "../libraries/Hashing.sol";
 import { Encoding } from "../libraries/Encoding.sol";
 
@@ -269,13 +269,7 @@ abstract contract CrossDomainMessenger is
         );
 
         xDomainMsgSender = _sender;
-        (bool success, ) = ExcessivelySafeCall.excessivelySafeCall(
-            _target,
-            gasleft() - RELAY_GAS_BUFFER,
-            _value,
-            0,
-            _message
-        );
+        bool success = SafeCall.call(_target, gasleft() - RELAY_GAS_BUFFER, _value, _message);
         xDomainMsgSender = DEFAULT_XDOMAIN_SENDER;
 
         if (success == true) {
