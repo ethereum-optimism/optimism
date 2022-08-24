@@ -38,8 +38,8 @@
   },
   "dependencies": {
     "@eth-optimism/core-utils": "^0.9.3",
-    "@openzeppelin/contracts": "4.6.0",
-    "@openzeppelin/contracts-upgradeable": "4.7.1",
+    "@openzeppelin/contracts": "4.7.3",
+    "@openzeppelin/contracts-upgradeable": "4.7.3",
     "@rari-capital/solmate": "https://github.com/rari-capital/solmate.git#8f9b23f8838670afda0fd8983f2c41e8037ae6bc",
     "ethers": "^5.6.8",
     "excessively-safe-call": "https://github.com/nomad-xyz/ExcessivelySafeCall.git#81cd99ce3e69117d665d7601c330ea03b97acce0",
