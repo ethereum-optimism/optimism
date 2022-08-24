@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"math/big"
 	"os"
+	"path/filepath"
 
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
@@ -76,6 +77,14 @@ func NewDeployConfig(path string) (*DeployConfig, error) {
 	}
 
 	return &config, nil
+}
+
+// NewDeployConfigWithNetwork takes a path to a deploy config directory
+// and the network name. The config file in the deploy config directory
+// must match the network name and be a JSON file.
+func NewDeployConfigWithNetwork(network, path string) (*DeployConfig, error) {
+	deployConfig := filepath.Join(path, network+".json")
+	return NewDeployConfig(deployConfig)
 }
 
 // StorageConfig represents the storage configuration for the L2 predeploy
