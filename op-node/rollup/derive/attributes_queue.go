@@ -2,6 +2,7 @@ package derive
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"time"
 
@@ -63,9 +64,14 @@ func (aq *AttributesQueue) Step(ctx context.Context, outer Progress) error {
 	}
 	batch := aq.batches[0]
 
+	safeL2Head := aq.next.SafeL2Head()
+	// sanity check parent hash
+	if batch.ParentHash != safeL2Head.Hash {
+		return NewCriticalError(fmt.Errorf("valid batch has bad parent hash %s, expected %s", batch.ParentHash, safeL2Head.Hash))
+	}
 	fetchCtx, cancel := context.WithTimeout(ctx, 20*time.Second)
 	defer cancel()
-	attrs, err := PreparePayloadAttributes(fetchCtx, aq.config, aq.dl, aq.next.SafeL2Head(), batch.Timestamp, batch.Epoch())
+	attrs, err := PreparePayloadAttributes(fetchCtx, aq.config, aq.dl, safeL2Head, batch.Timestamp, batch.Epoch())
 	if err != nil {
 		return err
 	}
