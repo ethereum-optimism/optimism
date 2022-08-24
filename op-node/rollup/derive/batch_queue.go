@@ -2,6 +2,7 @@ package derive
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 
@@ -97,22 +98,13 @@ func (bq *BatchQueue) AddBatch(batch *BatchData) {
 	if len(bq.l1Blocks) == 0 {
 		panic(fmt.Errorf("cannot add batch with timestamp %d, no origin was prepared", batch.Timestamp))
 	}
-	log := bq.log.New(
-		"current_l1", bq.progress.Origin,
-		"batch_timestamp", batch.Timestamp,
-		"batch_epoch", batch.Epoch(),
-		"txs", len(batch.Transactions),
-	)
-	log.Trace("queuing batch")
-
 	data := BatchWithL1InclusionBlock{
 		L1InclusionBlock: bq.progress.Origin,
 		Batch:            batch,
 	}
 	validity := CheckBatch(bq.config, bq.log, bq.l1Blocks, bq.next.SafeL2Head(), &data)
 	if validity == BatchDrop {
-		log.Warn("ingested invalid batch from L1, dropping it instead of buffering it")
-		return
+		return // if we do drop the batch, CheckBatch will log the drop reason with WARN level.
 	}
 	bq.batches[batch.Timestamp] = append(bq.batches[batch.Timestamp], &data)
 }
@@ -123,7 +115,7 @@ func (bq *BatchQueue) AddBatch(batch *BatchData) {
 // If no batch can be derived yet, then (nil, io.EOF) is returned.
 func (bq *BatchQueue) deriveNextBatch(ctx context.Context) (*BatchData, error) {
 	if len(bq.l1Blocks) == 0 {
-		panic("cannot derive next batch, no origin was prepared")
+		return nil, NewCriticalError(errors.New("cannot derive next batch, no origin was prepared"))
 	}
 	epoch := bq.l1Blocks[0]
 	l2SafeHead := bq.next.SafeL2Head()
@@ -169,7 +161,7 @@ batchLoop:
 			bq.batches[nextTimestamp] = remaining
 			return nil, io.EOF
 		default:
-			panic(fmt.Errorf("unknown batch validity type: %d", validity))
+			return nil, NewCriticalError(fmt.Errorf("unknown batch validity type: %d", validity))
 		}
 	}
 	// clean up if we remove the final batch for this timestamp
@@ -183,10 +175,6 @@ batchLoop:
 		// advance epoch if necessary
 		if nextBatch.Batch.EpochNum == rollup.Epoch(epoch.Number)+1 {
 			bq.l1Blocks = bq.l1Blocks[1:]
-		}
-		// sanity check
-		if nextBatch.Batch.EpochNum > rollup.Epoch(epoch.Number)+1 {
-			return nil, NewCriticalError(fmt.Errorf("batch is advancing more than 1 epoch, from %s to %s", epoch, nextBatch.Batch.Epoch()))
 		}
 		return nextBatch.Batch, nil
 	}

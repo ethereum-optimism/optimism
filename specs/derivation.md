@@ -390,7 +390,7 @@ contain.
 
 Recall that a batch contains a list of transactions to be included in a specific L2 block.
 
-A batch is encoded as `batch_version ++ content`, where `content` depends on the version:
+A batch is encoded as `batch_version ++ content`, where `content` depends on the `batch_version`:
 
 | `batch_version` | `content`                                                                          |
 | --------------- |------------------------------------------------------------------------------------|
@@ -398,6 +398,7 @@ A batch is encoded as `batch_version ++ content`, where `content` depends on the
 
 where:
 
+- `batch_version` is a single byte, prefixed before the RLP contents, alike to transaction typing.
 - `rlp_encode` is a function that encodes a batch according to the [RLP format], and `[x, y, z]` denotes a list
   containing items `x`, `y` and `z`
 - `parent_hash` is the block hash of the previous L2 block

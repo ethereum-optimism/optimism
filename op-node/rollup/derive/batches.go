@@ -29,11 +29,6 @@ const (
 // The first entry of the l1Blocks should match the origin of the l2SafeHead. One or more consecutive l1Blocks should be provided.
 // In case of only a single L1 block, the decision whether a batch is valid may have to stay undecided.
 func CheckBatch(cfg *rollup.Config, log log.Logger, l1Blocks []eth.L1BlockRef, l2SafeHead eth.L2BlockRef, batch *BatchWithL1InclusionBlock) BatchValidity {
-	nextTimestamp := l2SafeHead.Time + cfg.BlockTime
-	if batch.Batch.Timestamp > nextTimestamp {
-		// no log, very common case, this happens when batches are included early or out of order.
-		return BatchFuture
-	}
 	// add details to the log
 	log = log.New(
 		"batch_timestamp", batch.Batch.Timestamp,
@@ -47,14 +42,20 @@ func CheckBatch(cfg *rollup.Config, log log.Logger, l1Blocks []eth.L1BlockRef, l
 		log.Warn("missing L1 block input, cannot proceed with batch checking")
 		return BatchUndecided
 	}
-	if l1Blocks[0].Hash != l2SafeHead.L1Origin.Hash {
-		log.Warn("safe L2 head L1 origin does not match batch first l1 block",
-			"safe_l2", l2SafeHead, "safe_origin", l2SafeHead.L1Origin, "l1_block", l1Blocks[0])
+	epoch := l1Blocks[0]
+	if epoch.Hash != l2SafeHead.L1Origin.Hash {
+		log.Warn("safe L2 head L1 origin does not match batch first l1 block (current epoch)",
+			"safe_l2", l2SafeHead, "safe_origin", l2SafeHead.L1Origin, "epoch", epoch)
 		return BatchUndecided
 	}
 
+	nextTimestamp := l2SafeHead.Time + cfg.BlockTime
+	if batch.Batch.Timestamp > nextTimestamp {
+		log.Trace("received out-of-order batch for future processing after next batch", "next_timestamp", nextTimestamp)
+		return BatchFuture
+	}
 	if batch.Batch.Timestamp < nextTimestamp {
-		log.Debug("dropping batch with old timestamp", "min_timestamp", nextTimestamp)
+		log.Warn("dropping batch with old timestamp", "min_timestamp", nextTimestamp)
 		return BatchDrop
 	}
 
@@ -69,8 +70,6 @@ func CheckBatch(cfg *rollup.Config, log log.Logger, l1Blocks []eth.L1BlockRef, l
 		log.Warn("batch was included too late, sequence window expired")
 		return BatchDrop
 	}
-
-	epoch := l1Blocks[0]
 
 	// Check the L1 origin of the batch
 	batchOrigin := epoch
@@ -111,11 +110,11 @@ func CheckBatch(cfg *rollup.Config, log log.Logger, l1Blocks []eth.L1BlockRef, l
 	// We can do this check earlier, but it's a more intensive one, so we do this last.
 	for i, txBytes := range batch.Batch.Transactions {
 		if len(txBytes) == 0 {
-			log.Debug("transaction data must not be empty, but found empty tx", "tx_index", i)
+			log.Warn("transaction data must not be empty, but found empty tx", "tx_index", i)
 			return BatchDrop
 		}
 		if txBytes[0] == types.DepositTxType {
-			log.Debug("sequencers may not embed any deposits into batch data, but found tx that has one", "tx_index", i)
+			log.Warn("sequencers may not embed any deposits into batch data, but found tx that has one", "tx_index", i)
 			return BatchDrop
 		}
 	}
