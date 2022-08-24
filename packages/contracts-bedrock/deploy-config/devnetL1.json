@@ -1,5 +1,4 @@
 {
-  "l1StartingBlockTag": "earliest",
   "l1ChainID": 900,
   "l2ChainID": 901,
   "l2BlockTime": 2,
@@ -16,6 +15,7 @@
   "l2OutputOracleStartingTimestamp": -1,
   "l2OutputOracleProposer": "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
   "l2OutputOracleOwner": "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
+  "l2GenesisBlockCoinbase": "0x42000000000000000000000000000000000000f0",
 
   "l1BlockTime": 15,
   "cliqueSignerAddress": "0xca062b0fd91172d89bcd4bb084ac4e21972cc467",

@@ -221,7 +221,7 @@ jobs:
           name: Check if we should run
           command: |
             shopt -s inherit_errexit
-            CHANGED=$(check-changed "op-(batcher|bindings|e2e|node|proposer)")
+            CHANGED=$(check-changed "op-(batcher|bindings|e2e|node|proposer|chain-ops)")
             if [[ "$CHANGED" = "FALSE" ]]; then
               circleci step halt
             fi
@@ -256,6 +256,11 @@ jobs:
             golangci-lint run -E goimports,sqlclosecheck,bodyclose,asciicheck,misspell ./...
           working_directory: op-service
       - run:
+          name: lint op-chain-ops
+          command: |
+            golangci-lint run -E goimports,sqlclosecheck,bodyclose,asciicheck,misspell ./...
+          working_directory: op-chain-ops
+      - run:
           name: prep results dir
           command: mkdir -p /test-results
       - run:
@@ -283,6 +288,11 @@ jobs:
           command: |
             gotestsum --junitfile /test-results/op-service.xml -- -coverpkg=github.com/ethereum-optimism/optimism/... -coverprofile=coverage.out -covermode=atomic ./...
           working_directory: op-service
+      - run:
+          name: test op-chain-ops
+          command: |
+            gotestsum --junitfile /test-results/op-chain-ops.xml -- -coverpkg=github.com/ethereum-optimism/optimism/... -coverprofile=coverage.out -covermode=atomic ./...
+          working_directory: op-chain-ops
       - store_test_results:
           path: /test-results
       - run:
@@ -497,19 +507,6 @@ jobs:
           name: Bring up the stack
           command: |
             make devnet-up
-      - run:
-          name: Check L2 Config
-          command: npx hardhat check-l2-config --network devnetL1
-          working_directory: packages/contracts-bedrock
-      - run:
-          name: Do a deposit
-          command: |
-            timeout 5m npx hardhat deposit \
-                --to 0xB79f76EF2c5F0286176833E7B2eEe103b1CC3244  \
-                --amount-eth 1 \
-                --private-key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80 \
-                --network devnetL1
-          working_directory: packages/contracts-bedrock
       - run:
           name: Deposit ERC20 through the bridge
           command: timeout 5m npx hardhat deposit-erc20 --network devnetL1
@@ -803,6 +800,17 @@ workflows:
           docker_file: ops/docker/Dockerfile.packages
           docker_tags: us-central1-docker.pkg.dev/bedrock-goerli-development/images/deployer-bedrock:<<pipeline.git.revision>>
           target: deployer-bedrock
+          docker_context: .
+          repo: us-central1-docker.pkg.dev
+          context:
+            - gcr
+          requires:
+            - contracts-bedrock-tests
+      - docker-publish:
+          name: contract-artifacts-bedrock-publish-dev
+          docker_file: ops/docker/Dockerfile.packages
+          docker_tags: us-central1-docker.pkg.dev/bedrock-goerli-development/images/contract-artifacts-bedrock:<<pipeline.git.revision>>
+          target: contract-artifacts-bedrock
           docker_context: .
           repo: us-central1-docker.pkg.dev
           context:
