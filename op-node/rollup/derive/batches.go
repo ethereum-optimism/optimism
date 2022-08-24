@@ -25,6 +25,9 @@ const (
 	BatchFuture
 )
 
+// CheckBatch checks if the given batch can be applied on top of the given l2SafeHead, given the contextual L1 blocks the batch was included in.
+// The first entry of the l1Blocks should match the origin of the l2SafeHead. One or more consecutive l1Blocks should be provided.
+// In case of only a single L1 block, the decision whether a batch is valid may have to stay undecided.
 func CheckBatch(cfg *rollup.Config, log log.Logger, l1Blocks []eth.L1BlockRef, l2SafeHead eth.L2BlockRef, batch *BatchWithL1InclusionBlock) BatchValidity {
 	nextTimestamp := l2SafeHead.Time + cfg.BlockTime
 	if batch.Batch.Timestamp > nextTimestamp {

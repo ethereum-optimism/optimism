@@ -569,13 +569,17 @@ Definitions:
 - `batch` as defined in the [Batch format section][batch-format].
 - `epoch = safe_l2_head.l1_origin` a [L1 origin][g-l1-origin] coupled to the batch, with properties:
   `number` (L1 block number), `hash` (L1 block hash), and `timestamp` (L1 block timestamp).
-- `inclusion_block_number` is the L1 block number when `batch` was first *fully* derived.
+- `inclusion_block_number` is the L1 block number when `batch` was first *fully* derived,
+   i.e. decoded and output by the previous stage.
 - `next_timestamp = safe_l2_head.timestamp + block_time` is the expected L2 timestamp the next batch should have,
   see [block time information][g-block-time].
 - `next_epoch` may not be known yet, but would be the L1 block after `epoch` if available.
 - `batch_origin` is either `epoch` or `next_epoch`, depending on validation.
 
-Rules:
+Note that processing of a batch can be deferred until `batch.timestamp <= next_timestamp`,
+since `future` batches will have to be retained anyway.
+
+Rules, in validation order:
 
 - `batch.timestamp > next_timestamp` -> `future`: i.e. the batch must be ready to process.
 - `batch.timestamp < next_timestamp` -> `drop`: i.e. the batch must not be too old.
