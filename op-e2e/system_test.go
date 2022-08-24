@@ -978,14 +978,6 @@ func TestFees(t *testing.T) {
 	require.Nil(t, err, "waiting for overhead update tx")
 	require.Equal(t, receipt.Status, types.ReceiptStatusSuccessful, "transaction failed")
 
-	// Update decimals
-	tx, err = gpoContract.SetDecimals(l2opts, big.NewInt(6))
-	require.Nil(t, err, "sending gpo update tx")
-
-	receipt, err = waitForTransaction(tx.Hash(), l2Verif, 10*time.Duration(cfg.L1BlockTime)*time.Second)
-	require.Nil(t, err, "waiting for gpo decimals update tx")
-	require.Equal(t, receipt.Status, types.ReceiptStatusSuccessful, "transaction failed")
-
 	// Update scalar
 	tx, err = gpoContract.SetScalar(l2opts, big.NewInt(1_000_000))
 	require.Nil(t, err, "sending gpo update tx")
