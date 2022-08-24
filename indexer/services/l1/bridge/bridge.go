@@ -5,8 +5,9 @@ import (
 	"errors"
 	"math/big"
 
-	"github.com/ethereum-optimism/optimism/indexer/bindings/l1bridge"
 	"github.com/ethereum-optimism/optimism/indexer/db"
+	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
+
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 )
@@ -52,7 +53,7 @@ func BridgesByChainID(chainID *big.Int, client bind.ContractBackend, ctx context
 	for _, bridge := range allCfgs {
 		switch bridge.impl {
 		case "StandardBridge":
-			l1StandardBridgeFilter, err := l1bridge.NewL1StandardBridgeFilterer(bridge.addr, client)
+			l1StandardBridgeFilter, err := bindings.NewL1StandardBridgeFilterer(bridge.addr, client)
 			if err != nil {
 				return nil, err
 			}
@@ -66,7 +67,7 @@ func BridgesByChainID(chainID *big.Int, client bind.ContractBackend, ctx context
 			}
 			bridges[bridge.name] = standardBridge
 		case "ETHBridge":
-			l1EthBridgeFilter, err := l1bridge.NewL1StandardBridgeFilterer(bridge.addr, client)
+			l1EthBridgeFilter, err := bindings.NewL1StandardBridgeFilterer(bridge.addr, client)
 			if err != nil {
 				return nil, err
 			}

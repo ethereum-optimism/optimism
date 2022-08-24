@@ -3,8 +3,8 @@ package bridge
 import (
 	"context"
 
-	"github.com/ethereum-optimism/optimism/indexer/bindings/l1bridge"
 	"github.com/ethereum-optimism/optimism/indexer/db"
+	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 )
@@ -14,7 +14,7 @@ type EthBridge struct {
 	ctx      context.Context
 	address  common.Address
 	client   bind.ContractFilterer
-	filterer *l1bridge.L1StandardBridgeFilterer
+	filterer *bindings.L1StandardBridgeFilterer
 }
 
 func (e *EthBridge) Address() common.Address {
@@ -39,7 +39,7 @@ func (e *EthBridge) GetDepositsByBlockRange(start, end uint64) (DepositsMap, err
 				FromAddress: iter.Event.From,
 				ToAddress:   iter.Event.To,
 				Amount:      iter.Event.Amount,
-				Data:        iter.Event.Data,
+				Data:        iter.Event.ExtraData,
 				LogIndex:    iter.Event.Raw.Index,
 			})
 	}
