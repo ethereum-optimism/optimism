@@ -1,7 +1,7 @@
 {
   "private": true,
   "name": "@eth-optimism/data-transport-layer",
-  "version": "0.5.41",
+  "version": "0.5.42",
   "description": "[Optimism] Service for shuttling data from L1 into L2",
   "main": "dist/index",
   "types": "dist/index",
@@ -37,7 +37,7 @@
   },
   "dependencies": {
     "@eth-optimism/common-ts": "0.6.3",
-    "@eth-optimism/contracts": "0.5.32",
+    "@eth-optimism/contracts": "0.5.33",
     "@eth-optimism/core-utils": "0.9.3",
     "@ethersproject/providers": "^5.6.8",
     "@ethersproject/transactions": "^5.6.2",
