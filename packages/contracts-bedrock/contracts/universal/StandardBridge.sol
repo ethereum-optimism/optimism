@@ -52,6 +52,13 @@ abstract contract StandardBridge {
     mapping(address => mapping(address => uint256)) public deposits;
 
     /**
+     * @notice Reserve extra slots (to a total of 50) in the storage layout for future upgrades.
+     *         A gap size of 47 was chosen here, so that the first slot used in a child contract
+     *         would be a multiple of 50.
+     */
+    uint256[47] private __gap;
+
+    /**
      * @notice Emitted when an ETH bridge is initiated to the other chain.
      *
      * @param from      Address of the sender.
