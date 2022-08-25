@@ -107,9 +107,8 @@ abstract contract CrossDomainMessenger is
 
     /**
      * @notice Mapping of message hashes to boolean receipt values. Note that a message will only
-     *         be present in this mapping if it failed to be relayed on this chain at least once.
-     *         If a message is successfully relayed on the first attempt, then it will only be
-     *         present within the successfulMessages mapping.
+     *         be present in this mapping if it has successfully been relayed on this chain, and
+     *         can therefore not be relayed again.
      */
     mapping(bytes32 => bool) public successfulMessages;
 
