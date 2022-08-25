@@ -76,9 +76,10 @@
   - [Resetting the Engine Queue](#resetting-the-engine-queue)
   - [Resetting Payload Attribute Derivation](#resetting-payload-attribute-derivation)
   - [Resetting Batch Buffering & Batch Decoding](#resetting-batch-buffering--batch-decoding)
-  - [Resetting Channel Buffering](#resetting-channel-buffering)
+  - [Resetting Channel Bank](#resetting-channel-bank)
   - [Resetting L1 Retrieval & L1 Traversal](#resetting-l1-retrieval--l1-traversal)
   - [Reorgs Post-Merge](#reorgs-post-merge)
+- [Constants](#constants)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
