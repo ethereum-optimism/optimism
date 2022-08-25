@@ -78,8 +78,9 @@ func NewConfig(ctx *cli.Context, log log.Logger) (*node.Config, error) {
 			ListenAddr: ctx.GlobalString(flags.PprofAddrFlag.Name),
 			ListenPort: ctx.GlobalString(flags.PprofPortFlag.Name),
 		},
-		P2P:       p2pConfig,
-		P2PSigner: p2pSignerSetup,
+		P2P:                 p2pConfig,
+		P2PSigner:           p2pSignerSetup,
+		L1EpochPollInterval: ctx.GlobalDuration(flags.L1EpochPollIntervalFlag.Name),
 	}
 	if err := cfg.Check(); err != nil {
 		return nil, err

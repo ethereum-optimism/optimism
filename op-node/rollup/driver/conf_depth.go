@@ -27,7 +27,7 @@ func NewConfDepth(depth uint64, l1Head func() eth.L1BlockRef, fetcher derive.L1F
 // Any block numbers that are within confirmation depth of the L1 head are mocked to be "not found",
 // effectively hiding the uncertain part of the L1 chain.
 func (c *confDepth) L1BlockRefByNumber(ctx context.Context, num uint64) (eth.L1BlockRef, error) {
-	// TODO: performance optimization: buffer the l1Head, invalidate any reorged previous buffer content,
+	// TODO: performance optimization: buffer the l1Unsafe, invalidate any reorged previous buffer content,
 	// and instantly return the origin by number from the buffer if we can.
 
 	if num == 0 || c.depth == 0 || num+c.depth <= c.l1Head().Number {
