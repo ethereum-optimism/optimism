@@ -64,7 +64,8 @@
     - [L1 Retrieval](#l1-retrieval)
     - [Channel Bank](#channel-bank)
     - [Batch Decoding](#batch-decoding)
-    - [Batch Buffering](#batch-buffering)
+    - [Batch Buffering (v2)](#batch-buffering-v2)
+    - [Batch Buffering (v1)](#batch-buffering-v1)
     - [Payload Attributes Derivation](#payload-attributes-derivation)
     - [Engine Queue](#engine-queue)
     - [Resetting the Pipeline](#resetting-the-pipeline)
@@ -131,7 +132,7 @@ Each epoch may contain a variable number of L2 blocks (one every `L2_BLOCK_TIME`
     - `l1_timestamp` is the timestamp of the L1 block associated with the L2 block's epoch
     - `MAX_SEQUENCER_DRIFT` is the most a sequencer is allowed to get ahead of L1
 
-> **TODO** specify max sequencer drift (current thinking: on the order of 10 minutes, we've been using 2-4 minutes in
+> **TODO** specify `MAX_SEQUENCER_DRIFT` (current thinking: on the order of 10 minutes, we've been using 2-4 minutes in
 > testnets)
 
 Put together, these constraints mean that there must be an L2 block every `L2_BLOCK_TIME` seconds, and that the
@@ -571,7 +572,7 @@ Definitions:
   `number` (L1 block number), `hash` (L1 block hash), and `timestamp` (L1 block timestamp).
 - `inclusion_block_number` is the L1 block number when `batch` was first *fully* derived,
    i.e. decoded and output by the previous stage.
-- `next_timestamp = safe_l2_head.timestamp + block_time` is the expected L2 timestamp the next batch should have,
+- `next_timestamp = safe_l2_head.timestamp + L2_BLOCK_TIME` is the expected L2 timestamp the next batch should have,
   see [block time information][g-block-time].
 - `next_epoch` may not be known yet, but would be the L1 block after `epoch` if available.
 - `batch_origin` is either `epoch` or `next_epoch`, depending on validation.
@@ -594,7 +595,7 @@ Rules, in validation order:
 - `batch.epoch_num > epoch.number+1` -> `drop`: i.e. the L1 origin cannot change by more than one L1 block per L2 block.
 - `batch.epoch_hash != batch_origin.hash` -> `drop`: i.e. a batch must reference a canonical L1 origin,
   to prevent batches from being replayed onto unexpected L1 chains.
-- `batch.timestamp > batch_origin.time + max_sequencer_drift` -> `drop`: i.e. a batch that does not adopt the next L1
+- `batch.timestamp > batch_origin.time + MAX_SEQUENCER_DRIFT` -> `drop`: i.e. a batch that does not adopt the next L1
   within time will be dropped, in favor of an empty batch that can advance the L1 origin.
 - `batch.transactions`: `drop` if the `batch.transactions` list contains a transaction
   that is invalid or derived by other means exclusively:
@@ -602,7 +603,7 @@ Rules, in validation order:
   - any [deposited transactions][g-deposit-tx-type] (identified by the transaction type prefix byte)
 
 If no batch can be `accept`-ed, and the stage has completed buffering of all batches that can fully be read from the L1
-block at height `epoch.number + sequence_window_size`, and the `next_epoch` is available,
+block at height `epoch.number + SWS` (where `SWS` is the sequencing window size), and the `next_epoch` is available,
 then an empty batch can be derived with the following properties:
 
 - `parent_hash = safe_l2_head.hash`
@@ -616,6 +617,11 @@ then an empty batch can be derived with the following properties:
   - `epoch_hash = next_epoch.hash`
 
 ### Batch Buffering (v1)
+
+> **Note** This is the old version of the batch buffering stage specification. It's been updated to reflect the changes
+> in v2. We're keeping both of them around temporarily, as a refactor of the L2 chain derivation pipeline will generate
+> further spec changes, and the opportunity to consolidate these two specs in a way that fits the new structure the
+> best.
 
 During the *Batch Buffering* stage, we reorder batches by their timestamps. If batches are missing for some [time
 slots][g-time-slot] and a valid batch with a higher timestamp exists, this stage also generates empty batches to fill
@@ -638,9 +644,9 @@ We also ignore invalid batches, which do not satisfy one of the following constr
     - `prev_l2_timestamp` is the timestamp of the previous L2 block: the last block of the previous epoch,
       or the L2 genesis block timestamp if there is no previous epoch.
     - `L2_BLOCK_TIME` is a configurable parameter of the time between L2 blocks (on Optimism, 2s)
-  - `max_l2_timestamp = max(l1_timestamp + max_sequencer_drift, min_l2_timestamp + L2_BLOCK_TIME)`
+  - `max_l2_timestamp = max(l1_timestamp + MAX_SEQUENCER_DRIFT, min_l2_timestamp + L2_BLOCK_TIME)`
     - `l1_timestamp` is the timestamp of the L1 block associated with the L2 block's epoch
-    - `max_sequencer_drift` is the maximum amount of time an L2 block's timestamp is allowed to get ahead of the
+    - `MAX_SEQUENCER_DRIFT` is the maximum amount of time an L2 block's timestamp is allowed to get ahead of the
        timestamp of its [L1 origin][g-l1-origin]
   - Note that we always have `min_l2_timestamp >= l1_timestamp`, i.e. a L2 block timestamp is always equal or ahead of
     the timestamp of its [L1 origin][g-l1-origin].
@@ -650,14 +656,35 @@ We also ignore invalid batches, which do not satisfy one of the following constr
       transactions][g-batcher-transaction] are being or have been processed.
 - The batch only contains sequenced transactions, i.e. it must NOT contain any [deposited-type transactions][
   g-deposit-tx-type].
+- The batch's [epoch][g-sequencing-epoch] is the same as that of the safe L2 head, or ahead by one.
+  - If it's the same, then `batch.epoch_hash` must be the same as the hash of the [L1 origin][g-l1-origin] of the safe
+      L2 head.
+  - If it's ahead, then `batch.epoch_hash` must be the same as the hash of the direct successor of the [L1
+      origin][g-l1-origin] of the safe L2 head (this L1 block will be the L1 origin of the next safe L2 head).
+- `batch.parent_hash` is the same as the hash of the safe L2 head.
 
-> **TODO** specify `max_sequencer_drift` (see TODO above) (current thinking: on the order of 10 minutes, we've been
+In case a batch for a given [time slot][g-time-slot] is missing (i.e. the batch cannot be derived using data from the
+previous batch's epoch's sequencing window, nor with data from the sequencing window of the epoch after that), then an
+empty batch must be derived, with the follow properties:
+
+- Its `timestamp` will be the missing time slot's timestamp.
+- Its `parent_hash` will be the hash of the safe L2 head.
+- It will not contain any sequencer transactions. It may contain [deposited transaction][g-deposited] if it is the first
+  block its epoch.
+- Its epoch is determined as follow:
+  - If `timestamp` < `next_epoch.time`, use the epoch of the (valid) batch for the previous time slot.
+  - Otherwise, use the epoch immediately after that of the (valid) batch for the previous time slot.
+    - The idea being that if there are no batches and the L2 safe head's timestamp has drifted ahead of its L1
+          origin, we should use the opportunity to reduce the sequencer drift, by generating only a single L2 block per
+          epoch.
+  - Note we will always know the L1 block corresponding to the epochs, and hence the `epoch_hash`, because we can only
+      derive an empty batch after waiting for a full sequencing window of L1 blocks past the L1 block associated with
+      the current epoch.
+
+Also note that the "valid batch for the previous time slot" may itself be a derived empty batch!
+
+> **TODO** specify `MAX_SEQUENCER_DRIFT` (see TODO above) (current thinking: on the order of 10 minutes, we've been
 > using 2-4 minutes in testnets)
-
-> **TODO** Drop batches whose epoch is not congruent with the epoch of safe L2 head that will build upon. This is tricky
-> because (a) epochs are not encoded explicitly in payload attributes (only nested within the L1 attributes transaction)
-> and (b) we don't know the L2 safe head for every batch in the buffer at this stage. This is being discussed in another
-> open PR.
 
 ### Payload Attributes Derivation
 
