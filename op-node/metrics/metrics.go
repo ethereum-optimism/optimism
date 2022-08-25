@@ -2,6 +2,7 @@ package metrics
 
 import (
 	"context"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"net"
@@ -9,6 +10,9 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/ethereum/go-ethereum/common"
+
+	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum/go-ethereum"
 	"github.com/prometheus/client_golang/prometheus/collectors"
 
@@ -37,14 +41,27 @@ type Metrics struct {
 	RPCClientRequestDurationSeconds *prometheus.HistogramVec
 	RPCClientResponsesTotal         *prometheus.CounterVec
 
-	DerivationIdle        prometheus.Gauge
-	PipelineResetsTotal   prometheus.Counter
-	LastPipelineResetUnix prometheus.Gauge
-	UnsafePayloadsTotal   prometheus.Counter
-	DerivationErrorsTotal prometheus.Counter
-	SequencingErrorsTotal prometheus.Counter
-	PublishingErrorsTotal prometheus.Counter
-	Heads                 *prometheus.GaugeVec
+	L1SourceCache *CacheMetrics
+	L2SourceCache *CacheMetrics
+
+	DerivationIdle prometheus.Gauge
+
+	PipelineResets   *EventMetrics
+	UnsafePayloads   *EventMetrics
+	DerivationErrors *EventMetrics
+	SequencingErrors *EventMetrics
+	PublishingErrors *EventMetrics
+
+	RefsNumber  *prometheus.GaugeVec
+	RefsTime    *prometheus.GaugeVec
+	RefsHash    *prometheus.GaugeVec
+	RefsSeqNr   *prometheus.GaugeVec
+	RefsLatency *prometheus.GaugeVec
+	// hash of the last seen block per name, so we don't reduce/increase latency on updates of the same data,
+	// and only count the first occurrence
+	LatencySeen map[string]common.Hash
+
+	L1ReorgDepth prometheus.Histogram
 
 	TransactionsSequencedTotal prometheus.Counter
 
@@ -118,47 +135,67 @@ func NewMetrics(procName string) *Metrics {
 			"error",
 		}),
 
+		L1SourceCache: NewCacheMetrics(registry, ns, "l1_source_cache", "L1 Source cache"),
+		L2SourceCache: NewCacheMetrics(registry, ns, "l2_source_cache", "L2 Source cache"),
+
 		DerivationIdle: promauto.With(registry).NewGauge(prometheus.GaugeOpts{
 			Namespace: ns,
 			Name:      "derivation_idle",
 			Help:      "1 if the derivation pipeline is idle",
 		}),
-		PipelineResetsTotal: promauto.With(registry).NewCounter(prometheus.CounterOpts{
+
+		PipelineResets:   NewEventMetrics(registry, ns, "pipeline_resets", "derivation pipeline resets"),
+		UnsafePayloads:   NewEventMetrics(registry, ns, "unsafe_payloads", "unsafe payloads"),
+		DerivationErrors: NewEventMetrics(registry, ns, "derivation_errors", "derivation errors"),
+		SequencingErrors: NewEventMetrics(registry, ns, "sequencing_errors", "sequencing errors"),
+		PublishingErrors: NewEventMetrics(registry, ns, "publishing_errors", "p2p publishing errors"),
+
+		RefsNumber: promauto.With(registry).NewGaugeVec(prometheus.GaugeOpts{
 			Namespace: ns,
-			Name:      "pipeline_resets_total",
-			Help:      "Count of derivation pipeline resets",
+			Name:      "refs_number",
+			Help:      "Gauge representing the different L1/L2 reference block numbers",
+		}, []string{
+			"layer",
+			"type",
 		}),
-		LastPipelineResetUnix: promauto.With(registry).NewGauge(prometheus.GaugeOpts{
+		RefsTime: promauto.With(registry).NewGaugeVec(prometheus.GaugeOpts{
 			Namespace: ns,
-			Name:      "last_pipeline_reset_unix",
-			Help:      "Timestamp of last pipeline reset",
+			Name:      "refs_time",
+			Help:      "Gauge representing the different L1/L2 reference block timestamps",
+		}, []string{
+			"layer",
+			"type",
 		}),
-		UnsafePayloadsTotal: promauto.With(registry).NewCounter(prometheus.CounterOpts{
+		RefsHash: promauto.With(registry).NewGaugeVec(prometheus.GaugeOpts{
 			Namespace: ns,
-			Name:      "unsafe_payloads_total",
-			Help:      "Count of unsafe payloads received via p2p",
+			Name:      "refs_hash",
+			Help:      "Gauge representing the different L1/L2 reference block hashes truncated to float values",
+		}, []string{
+			"layer",
+			"type",
 		}),
-		DerivationErrorsTotal: promauto.With(registry).NewCounter(prometheus.CounterOpts{
+		RefsSeqNr: promauto.With(registry).NewGaugeVec(prometheus.GaugeOpts{
 			Namespace: ns,
-			Name:      "derivation_errors_total",
-			Help:      "Count of total derivation errors",
-		}),
-		SequencingErrorsTotal: promauto.With(registry).NewCounter(prometheus.CounterOpts{
-			Namespace: ns,
-			Name:      "sequencing_errors_total",
-			Help:      "Count of total sequencing errors",
-		}),
-		PublishingErrorsTotal: promauto.With(registry).NewCounter(prometheus.CounterOpts{
-			Namespace: ns,
-			Name:      "publishing_errors_total",
-			Help:      "Count of total p2p publishing errors",
-		}),
-		Heads: promauto.With(registry).NewGaugeVec(prometheus.GaugeOpts{
-			Namespace: ns,
-			Name:      "heads",
-			Help:      "Gauge representing the different L1/L2 heads",
+			Name:      "refs_seqnr",
+			Help:      "Gauge representing the different L2 reference sequence numbers",
 		}, []string{
 			"type",
+		}),
+		RefsLatency: promauto.With(registry).NewGaugeVec(prometheus.GaugeOpts{
+			Namespace: ns,
+			Name:      "refs_latency",
+			Help:      "Gauge representing the different L1/L2 reference block timestamps minus current time, in seconds",
+		}, []string{
+			"layer",
+			"type",
+		}),
+		LatencySeen: make(map[string]common.Hash),
+
+		L1ReorgDepth: promauto.With(registry).NewHistogram(prometheus.HistogramOpts{
+			Namespace: ns,
+			Name:      "l1_reorg_depth",
+			Buckets:   []float64{0.5, 1.5, 2.5, 3.5, 4.5, 5.5, 6.5, 7.5, 8.5, 9.5, 10.5, 20.5, 50.5, 100.5},
+			Help:      "Histogram of L1 Reorg Depths",
 		}),
 
 		TransactionsSequencedTotal: promauto.With(registry).NewGauge(prometheus.GaugeOpts{
@@ -238,13 +275,58 @@ func (m *Metrics) SetDerivationIdle(status bool) {
 	m.DerivationIdle.Set(val)
 }
 
-func (m *Metrics) SetHead(kind string, num uint64) {
-	m.Heads.WithLabelValues(kind).Set(float64(num))
+func (m *Metrics) RecordPipelineReset() {
+	m.PipelineResets.RecordEvent()
 }
 
-func (m *Metrics) RecordPipelineReset() {
-	m.PipelineResetsTotal.Inc()
-	m.LastPipelineResetUnix.Set(float64(time.Now().Unix()))
+func (m *Metrics) RecordSequencingError() {
+	m.SequencingErrors.RecordEvent()
+}
+
+func (m *Metrics) RecordPublishingError() {
+	m.PublishingErrors.RecordEvent()
+}
+
+func (m *Metrics) RecordDerivationError() {
+	m.DerivationErrors.RecordEvent()
+}
+
+func (m *Metrics) RecordReceivedUnsafePayload(payload *eth.ExecutionPayload) {
+	m.UnsafePayloads.RecordEvent()
+	m.recordRef("l2", "received_payload", uint64(payload.BlockNumber), uint64(payload.Timestamp), payload.BlockHash)
+}
+
+func (m *Metrics) recordRef(layer string, name string, num uint64, timestamp uint64, h common.Hash) {
+	m.RefsNumber.WithLabelValues(layer, name).Set(float64(num))
+	if timestamp != 0 {
+		m.RefsTime.WithLabelValues(layer, name).Set(float64(timestamp))
+		// only meter the latency when we first see this hash for the given label name
+		if m.LatencySeen[name] != h {
+			m.LatencySeen[name] = h
+			m.RefsLatency.WithLabelValues(layer, name).Set(float64(timestamp) - (float64(time.Now().UnixNano()) / 1e9))
+		}
+	}
+	// we map the first 8 bytes to a float64, so we can graph changes of the hash to find divergences visually.
+	// We don't do math.Float64frombits, just a regular conversion, to keep the value within a manageable range.
+	m.RefsHash.WithLabelValues(layer, name).Set(float64(binary.LittleEndian.Uint64(h[:])))
+}
+
+func (m *Metrics) RecordL1Ref(name string, ref eth.L1BlockRef) {
+	m.recordRef("l1", name, ref.Number, ref.Time, ref.Hash)
+}
+
+func (m *Metrics) RecordL2Ref(name string, ref eth.L2BlockRef) {
+	m.recordRef("l2", name, ref.Number, ref.Time, ref.Hash)
+	m.recordRef("l1_origin", name, ref.L1Origin.Number, 0, ref.L1Origin.Hash)
+	m.RefsSeqNr.WithLabelValues(name).Set(float64(ref.SequenceNumber))
+}
+
+func (m *Metrics) CountSequencedTxs(count int) {
+	m.TransactionsSequencedTotal.Add(float64(count))
+}
+
+func (m *Metrics) RecordL1ReorgDepth(d uint64) {
+	m.L1ReorgDepth.Observe(float64(d))
 }
 
 // Serve starts the metrics server on the given hostname and port.

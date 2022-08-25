@@ -46,12 +46,6 @@ var (
 		Required: true,
 		EnvVar:   prefixEnvVar("L2_ETH_RPC"),
 	}
-	L1AddressManagerAddressFlag = cli.StringFlag{
-		Name:     "l1-address-manager-address",
-		Usage:    "Address of the L1 address manager",
-		Required: true,
-		EnvVar:   prefixEnvVar("L1_ADDRESS_MANAGER_ADDRESS"),
-	}
 	L2GenesisBlockHashFlag = cli.StringFlag{
 		Name:     "l2-genesis-block-hash",
 		Usage:    "Genesis block hash of the L2 chain",
@@ -187,7 +181,6 @@ var requiredFlags = []cli.Flag{
 	ChainIDFlag,
 	L1EthRPCFlag,
 	L2EthRPCFlag,
-	L1AddressManagerAddressFlag,
 	L2GenesisBlockHashFlag,
 	DBHostFlag,
 	DBPortFlag,

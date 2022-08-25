@@ -159,23 +159,17 @@ func NewIndexer(cfg Config, gitVersion string) (*Indexer, error) {
 		return nil, err
 	}
 
-	l1AddressManagerAddress, err := ParseL1Address(cfg.L1AddressManagerAddress)
-	if err != nil {
-		return nil, err
-	}
-
 	l1IndexingService, err := l1.NewService(l1.ServiceConfig{
-		Context:               ctx,
-		Metrics:               m,
-		L1Client:              l1Client,
-		RawL1Client:           rawl1Client,
-		ChainID:               big.NewInt(cfg.ChainID),
-		AddressManagerAddress: l1AddressManagerAddress,
-		DB:                    db,
-		ConfDepth:             cfg.ConfDepth,
-		MaxHeaderBatchSize:    cfg.MaxHeaderBatchSize,
-		StartBlockNumber:      cfg.StartBlockNumber,
-		StartBlockHash:        cfg.StartBlockHash,
+		Context:            ctx,
+		Metrics:            m,
+		L1Client:           l1Client,
+		RawL1Client:        rawl1Client,
+		ChainID:            big.NewInt(cfg.ChainID),
+		DB:                 db,
+		ConfDepth:          cfg.ConfDepth,
+		MaxHeaderBatchSize: cfg.MaxHeaderBatchSize,
+		StartBlockNumber:   cfg.StartBlockNumber,
+		StartBlockHash:     cfg.StartBlockHash,
 	})
 	if err != nil {
 		return nil, err

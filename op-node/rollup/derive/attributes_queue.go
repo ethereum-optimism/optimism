@@ -2,6 +2,7 @@ package derive
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"time"
 
@@ -9,6 +10,17 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum/go-ethereum/log"
 )
+
+// The attributes queue sits in between the batch queue and the engine queue
+// It transforms batches into payload attributes. The outputted payload
+// attributes cannot be buffered because each batch->attributes transformation
+// pulls in data about the current L2 safe head.
+//
+// It also buffers batches that have been output because multiple batches can
+// be created at once.
+//
+// This stage can be reset by clearing it's batch buffer.
+// This stage does not need to retain any references to L1 blocks.
 
 type AttributesQueueOutput interface {
 	AddSafeAttributes(attributes *eth.PayloadAttributes)
@@ -52,9 +64,14 @@ func (aq *AttributesQueue) Step(ctx context.Context, outer Progress) error {
 	}
 	batch := aq.batches[0]
 
+	safeL2Head := aq.next.SafeL2Head()
+	// sanity check parent hash
+	if batch.ParentHash != safeL2Head.Hash {
+		return NewCriticalError(fmt.Errorf("valid batch has bad parent hash %s, expected %s", batch.ParentHash, safeL2Head.Hash))
+	}
 	fetchCtx, cancel := context.WithTimeout(ctx, 20*time.Second)
 	defer cancel()
-	attrs, err := PreparePayloadAttributes(fetchCtx, aq.config, aq.dl, aq.next.SafeL2Head(), batch.Timestamp, batch.Epoch())
+	attrs, err := PreparePayloadAttributes(fetchCtx, aq.config, aq.dl, safeL2Head, batch.Timestamp, batch.Epoch())
 	if err != nil {
 		return err
 	}

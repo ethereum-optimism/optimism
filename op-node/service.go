@@ -64,8 +64,9 @@ func NewConfig(ctx *cli.Context, log log.Logger) (*node.Config, error) {
 		Rollup: *rollupConfig,
 		Driver: *driverConfig,
 		RPC: node.RPCConfig{
-			ListenAddr: ctx.GlobalString(flags.RPCListenAddr.Name),
-			ListenPort: ctx.GlobalInt(flags.RPCListenPort.Name),
+			ListenAddr:  ctx.GlobalString(flags.RPCListenAddr.Name),
+			ListenPort:  ctx.GlobalInt(flags.RPCListenPort.Name),
+			EnableAdmin: ctx.GlobalBool(flags.RPCEnableAdmin.Name),
 		},
 		Metrics: node.MetricsConfig{
 			Enabled:    ctx.GlobalBool(flags.MetricsEnabledFlag.Name),

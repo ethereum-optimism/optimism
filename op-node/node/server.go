@@ -7,11 +7,12 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/ethereum-optimism/optimism/op-node/sources"
+
 	"github.com/ethereum-optimism/optimism/op-node/metrics"
 
 	"github.com/ethereum-optimism/optimism/op-node/p2p"
 
-	"github.com/ethereum-optimism/optimism/op-node/l2"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 
 	"github.com/ethereum/go-ethereum/log"
@@ -28,7 +29,7 @@ type rpcServer struct {
 	appVersion string
 	listenAddr net.Addr
 	log        log.Logger
-	l2.Source
+	sources.L2Client
 }
 
 func newRPCServer(ctx context.Context, rpcCfg *RPCConfig, rollupCfg *rollup.Config, l2Client l2EthClient, dr driverClient, log log.Logger, appVersion string, m *metrics.Metrics) (*rpcServer, error) {
@@ -47,6 +48,16 @@ func newRPCServer(ctx context.Context, rpcCfg *RPCConfig, rollupCfg *rollup.Conf
 		log:        log,
 	}
 	return r, nil
+}
+
+func (s *rpcServer) EnableAdminAPI(api *adminAPI) {
+	s.apis = append(s.apis, rpc.API{
+		Namespace:     "admin",
+		Version:       "",
+		Service:       api,
+		Public:        true, // TODO: this field is deprecated. Do we even need this anymore?
+		Authenticated: false,
+	})
 }
 
 func (s *rpcServer) EnableP2P(backend *p2p.APIBackend) {

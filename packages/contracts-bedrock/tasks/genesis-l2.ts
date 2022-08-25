@@ -210,6 +210,17 @@ task('genesis-l2', 'create a genesis config')
 
     const l1 = new ethers.providers.StaticJsonRpcProvider(args.l1RpcUrl)
 
+    const l1StartingBlock = await l1.getBlock(deployConfig.l1StartingBlockTag)
+    if (l1StartingBlock === null) {
+      throw new Error(
+        `Cannot fetch block tag ${deployConfig.l1StartingBlockTag}`
+      )
+    }
+
+    if (l1StartingBlock === null) {
+      console.log(`Unable to fetch L1 block that rollup starts at`)
+    }
+
     // Use the addresses of the proxies here instead of the implementations
     // Be backwards compatible
     let ProxyL1CrossDomainMessenger = await hre.deployments.getOrNull(
@@ -255,11 +266,11 @@ task('genesis-l2', 'create a genesis config')
         l1FeeWallet: ethers.constants.AddressZero,
       },
       L1Block: {
-        number: deployConfig.l1BlockInitialNumber,
-        timestamp: deployConfig.l1BlockInitialTimestamp,
-        basefee: deployConfig.l1BlockInitialBasefee,
-        hash: deployConfig.l1BlockInitialHash,
-        sequenceNumber: deployConfig.l1BlockInitialSequenceNumber,
+        number: l1StartingBlock.number,
+        timestamp: l1StartingBlock.timestamp,
+        basefee: l1StartingBlock.baseFeePerGas,
+        hash: l1StartingBlock.hash,
+        sequenceNumber: 0,
       },
       LegacyERC20ETH: {
         bridge: predeploys.L2StandardBridge,
@@ -275,13 +286,15 @@ task('genesis-l2', 'create a genesis config')
       GovernanceToken: {
         name: 'Optimism',
         symbol: 'OP',
-        _owner: deployConfig.proxyAdmin,
+        // TODO: this should be the mint manager
+        // in practice. Just use a hardhat account
+        // because this is only used for devnets
+        _owner: '0x829BD824B016326A401d083B33D092293333A830',
       },
     }
 
     assertEvenLength(implementationSlot)
     assertEvenLength(adminSlot)
-    assertEvenLength(deployConfig.proxyAdmin)
 
     const predeployAddrs = new Set()
     for (const addr of Object.values(predeploys)) {
@@ -289,6 +302,10 @@ task('genesis-l2', 'create a genesis config')
     }
 
     const alloc: State = {}
+
+    // Use the address of the deployed ProxyAdmin as the admin for
+    // each Proxy
+    const Deployment__ProxyAdmin = await hre.deployments.get('ProxyAdmin')
 
     // Set a proxy at each predeploy address
     const proxy = await hre.artifacts.readArtifact('Proxy')
@@ -309,7 +326,7 @@ task('genesis-l2', 'create a genesis config')
         balance: '0x0',
         code: proxy.deployedBytecode,
         storage: {
-          [adminSlot]: deployConfig.proxyAdmin,
+          [adminSlot]: Deployment__ProxyAdmin.address,
         },
       }
 
@@ -363,36 +380,34 @@ task('genesis-l2', 'create a genesis config')
       }
     }
 
-    if (deployConfig.fundDevAccounts) {
-      const accounts = [
-        '0x14dC79964da2C08b23698B3D3cc7Ca32193d9955',
-        '0x15d34AAf54267DB7D7c367839AAf71A00a2C6A65',
-        '0x1CBd3b2770909D4e10f157cABC84C7264073C9Ec',
-        '0x23618e81E3f5cdF7f54C3d65f7FBc0aBf5B21E8f',
-        '0x2546BcD3c84621e976D8185a91A922aE77ECEc30',
-        '0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC',
-        '0x70997970C51812dc3A010C7d01b50e0d17dc79C8',
-        '0x71bE63f3384f5fb98995898A86B02Fb2426c5788',
-        '0x8626f6940E2eb28930eFb4CeF49B2d1F2C9C1199',
-        '0x90F79bf6EB2c4f870365E785982E1f101E93b906',
-        '0x976EA74026E726554dB657fA54763abd0C3a0aa9',
-        '0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc',
-        '0xBcd4042DE499D14e55001CcbB24a551F3b954096',
-        '0xFABB0ac9d68B0B445fB7357272Ff202C5651694a',
-        '0xa0Ee7A142d267C1f36714E4a8F75612F20a79720',
-        '0xbDA5747bFD65F08deb54cb465eB87D40e51B197E',
-        '0xcd3B766CCDd6AE721141F452C550Ca635964ce71',
-        '0xdD2FD4581271e230360230F9337D5c0430Bf44C0',
-        '0xdF3e18d64BC6A983f673Ab319CCaE4f1a57C7097',
-        '0xde3829a23df1479438622a08a116e8eb3f620bb5',
-        '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266',
-      ]
+    const accounts = [
+      '0x14dC79964da2C08b23698B3D3cc7Ca32193d9955',
+      '0x15d34AAf54267DB7D7c367839AAf71A00a2C6A65',
+      '0x1CBd3b2770909D4e10f157cABC84C7264073C9Ec',
+      '0x23618e81E3f5cdF7f54C3d65f7FBc0aBf5B21E8f',
+      '0x2546BcD3c84621e976D8185a91A922aE77ECEc30',
+      '0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC',
+      '0x70997970C51812dc3A010C7d01b50e0d17dc79C8',
+      '0x71bE63f3384f5fb98995898A86B02Fb2426c5788',
+      '0x8626f6940E2eb28930eFb4CeF49B2d1F2C9C1199',
+      '0x90F79bf6EB2c4f870365E785982E1f101E93b906',
+      '0x976EA74026E726554dB657fA54763abd0C3a0aa9',
+      '0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc',
+      '0xBcd4042DE499D14e55001CcbB24a551F3b954096',
+      '0xFABB0ac9d68B0B445fB7357272Ff202C5651694a',
+      '0xa0Ee7A142d267C1f36714E4a8F75612F20a79720',
+      '0xbDA5747bFD65F08deb54cb465eB87D40e51B197E',
+      '0xcd3B766CCDd6AE721141F452C550Ca635964ce71',
+      '0xdD2FD4581271e230360230F9337D5c0430Bf44C0',
+      '0xdF3e18d64BC6A983f673Ab319CCaE4f1a57C7097',
+      '0xde3829a23df1479438622a08a116e8eb3f620bb5',
+      '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266',
+    ]
 
-      for (const account of accounts) {
-        alloc[account] = {
-          balance:
-            '0x200000000000000000000000000000000000000000000000000000000000000',
-        }
+    for (const account of accounts) {
+      alloc[account] = {
+        balance:
+          '0x200000000000000000000000000000000000000000000000000000000000000',
       }
     }
 
@@ -462,24 +477,14 @@ task('genesis-l2', 'create a genesis config')
       }
     }
 
-    const l1StartingBlock = await l1.getBlock(deployConfig.l1StartingBlockTag)
-    if (l1StartingBlock === null) {
-      throw new Error(
-        `Cannot fetch block tag ${deployConfig.l1StartingBlockTag}`
-      )
-    }
-
-    if (l1StartingBlock === null) {
-      console.log(`Unable to fetch L1 starting timestamp`)
-    }
-
     const startingTimestamp = l1StartingBlock?.timestamp || 0
 
     const genesis: OptimismGenesis = {
       config: {
-        chainId: deployConfig.genesisBlockChainid,
+        chainId: deployConfig.l2ChainID,
         homesteadBlock: 0,
         eip150Block: 0,
+        eip150Hash: ethers.constants.HashZero,
         eip155Block: 0,
         eip158Block: 0,
         byzantiumBlock: 0,
@@ -496,11 +501,17 @@ task('genesis-l2', 'create a genesis config')
           l1FeeRecipient: deployConfig.optimismL1FeeRecipient,
         },
       },
-      nonce: '0x1234',
-      difficulty: '0x1',
+      nonce: deployConfig.l2GenesisBlockNonce,
       timestamp: ethers.BigNumber.from(startingTimestamp).toHexString(),
-      gasLimit: deployConfig.genesisBlockGasLimit,
-      extraData: deployConfig.genesisBlockExtradata,
+      extraData: deployConfig.l2GenesisBlockExtraData,
+      gasLimit: deployConfig.l2GenesisBlockGasLimit,
+      difficulty: deployConfig.l2GenesisBlockDifficulty,
+      mixHash: deployConfig.l2GenesisBlockMixHash,
+      coinbase: deployConfig.l2GenesisBlockCoinbase,
+      number: deployConfig.l2GenesisBlockNumber,
+      gasUsed: deployConfig.l2GenesisBlockGasUsed,
+      parentHash: deployConfig.l2GenesisBlockParentHash,
+      baseFeePerGas: deployConfig.l2GenesisBlockBaseFeePerGas,
       alloc,
     }
 

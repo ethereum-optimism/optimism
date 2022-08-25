@@ -30,7 +30,7 @@ type Config struct {
 	// Note: When L1 has many 1 second consecutive blocks, and L2 grows at fixed 2 seconds,
 	// the L2 time may still grow beyond this difference.
 	MaxSequencerDrift uint64 `json:"max_sequencer_drift"`
-	// Number of epochs (L1 blocks) per sequencing window
+	// Number of epochs (L1 blocks) per sequencing window, including the epoch L1 origin block itself
 	SeqWindowSize uint64 `json:"seq_window_size"`
 	// Number of seconds (w.r.t. L1 time) that a frame can be valid when included in L1
 	ChannelTimeout uint64 `json:"channel_timeout"`
@@ -45,9 +45,9 @@ type Config struct {
 	// Note: below addresses are part of the block-derivation process,
 	// and required to be the same network-wide to stay in consensus.
 
-	// L2 address receiving all L2 transaction fees
+	// L2 address used to send all priority fees to, also known as the coinbase address in the block.
 	FeeRecipientAddress common.Address `json:"fee_recipient_address"`
-	// L1 address that batches are sent to
+	// L1 address that batches are sent to.
 	BatchInboxAddress common.Address `json:"batch_inbox_address"`
 	// Acceptable batch-sender address
 	BatchSenderAddress common.Address `json:"batch_sender_address"`

@@ -11,7 +11,7 @@ import (
 )
 
 type L1Fetcher interface {
-	L1HeadBlockRef(ctx context.Context) (eth.L1BlockRef, error)
+	L1BlockRefByLabel(ctx context.Context, label eth.BlockLabel) (eth.L1BlockRef, error)
 	L1BlockRefByNumberFetcher
 	L1BlockRefByHashFetcher
 	L1ReceiptsFetcher
@@ -77,7 +77,7 @@ type DerivationPipeline struct {
 func NewDerivationPipeline(log log.Logger, cfg *rollup.Config, l1Fetcher L1Fetcher, engine Engine) *DerivationPipeline {
 	eng := NewEngineQueue(log, cfg, engine)
 	attributesQueue := NewAttributesQueue(log, cfg, l1Fetcher, eng)
-	batchQueue := NewBatchQueue(log, cfg, l1Fetcher, attributesQueue)
+	batchQueue := NewBatchQueue(log, cfg, attributesQueue)
 	chInReader := NewChannelInReader(log, batchQueue)
 	bank := NewChannelBank(log, cfg, chInReader)
 	dataSrc := NewCalldataSource(log, cfg, l1Fetcher)

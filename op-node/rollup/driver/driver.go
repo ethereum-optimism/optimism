@@ -2,13 +2,8 @@ package driver
 
 import (
 	"context"
-	"math/big"
-
-	"github.com/ethereum-optimism/optimism/op-node/metrics"
 
 	"github.com/ethereum-optimism/optimism/op-node/eth"
-	"github.com/ethereum-optimism/optimism/op-node/l1"
-	"github.com/ethereum-optimism/optimism/op-node/l2"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum/go-ethereum/common"
@@ -20,20 +15,36 @@ type Driver struct {
 	s *state
 }
 
+type Metrics interface {
+	RecordPipelineReset()
+	RecordSequencingError()
+	RecordPublishingError()
+	RecordDerivationError()
+
+	RecordReceivedUnsafePayload(payload *eth.ExecutionPayload)
+
+	RecordL1Ref(name string, ref eth.L1BlockRef)
+	RecordL2Ref(name string, ref eth.L2BlockRef)
+
+	SetDerivationIdle(idle bool)
+
+	RecordL1ReorgDepth(d uint64)
+	CountSequencedTxs(count int)
+}
+
 type Downloader interface {
-	InfoByHash(ctx context.Context, hash common.Hash) (eth.L1Info, error)
-	Fetch(ctx context.Context, blockHash common.Hash) (eth.L1Info, types.Transactions, types.Receipts, error)
+	InfoByHash(ctx context.Context, hash common.Hash) (eth.BlockInfo, error)
+	Fetch(ctx context.Context, blockHash common.Hash) (eth.BlockInfo, types.Transactions, eth.ReceiptsFetcher, error)
 }
 
 type L1Chain interface {
 	derive.L1Fetcher
-	L1HeadBlockRef(context.Context) (eth.L1BlockRef, error)
+	L1BlockRefByLabel(context.Context, eth.BlockLabel) (eth.L1BlockRef, error)
 }
 
 type L2Chain interface {
 	derive.Engine
-	L2BlockRefHead(ctx context.Context) (eth.L2BlockRef, error)
-	L2BlockRefByNumber(ctx context.Context, l2Num *big.Int) (eth.L2BlockRef, error)
+	L2BlockRefByLabel(ctx context.Context, label eth.BlockLabel) (eth.L2BlockRef, error)
 	L2BlockRefByHash(ctx context.Context, l2Hash common.Hash) (eth.L2BlockRef, error)
 }
 
@@ -58,7 +69,7 @@ type Network interface {
 	PublishL2Payload(ctx context.Context, payload *eth.ExecutionPayload) error
 }
 
-func NewDriver(driverCfg *Config, cfg *rollup.Config, l2 *l2.Source, l1 *l1.Source, network Network, log log.Logger, snapshotLog log.Logger, metrics *metrics.Metrics) *Driver {
+func NewDriver(driverCfg *Config, cfg *rollup.Config, l2 L2Chain, l1 L1Chain, network Network, log log.Logger, snapshotLog log.Logger, metrics Metrics) *Driver {
 	output := &outputImpl{
 		Config: cfg,
 		dl:     l1,
@@ -79,6 +90,10 @@ func (d *Driver) OnL1Head(ctx context.Context, head eth.L1BlockRef) error {
 
 func (d *Driver) OnUnsafeL2Payload(ctx context.Context, payload *eth.ExecutionPayload) error {
 	return d.s.OnUnsafeL2Payload(ctx, payload)
+}
+
+func (d *Driver) ResetDerivationPipeline(ctx context.Context) error {
+	return d.s.ResetDerivationPipeline(ctx)
 }
 
 func (d *Driver) SyncStatus(ctx context.Context) (*SyncStatus, error) {

@@ -14,6 +14,6 @@ const deployFn: DeployFunction = async (hre) => {
   await deploy()
 }
 
-deployFn.tags = ['Drippie']
+deployFn.tags = ['Drippie', 'DrippieEnvironment']
 
 export default deployFn

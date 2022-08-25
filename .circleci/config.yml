@@ -1,5 +1,8 @@
 version: 2.1
 
+orbs:
+  go: circleci/go@1.5.0
+
 jobs:
   yarn-monorepo:
     docker:
@@ -15,7 +18,7 @@ jobs:
           name: Check if we should run
           command: |
             shopt -s inherit_errexit
-            CHANGED=$(check-changed "(op-bindings|packages/)")
+            CHANGED=$(check-changed "(op-bindings|op-chain-ops|packages/)")
             if [[ "$CHANGED" = "FALSE" ]]; then
               circleci step halt
             fi
@@ -71,12 +74,15 @@ jobs:
         description: Docker build target
         type: string
         default: ""
-    docker:
-      - image: circleci/buildpack-deps:stretch
+      repo:
+        description: Docker repo
+        type: string
+        default: ""
+    machine:
+      image: ubuntu-2204:2022.07.1
+      resource_class: xlarge
     steps:
       - checkout
-      - setup_remote_docker:
-          version: 20.10.12
       - when:
           condition: <<parameters.target>>
           steps:
@@ -101,7 +107,7 @@ jobs:
       - run:
           name: Publish
           command: |
-            echo "$DOCKER_PASS" | docker login -u "$DOCKER_USERNAME" --password-stdin
+            echo "$DOCKER_PASS" | docker login -u "$DOCKER_USERNAME" --password-stdin "<<parameters.repo>>"
             docker push <<parameters.docker_tags>>
 
   contracts-bedrock-tests:
@@ -245,6 +251,11 @@ jobs:
             golangci-lint run -E goimports,sqlclosecheck,bodyclose,asciicheck,misspell ./...
           working_directory: op-e2e
       - run:
+          name: lint op-service
+          command: |
+            golangci-lint run -E goimports,sqlclosecheck,bodyclose,asciicheck,misspell ./...
+          working_directory: op-service
+      - run:
           name: prep results dir
           command: mkdir -p /test-results
       - run:
@@ -267,6 +278,11 @@ jobs:
           command: |
             gotestsum --junitfile /test-results/op-e2e.xml -- -coverpkg=github.com/ethereum-optimism/optimism/... -coverprofile=coverage.out -covermode=atomic ./...
           working_directory: op-e2e
+      - run:
+          name: test op-service
+          command: |
+            gotestsum --junitfile /test-results/op-service.xml -- -coverpkg=github.com/ethereum-optimism/optimism/... -coverprofile=coverage.out -covermode=atomic ./...
+          working_directory: op-service
       - store_test_results:
           path: /test-results
       - run:
@@ -274,7 +290,7 @@ jobs:
 
   bedrock-markdown:
     machine:
-      image: ubuntu-2004:202111-02
+      image: ubuntu-2204:2022.07.1
     steps:
       - checkout
       - run:
@@ -403,6 +419,27 @@ jobs:
                 command: make <<parameters.binary_name>>
                 working_directory: <<parameters.working_directory>>
 
+  op-chain-ops-tests:
+    docker:
+      - image: ethereumoptimism/ci-builder:latest
+    steps:
+      - restore_cache:
+          keys:
+            - v2-cache-yarn-build-{{ .Revision }}
+      - checkout
+      - run:
+          name: Check if we should run
+          command: |
+            CHANGED=$(bash ./ops/docker/ci-builder/check-changed.sh "op-chain-ops")
+            if [[ "$CHANGED" = "FALSE" ]]; then
+              circleci step halt
+            fi
+      - run:
+          name: Test
+          command: |
+            gotestsum --junitfile /test-results/op-chain-ops.xml -- -coverpkg=github.com/ethereum-optimism/optimism/... -coverprofile=coverage.out -covermode=atomic ./...
+          working_directory: op-chain-ops
+
   geth-tests:
     docker:
       - image: ethereumoptimism/ci-builder:latest
@@ -423,7 +460,7 @@ jobs:
 
   devnet:
     machine:
-      image: ubuntu-2004:202201-01
+      image: ubuntu-2004:2022.07.1
       docker_layer_caching: true
     environment:
       DOCKER_BUILDKIT: 1
@@ -432,10 +469,18 @@ jobs:
       - run:
           name: Check if we should run
           command: |
-            CHANGED=$(bash ./ops/docker/ci-builder/check-changed.sh "(contracts-bedrock|op-bindings|op-batcher|op-node|op-proposer|ops-bedrock)/")
+            CHANGED=$(bash ./ops/docker/ci-builder/check-changed.sh "(contracts-bedrock|op-bindings|op-batcher|op-node|op-proposer|ops-bedrock|sdk)/")
             if [[ "$CHANGED" = "FALSE" ]]; then
               circleci step halt
             fi
+      - run:
+          name: Install latest golang
+          command: |
+            wget https://go.dev/dl/go1.19.linux-amd64.tar.gz
+            sudo rm -rf /usr/local/go
+            sudo tar -C /usr/local -xzf go1.19.linux-amd64.tar.gz
+            export PATH=$PATH:/usr/local/go/bin
+            go version
       - run:
           name: foundryup
           command: |
@@ -453,6 +498,10 @@ jobs:
           command: |
             make devnet-up
       - run:
+          name: Check L2 Config
+          command: npx hardhat check-l2-config --network devnetL1
+          working_directory: packages/contracts-bedrock
+      - run:
           name: Do a deposit
           command: |
             timeout 5m npx hardhat deposit \
@@ -463,20 +512,20 @@ jobs:
           working_directory: packages/contracts-bedrock
       - run:
           name: Deposit ERC20 through the bridge
-          command: timeout 5m npx hardhat deposit --network devnetL1
+          command: timeout 5m npx hardhat deposit-erc20 --network devnetL1
+          working_directory: packages/sdk
+      - run:
+          name: Deposit ETH through the bridge
+          command: timeout 5m npx hardhat deposit-eth --network devnetL1
           working_directory: packages/sdk
       - run:
           name: Check the status
           command: npx hardhat check-op-node
           working_directory: packages/contracts-bedrock
-      - run:
-          name: Check L2 Config
-          command: npx hardhat check-l2-config
-          working_directory: packages/contracts-bedrock
 
   integration-tests:
     machine:
-      image: ubuntu-2004:202201-01
+      image: ubuntu-2204:2022.07.1
       docker_layer_caching: true
     environment:
       DOCKER_BUILDKIT: 1
@@ -558,6 +607,40 @@ jobs:
           name: "Go mod tidy"
           command: make mod-tidy && git diff --exit-code
 
+  hive-test:
+    parameters:
+      version:
+        type: string
+        default: develop
+      sim:
+        type: string
+    machine:
+      image: ubuntu-2204:2022.07.1
+      docker_layer_caching: true
+      resource_class: xlarge
+    steps:
+      - run:
+          command: git clone https://github.com/ethereum-optimism/hive.git .
+      - go/load-cache
+      - go/mod-download
+      - go/save-cache
+      - run: {command: "go build ."}
+      - run:
+          command: |
+            ./hive \
+            -sim=<<parameters.sim>> \
+            -sim.loglevel=5 \
+            -docker.pull=true \
+            -client=go-ethereum,op-geth_optimism-history,op-proposer_<<parameters.version>>,op-batcher_<<parameters.version>>,op-node_<<parameters.version>>,op-contracts_<<parameters.version>> |& tee /tmp/hive.log
+      - run:
+          command: |
+            tar -cvf /tmp/workspace.tgz -C /home/circleci/project /home/circleci/project/workspace
+          name: "Archive workspace"
+      - store_artifacts:
+          path: /tmp/workspace.tgz
+          destination: hive-workspace.tgz
+      - run:
+          command: "! grep 'pass.*=false' /tmp/hive.log"
 
 workflows:
   main:
@@ -674,10 +757,86 @@ workflows:
           binary_name: bss-core
           working_directory: bss-core
           build: false
+      - op-chain-ops-tests:
+          name: op-chain-ops-tests
+          requires:
+            - yarn-monorepo
       - geth-tests
       - integration-tests
       - semgrep-scan
       - go-mod-tidy
+      - docker-publish:
+          name: op-node-publish-dev
+          docker_file: op-node/Dockerfile
+          docker_tags: us-central1-docker.pkg.dev/bedrock-goerli-development/images/op-node:<<pipeline.git.revision>>
+          docker_context: .
+          repo: us-central1-docker.pkg.dev
+          context:
+            - gcr
+          requires:
+            - bedrock-go-tests
+            - op-bindings-build
+      - docker-publish:
+          name: op-batcher-publish-dev
+          docker_file: op-batcher/Dockerfile
+          docker_tags: us-central1-docker.pkg.dev/bedrock-goerli-development/images/op-batcher:<<pipeline.git.revision>>
+          docker_context: .
+          repo: us-central1-docker.pkg.dev
+          context:
+            - gcr
+          requires:
+            - bedrock-go-tests
+            - op-bindings-build
+      - docker-publish:
+          name: op-proposer-publish-dev
+          docker_file: op-proposer/Dockerfile
+          docker_tags: us-central1-docker.pkg.dev/bedrock-goerli-development/images/op-proposer:<<pipeline.git.revision>>
+          docker_context: .
+          repo: us-central1-docker.pkg.dev
+          context:
+            - gcr
+          requires:
+            - bedrock-go-tests
+            - op-bindings-build
+      - docker-publish:
+          name: deployer-bedrock-publish-dev
+          docker_file: ops/docker/Dockerfile.packages
+          docker_tags: us-central1-docker.pkg.dev/bedrock-goerli-development/images/deployer-bedrock:<<pipeline.git.revision>>
+          target: deployer-bedrock
+          docker_context: .
+          repo: us-central1-docker.pkg.dev
+          context:
+            - gcr
+          requires:
+            - contracts-bedrock-tests
+      - hive-test:
+          name: hive-test-rpc
+          version: <<pipeline.git.revision>>
+          sim: optimism/rpc
+          requires:
+            - op-node-publish-dev
+            - op-batcher-publish-dev
+            - op-proposer-publish-dev
+            - deployer-bedrock-publish-dev
+      - hive-test:
+          name: hive-test-p2p
+          version: <<pipeline.git.revision>>
+          sim: optimism/p2p
+          requires:
+            - op-node-publish-dev
+            - op-batcher-publish-dev
+            - op-proposer-publish-dev
+            - deployer-bedrock-publish-dev
+      - hive-test:
+          name: hive-test-l1ops
+          version: <<pipeline.git.revision>>
+          sim: optimism/l1ops
+          requires:
+            - op-node-publish-dev
+            - op-batcher-publish-dev
+            - op-proposer-publish-dev
+            - deployer-bedrock-publish-dev
+
 
   nightly:
     triggers:

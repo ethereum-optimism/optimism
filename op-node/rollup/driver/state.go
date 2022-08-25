@@ -11,7 +11,6 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-node/backoff"
 	"github.com/ethereum-optimism/optimism/op-node/eth"
-	"github.com/ethereum-optimism/optimism/op-node/metrics"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum/go-ethereum/log"
@@ -57,6 +56,10 @@ type state struct {
 	// Requests for sync status. Synchronized with event loop to avoid reading an inconsistent sync status.
 	syncStatusReq chan chan SyncStatus
 
+	// Upon receiving a channel in this channel, the derivation pipeline is forced to be reset.
+	// It tells the caller that the reset occurred by closing the passed in channel.
+	forceReset chan chan struct{}
+
 	// Rollup config: rollup chain configuration
 	Config *rollup.Config
 
@@ -71,7 +74,7 @@ type state struct {
 	output           outputInterface
 	network          Network // may be nil, network for is optional
 
-	metrics     *metrics.Metrics
+	metrics     Metrics
 	log         log.Logger
 	snapshotLog log.Logger
 	done        chan struct{}
@@ -82,11 +85,12 @@ type state struct {
 // NewState creates a new driver state. State changes take effect though
 // the given output, derivation pipeline and network interfaces.
 func NewState(driverCfg *Config, log log.Logger, snapshotLog log.Logger, config *rollup.Config, l1Chain L1Chain, l2Chain L2Chain,
-	output outputInterface, derivationPipeline DerivationPipeline, network Network, metrics *metrics.Metrics) *state {
+	output outputInterface, derivationPipeline DerivationPipeline, network Network, metrics Metrics) *state {
 	return &state{
 		derivation:       derivationPipeline,
 		idleDerivation:   false,
 		syncStatusReq:    make(chan chan SyncStatus, 10),
+		forceReset:       make(chan chan struct{}, 10),
 		Config:           config,
 		DriverConfig:     driverCfg,
 		done:             make(chan struct{}),
@@ -105,14 +109,14 @@ func NewState(driverCfg *Config, log log.Logger, snapshotLog log.Logger, config 
 // Start starts up the state loop. The context is only for initialization.
 // The loop will have been started iff err is not nil.
 func (s *state) Start(ctx context.Context) error {
-	l1Head, err := s.l1.L1HeadBlockRef(ctx)
+	l1Head, err := s.l1.L1BlockRefByLabel(ctx, eth.Unsafe)
 	if err != nil {
 		return err
 	}
 	s.l1Head = l1Head
-	s.l2Head, _ = s.l2.L2BlockRefByNumber(ctx, nil)
-	s.metrics.SetHead("l1", s.l1Head.Number)
-	s.metrics.SetHead("l2_unsafe", s.l2Head.Number)
+	s.l2Head, _ = s.l2.L2BlockRefByLabel(ctx, eth.Unsafe)
+	s.metrics.RecordL1Ref("l1_head", s.l1Head)
+	s.metrics.RecordL2Ref("l2_unsafe", s.l2Head)
 
 	s.derivation.Reset()
 
@@ -155,11 +159,14 @@ func (s *state) handleNewL1Block(newL1Head eth.L1BlockRef) {
 		// dealing with a linear extension (new block is the immediate child of the old one).
 		s.log.Debug("L1 head moved forward", "l1Head", newL1Head)
 	} else {
+		if s.l1Head.Number >= newL1Head.Number {
+			s.metrics.RecordL1ReorgDepth(s.l1Head.Number - newL1Head.Number)
+		}
 		// New L1 block is not the same as the current head or a single step linear extension.
 		// This could either be a long L1 extension, or a reorg. Both can be handled the same way.
 		s.log.Warn("L1 Head signal indicates an L1 re-org", "old_l1_head", s.l1Head, "new_l1_head_parent", newL1Head.ParentHash, "new_l1_head", newL1Head)
 	}
-	s.metrics.SetHead("l1", newL1Head.Number)
+	s.metrics.RecordL1Ref("l1_head", newL1Head)
 	s.l1Head = newL1Head
 }
 
@@ -247,12 +254,12 @@ func (s *state) createNewL2Block(ctx context.Context) error {
 	s.l2Head = newUnsafeL2Head
 
 	s.log.Info("Sequenced new l2 block", "l2Head", s.l2Head, "l1Origin", s.l2Head.L1Origin, "txs", len(payload.Transactions), "time", s.l2Head.Time)
-	s.metrics.TransactionsSequencedTotal.Add(float64(len(payload.Transactions)))
+	s.metrics.CountSequencedTxs(len(payload.Transactions))
 
 	if s.network != nil {
 		if err := s.network.PublishL2Payload(ctx, payload); err != nil {
 			s.log.Warn("failed to publish newly created block", "id", payload.ID(), "err", err)
-			s.metrics.PublishingErrorsTotal.Inc()
+			s.metrics.RecordPublishingError()
 			// publishing of unsafe data via p2p is optional. Errors are not severe enough to change/halt sequencing but should be logged and metered.
 		}
 	}
@@ -349,7 +356,7 @@ func (s *state) eventLoop() {
 			cancel()
 			if err != nil {
 				s.log.Error("Error creating new L2 block", "err", err)
-				s.metrics.SequencingErrorsTotal.Inc()
+				s.metrics.RecordSequencingError()
 				break // if we fail, we wait for the next block creation trigger.
 			}
 
@@ -366,7 +373,7 @@ func (s *state) eventLoop() {
 			s.snapshot("New unsafe payload")
 			s.log.Info("Optimistically queueing unsafe L2 execution payload", "id", payload.ID())
 			s.derivation.AddUnsafePayload(payload)
-			s.metrics.UnsafePayloadsTotal.Inc()
+			s.metrics.RecordReceivedUnsafePayload(payload)
 			reqStep()
 
 		case newL1Head := <-s.l1Heads:
@@ -414,10 +421,11 @@ func (s *state) eventLoop() {
 				// log sync progress when it changes
 				if s.l2Finalized != finalized || s.l2SafeHead != safe || s.l2Head != unsafe {
 					s.log.Info("Sync progress", "finalized", finalized, "safe", safe, "unsafe", unsafe)
-					s.metrics.SetHead("l2_finalized", finalized.Number)
-					s.metrics.SetHead("l2_safe", safe.Number)
-					s.metrics.SetHead("l2_unsafe", unsafe.Number)
+					s.metrics.RecordL2Ref("l2_finalized", finalized)
+					s.metrics.RecordL2Ref("l2_safe", safe)
+					s.metrics.RecordL2Ref("l2_unsafe", unsafe)
 				}
+				s.metrics.RecordL1Ref("l1_derived", s.derivation.Progress().Origin)
 				// update the heads
 				s.l2Finalized = finalized
 				s.l2SafeHead = safe
@@ -432,8 +440,31 @@ func (s *state) eventLoop() {
 				SafeL2:      s.l2SafeHead,
 				FinalizedL2: s.l2Finalized,
 			}
+		case respCh := <-s.forceReset:
+			s.log.Warn("Derivation pipeline is manually reset")
+			s.derivation.Reset()
+			s.metrics.RecordPipelineReset()
+			close(respCh)
 		case <-s.done:
 			return
+		}
+	}
+}
+
+// ResetDerivationPipeline forces a reset of the derivation pipeline.
+// It waits for the reset to occur. It simply unblocks the caller rather
+// than fully cancelling the reset request upon a context cancellation.
+func (s *state) ResetDerivationPipeline(ctx context.Context) error {
+	respCh := make(chan struct{})
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case s.forceReset <- respCh:
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-respCh:
+			return nil
 		}
 	}
 }

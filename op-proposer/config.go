@@ -3,6 +3,11 @@ package op_proposer
 import (
 	"time"
 
+	oplog "github.com/ethereum-optimism/optimism/op-service/log"
+	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
+	oppprof "github.com/ethereum-optimism/optimism/op-service/pprof"
+	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
+
 	"github.com/urfave/cli"
 
 	"github.com/ethereum-optimism/optimism/op-proposer/flags"
@@ -52,19 +57,31 @@ type Config struct {
 	// PrivateKey is the private key used for l2output transactions.
 	PrivateKey string
 
+	RPCConfig oprpc.CLIConfig
+
 	/* Optional Params */
 
-	// LogLevel is the lowest log level that will be output.
-	LogLevel string
+	LogConfig oplog.CLIConfig
 
-	// LogTerminal if true, will log to stdout in terminal format. Otherwise the
-	// output will be in JSON format.
-	LogTerminal bool
+	MetricsConfig opmetrics.CLIConfig
 
-	// Flags for the pprof server
-	PprofEnabled bool
-	PprofAddr    string
-	PprofPort    string
+	PprofConfig oppprof.CLIConfig
+}
+
+func (c Config) Check() error {
+	if err := c.RPCConfig.Check(); err != nil {
+		return err
+	}
+	if err := c.LogConfig.Check(); err != nil {
+		return err
+	}
+	if err := c.MetricsConfig.Check(); err != nil {
+		return err
+	}
+	if err := c.PprofConfig.Check(); err != nil {
+		return err
+	}
+	return nil
 }
 
 // NewConfig parses the Config from the provided flags or environment variables.
@@ -82,11 +99,9 @@ func NewConfig(ctx *cli.Context) Config {
 		Mnemonic:                  ctx.GlobalString(flags.MnemonicFlag.Name),
 		L2OutputHDPath:            ctx.GlobalString(flags.L2OutputHDPathFlag.Name),
 		PrivateKey:                ctx.GlobalString(flags.PrivateKeyFlag.Name),
-		/* Optional Flags */
-		LogLevel:     ctx.GlobalString(flags.LogLevelFlag.Name),
-		LogTerminal:  ctx.GlobalBool(flags.LogTerminalFlag.Name),
-		PprofEnabled: ctx.GlobalBool(flags.PprofEnabledFlag.Name),
-		PprofAddr:    ctx.GlobalString(flags.PprofAddrFlag.Name),
-		PprofPort:    ctx.GlobalString(flags.PprofPortFlag.Name),
+		RPCConfig:                 oprpc.ReadCLIConfig(ctx),
+		LogConfig:                 oplog.ReadCLIConfig(ctx),
+		MetricsConfig:             opmetrics.ReadCLIConfig(ctx),
+		PprofConfig:               oppprof.ReadCLIConfig(ctx),
 	}
 }

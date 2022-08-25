@@ -3,8 +3,9 @@ package node
 import (
 	"context"
 	"encoding/json"
-	"math/big"
 	"math/rand"
+
+	"github.com/ethereum/go-ethereum/rpc"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup/driver"
 	"github.com/ethereum-optimism/optimism/op-node/testutils"
@@ -23,8 +24,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/stretchr/testify/mock"
 
-	"github.com/ethereum-optimism/optimism/op-node/l2"
-	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/assert"
@@ -76,7 +75,7 @@ func TestOutputAtBlock(t *testing.T) {
 		"nonce": "0x1",
 		"storageHash": "0xc1917a80cb25ccc50d0d1921525a44fb619b4601194ca726ae32312f08a799f8"
 	}`
-	var result l2.AccountResult
+	var result eth.AccountResult
 	err = json.Unmarshal([]byte(resultTestData), &result)
 	assert.NoError(t, err)
 
@@ -88,9 +87,20 @@ func TestOutputAtBlock(t *testing.T) {
 		// ignore other rollup config info in this test
 	}
 
-	l2Client := &mockL2Client{}
-	l2Client.mock.On("GetBlockHeader", "latest").Return(&header)
-	l2Client.mock.On("GetProof", predeploys.L2ToL1MessagePasserAddr, "latest").Return(&result)
+	l2Client := &testutils.MockL2Client{}
+	info := &testutils.MockBlockInfo{
+		InfoHash:        header.Hash(),
+		InfoParentHash:  header.ParentHash,
+		InfoCoinbase:    header.Coinbase,
+		InfoRoot:        header.Root,
+		InfoNum:         header.Number.Uint64(),
+		InfoTime:        header.Time,
+		InfoMixDigest:   header.MixDigest,
+		InfoBaseFee:     header.BaseFee,
+		InfoReceiptRoot: header.ReceiptHash,
+	}
+	l2Client.ExpectInfoByRpcNumber(rpc.LatestBlockNumber, info, nil)
+	l2Client.ExpectGetProof(predeploys.L2ToL1MessagePasserAddr, "latest", &result, nil)
 
 	drClient := &mockDriverClient{}
 
@@ -106,12 +116,12 @@ func TestOutputAtBlock(t *testing.T) {
 	err = client.CallContext(context.Background(), &out, "optimism_outputAtBlock", "latest")
 	assert.NoError(t, err)
 	assert.Len(t, out, 2)
-	l2Client.mock.AssertExpectations(t)
+	l2Client.Mock.AssertExpectations(t)
 }
 
 func TestVersion(t *testing.T) {
 	log := testlog.Logger(t, log.LvlError)
-	l2Client := &mockL2Client{}
+	l2Client := &testutils.MockL2Client{}
 	drClient := &mockDriverClient{}
 	rpcCfg := &RPCConfig{
 		ListenAddr: "localhost",
@@ -136,7 +146,7 @@ func TestVersion(t *testing.T) {
 
 func TestSyncStatus(t *testing.T) {
 	log := testlog.Logger(t, log.LvlError)
-	l2Client := &mockL2Client{}
+	l2Client := &testutils.MockL2Client{}
 	drClient := &mockDriverClient{}
 	rng := rand.New(rand.NewSource(1234))
 	status := driver.SyncStatus{
@@ -177,26 +187,6 @@ func (c *mockDriverClient) SyncStatus(ctx context.Context) (*driver.SyncStatus, 
 	return c.Mock.MethodCalled("SyncStatus").Get(0).(*driver.SyncStatus), nil
 }
 
-type mockL2Client struct {
-	mock mock.Mock
-}
-
-func (c *mockL2Client) BlockByNumber(ctx context.Context, number *big.Int) (*types.Block, error) {
-	return c.mock.MethodCalled("BlockByNumber", number).Get(0).(*types.Block), nil
-}
-
-func (c *mockL2Client) L2BlockRefByNumber(ctx context.Context, l2Num *big.Int) (eth.L2BlockRef, error) {
-	return c.mock.MethodCalled("L2BlockRefByNumber", l2Num).Get(0).(eth.L2BlockRef), nil
-}
-
-func (c *mockL2Client) L2BlockRefByHash(ctx context.Context, l2Hash common.Hash) (eth.L2BlockRef, error) {
-	return c.mock.MethodCalled("L2BlockRefByHash", l2Hash).Get(0).(eth.L2BlockRef), nil
-}
-
-func (c *mockL2Client) GetBlockHeader(ctx context.Context, blockTag string) (*types.Header, error) {
-	return c.mock.MethodCalled("GetBlockHeader", blockTag).Get(0).(*types.Header), nil
-}
-
-func (c *mockL2Client) GetProof(ctx context.Context, address common.Address, blockTag string) (*l2.AccountResult, error) {
-	return c.mock.MethodCalled("GetProof", address, blockTag).Get(0).(*l2.AccountResult), nil
+func (c *mockDriverClient) ResetDerivationPipeline(ctx context.Context) error {
+	return c.Mock.MethodCalled("ResetDerivationPipeline").Get(0).(error)
 }

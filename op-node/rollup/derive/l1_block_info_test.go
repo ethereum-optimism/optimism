@@ -12,39 +12,47 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-var _ eth.L1Info = (*testutils.MockL1Info)(nil)
+var _ eth.BlockInfo = (*testutils.MockBlockInfo)(nil)
 
 type infoTest struct {
 	name   string
-	mkInfo func(rng *rand.Rand) *testutils.MockL1Info
+	mkInfo func(rng *rand.Rand) *testutils.MockBlockInfo
+	seqNr  func(rng *rand.Rand) uint64
 }
 
 var MockDepositContractAddr = common.HexToAddress("0xdeadbeefdeadbeefdeadbeefdeadbeef00000000")
 
 func TestParseL1InfoDepositTxData(t *testing.T) {
+	randomSeqNr := func(rng *rand.Rand) uint64 {
+		return rng.Uint64()
+	}
 	// Go 1.18 will have native fuzzing for us to use, until then, we cover just the below cases
 	cases := []infoTest{
-		{"random", testutils.MakeL1Info(nil)},
-		{"zero basefee", testutils.MakeL1Info(func(l *testutils.MockL1Info) {
+		{"random", testutils.MakeBlockInfo(nil), randomSeqNr},
+		{"zero basefee", testutils.MakeBlockInfo(func(l *testutils.MockBlockInfo) {
 			l.InfoBaseFee = new(big.Int)
-		})},
-		{"zero time", testutils.MakeL1Info(func(l *testutils.MockL1Info) {
+		}), randomSeqNr},
+		{"zero time", testutils.MakeBlockInfo(func(l *testutils.MockBlockInfo) {
 			l.InfoTime = 0
-		})},
-		{"zero num", testutils.MakeL1Info(func(l *testutils.MockL1Info) {
+		}), randomSeqNr},
+		{"zero num", testutils.MakeBlockInfo(func(l *testutils.MockBlockInfo) {
 			l.InfoNum = 0
-		})},
-		{"zero seq", testutils.MakeL1Info(func(l *testutils.MockL1Info) {
-			l.InfoSequenceNumber = 0
-		})},
-		{"all zero", func(rng *rand.Rand) *testutils.MockL1Info {
-			return &testutils.MockL1Info{InfoBaseFee: new(big.Int)}
+		}), randomSeqNr},
+		{"zero seq", testutils.MakeBlockInfo(nil), func(rng *rand.Rand) uint64 {
+			return 0
+		}},
+		{"all zero", func(rng *rand.Rand) *testutils.MockBlockInfo {
+			return &testutils.MockBlockInfo{InfoBaseFee: new(big.Int)}
+		}, func(rng *rand.Rand) uint64 {
+			return 0
 		}},
 	}
 	for i, testCase := range cases {
 		t.Run(testCase.name, func(t *testing.T) {
-			info := testCase.mkInfo(rand.New(rand.NewSource(int64(1234 + i))))
-			depTx, err := L1InfoDeposit(info.SequenceNumber(), info)
+			rng := rand.New(rand.NewSource(int64(1234 + i)))
+			info := testCase.mkInfo(rng)
+			seqNr := testCase.seqNr(rng)
+			depTx, err := L1InfoDeposit(seqNr, info)
 			require.NoError(t, err)
 			res, err := L1InfoDepositTxData(depTx.Data)
 			require.NoError(t, err, "expected valid deposit info")
@@ -53,6 +61,7 @@ func TestParseL1InfoDepositTxData(t *testing.T) {
 			assert.True(t, res.BaseFee.Sign() >= 0)
 			assert.Equal(t, res.BaseFee.Bytes(), info.BaseFee().Bytes())
 			assert.Equal(t, res.BlockHash, info.Hash())
+			assert.Equal(t, res.SequenceNumber, seqNr)
 		})
 	}
 	t.Run("no data", func(t *testing.T) {

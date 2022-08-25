@@ -9,6 +9,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-node/cmd/genesis"
 	"github.com/ethereum-optimism/optimism/op-node/cmd/p2p"
 
 	"github.com/ethereum-optimism/optimism/op-node/metrics"
@@ -65,6 +66,10 @@ func main() {
 		{
 			Name:        "p2p",
 			Subcommands: p2p.Subcommands,
+		},
+		{
+			Name:        "genesis",
+			Subcommands: genesis.Subcommands,
 		},
 	}
 

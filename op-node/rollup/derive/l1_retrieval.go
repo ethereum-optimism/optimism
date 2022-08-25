@@ -9,6 +9,9 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 )
 
+// This is a generic wrapper around fetching all transactions in a block & then
+// it feeds one L1 transaction at a time to the next stage
+
 // DataIter is a minimal iteration interface to fetch rollup input data from an arbitrary data-availability source
 type DataIter interface {
 	// Next can be repeatedly called for more data, until it returns an io.EOF error.
@@ -24,7 +27,7 @@ type DataAvailabilitySource interface {
 
 type L1SourceOutput interface {
 	StageProgress
-	IngestData(data []byte) error
+	IngestData(data []byte)
 }
 
 type L1Retrieval struct {
@@ -66,10 +69,7 @@ func (l1r *L1Retrieval) Step(ctx context.Context, outer Progress) error {
 	if l1r.datas == nil {
 		datas, err := l1r.dataSrc.OpenData(ctx, l1r.progress.Origin.ID())
 		if err != nil {
-			return NewTemporaryError(
-				err,
-				fmt.Sprintf("can't fetch L1 data: %v, %v", l1r.progress.Origin, err),
-			)
+			return NewTemporaryError(fmt.Errorf("can't fetch L1 data: %v: %w", l1r.progress.Origin, err))
 		}
 		l1r.datas = datas
 		return nil
@@ -79,25 +79,21 @@ func (l1r *L1Retrieval) Step(ctx context.Context, outer Progress) error {
 	if l1r.data == nil {
 		l1r.log.Debug("fetching next piece of data")
 		data, err := l1r.datas.Next(ctx)
-		if err != nil && err == ctx.Err() {
-			l1r.log.Warn("context to retrieve next L1 data failed", "err", err)
-			return nil
-		} else if err == io.EOF {
+		if err == io.EOF {
 			l1r.progress.Closed = true
 			l1r.datas = nil
 			return io.EOF
 		} else if err != nil {
-			return err
+			return NewTemporaryError(fmt.Errorf("context to retrieve next L1 data failed: %w", err))
 		} else {
 			l1r.data = data
 			return nil
 		}
 	}
 
-	// try to flush the data to next stage
-	if err := l1r.next.IngestData(l1r.data); err != nil {
-		return err
-	}
+	// flush the data to next stage
+	l1r.next.IngestData(l1r.data)
+	// and nil the data, the next step will retrieve the next data
 	l1r.data = nil
 	return nil
 }

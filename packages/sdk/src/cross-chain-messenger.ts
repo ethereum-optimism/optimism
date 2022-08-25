@@ -5,10 +5,15 @@ import {
   TransactionReceipt,
   TransactionResponse,
   TransactionRequest,
-  Log,
 } from '@ethersproject/abstract-provider'
 import { Signer } from '@ethersproject/abstract-signer'
-import { ethers, BigNumber, Overrides, CallOverrides } from 'ethers'
+import {
+  ethers,
+  BigNumber,
+  Overrides,
+  CallOverrides,
+  PayableOverrides,
+} from 'ethers'
 import {
   sleep,
   remove0x,
@@ -26,7 +31,6 @@ import * as rlp from 'rlp'
 
 import {
   CoreCrossChainMessage,
-  ICrossChainMessenger,
   OEContracts,
   OEContractsLike,
   MessageLike,
@@ -62,17 +66,55 @@ import {
   CHAIN_BLOCK_TIMES,
 } from './utils'
 
-export class CrossChainMessenger implements ICrossChainMessenger {
+export class CrossChainMessenger {
+  /**
+   * Provider connected to the L1 chain.
+   */
   public l1SignerOrProvider: Signer | Provider
+
+  /**
+   * Provider connected to the L2 chain.
+   */
   public l2SignerOrProvider: Signer | Provider
+
+  /**
+   * Chain ID for the L1 network.
+   */
   public l1ChainId: number
+
+  /**
+   * Chain ID for the L2 network.
+   */
   public l2ChainId: number
+
+  /**
+   * Contract objects attached to their respective providers and addresses.
+   */
   public contracts: OEContracts
+
+  /**
+   * List of custom bridges for the given network.
+   */
   public bridges: BridgeAdapters
+
+  /**
+   * Number of blocks before a deposit is considered confirmed.
+   */
   public depositConfirmationBlocks: number
+
+  /**
+   * Estimated average L1 block time in seconds.
+   */
   public l1BlockTimeSeconds: number
+
+  /**
+   * Whether or not Bedrock compatibility is enabled.
+   */
   public bedrock: boolean
 
+  /**
+   * Parameters for the L2OutputOracle contract.
+   */
   private _l2OutputOracleParameters: L2OutputOracleParameters
 
   /**
@@ -137,6 +179,9 @@ export class CrossChainMessenger implements ICrossChainMessenger {
     })
   }
 
+  /**
+   * Provider connected to the L1 chain.
+   */
   get l1Provider(): Provider {
     if (Provider.isProvider(this.l1SignerOrProvider)) {
       return this.l1SignerOrProvider
@@ -145,6 +190,9 @@ export class CrossChainMessenger implements ICrossChainMessenger {
     }
   }
 
+  /**
+   * Provider connected to the L2 chain.
+   */
   get l2Provider(): Provider {
     if (Provider.isProvider(this.l2SignerOrProvider)) {
       return this.l2SignerOrProvider
@@ -153,6 +201,9 @@ export class CrossChainMessenger implements ICrossChainMessenger {
     }
   }
 
+  /**
+   * Signer connected to the L1 chain.
+   */
   get l1Signer(): Signer {
     if (Provider.isProvider(this.l1SignerOrProvider)) {
       throw new Error(`messenger has no L1 signer`)
@@ -161,6 +212,9 @@ export class CrossChainMessenger implements ICrossChainMessenger {
     }
   }
 
+  /**
+   * Signer connected to the L2 chain.
+   */
   get l2Signer(): Signer {
     if (Provider.isProvider(this.l2SignerOrProvider)) {
       throw new Error(`messenger has no L2 signer`)
@@ -169,6 +223,11 @@ export class CrossChainMessenger implements ICrossChainMessenger {
     }
   }
 
+  /**
+   * Accesses the L2OutputOracle parameters, with caching to avoid unnecessary requests.
+   *
+   * @returns The L2OutputOracle parameters.
+   */
   public async getL2OutputOracleParameters(): Promise<L2OutputOracleParameters> {
     if (this._l2OutputOracleParameters) {
       return this._l2OutputOracleParameters
@@ -189,6 +248,16 @@ export class CrossChainMessenger implements ICrossChainMessenger {
     return this._l2OutputOracleParameters
   }
 
+  /**
+   * Retrieves all cross chain messages sent within a given transaction.
+   *
+   * @param transaction Transaction hash or receipt to find messages from.
+   * @param opts Options object.
+   * @param opts.direction Direction to search for messages in. If not provided, will attempt to
+   * automatically search both directions under the assumption that a transaction hash will only
+   * exist on one chain. If the hash exists on both chains, will throw an error.
+   * @returns All cross chain messages sent within the transaction.
+   */
   public async getMessagesByTransaction(
     transaction: TransactionLike,
     opts: {
@@ -244,13 +313,15 @@ export class CrossChainMessenger implements ICrossChainMessenger {
         // Try to pull out the value field, but only if the very next log is a SentMessageExtraData
         // event which was introduced in the Bedrock upgrade.
         let value = ethers.BigNumber.from(0)
-        if (receipt.logs.length > log.logIndex + 1) {
-          const next = receipt.logs[log.logIndex + 1]
-          if (next.address === messenger.address) {
-            const nextParsed = messenger.interface.parseLog(next)
-            if (nextParsed.name === 'SentMessageExtension1') {
-              value = nextParsed.args.value
-            }
+        const next = receipt.logs.find((l) => {
+          return (
+            l.logIndex === log.logIndex + 1 && l.address === messenger.address
+          )
+        })
+        if (next) {
+          const nextParsed = messenger.interface.parseLog(next)
+          if (nextParsed.name === 'SentMessageExtension1') {
+            value = nextParsed.args.value
           }
         }
 
@@ -288,6 +359,14 @@ export class CrossChainMessenger implements ICrossChainMessenger {
   //   `)
   // }
 
+  /**
+   * Finds the appropriate bridge adapter for a given L1<>L2 token pair. Will throw if no bridges
+   * support the token pair or if more than one bridge supports the token pair.
+   *
+   * @param l1Token L1 token address.
+   * @param l2Token L2 token address.
+   * @returns The appropriate bridge adapter for the given token pair.
+   */
   public async getBridgeForTokenPair(
     l1Token: AddressLike,
     l2Token: AddressLike
@@ -310,6 +389,17 @@ export class CrossChainMessenger implements ICrossChainMessenger {
     return bridges[0]
   }
 
+  /**
+   * Gets all deposits for a given address.
+   *
+   * @param address Address to search for messages from.
+   * @param opts Options object.
+   * @param opts.fromBlock Block to start searching for messages from. If not provided, will start
+   * from the first block (block #0).
+   * @param opts.toBlock Block to stop searching for messages at. If not provided, will stop at the
+   * latest known block ("latest").
+   * @returns All deposit token bridge messages sent by the given address.
+   */
   public async getDepositsByAddress(
     address: AddressLike,
     opts: {
@@ -333,6 +423,17 @@ export class CrossChainMessenger implements ICrossChainMessenger {
       })
   }
 
+  /**
+   * Gets all withdrawals for a given address.
+   *
+   * @param address Address to search for messages from.
+   * @param opts Options object.
+   * @param opts.fromBlock Block to start searching for messages from. If not provided, will start
+   * from the first block (block #0).
+   * @param opts.toBlock Block to stop searching for messages at. If not provided, will stop at the
+   * latest known block ("latest").
+   * @returns All withdrawal token bridge messages sent by the given address.
+   */
   public async getWithdrawalsByAddress(
     address: AddressLike,
     opts: {
@@ -356,6 +457,16 @@ export class CrossChainMessenger implements ICrossChainMessenger {
       })
   }
 
+  /**
+   * Resolves a MessageLike into a CrossChainMessage object.
+   * Unlike other coercion functions, this function is stateful and requires making additional
+   * requests. For now I'm going to keep this function here, but we could consider putting a
+   * similar function inside of utils/coercion.ts if people want to use this without having to
+   * create an entire CrossChainProvider object.
+   *
+   * @param message MessageLike to resolve into a CrossChainMessage.
+   * @returns Message coerced into a CrossChainMessage.
+   */
   public async toCrossChainMessage(
     message: MessageLike
   ): Promise<CrossChainMessage> {
@@ -409,6 +520,12 @@ export class CrossChainMessenger implements ICrossChainMessenger {
     }
   }
 
+  /**
+   * Retrieves the status of a particular message as an enum.
+   *
+   * @param message Cross chain message to check the status of.
+   * @returns Status of the message.
+   */
   public async getMessageStatus(message: MessageLike): Promise<MessageStatus> {
     const resolved = await this.toCrossChainMessage(message)
     const receipt = await this.getMessageReceipt(resolved)
@@ -462,6 +579,13 @@ export class CrossChainMessenger implements ICrossChainMessenger {
     }
   }
 
+  /**
+   * Finds the receipt of the transaction that executed a particular cross chain message.
+   *
+   * @param message Message to find the receipt of.
+   * @returns CrossChainMessage receipt including receipt of the transaction that relayed the
+   * given message.
+   */
   public async getMessageReceipt(
     message: MessageLike
   ): Promise<MessageReceipt> {
@@ -527,6 +651,18 @@ export class CrossChainMessenger implements ICrossChainMessenger {
     return null
   }
 
+  /**
+   * Waits for a message to be executed and returns the receipt of the transaction that executed
+   * the given message.
+   *
+   * @param message Message to wait for.
+   * @param opts Options to pass to the waiting function.
+   * @param opts.confirmations Number of transaction confirmations to wait for before returning.
+   * @param opts.pollIntervalMs Number of milliseconds to wait between polling for the receipt.
+   * @param opts.timeoutMs Milliseconds to wait before timing out.
+   * @returns CrossChainMessage receipt including receipt of the transaction that relayed the
+   * given message.
+   */
   public async waitForMessageReceipt(
     message: MessageLike,
     opts: {
@@ -553,6 +689,18 @@ export class CrossChainMessenger implements ICrossChainMessenger {
     throw new Error(`timed out waiting for message receipt`)
   }
 
+  /**
+   * Waits until the status of a given message changes to the expected status. Note that if the
+   * status of the given message changes to a status that implies the expected status, this will
+   * still return. If the status of the message changes to a status that exclues the expected
+   * status, this will throw an error.
+   *
+   * @param message Message to wait for.
+   * @param status Expected status of the message.
+   * @param opts Options to pass to the waiting function.
+   * @param opts.pollIntervalMs Number of milliseconds to wait when polling.
+   * @param opts.timeoutMs Milliseconds to wait before timing out.
+   */
   public async waitForMessageStatus(
     message: MessageLike,
     status: MessageStatus,
@@ -620,6 +768,16 @@ export class CrossChainMessenger implements ICrossChainMessenger {
     throw new Error(`timed out waiting for message status change`)
   }
 
+  /**
+   * Estimates the amount of gas required to fully execute a given message on L2. Only applies to
+   * L1 => L2 messages. You would supply this gas limit when sending the message to L2.
+   *
+   * @param message Message get a gas estimate for.
+   * @param opts Options object.
+   * @param opts.bufferPercent Percentage of gas to add to the estimate. Defaults to 20.
+   * @param opts.from Address to use as the sender.
+   * @returns Estimates L2 gas limit.
+   */
   public async estimateL2MessageGasLimit(
     message: MessageRequestLike,
     opts?: {
@@ -653,6 +811,15 @@ export class CrossChainMessenger implements ICrossChainMessenger {
     return estimate.mul(100 + bufferPercent).div(100)
   }
 
+  /**
+   * Returns the estimated amount of time before the message can be executed. When this is a
+   * message being sent to L1, this will return the estimated time until the message will complete
+   * its challenge period. When this is a message being sent to L2, this will return the estimated
+   * amount of time until the message will be picked up and executed on L2.
+   *
+   * @param message Message to estimate the time remaining for.
+   * @returns Estimated amount of time remaining (in seconds) before the message can be executed.
+   */
   public async estimateMessageWaitTimeSeconds(
     message: MessageLike
   ): Promise<number> {
@@ -712,6 +879,11 @@ export class CrossChainMessenger implements ICrossChainMessenger {
     }
   }
 
+  /**
+   * Queries the current challenge period in seconds from the StateCommitmentChain.
+   *
+   * @returns Current challenge period in seconds.
+   */
   public async getChallengePeriodSeconds(): Promise<number> {
     const challengePeriod = this.bedrock
       ? await this.contracts.l1.OptimismPortal.FINALIZATION_PERIOD_SECONDS()
@@ -719,6 +891,12 @@ export class CrossChainMessenger implements ICrossChainMessenger {
     return challengePeriod.toNumber()
   }
 
+  /**
+   * Returns the Bedrock output root that corresponds to the given message.
+   *
+   * @param message Message to get the Bedrock output root for.
+   * @returns Bedrock output root.
+   */
   public async getMessageBedrockOutput(
     message: MessageLike
   ): Promise<BedrockOutputData | null> {
@@ -763,6 +941,14 @@ export class CrossChainMessenger implements ICrossChainMessenger {
     }
   }
 
+  /**
+   * Returns the state root that corresponds to a given message. This is the state root for the
+   * block in which the transaction was included, as published to the StateCommitmentChain. If the
+   * state root for the given message has not been published yet, this function returns null.
+   *
+   * @param message Message to find a state root for.
+   * @returns State root for the block in which the message was created.
+   */
   public async getMessageStateRoot(
     message: MessageLike
   ): Promise<StateRoot | null> {
@@ -814,6 +1000,13 @@ export class CrossChainMessenger implements ICrossChainMessenger {
     }
   }
 
+  /**
+   * Returns the StateBatchAppended event that was emitted when the batch with a given index was
+   * created. Returns null if no such event exists (the batch has not been submitted).
+   *
+   * @param batchIndex Index of the batch to find an event for.
+   * @returns StateBatchAppended event for the batch, or null if no such batch exists.
+   */
   public async getStateBatchAppendedEventByBatchIndex(
     batchIndex: number
   ): Promise<ethers.Event | null> {
@@ -833,6 +1026,13 @@ export class CrossChainMessenger implements ICrossChainMessenger {
     }
   }
 
+  /**
+   * Returns the StateBatchAppended event for the batch that includes the transaction with the
+   * given index. Returns null if no such event exists.
+   *
+   * @param transactionIndex Index of the L2 transaction to find an event for.
+   * @returns StateBatchAppended event for the batch that includes the given transaction by index.
+   */
   public async getStateBatchAppendedEventByTransactionIndex(
     transactionIndex: number
   ): Promise<ethers.Event | null> {
@@ -892,6 +1092,13 @@ export class CrossChainMessenger implements ICrossChainMessenger {
     return batchEvent
   }
 
+  /**
+   * Returns information about the state root batch that included the state root for the given
+   * transaction by index. Returns null if no such state root has been published yet.
+   *
+   * @param transactionIndex Index of the L2 transaction to find a state root batch for.
+   * @returns State root batch for the given transaction index, or null if none exists yet.
+   */
   public async getStateRootBatchByTransactionIndex(
     transactionIndex: number
   ): Promise<StateRootBatch | null> {
@@ -921,6 +1128,12 @@ export class CrossChainMessenger implements ICrossChainMessenger {
     }
   }
 
+  /**
+   * Generates the proof required to finalize an L2 to L1 message.
+   *
+   * @param message Message to generate a proof for.
+   * @returns Proof that can be used to finalize the message.
+   */
   public async getMessageProof(
     message: MessageLike
   ): Promise<CrossChainMessageProof> {
@@ -973,6 +1186,12 @@ export class CrossChainMessenger implements ICrossChainMessenger {
     }
   }
 
+  /**
+   * Generates the bedrock proof required to finalize an L2 to L1 message.
+   *
+   * @param message Message to generate a proof for.
+   * @returns Proof that can be used to finalize the message.
+   */
   public async getBedrockMessageProof(
     message: MessageLike
   ): Promise<
@@ -1091,7 +1310,6 @@ export class CrossChainMessenger implements ICrossChainMessenger {
           latestBlockhash: block.hash,
         },
         withdrawalProof: ethers.utils.RLP.encode(stateTrieProof.storageProof),
-        // withdrawalProof: toHexString(rlp.encode(stateTrieProof.storageProof)),
       },
       output,
       // TODO(tynes): use better type, typechain?
@@ -1106,6 +1324,17 @@ export class CrossChainMessenger implements ICrossChainMessenger {
     ]
   }
 
+  /**
+   * Sends a given cross chain message. Where the message is sent depends on the direction attached
+   * to the message itself.
+   *
+   * @param message Cross chain message to send.
+   * @param opts Additional options.
+   * @param opts.signer Optional signer to use to send the transaction.
+   * @param opts.l2GasLimit Optional gas limit to use for the transaction on L2.
+   * @param opts.overrides Optional transaction overrides.
+   * @returns Transaction response for the message sending transaction.
+   */
   public async sendMessage(
     message: CrossChainMessageRequest,
     opts?: {
@@ -1122,6 +1351,17 @@ export class CrossChainMessenger implements ICrossChainMessenger {
     }
   }
 
+  /**
+   * Resends a given cross chain message with a different gas limit. Only applies to L1 to L2
+   * messages. If provided an L2 to L1 message, this function will throw an error.
+   *
+   * @param message Cross chain message to resend.
+   * @param messageGasLimit New gas limit to use for the message.
+   * @param opts Additional options.
+   * @param opts.signer Optional signer to use to send the transaction.
+   * @param opts.overrides Optional transaction overrides.
+   * @returns Transaction response for the message resending transaction.
+   */
   public async resendMessage(
     message: MessageLike,
     messageGasLimit: NumberLike,
@@ -1139,11 +1379,21 @@ export class CrossChainMessenger implements ICrossChainMessenger {
     )
   }
 
+  /**
+   * Finalizes a cross chain message that was sent from L2 to L1. Only applicable for L2 to L1
+   * messages. Will throw an error if the message has not completed its challenge period yet.
+   *
+   * @param message Message to finalize.
+   * @param opts Additional options.
+   * @param opts.signer Optional signer to use to send the transaction.
+   * @param opts.overrides Optional transaction overrides.
+   * @returns Transaction response for the finalization transaction.
+   */
   public async finalizeMessage(
     message: MessageLike,
     opts?: {
       signer?: Signer
-      overrides?: Overrides
+      overrides?: PayableOverrides
     }
   ): Promise<TransactionResponse> {
     return (opts?.signer || this.l1Signer).sendTransaction(
@@ -1151,6 +1401,17 @@ export class CrossChainMessenger implements ICrossChainMessenger {
     )
   }
 
+  /**
+   * Deposits some ETH into the L2 chain.
+   *
+   * @param amount Amount of ETH to deposit (in wei).
+   * @param opts Additional options.
+   * @param opts.signer Optional signer to use to send the transaction.
+   * @param opts.recipient Optional address to receive the funds on L2. Defaults to sender.
+   * @param opts.l2GasLimit Optional gas limit to use for the transaction on L2.
+   * @param opts.overrides Optional transaction overrides.
+   * @returns Transaction response for the deposit transaction.
+   */
   public async depositETH(
     amount: NumberLike,
     opts?: {
@@ -1165,6 +1426,16 @@ export class CrossChainMessenger implements ICrossChainMessenger {
     )
   }
 
+  /**
+   * Withdraws some ETH back to the L1 chain.
+   *
+   * @param amount Amount of ETH to withdraw.
+   * @param opts Additional options.
+   * @param opts.signer Optional signer to use to send the transaction.
+   * @param opts.recipient Optional address to receive the funds on L1. Defaults to sender.
+   * @param opts.overrides Optional transaction overrides.
+   * @returns Transaction response for the withdraw transaction.
+   */
   public async withdrawETH(
     amount: NumberLike,
     opts?: {
@@ -1178,6 +1449,15 @@ export class CrossChainMessenger implements ICrossChainMessenger {
     )
   }
 
+  /**
+   * Queries the account's approval amount for a given L1 token.
+   *
+   * @param l1Token The L1 token address.
+   * @param l2Token The L2 token address.
+   * @param opts Additional options.
+   * @param opts.signer Optional signer to get the approval for.
+   * @returns Amount of tokens approved for deposits from the account.
+   */
   public async approval(
     l1Token: AddressLike,
     l2Token: AddressLike,
@@ -1189,6 +1469,17 @@ export class CrossChainMessenger implements ICrossChainMessenger {
     return bridge.approval(l1Token, l2Token, opts?.signer || this.l1Signer)
   }
 
+  /**
+   * Approves a deposit into the L2 chain.
+   *
+   * @param l1Token The L1 token address.
+   * @param l2Token The L2 token address.
+   * @param amount Amount of the token to approve.
+   * @param opts Additional options.
+   * @param opts.signer Optional signer to use to send the transaction.
+   * @param opts.overrides Optional transaction overrides.
+   * @returns Transaction response for the approval transaction.
+   */
   public async approveERC20(
     l1Token: AddressLike,
     l2Token: AddressLike,
@@ -1208,6 +1499,19 @@ export class CrossChainMessenger implements ICrossChainMessenger {
     )
   }
 
+  /**
+   * Deposits some ERC20 tokens into the L2 chain.
+   *
+   * @param l1Token Address of the L1 token.
+   * @param l2Token Address of the L2 token.
+   * @param amount Amount to deposit.
+   * @param opts Additional options.
+   * @param opts.signer Optional signer to use to send the transaction.
+   * @param opts.recipient Optional address to receive the funds on L2. Defaults to sender.
+   * @param opts.l2GasLimit Optional gas limit to use for the transaction on L2.
+   * @param opts.overrides Optional transaction overrides.
+   * @returns Transaction response for the deposit transaction.
+   */
   public async depositERC20(
     l1Token: AddressLike,
     l2Token: AddressLike,
@@ -1229,6 +1533,18 @@ export class CrossChainMessenger implements ICrossChainMessenger {
     )
   }
 
+  /**
+   * Withdraws some ERC20 tokens back to the L1 chain.
+   *
+   * @param l1Token Address of the L1 token.
+   * @param l2Token Address of the L2 token.
+   * @param amount Amount to withdraw.
+   * @param opts Additional options.
+   * @param opts.signer Optional signer to use to send the transaction.
+   * @param opts.recipient Optional address to receive the funds on L1. Defaults to sender.
+   * @param opts.overrides Optional transaction overrides.
+   * @returns Transaction response for the withdraw transaction.
+   */
   public async withdrawERC20(
     l1Token: AddressLike,
     l2Token: AddressLike,
@@ -1249,7 +1565,21 @@ export class CrossChainMessenger implements ICrossChainMessenger {
     )
   }
 
+  /**
+   * Object that holds the functions that generate transactions to be signed by the user.
+   * Follows the pattern used by ethers.js.
+   */
   populateTransaction = {
+    /**
+     * Generates a transaction that sends a given cross chain message. This transaction can be signed
+     * and executed by a signer.
+     *
+     * @param message Cross chain message to send.
+     * @param opts Additional options.
+     * @param opts.l2GasLimit Optional gas limit to use for the transaction on L2.
+     * @param opts.overrides Optional transaction overrides.
+     * @returns Transaction that can be signed and executed to send the message.
+     */
     sendMessage: async (
       message: CrossChainMessageRequest,
       opts?: {
@@ -1274,6 +1604,16 @@ export class CrossChainMessenger implements ICrossChainMessenger {
       }
     },
 
+    /**
+     * Generates a transaction that resends a given cross chain message. Only applies to L1 to L2
+     * messages. This transaction can be signed and executed by a signer.
+     *
+     * @param message Cross chain message to resend.
+     * @param messageGasLimit New gas limit to use for the message.
+     * @param opts Additional options.
+     * @param opts.overrides Optional transaction overrides.
+     * @returns Transaction that can be signed and executed to resend the message.
+     */
     resendMessage: async (
       message: MessageLike,
       messageGasLimit: NumberLike,
@@ -1312,10 +1652,20 @@ export class CrossChainMessenger implements ICrossChainMessenger {
       }
     },
 
+    /**
+     * Generates a message finalization transaction that can be signed and executed. Only
+     * applicable for L2 to L1 messages. Will throw an error if the message has not completed
+     * its challenge period yet.
+     *
+     * @param message Message to generate the finalization transaction for.
+     * @param opts Additional options.
+     * @param opts.overrides Optional transaction overrides.
+     * @returns Transaction that can be signed and executed to finalize the message.
+     */
     finalizeMessage: async (
       message: MessageLike,
       opts?: {
-        overrides?: Overrides
+        overrides?: PayableOverrides
       }
     ): Promise<TransactionRequest> => {
       const resolved = await this.toCrossChainMessage(message)
@@ -1344,7 +1694,8 @@ export class CrossChainMessenger implements ICrossChainMessenger {
             proof.outputRootProof.withdrawerStorageRoot,
             proof.outputRootProof.latestBlockhash,
           ],
-          proof.withdrawalProof
+          proof.withdrawalProof,
+          opts?.overrides || {}
         )
       } else {
         // L1CrossDomainMessenger relayMessage is the only method that isn't fully backwards
@@ -1367,12 +1718,22 @@ export class CrossChainMessenger implements ICrossChainMessenger {
       }
     },
 
+    /**
+     * Generates a transaction for depositing some ETH into the L2 chain.
+     *
+     * @param amount Amount of ETH to deposit.
+     * @param opts Additional options.
+     * @param opts.recipient Optional address to receive the funds on L2. Defaults to sender.
+     * @param opts.l2GasLimit Optional gas limit to use for the transaction on L2.
+     * @param opts.overrides Optional transaction overrides.
+     * @returns Transaction that can be signed and executed to deposit the ETH.
+     */
     depositETH: async (
       amount: NumberLike,
       opts?: {
         recipient?: AddressLike
         l2GasLimit?: NumberLike
-        overrides?: Overrides
+        overrides?: PayableOverrides
       }
     ): Promise<TransactionRequest> => {
       return this.bridges.ETH.populateTransaction.deposit(
@@ -1383,6 +1744,15 @@ export class CrossChainMessenger implements ICrossChainMessenger {
       )
     },
 
+    /**
+     * Generates a transaction for withdrawing some ETH back to the L1 chain.
+     *
+     * @param amount Amount of ETH to withdraw.
+     * @param opts Additional options.
+     * @param opts.recipient Optional address to receive the funds on L1. Defaults to sender.
+     * @param opts.overrides Optional transaction overrides.
+     * @returns Transaction that can be signed and executed to withdraw the ETH.
+     */
     withdrawETH: async (
       amount: NumberLike,
       opts?: {
@@ -1398,6 +1768,16 @@ export class CrossChainMessenger implements ICrossChainMessenger {
       )
     },
 
+    /**
+     * Generates a transaction for approving some tokens to deposit into the L2 chain.
+     *
+     * @param l1Token The L1 token address.
+     * @param l2Token The L2 token address.
+     * @param amount Amount of the token to approve.
+     * @param opts Additional options.
+     * @param opts.overrides Optional transaction overrides.
+     * @returns Transaction response for the approval transaction.
+     */
     approveERC20: async (
       l1Token: AddressLike,
       l2Token: AddressLike,
@@ -1410,6 +1790,18 @@ export class CrossChainMessenger implements ICrossChainMessenger {
       return bridge.populateTransaction.approve(l1Token, l2Token, amount, opts)
     },
 
+    /**
+     * Generates a transaction for depositing some ERC20 tokens into the L2 chain.
+     *
+     * @param l1Token Address of the L1 token.
+     * @param l2Token Address of the L2 token.
+     * @param amount Amount to deposit.
+     * @param opts Additional options.
+     * @param opts.recipient Optional address to receive the funds on L2. Defaults to sender.
+     * @param opts.l2GasLimit Optional gas limit to use for the transaction on L2.
+     * @param opts.overrides Optional transaction overrides.
+     * @returns Transaction that can be signed and executed to deposit the tokens.
+     */
     depositERC20: async (
       l1Token: AddressLike,
       l2Token: AddressLike,
@@ -1424,6 +1816,17 @@ export class CrossChainMessenger implements ICrossChainMessenger {
       return bridge.populateTransaction.deposit(l1Token, l2Token, amount, opts)
     },
 
+    /**
+     * Generates a transaction for withdrawing some ERC20 tokens back to the L1 chain.
+     *
+     * @param l1Token Address of the L1 token.
+     * @param l2Token Address of the L2 token.
+     * @param amount Amount to withdraw.
+     * @param opts Additional options.
+     * @param opts.recipient Optional address to receive the funds on L1. Defaults to sender.
+     * @param opts.overrides Optional transaction overrides.
+     * @returns Transaction that can be signed and executed to withdraw the tokens.
+     */
     withdrawERC20: async (
       l1Token: AddressLike,
       l2Token: AddressLike,
@@ -1438,7 +1841,20 @@ export class CrossChainMessenger implements ICrossChainMessenger {
     },
   }
 
+  /**
+   * Object that holds the functions that estimates the gas required for a given transaction.
+   * Follows the pattern used by ethers.js.
+   */
   estimateGas = {
+    /**
+     * Estimates gas required to send a cross chain message.
+     *
+     * @param message Cross chain message to send.
+     * @param opts Additional options.
+     * @param opts.l2GasLimit Optional gas limit to use for the transaction on L2.
+     * @param opts.overrides Optional transaction overrides.
+     * @returns Gas estimate for the transaction.
+     */
     sendMessage: async (
       message: CrossChainMessageRequest,
       opts?: {
@@ -1454,6 +1870,15 @@ export class CrossChainMessenger implements ICrossChainMessenger {
       }
     },
 
+    /**
+     * Estimates gas required to resend a cross chain message. Only applies to L1 to L2 messages.
+     *
+     * @param message Cross chain message to resend.
+     * @param messageGasLimit New gas limit to use for the message.
+     * @param opts Additional options.
+     * @param opts.overrides Optional transaction overrides.
+     * @returns Gas estimate for the transaction.
+     */
     resendMessage: async (
       message: MessageLike,
       messageGasLimit: NumberLike,
@@ -1470,6 +1895,14 @@ export class CrossChainMessenger implements ICrossChainMessenger {
       )
     },
 
+    /**
+     * Estimates gas required to finalize a cross chain message. Only applies to L2 to L1 messages.
+     *
+     * @param message Message to generate the finalization transaction for.
+     * @param opts Additional options.
+     * @param opts.overrides Optional transaction overrides.
+     * @returns Gas estimate for the transaction.
+     */
     finalizeMessage: async (
       message: MessageLike,
       opts?: {
@@ -1481,6 +1914,16 @@ export class CrossChainMessenger implements ICrossChainMessenger {
       )
     },
 
+    /**
+     * Estimates gas required to deposit some ETH into the L2 chain.
+     *
+     * @param amount Amount of ETH to deposit.
+     * @param opts Additional options.
+     * @param opts.recipient Optional address to receive the funds on L2. Defaults to sender.
+     * @param opts.l2GasLimit Optional gas limit to use for the transaction on L2.
+     * @param opts.overrides Optional transaction overrides.
+     * @returns Gas estimate for the transaction.
+     */
     depositETH: async (
       amount: NumberLike,
       opts?: {
@@ -1494,6 +1937,15 @@ export class CrossChainMessenger implements ICrossChainMessenger {
       )
     },
 
+    /**
+     * Estimates gas required to withdraw some ETH back to the L1 chain.
+     *
+     * @param amount Amount of ETH to withdraw.
+     * @param opts Additional options.
+     * @param opts.recipient Optional address to receive the funds on L1. Defaults to sender.
+     * @param opts.overrides Optional transaction overrides.
+     * @returns Gas estimate for the transaction.
+     */
     withdrawETH: async (
       amount: NumberLike,
       opts?: {
@@ -1506,6 +1958,16 @@ export class CrossChainMessenger implements ICrossChainMessenger {
       )
     },
 
+    /**
+     * Estimates gas required to approve some tokens to deposit into the L2 chain.
+     *
+     * @param l1Token The L1 token address.
+     * @param l2Token The L2 token address.
+     * @param amount Amount of the token to approve.
+     * @param opts Additional options.
+     * @param opts.overrides Optional transaction overrides.
+     * @returns Transaction response for the approval transaction.
+     */
     approveERC20: async (
       l1Token: AddressLike,
       l2Token: AddressLike,
@@ -1524,6 +1986,18 @@ export class CrossChainMessenger implements ICrossChainMessenger {
       )
     },
 
+    /**
+     * Estimates gas required to deposit some ERC20 tokens into the L2 chain.
+     *
+     * @param l1Token Address of the L1 token.
+     * @param l2Token Address of the L2 token.
+     * @param amount Amount to deposit.
+     * @param opts Additional options.
+     * @param opts.recipient Optional address to receive the funds on L2. Defaults to sender.
+     * @param opts.l2GasLimit Optional gas limit to use for the transaction on L2.
+     * @param opts.overrides Optional transaction overrides.
+     * @returns Gas estimate for the transaction.
+     */
     depositERC20: async (
       l1Token: AddressLike,
       l2Token: AddressLike,
@@ -1544,6 +2018,17 @@ export class CrossChainMessenger implements ICrossChainMessenger {
       )
     },
 
+    /**
+     * Estimates gas required to withdraw some ERC20 tokens back to the L1 chain.
+     *
+     * @param l1Token Address of the L1 token.
+     * @param l2Token Address of the L2 token.
+     * @param amount Amount to withdraw.
+     * @param opts Additional options.
+     * @param opts.recipient Optional address to receive the funds on L1. Defaults to sender.
+     * @param opts.overrides Optional transaction overrides.
+     * @returns Gas estimate for the transaction.
+     */
     withdrawERC20: async (
       l1Token: AddressLike,
       l2Token: AddressLike,

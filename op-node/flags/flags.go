@@ -8,7 +8,7 @@ import (
 
 // Flags
 
-const envVarPrefix = "ROLLUP_NODE_"
+const envVarPrefix = "OP_NODE_"
 
 func prefixEnvVar(name string) string {
 	return envVarPrefix + name
@@ -41,6 +41,11 @@ var (
 		Name:   "rpc.port",
 		Usage:  "RPC listening port",
 		EnvVar: prefixEnvVar("RPC_PORT"),
+	}
+	RPCEnableAdmin = cli.BoolFlag{
+		Name:   "rpc.enable-admin",
+		Usage:  "Enable the admin API (experimental)",
+		EnvVar: prefixEnvVar("RPC_ENABLE_ADMIN"),
 	}
 
 	/* Optional Flags */
@@ -152,6 +157,7 @@ var optionalFlags = append([]cli.Flag{
 	LogLevelFlag,
 	LogFormatFlag,
 	LogColorFlag,
+	RPCEnableAdmin,
 	MetricsEnabledFlag,
 	MetricsAddrFlag,
 	MetricsPortFlag,
