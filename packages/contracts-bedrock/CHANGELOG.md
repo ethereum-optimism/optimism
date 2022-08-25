@@ -1,5 +1,23 @@
 # @eth-optimism/contracts-bedrock
 
+## 0.5.4
+
+### Patch Changes
+
+- a095d544: Include latest devnet deployment artifacts
+- cdf2163e: Bump oz packages to latest release
+- 791f30bc: Migrate deploy config to json from ts
+- 193befed: Fix nonce issue for parallel deployments
+- 02420db0: Add missing predeploy to Predeploys.sol
+- 94a8f287: Moves forge-std and ds-test to devDependencies to avoid breaking npm
+- 7d03c5c0: Update the L2 genesis hardhat task to use the ProxyAdmin's deployed address as the admin of each predeploy
+- fec22bfe: Fix legibility in the L2CrossDomainMessengerInitializer
+- 9272253e: Make a library call internal
+- c025f418: Add additional deployments of address manager and proxy admin
+- 329d21b6: Use safecall that doesn't copy calldata
+- 35eafed0: Deletes the L2 genesis creation hardhat task as its now replaced by go code
+- 3cde9205: Update @foundry-rs/hardhat-forge to 0.1.17
+
 ## 0.5.3
 
 ### Patch Changes
