@@ -1,5 +1,11 @@
 # @eth-optimism/contracts-periphery
 
+## 0.2.2
+
+### Patch Changes
+
+- ea371af2: Support deploy via Ledger or private key
+
 ## 0.2.1
 
 ### Patch Changes
