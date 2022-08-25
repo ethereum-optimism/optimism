@@ -200,7 +200,10 @@ abstract contract CrossDomainMessenger is
     }
 
     /**
-     * @notice Sends a message to some target address on the other chain.
+     * @notice Sends a message to some target address on the other chain. Note that if the call
+     *         always reverts, then the message will be unrelayable, and any ETH sent will be
+     *         permanently locked. The same will occur if the target on the other chain is
+     *         considered unsafe (see the _isUnsafeTarget() function).
      *
      * @param _target      Target contract or wallet address.
      * @param _message     Message to trigger the target address with.
