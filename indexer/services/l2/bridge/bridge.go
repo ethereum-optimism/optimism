@@ -40,6 +40,7 @@ var customBridgeCfgs = map[uint64][]*implConfig{
 	69: {
 		{"BitBTC", StandardBridgeImpl, "0x0CFb46528a7002a7D8877a5F7a69b9AaF1A9058e"},
 		{"USX", StandardBridgeImpl, "0xB4d37826b14Cd3CB7257A2A5094507d701fe715f"},
+		{"wstETH", StandardBridgeImpl, "0x2E34e7d705AfaC3C4665b6feF31Aa394A1c81c92"},
 		//{"DAI", "	DAIBridge", "0x467194771dAe2967Aef3ECbEDD3Bf9a310C76C65"},
 	},
 }

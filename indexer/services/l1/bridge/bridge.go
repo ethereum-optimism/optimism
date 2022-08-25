@@ -39,6 +39,7 @@ var customBridgeCfgs = map[uint64][]*implConfig{
 		{"BitBTC", "StandardBridge", common.HexToAddress("0x0b651A42F32069d62d5ECf4f2a7e5Bd3E9438746")},
 		{"USX", "StandardBridge", common.HexToAddress("0x40E862341b2416345F02c41Ac70df08525150dC7")},
 		{"DAI", "StandardBridge", common.HexToAddress("0xb415e822C4983ecD6B1c1596e8a5f976cf6CD9e3")},
+		{"wstETH", "StandardBridge", common.HexToAddress("0x65321bf24210b81500230dCEce14Faa70a9f50a7")},
 	},
 }
 
