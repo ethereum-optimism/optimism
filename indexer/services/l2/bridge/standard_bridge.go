@@ -3,8 +3,8 @@ package bridge
 import (
 	"context"
 
-	"github.com/ethereum-optimism/optimism/indexer/bindings/l2bridge"
 	"github.com/ethereum-optimism/optimism/indexer/db"
+	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
@@ -15,7 +15,7 @@ type StandardBridge struct {
 	ctx      context.Context
 	address  common.Address
 	client   bind.ContractFilterer
-	filterer *l2bridge.L2StandardBridgeFilterer
+	filterer *bindings.L2StandardBridgeFilterer
 }
 
 func (s *StandardBridge) Address() common.Address {
@@ -42,7 +42,7 @@ func (s *StandardBridge) GetWithdrawalsByBlockRange(start, end uint64) (Withdraw
 				FromAddress: iter.Event.From,
 				ToAddress:   iter.Event.To,
 				Amount:      iter.Event.Amount,
-				Data:        iter.Event.Data,
+				Data:        iter.Event.ExtraData,
 				LogIndex:    iter.Event.Raw.Index,
 			})
 	}

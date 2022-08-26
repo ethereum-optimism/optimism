@@ -65,43 +65,69 @@ func sanityCheckPayload(payload *eth.ExecutionPayload) error {
 	return nil
 }
 
+type BlockInsertionErrType uint
+
+const (
+	BlockInsertOK BlockInsertionErrType = iota
+	BlockInsertTemporaryErr
+	BlockInsertPrestateErr
+	BlockInsertPayloadErr
+)
+
 // InsertHeadBlock creates, executes, and inserts the specified block as the head block.
 // It first uses the given FC to start the block creation process and then after the payload is executed,
 // sets the FC to the same safe and finalized hashes, but updates the head hash to the new block.
 // If updateSafe is true, the head block is considered to be the safe head as well as the head.
 // It returns the payload, an RPC error (if the payload might still be valid), and a payload error (if the payload was not valid)
-func InsertHeadBlock(ctx context.Context, log log.Logger, eng Engine, fc eth.ForkchoiceState, attrs *eth.PayloadAttributes, updateSafe bool) (out *eth.ExecutionPayload, rpcErr error, payloadErr error) {
+func InsertHeadBlock(ctx context.Context, log log.Logger, eng Engine, fc eth.ForkchoiceState, attrs *eth.PayloadAttributes, updateSafe bool) (out *eth.ExecutionPayload, errTyp BlockInsertionErrType, err error) {
 	fcRes, err := eng.ForkchoiceUpdate(ctx, &fc, attrs)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create new block via forkchoice: %w", err), nil
+		var inputErr eth.InputError
+		if errors.As(err, &inputErr) {
+			switch inputErr.Code {
+			case eth.InvalidForkchoiceState:
+				return nil, BlockInsertPrestateErr, fmt.Errorf("pre-block-creation forkchoice update was inconsistent with engine, need reset to resolve: %w", inputErr.Unwrap())
+			case eth.InvalidPayloadAttributes:
+				return nil, BlockInsertPayloadErr, fmt.Errorf("payload attributes are not valid, cannot build block: %w", inputErr.Unwrap())
+			default:
+				return nil, BlockInsertPrestateErr, fmt.Errorf("unexpected error code in forkchoice-updated response: %w", err)
+			}
+		} else {
+			return nil, BlockInsertTemporaryErr, fmt.Errorf("failed to create new block via forkchoice: %w", err)
+		}
 	}
-	if fcRes.PayloadStatus.Status == eth.ExecutionInvalid || fcRes.PayloadStatus.Status == eth.ExecutionInvalidBlockHash {
-		return nil, nil, eth.ForkchoiceUpdateErr(fcRes.PayloadStatus)
-	}
-	if fcRes.PayloadStatus.Status != eth.ExecutionValid {
-		return nil, eth.ForkchoiceUpdateErr(fcRes.PayloadStatus), nil
+
+	switch fcRes.PayloadStatus.Status {
+	// TODO(proto): snap sync - specify explicit different error type if node is syncing
+	case eth.ExecutionInvalid, eth.ExecutionInvalidBlockHash:
+		return nil, BlockInsertPayloadErr, eth.ForkchoiceUpdateErr(fcRes.PayloadStatus)
+	case eth.ExecutionValid:
+		break
+	default:
+		return nil, BlockInsertTemporaryErr, eth.ForkchoiceUpdateErr(fcRes.PayloadStatus)
 	}
 	id := fcRes.PayloadID
 	if id == nil {
-		return nil, errors.New("nil id in forkchoice result when expecting a valid ID"), nil
+		return nil, BlockInsertTemporaryErr, errors.New("nil id in forkchoice result when expecting a valid ID")
 	}
 	payload, err := eng.GetPayload(ctx, *id)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get execution payload: %w", err), nil
+		// even if it is an input-error (unknown payload ID), it is temporary, since we will re-attempt the full payload building, not just the retrieval of the payload.
+		return nil, BlockInsertTemporaryErr, fmt.Errorf("failed to get execution payload: %w", err)
 	}
 	if err := sanityCheckPayload(payload); err != nil {
-		return nil, nil, err
+		return nil, BlockInsertPayloadErr, err
 	}
 
 	status, err := eng.NewPayload(ctx, payload)
 	if err != nil {
-		return nil, fmt.Errorf("failed to insert execution payload: %w", err), nil
+		return nil, BlockInsertTemporaryErr, fmt.Errorf("failed to insert execution payload: %w", err)
 	}
 	if status.Status == eth.ExecutionInvalid || status.Status == eth.ExecutionInvalidBlockHash {
-		return nil, nil, eth.NewPayloadErr(payload, status)
+		return nil, BlockInsertPayloadErr, eth.NewPayloadErr(payload, status)
 	}
 	if status.Status != eth.ExecutionValid {
-		return nil, eth.NewPayloadErr(payload, status), nil
+		return nil, BlockInsertTemporaryErr, eth.NewPayloadErr(payload, status)
 	}
 
 	fc.HeadBlockHash = payload.BlockHash
@@ -110,14 +136,25 @@ func InsertHeadBlock(ctx context.Context, log log.Logger, eng Engine, fc eth.For
 	}
 	fcRes, err = eng.ForkchoiceUpdate(ctx, &fc, nil)
 	if err != nil {
-		return nil, fmt.Errorf("failed to make the new L2 block canonical via forkchoice: %w", err), nil
+		var inputErr eth.InputError
+		if errors.As(err, &inputErr) {
+			switch inputErr.Code {
+			case eth.InvalidForkchoiceState:
+				// if we succeed to update the forkchoice pre-payload, but fail post-payload, then it is a payload error
+				return nil, BlockInsertPayloadErr, fmt.Errorf("post-block-creation forkchoice update was inconsistent with engine, need reset to resolve: %w", inputErr.Unwrap())
+			default:
+				return nil, BlockInsertPrestateErr, fmt.Errorf("unexpected error code in forkchoice-updated response: %w", err)
+			}
+		} else {
+			return nil, BlockInsertTemporaryErr, fmt.Errorf("failed to make the new L2 block canonical via forkchoice: %w", err)
+		}
 	}
 	if fcRes.PayloadStatus.Status != eth.ExecutionValid {
-		return nil, eth.ForkchoiceUpdateErr(fcRes.PayloadStatus), nil
+		return nil, BlockInsertPayloadErr, eth.ForkchoiceUpdateErr(fcRes.PayloadStatus)
 	}
 	log.Info("inserted block", "hash", payload.BlockHash, "number", uint64(payload.BlockNumber),
 		"state_root", payload.StateRoot, "timestamp", uint64(payload.Timestamp), "parent", payload.ParentHash,
 		"prev_randao", payload.PrevRandao, "fee_recipient", payload.FeeRecipient,
 		"txs", len(payload.Transactions), "update_safe", updateSafe)
-	return payload, nil, nil
+	return payload, BlockInsertOK, nil
 }

@@ -1,5 +1,36 @@
 # @eth-optimism/sdk
 
+## 1.6.0
+
+### Minor Changes
+
+- 3af9c7a9: Removes the ICrossChainMessenger interface to speed up SDK development.
+
+### Patch Changes
+
+- 3df66a9a: Fix eth withdrawal bug
+- 8323407f: Fixes a bug in the SDK for certain bridge withdrawals.
+- aa2949ef: Add eth withdrawal support
+- a1a73e64: Updates the SDK to pull contract addresses from the deployments of the contracts package. Updates the Contracts package to export a function that makes it possible to pull deployed addresses.
+- f53c30b9: Minor refactor to variables within the SDK package.
+- Updated dependencies [a095d544]
+- Updated dependencies [cdf2163e]
+- Updated dependencies [791f30bc]
+- Updated dependencies [193befed]
+- Updated dependencies [0c2719f8]
+- Updated dependencies [02420db0]
+- Updated dependencies [94a8f287]
+- Updated dependencies [7d03c5c0]
+- Updated dependencies [fec22bfe]
+- Updated dependencies [9272253e]
+- Updated dependencies [a1a73e64]
+- Updated dependencies [c025f418]
+- Updated dependencies [329d21b6]
+- Updated dependencies [35eafed0]
+- Updated dependencies [3cde9205]
+  - @eth-optimism/contracts-bedrock@0.5.4
+  - @eth-optimism/contracts@0.5.33
+
 ## 1.5.0
 
 ### Minor Changes
