@@ -228,7 +228,7 @@ task('genesis-l2', 'create a genesis config')
     )
     if (ProxyL1CrossDomainMessenger === undefined) {
       ProxyL1CrossDomainMessenger = await hre.deployments.get(
-        'L1CrossDomainMessengerProxy'
+        'L1CrossDomainMessenger'
       )
     }
     // Be backwards compatible
@@ -236,7 +236,7 @@ task('genesis-l2', 'create a genesis config')
       'Proxy__OVM_L1StandardBridge'
     )
     if (ProxyL1StandardBridge === undefined) {
-      ProxyL1StandardBridge = await hre.deployments.get('L1StandardBridgeProxy')
+      ProxyL1StandardBridge = await hre.deployments.get('L1StandardBridge')
     }
 
     const variables = {
