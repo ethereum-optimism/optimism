@@ -193,10 +193,20 @@ func (d *Database) AddIndexedL1Block(block *IndexedL1Block) error {
 
 	const insertDepositStatement = `
 	INSERT INTO deposits
-		(guid, from_address, to_address, l1_token, l2_token, amount, tx_hash, log_index, block_hash, data)
+		(guid, from_address, to_address, l1_token, l2_token, amount, tx_hash, log_index, l1_block_hash, data)
 	VALUES
 		($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
 	`
+
+	const insertWithdrawalStatement = `
+	INSERT INTO withdrawals
+		(guid, from_address, to_address, l1_token, l2_token, amount, tx_hash, log_index, l1_block_hash, data)
+	VALUES
+		($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+	ON CONFLICT (tx_hash)
+		DO UPDATE SET l1_block_hash = $9;
+	`
+
 	return txn(d.db, func(tx *sql.Tx) error {
 		_, err := tx.Exec(
 			insertBlockStatement,
@@ -232,6 +242,29 @@ func (d *Database) AddIndexedL1Block(block *IndexedL1Block) error {
 			}
 		}
 
+		if len(block.Withdrawals) == 0 {
+			return nil
+		}
+
+		for _, withdrawal := range block.Withdrawals {
+			_, err = tx.Exec(
+				insertWithdrawalStatement,
+				NewGUID(),
+				withdrawal.FromAddress.String(),
+				withdrawal.ToAddress.String(),
+				withdrawal.L1Token.String(),
+				withdrawal.L2Token.String(),
+				withdrawal.Amount.String(),
+				withdrawal.TxHash.String(),
+				withdrawal.LogIndex,
+				block.Hash.String(),
+				withdrawal.Data,
+			)
+			if err != nil {
+				return err
+			}
+		}
+
 		return nil
 	})
 }
@@ -249,7 +282,7 @@ func (d *Database) AddIndexedL2Block(block *IndexedL2Block) error {
 
 	const insertWithdrawalStatement = `
 	INSERT INTO withdrawals
-		(guid, from_address, to_address, l1_token, l2_token, amount, tx_hash, log_index, block_hash, data)
+		(guid, from_address, to_address, l1_token, l2_token, amount, tx_hash, log_index, l2_block_hash, data)
 	VALUES
 		($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
 	`
@@ -303,7 +336,7 @@ func (d *Database) GetDepositsByAddress(address common.Address, page PaginationP
 		l1_tokens.name, l1_tokens.symbol, l1_tokens.decimals,
 		l1_blocks.number, l1_blocks.timestamp
 	FROM deposits
-		INNER JOIN l1_blocks ON deposits.block_hash=l1_blocks.hash
+		INNER JOIN l1_blocks ON deposits.l1_block_hash=l1_blocks.hash
 		INNER JOIN l1_tokens ON deposits.l1_token=l1_tokens.address
 	WHERE deposits.from_address = $1 ORDER BY l1_blocks.timestamp LIMIT $2 OFFSET $3;
 	`
@@ -342,7 +375,7 @@ func (d *Database) GetDepositsByAddress(address common.Address, page PaginationP
 	SELECT
 		count(*)
 	FROM deposits
-		INNER JOIN l1_blocks ON deposits.block_hash=l1_blocks.hash
+		INNER JOIN l1_blocks ON deposits.l1_block_hash=l1_blocks.hash
 		INNER JOIN l1_tokens ON deposits.l1_token=l1_tokens.address
 	WHERE deposits.from_address = $1;
 	`
@@ -368,6 +401,53 @@ func (d *Database) GetDepositsByAddress(address common.Address, page PaginationP
 	}, nil
 }
 
+// GetWithdrawalStatus returns the finalization status corresponding to the
+// given withdrawal transaction hash.
+func (d *Database) GetWithdrawalStatus(hash common.Hash) (*WithdrawalJSON, error) {
+	const selectWithdrawalStatement = `
+	SELECT
+	    withdrawals.guid, withdrawals.from_address, withdrawals.to_address,
+		withdrawals.amount, withdrawals.tx_hash, withdrawals.data,
+		withdrawals.l1_token, withdrawals.l2_token,
+		l2_tokens.name, l2_tokens.symbol, l2_tokens.decimals,
+		l1_blocks.number, l1_blocks.timestamp,
+		l2_blocks.number, l2_blocks.timestamp
+	FROM withdrawals
+		INNER JOIN l1_blocks ON withdrawals.l1_block_hash=l1_blocks.hash
+		INNER JOIN l2_blocks ON withdrawals.l2_block_hash=l2_blocks.hash
+		INNER JOIN l2_tokens ON withdrawals.l2_token=l2_tokens.address
+	WHERE withdrawals.tx_hash = $1;
+	`
+
+	var withdrawal *WithdrawalJSON
+	err := txn(d.db, func(tx *sql.Tx) error {
+		row := tx.QueryRow(selectWithdrawalStatement, hash.String())
+		if row.Err() != nil {
+			return row.Err()
+		}
+
+		var l2Token Token
+		if err := row.Scan(
+			&withdrawal.GUID, &withdrawal.FromAddress, &withdrawal.ToAddress,
+			&withdrawal.Amount, &withdrawal.TxHash, &withdrawal.Data,
+			&withdrawal.L1Token, &l2Token.Address,
+			&l2Token.Name, &l2Token.Symbol, &l2Token.Decimals,
+			&withdrawal.L1BlockNumber, &withdrawal.L1BlockTimestamp,
+			&withdrawal.L2BlockNumber, &withdrawal.L2BlockTimestamp,
+		); err != nil {
+			return err
+		}
+		withdrawal.L2Token = &l2Token
+
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return withdrawal, nil
+}
+
 // GetWithdrawalsByAddress returns the list of Withdrawals indexed for the given
 // address paginated by the given params.
 func (d *Database) GetWithdrawalsByAddress(address common.Address, page PaginationParam) (*PaginatedWithdrawals, error) {
@@ -379,7 +459,7 @@ func (d *Database) GetWithdrawalsByAddress(address common.Address, page Paginati
 		l2_tokens.name, l2_tokens.symbol, l2_tokens.decimals,
 		l2_blocks.number, l2_blocks.timestamp
 	FROM withdrawals
-		INNER JOIN l2_blocks ON withdrawals.block_hash=l2_blocks.hash
+		INNER JOIN l2_blocks ON withdrawals.l2_block_hash=l2_blocks.hash
 		INNER JOIN l2_tokens ON withdrawals.l2_token=l2_tokens.address
 	WHERE withdrawals.from_address = $1 ORDER BY l2_blocks.timestamp LIMIT $2 OFFSET $3;
 	`
@@ -400,7 +480,7 @@ func (d *Database) GetWithdrawalsByAddress(address common.Address, page Paginati
 				&withdrawal.Amount, &withdrawal.TxHash, &withdrawal.Data,
 				&withdrawal.L1Token, &l2Token.Address,
 				&l2Token.Name, &l2Token.Symbol, &l2Token.Decimals,
-				&withdrawal.BlockNumber, &withdrawal.BlockTimestamp,
+				&withdrawal.L2BlockNumber, &withdrawal.L2BlockTimestamp,
 			); err != nil {
 				return err
 			}
@@ -419,7 +499,7 @@ func (d *Database) GetWithdrawalsByAddress(address common.Address, page Paginati
 	SELECT
 		count(*)
 	FROM withdrawals
-		INNER JOIN l2_blocks ON withdrawals.block_hash=l2_blocks.hash
+		INNER JOIN l2_blocks ON withdrawals.l2_block_hash=l2_blocks.hash
 		INNER JOIN l2_tokens ON withdrawals.l2_token=l2_tokens.address
 	WHERE withdrawals.from_address = $1;
 	`
@@ -567,9 +647,9 @@ func (d *Database) GetIndexedL1BlockByHash(hash common.Hash) (*IndexedL1Block, e
 }
 
 const getAirdropQuery = `
-SELECT 
+SELECT
 	address, voter_amount, multisig_signer_amount, gitcoin_amount,
-	active_bridged_amount, op_user_amount, op_repeat_user_amount, 
+	active_bridged_amount, op_user_amount, op_repeat_user_amount,
     bonus_amount, total_amount
 FROM airdrops
 WHERE address = $1
