@@ -2,7 +2,7 @@ package rpc
 
 import (
 	"fmt"
-	"io/ioutil"
+	"io"
 	"math/rand"
 	"net/http"
 	"testing"
@@ -41,7 +41,8 @@ func TestBaseServer(t *testing.T) {
 	t.Run("supports GET /healthz", func(t *testing.T) {
 		res, err := http.Get(fmt.Sprintf("http://%s/healthz", server.endpoint))
 		require.NoError(t, err)
-		body, err := ioutil.ReadAll(res.Body)
+		defer res.Body.Close()
+		body, err := io.ReadAll(res.Body)
 		require.NoError(t, err)
 		require.EqualValues(t, fmt.Sprintf("{\"version\":\"%s\"}\n", appVersion), string(body))
 	})
