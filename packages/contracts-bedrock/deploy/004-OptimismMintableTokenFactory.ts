@@ -9,15 +9,7 @@ const deployFn: DeployFunction = async (hre) => {
   const { deployer } = await hre.getNamedAccounts()
   const { deployConfig } = hre
 
-  await deploy('OptimismMintableERC20FactoryProxy', {
-    contract: 'Proxy',
-    from: deployer,
-    args: [deployer],
-    log: true,
-    waitConfirmations: deployConfig.deploymentWaitConfirmations,
-  })
-
-  const bridge = await hre.deployments.get('L1StandardBridgeProxy')
+  const bridge = await hre.deployments.get('L1StandardBridge')
 
   await deploy('OptimismMintableERC20Factory', {
     from: deployer,
@@ -27,16 +19,11 @@ const deployFn: DeployFunction = async (hre) => {
   })
 
   const factory = await hre.deployments.get('OptimismMintableERC20Factory')
-  const proxy = await hre.deployments.get('OptimismMintableERC20FactoryProxy')
-  const Proxy = await hre.ethers.getContractAt('Proxy', proxy.address)
 
   const OptimismMintableERC20Factory = await hre.ethers.getContractAt(
     'OptimismMintableERC20Factory',
-    proxy.address
+    factory.address
   )
-
-  const upgradeTx = await Proxy.upgradeTo(factory.address)
-  await upgradeTx.wait()
 
   if (bridge.address !== (await OptimismMintableERC20Factory.bridge())) {
     throw new Error('bridge misconfigured')

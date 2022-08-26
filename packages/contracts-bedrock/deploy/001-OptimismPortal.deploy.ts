@@ -9,15 +9,7 @@ const deployFn: DeployFunction = async (hre) => {
   const { deployer } = await hre.getNamedAccounts()
   const { deployConfig } = hre
 
-  await deploy('OptimismPortalProxy', {
-    contract: 'Proxy',
-    from: deployer,
-    args: [deployer],
-    log: true,
-    waitConfirmations: deployConfig.deploymentWaitConfirmations,
-  })
-
-  const oracle = await get('L2OutputOracleProxy')
+  const oracle = await get('L2OutputOracle')
 
   await deploy('OptimismPortal', {
     from: deployer,
@@ -26,20 +18,12 @@ const deployFn: DeployFunction = async (hre) => {
     waitConfirmations: deployConfig.deploymentWaitConfirmations,
   })
 
-  const proxy = await hre.deployments.get('OptimismPortalProxy')
-  const Proxy = await hre.ethers.getContractAt('Proxy', proxy.address)
+  const portal = await hre.deployments.get('OptimismPortal')
 
   const OptimismPortal = await hre.ethers.getContractAt(
     'OptimismPortal',
-    proxy.address
+    portal.address
   )
-
-  const portal = await hre.deployments.get('OptimismPortal')
-  const tx = await Proxy.upgradeToAndCall(
-    portal.address,
-    OptimismPortal.interface.encodeFunctionData('initialize()')
-  )
-  await tx.wait()
 
   const l2Oracle = await OptimismPortal.L2_ORACLE()
   if (l2Oracle !== oracle.address) {
