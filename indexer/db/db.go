@@ -292,36 +292,6 @@ func (d *Database) AddIndexedL2Block(block *IndexedL2Block) error {
 	})
 }
 
-// AddStateBatch inserts the state batches into the known state batches
-// database.
-func (d *Database) AddStateBatch(batches []StateBatch) error {
-	const insertStateBatchStatement = `
-	INSERT INTO state_batches
-		(index, root, size, prev_total, extra_data, block_hash)
-	VALUES
-		($1, $2, $3, $4, $5, $6)
-	`
-
-	return txn(d.db, func(tx *sql.Tx) error {
-		for _, sb := range batches {
-			_, err := tx.Exec(
-				insertStateBatchStatement,
-				sb.Index.Uint64(),
-				sb.Root.String(),
-				sb.Size.Uint64(),
-				sb.PrevTotal.Uint64(),
-				sb.ExtraData,
-				sb.BlockHash.String(),
-			)
-			if err != nil {
-				return err
-			}
-		}
-
-		return nil
-	})
-}
-
 // GetDepositsByAddress returns the list of Deposits indexed for the given
 // address paginated by the given params.
 func (d *Database) GetDepositsByAddress(address common.Address, page PaginationParam) (*PaginatedDeposits, error) {
@@ -398,64 +368,6 @@ func (d *Database) GetDepositsByAddress(address common.Address, page PaginationP
 	}, nil
 }
 
-// GetWithdrawalBatch returns the StateBatch corresponding to the given
-// withdrawal transaction hash.
-func (d *Database) GetWithdrawalBatch(hash common.Hash) (*StateBatchJSON, error) {
-	const selectWithdrawalBatchStatement = `
-	SELECT
-		state_batches.index, state_batches.root, state_batches.size, state_batches.prev_total, state_batches.extra_data, state_batches.block_hash,
-		l1_blocks.number, l1_blocks.timestamp
-	FROM state_batches
-	INNER JOIN l1_blocks ON state_batches.block_hash = l1_blocks.hash
-	WHERE size + prev_total >= (
-		SELECT
-			number
-		FROM
-		withdrawals
-		INNER JOIN l2_blocks ON withdrawals.block_hash = l2_blocks.hash where tx_hash=$1
-	) ORDER BY "index" LIMIT 1;
-	`
-
-	var batch *StateBatchJSON
-	err := txn(d.db, func(tx *sql.Tx) error {
-		row := tx.QueryRow(selectWithdrawalBatchStatement, hash.String())
-		if row.Err() != nil {
-			return row.Err()
-		}
-
-		var index, size, prevTotal, blockNumber, blockTimestamp uint64
-		var root, blockHash string
-		var extraData []byte
-		err := row.Scan(&index, &root, &size, &prevTotal, &extraData, &blockHash,
-			&blockNumber, &blockTimestamp)
-		if err != nil {
-			if errors.Is(err, sql.ErrNoRows) {
-				batch = nil
-				return nil
-			}
-			return err
-		}
-
-		batch = &StateBatchJSON{
-			Index:          index,
-			Root:           root,
-			Size:           size,
-			PrevTotal:      prevTotal,
-			ExtraData:      extraData,
-			BlockHash:      blockHash,
-			BlockNumber:    blockNumber,
-			BlockTimestamp: blockTimestamp,
-		}
-
-		return nil
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	return batch, nil
-}
-
 // GetWithdrawalsByAddress returns the list of Withdrawals indexed for the given
 // address paginated by the given params.
 func (d *Database) GetWithdrawalsByAddress(address common.Address, page PaginationParam) (*PaginatedWithdrawals, error) {
@@ -501,11 +413,6 @@ func (d *Database) GetWithdrawalsByAddress(address common.Address, page Paginati
 
 	if err != nil {
 		return nil, err
-	}
-
-	for i := range withdrawals {
-		batch, _ := d.GetWithdrawalBatch(common.HexToHash(withdrawals[i].TxHash))
-		withdrawals[i].Batch = batch
 	}
 
 	const selectWithdrawalCountStatement = `
