@@ -10,6 +10,11 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 )
 
+type Metrics interface {
+	RecordL1Ref(name string, ref eth.L1BlockRef)
+	RecordL2Ref(name string, ref eth.L2BlockRef)
+}
+
 type L1Fetcher interface {
 	L1BlockRefByLabel(ctx context.Context, label eth.BlockLabel) (eth.L1BlockRef, error)
 	L1BlockRefByNumberFetcher
@@ -71,11 +76,13 @@ type DerivationPipeline struct {
 	stages []Stage
 
 	eng EngineQueueStage
+
+	metrics Metrics
 }
 
 // NewDerivationPipeline creates a derivation pipeline, which should be reset before use.
-func NewDerivationPipeline(log log.Logger, cfg *rollup.Config, l1Fetcher L1Fetcher, engine Engine) *DerivationPipeline {
-	eng := NewEngineQueue(log, cfg, engine)
+func NewDerivationPipeline(log log.Logger, cfg *rollup.Config, l1Fetcher L1Fetcher, engine Engine, metrics Metrics) *DerivationPipeline {
+	eng := NewEngineQueue(log, cfg, engine, metrics)
 	attributesQueue := NewAttributesQueue(log, cfg, l1Fetcher, eng)
 	batchQueue := NewBatchQueue(log, cfg, attributesQueue)
 	chInReader := NewChannelInReader(log, batchQueue)
@@ -93,6 +100,7 @@ func NewDerivationPipeline(log log.Logger, cfg *rollup.Config, l1Fetcher L1Fetch
 		active:    0,
 		stages:    stages,
 		eng:       eng,
+		metrics:   metrics,
 	}
 }
 
@@ -137,6 +145,8 @@ func (dp *DerivationPipeline) AddUnsafePayload(payload *eth.ExecutionPayload) {
 // An error is expected when the underlying source closes.
 // When Step returns nil, it should be called again, to continue the derivation process.
 func (dp *DerivationPipeline) Step(ctx context.Context) error {
+	defer dp.metrics.RecordL1Ref("l1_derived", dp.Progress().Origin)
+
 	// if any stages need to be reset, do that first.
 	if dp.resetting < len(dp.stages) {
 		if err := dp.stages[dp.resetting].ResetStep(ctx, dp.l1Fetcher); err == io.EOF {

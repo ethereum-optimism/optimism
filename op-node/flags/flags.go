@@ -2,6 +2,7 @@ package flags
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/urfave/cli"
 )
@@ -81,6 +82,13 @@ var (
 		Required: false,
 		Value:    4,
 	}
+	L1EpochPollIntervalFlag = cli.DurationFlag{
+		Name:     "l1.epoch-poll-interval",
+		Usage:    "Poll interval for retrieving new L1 epoch updates such as safe and finalized block changes. Disabled if 0 or negative.",
+		EnvVar:   prefixEnvVar("L1_EPOCH_POLL_INTERVAL"),
+		Required: false,
+		Value:    time.Second * 12 * 32,
+	}
 	LogLevelFlag = cli.StringFlag{
 		Name:   "log.level",
 		Usage:  "The lowest log level that will be output",
@@ -154,6 +162,7 @@ var optionalFlags = append([]cli.Flag{
 	VerifierL1Confs,
 	SequencerEnabledFlag,
 	SequencerL1Confs,
+	L1EpochPollIntervalFlag,
 	LogLevelFlag,
 	LogFormatFlag,
 	LogColorFlag,
