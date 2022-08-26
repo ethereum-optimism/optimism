@@ -4,6 +4,17 @@ import '@nomiclabs/hardhat-ethers'
 import '@eth-optimism/hardhat-deploy-config'
 
 const deployFn: DeployFunction = async (hre) => {
+  const { deploy } = hre.deployments
+  const { deployer } = await hre.getNamedAccounts()
+  const { deployConfig } = hre
+
+  await deploy('ProxyAdmin', {
+    from: deployer,
+    args: [deployer],
+    log: true,
+    waitConfirmations: deployConfig.deploymentWaitConfirmations,
+  })
+
   const admin = await hre.deployments.get('ProxyAdmin')
   const ProxyAdmin = await hre.ethers.getContractAt('ProxyAdmin', admin.address)
 
@@ -46,6 +57,6 @@ const deployFn: DeployFunction = async (hre) => {
   await Promise.all(postConfig.map((tx) => tx.wait()))
 }
 
-deployFn.tags = ['ConfigureProxyAdmin']
+deployFn.tags = ['ProxyAdmin']
 
 export default deployFn
