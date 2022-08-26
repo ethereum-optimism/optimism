@@ -5,9 +5,9 @@ import (
 	"io"
 	"testing"
 
-	"github.com/stretchr/testify/mock"
-
+	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/testutils"
+	"github.com/stretchr/testify/mock"
 )
 
 var _ Engine = (*testutils.MockEngine)(nil)
@@ -58,3 +58,24 @@ func RepeatStep(t *testing.T, step func(ctx context.Context, outer Progress) err
 	t.Fatal("ran out of steps")
 	return nil
 }
+
+// TestMetrics implements the metrics used in the derivation pipeline as no-op operations.
+// Optionally a test may hook into the metrics
+type TestMetrics struct {
+	recordL1Ref func(name string, ref eth.L1BlockRef)
+	recordL2Ref func(name string, ref eth.L2BlockRef)
+}
+
+func (t *TestMetrics) RecordL1Ref(name string, ref eth.L1BlockRef) {
+	if t.recordL1Ref != nil {
+		t.recordL1Ref(name, ref)
+	}
+}
+
+func (t *TestMetrics) RecordL2Ref(name string, ref eth.L2BlockRef) {
+	if t.recordL2Ref != nil {
+		t.recordL2Ref(name, ref)
+	}
+}
+
+var _ Metrics = (*TestMetrics)(nil)
