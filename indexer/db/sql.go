@@ -51,20 +51,6 @@ CREATE TABLE IF NOT EXISTS l2_tokens (
 )
 `
 
-const createStateBatchesTable = `
-CREATE TABLE IF NOT EXISTS state_batches (
-	index INTEGER NOT NULL PRIMARY KEY,
-	root VARCHAR NOT NULL,
-	size INTEGER NOT NULL,
-	prev_total INTEGER NOT NULL,
-	extra_data BYTEA NOT NULL,
-	block_hash VARCHAR NOT NULL REFERENCES l1_blocks(hash)
-);
-CREATE INDEX IF NOT EXISTS state_batches_block_hash ON state_batches(block_hash);
-CREATE INDEX IF NOT EXISTS state_batches_size ON state_batches(size);
-CREATE INDEX IF NOT EXISTS state_batches_prev_total ON state_batches(prev_total);
-`
-
 const createWithdrawalsTable = `
 CREATE TABLE IF NOT EXISTS withdrawals (
 	guid VARCHAR PRIMARY KEY NOT NULL,
@@ -77,7 +63,6 @@ CREATE TABLE IF NOT EXISTS withdrawals (
 	log_index INTEGER NOT NULL,
 	block_hash VARCHAR NOT NULL REFERENCES l2_blocks(hash),
 	tx_hash VARCHAR NOT NULL,
-	state_batch INTEGER REFERENCES state_batches(index)
 )
 `
 
@@ -127,7 +112,6 @@ var schema = []string{
 	createL2BlocksTable,
 	createL1TokensTable,
 	createL2TokensTable,
-	createStateBatchesTable,
 	insertETHL1Token,
 	insertETHL2Token,
 	createDepositsTable,
