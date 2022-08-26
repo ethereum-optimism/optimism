@@ -2,6 +2,7 @@ package derive
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"time"
@@ -163,7 +164,17 @@ func (eq *EngineQueue) tryNextUnsafePayload(ctx context.Context) error {
 	}
 	fcRes, err := eq.engine.ForkchoiceUpdate(ctx, &fc, nil)
 	if err != nil {
-		return NewTemporaryError(fmt.Errorf("failed to update forkchoice to prepare for new unsafe payload: %v", err))
+		var inputErr eth.InputError
+		if errors.As(err, &inputErr) {
+			switch inputErr.Code {
+			case eth.InvalidForkchoiceState:
+				return NewResetError(fmt.Errorf("pre-unsafe-block forkchoice update was inconsistent with engine, need reset to resolve: %w", inputErr.Unwrap()))
+			default:
+				return NewTemporaryError(fmt.Errorf("unexpected error code in forkchoice-updated response: %w", err))
+			}
+		} else {
+			return NewTemporaryError(fmt.Errorf("failed to update forkchoice to prepare for new unsafe payload: %w", err))
+		}
 	}
 	if fcRes.PayloadStatus.Status != eth.ExecutionValid {
 		eq.unsafePayloads = eq.unsafePayloads[1:]
@@ -238,27 +249,33 @@ func (eq *EngineQueue) forceNextSafeAttributes(ctx context.Context) error {
 		FinalizedBlockHash: eq.finalized.Hash,
 	}
 	attrs := eq.safeAttributes[0]
-	payload, rpcErr, payloadErr := InsertHeadBlock(ctx, eq.log, eq.engine, fc, attrs, true)
-	if rpcErr != nil {
-		// RPC errors are recoverable, we can retry the buffered payload attributes later.
-		return NewTemporaryError(fmt.Errorf("failed to insert new block: %v", rpcErr))
-	}
-	if payloadErr != nil {
-		eq.log.Warn("could not process payload derived from L1 data", "err", payloadErr)
-		// filter everything but the deposits
-		var deposits []hexutil.Bytes
-		for _, tx := range attrs.Transactions {
-			if len(tx) > 0 && tx[0] == types.DepositTxType {
-				deposits = append(deposits, tx)
+	payload, errType, err := InsertHeadBlock(ctx, eq.log, eq.engine, fc, attrs, true)
+	if err != nil {
+		switch errType {
+		case BlockInsertTemporaryErr:
+			// RPC errors are recoverable, we can retry the buffered payload attributes later.
+			return NewTemporaryError(fmt.Errorf("temporarily cannot insert new safe block: %w", err))
+		case BlockInsertPrestateErr:
+			return NewResetError(fmt.Errorf("need reset to resolve pre-state problem: %w", err))
+		case BlockInsertPayloadErr:
+			eq.log.Warn("could not process payload derived from L1 data", "err", err)
+			// filter everything but the deposits
+			var deposits []hexutil.Bytes
+			for _, tx := range attrs.Transactions {
+				if len(tx) > 0 && tx[0] == types.DepositTxType {
+					deposits = append(deposits, tx)
+				}
 			}
+			if len(attrs.Transactions) > len(deposits) {
+				eq.log.Warn("dropping sequencer transactions from payload for re-attempt, batcher may have included invalid transactions",
+					"txs", len(attrs.Transactions), "deposits", len(deposits), "parent", eq.safeHead)
+				eq.safeAttributes[0].Transactions = deposits
+				return nil
+			}
+			return NewCriticalError(fmt.Errorf("failed to process block with only deposit transactions: %w", err))
+		default:
+			return NewCriticalError(fmt.Errorf("unknown InsertHeadBlock error type %d: %w", errType, err))
 		}
-		if len(attrs.Transactions) > len(deposits) {
-			eq.log.Warn("dropping sequencer transactions from payload for re-attempt, batcher may have included invalid transactions",
-				"txs", len(attrs.Transactions), "deposits", len(deposits), "parent", eq.safeHead)
-			eq.safeAttributes[0].Transactions = deposits
-			return nil
-		}
-		return NewCriticalError(fmt.Errorf("failed to process block with only deposit transactions: %w", payloadErr))
 	}
 	ref, err := PayloadToBlockRef(payload, &eq.cfg.Genesis)
 	if err != nil {
