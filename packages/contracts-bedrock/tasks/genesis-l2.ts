@@ -305,7 +305,6 @@ task('genesis-l2', 'create a genesis config')
 
     // Use the address of the deployed ProxyAdmin as the admin for
     // each Proxy
-    const Deployment__ProxyAdmin = await hre.deployments.get('ProxyAdmin')
 
     // Set a proxy at each predeploy address
     const proxy = await hre.artifacts.readArtifact('Proxy')
