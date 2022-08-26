@@ -15,7 +15,7 @@ func (c *MockL2Client) L2BlockRefByLabel(ctx context.Context, label eth.BlockLab
 	return c.Mock.MethodCalled("L2BlockRefByLabel", label).Get(0).(eth.L2BlockRef), nil
 }
 
-func (m *MockL1Source) ExpectL2BlockRefByLabel(label eth.BlockLabel, ref eth.L2BlockRef, err error) {
+func (m *MockL2Client) ExpectL2BlockRefByLabel(label eth.BlockLabel, ref eth.L2BlockRef, err error) {
 	m.Mock.On("L2BlockRefByLabel", label).Once().Return(ref, &err)
 }
 
@@ -23,7 +23,7 @@ func (c *MockL2Client) L2BlockRefByNumber(ctx context.Context, num uint64) (eth.
 	return c.Mock.MethodCalled("L2BlockRefByNumber", num).Get(0).(eth.L2BlockRef), nil
 }
 
-func (m *MockL1Source) ExpectL2BlockRefByNumber(num uint64, ref eth.L2BlockRef, err error) {
+func (m *MockL2Client) ExpectL2BlockRefByNumber(num uint64, ref eth.L2BlockRef, err error) {
 	m.Mock.On("L2BlockRefByNumber", num).Once().Return(ref, &err)
 }
 
@@ -31,6 +31,6 @@ func (c *MockL2Client) L2BlockRefByHash(ctx context.Context, hash common.Hash) (
 	return c.Mock.MethodCalled("L2BlockRefByHash", hash).Get(0).(eth.L2BlockRef), nil
 }
 
-func (m *MockL1Source) ExpectL2BlockRefByHash(hash common.Hash, ref eth.L2BlockRef, err error) {
+func (m *MockL2Client) ExpectL2BlockRefByHash(hash common.Hash, ref eth.L2BlockRef, err error) {
 	m.Mock.On("L2BlockRefByHash", hash).Once().Return(ref, &err)
 }

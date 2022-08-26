@@ -12,7 +12,7 @@ type MockL1Source struct {
 }
 
 func (m *MockL1Source) L1BlockRefByLabel(ctx context.Context, label eth.BlockLabel) (eth.L1BlockRef, error) {
-	out := m.Mock.MethodCalled("L1BlockRefByLabel")
+	out := m.Mock.MethodCalled("L1BlockRefByLabel", label)
 	return out[0].(eth.L1BlockRef), *out[1].(*error)
 }
 
