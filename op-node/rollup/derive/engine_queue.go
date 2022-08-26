@@ -47,13 +47,15 @@ type EngineQueue struct {
 	unsafePayloads []*eth.ExecutionPayload
 
 	engine Engine
+
+	metrics Metrics
 }
 
 var _ AttributesQueueOutput = (*EngineQueue)(nil)
 
 // NewEngineQueue creates a new EngineQueue, which should be Reset(origin) before use.
-func NewEngineQueue(log log.Logger, cfg *rollup.Config, engine Engine) *EngineQueue {
-	return &EngineQueue{log: log, cfg: cfg, engine: engine}
+func NewEngineQueue(log log.Logger, cfg *rollup.Config, engine Engine, metrics Metrics) *EngineQueue {
+	return &EngineQueue{log: log, cfg: cfg, engine: engine, metrics: metrics}
 }
 
 func (eq *EngineQueue) Progress() Progress {
@@ -62,6 +64,7 @@ func (eq *EngineQueue) Progress() Progress {
 
 func (eq *EngineQueue) SetUnsafeHead(head eth.L2BlockRef) {
 	eq.unsafeHead = head
+	eq.metrics.RecordL2Ref("l2_unsafe", head)
 }
 
 func (eq *EngineQueue) AddUnsafePayload(payload *eth.ExecutionPayload) {
@@ -130,6 +133,17 @@ func (eq *EngineQueue) Step(ctx context.Context, outer Progress) error {
 //	return nil
 //}
 
+func (eq *EngineQueue) logSyncProgress(reason string) {
+	eq.log.Info("Sync progress",
+		"reason", reason,
+		"l2_finalized", eq.finalized,
+		"l2_safe", eq.safeHead,
+		"l2_unsafe", eq.unsafeHead,
+		"l2_time", eq.unsafeHead.Time,
+		"l1_derived", eq.progress.Origin,
+	)
+}
+
 func (eq *EngineQueue) tryNextUnsafePayload(ctx context.Context) error {
 	first := eq.unsafePayloads[0]
 
@@ -192,7 +206,9 @@ func (eq *EngineQueue) tryNextUnsafePayload(ctx context.Context) error {
 	}
 	eq.unsafeHead = ref
 	eq.unsafePayloads = eq.unsafePayloads[1:]
+	eq.metrics.RecordL2Ref("l2_unsafe", ref)
 	eq.log.Trace("Executed unsafe payload", "hash", ref.Hash, "number", ref.Number, "timestamp", ref.Time, "l1Origin", ref.L1Origin)
+	eq.logSyncProgress("unsafe payload from sequencer")
 
 	return nil
 }
@@ -206,6 +222,7 @@ func (eq *EngineQueue) tryNextSafeAttributes(ctx context.Context) error {
 		// For some reason the unsafe head is behind the safe head. Log it, and correct it.
 		eq.log.Error("invalid sync state, unsafe head is behind safe head", "unsafe", eq.unsafeHead, "safe", eq.safeHead)
 		eq.unsafeHead = eq.safeHead
+		eq.metrics.RecordL2Ref("l2_unsafe", eq.unsafeHead)
 		return nil
 	}
 }
@@ -233,7 +250,7 @@ func (eq *EngineQueue) consolidateNextSafeAttributes(ctx context.Context) error 
 	eq.safeHead = ref
 	// unsafe head stays the same, we did not reorg the chain.
 	eq.safeAttributes = eq.safeAttributes[1:]
-	eq.log.Trace("Reconciled safe payload", "hash", ref.Hash, "number", ref.Number, "timestamp", ref.Time, "l1Origin", ref.L1Origin)
+	eq.logSyncProgress("reconciled with L1")
 
 	return nil
 }
@@ -283,8 +300,10 @@ func (eq *EngineQueue) forceNextSafeAttributes(ctx context.Context) error {
 	}
 	eq.safeHead = ref
 	eq.unsafeHead = ref
+	eq.metrics.RecordL2Ref("l2_safe", ref)
+	eq.metrics.RecordL2Ref("l2_unsafe", ref)
 	eq.safeAttributes = eq.safeAttributes[1:]
-	eq.log.Trace("Inserted safe block", "hash", ref.Hash, "number", ref.Number, "timestamp", ref.Time, "l1Origin", ref.L1Origin)
+	eq.logSyncProgress("processed safe block derived from L1")
 
 	return nil
 }
@@ -316,5 +335,9 @@ func (eq *EngineQueue) ResetStep(ctx context.Context, l1Fetcher L1Fetcher) error
 		Origin: l1Origin,
 		Closed: false,
 	}
+	eq.metrics.RecordL2Ref("l2_finalized", eq.finalized) // todo(proto): finalized L2 block updates
+	eq.metrics.RecordL2Ref("l2_safe", safe)
+	eq.metrics.RecordL2Ref("l2_unsafe", unsafe)
+	eq.logSyncProgress("reset derivation work")
 	return io.EOF
 }

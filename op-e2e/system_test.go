@@ -110,6 +110,7 @@ func defaultSystemConfig(t *testing.T) SystemConfig {
 					SequencerConfDepth: 0,
 					SequencerEnabled:   false,
 				},
+				L1EpochPollInterval: time.Second * 4,
 			},
 			"sequencer": {
 				Driver: driver.Config{
@@ -123,6 +124,7 @@ func defaultSystemConfig(t *testing.T) SystemConfig {
 					ListenPort:  9093,
 					EnableAdmin: true,
 				},
+				L1EpochPollInterval: time.Second * 4,
 			},
 		},
 		Loggers: map[string]log.Logger{
