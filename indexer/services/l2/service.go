@@ -336,18 +336,6 @@ func (s *Service) GetIndexerStatus(w http.ResponseWriter, r *http.Request) {
 	server.RespondWithJSON(w, http.StatusOK, status)
 }
 
-func (s *Service) GetWithdrawalBatch(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-
-	batch, err := s.cfg.DB.GetWithdrawalBatch(common.HexToHash(vars["hash"]))
-	if err != nil {
-		server.RespondWithError(w, http.StatusInternalServerError, err.Error())
-		return
-	}
-
-	server.RespondWithJSON(w, http.StatusOK, batch)
-}
-
 func (s *Service) GetWithdrawals(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 
