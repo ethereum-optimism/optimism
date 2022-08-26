@@ -319,6 +319,5 @@ func StorageSlotOfWithdrawalHash(hash common.Hash) common.Hash {
 	// Where p is the 32 byte value of the storage slot and ++ is concatenation
 	buf := make([]byte, 64)
 	copy(buf, hash[:])
-	buf[63] = 1
 	return crypto.Keccak256Hash(buf)
 }
