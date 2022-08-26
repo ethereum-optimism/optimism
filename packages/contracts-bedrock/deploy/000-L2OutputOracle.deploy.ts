@@ -38,7 +38,7 @@ const deployFn: DeployFunction = async (hre) => {
     waitConfirmations: deployConfig.deploymentWaitConfirmations,
   })
 
-  const proxy = await hre.deployments.get('L2OutputOracleProxy')
+  const proxy = await hre.deployments.get('L2OutputOracle')
 
   const L2OutputOracle = await hre.ethers.getContractAt(
     'L2OutputOracle',
