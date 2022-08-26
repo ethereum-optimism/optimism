@@ -90,14 +90,14 @@ contract L2OutputOracle_Initializer is CommonTest {
         L2ToL1MessagePasser(payable(Predeploys.L2_TO_L1_MESSAGE_PASSER));
 
     // Constructor arguments
-    address proposer = 0x000000000000000000000000000000000000AbBa;
-    address owner = 0x000000000000000000000000000000000000ACDC;
-    uint256 submissionInterval = 1800;
-    uint256 l2BlockTime = 2;
-    bytes32 genesisL2Output = keccak256(abi.encode(0));
-    uint256 historicalTotalBlocks = 199;
-    uint256 startingBlockNumber = 200;
-    uint256 startingTimestamp = 1000;
+    address internal proposer = 0x000000000000000000000000000000000000AbBa;
+    address internal owner = 0x000000000000000000000000000000000000ACDC;
+    uint256 internal submissionInterval = 1800;
+    uint256 internal l2BlockTime = 2;
+    bytes32 internal genesisL2Output = keccak256(abi.encode(0));
+    uint256 internal historicalTotalBlocks = 199;
+    uint256 internal startingBlockNumber = 200;
+    uint256 internal startingTimestamp = 1000;
 
     // Test data
     uint256 initL1Time;

@@ -128,8 +128,8 @@ contract L2OutputOracle is OwnableUpgradeable, Semver {
         address _owner
     ) Semver(0, 0, 1) {
         require(
-            _l2BlockTime < block.timestamp,
-            "L2OutputOracle: initial L2 block time must be less than current time"
+            _startingTimestamp <= block.timestamp,
+            "L2OutputOracle: starting L2 timestamp must be less than current time"
         );
 
         SUBMISSION_INTERVAL = _submissionInterval;
