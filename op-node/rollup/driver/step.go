@@ -45,12 +45,9 @@ func (d *outputImpl) createNewBlock(ctx context.Context, l2Head eth.L2BlockRef, 
 	}
 
 	// Actually execute the block and add it to the head of the chain.
-	payload, rpcErr, payloadErr := derive.InsertHeadBlock(ctx, d.log, d.l2, fc, attrs, false)
-	if rpcErr != nil {
-		return l2Head, nil, fmt.Errorf("failed to extend L2 chain due to RPC error: %v", rpcErr)
-	}
-	if payloadErr != nil {
-		return l2Head, nil, fmt.Errorf("failed to extend L2 chain, cannot produce valid payload: %v", payloadErr)
+	payload, errType, err := derive.InsertHeadBlock(ctx, d.log, d.l2, fc, attrs, false)
+	if err != nil {
+		return l2Head, nil, fmt.Errorf("failed to extend L2 chain, error (%d): %w", errType, err)
 	}
 
 	// Generate an L2 block ref from the payload.
