@@ -75,13 +75,9 @@ abstract contract ERC721Bridge is Initializable, CrossDomainEnabled {
     address public otherBridge;
 
     /**
-     * @param _messenger   Address of the CrossDomainMessenger on this network.
-     * @param _otherBridge Address of the ERC721 bridge on the other network.
+     * @notice Reserve extra slots (to a total of 50) in the storage layout for future upgrades.
      */
-    function initialize(address _messenger, address _otherBridge) public initializer {
-        messenger = _messenger;
-        otherBridge = _otherBridge;
-    }
+    uint256[48] private __gap;
 
     /**
      * @notice Initiates a bridge of an NFT to the caller's account on the other domain.
@@ -145,6 +141,21 @@ abstract contract ERC721Bridge is Initializable, CrossDomainEnabled {
             _minGasLimit,
             _extraData
         );
+    }
+
+    /**
+     * @notice Initializer.
+     *
+     * @param _messenger   Address of the CrossDomainMessenger on this network.
+     * @param _otherBridge Address of the ERC721 bridge on the other network.
+     */
+    // solhint-disable-next-line func-name-mixedcase
+    function __ERC721Bridge_init(address _messenger, address _otherBridge)
+        internal
+        onlyInitializing
+    {
+        messenger = _messenger;
+        otherBridge = _otherBridge;
     }
 
     /**

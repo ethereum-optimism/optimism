@@ -35,6 +35,16 @@ contract L2ERC721Bridge is ERC721Bridge, Semver, OwnableUpgradeable {
     }
 
     /**
+     * @notice Initializer.
+     *
+     * @param _messenger   Address of the L2CrossDomainMessenger.
+     * @param _otherBridge Address of the L1ERC721Bridge.
+     */
+    function initialize(address _messenger, address _otherBridge) public initializer {
+        __ERC721Bridge_init(_messenger, _otherBridge);
+    }
+
+    /**
      * @notice Completes an ERC721 bridge from the other domain and sends the ERC721 token to the
      *         recipient on this domain.
      *
