@@ -326,7 +326,7 @@ task('genesis-l2', 'create a genesis config')
         balance: '0x0',
         code: proxy.deployedBytecode,
         storage: {
-          [adminSlot]: Deployment__ProxyAdmin.address,
+          [adminSlot]: '0x000000000000000000000000000000000000AbBa',
         },
       }
 
