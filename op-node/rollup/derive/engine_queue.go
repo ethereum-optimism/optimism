@@ -10,7 +10,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
-	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -71,6 +70,8 @@ type EngineQueue struct {
 
 	// Tracks which L2 blocks where last derived from which L1 block. At most finalityLookback large.
 	finalityData []FinalityData
+
+	syncStart *sync.FindSyncStart
 
 	engine Engine
 
@@ -174,6 +175,10 @@ func (eq *EngineQueue) postProcessSafeL2() {
 	// prune finality data if necessary
 	if len(eq.finalityData) >= finalityLookback {
 		eq.finalityData = append(eq.finalityData[:0], eq.finalityData[1:finalityLookback]...)
+	}
+	// after resets we have a safe head that is equal or later than the L1 chain, we can't count that as derived.
+	if eq.safeHead.L1Origin.Number >= eq.progress.Origin.Number {
+		return
 	}
 	// remember the last L2 block that we fully derived from the given finality data
 	if len(eq.finalityData) == 0 || eq.finalityData[len(eq.finalityData)-1].L1Block.Number < eq.progress.Origin.Number {
@@ -369,38 +374,37 @@ func (eq *EngineQueue) forceNextSafeAttributes(ctx context.Context) error {
 // ResetStep Walks the L2 chain backwards until it finds an L2 block whose L1 origin is canonical.
 // The unsafe head is set to the head of the L2 chain, unless the existing safe head is not canonical.
 func (eq *EngineQueue) ResetStep(ctx context.Context, l1Fetcher L1Fetcher) error {
-	finalized, err := eq.engine.L2BlockRefByLabel(ctx, eth.Finalized)
-	if errors.Is(err, ethereum.NotFound) {
-		// default to genesis if we have not finalized anything before.
-		finalized, err = eq.engine.L2BlockRefByHash(ctx, eq.cfg.Genesis.L2.Hash)
+	if eq.syncStart == nil {
+		eq.syncStart = sync.NewFindSyncStart(eq.cfg, l1Fetcher, eq.engine)
+		return nil
 	}
-	if err != nil {
-		return NewTemporaryError(fmt.Errorf("failed to find the finalized L2 block: %w", err))
+
+	err := eq.syncStart.Step(ctx)
+	if err == nil {
+		return nil // more sync start steps left to do
 	}
-	// TODO: this should be resetting using the safe head instead. Out of scope for L2 client bindings PR.
-	prevUnsafe, err := eq.engine.L2BlockRefByLabel(ctx, eth.Unsafe)
-	if err != nil {
-		return NewTemporaryError(fmt.Errorf("failed to find the L2 Head block: %w", err))
+	if err != io.EOF {
+		if errors.Is(err, sync.TooDeepReorgErr) {
+			return NewCriticalError(err)
+		}
+		if errors.Is(err, sync.WrongChainErr) {
+			return NewCriticalError(err)
+		}
+		if errors.Is(err, sync.ReorgFinalizedErr) {
+			return NewResetError(err)
+		}
+		return NewTemporaryError(fmt.Errorf("sync start step failed: %w", err))
 	}
-	unsafe, safe, err := sync.FindL2Heads(ctx, prevUnsafe, eq.cfg.SeqWindowSize, l1Fetcher, eq.engine, &eq.cfg.Genesis)
-	if err != nil {
-		return NewTemporaryError(fmt.Errorf("failed to find the L2 Heads to start from: %w", err))
-	}
-	l1Origin, err := l1Fetcher.L1BlockRefByHash(ctx, safe.L1Origin.Hash)
-	if err != nil {
-		return NewTemporaryError(fmt.Errorf("failed to fetch the new L1 progress: origin: %v; err: %v", safe.L1Origin, err))
-	}
-	if safe.Time < l1Origin.Time {
-		return NewResetError(fmt.Errorf("cannot reset block derivation to start at L2 block %s with time %d older than its L1 origin %s with time %d, time invariant is broken",
-			safe, safe.Time, l1Origin, l1Origin.Time))
-	}
-	eq.log.Debug("Reset engine queue", "safeHead", safe, "unsafe", unsafe, "safe_timestamp", safe.Time, "unsafe_timestamp", unsafe.Time, "l1Origin", l1Origin)
+
+	finalized, safe, unsafe, startL1 := eq.syncStart.Result()
+
+	eq.log.Debug("Reset engine queue", "l2_finalized", finalized, "l2_safe", safe, "l2_unsafe", unsafe, "l1_start", startL1)
 	eq.unsafeHead = unsafe
 	eq.safeHead = safe
 	eq.finalized = finalized
 	eq.finalityData = eq.finalityData[:0]
 	eq.progress = Progress{
-		Origin: l1Origin,
+		Origin: startL1,
 		Closed: false,
 	}
 	eq.metrics.RecordL2Ref("l2_finalized", finalized)

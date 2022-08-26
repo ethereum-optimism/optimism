@@ -1,6 +1,7 @@
 package derive
 
 import (
+	"fmt"
 	"math/rand"
 	"testing"
 
@@ -33,8 +34,12 @@ func TestEngineQueue_Finalize(t *testing.T) {
 	//  D: unsafe, not yet referenced by L2
 
 	l1Time := uint64(2)
-	refA := testutils.RandomBlockRef(rng)
-
+	refA := eth.L1BlockRef{
+		Hash:       testutils.RandomHash(rng),
+		Number:     10000,
+		ParentHash: testutils.RandomHash(rng),
+		Time:       2000000,
+	}
 	refB := eth.L1BlockRef{
 		Hash:       testutils.RandomHash(rng),
 		Number:     refA.Number + 1,
@@ -103,42 +108,85 @@ func TestEngineQueue_Finalize(t *testing.T) {
 		L1Origin:       refC.ID(),
 		SequenceNumber: 0,
 	}
+	refC1 := eth.L2BlockRef{
+		Hash:           testutils.RandomHash(rng),
+		Number:         refC0.Number + 1,
+		ParentHash:     refC0.Hash,
+		Time:           refC0.Time + cfg.BlockTime,
+		L1Origin:       refC.ID(),
+		SequenceNumber: 1,
+	}
+	refD0 := eth.L2BlockRef{
+		Hash:           testutils.RandomHash(rng),
+		Number:         refC1.Number + 1,
+		ParentHash:     refC1.Hash,
+		Time:           refC1.Time + cfg.BlockTime,
+		L1Origin:       refD.ID(),
+		SequenceNumber: 0,
+	}
+	refD1 := eth.L2BlockRef{
+		Hash:           testutils.RandomHash(rng),
+		Number:         refD0.Number + 1,
+		ParentHash:     refD0.Hash,
+		Time:           refD0.Time + cfg.BlockTime,
+		L1Origin:       refD.ID(),
+		SequenceNumber: 1,
+	}
+	fmt.Println("refA", refA.Hash)
+	fmt.Println("refB", refB.Hash)
+	fmt.Println("refC", refC.Hash)
+	fmt.Println("refD", refD.Hash)
+
+	fmt.Println("refA0", refA0.Hash)
+	fmt.Println("refA1", refA1.Hash)
+	fmt.Println("refB0", refB0.Hash)
+	fmt.Println("refB1", refB1.Hash)
+	fmt.Println("refC0", refC0.Hash)
+	fmt.Println("refC1", refC1.Hash)
+	fmt.Println("refD0", refD0.Hash)
 
 	metrics := &TestMetrics{}
 	eng := &testutils.MockEngine{}
-	eng.ExpectL2BlockRefByLabel(eth.Finalized, refA1, nil)
-	// TODO(Proto): update expectation once we're using safe block label properly for sync starting point
-	eng.ExpectL2BlockRefByLabel(eth.Unsafe, refC0, nil)
-
 	// we find the common point to initialize to by comparing the L1 origins in the L2 chain with the L1 chain
 	l1F := &testutils.MockL1Source{}
-	l1F.ExpectL1BlockRefByLabel(eth.Unsafe, refD, nil)
-	l1F.ExpectL1BlockRefByNumber(refC0.L1Origin.Number, refC, nil)
-	eng.ExpectL2BlockRefByHash(refC0.ParentHash, refB1, nil)   // good L1 origin
-	eng.ExpectL2BlockRefByHash(refB1.ParentHash, refB0, nil)   // need a block with seqnr == 0, don't stop at above
-	l1F.ExpectL1BlockRefByHash(refB0.L1Origin.Hash, refB, nil) // the origin of the safe L2 head will be the L1 starting point for derivation.
+
+	eng.ExpectL2BlockRefByLabel(eth.Finalized, refA1, nil)
+	eng.ExpectL2BlockRefByLabel(eth.Safe, refD0, nil)
+	eng.ExpectL2BlockRefByLabel(eth.Unsafe, refD1, nil)
+
+	l1F.ExpectL1BlockRefByNumber(refD.Number, refD, nil)     // fetch L1 origin of head, it's canon
+	eng.ExpectL2BlockRefByHash(refD1.ParentHash, refD0, nil) // traverse L2 chain, find safe head D0
+	eng.ExpectL2BlockRefByHash(refD0.ParentHash, refC1, nil) // traverse back full seq window
+	l1F.ExpectL1BlockRefByNumber(refC.Number, refC, nil)
+	eng.ExpectL2BlockRefByHash(refC1.ParentHash, refC0, nil)
+	eng.ExpectL2BlockRefByHash(refC0.ParentHash, refB1, nil)
+	l1F.ExpectL1BlockRefByNumber(refB.Number, refB, nil)
+	l1F.ExpectL1BlockRefByHash(refB.Hash, refB, nil)
 
 	eq := NewEngineQueue(logger, cfg, eng, metrics)
-	require.NoError(t, RepeatResetStep(t, eq.ResetStep, l1F, 3))
+	require.NoError(t, RepeatResetStep(t, eq.ResetStep, l1F, 20))
 
-	// TODO(proto): this is changing, needs to be a sequence window ago, but starting traversal back from safe block,
-	// safe blocks with canon origin are good, but we go back a full window to ensure they are all included in L1,
-	// by forcing them to be consolidated with L1 again.
-	require.Equal(t, eq.SafeL2Head(), refB0, "L2 reset should go back to sequence window ago")
-
+	require.Equal(t, refB1, eq.SafeL2Head(), "L2 reset should go back to sequence window ago: blocks with origin D and C are not safe until we reconcile")
+	require.Equal(t, refB, eq.Progress().Origin, "Expecting to be set back derivation L1 progress to B")
 	require.Equal(t, refA1, eq.Finalized(), "A1 is recognized as finalized before we run any steps")
 
-	// we are not adding blocks in this test,
-	// but we can still trigger post-processing for the already existing safe head,
-	// so the engine can prepare to finalize that.
+	// now say B1 was included in C and became the new safe head
+	eq.progress.Origin = refC
+	eq.safeHead = refB1
 	eq.postProcessSafeL2()
-	// let's finalize C, which included B0, but not B1
+
+	// now say C0 was included in D and became the new safe head
+	eq.progress.Origin = refD
+	eq.safeHead = refC0
+	eq.postProcessSafeL2()
+
+	// let's finalize C (current L1), from which we fully derived B1, but not C0
 	eq.Finalize(refC.ID())
 
 	// Now a few steps later, without consuming any additional L1 inputs,
-	// we should be able to resolve that B0 is now finalized
+	// we should be able to resolve that B1 is now finalized
 	require.NoError(t, RepeatStep(t, eq.Step, eq.progress, 10))
-	require.Equal(t, refB0, eq.Finalized(), "B0 was included in finalized C, and should now be finalized")
+	require.Equal(t, refB1, eq.Finalized(), "B1 was included in finalized C, and should now be finalized")
 
 	l1F.AssertExpectations(t)
 	eng.AssertExpectations(t)
