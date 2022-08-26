@@ -807,8 +807,6 @@ workflows:
           repo: us-central1-docker.pkg.dev
           context:
             - gcr
-          requires:
-            - contracts-bedrock-tests
       - hive-test:
           name: hive-test-rpc
           version: <<pipeline.git.revision>>
