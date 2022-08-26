@@ -20,8 +20,32 @@ import (
 type ErrorCode int
 
 const (
-	UnavailablePayload ErrorCode = -32001
+	UnknownPayload           ErrorCode = -32001 // Payload does not exist / is not available.
+	InvalidForkchoiceState   ErrorCode = -38002 // Forkchoice state is invalid / inconsistent.
+	InvalidPayloadAttributes ErrorCode = -38003 // Payload attributes are invalid / inconsistent.
 )
+
+// InputError distinguishes an user-input error from regular rpc errors,
+// to help the (Engine) API user divert from accidental input mistakes.
+type InputError struct {
+	Inner error
+	Code  ErrorCode
+}
+
+func (ie InputError) Error() string {
+	return fmt.Sprintf("input error %d: %s", ie.Code, ie.Inner.Error())
+}
+
+func (ie InputError) Unwrap() error {
+	return ie.Inner
+}
+
+// Is checks if the error is the given target type.
+// Any type of InputError counts, regardless of code.
+func (ie InputError) Is(target error) bool {
+	_, ok := target.(InputError)
+	return ok // we implement Unwrap, so we do not have to check the inner type now
+}
 
 type Bytes32 [32]byte
 
