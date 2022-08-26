@@ -6,11 +6,12 @@ import (
 
 // IndexedL1Block contains the L1 block including the deposits in it.
 type IndexedL1Block struct {
-	Hash       common.Hash
-	ParentHash common.Hash
-	Number     uint64
-	Timestamp  uint64
-	Deposits   []Deposit
+	Hash        common.Hash
+	ParentHash  common.Hash
+	Number      uint64
+	Timestamp   uint64
+	Deposits    []Deposit
+	Withdrawals []Withdrawal
 }
 
 // String returns the block hash for the indexed l1 block.
@@ -24,6 +25,7 @@ type IndexedL2Block struct {
 	ParentHash  common.Hash
 	Number      uint64
 	Timestamp   uint64
+	Deposits    []Deposit
 	Withdrawals []Withdrawal
 }
 

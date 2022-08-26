@@ -13,10 +13,12 @@ import (
 )
 
 type DepositsMap map[common.Hash][]db.Deposit
+type WithdrawalsMap map[common.Hash][]db.Withdrawal // Finalizations
 
 type Bridge interface {
 	Address() common.Address
 	GetDepositsByBlockRange(uint64, uint64) (DepositsMap, error)
+	GetWithdrawalsByBlockRange(uint64, uint64) (WithdrawalsMap, error)
 	String() string
 }
 

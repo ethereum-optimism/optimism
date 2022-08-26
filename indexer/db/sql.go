@@ -28,8 +28,10 @@ CREATE TABLE IF NOT EXISTS deposits (
 	amount VARCHAR NOT NULL,
 	data BYTEA NOT NULL,
 	log_index INTEGER NOT NULL,
-	block_hash VARCHAR NOT NULL REFERENCES l1_blocks(hash),
-	tx_hash VARCHAR NOT NULL
+	l1_block_hash VARCHAR NOT NULL REFERENCES l1_blocks(hash),
+	l2_block_hash VARCHAR REFERENCES l2_blocks(hash),
+	tx_hash VARCHAR NOT NULL,
+	failed BOOLEAN NOT NULL DEFAULT false
 )
 `
 
@@ -61,7 +63,8 @@ CREATE TABLE IF NOT EXISTS withdrawals (
 	amount VARCHAR NOT NULL,
 	data BYTEA NOT NULL,
 	log_index INTEGER NOT NULL,
-	block_hash VARCHAR NOT NULL REFERENCES l2_blocks(hash),
+	l1_block_hash VARCHAR REFERENCES l1_blocks(hash),
+	l2_block_hash VARCHAR NOT NULL REFERENCES l2_blocks(hash),
 	tx_hash VARCHAR NOT NULL,
 )
 `
