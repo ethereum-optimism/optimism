@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"time"
 
 	"github.com/ethereum-optimism/optimism/op-node/p2p"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
@@ -29,6 +30,9 @@ type Config struct {
 	Metrics MetricsConfig
 
 	Pprof PprofConfig
+
+	// Used to poll the L1 for new finalized or safe blocks
+	L1EpochPollInterval time.Duration
 
 	// Optional
 	Tracer Tracer

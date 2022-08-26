@@ -284,7 +284,11 @@ mainLoop:
 				l.log.Warn("issue fetching L2 head", "err", err)
 				continue
 			}
-			l.log.Info("Got new L2 sync status", "safe_head", syncStatus.SafeL2, "unsafe_head", syncStatus.UnsafeL2, "last_submitted", l.lastSubmittedBlock)
+			if syncStatus.HeadL1 == (eth.L1BlockRef{}) {
+				l.log.Info("Rollup node has no L1 head info yet")
+				continue
+			}
+			l.log.Info("Got new L2 sync status", "safe_head", syncStatus.SafeL2, "unsafe_head", syncStatus.UnsafeL2, "last_submitted", l.lastSubmittedBlock, "l1_head", syncStatus.HeadL1)
 			if syncStatus.SafeL2.Number >= syncStatus.UnsafeL2.Number {
 				l.log.Trace("No unsubmitted blocks from sequencer")
 				continue
