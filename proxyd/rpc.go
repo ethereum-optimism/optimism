@@ -3,7 +3,6 @@ package proxyd
 import (
 	"encoding/json"
 	"io"
-	"io/ioutil"
 	"strings"
 )
 
@@ -103,7 +102,7 @@ func ParseBatchRPCReq(body []byte) ([]json.RawMessage, error) {
 }
 
 func ParseRPCRes(r io.Reader) (*RPCRes, error) {
-	body, err := ioutil.ReadAll(r)
+	body, err := io.ReadAll(r)
 	if err != nil {
 		return nil, wrapErr(err, "error reading RPC response")
 	}
