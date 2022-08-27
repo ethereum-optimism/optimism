@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"math"
 	"net/http"
 	"strconv"
@@ -236,7 +235,7 @@ func (s *Server) HandleRPC(w http.ResponseWriter, r *http.Request) {
 		"user_agent", userAgent,
 	)
 
-	body, err := ioutil.ReadAll(io.LimitReader(r.Body, s.maxBodySize))
+	body, err := io.ReadAll(io.LimitReader(r.Body, s.maxBodySize))
 	if err != nil {
 		log.Error("error reading request body", "err", err)
 		writeRPCError(ctx, w, nil, ErrInternal)
