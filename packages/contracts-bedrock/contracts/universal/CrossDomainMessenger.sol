@@ -53,22 +53,22 @@ abstract contract CrossDomainMessenger is
     /**
      * @notice Constant overhead added to the base gas for a message.
      */
-    uint32 public constant MIN_GAS_CONSTANT_OVERHEAD = 200_000;
+    uint64 public constant MIN_GAS_CONSTANT_OVERHEAD = 200_000;
 
     /**
      * @notice Numerator for dynamic overhead added to the base gas for a message.
      */
-    uint32 public constant MIN_GAS_DYNAMIC_OVERHEAD_NUMERATOR = 1016;
+    uint64 public constant MIN_GAS_DYNAMIC_OVERHEAD_NUMERATOR = 1016;
 
     /**
      * @notice Denominator for dynamic overhead added to the base gas for a message.
      */
-    uint32 public constant MIN_GAS_DYNAMIC_OVERHEAD_DENOMINATOR = 1000;
+    uint64 public constant MIN_GAS_DYNAMIC_OVERHEAD_DENOMINATOR = 1000;
 
     /**
      * @notice Extra gas added to base gas for each byte of calldata in a message.
      */
-    uint32 public constant MIN_GAS_CALLDATA_OVERHEAD = 16;
+    uint64 public constant MIN_GAS_CALLDATA_OVERHEAD = 16;
 
     /**
      * @notice Minimum amount of gas required to relay a message.
@@ -370,14 +370,25 @@ abstract contract CrossDomainMessenger is
      * @return Amount of gas required to guarantee message receipt.
      */
     function baseGas(bytes calldata _message, uint32 _minGasLimit) public pure returns (uint32) {
-        return
-            // Dynamic overhead
-            ((_minGasLimit * MIN_GAS_DYNAMIC_OVERHEAD_NUMERATOR) /
-                MIN_GAS_DYNAMIC_OVERHEAD_DENOMINATOR) +
-            // Calldata overhead
-            (uint32(_message.length) * MIN_GAS_CALLDATA_OVERHEAD) +
-            // Constant overhead
-            MIN_GAS_CONSTANT_OVERHEAD;
+        // We peform the following math on uint64s to avoid overflow errors. Multiplying by
+        // MIN_GAS_DYNAMIC_OVERHEAD_NUMERATOR would otherwise limit the _minGasLimit to
+        // approximately 4.2 MM.
+        uint64 baseGas64;
+        unchecked {
+            // The first component is dynamic overhead
+            baseGas64 =
+                ((uint64(_minGasLimit) * MIN_GAS_DYNAMIC_OVERHEAD_NUMERATOR) /
+                    MIN_GAS_DYNAMIC_OVERHEAD_DENOMINATOR) +
+                // Then calldata overhead
+                (uint64(_message.length) * MIN_GAS_CALLDATA_OVERHEAD) +
+                // Then constant overhead
+                MIN_GAS_CONSTANT_OVERHEAD;
+        }
+        // We downcast so that the return type matches the input type
+        uint32 baseGas32 = uint32(baseGas64);
+        // Down casting can silently overflow, so we check for it explicitly.
+        require(baseGas32 > _minGasLimit, "CrossDomainMessenger: overflow in baseGas calculation");
+        return baseGas32;
     }
 
     /**
@@ -404,7 +415,7 @@ abstract contract CrossDomainMessenger is
      */
     function _sendMessage(
         address _to,
-        uint64 _gasLimit,
+        uint32 _gasLimit,
         uint256 _value,
         bytes memory _data
     ) internal virtual;

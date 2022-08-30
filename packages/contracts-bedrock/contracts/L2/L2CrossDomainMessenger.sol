@@ -50,7 +50,7 @@ contract L2CrossDomainMessenger is CrossDomainMessenger, Semver {
      */
     function _sendMessage(
         address _to,
-        uint64 _gasLimit,
+        uint32 _gasLimit,
         uint256 _value,
         bytes memory _data
     ) internal override {
