@@ -3,9 +3,6 @@ pragma solidity 0.8.15;
 
 import { ERC721Bridge } from "../universal/op-erc721/ERC721Bridge.sol";
 import {
-    CrossDomainEnabled
-} from "@eth-optimism/contracts/libraries/bridge/CrossDomainEnabled.sol";
-import {
     OwnableUpgradeable
 } from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import { IERC721 } from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
@@ -31,10 +28,7 @@ contract L1ERC721Bridge is ERC721Bridge, Semver, OwnableUpgradeable {
      * @param _messenger   Address of the CrossDomainMessenger on this network.
      * @param _otherBridge Address of the ERC721 bridge on the other network.
      */
-    constructor(address _messenger, address _otherBridge)
-        Semver(0, 0, 1)
-        CrossDomainEnabled(address(0))
-    {
+    constructor(address _messenger, address _otherBridge) Semver(0, 0, 1) {
         initialize(_messenger, _otherBridge);
     }
 
@@ -72,7 +66,7 @@ contract L1ERC721Bridge is ERC721Bridge, Semver, OwnableUpgradeable {
         address _to,
         uint256 _tokenId,
         bytes calldata _extraData
-    ) external onlyFromCrossDomainAccount(otherBridge) {
+    ) external onlyOtherBridge {
         // Checks that the L1/L2 token pair has a token ID that is escrowed in the L1 Bridge
         require(
             deposits[_localToken][_remoteToken][_tokenId] == true,
@@ -117,7 +111,7 @@ contract L1ERC721Bridge is ERC721Bridge, Semver, OwnableUpgradeable {
         IERC721(_localToken).transferFrom(_from, address(this), _tokenId);
 
         // Send calldata into L2
-        sendCrossDomainMessage(otherBridge, _minGasLimit, message);
+        messenger.sendMessage(otherBridge, message, _minGasLimit);
         emit ERC721BridgeInitiated(_localToken, _remoteToken, _from, _to, _tokenId, _extraData);
     }
 }
