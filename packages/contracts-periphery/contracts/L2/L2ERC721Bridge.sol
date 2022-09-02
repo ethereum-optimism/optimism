@@ -2,9 +2,6 @@
 pragma solidity 0.8.15;
 
 import { ERC721Bridge } from "../universal/op-erc721/ERC721Bridge.sol";
-import {
-    CrossDomainEnabled
-} from "@eth-optimism/contracts/contracts/libraries/bridge/CrossDomainEnabled.sol";
 import { ERC165Checker } from "@openzeppelin/contracts/utils/introspection/ERC165Checker.sol";
 import { L1ERC721Bridge } from "../L1/L1ERC721Bridge.sol";
 import { IOptimismMintableERC721 } from "../universal/op-erc721/IOptimismMintableERC721.sol";
@@ -25,10 +22,7 @@ contract L2ERC721Bridge is ERC721Bridge, Semver {
      * @param _messenger   Address of the CrossDomainMessenger on this network.
      * @param _otherBridge Address of the ERC721 bridge on the other network.
      */
-    constructor(address _messenger, address _otherBridge)
-        Semver(0, 0, 1)
-        CrossDomainEnabled(address(0))
-    {
+    constructor(address _messenger, address _otherBridge) Semver(0, 0, 1) {
         initialize(_messenger, _otherBridge);
     }
 
@@ -62,7 +56,7 @@ contract L2ERC721Bridge is ERC721Bridge, Semver {
         address _to,
         uint256 _tokenId,
         bytes calldata _extraData
-    ) external onlyFromCrossDomainAccount(otherBridge) {
+    ) external onlyOtherBridge {
         // Check the target token is compliant and verify the deposited token on L1 matches the L2
         // deposited token representation.
         if (
@@ -99,7 +93,7 @@ contract L2ERC721Bridge is ERC721Bridge, Semver {
 
             // Send message up to L1 bridge
             // slither-disable-next-line reentrancy-events
-            sendCrossDomainMessage(otherBridge, 0, message);
+            messenger.sendMessage(otherBridge, message, 0);
 
             // slither-disable-next-line reentrancy-events
             emit ERC721BridgeFailed(_localToken, _remoteToken, _from, _to, _tokenId, _extraData);
@@ -149,7 +143,7 @@ contract L2ERC721Bridge is ERC721Bridge, Semver {
 
         // Send message to L1 bridge
         // slither-disable-next-line reentrancy-events
-        sendCrossDomainMessage(otherBridge, _minGasLimit, message);
+        messenger.sendMessage(otherBridge, message, _minGasLimit);
 
         // slither-disable-next-line reentrancy-events
         emit ERC721BridgeInitiated(_localToken, remoteToken, _from, _to, _tokenId, _extraData);
