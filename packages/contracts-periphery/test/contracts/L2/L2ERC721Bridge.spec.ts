@@ -215,6 +215,19 @@ describe('L2ERC721Bridge', () => {
     })
   })
 
+  describe('completeOutboundTransfer', async () => {
+    it('reverts if caller is not L2 bridge', async () => {
+      await expect(
+        L2ERC721Bridge.completeOutboundTransfer(
+          L2ERC721.address,
+          DUMMY_L1ERC721_ADDRESS,
+          bobsAddress,
+          TOKEN_ID
+        )
+      ).to.be.revertedWith('ERC721Bridge: function can only be called by self')
+    })
+  })
+
   describe('withdrawals', () => {
     let L2Token: Contract
     beforeEach(async () => {

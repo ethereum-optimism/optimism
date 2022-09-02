@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
+import { ERC721Bridge } from "../universal/op-erc721/ERC721Bridge.sol";
 import {
     CrossDomainEnabled
 } from "@eth-optimism/contracts/contracts/libraries/bridge/CrossDomainEnabled.sol";
@@ -18,7 +19,7 @@ import { Semver } from "@eth-optimism/contracts-bedrock/contracts/universal/Semv
  *         make it possible to transfer ERC721 tokens from Ethereum to Optimism. This contract
  *         acts as an escrow for ERC721 tokens deposted into L2.
  */
-contract L1ERC721Bridge is Semver, CrossDomainEnabled, OwnableUpgradeable {
+contract L1ERC721Bridge is ERC721Bridge, Semver, OwnableUpgradeable {
     /**
      * @notice Emitted when an ERC721 bridge to the other network is initiated.
      *
@@ -201,26 +202,14 @@ contract L1ERC721Bridge is Semver, CrossDomainEnabled, OwnableUpgradeable {
         uint256 _tokenId,
         bytes calldata _extraData
     ) external onlyFromCrossDomainAccount(otherBridge) {
-        // Checks that the L1/L2 NFT pair has a token ID that is escrowed in the L1 Bridge. Without
-        // this check, an attacker could steal a legitimate L1 NFT by supplying an arbitrary L2 NFT
-        // that maps to the L1 NFT.
-        if (deposits[_localToken][_remoteToken][_tokenId] == true) {
-            // Mark that the token ID for this L1/L2 token pair is no longer escrowed in the L1
-            // Bridge.
-            deposits[_localToken][_remoteToken][_tokenId] = false;
-
-            // When a withdrawal is finalized on L1, the L1 Bridge transfers the NFT to the
-            // withdrawer.
-            // slither-disable-next-line reentrancy-events
-            IERC721(_localToken).transferFrom(address(this), _to, _tokenId);
-
+        try this.completeOutboundTransfer(_localToken, _remoteToken, _to, _tokenId) {
             // slither-disable-next-line reentrancy-events
             emit ERC721BridgeFinalized(_localToken, _remoteToken, _from, _to, _tokenId, _extraData);
-        } else {
-            // If the token ID for this L1/L2 NFT pair is not escrowed in the L1 Bridge, we initiate
-            // a cross-domain message to send the NFT back to its original owner on L2. This can
-            // happen if an L2 native NFT is bridged to L1, or if a user mistakenly entered an
-            // incorrect L1 ERC721 address.
+        } catch {
+            // If the token ID for this L1/L2 NFT pair is not escrowed in the L1 Bridge or if
+            // another error occurred during finalization, we initiate a cross-domain message to
+            // send the NFT back to its original owner on L2. This can happen if an L2 native NFT is
+            // bridged to L1, or if a user mistakenly entered an incorrect L1 ERC721 address.
             bytes memory message = abi.encodeWithSelector(
                 L2ERC721Bridge.finalizeBridgeERC721.selector,
                 _remoteToken,
@@ -238,6 +227,42 @@ contract L1ERC721Bridge is Semver, CrossDomainEnabled, OwnableUpgradeable {
             // slither-disable-next-line reentrancy-events
             emit ERC721BridgeFailed(_localToken, _remoteToken, _from, _to, _tokenId, _extraData);
         }
+    }
+
+    /**
+     * @notice Completes an outbound token transfer. Public function, but can only be called by
+     *         this contract. It's security critical that there be absolutely no way for anyone to
+     *         trigger this function, except by explicit trigger within this contract. Used as a
+     *         simple way to be able to try/catch any type of revert that could occur during an
+     *         ERC721 mint/transfer.
+     *
+     * @param _localToken  Address of the ERC721 on this chain.
+     * @param _remoteToken Address of the corresponding token on the remote chain.
+     * @param _to          Address of the receiver.
+     * @param _tokenId     ID of the token being deposited.
+     */
+    function completeOutboundTransfer(
+        address _localToken,
+        address _remoteToken,
+        address _to,
+        uint256 _tokenId
+    ) external onlySelf {
+        // Checks that the L1/L2 NFT pair has a token ID that is escrowed in the L1 Bridge. Without
+        // this check, an attacker could steal a legitimate L1 NFT by supplying an arbitrary L2 NFT
+        // that maps to the L1 NFT.
+        require(
+            deposits[_localToken][_remoteToken][_tokenId] == true,
+            "L1ERC721Bridge: token ID is not escrowed in l1 bridge for this l1/l2 nft pair"
+        );
+
+        // Mark that the token ID for this L1/L2 token pair is no longer escrowed in the L1
+        // Bridge.
+        deposits[_localToken][_remoteToken][_tokenId] = false;
+
+        // When a withdrawal is finalized on L1, the L1 Bridge transfers the NFT to the
+        // withdrawer.
+        // slither-disable-next-line reentrancy-events
+        IERC721(_localToken).transferFrom(address(this), _to, _tokenId);
     }
 
     /**

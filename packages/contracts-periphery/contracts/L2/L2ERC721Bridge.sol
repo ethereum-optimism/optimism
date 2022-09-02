@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
+import { ERC721Bridge } from "../universal/op-erc721/ERC721Bridge.sol";
 import {
     CrossDomainEnabled
 } from "@eth-optimism/contracts/contracts/libraries/bridge/CrossDomainEnabled.sol";
@@ -24,7 +25,7 @@ import { Semver } from "@eth-optimism/contracts-bedrock/contracts/universal/Semv
  *         wait for the one-week challenge period to elapse before their Optimism-native NFT
  *         can be refunded on L2.
  */
-contract L2ERC721Bridge is Semver, CrossDomainEnabled, OwnableUpgradeable {
+contract L2ERC721Bridge is ERC721Bridge, Semver, OwnableUpgradeable {
     /**
      * @notice Emitted when an ERC721 bridge to the other network is initiated.
      *
@@ -205,25 +206,13 @@ contract L2ERC721Bridge is Semver, CrossDomainEnabled, OwnableUpgradeable {
         uint256 _tokenId,
         bytes calldata _extraData
     ) external onlyFromCrossDomainAccount(otherBridge) {
-        // Check the target token is compliant and verify the deposited token on L1 matches the L2
-        // deposited token representation.
-        if (
-            // slither-disable-next-line reentrancy-events
-            ERC165Checker.supportsInterface(
-                _localToken,
-                type(IOptimismMintableERC721).interfaceId
-            ) && _remoteToken == IOptimismMintableERC721(_localToken).remoteToken()
-        ) {
-            // When a deposit is finalized, we give the NFT with the same tokenId to the account
-            // on L2.
-            // slither-disable-next-line reentrancy-events
-            IOptimismMintableERC721(_localToken).mint(_to, _tokenId);
+        try this.completeOutboundTransfer(_localToken, _remoteToken, _to, _tokenId) {
             // slither-disable-next-line reentrancy-events
             emit ERC721BridgeFinalized(_localToken, _remoteToken, _from, _to, _tokenId, _extraData);
-        } else {
+        } catch {
             // Either the L2 token which is being deposited-into disagrees about the correct address
             // of its L1 token, or does not support the correct interface.
-            // This should only happen if there is a  malicious L2 token, or if a user somehow
+            // This should only happen if there is a malicious L2 token, or if a user somehow
             // specified the wrong L2 token address to deposit into.
             // In either case, we stop the process here and construct a withdrawal
             // message so that users can get their NFT out in some cases.
@@ -246,6 +235,40 @@ contract L2ERC721Bridge is Semver, CrossDomainEnabled, OwnableUpgradeable {
             // slither-disable-next-line reentrancy-events
             emit ERC721BridgeFailed(_localToken, _remoteToken, _from, _to, _tokenId, _extraData);
         }
+    }
+
+    /**
+     * @notice Completes an outbound token transfer. Public function, but can only be called by
+     *         this contract. It's security critical that there be absolutely no way for anyone to
+     *         trigger this function, except by explicit trigger within this contract. Used as a
+     *         simple way to be able to try/catch any type of revert that could occur during an
+     *         ERC721 mint/transfer.
+     *
+     * @param _localToken  Address of the ERC721 on this chain.
+     * @param _remoteToken Address of the corresponding token on the remote chain.
+     * @param _to          Address of the receiver.
+     * @param _tokenId     ID of the token being deposited.
+     */
+    function completeOutboundTransfer(
+        address _localToken,
+        address _remoteToken,
+        address _to,
+        uint256 _tokenId
+    ) external onlySelf {
+        require(
+            // slither-disable-next-line reentrancy-events
+            ERC165Checker.supportsInterface(_localToken, type(IOptimismMintableERC721).interfaceId),
+            "L2ERC721Bridge: local token interface is not compliant"
+        );
+        require(
+            _remoteToken == IOptimismMintableERC721(_localToken).remoteToken(),
+            "L2ERC721Bridge: wrong remote token for Optimism Mintable ERC721 local token"
+        );
+
+        // When a deposit is finalized, we give the NFT with the same tokenId to the account
+        // on L2.
+        // slither-disable-next-line reentrancy-events
+        IOptimismMintableERC721(_localToken).mint(_to, _tokenId);
     }
 
     /**
