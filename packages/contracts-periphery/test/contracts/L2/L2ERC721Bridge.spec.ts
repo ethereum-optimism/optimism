@@ -9,9 +9,8 @@ import { NON_NULL_BYTES32, NON_ZERO_ADDRESS } from '../../helpers'
 import { expect } from '../../setup'
 
 const ERR_ALREADY_INITIALIZED = 'Initializable: contract is already initialized'
-const ERR_INVALID_MESSENGER = 'OVM_XCHAIN: messenger contract unauthenticated'
-const ERR_INVALID_X_DOMAIN_MSG_SENDER =
-  'OVM_XCHAIN: wrong sender of cross-domain message'
+const ERR_INVALID_X_DOMAIN_MESSAGE =
+  'ERC721Bridge: function can only be called from the other bridge'
 const DUMMY_L1BRIDGE_ADDRESS: string =
   '0x1234123412341234123412341234123412341234'
 const DUMMY_L1ERC721_ADDRESS: string =
@@ -88,7 +87,7 @@ describe('L2ERC721Bridge', () => {
           TOKEN_ID,
           NON_NULL_BYTES32
         )
-      ).to.be.revertedWith(ERR_INVALID_MESSENGER)
+      ).to.be.revertedWith(ERR_INVALID_X_DOMAIN_MESSAGE)
     })
 
     it('onlyFromCrossDomainAccount: should revert on calls from the right crossDomainMessenger, but wrong xDomainMessageSender (ie. not the L1ERC721Bridge)', async () => {
@@ -108,7 +107,7 @@ describe('L2ERC721Bridge', () => {
             from: Fake__L2CrossDomainMessenger.address,
           }
         )
-      ).to.be.revertedWith(ERR_INVALID_X_DOMAIN_MSG_SENDER)
+      ).to.be.revertedWith(ERR_INVALID_X_DOMAIN_MESSAGE)
     })
 
     it('should initialize a withdrawal if the L2 token is not compliant', async () => {
