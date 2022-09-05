@@ -279,7 +279,7 @@ There are two kinds of deposited transactions:
 
 An *L1 attributes deposited transaction* is [deposited transaction][deposited] that is used to register the L1 block
 attributes (number, timestamp, ...) on L2 via a call to the [L1 Attributes Predeployed Contract][l1-attr-predeploy].
-That contract can then be used to read the the attributes of the L1 block corresponding to the current L2 block.
+That contract can then be used to read the attributes of the L1 block corresponding to the current L2 block.
 
 L1 attributes deposited transactions are specified in the [L1 Attributes Deposit][l1-attributes-tx-spec] section of the
 deposits specification.
