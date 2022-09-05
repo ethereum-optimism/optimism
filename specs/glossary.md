@@ -218,7 +218,7 @@ Additionally, the first block in the window defines the [depositing transactions
 
 A sequencing epoch is sequential range of L2 blocks derived from a [sequencing window](#sequencing-window) of L1 blocks.
 
-Each epoch is identified by an epoch number, which is equal to the block number number of the first L1 block in the
+Each epoch is identified by an epoch number, which is equal to the block number of the first L1 block in the
 sequencing window.
 
 Epochs can have variable size, subject to some constraints. See the [L2 chain derivation specification][derivation-spec]
