@@ -431,7 +431,7 @@ to group multiple batches together is simply to obtain a better compression rate
 costs.
 
 A channel can be split in [frames][channel-frame] in order to be transmitted via [batcher
-transactions][batcher-transaction]. The reason to split a channel into frames is that a channel might too large to
+transactions][batcher-transaction]. The reason to split a channel into frames is that a channel might be too large to
 include in a single batcher transaction.
 
 A channel is uniquely identified by its timestamp (UNIX time at which the channel was created) and a random value. See
