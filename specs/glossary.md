@@ -419,7 +419,7 @@ number](#sequencing-epoch) and an L2 block timestamp (which can trivially be con
 block time is constant).
 
 Sequencer batches are part of the [L2 derivation inputs][deriv-inputs]. Each batch represents the inputs needed to build
-**one** L2 block (given the existing L2 chain state) — excepted for the fist block of each epoch, which also needs
+**one** L2 block (given the existing L2 chain state) — except for the first block of each epoch, which also needs
 information about deposits (cf. the section on [L2 derivation inputs][deriv-inputs]).
 
 ## Channel
