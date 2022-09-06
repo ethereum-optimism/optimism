@@ -276,7 +276,11 @@ func TestMergeStorage(t *testing.T) {
 
 	for _, test := range cases {
 		got := state.MergeStorage(test.input)
-		require.Equal(t, got, test.expect)
+		// deep equal check
+		require.Equal(t, len(got), len(test.expect))
+		for i := range got {
+			require.Equal(t, *got[i], *test.expect[i])
+		}
 	}
 }
 

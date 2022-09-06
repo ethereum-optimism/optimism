@@ -45,7 +45,7 @@ var _ = func() bool {
 var verboseGethNodes bool
 
 func init() {
-	flag.BoolVar(&verboseGethNodes, "gethlogs", false, "Enable logs on geth nodes")
+	flag.BoolVar(&verboseGethNodes, "gethlogs", true, "Enable logs on geth nodes")
 	flag.Parse()
 }
 
