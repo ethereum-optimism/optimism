@@ -48,7 +48,7 @@ func TestAttributesQueue_Step(t *testing.T) {
 		DepositContractAddress: common.Address{0xbb},
 	}
 	rng := rand.New(rand.NewSource(1234))
-	l1Info := testutils.RandomL1Info(rng)
+	l1Info := testutils.RandomBlockInfo(rng)
 
 	l1Fetcher := &testutils.MockL1Source{}
 	defer l1Fetcher.AssertExpectations(t)
@@ -68,6 +68,7 @@ func TestAttributesQueue_Step(t *testing.T) {
 	out.ExpectSafeL2Head(safeHead)
 
 	batch := &BatchData{BatchV1{
+		ParentHash:   safeHead.Hash,
 		EpochNum:     rollup.Epoch(l1Info.InfoNum),
 		EpochHash:    l1Info.InfoHash,
 		Timestamp:    safeHead.Time + cfg.BlockTime,

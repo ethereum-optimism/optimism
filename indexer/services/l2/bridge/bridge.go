@@ -5,17 +5,19 @@ import (
 	"errors"
 	"math/big"
 
-	"github.com/ethereum-optimism/optimism/indexer/bindings/l2bridge"
 	"github.com/ethereum-optimism/optimism/indexer/db"
+	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 )
 
+type DepositsMap map[common.Hash][]db.Deposit // Finalizations
 type WithdrawalsMap map[common.Hash][]db.Withdrawal
 
 type Bridge interface {
 	Address() common.Address
+	GetDepositsByBlockRange(uint64, uint64) (DepositsMap, error)
 	GetWithdrawalsByBlockRange(uint64, uint64) (WithdrawalsMap, error)
 	String() string
 }
@@ -54,7 +56,7 @@ func BridgesByChainID(chainID *big.Int, client bind.ContractFilterer, ctx contex
 		switch bridge.impl {
 		case "StandardBridge":
 			l2StandardBridgeAddress := common.HexToAddress(bridge.addr)
-			l2StandardBridgeFilter, err := l2bridge.NewL2StandardBridgeFilterer(l2StandardBridgeAddress, client)
+			l2StandardBridgeFilter, err := bindings.NewL2StandardBridgeFilterer(l2StandardBridgeAddress, client)
 			if err != nil {
 				return nil, err
 			}

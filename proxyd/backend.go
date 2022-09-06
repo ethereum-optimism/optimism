@@ -8,7 +8,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"math"
 	"math/rand"
 	"net/http"
@@ -408,7 +407,7 @@ func (b *Backend) doForward(ctx context.Context, rpcReqs []*RPCReq, isBatch bool
 	}
 
 	defer httpRes.Body.Close()
-	resB, err := ioutil.ReadAll(io.LimitReader(httpRes.Body, b.maxResponseSize))
+	resB, err := io.ReadAll(io.LimitReader(httpRes.Body, b.maxResponseSize))
 	if err != nil {
 		return nil, wrapErr(err, "error reading response body")
 	}

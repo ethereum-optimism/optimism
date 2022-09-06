@@ -314,19 +314,11 @@ const config: HardhatUserConfig = {
     },
     gasPriceOracleScalar: {
       type: 'number',
-      default: 1000_000,
+      default: 1_000_000,
     },
     gasPriceOracleDecimals: {
       type: 'number',
       default: 6,
-    },
-    proxyAdmin: {
-      type: 'address',
-      // no default, important to get right.
-    },
-    fundDevAccounts: {
-      type: 'boolean',
-      default: false,
     },
     deploymentWaitConfirmations: {
       type: 'number',

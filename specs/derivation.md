@@ -37,6 +37,7 @@
 [g-time-slot]: glossary.md#time-slot
 [g-consolidation]: glossary.md#unsafe-block-consolidation
 [g-safe-l2-head]: glossary.md#safe-l2-head
+[g-safe-l2-block]: glossary.md#safe-l2-block
 [g-unsafe-l2-head]: glossary.md#unsafe-l2-head
 [g-unsafe-l2-block]: glossary.md#unsafe-l2-block
 [g-unsafe-sync]: glossary.md#unsafe-sync
@@ -70,8 +71,8 @@
 - [Deriving Payload Attributes](#deriving-payload-attributes)
   - [Deriving the Transaction List](#deriving-the-transaction-list)
   - [Building Individual Payload Attributes](#building-individual-payload-attributes)
-- [WARNING: BELOW THIS LINE, THE SPEC HAS NOT BEEN REVIEWED AND MAY CONTAIN MISTAKES](#warning-below-this-line-the-spec-has-not-been-reviewed-and-may-contain-mistakes)
 - [Communication with the Execution Engine](#communication-with-the-execution-engine)
+- [WARNING: BELOW THIS LINE, THE SPEC HAS NOT BEEN REVIEWED AND MAY CONTAIN MISTAKES](#warning-below-this-line-the-spec-has-not-been-reviewed-and-may-contain-mistakes)
 - [Handling L1 Re-Orgs](#handling-l1-re-orgs)
   - [Resetting the Engine Queue](#resetting-the-engine-queue)
   - [Resetting Payload Attribute Derivation](#resetting-payload-attribute-derivation)
@@ -84,7 +85,7 @@
 
 # Overview
 
-> **Note**: the following assumes a single sequencer and batcher. In the future, the design might be adapted to
+> **Note** the following assumes a single sequencer and batcher. In the future, the design will be adapted to
 > accomodate multiple such entities.
 
 [L2 chain derivation][g-derivation] — deriving L2 [blocks][g-block] from L1 data — is one of the main responsability of
@@ -99,18 +100,20 @@ To derive the L2 blocks in an epoch `E`, we need the following inputs:
 
 - The L1 [sequencing window][g-sequencing-window] for epoch `E`: the L1 blocks in the range `[E, E + SWS)` where `SWS`
   is the sequencing window size (note that this means that epochs are overlapping). In particular we need:
-  - The [batcher transactions][g-batcher-transactions] included in the sequencing window. These allow us to
+  - The [batcher transactions][g-batcher-transaction] included in the sequencing window. These allow us to
       reconstruct [sequencer batches][g-sequencer-batch] containing the transactions to include in L2 blocks (each batch
       maps to a single L2 block).
+    - Note that it is impossible to have a batcher transaction containing a batch relative to epoch `E` on L1 block
+        `E`, as the batch must contain the hash of L1 block `E`.
   - The [deposits][g-deposits] made in L1 block `E` (in the form of events emitted by the [deposit
       contract][g-deposit-contract]).
   - The L1 block attributes from L1 block `E` (to derive the [L1 attributes deposited transaction][g-l1-attr-deposit]).
 - The state of the L2 chain after the last L2 block of epoch `E - 1`, or — if epoch `E - 1` does not exist — the
-  [genesis state][g-l2-genesis] (cf. TODO) of the L2 chain.
+  [L2 genesis state][g-l2-genesis].
   - An epoch `E` does not exist if `E <= L2CI`, where `L2CI` is the [L2 chain inception][g-l2-chain-inception].
 
-> **TODO** specify sequencing window size
-> **TODO** specify genesis block / state (in its own document? include/link predeploy.md)
+> **TODO** specify sequencing window size (current thinking: on the order of a few hours, to give maximal flexibility to
+> the batch submitter)
 
 To derive the whole L2 chain from scratch, we simply start with the [L2 genesis state][g-l2-genesis], and the [L2 chain
 inception][g-l2-chain-inception] as first epoch, then process all sequencing windows in order. Refer to the
@@ -122,13 +125,14 @@ Each epoch may contain a variable number of L2 blocks (one every `l2_block_time`
 - `min_l2_timestamp <= block.timestamp < max_l2_timestamp`, where
   - all these values are denominated in seconds
   - `min_l2_timestamp = prev_l2_timestamp + l2_block_time`
-    - `prev_l2_timestamp` is the timestamp of the previous L2 block
+    - `prev_l2_timestamp` is the timestamp of the last L2 block of the previous epoch
     - `l2_block_time` is a configurable parameter of the time between L2 blocks (on Optimism, 2s)
   - `max_l2_timestamp = max(l1_timestamp + max_sequencer_drift, min_l2_timestamp + l2_block_time)`
     - `l1_timestamp` is the timestamp of the L1 block associated with the L2 block's epoch
     - `max_sequencer_drift` is the most a sequencer is allowed to get ahead of L1
 
-> **TODO** specify max sequencer drift
+> **TODO** specify max sequencer drift (current thinking: on the order of 10
+> minutes, we've been using 2-4 minutes in testnets)
 
 Put together, these constraints mean that there must be an L2 block every `l2_block_time` seconds, and that the
 timestamp for the first L2 block of an epoch must never fall behind the timestamp of the L1 block matching the epoch.
@@ -192,6 +196,7 @@ Refer to the [Batch Submission specification][batcher-spec] for more information
 > - The batcher requests safe L2 safe head from the rollup node, then queries the execution engine for the block data.
 >   - In the future we might be able to get the safe hea dinformation from the execution engine directly. Not possible
 >     right now but there is an upstream geth PR open.
+> - specify batcher authentication (cf. TODO below)
 
 ## Batch Submission Wire Format
 
@@ -223,22 +228,67 @@ stuck waiting on the inclusion of a previous transaction.
 Also note that we use a streaming compression scheme, and we do not need to know how many blocks a channel will end up
 containing when we start a channel, or even as we send the first frames in the channel.
 
-All of this is illustrated in the following diagram.
-
-> **TODO** improve diagram
->
-> - I'm a fan of the 4 lines "Transactions" to "L2 Blocks"
->   - albeit it would good to show that channels & frames can occur out of order
->   - but maybe that makes the diagram too hard to read and we can just include a comment afterwards saying that in
->       general, reordering is possible (maybe show a second diagram showcasing a simple reordering?
-> - I think L1 blocks should be a new line above "Transactions" — also show deposits (w/ a number) for each block
-> - We shouldn't use the L1 attributes tx as a separate line, it makes it look like a additional layer of "data
->   derivation", which it is not. Instead I would tag each L2 block with its epoch number.
-> - Include numbered deposits under L2 blocks
-> - Let's use a sequencing window of size 2 to keep the diagram small
-> - Include a textual explanation of the diagram below it
+All of this is illustrated in the following diagram. Explanations below.
 
 ![batch derivation chain diagram](./assets/batch-deriv-chain.svg)
+
+The first line represents L1 blocks with their numbers. The boxes under the L1 blocks represent [batcher
+transactions][g-batcher-transaction] included within the block. The squiggles under the L1 blocks represent
+[deposits][g-deposits] (more specifically, events emitted by the [deposit contract][g-deposit-contract]).
+
+Each colored chunk within the boxes represents a [channel frame][g-channel-frame]. So `A` and `B` are
+[channels][g-channel] whereas `A0`, `A1`, `B0`, `B1`, `B2` are frames. Notice that:
+
+- multiple channels are interleaved
+- frames do not need to be transmitted in order
+- a single batcher transaction can carry frames from multiple channels
+
+In the next line, the rounded boxes represent individual [sequencer batches][g-sequencer-batch] that were extracted from
+the channels. The four blue/purple/pink were derived from channel `A` while the other were derived from channel `B`.
+These batches are here represented in the order the were decoded from batches (in this case `B` is decoded first).
+
+> **Note** The caption here says "Channel B was seen first and will be decoded into batches first", but this is not a
+> requirement. For instance, it would be equally acceptable for an implementation to peek into the channels and decode
+> the one that contains the oldest batches first.
+
+The rest of the diagram is conceptually distinct from the first part and illustrates L2 chain derivation after the
+channels have been reordered.
+
+The first line shows batcher transactions. Note that in this case, there exists an ordering of the batches that makes
+all frames within the channels appear contiguously. This is not true in true in general. For instance, in the second
+transaction, the position of `A1` and `B0` could have been inverted for exactly the same result — no changes needed in
+the rest of the diagram.
+
+The second line shows the reconstructed channels in proper order. The third line shows the batches extracted from the
+channel. Because the channels are ordered and the batches within a channel are sequential, this means the batches are
+ordered too. The fourth line shows the [L2 block][g-block] derived from each batch. Note that we have a 1-1 batch to
+block mapping here but, as we'll see later, empty blocks that do not map to batches can be inserted in cases where there
+are "gaps" in the batches posted on L1.
+
+The fifth line shows the [L1 attributes deposited transaction][g-l1-attr-deposit] which, within each L2 block, records
+information about the L1 block that matches the L2 block's epoch. The first number denotes the epoch/L1x number, while
+the second number (the "sequence number") denotes the position within the epoch.
+
+Finally, the sixth line shows [user-deposited transactions][g-user-deposited] derived from the [deposit
+contract][g-deposit-contract] event mentionned earlier.
+
+Note the `101-0` L1 attributes transaction on the bottom right of the diagram. Its presence there is only possible if
+frame `B2` indicates that it is the last frame within the channel and (2) no empty blocks must be inserted.
+
+The diagram does not specify the sequencing window size in use, but from it we can infer that it must be at least 4
+blocks, because the last frame of channel `A` appears in block 102, but belong to epoch 99.
+
+As for the comment on "security types", it explains the classification of blocks as used on L1 and L2.
+
+- [Unsafe L2 blocks][g-unsafe-l2-block]:
+- [Safe L2 blocks][g-safe-l2-block]:
+- Finalized L2 blocks: currently the same as the safe L2 block, but could be changed in the future to refer to block
+  that have been derived from [finalized][g-finalized-l2-head] L1 data, or alternatively, from L1 blacks that are older
+  than the [challenge period].
+
+These security levels map to the `headBlockHash`, `safeBlockHash` and `finalizedBlockHash` values transmitted when
+interacting with the [execution-engine API][exec-engine]. Refer to the the [Communication with the Execution
+Engine][exec-engine-comm] section for more information.
 
 ### Batcher Transaction Format
 
@@ -270,9 +320,12 @@ frame_number      = uint16
 frame_data_length = uint32
 frame_data        = bytes
 is_last           = bool
-
-Where `uint64`, `uint32` and `uint16` are all big-endian unsigned integers.
 ```
+
+Where `uint64`, `uint32` and `uint16` are all big-endian unsigned integers. Type names should be interpreted to and
+encoded according to [the Solidity ABI][solidity-abi].
+
+[solidity-abi]: https://docs.soliditylang.org/en/v0.8.16/abi-spec.html
 
 All data in a frame is fixed-size, except the `frame_data`. The fixed overhead is `32 + 8 + 2 + 4 + 1 = 47 bytes`.
 Fixed-size frame metadata avoids a circular dependency with the target total data length,
@@ -283,26 +336,20 @@ where:
 - `channel_id` uniquely identifies a channel as the concatenation of a random value and a timestamp
   - `random` is a random value such that two channels with different batches should have a different random value
   - `timestamp` is the time at which the channel was created (UNIX time in seconds)
-  - The ID includes both the random value and the timestamp, in order to prevent a malicious sequencer from reusing
-      the random value after the channel has [timed out][g-channel-timeout] (refer to the [batcher
-      specification][batcher-spec] to learn more about channel timeouts). This will also allow us substitute `random` by
-      a hash commitment to the batches, should we want to do so in the future.
-  - Channels whose timestamp are higher than that of the L1 block they first appear in must be ignored. Note that L1
-      nodes have a soft constraint to ignore blocks whose timestamps that are ahead of the wallclock time by a certain
-      margin. (A soft constraint is not a consensus rule — nodes will accept such blocks in the canonical chain but will
-      not attempt to build directly on them.)
+  - The ID includes both the random value and the timestamp, in order to prevent a malicious sequencer from reusing the
+    random value after the channel has [timed out][g-channel-timeout] (refer to the [batcher
+    specification][batcher-spec] to learn more about channel timeouts). This will also allow us substitute `random` by a
+    hash commitment to the batches, should we want to do so in the future.
+  - Frames with a channel ID whose timestamp are higher than that of the L1 block on which the frame appears must be
+    ignored. Note that L1 nodes cannot easily manipulate the L1 block timestamp: L1 nodes have a soft constraint to
+    ignore blocks whose timestamps that are ahead of the wallclock time by a certain margin. (A soft constraint is not a
+    consensus rule — nodes will accept such blocks in the canonical chain but will not attempt to build directly on
+    them.) This issue goes away with Proof of Stake, where timestamps are determined by [L1 time slots][g-time-slot].
 - `frame_number` identifies the index of the frame within the channel
 - `frame_data_length` is the length of `frame_data` in bytes. It is capped to 1,000,000 bytes.
 - `frame_data` is a sequence of bytes belonging to the channel, logically after the bytes from the previous frames
 - `is_last` is a single byte with a value of 1 if the frame is the last in the channel, 0 if there are frames in the
   channel. Any other value makes the frame invalid (it must be ignored by the rollup node).
-
-> **TODO**
->
-> - Is that requirement to drop channels correct?
-> - Is it implemented as such?
-> - Do we drop the channel or just the first frame? End result is the same but this changes the channel bank size, which
->   can influence things down the line!!
 
 [batcher-spec]: batching.md
 
@@ -327,12 +374,10 @@ where:
 
 [rfc1950]: https://www.rfc-editor.org/rfc/rfc1950.html
 
-When decompressing a channel, we limit the amount of decompressed data to `MAX_RLP_BYTES_PER_CHANNEL`, in order to avoid
-"zip-bomb" types of attack (where a small compressed input decompresses to a humongous amount of data). If the
-decompressed data exceeds the limit, things proceeds as thought the channel contained only the first
-`MAX_RLP_BYTES_PER_CHANNEL` decompressed bytes.
-
-> **TODO** specify `MAX_RLP_BYTES_PER_CHANNEL`
+When decompressing a channel, we limit the amount of decompressed data to `MAX_RLP_BYTES_PER_CHANNEL` (currently
+10,000,000 bytes), in order to avoid "zip-bomb" types of attack (where a small compressed input decompresses to a
+humongous amount of data). If the decompressed data exceeds the limit, things proceeds as thought the channel contained
+only the first `MAX_RLP_BYTES_PER_CHANNEL` decompressed bytes.
 
 While the above pseudocode implies that all batches are known in advance, it is possible to perform streaming
 compression and decompression of RLP-encoded batches. This means it is possible to start including channel frames in a
@@ -345,16 +390,18 @@ contain.
 
 Recall that a batch contains a list of transactions to be included in a specific L2 block.
 
-A batch is encoded as `batch_version ++ content`, where `content` depends on the version:
+A batch is encoded as `batch_version ++ content`, where `content` depends on the `batch_version`:
 
-| `batch_version` | `content`                                                             |
-| --------------- | --------------------------------------------------------------------- |
-| 0               | `rlp_encode([epoch_number, epoch_hash, timestamp, transaction_list])` |
+| `batch_version` | `content`                                                                          |
+| --------------- |------------------------------------------------------------------------------------|
+| 0               | `rlp_encode([parent_hash, epoch_number, epoch_hash, timestamp, transaction_list])` |
 
 where:
 
+- `batch_version` is a single byte, prefixed before the RLP contents, alike to transaction typing.
 - `rlp_encode` is a function that encodes a batch according to the [RLP format], and `[x, y, z]` denotes a list
   containing items `x`, `y` and `z`
+- `parent_hash` is the block hash of the previous L2 block
 - `epoch_number` and `epoch_hash` are the number and hash of the L1 block corresponding to the [sequencing
   epoch][g-sequencing-epoch] of the L2 block
 - `timestamp` is the timestamp of the L2 block
@@ -411,8 +458,8 @@ This ensures that we use the data we already have before pulling more data and m
 the derivation pipeline.
 
 Each stage can maintain its own inner state as necessary. **In particular, each stage maintains a L1 block reference
-(number + hash) to the latest L1 block such that all data originating from previous blocks has been processed, and the
-data from that block is or has been processed.**
+(number + hash) to the latest L1 block such that all data originating from previous blocks has been fully processed, and
+the data from that block is being or has been processed.**
 
 Let's briefly describe each stage of the pipeline.
 
@@ -428,7 +475,7 @@ particular we extract a byte string that corresponds to the concatenation of the
 transaction][g-batcher-transaction] belonging to the block. This byte stream encodes a stream of [channel
 frames][g-channel-frame] (see the [Batch Submission Wire Format][wire-format] section for more info).
 
-This frames are parsed, then grouped per [channel][g-channel] into a structure we call the *channel bank*.
+These frames are parsed, then grouped per [channel][g-channel] into a structure we call the *channel bank*.
 
 Some frames are ignored:
 
@@ -439,11 +486,15 @@ Some frames are ignored:
   `frame.is_last == 1`) are ignored.
   - These frames could still be written into the channel bank if we haven't seen the final frame yet. But they will
       never be read out from the channel bank.
+- Frames with a channel ID whose timestamp are higher than that of the L1 block on which the frame appears.
+
+Channels are also recorded in FIFO order in a structure called the *channel queue*. A channel is added to the channel
+queue the first time a frame belonging to the channel is seen. This structure is used in the next stage.
 
 ### Channel Bank
 
-The *Channel Bank* stage is responsible from reading from the channel bank that was written to by the L1 retrieval
-stage, and decompressing batches from these frames.
+The *Channel Bank* stage is responsible for managing buffering from the channel bank that was written to by the L1
+retrieval stage. A step in the channel bank stage tries to read data from channels that are "ready".
 
 In principle, we should be able to read any channel that has any number of sequential frames at the "front" of the
 channel (i.e. right after any frames that have been read from the bank already) and decompress batches from them. (Note
@@ -451,28 +502,41 @@ that if we did this, we'd need to keep partially decompressed batches around.)
 
 However, our current implementation doesn't support streaming decompression, so currently we have to wait until either:
 
-- We have received all frames in the channel (i.e. we received the last frame in the channel (`is_last == 1`) and every
-  frame with a lower number).
+- We have received all frames in the channel: i.e. we received the last frame in the channel (`is_last == 1`) and every
+  frame with a lower number.
 - The channel has timed out (in which we case we read all contiguous sequential frames from the start of the channel).
   - A channel is considered to be *timed out* if `currentL1Block.timestamp > channeld_id.timestamp + CHANNEL_TIMEOUT`.
     - where `currentL1Block` is the L1 block maintained by this stage, which is the most recent L1 block whose frames
           have been added to the channel bank.
+- The channel is pruned out of the channel bank (see below), in which case it isn't passed to the further stages.
 
-> **TODO** There is currently `MAX_CHANNEL_BANK_SIZE`, a notion about the maximum amount of channels we can keep track
-> of.
->
-> - Is this a semantic detail (i.e. if the batcher opens too many frames, valid channels can be dropped?)
-> - If so, I feel **very strongly** about changing this. This ties us very much to the current implementation.
-> - And it doesn't feel necessary given the channel timeout - if DOS is an issue we can reduce the channel timeout.
+> **TODO** specify CHANNEL_TIMEOUT (currently 120s on Goerli testnet)
 
-> **TODO** The channel queue is a bit weird as implemented (blocks all other channels until the first channel is closed
-> / timed out. Also unclear why we need to wait for channel closure. Maybe something to revisit?
->
-> cf. slack discussion with Proto
+As currently implemented, each step in this stage performs the following actions:
+
+- Try to prune the channel bank.
+  - This occurs if the size of the channel bank exceeds `MAX_CHANNEL_BANK_SIZE` (currently set to 100,000,000 bytes).
+  - The size of channel bank is the sum of the sizes (in btes) of all the frames contained within it.
+  - In this case, channels are dropped from the front of the *channel queue* (see previous stage), and the frames
+    belonging from these channels are dropped from the channel bank.
+  - As many channels are dropped as is necessary so that the channel bank size falls back below
+      `MAX_CHANNEL_BANK_SIZE`.
+- Take the first channel and the *channel queue*, determine if it is ready, and process it if so.
+  - A channel is ready if all its frames have been received or it timed out (see list above for details).
+  - If the channel is ready, determine its *contiguous frame sequence*, which is a contiguous sequence of frames,
+      starting from the first frame in the channel.
+    - For a full channel, those are all the frames.
+    - For a timed channel, those are all the frames until the first missing frame. Frames after the first missing
+          frame are discarded.
+  - Concatenate the data of the *contiguous frame sequence* (in sequential order) and push it to the next stage.
+
+> **TODO** Instead of waiting on the first seen channel (which might not contain the oldest batches, meaning buffering
+> further down the pipeline), we could process any channel in the queue that is ready. We could do this by checking for
+> channel readiness upon writing into the bank, and moving ready channel to the front of the queue.
 
 ### Batch Decoding
 
-In the *Batch Decoding* stage, we decompress the frames we received in the last stage, then parse
+In the *Batch Decoding* stage, we decompress the channel we received in the last stage, then parse
 [batches][g-sequencer-batch] from the decompressed byte stream.
 
 ### Batch Buffering
@@ -483,34 +547,74 @@ During the *Batch Buffering* stage, we reorder batches by their timestamps. If b
 slots][g-time-slot] and a valid batch with a higher timestamp exists, this stage also generates empty batches to fill
 the gaps.
 
-Batches are pushed to the next stage whenever there is one or more sequential batches directly following the timestamp
+Batches are pushed to the next stage whenever there is one or more sequential batch(es) directly following the timestamp
 of the current [safe L2 head][g-safe-l2-head] (the last block that can be derived from the canonical L1 chain).
 
 Note that the presence of any gaps in the batches derived from L1 means that this stage will need to buffer for a whole
 [sequencing window][g-sequencing-window] before it can generate empty batches (because the missing batch(es) could have
 data in the last L1 block of the window in the worst case).
 
-We also ignore invalid batches, which do not satisfy one of the following constraints:
+A batch can have 4 different forms of validity:
 
-- The timestamp is aligned to the [block time][g-block-time]:
-  `(batch.timestamp - genesis_l2_timestamp) % block_time == 0`
-- The timestamp is within the allowed range: `min_l2_timestamp <= batch.timestamp < max_l2_timestamp`, where
-  - all these values are denominated in seconds
-  - `min_l2_timestamp = prev_l2_timestamp + l2_block_time`
-    - `prev_l2_timestamp` is the timestamp of the previous L2 block: the last block of the previous epoch,
-      or the L2 genesis block timestamp if there is no previous epoch.
-    - `l2_block_time` is a configurable parameter of the time between L2 blocks (on Optimism, 2s)
-  - `max_l2_timestamp = max(l1_timestamp + max_sequencer_drift, min_l2_timestamp + l2_block_time)`
-    - `l1_timestamp` is the timestamp of the L1 block associated with the L2 block's epoch
-    - `max_sequencer_drift` is the maximum amount of time an L2 block's timestamp is allowed to get ahead of the
-       timestamp of its [L1 origin][g-l1-origin]
-  - Note that we always have `min_l2_timestamp >= l1_timestamp`, i.e. a L2 block timestamp is always equal or ahead of
-    the timestamp of its [L1 origin][g-l1-origin].
-- The batch is the first batch with `batch.timestamp` in this sequencing window, i.e. one batch per L2 block number.
-- The batch only contains sequenced transactions, i.e. it must NOT contain any [deposited-type transactions][
-  g-deposit-tx-type].
+- `drop`: the batch is invalid, and will always be in the future, unless we reorg. It can be removed from the buffer.
+- `accept`: the batch is valid and should be processed.
+- `undecided`: we are lacking L1 information until we can proceed batch filtering.
+- `future`: the batch may be valid, but cannot be processed yet and should be checked again later.
 
-> **TODO** specify `max_sequencer_drift`
+The batches are processed in order of the inclusion on L1: if multiple batches can be `accept`-ed the first is applied.
+
+The batches validity is derived as follows:
+
+Definitions:
+
+- `batch` as defined in the [Batch format section][batch-format].
+- `epoch = safe_l2_head.l1_origin` a [L1 origin][g-l1-origin] coupled to the batch, with properties:
+  `number` (L1 block number), `hash` (L1 block hash), and `timestamp` (L1 block timestamp).
+- `inclusion_block_number` is the L1 block number when `batch` was first *fully* derived,
+   i.e. decoded and output by the previous stage.
+- `next_timestamp = safe_l2_head.timestamp + block_time` is the expected L2 timestamp the next batch should have,
+  see [block time information][g-block-time].
+- `next_epoch` may not be known yet, but would be the L1 block after `epoch` if available.
+- `batch_origin` is either `epoch` or `next_epoch`, depending on validation.
+
+Note that processing of a batch can be deferred until `batch.timestamp <= next_timestamp`,
+since `future` batches will have to be retained anyway.
+
+Rules, in validation order:
+
+- `batch.timestamp > next_timestamp` -> `future`: i.e. the batch must be ready to process.
+- `batch.timestamp < next_timestamp` -> `drop`: i.e. the batch must not be too old.
+- `batch.parent_hash != safe_l2_head.hash` -> `drop`: i.e. the parent hash must be equal to the L2 safe head block hash.
+- `batch.epoch_num + sequence_window_size < inclusion_block_number` -> `drop`: i.e. the batch must be included timely.
+- `batch.epoch_num < epoch.number` -> `drop`: i.e. the batch origin is not older than that of the L2 safe head.
+- `batch.epoch_num == epoch.number`: define `batch_origin` as `epoch`.
+- `batch.epoch_num == epoch.number+1`:
+  - If `next_epoch` is not known -> `undecided`:
+    i.e. a batch that changes the L1 origin cannot be processed until we have the L1 origin data.
+  - If known, then define `batch_origin` as `next_epoch`
+- `batch.epoch_num > epoch.number+1` -> `drop`: i.e. the L1 origin cannot change by more than one L1 block per L2 block.
+- `batch.epoch_hash != batch_origin.hash` -> `drop`: i.e. a batch must reference a canonical L1 origin,
+  to prevent batches from being replayed onto unexpected L1 chains.
+- `batch.timestamp > batch_origin.time + max_sequencer_drift` -> `drop`: i.e. a batch that does not adopt the next L1
+  within time will be dropped, in favor of an empty batch that can advance the L1 origin.
+- `batch.transactions`: `drop` if the `batch.transactions` list contains a transaction
+  that is invalid or derived by other means exclusively:
+  - any transaction that is empty (zero length byte string)
+  - any [deposited transactions][g-deposit-tx-type] (identified by the transaction type prefix byte)
+
+If no batch can be `accept`-ed, and the stage has completed buffering of all batches that can fully be read from the L1
+block at height `epoch.number + sequence_window_size`, and the `next_epoch` is available,
+then an empty batch can be derived with the following properties:
+
+- `parent_hash = safe_l2_head.hash`
+- `timestamp = next_timestamp`
+- `transactions` is empty, i.e. no sequencer transactions. Deposited transactions may be added in the next stage.
+- If `next_timestamp < next_epoch.time`: the current L1 origin is repeated, to preserve the L2 time invariant.
+  - `epoch_num = epoch.number`
+  - `epoch_hash = epoch.hash`
+- Otherwise,
+  - `epoch_num = next_epoch.number`
+  - `epoch_hash = next_epoch.hash`
 
 ### Payload Attributes Derivation
 
@@ -549,7 +653,7 @@ In particular, the following fields of the payload attributes are checked for eq
 If consolidation fails, the unsafe L2 head is reset to the safe L2 head.
 
 If the safe and unsafe L2 heads are identical (whether because of failed consolidation or not), we send the block to the
-execution engine to be converted into a proper L2 block, which becomes both the new L2 safe and unsafe heads.
+execution engine to be converted into a proper L2 block, which will become both the new L2 safe and unsafe head.
 
 Interaction with the execution engine via the execution engine API is detailed in the [Communication with the Execution
 Engine][exec-engine-comm] section.
@@ -574,10 +678,10 @@ which includes the additional `transactions` and `noTxPool` fields.
 
 ## Deriving the Transaction List
 
-For each such block, we start from a [sequencer batch][g-sequencer-batch] matching the target L2 block number. This
-could potentially be an empty auto-generated batch, if the L1 chain did not include a batch for the target L2 block
-number. [Remember][batch-format] the batch includes a [sequencing epoch][g-sequencing-epoch] number, an L2 timestamp,
-and a transaction list.
+For each L2 block to be created by the sequencer, we start from a [sequencer batch][g-sequencer-batch] matching the
+target L2 block number. This could potentially be an empty auto-generated batch, if the L1 chain did not include a batch
+for the target L2 block number. [Remember][batch-format] that the batch includes a [sequencing
+epoch][g-sequencing-epoch] number, an L2 timestamp, and a transaction list.
 
 This block is part of a [sequencing epoch][g-sequencing-epoch],
 whose number matches that of an L1 block (its *[L1 origin][g-l1-origin]*).
@@ -607,23 +711,13 @@ entries.
 After deriving the transaction list, the rollup node constructs a [`PayloadAttributesV1`][expanded-payload] as follows:
 
 - `timestamp` is set to the batch's timestamp.
-- `random` is set to the *random* `prev_randao` L1 block attribute.
-- `suggestedFeeRecipient` is set to an address determined by the system.
+- `random` is set to the `prev_randao` L1 block attribute.
+- `suggestedFeeRecipient` is set to an address determined by the sequencer.
 - `transactions` is the array of the derived transactions: deposited transactions and sequenced transactions, all
   encoded with [EIP-2718].
 - `noTxPool` is set to `true`, to use the exact above `transactions` list when constructing the block.
 
 [expanded-payload]: exec-engine.md#extended-payloadattributesv1
-
-> **TODO** specify Optimism mainnet fee recipient
-
-------------------------------------------------------------------------------------------------------------------------
-
-# WARNING: BELOW THIS LINE, THE SPEC HAS NOT BEEN REVIEWED AND MAY CONTAIN MISTAKES
-
-We still expect that the explanations here should be pretty useful.
-
-------------------------------------------------------------------------------------------------------------------------
 
 # Communication with the Execution Engine
 
@@ -635,80 +729,115 @@ the [safe L2 head][g-safe-l2-head] and the [unsafe L2 head][g-unsafe-l2-head] ar
 block consolidation][g-consolidation] failed or because no [unsafe L2 blocks][g-unsafe-l2-block] were known in the first
 place. This section explains how this happens.
 
-> **Note**: This only describes interaction with the execution engine in the context of L2 chain derivation from L1. The
+> **Note** This only describes interaction with the execution engine in the context of L2 chain derivation from L1. The
 > sequencer also interacts with the engine when it needs to create new L2 blocks using L2 transactions submitted by
 > users.
 
 Let:
 
-- `refL2` be the (hash of) the current [safe L2 head][g-unsafe-l2-head]
-- `finalizedRef` be the (hash of) the [finalized L2 head][g-finalized-l2-head]: the highest L2 block that can be fully
-  derived from *[finalized][finality]* L1 blocks — i.e. L1 blocks older than two L1 epochs (64 L1 [time
-  slots][g-time-slot]).
+- `safeL2Head` be a variable in the state of the execution engine, tracking the (hash of) the current [safe L2
+  head][g-safe-l2-head]
+- `unsafeL2Head` be a variable in the state of the execution engine, tracking the (hash of) the current [unsafe L2
+  head][g-unsafe-l2-head]
+- `finalizedL2Head` be a variable in the state of the execution engine, tracking the (hash of) the current [finalized L2
+  head][g-finalized-l2-head]
+  - This is not yet implemented, and currently always holds the zero hash — this does not prevent the pseudocode below
+      from working.
 - `payloadAttributes` be some previously derived [payload attributes][g-payload-attr] for the L2 block with number
-  `l2Number(refL2) + 1`
+  `l2Number(safeL2Head) + 1`
 
 [finality]: https://hackmd.io/@prysmaticlabs/finality
 
 Then we can apply the following pseudocode logic to update the state of both the rollup driver and execution engine:
 
 ```javascript
-// request a new execution payload
-forkChoiceState = {
-    headBlockHash: refL2,
-    safeBlockHash: refL2,
-    finalizedBlockHash: finalizedRef,
+
+
+fun makeL2Block(payloadAttributes) {
+
+    // request a new execution payload
+    forkChoiceState = {
+        headBlockHash: safeL2Head,
+        safeBlockHash: safeL2Head,
+        finalizedBlockHash: finalizedL2Head,
+    }
+
+    [status, payloadID, rpcErr] = engine_forkchoiceUpdatedV1(forkChoiceState, payloadAttributes)
+    if (rpcErr != null) return softError()
+    if (status != "VALID") return payloadError()
+
+    // retrieve and execute the execution payload
+    [executionPayload, rpcErr] = engine_getPayloadV1(payloadID)
+    if (rpcErr != null) return softError()
+
+    [status, rpcErr] = engine_newPayloadV1(executionPayload)
+    if (rpcErr != null) return softError()
+    if (status != "VALID") return payloadError()
+
+
+    newL2Head = executionPayload.blockHash
+
+    // update head to new refL2
+    forkChoiceState = {
+        headBlockHash: newL2Head,
+        safeBlockHash: newL2Head,
+        finalizedBlockHash: finalizedL2Head,
+    }
+    [status, payloadID, rpcErr] = engine_forkchoiceUpdatedV1(forkChoiceState, null)
+    if (rpcErr != null) return softError()
+    if (status != "SUCCESS") return payloadError()
+
+    return newL2Head
 }
-[status, payloadID, rpcErr] = engine_forkchoiceUpdatedV1(forkChoiceState, payloadAttributes)
-if (rpcErr != null) soft_error()
-if (status != "VALID") payload_error()
 
-// retrieve and execute the execution payload
-[executionPayload, rpcErr] = engine_getPayloadV1(payloadID)
-if (rpcErr != null) soft_error()
+result = softError()
 
-[status, rpcErr] = engine_newPayloadV1(executionPayload)
-if (rpcErr != null) soft_error()
-if (status != "VALID") payload_error()
-
-refL2 = l2Hash(executionPayload)
-
-// update head to new refL2
-forkChoiceState = {
-    headBlockHash: refL2,
-    safeBlockHash: refL2,
-    finalizedBlockHash: finalizedRef,
+while (isSoftError(result)) {
+    result = makeL2Block(payloadAttributes)
+    if (isPayloadError(result)) {
+        payloadAttributes = onlyDeposits(payloadAttributes)
+        result = makeL2Block(payloadAttributes)
+    }
+    if (isPayloadError(result)) {
+        panic("this should never happen")
+    }
 }
-[status, payloadID, rpcErr] = engine_forkchoiceUpdatedV1(forkChoiceState, null)
-if (rpcErr != null) soft_error()
-if (status != "SUCCESS") payload_error()
+
+if (!isError(result)) {
+    safeL2Head = result
+    unsafeL2Head = result
+}
 ```
+
+> **TODO** `finalizedL2Head` is not being changed yet, but can be set to point to a L2 block fully derived from data up
+> to a finalized L1 block.
 
 As should apparent from the assignations, within the `forkChoiceState` object, the properties have the following
 meaning:
 
 - `headBlockHash`: block hash of the last block of the L2 chain, according to the sequencer.
 - `safeBlockHash`: same as `headBlockHash`.
-- `finalizedBlockHash`: the hash of the L2 block that can be fully derived from finalized L1 data, making it impossible
-  to derive anything else.
+- `finalizedBlockHash`: the [finalized L2 head][g-finalized-l2-head].
 
 Error handling:
 
-- A `payload_error()` means the inputs were wrong, and the payload attributes should thus be dropped from the queue, and
-  not reattempted.
-- A `soft_error()` means that the interaction failed by chance, and should be reattempted.
-- If the function completes without error, the attributes were applied successfully,
-  and can be dropped from the queue while the tracked "safe head" is updated.
+- A value returned by `payloadError()` means the inputs were wrong.
+  - This could mean the sequencer included invalid transactions in the batch. **In this case, all transactions from the
+      batch should be dropped**. We assume this is the case, and modify the payload via `onlyDeposits` to only include
+      [deposited transactions][g-deposited], and retry.
+  - In the case of deposits, the [execution engine][g-exec-engine] will skip invalid transactions, so bad deposited
+      transactions should never cause a payload error.
+- A value returned by `softError()` means that the interaction failed by chance, and should be reattempted (this is the
+  purpose of the `while` loop in the pseudo-code).
 
-> **TODO** `finalizedRef` is not being changed yet, but can be set to point to a L2 block fully derived from data up to
-> a finalized L1 block.
+> **TODO** define "invalid transactions" properly, check the interpretation for the execution engine
 
 The following JSON-RPC methods are part of the [execution engine API][exec-engine]:
 
 [exec-engine]: exec-engine.md
 
 - [`engine_forkchoiceUpdatedV1`] — updates the forkchoice (i.e. the chain head) to `headBlockHash` if different, and
-  instructs the engine to start building an execution payload given payload attributes the second argument isn't `null`
+  instructs the engine to start building an execution payload if the payload attributes isn't `null`
 - [`engine_getPayloadV1`] — retrieves a previously requested execution payload
 - [`engine_newPayloadV1`] — executes an execution payload to create a block
 
@@ -719,6 +848,12 @@ The following JSON-RPC methods are part of the [execution engine API][exec-engin
 The execution payload is an object of type [`ExecutionPayloadV1`][eth-payload].
 
 [eth-payload]: https://github.com/ethereum/execution-apis/blob/main/src/engine/specification.md#executionpayloadv1
+
+------------------------------------------------------------------------------------------------------------------------
+
+# WARNING: BELOW THIS LINE, THE SPEC HAS NOT BEEN REVIEWED AND MAY CONTAIN MISTAKES
+
+We still expect that the explanations here should be pretty useful.
 
 ------------------------------------------------------------------------------------------------------------------------
 
@@ -790,7 +925,7 @@ The batch decoding stage is simply reset by resetting its L1 head to the payload
 
 ## Resetting Channel Buffering
 
-> **Note**: in this section, the term *next (L2) block* will refer to the block that will become the next L2 safe head.
+> **Note** in this section, the term *next (L2) block* will refer to the block that will become the next L2 safe head.
 
 > **TODO** The above can be changed in the case where we always reset the unsafe head to the safe head upon L1 re-org.
 > (See TODO above in "Resetting the Engine Queue")
@@ -804,7 +939,7 @@ In the worst case, decoding the batch for the next L2 block would require readin
 in a [batcher transaction][g-batcher-transaction] in `safeL2Head.l1Origin + 1` (second L1 block of the next L2 block's
 epoch sequencing window, assuming it is in the same epoch as `safeL2Head`).
 
-> **Note**: In reality, there are no checks or constraints preventing the batch from landing in `safeL2Head.l1Origin`.
+> **Note** In reality, there are no checks or constraints preventing the batch from landing in `safeL2Head.l1Origin`.
 > However this would be strange, because the next L2 block is built after the current L2 safe block, which requires
 > reading the deposits L1 attributes and deposits from `safeL2Head.l1Origin`. Still, a wonky or misbehaving sequencer
 > could post a batch for the L2 block `safeL2Head + 1` on L1 block `safeL2Head.1Origin`.
@@ -817,7 +952,7 @@ range.
 Therefore, to be safe, we can reset the L1 head of Channel Buffering to the oldest L1 block whose timestamp is higher
 than `safeL2Head.l1Origin.timestamp - CHANNEL_TIMEOUT`.
 
-> **Note**: The above is what the implementation currently does.
+> **Note** The above is what the implementation currently does.
 
 In reality it's only strictly necessary to reset the oldest L1 block whose timestamp is higher than the oldest
 `channel_id.timestamp` found in the batcher transaction that is not older than `safeL2Head.l1Origin.timestamp -

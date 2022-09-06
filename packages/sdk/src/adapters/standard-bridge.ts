@@ -16,9 +16,9 @@ import { predeploys } from '@eth-optimism/contracts'
 import { getContractInterface } from '@eth-optimism/contracts-bedrock'
 import { hexStringEquals } from '@eth-optimism/core-utils'
 
+import { CrossChainMessenger } from '../cross-chain-messenger'
 import {
   IBridgeAdapter,
-  ICrossChainMessenger,
   NumberLike,
   AddressLike,
   TokenBridgeMessage,
@@ -30,7 +30,7 @@ import { toAddress } from '../utils'
  * Bridge adapter for any token bridge that uses the standard token bridge interface.
  */
 export class StandardBridgeAdapter implements IBridgeAdapter {
-  public messenger: ICrossChainMessenger
+  public messenger: CrossChainMessenger
   public l1Bridge: Contract
   public l2Bridge: Contract
 
@@ -43,7 +43,7 @@ export class StandardBridgeAdapter implements IBridgeAdapter {
    * @param opts.l2Bridge L2 bridge contract.
    */
   constructor(opts: {
-    messenger: ICrossChainMessenger
+    messenger: CrossChainMessenger
     l1Bridge: AddressLike
     l2Bridge: AddressLike
   }) {
@@ -184,8 +184,12 @@ export class StandardBridgeAdapter implements IBridgeAdapter {
       return true
     } catch (err) {
       // If the L2 token is not an L2StandardERC20, it may throw an error. If there's a call
-      // exception then we assume that the token is not supported. Other errors are thrown.
-      if (err.message.toString().includes('CALL_EXCEPTION')) {
+      // exception then we assume that the token is not supported. Other errors are thrown. Since
+      // the JSON-RPC API is not well-specified, we need to handle multiple possible error codes.
+      if (
+        err.message.toString().includes('CALL_EXCEPTION') ||
+        err.stack.toString().includes('execution reverted')
+      ) {
         return false
       } else {
         throw err
