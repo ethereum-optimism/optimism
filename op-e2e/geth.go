@@ -8,6 +8,8 @@ import (
 	"math/big"
 	"time"
 
+	"github.com/ethereum/go-ethereum/cmd/utils"
+
 	rollupEth "github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/accounts/keystore"
@@ -215,6 +217,10 @@ func createGethNode(l2 bool, nodeCfg *node.Config, ethCfg *ethconfig.Config, pri
 		return nil, nil, err
 
 	}
+
+	// PR 25459 changed this to only default in CLI, but not in default programmatic RPC selection.
+	// PR 25642 fixed it for the mobile version only...
+	utils.RegisterFilterAPI(n, backend.APIBackend, ethCfg)
 
 	n.RegisterAPIs(tracers.APIs(backend.APIBackend))
 
