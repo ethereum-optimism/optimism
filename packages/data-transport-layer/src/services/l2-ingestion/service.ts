@@ -311,17 +311,25 @@ export class L2IngestionService extends BaseService<L2IngestionServiceOptions> {
 
         end()
 
-        result = respJson.result
-        if (result === null) {
+        if (Array.isArray(respJson.result)) {
+          result = respJson.result
+        } else {
           retry++
           this.logger.info(
             `request for block range [${startBlockNumber},${endBlockNumber}) returned null, retry ${retry}`
           )
-          await sleep(1000 * retry)
+          await sleep(5000 * retry)
         }
       }
 
       blocks = result
+    }
+
+    // We should be protected against this by the check above, but might as well guard here just in case.
+    if (!Array.isArray(blocks)) {
+      throw new Error(
+        `should not happen: eth_getBlockRange returned non-array result`
+      )
     }
 
     for (const block of blocks) {
