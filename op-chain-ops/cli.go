@@ -353,13 +353,11 @@ func Migrate(dataDir, outDir string, genesis *core.Genesis, addrLists, allowance
 	}
 	log.Info("committed trie DB")
 
-	// Now that the state is dumped, insert the genesis block. We pass in a nil
-	// database here because we don't want to update the state again with the
-	// pre-allocs.
+	// Now that the state is dumped, insert the genesis block.
 	//
 	// Unlike regular Geth (which panics if you try to import a genesis state with a nonzero
 	// block number), the block number can be anything.
-	block := genesis.ToBlock(nil)
+	block := genesis.ToBlock()
 
 	// Geth block headers are immutable, so swap the root and make a new block with the
 	// updated root.
@@ -373,7 +371,7 @@ func Migrate(dataDir, outDir string, genesis *core.Genesis, addrLists, allowance
 
 	// Write the genesis state to the database. This is taken verbatim from Geth's
 	// core.Genesis struct.
-	rawdb.WriteGenesisState(outDB, block.Hash(), blob)
+	rawdb.WriteGenesisStateSpec(outDB, block.Hash(), blob)
 	rawdb.WriteTd(outDB, block.Hash(), block.NumberU64(), block.Difficulty())
 	rawdb.WriteBlock(outDB, block)
 	rawdb.WriteReceipts(outDB, block.Hash(), block.NumberU64(), nil)
